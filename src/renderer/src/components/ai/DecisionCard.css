@@ -1,10 +1,13 @@
 /**
  * DecisionCard 决策卡片样式 - 苹果极简风格
+ * 含风险等级色带、置信度仪表盘、命令代码块
  */
 
 .decision-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
+  /* 左侧 4px 风险等级色带（颜色由内联 style 设置） */
+  border-left: 4px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
@@ -45,11 +48,11 @@
   color: var(--color-text-secondary);
 }
 
-/* ===== 置信度仪表盘 ===== */
+/* ===== 置信度仪表盘（Recharts RadialBarChart） ===== */
 .confidence-gauge {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   flex-shrink: 0;
 }
 
@@ -58,8 +61,9 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
+  pointer-events: none;
 }
 
 /* ===== 区块 ===== */
@@ -77,28 +81,40 @@
   gap: 6px;
 }
 
-.decision-card-copy-icon {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
-
-.decision-card-copy-icon:hover {
-  color: var(--color-link);
-}
-
 .decision-card-section-content {
   font-size: 13px;
   color: var(--color-text-primary);
   line-height: 1.5;
 }
 
-/* ===== 命令展示 ===== */
+/* ===== 命令代码块（带复制按钮） ===== */
+.decision-card-command-wrapper {
+  position: relative;
+}
+
+.decision-card-command-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+  z-index: 1;
+}
+
+.decision-card-command-wrapper:hover .decision-card-command-copy {
+  opacity: 1;
+}
+
+.decision-card-command-copy:hover {
+  color: var(--color-link) !important;
+}
+
 .decision-card-command {
   background: var(--color-terminal-bg);
   color: var(--color-terminal-text);
   padding: 10px 12px;
+  padding-right: 36px;
   border-radius: var(--radius-sm);
   font-family: 'Cascadia Code', 'Consolas', monospace;
   font-size: 12px;
@@ -109,7 +125,8 @@
   overflow-y: auto;
 }
 
-.decision-card-command.rollback {
+/* 回滚命令左侧警示色带 */
+.decision-card-command-wrapper.rollback .decision-card-command {
   border-left: 3px solid var(--color-warning);
 }
 

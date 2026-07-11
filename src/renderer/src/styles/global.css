@@ -76,6 +76,53 @@
 }
 
 /* ==========================================================================
+   暗黑主题变量覆盖 - 苹果暗黑风格
+   通过 [data-theme="dark"] 属性选择器生效
+   ========================================================================== */
+[data-theme='dark'] {
+  /* 主文字色 - 浅色，苹果暗黑模式标准文字色 */
+  --color-text-primary: #f5f5f7;
+  /* 次要文字色 - 中灰色 */
+  --color-text-secondary: #86868b;
+  /* 背景色 - 深色主背景 */
+  --color-bg-primary: #1d1d1f;
+  /* 卡片/面板背景 - 略浅于主背景 */
+  --color-bg-card: #2c2c2e;
+  /* 分割线色 - 深灰 */
+  --color-border: #3a3a3c;
+  /* 链接蓝 - 暗黑模式下更亮 */
+  --color-link: #0a84ff;
+  /* 链接蓝 hover 态 */
+  --color-link-hover: #409cff;
+
+  /* 功能色保持不变（在暗黑背景下同样清晰） */
+  --color-success: #34c759;
+  --color-warning: #ff9500;
+  --color-error: #ff453a;
+  --color-info: #0a84ff;
+
+  /* 风险等级色（暗黑模式微调） */
+  --color-risk-safe: #30d158;
+  --color-risk-low: #40c8e0;
+  --color-risk-medium: #ff9f0a;
+  --color-risk-high: #ff6b35;
+  --color-risk-critical: #ff453a;
+
+  /* 终端色 - 暗黑模式使用纯黑背景 */
+  --color-terminal-bg: #000000;
+  --color-terminal-text: #e8e8e8;
+}
+
+/* 暗黑模式滚动条适配 */
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #3a3a3c;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: #48484a;
+}
+
+/* ==========================================================================
    全局重置 - 苹果极简风格
    ========================================================================== */
 *,

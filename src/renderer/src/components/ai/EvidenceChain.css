@@ -37,6 +37,15 @@
   border-color: var(--color-link);
 }
 
+/* 未验证证据左侧色带 */
+.evidence-item.unverified {
+  border-left: 3px solid var(--color-error);
+}
+
+.evidence-item.verified {
+  border-left: 3px solid var(--color-success);
+}
+
 /* 证据头部 */
 .evidence-header {
   display: flex;
@@ -48,6 +57,20 @@
   font-size: 11px;
   color: var(--color-text-secondary);
   min-width: 16px;
+}
+
+/* 来源图标 */
+.evidence-source-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .evidence-source-tag {
@@ -62,20 +85,25 @@
   color: var(--color-text-primary);
 }
 
-.evidence-verified-icon {
-  color: var(--color-success);
-  font-size: 14px;
-}
-
-.evidence-unverified-icon {
-  color: var(--color-error);
-  font-size: 14px;
-}
-
-.evidence-confidence {
-  font-size: 12px;
-  font-weight: 600;
+/* Ground-Check 验证徽章 */
+.evidence-verify-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
+}
+
+.evidence-verify-badge.verified {
+  color: var(--color-success);
+  background: rgba(52, 199, 89, 0.1);
+}
+
+.evidence-verify-badge.unverified {
+  color: var(--color-error);
+  background: rgba(255, 59, 48, 0.1);
 }
 
 .evidence-expand-icon {
@@ -89,6 +117,19 @@
   font-size: 12px;
   color: var(--color-text-secondary);
   font-family: 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* 置信度进度条 */
+.evidence-confidence-bar {
+  margin-top: 8px;
+}
+
+.evidence-confidence-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
 }
 
 /* 展开后的详情 */

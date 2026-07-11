@@ -3,20 +3,25 @@
  *
  * 职责：
  * - 展示 DecisionCard 的 evidences 数组
- * - 每条证据显示：来源 / 内容 / 置信度
+ * - 每条证据显示：来源图标 / 来源标签 / 内容 / 置信度进度条
  * - 置信度颜色编码（绿色≥0.7 / 黄色≥0.5 / 红色<0.5）
- * - 证据可点击展开详情
- * - Ground-Check 状态标识（verified 未通过时标红）
+ * - 证据支持展开/收起详情
+ * - Ground-Check 验证状态可视化（✓ 已验证 / ⚠ 未验证）
  *
  * 苹果极简风格：细线条卡片，大量留白
  */
 import { useState } from 'react'
-import { Tag, Tooltip } from 'antd'
+import { Tag, Tooltip, Progress } from 'antd'
 import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   DownOutlined,
   UpOutlined,
+  FileTextOutlined,
+  BarChartOutlined,
+  CodeOutlined,
+  SettingOutlined,
+  BookOutlined,
 } from '@ant-design/icons'
 import type { Evidence, EvidenceSource } from '@shared/models'
 import './EvidenceChain.css'
@@ -45,6 +50,15 @@ const SOURCE_COLORS: Record<EvidenceSource, string> = {
   knowledge: 'purple',
 }
 
+/** 证据来源图标 */
+const SOURCE_ICONS: Record<EvidenceSource, React.ReactNode> = {
+  log: <FileTextOutlined />,
+  metric: <BarChartOutlined />,
+  command: <CodeOutlined />,
+  config: <SettingOutlined />,
+  knowledge: <BookOutlined />,
+}
+
 /**
  * 根据置信度获取颜色
  * - 绿色 ≥ 0.7
@@ -55,6 +69,13 @@ const getConfidenceColor = (confidence: number): string => {
   if (confidence >= 0.7) return '#34c759'
   if (confidence >= 0.5) return '#ff9500'
   return '#ff3b30'
+}
+
+/** 根据置信度获取进度条状态 */
+const getConfidenceStatus = (confidence: number): 'success' | 'normal' | 'exception' => {
+  if (confidence >= 0.7) return 'success'
+  if (confidence >= 0.5) return 'normal'
+  return 'exception'
 }
 
 /** EvidenceChain 证据链可视化 */
@@ -81,16 +102,24 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
       {evidences.map((evidence, index) => {
         const isExpanded = expandedId === evidence.id
         const confidenceColor = getConfidenceColor(evidence.confidence)
+        const confidencePercent = Math.round(evidence.confidence * 100)
         return (
           <div
             key={evidence.id}
-            className={`evidence-item ${isExpanded ? 'expanded' : ''}`}
+            className={`evidence-item ${isExpanded ? 'expanded' : ''} ${
+              evidence.verified ? 'verified' : 'unverified'
+            }`}
             onClick={() => toggleExpand(evidence.id)}
           >
             {/* 证据头部 */}
             <div className="evidence-header">
               {/* 序号 */}
               <span className="evidence-index">{index + 1}</span>
+
+              {/* 来源图标 */}
+              <span className="evidence-source-icon" title={SOURCE_LABELS[evidence.source]}>
+                {SOURCE_ICONS[evidence.source]}
+              </span>
 
               {/* 来源标签 */}
               <Tag color={SOURCE_COLORS[evidence.source]} className="evidence-source-tag">
@@ -104,20 +133,20 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
 
               {/* Ground-Check 状态 */}
               <Tooltip title={evidence.verified ? '已通过 Ground-Check' : '未通过 Ground-Check'}>
-                {evidence.verified ? (
-                  <CheckCircleOutlined className="evidence-verified-icon" />
-                ) : (
-                  <ExclamationCircleOutlined className="evidence-unverified-icon" />
-                )}
+                <span
+                  className={`evidence-verify-badge ${evidence.verified ? 'verified' : 'unverified'}`}
+                >
+                  {evidence.verified ? (
+                    <>
+                      <CheckCircleOutlined /> 已验证
+                    </>
+                  ) : (
+                    <>
+                      <ExclamationCircleOutlined /> 未验证
+                    </>
+                  )}
+                </span>
               </Tooltip>
-
-              {/* 置信度 */}
-              <span
-                className="evidence-confidence"
-                style={{ color: confidenceColor }}
-              >
-                {(evidence.confidence * 100).toFixed(0)}%
-              </span>
 
               {/* 展开/折叠图标 */}
               {isExpanded ? (
@@ -130,6 +159,23 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
             {/* 证据内容预览 */}
             <div className="evidence-content-preview text-ellipsis">
               {evidence.content}
+            </div>
+
+            {/* 置信度进度条 */}
+            <div className="evidence-confidence-bar">
+              <div className="evidence-confidence-label">
+                <span>置信度</span>
+                <span style={{ color: confidenceColor, fontWeight: 600 }}>
+                  {confidencePercent}%
+                </span>
+              </div>
+              <Progress
+                percent={confidencePercent}
+                size="small"
+                showInfo={false}
+                strokeColor={confidenceColor}
+                status={getConfidenceStatus(evidence.confidence)}
+              />
             </div>
 
             {/* 展开后的详情 */}
@@ -163,7 +209,7 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
                     className="evidence-detail-value"
                     style={{ color: evidence.verified ? '#34c759' : '#ff3b30' }}
                   >
-                    {evidence.verified ? '已验证' : '未验证'}
+                    {evidence.verified ? '✓ 已验证' : '⚠ 未验证'}
                   </span>
                 </div>
                 <div className="evidence-detail-row">

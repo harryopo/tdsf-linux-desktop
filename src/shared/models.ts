@@ -53,6 +53,21 @@ export interface CommandResult {
 /** SSH 连接状态 */
 export type SshConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
 
+/**
+ * 服务器凭证（敏感信息，加密存储）
+ *
+ * 通过 SafeStore 加密保存，不写入 electron-store 明文配置。
+ * key 格式：`server-cred-{serverId}`
+ */
+export interface ServerCredential {
+  /** 密码（authType='password' 时使用） */
+  password?: string
+  /** 私钥内容（authType='privateKey' 时使用） */
+  privateKey?: string
+  /** 私钥口令（可选） */
+  passphrase?: string
+}
+
 // ============================================================================
 // 监控相关类型
 // ============================================================================
@@ -119,6 +134,77 @@ export interface ChatMessage {
   name?: string
   /** 工具调用 ID */
   toolCallId?: string
+}
+
+/** LLM 流式响应的 token 块 */
+export interface LlmStreamChunk {
+  /** 本次增量文本 */
+  delta: string
+  /** 累计 token 数（可选，部分 API 不返回） */
+  totalTokens?: number
+}
+
+/** LLM 错误信息 */
+export interface LlmError {
+  /** 错误码（如 'NETWORK'、'TIMEOUT'、'AUTH'、'RATE_LIMIT'、'UNKNOWN'） */
+  code: string
+  /** 用户可读的错误信息（不包含 stack trace） */
+  message: string
+  /** 是否可重试 */
+  retryable: boolean
+}
+
+/** LLM 配置校验结果 */
+export interface LlmValidationResult {
+  /** 是否有效 */
+  valid: boolean
+  /** 错误信息列表（valid=false 时有值） */
+  errors: string[]
+}
+
+/**
+ * 系统环境上下文
+ *
+ * 用于 llm:chat-with-context 通道，将当前系统状态传递给 LLM。
+ * 由 SystemInfo（静态）+ MonitorData（动态）合并而成。
+ */
+export interface EnvironmentContext {
+  /** 主机名 */
+  hostname: string
+  /** 操作系统版本 */
+  os: string
+  /** 内核版本 */
+  kernel: string
+  /** CPU 型号 */
+  cpuModel: string
+  /** CPU 核心数 */
+  cpuCores: number
+  /** 总内存（字节） */
+  totalMemory: number
+  /** 总磁盘（字节） */
+  totalDisk: number
+  /** CPU 使用率（%） */
+  cpuUsage: number
+  /** 内存使用率（%） */
+  memoryUsage: number
+  /** 磁盘使用率（%） */
+  diskUsage: number
+  /** 系统运行时长（秒） */
+  uptime: number
+  /** 当前进程数 */
+  processCount: number
+  /** 系统负载（1分钟平均） */
+  loadAverage: number
+}
+
+/** 命令执行结果上下文（用于提示词构建） */
+export interface CommandExecutionContext {
+  /** 执行的命令 */
+  command: string
+  /** 命令输出 */
+  output: string
+  /** 退出码，0 表示成功 */
+  exitCode: number
 }
 
 // ============================================================================
@@ -296,6 +382,11 @@ export interface IpcChannelMap {
   'llm:chat': { args: [ChatMessage[]]; return: string }
   'llm:test': { args: [LlmConfig]; return: boolean }
   'llm:analyze': { args: [string, Evidence[]]; return: string }
+  'llm:validate': { args: [LlmConfig]; return: LlmValidationResult }
+  'llm:chat-with-context': {
+    args: [ChatMessage[], EnvironmentContext]
+    return: string
+  }
 
   // Agent 工作流
   'agent:start': { args: [string, string]; return: boolean }
@@ -306,6 +397,13 @@ export interface IpcChannelMap {
   'storage:saveApiKey': { args: [string, string]; return: boolean }
   'storage:getApiKey': { args: [string]; return: string | null }
   'storage:deleteApiKey': { args: [string]; return: boolean }
+
+  // 服务器列表管理
+  'server:list': { args: []; return: SshConfig[] }
+  'server:save': { args: [SshConfig[]]; return: boolean }
+  'server:export': { args: []; return: string }
+  'server:import': { args: [string]; return: SshConfig[] }
+  'server:delete-cred': { args: [string]; return: boolean }
 
   // 配置存储
   'config:get': { args: [string]; return: unknown }
@@ -328,6 +426,9 @@ export interface IpcChannelMap {
   'terminal:data': { args: [string, string]; return: void }
   'monitor:data': { args: [string, MonitorData]; return: void }
   'llm:token': { args: [string]; return: void }
+  'llm:chunk': { args: [LlmStreamChunk]; return: void }
+  'llm:done': { args: [string]; return: void }
+  'llm:error': { args: [LlmError]; return: void }
   'agent:step': { args: [AgentWorkflowState]; return: void }
 }
 

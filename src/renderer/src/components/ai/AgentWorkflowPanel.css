@@ -1,11 +1,12 @@
 /**
  * AgentWorkflowPanel 工作流可视化样式 - 苹果极简风格
+ * 适配 Ant Design Steps 组件
  */
 
 .agent-workflow {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* 空状态 */
@@ -18,125 +19,83 @@
   font-size: 12px;
 }
 
-/* 时间轴 */
-.agent-workflow-timeline {
-  display: flex;
-  align-items: center;
+/* Steps 容器 */
+.agent-workflow-steps {
   padding: 12px 8px;
-  gap: 0;
 }
 
-/* 步骤容器 */
-.agent-workflow-step-container {
-  display: flex;
-  align-items: center;
-  flex: 1;
-}
-
-/* 步骤节点 */
-.agent-workflow-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+/* 步骤标题（自定义渲染，用于支持 Popover 点击和等待动画） */
+.agent-workflow-step-title {
   cursor: pointer;
-  padding: 4px 8px;
+  font-size: 13px;
+  display: inline-block;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
   transition: background var(--transition-fast);
-  flex-shrink: 0;
 }
 
-.agent-workflow-step:hover {
+.agent-workflow-step-title:hover {
   background: var(--color-bg-primary);
 }
 
-/* 步骤图标圆圈 */
-.agent-workflow-step-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--color-bg-primary);
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  transition: all var(--transition-fast);
-  border: 1.5px solid var(--color-border);
-}
-
-/* 步骤标签 */
-.agent-workflow-step-label {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-/* ===== 各状态样式 ===== */
-
-/* 已完成 */
-.agent-workflow-step.completed .agent-workflow-step-icon {
-  background: var(--color-success);
-  border-color: var(--color-success);
-  color: #fff;
-}
-
-.agent-workflow-step.completed .agent-workflow-step-label {
-  color: var(--color-text-primary);
-}
-
-/* 当前步骤 */
-.agent-workflow-step.current .agent-workflow-step-icon {
-  background: var(--color-link);
-  border-color: var(--color-link);
-  color: #fff;
-  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
-}
-
-.agent-workflow-step.current .agent-workflow-step-label {
-  color: var(--color-link);
-  font-weight: 600;
-}
-
-/* 等待确认 - 闪烁动画 */
-.agent-workflow-step.waiting .agent-workflow-step-icon {
-  background: var(--color-warning);
-  border-color: var(--color-warning);
-  color: #fff;
-  animation: pulse-blink 1.2s ease-in-out infinite;
-}
-
-.agent-workflow-step.waiting .agent-workflow-step-label {
+/* 等待确认 - 脉冲动画 */
+.agent-workflow-step-title.waiting {
   color: var(--color-warning);
   font-weight: 600;
+  animation: pulse-glow 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse-blink {
+@keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.4);
+    background: rgba(255, 149, 0, 0.08);
+    box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.3);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(255, 149, 0, 0);
+    background: rgba(255, 149, 0, 0.15);
+    box-shadow: 0 0 0 4px rgba(255, 149, 0, 0);
   }
 }
 
-/* 待执行 */
-.agent-workflow-step.pending .agent-workflow-step-icon {
-  opacity: 0.5;
+/* 错误状态标题 */
+.agent-workflow-step-title.error {
+  color: var(--color-error);
+  font-weight: 600;
 }
 
-/* 连接线 */
-.agent-workflow-connector {
-  flex: 1;
-  height: 1.5px;
-  background: var(--color-border);
-  margin: 0 4px;
-  margin-bottom: 18px;
-  transition: background var(--transition-fast);
+/* 步骤描述 */
+.agent-workflow-step-desc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  cursor: default;
 }
 
-.agent-workflow-connector.completed {
+/* ===== Ant Design Steps 微调 ===== */
+.agent-workflow-steps .ant-steps-item-finish .ant-steps-item-icon {
   background: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.agent-workflow-steps .ant-steps-item-finish .ant-steps-item-icon .ant-steps-icon {
+  color: #fff;
+}
+
+.agent-workflow-steps .ant-steps-item-process .ant-steps-item-icon {
+  background: var(--color-link);
+  border-color: var(--color-link);
+}
+
+.agent-workflow-steps .ant-steps-item-error .ant-steps-item-icon {
+  background: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.agent-workflow-steps .ant-steps-item-error .ant-steps-item-icon .ant-steps-icon {
+  color: #fff;
+}
+
+/* 已完成步骤的连接线使用绿色 */
+.agent-workflow-steps .ant-steps-item-finish > .ant-steps-item-container > .ant-steps-item-tail::after {
+  background-color: var(--color-success);
 }
 
 /* 详情弹窗 */
@@ -162,10 +121,24 @@
 
 /* 错误信息 */
 .agent-workflow-error {
+  display: flex;
+  align-items: center;
   padding: 8px 12px;
   background: rgba(255, 59, 48, 0.08);
   border: 1px solid rgba(255, 59, 48, 0.2);
   border-radius: var(--radius-sm);
   color: var(--color-error);
+  font-size: 12px;
+}
+
+/* 等待确认提示 */
+.agent-workflow-waiting-hint {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 149, 0, 0.08);
+  border: 1px solid rgba(255, 149, 0, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
   font-size: 12px;
 }
