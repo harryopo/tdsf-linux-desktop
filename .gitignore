@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Nuitka
+*.bin
+*.exe
+*.build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application data
+.tdsf-desktop/
+*.log
+
+# Secrets
+.env
+*.key
+*.pem
