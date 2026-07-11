@@ -27,6 +27,12 @@ import type {
   SystemInfo,
   MonitorData,
   AgentWorkflowState,
+  ChatMessage,
+  LlmConfig,
+  LlmValidationResult,
+  EnvironmentContext,
+  LlmStreamChunk,
+  LlmError,
 } from '@shared/models'
 
 // ============================================================================
@@ -157,6 +163,56 @@ const config = {
     ipcRenderer.invoke('config:set', key, value),
 }
 
+/**
+ * LLM 相关 invoke 调用
+ */
+const llm = {
+  /** 普通对话（流式推送 token，返回完整文本） */
+  chat: (messages: ChatMessage[]): Promise<string> =>
+    ipcRenderer.invoke('llm:chat', messages),
+
+  /** 测试连接 */
+  test: (config: LlmConfig): Promise<boolean> =>
+    ipcRenderer.invoke('llm:test', config),
+
+  /** 分析问题（内置降级，返回 JSON 字符串） */
+  analyze: (problem: string, evidences: unknown[]): Promise<string> =>
+    ipcRenderer.invoke('llm:analyze', problem, evidences),
+
+  /** 校验 LLM 配置是否有效（不发起网络请求） */
+  validate: (config: LlmConfig): Promise<LlmValidationResult> =>
+    ipcRenderer.invoke('llm:validate', config),
+
+  /** 带系统环境上下文的对话 */
+  chatWithContext: (messages: ChatMessage[], envCtx: EnvironmentContext): Promise<string> =>
+    ipcRenderer.invoke('llm:chat-with-context', messages, envCtx),
+}
+
+/**
+ * 服务器列表管理 invoke 调用
+ */
+const server = {
+  /** 加载服务器列表（敏感信息从 safeStorage 解密） */
+  list: (): Promise<SshConfig[]> =>
+    ipcRenderer.invoke('server:list'),
+
+  /** 保存服务器列表（敏感信息加密存储） */
+  save: (servers: SshConfig[]): Promise<boolean> =>
+    ipcRenderer.invoke('server:save', servers),
+
+  /** 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
+  export: (): Promise<string> =>
+    ipcRenderer.invoke('server:export'),
+
+  /** 导入服务器列表（生成新 ID，敏感信息留空） */
+  import: (json: string): Promise<SshConfig[]> =>
+    ipcRenderer.invoke('server:import', json),
+
+  /** 删除服务器凭证 */
+  deleteCred: (serverId: string): Promise<boolean> =>
+    ipcRenderer.invoke('server:delete-cred', serverId),
+}
+
 // ============================================================================
 // 事件监听封装（主 → 渲染，单向推送）
 // ============================================================================
@@ -206,9 +262,21 @@ const on = {
     callback: (sessionId: string, data: MonitorData) => void
   ): (() => void) => createListener('monitor:data', callback),
 
-  /** 监听 LLM 流式 token 推送 */
+  /** 监听 LLM 流式 token 推送（兼容旧版） */
   llmToken: (callback: (token: string) => void): (() => void) =>
     createListener('llm:token', callback),
+
+  /** 监听 LLM 流式 token 块推送（增强版，含 totalTokens） */
+  llmChunk: (callback: (chunk: LlmStreamChunk) => void): (() => void) =>
+    createListener('llm:chunk', callback),
+
+  /** 监听 LLM 流式完成信号（含完整文本） */
+  llmDone: (callback: (fullText: string) => void): (() => void) =>
+    createListener('llm:done', callback),
+
+  /** 监听 LLM 流式错误信号（含错误码/消息/是否可重试） */
+  llmError: (callback: (error: LlmError) => void): (() => void) =>
+    createListener('llm:error', callback),
 
   /** 监听 Agent 工作流步骤变更 */
   agentStep: (
@@ -232,6 +300,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   monitor,
   storage,
   config,
+  llm,
+  server,
   on,
 })
 
@@ -242,5 +312,7 @@ export type ElectronAPI = {
   monitor: typeof monitor
   storage: typeof storage
   config: typeof config
+  llm: typeof llm
+  server: typeof server
   on: typeof on
 }

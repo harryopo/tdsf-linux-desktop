@@ -31,8 +31,11 @@ import {
   EditOutlined,
   SaveOutlined,
   ThunderboltOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from '@ant-design/icons'
 import { useSettingsStore, type RiskRule, type AssetTag } from '../../stores/settings-store'
+import { useThemeStore } from '../../stores/theme-store'
 import type { RiskLevel, SshAuthType } from '@shared/models'
 
 /** 风险等级选项 */
@@ -43,6 +46,61 @@ const RISK_LEVEL_OPTIONS: Array<{ value: RiskLevel; label: string; color: string
   { value: 'HIGH', label: '高风险', color: 'red' },
   { value: 'CRITICAL', label: '极高风险', color: 'magenta' },
 ]
+
+// ============================================================================
+// 外观主题区块
+// ============================================================================
+
+/** 外观主题区块 - 亮色/暗黑主题切换 */
+export const AppearanceSection: React.FC = () => {
+  const theme = useThemeStore((s) => s.theme)
+  const toggleTheme = useThemeStore((s) => s.toggleTheme)
+  const setTheme = useThemeStore((s) => s.setTheme)
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section-header">
+        <h3>外观</h3>
+      </div>
+      <div className="settings-appearance-row">
+        <div className="settings-appearance-label">
+          <span className="settings-appearance-icon">
+            {theme === 'dark' ? <MoonOutlined /> : <SunOutlined />}
+          </span>
+          <div>
+            <div className="settings-appearance-title">主题模式</div>
+            <div className="settings-appearance-desc">
+              当前：{theme === 'dark' ? '暗黑模式' : '亮色模式'}
+            </div>
+          </div>
+        </div>
+        <Switch
+          checked={theme === 'dark'}
+          onChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+          checkedChildren={<MoonOutlined />}
+          unCheckedChildren={<SunOutlined />}
+        />
+      </div>
+      <div className="settings-appearance-actions">
+        <Button
+          type={theme === 'light' ? 'primary' : 'default'}
+          icon={<SunOutlined />}
+          onClick={() => setTheme('light')}
+        >
+          亮色
+        </Button>
+        <Button
+          type={theme === 'dark' ? 'primary' : 'default'}
+          icon={<MoonOutlined />}
+          onClick={() => setTheme('dark')}
+        >
+          暗黑
+        </Button>
+        <Button onClick={toggleTheme}>切换</Button>
+      </div>
+    </div>
+  )
+}
 
 // ============================================================================
 // LLM 配置区块

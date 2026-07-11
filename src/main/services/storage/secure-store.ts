@@ -17,15 +17,78 @@
 
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
+import type { ServerCredential } from '@shared/models'
 
-/** electron-store 实例（专门用于存储加密后的密钥） */
-const store = new Store<{ apiKeys?: Record<string, string> }>({
+/**
+ * electron-store 实例（专门用于存储加密后的敏感数据）
+ *
+ * 存储两类数据：
+ * - apiKeys: LLM 服务商的 API Key（base64 密文）
+ * - serverCreds: SSH 服务器凭证（整个 credential 对象序列化为 JSON 后加密为 base64）
+ */
+const store = new Store<{
+  apiKeys?: Record<string, string>
+  serverCreds?: Record<string, string>
+}>({
   name: 'secure-storage',
   defaults: {
     apiKeys: {},
+    serverCreds: {},
   },
-  // electron-store 配置文件位于 userData 目录下
 })
+
+/** safeStorage 不可用时的警告缓存（避免重复打日志） */
+let safeStorageUnavailableWarned = false
+
+/**
+ * 检查 safeStorage 是否可用，不可用时输出警告并降级
+ *
+ * 降级策略：safeStorage 不可用时（如 Linux 缺少 libsecret），
+ * 仍然将数据存入 electron-store（明文），但输出警告日志。
+ * 这样保证功能可用，但安全性降低（仅本地开发环境建议）。
+ *
+ * @returns true 表示加密可用 / 已确认降级
+ */
+function ensureStorageAvailable(): boolean {
+  if (safeStorage.isEncryptionAvailable()) {
+    return true
+  }
+  if (!safeStorageUnavailableWarned) {
+    console.warn(
+      '[SecureStore] safeStorage 加密不可用（可能缺少 libsecret/Keychain），' +
+      '敏感信息将以明文存储，建议在生产环境启用系统加密后端'
+    )
+    safeStorageUnavailableWarned = true
+  }
+  return false
+}
+
+/**
+ * 加密字符串（safeStorage 不可用时降级为明文 base64）
+ * @param plain 明文
+ * @returns base64 字符串（加密或明文）
+ */
+function encryptString(plain: string): string {
+  if (safeStorage.isEncryptionAvailable()) {
+    return safeStorage.encryptString(plain).toString('base64')
+  }
+  // 降级：明文转 base64（仅作占位，非真正加密）
+  return Buffer.from(plain, 'utf-8').toString('base64')
+}
+
+/**
+ * 解密字符串（safeStorage 不可用时降级为明文 base64 解码）
+ * @param base64 base64 字符串
+ * @returns 明文
+ */
+function decryptString(base64: string): string {
+  if (safeStorage.isEncryptionAvailable()) {
+    const buffer = Buffer.from(base64, 'base64')
+    return safeStorage.decryptString(buffer)
+  }
+  // 降级：base64 解码
+  return Buffer.from(base64, 'base64').toString('utf-8')
+}
 
 /**
  * 安全存储管理器（单例风格，所有方法为静态方法）
@@ -50,27 +113,16 @@ export class SecureStore {
   }
 
   /**
-   * 保存 API Key（加密后存储）
-   *
-   * 流程：
-   * 1. 检查 safeStorage 是否可用
-   * 2. 用 safeStorage.encryptString 加密明文 → Buffer
-   * 3. 把 Buffer 转 base64 字符串
-   * 4. 写入 electron-store
+   * 保存 API Key（加密后存储，safeStorage 不可用时降级为明文 base64）
    *
    * @param provider 服务商标识（如 'openai'、'anthropic'、'deepseek'）
    * @param key API Key 明文
-   * @returns 是否成功（加密不可用时返回 false）
+   * @returns 是否成功
    */
   public static saveApiKey(provider: string, key: string): boolean {
-    if (!this.isEncryptionAvailable()) {
-      return false
-    }
     try {
-      // 加密 API Key
-      const encrypted = safeStorage.encryptString(key)
-      // Buffer 转 base64 字符串存储
-      const base64 = encrypted.toString('base64')
+      ensureStorageAvailable()
+      const base64 = encryptString(key)
       const apiKeys = store.get('apiKeys', {}) as Record<string, string>
       apiKeys[provider] = base64
       store.set('apiKeys', apiKeys)
@@ -83,28 +135,17 @@ export class SecureStore {
   /**
    * 获取 API Key（解密后返回）
    *
-   * 流程：
-   * 1. 从 electron-store 读取 base64 密文
-   * 2. 转 Buffer
-   * 3. 用 safeStorage.decryptString 解密
-   *
    * @param provider 服务商标识
    * @returns API Key 明文，不存在或解密失败返回 null
    */
   public static getApiKey(provider: string): string | null {
-    if (!this.isEncryptionAvailable()) {
-      return null
-    }
     try {
       const apiKeys = store.get('apiKeys', {}) as Record<string, string>
       const base64 = apiKeys[provider]
       if (!base64) {
         return null
       }
-      // base64 → Buffer → 解密
-      const buffer = Buffer.from(base64, 'base64')
-      const plain = safeStorage.decryptString(buffer)
-      return plain
+      return decryptString(base64)
     } catch {
       return null
     }
@@ -139,6 +180,74 @@ export class SecureStore {
       return Object.keys(apiKeys)
     } catch {
       return []
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 服务器凭证（SSH 密码/私钥/口令）加密存储
+  // ------------------------------------------------------------------
+
+  /**
+   * 保存服务器凭证（加密后存储）
+   *
+   * 将 ServerCredential 序列化为 JSON，再用 safeStorage 加密。
+   * key 格式：`server-cred-{serverId}`
+   *
+   * @param serverId 服务器唯一标识
+   * @param credential 服务器凭证（password/privateKey/passphrase）
+   * @returns 是否成功
+   */
+  public static saveServerCredential(serverId: string, credential: ServerCredential): boolean {
+    try {
+      ensureStorageAvailable()
+      const json = JSON.stringify(credential)
+      const base64 = encryptString(json)
+      const creds = store.get('serverCreds', {}) as Record<string, string>
+      creds[serverId] = base64
+      store.set('serverCreds', creds)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 加载服务器凭证（解密后返回）
+   *
+   * @param serverId 服务器唯一标识
+   * @returns 服务器凭证，不存在或解密失败返回 null
+   */
+  public static loadServerCredential(serverId: string): ServerCredential | null {
+    try {
+      const creds = store.get('serverCreds', {}) as Record<string, string>
+      const base64 = creds[serverId]
+      if (!base64) {
+        return null
+      }
+      const json = decryptString(base64)
+      const obj = JSON.parse(json) as ServerCredential
+      return obj
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 删除服务器凭证
+   * @param serverId 服务器唯一标识
+   * @returns 是否成功（不存在也返回 true）
+   */
+  public static deleteServerCredential(serverId: string): boolean {
+    try {
+      const creds = store.get('serverCreds', {}) as Record<string, string>
+      if (!(serverId in creds)) {
+        return true
+      }
+      delete creds[serverId]
+      store.set('serverCreds', creds)
+      return true
+    } catch {
+      return false
     }
   }
 }

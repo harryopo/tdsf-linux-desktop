@@ -18,14 +18,21 @@ import {
   SafetyOutlined,
   TagsOutlined,
   InfoCircleOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons'
-import { LlmConfigSection, SshConfigSection, RiskRulesSection, AssetTagsSection } from './SettingsSections'
+import {
+  LlmConfigSection,
+  SshConfigSection,
+  RiskRulesSection,
+  AssetTagsSection,
+  AppearanceSection,
+} from './SettingsSections'
 import './SettingsPage.css'
 
 const { Text, Paragraph } = Typography
 
 /** 设置页 Tab 项类型 */
-type SettingsTab = 'llm' | 'ssh' | 'risk' | 'tags' | 'about'
+type SettingsTab = 'appearance' | 'llm' | 'ssh' | 'risk' | 'tags' | 'about'
 
 /** AboutSection 关于区块 */
 const AboutSection: React.FC = () => (
@@ -61,7 +68,7 @@ const AboutSection: React.FC = () => (
 /** SettingsPage 设置页面 */
 const SettingsPage: React.FC = () => {
   /** 当前激活的 Tab */
-  const [activeTab, setActiveTab] = useState<SettingsTab>('llm')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance')
 
   return (
     <div className="settings-page">
@@ -71,6 +78,16 @@ const SettingsPage: React.FC = () => {
         tabPosition="left"
         className="settings-tabs"
         items={[
+          {
+            key: 'appearance',
+            label: (
+              <span className="settings-tab-label">
+                <BgColorsOutlined />
+                <span>外观</span>
+              </span>
+            ),
+            children: <AppearanceSection />,
+          },
           {
             key: 'llm',
             label: (

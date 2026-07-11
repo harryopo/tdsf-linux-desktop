@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { LlmConfig, Evidence } from '../../src/shared/models'
+import type { LlmConfig, Evidence, EnvironmentContext } from '../../src/shared/models'
 
 // ────────── Mock OpenAI SDK ──────────
 
@@ -282,7 +282,199 @@ describe('LlmClient — LLM 客户端', () => {
     expect(tokens).toEqual(['你', '好', '！'])
     expect(fullText).toBe('你好！')
   })
+
+  // ────────── validateConfig ──────────
+
+  it('validateConfig: 有效配置返回 valid=true', () => {
+    const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
+    const result = client.validateConfig()
+    expect(result.valid).toBe(true)
+    expect(result.errors).toHaveLength(0)
+  })
+
+  it('validateConfig: API Key 为空时返回错误', () => {
+    const client = new LlmClient(makeConfig({ apiKey: '' }))
+    const result = client.validateConfig()
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('API Key 不能为空')
+  })
+
+  it('validateConfig: Base URL 为空时返回错误', () => {
+    const client = new LlmClient(makeConfig({ baseUrl: '' }))
+    const result = client.validateConfig()
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('Base URL 不能为空')
+  })
+
+  it('validateConfig: Base URL 格式无效时返回错误', () => {
+    const client = new LlmClient(makeConfig({ baseUrl: 'not-a-url' }))
+    const result = client.validateConfig()
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('Base URL 格式无效')
+  })
+
+  it('validateConfig: 模型名称为空时返回错误', () => {
+    const client = new LlmClient(makeConfig({ model: '' }))
+    const result = client.validateConfig()
+    expect(result.valid).toBe(false)
+    expect(result.errors).toContain('模型名称不能为空')
+  })
+
+  it('validateConfig: temperature 超范围时返回错误', () => {
+    const client = new LlmClient(makeConfig({ temperature: 3 }))
+    const result = client.validateConfig()
+    expect(result.valid).toBe(false)
+    expect(result.errors.some((e) => e.includes('temperature'))).toBe(true)
+  })
+
+  // ────────── chatWithContext ──────────
+
+  it('chatWithContext: API Key 为空时抛出错误', async () => {
+    const client = new LlmClient(makeConfig({ apiKey: '' }))
+    await expect(
+      client.chatWithContext([{ role: 'user', content: 'hi' }], makeEnvContext())
+    ).rejects.toThrow('LLM 不可用')
+  })
+
+  it('chatWithContext: 将环境上下文注入 system message', async () => {
+    mockCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: '磁盘使用率偏高' } }]
+    })
+
+    const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
+    const reply = await client.chatWithContext(
+      [{ role: 'user', content: '系统状态如何' }],
+      makeEnvContext({ diskUsage: 95 })
+    )
+
+    expect(reply).toBe('磁盘使用率偏高')
+    // 验证 system message 包含环境上下文
+    const callArgs = mockCreate.mock.calls[0][0]
+    expect(callArgs.messages[0].role).toBe('system')
+    expect(callArgs.messages[0].content).toContain('当前系统环境')
+    expect(callArgs.messages[0].content).toContain('95.0%')
+  })
+
+  // ────────── analyze 降级标注 ──────────
+
+  it('analyze: LLM 调用失败时降级到规则引擎并标注错误信息', async () => {
+    mockCreate.mockRejectedValueOnce(new Error('Network error'))
+
+    const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
+    const evidences = [makeEvidence({ content: 'out of memory' })]
+    const result = await client.analyze('OOM', evidences)
+
+    // 应回降到规则引擎
+    expect(result.hypothesis).toContain('内存')
+    // 应标注 LLM 调用失败
+    expect(result.hypothesis).toContain('LLM 调用失败')
+    // 置信度应被降低（<=0.3）
+    expect(result.confidence).toBeLessThanOrEqual(0.3)
+  })
+
+  // ────────── chatStream 重试 ──────────
+
+  it('chatStream: 不可重试错误（401）不重试，直接抛出', async () => {
+    mockCreate.mockRejectedValueOnce(new Error('401 Unauthorized: invalid api key'))
+
+    const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
+    await expect(
+      client.chatStream([{ role: 'user', content: 'hi' }], () => {})
+    ).rejects.toThrow('LLM 流式调用失败')
+    // 只调用 1 次（不重试）
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('chatStream: 网络错误时自动重试并最终成功', async () => {
+    vi.useFakeTimers()
+    try {
+      // 第一次失败（网络错误），第二次成功
+      mockCreate
+        .mockRejectedValueOnce(new Error('fetch failed: network error'))
+        .mockResolvedValueOnce(asyncIterable([{ choices: [{ delta: { content: 'ok' } }] }]))
+
+      const client = new LlmClient(makeConfig({ apiKey: 'valid-key', timeout: 60_000 }))
+      const promise = client.chatStream(
+        [{ role: 'user', content: 'hi' }],
+        () => {}
+      )
+      // 立即附加 handler 防止 unhandled rejection 警告（万一重试也失败）
+      const settled = promise.then(
+        (text: string) => ({ ok: true as const, text }),
+        (e: Error) => ({ ok: false as const, err: e })
+      )
+
+      // 推进重试延迟（1s）及可能的中断 timer
+      await vi.advanceTimersByTimeAsync(2000)
+      await vi.runAllTimersAsync()
+
+      const result = await settled
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.text).toBe('ok')
+      }
+      expect(mockCreate).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('chatStream: 持续失败重试 3 次后抛出', async () => {
+    vi.useFakeTimers()
+    try {
+      // 明确指定 4 次 reject（初始 + 3 次重试）
+      const err = new Error('fetch failed: network error')
+      mockCreate
+        .mockRejectedValueOnce(err)
+        .mockRejectedValueOnce(err)
+        .mockRejectedValueOnce(err)
+        .mockRejectedValueOnce(err)
+
+      const client = new LlmClient(makeConfig({ apiKey: 'valid-key', timeout: 60_000 }))
+      const promise = client.chatStream(
+        [{ role: 'user', content: 'hi' }],
+        () => {}
+      )
+      // 立即附加 catch handler 防止 unhandled rejection 警告
+      // （reject 发生在 advanceTimers 期间，若不立即 catch 会触发 Node 警告）
+      const caughtPromise = promise.catch((e: Error) => e)
+
+      // 推进所有重试延迟（1s + 2s + 4s = 7s）及中断 timer
+      await vi.advanceTimersByTimeAsync(10000)
+      await vi.runAllTimersAsync()
+
+      const thrown = await caughtPromise
+      expect(thrown).toBeInstanceOf(Error)
+      expect(thrown.message).toContain('LLM 流式调用失败')
+      // 初始 + 3 次重试 = 4 次
+      expect(mockCreate).toHaveBeenCalledTimes(4)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
+
+// ────────── 环境上下文辅助 ──────────
+
+/** 创建测试用环境上下文 */
+function makeEnvContext(overrides: Partial<EnvironmentContext> = {}): EnvironmentContext {
+  return {
+    hostname: 'test-host',
+    os: 'Ubuntu 22.04',
+    kernel: '5.15.0',
+    cpuModel: 'Intel i7',
+    cpuCores: 8,
+    totalMemory: 16 * 1024 * 1024 * 1024,
+    totalDisk: 500 * 1024 * 1024 * 1024,
+    cpuUsage: 30,
+    memoryUsage: 50,
+    diskUsage: 60,
+    uptime: 3600,
+    processCount: 100,
+    loadAverage: 1.5,
+    ...overrides
+  }
+}
 
 // ────────── 辅助函数 ──────────
 

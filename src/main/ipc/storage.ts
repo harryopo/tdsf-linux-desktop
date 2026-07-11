@@ -4,6 +4,7 @@
  * 注册安全存储和配置存储相关的 IPC 通道：
  * - storage:saveApiKey / storage:getApiKey / storage:deleteApiKey
  * - config:get / config:set
+ * - server:list / server:save / server:export / server:import / server:delete-cred
  *
  * 这些通道不涉及 mainWindow 推送，全部是请求-响应模式。
  */
@@ -11,6 +12,7 @@
 import { ipcMain } from 'electron'
 import { SecureStore } from '../services/storage/secure-store'
 import { ConfigStore } from '../services/storage/config-store'
+import type { SshConfig } from '@shared/models'
 
 /**
  * 注册存储相关 IPC handlers
@@ -54,4 +56,39 @@ export function registerStorageIpcHandlers(): void {
   ipcMain.handle('config:set', async (_event, key: string, value: unknown) => {
     return ConfigStore.set(key, value)
   })
+
+  // ------------------------------------------------------------------
+  // 服务器列表管理（敏感信息加密存储）
+  // ------------------------------------------------------------------
+
+  /** server:list — 加载服务器列表（敏感信息从 safeStorage 解密） */
+  ipcMain.handle('server:list', async () => {
+    return ConfigStore.loadServerList()
+  })
+
+  /** server:save — 保存服务器列表（敏感信息加密存储） */
+  ipcMain.handle('server:save', async (_event, servers: SshConfig[]) => {
+    return ConfigStore.saveServerList(servers)
+  })
+
+  /** server:export — 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
+  ipcMain.handle('server:export', async () => {
+    return ConfigStore.exportServerList()
+  })
+
+  /** server:import — 导入服务器列表（生成新 ID，敏感信息留空） */
+  ipcMain.handle('server:import', async (_event, json: string) => {
+    try {
+      return ConfigStore.importServerList(json)
+    } catch (err) {
+      // 抛出用户可读的错误信息（不泄露 stack trace）
+      throw new Error((err as Error).message)
+    }
+  })
+
+  /** server:delete-cred — 删除服务器凭证 */
+  ipcMain.handle('server:delete-cred', async (_event, serverId: string) => {
+    return SecureStore.deleteServerCredential(serverId)
+  })
 }
+

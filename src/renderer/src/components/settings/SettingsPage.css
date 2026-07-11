@@ -111,3 +111,51 @@
   min-width: 80px;
   flex-shrink: 0;
 }
+
+/* ===== 外观主题区块 ===== */
+.settings-appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  max-width: 480px;
+}
+
+.settings-appearance-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-appearance-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-bg-primary);
+  color: var(--color-link);
+  font-size: 18px;
+}
+
+.settings-appearance-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.settings-appearance-desc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.settings-appearance-actions {
+  display: flex;
+  gap: 8px;
+  max-width: 480px;
+}

@@ -3,16 +3,17 @@
  *
  * 职责：
  * - 展示：问题 / 根因 / 证据链 / 置信度 / 风险 / 修复命令
- * - 置信度仪表盘（SVG 圆形进度条）
- * - 风险等级标签（颜色编码）
- * - 修复命令展示 + 一键执行按钮
- * - 回滚命令展示
+ * - 风险等级色带（左侧 4px 彩色条）
+ * - 置信度仪表盘（Recharts RadialBarChart 圆形进度）
+ * - 修复命令展示 + 复制按钮
+ * - 回滚命令展示 + 复制按钮
+ * - 执行 / 拒绝 / 修改 三个操作按钮
  * - 状态流转：pending → approved → executed → verified
  *
  * 苹果极简风格：
  * - 细线条卡片，大量留白
- * - 圆形进度条用 SVG 实现，无第三方依赖
- * - 命令使用黑色背景代码块展示
+ * - 左侧风险色带强化视觉层次
+ * - 命令使用终端背景色代码块展示
  */
 import { useState, useCallback } from 'react'
 import { Button, Tag, Tooltip, Collapse, message } from 'antd'
@@ -24,7 +25,10 @@ import {
   CloseCircleOutlined,
   ExclamationCircleOutlined,
   CopyOutlined,
+  EditOutlined,
+  CloseOutlined,
 } from '@ant-design/icons'
+import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts'
 import EvidenceChain from './EvidenceChain'
 import RiskConfirm from './RiskConfirm'
 import type { DecisionCard as DecisionCardType, RiskLevel } from '@shared/models'
@@ -42,6 +46,8 @@ interface DecisionCardProps {
   onApprove?: (card: DecisionCardType) => void
   /** 拒绝决策回调 */
   onReject?: (card: DecisionCardType) => void
+  /** 修改决策回调（触发编辑模式） */
+  onModify?: (card: DecisionCardType) => void
 }
 
 /** 风险等级配置 */
@@ -66,43 +72,58 @@ const STATUS_CONFIG: Record<
   failed: { label: '执行失败', color: '#ff3b30', icon: <ExclamationCircleOutlined /> },
 }
 
-/** 置信度仪表盘（SVG 圆形进度条） */
+/** 置信度仪表盘（Recharts RadialBarChart 圆形进度） */
 const ConfidenceGauge: React.FC<{ value: number }> = ({ value }) => {
-  const radius = 28
-  const circumference = 2 * Math.PI * radius
-  const offset = circumference * (1 - value)
+  const percent = Math.round(value * 100)
   const color = value >= 0.7 ? '#34c759' : value >= 0.5 ? '#ff9500' : '#ff3b30'
+  /** RadialBarChart 数据 */
+  const data = [{ name: 'confidence', value: percent, fill: color }]
 
   return (
     <div className="confidence-gauge">
-      <svg width="64" height="64" viewBox="0 0 64 64">
-        {/* 背景圆环 */}
-        <circle
-          cx="32"
-          cy="32"
-          r={radius}
-          fill="none"
-          stroke="#e5e5e7"
-          strokeWidth="4"
-        />
-        {/* 进度圆环 */}
-        <circle
-          cx="32"
-          cy="32"
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="4"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform="rotate(-90 32 32)"
-          style={{ transition: 'stroke-dashoffset 0.5s ease' }}
-        />
-      </svg>
+      <ResponsiveContainer width="100%" height="100%">
+        <RadialBarChart
+          cx="50%"
+          cy="50%"
+          innerRadius="70%"
+          outerRadius="100%"
+          barSize={8}
+          data={data}
+          startAngle={90}
+          endAngle={90 - 360 * (percent / 100)}
+        >
+          <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+          <RadialBar background={{ fill: 'var(--color-border)' }} dataKey="value" cornerRadius={4} />
+        </RadialBarChart>
+      </ResponsiveContainer>
       <div className="confidence-gauge-text" style={{ color }}>
-        {(value * 100).toFixed(0)}%
+        {percent}%
       </div>
+    </div>
+  )
+}
+
+/** 命令代码块（带复制按钮） */
+const CommandBlock: React.FC<{
+  command: string
+  variant?: 'fix' | 'rollback'
+  onCopy: (command: string) => void
+}> = ({ command, variant = 'fix', onCopy }) => {
+  return (
+    <div className={`decision-card-command-wrapper ${variant}`}>
+      <Tooltip title="复制命令">
+        <Button
+          type="text"
+          size="small"
+          icon={<CopyOutlined />}
+          className="decision-card-command-copy"
+          onClick={(e) => {
+            e.stopPropagation()
+            onCopy(command)
+          }}
+        />
+      </Tooltip>
+      <pre className="decision-card-command">{command}</pre>
     </div>
   )
 }
@@ -114,6 +135,7 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
   onRollback,
   onApprove,
   onReject,
+  onModify,
 }) => {
   /** 风险确认对话框是否打开 */
   const [riskConfirmOpen, setRiskConfirmOpen] = useState(false)
@@ -155,10 +177,14 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
   /** 是否可以批准 */
   const canApprove = card.status === 'pending'
   /** 是否可以回滚 */
-  const canRollback = card.status === 'executed' || card.status === 'verified' || card.status === 'failed'
+  const canRollback =
+    card.status === 'executed' || card.status === 'verified' || card.status === 'failed'
 
   return (
-    <div className="decision-card">
+    <div
+      className="decision-card"
+      style={{ borderLeftColor: riskConfig.color, borderLeftWidth: 4 }}
+    >
       {/* ===== 头部：问题 + 状态 + 置信度 ===== */}
       <div className="decision-card-header">
         <div className="decision-card-header-left">
@@ -190,31 +216,19 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
 
       {/* ===== 修复命令 ===== */}
       <div className="decision-card-section">
-        <div className="decision-card-section-label">
-          修复命令
-          <Tooltip title="复制命令">
-            <CopyOutlined
-              className="decision-card-copy-icon"
-              onClick={() => handleCopy(card.fixCommand)}
-            />
-          </Tooltip>
-        </div>
-        <pre className="decision-card-command">{card.fixCommand}</pre>
+        <div className="decision-card-section-label">修复命令</div>
+        <CommandBlock command={card.fixCommand} variant="fix" onCopy={handleCopy} />
       </div>
 
       {/* ===== 回滚命令 ===== */}
       {card.rollbackCommand && (
         <div className="decision-card-section">
-          <div className="decision-card-section-label">
-            回滚命令
-            <Tooltip title="复制命令">
-              <CopyOutlined
-                className="decision-card-copy-icon"
-                onClick={() => handleCopy(card.rollbackCommand!)}
-              />
-            </Tooltip>
-          </div>
-          <pre className="decision-card-command rollback">{card.rollbackCommand}</pre>
+          <div className="decision-card-section-label">回滚命令</div>
+          <CommandBlock
+            command={card.rollbackCommand}
+            variant="rollback"
+            onCopy={handleCopy}
+          />
         </div>
       )}
 
@@ -231,17 +245,32 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
         ]}
       />
 
-      {/* ===== 操作按钮 ===== */}
+      {/* ===== 操作按钮：执行 / 拒绝 / 修改 ===== */}
       <div className="decision-card-actions">
         {canApprove && (
           <>
-            <Button type="primary" onClick={() => onApprove?.(card)}>
-              批准
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={() => onApprove?.(card)}
+            >
+              批准执行
             </Button>
-            <Button onClick={() => onReject?.(card)}>拒绝</Button>
+            <Button
+              danger
+              icon={<CloseOutlined />}
+              onClick={() => onReject?.(card)}
+            >
+              拒绝
+            </Button>
+            {onModify && (
+              <Button icon={<EditOutlined />} onClick={() => onModify?.(card)}>
+                修改
+              </Button>
+            )}
           </>
         )}
-        {canExecute && (
+        {canExecute && !canApprove && (
           <Button
             type="primary"
             icon={<PlayCircleOutlined />}

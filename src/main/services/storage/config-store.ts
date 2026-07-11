@@ -14,6 +14,7 @@
  */
 
 import Store from 'electron-store'
+import { randomUUID } from 'crypto'
 import type { SshConfig, LlmConfig } from '@shared/models'
 import { SecureStore } from './secure-store'
 
@@ -224,5 +225,171 @@ export class ConfigStore {
     } catch {
       return false
     }
+  }
+
+  // ------------------------------------------------------------------
+  // 服务器列表管理（敏感信息加密存储）
+  // ------------------------------------------------------------------
+
+  /**
+   * 保存服务器列表
+   *
+   * 分离存储策略：
+   * - 非敏感信息（host/port/username/name/authType/privateKeyPath/keepAlive）
+   *   存入 electron-store（明文 JSON）
+   * - 敏感信息（password/privateKey/passphrase）存入 SecureStore（safeStorage 加密）
+   *
+   * @param servers SSH 服务器列表（可能包含明文敏感信息）
+   * @returns 是否成功
+   */
+  public static saveServerList(servers: SshConfig[]): boolean {
+    try {
+      // 非敏感信息存入 electron-store
+      const sanitized = servers.map((s) => {
+        const {
+          password,
+          privateKey,
+          passphrase,
+          ...rest
+        } = s
+        void password
+        void privateKey
+        void passphrase
+        return rest
+      })
+      store.set('sshServers', sanitized)
+
+      // 敏感信息存入 SecureStore 加密
+      for (const s of servers) {
+        const cred = {
+          password: s.password,
+          privateKey: s.privateKey,
+          passphrase: s.passphrase,
+        }
+        // 仅在存在敏感信息时保存（避免写入空凭证）
+        if (cred.password || cred.privateKey || cred.passphrase) {
+          SecureStore.saveServerCredential(s.id, cred)
+        }
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 加载服务器列表
+   *
+   * 从 electron-store 读取非敏感信息，从 SecureStore 解密敏感信息，合并返回。
+   *
+   * @returns 完整的 SSH 服务器列表（含解密后的敏感信息）
+   */
+  public static loadServerList(): SshConfig[] {
+    try {
+      const servers = store.get('sshServers', []) as SshConfig[]
+      if (!Array.isArray(servers)) {
+        return []
+      }
+      // 从 SecureStore 解密敏感信息并合并
+      return servers.map((s) => {
+        const cred = SecureStore.loadServerCredential(s.id)
+        if (cred) {
+          return {
+            ...s,
+            password: cred.password,
+            privateKey: cred.privateKey,
+            passphrase: cred.passphrase,
+          }
+        }
+        return s
+      })
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * 导出服务器列表为 JSON 字符串（脱敏）
+   *
+   * 导出时移除所有敏感信息（password/privateKey/passphrase），
+   * 只导出非敏感字段（id/name/host/port/username/authType/privateKeyPath/keepAlive）。
+   * 导出文件可安全分享。
+   *
+   * @returns 脱敏后的 JSON 字符串
+   */
+  public static exportServerList(): string {
+    const servers = store.get('sshServers', []) as SshConfig[]
+    const list = (Array.isArray(servers) ? servers : []).map((s) => {
+      const {
+        password,
+        privateKey,
+        passphrase,
+        ...rest
+      } = s
+      void password
+      void privateKey
+      void passphrase
+      return rest
+    })
+    return JSON.stringify(list, null, 2)
+  }
+
+  /**
+   * 导入服务器列表
+   *
+   * 校验 JSON 格式，为每个服务器生成新的 serverId（避免与现有冲突），
+   * 敏感信息留空（需要用户重新输入）。
+   *
+   * @param json JSON 字符串
+   * @returns 导入后的服务器列表（含新 ID，敏感信息为空）
+   */
+  public static importServerList(json: string): SshConfig[] {
+    // 校验 JSON 格式
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(json)
+    } catch {
+      throw new Error('JSON 格式无效')
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error('JSON 内容不是数组')
+    }
+
+    // 转换并生成新 ID
+    const existing = this.loadServerList()
+    const existingIds = new Set(existing.map((s) => s.id))
+    const imported: SshConfig[] = []
+    for (const item of parsed) {
+      const s = item as Partial<SshConfig>
+      // 基本字段校验
+      if (!s.host || !s.username) {
+        continue // 跳过无效条目
+      }
+      // 生成唯一 ID
+      let newId = randomUUID()
+      while (existingIds.has(newId)) {
+        newId = randomUUID()
+      }
+      existingIds.add(newId)
+      imported.push({
+        id: newId,
+        name: s.name ?? `${s.host}:${s.port ?? 22}`,
+        host: s.host,
+        port: s.port ?? 22,
+        username: s.username,
+        authType: s.authType ?? 'password',
+        privateKeyPath: s.privateKeyPath,
+        keepAlive: s.keepAlive,
+        // 敏感信息留空，需要用户重新输入
+        password: undefined,
+        privateKey: undefined,
+        passphrase: undefined,
+      })
+    }
+
+    // 合并到现有列表并保存
+    const merged = [...existing, ...imported]
+    this.saveServerList(merged)
+    return imported
   }
 }
