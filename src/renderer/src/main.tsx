@@ -19,6 +19,7 @@ import { ConfigProvider, theme as antdTheme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import App from './App'
 import { useThemeStore } from './stores/theme-store'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './styles/global.css'
 
 /** 亮色主题 token 配置 - 苹果极简风格 */
@@ -140,7 +141,9 @@ const Root: React.FC = () => {
 
   return (
     <ConfigProvider locale={zhCN} theme={{ algorithm, token, components: componentsConfig }}>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </ConfigProvider>
   )
 }

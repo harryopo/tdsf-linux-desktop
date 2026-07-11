@@ -20,6 +20,7 @@ import { Input, Button, Tooltip } from 'antd'
 import { SendOutlined, ClearOutlined, RobotOutlined } from '@ant-design/icons'
 import { useAIStore } from '../../stores/ai-store'
 import { useServerStore } from '../../stores/server-store'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import AgentWorkflowPanel from './AgentWorkflowPanel'
 import DecisionCard from './DecisionCard'
 import type { ChatMessage } from '@shared/models'
@@ -53,6 +54,12 @@ const ChatPanel: React.FC = () => {
   useEffect(() => {
     if (listenersRegistered.current) return
     listenersRegistered.current = true
+
+    // electronAPI 不可用时跳过事件监听注册
+    if (!isElectronAPIAvailable()) {
+      console.warn('[ChatPanel] electronAPI 不可用，跳过事件监听注册')
+      return
+    }
 
     // 监听 LLM 流式 token
     window.electronAPI.onLlmToken((token: string) => {
@@ -91,7 +98,21 @@ const ChatPanel: React.FC = () => {
 
     try {
       // 如果有活跃会话，使用 Agent 工作流；否则使用普通 LLM 对话
-      if (activeSessionId) {
+      if (!isElectronAPIAvailable()) {
+        useAIStore.setState((state) => {
+          const newMessages = [...state.messages]
+          for (let i = newMessages.length - 1; i >= 0; i--) {
+            if (newMessages[i].role === 'assistant') {
+              newMessages[i] = {
+                ...newMessages[i],
+                content: '⚠️ electronAPI 不可用，无法连接 AI 服务',
+              }
+              break
+            }
+          }
+          return { messages: newMessages }
+        })
+      } else if (activeSessionId) {
         await window.electronAPI.agentStart(activeSessionId, content)
       } else {
         const reply = await window.electronAPI.llmChat([...messages, userMessage])

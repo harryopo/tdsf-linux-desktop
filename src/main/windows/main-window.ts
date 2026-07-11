@@ -43,7 +43,7 @@ export function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       // preload 脚本（相对于编译后的 out/main 目录）
-      preload: path.join(__dirname, '../preload/index.mjs'),
+      preload: path.join(__dirname, '../preload/index.js'),
       // 启用 spellcheck 关闭（避免控制台拼写检查警告）
       spellcheck: false,
     },

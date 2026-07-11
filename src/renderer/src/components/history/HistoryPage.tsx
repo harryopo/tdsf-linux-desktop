@@ -22,6 +22,7 @@ import { Input, Select, Pagination, Modal, Spin, Empty, Tag, message } from 'ant
 import { SearchOutlined } from '@ant-design/icons'
 import DecisionCard from '../ai/DecisionCard'
 import type { DecisionCard as DecisionCardType, RiskLevel } from '@shared/models'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import './HistoryPage.css'
 
 /** 每页条数 */
@@ -76,6 +77,10 @@ const HistoryPage: React.FC = () => {
   // ===== 数据加载 =====
   /** 加载历史决策列表 */
   const loadDecisions = useCallback(async () => {
+    if (!isElectronAPIAvailable()) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const offset = (currentPage - 1) * PAGE_SIZE
@@ -122,6 +127,7 @@ const HistoryPage: React.FC = () => {
     setDetailOpen(true)
     setDetailCard(card)
     // 尝试获取最新详情
+    if (!isElectronAPIAvailable()) return
     try {
       const fresh = await window.electronAPI.historyGet(card.id)
       if (fresh) {

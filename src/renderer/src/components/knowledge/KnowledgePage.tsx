@@ -44,6 +44,7 @@ import {
   BugOutlined,
 } from '@ant-design/icons'
 import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import './KnowledgePage.css'
 
 const { Text } = Typography
@@ -84,6 +85,10 @@ const KnowledgePage: React.FC = () => {
   // ===== 数据加载 =====
   /** 加载知识条目 */
   const loadEntries = useCallback(async () => {
+    if (!isElectronAPIAvailable()) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const list = await window.electronAPI.kbSearch(searchKeyword, activeType, 100)
@@ -134,6 +139,10 @@ const KnowledgePage: React.FC = () => {
 
   /** 弹窗确认保存 */
   const handleModalOk = useCallback(async () => {
+    if (!isElectronAPIAvailable()) {
+      message.warning('Electron API 不可用')
+      return
+    }
     try {
       const values = await form.validateFields()
       /** 将文本域转换为数组 */
@@ -188,6 +197,7 @@ const KnowledgePage: React.FC = () => {
   /** 删除条目 */
   const handleDelete = useCallback(
     async (id: string) => {
+      if (!isElectronAPIAvailable()) return
       try {
         await window.electronAPI.kbDelete(id)
         message.success('已删除')
@@ -201,6 +211,10 @@ const KnowledgePage: React.FC = () => {
 
   /** 导出当前类型知识 */
   const handleExport = useCallback(async () => {
+    if (!isElectronAPIAvailable()) {
+      message.warning('Electron API 不可用')
+      return
+    }
     try {
       const list = await window.electronAPI.kbExport(activeType)
       const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' })
@@ -227,6 +241,10 @@ const KnowledgePage: React.FC = () => {
       try {
         const text = await file.text()
         const data = JSON.parse(text) as KnowledgeEntry[]
+        if (!isElectronAPIAvailable()) {
+          message.warning('Electron API 不可用')
+          return
+        }
         const count = await window.electronAPI.kbImport(data)
         message.success(`已导入 ${count} 条`)
         void loadEntries()

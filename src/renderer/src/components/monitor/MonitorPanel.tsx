@@ -16,6 +16,7 @@ import { Alert } from 'antd'
 import { WarningOutlined } from '@ant-design/icons'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import CpuChart from './CpuChart'
 import MemoryChart from './MemoryChart'
 import type { MonitorData, SystemInfo } from '@shared/models'
@@ -69,6 +70,7 @@ const MonitorPanel: React.FC = () => {
 
   /** 注册监控数据事件监听 */
   useEffect(() => {
+    if (!isElectronAPIAvailable()) return
     window.electronAPI.onMonitorData((sessionId: string, data: MonitorData) => {
       addMonitorData(sessionId, data)
     })
