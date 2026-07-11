@@ -1,0 +1,43 @@
+/**
+ * TerminalView 终端样式
+ */
+
+/* 终端容器 - 黑色背景 */
+.terminal-view {
+  width: 100%;
+  height: 100%;
+  background: var(--color-terminal-bg);
+  padding: 8px;
+  overflow: hidden;
+}
+
+.terminal-view.visible {
+  display: block;
+}
+
+.terminal-view.hidden {
+  display: none;
+}
+
+/* xterm.js 终端内部样式微调 */
+.terminal-view .xterm {
+  height: 100%;
+}
+
+.terminal-view .xterm-viewport {
+  background-color: var(--color-terminal-bg) !important;
+}
+
+/* 终端滚动条 */
+.terminal-view .xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.terminal-view .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.terminal-view .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

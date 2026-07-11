@@ -1,0 +1,206 @@
+/**
+ * 全局样式 - 苹果官网极简留白美学
+ *
+ * 设计理念：
+ * - 黑白配色为主，链接蓝点缀
+ * - 大量留白，信息呼吸感
+ * - 细线条分割（1px #e5e5e7），无阴影装饰
+ * - 8px 圆角，温和但不臃肿
+ * - 系统字体栈，原生体验
+ */
+
+/* ==========================================================================
+   CSS 变量定义 - 颜色体系
+   ========================================================================== */
+:root {
+  /* 主文字色 - 近黑色，苹果官网标准文字色 */
+  --color-text-primary: #1d1d1f;
+  /* 次要文字色 - 中灰色，用于描述、标签 */
+  --color-text-secondary: #86868b;
+  /* 背景色 - 浅灰色，苹果官网区块背景 */
+  --color-bg-primary: #f5f5f7;
+  /* 卡片/面板背景 - 纯白 */
+  --color-bg-card: #ffffff;
+  /* 分割线色 - 极浅灰，1px 线条分割 */
+  --color-border: #e5e5e7;
+  /* 链接蓝 - 苹果官网标准链接色 */
+  --color-link: #0071e3;
+  /* 链接蓝 hover 态 */
+  --color-link-hover: #0077ed;
+
+  /* 功能色 */
+  --color-success: #34c759;
+  --color-warning: #ff9500;
+  --color-error: #ff3b30;
+  --color-info: #0071e3;
+
+  /* 风险等级色 */
+  --color-risk-safe: #34c759;
+  --color-risk-low: #30b0c7;
+  --color-risk-medium: #ff9500;
+  --color-risk-high: #ff6b35;
+  --color-risk-critical: #ff3b30;
+
+  /* 终端色 - 黑色背景与极简UI形成对比 */
+  --color-terminal-bg: #1a1a1a;
+  --color-terminal-text: #e8e8e8;
+
+  /* 圆角 */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* 间距系统 - 8px 基准 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* 字体栈 - 苹果系统字体优先 */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* 字号 */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 28px;
+
+  /* 过渡 */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+}
+
+/* ==========================================================================
+   全局重置 - 苹果极简风格
+   ========================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 禁止文本选择（桌面应用体验） */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 允许输入框、文本域选择文本 */
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ==========================================================================
+   滚动条美化 - 苹果极简风格
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* ==========================================================================
+   通用工具类
+   ========================================================================== */
+
+/* 文字截断 */
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 苹果风格卡片 */
+.apple-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+/* 链接样式 */
+.apple-link {
+  color: var(--color-link);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.apple-link:hover {
+  color: var(--color-link-hover);
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   Ant Design 微调覆盖
+   ========================================================================== */
+
+/* Ant Design Modal 圆角 */
+.ant-modal-content {
+  border-radius: var(--radius-lg) !important;
+}
+
+/* Ant Design Input 聚焦边框使用链接蓝 */
+.ant-input:focus,
+.ant-input:focus-within,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper:focus-within {
+  border-color: var(--color-link) !important;
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.1) !important;
+}
+
+/* Ant Design Tabs 底部线条 */
+.ant-tabs-ink-bar {
+  background: var(--color-link) !important;
+}
+
+/* Ant Design Button 主按钮 */
+.ant-btn-primary {
+  background: var(--color-link) !important;
+  border-color: var(--color-link) !important;
+}
+
+.ant-btn-primary:hover {
+  background: var(--color-link-hover) !important;
+  border-color: var(--color-link-hover) !important;
+}
+
+/* Ant Design Tag 圆角 */
+.ant-tag {
+  border-radius: var(--radius-sm) !important;
+}

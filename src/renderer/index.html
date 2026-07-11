@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <!-- 字符编码：UTF-8，支持中文 -->
+    <meta charset="UTF-8" />
+    <!-- 视口设置：适配不同屏幕尺寸 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 禁止右键菜单（Electron 桌面应用安全策略） -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 页面标题 -->
+    <title>TDSF-Linux Desktop</title>
+  </head>
+  <body>
+    <!-- React 根挂载点 -->
+    <div id="root"></div>
+    <!-- 引入 React 入口脚本（electron-vite 会处理打包） -->
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
+</html>

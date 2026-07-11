@@ -1,0 +1,113 @@
+/**
+ * SettingsPage 设置页面样式
+ *
+ * 苹果极简风格：
+ * - 左侧垂直 Tab 导航
+ * - 右侧表单区域大量留白
+ * - 细线条分割，8px 圆角
+ */
+
+/* ===== 设置页容器 ===== */
+.settings-page {
+  height: 100%;
+  background-color: var(--color-bg-card);
+  overflow: auto;
+}
+
+/* ===== Tab 导航 ===== */
+.settings-tabs {
+  height: 100%;
+}
+
+.settings-tabs .ant-tabs-nav {
+  padding: 16px 8px;
+  min-width: 180px;
+}
+
+.settings-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.settings-tabs .ant-tabs-content {
+  padding: 24px 32px;
+  overflow-y: auto;
+}
+
+/* ===== 区块容器 ===== */
+.settings-section {
+  max-width: 640px;
+}
+
+.settings-section-header {
+  margin-bottom: 24px;
+}
+
+.settings-section-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.settings-section-toolbar {
+  margin-bottom: 16px;
+}
+
+/* ===== 表单 ===== */
+.settings-form {
+  max-width: 480px;
+}
+
+.settings-form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.settings-form-row .ant-form-item {
+  flex: 1;
+}
+
+/* ===== 内联表单 ===== */
+.settings-inline-form {
+  margin-bottom: 8px;
+}
+
+/* ===== 表格 ===== */
+.settings-table {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.settings-table .ant-table {
+  font-size: 13px;
+}
+
+/* ===== 标签列表 ===== */
+.settings-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ===== 关于信息 ===== */
+.settings-about-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-about-row {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.settings-about-row :first-child {
+  min-width: 80px;
+  flex-shrink: 0;
+}
