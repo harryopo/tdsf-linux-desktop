@@ -1,0 +1,32 @@
+{
+  "appId": "com.tdsf.linux-desktop",
+  "productName": "TDSF-Linux Desktop",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "out/**/*",
+    "package.json"
+  ],
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/@photostructure/sqlite-vec/**/*.{so,dylib,dll}",
+    "node_modules/ssh2/**/*"
+  ],
+  "win": {
+    "target": ["nsis"],
+    "icon": "resources/icon.png"
+  },
+  "mac": {
+    "target": ["dmg"],
+    "icon": "resources/icon.png"
+  },
+  "linux": {
+    "target": ["AppImage"],
+    "icon": "resources/icon.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

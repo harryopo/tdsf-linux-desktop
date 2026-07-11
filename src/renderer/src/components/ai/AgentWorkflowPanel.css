@@ -1,0 +1,171 @@
+/**
+ * AgentWorkflowPanel 工作流可视化样式 - 苹果极简风格
+ */
+
+.agent-workflow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 空状态 */
+.agent-workflow-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+/* 时间轴 */
+.agent-workflow-timeline {
+  display: flex;
+  align-items: center;
+  padding: 12px 8px;
+  gap: 0;
+}
+
+/* 步骤容器 */
+.agent-workflow-step-container {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+/* 步骤节点 */
+.agent-workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.agent-workflow-step:hover {
+  background: var(--color-bg-primary);
+}
+
+/* 步骤图标圆圈 */
+.agent-workflow-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  transition: all var(--transition-fast);
+  border: 1.5px solid var(--color-border);
+}
+
+/* 步骤标签 */
+.agent-workflow-step-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* ===== 各状态样式 ===== */
+
+/* 已完成 */
+.agent-workflow-step.completed .agent-workflow-step-icon {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+
+.agent-workflow-step.completed .agent-workflow-step-label {
+  color: var(--color-text-primary);
+}
+
+/* 当前步骤 */
+.agent-workflow-step.current .agent-workflow-step-icon {
+  background: var(--color-link);
+  border-color: var(--color-link);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.agent-workflow-step.current .agent-workflow-step-label {
+  color: var(--color-link);
+  font-weight: 600;
+}
+
+/* 等待确认 - 闪烁动画 */
+.agent-workflow-step.waiting .agent-workflow-step-icon {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: #fff;
+  animation: pulse-blink 1.2s ease-in-out infinite;
+}
+
+.agent-workflow-step.waiting .agent-workflow-step-label {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+@keyframes pulse-blink {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 149, 0, 0);
+  }
+}
+
+/* 待执行 */
+.agent-workflow-step.pending .agent-workflow-step-icon {
+  opacity: 0.5;
+}
+
+/* 连接线 */
+.agent-workflow-connector {
+  flex: 1;
+  height: 1.5px;
+  background: var(--color-border);
+  margin: 0 4px;
+  margin-bottom: 18px;
+  transition: background var(--transition-fast);
+}
+
+.agent-workflow-connector.completed {
+  background: var(--color-success);
+}
+
+/* 详情弹窗 */
+.agent-workflow-detail {
+  max-width: 280px;
+}
+
+.agent-workflow-detail-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+}
+
+.agent-workflow-detail-content {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* 错误信息 */
+.agent-workflow-error {
+  padding: 8px 12px;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: 12px;
+}

@@ -1,63 +1,36 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Dependencies
+node_modules/
 
-# Virtual environments
-.venv/
-venv/
-env/
-ENV/
+# Build output
+out/
+dist/
+release/
 
 # IDE
 .idea/
 .vscode/
 *.swp
-*.swo
-
-# Pytest
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# Mypy
-.mypy_cache/
-
-# Ruff
-.ruff_cache/
-
-# Nuitka
-*.bin
-*.exe
-*.build/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Application data
-.tdsf-desktop/
+# Logs
 *.log
+npm-debug.log*
 
-# Secrets
+# Environment
 .env
-*.key
-*.pem
+.env.local
+
+# Legacy Python code (reference only)
+_legacy-python/__pycache__/
+_legacy-python/.mypy_cache/
+_legacy-python/.pytest_cache/
+_legacy-python/.ruff_cache/
+
+# Electron
+release/
+
+# Testing
+coverage/

@@ -1,0 +1,124 @@
+/**
+ * TerminalTabs 多标签终端样式 - 苹果极简风格
+ */
+
+.terminal-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ===== Tab 标签栏 ===== */
+.terminal-tabs-bar {
+  display: flex;
+  align-items: center;
+  background: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 8px;
+  min-height: 36px;
+}
+
+.terminal-tabs-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.terminal-tabs-list::-webkit-scrollbar {
+  height: 0;
+}
+
+/* Tab 项 */
+.terminal-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  max-width: 160px;
+  flex-shrink: 0;
+}
+
+.terminal-tab-item:hover {
+  background: var(--color-bg-primary);
+}
+
+.terminal-tab-item.active {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.terminal-tab-title {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.terminal-tab-item.active .terminal-tab-title {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+/* Tab 关闭按钮 */
+.terminal-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 10px;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.terminal-tab-close:hover {
+  background: var(--color-error);
+  color: #fff;
+}
+
+/* ===== 终端内容区 ===== */
+.terminal-tabs-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ===== 空状态 ===== */
+.terminal-tabs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-secondary);
+  gap: 16px;
+}
+
+.terminal-tabs-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-bg-primary);
+  font-size: 20px;
+  color: var(--color-text-secondary);
+}
+
+.terminal-tabs-empty p {
+  font-size: 13px;
+  margin: 0;
+}

@@ -1,0 +1,57 @@
+/**
+ * HomePage 主页样式
+ *
+ * 苹果极简风格：
+ * - Tab 栏细线条分割
+ * - 内容区充满剩余空间
+ * - 终端视图和监控视图切换时保留状态
+ */
+
+/* ===== 主页容器 ===== */
+.home-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-bg-primary);
+}
+
+/* ===== Tab 切换栏 ===== */
+.home-page-tabs {
+  padding: 0 16px;
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-bg-card);
+}
+
+/* Tab 标签样式 */
+.home-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+/* 覆盖 Ant Design Tabs 样式 */
+.home-page-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+
+.home-page-tabs .ant-tabs-tab {
+  padding: 10px 4px;
+}
+
+/* ===== 内容区 ===== */
+.home-page-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== 视图容器 ===== */
+.home-page-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
