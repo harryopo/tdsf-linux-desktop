@@ -27,6 +27,7 @@ import {
 import type { MenuProps } from 'antd'
 import { useServerStore } from '../../stores/server-store'
 import { useTerminalStore } from '../../stores/terminal-store'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import ConnectDialog from './ConnectDialog'
 import type { SshConfig, SshConnectionState } from '@shared/models'
 import './ServerList.css'
@@ -94,6 +95,10 @@ const ServerList: React.FC = () => {
   const handleConnect = useCallback(
     async (server: SshConfig) => {
       if (connecting) return
+      if (!isElectronAPIAvailable()) {
+        message.error('electronAPI 不可用，无法连接服务器')
+        return
+      }
       setConnecting(server.id)
       setConnectionState(server.id, 'connecting')
       try {
@@ -140,6 +145,10 @@ const ServerList: React.FC = () => {
     async (server: SshConfig) => {
       const sessionId = useServerStore.getState().sessionMap[server.id]
       if (!sessionId) return
+      if (!isElectronAPIAvailable()) {
+        message.error('electronAPI 不可用，无法断开连接')
+        return
+      }
       try {
         await window.electronAPI.monitorStop(sessionId)
         await window.electronAPI.sshDisconnect(sessionId)

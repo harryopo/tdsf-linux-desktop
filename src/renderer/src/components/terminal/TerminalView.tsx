@@ -20,6 +20,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import './TerminalView.css'
 
 /** TerminalView 组件 Props */
@@ -123,28 +124,33 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
 
     // ===== 4. 用户输入 → 发送到 SSH Shell =====
     const inputDisposable = terminal.onData((data: string) => {
+      if (!isElectronAPIAvailable()) return
       window.electronAPI.sshShellWrite(sessionId, data).catch((error: unknown) => {
         console.error('[TerminalView] 发送输入失败:', error)
       })
     })
 
     // ===== 5. 监听 terminal:data 事件（SSH 输出 → 终端） =====
-    window.electronAPI.onTerminalData((recvSessionId: string, data: string) => {
-      if (recvSessionId === sessionId) {
-        terminal.write(data)
-      }
-    })
+    if (isElectronAPIAvailable()) {
+      window.electronAPI.onTerminalData((recvSessionId: string, data: string) => {
+        if (recvSessionId === sessionId) {
+          terminal.write(data)
+        }
+      })
+    }
 
     // ===== 6. 尺寸变化 → fit + 通知主进程 =====
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit()
         // 通知主进程终端尺寸变化
-        window.electronAPI
-          .sshShellResize(sessionId, terminal.cols, terminal.rows)
-          .catch(() => {
-            // 忽略 resize 错误
-          })
+        if (isElectronAPIAvailable()) {
+          window.electronAPI
+            .sshShellResize(sessionId, terminal.cols, terminal.rows)
+            .catch(() => {
+              // 忽略 resize 错误
+            })
+        }
       } catch {
         // 容器可能已卸载
       }

@@ -14,6 +14,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LlmConfig, SshConfig, RiskLevel } from '@shared/models'
+import { isElectronAPIAvailable } from '../utils/electron-api'
 
 /** 风险规则条目 */
 export interface RiskRule {
@@ -189,6 +190,11 @@ export const useSettingsStore = create<SettingsState>()(
       // 从主进程加载设置
       loadSettings: async () => {
         try {
+          // preload 未加载时，仅使用 localStorage 持久化数据
+          if (!isElectronAPIAvailable()) {
+            console.warn('[SettingsStore] electronAPI 不可用，跳过从主进程加载')
+            return
+          }
           const { configGet, storageGetApiKey } = window.electronAPI
           // 并行加载配置
           const [llmConfig, sshDefaults, sshTimeout, riskRules, assetTags, apiKey] =
@@ -223,6 +229,11 @@ export const useSettingsStore = create<SettingsState>()(
       // 保存设置到主进程
       saveSettings: async () => {
         try {
+          // preload 未加载时，仅使用 localStorage 持久化数据
+          if (!isElectronAPIAvailable()) {
+            console.warn('[SettingsStore] electronAPI 不可用，跳过保存到主进程')
+            return
+          }
           const { configSet, storageSaveApiKey } = window.electronAPI
           const { llmConfig, sshDefaults, sshTimeout, riskRules, assetTags } = get()
 
