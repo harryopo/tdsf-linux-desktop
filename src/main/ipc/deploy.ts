@@ -30,7 +30,7 @@ const service = new DeployService()
  */
 export function registerDeployIpcHandlers(mainWindow: BrowserWindow): void {
   /** deploy:listTemplates — 列出所有模板 */
-  ipcMain.handle('deploy:listTemplates', () => {
+  ipcMain.handle(DEPLOY.LIST_TEMPLATES, () => {
     try {
       return service.listTemplates()
     } catch (err) {
@@ -39,7 +39,7 @@ export function registerDeployIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   /** deploy:getTemplate — 按 ID 获取模板 */
-  ipcMain.handle('deploy:getTemplate', (_event, id: string) => {
+  ipcMain.handle(DEPLOY.GET_TEMPLATE, (_event, id: string) => {
     try {
       if (!id || typeof id !== 'string') {
         throw new Error('id 无效')
@@ -99,7 +99,7 @@ export function registerDeployIpcHandlers(mainWindow: BrowserWindow): void {
   )
 
   /** deploy:cancel — 取消执行 */
-  ipcMain.handle('deploy:cancel', (_event, planId: string) => {
+  ipcMain.handle(DEPLOY.CANCEL, (_event, planId: string) => {
     try {
       return service.cancel(planId)
     } catch (err) {

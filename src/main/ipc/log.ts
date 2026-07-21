@@ -35,7 +35,7 @@ export function registerLogIpcHandlers(): void {
   )
 
   /** log:stats — 获取统计信息 */
-  ipcMain.handle('log:stats', () => {
+  ipcMain.handle(LOG.STATS, () => {
     return logger.getStats()
   })
 
@@ -46,7 +46,7 @@ export function registerLogIpcHandlers(): void {
   })
 
   /** log:setMinLevel — 调整最低日志级别 */
-  ipcMain.handle('log:setMinLevel', (_event, level: LogLevel) => {
+  ipcMain.handle(LOG.SET_MIN_LEVEL, (_event, level: LogLevel) => {
     const validLevels: LogLevel[] = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
     if (!validLevels.includes(level)) {
       throw new Error(`Invalid log level: ${level}`)
@@ -56,7 +56,7 @@ export function registerLogIpcHandlers(): void {
   })
 
   /** log:flush — 异步刷新待写入日志 */
-  ipcMain.handle('log:flush', async () => {
+  ipcMain.handle(LOG.FLUSH, async () => {
     await logger.flush()
     return true
   })

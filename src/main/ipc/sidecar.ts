@@ -50,7 +50,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   // sidecar:start — 启动 Sidecar-A 进程（向后兼容 v1.0）
   // ------------------------------------------------------------------
-  ipcMain.handle('sidecar:start', async (): Promise<{ ok: boolean; status: string; error?: string }> => {
+  ipcMain.handle(SIDECAR.START, async (): Promise<{ ok: boolean; status: string; error?: string }> => {
     logger.info('IPC.Sidecar', '用户请求启动 Sidecar-A')
     try {
       await manager.start()
@@ -66,7 +66,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   // sidecar:stop — 停止 Sidecar 进程（向后兼容 v1.0，停止全部）
   // ------------------------------------------------------------------
-  ipcMain.handle('sidecar:stop', async (): Promise<{ ok: boolean }> => {
+  ipcMain.handle(SIDECAR.STOP, async (): Promise<{ ok: boolean }> => {
     logger.info('IPC.Sidecar', '用户请求停止所有 Sidecar')
     try {
       await shutdownSidecarManager()
@@ -87,7 +87,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   // sidecar:health — 主动健康检查（调用 Sidecar-A /health 端点）
   // ------------------------------------------------------------------
-  ipcMain.handle('sidecar:health', async () => {
+  ipcMain.handle(SIDECAR.HEALTH, async () => {
     try {
       return { ok: true, ...(await manager.health()) }
     } catch (err) {
@@ -134,7 +134,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   // sidecar:list-status — 列出所有 sidecar 状态（A/B/C）
   // ------------------------------------------------------------------
-  ipcMain.handle('sidecar:list-status', async () => {
+  ipcMain.handle(SIDECAR.LIST_STATUS, async () => {
     try {
       const statuses = getAllSidecarStatuses()
       // 合并 SIDECAR_CONFIGS 中的元数据（name/port）
