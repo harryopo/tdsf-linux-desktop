@@ -16,7 +16,7 @@
  */
 import { useState } from 'react'
 import {
-  AlertTriangle, ChevronDown, Shield, Trash2, Check,
+  AlertTriangle, ChevronDown, Shield, Trash2, Check, X,
 } from 'lucide-react'
 
 /** 危险等级 */
@@ -100,13 +100,23 @@ function renderSegments(segments: CmdSegment[]) {
 
 /**
  * EvidenceList 组件
+ *
+ * 交互入口（spec §B data-dom-id）：
+ * - toggle-danger-panel: 展开/收起按钮
+ * - close-danger-panel: 关闭整个面板按钮
+ * - clear-danger-list: 清空列表按钮
  */
 export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [cleared, setCleared] = useState(false)
+  const [closed, setClosed] = useState(false)
 
   const highCmds = commands.filter((c) => c.level === 'high')
   const midCmds = commands.filter((c) => c.level === 'mid')
+
+  if (closed) {
+    return null
+  }
 
   return (
     <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
@@ -122,17 +132,31 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
             全部已拦截
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
-          className="flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-1 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
-          aria-label="展开或收起"
-        >
-          <span>展开/收起</span>
-          <ChevronDown
-            className={`h-3.5 w-3.5 text-[var(--trae-text-secondary)] transition-transform ${expanded ? '' : 'rotate-180'}`}
-          />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            data-dom-id="toggle-danger-panel"
+            onClick={() => setExpanded((e) => !e)}
+            className="flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-1 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+            aria-label="展开或收起拦截清单"
+            aria-expanded={expanded}
+          >
+            <span>展开/收起</span>
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-[var(--trae-text-secondary)] transition-transform ${expanded ? '' : 'rotate-180'}`}
+            />
+          </button>
+          <button
+            type="button"
+            data-dom-id="close-danger-panel"
+            onClick={() => setClosed(true)}
+            className="flex items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 py-1 text-[10px] text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+            aria-label="关闭拦截清单面板"
+            title="关闭面板"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* 主体：统计 + 命令列表 */}
@@ -263,6 +287,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
         </span>
         <button
           type="button"
+          data-dom-id="clear-danger-list"
           onClick={() => setCleared(true)}
           className="flex items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
           aria-label="清空列表"

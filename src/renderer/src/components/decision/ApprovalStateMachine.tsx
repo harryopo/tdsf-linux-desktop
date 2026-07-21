@@ -24,10 +24,14 @@ type StepStatus = 'completed' | 'in-progress' | 'pending'
 /** 单个步骤定义 */
 export interface TimelineStep {
   num: number
+  /** 英文步骤标识（spec §B 7 步 HITL 标准命名） */
+  stepKey: 'collect' | 'analyze' | 'reason' | 'check' | 'confirm' | 'execute' | 'verify'
   title: string
   desc: string
   weight: number
   status: StepStatus
+  /** 步骤时间戳（可选，ISO 字符串截取前 19 位 yyyy-mm-dd HH:MM:SS） */
+  timestamp?: string
 }
 
 /** 4 道门定义 */
@@ -194,6 +198,9 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                         >
                           Step {step.num} · {step.title}
                         </span>
+                        <span className="font-mono text-[10px] tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                          {step.stepKey}
+                        </span>
                         <span
                           className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-[10px] font-medium ${
                             step.status === 'completed'
@@ -206,13 +213,20 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                           {step.status === 'completed' ? '已完成' : step.status === 'in-progress' ? '进行中' : '待决定'}
                         </span>
                       </div>
-                      <span
-                        className={`font-mono text-[10px] tabular-nums ${
-                          step.status === 'pending' ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-brand)]'
-                        }`}
-                      >
-                        权重 {step.weight.toFixed(2)}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        {step.timestamp && (
+                          <span className="font-mono text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+                            {step.timestamp}
+                          </span>
+                        )}
+                        <span
+                          className={`font-mono text-[10px] tabular-nums ${
+                            step.status === 'pending' ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-brand)]'
+                          }`}
+                        >
+                          权重 {step.weight.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                     <p
                       className={`text-[12px] leading-[1.6] ${
