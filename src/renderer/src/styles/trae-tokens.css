@@ -142,6 +142,8 @@
   --trae-bg-invert-hover: #edeff2;
   --trae-bg-invert-active: #979aa4;
   --trae-bg-invert-disabled: #303236;
+  /* 命令块 / 终端深色背景（ExecutionResult/EvidenceList cmd-block 用） */
+  --trae-bg-code-block: #0F1011;
 
   /* === 7.2 配色 - 品牌主色 #387BFF（科技蓝，覆盖 TRAE 默认绿 #32F08C） === */
   --trae-bg-brand: #387bff;

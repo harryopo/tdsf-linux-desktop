@@ -138,7 +138,7 @@ export function ExecutionResult({
         {/* 终端主体 */}
         <div className="flex flex-1 flex-col gap-3 p-4">
           {/* 命令块 */}
-          <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[#0F1011] px-4 py-3 font-mono text-[15px] leading-[1.8]">
+          <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-code-block)] px-4 py-3 font-mono text-[15px] leading-[1.8]">
             <div className="flex items-center gap-2">
               <span className="font-mono text-[12px] text-[var(--trae-text-tertiary)]">$</span>
               <span className="flex-1">

@@ -79,11 +79,11 @@ const LEVEL_STYLES: Record<DangerLevel, {
 
 /** 分段色映射 */
 const SEGMENT_COLORS: Record<CmdSegmentType, string> = {
-  name: 'text-[var(--trae-code-text,#E0E3EE)]',
+  name: 'text-[var(--trae-code-text)]',
   flag: 'text-[var(--trae-text-brand)]',
-  path: 'text-[var(--trae-accent-cyan,#04CBE5)]',
-  val: 'text-[var(--trae-code-number,#F48CCA)]',
-  sym: 'text-[var(--trae-code-doc,#7F838C)]',
+  path: 'text-[var(--trae-accent-cyan)]',
+  val: 'text-[var(--trae-code-number)]',
+  sym: 'text-[var(--trae-code-doc)]',
   text: 'text-[var(--trae-text-default)]',
 }
 
