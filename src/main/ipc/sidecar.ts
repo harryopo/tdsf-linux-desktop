@@ -29,6 +29,7 @@
  */
 
 import { ipcMain } from 'electron'
+import { SIDECAR } from '@shared/ipc-channels'
 import {
   getSidecarManager,
   getAllSidecarStatuses,
@@ -79,7 +80,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   // sidecar:status — 获取 Sidecar-A 当前状态（向后兼容 v1.0）
   // ------------------------------------------------------------------
-  ipcMain.handle('sidecar:status', () => {
+  ipcMain.handle(SIDECAR.STATUS, () => {
     return manager.getStatus()
   })
 

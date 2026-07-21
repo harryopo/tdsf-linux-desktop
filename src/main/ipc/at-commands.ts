@@ -18,6 +18,7 @@
  */
 
 import { ipcMain } from 'electron'
+import { AT_COMMANDS } from '@shared/ipc-channels'
 import type {
   AtCommand,
   AtCommandParseResult,
@@ -121,7 +122,7 @@ export function registerAtCommandHandlers(): void {
   // ------------------------------------------------------------------
   // 参数：无
   // 返回：AtCommandInfo[]（含 type / label / icon / description）
-  ipcMain.handle('at:list', async (): Promise<AtCommandInfo[]> => {
+  ipcMain.handle(AT_COMMANDS.LIST, async (): Promise<AtCommandInfo[]> => {
     logger.debug('IPC.AT_COMMANDS', 'at:list 调用')
     try {
       const registry = getRegistry()

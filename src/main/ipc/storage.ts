@@ -10,6 +10,7 @@
  */
 
 import { ipcMain } from 'electron'
+import { STORAGE, CONFIG, SERVER } from '@shared/ipc-channels'
 import { SecureStore } from '../services/storage/secure-store'
 import { ConfigStore } from '../services/storage/config-store'
 import type { SshConfig } from '@shared/models'
@@ -39,7 +40,7 @@ export function registerStorageIpcHandlers(): void {
   })
 
   /** storage:deleteApiKey — 删除 API Key */
-  ipcMain.handle('storage:deleteApiKey', async (_event, provider: string) => {
+  ipcMain.handle(STORAGE.DELETE_API_KEY, async (_event, provider: string) => {
     return SecureStore.deleteApiKey(provider)
   })
 
@@ -48,7 +49,7 @@ export function registerStorageIpcHandlers(): void {
   // ------------------------------------------------------------------
 
   /** config:get — 读取配置 */
-  ipcMain.handle('config:get', async (_event, key: string) => {
+  ipcMain.handle(CONFIG.GET, async (_event, key: string) => {
     return ConfigStore.get(key)
   })
 
@@ -72,12 +73,12 @@ export function registerStorageIpcHandlers(): void {
   })
 
   /** server:export — 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
-  ipcMain.handle('server:export', async () => {
+  ipcMain.handle(SERVER.EXPORT, async () => {
     return ConfigStore.exportServerList()
   })
 
   /** server:import — 导入服务器列表（生成新 ID，敏感信息留空） */
-  ipcMain.handle('server:import', async (_event, json: string) => {
+  ipcMain.handle(SERVER.IMPORT, async (_event, json: string) => {
     try {
       return ConfigStore.importServerList(json)
     } catch (err) {
@@ -87,7 +88,7 @@ export function registerStorageIpcHandlers(): void {
   })
 
   /** server:delete-cred — 删除服务器凭证 */
-  ipcMain.handle('server:delete-cred', async (_event, serverId: string) => {
+  ipcMain.handle(SERVER.DELETE_CRED, async (_event, serverId: string) => {
     return SecureStore.deleteServerCredential(serverId)
   })
 }
