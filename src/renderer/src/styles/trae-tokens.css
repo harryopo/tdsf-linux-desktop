@@ -45,18 +45,15 @@
 
   /* === 3. 字体系统 ===
    *
-   * 字体策略：
-   * - 在线模式：CDN 加载 Inter + JetBrains Mono（GitHub/Figma/Linear 同款字体）
-   * - 离线模式：fallback 到 SF Pro Text（macOS）/ Microsoft YaHei（Windows）/ system-ui
-   * - Inter 是 SF Pro Text 的最佳开源等价（字宽、x-height、字重 1:1 对齐）
-   * - 标题字体同样用 Inter（Inter 在 600 字重下视觉接近 SF Pro Display）
+   * 字体策略（spec §B 字体栈对齐 Scenario）：
+   * - 正文：SF Pro Text（macOS）→ Microsoft YaHei（Windows）→ system-ui
+   * - 标题：SF Pro（macOS）→ Microsoft YaHei（Windows）→ system-ui
+   * - 代码：JetBrains Mono → SF Mono → Consolas → monospace
+   * - 离线模式 fallback 到 system-ui
    */
-  --trae-font-family-default: 'Inter', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --trae-font-family-heading: 'Inter', 'SF Pro Display', 'SF Pro', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --trae-font-family-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
-  /* 设计稿 §2.2.1 编辑器 / 终端专用字体族（与 mono 区分，含中文 fallback） */
-  --trae-code-editor-font-family: 'JetBrains Mono', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --trae-code-terminal-font-family: 'JetBrains Mono', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-default: 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-heading: 'SF Pro', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   --trae-font-weight-default: 400;
   --trae-font-weight-code: 450;
   --trae-font-weight-medium: 500;
@@ -457,18 +454,18 @@
   --trae-shader-muted: #0a0a0a;
   --trae-shader-muted-foreground: #a3a3a3;
 
-  /* === 12.6 品牌色阶别名（设计稿 brand-3 用于命令 prompt 高亮） === */
+  /* === 12.5 品牌色阶别名（设计稿 brand-3 用于命令 prompt 高亮） === */
   --trae-brand-1: #387bff;
   --trae-brand-2: #4c88ff;
   --trae-brand-3: #80bbff;
   --trae-brand-4: #b2daff;
 
-  /* === 12.5 终端/命令块专用色 === */
+  /* === 12.6 终端/命令块专用色 === */
   --color-terminal-bg: #1a1a1a;
   --color-terminal-text: #e8e8e8;
   --trae-terminal-block-bg: #0f1011;
 
-  /* === 12.5 shadcn 语义别名（兼容 shadcn 默认 token） === */
+  /* === 12.7 shadcn 语义别名（兼容 shadcn 默认 token） === */
   --background: var(--trae-bg-base-default);
   --foreground: var(--trae-text-default);
   --card: var(--trae-bg-base-secondary);
