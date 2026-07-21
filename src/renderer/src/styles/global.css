@@ -20,6 +20,29 @@
  */
 
 /* ==========================================================================
+   0. 设计 Token 别名（间距 / 圆角，引用 trae-tokens.css）
+   ========================================================================== */
+:root {
+  /* 间距别名（对齐设计稿 0/4/6/8/12/16/24/32/40px） */
+  --space-0: var(--trae-spacer-0);
+  --space-4: var(--trae-spacer-4);
+  --space-6: var(--trae-spacer-6);
+  --space-8: var(--trae-spacer-8);
+  --space-12: var(--trae-spacer-12);
+  --space-16: var(--trae-spacer-16);
+  --space-24: var(--trae-spacer-24);
+  --space-32: var(--trae-spacer-32);
+  --space-40: var(--trae-spacer-40);
+
+  /* 圆角别名（对齐设计稿 2/4/6/8/10px） */
+  --radius-2: var(--trae-radius-2);
+  --radius-4: var(--trae-radius-4);
+  --radius-6: var(--trae-radius-6);
+  --radius-8: var(--trae-radius-8);
+  --radius-10: var(--trae-radius-10);
+}
+
+/* ==========================================================================
    1. 全局重置 + 文字抗锯齿 + 渲染优化
    ========================================================================== */
 *,
@@ -58,6 +81,14 @@ body {
   /* 默认过渡（克制） */
   transition: background-color var(--trae-duration-base) var(--trae-ease-out),
               color var(--trae-duration-base) var(--trae-ease-out);
+}
+
+/* 代码字体（等宽，引用 trae-tokens.css，对齐 spec §B 字体栈对齐 Scenario） */
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--trae-font-family-mono);
 }
 
 /* 允许输入框、文本域选择文本 */
