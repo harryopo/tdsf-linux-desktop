@@ -107,6 +107,8 @@ export function LogViewer({ entries }: { entries: LogEntry[] }) {
 function FloatingStatsCard() {
   return (
     <div
+      role="status"
+      aria-label="日志级别统计"
       className="absolute z-10 flex items-center"
       style={{
         top: 10,
