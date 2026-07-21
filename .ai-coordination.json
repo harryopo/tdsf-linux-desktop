@@ -2,13 +2,13 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T20:51:26.500Z",
+  "lastUpdated": "2026-07-21T21:03:51.983Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
       "startedAt": "2026-07-21T19:54:03.406Z",
-      "lastActiveAt": "2026-07-21T20:44:35.920Z",
+      "lastActiveAt": "2026-07-21T20:58:14.847Z",
       "task": "Phase3.3-tutorial-alert-wiring",
       "claimedFiles": [
         {
@@ -22,7 +22,22 @@
           "claimedAt": "2026-07-21T19:54:15.497Z"
         }
       ],
-      "expiresAt": "2026-07-21T22:44:35.920Z"
+      "expiresAt": "2026-07-21T22:58:14.847Z"
+    },
+    "ai-glm-20260722-task62": {
+      "aiName": "ai-glm-20260722-task62",
+      "sessionId": "ai-glm-20260722-task62",
+      "startedAt": "2026-07-21T20:58:01.757Z",
+      "lastActiveAt": "2026-07-21T20:58:01.757Z",
+      "task": "phase6-task62-health-check",
+      "claimedFiles": [
+        {
+          "path": "src/main/services/scheduler/daily-health-check.ts",
+          "task": "phase6-task62-health-check",
+          "claimedAt": "2026-07-21T20:58:01.757Z"
+        }
+      ],
+      "expiresAt": "2026-07-22T00:58:01.757Z"
     }
   },
   "history": [
@@ -1733,6 +1748,41 @@
       "file": "scripts/test-cron-parser.ts",
       "task": "Phase6 Task6.1 测试",
       "timestamp": "2026-07-21T20:51:26.500Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task62",
+      "action": "claim",
+      "file": "src/main/services/scheduler/daily-health-check.ts",
+      "task": "phase6-task62-health-check",
+      "timestamp": "2026-07-21T20:58:01.757Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/scheduler/daily-decision-archive.ts",
+      "task": "phase6-task63-decision-archive",
+      "timestamp": "2026-07-21T20:58:14.768Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/test-daily-decision-archive.ts",
+      "task": "phase6-task63-decision-archive",
+      "timestamp": "2026-07-21T20:58:14.847Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/scheduler/daily-decision-archive.ts",
+      "task": "phase6-task63-decision-archive",
+      "timestamp": "2026-07-21T21:03:51.894Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/test-daily-decision-archive.ts",
+      "task": "phase6-task63-decision-archive",
+      "timestamp": "2026-07-21T21:03:51.983Z"
     }
   ]
 }
