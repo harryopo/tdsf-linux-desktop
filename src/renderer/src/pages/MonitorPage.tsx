@@ -14,9 +14,11 @@
  * - 进程监控 TOP 5 CPU
  * - AlertDrawer（DEC-3 决策告警详情抽屉）
  *
- * 数据策略：
+ * 数据策略（spec REMOVED Requirements：mock 数据仅保留在测试用例中）：
  * - 优先使用实时 monitor:data IPC 推送的数据
- * - 未连接或数据为空时，使用 sampleKpiStats / sampleAlerts 作为 fallback（保证页面可演示）
+ * - 未连接或数据为空时：
+ *   - DEV 模式下使用 sampleKpiStats / sampleAlerts 作为 fallback（保证页面可演示）
+ *   - 非 DEV 模式使用 EmptyMonitorState 空状态组件
  *
  * 视觉规范（spec §B）：
  * - 边框用 solid hex（var(--trae-border-neutral-l1/l2)）
@@ -37,14 +39,15 @@ import { AlertTable } from '@/components/monitor/AlertTable'
 import { AlertDrawer } from '@/components/monitor/AlertDrawer'
 import { CorrelationCard } from '@/components/monitor/CorrelationCard'
 import { ProcessTable } from '@/components/monitor/ProcessTable'
+import { EmptyMonitorState } from '@/components/monitor/EmptyMonitorState'
 import {
   timeRanges,
   type TimeRange,
   type KpiStat,
   type AlertRecord,
-  sampleKpiStats,
-  sampleAlerts,
 } from '@/components/monitor/mock-data'
+// DEV 模式下导入示例数据 fallback（production build 时 vite 会 tree-shake 移除）
+import { sampleKpiStats, sampleAlerts } from '@/pages/__fixtures__/monitor-sample'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
 import type { MonitorData } from '@shared/models'
@@ -111,7 +114,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `${latest.loadAverage?.toFixed(2) ?? '--'} load`,
       delta: Math.round(latest.cpuUsage - prev.cpuUsage),
       trend: latest.cpuUsage >= prev.cpuUsage ? 'up' : 'down',
-      ringColor: '#387BFF',
+      ringColor: 'var(--trae-bg-brand)',
       sparkline: cpuSpark,
     },
     {
@@ -121,7 +124,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `${latest.processCount ?? '--'} 进程`,
       delta: Math.round(latest.memoryUsage - prev.memoryUsage),
       trend: latest.memoryUsage >= prev.memoryUsage ? 'up' : 'down',
-      ringColor: '#387BFF',
+      ringColor: 'var(--trae-bg-brand)',
       sparkline: memSpark,
     },
     {
@@ -131,7 +134,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `uptime ${Math.floor(latest.uptime / 3600)}h`,
       delta: Math.round(latest.diskUsage - prev.diskUsage),
       trend: latest.diskUsage >= prev.diskUsage ? 'up' : 'down',
-      ringColor: '#F59E0B',
+      ringColor: 'var(--trae-status-warning-default)',
       sparkline: diskSpark,
     },
     {
@@ -141,7 +144,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `↓${Math.round(latest.networkIn)} ↑${Math.round(latest.networkOut)}`,
       delta: Math.round((latest.networkIn + latest.networkOut) - (prev.networkIn + prev.networkOut)),
       trend: (latest.networkIn + latest.networkOut) >= (prev.networkIn + prev.networkOut) ? 'up' : 'down',
-      ringColor: '#387BFF',
+      ringColor: 'var(--trae-bg-brand)',
       sparkline: netSpark,
     },
   ]
@@ -206,14 +209,15 @@ export function MonitorPage() {
     }
   }, [systemInfo])
 
-  // KPI 数据：实时优先，无数据时用 sampleKpiStats fallback
-  const kpiStats = useMemo(() => {
+  // KPI 数据（nullable）：实时优先，无数据时 DEV 模式用 sampleKpiStats fallback，非 DEV 返回 null
+  const kpiStats = useMemo<KpiStat[] | null>(() => {
     const live = computeKpiStats(monitorData)
-    return live ?? sampleKpiStats
+    if (live) return live
+    return import.meta.env.DEV ? sampleKpiStats : null
   }, [monitorData])
 
-  // 顶部 critical 告警横幅数据：实时优先，无数据时用 sampleAlerts[0] fallback
-  const criticalAlert = useMemo<AlertRecord>(() => {
+  // 顶部 critical 告警横幅数据（nullable）：实时优先，无数据时 DEV 模式用 sampleAlerts[0] fallback，非 DEV 返回 null
+  const criticalAlert = useMemo<AlertRecord | null>(() => {
     const latest = monitorData[monitorData.length - 1]
     if (latest && latest.diskUsage > 85) {
       return {
@@ -231,7 +235,7 @@ export function MonitorPage() {
         ],
       }
     }
-    return sampleAlerts[0]
+    return import.meta.env.DEV ? sampleAlerts[0] ?? null : null
   }, [monitorData, systemInfo])
 
   // 打开 Drawer（接收指定告警）
@@ -296,31 +300,52 @@ export function MonitorPage() {
         </div>
       </header>
 
-      {/* 2. 顶部 critical 告警横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer） */}
-      <div
-        role="alert"
-        data-dom-id="goto-alert-detail"
-        onClick={() => openDrawer(criticalAlert)}
-        className="flex items-start gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)] cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-status-error-surface-l2)]"
-        style={{
-          background: 'var(--trae-status-error-surface-l1)',
-          border: '1px solid var(--trae-status-error-surface-l2)',
-          borderLeft: '3px solid var(--trae-status-error-default)',
-        }}
-      >
-        <AlertCircle
-          className="w-3.5 h-3.5 shrink-0 mt-0.5"
-          style={{ color: 'var(--trae-status-error-default)' }}
-        />
-        <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-default)]">
-          {criticalAlert.desc}
-        </p>
-        <span className="shrink-0 whitespace-nowrap text-[10px] text-[var(--trae-text-tertiary)]">
-          {criticalAlert.time}
-        </span>
-      </div>
+      {/* 2. 顶部 critical 告警横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer）
+          三态渲染：有告警 → 红色横幅；无告警 → 灰色占位 */}
+      {criticalAlert ? (
+        <div
+          role="alert"
+          data-dom-id="goto-alert-detail"
+          onClick={() => openDrawer(criticalAlert)}
+          className="flex items-start gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)] cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-status-error-surface-l2)]"
+          style={{
+            background: 'var(--trae-status-error-surface-l1)',
+            border: '1px solid var(--trae-status-error-surface-l2)',
+            borderLeft: '3px solid var(--trae-status-error-default)',
+          }}
+        >
+          <AlertCircle
+            className="w-3.5 h-3.5 shrink-0 mt-0.5"
+            style={{ color: 'var(--trae-status-error-default)' }}
+          />
+          <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-default)]">
+            {criticalAlert.desc}
+          </p>
+          <span className="shrink-0 whitespace-nowrap text-[10px] text-[var(--trae-text-tertiary)]">
+            {criticalAlert.time}
+          </span>
+        </div>
+      ) : (
+        <div
+          className="flex items-center gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)]"
+          style={{
+            background: 'var(--trae-bg-base-secondary)',
+            border: '1px solid var(--trae-border-neutral-l1)',
+            borderLeft: '3px solid var(--trae-status-success-default)',
+          }}
+        >
+          <AlertCircle
+            className="w-3.5 h-3.5 shrink-0"
+            style={{ color: 'var(--trae-status-success-default)' }}
+          />
+          <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-secondary)]">
+            系统运行正常，暂无 critical 告警
+          </p>
+        </div>
+      )}
 
-      {/* 3. KPI 环形图 4 列网格 */}
+      {/* 3. KPI 环形图 4 列网格
+          三态渲染：loading skeleton / kpiStats / EmptyMonitorState */}
       {loading && monitorData.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
           {[0, 1, 2, 3].map((i) => (
@@ -332,12 +357,14 @@ export function MonitorPage() {
             </div>
           ))}
         </div>
-      ) : (
+      ) : kpiStats ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
           {kpiStats.map((stat) => (
             <KpiCard key={stat.label} stat={stat} />
           ))}
         </div>
+      ) : (
+        <EmptyMonitorState className="mb-3" />
       )}
 
       {/* 4. 图表 2×2 网格 */}
@@ -351,7 +378,7 @@ export function MonitorPage() {
       {/* 5. 告警列表 + 关联分析卡片（左右双栏布局，桌面端并列） */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-2 mb-3">
         <AlertTable onOpenDrawer={openDrawer} />
-        <CorrelationCard alert={criticalAlert} />
+        <CorrelationCard alert={criticalAlert ?? undefined} />
       </div>
 
       {/* 6. 进程监控 */}
