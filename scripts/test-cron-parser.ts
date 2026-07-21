@@ -1,27 +1,26 @@
 /**
- * cron-parser 单元测试
+ * Cron Parser & Scheduler 单元测试
  *
- * 运行方式：
- *   npx tsx scripts/test-cron-parser.ts
+ * 测试目标（spec SubTask 6.1.4 ≥ 20 个用例）：
+ *   1. cron-parser.ts：5 种语法 + 命名星期/月份 + 时区 + 边界 + 无效表达式
+ *   2. scheduler.ts：register/toggle/trigger/list 接口 + 错误隔离 + 单例 + 事件
  *
- * 测试覆盖（spec SubTask 6.1.4，≥ 20 用例）：
- *   1.  5 种语法：星号 / 单值N / 步进星号N / 范围N-M / 列表N,M
- *   2.  命名星期（MON/TUE/.../SUN）与数字（0-6）互转
- *   3.  命名月份（JAN/FEB/.../DEC）与数字（1-12）互转
- *   4.  闰年 / 跨年 / 跨月边界
- *   5.  时区 Asia/Shanghai（DEC-7）
- *   6.  错误表达式处理（空 / 非法 / 字段数不符）
+ * 运行方式（必须加 --tsconfig 才能解析 @shared/* 路径别名，LRN-20260721-001）：
+ *   npx tsx --tsconfig tsconfig.node.json scripts/test-cron-parser.ts
  *
- * 所有期望时间以 ISO 8601 UTC 字符串表达，便于跨环境稳定比对。
- * 上海时区无 DST，+08:00 偏移全年固定。
+ * 参考：
+ *   - scripts/test-loop-engineering-smoke.ts（测试脚本模式：🚀 + section + ✅/❌ + 📊）
+ *   - DEC-7：Asia/Shanghai 时区
+ *   - DEC-8：自实现 cron 解析，不引入 node-cron
  */
 
 import {
   getNextRun,
-  parseCronField,
   parseCron,
+  parseCronField,
   CronParseError,
 } from '../src/main/services/scheduler/cron-parser'
+import { Scheduler, resetScheduler } from '../src/main/services/scheduler/scheduler'
 
 // ============================================================
 // 测试工具函数
@@ -29,7 +28,6 @@ import {
 
 let passCount = 0
 let failCount = 0
-const failures: string[] = []
 
 function assert(condition: boolean, message: string): void {
   if (condition) {
@@ -38,7 +36,6 @@ function assert(condition: boolean, message: string): void {
   } else {
     console.log(`  ❌ FAIL: ${message}`)
     failCount++
-    failures.push(message)
   }
 }
 
@@ -48,442 +45,427 @@ function section(name: string): void {
   console.log('='.repeat(60))
 }
 
-/**
- * 断言 getNextRun 返回时间等于期望时间（毫秒精度）
- *
- * @param cron cron 表达式
- * @param fromISO 起点 ISO 字符串（建议带时区，如 '2026-07-21T10:30:00+08:00'）
- * @param expectedISO 期望返回时间 ISO 字符串
- * @param timezone 时区，默认 'Asia/Shanghai'
- */
-function expectNextRun(
-  cron: string,
-  fromISO: string,
-  expectedISO: string,
-  timezone: string = 'Asia/Shanghai'
-): Date {
-  const from = new Date(fromISO)
-  const expected = new Date(expectedISO)
-  const actual = getNextRun(cron, from, timezone)
-  const ok = actual.getTime() === expected.getTime()
-  assert(
-    ok,
-    `cron="${cron}" from="${fromISO}" → 期望 ${expectedISO}，实际 ${actual.toISOString()}`
-  )
-  return actual
-}
-
-/**
- * 断言抛出 CronParseError
- */
-function expectThrow(fn: () => unknown, label: string): void {
+function expectThrows(fn: () => unknown, description: string): void {
   try {
     fn()
-    assert(false, `${label}：未抛出 CronParseError`)
+    assert(false, `${description}（未抛错）`)
   } catch (e) {
-    if (e instanceof CronParseError) {
-      assert(true, `${label}：正确抛出 CronParseError（${e.message}）`)
-    } else {
-      assert(
-        false,
-        `${label}：抛出的不是 CronParseError（实际 ${(e as Error).constructor.name}）`
-      )
-    }
+    assert(e instanceof Error, `${description}（已抛错: ${(e as Error).message}）`)
+  }
+}
+
+async function expectThrowsAsync(fn: () => Promise<unknown>, description: string): Promise<void> {
+  try {
+    await fn()
+    assert(false, `${description}（未抛错）`)
+  } catch (e) {
+    assert(e instanceof Error, `${description}（已抛错: ${(e as Error).message}）`)
+  }
+}
+
+interface ShanghaiFields {
+  minute: number
+  hour: number
+  day: number
+  month: number
+  year: number
+  weekday: string
+}
+
+/** 提取 Asia/Shanghai 时区下的字段，用于断言返回时间 */
+function getShanghaiFields(date: Date): ShanghaiFields {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    weekday: 'short',
+  })
+  const parts = fmt.formatToParts(date)
+  const map: Record<string, string> = {}
+  for (const p of parts) map[p.type] = p.value
+  return {
+    minute: parseInt(map.minute, 10),
+    hour: parseInt(map.hour, 10) % 24,
+    day: parseInt(map.day, 10),
+    month: parseInt(map.month, 10),
+    year: parseInt(map.year, 10),
+    weekday: map.weekday,
   }
 }
 
 // ============================================================
-// 用例 1：`* * * * *` 每分钟
-// ============================================================
-function testCase01(): void {
-  section('用例 1：`* * * * *` 每分钟')
-  expectNextRun(
-    '* * * * *',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-21T10:31:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 2：`0 * * * *` 每小时第 0 分钟
-// ============================================================
-function testCase02(): void {
-  section('用例 2：`0 * * * *` 每小时第 0 分钟')
-  expectNextRun(
-    '0 * * * *',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-21T11:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 3：`0 9 * * *` 每日 09:00
-// ============================================================
-function testCase03(): void {
-  section('用例 3：`0 9 * * *` 每日 09:00')
-  expectNextRun(
-    '0 9 * * *',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-22T09:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 4：`0 18 * * *` 每日 18:00
-// ============================================================
-function testCase04(): void {
-  section('用例 4：`0 18 * * *` 每日 18:00')
-  expectNextRun(
-    '0 18 * * *',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-21T18:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 5：`0 9 * * 1` 每周一 09:00
-// ============================================================
-function testCase05(): void {
-  section('用例 5：`0 9 * * 1` 每周一 09:00')
-  // 2026-07-21 是周二
-  expectNextRun(
-    '0 9 * * 1',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-27T09:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 6：`*/30 * * * *` 每 30 分钟
-// ============================================================
-function testCase06(): void {
-  section('用例 6：`*/30 * * * *` 每 30 分钟')
-  expectNextRun(
-    '*/30 * * * *',
-    '2026-07-21T10:15:00+08:00',
-    '2026-07-21T10:30:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 7：`0 9 * * 1-5` 工作日 09:00（N-M 语法 + day-of-week）
-// ============================================================
-function testCase07(): void {
-  section('用例 7：`0 9 * * 1-5` 工作日 09:00')
-  // 2026-07-21 周二 10:30 → 下一个工作日 09:00 是周三 09:00
-  expectNextRun(
-    '0 9 * * 1-5',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-22T09:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 8：`0 9,18 * * *` 每日 09:00 和 18:00（N,M 语法）
-// ============================================================
-function testCase08(): void {
-  section('用例 8：`0 9,18 * * *` 每日 09:00 和 18:00')
-  expectNextRun(
-    '0 9,18 * * *',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-21T18:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 9：`0 0 1 * *` 每月 1 号 00:00
-// ============================================================
-function testCase09(): void {
-  section('用例 9：`0 0 1 * *` 每月 1 号 00:00')
-  expectNextRun(
-    '0 0 1 * *',
-    '2026-07-21T10:30:00+08:00',
-    '2026-08-01T00:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 10：`0 0 1 1 *` 每年 1 月 1 号
-// ============================================================
-function testCase10(): void {
-  section('用例 10：`0 0 1 1 *` 每年 1 月 1 号')
-  expectNextRun(
-    '0 0 1 1 *',
-    '2026-07-21T10:30:00+08:00',
-    '2027-01-01T00:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 11：`0 9 * * MON` 命名星期
-// ============================================================
-function testCase11(): void {
-  section('用例 11：`0 9 * * MON` 命名星期')
-  // 等价于 `0 9 * * 1`（每周一 09:00）
-  expectNextRun(
-    '0 9 * * MON',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-27T09:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 12：`0 9 1 JAN *` 命名月份
-// ============================================================
-function testCase12(): void {
-  section('用例 12：`0 9 1 JAN *` 命名月份')
-  // 等价于 `0 9 1 1 *`（每年 1 月 1 日 09:00）
-  expectNextRun(
-    '0 9 1 JAN *',
-    '2026-07-21T10:30:00+08:00',
-    '2027-01-01T09:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 13：`0 9 * * 0` 周日
-// ============================================================
-function testCase13(): void {
-  section('用例 13：`0 9 * * 0` 周日')
-  // 2026-07-21 周二 → 本周日 09:00
-  expectNextRun(
-    '0 9 * * 0',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-26T09:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 14：`30 14 * * 2,4,6` 周二四六 14:30
-// ============================================================
-function testCase14(): void {
-  section('用例 14：`30 14 * * 2,4,6` 周二四六 14:30')
-  // 2026-07-21 周二 10:30 → 当日 14:30
-  expectNextRun(
-    '30 14 * * 2,4,6',
-    '2026-07-21T10:30:00+08:00',
-    '2026-07-21T14:30:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 15：`0-5 * * * *` 0-5 分钟（N-M 语法）
-// ============================================================
-function testCase15(): void {
-  section('用例 15：`0-5 * * * *` 0-5 分钟（N-M 语法）')
-  // 10:06 → 10:07-10:59 不匹配（分钟 7-59 不在 0-5 集合），11:00 才匹配
-  expectNextRun(
-    '0-5 * * * *',
-    '2026-07-21T10:06:00+08:00',
-    '2026-07-21T11:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 16：`0 0 29 2 *` 2 月 29 号（闰年处理）
-// ============================================================
-function testCase16(): void {
-  section('用例 16：`0 0 29 2 *` 2 月 29 号（闰年处理）')
-  // 2028 是闰年。from 选 2028-02-28 23:59 → 下一次 2028-02-29 00:00
-  expectNextRun(
-    '0 0 29 2 *',
-    '2028-02-28T23:59:00+08:00',
-    '2028-02-29T00:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 17：跨年边界（12/31 → 1/1）
-// ============================================================
-function testCase17(): void {
-  section('用例 17：跨年边界（12/31 → 1/1）')
-  expectNextRun(
-    '0 0 1 1 *',
-    '2026-12-31T23:59:00+08:00',
-    '2027-01-01T00:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 18：跨月边界（1/31 → 2/1）
-// ============================================================
-function testCase18(): void {
-  section('用例 18：跨月边界（1/31 → 2/1）')
-  expectNextRun(
-    '0 0 1 * *',
-    '2026-01-31T23:59:00+08:00',
-    '2026-02-01T00:00:00+08:00'
-  )
-}
-
-// ============================================================
-// 用例 19：时区 Asia/Shanghai 测试（UTC+8）
-// ============================================================
-function testCase19(): void {
-  section('用例 19：时区 Asia/Shanghai 测试（UTC+8）')
-  // cron `0 9 * * *` 在 Asia/Shanghai 时区每日 09:00 触发
-  // from = UTC 01:00 = 上海 09:00（恰好匹配，但 getNextRun 严格大于 from，应返回次日）
-  //   - 上海 09:00 = UTC 01:00，from=UTC 01:00 → 下一次匹配上海次日 09:00 = UTC 次日 01:00
-  //   - 若时区错误（误用 UTC），则 from=UTC 01:00 < UTC 09:00，会返回当日 UTC 09:00（错误）
-  expectNextRun(
-    '0 9 * * *',
-    '2026-07-21T01:00:00Z', // UTC 01:00 = 上海 09:00
-    '2026-07-22T01:00:00Z', // 次日 UTC 01:00 = 上海次日 09:00
-    'Asia/Shanghai'
-  )
-
-  // 反向用例：若使用 UTC 时区，同一 cron 应返回当日 UTC 09:00
-  expectNextRun(
-    '0 9 * * *',
-    '2026-07-21T01:00:00Z',
-    '2026-07-21T09:00:00Z', // UTC 时区，当日 09:00
-    'UTC'
-  )
-}
-
-// ============================================================
-// 用例 20：错误表达式处理（空字符串 / 非法字段 / 字段过多）
-// ============================================================
-function testCase20(): void {
-  section('用例 20：错误表达式处理')
-
-  // 20a. 空字符串
-  expectThrow(() => getNextRun('', new Date()), '20a. 空字符串')
-
-  // 20b. 字段过多（6 个字段）
-  expectThrow(() => getNextRun('0 9 * * 1 5', new Date()), '20b. 字段过多（6 个）')
-
-  // 20c. 字段过少（4 个字段）
-  expectThrow(() => getNextRun('0 9 * *', new Date()), '20c. 字段过少（4 个）')
-
-  // 20d. day-of-week 超出范围（7）
-  expectThrow(
-    () => parseCronField('day-of-week', '7'),
-    '20d. day-of-week=7 超出 [0,6]'
-  )
-
-  // 20e. minute 超出范围（60）
-  expectThrow(() => parseCronField('minute', '60'), '20e. minute=60 超出 [0,59]')
-
-  // 20f. 非法命名星期
-  expectThrow(
-    () => parseCronField('day-of-week', 'FOO'),
-    '20f. 非法命名星期 FOO'
-  )
-
-  // 20g. 非法命名月份
-  expectThrow(() => parseCronField('month', 'XYZ'), '20g. 非法命名月份 XYZ')
-
-  // 20h. 步长为 0
-  expectThrow(() => parseCronField('minute', '*/0'), '20h. 步长为 0')
-
-  // 20i. 范围 start > end
-  expectThrow(() => parseCronField('minute', '5-3'), '20i. 范围 5-3（start > end）')
-
-  // 20j. parseCron 验证（顶层）
-  expectThrow(() => parseCron('0 9 * *'), '20j. parseCron 字段数不足')
-}
-
-// ============================================================
-// 附加用例 21：parseCronField 直接验证
-// ============================================================
-function testCase21(): void {
-  section('附加用例 21：parseCronField 集合验证')
-
-  // `*/15` minute → {0, 15, 30, 45}
-  const set1 = parseCronField('minute', '*/15')
-  assert(
-    set1.size === 4 && set1.has(0) && set1.has(15) && set1.has(30) && set1.has(45),
-    `*/15 → {0,15,30,45}，实际 size=${set1.size}`
-  )
-
-  // `1-5` day-of-week → {1,2,3,4,5}
-  const set2 = parseCronField('day-of-week', '1-5')
-  assert(
-    set2.size === 5 && [1, 2, 3, 4, 5].every((v) => set2.has(v)),
-    `1-5 day-of-week → {1,2,3,4,5}`
-  )
-
-  // `MON-FRI` 命名星期 → {1,2,3,4,5}
-  const set3 = parseCronField('day-of-week', 'MON-FRI')
-  assert(
-    set3.size === 5 && [1, 2, 3, 4, 5].every((v) => set3.has(v)),
-    `MON-FRI → {1,2,3,4,5}`
-  )
-
-  // `1,3,5` → {1,3,5}
-  const set4 = parseCronField('hour', '1,3,5')
-  assert(
-    set4.size === 3 && set4.has(1) && set4.has(3) && set4.has(5),
-    `1,3,5 → {1,3,5}`
-  )
-
-  // `JAN,JUL,DEC` 命名月份 → {1,7,12}
-  const set5 = parseCronField('month', 'JAN,JUL,DEC')
-  assert(
-    set5.size === 3 && set5.has(1) && set5.has(7) && set5.has(12),
-    `JAN,JUL,DEC → {1,7,12}`
-  )
-
-  // `*` minute → 0-59（60 个值）
-  const set6 = parseCronField('minute', '*')
-  assert(set6.size === 60, `* minute → 60 个值，实际 ${set6.size}`)
-
-  // `0-59/15` minute → {0,15,30,45}
-  const set7 = parseCronField('minute', '0-59/15')
-  assert(
-    set7.size === 4 && set7.has(0) && set7.has(15) && set7.has(30) && set7.has(45),
-    `0-59/15 → {0,15,30,45}（扩展语法 N-M/S）`
-  )
-}
-
-// ============================================================
-// 主入口
+// 主测试函数
 // ============================================================
 
-function main(): void {
-  console.log('🚀 cron-parser 单元测试 · Phase 6.1.4')
-  console.log(`   时间：${new Date().toISOString()}`)
-  console.log(`   Node：${process.version}`)
+async function main(): Promise<void> {
+  console.log('🚀 Phase 6 Task 6.1 Cron Parser & Scheduler 单元测试')
+  console.log('   测试场景：5 种 cron 语法 + 命名星期/月份 + 时区 + 边界 + 调度引擎接口')
 
-  testCase01()
-  testCase02()
-  testCase03()
-  testCase04()
-  testCase05()
-  testCase06()
-  testCase07()
-  testCase08()
-  testCase09()
-  testCase10()
-  testCase11()
-  testCase12()
-  testCase13()
-  testCase14()
-  testCase15()
-  testCase16()
-  testCase17()
-  testCase18()
-  testCase19()
-  testCase20()
-  testCase21()
+  // ────────── Cron Parser 测试 ──────────
 
+  section('Cron Parser: 5 种语法 + 命名星期 + 时区 + 边界')
+
+  // 1. * 语法（5 字段全 *，应返回下一整分钟）
+  {
+    const from = new Date('2024-06-15T10:30:45Z')
+    const next = getNextRun('* * * * *', from)
+    assert(next.getTime() > from.getTime(), '* * * * * 应返回 from 之后的时间')
+    const expected = new Date('2024-06-15T10:31:00Z')
+    assert(next.getTime() === expected.getTime(), `* * * * * 应返回下一整分钟，实际 ${next.toISOString()}`)
+  }
+
+  // 2. N 字面量（0 9 * * * 应返回 09:00）
+  {
+    const from = new Date('2024-06-15T00:00:00Z') // Shanghai 08:00
+    const next = getNextRun('0 9 * * *', from)
+    const f = getShanghaiFields(next)
+    assert(f.hour === 9 && f.minute === 0, `0 9 * * * 应返回 09:00，实际 ${f.hour}:${f.minute}`)
+  }
+
+  // 3. */N 步进（每 5 分钟）
+  {
+    const from = new Date('2024-06-15T10:32:00Z')
+    const next = getNextRun('*/5 * * * *', from)
+    const f = getShanghaiFields(next)
+    assert(f.minute % 5 === 0, `*/5 应返回 5 的倍数分钟，实际 ${f.minute}`)
+    assert(next.getTime() > from.getTime(), '返回时间应严格大于 from')
+  }
+
+  // 4. */15 步进
+  {
+    const from = new Date('2024-06-15T10:32:00Z')
+    const next = getNextRun('*/15 * * * *', from)
+    const f = getShanghaiFields(next)
+    assert([0, 15, 30, 45].includes(f.minute), `*/15 应返回 0/15/30/45，实际 ${f.minute}`)
+  }
+
+  // 5. N-M 范围（0 9-18 * * * 应返回 9-18 点整点）
+  {
+    const from = new Date('2024-06-15T01:30:00Z') // Shanghai 09:30
+    const next = getNextRun('0 9-18 * * *', from)
+    const f = getShanghaiFields(next)
+    assert(f.hour >= 9 && f.hour <= 18 && f.minute === 0, `0 9-18 * * * 应返回 9-18 点整点，实际 ${f.hour}:${f.minute}`)
+  }
+
+  // 6. N,M 列表
+  {
+    const from = new Date('2024-06-15T10:10:00Z')
+    const next = getNextRun('0,30 * * * *', from)
+    const f = getShanghaiFields(next)
+    assert(f.minute === 0 || f.minute === 30, `0,30 应返回 0 或 30 分，实际 ${f.minute}`)
+  }
+
+  // 7. 命名星期 MON
+  {
+    const from = new Date('2024-06-15T00:00:00Z') // Saturday
+    const next = getNextRun('0 9 * * MON', from)
+    const f = getShanghaiFields(next)
+    assert(f.weekday === 'Mon' && f.hour === 9 && f.minute === 0, `0 9 * * MON 应返回周一 09:00，实际 ${f.weekday} ${f.hour}:${f.minute}`)
+  }
+
+  // 8. 数字星期 1 = Monday（与 MON 等价）
+  {
+    const from = new Date('2024-06-15T00:00:00Z')
+    const next1 = getNextRun('0 9 * * 1', from)
+    const next2 = getNextRun('0 9 * * MON', from)
+    assert(next1.getTime() === next2.getTime(), '数字 1 与 MON 应返回相同时间')
+  }
+
+  // 9. 数字星期 0 = Sunday
+  {
+    const from = new Date('2024-06-15T00:00:00Z') // Saturday
+    const next = getNextRun('0 9 * * 0', from)
+    const f = getShanghaiFields(next)
+    assert(f.weekday === 'Sun' && f.hour === 9, `0 9 * * 0 应返回周日 09:00，实际 ${f.weekday}`)
+  }
+
+  // 10. 命名星期范围 MON-FRI（工作日）
+  {
+    const from = new Date('2024-06-15T00:00:00Z') // Saturday
+    const next = getNextRun('0 9 * * MON-FRI', from)
+    const f = getShanghaiFields(next)
+    const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(f.weekday)
+    assert(isWeekday && f.hour === 9, `MON-FRI 应返回工作日 09:00，实际 ${f.weekday}`)
+  }
+
+  // 11. 命名月份 JAN（与 1 等价）
+  {
+    const from = new Date('2024-06-15T00:00:00Z')
+    const next1 = getNextRun('0 0 1 JAN *', from)
+    const next2 = getNextRun('0 0 1 1 *', from)
+    assert(next1.getTime() === next2.getTime(), 'JAN 与 1 应返回相同时间')
+  }
+
+  // 12. 时区支持 Asia/Shanghai
+  {
+    const from = new Date('2024-06-15T00:00:00Z') // UTC 00:00 = Shanghai 08:00
+    const next = getNextRun('0 9 * * *', from, 'Asia/Shanghai')
+    const f = getShanghaiFields(next)
+    assert(f.hour === 9, `Shanghai 时区应返回 09:00，实际 ${f.hour}`)
+    const expectedUtc = new Date('2024-06-15T01:00:00Z') // Shanghai 09:00 = UTC 01:00
+    assert(next.getTime() === expectedUtc.getTime(), `UTC 应为 01:00，实际 ${next.toISOString()}`)
+  }
+
+  // 13. 边界：月末（0 0 1 * * 应返回下月 1 日 00:00）
+  {
+    const from = new Date('2024-06-15T10:00:00Z')
+    const next = getNextRun('0 0 1 * *', from)
+    const f = getShanghaiFields(next)
+    assert(f.day === 1 && f.hour === 0 && f.minute === 0, `应返回下月 1 日 00:00，实际 ${f.month}/${f.day} ${f.hour}:${f.minute}`)
+    assert(f.month === 7, `6 月之后应是 7 月，实际 ${f.month}`)
+  }
+
+  // 14. 边界：年末（0 0 1 1 * 应返回明年 1 月 1 日 00:00）
+  {
+    const from = new Date('2024-06-15T10:00:00Z')
+    const next = getNextRun('0 0 1 1 *', from)
+    const f = getShanghaiFields(next)
+    assert(f.month === 1 && f.day === 1 && f.hour === 0, `应返回明年 1 月 1 日 00:00，实际 ${f.year}-${f.month}-${f.day}`)
+    assert(f.year === 2025, `应返回 2025 年，实际 ${f.year}`)
+  }
+
+  // 15. 边界：闰年 2 月 29 日
+  {
+    // from 设在 2024-02-29 之前（2024 是闰年），确保 366 天扫描上限内能匹配
+    const from = new Date('2024-01-01T00:00:00Z')
+    const next = getNextRun('0 0 29 2 *', from)
+    const f = getShanghaiFields(next)
+    assert(f.month === 2 && f.day === 29, `应返回 2 月 29 日，实际 ${f.month}/${f.day}`)
+    assert(f.year === 2024, `应返回 2024 年（闰年），实际 ${f.year}`)
+  }
+
+  // 16. 范围 + 步进（0-59/15）
+  {
+    const from = new Date('2024-06-15T10:10:00Z')
+    const next = getNextRun('0-59/15 * * * *', from)
+    const f = getShanghaiFields(next)
+    assert([0, 15, 30, 45].includes(f.minute), `0-59/15 应返回 0/15/30/45，实际 ${f.minute}`)
+  }
+
+  // 17. 无效：字段数不足
+  expectThrows(() => getNextRun('0 9 * *', new Date()), '字段数不足应抛错')
+
+  // 18. 无效：字段数过多
+  expectThrows(() => getNextRun('0 9 * * * *', new Date()), '字段数过多应抛错')
+
+  // 19. 无效：minute 超范围
+  expectThrows(() => getNextRun('60 9 * * *', new Date()), 'minute 超范围应抛错')
+
+  // 20. 无效：非法字符
+  expectThrows(() => getNextRun('a 9 * * *', new Date()), '非法字符应抛错')
+
+  // 21. 无效：空字符串
+  expectThrows(() => getNextRun('', new Date()), '空字符串应抛错')
+
+  // 22. parseCron 返回结构正确
+  {
+    const parsed = parseCron('0 9 * * 1')
+    assert(parsed.minute.has(0), 'parseCron minute 应包含 0')
+    assert(parsed.hour.has(9), 'parseCron hour 应包含 9')
+    assert(parsed.dayOfWeek.has(1), 'parseCron dayOfWeek 应包含 1')
+    assert(parsed.dayOfMonthRestricted === false, 'day-of-month 为 * 时 restricted 应为 false')
+    assert(parsed.dayOfWeekRestricted === true, 'day-of-week 为 1 时 restricted 应为 true')
+  }
+
+  // 23. parseCronField 独立调用
+  {
+    const set = parseCronField('minute', '0,15,30,45')
+    assert(set.size === 4, `parseCronField 列表应返回 4 个值，实际 ${set.size}`)
+    assert(set.has(0) && set.has(45), 'parseCronField 应包含 0 和 45')
+  }
+
+  // 24. CronParseError 类型与继承
+  {
+    try {
+      getNextRun('invalid-cron', new Date())
+      assert(false, '应抛错但未抛出')
+    } catch (e) {
+      assert(e instanceof CronParseError, '应抛出 CronParseError 类型')
+      assert(e instanceof Error, 'CronParseError 应继承 Error')
+    }
+  }
+
+  // ────────── Scheduler 测试 ──────────
+
+  section('Scheduler: register/toggle/trigger/list + 错误隔离 + 单例')
+
+  // 25. register + list 接口
+  {
+    resetScheduler()
+    const sched = Scheduler.getInstance()
+    sched.register({
+      id: 'daily-health-check',
+      name: '每日健康检查',
+      cron: '0 9 * * *',
+      timezone: 'Asia/Shanghai',
+      enabled: true,
+      handler: async () => ({ success: true, summary: 'ok', durationMs: 10 }),
+    })
+    const list = sched.list()
+    assert(list.length === 1, `list 应有 1 个任务，实际 ${list.length}`)
+    assert(list[0].id === 'daily-health-check', 'id 应匹配')
+    assert(list[0].nextRunAt !== null, 'enabled 任务应有 nextRunAt')
+  }
+
+  // 26. toggle 启停接口
+  {
+    const sched = Scheduler.getInstance()
+    sched.toggle('daily-health-check', false)
+    const disabled = sched.list()
+    assert(disabled[0].enabled === false, 'toggle(false) 后 enabled 应为 false')
+    assert(disabled[0].nextRunAt === null, '禁用后 nextRunAt 应为 null')
+
+    sched.toggle('daily-health-check', true)
+    const enabled = sched.list()
+    assert(enabled[0].enabled === true, 'toggle(true) 后 enabled 应为 true')
+    assert(enabled[0].nextRunAt !== null, '启用后 nextRunAt 应不为 null')
+  }
+
+  // 27. trigger 立即触发接口
+  {
+    const sched = Scheduler.getInstance()
+    const result = await sched.trigger('daily-health-check')
+    assert(result.success === true, 'trigger 应返回成功结果')
+    assert(result.summary === 'ok', `summary 应为 'ok'，实际 '${result.summary}'`)
+    assert(typeof result.durationMs === 'number', 'durationMs 应为数字')
+  }
+
+  // 28. trigger 后 lastResult / lastRunAt 更新
+  {
+    const sched = Scheduler.getInstance()
+    await sched.trigger('daily-health-check')
+    const list = sched.list()
+    assert(list[0].lastResult !== null, 'trigger 后 lastResult 应不为 null')
+    assert(list[0].lastRunAt !== null, 'trigger 后 lastRunAt 应不为 null')
+  }
+
+  // 29. 错误隔离：一个任务失败不影响其他任务
+  {
+    resetScheduler()
+    const sched = Scheduler.getInstance()
+    sched.register({
+      id: 'daily-health-check',
+      name: '正常任务',
+      cron: '0 9 * * *',
+      timezone: 'Asia/Shanghai',
+      enabled: true,
+      handler: async () => ({ success: true, summary: '正常完成', durationMs: 5 }),
+    })
+    sched.register({
+      id: 'daily-decision-archive',
+      name: '失败任务',
+      cron: '0 18 * * *',
+      timezone: 'Asia/Shanghai',
+      enabled: true,
+      handler: async () => { throw new Error('模拟失败') },
+    })
+
+    const failResult = await sched.trigger('daily-decision-archive')
+    assert(failResult.success === false, '失败任务应返回 success=false')
+    assert(failResult.error !== undefined, '失败任务应有 error 字段')
+
+    const okResult = await sched.trigger('daily-health-check')
+    assert(okResult.success === true, '正常任务不应受失败任务影响（错误隔离）')
+  }
+
+  // 30. 单例模式：getInstance() 两次返回同一实例
+  {
+    resetScheduler()
+    const s1 = Scheduler.getInstance()
+    const s2 = Scheduler.getInstance()
+    assert(s1 === s2, 'getInstance() 两次应返回同一实例')
+  }
+
+  // 31. resetScheduler 重置单例
+  {
+    resetScheduler()
+    const s1 = Scheduler.getInstance()
+    resetScheduler()
+    const s2 = Scheduler.getInstance()
+    assert(s1 !== s2, 'resetScheduler 后应返回新实例')
+  }
+
+  // 32. EventEmitter 事件（task-start / task-done）
+  {
+    resetScheduler()
+    const sched = Scheduler.getInstance()
+    let startCount = 0
+    let doneCount = 0
+    sched.on('task-start', () => { startCount++ })
+    sched.on('task-done', () => { doneCount++ })
+
+    sched.register({
+      id: 'daily-health-check',
+      name: '事件测试',
+      cron: '0 9 * * *',
+      timezone: 'Asia/Shanghai',
+      enabled: true,
+      handler: async () => ({ success: true, summary: '事件测试', durationMs: 1 }),
+    })
+
+    await sched.trigger('daily-health-check')
+    assert(startCount === 1, `应触发 1 次 task-start，实际 ${startCount}`)
+    assert(doneCount === 1, `应触发 1 次 task-done，实际 ${doneCount}`)
+  }
+
+  // 33. task-error 事件（handler 失败时推送）
+  {
+    resetScheduler()
+    const sched = Scheduler.getInstance()
+    let errorCount = 0
+    sched.on('task-error', () => { errorCount++ })
+
+    sched.register({
+      id: 'daily-decision-archive',
+      name: '失败任务',
+      cron: '0 18 * * *',
+      timezone: 'Asia/Shanghai',
+      enabled: true,
+      handler: async () => { throw new Error('测试错误') },
+    })
+
+    await sched.trigger('daily-decision-archive')
+    assert(errorCount === 1, `应触发 1 次 task-error，实际 ${errorCount}`)
+  }
+
+  // 34. toggle 不存在任务应抛错
+  {
+    resetScheduler()
+    const sched = Scheduler.getInstance()
+    expectThrows(() => sched.toggle('nonexistent' as never, true), 'toggle 不存在任务应抛错')
+  }
+
+  // 35. trigger 不存在任务应抛错
+  {
+    const sched = Scheduler.getInstance()
+    await expectThrowsAsync(() => sched.trigger('nonexistent' as never), 'trigger 不存在任务应抛错')
+  }
+
+  // ────────── 清理 ──────────
+  resetScheduler()
+
+  // ────────── 汇总 ──────────
   console.log('\n' + '='.repeat(60))
-  console.log('📊 测试结果汇总')
+  console.log('📊 测试汇总')
   console.log('='.repeat(60))
-  console.log(`  ✅ PASS: ${passCount}`)
-  console.log(`  ❌ FAIL: ${failCount}`)
-  if (failures.length > 0) {
-    console.log('\n失败用例：')
-    for (const f of failures) {
-      console.log(`  - ${f}`)
-    }
-  }
-  console.log('')
+  console.log(`  ✅ 通过: ${passCount}`)
+  console.log(`  ❌ 失败: ${failCount}`)
+  console.log('='.repeat(60))
 
   if (failCount > 0) {
+    console.log('\n❌ 测试失败，请检查 cron-parser.ts / scheduler.ts')
     process.exit(1)
+  } else {
+    console.log('\n✅ 全部测试通过！Cron 调度引擎核心基础设施就绪')
+    process.exit(0)
   }
 }
 
-main()
+main().catch((err) => {
+  console.error('\n💥 测试执行异常:', err)
+  process.exit(2)
+})

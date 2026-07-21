@@ -258,6 +258,22 @@ export class Scheduler extends EventEmitter {
     logger.info('[Scheduler] 已销毁')
   }
 
+  /**
+   * 重置单例（仅用于测试）
+   *
+   * 若实例存在则销毁并清空引用；若不存在则无操作。
+   * 与 getInstance() 不同，不会在无实例时创建新实例。
+   *
+   * 参考 loop-engineering-subagent.ts 的 resetLoopEngineeringSubagent() 模式。
+   */
+  static resetInstance(): void {
+    if (Scheduler.instance) {
+      Scheduler.instance.destroy()
+      // destroy() 内部已设置 instance = null，这里冗余但更明确
+      Scheduler.instance = null
+    }
+  }
+
   // ────────── 内部方法 ──────────
 
   /**
@@ -359,4 +375,20 @@ export class Scheduler extends EventEmitter {
     entry.running = false
     return result
   }
+}
+
+// ============================================================================
+// 模块级单例工厂函数（参考 loop-engineering-subagent.ts 模式）
+// ============================================================================
+
+/**
+ * 重置调度引擎单例（仅用于测试）
+ *
+ * 销毁当前实例（停止轮询、清空任务、移除监听器、清空 instance 引用）。
+ * 下次调用 `Scheduler.getInstance()` 会创建新实例。
+ *
+ * 参考 loop-engineering-subagent.ts 的 `resetLoopEngineeringSubagent()` 模式。
+ */
+export function resetScheduler(): void {
+  Scheduler.resetInstance()
 }
