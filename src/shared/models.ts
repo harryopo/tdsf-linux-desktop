@@ -345,6 +345,17 @@ export interface AgentWorkflowState {
     /** 是否触发了定向重采（最多 1 次） */
     retried: boolean
   }
+  /** analyze 步骤检测到的日志模式匹配（R14 增强） */
+  logPatterns?: {
+    /** 匹配的模式 ID */
+    patternId: string
+    /** 模式描述 */
+    description: string
+    /** 匹配次数 */
+    matchCount: number
+    /** 严重度 */
+    severity: 'info' | 'warning' | 'critical'
+  }[]
   /** 错误信息 */
   error: string | null
   /** 时间戳 */

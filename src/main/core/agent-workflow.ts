@@ -43,6 +43,56 @@ const ENV_COMMANDS = [
   'ps aux --sort=-%cpu | head -10'
 ]
 
+/**
+ * 已知日志模式定义（R14 增强）
+ *
+ * analyze 步骤扫描日志文本，匹配这些模式后产出诊断信号，
+ * 供 reason 步骤和 UI 展示使用。
+ */
+interface LogPatternDef {
+  /** 唯一标识 */
+  id: string
+  /** 匹配正则 */
+  pattern: RegExp
+  /** 人类可读描述 */
+  description: string
+  /** 严重度 */
+  severity: 'info' | 'warning' | 'critical'
+}
+
+const LOG_PATTERNS: LogPatternDef[] = [
+  // ── critical ──
+  { id: 'oom_kill', pattern: /oom[- ]?killer|out of memory|killed process/i, description: 'OOM Killer 触发', severity: 'critical' },
+  { id: 'segfault', pattern: /segfault at [0-9a-f]+/i, description: '段错误（Segfault）', severity: 'critical' },
+  { id: 'kernel_panic', pattern: /kernel panic|panic\[|unable to handle/i, description: '内核恐慌（Kernel Panic）', severity: 'critical' },
+  { id: 'disk_full', pattern: /no space left on device|filesystem full|disk full/i, description: '磁盘空间耗尽', severity: 'critical' },
+  { id: 'fs_readonly', pattern: /remounting.*read.only|filesystem.*read.only|EXT[234]-fs error/i, description: '文件系统只读/错误', severity: 'critical' },
+
+  // ── warning ──
+  { id: 'conn_refused', pattern: /connection refused|connect ECONNREFUSED/i, description: '连接被拒绝', severity: 'warning' },
+  { id: 'conn_timeout', pattern: /connection timed? ?out|ETIMEDOUT|timeout.*expired/i, description: '连接超时', severity: 'warning' },
+  { id: 'perm_denied', pattern: /permission denied|EACCES|access denied/i, description: '权限拒绝', severity: 'warning' },
+  { id: 'service_fail', pattern: /failed to start|activat.*failed|service.*failed|Unit.*entered failed state/i, description: '服务启动失败', severity: 'warning' },
+  { id: 'high_cpu', pattern: /load average:\s*([0-9]+\.)*[0-9]+/i, description: '负载异常（需结合 CPU 核数判断）', severity: 'info' },
+  { id: 'ssh_fail', pattern: /ssh.*error|ssh.*failed|broken pipe.*ssh/i, description: 'SSH 连接异常', severity: 'warning' },
+  { id: 'nginx_5xx', pattern: /\b5[0-9]{2}\b.*upstream|upstream.*timed? ?out|nginx.*error/i, description: 'Nginx 5xx / upstream 错误', severity: 'warning' },
+  { id: 'mysql_slow', pattern: /slow query|locked.*wait.*lock|deadlock/i, description: 'MySQL 慢查询/锁等待/死锁', severity: 'warning' },
+
+  // ── info ──
+  { id: 'service_restart', pattern: /restarting|restart.*service|systemctl.*restart/i, description: '服务重启事件', severity: 'info' },
+  { id: 'auth_fail', pattern: /authentication failure|failed password|invalid user|pam.*auth/i, description: '认证失败', severity: 'warning' }
+]
+
+/** 日志模式匹配结果 */
+export interface LogPatternMatch {
+  patternId: string
+  description: string
+  matchCount: number
+  severity: 'info' | 'warning' | 'critical'
+  /** 匹配到的首条日志行（截断到 200 字符） */
+  sampleLine: string
+}
+
 /** SSH 命令执行器接口（解耦具体 SSH 实现） */
 export interface SshExecutor {
   execute(connId: string, command: string, timeout?: number): Promise<{
@@ -151,11 +201,29 @@ export class AgentWorkflow extends EventEmitter {
         return trackedSsh ? await this.collectEnvironment(connId, trackedSsh) : {}
       })
 
-      // Step 2: 分析 + Drain3 模板提取（方案书 §4.1 drainMatch 维度的数据来源）
+      // Step 2: 分析 + Drain3 模板提取 + 日志模式匹配（R14 增强）
       let templates: LogTemplate[] = []
+      let patternMatches: LogPatternMatch[] = []
       await this.runStep('analyze', async () => {
         templates = await this.extractLogTemplates(logs)
-        return { problem, logsLength: logs.length, envInfoKeys: Object.keys(envInfo), templateCount: templates.length }
+        patternMatches = this.detectLogPatterns(logs)
+
+        // 将模式匹配存入 state，供 UI 和 reason 步骤使用
+        this.state.logPatterns = patternMatches.map((m) => ({
+          patternId: m.patternId,
+          description: m.description,
+          matchCount: m.matchCount,
+          severity: m.severity
+        }))
+
+        return {
+          problem,
+          logsLength: logs.length,
+          envInfoKeys: Object.keys(envInfo),
+          templateCount: templates.length,
+          patternMatches: patternMatches.length,
+          criticalPatterns: patternMatches.filter((m) => m.severity === 'critical').length
+        }
       })
 
       // Step 3: 推理（采集证据 → Drain3 置信度增强 → Ground-Check 溯源验证）
@@ -440,6 +508,54 @@ export class AgentWorkflow extends EventEmitter {
       console.warn('[AgentWorkflow] Drain3 模板提取降级:', err instanceof Error ? err.message : err)
       return []
     }
+  }
+
+  /**
+   * 日志模式匹配（R14 增强）
+   *
+   * 扫描日志文本，匹配 LOG_PATTERNS 中定义的已知错误模式。
+   * 输出诊断信号供 reason 步骤和 UI 展示使用。
+   *
+   * 设计原则：
+   *   - 纯同步计算，无 IO 开销
+   *   - 每个模式独立匹配，不互相排斥
+   *   - 返回匹配次数 + 首条样本行，方便 UI 展示
+   */
+  private detectLogPatterns(logs: string): LogPatternMatch[] {
+    if (!logs || logs.trim().length === 0) return []
+
+    const lines = logs.split('\n').filter((l) => l.trim().length > 0)
+    const matches: LogPatternMatch[] = []
+
+    for (const def of LOG_PATTERNS) {
+      let matchCount = 0
+      let sampleLine = ''
+
+      for (const line of lines) {
+        if (def.pattern.test(line)) {
+          matchCount++
+          if (!sampleLine) {
+            sampleLine = line.length > 200 ? line.slice(0, 200) + '...' : line
+          }
+        }
+      }
+
+      if (matchCount > 0) {
+        matches.push({
+          patternId: def.id,
+          description: def.description,
+          matchCount,
+          severity: def.severity,
+          sampleLine
+        })
+      }
+    }
+
+    // 按严重度排序：critical > warning > info
+    const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+    matches.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+
+    return matches
   }
 
   /**
