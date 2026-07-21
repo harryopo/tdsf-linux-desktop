@@ -17,7 +17,7 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { Palette, Type, LayoutGrid, Code2, type LucideIcon } from 'lucide-react'
+import { Moon, Palette, Type, LayoutGrid, Code2, type LucideIcon } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -229,7 +229,7 @@ export function AppearanceSettings() {
 
       <div className="flex flex-col gap-4 p-6">
         {/* Card 1: 主题模式（带视觉预览的 radio 卡片） */}
-        <SettingsCard icon={Palette} title="主题模式" tag="theme.mode">
+        <SettingsCard icon={Moon} title="主题模式" tag="theme.mode">
           <div className="flex flex-wrap gap-3 py-2">
             {THEME_MODES.map((opt) => {
               const selected = themeMode === opt.value
