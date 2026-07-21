@@ -19,6 +19,7 @@
  * - window.electronAPI.credibilityAssess(inputs) 获取可信度评估（可选）
  */
 import { useState, useEffect, useCallback } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
@@ -29,6 +30,7 @@ import { PCR5Result } from '@/components/decision/PCR5Result'
 import { ApprovalStateMachine, type TimelineStep, type RiskGate } from '@/components/decision/ApprovalStateMachine'
 import { EvidenceList, type DangerCommand } from '@/components/decision/EvidenceList'
 import { ExecutionResult, type AuditRow } from '@/components/decision/ExecutionResult'
+import { Empty } from '@/components/trae/Empty'
 import type { DecisionCard, Evidence, RiskLevel } from '@shared/models'
 import type { ConfidenceAssessment, CredibilityEvidenceInput } from '@shared/agent-types'
 
@@ -364,116 +366,6 @@ function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceInput[] 
 }
 
 // ============================================================================
-// 示例数据 fallback（IPC 不可用或决策记录不存在时使用，保证页面可演示）
-// ============================================================================
-
-/**
- * 构建示例 DecisionCard，用于：
- * 1. IPC 桥接不可用（开发预览 / 跑 typecheck 时）
- * 2. historyGet 返回 null（决策 ID 不存在）
- *
- * 数据全部为虚构演示值，不涉及真实生产数据。
- */
-function buildSampleDecisionCard(id: string): DecisionCard {
-  const now = Date.now()
-  return {
-    id: id || 'DEC-087',
-    problem: 'nginx 进程 CPU 占用异常飙升至 68%',
-    hypothesis: 'nginx worker_processes 配置过低 + access_log 未压缩导致 IO 阻塞',
-    evidences: [
-      {
-        id: 'ev-001',
-        source: 'log',
-        sourceDetail: '/var/log/nginx/error.log',
-        content: '2026-07-21 14:23:18 [error] 1234#0: *567 worker process exited on signal 9',
-        drainMatch: 0.92,
-        sourcePrior: 0.85,
-        confidence: 0.88,
-        timestamp: now - 60000,
-        verified: true,
-      },
-      {
-        id: 'ev-002',
-        source: 'metric',
-        sourceDetail: 'prometheus:node_cpu_seconds_total',
-        content: 'CPU usage 68% (user 52% / sys 16%) · 持续 5 分钟',
-        drainMatch: 0.78,
-        sourcePrior: 0.90,
-        confidence: 0.85,
-        timestamp: now - 55000,
-        verified: true,
-      },
-      {
-        id: 'ev-003',
-        source: 'command',
-        sourceDetail: 'nginx -T 2>&1 | grep worker_processes',
-        content: 'worker_processes 4;  # 实际 CPU 核数 8',
-        drainMatch: 0.95,
-        sourcePrior: 0.95,
-        confidence: 0.92,
-        timestamp: now - 50000,
-        verified: true,
-      },
-      {
-        id: 'ev-004',
-        source: 'config',
-        sourceDetail: '/etc/nginx/nginx.conf',
-        content: 'access_log /var/log/nginx/access.log;  # 未启用 buffer/gzip',
-        drainMatch: 0.88,
-        sourcePrior: 0.92,
-        confidence: 0.87,
-        timestamp: now - 48000,
-        verified: true,
-      },
-      {
-        id: 'ev-005',
-        source: 'knowledge',
-        sourceDetail: 'KB-NGINX-2024-014',
-        content: 'nginx 高 CPU 排查指南：worker_processes 与 CPU 核数对齐 + access_log buffer',
-        drainMatch: 0.82,
-        sourcePrior: 0.80,
-        confidence: 0.78,
-        timestamp: now - 45000,
-        verified: false,
-      },
-      {
-        id: 'ev-006',
-        source: 'log',
-        sourceDetail: '/var/log/nginx/access.log',
-        content: '最近 5 分钟 12.4k 请求 · 平均响应 180ms · P99 1.2s',
-        drainMatch: 0.75,
-        sourcePrior: 0.85,
-        confidence: 0.80,
-        timestamp: now - 42000,
-        verified: true,
-      },
-    ],
-    confidence: 0.87,
-    trident: {
-      dangerScore: 0.85,
-      idempotentScore: 0.70,
-      relevanceScore: 0.92,
-      compositeScore: 0.84,
-      source: 'hybrid',
-    },
-    risk: {
-      level: 'MEDIUM',
-      score: 42,
-      matchedRules: ['R-003', 'R-007'],
-      description: '修改 nginx 配置需重启服务，影响线上请求',
-      requireConfirmation: true,
-      blocked: false,
-    },
-    fixCommand: 'sudo sed -i "s/worker_processes 4/worker_processes 8/" /etc/nginx/nginx.conf && sudo nginx -t && sudo systemctl reload nginx',
-    fixDescription: '调整 worker_processes 至 8（与 CPU 核数对齐）+ reload 而非 restart 保持连接',
-    rollbackCommand: 'sudo sed -i "s/worker_processes 8/worker_processes 4/" /etc/nginx/nginx.conf && sudo nginx -t && sudo systemctl reload nginx',
-    status: 'approved',
-    timestamp: now - 30000,
-    sessionId: 'sess-preview-001',
-  }
-}
-
-// ============================================================================
 // 大型径向置信度仪表（SVG 直接绘制）
 // ============================================================================
 
@@ -614,21 +506,33 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   )
 }
 
-function EmptyState({ id, onBack }: { id: string; onBack: () => void }) {
+/** 空状态元信息（IPC 不可用 / 决策不存在 / 异常时填充） */
+interface EmptyMeta {
+  icon: ComponentType<{ className?: string }>
+  title: string
+  description: string
+}
+
+/** 渲染空状态：基于 trae/Empty 组件 + 返回工作台按钮 */
+function EmptyStateView({ meta, onBack }: { meta: EmptyMeta; onBack: () => void }) {
+  const action: ReactNode = (
+    <button
+      type="button"
+      onClick={onBack}
+      className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+    >
+      <ArrowLeft className="h-3.5 w-3.5" />
+      返回工作台
+    </button>
+  )
   return (
     <main className="flex h-full w-full flex-col items-center justify-center gap-4 bg-[var(--trae-bg-base-default)]">
-      <Fingerprint className="h-8 w-8 text-[var(--trae-text-tertiary)]" />
-      <span className="text-[13px] text-[var(--trae-text-secondary)]">
-        未找到决策记录 #{id}
-      </span>
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        返回工作台
-      </button>
+      <Empty
+        icon={meta.icon}
+        title={meta.title}
+        description={meta.description}
+        action={action}
+      />
     </main>
   )
 }
@@ -645,6 +549,7 @@ export function DecisionDetailPage() {
   const [credibility, setCredibility] = useState<ConfidenceAssessment | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [emptyMeta, setEmptyMeta] = useState<EmptyMeta | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
 
   /** 加载决策数据 */
@@ -657,12 +562,17 @@ export function DecisionDetailPage() {
 
     setLoading(true)
     setError(null)
+    setEmptyMeta(null)
 
-    // Guard: electronAPI 不可用 → 使用示例数据 fallback（保证页面可演示）
+    // Guard: electronAPI 不可用 → 显示空状态提示（spec：禁止 mock fallback）
     if (!window.electronAPI?.historyGet) {
-      const sample = buildSampleDecisionCard(id)
-      setCard(sample)
+      setCard(null)
       setCredibility(null)
+      setEmptyMeta({
+        icon: AlertTriangle,
+        title: 'IPC 桥接不可用',
+        description: '请重启应用以恢复 IPC 通道',
+      })
       setLoading(false)
       return
     }
@@ -670,10 +580,14 @@ export function DecisionDetailPage() {
     try {
       const result = await window.electronAPI.historyGet(id)
       if (!result) {
-        // 决策记录不存在 → 使用示例数据 fallback（保证页面可演示）
-        const sample = buildSampleDecisionCard(id)
-        setCard(sample)
+        // 决策记录不存在 → 显示空状态提示（spec：禁止 mock fallback）
+        setCard(null)
         setCredibility(null)
+        setEmptyMeta({
+          icon: Fingerprint,
+          title: '暂无决策数据',
+          description: `未找到决策记录 #${id}，请先在工作台触发一次决策`,
+        })
         setLoading(false)
         return
       }
@@ -691,12 +605,12 @@ export function DecisionDetailPage() {
         }
       }
     } catch (err) {
-      // 加载异常 → 使用示例数据 fallback（保证页面可演示）
-      const sample = buildSampleDecisionCard(id)
-      setCard(sample)
+      // 加载异常 → 显示错误状态（spec：禁止 mock fallback）
+      setCard(null)
       setCredibility(null)
-      // 记录错误到控制台但不阻塞渲染
-      console.warn('[DecisionDetailPage] historyGet failed, using sample data:', err)
+      const message = err instanceof Error ? err.message : '加载决策详情失败'
+      setError(message)
+      console.warn('[DecisionDetailPage] historyGet failed:', err)
     } finally {
       setLoading(false)
     }
@@ -715,7 +629,14 @@ export function DecisionDetailPage() {
   // ===== 状态渲染 =====
   if (loading) return <LoadingState />
   if (error) return <ErrorState message={error} onRetry={() => void loadData()} />
-  if (!card) return <EmptyState id={id ?? ''} onBack={() => navigate('/workbench')} />
+  if (!card || emptyMeta) {
+    const meta: EmptyMeta = emptyMeta ?? {
+      icon: Fingerprint,
+      title: '暂无决策数据',
+      description: `未找到决策记录 #${id ?? ''}`,
+    }
+    return <EmptyStateView meta={meta} onBack={() => navigate('/workbench')} />
+  }
 
   // ===== 数据映射 =====
   const riskMeta = riskLevelMeta(card.risk.level)
