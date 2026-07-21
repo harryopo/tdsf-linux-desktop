@@ -13,6 +13,7 @@
  * - 审计行 hover 高亮
  */
 import { useState } from 'react'
+import { message } from 'antd'
 import {
   Terminal, Check, X, Edit3, Copy, CheckCheck,
 } from 'lucide-react'
@@ -106,7 +107,21 @@ export function ExecutionResult({
 }: ExecutionResultProps) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
+    // 拼接命令分段为纯文本（与展示一致，注释分段以 # 前缀保留语义）
+    const cmdText = commandSegments
+      .map((seg, i) => {
+        if (seg.type === 'comment') return `# ${seg.text}`
+        return i > 0 ? ` ${seg.text}` : seg.text
+      })
+      .join('')
+      .trim()
+    try {
+      await navigator.clipboard.writeText(cmdText)
+      message.success('命令已复制到剪贴板')
+    } catch {
+      message.error('复制失败，请手动选择文本')
+    }
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
