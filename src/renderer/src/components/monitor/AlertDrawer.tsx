@@ -45,7 +45,7 @@ function riskTagProps(level: RiskLevel): { color: string; bg: string; label: str
       }
     case 'low':
       return {
-        color: '#04CBE5',
+        color: 'var(--trae-accent-cyan)',
         bg: 'rgba(4, 203, 229, 0.16)',
         label: 'low',
       }
@@ -242,14 +242,6 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
           >
             关闭
           </button>
-          {alert.status !== '已处理' && (
-            <button
-              type="button"
-              className="inline-flex items-center h-[28px] px-3 text-[11px] font-medium text-[var(--trae-text-onbrand)] bg-[var(--trae-bg-brand)] border border-[var(--trae-bg-brand)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-brand-hover)] transition-colors duration-150"
-            >
-              标记已处理
-            </button>
-          )}
         </div>
       </div>
     </Drawer>
