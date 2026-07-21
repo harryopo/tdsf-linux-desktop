@@ -1,7 +1,22 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 15
+> 轮次：Round 16
+
+## 全量 mock-data.ts 死代码清理 (2026-07-21 Round 16 — QoderWork)
+
+方向：扫描 renderer 下 4 个 mock-data.ts 文件，发现 51 个导出中 32 个为死代码（63%）。本轮统一清理：删除 history-detail/mock-data.ts 全文件（11 个导出全部无引用），精简 monitor/mock-data.ts（24→8，移除 16 个死导出），精简 history/mock-data.ts（11→8，移除 3 个死导出），精简 workbench/mock-data.ts（移除 2 个仅内部使用的类型的 export 关键字）。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 删除全文件 | `src/renderer/src/components/history-detail/mock-data.ts` | 11 个导出全部无外部引用，组件已迁移至 @shared/models |
+| 移除 16 个死导出 | `src/renderer/src/components/monitor/mock-data.ts` | ProcessStatus/ProcessRecord 类型 + kpiStats/cpuAreaPath/mem*/diskIo/net*/alerts/processes/criticalAlertBanner/xLabels 常量 |
+| 移除 3 个死导出 | `src/renderer/src/components/history/mock-data.ts` | statOverviews/decisionRecords/pagination |
+| 移除 2 个 export | `src/renderer/src/components/workbench/mock-data.ts` | ChatRole/AIToolType 改为内部类型 |
+
+验证：typecheck web+node 0 errors ｜ vitest 1215/1215 PASS (53 files) ｜ build 15.18s
+
+总计清理：删除 1 文件 + 3 文件精简，净减 ~530 行死代码
 
 ## workbench/mock-data.ts 死代码清理 (2026-07-21 Round 15 — QoderWork)
 
