@@ -1,7 +1,30 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 11
+> 轮次：Round 12
+
+## PAOR 审批闸门接线 + Week 2 注释清理 (2026-07-21 Round 12 — QoderWork)
+
+方向：`supervisor.ts` 和 `base.ts` 中的 `isApprovalRequired` / `requestApproval` 仍为"Week 2"占位 stub（返回 false / 返回 pending），且全项目散布 14+ 处"Week 2"过期注释。Round 7 已通过 IPC `approveRisk` 回调实现审批链路，这些 stub 是死代码。本轮将审批闸门接入 `BaseSubagent.execute()` 流程，实现真实审批规则，并清理所有"Week 2"注释。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 审批闸门接入 execute() | `src/main/core/agent/subagents/base.ts` | `execute()` 中 `doExecute()` 返回后增加审批检查：`isApprovalRequired(task)` 为 true 时调用 `requestApproval()` 并返回审批结果 |
+| 实现真实审批规则 | `src/main/core/agent/subagents/base.ts` | `isApprovalRequired()` 从永远返回 false 改为：running 类型 → true（远程命令执行需审批），deep 强度 → true（多步推理影响大） |
+| 清理 Week 2 注释 | `src/main/core/agent/subagents/base.ts` | 移除所有"Week 2"引用，更新 JSDoc 描述 |
+| 实现 Supervisor 审批规则 | `src/main/core/agent/supervisor.ts` | `isApprovalRequired()` 同 base.ts 规则；`requestApproval()` 清理 Week 2 引用 |
+| 清理 Supervisor Week 2 注释 | `src/main/core/agent/supervisor.ts` | 14 处"Week 2"→ 更新为准确描述（已实现/后续增强） |
+| 清理 subagents/index.ts | `src/main/core/agent/subagents/index.ts` | 2 处"Week 1/Week 2"→ 更新 |
+| 清理 task-protocol.ts | `src/main/core/agent/subagents/task-protocol.ts` | 5 处"Week 2 增强"→"后续增强" |
+| 清理 context.ts | `src/main/core/agent/context.ts` | 3 处"Week 2"→ 更新 |
+| 清理 providers 注释 | `src/main/core/agent/providers/types.ts` + `token-stats.ts` | 2 处"Week 1"→ 更新 |
+
+验证：typecheck web+node 0 errors ｜ vitest 1203/1203 PASS (53 files) ｜ build PASS (13.59s)
+
+关键决策：
+- **审批规则**：`running` 类型（远程命令执行）和 `deep` 强度（多步推理）任务需人工审批。这与 PAOR 循环中的风险闸门（`approveRisk` 回调处理 HIGH/CRITICAL 命令）互补——前者是 Subagent 级别，后者是命令级别。
+- **不删除 stub 方法**：虽然原计划可以考虑删除，但保留 `isApprovalRequired` / `requestApproval` 作为可覆盖的钩子方法更有价值——子类可自定义审批策略。
+- **Week 注释全面清理**：项目已进入竞赛冲刺阶段，所有"Week 1/2/3"时间引用均已过期，统一清理为准确的功能描述。
 
 ## Context Compaction L4/L5 端到端验证 (2026-07-21 Round 11 — QoderWork)
 
@@ -288,11 +311,11 @@
 
 ## 测试状态
 
-- **全量测试：1203/1203 通过** (vitest run, Round 11 确认)
+- **全量测试：1203/1203 通过** (vitest run, Round 12 确认)
   - 测试文件：53 files
   - 测试用例：1203 passed
-- **TypeScript 类型检查：0 错误** (web + node, Round 11 确认)
-- **构建：通过** (electron-vite build, Round 11 确认, 11.16s)
+- **TypeScript 类型检查：0 错误** (web + node, Round 12 确认)
+- **构建：通过** (electron-vite build, Round 12 确认, 13.59s)
 
 ## 构建产物
 
@@ -311,11 +334,12 @@ out/renderer/assets/         ~90 个 chunk (代码分割)
 1. ~~**MCP Client 侧实现（双向网关）**~~ — ✅ Round 9 完成
 2. ~~**Mastra 真实集成**~~ — ✅ Round 10 完成（Tool Bridge + Ops Agent + 单例 + 13 测试）
 3. ~~**Context compaction L4/L5 端到端验证**~~ — ✅ Round 11 完成（30 测试覆盖 5 层 pipeline + L3/L4/L5 可达性分析）
-4. **PAOR isApprovalRequired / requestApproval stub 清理** — supervisor.ts L996-1022 仍为 "Week 2" 占位（Round 7 已通过 IPC approveRisk 回调实现审批，这两个 stub 方法可删或接线）。
+4. ~~**PAOR isApprovalRequired / requestApproval stub 清理**~~ — ✅ Round 12 完成（审批闸门接入 execute() 流程 + 真实规则 + Week 2 注释全面清理）
 5. **E2E 演示路径验证** — 在真实 SSH 连接上跑通 3 个竞赛场景（需 Linux 服务器环境）。
 6. **risk-engine 长格式标志** — `rm --recursive --force /` 未被 regex 匹配（AST 引擎可兜底）。
 
 ### 已完成（本轮，勿重复）
+- ✅ PAOR 审批闸门接线 + Week 2 注释清理（Round 12）— execute() 接入审批检查 + 真实规则 + 9 文件 26 处注释清理
 - ✅ Context compaction L4/L5 端到端验证（Round 11）— 30 测试覆盖 5 层 pipeline + L3/L4/L5 可达性分析
 - ✅ Mastra 真实集成（Round 10）— Tool Bridge + Ops Agent + 单例 + 13 测试
 - ✅ MCP Client 双向网关实现（Round 9）— client-manager.ts 新文件 + gateway 9 方法 + IPC 4 通道 + preload + d.ts + 17 测试
