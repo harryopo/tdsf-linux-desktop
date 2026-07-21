@@ -2,28 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T21:05:41.651Z",
+  "lastUpdated": "2026-07-21T21:22:12.871Z",
   "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-07-21T19:54:03.406Z",
-      "lastActiveAt": "2026-07-21T20:58:14.847Z",
-      "task": "Phase3.3-tutorial-alert-wiring",
-      "claimedFiles": [
-        {
-          "path": "src/renderer/src/components/knowledge-detail/v1/detail-parts.tsx",
-          "task": "Phase 3.2 copy-cmd feedback",
-          "claimedAt": "2026-07-21T19:54:06.061Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/LoopWorkflowPanel.tsx",
-          "task": "Phase 3.2 data-dom-id labels",
-          "claimedAt": "2026-07-21T19:54:15.497Z"
-        }
-      ],
-      "expiresAt": "2026-07-21T22:58:14.847Z"
-    },
     "ai-glm-20260722-task62": {
       "aiName": "ai-glm-20260722-task62",
       "sessionId": "ai-glm-20260722-task62",
@@ -1783,6 +1763,48 @@
       "file": "scripts/test-daily-decision-archive.ts",
       "task": "phase6-task63-decision-archive",
       "timestamp": "2026-07-21T21:03:51.983Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/scheduler/weekly-ops-report.ts",
+      "task": "Task-6.4 weekly-ops-report",
+      "timestamp": "2026-07-21T21:14:00.484Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/test-weekly-ops-report.ts",
+      "task": "Task-6.4 weekly-ops-report test",
+      "timestamp": "2026-07-21T21:14:01.673Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/knowledge-detail/v1/detail-parts.tsx",
+      "task": "Phase 3.2 copy-cmd feedback",
+      "timestamp": "2026-07-21T21:22:12.871Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/LoopWorkflowPanel.tsx",
+      "task": "Phase 3.2 data-dom-id labels",
+      "timestamp": "2026-07-21T21:22:12.871Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/scheduler/weekly-ops-report.ts",
+      "task": "Task-6.4 weekly-ops-report",
+      "timestamp": "2026-07-21T21:22:12.871Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/test-weekly-ops-report.ts",
+      "task": "Task-6.4 weekly-ops-report test",
+      "timestamp": "2026-07-21T21:22:12.871Z"
     }
   ]
 }
