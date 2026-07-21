@@ -1,0 +1,1 @@
+{"code":"print('hello from firecracker')\nx = 1 + 1\nprint(f'x = {x}')","timeout":30}

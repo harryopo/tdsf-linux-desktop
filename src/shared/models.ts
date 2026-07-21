@@ -102,7 +102,9 @@ export interface SystemInfo {
   architecture: string
   cpuModel: string
   cpuCores: number
+  /** 总内存（字节，由 free -b 采集） */
   totalMemory: number
+  /** 总磁盘（字节，由 df -B1 采集） */
   totalDisk: number
 }
 
@@ -263,8 +265,33 @@ export interface DecisionCard {
   hypothesis: string
   /** 证据链 */
   evidences: Evidence[]
-  /** 综合置信度 */
+  /** 综合置信度 [0, 1] */
   confidence: number
+  /**
+   * Trident 三叉决策评分（借鉴 instructkr/claw-code §3.1）
+   *
+   * 每个子分数为 [0, 1]：
+   * - dangerScore：命令危险度反向值（0=极高危，1=安全）
+   *   ↪ 原始命令危险度 = 1 - dangerScore
+   * - idempotentScore：操作幂等性（0=破坏性，1=完全幂等）
+   *   ↪ 幂等操作可重复执行，非幂等只能执行一次
+   * - relevanceScore：上下文关联度（0=无证据，1=充分证据）
+   *   ↪ 来自 Evidence 数量 + 来源多样性
+   *
+   * 综合分计算公式：
+   * confidence = dangerScore × 0.35 + idempotentScore × 0.25 + relevanceScore × 0.40
+   *
+   * 如果子分数缺失，则按"保守原则"全部填 0.5（中性），由 confidence 字段继续生效
+   */
+  trident?: {
+    dangerScore: number
+    idempotentScore: number
+    relevanceScore: number
+    /** 三叉综合分（与 confidence 一致，但显式标注来自 Trident） */
+    compositeScore: number
+    /** 三叉决策来源（哪个启发式 / 模型 / 规则） */
+    source: 'heuristic' | 'llm' | 'hybrid'
+  }
   /** 风险评估 */
   risk: RiskAssessment
   /** 修复命令 */
@@ -307,6 +334,17 @@ export interface AgentWorkflowState {
   waitingForConfirmation: boolean
   /** 决策卡片 */
   decisionCard: DecisionCard | null
+  /** Ground-Check 溯源验证统计（方案书 §4.2） */
+  groundCheck?: {
+    /** 证据总数 */
+    total: number
+    /** 通过溯源验证数 */
+    verified: number
+    /** 被拒绝数（疑似幻觉，标记"仅供参考"） */
+    rejected: number
+    /** 是否触发了定向重采（最多 1 次） */
+    retried: boolean
+  }
   /** 错误信息 */
   error: string | null
   /** 时间戳 */
@@ -318,7 +356,7 @@ export interface AgentWorkflowState {
 // ============================================================================
 
 /** 知识类型 */
-export type KnowledgeType = 'command_skill' | 'incident_case'
+export type KnowledgeType = 'command_skill' | 'incident_case' | 'tutorial'
 
 /** 知识条目（command_skills + incident_cases 双轨制） */
 export interface KnowledgeEntry {
@@ -425,11 +463,74 @@ export interface IpcChannelMap {
   // 终端数据推送（主进程 → 渲染进程）
   'terminal:data': { args: [string, string]; return: void }
   'monitor:data': { args: [string, MonitorData]; return: void }
+  'monitor:systemInfo': { args: [string, SystemInfo]; return: void }
   'llm:token': { args: [string]; return: void }
   'llm:chunk': { args: [LlmStreamChunk]; return: void }
   'llm:done': { args: [string]; return: void }
   'llm:error': { args: [LlmError]; return: void }
   'agent:step': { args: [AgentWorkflowState]; return: void }
+
+  // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
+  'mcp:get-state': { args: []; return: McpStateContext }
+  'mcp:reset': { args: []; return: boolean }
+  'mcp:state-changed': { args: [McpStateContext]; return: void }
+
+  // v0.9.6 新增：外部 MCP Server（Client 侧）
+  'mcp:external-status': { args: []; return: ExternalMcpServerStatus[] }
+  'mcp:external-tools': { args: []; return: Array<{ name: string; description: string; serverId: string; serverName: string }> }
+  'mcp:external-call': { args: [string, string, Record<string, unknown>]; return: { success: boolean; content: Array<{ type: 'text'; text: string }>; error?: string } }
+  'mcp:external-reconnect': { args: [string]; return: boolean }
+}
+
+/** MCP 生命周期状态枚举（与 mcp-lifecycle.ts 同步） */
+export type McpLifecycleState = 'connected' | 'degraded' | 'recovering' | 'failed' | 'backoff'
+
+/** MCP 状态上下文 */
+export interface McpStateContext {
+  state: McpLifecycleState
+  consecutiveFailures: number
+  retryAttempts: number
+  lastFailureAt: number | null
+  lastFailureReason: string | null
+  backoffUntil: number | null
+  backoffRemainingSec: number
+}
+
+/** 外部 MCP Server 连接配置（Agent 作为 Client 调用外部工具） */
+export interface ExternalMcpServer {
+  /** 唯一标识 */
+  id: string
+  /** 显示名称 */
+  name: string
+  /** 传输协议 */
+  transport: 'stdio' | 'sse' | 'streamable-http'
+  /** stdio 模式：可执行命令 */
+  command?: string
+  /** stdio 模式：命令参数 */
+  args?: string[]
+  /** stdio 模式：环境变量 */
+  env?: Record<string, string>
+  /** stdio 模式：工作目录 */
+  cwd?: string
+  /** sse/streamable-http 模式：URL */
+  url?: string
+  /** 是否启用 */
+  enabled: boolean
+  /** 连接超时（毫秒，默认 30000） */
+  timeoutMs?: number
+}
+
+/** 外部 MCP Server 连接状态 */
+export type ExternalMcpConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+/** 外部 MCP Server 运行时状态 */
+export interface ExternalMcpServerStatus {
+  id: string
+  name: string
+  connectionState: ExternalMcpConnectionState
+  toolCount: number
+  error?: string
+  lastConnectedAt?: number
 }
 
 /** SFTP 目录条目 */
@@ -449,4 +550,110 @@ export interface SftpEntry {
   }
   owner: string
   group: string
+}
+
+// ============================================================================
+// 系统架构感知（System Profiler）相关类型
+// ============================================================================
+
+/** Profiler 风险等级（区别于原 RiskLevel 的 SAFE/LOW/MEDIUM 等） */
+export type ProfilerRiskLevel = 'critical' | 'high' | 'medium' | 'low' | 'info'
+
+/** 风险项 */
+export interface RiskItem {
+  level: ProfilerRiskLevel
+  category: string
+  title: string
+  description: string
+  evidence: string
+  suggestion: string
+}
+
+/** 单个探查项 */
+export interface ProfilerItem {
+  group: string
+  groupLabel: string
+  cmd: string
+  stdout: string
+  stderr: string
+  exitCode: number
+  durationMs: number
+  ok: boolean
+  error?: string
+}
+
+/** 探查执行错误 */
+export interface ProfilerError {
+  group: string
+  groupLabel: string
+  cmd: string
+  error: string
+  durationMs: number
+}
+
+/** 探查结果 */
+export interface ProfilerResult {
+  host: string
+  sessionId: string
+  generatedAt: number
+  totalDurationMs: number
+  items: ProfilerItem[]
+  errors: ProfilerError[]
+  risks?: RiskItem[]
+}
+
+/** Profiler 执行响应（IPC 返回） */
+export interface ProfilerRunResponse {
+  result: ProfilerResult
+  md: string
+  risks: RiskItem[]
+  summary: {
+    total: number
+    critical: number
+    high: number
+    medium: number
+    low: number
+    info: number
+  }
+}
+
+// ============================================================================
+// 日志系统类型（v0.7.0）
+// ============================================================================
+
+/** 日志级别 */
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'
+
+/** 日志条目（IPC logRead 返回） */
+export interface LogEntry {
+  /** 时间戳（ISO 格式） */
+  ts: string
+  /** 日志级别 */
+  level: LogLevel
+  /** 日志分类（如 ssh / llm / agent / system） */
+  category: string
+  /** 日志消息 */
+  message: string
+  /** 附加元数据 */
+  meta?: Record<string, unknown>
+  /** 关联 ID（用于追踪同一操作链路） */
+  correlationId?: string
+  /** 日志来源进程 */
+  source: 'main' | 'renderer'
+  /** 格式化日期字符串 */
+  date: string
+}
+
+/** 日志统计（IPC logStats 返回） */
+export interface LogStats {
+  /** 日志总数 */
+  total: number
+  /** 按级别统计 */
+  byLevel: Record<string, number>
+  /** 按分类统计 */
+  byCategory: Record<string, number>
+  /** 最早日志时间戳 */
+  oldestTs: string | null
+  /** 最新日志时间戳 */
+  newestTs: string | null
 }

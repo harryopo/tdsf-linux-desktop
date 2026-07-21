@@ -98,7 +98,7 @@ export class LlmClient {
       errors.push('Base URL 不能为空')
     } else {
       try {
-        // eslint-disable-next-line no-new
+         
         new URL(this.config.baseUrl)
       } catch {
         errors.push('Base URL 格式无效')
@@ -447,6 +447,11 @@ export class LlmClient {
   /**
    * 降级到规则引擎（将证据合并为日志文本进行关键词匹配）
    * 规则引擎也无匹配时返回默认低置信度结果
+   *
+   * 关键修复（P1-1）：
+   *   - 原返回 `echo "需要人工诊断"` 是无意义命令，用户执行后看不到任何诊断输出
+   *   - 改为综合健康检查脚本，与 agent-workflow.ts 的 deriveFixCommand 保持一致
+   *   - 确保即使降级到最低级别，用户也能看到实际系统状态
    */
   private fallbackToRules(problem: string, evidences: Evidence[]): AnalysisResult {
     const logs = evidences.map((e) => e.content).join('\n')
@@ -459,8 +464,9 @@ export class LlmClient {
       }
     }
     return {
-      hypothesis: '暂无匹配的故障规则，建议人工排查',
-      fixCommand: 'echo "需要人工诊断"',
+      hypothesis: '暂无匹配的故障规则，已生成综合系统健康检查脚本供人工排查',
+      fixCommand:
+        "echo '=== 系统健康检查 ===' && uname -a && echo '--- CPU/负载 ---' && uptime && cat /proc/loadavg && echo '--- 内存 ---' && free -h && echo '--- 磁盘 ---' && df -h && echo '--- 顶部进程 ---' && ps aux --sort=-%cpu | head -10",
       confidence: 0.1
     }
   }

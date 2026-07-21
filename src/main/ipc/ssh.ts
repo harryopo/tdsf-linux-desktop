@@ -40,10 +40,22 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
 
   /** ssh:connect — 建立 SSH 连接，返回 sessionId */
   ipcMain.handle('ssh:connect', async (_event, config: SshConfig) => {
+    // 调试日志：输出收到的连接配置（脱敏）
+    console.log('[SSH] 收到连接请求:', {
+      host: config.host,
+      port: config.port,
+      username: config.username,
+      authType: config.authType,
+      hasPassword: !!config.password,
+      hasPrivateKey: !!config.privateKey,
+      hasPrivateKeyPath: !!config.privateKeyPath,
+      name: config.name,
+    })
     try {
       const sessionId = await sshManager.connect(config)
       return sessionId
     } catch (err) {
+      console.error('[SSH] 连接失败:', (err as Error).message)
       throw new Error(`SSH 连接失败: ${(err as Error).message}`)
     }
   })
@@ -204,6 +216,63 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
         return await sftpManager.chmod(sessionId, remotePath, mode)
       } catch (err) {
         throw new Error(`SFTP chmod 失败: ${(err as Error).message}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // SFTP 文件读写（v0.8 IDE 工作台）
+  // ------------------------------------------------------------------
+
+  /** sftp:readFile — 读取远程文件内容到字符串（10MB 上限，用于代码编辑器） */
+  ipcMain.handle(
+    'sftp:readFile',
+    async (_event, sessionId: string, remotePath: string) => {
+      try {
+        return await sftpManager.readFile(sessionId, remotePath)
+      } catch (err) {
+        throw new Error(`SFTP 读取文件失败: ${(err as Error).message}`)
+      }
+    }
+  )
+
+  /** sftp:writeFile — 写入字符串到远程文件（覆盖原文件，用于代码编辑器保存） */
+  ipcMain.handle(
+    'sftp:writeFile',
+    async (
+      _event,
+      sessionId: string,
+      remotePath: string,
+      content: string
+    ) => {
+      try {
+        return await sftpManager.writeFile(sessionId, remotePath, content)
+      } catch (err) {
+        throw new Error(`SFTP 写入文件失败: ${(err as Error).message}`)
+      }
+    }
+  )
+
+  /** sftp:stat — 获取文件/目录元信息（返回 SftpEntry 或 null） */
+  ipcMain.handle(
+    'sftp:stat',
+    async (_event, sessionId: string, remotePath: string) => {
+      try {
+        return await sftpManager.stat(sessionId, remotePath)
+      } catch (err) {
+        throw new Error(`SFTP stat 失败: ${(err as Error).message}`)
+      }
+    }
+  )
+
+  /** sftp:mkdir — 创建远程目录 */
+  ipcMain.handle(
+    'sftp:mkdir',
+    async (_event, sessionId: string, remotePath: string) => {
+      try {
+        return await sftpManager.mkdir(sessionId, remotePath)
+      } catch (err) {
+        throw new Error(`SFTP mkdir 失败: ${(err as Error).message}`)
       }
     }
   )

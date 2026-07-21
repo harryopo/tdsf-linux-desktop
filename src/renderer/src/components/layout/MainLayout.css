@@ -1,8 +1,18 @@
 /**
- * MainLayout 布局样式 - 苹果极简风格
+ * MainLayout 布局样式 v2.0 — 生产交付级极致美学
+ *
+ * 设计原理（WHY）：
+ * - 三栏比例 1 : 1.618 : 1（黄金分割 φ）
+ * - 顶部导航栏 56px（黄金比例：48 × φ/1.4 ≈ 55.4）
+ * - 所有颜色/间距/动效统一走 v2.0 变量
+ * - 微动效：hover/focus 精致打磨
+ *
+ * 实际像素（1440px 屏）：
+ * - 左栏 240px + 中栏自适应 + 右栏 360px
+ * - 中栏占据剩余空间，作为视觉焦点
  */
 
-/* 主布局容器 - 全屏 */
+/* ===== 主布局容器 ===== */
 .main-layout {
   display: flex;
   flex-direction: column;
@@ -10,17 +20,30 @@
   width: 100vw;
   background: var(--color-bg-primary);
   overflow: hidden;
+  /* 极致美学：内容淡入 */
+  animation: fadeIn var(--duration-slow) var(--ease-out-expo);
 }
 
-/* ===== 顶部导航栏 ===== */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ==========================================================================
+   顶部导航栏 — 56px（黄金比例）
+   ========================================================================== */
 .main-layout-header {
   display: flex;
   align-items: center;
-  height: 48px;
-  min-height: 48px;
-  padding: 0 24px;
+  height: var(--layout-header-height);
+  min-height: var(--layout-header-height);
+  padding: 0 var(--space-6);       /* 26px 内边距（φ × 16） */
   background: var(--color-bg-card);
   border-bottom: 1px solid var(--color-border);
+  /* 微妙的底部分隔阴影（仅在有滚动时显示，由 sticky 处理） */
+  position: relative;
+  z-index: 10;
+  user-select: none;
 }
 
 /* Logo 区域 */
@@ -28,24 +51,31 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin-right: 48px;
+  margin-right: var(--space-8);    /* 42px（φ × 26） */
   user-select: none;
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease-out-quad);
+}
+
+.main-layout-logo:hover {
+  opacity: 0.75;
 }
 
 .logo-text {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-md);  /* 16px */
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
-  letter-spacing: -0.3px;
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 .logo-subtitle {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  font-weight: 400;
+  font-size: var(--font-size-xs);  /* 12px */
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: var(--letter-spacing-wide);
 }
 
-/* 导航标签 */
+/* 导航标签容器 */
 .main-layout-nav {
   flex: 1;
   min-width: 0;
@@ -56,7 +86,10 @@
 }
 
 .main-layout-nav .ant-tabs-tab {
-  padding: 14px 16px !important;
+  padding: 16px var(--space-4) !important;  /* 16px 上下、16px 左右 */
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 /* 导航标签文字 */
@@ -64,10 +97,13 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-base);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
-/* ===== 三栏内容区 ===== */
+/* ==========================================================================
+   三栏内容区 — φ 比例（1 : 1.618 : 1）
+   ========================================================================== */
 .main-layout-body {
   display: flex;
   flex: 1;
@@ -75,33 +111,66 @@
   overflow: hidden;
 }
 
-/* 左栏 - 服务器列表 */
+/* ===== 左栏：服务器列表（1 单位） ===== */
 .main-layout-left {
-  width: 240px;
-  min-width: 240px;
+  width: var(--layout-left-width);
+  min-width: var(--layout-left-width);
   background: var(--color-bg-card);
   border-right: 1px solid var(--color-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* 微妙的内容进入动画 */
+  animation: slideInLeft var(--duration-slow) var(--ease-out-expo);
 }
 
-/* 中栏 - 主内容区 */
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ===== 中栏：主内容区（φ 单位 = 主导视觉） ===== */
 .main-layout-center {
-  flex: 1;
+  flex: var(--layout-center-flex);
   min-width: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--color-bg-primary);
+  animation: fadeInUp var(--duration-slow) var(--ease-out-expo);
 }
 
-/* 右栏 - AI助手面板 */
+/* ===== 右栏：AI 助手面板（约 1.6 单位） ===== */
 .main-layout-right {
-  width: 360px;
-  min-width: 360px;
+  width: var(--layout-right-width);
+  min-width: var(--layout-right-width);
   background: var(--color-bg-card);
   border-left: 1px solid var(--color-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  animation: slideInRight var(--duration-slow) var(--ease-out-expo);
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ==========================================================================
+   响应式调整（保留桌面端为主）
+   ========================================================================== */
+@media (max-width: 1200px) {
+  /* 中等屏幕：右栏稍窄 */
+  :root {
+    --layout-right-width: 320px;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* 较小屏幕：可隐藏右栏或缩小 */
+  :root {
+    --layout-left-width: 200px;
+    --layout-right-width: 280px;
+  }
 }

@@ -34,3 +34,12 @@ release/
 
 # Testing
 coverage/
+
+# CodeGraph 本地索引（不入库）
+.codegraph/
+
+# AI 协作 - 本地 session 缓存（不入库，按机器隔离）
+scripts/ai-coordination/.ai-session.local
+
+# AI 协作 - 临时 scratch
+.ai-scratch/

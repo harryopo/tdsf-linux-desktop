@@ -1,0 +1,108 @@
+/* SidecarStatusPanel 样式（v1.5 多 Sidecar 状态面板） */
+
+.sidecar-status-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+}
+
+/* 顶部工具条 */
+.sidecar-status-panel__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  background: var(--color-bg-elevated, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-sm, 6px);
+}
+
+/* 卡片网格（3 列） */
+.sidecar-status-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3, 12px);
+}
+
+@media (max-width: 768px) {
+  .sidecar-status-panel__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 单个 Sidecar 卡片 */
+.sidecar-card {
+  background: var(--color-bg-elevated, rgba(255, 255, 255, 0.02)) !important;
+  transition: all 0.2s ease;
+}
+
+.sidecar-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 卡片头 */
+.sidecar-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  margin-bottom: var(--space-2, 8px);
+}
+
+.sidecar-card__icon {
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 4px);
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.sidecar-card__title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.sidecar-card__status-tag {
+  margin: 0 !important;
+  font-size: 11px !important;
+  flex-shrink: 0;
+}
+
+/* 错误信息 */
+.sidecar-card__error {
+  font-size: 11px;
+  color: var(--color-error, #f5222d);
+  background: var(--color-error-alpha-08, rgba(245, 34, 45, 0.08));
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  margin-bottom: var(--space-2, 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 操作按钮 */
+.sidecar-card__actions {
+  display: flex;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+.sidecar-card__actions .ant-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 底部图例 */
+.sidecar-status-panel__footer {
+  padding-top: var(--space-2, 8px);
+  border-top: 1px dashed var(--color-border, rgba(255, 255, 255, 0.08));
+}

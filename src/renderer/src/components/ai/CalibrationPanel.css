@@ -1,0 +1,343 @@
+/**
+ * CalibrationPanel 校准面板样式
+ *
+ * 暗系风格（深渊暗系），与 ConfidenceBreakdown / CredibilityPanel 保持一致：
+ * - 背景：var(--color-bg-inset) / var(--color-bg-card)
+ * - 边框：var(--color-border)
+ * - 文字：var(--color-text-primary) / var(--color-text-secondary) / var(--color-text-tertiary)
+ * - 强调：var(--color-success) / var(--color-warning) / var(--color-error) / var(--color-link)
+ *
+ * 布局：
+ * - 顶部：4 卡片全局摘要
+ * - 工具栏：Provider 切换 Select
+ * - 详情区：T 大字号 + Slider + 4 卡指标 + 操作按钮 + Tabs（柱状图/折线图）
+ * - 底部：论文溯源列表
+ */
+
+/* ===== 容器 ===== */
+.calibration-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.calibration-panel-loading,
+.calibration-panel-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  padding: var(--space-4);
+}
+
+/* ===== 全局摘要 ===== */
+.calibration-panel-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.5fr;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+}
+
+.calibration-panel-summary-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-2);
+  border-right: 1px solid var(--color-border);
+}
+
+.calibration-panel-summary-cell:last-child {
+  border-right: none;
+}
+
+.calibration-panel-summary-label {
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.calibration-panel-summary-value {
+  font-size: 24px;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text-primary);
+  line-height: 1.1;
+}
+
+.calibration-panel-summary-value-sm {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text-primary);
+}
+
+.calibration-panel-summary-hint {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+/* ===== 工具栏 ===== */
+.calibration-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+}
+
+.calibration-panel-toolbar-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.calibration-panel-toolbar-select {
+  min-width: 240px;
+}
+
+.calibration-panel-toolbar-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+}
+
+/* ===== 详情区 ===== */
+.calibration-panel-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+}
+
+/* 头部 */
+.calibration-panel-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.calibration-panel-detail-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.calibration-panel-detail-id-label {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calibration-panel-detail-id-value {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text-primary);
+}
+
+.calibration-panel-detail-t {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.calibration-panel-detail-t-label {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calibration-panel-detail-t-value {
+  font-size: 36px;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--color-link);
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.calibration-panel-detail-t-hint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+}
+
+/* Slider */
+.calibration-panel-detail-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+}
+
+.calibration-panel-detail-slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.calibration-panel-detail-slider-range {
+  font-family: var(--font-family-mono);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-normal);
+}
+
+/* 4 指标卡片 */
+.calibration-panel-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.calibration-panel-detail-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-2);
+  background: var(--color-bg-inset);
+  border-radius: var(--radius-sm);
+}
+
+.calibration-panel-detail-cell-label {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.calibration-panel-detail-cell-value {
+  font-size: 18px;
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text-primary);
+  line-height: 1.1;
+}
+
+.calibration-panel-detail-cell-value-sm {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+  color: var(--color-text-primary);
+}
+
+/* 操作按钮 */
+.calibration-panel-detail-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Tabs */
+.calibration-panel-detail-tabs {
+  background: var(--color-bg-inset);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.calibration-panel-detail-tabs .ant-tabs-nav {
+  margin-bottom: var(--space-2);
+}
+
+/* 图表区 */
+.calibration-panel-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.calibration-panel-chart-hint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  font-family: var(--font-family-mono);
+  padding-top: var(--space-1);
+}
+
+/* ===== Footer 论文溯源 ===== */
+.calibration-panel-footer {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-link);
+}
+
+.calibration-panel-footer-title {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-1);
+}
+
+.calibration-panel-footer-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.calibration-panel-footer-list strong {
+  color: var(--color-text-primary);
+}
+
+.calibration-panel-footer-list code {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  padding: 1px 4px;
+  background: var(--color-bg-inset);
+  border-radius: 2px;
+}
+
+/* ===== 窄屏适配 ===== */
+@media (max-width: 768px) {
+  .calibration-panel-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .calibration-panel-summary-cell:nth-child(2) {
+    border-right: none;
+  }
+
+  .calibration-panel-summary-cell:nth-child(-n+2) {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .calibration-panel-detail-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .calibration-panel-detail-header {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .calibration-panel-detail-t {
+    align-items: flex-start;
+  }
+}

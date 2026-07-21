@@ -1,0 +1,252 @@
+/**
+ * SelectionPopover 浮层样式 - v0.8.0
+ *
+ * 风格：暗色系 + 慢动画（与项目整体一致）
+ * 不使用 emoji（按用户要求），使用文本字符和颜色
+ */
+
+.sel-popover {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(35, 35, 38, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: sel-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+@keyframes sel-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sel-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #e8e8e8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 200ms ease, color 200ms ease;
+  white-space: nowrap;
+}
+.sel-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.sel-btn.active {
+  background: rgba(90, 200, 250, 0.18);
+  color: #5ac8fa;
+}
+.sel-btn-label {
+  font-weight: 500;
+}
+.sel-btn-icon {
+  font-size: 14px;
+  line-height: 1;
+  color: #86868b;
+}
+.sel-btn-close {
+  padding: 6px 8px;
+  color: #86868b;
+}
+.sel-btn-close:hover {
+  color: #ff6b35;
+}
+.sel-kbd {
+  margin-left: 2px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: #86868b;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  font-family: inherit;
+}
+
+/* ===== 翻译结果面板 ===== */
+
+.trans-panel {
+  min-width: 280px;
+  max-width: 480px;
+  padding: 14px 16px;
+  background: rgba(30, 30, 32, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  color: #e8e8e8;
+  font-size: 13px;
+  animation: sel-fade-in 220ms ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.trans-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.trans-word {
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  color: #5ac8fa;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-all;
+}
+.trans-pos {
+  color: #86868b;
+  font-size: 11px;
+  font-style: italic;
+}
+.trans-close {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #86868b;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 200ms ease, color 200ms ease;
+}
+.trans-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ff6b35;
+}
+
+.trans-zh {
+  font-size: 15px;
+  color: #ffffff;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+/* 分词翻译 */
+.trans-segments {
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+.trans-seg-title {
+  font-size: 11px;
+  color: #86868b;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+.trans-seg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12px;
+}
+.trans-seg-word {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: #5ac8fa;
+  background: rgba(90, 200, 250, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.trans-seg-arrow {
+  color: #86868b;
+  font-size: 11px;
+}
+.trans-seg-zh {
+  color: #c0c0c0;
+}
+
+/* 例句 */
+.trans-example {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(90, 200, 250, 0.06);
+  border-left: 2px solid #5ac8fa;
+  font-size: 12px;
+  color: #c0c0c0;
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.trans-example-label {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  background: rgba(90, 200, 250, 0.15);
+  color: #5ac8fa;
+  font-size: 10px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.trans-example code {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  word-break: break-all;
+}
+
+/* 关联课程 */
+.trans-course {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(48, 209, 88, 0.06);
+  border-left: 2px solid #30d158;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  transition: background 200ms ease;
+}
+.trans-course:hover {
+  background: rgba(48, 209, 88, 0.12);
+}
+.trans-course-label {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  background: rgba(48, 209, 88, 0.15);
+  color: #30d158;
+  font-size: 10px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.trans-course-title {
+  color: #c0c0c0;
+}
+
+/* 无翻译 */
+.trans-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #86868b;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.trans-ask-ai {
+  margin-left: auto;
+  padding: 5px 10px;
+  background: rgba(175, 82, 222, 0.15);
+  border: 1px solid rgba(175, 82, 222, 0.3);
+  border-radius: 4px;
+  color: #c779ff;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 200ms ease;
+}
+.trans-ask-ai:hover {
+  background: rgba(175, 82, 222, 0.25);
+}

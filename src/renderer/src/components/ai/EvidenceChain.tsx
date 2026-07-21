@@ -6,7 +6,7 @@
  * - 每条证据显示：来源图标 / 来源标签 / 内容 / 置信度进度条
  * - 置信度颜色编码（绿色≥0.7 / 黄色≥0.5 / 红色<0.5）
  * - 证据支持展开/收起详情
- * - Ground-Check 验证状态可视化（✓ 已验证 / ⚠ 未验证）
+ * - Ground-Check 验证状态可视化（已验证 / 未验证）
  *
  * 苹果极简风格：细线条卡片，大量留白
  */
@@ -209,7 +209,7 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
                     className="evidence-detail-value"
                     style={{ color: evidence.verified ? '#34c759' : '#ff3b30' }}
                   >
-                    {evidence.verified ? '✓ 已验证' : '⚠ 未验证'}
+                    {evidence.verified ? '已验证' : '未验证'}
                   </span>
                 </div>
                 <div className="evidence-detail-row">

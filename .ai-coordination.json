@@ -1,0 +1,1054 @@
+{
+  "version": 1,
+  "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
+  "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
+  "lastUpdated": "2026-07-21T11:39:03.716Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-07-21T11:31:40.720Z",
+      "lastActiveAt": "2026-07-21T11:31:40.720Z",
+      "task": "R9: MCP Client 双向网关实现",
+      "claimedFiles": [
+        {
+          "path": "src/main/services/mcp/client-manager.ts,src/main/core/agent/mcp-gateway.ts,src/shared/models.ts,src/main/services/storage/config-store.ts",
+          "task": "R9: MCP Client 双向网关实现",
+          "claimedAt": "2026-07-21T11:31:40.720Z"
+        }
+      ],
+      "expiresAt": "2026-07-21T13:31:40.720Z"
+    }
+  },
+  "history": [
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/ai/DecisionCard.tsx,src/renderer/src/components/ai/DecisionCard.css,src/renderer/src/components/ai/ConfidenceBreakdown.tsx,src/renderer/src/components/ai/ConfidenceBreakdown.css,src/renderer/src/utils/evidence-to-input.ts",
+      "task": "P1-credibility",
+      "timestamp": "2026-07-20T09:11:57.078Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "claim",
+      "file": "docs/AGENT_MAIN_PATH.md",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T12:55:30.632Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T12:55:30.732Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T12:55:30.840Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "claim",
+      "file": "src/renderer/src/stores/agent-store.ts",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T12:55:30.938Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "release",
+      "file": "docs/AGENT_MAIN_PATH.md",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T13:09:54.888Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T13:09:54.984Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T13:09:55.078Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire",
+      "action": "release",
+      "file": "src/renderer/src/stores/agent-store.ts",
+      "task": "Sprint-wire-AIPanel-to-agent-chat",
+      "timestamp": "2026-07-20T13:09:55.174Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "docs/AGENT_MAIN_PATH.md",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:36.904Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:36.999Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:37.092Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/EditorArea.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:37.180Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/WorkbenchTitlebar.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:37.290Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/StatusBar.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:37.382Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "claim",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:17:37.474Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "docs/AGENT_MAIN_PATH.md",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.173Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.307Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.440Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/EditorArea.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.562Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/WorkbenchTitlebar.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.692Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/StatusBar.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.831Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wire2",
+      "action": "release",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "Wire-2-provider-terminal-status",
+      "timestamp": "2026-07-20T13:31:03.948Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-boot",
+      "action": "claim",
+      "file": "src/renderer/src/pages/BootPage.tsx",
+      "task": "Restore-shader-boot-page",
+      "timestamp": "2026-07-20T13:38:12.404Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-boot",
+      "action": "release",
+      "file": "src/renderer/src/pages/BootPage.tsx",
+      "task": "Restore-shader-boot-page",
+      "timestamp": "2026-07-20T13:54:03.682Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:56.338Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:56.459Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/WorkbenchTitlebar.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:56.568Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/ActivityRail.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:56.667Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/StatusBar.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:56.787Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/styles/workbench-density.css",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:56.906Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:04:57.014Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/EditorArea.tsx",
+      "task": "overnight-phase-B-editor",
+      "timestamp": "2026-07-20T14:46:40.455Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:51.824Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:51.947Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/WorkbenchTitlebar.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:52.070Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/ActivityRail.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:52.201Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/StatusBar.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:52.320Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/styles/workbench-density.css",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:52.444Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "func-sftp-tree-density",
+      "timestamp": "2026-07-20T14:56:52.562Z"
+    },
+    {
+      "sessionId": "ai-claude-20260720-wb3",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/EditorArea.tsx",
+      "task": "overnight-phase-B-editor",
+      "timestamp": "2026-07-20T14:56:52.674Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SshSettings.tsx",
+      "task": "ssh-settings-real-ipc",
+      "timestamp": "2026-07-20T16:07:47.636Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight",
+      "action": "claim",
+      "file": "scripts/overnight-ui-audit.cjs",
+      "task": "ui-audit-script",
+      "timestamp": "2026-07-20T16:07:47.752Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight",
+      "action": "claim",
+      "file": "src/renderer/src/styles/workbench-density.css",
+      "task": "density-fix",
+      "timestamp": "2026-07-20T16:07:47.866Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-20T16:07:47.976Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "remove-mock-logs-density",
+      "timestamp": "2026-07-20T16:17:13.875Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/WorkbenchTitlebar.tsx",
+      "task": "remove-mock-logs",
+      "timestamp": "2026-07-20T16:17:13.997Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "claim",
+      "file": "src/renderer/src/pages/GeneralSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:47:15.125Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "claim",
+      "file": "src/renderer/src/pages/RiskSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:47:15.246Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TerminalSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:47:15.354Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "claim",
+      "file": "src/renderer/src/pages/AppearanceSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:47:15.466Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:47:15.582Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "claim",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:47:15.698Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress-update",
+      "timestamp": "2026-07-21T04:53:32.247Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "claim",
+      "file": "docs/DELIVERY_CHECKLIST.md",
+      "task": "checklist-update",
+      "timestamp": "2026-07-21T04:53:32.388Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "decision-card-on-done",
+      "timestamp": "2026-07-21T04:53:32.528Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "decision-card-ui",
+      "timestamp": "2026-07-21T04:53:32.674Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "release",
+      "file": "src/renderer/src/pages/GeneralSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:55:51.088Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "release",
+      "file": "src/renderer/src/pages/RiskSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:55:51.215Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "release",
+      "file": "src/renderer/src/pages/TerminalSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:55:51.363Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "release",
+      "file": "src/renderer/src/pages/AppearanceSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:55:51.507Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:55:51.658Z"
+    },
+    {
+      "sessionId": "ai-qoder-settings-ipc",
+      "action": "release",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "接入 configGet/configSet IPC 持久化",
+      "timestamp": "2026-07-21T04:55:51.789Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress-update",
+      "timestamp": "2026-07-21T04:57:25.309Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "release",
+      "file": "docs/DELIVERY_CHECKLIST.md",
+      "task": "checklist-update",
+      "timestamp": "2026-07-21T04:57:25.444Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "decision-card-on-done",
+      "timestamp": "2026-07-21T04:57:25.568Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-b",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "decision-card-ui",
+      "timestamp": "2026-07-21T04:57:25.701Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "claim",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "about-real-info",
+      "timestamp": "2026-07-21T05:04:10.083Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/AlertTable.tsx",
+      "task": "monitor-mock-cleanup",
+      "timestamp": "2026-07-21T05:04:10.199Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/ProcessTable.tsx",
+      "task": "monitor-mock-cleanup",
+      "timestamp": "2026-07-21T05:04:10.323Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/TokenUsageChart.tsx",
+      "task": "token-chart-real",
+      "timestamp": "2026-07-21T05:04:10.446Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T05:04:10.566Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "release",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "about-real-info",
+      "timestamp": "2026-07-21T05:15:44.898Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/AlertTable.tsx",
+      "task": "monitor-mock-cleanup",
+      "timestamp": "2026-07-21T05:15:45.012Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/ProcessTable.tsx",
+      "task": "monitor-mock-cleanup",
+      "timestamp": "2026-07-21T05:15:45.128Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/TokenUsageChart.tsx",
+      "task": "token-chart-real",
+      "timestamp": "2026-07-21T05:15:45.235Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-c",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T05:15:45.347Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/components/decision/EvidenceList.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:17.610Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:17.756Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/components/history-detail/EvidenceTimeline.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:17.891Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanelTokenChart.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:18.021Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/LoopWorkflowPanel.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:18.153Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:18.302Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:20:18.423Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "claim",
+      "file": "src/renderer/src/pages/MonitorPage.tsx",
+      "task": "process-refresh-wire",
+      "timestamp": "2026-07-21T05:24:02.740Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/EvidenceList.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:23.912Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:24.026Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/components/history-detail/EvidenceTimeline.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:24.146Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanelTokenChart.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:24.269Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/LoopWorkflowPanel.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:24.390Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:24.506Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "p1-density-demo-ux",
+      "timestamp": "2026-07-21T05:27:24.632Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-d",
+      "action": "release",
+      "file": "src/renderer/src/pages/MonitorPage.tsx",
+      "task": "process-refresh-wire",
+      "timestamp": "2026-07-21T05:27:24.760Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-e",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "sftp-mkdir-delete",
+      "timestamp": "2026-07-21T05:32:43.692Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-e",
+      "action": "claim",
+      "file": "src/renderer/src/pages/KnowledgePage.tsx",
+      "task": "knowledge-no-fake-fallback",
+      "timestamp": "2026-07-21T05:32:43.805Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-e",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T05:32:43.930Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "实现 PAOR 循环 plan/act/observe/reflect 方法",
+      "timestamp": "2026-07-21T05:48:51.017Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "实现 PAOR 循环 plan/act/observe/reflect 方法",
+      "timestamp": "2026-07-21T05:51:23.747Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-e",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "sftp-mkdir-delete",
+      "timestamp": "2026-07-21T05:54:55.229Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-e",
+      "action": "release",
+      "file": "src/renderer/src/pages/KnowledgePage.tsx",
+      "task": "knowledge-no-fake-fallback",
+      "timestamp": "2026-07-21T05:54:55.349Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-e",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T05:54:55.472Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "claim",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "ssh-readonly-tools",
+      "timestamp": "2026-07-21T06:06:12.581Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "claim",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "pass-ssh-session",
+      "timestamp": "2026-07-21T06:06:12.702Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "agentChat-sshSession",
+      "timestamp": "2026-07-21T06:06:12.829Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "claim",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "agentChat-types",
+      "timestamp": "2026-07-21T06:06:12.957Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "pass-active-session",
+      "timestamp": "2026-07-21T06:06:13.078Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T06:06:13.195Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "playwright.config.ts,tests/e2e/",
+      "task": "QoderWork: E2E test infrastructure setup",
+      "timestamp": "2026-07-21T06:17:43.263Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "release",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "ssh-readonly-tools",
+      "timestamp": "2026-07-21T06:17:49.483Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "release",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "pass-ssh-session",
+      "timestamp": "2026-07-21T06:17:49.602Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "agentChat-sshSession",
+      "timestamp": "2026-07-21T06:17:49.724Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "release",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "agentChat-types",
+      "timestamp": "2026-07-21T06:17:49.848Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "pass-active-session",
+      "timestamp": "2026-07-21T06:17:49.968Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-f",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T06:17:50.095Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialPage.tsx",
+      "task": "tutorial-no-mock-fallback",
+      "timestamp": "2026-07-21T06:23:54.633Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/StatusBar.tsx",
+      "task": "statusbar-density",
+      "timestamp": "2026-07-21T06:23:54.768Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T06:23:54.918Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "claim",
+      "file": "docs/DELIVERY_CHECKLIST.md",
+      "task": "checklist",
+      "timestamp": "2026-07-21T06:23:55.053Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent-workflow.ts",
+      "task": "Ground-Check + Drain3 接入生产流程 (Round 4)",
+      "timestamp": "2026-07-21T06:29:40.936Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent-workflow.ts",
+      "task": "Ground-Check + Drain3 接入生产流程 (Round 4)",
+      "timestamp": "2026-07-21T06:35:15.090Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "release",
+      "file": "src/renderer/src/pages/TutorialPage.tsx",
+      "task": "tutorial-no-mock-fallback",
+      "timestamp": "2026-07-21T06:42:48.464Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/StatusBar.tsx",
+      "task": "statusbar-density",
+      "timestamp": "2026-07-21T06:42:48.593Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T06:42:48.727Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-g",
+      "action": "release",
+      "file": "docs/DELIVERY_CHECKLIST.md",
+      "task": "checklist",
+      "timestamp": "2026-07-21T06:42:48.860Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-h",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "tutorial-detail-no-mock",
+      "timestamp": "2026-07-21T06:48:47.214Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-h",
+      "action": "claim",
+      "file": "scripts/overnight-smoke-check.cjs",
+      "task": "smoke-extend",
+      "timestamp": "2026-07-21T06:48:47.353Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-h",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T06:48:47.491Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-h",
+      "action": "release",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "tutorial-detail-no-mock",
+      "timestamp": "2026-07-21T07:15:17.955Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-h",
+      "action": "release",
+      "file": "scripts/overnight-smoke-check.cjs",
+      "task": "smoke-extend",
+      "timestamp": "2026-07-21T07:15:18.076Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-h",
+      "action": "release",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T07:15:18.189Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-i",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "aipanel-real-default-ux",
+      "timestamp": "2026-07-21T07:22:41.958Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-i",
+      "action": "claim",
+      "file": "docs/OVERNIGHT_PROGRESS.md",
+      "task": "progress",
+      "timestamp": "2026-07-21T07:22:42.078Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-i",
+      "action": "claim",
+      "file": "docs/DELIVERY_CHECKLIST.md",
+      "task": "checklist",
+      "timestamp": "2026-07-21T07:22:42.194Z"
+    },
+    {
+      "sessionId": "ai-claude-20260721-overnight-i",
+      "action": "claim",
+      "file": "scripts/overnight-smoke-check.cjs",
+      "task": "smoke",
+      "timestamp": "2026-07-21T07:22:42.311Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/mcp/server.ts",
+      "task": "R7: MCP v5工具dispatch修复+ssh_exec去重",
+      "timestamp": "2026-07-21T11:08:58.745Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent/mcp-gateway.ts",
+      "task": "R7: MCP Gateway v5 dispatch + Client侧",
+      "timestamp": "2026-07-21T11:08:59.687Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "PAOR approval IPC wiring",
+      "timestamp": "2026-07-21T11:15:26.837Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "PAOR approval preload APIs",
+      "timestamp": "2026-07-21T11:15:27.789Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "PAOR approval types",
+      "timestamp": "2026-07-21T11:15:28.760Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "PAOR approval card UI",
+      "timestamp": "2026-07-21T11:15:29.759Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/mcp/server.ts",
+      "task": "R7: MCP v5工具dispatch修复+ssh_exec去重",
+      "timestamp": "2026-07-21T11:20:25.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/mcp-gateway.ts",
+      "task": "R7: MCP Gateway v5 dispatch + Client侧",
+      "timestamp": "2026-07-21T11:20:25.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "PAOR approval IPC wiring",
+      "timestamp": "2026-07-21T11:20:25.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "PAOR approval preload APIs",
+      "timestamp": "2026-07-21T11:20:25.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "PAOR approval types",
+      "timestamp": "2026-07-21T11:20:25.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "PAOR approval card UI",
+      "timestamp": "2026-07-21T11:20:25.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/mcp/client-manager.ts,src/main/core/agent/mcp-gateway.ts,src/shared/models.ts,src/main/services/storage/config-store.ts",
+      "task": "R9: MCP Client 双向网关实现",
+      "timestamp": "2026-07-21T11:31:40.720Z"
+    }
+  ]
+}

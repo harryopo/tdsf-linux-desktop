@@ -5,6 +5,7 @@
  * - Recharts AreaChart 展示内存使用率趋势
  * - 实时数据更新（最近 60 秒）
  * - 苹果极简风格：渐变填充、细线条
+ * - 亮色/暗黑模式自动适配（读取 theme-store）
  *
  * 数据来源：monitor-store 中对应 sessionId 的历史数据
  */
@@ -18,7 +19,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { DatabaseOutlined } from '@ant-design/icons'
 import type { MonitorData } from '@shared/models'
+import { useThemeStore } from '../../stores/theme-store'
 import './MonitorPanel.css'
 
 /** MemoryChart 组件 Props */
@@ -35,6 +38,28 @@ const formatTime = (timestamp: number): string => {
 
 /** MemoryChart 内存监控图表 */
 const MemoryChart: React.FC<MemoryChartProps> = ({ data }) => {
+  const theme = useThemeStore((s) => s.theme)
+
+  /** v2.2：颜色全部 token 化 */
+  const colors = useMemo(
+    () => ({
+      grid: 'var(--color-border)',
+      axisLine: 'var(--color-border-strong)',
+      tick: 'var(--color-text-tertiary)',
+      tooltipBg: 'var(--color-bg-elevated)',
+      tooltipBorder: 'var(--color-border)',
+      tooltipLabel: 'var(--color-text-tertiary)',
+      tooltipText: 'var(--color-text-primary)',
+    }),
+    [theme]
+  )
+
+  /** v2.2：每个实例唯一 gradient ID，避免多图表冲突 */
+  const gradientId = useMemo(
+    () => `memoryGradient-${Math.random().toString(36).slice(2, 9)}`,
+    []
+  )
+
   /** 转换数据为 Recharts 所需格式 */
   const chartData = useMemo(
     () =>
@@ -48,6 +73,7 @@ const MemoryChart: React.FC<MemoryChartProps> = ({ data }) => {
   return (
     <div className="monitor-chart-container">
       <div className="monitor-chart-header">
+        <DatabaseOutlined className="monitor-chart-icon" />
         <span className="monitor-chart-title">内存使用率</span>
         <span className="monitor-chart-current">
           {data.length > 0 ? `${data[data.length - 1].memoryUsage.toFixed(1)}%` : '--'}
@@ -56,43 +82,43 @@ const MemoryChart: React.FC<MemoryChartProps> = ({ data }) => {
       <ResponsiveContainer width="100%" height={120}>
         <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
           <defs>
-            <linearGradient id="memoryGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34c759" stopOpacity={0.3} />
-              <stop offset="100%" stopColor="#34c759" stopOpacity={0} />
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-success)" stopOpacity={0.3} />
+              <stop offset="100%" stopColor="var(--color-success)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e7" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
           <XAxis
             dataKey="time"
-            tick={{ fontSize: 10, fill: '#86868b' }}
-            axisLine={{ stroke: '#e5e5e7' }}
+            tick={{ fontSize: 'var(--font-size-xs)', fill: colors.tick }}
+            axisLine={{ stroke: colors.axisLine }}
             tickLine={false}
             interval="preserveStartEnd"
           />
           <YAxis
             domain={[0, 100]}
-            tick={{ fontSize: 10, fill: '#86868b' }}
+            tick={{ fontSize: 'var(--font-size-xs)', fill: colors.tick }}
             axisLine={false}
             tickLine={false}
             unit="%"
           />
           <Tooltip
             contentStyle={{
-              background: '#1d1d1f',
-              border: 'none',
+              background: colors.tooltipBg,
+              border: `1px solid ${colors.tooltipBorder}`,
               borderRadius: '8px',
-              fontSize: '12px',
-              color: '#fff',
+              fontSize: 'var(--font-size-xs)',
+              color: colors.tooltipText,
             }}
-            labelStyle={{ color: '#86868b' }}
+            labelStyle={{ color: colors.tooltipLabel }}
             formatter={(value: number) => [`${value}%`, '内存']}
           />
           <Area
             type="monotone"
             dataKey="memory"
-            stroke="#34c759"
+            stroke="var(--color-success)"
             strokeWidth={2}
-            fill="url(#memoryGradient)"
+            fill={`url(#${gradientId})`}
             isAnimationActive={false}
           />
         </AreaChart>

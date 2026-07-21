@@ -1,0 +1,163 @@
+/**
+ * ConfidenceBreakdown 可信度评估明细样式
+ *
+ * 暗系风格（深渊暗系）
+ *
+ * 布局：
+ * - 头部：标题 + 规则标签（Dempster / PCR5）
+ * - Bel/Pl 区间条：水平条形图（绿=Bel、灰=Uncertainty）
+ * - 4 个数值卡片：综合 / Bel / Pl / 不确定
+ * - 冲突警告条：色点 + 数值 + 阈值提示
+ */
+
+/* ===== 容器 ===== */
+.confidence-breakdown {
+  background: var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ===== 头部 ===== */
+.confidence-breakdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.confidence-breakdown-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.confidence-breakdown-rule {
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+  padding: 2px 6px;
+  background: var(--color-bg-card);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+}
+
+/* ===== Bel/Pl 区间条 ===== */
+.confidence-breakdown-interval {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.confidence-breakdown-interval-bar {
+  position: relative;
+  height: 10px;
+  background: transparent;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.confidence-breakdown-interval-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--color-border);
+  border-radius: 5px;
+}
+
+.confidence-breakdown-interval-bel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--color-success);
+  border-radius: 5px 0 0 5px;
+  transition: width 0.5s ease;
+}
+
+.confidence-breakdown-interval-unc {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--color-text-tertiary);
+  opacity: 0.5;
+  transition: left 0.5s ease, width 0.5s ease;
+}
+
+.confidence-breakdown-interval-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+}
+
+/* ===== 4 数值卡片 ===== */
+.confidence-breakdown-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.confidence-breakdown-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+}
+
+.confidence-breakdown-cell-label {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.confidence-breakdown-cell-value {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+  line-height: 1.2;
+}
+
+/* ===== 冲突警告条 ===== */
+.confidence-breakdown-conflict {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+}
+
+.confidence-breakdown-conflict-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.confidence-breakdown-conflict-label {
+  color: var(--color-text-secondary);
+}
+
+.confidence-breakdown-conflict-value {
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-family-mono);
+}
+
+.confidence-breakdown-conflict-hint {
+  color: var(--color-warning);
+  font-size: 10px;
+  margin-left: auto;
+}
+
+/* ===== 窄屏：4 卡片堆叠 ===== */
+@media (max-width: 480px) {
+  .confidence-breakdown-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

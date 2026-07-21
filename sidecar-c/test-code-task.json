@@ -1,0 +1,1 @@
+{"task":"分析 nginx 错误日志，定位 502 Bad Gateway 根因","context":{"log_file":"/var/log/nginx/error.log","time_range":"2026-07-20 10:00:00 - 11:00:00"}}

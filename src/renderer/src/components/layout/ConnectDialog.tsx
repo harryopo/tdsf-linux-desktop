@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Modal, Input, Form, Select, Button, Collapse, message } from 'antd'
 import { FolderOpenOutlined, ApiOutlined } from '@ant-design/icons'
 import type { SshConfig, SshAuthType } from '@shared/models'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 
 /** ConnectDialog 组件 Props */
 interface ConnectDialogProps {
@@ -56,7 +57,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
       form.resetFields()
       form.setFieldsValue(initialValues)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open, server])
 
   /** 认证方式切换 */
@@ -87,6 +88,10 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
   const handleTest = useCallback(async () => {
     try {
       const values = await form.validateFields()
+      if (!isElectronAPIAvailable()) {
+        message.error('electronAPI 不可用，无法测试连接')
+        return
+      }
       setTesting(true)
       const config: SshConfig = {
         id: server?.id ?? generateId(),

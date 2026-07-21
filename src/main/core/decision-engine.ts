@@ -11,6 +11,7 @@
 import type { DecisionCard, Evidence } from '../../shared/models'
 import { calculateEvidenceConfidence } from './confidence'
 import { assessRisk } from './risk-engine'
+import { computeTrident, inferTridentSource } from './agent/trident-decision'
 
 /**
  * 生成决策卡片
@@ -37,6 +38,9 @@ export function generateDecisionCard(
   const confidence = calculateOverallConfidence(evidences)
   const risk = assessRisk(fixCommand)
 
+  // Trident 三叉决策评分（借鉴 claw-code §3.1）
+  const trident = computeTrident({ risk, evidences, fixCommand })
+
   return {
     id: generateId(),
     problem,
@@ -44,6 +48,11 @@ export function generateDecisionCard(
     evidences,
     confidence,
     risk,
+    // Trident 三叉评分（可空，旧决策卡无此字段时 UI 优雅降级）
+    trident: {
+      ...trident,
+      source: inferTridentSource(),
+    },
     fixCommand,
     fixDescription: fixDescription || `执行命令：${fixCommand}`,
     rollbackCommand,

@@ -1,144 +1,249 @@
 /**
- * AgentWorkflowPanel 工作流可视化样式 - 苹果极简风格
- * 适配 Ant Design Steps 组件
+ * AgentWorkflowPanel 智能体工作流面板样式 v2.0 — 生产交付级极致美学
+ *
+ * 设计原理（WHY）：
+ * - 状态指示器：圆点 + 脉冲动画
+ * - 工作流节点：左侧 3px 主色条
+ * - 进度条：精确可视
  */
 
-.agent-workflow {
+.agent-workflow-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  padding: var(--space-3) var(--space-5);
+  gap: var(--space-2);
+  background: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border);
+  animation: fadeIn var(--duration-base) var(--ease-out-quad);
 }
 
-/* 空状态 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ===== 工作流状态头部 ===== */
+.agent-workflow-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.agent-workflow-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.agent-workflow-status-dot.running {
+  background: var(--color-link);
+}
+
+.agent-workflow-status-dot.running::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: var(--color-link);
+  opacity: 0.3;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.agent-workflow-status-dot.success {
+  background: var(--color-success);
+}
+
+.agent-workflow-status-dot.error {
+  background: var(--color-error);
+}
+
+@keyframes statusPulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50%      { transform: scale(1.4); opacity: 0; }
+}
+
+/* ===== 工作流步骤 ===== */
+.agent-workflow-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.agent-workflow-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  transition: all var(--duration-fast) var(--ease-out-quad);
+  cursor: default;
+  /* 错位进入 */
+  animation: fadeInUpStagger 200ms cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+
+@keyframes fadeInUpStagger {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 左侧 3px 主色条 */
+.agent-workflow-step::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 14px;
+  background: var(--color-link);
+  border-radius: 0 2px 2px 0;
+  transition: transform var(--duration-fast) var(--ease-out-quad);
+}
+
+.agent-workflow-step:hover {
+  background: var(--color-link-alpha-10);
+  color: var(--color-text-primary);
+}
+
+/* 当前步骤 */
+.agent-workflow-step.current {
+  background: var(--color-link-alpha-10);
+  color: var(--color-link);
+  font-weight: var(--font-weight-semibold);
+}
+
+.agent-workflow-step.current::before {
+  transform: translateY(-50%) scaleY(1);
+}
+
+/* 等待确认 */
+.agent-workflow-step.waiting {
+  background: var(--color-warning-alpha-10);
+  color: var(--color-warning);
+  font-weight: var(--font-weight-semibold);
+}
+
+.agent-workflow-step.waiting::before {
+  background: var(--color-warning);
+  transform: translateY(-50%) scaleY(1);
+}
+
+/* 已完成 */
+.agent-workflow-step.completed {
+  color: var(--color-text-tertiary);
+}
+
+.agent-workflow-step.completed::before {
+  background: var(--color-success);
+  transform: translateY(-50%) scaleY(0.7);
+  opacity: 0.5;
+}
+
+/* 错误 */
+.agent-workflow-step.error {
+  background: var(--color-error-alpha-08);
+  color: var(--color-error);
+  font-weight: var(--font-weight-semibold);
+}
+
+.agent-workflow-step.error::before {
+  background: var(--color-error);
+  transform: translateY(-50%) scaleY(1);
+}
+
+.agent-workflow-step-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+  min-width: 16px;
+}
+
+.agent-workflow-step-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.agent-workflow-step.current .agent-workflow-step-icon {
+  color: var(--color-link);
+}
+
+.agent-workflow-step.waiting .agent-workflow-step-icon {
+  color: var(--color-warning);
+}
+
+.agent-workflow-step.completed .agent-workflow-step-icon {
+  color: var(--color-success);
+}
+
+.agent-workflow-step.error .agent-workflow-step-icon {
+  color: var(--color-error);
+}
+
+.agent-workflow-step-label {
+  flex: 1;
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* ===== 空状态 / 错误 / 等待提示 ===== */
 .agent-workflow-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
+  padding: var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
-/* Steps 容器 */
-.agent-workflow-steps {
-  padding: 12px 8px;
-}
-
-/* 步骤标题（自定义渲染，用于支持 Popover 点击和等待动画） */
-.agent-workflow-step-title {
-  cursor: pointer;
-  font-size: 13px;
-  display: inline-block;
-  padding: 2px 6px;
+.agent-workflow-error {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-error-alpha-08);
+  border: 1px solid var(--color-error-alpha-12);
   border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
-
-.agent-workflow-step-title:hover {
-  background: var(--color-bg-primary);
-}
-
-/* 等待确认 - 脉冲动画 */
-.agent-workflow-step-title.waiting {
-  color: var(--color-warning);
-  font-weight: 600;
-  animation: pulse-glow 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    background: rgba(255, 149, 0, 0.08);
-    box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.3);
-  }
-  50% {
-    background: rgba(255, 149, 0, 0.15);
-    box-shadow: 0 0 0 4px rgba(255, 149, 0, 0);
-  }
-}
-
-/* 错误状态标题 */
-.agent-workflow-step-title.error {
   color: var(--color-error);
-  font-weight: 600;
+  font-size: var(--font-size-xs);
 }
 
-/* 步骤描述 */
-.agent-workflow-step-desc {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  cursor: default;
+.agent-workflow-waiting-hint {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-warning-alpha-10);
+  border: 1px solid var(--color-warning-alpha-14);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
 }
 
-/* ===== Ant Design Steps 微调 ===== */
-.agent-workflow-steps .ant-steps-item-finish .ant-steps-item-icon {
-  background: var(--color-success);
-  border-color: var(--color-success);
-}
-
-.agent-workflow-steps .ant-steps-item-finish .ant-steps-item-icon .ant-steps-icon {
-  color: #fff;
-}
-
-.agent-workflow-steps .ant-steps-item-process .ant-steps-item-icon {
-  background: var(--color-link);
-  border-color: var(--color-link);
-}
-
-.agent-workflow-steps .ant-steps-item-error .ant-steps-item-icon {
-  background: var(--color-error);
-  border-color: var(--color-error);
-}
-
-.agent-workflow-steps .ant-steps-item-error .ant-steps-item-icon .ant-steps-icon {
-  color: #fff;
-}
-
-/* 已完成步骤的连接线使用绿色 */
-.agent-workflow-steps .ant-steps-item-finish > .ant-steps-item-container > .ant-steps-item-tail::after {
-  background-color: var(--color-success);
-}
-
-/* 详情弹窗 */
+/* ===== Popover 详情 ===== */
 .agent-workflow-detail {
   max-width: 280px;
 }
 
 .agent-workflow-detail-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
-  margin-bottom: 6px;
+  margin-bottom: var(--space-1);
 }
 
 .agent-workflow-detail-content {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
   white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-/* 错误信息 */
-.agent-workflow-error {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  background: rgba(255, 59, 48, 0.08);
-  border: 1px solid rgba(255, 59, 48, 0.2);
-  border-radius: var(--radius-sm);
-  color: var(--color-error);
-  font-size: 12px;
-}
-
-/* 等待确认提示 */
-.agent-workflow-waiting-hint {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  background: rgba(255, 149, 0, 0.08);
-  border: 1px solid rgba(255, 149, 0, 0.2);
-  border-radius: var(--radius-sm);
-  color: var(--color-warning);
-  font-size: 12px;
+  word-break: break-word;
 }

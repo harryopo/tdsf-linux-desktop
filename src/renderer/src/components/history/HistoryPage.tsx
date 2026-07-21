@@ -21,6 +21,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Input, Select, Pagination, Modal, Spin, Empty, Tag, message } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import DecisionCard from '../ai/DecisionCard'
+import { StaggerList } from '../common'
 import type { DecisionCard as DecisionCardType, RiskLevel } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import './HistoryPage.css'
@@ -202,12 +203,17 @@ const HistoryPage: React.FC = () => {
         ) : currentPageData.length === 0 ? (
           <Empty description="暂无历史决策记录" />
         ) : (
-          currentPageData.map((card) => (
-            <div
-              key={card.id}
-              className="history-card-item"
-              onClick={() => void handleCardClick(card)}
-            >
+          <StaggerList
+            stagger={40}
+            duration={220}
+            className="history-card-list"
+          >
+            {currentPageData.map((card) => (
+              <div
+                key={card.id}
+                className="history-card-item"
+                onClick={() => void handleCardClick(card)}
+              >
               {/* 左侧：问题信息 */}
               <div className="history-card-main">
                 <div className="history-card-problem text-ellipsis">{card.problem}</div>
@@ -228,7 +234,8 @@ const HistoryPage: React.FC = () => {
                 </span>
               </div>
             </div>
-          ))
+          ))}
+          </StaggerList>
         )}
       </div>
 

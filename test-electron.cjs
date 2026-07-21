@@ -1,0 +1,5 @@
+const electron = require('electron')
+console.log('typeof electron:', typeof electron)
+console.log('electron keys:', Object.keys(electron).slice(0, 20))
+console.log('electron.app:', typeof electron.app)
+console.log('process.versions:', process.versions.electron)

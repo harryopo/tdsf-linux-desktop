@@ -12,11 +12,46 @@
  * - 渲染进程只能通过 IPC 白名单访问受控接口
  */
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, crashReporter } from 'electron'
+import * as path from 'node:path'
 import { createMainWindow, destroyMainWindow } from './windows/main-window'
 import { registerAllIpcHandlers } from './ipc'
 import { SshConnectionManager } from './services/ssh/connection-manager'
 import { stopAllMonitoring } from './ipc/monitor'
+import { LangfuseService } from './services/observability/langfuse'
+import { ConfigStore } from './services/storage/config-store'
+import { McpServerService } from './services/mcp/server'
+import { DatabaseManager, resolveDbPath } from './services/db/database'
+import { loadTutorialSeeds } from './services/tutorial/seed-loader'
+// P-4 恢复方案 A：主进程启动时预热 sessionKeyMap 缓存（恢复主进程重启前活跃的沙箱 key）
+import { warmupSessionKeyCache } from './ipc/sandbox'
+import { initLogger, logger } from './services/log/logger'
+// v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
+import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
+
+// 0. -1 最早初始化日志（其他模块才能用 logger）
+initLogger(app.getPath('userData'))
+logger.info('APP', 'TDSF-Linux Desktop 启动', {
+  electronVersion: process.versions.electron,
+  nodeVersion: process.versions.node,
+  platform: process.platform,
+  arch: process.arch,
+})
+
+// v0.9.4 新增：输出 IPC 协议版本号日志
+// 用于诊断 preload 与 main 版本不匹配问题（如渲染进程加载了旧版 preload）
+// 日志格式：[ipc] protocol version: x.y.z
+logger.info('IPC', `protocol version: ${IPC_PROTOCOL_VERSION}`)
+console.log(`[ipc] protocol version: ${IPC_PROTOCOL_VERSION}`)
+
+// 启动本地崩溃收集（不上传服务器），便于排查 renderer/native 崩溃
+app.setPath('crashDumps', require('node:path').join(app.getPath('userData'), 'crashes'))
+crashReporter.start({
+  productName: 'TDSF-Linux-Desktop',
+  companyName: 'TDSF',
+  submitURL: '',
+  uploadToServer: false,
+})
 
 /**
  * 应用启动入口
@@ -25,16 +60,48 @@ import { stopAllMonitoring } from './ipc/monitor'
  * 此时才能创建 BrowserWindow 和使用主进程 API。
  */
 app.whenReady().then(() => {
+  // 0. 初始化 SQLite 数据库（知识库、决策历史、审计日志都依赖它）
+  // 必须在窗口创建前完成，否则 knowledge/history IPC 会拿到内存数据库
+  const dbPath = resolveDbPath(app.getPath('userData'))
+  const db = DatabaseManager.getInstance(dbPath)
+  console.log(`[DB] 数据库已初始化: ${dbPath}, 可用=${db.isAvailable()}, 向量=${db.isVectorEnabled()}`)
+
+  // 0.0a 加载教程种子（v0.7.0 Sprint 5：保证 knowledge_entries 有 10 篇内置教程）
+  //    如果数据库已有教程则跳过，避免覆盖
+  try {
+    const seedCount = loadTutorialSeeds(db)
+    console.log(`[TUTORIAL] 种子加载完成: 新增 ${seedCount} 篇`)
+  } catch (err) {
+    console.warn('[TUTORIAL] 种子加载失败:', (err as Error).message)
+  }
+
+  // 0.0 初始化可观测性服务（Langfuse），未配置 Key 时静默降级
+  LangfuseService.getInstance().init()
+
+  // 0.1 启动 MCP Server（仅在 MCP_SERVER_ENABLED=true 时启用）
+  const mcpConfig = ConfigStore.getMcpConfig() ?? {
+    enabled: process.env.MCP_SERVER_ENABLED === 'true',
+    port: 3107
+  }
+  void McpServerService.getInstance(mcpConfig).start().catch((err) => {
+    console.error('[MCP] 启动失败:', err)
+  })
+
   // 1. 创建主窗口
   const mainWindow: BrowserWindow = createMainWindow()
 
-  // 2. 注册所有 IPC handlers（需要 mainWindow 用于事件推送）
-  registerAllIpcHandlers(mainWindow)
+  // 2. 注册所有 IPC handlers（需要 mainWindow 用于事件推送 + db 用于教程/知识库）
+  registerAllIpcHandlers(mainWindow, db)
 
-  // 3. macOS 激活时重建窗口
+  // 3. P-4 恢复方案 A：异步预热 sessionKeyMap 缓存
+  //    不 await（不阻塞应用启动），后台执行即可
+  //    OpenHands 未启动时静默失败，下次 sandbox:list 时再尝试缓存
+  void warmupSessionKeyCache()
+
+  // 4. macOS 激活时重建窗口
   app.on('activate', handleActivate)
 
-  // 4. 应用退出前清理资源
+  // 5. 应用退出前清理资源
   app.on('before-quit', handleBeforeQuit)
 })
 
@@ -63,7 +130,9 @@ function handleActivate(): void {
   // BrowserWindow.getAllWindows() 在 macOS 上返回空数组时需要重建
   if (BrowserWindow.getAllWindows().length === 0) {
     const mainWindow = createMainWindow()
-    registerAllIpcHandlers(mainWindow)
+    // 重新激活时也需传入 db（教程 IPC 依赖）
+    const db = DatabaseManager.getInstance(resolveDbPath(app.getPath('userData')))
+    registerAllIpcHandlers(mainWindow, db)
   }
 }
 
@@ -84,6 +153,18 @@ async function handleBeforeQuit(): Promise<void> {
   try {
     // 断开所有 SSH 连接
     await SshConnectionManager.getInstance().disconnectAll()
+  } catch {
+    // 忽略清理异常
+  }
+  try {
+    // 停止 MCP Server
+    await McpServerService.getInstance().stop()
+  } catch {
+    // 忽略清理异常
+  }
+  try {
+    // 关闭 Langfuse 客户端（确保 trace 落盘）
+    await LangfuseService.getInstance().shutdown()
   } catch {
     // 忽略清理异常
   }

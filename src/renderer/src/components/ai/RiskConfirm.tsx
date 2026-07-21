@@ -178,7 +178,7 @@ const RiskConfirm: React.FC<RiskConfirmProps> = ({
         <div className="risk-confirm-hint">
           <Paragraph type="secondary" style={{ fontSize: 12, margin: 0 }}>
             {risk.level === 'CRITICAL'
-              ? '⚠️ 极高风险操作需要您手动确认，无法自动执行。'
+              ? '极高风险操作需要您手动确认，无法自动执行。'
               : '请确认您了解此操作的风险后再执行。执行后可通过回滚命令撤销。'}
           </Paragraph>
         </div>

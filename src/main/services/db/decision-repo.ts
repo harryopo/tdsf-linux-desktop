@@ -136,13 +136,25 @@ export class DecisionRepository {
   /**
    * 搜索决策卡片
    *
-   * 在 problem / hypothesis / fixCommand 三个字段中搜索关键词。
+   * 优先使用 FTS5 BM25 全文检索（按相关性排序），
+   * FTS5 不可用或无结果时降级到 LIKE 模糊匹配。
    *
    * @param query 搜索关键词
-   * @returns 匹配的决策卡片数组（按时间倒序）
+   * @returns 匹配的决策卡片数组（FTS5 按相关性，LIKE 按时间倒序）
    */
   search(query: string): DecisionCard[] {
     if (!query.trim()) return []
+
+    // ── 优先 FTS5 BM25 ──
+    const ftsQuery = this.escapeDecisionFtsQuery(query)
+    if (ftsQuery) {
+      const ftsResults = this.db.prepareDecisionFtsSearch(ftsQuery)
+      if (ftsResults.length > 0) {
+        return this.hydrateFromFts(ftsResults)
+      }
+    }
+
+    // ── 降级 LIKE ──
     const pattern = `%${query}%`
     const rows = this.db
       .prepare(
@@ -155,6 +167,39 @@ export class DecisionRepository {
   }
 
   // ────────── 内部方法 ──────────
+
+  /**
+   * 将 FTS5 结果转为完整 DecisionCard（按 BM25 分数排序）
+   */
+  private hydrateFromFts(
+    ftsResults: { id: string; score: number }[]
+  ): DecisionCard[] {
+    const cards: DecisionCard[] = []
+    for (const r of ftsResults) {
+      const card = this.getById(r.id)
+      if (card) cards.push(card)
+    }
+    return cards
+  }
+
+  /**
+   * 转义用户输入为 FTS5 安全查询
+   *
+   * 策略：按空白分词 → 过滤纯标点 → 每个词双引号包裹（短语匹配）
+   * 与 hybrid-search.ts 的 escapeFtsQuery 逻辑一致。
+   */
+  private escapeDecisionFtsQuery(query: string): string {
+    if (!query || typeof query !== 'string') return ''
+    const tokens = query
+      .trim()
+      .split(/\s+/)
+      .filter((t) => t.length > 0)
+      .filter((t) => !/^[\s,，。、；;:：!！?？()（）\[\]【】"'`/\\|*\-+.]+$/.test(t))
+    if (tokens.length === 0) return ''
+    return tokens
+      .map((t) => `"${t.replace(/"/g, '""')}"`)
+      .join(' ')
+  }
 
   /**
    * 序列化决策卡片

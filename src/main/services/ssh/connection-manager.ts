@@ -166,7 +166,7 @@ export class SshConnectionManager {
         if (settled) return
         settled = true
         clearTimeout(timer)
-        entry.state = 'error'
+        // 单条命令失败不修改连接状态，保持会话可用
         reject(err)
       }
       const ok = () => {

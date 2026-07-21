@@ -1,0 +1,1 @@
+{"trace_id":"trace-abc-123","span_name":"http.request.GET","attributes":{"http.method":"GET","http.url":"/api/users","http.status_code":200}}

@@ -36,6 +36,7 @@ import {
 } from '@ant-design/icons'
 import { useSettingsStore, type RiskRule, type AssetTag } from '../../stores/settings-store'
 import { useThemeStore } from '../../stores/theme-store'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import type { RiskLevel, SshAuthType } from '@shared/models'
 
 /** 风险等级选项 */
@@ -54,7 +55,6 @@ const RISK_LEVEL_OPTIONS: Array<{ value: RiskLevel; label: string; color: string
 /** 外观主题区块 - 亮色/暗黑主题切换 */
 export const AppearanceSection: React.FC = () => {
   const theme = useThemeStore((s) => s.theme)
-  const toggleTheme = useThemeStore((s) => s.toggleTheme)
   const setTheme = useThemeStore((s) => s.setTheme)
 
   return (
@@ -80,23 +80,6 @@ export const AppearanceSection: React.FC = () => {
           checkedChildren={<MoonOutlined />}
           unCheckedChildren={<SunOutlined />}
         />
-      </div>
-      <div className="settings-appearance-actions">
-        <Button
-          type={theme === 'light' ? 'primary' : 'default'}
-          icon={<SunOutlined />}
-          onClick={() => setTheme('light')}
-        >
-          亮色
-        </Button>
-        <Button
-          type={theme === 'dark' ? 'primary' : 'default'}
-          icon={<MoonOutlined />}
-          onClick={() => setTheme('dark')}
-        >
-          暗黑
-        </Button>
-        <Button onClick={toggleTheme}>切换</Button>
       </div>
     </div>
   )
@@ -132,6 +115,10 @@ export const LlmConfigSection: React.FC = () => {
   const handleTest = useCallback(async () => {
     try {
       const values = await form.validateFields()
+      if (!isElectronAPIAvailable()) {
+        message.error('electronAPI 不可用，无法测试连接')
+        return
+      }
       setTesting(true)
       const ok = await window.electronAPI.llmTest(values)
       if (ok) {
