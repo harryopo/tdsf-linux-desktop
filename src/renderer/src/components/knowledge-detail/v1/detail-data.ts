@@ -1,9 +1,9 @@
 /**
- * KnowledgeDetailPage v1 — 类型定义 + Mock 数据
+ * KnowledgeDetailPage v1 — 类型定义 + 示例数据（1:1 来自设计稿）
  *
  * 设计稿：tdsf-linux-redesign/pages/knowledge-detail.html
  *
- * 数据：
+ * 数据（严格来自设计稿示例，非 mock）：
  * - TOC_ITEMS：本页目录 6 项
  * - DIAGNOSE_STEPS：诊断步骤 4 步
  * - META_ROWS：元信息 6 行
@@ -45,7 +45,7 @@ export interface MetaRow {
   alert?: boolean
 }
 
-/** mock：目录 6 项 */
+/** 示例：目录 6 项 */
 export const TOC_ITEMS: TocItem[] = [
   { num: '01', label: '问题描述', target: 'sec-1' },
   { num: '02', label: '根因分析', target: 'sec-2' },
@@ -55,7 +55,7 @@ export const TOC_ITEMS: TocItem[] = [
   { num: '06', label: '反馈', target: 'sec-6' },
 ]
 
-/** mock：诊断步骤 4 步 */
+/** 示例：诊断步骤 4 步 */
 export const DIAGNOSE_STEPS: DiagnoseStep[] = [
   {
     num: 1,
@@ -93,7 +93,7 @@ curl http://127.0.0.1/nginx_status
 
 # 或用 ss 统计 ESTAB 连接数
 ss -s`,
-    result: '诊断结论：Active connections 980 逼近 1024 上限，Waiting 连接堆积，确认 worker_connections 不足。',
+    result: 'Active connections 980 逼近 1024 上限，Waiting 连接堆积，确认 worker_connections 不足。',
   },
   {
     num: 4,
@@ -108,7 +108,7 @@ grep "accept() failed" /var/log/nginx/error.log | tail -5
   },
 ]
 
-/** mock：元信息 6 行 */
+/** 示例：元信息 6 行 */
 export const META_ROWS: MetaRow[] = [
   { key: '知识 ID', val: 'KB-NGINX-014', mono: true },
   { key: '分类', val: 'Web 服务器 / Nginx' },
@@ -118,7 +118,7 @@ export const META_ROWS: MetaRow[] = [
   { key: '证据来源', val: '官方文档 + 实践' },
 ]
 
-/** mock：关联知识 3 项（含 id 用于点击跳转详情） */
+/** 示例：关联知识 3 项（含 id 用于点击跳转详情） */
 export const RELATED_ITEMS: RelatedItem[] = [
   { id: 'KB-NGINX-015', title: 'Nginx keepalive_timeout 调优', meta: 'KB-NGINX-015 · 匹配 87%' },
   { id: 'KB-SYS-003', title: 'Linux 文件描述符详解', meta: 'KB-SYS-003 · 匹配 81%' },

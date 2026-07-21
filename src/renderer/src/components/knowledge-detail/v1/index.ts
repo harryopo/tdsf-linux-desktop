@@ -4,7 +4,7 @@
  * 设计稿：tdsf-linux-redesign/pages/knowledge-detail.html
  *
  * 导出：
- * - detail-data：类型 + Mock 数据（TOC_ITEMS / DIAGNOSE_STEPS / META_ROWS / RELATED_ITEMS / FIX_*）
+ * - detail-data：类型 + 示例数据（TOC_ITEMS / DIAGNOSE_STEPS / META_ROWS / RELATED_ITEMS / FIX_*）
  * - detail-parts：CodeBlock + CardHead
  * - KnowledgeDetailSidebar：右栏 4 张卡片
  */

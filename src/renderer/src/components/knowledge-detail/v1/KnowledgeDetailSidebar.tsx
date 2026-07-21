@@ -3,8 +3,8 @@
  *
  * 设计稿：tdsf-linux-redesign/pages/knowledge-detail.html 右栏 aside
  *
- * 结构：
- * 1. 本页目录（6 项，可点击滚动 + 高亮当前）
+ * 结构（1:1 对齐设计稿）：
+ * 1. 本页目录（6 项，可点击滚动 + 高亮当前）— data-dom-id="goto-section-{N}"
  * 2. 知识置信度（圆环 92% + 6 个证据源）
  * 3. 元信息（6 行 key-val）
  * 4. 关联知识（3 项，可点击跳转 `/knowledge/:id`）
@@ -12,6 +12,8 @@
  * 交互：
  * - 目录项 onClick：调用 onTocClick(target)，由父组件滚动到对应 section
  * - 关联知识项 onClick：调用 onNavigate(id)，跳转到对应知识详情
+ *
+ * Token 规范：全部 var(--trae-*)，shadow 用 var(--trae-shadow-card)
  */
 import { FileText, Link2, List, Shield } from 'lucide-react'
 import { CardHead } from './detail-parts'
@@ -26,10 +28,18 @@ interface KnowledgeDetailSidebarProps {
   onNavigate?: (id: string) => void
 }
 
-/** 知识置信度圆环参数 */
+/** 知识置信度圆环参数（1:1 来自设计稿：r=24, 92%） */
 const CONF_RADIUS = 24
 const CONF_CIRCUMFERENCE = 2 * Math.PI * CONF_RADIUS
 const CONF_OFFSET = CONF_CIRCUMFERENCE * (1 - 0.92)
+
+const CARD_STYLE: React.CSSProperties = {
+  background: 'var(--trae-bg-base-secondary)',
+  border: '1px solid var(--trae-border-neutral-l1)',
+  borderRadius: 'var(--trae-radius-8)',
+  boxShadow: 'var(--trae-shadow-card)',
+  overflow: 'hidden',
+}
 
 /** 知识详情右栏组件 */
 export function KnowledgeDetailSidebar({
@@ -39,24 +49,29 @@ export function KnowledgeDetailSidebar({
 }: KnowledgeDetailSidebarProps) {
   return (
     <aside className="sticky top-5 flex w-[260px] shrink-0 flex-col gap-4">
-      {/* 1. 目录 */}
-      <div className="overflow-hidden rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
+      {/* 1. 本页目录 */}
+      <div style={CARD_STYLE}>
         <CardHead icon={<List className="h-3.5 w-3.5" />} title="本页目录" />
         <div className="px-4 py-3">
-          {TOC_ITEMS.map((item) => {
+          {TOC_ITEMS.map((item, idx) => {
             const isActive = activeSection === item.target
             return (
               <button
                 key={item.num}
                 type="button"
+                data-dom-id={`goto-section-${idx + 1}`}
                 onClick={() => onTocClick(item.target)}
                 className={`flex w-full items-center gap-2 rounded-[var(--trae-radius-4)] px-2 py-1.5 text-left text-[12px] transition-colors ${
                   isActive
                     ? 'bg-[var(--trae-bg-brand-popup)] font-medium text-[var(--trae-text-brand)]'
-                    : 'text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]'
+                    : 'text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-base-tertiary)] hover:text-[var(--trae-text-default)]'
                 }`}
+                aria-current={isActive ? 'location' : undefined}
               >
-                <span className={`font-mono text-[10px] ${isActive ? 'text-[var(--trae-text-brand)]' : 'text-[var(--trae-text-tertiary)]'}`}>
+                <span
+                  className="font-mono text-[10px]"
+                  style={{ color: isActive ? 'var(--trae-text-brand)' : 'var(--trae-text-tertiary)' }}
+                >
                   {item.num}
                 </span>
                 <span>{item.label}</span>
@@ -67,13 +82,20 @@ export function KnowledgeDetailSidebar({
       </div>
 
       {/* 2. 知识置信度 */}
-      <div className="overflow-hidden rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
+      <div style={CARD_STYLE}>
         <CardHead icon={<Shield className="h-3.5 w-3.5" />} title="知识置信度" />
         <div className="px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="relative h-14 w-14">
-              <svg width="56" height="56" viewBox="0 0 56 56">
-                <circle cx="28" cy="28" r={CONF_RADIUS} fill="none" stroke="var(--trae-border-neutral-l1)" strokeWidth="4" />
+          <div className="flex items-center gap-3.5">
+            <div className="relative h-14 w-14 shrink-0">
+              <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
+                <circle
+                  cx="28"
+                  cy="28"
+                  r={CONF_RADIUS}
+                  fill="none"
+                  stroke="var(--trae-border-neutral-l1)"
+                  strokeWidth="4"
+                />
                 <circle
                   cx="28"
                   cy="28"
@@ -87,14 +109,15 @@ export function KnowledgeDetailSidebar({
                   transform="rotate(-90 28 28)"
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center font-mono text-[12px] font-semibold text-[var(--trae-text-default)]">
+              <span className="absolute inset-0 flex items-center justify-center font-mono text-[14px] font-semibold text-[var(--trae-text-default)]">
                 92%
               </span>
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="text-[11px] text-[var(--trae-text-tertiary)]">综合置信度评分</div>
-              <div className="mt-1 text-[12px] text-[var(--trae-text-secondary)]">
-                <strong className="font-medium text-[var(--trae-text-default)]">6</strong> 个证据源支持
+              <div className="mt-0.5 text-[12px] text-[var(--trae-text-secondary)]">
+                <strong className="font-medium text-[var(--trae-status-success-default)]">6</strong>{' '}
+                个证据源支持
               </div>
             </div>
           </div>
@@ -102,30 +125,41 @@ export function KnowledgeDetailSidebar({
       </div>
 
       {/* 3. 元信息 */}
-      <div className="overflow-hidden rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
+      <div style={CARD_STYLE}>
         <CardHead icon={<FileText className="h-3.5 w-3.5" />} title="元信息" />
         <div className="px-4 py-3">
-          {META_ROWS.map((row) => (
-            <div key={row.key} className="flex items-center justify-between py-1.5 text-[12px]">
-              <span className="text-[var(--trae-text-tertiary)]">{row.key}</span>
-              <span
-                className={`${row.mono ? 'font-mono' : ''} ${row.alert ? 'text-[var(--trae-status-alert-default)]' : 'text-[var(--trae-text-default)]'}`}
+          <div className="flex flex-col gap-2">
+            {META_ROWS.map((row) => (
+              <div
+                key={row.key}
+                className="flex items-center justify-between text-[11px]"
               >
-                {row.val}
-              </span>
-            </div>
-          ))}
+                <span className="text-[var(--trae-text-tertiary)]">{row.key}</span>
+                <span
+                  className={`text-right font-medium ${row.mono ? 'font-mono text-[10px]' : ''}`}
+                  style={{
+                    color: row.alert
+                      ? 'var(--trae-status-alert-default)'
+                      : 'var(--trae-text-secondary)',
+                  }}
+                >
+                  {row.val}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* 4. 关联知识（按设计稿 .kd-related__item 1:1 还原：padding 8px 10px + 背景 + 边框 + hover 变蓝） */}
-      <div className="overflow-hidden rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
+      {/* 4. 关联知识（1:1 对齐设计稿 .kd-related__item） */}
+      <div style={CARD_STYLE}>
         <CardHead icon={<Link2 className="h-3.5 w-3.5" />} title="关联知识" />
         <div className="px-4 py-3">
           <div className="flex flex-col gap-1.5">
-            {RELATED_ITEMS.map((item) => (
+            {RELATED_ITEMS.map((item, idx) => (
               <div
                 key={item.id}
+                data-dom-id={`goto-related-${idx + 1}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => onNavigate?.(item.id)}
@@ -140,8 +174,12 @@ export function KnowledgeDetailSidebar({
               >
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--trae-bg-brand)]" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[12px] font-medium text-[var(--trae-text-default)]">{item.title}</div>
-                  <div className="mt-0.5 font-mono text-[10px] text-[var(--trae-text-tertiary)]">{item.meta}</div>
+                  <div className="truncate text-[12px] font-medium leading-[18px] text-[var(--trae-text-default)]">
+                    {item.title}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-[var(--trae-text-tertiary)]">
+                    {item.meta}
+                  </div>
                 </div>
               </div>
             ))}
