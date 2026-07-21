@@ -25,9 +25,35 @@ interface RiskPattern {
   description: string
 }
 
+/**
+ * 检测命令是否为 rm 同时包含递归（-r/--recursive）和强制（-f/--force）标志
+ *
+ * 覆盖短标志组合（-rf, -fr, -r -f 等）和长标志组合（--recursive --force 等），
+ * 以及混合形式（-r --force, --recursive -f 等）。
+ *
+ * @param cmd 命令字符串
+ * @param requireRootTarget 为 true 时还要求目标路径为 /（根目录）
+ */
+function isRmRecursiveForce(cmd: string, requireRootTarget = false): boolean {
+  if (!/\brm\s+/.test(cmd)) return false
+
+  // 检查递归标志：-r/-R 或 --recursive
+  const hasRecursive = /(?:^|\s)-(?:\w*r\w*|R)(?:\s|$)/.test(cmd) || /\s--recursive\b/.test(cmd)
+  // 检查强制标志：-f 或 --force
+  const hasForce = /(?:^|\s)-\w*f\w*(?:\s|$)/.test(cmd) || /\s--force\b/.test(cmd)
+
+  if (!hasRecursive || !hasForce) return false
+
+  if (requireRootTarget) {
+    // 目标为 /（后面跟空格、行尾、或 *）
+    return /\s\/(\s|$|\*)/.test(cmd)
+  }
+  return true
+}
+
 /** CRITICAL 黑名单（直接阻止） */
 const CRITICAL_PATTERNS: RiskPattern[] = [
-  { pattern: /\brm\s+(-\w*r\w*f|-\w*f\w*r)\s+\/(\s|$|\*)/, description: '递归强制删除根目录' },
+  { pattern: { test: (cmd: string) => isRmRecursiveForce(cmd, true) } as RegExp, description: '递归强制删除根目录' },
   { pattern: /\bmkfs\b/, description: '格式化文件系统' },
   { pattern: /\bdd\s+.*if=.*of=\/dev\//, description: '直接写入块设备' },
   { pattern: /\bshutdown\b/, description: '关机命令' },
@@ -41,7 +67,7 @@ const CRITICAL_PATTERNS: RiskPattern[] = [
 
 /** HIGH 风险（强制确认） */
 const HIGH_PATTERNS: RiskPattern[] = [
-  { pattern: /\brm\s+(-\w*r\w*f|-\w*f\w*r)\s+\S/, description: '递归强制删除' },
+  { pattern: { test: (cmd: string) => isRmRecursiveForce(cmd, false) } as RegExp, description: '递归强制删除' },
   { pattern: /\bchmod\s+(-\w*R\w*\s+)?777\b/, description: '设置 777 权限' },
   { pattern: /\bkill\s+-9\b/, description: '强制杀死进程' },
   { pattern: /\biptables\s+.*-F\b/, description: '清空防火墙规则' },
