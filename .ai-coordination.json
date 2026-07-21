@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T20:02:45.523Z",
+  "lastUpdated": "2026-07-21T20:36:36.182Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
@@ -15,16 +15,6 @@
           "path": "src/renderer/src/components/knowledge-detail/v1/detail-parts.tsx",
           "task": "Phase 3.2 copy-cmd feedback",
           "claimedAt": "2026-07-21T19:54:06.061Z"
-        },
-        {
-          "path": "src/renderer/src/components/decision/ExecutionResult.tsx",
-          "task": "Phase 3.2 copy-cmd real clipboard",
-          "claimedAt": "2026-07-21T19:54:14.370Z"
-        },
-        {
-          "path": "src/renderer/src/pages/DecisionDetailPage.tsx",
-          "task": "Phase 3.2 decision ops wiring",
-          "claimedAt": "2026-07-21T19:54:14.925Z"
         },
         {
           "path": "src/renderer/src/components/workbench/LoopWorkflowPanel.tsx",
@@ -1617,6 +1607,48 @@
       "file": "scripts/test-cron-parser.ts",
       "task": "Phase 6.1 cron parser unit tests",
       "timestamp": "2026-07-21T20:02:45.523Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "Phase 3.2 copy-cmd real clipboard",
+      "timestamp": "2026-07-21T20:33:54.206Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "Phase 3.2 decision ops wiring",
+      "timestamp": "2026-07-21T20:33:58.980Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task3-fix",
+      "action": "claim",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "phase3-fix-execution-result",
+      "timestamp": "2026-07-21T20:34:03.501Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task3-fix",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "phase3-fix-execution-result",
+      "timestamp": "2026-07-21T20:34:07.780Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task3-fix",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "phase3-fix-execution-result",
+      "timestamp": "2026-07-21T20:36:26.748Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task3-fix",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "phase3-fix-execution-result",
+      "timestamp": "2026-07-21T20:36:36.182Z"
     }
   ]
 }

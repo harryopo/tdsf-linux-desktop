@@ -151,6 +151,7 @@ export function ExecutionResult({
               </span>
               <button
                 type="button"
+                data-dom-id="copy-cmd"
                 onClick={handleCopy}
                 className="shrink-0 rounded p-1 text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
                 aria-label="复制命令"
