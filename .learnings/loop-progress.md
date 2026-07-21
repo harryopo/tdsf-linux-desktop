@@ -1,7 +1,24 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 16
+> 轮次：Round 17
+
+## 删除 20 个死文件（-3,391 行） (2026-07-21 Round 17 — QoderWork)
+
+方向：全量扫描 renderer 下所有 .ts/.tsx 文件的外部引用，发现 20 个文件完全无外部引用（既不被其他文件 import，也不在路由中注册）。本轮统一删除。
+
+| 分类 | 文件 | 行数 | 说明 |
+|------|------|------|------|
+| 整个 ide/ 目录 | IDEPage.tsx+css, CodeEditor.tsx+css, EditorTabs.tsx+css, FileTree.tsx+css | 1,038 | 旧 IDE 工作台，已被 WorkbenchPage 替代 |
+| ide store | stores/ide-store.ts | 197 | 仅供 ide/ 组件使用 |
+| home/ | HomePage.tsx+css | 174 | 旧主页，已被 WorkbenchPage 替代 |
+| Token 监控 | TokenMonitorPanel.tsx+css | 919 | CCSwitch 风格 Token 面板，从未集成 |
+| Token 曲线 | AIPanelTokenChart.tsx | 276 | AI 面板 Token 曲线浮层，从未集成 |
+| 4 个 Radix 原语 | Accordion/Resizable/ScrollArea/Toast.tsx | 298 | shadcn 风格 UI 骨架，从未被消费 |
+| 学习路径 | tutorial/v1/LearningPathCard.tsx | 308 | Sprint 9 推荐卡片，从未集成 |
+| 推荐 Hook | hooks/useRecommendPath.ts | 120 | 学习路径推荐，从未被调用 |
+
+验证：typecheck web+node 0 errors ｜ vitest 1215/1215 PASS (53 files) ｜ build 12.76s
 
 ## 全量 mock-data.ts 死代码清理 (2026-07-21 Round 16 — QoderWork)
 
