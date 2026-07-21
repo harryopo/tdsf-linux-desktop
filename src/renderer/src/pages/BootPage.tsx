@@ -1,20 +1,26 @@
 /**
  * BootPage — Shader 动画启动页（1:1 复刻 tdsf-linux-redesign/pages/boot.html）
  *
- * // @ai-session: ai-20260721-boot
- * // @ai-task: Task-2.1 boot-page 1:1 复刻
+ * // @ai-session: ai-20260721-boot-fix
+ * // @ai-task: Task-2.1 boot-page 1:1 复刻 + P0/P1/P2 修复
  *
  * 路由：/ 与 /boot
  * 设计稿：tdsf-linux-redesign/pages/boot.html
  *
  * 视觉：
  * - 纯黑底 (var(--trae-shader-bg)) + Three.js 全屏 fragment shader 流光
- * - 居中大标题 TDSF LINUX (var(--trae-font-family-heading))
- * - 进度条 280×2px (var(--trae-bg-brand))，3s 填充
+ * - 居中大标题 TDSF LINUX (var(--trae-font-family-heading))，双层 text-shadow
+ * - 进度条 280×2px，白→蓝渐变光带（rgba + hex 混合），3s 填充
  * - 状态文字「正在加载运维内核...」→「就绪 · 点击进入工作台」
- * - 「进入工作台」按钮 (data-dom-id="boot-enter"，var(--trae-bg-brand) 实色)
+ * - 「进入工作台」按钮 (data-dom-id="boot-enter"，spec §B border solid hex +
+ *   设计稿 rgba 半透明白底 + backdrop-filter 玻璃质感)
  * - 底部版本信息「v2.0 · 2026 火山杯 Agent 创新大赛」(12px var(--trae-text-tertiary))
  * - prefers-reduced-motion: 禁用 UI 动画，shader 保留
+ *
+ * 健壮性：
+ * - webglcontextlost 监听 + forceContextLoss 显式释放 GPU 上下文（P1-1 / P1-2）
+ * - progressbar role + aria-valuenow/min/max + sr-only aria-live 状态播报（P1-3）
+ * - requestAnimationFrame 替代 setInterval(30ms) 进度动画（P2-3）
  *
  * SubTasks:
  * - 2.1.1 Three.js shader 动画 ✅
@@ -84,19 +90,24 @@ export function BootPage() {
     let disposed = false
     let renderer: THREE.WebGLRenderer | null = null
     let animationId = 0
+    // 提升到 try 作用域外，便于 cleanup 显式释放（P1-1）
+    let geometry: THREE.PlaneGeometry | null = null
+    let material: THREE.ShaderMaterial | null = null
+    let canvas: HTMLCanvasElement | null = null
+    let handleContextLost: ((event: Event) => void) | null = null
 
     try {
       // 全屏 shader 四边形用正交相机（避免新版 three 对裸 Camera 的差异）
       const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
       const scene = new THREE.Scene()
-      const geometry = new THREE.PlaneGeometry(2, 2)
+      geometry = new THREE.PlaneGeometry(2, 2)
       const uniforms = {
         time: { value: 1.0 },
         resolution: { value: new THREE.Vector2(1, 1) },
       }
 
-      const material = new THREE.ShaderMaterial({
+      material = new THREE.ShaderMaterial({
         uniforms,
         vertexShader: VERTEX_SHADER,
         fragmentShader: FRAGMENT_SHADER,
@@ -110,11 +121,18 @@ export function BootPage() {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
       renderer.setClearColor(0x000000, 1)
-      const canvas = renderer.domElement
+      canvas = renderer.domElement
       canvas.style.display = 'block'
       canvas.style.width = '100%'
       canvas.style.height = '100%'
       container.appendChild(canvas)
+
+      // P1-2: webglcontextlost 事件监听 — GPU 崩溃时降级到纯黑底，避免黑屏无反馈
+      handleContextLost = (event: Event) => {
+        event.preventDefault() // 阻止默认行为，允许后续清理
+        setWebglFailed(true)
+      }
+      canvas.addEventListener('webglcontextlost', handleContextLost)
 
       const onResize = () => {
         if (!renderer || !container) return
@@ -140,10 +158,16 @@ export function BootPage() {
         disposed = true
         window.cancelAnimationFrame(animationId)
         window.removeEventListener('resize', onResize)
-        geometry.dispose()
-        material.dispose()
+        if (canvas && handleContextLost) {
+          canvas.removeEventListener('webglcontextlost', handleContextLost)
+        }
+        // P1-1: 显式释放 GPU 上下文 + geometry / material
+        // forceContextLoss 主动释放 GPU 资源，避免反复进出启动页导致显存泄漏
+        renderer?.forceContextLoss()
+        geometry?.dispose()
+        material?.dispose()
         renderer?.dispose()
-        if (canvas.parentNode === container) {
+        if (canvas && canvas.parentNode === container) {
           container.removeChild(canvas)
         }
       }
@@ -164,6 +188,10 @@ export function BootPage() {
   }, [])
 
   // 进度条 0 → 100（约 3s，与设计稿一致）
+  // P2-3: 改用 requestAnimationFrame 替代 setInterval(30ms)
+  // - 帧同步：与浏览器渲染节拍一致，避免 30ms 抖动和丢帧
+  // - 后台 tab 自动暂停：RAF 在 hidden tab 中不触发，节省 CPU
+  // - 取消时机清晰：useEffect cleanup cancelAnimationFrame 即可
   useEffect(() => {
     if (reducedMotion) {
       // 减少动效：跳过 3s 动画，直接进入就绪态
@@ -172,25 +200,26 @@ export function BootPage() {
       return
     }
     const startAt = Date.now() + PROGRESS_DELAY_MS
-    const id = window.setInterval(() => {
+    let rafId = 0
+    const tick = () => {
       const now = Date.now()
-      if (now < startAt) return
+      if (now < startAt) {
+        rafId = window.requestAnimationFrame(tick)
+        return
+      }
       const t = Math.min((now - startAt) / PROGRESS_DURATION_MS, 1)
       const eased = 1 - Math.pow(1 - t, 3)
       setProgress(Math.round(eased * 100))
       if (t >= 1) {
-        window.clearInterval(id)
         setLoaded(true)
+        return // 不再调度下一帧，RAF 自动停止
       }
-    }, 30)
-    timersRef.current.push(id)
+      rafId = window.requestAnimationFrame(tick)
+    }
+    rafId = window.requestAnimationFrame(tick)
 
     return () => {
-      timersRef.current.forEach((t) => {
-        window.clearTimeout(t)
-        window.clearInterval(t)
-      })
-      timersRef.current = []
+      window.cancelAnimationFrame(rafId)
     }
   }, [reducedMotion])
 
@@ -215,7 +244,7 @@ export function BootPage() {
         ref={canvasHostRef}
         className="absolute inset-0 z-0 overflow-hidden"
         style={{ background: 'var(--trae-shader-bg)' }}
-        aria-hidden
+        aria-hidden="true"
       />
       {webglFailed && (
         <div
@@ -239,7 +268,9 @@ export function BootPage() {
             color: 'var(--trae-shader-fg)',
             letterSpacing: '0.18em',
             textIndent: '0.18em',
-            textShadow: '0 0 40px var(--trae-status-primary-surface-l3)',
+            // P1-4: 设计稿双层 text-shadow（品牌蓝外光晕 + 黑色内描边增强对比）
+            textShadow:
+              '0 0 40px rgba(56, 123, 255, 0.35), 0 0 12px rgba(0, 0, 0, 0.6)',
           }}
         >
           TDSF LINUX
@@ -254,10 +285,23 @@ export function BootPage() {
           className="boot-enter-btn"
         >
           <span className="boot-enter-label">进入工作台</span>
-          <ArrowRight className="boot-enter-icon size-4" aria-hidden />
+          <ArrowRight className="boot-enter-icon size-4" aria-hidden="true" />
         </button>
 
-        <div className="boot-progress" role="status" aria-live="polite">
+        {/* P1-3: 进度条 a11y — role="progressbar" + aria-value*
+         * aria-live 移到内部 sr-only span，避免 progressbar 本身频繁播报百分比变化 */}
+        <div
+          className="boot-progress"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="加载进度"
+        >
+          {/* 屏幕阅读器播报：仅在状态变化时（loaded true/false）触发，避免每帧播报百分比 */}
+          <span className="boot-sr-only" aria-live="polite">
+            {loaded ? '就绪 · 点击进入工作台' : '正在加载运维内核...'}
+          </span>
           <div className="boot-progress-track">
             <div className="boot-progress-fill" style={{ width: `${progress}%` }} />
           </div>
@@ -284,7 +328,11 @@ export function BootPage() {
         }
 
         /* 进入工作台按钮（SubTask 2.1.2）
-         * 样式：背景 var(--trae-bg-brand) #387BFF，圆角 var(--trae-radius-6)，文字白色
+         * 设计稿 1:1 对齐 + spec §B 边框约束：
+         * - border：solid hex --trae-border-neutral-l2 (#4A4D52)，禁止 rgba 半透明边框
+         * - background：rgba(255,255,255,0.05) 半透明白底（设计稿保留，spec §B 仅禁 border rgba）
+         * - backdrop-filter: blur(8px) 玻璃质感
+         * - hover/active：border 变 solid hex 品牌色，bg 半透明品牌蓝（设计稿保留）
          * 动效：进度条完成后（3.5s）缓慢浮现，1.4s ease-out 渐入 */
         .boot-enter-btn {
           position: relative;
@@ -293,9 +341,13 @@ export function BootPage() {
           align-items: center;
           gap: 8px;
           padding: 12px 28px;
-          border: none;
+          /* spec §B：border 必须用 solid hex（--trae-border-neutral-l2 = #4A4D52） */
+          border: 1px solid var(--trae-border-neutral-l2);
           border-radius: var(--trae-radius-6);
-          background: var(--trae-bg-brand);
+          /* 设计稿保留：rgba 半透明白底 + backdrop-filter 玻璃质感 */
+          background: rgba(255, 255, 255, 0.05);
+          -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
           color: var(--trae-shader-fg);
           font-family: var(--trae-font-family-default);
           font-size: 14px;
@@ -303,7 +355,8 @@ export function BootPage() {
           letter-spacing: 0.02em;
           cursor: pointer;
           pointer-events: auto;
-          transition: background-color var(--trae-duration-fast) var(--trae-ease-out),
+          transition: border-color var(--trae-duration-fast) var(--trae-ease-out),
+            background-color var(--trae-duration-fast) var(--trae-ease-out),
             box-shadow var(--trae-duration-fast) var(--trae-ease-out),
             transform var(--trae-duration-fast) var(--trae-ease-out),
             opacity var(--trae-duration-base) var(--trae-ease-out);
@@ -314,17 +367,21 @@ export function BootPage() {
         }
         .boot-enter-btn:disabled {
           cursor: default;
-          background: var(--trae-bg-brand-disabled);
+          /* 禁用态：降低背景透明度，保留玻璃质感视觉一致性 */
+          background: rgba(255, 255, 255, 0.03);
           box-shadow: none;
         }
         .boot-enter-btn:not(:disabled):hover {
-          background: var(--trae-bg-brand-hover);
-          box-shadow: var(--trae-glow-brand);
+          /* hover：border 变 solid hex 品牌色（合规），bg 半透明品牌蓝（设计稿保留） */
+          border-color: var(--trae-bg-brand);
+          background: rgba(56, 123, 255, 0.14);
+          box-shadow: 0 0 28px rgba(56, 123, 255, 0.4),
+            0 0 0 1px rgba(56, 123, 255, 0.2) inset;
           transform: translateY(-1px);
         }
         .boot-enter-btn:not(:disabled):active {
           transform: translateY(0);
-          background: var(--trae-bg-brand-active);
+          background: rgba(56, 123, 255, 0.22);
         }
         .boot-enter-btn:focus-visible {
           outline: 2px solid var(--trae-bg-brand);
@@ -354,15 +411,22 @@ export function BootPage() {
         .boot-progress-track {
           width: 100%;
           height: 2px;
-          background: var(--trae-shader-muted);
+          /* P2-1: 设计稿 rgba(255,255,255,0.1)，原实现 --trae-shader-muted (#0A0A0A) 偏黑 */
+          background: rgba(255, 255, 255, 0.1);
           border-radius: 1px;
           overflow: hidden;
         }
         .boot-progress-fill {
           height: 100%;
-          background: var(--trae-bg-brand);
+          /* P0-2: 设计稿白→蓝渐变光带（rgba + hex 混合，spec §B 仅禁 border rgba） */
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.35) 0%,
+            #ffffff 50%,
+            var(--trae-bg-brand) 100%
+          );
           border-radius: 1px;
-          box-shadow: 0 0 8px var(--trae-status-primary-surface-l3);
+          box-shadow: 0 0 8px rgba(56, 123, 255, 0.5);
           transition: width 0.08s linear;
         }
         .boot-progress-label {
@@ -370,6 +434,19 @@ export function BootPage() {
           color: var(--trae-shader-muted-foreground);
           font-variant-numeric: tabular-nums;
           letter-spacing: 0.04em;
+        }
+
+        /* P1-3: 屏幕阅读器专用隐藏文本（aria-live 进度状态播报） */
+        .boot-sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
         }
 
         /* 底部版本信息（SubTask 2.1.4） */
