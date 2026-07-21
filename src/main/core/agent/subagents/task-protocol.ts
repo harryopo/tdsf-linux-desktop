@@ -143,7 +143,7 @@ type StepFunction = (ctx: TaskProtocolContext) => Promise<StepResult> | StepResu
  * - input 允许任意值（包括 undefined / null）
  *
  * 当前版本：仅校验非空，返回 success=true。
- * Week 2 增强：根据 subagentName 查找已注册 Subagent，校验 input 结构。
+ * 后续增强：根据 subagentName 查找已注册 Subagent，校验 input 结构。
  *
  * @param ctx 协议上下文
  */
@@ -193,7 +193,7 @@ export async function stepValidateInput(ctx: TaskProtocolContext): Promise<StepR
  * - 用户审批 subagent 调度（可保存永久规则，下次同类自动通过）
  *
  * 当前版本：骨架，返回 success=true（默认允许）。
- * Week 2 增强：通过 IPC 推送审批请求到 UI，等待用户响应。
+ * 后续增强：通过 IPC 推送审批请求到 UI，等待用户响应。
  *
  * @param ctx 协议上下文
  */
@@ -335,7 +335,7 @@ export async function stepPrepareContext(ctx: TaskProtocolContext): Promise<Step
  * - subagent 可继承父 model 或自定义
  *
  * 当前版本：骨架，返回 success=true。
- * Week 2 增强：通过 provider-registry.getProvider(task.providerId) 解析。
+ * 后续增强：通过 provider-registry.getProvider(task.providerId) 解析。
  *
  * @param ctx 协议上下文
  */
@@ -441,7 +441,7 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
  * - 在子 session 中执行，subagent 不能 question、不能 interactive_terminal
  *
  * 当前版本：骨架，返回 success=true。
- * Week 2 增强：实际调用 streamText / Claude SDK。
+ * 后续增强：实际调用 streamText / Claude SDK。
  *
  * @param ctx 协议上下文
  */
@@ -512,7 +512,7 @@ export async function stepStreamOutput(ctx: TaskProtocolContext): Promise<StepRe
  * - 子 session 成本传播到父 session
  *
  * 当前版本：骨架，返回 success=true。
- * Week 2 增强：实际从 streamText result.usage 读取 + 通过 recordTokenUsage 记录。
+ * 后续增强：实际从 streamText result.usage 读取 + 通过 recordTokenUsage 记录。
  *
  * @param ctx 协议上下文
  */

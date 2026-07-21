@@ -1,5 +1,5 @@
 /**
- * Token 统计服务（v0.9 Week 1 基础版 → Week 3 持久化版）
+ * Token 统计服务
  *
  * 职责：
  * - 累计每次 LLM 调用的 token 使用量

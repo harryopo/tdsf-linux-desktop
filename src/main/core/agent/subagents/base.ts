@@ -9,7 +9,7 @@
  * 设计要点：
  * - 每个特化 Subagent（编程/思考/运行/搜索/skill/方法论/历史/知识库）继承 BaseSubagent
  * - execute(task) 必须返回 SubagentResult（不抛异常，异常转为 success=false 的结果）
- * - 预留人工审批闸门接口（isApprovalRequired / requestApproval），Week 2 实现 UI
+ * - 预留人工审批闸门接口（isApprovalRequired / requestApproval），已接入 execute() 流程
  *
  * 方案书依据：v0.9 §3.1（8 个特化 Subagent）+ §10 Hard Constraint 4（人工审批闸门）
  */
@@ -111,7 +111,7 @@ export type SubagentName =
  * 提供公共能力：
  * - 受保护日志器（自动注入 subagent name 前缀）
  * - 异常捕获包装（execute → safeExecute）
- * - 审批闸门接口（Week 2 实现 UI 联动）
+ * - 审批闸门（isApprovalRequired / requestApproval，已接入 execute 流程）
  *
  * 子类只需实现 doExecute(task) 实现具体业务逻辑。
  */
@@ -167,6 +167,12 @@ export abstract class BaseSubagent implements Subagent {
         durationMs: result.durationMs || durationMs,
       }
 
+      // 审批闸门：如果任务需要人工审批，拦截结果并返回审批请求
+      if (this.isApprovalRequired(task)) {
+        const preview = `[${this.name}] ${task.description}\n\n结果预览: ${JSON.stringify(finalResult.output).slice(0, 500)}`
+        return await this.requestApproval(task, preview)
+      }
+
       this.log.info(`[${this.name}] 任务完成`, {
         taskId: task.id,
         success: finalResult.success,
@@ -194,20 +200,27 @@ export abstract class BaseSubagent implements Subagent {
   }
 
   /**
-   * 判断任务是否需要人工审批（Week 2 实现具体规则）
+   * 判断任务是否需要人工审批
    *
-   * 默认 false，子类可覆盖（如运行高危命令的 running-subagent 应返回 true）
+   * 默认规则（Hard Constraint 4）：
+   * - running 类型任务：必须在远程服务器上执行命令，需审批
+   * - deep 强度任务：多步推理可能产生重大操作影响，需审批
    *
-   * @param _task 任务对象
+   * 子类可覆盖此方法以自定义审批策略。
+   *
+   * @param task 任务对象
    */
-  protected isApprovalRequired(_task: SubagentTask): boolean {
+  protected isApprovalRequired(task: SubagentTask): boolean {
+    if (task.type === 'running') return true
+    if (task.strength === 'deep') return true
     return false
   }
 
   /**
-   * 请求人工审批（Week 2 实现 IPC 推送到 UI）
+   * 请求人工审批
    *
-   * 当前版本仅记录日志，返回一个 pending 状态的结果。
+   * 记录审批日志并返回 requiresApproval=true 的挂起结果。
+   * 实际的 IPC 推送与 UI 交互由 Supervisor 层的 approveRisk 回调处理（Round 7 已实现）。
    *
    * @param task 任务对象
    * @param preview 审批预览文本
@@ -216,7 +229,7 @@ export abstract class BaseSubagent implements Subagent {
     task: SubagentTask,
     preview: string
   ): Promise<SubagentResult> {
-    this.log.warn(`[${this.name}] 任务需要人工审批（Week 2 实现 UI 联动）`, {
+    this.log.warn(`[${this.name}] 任务需要人工审批`, {
       taskId: task.id,
       preview,
     })
@@ -224,7 +237,7 @@ export abstract class BaseSubagent implements Subagent {
       taskId: task.id,
       success: false,
       output: null,
-      error: '等待人工审批（Week 2 实现具体 UI 联动）',
+      error: '等待人工审批',
       durationMs: 0,
       requiresApproval: true,
       approvalPreview: preview,
@@ -233,9 +246,9 @@ export abstract class BaseSubagent implements Subagent {
 }
 
 /**
- * Subagent 注册表（Week 2 由 Supervisor 用于按 name 查找 Subagent）
+ * Subagent 注册表接口
  *
- * 当前版本仅提供类型契约，实际注册在 Week 2 实现。
+ * Supervisor 通过此接口按 name 查找和管理 Subagent 实例。
  */
 export interface SubagentRegistry {
   /** 按 name 查找 Subagent */
