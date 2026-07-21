@@ -269,6 +269,7 @@ const DecisionCardView: FC<{
       <div className="flex gap-1.5">
         <button
           type="button"
+          data-dom-id="approve-execution"
           onClick={onApprove}
           disabled={disabled}
           className="btn-press inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-40"
@@ -278,6 +279,7 @@ const DecisionCardView: FC<{
         </button>
         <button
           type="button"
+          data-dom-id="reject-execution"
           onClick={onReject}
           disabled={disabled}
           className="btn-press inline-flex h-7 flex-1 items-center justify-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent text-[11px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] disabled:opacity-40"

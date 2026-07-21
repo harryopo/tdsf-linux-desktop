@@ -10,6 +10,7 @@
  * Token 规范：全部 var(--trae-*)，shadow 用 var(--trae-shadow-card)
  */
 import { useState } from 'react'
+import { message } from 'antd'
 import { Check, Copy } from 'lucide-react'
 
 interface CodeBlockProps {
@@ -31,8 +32,10 @@ export function CodeBlock({ code, lang = 'bash', copyId }: CodeBlockProps) {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(code)
+      message.success('命令已复制到剪贴板')
     } catch {
       // clipboard 不可用时静默降级（仍切换提示，避免阻塞交互）
+      message.error('复制失败，请手动选择文本')
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
