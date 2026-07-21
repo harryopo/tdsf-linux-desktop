@@ -1,9 +1,11 @@
 /**
  * SettingsPageHeader — 设置页顶部标题区
  *
- * 设计稿：ds-pageheader（标题 + 描述 + 返回按钮）
+ * 设计稿：ds-pageheader（标题 + 描述 + 双返回按钮）
  * - 左侧：40×40 品牌色图标盒 + 标题(h1) + 副标题(p)
- * - 右侧：返回设置按钮（outline 风格）
+ * - 右侧：返回工作台 + 返回设置 双按钮（outline 风格）
+ *   - data-dom-id="back-workbench" → /workbench
+ *   - data-dom-id="back-settings"  → /settings（9 项卡片入口）
  *
  * 用法：
  * ```tsx
@@ -22,6 +24,9 @@ export interface SettingsPageHeaderProps {
   /** 页面副标题描述 */
   desc: string
 }
+
+const BACK_BTN_CLASS =
+  'inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] motion-safe:active:scale-95'
 
 export function SettingsPageHeader({ icon: Icon, title, desc }: SettingsPageHeaderProps) {
   const navigate = useNavigate()
@@ -48,14 +53,28 @@ export function SettingsPageHeader({ icon: Icon, title, desc }: SettingsPageHead
           </p>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={() => navigate('/settings/general')}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)]"
-      >
-        <ArrowLeft className="size-3.5" />
-        返回设置
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-dom-id="back-workbench"
+          aria-label="返回工作台"
+          onClick={() => navigate('/workbench')}
+          className={BACK_BTN_CLASS}
+        >
+          <ArrowLeft className="size-3.5" />
+          返回工作台
+        </button>
+        <button
+          type="button"
+          data-dom-id="back-settings"
+          aria-label="返回设置"
+          onClick={() => navigate('/settings')}
+          className={BACK_BTN_CLASS}
+        >
+          <ArrowLeft className="size-3.5" />
+          返回设置
+        </button>
+      </div>
     </header>
   )
 }
