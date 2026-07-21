@@ -16,11 +16,11 @@
 // 1. AI 对话消息类型
 // ============================================================
 
-/** 消息类型 */
-export type ChatRole = 'user' | 'ai'
+/** 消息类型（内部使用，外部通过 ChatMessage 引用） */
+type ChatRole = 'user' | 'ai'
 
-/** AI 工具面板类型 */
-export type AIToolType =
+/** AI 工具面板类型（内部使用，外部通过 AIToolPanel 引用） */
+type AIToolType =
   | 'thought'
   | 'skill'
   | 'knowledge'
