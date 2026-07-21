@@ -661,8 +661,8 @@ export function DecisionDetailPage() {
         }
       } catch (err) {
         console.warn('[DecisionDetailPage] loopConfirm approve failed:', err)
-        setCard((prev) => (prev ? { ...prev, status: 'approved' as const } : prev))
-        handleAction('审批调用失败：已降级为本地提示')
+        // catch 块仅显示错误，不更新 status（避免与"失败"提示不一致）
+        handleAction(`审批调用失败：${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setConfirming(false)
       }
@@ -704,8 +704,8 @@ export function DecisionDetailPage() {
         }
       } catch (err) {
         console.warn('[DecisionDetailPage] loopConfirm reject failed:', err)
-        setCard((prev) => (prev ? { ...prev, status: 'rejected' as const } : prev))
-        handleAction('拒绝调用失败：已降级为本地提示')
+        // catch 块仅显示错误，不更新 status（避免与"失败"提示不一致）
+        handleAction(`拒绝调用失败：${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setConfirming(false)
       }
@@ -756,8 +756,8 @@ export function DecisionDetailPage() {
       setModifyModalOpen(false)
     } catch (err) {
       console.warn('[DecisionDetailPage] loopConfirm modify failed:', err)
-      setCard((prev) => (prev ? { ...prev, fixCommand: modifyCommand.trim(), status: 'approved' as const } : prev))
-      handleAction('修改提交失败：已降级为本地提示')
+      setCard((prev) => (prev ? { ...prev, fixCommand: modifyCommand.trim() } : prev))
+      handleAction(`修改命令已本地保存，但主进程同步失败：${err instanceof Error ? err.message : String(err)}`)
       setModifyModalOpen(false)
     } finally {
       setConfirming(false)
