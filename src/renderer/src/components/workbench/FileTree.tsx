@@ -254,7 +254,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
   }, [sessionId, connected, activeFilePath, rootPath, loadRoot])
 
   return (
-    <div className="wb-filetree flex w-[220px] shrink-0 flex-col border-r border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]">
+    <div className="wb-filetree flex w-[200px] shrink-0 flex-col border-r border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]">
       {/* 标题栏 */}
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--trae-border-neutral-l1)] px-2">
         <span className="pl-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--trae-text-secondary)]">

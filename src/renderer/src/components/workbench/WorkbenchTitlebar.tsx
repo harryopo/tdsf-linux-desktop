@@ -144,7 +144,15 @@ export function WorkbenchTitlebar({
         className="wb-titlebar flex h-10 shrink-0 items-center justify-between border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-3"
         aria-label="工作台顶部栏"
       >
-        <div className="relative flex items-center gap-2" ref={menuRef}>
+        {/* 左侧组：macOS 窗口圆点 + 服务器选择器（设计稿行 2171-2183） */}
+        <div className="flex items-center gap-2">
+          {/* macOS 窗口控制圆点（关闭/最小化/最大化）— 设计稿行 2172-2176 */}
+          <div className="flex items-center gap-2" aria-hidden>
+            <span className="size-3 rounded-full bg-[var(--trae-status-error-default)]" />
+            <span className="size-3 rounded-full bg-[var(--trae-status-alert-default)]" />
+            <span className="size-3 rounded-full bg-[var(--trae-status-success-default)]" />
+          </div>
+          <div className="relative flex items-center gap-2" ref={menuRef}>
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
@@ -246,6 +254,7 @@ export function WorkbenchTitlebar({
               </button>
             </div>
           )}
+        </div>
         </div>
 
         <div className="flex items-center gap-1">
