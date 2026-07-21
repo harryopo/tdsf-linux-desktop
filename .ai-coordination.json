@@ -2,13 +2,13 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T11:39:03.716Z",
+  "lastUpdated": "2026-07-21T12:39:17.407Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
       "startedAt": "2026-07-21T11:31:40.720Z",
-      "lastActiveAt": "2026-07-21T11:31:40.720Z",
+      "lastActiveAt": "2026-07-21T12:37:12.230Z",
       "task": "R9: MCP Client 双向网关实现",
       "claimedFiles": [
         {
@@ -17,7 +17,7 @@
           "claimedAt": "2026-07-21T11:31:40.720Z"
         }
       ],
-      "expiresAt": "2026-07-21T13:31:40.720Z"
+      "expiresAt": "2026-07-21T14:37:12.230Z"
     }
   },
   "history": [
@@ -1049,6 +1049,20 @@
       "file": "src/main/services/mcp/client-manager.ts,src/main/core/agent/mcp-gateway.ts,src/shared/models.ts,src/main/services/storage/config-store.ts",
       "task": "R9: MCP Client 双向网关实现",
       "timestamp": "2026-07-21T11:31:40.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "R18: 移除5个未使用npm依赖",
+      "timestamp": "2026-07-21T12:37:12.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "package.json",
+      "task": "R18: 移除5个未使用npm依赖",
+      "timestamp": "2026-07-21T12:39:17.407Z"
     }
   ]
 }

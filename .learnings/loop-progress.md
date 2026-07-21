@@ -1,7 +1,23 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 17
+> 轮次：Round 18
+
+## 移除 5 个未使用 npm 依赖 (2026-07-21 Round 18 — QoderWork)
+
+方向：R17 删除 20 个死文件后，检查其 npm 包依赖是否仍被其他文件使用。发现 5 个包完全无 import 引用，从 package.json 移除。
+
+| 包名 | 原唯一消费者 | 说明 |
+|------|-------------|------|
+| `@monaco-editor/react` | CodeEditor.tsx (R17 删除) | Monaco React 封装 |
+| `monaco-editor` | CodeEditor.tsx (R17 删除) | Monaco 核心 |
+| `@radix-ui/react-accordion` | Accordion.tsx (R17 删除) | Radix 手风琴原语 |
+| `@radix-ui/react-scroll-area` | ScrollArea.tsx (R17 删除) | Radix 滚动区域原语 |
+| `@radix-ui/react-toast` | Toast.tsx (R17 删除) | Radix 吐司原语 |
+
+pnpm install 移除 11 个包（5 direct + 6 transitive）。
+
+验证：typecheck web+node 0 errors ｜ vitest 1215/1215 PASS (53 files) ｜ build 10.88s
 
 ## 删除 20 个死文件（-3,391 行） (2026-07-21 Round 17 — QoderWork)
 
