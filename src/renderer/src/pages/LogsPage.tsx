@@ -29,7 +29,6 @@ import {
   DEFAULT_LOG_SOURCE_ID,
   TOTAL_LOG_COUNT,
   LATEST_TIMESTAMP,
-  LEVEL_STATS,
 } from '@/components/logs/v1/logs-data'
 
 /** LogsPage — 系统日志页 */
@@ -64,15 +63,41 @@ export function LogsPage() {
     }
   }
 
-  const handleAiAnalyze = () => {
-    const total = filteredEntries.length
-    const dist = LEVEL_STATS.map((s) => `${s.level} ${s.count}`).join(' / ')
-    window.alert(`AI 日志分析（当前 ${total} 条）\n级别分布：${dist}\n完整 AI 诊断报告将在后续版本接入。`)
-  }
-
   const handleExport = () => {
-    const total = filteredEntries.length
-    window.alert(`导出 CSV（共 ${total} 条）\n当前为占位交互，后续版本支持文件下载。`)
+    // CSV 注入防御：字段值以 = + - @ 开头时前置单引号（OWASP CSV Injection 建议）
+    const sanitize = (value: string): string => {
+      const first = value.charAt(0)
+      if (first === '=' || first === '+' || first === '-' || first === '@') {
+        return `'${value}`
+      }
+      return value
+    }
+    // CSV 字段转义：含逗号 / 引号 / 换行时用双引号包裹，内部引号双写
+    const escape = (value: string): string => {
+      const safe = sanitize(value)
+      if (safe.includes(',') || safe.includes('"') || safe.includes('\n')) {
+        return `"${safe.replace(/"/g, '""')}"`
+      }
+      return safe
+    }
+    const header = ['时间戳', '级别', '来源', '消息'].join(',')
+    const rows = filteredEntries.map((entry) =>
+      [entry.timestamp, entry.level, entry.source, entry.message].map(escape).join(','),
+    )
+    // UTF-8 BOM 确保中文在 Excel 等编辑器中正确显示
+    const csv = `\uFEFF${header}\n${rows.join('\n')}`
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `system-logs-${stamp}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -171,7 +196,6 @@ export function LogsPage() {
         onLevelChange={setActiveLevel}
         autoScroll={autoScroll}
         onAutoScrollChange={setAutoScroll}
-        onAiAnalyze={handleAiAnalyze}
         onRefresh={handleRefresh}
         onExport={handleExport}
       />

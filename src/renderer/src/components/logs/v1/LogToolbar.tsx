@@ -6,7 +6,6 @@
  *   1. 搜索框（300px，左 32px 内边距容纳搜索图标，等宽字体）
  *   2. Level filter：5 个 radio tabs（全部/INFO/WARN/ERROR/DEBUG），active 项品牌色边框
  *   3. 右侧 cluster（ml-auto）：
- *      - AI 日志分析按钮（品牌色软背景 + sparkles 图标）
  *      - 自动滚动 switch（32x18 椭圆 + 14x14 圆点）
  *      - 刷新图标按钮（28x28）
  *      - 导出图标按钮（28x28）
@@ -15,9 +14,9 @@
  *   - 搜索关键词（useState 由父组件控制）
  *   - Level filter（useState 由父组件控制）
  *   - 自动滚动 switch（useState 由父组件控制）
- *   - AI 日志分析 / 刷新 / 导出 按钮（onClick 回调）
+ *   - 刷新 / 导出 按钮（onClick 回调）
  */
-import { Search, Sparkles, RefreshCw, Download } from 'lucide-react'
+import { Search, RefreshCw, Download } from 'lucide-react'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -30,8 +29,7 @@ export function LogToolbar({
   activeLevel,
   onLevelChange,
   autoScroll,
-  onAutoScrollChange: _onAutoScrollChange,
-  onAiAnalyze,
+  onAutoScrollChange,
   onRefresh,
   onExport,
 }: {
@@ -41,7 +39,6 @@ export function LogToolbar({
   onLevelChange: (level: LogLevel | 'ALL') => void
   autoScroll: boolean
   onAutoScrollChange: (v: boolean) => void
-  onAiAnalyze: () => void
   onRefresh: () => void
   onExport: () => void
 }) {
@@ -123,32 +120,11 @@ export function LogToolbar({
         className="ml-auto flex shrink-0 items-center"
         style={{ gap: 12 }}
       >
-        {/* AI 日志分析按钮 */}
-        <button
-          type="button"
-          onClick={onAiAnalyze}
-          className="btn-press inline-flex items-center transition-colors"
-          style={{
-            height: 28,
-            padding: '0 12px',
-            gap: 6,
-            fontSize: 'var(--trae-body-xs-font-size)',
-            fontWeight: 'var(--trae-font-weight-medium)',
-            color: 'var(--trae-text-brand)',
-            background: 'var(--trae-bg-brand-popup)',
-            border: '1px solid var(--trae-border-brand)',
-            borderRadius: 'var(--trae-radius-4)',
-            cursor: 'pointer',
-          }}
-        >
-          <Sparkles size={14} style={{ color: 'var(--trae-icon-brand)' }} />
-          <span>AI 日志分析</span>
-        </button>
-
         {/* 自动滚动 switch */}
         <label
           className="flex cursor-pointer select-none items-center"
           style={{ gap: 8 }}
+          onClick={() => onAutoScrollChange(!autoScroll)}
         >
           <span
             className="relative inline-block"
@@ -170,7 +146,7 @@ export function LogToolbar({
                 right: autoScroll ? 2 : 'auto',
                 width: 14,
                 height: 14,
-                background: '#FFFFFF',
+                background: 'var(--trae-special-white)',
                 borderRadius: '50%',
                 transition: 'transform 160ms cubic-bezier(.2,.8,.2,1)',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
