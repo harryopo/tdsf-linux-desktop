@@ -15,7 +15,7 @@
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
@@ -31,6 +31,7 @@ interface QuizOption { key: string; label: string; correct?: boolean }
 interface QuizQuestion { id: string; question: string; options: QuizOption[] }
 interface RelatedCourse { id: string; title: string; level: '进阶' | '中级'; duration: string }
 interface CodeLine { color: string; text: string }
+interface QuizResult { correct: number; total: number; passed: boolean }
 
 // ==================== 静态示例数据（1:1 来自设计稿 tutorial-detail.html） ====================
 
@@ -117,11 +118,18 @@ export function TutorialDetailPage() {
   const [activeChapter, setActiveChapter] = useState(2)
   const [completedChapters, setCompletedChapters] = useState<boolean[]>([true, true, false, false, false])
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({ q1: 'B', q2: 'C', q3: 'C' })
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null)
+  const chapterTitleRef = useRef<HTMLHeadingElement>(null)
 
   const completedCount = completedChapters.filter(Boolean).length
   const isFirst = activeChapter === 0
   const isLast = activeChapter === CHAPTERS.length - 1
   const currentChapter = CHAPTERS[activeChapter]
+
+  // ===== 焦点管理：章节切换后聚焦新章节标题（无障碍） =====
+  useEffect(() => {
+    chapterTitleRef.current?.focus()
+  }, [activeChapter])
 
   // ===== 事件处理 =====
   const handleBackWorkbench = () => navigate('/workbench')
@@ -135,14 +143,14 @@ export function TutorialDetailPage() {
   const handleGotoChapter = (idx: number) => setActiveChapter(idx)
   const handleGotoRelated = (id: string) => navigate(`/tutorial/${id}`)
   const handleContinueLearning = () => !isLast && setActiveChapter(activeChapter + 1)
-  const handleOpenSandbox = () => window.alert('沙箱环境正在启动...\n\nv1.1 版本将接入完整的 Linux 容器沙箱，支持实时执行 sysctl/nginx 命令。')
+  const handleOpenSandbox = () => navigate('/workbench')
   const handleSubmitQuiz = () => {
     let correct = 0
     QUIZ_QUESTIONS.forEach((q) => {
       const correctOpt = q.options.find((o) => o.correct)
       if (quizAnswers[q.id] === correctOpt?.key) correct++
     })
-    window.alert(`知识检查完成\n\n答题情况：${correct}/${QUIZ_QUESTIONS.length} 正确`)
+    setQuizResult({ correct, total: QUIZ_QUESTIONS.length, passed: correct === QUIZ_QUESTIONS.length })
   }
 
   return (
@@ -221,7 +229,7 @@ export function TutorialDetailPage() {
             {/* 【当前章节卡片】 */}
             <article className="tutorial-fade-in" style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16 }}>
               <div className="flex items-center justify-between gap-2">
-                <h2 style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
+                <h2 ref={chapterTitleRef} tabIndex={-1} style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)', outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
                 <span className="inline-flex shrink-0 items-center" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: 'var(--trae-bg-brand-popup)', color: 'var(--trae-text-brand)' }}>当前学习</span>
               </div>
               {/* 学习目标 */}
@@ -322,6 +330,20 @@ export function TutorialDetailPage() {
                 <button type="button" data-dom-id="btn-submit-quiz" aria-label="提交答案" onClick={handleSubmitQuiz} className="btn-press inline-flex cursor-pointer items-center gap-1.5 transition-transform" style={{ height: 30, padding: '0 16px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-special-white)', background: 'var(--trae-bg-brand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)' }}>
                   提交答案
                 </button>
+                {quizResult && (
+                  <div role="status" aria-live="polite" className="flex items-center gap-2" style={{ marginTop: 10, padding: '8px 12px', borderRadius: 'var(--trae-radius-4)', background: quizResult.passed ? 'var(--trae-status-success-surface-l1)' : 'var(--trae-status-warning-surface-l1)', borderLeft: `3px solid ${quizResult.passed ? 'var(--trae-status-success-default)' : 'var(--trae-status-warning-default)'}` }}>
+                    {quizResult.passed ? (
+                      <CheckCircle2 size={14} style={{ color: 'var(--trae-status-success-default)' }} />
+                    ) : (
+                      <Info size={14} style={{ color: 'var(--trae-status-warning-default)' }} />
+                    )}
+                    <span style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}>
+                      {quizResult.passed
+                        ? `🎉 全部正确！答题情况：${quizResult.correct}/${quizResult.total}`
+                        : `答题情况：${quizResult.correct}/${quizResult.total} 正确，请回顾章节内容后重试`}
+                    </span>
+                  </div>
+                )}
               </div>
             </article>
 
