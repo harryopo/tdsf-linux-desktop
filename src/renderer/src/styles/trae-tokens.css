@@ -53,7 +53,10 @@
    */
   --trae-font-family-default: 'Inter', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
   --trae-font-family-heading: 'Inter', 'SF Pro Display', 'SF Pro', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --trae-font-family-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --trae-font-family-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  /* 设计稿 §2.2.1 编辑器 / 终端专用字体族（与 mono 区分，含中文 fallback） */
+  --trae-code-editor-font-family: 'JetBrains Mono', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-code-terminal-font-family: 'JetBrains Mono', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
   --trae-font-weight-default: 400;
   --trae-font-weight-code: 450;
   --trae-font-weight-medium: 500;
@@ -155,6 +158,11 @@
   --trae-icon-brand-hover: #4c88ff;
   --trae-border-brand: #387bff;
 
+  /* 设计稿 §2.1.3 AntD 主色 alias（colorPrimary / colorPrimaryHover / 软背景 tag/badge） */
+  --trae-color-primary: #387bff;
+  --trae-color-primary-hover: #4c88ff;
+  --trae-color-primary-soft: rgba(56, 123, 255, 0.12);
+
   /* === 7.3 配色 - 文字 === */
   --trae-text-default: #d1d3db;
   --trae-text-default-hover: #f5f9fe;
@@ -223,6 +231,12 @@
   --trae-status-alert: var(--trae-status-alert-default);
   --trae-status-warning: var(--trae-status-warning-default);
   --trae-status-error: var(--trae-status-error-default);
+
+  /* 设计稿 §2.1.6 日志级别色（log viewer 专用，4 个） */
+  --trae-log-level-info: var(--trae-status-primary-default);
+  --trae-log-level-warn: var(--trae-status-alert-default);
+  --trae-log-level-error: var(--trae-status-error-default);
+  --trae-log-level-debug: var(--trae-text-secondary);
 
   /* === 7.7 风险等级色（decision-detail 专用） === */
   --trae-risk-safe: var(--trae-status-success-default);
@@ -338,17 +352,42 @@
   --trae-brand-green-grey-900: #404f4f;
   --trae-brand-green-grey-1000: #212b2b;
 
-  /* === 9. 阴影系统 === */
+  /* === 9. 阴影系统 ===
+   *
+   * 设计稿 §2.5 阴影 Token（4 个标准命名，极简阴影策略）：
+   * - --trae-shadow-1: 悬浮卡片（ds-card）
+   * - --trae-shadow-2: 模态 / 抽屉
+   * - --trae-shadow-3: 全屏遮罩
+   * - --trae-glow-brand: 品牌发光（仅径向置信度仪表外环等关键焦点元素）
+   *
+   * 老别名（shadow-card / shadow-hero / shadow-swatch-active / shadow-pulse）保留向后兼容
+   */
+  --trae-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --trae-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --trae-shadow-3: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --trae-glow-brand: 0 0 24px rgba(56, 123, 255, 0.4);
+  /* 老别名（保留向后兼容，不修改值以避免破坏现有组件视觉） */
   --trae-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
   --trae-shadow-hero: 0 4px 24px rgba(56, 123, 255, 0.15);
   --trae-shadow-swatch-active: 0 0 0 2px var(--trae-bg-base-secondary), 0 0 0 4px var(--trae-bg-brand);
   --trae-shadow-pulse: 0 0 0 0 var(--trae-bg-brand-popup);
 
-  /* === 10. 动画系统 === */
+  /* === 10. 动画系统 ===
+   *
+   * 设计稿 §2.6 动效 Token（5 个标准命名）：
+   * - --trae-duration-fast: 150ms（hover / focus 快速反馈）
+   * - --trae-duration-normal: 200ms（标准过渡，老别名 --trae-duration-base）
+   * - --trae-duration-slow: 320ms（抽屉 / 模态入场）
+   * - --trae-ease-out: cubic-bezier(0.16, 1, 0.3, 1)（设计稿标准曲线）
+   * - --trae-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1)
+   *
+   * 约束：克制动效，禁止 spring / bounce / elastic；尊重 prefers-reduced-motion
+   */
   --trae-duration-fast: 150ms;
-  --trae-duration-base: 200ms;
-  --trae-duration-slow: 300ms;
-  --trae-ease-out: cubic-bezier(0.3, 0, 0, 1);
+  --trae-duration-normal: 200ms;
+  --trae-duration-base: var(--trae-duration-normal); /* 老别名，向后兼容 */
+  --trae-duration-slow: 320ms;
+  --trae-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --trae-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* === 11. 可视化色板（图表系列色） === */
@@ -480,4 +519,34 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* === 13. 侧边色条 utility（设计稿 §2.4） ===
+ *
+ * 设计稿关键约束：左侧色条用直角竖条，右侧有圆角，禁止全圆角
+ * 用法：<div class="trae-color-bar trae-color-bar--error">...</div>
+ * 语义：danger-card / status-card / risk-card 等左侧状态色条
+ *
+ * 关键 CSS：
+ *   border-left: 2px solid var(--status-*-default);
+ *   border-radius: 0 6px 6px 0;  /* 左直角右圆角，禁止 border-radius: 6px 全圆角 */
+ */
+.trae-color-bar {
+  border-left: 2px solid var(--trae-status-error-default);
+  border-radius: 0 6px 6px 0;
+}
+.trae-color-bar--brand {
+  border-left-color: var(--trae-bg-brand);
+}
+.trae-color-bar--success {
+  border-left-color: var(--trae-status-success-default);
+}
+.trae-color-bar--alert {
+  border-left-color: var(--trae-status-alert-default);
+}
+.trae-color-bar--warning {
+  border-left-color: var(--trae-status-warning-default);
+}
+.trae-color-bar--error {
+  border-left-color: var(--trae-status-error-default);
 }
