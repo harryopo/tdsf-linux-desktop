@@ -273,3 +273,207 @@ perf: 优化终端渲染性能
 - ❌ keytar（safeStorage 是 Electron 30+ 推荐）
 - ❌ 知识图谱/因果超图（3 周无法可信复现）
 - ❌ 自动化自愈执行（与"人机协同"定位冲突）
+
+---
+
+## 循环工程经验（v8.1 新增 · 2026-07-21）
+
+> 本节记录 `build-runnable-tdsf-from-design` spec 全 Phase 执行过程中沉淀的 subagent-driven-development 模式最佳实践。
+
+### 核心模式：subagent-driven-development
+
+将大型 spec 拆分为 Phase → Task → SubTask 三层，父 agent 通过 `Task` 工具 dispatch 子 agent，每个子 agent 独立完成一个边界清晰的 Task 并返回报告。父 agent 汇总报告后决定下一步。
+
+### 最佳实践
+
+1. **subagent 启动协议（强制）**：
+   - 第一步必跑 `git status` + `git log -5` 验证工作区状态
+   - 第二步必读 `LEARNINGS.md` + `PROGRESS.md` 验证当前进度
+   - 第三步必跑 `pnpm ai:check` 检查 AI 协作冲突
+   - 禁止跳过上述步骤直接动手
+
+2. **Task 边界原则**：
+   - 每个 Task 必须有明确的「输入文件 / 输出文件 / 验证门禁」三要素
+   - Task 之间禁止共享可变状态（通过 commit hash 传递）
+   - 跨域 Task 必须由父 agent 协调，subagent 不跨域
+
+3. **报告模板（subagent 必须返回）**：
+   - 完成的 Task ID + commit hash
+   - 实际修改的文件清单（区分新增 / 修改 / 删除）
+   - 验证门禁通过情况（typecheck / lint / test）
+   - 遗留问题与下一步建议
+
+4. **工作区隔离**：
+   - 多 subagent 共享同一工作区时，必须先 `pnpm ai:claim` 锁定文件
+   - 完成后立即 `pnpm ai:release` 释放锁
+   - commit message 必须带 Session ID
+
+5. **进度同步（防止 LRN-20260721-007 重演）**：
+   - 每个 Task 完成后立即更新 `PROGRESS.md` 的进度表
+   - commit message 包含 `Refs: Task X.Y` 便于反查
+   - 不要等到最后批量更新 spec 文档
+
+### 反模式
+
+- ❌ subagent 跳过 `git status` 直接动手（导致 LRN-20260721-008 工作区污染）
+- ❌ 父 agent dispatch 后不验证 subagent 报告（导致 spec 与代码脱节）
+- ❌ subagent 报告混淆「我完成」与「工作区已存在」（导致父 agent 误判进度）
+- ❌ Task 边界过宽（一个 Task 改 10+ 文件，难以审查）
+- ❌ subagent 不跑验证门禁就报告「完成」（违反 verification-before-completion）
+
+---
+
+## IPC 通道清单（v8.1 新增 · 2026-07-21）
+
+> 本节列出 `build-runnable-tdsf-from-design` spec 实现的全部 IPC 通道。所有通道遵守 IPC 4 步同步铁律（main 定义 → ipc/index.ts 注册 → preload 暴露 → electron.d.ts 类型）。
+
+### loop:* · 循环工程
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `loop:start` | 启动循环工程 | `src/main/ipc/loop-engineering.ts` |
+| `loop:stop` | 停止循环工程 | `src/main/ipc/loop-engineering.ts` |
+| `loop:status` | 查询循环状态 | `src/main/ipc/loop-engineering.ts` |
+| `loop:list` | 列出历史循环 | `src/main/ipc/loop-engineering.ts` |
+| `loop:detail` | 查询循环详情 | `src/main/ipc/loop-engineering.ts` |
+
+### scheduler:* · 定时任务调度
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `scheduler:list` | 列出所有定时任务 | `src/main/ipc/scheduler.ts` |
+| `scheduler:create` | 创建定时任务 | `src/main/ipc/scheduler.ts` |
+| `scheduler:update` | 更新定时任务 | `src/main/ipc/scheduler.ts` |
+| `scheduler:delete` | 删除定时任务 | `src/main/ipc/scheduler.ts` |
+| `scheduler:toggle` | 启用/禁用任务 | `src/main/ipc/scheduler.ts` |
+| `scheduler:run-now` | 立即执行一次 | `src/main/ipc/scheduler.ts` |
+| `scheduler:parse-cron` | 解析 cron 表达式 | `src/main/ipc/scheduler.ts` |
+
+### ssh:* · SSH 连接管理
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `ssh:connect` | 建立 SSH 连接 | `src/main/ipc/ssh.ts` |
+| `ssh:disconnect` | 断开连接 | `src/main/ipc/ssh.ts` |
+| `ssh:exec` | 执行命令 | `src/main/ipc/ssh.ts` |
+| `ssh:list` | 列出已保存连接 | `src/main/ipc/ssh.ts` |
+| `ssh:save` | 保存连接配置 | `src/main/ipc/ssh.ts` |
+| `ssh:delete` | 删除连接配置 | `src/main/ipc/ssh.ts` |
+| `ssh:sftp-list` | SFTP 列目录 | `src/main/ipc/ssh.ts` |
+| `ssh:sftp-get` | SFTP 下载文件 | `src/main/ipc/ssh.ts` |
+| `ssh:sftp-put` | SFTP 上传文件 | `src/main/ipc/ssh.ts` |
+
+### llm:* · LLM 推理
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `llm:chat` | 单轮对话 | `src/main/ipc/llm.ts` |
+| `llm:stream` | 流式对话 | `src/main/ipc/llm.ts` |
+| `llm:abort` | 中止推理 | `src/main/ipc/llm.ts` |
+| `llm:test-connection` | 测试 API 连通性 | `src/main/ipc/llm.ts` |
+| `llm:tools:list` | 列出可用工具 | `src/main/ipc/llm-tools.ts` |
+| `llm:tools:call` | 调用工具 | `src/main/ipc/llm-tools.ts` |
+
+### monitor:* · 监控
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `monitor:start` | 启动监控 | `src/main/ipc/monitor.ts` |
+| `monitor:stop` | 停止监控 | `src/main/ipc/monitor.ts` |
+| `monitor:get` | 获取监控数据 | `src/main/ipc/monitor.ts` |
+| `monitor:history` | 查询历史数据 | `src/main/ipc/monitor.ts` |
+
+### log:* · 日志
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `log:list` | 列出日志 | `src/main/ipc/log.ts` |
+| `log:detail` | 日志详情 | `src/main/ipc/log.ts` |
+| `log:analyze` | Drain3 分析 | `src/main/ipc/log.ts` |
+| `log:export` | 导出日志 | `src/main/ipc/log.ts` |
+
+### knowledge:* · 知识库
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `knowledge:list` | 列出知识条目 | `src/main/ipc/knowledge.ts` |
+| `knowledge:detail` | 知识详情 | `src/main/ipc/knowledge.ts` |
+| `knowledge:search` | 混合检索（FTS5 + 向量） | `src/main/ipc/knowledge.ts` |
+| `knowledge:recommend-path` | 推荐学习路径 | `src/main/ipc/knowledge.ts` |
+
+### history:* · 决策历史
+
+| 通道 | 用途 | 实现文件 |
+|------|------|---------|
+| `history:list` | 列出决策记录 | `src/main/ipc/history.ts` |
+| `history:detail` | 决策详情 | `src/main/ipc/history.ts` |
+| `history:search` | FTS5 BM25 检索 | `src/main/ipc/history.ts` |
+| `history:export` | 导出决策报告 | `src/main/ipc/history.ts` |
+
+### 通道总数统计
+
+| 域 | 通道数 |
+|----|--------|
+| loop:* | 5 |
+| scheduler:* | 7 |
+| ssh:* | 9 |
+| llm:* | 6 |
+| monitor:* | 4 |
+| log:* | 4 |
+| knowledge:* | 4 |
+| history:* | 4 |
+| **总计** | **43** |
+
+---
+
+## 评分基准（v8.1 新增 · 2026-07-21）
+
+> 7 维质量评分标准，用于 subagent 完成 Task 后的自评与父 agent 的验收。**阈值：8.5/10**，低于阈值的 Task 必须返工。
+
+### 7 维评分维度
+
+| 维度 | 权重 | 评分标准 | 满分 |
+|------|------|---------|------|
+| **功能完整性** | 20% | 是否覆盖 Task 描述的全部需求？是否有遗漏的边界情况？ | 2.0 |
+| **代码质量** | 15% | 是否符合 TypeScript strict？单文件 ≤ 500 行？单函数圈复杂度 ≤ 15？ | 1.5 |
+| **设计稿还原度** | 15% | 渲染层是否 1:1 复刻设计稿？间距/字体/排版是否一致？ | 1.5 |
+| **测试覆盖** | 15% | 是否有对应单元测试？集成测试？覆盖率 ≥ 85%？ | 1.5 |
+| **IPC 4 步同步** | 10% | 新增 IPC 通道是否完成 4 步同步（main + ipc/index + preload + d.ts）？ | 1.0 |
+| **Token 规范** | 10% | 是否全部使用 `var(--trae-*)`？无硬编码颜色？ | 1.0 |
+| **文档同步** | 15% | 是否更新 LEARNINGS.md / PROGRESS.md？commit message 是否规范？ | 1.5 |
+
+### 评分等级
+
+| 总分 | 等级 | 处置 |
+|------|------|------|
+| ≥ 9.5 | A+ | 直接合并，作为标杆案例 |
+| 9.0 - 9.4 | A | 合并，小修即可 |
+| 8.5 - 8.9 | B+ | 合并，记录改进点 |
+| 8.0 - 8.4 | B | **返工**，修复 P1 问题后重新提交 |
+| 7.0 - 7.9 | C | **返工**，重新设计实现方案 |
+| < 7.0 | D | **拒绝**，Task 边界或方向有误 |
+
+### 评分流程
+
+1. **subagent 自评**：完成 Task 后，按 7 维打分并写入报告
+2. **父 agent 复评**：dispatch 完成后，父 agent 验证分数合理性
+3. **verifier 终评**：Phase 7.7 由 verifier agent 全量 review，给出最终分数
+4. **归档**：最终分数写入 `PROGRESS.md` 的对应 Phase 条目
+
+### 评分示例
+
+```
+Task 6.1 cron-parser 实现
+- 功能完整性: 1.9/2.0（覆盖 cron 全语法，缺 L/W 高级修饰符）
+- 代码质量: 1.5/1.5（strict + 单文件 412 行 + 圈复杂度 ≤ 12）
+- 设计稿还原度: 1.5/1.5（scheduler UI 1:1 复刻）
+- 测试覆盖: 1.5/1.5（37 个单测覆盖全部语法分支）
+- IPC 4 步同步: 1.0/1.0（scheduler:parse-cron 4 步完成）
+- Token 规范: 1.0/1.0（scheduler 页面全 Token）
+- 文档同步: 1.4/1.5（PROGRESS.md 已更新，缺 LEARNINGS.md 一条）
+总分: 9.8/10 → A+
+```
+
+---
+
+*v8.1 归档更新 · 2026-07-21 · Phase 7.6*

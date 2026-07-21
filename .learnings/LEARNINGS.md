@@ -294,4 +294,82 @@ LS d:\ai\linux教学一体\tdsf-linux-desktop\.learnings
 
 ---
 
+## LRN-20260721-007 · spec 文档与代码进度同步脱节
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 |
+| 严重级别 | P2（影响多 agent 协作效率，不影响代码功能） |
+| 发现阶段 | Phase 7 · 归档五件套（Task 7.6） |
+| 关联 Task | Phase 7.6 / 全 spec 周期 |
+
+### 问题描述
+
+执行 Phase 7.6 归档时发现，`.trae/specs/build-runnable-tdsf-from-design/` 下的 `tasks.md` / `checklist.md` 与实际 `git log` 严重脱节：
+
+- tasks.md 中 Phase 6.4/6.5 标记为未完成，但 `git log` 显示已有提交
+- 多个 Phase 3/4/5 的 Task 在 spec 文档中状态滞后于实际代码
+- 归档 agent 必须额外花时间交叉验证「spec 声称的状态」与「git log 真实状态」
+
+### 根因分析
+
+- spec 文档位于 `.trae/specs/` 目录，**该目录在仓库外**（项目根在 `tdsf-linux-desktop/`，spec 在 `d:/ai/linux教学一体/.trae/specs/`），无法被 git 跟踪
+- 每个 Task 完成后没有立即更新 spec 文档勾选状态，而是依赖最后阶段批量回顾
+- 多个 subagent 串行执行时，前一个 agent 完成的任务状态未及时同步到 spec，后一个 agent 启动时仍按「未完成」假设工作
+
+### 修复方案
+
+**每个 Task 完成后立即更新 spec 文档勾选状态**，不要等到最后批量更新。具体：
+
+1. Task 完成的 commit 中，commit message 包含 `Refs: Task X.Y` 便于反查
+2. commit 后立即编辑 `tasks.md` 勾选对应条目
+3. 在 `PROGRESS.md` 中追加该 Task 的 commit hash
+4. 如果 spec 文档因外部目录无法 git 跟踪，至少在 `LEARNINGS.md` 或 `loop-progress.md` 中留下「已完成 Task 清单」便于下一个 agent 读取
+
+### 防护建议
+
+- 在 spec 文档顶部加「最后更新时间 + 已完成 Task 列表」摘要块
+- subagent 启动协议中加入「先读 PROGRESS.md / loop-progress.md 验证当前进度」步骤
+- 考虑将 spec 文档软链接到仓库内（如 `tdsf-linux-desktop/.spec/`）使其可被 git 跟踪
+
+---
+
+## LRN-20260721-008 · 并行 subagent 之间的工作区污染
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 |
+| 严重级别 | P1（影响 subagent 决策正确性） |
+| 发现阶段 | Phase 3.2 / Phase 7.6 验证 |
+| 关联 Task | Phase 3.2 / 全 spec 多 Task |
+
+### 问题描述
+
+Phase 3.2 subagent 在执行报告中声称「Phase 6.4 / 6.5 已完成」，但实际当时 Phase 6 尚未开始。归档阶段交叉验证 `git log` 后确认 Phase 6.4/6.5 的提交是后续其他 agent 的工作，Phase 3.2 agent 误判的原因是工作区中存在其他 agent 的残留文件状态。
+
+### 根因分析
+
+- 多个 subagent 共享同一工作区（`tdsf-linux-desktop/`），文件系统状态可能交叉
+- subagent 启动时未先 `git status` 检查工作区清洁度
+- subagent 报告中混淆了「我完成的工作」与「工作区中已存在的工作」
+- 部分文件（如 `.ai-coordination.json`、未提交的修改）可能被多个 agent 读写
+
+### 修复方案
+
+**subagent 启动前先 `git status` 检查工作区**，避免误判。具体协议：
+
+1. subagent 启动第一步：`git status` + `git log -5` 验证当前工作区状态
+2. 如发现非本 session 的未提交修改，先报告父 agent，不擅自处理
+3. subagent 完成工作后，commit message 必须明确列出本 session 实际修改的文件
+4. 报告中区分「本 session 完成」与「工作区中已存在」两类工作
+
+### 防护建议
+
+- 在 `subagent-driven-development` skill 中加入「启动前 git status 自检」硬约束
+- subagent 报告模板增加「工作区初始状态」字段
+- 考虑为每个 subagent 分配独立的 git worktree（`git worktree add`），物理隔离工作区
+- 父 agent dispatch 时传入「预期工作区清洁」标志，subagent 检测到污染时立即中止
+
+---
+
 *LEARNINGS 文档结束 · 持续更新中*
