@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T18:26:22.875Z",
+  "lastUpdated": "2026-07-21T18:38:45.693Z",
   "sessions": {},
   "history": [
     {
@@ -1418,6 +1418,48 @@
       "file": "src/renderer/src/pages/HistoryDetailPage.tsx",
       "task": "history-detail-page 1:1 复刻",
       "timestamp": "2026-07-21T18:26:22.875Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task212",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SettingsLayout.tsx",
+      "task": "1:1 settings.html SettingsLayout",
+      "timestamp": "2026-07-21T18:32:46.260Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task212",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SettingsPage.tsx",
+      "task": "设置主页快捷入口",
+      "timestamp": "2026-07-21T18:32:46.337Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task212",
+      "action": "claim",
+      "file": "src/renderer/src/router.tsx",
+      "task": "settings index 路由",
+      "timestamp": "2026-07-21T18:32:46.407Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task212",
+      "action": "release",
+      "file": "src/renderer/src/pages/SettingsLayout.tsx",
+      "task": "1:1 settings.html SettingsLayout",
+      "timestamp": "2026-07-21T18:38:45.693Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task212",
+      "action": "release",
+      "file": "src/renderer/src/pages/SettingsPage.tsx",
+      "task": "设置主页快捷入口",
+      "timestamp": "2026-07-21T18:38:45.693Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task212",
+      "action": "release",
+      "file": "src/renderer/src/router.tsx",
+      "task": "settings index 路由",
+      "timestamp": "2026-07-21T18:38:45.693Z"
     }
   ]
 }
