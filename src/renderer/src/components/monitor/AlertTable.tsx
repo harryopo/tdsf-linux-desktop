@@ -1,18 +1,22 @@
 /**
  * AlertTable — 告警列表 table-panel
  *
- * 设计稿：monitor.html 第 5 段 告警列表 table-panel
+ * 设计稿：monitor.html 第 5 段 告警列表 table-panel（第 881-885 行表头）
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.4
  *
  * 实现：
  * - 6 行告警，含级别 tag（critical / high / medium / low）
  * - 每行 `goto-alert-row-N` data-dom-id（N=1~6）
- * - 列：级别 / 标题 / 来源 / 时间 / 状态（5 列）
+ * - 列：时间 / 级别 / 服务器 / 描述 / 状态（5 列，1:1 对齐设计稿）
+ *   - 「来源」列移除（保留在 AlertDrawer 详情中展示）
  * - 点击行弹出右侧 Drawer 展示详情（DEC-3 决策，通过 onOpenDrawer 回调上抛）
  *
- * 数据策略：
+ * 数据策略（spec REMOVED Requirements：mock 数据仅保留在测试用例中）：
  * - 优先使用父组件传入的 alerts（实时计算）
- * - 若父组件未传且无活跃会话，使用 sampleAlerts 作为 fallback（保证页面可演示）
+ * - 其次基于 monitor store 实时数据计算告警
+ * - 若均无数据：
+ *   - DEV 模式下使用 sampleAlerts 作为演示 fallback
+ *   - 非 DEV 模式返回空数组（colSpan=5 显示「暂无告警」占位行）
  *
  * 视觉规范（spec §B）：
  * - 边框用 solid hex（var(--trae-border-neutral-l1)）
@@ -22,7 +26,8 @@
 import { useState, useMemo } from 'react'
 import { Filter, Search } from 'lucide-react'
 import type { AlertRecord, AlertStatus, RiskLevel } from './mock-data'
-import { sampleAlerts } from './mock-data'
+// DEV 模式下导入示例数据 fallback（production build 时 vite 会 tree-shake 移除）
+import { sampleAlerts } from '@/pages/__fixtures__/monitor-sample'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 
@@ -47,7 +52,7 @@ function riskClasses(level: RiskLevel): { surface: string; text: string } {
     case 'low':
       return {
         surface: 'rgba(4, 203, 229, 0.16)',
-        text: '#04CBE5',
+        text: 'var(--trae-accent-cyan)',
       }
   }
 }
@@ -114,7 +119,10 @@ function computeAlertsFromMonitorData(
   return alerts
 }
 
-/** 单行告警（无展开行，点击整行触发 Drawer） */
+/** 单行告警（无展开行，点击整行触发 Drawer）
+ *  列顺序 1:1 对齐设计稿 monitor.html 第 889-942 行：
+ *  时间 / 级别 / 服务器 / 描述 / 状态
+ */
 function AlertRow({
   record,
   rowId,
@@ -131,6 +139,11 @@ function AlertRow({
       onClick={onClick}
       className="cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-bg-overlay-l1)]"
     >
+      {/* 1. 时间（tabular-nums 等宽数字，whitespace-nowrap 不换行） */}
+      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] tabular-nums text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
+        {record.time}
+      </td>
+      {/* 2. 级别 tag（critical=red / high=orange / medium=amber / low=cyan） */}
       <td className="whitespace-nowrap px-3 py-2.5 border-b border-[var(--trae-border-neutral-l1)]">
         <span
           className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] uppercase tracking-[0.04em] rounded-[var(--trae-radius-2)]"
@@ -139,15 +152,15 @@ function AlertRow({
           {record.level}
         </span>
       </td>
+      {/* 3. 服务器名 */}
+      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] border-b border-[var(--trae-border-neutral-l1)]">
+        {record.server}
+      </td>
+      {/* 4. 描述（truncate 单行省略，max-w-[260px] 防止过宽） */}
       <td className="truncate px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] max-w-[260px] border-b border-[var(--trae-border-neutral-l1)]">
         {record.desc}
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
-        {record.server}
-      </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] tabular-nums text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
-        {record.time}
-      </td>
+      {/* 5. 状态（● 前缀 + 状态色：未处理=error / 处理中=warning / 已处理=success） */}
       <td
         className="whitespace-nowrap px-3 py-2.5 text-[11px] border-b border-[var(--trae-border-neutral-l1)]"
         style={{ color: statusColor(record.status) }}
@@ -175,13 +188,17 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
     activeSessionId ? s.systemInfo.get(activeSessionId) : undefined
   )
 
-  // 数据策略：propAlerts > 实时计算 > sampleAlerts fallback
+  // 数据策略（spec REMOVED Requirements）：
+  // propAlerts > 实时计算 > (DEV ? sampleAlerts : [])
   const computedAlerts = useMemo(() => {
     if (propAlerts) return propAlerts
-    if (!activeSessionId) return sampleAlerts
+    if (!activeSessionId) {
+      return import.meta.env.DEV ? sampleAlerts : []
+    }
     const hostname = systemInfo?.hostname ?? '未知服务器'
     const live = computeAlertsFromMonitorData(activeSessionId, hostname)
-    return live.length > 0 ? live : sampleAlerts
+    if (live.length > 0) return live
+    return import.meta.env.DEV ? sampleAlerts : []
   }, [propAlerts, activeSessionId, systemInfo])
 
   /** 筛选未处理告警 + 搜索关键词匹配 */
@@ -239,11 +256,11 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
         <table className="w-full border-collapse min-w-[640px]">
           <thead>
             <tr className="bg-[var(--trae-bg-overlay-l1)]">
-              {['级别', '标题', '来源', '时间', '状态'].map((head) => (
+              {['时间', '级别', '服务器', '描述', '状态'].map((head) => (
                 <th
                   key={head}
                   className={`text-left px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)] ${
-                    head === '标题' ? 'w-full' : 'whitespace-nowrap'
+                    head === '描述' ? 'w-full' : 'whitespace-nowrap'
                   }`}
                 >
                   {head}
