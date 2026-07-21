@@ -15,13 +15,13 @@
  *
  * 数据：严格使用设计稿 knowledge.html 示例数据（5 卡片 + 5 热门 + 3 最近 + 贡献统计）
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
- * 无障碍：button type + aria-label/aria-pressed，prefers-reduced-motion 禁用按压动画
+ * 无障碍：button type + aria-label/aria-pressed；li role=button + tabIndex + onKeyDown；Modal role=dialog + aria-modal + ESC 关闭 + 焦点管理；prefers-reduced-motion 禁用按压动画
  */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
-  ArrowUpRight, Star, FileText, Plus,
+  ArrowUpRight, Star, FileText, Plus, X, Check,
 } from 'lucide-react'
 
 // ==================== 类型定义 ====================
@@ -91,12 +91,58 @@ export function KnowledgePage() {
   const [activeCategory, setActiveCategory] = useState<KnowledgeCategory>('all')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
+  // —— 贡献知识 Modal 状态 ——
+  const [showContributeModal, setShowContributeModal] = useState(false)
+  const [contributeSubmitted, setContributeSubmitted] = useState(false)
+  const [contributeForm, setContributeForm] = useState({
+    title: '',
+    category: 'nginx' as Exclude<KnowledgeCategory, 'all'>,
+    summary: '',
+  })
+  const contributeTriggerRef = useRef<HTMLButtonElement>(null)
+  const contributeTitleInputRef = useRef<HTMLInputElement>(null)
+
   const handleBack = () => navigate('/workbench')
   const handleOpenKnowledge = (id: string) => navigate(`/knowledge/${id}`)
   const handleAiSearchFocus = () => searchInputRef.current?.focus()
+
+  /** 打开贡献知识 Modal：重置表单 + 切换到表单态 */
   const handleContribute = () => {
-    window.alert('贡献知识功能正在开发中，敬请期待后续版本接入知识新增弹窗。')
+    setContributeSubmitted(false)
+    setContributeForm({ title: '', category: 'nginx', summary: '' })
+    setShowContributeModal(true)
   }
+
+  /** 关闭 Modal：清状态 + 焦点返回触发按钮（WAI-ARIA Dialog 模式） */
+  const handleCloseContributeModal = () => {
+    setShowContributeModal(false)
+    setContributeSubmitted(false)
+    requestAnimationFrame(() => contributeTriggerRef.current?.focus())
+  }
+
+  /** 提交贡献：本地演示（不调用 IPC），切换到成功态 */
+  const handleSubmitContribute = () => {
+    const title = contributeForm.title.trim()
+    const summary = contributeForm.summary.trim()
+    if (!title || !summary) return
+    setContributeSubmitted(true)
+  }
+
+  /** ESC 关闭 Modal + 打开时聚焦标题输入框（焦点管理） */
+  useEffect(() => {
+    if (!showContributeModal) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowContributeModal(false)
+        setContributeSubmitted(false)
+        requestAnimationFrame(() => contributeTriggerRef.current?.focus())
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    requestAnimationFrame(() => contributeTitleInputRef.current?.focus())
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [showContributeModal])
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -206,7 +252,22 @@ export function KnowledgePage() {
               </div>
               <ol className="flex flex-col" style={{ gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
                 {HOT_ITEMS.map((hot) => (
-                  <li key={hot.id} data-dom-id={`goto-hot-knowledge-${hot.id}`} onClick={() => handleOpenKnowledge(hot.id)} className="flex cursor-pointer items-center" style={{ gap: 10 }}>
+                  <li
+                    key={hot.id}
+                    data-dom-id={`goto-hot-knowledge-${hot.id}`}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`查看热门知识：${hot.title}，浏览量 ${hot.views}`}
+                    onClick={() => handleOpenKnowledge(hot.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleOpenKnowledge(hot.id)
+                      }
+                    }}
+                    className="flex cursor-pointer items-center outline-none"
+                    style={{ gap: 10, borderRadius: 'var(--trae-radius-4)' }}
+                  >
                     <span className="w-4 shrink-0 text-center" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', fontWeight: 'var(--trae-font-weight-strong)', color: 'var(--trae-text-brand)', fontVariantNumeric: 'tabular-nums' }}>{hot.rank}</span>
                     <span className="min-w-0 flex-1 truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>{hot.title}</span>
                     <span className="shrink-0" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{hot.views}</span>
@@ -223,7 +284,22 @@ export function KnowledgePage() {
               </div>
               <ul className="flex flex-col" style={{ gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
                 {RECENT_ITEMS.map((recent) => (
-                  <li key={recent.id} data-dom-id={`goto-recent-knowledge-${recent.id}`} onClick={() => handleOpenKnowledge(recent.id)} className="flex cursor-pointer items-center" style={{ gap: 10 }}>
+                  <li
+                    key={recent.id}
+                    data-dom-id={`goto-recent-knowledge-${recent.id}`}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`查看最近浏览：${recent.title}，${recent.time}`}
+                    onClick={() => handleOpenKnowledge(recent.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleOpenKnowledge(recent.id)
+                      }
+                    }}
+                    className="flex cursor-pointer items-center outline-none"
+                    style={{ gap: 10, borderRadius: 'var(--trae-radius-4)' }}
+                  >
                     <FileText size={14} className="shrink-0" style={{ color: 'var(--trae-icon-secondary)' }} />
                     <span className="min-w-0 flex-1 truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>{recent.title}</span>
                     <span className="shrink-0" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>{recent.time}</span>
@@ -251,14 +327,156 @@ export function KnowledgePage() {
               </div>
             ))}
           </div>
-          <button type="button" data-dom-id="goto-ai-contribution" aria-label="贡献知识" onClick={handleContribute} className="btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors" style={{ gap: 6, height: 32, padding: '0 12px', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-6)', background: 'transparent', color: 'var(--trae-text-brand)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}>
+          <button ref={contributeTriggerRef} type="button" data-dom-id="goto-ai-contribution" aria-label="贡献知识" aria-haspopup="dialog" aria-expanded={showContributeModal} onClick={handleContribute} className="btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors" style={{ gap: 6, height: 32, padding: '0 12px', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-6)', background: 'transparent', color: 'var(--trae-text-brand)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}>
             <Plus size={14} style={{ color: 'var(--trae-icon-brand)' }} />
             <span>贡献知识</span>
           </button>
         </section>
       </div>
 
-      {/* ====== 按压动画 + 卡片 hover + 搜索框 focus + 无障碍降级 ====== */}
+      {/* ====== 贡献知识 Modal（无障碍：role=dialog + aria-modal + ESC 关闭 + 焦点管理 + 点击遮罩关闭） ====== */}
+      {showContributeModal && (
+        <div
+          role="presentation"
+          onClick={handleCloseContributeModal}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            background: 'rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="贡献知识"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(480px, 92vw)',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              background: 'var(--trae-bg-base-secondary)',
+              border: '1px solid var(--trae-border-neutral-l1)',
+              borderRadius: 'var(--trae-radius-8)',
+              boxShadow: 'var(--trae-shadow-2)',
+              padding: 24,
+            }}
+          >
+            {/* Modal 标题栏 */}
+            <div className="mb-4 flex items-center justify-between" style={{ gap: 12 }}>
+              <div className="flex items-center" style={{ gap: 8 }}>
+                <Plus size={18} style={{ color: 'var(--trae-icon-brand)' }} />
+                <h2 style={{ fontSize: 'var(--trae-heading-sm-font-size)', lineHeight: 'var(--trae-heading-sm-line-height)', fontWeight: 'var(--trae-heading-sm-font-weight)', color: 'var(--trae-text-default)', margin: 0 }}>贡献知识</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭贡献知识弹窗"
+                onClick={handleCloseContributeModal}
+                className="btn-press inline-flex h-7 w-7 cursor-pointer items-center justify-center transition-colors"
+                style={{ background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-secondary)' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {contributeSubmitted ? (
+              /* 提交成功态：role=status + aria-live=polite 通知屏幕阅读器 */
+              <div role="status" aria-live="polite" className="flex flex-col items-center" style={{ gap: 12, padding: '24px 0' }}>
+                <div className="inline-flex h-10 w-10 items-center justify-center" style={{ background: 'var(--trae-bg-brand-popup)', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-8)' }}>
+                  <Check size={20} style={{ color: 'var(--trae-icon-brand)' }} />
+                </div>
+                <p style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)', margin: 0, textAlign: 'center' }}>感谢贡献，知识已提交审核</p>
+                <button
+                  type="button"
+                  onClick={handleCloseContributeModal}
+                  className="btn-press inline-flex h-8 cursor-pointer items-center transition-colors"
+                  style={{ padding: '0 16px', background: 'var(--trae-bg-brand)', color: 'var(--trae-text-onbrand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}
+                >
+                  完成
+                </button>
+              </div>
+            ) : (
+              /* 表单态：原生 form + label + required，HTML5 校验 + submit 触发 */
+              <form onSubmit={(e) => { e.preventDefault(); handleSubmitContribute() }} className="flex flex-col" style={{ gap: 14 }}>
+                {/* 知识标题 */}
+                <div className="flex flex-col" style={{ gap: 6 }}>
+                  <label htmlFor="contribute-title" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>知识标题 <span style={{ color: 'var(--trae-text-brand)' }}>*</span></label>
+                  <input
+                    ref={contributeTitleInputRef}
+                    id="contribute-title"
+                    type="text"
+                    required
+                    value={contributeForm.title}
+                    onChange={(e) => setContributeForm((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="如：Nginx worker_connections 调优"
+                    aria-required="true"
+                    className="h-9 border-none outline-none"
+                    style={{ padding: '0 10px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}
+                  />
+                </div>
+
+                {/* 分类 */}
+                <div className="flex flex-col" style={{ gap: 6 }}>
+                  <label htmlFor="contribute-category" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>分类</label>
+                  <select
+                    id="contribute-category"
+                    value={contributeForm.category}
+                    onChange={(e) => setContributeForm((prev) => ({ ...prev, category: e.target.value as Exclude<KnowledgeCategory, 'all'> }))}
+                    className="h-9 cursor-pointer border-none outline-none"
+                    style={{ padding: '0 10px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}
+                  >
+                    {CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 摘要 */}
+                <div className="flex flex-col" style={{ gap: 6 }}>
+                  <label htmlFor="contribute-summary" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>摘要 <span style={{ color: 'var(--trae-text-brand)' }}>*</span></label>
+                  <textarea
+                    id="contribute-summary"
+                    required
+                    rows={4}
+                    value={contributeForm.summary}
+                    onChange={(e) => setContributeForm((prev) => ({ ...prev, summary: e.target.value }))}
+                    placeholder="简述知识内容、应用场景与关键操作..."
+                    aria-required="true"
+                    className="border-none outline-none"
+                    style={{ padding: '8px 10px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)', resize: 'vertical', minHeight: 80 }}
+                  />
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="flex items-center justify-end" style={{ gap: 8, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={handleCloseContributeModal}
+                    className="btn-press inline-flex h-8 cursor-pointer items-center transition-colors"
+                    style={{ padding: '0 14px', background: 'transparent', color: 'var(--trae-text-default)', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    aria-label="提交知识贡献"
+                    className="btn-press inline-flex h-8 cursor-pointer items-center transition-colors"
+                    style={{ padding: '0 14px', background: 'var(--trae-bg-brand)', color: 'var(--trae-text-onbrand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}
+                  >
+                    提交审核
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ====== 按压动画 + 卡片 hover + 搜索框 focus + li 键盘聚焦 + 无障碍降级 ====== */}
       <style>{`
         .btn-press { transition: transform 80ms ease-out; }
         .btn-press:active { transform: scale(0.92); }
@@ -267,6 +485,8 @@ export function KnowledgePage() {
         .kb-card { transition: border-color 160ms ease-out, background 160ms ease-out; }
         .kb-card:hover { border-color: var(--trae-border-brand); background: var(--trae-bg-overlay-l1); }
         .kb-search-wrapper:focus-within { border-color: var(--trae-border-brand); background: var(--trae-bg-overlay-l2); }
+        li[role="button"]:focus-visible { outline: 2px solid var(--trae-border-brand); outline-offset: 2px; }
+        li[role="button"]:hover { background: var(--trae-bg-overlay-l1); }
         @media (prefers-reduced-motion: reduce) {
           .btn-press:active { transform: none !important; }
           .kb-card { transition: none; }
