@@ -23,18 +23,28 @@
    0. 设计 Token 别名（间距 / 圆角，引用 trae-tokens.css）
    ========================================================================== */
 :root {
-  /* 间距别名（对齐设计稿 0/4/6/8/12/16/24/32/40px） */
-  --space-0: var(--trae-spacer-0);
-  --space-4: var(--trae-spacer-4);
-  --space-6: var(--trae-spacer-6);
-  --space-8: var(--trae-spacer-8);
-  --space-12: var(--trae-spacer-12);
-  --space-16: var(--trae-spacer-16);
-  --space-24: var(--trae-spacer-24);
-  --space-32: var(--trae-spacer-32);
-  --space-40: var(--trae-spacer-40);
+  /*
+   * 间距别名 --spacing-*（spec §B 绝对像素语义，对齐设计稿 0/4/6/8/12/16/24/32/40px）
+   *
+   * 命名区分说明：
+   * - 本文件用 `--spacing-<px>` 表示「绝对像素值」（如 --spacing-4 = 4px）
+   * - trae-tokens.css 用 `--space-<step>` 表示「步进语义」（如 --space-4 = 16px = 4 步 × 4px）
+   * - 二者前缀不同，避免 CSS 级联覆盖冲突（P0 修复：原 --space-* 同名覆盖 trae-tokens.css）
+   */
+  --spacing-0: var(--trae-spacer-0);
+  --spacing-4: var(--trae-spacer-4);
+  --spacing-6: var(--trae-spacer-6);
+  --spacing-8: var(--trae-spacer-8);
+  --spacing-12: var(--trae-spacer-12);
+  --spacing-16: var(--trae-spacer-16);
+  --spacing-24: var(--trae-spacer-24);
+  --spacing-32: var(--trae-spacer-32);
+  --spacing-40: var(--trae-spacer-40);
 
-  /* 圆角别名（对齐设计稿 2/4/6/8/10px） */
+  /*
+   * 圆角别名 --radius-*（spec §B 绝对像素语义，对齐设计稿 2/4/6/8/10px）
+   * 注：trae-tokens.css 未定义 --radius-2/4/6/8/10 同名变量，无级联冲突，保持原命名
+   */
   --radius-2: var(--trae-radius-2);
   --radius-4: var(--trae-radius-4);
   --radius-6: var(--trae-radius-6);
