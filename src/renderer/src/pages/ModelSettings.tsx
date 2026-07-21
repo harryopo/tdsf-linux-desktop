@@ -779,8 +779,8 @@ export function ModelSettings() {
                 className={
                   'flex flex-wrap items-center gap-4 rounded-[var(--trae-radius-6)] border p-3 ' +
                   (testResult === 'success'
-                    ? 'border-[var(--trae-status-success-surface-l1)] bg-[var(--trae-bg-base-secondary)]'
-                    : 'border-[var(--trae-status-error-surface-l1)] bg-[var(--trae-bg-base-secondary)]')
+                    ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-bg-base-secondary)]'
+                    : 'border-[var(--trae-status-error-default)] bg-[var(--trae-bg-base-secondary)]')
                 }
               >
                 <span
