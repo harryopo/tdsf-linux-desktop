@@ -36,7 +36,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { to: '/settings/terminal', label: '终端设置', icon: Terminal, domId: 'nav-terminal-settings' },
   { to: '/settings/decision', label: '决策控制', icon: GitBranch, domId: 'nav-decision-control' },
   { to: '/settings/risk', label: '风险控制', icon: Shield, domId: 'nav-risk-control' },
-  { to: '/monitor', label: '告警阈值', icon: Bell, domId: 'nav-alerts' },
+  { to: '/settings/alerts', label: '告警阈值', icon: Bell, domId: 'nav-alerts' },
   { to: '/settings/appearance', label: '外观', icon: Palette, domId: 'nav-appearance' },
   { to: '/settings/about', label: '关于', icon: Info, domId: 'nav-about' },
 ]

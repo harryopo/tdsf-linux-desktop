@@ -30,10 +30,10 @@ interface QuickEntry {
 const QUICK_ENTRIES: QuickEntry[] = [
   { domId: 'goto-settings-general', to: '/settings/general', icon: Settings, title: '通用', desc: '语言、启动与数据偏好' },
   { domId: 'goto-settings-ssh', to: '/settings/ssh', icon: KeySquare, title: 'SSH 连接', desc: '远程主机连接管理' },
-  { domId: 'goto-settings-model-config', to: '/settings/model', icon: Cpu, title: 'AI 引擎', desc: 'AI 模型参数与 API 接入' },
+  { domId: 'goto-settings-model', to: '/settings/model', icon: Cpu, title: 'AI 引擎', desc: 'AI 模型参数与 API 接入' },
   { domId: 'goto-settings-terminal', to: '/settings/terminal', icon: Terminal, title: '终端设置', desc: '命令执行与翻译偏好' },
-  { domId: 'goto-settings-decision-control', to: '/settings/decision', icon: GitBranch, title: '决策控制', desc: 'AI 决策阈值与自动执行' },
-  { domId: 'goto-settings-risk-control', to: '/settings/risk', icon: Shield, title: '风险控制', desc: '高危命令拦截与审计' },
+  { domId: 'goto-settings-decision', to: '/settings/decision', icon: GitBranch, title: '决策控制', desc: 'AI 决策阈值与自动执行' },
+  { domId: 'goto-settings-risk', to: '/settings/risk', icon: Shield, title: '风险控制', desc: '高危命令拦截与审计' },
   { domId: 'goto-settings-alerts', to: '/settings/alerts', icon: Bell, title: '告警阈值', desc: '监控告警触发规则' },
   { domId: 'goto-settings-appearance', to: '/settings/appearance', icon: Palette, title: '外观', desc: '主题与显示偏好' },
   { domId: 'goto-settings-about', to: '/settings/about', icon: Info, title: '关于', desc: '应用版本与许可信息' },
