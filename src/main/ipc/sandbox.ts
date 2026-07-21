@@ -28,6 +28,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron'
 import * as path from 'node:path'
+import { SANDBOX } from '@shared/ipc-channels'
 import { detectDockerDesktop, type DockerInfo } from '../services/sandbox/docker-detector'
 import { OpenHandsRunner } from '../services/sandbox/openhands-runner'
 import {
@@ -443,7 +444,7 @@ export function registerSandboxIpcHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // sandbox:detect-docker — 检测 Docker Desktop
   // ------------------------------------------------------------------
-  ipcMain.handle('sandbox:detect-docker', async (): Promise<DockerInfo> => {
+  ipcMain.handle(SANDBOX.DETECT_DOCKER, async (): Promise<DockerInfo> => {
     logger.info('IPC.SANDBOX', 'sandbox:detect-docker 调用')
     try {
       const info = await detectDockerDesktop()
