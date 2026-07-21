@@ -18,6 +18,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { SSH } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { SftpManager } from '../services/ssh/sftp'
 import type { SshConfig } from '@shared/models'
@@ -39,7 +40,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
 
   /** ssh:connect — 建立 SSH 连接，返回 sessionId */
-  ipcMain.handle('ssh:connect', async (_event, config: SshConfig) => {
+  ipcMain.handle(SSH.CONNECT, async (_event, config: SshConfig) => {
     // 调试日志：输出收到的连接配置（脱敏）
     console.log('[SSH] 收到连接请求:', {
       host: config.host,
@@ -86,7 +87,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
 
   /** ssh:shell:start — 启动交互式 shell，并注册数据推送回调 */
-  ipcMain.handle('ssh:shell:start', async (_event, sessionId: string) => {
+  ipcMain.handle(SSH.SHELL_START, async (_event, sessionId: string) => {
     try {
       const ok = await sshManager.startShell(sessionId)
       if (!ok) {

@@ -17,6 +17,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { KNOWLEDGE } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { KnowledgeRepository } from '../services/db/knowledge-repo'
 import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
@@ -105,7 +106,7 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
    * 参数：(id: string)
    * 返回：boolean
    */
-  ipcMain.handle('kb:delete', async (_event, id: string) => {
+  ipcMain.handle(KNOWLEDGE.DELETE, async (_event, id: string) => {
     try {
       const repo = getKnowledgeRepo()
       return repo.delete(id)
@@ -122,7 +123,7 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
    * 参数：(entries: KnowledgeEntry[])
    * 返回：number（成功导入的数量）
    */
-  ipcMain.handle('kb:import', async (_event, entries: KnowledgeEntry[]) => {
+  ipcMain.handle(KNOWLEDGE.IMPORT, async (_event, entries: KnowledgeEntry[]) => {
     try {
       const repo = getKnowledgeRepo()
       return repo.importEntries(entries)
@@ -139,7 +140,7 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
    * 参数：(type?: KnowledgeType)
    * 返回：KnowledgeEntry[]
    */
-  ipcMain.handle('kb:export', async (_event, type?: KnowledgeType) => {
+  ipcMain.handle(KNOWLEDGE.EXPORT, async (_event, type?: KnowledgeType) => {
     try {
       const repo = getKnowledgeRepo()
       return repo.exportAll(type)

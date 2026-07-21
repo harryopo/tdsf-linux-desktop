@@ -16,6 +16,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { MCP } from '@shared/ipc-channels'
 import { McpGateway } from '../core/agent/mcp-gateway'
 import { logger } from '../services/log/logger'
 
@@ -96,7 +97,7 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // mcp:external-reconnect — 重连外部服务器
   // ------------------------------------------------------------------
-  ipcMain.handle('mcp:external-reconnect', async (_event, serverId: string) => {
+  ipcMain.handle(MCP.EXTERNAL_RECONNECT, async (_event, serverId: string) => {
     logger.info('IPC.MCP', `重连外部服务器: ${serverId}`)
     await gateway.reconnectExternalServer(serverId)
     return true

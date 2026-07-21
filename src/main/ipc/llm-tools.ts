@@ -26,6 +26,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
+import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
 import { ConfigStore } from '../services/storage/config-store'
 import { SecureStore } from '../services/storage/secure-store'
@@ -130,7 +131,7 @@ export function registerLlmToolHandlers(
   // ------------------------------------------------------------------
   // llm:tool-approve — 用户审批响应
   // ------------------------------------------------------------------
-  ipcMain.handle('llm:tool-approve', async (_event, response: ToolApprovalResponse) => {
+  ipcMain.handle(LLM.TOOL_APPROVE, async (_event, response: ToolApprovalResponse) => {
     const pending = pendingApprovals.get(response.callId)
     if (!pending) {
       console.warn(`[llm:tool-approve] 找不到待审批的 callId: ${response.callId}`)

@@ -23,6 +23,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
 import { ConfigStore } from '../services/storage/config-store'
 import { SecureStore } from '../services/storage/secure-store'
@@ -160,7 +161,7 @@ export function registerLlmHandlers(mainWindow: BrowserWindow): void {
   // llm:test — 测试连接
   // ------------------------------------------------------------------
 
-  ipcMain.handle('llm:test', async (_event, config: LlmConfig) => {
+  ipcMain.handle(LLM.TEST, async (_event, config: LlmConfig) => {
     const client = new LlmClient(config)
     if (!client.isAvailable()) {
       return false

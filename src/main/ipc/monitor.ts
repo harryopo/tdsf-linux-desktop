@@ -14,6 +14,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { MONITOR } from '@shared/ipc-channels'
 import { SystemMonitor } from '../services/ssh/monitor'
 import type { MonitorData, SystemInfo } from '@shared/models'
 
@@ -70,7 +71,7 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
   )
 
   /** monitor:stop — 停止监控 */
-  ipcMain.handle('monitor:stop', async (_event, sessionId: string) => {
+  ipcMain.handle(MONITOR.STOP, async (_event, sessionId: string) => {
     try {
       return await monitor.stopMonitoring(sessionId)
     } catch (err) {

@@ -17,6 +17,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { DEPLOY } from '@shared/ipc-channels'
 import { DeployService } from '../services/deploy/deploy-service'
 
 /** 部署服务单例 */
@@ -107,7 +108,7 @@ export function registerDeployIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   /** deploy:getStatus — 获取状态 */
-  ipcMain.handle('deploy:getStatus', (_event, planId: string) => {
+  ipcMain.handle(DEPLOY.GET_STATUS, (_event, planId: string) => {
     return service.getStatus(planId)
   })
 }

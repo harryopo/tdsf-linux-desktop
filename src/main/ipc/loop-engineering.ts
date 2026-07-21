@@ -34,6 +34,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { LOOP } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
 import {
   getLoopEngineeringSubagent,
@@ -130,7 +131,7 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
    * 返回：{ correlationId, status } — 工作流异步执行，进度通过事件推送
    */
   ipcMain.handle(
-    'loop:start',
+    LOOP.START,
     async (
       _event,
       input: {
@@ -241,7 +242,7 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
    * 参数：(correlationId: string)
    * 返回：boolean
    */
-  ipcMain.handle('loop:cancel', async (_event, correlationId: string): Promise<boolean> => {
+  ipcMain.handle(LOOP.CANCEL, async (_event, correlationId: string): Promise<boolean> => {
     if (!correlationId) return false
     logger.info('IPC.LOOP', `loop:cancel`, { correlationId })
     return subagent.cancel(correlationId)

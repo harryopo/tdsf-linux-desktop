@@ -22,6 +22,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { DIAGNOSTICS } from '@shared/ipc-channels'
 import { getDiagnosticsService } from '../services/diagnostics/diagnostics-service'
 import type { LogSource, LogLevel } from '../services/diagnostics/types'
 
@@ -109,7 +110,7 @@ export function registerDiagnosticsHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // diagnostics:get-stats — 获取累计统计
   // ------------------------------------------------------------------
-  ipcMain.handle('diagnostics:get-stats', async () => {
+  ipcMain.handle(DIAGNOSTICS.GET_STATS, async () => {
     try {
       return { ok: true, data: svc.getStats() }
     } catch (error) {

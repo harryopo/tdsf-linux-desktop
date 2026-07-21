@@ -20,6 +20,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { AGENT } from '@shared/ipc-channels'
 import { AgentWorkflow, WORKFLOW_EVENTS } from '../core/agent-workflow'
 import type { SshExecutor, EvidenceCollector } from '../core/agent-workflow'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
@@ -299,7 +300,7 @@ export function registerAgentHandlers(mainWindow: BrowserWindow): void {
    * 参数：(sessionId: string)
    * 返回：boolean
    */
-  ipcMain.handle('agent:cancel', async (_event, sessionId: string) => {
+  ipcMain.handle(AGENT.CANCEL, async (_event, sessionId: string) => {
     const workflow = activeWorkflows.get(sessionId)
     if (!workflow) {
       return false

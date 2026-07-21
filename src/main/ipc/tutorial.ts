@@ -19,6 +19,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { TUTORIAL } from '@shared/ipc-channels'
 import type { DatabaseManager } from '../services/db/database'
 import { TutorialRepository } from '../services/tutorial/tutorial-repo'
 import { loadTutorialSeeds, getSeedVersion } from '../services/tutorial/seed-loader'

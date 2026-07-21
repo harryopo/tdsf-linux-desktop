@@ -13,6 +13,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { HISTORY } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
 import type { DecisionCard } from '@shared/models'
@@ -60,7 +61,7 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
    * 参数：(id: string)
    * 返回：DecisionCard | null
    */
-  ipcMain.handle('history:get', async (_event, id: string) => {
+  ipcMain.handle(HISTORY.GET, async (_event, id: string) => {
     try {
       const repo = getDecisionRepo()
       return repo.getById(id)
@@ -79,7 +80,7 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
    *
    * 如果 ID 已存在则覆盖更新（INSERT OR REPLACE）。
    */
-  ipcMain.handle('history:save', async (_event, card: DecisionCard) => {
+  ipcMain.handle(HISTORY.SAVE, async (_event, card: DecisionCard) => {
     try {
       const repo = getDecisionRepo()
       return repo.save(card)

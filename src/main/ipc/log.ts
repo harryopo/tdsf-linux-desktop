@@ -14,6 +14,7 @@
  * - 测试可同时通过 IPC 和直接 import logger 验证
  */
 import { ipcMain } from 'electron'
+import { LOG } from '@shared/ipc-channels'
 import { logger, type LogFilter, type LogLevel } from '../services/log/logger'
 
 /** 默认最大返回条数（防止一次拉太多） */
@@ -39,7 +40,7 @@ export function registerLogIpcHandlers(): void {
   })
 
   /** log:clearBuffer — 清空内存 buffer */
-  ipcMain.handle('log:clearBuffer', () => {
+  ipcMain.handle(LOG.CLEAR_BUFFER, () => {
     logger.clearBuffer()
     return true
   })

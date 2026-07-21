@@ -28,6 +28,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron'
 import type { ModelMessage } from 'ai'
+import { TOKEN } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
@@ -330,7 +331,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // token:reset — 重置 token 统计
   // ------------------------------------------------------------------
-  ipcMain.handle('token:reset', async (): Promise<boolean> => {
+  ipcMain.handle(TOKEN.RESET, async (): Promise<boolean> => {
     resetTokenStats()
     logger.info('IPC.TOKEN', `token:reset`)
     return true

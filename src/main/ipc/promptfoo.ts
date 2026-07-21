@@ -10,6 +10,7 @@
  */
 
 import { ipcMain } from 'electron'
+import { PROMPTFOO } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
 import { ConfigStore } from '../services/storage/config-store'
 import { SecureStore } from '../services/storage/secure-store'
@@ -78,7 +79,7 @@ export function registerPromptfooHandlers(): void {
   })
 
   // 列出红队测试用例
-  ipcMain.handle('promptfoo:list-tests', async () => {
+  ipcMain.handle(PROMPTFOO.LIST_TESTS, async () => {
     try {
       return {
         ok: true,
