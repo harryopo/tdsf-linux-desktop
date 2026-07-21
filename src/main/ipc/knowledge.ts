@@ -69,7 +69,7 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
    * 参数：(entry: KnowledgeEntry)
    * 返回：boolean
    */
-  ipcMain.handle('kb:add', async (_event, entry: KnowledgeEntry) => {
+  ipcMain.handle(KNOWLEDGE.ADD, async (_event, entry: KnowledgeEntry) => {
     try {
       const repo = getKnowledgeRepo()
       return repo.add(entry)

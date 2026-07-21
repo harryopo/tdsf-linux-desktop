@@ -20,6 +20,18 @@
  */
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import {
+  SSH,
+  STORAGE,
+  CONFIG,
+  SERVER,
+  MONITOR,
+  LLM,
+  MCP,
+  SANDBOX,
+  AT_COMMANDS,
+  TOKEN,
+} from '@shared/ipc-channels'
 import type {
   SshConfig,
   CommandResult,
@@ -418,11 +430,11 @@ interface AtCommandInfo {
 const ssh = {
   /** 建立 SSH 连接，返回 sessionId */
   connect: (config: SshConfig): Promise<string> =>
-    ipcRenderer.invoke('ssh:connect', config),
+    ipcRenderer.invoke(SSH.CONNECT, config),
 
   /** 断开 SSH 连接 */
   disconnect: (sessionId: string): Promise<boolean> =>
-    ipcRenderer.invoke('ssh:disconnect', sessionId),
+    ipcRenderer.invoke(SSH.DISCONNECT, sessionId),
 
   /** 执行 SSH 命令 */
   exec: (sessionId: string, command: string): Promise<CommandResult> =>
@@ -432,7 +444,7 @@ const ssh = {
   shell: {
     /** 启动交互式 shell */
     start: (sessionId: string): Promise<boolean> =>
-      ipcRenderer.invoke('ssh:shell:start', sessionId),
+      ipcRenderer.invoke(SSH.SHELL_START, sessionId),
 
     /** 向 shell 写入数据 */
     write: (sessionId: string, data: string): Promise<boolean> =>
@@ -519,7 +531,7 @@ const monitor = {
 
   /** 停止监控 */
   stop: (sessionId: string): Promise<boolean> =>
-    ipcRenderer.invoke('monitor:stop', sessionId),
+    ipcRenderer.invoke(MONITOR.STOP, sessionId),
 
   /** 获取系统静态信息 */
   getSystemInfo: (sessionId: string): Promise<SystemInfo> =>
@@ -536,11 +548,11 @@ const storage = {
 
   /** 读取并解密 API Key */
   getApiKey: (provider: string): Promise<string | null> =>
-    ipcRenderer.invoke('storage:getApiKey', provider),
+    ipcRenderer.invoke(STORAGE.GET_API_KEY, provider),
 
   /** 删除 API Key */
   deleteApiKey: (provider: string): Promise<boolean> =>
-    ipcRenderer.invoke('storage:deleteApiKey', provider),
+    ipcRenderer.invoke(STORAGE.DELETE_API_KEY, provider),
 }
 
 /**
@@ -549,7 +561,7 @@ const storage = {
 const config = {
   /** 读取配置 */
   get: (key: string): Promise<unknown> =>
-    ipcRenderer.invoke('config:get', key),
+    ipcRenderer.invoke(CONFIG.GET, key),
 
   /** 写入配置 */
   set: (key: string, value: unknown): Promise<boolean> =>
@@ -566,7 +578,7 @@ const llm = {
 
   /** 测试连接 */
   test: (config: LlmConfig): Promise<boolean> =>
-    ipcRenderer.invoke('llm:test', config),
+    ipcRenderer.invoke(LLM.TEST, config),
 
   /** 分析问题（内置降级，返回 JSON 字符串） */
   analyze: (problem: string, evidences: unknown[]): Promise<string> =>
@@ -599,7 +611,7 @@ const server = {
 
   /** 导入服务器列表（生成新 ID，敏感信息留空） */
   import: (json: string): Promise<SshConfig[]> =>
-    ipcRenderer.invoke('server:import', json),
+    ipcRenderer.invoke(SERVER.IMPORT, json),
 
   /** 删除服务器凭证 */
   deleteCred: (serverId: string): Promise<boolean> =>
@@ -778,7 +790,7 @@ const token = {
 
   /** 重置 token 统计（清空所有记录） */
   reset: (): Promise<boolean> =>
-    ipcRenderer.invoke('token:reset'),
+    ipcRenderer.invoke(TOKEN.RESET),
 
   /**
    * 获取 token 使用明细记录（P-5 新增）
@@ -863,7 +875,7 @@ const claudeSdk = {
 const sandbox = {
   /** 检测 Docker Desktop 是否安装且运行 */
   detectDocker: (): Promise<DockerInfo> =>
-    ipcRenderer.invoke('sandbox:detect-docker'),
+    ipcRenderer.invoke(SANDBOX.DETECT_DOCKER),
 
   /** 启动 OpenHands App Server 容器（首次启动需拉镜像，可能数分钟） */
   start: (): Promise<{ success: true } | SandboxErrorResponse> =>
@@ -939,7 +951,7 @@ const atCommands = {
    * @returns AtCommandInfo[]（含 type / label / icon / description）
    */
   list: (): Promise<AtCommandInfo[]> =>
-    ipcRenderer.invoke('at:list'),
+    ipcRenderer.invoke(AT_COMMANDS.LIST),
 
   /**
    * 解析单个 @命令
@@ -1549,7 +1561,7 @@ const on = {
   // v0.9.6 新增：外部 MCP Server（Client 侧）
   /** 获取所有外部 MCP 服务器状态 */
   mcpExternalStatus: (): Promise<ExternalMcpServerStatus[]> => {
-    return ipcRenderer.invoke('mcp:external-status')
+    return ipcRenderer.invoke(MCP.EXTERNAL_STATUS)
   },
   /** 列出所有外部 MCP 工具 */
   mcpExternalTools: (): Promise<

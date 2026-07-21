@@ -40,7 +40,7 @@ export function registerDiagnosticsHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // diagnostics:get-report — 获取完整诊断报告
   // ------------------------------------------------------------------
-  ipcMain.handle('diagnostics:get-report', async () => {
+  ipcMain.handle(DIAGNOSTICS.GET_REPORT, async () => {
     try {
       const report = svc.getReport()
       return { ok: true, data: report }
@@ -122,7 +122,7 @@ export function registerDiagnosticsHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // diagnostics:clear — 清空缓冲区
   // ------------------------------------------------------------------
-  ipcMain.handle('diagnostics:clear', async () => {
+  ipcMain.handle(DIAGNOSTICS.CLEAR, async () => {
     try {
       svc.clear()
       return { ok: true }
@@ -135,7 +135,7 @@ export function registerDiagnosticsHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // diagnostics:set-enabled — 启用/禁用实时推送
   // ------------------------------------------------------------------
-  ipcMain.handle('diagnostics:set-enabled', async (_event, enabled: boolean) => {
+  ipcMain.handle(DIAGNOSTICS.SET_ENABLED, async (_event, enabled: boolean) => {
     try {
       svc.setEnabled(enabled)
       return { ok: true }

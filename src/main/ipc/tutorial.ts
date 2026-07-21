@@ -95,7 +95,7 @@ export function registerTutorialIpcHandlers(
   )
 
   /** tutorial:categories — 分类汇总 */
-  ipcMain.handle('tutorial:categories', () => {
+  ipcMain.handle(TUTORIAL.CATEGORIES, () => {
     try {
       return repo.categorySummary()
     } catch (err) {
@@ -104,12 +104,12 @@ export function registerTutorialIpcHandlers(
   })
 
   /** tutorial:seedVersion — 当前种子版本 */
-  ipcMain.handle('tutorial:seedVersion', () => {
+  ipcMain.handle(TUTORIAL.SEED_VERSION, () => {
     return getSeedVersion()
   })
 
   /** tutorial:seedReload — 重新加载种子（清空 + 重写） */
-  ipcMain.handle('tutorial:seedReload', () => {
+  ipcMain.handle(TUTORIAL.SEED_RELOAD, () => {
     try {
       // 先清空现有 tutorial
       db.prepare('DELETE FROM knowledge_entries WHERE type = ?').run('tutorial')
@@ -123,7 +123,7 @@ export function registerTutorialIpcHandlers(
   // ========== v0.6.0 教程爬虫通道 ==========
 
   /** tutorial:listSources — 列出所有可抓取源 */
-  ipcMain.handle('tutorial:listSources', () => {
+  ipcMain.handle(TUTORIAL.LIST_SOURCES, () => {
     try {
       const list = crawlerService.listSources()
       logger.info('TUTORIAL', `listSources 返回 ${list.length} 个源`)
@@ -135,7 +135,7 @@ export function registerTutorialIpcHandlers(
   })
 
   /** tutorial:crawlStart — 启动爬虫任务 */
-  ipcMain.handle('tutorial:crawlStart', async (_event, args?: CrawlStartArgs) => {
+  ipcMain.handle(TUTORIAL.CRAWL_START, async (_event, args?: CrawlStartArgs) => {
     try {
       const results = await crawlerService.start(args ?? {})
       return { success: true, results }
@@ -149,12 +149,12 @@ export function registerTutorialIpcHandlers(
   })
 
   /** tutorial:crawlStatus — 查询爬虫状态 */
-  ipcMain.handle('tutorial:crawlStatus', () => {
+  ipcMain.handle(TUTORIAL.CRAWL_STATUS, () => {
     return crawlerService.getStatus()
   })
 
   /** tutorial:crawlCancel — 取消当前爬虫任务 */
-  ipcMain.handle('tutorial:crawlCancel', () => {
+  ipcMain.handle(TUTORIAL.CRAWL_CANCEL, () => {
     crawlerService.cancel()
     return { success: true }
   })
@@ -162,7 +162,7 @@ export function registerTutorialIpcHandlers(
   // ========== v0.7.0 增量：磁盘 + 断点续传 ==========
 
   /** tutorial:diskInfo — 获取磁盘占用信息 */
-  ipcMain.handle('tutorial:diskInfo', async () => {
+  ipcMain.handle(TUTORIAL.DISK_INFO, async () => {
     try {
       return await crawlerService.getDiskInfo()
     } catch (err) {
@@ -171,7 +171,7 @@ export function registerTutorialIpcHandlers(
   })
 
   /** tutorial:cleanupOrphans — 手动清理孤儿文件 */
-  ipcMain.handle('tutorial:cleanupOrphans', async () => {
+  ipcMain.handle(TUTORIAL.CLEANUP_ORPHANS, async () => {
     try {
       const bytes = await crawlerService.cleanupOrphans()
       return { success: true, cleanedBytes: bytes }
@@ -181,12 +181,12 @@ export function registerTutorialIpcHandlers(
   })
 
   /** tutorial:checkpoints — 获取 checkpoint 状态 */
-  ipcMain.handle('tutorial:checkpoints', () => {
+  ipcMain.handle(TUTORIAL.CHECKPOINTS, () => {
     return crawlerService.getCheckpoints()
   })
 
   /** tutorial:resetCheckpoint — 强制重新抓取某源 */
-  ipcMain.handle('tutorial:resetCheckpoint', (_event, sourceId: string) => {
+  ipcMain.handle(TUTORIAL.RESET_CHECKPOINT, (_event, sourceId: string) => {
     crawlerService.resetCheckpoint(sourceId)
     return { success: true }
   })
@@ -304,7 +304,7 @@ export function registerTutorialIpcHandlers(
    *   totalEntries: number           // tutorial 类型条目总数
    * }
    */
-  ipcMain.handle('tutorial:search-status', async () => {
+  ipcMain.handle(TUTORIAL.SEARCH_STATUS, async () => {
     try {
       return {
         // sqlite-vec 扩展加载状态（database.ts 初始化时检测）

@@ -35,7 +35,7 @@ export function registerStorageIpcHandlers(): void {
   )
 
   /** storage:getApiKey — 读取并解密 API Key */
-  ipcMain.handle('storage:getApiKey', async (_event, provider: string) => {
+  ipcMain.handle(STORAGE.GET_API_KEY, async (_event, provider: string) => {
     return SecureStore.getApiKey(provider)
   })
 
@@ -54,7 +54,7 @@ export function registerStorageIpcHandlers(): void {
   })
 
   /** config:set — 写入配置 */
-  ipcMain.handle('config:set', async (_event, key: string, value: unknown) => {
+  ipcMain.handle(CONFIG.SET, async (_event, key: string, value: unknown) => {
     return ConfigStore.set(key, value)
   })
 
@@ -63,12 +63,12 @@ export function registerStorageIpcHandlers(): void {
   // ------------------------------------------------------------------
 
   /** server:list — 加载服务器列表（敏感信息从 safeStorage 解密） */
-  ipcMain.handle('server:list', async () => {
+  ipcMain.handle(SERVER.LIST, async () => {
     return ConfigStore.loadServerList()
   })
 
   /** server:save — 保存服务器列表（敏感信息加密存储） */
-  ipcMain.handle('server:save', async (_event, servers: SshConfig[]) => {
+  ipcMain.handle(SERVER.SAVE, async (_event, servers: SshConfig[]) => {
     return ConfigStore.saveServerList(servers)
   })
 
