@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T14:47:59.020Z",
+  "lastUpdated": "2026-07-21T15:06:49.206Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
@@ -1161,6 +1161,34 @@
       "file": "src/renderer/src/pages/BootPage.tsx",
       "task": "Task-2.1 boot-page 1:1 复刻 boot.html",
       "timestamp": "2026-07-21T14:47:59.020Z"
+    },
+    {
+      "sessionId": "ai-20260721-boot-fix",
+      "action": "claim",
+      "file": "src/renderer/src/pages/BootPage.tsx",
+      "task": "boot-page P0/P1/P2 fix",
+      "timestamp": "2026-07-21T14:56:42.073Z"
+    },
+    {
+      "sessionId": "ai-20260721-boot-fix",
+      "action": "claim",
+      "file": "tests/components/pages/BootPage.test.tsx",
+      "task": "boot-page P1-5 unit tests",
+      "timestamp": "2026-07-21T14:56:42.833Z"
+    },
+    {
+      "sessionId": "ai-20260721-boot-fix",
+      "action": "release",
+      "file": "src/renderer/src/pages/BootPage.tsx",
+      "task": "boot-page P0/P1/P2 fix",
+      "timestamp": "2026-07-21T15:06:49.126Z"
+    },
+    {
+      "sessionId": "ai-20260721-boot-fix",
+      "action": "release",
+      "file": "tests/components/pages/BootPage.test.tsx",
+      "task": "boot-page P1-5 unit tests",
+      "timestamp": "2026-07-21T15:06:49.206Z"
     }
   ]
 }
