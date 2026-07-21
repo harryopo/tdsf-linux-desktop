@@ -23,8 +23,9 @@
  * 视觉：全部 var(--trae-*) token，全实色 hex 边框（背景 rgba 允许），shadow 用 var(--trae-shadow-card)
  * 无障碍：button type="button" + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { Modal } from 'antd'
 import {
   Activity, AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock,
   Edit3, Eye, FileText, MessageSquare, ThumbsDown, ThumbsUp,
@@ -70,12 +71,28 @@ export function KnowledgeDetailPage() {
 
   const [activeSection, setActiveSection] = useState<string>('sec-1')
   const [feedback, setFeedback] = useState<'helpful' | 'unhelpful' | null>(null)
+  /** 编辑按钮引用 —— Modal 关闭后焦点返回此按钮（无障碍） */
+  const editButtonRef = useRef<HTMLButtonElement>(null)
 
   // ===== 事件处理 =====
   const handleBackWorkbench = () => navigate('/workbench')
   const handleBackKnowledge = () => navigate('/knowledge')
   const handleEdit = () => {
-    window.alert('编辑功能正在开发中，敬请期待 v1.1 版本接入知识编辑弹窗。')
+    // 使用 AntD Modal.confirm 替代 window.alert（无障碍 + 焦点管理）
+    // Modal.confirm 默认包含 role="dialog" + aria-modal="true" + aria-labelledby（title）
+    // 默认支持 ESC 关闭，且 autoFocusButton="ok" 使 OK 按钮在打开时获得焦点
+    Modal.confirm({
+      title: '编辑知识条目',
+      content: '编辑功能暂未上线，是否跳转到知识库管理？',
+      okText: '前往管理',
+      cancelText: '取消',
+      autoFocusButton: 'ok',
+      onOk: () => navigate('/knowledge'),
+      afterClose: () => {
+        // 关闭后焦点返回触发按钮（无障碍）
+        editButtonRef.current?.focus()
+      },
+    })
   }
   const handleTocClick = (target: string) => {
     setActiveSection(target)
@@ -129,6 +146,7 @@ export function KnowledgeDetailPage() {
           </div>
           <button
             type="button"
+            ref={editButtonRef}
             data-dom-id="edit-knowledge"
             aria-label="编辑知识"
             onClick={handleEdit}

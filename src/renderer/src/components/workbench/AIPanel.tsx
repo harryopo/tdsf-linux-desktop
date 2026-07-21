@@ -1041,9 +1041,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       return
     }
     // 其余工具面板操作（在终端运行 / 执行 / 沙箱预演 / 回滚 / 暂停 / 终止）
-    // 尚未接入真实 HITL / 终端路径，给出明确提示而非静默无响应
+    // 这些操作需要在远程主机上执行命令，必须先连接 SSH 服务器
     void action
-    void message.info('功能开发中')
+    void message.warning('该功能需要连接 SSH 服务器后使用')
   }
 
   /** 处理消息中的导航操作（查看监控/记录决策/更新知识库） */
@@ -1421,7 +1421,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                 type="button"
                 title="图片"
                 onClick={() => {
-                  void message.info('图片附件功能开发中')
+                  void message.warning('图片附件暂未上线，请使用文本输入')
                 }}
                 className="btn-press flex size-[26px] items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
               >
@@ -1479,7 +1479,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                     <button
                       type="button"
                       onClick={() => {
-                        void message.info('上下文压缩功能开发中')
+                        void message.warning('上下文压缩暂未上线')
                       }}
                       className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[10px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
                     >
