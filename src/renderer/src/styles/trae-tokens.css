@@ -255,6 +255,9 @@
   --trae-accent-violet: #bfa5ff;
   --trae-accent-slate: #afb9cf;
 
+  /* 特殊语义色（switch 圆点 / 高对比前景等纯白场景） */
+  --trae-special-white: #FFFFFF;
+
   /* === 8.1 品牌色阶 - 绿 === */
   --trae-brand-green-100: #e5fff2;
   --trae-brand-green-200: #b4fdd9;
