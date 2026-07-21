@@ -62,7 +62,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   /** ssh:disconnect — 断开会话 */
-  ipcMain.handle('ssh:disconnect', async (_event, sessionId: string) => {
+  ipcMain.handle(SSH.DISCONNECT, async (_event, sessionId: string) => {
     try {
       return await sshManager.disconnect(sessionId)
     } catch (err) {

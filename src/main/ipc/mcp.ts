@@ -36,14 +36,14 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // mcp:get-state — 获取当前状态
   // ------------------------------------------------------------------
-  ipcMain.handle('mcp:get-state', () => {
+  ipcMain.handle(MCP.GET_STATE, () => {
     return gateway.getLifecycleState()
   })
 
   // ------------------------------------------------------------------
   // mcp:reset — 重置状态机
   // ------------------------------------------------------------------
-  ipcMain.handle('mcp:reset', () => {
+  ipcMain.handle(MCP.RESET, () => {
     logger.info('IPC.MCP', '用户重置 MCP 状态机')
     gateway.resetLifecycle()
     return true
@@ -67,14 +67,14 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // mcp:external-status — 获取所有外部服务器状态
   // ------------------------------------------------------------------
-  ipcMain.handle('mcp:external-status', () => {
+  ipcMain.handle(MCP.EXTERNAL_STATUS, () => {
     return gateway.getExternalServerStatuses()
   })
 
   // ------------------------------------------------------------------
   // mcp:external-tools — 列出所有外部工具
   // ------------------------------------------------------------------
-  ipcMain.handle('mcp:external-tools', async () => {
+  ipcMain.handle(MCP.EXTERNAL_TOOLS, async () => {
     return gateway.listAllExternalTools()
   })
 

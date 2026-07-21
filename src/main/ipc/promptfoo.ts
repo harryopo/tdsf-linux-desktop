@@ -47,7 +47,7 @@ function getLlmClient(): LlmClient {
 
 export function registerPromptfooHandlers(): void {
   // 运行红队测试
-  ipcMain.handle('promptfoo:run-red-team', async (_event, modelProvider?: ChatMessage[]) => {
+  ipcMain.handle(PROMPTFOO.RUN_RED_TEAM, async (_event, modelProvider?: ChatMessage[]) => {
     try {
       const client = getLlmClient()
       const runner = new RedTeamRunner(client)
@@ -63,7 +63,7 @@ export function registerPromptfooHandlers(): void {
   })
 
   // 运行 prompt 评估
-  ipcMain.handle('promptfoo:run-eval', async (_event, modelProvider?: ChatMessage[]) => {
+  ipcMain.handle(PROMPTFOO.RUN_EVAL, async (_event, modelProvider?: ChatMessage[]) => {
     try {
       const client = getLlmClient()
       const runner = new EvalRunner(client)

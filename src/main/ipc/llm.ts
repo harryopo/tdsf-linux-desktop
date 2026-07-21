@@ -127,7 +127,7 @@ export function registerLlmHandlers(mainWindow: BrowserWindow): void {
   // llm:chat — 普通对话（流式推送 token）
   // ------------------------------------------------------------------
 
-  ipcMain.handle('llm:chat', async (_event, messages: ChatMessage[]) => {
+  ipcMain.handle(LLM.CHAT, async (_event, messages: ChatMessage[]) => {
     const client = getLlmClient()
     if (!client.isAvailable()) {
       const err: LlmError = {
@@ -173,7 +173,7 @@ export function registerLlmHandlers(mainWindow: BrowserWindow): void {
   // llm:validate — 校验 LLM 配置是否有效（不发起网络请求）
   // ------------------------------------------------------------------
 
-  ipcMain.handle('llm:validate', async (_event, config: LlmConfig): Promise<LlmValidationResult> => {
+  ipcMain.handle(LLM.VALIDATE, async (_event, config: LlmConfig): Promise<LlmValidationResult> => {
     const client = new LlmClient(config)
     return client.validateConfig()
   })
