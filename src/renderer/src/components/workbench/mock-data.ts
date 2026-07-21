@@ -1,218 +1,19 @@
 /**
- * mock-data — Workbench 工作台 mock 数据
- *
- * 设计稿：tdsf-linux-redesign/pages/workbench-ai.html
+ * mock-data — Workbench AI 对话 mock 数据
  *
  * 包含：
- * 1. 服务器/文件树 mock（4 服务器 + 嵌套文件夹/文件）
- * 2. AI 对话消息 mock（5 条：2 用户 + 3 AI）
- * 3. 终端输出 mock（多行命令 + 输出）
- * 4. 编辑器标签 mock（终端 + 3 文件）
- * 5. 状态栏 mock（连接状态 + 光标位置）
- * 6. AI 工具面板 mock（8 个工具面板：思考/Skill/知识库/搜索/方法论/命令/指标/证据）
+ * 1. AI 对话消息 mock（5 条：2 用户 + 3 AI）
+ * 2. AI 工具面板类型定义（thought/skill/knowledge/web/command/metric/evidence 等）
+ * 3. Composer 快捷动作 chips
  *
  * 所有数据均为本地 mock，不接 IPC。
+ *
+ * R15 清理：移除了 10 个死代码导出（文件树/编辑器标签/终端输出/状态栏/Token 曲线）
+ * 及关联的 7 个死类型定义。仅保留 AI 面板相关类型和常量。
  */
 
 // ============================================================
-// 1. 服务器/文件树
-// ============================================================
-
-/** 服务器连接状态 */
-export type ServerStatus = 'connected' | 'warning' | 'offline'
-
-/** 文件树节点类型 */
-export type FileTreeNodeType = 'server' | 'folder' | 'file'
-
-/** 文件树节点（递归） */
-export interface FileTreeNode {
-  /** 节点 ID */
-  id: string
-  /** 显示名称 */
-  label: string
-  /** 节点类型 */
-  type: FileTreeNodeType
-  /** 子节点（仅 folder/server 有） */
-  children?: FileTreeNode[]
-  /** 服务器状态（仅 server） */
-  status?: ServerStatus
-  /** 服务器 IP（仅 server） */
-  ip?: string
-  /** 文件徽章数字（如未读日志数） */
-  badge?: number
-  /** 文件图标颜色（仅 file） */
-  iconColor?: string
-  /** 是否默认展开 */
-  defaultExpanded?: boolean
-  /** 关联的编辑器标签 ID（仅 file，点击后打开标签） */
-  tabId?: string
-}
-
-/** mock 文件树数据 */
-export const MOCK_FILE_TREE: FileTreeNode[] = [
-  {
-    id: 'srv-prod-web-01',
-    label: 'prod-web-01',
-    type: 'server',
-    status: 'connected',
-    ip: '192.168.1.10',
-    defaultExpanded: true,
-    children: [
-      {
-        id: 'folder-etc-nginx',
-        label: 'etc/nginx',
-        type: 'folder',
-        defaultExpanded: true,
-        children: [
-          {
-            id: 'file-nginx-conf',
-            label: 'nginx.conf',
-            type: 'file',
-            iconColor: 'var(--trae-code-constant)',
-            tabId: 'tab-nginx-conf',
-          },
-        ],
-      },
-      {
-        id: 'folder-var-log',
-        label: 'var/log',
-        type: 'folder',
-        badge: 12,
-        defaultExpanded: true,
-        children: [
-          {
-            id: 'file-nginx-access',
-            label: 'nginx-access.log',
-            type: 'file',
-            iconColor: 'var(--trae-code-attribute)',
-            tabId: 'tab-nginx-access',
-          },
-          {
-            id: 'file-nginx-error',
-            label: 'nginx-error.log',
-            type: 'file',
-            iconColor: 'var(--trae-code-attribute)',
-            tabId: 'tab-nginx-error',
-          },
-        ],
-      },
-      {
-        id: 'folder-home-deploy',
-        label: 'home/deploy',
-        type: 'folder',
-        defaultExpanded: false,
-        children: [],
-      },
-    ],
-  },
-  {
-    id: 'srv-prod-db-02',
-    label: 'prod-db-02',
-    type: 'server',
-    status: 'connected',
-    ip: '192.168.1.20',
-    defaultExpanded: false,
-    children: [],
-  },
-  {
-    id: 'srv-staging-web',
-    label: 'staging-web',
-    type: 'server',
-    status: 'warning',
-    ip: '10.0.4.12',
-    defaultExpanded: false,
-    children: [],
-  },
-  {
-    id: 'srv-backup-01',
-    label: 'backup-01',
-    type: 'server',
-    status: 'offline',
-    ip: '192.168.1.30',
-    defaultExpanded: false,
-    children: [],
-  },
-]
-
-// ============================================================
-// 2. 编辑器标签 + 文件内容
-// ============================================================
-
-/** 编辑器标签 ID */
-export type EditorTabId = 'tab-terminal' | 'tab-nginx-conf' | 'tab-nginx-access' | 'tab-nginx-error'
-
-/** 编辑器标签 */
-export interface EditorTab {
-  id: EditorTabId
-  label: string
-  iconColor?: string
-}
-
-/** mock 编辑器标签 */
-export const MOCK_EDITOR_TABS: EditorTab[] = [
-  { id: 'tab-terminal', label: '终端' },
-  { id: 'tab-nginx-conf', label: 'nginx.conf', iconColor: 'var(--trae-code-constant)' },
-  { id: 'tab-nginx-access', label: 'nginx-access.log', iconColor: 'var(--trae-code-attribute)' },
-  { id: 'tab-nginx-error', label: 'nginx-error.log', iconColor: 'var(--trae-code-attribute)' },
-]
-
-// ============================================================
-// 3. 终端输出
-// ============================================================
-
-/** 终端行类型 */
-export type TerminalLineType = 'welcome' | 'prompt' | 'comment' | 'output-success' | 'output-error' | 'output-warn' | 'output-default' | 'cursor'
-
-/** 终端单行 */
-export interface TerminalLine {
-  /** 行类型 */
-  type: TerminalLineType
-  /** 文本内容（prompt 类型时是命令，comment 类型时是中文注释；segments 类型时可省略） */
-  text?: string
-  /** prompt 类型时的提示符前缀（如 root@prod-web-01:~#） */
-  prompt?: string
-  /** 额外的中文说明（comment 类型时用） */
-  tooltip?: string
-  /** 输出片段（一行多色时用，与 text 二选一） */
-  segments?: Array<{ text: string; color?: string }>
-}
-
-/** mock 终端输出（4 个命令块） */
-export const MOCK_TERMINAL_LINES: TerminalLine[] = [
-  { type: 'welcome', text: 'Welcome to Ubuntu 22.04 LTS (GNU/Linux 5.15.0 x86_64)' },
-  { type: 'welcome', text: 'Last login: Fri Jul 17 14:20:12 2026 from 10.0.0.5' },
-  { type: 'prompt', prompt: 'root@prod-web-01:~#', text: 'systemctl status nginx' },
-  { type: 'comment', text: '查看nginx服务运行状态' },
-  { type: 'output-success', text: '● nginx.service - A high performance web server' },
-  { type: 'output-success', text: '     Loaded: loaded (/lib/systemd/system/nginx.service; enabled)' },
-  {
-    type: 'output-warn',
-    segments: [
-      { text: '     Active: ' },
-      { text: 'active (running)', color: 'var(--trae-status-error-default)' },
-      { text: ' since Fri 2026-07-17 14:15:02 CST; 7min ago' },
-    ],
-  },
-  { type: 'output-success', text: '   Main PID: 1246 (nginx)' },
-  { type: 'prompt', prompt: 'root@prod-web-01:~#', text: 'ss -s' },
-  { type: 'comment', text: '查看当前socket连接统计' },
-  { type: 'output-success', text: 'Total: 12843 (kernel 13020)' },
-  { type: 'output-success', text: 'TCP:   10240 (estab 8920, closed 1024, orphaned 0, timewait 890)' },
-  { type: 'output-error', text: 'TCP       10240     8920      1320   <-- 连接数接近worker_connections上限' },
-  { type: 'prompt', prompt: 'root@prod-web-01:~#', text: 'curl -s -w "%{time_total}\\n" -o /dev/null http://localhost/api/health' },
-  { type: 'comment', text: '测试本地接口响应时间' },
-  {
-    type: 'output-error',
-    segments: [
-      { text: '1.203' },
-      { text: 's', color: 'var(--trae-code-text)' },
-    ],
-  },
-  { type: 'cursor', prompt: 'root@prod-web-01:~#', text: '' },
-]
-
-// ============================================================
-// 4. AI 对话消息
+// 1. AI 对话消息类型
 // ============================================================
 
 /** 消息类型 */
@@ -302,6 +103,10 @@ export interface ChatMessage {
   /** 耗时（秒） */
   duration?: number
 }
+
+// ============================================================
+// 2. AI 对话消息 mock
+// ============================================================
 
 /** mock 5 条对话消息 */
 export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
@@ -541,59 +346,8 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
 ]
 
 // ============================================================
-// 5. AI 面板 Composer 工具栏
+// 3. AI 面板 Composer 工具栏
 // ============================================================
 
 /** Composer 快捷动作（chips） */
 export const MOCK_COMPOSER_CHIPS = ['诊断', '部署', '巡检', '回滚', '扩容']
-
-// ============================================================
-// 6. 状态栏 mock
-// ============================================================
-
-/** 状态栏左侧项 */
-export const MOCK_STATUSBAR_LEFT = [
-  { id: 'main', icon: 'terminal', label: 'main', color: 'var(--trae-text-secondary)' },
-  { id: 'ssh', label: 'SSH已连接', color: 'var(--trae-status-success-default)', dot: true },
-  { id: 'errors', icon: 'check-circle', label: '0 Errors', color: 'var(--trae-text-secondary)' },
-  { id: 'ai', icon: 'sparkles', label: 'AI已激活', color: 'var(--trae-text-brand)' },
-]
-
-/** 状态栏右侧项 */
-export const MOCK_STATUSBAR_RIGHT = [
-  { id: 'cursor', label: 'Ln 42, Col 16' },
-  { id: 'encoding', label: 'UTF-8' },
-  { id: 'file', icon: 'code', label: 'nginx.conf' },
-  { id: 'p99', icon: 'zap', label: 'P99 180ms', iconColor: 'var(--trae-status-success-default)' },
-]
-
-// ============================================================
-// 7. AI 面板标题栏 Token 曲线 mock
-// ============================================================
-
-/** Token 曲线数据点（7 个点，模拟 7 天趋势） */
-export const MOCK_TOKEN_CHART_POINTS = '0,55 34,48 68,52 102,38 136,42 170,28 204,32 240,18'
-
-/** Token 统计 */
-export const MOCK_TOKEN_STATS = {
-  today: 2135,
-  week: 12450,
-  month: 45600,
-  inputTokens: 1245,
-  outputTokens: 890,
-  ratio: '1.4:1',
-}
-
-/** Token 预算 */
-export const MOCK_TOKEN_BUDGET = {
-  used: 2135,
-  total: 4000,
-  percent: 53,
-}
-
-/** 上下文使用率 */
-export const MOCK_CONTEXT_USAGE = {
-  used: 12,
-  usedTokens: '24.6K',
-  totalTokens: '200K',
-}
