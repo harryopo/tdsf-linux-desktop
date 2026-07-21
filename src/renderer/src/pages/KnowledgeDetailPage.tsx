@@ -80,7 +80,14 @@ export function KnowledgeDetailPage() {
   const handleTocClick = (target: string) => {
     setActiveSection(target)
     const el = document.getElementById(target)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (!el) return
+    // prefers-reduced-motion 时禁用 smooth scroll（无障碍）
+    const prefersReducedMotion = typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start',
+    })
   }
   const handleNavigateRelated = (targetId: string) => navigate(`/knowledge/${targetId}`)
 
