@@ -315,21 +315,30 @@ export async function executeWeeklyOpsReport(
   const localDateForWeek = extractLocalDateAsUtc(start, timezone)
   const { year: isoYear, week: isoWeek } = getISOWeekNumber(localDateForWeek)
 
-  // 2. 并行查询统计（错误隔离）
-  const queryErrors: Array<{ repo: string; error: string }> = []
-  let decisionStats: DecisionWeeklyStats | null = null
-  let knowledgeStats: KnowledgeWeeklyStats | null = null
+  // 2. 并行查询统计（错误隔离，使用 Promise.allSettled 并行执行避免串行阻塞）
+  const [decisionRes, knowledgeRes] = await Promise.allSettled([
+    decisionRepo.getWeeklyStats(start, end),
+    knowledgeRepo.getWeeklyStats(start, end),
+  ])
 
-  try {
-    decisionStats = await decisionRepo.getWeeklyStats(start, end)
-  } catch (e) {
-    queryErrors.push({ repo: 'decision', error: (e as Error).message })
+  const queryErrors: Array<{ repo: string; error: string }> = []
+  if (decisionRes.status === 'rejected') {
+    queryErrors.push({
+      repo: 'decision',
+      error: decisionRes.reason instanceof Error ? decisionRes.reason.message : String(decisionRes.reason),
+    })
   }
-  try {
-    knowledgeStats = await knowledgeRepo.getWeeklyStats(start, end)
-  } catch (e) {
-    queryErrors.push({ repo: 'knowledge', error: (e as Error).message })
+  if (knowledgeRes.status === 'rejected') {
+    queryErrors.push({
+      repo: 'knowledge',
+      error: knowledgeRes.reason instanceof Error ? knowledgeRes.reason.message : String(knowledgeRes.reason),
+    })
   }
+
+  const decisionStats: DecisionWeeklyStats | null =
+    decisionRes.status === 'fulfilled' ? decisionRes.value : null
+  const knowledgeStats: KnowledgeWeeklyStats | null =
+    knowledgeRes.status === 'fulfilled' ? knowledgeRes.value : null
 
   // 3. 查询失败时用空数据兜底（不影响周报生成）
   const decision: DecisionWeeklyStats = decisionStats ?? {

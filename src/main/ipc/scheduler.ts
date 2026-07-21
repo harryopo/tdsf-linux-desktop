@@ -34,9 +34,7 @@ import type {
   SchedulerTaskId,
   SchedulerTaskStatus,
   TaskResult,
-  SchedulerTaskStartPayload,
-  SchedulerTaskDonePayload,
-  SchedulerTaskErrorPayload,
+  SchedulerEventName,
 } from '@shared/scheduler-types'
 
 // ============================================================================
@@ -44,22 +42,46 @@ import type {
 // ============================================================================
 
 /**
+ * 受控 taskId 白名单（与 SchedulerTaskId 联合类型保持同步）
+ *
+ * TypeScript 类型在运行时丢失，渲染进程可传任意字符串。
+ * 此白名单作为运行时校验依据，拦截非法/恶意 taskId。
+ */
+const VALID_TASK_IDS: readonly SchedulerTaskId[] = [
+  'daily-health-check',
+  'daily-decision-archive',
+  'weekly-ops-report',
+] as const
+
+/**
+ * taskId 运行时类型守卫
+ *
+ * 校验传入值是否为字符串且属于受控白名单。
+ * 用于 IPC handler 入口拦截非法/恶意 taskId，防止调度引擎处理未受控 ID。
+ */
+function isValidTaskId(id: unknown): id is SchedulerTaskId {
+  return typeof id === 'string' && (VALID_TASK_IDS as readonly string[]).includes(id)
+}
+
+/**
  * 安全推送事件到渲染进程
  *
  * BrowserWindow.getAllWindows() 可能为空（窗口未创建或已销毁），
- * 需检查 length > 0 且窗口未销毁，避免 webContents.send 抛异常。
+ * 需检查每个窗口的 isDestroyed() 状态。
+ * 多窗口场景下遍历所有非销毁窗口推送，确保每个窗口都能收到状态更新。
  */
 function pushToRenderer(channel: string, ...args: unknown[]): void {
   const windows = BrowserWindow.getAllWindows()
   if (windows.length === 0) return
-  const win = windows[0]
-  if (win.isDestroyed()) return
-  try {
-    win.webContents.send(channel, ...args)
-  } catch (err) {
-    logger.warn('IPC.SCHEDULER', `推送失败: channel=${channel}`, {
-      error: err instanceof Error ? err.message : String(err),
-    })
+  for (const win of windows) {
+    if (win.isDestroyed()) continue
+    try {
+      win.webContents.send(channel, ...args)
+    } catch (err) {
+      logger.warn('IPC.SCHEDULER', `推送状态到窗口失败: channel=${channel}`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 }
 
@@ -104,9 +126,14 @@ export function registerSchedulerIpcHandlers(): void {
     SCHEDULER.TOGGLE,
     async (
       _event,
-      taskId: SchedulerTaskId,
+      taskId: unknown,
       enabled: boolean
     ): Promise<SchedulerTaskStatus | null> => {
+      // 运行时校验 taskId（TS 类型在 IPC 边界丢失，渲染进程可传任意值）
+      if (!isValidTaskId(taskId)) {
+        logger.warn('IPC.SCHEDULER', `非法 taskId: ${String(taskId)}`)
+        return null
+      }
       try {
         const scheduler = Scheduler.getInstance()
         scheduler.toggle(taskId, enabled)
@@ -132,7 +159,18 @@ export function registerSchedulerIpcHandlers(): void {
   // ─── scheduler:trigger → 立即触发任务 ────────────────────────────
   ipcMain.handle(
     SCHEDULER.TRIGGER,
-    async (_event, taskId: SchedulerTaskId): Promise<TaskResult> => {
+    async (_event, taskId: unknown): Promise<TaskResult> => {
+      // 运行时校验 taskId（TS 类型在 IPC 边界丢失，渲染进程可传任意值）
+      if (!isValidTaskId(taskId)) {
+        const errMsg = `非法 taskId: ${String(taskId)}`
+        logger.warn('IPC.SCHEDULER', errMsg)
+        return {
+          success: false,
+          summary: errMsg,
+          error: errMsg,
+          durationMs: 0,
+        }
+      }
       try {
         const scheduler = Scheduler.getInstance()
         return await scheduler.trigger(taskId)
@@ -174,29 +212,23 @@ export function registerSchedulerIpcHandlers(): void {
 export function setupSchedulerStatusPush(): void {
   const scheduler = Scheduler.getInstance()
 
+  // 三个事件转发逻辑相同：查最新状态 → 推送渲染层
+  // 使用高阶函数消除重复，避免后续维护时遗漏同步修改。
+  const forwardSchedulerEvent = (eventName: SchedulerEventName): void => {
+    scheduler.on(eventName, (payload: { id: SchedulerTaskId }) => {
+      const status = findTaskStatus(payload.id)
+      if (status) {
+        pushToRenderer(SCHEDULER.STATUS, status)
+      }
+    })
+  }
+
   // task-start：任务开始执行（推送状态，running 字段不在 status 中但 lastRunAt 未变）
-  scheduler.on('task-start', (payload: SchedulerTaskStartPayload) => {
-    const status = findTaskStatus(payload.id)
-    if (status) {
-      pushToRenderer(SCHEDULER.STATUS, status)
-    }
-  })
-
   // task-done：任务成功完成（lastRunAt / lastResult / nextRunAt 已更新）
-  scheduler.on('task-done', (payload: SchedulerTaskDonePayload) => {
-    const status = findTaskStatus(payload.id)
-    if (status) {
-      pushToRenderer(SCHEDULER.STATUS, status)
-    }
-  })
-
   // task-error：任务失败或异常（lastRunAt / lastResult 已更新）
-  scheduler.on('task-error', (payload: SchedulerTaskErrorPayload) => {
-    const status = findTaskStatus(payload.id)
-    if (status) {
-      pushToRenderer(SCHEDULER.STATUS, status)
-    }
-  })
+  forwardSchedulerEvent('task-start')
+  forwardSchedulerEvent('task-done')
+  forwardSchedulerEvent('task-error')
 
   logger.info('IPC.SCHEDULER', '调度器状态推送已设置', {
     events: ['task-start', 'task-done', 'task-error'],
@@ -238,9 +270,10 @@ export function initScheduler(): void {
   // 3. 启动调度引擎（每分钟轮询）
   scheduler.start()
 
+  const tasks = scheduler.list()
   logger.info('IPC.SCHEDULER', '调度器已初始化', {
-    taskCount: scheduler.list().length,
-    tasks: scheduler.list().map((t) => ({
+    taskCount: tasks.length,
+    tasks: tasks.map((t) => ({
       id: t.id,
       name: t.name,
       enabled: t.enabled,
