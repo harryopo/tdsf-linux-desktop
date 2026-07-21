@@ -8,11 +8,13 @@
  * - Card 2: 启动行为（启动时打开 / 自动恢复会话 / 启动时检查更新 / 后台运行）
  * - Card 3: 数据与存储（数据存储路径 / 日志文件路径 / 自动清理日志 / 日志保留天数 + 导出数据/清除缓存按钮）
  * - Card 4: 通知（桌面通知 / 声音提醒 / 邮件通知 / 通知位置 / 勿扰模式 / 勿扰时间段）
+ * - Card 5: 定时任务（每日健康巡检 / 每日决策归档 / 运维周报；调度器 IPC + 实时状态推送）
  * - ActionBar: 保存 / 恢复默认
  *
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  * （数据存储路径 / 日志路径为只读展示项，按钮反馈为瞬时 UI 状态，均不持久化。）
+ * （定时任务分区由 SchedulerPanel 自包含：状态、订阅、降级均内部处理。）
  */
 import { useState, useRef, useEffect } from 'react'
 import { Globe, Rocket, Database, Bell, Download, Trash2, type LucideIcon } from 'lucide-react'
@@ -21,6 +23,7 @@ import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
+import { SchedulerPanel } from '@/components/settings/SchedulerPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/trae/Select'
 import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
@@ -348,6 +351,9 @@ export function GeneralSettings() {
             isLast
           />
         </SettingsCard>
+
+        {/* Card 5: 定时任务（每日健康巡检 / 每日决策归档 / 运维周报） */}
+        <SchedulerPanel />
 
         <SettingsActionBar />
       </div>
