@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T17:01:52.706Z",
+  "lastUpdated": "2026-07-21T17:13:53.818Z",
   "sessions": {},
   "history": [
     {
@@ -1348,6 +1348,20 @@
       "file": "src/renderer/src/pages/MonitorPage.tsx,src/renderer/src/components/monitor/AlertTable.tsx,src/renderer/src/components/monitor/AlertDrawer.tsx,src/renderer/src/components/logs/v1/LogToolbar.tsx,src/renderer/src/pages/LogsPage.tsx,src/renderer/src/styles/trae-tokens.css",
       "task": "Task-2.4-2.5-fix-p1",
       "timestamp": "2026-07-21T17:01:52.706Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task27",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "1:1 复刻 tutorial-detail.html",
+      "timestamp": "2026-07-21T17:05:56.459Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task27",
+      "action": "release",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "1:1 复刻 tutorial-detail.html",
+      "timestamp": "2026-07-21T17:13:53.818Z"
     }
   ]
 }
