@@ -1,8 +1,7 @@
 /**
  * Subagent 聚合导出
  *
- * Week 1 仅提供 8 个 Subagent 骨架类（空实现 execute 方法）。
- * Week 2 由 Supervisor 实例化并按 name 调度。
+ * 提供 8+1 个 Subagent 类（含 ExploreSubagent），由 Supervisor 实例化并按 name 调度。
  *
  * v0.9.4 批次 4 新增：
  * - ExploreSubagent（任务 2）：代码库探索 Subagent，基于 fs 扫描
@@ -55,14 +54,12 @@ import { ExploreSubagent } from './explore-subagent'
 import type { Subagent, SubagentName } from './base'
 
 /**
- * 创建所有内置 Subagent 实例（Week 2 由 Supervisor 调用注册）
+ * 创建所有内置 Subagent 实例（由 Supervisor 调用注册）
  *
  * v0.9.4 批次 4 - 任务 2：
  * - 新增 explore Subagent（代码库探索，基于 fs 扫描）
  * - explore 不在 SubagentName 联合类型中（避免修改现有接口），
  *   返回类型扩展为 Record<SubagentName, Subagent> & { explore: Subagent }
- *
- * 当前版本（Week 1）仅返回占位实例。
  */
 export function createAllSubagents(): Record<SubagentName, Subagent> & {
   explore: Subagent

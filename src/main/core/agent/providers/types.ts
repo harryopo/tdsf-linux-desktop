@@ -12,7 +12,7 @@
  * - API Key 单独走 SecureStore 加密存储（不进 ProviderConfig 明文）
  * - baseURL/model 等可由用户覆盖（预置模板 + 自定义）
  *
- * v0.9 Week 1 重构：共享类型（ProviderConfig / ProviderType / ThinkingStrength /
+ * 共享类型（ProviderConfig / ProviderType / ThinkingStrength /
  * TokenUsageRecord / TokenStats / DEFAULT_PROVIDER_ID）已迁移到 @shared/agent-types.ts，
  * 供 preload 和 renderer 共享导入。本文件 re-export 保持 main 内部 import 路径不变。
  *

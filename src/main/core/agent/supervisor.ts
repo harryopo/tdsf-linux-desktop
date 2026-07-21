@@ -1,28 +1,22 @@
 /**
- * Supervisor Agent（监督者 Agent）骨架
+ * Supervisor Agent（监督者 Agent）
  *
  * 职责：
  * - 作为 Agent 系统的统一入口，封装 streamText 调用
- * - 实现 Plan-Act-Observe-Reflect（PAOR）循环占位（Week 2 实现完整编排）
+ * - 实现 Plan-Act-Observe-Reflect（PAOR）循环编排
  * - 集成 Provider 抽象层（provider-factory）
  * - 集成敏感信息脱敏（redactSecrets，Hard Constraint 6）
  * - 集成 Token 统计（token-stats）
  * - 集成上下文管理（compactIfNeeded，5 层 compaction）
- * - 注册 8 个 Subagent（Week 1 仅创建实例，Week 2 实现 Plan 阶段调度）
- * - 预留人工审批闸门接口（Hard Constraint 4）
+ * - 注册 8 个 Subagent（通过 Plan 阶段调度）
+ * - 人工审批闸门（Hard Constraint 4，已接入 BaseSubagent.execute 流程）
  * - 支持请求取消（AbortController）
  *
- * Week 1 实现：
+ * 已实现：
  * - chat() 方法：streamText 包装 + redact + token 统计 + compaction
- * - PAOR 四阶段占位方法（plan/act/observe/reflect，仅返回 stub）
- * - createAllSubagents() 注册（暂不调度）
+ * - PAOR 四阶段完整实现（plan/act/observe/reflect + runPaorLoop 自动循环）
+ * - createAllSubagents() 注册 + 审批闸门（isApprovalRequired / requestApproval）
  * - cancelRequest() 取消进行中的请求
- *
- * Week 2 待实现：
- * - PAOR 循环完整编排
- * - Subagent 调度（按 task type 分发）
- * - 人工审批闸门 UI 联动（IPC 推送审批请求）
- * - 可信度融合（多 Subagent 结果加权）
  *
  * 方案书依据：v0.9 §3.2（PAOR 循环）+ §3.1（8 个 Subagent）+ §10（Hard Constraints）
  */
@@ -79,7 +73,7 @@ export type { ChatResult } from '@shared/agent-types'
 export type PaorPhase = 'plan' | 'act' | 'observe' | 'reflect'
 
 /**
- * PAOR 单次循环结果（Week 2 实现完整逻辑）
+ * PAOR 单次循环结果
  */
 export interface PaorStepResult {
   /** 当前阶段 */
@@ -207,7 +201,7 @@ export interface PaorLoopOptions {
  * 在 app.whenReady 后由 IPC handler 首次调用时自动初始化。
  */
 class SupervisorAgent {
-  /** 已注册的 Subagent 表（Week 1 仅创建实例，Week 2 实现 Plan 阶段调度） */
+  /** 已注册的 Subagent 表（由 Plan 阶段按 type 调度） */
   private readonly subagents: Record<SubagentName, Subagent>
 
   /** 进行中的请求表：correlationId → AbortController（用于取消请求） */
@@ -217,7 +211,7 @@ class SupervisorAgent {
   private initialized = false
 
   constructor() {
-    // 创建所有 Subagent 实例（Week 1 仅占位）
+    // 创建所有 Subagent 实例
     this.subagents = createAllSubagents()
     this.log.info('Supervisor Agent 已创建', {
       subagentCount: Object.keys(this.subagents).length,
@@ -283,7 +277,7 @@ class SupervisorAgent {
       if (typeof m.content === 'string') {
         return { ...m, content: redactSecrets(m.content) } as ModelMessage
       }
-      // 多模态内容暂不脱敏（v0.9 Week 1 仅支持纯文本消息）
+      // 多模态内容暂不脱敏（当前仅支持纯文本消息）
       return m
     })
 
@@ -321,7 +315,7 @@ class SupervisorAgent {
     const abortController = new AbortController()
     this.activeRequests.set(correlationId, abortController)
 
-    // 思考强度影响 maxTokens：deep 模式翻倍（Week 2 还会启用 Subagent 编排）
+    // 思考强度影响 maxTokens：deep 模式翻倍
     const effectiveMaxTokens =
       strength === 'deep' ? maxTokens * 2 : strength === 'fast' ? Math.floor(maxTokens / 2) : maxTokens
 
@@ -528,7 +522,7 @@ class SupervisorAgent {
   }
 
   /**
-   * 获取已注册的 Subagent（Week 2 由 Plan 阶段调度使用）
+   * 获取已注册的 Subagent
    *
    * @param name Subagent 名称
    * @returns Subagent 实例或 null（未注册时）
@@ -980,33 +974,36 @@ class SupervisorAgent {
   }
 
   // ========================================================================
-  // 人工审批闸门接口（Hard Constraint 4，Week 2 实现 UI 联动）
+  // 人工审批闸门接口（Hard Constraint 4）
   // ========================================================================
 
   /**
-   * 判断是否需要人工审批（Week 2 实现具体规则）
+   * 判断是否需要人工审批
    *
-   * 默认规则（Week 2 实现）：
-   * - 思考强度为 deep 时，所有 Subagent 结果均需审批
+   * 规则：
    * - running-subagent 的所有任务均需审批（高危命令执行）
-   * - 风险等级为 high/critical 的工具调用均需审批
+   * - 思考强度为 deep 时，所有 Subagent 结果均需审批
+   * - 风险等级为 HIGH/CRITICAL 的工具调用均需审批（由 PAOR 风险闸门处理）
    *
-   * @param _task 待审批的任务
+   * @param task 待审批的任务
    */
-  isApprovalRequired(_task: SubagentTask): boolean {
+  isApprovalRequired(task: SubagentTask): boolean {
+    if (task.type === 'running') return true
+    if (task.strength === 'deep') return true
     return false
   }
 
   /**
-   * 请求人工审批（Week 2 实现 IPC 推送）
+   * 请求人工审批
    *
-   * 当前版本仅记录日志，返回 pending 状态的结果。
+   * 记录审批日志并返回 requiresApproval=true 的挂起结果。
+   * 实际的 IPC 推送与 UI 交互由 agent-runtime.ts 的 approveRisk 回调处理。
    *
    * @param task 任务对象
    * @param preview 审批预览文本
    */
   async requestApproval(task: SubagentTask, preview: string): Promise<SubagentResult> {
-    this.log.warn('请求人工审批（Week 2 实现 UI 联动）', {
+    this.log.warn('请求人工审批', {
       taskId: task.id,
       preview,
     })
@@ -1014,7 +1011,7 @@ class SupervisorAgent {
       taskId: task.id,
       success: false,
       output: null,
-      error: '等待人工审批（Week 2 实现 UI 联动）',
+      error: '等待人工审批',
       durationMs: 0,
       requiresApproval: true,
       approvalPreview: preview,

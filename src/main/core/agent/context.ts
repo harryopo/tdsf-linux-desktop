@@ -3,13 +3,13 @@
  *
  * 职责：
  * - 实现 5 层 compaction 阈值（借鉴 Claude Code 5 层 compaction pipeline）
- * - L1：单条消息 > 4K tokens → 摘要压缩（Week 2 用 Mastra memory summarize）
+ * - L1：单条消息 > 4K tokens → 摘要压缩（后续可接入 Mastra memory summarize）
  * - L2：会话 > 50K tokens → 滑动窗口 + 历史摘要
  * - L3：会话 > 100K tokens → 重要节点抽取 + Dexie 持久化
  * - L4：会话 > 75% max → 摘要压缩（LLM 生成摘要，降级为首尾提取）
  * - L5：会话 > 90% max → 语义去重（Jaccard 相似度，纯算法无 API 开销）
  *
- * 当前版本（v0.9 Week 2）：
+ * 当前版本（v0.9）：
  * - 定义 5 层阈值常量
  * - 实现 L1-L3 简单截断（粗略 token 估算）
  * - 实现 L4 摘要压缩（含 LLM 可选 + 降级）
@@ -163,7 +163,7 @@ export function compactIfNeeded(messages: ModelMessage[]): CompactionResult {
     result = applySlidingWindow(result, 50_000)
     afterTokens = estimateMessageTokens(result)
     level = level === 'none' ? 'L3' : level
-    logger.warn('AGENT.CONTEXT', `L3 compaction 触发：会话已超 100K tokens，重要节点抽取（Week 2 实现 Dexie 持久化）`, {
+    logger.warn('AGENT.CONTEXT', `L3 compaction 触发：会话已超 100K tokens，滑动窗口压缩`, {
       beforeTokens,
       afterTokens,
     })
