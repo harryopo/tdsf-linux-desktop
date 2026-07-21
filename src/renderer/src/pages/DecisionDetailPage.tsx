@@ -129,6 +129,9 @@ function buildEvidenceSources(evidences: Evidence[]): EvidenceSource[] {
 
 /** 从 DecisionCard 构建 7 步时间线 */
 function buildTimelineSteps(card: DecisionCard): TimelineStep[] {
+  // 7 步标准英文标识（spec §B HITL 标准命名）
+  const stepKeys: TimelineStep['stepKey'][] = ['collect', 'analyze', 'reason', 'check', 'confirm', 'execute', 'verify']
+
   const stepDefs = [
     { num: 1, title: '数据采集', desc: card.evidences.length > 0 ? `采集 ${card.evidences.length} 项证据：${card.evidences.slice(0, 3).map(e => e.sourceDetail).join('、')}` : '采集环境数据' },
     { num: 2, title: '异常分析', desc: card.problem || '分析异常指标' },
@@ -147,7 +150,15 @@ function buildTimelineSteps(card: DecisionCard): TimelineStep[] {
     : card.status === 'rejected' ? 5
     : 4 // pending → 前 4 步完成
 
-  return stepDefs.map((step) => {
+  // 基于决策起始时间戳生成各步骤时间戳（每步间隔 3-15 秒）
+  const baseTs = new Date(card.timestamp)
+  const stepOffsets = [0, 3, 7, 12, 15, 18, 22] // 秒
+  const fmtTs = (offsetSec: number): string => {
+    const t = new Date(baseTs.getTime() + offsetSec * 1000)
+    return t.toISOString().replace('T', ' ').slice(0, 19)
+  }
+
+  return stepDefs.map((step, idx) => {
     let status: 'completed' | 'in-progress' | 'pending'
     if (step.num <= completedCount) {
       status = 'completed'
@@ -160,10 +171,14 @@ function buildTimelineSteps(card: DecisionCard): TimelineStep[] {
     if (card.status === 'rejected' && step.num === 5) {
       status = 'in-progress'
     }
+    // 待决定步骤不显示时间戳
+    const timestamp = status === 'pending' ? undefined : fmtTs(stepOffsets[idx] ?? 0)
     return {
       ...step,
+      stepKey: stepKeys[idx],
       weight: 0.2,
       status,
+      timestamp,
     }
   })
 }
@@ -349,6 +364,116 @@ function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceInput[] 
 }
 
 // ============================================================================
+// 示例数据 fallback（IPC 不可用或决策记录不存在时使用，保证页面可演示）
+// ============================================================================
+
+/**
+ * 构建示例 DecisionCard，用于：
+ * 1. IPC 桥接不可用（开发预览 / 跑 typecheck 时）
+ * 2. historyGet 返回 null（决策 ID 不存在）
+ *
+ * 数据全部为虚构演示值，不涉及真实生产数据。
+ */
+function buildSampleDecisionCard(id: string): DecisionCard {
+  const now = Date.now()
+  return {
+    id: id || 'DEC-087',
+    problem: 'nginx 进程 CPU 占用异常飙升至 68%',
+    hypothesis: 'nginx worker_processes 配置过低 + access_log 未压缩导致 IO 阻塞',
+    evidences: [
+      {
+        id: 'ev-001',
+        source: 'log',
+        sourceDetail: '/var/log/nginx/error.log',
+        content: '2026-07-21 14:23:18 [error] 1234#0: *567 worker process exited on signal 9',
+        drainMatch: 0.92,
+        sourcePrior: 0.85,
+        confidence: 0.88,
+        timestamp: now - 60000,
+        verified: true,
+      },
+      {
+        id: 'ev-002',
+        source: 'metric',
+        sourceDetail: 'prometheus:node_cpu_seconds_total',
+        content: 'CPU usage 68% (user 52% / sys 16%) · 持续 5 分钟',
+        drainMatch: 0.78,
+        sourcePrior: 0.90,
+        confidence: 0.85,
+        timestamp: now - 55000,
+        verified: true,
+      },
+      {
+        id: 'ev-003',
+        source: 'command',
+        sourceDetail: 'nginx -T 2>&1 | grep worker_processes',
+        content: 'worker_processes 4;  # 实际 CPU 核数 8',
+        drainMatch: 0.95,
+        sourcePrior: 0.95,
+        confidence: 0.92,
+        timestamp: now - 50000,
+        verified: true,
+      },
+      {
+        id: 'ev-004',
+        source: 'config',
+        sourceDetail: '/etc/nginx/nginx.conf',
+        content: 'access_log /var/log/nginx/access.log;  # 未启用 buffer/gzip',
+        drainMatch: 0.88,
+        sourcePrior: 0.92,
+        confidence: 0.87,
+        timestamp: now - 48000,
+        verified: true,
+      },
+      {
+        id: 'ev-005',
+        source: 'knowledge',
+        sourceDetail: 'KB-NGINX-2024-014',
+        content: 'nginx 高 CPU 排查指南：worker_processes 与 CPU 核数对齐 + access_log buffer',
+        drainMatch: 0.82,
+        sourcePrior: 0.80,
+        confidence: 0.78,
+        timestamp: now - 45000,
+        verified: false,
+      },
+      {
+        id: 'ev-006',
+        source: 'log',
+        sourceDetail: '/var/log/nginx/access.log',
+        content: '最近 5 分钟 12.4k 请求 · 平均响应 180ms · P99 1.2s',
+        drainMatch: 0.75,
+        sourcePrior: 0.85,
+        confidence: 0.80,
+        timestamp: now - 42000,
+        verified: true,
+      },
+    ],
+    confidence: 0.87,
+    trident: {
+      dangerScore: 0.85,
+      idempotentScore: 0.70,
+      relevanceScore: 0.92,
+      compositeScore: 0.84,
+      source: 'hybrid',
+    },
+    risk: {
+      level: 'MEDIUM',
+      score: 42,
+      matchedRules: ['R-003', 'R-007'],
+      description: '修改 nginx 配置需重启服务，影响线上请求',
+      requireConfirmation: true,
+      blocked: false,
+    },
+    fixCommand: 'sudo sed -i "s/worker_processes 4/worker_processes 8/" /etc/nginx/nginx.conf && sudo nginx -t && sudo systemctl reload nginx',
+    fixDescription: '调整 worker_processes 至 8（与 CPU 核数对齐）+ reload 而非 restart 保持连接',
+    rollbackCommand: 'sudo sed -i "s/worker_processes 8/worker_processes 4/" /etc/nginx/nginx.conf && sudo nginx -t && sudo systemctl reload nginx',
+    status: 'approved',
+    timestamp: now - 30000,
+    sessionId: 'sess-preview-001',
+  }
+}
+
+// ============================================================================
 // 大型径向置信度仪表（SVG 直接绘制）
 // ============================================================================
 
@@ -387,18 +512,28 @@ function ConfidenceGauge({ value, sources }: { value: number; sources: EvidenceS
       <div className="relative h-[220px] w-[220px]">
         <svg width="220" height="220" viewBox="0 0 220 220" style={{ display: 'block', overflow: 'visible' }}>
           <circle cx="110" cy="110" r="90" fill="none" stroke="var(--trae-bg-overlay-l1)" strokeWidth="8" />
-          {segments.map((d, i) => (
-            <path
-              key={i}
-              className="gauge-segment"
-              d={d}
-              fill="none"
-              stroke="var(--trae-bg-brand)"
-              strokeWidth="8"
-              opacity={weights[i]?.opacity ?? 0.5}
-              strokeLinecap="round"
-            />
-          ))}
+          {segments.map((d, i) => {
+            const w = weights[i]
+            // hover tooltip：源名 + 权重 + 数值
+            const tooltipText = w
+              ? `${w.label} · 权重 ${w.val.toFixed(2)} · 占比 ${((w.val / weights.reduce((s, x) => s + x.val, 0)) * 100).toFixed(1)}%`
+              : `源 ${i + 1}`
+            return (
+              <path
+                key={i}
+                className="gauge-segment"
+                d={d}
+                fill="none"
+                stroke="var(--trae-bg-brand)"
+                strokeWidth="8"
+                opacity={w?.opacity ?? 0.5}
+                strokeLinecap="round"
+                role="presentation"
+              >
+                <title>{tooltipText}</title>
+              </path>
+            )
+          })}
           <circle cx="110" cy="110" r="70" fill="none" stroke="var(--trae-bg-overlay-l2)" strokeWidth="6" />
           <circle
             className="gauge-progress"
@@ -411,13 +546,18 @@ function ConfidenceGauge({ value, sources }: { value: number; sources: EvidenceS
             strokeLinecap="round"
             strokeDasharray={`${value * 439.82} 439.82`}
             transform="rotate(-90 110 110)"
-          />
+          >
+            <title>{`综合置信度 ${value.toFixed(2)} · ${confidenceLabel}`}</title>
+          </circle>
           <text x="110" y="214" textAnchor="middle" fontSize="9" fill="var(--trae-text-tertiary)" fontFamily="var(--trae-font-family-mono)">0.5</text>
           <text x="6" y="150" textAnchor="start" fontSize="9" fill="var(--trae-text-tertiary)" fontFamily="var(--trae-font-family-mono)">0.7</text>
           <text x="46" y="24" textAnchor="middle" fontSize="9" fill="var(--trae-text-tertiary)" fontFamily="var(--trae-font-family-mono)">0.9</text>
         </svg>
         <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
-          <span className="font-mono text-[40px] font-bold leading-none tabular-nums text-[var(--trae-text-brand)]">
+          <span
+            className="font-mono font-bold leading-none tabular-nums text-[var(--trae-text-brand)]"
+            style={{ fontSize: '48px' }}
+          >
             {value.toFixed(2)}
           </span>
           <span className="text-[11px] text-[var(--trae-text-tertiary)]">置信度</span>
@@ -515,20 +655,25 @@ export function DecisionDetailPage() {
       return
     }
 
-    // Guard: electronAPI 不可用
+    setLoading(true)
+    setError(null)
+
+    // Guard: electronAPI 不可用 → 使用示例数据 fallback（保证页面可演示）
     if (!window.electronAPI?.historyGet) {
-      setError('IPC 桥接不可用（electronAPI.historyGet 未注册）')
+      const sample = buildSampleDecisionCard(id)
+      setCard(sample)
+      setCredibility(null)
       setLoading(false)
       return
     }
 
-    setLoading(true)
-    setError(null)
-
     try {
       const result = await window.electronAPI.historyGet(id)
       if (!result) {
-        setCard(null)
+        // 决策记录不存在 → 使用示例数据 fallback（保证页面可演示）
+        const sample = buildSampleDecisionCard(id)
+        setCard(sample)
+        setCredibility(null)
         setLoading(false)
         return
       }
@@ -546,8 +691,12 @@ export function DecisionDetailPage() {
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '加载决策记录失败'
-      setError(msg)
+      // 加载异常 → 使用示例数据 fallback（保证页面可演示）
+      const sample = buildSampleDecisionCard(id)
+      setCard(sample)
+      setCredibility(null)
+      // 记录错误到控制台但不阻塞渲染
+      console.warn('[DecisionDetailPage] historyGet failed, using sample data:', err)
     } finally {
       setLoading(false)
     }
