@@ -538,15 +538,18 @@ async function main(): Promise<void> {
     assert(task.enabled === true, 'enabled 应为 true')
     assert(task.name === '每日决策归档', 'name 应为"每日决策归档"')
 
-    // 33. 占位 handler 返回 success=false
+    // 33. 占位 handler 返回 success=true（不阻塞调度，commit fdf813d P1-2 改进）
+    //     未注入 repository 时以 skipped 状态返回，details.reason 标记原因
     const placeholderResult = await task.handler()
     assert(
-      placeholderResult.success === false,
-      '占位 handler 应返回 success=false'
+      placeholderResult.success === true,
+      '占位 handler 应返回 success=true（不阻塞调度，commit fdf813d P1-2 改进）'
     )
     assert(
-      placeholderResult.error !== undefined,
-      '占位 handler 应有 error 提示'
+      placeholderResult.details !== undefined &&
+        (placeholderResult.details as { reason?: string }).reason ===
+          'no-repository-injected',
+      '占位 handler 应有 details.reason=no-repository-injected 提示'
     )
   }
 

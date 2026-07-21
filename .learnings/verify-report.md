@@ -1,10 +1,30 @@
 # Verify Report · build-runnable-tdsf-from-design
 
-> **验证时间**: 2026-07-21
+> **验证时间**: 2026-07-21（首次） / 2026-07-22（二次复审）
 > **验证人**: verifier-subagent
-> **Session ID**: ai-20260720171157-6577
+> **Session ID**: ai-20260720171157-6577（首次） / ai-20260722-verify-2nd（二次复审）
 > **Spec**: `d:\ai\linux教学一体\.trae\specs\build-runnable-tdsf-from-design\spec.md`
 > **方法**: spec 三件套对照 + 编译门禁 + 测试脚本 + git log + 死代码扫描 + 文件落地核查
+
+## 二次复审摘要（2026-07-22）
+
+**触发原因**：commit `fdf813d fix(quality): P0 window.alert + P1 message.info placeholders`
+修改了 `daily-decision-archive.ts` 占位 handler 行为（success: false → true，"不阻塞调度"），
+**未同步更新测试期望**，导致 `test-daily-decision-archive.ts` 场景 7 的 2 个 assert 失败
+（49/51，回归 0 → 2）。
+
+**处理**：verifier-subagent 直接修复测试期望以匹配新行为
+（占位 handler 返回 success=true + details.reason='no-repository-injected'，
+这是更合理的设计——initScheduler 注册占位版本时不应让调度显示"上次失败"）。
+
+**重新验证**：
+- `npx tsx scripts/test-daily-decision-archive.ts` → 51/51 ✅（修复后）
+- `pnpm typecheck:node` exit 0 ✅
+- `pnpm typecheck:web` exit 0 ✅
+- `pnpm lint` exit 0 (0 errors, 3 warnings 预存) ✅
+- `pnpm build` exit 0（built in 8.83s）✅
+
+**结论**：本次二次复审全部通过，总分维持 8.9/10 ≥ 8.5 阈值 ✅ 可归档。
 
 ---
 
@@ -136,14 +156,15 @@
 
 ---
 
-## 2. 编译门禁
+## 2. 编译门禁（2026-07-22 二次复审）
 
 | 检查项 | 退出码 | 状态 |
 |--------|--------|------|
 | `pnpm typecheck:node` | 0 | ✅ |
 | `pnpm typecheck:web` | 0 | ✅ |
 | `pnpm lint` | 0 (3 warnings) | ✅ |
-| `pnpm build` (electron-builder) | 非 0 | ❌ (Task 5.5 SKIPPED) |
+| `pnpm build`（electron-vite 阶段） | 0 (built in 8.83s) | ✅ |
+| `pnpm build`（electron-builder --win 打包阶段） | 非 0 | ❌ SKIPPED（环境问题，详见 LRN-20260721-006） |
 
 **lint warnings 详情**（非本次 spec 范围，预存文件）：
 - `src/main/services/mcp/client-manager.ts:170:37` - `@typescript-eslint/no-explicit-any`
@@ -152,7 +173,7 @@
 
 ---
 
-## 3. 测试覆盖
+## 3. 测试覆盖（2026-07-22 二次复审重新执行）
 
 | 测试脚本 | 通过率 | 状态 |
 |----------|--------|------|
@@ -160,24 +181,42 @@
 | `scripts/test-cron-parser.ts` | 58/58 | ✅ (超出 tasks.md 记录的 37/37) |
 | `scripts/test-scheduler.ts` | 36/36 | ✅ |
 | `scripts/test-daily-health-check.ts` | 102/102 | ✅ |
-| `scripts/test-daily-decision-archive.ts` | 51/51 | ✅ |
+| `scripts/test-daily-decision-archive.ts` | 51/51 | ✅（本次修复回归后通过） |
 | `scripts/test-weekly-ops-report.ts` | 56/56 | ✅ |
 | **总计** | **326/326** | ✅ |
 
+### 3.1 二次复审修复的回归（2026-07-22）
+
+**回归问题**：commit `fdf813d` 修改 `daily-decision-archive.ts` 占位 handler 返回值
+（`success: false` → `success: true`，理由是"不阻塞调度"），
+但 `scripts/test-daily-decision-archive.ts` 场景 7 第 33 项的两个 assert 未同步更新：
+- `placeholderResult.success === false` → 失败（实际为 true）
+- `placeholderResult.error !== undefined` → 失败（实际为 undefined，新版本用 details.reason）
+
+**修复**：更新测试期望以匹配新行为，新断言验证：
+- `placeholderResult.success === true`
+- `placeholderResult.details.reason === 'no-repository-injected'`
+
+**修复文件**：`scripts/test-daily-decision-archive.ts` 第 541-554 行
+
+**根因分析**：fix-implementer 在 commit `fdf813d` 中改进了占位 handler 的行为
+（让 initScheduler 注册占位版本时不会让 GeneralSettings 显示"上次失败"），
+但未走完单任务循环协议的 spec-reviewer/code-quality-reviewer 步骤，导致测试期望与实现脱钩。
+
 ---
 
-## 4. 7 维质量评分
+## 4. 7 维质量评分（2026-07-22 二次复审重新评分）
 
 | 维度 | 评分 | 依据 |
 |------|------|------|
-| 安全 | 8.5/10 | CSV 注入防御、事务包裹（runInTransaction）、Modal aria 完备、敏感文件 redact；P1：daily-decision-archive 错误信息未脱敏、缺事务失败测试 |
-| 性能 | 8.7/10 | runTransaction / Promise.all 并发 / useMemo 充分使用；P1：daily-health-check.ts 文件 505 行超 500 阈值 5 行 |
-| 正确性 | 9.0/10 | 幂等迁移、`?.` 短路、按钮 onClick 真实跳转、73 个 data-dom-id 全接入（92 处匹配）、copy-cmd 已补齐 |
-| 可维护性 | 8.8/10 | IPC 集中定义、wrapper 转发、类型复用、SchedulerPanel 自包含；P1：daily-health-check 单文件超阈值 |
-| 测试 | 9.5/10 | 326/326 测试通过，覆盖 5 种 cron 语法 + 边界 + 异常 + IPC 4 通道 + 幂等性 + 错误隔离 |
-| 可访问性 | 8.5/10 | Modal role/aria/ESC/焦点管理完备、prefers-reduced-motion 多处降级、button type + aria-label 齐备 |
-| 文档 | 9.0/10 | spec/tasks/checklist/LEARNINGS/PROGRESS 完整；本 verify-report 补全四件套 |
-| **综合** | **8.9/10** | **≥ 8.5 阈值，可归档** |
+| 安全 | 8.5/10 | CSV 注入防御、事务包裹（runInTransaction）、Modal aria 完备、敏感文件 redact；safeStorage 加密 API Key + 服务器密码脱敏；P1：daily-decision-archive 错误信息未脱敏、缺事务失败测试 |
+| 性能 | 8.7/10 | runTransaction / Promise.all 并发（daily-health-check 4 指标 + weekly-ops-report Promise.allSettled）/ useMemo 充分使用；P1：daily-health-check.ts 文件 505 行超 500 阈值 5 行 |
+| 正确性 | 8.8/10 | 幂等迁移、`?.` 短路、按钮 onClick 真实跳转、73 个 data-dom-id 全接入（92 处匹配）、copy-cmd 已补齐；**本次降分**：commit fdf813d 修改占位 handler 行为未同步测试期望导致 2 个测试失败（已修复），扣 0.2 |
+| 可维护性 | 8.8/10 | IPC 集中定义（SCHEDULER 常量集中）、wrapper 转发（safeSend/pushToRenderer）、类型复用（shared/scheduler-types.ts）、SchedulerPanel 自包含；P1：daily-health-check 单文件超阈值 |
+| 测试 | 9.3/10 | 326/326 测试通过（修复回归后），覆盖 5 种 cron 语法 + 边界 + 异常 + IPC 4 通道 + 幂等性 + 错误隔离；**本次降分**：发现测试与实现脱钩的回归（fdf813d），扣 0.2 |
+| 可访问性 | 8.5/10 | Modal role/aria/ESC/焦点管理完备（KnowledgePage 自定义 Modal + KnowledgeDetailPage AntD Modal.confirm + AlertDrawer AntD Drawer 内置）、prefers-reduced-motion 多处降级、button type + aria-label 齐备 |
+| 文档 | 9.0/10 | spec/tasks/checklist/LEARNINGS/PROGRESS/dead-code-audit/verify-report 完整五件套；本 verify-report 二次复审追加章节补全四件套 |
+| **综合** | **8.8/10** | **≥ 8.5 阈值，可归档**（较首次 8.9 略降 0.1，因 fdf813d 回归暴露测试同步问题） |
 
 ---
 
@@ -185,7 +224,7 @@
 
 ### P0（阻塞）
 
-- 无
+- 无（二次复审已修复 commit fdf813d 引入的测试回归，详见 §3.1）
 
 ### P1（重要）
 
@@ -228,29 +267,33 @@
 
 ---
 
-## 7. 最终结论
+## 7. 最终结论（2026-07-22 二次复审）
 
 ### ✅ 通过
 
-**评分**: 8.9/10（≥ 8.5 阈值）
+**评分**: 8.8/10（≥ 8.5 阈值，较首次 8.9 略降 0.1）
+
+**降分原因**：commit `fdf813d` 修改 `daily-decision-archive.ts` 占位 handler 行为时未同步更新测试期望，导致 2 个测试失败（已修复，暴露单任务循环协议未走完的流程问题）。
 
 **归档建议**: **可归档**（需主 agent 在最终归档阶段处理 P1 遗留项 + 补全 Task 7.6 归档五件套剩余三件）
 
 **核心交付**:
 - ✅ Phase 0-6 所有纯代码层 Task 全部 PASS
-- ✅ 编译门禁三绿（typecheck:node + typecheck:web + lint）
-- ✅ 326/326 测试全部通过
+- ✅ 编译门禁四绿（typecheck:node + typecheck:web + lint + electron-vite build）
+- ✅ 326/326 测试全部通过（修复回归后）
 - ✅ 73 个 data-dom-id 交互全部接入（实际 92 处匹配）
-- ✅ Token 系统对齐设计稿（134+ Token 全覆盖）
+- ✅ Token 系统对齐设计稿（134+ Token 全覆盖，主色 #387BFF、三级深色表面正确、无 rgba 边框、无宋体）
 - ✅ 14 页面 1:1 复刻（含 8 设置子页面）
-- ✅ 循环工程端到端结构完整（23/23 冒烟测试通过）
+- ✅ 循环工程端到端结构完整（23/23 冒烟测试通过，6 IPC 通道 + 6 事件监听器）
 - ✅ 定时任务自动化完整落地（3 任务 + 4 IPC 通道 + 36/36 集成测试）
 - ✅ 死代码扫描通过（无 toast 占位 / 无 disabled+tooltip 占位）
+- ✅ 二次复审修复回归（commit fdf813d 引入的测试期望脱钩，本次修复）
 
 **遗留**:
-- ⚠️ Task 5.5 打包验证 SKIPPED（环境问题，非代码问题）
-- ⚠️ Task 4.9 真实端到端演示待用户手动验证
-- ⚠️ Task 7.6 归档五件套剩余 3 件待主 agent 补全
+- ⚠️ Task 5.5 打包验证 SKIPPED（环境问题：VS Build Tools 缺 Windows SDK，非代码问题）
+- ⚠️ Task 4.9 真实端到端演示待用户手动验证（夜间无人值守无法启动 Electron GUI）
+- ⚠️ Task 7.6 归档五件套剩余 3 件待主 agent 补全（AGENTS.md / CLAUDE.md / project_memory.md）
+- ⚠️ 二次复审修复的测试期望变更未提交 git（`scripts/test-daily-decision-archive.ts` 第 541-554 行），建议主 agent 在最终归档时一并 commit
 
 ---
 
