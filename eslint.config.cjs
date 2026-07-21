@@ -64,7 +64,7 @@ module.exports = [
       // react-hooks 4.6 与 ESLint 9 不兼容（context.getSource 缺失），暂关闭
       'react-hooks/rules-of-hooks': 'off',
       'react-hooks/exhaustive-deps': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-unused-vars': 'off',
       'no-undef': 'off'

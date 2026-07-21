@@ -16,7 +16,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Modal, Input, Form, Select, Button, Collapse, message } from 'antd'
 import { FolderOpenOutlined, ApiOutlined } from '@ant-design/icons'
-import type { SshConfig, SshAuthType } from '@shared/models'
+import type { SshConfig } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 
 /** ConnectDialog 组件 Props */

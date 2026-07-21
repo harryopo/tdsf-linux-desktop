@@ -34,7 +34,6 @@ import type {
   LlmStreamChunk,
   LlmError,
   ProfilerRunResponse,
-  KnowledgeEntry,
   DecisionCard,
   ExternalMcpServerStatus,
 } from '@shared/models'
@@ -93,8 +92,6 @@ import type {
   // 组 1：token:cost-stats（成本透明）
   CostStats,
   // 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
-  AgentMode,
-  ModeInfo,
   ModeListResponse,
   ModeSetDefaultRequest,
   ModeSetDefaultResponse,
@@ -106,8 +103,6 @@ import type {
   SubagentReloadRequest,
   SubagentReloadResponse,
   // 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
-  ProviderCapabilities,
-  ModelPricing,
   ProviderCapabilitiesRequest,
   ProviderCapabilitiesResponse,
   ProviderCapabilitiesAllResponse,

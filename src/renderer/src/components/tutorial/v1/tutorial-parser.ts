@@ -206,7 +206,6 @@ function parseChapter(raw: { title: string; body: string }): ParsedChapter {
 
   // 1) 提取代码块
   const codeRegex = /```(\w*)\n([\s\S]*?)```/g
-  let lastIndex = 0
   let m: RegExpExecArray | null
   const codeRanges: { start: number; end: number; lang: string; body: string }[] = []
   while ((m = codeRegex.exec(body)) !== null) {
@@ -248,8 +247,6 @@ function parseChapter(raw: { title: string; body: string }): ParsedChapter {
 
   // 4) 遍历 body，提取段落 + 列表（排除代码块、目标、注意事项）
   let cursor = 0
-  // 合并代码块区间
-  const codeSet = new Set(codeRanges.map((c) => `${c.start}-${c.end}`))
   // 找出已处理区间（目标 + 注意事项 + 代码块）
   const skipRanges: { start: number; end: number }[] = [...codeRanges]
   if (objMatch) {

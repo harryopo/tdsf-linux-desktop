@@ -212,7 +212,6 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
     }
     // 依赖包含 semanticAvailable：模型加载完成（status 变化）后，
     // 语义模式才能走正常路径而非降级路径，需重建 effect 捕获最新闭包
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, mode, debounceMs, limit, type, hasHybridSearch, hasLegacySearch, semanticAvailable])
 
   /**

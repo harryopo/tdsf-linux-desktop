@@ -203,7 +203,6 @@ export class DatabaseManager {
    * 所有方法返回空结果，不会抛出异常。
    */
   private createMockStatement(_sql: string): Statement {
-    const self = this
     // 使用类型断言绕过 Statement 接口限制
     return {
       run: () => ({ changes: 0, lastInsertRowid: 0n }),

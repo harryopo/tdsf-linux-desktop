@@ -30,7 +30,7 @@ export function LogToolbar({
   activeLevel,
   onLevelChange,
   autoScroll,
-  onAutoScrollChange,
+  onAutoScrollChange: _onAutoScrollChange,
   onAiAnalyze,
   onRefresh,
   onExport,

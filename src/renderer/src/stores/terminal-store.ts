@@ -12,7 +12,7 @@
 import { create } from 'zustand'
 
 /** 终端 Tab 数据结构 */
-export interface TerminalTab {
+interface TerminalTab {
   /** Tab 唯一标识 */
   id: string
   /** 关联的 SSH 会话 ID */
@@ -72,7 +72,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
         newActiveTabId = newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null
       }
       return {
-        tabs: newTabs.map((t, idx) => ({
+        tabs: newTabs.map((t, _idx) => ({
           ...t,
           active: t.id === newActiveTabId,
         })),

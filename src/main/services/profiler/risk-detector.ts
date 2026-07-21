@@ -71,19 +71,6 @@ function findItem(items: ProfilerItem[], group: string): ProfilerItem | null {
   return null
 }
 
-/**
- * 在所有探查项的 stdout 中全局搜索首个匹配正则的行
- * 风险检测经常需要"看任意探查的输出是否符合"
- */
-function searchAnyOutput(items: ProfilerItem[], pattern: RegExp): string | null {
-  for (const item of items) {
-    if (!item.ok) continue
-    const match = item.stdout.match(pattern)
-    if (match) return match[0]
-  }
-  return null
-}
-
 /** 截断证据文本（避免超长） */
 function truncate(text: string, maxLen = 200): string {
   const trimmed = text.trim()

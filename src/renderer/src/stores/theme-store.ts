@@ -13,7 +13,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /** 主题类型 */
-export type Theme = 'light' | 'dark'
+type Theme = 'light' | 'dark'
 
 /** 主题 Store 状态接口 */
 interface ThemeState {

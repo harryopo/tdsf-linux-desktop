@@ -250,7 +250,7 @@ export async function createLinuxOpsMcpServer(
     version: '0.9.0',
     instructions:
       'tdsf-linux-desktop Linux 运维工具集：ssh_exec / sftp_read_file / sftp_write_file / sftp_list。',
-    tools,
+    tools: finalTools,
     alwaysLoad: true,
   })
 }

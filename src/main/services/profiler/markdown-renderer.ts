@@ -30,7 +30,7 @@ import type {
   RiskItem,
   RiskLevel
 } from './types'
-import { GROUP_LABELS, PROBE_CATALOG } from './system-profiler'
+import { GROUP_LABELS } from './system-profiler'
 
 // ==================================================================
 // 常量
@@ -280,11 +280,6 @@ function renderRisksSection(risks: RiskItem[]): string {
 // ==================================================================
 // 章节渲染
 // ==================================================================
-
-/** 找到指定组的所有探查项 */
-function itemsInGroup(items: ProfilerItem[], group: string): ProfilerItem[] {
-  return items.filter((it) => it.group === group)
-}
 
 /** 找到指定 cmd 的探查项 */
 function findByCmd(items: ProfilerItem[], cmd: string): ProfilerItem | undefined {
