@@ -16,7 +16,7 @@
  * ```
  */
 import { useEffect, useState } from 'react'
-import { Alert, Tag, Tooltip, Button, Space } from 'antd'
+import { Tag, Tooltip, Button, Space } from 'antd'
 import {
   CheckCircleOutlined,
   WarningOutlined,

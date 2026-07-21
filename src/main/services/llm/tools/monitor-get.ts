@@ -15,7 +15,6 @@ import { z } from 'zod'
 import type { ToolDefinition, ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import { SshConnectionManager } from '../../ssh/connection-manager'
-import type { MonitorData } from '@shared/models'
 
 /** monitor_get_data 参数 schema */
 export const monitorGetArgsSchema = z.object({
@@ -49,7 +48,7 @@ async function collectOnDemand(sessionId: string): Promise<Omit<MonitorGetData, 
   const start = Date.now()
 
   // 并行执行 7 个采集命令（与 SystemMonitor.tick 一致）
-  const [cpuOut, memOut, diskOut, netOut, loadOut, uptimeOut, procOut] = await Promise.all([
+  const [cpuOut, memOut, diskOut, , loadOut, uptimeOut, procOut] = await Promise.all([
     safeExec(ssh, sessionId, 'top -bn1 | grep "Cpu(s)" | head -1'),
     safeExec(ssh, sessionId, "free -b | grep Mem | awk '{print $3/$2 * 100}'"),
     safeExec(ssh, sessionId, "df -h / | awk 'NR==2{print $5}'"),

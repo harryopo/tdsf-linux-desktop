@@ -21,7 +21,6 @@
 import type { DatabaseManager } from '../db/database'
 import type { TutorialEntry, TutorialCategory, TutorialDifficulty } from './types'
 import { TUTORIAL_CATEGORY_LABELS } from './types'
-import { hybridSearch } from './hybrid-search'
 import { TutorialRepository } from './tutorial-repo'
 
 // ============================================================================
@@ -290,7 +289,7 @@ export class PathRecommender {
       ['services', 'troubleshooting']
     ]
 
-    return defaultCategories.map((cats, idx) => {
+    return defaultCategories.map((cats, _idx) => {
       const steps = this.buildStepsFromCategories(cats, currentLevel, maxSteps)
       const targetCategory = cats[cats.length - 1]
       const prerequisites = cats.slice(0, -1)

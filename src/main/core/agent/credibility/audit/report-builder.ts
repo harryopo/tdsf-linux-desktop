@@ -21,7 +21,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type {
   AuditCalibrationState,
-  AuditDecisionAction,
   AuditDecisionContext,
   AuditDecisionOutcome,
   AuditFormat,
@@ -425,7 +424,6 @@ function computeOverallCompliance(
   complianceScore: number
   improvementAreas: string[]
 } {
-  const mitigatedCount = genaiRisk.filter((r) => r.verdict === 'mitigated').length
   const partialCount = genaiRisk.filter((r) => r.verdict === 'partially-mitigated').length
   const unmitigatedCount = genaiRisk.filter((r) => r.verdict === 'unmitigated').length
 

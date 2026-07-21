@@ -45,7 +45,7 @@ logger.info('IPC', `protocol version: ${IPC_PROTOCOL_VERSION}`)
 console.log(`[ipc] protocol version: ${IPC_PROTOCOL_VERSION}`)
 
 // 启动本地崩溃收集（不上传服务器），便于排查 renderer/native 崩溃
-app.setPath('crashDumps', require('node:path').join(app.getPath('userData'), 'crashes'))
+app.setPath('crashDumps', path.join(app.getPath('userData'), 'crashes'))
 crashReporter.start({
   productName: 'TDSF-Linux-Desktop',
   companyName: 'TDSF',

@@ -39,8 +39,6 @@ const SOURCE_LICENSE = 'CC BY-SA 4.0'
 const SOURCE_LICENSE_URL = 'https://creativecommons.org/licenses/by-sa/4.0/'
 const SOURCE_KIND = 'online-crawl' as const
 
-/** Ubuntu Help 根 URL */
-const UBUNTU_HELP_BASE = 'https://help.ubuntu.com'
 /** Server Guide 索引（仅 LTS 版本，按时间倒序） */
 const SERVER_GUIDE_INDEXES = [
   'https://help.ubuntu.com/24.04/serverguide/',

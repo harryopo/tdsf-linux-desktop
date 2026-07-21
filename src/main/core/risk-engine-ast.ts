@@ -54,7 +54,6 @@ import { READONLY_BASH_COMMANDS, detectInjectionPatterns } from './risk-engine-r
 // AST 工具函数（from risk-engine-ast-utils）
 import {
   extractCommands,
-  extractWord,
   detectBase64Obfuscation,
   detectForkBomb,
   assessCommandCombination,

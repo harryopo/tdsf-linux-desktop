@@ -639,7 +639,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
     return () => {
       delete (window as unknown as { __calibrationPanelReload?: () => void }).__calibrationPanelReload
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider])
 
   /** 加载全局状态 */
@@ -688,7 +687,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
   // 初始加载
   useEffect(() => {
     void loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 选中 Provider 变化时加载详情
@@ -697,7 +695,6 @@ const CalibrationPanel: React.FC<CalibrationPanelProps> = ({
       void loadProviderDetail(selectedProvider)
       setTPreview(0) // 重置 T 预览
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProvider])
 
   // 当 calibration 变化时，更新 trace（用上次校准的 searchTrace）

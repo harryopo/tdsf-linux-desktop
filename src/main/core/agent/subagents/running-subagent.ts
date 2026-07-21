@@ -21,9 +21,6 @@ import { BaseSubagent, type SubagentTask, type SubagentResult } from './base'
 import { assessRisk, checkShellSyntax, logToAudit } from '../../risk-engine'
 import type { RiskAssessment } from '@shared/models'
 
-/** 运行 Subagent 系统提示词 */
-const RUNNING_SYSTEM_PROMPT = `你是 Linux 命令执行助手。分析用户需要执行的命令，评估风险等级，提供执行建议和预期输出说明。注意：你只分析和建议，不直接执行命令。`
-
 /**
  * 运行 Subagent 输入
  */

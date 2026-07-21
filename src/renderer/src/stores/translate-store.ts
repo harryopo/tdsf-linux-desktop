@@ -17,7 +17,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /** 选词信息 */
-export interface TranslateSelection {
+interface TranslateSelection {
   /** 选中的文本 */
   text: string
   /** 屏幕坐标 X */

@@ -45,7 +45,6 @@ const PlanBuildButton: React.FC<PlanBuildButtonProps> = ({ hasPlanOutput }) => {
   // 由于 ModeConfig 字段只在 main 层可用，渲染进程只能从 modeList 推断
   // 方案：通过硬编码映射（plan → code）配合 fallback
   // 更优做法：v0.9.5 后续批次可把 nextMode 字段扩展到 ModeInfo
-  const currentModeInfo: ModeInfo | undefined = modeList.find((m) => m.name === currentMode)
   const nextMode: AgentMode | undefined = currentMode === 'plan' ? 'code' : undefined
   const nextModeInfo: ModeInfo | undefined = nextMode
     ? modeList.find((m) => m.name === nextMode)

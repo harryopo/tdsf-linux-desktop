@@ -30,7 +30,6 @@ import type {
   DagData,
   DagNodeData as DagNode,
   DagEdgeData as DagEdge,
-  DagNodeType,
 } from '@shared/agent-types'
 
 // ============================================================================

@@ -27,9 +27,7 @@ import {
   ThunderboltOutlined,
   StopOutlined,
   DashboardOutlined,
-  SettingOutlined,
   ExperimentOutlined,
-  ApiOutlined,
 } from '@ant-design/icons'
 import { useAIStore } from '../../stores/ai-store'
 import { useServerStore } from '../../stores/server-store'
@@ -135,11 +133,9 @@ const ChatPanel: React.FC = () => {
   // ===== v0.9 @命令注入 hook =====
   const {
     injectedCommands,
-    addCommand,
     removeCommand,
     clearAll: clearInjectedCommands,
     buildInjectedText,
-    stripAtCommands,
   } = useAtCommandInjection('chat-input')
 
   // ===== 本地状态 =====

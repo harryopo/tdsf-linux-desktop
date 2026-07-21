@@ -23,7 +23,7 @@ import { DatabaseManager } from '../db/database'
 import { KnowledgeRepository } from '../db/knowledge-repo'
 import { DecisionRepository } from '../db/decision-repo'
 import { createMcpTools } from './tools/registry'
-import type { Evidence, KnowledgeType } from '@shared/models'
+import type { KnowledgeType } from '@shared/models'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import { z } from 'zod'
 
