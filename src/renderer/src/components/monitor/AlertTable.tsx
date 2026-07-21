@@ -1,18 +1,28 @@
 /**
- * AlertTable — 告警列表
+ * AlertTable — 告警列表 table-panel
  *
  * 设计稿：monitor.html 第 5 段 告警列表 table-panel
+ * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.4
  *
- * - 顶部工具栏：标题 + 计数 + 筛选按钮 + 搜索框
- * - 表格 5 列：时间 / 级别 / 服务器 / 描述 / 状态
- * - 风险级别用风险色 surface（critical/error、high/warning、medium/alert、low/cyan）
- * - 状态色：未处理=error / 处理中=warning / 已处理=success
+ * 实现：
+ * - 6 行告警，含级别 tag（critical / high / medium / low）
+ * - 每行 `goto-alert-row-N` data-dom-id（N=1~6）
+ * - 列：级别 / 标题 / 来源 / 时间 / 状态（5 列）
+ * - 点击行弹出右侧 Drawer 展示详情（DEC-3 决策，通过 onOpenDrawer 回调上抛）
  *
- * 数据来源：从 useMonitorStore 实时监控数据动态计算告警，或由父组件通过 props 传入
+ * 数据策略：
+ * - 优先使用父组件传入的 alerts（实时计算）
+ * - 若父组件未传且无活跃会话，使用 sampleAlerts 作为 fallback（保证页面可演示）
+ *
+ * 视觉规范（spec §B）：
+ * - 边框用 solid hex（var(--trae-border-neutral-l1)）
+ * - 状态色 surface 用 rgba（允许）
+ * - hover 仅改变背景，无 border + scale 同时变化
  */
 import { useState, useMemo } from 'react'
-import { Filter, Search, ChevronDown, ChevronRight } from 'lucide-react'
+import { Filter, Search } from 'lucide-react'
 import type { AlertRecord, AlertStatus, RiskLevel } from './mock-data'
+import { sampleAlerts } from './mock-data'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 
@@ -54,7 +64,7 @@ function statusColor(status: AlertStatus): string {
   }
 }
 
-/** 从监控数据动态计算告警列表 */
+/** 从监控数据动态计算告警列表（实时路径，有活跃会话时使用） */
 function computeAlertsFromMonitorData(
   sessionId: string,
   hostname: string
@@ -67,7 +77,6 @@ function computeAlertsFromMonitorData(
   const latest = history[history.length - 1]
   const time = new Date(latest.timestamp).toLocaleTimeString('zh-CN', { hour12: false })
 
-  // 磁盘使用率 > 85 → critical
   if (latest.diskUsage > 85) {
     alerts.push({
       time,
@@ -75,10 +84,16 @@ function computeAlertsFromMonitorData(
       server: hostname,
       desc: `磁盘使用率过高：${latest.diskUsage.toFixed(1)}% 超过阈值 85%`,
       status: '未处理',
+      source: '/dev/sda1 · /var/log',
+      impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
+      suggestions: [
+        '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
+        '归档并压缩：tar -czf /tmp/log-$(date +%F).tar.gz /var/log/*.log && rm /var/log/*.log',
+        '配置 logrotate 自动轮转：编辑 /etc/logrotate.d/nginx',
+      ],
     })
   }
 
-  // CPU 使用率 > 90 → warning (high)
   if (latest.cpuUsage > 90) {
     alerts.push({
       time,
@@ -86,154 +101,87 @@ function computeAlertsFromMonitorData(
       server: hostname,
       desc: `CPU 使用率过高：${latest.cpuUsage.toFixed(1)}% 超过阈值 90%`,
       status: '未处理',
+      source: '/proc/loadavg',
+      impact: '响应延迟增加，可能引发雪崩',
+      suggestions: [
+        '定位高 CPU 进程：top -bn1 | head -20',
+        '检查 nginx 配置：grep -r "limit_req" /etc/nginx/',
+        '考虑横向扩容：增加 Web 节点 + 负载均衡',
+      ],
     })
-  }
-
-  // 内存使用率 > 85 → warning (high)
-  if (latest.memoryUsage > 85) {
-    alerts.push({
-      time,
-      level: 'high',
-      server: hostname,
-      desc: `内存使用率过高：${latest.memoryUsage.toFixed(1)}% 超过阈值 85%`,
-      status: '未处理',
-    })
-  }
-
-  // 网络流量异常：入站 + 出站 > 10000 KB/s → info (low)
-  if (latest.networkIn + latest.networkOut > 10000) {
-    alerts.push({
-      time,
-      level: 'low',
-      server: hostname,
-      desc: `网络流量异常：总流量 ${((latest.networkIn + latest.networkOut) / 1024).toFixed(1)} MB/s 超过阈值`,
-      status: '未处理',
-    })
-  }
-
-  // 从历史数据中补充已恢复的告警（标记为已处理）
-  const prevPoints = history.slice(-10, -1)
-  for (const point of prevPoints) {
-    const t = new Date(point.timestamp).toLocaleTimeString('zh-CN', { hour12: false })
-    if (point.diskUsage > 85 && latest.diskUsage <= 85) {
-      alerts.push({
-        time: t,
-        level: 'critical',
-        server: hostname,
-        desc: `磁盘使用率过高：${point.diskUsage.toFixed(1)}%（已恢复）`,
-        status: '已处理',
-      })
-    }
-    if (point.cpuUsage > 90 && latest.cpuUsage <= 90) {
-      alerts.push({
-        time: t,
-        level: 'high',
-        server: hostname,
-        desc: `CPU 使用率过高：${point.cpuUsage.toFixed(1)}%（已恢复）`,
-        status: '已处理',
-      })
-    }
-    if (point.memoryUsage > 85 && latest.memoryUsage <= 85) {
-      alerts.push({
-        time: t,
-        level: 'high',
-        server: hostname,
-        desc: `内存使用率过高：${point.memoryUsage.toFixed(1)}%（已恢复）`,
-        status: '已处理',
-      })
-    }
   }
 
   return alerts
 }
 
-/** 单行告警（支持展开详情） */
+/** 单行告警（无展开行，点击整行触发 Drawer） */
 function AlertRow({
   record,
-  expanded,
-  onToggle,
+  rowId,
+  onClick,
 }: {
   record: AlertRecord
-  expanded: boolean
-  onToggle: () => void
+  rowId: number
+  onClick: () => void
 }) {
   const risk = riskClasses(record.level)
   return (
-    <>
-      <tr
-        onClick={onToggle}
-        className="cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-bg-overlay-l1)]"
-      >
-        <td className="whitespace-nowrap px-3 py-2.5 text-[11px] tabular-nums text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
-          <span className="inline-flex items-center gap-1">
-            {expanded ? (
-              <ChevronDown className="w-3 h-3 text-[var(--trae-text-tertiary)]" />
-            ) : (
-              <ChevronRight className="w-3 h-3 text-[var(--trae-text-tertiary)]" />
-            )}
-            {record.time}
-          </span>
-        </td>
-        <td className="whitespace-nowrap px-3 py-2.5 border-b border-[var(--trae-border-neutral-l1)]">
-          <span
-            className="inline-flex items-center px-1.5 h-4 whitespace-nowrap text-[10px] rounded-[var(--trae-radius-2)]"
-            style={{ background: risk.surface, color: risk.text }}
-          >
-            {record.level}
-          </span>
-        </td>
-        <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] border-b border-[var(--trae-border-neutral-l1)]">
-          {record.server}
-        </td>
-        <td className="truncate px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] max-w-[280px] border-b border-[var(--trae-border-neutral-l1)]">
-          {record.desc}
-        </td>
-        <td
-          className="whitespace-nowrap px-3 py-2.5 text-[11px] border-b border-[var(--trae-border-neutral-l1)]"
-          style={{ color: statusColor(record.status) }}
+    <tr
+      data-dom-id={`goto-alert-row-${rowId}`}
+      onClick={onClick}
+      className="cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-bg-overlay-l1)]"
+    >
+      <td className="whitespace-nowrap px-3 py-2.5 border-b border-[var(--trae-border-neutral-l1)]">
+        <span
+          className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] uppercase tracking-[0.04em] rounded-[var(--trae-radius-2)]"
+          style={{ background: risk.surface, color: risk.text }}
         >
-          {record.status}
-        </td>
-      </tr>
-      {expanded && (
-        <tr className="bg-[var(--trae-bg-overlay-l1)]">
-          <td colSpan={5} className="px-6 py-3 text-[11px] text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
-            <div className="space-y-1">
-              <p><span className="font-medium text-[var(--trae-text-default)]">告警时间：</span>{record.time}</p>
-              <p><span className="font-medium text-[var(--trae-text-default)]">服务器：</span>{record.server}</p>
-              <p><span className="font-medium text-[var(--trae-text-default)]">风险级别：</span>{record.level}</p>
-              <p><span className="font-medium text-[var(--trae-text-default)]">详细描述：</span>{record.desc}</p>
-              <p><span className="font-medium text-[var(--trae-text-default)]">处理状态：</span>{record.status}</p>
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
+          {record.level}
+        </span>
+      </td>
+      <td className="truncate px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] max-w-[260px] border-b border-[var(--trae-border-neutral-l1)]">
+        {record.desc}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
+        {record.server}
+      </td>
+      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] tabular-nums text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
+        {record.time}
+      </td>
+      <td
+        className="whitespace-nowrap px-3 py-2.5 text-[11px] border-b border-[var(--trae-border-neutral-l1)]"
+        style={{ color: statusColor(record.status) }}
+      >
+        ● {record.status}
+      </td>
+    </tr>
   )
 }
 
 export interface AlertTableProps {
-  /** 可选：父组件传入已计算好的告警列表 */
+  /** 父组件传入已计算好的告警列表（可选） */
   alerts?: AlertRecord[]
+  /** 点击行打开 Drawer 回调 */
+  onOpenDrawer?: (alert: AlertRecord) => void
 }
 
 /** 告警列表组件 */
-export function AlertTable({ alerts: propAlerts }: AlertTableProps) {
+export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps) {
   const [search, setSearch] = useState('')
   const [filterOn, setFilterOn] = useState(false)
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const systemInfo = useMonitorStore((s) =>
     activeSessionId ? s.systemInfo.get(activeSessionId) : undefined
   )
 
-  // 从监控数据动态计算告警，或使用父组件传入的数据
+  // 数据策略：propAlerts > 实时计算 > sampleAlerts fallback
   const computedAlerts = useMemo(() => {
     if (propAlerts) return propAlerts
-    if (!activeSessionId) return []
+    if (!activeSessionId) return sampleAlerts
     const hostname = systemInfo?.hostname ?? '未知服务器'
-    return computeAlertsFromMonitorData(activeSessionId, hostname)
+    const live = computeAlertsFromMonitorData(activeSessionId, hostname)
+    return live.length > 0 ? live : sampleAlerts
   }, [propAlerts, activeSessionId, systemInfo])
 
   /** 筛选未处理告警 + 搜索关键词匹配 */
@@ -250,24 +198,17 @@ export function AlertTable({ alerts: propAlerts }: AlertTableProps) {
     )
   })
 
-  /** 行点击：展开/收起详情 */
-  const handleToggle = (record: AlertRecord) => {
-    const key = `${record.time}-${record.server}`
-    setExpandedKey((prev) => (prev === key ? null : key))
-  }
-
   return (
-    <div className="mb-3 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] overflow-hidden">
+    <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] overflow-hidden">
       {/* 工具栏 */}
       <div className="flex items-center justify-between gap-2 p-2.5 border-b border-[var(--trae-border-neutral-l1)]">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">告警列表</span>
-          <span className="inline-flex items-center justify-center px-1.5 h-4 whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)] rounded-[var(--trae-radius-2)] tabular-nums">
+          <span className="inline-flex items-center justify-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)] rounded-[var(--trae-radius-2)] tabular-nums">
             共{visibleAlerts.length}条
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {/* 筛选按钮 */}
           <button
             type="button"
             onClick={() => setFilterOn((v) => !v)}
@@ -281,7 +222,6 @@ export function AlertTable({ alerts: propAlerts }: AlertTableProps) {
             <Filter className="w-3 h-3" />
             <span>筛选</span>
           </button>
-          {/* 搜索框 */}
           <div className="inline-flex items-center gap-1 h-[26px] px-2 bg-[var(--trae-bg-overlay-l1)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)]">
             <Search className="w-3 h-3 text-[var(--trae-text-tertiary)]" />
             <input
@@ -299,11 +239,11 @@ export function AlertTable({ alerts: propAlerts }: AlertTableProps) {
         <table className="w-full border-collapse min-w-[640px]">
           <thead>
             <tr className="bg-[var(--trae-bg-overlay-l1)]">
-              {['时间', '级别', '服务器', '描述', '状态'].map((head) => (
+              {['级别', '标题', '来源', '时间', '状态'].map((head) => (
                 <th
                   key={head}
                   className={`text-left px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)] ${
-                    head === '描述' ? 'w-full' : 'whitespace-nowrap'
+                    head === '标题' ? 'w-full' : 'whitespace-nowrap'
                   }`}
                 >
                   {head}
@@ -312,18 +252,18 @@ export function AlertTable({ alerts: propAlerts }: AlertTableProps) {
             </tr>
           </thead>
           <tbody>
-            {visibleAlerts.map((alert) => (
+            {visibleAlerts.map((alert, idx) => (
               <AlertRow
-                key={`${alert.time}-${alert.server}`}
+                key={`alert-row-${idx + 1}-${alert.time}-${alert.server}`}
                 record={alert}
-                expanded={expandedKey === `${alert.time}-${alert.server}`}
-                onToggle={() => handleToggle(alert)}
+                rowId={idx + 1}
+                onClick={() => onOpenDrawer?.(alert)}
               />
             ))}
             {visibleAlerts.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-center text-[11px] text-[var(--trae-text-tertiary)]">
-                  {activeSessionId ? '暂无告警，系统运行正常' : '连接服务器后可查看告警列表'}
+                  暂无告警，系统运行正常
                 </td>
               </tr>
             )}

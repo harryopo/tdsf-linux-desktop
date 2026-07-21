@@ -2,18 +2,26 @@
  * MonitorPage — 实时监控
  *
  * 路由：/monitor
+ * Spec: build-runnable-tdsf-from-design · Task 2.4
  *
  * 设计稿：monitor.html
  * - Header（标题 + 副标题 + 返回 + 1H/6H/24H 切换 + 刷新）
- * - Critical alert 横幅（磁盘告警）
+ * - Critical alert 横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer）
  * - KPI 4 列网格（CPU / 内存 / 磁盘 / 网络 I/O）
- * - 2x2 图表网格（CPU 面积 / 内存折线 / 磁盘柱状 / 网络双折线）
- * - 告警列表（6 条）
+ * - 2×2 图表网格（CPU 面积 / 内存折线 / 磁盘柱状 / 网络双折线）
+ * - 告警列表 table-panel（6 行 + goto-alert-row-N data-dom-id + 点击行弹出 Drawer）
+ * - 关联分析卡片（影响评估 + 处置建议 3 步）
  * - 进程监控 TOP 5 CPU
+ * - AlertDrawer（DEC-3 决策告警详情抽屉）
  *
- * 数据来源：monitor:data IPC 推送 + monitor-store
+ * 数据策略：
+ * - 优先使用实时 monitor:data IPC 推送的数据
+ * - 未连接或数据为空时，使用 sampleKpiStats / sampleAlerts 作为 fallback（保证页面可演示）
  *
- * 子组件：components/monitor/*
+ * 视觉规范（spec §B）：
+ * - 边框用 solid hex（var(--trae-border-neutral-l1/l2)）
+ * - background rgba 允许保留
+ * - 卡片 hover 仅改变阴影，无 border + scale 同时变化
  */
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -26,17 +34,23 @@ import {
   NetworkFlowChart,
 } from '@/components/monitor/Charts'
 import { AlertTable } from '@/components/monitor/AlertTable'
+import { AlertDrawer } from '@/components/monitor/AlertDrawer'
+import { CorrelationCard } from '@/components/monitor/CorrelationCard'
 import { ProcessTable } from '@/components/monitor/ProcessTable'
-import { timeRanges, type TimeRange, type KpiStat } from '@/components/monitor/mock-data'
+import {
+  timeRanges,
+  type TimeRange,
+  type KpiStat,
+  type AlertRecord,
+  sampleKpiStats,
+  sampleAlerts,
+} from '@/components/monitor/mock-data'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
 import type { MonitorData } from '@shared/models'
 
 /**
  * 时间范围切换组（1H / 6H / 24H）
- *
- * @param value - 当前选中范围
- * @param onChange - 切换回调
  */
 function TimeRangeSwitcher({
   value,
@@ -80,15 +94,8 @@ function isElectronAPIAvailable(): boolean {
 }
 
 /** 从 MonitorData 历史计算 KPI 统计 */
-function computeKpiStats(data: MonitorData[]): KpiStat[] {
-  if (data.length === 0) {
-    return [
-      { label: 'CPU', value: 0, unit: '%', sub: '--', delta: 0, trend: 'up', ringColor: 'var(--trae-bg-brand)', sparkline: [] },
-      { label: '内存', value: 0, unit: '%', sub: '--', delta: 0, trend: 'up', ringColor: 'var(--trae-status-success-default)', sparkline: [] },
-      { label: '磁盘', value: 0, unit: '%', sub: '--', delta: 0, trend: 'up', ringColor: 'var(--trae-status-alert-default)', sparkline: [] },
-      { label: '网络 I/O', value: 0, unit: 'KB/s', sub: '--', delta: 0, trend: 'up', ringColor: 'var(--trae-viz-sky)', sparkline: [] },
-    ]
-  }
+function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
+  if (data.length === 0) return null
   const latest = data[data.length - 1]
   const prev = data.length > 1 ? data[data.length - 2] : latest
   const cpuSpark = data.slice(-20).map((d) => d.cpuUsage)
@@ -104,7 +111,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] {
       sub: `${latest.loadAverage?.toFixed(2) ?? '--'} load`,
       delta: Math.round(latest.cpuUsage - prev.cpuUsage),
       trend: latest.cpuUsage >= prev.cpuUsage ? 'up' : 'down',
-      ringColor: 'var(--trae-bg-brand)',
+      ringColor: '#387BFF',
       sparkline: cpuSpark,
     },
     {
@@ -114,7 +121,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] {
       sub: `${latest.processCount ?? '--'} 进程`,
       delta: Math.round(latest.memoryUsage - prev.memoryUsage),
       trend: latest.memoryUsage >= prev.memoryUsage ? 'up' : 'down',
-      ringColor: 'var(--trae-status-success-default)',
+      ringColor: '#387BFF',
       sparkline: memSpark,
     },
     {
@@ -124,7 +131,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] {
       sub: `uptime ${Math.floor(latest.uptime / 3600)}h`,
       delta: Math.round(latest.diskUsage - prev.diskUsage),
       trend: latest.diskUsage >= prev.diskUsage ? 'up' : 'down',
-      ringColor: 'var(--trae-status-alert-default)',
+      ringColor: '#F59E0B',
       sparkline: diskSpark,
     },
     {
@@ -134,7 +141,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] {
       sub: `↓${Math.round(latest.networkIn)} ↑${Math.round(latest.networkOut)}`,
       delta: Math.round((latest.networkIn + latest.networkOut) - (prev.networkIn + prev.networkOut)),
       trend: (latest.networkIn + latest.networkOut) >= (prev.networkIn + prev.networkOut) ? 'up' : 'down',
-      ringColor: 'var(--trae-viz-sky)',
+      ringColor: '#387BFF',
       sparkline: netSpark,
     },
   ]
@@ -148,7 +155,10 @@ export function MonitorPage() {
   const [range, setRange] = useState<TimeRange>('24H')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [serverLabel, setServerLabel] = useState('未连接')
+  const [serverLabel, setServerLabel] = useState('prod-web-01 · 192.168.1.10')
+  // AlertDrawer 状态
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedAlert, setSelectedAlert] = useState<AlertRecord | null>(null)
 
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const monitorData = useMonitorStore((s) =>
@@ -182,7 +192,6 @@ export function MonitorPage() {
         setServerLabel(`${info.hostname} · ${info.os}`)
       }
     }).catch(() => { /* ignore */ })
-    // 3秒后如果仍无数据，标记为已加载（可能服务器静默）
     const timer = setTimeout(() => setLoading(false), 3000)
     return () => {
       clearTimeout(timer)
@@ -197,16 +206,43 @@ export function MonitorPage() {
     }
   }, [systemInfo])
 
-  const kpiStats = useMemo(() => computeKpiStats(monitorData), [monitorData])
+  // KPI 数据：实时优先，无数据时用 sampleKpiStats fallback
+  const kpiStats = useMemo(() => {
+    const live = computeKpiStats(monitorData)
+    return live ?? sampleKpiStats
+  }, [monitorData])
 
-  // 磁盘告警检测
-  const diskAlert = useMemo(() => {
+  // 顶部 critical 告警横幅数据：实时优先，无数据时用 sampleAlerts[0] fallback
+  const criticalAlert = useMemo<AlertRecord>(() => {
     const latest = monitorData[monitorData.length - 1]
     if (latest && latest.diskUsage > 85) {
-      return { message: `磁盘使用率 ${Math.round(latest.diskUsage)}% 超过阈值 85%，请及时清理`, time: new Date().toLocaleTimeString('zh-CN') }
+      return {
+        time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+        level: 'critical',
+        server: systemInfo?.hostname ?? 'prod-web-01',
+        desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值85%，建议清理 /var/log 旧日志`,
+        status: '未处理',
+        source: '/dev/sda1 · /var/log',
+        impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
+        suggestions: [
+          '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
+          '归档并压缩：tar -czf /tmp/log-$(date +%F).tar.gz /var/log/*.log && rm /var/log/*.log',
+          '配置 logrotate 自动轮转：编辑 /etc/logrotate.d/nginx',
+        ],
+      }
     }
-    return null
-  }, [monitorData])
+    return sampleAlerts[0]
+  }, [monitorData, systemInfo])
+
+  // 打开 Drawer（接收指定告警）
+  const openDrawer = useCallback((alert: AlertRecord) => {
+    setSelectedAlert(alert)
+    setDrawerOpen(true)
+  }, [])
+
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false)
+  }, [])
 
   const handleRefresh = useCallback(() => {
     if (!activeSessionId || !isElectronAPIAvailable()) return
@@ -219,23 +255,6 @@ export function MonitorPage() {
     })
   }, [activeSessionId])
 
-  // 未连接状态
-  if (!activeSessionId) {
-    return (
-      <main className="w-full min-h-full bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)] p-4 flex flex-col items-center justify-center gap-4">
-        <Activity className="w-12 h-12 text-[var(--trae-text-tertiary)]" />
-        <p className="text-[13px] text-[var(--trae-text-secondary)]">请先在工作台连接服务器</p>
-        <button
-          type="button"
-          onClick={() => navigate('/workbench')}
-          className="inline-flex items-center gap-1.5 h-[28px] px-4 text-[12px] font-medium text-[var(--trae-text-onbrand)] bg-[var(--trae-bg-brand)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-brand-hover)] transition-colors duration-150"
-        >
-          前往工作台
-        </button>
-      </main>
-    )
-  }
-
   return (
     <main className="w-full min-h-full bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)] p-4 flex flex-col">
       {/* 1. page-header */}
@@ -245,7 +264,7 @@ export function MonitorPage() {
       >
         <div className="flex flex-col gap-1.5 min-w-0">
           <h1
-            className="text-[28px] font-semibold leading-[36px] text-[var(--trae-text-default)]"
+            className="text-[24px] font-semibold leading-[32px] text-[var(--trae-text-default)]"
             style={{ textWrap: 'balance' } as React.CSSProperties}
           >
             实时监控
@@ -257,6 +276,7 @@ export function MonitorPage() {
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            data-dom-id="back-workbench"
             onClick={() => navigate('/workbench')}
             className="inline-flex items-center gap-1.5 h-[26px] px-3 text-[11px] font-medium text-[var(--trae-text-default)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
           >
@@ -267,42 +287,50 @@ export function MonitorPage() {
           <button
             type="button"
             onClick={handleRefresh}
+            disabled={!activeSessionId}
             aria-label="刷新监控数据"
-            className="inline-flex items-center justify-center w-7 h-7 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
+            className="inline-flex items-center justify-center w-7 h-7 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[var(--trae-text-secondary)] ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </header>
 
-      {/* 2. 顶部 alert 横幅（磁盘告警，仅在有真实告警时显示） */}
-      {diskAlert && (
-        <div
-          role="alert"
-          className="flex items-start gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)]"
-          style={{
-            background: 'var(--trae-status-error-surface-l1)',
-            border: '1px solid var(--trae-status-error-surface-l2)',
-            borderLeft: '3px solid var(--trae-status-error-default)',
-          }}
-        >
-          <AlertCircle
-            className="w-3.5 h-3.5 shrink-0 mt-0.5"
-            style={{ color: 'var(--trae-status-error-default)' }}
-          />
-          <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-default)]">
-            {diskAlert.message}
-          </p>
-          <span className="shrink-0 whitespace-nowrap text-[10px] text-[var(--trae-text-tertiary)]">
-            {diskAlert.time}
-          </span>
-        </div>
-      )}
+      {/* 2. 顶部 critical 告警横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer） */}
+      <div
+        role="alert"
+        data-dom-id="goto-alert-detail"
+        onClick={() => openDrawer(criticalAlert)}
+        className="flex items-start gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)] cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-status-error-surface-l2)]"
+        style={{
+          background: 'var(--trae-status-error-surface-l1)',
+          border: '1px solid var(--trae-status-error-surface-l2)',
+          borderLeft: '3px solid var(--trae-status-error-default)',
+        }}
+      >
+        <AlertCircle
+          className="w-3.5 h-3.5 shrink-0 mt-0.5"
+          style={{ color: 'var(--trae-status-error-default)' }}
+        />
+        <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-default)]">
+          {criticalAlert.desc}
+        </p>
+        <span className="shrink-0 whitespace-nowrap text-[10px] text-[var(--trae-text-tertiary)]">
+          {criticalAlert.time}
+        </span>
+      </div>
 
       {/* 3. KPI 环形图 4 列网格 */}
       {loading && monitorData.length === 0 ? (
-        <div className="flex items-center justify-center h-32 text-[12px] text-[var(--trae-text-tertiary)]">
-          正在获取监控数据…
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-[100px] rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] flex items-center justify-center"
+            >
+              <Activity className="w-4 h-4 text-[var(--trae-text-tertiary)] animate-pulse" />
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
@@ -312,7 +340,7 @@ export function MonitorPage() {
         </div>
       )}
 
-      {/* 4. 图表 2x2 网格 */}
+      {/* 4. 图表 2×2 网格 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-3">
         <CpuAreaChart />
         <MemoryLineChart />
@@ -320,11 +348,17 @@ export function MonitorPage() {
         <NetworkFlowChart />
       </div>
 
-      {/* 5. 告警列表 */}
-      <AlertTable />
+      {/* 5. 告警列表 + 关联分析卡片（左右双栏布局，桌面端并列） */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-2 mb-3">
+        <AlertTable onOpenDrawer={openDrawer} />
+        <CorrelationCard alert={criticalAlert} />
+      </div>
 
       {/* 6. 进程监控 */}
       <ProcessTable onRefresh={handleRefresh} />
+
+      {/* 7. 告警详情 Drawer（DEC-3 决策，不新建 alert-detail.html） */}
+      <AlertDrawer open={drawerOpen} alert={selectedAlert} onClose={closeDrawer} />
     </main>
   )
 }

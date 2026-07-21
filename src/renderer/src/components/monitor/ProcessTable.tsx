@@ -1,14 +1,24 @@
 /**
  * ProcessTable — 进程监控 TOP 5 CPU
  *
- * 设计稿：monitor.html 进程监控 table-panel
- * 数据来源：通过 sshExec 执行 `ps aux --sort=-%cpu | head -6` 获取真实进程列表
- * 刷新：点击刷新按钮重新执行 SSH 命令拉取最新数据
+ * 设计稿：monitor.html 第 6 段 进程监控 table-panel
+ * Spec: build-runnable-tdsf-from-design · Task 2.4
+ *
+ * 数据策略：
+ * - 优先通过 sshExec 执行 `ps aux --sort=-%cpu | head -6` 获取真实进程列表
+ * - 若无活跃会话或真实数据为空，使用 sampleProcesses 作为 fallback（保证页面可演示）
+ *
+ * 视觉规范：
+ * - 边框用 solid hex（var(--trae-border-neutral-l1)）
+ * - 表头 var(--trae-bg-overlay-l1) 背景
+ * - 进程名/PID 用 var(--trae-font-family-mono) 等宽字体
+ * - 状态运行中=success 绿点，睡眠=tertiary 灰点，僵尸=error 红点
  */
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { useServerStore } from '../../stores/server-store'
 import { useMonitorStore } from '../../stores/monitor-store'
+import { sampleProcesses } from './mock-data'
 
 /** 进程运行状态（从 ps STAT 列推断） */
 type ProcessStatus = '运行中' | '睡眠' | '僵尸'
@@ -213,18 +223,43 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
     }
   }
 
+  /** 显示数据：真实数据优先，无活跃会话或为空时用 sampleProcesses fallback */
+  type DisplayRow = { pid: number; name: string; cpu: number; mem: number; status: ProcessStatus }
+  const displayProcesses: DisplayRow[] =
+    !loading && !error && processes.length > 0
+      ? processes.map((p) => ({
+          pid: p.pid,
+          name: p.command,
+          cpu: p.cpu,
+          mem: p.mem,
+          status: p.status,
+        }))
+      : sampleProcesses.map((p) => ({
+          pid: p.pid,
+          name: p.name,
+          cpu: p.cpu,
+          mem: p.mem,
+          status: p.status,
+        }))
+  const isFallback = !activeSessionId || (!loading && !error && processes.length === 0)
+
   return (
     <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] overflow-hidden">
       {/* 工具栏 */}
       <div className="flex items-center justify-between gap-2 p-2.5 border-b border-[var(--trae-border-neutral-l1)]">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[13px] font-semibold text-[var(--trae-text-default)]">进程监控</span>
-          <span className="inline-flex items-center px-1.5 h-5 whitespace-nowrap text-[11px] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)] rounded-[var(--trae-radius-2)]">
+          <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">进程监控</span>
+          <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)] rounded-[var(--trae-radius-2)] uppercase tracking-[0.04em]">
             TOP 5 CPU
           </span>
           {processCount !== null && (
-            <span className="inline-flex items-center px-1.5 h-5 whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)] rounded-[var(--trae-radius-2)] tabular-nums">
+            <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)] rounded-[var(--trae-radius-2)] tabular-nums">
               共 {processCount} 个进程
+            </span>
+          )}
+          {isFallback && (
+            <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-text-tertiary)] rounded-[var(--trae-radius-2)]">
+              示例
             </span>
           )}
         </div>
@@ -232,11 +267,11 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
           type="button"
           onClick={() => void handleRefresh()}
           disabled={loading || !activeSessionId}
-          className="inline-flex items-center justify-center h-8 w-8 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center h-7 w-7 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="刷新进程列表"
         >
           <RefreshCw
-            className={`w-3.5 h-3.5 text-[var(--trae-text-secondary)] ${spinning ? 'animate-spin' : ''}`}
+            className={`w-3 h-3 text-[var(--trae-text-secondary)] ${spinning ? 'animate-spin' : ''}`}
           />
         </button>
       </div>
@@ -280,30 +315,17 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
                 </td>
               </tr>
             )}
-            {!loading && !error && !activeSessionId && (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-[11px] text-[var(--trae-text-tertiary)]">
-                  连接服务器后可查看进程列表
-                </td>
-              </tr>
-            )}
-            {!loading && !error && activeSessionId && processes.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-[11px] text-[var(--trae-text-tertiary)]">
-                  暂无进程数据
-                </td>
-              </tr>
-            )}
             {!loading &&
-              processes.map((p, idx) => (
+              !error &&
+              displayProcesses.map((p, idx) => (
                 <ProcessRowComponent
-                  key={p.pid}
+                  key={`proc-${p.pid}-${idx}`}
                   pid={p.pid}
-                  name={p.command}
+                  name={p.name}
                   cpu={p.cpu}
                   mem={p.mem}
                   status={p.status}
-                  isLast={idx === processes.length - 1}
+                  isLast={idx === displayProcesses.length - 1}
                 />
               ))}
           </tbody>

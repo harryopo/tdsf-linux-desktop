@@ -2,42 +2,22 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T16:00:53.434Z",
+  "lastUpdated": "2026-07-21T16:09:31.743Z",
   "sessions": {
-    "ai-20260721-night-fix": {
-      "aiName": "ai-20260721-night-fix",
-      "sessionId": "ai-20260721-night-fix",
-      "startedAt": "2026-07-21T16:00:49.236Z",
-      "lastActiveAt": "2026-07-21T16:00:53.434Z",
-      "task": "Task-2.3 fix P1 hardcoded colors",
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-07-21T16:09:31.743Z",
+      "lastActiveAt": "2026-07-21T16:09:31.743Z",
+      "task": "implementer",
       "claimedFiles": [
         {
-          "path": "src/renderer/src/components/decision/ExecutionResult.tsx",
-          "task": "Task-2.3 fix P1 hardcoded colors",
-          "claimedAt": "2026-07-21T16:00:49.236Z"
-        },
-        {
-          "path": "src/renderer/src/pages/DecisionDetailPage.tsx",
-          "task": "Task-2.3 fix P1 mock fallback",
-          "claimedAt": "2026-07-21T16:00:50.683Z"
-        },
-        {
-          "path": "src/renderer/src/styles/trae-tokens.css",
-          "task": "Task-2.3 add --trae-bg-code-block token",
-          "claimedAt": "2026-07-21T16:00:51.590Z"
-        },
-        {
-          "path": "src/renderer/src/components/decision/EvidenceList.tsx",
-          "task": "Task-2.3 remove fallback colors",
-          "claimedAt": "2026-07-21T16:00:52.527Z"
-        },
-        {
-          "path": "src/renderer/src/pages/__fixtures__/decision-detail-sample.ts",
-          "task": "Task-2.3 extract sample data to fixtures",
-          "claimedAt": "2026-07-21T16:00:53.434Z"
+          "path": "monitor-page",
+          "task": "implementer",
+          "claimedAt": "2026-07-21T16:09:31.743Z"
         }
       ],
-      "expiresAt": "2026-07-21T18:00:53.434Z"
+      "expiresAt": "2026-07-21T18:09:31.743Z"
     }
   },
   "history": [
@@ -1279,6 +1259,48 @@
       "file": "src/renderer/src/pages/__fixtures__/decision-detail-sample.ts",
       "task": "Task-2.3 extract sample data to fixtures",
       "timestamp": "2026-07-21T16:00:53.434Z"
+    },
+    {
+      "sessionId": "ai-20260721-night-fix",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "Task-2.3 fix P1 hardcoded colors",
+      "timestamp": "2026-07-21T16:05:49.966Z"
+    },
+    {
+      "sessionId": "ai-20260721-night-fix",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "Task-2.3 fix P1 mock fallback",
+      "timestamp": "2026-07-21T16:05:49.966Z"
+    },
+    {
+      "sessionId": "ai-20260721-night-fix",
+      "action": "release",
+      "file": "src/renderer/src/styles/trae-tokens.css",
+      "task": "Task-2.3 add --trae-bg-code-block token",
+      "timestamp": "2026-07-21T16:05:49.966Z"
+    },
+    {
+      "sessionId": "ai-20260721-night-fix",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/EvidenceList.tsx",
+      "task": "Task-2.3 remove fallback colors",
+      "timestamp": "2026-07-21T16:05:49.966Z"
+    },
+    {
+      "sessionId": "ai-20260721-night-fix",
+      "action": "release",
+      "file": "src/renderer/src/pages/__fixtures__/decision-detail-sample.ts",
+      "task": "Task-2.3 extract sample data to fixtures",
+      "timestamp": "2026-07-21T16:05:49.966Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "monitor-page",
+      "task": "implementer",
+      "timestamp": "2026-07-21T16:09:31.743Z"
     }
   ]
 }
