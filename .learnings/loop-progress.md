@@ -1,7 +1,26 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 9
+> 轮次：Round 10
+
+## Mastra 真实集成 (2026-07-21 Round 10 — QoderWork)
+
+方向：package.json 已装 `@mastra/core@1.51.0` 和 `@mastra/memory` 但仅 1 处 `createTool` 引用（sandbox-exec）。本轮完成 Mastra 框架的真实集成——通过 Tool Bridge 将现有 5 个 ToolRegistry 工具无缝适配为 Mastra createTool 格式，创建 Mastra Agent（tdsf-ops-agent），并提供 Mastra 单例入口。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| Tool Bridge（核心） | `src/main/core/agent/mastra/tool-bridge.ts` | **新文件**。`adaptToolToMastra()` 将 ToolDefinition → Mastra createTool：name→id, parameters→inputSchema, execute 包装异常兜底。`adaptToolsToMastra()` 批量转换 + meta 匹配 requireApproval |
+| Ops Agent | `src/main/core/agent/mastra/ops-agent.ts` | **新文件**。`createOpsAgent()` 创建 Mastra Agent：TDSF 专用系统提示 + ToolRegistry 全部工具 + OpenAI 模型。`runOpsAgent()` 高层 API 单轮对话 |
+| Mastra 单例 | `src/main/core/agent/mastra/index.ts` | **新文件**。`getMastraInstance()` 配置指纹单例（config 变更自动重建）+ `resetMastraInstance()` + `isMastraInitialized()` |
+| 单元测试 | `tests/unit/mastra-integration.test.ts` | **新文件** 13 个测试：Tool Bridge 转换正确性 / requireApproval 传递 / execute 委托+异常兜底 / 批量转换 / Ops Agent 创建 / 单例缓存+重建+重置 |
+
+验证：typecheck node 0 errors ｜ vitest 1173/1173 PASS (52 files, +13 新增) ｜ build PASS (12.21s)
+
+架构决策：
+- **Tool Bridge 模式**：不复制 execute 逻辑，适配器委托原始 tool.execute，避免双份维护
+- **互补而非替换**：Mastra Agent 与现有 supervisor PAOR 循环并存——Mastra 适合轻量单轮对话，supervisor 适合复杂多步推理
+- **配置指纹**：Mastra 实例按 LlmConfig 哈希缓存，切换模型/API 时自动重建，避免过期实例
+- **requireApproval 传递**：通过 ToolCallMeta 匹配，ssh_exec 的 high 风险审批策略自动传入 Mastra
 
 ## MCP Client 双向网关实现 (2026-07-21 Round 9 — QoderWork)
 
@@ -254,11 +273,11 @@
 
 ## 测试状态
 
-- **全量测试：1160/1160 通过** (vitest run, Round 9 确认)
-  - 测试文件：51 files
-  - 测试用例：1160 passed
-- **TypeScript 类型检查：0 错误** (web + node, Round 9 确认)
-- **构建：通过** (electron-vite build, Round 9 确认, 16.19s)
+- **全量测试：1173/1173 通过** (vitest run, Round 10 确认)
+  - 测试文件：52 files
+  - 测试用例：1173 passed
+- **TypeScript 类型检查：0 错误** (web + node, Round 10 确认)
+- **构建：通过** (electron-vite build, Round 10 确认, 12.21s)
 
 ## 构建产物
 
@@ -275,13 +294,14 @@ out/renderer/assets/         ~90 个 chunk (代码分割)
 
 ### 高优先级（P0 — Agent 纵深）
 1. ~~**MCP Client 侧实现（双向网关）**~~ — ✅ Round 9 完成
-2. **Mastra 真实集成** — package.json 已装 mastra 但仅 1 处 createTool 引用。将现有自研 tool 迁移为 Mastra createTool 格式，或用 Mastra Agent 编排。方案书把 Mastra 列为框架，评委追问需有实质内容。**下一轮首选。**
+2. ~~**Mastra 真实集成**~~ — ✅ Round 10 完成（Tool Bridge + Ops Agent + 单例 + 13 测试）
 3. **Context compaction L4/L5 端到端验证** — supervisor chat() 中 L4/L5 压缩已实现但缺长对话触发压缩的集成测试。
 4. **PAOR isApprovalRequired / requestApproval stub 清理** — supervisor.ts L996-1022 仍为 "Week 2" 占位（Round 7 已通过 IPC approveRisk 回调实现审批，这两个 stub 方法可删或接线）。
 5. **E2E 演示路径验证** — 在真实 SSH 连接上跑通 3 个竞赛场景（需 Linux 服务器环境）。
 6. **risk-engine 长格式标志** — `rm --recursive --force /` 未被 regex 匹配（AST 引擎可兜底）。
 
 ### 已完成（本轮，勿重复）
+- ✅ Mastra 真实集成（Round 10）— Tool Bridge + Ops Agent + 单例 + 13 测试
 - ✅ MCP Client 双向网关实现（Round 9）— client-manager.ts 新文件 + gateway 9 方法 + IPC 4 通道 + preload + d.ts + 17 测试
 - ✅ MCP v5 工具 dispatch 修复（Round 8，交互会话）— 4 个注册表工具可分发 + ssh_exec 去重
 - ✅ PAOR 审批 UI 集成（Round 7，自主循环）— paor:approval-request/paor:approve 全链路 + 审批卡片
