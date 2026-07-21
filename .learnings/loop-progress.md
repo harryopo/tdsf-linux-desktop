@@ -1,7 +1,27 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 13
+> 轮次：Round 14
+
+## agent-workflow analyze 步骤增强：日志模式匹配 (2026-07-21 Round 14 — QoderWork)
+
+方向：`agent-workflow.ts` 的 analyze 步骤（Step 2）原本仅提取 Drain3 模板并返回元数据（日志长度、模板数量），缺少对已知错误模式的主动识别。本轮新增 `detectLogPatterns()` 方法，扫描日志文本匹配 15 种常见 Linux 错误模式（OOM、磁盘满、连接拒绝、权限拒绝、段错误等），将匹配结果存入 `AgentWorkflowState.logPatterns`，供 reason 步骤和 UI 展示使用。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 新增 logPatterns 字段 | `src/shared/models.ts` | AgentWorkflowState 新增可选 `logPatterns` 数组（patternId/description/matchCount/severity） |
+| 定义 LOG_PATTERNS | `src/main/core/agent-workflow.ts` | 15 种已知日志模式（5 critical + 9 warning + 1 info），覆盖 OOM/磁盘满/连接拒绝/权限拒绝/段错误/内核恐慌/服务失败等 |
+| 新增 detectLogPatterns() | `src/main/core/agent-workflow.ts` | 同步扫描日志文本，返回匹配模式列表（含匹配次数+样本行），按严重度排序 |
+| 增强 analyze 步骤 | `src/main/core/agent-workflow.ts` | Step 2 新增调用 detectLogPatterns()，结果存入 state.logPatterns，stepDetails 包含 patternMatches/criticalPatterns 统计 |
+| 导出 LogPatternMatch | `src/main/core/agent-workflow.ts` | 导出接口供测试和 UI 使用 |
+| 新增 5 个测试 | `tests/core/agent-workflow.test.ts` | 覆盖：空日志无模式、OOM 检测+计数、多模式同时检测+排序、磁盘满检测、stepDetails 统计字段 |
+
+验证：typecheck web+node 0 errors ｜ vitest 1215/1215 PASS (53 files, +5 新增) ｜ build 29.95s
+
+模式覆盖矩阵（15 种）：
+- critical: oom_kill, segfault, kernel_panic, disk_full, fs_readonly
+- warning: conn_refused, conn_timeout, perm_denied, service_fail, ssh_fail, nginx_5xx, mysql_slow, auth_fail
+- info: high_cpu, service_restart
 
 ## risk-engine 长格式标志检测 (2026-07-21 Round 13 — QoderWork)
 
@@ -333,11 +353,11 @@
 
 ## 测试状态
 
-- **全量测试：1210/1210 通过** (vitest run, Round 13 确认)
+- **全量测试：1215/1215 通过** (vitest run, Round 14 确认)
   - 测试文件：53 files
-  - 测试用例：1210 passed
-- **TypeScript 类型检查：0 错误** (web + node, Round 13 确认)
-- **构建：通过** (electron-vite build, Round 12 确认, 13.59s)
+  - 测试用例：1215 passed
+- **TypeScript 类型检查：0 错误** (web + node, Round 14 确认)
+- **构建：通过** (electron-vite build, Round 14 确认, 29.95s)
 
 ## 构建产物
 
@@ -372,7 +392,7 @@ out/renderer/assets/         ~90 个 chunk (代码分割)
 ### 中优先级
 5. **Agent 相关 renderer mock 清理** — 评估 AIPanel 中残留的 mock 引用
 6. `workbench/mock-data.ts` 中 MOCK_CHAT_MESSAGES / MOCK_COMPOSER_CHIPS 空态展示评估
-7. agent-workflow.ts analyze 步骤增强 — 当前仅记录元数据，可添加日志模式匹配
+7. ~~agent-workflow.ts analyze 步骤增强~~ — ✅ Round 14 完成（15 种日志模式 + detectLogPatterns + state.logPatterns）
 
 ### 低优先级
 8. 代码签名证书配置（Windows Authenticode）

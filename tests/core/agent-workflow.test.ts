@@ -324,3 +324,151 @@ describe('AgentWorkflow - 5 层根因回归测试', () => {
     expect(maxConcurrent).toBeGreaterThan(1)  // 并发数 > 1
   })
 })
+
+describe('AgentWorkflow - R14 analyze 步骤日志模式匹配增强', () => {
+  it('空日志不应检测到任何模式', async () => {
+    const workflow = new AgentWorkflow()
+    let analyzeState: any = null
+
+    workflow.on(WORKFLOW_EVENTS.STEP_CHANGED, (state) => {
+      if (state.currentStep === 'analyze') analyzeState = state
+    })
+
+    const startPromise = workflow.start({
+      problem: '测试',
+      logs: '',
+      connId: 'conn-1',
+      sshExecutor: mockSsh,
+      evidenceCollector: mockCollector
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    workflow.confirm(false)
+    await startPromise
+
+    expect(analyzeState).not.toBeNull()
+    expect(analyzeState.logPatterns).toBeUndefined()
+  })
+
+  it('OOM 日志应检测到 oom_kill 模式（critical）', async () => {
+    const oomLogs = [
+      'Jul 21 10:00:01 server kernel: normal log line',
+      'Jul 21 10:00:02 server kernel: Out of memory: Killed process 12345 (java)',
+      'Jul 21 10:00:03 server kernel: oom-killer: task exited',
+      'Jul 21 10:00:04 server kernel: normal line again'
+    ].join('\n')
+
+    const workflow = new AgentWorkflow()
+    let finalState: any = null
+
+    workflow.on(WORKFLOW_EVENTS.COMPLETED, (state) => {
+      finalState = state
+    })
+
+    const startPromise = workflow.start({
+      problem: 'OOM',
+      logs: oomLogs,
+      connId: 'conn-1',
+      sshExecutor: mockSsh,
+      evidenceCollector: mockCollector
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    workflow.confirm(false)
+    await startPromise
+
+    expect(finalState.logPatterns).toBeDefined()
+    const oomPattern = finalState.logPatterns.find((p: any) => p.patternId === 'oom_kill')
+    expect(oomPattern).toBeDefined()
+    expect(oomPattern.severity).toBe('critical')
+    expect(oomPattern.matchCount).toBe(2)
+  })
+
+  it('多模式日志应同时检测并按严重度排序', async () => {
+    const mixedLogs = [
+      '2026-07-21 nginx: 502 upstream timed out',
+      '2026-07-21 kernel: Out of memory: Killed process 999',
+      '2026-07-21 sshd: Connection refused from 10.0.0.1',
+      '2026-07-21 app: Permission denied accessing /etc/shadow'
+    ].join('\n')
+
+    const workflow = new AgentWorkflow()
+    let finalState: any = null
+
+    workflow.on(WORKFLOW_EVENTS.COMPLETED, (state) => {
+      finalState = state
+    })
+
+    const startPromise = workflow.start({
+      problem: '综合故障',
+      logs: mixedLogs,
+      connId: 'conn-1',
+      sshExecutor: mockSsh,
+      evidenceCollector: mockCollector
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    workflow.confirm(false)
+    await startPromise
+
+    expect(finalState.logPatterns).toBeDefined()
+    expect(finalState.logPatterns.length).toBeGreaterThanOrEqual(3)
+
+    // critical 模式应排在最前
+    const firstPattern = finalState.logPatterns[0]
+    expect(firstPattern.severity).toBe('critical')
+  })
+
+  it('磁盘满日志应检测到 disk_full 模式', async () => {
+    const diskLogs = 'Jul 21 12:00:00 server app: write failed: No space left on device'
+
+    const workflow = new AgentWorkflow()
+    let finalState: any = null
+
+    workflow.on(WORKFLOW_EVENTS.COMPLETED, (state) => {
+      finalState = state
+    })
+
+    const startPromise = workflow.start({
+      problem: '磁盘满',
+      logs: diskLogs,
+      connId: 'conn-1',
+      sshExecutor: mockSsh,
+      evidenceCollector: mockCollector
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    workflow.confirm(false)
+    await startPromise
+
+    const diskPattern = finalState.logPatterns.find((p: any) => p.patternId === 'disk_full')
+    expect(diskPattern).toBeDefined()
+    expect(diskPattern.severity).toBe('critical')
+    expect(diskPattern.matchCount).toBe(1)
+  })
+
+  it('stepDetails.analyze 应包含 patternMatches 和 criticalPatterns 统计', async () => {
+    const logs = 'Out of memory: Killed process 123\nConnection refused from host'
+
+    const workflow = new AgentWorkflow()
+
+    const startPromise = workflow.start({
+      problem: '测试',
+      logs,
+      connId: 'conn-1',
+      sshExecutor: mockSsh,
+      evidenceCollector: mockCollector
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    workflow.confirm(false)
+    await startPromise
+
+    const state = workflow.getState()
+    const analyzeDetail = state.stepDetails['analyze']
+    expect(analyzeDetail).toBeDefined()
+    // stepDetails 存储的是截断后的 JSON 字符串，应包含 patternMatches 字段
+    expect(analyzeDetail).toContain('patternMatches')
+    expect(analyzeDetail).toContain('criticalPatterns')
+  })
+})
