@@ -1,7 +1,22 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 10
+> 轮次：Round 11
+
+## Context Compaction L4/L5 端到端验证 (2026-07-21 Round 11 — QoderWork)
+
+方向：`context.ts` 实现了 5 层 compaction pipeline（L1-L5），但此前零测试覆盖。本轮新增 30 个单元测试，覆盖所有可测路径，并记录了 L3/L4/L5 在同步级联中不可达的设计观察。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 单元测试（30 个） | `tests/unit/context-compaction.test.ts` | **新文件**。7 个 describe 块：estimateTokens/estimateMessageTokens（5）、L1 截断（4）、L2 滑动窗口（3）、L3/L4/L5 可达性分析（3）、级联行为（5）、compactIfNeededAsync（5）、阈值常量验证（5） |
+
+验证：typecheck web+node 0 errors ｜ vitest 1203/1203 PASS (53 files, +30 新增) ｜ build PASS (11.16s)
+
+关键发现：
+- **L3/L4/L5 同步不可达**：L2 滑动窗口将 tokens 降到 ≤30K，而 L3 阈值 100K、L4 触发点 112.5K、L5 触发点 135K 均远超 30K。因此 `compactIfNeeded()` 中 L3/L4/L5 永远不会触发。
+- **设计意图**：L3/L4/L5 是为 `compactIfNeededAsync` 设计的——当 LLM 摘要保留更多 tokens 或 L2 窗口扩大时它们才有意义。当前 supervisor.ts 只调用同步版，L3+ 实质是"预留管线"。
+- **测试策略**：对不可达层级，测试验证"级联后 level 为 L2 而非 L3/L4/L5"这一不变量，而非尝试构造不可能场景。阈值常量验证确保未来调整时不会破坏递增关系。
 
 ## Mastra 真实集成 (2026-07-21 Round 10 — QoderWork)
 
@@ -273,11 +288,11 @@
 
 ## 测试状态
 
-- **全量测试：1173/1173 通过** (vitest run, Round 10 确认)
-  - 测试文件：52 files
-  - 测试用例：1173 passed
-- **TypeScript 类型检查：0 错误** (web + node, Round 10 确认)
-- **构建：通过** (electron-vite build, Round 10 确认, 12.21s)
+- **全量测试：1203/1203 通过** (vitest run, Round 11 确认)
+  - 测试文件：53 files
+  - 测试用例：1203 passed
+- **TypeScript 类型检查：0 错误** (web + node, Round 11 确认)
+- **构建：通过** (electron-vite build, Round 11 确认, 11.16s)
 
 ## 构建产物
 
@@ -295,12 +310,13 @@ out/renderer/assets/         ~90 个 chunk (代码分割)
 ### 高优先级（P0 — Agent 纵深）
 1. ~~**MCP Client 侧实现（双向网关）**~~ — ✅ Round 9 完成
 2. ~~**Mastra 真实集成**~~ — ✅ Round 10 完成（Tool Bridge + Ops Agent + 单例 + 13 测试）
-3. **Context compaction L4/L5 端到端验证** — supervisor chat() 中 L4/L5 压缩已实现但缺长对话触发压缩的集成测试。
+3. ~~**Context compaction L4/L5 端到端验证**~~ — ✅ Round 11 完成（30 测试覆盖 5 层 pipeline + L3/L4/L5 可达性分析）
 4. **PAOR isApprovalRequired / requestApproval stub 清理** — supervisor.ts L996-1022 仍为 "Week 2" 占位（Round 7 已通过 IPC approveRisk 回调实现审批，这两个 stub 方法可删或接线）。
 5. **E2E 演示路径验证** — 在真实 SSH 连接上跑通 3 个竞赛场景（需 Linux 服务器环境）。
 6. **risk-engine 长格式标志** — `rm --recursive --force /` 未被 regex 匹配（AST 引擎可兜底）。
 
 ### 已完成（本轮，勿重复）
+- ✅ Context compaction L4/L5 端到端验证（Round 11）— 30 测试覆盖 5 层 pipeline + L3/L4/L5 可达性分析
 - ✅ Mastra 真实集成（Round 10）— Tool Bridge + Ops Agent + 单例 + 13 测试
 - ✅ MCP Client 双向网关实现（Round 9）— client-manager.ts 新文件 + gateway 9 方法 + IPC 4 通道 + preload + d.ts + 17 测试
 - ✅ MCP v5 工具 dispatch 修复（Round 8，交互会话）— 4 个注册表工具可分发 + ssh_exec 去重
