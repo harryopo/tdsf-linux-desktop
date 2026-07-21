@@ -36,21 +36,23 @@ interface NavItem {
   id: NavId
   label: string
   icon: React.FC<{ className?: string }>
+  /** data-dom-id 标识（用于 E2E 测试 / 自动化接入；home 项跳过，工作台自身无需标识） */
+  domId?: string
 }
 
 /** 顶部主导航（7 项） */
 const TOP_NAV_ITEMS: NavItem[] = [
   { id: 'home', label: '工作台', icon: TraeHomeIcon },
-  { id: 'tutorial', label: '教程', icon: TraeScrollTextIcon },
-  { id: 'decision', label: '决策', icon: TraeShieldIcon },
-  { id: 'monitor', label: '监控', icon: TraeDashboardIcon },
-  { id: 'knowledge', label: '知识库', icon: TraeLayersIcon },
-  { id: 'history', label: '历史', icon: TraeClockIcon },
-  { id: 'logs', label: '系统日志', icon: TraeFileTextIcon },
+  { id: 'tutorial', label: '教程', icon: TraeScrollTextIcon, domId: 'nav-tutorial' },
+  { id: 'decision', label: '决策', icon: TraeShieldIcon, domId: 'nav-decision' },
+  { id: 'monitor', label: '监控', icon: TraeDashboardIcon, domId: 'nav-monitor' },
+  { id: 'knowledge', label: '知识库', icon: TraeLayersIcon, domId: 'nav-knowledge' },
+  { id: 'history', label: '历史', icon: TraeClockIcon, domId: 'nav-history' },
+  { id: 'logs', label: '系统日志', icon: TraeFileTextIcon, domId: 'nav-logs' },
 ]
 
 /** 底部设置导航 */
-const BOTTOM_NAV_ITEMS: NavItem[] = [{ id: 'settings', label: '设置', icon: TraeSettingsIcon }]
+const BOTTOM_NAV_ITEMS: NavItem[] = [{ id: 'settings', label: '设置', icon: TraeSettingsIcon, domId: 'nav-settings' }]
 
 /** ActivityRail 属性 */
 export interface ActivityRailProps {
@@ -120,6 +122,7 @@ function NavButton({ item, active, onClick }: NavButtonProps) {
       title={item.label}
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
+      data-dom-id={item.domId}
       className={cn(
         'wb-nav-btn relative flex size-9 items-center justify-center rounded-[var(--trae-radius-4)] transition-colors',
         active

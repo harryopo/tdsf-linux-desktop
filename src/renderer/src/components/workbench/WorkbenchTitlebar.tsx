@@ -261,7 +261,7 @@ export function WorkbenchTitlebar({
           <IconButton title="搜索" onClick={() => message.info('全局搜索即将在下一版开放')}>
             <Search className="size-4" />
           </IconButton>
-          <IconButton title="AI面板" onClick={onToggleAI} active={aiPanelVisible}>
+          <IconButton title="AI面板" onClick={onToggleAI} active={aiPanelVisible} domId="collapse-ai">
             <PanelRight className="size-4" />
           </IconButton>
           <IconButton title="布局" onClick={() => message.info('分屏布局即将支持')}>
@@ -288,17 +288,22 @@ function IconButton({
   title,
   onClick,
   active,
+  domId,
 }: {
   children: React.ReactNode
   title: string
   onClick?: () => void
   active?: boolean
+  /** data-dom-id 标识（用于 E2E 测试 / 自动化接入） */
+  domId?: string
 }) {
   return (
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
+      data-dom-id={domId}
       className={cn(
         'flex size-8 items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]',
         active && 'bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-text-brand)]',
