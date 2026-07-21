@@ -25,7 +25,8 @@
  * |19 | /settings/terminal   | TerminalSettings     | lazy    |
  * |20 | /settings/decision   | DecisionSettings     | lazy    |
  * |21 | /settings/calibration| CalibrationSettings  | lazy    |  v0.9.6 P1 新增：ECE 校准器控制台
- * |22 | /settings/about      | AboutSettings        | lazy    |
+ * |22 | /settings/alerts     | AlertsSettingsStub   | lazy    |  spec DEC-4 统一 9 项 nav-alerts 占位
+ * |23 | /settings/about      | AboutSettings        | lazy    |
  *
  * 守卫：
  * - BootPage 完成后才进入 Workbench（用 BootGuard 软守卫，批次 1 不强制）
@@ -38,7 +39,9 @@
  */
 import { lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Bell } from 'lucide-react'
 import MainLayout from './components/layout/MainLayout'
+import { Empty } from './components/trae/Empty'
 
 // BootPage eager 加载（启动页必须立即可用）
 import { BootPage } from './pages/BootPage'
@@ -75,6 +78,9 @@ const LogsPage = lazy(() => import('./pages/LogsPage').then((m) => ({ default: m
 const SettingsLayout = lazy(() =>
   import('./pages/SettingsLayout').then((m) => ({ default: m.SettingsLayout })),
 )
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
 const GeneralSettings = lazy(() =>
   import('./pages/GeneralSettings').then((m) => ({ default: m.GeneralSettings })),
 )
@@ -108,6 +114,27 @@ function PageLoading() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-[var(--trae-bg-base-default)] text-[var(--trae-text-tertiary)]">
       <span className="text-[13px]">加载中...</span>
+    </div>
+  )
+}
+
+/**
+ * AlertsSettingsStub — 告警阈值设置占位（spec DEC-4 / Task 2.13.4 H1 修复）
+ *
+ * Spec 要求所有设置子页面左导航统一为 9 项（含 nav-alerts），
+ * 但 AlertSettings 完整页不在 Task 2.13 范围内。
+ * 此处用 Empty 占位，符合 spec「IPC 不可用时使用 @/components/trae/Empty」约束。
+ */
+function AlertsSettingsStub() {
+  return (
+    <div className="flex h-full flex-col bg-[var(--trae-bg-base-default)]">
+      <div className="flex flex-1 items-center justify-center p-12">
+        <Empty
+          icon={Bell}
+          title="告警阈值设置即将上线"
+          description="本模块用于配置监控告警的触发阈值与通知策略，敬请期待。"
+        />
+      </div>
     </div>
   )
 }
@@ -148,9 +175,11 @@ const Router: React.FC = () => {
             {/* 日志 */}
             <Route path="logs" element={<LogsPage />} />
 
-            {/* 设置（嵌套路由） */}
+            {/* 设置（嵌套路由）
+                - /settings 根路径由 SettingsLayout 自身渲染 9 项卡片快捷入口
+                - 子路由通过 Outlet 渲染对应设置子页面 */}
             <Route path="settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="/settings/general" replace />} />
+              <Route index element={<SettingsPage />} />
               <Route path="general" element={<GeneralSettings />} />
               <Route path="appearance" element={<AppearanceSettings />} />
               <Route path="model" element={<ModelSettings />} />
@@ -158,6 +187,8 @@ const Router: React.FC = () => {
               <Route path="ssh" element={<SshSettings />} />
               <Route path="terminal" element={<TerminalSettings />} />
               <Route path="decision" element={<DecisionSettings />} />
+              {/* nav-alerts 占位（spec DEC-4 统一 9 项，AlertSettings 完整页待后续 Task） */}
+              <Route path="alerts" element={<AlertsSettingsStub />} />
               <Route path="calibration" element={<CalibrationSettings />} />
             </Route>
 
