@@ -65,12 +65,6 @@ const MODEL_ID = 'Xenova/bge-small-zh-v1.5'
 export const EMBEDDING_DIM = 512
 
 /**
- * BGE 模型最大输入 token 数
- * 超过会截断（避免显存/内存溢出）
- */
-const MAX_TOKENS = 512
-
-/**
  * BGE 模型的查询前缀（中文版）
  * BGE 模型要求查询和文档使用不同前缀，才能达到最佳检索效果
  */

@@ -27,7 +27,6 @@
  * expect(entries.length).toBeGreaterThan(0)
  * ```
  */
-import { app } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 

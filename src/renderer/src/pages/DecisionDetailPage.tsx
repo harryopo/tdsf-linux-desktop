@@ -129,11 +129,6 @@ function buildEvidenceSources(evidences: Evidence[]): EvidenceSource[] {
 
 /** 从 DecisionCard 构建 7 步时间线 */
 function buildTimelineSteps(card: DecisionCard): TimelineStep[] {
-  const statusOrder: DecisionCard['status'][] = [
-    'pending', 'approved', 'executed', 'verified',
-  ]
-  const currentIdx = statusOrder.indexOf(card.status)
-
   const stepDefs = [
     { num: 1, title: '数据采集', desc: card.evidences.length > 0 ? `采集 ${card.evidences.length} 项证据：${card.evidences.slice(0, 3).map(e => e.sourceDetail).join('、')}` : '采集环境数据' },
     { num: 2, title: '异常分析', desc: card.problem || '分析异常指标' },

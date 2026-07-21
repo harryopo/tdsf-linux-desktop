@@ -23,7 +23,6 @@ import type {
   DecisionCard,
   AgentWorkflowState,
   ProfilerRunResponse,
-  RiskItem,
   // v0.9.5 P0 新增：MCP 5 阶段状态机
   McpStateContext,
   // v0.9.6 新增：外部 MCP Server 状态
@@ -103,8 +102,6 @@ import type {
 // v0.9.5 P0 新增：5 组缺失 IPC 通道共享类型（成本透明 / 模式切换 / 注意力 / Subagent / Provider 信息）
 import type {
   CostStats,
-  AgentMode,
-  ModeInfo,
   ModeListResponse,
   ModeSetDefaultRequest,
   ModeSetDefaultResponse,
@@ -113,8 +110,6 @@ import type {
   CustomAgentConfig,
   SubagentReloadRequest,
   SubagentReloadResponse,
-  ProviderCapabilities,
-  ModelPricing,
   ProviderCapabilitiesRequest,
   ProviderCapabilitiesResponse,
   ProviderCapabilitiesAllResponse,

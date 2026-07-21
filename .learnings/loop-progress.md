@@ -1,7 +1,32 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 18
+> 轮次：Round 20
+
+## ESLint 清零 + 遗留配置清理 (2026-07-21 Round 20 — QoderWork)
+
+方向：修复 ESLint 报告的全部 45 个 errors 和 15 个 warnings。
+
+| 改动 | 说明 |
+|------|------|
+| 修复 40 个 no-unused-vars | 跨 26 个文件移除未使用的 import/变量/参数 |
+| 移除 4 个 stale eslint-disable | CalibrationPanel.tsx (3) + useHybridSearch.ts (1) |
+| 增强 varsIgnorePattern | ESLint 配置添加 `^_` 前缀忽略规则 |
+| 删除 legacy .eslintrc.cjs | 已被 eslint.config.cjs (flat config) 替代 |
+
+最终结果：**0 errors, 11 warnings**（全部为 no-explicit-any，低优先级）
+
+验证：typecheck 0 errors ｜ vitest 1215/1215 PASS ｜ build 11.01s ｜ lint 0 errors
+
+## 移除未使用 devDependency + 死 store 导出 (2026-07-21 Round 19 — QoderWork)
+
+| 改动 | 说明 |
+|------|------|
+| 移除 autoprefixer | Tailwind v4 内置，独立包为死重 |
+| 移除 eslint-plugin-react-refresh | 仅在已删除的 legacy .eslintrc.cjs 中引用 |
+| 3 个 store 死导出 | terminal-store/TerminalTab, theme-store/Theme, translate-store/TranslateSelection 改为非导出 |
+
+pnpm install 移除 5 个包（2 direct + 3 transitive）。
 
 ## 移除 5 个未使用 npm 依赖 (2026-07-21 Round 18 — QoderWork)
 
