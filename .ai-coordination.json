@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T17:21:46.007Z",
+  "lastUpdated": "2026-07-21T17:31:08.147Z",
   "sessions": {},
   "history": [
     {
@@ -1376,6 +1376,20 @@
       "file": "src/renderer/src/pages/KnowledgePage.tsx",
       "task": "1:1 复刻 knowledge.html 设计稿",
       "timestamp": "2026-07-21T17:21:46.007Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task29",
+      "action": "claim",
+      "file": "src/renderer/src/pages/KnowledgeDetailPage.tsx",
+      "task": "1:1 复刻 knowledge-detail.html 设计稿",
+      "timestamp": "2026-07-21T17:24:25.819Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task29",
+      "action": "release",
+      "file": "src/renderer/src/pages/KnowledgeDetailPage.tsx",
+      "task": "1:1 复刻 knowledge-detail.html 设计稿",
+      "timestamp": "2026-07-21T17:31:08.147Z"
     }
   ]
 }
