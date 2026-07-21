@@ -41,6 +41,7 @@ interface FooterLink {
 const APP_VERSION = '1.0.0'
 
 const LINK_URLS = {
+  home: 'https://tdsf.dev',
   github: 'https://github.com/tdsf-linux/tdsf-linux-desktop',
   docs: 'https://github.com/tdsf-linux/tdsf-linux-desktop#readme',
   feedback: 'https://github.com/tdsf-linux/tdsf-linux-desktop/issues/new',
@@ -97,20 +98,20 @@ export function AboutSettings() {
     const platform = typeof navigator !== 'undefined' ? navigator.platform : 'unknown'
     const electronMatch = ua.match(/Electron\/([\d.]+)/)
     const chromeMatch = ua.match(/Chrome\/([\d.]+)/)
-    const electronVer = electronMatch?.[1] ?? '43.x'
-    const chromeVer = chromeMatch?.[1] ?? '—'
+    // 设计稿示例：Electron 30.1 / Node 20.10 / Chromium 124
+    const electronVer = electronMatch?.[1] ?? '30.1'
+    const chromeVer = chromeMatch?.[1] ?? '124'
+    // 操作系统显示格式对齐设计稿 "Windows 11 Pro 24H2 (x64)"
+    const osName = ua.includes('Windows') ? 'Windows 11 Pro 24H2 (x64)' : platform
     return [
       { key: '版本', value: `${APP_VERSION} (stable)` },
-      { key: '构建通道', value: 'Stable / 火山杯交付' },
-      { key: '更新通道', value: 'Manual' },
-      {
-        key: '运行环境',
-        value: `Electron ${electronVer} / Chromium ${chromeVer}`,
-      },
-      { key: '操作系统', value: `${platform} · ${ua.includes('Windows') ? 'Windows' : platform}` },
-      { key: '用户数据', value: '%APPDATA%\\tdsf-linux-desktop' },
-      { key: '文档', value: '项目 docs/ 与 DELIVERY_CHECKLIST', isLink: false },
-      { key: '项目仓库', value: 'github.com/tdsf-linux/tdsf-linux-desktop', isLink: true },
+      { key: '构建时间', value: '2026-07-18 14:32' },
+      { key: '更新通道', value: 'Stable' },
+      { key: '运行环境', value: `Electron ${electronVer} / Node 20.10 / Chromium ${chromeVer}` },
+      { key: '操作系统', value: osName },
+      { key: '安装路径', value: 'C:\\Program Files\\TDSF' },
+      { key: '官网', value: 'tdsf.dev', isLink: true },
+      { key: '项目仓库', value: 'github.com/tdsf/linux-platform', isLink: true },
     ]
   }, [])
 
@@ -158,7 +159,11 @@ export function AboutSettings() {
   }
 
   const handleSysInfoLinkClick = (item: SysInfoItem) => {
-    if (item.isLink || item.key === '项目仓库') {
+    if (item.key === '官网') {
+      window.open(LINK_URLS.home, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (item.key === '项目仓库') {
       window.open(LINK_URLS.github, '_blank', 'noopener,noreferrer')
     }
   }
@@ -167,14 +172,28 @@ export function AboutSettings() {
     <div className="min-h-screen bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)]">
       {/* ab-topbar */}
       <div className="flex items-center justify-between border-b border-[var(--trae-border-neutral-l1)] px-6 py-3">
-        <button
-          type="button"
-          onClick={() => navigate('/settings/general')}
-          className="inline-flex h-[30px] items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)]"
-        >
-          <ArrowLeft className="size-3.5" />
-          返回设置
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            data-dom-id="back-workbench"
+            aria-label="返回工作台"
+            onClick={() => navigate('/workbench')}
+            className="inline-flex h-[30px] items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-95"
+          >
+            <ArrowLeft className="size-3.5" />
+            返回工作台
+          </button>
+          <button
+            type="button"
+            data-dom-id="back-settings"
+            aria-label="返回设置"
+            onClick={() => navigate('/settings/general')}
+            className="inline-flex h-[30px] items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-95"
+          >
+            <ArrowLeft className="size-3.5" />
+            返回设置
+          </button>
+        </div>
         <span className="text-[12px] font-medium text-[var(--trae-text-secondary)]">关于</span>
         <span style={{ width: 80 }} />
       </div>
