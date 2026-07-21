@@ -1,0 +1,12 @@
+# TDSF Sidecar-A：SRE + 日志解析
+# 端口：19000（localhost 监听，避免外网访问）
+# 依赖：Drain3（日志模板解析）+ OpenDerisk（SRE 诊断，规则匹配 + LLM 增强）
+# 启动：python -m sidecar-a.main 或 uvicorn sidecar-a.main:app
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+drain3==0.9.11
+pydantic==2.10.3
+# v1.5 升级：OpenAI 兼容 SDK（火山方舟 / DeepSeek / OpenAI 通用）
+openai==1.59.9
+# v1.5 升级：异步 HTTP（用于未来 LLM 流式输出扩展）
+httpx==0.28.1

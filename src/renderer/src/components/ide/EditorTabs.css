@@ -1,0 +1,81 @@
+/**
+ * EditorTabs 样式（v0.8 IDE 工作台）
+ */
+.editor-tabs-container {
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+  padding-left: var(--space-1);
+}
+
+/* Ant Design Tabs 覆盖 */
+.editor-tabs-container .ant-tabs {
+  margin: 0;
+}
+
+.editor-tabs-container .ant-tabs-top > .ant-tabs-nav::before {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.editor-tabs-container .ant-tabs-tab {
+  padding: 4px 12px !important;
+  margin: 0 !important;
+  border: 1px solid transparent !important;
+  border-bottom: none !important;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent !important;
+  transition: background var(--duration-fast) var(--ease-out-quad);
+}
+
+.editor-tabs-container .ant-tabs-tab:hover {
+  background: var(--color-link-alpha-10) !important;
+}
+
+.editor-tabs-container .ant-tabs-tab.ant-tabs-tab-active {
+  background: var(--color-bg-primary) !important;
+  border-color: var(--color-border) !important;
+  border-bottom-color: var(--color-bg-primary) !important;
+}
+
+.editor-tabs-container .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-link);
+  font-weight: 500;
+}
+
+.editor-tabs-container .ant-tabs-tab-btn {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* Tab label 自定义 */
+.editor-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-tab-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.editor-tab-name {
+  color: inherit;
+  font-size: var(--font-size-sm);
+}
+
+/* 关闭按钮 */
+.editor-tabs-container .ant-tabs-tab .ant-tabs-tab-remove {
+  padding: 0 !important;
+  margin-left: 4px !important;
+  color: var(--color-text-tertiary);
+}
+
+.editor-tabs-container .ant-tabs-tab .ant-tabs-tab-remove:hover {
+  color: var(--color-error);
+  background: var(--color-error-alpha-08);
+  border-radius: 50%;
+}

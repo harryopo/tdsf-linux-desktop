@@ -8,6 +8,7 @@
  * - 通过 window.electronAPI.sshShellWrite 发送用户输入
  * - 支持复制粘贴、字体缩放（Ctrl + / -）
  * - 黑色背景终端（与苹果极简 UI 形成对比）
+ * - v0.8.0 集成翻译选词（SelectionManager + 浮层）
  *
  * 生命周期：
  * - useEffect 中初始化（DOM 就绪后）
@@ -18,9 +19,11 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
-import { WebglAddon } from '@xterm/addon-webgl'
+// import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
+import { useTranslateStore } from '../../stores/translate-store'
+import { SelectionManager } from './selection-manager'
 import './TerminalView.css'
 
 /** TerminalView 组件 Props */
@@ -32,7 +35,7 @@ interface TerminalViewProps {
 }
 
 /** 终端默认字体大小 */
-const DEFAULT_FONT_SIZE = 14
+const DEFAULT_FONT_SIZE = 13
 /** 终端最小/最大字体大小 */
 const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 32
@@ -47,6 +50,8 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
   const fitRef = useRef<FitAddon | null>(null)
   /** 当前字体大小 */
   const fontSizeRef = useRef<number>(DEFAULT_FONT_SIZE)
+  /** v0.8.0 翻译开关状态（订阅 store 变化以动态挂载/卸载 SelectionManager） */
+  const translateEnabled = useTranslateStore((s) => s.enabled)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -98,17 +103,18 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
     const searchAddon = new SearchAddon()
     terminal.loadAddon(searchAddon)
 
-    // 尝试加载 WebglAddon（失败则降级到默认 Canvas 渲染）
-    try {
-      const webglAddon = new WebglAddon()
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose()
-      })
-      terminal.loadAddon(webglAddon)
-    } catch {
-      // WebglAddon 加载失败，降级到默认渲染器
-      console.warn('[TerminalView] WebglAddon 加载失败，使用默认渲染器')
-    }
+    // 默认使用 xterm.js 内置 Canvas 渲染器，避免 WebGL 在部分 GPU 驱动下崩溃
+    // 如需启用 WebGL 加速，可取消下面注释并安装 @xterm/addon-webgl
+    // try {
+    //   const { WebglAddon } = await import('@xterm/addon-webgl')
+    //   const webglAddon = new WebglAddon()
+    //   webglAddon.onContextLoss(() => {
+    //     webglAddon.dispose()
+    //   })
+    //   terminal.loadAddon(webglAddon)
+    // } catch {
+    //   console.warn('[TerminalView] WebglAddon 加载失败，使用默认渲染器')
+    // }
 
     // ===== 3. 打开终端到容器 =====
     terminal.open(containerRef.current)
@@ -131,29 +137,40 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
     })
 
     // ===== 5. 监听 terminal:data 事件（SSH 输出 → 终端） =====
+    let offTerminalData: (() => void) | null = null
     if (isElectronAPIAvailable()) {
-      window.electronAPI.onTerminalData((recvSessionId: string, data: string) => {
-        if (recvSessionId === sessionId) {
-          terminal.write(data)
+      offTerminalData = window.electronAPI.onTerminalData((recvSessionId: string, data: string) => {
+        if (recvSessionId === sessionId && terminalRef.current) {
+          try {
+            terminalRef.current.write(data)
+          } catch {
+            // 终端可能已销毁
+          }
         }
       })
     }
 
-    // ===== 6. 尺寸变化 → fit + 通知主进程 =====
+    // ===== 6. 尺寸变化 → fit + 通知主进程（防抖 150ms，避免高频触发） =====
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        fitAddon.fit()
-        // 通知主进程终端尺寸变化
-        if (isElectronAPIAvailable()) {
-          window.electronAPI
-            .sshShellResize(sessionId, terminal.cols, terminal.rows)
-            .catch(() => {
-              // 忽略 resize 错误
-            })
+      if (resizeTimeout) return
+      resizeTimeout = setTimeout(() => {
+        resizeTimeout = null
+        if (!terminalRef.current) return
+        try {
+          fitAddon.fit()
+          // 通知主进程终端尺寸变化
+          if (isElectronAPIAvailable()) {
+            window.electronAPI
+              .sshShellResize(sessionId, terminal.cols, terminal.rows)
+              .catch(() => {
+                // 忽略 resize 错误
+              })
+          }
+        } catch {
+          // 容器可能已卸载
         }
-      } catch {
-        // 容器可能已卸载
-      }
+      }, 150)
     })
     resizeObserver.observe(containerRef.current)
 
@@ -176,18 +193,53 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
     }
     terminal.textarea?.addEventListener('keydown', handleKeyDown)
 
+    // ===== 7.5 v0.8.0 翻译选词监听 =====
+    // 仅当 enabled = true 时挂载，避免无谓开销
+    let selectionManager: SelectionManager | null = null
+    if (translateEnabled) {
+      selectionManager = new SelectionManager(terminal, (info) => {
+        const { setSelection } = useTranslateStore.getState()
+        if (info) {
+          setSelection({
+            text: info.text,
+            screenX: info.screenX,
+            screenY: info.screenY,
+          })
+        } else {
+          setSelection(null)
+        }
+      })
+    }
+
     // ===== 8. 清理 =====
     return () => {
+      // 取消 IPC 事件监听
+      if (offTerminalData) {
+        offTerminalData()
+      }
       inputDisposable.dispose()
       resizeObserver.disconnect()
       terminal.textarea?.removeEventListener('keydown', handleKeyDown)
-      terminal.dispose()
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout)
+      }
+      // v0.8.0 清理选词监听
+      if (selectionManager) {
+        selectionManager.dispose()
+        selectionManager = null
+      }
+      try {
+        terminal.dispose()
+      } catch {
+        // 终端可能已销毁
+      }
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [sessionId])
+  }, [sessionId, translateEnabled])
 
   // 非活跃 Tab 时隐藏容器（保持终端实例存活）
+  // 注意：SelectionPopover 由 TerminalTabs 统一渲染（避免多实例）
   return (
     <div
       ref={containerRef}

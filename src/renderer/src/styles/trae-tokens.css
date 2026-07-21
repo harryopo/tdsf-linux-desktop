@@ -1,0 +1,483 @@
+/**
+ * TRAE 设计 token 完整迁移
+ *
+ * 来源：tdsf-linux-redesign/pages/workbench-ai.html 的 :root 块
+ *
+ * 说明：
+ * - 所有 TRAE token 用 --trae-* 前缀避免与现有 --color-* 冲突
+ * - 设计稿主色 #387BFF（科技蓝）覆盖 TRAE 默认绿 #32F08C
+ * - 设计稿默认 dark-only，亮色模式作为 v1.1 扩展点
+ * - 老组件 --color-* 别名兼容（指向 trae-* 变量）
+ *
+ * 章节：
+ * 1. 圆角系统
+ * 2. 间距系统
+ * 3. 字体系统
+ * 4. 正文排版（7 级）
+ * 5. 标题排版（9 级）
+ * 6. 代码排版
+ * 7. 配色系统（背景 / 文字 / 边框 / 状态色 / 风险等级）
+ * 8. 品牌色阶（绿/红/黄/蓝/紫/中性灰）
+ * 9. 阴影系统
+ * 10. 动画系统
+ * 11. 可视化色板（viz-series）
+ * 12. 老 --color-* / --space-* / --radius-* 别名兼容
+ */
+:root {
+  /* === 1. 圆角系统 === */
+  --trae-radius-2: 2px;
+  --trae-radius-4: 4px;
+  --trae-radius-6: 6px;
+  --trae-radius-8: 8px;
+  --trae-radius-10: 10px;
+  --trae-radius-full: 9999px;
+
+  /* === 2. 间距系统（9 级） === */
+  --trae-spacer-0: 0px;
+  --trae-spacer-4: 4px;
+  --trae-spacer-6: 6px;
+  --trae-spacer-8: 8px;
+  --trae-spacer-12: 12px;
+  --trae-spacer-16: 16px;
+  --trae-spacer-24: 24px;
+  --trae-spacer-32: 32px;
+  --trae-spacer-40: 40px;
+
+  /* === 3. 字体系统 ===
+   *
+   * 字体策略：
+   * - 在线模式：CDN 加载 Inter + JetBrains Mono（GitHub/Figma/Linear 同款字体）
+   * - 离线模式：fallback 到 SF Pro Text（macOS）/ Microsoft YaHei（Windows）/ system-ui
+   * - Inter 是 SF Pro Text 的最佳开源等价（字宽、x-height、字重 1:1 对齐）
+   * - 标题字体同样用 Inter（Inter 在 600 字重下视觉接近 SF Pro Display）
+   */
+  --trae-font-family-default: 'Inter', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-heading: 'Inter', 'SF Pro Display', 'SF Pro', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --trae-font-weight-default: 400;
+  --trae-font-weight-code: 450;
+  --trae-font-weight-medium: 500;
+  --trae-font-weight-strong: 600;
+
+  /* === 4. 正文排版（7 级，紧凑 IDE 密度） === */
+  --trae-body-xs-font-size: 10px;
+  --trae-body-xs-line-height: 14px;
+  --trae-body-xs-font-weight: 400;
+  --trae-body-sm-font-size: 11px;
+  --trae-body-sm-line-height: 16px;
+  --trae-body-sm-font-weight: 400;
+  --trae-body-sm-strong-font-size: 11px;
+  --trae-body-sm-strong-line-height: 16px;
+  --trae-body-sm-strong-font-weight: 500;
+  --trae-body-md-font-size: 12px;
+  --trae-body-md-line-height: 18px;
+  --trae-body-md-font-weight: 400;
+  --trae-body-md-strong-font-size: 12px;
+  --trae-body-md-strong-line-height: 18px;
+  --trae-body-md-strong-font-weight: 500;
+  --trae-body-base-font-size: 13px;
+  --trae-body-base-line-height: 20px;
+  --trae-body-base-font-weight: 400;
+  --trae-body-base-strong-font-size: 13px;
+  --trae-body-base-strong-line-height: 20px;
+  --trae-body-base-strong-font-weight: 500;
+
+  /* === 5. 标题排版（9 级） === */
+  --trae-heading-3xs-font-size: 11px;
+  --trae-heading-3xs-line-height: 16px;
+  --trae-heading-3xs-font-weight: 600;
+  --trae-heading-2xs-font-size: 12px;
+  --trae-heading-2xs-line-height: 18px;
+  --trae-heading-2xs-font-weight: 600;
+  --trae-heading-xs-font-size: 13px;
+  --trae-heading-xs-line-height: 20px;
+  --trae-heading-xs-font-weight: 600;
+  --trae-heading-sm-font-size: 16px;
+  --trae-heading-sm-line-height: 24px;
+  --trae-heading-sm-font-weight: 600;
+  --trae-heading-md-font-size: 20px;
+  --trae-heading-md-line-height: 28px;
+  --trae-heading-md-font-weight: 600;
+  --trae-heading-lg-font-size: 22px;
+  --trae-heading-lg-line-height: 30px;
+  --trae-heading-lg-font-weight: 600;
+  --trae-heading-xl-font-size: 24px;
+  --trae-heading-xl-line-height: 32px;
+  --trae-heading-xl-font-weight: 600;
+  --trae-heading-2xl-font-size: 28px;
+  --trae-heading-2xl-line-height: 36px;
+  --trae-heading-2xl-font-weight: 600;
+  --trae-heading-3xl-font-size: 32px;
+  --trae-heading-3xl-line-height: 40px;
+  --trae-heading-3xl-font-weight: 600;
+
+  /* === 6. 代码排版 === */
+  --trae-code-editor-font-size: 13px;
+  --trae-code-editor-line-height: 20px;
+  --trae-code-terminal-font-size: 12px;
+  --trae-code-terminal-line-height: 18px;
+  --trae-code-text: #e0e3ee;
+  --trae-code-doc: #7f838c;
+  --trae-code-link: #3c7eff;
+  --trae-code-number: #f48cca;
+  --trae-code-action: #b38cff;
+  --trae-code-instruction: #f0d8ff;
+  --trae-code-function: #f29d79;
+  --trae-code-constant: #80bbff;
+  --trae-code-parameter: #82d99f;
+  --trae-code-attribute: #ded47e;
+  --trae-code-tag: #f2858c;
+
+  /* === 7.1 配色 - 背景 === */
+  --trae-bg-base-default: #1a1b1d;
+  --trae-bg-base-secondary: #222427;
+  --trae-bg-base-tertiary: #2a2d31;
+  --trae-bg-overlay-l1: #212327;
+  --trae-bg-overlay-l2: #252629;
+  --trae-bg-overlay-l3: #2a2d31;
+  --trae-bg-overlay-l4: #303236;
+  --trae-bg-menu: #202123;
+  --trae-bg-tooltip: #1a1b1d;
+  --trae-bg-invert: #dadde5;
+  --trae-bg-invert-hover: #edeff2;
+  --trae-bg-invert-active: #979aa4;
+  --trae-bg-invert-disabled: #303236;
+
+  /* === 7.2 配色 - 品牌主色 #387BFF（科技蓝，覆盖 TRAE 默认绿 #32F08C） === */
+  --trae-bg-brand: #387bff;
+  --trae-bg-brand-hover: #4c88ff;
+  --trae-bg-brand-active: #1759dd;
+  --trae-bg-brand-disabled: rgba(56, 123, 255, 0.2);
+  --trae-bg-brand-popup: #1e2a45;
+  --trae-text-brand: #387bff;
+  --trae-text-brand-hover: #4c88ff;
+  --trae-icon-brand: #387bff;
+  --trae-icon-brand-hover: #4c88ff;
+  --trae-border-brand: #387bff;
+
+  /* === 7.3 配色 - 文字 === */
+  --trae-text-default: #d1d3db;
+  --trae-text-default-hover: #f5f9fe;
+  --trae-text-default-active: #f5f9fe;
+  --trae-text-secondary: #9599a6;
+  --trae-text-secondary-hover: #d1d3db;
+  --trae-text-secondary-active: #d1d3db;
+  --trae-text-tertiary: #666b75;
+  --trae-text-disabled: #666b75;
+  --trae-text-onbrand: #0c0c0d;
+  --trae-text-onaccent: #0c0c0d;
+
+  /* === 7.4 配色 - 图标 === */
+  --trae-icon-default: #d1d3db;
+  --trae-icon-default-hover: #f5f9fe;
+  --trae-icon-default-active: #f5f9fe;
+  --trae-icon-secondary: #9599a6;
+  --trae-icon-secondary-hover: #d1d3db;
+  --trae-icon-secondary-active: #d1d3db;
+  --trae-icon-tertiary: #666b75;
+  --trae-icon-disabled: #666b75;
+  --trae-icon-onbrand: #0c0c0d;
+  --trae-icon-onaccent: #0c0c0d;
+
+  /* === 7.5 配色 - 边框（实色 hex） === */
+  --trae-border-neutral-l1: #3a3d42;
+  --trae-border-neutral-l2: #4a4d52;
+  --trae-border-neutral-l3: #5a5d62;
+  --trae-border-contrast: #ffffff;
+
+  /* === 7.6 配色 - 状态色 === */
+  --trae-status-primary-default: #387bff;
+  --trae-status-primary-hover: #4c88ff;
+  --trae-status-primary-active: #1759dd;
+  --trae-status-primary-surface-l1: rgba(53, 121, 255, 0.18);
+  --trae-status-primary-surface-l2: rgba(53, 121, 255, 0.28);
+  --trae-status-primary-surface-l3: rgba(53, 121, 255, 0.36);
+  --trae-status-success-default: #33c192;
+  --trae-status-success-hover: #5ed4ad;
+  --trae-status-success-active: #27b082;
+  --trae-status-success-surface-l1: rgba(0, 165, 110, 0.18);
+  --trae-status-success-surface-l2: rgba(0, 165, 110, 0.28);
+  --trae-status-success-surface-l3: rgba(0, 165, 110, 0.36);
+  --trae-status-alert-default: #d29d00;
+  --trae-status-alert-hover: #dfb949;
+  --trae-status-alert-active: #ab8820;
+  --trae-status-alert-surface-l1: rgba(210, 157, 0, 0.16);
+  --trae-status-alert-surface-l2: rgba(210, 157, 0, 0.28);
+  --trae-status-alert-surface-l3: rgba(210, 157, 0, 0.36);
+  --trae-status-warning-default: #d27e24;
+  --trae-status-warning-hover: #d78b28;
+  --trae-status-warning-active: #b46510;
+  --trae-status-warning-surface-l1: rgba(210, 126, 36, 0.16);
+  --trae-status-warning-surface-l2: rgba(210, 126, 36, 0.28);
+  --trae-status-warning-surface-l3: rgba(210, 126, 36, 0.36);
+  --trae-status-error-default: #f65a5a;
+  --trae-status-error-hover: #f86262;
+  --trae-status-error-active: #b33636;
+  --trae-status-error-surface-l1: rgba(246, 70, 70, 0.18);
+  --trae-status-error-surface-l2: rgba(246, 70, 70, 0.28);
+  --trae-status-error-surface-l3: rgba(246, 70, 70, 0.36);
+
+  /* 状态色简写别名 */
+  --trae-status-primary: var(--trae-status-primary-default);
+  --trae-status-success: var(--trae-status-success-default);
+  --trae-status-alert: var(--trae-status-alert-default);
+  --trae-status-warning: var(--trae-status-warning-default);
+  --trae-status-error: var(--trae-status-error-default);
+
+  /* === 7.7 风险等级色（decision-detail 专用） === */
+  --trae-risk-safe: var(--trae-status-success-default);
+  --trae-risk-low: #2bd4d4;
+  --trae-risk-medium: var(--trae-status-alert-default);
+  --trae-risk-high: var(--trae-status-warning-default);
+  --trae-risk-critical: var(--trae-status-error-default);
+
+  /* === 7.8 强调色（accent） === */
+  --trae-accent-teal: #2dd288;
+  --trae-accent-coral: #ff9392;
+  --trae-accent-amber: #dcb364;
+  --trae-accent-lime: #8acb3a;
+  --trae-accent-cyan: #04cbe5;
+  --trae-accent-blue: #7bb8ff;
+  --trae-accent-magenta: #ec93ff;
+  --trae-accent-violet: #bfa5ff;
+  --trae-accent-slate: #afb9cf;
+
+  /* === 8.1 品牌色阶 - 绿 === */
+  --trae-brand-green-100: #e5fff2;
+  --trae-brand-green-200: #b4fdd9;
+  --trae-brand-green-300: #85fabf;
+  --trae-brand-green-400: #5cf5a8;
+  --trae-brand-green-500: #32f08c;
+  --trae-brand-green-600: #0fdc78;
+  --trae-brand-green-700: #0ab861;
+  --trae-brand-green-800: #05994f;
+  --trae-brand-green-900: #02743b;
+  --trae-brand-green-1000: #004d26;
+
+  /* === 8.2 品牌色阶 - 红 === */
+  --trae-brand-red-100: #ffe5e5;
+  --trae-brand-red-200: #ffcccc;
+  --trae-brand-red-300: #ffb2b2;
+  --trae-brand-red-400: #ff9999;
+  --trae-brand-red-500: #ff8080;
+  --trae-brand-red-600: #ff6464;
+  --trae-brand-red-700: #e63737;
+  --trae-brand-red-800: #cb1010;
+  --trae-brand-red-900: #8f0505;
+  --trae-brand-red-1000: #4d0000;
+
+  /* === 8.3 品牌色阶 - 黄 === */
+  --trae-brand-yellow-100: #fff6e5;
+  --trae-brand-yellow-200: #ffeccc;
+  --trae-brand-yellow-300: #ffe3b2;
+  --trae-brand-yellow-400: #ffda99;
+  --trae-brand-yellow-500: #ffd080;
+  --trae-brand-yellow-600: #ffc864;
+  --trae-brand-yellow-700: #e6a637;
+  --trae-brand-yellow-800: #cb8710;
+  --trae-brand-yellow-900: #8f5c05;
+  --trae-brand-yellow-1000: #4d3000;
+
+  /* === 8.4 品牌色阶 - 蓝 === */
+  --trae-brand-blue-100: #e5f3ff;
+  --trae-brand-blue-200: #cce6ff;
+  --trae-brand-blue-300: #b2daff;
+  --trae-brand-blue-400: #99ceff;
+  --trae-brand-blue-500: #80c1ff;
+  --trae-brand-blue-600: #64b4ff;
+  --trae-brand-blue-700: #3792e6;
+  --trae-brand-blue-800: #1071cb;
+  --trae-brand-blue-900: #054c8f;
+  --trae-brand-blue-1000: #00284d;
+
+  /* === 8.5 品牌色阶 - 紫 === */
+  --trae-brand-purple-100: #e8e5ff;
+  --trae-brand-purple-200: #d2ccff;
+  --trae-brand-purple-300: #bbb2ff;
+  --trae-brand-purple-400: #a599ff;
+  --trae-brand-purple-500: #8e80ff;
+  --trae-brand-purple-600: #7864ff;
+  --trae-brand-purple-700: #4c37e6;
+  --trae-brand-purple-800: #2610cb;
+  --trae-brand-purple-900: #15058f;
+  --trae-brand-purple-1000: #09004d;
+
+  /* === 8.6 中性灰色阶 === */
+  --trae-brand-neutral-grey-100: #f2f2f2;
+  --trae-brand-neutral-grey-200: #e3e3e3;
+  --trae-brand-neutral-grey-300: #d6d6d6;
+  --trae-brand-neutral-grey-400: #c7c7c7;
+  --trae-brand-neutral-grey-500: #bababa;
+  --trae-brand-neutral-grey-600: #ababab;
+  --trae-brand-neutral-grey-700: #8a8a8a;
+  --trae-brand-neutral-grey-800: #686868;
+  --trae-brand-neutral-grey-900: #474747;
+  --trae-brand-neutral-grey-1000: #262626;
+
+  /* === 8.7 蓝灰色阶 === */
+  --trae-brand-blue-grey-100: #f1eff4;
+  --trae-brand-blue-grey-200: #e0e1e6;
+  --trae-brand-blue-grey-300: #cfd3d8;
+  --trae-brand-blue-grey-400: #bfc5ca;
+  --trae-brand-blue-grey-500: #b0b5ba;
+  --trae-brand-blue-grey-600: #a0a6ab;
+  --trae-brand-blue-grey-700: #80898e;
+  --trae-brand-blue-grey-800: #5e696e;
+  --trae-brand-blue-grey-900: #404a4f;
+  --trae-brand-blue-grey-1000: #21262b;
+
+  /* === 8.8 绿灰色阶 === */
+  --trae-brand-green-grey-100: #f1f4f4;
+  --trae-brand-green-grey-200: #e0e6e6;
+  --trae-brand-green-grey-300: #cfd8d8;
+  --trae-brand-green-grey-400: #bfcaca;
+  --trae-brand-green-grey-500: #b0baba;
+  --trae-brand-green-grey-600: #a0abab;
+  --trae-brand-green-grey-700: #808e8e;
+  --trae-brand-green-grey-800: #5e6e6e;
+  --trae-brand-green-grey-900: #404f4f;
+  --trae-brand-green-grey-1000: #212b2b;
+
+  /* === 9. 阴影系统 === */
+  --trae-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --trae-shadow-hero: 0 4px 24px rgba(56, 123, 255, 0.15);
+  --trae-shadow-swatch-active: 0 0 0 2px var(--trae-bg-base-secondary), 0 0 0 4px var(--trae-bg-brand);
+  --trae-shadow-pulse: 0 0 0 0 var(--trae-bg-brand-popup);
+
+  /* === 10. 动画系统 === */
+  --trae-duration-fast: 150ms;
+  --trae-duration-base: 200ms;
+  --trae-duration-slow: 300ms;
+  --trae-ease-out: cubic-bezier(0.3, 0, 0, 1);
+  --trae-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* === 11. 可视化色板（图表系列色） === */
+  --trae-viz-series-coral: #f87454;
+  --trae-viz-series-amber: #edaa45;
+  --trae-viz-series-mint: #1dc981;
+  --trae-viz-series-teal: #78f2f2;
+  --trae-viz-series-sky: #22a5f7;
+  --trae-viz-series-violet: #b655fc;
+  --trae-viz-series-magenta: #fb9dd7;
+  --trae-viz-series-indigo: #b6a3ff;
+  --trae-viz-series-lime: #a6ea39;
+  --trae-viz-series-slate: #859ead;
+  --trae-viz-ui-bg-chart: #202123;
+  --trae-viz-ui-bg-tooltip: #1a1b1d;
+  --trae-viz-ui-chart-title: #d1d3db;
+  --trae-viz-ui-chart-subtitle: #9599a6;
+  --trae-viz-ui-chart-axis: #35373b;
+  --trae-viz-ui-chart-tick: #9599a6;
+  --trae-viz-ui-legend-label: #9599a6;
+  --trae-viz-ui-legend-value: #d1d3db;
+
+  /* === 12.1 老 --color-* 别名兼容（指向 trae-* 变量） === */
+  --color-bg-primary: var(--trae-bg-base-default);
+  --color-bg-card: var(--trae-bg-base-secondary);
+  --color-bg-elevated: var(--trae-bg-base-tertiary);
+  --color-bg-inset: var(--trae-bg-overlay-l1);
+  --color-text-primary: var(--trae-text-default);
+  --color-text-secondary: var(--trae-text-secondary);
+  --color-text-tertiary: var(--trae-text-tertiary);
+  --color-text-quaternary: var(--trae-text-disabled);
+  --color-border: var(--trae-border-neutral-l1);
+  --color-border-strong: var(--trae-border-neutral-l2);
+  --color-border-focus: var(--trae-bg-brand);
+  --color-link: var(--trae-bg-brand);
+  --color-link-hover: var(--trae-bg-brand-hover);
+  --color-link-active: var(--trae-bg-brand-active);
+  --color-success: var(--trae-status-success-default);
+  --color-warning: var(--trae-status-alert-default);
+  --color-error: var(--trae-status-error-default);
+  --color-info: var(--trae-status-primary-default);
+  --color-risk-safe: var(--trae-risk-safe);
+  --color-risk-low: var(--trae-risk-low);
+  --color-risk-medium: var(--trae-risk-medium);
+  --color-risk-high: var(--trae-risk-high);
+  --color-risk-critical: var(--trae-risk-critical);
+
+  /* === 12.2 老 --space-* 别名兼容 === */
+  --space-1: var(--trae-spacer-4);
+  --space-2: var(--trae-spacer-8);
+  --space-3: var(--trae-spacer-12);
+  --space-4: var(--trae-spacer-16);
+  --space-6: var(--trae-spacer-24);
+  --space-8: var(--trae-spacer-32);
+
+  /* === 12.3 老 --radius-* 别名兼容 === */
+  --radius-sm: var(--trae-radius-4);
+  --radius-md: var(--trae-radius-6);
+  --radius-lg: var(--trae-radius-8);
+  --radius-xl: var(--trae-radius-10);
+  --radius-full: var(--trae-radius-full);
+
+  /* === 12.4 Shader 启动页专用色 === */
+  --trae-shader-bg: #000000;
+  --trae-shader-fg: #ffffff;
+  --trae-shader-brand: #387bff;
+  --trae-shader-muted: #0a0a0a;
+  --trae-shader-muted-foreground: #a3a3a3;
+
+  /* === 12.6 品牌色阶别名（设计稿 brand-3 用于命令 prompt 高亮） === */
+  --trae-brand-1: #387bff;
+  --trae-brand-2: #4c88ff;
+  --trae-brand-3: #80bbff;
+  --trae-brand-4: #b2daff;
+
+  /* === 12.5 终端/命令块专用色 === */
+  --color-terminal-bg: #1a1a1a;
+  --color-terminal-text: #e8e8e8;
+  --trae-terminal-block-bg: #0f1011;
+
+  /* === 12.5 shadcn 语义别名（兼容 shadcn 默认 token） === */
+  --background: var(--trae-bg-base-default);
+  --foreground: var(--trae-text-default);
+  --card: var(--trae-bg-base-secondary);
+  --card-foreground: var(--trae-text-default);
+  --popover: var(--trae-bg-menu);
+  --popover-foreground: var(--trae-text-default);
+  --primary: var(--trae-bg-brand);
+  --primary-foreground: var(--trae-text-onbrand);
+  --secondary: var(--trae-bg-base-tertiary);
+  --secondary-foreground: var(--trae-text-default);
+  --muted: var(--trae-bg-base-tertiary);
+  --muted-foreground: var(--trae-text-secondary);
+  --accent: var(--trae-bg-overlay-l2);
+  --accent-foreground: var(--trae-text-default);
+  --destructive: var(--trae-status-error-default);
+  --destructive-foreground: #ffffff;
+  --border: var(--trae-border-neutral-l1);
+  --input: var(--trae-border-neutral-l2);
+  --ring: var(--trae-bg-brand);
+}
+
+/* === 关键 keyframes === */
+@keyframes trae-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes trae-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* === prefers-reduced-motion 支持 === */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

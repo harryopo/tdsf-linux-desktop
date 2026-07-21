@@ -15,8 +15,23 @@
 
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
-import type { SshConfig, LlmConfig } from '@shared/models'
+import type { SshConfig, LlmConfig, ExternalMcpServer } from '@shared/models'
 import { SecureStore } from './secure-store'
+
+/** Langfuse 配置 */
+export interface LangfuseConfig {
+  secretKey: string
+  publicKey: string
+  host?: string
+}
+
+/** MCP Server 配置 */
+export interface McpConfig {
+  enabled: boolean
+  port: number
+  /** 外部 MCP Server 列表（Agent 作为 Client 连接） */
+  externalServers?: ExternalMcpServer[]
+}
 
 /** 配置存储的 schema 定义 */
 interface ConfigSchema {
@@ -28,6 +43,10 @@ interface ConfigSchema {
   uiSettings?: Record<string, unknown>
   /** 知识库存储路径 */
   knowledgeBasePath?: string
+  /** Langfuse 配置（不含 secretKey，敏感信息走 SecureStore） */
+  langfuseConfig?: { publicKey: string; host?: string } | null
+  /** MCP Server 配置 */
+  mcpConfig?: McpConfig | null
   /** 其他自定义配置（允许任意 key-value） */
   [key: string]: unknown
 }
@@ -221,6 +240,77 @@ export class ConfigStore {
   public static saveKnowledgeBasePath(path: string): boolean {
     try {
       store.set('knowledgeBasePath', path)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Langfuse 配置
+  // ------------------------------------------------------------------
+
+  /**
+   * 获取 Langfuse 配置
+   *
+   * secretKey 单独存 SecureStore，publicKey + host 存 electron-store。
+   * 返回时合并 secretKey，未配置时返回 null。
+   */
+  public static getLangfuseConfig(): LangfuseConfig | null {
+    const cfg = store.get('langfuseConfig', null) as { publicKey?: string; host?: string } | null
+    if (!cfg || !cfg.publicKey) {
+      return null
+    }
+    const secretKey = SecureStore.getApiKey('langfuse') ?? ''
+    if (!secretKey) {
+      return null
+    }
+    return {
+      secretKey,
+      publicKey: cfg.publicKey,
+      host: cfg.host
+    }
+  }
+
+  /**
+   * 保存 Langfuse 配置
+   *
+   * secretKey 走 SecureStore，publicKey + host 存 electron-store。
+   */
+  public static saveLangfuseConfig(config: LangfuseConfig): boolean {
+    try {
+      if (config.secretKey) {
+        SecureStore.saveApiKey('langfuse', config.secretKey)
+      }
+      store.set('langfuseConfig', {
+        publicKey: config.publicKey,
+        host: config.host
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // MCP Server 配置
+  // ------------------------------------------------------------------
+
+  /**
+   * 获取 MCP Server 配置
+   * @returns MCP 配置，未配置返回 null
+   */
+  public static getMcpConfig(): McpConfig | null {
+    const cfg = store.get('mcpConfig', null) as McpConfig | null
+    return cfg ?? null
+  }
+
+  /**
+   * 保存 MCP Server 配置
+   */
+  public static saveMcpConfig(config: McpConfig): boolean {
+    try {
+      store.set('mcpConfig', config)
       return true
     } catch {
       return false

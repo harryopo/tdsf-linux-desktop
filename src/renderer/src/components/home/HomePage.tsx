@@ -76,12 +76,14 @@ const HomePage: React.FC = () => {
           <TerminalTabs />
         </div>
 
-        {/* 监控视图：切换时才挂载，减少不必要的渲染 */}
-        {activeView === 'monitor' && (
-          <div className="home-page-view">
-            <MonitorPanel />
-          </div>
-        )}
+        {/* 监控视图：始终保留挂载，仅隐藏 */}
+        {/* 始终挂载确保监控数据事件监听器不会因切换而丢失首批数据 */}
+        <div
+          className="home-page-view"
+          style={{ display: activeView === 'monitor' ? 'flex' : 'none' }}
+        >
+          <MonitorPanel />
+        </div>
       </div>
     </div>
   )

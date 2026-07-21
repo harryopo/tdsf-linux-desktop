@@ -1,34 +1,45 @@
 /**
- * HomePage 主页样式
+ * HomePage 主页样式 v2.0 — 生产交付级极致美学
  *
- * 苹果极简风格：
+ * 设计原理（WHY）：
  * - Tab 栏细线条分割
  * - 内容区充满剩余空间
  * - 终端视图和监控视图切换时保留状态
+ * - 错位进入 + 精致微动效
  */
 
-/* ===== 主页容器 ===== */
 .home-page {
   display: flex;
   flex-direction: column;
   height: 100%;
   background-color: var(--color-bg-primary);
+  animation: fadeIn var(--duration-slow) var(--ease-out-expo);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ===== Tab 切换栏 ===== */
 .home-page-tabs {
-  padding: 0 16px;
+  padding: 0 var(--space-6);     /* 26px 容器内边距（φ × 16） */
   border-bottom: 1px solid var(--color-border);
   background-color: var(--color-bg-card);
+  /* 顶部固定 */
+  position: relative;
+  z-index: 5;
 }
 
 /* Tab 标签样式 */
 .home-tab-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 14px;
+  gap: var(--space-2);
+  font-size: var(--font-size-md);   /* 16px */
   color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 /* 覆盖 Ant Design Tabs 样式 */
@@ -37,7 +48,15 @@
 }
 
 .home-page-tabs .ant-tabs-tab {
-  padding: 10px 4px;
+  padding: var(--space-3) var(--space-1);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  transition: all var(--duration-fast) var(--ease-out-quad);
+}
+
+.home-page-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--color-link) !important;
+  font-weight: var(--font-weight-semibold) !important;
 }
 
 /* ===== 内容区 ===== */
@@ -54,4 +73,10 @@
   height: 100%;
   width: 100%;
   overflow: hidden;
+  animation: fadeInUp var(--duration-base) var(--ease-out-expo);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

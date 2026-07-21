@@ -3,13 +3,18 @@
  *
  * 统一注册所有 IPC handlers，由主进程入口 main/index.ts 调用。
  *
- * 注册顺序：SSH → 监控 → 存储 → LLM → 知识库 → 决策历史 → Agent
+ * 注册顺序：SSH → 监控 → 存储 → LLM → 知识库 → 决策历史 → Agent → Profiler
  * （顺序无强依赖，仅保持一致性）
  *
  * 注意：重复注册同名 handler 会抛错，所以本函数在应用生命周期内只应调用一次。
+ *
+ * v0.9.4 新增：
+ * - system:ping handler（心跳保活，返回 { ok, timestamp, protocolVersion }）
+ *   渲染进程可定期调用 systemPing() 检测主进程是否响应
  */
 
-import { BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
+import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
@@ -17,6 +22,39 @@ import { registerLlmHandlers } from './llm'
 import { registerKnowledgeHandlers } from './knowledge'
 import { registerHistoryHandlers } from './history'
 import { registerAgentHandlers } from './agent'
+import { registerAgentRuntimeHandlers } from './agent-runtime'
+import { registerProfilerIpcHandlers } from './profiler'
+import { registerTutorialIpcHandlers } from './tutorial'
+import { registerDeployIpcHandlers } from './deploy'
+import { registerLlmToolHandlers } from './llm-tools'
+import { registerLogIpcHandlers } from './log'
+import { registerCredibilityHandlers } from './credibility'
+import { registerSandboxIpcHandlers } from './sandbox'
+import { registerAtCommandHandlers } from './at-commands'
+import { registerClaudeSdkHandlers } from './claude-sdk'
+// v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
+// - 组 1：token:cost-stats（成本透明）
+// - 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
+// - 组 3：attention:* 7 通道（注意力跟踪）
+// - 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
+// - 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
+import { registerTokenCostStatsHandlers } from './token-stats'
+import { registerModeHandlers } from './mode'
+import { registerAttentionHandlers } from './attention'
+import { registerSubagentHandlers } from './subagent'
+import { registerProviderInfoHandlers } from './provider-info'
+// v0.9.5 P0 新增：MCP 5 阶段状态机 IPC（借鉴 claw-code §3.3）
+import { registerMcpStateHandlers } from './mcp'
+// v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
+import { registerSidecarIpcHandlers, cleanupSidecar } from './sidecar'
+// v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
+import { registerPromptfooHandlers } from './promptfoo'
+// v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
+import { registerDiagnosticsHandlers } from './diagnostics'
+// v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
+// 通道：loop:start / loop:confirm / loop:cancel + 推送 loop:step/decision/done/error
+import { registerLoopEngineeringHandlers, cleanupLoopEngineering } from './loop-engineering'
+import type { DatabaseManager } from '../services/db/database'
 
 /**
  * 注册所有 IPC handlers
@@ -24,8 +62,25 @@ import { registerAgentHandlers } from './agent'
  * 在 app.whenReady() 后、创建主窗口后调用。
  *
  * @param mainWindow 主窗口实例，用于向渲染进程推送事件（Shell 数据、监控数据等）
+ * @param db 数据库管理器（教程 IPC 依赖）
  */
-export function registerAllIpcHandlers(mainWindow: BrowserWindow): void {
+export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseManager): void {
+  // v0.9.4 新增：system:ping 心跳保活通道
+  //
+  // 设计说明：
+  // - 主进程启动后立即注册（在所有业务 IPC 之前），用于早期响应渲染进程的心跳请求
+  // - 不依赖 mainWindow（即使窗口未创建完成也能响应）
+  // - 返回 { ok: true, timestamp: Date.now(), protocolVersion: '0.9.4' }
+  // - 渲染进程通过 window.electronAPI.systemPing() 调用（preload 已暴露）
+  // - 使用场景：渲染进程启动后定期（如每 30 秒）调用 systemPing() 检测主进程是否响应
+  ipcMain.handle('system:ping', (): SystemPingResponse => {
+    return {
+      ok: true,
+      timestamp: Date.now(),
+      protocolVersion: IPC_PROTOCOL_VERSION,
+    }
+  })
+
   registerSshIpcHandlers(mainWindow)
   registerMonitorIpcHandlers(mainWindow)
   registerStorageIpcHandlers()
@@ -33,4 +88,88 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow): void {
   registerKnowledgeHandlers(mainWindow)
   registerHistoryHandlers(mainWindow)
   registerAgentHandlers(mainWindow)
+  // v0.9 新增：Supervisor + Provider + Token IPC handlers
+  registerAgentRuntimeHandlers(mainWindow)
+  registerProfilerIpcHandlers()
+  // 教程 IPC 需要 db 参数，独立处理（不阻塞主流程）
+  // v0.6.0 起需要 mainWindow 用于爬虫进度推送
+  if (db) {
+    registerTutorialIpcHandlers(db, mainWindow)
+  }
+  // Web 部署助手 IPC（需要 mainWindow 用于日志推送）
+  registerDeployIpcHandlers(mainWindow)
+  // LLM Tool Calling IPC（5 工具 + 审批流）
+  if (db) {
+    registerLlmToolHandlers(mainWindow, db)
+  } else {
+    registerLlmToolHandlers(mainWindow, null)
+  }
+  // 日志 IPC（暴露给渲染进程与测试使用）
+  registerLogIpcHandlers()
+  // v0.9 新增：可信度算法 IPC（D-S 证据理论 + PCR5 冲突融合 + 6 源证据）
+  registerCredibilityHandlers()
+  // v0.9 新增：OpenHands 沙箱集成 IPC（Docker 检测 + 沙箱生命周期 + 命令执行）
+  // P-2 + P-4 修复：传递 mainWindow 用于 IPC 层强制审批 + session_api_key 句柄模式
+  registerSandboxIpcHandlers(mainWindow)
+  // v0.9 新增：@命令 8 类完整实现 IPC（log/cmd/file/metric/decision/kb/skill/server）
+  // 通道：at:list / at:resolve / at:parse
+  registerAtCommandHandlers()
+  // v0.9 新增：Claude Agent SDK IPC（claude-sdk:generate / stream / cancel）
+  // 修复 P-1 阻塞问题：ClaudeSdkProvider 此前未通过 IPC 暴露，渲染进程无法调用
+  registerClaudeSdkHandlers(mainWindow)
+
+  // ====================================================================
+  // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
+  //
+  // 详见 docs/UI接入接线图-v0.9.5.md（已生成）。
+  // 这些通道让 v0.9.4 主进程已实现的能力暴露给渲染层 UI 使用：
+  // ====================================================================
+
+  // 组 1：token:cost-stats（成本透明）
+  // 让 Token 监控面板展示累计成本（USD），让用户对消费有直观感知
+  registerTokenCostStatsHandlers()
+
+  // 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
+  // 让 UI 模式选择器渲染 5 个 mode（chat/ask/plan/code/debug）+ 切换默认 mode
+  registerModeHandlers()
+
+  // 组 3：attention:* 7 通道（注意力跟踪）
+  // 让 UI 高亮显示当前关注的文件 / 命令 / 错误 / 关键词，跨 Subagent 传递上下文
+  registerAttentionHandlers()
+
+  // 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
+  // 让 UI 列出 / 热重载项目根 .tdsf/agent/*.md 中的自定义 agent 配置
+  registerSubagentHandlers()
+
+  // 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
+  // 让 UI 显示 Provider 能力图标（streaming/toolCall/vision/contextWindow）+ 定价表
+  registerProviderInfoHandlers()
+
+  // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
+  // 暴露 mcp:get-state / mcp:reset / mcp:state-changed
+  registerMcpStateHandlers(mainWindow)
+
+  // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
+  // 暴露 sidecar:start / stop / status / health / pipeline
+  registerSidecarIpcHandlers()
+
+  // v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
+  // 暴露 promptfoo:run-red-team / run-eval / list-tests
+  registerPromptfooHandlers()
+
+  // v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
+  // 暴露 diagnostics:get-report / get-logs / get-findings / get-stats / clear / set-enabled
+  // 推送通道：diagnostics:log-batch（实时批量推送日志事件到渲染进程）
+  registerDiagnosticsHandlers(mainWindow)
+
+  // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
+  // 暴露 loop:start / loop:confirm / loop:cancel
+  // 推送通道：loop:llm-start / loop:llm-done / loop:step / loop:decision / loop:done / loop:error
+  // 实现"假设计 → 可演示真 IDE"完整一轮：LLM 推理 → 7 步 HITL → 决策卡片 → SSH 执行 → 验证
+  registerLoopEngineeringHandlers(mainWindow)
+
+  // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
+  ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar
+  // 暴露 cleanupLoopEngineering 供 main/index.ts 在 before-quit 时调用
+  ;(global as { __cleanupLoopEngineering?: typeof cleanupLoopEngineering }).__cleanupLoopEngineering = cleanupLoopEngineering
 }

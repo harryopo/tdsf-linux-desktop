@@ -67,9 +67,14 @@ class SshExecutorAdapter implements SshExecutor {
  *
  * 使用 LlmClient.analyze() 将环境信息转化为证据条目。
  * 当 LLM 不可用时降级为空证据列表（AgentWorkflow 会用默认逻辑处理）。
+ *
+ * P2-4: LLM 的 fixCommand 通过 llmAnalysis 字段返回给工作流，
+ * 工作流优先使用 LLM 建议的命令，降级时才用 deriveFixCommand。
  */
 class LlmEvidenceCollector implements EvidenceCollector {
   private readonly llmClient: LlmClient
+  /** LLM 分析结果（供工作流读取 fixCommand） */
+  llmAnalysis: { hypothesis: string; fixCommand: string; confidence: number } | null = null
 
   constructor(llmClient: LlmClient) {
     this.llmClient = llmClient
@@ -100,6 +105,8 @@ class LlmEvidenceCollector implements EvidenceCollector {
     // 尝试用 LLM 分析问题，生成额外的诊断证据
     try {
       const analysis = await this.llmClient.analyze(problem, evidences)
+      // P2-4: 保存 LLM 分析结果供工作流使用
+      this.llmAnalysis = analysis
       evidences.push({
         id: `ev_llm_${now}`,
         source: 'knowledge',
@@ -171,15 +178,32 @@ export function registerAgentHandlers(mainWindow: BrowserWindow): void {
         const workflow = new AgentWorkflow()
         activeWorkflows.set(sessionId, workflow)
 
-        // 注册步骤变化事件 → 推送到渲染进程
-        workflow.on(WORKFLOW_EVENTS.STEP_CHANGED, (state) => {
+        // 辅助函数：安全推送状态到渲染进程
+        const pushStateToRenderer = (state: unknown) => {
           if (!mainWindow.isDestroyed()) {
             mainWindow.webContents.send(AGENT_STEP_CHANNEL, state)
           }
+        }
+
+        // 注册步骤变化事件 → 推送到渲染进程
+        workflow.on(WORKFLOW_EVENTS.STEP_CHANGED, (state) => {
+          pushStateToRenderer(state)
         })
 
-        // 注册完成事件 → 保存决策卡片并清理
+        // 关键修复（P0-2 根因 B）：监听 CONFIRMATION_REQUIRED 事件
+        // 工作流进入 confirm 步骤时，携带完整 state（含 decisionCard）转发到 UI
+        // UI 据此显示"等待人工确认"提示和批准按钮
+        workflow.on(WORKFLOW_EVENTS.CONFIRMATION_REQUIRED, (state) => {
+          pushStateToRenderer(state)
+        })
+
+        // 关键修复（P0-2 根因 D + P0-3）：COMPLETED 事件转发最终状态到 UI
+        // 工作流完成后 decisionCard.status 已变为 verified/rejected
+        // 必须转发到 UI，否则 UI 中卡片永远显示 pending，批准按钮一直可见
         workflow.on(WORKFLOW_EVENTS.COMPLETED, (state) => {
+          // 推送最终状态（含 decisionCard 最终 status）到 UI
+          pushStateToRenderer(state)
+          // 保存决策卡片到数据库
           if (state.decisionCard) {
             try {
               const db = DatabaseManager.getInstance()
@@ -189,14 +213,26 @@ export function registerAgentHandlers(mainWindow: BrowserWindow): void {
               // 保存失败不影响主流程
             }
           }
-          activeWorkflows.delete(sessionId)
+          // 延迟清理 Map，确保 UI 有时间接收最终状态
+          setTimeout(() => activeWorkflows.delete(sessionId), 1000)
         })
 
-        // 注册取消/错误事件 → 清理
-        workflow.on(WORKFLOW_EVENTS.CANCELLED, () => {
-          activeWorkflows.delete(sessionId)
+        // 关键修复（P0-2 根因 C）：CANCELLED 事件通知 UI 清理
+        workflow.on(WORKFLOW_EVENTS.CANCELLED, (state) => {
+          pushStateToRenderer(state)
+          setTimeout(() => activeWorkflows.delete(sessionId), 1000)
         })
-        workflow.on(WORKFLOW_EVENTS.ERROR, () => {
+
+        // 关键修复（P0-2 根因 C）：ERROR 事件通知 UI 清理并显示错误
+        workflow.on(WORKFLOW_EVENTS.ERROR, (errMsg: unknown) => {
+          const errorMsg = typeof errMsg === 'string' ? errMsg : String(errMsg)
+          // 推送错误状态到 UI，UI 据此清理卡片并显示错误提示
+          pushStateToRenderer({
+            ...workflow.getState(),
+            error: errorMsg,
+            waitingForConfirmation: false,
+            decisionCard: null  // 清理残留卡片，防止用户点击已失效的批准按钮
+          })
           activeWorkflows.delete(sessionId)
         })
 
@@ -212,7 +248,9 @@ export function registerAgentHandlers(mainWindow: BrowserWindow): void {
             logs: '', // logs 可后续从渲染进程传入
             connId: sessionId,
             sshExecutor,
-            evidenceCollector
+            evidenceCollector,
+            // P2-4: 传递 LLM 分析结果获取器，工作流优先用 LLM 建议命令
+            getLlmFixCommand: () => evidenceCollector.llmAnalysis
           })
           .catch(() => {
             // 异常已在事件中处理，这里仅清理

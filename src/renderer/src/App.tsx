@@ -1,46 +1,43 @@
 /**
- * 应用根组件 - App
+ * 应用根组件 - App（v1.0 重构）
  *
  * 职责：
- * - 配置路由（HashRouter，兼容 Electron file:// 协议）
- * - MainLayout 作为布局容器，包裹所有页面
- * - 4 个路由：
- *   - /          → HomePage（工作台：终端 + 监控）
- *   - /history   → HistoryPage（历史决策）
- *   - /knowledge → KnowledgePage（知识库）
- *   - /settings  → SettingsPage（设置）
+ * - 引入 Router（20 条路由 + 守卫 + lazy 加载）
+ * - 启动时从主进程 hydrate 服务器列表（v0.7.0 双重持久化策略）
  *
- * 注意：
- * - 使用 HashRouter 而非 BrowserRouter，因为 Electron 加载本地 HTML 文件，
- *   使用 hash 路由可避免文件路径与 URL 路径冲突。
- * - MainLayout 内部通过 <Outlet /> 渲染子路由页面。
+ * v1.0 变更：
+ * - 路由从 6 条扩展到 20 条（含嵌套路由）
+ * - 路由配置独立到 router.tsx
+ * - 引入 Suspense + lazy 加载
+ * - 引入 BootPage 启动页
+ *
+ * 保留：
+ * - hydrateFromMain 逻辑（v0.7.0 双重持久化）
+ * - HashRouter（Electron file:// 协议兼容）
  */
-import { HashRouter, Routes, Route } from 'react-router-dom'
-import MainLayout from './components/layout/MainLayout'
-import HomePage from './components/home/HomePage'
-import HistoryPage from './components/history/HistoryPage'
-import KnowledgePage from './components/knowledge/KnowledgePage'
-import SettingsPage from './components/settings/SettingsPage'
+import { useEffect } from 'react'
+import Router from './router'
+import { useServerStore } from './stores/server-store'
+import { logger } from './utils/logger'
 
 /** App 应用根组件 */
 const App: React.FC = () => {
-  return (
-    <HashRouter>
-      <Routes>
-        {/* MainLayout 作为父路由，内部通过 <Outlet /> 渲染子路由 */}
-        <Route path="/" element={<MainLayout />}>
-          {/* 首页：工作台（终端 + 监控） */}
-          <Route index element={<HomePage />} />
-          {/* 历史决策页 */}
-          <Route path="history" element={<HistoryPage />} />
-          {/* 知识库页 */}
-          <Route path="knowledge" element={<KnowledgePage />} />
-          {/* 设置页 */}
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
-    </HashRouter>
-  )
+  // v0.7.0 启动时从主进程加载服务器列表（双重持久化策略）
+  useEffect(() => {
+    void useServerStore
+      .getState()
+      .hydrateFromMain()
+      .then(() => {
+        logger.info('App', '从主进程 hydrate 服务器列表完成', {
+          count: useServerStore.getState().servers.length,
+        })
+      })
+      .catch((err: unknown) => {
+        logger.error('App', 'hydrate 失败', { err: String(err) })
+      })
+  }, [])
+
+  return <Router />
 }
 
 export default App
