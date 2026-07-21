@@ -243,4 +243,55 @@ LS d:\ai\linux教学一体\tdsf-linux-desktop\.learnings
 
 ---
 
+## LRN-20260721-006 · electron-builder 打包失败：VS Build Tools 缺 Windows SDK
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 21:55 |
+| 严重级别 | P1（影响 Phase 5.5 打包验证，不阻塞应用运行） |
+| 发现阶段 | Phase 5 · Task 5.5 打包验证 |
+| 关联 Task | Task 5.5 / Task 0.1（LRN-001 同源） |
+
+### 问题描述
+
+在 `tdsf-linux-desktop/` 执行 `npx electron-builder --win` 生成 Windows NSIS 安装包时失败：
+
+- `electron-builder` 启动原生模块重编译（`better-sqlite3@12.11.1` / `tree-sitter-bash@0.25.1`）
+- `prebuild-install` 提示 `No prebuilt binaries found (target=43.1.1 runtime=electron arch=x64)`
+- 回退到 `node-gyp rebuild --release` 时失败
+- 错误堆栈：`gyp ERR! find VS - missing any Windows SDK`
+
+### 根因分析
+
+- 用户机器预装了 VS2022 BuildTools 部分：找到 `Visual Studio C++ core features` + `VC++ toolset: v143`
+- **缺失关键组件**：Windows SDK（任意版本）
+- `node-gyp` 要求 VS 安装包含「使用 C++ 的桌面开发」工作负载（含 Windows SDK），而当前安装仅为最小 C++ 核心组件
+- `better-sqlite3@12.11.1` 没有为 `electron@43.1.1` 预编译 win32-x64 二进制，强制走源码编译路径
+
+### 当前处理（不阻塞 Phase 5）
+
+- `pnpm dev` 开发模式正常（prebuilt binary 仍可用）
+- `pnpm typecheck:node` / `pnpm typecheck:web` / `pnpm lint` 全部 exit 0
+- `pnpm build`（electron-vite build）成功，生成 `out/main` / `out/preload` / `out/renderer` 产物
+- 仅 `electron-builder --win` 失败（打包阶段）
+
+### 根治方案（用户醒后执行）
+
+1. 打开「Visual Studio Installer」
+2. 修改 VS2022 BuildTools 安装
+3. 勾选工作负载「使用 C++ 的桌面开发」（Desktop development with C++）
+4. 右侧「安装详细信息」中确保至少勾选一个「Windows 10 SDK」或「Windows 11 SDK」
+5. 安装完成后重启终端，运行 `pnpm rebuild` 验证原生模块编译
+6. 重新执行 `pnpm build:win` 生成 `release/TDSF-Linux Desktop Setup *.exe`
+
+### 防护建议
+
+- `package.json` 添加 `"postinstall": "electron-builder install-app-deps"` 自动匹配原生模块
+- README.md Windows 开发环境前置中加入「VS Build Tools + Windows SDK」必装项
+- 在 CI 流水线使用 `windows-2022` GitHub runner（预装完整 VS 工具链）
+- `scripts/check-env.cjs` 增加 `node-gyp` 环境自检（检测 VS + Windows SDK 完整性）
+- 验证安装包大小 ≤ 400MB（R17 预算）的检查需在打包成功后才能执行
+
+---
+
 *LEARNINGS 文档结束 · 持续更新中*
