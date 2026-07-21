@@ -1,7 +1,29 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 12
+> 轮次：Round 13
+
+## risk-engine 长格式标志检测 (2026-07-21 Round 13 — QoderWork)
+
+方向：`risk-engine.ts` 的 CRITICAL/HIGH rm 模式正则仅匹配短标志组合（`-rf`、`-fr`），无法识别 `rm --recursive --force /` 等长格式标志。本轮引入 `isRmRecursiveForce()` 辅助函数，统一覆盖短标志、长标志和混合形式。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| isRmRecursiveForce() | `src/main/core/risk-engine.ts` | 新增辅助函数：检测 rm 同时含 recursive（-r/-R/--recursive）和 force（-f/--force）标志，可选要求根目录目标 |
+| CRITICAL_PATTERNS 更新 | `src/main/core/risk-engine.ts` | rm 根目录模式从正则替换为 `isRmRecursiveForce(cmd, true)` |
+| HIGH_PATTERNS 更新 | `src/main/core/risk-engine.ts` | rm 递归删除模式从正则替换为 `isRmRecursiveForce(cmd, false)` |
+| 新增 7 个测试 | `tests/core/risk-engine.test.ts` | 覆盖：--recursive --force /、反序、混合标志、非根目录 HIGH、仅 --recursive 不匹配 |
+
+验证：typecheck web+node 0 errors ｜ vitest 1210/1210 PASS (53 files, +7 新增) ｜ build 待确认
+
+覆盖矩阵：
+- `rm -rf /` → CRITICAL ✅（原有）
+- `rm --recursive --force /` → CRITICAL ✅（新增）
+- `rm --force --recursive /` → CRITICAL ✅（新增，反序）
+- `rm -r --force /` → CRITICAL ✅（新增，混合）
+- `rm --recursive -f /` → CRITICAL ✅（新增，混合反序）
+- `rm --recursive --force /home` → HIGH ✅（新增，非根目录）
+- `rm --recursive /home` → LOW ✅（新增，缺 --force 不应匹配）
 
 ## PAOR 审批闸门接线 + Week 2 注释清理 (2026-07-21 Round 12 — QoderWork)
 
@@ -311,10 +333,10 @@
 
 ## 测试状态
 
-- **全量测试：1203/1203 通过** (vitest run, Round 12 确认)
+- **全量测试：1210/1210 通过** (vitest run, Round 13 确认)
   - 测试文件：53 files
-  - 测试用例：1203 passed
-- **TypeScript 类型检查：0 错误** (web + node, Round 12 确认)
+  - 测试用例：1210 passed
+- **TypeScript 类型检查：0 错误** (web + node, Round 13 确认)
 - **构建：通过** (electron-vite build, Round 12 确认, 13.59s)
 
 ## 构建产物
@@ -336,9 +358,10 @@ out/renderer/assets/         ~90 个 chunk (代码分割)
 3. ~~**Context compaction L4/L5 端到端验证**~~ — ✅ Round 11 完成（30 测试覆盖 5 层 pipeline + L3/L4/L5 可达性分析）
 4. ~~**PAOR isApprovalRequired / requestApproval stub 清理**~~ — ✅ Round 12 完成（审批闸门接入 execute() 流程 + 真实规则 + Week 2 注释全面清理）
 5. **E2E 演示路径验证** — 在真实 SSH 连接上跑通 3 个竞赛场景（需 Linux 服务器环境）。
-6. **risk-engine 长格式标志** — `rm --recursive --force /` 未被 regex 匹配（AST 引擎可兜底）。
+6. ~~**risk-engine 长格式标志**~~ — ✅ Round 13 完成（isRmRecursiveForce 辅助函数 + 7 测试覆盖长/短/混合标志）
 
 ### 已完成（本轮，勿重复）
+- ✅ risk-engine 长格式标志检测（Round 13）— isRmRecursiveForce 辅助函数 + 7 测试覆盖长/短/混合标志
 - ✅ PAOR 审批闸门接线 + Week 2 注释清理（Round 12）— execute() 接入审批检查 + 真实规则 + 9 文件 26 处注释清理
 - ✅ Context compaction L4/L5 端到端验证（Round 11）— 30 测试覆盖 5 层 pipeline + L3/L4/L5 可达性分析
 - ✅ Mastra 真实集成（Round 10）— Tool Bridge + Ops Agent + 单例 + 13 测试
