@@ -56,6 +56,46 @@ describe('risk-engine — 风险控制引擎', () => {
     expect(result.score).toBe(100)
   })
 
+  it('assessRisk: rm --recursive --force / 为 CRITICAL（长格式标志）', () => {
+    const result = assessRisk('rm --recursive --force /')
+    expect(result.level).toBe('CRITICAL')
+    expect(result.blocked).toBe(true)
+    expect(result.score).toBe(100)
+  })
+
+  it('assessRisk: rm --force --recursive / 为 CRITICAL（长标志反序）', () => {
+    const result = assessRisk('rm --force --recursive /')
+    expect(result.level).toBe('CRITICAL')
+    expect(result.blocked).toBe(true)
+  })
+
+  it('assessRisk: rm -r --force / 为 CRITICAL（混合标志）', () => {
+    expect(assessRisk('rm -r --force /').level).toBe('CRITICAL')
+  })
+
+  it('assessRisk: rm --recursive -f / 为 CRITICAL（混合标志反序）', () => {
+    expect(assessRisk('rm --recursive -f /').level).toBe('CRITICAL')
+  })
+
+  it('assessRisk: rm --recursive --force /home 为 HIGH（非根目录）', () => {
+    const result = assessRisk('rm --recursive --force /home')
+    expect(result.level).toBe('HIGH')
+    expect(result.blocked).toBe(false)
+    expect(result.requireConfirmation).toBe(true)
+  })
+
+  it('assessRisk: rm -rf /tmp/data 为 HIGH（短标志非根目录）', () => {
+    const result = assessRisk('rm -rf /tmp/data')
+    expect(result.level).toBe('HIGH')
+  })
+
+  it('assessRisk: rm --recursive /home 仅为 LOW（缺少 --force）', () => {
+    // 只有 --recursive 没有 --force，不应匹配 rm+rf 模式
+    const result = assessRisk('rm --recursive /home')
+    expect(result.level).not.toBe('CRITICAL')
+    expect(result.level).not.toBe('HIGH')
+  })
+
   it('assessRisk: mkfs 为 CRITICAL', () => {
     expect(assessRisk('mkfs.ext4 /dev/sda1').level).toBe('CRITICAL')
   })
