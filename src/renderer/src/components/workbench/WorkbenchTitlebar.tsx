@@ -258,13 +258,13 @@ export function WorkbenchTitlebar({
         </div>
 
         <div className="flex items-center gap-1">
-          <IconButton title="搜索" onClick={() => message.info('全局搜索即将在下一版开放')}>
+          <IconButton title="搜索" onClick={() => message.warning('全局搜索需要连接 SSH 服务器后使用')}>
             <Search className="size-4" />
           </IconButton>
           <IconButton title="AI面板" onClick={onToggleAI} active={aiPanelVisible} domId="collapse-ai">
             <PanelRight className="size-4" />
           </IconButton>
-          <IconButton title="布局" onClick={() => message.info('分屏布局即将支持')}>
+          <IconButton title="布局" onClick={() => message.warning('分屏布局暂未上线，可在设置中调整面板宽度')}>
             <LayoutGrid className="size-4" />
           </IconButton>
           <IconButton title="设置" onClick={() => navigate('/settings')}>
