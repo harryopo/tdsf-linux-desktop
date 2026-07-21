@@ -1,7 +1,19 @@
 # Loop Engineering Progress
 
 > 最后更新：2026-07-21
-> 轮次：Round 14
+> 轮次：Round 15
+
+## workbench/mock-data.ts 死代码清理 (2026-07-21 Round 15 — QoderWork)
+
+方向：`workbench/mock-data.ts` 原 600 行，包含 12 个导出，其中 10 个为死代码（无任何外部引用）。本轮移除 10 个死常量（MOCK_FILE_TREE、MOCK_EDITOR_TABS、MOCK_TERMINAL_LINES、MOCK_STATUSBAR_LEFT/RIGHT、MOCK_TOKEN_CHART_POINTS/STATS/BUDGET、MOCK_CONTEXT_USAGE）及 7 个关联死类型（ServerStatus、FileTreeNodeType、FileTreeNode、EditorTabId、EditorTab、TerminalLineType、TerminalLine），文件从 600 行精简至 ~330 行，仅保留 AIPanel 实际使用的 AI 对话类型和 mock 数据。
+
+| 改动 | 文件 | 说明 |
+|------|------|------|
+| 移除 10 个死常量 | `src/renderer/src/components/workbench/mock-data.ts` | MOCK_FILE_TREE/EDITOR_TABS/TERMINAL_LINES/STATUSBAR_LEFT/RIGHT/TOKEN_CHART_POINTS/STATS/BUDGET/CONTEXT_USAGE |
+| 移除 7 个死类型 | `src/renderer/src/components/workbench/mock-data.ts` | ServerStatus/FileTreeNodeType/FileTreeNode/EditorTabId/EditorTab/TerminalLineType/TerminalLine |
+| 更新文件头注释 | `src/renderer/src/components/workbench/mock-data.ts` | 反映精简后的范围（仅 AI 对话 mock） |
+
+验证：typecheck web+node 0 errors ｜ vitest 1215/1215 PASS (53 files) ｜ build 10.74s
 
 ## agent-workflow analyze 步骤增强：日志模式匹配 (2026-07-21 Round 14 — QoderWork)
 
