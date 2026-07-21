@@ -24,393 +24,44 @@
  * - 所有调用通过 logger 记录（HC-1 网络日志可见）
  *
  * 方案书依据：v0.9 §8（沙箱集成）+ §11.2（IPC 命名规范）
+ *
+ * 拆分说明（保持主文件 ≤500 行）：
+ * - 审批与危险度识别 → ./sandbox-approval.ts
+ * - 配置与单例管理 → ./sandbox-config.ts
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
-import * as path from 'node:path'
 import { SANDBOX } from '@shared/ipc-channels'
 import { detectDockerDesktop, type DockerInfo } from '../services/sandbox/docker-detector'
-import { OpenHandsRunner } from '../services/sandbox/openhands-runner'
-import {
-  OpenHandsClient,
-  OpenHandsApiError,
-} from '../services/sandbox/openhands-client'
-import {
-  OPENHANDS_DEFAULT_BASE_URL,
-  OPENHANDS_DEFAULT_PORT,
-  type OpenHandsClientConfig,
-  type SandboxCommandResult,
-  type SandboxHealthStatus,
-  type SandboxInfo,
-  type SandboxPage,
+import { OpenHandsApiError } from '../services/sandbox/openhands-client'
+import type {
+  SandboxCommandResult,
+  SandboxHealthStatus,
+  SandboxInfo,
+  SandboxPage,
 } from '../services/sandbox/types'
 import { logger } from '../services/log/logger'
-// AST 危险命令识别（tree-sitter-bash，覆盖 6 类绕过，AST 失败时降级到正则）
-import { assessWithAst } from '../core/risk-engine-ast'
 // v0.9.4 新增：session-registry 集中维护 sessionId → AbortController Map，支持 abort signal + TTL 清理
 import { getSessionRegistry } from '../core/agent/session-registry'
+// 审批与危险度识别（从 sandbox-approval.ts 导入，保持主文件 ≤500 行）
+import {
+  waitForSandboxApproval,
+  cacheAndRedactSessionKey,
+  sessionKeyMap,
+  pendingSandboxApprovals,
+} from './sandbox-approval'
+// 配置与单例管理（从 sandbox-config.ts 导入，保持主文件 ≤500 行）
+import {
+  getRunner,
+  getClient,
+  toErrorString,
+  type ErrorResponse,
+} from './sandbox-config'
 
-/**
- * 持久化的沙箱配置（存储在 ConfigStore 中，key='sandboxConfig'）
- */
-interface PersistedSandboxConfig {
-  baseUrl?: string
-  port?: number
-  composeFilePath?: string
-  authToken?: string
-  timeoutMs?: number
-}
-
-// ============================================================================
-// P-2 + P-4 修复新增：句柄模式 + IPC 层强制审批
-// ============================================================================
-//
-// P-4 句柄模式：session_api_key 不出主进程
-// - sandboxId → sessionApiKey 映射缓存（主进程内部维护）
-// - sandbox:create / sandbox:list 返回前抹除 session_api_key（设为 null）
-// - sandbox:execute 不接收 sessionApiKey 参数，从 Map 中查找
-// - sandbox:delete 删除后清理 Map
-// - 即使渲染进程被 XSS，攻击者也无法读到 key
-//
-// P-2 IPC 层强制审批：sandbox:execute 始终推送审批请求
-// - 不依赖 UI 层"自觉"实现审批弹窗
-// - IPC 层强制 waitForSandboxApproval() 才执行命令
-// - 命令危险度识别（low/medium/high）帮助 UI 展示风险等级
-// - 30 秒审批超时自动拒绝
-// ============================================================================
-
-/** sandboxId → sessionApiKey 缓存（P-4：句柄模式） */
-const sessionKeyMap = new Map<string, string>()
-
-/** 待审批的 sandbox 命令调用池（callId → Promise resolver） */
-interface PendingSandboxApproval {
-  resolve: (approved: boolean) => void
-  reject: (err: Error) => void
-  timeout: NodeJS.Timeout
-}
-const pendingSandboxApprovals = new Map<string, PendingSandboxApproval>()
-
-/** 审批请求推送通道（主 → 渲染，单向） */
-const SANDBOX_APPROVAL_CHANNEL = 'sandbox:approval-request'
-/** 审批超时（30 秒，与 llm-tools.ts 保持一致） */
-const SANDBOX_APPROVAL_TIMEOUT_MS = 30_000
-
-/** 命令危险度评级 */
-type CommandRiskLevel = 'low' | 'medium' | 'high'
-
-/** 审批请求载荷（推送给渲染进程） */
-export interface SandboxApprovalRequest {
-  callId: string
-  sandboxId: string
-  command: string
-  risk: CommandRiskLevel
-  reasons: string[]
-  timestamp: number
-  /**
-   * 会话 ID（v0.9.4 新增，可选）
-   *
-   * 主进程在 sandbox:execute 调用时生成（或使用调用方传入的 sessionId），
-   * 通过审批请求推送回渲染进程，便于 UI 关联请求与响应、支持主动取消。
-   */
-  sessionId?: string
-}
-
-/**
- * 命令危险度识别（用于审批 UI 提示 + 审计日志）
- *
- * 改造（v0.9 自检后追加）：
- * - 优先使用 AST 解析（tree-sitter-bash），覆盖 6 类绕过
- * - AST 解析失败时降级到正则方案（assessCommandRiskRegex）
- * - 调研依据：docs/调研-Bash命令解析库选型-危险命令识别.md
- *
- * - high：高危命令（rm -rf / chmod 777 / iptables / dd / mkfs / fork bomb / shutdown 等）
- * - medium：中危命令（包管理 / 用户管理 / 服务管理 / sudo 提权等）
- * - low：低危命令（ls / cat / grep / ps 等只读操作）
- */
-async function assessCommandRisk(
-  command: string
-): Promise<{ risk: CommandRiskLevel; reasons: string[] }> {
-  // 优先 AST 解析
-  const astResult = await assessWithAst(command)
-  if (astResult) {
-    return { risk: astResult.risk, reasons: astResult.reasons }
-  }
-  // AST 失败 → 降级到正则
-  return assessCommandRiskRegex(command)
-}
-
-/**
- * 正则兜底方案（原 assessCommandRisk 实现，AST 失败时调用）
- */
-function assessCommandRiskRegex(
-  command: string
-): { risk: CommandRiskLevel; reasons: string[] } {
-  const reasons: string[] = []
-  // 高危：rm -rf 根目录 / chmod 777 / iptables / dd / mkfs / fork bomb / shutdown
-  if (/\brm\s+-rf\b/i.test(command) && /(^|\s|["'`])\/($|\s|\*|["'`])/.test(command)) {
-    reasons.push('rm -rf 根目录递归删除')
-  }
-  if (/chmod\s+777/i.test(command)) reasons.push('chmod 777 全权限开放')
-  if (/\biptables\b/i.test(command)) reasons.push('iptables 防火墙规则修改')
-  if (/\bdd\s+if=/i.test(command)) reasons.push('dd 磁盘镜像写入')
-  if (/mkfs/i.test(command)) reasons.push('mkfs 文件系统格式化')
-  if (/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;:/.test(command)) reasons.push('fork bomb')
-  if (/\b(shutdown|reboot|halt|poweroff)\b/i.test(command)) reasons.push('关机/重启命令')
-  if (/>\s*\/dev\/sd[a-z]/i.test(command)) reasons.push('直接写入磁盘设备')
-  if (/\bkillall\b/i.test(command)) reasons.push('killall 批量终止进程')
-  if (reasons.length > 0) return { risk: 'high', reasons }
-
-  // 中危：包管理 / 用户管理 / 服务管理 / 网络 / sudo
-  if (/\b(yum|apt|dnf|pip|npm|pnpm)\s+(install|remove|upgrade|purge)\b/i.test(command)) {
-    reasons.push('包管理操作')
-  }
-  if (/\buser(add|del|mod)\b/i.test(command)) reasons.push('用户管理')
-  if (/\bgroup(add|del|mod)\b/i.test(command)) reasons.push('用户组管理')
-  if (/\bsystemctl\s+(start|stop|restart|enable|disable)\b/i.test(command)) reasons.push('服务管理')
-  if (/\bservice\s+\w+\s+(start|stop|restart)/i.test(command)) reasons.push('SysV 服务管理')
-  if (/\bsudo\b/i.test(command)) reasons.push('sudo 提权')
-  if (/>\s*\/etc\//i.test(command)) reasons.push('修改 /etc 系统配置')
-  if (/\bcrontab\b/i.test(command)) reasons.push('定时任务修改')
-  if (/\b(passwd|chpasswd)\b/i.test(command)) reasons.push('密码修改')
-  if (reasons.length > 0) return { risk: 'medium', reasons }
-
-  return { risk: 'low', reasons: [] }
-}
-
-/**
- * 安全推送事件到渲染进程（窗口已销毁时跳过）
- */
-function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, ...args)
-  }
-}
-
-/**
- * 等待用户审批（推送 sandbox:approval-request 事件，等待 sandbox:approve invoke）
- *
- * @param mainWindow 主窗口实例
- * @param callId 审批调用 ID（与 pendingSandboxApprovals Map 中的 key 对应）
- * @param sandboxId 沙箱 ID
- * @param command 待执行的命令
- * @param sessionId 会话 ID（v0.9.4 新增，可选，附带在审批请求上回传给渲染进程）
- * @returns 是否批准
- */
-function waitForSandboxApproval(
-  mainWindow: BrowserWindow,
-  callId: string,
-  sandboxId: string,
-  command: string,
-  sessionId?: string
-): Promise<boolean> {
-  return new Promise<boolean>(async (resolve, reject) => {
-    // assessCommandRisk 改为 async（AST 解析），在 Promise 内 await
-    const { risk, reasons } = await assessCommandRisk(command)
-    const request: SandboxApprovalRequest = {
-      callId,
-      sandboxId,
-      command,
-      risk,
-      reasons,
-      timestamp: Date.now(),
-      sessionId,
-    }
-    safeSend(mainWindow, SANDBOX_APPROVAL_CHANNEL, request)
-
-    const timeout = setTimeout(() => {
-      pendingSandboxApprovals.delete(callId)
-      reject(new Error('用户审批超时（30秒），自动拒绝'))
-    }, SANDBOX_APPROVAL_TIMEOUT_MS)
-
-    pendingSandboxApprovals.set(callId, { resolve, reject, timeout })
-  })
-}
-
-/**
- * 抹除 SandboxInfo 中的 session_api_key，缓存到主进程 Map
- *
- * P-4 句柄模式：避免 session_api_key 暴露到渲染进程内存
- *
- * @param info 原始 SandboxInfo（含 session_api_key）
- * @returns 处理后的 SandboxInfo（session_api_key 已设为 null）
- */
-function cacheAndRedactSessionKey(info: SandboxInfo): SandboxInfo {
-  if (info.session_api_key) {
-    sessionKeyMap.set(info.id, info.session_api_key)
-    logger.debug('IPC.SANDBOX', 'session_api_key 已缓存到主进程（不暴露给渲染进程）', {
-      sandboxId: info.id,
-    })
-  }
-  return { ...info, session_api_key: null }
-}
-
-// ============================================================================
-// 模块级单例（避免每次 IPC 调用都重建 client/runner）
-// ============================================================================
-
-let cachedRunner: OpenHandsRunner | null = null
-let cachedClient: OpenHandsClient | null = null
-
-/**
- * 从 ConfigStore 读取沙箱配置（key='sandboxConfig'）
- *
- * 注意：ConfigStore 必须在 app.ready 后使用，
- *      本函数只在 IPC handler 内调用（IPC 注册在 whenReady 之后），安全。
- */
-function readSandboxConfig(): PersistedSandboxConfig {
-  try {
-    // 动态 require 避免顶层依赖 ConfigStore（ConfigStore 必须在 app.ready 后使用）
-    // 这里使用动态 import 的等价形式：直接 require
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ConfigStore } = require('../services/storage/config-store') as {
-      ConfigStore: { get: (key: string) => unknown }
-    }
-    const cfg = ConfigStore.get('sandboxConfig') as PersistedSandboxConfig | undefined
-    return cfg ?? {}
-  } catch (err) {
-    logger.warn('IPC.SANDBOX', '读取 sandboxConfig 失败，使用默认值', {
-      error: (err as Error).message,
-    })
-    return {}
-  }
-}
-
-/**
- * 解析 docker-compose.yml 路径
- *
- * 开发环境：src/main/resources/sandbox/openhands/docker-compose.yml
- * 生产环境：process.resourcesPath/sandbox/openhands/docker-compose.yml
- */
-function resolveComposeFilePath(configured?: string): string {
-  if (configured) return configured
-  // 生产环境：electron-builder 会把 resources/ 目录打包到 process.resourcesPath
-  if (process.env.NODE_ENV === 'production' && process.resourcesPath) {
-    return path.join(process.resourcesPath, 'sandbox', 'openhands', 'docker-compose.yml')
-  }
-  // 开发环境：从源码目录解析
-  // __dirname 在编译后为 out/main/ipc，需要回退 4 层到 src/main
-  return path.resolve(__dirname, '..', '..', 'resources', 'sandbox', 'openhands', 'docker-compose.yml')
-}
-
-/**
- * 获取（惰性初始化）OpenHandsRunner 单例
- */
-function getRunner(): OpenHandsRunner {
-  if (cachedRunner) return cachedRunner
-  const cfg = readSandboxConfig()
-  cachedRunner = new OpenHandsRunner({
-    composeFilePath: resolveComposeFilePath(cfg.composeFilePath),
-    port: cfg.port ?? OPENHANDS_DEFAULT_PORT,
-    baseUrl: cfg.baseUrl ?? OPENHANDS_DEFAULT_BASE_URL,
-  })
-  return cachedRunner
-}
-
-/**
- * 获取（惰性初始化）OpenHandsClient 单例
- */
-function getClient(): OpenHandsClient {
-  if (cachedClient) return cachedClient
-  const cfg = readSandboxConfig()
-  const clientConfig: OpenHandsClientConfig = {
-    baseUrl: cfg.baseUrl ?? OPENHANDS_DEFAULT_BASE_URL,
-    timeoutMs: cfg.timeoutMs,
-    authToken: cfg.authToken,
-  }
-  cachedClient = new OpenHandsClient(clientConfig)
-  return cachedClient
-}
-
-/**
- * 重置缓存的 client/runner（配置变更时调用）
- *
- * 预留：后续如增加 sandbox:saveConfig 通道，可在保存后调用此函数。
- */
-export function resetSandboxInstances(): void {
-  cachedRunner = null
-  cachedClient = null
-  logger.info('IPC.SANDBOX', '已重置 OpenHands runner/client 实例（下次调用时重建）')
-}
-
-/**
- * 预热 sessionKeyMap 缓存（P-4 恢复方案 A）
- *
- * 主进程启动时调用，遍历 OpenHands 中所有 RUNNING 状态的沙箱，
- * 把 session_api_key 重新填入 sessionKeyMap，避免主进程重启后缓存丢失导致
- * sandbox:execute 返回 SESSION_KEY_MISSING。
- *
- * 调用时机：
- * 1. app.whenReady 之后、IPC 注册之前（最佳）
- * 2. 或 sandbox:status 健康检查通过之后（懒触发）
- *
- * 失败处理：
- * - OpenHands 未启动 / 健康检查失败 → 静默跳过（不阻塞应用启动）
- * - 部分沙箱 session_api_key 为 null（STARTING/PAUSED）→ 跳过该沙箱
- *
- * 调研依据：OpenHands 官方文档 + 源码确认
- * - Docker 模式：session_api_key 存储在容器 env OH_SESSION_API_KEYS_0，每次 search 都实时读取
- * - Remote 模式：DB 只存 hash，明文 key 由 runtime API 实时返回
- * - 详见调研报告：docs/OpenHands-list沙箱-session_api_key-调研报告.md
- */
-export async function warmupSessionKeyCache(): Promise<void> {
-  try {
-    const client = getClient()
-    // 拉取所有沙箱（limit=100 足够覆盖常见场景）
-    const page = await client.searchSandboxes(100)
-    let warmed = 0
-    for (const item of page.items) {
-      // 只缓存 RUNNING 状态且 key 非空的沙箱
-      if (item.status === 'RUNNING' && item.session_api_key) {
-        sessionKeyMap.set(item.id, item.session_api_key)
-        warmed++
-      }
-    }
-    if (warmed > 0) {
-      logger.info('IPC.SANDBOX', `sessionKeyMap 预热完成（恢复 ${warmed} 个沙箱的 session_api_key）`, {
-        totalSandboxes: page.items.length,
-        warmed,
-      })
-    } else {
-      logger.debug('IPC.SANDBOX', 'sessionKeyMap 预热完成（无 RUNNING 状态沙箱需恢复）')
-    }
-  } catch (err) {
-    // OpenHands 未启动 / 健康检查失败 → 静默跳过（不阻塞应用启动）
-    logger.warn('IPC.SANDBOX', 'sessionKeyMap 预热失败（OpenHands 可能未启动，跳过恢复）', {
-      error: toErrorString(err),
-    })
-  }
-}
-
-/**
- * 统一错误转字符串（避免把 Error 对象直接序列化丢失 message）
- */
-function toErrorString(err: unknown): string {
-  if (err instanceof Error) return err.message
-  if (typeof err === 'string') return err
-  try {
-    return JSON.stringify(err)
-  } catch {
-    return String(err)
-  }
-}
-
-// ============================================================================
-// IPC 错误响应类型
-// ============================================================================
-
-/** 失败响应（统一形态，渲染进程可直接判断 success 字段） */
-interface ErrorResponse {
-  success: false
-  error: string
-  code?: string
-  /**
-   * 会话 ID（v0.9.4 新增，可选）
-   *
-   * 主进程在 sandbox:execute 失败时回传 sessionId，便于渲染进程关联请求与失败响应。
-   * 成功路径不携带 sessionId（SandboxCommandResult 不变，保持与 OpenHands API 一致）。
-   */
-  sessionId?: string
-}
+// 重新导出外部依赖的接口（保持原 sandbox.ts 公开 API 兼容）
+export { warmupSessionKeyCache, resetSandboxInstances } from './sandbox-config'
+// 重新导出 SandboxApprovalRequest 类型（外部 preload/renderer 各自定义了同名接口，保留兼容）
+export type { SandboxApprovalRequest } from './sandbox-approval'
 
 /**
  * 注册沙箱集成 IPC handlers
