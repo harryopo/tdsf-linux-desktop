@@ -1,0 +1,67 @@
+# OpenHands App Server docker-compose 配置（v0.9 沙箱集成）
+#
+# 由 OpenHandsRunner 调用 `docker compose -f docker-compose.yml up -d` 启动。
+# 容器启动后，OpenHandsClient 通过 http://localhost:3000 REST API 管理沙箱。
+#
+# 关键配置说明（与源码 containers/app/Dockerfile 中的环境变量对齐）：
+# - RUN_AS_OPENHANDS=true：以 openhands 用户运行（UID 42420，非 root）
+# - OPENHANDS_USER_ID=42420：容器内非 root 用户 UID
+# - SANDBOX_USER_ID=0：沙箱内执行用户（0 = root，便于实验性操作）
+# - FILE_STORE=local：文件存储后端（本地磁盘）
+# - FILE_STORE_PATH=/.openhands：元数据存储路径
+#
+# 数据持久化：
+# - ./workspace → /opt/workspace_base：工作区数据（沙箱内文件）
+# - ./.openhands → /.openhands：元数据（沙箱规格 / 会话状态）
+#
+# 方案书依据：v0.9 §8（沙箱集成）+ 源码分析报告 §二（Docker 容器架构）
+version: '3.8'
+
+services:
+  openhands:
+    image: openhands/openhands:latest
+    container_name: tdsf-openhands
+    ports:
+      - "3000:3000"
+    volumes:
+      # 工作区数据持久化（沙箱内文件）
+      - ./workspace:/opt/workspace_base
+      # OpenHands 元数据持久化（沙箱规格 / 会话状态）
+      - ./.openhands:/.openhands
+      # Docker socket 挂载（OpenHands 需创建沙箱容器）
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # 以 openhands 用户运行（非 root，安全性更高）
+      - RUN_AS_OPENHANDS=true
+      # 容器内 openhands 用户 UID（与 Dockerfile 中一致）
+      - OPENHANDS_USER_ID=42420
+      # 沙箱内执行用户（0 = root，便于实验性操作；生产环境可改为非 0）
+      - SANDBOX_USER_ID=0
+      # 文件存储后端（local = 本地磁盘）
+      - FILE_STORE=local
+      # 文件存储路径（与 volume 挂载对应）
+      - FILE_STORE_PATH=/.openhands
+      # 空工作区自动 init git（便于版本控制）
+      - INIT_GIT_IN_EMPTY_WORKSPACE=1
+      # 本地运行模式（避免 OpenHands 联网验证）
+      - SANDBOX_LOCAL_RUNTIME_URL=http://host.docker.internal
+      # 关闭主机网络模式（默认 false，保持隔离）
+      - USE_HOST_NETWORK=false
+    # 容器重启策略：除非手动停止，否则总是重启
+    restart: unless-stopped
+    # 健康检查（每 30s 调用 /alive，连续 3 次失败标记为 unhealthy）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # 资源限制（可根据硬件调整）
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

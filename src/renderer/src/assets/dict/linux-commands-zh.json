@@ -1,0 +1,1696 @@
+{
+  "version": "1.1.0",
+  "updatedAt": "2026-07-18",
+  "source": "manual + jaywcjlove/linux-command(MIT) + tldr-pages(CC BY 4.0) + RHEL/CentOS 运维高频词",
+  "entries": {
+    "ls": {
+      "zh": "列出目录内容",
+      "pos": "v.",
+      "example": "ls -la 列出所有文件详细信息",
+      "category": "command",
+      "level": "basic",
+      "courseChapter": "ch03-files"
+    },
+    "cd": {
+      "zh": "切换工作目录",
+      "pos": "v.",
+      "example": "cd /home 进入家目录",
+      "category": "command",
+      "level": "basic",
+      "courseChapter": "ch03-files"
+    },
+    "pwd": {
+      "zh": "显示当前工作目录",
+      "pos": "v.",
+      "example": "pwd 查看当前位置",
+      "category": "command",
+      "level": "basic"
+    },
+    "cp": {
+      "zh": "复制文件或目录",
+      "pos": "v.",
+      "example": "cp src.txt dst.txt 复制文件",
+      "category": "command",
+      "level": "basic"
+    },
+    "mv": {
+      "zh": "移动或重命名",
+      "pos": "v.",
+      "example": "mv old.txt new.txt 重命名文件",
+      "category": "command",
+      "level": "basic"
+    },
+    "rm": {
+      "zh": "删除文件或目录",
+      "pos": "v.",
+      "example": "rm -rf dir 强制递归删除（危险）",
+      "category": "command",
+      "level": "basic"
+    },
+    "mkdir": {
+      "zh": "创建目录",
+      "pos": "v.",
+      "example": "mkdir -p a/b/c 递归创建多级目录",
+      "category": "command",
+      "level": "basic"
+    },
+    "rmdir": {
+      "zh": "删除空目录",
+      "pos": "v.",
+      "example": "rmdir empty_dir 删除空目录",
+      "category": "command",
+      "level": "basic"
+    },
+    "touch": {
+      "zh": "创建空文件或更新时间戳",
+      "pos": "v.",
+      "example": "touch newfile.txt 创建空文件",
+      "category": "command",
+      "level": "basic"
+    },
+    "cat": {
+      "zh": "查看或拼接文件内容",
+      "pos": "v.",
+      "example": "cat file.txt 查看文件",
+      "category": "command",
+      "level": "basic"
+    },
+    "less": {
+      "zh": "分页查看文件（可上下翻页）",
+      "pos": "v.",
+      "example": "less long.log 分页查看日志",
+      "category": "command",
+      "level": "basic"
+    },
+    "more": {
+      "zh": "分页查看文件（旧版）",
+      "pos": "v.",
+      "example": "more file 只能向下翻页",
+      "category": "command",
+      "level": "basic"
+    },
+    "head": {
+      "zh": "显示文件前 N 行",
+      "pos": "n.",
+      "example": "head -n 10 file.txt 显示前 10 行",
+      "category": "command",
+      "level": "basic"
+    },
+    "tail": {
+      "zh": "显示文件后 N 行",
+      "pos": "n.",
+      "example": "tail -f log.txt 实时跟踪日志",
+      "category": "command",
+      "level": "basic"
+    },
+    "find": {
+      "zh": "查找文件",
+      "pos": "v.",
+      "example": "find / -name '*.log' 按名称查找",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "grep": {
+      "zh": "文本搜索",
+      "pos": "v.",
+      "example": "grep -r 'error' . 递归搜索错误信息",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch07-text"
+    },
+    "awk": {
+      "zh": "文本处理语言",
+      "pos": "n.",
+      "example": "awk '{print $1}' file 按列打印",
+      "category": "command",
+      "level": "advanced",
+      "courseChapter": "ch07-text"
+    },
+    "sed": {
+      "zh": "流编辑器",
+      "pos": "n.",
+      "example": "sed 's/old/new/g' file 替换文本",
+      "category": "command",
+      "level": "advanced",
+      "courseChapter": "ch07-text"
+    },
+    "sort": {
+      "zh": "排序",
+      "pos": "v.",
+      "example": "sort file.txt 排序文件行",
+      "category": "command",
+      "level": "basic"
+    },
+    "uniq": {
+      "zh": "去除重复行",
+      "pos": "v.",
+      "example": "sort file | uniq 排序后去重",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "wc": {
+      "zh": "统计行数、单词数、字节数",
+      "pos": "n.",
+      "example": "wc -l file.txt 统计行数",
+      "category": "command",
+      "level": "basic"
+    },
+    "cut": {
+      "zh": "截取列",
+      "pos": "v.",
+      "example": "cut -d: -f1 /etc/passwd 截取第一列",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "tr": {
+      "zh": "字符替换或删除",
+      "pos": "v.",
+      "example": "echo hello | tr 'a-z' 'A-Z' 转大写",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "diff": {
+      "zh": "比较文件差异",
+      "pos": "v.",
+      "example": "diff a.txt b.txt 比较两个文件",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "xargs": {
+      "zh": "构造命令行参数",
+      "pos": "v.",
+      "example": "find . -name '*.txt' | xargs rm 批量删除",
+      "category": "command",
+      "level": "advanced"
+    },
+    "tee": {
+      "zh": "同时输出到屏幕和文件",
+      "pos": "v.",
+      "example": "cmd | tee out.log 输出并保存",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "chmod": {
+      "zh": "修改文件权限",
+      "pos": "v.",
+      "example": "chmod 755 script.sh 设置可执行",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch05-permission"
+    },
+    "chown": {
+      "zh": "修改文件所有者",
+      "pos": "v.",
+      "example": "chown user:group file 修改属主",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch05-permission"
+    },
+    "chgrp": {
+      "zh": "修改文件所属组",
+      "pos": "v.",
+      "example": "chgrp admin file 修改所属组",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "su": {
+      "zh": "切换用户",
+      "pos": "v.",
+      "example": "su - root 切换到 root",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "sudo": {
+      "zh": "以管理员权限执行",
+      "pos": "v.",
+      "example": "sudo apt update 提权执行",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch05-permission"
+    },
+    "passwd": {
+      "zh": "修改用户密码",
+      "pos": "n.",
+      "example": "passwd username 修改密码",
+      "category": "command",
+      "level": "basic"
+    },
+    "useradd": {
+      "zh": "添加用户",
+      "pos": "v.",
+      "example": "useradd -m newuser 创建新用户",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "userdel": {
+      "zh": "删除用户",
+      "pos": "v.",
+      "example": "userdel -r username 删除用户及家目录",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "usermod": {
+      "zh": "修改用户属性",
+      "pos": "v.",
+      "example": "usermod -aG sudo user 添加到 sudo 组",
+      "category": "command",
+      "level": "advanced"
+    },
+    "groupadd": {
+      "zh": "添加用户组",
+      "pos": "v.",
+      "example": "groupadd developers 创建组",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "ps": {
+      "zh": "查看进程",
+      "pos": "v.",
+      "example": "ps aux 查看所有进程",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch06-process"
+    },
+    "top": {
+      "zh": "动态查看进程",
+      "pos": "n.",
+      "example": "top 实时显示系统进程",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch06-process"
+    },
+    "htop": {
+      "zh": "top 的增强版",
+      "pos": "n.",
+      "example": "htop 支持鼠标操作的进程查看器",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "kill": {
+      "zh": "终止进程",
+      "pos": "v.",
+      "example": "kill -9 PID 强制终止进程",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "killall": {
+      "zh": "按名称终止进程",
+      "pos": "v.",
+      "example": "killall nginx 杀掉所有 nginx",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "pgrep": {
+      "zh": "按名称查找进程 ID",
+      "pos": "v.",
+      "example": "pgrep -f nginx 查找 nginx PID",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "pkill": {
+      "zh": "按模式终止进程",
+      "pos": "v.",
+      "example": "pkill -f 'pattern' 按模式杀进程",
+      "category": "command",
+      "level": "advanced"
+    },
+    "bg": {
+      "zh": "将任务放到后台",
+      "pos": "n.",
+      "example": "bg %1 把任务 1 放到后台",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "fg": {
+      "zh": "将后台任务调到前台",
+      "pos": "n.",
+      "example": "fg %1 把任务调到前台",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "jobs": {
+      "zh": "查看后台任务",
+      "pos": "n.",
+      "example": "jobs -l 显示任务详情",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "uname": {
+      "zh": "显示系统信息",
+      "pos": "v.",
+      "example": "uname -a 显示全部信息",
+      "category": "command",
+      "level": "basic"
+    },
+    "hostname": {
+      "zh": "显示或设置主机名",
+      "pos": "n.",
+      "example": "hostname 查看主机名",
+      "category": "command",
+      "level": "basic"
+    },
+    "uptime": {
+      "zh": "显示系统运行时间",
+      "pos": "n.",
+      "example": "uptime 显示运行时长",
+      "category": "command",
+      "level": "basic"
+    },
+    "whoami": {
+      "zh": "显示当前用户名",
+      "pos": "n.",
+      "example": "whoami 查看当前用户",
+      "category": "command",
+      "level": "basic"
+    },
+    "id": {
+      "zh": "显示用户 ID 和组 ID",
+      "pos": "n.",
+      "example": "id username 查看用户身份",
+      "category": "command",
+      "level": "basic"
+    },
+    "ping": {
+      "zh": "测试网络连通性",
+      "pos": "v.",
+      "example": "ping 8.8.8.8 测试连通",
+      "category": "command",
+      "level": "basic",
+      "courseChapter": "ch08-network"
+    },
+    "curl": {
+      "zh": "HTTP 请求工具",
+      "pos": "n.",
+      "example": "curl https://example.com 发起请求",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch08-network"
+    },
+    "wget": {
+      "zh": "下载工具",
+      "pos": "n.",
+      "example": "wget https://example.com/file 下载文件",
+      "category": "command",
+      "level": "basic"
+    },
+    "ssh": {
+      "zh": "远程登录",
+      "pos": "v.",
+      "example": "ssh user@host 远程连接",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "scp": {
+      "zh": "远程拷贝文件",
+      "pos": "v.",
+      "example": "scp file user@host:/path 复制到远端",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "rsync": {
+      "zh": "远程同步",
+      "pos": "v.",
+      "example": "rsync -avz src/ dst/ 同步目录",
+      "category": "command",
+      "level": "advanced"
+    },
+    "netstat": {
+      "zh": "网络连接（旧工具）",
+      "pos": "n.",
+      "example": "netstat -tulnp 查看监听端口",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "ss": {
+      "zh": "网络连接（新工具）",
+      "pos": "n.",
+      "example": "ss -tulnp 查看监听端口",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "ip": {
+      "zh": "网络配置",
+      "pos": "n.",
+      "example": "ip addr show 查看网卡",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "ifconfig": {
+      "zh": "网卡配置（旧）",
+      "pos": "n.",
+      "example": "ifconfig eth0 查看网卡",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "route": {
+      "zh": "路由表",
+      "pos": "n.",
+      "example": "route -n 查看路由",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "traceroute": {
+      "zh": "路由追踪",
+      "pos": "n.",
+      "example": "traceroute example.com 跟踪路径",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "nslookup": {
+      "zh": "DNS 查询",
+      "pos": "n.",
+      "example": "nslookup example.com 查询 DNS",
+      "category": "command",
+      "level": "basic"
+    },
+    "dig": {
+      "zh": "DNS 查询（详细）",
+      "pos": "n.",
+      "example": "dig example.com 查询 DNS 详情",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "telnet": {
+      "zh": "远程登录（旧）",
+      "pos": "n.",
+      "example": "telnet host port 测试端口",
+      "category": "command",
+      "level": "basic"
+    },
+    "df": {
+      "zh": "查看磁盘使用",
+      "pos": "n.",
+      "example": "df -h 人类可读格式",
+      "category": "command",
+      "level": "basic"
+    },
+    "du": {
+      "zh": "查看目录大小",
+      "pos": "n.",
+      "example": "du -sh dir 显示目录总大小",
+      "category": "command",
+      "level": "basic"
+    },
+    "mount": {
+      "zh": "挂载文件系统",
+      "pos": "v.",
+      "example": "mount /dev/sdb1 /mnt 挂载设备",
+      "category": "command",
+      "level": "advanced"
+    },
+    "umount": {
+      "zh": "卸载文件系统",
+      "pos": "v.",
+      "example": "umount /mnt 卸载",
+      "category": "command",
+      "level": "advanced"
+    },
+    "fdisk": {
+      "zh": "磁盘分区工具",
+      "pos": "n.",
+      "example": "fdisk -l 查看分区表",
+      "category": "command",
+      "level": "advanced"
+    },
+    "lsblk": {
+      "zh": "列出块设备",
+      "pos": "n.",
+      "example": "lsblk 树形显示块设备",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "mkfs": {
+      "zh": "格式化文件系统",
+      "pos": "n.",
+      "example": "mkfs.ext4 /dev/sdb1 格式化为 ext4",
+      "category": "command",
+      "level": "advanced"
+    },
+    "fsck": {
+      "zh": "文件系统检查",
+      "pos": "n.",
+      "example": "fsck /dev/sda1 检查并修复",
+      "category": "command",
+      "level": "advanced"
+    },
+    "dd": {
+      "zh": "磁盘复制与转换",
+      "pos": "n.",
+      "example": "dd if=src of=dst bs=4M 复制数据",
+      "category": "command",
+      "level": "advanced"
+    },
+    "apt": {
+      "zh": "Debian/Ubuntu 包管理器",
+      "pos": "n.",
+      "example": "apt install nginx 安装软件",
+      "category": "command",
+      "level": "intermediate",
+      "courseChapter": "ch09-package"
+    },
+    "apt-get": {
+      "zh": "apt 的底层工具",
+      "pos": "n.",
+      "example": "apt-get update 更新源",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "yum": {
+      "zh": "CentOS 包管理器（旧）",
+      "pos": "n.",
+      "example": "yum install nginx 安装软件",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "dnf": {
+      "zh": "CentOS 包管理器（新）",
+      "pos": "n.",
+      "example": "dnf install nginx 安装软件",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "dpkg": {
+      "zh": "Debian 包管理工具",
+      "pos": "n.",
+      "example": "dpkg -i package.deb 安装 deb 包",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "rpm": {
+      "zh": "RedHat 包管理工具",
+      "pos": "n.",
+      "example": "rpm -ivh package.rpm 安装 rpm 包",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "tar": {
+      "zh": "打包/解包工具",
+      "pos": "n.",
+      "example": "tar -xzf file.tar.gz 解压",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "gzip": {
+      "zh": "gzip 压缩",
+      "pos": "v.",
+      "example": "gzip file 压缩为 .gz",
+      "category": "command",
+      "level": "basic"
+    },
+    "gunzip": {
+      "zh": "gzip 解压",
+      "pos": "v.",
+      "example": "gunzip file.gz 解压 .gz",
+      "category": "command",
+      "level": "basic"
+    },
+    "bzip2": {
+      "zh": "bzip2 压缩",
+      "pos": "n.",
+      "example": "bzip2 file 压缩为 .bz2",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "unzip": {
+      "zh": "解压 zip 文件",
+      "pos": "v.",
+      "example": "unzip file.zip 解压",
+      "category": "command",
+      "level": "basic"
+    },
+    "zip": {
+      "zh": "压缩为 zip 文件",
+      "pos": "v.",
+      "example": "zip -r out.zip dir 压缩目录",
+      "category": "command",
+      "level": "basic"
+    },
+    "xz": {
+      "zh": "xz 压缩",
+      "pos": "n.",
+      "example": "xz file 压缩为 .xz",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "vi": {
+      "zh": "经典文本编辑器",
+      "pos": "n.",
+      "example": "vi file.txt 打开文件",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "vim": {
+      "zh": "vi 的增强版",
+      "pos": "n.",
+      "example": "vim file.txt 功能强大的编辑器",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "nano": {
+      "zh": "简易文本编辑器",
+      "pos": "n.",
+      "example": "nano file.txt 简单易用的编辑器",
+      "category": "command",
+      "level": "basic"
+    },
+    "emacs": {
+      "zh": "可扩展编辑器",
+      "pos": "n.",
+      "example": "emacs 启动编辑器",
+      "category": "command",
+      "level": "advanced"
+    },
+    "git": {
+      "zh": "分布式版本控制",
+      "pos": "n.",
+      "example": "git commit -m 'msg' 提交代码",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "svn": {
+      "zh": "集中式版本控制",
+      "pos": "n.",
+      "example": "svn checkout url 检出代码",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "branch": {
+      "zh": "分支",
+      "pos": "n.",
+      "example": "git branch dev 创建分支",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "commit": {
+      "zh": "提交",
+      "pos": "n.",
+      "example": "git commit 提交代码",
+      "category": "term",
+      "level": "basic"
+    },
+    "merge": {
+      "zh": "合并",
+      "pos": "v.",
+      "example": "git merge dev 合并分支",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "rebase": {
+      "zh": "变基",
+      "pos": "v.",
+      "example": "git rebase main 变基到 main",
+      "category": "term",
+      "level": "advanced"
+    },
+    "locate": {
+      "zh": "通过数据库查找文件",
+      "pos": "v.",
+      "example": "locate filename 快速查找",
+      "category": "command",
+      "level": "basic"
+    },
+    "which": {
+      "zh": "显示命令路径",
+      "pos": "v.",
+      "example": "which python 查找命令位置",
+      "category": "command",
+      "level": "basic"
+    },
+    "whereis": {
+      "zh": "查找命令/源码/手册",
+      "pos": "v.",
+      "example": "whereis ls 查找命令及文档",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "man": {
+      "zh": "查看手册",
+      "pos": "n.",
+      "example": "man ls 查看命令手册",
+      "category": "command",
+      "level": "basic"
+    },
+    "help": {
+      "zh": "帮助信息",
+      "pos": "n.",
+      "example": "ls --help 查看帮助",
+      "category": "term",
+      "level": "basic"
+    },
+    "echo": {
+      "zh": "输出文本",
+      "pos": "v.",
+      "example": "echo 'hello' 输出内容",
+      "category": "command",
+      "level": "basic"
+    },
+    "printf": {
+      "zh": "格式化输出",
+      "pos": "v.",
+      "example": "printf '%s\\n' hello 格式化输出",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "read": {
+      "zh": "读取用户输入",
+      "pos": "v.",
+      "example": "read name 读取变量",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "export": {
+      "zh": "导出环境变量",
+      "pos": "v.",
+      "example": "export PATH=$PATH:/new 导出变量",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "alias": {
+      "zh": "命令别名",
+      "pos": "n.",
+      "example": "alias ll='ls -la' 设置别名",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "history": {
+      "zh": "历史命令",
+      "pos": "n.",
+      "example": "history 查看历史命令",
+      "category": "command",
+      "level": "basic"
+    },
+    "type": {
+      "zh": "命令类型",
+      "pos": "v.",
+      "example": "type ls 查看命令类型",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "source": {
+      "zh": "加载并执行脚本",
+      "pos": "v.",
+      "example": "source ~/.bashrc 重载配置",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "env": {
+      "zh": "环境变量",
+      "pos": "n.",
+      "example": "env 查看所有环境变量",
+      "category": "command",
+      "level": "basic"
+    },
+    "file": {
+      "zh": "文件",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "directory": {
+      "zh": "目录",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "folder": {
+      "zh": "文件夹（即目录）",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "path": {
+      "zh": "路径",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "home": {
+      "zh": "家目录（用户主目录）",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "root": {
+      "zh": "根 / 超级用户（UID 0）",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "user": {
+      "zh": "用户",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "group": {
+      "zh": "用户组",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "owner": {
+      "zh": "所有者",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "permission": {
+      "zh": "权限",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "mode": {
+      "zh": "模式",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "link": {
+      "zh": "链接",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "symbolic": {
+      "zh": "符号（的）",
+      "pos": "adj.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "hard": {
+      "zh": "硬（的）",
+      "pos": "adj.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "process": {
+      "zh": "进程",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "thread": {
+      "zh": "线程",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "signal": {
+      "zh": "信号",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "daemon": {
+      "zh": "守护进程（后台服务）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "service": {
+      "zh": "服务",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "port": {
+      "zh": "端口",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "socket": {
+      "zh": "套接字",
+      "pos": "n.",
+      "category": "term",
+      "level": "advanced"
+    },
+    "kernel": {
+      "zh": "内核",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "shell": {
+      "zh": "命令解释器 / 终端",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "terminal": {
+      "zh": "终端",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "prompt": {
+      "zh": "提示符",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "command": {
+      "zh": "命令",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "argument": {
+      "zh": "参数",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "option": {
+      "zh": "选项",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "flag": {
+      "zh": "标志（即选项）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "environment": {
+      "zh": "环境",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "variable": {
+      "zh": "变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "config": {
+      "zh": "配置",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "configuration": {
+      "zh": "配置",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "log": {
+      "zh": "日志",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "error": {
+      "zh": "错误",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "warning": {
+      "zh": "警告",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "info": {
+      "zh": "信息",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "debug": {
+      "zh": "调试",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "version": {
+      "zh": "版本",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "manual": {
+      "zh": "手册",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "page": {
+      "zh": "页",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "section": {
+      "zh": "章节 / 区段",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "syntax": {
+      "zh": "语法",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "usage": {
+      "zh": "用法",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "example": {
+      "zh": "示例",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "-l": {
+      "zh": "长格式输出",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-a": {
+      "zh": "全部 / 显示隐藏",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-r": {
+      "zh": "递归 / 反向",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-f": {
+      "zh": "强制 / 实时跟踪",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-h": {
+      "zh": "人类可读 / 帮助",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-v": {
+      "zh": "详细 / 版本",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-n": {
+      "zh": "数字 / 不执行",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-i": {
+      "zh": "忽略大小写 / 交互",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-p": {
+      "zh": "父进程 / 权限",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-R": {
+      "zh": "递归处理",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-F": {
+      "zh": "追加格式化",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-t": {
+      "zh": "时间 / 标签",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-s": {
+      "zh": "静默 / 大小",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-c": {
+      "zh": "命令 / 计数",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-o": {
+      "zh": "输出到文件",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "-u": {
+      "zh": "用户 / 唯一",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-w": {
+      "zh": "警告 / 宽度",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-d": {
+      "zh": "调试 / 目录",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-e": {
+      "zh": "扩展 / 编辑",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-k": {
+      "zh": "保持 / 信号",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-m": {
+      "zh": "模式 / 消息",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-x": {
+      "zh": "排除 / 执行",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-y": {
+      "zh": "全部是 / 不询问",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-q": {
+      "zh": "静默模式",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "-z": {
+      "zh": "压缩 / 空字符串",
+      "pos": "n.",
+      "category": "option",
+      "level": "intermediate"
+    },
+    "--help": {
+      "zh": "显示帮助信息",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "--version": {
+      "zh": "显示版本号",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "--all": {
+      "zh": "全部",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "--recursive": {
+      "zh": "递归",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "--force": {
+      "zh": "强制执行",
+      "pos": "n.",
+      "category": "option",
+      "level": "basic"
+    },
+    "permission denied": {
+      "zh": "权限不足",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "command not found": {
+      "zh": "命令未找到",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "no such file or directory": {
+      "zh": "文件或目录不存在",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "is a directory": {
+      "zh": "这是一个目录（不能这样操作）",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "not a directory": {
+      "zh": "不是目录",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "connection refused": {
+      "zh": "连接被拒绝",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "connection timed out": {
+      "zh": "连接超时",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "connection reset by peer": {
+      "zh": "对端重置连接",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "no space left on device": {
+      "zh": "设备空间不足",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "operation not permitted": {
+      "zh": "操作不被允许",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "syntax error": {
+      "zh": "语法错误",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "syntax error near unexpected token": {
+      "zh": "语法错误：附近有意外的符号",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "segmentation fault": {
+      "zh": "段错误（内存越界访问）",
+      "pos": "phr.",
+      "category": "error",
+      "level": "advanced"
+    },
+    "out of memory": {
+      "zh": "内存耗尽",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "name or service not known": {
+      "zh": "主机名无法解析",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "host unreachable": {
+      "zh": "主机不可达",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "network is unreachable": {
+      "zh": "网络不可达",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "broken pipe": {
+      "zh": "管道断开",
+      "pos": "phr.",
+      "category": "error",
+      "level": "advanced"
+    },
+    "read-only file system": {
+      "zh": "只读文件系统",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "file exists": {
+      "zh": "文件已存在",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "invalid argument": {
+      "zh": "无效参数",
+      "pos": "phr.",
+      "category": "error",
+      "level": "intermediate"
+    },
+    "resource temporarily unavailable": {
+      "zh": "资源暂时不可用",
+      "pos": "phr.",
+      "category": "error",
+      "level": "advanced"
+    },
+    "authentication failure": {
+      "zh": "认证失败",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "are you sure": {
+      "zh": "你确定吗（确认提示）",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "do you want to continue": {
+      "zh": "是否继续（确认提示）",
+      "pos": "phr.",
+      "category": "error",
+      "level": "basic"
+    },
+    "etc": {
+      "zh": "系统配置目录（/etc）",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "var": {
+      "zh": "可变数据目录（/var）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "tmp": {
+      "zh": "临时目录（/tmp）",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "opt": {
+      "zh": "可选软件目录（/opt）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "proc": {
+      "zh": "进程信息伪文件系统（/proc）",
+      "pos": "n.",
+      "category": "term",
+      "level": "advanced"
+    },
+    "sys": {
+      "zh": "系统设备伪文件系统（/sys）",
+      "pos": "n.",
+      "category": "term",
+      "level": "advanced"
+    },
+    "dev": {
+      "zh": "设备文件目录（/dev）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "boot": {
+      "zh": "启动目录（/boot）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "lib": {
+      "zh": "库文件目录（/lib）",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "PATH": {
+      "zh": "命令搜索路径环境变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "HOME": {
+      "zh": "用户主目录环境变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "USER": {
+      "zh": "当前用户名环境变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "SHELL": {
+      "zh": "默认 Shell 环境变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "basic"
+    },
+    "LANG": {
+      "zh": "系统语言环境变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "PS1": {
+      "zh": "主命令提示符变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "EDITOR": {
+      "zh": "默认编辑器环境变量",
+      "pos": "n.",
+      "category": "term",
+      "level": "intermediate"
+    },
+    "systemctl": {
+      "zh": "systemd 服务管理工具",
+      "pos": "n.",
+      "example": "systemctl status nginx 查看服务状态",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "journalctl": {
+      "zh": "查看 systemd 日志",
+      "pos": "n.",
+      "example": "journalctl -u nginx 查看 nginx 日志",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "service": {
+      "zh": "SysV 服务管理（旧）",
+      "pos": "n.",
+      "example": "service nginx restart 重启服务",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "crontab": {
+      "zh": "定时任务管理",
+      "pos": "n.",
+      "example": "crontab -e 编辑定时任务",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "nohup": {
+      "zh": "忽略挂起信号运行",
+      "pos": "v.",
+      "example": "nohup ./script.sh & 后台运行",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "screen": {
+      "zh": "终端复用器（旧）",
+      "pos": "n.",
+      "example": "screen -S name 创建会话",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "tmux": {
+      "zh": "终端复用器（新）",
+      "pos": "n.",
+      "example": "tmux new -s name 创建会话",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "lsof": {
+      "zh": "列出打开的文件",
+      "pos": "n.",
+      "example": "lsof -i :80 查看 80 端口占用",
+      "category": "command",
+      "level": "advanced"
+    },
+    "strace": {
+      "zh": "跟踪系统调用",
+      "pos": "n.",
+      "example": "strace -p PID 跟踪进程",
+      "category": "command",
+      "level": "advanced"
+    },
+    "free": {
+      "zh": "查看内存使用",
+      "pos": "v.",
+      "example": "free -h 人类可读",
+      "category": "command",
+      "level": "basic"
+    },
+    "vmstat": {
+      "zh": "虚拟内存统计",
+      "pos": "n.",
+      "example": "vmstat 1 每秒刷新",
+      "category": "command",
+      "level": "advanced"
+    },
+    "iostat": {
+      "zh": "IO 统计",
+      "pos": "n.",
+      "example": "iostat -x 详细 IO 状态",
+      "category": "command",
+      "level": "advanced"
+    },
+    "lscpu": {
+      "zh": "查看 CPU 信息",
+      "pos": "n.",
+      "example": "lscpu 查看 CPU 详情",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "lsusb": {
+      "zh": "列出 USB 设备",
+      "pos": "n.",
+      "example": "lsusb 查看 USB 设备",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "lspci": {
+      "zh": "列出 PCI 设备",
+      "pos": "n.",
+      "example": "lspci 查看 PCI 设备",
+      "category": "command",
+      "level": "intermediate"
+    },
+    "lsmod": {
+      "zh": "列出已加载内核模块",
+      "pos": "n.",
+      "example": "lsmod 查看内核模块",
+      "category": "command",
+      "level": "advanced"
+    },
+    "modprobe": {
+      "zh": "加载/卸载内核模块",
+      "pos": "v.",
+      "example": "modprobe nf_conntrack 加载模块",
+      "category": "command",
+      "level": "advanced"
+    },
+    "sysctl": {
+      "zh": "运行时内核参数",
+      "pos": "n.",
+      "example": "sysctl -a 查看所有参数",
+      "category": "command",
+      "level": "advanced"
+    },
+    "ulimit": {
+      "zh": "用户资源限制",
+      "pos": "n.",
+      "example": "ulimit -n 查看最大文件数",
+      "category": "command",
+      "level": "advanced"
+    },
+    "firewall-cmd": {
+      "zh": "firewalld 防火墙管理",
+      "pos": "n.",
+      "example": "firewall-cmd --list-all 查看规则",
+      "category": "command",
+      "level": "advanced"
+    },
+    "iptables": {
+      "zh": "内核级防火墙",
+      "pos": "n.",
+      "example": "iptables -L 查看规则",
+      "category": "command",
+      "level": "advanced"
+    },
+    "semanage": {
+      "zh": "SELinux 策略管理",
+      "pos": "n.",
+      "example": "semanage port -l 查看端口标签",
+      "category": "command",
+      "level": "advanced"
+    },
+    "getsebool": {
+      "zh": "查看 SELinux 布尔值",
+      "pos": "v.",
+      "example": "getsebool -a 查看所有布尔",
+      "category": "command",
+      "level": "advanced"
+    },
+    "setsebool": {
+      "zh": "设置 SELinux 布尔值",
+      "pos": "v.",
+      "example": "setsebool httpd_can_network 1 开启",
+      "category": "command",
+      "level": "advanced"
+    },
+    "restorecon": {
+      "zh": "恢复 SELinux 默认上下文",
+      "pos": "v.",
+      "example": "restorecon -R /var/www 恢复",
+      "category": "command",
+      "level": "advanced"
+    },
+    "audit2why": {
+      "zh": "分析 SELinux 拒绝原因",
+      "pos": "n.",
+      "example": "audit2why < /var/log/audit/audit.log",
+      "category": "command",
+      "level": "advanced"
+    },
+    "audit2allow": {
+      "zh": "生成 SELinux 允许策略",
+      "pos": "n.",
+      "example": "audit2allow -M mypol < audit.log",
+      "category": "command",
+      "level": "advanced"
+    },
+    "sealert": {
+      "zh": "SELinux 故障诊断工具",
+      "pos": "n.",
+      "example": "sealert -a /var/log/audit/audit.log",
+      "category": "command",
+      "level": "advanced"
+    }
+  }
+}

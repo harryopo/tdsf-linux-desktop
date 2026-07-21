@@ -28,15 +28,20 @@ let mainWindow: BrowserWindow | null = null
  * @returns 主窗口实例
  */
 export function createMainWindow(): BrowserWindow {
-  // 创建浏览器窗口
+  // 创建浏览器窗口（v1.0：调大尺寸 + 支持全屏，适配 IDE 风格设计稿）
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 1024,
-    minHeight: 680,
+    width: 1920,
+    height: 1080,
+    minWidth: 1440,
+    minHeight: 768,
     show: false, // 等渲染进程 ready-to-show 后再显示，避免白屏
     title: 'TDSF-Linux Desktop',
     backgroundColor: '#1f1f1f',
+    // 允许用户全屏（设计稿是 IDE 风格，全屏后体验更好）
+    simpleFullscreen: true,
+    fullscreenable: true,
+    // 启用原生 Windows 最大化按钮
+    maximizable: true,
     webPreferences: {
       // 安全配置
       contextIsolation: true,
@@ -71,6 +76,16 @@ export function createMainWindow(): BrowserWindow {
 
   // 根据环境加载入口页面
   loadEntry(mainWindow)
+
+  // 监听渲染进程无响应（hang），打印日志用于排查
+  mainWindow.webContents.on('unresponsive', () => {
+    console.error('[Main] 渲染进程无响应')
+  })
+
+  // 监听渲染进程崩溃/退出
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[Main] 渲染进程退出:', details)
+  })
 
   return mainWindow
 }

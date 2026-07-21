@@ -50,9 +50,23 @@ const RULES: Rule[] = [
   },
   {
     name: 'disk_full',
-    keywords: ['no space left', 'disk full', '磁盘满', '空间不足', 'no space left on device'],
+    keywords: ['no space left', 'disk full', '磁盘满', '空间不足', 'no space left on device', '100% /', '100%/', 'use% mounted'],
     hypothesis: '磁盘空间不足',
     fixCommand: 'df -h && du -sh /var/log/* 2>/dev/null | sort -rh | head -10',
+    confidence: 0.7
+  },
+  {
+    name: 'port_conflict',
+    keywords: ['address already in use', 'errno 98', 'errno 10048', 'winerror 10048', 'bind on address', '端口被占用', '端口冲突', 'port already in use', 'only one usage of each socket address'],
+    hypothesis: '端口已被占用（端口冲突）',
+    fixCommand: "netstat -ano | findstr :<port>  # Windows\nss -tlnp | grep <port>  # Linux",
+    confidence: 0.75
+  },
+  {
+    name: 'selinux_denied',
+    keywords: ['avc: denied', 'scontext=', 'tcontext=', 'selinux', 'audit denial', 'permission denied (selinux)'],
+    hypothesis: 'SELinux 策略拒绝了访问',
+    fixCommand: "ausearch -m avc -ts recent  # 查看 SELinux 拒绝日志\nsealert -a /var/log/audit/audit.log  # 分析建议\nsetenforce 0  # 临时关闭 SELinux（仅排查用）",
     confidence: 0.7
   },
   {

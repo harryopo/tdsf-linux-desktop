@@ -13,12 +13,15 @@
  * - 无 Tab 时显示空状态提示
  */
 import { useCallback } from 'react'
-import { Dropdown, message } from 'antd'
-import { CloseOutlined, PlusOutlined } from '@ant-design/icons'
+import { Dropdown, message, Tooltip } from 'antd'
+import { CloseOutlined, PlusOutlined, TranslationOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { useTerminalStore } from '../../stores/terminal-store'
 import { useServerStore } from '../../stores/server-store'
+import { useTranslateStore } from '../../stores/translate-store'
+import { isElectronAPIAvailable } from '../../utils/electron-api'
 import TerminalView from './TerminalView'
+import SelectionPopover from './SelectionPopover'
 import './TerminalTabs.css'
 
 /** TerminalTabs 多标签终端 */
@@ -31,6 +34,9 @@ const TerminalTabs: React.FC = () => {
   const closeOtherTabs = useTerminalStore((s) => s.closeOtherTabs)
   const clearSessionMapping = useServerStore((s) => s.clearSessionMapping)
   const setConnectionState = useServerStore((s) => s.setConnectionState)
+  /** v0.8.0 翻译模块状态 */
+  const translateEnabled = useTranslateStore((s) => s.enabled)
+  const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
 
   /** 关闭 Tab */
   const handleCloseTab = useCallback(
@@ -39,8 +45,10 @@ const TerminalTabs: React.FC = () => {
       if (!tab) return
       try {
         // 停止监控并断开 SSH
-        await window.electronAPI.monitorStop(tab.sessionId)
-        await window.electronAPI.sshDisconnect(tab.sessionId)
+        if (isElectronAPIAvailable()) {
+          await window.electronAPI.monitorStop(tab.sessionId)
+          await window.electronAPI.sshDisconnect(tab.sessionId)
+        }
         // 更新服务器状态
         setConnectionState(tab.serverId, 'disconnected')
         clearSessionMapping(tab.serverId)
@@ -62,10 +70,14 @@ const TerminalTabs: React.FC = () => {
         message.warning('找不到对应的服务器配置')
         return
       }
+      if (!isElectronAPIAvailable()) {
+        message.error('electronAPI 不可用，无法创建连接')
+        return
+      }
       try {
         const sessionId = await window.electronAPI.sshConnect(server)
         await window.electronAPI.sshShellStart(sessionId)
-        await window.electronAPI.monitorStart(sessionId, 2000)
+        await window.electronAPI.monitorStart(sessionId, 2)
         useTerminalStore.getState().addTab({
           id: sessionId,
           sessionId,
@@ -145,6 +157,24 @@ const TerminalTabs: React.FC = () => {
             </Dropdown>
           ))}
         </div>
+        {/* v0.8.0 翻译开关按钮 */}
+        <div className="terminal-tabs-actions">
+          <Tooltip
+            title={translateEnabled ? '关闭终端翻译' : '开启终端翻译（鼠标滑动选词触发）'}
+            placement="bottom"
+          >
+            <button
+              className={`terminal-translate-toggle ${translateEnabled ? 'active' : ''}`}
+              onClick={toggleTranslate}
+              aria-label="切换翻译功能"
+            >
+              <TranslationOutlined />
+              <span className="terminal-translate-text">
+                {translateEnabled ? '翻译 ON' : '翻译 OFF'}
+              </span>
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       {/* ===== 终端内容区 ===== */}
@@ -157,6 +187,9 @@ const TerminalTabs: React.FC = () => {
           />
         ))}
       </div>
+
+      {/* v0.8.0 翻译浮层：全局唯一实例（避免多 Tab 渲染多份） */}
+      <SelectionPopover />
     </div>
   )
 }

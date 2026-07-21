@@ -23,12 +23,17 @@ import {
   EditOutlined,
   CopyOutlined,
   LinkOutlined,
+  RocketOutlined,
+  CloudUploadOutlined,
 } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { useServerStore } from '../../stores/server-store'
 import { useTerminalStore } from '../../stores/terminal-store'
+import { useMonitorStore } from '../../stores/monitor-store'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import ConnectDialog from './ConnectDialog'
+import ProfilerDialog from '../profiler/ProfilerDialog'
+import DeployDialog from '../deploy/DeployDialog'
 import type { SshConfig, SshConnectionState } from '@shared/models'
 import './ServerList.css'
 
@@ -67,6 +72,12 @@ const ServerList: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingServer, setEditingServer] = useState<SshConfig | null>(null)
   const [connecting, setConnecting] = useState<string | null>(null)
+  // 系统架构感知弹窗状态：profilerServer 为 null 时关闭
+  const [profilerServer, setProfilerServer] = useState<SshConfig | null>(null)
+  // Web 部署助手弹窗状态：deployServer 为 null 时关闭
+  const [deployServer, setDeployServer] = useState<SshConfig | null>(null)
+  // 记录当前服务器的 sessionId（来自 server-store）
+  const sessionMap = useServerStore((s) => s.sessionMap)
 
   /** 过滤后的服务器列表 */
   const filteredServers = useMemo(() => {
@@ -99,23 +110,55 @@ const ServerList: React.FC = () => {
         message.error('electronAPI 不可用，无法连接服务器')
         return
       }
+      // 调试日志：检查 server 对象中的关键字段
+      console.log('[ServerList] handleConnect server:', {
+        host: server.host,
+        port: server.port,
+        username: server.username,
+        authType: server.authType,
+        hasPassword: !!server.password,
+        hasPrivateKey: !!server.privateKey,
+        name: server.name,
+        id: server.id,
+      })
       setConnecting(server.id)
       setConnectionState(server.id, 'connecting')
       try {
+        // Step 1: 建立 SSH 连接
+        console.log('[ServerList] Step 1: 正在建立 SSH 连接...')
         const sessionId = await window.electronAPI.sshConnect(server)
-        // 启动交互式 Shell
-        await window.electronAPI.sshShellStart(sessionId)
-        // 启动监控
-        await window.electronAPI.monitorStart(sessionId, 2000)
-        // 获取系统信息
-        const sysInfo = await window.electronAPI.monitorGetSystemInfo(sessionId)
+        console.log('[ServerList] Step 1: SSH 连接成功, sessionId =', sessionId)
+
+        // Step 2: 启动交互式 Shell（独立 try-catch，失败不影响连接状态）
+        try {
+          console.log('[ServerList] Step 2: 正在启动 Shell...')
+          await window.electronAPI.sshShellStart(sessionId)
+          console.log('[ServerList] Step 2: Shell 启动成功')
+        } catch (shellErr) {
+          console.error('[ServerList] 启动 Shell 失败:', shellErr)
+          message.warning(`Shell 启动失败: ${shellErr instanceof Error ? shellErr.message : String(shellErr)}`)
+        }
+
+        // Step 3: 启动监控（间隔3秒）
+        // 系统信息由主进程首次 tick 时自动推送（onMonitorSystemInfo 事件）
+        // MonitorPanel 也有启动保障机制，这里失败只是兜底
+        try {
+          console.log('[ServerList] Step 3: 正在启动监控...')
+          await window.electronAPI.monitorStart(sessionId, 3)
+          console.log('[ServerList] Step 3: 监控启动成功')
+        } catch (monitorErr) {
+          console.error('[ServerList] 启动监控失败:', monitorErr)
+          // 不弹 message.warning，因为 MonitorPanel 挂载时会重试并显示错误
+        }
 
         // 更新状态
+        console.log('[ServerList] 正在更新 UI 状态...')
         setConnectionState(server.id, 'connected')
         setSessionMapping(server.id, sessionId)
         setActiveSession(sessionId)
 
         // 创建终端 Tab
+        console.log('[ServerList] 正在创建终端 Tab...')
         addTab({
           id: sessionId,
           sessionId,
@@ -124,10 +167,7 @@ const ServerList: React.FC = () => {
           active: true,
           createdAt: Date.now(),
         })
-
-        // 存储系统信息到 monitor store
-        const { useMonitorStore } = await import('../../stores/monitor-store')
-        useMonitorStore.getState().setSystemInfo(sessionId, sysInfo)
+        console.log('[ServerList] 终端 Tab 创建成功')
 
         message.success(`已连接到 ${server.name}`)
       } catch (error) {
@@ -150,17 +190,24 @@ const ServerList: React.FC = () => {
         return
       }
       try {
+        // 先停止监控，再断开 SSH
         await window.electronAPI.monitorStop(sessionId)
         await window.electronAPI.sshDisconnect(sessionId)
         setConnectionState(server.id, 'disconnected')
         clearSessionMapping(server.id)
+        // 清理 monitor-store 中该会话的历史数据，避免重连时显示旧数据
+        useMonitorStore.getState().clearMonitorData(sessionId)
         useTerminalStore.getState().removeTab(sessionId)
+        // 如果断开的是当前活跃会话，清空 activeSessionId
+        if (useServerStore.getState().activeSessionId === sessionId) {
+          setActiveSession(null)
+        }
         message.success(`已断开 ${server.name}`)
       } catch (error) {
         message.error(`断开失败: ${error instanceof Error ? error.message : String(error)}`)
       }
     },
-    [setConnectionState, clearSessionMapping]
+    [setConnectionState, clearSessionMapping, setActiveSession]
   )
 
   /** 编辑服务器 */
@@ -201,6 +248,32 @@ const ServerList: React.FC = () => {
     [addServer]
   )
 
+  /** 系统架构感知：弹出 ProfilerDialog */
+  const handleProfile = useCallback(
+    (server: SshConfig) => {
+      const state = connectionStates[server.id] ?? 'disconnected'
+      if (state !== 'connected') {
+        message.warning('请先连接服务器再进行系统架构感知')
+        return
+      }
+      setProfilerServer(server)
+    },
+    [connectionStates]
+  )
+
+  /** Web 部署：弹出 DeployDialog */
+  const handleDeploy = useCallback(
+    (server: SshConfig) => {
+      const state = connectionStates[server.id] ?? 'disconnected'
+      if (state !== 'connected') {
+        message.warning('请先连接服务器再使用 Web 部署助手')
+        return
+      }
+      setDeployServer(server)
+    },
+    [connectionStates]
+  )
+
   /** 右键菜单项 */
   const getContextMenu = useCallback(
     (server: SshConfig): MenuProps['items'] => {
@@ -219,6 +292,21 @@ const ServerList: React.FC = () => {
             }
           },
         },
+        {
+          key: 'profile',
+          label: '系统架构感知',
+          icon: <RocketOutlined />,
+          disabled: !isConnected,
+          onClick: () => handleProfile(server),
+        },
+        {
+          key: 'deploy',
+          label: 'Web 部署助手',
+          icon: <CloudUploadOutlined />,
+          disabled: !isConnected,
+          onClick: () => handleDeploy(server),
+        },
+        { type: 'divider' },
         {
           key: 'edit',
           label: '编辑',
@@ -241,7 +329,7 @@ const ServerList: React.FC = () => {
         },
       ]
     },
-    [connectionStates, handleConnect, handleDisconnect, handleEdit, handleCopy, handleDelete]
+    [connectionStates, handleConnect, handleDisconnect, handleEdit, handleCopy, handleDelete, handleProfile, handleDeploy]
   )
 
   /** 新建连接 */
@@ -357,6 +445,26 @@ const ServerList: React.FC = () => {
           setDialogOpen(false)
           setEditingServer(null)
         }}
+      />
+
+      {/* ===== 系统架构感知对话框 ===== */}
+      <ProfilerDialog
+        open={profilerServer !== null}
+        sessionId={
+          profilerServer ? (sessionMap[profilerServer.id] ?? null) : null
+        }
+        host={profilerServer?.name ?? ''}
+        onClose={() => setProfilerServer(null)}
+      />
+
+      {/* ===== Web 部署助手对话框 ===== */}
+      <DeployDialog
+        open={deployServer !== null}
+        sessionId={
+          deployServer ? (sessionMap[deployServer.id] ?? null) : null
+        }
+        host={deployServer?.name ?? ''}
+        onClose={() => setDeployServer(null)}
       />
     </div>
   )

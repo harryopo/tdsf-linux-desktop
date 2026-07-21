@@ -219,6 +219,10 @@ export class KnowledgeRepository {
   importEntries(entries: KnowledgeEntry[]): number {
     let successCount = 0
     const raw = this.db.getRawConnection()
+    if (!raw) {
+      // 数据库不可用时返回 0
+      return 0
+    }
     const transaction = raw.transaction(() => {
       for (const entry of entries) {
         try {

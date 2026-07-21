@@ -1,91 +1,23 @@
 /**
- * 三栏主布局组件 - MainLayout
+ * MainLayout — v1.0 极简主布局
  *
- * 布局结构（苹果极简风格）：
- * ┌─────────────────────────────────────────────────────────┐
- * │                    顶部导航栏 (48px)                       │
- * ├──────────┬───────────────────────────┬──────────────────┤
- * │ 左栏      │     中栏（Outlet 路由出口）  │   右栏            │
- * │ 240px    │     flex-1                 │   360px          │
- * │ 服务器    │  终端/监控/设置/历史/知识库  │   AI助手对话      │
- * │ 列表      │                           │                  │
- * └──────────┴───────────────────────────┴──────────────────┘
+ * 设计稿每个页面都是自包含的完整布局（含自己的顶部栏 + 侧边栏 + 状态栏），
+ * 因此 MainLayout 只需提供 <Outlet />，不要包裹任何外层栏，避免与页面内部栏重复。
  *
- * 设计要点：
- * - 细线条分割（1px #e5e5e7）
- * - 大量留白
- * - 8px 圆角
- * - 无阴影装饰
+ * 之前版本（v1.0 批次 1）在这里加了 Header + ActivityRail + StatusBar，
+ * 导致 WorkbenchPage 内部已有的 ActivityRail 出现"双层侧边栏"，违反设计稿。
+ *
+ * 修复策略：MainLayout 退化为纯 Outlet 容器，让每个页面自己管理布局。
+ *
+ * 暗色模式默认开启（在 main.tsx 中 document.documentElement.classList.add('dark')）。
  */
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Tabs } from 'antd'
-import {
-  HomeOutlined,
-  SettingOutlined,
-  HistoryOutlined,
-  BookOutlined,
-} from '@ant-design/icons'
-import ServerList from './ServerList'
-import ChatPanel from '../ai/ChatPanel'
-import './MainLayout.css'
+import { Outlet } from 'react-router-dom'
 
-/** 顶部导航标签配置 */
-const NAV_ITEMS = [
-  { key: '/', label: '工作台', icon: <HomeOutlined /> },
-  { key: '/history', label: '历史决策', icon: <HistoryOutlined /> },
-  { key: '/knowledge', label: '知识库', icon: <BookOutlined /> },
-  { key: '/settings', label: '设置', icon: <SettingOutlined /> },
-]
-
-/** MainLayout 主布局组件 */
+/** MainLayout 极简主布局（纯 Outlet 容器） */
 const MainLayout: React.FC = () => {
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  /** 当前激活的导航 key */
-  const activeKey = location.pathname
-
   return (
-    <div className="main-layout">
-      {/* ===== 顶部导航栏 ===== */}
-      <header className="main-layout-header">
-        <div className="main-layout-logo">
-          <span className="logo-text">TDSF</span>
-          <span className="logo-subtitle">Linux Desktop</span>
-        </div>
-        <Tabs
-          activeKey={activeKey}
-          onChange={navigate}
-          items={NAV_ITEMS.map((item) => ({
-            key: item.key,
-            label: (
-              <span className="nav-tab-label">
-                {item.icon}
-                <span>{item.label}</span>
-              </span>
-            ),
-          }))}
-          className="main-layout-nav"
-        />
-      </header>
-
-      {/* ===== 三栏内容区 ===== */}
-      <div className="main-layout-body">
-        {/* 左栏：服务器列表 */}
-        <aside className="main-layout-left">
-          <ServerList />
-        </aside>
-
-        {/* 中栏：路由页面出口 */}
-        <main className="main-layout-center">
-          <Outlet />
-        </main>
-
-        {/* 右栏：AI 助手对话面板 */}
-        <aside className="main-layout-right">
-          <ChatPanel />
-        </aside>
-      </div>
+    <div className="h-screen w-screen overflow-hidden bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)]">
+      <Outlet />
     </div>
   )
 }

@@ -1,0 +1,93 @@
+/**
+ * AtCommandBadge 样式 - 消息气泡中的 @命令徽章
+ *
+ * 设计：
+ * - 比 Chip 更小（高度 22px）
+ * - 只读展示，无删除按钮
+ * - 内嵌在 AI 消息气泡内
+ * - 柔和背景 + 主色边框
+ */
+
+.at-command-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  background: var(--color-link-alpha-10);
+  border: 1px solid var(--color-link-alpha-20);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: all var(--duration-fast) var(--ease-out-quad);
+  font-family: var(--font-family);
+  margin: 2px 4px 2px 0;
+}
+
+.at-command-badge:hover {
+  background: var(--color-link-alpha-15);
+  border-color: var(--color-link);
+  transform: translateY(-1px);
+}
+
+.at-command-badge-icon {
+  font-size: 11px;
+  color: var(--color-link);
+  flex-shrink: 0;
+}
+
+.at-command-badge-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* ===== Popover 内容（与 Chip 复用样式结构，命名独立） ===== */
+.at-badge-popover {
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.at-badge-popover-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.at-badge-popover-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.at-badge-popover-code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  background: var(--color-bg-inset);
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border);
+}
+
+.at-badge-popover-pre {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  background: var(--color-bg-inset);
+  padding: 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border);
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  line-height: var(--line-height-code);
+}

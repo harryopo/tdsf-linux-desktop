@@ -310,6 +310,101 @@ export class SftpManager {
     }
   }
 
+  /**
+   * 读取远程文件内容到字符串（v0.8 IDE 工作台）
+   *
+   * 使用流式读取，先 stat 检查大小，超过 maxSize 拒绝。
+   * 适用于代码编辑器加载文件场景。
+   *
+   * @param sessionId SSH 会话 ID
+   * @param remotePath 远程文件路径
+   * @param maxSize 最大字节数（默认 10MB），超过抛错
+   * @returns 文件内容字符串（utf-8 编码）
+   */
+  public async readFile(
+    sessionId: string,
+    remotePath: string,
+    maxSize: number = 10 * 1024 * 1024
+  ): Promise<string> {
+    const sftp = await this.openSftp(sessionId)
+    try {
+      // 先 stat 判断大小和类型
+      const stat = await this.statInternal(sftp, remotePath)
+      if (!stat) {
+        throw new Error(`远程文件不存在: ${remotePath}`)
+      }
+      if (!stat.isFile) {
+        throw new Error(`不是文件，无法读取: ${remotePath}`)
+      }
+      if (stat.size > maxSize) {
+        throw new Error(
+          `文件过大 (${(stat.size / 1024 / 1024).toFixed(2)} MB)，超过 ${(
+            maxSize /
+            1024 /
+            1024
+          ).toFixed(0)} MB 限制`
+        )
+      }
+      // 流式读取到 Buffer，再转 utf-8 字符串
+      return await new Promise<string>((resolve, reject) => {
+        const chunks: Buffer[] = []
+        const readStream = sftp.createReadStream(remotePath, {
+          highWaterMark: SFTP_BUFFER_SIZE,
+          encoding: undefined, // 强制返回 Buffer
+        })
+        readStream.on('data', (chunk: Buffer | string) => {
+          // chunk 可能是 Buffer 或 string，统一转 Buffer
+          const buf =
+            typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer)
+          chunks.push(buf)
+        })
+        readStream.on('error', (err: Error) => {
+          reject(new Error(`读取远程文件失败 '${remotePath}': ${err.message}`))
+        })
+        readStream.on('close', () => {
+          resolve(Buffer.concat(chunks).toString('utf-8'))
+        })
+      })
+    } finally {
+      this.closeSftp(sftp)
+    }
+  }
+
+  /**
+   * 写入字符串到远程文件（v0.8 IDE 工作台）
+   *
+   * 使用流式写入，覆盖原文件内容。适用于代码编辑器保存场景。
+   *
+   * @param sessionId SSH 会话 ID
+   * @param remotePath 远程文件路径
+   * @param content 文件内容字符串
+   * @returns 是否成功
+   */
+  public async writeFile(
+    sessionId: string,
+    remotePath: string,
+    content: string
+  ): Promise<boolean> {
+    const sftp = await this.openSftp(sessionId)
+    try {
+      return await new Promise<boolean>((resolve, reject) => {
+        const writeStream = sftp.createWriteStream(remotePath, {
+          highWaterMark: SFTP_BUFFER_SIZE,
+        })
+        writeStream.on('error', (err: Error) => {
+          reject(new Error(`写入远程文件失败 '${remotePath}': ${err.message}`))
+        })
+        writeStream.on('close', () => {
+          resolve(true)
+        })
+        // 写入字符串并结束流（writeStream.end 会自动 flush）
+        writeStream.end(content, 'utf-8')
+      })
+    } finally {
+      this.closeSftp(sftp)
+    }
+  }
+
   // ------------------------------------------------------------------
   // 内部实现
   // ------------------------------------------------------------------

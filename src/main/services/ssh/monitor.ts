@@ -27,8 +27,11 @@ import { EventEmitter } from 'node:events'
 import { SshConnectionManager } from './connection-manager'
 import type { MonitorData, SystemInfo } from '@shared/models'
 
-/** 监控事件名 */
+/** 监控数据事件名（实时指标推送） */
 export const MONITOR_DATA_EVENT = 'monitor:data'
+
+/** 系统信息事件名（静态信息推送，首次采集时触发） */
+export const MONITOR_SYSTEM_INFO_EVENT = 'monitor:systemInfo'
 
 /** 单个会话的监控状态 */
 interface MonitorState {
@@ -188,11 +191,11 @@ export class SystemMonitor extends EventEmitter {
       }
     }
 
-    // 内存总量（字节）
+    // 内存总量（字节，free -b 直接返回字节）
     const totalMemory = parseInt(memInfo.trim(), 10) || 0
-    // 磁盘总量（字节 → GB）
-    const totalDiskBytes = parseInt(diskInfo.trim(), 10) || 0
-    const totalDisk = Math.floor(totalDiskBytes / (1024 * 1024 * 1024))
+    // 磁盘总量（字节，df -B1 返回字节）
+    // 注意：保持字节单位与 totalMemory 一致，前端使用 formatBytes 统一格式化
+    const totalDisk = parseInt(diskInfo.trim(), 10) || 0
 
     return {
       hostname: hostname.trim(),
@@ -218,6 +221,20 @@ export class SystemMonitor extends EventEmitter {
     callback: (sessionId: string, data: MonitorData) => void
   ): void {
     this.on(MONITOR_DATA_EVENT, callback)
+  }
+
+  /**
+   * 注册系统信息回调
+   *
+   * 首次采集到系统静态信息时触发回调，参数为 (sessionId, info)。
+   * IPC 层用此回调把系统信息转发到渲染进程，避免渲染进程额外 invoke 请求。
+   *
+   * @param callback 回调函数
+   */
+  public onSystemInfo(
+    callback: (sessionId: string, info: SystemInfo) => void
+  ): void {
+    this.on(MONITOR_SYSTEM_INFO_EVENT, callback)
   }
 
   /** 停止所有监控（应用退出时调用） */
@@ -246,10 +263,16 @@ export class SystemMonitor extends EventEmitter {
     // 首次采集系统静态信息（不阻塞本次指标采集）
     if (!state.systemInfoCollected) {
       state.systemInfoCollected = true
-      this.getSystemInfo(sessionId).catch(() => {
-        // 系统信息采集失败不影响后续重试
-        state.systemInfoCollected = false
-      })
+      // 异步采集系统信息，成功后通过事件推送给渲染进程
+      this.getSystemInfo(sessionId)
+        .then((info) => {
+          // 推送系统信息到 IPC 层 → 渲染进程
+          this.emit(MONITOR_SYSTEM_INFO_EVENT, sessionId, info)
+        })
+        .catch(() => {
+          // 系统信息采集失败不影响后续重试
+          state.systemInfoCollected = false
+        })
     }
 
     const currentTimestamp = Date.now()

@@ -1,10 +1,13 @@
 /**
- * SettingsPage 设置页面样式
+ * SettingsPage 设置页面样式 v2.0 — 生产交付级极致美学
  *
- * 苹果极简风格：
+ * 设计原理（WHY）：
  * - 左侧垂直 Tab 导航
  * - 右侧表单区域大量留白
- * - 细线条分割，8px 圆角
+ * - 分组间距 42px（黄金比例）
+ * - Section 标题字距 -0.02em
+ * - 输入框高度 40px
+ * - 表单垂直布局 + label 右对齐
  */
 
 /* ===== 设置页容器 ===== */
@@ -12,6 +15,12 @@
   height: 100%;
   background-color: var(--color-bg-card);
   overflow: auto;
+  animation: fadeIn var(--duration-slow) var(--ease-out-expo);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ===== Tab 导航 ===== */
@@ -20,60 +29,138 @@
 }
 
 .settings-tabs .ant-tabs-nav {
-  padding: 16px 8px;
-  min-width: 180px;
+  padding: var(--space-4) var(--space-2);
+  min-width: 200px;
 }
 
 .settings-tab-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: var(--space-2);
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 .settings-tabs .ant-tabs-content {
-  padding: 24px 32px;
+  padding: var(--space-6) var(--space-8);  /* 26px 42px 极致留白 */
   overflow-y: auto;
 }
 
-/* ===== 区块容器 ===== */
+/* ===== 区块容器（v2.0：分组间距 42px） ===== */
 .settings-section {
-  max-width: 640px;
+  max-width: 720px;
+  margin-bottom: var(--space-8);     /* 42px 黄金比例 */
+  /* 错位进入 */
+  animation: fadeInUpStagger 200ms cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+
+@keyframes fadeInUpStagger {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .settings-section-header {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-5);     /* 21px */
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .settings-section-header h3 {
-  margin: 0 0 4px 0;
-  font-size: 20px;
-  font-weight: 600;
+  margin: 0 0 var(--space-1) 0;
+  font-size: var(--font-size-lg);    /* 20px */
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-tight);  /* -0.02em */
+  line-height: var(--line-height-snug);
+}
+
+.settings-section-header p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  letter-spacing: var(--letter-spacing-normal);
 }
 
 .settings-section-toolbar {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-/* ===== 表单 ===== */
+/* ===== 表单（v2.0：label 右对齐） ===== */
 .settings-form {
-  max-width: 480px;
+  max-width: 560px;
 }
 
 .settings-form-row {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .settings-form-row .ant-form-item {
   flex: 1;
 }
 
+/* v2.0：所有输入框高度 40px（黄金比例） */
+.settings-form .ant-input,
+.settings-form .ant-input-affix-wrapper,
+.settings-form .ant-input-number,
+.settings-form .ant-select {
+  min-height: 40px;
+}
+
+.settings-form .ant-input,
+.settings-form .ant-input-affix-wrapper {
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  transition: all var(--duration-base) var(--ease-out-quad);
+}
+
+.settings-form .ant-input:focus,
+.settings-form .ant-input-affix-wrapper:focus,
+.settings-form .ant-input-affix-wrapper-focused,
+.settings-form .ant-input-number:focus,
+.settings-form .ant-input-number-focused,
+.settings-form .ant-select-focused .ant-select-selector {
+  border-color: var(--color-link);
+  box-shadow: none;
+}
+
+/* label 右对齐（v2.0 升级：更紧凑） */
+.settings-form .ant-form-item-label {
+  text-align: right;
+}
+
+.settings-form .ant-form-item-label > label {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.settings-form .ant-form-item-explain-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  margin-top: var(--space-1);
+}
+
+/* 收紧表单项上下间距 */
+.settings-form .ant-form-item {
+  margin-bottom: var(--space-3);
+}
+
+.settings-form .ant-form-item-label {
+  padding-bottom: var(--space-1);
+}
+
 /* ===== 内联表单 ===== */
 .settings-inline-form {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 /* ===== 表格 ===== */
@@ -81,81 +168,122 @@
   background-color: var(--color-bg-card);
   border-radius: var(--radius-md);
   overflow: hidden;
+  border: 1px solid var(--color-border);
 }
 
 .settings-table .ant-table {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+}
+
+.settings-table .ant-table-thead > tr > th {
+  background: var(--color-bg-primary);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-table .ant-table-tbody > tr {
+  transition: background var(--duration-fast) var(--ease-out-quad);
+}
+
+.settings-table .ant-table-tbody > tr:hover {
+  background: var(--color-link-alpha-10) !important;
 }
 
 /* ===== 标签列表 ===== */
 .settings-tags-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 /* ===== 关于信息 ===== */
 .settings-about-info {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .settings-about-row {
   display: flex;
-  gap: 16px;
-  font-size: 14px;
+  gap: var(--space-4);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-about-row:last-child {
+  border-bottom: none;
 }
 
 .settings-about-row :first-child {
-  min-width: 80px;
+  min-width: 100px;
   flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wider);
 }
 
-/* ===== 外观主题区块 ===== */
+.settings-about-row :last-child {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* ===== 外观主题区块（v2.0 升级：精致卡片） ===== */
 .settings-appearance-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  margin-bottom: 16px;
-  max-width: 480px;
+  margin-bottom: var(--space-4);
+  max-width: 560px;
+  transition: all var(--duration-base) var(--ease-out-quad);
+}
+
+.settings-appearance-row:hover {
+  box-shadow: var(--shadow-sm);
 }
 
 .settings-appearance-label {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .settings-appearance-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--color-bg-primary);
+  background: var(--color-link-alpha-10);
   color: var(--color-link);
-  font-size: 18px;
+  font-size: var(--font-size-md);
 }
 
 .settings-appearance-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+  letter-spacing: var(--letter-spacing-tight);
 }
 
 .settings-appearance-desc {
-  font-size: 12px;
-  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
   margin-top: 2px;
+  letter-spacing: var(--letter-spacing-normal);
 }
 
 .settings-appearance-actions {
   display: flex;
-  gap: 8px;
-  max-width: 480px;
+  gap: var(--space-2);
+  max-width: 560px;
 }
