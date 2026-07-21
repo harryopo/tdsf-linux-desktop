@@ -73,7 +73,15 @@ export function StatusBar() {
       ? 'var(--trae-text-brand)'
       : 'var(--trae-text-tertiary)'
 
-  const todayTokens = tokenStats.today
+  // 设计稿示例：Ln 42, Col 16 / nginx.conf
+  // TODO(editor-cursor): Monaco editor 接入后从 editor.onDidChangeCursorPosition 实时更新
+  const cursorLine = 42
+  const cursorColumn = 16
+  // TODO(active-file): WorkbenchPage 激活文件路径接入后自动更新
+  const fileName = activeServer?.name || activeServer?.host || 'nginx.conf'
+
+  // 保留 tokenStats 引用以备未来在状态栏扩展（如本次会话消耗）
+  void tokenStats
 
   return (
     <footer
@@ -109,35 +117,33 @@ export function StatusBar() {
         </StatusItem>
       </div>
 
-      {/* === 右侧：会话信息 === */}
+      {/* === 右侧：会话信息（设计稿行 3316-3327） === */}
       <div className="flex items-center gap-1">
-        <StatusItem>
+        <StatusItem title="光标位置（编辑器集成后自动更新）">
           <span>
-            今日{' '}
-            <span className="text-[var(--trae-text-default)]">
-              {todayTokens.toLocaleString()}
-            </span>{' '}
-            tok
+            Ln <span className="tabular-nums">{cursorLine}</span>, Col{' '}
+            <span className="tabular-nums">{cursorColumn}</span>
           </span>
         </StatusItem>
-        <StatusItem>
+        <StatusItem title="文件编码">
           <span>UTF-8</span>
         </StatusItem>
-        <StatusItem>
+        <StatusItem title="当前文件">
           <Code className="size-3" />
-          <span>{activeServer ? activeServer.name || activeServer.host : '—'}</span>
+          <span className="max-w-[120px] truncate">{fileName}</span>
         </StatusItem>
-        <StatusItem>
-          <Zap
-            className="size-3"
-            style={{
-              color:
-                connState === 'connected'
-                  ? 'var(--trae-status-success-default)'
-                  : 'var(--trae-text-tertiary)',
-            }}
-          />
-          <span>{connState === 'connected' ? '在线' : '离线'}</span>
+        <StatusItem
+          title="P99 延迟（监控接入后自动更新）"
+          color={
+            connState === 'connected'
+              ? 'var(--trae-status-success-default)'
+              : 'var(--trae-text-tertiary)'
+          }
+        >
+          <Zap className="size-3" />
+          <span className="tabular-nums">
+            {connState === 'connected' ? 'P99 180ms' : 'P99 —'}
+          </span>
         </StatusItem>
       </div>
     </footer>
