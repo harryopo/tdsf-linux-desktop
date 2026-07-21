@@ -25,6 +25,8 @@ import { DatabaseManager, resolveDbPath } from './services/db/database'
 import { loadTutorialSeeds } from './services/tutorial/seed-loader'
 // P-4 恢复方案 A：主进程启动时预热 sessionKeyMap 缓存（恢复主进程重启前活跃的沙箱 key）
 import { warmupSessionKeyCache } from './ipc/sandbox'
+// Phase 6 Task 6.5：调度器初始化（定时任务自动化：每日巡检 / 归档 / 周报）
+import { initScheduler, cleanupScheduler } from './ipc/scheduler'
 import { initLogger, logger } from './services/log/logger'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
@@ -92,6 +94,11 @@ app.whenReady().then(() => {
 
   // 2. 注册所有 IPC handlers（需要 mainWindow 用于事件推送 + db 用于教程/知识库）
   registerAllIpcHandlers(mainWindow, db)
+
+  // 2.1 Phase 6 Task 6.5：初始化调度器（注册 3 个定时任务 + 启动引擎 + 设置状态推送）
+  //     必须在 IPC handlers 注册之后调用（scheduler:status push 通道依赖 BrowserWindow 已创建）
+  //     必须在 app.whenReady() 之后调用（Scheduler 内部使用 setInterval，Electron API 可用）
+  initScheduler()
 
   // 3. P-4 恢复方案 A：异步预热 sessionKeyMap 缓存
   //    不 await（不阻塞应用启动），后台执行即可
@@ -165,6 +172,12 @@ async function handleBeforeQuit(): Promise<void> {
   try {
     // 关闭 Langfuse 客户端（确保 trace 落盘）
     await LangfuseService.getInstance().shutdown()
+  } catch {
+    // 忽略清理异常
+  }
+  try {
+    // Phase 6 Task 6.5：清理调度器（停止轮询 + 清空任务 + 移除监听）
+    cleanupScheduler()
   } catch {
     // 忽略清理异常
   }

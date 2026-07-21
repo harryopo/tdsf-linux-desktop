@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-21T21:22:12.871Z",
+  "lastUpdated": "2026-07-21T21:25:15.476Z",
   "sessions": {
     "ai-glm-20260722-task62": {
       "aiName": "ai-glm-20260722-task62",
@@ -18,6 +18,46 @@
         }
       ],
       "expiresAt": "2026-07-22T00:58:01.757Z"
+    },
+    "ai-glm-20260722-task65": {
+      "aiName": "ai-glm-20260722-task65",
+      "sessionId": "ai-glm-20260722-task65",
+      "startedAt": "2026-07-21T21:25:15.147Z",
+      "lastActiveAt": "2026-07-21T21:25:15.476Z",
+      "task": "Task6.5 scheduler IPC",
+      "claimedFiles": [
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "Task6.5 scheduler IPC",
+          "claimedAt": "2026-07-21T21:25:15.147Z"
+        },
+        {
+          "path": "src/main/ipc/scheduler.ts",
+          "task": "Task6.5 scheduler IPC",
+          "claimedAt": "2026-07-21T21:25:15.219Z"
+        },
+        {
+          "path": "src/main/ipc/index.ts",
+          "task": "Task6.5 scheduler IPC",
+          "claimedAt": "2026-07-21T21:25:15.285Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "Task6.5 scheduler IPC",
+          "claimedAt": "2026-07-21T21:25:15.346Z"
+        },
+        {
+          "path": "src/preload/index.d.ts",
+          "task": "Task6.5 scheduler IPC",
+          "claimedAt": "2026-07-21T21:25:15.411Z"
+        },
+        {
+          "path": "src/main/index.ts",
+          "task": "Task6.5 scheduler IPC",
+          "claimedAt": "2026-07-21T21:25:15.476Z"
+        }
+      ],
+      "expiresAt": "2026-07-21T23:25:15.476Z"
     }
   },
   "history": [
@@ -1805,6 +1845,48 @@
       "file": "scripts/test-weekly-ops-report.ts",
       "task": "Task-6.4 weekly-ops-report test",
       "timestamp": "2026-07-21T21:22:12.871Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task65",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "Task6.5 scheduler IPC",
+      "timestamp": "2026-07-21T21:25:15.147Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task65",
+      "action": "claim",
+      "file": "src/main/ipc/scheduler.ts",
+      "task": "Task6.5 scheduler IPC",
+      "timestamp": "2026-07-21T21:25:15.219Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task65",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "Task6.5 scheduler IPC",
+      "timestamp": "2026-07-21T21:25:15.285Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task65",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "Task6.5 scheduler IPC",
+      "timestamp": "2026-07-21T21:25:15.346Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task65",
+      "action": "claim",
+      "file": "src/preload/index.d.ts",
+      "task": "Task6.5 scheduler IPC",
+      "timestamp": "2026-07-21T21:25:15.411Z"
+    },
+    {
+      "sessionId": "ai-glm-20260722-task65",
+      "action": "claim",
+      "file": "src/main/index.ts",
+      "task": "Task6.5 scheduler IPC",
+      "timestamp": "2026-07-21T21:25:15.476Z"
     }
   ]
 }

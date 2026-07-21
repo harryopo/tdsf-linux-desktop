@@ -132,6 +132,9 @@ import type {
   AtCommandSource,
   AtCommandType,
 } from '@shared/at-command-types'
+// Phase 6 Task 6.5：调度器共享类型 + IPC 通道常量
+import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
+import { SCHEDULER } from '@shared/ipc-channels'
 
 // ============================================================================
 // v0.9.6 Sprint 7 任务 E：混合检索结果类型（内联定义，与 main/services/tutorial/hybrid-search.ts 保持一致）
@@ -1400,6 +1403,57 @@ const providerInfo = {
 }
 
 // ============================================================================
+// Phase 6 Task 6.5：调度器 invoke 调用（定时任务自动化）
+// ============================================================================
+
+/**
+ * 调度器 invoke 调用
+ *
+ * 通道与主进程 ipc/scheduler.ts 一一对应：
+ * - scheduler:list    → list（查询所有定时任务状态）
+ * - scheduler:toggle  → toggle（启用/禁用指定任务）
+ * - scheduler:trigger → trigger（立即触发指定任务，不等 cron 时间）
+ *
+ * 使用场景：
+ * - GeneralSettings / SchedulerPanel 展示 3 个定时任务卡片
+ * - 用户切换任务启用状态（toggle）
+ * - 用户手动触发任务（trigger，用于演示 / 手动重试）
+ *
+ * push 通道（scheduler:status）通过 onSchedulerStatusChange 监听，
+ * 任务执行后主进程主动推送状态更新到渲染层。
+ */
+const scheduler = {
+  /**
+   * 查询所有定时任务状态
+   *
+   * @returns SchedulerTaskStatus[]（3 个任务：daily-health-check / daily-decision-archive / weekly-ops-report）
+   */
+  list: (): Promise<SchedulerTaskStatus[]> =>
+    ipcRenderer.invoke(SCHEDULER.LIST),
+
+  /**
+   * 启用/禁用指定任务
+   *
+   * @param taskId 任务 ID（受控枚举）
+   * @param enabled 是否启用
+   * @returns 更新后的 SchedulerTaskStatus（任务不存在时返回 null）
+   */
+  toggle: (taskId: string, enabled: boolean): Promise<SchedulerTaskStatus | null> =>
+    ipcRenderer.invoke(SCHEDULER.TOGGLE, taskId, enabled),
+
+  /**
+   * 立即触发指定任务（不等 cron 时间）
+   *
+   * 用于演示 / 手动重试场景。任务正在执行时返回上次结果避免并发重复。
+   *
+   * @param taskId 任务 ID
+   * @returns TaskResult（含 success / summary / details / durationMs / error）
+   */
+  trigger: (taskId: string): Promise<TaskResult> =>
+    ipcRenderer.invoke(SCHEDULER.TRIGGER, taskId),
+}
+
+// ============================================================================
 // 事件监听封装（主 → 渲染，单向推送）
 // ============================================================================
 
@@ -1590,6 +1644,21 @@ const on = {
   },
   loopError: (callback: (payload: unknown) => void): (() => void) => {
     return createListener('loop:error', callback)
+  },
+
+  // Phase 6 Task 6.5：调度器状态变更推送（主 → 渲染）
+  /**
+   * 监听调度器任务状态变更
+   *
+   * 主进程在任务 task-start / task-done / task-error 事件触发后，
+   * 通过 scheduler:status 通道推送最新 SchedulerTaskStatus 到渲染层。
+   * 渲染层据此更新任务卡片（lastRunAt / lastResult / nextRunAt）。
+   *
+   * @param callback 回调函数，接收变更后的 SchedulerTaskStatus
+   * @returns 取消监听函数（在 React useEffect cleanup 中调用）
+   */
+  schedulerStatus: (callback: (status: SchedulerTaskStatus) => void): (() => void) => {
+    return createListener(SCHEDULER.STATUS, callback)
   },
 }
 
@@ -2342,6 +2411,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('loop:error', handler)
     return () => { ipcRenderer.off('loop:error', handler) }
   },
+
+  // ===== Phase 6 Task 6.5：调度器扁平化（定时任务自动化）=====
+  // 通道与主进程 ipc/scheduler.ts 一一对应；UI 调用方式：
+  //   const tasks = await window.electronAPI.schedulerList()
+  //   await window.electronAPI.schedulerToggle('daily-health-check', false)
+  //   const result = await window.electronAPI.schedulerTrigger('daily-health-check')
+  //   const off = window.electronAPI.onSchedulerStatusChange((status) => { ... })
+  schedulerList: scheduler.list,
+  schedulerToggle: scheduler.toggle,
+  schedulerTrigger: scheduler.trigger,
+  // 事件监听：scheduler:status — 任务状态变更推送
+  onSchedulerStatusChange: on.schedulerStatus,
 } as unknown as ElectronAPI)
 
 // ============================================================================
@@ -2767,4 +2848,15 @@ export type ElectronAPI = {
   onLoopError: (
     callback: (payload: { type: 'loop:error'; correlationId: string; error: string; state?: unknown }) => void,
   ) => () => void
+
+  // ===== Phase 6 Task 6.5：调度器（定时任务自动化）=====
+  // 通道与主进程 ipc/scheduler.ts 一一对应
+  /** 查询所有定时任务状态（scheduler:list） */
+  schedulerList: typeof scheduler.list
+  /** 启用/禁用指定任务（scheduler:toggle），任务不存在时返回 null */
+  schedulerToggle: typeof scheduler.toggle
+  /** 立即触发指定任务（scheduler:trigger），返回 TaskResult */
+  schedulerTrigger: typeof scheduler.trigger
+  /** 监听任务状态变更推送（scheduler:status），返回取消监听函数 */
+  onSchedulerStatusChange: (callback: (status: SchedulerTaskStatus) => void) => () => void
 }

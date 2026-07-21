@@ -54,6 +54,9 @@ import { registerDiagnosticsHandlers } from './diagnostics'
 // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
 // 通道：loop:start / loop:confirm / loop:cancel + 推送 loop:step/decision/done/error
 import { registerLoopEngineeringHandlers, cleanupLoopEngineering } from './loop-engineering'
+// Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
+// 通道：scheduler:list / toggle / trigger + 推送 scheduler:status
+import { registerSchedulerIpcHandlers } from './scheduler'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -167,6 +170,12 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 推送通道：loop:llm-start / loop:llm-done / loop:step / loop:decision / loop:done / loop:error
   // 实现"假设计 → 可演示真 IDE"完整一轮：LLM 推理 → 7 步 HITL → 决策卡片 → SSH 执行 → 验证
   registerLoopEngineeringHandlers(mainWindow)
+
+  // Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
+  // 通道：scheduler:list / toggle / trigger + 推送 scheduler:status
+  // 注意：调度器单例初始化（register 3 个定时任务 + start）在 main/index.ts 的
+  // app.whenReady() 中调用 initScheduler()，确保 BrowserWindow 已创建后再启动推送
+  registerSchedulerIpcHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar
