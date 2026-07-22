@@ -155,3 +155,64 @@ export function getLevelSoftColor(level: LogLevel): string {
       return 'var(--trae-bg-overlay-l1)'
   }
 }
+
+// ==================== IPC 返回值适配（v1.0 P0 真实日志流接线） ====================
+
+/**
+ * IPC `log:read` 通道返回的原始日志条目结构（与 electron.d.ts logRead 返回类型对齐）。
+ *
+ * 字段映射（IPC → LogEntry）：
+ *   - ts（ISO 字符串 / ms 时间戳）→ timestamp（显示用 HH:mm:ss.SSS）
+ *   - level（DEBUG/INFO/WARN/ERROR/FATAL）→ level（FATAL 归并到 ERROR）
+ *   - category / source → source（设计稿列宽 104px，超长截断）
+ *   - message → message
+ *   - date（YYYY-MM-DD）→ 用于 status bar 显示
+ *
+ * 注意：IPC 返回的 level 可能包含 'FATAL'，本组件 LEVEL_FILTERS 只有 4 档，
+ *       FATAL 归并到 ERROR 显示（避免 UI 出现未配置的级别 tab）。
+ */
+export interface IpcLogEntry {
+  ts: string | number
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'
+  category?: string
+  message: string
+  meta?: unknown
+  correlationId?: string
+  source: string
+  date?: string
+}
+
+/**
+ * 将 IPC 返回的日志条目转换为 LogViewer 可渲染的 LogEntry。
+ *
+ * @param ipc IPC 返回的原始条目
+ * @param idx 序号（用于生成稳定 key，避免同毫秒冲突）
+ */
+export function ipcLogEntryToLogEntry(ipc: IpcLogEntry, idx: number): LogEntry {
+  // 时间戳格式化：IPC 返回 ISO 字符串或 ms 时间戳，统一转为 HH:mm:ss.SSS
+  const tsMs = typeof ipc.ts === 'number' ? ipc.ts : new Date(ipc.ts).getTime()
+  const d = new Date(tsMs)
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0')
+  const timestamp = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+
+  // FATAL 归并到 ERROR（LEVEL_FILTERS 只有 4 档）
+  const level: LogLevel = ipc.level === 'FATAL' ? 'ERROR' : ipc.level as LogLevel
+
+  // source 优先用 category，回退到 source 字段
+  const source = ipc.category || ipc.source || 'system'
+
+  return {
+    id: idx + 1,
+    timestamp,
+    level,
+    source,
+    message: ipc.message,
+  }
+}
+
+/**
+ * 批量转换 IPC 日志条目数组。
+ */
+export function ipcLogEntriesToLogEntries(ipcEntries: IpcLogEntry[]): LogEntry[] {
+  return ipcEntries.map(ipcLogEntryToLogEntry)
+}

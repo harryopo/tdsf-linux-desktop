@@ -17,13 +17,14 @@
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label/aria-pressed，prefers-reduced-motion 禁用按压动画
  */
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   ScrollText, ArrowLeft, ArrowRight, Star, Sparkles, Clock, UserCircle,
   ChevronRight, Terminal, Zap, Box, Cpu, Globe, Shield,
 } from 'lucide-react'
+import './TutorialPage.css'
 
 // ==================== 类型定义 ====================
 
@@ -91,16 +92,16 @@ const LEARNING_PATHS: LearningPath[] = [
 // ==================== 辅助函数 ====================
 
 /** 难度标签样式（课程列表卡片，初级带边框） */
-function levelBadgeStyle(level: CourseLevel): CSSProperties {
-  if (level === '初级') return { background: 'var(--trae-bg-overlay-l2)', color: 'var(--trae-text-secondary)', border: '1px solid var(--trae-border-neutral-l1)' }
-  if (level === '中级') return { background: 'var(--trae-status-warning-surface-l1)', color: 'var(--trae-status-warning-default)' }
-  return { background: 'var(--trae-bg-brand-popup)', color: 'var(--trae-text-brand)' }
+function levelBadgeClassName(level: CourseLevel): string {
+  if (level === '初级') return 'tut-level-badge--sm tut-level-badge--neutral'
+  if (level === '中级') return 'tut-level-badge--sm tut-level-badge--warning'
+  return 'tut-level-badge--sm'
 }
 
 /** 难度标签样式（精选课程大卡，无边框） */
-function featuredLevelStyle(level: CourseLevel): CSSProperties {
-  if (level === '中级') return { background: 'var(--trae-status-warning-surface-l1)', color: 'var(--trae-status-warning-default)' }
-  return { background: 'var(--trae-bg-brand-popup)', color: 'var(--trae-text-brand)' }
+function featuredLevelClassName(level: CourseLevel): string {
+  if (level === '中级') return 'tut-level-badge tut-level-badge--warning'
+  return 'tut-level-badge'
 }
 
 // ==================== 主组件 ====================
@@ -116,66 +117,66 @@ export function TutorialPage() {
   const filteredCourses = activeCategory === 'all' ? COURSES : COURSES.filter((c) => c.category === activeCategory)
 
   return (
-    <main style={{ background: 'var(--trae-bg-base-default)', color: 'var(--trae-text-default)', minHeight: '100%' }}>
+    <main className="tut-page" style={{ height: '100%', overflowY: 'auto' }}>
       {/* ====== 1. Page Header ====== */}
-      <header className="flex items-center justify-between" style={{ padding: '18px 32px', borderBottom: '1px solid var(--trae-border-neutral-l1)' }}>
-        <div className="flex items-center" style={{ gap: 14 }}>
+      <header className="tut-page-header">
+        <div className="tut-page-header__left">
           <ScrollText size={26} strokeWidth={2} style={{ color: 'var(--trae-icon-brand)' }} />
-          <div className="flex flex-col" style={{ gap: 2 }}>
-            <span style={{ fontFamily: 'var(--trae-heading-2xl-font-family)', fontSize: 'var(--trae-heading-2xl-font-size)', fontWeight: 'var(--trae-font-weight-strong)', lineHeight: 'var(--trae-heading-2xl-line-height)', color: 'var(--trae-text-default)' }}>运维教程</span>
-            <span style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-tertiary)' }}>从入门到精通的 Linux 运维实战课程</span>
+          <div className="tut-page-header__title-wrap">
+            <span className="tut-page-title">运维教程</span>
+            <span className="tut-page-subtitle">从入门到精通的 Linux 运维实战课程</span>
           </div>
         </div>
-        <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="flex cursor-pointer items-center transition-colors" style={{ gap: 6, padding: '7px 14px', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', background: 'transparent', color: 'var(--trae-text-secondary)', fontSize: 'var(--trae-body-md-font-size)' }}>
+        <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="tut-back-btn">
           <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
           <span>返回工作台</span>
         </button>
       </header>
 
       {/* ====== 内容容器 ====== */}
-      <div style={{ padding: '28px 32px 64px' }}>
+      <div className="tut-container">
         {/* ====== 2. 顶部统计行 grid-cols-3 ====== */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="tut-stats-grid">
           {STATS.map((s) => (
-            <div key={s.unit} style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: '18px 20px' }}>
-              <div className="flex items-baseline" style={{ gap: 8 }}>
-                <span style={{ fontFamily: 'var(--trae-heading-2xl-font-family)', fontSize: 'var(--trae-heading-2xl-font-size)', fontWeight: 'var(--trae-font-weight-strong)', color: 'var(--trae-text-brand)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{s.value}</span>
-                <span style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-tertiary)' }}>{s.unit}</span>
+            <div key={s.unit} className="tut-stat-card">
+              <div className="tut-stat-value-row">
+                <span className="tut-stat-value">{s.value}</span>
+                <span className="tut-stat-unit">{s.unit}</span>
               </div>
-              <div style={{ marginTop: 6, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>{s.hint}</div>
+              <div className="tut-stat-desc">{s.hint}</div>
             </div>
           ))}
         </div>
 
         {/* ====== 3. 精选课程 md:grid-cols-2 ====== */}
-        <section style={{ marginTop: 36 }} aria-label="精选课程">
-          <div className="flex items-center" style={{ gap: 8, marginBottom: 16 }}>
+        <section className="tut-section" aria-label="精选课程">
+          <div className="tut-section-title-row">
             <Star size={18} fill="currentColor" style={{ color: 'var(--trae-icon-brand)' }} />
-            <h2 style={{ fontFamily: 'var(--trae-heading-md-font-family)', fontSize: 'var(--trae-heading-md-font-size)', fontWeight: 'var(--trae-font-weight-strong)', lineHeight: 'var(--trae-heading-md-line-height)', color: 'var(--trae-text-default)', margin: 0 }}>精选课程</h2>
+            <h2 className="tut-section-title">精选课程</h2>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="tut-featured-grid">
             {FEATURED_COURSES.map((c) => (
-              <div key={c.id} style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="flex items-center" style={{ gap: 8 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 8px', height: 20, borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', fontWeight: 'var(--trae-font-weight-medium)', lineHeight: 1, ...featuredLevelStyle(c.level) }}>{c.level}</span>
-                  <span className="flex items-center" style={{ gap: 4, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>
+              <div key={c.id} className="tut-featured-card">
+                <div className="tut-featured-head">
+                  <span className={featuredLevelClassName(c.level)}>{c.level}</span>
+                  <span className="tut-duration-tag">
                     <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
                     {c.duration}
                   </span>
                 </div>
-                <h3 style={{ fontFamily: 'var(--trae-heading-sm-font-family)', fontSize: 'var(--trae-heading-sm-font-size)', fontWeight: 'var(--trae-font-weight-strong)', lineHeight: 'var(--trae-heading-sm-line-height)', color: 'var(--trae-text-default)', margin: 0 }}>{c.title}</h3>
-                <p style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-secondary)', margin: 0 }}>{c.description}</p>
-                <div>
-                  <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-                    <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>学习进度</span>
-                    <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-brand)', fontVariantNumeric: 'tabular-nums', fontWeight: 'var(--trae-font-weight-medium)' }}>{c.progress}%</span>
+                <h3 className="tut-featured-title">{c.title}</h3>
+                <p className="tut-featured-desc">{c.description}</p>
+                <div className="tut-progress-block">
+                  <div className="tut-progress-row">
+                    <span className="tut-progress-label">学习进度</span>
+                    <span className="tut-progress-value">{c.progress}%</span>
                   </div>
-                  <div style={{ height: 4, background: 'var(--trae-bg-overlay-l3)', borderRadius: 'var(--trae-radius-full)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${c.progress}%`, background: 'var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-full)' }} />
+                  <div className="tut-progress-bar">
+                    <div className="tut-progress-bar-fill" style={{ width: `${c.progress}%` }} />
                   </div>
                 </div>
                 <div>
-                  <button type="button" data-dom-id={c.domId} aria-label={c.cta} onClick={() => handleOpenCourse(c.id)} className="btn-press inline-flex cursor-pointer items-center transition-colors" style={{ gap: 6, padding: '7px 14px', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-6)', background: 'transparent', color: 'var(--trae-text-brand)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}>
+                  <button type="button" data-dom-id={c.domId} aria-label={c.cta} onClick={() => handleOpenCourse(c.id)} className="tut-featured-btn tut-btn-press">
                     {c.cta}
                     <ArrowRight size={12} style={{ color: 'var(--trae-text-brand)' }} />
                   </button>
@@ -186,12 +187,18 @@ export function TutorialPage() {
         </section>
 
         {/* ====== 4. 课程分类导航 ====== */}
-        <nav style={{ marginTop: 36 }} aria-label="课程分类">
-          <div className="flex flex-nowrap overflow-x-auto no-scrollbar" style={{ gap: 8, padding: '2px 0' }}>
+        <nav className="tut-cat-nav" aria-label="课程分类">
+          <div className="tut-cat-row tut-no-scrollbar">
             {CATEGORIES.map((cat) => {
               const active = activeCategory === cat.id
               return (
-                <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} aria-pressed={active} className="btn-press shrink-0 cursor-pointer whitespace-nowrap transition-colors" style={{ padding: '6px 14px', border: `1px solid ${active ? 'var(--trae-border-brand)' : 'var(--trae-border-neutral-l2)'}`, borderRadius: 'var(--trae-radius-6)', background: active ? 'var(--trae-bg-brand)' : 'transparent', color: active ? 'var(--trae-text-onbrand)' : 'var(--trae-text-secondary)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: active ? 'var(--trae-font-weight-medium)' : undefined }}>
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  aria-pressed={active}
+                  className={`tut-cat-label tut-btn-press${active ? ' tut-cat-label--active' : ''}`}
+                >
                   {cat.label}
                 </button>
               )
@@ -200,41 +207,38 @@ export function TutorialPage() {
         </nav>
 
         {/* ====== 5. 课程列表 lg:grid-cols-3 ====== */}
-        <section style={{ marginTop: 20 }} aria-label="课程列表">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="tut-section tut-section--courses" aria-label="课程列表">
+          <div className="tut-courses-grid">
             {filteredCourses.map((c) => {
               const Icon = c.icon
-              const progressColor = c.progress > 0 ? 'var(--trae-text-brand)' : 'var(--trae-text-tertiary)'
               return (
-                <div key={c.id} style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div className="flex items-center justify-between">
-                    <Icon size={20} style={{ color: 'var(--trae-icon-secondary)' }} />
-                    <span className="flex items-center" style={{ gap: 6 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 8px', height: 18, borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, ...levelBadgeStyle(c.level) }}>{c.level}</span>
-                      {c.completed && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 8px', height: 18, borderRadius: 'var(--trae-radius-4)', background: 'var(--trae-status-success-surface-l1)', color: 'var(--trae-status-success-default)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1 }}>已完成</span>
-                      )}
+                <div key={c.id} className="tut-course-card">
+                  <div className="tut-course-head">
+                    <Icon size={20} className="tut-course-icon" />
+                    <span className="tut-course-badges">
+                      <span className={levelBadgeClassName(c.level)}>{c.level}</span>
+                      {c.completed && <span className="tut-completed-badge">已完成</span>}
                     </span>
                   </div>
-                  <h4 style={{ fontSize: 'var(--trae-body-md-font-size)', fontWeight: 'var(--trae-font-weight-strong)', lineHeight: 'var(--trae-body-md-strong-line-height)', color: 'var(--trae-text-default)', margin: 0 }}>{c.title}</h4>
-                  <p style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-tertiary)', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.description}</p>
-                  <div className="flex items-center" style={{ gap: 12, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>
-                    <span className="flex items-center" style={{ gap: 4 }}>
+                  <h4 className="tut-course-title">{c.title}</h4>
+                  <p className="tut-course-desc">{c.description}</p>
+                  <div className="tut-course-meta">
+                    <span className="tut-course-meta-item">
                       <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
                       {c.duration}
                     </span>
-                    <span className="flex items-center" style={{ gap: 4 }}>
+                    <span className="tut-course-meta-item">
                       <UserCircle size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
                       {c.learnerCount}
                     </span>
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
-                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>进度</span>
-                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: progressColor, fontVariantNumeric: 'tabular-nums', fontWeight: c.progress > 0 ? 'var(--trae-font-weight-medium)' : undefined }}>{c.progress}%</span>
+                  <div className="tut-progress-block">
+                    <div className="tut-progress-row tut-progress-row--tight">
+                      <span className="tut-progress-label">进度</span>
+                      <span className={c.progress > 0 ? 'tut-progress-value' : 'tut-progress-value tut-progress-value--zero'}>{c.progress}%</span>
                     </div>
-                    <div style={{ height: 3, background: 'var(--trae-bg-overlay-l3)', borderRadius: 'var(--trae-radius-full)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${c.progress}%`, background: 'var(--trae-bg-brand)' }} />
+                    <div className="tut-progress-bar tut-progress-bar--thin">
+                      <div className="tut-progress-bar-fill" style={{ width: `${c.progress}%` }} />
                     </div>
                   </div>
                 </div>
@@ -244,20 +248,22 @@ export function TutorialPage() {
         </section>
 
         {/* ====== 6. 推荐学习路径 ====== */}
-        <section style={{ marginTop: 40 }} aria-label="推荐学习路径">
-          <div className="flex items-center" style={{ gap: 8, marginBottom: 16 }}>
+        <section className="tut-section tut-section--paths" aria-label="推荐学习路径">
+          <div className="tut-section-title-row">
             <Sparkles size={18} style={{ color: 'var(--trae-icon-brand)' }} />
-            <h2 style={{ fontFamily: 'var(--trae-heading-md-font-family)', fontSize: 'var(--trae-heading-md-font-size)', fontWeight: 'var(--trae-font-weight-strong)', lineHeight: 'var(--trae-heading-md-line-height)', color: 'var(--trae-text-default)', margin: 0 }}>推荐学习路径</h2>
+            <h2 className="tut-section-title">推荐学习路径</h2>
           </div>
-          <div className="flex flex-col" style={{ gap: 10 }}>
+          <div className="tut-paths-list">
             {LEARNING_PATHS.map((path) => (
-              <div key={path.id} className="flex items-center" style={{ gap: 16, padding: '14px 18px', background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)' }}>
-                <span style={{ fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-default)', minWidth: 120, flexShrink: 0 }}>{path.title}</span>
-                <span className="flex min-w-0 flex-1 items-center overflow-x-auto no-scrollbar" style={{ gap: 8 }}>
+              <div key={path.id} className="tut-path-row">
+                <span className="tut-path-title">{path.title}</span>
+                <span className="tut-path-steps tut-no-scrollbar">
                   {path.steps.map((step, i) => (
-                    <span key={step.label} className="flex items-center" style={{ gap: 8 }}>
-                      {i > 0 && <ChevronRight size={12} style={{ color: 'var(--trae-text-tertiary)', flexShrink: 0 }} />}
-                      <span style={{ padding: '4px 12px', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: step.active ? 'var(--trae-font-weight-medium)' : undefined, background: step.active ? 'var(--trae-bg-brand-popup)' : 'var(--trae-bg-overlay-l3)', color: step.active ? 'var(--trae-text-brand)' : 'var(--trae-text-default)' }}>{step.label}</span>
+                    <span key={step.label} className="tut-path-step">
+                      {i > 0 && <ChevronRight size={12} className="tut-path-chevron" />}
+                      <span className={`tut-path-step${step.active ? ' tut-path-step--active' : ''}`}>
+                        {step.label}
+                      </span>
                     </span>
                   ))}
                 </span>
@@ -266,17 +272,6 @@ export function TutorialPage() {
           </div>
         </section>
       </div>
-
-      {/* ====== 按压动画 + 无障碍降级 ====== */}
-      <style>{`
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.92); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { scrollbar-width: none; }
-        @media (prefers-reduced-motion: reduce) {
-          .btn-press:active { transform: none !important; }
-        }
-      `}</style>
     </main>
   )
 }

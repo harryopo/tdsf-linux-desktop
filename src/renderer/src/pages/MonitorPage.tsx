@@ -51,6 +51,7 @@ import { sampleKpiStats, sampleAlerts } from '@/pages/__fixtures__/monitor-sampl
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
 import type { MonitorData } from '@shared/models'
+import './MonitorPage.css'
 
 /**
  * 时间范围切换组（1H / 6H / 24H）
@@ -64,7 +65,7 @@ function TimeRangeSwitcher({
 }) {
   return (
     <div
-      className="inline-flex items-center gap-0.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] p-0.5"
+      className="mon-range-group inline-flex items-center p-0.5 gap-0.5"
       role="radiogroup"
       aria-label="时间范围"
     >
@@ -77,11 +78,7 @@ function TimeRangeSwitcher({
             role="radio"
             aria-checked={active}
             onClick={() => onChange(range)}
-            className="inline-flex h-[26px] cursor-pointer items-center justify-center rounded-[var(--trae-radius-4)] border-none px-2.5 text-[11px] font-medium transition-colors duration-150"
-            style={{
-              color: active ? 'var(--trae-text-onbrand)' : 'var(--trae-text-secondary)',
-              background: active ? 'var(--trae-bg-brand)' : 'transparent',
-            }}
+            className={`mon-btn-sm mon-range-label mon-btn-press inline-flex items-center justify-center px-2 ${active ? 'active' : ''}`}
           >
             {range}
           </button>
@@ -260,20 +257,16 @@ export function MonitorPage() {
   }, [activeSessionId])
 
   return (
-    <main className="w-full min-h-full bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)] p-4 flex flex-col">
+    <main className="mon-main h-full w-full overflow-y-auto">
       {/* 1. page-header */}
       <header
-        className="flex items-start justify-between gap-4 pb-2.5 mb-2.5"
-        style={{ borderBottom: '1px solid var(--trae-border-neutral-l1)' }}
+        className="mon-header mon-header-bar flex items-start justify-between gap-4"
       >
         <div className="flex flex-col gap-1.5 min-w-0">
-          <h1
-            className="text-[24px] font-semibold leading-[32px] text-[var(--trae-text-default)]"
-            style={{ textWrap: 'balance' } as React.CSSProperties}
-          >
+          <h1 className="mon-title">
             实时监控
           </h1>
-          <p className="text-[10px] text-[var(--trae-text-tertiary)] leading-[14px] truncate">
+          <p className="mon-subtitle truncate">
             {serverLabel}
           </p>
         </div>
@@ -282,7 +275,7 @@ export function MonitorPage() {
             type="button"
             data-dom-id="back-workbench"
             onClick={() => navigate('/workbench')}
-            className="inline-flex items-center gap-1.5 h-[26px] px-3 text-[11px] font-medium text-[var(--trae-text-default)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
+            className="mon-btn-sm mon-btn-back mon-btn-press inline-flex items-center gap-1.5 px-3"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>返回</span>
@@ -293,7 +286,7 @@ export function MonitorPage() {
             onClick={handleRefresh}
             disabled={!activeSessionId}
             aria-label="刷新监控数据"
-            className="inline-flex items-center justify-center w-7 h-7 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="mon-btn-icon mon-btn-refresh mon-btn-press inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[var(--trae-text-secondary)] ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -307,38 +300,28 @@ export function MonitorPage() {
           role="alert"
           data-dom-id="goto-alert-detail"
           onClick={() => openDrawer(criticalAlert)}
-          className="flex items-start gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)] cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-status-error-surface-l2)]"
-          style={{
-            background: 'var(--trae-status-error-surface-l1)',
-            border: '1px solid var(--trae-status-error-surface-l2)',
-            borderLeft: '3px solid var(--trae-status-error-default)',
-          }}
+          className="mon-alert mon-alert-critical flex items-start gap-2 mb-3"
         >
           <AlertCircle
             className="w-3.5 h-3.5 shrink-0 mt-0.5"
             style={{ color: 'var(--trae-status-error-default)' }}
           />
-          <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-default)]">
+          <p className="mon-alert-desc flex-1 min-w-0">
             {criticalAlert.desc}
           </p>
-          <span className="shrink-0 whitespace-nowrap text-[10px] text-[var(--trae-text-tertiary)]">
+          <span className="mon-alert-time shrink-0 whitespace-nowrap">
             {criticalAlert.time}
           </span>
         </div>
       ) : (
         <div
-          className="flex items-center gap-2 mb-3 p-2.5 rounded-[var(--trae-radius-6)]"
-          style={{
-            background: 'var(--trae-bg-base-secondary)',
-            border: '1px solid var(--trae-border-neutral-l1)',
-            borderLeft: '3px solid var(--trae-status-success-default)',
-          }}
+          className="mon-alert mon-alert-normal flex items-center gap-2 mb-3"
         >
           <AlertCircle
             className="w-3.5 h-3.5 shrink-0"
             style={{ color: 'var(--trae-status-success-default)' }}
           />
-          <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-secondary)]">
+          <p className="mon-alert-desc flex-1 min-w-0" style={{ color: 'var(--trae-text-secondary)' }}>
             系统运行正常，暂无 critical 告警
           </p>
         </div>
@@ -351,7 +334,7 @@ export function MonitorPage() {
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-[100px] rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] flex items-center justify-center"
+              className="mon-kpi-card flex h-[100px] items-center justify-center"
             >
               <Activity className="w-4 h-4 text-[var(--trae-text-tertiary)] animate-pulse" />
             </div>

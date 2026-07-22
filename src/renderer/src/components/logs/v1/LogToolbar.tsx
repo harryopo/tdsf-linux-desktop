@@ -6,6 +6,7 @@
  *   1. 搜索框（300px，左 32px 内边距容纳搜索图标，等宽字体）
  *   2. Level filter：5 个 radio tabs（全部/INFO/WARN/ERROR/DEBUG），active 项品牌色边框
  *   3. 右侧 cluster（ml-auto）：
+ *      - AI 日志分析按钮（Sparkles 图标 + 文字，v1.0 P0 接入 llmAnalyze）
  *      - 自动滚动 switch（32x18 椭圆 + 14x14 圆点）
  *      - 刷新图标按钮（28x28）
  *      - 导出图标按钮（28x28）
@@ -14,9 +15,9 @@
  *   - 搜索关键词（useState 由父组件控制）
  *   - Level filter（useState 由父组件控制）
  *   - 自动滚动 switch（useState 由父组件控制）
- *   - 刷新 / 导出 按钮（onClick 回调）
+ *   - AI 分析 / 刷新 / 导出 按钮（onClick 回调）
  */
-import { Search, RefreshCw, Download } from 'lucide-react'
+import { Sparkles, Search, RefreshCw, Download } from 'lucide-react'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -30,6 +31,8 @@ export function LogToolbar({
   onLevelChange,
   autoScroll,
   onAutoScrollChange,
+  onAnalyze,
+  analyzing,
   onRefresh,
   onExport,
 }: {
@@ -39,53 +42,29 @@ export function LogToolbar({
   onLevelChange: (level: LogLevel | 'ALL') => void
   autoScroll: boolean
   onAutoScrollChange: (v: boolean) => void
+  /** AI 分析回调（v1.0 P0 接入 llmAnalyze IPC） */
+  onAnalyze: () => void
+  /** AI 分析进行中（禁用按钮 + 切换文案） */
+  analyzing: boolean
   onRefresh: () => void
   onExport: () => void
 }) {
   return (
-    <div
-      className="flex shrink-0 items-center"
-      style={{
-        gap: 12,
-        padding: '8px 16px',
-        background: 'var(--trae-bg-base-secondary)',
-        borderBottom: '1px solid var(--trae-border-neutral-l1)',
-      }}
-    >
+    <div className="log-toolbar flex shrink-0 items-center">
       {/* 1. 搜索框 */}
-      <div className="relative shrink-0" style={{ width: 300 }}>
-        <Search
-          size={14}
-          className="pointer-events-none absolute"
-          style={{
-            left: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--trae-icon-tertiary)',
-          }}
-        />
+      <div className="log-search shrink-0">
+        <Search size={14} className="log-search-icon" />
         <input
           type="text"
           placeholder="过滤日志..."
           value={keyword}
           onChange={(e) => onKeywordChange(e.target.value)}
-          className="block w-full"
-          style={{
-            height: 32,
-            padding: '0 12px 0 32px',
-            fontFamily: 'var(--trae-font-family-mono)',
-            fontSize: 'var(--trae-body-sm-font-size)',
-            color: 'var(--trae-text-default)',
-            background: 'var(--trae-bg-base-default)',
-            border: '1px solid var(--trae-border-neutral-l2)',
-            borderRadius: 'var(--trae-radius-6)',
-            outline: 'none',
-          }}
+          className="log-search-input block w-full"
         />
       </div>
 
       {/* 2. Level filter（5 个 tab — 设计稿：扁平线框标签） */}
-      <div className="flex shrink-0 items-center" style={{ gap: 4 }}>
+      <div className="log-level-filter flex shrink-0 items-center">
         {LEVEL_FILTERS.map((f) => {
           const active = activeLevel === f.id
           return (
@@ -93,21 +72,7 @@ export function LogToolbar({
               key={f.id}
               type="button"
               onClick={() => onLevelChange(f.id)}
-              className="btn-press inline-flex items-center justify-center transition-colors"
-              style={{
-                height: 26,
-                padding: '0 10px',
-                fontSize: 'var(--trae-body-xs-font-size)',
-                fontWeight: 'var(--trae-font-weight-default)',
-                color: active
-                  ? 'var(--trae-text-brand)'
-                  : 'var(--trae-text-secondary)',
-                background: 'transparent',
-                border: '1px solid var(--trae-border-neutral-l2)',
-                borderRadius: 'var(--trae-radius-4)',
-                cursor: 'pointer',
-                fontVariantNumeric: 'tabular-nums',
-              }}
+              className={`log-btn-press log-level-btn inline-flex items-center justify-center transition-colors ${active ? 'active' : ''}`}
             >
               {f.label}
             </button>
@@ -116,52 +81,30 @@ export function LogToolbar({
       </div>
 
       {/* 3. 右侧 cluster */}
-      <div
-        className="ml-auto flex shrink-0 items-center"
-        style={{ gap: 12 }}
-      >
+      <div className="log-right-cluster flex shrink-0 items-center">
+        {/* AI 日志分析按钮（v1.0 P0 接入 llmAnalyze IPC） */}
+        <button
+          type="button"
+          onClick={onAnalyze}
+          disabled={analyzing}
+          aria-label={analyzing ? 'AI 分析中' : 'AI 分析当前日志'}
+          className="log-btn-press log-analyze-btn inline-flex items-center justify-center transition-colors"
+        >
+          <Sparkles size={13} style={{ color: 'var(--trae-icon-brand)' }} />
+          <span>{analyzing ? '分析中…' : 'AI 分析'}</span>
+        </button>
+
         {/* 自动滚动 switch */}
         <label
-          className="flex cursor-pointer select-none items-center"
-          style={{ gap: 8 }}
+          className="log-autoscroll-label flex cursor-pointer select-none items-center"
           onClick={() => onAutoScrollChange(!autoScroll)}
         >
-          <span
-            className="relative inline-block"
-            style={{
-              width: 32,
-              height: 18,
-              background: autoScroll
-                ? 'var(--trae-bg-brand)'
-                : 'var(--trae-bg-overlay-l3)',
-              borderRadius: 'var(--trae-radius-full)',
-              transition: 'background 160ms cubic-bezier(.2,.8,.2,1)',
-            }}
-          >
+          <span className={`log-switch ${autoScroll ? 'is-on' : ''}`}>
             <span
-              className="absolute block"
-              style={{
-                top: 2,
-                left: autoScroll ? 'auto' : 2,
-                right: autoScroll ? 2 : 'auto',
-                width: 14,
-                height: 14,
-                background: 'var(--trae-special-white)',
-                borderRadius: '50%',
-                transition: 'transform 160ms cubic-bezier(.2,.8,.2,1)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-              }}
+              className={`log-switch-thumb ${autoScroll ? 'is-on' : 'is-off'}`}
             />
           </span>
-          <span
-            style={{
-              fontSize: 'var(--trae-body-sm-font-size)',
-              color: 'var(--trae-text-secondary)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            自动滚动
-          </span>
+          <span className="log-autoscroll-text">自动滚动</span>
         </label>
 
         {/* 刷新按钮 */}
@@ -169,16 +112,7 @@ export function LogToolbar({
           type="button"
           onClick={onRefresh}
           aria-label="刷新"
-          className="btn-press inline-flex items-center justify-center transition-colors"
-          style={{
-            width: 28,
-            height: 28,
-            color: 'var(--trae-text-secondary)',
-            background: 'transparent',
-            border: '1px solid var(--trae-border-neutral-l2)',
-            borderRadius: 'var(--trae-radius-6)',
-            cursor: 'pointer',
-          }}
+          className="log-btn-press log-icon-btn inline-flex items-center justify-center transition-colors"
         >
           <RefreshCw size={14} />
         </button>
@@ -188,16 +122,7 @@ export function LogToolbar({
           type="button"
           onClick={onExport}
           aria-label="导出日志"
-          className="btn-press inline-flex items-center justify-center transition-colors"
-          style={{
-            width: 28,
-            height: 28,
-            color: 'var(--trae-text-secondary)',
-            background: 'transparent',
-            border: '1px solid var(--trae-border-neutral-l2)',
-            borderRadius: 'var(--trae-radius-6)',
-            cursor: 'pointer',
-          }}
+          className="log-btn-press log-icon-btn inline-flex items-center justify-center transition-colors"
         >
           <Download size={14} />
         </button>

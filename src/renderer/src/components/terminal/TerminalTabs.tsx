@@ -23,6 +23,7 @@ import { isElectronAPIAvailable } from '../../utils/electron-api'
 import TerminalView from './TerminalView'
 import SelectionPopover from './SelectionPopover'
 import './TerminalTabs.css'
+import './Terminal.css'
 
 /** TerminalTabs 多标签终端 */
 const TerminalTabs: React.FC = () => {
@@ -119,20 +120,20 @@ const TerminalTabs: React.FC = () => {
   /** 无 Tab 时显示空状态 */
   if (tabs.length === 0) {
     return (
-      <div className="terminal-tabs-empty">
-        <div className="terminal-tabs-empty-icon">
+      <div className="term-tabs-empty">
+        <div className="term-tabs-empty-icon">
           <PlusOutlined />
         </div>
-        <p>从左侧服务器列表选择服务器开始连接</p>
+        <p className="term-tabs-empty-text">从左侧服务器列表选择服务器开始连接</p>
       </div>
     )
   }
 
   return (
-    <div className="terminal-tabs">
+    <div className="term-tabs">
       {/* ===== Tab 标签栏 ===== */}
-      <div className="terminal-tabs-bar">
-        <div className="terminal-tabs-list">
+      <div className="term-tabs-bar">
+        <div className="term-tabs-list">
           {tabs.map((tab) => (
             <Dropdown
               key={tab.id}
@@ -140,12 +141,12 @@ const TerminalTabs: React.FC = () => {
               trigger={['contextMenu']}
             >
               <div
-                className={`terminal-tab-item ${tab.id === activeTabId ? 'active' : ''}`}
+                className={`term-multi-tab ${tab.id === activeTabId ? 'term-multi-tab-active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <span className="terminal-tab-title text-ellipsis">{tab.title}</span>
+                <span className="term-multi-tab-title">{tab.title}</span>
                 <button
-                  className="terminal-tab-close"
+                  className="term-multi-tab-close"
                   onClick={(e) => {
                     e.stopPropagation()
                     void handleCloseTab(tab.id)
@@ -158,18 +159,18 @@ const TerminalTabs: React.FC = () => {
           ))}
         </div>
         {/* v0.8.0 翻译开关按钮 */}
-        <div className="terminal-tabs-actions">
+        <div className="term-tabs-actions">
           <Tooltip
             title={translateEnabled ? '关闭终端翻译' : '开启终端翻译（鼠标滑动选词触发）'}
             placement="bottom"
           >
             <button
-              className={`terminal-translate-toggle ${translateEnabled ? 'active' : ''}`}
+              className={`term-translate-toggle ${translateEnabled ? 'term-translate-toggle-active' : ''}`}
               onClick={toggleTranslate}
               aria-label="切换翻译功能"
             >
               <TranslationOutlined />
-              <span className="terminal-translate-text">
+              <span className="term-translate-text">
                 {translateEnabled ? '翻译 ON' : '翻译 OFF'}
               </span>
             </button>
@@ -178,7 +179,7 @@ const TerminalTabs: React.FC = () => {
       </div>
 
       {/* ===== 终端内容区 ===== */}
-      <div className="terminal-tabs-content">
+      <div className="term-tabs-content">
         {tabs.map((tab) => (
           <TerminalView
             key={tab.id}

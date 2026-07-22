@@ -137,32 +137,28 @@ function AlertRow({
     <tr
       data-dom-id={`goto-alert-row-${rowId}`}
       onClick={onClick}
-      className="cursor-pointer transition-colors duration-200 hover:bg-[var(--trae-bg-overlay-l1)]"
+      data-mon-hover
+      className="mon-table-row"
     >
-      {/* 1. 时间（tabular-nums 等宽数字，whitespace-nowrap 不换行） */}
-      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] tabular-nums text-[var(--trae-text-secondary)] border-b border-[var(--trae-border-neutral-l1)]">
+      <td className="mon-table-td whitespace-nowrap tabular-nums" style={{ color: 'var(--trae-text-secondary)' }}>
         {record.time}
       </td>
-      {/* 2. 级别 tag（critical=red / high=orange / medium=amber / low=cyan） */}
-      <td className="whitespace-nowrap px-3 py-2.5 border-b border-[var(--trae-border-neutral-l1)]">
+      <td className="mon-table-td whitespace-nowrap">
         <span
-          className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] uppercase tracking-[0.04em] rounded-[var(--trae-radius-2)]"
+          className="mon-level-tag uppercase tracking-[0.04em]"
           style={{ background: risk.surface, color: risk.text }}
         >
           {record.level}
         </span>
       </td>
-      {/* 3. 服务器名 */}
-      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] border-b border-[var(--trae-border-neutral-l1)]">
+      <td className="mon-table-td whitespace-nowrap">
         {record.server}
       </td>
-      {/* 4. 描述（truncate 单行省略，max-w-[260px] 防止过宽） */}
-      <td className="truncate px-3 py-2.5 text-[11px] text-[var(--trae-text-default)] max-w-[260px] border-b border-[var(--trae-border-neutral-l1)]">
+      <td className="mon-table-td truncate" style={{ maxWidth: 260 }}>
         {record.desc}
       </td>
-      {/* 5. 状态（● 前缀 + 状态色：未处理=error / 处理中=warning / 已处理=success） */}
       <td
-        className="whitespace-nowrap px-3 py-2.5 text-[11px] border-b border-[var(--trae-border-neutral-l1)]"
+        className="mon-table-td whitespace-nowrap"
         style={{ color: statusColor(record.status) }}
       >
         ● {record.status}
@@ -216,12 +212,12 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
   })
 
   return (
-    <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] overflow-hidden">
+    <div className="mon-table-panel">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between gap-2 p-2.5 border-b border-[var(--trae-border-neutral-l1)]">
+      <div className="mon-table-toolbar flex items-center justify-between gap-2 p-2.5">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">告警列表</span>
-          <span className="inline-flex items-center justify-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)] rounded-[var(--trae-radius-2)] tabular-nums">
+          <span className="mon-table-panel-title">告警列表</span>
+          <span className="mon-table-count">
             共{visibleAlerts.length}条
           </span>
         </div>
@@ -232,36 +228,35 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
             title={filterOn ? '取消筛选未处理' : '筛选未处理'}
             className={
               filterOn
-                ? 'inline-flex items-center gap-1 h-[26px] px-2 text-[10px] text-[var(--trae-text-onbrand)] bg-[var(--trae-bg-brand)] border border-[var(--trae-bg-brand)] rounded-[var(--trae-radius-4)] cursor-pointer'
-                : 'inline-flex items-center gap-1 h-[26px] px-2 text-[10px] text-[var(--trae-text-secondary)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)]'
+                ? 'mon-btn-sm mon-btn-press inline-flex items-center gap-1 px-2 text-[var(--trae-text-onbrand)] bg-[var(--trae-bg-brand)] border border-[var(--trae-bg-brand)] rounded-[var(--trae-radius-4)] cursor-pointer'
+                : 'mon-btn-sm mon-btn-press inline-flex items-center gap-1 px-2 text-[var(--trae-text-secondary)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)]'
             }
           >
             <Filter className="w-3 h-3" />
             <span>筛选</span>
           </button>
-          <div className="inline-flex items-center gap-1 h-[26px] px-2 bg-[var(--trae-bg-overlay-l1)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)]">
+          <div className="mon-btn-sm inline-flex items-center gap-1 px-2 bg-[var(--trae-bg-overlay-l1)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)]">
             <Search className="w-3 h-3 text-[var(--trae-text-tertiary)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索告警..."
-              className="text-[10px] bg-transparent border-none outline-none text-[var(--trae-text-default)] w-[100px]"
+              className="bg-transparent border-none outline-none text-[var(--trae-text-default)] w-[100px]"
+              style={{ fontSize: 'var(--trae-body-xs-font-size)' }}
             />
           </div>
         </div>
       </div>
       {/* 表格 */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse min-w-[640px]">
+        <table className="mon-table" style={{ minWidth: 640 }}>
           <thead>
-            <tr className="bg-[var(--trae-bg-overlay-l1)]">
+            <tr>
               {['时间', '级别', '服务器', '描述', '状态'].map((head) => (
                 <th
                   key={head}
-                  className={`text-left px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)] ${
-                    head === '描述' ? 'w-full' : 'whitespace-nowrap'
-                  }`}
+                  className={`${head === '描述' ? 'w-full' : 'whitespace-nowrap'}`}
                 >
                   {head}
                 </th>
@@ -279,7 +274,7 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
             ))}
             {visibleAlerts.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-[11px] text-[var(--trae-text-tertiary)]">
+                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-text-tertiary)' }}>
                   暂无告警，系统运行正常
                 </td>
               </tr>

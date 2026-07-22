@@ -32,19 +32,14 @@ export function SettingsCard({
   className,
 }: SettingsCardProps) {
   return (
-    <div
-      className={
-        'rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.4)] ' +
-        (className ?? '')
-      }
-    >
-      <div className="mb-1 flex items-center gap-2 border-b border-[var(--trae-border-neutral-l1)] pb-3">
-        <Icon className="size-4 text-[var(--trae-bg-brand)]" />
-        <span className="text-[13px] font-semibold leading-tight text-[var(--trae-text-default)]">
+    <div className={'set-card ' + (className ?? '')}>
+      <div className="set-card__head">
+        <Icon className="di-16" />
+        <span className="set-card__title">
           {title}
         </span>
         {tag != null && tag !== '' && (
-          <span className="ml-auto font-mono text-[10px] text-[var(--trae-text-tertiary)]">
+          <span className="set-card__tag">
             {tag}
           </span>
         )}

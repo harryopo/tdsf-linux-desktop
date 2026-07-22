@@ -21,6 +21,7 @@
 import { FileText, ArrowUpRight } from 'lucide-react'
 import type { SearchResultItem } from './hybrid-search-types'
 import { SOURCE_LABELS, SOURCE_COLORS } from './hybrid-search-types'
+import '../../../pages/TutorialPage.css'
 
 export interface SearchResultCardProps {
   /** 搜索结果项 */
@@ -78,28 +79,17 @@ export function SearchResultCard({ result, onOpen }: SearchResultCardProps) {
           onOpen(result.id)
         }
       }}
-      className="flex cursor-pointer flex-col gap-2 border transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.4)]"
-      style={{
-        background: 'var(--trae-bg-base-secondary)',
-        borderColor: 'var(--trae-border-neutral-l1)',
-        borderRadius: 'var(--trae-radius-8)',
-        padding: '14px 16px',
-      }}
+      className="tut-result-card"
     >
       {/* ===== 标题行：图标 + 标题 + 分数 + 跳转箭头 ===== */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="tut-result-head">
         <div className="flex min-w-0 flex-1 items-start gap-2">
           <FileText
             className="mt-0.5 h-4 w-4 shrink-0"
             style={{ color: 'var(--trae-icon-secondary)' }}
           />
           <h4
-            className="m-0 min-w-0 truncate font-semibold"
-            style={{
-              fontSize: 'var(--trae-body-base-strong-font-size)',
-              lineHeight: 'var(--trae-body-base-strong-line-height)',
-              color: 'var(--trae-text-default)',
-            }}
+            className="tut-result-title"
             title={result.title}
           >
             {result.title}
@@ -108,15 +98,16 @@ export function SearchResultCard({ result, onOpen }: SearchResultCardProps) {
         <div className="flex shrink-0 items-center gap-2">
           {/* 相似度分数（百分比） */}
           <span
-            className="inline-flex h-5 items-center whitespace-nowrap px-1.5"
+            className="tut-result-score"
             style={{
               color: scoreColor.color,
               background: scoreColor.background,
               border: `1px solid ${scoreColor.border}`,
+              padding: '0 6px',
+              height: '20px',
+              display: 'inline-flex',
+              alignItems: 'center',
               borderRadius: 'var(--trae-radius-2)',
-              fontSize: 'var(--trae-body-xs-font-size)',
-              fontWeight: 'var(--trae-font-weight-medium)',
-              fontVariantNumeric: 'tabular-nums',
             }}
             title={`RRF 融合分：${result.rrfScore.toFixed(4)}`}
           >
@@ -130,34 +121,20 @@ export function SearchResultCard({ result, onOpen }: SearchResultCardProps) {
       </div>
 
       {/* ===== 摘要（前 100 字） ===== */}
-      <p
-        className="m-0"
-        style={{
-          fontSize: 'var(--trae-body-sm-font-size)',
-          lineHeight: 'var(--trae-body-sm-line-height)',
-          color: 'var(--trae-text-secondary)',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}
-      >
+      <p className="tut-result-snippet">
         {result.summaryTruncated}
       </p>
 
       {/* ===== 元信息行：分类 + 召回来源 + 原始分数 ===== */}
-      <div
-        className="flex flex-wrap items-center gap-2"
-        style={{
-          fontSize: 'var(--trae-body-xs-font-size)',
-          color: 'var(--trae-text-tertiary)',
-        }}
-      >
+      <div className="tut-result-meta">
         {/* 分类标签 */}
         {result.category && (
           <span
-            className="inline-flex h-5 items-center px-1.5"
             style={{
+              display: 'inline-flex',
+              height: '20px',
+              alignItems: 'center',
+              padding: '0 6px',
               background: 'var(--trae-bg-overlay-l2)',
               color: 'var(--trae-text-secondary)',
               borderRadius: 'var(--trae-radius-2)',
@@ -169,13 +146,11 @@ export function SearchResultCard({ result, onOpen }: SearchResultCardProps) {
 
         {/* 召回来源标签（fts / vec / both） */}
         <span
-          className="inline-flex h-5 items-center gap-1 px-1.5"
+          className="tut-result-source"
           style={{
             color: sourceColor.color,
             background: sourceColor.background,
             border: `1px solid ${sourceColor.border}`,
-            borderRadius: 'var(--trae-radius-2)',
-            fontWeight: 'var(--trae-font-weight-medium)',
           }}
           title={`召回来源：${
             result.source === 'fts'
@@ -199,8 +174,10 @@ export function SearchResultCard({ result, onOpen }: SearchResultCardProps) {
 
         {/* 原始分数（调试用，等宽数字） */}
         <span
-          className="inline-flex items-center gap-1"
           style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
             fontVariantNumeric: 'tabular-nums',
             fontFamily: 'var(--trae-font-family-mono)',
           }}

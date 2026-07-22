@@ -38,7 +38,7 @@ export function EmptyMonitorState({
     <button
       type="button"
       onClick={() => navigate('/workbench')}
-      className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+      className="mon-empty-action"
     >
       前往工作台
     </button>
@@ -46,7 +46,7 @@ export function EmptyMonitorState({
 
   return (
     <div
-      className={`flex w-full items-center justify-center rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] ${className ?? ''}`}
+      className={`mon-empty-wrap ${className ?? ''}`}
     >
       <Empty
         icon={Icon}

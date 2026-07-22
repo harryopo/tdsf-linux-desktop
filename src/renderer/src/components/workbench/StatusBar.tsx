@@ -90,19 +90,17 @@ export function StatusBar() {
 
   return (
     <footer
-      className="wb-statusbar flex h-7 shrink-0 items-center justify-between border-t border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-2 text-[12px] text-[var(--trae-text-secondary)]"
-      style={{ fontVariantNumeric: 'tabular-nums' }}
+      className="wb-statusbar"
       aria-label="状态栏"
     >
-      {/* === 左侧：连接/错误/AI 状态 === */}
-      <div className="flex items-center gap-1">
+      <div className="wb-statusbar-group">
         <StatusItem onClick={focusActiveTerminal} title="聚焦终端">
           <Terminal className="size-3" />
           <span>main</span>
         </StatusItem>
 
         <StatusItem color={sshColor}>
-          <span className="size-1.5 rounded-full" style={{ background: sshColor }} />
+          <span className="wb-status-item-dot" style={{ background: sshColor }} />
           <span>{sshLabel}</span>
           {activeServer && (
             <span className="max-w-[100px] truncate text-[var(--trae-text-tertiary)]">
@@ -122,8 +120,7 @@ export function StatusBar() {
         </StatusItem>
       </div>
 
-      {/* === 右侧：会话信息（设计稿行 3316-3327） === */}
-      <div className="flex items-center gap-1">
+      <div className="wb-statusbar-group">
         <StatusItem title="光标位置（编辑器集成后自动更新）">
           <span>
             Ln <span className="tabular-nums">{cursorLine}</span>, Col{' '}
@@ -188,7 +185,7 @@ function StatusItem({ children, color, onClick, title }: StatusItemProps) {
       type="button"
       onClick={onClick}
       title={title}
-      className="inline-flex h-[22px] cursor-pointer items-center gap-1 rounded-[var(--trae-radius-4)] px-1.5 transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
+      className="wb-status-item"
       style={color ? { color } : undefined}
     >
       {children}
