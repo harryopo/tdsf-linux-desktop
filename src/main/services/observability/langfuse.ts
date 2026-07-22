@@ -9,7 +9,7 @@
  * 调研依据：07-开源项目调研-AIOps-2025.md Top2
  * 价值：让评委现场点开 Langfuse Cloud 看 trace（评委爽点 4）
  */
-import { Langfuse } from 'langfuse'
+import { Langfuse, type LangfuseTraceClient } from 'langfuse'
 import { ConfigStore, type LangfuseConfig } from '../storage/config-store'
 
 // 重新导出 LangfuseConfig 以保持向后兼容
@@ -134,8 +134,8 @@ export class LangfuseService {
 
 /** Langfuse 真实 Trace 句柄 */
 class LangfuseTraceHandle implements TraceHandle {
-  // 使用 any 绕过 v3 SDK 的复杂类型（API 实际可用）
-  private readonly trace: any
+  // Langfuse v3 SDK 的 LangfuseTraceClient（client.trace() 返回值）
+  private readonly trace: LangfuseTraceClient
 
   constructor(client: Langfuse, context: TraceContext) {
     this.trace = client.trace({
@@ -171,10 +171,12 @@ class LangfuseTraceHandle implements TraceHandle {
   end(options?: { level?: LangfuseLevel; statusMessage?: string }): void {
     try {
       if (options?.level || options?.statusMessage) {
-        this.trace.update({
-          ...(options.level ? { level: options.level } : {}),
-          ...(options.statusMessage ? { statusMessage: options.statusMessage } : {})
-        })
+        // 用变量传参避免 excess property check（SDK 的 CreateLangfuseTraceBody
+        // 类型未显式声明 level/statusMessage，但运行时 API 支持这些字段）
+        const updateBody: Record<string, unknown> = {}
+        if (options.level) updateBody.level = options.level
+        if (options.statusMessage) updateBody.statusMessage = options.statusMessage
+        this.trace.update(updateBody)
       }
     } catch {
       // 静默吞掉
