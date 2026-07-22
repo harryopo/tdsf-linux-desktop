@@ -360,6 +360,20 @@ export const LOOP = {
   CONFIRM: 'loop:confirm',
   /** 取消正在执行的工作流（invoke: 渲染 → 主） */
   CANCEL: 'loop:cancel',
+  /** LLM 调用开始推送（push: 主 → 渲染） */
+  LLM_START: 'loop:llm-start',
+  /** LLM 调用完成推送（push: 主 → 渲染） */
+  LLM_DONE: 'loop:llm-done',
+  /** 工作流步骤变更推送（push: 主 → 渲染） */
+  STEP: 'loop:step',
+  /** 决策卡片推送（push: 主 → 渲染） */
+  DECISION: 'loop:decision',
+  /** 工作流完成信号推送（push: 主 → 渲染） */
+  DONE: 'loop:done',
+  /** 工作流错误信号推送（push: 主 → 渲染） */
+  ERROR: 'loop:error',
+  /** 工作流阻塞信号推送（push: 主 → 渲染） */
+  BLOCKED: 'loop:blocked',
 } as const
 
 /**
@@ -403,6 +417,10 @@ export const LOG = {
   SET_MIN_LEVEL: 'log:setMinLevel',
   /** 刷盘日志（invoke: 渲染 → 主） */
   FLUSH: 'log:flush',
+  /** 读取日志（invoke: 渲染 → 主） */
+  READ: 'log:read',
+  /** 渲染进程日志上报（invoke: 渲染 → 主） */
+  RENDERER: 'log:renderer',
 } as const
 
 /**
@@ -423,6 +441,10 @@ export const KNOWLEDGE = {
   IMPORT: 'kb:import',
   /** 批量导出知识条目（invoke: 渲染 → 主） */
   EXPORT: 'kb:export',
+  /** 搜索知识条目（invoke: 渲染 → 主） */
+  SEARCH: 'kb:search',
+  /** 更新知识条目（invoke: 渲染 → 主） */
+  UPDATE: 'kb:update',
 } as const
 
 /**
@@ -437,6 +459,8 @@ export const HISTORY = {
   GET: 'history:get',
   /** 保存决策卡片（invoke: 渲染 → 主） */
   SAVE: 'history:save',
+  /** 查询决策历史列表（invoke: 渲染 → 主） */
+  LIST: 'history:list',
 } as const
 
 /**
@@ -457,6 +481,14 @@ export const DIAGNOSTICS = {
   CLEAR: 'diagnostics:clear',
   /** 启用/禁用诊断（invoke: 渲染 → 主） */
   SET_ENABLED: 'diagnostics:set-enabled',
+  /** 获取诊断日志（invoke: 渲染 → 主） */
+  GET_LOGS: 'diagnostics:get-logs',
+  /** 获取诊断发现（invoke: 渲染 → 主） */
+  GET_FINDINGS: 'diagnostics:get-findings',
+  /** 注入测试事件（invoke: 渲染 → 主） */
+  INGEST_TEST: 'diagnostics:ingest-test',
+  /** 诊断日志批量推送（push: 主 → 渲染） */
+  LOG_BATCH: 'diagnostics:log-batch',
 } as const
 
 /**
@@ -480,6 +512,18 @@ export const SIDECAR = {
   HEALTH: 'sidecar:health',
   /** 列出所有 sidecar 状态（invoke: 渲染 → 主） */
   LIST_STATUS: 'sidecar:list-status',
+  /** 启动指定 sidecar（invoke: 渲染 → 主） */
+  START_ONE: 'sidecar:start-one',
+  /** 停止指定 sidecar（invoke: 渲染 → 主） */
+  STOP_ONE: 'sidecar:stop-one',
+  /** 指定 sidecar 健康检查（invoke: 渲染 → 主） */
+  HEALTH_ONE: 'sidecar:health-one',
+  /** sidecar 日志解析管线（invoke: 渲染 → 主） */
+  PIPELINE: 'sidecar:pipeline',
+  /** sidecar 工具调用（invoke: 渲染 → 主） */
+  TOOL_CALL: 'sidecar:tool-call',
+  /** 解析 sidecar 日志（invoke: 渲染 → 主） */
+  PARSE_LOGS: 'sidecar:parse-logs',
 } as const
 
 /**
@@ -491,6 +535,22 @@ export const SIDECAR = {
 export const SANDBOX = {
   /** 检测 Docker 环境（invoke: 渲染 → 主） */
   DETECT_DOCKER: 'sandbox:detect-docker',
+  /** 启动沙箱（invoke: 渲染 → 主） */
+  START: 'sandbox:start',
+  /** 停止沙箱（invoke: 渲染 → 主） */
+  STOP: 'sandbox:stop',
+  /** 查询沙箱状态（invoke: 渲染 → 主） */
+  STATUS: 'sandbox:status',
+  /** 创建沙箱（invoke: 渲染 → 主） */
+  CREATE: 'sandbox:create',
+  /** 列出沙箱（invoke: 渲染 → 主） */
+  LIST: 'sandbox:list',
+  /** 在沙箱内执行命令（invoke: 渲染 → 主） */
+  EXECUTE: 'sandbox:execute',
+  /** 审批沙箱命令（invoke: 渲染 → 主） */
+  APPROVE: 'sandbox:approve',
+  /** 删除沙箱（invoke: 渲染 → 主） */
+  DELETE: 'sandbox:delete',
 } as const
 
 /**
@@ -514,6 +574,8 @@ export const MCP = {
   EXTERNAL_TOOLS: 'mcp:external-tools',
   /** 重连外部 MCP 服务器（invoke: 渲染 → 主） */
   EXTERNAL_RECONNECT: 'mcp:external-reconnect',
+  /** 调用外部 MCP 工具（invoke: 渲染 → 主） */
+  EXTERNAL_CALL: 'mcp:external-call',
 } as const
 
 /**
@@ -558,6 +620,18 @@ export const TUTORIAL = {
   RESET_CHECKPOINT: 'tutorial:resetCheckpoint',
   /** 查询索引状态（invoke: 渲染 → 主） */
   SEARCH_STATUS: 'tutorial:search-status',
+  /** 列出教程（invoke: 渲染 → 主） */
+  LIST: 'tutorial:list',
+  /** 获取教程详情（invoke: 渲染 → 主） */
+  GET: 'tutorial:get',
+  /** 搜索教程（invoke: 渲染 → 主） */
+  SEARCH: 'tutorial:search',
+  /** 混合检索教程（invoke: 渲染 → 主，FTS + 向量） */
+  HYBRID_SEARCH: 'tutorial:hybrid-search',
+  /** 回填 embedding 向量（invoke: 渲染 → 主） */
+  BACKFILL_EMBEDDINGS: 'tutorial:backfill-embeddings',
+  /** 学习路径推荐（invoke: 渲染 → 主） */
+  RECOMMEND_PATH: 'tutorial:recommend-path',
 } as const
 
 /**
@@ -578,6 +652,12 @@ export const DEPLOY = {
   CANCEL: 'deploy:cancel',
   /** 查询部署状态（invoke: 渲染 → 主） */
   GET_STATUS: 'deploy:getStatus',
+  /** 校验部署参数（invoke: 渲染 → 主） */
+  VALIDATE: 'deploy:validate',
+  /** 构建部署计划（invoke: 渲染 → 主） */
+  BUILD: 'deploy:build',
+  /** 执行部署计划（invoke: 渲染 → 主） */
+  EXECUTE: 'deploy:execute',
 } as const
 
 /**
@@ -589,6 +669,10 @@ export const DEPLOY = {
 export const AT_COMMANDS = {
   /** 列出 AT 命令（invoke: 渲染 → 主） */
   LIST: 'at:list',
+  /** 解析 @ 命令（invoke: 渲染 → 主） */
+  PARSE: 'at:parse',
+  /** 解析 @ 命令为结构化结果（invoke: 渲染 → 主） */
+  RESOLVE: 'at:resolve',
 } as const
 
 /**
@@ -600,6 +684,12 @@ export const AT_COMMANDS = {
 export const TOKEN = {
   /** 重置 Token 用量统计（invoke: 渲染 → 主） */
   RESET: 'token:reset',
+  /** 查询 Token 用量统计（invoke: 渲染 → 主） */
+  STATS: 'token:stats',
+  /** 查询 Token 用量记录列表（invoke: 渲染 → 主） */
+  RECORDS: 'token:records',
+  /** 查询 Token 成本统计（invoke: 渲染 → 主） */
+  COST_STATS: 'token:cost-stats',
 } as const
 
 /**
@@ -618,3 +708,280 @@ export const PROMPTFOO = {
   /** 列出测试（invoke: 渲染 → 主） */
   LIST_TESTS: 'promptfoo:list-tests',
 } as const
+
+/**
+ * 系统级 IPC 通道常量（v2.2 P1 修复 #20：preload system 常量集中化）
+ *
+ * 通道列表：
+ * - PING  invoke  渲染 → 主：心跳保活 ping
+ *
+ * 设计说明：
+ * - 主进程在所有业务 IPC 之前注册（main/ipc/index.ts:95），用于早期响应渲染进程心跳
+ * - 渲染进程通过 window.electronAPI.systemPing() 调用（preload 已暴露）
+ * - 主进程使用字面量豁免（B4）：registerAllIpcHandlers 调用前 ipc-channels 模块未初始化
+ *   但实际同文件已 import 其他常量，故豁免不适用，主进程同步替换为 SYSTEM.PING
+ */
+export const SYSTEM = {
+  /** 心跳保活 ping（invoke: 渲染 → 主，返回 { ok, timestamp, protocolVersion }） */
+  PING: 'system:ping',
+} as const
+
+/**
+ * 应用更新 IPC 通道常量（v2.2 P1 修复 #24：AboutSettings 检查更新功能）
+ *
+ * 通道列表：
+ * - CHECK_UPDATE   invoke  渲染 → 主：检查 GitHub Releases 是否有新版本
+ * - DOWNLOAD_UPDATE invoke 渲染 → 主：打开浏览器跳转到 Release 页面（简化方案）
+ *
+ * 设计说明（简化方案 · 不引入 electron-updater）：
+ * - 主进程用 net.fetch 请求 GitHub Releases API，比对版本号
+ * - 不实现自动下载安装（避免 electron-updater 复杂配置）
+ * - "下载更新" 实际打开浏览器到 Release 页面，由用户手动下载
+ */
+export const APP = {
+  /** 检查更新（invoke: 渲染 → 主，HTTP GET GitHub Releases API 比对版本号） */
+  CHECK_UPDATE: 'app:check-update',
+  /** 下载更新（invoke: 渲染 → 主，打开浏览器到 Release 页面） */
+  DOWNLOAD_UPDATE: 'app:download-update',
+} as const
+
+/**
+ * 文件系统 IPC 通道常量（v2.2 P1 修复 #22：AIPanel 图片附件基础版）
+ *
+ * 通道列表：
+ * - UPLOAD_IMAGE invoke  渲染 → 主：选择图片文件并返回 base64 数据
+ *
+ * 设计说明：
+ * - 主进程用 dialog.showOpenDialog 让用户选择图片
+ * - 读取文件并转 base64 data URL 返回渲染层
+ * - 限制图片大小（4MB）和扩展名（png/jpg/jpeg/gif/webp/bmp）
+ */
+export const FS = {
+  /** 选择图片文件并返回 base64 数据 URL（invoke: 渲染 → 主） */
+  UPLOAD_IMAGE: 'fs:upload-image',
+} as const
+
+/**
+ * Profiler 系统架构感知 IPC 通道常量（v2.2 P1 修复 #18/#20：补齐缺失域）
+ *
+ * 通道列表：
+ * - RUN             invoke  渲染 → 主：执行系统架构感知（27 项探查 + 风险检测 + md 渲染）
+ * - EXPORT_MD       invoke  渲染 → 主：导出 md 文件
+ * - EXPORT_PDF      invoke  渲染 → 主：导出 PDF 文件
+ * - DEFAULT_FILE_NAME invoke 渲染 → 主：生成默认文件名
+ */
+export const PROFILER = {
+  /** 执行系统架构感知（invoke: 渲染 → 主） */
+  RUN: 'profiler:run',
+  /** 导出 md 文件（invoke: 渲染 → 主） */
+  EXPORT_MD: 'profiler:exportMd',
+  /** 导出 PDF 文件（invoke: 渲染 → 主） */
+  EXPORT_PDF: 'profiler:exportPdf',
+  /** 生成默认文件名（invoke: 渲染 → 主） */
+  DEFAULT_FILE_NAME: 'profiler:defaultFileName',
+} as const
+
+/**
+ * PAOR（Plan→Act→Observe→Reflect）IPC 通道常量
+ *
+ * 通道列表：
+ * - APPROVE invoke  渲染 → 主：人工审批 PAOR 循环步骤
+ */
+export const PAOR = {
+  /** 人工审批 PAOR 循环步骤（invoke: 渲染 → 主） */
+  APPROVE: 'paor:approve',
+} as const
+
+/**
+ * Claude Agent SDK IPC 通道常量
+ *
+ * 通道列表：
+ * - GENERATE invoke  渲染 → 主：同步聚合对话（返回 ChatResult）
+ * - STREAM   invoke  渲染 → 主：异步流式对话（立即返回 correlationId）
+ * - CANCEL   invoke  渲染 → 主：取消进行中的流式请求
+ */
+export const CLAUDE_SDK = {
+  /** 同步聚合对话（invoke: 渲染 → 主，返回 ChatResult） */
+  GENERATE: 'claude-sdk:generate',
+  /** 异步流式对话（invoke: 渲染 → 主，立即返回 correlationId） */
+  STREAM: 'claude-sdk:stream',
+  /** 取消进行中的流式请求（invoke: 渲染 → 主） */
+  CANCEL: 'claude-sdk:cancel',
+} as const
+
+/**
+ * Provider 信息查询 IPC 通道常量
+ *
+ * 通道列表：
+ * - LIST             invoke  渲染 → 主：列出已配置的 Provider
+ * - GET              invoke  渲染 → 主：获取单个 Provider 配置
+ * - SAVE             invoke  渲染 → 主：保存 Provider 配置
+ * - SET_DEFAULT      invoke  渲染 → 主：设置默认 Provider
+ * - CAPABILITIES     invoke  渲染 → 主：查询单个 Provider 能力
+ * - CAPABILITIES_ALL invoke  渲染 → 主：查询所有 Provider 能力
+ * - PRICING          invoke  渲染 → 主：查询单个 Provider 定价
+ * - PRICING_ALL      invoke  渲染 → 主：查询所有 Provider 定价
+ */
+export const PROVIDER = {
+  /** 列出已配置的 Provider（invoke: 渲染 → 主） */
+  LIST: 'provider:list',
+  /** 获取单个 Provider 配置（invoke: 渲染 → 主） */
+  GET: 'provider:get',
+  /** 保存 Provider 配置（invoke: 渲染 → 主） */
+  SAVE: 'provider:save',
+  /** 设置默认 Provider（invoke: 渲染 → 主） */
+  SET_DEFAULT: 'provider:set-default',
+  /** 查询单个 Provider 能力（invoke: 渲染 → 主） */
+  CAPABILITIES: 'provider:capabilities',
+  /** 查询所有 Provider 能力（invoke: 渲染 → 主） */
+  CAPABILITIES_ALL: 'provider:capabilities-all',
+  /** 查询单个 Provider 定价（invoke: 渲染 → 主） */
+  PRICING: 'provider:pricing',
+  /** 查询所有 Provider 定价（invoke: 渲染 → 主） */
+  PRICING_ALL: 'provider:pricing-all',
+} as const
+
+/**
+ * 模式（Mode）IPC 通道常量
+ *
+ * 通道列表：
+ * - LIST        invoke  渲染 → 主：列出所有模式
+ * - SET_DEFAULT invoke  渲染 → 主：设置默认模式
+ * - GET_CURRENT invoke  渲染 → 主：获取当前模式
+ */
+export const MODE = {
+  /** 列出所有模式（invoke: 渲染 → 主） */
+  LIST: 'mode:list',
+  /** 设置默认模式（invoke: 渲染 → 主） */
+  SET_DEFAULT: 'mode:set-default',
+  /** 获取当前模式（invoke: 渲染 → 主） */
+  GET_CURRENT: 'mode:get-current',
+} as const
+
+/**
+ * Attention 注意力追踪 IPC 通道常量
+ *
+ * 通道列表：
+ * - CURRENT          invoke  渲染 → 主：查询当前注意力焦点
+ * - HISTORY          invoke  渲染 → 主：查询注意力历史
+ * - TRACK_FILES      invoke  渲染 → 主：追踪文件访问
+ * - TRACK_COMMANDS   invoke  渲染 → 主：追踪命令执行
+ * - TRACK_ERRORS     invoke  渲染 → 主：追踪错误事件
+ * - TRACK_KEYWORDS   invoke  渲染 → 主：追踪关键词命中
+ * - RESET            invoke  渲染 → 主：重置注意力状态
+ */
+export const ATTENTION = {
+  /** 查询当前注意力焦点（invoke: 渲染 → 主） */
+  CURRENT: 'attention:current',
+  /** 查询注意力历史（invoke: 渲染 → 主） */
+  HISTORY: 'attention:history',
+  /** 追踪文件访问（invoke: 渲染 → 主） */
+  TRACK_FILES: 'attention:track-files',
+  /** 追踪命令执行（invoke: 渲染 → 主） */
+  TRACK_COMMANDS: 'attention:track-commands',
+  /** 追踪错误事件（invoke: 渲染 → 主） */
+  TRACK_ERRORS: 'attention:track-errors',
+  /** 追踪关键词命中（invoke: 渲染 → 主） */
+  TRACK_KEYWORDS: 'attention:track-keywords',
+  /** 重置注意力状态（invoke: 渲染 → 主） */
+  RESET: 'attention:reset',
+} as const
+
+/**
+ * 期望校验 IPC 通道常量
+ *
+ * 通道列表：
+ * - CHECK  invoke  渲染 → 主：校验期望与实际输出
+ * - FORMAT invoke  渲染 → 主：格式化违规报告
+ */
+export const EXPECTATION = {
+  /** 校验期望与实际输出（invoke: 渲染 → 主） */
+  CHECK: 'expectation:check',
+  /** 格式化违规报告（invoke: 渲染 → 主） */
+  FORMAT: 'expectation:format',
+} as const
+
+/**
+ * 子 Agent IPC 通道常量
+ *
+ * 通道列表：
+ * - LIST   invoke  渲染 → 主：列出子 Agent
+ * - RELOAD invoke  渲染 → 主：重新加载子 Agent 配置
+ */
+export const SUBAGENT = {
+  /** 列出子 Agent（invoke: 渲染 → 主） */
+  LIST: 'subagent:list',
+  /** 重新加载子 Agent 配置（invoke: 渲染 → 主） */
+  RELOAD: 'subagent:reload',
+} as const
+
+/**
+ * 可信度评估 IPC 通道常量
+ *
+ * 通道列表：
+ * - ASSESS                  invoke  渲染 → 主：评估可信度
+ * - DAG                     invoke  渲染 → 主：构建证据 DAG
+ * - CALIBRATE               invoke  渲染 → 主：执行校准
+ * - GET_CALIBRATION         invoke  渲染 → 主：查询校准结果
+ * - GET_CALIBRATION_STATE   invoke  渲染 → 主：查询校准状态
+ * - RESET_CALIBRATION       invoke  渲染 → 主：重置校准
+ * - COMPUTE_ECE             invoke  渲染 → 主：计算 ECE 指标
+ * - ADD_CALIBRATION_SAMPLE  invoke  渲染 → 主：添加校准样本
+ * - EXPORT_AUDIT_REPORT     invoke  渲染 → 主：导出审计报告
+ * - LIST_AUDIT_REPORTS      invoke  渲染 → 主：列出审计报告
+ * - LOAD_AUDIT_REPORT       invoke  渲染 → 主：加载审计报告
+ * - FORMAT_AUDIT_REPORT     invoke  渲染 → 主：格式化审计报告
+ */
+export const CREDIBILITY = {
+  /** 评估可信度（invoke: 渲染 → 主） */
+  ASSESS: 'credibility:assess',
+  /** 构建证据 DAG（invoke: 渲染 → 主） */
+  DAG: 'credibility:dag',
+  /** 执行校准（invoke: 渲染 → 主） */
+  CALIBRATE: 'credibility:calibrate',
+  /** 查询校准结果（invoke: 渲染 → 主） */
+  GET_CALIBRATION: 'credibility:get-calibration',
+  /** 查询校准状态（invoke: 渲染 → 主） */
+  GET_CALIBRATION_STATE: 'credibility:get-calibration-state',
+  /** 重置校准（invoke: 渲染 → 主） */
+  RESET_CALIBRATION: 'credibility:reset-calibration',
+  /** 计算 ECE 指标（invoke: 渲染 → 主） */
+  COMPUTE_ECE: 'credibility:compute-ece',
+  /** 添加校准样本（invoke: 渲染 → 主） */
+  ADD_CALIBRATION_SAMPLE: 'credibility:add-calibration-sample',
+  /** 导出审计报告（invoke: 渲染 → 主） */
+  EXPORT_AUDIT_REPORT: 'credibility:export-audit-report',
+  /** 列出审计报告（invoke: 渲染 → 主） */
+  LIST_AUDIT_REPORTS: 'credibility:list-audit-reports',
+  /** 加载审计报告（invoke: 渲染 → 主） */
+  LOAD_AUDIT_REPORT: 'credibility:load-audit-report',
+  /** 格式化审计报告（invoke: 渲染 → 主） */
+  FORMAT_AUDIT_REPORT: 'credibility:format-audit-report',
+} as const
+
+/**
+ * MCP 外部服务器扩展通道（补充 MCP 域未覆盖的 external-call 通道）
+ *
+ * 通道列表：
+ * - EXTERNAL_CALL invoke  渲染 → 主：调用外部 MCP 服务器工具
+ *
+ * 设计说明：MCP.EXTERNAL_STATUS / EXTERNAL_TOOLS / EXTERNAL_RECONNECT 已在 MCP 域中定义，
+ * 仅 EXTERNAL_CALL 是独立通道（动态调用任意外部工具），故单独补充。
+ */
+export const MCP_EXTERNAL = {
+  /** 调用外部 MCP 服务器工具（invoke: 渲染 → 主） */
+  EXTERNAL_CALL: 'mcp:external-call',
+} as const
+
+/**
+ * 任务权限审批 IPC 通道常量
+ *
+ * 通道列表：
+ * - PERMISSION_APPROVE invoke  渲染 → 主：任务权限审批响应
+ */
+export const TASK = {
+  /** 任务权限审批响应（invoke: 渲染 → 主） */
+  PERMISSION_APPROVE: 'task:permission-approve',
+} as const
+
+

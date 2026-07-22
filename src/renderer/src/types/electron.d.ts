@@ -187,6 +187,82 @@ export interface DockerInfo {
   error?: string
 }
 
+// ============================================================================
+// v2.2 P1 修复 #24：应用更新类型声明（与 main/ipc/app-update.ts 对齐）
+//
+// 简化方案：HTTP GET GitHub Releases API 比对版本号，不引入 electron-updater。
+// 类型在渲染层独立声明（避免从 main/ import 造成构建依赖）。
+// ============================================================================
+
+/**
+ * 应用更新信息（检查成功时返回）
+ *
+ * 字段与 main/ipc/app-update.ts AppUpdateInfo 完全对齐。
+ */
+export interface AppUpdateInfo {
+  /** 是否有新版本 */
+  hasUpdate: boolean
+  /** 最新版本号（含 v 前缀，如 'v1.0.1'） */
+  latestVersion: string
+  /** 当前版本号（含 v 前缀，如 'v1.0.0'） */
+  currentVersion: string
+  /** Release 页面 URL（用户可手动下载） */
+  releaseUrl: string
+  /** 更新日志（Markdown 格式，来自 Release body） */
+  releaseNotes: string
+  /** Release 发布时间（ISO 8601 字符串） */
+  publishedAt: string
+}
+
+/**
+ * 应用更新错误信息（检查失败时返回，已脱敏）
+ *
+ * 字段与 main/ipc/app-update.ts AppUpdateError 完全对齐。
+ */
+export interface AppUpdateError {
+  /** 是否有新版本（出错时为 false） */
+  hasUpdate: false
+  /** 错误信息（已脱敏） */
+  error: string
+}
+
+// ============================================================================
+// v2.2 P1 修复 #22：图片上传类型声明（与 main/ipc/fs-upload.ts 对齐）
+//
+// 简化方案：dialog.showOpenDialog + 读取文件转 base64 data URL，不引入图片压缩库。
+// 类型在渲染层独立声明（避免从 main/ import 造成构建依赖）。
+// ============================================================================
+
+/**
+ * 图片上传结果（成功时返回）
+ *
+ * 字段与 main/ipc/fs-upload.ts ImageUploadResult 完全对齐。
+ */
+export interface ImageUploadResult {
+  /** 是否成功 */
+  success: true
+  /** base64 data URL（可直接用于 <img src>） */
+  dataUrl: string
+  /** 文件名（含扩展名，不含路径） */
+  fileName: string
+  /** 文件大小（字节） */
+  fileSize: number
+  /** MIME 类型（如 'image/png'） */
+  mimeType: string
+}
+
+/**
+ * 图片上传错误（失败时返回，已脱敏）
+ *
+ * 字段与 main/ipc/fs-upload.ts ImageUploadError 完全对齐。
+ */
+export interface ImageUploadError {
+  /** 是否成功（失败时为 false） */
+  success: false
+  /** 错误信息（已脱敏） */
+  error: string
+}
+
 /** 沙箱集成健康状态 */
 export interface SandboxHealthStatus {
   dockerReady: boolean
@@ -759,6 +835,46 @@ export interface ElectronAPI {
    * @returns { ok: true, timestamp: number, protocolVersion: string }
    */
   systemPing(): Promise<SystemPingResponse>
+
+  // ===== v2.2 P1 修复 #24：应用更新（app:check-update / app:download-update） =====
+  // 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面
+  // 不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子）
+  /**
+   * 检查 GitHub Releases 是否有新版本
+   *
+   * 主进程 HTTP GET GitHub Releases API（10 秒超时），比对 semver 版本号。
+   * - 检查成功：返回 AppUpdateInfo（hasUpdate=true 表示有新版本）
+   * - 检查失败：返回 AppUpdateError（error 字段已脱敏）
+   * - GitHub API 速率限制（403）：返回 AppUpdateError 提示稍后重试
+   *
+   * 使用场景：AboutSettings 页面"检查更新"按钮
+   */
+  appCheckUpdate(): Promise<AppUpdateInfo | AppUpdateError>
+  /**
+   * 打开浏览器到 Release 页面（让用户手动下载安装包）
+   *
+   * 简化方案：不实现自动下载安装，让用户在浏览器中手动下载 .exe/.dmg/.AppImage。
+   *
+   * @param releaseUrl 可选，指定 Release URL（来自 appCheckUpdate 返回值）
+   *                   无参数时打开 Releases 列表页面
+   * @returns true 表示成功打开浏览器
+   */
+  appDownloadUpdate(releaseUrl?: string): Promise<boolean>
+
+  // ===== v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image） =====
+  // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
+  // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
+  /**
+   * 选择图片文件并返回 base64 data URL
+   *
+   * 主进程弹出文件选择对话框，用户选择图片后读取文件转 base64。
+   * - 成功：返回 ImageUploadResult（含 dataUrl / fileName / fileSize / mimeType）
+   * - 失败：返回 ImageUploadError（error 字段已脱敏）
+   * - 用户取消：返回 ImageUploadError（error='用户取消选择'）
+   *
+   * 使用场景：AIPanel 图片附件按钮
+   */
+  fsUploadImage(): Promise<ImageUploadResult | ImageUploadError>
 
   // ===== v0.9 Provider 管理 =====
   /** 列出所有 Provider 配置（不含 apiKey） */
