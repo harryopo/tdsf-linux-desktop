@@ -94,10 +94,18 @@ export function registerCredibilityHandlers(): void {
         const massFunctions = createMassFunctionsFromInputs(inputs)
 
         // 2. 融合并评估
+        //
+        // v2.0 Phase E：fuseAndAssess 默认应用 Temperature Scaling 校准
+        // 和附加 ECE 报告（applyCalibration=true + includeEceReport=true）。
+        // 返回的 internalAssessment 携带 calibratedConfidence 和 eceReport 字段。
+        // 论文：Guo et al. 2017, ICML, arXiv:1706.04599 §3.1-3.2
         const engine = getFusionEngine()
         const internalAssessment = engine.fuseAndAssess(massFunctions)
 
         // 3. 序列化为共享类型（将 Map-based MassFunction 转为 Array-based）
+        //
+        // v2.0 Phase E：透传 calibratedConfidence 和 eceReport 字段
+        // （均为可选，未启用校准时为 undefined，调用方应回退到 confidence）
         const assessment: ConfidenceAssessment = {
           belief: internalAssessment.belief,
           plausibility: internalAssessment.plausibility,
@@ -108,10 +116,15 @@ export function registerCredibilityHandlers(): void {
           sources: internalAssessment.sources,
           fusionSteps: internalAssessment.fusionSteps,
           fusedMassFunction: serializeMassFunction(internalAssessment.fusedMassFunction),
+          calibratedConfidence: internalAssessment.calibratedConfidence,
+          eceReport: internalAssessment.eceReport,
         }
 
         logger.info('IPC.CREDIBILITY', `credibility:assess 完成`, {
           confidence: assessment.confidence.toFixed(4),
+          calibratedConfidence: assessment.calibratedConfidence?.toFixed(4),
+          ece: assessment.eceReport?.ece.toFixed(4),
+          eceSamples: assessment.eceReport?.totalSamples,
           belief: assessment.belief.toFixed(4),
           plausibility: assessment.plausibility.toFixed(4),
           conflictLevel: assessment.conflictLevel.toFixed(4),

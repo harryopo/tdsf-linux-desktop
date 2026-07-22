@@ -5,16 +5,37 @@
  * 将现有的 5 个工具（ssh_exec / tutorial_search / deploy_list / profiler_run / monitor_get_data）
  * 通过 Mastra Agent 编排，提供统一的"对话式运维"入口。
  *
- * 与现有 supervisor 的关系：
- * - supervisor：7 步 HITL 工作流（PAOR 循环），适合复杂多步诊断
- * - Mastra OpsAgent：轻量级单轮对话 + 工具调用，适合快速问答和简单操作
+ * ============================================================================
+ * v2.0 Phase E.3 边界声明（Mastra vs Supervisor，详见 docs/AGENT-BOUNDARY.md）
+ * ============================================================================
  *
- * 使用场景：
- * 1. 用户在聊天面板输入简单问题（如"查看 CPU 使用率"），直接走 Mastra Agent
- * 2. 复杂诊断（如"服务为什么变慢了"）仍走 supervisor 的 PAOR 循环
- * 3. MCP Server 外部调用可通过 Mastra Agent 统一入口
+ * 【本文件：Mastra OpsAgent】— **单轮场景专用**
  *
- * 方案书依据：v0.9 §3（Mastra + AI SDK 7 组合）
+ * 适用条件（满足全部 3 项才走 Mastra）：
+ *   1. 单轮可完成：用户一次提问 + 一次工具调用 + 一次回答即可解决
+ *   2. 无需多步推理：不需要 PAOR 4 阶段循环（plan/act/observe/reflect）
+ *   3. 无需 HITL 审批：低风险操作（如只读查询、教程搜索）
+ *
+ * 典型场景：
+ *   - "查看 CPU 使用率" → monitor_get_data 一次调用
+ *   - "搜索 nginx 教程" → tutorial_search 一次调用
+ *   - "列出部署模板" → deploy_list_templates 一次调用
+ *   - MCP Server 外部调用（无状态单次请求）
+ *
+ * 不适用场景（应走 Supervisor）：
+ *   - 复杂故障诊断（如"服务为什么变慢了"）→ 需要 PAOR 多轮迭代
+ *   - 高危命令执行（如 rm -rf / shutdown）→ 需要 7 步 HITL 审批
+ *   - 跨多 Subagent 协作（如 explore + coding + verify）→ 需要 Subagent 调度
+ *   - 需要可信度评估 + 决策卡 + 审计报告 → 走 credibility 子系统
+ *
+ * 与 Supervisor 的关系：
+ *   - **不互相调用**：ops-agent 不调用 supervisor，supervisor 也不调用 ops-agent
+ *   - **共享工具**：两者都通过 ToolRegistry 复用 5 个核心工具
+ *   - **路由由 IPC 层决定**：上层 IPC handler 根据请求复杂度选择路径
+ *
+ * 方案书依据：v0.9 §3（Mastra + AI SDK 7 组合）+ v2.0 Phase E.3 TD-3 边界澄清
+ *
+ * 详见决策树：docs/AGENT-BOUNDARY.md §决策树
  */
 import { Agent } from '@mastra/core/agent'
 import { createOpenAI } from '@ai-sdk/openai'
