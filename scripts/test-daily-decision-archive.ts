@@ -30,6 +30,7 @@ import type {
   ArchiveKnowledgeRepository,
 } from '../src/main/services/scheduler/daily-decision-archive'
 import type { SchedulerTask } from '@shared/scheduler-types'
+import { redactSensitiveInfo } from '../src/main/services/security/redact'
 
 // ============================================================
 // 测试工具函数
@@ -609,6 +610,98 @@ async function main(): Promise<void> {
     assert(
       Array.isArray(ids) && ids.includes('dec-001'),
       'archivedDecisionIds 应包含 dec-001'
+    )
+  }
+
+  // ────────── 场景 9：事务失败与脱敏（Phase C · polish-tdsf-p1-issues）──────────
+
+  section('场景 9：事务失败与脱敏（Phase C）')
+
+  // 39. runInTransaction 抛错时事务回滚且 success=false（且错误信息已脱敏）
+  {
+    const decisionRepo = new MockDecisionRepo()
+    const knowledgeRepo = new MockKnowledgeRepo()
+    decisionRepo.setDecisions([makeDecision()])
+
+    // 覆写 runInTransaction 使其总是抛错（模拟事务启动失败）
+    // 错误信息含敏感字段以验证 catch 块脱敏生效
+    knowledgeRepo.runInTransaction = async function <T>(
+      _fn: () => Promise<T>
+    ): Promise<T> {
+      throw new Error('事务启动失败：数据库锁竞争 password=admin123')
+    }
+
+    const result = await runDailyDecisionArchive(
+      buildParams(decisionRepo, knowledgeRepo)
+    )
+
+    assert(
+      result.success === false,
+      'runInTransaction 抛错时应返回 success=false'
+    )
+    assert(
+      result.error !== undefined && result.error.length > 0,
+      'runInTransaction 抛错时 error 应非空'
+    )
+    // 验证错误信息已脱敏（password=admin123 应被替换为 [REDACTED]）
+    assert(
+      result.error?.includes('[REDACTED]') === true,
+      `error 中敏感信息应已脱敏，实际 "${result.error}"`
+    )
+    assert(
+      result.error?.includes('admin123') === false,
+      `error 中不应包含原始密码 admin123，实际 "${result.error}"`
+    )
+  }
+
+  // 40. relatedDecisionId 冲突时幂等性返回 success=true 且未写入新记录
+  {
+    const decisionRepo = new MockDecisionRepo()
+    const knowledgeRepo = new MockKnowledgeRepo()
+
+    // 预置已归档的知识条目（模拟 dec-001 已归档）
+    const existingEntry: ArchivedKnowledgeEntry = {
+      id: 'archive-dec-001-existing',
+      title: '[自动归档] 磁盘空间不足',
+      content: '已有归档内容',
+      source: 'auto-archive',
+      tags: ['auto-archived', 'decision', 'LOW'],
+      relatedDecisionId: 'dec-001',
+      createdAt: Date.now() - 1000,
+    }
+    await knowledgeRepo.save(existingEntry)
+    const saveCountBefore = knowledgeRepo.saveCallCount
+
+    // 设置决策列表包含 dec-001（已归档）
+    decisionRepo.setDecisions([makeDecision({ id: 'dec-001' })])
+
+    const result = await runDailyDecisionArchive(
+      buildParams(decisionRepo, knowledgeRepo)
+    )
+
+    // 验证 success=true（实现无 skipped 字段，幂等返回成功）
+    assert(
+      result.success === true,
+      'relatedDecisionId 冲突时应返回 success=true（幂等）'
+    )
+    // 验证 skippedCount > 0（实现无 skipped 字段，验证 details.skippedCount）
+    assert(
+      (result.details?.skippedCount as number) > 0,
+      'relatedDecisionId 冲突时 skippedCount 应 > 0'
+    )
+    // 验证未写入新记录
+    assert(
+      knowledgeRepo.saveCallCount === saveCountBefore,
+      'relatedDecisionId 冲突时不应写入新记录'
+    )
+  }
+
+  // 41. 脱敏函数在错误信息包含 password=xxx 时正确脱敏
+  {
+    const redacted = redactSensitiveInfo('error: password=secret123')
+    assert(
+      redacted === 'error: password=[REDACTED]',
+      `脱敏函数应将 password=xxx 脱敏，实际 "${redacted}"`
     )
   }
 
