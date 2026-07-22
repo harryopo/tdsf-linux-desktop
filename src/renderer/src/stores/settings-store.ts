@@ -52,6 +52,9 @@ const DEFAULT_SSH_DEFAULTS: Partial<SshConfig> = {
   port: 22,
   username: 'root',
   authType: 'password',
+  // K.3：心跳保活间隔默认值，与后端 KEEPALIVE_DEFAULT_INTERVAL_SEC 一致（30 秒），
+  // 渲染层 SshSettings 滑块不再使用本地 state，统一从此处读取。
+  keepAliveIntervalSec: 30,
 }
 
 /** 默认风险规则 */

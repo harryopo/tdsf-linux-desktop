@@ -133,7 +133,8 @@ export function SshSettings() {
   const [connectTimeoutSec, setConnectTimeoutSec] = useState(
     Math.max(5, Math.round((sshTimeout || 30000) / 1000)),
   )
-  const [keepAlive, setKeepAlive] = useState(60)
+  // K.3：keepAlive 直接联动 store（不再使用本地 state），与后端默认 30s 对齐
+  const keepAliveIntervalSec = sshDefaults.keepAliveIntervalSec ?? 30
   const [compression, setCompression] = useState(true)
   const [x11Forward, setX11Forward] = useState(false)
 
@@ -173,7 +174,13 @@ export function SshSettings() {
       setBusyId(server.id)
       setConnectionState(server.id, 'connecting')
       try {
-        const sessionId = await window.electronAPI.sshConnect(server)
+        // K.3：合并 keepAlive 配置到 SshConfig（滑块值 > 0 才启用心跳）
+        const mergedConfig: SshConfig = {
+          ...server,
+          keepAlive: keepAliveIntervalSec > 0,
+          keepAliveIntervalSec,
+        }
+        const sessionId = await window.electronAPI.sshConnect(mergedConfig)
         try {
           await window.electronAPI.sshShellStart(sessionId)
         } catch (e) {
@@ -199,6 +206,7 @@ export function SshSettings() {
       setConnectionState,
       setSessionMapping,
       showFb,
+      keepAliveIntervalSec,
     ],
   )
 
@@ -276,14 +284,15 @@ export function SshSettings() {
     setDefaultPort(22)
     setDefaultUser('root')
     setConnectTimeoutSec(30)
-    setKeepAlive(60)
+    // K.3：重置 keepAlive 到后端默认 30s（与 DEFAULT_SSH_DEFAULTS 一致）
+    setSshDefaults({ keepAliveIntervalSec: 30 })
     setCompression(true)
     setX11Forward(false)
     setAllowPasswordAuth(false)
     setAllowRootLogin(true)
     setStrictHostKeyCheck(true)
     setKnownHostsPath('~/.ssh/known_hosts')
-  }, [])
+  }, [setSshDefaults])
 
   /** 按名称排序的服务器列表 */
   const sortedServers = useMemo(
@@ -563,15 +572,17 @@ export function SshSettings() {
           />
           <SettingsRow
             label="Keep Alive 间隔"
-            desc="心跳包发送间隔"
+            desc="心跳包发送间隔（0 = 关闭，重启连接后生效）"
             control={
               <SettingsSlider
-                value={keepAlive}
+                value={keepAliveIntervalSec}
                 min={0}
                 max={300}
                 step={10}
                 suffix="s"
-                onValueChange={setKeepAlive}
+                onValueChange={(v) =>
+                  setSshDefaults({ keepAliveIntervalSec: v })
+                }
               />
             }
           />

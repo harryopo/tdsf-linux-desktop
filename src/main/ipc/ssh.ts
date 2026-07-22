@@ -36,6 +36,19 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
   const sftpManager = new SftpManager(sshManager)
 
   // ------------------------------------------------------------------
+  // SSH 心跳保活状态变更推送（K.2）
+  // ------------------------------------------------------------------
+  // 心跳失败 → 自动重连 → 最终断开时，SshConnectionManager 通过
+  // onStateChanged 回调推送 SshStateEvent，这里转发到渲染进程。
+  // 返回值 unsink 用于卸载（应用退出时由 disconnectAll 兜底）。
+  sshManager.onStateChanged((event) => {
+    // 窗口可能已关闭或正在销毁，需防御性检查
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(SSH.STATE_CHANGED, event)
+    }
+  })
+
+  // ------------------------------------------------------------------
   // SSH 连接管理
   // ------------------------------------------------------------------
 

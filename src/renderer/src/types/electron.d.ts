@@ -27,6 +27,8 @@ import type {
   McpStateContext,
   // v0.9.6 新增：外部 MCP Server 状态
   ExternalMcpServerStatus,
+  // K.2 心跳保活状态变更事件载荷
+  SshStateEvent,
 } from '@shared/models'
 
 // 部署助手类型（来自共享层 @shared/deploy-types）
@@ -445,6 +447,14 @@ export interface ElectronAPI {
   sshShellWrite(sessionId: string, data: string): Promise<boolean>
   /** 调整 Shell 终端尺寸 */
   sshShellResize(sessionId: string, cols: number, rows: number): Promise<boolean>
+  /**
+   * 监听 SSH 心跳保活状态变更（K.2）
+   *
+   * 心跳失败触发重连、重连成功/失败时，主进程通过此通道推送 SshStateEvent。
+   * 渲染进程可据此显示「正在重连...」「连接已断开」等状态提示。
+   * @returns 取消监听函数
+   */
+  onSshStateChanged(callback: (event: SshStateEvent) => void): () => void
 
   // ===== SFTP 文件管理 =====
   /** 列出远程目录内容 */

@@ -17,13 +17,16 @@ import {
   Save,
   Loader2,
   X,
+  Languages,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
+import SelectionPopover from '@/components/terminal/SelectionPopover'
 import '../terminal/Terminal.css'
 import MonacoEditor, { type MonacoEditorLanguage } from './MonacoEditor'
 import { useServerStore } from '@/stores/server-store'
 import { useEditorStore } from '@/stores/editor-store'
+import { useTranslateStore } from '@/stores/translate-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { OpenFileRequest } from './FileTree'
 
@@ -84,10 +87,42 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
   sessionId,
   visible,
 }) => {
+  // v0.8.0 终端翻译开关状态（与 translate-store 联动，persist 持久化）
+  const translateEnabled = useTranslateStore((s) => s.enabled)
+  const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
+
   if (sessionId) {
     return (
-      <div className="term-panel">
-        <TerminalView sessionId={sessionId} visible={visible} />
+      <div className="term-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* v0.8.0 翻译开关工具栏 */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '4px 8px',
+            flexShrink: 0,
+            borderBottom: '1px solid var(--trae-border-neutral-l1)',
+          }}
+        >
+          <button
+            type="button"
+            className={`term-translate-toggle ${translateEnabled ? 'term-translate-toggle-active' : ''}`}
+            onClick={toggleTranslate}
+            aria-label="切换翻译功能"
+            title={translateEnabled ? '关闭终端翻译' : '开启终端翻译（鼠标滑动选词触发）'}
+          >
+            <Languages />
+            <span className="term-translate-text">
+              {translateEnabled ? '翻译 ON' : '翻译 OFF'}
+            </span>
+          </button>
+        </div>
+        {/* 终端视图：包裹层 flex:1 确保高度占满剩余空间（.terminal-view 为 height:100%） */}
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <TerminalView sessionId={sessionId} visible={visible} />
+        </div>
+        {/* v0.8.0 选词翻译浮层（createPortal 到 body，全局唯一实例） */}
+        <SelectionPopover />
       </div>
     )
   }
