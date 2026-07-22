@@ -49,8 +49,6 @@ import {
   UNTRUSTED,
   createMassFunction,
 } from '../ds-theory'
-import { getCalibrationTuner } from '../calibration/calibration-tuner'
-import { applyTemperature } from '../calibration/temperature-scaling'
 import { cotEntropyTrajectoryConfidence } from './cot-trace-signal'
 
 /** AI 参数证据来源 ID */
@@ -175,26 +173,9 @@ export function createAiParamMassFunction(evidence: AiParamEvidenceInput): MassF
     // 但本分支 cotEntropyTrajectory 已 !== undefined，正常应得数值
   }
 
-  // 步骤 4：Temperature Scaling 校准（v0.9.6 P1）
-  //   - 传 providerId + 已校准 → 用 CalibrationTuner 中的 optimalT
-  //   - 未传 providerId 或未校准 → 用兜底值 0.85
-  let calibrated: number
-  if (evidence.providerId) {
-    const tuner = getCalibrationTuner()
-    const t = tuner.getOptimalT(evidence.providerId)
-    // getOptimalT 已校准返回 optimalT，未校准返回 defaultT=1.0
-    // 当 T=1.0 时，等价于无校准，但仍调用 applyTemperature 保持一致性
-    if (t === 1.0 && tuner.getProviderCalibration(evidence.providerId).lastCalibratedAt === 0) {
-      // Provider 从未校准：使用兜底 0.85 折扣（保留 v0.9 行为）
-      calibrated = clamp01(llmConf * CALIBRATION_DISCOUNT)
-    } else {
-      // Provider 已校准：使用 applyTemperature 做 T 校准
-      calibrated = applyTemperature(llmConf, t)
-    }
-  } else {
-    // 未传 providerId：保留 v0.9 行为（× 0.85 折扣）
-    calibrated = clamp01(llmConf * CALIBRATION_DISCOUNT)
-  }
+  // 步骤 4：校准折扣（基于 Guo et al. 2017 过度自信发现）
+  //   使用固定折扣因子 0.85，缓解 LLM 系统性过度自信
+  const calibrated = clamp01(llmConf * CALIBRATION_DISCOUNT)
 
   const mT = 0.6 * calibrated
   const mNotT = 0.2 * (1 - calibrated)

@@ -10,12 +10,13 @@
  * - 本月Token总量 ← tokenStats().month
  * - 本月成本      ← tokenCostStats().monthCost（USD）
  * - 对话次数      ← tokenRecords(1000).length
- * - 成功率        ← 暂无真实数据源，保留设计示意值
+ * - 成功率        ← historyStats().successRate（[0,1] 小数）
  *
  * IPC 不可用或调用失败时回退到设计示意默认值（保证 UI 不空白）。
  */
 import { useEffect, useState } from 'react'
 import type { TokenStats, CostStats } from '@shared/agent-types'
+import type { HistoryStats } from '@shared/models'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 
 interface KpiCardData {
@@ -83,6 +84,7 @@ function buildKpis(
   tokenStats: TokenStats,
   costStats: CostStats,
   conversationCount: number,
+  successRate: number | null,
 ): KpiCardData[] {
   return DEFAULT_KPIS.map((kpi) => {
     switch (kpi.label) {
@@ -92,8 +94,12 @@ function buildKpis(
         return { ...kpi, value: `$${costStats.monthCost.toFixed(2)}`, unit: undefined }
       case '对话次数':
         return { ...kpi, value: String(conversationCount), unit: '次' }
+      case '成功率':
+        // IPC 返回可用统计时用真实成功率，否则保留设计示意值
+        return successRate !== null
+          ? { ...kpi, value: (successRate * 100).toFixed(1), unit: '%' }
+          : kpi
       default:
-        // 成功率暂无真实数据源，保留设计示意值
         return kpi
     }
   })
@@ -113,8 +119,24 @@ export function ModelKpiBar() {
           window.electronAPI.tokenCostStats(),
           window.electronAPI.tokenRecords(1000),
         ])
+
+        // 尝试获取历史统计数据用于"成功率"卡片
+        let historyStats: HistoryStats | null = null
+        if (window.electronAPI?.historyStats) {
+          try {
+            const stats = await window.electronAPI.historyStats()
+            if (stats && stats.total > 0) {
+              historyStats = stats
+            }
+          } catch (err) {
+            // 单独捕获：成功率卡片回退到设计示意值
+            console.warn('[ModelKpiBar] 拉取历史统计失败:', err)
+          }
+        }
+
         if (cancelled) return
-        setKpis(buildKpis(tokenStats, costStats, records.length))
+        const successRate = historyStats !== null ? historyStats.successRate : null
+        setKpis(buildKpis(tokenStats, costStats, records.length, successRate))
       } catch (err) {
         // 失败时保留设计示意默认值，避免 UI 空白
         console.error('[ModelKpiBar] 加载 KPI 统计失败:', err)

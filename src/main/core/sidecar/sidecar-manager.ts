@@ -1,18 +1,15 @@
 /**
  * SidecarManager：管理 Python Sidecar 进程的生命周期
  *
- * v1.0 核心 MVP：只管理 Sidecar-A（SRE + 日志解析）
- * v1.5 升级：统一管理 Sidecar A/B/C（多进程隔离 + 端口分配）
+ * v1.0 核心 MVP：管理 Sidecar-A（SRE + 日志解析）
  *
  * 设计参考：
  * - VS Code Language Server Manager：spawn + health check + restart
- * - JupyterLab Server Manager：多进程 + 自动恢复
- * - 复用 v0.9.5 McpLifecycleHardened 5 阶段状态机思想（单 sidecar 内部）
+ * - JupyterLab Server Manager：自动恢复
+ * - 复用 v0.9.5 McpLifecycleHardened 5 阶段状态机思想
  *
- * 端口分配（v1.5）：
+ * 端口分配：
  * - 19000: Sidecar-A (SRE + Drain3 + OpenDerisk + LLM)
- * - 19001: Sidecar-B (Analytics + DoWhy + Phoenix 占位)
- * - 19002: Sidecar-C (Agent + smolagents + AgentScope 占位)
  * - 7931-8080 在 Windows 上被系统服务保留，19000 段空闲
  */
 import { spawn, ChildProcess } from 'node:child_process'
@@ -31,13 +28,13 @@ export type SidecarStatus = 'stopped' | 'starting' | 'ready' | 'degraded' | 'cra
  * Sidecar 配置
  */
 export interface SidecarConfig {
-  id: string // "sre" | "analytics" | "agent"
+  id: string // "sre"
   name: string // "Sidecar-A: SRE"
   pythonPath: string // venv python 路径
   workingDir: string // sidecar-a 目录
   entry: string // main.py 路径
   host: string // 127.0.0.1
-  port: number // 19000/19001/19002
+  port: number // 19000
   healthCheckIntervalMs: number // 5000
   startupTimeoutMs: number // 10000
 }
@@ -108,14 +105,7 @@ export interface ToolCallResponse {
 }
 
 /**
- * 三个 Sidecar 的默认配置（v1.5 多 sidecar 架构）
- *
- * 设计原则：
- * - 每个 Sidecar 独立 venv + 独立端口
- * - Sidecar-A 必启用（v1.0 已落地）
- * - Sidecar-B/C 懒启动（首次调用时启动，节省资源）
- * - v1.5 简化：Sidecar-B/C 复用 .venv-sidecar-a（共享 fastapi+uvicorn 公共依赖）
- *   后续 v1.6 可拆分为独立 venv（隔离 Analytics/Agent 重依赖）
+ * Sidecar-A 默认配置
  */
 const _SHARED_VENV = process.platform === 'win32'
   ? path.join(process.cwd(), '.venv-sidecar-a', 'Scripts', 'python.exe')
@@ -130,28 +120,6 @@ export const SIDECAR_CONFIGS: Record<string, SidecarConfig> = {
     entry: 'main.py',
     host: '127.0.0.1',
     port: 19000,
-    healthCheckIntervalMs: 5000,
-    startupTimeoutMs: 10000,
-  },
-  analytics: {
-    id: 'analytics',
-    name: 'Sidecar-B: Analytics + DoWhy + Phoenix (占位)',
-    pythonPath: _SHARED_VENV,  // v1.5 共享 venv（v1.6 可拆）
-    workingDir: path.join(process.cwd(), 'sidecar-b'),
-    entry: 'main.py',
-    host: '127.0.0.1',
-    port: 19001,
-    healthCheckIntervalMs: 5000,
-    startupTimeoutMs: 10000,
-  },
-  agent: {
-    id: 'agent',
-    name: 'Sidecar-C: Agent + smolagents + AgentScope (占位)',
-    pythonPath: _SHARED_VENV,  // v1.5 共享 venv（v1.6 可拆）
-    workingDir: path.join(process.cwd(), 'sidecar-c'),
-    entry: 'main.py',
-    host: '127.0.0.1',
-    port: 19002,
     healthCheckIntervalMs: 5000,
     startupTimeoutMs: 10000,
   },
@@ -478,17 +446,15 @@ export class SidecarManager extends EventEmitter {
 }
 
 // ============================================================
-// 单例导出（v1.5 多 sidecar 支持）
+// 单例导出
 // ============================================================
 const instances: Map<string, SidecarManager> = new Map()
 
 /**
- * 按 sidecarId 获取单例（v1.5 新增）
+ * 按 sidecarId 获取单例
  *
  * 用法：
  *   getSidecarManager('sre')       // Sidecar-A (19000)
- *   getSidecarManager('analytics') // Sidecar-B (19001)
- *   getSidecarManager('agent')     // Sidecar-C (19002)
  *   getSidecarManager()            // 向后兼容：默认 Sidecar-A
  */
 export function getSidecarManager(sidecarId: string = 'sre'): SidecarManager {

@@ -366,7 +366,7 @@ export class McpServerService {
    * - 监控域 3 工具：monitor_process_list / monitor_disk_usage / monitor_network_stats
    * - 日志域 3 工具：log_tail / log_search / log_analyze
    * - 知识域 4 工具：kb_search / kb_add / kb_update / kb_list（db 不可用时跳过）
-   * - 决策域 3 工具：credibility_assess / credibility_calibrate / decision_history
+   * - 决策域 2 工具：credibility_assess / decision_history
    * - 沙箱域 3 工具：sandbox_execute / sandbox_create / sandbox_destroy
    *
    * @returns 21 个 McpToolRegistration（db 不可用时知识域会返回空，实际数量 17-21）
