@@ -66,6 +66,28 @@ export const LLM = {
 } as const
 
 /**
+ * v2.0 Phase B 新增：内联补全 + Diff 应用 IPC 通道常量
+ *
+ * 通道列表：
+ * - INLINE_COMPLETION       invoke  渲染 → 主：请求光标位置补全
+ * - INLINE_COMPLETION_CANCEL invoke  渲染 → 主：取消进行中的补全请求
+ * - APPLY_DIFF              invoke  渲染 → 主：应用 diff 到文件（写入新内容）
+ * - DIFF_PREVIEW            invoke  渲染 → 主：预览 diff（unified diff 格式）
+ *
+ * 设计依据：v2.0 Phase B · Task B.5（IPC 4 步同步铁律）
+ */
+export const LLM_INLINE = {
+  /** 请求光标位置补全（invoke: 渲染 → 主） */
+  INLINE_COMPLETION: 'llm:inline-completion',
+  /** 取消进行中的补全请求（invoke: 渲染 → 主） */
+  INLINE_COMPLETION_CANCEL: 'llm:inline-completion:cancel',
+  /** 应用 diff 到文件（invoke: 渲染 → 主，写入新内容到磁盘） */
+  APPLY_DIFF: 'llm:apply-diff',
+  /** 预览 diff（invoke: 渲染 → 主，返回 unified diff 字符串） */
+  DIFF_PREVIEW: 'llm:diff-preview',
+} as const
+
+/**
  * SSH IPC 通道常量
  *
  * 通道列表：

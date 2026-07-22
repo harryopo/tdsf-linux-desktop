@@ -19,6 +19,8 @@ import { registerSshIpcHandlers } from './ssh'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
 import { registerLlmHandlers } from './llm'
+// v2.0 Phase B 新增：内联补全 + Diff 应用 IPC（llm:inline-completion / cancel / apply-diff / diff-preview）
+import { registerLlmInlineHandlers } from './llm-inline'
 import { registerKnowledgeHandlers } from './knowledge'
 import { registerHistoryHandlers } from './history'
 import { registerAgentHandlers } from './agent'
@@ -88,6 +90,8 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerMonitorIpcHandlers(mainWindow)
   registerStorageIpcHandlers()
   registerLlmHandlers(mainWindow)
+  // v2.0 Phase B：内联补全 + Diff 应用 IPC（llm:inline-completion / cancel / apply-diff / diff-preview）
+  registerLlmInlineHandlers()
   registerKnowledgeHandlers(mainWindow)
   registerHistoryHandlers(mainWindow)
   registerAgentHandlers(mainWindow)

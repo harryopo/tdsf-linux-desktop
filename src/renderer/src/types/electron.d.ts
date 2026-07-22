@@ -395,6 +395,41 @@ export interface RecommendPathOptions {
   maxSteps?: number
 }
 
+// ============================================================================
+// v2.0 Phase B 新增：内联补全 + Diff 应用类型声明
+// ============================================================================
+
+/** 内联补全请求参数（与主进程 InlineCompletionRequest 一致） */
+export interface InlineCompletionRequest {
+  /** 文件路径（用于语言识别 + LLM 上下文） */
+  filePath: string
+  /** 语言标识（shell / python / json 等） */
+  language: string
+  /** 完整文件内容 */
+  content: string
+  /** 光标行号（1-based） */
+  cursorLineNumber: number
+  /** 光标列号（1-based） */
+  cursorColumn: number
+  /** 光标前上下文（默认前 50 行） */
+  contextBefore?: string
+  /** 光标后上下文（默认后 50 行） */
+  contextAfter?: string
+}
+
+/** 单条补全项（与 Monaco InlineCompletion item 结构兼容） */
+export interface InlineCompletionItem {
+  /** 待插入的补全文本 */
+  insertText: string
+  /** 插入范围（光标位置的零长度插入点） */
+  range: {
+    startLineNumber: number
+    startColumn: number
+    endLineNumber: number
+    endColumn: number
+  }
+}
+
 /** electronAPI 接口定义 */
 export interface ElectronAPI {
   // ===== SSH 相关 =====
@@ -592,6 +627,47 @@ export interface ElectronAPI {
   claudeSdkStream(providerId: string, params: ClaudeSdkChatParams): Promise<string>
   /** 取消进行中的 Claude SDK 请求 */
   claudeSdkCancel(correlationId: string): Promise<boolean>
+
+  // ===== v2.0 Phase B：内联补全 + Diff 应用 =====
+  /**
+   * 请求光标位置补全
+   *
+   * 通道：llm:inline-completion
+   * @param req 补全请求（文件路径 + 语言 + 内容 + 光标位置 + 上下文）
+   * @returns 补全项列表（空数组表示无补全 / 超时 / 被限流）
+   */
+  llmInlineCompletion(req: InlineCompletionRequest): Promise<InlineCompletionItem[]>
+  /**
+   * 取消所有进行中的补全请求
+   *
+   * 通道：llm:inline-completion:cancel
+   */
+  llmInlineCompletionCancel(): Promise<void>
+  /**
+   * 应用 diff 到本地文件（写入新内容）
+   *
+   * 通道：llm:apply-diff
+   * 注意：仅处理本地文件系统；远程文件请走 sftp:writeFile。
+   *
+   * @param payload { filePath: 绝对路径, newContent: 新内容 }
+   * @returns { success, error? }
+   */
+  llmApplyDiff(payload: {
+    filePath: string
+    newContent: string
+  }): Promise<{ success: boolean; error?: string }>
+  /**
+   * 预览 diff（unified diff 格式）
+   *
+   * 通道：llm:diff-preview
+   * @param payload { filePath, originalContent, modifiedContent }
+   * @returns { diff: string }（unified diff，无变更返回空字符串）
+   */
+  llmDiffPreview(payload: {
+    filePath: string
+    originalContent: string
+    modifiedContent: string
+  }): Promise<{ diff: string }>
 
   // ===== v0.9 OpenHands 沙箱集成 =====
   /** 检测 Docker Desktop 是否安装且运行 */
