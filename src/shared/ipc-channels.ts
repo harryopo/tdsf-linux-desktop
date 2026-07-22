@@ -445,6 +445,12 @@ export const KNOWLEDGE = {
   SEARCH: 'kb:search',
   /** 更新知识条目（invoke: 渲染 → 主） */
   UPDATE: 'kb:update',
+  /** 记录浏览（invoke: 渲染 → 主） */
+  VIEW: 'kb:view',
+  /** 热门知识（invoke: 渲染 → 主） */
+  HOT: 'kb:hot',
+  /** 最近浏览记录（invoke: 渲染 → 主） */
+  RECENT_VIEWS: 'kb:recent-views',
 } as const
 
 /**
@@ -461,6 +467,8 @@ export const HISTORY = {
   SAVE: 'history:save',
   /** 查询决策历史列表（invoke: 渲染 → 主） */
   LIST: 'history:list',
+  /** 查询决策统计（invoke: 渲染 → 主） */
+  STATS: 'history:stats',
 } as const
 
 /**
@@ -632,6 +640,12 @@ export const TUTORIAL = {
   BACKFILL_EMBEDDINGS: 'tutorial:backfill-embeddings',
   /** 学习路径推荐（invoke: 渲染 → 主） */
   RECOMMEND_PATH: 'tutorial:recommend-path',
+  /** 教程统计（invoke: 渲染 → 主，总浏览人次 + 总课程数） */
+  STATS: 'tutorial:stats',
+  /** 查询所有教程学习进度（invoke: 渲染 → 主，v2.3.2 新增，跨设备同步） */
+  PROGRESS: 'tutorial:progress',
+  /** 更新单条教程学习进度（invoke: 渲染 → 主，v2.3.2 新增，跨设备同步） */
+  UPDATE_PROGRESS: 'tutorial:updateProgress',
 } as const
 
 /**
@@ -745,6 +759,8 @@ export const APP = {
   DOWNLOAD_UPDATE: 'app:download-update',
   /** 获取应用信息（invoke: 渲染 → 主，返回版本/安装路径/构建时间等） */
   GET_INFO: 'app:get-info',
+  /** 导出模型配置与统计（invoke: 渲染 → 主，写入 userData/exports） */
+  EXPORT_MODEL_STATS: 'app:export-model-stats',
 } as const
 
 /**
@@ -918,39 +934,44 @@ export const SUBAGENT = {
 } as const
 
 /**
+ * 模型统计 IPC 通道常量（v2.3.2 新增：补齐 ModelSettings 静态数据）
+ *
+ * 通道列表：
+ * - TOOL_CALLS invoke 渲染 → 主：查询工具调用统计（按工具名聚合 count + percent）
+ */
+export const MODEL_STATS = {
+  /** 查询工具调用统计（invoke: 渲染 → 主，返回 ToolCallStat[]） */
+  TOOL_CALLS: 'model:toolCalls',
+} as const
+
+/**
+ * 预算告警 IPC 通道常量（v2.3.2 新增：补齐 ModelSettings 静态数据）
+ *
+ * 通道列表：
+ * - ALERTS invoke 渲染 → 主：查询预算告警历史（最近 N 条）
+ */
+export const BUDGET = {
+  /** 查询预算告警历史（invoke: 渲染 → 主，返回 BudgetAlert[]） */
+  ALERTS: 'budget:alerts',
+} as const
+
+/**
  * 可信度评估 IPC 通道常量
  *
  * 通道列表：
  * - ASSESS                  invoke  渲染 → 主：评估可信度
  * - DAG                     invoke  渲染 → 主：构建证据 DAG
- * - CALIBRATE               invoke  渲染 → 主：执行校准
- * - GET_CALIBRATION         invoke  渲染 → 主：查询校准结果
- * - GET_CALIBRATION_STATE   invoke  渲染 → 主：查询校准状态
- * - RESET_CALIBRATION       invoke  渲染 → 主：重置校准
- * - COMPUTE_ECE             invoke  渲染 → 主：计算 ECE 指标
- * - ADD_CALIBRATION_SAMPLE  invoke  渲染 → 主：添加校准样本
  * - EXPORT_AUDIT_REPORT     invoke  渲染 → 主：导出审计报告
  * - LIST_AUDIT_REPORTS      invoke  渲染 → 主：列出审计报告
  * - LOAD_AUDIT_REPORT       invoke  渲染 → 主：加载审计报告
  * - FORMAT_AUDIT_REPORT     invoke  渲染 → 主：格式化审计报告
+ * - EXPORT_DECISION_HTML    invoke  渲染 → 主：按 decisionId 简化导出 HTML 报告
  */
 export const CREDIBILITY = {
   /** 评估可信度（invoke: 渲染 → 主） */
   ASSESS: 'credibility:assess',
   /** 构建证据 DAG（invoke: 渲染 → 主） */
   DAG: 'credibility:dag',
-  /** 执行校准（invoke: 渲染 → 主） */
-  CALIBRATE: 'credibility:calibrate',
-  /** 查询校准结果（invoke: 渲染 → 主） */
-  GET_CALIBRATION: 'credibility:get-calibration',
-  /** 查询校准状态（invoke: 渲染 → 主） */
-  GET_CALIBRATION_STATE: 'credibility:get-calibration-state',
-  /** 重置校准（invoke: 渲染 → 主） */
-  RESET_CALIBRATION: 'credibility:reset-calibration',
-  /** 计算 ECE 指标（invoke: 渲染 → 主） */
-  COMPUTE_ECE: 'credibility:compute-ece',
-  /** 添加校准样本（invoke: 渲染 → 主） */
-  ADD_CALIBRATION_SAMPLE: 'credibility:add-calibration-sample',
   /** 导出审计报告（invoke: 渲染 → 主） */
   EXPORT_AUDIT_REPORT: 'credibility:export-audit-report',
   /** 列出审计报告（invoke: 渲染 → 主） */
@@ -959,6 +980,8 @@ export const CREDIBILITY = {
   LOAD_AUDIT_REPORT: 'credibility:load-audit-report',
   /** 格式化审计报告（invoke: 渲染 → 主） */
   FORMAT_AUDIT_REPORT: 'credibility:format-audit-report',
+  /** 按 decisionId 简化导出 HTML 报告（invoke: 渲染 → 主，v2.3.2 新增） */
+  EXPORT_DECISION_HTML: 'credibility:export-decision-html',
 } as const
 
 /**

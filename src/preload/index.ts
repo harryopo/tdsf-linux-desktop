@@ -63,6 +63,9 @@ import {
   APP,
   // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
   FS,
+  // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
+  MODEL_STATS,
+  BUDGET,
 } from '@shared/ipc-channels'
 import type {
   SshConfig,
@@ -128,14 +131,6 @@ import type {
   CredibilityEvidenceInput,
   ConfidenceAssessment,
   DagData,
-  // v0.9.6 P1 新增：ECE 校准器共享类型（CalibrationTuner）
-  CalibrationSample,
-  CalibrationState,
-  EceResult,
-  OptimizeTOptions,
-  ProviderCalibration,
-  ProviderId,
-  TemperatureScalingResult,
   // v0.9 Claude Agent SDK 共享类型（claude-sdk:generate / stream / cancel）
   ChatResult,
   ClaudeSdkChatParams,
@@ -981,6 +976,17 @@ const appUpdate = {
    */
   getInfo: (): Promise<{ version: string; installPath: string; buildTime: string; buildBadge: string }> =>
     ipcRenderer.invoke(APP.GET_INFO),
+
+  /**
+   * 导出模型配置与统计（v2.3 活功能转换）
+   *
+   * 将当前 ModelSettings 页面可见的模型配置、KPI、预算信息写入 userData/exports。
+   * 文件名带时间戳，避免覆盖历史导出。
+   */
+  exportModelStats: (
+    stats: unknown
+  ): Promise<{ filePath: string; size: number }> =>
+    ipcRenderer.invoke(APP.EXPORT_MODEL_STATS, stats),
 }
 
 /**
@@ -1325,15 +1331,7 @@ const atCommands = {
  * - credibility:assess → assess
  * - credibility:dag    → dag
  *
- * v0.9.6 P1 扩展：ECE 校准器（CalibrationTuner）相关 6 个通道：
- * - credibility:calibrate         → calibrate
- * - credibility:get-calibration   → getCalibration
- * - credibility:get-calibration-state → getCalibrationState
- * - credibility:reset-calibration → resetCalibration
- * - credibility:compute-ece       → computeEce
- * - credibility:add-calibration-sample → addCalibrationSample
- *
- * v0.9.6 P2 扩展：EU AI Act 审计报告 4 个通道：
+ * v0.9.6 P2 扩展：审计报告 4 个通道：
  * - credibility:export-audit-report → exportAuditReport
  * - credibility:list-audit-reports  → listAuditReports
  * - credibility:load-audit-report   → loadAuditReport
@@ -1357,8 +1355,7 @@ const atCommands = {
  *
  * 调研文档：idea-to-dev-output/22-可信度算法论文支撑调研.md
  * 方案书依据：v0.9 §可信度算法升级（D-S + PCR5 + 6 源证据融合）
- *           + v0.9.6 P1 §ECE 校准器
- *           + v0.9.6 P2 §EU AI Act 审计报告
+ *           + v0.9.6 P2 §审计报告
  */
 const credibility = {
   /**
@@ -1378,73 +1375,6 @@ const credibility = {
    */
   dag: (inputs: CredibilityEvidenceInput[]): Promise<DagData> =>
     ipcRenderer.invoke(CREDIBILITY.DAG, inputs),
-
-  // ========================================================================
-  // v0.9.6 P1：ECE 校准器方法（CalibrationTuner）
-  // ========================================================================
-
-  /**
-   * 触发指定 Provider 的重新校准
-   *
-   * 基于当前已收集的 CalibrationSample 网格搜索最优 T 值，更新内部状态。
-   *
-   * @param providerId Provider ID（如 'deepseek' / 'claude'）
-   * @param options 可选优化参数（tMin / tMax / tSteps / numBuckets / minSamples）
-   * @returns TemperatureScalingResult（最优 T、ECE 改善、searchTrace）
-   */
-  calibrate: (
-    providerId: ProviderId,
-    options?: OptimizeTOptions
-  ): Promise<TemperatureScalingResult> =>
-    ipcRenderer.invoke(CREDIBILITY.CALIBRATE, providerId, options),
-
-  /**
-   * 获取指定 Provider 的当前校准状态
-   *
-   * @param providerId Provider ID
-   * @returns ProviderCalibration（optimalT / lastCalibratedAt / sampleCount / ece）
-   */
-  getCalibration: (providerId: ProviderId): Promise<ProviderCalibration> =>
-    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION, providerId),
-
-  /**
-   * 获取全局校准状态（含所有 Provider 的 T 值表）
-   *
-   * @returns CalibrationState（providers + defaultT + updatedAt）
-   */
-  getCalibrationState: (): Promise<CalibrationState> =>
-    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION_STATE),
-
-  /**
-   * 重置指定 Provider 的校准（T 回到 defaultT=1.0）
-   *
-   * @param providerId Provider ID
-   * @returns boolean（是否成功重置）
-   */
-  resetCalibration: (providerId: ProviderId): Promise<boolean> =>
-    ipcRenderer.invoke(CREDIBILITY.RESET_CALIBRATION, providerId),
-
-  /**
-   * 计算指定 Provider 的当前 ECE（不修改 T）
-   *
-   * @param providerId Provider ID
-   * @param numBuckets 可选分桶数（默认 10）
-   * @returns EceResult（ECE / MCE / 各桶统计 / 总样本数）
-   */
-  computeEce: (providerId: ProviderId, numBuckets?: number): Promise<EceResult> =>
-    ipcRenderer.invoke(CREDIBILITY.COMPUTE_ECE, providerId, numBuckets),
-
-  /**
-   * 记录新的校准样本
-   *
-   * 触发时机：UI 决策卡状态变为 'verified' 时回灌 ground truth。
-   * 满足 RETUNE_THRESHOLD 阈值后，下次 tuneProvider 会重新计算最优 T。
-   *
-   * @param sample CalibrationSample（决策 ID、置信度、是否正确、Provider、时间戳）
-   * @returns boolean（是否成功入库）
-   */
-  addCalibrationSample: (sample: CalibrationSample): Promise<boolean> =>
-    ipcRenderer.invoke(CREDIBILITY.ADD_CALIBRATION_SAMPLE, sample),
 
   // ========================================================================
   // v0.9.6 P2：EU AI Act 合规审计报告方法
@@ -2448,18 +2378,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   //   const dag = await window.electronAPI.credibilityDag(inputs)
   credibilityAssess: credibility.assess,
   credibilityDag: credibility.dag,
-  // v0.9.6 P1：ECE 校准器扁平化 API
-  credibilityCalibrate: credibility.calibrate,
-  credibilityGetCalibration: credibility.getCalibration,
-  credibilityGetCalibrationState: credibility.getCalibrationState,
-  credibilityResetCalibration: credibility.resetCalibration,
-  credibilityComputeEce: credibility.computeEce,
-  credibilityAddCalibrationSample: credibility.addCalibrationSample,
-  // v0.9.6 P2：EU AI Act 审计报告扁平化 API
+  // v0.9.6 P2：审计报告扁平化 API
   credibilityExportAuditReport: credibility.exportAuditReport,
   credibilityListAuditReports: credibility.listAuditReports,
   credibilityLoadAuditReport: credibility.loadAuditReport,
   credibilityFormatAuditReport: credibility.formatAuditReport,
+  // v2.3.2 新增：按 decisionId 简化导出 HTML 报告
+  credibilityExportAudit: (decisionId: string, format: string): Promise<string> =>
+    ipcRenderer.invoke(CREDIBILITY.EXPORT_DECISION_HTML, decisionId, format),
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>
@@ -2474,6 +2400,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(KNOWLEDGE.EXPORT, type),
   kbImport: (data: string): Promise<number> =>
     ipcRenderer.invoke(KNOWLEDGE.IMPORT, data),
+  kbView: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(KNOWLEDGE.VIEW, id),
+  kbHot: (limit?: number): Promise<unknown[]> =>
+    ipcRenderer.invoke(KNOWLEDGE.HOT, limit),
+  kbRecentViews: (limit?: number): Promise<unknown[]> =>
+    ipcRenderer.invoke(KNOWLEDGE.RECENT_VIEWS, limit),
 
   // ===== 历史决策扁平化 =====
   historyList: (offset: number, limit: number): Promise<unknown[]> =>
@@ -2483,6 +2415,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // P-8 修复：补充暴露 history:save 通道（主进程已注册，但 preload 此前未暴露）
   historySave: (card: DecisionCard): Promise<boolean> =>
     ipcRenderer.invoke(HISTORY.SAVE, card),
+  historyStats: (): Promise<unknown> =>
+    ipcRenderer.invoke(HISTORY.STATS),
 
   // ===== 系统架构感知扁平化 =====
   profilerRun: (sessionId: string, host: string): Promise<ProfilerRunResponse> =>
@@ -2622,6 +2556,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   tutorialRecommendPath: (options?: RecommendPathOptions): Promise<TutorialPath[]> =>
     ipcRenderer.invoke(TUTORIAL.RECOMMEND_PATH, options),
+  tutorialStats: (): Promise<unknown> =>
+    ipcRenderer.invoke(TUTORIAL.STATS),
+  // v2.3.2 新增：教程学习进度跨设备同步（替代 localStorage 过渡方案）
+  //   const progress = await window.electronAPI.tutorialProgress()
+  //   await window.electronAPI.tutorialUpdateProgress('nginx-tuning', 'visited', 50)
+  tutorialProgress: (): Promise<unknown[]> =>
+    ipcRenderer.invoke(TUTORIAL.PROGRESS),
+  tutorialUpdateProgress: (
+    tutorialId: string,
+    status: 'visited' | 'completed',
+    progress: number,
+  ): Promise<boolean> =>
+    ipcRenderer.invoke(TUTORIAL.UPDATE_PROGRESS, tutorialId, status, progress),
+
+  // ===== v2.3.2 模型统计 + 预算告警扁平化 =====
+  // 通道与主进程 ipc/model-stats.ts 一一对应；UI 调用方式：
+  //   const stats = await window.electronAPI.modelToolCalls()
+  //   const alerts = await window.electronAPI.budgetAlerts(20)
+  modelToolCalls: (): Promise<unknown[]> =>
+    ipcRenderer.invoke(MODEL_STATS.TOOL_CALLS),
+  budgetAlerts: (limit?: number): Promise<unknown[]> =>
+    ipcRenderer.invoke(BUDGET.ALERTS, limit),
 
   // ===== Web 部署助手扁平化 =====
   deployListTemplates: (): Promise<DeployTemplateModel[]> =>
@@ -2812,31 +2768,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
   > => ipcRenderer.invoke(SIDECAR.PIPELINE, logLines, serviceName, llmConfig),
 
   // ===== v1.5 新增：多 Sidecar 状态查询（v1.5 多 Sidecar 架构）=====
-  // 通道：sidecar:list-status → 返回所有 sidecar（A/B/C）的状态
+  // 通道：sidecar:list-status → 返回 sidecar 状态
   // 使用场景：UI 状态条 / SidecarStatusPanel 展示
   sidecarListStatus: (): Promise<SidecarListStatusResponse> =>
     ipcRenderer.invoke(SIDECAR.LIST_STATUS),
 
-  // 通道：sidecar:start-one → 启动指定 sidecar（sre/analytics/agent）
+  // 通道：sidecar:start-one → 启动指定 sidecar
   sidecarStartOne: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
   ): Promise<{ ok: boolean; status: string; error?: string }> =>
     ipcRenderer.invoke(SIDECAR.START_ONE, sidecarId),
 
   // 通道：sidecar:stop-one → 停止指定 sidecar
-  sidecarStopOne: (sidecarId: 'sre' | 'analytics' | 'agent'): Promise<{ ok: boolean }> =>
+  sidecarStopOne: (sidecarId: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(SIDECAR.STOP_ONE, sidecarId),
 
   // 通道：sidecar:health-one → 单个 sidecar 的健康检查
   sidecarHealthOne: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
   ): Promise<SidecarHealthOneResponse> =>
     ipcRenderer.invoke(SIDECAR.HEALTH_ONE, sidecarId),
 
-  // 通道：sidecar:tool-call → 通用 Sidecar 工具调用（用于 Sidecar-B/C 的占位端点）
-  // 例如：sidecar:tool-call('analytics', '/analytics/dowhy', { treatment, outcome, ... })
+  // 通道：sidecar:tool-call → 通用 Sidecar 工具调用
   sidecarToolCall: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
     endpoint: string,
     payload: unknown,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
@@ -2873,7 +2828,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 通道：diagnostics:get-logs → 获取缓冲区日志（可按来源/级别过滤）
   diagnosticsGetLogs: (
-    options?: { source?: 'sre' | 'analytics' | 'agent' | 'main' | 'renderer'; level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; limit?: number },
+    options?: { source?: 'sre' | 'main' | 'renderer'; level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; limit?: number },
   ): Promise<{ ok: boolean; data?: unknown; total?: number; error?: string }> =>
     ipcRenderer.invoke(DIAGNOSTICS.GET_LOGS, options),
 
@@ -2897,7 +2852,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 通道：diagnostics:ingest-test → 测试用：注入测试日志（仅 dev 模式）
   diagnosticsIngestTest: (
-    event: { source: 'sre' | 'analytics' | 'agent' | 'main' | 'renderer'; level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; raw: string },
+    event: { source: 'sre' | 'main' | 'renderer'; level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; raw: string },
   ): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(DIAGNOSTICS.INGEST_TEST, event),
 
@@ -3255,11 +3210,15 @@ export type ElectronAPI = {
   kbDelete: (id: string) => Promise<boolean>
   kbExport: (type: string) => Promise<string>
   kbImport: (data: string) => Promise<number>
+  kbView: (id: string) => Promise<boolean>
+  kbHot: (limit?: number) => Promise<unknown[]>
+  kbRecentViews: (limit?: number) => Promise<unknown[]>
   // History
   historyList: (offset: number, limit: number) => Promise<unknown[]>
   historyGet: (id: string) => Promise<unknown>
   // P-8 修复：补充 historySave 类型声明
   historySave: (card: DecisionCard) => Promise<boolean>
+  historyStats: () => Promise<unknown>
   // Tutorial
   tutorialList: (category?: TutorialCategory) => Promise<TutorialEntry[]>
   tutorialGet: (id: string) => Promise<TutorialEntry | null>
@@ -3398,29 +3357,28 @@ export type ElectronAPI = {
   >
 
   // ===== v1.5 新增：多 Sidecar 状态查询（v1.5 多 Sidecar 架构）=====
-  // 通道：sidecar:list-status → 返回所有 sidecar（A/B/C）的状态
+  // 通道：sidecar:list-status → 返回 sidecar 状态
   // 使用场景：UI 状态条 / SidecarStatusPanel 展示
   sidecarListStatus: () => Promise<SidecarListStatusResponse>
 
-  // 通道：sidecar:start-one → 启动指定 sidecar（sre/analytics/agent）
+  // 通道：sidecar:start-one → 启动指定 sidecar
   sidecarStartOne: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
   ) => Promise<{ ok: boolean; status: string; error?: string }>
 
   // 通道：sidecar:stop-one → 停止指定 sidecar
   sidecarStopOne: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
   ) => Promise<{ ok: boolean }>
 
   // 通道：sidecar:health-one → 单个 sidecar 的健康检查
   sidecarHealthOne: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
   ) => Promise<SidecarHealthOneResponse>
 
-  // 通道：sidecar:tool-call → 通用 Sidecar 工具调用（用于 Sidecar-B/C 的占位端点）
-  // 例如：sidecar:tool-call('analytics', '/analytics/dowhy', { treatment, outcome, ... })
+  // 通道：sidecar:tool-call → 通用 Sidecar 工具调用
   sidecarToolCall: (
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: string,
     endpoint: string,
     payload: unknown,
   ) => Promise<{ ok: boolean; data?: unknown; error?: string }>

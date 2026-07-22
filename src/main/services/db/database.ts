@@ -297,10 +297,61 @@ export class DatabaseManager {
         rollbackCommand TEXT,
         status TEXT NOT NULL,
         timestamp INTEGER NOT NULL,
-        sessionId TEXT
+        sessionId TEXT,
+        serverId TEXT,
+        durationMs INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_dc_status ON decision_cards(status);
       CREATE INDEX IF NOT EXISTS idx_dc_timestamp ON decision_cards(timestamp);
+    `)
+
+    // 迁移：为旧表添加新列（ALTER TABLE 幂等检查）
+    this.migrateDecisionCardsTable()
+
+    // 知识库浏览历史表
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS kb_view_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entryId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        viewedAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_kvh_entryId ON kb_view_history(entryId);
+      CREATE INDEX IF NOT EXISTS idx_kvh_viewedAt ON kb_view_history(viewedAt);
+    `)
+
+    // v2.3.2 新增：工具调用日志表（用于 ModelSettings 功能调用统计）
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tool_call_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        toolName TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_tcl_toolName ON tool_call_log(toolName);
+      CREATE INDEX IF NOT EXISTS idx_tcl_timestamp ON tool_call_log(timestamp);
+    `)
+
+    // v2.3.2 新增：预算告警事件表（用于 ModelSettings 告警历史）
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS budget_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        level TEXT NOT NULL,
+        text TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_ba_timestamp ON budget_alerts(timestamp);
+    `)
+
+    // v2.3.2 新增：教程学习进度表（用于 TutorialPage 跨设备同步，替代 localStorage）
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_tutorial_progress (
+        tutorialId TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        progress INTEGER NOT NULL,
+        visitedAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_uta_updatedAt ON user_tutorial_progress(updatedAt);
     `)
 
     // 审计日志表
@@ -383,6 +434,28 @@ export class DatabaseManager {
     } catch (err) {
       // 注册失败时降级（不抛异常）
       console.warn('[DatabaseManager] 注册 json_to_vec_f32 失败：', err)
+    }
+  }
+
+  /**
+   * 迁移 decision_cards 表：为旧表添加 serverId / durationMs 列
+   *
+   * SQLite 不支持 IF NOT EXISTS 语法用于 ALTER TABLE ADD COLUMN，
+   * 需先检查 pragma table_info 再决定是否添加。
+   */
+  private migrateDecisionCardsTable(): void {
+    try {
+      if (!this.db) return
+      const columns = this.db.prepare('PRAGMA table_info(decision_cards)').all() as Array<{ name: string }>
+      const colNames = columns.map((c) => c.name)
+      if (!colNames.includes('serverId')) {
+        this.db.exec('ALTER TABLE decision_cards ADD COLUMN serverId TEXT')
+      }
+      if (!colNames.includes('durationMs')) {
+        this.db.exec('ALTER TABLE decision_cards ADD COLUMN durationMs INTEGER')
+      }
+    } catch {
+      // 忽略迁移错误（表可能不存在或为新创建）
     }
   }
 

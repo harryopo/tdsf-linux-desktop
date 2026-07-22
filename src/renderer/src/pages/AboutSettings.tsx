@@ -83,9 +83,16 @@ export function AboutSettings() {
   }, [displayVersion, displayBuildTime, displayInstallPath])
 
   useEffect(() => {
-    // T.8：挂载时加载真实应用信息
+    // T.8：挂载时加载真实应用信息（非 Electron 环境安全降级）
     setAppInfoLoading(true)
     setAppInfoError(null)
+    if (typeof window === 'undefined' || !window.electronAPI?.appGetInfo) {
+      setAppInfoLoading(false)
+      return () => {
+        if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current)
+        if (checkingTimerRef.current != null) clearTimeout(checkingTimerRef.current)
+      }
+    }
     window.electronAPI
       .appGetInfo()
       .then((info) => {
@@ -131,6 +138,9 @@ export function AboutSettings() {
     setUpdateInfo(null)
     setUpdateError(null)
     try {
+      if (typeof window === 'undefined' || !window.electronAPI?.appCheckUpdate) {
+        throw new Error('当前环境不支持检查更新')
+      }
       const result = await window.electronAPI.appCheckUpdate()
       if (result.hasUpdate) {
         // 有新版本：保存更新信息，UI 展示新版本号 + 立即下载按钮
@@ -163,6 +173,11 @@ export function AboutSettings() {
     if (isDownloading) return
     setIsDownloading(true)
     try {
+      if (typeof window === 'undefined' || !window.electronAPI?.appDownloadUpdate) {
+        showFeedback('当前环境不支持下载更新')
+        setIsDownloading(false)
+        return
+      }
       const releaseUrl = updateInfo?.releaseUrl
       const ok = await window.electronAPI.appDownloadUpdate(releaseUrl)
       if (!ok) {

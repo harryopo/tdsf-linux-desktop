@@ -45,7 +45,7 @@
  * - 纯函数、无副作用、TypeScript strict mode
  * - 输入验证：NaN/Infinity/负值/超界（每项 ∈ [0, 1]）兜底
  * - 可解释性：返回 { monotone, violations, confidence, summary } 而非单点数值
- * - 与 v0.9.6 P1 校准流程兼容：calibration 仍在校准之后做
+ * - 与本模块按 Provider 分类的折扣策略兼容
  *
  * 不做：
  * - 不做熵归一化（Zhao 2026 论文直接使用 Shannon 熵）

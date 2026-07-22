@@ -21,10 +21,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Modal, Input } from 'antd'
+import { Modal, Input, message } from 'antd'
 import {
   Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
-  FileText, ScrollText, Loader2, AlertTriangle,
+  FileText, ScrollText, Loader2, AlertTriangle, FileDown,
 } from 'lucide-react'
 import { EvidenceRadar, type EvidenceSource } from '@/components/decision/EvidenceRadar'
 import { PCR5Result } from '@/components/decision/PCR5Result'
@@ -762,6 +762,29 @@ export function DecisionDetailPage() {
     }
   }, [card, modifyCommand])
 
+  /**
+   * 导出 HTML 审计报告
+   *
+   * 调用 credibilityExportAudit IPC 导出 HTML 格式报告。
+   * 主进程内部从 DecisionCard 构造简化 AuditReportInput 并导出 HTML 文件。
+   * 调用失败时通过 message 提示用户。
+   */
+  const handleExportHtml = useCallback(async () => {
+    if (!card) return
+    try {
+      const filepath = await window.electronAPI.credibilityExportAudit(card.id, 'html')
+      if (filepath) {
+        message.success(`HTML 报告已导出到：${filepath}`)
+      } else {
+        message.warning('导出完成但未获取到文件路径')
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      message.error(`导出 HTML 报告失败：${reason}`)
+      console.warn('[DecisionDetailPage] credibilityExportAudit failed:', err)
+    }
+  }, [card])
+
   // ===== 状态渲染 =====
   if (loading) return <LoadingState />
   if (error) return <ErrorState message={error} onRetry={() => void loadData()} />
@@ -784,16 +807,11 @@ export function DecisionDetailPage() {
   const auditRows = buildAuditRows(card)
   const workflowSteps = buildWorkflowSteps(card)
 
-  // 置信度：优先使用校准后的 credibilityAssess 结果，其次原始 credibility，最后 card.confidence
-  // v2.0 Phase E 对齐：calibratedConfidence 由 Temperature Scaling 校准产生（论文 Guo et al. 2017 ICML）
+  // 置信度：优先使用 credibilityAssess 结果，其次原始 credibility，最后 card.confidence
   const rawCredibility = credibility?.confidence ?? card.confidence
-  const displayConfidence = credibility?.calibratedConfidence ?? rawCredibility
+  const displayConfidence = rawCredibility
   const conflictK = credibility?.conflictLevel ?? 0
-  const fusedValue = credibility?.calibratedConfidence ?? credibility?.confidence ?? card.confidence
-  // 校准状态徽章数据：ECE 报告 + 是否应用了校准
-  const eceReport = credibility?.eceReport
-  const isCalibrated = credibility?.calibratedConfidence !== undefined
-  const hasCredibility = credibility !== null
+  const fusedValue = credibility?.confidence ?? card.confidence
 
   // 时间格式化
   const timestamp = new Date(card.timestamp)
@@ -899,70 +917,6 @@ export function DecisionDetailPage() {
       <section className="flex flex-wrap items-stretch gap-6 px-8 pb-4">
         <div className="flex min-w-[300px] flex-[0_0_38%] flex-col gap-3">
           <ConfidenceGauge value={displayConfidence} sources={evidenceSources} />
-          {/* 校准状态徽章：v2.0 Phase E 新增，展示 Temperature Scaling 校准对比 + ECE 报告 */}
-          {hasCredibility && (
-            <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-4 py-3">
-              <div className="mb-2 flex items-center gap-1.5">
-                <Activity className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--trae-text-secondary)]">
-                  校准状态
-                </span>
-                {isCalibrated ? (
-                  <span className="inline-flex h-4 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-1.5 text-[9px] font-medium text-[var(--trae-status-success-default)]">
-                    已校准
-                  </span>
-                ) : (
-                  <span className="inline-flex h-4 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-1.5 text-[9px] font-medium text-[var(--trae-text-tertiary)]">
-                    未校准
-                  </span>
-                )}
-              </div>
-              {isCalibrated && (
-                <div className="flex items-center gap-3 text-[11px]">
-                  <span className="text-[var(--trae-text-tertiary)]">原始</span>
-                  <span className="font-mono tabular-nums text-[var(--trae-text-secondary)]">
-                    {rawCredibility.toFixed(3)}
-                  </span>
-                  <span className="text-[var(--trae-text-tertiary)]">→</span>
-                  <span className="text-[var(--trae-text-tertiary)]">校准</span>
-                  <span className="font-mono tabular-nums font-medium text-[var(--trae-text-brand)]">
-                    {displayConfidence.toFixed(3)}
-                  </span>
-                  {displayConfidence > rawCredibility ? (
-                    <span className="text-[10px] text-[var(--trae-status-success-default)]">↑{(displayConfidence - rawCredibility).toFixed(3)}</span>
-                  ) : displayConfidence < rawCredibility ? (
-                    <span className="text-[10px] text-[var(--trae-status-alert-default)]">↓{(rawCredibility - displayConfidence).toFixed(3)}</span>
-                  ) : (
-                    <span className="text-[10px] text-[var(--trae-text-tertiary)]">—</span>
-                  )}
-                </div>
-              )}
-              {eceReport && (
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-[var(--trae-text-tertiary)]">
-                  <span>
-                    ECE <span className="font-mono tabular-nums text-[var(--trae-text-secondary)]">{eceReport.ece.toFixed(3)}</span>
-                  </span>
-                  <span>
-                    MCE <span className="font-mono tabular-nums text-[var(--trae-text-secondary)]">{eceReport.mce.toFixed(3)}</span>
-                  </span>
-                  <span>
-                    样本 <span className="font-mono tabular-nums text-[var(--trae-text-secondary)]">{eceReport.totalSamples}</span>
-                  </span>
-                  <span>
-                    分桶 <span className="font-mono tabular-nums text-[var(--trae-text-secondary)]">{eceReport.numBuckets}</span>
-                  </span>
-                  {eceReport.providerId && (
-                    <span>Provider <span className="font-mono text-[var(--trae-text-secondary)]">{eceReport.providerId}</span></span>
-                  )}
-                </div>
-              )}
-              {!isCalibrated && (
-                <div className="text-[10px] text-[var(--trae-text-tertiary)]">
-                  累积更多决策样本后，将自动应用 Temperature Scaling 校准
-                </div>
-              )}
-            </div>
-          )}
         </div>
         <ExecutionResult
           decisionId={card.id}
@@ -993,18 +947,6 @@ export function DecisionDetailPage() {
             <span className="text-[10px] text-[var(--trae-text-tertiary)]">
               Dempster-Shafer · {credibility ? `规则: ${credibility.ruleUsed}` : '透明可追溯'}
             </span>
-            {/* v2.0 Phase E 校准徽章：展示 ECE 状态，与 Section 2 校准面板呼应 */}
-            {eceReport && (
-              <span
-                className="inline-flex h-5 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2 text-[10px] text-[var(--trae-text-secondary)]"
-                title={`ECE ${eceReport.ece.toFixed(3)} · MCE ${eceReport.mce.toFixed(3)} · 样本 ${eceReport.totalSamples} · 分桶 ${eceReport.numBuckets}`}
-              >
-                <Activity className="h-3 w-3 text-[var(--trae-text-brand)]" />
-                ECE <span className="font-mono tabular-nums">{eceReport.ece.toFixed(3)}</span>
-                <span className="text-[var(--trae-text-tertiary)]">·</span>
-                <span className="font-mono tabular-nums">{eceReport.totalSamples}</span>样本
-              </span>
-            )}
           </div>
 
           {/* 左右布局：雷达图 + 明细列表 */}
@@ -1026,6 +968,19 @@ export function DecisionDetailPage() {
           <EvidenceList commands={dangerCommands} defaultExpanded />
         </section>
       )}
+
+      {/* ===== 导出 HTML 报告区域 ===== */}
+      <section className="flex justify-end px-8 pb-6">
+        <button
+          type="button"
+          onClick={() => void handleExportHtml()}
+          aria-label="导出 HTML 报告"
+          className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
+        >
+          <FileDown className="h-3.5 w-3.5" />
+          导出 HTML 报告
+        </button>
+      </section>
 
       {/* ===== Footer: Agent 工作流进度条 ===== */}
       <footer className="mt-auto border-t border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-8 py-3">

@@ -427,6 +427,10 @@ export interface DecisionCard {
   timestamp: number
   /** 关联的会话 ID */
   sessionId?: string
+  /** 目标服务器 ID（用于 HistoryPage 服务器筛选） */
+  serverId?: string
+  /** 执行耗时（ms，用于 HistoryPage 平均响应时间统计） */
+  durationMs?: number
 }
 
 // ============================================================================
@@ -523,6 +527,95 @@ export interface KnowledgeEntry {
   updatedAt: number
 }
 
+/** 知识库浏览历史记录 */
+export interface KbViewHistoryEntry {
+  /** 知识条目 ID */
+  entryId: string
+  /** 知识标题（冗余存储，避免每次 JOIN） */
+  title: string
+  /** 浏览时间戳（ms） */
+  viewedAt: number
+}
+
+/** 决策历史统计聚合 */
+export interface HistoryStats {
+  /** 总决策数 */
+  total: number
+  /** 成功数（status = verified / executed / approved） */
+  success: number
+  /** 失败数（status = failed） */
+  failed: number
+  /** 拦截数（status = rejected） */
+  intercepted: number
+  /** 成功率 [0, 1] */
+  successRate: number
+  /** 平均置信度 [0, 1] */
+  avgConfidence: number
+  /** 平均执行耗时（ms） */
+  avgDurationMs: number
+  /** 服务器列表（去重） */
+  servers: string[]
+}
+
+/** 教程统计 */
+export interface TutorialStats {
+  /** 课程总数 */
+  totalCourses: number
+  /** 总学习人次（所有教程 useCount 之和） */
+  totalViews: number
+  /** 总课时（所有教程 readingTime 之和，小时） */
+  totalHours: number
+  /** 分类数 */
+  categoryCount: number
+}
+
+/**
+ * 工具调用统计行（v2.3.2 新增）
+ *
+ * 用于 ModelSettings「功能调用统计」水平条形图，按工具名聚合 count + percent。
+ */
+export interface ToolCallStat {
+  /** 工具名称（如「终端命令执行」/「知识库检索」） */
+  name: string
+  /** 调用次数 */
+  count: number
+  /** 占比 [0, 100]，所有行 percent 之和 = 100 */
+  percent: number
+}
+
+/**
+ * 预算告警历史行（v2.3.2 新增）
+ *
+ * 用于 ModelSettings「告警历史」列表，记录 token 消耗超阈值 / API 响应慢等告警事件。
+ */
+export interface BudgetAlert {
+  /** 告警级别 */
+  level: 'alert' | 'error'
+  /** 告警文本 */
+  text: string
+  /** 告警时间（ms 时间戳） */
+  timestamp: number
+}
+
+/**
+ * 教程学习进度行（v2.3.2 新增）
+ *
+ * 用于 TutorialPage 跨设备同步学习进度，替代 localStorage 过渡方案。
+ * 一条 tutorialId 对应一行记录，UPSERT 写入。
+ */
+export interface TutorialProgress {
+  /** 教程 ID（与 TutorialEntry.id 对应） */
+  tutorialId: string
+  /** 学习状态：visited=已访问 / completed=已完成 */
+  status: 'visited' | 'completed'
+  /** 进度百分比 [0, 100] */
+  progress: number
+  /** 首次访问时间（ms 时间戳） */
+  visitedAt: number
+  /** 最后更新时间（ms 时间戳） */
+  updatedAt: number
+}
+
 // ============================================================================
 // IPC 通道类型映射
 // ============================================================================
@@ -586,11 +679,28 @@ export interface IpcChannelMap {
   'kb:delete': { args: [string]; return: boolean }
   'kb:import': { args: [KnowledgeEntry[]]; return: number }
   'kb:export': { args: [KnowledgeType?]; return: KnowledgeEntry[] }
+  'kb:view': { args: [string]; return: boolean }
+  'kb:hot': { args: [number?]; return: KnowledgeEntry[] }
+  'kb:recentViews': { args: [number?]; return: KbViewHistoryEntry[] }
 
   // 决策历史
   'history:list': { args: [number?, number?]; return: DecisionCard[] }
   'history:get': { args: [string]; return: DecisionCard | null }
   'history:save': { args: [DecisionCard]; return: boolean }
+  'history:stats': { args: []; return: HistoryStats }
+
+  // 模型统计（v2.3.2 新增）
+  'model:toolCalls': { args: []; return: ToolCallStat[] }
+
+  // 预算告警（v2.3.2 新增）
+  'budget:alerts': { args: [number?]; return: BudgetAlert[] }
+
+  // 可信度简化导出（v2.3.2 新增）
+  'credibility:export-decision-html': { args: [string, string]; return: string }
+
+  // 教程学习进度（v2.3.2 新增，跨设备同步）
+  'tutorial:progress': { args: []; return: TutorialProgress[] }
+  'tutorial:updateProgress': { args: [string, 'visited' | 'completed', number]; return: boolean }
 
   // 终端数据推送（主进程 → 渲染进程）
   'terminal:data': { args: [string, string]; return: void }

@@ -81,6 +81,9 @@ import { registerAppUpdateHandlers } from './app-update'
 // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
 // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
 import { registerFsIpcHandlers } from './fs-upload'
+// v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
+// 补齐 ModelSettings 最后两处静态数据
+import { registerModelStatsHandlers } from './model-stats'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -124,6 +127,8 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v0.6.0 起需要 mainWindow 用于爬虫进度推送
   if (db) {
     registerTutorialIpcHandlers(db, mainWindow)
+    // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
+    registerModelStatsHandlers(db)
   }
   // Web 部署助手 IPC（需要 mainWindow 用于日志推送）
   registerDeployIpcHandlers(mainWindow)
@@ -136,7 +141,8 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 日志 IPC（暴露给渲染进程与测试使用）
   registerLogIpcHandlers()
   // v0.9 新增：可信度算法 IPC（D-S 证据理论 + PCR5 冲突融合 + 6 源证据）
-  registerCredibilityHandlers()
+  // v2.3.2：传递 db 用于 credibility:export-decision-html 简化导出
+  registerCredibilityHandlers(db)
   // v0.9 新增：OpenHands 沙箱集成 IPC（Docker 检测 + 沙箱生命周期 + 命令执行）
   // P-2 + P-4 修复：传递 mainWindow 用于 IPC 层强制审批 + session_api_key 句柄模式
   registerSandboxIpcHandlers(mainWindow)

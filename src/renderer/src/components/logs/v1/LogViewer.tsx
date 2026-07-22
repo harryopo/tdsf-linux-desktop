@@ -16,7 +16,6 @@ import { Inbox } from 'lucide-react'
 import { Empty } from '@/components/trae/Empty'
 import {
   type LogEntry,
-  LEVEL_STATS,
   getLevelColor,
   getLevelSoftColor,
 } from './logs-data'
@@ -25,10 +24,7 @@ import {
 export function LogViewer({ entries }: { entries: LogEntry[] }) {
   return (
     <section className="log-viewer relative flex min-w-0 flex-1 flex-col">
-      {/* 1. 浮动统计卡（absolute top-right） */}
-      <FloatingStatsCard />
-
-      {/* 2. 日志行（可滚动） */}
+      {/* 1. 日志行（可滚动） */}
       <div className="log-lines min-h-0 flex-1 overflow-y-auto">
         {entries.length === 0 ? (
           <Empty
@@ -60,30 +56,6 @@ export function LogViewer({ entries }: { entries: LogEntry[] }) {
         </div>
       </div>
     </section>
-  )
-}
-
-/** 浮动统计卡（4 项级别统计） */
-function FloatingStatsCard() {
-  return (
-    <div
-      role="status"
-      aria-label="日志级别统计"
-      className="log-stats-card flex items-center"
-    >
-      {LEVEL_STATS.map((stat) => (
-        <span
-          key={stat.level}
-          className="log-stats-item"
-          style={{ color: getLevelColor(stat.level) }}
-        >
-          {stat.level}{' '}
-          <span className="log-stats-count">
-            {stat.count}
-          </span>
-        </span>
-      ))}
-    </div>
   )
 }
 

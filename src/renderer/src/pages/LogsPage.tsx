@@ -20,14 +20,13 @@
  * 视觉：全部 var(--trae-*) token；终端背景 #0F1011（设计稿 --log-terminal-bg）
  * 无障碍：role="log" aria-live="polite"、role="status"、按钮 aria-label、prefers-reduced-motion
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Spin, message } from 'antd'
 import { FileText, ArrowLeft, Clock, RefreshCw, Download } from 'lucide-react'
 import { LogSidebar } from '@/components/logs/v1/LogSidebar'
 import { LogToolbar } from '@/components/logs/v1/LogToolbar'
 import { LogViewer } from '@/components/logs/v1/LogViewer'
-import { isElectronAPIAvailable } from '@/utils/electron-api'
 import {
   type LogLevel,
   type LogEntry,
@@ -38,7 +37,6 @@ import {
   LATEST_TIMESTAMP,
   ipcLogEntriesToLogEntries,
 } from '@/components/logs/v1/logs-data'
-import type { Evidence } from '@shared/models'
 import './LogsPage.css'
 
 /** LogsPage — 系统日志页 */
@@ -49,7 +47,6 @@ export function LogsPage() {
   const [activeSource, setActiveSource] = useState(DEFAULT_LOG_SOURCE_ID)
   const [activeLevel, setActiveLevel] = useState<LogLevel | 'ALL'>('ALL')
   const [keyword, setKeyword] = useState('')
-  const [autoScroll, setAutoScroll] = useState(true)
 
   // ===== 真实日志流状态（v1.0 P0 接入 log:read IPC） =====
   // Electron 环境下挂载时自动拉取真实日志；非 Electron 环境回退到设计稿示例数据
@@ -58,8 +55,6 @@ export function LogsPage() {
   const [loadedReal, setLoadedReal] = useState(false)
   // 真实日志加载中状态
   const [loading, setLoading] = useState(false)
-  // AI 日志分析中状态
-  const [analyzing, setAnalyzing] = useState(false)
 
   // ===== 本地过滤（基于 displayEntries：真实数据 / 设计稿示例数据） =====
   const filteredEntries = useMemo(() => {
@@ -85,7 +80,6 @@ export function LogsPage() {
     if (typeof window === 'undefined' || !window.electronAPI?.logRead) {
       setDisplayEntries(LOG_ENTRIES)
       setLoadedReal(false)
-      message.warning('当前环境不支持日志读取（非 Electron 环境），展示示例数据')
       return
     }
     setLoading(true)
@@ -118,53 +112,6 @@ export function LogsPage() {
   const handleRefresh = async () => {
     await loadLogs()
   }
-
-  /**
-   * AI 分析当前过滤后的日志
-   * - 将日志内容封装为 Evidence 调用 llmAnalyze IPC
-   * - 分析结果以 message.info 展示（不弹窗）
-   * - 失败时降级提示，保证可用性
-   */
-  const handleAnalyze = useCallback(async () => {
-    if (!isElectronAPIAvailable()) {
-      message.warning('当前环境不支持 AI 分析（非 Electron 环境）')
-      return
-    }
-    if (filteredEntries.length === 0) {
-      message.info('当前没有可分析的日志')
-      return
-    }
-    setAnalyzing(true)
-    try {
-      const logText = filteredEntries
-        .slice(-50)
-        .map((e) => `[${e.timestamp}] [${e.level}] ${e.source}: ${e.message}`)
-        .join('\n')
-      const evidence: Evidence = {
-        id: `log-analysis-${Date.now()}`,
-        source: 'log',
-        sourceDetail: activeSource,
-        content: logText,
-        drainMatch: 0.8,
-        sourcePrior: 0.75,
-        confidence: 0.75,
-        timestamp: Date.now(),
-        verified: true,
-      }
-      const result = await window.electronAPI.llmAnalyze('分析以下系统日志，给出可能的原因和修复建议', [evidence])
-      const parsed = JSON.parse(result) as { hypothesis?: string; fixCommand?: string; confidence?: number }
-      message.info(
-        `AI 分析结论：${parsed.hypothesis ?? '暂无结论'}${parsed.fixCommand ? `（建议命令：${parsed.fixCommand}）` : ''}`,
-        5,
-      )
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      console.warn('[LogsPage] AI 日志分析失败', err)
-      message.error(`AI 分析失败：${reason}`)
-    } finally {
-      setAnalyzing(false)
-    }
-  }, [activeSource, filteredEntries])
 
   /**
    * 导出日志（v1.0 P1 接入 log:read IPC 全量拉取 + CSV/JSON 双格式下载）
@@ -268,10 +215,6 @@ export function LogsPage() {
         onKeywordChange={setKeyword}
         activeLevel={activeLevel}
         onLevelChange={setActiveLevel}
-        autoScroll={autoScroll}
-        onAutoScrollChange={setAutoScroll}
-        onAnalyze={handleAnalyze}
-        analyzing={analyzing}
         onRefresh={handleRefresh}
         onExport={handleExport}
       />
