@@ -54,6 +54,7 @@ const LOOP_STEP_CHANNEL = 'loop:step'
 const LOOP_DECISION_CHANNEL = 'loop:decision'
 const LOOP_DONE_CHANNEL = 'loop:done'
 const LOOP_ERROR_CHANNEL = 'loop:error'
+const LOOP_BLOCKED_CHANNEL = 'loop:blocked'
 
 // ============================================================================
 // 辅助函数
@@ -121,6 +122,12 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
   subagent.events.on('loop:error', (evt: LoopEngineeringEvent) => {
     if (evt.type === 'loop:error') {
       safeSend(mainWindow, LOOP_ERROR_CHANNEL, evt)
+    }
+  })
+
+  subagent.events.on('loop:blocked', (evt: LoopEngineeringEvent) => {
+    if (evt.type === 'loop:blocked') {
+      safeSend(mainWindow, LOOP_BLOCKED_CHANNEL, evt)
     }
   })
 
@@ -257,6 +264,7 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
       LOOP_DECISION_CHANNEL,
       LOOP_DONE_CHANNEL,
       LOOP_ERROR_CHANNEL,
+      LOOP_BLOCKED_CHANNEL,
     ],
   })
 }

@@ -26,6 +26,9 @@ import {
   resetLoopEngineeringSubagent,
   LoopEngineeringSubagent,
 } from '../src/main/core/agent/subagents/loop-engineering-subagent'
+import { SshConnectionManager } from '../src/main/services/ssh/connection-manager'
+import { LlmClient } from '../src/main/services/llm/client'
+import { createSubagentTask } from '../src/main/core/agent/subagents/base'
 
 // ============================================================
 // 测试工具函数
@@ -153,6 +156,111 @@ async function main(): Promise<void> {
   for (const evtType of LOOP_EVENT_TYPES) {
     assert(capturedTypes.includes(evtType), `类型 ${evtType} 应在捕获列表中`)
   }
+
+  // ────────── 步骤 7：SSH 预检查（Phase D 新增） ──────────
+  section('步骤 7：SSH 预检查 hasActiveConnection() + loop:blocked 事件')
+
+  // 通过 SshConnectionManager 单例 stub hasActiveConnection 返回 false
+  const sshInstance = SshConnectionManager.getInstance()
+  const originalHasActive = sshInstance.hasActiveConnection.bind(sshInstance)
+  let sshStubbed = false
+  try {
+    sshInstance.hasActiveConnection = () => false
+    sshStubbed = true
+  } catch {
+    // 若无法直接赋值（readonly），改用 Object.defineProperty
+    Object.defineProperty(sshInstance, 'hasActiveConnection', {
+      value: () => false,
+      configurable: true,
+      writable: true,
+    })
+    sshStubbed = true
+  }
+  assert(sshStubbed, '应能 stub SshConnectionManager.hasActiveConnection 返回 false')
+
+  const subBlocked = getLoopEngineeringSubagent()
+  let blockedEventReceived: { reason: string; step: string; message: string } | null = null
+  subBlocked.events.on('loop:blocked', (evt: { type: string; reason: string; step: string; message: string }) => {
+    blockedEventReceived = {
+      reason: evt.reason,
+      step: evt.step,
+      message: evt.message,
+    }
+  })
+
+  const blockedTask = createSubagentTask(
+    'loop-engineering',
+    'SSH 预检查测试',
+    { problem: '测试问题', connId: 'test-conn-blocked' },
+    { correlationId: 'blocked-test-cid' }
+  )
+
+  const blockedResult = await subBlocked.execute(blockedTask)
+
+  assert(
+    blockedEventReceived !== null,
+    '应接收到 loop:blocked 事件'
+  )
+  assert(
+    blockedEventReceived?.reason === 'SSH_NO_CONNECTION',
+    `loop:blocked 事件 reason 应为 SSH_NO_CONNECTION，实际 ${blockedEventReceived?.reason}`
+  )
+  assert(
+    blockedEventReceived?.step === 'execute',
+    `loop:blocked 事件 step 应为 execute，实际 ${blockedEventReceived?.step}`
+  )
+  assert(
+    !blockedResult.success,
+    'SSH 未连接时 execute 应返回 success=false'
+  )
+  assert(
+    typeof blockedEventReceived?.message === 'string' && blockedEventReceived.message.length > 0,
+    'loop:blocked 事件应携带非空 message'
+  )
+
+  // 恢复 stub
+  try {
+    sshInstance.hasActiveConnection = originalHasActive
+  } catch {
+    Object.defineProperty(sshInstance, 'hasActiveConnection', {
+      value: originalHasActive,
+      configurable: true,
+      writable: true,
+    })
+  }
+  // 清理事件监听器避免影响后续测试
+  subBlocked.events.removeAllListeners('loop:blocked')
+
+  // ────────── 步骤 8：LLM 兜底命令对齐（Phase D 新增） ──────────
+  section('步骤 8：LLM 兜底命令 echo "LLM_UNAVAILABLE" + confidence 0.3')
+
+  // 构造 apiKey 为空的 LlmClient，触发降级路径
+  const llmClient = new LlmClient({
+    baseUrl: '',
+    apiKey: '',
+    model: '',
+    temperature: 0.7,
+    maxTokens: 2048,
+    timeout: 30_000,
+  })
+
+  assert(!llmClient.isAvailable(), 'apiKey 为空时 LlmClient.isAvailable() 应返回 false')
+
+  // 使用不匹配任何规则的问题描述，使 rule-engine 返回 null，触发兜底返回
+  const fallbackResult = await llmClient.analyze('完全无匹配的未知问题xyz123', [])
+
+  assert(
+    fallbackResult.fixCommand === 'echo "LLM_UNAVAILABLE"',
+    `兜底 fixCommand 应为 echo "LLM_UNAVAILABLE"，实际 ${fallbackResult.fixCommand}`
+  )
+  assert(
+    fallbackResult.confidence === 0.3,
+    `兜底 confidence 应为 0.3，实际 ${fallbackResult.confidence}`
+  )
+  assert(
+    typeof fallbackResult.hypothesis === 'string' && fallbackResult.hypothesis.length > 0,
+    '兜底 hypothesis 应为非空字符串'
+  )
 
   // ────────── 汇总 ──────────
   console.log('\n' + '='.repeat(60))
