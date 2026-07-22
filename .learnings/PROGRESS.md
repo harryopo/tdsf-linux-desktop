@@ -156,3 +156,28 @@
 - 编译门禁：typecheck:node + typecheck:web + lint 三绿（lint 0 warnings / 0 errors）
 - 测试覆盖：329 + 19 新增 = 348 个断言全部通过
 - 综合 7 维评分：8.9 → 9.2（+0.3）
+
+---
+
+## v2.0 后端 + Agent 架构循环工程（2026-07-22）
+
+> 方案书：`idea-to-dev-output/45-后端与Agent架构规划-v2.0.md`
+> 归档：`docs/v2.0-backend-agent-archive/`
+
+| Phase | 主题 | 状态 | Commit | 文件变化 |
+|-------|------|------|--------|----------|
+| A | Monaco Editor + 沙箱资源 | ✅ | `4c63eb9` | +136 -textarea |
+| B | Inline Completion + Diff + @命令 | ✅ | `cfbaa09` | +1350 |
+| C | 文件搜索 + 监听 + Tab 持久化 + 三态权限 | ✅ | `ea7ef83` | +1425 |
+| D | task-protocol 14 步 + Langfuse trace | ✅ | `b47aa95` | +2018 -669 |
+| E | ECE/Temperature Scaling + Mastra 边界 | ✅ | `479d33a` | +486 -13 |
+| F | MCP 工具 9→30 + resources + prompts | ✅ | `b2af5e8` | +3050 -132 |
+| G | 集成验证 + 归档五件套 | ✅ | — | 归档文档 |
+
+**关键指标**：
+- 编译门禁：typecheck:node ✅ + typecheck:web ✅ + lint 后端 ✅（前端 2 error 为前端重构引入）
+- 测试覆盖：1220/1221 通过（1 pre-existing llm-client.test.ts 失败）
+- 综合 7 维评分：9.0/10（超过阈值 8.5/10）
+- 技术债清理：8 个 TD 清理 6 个（TD-1/2/3/5/6/8 修复，TD-4 已知偏差，TD-7 延后 v1.6）
+- Hard Constraint 修复：3 个 P0（Monaco / @命令划选 / docker-compose）+ R11 Langfuse + R12 三态权限
+- Agent 架构：task-protocol 14 步真实逻辑 + Langfuse trace 全链路 + ECE/TempScaling 校准 + MCP 30 工具 + resources/prompts
