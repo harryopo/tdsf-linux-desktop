@@ -12,6 +12,7 @@ import { Terminal, CheckCircle, Sparkles, Code, Zap } from 'lucide-react'
 import { useMemo } from 'react'
 import { useServerStore } from '@/stores/server-store'
 import { useAgentStore } from '@/stores/agent-store'
+import { useEditorStore } from '@/stores/editor-store'
 
 /** StatusBar 工作台底部状态栏 */
 export function StatusBar() {
@@ -73,12 +74,16 @@ export function StatusBar() {
       ? 'var(--trae-text-brand)'
       : 'var(--trae-text-tertiary)'
 
-  // 设计稿示例：Ln 42, Col 16 / nginx.conf
-  // TODO(editor-cursor): Monaco editor 接入后从 editor.onDidChangeCursorPosition 实时更新
-  const cursorLine = 42
-  const cursorColumn = 16
-  // TODO(active-file): WorkbenchPage 激活文件路径接入后自动更新
-  const fileName = activeServer?.name || activeServer?.host || 'nginx.conf'
+  // 光标位置来自 editor-store（MonacoEditor onDidChangeCursorPosition 实时写入）
+  // 终端 tab 或无激活文件时为 null，回退到 Ln 1, Col 1
+  const cursorPosition = useEditorStore((s) => s.cursorPosition)
+  const activeFilePath = useEditorStore((s) => s.activeFilePath)
+  const cursorLine = cursorPosition?.lineNumber ?? 1
+  const cursorColumn = cursorPosition?.column ?? 1
+  // 文件名优先取激活文件路径的 basename，无激活文件时回退到服务器名或占位符
+  const fileName = activeFilePath
+    ? activeFilePath.split('/').pop() || activeFilePath
+    : activeServer?.name || activeServer?.host || '—'
 
   // 保留 tokenStats 引用以备未来在状态栏扩展（如本次会话消耗）
   void tokenStats

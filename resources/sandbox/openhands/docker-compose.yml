@@ -1,0 +1,51 @@
+# OpenHands Sandbox Docker Compose 配置（TDSF Linux Desktop v2.0 Phase A）
+#
+# 用途：通过 `docker compose` 一键拉起 OpenHands App Server 沙箱环境，
+#       供 TDSF 桌面端执行 Agent 工程循环（受限、隔离、可观测）。
+#
+# 启动：docker compose -f docker-compose.yml up -d
+# 停止：docker compose -f docker-compose.yml down
+# 状态：docker compose -f docker-compose.yml ps
+#
+# 引用方：src/main/services/sandbox/openhands-runner.ts
+# 方案书依据：v0.9 §8（沙箱集成）+ v2.0 Phase A · Task A.5
+version: '3.8'
+
+services:
+  openhands:
+    # OpenHands 官方维护的 App Server 镜像（含 runtime + action execution layer）
+    image: openhands/backend:latest
+    container_name: tdsf-openhands-sandbox
+    ports:
+      # 宿主机 3000 → 容器 3000（OpenHands App Server 默认监听端口）
+      - "3000:3000"
+    environment:
+      # 调试模式（生产环境可置为 false）
+      - DEBUG=true
+      # 工作区根目录（容器内挂载点）
+      - WORKSPACE_BASE=/workspace
+      # 沙箱隔离配置：禁用网络访问以提升安全性（如需联网可改为 allow）
+      - SANDBOX_BASE_CONTAINER_IMAGE=openhands/sandbox:latest
+    volumes:
+      # 工作区持久化：宿主机 ./workspace ↔ 容器 /workspace
+      - ./workspace:/workspace
+      # Docker-in-Docker：OpenHands 通过宿主机 Docker 创建子沙箱
+      - /var/run/docker.sock:/var/run/docker.sock
+    # 容器异常退出时自动重启（除非手动 stop）
+    restart: unless-stopped
+    # 健康检查：轮询 /alive 端点（OpenHands App Server 提供）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/alive"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # 资源限制：避免单个沙箱耗尽宿主机资源
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
