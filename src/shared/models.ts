@@ -34,8 +34,10 @@ export interface SshConfig {
   passphrase?: string
   /** 跳板机配置（可选） */
   jumpHost?: Omit<SshConfig, 'id' | 'name' | 'jumpHost'>
-  /** 是否保持连接 */
+  /** 是否保持连接（启用心跳保活） */
   keepAlive?: boolean
+  /** 心跳保活间隔（秒），不传时后端默认 30s */
+  keepAliveIntervalSec?: number
 }
 
 /** SSH 命令执行结果 */
@@ -52,6 +54,25 @@ export interface CommandResult {
 
 /** SSH 连接状态 */
 export type SshConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+/**
+ * 心跳保活状态变更事件（主 → 渲染推送）
+ *
+ * 当心跳失败达到阈值后，先尝试自动重连（reconnecting），
+ * 重连全部失败后推送最终断开（disconnected）。
+ */
+export interface SshStateEvent {
+  /** 会话 ID */
+  sessionId: string
+  /** 服务器 ID（对应 SshConfig.id） */
+  serverId: string
+  /** 保活状态：reconnecting=正在重连 / disconnected=最终断开 */
+  state: 'reconnecting' | 'disconnected'
+  /** 状态变更原因（如「心跳连续失败 3 次」「重连 3 次均失败」） */
+  reason: string
+  /** 重连尝试次数（disconnected 时为总尝试次数，reconnecting 时为 0） */
+  attemptCount: number
+}
 
 /**
  * 服务器凭证（敏感信息，加密存储）

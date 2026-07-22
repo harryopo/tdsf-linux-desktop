@@ -21,12 +21,14 @@ import type { ConnectConfig } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { SshConfig, CommandResult, SshConnectionState } from '@shared/models'
+import type { SshConfig, CommandResult, SshConnectionState, SshStateEvent } from '@shared/models'
 
 /** 单个 SSH 会话的内部条目 */
 interface SessionEntry {
   /** ssh2 客户端实例 */
   client: Client
+  /** 会话 ID（与 sessions Map 的 key 一致，重连时需要） */
+  sessionId: string
   /** 原始连接配置（脱敏保留，用于重连） */
   config: SshConfig
   /** 当前连接状态 */
@@ -43,16 +45,24 @@ interface SessionEntry {
   keepAliveTimer: NodeJS.Timeout | null
   /** 连接锁：非空表示有正在进行的连接/断开操作 */
   pendingOp: Promise<unknown> | null
+  /** 标记是否正在重连（防止重连期间重复触发心跳失败处理） */
+  reconnecting: boolean
 }
 
 /** 默认连接超时（毫秒） */
 const DEFAULT_CONNECT_TIMEOUT_MS = 30_000
 /** 默认命令执行超时（毫秒） */
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000
-/** keepAlive 心跳间隔（毫秒） */
-const KEEPALIVE_INTERVAL_MS = 30_000
-/** keepAlive 最大失败次数，超过则认为连接已断开 */
+/** keepAlive 默认心跳间隔（秒），可被 SshConfig.keepAliveIntervalSec 覆盖 */
+const KEEPALIVE_DEFAULT_INTERVAL_SEC = 30
+/** keepAlive 最大失败次数，超过则触发重连 */
 const KEEPALIVE_MAX_FAILURES = 3
+/** 自动重连最大尝试次数 */
+const RECONNECT_MAX_ATTEMPTS = 3
+/** 自动重连基础退避（毫秒），指数退避：1s → 2s → 4s */
+const RECONNECT_BASE_DELAY_MS = 1_000
+/** 自动重连总时长上限（毫秒），超过则放弃 */
+const RECONNECT_MAX_TOTAL_MS = 30_000
 
 /**
  * SSH 连接管理器（单例）
@@ -65,6 +75,9 @@ export class SshConnectionManager {
 
   /** 会话表：sessionId → SessionEntry */
   private sessions: Map<string, SessionEntry> = new Map()
+
+  /** 状态变更回调列表（IPC 层注册，用于推送 SshStateEvent 到渲染进程） */
+  private stateChangeCallbacks: Array<(event: SshStateEvent) => void> = []
 
   /** 获取单例实例 */
   public static getInstance(): SshConnectionManager {
@@ -97,6 +110,7 @@ export class SshConnectionManager {
     const sessionId = randomUUID()
     const entry: SessionEntry = {
       client: new Client(),
+      sessionId,
       config,
       state: 'connecting',
       createdAt: Date.now(),
@@ -105,6 +119,7 @@ export class SshConnectionManager {
       shellCallbacks: [],
       keepAliveTimer: null,
       pendingOp: null,
+      reconnecting: false,
     }
     // 提前占位，避免后续操作找不到会话
     this.sessions.set(sessionId, entry)
@@ -314,6 +329,25 @@ export class SshConnectionManager {
   // ------------------------------------------------------------------
 
   /**
+   * 注册心跳保活状态变更回调
+   *
+   * 心跳失败触发重连、重连成功/失败时，通过此回调通知调用方（IPC 层）。
+   * IPC 层注册后，回调内通过 mainWindow.webContents.send 推送 SshStateEvent 到渲染进程。
+   *
+   * @param callback 回调函数，接收 SshStateEvent
+   * @returns 取消注册函数
+   */
+  public onStateChanged(callback: (event: SshStateEvent) => void): () => void {
+    this.stateChangeCallbacks.push(callback)
+    return () => {
+      const idx = this.stateChangeCallbacks.indexOf(callback)
+      if (idx >= 0) {
+        this.stateChangeCallbacks.splice(idx, 1)
+      }
+    }
+  }
+
+  /**
    * 获取会话连接状态
    * @param sessionId 会话 ID
    * @returns 连接状态（会话不存在返回 'disconnected'）
@@ -466,15 +500,21 @@ export class SshConnectionManager {
    * 启动 keepAlive 心跳
    *
    * 用定时器执行无副作用命令检测连接是否存活，
-   * 连续失败超过阈值则标记连接为已断开。
+   * 连续失败超过阈值则触发自动重连（指数退避，最多 3 次），
+   * 重连全部失败后标记 disconnected 并通过 onStateChanged 回调通知 UI。
+   *
+   * 心跳间隔从 SshConfig.keepAliveIntervalSec 读取（秒），默认 30s。
    */
   private startKeepAlive(entry: SessionEntry): void {
     if (!entry.config.keepAlive) {
       return
     }
+    this.stopKeepAlive(entry)
+    const intervalMs =
+      (entry.config.keepAliveIntervalSec ?? KEEPALIVE_DEFAULT_INTERVAL_SEC) * 1000
     let failures = 0
     entry.keepAliveTimer = setInterval(() => {
-      if (entry.state !== 'connected') {
+      if (entry.state !== 'connected' || entry.reconnecting) {
         this.stopKeepAlive(entry)
         return
       }
@@ -482,8 +522,9 @@ export class SshConnectionManager {
         if (err || !stream) {
           failures++
           if (failures >= KEEPALIVE_MAX_FAILURES) {
-            entry.state = 'disconnected'
             this.stopKeepAlive(entry)
+            // 异步触发重连，不阻塞 setInterval 回调
+            void this.handleKeepAliveFailure(entry, failures)
           }
           return
         }
@@ -492,7 +533,7 @@ export class SshConnectionManager {
           // 心跳完成
         })
       })
-    }, KEEPALIVE_INTERVAL_MS)
+    }, intervalMs)
   }
 
   /** 停止心跳 */
@@ -500,6 +541,100 @@ export class SshConnectionManager {
     if (entry.keepAliveTimer) {
       clearInterval(entry.keepAliveTimer)
       entry.keepAliveTimer = null
+    }
+  }
+
+  /**
+   * 心跳失败处理：先尝试自动重连，全部失败后标记 disconnected
+   *
+   * 流程：
+   * 1. 标记 reconnecting=true，推送 'reconnecting' 事件
+   * 2. 指数退避重连（1s → 2s → 4s，最多 3 次，总时长不超 30s）
+   * 3. 重连成功：doConnect 的 onReady 会重启心跳并设 state='connected'
+   * 4. 重连失败：标记 disconnected，推送 'disconnected' 事件
+   */
+  private async handleKeepAliveFailure(
+    entry: SessionEntry,
+    failureCount: number
+  ): Promise<void> {
+    if (entry.reconnecting) {
+      return // 已在重连中，避免重复触发
+    }
+    entry.reconnecting = true
+    entry.state = 'connecting'
+    const reason = `心跳连续失败 ${failureCount} 次`
+    this.notifyStateChanged({
+      sessionId: entry.sessionId,
+      serverId: entry.config.id,
+      state: 'reconnecting',
+      reason,
+      attemptCount: 0,
+    })
+
+    const success = await this.attemptReconnect(entry)
+    if (success) {
+      // doConnect 的 onReady 已设置 state='connected' 并重启心跳
+      entry.reconnecting = false
+      return
+    }
+
+    // 重连全部失败：标记最终断开
+    entry.reconnecting = false
+    entry.state = 'disconnected'
+    entry.shell = null
+    this.notifyStateChanged({
+      sessionId: entry.sessionId,
+      serverId: entry.config.id,
+      state: 'disconnected',
+      reason: `重连 ${RECONNECT_MAX_ATTEMPTS} 次均失败（${reason}）`,
+      attemptCount: RECONNECT_MAX_ATTEMPTS,
+    })
+  }
+
+  /**
+   * 指数退避自动重连
+   *
+   * 每次尝试创建新的 ssh2 Client（旧的已断开），调用 doConnect。
+   * 成功后 doConnect 的 onReady 回调会设置 state='connected' 并 startKeepAlive。
+   *
+   * @returns true 表示重连成功
+   */
+  private async attemptReconnect(entry: SessionEntry): Promise<boolean> {
+    let totalDelay = 0
+    for (let attempt = 1; attempt <= RECONNECT_MAX_ATTEMPTS; attempt++) {
+      const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, attempt - 1)
+      if (totalDelay + delay > RECONNECT_MAX_TOTAL_MS) {
+        break
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, delay))
+      totalDelay += delay
+
+      // 会话可能在重连期间被用户主动断开
+      if (!this.sessions.has(entry.sessionId)) {
+        return false
+      }
+      // 旧 client 已断开，创建新 client 重连
+      try {
+        entry.client = new Client()
+        await this.runWithLock(entry.sessionId, () =>
+          this.doConnect(entry, entry.config)
+        )
+        return true
+      } catch {
+        // 本次重连失败，继续下一次尝试
+      }
+    }
+    return false
+  }
+
+  /** 通知所有注册的状态变更回调（IPC 层据此推送渲染进程） */
+  private notifyStateChanged(event: SshStateEvent): void {
+    for (const cb of this.stateChangeCallbacks) {
+      try {
+        cb(event)
+      } catch {
+        // 单个回调异常不影响其他回调
+      }
     }
   }
 
@@ -517,7 +652,9 @@ export class SshConnectionManager {
       port: config.port,
       username: config.username,
       readyTimeout: DEFAULT_CONNECT_TIMEOUT_MS,
-      keepaliveInterval: config.keepAlive ? KEEPALIVE_INTERVAL_MS : undefined,
+      keepaliveInterval: config.keepAlive
+        ? (config.keepAliveIntervalSec ?? KEEPALIVE_DEFAULT_INTERVAL_SEC) * 1000
+        : undefined,
     }
     if (config.authType === 'password') {
       opts.password = config.password
