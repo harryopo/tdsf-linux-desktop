@@ -40,10 +40,43 @@ export interface McpToolMeta {
 }
 
 /** MCP 工具注册项 */
-interface McpToolRegistration {
+export interface McpToolRegistration {
   meta: McpToolMeta
   /** 适配器：把 MCP SDK 的 args 转成工具 args，调 execute，再适配为 McpToolResult */
   call: (args: Record<string, unknown>) => Promise<McpToolResult>
+}
+
+/**
+ * 把任意值序列化为 MCP 文本结果（v2.0 Phase F 新增，供分域 registry 复用）
+ *
+ * - Error 实例 → isError=true + 错误消息
+ * - 其他 → JSON.stringify
+ */
+export function toMcpTextResult(value: unknown): McpToolResult {
+  if (value instanceof Error) {
+    return {
+      content: [{ type: 'text', text: `错误: ${value.message}` }],
+      isError: true,
+    }
+  }
+  return {
+    content: [
+      {
+        type: 'text',
+        text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+      },
+    ],
+  }
+}
+
+/**
+ * 构造错误 MCP 结果（v2.0 Phase F 新增，供分域 registry 复用）
+ */
+export function toMcpErrorResult(message: string): McpToolResult {
+  return {
+    content: [{ type: 'text', text: `错误: ${message}` }],
+    isError: true,
+  }
 }
 
 /** zod schema → MCP JSON Schema 转换器（简化版，覆盖常见类型） */
