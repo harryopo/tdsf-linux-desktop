@@ -226,14 +226,16 @@ export function AppearanceSettings() {
                     style={{ background: opt.previewBg }}
                   >
                     {opt.value !== 'system' ? (
-                      <div className="flex flex-1 flex-col gap-1 p-2">
-                        <div className="h-1 w-3/5 rounded-[2px]" style={{ background: opt.lineColor }} />
-                        <div className="h-1 w-2/5 rounded-[2px]" style={{ background: opt.lineColor }} />
-                        <div className="mt-auto h-2.5 rounded-[3px]" style={{ background: opt.blockColor }} />
-                      </div>
-                    ) : (
-                      <div className="flex-1" />
-                    )}
+                    <div className="flex flex-1 flex-col gap-1 p-2">
+                      <div className="h-1 w-3/5 rounded-[2px]" style={{ background: opt.lineColor }} />
+                      <div className="h-1 w-2/5 rounded-[2px]" style={{ background: opt.lineColor }} />
+                      <div className="mt-auto h-2.5 rounded-[3px]" style={{ background: opt.blockColor }} />
+                    </div>
+                  ) : (
+                    <div className="flex flex-1 items-center justify-center">
+                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-secondary)' }}>Auto</span>
+                    </div>
+                  )}
                   </div>
                   {/* 名称 + 描述 + radio dot */}
                   <div className="set-theme-card__label">

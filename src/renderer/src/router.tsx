@@ -156,21 +156,23 @@ const Router: React.FC = () => {
             <Route path="logs" element={<LogsPage />} />
 
             {/* 设置（嵌套路由）
-                - /settings 根路径由 SettingsLayout 自身渲染 9 项卡片快捷入口
-                - 子路由通过 Outlet 渲染对应设置子页面 */}
+                - /settings 根路径由 SettingsLayout 自身渲染 6 项卡片快捷入口
+                - 子路由通过 Outlet 渲染对应设置子页面
+                - model / about 按设计稿为独立页面，不嵌套在 SettingsLayout 中 */}
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<SettingsPage />} />
               <Route path="general" element={<GeneralSettings />} />
               <Route path="appearance" element={<AppearanceSettings />} />
-              <Route path="model" element={<ModelSettings />} />
               <Route path="risk" element={<RiskSettings />} />
               <Route path="ssh" element={<SshSettings />} />
               <Route path="terminal" element={<TerminalSettings />} />
               <Route path="decision" element={<DecisionSettings />} />
-              {/* nav-alerts 指引页（告警阈值配置已集成到监控页） */}
-              <Route path="alerts" element={<AlertsSettings />} />
               <Route path="calibration" element={<CalibrationSettings />} />
+              <Route path="alerts" element={<AlertsSettings />} />
             </Route>
+
+            {/* 模型配置：设计稿为独立居中布局，无侧边栏 */}
+            <Route path="settings/model" element={<ModelSettings />} />
 
             {/* 关于页：设计稿为独立居中布局，不使用 SettingsLayout 侧边栏 */}
             <Route path="settings/about" element={<AboutSettings />} />

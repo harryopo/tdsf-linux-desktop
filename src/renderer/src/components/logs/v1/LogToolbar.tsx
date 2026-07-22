@@ -6,7 +6,6 @@
  *   1. 搜索框（300px，左 32px 内边距容纳搜索图标，等宽字体）
  *   2. Level filter：5 个 radio tabs（全部/INFO/WARN/ERROR/DEBUG），active 项品牌色边框
  *   3. 右侧 cluster（ml-auto）：
- *      - AI 日志分析按钮（Sparkles 图标 + 文字，v1.0 P0 接入 llmAnalyze）
  *      - 自动滚动 switch（32x18 椭圆 + 14x14 圆点）
  *      - 刷新图标按钮（28x28）
  *      - 导出图标按钮（28x28）
@@ -15,9 +14,9 @@
  *   - 搜索关键词（useState 由父组件控制）
  *   - Level filter（useState 由父组件控制）
  *   - 自动滚动 switch（useState 由父组件控制）
- *   - AI 分析 / 刷新 / 导出 按钮（onClick 回调）
+ *   - 刷新 / 导出 按钮（onClick 回调）
  */
-import { Sparkles, Search, RefreshCw, Download } from 'lucide-react'
+import { Search, RefreshCw, Download, Sparkles } from 'lucide-react'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -42,9 +41,7 @@ export function LogToolbar({
   onLevelChange: (level: LogLevel | 'ALL') => void
   autoScroll: boolean
   onAutoScrollChange: (v: boolean) => void
-  /** AI 分析回调（v1.0 P0 接入 llmAnalyze IPC） */
   onAnalyze: () => void
-  /** AI 分析进行中（禁用按钮 + 切换文案） */
   analyzing: boolean
   onRefresh: () => void
   onExport: () => void
@@ -82,13 +79,13 @@ export function LogToolbar({
 
       {/* 3. 右侧 cluster */}
       <div className="log-right-cluster flex shrink-0 items-center">
-        {/* AI 日志分析按钮（v1.0 P0 接入 llmAnalyze IPC） */}
+        {/* AI 分析按钮 */}
         <button
           type="button"
           onClick={onAnalyze}
           disabled={analyzing}
           aria-label={analyzing ? 'AI 分析中' : 'AI 分析当前日志'}
-          className="log-btn-press log-analyze-btn inline-flex items-center justify-center transition-colors"
+          className="log-btn-press log-ai-btn inline-flex items-center justify-center transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Sparkles size={13} style={{ color: 'var(--trae-icon-brand)' }} />
           <span>{analyzing ? '分析中…' : 'AI 分析'}</span>

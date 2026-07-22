@@ -743,6 +743,8 @@ export const APP = {
   CHECK_UPDATE: 'app:check-update',
   /** 下载更新（invoke: 渲染 → 主，打开浏览器到 Release 页面） */
   DOWNLOAD_UPDATE: 'app:download-update',
+  /** 获取应用信息（invoke: 渲染 → 主，返回版本/安装路径/构建时间等） */
+  GET_INFO: 'app:get-info',
 } as const
 
 /**

@@ -226,20 +226,26 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
   // ─── loop:confirm — 人工确认 ─────────────────────────────────────
 
   /**
-   * 参数：(correlationId: string, approved: boolean)
+   * 参数：(correlationId: string, approved: boolean, newCommand?: string)
    * 返回：boolean（确认是否成功传递）
    *
    * 在 'loop:decision' 事件后调用此方法恢复工作流。
+   * T.6: 新增可选 newCommand 参数，支持用户修改修复命令后批准执行。
    */
   ipcMain.handle(
-    'loop:confirm',
-    async (_event, correlationId: string, approved: boolean): Promise<boolean> => {
+    LOOP.CONFIRM,
+    async (
+      _event,
+      correlationId: string,
+      approved: boolean,
+      newCommand?: string,
+    ): Promise<boolean> => {
       if (!correlationId) {
         logger.warn('IPC.LOOP', `loop:confirm 缺少 correlationId`)
         return false
       }
-      logger.info('IPC.LOOP', `loop:confirm`, { correlationId, approved })
-      return subagent.confirm(correlationId, approved)
+      logger.info('IPC.LOOP', `loop:confirm`, { correlationId, approved, hasNewCommand: !!newCommand })
+      return subagent.confirm(correlationId, approved, newCommand)
     }
   )
 
@@ -256,7 +262,7 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
   })
 
   logger.info('IPC.LOOP', `循环工程 IPC handlers 已注册`, {
-    invokeChannels: ['loop:start', 'loop:confirm', 'loop:cancel'],
+    invokeChannels: [LOOP.START, LOOP.CONFIRM, LOOP.CANCEL],
     pushChannels: [
       LOOP_LLM_START_CHANNEL,
       LOOP_LLM_DONE_CHANNEL,

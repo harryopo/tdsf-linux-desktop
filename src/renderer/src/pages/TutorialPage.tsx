@@ -127,7 +127,7 @@ export function TutorialPage() {
             <span className="tut-page-subtitle">从入门到精通的 Linux 运维实战课程</span>
           </div>
         </div>
-        <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="tut-back-btn">
+        <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="tut-back-btn tut-btn-press">
           <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
           <span>返回工作台</span>
         </button>

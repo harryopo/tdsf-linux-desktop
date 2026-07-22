@@ -81,6 +81,8 @@
 
 /* ===== 2. Toolbar ===== */
 .log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--trae-spacer-12);
   padding: var(--trae-spacer-8) var(--trae-spacer-16);
   background: var(--trae-bg-base-secondary);
@@ -89,7 +91,9 @@
 
 .log-search {
   position: relative;
-  width: 300px;
+  flex: 1 1 240px;
+  max-width: 300px;
+  min-width: 180px;
 }
 
 .log-search-icon {
@@ -121,6 +125,8 @@
 }
 
 .log-level-filter {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--trae-spacer-4);
 }
 
@@ -145,6 +151,8 @@
 }
 
 .log-right-cluster {
+  display: flex;
+  flex-wrap: wrap;
   margin-left: auto;
   gap: var(--trae-spacer-12);
 }
@@ -215,28 +223,6 @@
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
   cursor: pointer;
-}
-
-/* AI 分析按钮（v1.0 P0 接入 llmAnalyze IPC）—— 与 icon-btn 同高，带文字 */
-.log-analyze-btn {
-  height: 28px;
-  padding: 0 var(--trae-spacer-10);
-  gap: var(--trae-spacer-6);
-  font-size: var(--trae-body-sm-font-size);
-  color: var(--trae-text-default);
-  background: var(--trae-status-primary-surface-l1);
-  border: 1px solid var(--trae-status-primary-default);
-  border-radius: var(--trae-radius-6);
-  cursor: pointer;
-}
-
-.log-analyze-btn:hover:not(:disabled) {
-  background: var(--trae-status-primary-surface-l2);
-}
-
-.log-analyze-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* ===== 3. 两栏布局 ===== */
@@ -344,6 +330,17 @@
 
 .log-viewer-role-wrap {
   background: transparent;
+}
+
+.log-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--trae-bg-base-default);
+  opacity: 0.85;
 }
 
 .log-stats-card {

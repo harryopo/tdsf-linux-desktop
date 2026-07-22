@@ -72,6 +72,8 @@ export interface UseAgentChatResult {
   cancel: () => Promise<void>
   /** 清空对话 */
   clear: () => void
+  /** 压缩上下文（T.7） */
+  compressContext: () => void
 }
 
 /**
@@ -97,6 +99,7 @@ export function useAgentChat(): UseAgentChatResult {
   const finalizeMessage = useAgentStore((s) => s.finalizeMessage)
   const markError = useAgentStore((s) => s.markError)
   const clearMessages = useAgentStore((s) => s.clearMessages)
+  const compressMessages = useAgentStore((s) => s.compressMessages)
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const setCurrentCorrelationId = useAgentStore((s) => s.setCurrentCorrelationId)
   const setTokenStats = useAgentStore((s) => s.setTokenStats)
@@ -321,6 +324,16 @@ export function useAgentChat(): UseAgentChatResult {
   }, [clearMessages])
 
   /**
+   * 压缩上下文（T.7）
+   *
+   * 非流式状态下触发 store.compressMessages，保留 system + 最近 N 条，
+   * 中间历史用本地摘要消息替换。
+   */
+  const compressContext = useCallback(() => {
+    compressMessages()
+  }, [compressMessages])
+
+  /**
    * 重置本次会话成本基线（v0.9.3 §11 改进点 26 P2-F）
    *
    * 用户主动点击"重置会话成本"按钮时调用。
@@ -354,5 +367,6 @@ export function useAgentChat(): UseAgentChatResult {
     send,
     cancel,
     clear,
+    compressContext,
   }
 }

@@ -195,6 +195,26 @@ export interface DockerInfo {
 // ============================================================================
 
 /**
+ * 应用信息（app:get-info 返回，T.8）
+ *
+ * 字段与 main/ipc/app-update.ts AppInfo 完全对齐。
+ */
+export interface AppInfo {
+  /** 应用版本号（含 v 前缀，如 'v1.0.0'） */
+  version: string
+  /** 应用安装/资源路径 */
+  installPath: string
+  /** 构建时间（ISO 8601 字符串） */
+  buildTime: string
+  /** 构建时间展示文本（Build YYYY.MM.DD） */
+  buildBadge: string
+  /** 应用数据目录（app.getPath('userData')） */
+  dataPath: string
+  /** 应用日志目录（userData/logs） */
+  logPath: string
+}
+
+/**
  * 应用更新信息（检查成功时返回）
  *
  * 字段与 main/ipc/app-update.ts AppUpdateInfo 完全对齐。
@@ -860,6 +880,15 @@ export interface ElectronAPI {
    * @returns true 表示成功打开浏览器
    */
   appDownloadUpdate(releaseUrl?: string): Promise<boolean>
+  /**
+   * 获取应用真实信息（版本 / 安装路径 / 构建时间 / 构建标识）
+   *
+   * 通道：app:get-info
+   * 使用场景：AboutSettings 页面系统信息展示，替换设计稿示例占位值。
+   *
+   * @returns AppInfo（version 含 v 前缀，buildTime 为 ISO 8601 字符串，buildBadge 为 Build YYYY.MM.DD）
+   */
+  appGetInfo(): Promise<AppInfo>
 
   // ===== v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image） =====
   // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
@@ -1870,8 +1899,9 @@ export interface ElectronAPI {
     strength?: 'fast' | 'standard' | 'deep'
   }): Promise<{ correlationId: string; status: string; error?: string }>
 
-  /** 人工确认（批准/拒绝） */
-  loopConfirm(correlationId: string, approved: boolean): Promise<boolean>
+  /** 人工确认（批准/拒绝/修改后批准） */
+  // T.6: 新增可选 newCommand 参数，支持 DecisionDetailPage 修改修复命令后批准执行
+  loopConfirm(correlationId: string, approved: boolean, newCommand?: string): Promise<boolean>
 
   /** 取消工作流 */
   loopCancel(correlationId: string): Promise<boolean>

@@ -145,6 +145,13 @@ interface AgentState {
   markError: (payload: AgentErrorPayload) => void
   /** 清空所有消息 */
   clearMessages: () => void
+  /**
+   * 上下文压缩（T.7）
+   *
+   * 简单策略：保留 system 消息 + 最近 N 条对话，中间历史用本地摘要消息替换，
+   * 避免长对话超出模型上下文窗口。仅在非流式状态下执行。
+   */
+  compressMessages: (opts?: { keepRecent?: number }) => void
   /** 设置流式输出状态 */
   setStreaming: (streaming: boolean) => void
   /** 设置当前 correlationId */
@@ -293,6 +300,47 @@ export const useAgentStore = create<AgentState>()((set) => ({
       isStreaming: false,
       currentCorrelationId: null,
       lastError: null,
+    }),
+
+  // 上下文压缩（T.7）：保留 system 消息 + 最近 N 条，中间历史生成本地摘要
+  compressMessages: (opts) =>
+    set((state) => {
+      if (state.isStreaming || state.messages.length === 0) return state
+
+      const keepRecent = Math.max(2, opts?.keepRecent ?? 6)
+      const systemMessages = state.messages.filter((m) => m.role === 'system')
+      const chatMessages = state.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
+
+      // 消息数未超过阈值，无需压缩
+      if (chatMessages.length <= keepRecent) return state
+
+      const kept = chatMessages.slice(-keepRecent)
+      const dropped = chatMessages.slice(0, chatMessages.length - keepRecent)
+      const userCount = dropped.filter((m) => m.role === 'user').length
+      const assistantCount = dropped.filter((m) => m.role === 'assistant').length
+      const droppedTokens = dropped.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
+
+      // 本地摘要：提取被压缩段落的主题/命令片段（启发式）
+      const snippets = dropped
+        .filter((m) => m.role === 'user')
+        .map((m) => m.content.slice(0, 40))
+        .filter(Boolean)
+        .slice(0, 3)
+      const summaryText =
+        snippets.length > 0
+          ? `[上下文已压缩] 前面 ${userCount} 轮对话 / ${assistantCount} 条回复 / 约 ${droppedTokens} 字符已被摘要。主题包括：${snippets.join('；')}。`
+          : `[上下文已压缩] 前面 ${userCount} 轮对话 / ${assistantCount} 条回复 / 约 ${droppedTokens} 字符已被摘要。`
+
+      const summaryMessage: AgentMessage = {
+        id: `compress_${Date.now()}`,
+        role: 'assistant',
+        content: summaryText,
+        timestamp: Date.now(),
+      }
+
+      return {
+        messages: [...systemMessages, summaryMessage, ...kept],
+      }
     }),
 
   // 设置流式输出状态

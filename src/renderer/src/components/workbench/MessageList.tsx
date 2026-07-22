@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { FC } from 'react'
-import { AlertTriangle, Sparkles, Workflow } from 'lucide-react'
+import { Sparkles, Workflow, AlertTriangle } from 'lucide-react'
 import { LoopWorkflowPanel } from './LoopWorkflowPanel'
 import { MOCK_CHAT_MESSAGES } from './mock-data'
 import { useLoopEngineering } from './useLoopEngineering'
@@ -52,27 +52,6 @@ const MessageList: FC<MessageListProps> = ({
 }) => {
   return (
     <div className="ai-messages flex flex-col gap-6">
-      {providers.length === 0 && (
-        <div className="flex items-start gap-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-2.5">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--trae-status-alert-default)]" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-medium text-[var(--trae-text-default)]">
-              尚未配置模型 Provider
-            </div>
-            <div className="mt-0.5 text-[11px] leading-4 text-[var(--trae-text-tertiary)]">
-              Agent 主路径需要 API Key。配置后即可在此流式对话。
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/settings/model')}
-              className="mt-2 inline-flex h-8 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[12px] font-medium text-[var(--trae-text-onbrand)] hover:bg-[var(--trae-bg-brand-hover)]"
-            >
-              去配置模型
-            </button>
-          </div>
-        </div>
-      )}
-
       {demoMode ? (
         /* 演示模式：渲染循环工程工作流面板 */
         <>
