@@ -30,6 +30,7 @@
 
 import type { RiskLevel } from '@shared/models'
 import type { SchedulerTask, TaskResult } from '@shared/scheduler-types'
+import { redactSensitiveInfo } from '../security/redact'
 
 // ============================================================================
 // 归档领域类型
@@ -417,10 +418,12 @@ export async function runDailyDecisionArchive(
     }
   } catch (e) {
     const err = e as Error
+    // 对错误信息脱敏后再写入 summary / error 字段，避免敏感信息泄漏到日志或数据库
+    const redactedMessage = redactSensitiveInfo(err.message ?? String(e))
     return {
       success: false,
-      summary: `归档失败: ${err.message}`,
-      error: err.message,
+      summary: `归档失败: ${redactedMessage}`,
+      error: redactedMessage,
       details: {
         dateRange,
         errorName: err.name,
