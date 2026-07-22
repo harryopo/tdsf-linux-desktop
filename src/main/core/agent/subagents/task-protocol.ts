@@ -1,5 +1,5 @@
 /**
- * Subagent 调度 14 步协议（v0.9.4 批次 4 - 任务 1）
+ * Subagent 调度 14 步协议（v2.0 Phase D - 任务协议补齐）
  *
  * 借鉴 Kilo Code 的 task 工具 14 步 subagent 调度流程：
  *   d:\ai\linux教学一体\idea-to-dev-output\29-源码分析-KiloCode-多模式Subagent.md §4.3
@@ -7,681 +7,75 @@
  * 完整 14 步流程（与 Kilo Code task 工具完全一致）：
  *   1. validate-input        — 校验输入（taskId / subagentName / input）
  *   2. check-permission      — 检查权限（用户审批 subagent 调度）
- *   3. load-subagent-config  — 加载 Subagent 配置（MODE_CONFIGS 或 .tdsf/agent/*.md）
+ *   3. load-subagent-config  — 加载 Subagent 配置（SubagentRegistry / .tdsf/agent/*.md）
  *   4. derive-permissions    — 派生权限（继承父会话的 deny 规则 + external_directory）
- *   5. prepare-context       — 准备上下文（构建 system prompt + 工具白名单）
- *   6. select-provider       — 选择 Provider（优先用 task.providerId，否则用默认）
+ *   5. prepare-context       — 准备上下文（构建 attention context + 工具白名单）
+ *   6. select-provider       — 选择 Provider（优先用 input.providerId，否则用默认）
  *   7. select-mode           — 选择 Mode（chat/ask/plan/code/debug，默认 chat）
- *   8. build-prompt          — 构建 prompt（system + user + attention）
- *   9. invoke-subagent       — 调用 Subagent（启动 LLM streamText）
- *  10. stream-output         — 流式输出（onToken 回调）
+ *   8. build-prompt          — 构建 prompt（system + user + attention + compaction）
+ *   9. invoke-subagent       — 调用 Subagent（streamText / ClaudeSdkProvider.generate）
+ *  10. stream-output         — 流式输出（提取 chatResult.text 到 ctx.output）
  *  11. collect-usage         — 收集 token usage（inputTokens / outputTokens / cost）
- *  12. validate-output       — 校验输出（非空 + 符合预期结构）
- *  13. cleanup               — 清理资源（关闭 stream / 释放 abortController）
+ *  12. validate-output       — 校验输出（非空 + finishReason 非 error）
+ *  13. cleanup               — 清理资源（释放 abortController）
  *  14. return-result         — 返回结果（汇总 StepResult 列表 + 总耗时）
+ *
+ * v2.0 Phase D 重构：
+ * - 文件拆分为 3 个文件，避免单文件超过 500 行（项目规范）
+ * - task-protocol-types.ts：类型 + 常量（独立，避免循环依赖）
+ * - task-protocol-steps.ts：14 步真实逻辑实现 + STEP_FUNCTIONS
+ * - task-protocol.ts（本文件）：入口 + executeTaskProtocol + createTaskProtocolContext
  *
  * 设计要点：
  * - 每个步骤函数都是纯函数（不抛异常，异常 → success=false 的 StepResult）
  * - executeTaskProtocol 串行执行，失败立即返回，但保证 stepCleanup 总是被调用（try-finally）
  * - 步骤 1-8 是准备阶段，9-10 是执行阶段，11-14 是收尾阶段
- * - 当前版本步骤实现是骨架（仅记录日志 + 返回 success=true），接口完整可测试
+ * - v2.0 Phase D：14 步全部补齐真实逻辑（不再仅是桩）
  *
- * 方案书依据：v0.9.4 §11 第 6 类（Subagent 调度）
+ * 方案书依据：v0.9.4 §11 第 6 类（Subagent 调度）+ v2.0 Phase D
  */
+// 类型与常量（re-export，保持 import 路径兼容）
+export type {
+  TaskProtocolStep,
+  StepResult,
+  TaskProtocolContext,
+  StepFunction,
+  SubagentMeta,
+  DerivedPermissions,
+  StepUsage,
+  ProviderModelInstance,
+} from './task-protocol-types'
+export { TASK_PROTOCOL_STEPS } from './task-protocol-types'
+
+// 步骤函数 + 注册表（re-export，保持 import 路径兼容）
+export {
+  stepValidateInput,
+  stepCheckPermission,
+  stepLoadSubagentConfig,
+  stepDerivePermissions,
+  stepPrepareContext,
+  stepSelectProvider,
+  stepSelectMode,
+  stepBuildPrompt,
+  stepInvokeSubagent,
+  stepStreamOutput,
+  stepCollectUsage,
+  stepValidateOutput,
+  stepCleanup,
+  stepReturnResult,
+  STEP_FUNCTIONS,
+} from './task-protocol-steps'
+
+// 内部依赖：仅执行器需要 STEP_FUNCTIONS / stepCleanup / stepReturnResult
+import { STEP_FUNCTIONS, stepCleanup, stepReturnResult } from './task-protocol-steps'
+import { TASK_PROTOCOL_STEPS } from './task-protocol-types'
+import type { TaskProtocolContext, StepResult } from './task-protocol-types'
 import { logger } from '../../../services/log/logger'
-
-/**
- * Subagent 调度 14 步流程（借鉴 Kilo Code task 工具）
- *
- * 顺序固定，名称与 Kilo Code 完全一致：
- * 1. validate-input → 2. check-permission → 3. load-subagent-config
- * → 4. derive-permissions → 5. prepare-context → 6. select-provider
- * → 7. select-mode → 8. build-prompt → 9. invoke-subagent
- * → 10. stream-output → 11. collect-usage → 12. validate-output
- * → 13. cleanup → 14. return-result
- */
-export type TaskProtocolStep =
-  | 'validate-input'
-  | 'check-permission'
-  | 'load-subagent-config'
-  | 'derive-permissions'
-  | 'prepare-context'
-  | 'select-provider'
-  | 'select-mode'
-  | 'build-prompt'
-  | 'invoke-subagent'
-  | 'stream-output'
-  | 'collect-usage'
-  | 'validate-output'
-  | 'cleanup'
-  | 'return-result'
-
-/**
- * 14 步顺序常量（与 Kilo Code 完全一致）
- *
- * 用于 executeTaskProtocol 串行遍历，以及测试断言顺序一致性。
- */
-export const TASK_PROTOCOL_STEPS: readonly TaskProtocolStep[] = [
-  'validate-input',
-  'check-permission',
-  'load-subagent-config',
-  'derive-permissions',
-  'prepare-context',
-  'select-provider',
-  'select-mode',
-  'build-prompt',
-  'invoke-subagent',
-  'stream-output',
-  'collect-usage',
-  'validate-output',
-  'cleanup',
-  'return-result',
-] as const
-
-/**
- * 单步执行结果
- */
-export interface StepResult {
-  /** 步骤名 */
-  step: TaskProtocolStep
-  /** 是否成功 */
-  success: boolean
-  /** 步骤输出（可选） */
-  output?: unknown
-  /** 错误信息（失败时填充） */
-  error?: string
-  /** 耗时（ms） */
-  durationMs: number
-}
-
-/**
- * 14 步调度上下文（贯穿整个流程）
- *
- * 由调用方（如 ExploreSubagent）在启动协议时初始化，
- * executeTaskProtocol 在执行过程中不断将 StepResult 追加到 completedSteps，
- * 同时递增 currentStep。
- */
-export interface TaskProtocolContext {
-  /** 任务 ID */
-  taskId: string
-  /** 父会话 ID（用于权限继承） */
-  parentSessionId?: string
-  /** 目标 Subagent 名称 */
-  subagentName: string
-  /** 任务输入 */
-  input: unknown
-  /** 已完成的步骤 */
-  completedSteps: StepResult[]
-  /** 当前步骤索引 */
-  currentStep: number
-  /** 是否已取消 */
-  cancelled: boolean
-}
 
 /**
  * 子日志器（自动注入协议前缀）
  */
 const log = logger.child('AGENT.SUBAGENT.PROTOCOL')
-
-/**
- * 步骤函数签名
- *
- * 每个步骤函数接收当前上下文，返回 StepResult（不抛异常）。
- */
-type StepFunction = (ctx: TaskProtocolContext) => Promise<StepResult> | StepResult
-
-// ============================================================================
-// 14 个步骤函数（骨架实现，仅记录日志 + 返回 success=true）
-// ============================================================================
-
-/**
- * 步骤 1：校验输入
- *
- * 检查 ctx.taskId / ctx.subagentName / ctx.input 是否合法。
- * - taskId 必须为非空字符串
- * - subagentName 必须为非空字符串
- * - input 允许任意值（包括 undefined / null）
- *
- * 当前版本：仅校验非空，返回 success=true。
- * 后续增强：根据 subagentName 查找已注册 Subagent，校验 input 结构。
- *
- * @param ctx 协议上下文
- */
-export async function stepValidateInput(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    if (!ctx.taskId || typeof ctx.taskId !== 'string') {
-      return {
-        step: 'validate-input',
-        success: false,
-        error: 'taskId 必须为非空字符串',
-        durationMs: Date.now() - start,
-      }
-    }
-    if (!ctx.subagentName || typeof ctx.subagentName !== 'string') {
-      return {
-        step: 'validate-input',
-        success: false,
-        error: 'subagentName 必须为非空字符串',
-        durationMs: Date.now() - start,
-      }
-    }
-    log.debug('step 1/14 validate-input 通过', {
-      taskId: ctx.taskId,
-      subagentName: ctx.subagentName,
-    })
-    return {
-      step: 'validate-input',
-      success: true,
-      output: { taskId: ctx.taskId, subagentName: ctx.subagentName },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'validate-input',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 2：检查权限
- *
- * 借鉴 Kilo Code：ctx.ask({ permission: "task", patterns: [subagent_type] })
- * - 用户审批 subagent 调度（可保存永久规则，下次同类自动通过）
- *
- * 当前版本：骨架，返回 success=true（默认允许）。
- * 后续增强：通过 IPC 推送审批请求到 UI，等待用户响应。
- *
- * @param ctx 协议上下文
- */
-export async function stepCheckPermission(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 2/14 check-permission 通过（骨架实现，默认允许）', {
-      taskId: ctx.taskId,
-      subagentName: ctx.subagentName,
-    })
-    return {
-      step: 'check-permission',
-      success: true,
-      output: { approved: true, source: 'skeleton-default' },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'check-permission',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 3：加载 Subagent 配置
- *
- * 借鉴 Kilo Code：agent.get(subagent_type) → 验证 agent 存在
- * - 从 MODE_CONFIGS / .tdsf/agent/*.md / 内置 Subagent 注册表加载配置
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepLoadSubagentConfig(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 3/14 load-subagent-config 通过（骨架实现）', {
-      taskId: ctx.taskId,
-      subagentName: ctx.subagentName,
-    })
-    return {
-      step: 'load-subagent-config',
-      success: true,
-      output: {
-        subagentName: ctx.subagentName,
-        loaded: true,
-        source: 'skeleton',
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'load-subagent-config',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 4：派生权限
- *
- * 借鉴 Kilo Code：deriveSubagentSessionPermission({ parentSessionPermission, subagent })
- * - 继承父 session 的 deny 规则和 external_directory 规则
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepDerivePermissions(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 4/14 derive-permissions 通过（骨架实现）', {
-      taskId: ctx.taskId,
-      parentSessionId: ctx.parentSessionId,
-    })
-    return {
-      step: 'derive-permissions',
-      success: true,
-      output: {
-        parentSessionId: ctx.parentSessionId ?? null,
-        inherited: true,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'derive-permissions',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 5：准备上下文
- *
- * 借鉴 Kilo Code：KiloTask.inherited + KiloTask.merge
- * - 继承父 agent 的 edit/bash/MCP 限制，合并所有 permission ruleset
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepPrepareContext(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 5/14 prepare-context 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'prepare-context',
-      success: true,
-      output: {
-        prepared: true,
-        inputType: typeof ctx.input,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'prepare-context',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 6：选择 Provider
- *
- * 借鉴 Kilo Code：KiloTask.resolveModel({ name, agent, config, parent, variant, provider })
- * - subagent 可继承父 model 或自定义
- *
- * 当前版本：骨架，返回 success=true。
- * 后续增强：通过 provider-registry.getProvider(task.providerId) 解析。
- *
- * @param ctx 协议上下文
- */
-export async function stepSelectProvider(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 6/14 select-provider 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'select-provider',
-      success: true,
-      output: {
-        providerId: 'default',
-        resolved: true,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'select-provider',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 7：选择 Mode
- *
- * 借鉴 Kilo Code：mode 即 primary agent，subagent 用 ask/chat 只读模式
- * - Explore Subagent 默认用 chat 模式（只读）
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepSelectMode(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 7/14 select-mode 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'select-mode',
-      success: true,
-      output: {
-        mode: 'chat',
-        source: 'skeleton-default',
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'select-mode',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 8：构建 prompt
- *
- * - system prompt（来自 mode config）+ user prompt（来自 task.input）
- * - 注入 attention context（如果存在）
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 8/14 build-prompt 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'build-prompt',
-      success: true,
-      output: {
-        systemPrompt: '(skeleton)',
-        userPrompt: typeof ctx.input === 'string' ? ctx.input : JSON.stringify(ctx.input),
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'build-prompt',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 9：调用 Subagent
- *
- * 借鉴 Kilo Code：ops.prompt({ sessionID, tools: { question: false, interactive_terminal: false } })
- * - 在子 session 中执行，subagent 不能 question、不能 interactive_terminal
- *
- * 当前版本：骨架，返回 success=true。
- * 后续增强：实际调用 streamText / Claude SDK。
- *
- * @param ctx 协议上下文
- */
-export async function stepInvokeSubagent(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 9/14 invoke-subagent 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'invoke-subagent',
-      success: true,
-      output: {
-        invoked: true,
-        sessionId: ctx.parentSessionId ?? null,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'invoke-subagent',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 10：流式输出
- *
- * 借鉴 Kilo Code：foreground 等待结果，返回给父 agent
- * - 通过 onToken 回调推送增量到 UI
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepStreamOutput(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 10/14 stream-output 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'stream-output',
-      success: true,
-      output: {
-        chunksCount: 0,
-        totalLength: 0,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'stream-output',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 11：收集 token usage
- *
- * 借鉴 Kilo Code：KiloCostPropagation.propagate(parentSessionID, costDelta)
- * - 子 session 成本传播到父 session
- *
- * 当前版本：骨架，返回 success=true。
- * 后续增强：实际从 streamText result.usage 读取 + 通过 recordTokenUsage 记录。
- *
- * @param ctx 协议上下文
- */
-export async function stepCollectUsage(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 11/14 collect-usage 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'collect-usage',
-      success: true,
-      output: {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-        cost: 0,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'collect-usage',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 12：校验输出
- *
- * - 检查 stream-output 步骤的输出是否非空
- * - 检查输出结构是否符合预期（不同 Subagent 有不同结构）
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepValidateOutput(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 12/14 validate-output 通过（骨架实现）', {
-      taskId: ctx.taskId,
-    })
-    return {
-      step: 'validate-output',
-      success: true,
-      output: {
-        valid: true,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'validate-output',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 13：清理资源
- *
- * - 关闭 stream（如果还在运行）
- * - 释放 abortController
- * - 释放其他临时资源
- *
- * 当前版本：骨架，返回 success=true。
- * 注意：此步骤在 executeTaskProtocol 中通过 try-finally 保证总是被调用。
- *
- * @param ctx 协议上下文
- */
-export async function stepCleanup(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    log.debug('step 13/14 cleanup 通过（骨架实现）', {
-      taskId: ctx.taskId,
-      completedSteps: ctx.completedSteps.length,
-    })
-    return {
-      step: 'cleanup',
-      success: true,
-      output: {
-        cleaned: true,
-        completedStepCount: ctx.completedSteps.length,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'cleanup',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-/**
- * 步骤 14：返回结果
- *
- * - 汇总所有 StepResult
- * - 计算总耗时
- * - 构造最终 SubagentResult
- *
- * 当前版本：骨架，返回 success=true。
- *
- * @param ctx 协议上下文
- */
-export async function stepReturnResult(ctx: TaskProtocolContext): Promise<StepResult> {
-  const start = Date.now()
-  try {
-    const totalDurationMs = ctx.completedSteps.reduce((sum, s) => sum + s.durationMs, 0)
-    const allSuccess = ctx.completedSteps.every((s) => s.success)
-    log.debug('step 14/14 return-result 通过（骨架实现）', {
-      taskId: ctx.taskId,
-      completedSteps: ctx.completedSteps.length,
-      totalDurationMs,
-      allSuccess,
-    })
-    return {
-      step: 'return-result',
-      success: true,
-      output: {
-        totalDurationMs,
-        completedSteps: ctx.completedSteps.length,
-        allSuccess,
-      },
-      durationMs: Date.now() - start,
-    }
-  } catch (err) {
-    return {
-      step: 'return-result',
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      durationMs: Date.now() - start,
-    }
-  }
-}
-
-// ============================================================================
-// 步骤函数注册表（按 14 步顺序）
-// ============================================================================
-
-/**
- * 14 个步骤函数的有序映射表
- *
- * 用于 executeTaskProtocol 串行执行，以及测试单独调用某步骤。
- */
-export const STEP_FUNCTIONS: Record<TaskProtocolStep, StepFunction> = {
-  'validate-input': stepValidateInput,
-  'check-permission': stepCheckPermission,
-  'load-subagent-config': stepLoadSubagentConfig,
-  'derive-permissions': stepDerivePermissions,
-  'prepare-context': stepPrepareContext,
-  'select-provider': stepSelectProvider,
-  'select-mode': stepSelectMode,
-  'build-prompt': stepBuildPrompt,
-  'invoke-subagent': stepInvokeSubagent,
-  'stream-output': stepStreamOutput,
-  'collect-usage': stepCollectUsage,
-  'validate-output': stepValidateOutput,
-  'cleanup': stepCleanup,
-  'return-result': stepReturnResult,
-}
 
 /**
  * 执行 14 步 subagent 调度协议
@@ -710,6 +104,11 @@ export async function executeTaskProtocol(
     subagentName: ctx.subagentName,
     parentSessionId: ctx.parentSessionId,
   })
+
+  // 标记开始时间（step 14 用于计算总耗时）
+  if (ctx.startTime === undefined) {
+    ctx.startTime = Date.now()
+  }
 
   let failedStep: StepResult | null = null
 

@@ -54,6 +54,7 @@ import {
   adaptPartialMessageToCollector,
   extractNumTurns,
 } from '../credibility/mass-functions/sdk-trace-adapter'
+import { withCallbackStreamTrace } from '../../../services/observability/langfuse-trace'
 
 /**
  * 主进程内部 chat 调用参数（扩展 shared ClaudeSdkChatParams，增加 IPC 层不暴露的回调与 MCP 配置）
@@ -208,6 +209,33 @@ export class ClaudeSdkProvider {
   /**
    * 流式 chat 调用（核心入口）
    *
+   * D.5: 在入口包一层 withCallbackStreamTrace，记录 Langfuse 流式 trace。
+   * 真正的流式逻辑在 streamImpl() 中（未修改）。
+   *
+   * @param params chat 调用参数
+   */
+  async stream(params: ClaudeSdkInternalChatParams): Promise<void> {
+    const correlationId =
+      params.correlationId ?? `csdk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    return withCallbackStreamTrace(
+      (p) => this.streamImpl(p),
+      { ...params, correlationId },
+      {
+        sessionId: correlationId,
+        workflowName: 'claude-sdk-stream',
+        userQuery: params.prompt,
+        metadata: {
+          providerId: this.config.id,
+          model: this.config.model,
+          strength: params.strength ?? 'standard',
+        },
+      }
+    )
+  }
+
+  /**
+   * 流式 chat 调用内部实现（被 stream() 包装）
+   *
    * 流程：
    * 1. redact prompt（HC-2）
    * 2. 构造 SDK Options（含 SSH/SFTP MCP server）
@@ -218,9 +246,9 @@ export class ClaudeSdkProvider {
    *    - SDKResultMessage → 转换为 ChatResult → onDone 回调
    * 5. finally：从 activeRequests 移除
    *
-   * @param params chat 调用参数
+   * @param params chat 调用参数（correlationId 由 stream() 保证已设置）
    */
-  async stream(params: ClaudeSdkInternalChatParams): Promise<void> {
+  private async streamImpl(params: ClaudeSdkInternalChatParams): Promise<void> {
     const {
       prompt,
       strength = 'standard',
