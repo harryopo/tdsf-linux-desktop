@@ -23,9 +23,9 @@
  * 视觉：全部 var(--trae-*) token，全实色 hex 边框（背景 rgba 允许），shadow 用 var(--trae-shadow-card)
  * 无障碍：button type="button" + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Modal } from 'antd'
+import { Modal, Spin, message } from 'antd'
 import {
   Activity, AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock,
   Edit3, Eye, FileText, MessageSquare, ThumbsDown, ThumbsUp,
@@ -41,28 +41,9 @@ import {
   KnowledgeDetailSidebar,
   VERIFY_CMD,
 } from '@/components/knowledge-detail/v1'
-
-// ==================== 卡片容器样式（1:1 对齐设计稿 .kd-card） ====================
-
-const CARD_STYLE: React.CSSProperties = {
-  background: 'var(--trae-bg-base-secondary)',
-  border: '1px solid var(--trae-border-neutral-l1)',
-  borderRadius: 'var(--trae-radius-8)',
-  boxShadow: 'var(--trae-shadow-card)',
-  overflow: 'hidden',
-}
-
-const CODE_INLINE_STYLE: React.CSSProperties = {
-  fontFamily: 'var(--trae-font-family-mono)',
-  fontSize: '12px',
-  background: 'var(--trae-bg-base-tertiary)',
-  border: '1px solid var(--trae-border-neutral-l1)',
-  borderRadius: 'var(--trae-radius-4)',
-  padding: '1px 5px',
-  color: 'var(--trae-code-constant)',
-}
-
-// ==================== 主组件 ====================
+import type { KnowledgeEntry } from '@shared/models'
+import { cn } from '@/components/trae/utils'
+import './KnowledgePage.css'
 
 /** KnowledgeDetailPage — 知识详情页 */
 export function KnowledgeDetailPage() {
@@ -74,16 +55,94 @@ export function KnowledgeDetailPage() {
   /** 编辑按钮引用 —— Modal 关闭后焦点返回此按钮（无障碍） */
   const editButtonRef = useRef<HTMLButtonElement>(null)
 
+  // ===== 真实数据状态（v1.0 P0 接入 kbExport + find by id） =====
+  // 知识库无 kbGet(id) 通道，使用 kbExport(undefined) 全量后 find by id
+  const [realEntry, setRealEntry] = useState<KnowledgeEntry | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [useReal, setUseReal] = useState(false)
+
+  // 加载真实知识条目（按 URL :id 精确匹配）
+  useEffect(() => {
+    let cancelled = false
+    const loadRealEntry = async () => {
+      if (typeof window === 'undefined' || !window.electronAPI?.kbExport) {
+        // WIP: 非 Electron 环境，保留设计稿示例数据（CLAUDE.md A4 诚实标注）
+        setLoading(false)
+        return
+      }
+      try {
+        const all = await window.electronAPI.kbExport(undefined)
+        const found = Array.isArray(all) ? all.find((e) => e.id === id) || null : null
+        if (cancelled) return
+        if (found) {
+          setRealEntry(found)
+          setUseReal(true)
+        }
+        // 找不到真实条目时，useReal 保持 false，UI 降级到设计稿示例数据
+      } catch (err) {
+        if (cancelled) return
+        const reason = err instanceof Error ? err.message : String(err)
+        message.warning(`知识库加载失败，使用示例数据：${reason}`)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadRealEntry()
+    return () => { cancelled = true }
+  }, [id])
+
+  // ===== 渲染辅助：根据 useReal 决定字段来源 =====
+  // 真实数据：title/problem/rootCause/commands/rollbackCommands/verification/tags/updatedAt
+  // 设计稿示例：KB-NGINX-014 Nginx worker_connections 调优 + DIAGNOSE_STEPS + FIX_BEFORE/AFTER
+  const displayTitle = useReal && realEntry ? realEntry.title : 'Nginx worker_connections 调优指南'
+  const displayProblem = useReal && realEntry ? realEntry.problem : '高并发场景下 Nginx 出现 502 Bad Gateway 或 "accept() failed (24: Too many open files)" 错误，服务间歇性不可用。'
+  const displayRootCause = useReal && realEntry?.rootCause
+    ? realEntry.rootCause
+    : 'Nginx 采用多进程架构，每个 worker 进程独立处理连接。worker_connections 限制单个 worker 可同时持有的最大连接数。默认值 512 或 1024 远不能满足高并发需求。'
+  const displayCommands = useReal && realEntry ? realEntry.commands : []
+  const displayRollback = useReal && realEntry?.rollbackCommands ? realEntry.rollbackCommands : []
+  const displayVerification = useReal && realEntry?.verification
+    ? realEntry.verification
+    : '使用压测工具验证调优效果，确认连接数提升且无报错'
+  const displayTags = useReal && realEntry ? realEntry.tags : ['Nginx', '性能调优', '连接数']
+  const displayId = useReal && realEntry ? realEntry.id : 'KB-NGINX-014'
+  const displayUpdatedAt = useReal && realEntry
+    ? new Date(realEntry.updatedAt).toISOString().slice(0, 10)
+    : '2026-07-15'
+  const displayUseCount = useReal && realEntry ? realEntry.useCount : 1247
+  const displaySuccessRate = useReal && realEntry ? Math.round(realEntry.successRate * 100) : 92
+
+  // 解决方案块：真实数据 fallback 到设计稿示例（WIP · CLAUDE.md A4 诚实标注）
+  // 真实数据 commands[] 拼成多行；rollbackCommands[] 作为重载命令
+  const displayFixAfter = useReal && displayCommands.length > 0
+    ? displayCommands.join('\n')
+    : FIX_AFTER
+  const displayReloadCmd = useReal && displayRollback.length > 0
+    ? displayRollback.join('\n')
+    : FIX_RELOAD_CMD
+  const displayVerifyCmd = useReal && realEntry?.verification
+    ? realEntry.verification
+    : VERIFY_CMD
+
   // ===== 事件处理 =====
   const handleBackWorkbench = () => navigate('/workbench')
   const handleBackKnowledge = () => navigate('/knowledge')
   const handleEdit = () => {
-    // 使用 AntD Modal.confirm 替代 window.alert（无障碍 + 焦点管理）
+    // WIP: 编辑功能暂未上线（CLAUDE.md A4 诚实标注 · A7 质量优先）
+    //
+    // 真实实现路径（预计 v1.0 P1 完成）：
+    // 1. main 进程新增 knowledge:update IPC 通道（写入 Markdown 文件 + 更新索引）
+    // 2. 渲染层打开编辑 Modal/抽屉，加载当前条目 Markdown 内容
+    // 3. Monaco Editor 编辑 + 预览（复用现有 EditorArea 组件）
+    // 4. 保存时调用 window.electronAPI.knowledgeUpdate(id, content, metadata)
+    // 5. 成功后刷新详情页 + 知识库列表
+    //
+    // 当前用 AntD Modal.confirm 替代 window.alert（无障碍 + 焦点管理）
     // Modal.confirm 默认包含 role="dialog" + aria-modal="true" + aria-labelledby（title）
     // 默认支持 ESC 关闭，且 autoFocusButton="ok" 使 OK 按钮在打开时获得焦点
     Modal.confirm({
       title: '编辑知识条目',
-      content: '编辑功能暂未上线，是否跳转到知识库管理？',
+      content: '编辑功能暂未上线（WIP · 预计 v1.0 P1 完成），是否跳转到知识库管理？',
       okText: '前往管理',
       cancelText: '取消',
       autoFocusButton: 'ok',
@@ -109,21 +168,24 @@ export function KnowledgeDetailPage() {
   const handleNavigateRelated = (targetId: string) => navigate(`/knowledge/${targetId}`)
 
   return (
-    <main className="flex h-full w-full flex-col bg-[var(--trae-bg-base-default)]">
-      {/* ===== Header（3 rows，1:1 对齐设计稿 .kd-header） ===== */}
-      <header
-        className="border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]"
-        style={{ padding: '16px 24px' }}
-      >
-        {/* row1: 返回按钮组 + 标题 + 编辑按钮 */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+    <main className="kb-detail-page">
+      {/* loading 占位：真实数据加载中时显示 Spin（避免短暂空白） */}
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 0' }}>
+          <Spin tip="加载知识条目..." />
+        </div>
+      )}
+      {!loading && (
+        <>
+          <header className="kb-detail-header">
+        <div className="kb-detail-header__row1">
+          <div className="kb-detail-back-group">
             <button
               type="button"
               data-dom-id="back-workbench"
               aria-label="返回工作台"
               onClick={handleBackWorkbench}
-              className="btn-press inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-base-tertiary)]"
+              className="kb-detail-back kb-btn-press"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               返回工作台
@@ -133,15 +195,15 @@ export function KnowledgeDetailPage() {
               data-dom-id="back-knowledge"
               aria-label="返回知识库"
               onClick={handleBackKnowledge}
-              className="btn-press inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-base-tertiary)]"
+              className="kb-detail-back kb-btn-press"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               返回知识库
             </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[18px] font-semibold leading-[26px] tracking-[-0.01em] text-[var(--trae-text-default)]">
-              Nginx worker_connections 调优指南
+          <div className="kb-detail-titlewrap">
+            <h1 className="kb-detail-title">
+              {displayTitle}
             </h1>
           </div>
           <button
@@ -150,145 +212,141 @@ export function KnowledgeDetailPage() {
             data-dom-id="edit-knowledge"
             aria-label="编辑知识"
             onClick={handleEdit}
-            className="btn-press inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-3.5 text-[12px] font-medium text-[var(--trae-special-white)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] hover:border-[var(--trae-bg-brand-hover)]"
+            className="kb-detail-edit kb-btn-press"
           >
             <Edit3 className="h-3.5 w-3.5" />
             编辑
           </button>
         </div>
 
-        {/* row2: 6 chips（ID + 3 tag + verified + AI） */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 font-mono text-[11px] font-medium text-[var(--trae-text-brand)]">
-            KB-NGINX-014
+        <div className="kb-detail-header__row2">
+          <span className="kb-chip kb-chip--id">
+            {displayId}
           </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-2 text-[11px] font-medium text-[var(--trae-text-secondary)]">
-            Nginx
-          </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-2 text-[11px] font-medium text-[var(--trae-text-secondary)]">
-            性能调优
-          </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-2 text-[11px] font-medium text-[var(--trae-text-secondary)]">
-            连接数
-          </span>
-          <span className="inline-flex h-5 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] px-2 text-[11px] font-medium text-[var(--trae-status-success-default)]">
+          {displayTags.map((tag) => (
+            <span key={tag} className="kb-chip kb-chip--tag">
+              {tag}
+            </span>
+          ))}
+          <span className="kb-chip kb-chip--verified">
             <CheckCircle2 className="h-3 w-3" />
             已验证
           </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[11px] font-medium text-[var(--trae-text-brand)]">
+          <span className="kb-chip kb-chip--ai">
             AI 沉淀
           </span>
         </div>
 
-        {/* row3: 5 meta（更新时间 / 作者 / 版本 / 阅读量 / 匹配度） */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-4 border-t border-[var(--trae-border-neutral-l1)] pt-2.5">
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-tertiary)]">
+        <div className="kb-detail-header__row3">
+          <span className="kb-meta">
             <Clock className="h-3 w-3" />
-            更新于 <strong className="font-medium text-[var(--trae-text-secondary)]">2026-07-15</strong>
+            更新于 <strong className="kb-meta__strong">{displayUpdatedAt}</strong>
           </span>
-          <span className="h-2.5 w-px bg-[var(--trae-border-neutral-l2)]" />
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-tertiary)]">
+          <span className="kb-meta__sep" />
+          <span className="kb-meta">
             <FileText className="h-3 w-3" />
-            作者 <strong className="font-medium text-[var(--trae-text-secondary)]">运维团队</strong>
+            作者 <strong className="kb-meta__strong">运维团队</strong>
           </span>
-          <span className="h-2.5 w-px bg-[var(--trae-border-neutral-l2)]" />
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-tertiary)]">
+          <span className="kb-meta__sep" />
+          <span className="kb-meta">
             <FileText className="h-3 w-3" />
-            v<strong className="font-medium text-[var(--trae-text-secondary)]">2.3</strong>
+            v<strong className="kb-meta__strong">2.3</strong>
           </span>
-          <span className="h-2.5 w-px bg-[var(--trae-border-neutral-l2)]" />
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-tertiary)]">
+          <span className="kb-meta__sep" />
+          <span className="kb-meta">
             <Eye className="h-3 w-3" />
-            <strong className="font-medium text-[var(--trae-text-secondary)]">1,247</strong> 次阅读
+            <strong className="kb-meta__strong">{displayUseCount.toLocaleString()}</strong> 次阅读
           </span>
-          <span className="h-2.5 w-px bg-[var(--trae-border-neutral-l2)]" />
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-tertiary)]">
+          <span className="kb-meta__sep" />
+          <span className="kb-meta">
             <CheckCircle2 className="h-3 w-3" />
-            匹配 <strong className="font-medium text-[var(--trae-text-secondary)]">92%</strong>
+            匹配 <strong className="kb-meta__strong">{displaySuccessRate}%</strong>
           </span>
         </div>
       </header>
 
-      {/* ===== Two-column layout（1:1 对齐设计稿 .kd-layout） ===== */}
-      <div className="flex flex-1 gap-5 overflow-y-auto px-6 py-5">
-        {/* ===== Main content（6 section） ===== */}
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
+      <div className="kb-detail-layout">
+        <div className="kb-detail-main">
 
-          {/* 1. 问题描述（SYMPTOM） */}
-          <section id="sec-1" className="scroll-mt-4" style={CARD_STYLE}>
+          <section id="sec-1" className="kb-detail-card">
             <CardHead icon={<Activity className="h-4 w-4" />} title="问题描述" tag="SYMPTOM" />
-            <div className="space-y-2 px-4 py-3.5 text-[13px] leading-[21px] text-[var(--trae-text-secondary)]">
-              <p>
-                高并发场景下 Nginx 出现{' '}
-                <strong className="font-medium text-[var(--trae-text-default)]">502 Bad Gateway</strong> 或{' '}
-                <strong className="font-medium text-[var(--trae-text-default)]">"accept() failed (24: Too many open files)"</strong> 错误，服务间歇性不可用。
-              </p>
-              <p>
-                典型触发条件：单机并发连接数超过 <code style={CODE_INLINE_STYLE}>1024</code>，或 Nginx worker 进程达到文件描述符上限。多见于流量突增、长连接保持、或反向代理后端响应缓慢的场景。
-              </p>
+            <div className="kb-body">
+              {useReal ? (
+                // 真实数据：单一段落展示（KnowledgeEntry.problem 是纯文本字符串）
+                <p className="kb-body__p">{displayProblem}</p>
+              ) : (
+                // 设计稿示例：富文本结构（含 strong 高亮关键词）
+                <>
+                  <p className="kb-body__p">
+                    高并发场景下 Nginx 出现{' '}
+                    <strong className="kb-body__strong">502 Bad Gateway</strong> 或{' '}
+                    <strong className="kb-body__strong">"accept() failed (24: Too many open files)"</strong> 错误，服务间歇性不可用。
+                  </p>
+                  <p className="kb-body__p">
+                    典型触发条件：单机并发连接数超过 <code className="kb-body__code">1024</code>，或 Nginx worker 进程达到文件描述符上限。多见于流量突增、长连接保持、或反向代理后端响应缓慢的场景。
+                  </p>
+                </>
+              )}
             </div>
           </section>
 
-          {/* 2. 根因分析（ROOT CAUSE）— 含公式 + warning callout */}
-          <section id="sec-2" className="scroll-mt-4" style={CARD_STYLE}>
+          <section id="sec-2" className="kb-detail-card">
             <CardHead icon={<Zap className="h-4 w-4" />} title="根因分析" tag="ROOT CAUSE" />
-            <div className="space-y-2 px-4 py-3.5 text-[13px] leading-[21px] text-[var(--trae-text-secondary)]">
-              <p>
-                Nginx 采用多进程架构，每个 worker 进程独立处理连接。
-                <strong className="font-medium text-[var(--trae-text-default)]">worker_connections</strong> 限制单个 worker 可同时持有的最大连接数。默认值{' '}
-                <code style={CODE_INLINE_STYLE}>512</code> 或{' '}
-                <code style={CODE_INLINE_STYLE}>1024</code> 远不能满足高并发需求。
-              </p>
-              <p>最大连接数公式：</p>
-              <div
-                className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] px-4 py-3 text-center font-mono text-[12px] leading-[20px] text-[var(--trae-code-text)]"
-              >
-                <span className="text-[var(--trae-code-doc)]">// max_clients = worker_processes × worker_connections / 2（反向代理）</span>
-                <br />
-                <span className="text-[var(--trae-code-parameter)]">max_clients</span>{' '}
-                = <span className="text-[var(--trae-code-parameter)]">worker_processes</span>{' '}
-                × <span className="text-[var(--trae-code-parameter)]">worker_connections</span>{' '}
-                ÷ <span className="text-[var(--trae-code-number)]">2</span>
-              </div>
-              <p>作为反向代理时，每个客户端连接消耗 2 个 worker 连接（一个对客户端，一个对后端），因此需除以 2。</p>
-              {/* warning callout（1:1 对齐 .kd-warn） */}
-              <div
-                className="flex items-start gap-2 rounded-[0_var(--trae-radius-4)_var(--trae-radius-4)_0] border border-[var(--trae-status-alert-default)] bg-[var(--trae-status-alert-surface-l1)] px-3 py-2.5"
-                style={{ borderLeft: '3px solid var(--trae-status-alert-default)' }}
-              >
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--trae-status-alert-default)]" />
-                <span className="text-[12px] leading-[19px] text-[var(--trae-text-secondary)]">
-                  <strong className="font-medium text-[var(--trae-status-alert-default)]">注意：</strong>
-                  worker_connections 不能超过系统 <code style={CODE_INLINE_STYLE}>ulimit -n</code> 的文件描述符上限，否则配置不生效。需同步调整系统级限制。
-                </span>
-              </div>
+            <div className="kb-body">
+              {useReal ? (
+                // 真实数据：单一段落展示（KnowledgeEntry.rootCause 是纯文本字符串）
+                <p className="kb-body__p">{displayRootCause}</p>
+              ) : (
+                // 设计稿示例：富文本结构（含 code / formula 公式 / warn 警告块）
+                <>
+                  <p className="kb-body__p">
+                    Nginx 采用多进程架构，每个 worker 进程独立处理连接。
+                    <strong className="kb-body__strong">worker_connections</strong> 限制单个 worker 可同时持有的最大连接数。默认值{' '}
+                    <code className="kb-body__code">512</code> 或{' '}
+                    <code className="kb-body__code">1024</code> 远不能满足高并发需求。
+                  </p>
+                  <p className="kb-body__p">最大连接数公式：</p>
+                  <div className="kb-formula">
+                    <span className="kb-formula__comment">// max_clients = worker_processes × worker_connections / 2（反向代理）</span>
+                    <br />
+                    <span className="kb-formula__keyword">max_clients</span>{' '}
+                    = <span className="kb-formula__keyword">worker_processes</span>{' '}
+                    × <span className="kb-formula__keyword">worker_connections</span>{' '}
+                    ÷ <span className="kb-formula__number">2</span>
+                  </div>
+                  <p className="kb-body__p">作为反向代理时，每个客户端连接消耗 2 个 worker 连接（一个对客户端，一个对后端），因此需除以 2。</p>
+                  <div className="kb-warn">
+                    <AlertTriangle className="kb-warn__icon h-3.5 w-3.5" />
+                    <span>
+                      <strong className="kb-warn__strong">注意：</strong>
+                      worker_connections 不能超过系统 <code className="kb-body__code">ulimit -n</code> 的文件描述符上限，否则配置不生效。需同步调整系统级限制。
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </section>
 
-          {/* 3. 诊断步骤（DIAGNOSE）— 4 步骤 + 命令块 + 结果 callout */}
-          <section id="sec-3" className="scroll-mt-4" style={CARD_STYLE}>
+          <section id="sec-3" className="kb-detail-card">
             <CardHead icon={<Activity className="h-4 w-4" />} title="诊断步骤" tag="DIAGNOSE" />
-            <div className="px-4 py-3.5">
-              {DIAGNOSE_STEPS.map((step, idx) => (
+            <div className="kb-detail-card__body">
+              {DIAGNOSE_STEPS.map((step) => (
                 <div
                   key={step.num}
-                  className={`flex gap-3 ${idx > 0 ? 'border-t border-[var(--trae-border-neutral-l1)] pt-3' : ''} ${idx < DIAGNOSE_STEPS.length - 1 ? 'pb-3' : ''}`}
+                  className="kb-step"
                 >
-                  <div className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[var(--trae-radius-full)] bg-[var(--trae-bg-brand)] text-[11px] font-semibold text-[var(--trae-special-white)]">
+                  <div className="kb-step__num">
                     {step.num}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 text-[13px] font-medium text-[var(--trae-text-default)]">{step.title}</div>
-                    <div className="mb-1.5 text-[12px] leading-[19px] text-[var(--trae-text-tertiary)]">{step.desc}</div>
+                  <div className="kb-step__body">
+                    <div className="kb-step__title">{step.title}</div>
+                    <div className="kb-step__desc">{step.desc}</div>
                     <CodeBlock code={step.code} copyId={`${step.num}`} />
                     {step.result && (
-                      <div
-                        className="mt-2 flex items-start gap-2 rounded-[0_var(--trae-radius-4)_var(--trae-radius-4)_0] border border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] px-3 py-2"
-                        style={{ borderLeft: '3px solid var(--trae-status-success-default)' }}
-                      >
-                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--trae-status-success-default)]" />
-                        <span className="text-[12px] leading-[19px] text-[var(--trae-text-secondary)]">
-                          <strong className="font-medium text-[var(--trae-status-success-default)]">诊断结论：</strong>
+                      <div className="kb-result">
+                        <CheckCircle2 className="kb-result__icon h-3.5 w-3.5" />
+                        <span>
+                          <strong className="kb-result__strong">诊断结论：</strong>
                           {step.result}
                         </span>
                       </div>
@@ -299,76 +357,68 @@ export function KnowledgeDetailPage() {
             </div>
           </section>
 
-          {/* 4. 解决方案（FIX）— 配置对比 + 重载命令 */}
-          <section id="sec-4" className="scroll-mt-4" style={CARD_STYLE}>
+          <section id="sec-4" className="kb-detail-card">
             <CardHead icon={<Wrench className="h-4 w-4" />} title="解决方案" tag="FIX" />
-            <div className="space-y-3 px-4 py-3.5 text-[13px] leading-[21px] text-[var(--trae-text-secondary)]">
-              <p>
-                需同步调整 <strong className="font-medium text-[var(--trae-text-default)]">Nginx 配置</strong>和{' '}
-                <strong className="font-medium text-[var(--trae-text-default)]">系统级文件描述符限制</strong>，否则 Nginx 配置不生效。
+            <div className="kb-body">
+              <p className="kb-body__p">
+                需同步调整 <strong className="kb-body__strong">Nginx 配置</strong>和{' '}
+                <strong className="kb-body__strong">系统级文件描述符限制</strong>，否则 Nginx 配置不生效。
               </p>
-              {/* 配置对比（1:1 对齐 .kd-compare） */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
-                  <div className="flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-status-error-surface-l1)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--trae-status-error-default)]">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[var(--trae-status-error-default)]" />
+              <div className="kb-compare">
+                <div className="kb-compare__col">
+                  <div className="kb-compare__head kb-compare__head--bad">
+                    <span className="kb-compare__head-dot" />
                     调整前（默认）
                   </div>
-                  <pre className="overflow-x-auto bg-[var(--trae-bg-base-default)] px-3 py-2.5 font-mono text-[11px] leading-[18px] text-[var(--trae-code-text)]">
+                  <pre className="kb-compare__pre">
                     {FIX_BEFORE}
                   </pre>
                 </div>
-                <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
-                  <div className="flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-status-success-surface-l1)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--trae-status-success-default)]">
+                <div className="kb-compare__col">
+                  <div className="kb-compare__head kb-compare__head--good">
                     <Check className="h-3 w-3" />
                     调整后（推荐）
                   </div>
-                  <pre className="overflow-x-auto bg-[var(--trae-bg-base-default)] px-3 py-2.5 font-mono text-[11px] leading-[18px] text-[var(--trae-code-text)]">
-                    {FIX_AFTER}
+                  <pre className="kb-compare__pre">
+                    {displayFixAfter}
                   </pre>
                 </div>
               </div>
-              <p className="mt-3">修改后执行以下命令使配置生效：</p>
-              <CodeBlock code={FIX_RELOAD_CMD} copyId="reload" />
+              <p className="kb-body__p kb-body__p--mt">修改后执行以下命令使配置生效：</p>
+              <CodeBlock code={displayReloadCmd} copyId="reload" />
             </div>
           </section>
 
-          {/* 5. 验证方法（VERIFY）— 命令块 + 结果 callout */}
-          <section id="sec-5" className="scroll-mt-4" style={CARD_STYLE}>
+          <section id="sec-5" className="kb-detail-card">
             <CardHead icon={<CheckCircle2 className="h-4 w-4" />} title="验证方法" tag="VERIFY" />
-            <div className="space-y-2 px-4 py-3.5 text-[13px] leading-[21px] text-[var(--trae-text-secondary)]">
-              <p>使用压测工具验证调优效果，确认连接数提升且无报错：</p>
-              <CodeBlock code={VERIFY_CMD} copyId="verify" />
-              <div
-                className="mt-2 flex items-start gap-2 rounded-[0_var(--trae-radius-4)_var(--trae-radius-4)_0] border border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] px-3 py-2"
-                style={{ borderLeft: '3px solid var(--trae-status-success-default)' }}
-              >
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--trae-status-success-default)]" />
-                <span className="text-[12px] leading-[19px] text-[var(--trae-text-secondary)]">
-                  <strong className="font-medium text-[var(--trae-status-success-default)]">验证通过：</strong>
-                  5000 并发压测零报错，Active connections 峰值 4876，远低于 10240 上限，调优生效。
-                </span>
-              </div>
+            <div className="kb-body">
+              <p className="kb-body__p">{displayVerification}</p>
+              <CodeBlock code={displayVerifyCmd} copyId="verify" />
+              {!useReal && (
+                // 设计稿示例：显示验证通过结论（真实数据无对应字段，省略）
+                <div className="kb-result">
+                  <CheckCircle2 className="kb-result__icon h-3.5 w-3.5" />
+                  <span>
+                    <strong className="kb-result__strong">验证通过：</strong>
+                    5000 并发压测零报错，Active connections 峰值 4876，远低于 10240 上限，调优生效。
+                  </span>
+                </div>
+              )}
             </div>
           </section>
 
-          {/* 6. 反馈区（1:1 对齐 .kd-feedback） */}
-          <section id="sec-6" className="scroll-mt-4" style={CARD_STYLE}>
+          <section id="sec-6" className="kb-detail-card">
             <CardHead icon={<MessageSquare className="h-4 w-4" />} title="此知识对您有帮助吗？" />
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3.5">
-              <span className="text-[12px] text-[var(--trae-text-secondary)]">您的反馈将帮助改进知识库质量</span>
-              <div className="flex gap-2">
+            <div className="kb-feedback">
+              <span className="kb-feedback__label">您的反馈将帮助改进知识库质量</span>
+              <div className="kb-feedback__btns">
                 <button
                   type="button"
                   data-dom-id="feedback-helpful"
                   aria-label="有帮助"
                   aria-pressed={feedback === 'helpful'}
                   onClick={() => setFeedback('helpful')}
-                  className={`btn-press inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-[var(--trae-radius-6)] border px-3.5 text-[12px] font-medium transition-colors ${
-                    feedback === 'helpful'
-                      ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
-                      : 'border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] hover:border-[var(--trae-status-success-default)] hover:bg-[var(--trae-status-success-surface-l1)] hover:text-[var(--trae-status-success-default)]'
-                  }`}
+                  className={cn('kb-feedback__btn kb-feedback__btn--helpful kb-btn-press', feedback === 'helpful' && 'is-active')}
                 >
                   <ThumbsUp className="h-3.5 w-3.5" />
                   有帮助
@@ -379,11 +429,7 @@ export function KnowledgeDetailPage() {
                   aria-label="无帮助"
                   aria-pressed={feedback === 'unhelpful'}
                   onClick={() => setFeedback('unhelpful')}
-                  className={`btn-press inline-flex h-[30px] cursor-pointer items-center gap-1.5 rounded-[var(--trae-radius-6)] border px-3.5 text-[12px] font-medium transition-colors ${
-                    feedback === 'unhelpful'
-                      ? 'border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)]'
-                      : 'border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] hover:border-[var(--trae-status-error-default)] hover:bg-[var(--trae-status-error-surface-l1)] hover:text-[var(--trae-status-error-default)]'
-                  }`}
+                  className={cn('kb-feedback__btn kb-feedback__btn--unhelpful kb-btn-press', feedback === 'unhelpful' && 'is-active')}
                 >
                   <ThumbsDown className="h-3.5 w-3.5" />
                   无帮助
@@ -393,7 +439,6 @@ export function KnowledgeDetailPage() {
           </section>
         </div>
 
-        {/* ===== Sidebar（4 卡片，子组件） ===== */}
         <KnowledgeDetailSidebar
           activeSection={activeSection}
           onTocClick={handleTocClick}
@@ -401,17 +446,9 @@ export function KnowledgeDetailPage() {
         />
       </div>
 
-      {/* id 提示（用于 useParams，sr-only） */}
       <span className="sr-only">当前知识 ID：{id}</span>
-
-      {/* ===== 按压动画 + 无障碍降级 ===== */}
-      <style>{`
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.96); }
-        @media (prefers-reduced-motion: reduce) {
-          .btn-press:active { transform: none !important; }
-        }
-      `}</style>
+        </>
+      )}
     </main>
   )
 }

@@ -27,8 +27,10 @@
  * - 点击模式切换回调 onModeChange
  * - 清空按钮（X 图标）仅在有输入时显示
  */
+import { useState } from 'react'
 import { Search, X } from 'lucide-react'
 import type { SearchMode } from './hybrid-search-types'
+import '../../../pages/TutorialPage.css'
 
 export interface HybridSearchBarProps {
   /** 当前搜索查询字符串 */
@@ -65,6 +67,8 @@ export function HybridSearchBar({
   onQueryChange,
   onModeChange,
 }: HybridSearchBarProps) {
+  const [focused, setFocused] = useState(false)
+
   /** 处理输入变更 */
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onQueryChange(e.target.value)
@@ -96,17 +100,16 @@ export function HybridSearchBar({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="tut-search-wrap">
       {/* ===== 输入框 + 模式切换（同一行，响应式） ===== */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="tut-search-row">
         {/* 搜索输入框 */}
         <div
-          className="flex h-10 min-w-0 flex-1 items-center gap-2 border px-3 transition-colors"
-          style={{
-            background: 'var(--trae-bg-base-secondary)',
-            borderColor: 'var(--trae-border-neutral-l1)',
-            borderRadius: 'var(--trae-radius-6)',
-          }}
+          className={
+            focused
+              ? 'tut-search-input-wrap tut-search-input-wrap--focused'
+              : 'tut-search-input-wrap'
+          }
         >
           <Search
             className="h-4 w-4 shrink-0"
@@ -122,23 +125,9 @@ export function HybridSearchBar({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[var(--trae-text-tertiary)] focus:outline-none"
-            style={{
-              fontFamily: 'var(--trae-font-family-mono)',
-              fontSize: 'var(--trae-body-md-font-size)',
-              lineHeight: 'var(--trae-body-md-line-height)',
-              color: 'var(--trae-text-default)',
-              border: 'none',
-            }}
-            onFocus={(e) => {
-              // 聚焦时 border 变蓝（无 glow，遵循项目硬约束）
-              e.currentTarget.parentElement!.style.borderColor =
-                'var(--trae-bg-brand)'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.parentElement!.style.borderColor =
-                'var(--trae-border-neutral-l1)'
-            }}
+            className="tut-search-input"
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             aria-label="搜索教程"
           />
           {/* 清空按钮（仅有输入时显示） */}
@@ -147,20 +136,7 @@ export function HybridSearchBar({
               type="button"
               onClick={handleClear}
               aria-label="清空搜索"
-              className="shrink-0 cursor-pointer rounded-full p-0.5 transition-colors"
-              style={{
-                color: 'var(--trae-text-tertiary)',
-                background: 'transparent',
-                border: 'none',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--trae-text-secondary)'
-                e.currentTarget.style.background = 'var(--trae-bg-overlay-l2)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--trae-text-tertiary)'
-                e.currentTarget.style.background = 'transparent'
-              }}
+              className="tut-search-clear-btn"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -169,12 +145,7 @@ export function HybridSearchBar({
 
         {/* 模式切换（SegmentedControl 风格） */}
         <div
-          className="flex shrink-0 items-center gap-0.5 border p-0.5"
-          style={{
-            background: 'var(--trae-bg-base-tertiary)',
-            borderColor: 'var(--trae-border-neutral-l1)',
-            borderRadius: 'var(--trae-radius-6)',
-          }}
+          className="tut-mode-switch"
           role="radiogroup"
           aria-label="搜索模式"
         >
@@ -183,23 +154,11 @@ export function HybridSearchBar({
             role="radio"
             aria-checked={mode === 'keyword'}
             onClick={handleSelectKeyword}
-            className="cursor-pointer whitespace-nowrap rounded-[var(--trae-radius-4)] px-3 py-1.5 transition-colors"
-            style={{
-              background:
-                mode === 'keyword'
-                  ? 'var(--trae-bg-overlay-l2)'
-                  : 'transparent',
-              color:
-                mode === 'keyword'
-                  ? 'var(--trae-text-default)'
-                  : 'var(--trae-text-secondary)',
-              fontSize: 'var(--trae-body-sm-font-size)',
-              fontWeight:
-                mode === 'keyword'
-                  ? 'var(--trae-font-weight-medium)'
-                  : 'var(--trae-font-weight-default)',
-              border: 'none',
-            }}
+            className={
+              mode === 'keyword'
+                ? 'tut-mode-btn tut-mode-btn--active'
+                : 'tut-mode-btn'
+            }
           >
             关键词
           </button>
@@ -214,23 +173,11 @@ export function HybridSearchBar({
                 ? (semanticDisabledHint ?? '语义检索不可用')
                 : '使用 BGE-small-zh-v1.5 语义检索（首次需下载模型）'
             }
-            className="cursor-pointer whitespace-nowrap rounded-[var(--trae-radius-4)] px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              background:
-                mode === 'semantic'
-                  ? 'var(--trae-bg-overlay-l2)'
-                  : 'transparent',
-              color:
-                mode === 'semantic'
-                  ? 'var(--trae-text-default)'
-                  : 'var(--trae-text-secondary)',
-              fontSize: 'var(--trae-body-sm-font-size)',
-              fontWeight:
-                mode === 'semantic'
-                  ? 'var(--trae-font-weight-medium)'
-                  : 'var(--trae-font-weight-default)',
-              border: 'none',
-            }}
+            className={
+              mode === 'semantic'
+                ? 'tut-mode-btn tut-mode-btn--active'
+                : 'tut-mode-btn'
+            }
           >
             语义
           </button>
@@ -239,13 +186,7 @@ export function HybridSearchBar({
 
       {/* ===== 语义模式禁用提示（仅当 semanticDisabled 且用户尝试启用时显示） ===== */}
       {semanticDisabled && semanticDisabledHint && (
-        <div
-          className="flex items-center gap-1.5 px-1"
-          style={{
-            color: 'var(--trae-text-tertiary)',
-            fontSize: 'var(--trae-body-xs-font-size)',
-          }}
-        >
+        <div className="tut-search-hint">
           <span>⚠</span>
           <span>{semanticDisabledHint}</span>
         </div>

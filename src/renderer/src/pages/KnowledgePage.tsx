@@ -19,10 +19,14 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { message } from 'antd'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
   ArrowUpRight, Star, FileText, Plus, X, Check,
 } from 'lucide-react'
+import { cn } from '@/components/trae/utils'
+import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
+import './KnowledgePage.css'
 
 // ==================== 类型定义 ====================
 
@@ -120,12 +124,59 @@ export function KnowledgePage() {
     requestAnimationFrame(() => contributeTriggerRef.current?.focus())
   }
 
-  /** 提交贡献：本地演示（不调用 IPC），切换到成功态 */
-  const handleSubmitContribute = () => {
+  /** 提交贡献（v1.0 P1 接入 kbAdd IPC 真实写入知识库） */
+  const handleSubmitContribute = async () => {
     const title = contributeForm.title.trim()
     const summary = contributeForm.summary.trim()
     if (!title || !summary) return
-    setContributeSubmitted(true)
+
+    // WIP: 非 Electron 环境降级为本地演示（CLAUDE.md A4 诚实标注）
+    if (typeof window === 'undefined' || !window.electronAPI?.kbAdd) {
+      message.warning('当前环境不支持贡献知识（非 Electron 环境），已切换到演示模式')
+      setContributeSubmitted(true)
+      return
+    }
+
+    // 显示提交中状态（禁用按钮 + 提示用户等待）
+    const hide = message.loading('正在提交知识...', 0)
+    try {
+      // 构造 KnowledgeEntry 实例
+      // - id：使用时间戳 + 随机后缀避免冲突
+      // - type：用户贡献默认 'incident_case'（事件案例）
+      // - problem：使用 summary 作为问题描述
+      // - commands/rollbackCommands：空数组（用户可在编辑界面补充）
+      // - keywords/tags：从分类生成
+      // - successRate/useCount：初始 0
+      // - createdAt/updatedAt：当前时间戳
+      const now = Date.now()
+      const randomSuffix = Math.random().toString(36).slice(2, 6).toUpperCase()
+      const newEntry: KnowledgeEntry = {
+        id: `KB-USER-${now.toString(36).toUpperCase()}-${randomSuffix}`,
+        type: 'incident_case' as KnowledgeType,
+        title,
+        problem: summary,
+        commands: [],
+        keywords: [contributeForm.category],
+        tags: [contributeForm.category, '用户贡献'],
+        successRate: 0,
+        useCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      const success = await window.electronAPI.kbAdd(newEntry)
+      hide()
+      if (success) {
+        message.success('知识已成功贡献到知识库')
+        setContributeSubmitted(true)
+      } else {
+        message.error('知识库写入失败（kbAdd 返回 false）')
+      }
+    } catch (err) {
+      hide()
+      const reason = err instanceof Error ? err.message : String(err)
+      message.error(`知识贡献失败：${reason}`)
+    }
   }
 
   /** ESC 关闭 Modal + 打开时聚焦标题输入框（焦点管理） */
@@ -154,29 +205,29 @@ export function KnowledgePage() {
   }, [searchQuery, activeCategory])
 
   return (
-    <main style={{ background: 'var(--trae-bg-base-default)', color: 'var(--trae-text-default)', minHeight: '100%' }}>
-      <div style={{ padding: '24px 24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <main className="kb-page">
+      <div className="kb-container">
 
         {/* ====== 1. Page Header ====== */}
-        <header className="flex items-start justify-between gap-6 pb-5" style={{ borderBottom: '1px solid var(--trae-border-neutral-l1)' }}>
-          <div className="flex min-w-0 flex-col" style={{ gap: 6 }}>
-            <div className="flex items-center" style={{ gap: 10 }}>
+        <header className="kb-header">
+          <div className="kb-header__main">
+            <div className="kb-header__title-row">
               <Layers size={26} strokeWidth={2} style={{ color: 'var(--trae-icon-brand)' }} />
-              <h1 style={{ fontFamily: 'var(--trae-heading-2xl-font-family)', fontSize: 'var(--trae-heading-2xl-font-size)', lineHeight: 'var(--trae-heading-2xl-line-height)', fontWeight: 'var(--trae-font-weight-strong)', color: 'var(--trae-text-default)', margin: 0, wordBreak: 'keep-all' }}>运维知识库</h1>
+              <h1 className="kb-header__title">运维知识库</h1>
             </div>
-            <p style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-tertiary)', margin: 0 }}>AI驱动的运维知识检索与沉淀</p>
+            <p className="kb-header__subtitle">AI驱动的运维知识检索与沉淀</p>
           </div>
-          <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors" style={{ gap: 6, height: 32, padding: '0 12px', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', background: 'var(--trae-bg-overlay-l2)', color: 'var(--trae-text-default)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}>
+          <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="kb-back-btn kb-btn-press">
             <ArrowLeft size={14} style={{ color: 'var(--trae-icon-default)' }} />
             <span>返回工作台</span>
           </button>
         </header>
 
         {/* ====== 2. Search Bar ====== */}
-        <div style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 12 }}>
+        <div className="kb-search-bar">
           {/* 搜索输入框 + AI检索按钮 */}
-          <div className="flex items-center" style={{ gap: 8 }}>
-            <div className="kb-search-wrapper flex h-10 min-w-0 flex-1 items-center" style={{ gap: 8, padding: '0 12px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-6)' }}>
+          <div className="kb-search-row">
+            <div className="kb-search-wrapper">
               <Search size={16} className="shrink-0" style={{ color: 'var(--trae-icon-secondary)' }} />
               <input
                 ref={searchInputRef}
@@ -186,21 +237,20 @@ export function KnowledgePage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="搜索知识、故障、解决方案..."
                 aria-label="搜索知识"
-                className="placeholder:text-[var(--trae-text-tertiary)] min-w-0 flex-1 border-none bg-transparent outline-none"
-                style={{ fontFamily: 'var(--trae-font-family-mono)', fontSize: 'var(--trae-body-md-font-size)', lineHeight: 'var(--trae-body-md-line-height)', color: 'var(--trae-text-default)' }}
+                className="kb-search-input"
               />
             </div>
-            <button type="button" aria-label="AI检索" onClick={handleAiSearchFocus} className="btn-press inline-flex h-10 shrink-0 cursor-pointer items-center transition-colors" style={{ gap: 6, padding: '0 16px', background: 'var(--trae-bg-brand)', color: 'var(--trae-text-onbrand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}>
+            <button type="button" aria-label="AI检索" onClick={handleAiSearchFocus} className="kb-ai-search-btn kb-btn-press">
               <Sparkles size={16} style={{ color: 'var(--trae-icon-onbrand)' }} />
               <span>AI检索</span>
             </button>
           </div>
           {/* 分类标签栏 */}
-          <div className="no-scrollbar mt-3 flex items-center overflow-x-auto" style={{ gap: 8 }}>
+          <div className="kb-cat-bar kb-no-scrollbar">
             {CATEGORIES.map((cat) => {
               const active = activeCategory === cat.id
               return (
-                <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} aria-pressed={active} className="btn-press inline-flex h-6 shrink-0 cursor-pointer items-center whitespace-nowrap border transition-colors" style={{ padding: '0 10px', background: active ? 'var(--trae-bg-brand-popup)' : 'var(--trae-bg-overlay-l2)', color: active ? 'var(--trae-text-brand)' : 'var(--trae-text-secondary)', borderColor: active ? 'var(--trae-border-brand)' : 'var(--trae-border-neutral-l1)', fontSize: 'var(--trae-body-xs-font-size)', fontWeight: active ? 'var(--trae-font-weight-medium)' : undefined, borderRadius: 'var(--trae-radius-4)' }}>
+                <button key={cat.id} type="button" onClick={() => setActiveCategory(cat.id)} aria-pressed={active} className={cn('kb-cat-btn kb-btn-press', active && 'is-active')}>
                   {cat.label}
                 </button>
               )
@@ -209,30 +259,30 @@ export function KnowledgePage() {
         </div>
 
         {/* ====== 3. Two-column Layout ====== */}
-        <div className="flex flex-col lg:flex-row" style={{ gap: 16 }}>
+        <div className="kb-layout">
           {/* 左栏：知识卡片列表 */}
-          <div className="flex min-w-0 flex-1 flex-col" style={{ gap: 12 }}>
+          <div className="kb-list">
             {filteredItems.length === 0 ? (
-              <div style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 32, textAlign: 'center', color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>未找到匹配的知识条目</div>
+              <div className="kb-empty">未找到匹配的知识条目</div>
             ) : (
               filteredItems.map((item) => (
-                <article key={item.id} className="kb-card" style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16 }}>
-                  <div className="mb-2 flex items-start justify-between" style={{ gap: 12 }}>
-                    <h3 className="min-w-0 truncate" style={{ fontSize: 'var(--trae-body-base-strong-font-size)', lineHeight: 'var(--trae-body-base-strong-line-height)', fontWeight: 'var(--trae-font-weight-strong)', color: 'var(--trae-text-default)', margin: 0 }}>{item.title}</h3>
-                    <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap" style={{ padding: '0 8px', background: 'var(--trae-bg-brand-popup)', color: 'var(--trae-text-brand)', fontSize: 'var(--trae-body-xs-font-size)', fontWeight: 'var(--trae-font-weight-medium)', borderRadius: 'var(--trae-radius-2)', border: '1px solid var(--trae-border-brand)', fontVariantNumeric: 'tabular-nums' }}>{item.matchScore}%匹配</span>
+                <article key={item.id} className="kb-card">
+                  <div className="kb-card__head">
+                    <h3 className="kb-card__title">{item.title}</h3>
+                    <span className="kb-card__match">{item.matchScore}%匹配</span>
                   </div>
-                  <p className="line-clamp-2 mb-3" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-secondary)', margin: 0 }}>{item.summary}</p>
-                  <div className="flex flex-wrap items-center" style={{ gap: 12, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>
-                    <span className="inline-flex h-5 items-center" style={{ padding: '0 8px', background: 'var(--trae-bg-overlay-l3)', color: 'var(--trae-text-secondary)', borderRadius: 'var(--trae-radius-2)' }}>{item.category}</span>
-                    <span className="inline-flex items-center" style={{ gap: 4 }}>
+                  <p className="kb-card__summary">{item.summary}</p>
+                  <div className="kb-card__meta">
+                    <span className="kb-cat-tag">{item.category}</span>
+                    <span className="kb-meta-time">
                       <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
                       {item.updatedAt}
                     </span>
-                    <span className="inline-flex items-center" style={{ gap: 4 }}>
+                    <span className="kb-meta-views">
                       <Eye size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
-                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{item.views}</span>
+                      <span className="kb-meta-views__num">{item.views}</span>
                     </span>
-                    <button type="button" data-dom-id={`goto-knowledge-${item.id}`} aria-label={`查看详情：${item.title}`} onClick={() => handleOpenKnowledge(item.id)} className="btn-press ml-auto inline-flex cursor-pointer items-center transition-colors" style={{ gap: 4, color: 'var(--trae-text-brand)', fontSize: 'var(--trae-body-xs-font-size)', background: 'transparent', border: 'none', padding: 0 }}>
+                    <button type="button" data-dom-id={`goto-knowledge-${item.id}`} aria-label={`查看详情：${item.title}`} onClick={() => handleOpenKnowledge(item.id)} className="kb-view-link kb-btn-press">
                       查看详情
                       <ArrowUpRight size={12} style={{ color: 'var(--trae-icon-brand)' }} />
                     </button>
@@ -243,14 +293,14 @@ export function KnowledgePage() {
           </div>
 
           {/* 右栏：侧边栏 280px */}
-          <aside className="flex w-full shrink-0 flex-col lg:w-[280px]" style={{ gap: 12 }}>
+          <aside className="kb-sidebar">
             {/* 热门知识 */}
-            <section style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16 }}>
-              <div className="mb-3 flex items-center" style={{ gap: 8 }}>
+            <section className="kb-side-card">
+              <div className="kb-side-card__head">
                 <Star size={16} style={{ color: 'var(--trae-icon-brand)' }} />
-                <h2 style={{ fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)', margin: 0 }}>热门知识</h2>
+                <h2 className="kb-side-card__title">热门知识</h2>
               </div>
-              <ol className="flex flex-col" style={{ gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
+              <ol className="kb-hot-list">
                 {HOT_ITEMS.map((hot) => (
                   <li
                     key={hot.id}
@@ -265,24 +315,23 @@ export function KnowledgePage() {
                         handleOpenKnowledge(hot.id)
                       }
                     }}
-                    className="flex cursor-pointer items-center outline-none"
-                    style={{ gap: 10, borderRadius: 'var(--trae-radius-4)' }}
+                    className="kb-hot-item"
                   >
-                    <span className="w-4 shrink-0 text-center" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', fontWeight: 'var(--trae-font-weight-strong)', color: 'var(--trae-text-brand)', fontVariantNumeric: 'tabular-nums' }}>{hot.rank}</span>
-                    <span className="min-w-0 flex-1 truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>{hot.title}</span>
-                    <span className="shrink-0" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{hot.views}</span>
+                    <span className="kb-hot-rank">{hot.rank}</span>
+                    <span className="kb-hot-title">{hot.title}</span>
+                    <span className="kb-hot-views">{hot.views}</span>
                   </li>
                 ))}
               </ol>
             </section>
 
             {/* 最近浏览 */}
-            <section style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16 }}>
-              <div className="mb-3 flex items-center" style={{ gap: 8 }}>
+            <section className="kb-side-card">
+              <div className="kb-side-card__head">
                 <Clock size={16} style={{ color: 'var(--trae-icon-brand)' }} />
-                <h2 style={{ fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)', margin: 0 }}>最近浏览</h2>
+                <h2 className="kb-side-card__title">最近浏览</h2>
               </div>
-              <ul className="flex flex-col" style={{ gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
+              <ul className="kb-recent-list">
                 {RECENT_ITEMS.map((recent) => (
                   <li
                     key={recent.id}
@@ -297,12 +346,11 @@ export function KnowledgePage() {
                         handleOpenKnowledge(recent.id)
                       }
                     }}
-                    className="flex cursor-pointer items-center outline-none"
-                    style={{ gap: 10, borderRadius: 'var(--trae-radius-4)' }}
+                    className="kb-recent-item"
                   >
                     <FileText size={14} className="shrink-0" style={{ color: 'var(--trae-icon-secondary)' }} />
-                    <span className="min-w-0 flex-1 truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>{recent.title}</span>
-                    <span className="shrink-0" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>{recent.time}</span>
+                    <span className="kb-recent-title">{recent.title}</span>
+                    <span className="kb-recent-time">{recent.time}</span>
                   </li>
                 ))}
               </ul>
@@ -311,23 +359,23 @@ export function KnowledgePage() {
         </div>
 
         {/* ====== 4. AI 知识沉淀 ====== */}
-        <section className="flex flex-col lg:flex-row lg:items-center" style={{ gap: 16, background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 20 }}>
-          <div className="flex min-w-0 flex-1 flex-col" style={{ gap: 6 }}>
-            <div className="flex items-center" style={{ gap: 8 }}>
+        <section className="kb-contribution">
+          <div className="kb-contribution__main">
+            <div className="kb-contribution__title-row">
               <Sparkles size={16} style={{ color: 'var(--trae-icon-brand)' }} />
-              <h2 style={{ fontSize: 'var(--trae-heading-sm-font-size)', lineHeight: 'var(--trae-heading-sm-line-height)', fontWeight: 'var(--trae-heading-sm-font-weight)', color: 'var(--trae-text-default)', margin: 0 }}>AI知识沉淀</h2>
+              <h2 className="kb-contribution__title">AI知识沉淀</h2>
             </div>
-            <p style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-secondary)', margin: 0 }}>AI Agent在运维过程中自动沉淀知识,持续丰富知识库</p>
+            <p className="kb-contribution__desc">AI Agent在运维过程中自动沉淀知识,持续丰富知识库</p>
           </div>
-          <div className="flex flex-wrap items-center" style={{ gap: 24 }}>
+          <div className="kb-stats">
             {CONTRIBUTION_STATS.map((stat) => (
-              <div key={stat.label} className="flex flex-col">
-                <span style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-tertiary)' }}>{stat.label}</span>
-                <span style={{ fontSize: 'var(--trae-heading-md-font-size)', lineHeight: 'var(--trae-heading-md-line-height)', fontWeight: 'var(--trae-font-weight-strong)', color: stat.brand ? 'var(--trae-text-brand)' : 'var(--trae-text-default)', fontVariantNumeric: 'tabular-nums' }}>{stat.value}</span>
+              <div key={stat.label} className="kb-stat">
+                <span className="kb-stat__label">{stat.label}</span>
+                <span className={cn('kb-stat__value', stat.brand && 'kb-stat__value--brand')}>{stat.value}</span>
               </div>
             ))}
           </div>
-          <button ref={contributeTriggerRef} type="button" data-dom-id="goto-ai-contribution" aria-label="贡献知识" aria-haspopup="dialog" aria-expanded={showContributeModal} onClick={handleContribute} className="btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors" style={{ gap: 6, height: 32, padding: '0 12px', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-6)', background: 'transparent', color: 'var(--trae-text-brand)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}>
+          <button ref={contributeTriggerRef} type="button" data-dom-id="goto-ai-contribution" aria-label="贡献知识" aria-haspopup="dialog" aria-expanded={showContributeModal} onClick={handleContribute} className="kb-contribute-btn kb-btn-press">
             <Plus size={14} style={{ color: 'var(--trae-icon-brand)' }} />
             <span>贡献知识</span>
           </button>
@@ -339,45 +387,26 @@ export function KnowledgePage() {
         <div
           role="presentation"
           onClick={handleCloseContributeModal}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-            background: 'rgba(0, 0, 0, 0.5)',
-          }}
+          className="kb-modal-overlay"
         >
           <div
             role="dialog"
             aria-modal="true"
             aria-label="贡献知识"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 'min(480px, 92vw)',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              background: 'var(--trae-bg-base-secondary)',
-              border: '1px solid var(--trae-border-neutral-l1)',
-              borderRadius: 'var(--trae-radius-8)',
-              boxShadow: 'var(--trae-shadow-2)',
-              padding: 24,
-            }}
+            className="kb-modal"
           >
             {/* Modal 标题栏 */}
-            <div className="mb-4 flex items-center justify-between" style={{ gap: 12 }}>
-              <div className="flex items-center" style={{ gap: 8 }}>
+            <div className="kb-modal__head">
+              <div className="kb-modal__title-row">
                 <Plus size={18} style={{ color: 'var(--trae-icon-brand)' }} />
-                <h2 style={{ fontSize: 'var(--trae-heading-sm-font-size)', lineHeight: 'var(--trae-heading-sm-line-height)', fontWeight: 'var(--trae-heading-sm-font-weight)', color: 'var(--trae-text-default)', margin: 0 }}>贡献知识</h2>
+                <h2 className="kb-modal__title">贡献知识</h2>
               </div>
               <button
                 type="button"
                 aria-label="关闭贡献知识弹窗"
                 onClick={handleCloseContributeModal}
-                className="btn-press inline-flex h-7 w-7 cursor-pointer items-center justify-center transition-colors"
-                style={{ background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-secondary)' }}
+                className="kb-modal__close kb-btn-press"
               >
                 <X size={14} />
               </button>
@@ -385,26 +414,25 @@ export function KnowledgePage() {
 
             {contributeSubmitted ? (
               /* 提交成功态：role=status + aria-live=polite 通知屏幕阅读器 */
-              <div role="status" aria-live="polite" className="flex flex-col items-center" style={{ gap: 12, padding: '24px 0' }}>
-                <div className="inline-flex h-10 w-10 items-center justify-center" style={{ background: 'var(--trae-bg-brand-popup)', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-8)' }}>
+              <div role="status" aria-live="polite" className="kb-modal__success">
+                <div className="kb-modal__success-icon">
                   <Check size={20} style={{ color: 'var(--trae-icon-brand)' }} />
                 </div>
-                <p style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)', margin: 0, textAlign: 'center' }}>感谢贡献，知识已提交审核</p>
+                <p className="kb-modal__success-text">感谢贡献，知识已提交审核</p>
                 <button
                   type="button"
                   onClick={handleCloseContributeModal}
-                  className="btn-press inline-flex h-8 cursor-pointer items-center transition-colors"
-                  style={{ padding: '0 16px', background: 'var(--trae-bg-brand)', color: 'var(--trae-text-onbrand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}
+                  className="kb-modal__success-btn kb-btn-press"
                 >
                   完成
                 </button>
               </div>
             ) : (
               /* 表单态：原生 form + label + required，HTML5 校验 + submit 触发 */
-              <form onSubmit={(e) => { e.preventDefault(); handleSubmitContribute() }} className="flex flex-col" style={{ gap: 14 }}>
+              <form onSubmit={(e) => { e.preventDefault(); handleSubmitContribute() }} className="kb-modal__form">
                 {/* 知识标题 */}
-                <div className="flex flex-col" style={{ gap: 6 }}>
-                  <label htmlFor="contribute-title" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>知识标题 <span style={{ color: 'var(--trae-text-brand)' }}>*</span></label>
+                <div className="kb-form-row">
+                  <label htmlFor="contribute-title" className="kb-form-label">知识标题 <span className="kb-form-label__required">*</span></label>
                   <input
                     ref={contributeTitleInputRef}
                     id="contribute-title"
@@ -414,20 +442,18 @@ export function KnowledgePage() {
                     onChange={(e) => setContributeForm((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder="如：Nginx worker_connections 调优"
                     aria-required="true"
-                    className="h-9 border-none outline-none"
-                    style={{ padding: '0 10px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}
+                    className="kb-form-input"
                   />
                 </div>
 
                 {/* 分类 */}
-                <div className="flex flex-col" style={{ gap: 6 }}>
-                  <label htmlFor="contribute-category" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>分类</label>
+                <div className="kb-form-row">
+                  <label htmlFor="contribute-category" className="kb-form-label">分类</label>
                   <select
                     id="contribute-category"
                     value={contributeForm.category}
                     onChange={(e) => setContributeForm((prev) => ({ ...prev, category: e.target.value as Exclude<KnowledgeCategory, 'all'> }))}
-                    className="h-9 cursor-pointer border-none outline-none"
-                    style={{ padding: '0 10px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}
+                    className="kb-form-select"
                   >
                     {CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
                       <option key={c.id} value={c.id}>{c.label}</option>
@@ -436,8 +462,8 @@ export function KnowledgePage() {
                 </div>
 
                 {/* 摘要 */}
-                <div className="flex flex-col" style={{ gap: 6 }}>
-                  <label htmlFor="contribute-summary" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>摘要 <span style={{ color: 'var(--trae-text-brand)' }}>*</span></label>
+                <div className="kb-form-row">
+                  <label htmlFor="contribute-summary" className="kb-form-label">摘要 <span className="kb-form-label__required">*</span></label>
                   <textarea
                     id="contribute-summary"
                     required
@@ -446,26 +472,23 @@ export function KnowledgePage() {
                     onChange={(e) => setContributeForm((prev) => ({ ...prev, summary: e.target.value }))}
                     placeholder="简述知识内容、应用场景与关键操作..."
                     aria-required="true"
-                    className="border-none outline-none"
-                    style={{ padding: '8px 10px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)', resize: 'vertical', minHeight: 80 }}
+                    className="kb-form-textarea"
                   />
                 </div>
 
                 {/* 操作按钮 */}
-                <div className="flex items-center justify-end" style={{ gap: 8, marginTop: 4 }}>
+                <div className="kb-modal__actions">
                   <button
                     type="button"
                     onClick={handleCloseContributeModal}
-                    className="btn-press inline-flex h-8 cursor-pointer items-center transition-colors"
-                    style={{ padding: '0 14px', background: 'transparent', color: 'var(--trae-text-default)', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}
+                    className="kb-btn-cancel kb-btn-press"
                   >
                     取消
                   </button>
                   <button
                     type="submit"
                     aria-label="提交知识贡献"
-                    className="btn-press inline-flex h-8 cursor-pointer items-center transition-colors"
-                    style={{ padding: '0 14px', background: 'var(--trae-bg-brand)', color: 'var(--trae-text-onbrand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)' }}
+                    className="kb-btn-submit kb-btn-press"
                   >
                     提交审核
                   </button>
@@ -475,23 +498,6 @@ export function KnowledgePage() {
           </div>
         </div>
       )}
-
-      {/* ====== 按压动画 + 卡片 hover + 搜索框 focus + li 键盘聚焦 + 无障碍降级 ====== */}
-      <style>{`
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.92); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { scrollbar-width: none; }
-        .kb-card { transition: border-color 160ms ease-out, background 160ms ease-out; }
-        .kb-card:hover { border-color: var(--trae-border-brand); background: var(--trae-bg-overlay-l1); }
-        .kb-search-wrapper:focus-within { border-color: var(--trae-border-brand); background: var(--trae-bg-overlay-l2); }
-        li[role="button"]:focus-visible { outline: 2px solid var(--trae-border-brand); outline-offset: 2px; }
-        li[role="button"]:hover { background: var(--trae-bg-overlay-l1); }
-        @media (prefers-reduced-motion: reduce) {
-          .btn-press:active { transform: none !important; }
-          .kb-card { transition: none; }
-        }
-      `}</style>
     </main>
   )
 }

@@ -254,19 +254,18 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
   }, [sessionId, connected, activeFilePath, rootPath, loadRoot])
 
   return (
-    <div className="wb-filetree flex w-[200px] shrink-0 flex-col border-r border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]">
-      {/* 标题栏 */}
-      <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--trae-border-neutral-l1)] px-2">
-        <span className="pl-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--trae-text-secondary)]">
+    <div className="wb-filetree">
+      <div className="wb-filetree-header">
+        <span className="wb-filetree-title">
           资源管理器
         </span>
-        <div className="flex items-center gap-0.5">
+        <div className="wb-filetree-actions">
           <button
             type="button"
             title="新建目录"
             onClick={() => void handleMkdir()}
             disabled={!connected}
-            className="flex size-8 items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] disabled:opacity-40"
+            className="wb-filetree-action-btn"
           >
             <FolderPlus className="size-3.5" />
           </button>
@@ -275,7 +274,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
             title={activeFilePath ? `删除 ${activeFilePath}` : '删除路径'}
             onClick={() => void handleDelete()}
             disabled={!connected}
-            className="flex size-8 items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)] hover:text-[var(--trae-status-error-default)] disabled:opacity-40"
+            className="wb-filetree-action-btn is-danger"
           >
             <Trash2 className="size-3.5" />
           </button>
@@ -284,7 +283,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
             title="刷新"
             onClick={() => void loadRoot()}
             disabled={!connected || rootLoading}
-            className="flex size-8 items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] disabled:opacity-40"
+            className="wb-filetree-action-btn"
           >
             {rootLoading ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -295,26 +294,25 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
         </div>
       </div>
 
-      {/* 根路径 */}
       {connected && (
-        <div className="flex items-center gap-1 border-b border-[var(--trae-border-neutral-l1)] px-2 py-1.5">
+        <div className="wb-filetree-root-input-wrap">
           <input
             value={rootPath}
             onChange={(e) => setRootPath(e.target.value || '/')}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void loadRoot()
             }}
-            className="h-7 min-w-0 flex-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2 font-mono text-[11px] text-[var(--trae-text-default)] outline-none focus:border-[var(--trae-bg-brand)]"
+            className="wb-filetree-root-input"
             spellCheck={false}
           />
         </div>
       )}
 
-      <div role="tree" className="min-h-0 flex-1 overflow-y-auto py-1.5">
+      <div role="tree" className="wb-filetree-scroll">
         {!connected ? (
-          <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
-            <Link2 className="size-6 text-[var(--trae-text-tertiary)]" />
-            <div className="text-[12px] leading-5 text-[var(--trae-text-secondary)]">
+          <div className="wb-filetree-empty">
+            <Link2 className="size-6 wb-filetree-empty-icon" />
+            <div className="wb-filetree-empty-text">
               尚未连接 SSH
               <br />
               连接后将列出远程目录
@@ -322,30 +320,29 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
             <button
               type="button"
               onClick={() => navigate('/settings/ssh')}
-              className="inline-flex h-8 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[12px] font-medium text-[var(--trae-text-onbrand)] hover:bg-[var(--trae-bg-brand-hover)]"
+              className="wb-filetree-connect-btn"
             >
               去连接服务器
             </button>
           </div>
         ) : (
           <>
-            {/* 服务器头 */}
-            <div className="mb-1 flex items-center gap-2 px-3 py-1.5 text-[12px]">
+            <div className="wb-filetree-server-head">
               <Server className="size-3.5 text-[var(--trae-text-brand)]" />
-              <span className="truncate font-medium text-[var(--trae-text-default)]">
+              <span className="wb-filetree-server-name">
                 {activeServer?.name || activeServer?.host || 'server'}
               </span>
-              <span className="size-1.5 shrink-0 rounded-full bg-[var(--trae-status-success-default)]" />
+              <span className="wb-filetree-status-dot" style={{ background: 'var(--trae-status-success-default)' }} />
             </div>
 
             {error && (
-              <div className="mx-2 mb-2 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] px-2 py-1.5 text-[11px] text-[var(--trae-status-error-default)]">
+              <div className="wb-filetree-error">
                 {error}
               </div>
             )}
 
             {rootLoading && nodes.length === 0 ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-[12px] text-[var(--trae-text-tertiary)]">
+              <div className="wb-filetree-loading">
                 <Loader2 className="size-4 animate-spin" />
                 加载目录…
               </div>
@@ -406,14 +403,12 @@ const NodeRow: FC<NodeRowProps> = ({
         }}
         style={{ paddingLeft: pad }}
         className={cn(
-          'flex h-7 cursor-pointer items-center gap-1.5 pr-2 text-[12px] transition-colors',
-          isActive
-            ? 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-default)]'
-            : 'text-[var(--trae-text-default)] hover:bg-[var(--trae-bg-overlay-l2)]',
+          'wb-ft-row',
+          isActive && 'is-active',
         )}
       >
         {node.isDirectory ? (
-          <span className="flex size-4 shrink-0 items-center justify-center text-[var(--trae-text-tertiary)]">
+          <span className="wb-ft-chev">
             {node.loading ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : isOpen ? (
@@ -423,7 +418,7 @@ const NodeRow: FC<NodeRowProps> = ({
             )}
           </span>
         ) : (
-          <span className="size-4 shrink-0" />
+          <span className="wb-ft-ic" />
         )}
 
         {node.isDirectory ? (
@@ -438,7 +433,7 @@ const NodeRow: FC<NodeRowProps> = ({
           <File className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
         )}
 
-        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+        <span className="wb-ft-label">{node.name}</span>
       </div>
 
       {node.isDirectory && isOpen && node.children && node.children.length > 0 && (
@@ -459,7 +454,7 @@ const NodeRow: FC<NodeRowProps> = ({
 
       {node.isDirectory && isOpen && node.loaded && (node.children?.length ?? 0) === 0 && (
         <div
-          className="text-[11px] text-[var(--trae-text-tertiary)]"
+          className="wb-ft-empty-dir"
           style={{ paddingLeft: pad + 28 }}
         >
           （空目录）

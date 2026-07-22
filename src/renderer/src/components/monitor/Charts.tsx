@@ -97,18 +97,17 @@ function ChartCard({
 }) {
   return (
     <div
-      className="flex flex-col h-[200px] p-3 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]"
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}
+      className="mon-chart-card-wrap mon-chart-card flex flex-col h-[200px]"
     >
       {/* 标题行 */}
       <div className="flex items-center justify-between mb-2 gap-2">
-        <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">{title}</span>
+        <span className="mon-chart-title">{title}</span>
         {legend ?? rightHint}
       </div>
       {/* SVG 主体 */}
       <div className="flex-1 min-h-0">{children}</div>
       {/* x 轴刻度 */}
-      <div className="flex justify-between mt-2 text-[10px] text-[var(--trae-text-tertiary)] tabular-nums">
+      <div className="mon-chart-axis flex justify-between mt-2">
         {chartXLabels.map((label) => (
           <span key={label}>{label}</span>
         ))}
@@ -136,10 +135,7 @@ export function CpuAreaChart() {
     <ChartCard
       title="CPU使用率(24h)"
       rightHint={
-        <span
-          className="font-mono tabular-nums text-[12px] font-semibold"
-          style={{ color: 'var(--trae-text-brand)', fontFamily: 'var(--trae-font-family-mono)' }}
-        >
+        <span className="mon-chart-value">
           {Math.round(latest)}%
         </span>
       }
@@ -184,17 +180,17 @@ export function MemoryLineChart() {
     <ChartCard
       title="内存使用(24h)"
       legend={
-        <div className="flex items-center gap-2 shrink-0 text-[10px] text-[var(--trae-text-secondary)]">
+        <div className="mon-chart-legend flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-[var(--trae-bg-brand)]" />
+            <span className="mon-chart-dot" style={{ background: 'var(--trae-bg-brand)' }} />
             used
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: 'var(--trae-bg-brand-hover)' }} />
+            <span className="mon-chart-dot" style={{ background: 'var(--trae-bg-brand-hover)' }} />
             buffer
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: 'var(--trae-brand-3)' }} />
+            <span className="mon-chart-dot" style={{ background: 'var(--trae-brand-3)' }} />
             cache
           </span>
         </div>
@@ -267,7 +263,7 @@ export function DiskIoBarChart() {
     <ChartCard
       title="磁盘IO(24h)"
       rightHint={
-        <span className="text-[10px] text-[var(--trae-text-tertiary)] tabular-nums">MB/s</span>
+        <span className="mon-chart-hint">MB/s</span>
       }
     >
       <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" width="100%" height="100%" className="block">
@@ -322,13 +318,13 @@ export function NetworkFlowChart() {
     <ChartCard
       title="网络流量(24h)"
       legend={
-        <div className="flex items-center gap-2 shrink-0 text-[10px] text-[var(--trae-text-secondary)]">
+        <div className="mon-chart-legend flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-[var(--trae-bg-brand)]" />
+            <span className="mon-chart-dot" style={{ background: 'var(--trae-bg-brand)' }} />
             入站
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: 'var(--trae-brand-3)' }} />
+            <span className="mon-chart-dot" style={{ background: 'var(--trae-brand-3)' }} />
             出站
           </span>
         </div>

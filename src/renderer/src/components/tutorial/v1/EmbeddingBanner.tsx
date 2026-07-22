@@ -32,6 +32,7 @@ import type {
   SearchStatus,
   BackfillProgress,
 } from './hybrid-search-types'
+import '../../../pages/TutorialPage.css'
 
 export interface EmbeddingBannerProps {
   /** 检索能力快照（null 表示 API 不可用，此时不渲染 Banner） */
@@ -73,6 +74,19 @@ function phaseLabel(phase: BackfillProgress['phase']): string {
     case 'error':
       return '下载失败'
   }
+}
+
+/** 根据状态返回 banner 变体类名 */
+function bannerVariantClass(
+  isDefault: boolean,
+  isProgressing: boolean,
+  isDone: boolean,
+  isError: boolean,
+): string {
+  if (isError) return 'tut-embedding-banner tut-embedding-banner--error'
+  if (isDone) return 'tut-embedding-banner tut-embedding-banner--ready'
+  if (isProgressing) return 'tut-embedding-banner tut-embedding-banner--loading'
+  return 'tut-embedding-banner tut-embedding-banner--idle'
 }
 
 /** EmbeddingBanner 组件 */
@@ -122,20 +136,7 @@ export function EmbeddingBanner({
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-3 border px-4 py-3"
-      style={{
-        background: isError
-          ? 'var(--trae-status-error-surface-l1)'
-          : isDone
-            ? 'var(--trae-status-success-surface-l1)'
-            : 'var(--trae-status-alert-surface-l1)',
-        borderColor: isError
-          ? 'var(--trae-status-error-default)'
-          : isDone
-            ? 'var(--trae-status-success-default)'
-            : 'var(--trae-status-alert-default)',
-        borderRadius: 'var(--trae-radius-8)',
-      }}
+      className={bannerVariantClass(isDefault, isProgressing, isDone, isError)}
     >
       {/* ===== 左侧图标 ===== */}
       <div className="shrink-0">
@@ -166,28 +167,13 @@ export function EmbeddingBanner({
       </div>
 
       {/* ===== 中间内容（标题 + 描述 / 进度条） ===== */}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="tut-embedding-content">
         {/* 标题行 */}
-        <div
-          className="flex items-baseline gap-2"
-          style={{
-            color: 'var(--trae-text-default)',
-            fontSize: 'var(--trae-body-sm-strong-font-size)',
-            fontWeight: 'var(--trae-font-weight-medium)',
-            lineHeight: 'var(--trae-body-sm-strong-line-height)',
-          }}
-        >
+        <div className="tut-embedding-title-row">
           {isDefault && (
             <>
               <span>首次使用语义检索需下载模型</span>
-              <span
-                style={{
-                  fontFamily: 'var(--trae-font-family-mono)',
-                  fontSize: 'var(--trae-body-xs-font-size)',
-                  color: 'var(--trae-text-secondary)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
+              <span className="tut-embedding-meta-num">
                 约 24MB · 10-30 秒
               </span>
             </>
@@ -196,26 +182,12 @@ export function EmbeddingBanner({
             <>
               <span>{phaseLabel(progress!.phase)}</span>
               {percent !== null && (
-                <span
-                  style={{
-                    fontFamily: 'var(--trae-font-family-mono)',
-                    fontSize: 'var(--trae-body-xs-font-size)',
-                    color: 'var(--trae-text-secondary)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
+                <span className="tut-embedding-meta-num">
                   {percent}%
                 </span>
               )}
               {progress!.total > 0 && (
-                <span
-                  style={{
-                    fontFamily: 'var(--trae-font-family-mono)',
-                    fontSize: 'var(--trae-body-xs-font-size)',
-                    color: 'var(--trae-text-tertiary)',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
+                <span className="tut-embedding-meta-num--tertiary">
                   ({progress!.current} / {progress!.total})
                 </span>
               )}
@@ -231,89 +203,43 @@ export function EmbeddingBanner({
 
         {/* 描述 / 进度条 */}
         {isDefault && (
-          <p
-            className="m-0"
-            style={{
-              fontSize: 'var(--trae-body-xs-font-size)',
-              lineHeight: 'var(--trae-body-xs-line-height)',
-              color: 'var(--trae-text-secondary)',
-            }}
-          >
+          <p className="tut-embedding-desc">
             BGE-small-zh-v1.5 支持 512 维中英文语义向量，可显著提升检索准确率。
             当前知识库共 {status.totalEntries} 条目等待索引。
           </p>
         )}
         {isProgressing && (
-          <div
-            className="h-1 w-full overflow-hidden"
-            style={{
-              background: 'var(--trae-bg-overlay-l2)',
-              borderRadius: 'var(--trae-radius-full)',
-            }}
-          >
-            <div
-              className="h-full transition-all"
-              style={{
-                width: percent !== null ? `${percent}%` : '100%',
-                background: 'var(--trae-status-alert-default)',
-                borderRadius: 'var(--trae-radius-full)',
-                animation:
-                  percent === null
-                    ? 'embedding-banner-indeterminate 1.5s ease-in-out infinite'
-                    : 'none',
-              }}
-            />
+          <div className="tut-embedding-progress-bar">
+            {percent !== null ? (
+              <div
+                className="tut-embedding-progress-bar-fill"
+                style={{ width: `${percent}%` }}
+              />
+            ) : (
+              <div className="tut-embedding-indeterminate" />
+            )}
           </div>
         )}
         {isDone && (
-          <p
-            className="m-0"
-            style={{
-              fontSize: 'var(--trae-body-xs-font-size)',
-              lineHeight: 'var(--trae-body-xs-line-height)',
-              color: 'var(--trae-text-secondary)',
-            }}
-          >
+          <p className="tut-embedding-desc">
             已成功生成向量索引，现在可以使用语义检索模式。
           </p>
         )}
         {isError && (
-          <p
-            className="m-0"
-            style={{
-              fontSize: 'var(--trae-body-xs-font-size)',
-              lineHeight: 'var(--trae-body-xs-line-height)',
-              color: 'var(--trae-text-secondary)',
-            }}
-          >
+          <p className="tut-embedding-desc">
             可检查网络连接后重试，或暂时使用关键词检索模式。
           </p>
         )}
       </div>
 
       {/* ===== 右侧操作按钮 ===== */}
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="tut-embedding-actions">
         {isDefault && (
           <>
             <button
               type="button"
               onClick={onDownload}
-              className="inline-flex h-7 cursor-pointer items-center gap-1.5 border-0 px-3 transition-colors"
-              style={{
-                background: 'var(--trae-status-alert-default)',
-                color: 'var(--trae-text-onbrand)',
-                borderRadius: 'var(--trae-radius-4)',
-                fontSize: 'var(--trae-body-xs-font-size)',
-                fontWeight: 'var(--trae-font-weight-medium)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background =
-                  'var(--trae-status-alert-hover)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background =
-                  'var(--trae-status-alert-default)'
-              }}
+              className="tut-embedding-btn tut-embedding-btn--alert"
             >
               <Download className="h-3.5 w-3.5" />
               下载模型
@@ -321,24 +247,7 @@ export function EmbeddingBanner({
             <button
               type="button"
               onClick={onSkip}
-              className="inline-flex h-7 cursor-pointer items-center border px-3 transition-colors"
-              style={{
-                background: 'transparent',
-                color: 'var(--trae-text-secondary)',
-                borderColor: 'var(--trae-border-neutral-l2)',
-                borderRadius: 'var(--trae-radius-4)',
-                fontSize: 'var(--trae-body-xs-font-size)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'var(--trae-text-default)'
-                e.currentTarget.style.borderColor =
-                  'var(--trae-border-neutral-l3)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--trae-text-secondary)'
-                e.currentTarget.style.borderColor =
-                  'var(--trae-border-neutral-l2)'
-              }}
+              className="tut-embedding-btn tut-embedding-btn--ghost"
             >
               跳过
             </button>
@@ -348,22 +257,7 @@ export function EmbeddingBanner({
           <button
             type="button"
             onClick={onDownload}
-            className="inline-flex h-7 cursor-pointer items-center gap-1.5 border-0 px-3 transition-colors"
-            style={{
-              background: 'var(--trae-status-error-default)',
-              color: 'var(--trae-text-onbrand)',
-              borderRadius: 'var(--trae-radius-4)',
-              fontSize: 'var(--trae-body-xs-font-size)',
-              fontWeight: 'var(--trae-font-weight-medium)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background =
-                'var(--trae-status-error-hover)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background =
-                'var(--trae-status-error-default)'
-            }}
+            className="tut-embedding-btn tut-embedding-btn--error"
           >
             <Download className="h-3.5 w-3.5" />
             重试
@@ -375,34 +269,12 @@ export function EmbeddingBanner({
             type="button"
             onClick={onDismiss}
             aria-label="关闭提示"
-            className="shrink-0 cursor-pointer rounded-full p-1 transition-colors"
-            style={{
-              color: 'var(--trae-text-tertiary)',
-              background: 'transparent',
-              border: 'none',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--trae-text-secondary)'
-              e.currentTarget.style.background = 'var(--trae-bg-overlay-l2)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--trae-text-tertiary)'
-              e.currentTarget.style.background = 'transparent'
-            }}
+            className="tut-embedding-close-btn"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
-
-      {/* ===== indeterminate 进度条动画 ===== */}
-      <style>{`
-        @keyframes embedding-banner-indeterminate {
-          0% { transform: translateX(-100%); }
-          50% { transform: translateX(0%); }
-          100% { transform: translateX(100%); }
-        }
-      `}</style>
     </div>
   )
 }

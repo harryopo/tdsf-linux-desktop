@@ -37,9 +37,9 @@ export function CorrelationCard({ alert }: CorrelationCardProps) {
   ]
 
   return (
-    <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] overflow-hidden">
+    <div className="mon-corr-panel">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between gap-2 p-3 border-b border-[var(--trae-border-neutral-l1)]">
+      <div className="mon-corr-header flex items-center justify-between gap-2 p-3">
         <div className="flex items-center gap-2 min-w-0">
           <svg
             width="14"
@@ -57,47 +57,40 @@ export function CorrelationCard({ alert }: CorrelationCardProps) {
             />
             <circle cx="7" cy="7" r="1.5" fill="var(--trae-text-brand)" />
           </svg>
-          <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">
+          <span className="mon-corr-title">
             关联分析
           </span>
-          <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)] rounded-[var(--trae-radius-2)] uppercase tracking-[0.04em]">
+          <span className="mon-corr-ai-tag">
             AI
           </span>
         </div>
-        <span className="text-[10px] text-[var(--trae-text-tertiary)] whitespace-nowrap">
+        <span className="mon-corr-based whitespace-nowrap">
           基于 {current.server}
         </span>
       </div>
 
       {/* 影响评估 */}
-      <div className="px-3 py-3 border-b border-[var(--trae-border-neutral-l1)]">
-        <h3 className="text-[10px] font-semibold text-[var(--trae-text-secondary)] tracking-[0.04em] uppercase mb-1.5">
+      <div className="mon-corr-section px-3 py-3">
+        <h3 className="mon-corr-section-title mb-1.5">
           影响评估
         </h3>
-        <p className="text-[12px] leading-[18px] text-[var(--trae-text-default)]">
+        <p className="mon-corr-section-text">
           {impact}
         </p>
       </div>
 
       {/* 处置建议 3 步 */}
-      <div className="px-3 py-3">
-        <h3 className="text-[10px] font-semibold text-[var(--trae-text-secondary)] tracking-[0.04em] uppercase mb-2">
+      <div className="mon-corr-section px-3 py-3">
+        <h3 className="mon-corr-section-title mb-2">
           处置建议
         </h3>
         <ol className="flex flex-col gap-2">
           {suggestions.slice(0, 3).map((suggestion, idx) => (
             <li key={idx} className="flex items-start gap-2">
-              <span
-                className="shrink-0 w-[18px] h-[18px] inline-flex items-center justify-center rounded-full text-[10px] font-semibold tabular-nums"
-                style={{
-                  background: 'var(--trae-bg-brand)',
-                  color: 'var(--trae-text-onbrand)',
-                  fontFamily: 'var(--trae-font-family-mono)',
-                }}
-              >
+              <span className="mon-corr-step-num">
                 {idx + 1}
               </span>
-              <p className="flex-1 min-w-0 text-[11px] leading-[16px] text-[var(--trae-text-default)] break-words">
+              <p className="mon-corr-step-text">
                 {suggestion}
               </p>
             </li>

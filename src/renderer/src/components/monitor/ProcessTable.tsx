@@ -119,33 +119,36 @@ function ProcessRowComponent({
   isLast: boolean
 }) {
   const st = statusStyle(status)
-  const borderClass = isLast ? '' : 'border-b border-[var(--trae-border-neutral-l1)]'
+  const noBorderStyle = isLast ? { borderBottom: 'none' } : undefined
   return (
-    <tr className="transition-colors duration-200 hover:bg-[var(--trae-bg-overlay-l1)]">
+    <tr data-mon-hover className="mon-table-row-nocursor">
       <td
-        className={`whitespace-nowrap px-3 py-2.5 font-mono text-[11px] text-[var(--trae-text-secondary)] tabular-nums ${borderClass}`}
+        className="mon-table-td-mono whitespace-nowrap tabular-nums"
+        style={{ color: 'var(--trae-text-secondary)', ...noBorderStyle }}
       >
         {pid}
       </td>
-      <td className={`px-3 py-2.5 font-mono text-[11px] text-[var(--trae-text-default)] truncate max-w-[200px] ${borderClass}`}>
+      <td className="mon-table-td-mono truncate" style={{ maxWidth: 200, ...noBorderStyle }}>
         {name}
       </td>
       <td
-        className={`text-right whitespace-nowrap px-3 py-2.5 font-mono text-[11px] text-[var(--trae-text-default)] tabular-nums ${borderClass}`}
+        className="mon-table-td-mono text-right whitespace-nowrap tabular-nums"
+        style={noBorderStyle}
       >
         {cpu.toFixed(1)}%
       </td>
       <td
-        className={`text-right whitespace-nowrap px-3 py-2.5 font-mono text-[11px] text-[var(--trae-text-default)] tabular-nums ${borderClass}`}
+        className="mon-table-td-mono text-right whitespace-nowrap tabular-nums"
+        style={noBorderStyle}
       >
         {mem.toFixed(1)}%
       </td>
-      <td className={`whitespace-nowrap px-3 py-2.5 ${borderClass}`}>
+      <td className="mon-table-td-mono whitespace-nowrap" style={noBorderStyle}>
         <span
-          className="inline-flex items-center gap-1.5 text-[11px]"
-          style={{ color: st.color }}
+          className="inline-flex items-center gap-1.5"
+          style={{ color: st.color, fontSize: 'var(--trae-body-sm-font-size)' }}
         >
-          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />
+          <span className="mon-status-dot" style={{ background: st.dot }} />
           {status}
         </span>
       </td>
@@ -244,21 +247,21 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
   const isFallback = !activeSessionId || (!loading && !error && processes.length === 0)
 
   return (
-    <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] overflow-hidden">
+    <div className="mon-table-panel">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between gap-2 p-2.5 border-b border-[var(--trae-border-neutral-l1)]">
+      <div className="mon-table-toolbar flex items-center justify-between gap-2 p-2.5">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">进程监控</span>
-          <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)] rounded-[var(--trae-radius-2)] uppercase tracking-[0.04em]">
+          <span className="mon-table-panel-title">进程监控</span>
+          <span className="mon-table-count-brand">
             TOP 5 CPU
           </span>
           {processCount !== null && (
-            <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)] rounded-[var(--trae-radius-2)] tabular-nums">
+            <span className="mon-table-count">
               共 {processCount} 个进程
             </span>
           )}
           {isFallback && (
-            <span className="inline-flex items-center px-1.5 h-[18px] whitespace-nowrap text-[10px] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-text-tertiary)] rounded-[var(--trae-radius-2)]">
+            <span className="mon-table-count-muted">
               示例
             </span>
           )}
@@ -267,7 +270,7 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
           type="button"
           onClick={() => void handleRefresh()}
           disabled={loading || !activeSessionId}
-          className="inline-flex items-center justify-center h-7 w-7 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mon-btn-sm mon-btn-press inline-flex items-center justify-center px-2 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="刷新进程列表"
         >
           <RefreshCw
@@ -277,22 +280,22 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
       </div>
       {/* 表格 */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse min-w-[560px]">
+        <table className="mon-table" style={{ minWidth: 560 }}>
           <thead>
-            <tr className="bg-[var(--trae-bg-overlay-l1)]">
-              <th className="text-left whitespace-nowrap px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)]">
+            <tr>
+              <th className="whitespace-nowrap">
                 PID
               </th>
-              <th className="text-left px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase w-full border-b border-[var(--trae-border-neutral-l1)]">
+              <th className="w-full">
                 进程名
               </th>
-              <th className="text-right whitespace-nowrap px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)]">
+              <th className="text-right whitespace-nowrap">
                 CPU%
               </th>
-              <th className="text-right whitespace-nowrap px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)]">
+              <th className="text-right whitespace-nowrap">
                 内存%
               </th>
-              <th className="text-left whitespace-nowrap px-3 py-2 text-[10px] font-medium text-[var(--trae-text-tertiary)] tracking-[0.04em] uppercase border-b border-[var(--trae-border-neutral-l1)]">
+              <th className="whitespace-nowrap">
                 状态
               </th>
             </tr>
@@ -300,8 +303,8 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center">
-                  <span className="inline-flex items-center gap-2 text-[11px] text-[var(--trae-text-tertiary)]">
+                <td colSpan={5} className="mon-table-td text-center">
+                  <span className="inline-flex items-center gap-2" style={{ color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     正在获取进程列表...
                   </span>
@@ -310,7 +313,7 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-[11px] text-[var(--trae-status-error-default)]">
+                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-status-error-default)', fontSize: 'var(--trae-body-sm-font-size)' }}>
                   {error}
                 </td>
               </tr>

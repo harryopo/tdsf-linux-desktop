@@ -61,12 +61,12 @@ function RingProgress({
 }) {
   const offset = offsetFromPercent(percent)
   return (
-    <div style={{ position: 'relative', width: 72, height: 72, flex: '0 0 auto' }}>
+    <div className="mon-kpi-ring-wrap">
       <svg
         width="72"
         height="72"
         viewBox="0 0 72 72"
-        style={{ transform: 'rotate(-90deg)' }}
+        className="mon-kpi-ring-svg"
         aria-label={`${centerValue}%`}
         role="img"
       >
@@ -83,35 +83,11 @@ function RingProgress({
           strokeLinecap="round"
         />
       </svg>
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          textAlign: 'center',
-        }}
-      >
-        <div
-          style={{
-            fontFamily: 'var(--trae-font-family-mono)',
-            fontVariantNumeric: 'tabular-nums',
-            fontSize: 16,
-            fontWeight: 600,
-            color: 'var(--trae-text-default)',
-            lineHeight: 1,
-          }}
-        >
+      <div className="mon-kpi-ring-center">
+        <div className="mon-kpi-ring-value">
           {centerValue}
         </div>
-        <div
-          style={{
-            fontSize: 9,
-            color: 'var(--trae-text-tertiary)',
-            lineHeight: 1,
-            marginTop: 1,
-          }}
-        >
+        <div className="mon-kpi-ring-unit">
           %
         </div>
       </div>
@@ -129,17 +105,7 @@ function RingProgress({
  */
 function NetworkMiniChart() {
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: 72,
-        height: 72,
-        flex: '0 0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <div className="mon-net-mini-wrap">
       <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true">
         {/* 上行 (品牌蓝) */}
         <path
@@ -171,10 +137,10 @@ function NetworkMiniChart() {
           strokeDasharray="1,3"
         />
         {/* 标签 */}
-        <text x="6" y="14" fill="#387BFF" fontSize="8" fontFamily="var(--trae-font-family-mono)" fontWeight="600">
+        <text x="6" y="14" className="mon-net-mini-label-up">
           ↑1.2
         </text>
-        <text x="6" y="68" fill="#6B7078" fontSize="8" fontFamily="var(--trae-font-family-mono)">
+        <text x="6" y="68" className="mon-net-mini-label-down">
           ↓0.8
         </text>
       </svg>
@@ -194,8 +160,7 @@ export function KpiCard({ stat }: { stat: KpiStat }) {
 
   return (
     <div
-      className="flex h-full items-center gap-3 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-[14px]"
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}
+      className="mon-kpi-card mon-stat-card flex h-full items-center gap-3"
     >
       {/* 左侧：环形进度图 或 网络迷你折线 */}
       {isNetwork ? <NetworkMiniChart /> : (
@@ -207,42 +172,31 @@ export function KpiCard({ stat }: { stat: KpiStat }) {
       )}
 
       {/* 右侧：信息列 */}
-      <div
-        style={{
-          flex: '1 1 0',
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 3,
-        }}
-      >
+      <div className="mon-kpi-info">
         {/* 图标 + 标签 */}
-        <div className="flex items-center gap-[5px]">
+        <div className="mon-kpi-label-row">
           <Icon className="h-3 w-3 text-[var(--trae-icon-secondary)]" />
-          <span className="text-[10px] font-medium tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+          <span className="mon-kpi-label">
             {stat.label}
           </span>
         </div>
         {/* 主值（如 "8 核心" / "4.2 / 8 GB" / "156 / 200 GB" / "2.0 MB/s"） */}
-        <div
-          className="font-mono text-[11px] font-semibold tabular-nums text-[var(--trae-text-default)]"
-          style={{ fontFamily: 'var(--trae-font-family-mono)' }}
-        >
+        <div className="mon-kpi-value">
           {stat.sub}
         </div>
         {/* 趋势 */}
-        <div className="flex items-center gap-[3px] text-[10px]">
+        <div className="mon-kpi-trend">
           {stat.trend === 'up' ? (
             <TrendingUp className="h-2.5 w-2.5" style={{ color: trendColor }} />
           ) : (
             <TrendingDown className="h-2.5 w-2.5" style={{ color: trendColor }} />
           )}
-          <span className="font-medium" style={{ color: trendColor }}>
+          <span className="mon-kpi-trend-delta" style={{ color: trendColor }}>
             {stat.trend === 'up' ? '+' : ''}
             {stat.delta}
             {stat.unit === '%' ? '%' : ` ${stat.unit}`}
           </span>
-          <span className="text-[var(--trae-text-tertiary)]">较昨日</span>
+          <span className="mon-kpi-trend-text">较昨日</span>
         </div>
       </div>
     </div>

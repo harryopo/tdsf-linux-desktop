@@ -12,11 +12,12 @@
  * 暗色模式默认开启（在 main.tsx 中 document.documentElement.classList.add('dark')）。
  */
 import { Outlet } from 'react-router-dom'
+import '@/components/workbench/Workbench.css'
 
 /** MainLayout 极简主布局（纯 Outlet 容器） */
 const MainLayout: React.FC = () => {
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)]">
+    <div className="wb-main-layout">
       <Outlet />
     </div>
   )

@@ -23,6 +23,7 @@ import EditorArea, {
 import AIPanel from '@/components/workbench/AIPanel'
 import { StatusBar } from '@/components/workbench/StatusBar'
 import '@/styles/workbench-density.css'
+import '@/components/workbench/Workbench.css'
 
 const NAV_ROUTE_MAP: Record<NavId, string> = {
   home: '/workbench',
@@ -124,7 +125,7 @@ export const WorkbenchPage: FC = () => {
 
   return (
     <div
-      className="wb-shell flex h-full w-full flex-col overflow-hidden bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)]"
+      className="wb-shell flex h-full w-full flex-col overflow-hidden"
       aria-label="AI 工作台"
     >
       <WorkbenchTitlebar
@@ -132,7 +133,7 @@ export const WorkbenchPage: FC = () => {
         onToggleAI={() => setAiPanelVisible((v) => !v)}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="wb-main-body flex min-h-0 flex-1 overflow-hidden">
         <ActivityRail activeId={activeNav} onNavigate={handleNavigate} />
         <FileTree activeFilePath={activeFilePath} onOpenFile={handleOpenFile} />
         <EditorArea

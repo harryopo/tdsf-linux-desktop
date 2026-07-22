@@ -141,22 +141,20 @@ export function WorkbenchTitlebar({
   return (
     <>
       <header
-        className="wb-titlebar flex h-10 shrink-0 items-center justify-between border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-3"
+        className="wb-titlebar"
         aria-label="工作台顶部栏"
       >
-        {/* 左侧组：macOS 窗口圆点 + 服务器选择器（设计稿行 2171-2183） */}
-        <div className="flex items-center gap-2">
-          {/* macOS 窗口控制圆点（关闭/最小化/最大化）— 设计稿行 2172-2176 */}
-          <div className="flex items-center gap-2" aria-hidden>
-            <span className="size-3 rounded-full bg-[var(--trae-status-error-default)]" />
-            <span className="size-3 rounded-full bg-[var(--trae-status-alert-default)]" />
-            <span className="size-3 rounded-full bg-[var(--trae-status-success-default)]" />
+        <div className="wb-titlebar-left">
+          <div className="wb-titlebar-dots" aria-hidden>
+            <span className="wb-titlebar-dot" style={{ background: 'var(--trae-status-error-default)' }} />
+            <span className="wb-titlebar-dot" style={{ background: 'var(--trae-status-alert-default)' }} />
+            <span className="wb-titlebar-dot" style={{ background: 'var(--trae-status-success-default)' }} />
           </div>
           <div className="relative flex items-center gap-2" ref={menuRef}>
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="inline-flex h-8 items-center gap-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2.5 text-[12px] text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
+            className="wb-server-picker"
             title="切换 / 连接服务器"
           >
             <Folder className="size-4" />
@@ -257,14 +255,14 @@ export function WorkbenchTitlebar({
         </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          <IconButton title="搜索" onClick={() => message.warning('全局搜索需要连接 SSH 服务器后使用')}>
+        <div className="wb-titlebar-right">
+          <IconButton title="搜索（开发中）" onClick={() => message.warning('全局搜索需要连接 SSH 服务器后使用')}>
             <Search className="size-4" />
           </IconButton>
           <IconButton title="AI面板" onClick={onToggleAI} active={aiPanelVisible} domId="collapse-ai">
             <PanelRight className="size-4" />
           </IconButton>
-          <IconButton title="布局" onClick={() => message.warning('分屏布局暂未上线，可在设置中调整面板宽度')}>
+          <IconButton title="布局（开发中）" onClick={() => message.warning('分屏布局暂未上线，可在设置中调整面板宽度')}>
             <LayoutGrid className="size-4" />
           </IconButton>
           <IconButton title="设置" onClick={() => navigate('/settings')}>
@@ -305,8 +303,8 @@ function IconButton({
       onClick={onClick}
       data-dom-id={domId}
       className={cn(
-        'flex size-8 items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]',
-        active && 'bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-text-brand)]',
+        'wb-icon-btn',
+        active && 'is-active',
       )}
     >
       {children}

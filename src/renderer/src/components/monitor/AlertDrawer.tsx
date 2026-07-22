@@ -68,8 +68,8 @@ function statusColor(status: AlertRecord['status']): string {
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2 py-1.5">
-      <span className="text-[11px] text-[var(--trae-text-tertiary)] min-w-[60px] shrink-0">{label}</span>
-      <span className="text-[12px] text-[var(--trae-text-default)] flex-1 min-w-0 break-words">{value}</span>
+      <span className="mon-drawer-detail-label">{label}</span>
+      <span className="mon-drawer-detail-value">{value}</span>
     </div>
   )
 }
@@ -153,13 +153,13 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
                 {risk.label}
               </Tag>
               <span
-                className="text-[10px] whitespace-nowrap"
+                className="mon-alert-time whitespace-nowrap"
                 style={{ color: statusColor(alert.status) }}
               >
                 ● {alert.status}
               </span>
             </div>
-            <h2 className="text-[15px] font-semibold text-[var(--trae-text-default)] leading-[22px] break-words">
+            <h2 className="mon-drawer-title">
               {alert.desc}
             </h2>
           </div>
@@ -167,8 +167,7 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="shrink-0 w-7 h-7 inline-flex items-center justify-center rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l2)] transition-colors duration-150"
-            style={{ color: 'var(--trae-text-tertiary)' }}
+            className="mon-drawer-close-btn"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path
@@ -191,10 +190,10 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
         {/* 影响评估 */}
         {alert.impact && (
           <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--trae-border-neutral-l1)' }}>
-            <h3 className="text-[11px] font-semibold text-[var(--trae-text-secondary)] tracking-[0.04em] uppercase mb-2">
+            <h3 className="mon-drawer-section-title mb-2">
               影响评估
             </h3>
-            <p className="text-[12px] leading-[18px] text-[var(--trae-text-default)]">
+            <p className="mon-drawer-section-text">
               {alert.impact}
             </p>
           </div>
@@ -203,24 +202,17 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
         {/* 处置建议 */}
         {alert.suggestions && alert.suggestions.length > 0 && (
           <div className="px-4 py-3 flex-1 overflow-y-auto">
-            <h3 className="text-[11px] font-semibold text-[var(--trae-text-secondary)] tracking-[0.04em] uppercase mb-2">
+            <h3 className="mon-drawer-section-title mb-2">
               处置建议
             </h3>
             <ol className="flex flex-col gap-2.5">
               {alert.suggestions.map((suggestion, idx) => (
                 <li key={idx} className="flex items-start gap-2.5">
-                  <span
-                    className="shrink-0 w-5 h-5 inline-flex items-center justify-center rounded-full text-[10px] font-semibold"
-                    style={{
-                      background: 'var(--trae-bg-brand)',
-                      color: 'var(--trae-text-onbrand)',
-                      fontFamily: 'var(--trae-font-family-mono)',
-                    }}
-                  >
+                  <span className="mon-drawer-step-num">
                     {idx + 1}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] leading-[18px] text-[var(--trae-text-default)] break-words">
+                    <p className="mon-drawer-step-text">
                       {suggestion}
                     </p>
                   </div>
@@ -238,7 +230,7 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center h-[28px] px-3 text-[11px] font-medium text-[var(--trae-text-default)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
+            className="mon-drawer-footer-btn"
           >
             关闭
           </button>

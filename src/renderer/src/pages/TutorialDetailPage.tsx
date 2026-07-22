@@ -16,11 +16,15 @@
  * 无障碍：button type + aria-label，prefers-reduced-motion 禁用按压动画
  */
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { Modal, Spin, message } from 'antd'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
   Terminal, List, UserCircle, Star, ChevronRight,
 } from 'lucide-react'
+import type { TutorialEntry } from '@shared/tutorial-types'
+import { TUTORIAL_DIFFICULTY_LABELS } from '@shared/tutorial-types'
+import './TutorialPage.css'
 
 // ==================== 类型定义 ====================
 
@@ -110,16 +114,97 @@ function getChapterStatus(idx: number, activeIdx: number, completed: boolean[]):
   return 'pending'
 }
 
+/**
+ * 格式化阅读时长（v1.0 P0 真实数据展示）
+ *
+ * @param minutes 真实数据 readingTime（分钟数字）
+ * @returns "Xh YYmin" 或 "Xmin" 格式字符串
+ *
+ * 示例：
+ *   150 → "2h 30min"
+ *   45  → "45min"
+ */
+function formatReadingTime(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes < 0) return '0min'
+  if (minutes < 60) return `${minutes}min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}min`
+}
+
 // ==================== 主组件 ====================
 
 /** TutorialDetailPage — 教程详情页 */
 export function TutorialDetailPage() {
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [activeChapter, setActiveChapter] = useState(2)
   const [completedChapters, setCompletedChapters] = useState<boolean[]>([true, true, false, false, false])
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({ q1: 'B', q2: 'C', q3: 'C' })
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null)
   const chapterTitleRef = useRef<HTMLHeadingElement>(null)
+
+  // ===== 真实数据状态（v1.0 P0 接入 tutorialGet IPC） =====
+  const [tutorialEntry, setTutorialEntry] = useState<TutorialEntry | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [useReal, setUseReal] = useState(false)
+
+  // ===== 沙箱执行状态（v1.0 P0 接入 sandboxCreate + sandboxExecute IPC） =====
+  const [sandboxRunning, setSandboxRunning] = useState(false)
+  const [sandboxResult, setSandboxResult] = useState<{ stdout: string; stderr: string; exitCode: number } | null>(null)
+  const [sandboxModalOpen, setSandboxModalOpen] = useState(false)
+
+  // 加载真实教程条目（按 URL :id 精确匹配）
+  useEffect(() => {
+    let cancelled = false
+    const loadRealEntry = async () => {
+      if (typeof window === 'undefined' || !window.electronAPI?.tutorialGet || !id) {
+        // WIP: 非 Electron 环境或缺 id，保留设计稿示例数据（CLAUDE.md A4 诚实标注）
+        setLoading(false)
+        return
+      }
+      try {
+        const entry = await window.electronAPI.tutorialGet(id)
+        if (cancelled) return
+        if (entry) {
+          setTutorialEntry(entry)
+          setUseReal(true)
+        }
+        // 找不到真实条目时，useReal 保持 false，UI 降级到设计稿示例数据
+      } catch (err) {
+        if (cancelled) return
+        const reason = err instanceof Error ? err.message : String(err)
+        message.warning(`教程加载失败，使用示例数据：${reason}`)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadRealEntry()
+    return () => { cancelled = true }
+  }, [id])
+
+  // ===== 渲染辅助：根据 useReal 决定字段来源 =====
+  // 真实数据：title/summary/difficulty/readingTime/content/commands
+  // 设计稿示例：Nginx 性能调优实战 / 从worker_connections到内核参数的全面优化 / 进阶 / 2h30min
+  const displayTitle = useReal && tutorialEntry ? tutorialEntry.title : 'Nginx性能调优实战'
+  const displaySummary = useReal && tutorialEntry ? tutorialEntry.summary : '从worker_connections到内核参数的全面优化'
+  // 难度映射：真实数据为 'beginner'/'intermediate'/'advanced'，映射到中文标签
+  // 设计稿示例 "进阶" 对应真实数据 "advanced"
+  const displayDifficultyLabel: string = useReal && tutorialEntry
+    ? TUTORIAL_DIFFICULTY_LABELS[tutorialEntry.difficulty]
+    : '进阶'
+  // 阅读时长格式化：真实数据 readingTime 为分钟数字，转为 "Xh YYmin" 或 "Xmin" 格式
+  const displayReadingTime: string = useReal && tutorialEntry
+    ? formatReadingTime(tutorialEntry.readingTime)
+    : '2h30min'
+  // 内容正文：真实数据为 Markdown 字符串，按空行分段
+  const displayParagraphs: string[] = useReal && tutorialEntry
+    ? tutorialEntry.content.split(/\n\s*\n/).filter(Boolean)
+    : PARAGRAPHS
+  // 命令示例：真实数据为 string[]，每条命令作为一行
+  const displayCodeLines: CodeLine[] = useReal && tutorialEntry && tutorialEntry.commands.length > 0
+    ? tutorialEntry.commands.map((cmd) => ({ color: 'var(--trae-code-text)', text: cmd }))
+    : CODE_LINES
 
   const completedCount = completedChapters.filter(Boolean).length
   const isFirst = activeChapter === 0
@@ -141,9 +226,90 @@ export function TutorialDetailPage() {
     if (!isLast) setActiveChapter(activeChapter + 1)
   }
   const handleGotoChapter = (idx: number) => setActiveChapter(idx)
-  const handleGotoRelated = (id: string) => navigate(`/tutorial/${id}`)
+  const handleGotoRelated = (targetId: string) => navigate(`/tutorial/${targetId}`)
   const handleContinueLearning = () => !isLast && setActiveChapter(activeChapter + 1)
-  const handleOpenSandbox = () => navigate('/workbench')
+
+  /**
+   * 打开沙箱并执行实践命令（v1.0 P0 接入 sandboxCreate + sandboxExecute IPC）
+   *
+   * 流程：
+   *   1. 检测 window.electronAPI?.sandboxExecute（非 Electron 环境降级）
+   *   2. sandboxList 查找现有沙箱（status='READY'）；无则 sandboxCreate 创建新沙箱
+   *   3. sandboxExecute(sandboxId, command) 执行实践命令
+   *   4. 弹窗展示 stdout/stderr/exitCode
+   *
+   * 安全说明：
+   *   - HC-6 强制审批：sandboxExecute 调用后主进程会推送 sandbox:approval-request 事件
+   *     渲染层弹窗显示命令 + 风险等级，用户通过 sandboxApprove(callId, approved) 响应
+   *   - 主进程通过 sessionKeyMap 句柄模式查找 session_api_key，渲染层无需传递
+   *
+   * 实践命令：从 PRACTICE_LINES 提取（设计稿示例 `ab -n 10000 -c 500 http://localhost/`）
+   *   真实数据场景下，使用 tutorialEntry.commands[0] 作为实践命令
+   */
+  const handleOpenSandbox = async () => {
+    if (typeof window === 'undefined' || !window.electronAPI?.sandboxExecute) {
+      message.warning('当前环境不支持沙箱执行（非 Electron 环境）')
+      return
+    }
+    setSandboxRunning(true)
+    const hide = message.loading('准备沙箱环境...', 0)
+    try {
+      // Step 1: 查找现有沙箱或创建新沙箱
+      let sandboxId: string | null = null
+      const listResult = await window.electronAPI.sandboxList(10)
+      // listResult 可能是 SandboxPage 或 SandboxErrorResponse；用 'items' in 检查
+      if (listResult && 'items' in listResult && Array.isArray(listResult.items)) {
+        // SandboxStatus 为 'STARTING' | 'RUNNING' | 'PAUSED' | 'ERROR' | 'MISSING'
+        // 'RUNNING' 是可用状态
+        const ready = listResult.items.find((s) => s.status === 'RUNNING')
+        if (ready) sandboxId = ready.id
+      }
+      if (!sandboxId) {
+        const createResult = await window.electronAPI.sandboxCreate()
+        // createResult 可能是 SandboxInfo 或 SandboxErrorResponse；用 'success' in 检查
+        if (!createResult || 'success' in createResult) {
+          const err = createResult as { success: false; error: string } | null
+          throw new Error(`沙箱创建失败：${err?.error || '未知错误'}`)
+        }
+        // 此处 createResult 是 SandboxInfo
+        if (!createResult.id) throw new Error('沙箱创建返回无效 ID')
+        sandboxId = createResult.id
+      }
+
+      // Step 2: 提取实践命令（真实数据优先；fallback 到设计稿示例 ab 压测命令）
+      const practiceCommand = useReal && tutorialEntry && tutorialEntry.commands.length > 0
+        ? tutorialEntry.commands[0]
+        : 'ab -n 10000 -c 500 http://localhost/'
+
+      // Step 3: 执行命令（HC-6 强制审批：主进程会推送 sandbox:approval-request）
+      const execResult = await window.electronAPI.sandboxExecute(sandboxId, practiceCommand)
+      hide()
+      // execResult 可能是 SandboxCommandResult 或 SandboxErrorResponse；用 'success' in 检查
+      if (!execResult || 'success' in execResult) {
+        const err = execResult as { success: false; error: string } | null
+        throw new Error(err?.error || '沙箱执行返回未知错误')
+      }
+      // 此处 execResult 是 SandboxCommandResult
+      setSandboxResult({
+        stdout: execResult.stdout || '',
+        stderr: execResult.stderr || '',
+        exitCode: typeof execResult.exitCode === 'number' ? execResult.exitCode : -1,
+      })
+      setSandboxModalOpen(true)
+      if (execResult.exitCode === 0) {
+        message.success('沙箱执行成功')
+      } else {
+        message.warning(`沙箱执行完成（exit=${execResult.exitCode}）`)
+      }
+    } catch (err) {
+      hide()
+      const reason = err instanceof Error ? err.message : String(err)
+      message.error(`沙箱执行失败：${reason}`)
+    } finally {
+      setSandboxRunning(false)
+    }
+  }
+
   const handleSubmitQuiz = () => {
     let correct = 0
     QUIZ_QUESTIONS.forEach((q) => {
@@ -154,127 +320,135 @@ export function TutorialDetailPage() {
   }
 
   return (
-    <main style={{ background: 'var(--trae-bg-base-default)', color: 'var(--trae-text-default)', minHeight: '100%' }}>
-      <div style={{ maxWidth: '100%', padding: '16px 24px 88px' }}>
+    <main className="tut-detail-page" style={{ color: 'var(--trae-text-default)', height: '100%', overflowY: 'auto' }}>
+      {/* loading 占位：真实数据加载中时显示 Spin（避免短暂空白） */}
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 0' }}>
+          <Spin tip="加载教程条目..." />
+        </div>
+      )}
+      {!loading && (
+        <>
+          <div className="tut-detail-container">
 
         {/* ====== 1. Page Header ====== */}
-        <header className="flex flex-wrap items-center justify-between gap-3" style={{ paddingBottom: 14, borderBottom: '1px solid var(--trae-border-neutral-l1)' }}>
+        <header className="tut-detail-header">
           {/* 左：返回按钮 */}
-          <div className="flex items-center" style={{ gap: 8 }}>
-            <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBackWorkbench} className="btn-press inline-flex shrink-0 items-center transition-colors" style={{ gap: 6, height: 30, padding: '0 12px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-default)', background: 'transparent', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBackWorkbench} className="tut-detail-back-btn tut-btn-press">
               <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
               <span>返回工作台</span>
             </button>
-            <button type="button" data-dom-id="back-tutorial" aria-label="返回教程" onClick={handleBackTutorial} className="btn-press inline-flex shrink-0 items-center transition-colors" style={{ gap: 6, height: 30, padding: '0 12px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-default)', background: 'transparent', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', cursor: 'pointer' }}>
+            <button type="button" data-dom-id="back-tutorial" aria-label="返回教程" onClick={handleBackTutorial} className="tut-detail-back-btn tut-btn-press">
               <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
               <span>返回教程</span>
             </button>
           </div>
           {/* 中：标题 + 副标题 */}
-          <div className="flex min-w-0 flex-1 flex-col" style={{ gap: 2, textAlign: 'center', minWidth: 200 }}>
-            <h1 style={{ margin: 0, fontSize: 'var(--trae-heading-md-font-size)', lineHeight: 'var(--trae-heading-md-line-height)', fontWeight: 'var(--trae-heading-md-font-weight)', color: 'var(--trae-text-default)', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>Nginx性能调优实战</h1>
-            <span className="truncate" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-tertiary)' }}>从worker_connections到内核参数的全面优化</span>
+          <div className="tut-detail-title-wrap">
+            <h1 className="tut-detail-title">{displayTitle}</h1>
+            <span className="tut-detail-subtitle">{displaySummary}</span>
           </div>
           {/* 右：难度 tag + 时长 tag + 进度 */}
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="inline-flex items-center" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: 'var(--trae-bg-brand-popup)', color: 'var(--trae-text-brand)' }}>进阶</span>
-            <span className="inline-flex items-center gap-1" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: 'var(--trae-bg-overlay-l2)', color: 'var(--trae-text-secondary)', border: '1px solid var(--trae-border-neutral-l1)' }}>
+          <div className="tut-detail-meta">
+            <span className="tut-detail-badge tut-detail-badge--brand">{displayDifficultyLabel}</span>
+            <span className="tut-detail-badge tut-detail-badge--neutral">
               <Clock size={11} style={{ color: 'var(--trae-text-secondary)' }} />
-              2h30min
+              {displayReadingTime}
             </span>
-            <span style={{ fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-brand)', fontVariantNumeric: 'tabular-nums' }}>65%</span>
+            <span className="tut-detail-progress-pct">65%</span>
           </div>
         </header>
 
         {/* ====== 2. 章节进度条卡片 ====== */}
-        <section style={{ marginTop: 14, background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: '12px 16px' }}>
-          <div className="flex items-center" style={{ gap: 6 }}>
+        <section className="tut-progress-card">
+          <div className="tut-progress-track">
             {CHAPTERS.map((ch, i) => {
               const status = getChapterStatus(i, activeChapter, completedChapters)
               return (
-                <div key={ch.id} className="flex items-center" style={{ flex: i < CHAPTERS.length - 1 ? '1 0 auto' : '0 0 auto' }}>
-                  <div className="flex shrink-0 flex-col items-center" style={{ gap: 6, minWidth: 64 }}>
+                <div key={ch.id} style={{ display: 'flex', alignItems: 'center', flex: i < CHAPTERS.length - 1 ? '1 0 auto' : '0 0 auto' }}>
+                  <div className="tut-progress-node">
                     {status === 'completed' && (
-                      <div className="flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 'var(--trae-radius-full)', background: 'var(--trae-status-success-default)' }}>
+                      <div className="tut-progress-indicator tut-progress-indicator--completed">
                         <Check size={12} style={{ color: 'var(--trae-special-white)' }} />
                       </div>
                     )}
                     {status === 'in-progress' && (
-                      <div className="relative flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 'var(--trae-radius-full)', background: 'var(--trae-bg-brand)' }}>
-                        <span className="chapter-ping absolute inline-flex" style={{ width: 22, height: 22, borderRadius: 'var(--trae-radius-full)', background: 'var(--trae-bg-brand)', opacity: 0.4 }} />
-                        <span className="relative inline-block" style={{ width: 8, height: 8, borderRadius: 'var(--trae-radius-full)', background: 'var(--trae-special-white)' }} />
+                      <div className="tut-progress-indicator tut-progress-indicator--in-progress">
+                        <span className="tut-chapter-ping tut-progress-ping" />
+                        <span className="tut-progress-inner-dot" />
                       </div>
                     )}
                     {status === 'pending' && (
-                      <div className="flex items-center justify-center" style={{ width: 22, height: 22, borderRadius: 'var(--trae-radius-full)', background: 'transparent', border: '1.5px solid var(--trae-border-neutral-l3)' }} />
+                      <div className="tut-progress-indicator tut-progress-indicator--pending" />
                     )}
-                    <span className="hidden truncate sm:inline" style={{ fontSize: 'var(--trae-body-xs-font-size)', maxWidth: 84, color: status === 'in-progress' ? 'var(--trae-text-brand)' : status === 'completed' ? 'var(--trae-text-secondary)' : 'var(--trae-text-tertiary)', fontWeight: status === 'in-progress' ? 'var(--trae-font-weight-medium)' : undefined }}>{ch.title}</span>
+                    <span className={`tut-progress-node-label tut-progress-node-label--${status}`}>{ch.title}</span>
                   </div>
                   {i < CHAPTERS.length - 1 && (
-                    <div style={{ flex: 1, height: 2, background: completedChapters[i] ? 'var(--trae-status-success-default)' : 'var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-full)' }} />
+                    <div className={`tut-progress-connector ${completedChapters[i] ? 'tut-progress-connector--completed' : 'tut-progress-connector--pending'}`} />
                   )}
                 </div>
               )
             })}
           </div>
-          <div style={{ marginTop: 10, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)', textAlign: 'center' }}>已完成 {completedCount}/5 章 · 预计还需 52min</div>
+          <div className="tut-progress-text">已完成 {completedCount}/5 章 · 预计还需 52min</div>
         </section>
 
         {/* ====== 3. 两栏布局 ====== */}
-        <div className="flex flex-col lg:flex-row" style={{ gap: 16, marginTop: 14 }}>
+        <div className="tut-detail-body">
 
           {/* 左栏：课程内容 */}
-          <div className="flex min-w-0 flex-1 flex-col" style={{ gap: 14 }}>
+          <div className="tut-detail-left">
 
             {/* 【当前章节卡片】 */}
-            <article className="tutorial-fade-in" style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16 }}>
-              <div className="flex items-center justify-between gap-2">
-                <h2 ref={chapterTitleRef} tabIndex={-1} style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)', outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
-                <span className="inline-flex shrink-0 items-center" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: 'var(--trae-bg-brand-popup)', color: 'var(--trae-text-brand)' }}>当前学习</span>
+            <article className="tut-card tut-fade-in">
+              <div className="tut-card-title-row" style={{ justifyContent: 'space-between' }}>
+                <h2 ref={chapterTitleRef} tabIndex={-1} className="tut-card-title" style={{ outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
+                <span className="tut-detail-badge tut-detail-badge--brand">当前学习</span>
               </div>
               {/* 学习目标 */}
               <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)', marginBottom: 6, fontWeight: 'var(--trae-font-weight-medium)' }}>学习目标</div>
-                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="tut-objective-label">学习目标</div>
+                <ul className="tut-objective-list">
                   {OBJECTIVES.map((obj) => (
-                    <li key={obj} className="flex items-start gap-2">
-                      <CheckCircle2 size={14} className="mt-px shrink-0" style={{ color: 'var(--trae-status-success-default)' }} />
-                      <span style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>{obj}</span>
+                    <li key={obj} className="tut-objective-item">
+                      <CheckCircle2 size={14} className="tut-objective-icon" />
+                      <span className="tut-objective-text">{obj}</span>
                     </li>
                   ))}
                 </ul>
               </div>
               {/* 内容正文 */}
-              <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {PARAGRAPHS.map((p, i) => (
-                  <p key={i} style={{ margin: 0, fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>{p}</p>
+              <div className="tut-paragraphs">
+                {displayParagraphs.map((p, i) => (
+                  <p key={i} className="tut-paragraph">{p}</p>
                 ))}
               </div>
               {/* 命令示例块 */}
               <div style={{ marginTop: 12 }}>
-                <pre style={{ margin: 0, background: 'var(--trae-bg-base-default)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-6)', padding: 12, fontFamily: 'var(--trae-font-family-mono)', fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 1.7, overflowX: 'auto' }}>
-                  {CODE_LINES.map((line, i) => (
+                <pre className="tut-code-block">
+                  {displayCodeLines.map((line, i) => (
                     <span key={i} style={{ color: line.color, display: 'block' }}>{line.text}</span>
                   ))}
                 </pre>
-                <div style={{ marginTop: 6, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-code-constant)', fontFamily: 'var(--trae-font-family-mono)' }}># 查看并调整TCP连接队列长度</div>
+                <div className="tut-code-caption"># 查看并调整TCP连接队列长度</div>
               </div>
               {/* 注意事项 alert */}
-              <div className="flex items-start" style={{ marginTop: 12, gap: 8, padding: '8px 12px', background: 'var(--trae-status-warning-surface-l1)', borderLeft: '3px solid var(--trae-status-warning-default)', borderRadius: '0 var(--trae-radius-4) var(--trae-radius-4) 0' }}>
-                <Info size={14} className="mt-px shrink-0" style={{ color: 'var(--trae-status-warning-default)' }} />
-                <span style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>修改内核参数需谨慎，建议先在测试环境验证</span>
+              <div className="tut-alert">
+                <Info size={14} className="tut-alert-icon" />
+                <span className="tut-alert-text">修改内核参数需谨慎，建议先在测试环境验证</span>
               </div>
               {/* 按钮组 */}
-              <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 14 }}>
-                <button type="button" data-dom-id="btn-prev-chapter" aria-label="上一章" onClick={handlePrev} disabled={isFirst} className="btn-press inline-flex items-center gap-1.5 transition-colors" style={{ height: 30, padding: '0 12px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-default)', background: 'transparent', border: '1px solid var(--trae-border-neutral-l2)', borderRadius: 'var(--trae-radius-6)', ...(isFirst ? { opacity: 0.4, cursor: 'not-allowed' } : { cursor: 'pointer' }) }}>
+              <div className="tut-btn-group">
+                <button type="button" data-dom-id="btn-prev-chapter" aria-label="上一章" onClick={handlePrev} disabled={isFirst} className="tut-chapter-btn tut-chapter-btn--prev tut-btn-press">
                   <ArrowLeft size={13} style={{ color: 'currentColor' }} />
                   上一章
                 </button>
-                <button type="button" data-dom-id="btn-complete-chapter" aria-label="标记完成" onClick={handleComplete} className="btn-press inline-flex cursor-pointer items-center gap-1.5 transition-transform" style={{ height: 30, padding: '0 14px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-special-white)', background: 'var(--trae-bg-brand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)' }}>
+                <button type="button" data-dom-id="btn-complete-chapter" aria-label="标记完成" onClick={handleComplete} className="tut-chapter-btn tut-chapter-btn--complete tut-btn-press">
                   <Check size={13} style={{ color: 'var(--trae-special-white)' }} />
                   标记完成
                 </button>
-                <button type="button" data-dom-id="btn-next-chapter" aria-label="下一章" onClick={handleNext} disabled={isLast} className="btn-press inline-flex items-center gap-1.5 transition-colors" style={{ height: 30, padding: '0 12px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-brand)', background: 'transparent', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-6)', ...(isLast ? { opacity: 0.4, cursor: 'not-allowed' } : { cursor: 'pointer' }) }}>
+                <button type="button" data-dom-id="btn-next-chapter" aria-label="下一章" onClick={handleNext} disabled={isLast} className="tut-chapter-btn tut-chapter-btn--next tut-btn-press">
                   下一章
                   <ArrowRight size={13} style={{ color: 'currentColor' }} />
                 </button>
@@ -282,42 +456,42 @@ export function TutorialDetailPage() {
             </article>
 
             {/* 【实践练习卡片】 */}
-            <article className="tutorial-fade-in" style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16, animationDelay: '0.05s' }}>
-              <div className="flex items-center gap-2">
-                <Terminal size={15} style={{ color: 'var(--trae-text-brand)' }} />
-                <h2 style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)' }}>动手实践</h2>
+            <article className="tut-card tut-fade-in tut-fade-in--delay-1">
+              <div className="tut-card-title-row">
+                <Terminal size={15} className="tut-card-icon--brand" />
+                <h2 className="tut-card-title">动手实践</h2>
               </div>
-              <p style={{ marginTop: 8, fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-secondary)' }}>在沙箱环境中调整nginx内核参数，观察P99延迟变化</p>
-              <pre style={{ marginTop: 10, background: 'var(--trae-bg-base-default)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-6)', padding: 12, fontFamily: 'var(--trae-font-family-mono)', fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 1.7, overflowX: 'auto' }}>
+              <p className="tut-practice-desc">在沙箱环境中调整nginx内核参数，观察P99延迟变化</p>
+              <pre className="tut-code-block" style={{ marginTop: 10 }}>
                 {PRACTICE_LINES.map((line, i) => (
                   <span key={i} style={{ color: line.color, display: 'block' }}>{line.text}</span>
                 ))}
               </pre>
-              <div style={{ marginTop: 12 }}>
-                <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} className="btn-press inline-flex cursor-pointer items-center gap-1.5 transition-colors" style={{ height: 30, padding: '0 14px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-brand)', background: 'transparent', border: '1px solid var(--trae-border-brand)', borderRadius: 'var(--trae-radius-6)' }}>
+              <div className="tut-practice-btn-row">
+                <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} disabled={sandboxRunning} className="tut-practice-btn tut-btn-press">
                   <Terminal size={13} style={{ color: 'currentColor' }} />
-                  打开沙箱练习
+                  {sandboxRunning ? '沙箱执行中...' : '打开沙箱练习'}
                 </button>
               </div>
             </article>
 
             {/* 【知识检查卡片】 */}
-            <article className="tutorial-fade-in" style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 16, animationDelay: '0.1s' }}>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} style={{ color: 'var(--trae-text-brand)' }} />
-                <h2 style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)' }}>知识检查</h2>
+            <article className="tut-card tut-fade-in tut-fade-in--delay-2">
+              <div className="tut-card-title-row">
+                <CheckCircle2 size={15} className="tut-card-icon--brand" />
+                <h2 className="tut-card-title">知识检查</h2>
               </div>
               {QUIZ_QUESTIONS.map((q) => (
-                <div key={q.id} style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)', marginBottom: 6 }}>
-                    <span style={{ color: 'var(--trae-text-brand)', fontWeight: 'var(--trae-font-weight-medium)' }}>Q{q.id.slice(1)}.</span> {q.question}
+                <div key={q.id} className="tut-quiz-question">
+                  <div className="tut-quiz-question-text">
+                    <span className="tut-quiz-question-num">Q{q.id.slice(1)}.</span> {q.question}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div className="tut-quiz-options">
                     {q.options.map((opt) => {
                       const isSelected = quizAnswers[q.id] === opt.key
                       const isCorrectSelected = !!opt.correct && isSelected
                       return (
-                        <label key={opt.key} className="flex cursor-pointer items-center gap-2" style={{ padding: '6px 10px', border: `1px solid ${isCorrectSelected ? 'var(--trae-status-success-default)' : 'var(--trae-border-neutral-l1)'}`, borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', background: isCorrectSelected ? 'var(--trae-status-success-surface-l1)' : 'transparent', color: isCorrectSelected ? 'var(--trae-status-success-default)' : 'var(--trae-text-secondary)', fontWeight: isCorrectSelected ? 'var(--trae-font-weight-medium)' : undefined }}>
+                        <label key={opt.key} className={`tut-quiz-option${isCorrectSelected ? ' tut-quiz-option--correct' : ''}`}>
                           <input type="radio" name={q.id} checked={isSelected} onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt.key }))} style={{ accentColor: 'var(--trae-bg-brand)' }} />
                           {opt.key}. {opt.label}{isCorrectSelected ? ' ✓' : ''}
                         </label>
@@ -326,18 +500,18 @@ export function TutorialDetailPage() {
                   </div>
                 </div>
               ))}
-              <div style={{ marginTop: 14 }}>
-                <button type="button" data-dom-id="btn-submit-quiz" aria-label="提交答案" onClick={handleSubmitQuiz} className="btn-press inline-flex cursor-pointer items-center gap-1.5 transition-transform" style={{ height: 30, padding: '0 16px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-special-white)', background: 'var(--trae-bg-brand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)' }}>
+              <div className="tut-quiz-submit-row">
+                <button type="button" data-dom-id="btn-submit-quiz" aria-label="提交答案" onClick={handleSubmitQuiz} className="tut-quiz-submit-btn tut-btn-press">
                   提交答案
                 </button>
                 {quizResult && (
-                  <div role="status" aria-live="polite" className="flex items-center gap-2" style={{ marginTop: 10, padding: '8px 12px', borderRadius: 'var(--trae-radius-4)', background: quizResult.passed ? 'var(--trae-status-success-surface-l1)' : 'var(--trae-status-warning-surface-l1)', borderLeft: `3px solid ${quizResult.passed ? 'var(--trae-status-success-default)' : 'var(--trae-status-warning-default)'}` }}>
+                  <div role="status" aria-live="polite" className={`tut-quiz-result tut-quiz-result--${quizResult.passed ? 'passed' : 'failed'}`}>
                     {quizResult.passed ? (
                       <CheckCircle2 size={14} style={{ color: 'var(--trae-status-success-default)' }} />
                     ) : (
                       <Info size={14} style={{ color: 'var(--trae-status-warning-default)' }} />
                     )}
-                    <span style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}>
+                    <span className="tut-quiz-result-text">
                       {quizResult.passed
                         ? `🎉 全部正确！答题情况：${quizResult.correct}/${quizResult.total}`
                         : `答题情况：${quizResult.correct}/${quizResult.total} 正确，请回顾章节内容后重试`}
@@ -350,26 +524,26 @@ export function TutorialDetailPage() {
           </div>
 
           {/* 右栏：侧边栏 280px */}
-          <aside className="flex w-full shrink-0 flex-col lg:w-[280px]" style={{ gap: 14 }}>
+          <aside className="tut-detail-right">
 
             {/* 【课程目录卡片】 */}
-            <div style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 14 }}>
-              <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
-                <List size={14} style={{ color: 'var(--trae-text-secondary)' }} />
-                <h2 style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)' }}>课程目录</h2>
+            <div className="tut-card" style={{ padding: 14 }}>
+              <div className="tut-card-title-row" style={{ marginBottom: 10 }}>
+                <List size={14} className="tut-card-icon--secondary" />
+                <h2 className="tut-card-title">课程目录</h2>
               </div>
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <ul className="tut-catalog-list">
                 {CHAPTERS.map((ch, i) => {
                   const status = getChapterStatus(i, activeChapter, completedChapters)
                   const isActive = i === activeChapter
                   return (
-                    <li key={ch.id} data-dom-id={`goto-chapter-${ch.id}`} onClick={() => handleGotoChapter(i)} className="flex cursor-pointer items-center gap-2" style={{ padding: '7px 8px', borderRadius: 'var(--trae-radius-4)', background: isActive ? 'var(--trae-bg-brand-popup)' : 'transparent' }}>
-                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: isActive ? 'var(--trae-text-brand)' : 'var(--trae-text-tertiary)', width: 14, flexShrink: 0, fontWeight: isActive ? 'var(--trae-font-weight-medium)' : undefined }}>{ch.index}</span>
-                      {status === 'completed' && <Check size={13} className="shrink-0" style={{ color: 'var(--trae-status-success-default)' }} />}
-                      {status === 'in-progress' && <span className="inline-block shrink-0" style={{ width: 8, height: 8, borderRadius: 'var(--trae-radius-full)', background: 'var(--trae-bg-brand)' }} />}
-                      {status === 'pending' && <span className="inline-block shrink-0" style={{ width: 13, height: 13, borderRadius: 'var(--trae-radius-full)', border: '1.5px solid var(--trae-border-neutral-l3)' }} />}
-                      <span className="flex-1 truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', color: isActive ? 'var(--trae-text-brand)' : status === 'pending' ? 'var(--trae-text-tertiary)' : 'var(--trae-text-secondary)', fontWeight: isActive ? 'var(--trae-font-weight-medium)' : undefined }}>{ch.title}</span>
-                      <span className="shrink-0" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: isActive ? 'var(--trae-text-brand)' : 'var(--trae-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>{ch.duration}</span>
+                    <li key={ch.id} data-dom-id={`goto-chapter-${ch.id}`} onClick={() => handleGotoChapter(i)} className={`tut-catalog-row${isActive ? ' tut-catalog-row--current' : ''}`}>
+                      <span className={`tut-catalog-index${isActive ? ' tut-catalog-index--current' : ''}`}>{ch.index}</span>
+                      {status === 'completed' && <Check size={13} style={{ color: 'var(--trae-status-success-default)', flexShrink: 0 }} />}
+                      {status === 'in-progress' && <span className="tut-catalog-dot--current" />}
+                      {status === 'pending' && <span className="tut-catalog-circle--pending" />}
+                      <span className={`tut-catalog-title${isActive ? ' tut-catalog-title--current' : status === 'pending' ? ' tut-catalog-title--pending' : ''}`}>{ch.title}</span>
+                      <span className={`tut-catalog-duration${isActive ? ' tut-catalog-duration--current' : ''}`}>{ch.duration}</span>
                     </li>
                   )
                 })}
@@ -377,42 +551,42 @@ export function TutorialDetailPage() {
             </div>
 
             {/* 【讲师信息卡片】 */}
-            <div style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 14 }}>
-              <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-                <UserCircle size={14} style={{ color: 'var(--trae-text-secondary)' }} />
-                <h2 style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)' }}>讲师</h2>
+            <div className="tut-card" style={{ padding: 14 }}>
+              <div className="tut-card-title-row" style={{ marginBottom: 12 }}>
+                <UserCircle size={14} className="tut-card-icon--secondary" />
+                <h2 className="tut-card-title">讲师</h2>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex shrink-0 items-center justify-center" style={{ width: 40, height: 40, borderRadius: 'var(--trae-radius-full)', background: 'var(--trae-bg-brand)', color: 'var(--trae-special-white)', fontSize: 'var(--trae-body-md-font-size)', fontWeight: 'var(--trae-font-weight-strong)' }}>张</div>
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-text-default)' }}>张工</span>
-                  <span className="truncate" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>资深SRE工程师</span>
+              <div className="tut-instructor-info">
+                <div className="tut-instructor-avatar">张</div>
+                <div className="tut-instructor-meta">
+                  <span className="tut-instructor-name">张工</span>
+                  <span className="tut-instructor-role">资深SRE工程师</span>
                 </div>
               </div>
-              <p style={{ margin: '10px 0 0', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: 'var(--trae-text-secondary)' }}>10年Linux运维经验</p>
-              <div className="flex flex-wrap" style={{ gap: 6, marginTop: 10 }}>
+              <p className="tut-instructor-bio">10年Linux运维经验</p>
+              <div className="tut-instructor-tags">
                 {INSTRUCTOR_TAGS.map((tag) => (
-                  <span key={tag} className="inline-flex items-center" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: 'var(--trae-bg-overlay-l2)', color: 'var(--trae-text-secondary)', border: '1px solid var(--trae-border-neutral-l1)' }}>{tag}</span>
+                  <span key={tag} className="tut-instructor-tag">{tag}</span>
                 ))}
               </div>
             </div>
 
             {/* 【相关推荐卡片】 */}
-            <div style={{ background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', padding: 14 }}>
-              <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
-                <Star size={14} style={{ color: 'var(--trae-text-secondary)' }} />
-                <h2 style={{ margin: 0, fontSize: 'var(--trae-heading-xs-font-size)', lineHeight: 'var(--trae-heading-xs-line-height)', fontWeight: 'var(--trae-heading-xs-font-weight)', color: 'var(--trae-text-default)' }}>相关课程</h2>
+            <div className="tut-card" style={{ padding: 14 }}>
+              <div className="tut-card-title-row" style={{ marginBottom: 10 }}>
+                <Star size={14} className="tut-card-icon--secondary" />
+                <h2 className="tut-card-title">相关课程</h2>
               </div>
-              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <ul className="tut-related-list">
                 {RELATED_COURSES.map((course, i) => (
-                  <li key={course.id} data-dom-id={`goto-related-course-${i + 1}`} onClick={() => handleGotoRelated(course.id)} className="cursor-pointer" style={{ padding: '7px 8px', borderRadius: 'var(--trae-radius-4)' }}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate" style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-default)' }}>{course.title}</span>
-                      <ChevronRight size={13} className="shrink-0" style={{ color: 'var(--trae-text-tertiary)' }} />
+                  <li key={course.id} data-dom-id={`goto-related-course-${i + 1}`} onClick={() => handleGotoRelated(course.id)} className="tut-related-item">
+                    <div className="tut-related-title-row">
+                      <span className="tut-related-title">{course.title}</span>
+                      <ChevronRight size={13} style={{ color: 'var(--trae-text-tertiary)', flexShrink: 0 }} />
                     </div>
-                    <div className="flex items-center gap-2" style={{ marginTop: 4 }}>
-                      <span className="inline-flex items-center" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: course.level === '进阶' ? 'var(--trae-bg-brand-popup)' : 'var(--trae-bg-overlay-l2)', color: course.level === '进阶' ? 'var(--trae-text-brand)' : 'var(--trae-text-secondary)', ...(course.level === '进阶' ? {} : { border: '1px solid var(--trae-border-neutral-l1)' }) }}>{course.level}</span>
-                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-tertiary)' }}>{course.duration}</span>
+                    <div className="tut-related-meta">
+                      <span className={`tut-related-level-badge ${course.level === '进阶' ? 'tut-related-level-badge--brand' : 'tut-related-level-badge--neutral'}`}>{course.level}</span>
+                      <span className="tut-related-duration">{course.duration}</span>
                     </div>
                   </li>
                 ))}
@@ -424,43 +598,97 @@ export function TutorialDetailPage() {
       </div>
 
       {/* ====== 4. 底部学习统计栏（sticky 满宽） ====== */}
-      <footer className="sticky bottom-0" style={{ background: 'var(--trae-bg-base-secondary)', borderTop: '1px solid var(--trae-border-neutral-l1)', padding: '12px 24px' }}>
-        <div className="mx-auto flex flex-wrap items-center gap-4" style={{ maxWidth: '100%' }}>
+      <footer className="tut-detail-footer">
+        <div className="tut-footer-inner">
           {/* 左：已学习时长 */}
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="tut-footer-time">
             <Clock size={14} style={{ color: 'var(--trae-text-secondary)' }} />
-            <span style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-secondary)' }}>
-              已学习 <span style={{ color: 'var(--trae-text-default)', fontWeight: 'var(--trae-font-weight-medium)', fontVariantNumeric: 'tabular-nums' }}>1h38min</span> / 总时长 2h30min
+            <span>
+              已学习 <span className="tut-footer-time-value">1h38min</span> / 总时长 2h30min
             </span>
           </div>
           {/* 中：进度条 */}
-          <div className="flex min-w-[120px] flex-1 items-center gap-2">
-            <div style={{ flex: 1, height: 6, background: 'var(--trae-bg-overlay-l3)', borderRadius: 'var(--trae-radius-full)', overflow: 'hidden' }}>
-              <div style={{ width: '65%', height: '100%', background: 'var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-full)' }} />
+          <div className="tut-footer-progress">
+            <div className="tut-footer-progress-bar">
+              <div className="tut-footer-progress-fill" style={{ width: '65%' }} />
             </div>
-            <span className="shrink-0" style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-brand)', fontWeight: 'var(--trae-font-weight-medium)', fontVariantNumeric: 'tabular-nums' }}>65%</span>
+            <span className="tut-footer-progress-pct">65%</span>
           </div>
           {/* 右：继续学习按钮 */}
-          <button type="button" data-dom-id="btn-continue-learning" aria-label="继续学习" onClick={handleContinueLearning} className="btn-press inline-flex shrink-0 cursor-pointer items-center gap-1.5 transition-transform" style={{ height: 32, padding: '0 16px', fontSize: 'var(--trae-body-sm-font-size)', fontWeight: 'var(--trae-font-weight-medium)', color: 'var(--trae-special-white)', background: 'var(--trae-bg-brand)', border: '1px solid var(--trae-bg-brand)', borderRadius: 'var(--trae-radius-6)' }}>
+          <button type="button" data-dom-id="btn-continue-learning" aria-label="继续学习" onClick={handleContinueLearning} className="tut-footer-continue-btn tut-btn-press">
             继续学习
             <ArrowRight size={13} style={{ color: 'var(--trae-special-white)' }} />
           </button>
         </div>
       </footer>
 
-      {/* 动效：仅含 @keyframes 与 reduced-motion 降级，无 class 定义 */}
-      <style>{`
-        @keyframes tutorialFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .tutorial-fade-in { animation: tutorialFadeIn 0.4s cubic-bezier(0.3, 0, 0, 1); }
-        @keyframes chapterPing { 0% { transform: scale(1); opacity: 0.4; } 75%, 100% { transform: scale(2); opacity: 0; } }
-        .chapter-ping { animation: chapterPing 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; }
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.96); }
-        @media (prefers-reduced-motion: reduce) {
-          .tutorial-fade-in, .chapter-ping { animation: none !important; }
-          .btn-press:active { transform: none !important; }
-        }
-      `}</style>
+          {/* 沙箱执行结果 Modal（v1.0 P0 接入 sandboxExecute IPC） */}
+          <Modal
+            title="沙箱执行结果"
+            open={sandboxModalOpen}
+            onOk={() => setSandboxModalOpen(false)}
+            onCancel={() => setSandboxModalOpen(false)}
+            okText="关闭"
+            cancelButtonProps={{ style: { display: 'none' } }}
+            width={680}
+          >
+            {sandboxResult && (
+              <div>
+                <div style={{ marginBottom: 12, fontSize: 13 }}>
+                  <strong>退出码：</strong>
+                  <span style={{
+                    color: sandboxResult.exitCode === 0
+                      ? 'var(--trae-status-success-default)'
+                      : 'var(--trae-status-warning-default)',
+                    fontWeight: 600,
+                    marginLeft: 6,
+                  }}>
+                    {sandboxResult.exitCode}
+                  </span>
+                </div>
+                {sandboxResult.stdout && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--trae-text-secondary)', marginBottom: 4 }}>stdout：</div>
+                    <pre style={{
+                      background: 'var(--trae-bg-overlay-l3)',
+                      padding: 10,
+                      borderRadius: 4,
+                      fontSize: 12,
+                      maxHeight: 200,
+                      overflow: 'auto',
+                      color: 'var(--trae-text-default)',
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}>
+                      {sandboxResult.stdout}
+                    </pre>
+                  </div>
+                )}
+                {sandboxResult.stderr && (
+                  <div>
+                    <div style={{ fontSize: 12, color: 'var(--trae-text-secondary)', marginBottom: 4 }}>stderr：</div>
+                    <pre style={{
+                      background: 'var(--trae-bg-overlay-l3)',
+                      padding: 10,
+                      borderRadius: 4,
+                      fontSize: 12,
+                      maxHeight: 150,
+                      overflow: 'auto',
+                      color: 'var(--trae-status-warning-default)',
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}>
+                      {sandboxResult.stderr}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </Modal>
+        </>
+      )}
     </main>
   )
 }

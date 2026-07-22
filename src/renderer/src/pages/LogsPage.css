@@ -1,0 +1,485 @@
+/* ============================================================
+   LogsPage.css — 1:1 从设计稿 系统日志.html 提取
+   所有值均为设计稿原始 CSS 值，不经过 Tailwind 转换
+   类名 log- 前缀避免冲突
+   ============================================================ */
+
+/* ===== 动效 ===== */
+.log-btn-press {
+  transition: transform 80ms ease-out;
+}
+
+.log-btn-press:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-animate-pulse {
+    animation: none !important;
+  }
+}
+
+/* ===== 主容器 ===== */
+.log-main {
+  background: var(--trae-bg-base-default);
+  color: var(--trae-text-default);
+}
+
+/* ===== 1. Header (48px) ===== */
+.log-header {
+  padding: 0 var(--trae-spacer-16);
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+  background: var(--trae-bg-base-default);
+  height: 48px;
+}
+
+.log-header-left {
+  gap: var(--trae-spacer-12);
+}
+
+.log-header-title {
+  font-family: var(--trae-font-family-heading);
+  font-weight: var(--trae-font-weight-strong);
+  color: var(--trae-text-default);
+  letter-spacing: -0.01em;
+  line-height: 28px;
+  font-size: 18px;
+  width: 111px;
+}
+
+.log-header-subtitle {
+  font-size: var(--trae-body-xs-font-size);
+  line-height: 1;
+  color: var(--trae-text-tertiary);
+  white-space: nowrap;
+}
+
+.log-header-ai-chip {
+  gap: 4px;
+  height: 18px;
+  padding: 0 8px;
+  font-size: 9px;
+  font-weight: var(--trae-font-weight-medium);
+  color: var(--trae-text-brand);
+  background: var(--trae-bg-brand-popup);
+  border: 1px solid var(--trae-border-brand);
+  border-radius: 3px;
+}
+
+.log-back-btn {
+  gap: var(--trae-spacer-6);
+  height: 32px;
+  padding: 0 var(--trae-spacer-12);
+  font-size: var(--trae-body-sm-font-size);
+  font-weight: var(--trae-font-weight-medium);
+  color: var(--trae-text-default);
+  background: var(--trae-bg-overlay-l2);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  cursor: pointer;
+}
+
+/* ===== 2. Toolbar ===== */
+.log-toolbar {
+  gap: var(--trae-spacer-12);
+  padding: var(--trae-spacer-8) var(--trae-spacer-16);
+  background: var(--trae-bg-base-secondary);
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+}
+
+.log-search {
+  position: relative;
+  width: 300px;
+}
+
+.log-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--trae-icon-tertiary);
+  pointer-events: none;
+}
+
+.log-search-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--trae-spacer-12) 0 32px;
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--trae-text-default);
+  background: var(--trae-bg-base-default);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  outline: none;
+}
+
+.log-search-input:focus {
+  border-color: var(--trae-border-brand);
+}
+
+.log-level-filter {
+  gap: var(--trae-spacer-4);
+}
+
+.log-level-btn {
+  height: 26px;
+  padding: 0 var(--trae-spacer-12);
+  font-size: var(--trae-body-xs-font-size);
+  font-weight: var(--trae-font-weight-default);
+  color: var(--trae-text-secondary);
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-4);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-level-btn.active {
+  color: var(--trae-text-brand);
+  background: var(--trae-bg-brand-popup);
+  border-color: var(--trae-border-brand);
+  font-weight: var(--trae-font-weight-medium);
+}
+
+.log-right-cluster {
+  margin-left: auto;
+  gap: var(--trae-spacer-12);
+}
+
+.log-ai-btn {
+  height: 28px;
+  padding: 0 var(--trae-spacer-12);
+  gap: 6px;
+  font-size: var(--trae-body-xs-font-size);
+  font-weight: var(--trae-font-weight-medium);
+  color: var(--trae-text-brand);
+  background: var(--trae-bg-brand-popup);
+  border: 1px solid var(--trae-border-brand);
+  border-radius: var(--trae-radius-4);
+  cursor: pointer;
+}
+
+.log-autoscroll-label {
+  gap: var(--trae-spacer-8);
+}
+
+.log-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  background: var(--trae-bg-overlay-l3);
+  border-radius: var(--trae-radius-full);
+  transition: background 160ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.log-switch.is-on {
+  background: var(--trae-bg-brand);
+}
+
+.log-switch-thumb {
+  position: absolute;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  background: var(--trae-special-white);
+  border-radius: 50%;
+  transition: transform 160ms cubic-bezier(.2, .8, .2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.log-switch-thumb.is-on {
+  right: 2px;
+  left: auto;
+}
+
+.log-switch-thumb.is-off {
+  left: 2px;
+  right: auto;
+}
+
+.log-autoscroll-text {
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--trae-text-secondary);
+  white-space: nowrap;
+}
+
+.log-icon-btn {
+  width: 28px;
+  height: 28px;
+  color: var(--trae-text-secondary);
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  cursor: pointer;
+}
+
+/* AI 分析按钮（v1.0 P0 接入 llmAnalyze IPC）—— 与 icon-btn 同高，带文字 */
+.log-analyze-btn {
+  height: 28px;
+  padding: 0 var(--trae-spacer-10);
+  gap: var(--trae-spacer-6);
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--trae-text-default);
+  background: var(--trae-status-primary-surface-l1);
+  border: 1px solid var(--trae-status-primary-default);
+  border-radius: var(--trae-radius-6);
+  cursor: pointer;
+}
+
+.log-analyze-btn:hover:not(:disabled) {
+  background: var(--trae-status-primary-surface-l2);
+}
+
+.log-analyze-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== 3. 两栏布局 ===== */
+.log-body {
+  gap: var(--trae-spacer-12);
+  padding: var(--trae-spacer-12);
+}
+
+/* ===== 左：日志源侧边栏 (180px) ===== */
+.log-sidebar {
+  width: 180px;
+  gap: var(--trae-spacer-4);
+  padding: var(--trae-spacer-8);
+  background: var(--trae-bg-base-secondary);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-8);
+}
+
+.log-source-row {
+  height: 32px;
+  padding: 0 var(--trae-spacer-8) 0 var(--trae-spacer-6);
+  gap: var(--trae-spacer-8);
+  border-left: 2px solid transparent;
+  border-radius: var(--trae-radius-4);
+  color: var(--trae-text-secondary);
+  cursor: pointer;
+}
+
+.log-source-row.is-active {
+  border-left: 2px solid var(--trae-border-brand);
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-default);
+}
+
+.log-source-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.log-source-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--trae-body-sm-font-size);
+  font-weight: var(--trae-font-weight-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-source-row.is-active .log-source-label {
+  font-weight: var(--trae-font-weight-medium);
+}
+
+.log-source-label-mono {
+  font-family: var(--trae-font-family-mono);
+}
+
+.log-source-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 16px;
+  padding: 0 var(--trae-spacer-4);
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  background: var(--trae-bg-overlay-l3);
+  border-radius: var(--trae-radius-full);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-source-count.is-active {
+  color: var(--trae-text-brand);
+  background: var(--trae-bg-brand-popup);
+}
+
+.log-source-count.is-alert {
+  color: var(--trae-status-alert-default);
+}
+
+.log-source-divider {
+  height: 1px;
+  margin: 8px 4px;
+  background: var(--trae-border-neutral-l2);
+}
+
+.log-source-section-label {
+  padding: 6px 8px 2px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--trae-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ===== 右：终端式日志查看器 ===== */
+.log-viewer {
+  background: #0F1011;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-8);
+  overflow: hidden;
+}
+
+.log-viewer-role-wrap {
+  background: transparent;
+}
+
+.log-stats-card {
+  position: absolute;
+  z-index: 10;
+  top: 10px;
+  right: 10px;
+  gap: var(--trae-spacer-12);
+  padding: var(--trae-spacer-4) var(--trae-spacer-12);
+  background: rgba(34, 36, 39, 0.85);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--trae-font-family-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-stats-item {
+  /* color set inline by level */
+}
+
+.log-stats-count {
+  color: var(--trae-text-default);
+  font-weight: var(--trae-font-weight-medium);
+}
+
+.log-lines {
+  padding: var(--trae-spacer-16) var(--trae-spacer-16) var(--trae-spacer-24);
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-code-terminal-font-size);
+  line-height: 1.8;
+  scrollbar-width: thin;
+  scrollbar-color: var(--trae-border-neutral-l3) transparent;
+}
+
+.log-empty {
+  color: var(--trae-text-tertiary);
+  font-size: var(--trae-body-sm-font-size);
+  font-family: var(--trae-font-family-default);
+  padding: var(--trae-spacer-16);
+}
+
+.log-row {
+  padding: 1px var(--trae-spacer-8);
+  border-radius: var(--trae-radius-2);
+}
+
+.log-row-timestamp {
+  width: 92px;
+  color: var(--trae-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-row-separator {
+  width: 14px;
+  color: var(--trae-text-tertiary);
+  opacity: 0.4;
+}
+
+.log-level-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 16px;
+  font-size: 10px;
+  font-weight: var(--trae-font-weight-medium);
+  border-radius: var(--trae-radius-2);
+}
+
+.log-level-tag.is-debug {
+  border: 1px solid var(--trae-border-neutral-l1);
+}
+
+.log-row-source {
+  width: 104px;
+  color: var(--trae-text-brand);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-row-message {
+  flex: 1;
+  min-width: 0;
+  color: var(--trae-text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-cursor-block {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--trae-status-primary-default);
+  border-radius: 1px;
+  margin-top: 2px;
+}
+
+/* ===== 4. Status bar (24px) ===== */
+.log-status-bar {
+  height: 24px;
+  padding: 0 var(--trae-spacer-16);
+  background: var(--trae-bg-base-secondary);
+  border-top: 1px solid var(--trae-border-neutral-l1);
+  font-family: var(--trae-font-family-mono);
+  font-size: 11px;
+  color: var(--trae-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-status-left {
+  gap: var(--trae-spacer-6);
+}
+
+.log-status-middle {
+  gap: var(--trae-spacer-6);
+}
+
+.log-status-right {
+  gap: var(--trae-spacer-6);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+}
+
+.log-status-text {
+  white-space: nowrap;
+}
+
+.log-status-text-live {
+  white-space: nowrap;
+  color: var(--trae-status-primary-default);
+}

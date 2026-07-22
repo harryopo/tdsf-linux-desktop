@@ -29,9 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/trae/Select'
+import '../components/terminal/Terminal.css'
+import './Settings.css'
 
 /** Select 触发器统一样式（140px 宽，30px 高） */
-const selectTriggerCls = 'h-[30px] w-[140px] bg-[var(--trae-bg-base-tertiary)] border-[var(--trae-border-neutral-l2)] rounded-[var(--trae-radius-6)]'
+const selectTriggerCls = 'term-settings-select'
 
 export function TerminalSettings() {
   // Card 1: 默认 Shell 配置
@@ -69,7 +71,7 @@ export function TerminalSettings() {
         desc="Shell 环境与终端行为配置"
       />
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="set-panel-content">
         {/* Card 1: 默认 Shell 配置 */}
         <SettingsCard icon={Terminal} title="默认 Shell 配置" tag="shell.defaults">
           <SettingsRow
@@ -96,7 +98,7 @@ export function TerminalSettings() {
               <Input
                 value={shellArgs}
                 onChange={(e) => setShellArgs(e.target.value)}
-                className="h-[30px] w-[140px] font-mono"
+                className="term-settings-input"
               />
             }
           />
@@ -201,7 +203,7 @@ export function TerminalSettings() {
                 type="number"
                 value={scrollback}
                 onChange={(e) => setScrollback(Number(e.target.value))}
-                className="h-[30px] w-[100px] justify-center text-center font-mono"
+                className="term-settings-num"
               />
             }
             isLast
@@ -258,7 +260,7 @@ export function TerminalSettings() {
                 type="number"
                 value={sshHeartbeat}
                 onChange={(e) => setSshHeartbeat(Number(e.target.value))}
-                className="h-[30px] w-[100px] justify-center text-center font-mono"
+                className="term-settings-num"
               />
             }
           />
@@ -270,7 +272,7 @@ export function TerminalSettings() {
                 type="number"
                 value={cmdTimeout}
                 onChange={(e) => setCmdTimeout(Number(e.target.value))}
-                className="h-[30px] w-[100px] justify-center text-center font-mono"
+                className="term-settings-num"
               />
             }
             isLast

@@ -95,10 +95,9 @@ export function ActivityRail({ activeId: activeIdProp, onNavigate }: ActivityRai
 
   return (
     <nav
-      className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] py-2"
+      className="wb-activity-rail"
       aria-label="主导航"
     >
-      {/* 顶部主导航 */}
       {TOP_NAV_ITEMS.map((item) => (
         <NavButton
           key={item.id}
@@ -108,13 +107,10 @@ export function ActivityRail({ activeId: activeIdProp, onNavigate }: ActivityRai
         />
       ))}
 
-      {/* 分隔线 */}
-      <div className="my-1 h-px w-6 bg-[var(--trae-border-neutral-l2)]" />
+      <div className="wb-rail-divider" />
 
-      {/* 底部 flex-1 撑开 */}
-      <div className="flex-1" />
+      <div className="wb-rail-spacer" />
 
-      {/* 底部设置 */}
       {BOTTOM_NAV_ITEMS.map((item) => (
         <NavButton
           key={item.id}
@@ -145,16 +141,11 @@ function NavButton({ item, active, onClick }: NavButtonProps) {
       aria-current={active ? 'page' : undefined}
       data-dom-id={item.domId}
       className={cn(
-        'wb-nav-btn relative flex size-9 items-center justify-center rounded-[var(--trae-radius-4)] transition-colors',
-        active
-          ? 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-icon-brand)]'
-          : 'text-[var(--trae-icon-secondary)] hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]',
+        'wb-nav-btn',
+        active && 'is-active',
       )}
     >
-      {/* 激活态左侧蓝色指示条（3px × 20px） */}
-      {active && (
-        <span className="absolute -left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-[var(--trae-bg-brand)]" />
-      )}
+      {active && <span className="wb-nav-indicator" />}
       <Icon className="size-[18px]" />
     </button>
   )

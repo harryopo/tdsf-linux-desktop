@@ -21,26 +21,18 @@ export interface SettingsRowProps {
 
 export function SettingsRow({ label, desc, control, isLast }: SettingsRowProps) {
   return (
-    <div
-      className={
-        'flex items-center justify-between gap-4 py-3 ' +
-        (isLast ? 'pb-0.5' : 'border-b border-[var(--trae-border-neutral-l1)]')
-      }
-    >
-      <div className="min-w-0 flex-1">
-        <div
-          className="font-medium text-[var(--trae-text-default)]"
-          style={{ fontSize: '11px', lineHeight: '18px' }}
-        >
+    <div className={isLast ? 'set-row set-row--last' : 'set-row'}>
+      <div className="set-row__text">
+        <div className="set-row__label">
           {label}
         </div>
         {desc != null && desc !== '' && (
-          <div className="mt-0.5 text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+          <div className="set-row__desc">
             {desc}
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-center">{control}</div>
+      <div className="set-row__control">{control}</div>
     </div>
   )
 }

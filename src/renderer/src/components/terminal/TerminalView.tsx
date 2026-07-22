@@ -25,6 +25,7 @@ import { isElectronAPIAvailable } from '../../utils/electron-api'
 import { useTranslateStore } from '../../stores/translate-store'
 import { SelectionManager } from './selection-manager'
 import './TerminalView.css'
+import './Terminal.css'
 
 /** TerminalView 组件 Props */
 interface TerminalViewProps {

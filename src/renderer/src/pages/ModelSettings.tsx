@@ -49,6 +49,7 @@ import { Slider } from '@/components/trae/Slider'
 import { Switch } from '@/components/trae/Switch'
 import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import './Settings.css'
 
 /** 可选模型卡片 */
 interface ModelOption {
@@ -492,22 +493,22 @@ export function ModelSettings() {
         desc="AI模型管理与Token用量统计"
       />
 
-      <div className="flex flex-col gap-5 p-6">
+      <div className="set-panel-content">
         {/* Section 1: KPI 统计行 */}
         <ModelKpiBar />
 
         {/* Section 2: 模型配置 */}
         <SettingsCard icon={Cpu} title="模型配置" tag="model.config" className="p-5">
           {/* 当前模型展示行 */}
-          <div className="mb-4 flex items-center justify-between gap-4 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l1)] p-3">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="text-[18px] font-semibold text-[var(--trae-text-default)]">
+          <div className="set-model-current">
+            <div className="set-model-current__info">
+              <span className="set-model-current__name">
                 {selectedModel}
               </span>
-              <span className="inline-flex h-[18px] items-center rounded-[var(--trae-radius-2)] bg-[var(--trae-bg-overlay-l4)] px-1.5 text-[10px] font-medium text-[var(--trae-text-default)]">
+              <span className="set-model-current__ver">
                 v1.0
               </span>
-              <span className="inline-flex items-center gap-1 text-[10px] text-[var(--trae-status-success-default)]">
+              <span className="set-model-current__status">
                 <CheckCircle2 className="size-3.5" />
                 已连接
               </span>
@@ -517,7 +518,7 @@ export function ModelSettings() {
               onClick={handleSwitchModel}
               disabled={loadingProviders}
               aria-label="切换模型"
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[10px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
+              className="set-model-switch-btn btn-press"
             >
               <span>切换模型</span>
               <ChevronDown className="size-3.5" />
@@ -525,7 +526,7 @@ export function ModelSettings() {
           </div>
 
           {/* 可选模型列表 */}
-          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="set-model-grid">
             {modelOptions.map((m) => {
               const isSelected = m.name === selectedModel
               return (
@@ -534,28 +535,26 @@ export function ModelSettings() {
                   type="button"
                   onClick={() => setSelectedModel(m.name)}
                   className={
-                    'rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l1)] p-3 text-left transition-colors ' +
-                    (isSelected
-                      ? 'border border-[var(--trae-bg-brand)]'
-                      : 'border border-[var(--trae-border-neutral-l1)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l2)]')
+                    'set-model-card btn-press' +
+                    (isSelected ? ' is-selected' : '')
                   }
                 >
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-[var(--trae-text-default)]">
+                  <div className="set-model-card__head">
+                    <span className="set-model-card__name">
                       {m.name}
                     </span>
                     <span
                       className={
-                        'inline-flex h-[18px] items-center rounded-[var(--trae-radius-2)] px-1.5 text-[10px] ' +
+                        'set-model-card__tag ' +
                         (m.tagType === 'brand'
-                          ? 'bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                          : 'border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-text-secondary)]')
+                          ? 'set-model-card__tag--brand'
+                          : 'set-model-card__tag--default')
                       }
                     >
                       {m.tag}
                     </span>
                   </div>
-                  <p className="text-[10px] text-[var(--trae-text-secondary)]">
+                  <p className="set-model-card__desc">
                     {m.desc}
                   </p>
                 </button>
@@ -564,19 +563,19 @@ export function ModelSettings() {
           </div>
 
           {/* 参数配置区 */}
-          <div className="flex flex-col gap-4">
+          <div className="set-model-params">
             {/* a. 温度参数 */}
-            <div className="flex flex-col gap-2 border-t border-[var(--trae-border-neutral-l1)] py-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="text-[11px] font-medium text-[var(--trae-text-default)]">
+            <div className="set-model-param">
+              <div className="set-model-param__head">
+                <div className="set-model-param__head-left">
+                  <span className="set-model-param__label">
                     温度参数 Temperature
                   </span>
-                  <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+                  <span className="set-model-param__range">
                     0.0 – 1.0
                   </span>
                 </div>
-                <span className="shrink-0 font-mono text-[11px] font-medium tabular-nums text-[var(--trae-bg-brand)]">
+                <span className="set-model-param__val">
                   {temperature.toFixed(1)}
                 </span>
               </div>
@@ -588,13 +587,13 @@ export function ModelSettings() {
                 onValueChange={(arr) => setTemperature(arr[0] ?? 0)}
                 className="w-full"
               />
-              <div className="flex items-start gap-1.5">
-                <Info className="mt-0.5 size-3.5 shrink-0 text-[var(--trae-bg-brand)]" />
-                <p className="text-[10px] leading-[1.5] text-[var(--trae-text-secondary)]">
+              <div className="set-model-param__info">
+                <Info className="size-3.5" />
+                <p className="set-model-param__info-text">
                   推荐：运维分析场景建议 0.2-0.4，平衡准确性与创造性。过低(0-0.2)回复过于保守，过高(0.6-1.0)可能产生幻觉。
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="set-model-presets">
                 {TEMP_PRESETS.map((p) => {
                   const active = Math.abs(temperature - p.value) < 0.001
                   return (
@@ -603,10 +602,8 @@ export function ModelSettings() {
                       type="button"
                       onClick={() => setTemperature(p.value)}
                       className={
-                        'inline-flex h-7 items-center rounded-[var(--trae-radius-6)] px-3 text-[10px] font-medium transition-colors active:scale-[0.97] ' +
-                        (active
-                          ? 'border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)]'
-                          : 'border border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)]')
+                        'set-model-preset btn-press' +
+                        (active ? ' is-active' : '')
                       }
                     >
                       {p.label} {p.value}
@@ -617,13 +614,13 @@ export function ModelSettings() {
             </div>
 
             {/* b. 思考强度 */}
-            <div className="flex flex-col gap-2 border-t border-[var(--trae-border-neutral-l1)] py-3">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[11px] font-medium text-[var(--trae-text-default)]">
+            <div className="set-model-param">
+              <div className="set-model-param__head">
+                <span className="set-model-param__label">
                   思考强度 Thinking Effort
                 </span>
               </div>
-              <div className="inline-flex rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l2)] p-0.5">
+              <div className="set-model-segment">
                 {THINKING_LEVELS.map((t) => {
                   const active = thinkingLevel === t.value
                   return (
@@ -632,10 +629,8 @@ export function ModelSettings() {
                       type="button"
                       onClick={() => setThinkingLevel(t.value)}
                       className={
-                        'inline-flex h-7 items-center justify-center rounded-[var(--trae-radius-4)] px-4 text-[10px] font-medium ' +
-                        (active
-                          ? 'bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)]'
-                          : 'text-[var(--trae-text-secondary)] transition-colors')
+                        'set-model-segment__btn' +
+                        (active ? ' is-active' : '')
                       }
                     >
                       {t.label}
@@ -643,15 +638,15 @@ export function ModelSettings() {
                   )
                 })}
               </div>
-              <p className="text-[10px] text-[var(--trae-text-tertiary)]">
+              <p className="set-model-param__range">
                 低=快速响应 · 中=平衡 · 高=深度推理（消耗更多token）
               </p>
             </div>
 
             {/* c/d/e. 数字输入组 */}
-            <div className="grid grid-cols-1 gap-4 border-t border-[var(--trae-border-neutral-l1)] py-3 md:grid-cols-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-medium text-[var(--trae-text-secondary)]">
+            <div className="set-model-num-grid">
+              <div className="set-model-num-item">
+                <label className="set-model-num-item__label">
                   最大Token Max Tokens
                 </label>
                 <input
@@ -659,14 +654,14 @@ export function ModelSettings() {
                   value={maxToken}
                   onChange={(e) => setMaxToken(Number(e.target.value))}
                   aria-label="最大Token"
-                  className="h-8 w-full rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 font-mono text-[11px] tabular-nums text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                  className="set-model-num-item__input"
                 />
-                <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+                <span className="set-model-num-item__hint">
                   单次响应最大长度
                 </span>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-medium text-[var(--trae-text-secondary)]">
+              <div className="set-model-num-item">
+                <label className="set-model-num-item__label">
                   上下文窗口 Context Window
                 </label>
                 <input
@@ -674,14 +669,14 @@ export function ModelSettings() {
                   value={contextWindow}
                   onChange={(e) => setContextWindow(Number(e.target.value))}
                   aria-label="上下文窗口"
-                  className="h-8 w-full rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 font-mono text-[11px] tabular-nums text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                  className="set-model-num-item__input"
                 />
-                <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+                <span className="set-model-num-item__hint">
                   对话历史保留长度
                 </span>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-medium text-[var(--trae-text-secondary)]">
+              <div className="set-model-num-item">
+                <label className="set-model-num-item__label">
                   请求超时 Timeout
                 </label>
                 <input
@@ -689,9 +684,9 @@ export function ModelSettings() {
                   value={requestTimeout}
                   onChange={(e) => setRequestTimeout(Number(e.target.value))}
                   aria-label="请求超时"
-                  className="h-8 w-full rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 font-mono text-[11px] tabular-nums text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                  className="set-model-num-item__input"
                 />
-                <span className="text-[10px] text-[var(--trae-text-tertiary)]">秒</span>
+                <span className="set-model-num-item__hint">秒</span>
               </div>
             </div>
           </div>
@@ -700,9 +695,9 @@ export function ModelSettings() {
         {/* Section 3: API 接入与测试 */}
         <SettingsCard icon={KeyRound} title="API接入与测试" tag="api.config" className="p-5">
           {/* API 配置表单 */}
-          <div className="mb-4 flex flex-col gap-3">
-            <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[180px_1fr]">
-              <label className="text-[10px] font-medium text-[var(--trae-text-secondary)]">
+          <div className="set-api-form">
+            <div className="set-api-row">
+              <label className="set-api-row__label">
                 API Endpoint
               </label>
               <input
@@ -710,35 +705,35 @@ export function ModelSettings() {
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
                 aria-label="API Endpoint"
-                className="h-8 w-full rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 font-mono text-[11px] text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                className="set-api-input"
               />
             </div>
-            <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[180px_1fr]">
-              <label className="text-[10px] font-medium text-[var(--trae-text-secondary)]">
+            <div className="set-api-row">
+              <label className="set-api-row__label">
                 API Key
               </label>
-              <div className="flex items-center gap-2">
+              <div className="set-api-key-row">
                 <input
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   aria-label="API Key"
-                  className="h-8 min-w-0 flex-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 font-mono text-[11px] text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                  className="set-api-key-input"
                 />
                 <button
                   type="button"
                   onClick={() => setShowApiKey((v) => !v)}
                   aria-label="显示/隐藏API Key"
-                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] active:scale-[0.97]"
+                  className="set-api-eye-btn btn-press"
                 >
                   {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[180px_1fr]">
-              <label className="text-[10px] font-medium text-[var(--trae-text-secondary)]">
+            <div className="set-api-row">
+              <label className="set-api-row__label">
                 组织ID Organization{' '}
-                <span className="text-[var(--trae-text-tertiary)]">(可选)</span>
+                <span className="set-api-row__label-hint">(可选)</span>
               </label>
               <input
                 type="text"
@@ -746,20 +741,20 @@ export function ModelSettings() {
                 onChange={(e) => setOrganization(e.target.value)}
                 placeholder="输入组织ID（可选）"
                 aria-label="组织ID"
-                className="h-8 w-full rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 text-[11px] text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                className="set-api-input"
               />
             </div>
           </div>
 
           {/* 连接测试区 */}
-          <div className="flex flex-col gap-3 rounded-[var(--trae-radius-6)] border-t border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="set-api-test">
+            <div className="set-api-test__head">
               <button
                 type="button"
                 onClick={handleTestConnection}
                 disabled={isTesting}
                 aria-label="测试连接"
-                className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-4 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-colors active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
+                className="set-api-test__btn btn-press"
               >
                 {isTesting ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -768,7 +763,7 @@ export function ModelSettings() {
                 )}
                 <span>{isTesting ? '测试中...' : '测试连接'}</span>
               </button>
-              <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+              <span className="set-api-test__time">
                 最近测试 {lastTestTime}
               </span>
             </div>
@@ -777,18 +772,18 @@ export function ModelSettings() {
             {testResult !== 'idle' && (
               <div
                 className={
-                  'flex flex-wrap items-center gap-4 rounded-[var(--trae-radius-6)] border p-3 ' +
+                  'set-api-result ' +
                   (testResult === 'success'
-                    ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-bg-base-secondary)]'
-                    : 'border-[var(--trae-status-error-default)] bg-[var(--trae-bg-base-secondary)]')
+                    ? 'set-api-result--success'
+                    : 'set-api-result--error')
                 }
               >
                 <span
                   className={
-                    'inline-flex items-center gap-1.5 text-[11px] font-medium ' +
+                    'set-api-result__status ' +
                     (testResult === 'success'
-                      ? 'text-[var(--trae-status-success-default)]'
-                      : 'text-[var(--trae-status-error-default)]')
+                      ? 'set-api-result__status--success'
+                      : 'set-api-result__status--error')
                   }
                 >
                   <CheckCircle2 className="size-4" />
@@ -796,15 +791,15 @@ export function ModelSettings() {
                 </span>
                 {testResult === 'success' && (
                   <>
-                    <span className="font-mono text-[10px] tabular-nums text-[var(--trae-text-secondary)]">
+                    <span className="set-api-result__meta">
                       响应时间{' '}
-                      <span className="font-mono text-[var(--trae-text-default)]">
+                      <span className="set-api-result__meta-val">
                         {testLatency != null ? `${testLatency}ms` : '--'}
                       </span>
                     </span>
-                    <span className="text-[10px] text-[var(--trae-text-secondary)]">
+                    <span className="set-api-result__meta">
                       模型版本{' '}
-                      <span className="font-mono text-[var(--trae-text-default)]">
+                      <span className="set-api-result__meta-val">
                         {selectedModel}
                       </span>
                     </span>
@@ -812,7 +807,7 @@ export function ModelSettings() {
                       width="100"
                       height="28"
                       viewBox="0 0 100 28"
-                      className="ml-auto"
+                      className="set-api-result__chart"
                       aria-hidden="true"
                     >
                       <polyline
@@ -829,33 +824,30 @@ export function ModelSettings() {
             )}
 
             {/* 测试日志 */}
-            <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] p-3">
-              <div className="mb-2 flex items-center gap-1.5">
-                <TerminalIcon className="size-3 text-[var(--trae-text-tertiary)]" />
-                <span className="text-[10px] font-medium text-[var(--trae-text-tertiary)]">
+            <div className="set-api-logs">
+              <div className="set-api-logs__head">
+                <TerminalIcon className="size-3" />
+                <span className="set-api-logs__head-title">
                   测试日志
                 </span>
               </div>
-              <pre
-                className="m-0 whitespace-pre-wrap font-mono text-[12px] leading-[18px] text-[var(--trae-text-secondary)]"
-                style={{ fontFamily: 'var(--trae-font-family-mono, JetBrains Mono, monospace)' }}
-              >
+              <pre className="set-api-logs__body">
                 {testLogs.length === 0 ? (
-                  <span className="text-[var(--trae-text-tertiary)]">
+                  <span className="set-api-logs__placeholder">
                     点击「测试连接」开始验证 API 配置...
                   </span>
                 ) : (
                   testLogs.map((line, idx) => (
                     <span key={`${line.time}-${idx}`}>
                       {idx > 0 && '\n'}
-                      <span className="text-[var(--trae-text-tertiary)]">{line.time}</span>{' '}
+                      <span className="set-api-logs__time">{line.time}</span>{' '}
                       <span
                         className={
                           line.tone === 'success'
-                            ? 'text-[var(--trae-status-success-default)]'
+                            ? 'set-api-logs__line--success'
                             : line.tone === 'error'
-                              ? 'text-[var(--trae-status-error-default)]'
-                              : 'text-[var(--trae-text-secondary)]'
+                              ? 'set-api-logs__line--error'
+                              : ''
                         }
                       >
                         {line.text}
@@ -876,23 +868,23 @@ export function ModelSettings() {
         {/* Section 5: 功能调用统计 */}
         <SettingsCard icon={Layers} title="功能调用统计" tag="usage.tools" className="p-5">
           {/* 功能调用排行（水平条形图） */}
-          <div className="mb-4 flex flex-col gap-3">
+          <div className="set-tool-stats">
             {TOOL_CALL_STATS.map((s) => (
-              <div key={s.name} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-[11px] text-[var(--trae-text-default)]">
+              <div key={s.name} className="set-tool-row">
+                <span className="set-tool-row__name">
                   {s.name}
                 </span>
-                <div className="h-5 flex-1 overflow-hidden rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-overlay-l1)]">
+                <div className="set-tool-row__bar">
                   <div
-                    className="flex h-full items-center justify-end rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] pr-2"
+                    className="set-tool-row__fill"
                     style={{ width: `${s.percent}%` }}
                   >
-                    <span className="font-mono text-[10px] font-medium tabular-nums text-[var(--trae-text-onbrand)]">
+                    <span className="set-tool-row__count">
                       {s.count}
                     </span>
                   </div>
                 </div>
-                <span className="w-10 shrink-0 text-right font-mono text-[10px] tabular-nums text-[var(--trae-text-secondary)]">
+                <span className="set-tool-row__percent">
                   {s.percent}%
                 </span>
               </div>
@@ -900,23 +892,23 @@ export function ModelSettings() {
           </div>
 
           {/* 底部统计行 */}
-          <div className="flex flex-wrap items-center gap-6 rounded-[var(--trae-radius-6)] border-t border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] p-3">
-            <span className="text-[10px] text-[var(--trae-text-secondary)]">
+          <div className="set-tool-summary">
+            <span className="set-tool-summary__item">
               总调用{' '}
-              <span className="font-mono font-semibold tabular-nums text-[var(--trae-text-default)]">
+              <span className="set-tool-summary__val set-tool-summary__val--default">
                 254
               </span>{' '}
               次
             </span>
-            <span className="text-[10px] text-[var(--trae-text-secondary)]">
+            <span className="set-tool-summary__item">
               成功率{' '}
-              <span className="font-mono font-semibold tabular-nums text-[var(--trae-status-success-default)]">
+              <span className="set-tool-summary__val set-tool-summary__val--success">
                 94.3%
               </span>
             </span>
-            <span className="text-[10px] text-[var(--trae-text-secondary)]">
+            <span className="set-tool-summary__item">
               平均耗时{' '}
-              <span className="font-mono font-semibold tabular-nums text-[var(--trae-text-default)]">
+              <span className="set-tool-summary__val set-tool-summary__val--default">
                 2.1s
               </span>
             </span>
@@ -926,14 +918,14 @@ export function ModelSettings() {
         {/* Section 6: 对话记录 */}
         <SettingsCard icon={ListOrdered} title="对话记录" tag="conversation.history" className="p-5">
           {/* 工具栏 */}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--trae-text-tertiary)]" />
+          <div className="set-conv-toolbar">
+            <div className="set-conv-search">
+              <Search className="size-3.5" />
               <input
                 type="text"
                 placeholder="搜索对话..."
                 aria-label="搜索对话"
-                className="h-8 w-44 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] py-0 pl-8 pr-3 text-[10px] text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                className="set-conv-search__input"
               />
             </div>
             <button
@@ -941,7 +933,7 @@ export function ModelSettings() {
               onClick={handleCycleStatusFilter}
               aria-label="切换状态筛选"
               title="点击切换状态筛选"
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[10px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] active:scale-[0.97]"
+              className="set-conv-filter-btn btn-press"
             >
               <span>{statusFilter}</span>
               <ChevronDown className="size-3.5" />
@@ -949,26 +941,26 @@ export function ModelSettings() {
           </div>
 
           {/* 表格 */}
-          <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
-            <table className="w-full border-collapse text-[11px]">
+          <div className="set-conv-table-wrap">
+            <table className="set-conv-table">
               <thead>
-                <tr className="border-b border-[var(--trae-border-neutral-l1)]">
-                  <th className="px-2 py-2 text-left text-[10px] font-normal uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                <tr>
+                  <th>
                     时间
                   </th>
-                  <th className="px-2 py-2 text-left text-[10px] font-normal uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                  <th>
                     用户输入
                   </th>
-                  <th className="px-2 py-2 text-left text-[10px] font-normal uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                  <th>
                     AI模型
                   </th>
-                  <th className="px-2 py-2 text-right text-[10px] font-normal uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                  <th className="col-right">
                     输入Token
                   </th>
-                  <th className="px-2 py-2 text-right text-[10px] font-normal uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                  <th className="col-right">
                     输出Token
                   </th>
-                  <th className="px-2 py-2 text-left text-[10px] font-normal uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                  <th>
                     状态
                   </th>
                 </tr>
@@ -976,49 +968,46 @@ export function ModelSettings() {
               <tbody>
                 {filteredConversations.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-2 py-6 text-center text-[10px] text-[var(--trae-text-tertiary)]">
+                    <td colSpan={6} className="set-conv-empty">
                       没有匹配 "{statusFilter}" 的记录
                     </td>
                   </tr>
                 ) : (
                   filteredConversations.map((row, idx) => (
-                  <tr
-                    key={`${row.time}-${idx}`}
-                    className="border-b border-[var(--trae-border-neutral-l1)] last:border-0"
-                  >
-                    <td className="px-2 py-2 font-mono tabular-nums text-[var(--trae-text-secondary)]">
+                  <tr key={`${row.time}-${idx}`}>
+                    <td className="col-mono col-secondary">
                       {row.time}
                     </td>
-                    <td className="px-2 py-2 font-medium text-[var(--trae-text-default)]">
+                    <td className="col-default">
                       {row.input}
                     </td>
-                    <td className="px-2 py-2">
+                    <td>
                       <span
                         className={
-                          'inline-flex h-[18px] items-center rounded-[var(--trae-radius-2)] px-1.5 text-[10px] ' +
+                          'set-conv-tag ' +
                           (row.modelTagType === 'brand'
-                            ? 'bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                            : 'bg-[var(--trae-bg-overlay-l4)] font-medium text-[var(--trae-text-default)]')
+                            ? 'set-conv-tag--brand'
+                            : 'set-conv-tag--neutral')
                         }
                       >
                         {row.model}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-right font-mono tabular-nums text-[var(--trae-text-default)]">
+                    <td className="col-mono col-right">
                       {row.inputTokens}
                     </td>
-                    <td className="px-2 py-2 text-right font-mono tabular-nums text-[var(--trae-text-default)]">
+                    <td className="col-mono col-right">
                       {row.outputTokens}
                     </td>
-                    <td className="px-2 py-2">
+                    <td>
                       <span
                         className={
-                          'inline-flex h-[18px] items-center rounded-[var(--trae-radius-2)] px-1.5 text-[10px] ' +
+                          'set-conv-status ' +
                           (row.statusType === 'success'
-                            ? 'bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
+                            ? 'set-conv-status--success'
                             : row.statusType === 'warning'
-                              ? 'bg-[var(--trae-status-warning-surface-l1)] text-[var(--trae-status-warning-default)]'
-                              : 'bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)]')
+                              ? 'set-conv-status--warning'
+                              : 'set-conv-status--danger')
                         }
                       >
                         {row.status}
@@ -1032,22 +1021,22 @@ export function ModelSettings() {
           </div>
 
           {/* 分页栏 */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <span className="font-mono text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+          <div className="set-conv-pagination">
+            <span className="set-conv-pagination__count">
               共 {filteredConversations.length} 条
               {statusFilter !== '全部状态' && (
-                <span className="ml-1 text-[var(--trae-text-secondary)]">
+                <span className="set-conv-pagination__count-hint">
                   (筛选: {statusFilter})
                 </span>
               )}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="set-conv-pages">
               <button
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 aria-label="上一页"
-                className="inline-flex size-7 items-center justify-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                className="set-conv-page-btn btn-press"
               >
                 <ChevronLeft className="size-3.5" />
               </button>
@@ -1058,25 +1047,21 @@ export function ModelSettings() {
                   onClick={() => setCurrentPage(page)}
                   aria-label={`第 ${page} 页`}
                   className={
-                    'inline-flex size-7 items-center justify-center rounded-[var(--trae-radius-4)] text-[10px] tabular-nums transition-colors active:scale-[0.97] ' +
-                    (currentPage === page
-                      ? 'bg-[var(--trae-bg-brand)] font-medium text-[var(--trae-text-onbrand)]'
-                      : 'border border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)]')
+                    'set-conv-page-btn btn-press' +
+                    (currentPage === page ? ' is-active' : '')
                   }
                 >
                   {page}
                 </button>
               ))}
-              <span className="px-1 text-[10px] text-[var(--trae-text-tertiary)]">...</span>
+              <span className="set-conv-page-ellipsis">...</span>
               <button
                 type="button"
                 onClick={() => setCurrentPage(13)}
                 aria-label="第 13 页"
                 className={
-                  'inline-flex size-7 items-center justify-center rounded-[var(--trae-radius-4)] text-[10px] tabular-nums transition-colors active:scale-[0.97] ' +
-                  (currentPage === 13
-                    ? 'bg-[var(--trae-bg-brand)] font-medium text-[var(--trae-text-onbrand)]'
-                    : 'border border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)]')
+                  'set-conv-page-btn btn-press' +
+                  (currentPage === 13 ? ' is-active' : '')
                 }
               >
                 13
@@ -1086,7 +1071,7 @@ export function ModelSettings() {
                 onClick={() => setCurrentPage((p) => Math.min(13, p + 1))}
                 disabled={currentPage === 13}
                 aria-label="下一页"
-                className="inline-flex size-7 items-center justify-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                className="set-conv-page-btn btn-press"
               >
                 <ChevronRight className="size-3.5" />
               </button>
@@ -1097,34 +1082,34 @@ export function ModelSettings() {
         {/* Section 7: 预算与告警 */}
         <SettingsCard icon={AlertCircle} title="预算与告警" tag="budget" className="p-5">
           {/* 月度预算设置 */}
-          <div className="flex flex-col gap-3 border-b border-[var(--trae-border-neutral-l1)] py-3">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <span className="text-[11px] font-medium text-[var(--trae-text-default)]">
+          <div className="set-budget-row">
+            <div className="set-budget-row__head">
+              <span className="set-budget-row__label">
                 月度预算
               </span>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[var(--trae-text-tertiary)]">$</span>
+              <div className="set-budget-input-wrap">
+                <span className="set-budget-input-wrap__prefix">$</span>
                 <input
                   type="number"
                   value={monthlyBudget}
                   step={0.01}
                   onChange={(e) => setMonthlyBudget(Number(e.target.value))}
                   aria-label="月度预算"
-                  className="h-7 w-20 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2 text-right font-mono text-[11px] tabular-nums text-[var(--trae-text-default)] outline-none transition-colors focus:border-[var(--trae-bg-brand)]"
+                  className="set-budget-input"
                 />
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-2 flex-1 rounded-full bg-[var(--trae-bg-overlay-l2)]">
+            <div className="set-budget-bar">
+              <div className="set-budget-bar__track">
                 <div
-                  className="h-full rounded-full bg-[var(--trae-bg-brand)]"
+                  className="set-budget-bar__fill"
                   style={{ width: '34%' }}
                 />
               </div>
-              <span className="whitespace-nowrap font-mono text-[10px] tabular-nums text-[var(--trae-text-secondary)]">
+              <span className="set-budget-meta">
                 已用{' '}
-                <span className="font-medium text-[var(--trae-bg-brand)]">$0.68</span> · 剩余{' '}
-                <span className="font-medium text-[var(--trae-status-success-default)]">
+                <span className="set-budget-meta__used">$0.68</span> · 剩余{' '}
+                <span className="set-budget-meta__remaining">
                   $1.32
                 </span>
               </span>
@@ -1132,14 +1117,14 @@ export function ModelSettings() {
           </div>
 
           {/* 告警阈值设置 */}
-          <div className="flex flex-col gap-3 border-b border-[var(--trae-border-neutral-l1)] py-3">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-[11px] font-medium text-[var(--trae-text-default)]">
+          <div className="set-alert-row">
+            <div className="set-alert-row__head">
+              <span className="set-alert-row__label">
                 告警阈值
               </span>
-              <span className="text-[10px] text-[var(--trae-text-secondary)]">
+              <span className="set-alert-row__meta">
                 当消耗达{' '}
-                <span className="font-mono font-semibold tabular-nums text-[var(--trae-status-alert-default)]">
+                <span className="set-alert-row__meta-val">
                   {alertThreshold}%
                 </span>{' '}
                 时告警
@@ -1153,37 +1138,37 @@ export function ModelSettings() {
               onValueChange={(arr) => setAlertThreshold(arr[0] ?? 0)}
               className="w-full"
             />
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-[10px] text-[var(--trae-text-secondary)]">邮件通知</span>
+            <div className="set-alert-notify">
+              <span className="set-alert-notify__label">邮件通知</span>
               <Switch checked={emailNotify} onCheckedChange={setEmailNotify} />
             </div>
           </div>
 
           {/* 告警历史 */}
-          <div className="pt-3">
-            <span className="text-[10px] font-medium uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+          <div className="set-alert-history">
+            <span className="set-alert-history__head">
               告警历史
             </span>
-            <div className="mt-2 flex flex-col gap-2">
+            <div className="set-alert-history__list">
               {ALERT_HISTORY.map((h, idx) => (
                 <div
                   key={`${h.text}-${idx}`}
-                  className="flex items-center justify-between gap-3 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-overlay-l1)] p-2.5"
+                  className="set-alert-history__item"
                 >
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="set-alert-history__item-info">
                     <span
                       className={
-                        'inline-block size-1.5 shrink-0 rounded-full ' +
+                        'set-alert-history__dot ' +
                         (h.level === 'error'
-                          ? 'bg-[var(--trae-status-error-default)]'
-                          : 'bg-[var(--trae-status-alert-default)]')
+                          ? 'set-alert-history__dot--error'
+                          : 'set-alert-history__dot--alert')
                       }
                     />
-                    <span className="text-[11px] text-[var(--trae-text-default)]">
+                    <span className="set-alert-history__text">
                       {h.text}
                     </span>
                   </div>
-                  <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+                  <span className="set-alert-history__time">
                     {h.time}
                   </span>
                 </div>
@@ -1193,17 +1178,12 @@ export function ModelSettings() {
         </SettingsCard>
 
         {/* ActionBar: 恢复默认 / 导出统计 / 保存所有配置（设计稿：sticky 底部操作栏） */}
-        <footer
-          className="sticky bottom-0 z-10 mt-2 flex items-center justify-end gap-3 pb-6 pt-3"
-          style={{
-            background: 'linear-gradient(to top, var(--trae-bg-base-default) 70%, transparent)',
-          }}
-        >
+        <footer className="set-model-actionbar">
           <button
             type="button"
             onClick={handleResetDefaults}
             aria-label="恢复默认"
-            className="inline-flex h-9 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-4 text-[12px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-[0.97]"
+            className="set-btn-secondary btn-press"
           >
             <RotateCcw className="size-3.5" />
             恢复默认
@@ -1212,7 +1192,7 @@ export function ModelSettings() {
             type="button"
             onClick={handleExportStats}
             aria-label="导出统计"
-            className="inline-flex h-9 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-4 text-[12px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-[0.97]"
+            className="set-btn-secondary btn-press"
           >
             <FileText className="size-3.5" />
             导出统计
@@ -1221,7 +1201,7 @@ export function ModelSettings() {
             type="button"
             onClick={handleSaveAll}
             aria-label="保存所有配置"
-            className="inline-flex h-9 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] hover:border-[var(--trae-bg-brand-hover)] active:scale-[0.97]"
+            className="set-btn-primary btn-press"
           >
             <Check className="size-3.5" />
             保存所有配置
@@ -1229,17 +1209,17 @@ export function ModelSettings() {
           {saveFeedback && (
             <span
               className={
-                'text-[10px] ' +
+                'set-model-actionbar__feedback ' +
                 (saveFeedback === '配置已保存'
-                  ? 'text-[var(--trae-status-success-default)]'
-                  : 'text-[var(--trae-status-error-default)]')
+                  ? 'set-model-actionbar__feedback--success'
+                  : 'set-model-actionbar__feedback--error')
               }
             >
               {saveFeedback}
             </span>
           )}
           {exportFeedback && (
-            <span className="text-[10px] text-[var(--trae-status-success-default)]">
+            <span className="set-model-actionbar__feedback set-model-actionbar__feedback--success">
               {exportFeedback}
             </span>
           )}

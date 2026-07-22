@@ -12,7 +12,7 @@
  *   - sourceLabel?: string   顶部来源标签
  */
 import { Terminal } from 'lucide-react'
-import { Button } from '@/components/trae/Button'
+import '../../../pages/TutorialPage.css'
 import {
   type CodeLine,
   PRACTICE_TERMINAL,
@@ -43,81 +43,33 @@ export function PracticeCard({
     ? commandsToLines(commands)
     : PRACTICE_TERMINAL
   return (
-    <article
-      className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]"
-      style={{
-        padding: 16,
-        animation: 'tutorialFadeIn 0.4s cubic-bezier(0.3,0,0,1) 0.05s both',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <Terminal
-          size={15}
-          style={{ color: 'var(--trae-text-brand)' }}
-        />
-        <h2
-          className="m-0 font-semibold"
-          style={{
-            fontSize: 'var(--trae-heading-xs-font-size)',
-            lineHeight: 'var(--trae-heading-xs-line-height)',
-            color: 'var(--trae-text-default)',
-          }}
-        >
-          {title ?? '动手实践'}
-        </h2>
+    <article className="tut-card tut-fade-in tut-fade-in--delay-1">
+      <div className="tut-card-title-row">
+        <Terminal size={15} className="tut-card-icon--brand" />
+        <h2 className="tut-card-title">{title ?? '动手实践'}</h2>
         {sourceLabel && (
-          <span
-            className="ml-auto inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] border px-2"
-            style={{
-              borderColor: 'var(--trae-status-success-default)',
-              background: 'rgba(51,193,146,0.12)',
-              color: 'var(--trae-status-success-default)',
-              fontSize: '10px',
-              fontWeight: 500
-            }}
-          >
-            {sourceLabel}
-          </span>
+          <span className="tut-source-badge">{sourceLabel}</span>
         )}
       </div>
-      <p
-        className="mt-2 m-0 text-[var(--trae-text-secondary)]"
-        style={{
-          fontSize: 'var(--trae-body-sm-font-size)',
-          lineHeight: 'var(--trae-body-sm-line-height)',
-        }}
-      >
-        {desc}
-      </p>
+      <p className="tut-practice-desc">{desc}</p>
       {/* 终端模拟块 */}
       {lines.length > 0 && (
-        <pre
-          className="mt-2.5 overflow-x-auto rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]"
-          style={{
-            background: '#0F1011',
-            padding: 12,
-            fontFamily: 'var(--trae-font-family-mono)',
-            fontSize: 'var(--trae-body-sm-font-size)',
-            lineHeight: 1.7,
-            margin: 0,
-          }}
-        >
+        <pre className="tut-code-block" style={{ marginTop: 10 }}>
           {lines.map((line, i) => (
             <TerminalLine key={i} line={line} />
           ))}
         </pre>
       )}
-      <div className="mt-3">
-        <Button
-          variant="outline"
-          size="default"
+      <div className="tut-practice-btn-row">
+        <button
+          type="button"
           data-dom-id="btn-open-sandbox"
+          className="tut-practice-btn tut-btn-press"
           onClick={onOpenSandbox}
-          className="border-[var(--trae-bg-brand)] text-[var(--trae-text-brand)]"
         >
           <Terminal size={13} />
           打开沙箱练习
-        </Button>
+        </button>
       </div>
     </article>
   )
@@ -125,11 +77,11 @@ export function PracticeCard({
 
 /** 渲染终端单行（同行内可能有 constant + text 混排） */
 function TerminalLine({ line }: { line: CodeLine }) {
-  const color =
+  const lineClass =
     line.type === 'comment'
-      ? 'var(--trae-code-doc)'
+      ? 'tut-code-line--comment'
       : line.type === 'constant'
-        ? 'var(--trae-code-constant)'
-        : 'var(--trae-code-text)'
-  return <div style={{ color }}>{line.content}</div>
+        ? 'tut-code-line--constant'
+        : 'tut-code-line--text'
+  return <div className={lineClass}>{line.content}</div>
 }

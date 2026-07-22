@@ -28,42 +28,22 @@ import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
 import { Slider } from '@/components/trae/Slider'
 import { Checkbox } from '@/components/trae/Checkbox'
+import './Settings.css'
 
 /**
- * RiskBadge — 风险等级徽章（设计稿 ds-risk-badge 自定义样式）
- *
- * 与通用 Badge 不同，使用深色底+彩色边框+等宽字体：
- * - low: bg #1F3324 / border #2F5A3C / color status-success-default
- * - mid: bg #332A1F / border #5C4A2A / color status-alert-default
- * - high: bg #331F1F / border #5C2A2A / color status-error-default
+ * RiskBadge — 风险等级徽章（设计稿 set-risk-badge--* 自定义样式）
  */
 type RiskTier = 'low' | 'mid' | 'high'
 
-const RISK_BADGE_STYLE: Record<RiskTier, { bg: string; border: string; color: string }> = {
-  low: {
-    bg: '#1F3324',
-    border: '#2F5A3C',
-    color: 'var(--trae-status-success-default)',
-  },
-  mid: {
-    bg: '#332A1F',
-    border: '#5C4A2A',
-    color: 'var(--trae-status-alert-default)',
-  },
-  high: {
-    bg: '#331F1F',
-    border: '#5C2A2A',
-    color: 'var(--trae-status-error-default)',
-  },
+const RISK_BADGE_CLASS: Record<RiskTier, string> = {
+  low: 'set-risk-badge set-risk-badge--low',
+  mid: 'set-risk-badge set-risk-badge--mid',
+  high: 'set-risk-badge set-risk-badge--high',
 }
 
 function RiskBadge({ tier, children }: { tier: RiskTier; children: ReactNode }) {
-  const s = RISK_BADGE_STYLE[tier]
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 font-mono text-[10px] font-medium leading-tight"
-      style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }}
-    >
+    <span className={RISK_BADGE_CLASS[tier]}>
       {children}
     </span>
   )
@@ -215,7 +195,7 @@ export function DecisionSettings() {
         desc="AI 运维决策流程与审批策略"
       />
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="set-panel-content">
         {/* Card 1: 决策流程配置 */}
         <SettingsCard icon={GitBranch} title="决策流程配置" tag="decision.flow">
           {RISK_TIERS.map((t) => (
@@ -257,7 +237,7 @@ export function DecisionSettings() {
                 type="number"
                 value={decisionTimeout}
                 onChange={(e) => setDecisionTimeout(Number(e.target.value))}
-                className="h-[30px] w-[88px] justify-center text-center font-mono"
+                className="set-num"
               />
             }
             isLast
@@ -270,13 +250,11 @@ export function DecisionSettings() {
             <div
               key={src.id}
               className={
-                'flex items-center gap-3.5 py-2.5 ' +
-                (idx === EVIDENCE_SOURCES.length - 1
-                  ? 'pb-0.5'
-                  : 'border-b border-[var(--trae-border-neutral-l1)]')
+                'set-weight-row ' +
+                (idx === EVIDENCE_SOURCES.length - 1 ? 'set-weight-row--last' : '')
               }
             >
-              <span className="w-[160px] shrink-0 text-[12px] font-medium text-[var(--trae-text-default)]">
+              <span className="set-weight-row__label">
                 {src.label}
               </span>
               <Slider
@@ -289,16 +267,16 @@ export function DecisionSettings() {
                 }
                 className="flex-1"
               />
-              <span className="shrink-0 text-right font-mono text-[13px] font-medium tabular-nums text-[var(--trae-bg-brand)]" style={{ minWidth: 34 }}>
+              <span className="set-weight-row__val">
                 {weights[src.id] ?? 0}
               </span>
             </div>
           ))}
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-3 py-2.5">
-            <span className="text-[10px] text-[var(--trae-text-secondary)]">
+          <div className="set-weight-summary">
+            <span className="set-weight-summary__label">
               综合权重总和 · 建议保持各源权重均衡
             </span>
-            <span className="font-mono text-[13px] font-semibold tabular-nums text-[var(--trae-bg-brand)]">
+            <span className="set-weight-summary__val">
               {totalWeight}
             </span>
           </div>
@@ -310,26 +288,28 @@ export function DecisionSettings() {
             <div
               key={blk.id}
               className={
-                'py-3 ' +
-                (idx === TEXTAREA_BLOCKS.length - 1 ? 'pb-0.5' : 'border-b border-[var(--trae-border-neutral-l1)]')
+                'set-block ' +
+                (idx === TEXTAREA_BLOCKS.length - 1 ? 'set-block--last' : '')
               }
             >
-              <div className="mb-2 flex items-center justify-between gap-4">
-                <div className="text-[12px] font-medium leading-[18px] text-[var(--trae-text-default)]">
-                  {blk.label}
+              <div className="set-block__head">
+                <div>
+                  <div className="set-block__label">
+                    {blk.label}
+                  </div>
+                  <div className="set-block__desc">
+                    {blk.desc}
+                  </div>
                 </div>
-                <span className="shrink-0 font-mono text-[10px] text-[var(--trae-text-tertiary)]">
+                <span className="set-block__hint">
                   {blk.hint}
                 </span>
-              </div>
-              <div className="mt-0.5 text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
-                {blk.desc}
               </div>
               <textarea
                 value={textAreas[blk.id] ?? ''}
                 onChange={(e) => setTextAreas((prev) => ({ ...prev, [blk.id]: e.target.value }))}
                 spellCheck={false}
-                className="mt-2 block min-h-[96px] w-full resize-y rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-3 py-2.5 font-mono text-[13px] font-normal leading-[20px] text-[var(--trae-text-default)] transition-colors focus:border-[var(--trae-bg-brand)] focus:outline-none"
+                className="set-textarea"
               />
             </div>
           ))}
@@ -341,7 +321,7 @@ export function DecisionSettings() {
                 type="number"
                 value={fileSizeLimit}
                 onChange={(e) => setFileSizeLimit(Number(e.target.value))}
-                className="h-[30px] w-[88px] justify-center text-center font-mono"
+                className="set-num"
               />
             }
           />
@@ -353,7 +333,7 @@ export function DecisionSettings() {
                 type="number"
                 value={batchLimit}
                 onChange={(e) => setBatchLimit(Number(e.target.value))}
-                className="h-[30px] w-[88px] justify-center text-center font-mono"
+                className="set-num"
               />
             }
           />
@@ -365,7 +345,7 @@ export function DecisionSettings() {
                 type="number"
                 value={rollbackRetention}
                 onChange={(e) => setRollbackRetention(Number(e.target.value))}
-                className="h-[30px] w-[88px] justify-center text-center font-mono"
+                className="set-num"
               />
             }
             isLast
@@ -391,25 +371,27 @@ export function DecisionSettings() {
               <Input
                 value={receiver}
                 onChange={(e) => setReceiver(e.target.value)}
-                className="h-[30px] w-[240px] font-mono"
+                className="set-input"
               />
             }
           />
-          <div className="py-3 border-b border-[var(--trae-border-neutral-l1)]">
-            <div className="mb-2 flex items-center justify-between gap-4">
-              <div className="text-[12px] font-medium leading-[18px] text-[var(--trae-text-default)]">
-                通知方式
+          <div className="set-block">
+            <div className="set-block__head">
+              <div>
+                <div className="set-block__label">
+                  通知方式
+                </div>
+                <div className="set-block__desc">
+                  选择审批通知的发送渠道
+                </div>
               </div>
-              <span className="shrink-0 font-mono text-[10px] text-[var(--trae-text-tertiary)]">可多选</span>
+              <span className="set-block__hint">可多选</span>
             </div>
-            <div className="mt-0.5 text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
-              选择审批通知的发送渠道
-            </div>
-            <div className="mt-2.5 flex flex-wrap gap-3.5">
+            <div className="set-checkgroup">
               {NOTIFY_CHANNELS.map((c) => (
                 <label
                   key={c.id}
-                  className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-[var(--trae-text-default)]"
+                  className="set-checkbox"
                 >
                   <Checkbox
                     checked={channels[c.id] ?? false}
@@ -420,21 +402,23 @@ export function DecisionSettings() {
               ))}
             </div>
           </div>
-          <div className="py-3 pb-0.5">
-            <div className="mb-2 flex items-center justify-between gap-4">
-              <div className="text-[12px] font-medium leading-[18px] text-[var(--trae-text-default)]">
-                Webhook URL
+          <div className="set-block set-block--last">
+            <div className="set-block__head">
+              <div>
+                <div className="set-block__label">
+                  Webhook URL
+                </div>
+                <div className="set-block__desc">
+                  审批通知将以此 URL 作为 Webhook 推送目标
+                </div>
               </div>
-              <span className="shrink-0 font-mono text-[10px] text-[var(--trae-text-tertiary)]">POST JSON</span>
-            </div>
-            <div className="mt-0.5 text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
-              审批通知将以此 URL 作为 Webhook 推送目标
+              <span className="set-block__hint">POST JSON</span>
             </div>
             <Input
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
               spellCheck={false}
-              className="mt-2 h-[30px] w-full font-mono"
+              className="set-input set-input--full"
             />
           </div>
         </SettingsCard>

@@ -26,6 +26,7 @@ import { SettingsSlider } from '@/components/settings/SettingsSlider'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/trae/Select'
 import { cn } from '@/components/trae/utils'
+import './Settings.css'
 
 type ThemeMode = 'dark' | 'light' | 'system'
 type Density = 'compact' | 'standard' | 'comfortable'
@@ -176,27 +177,6 @@ const DENSITIES: { value: Density; name: string; desc: string }[] = [
   { value: 'comfortable', name: '宽松', desc: '增加间距，提升阅读舒适度' },
 ]
 
-/** Radio dot（与设计稿 ds-radio 一致：16×16 圆环，激活时内部 8×8 蓝色实心点） */
-function RadioDot({ selected }: { selected: boolean }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex size-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
-        selected
-          ? 'border-[var(--trae-bg-brand)]'
-          : 'border-[var(--trae-border-neutral-l3)]',
-      )}
-    >
-      <span
-        className={cn(
-          'size-2 rounded-full bg-[var(--trae-bg-brand)] transition-opacity',
-          selected ? 'opacity-100' : 'opacity-0',
-        )}
-      />
-    </span>
-  )
-}
-
 export function AppearanceSettings() {
   // Card 1: 主题模式
   const [themeMode, setThemeMode] = usePersistentState<ThemeMode>('appearance.theme', 'dark')
@@ -227,10 +207,10 @@ export function AppearanceSettings() {
         desc="主题、颜色与字体偏好"
       />
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="set-panel-content">
         {/* Card 1: 主题模式（带视觉预览的 radio 卡片） */}
         <SettingsCard icon={Moon} title="主题模式" tag="theme.mode">
-          <div className="flex flex-wrap gap-3 py-2">
+          <div className="set-theme-grid">
             {THEME_MODES.map((opt) => {
               const selected = themeMode === opt.value
               return (
@@ -238,16 +218,11 @@ export function AppearanceSettings() {
                   key={opt.value}
                   type="button"
                   onClick={() => setThemeMode(opt.value)}
-                  className={cn(
-                    'flex min-w-0 flex-1 flex-col gap-2.5 rounded-[var(--trae-radius-8)] border p-3 text-left transition-colors',
-                    selected
-                      ? 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)]'
-                      : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] hover:border-[var(--trae-border-neutral-l3)]',
-                  )}
+                  className={cn('set-theme-card btn-press', selected && 'is-active')}
                 >
                   {/* 视觉预览（60px 高，呈现主题色块与 mock 内容线条） */}
                   <div
-                    className="flex h-[60px] w-full overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)]"
+                    className="set-theme-card__preview"
                     style={{ background: opt.previewBg }}
                   >
                     {opt.value !== 'system' ? (
@@ -261,16 +236,18 @@ export function AppearanceSettings() {
                     )}
                   </div>
                   {/* 名称 + 描述 + radio dot */}
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="set-theme-card__label">
                     <div className="min-w-0">
-                      <div className="text-[12px] font-medium text-[var(--trae-text-default)]">
+                      <div className="set-theme-card__name">
                         {opt.name}
                       </div>
-                      <div className="mt-0.5 text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+                      <div className="set-theme-card__desc">
                         {opt.desc}
                       </div>
                     </div>
-                    <RadioDot selected={selected} />
+                    <span className="set-radio">
+                      <span className="set-radio__dot" />
+                    </span>
                   </div>
                 </button>
               )
@@ -280,7 +257,7 @@ export function AppearanceSettings() {
 
         {/* Card 2: 强调色（8 个色板 + "当前: #xxx" 文字） */}
         <SettingsCard icon={Palette} title="强调色" tag="accent.color">
-          <div className="flex flex-wrap gap-3 py-2">
+          <div className="set-swatch-row">
             {ACCENT_COLORS.map((c) => {
               const selected = accentColor === c.value
               return (
@@ -289,11 +266,7 @@ export function AppearanceSettings() {
                   type="button"
                   onClick={() => setAccentColor(c.value)}
                   title={c.label}
-                  className={cn(
-                    'size-8 rounded-full border-2 border-transparent transition-transform hover:shadow-[0_0_0_2px_var(--trae-border-brand)]',
-                    selected &&
-                      'shadow-[0_0_0_2px_var(--trae-bg-base-secondary),0_0_0_4px_var(--trae-bg-brand)]',
-                  )}
+                  className={cn('set-swatch', selected && 'is-active')}
                   style={{ backgroundColor: c.value }}
                 />
               )
@@ -349,7 +322,7 @@ export function AppearanceSettings() {
 
         {/* Card 4: 界面密度（radio 卡片） */}
         <SettingsCard icon={LayoutGrid} title="界面密度" tag="ui.density">
-          <div className="flex flex-wrap gap-3 py-2">
+          <div className="set-density-grid">
             {DENSITIES.map((opt) => {
               const selected = density === opt.value
               return (
@@ -357,20 +330,17 @@ export function AppearanceSettings() {
                   key={opt.value}
                   type="button"
                   onClick={() => setDensity(opt.value)}
-                  className={cn(
-                    'flex min-w-0 flex-1 flex-col gap-1.5 rounded-[var(--trae-radius-8)] border p-3.5 text-left transition-colors hover:shadow-[0_2px_8px_rgba(0,0,0,0.3)]',
-                    selected
-                      ? 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)]'
-                      : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)]',
-                  )}
+                  className={cn('set-density-card btn-press', selected && 'is-active')}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-[var(--trae-text-default)]">
+                  <div className="set-density-card__top">
+                    <span className="set-density-card__name">
                       {opt.name}
                     </span>
-                    <RadioDot selected={selected} />
+                    <span className="set-radio">
+                      <span className="set-radio__dot" />
+                    </span>
                   </div>
-                  <div className="text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+                  <div className="set-density-card__desc">
                     {opt.desc}
                   </div>
                 </button>
@@ -381,7 +351,7 @@ export function AppearanceSettings() {
 
         {/* Card 5: 代码高亮主题（4 个卡片网格 + 代码预览） */}
         <SettingsCard icon={Code2} title="代码高亮主题" tag="syntax.theme">
-          <div className="grid grid-cols-2 gap-3 py-2">
+          <div className="set-code-grid">
             {CODE_THEMES.map((opt) => {
               const selected = codeTheme === opt.value
               const c = opt.colors
@@ -390,22 +360,19 @@ export function AppearanceSettings() {
                   key={opt.value}
                   type="button"
                   onClick={() => setCodeTheme(opt.value)}
-                  className={cn(
-                    'flex flex-col gap-2 rounded-[var(--trae-radius-8)] border p-3 text-left transition-colors hover:shadow-[0_2px_8px_rgba(0,0,0,0.3)]',
-                    selected
-                      ? 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)]'
-                      : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)]',
-                  )}
+                  className={cn('set-code-card btn-press', selected && 'is-active')}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[12px] font-medium text-[var(--trae-text-default)]">
+                  <div className="set-code-card__top">
+                    <span className="set-code-card__name">
                       {opt.name}
                     </span>
-                    <RadioDot selected={selected} />
+                    <span className="set-radio">
+                      <span className="set-radio__dot" />
+                    </span>
                   </div>
                   {/* 代码预览块：呈现该主题下的语法高亮配色 */}
                   <div
-                    className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] px-2.5 py-2 font-mono text-[11px] leading-[16px]"
+                    className="set-code-preview"
                     style={{ background: opt.previewBg }}
                   >
                     <div style={{ color: c.base }}>

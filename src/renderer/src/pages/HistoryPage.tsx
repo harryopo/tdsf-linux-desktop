@@ -13,7 +13,8 @@
  * 无障碍：button type="button" + aria-label/aria-pressed；button 原生支持 Enter/Space 键盘激活。
  * 动效：btn-press 按压反馈；prefers-reduced-motion 禁用按压动画与卡片过渡。
  */
-import { useMemo, useState, type CSSProperties } from 'react'
+import './HistoryPage.css'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Clock, Cpu, Filter, Search, Sparkles, UserCircle } from 'lucide-react'
 
@@ -59,16 +60,16 @@ function dotColor(status: DecisionStatus): string {
   return 'var(--trae-status-warning-default)'
 }
 
-function statusBadgeStyle(status: DecisionStatus): CSSProperties {
-  if (status === '成功') return { color: 'var(--trae-status-success-default)', background: 'var(--trae-status-success-surface-l1)' }
-  if (status === '失败') return { color: 'var(--trae-status-error-default)', background: 'var(--trae-status-error-surface-l1)' }
-  return { color: 'var(--trae-status-warning-default)', background: 'var(--trae-status-warning-surface-l1)' }
+function statusBadgeClass(status: DecisionStatus): string {
+  if (status === '成功') return 'hist-tag hist-tag--success'
+  if (status === '失败') return 'hist-tag hist-tag--danger'
+  return 'hist-tag hist-tag--warning'
 }
 
-function riskBadgeStyle(risk: RiskLevel): CSSProperties {
-  if (risk === '低风险') return { color: 'var(--trae-bg-brand)', background: 'var(--trae-bg-brand-disabled)' }
-  if (risk === '中风险') return { color: 'var(--trae-status-warning-default)', background: 'var(--trae-status-warning-surface-l1)' }
-  return { color: 'var(--trae-status-error-default)', background: 'var(--trae-status-error-surface-l1)' }
+function riskBadgeClass(risk: RiskLevel): string {
+  if (risk === '低风险') return 'hist-tag hist-tag--brand'
+  if (risk === '中风险') return 'hist-tag hist-tag--warning'
+  return 'hist-tag hist-tag--danger'
 }
 
 // ===== 主组件 =====
@@ -95,41 +96,35 @@ export function HistoryPage() {
     return result
   }, [statusFilter, serverFilter, keyword])
 
-  const selectStyle: CSSProperties = {
-    height: '28px', padding: '0 8px 0 12px', background: 'var(--trae-bg-base-tertiary)',
-    border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)',
-    gap: '6px', cursor: 'pointer',
-  }
-  const selectCls = 'appearance-none bg-transparent border-none text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-default)] cursor-pointer outline-none pr-4'
-  const optStyle: CSSProperties = { background: 'var(--trae-bg-base-secondary)', color: 'var(--trae-text-default)' }
+  const optStyle = { background: 'var(--trae-bg-base-secondary)', color: 'var(--trae-text-default)' }
 
   return (
-    <main className="min-h-full flex flex-col bg-[var(--trae-bg-base-default)]">
+    <main className="hist-page">
       {/* 1. Page header */}
-      <header className="flex items-center justify-between" style={{ padding: '16px 24px', gap: '16px' }}>
-        <div className="flex flex-row items-center gap-3 min-w-0">
+      <header className="hist-header">
+        <div className="hist-header-main">
           <Clock className="shrink-0 w-[22px] h-[22px]" style={{ color: 'var(--trae-bg-brand)' }} />
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="font-semibold text-[var(--trae-text-default)]" style={{ fontSize: 'var(--trae-heading-2xl-font-size)', lineHeight: 'var(--trae-heading-2xl-line-height)' }}>历史决策</span>
-            <span className="text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">AI运维决策的完整审计追溯</span>
+          <div className="hist-header-text">
+            <span className="hist-header-title">历史决策</span>
+            <span className="hist-header-subtitle">AI运维决策的完整审计追溯</span>
           </div>
         </div>
         <button
           type="button" data-dom-id="back-workbench" aria-label="返回工作台"
           onClick={() => navigate('/workbench')}
-          className="btn-press inline-flex items-center gap-1.5 h-7 px-3 text-[var(--trae-body-sm-font-size)] font-medium text-[var(--trae-text-default)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
+          className="hist-back-btn hist-btn-press"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> 返回工作台
         </button>
       </header>
 
       {/* 2. 统计概览 4 列 */}
-      <section className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: '16px', padding: '24px 24px 0' }}>
+      <section className="hist-stats">
         {STATS.map((stat) => (
-          <div key={stat.label} className="flex flex-col" style={{ gap: '8px', padding: '16px', background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', minWidth: 0 }}>
-            <span className="font-medium text-[var(--trae-text-tertiary)]" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</span>
-            <span className="font-semibold" style={{ fontSize: 'var(--trae-heading-xl-font-size)', lineHeight: '1.1', color: stat.color, fontFamily: 'var(--trae-font-family-mono)' }}>{stat.value}</span>
-            <svg width="100%" height="24" viewBox="0 0 100 24" preserveAspectRatio="none" style={{ marginTop: 'auto', display: 'block' }}>
+          <div key={stat.label} className="hist-stat-card">
+            <span className="hist-stat-label">{stat.label}</span>
+            <span className="hist-stat-value" style={{ color: stat.color }}>{stat.value}</span>
+            <svg className="hist-stat-spark" width="100%" height="24" viewBox="0 0 100 24" preserveAspectRatio="none">
               <polyline points={stat.sparkline} fill="none" stroke={stat.color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
@@ -137,83 +132,84 @@ export function HistoryPage() {
       </section>
 
       {/* 3. 筛选栏 */}
-      <section style={{ padding: '24px' }}>
-        <div className="flex flex-wrap items-center" style={{ gap: '12px', padding: '12px', background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)' }}>
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-            <label className="relative inline-flex items-center" style={selectStyle}>
-              <Clock className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
-              <select aria-label="时间范围筛选" value={TIME_RANGES[0]} className={selectCls}>
+      <section className="hist-filter-section">
+        <div className="hist-filter-bar">
+          <div className="hist-filter-left">
+            {/* WIP: 时间范围筛选未接过滤逻辑，暂禁用避免误导（CLAUDE.md A4 诚实标注） */}
+            <label className="hist-select-wrap is-disabled" aria-disabled="true">
+              <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+              <select aria-label="时间范围筛选（开发中）" value={TIME_RANGES[0]} disabled className="hist-select">
                 {TIME_RANGES.map((t) => (<option key={t} style={optStyle}>{t}</option>))}
               </select>
             </label>
-            <label className="relative inline-flex items-center" style={selectStyle}>
-              <Cpu className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
-              <select aria-label="服务器筛选" value={serverFilter} onChange={(e) => setServerFilter(e.target.value)} className={selectCls}>
+            <label className="hist-select-wrap">
+              <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+              <select aria-label="服务器筛选" value={serverFilter} onChange={(e) => setServerFilter(e.target.value)} className="hist-select">
                 {SERVERS.map((s) => (<option key={s} style={optStyle}>{s}</option>))}
               </select>
             </label>
-            <label className="relative inline-flex items-center" style={selectStyle}>
-              <Filter className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
-              <select data-dom-id="filter-status" aria-label="状态筛选" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
+            <label className="hist-select-wrap">
+              <Filter className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+              <select data-dom-id="filter-status" aria-label="状态筛选" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="hist-select">
                 {STATUSES.map((s) => (<option key={s} style={optStyle}>{s}</option>))}
               </select>
             </label>
           </div>
-          <div className="inline-flex items-center shrink-0" style={{ height: '28px', minWidth: '220px', padding: '0 12px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', gap: '6px', flex: '0 1 280px' }}>
-            <Search className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
-            <input type="text" data-dom-id="search-history" aria-label="搜索历史决策" placeholder="搜索决策..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-0 bg-transparent border-none outline-none text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-default)]" />
+          <div className="hist-search-box">
+            <Search className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+            <input type="text" data-dom-id="search-history" aria-label="搜索历史决策" placeholder="搜索决策..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="hist-search-input" />
           </div>
         </div>
       </section>
 
       {/* 4. 决策记录时间线 */}
-      <section className="flex-1" style={{ padding: '0 24px 24px' }}>
-        <div className="flex flex-col">
+      <section className="hist-timeline-section">
+        <div className="hist-timeline">
           {filteredRecords.length === 0 && (
-            <div className="flex items-center justify-center h-32 text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-tertiary)]">未匹配到任何决策记录</div>
+            <div className="hist-timeline-empty">未匹配到任何决策记录</div>
           )}
           {filteredRecords.map((record, idx) => {
             const isLast = idx === filteredRecords.length - 1
             return (
-              <div key={record.id} className="flex" style={{ gap: '16px' }}>
-                <div className="flex flex-col items-center" style={{ width: '56px', flexShrink: 0, paddingTop: '2px' }}>
-                  <span className="text-[var(--trae-text-tertiary)]" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: '1', fontFamily: 'var(--trae-font-family-mono)', whiteSpace: 'nowrap' }}>{record.time}</span>
-                  <span style={{ marginTop: '6px', width: '10px', height: '10px', borderRadius: '50%', background: dotColor(record.status), border: '2px solid var(--trae-bg-base-default)', boxSizing: 'border-box', flexShrink: 0, zIndex: 1 }} />
-                  {!isLast && <div style={{ flex: '1', width: '2px', background: 'var(--trae-border-neutral-l1)', marginTop: '4px', minHeight: '24px' }} />}
+              <div key={record.id} className="hist-timeline-row">
+                <div className="hist-timeline-rail">
+                  <span className="hist-timeline-time">{record.time}</span>
+                  <span className="hist-timeline-dot" style={{ background: dotColor(record.status) }} />
+                  {!isLast && <div className="hist-timeline-connector" />}
                 </div>
-                <div className="flex-1 min-w-0" style={{ marginBottom: isLast ? '0' : '16px' }}>
-                  <div className="history-card" style={{ padding: '16px', background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', transition: 'background .15s ease, border-color .15s ease' }}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-[var(--trae-text-default)]" style={{ fontSize: 'var(--trae-heading-sm-font-size)', lineHeight: '1.3' }}>{record.title}</span>
-                      <span className="inline-flex items-center font-medium" style={{ padding: '2px 8px', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', ...statusBadgeStyle(record.status) }}>{record.status}</span>
-                      <span className="inline-flex items-center font-medium" style={{ padding: '2px 8px', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', ...riskBadgeStyle(record.risk) }}>{record.risk}</span>
+                <div className={isLast ? 'hist-timeline-card-wrap is-last' : 'hist-timeline-card-wrap'}>
+                  <div className="hist-decision-card">
+                    <div className="hist-decision-head">
+                      <span className="hist-decision-title">{record.title}</span>
+                      <span className={statusBadgeClass(record.status)}>{record.status}</span>
+                      <span className={riskBadgeClass(record.risk)}>{record.risk}</span>
                     </div>
-                    <div className="flex flex-wrap items-center" style={{ gap: '8px 16px', marginTop: '8px' }}>
-                      <span className="inline-flex items-center gap-1.5 text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">
-                        <Cpu className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />{record.server}
+                    <div className="hist-decision-meta">
+                      <span className="hist-decision-meta-item">
+                        <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />{record.server}
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">
-                        {record.actor === 'ai-agent' ? <Sparkles className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" /> : <UserCircle className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />}
+                      <span className="hist-decision-meta-item">
+                        {record.actor === 'ai-agent' ? <Sparkles className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} /> : <UserCircle className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />}
                         {record.actor}
                       </span>
-                      <span className="text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">
-                        置信度 <span className="font-medium" style={{ color: 'var(--trae-bg-brand)', fontFamily: 'var(--trae-font-family-mono)' }}>{record.confidence.toFixed(2)}</span>
+                      <span className="hist-decision-confidence">
+                        置信度 <span className="hist-decision-confidence-val">{record.confidence.toFixed(2)}</span>
                       </span>
-                      <code className="font-mono" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: record.isDanger ? 'var(--trae-status-error-default)' : 'var(--trae-code-text)', background: record.isDanger ? 'var(--trae-status-error-surface-l1)' : 'var(--trae-bg-base-default)', padding: '2px 6px', borderRadius: 'var(--trae-radius-2)', border: '1px solid var(--trae-border-neutral-l1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', display: 'inline-block' }}>
+                      <code className={record.isDanger ? 'hist-decision-command is-danger' : 'hist-decision-command'}>
                         {record.command}
                       </code>
                     </div>
-                    <p className="text-[var(--trae-text-tertiary)]" style={{ marginTop: '8px', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)' }}>{record.desc}</p>
-                    <div className="flex items-center justify-between" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--trae-border-neutral-l1)', gap: '12px' }}>
-                      <span className="inline-flex items-center gap-1.5 text-[var(--trae-body-xs-font-size)] text-[var(--trae-text-tertiary)]">
-                        <Clock className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
-                        耗时 <span className="text-[var(--trae-text-secondary)]" style={{ fontFamily: 'var(--trae-font-family-mono)' }}>{record.durationSec}s</span>
+                    <p className="hist-decision-desc">{record.desc}</p>
+                    <div className="hist-decision-footer">
+                      <span className="hist-decision-duration">
+                        <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+                        耗时 <span className="hist-decision-duration-val">{record.durationSec}s</span>
                       </span>
                       <button
                         type="button" data-dom-id={`goto-history-detail-${record.id}`}
                         aria-label={`查看决策 ${record.title} 的详情`}
                         onClick={() => navigate(`/history/${record.id}`)}
-                        className="btn-press inline-flex items-center shrink-0 gap-1 text-[var(--trae-body-xs-font-size)] text-[var(--trae-bg-brand)] bg-transparent border-none cursor-pointer hover:underline"
+                        className="hist-decision-detail-link hist-btn-press"
                       >
                         查看详情 <ArrowRight className="w-3 h-3" />
                       </button>
@@ -227,18 +223,18 @@ export function HistoryPage() {
       </section>
 
       {/* 5. 底部分页栏 */}
-      <footer className="flex flex-wrap items-center justify-between" style={{ gap: '12px', padding: '16px 24px', borderTop: '1px solid var(--trae-border-neutral-l1)', background: 'var(--trae-bg-base-secondary)' }}>
-        <span className="text-[var(--trae-body-xs-font-size)] text-[var(--trae-text-tertiary)]">
-          共 <span className="text-[var(--trae-text-secondary)]" style={{ fontFamily: 'var(--trae-font-family-mono)' }}>{TOTAL_RECORDS}</span> 条记录
+      <footer className="hist-footer">
+        <span className="hist-total-records">
+          共 <span className="hist-total-records-val">{TOTAL_RECORDS}</span> 条记录
         </span>
-        <div className="flex items-center gap-1">
-          <button type="button" aria-label="上一页" disabled className="btn-press inline-flex items-center justify-center cursor-not-allowed" style={{ width: '28px', height: '28px', background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-tertiary)', opacity: 0.5 }}>
+        <div className="hist-pagination">
+          <button type="button" aria-label="上一页" disabled className="hist-pagination-item is-disabled">
             <ArrowLeft className="w-3 h-3" />
           </button>
           {PAGINATION.map((page, idx) => {
             if (page === null) {
               return (
-                <button key={`ellipsis-${idx}`} type="button" disabled className="btn-press inline-flex items-center justify-center cursor-not-allowed" style={{ minWidth: '28px', height: '28px', padding: '0 4px', background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>…</button>
+                <button key={`ellipsis-${idx}`} type="button" disabled className="hist-pagination-item is-disabled">…</button>
               )
             }
             const isActive = page === currentPage
@@ -246,30 +242,17 @@ export function HistoryPage() {
               <button
                 key={page} type="button" aria-label={`第 ${page} 页`} aria-pressed={isActive}
                 onClick={() => setCurrentPage(page)}
-                className="btn-press inline-flex items-center justify-center cursor-pointer"
-                style={{ minWidth: '28px', height: '28px', padding: '0 8px', background: isActive ? 'var(--trae-bg-brand)' : 'transparent', color: isActive ? 'var(--trae-text-onbrand)' : 'var(--trae-text-secondary)', border: isActive ? '1px solid var(--trae-bg-brand)' : '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', fontFamily: 'var(--trae-font-family-mono)' }}
+                className={isActive ? 'hist-pagination-item is-active' : 'hist-pagination-item'}
               >
                 {page}
               </button>
             )
           })}
-          <button type="button" aria-label="下一页" onClick={() => setCurrentPage((p) => Math.min(p + 1, 25))} className="btn-press inline-flex items-center justify-center cursor-pointer" style={{ width: '28px', height: '28px', background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-secondary)' }}>
+          <button type="button" aria-label="下一页" onClick={() => setCurrentPage((p) => Math.min(p + 1, 25))} className="hist-pagination-item">
             <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       </footer>
-
-      <style>{`
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.92); }
-        .history-card:hover { background: var(--trae-bg-base-tertiary); border-color: var(--trae-border-neutral-l2); }
-        .btn-press:focus-visible, button[data-dom-id]:focus-visible { outline: 2px solid var(--trae-bg-brand); outline-offset: 2px; }
-        @media (prefers-reduced-motion: reduce) {
-          .btn-press { transition: none; }
-          .btn-press:active { transform: none; }
-          .history-card { transition: none; }
-        }
-      `}</style>
     </main>
   )
 }

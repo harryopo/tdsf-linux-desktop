@@ -14,7 +14,7 @@
  */
 import { useState } from 'react'
 import { CheckCircle } from 'lucide-react'
-import { Button } from '@/components/trae/Button'
+import '../../../pages/TutorialPage.css'
 import { type QuizQuestion, QUIZ_QUESTIONS } from './detail-data'
 
 /** 知识检查卡 */
@@ -41,50 +41,22 @@ export function QuizCard({
   }
 
   return (
-    <article
-      className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]"
-      style={{
-        padding: 16,
-        animation: 'tutorialFadeIn 0.4s cubic-bezier(0.3,0,0,1) 0.1s both',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <CheckCircle
-          size={15}
-          style={{ color: 'var(--trae-text-brand)' }}
-        />
-        <h2
-          className="m-0 font-semibold"
-          style={{
-            fontSize: 'var(--trae-heading-xs-font-size)',
-            lineHeight: 'var(--trae-heading-xs-line-height)',
-            color: 'var(--trae-text-default)',
-          }}
-        >
-          {cardTitle}
-        </h2>
+    <article className="tut-card tut-fade-in tut-fade-in--delay-2">
+      <div className="tut-card-title-row">
+        <CheckCircle size={15} className="tut-card-icon--brand" />
+        <h2 className="tut-card-title">{cardTitle}</h2>
         {sourceLabel && (
-          <span
-            className="ml-auto inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] border px-2"
-            style={{
-              borderColor: 'var(--trae-status-success-default)',
-              background: 'rgba(51,193,146,0.12)',
-              color: 'var(--trae-status-success-default)',
-              fontSize: '10px',
-              fontWeight: 500
-            }}
-          >
-            {sourceLabel}
-          </span>
+          <span className="tut-source-badge">{sourceLabel}</span>
         )}
       </div>
 
       {list.length === 0 ? (
         <p
-          className="m-0 mt-3 text-[var(--trae-text-tertiary)]"
           style={{
+            margin: '12px 0 0 0',
             fontSize: 'var(--trae-body-sm-font-size)',
-            lineHeight: 'var(--trae-body-sm-line-height)'
+            lineHeight: 'var(--trae-body-sm-line-height)',
+            color: 'var(--trae-text-tertiary)'
           }}
         >
           本章节暂无知识检查题
@@ -93,43 +65,19 @@ export function QuizCard({
         <>
           {/* 题目列表 */}
           {list.map((q) => (
-            <div key={q.id} style={{ marginTop: 12 }}>
-              <div
-                className="mb-1.5 text-[var(--trae-text-default)]"
-                style={{ fontSize: 'var(--trae-body-sm-font-size)' }}
-              >
-                <span
-                  className="font-medium"
-                  style={{ color: 'var(--trae-text-brand)' }}
-                >
-                  {q.id}.
-                </span>{' '}
+            <div key={q.id} className="tut-quiz-question">
+              <div className="tut-quiz-question-text">
+                <span className="tut-quiz-question-num">{q.id}.</span>{' '}
                 {q.question}
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="tut-quiz-options">
                 {q.options.map((opt) => {
                   const selected = answers[q.id] === opt.key
                   const showCorrect = selected && opt.correct
                   return (
                     <label
                       key={opt.key}
-                      className="flex cursor-pointer items-center gap-2 rounded-[var(--trae-radius-4)]"
-                      style={{
-                        padding: '6px 10px',
-                        border: showCorrect
-                          ? '1px solid var(--trae-status-success-default)'
-                          : '1px solid var(--trae-border-neutral-l1)',
-                        background: showCorrect
-                          ? 'var(--trae-status-success-surface-l1)'
-                          : 'transparent',
-                        color: showCorrect
-                          ? 'var(--trae-status-success-default)'
-                          : 'var(--trae-text-secondary)',
-                        fontSize: 'var(--trae-body-sm-font-size)',
-                        fontWeight: showCorrect
-                          ? 'var(--trae-font-weight-medium)'
-                          : 'var(--trae-font-weight-default)',
-                      }}
+                      className={`tut-quiz-option${showCorrect ? ' tut-quiz-option--correct' : ''}`}
                     >
                       <input
                         type="radio"
@@ -148,15 +96,15 @@ export function QuizCard({
           ))}
 
           {/* 提交按钮 */}
-          <div className="mt-3.5">
-            <Button
-              variant="brand"
-              size="default"
+          <div className="tut-quiz-submit-row">
+            <button
+              type="button"
               data-dom-id="btn-submit-quiz"
+              className="tut-quiz-submit-btn tut-btn-press"
               onClick={() => onSubmit(answers)}
             >
               提交答案
-            </Button>
+            </button>
           </div>
         </>
       )}

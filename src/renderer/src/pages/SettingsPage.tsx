@@ -17,6 +17,7 @@ import {
   Settings, KeySquare, Cpu, Terminal, GitBranch, Shield, Bell,
   Palette, Info, ChevronRight, type LucideIcon,
 } from 'lucide-react'
+import './Settings.css'
 
 interface QuickEntry {
   domId: string
@@ -41,8 +42,8 @@ const QUICK_ENTRIES: QuickEntry[] = [
 
 export function SettingsPage() {
   return (
-    <section className="flex flex-col" style={{ gap: 16 }}>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <section className="set-panel-content">
+      <div className="set-quickgrid">
         {QUICK_ENTRIES.map((entry) => {
           const Icon = entry.icon
           return (
@@ -51,79 +52,31 @@ export function SettingsPage() {
               to={entry.to}
               data-dom-id={entry.domId}
               aria-label={`进入${entry.title}设置`}
-              className="settings-card btn-press flex cursor-pointer flex-col no-underline"
-              style={{
-                background: 'var(--trae-bg-base-secondary)',
-                border: '1px solid var(--trae-border-neutral-l1)',
-                borderRadius: 'var(--trae-radius-8)',
-                padding: 16,
-                transition: 'border-color 160ms ease-out, background 160ms ease-out',
-                color: 'inherit',
-              }}
+              className="set-quick-card btn-press"
             >
               {/* 卡片头部：图标 + 标题 + 跳转箭头 */}
-              <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-                <div className="flex items-center" style={{ gap: 8 }}>
-                  <span
-                    className="inline-flex items-center justify-center"
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 'var(--trae-radius-8)',
-                      background: 'var(--trae-bg-overlay-l2)',
-                    }}
-                  >
-                    <Icon size={18} style={{ color: 'var(--trae-icon-default)' }} />
+              <div className="set-quick-card__head">
+                <div className="set-quick-card__head-left">
+                  <span className="set-quick-card__icon">
+                    <Icon size={18} />
                   </span>
-                  <span
-                    style={{
-                      fontSize: 'var(--trae-body-base-strong-font-size)',
-                      fontWeight: 'var(--trae-font-weight-strong)',
-                      lineHeight: 'var(--trae-body-base-strong-line-height)',
-                      color: 'var(--trae-text-default)',
-                    }}
-                  >
+                  <span className="set-quick-card__title">
                     {entry.title}
                   </span>
                 </div>
                 <ChevronRight
                   size={16}
-                  className="shrink-0 settings-card__arrow"
-                  style={{ color: 'var(--trae-icon-tertiary)' }}
+                  className="set-quick-card__arrow"
                 />
               </div>
               {/* 卡片描述 */}
-              <p
-                style={{
-                  fontSize: 'var(--trae-body-sm-font-size)',
-                  lineHeight: 'var(--trae-body-sm-line-height)',
-                  color: 'var(--trae-text-secondary)',
-                  margin: 0,
-                }}
-              >
+              <p className="set-quick-card__desc">
                 {entry.desc}
               </p>
             </Link>
           )
         })}
       </div>
-
-      {/* ====== 按压动画 + 卡片 hover + 无障碍降级 ====== */}
-      <style>{`
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.92); }
-        .settings-card:hover {
-          border-color: var(--trae-border-brand);
-          background: var(--trae-bg-overlay-l1);
-        }
-        .settings-card:hover .settings-card__arrow {
-          color: var(--trae-icon-brand);
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .btn-press:active { transform: none !important; }
-          .settings-card { transition: none; }
-        }
-      `}</style>
     </section>
   )
 }

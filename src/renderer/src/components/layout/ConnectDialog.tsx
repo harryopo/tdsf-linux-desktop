@@ -18,6 +18,7 @@ import { Modal, Input, Form, Select, Button, Collapse, message } from 'antd'
 import { FolderOpenOutlined, ApiOutlined } from '@ant-design/icons'
 import type { SshConfig } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
+import '../../pages/SshSettings.css'
 
 /** ConnectDialog 组件 Props */
 interface ConnectDialogProps {
@@ -278,9 +279,9 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
 
         {/* 保持连接选项 */}
         <Form.Item name="keepAlive" valuePropName="checked">
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <input type="checkbox" style={{ cursor: 'pointer' }} />
-            <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+          <label className="ssh-keepalive-label">
+            <input type="checkbox" />
+            <span>
               保持连接（心跳保活）
             </span>
           </label>

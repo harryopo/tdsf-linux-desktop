@@ -27,6 +27,44 @@ import { SchedulerPanel } from '@/components/settings/SchedulerPanel'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/trae/Select'
 import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
+import './Settings.css'
+
+/**
+ * 已知持久化配置 key 清单（用于"导出数据"功能逐项拉取）
+ *
+ * WIP：当前仅覆盖 usePersistentState 已接入的 key（appearance/general/decision/
+ * risk/terminal 五个命名空间）。server list / llm config 走 SecureStore 加密存储，
+ * 不在导出范围（避免泄露敏感信息）。后续如新增 key 需同步更新此清单。
+ */
+const EXPORT_CONFIG_KEYS: readonly string[] = [
+  // general.*
+  'general.language', 'general.timezone', 'general.dateFormat', 'general.numberFormat',
+  'general.startupView', 'general.autoRestore', 'general.checkUpdate', 'general.backgroundRun',
+  'general.autoCleanLog', 'general.logRetention',
+  'general.desktopNotify', 'general.sound', 'general.email', 'general.notifyPosition',
+  'general.doNotDisturb', 'general.dndStart', 'general.dndEnd',
+  // appearance.*
+  'appearance.accentColor', 'appearance.uiFont', 'appearance.codeFont',
+  'appearance.fontSize', 'appearance.lineHeight',
+  // decision.*
+  'decision.confidenceThreshold', 'decision.decisionTimeout',
+  'decision.fileSizeLimit', 'decision.batchLimit', 'decision.rollbackRetention',
+  'decision.preExecNotify', 'decision.smsNotify', 'decision.receiver', 'decision.webhookUrl',
+  // risk.*
+  'risk.protectionLevel', 'risk.autoBlock', 'risk.desensitize', 'risk.recordingRetention',
+  'risk.permissionMode', 'risk.rules',
+  'risk.auditCmdExec', 'risk.auditFileMod', 'risk.auditAiDecision', 'risk.auditSshConn',
+  'risk.auditRetention', 'risk.auditPath',
+  'risk.emergencyHotkey', 'risk.autoRollback', 'risk.rollbackTimeout',
+  'risk.emergencyContact', 'risk.autoNotify',
+  // terminal.*
+  'terminal.shell', 'terminal.shellArgs', 'terminal.loginMessage', 'terminal.colorScheme',
+  'terminal.fontSize', 'terminal.fontFamily', 'terminal.lineHeight',
+  'terminal.cursorStyle', 'terminal.cursorBlink', 'terminal.scrollback',
+  'terminal.autoCopy', 'terminal.rightClickPaste', 'terminal.stripNewline', 'terminal.stripControlChars',
+  'terminal.bellEnabled', 'terminal.mouseSupport', 'terminal.webglRenderer',
+  'terminal.sshHeartbeat', 'terminal.cmdTimeout',
+]
 
 /** 单个 select 项的选项集合 */
 interface SelectOption {
@@ -103,7 +141,7 @@ function RowSelect({
 /** 只读路径展示框（对应设计稿 ds-input--readonly） */
 function ReadOnlyPath({ value }: { value: string }) {
   return (
-    <div className="inline-flex h-[30px] min-w-[280px] items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-default)] px-2.5 font-mono text-[12px] text-[var(--trae-text-secondary)]">
+    <div className="set-input set-input--readonly">
       {value}
     </div>
   )
@@ -122,21 +160,19 @@ function DndTimeRange({
   onEndChange: (v: string) => void
 }) {
   return (
-    <div className="inline-flex items-center gap-1.5">
+    <div className="set-time-range">
       <input
         type="text"
         value={start}
         onChange={(e) => onStartChange(e.target.value)}
-        className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-2 font-mono text-[10px] tabular-nums text-[var(--trae-text-default)] focus:border-[var(--trae-bg-brand)] focus:outline-none"
-        style={{ width: 64 }}
+        className="set-time-input"
       />
       <span className="text-[10px] text-[var(--trae-text-tertiary)]">至</span>
       <input
         type="text"
         value={end}
         onChange={(e) => onEndChange(e.target.value)}
-        className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-2 font-mono text-[10px] tabular-nums text-[var(--trae-text-default)] focus:border-[var(--trae-bg-brand)] focus:outline-none"
-        style={{ width: 64 }}
+        className="set-time-input"
       />
     </div>
   )
@@ -178,18 +214,92 @@ export function GeneralSettings() {
       if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
     }
   }, [])
-  const handleExportData = () => {
+  const handleExportData = async () => {
+    // WIP: 非 Electron 环境降级为提示
+    if (typeof window === 'undefined' || !window.electronAPI?.configGet) {
+      setStorageFeedback('当前环境不支持导出数据（非 Electron 环境）')
+      if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
+      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 2500)
+      return
+    }
+
     setStorageFeedback('正在导出数据…')
-    if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
-    storageFeedbackTimer.current = setTimeout(() => {
-      setStorageFeedback('已导出到 ~/.tdsf/exports/')
-      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 2000)
-    }, 800)
+    try {
+      // Step 1: 逐项拉取已知 key 的配置值
+      const config: Record<string, unknown> = {}
+      await Promise.all(
+        EXPORT_CONFIG_KEYS.map(async (key) => {
+          try {
+            const value = await window.electronAPI!.configGet<unknown>(key)
+            // electron-store 对未设置的 key 返回 undefined，跳过未设置的项
+            if (value !== undefined && value !== null) {
+              config[key] = value
+            }
+          } catch {
+            // 单项失败不影响整体导出，跳过该项
+          }
+        }),
+      )
+
+      // Step 2: 组装导出 payload（含元数据）
+      const exportPayload = {
+        meta: {
+          app: 'tdsf-linux-desktop',
+          version: 'v1.0',
+          exportedAt: new Date().toISOString(),
+          keyCount: Object.keys(config).length,
+        },
+        config,
+      }
+
+      // Step 3: 生成 JSON 并触发浏览器下载
+      const json = JSON.stringify(exportPayload, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      a.download = `tdsf-config-${ts}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setStorageFeedback(`已导出 ${Object.keys(config).length} 项配置`)
+      if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
+      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 2500)
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      setStorageFeedback(`导出失败：${reason}`)
+      if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
+      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 3500)
+    }
   }
-  const handleClearCache = () => {
-    setStorageFeedback('已清除缓存')
-    if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
-    storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 2000)
+  const handleClearCache = async () => {
+    // WIP: 非 Electron 环境降级为提示
+    if (typeof window === 'undefined' || !window.electronAPI?.logClearBuffer) {
+      setStorageFeedback('当前环境不支持清除缓存（非 Electron 环境）')
+      if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
+      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 2500)
+      return
+    }
+
+    setStorageFeedback('正在清除缓存…')
+    try {
+      const success = await window.electronAPI.logClearBuffer()
+      if (success) {
+        setStorageFeedback('已清除日志缓冲区缓存')
+      } else {
+        setStorageFeedback('清除缓存返回 false（可能无缓存可清）')
+      }
+      if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
+      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 2500)
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      setStorageFeedback(`清除失败：${reason}`)
+      if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
+      storageFeedbackTimer.current = setTimeout(() => setStorageFeedback(null), 3500)
+    }
   }
 
   return (
@@ -200,7 +310,7 @@ export function GeneralSettings() {
         desc="语言、启动与数据偏好"
       />
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="set-panel-content">
         {/* Card 1: 语言与地区 */}
         <SettingsCard icon={Globe} title="语言与地区" tag="locale">
           <SettingsRow
@@ -275,7 +385,7 @@ export function GeneralSettings() {
               <Input
                 value={logRetention}
                 onChange={(e) => setLogRetention(e.target.value)}
-                className="w-[88px] text-center font-mono"
+                className="set-num"
               />
             }
             isLast
@@ -285,24 +395,24 @@ export function GeneralSettings() {
             <button
               type="button"
               onClick={handleExportData}
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-95"
+              className="set-btn-secondary btn-press"
             >
-              <Download className="size-3.5" />
+              <Download className="di-14" />
               导出数据
             </button>
             <button
               type="button"
               onClick={handleClearCache}
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-95"
+              className="set-btn-secondary btn-press"
             >
-              <Trash2 className="size-3.5" />
+              <Trash2 className="di-14" />
               清除缓存
             </button>
             {storageFeedback != null && (
               <span
                 role="status"
                 aria-live="polite"
-                className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 text-[12px] font-medium text-[var(--trae-text-secondary)]"
+                className="set-action-tag"
               >
                 {storageFeedback}
               </span>
