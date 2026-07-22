@@ -42,8 +42,25 @@ import { useLoopEngineering } from './useLoopEngineering'
 import { LoopWorkflowPanel } from './LoopWorkflowPanel'
 import { useServerStore } from '@/stores/server-store'
 import type { AgentMessage } from '@/stores/agent-store'
-import type { PaorApprovalRequest } from '@/types/electron'
+import type { PaorApprovalRequest, ImageUploadResult } from '@/types/electron'
 import './AIPanel.css'
+
+/**
+ * v2.2 P1 修复 #22：图片附件类型
+ *
+ * 简化方案：仅保存 base64 data URL + 文件名 + 大小，不引入图片压缩。
+ * 发送时将 dataUrl 拼接到消息文本末尾（WIP：真实 vision model 集成需要修改 useAgentChat 接口）。
+ */
+interface ImageAttachment {
+  /** base64 data URL（可直接用于 <img src>） */
+  dataUrl: string
+  /** 文件名（含扩展名） */
+  fileName: string
+  /** 文件大小（字节） */
+  fileSize: number
+  /** MIME 类型 */
+  mimeType: string
+}
 
 /** 工具面板徽章变体颜色 */
 const BADGE_COLOR: Record<string, string> = {
@@ -950,6 +967,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const [ctxTooltipVisible, setCtxTooltipVisible] = useState(false)
   /** 演示模式：true=走循环工程 7 步 HITL；false=普通 agent:chat */
   const [demoMode, setDemoMode] = useState(false)
+  // v2.2 P1 修复 #22：图片附件列表（基础版，不引入图片压缩库）
+  const [attachments, setAttachments] = useState<ImageAttachment[]>([])
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -1193,9 +1213,14 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       void cancel()
       return
     }
-    if (!input.trim()) return
-    const text = input
+    if (!input.trim() && attachments.length === 0) return
+    // v2.2 P1 修复 #22：发送时如果有图片附件，将 base64 data URL 拼接到消息文本末尾
+    // 简化方案：不修改 useAgentChat 接口，直接拼接（WIP：真实 vision model 集成需修改接口）
+    const text = attachments.length > 0
+      ? `${input.trim()}\n\n[图片附件]\n${attachments.map((a) => a.dataUrl).join('\n')}`
+      : input
     setInput('')
+    setAttachments([])
     // 一旦用户发真实消息，收起设计稿 demo（仍可手动再开）
     setShowDemo(false)
 
@@ -1226,6 +1251,55 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       return `${prev}${sep}${prefix}`
     })
     textareaRef.current?.focus()
+  }
+
+  /**
+   * 上传图片附件（v2.2 P1 修复 #22：真实实现，替代原 WIP message.warning）
+   *
+   * 调用 fsUploadImage IPC：主进程弹出文件选择对话框 → 读取图片 → 返回 base64 data URL。
+   * 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp。
+   *
+   * 成功后：将图片添加到 attachments 列表，UI 展示缩略图 + 删除按钮。
+   * 发送时：将 dataUrl 拼接到消息文本末尾（WIP：真实 vision model 集成需修改 useAgentChat 接口）。
+   */
+  const handleUploadImage = async () => {
+    if (isUploadingImage) return
+    const api = window.electronAPI
+    if (!api?.fsUploadImage) {
+      message.warning('当前环境不支持图片上传（非 Electron 环境）')
+      return
+    }
+    setIsUploadingImage(true)
+    try {
+      const result = await api.fsUploadImage()
+      if (result.success) {
+        const uploadData = result as ImageUploadResult
+        // 限制最多 4 张图片（避免消息过长）
+        if (attachments.length >= 4) {
+          message.warning('最多支持 4 张图片附件')
+          return
+        }
+        setAttachments((prev) => [...prev, {
+          dataUrl: uploadData.dataUrl,
+          fileName: uploadData.fileName,
+          fileSize: uploadData.fileSize,
+          mimeType: uploadData.mimeType,
+        }])
+      } else if (result.error !== '用户取消选择') {
+        // 用户取消不提示错误
+        message.error(`图片上传失败：${result.error}`)
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      message.error(`图片上传失败：${reason}`)
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  /** 删除指定索引的图片附件 */
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
   /** chip 快捷填入可直接发送的运维提示词 */
@@ -1523,6 +1597,70 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
             style={{ maxHeight: 120 }}
           />
 
+          {/* v2.2 P1 修复 #22：图片附件预览区（缩略图 + 删除按钮） */}
+          {attachments.length > 0 && (
+            <div
+              className="ai-composer-attachments"
+              style={{
+                display: 'flex',
+                gap: 'var(--trae-spacing-xs, 4px)',
+                padding: '4px 0',
+                flexWrap: 'wrap',
+              }}
+            >
+              {attachments.map((attachment, index) => (
+                <div
+                  key={`${attachment.fileName}-${index}`}
+                  style={{
+                    position: 'relative',
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: 'var(--trae-radius-4, 4px)',
+                    overflow: 'hidden',
+                    border: '1px solid var(--trae-border-neutral-l2)',
+                    background: 'var(--trae-bg-overlay-l1)',
+                  }}
+                  title={`${attachment.fileName} (${(attachment.fileSize / 1024).toFixed(1)}KB)`}
+                >
+                  <img
+                    src={attachment.dataUrl}
+                    alt={attachment.fileName}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(index)}
+                    aria-label={`删除附件 ${attachment.fileName}`}
+                    title="删除"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      width: '16px',
+                      height: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'var(--trae-bg-overlay-l3)',
+                      border: 'none',
+                      borderRadius: '0 0 0 var(--trae-radius-4, 4px)',
+                      cursor: 'pointer',
+                      color: 'var(--trae-text-onbrand)',
+                      padding: 0,
+                    }}
+                  >
+                    <X className="size-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="ai-composer-toolbar">
             <div className="ai-composer-tools-left">
               <button
@@ -1544,20 +1682,16 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
               <button
                 type="button"
                 title="图片"
-                onClick={() => {
-                  // WIP: 图片附件暂未上线（CLAUDE.md A4 诚实标注 · A7 质量优先）
-                  //
-                  // 真实实现路径（预计 v1.0 P1 完成）：
-                  // 1. main 进程新增 fs:upload-image IPC 通道（支持本地图片读取 + base64 编码）
-                  // 2. 渲染层打开文件选择器（antd Upload 或 input[type=file]）
-                  // 3. 图片压缩（browser-image-compression，限制 4MB 内）
-                  // 4. 转为 base64 注入消息上下文（vision-capable model）
-                  // 5. Provider 支持检查（OpenAI Vision / Claude Vision / Ollama llava）
-                  void message.warning('图片附件暂未上线（WIP · 预计 v1.0 P1 完成），请使用文本输入')
-                }}
+                onClick={handleUploadImage}
+                disabled={isUploadingImage}
                 className="ai-composer-icon-btn btn-press"
+                style={isUploadingImage ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
               >
-                <ImageIcon className="size-3.5" />
+                {isUploadingImage ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <ImageIcon className="size-3.5" />
+                )}
               </button>
               <span className="ai-composer-divider" />
 

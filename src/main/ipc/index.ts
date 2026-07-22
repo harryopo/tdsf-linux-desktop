@@ -73,6 +73,14 @@ import { registerExpectationHandlers } from './expectation'
 // 通道：task:permission-approve（渲染进程响应审批请求）
 // 让 Subagent 调度支持用户审批，从"默认允许"升级为"理解后批准"
 import { registerTaskPermissionHandlers } from './task-permission-approval'
+// v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
+// 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面
+// 不引入 electron-updater（避免 publisher 配置 + GitHub Token 管理复杂度）
+import { registerAppUpdateHandlers } from './app-update'
+// v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
+// AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
+// 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
+import { registerFsIpcHandlers } from './fs-upload'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -215,6 +223,19 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 让 Subagent 调度支持用户审批，从"默认允许"升级为"理解后批准"
   // 消费方：TaskPermissionApprovalDialog.tsx
   registerTaskPermissionHandlers()
+
+  // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
+  // 通道：app:check-update（HTTP GET GitHub Releases API 比对版本号）
+  //       app:download-update（shell.openExternal 打开浏览器到 Release 页面）
+  // 消费方：AboutSettings.tsx handleCheckUpdate
+  // 简化方案：不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子）
+  registerAppUpdateHandlers()
+
+  // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
+  // 通道：fs:upload-image（dialog.showOpenDialog + 读取文件转 base64 data URL）
+  // 消费方：AIPanel.tsx 图片附件按钮
+  // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
+  registerFsIpcHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar

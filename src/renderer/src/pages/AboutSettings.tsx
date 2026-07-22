@@ -6,15 +6,19 @@
  * 删除独立 ab-topbar，保留 Hero + Divider + SysInfo + Links grid + Footer。
  * 视觉：var(--trae-*) token；无障碍：button type + aria-label。
  * 常量 / 类型 / 探测函数：见 about-settings.constants.ts
+ *
+ * v2.2 P1 修复 #24：检查更新功能接入真实 IPC（app:check-update / app:download-update）
+ * 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater。
  */
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
-import { RefreshCw, ArrowRight, Loader2, FileText } from 'lucide-react'
+import { RefreshCw, ArrowRight, Loader2, FileText, Download } from 'lucide-react'
 import {
   APP_VERSION, APP_BUILD_LABEL, APP_BUILD_BADGE, APP_BUILD_TIME, APP_INSTALL_PATH,
   LINK_URLS, LINK_CARDS, FOOTER_LINKS,
   detectRuntimeEnv, detectOsName,
   type SysInfoItem, type LinkCard, type FooterLink,
 } from './about-settings.constants'
+import type { AppUpdateInfo } from '../types/electron'
 import './Settings.css'
 
 interface BadgeConfig {
@@ -39,6 +43,10 @@ export function AboutSettings() {
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isChecking, setIsChecking] = useState(false)
   const checkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // v2.2 P1 修复 #24：检查更新真实 IPC 返回结果
+  const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   const sysInfo = useMemo<SysInfoItem[]>(() => {
     return [
@@ -67,28 +75,67 @@ export function AboutSettings() {
   }
 
   /**
-   * 检查更新：本地 UI 反馈
+   * 检查更新：调用主进程 app:check-update IPC
    *
-   * WIP: 当前未接入 electron-updater 真实检查逻辑（CLAUDE.md A4 诚实标注 · A7 质量优先）。
+   * v2.2 P1 修复 #24：真实实现（替代原 WIP 本地反馈）。
    *
-   * 真实实现路径（预计 v1.0 P0 完成）：
-   * 1. main 进程引入 electron-updater + autoUpdater
-   * 2. 新增 IPC 通道 app:check-update / app:download-update / app:install-update
-   * 3. 配置发布源（GitHub Releases / 私有 update-server）
-   * 4. 渲染层订阅更新事件（checking/update-available/download-progress/installed）
-   * 5. 完成后替换此处为 window.electronAPI.appCheckUpdate() 真实调用
+   * 主进程 HTTP GET GitHub Releases API（10 秒超时），比对 semver 版本号：
+   * - 有更新：setUpdateInfo(info) 显示新版本号 + 更新日志 + 立即下载按钮
+   * - 无更新：showFeedback 提示已是最新版本
+   * - 失败：setUpdateError(error) 显示错误信息（已脱敏）
    *
-   * 当前仅基于本地 APP_VERSION 提供 UI 状态反馈，避免引入 mock 数据（A4 禁止 mock 伪装完成）。
+   * 简化方案：不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子），
+   * "下载更新"通过 shell.openExternal 打开浏览器到 Release 页面。
    */
-  const handleCheckUpdate = () => {
+  const handleCheckUpdate = async () => {
     if (isChecking) return
     setIsChecking(true)
-    if (checkingTimerRef.current != null) clearTimeout(checkingTimerRef.current)
-    checkingTimerRef.current = setTimeout(() => {
+    setUpdateInfo(null)
+    setUpdateError(null)
+    try {
+      const result = await window.electronAPI.appCheckUpdate()
+      if (result.hasUpdate) {
+        // 有新版本：保存更新信息，UI 展示新版本号 + 立即下载按钮
+        setUpdateInfo(result)
+      } else if ('error' in result) {
+        // 检查失败（已脱敏）：显示错误信息
+        setUpdateError(result.error)
+        showFeedback(`检查更新失败：${result.error}`)
+      } else {
+        // 无新版本
+        showFeedback(`当前已是最新版本 (v${APP_VERSION})`)
+      }
+    } catch (err) {
+      // IPC 调用本身失败（极端情况：主进程未注册 / preload 未暴露）
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      setUpdateError(errorMsg)
+      showFeedback(`检查更新失败：${errorMsg}`)
+    } finally {
       setIsChecking(false)
-      // WIP: 真实实现后将替换为 IPC 返回的更新状态
-      showFeedback(`当前已是最新版本 (v${APP_VERSION})`)
-    }, 600)
+    }
+  }
+
+  /**
+   * 立即下载：调用主进程 app:download-update IPC
+   *
+   * 主进程 shell.openExternal 打开浏览器到 Release 页面，
+   * 让用户手动下载 .exe/.dmg/.AppImage 安装包。
+   */
+  const handleDownloadUpdate = async () => {
+    if (isDownloading) return
+    setIsDownloading(true)
+    try {
+      const releaseUrl = updateInfo?.releaseUrl
+      const ok = await window.electronAPI.appDownloadUpdate(releaseUrl)
+      if (!ok) {
+        showFeedback('打开下载页面失败，请稍后重试')
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      showFeedback(`打开下载页面失败：${errorMsg}`)
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   const handleViewChangelog = () => {
@@ -187,6 +234,75 @@ export function AboutSettings() {
             </span>
           )}
         </div>
+
+        {/* v2.2 P1 修复 #24：检查更新结果展示（有新版本时显示版本号 + 更新日志 + 立即下载按钮） */}
+        {updateInfo && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              marginTop: 'var(--trae-spacing-md, 12px)',
+              padding: 'var(--trae-spacing-md, 12px) var(--trae-spacing-lg, 16px)',
+              borderRadius: 'var(--trae-radius-md, 8px)',
+              border: '1px solid var(--trae-border-brand, var(--trae-border-default))',
+              background: 'var(--trae-bg-brand-subtle, var(--trae-bg-elevated))',
+              fontSize: 'var(--trae-body-sm-font-size)',
+              color: 'var(--trae-text-primary)',
+              textAlign: 'left',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--trae-spacing-sm, 8px)', marginBottom: 'var(--trae-spacing-xs, 4px)' }}>
+              <span className={BADGE_CLASS.brand} style={{ flexShrink: 0 }}>
+                {updateInfo.latestVersion}
+              </span>
+              <span style={{ color: 'var(--trae-text-secondary)', fontSize: 'var(--trae-body-xs-font-size)' }}>
+                发布于 {new Date(updateInfo.publishedAt).toLocaleDateString('zh-CN')}
+              </span>
+            </div>
+            <div
+              style={{
+                color: 'var(--trae-text-secondary)',
+                fontSize: 'var(--trae-body-xs-font-size)',
+                maxHeight: '120px',
+                overflowY: 'auto',
+                whiteSpace: 'pre-wrap',
+                marginBottom: 'var(--trae-spacing-sm, 8px)',
+              }}
+            >
+              {updateInfo.releaseNotes}
+            </div>
+            <button
+              type="button"
+              onClick={handleDownloadUpdate}
+              disabled={isDownloading}
+              aria-label="立即下载"
+              className="set-btn-primary btn-press"
+              style={isDownloading ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+            >
+              {isDownloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+              {isDownloading ? '打开中...' : '立即下载'}
+            </button>
+          </div>
+        )}
+
+        {/* 检查更新失败时显示错误信息（已脱敏） */}
+        {updateError && !updateInfo && (
+          <div
+            role="alert"
+            style={{
+              marginTop: 'var(--trae-spacing-md, 12px)',
+              padding: 'var(--trae-spacing-sm, 8px) var(--trae-spacing-md, 12px)',
+              borderRadius: 'var(--trae-radius-md, 8px)',
+              border: '1px solid var(--trae-status-error-default)',
+              background: 'var(--trae-status-error-subtle, var(--trae-bg-elevated))',
+              fontSize: 'var(--trae-body-xs-font-size)',
+              color: 'var(--trae-status-error-default)',
+              textAlign: 'left',
+            }}
+          >
+            {updateError}
+          </div>
+        )}
       </div>
 
       {/* ===== Divider ===== */}
