@@ -22,6 +22,7 @@ import type {
   ModeConfig,
   AttentionFocus,
 } from '@shared/agent-types'
+import type { BrowserWindow } from 'electron'
 import type { Subagent, SubagentRegistry } from './base'
 
 /**
@@ -248,6 +249,36 @@ export interface TaskProtocolContext {
 
   /** 当前 attention 快照（step 5 从 AttentionTracker 获取） */
   attention?: AttentionFocus
+
+  /**
+   * 主窗口实例（v0.9.3 §11 遗留项 2 P2-H 新增，可选）
+   *
+   * 用于 step 2 check-permission 推送审批请求到渲染进程。
+   * - 调用方注入：executeTaskProtocol 的调用方在创建 ctx 时传入 mainWindow
+   * - 未注入时：step 2 降级为默认允许（保持向后兼容，单测场景不受影响）
+   * - 注入时：step 2 通过 waitForTaskPermissionApproval 推送审批请求，
+   *   等待用户响应（30 秒超时自动拒绝）
+   *
+   * 设计原则：可选字段，不强制要求所有调用方都注入 mainWindow
+   * （单测、CLI、Sidecar 等场景可能没有窗口实例）
+   */
+  mainWindow?: BrowserWindow
+
+  /**
+   * 默认权限模式（v0.9.3 §11 遗留项 2 P2-H 新增，可选，默认 'always'）
+   *
+   * R12 三态权限审批（参考 AgentScope Permission）：
+   * - 'always'：每次都询问用户（默认，最安全）
+   * - 'auto'：自动允许（适用于可信 subagent，如 builtin）
+   * - 'never'：自动拒绝（适用于黑名单 subagent）
+   *
+   * step 2 根据此字段决定是否推送审批请求：
+   * - 'always' + mainWindow 存在 → 推送审批请求
+   * - 'auto' → 直接通过（不推送）
+   * - 'never' → 直接失败（不推送）
+   * - 'always' + mainWindow 不存在 → 降级为默认允许（记录警告日志）
+   */
+  defaultPermission?: 'always' | 'auto' | 'never'
 }
 
 /**

@@ -420,6 +420,52 @@ interface PaorApprovalRequest {
   timestamp: number
 }
 
+/**
+ * Task Protocol 审批请求载荷（v0.9.3 §11 遗留项 2 P2-H 新增）
+ *
+ * 主进程在 task-protocol step 2 check-permission 推送 task:permission-approval-request 事件，
+ * 渲染进程弹窗显示 taskId / subagentName / inputSummary，用户通过 taskPermissionApprove(callId, decision) 响应。
+ *
+ * 三态权限审批（R12，参考 AgentScope Permission）：
+ * - mode='always'：每次都询问用户（默认）
+ * - mode='auto'：自动允许（不推送审批请求）
+ * - mode='never'：自动拒绝（不推送审批请求）
+ *
+ * 注意：30 秒未响应主进程会自动拒绝。
+ */
+interface TaskPermissionApprovalRequest {
+  /** 审批调用 ID（与 taskPermissionApprove 的 callId 参数对应） */
+  callId: string
+  /** 任务 ID（来自 TaskProtocolContext.taskId） */
+  taskId: string
+  /** 目标 Subagent 名称 */
+  subagentName: string
+  /** 任务输入摘要（可选，前 200 字符） */
+  inputSummary?: string
+  /** 父会话 ID（可选） */
+  parentSessionId?: string
+  /** 关联 ID（可选，用于日志追踪） */
+  correlationId?: string
+  /** 时间戳（ms） */
+  timestamp: number
+  /** 权限模式（always/auto/never，告诉 UI 当前是哪种模式触发了询问） */
+  mode: 'always' | 'auto' | 'never'
+}
+
+/**
+ * Task Protocol 审批决策（v0.9.3 §11 遗留项 2 P2-H 新增）
+ *
+ * 渲染进程通过 taskPermissionApprove(callId, decision) 响应审批请求。
+ */
+interface TaskPermissionDecision {
+  /** 是否批准 */
+  approved: boolean
+  /** 拒绝原因（approved=false 时填充，可选） */
+  rejectReason?: string
+  /** 是否记住决策（可选，默认 false；v1.6 实现持久化规则表） */
+  remember?: boolean
+}
+
 // ============================================================================
 // v0.9 @命令元信息类型（与主进程 ipc/at-commands.ts 的 AtCommandInfo 对应）
 // ============================================================================
@@ -1550,6 +1596,42 @@ const expectation = {
 }
 
 /**
+ * v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批 IPC
+ *
+ * 通道与主进程 ipc/task-permission-approval.ts 一一对应：
+ * - task:permission-approval-request（主 → 渲染推送，单向，通过 createListener 监听）
+ * - task:permission-approve（渲染 → 主 invoke，响应审批请求）
+ *
+ * 使用场景：
+ * - Subagent 调度时（task-protocol step 2），主进程推送审批请求到 UI
+ * - UI 弹窗显示 taskId / subagentName / inputSummary，用户批准/拒绝
+ * - 用户响应后，主进程通过 Promise resolve 返回决策，step 2 继续/中止
+ *
+ * 三态权限审批（R12）：
+ * - mode='always'：每次都询问用户（默认，触发推送）
+ * - mode='auto'：自动允许（不推送，step 2 直接通过）
+ * - mode='never'：自动拒绝（不推送，step 2 直接失败）
+ *
+ * 设计要点：
+ * - 30 秒未响应主进程自动拒绝（与 sandbox-approval 保持一致）
+ * - remember=true 时主进程记录日志（持久化规则表留待 v1.6 实现）
+ */
+const taskPermission = {
+  /**
+   * 响应审批请求
+   *
+   * @param callId 审批调用 ID（与推送的 TaskPermissionApprovalRequest.callId 对应）
+   * @param decision 审批决策（approved + rejectReason + remember）
+   * @returns void（主进程通过 Promise resolve 通知 waitForTaskPermissionApproval）
+   */
+  approve: (
+    callId: string,
+    decision: TaskPermissionDecision
+  ): Promise<void> =>
+    ipcRenderer.invoke('task:permission-approve', callId, decision),
+}
+
+/**
  * v0.9.5 P0 - 组 4：Subagent 自定义 Agent 加载器 invoke 调用
  *
  * 通道与主进程 ipc/subagent.ts 一一对应：
@@ -1999,6 +2081,18 @@ const on = {
     return createListener('paor:approval-request', callback)
   },
 
+  /**
+   * 监听 Task Protocol 审批请求（v0.9.3 §11 遗留项 2 P2-H 新增）
+   *
+   * 主进程在 task-protocol step 2 check-permission 推送 task:permission-approval-request 事件，
+   * 渲染进程通过本监听器接收审批请求载荷，弹窗让用户确认后调用 taskPermissionApprove() 响应。
+   *
+   * 注意：30 秒未响应主进程会自动拒绝。
+   */
+  taskPermissionApprovalRequest: (callback: (request: TaskPermissionApprovalRequest) => void): (() => void) => {
+    return createListener('task:permission-approval-request', callback)
+  },
+
   // v1.5 循环工程事件监听器
   loopLlmStart: (callback: (payload: unknown) => void): (() => void) => {
     return createListener('loop:llm-start', callback)
@@ -2157,6 +2251,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // v0.9.5 PAOR 审批请求事件（PAOR 循环遇到高危命令时推送审批请求）
   onPaorApprovalRequest: on.paorApprovalRequest,
+
+  // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批请求事件
+  // （Subagent 调度时主进程推送审批请求，用户响应后 step 2 继续/中止）
+  onTaskPermissionApprovalRequest: on.taskPermissionApprovalRequest,
 
   // ===== Agent 扁平化（旧 AgentWorkflow，v0.8 及之前） =====
   // 注意：v0.8 旧 agentCancel 已被 v0.9.4 新签名覆盖（通过 sessionId 统一取消多类会话）。
@@ -2512,6 +2610,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控（2 个）
   expectationCheck: expectation.check,
   expectationFormat: expectation.format,
+
+  // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批（1 个）
+  // 用户通过本函数响应主进程推送的 task:permission-approval-request
+  taskPermissionApprove: taskPermission.approve,
 
   // 组 4：Subagent 自定义 Agent 加载器（2 个）
   subagentList: subagent.list,
@@ -3115,6 +3217,8 @@ export type ElectronAPI = {
   // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控（2 个）
   expectationCheck: typeof expectation.check
   expectationFormat: typeof expectation.format
+  // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批（1 个）
+  taskPermissionApprove: typeof taskPermission.approve
   // 组 4：Subagent 自定义 Agent 加载器（2 个）
   subagentList: typeof subagent.list
   subagentReload: typeof subagent.reload
