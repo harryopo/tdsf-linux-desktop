@@ -181,3 +181,29 @@
 - 技术债清理：8 个 TD 清理 6 个（TD-1/2/3/5/6/8 修复，TD-4 已知偏差，TD-7 延后 v1.6）
 - Hard Constraint 修复：3 个 P0（Monaco / @命令划选 / docker-compose）+ R11 Langfuse + R12 三态权限
 - Agent 架构：task-protocol 14 步真实逻辑 + Langfuse trace 全链路 + ECE/TempScaling 校准 + MCP 30 工具 + resources/prompts
+
+---
+
+## v2.1 功能修复循环工程（2026-07-22）
+
+> 方案书：`idea-to-dev-output/46-v2.1功能修复循环工程规划.md`
+> 归档：`docs/v2.1-functional-fix-archive/`
+
+| Phase | 主题 | 状态 | Commit | 文件变化 |
+|-------|------|------|--------|----------|
+| H | 密码持久化修复（syncToMain移除脱敏+主进程权威+serverDeleteCred） | ✅ | `c25089e` | 8文件 |
+| I | 监控间隔修复（5000→3秒+自动启动监控） | ✅ | `c25089e` | 同上 |
+| J | DeepSeek模型弃用修复（v4-flash+baseURL移除/v1+思考模式） | ✅ | `c25089e` | 同上 |
+| K | SSH心跳指数退避重连（3次1s/2s/4s+IPC通知UI+滑块联动） | ✅ | `49514d1` | 9文件 266+/22- |
+| L | known_hosts验证+首次保存密钥弹窗（HMAC-SHA1比对+三按钮+5分钟超时） | ✅ | `e674b06` | 12文件 1430+/7- |
+| M | 删除按钮+密钥管理UI（Trash2+上传+生成+真实文件扫描） | ✅ | `ada7f40` | 6文件 795+/26- |
+| N | 终端选中翻译恢复（翻译开关+SelectionPopover+useTranslateStore） | ✅ | `49514d1` | 同K |
+| O | 集成验证+归档（编译门禁三绿+归档五件套） | ✅ | `91ef994` | lint修复 |
+
+**关键指标**：
+- 编译门禁：typecheck:node ✅ + typecheck:web ✅ + lint ✅（三绿全通过）
+- 综合 7 维评分：8.8/10（超过阈值 8.5/10）
+- 用户反馈问题修复：11/11 全部修复
+- Hard Constraint 对齐：42/42 全部通过
+- 经验沉淀：6 条（LRN-20260722-009 至 014）
+- 新增IPC通道：SSH.STATE_CHANGED + HOST_KEY_PROMPT + HOST_KEY_RESPONSE + DELETE_KEYPAIR + UPLOAD_KEYPAIR + GENERATE_KEYPAIR + LIST_KEYPAIRS（7个，全部完成4步同步）
