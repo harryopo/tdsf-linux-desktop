@@ -20,9 +20,41 @@ import {
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
+import MonacoEditor, { type MonacoEditorLanguage } from './MonacoEditor'
 import { useServerStore } from '@/stores/server-store'
+import { useEditorStore } from '@/stores/editor-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { OpenFileRequest } from './FileTree'
+
+/**
+ * 根据文件扩展名识别 Monaco 语言标识
+ *
+ * 用于 MonacoEditor 的 language prop，控制语法高亮
+ */
+function detectLanguage(filePath: string): MonacoEditorLanguage {
+  const ext = filePath.toLowerCase().match(/\.([^.]+)$/)?.[1] ?? ''
+  switch (ext) {
+    case 'sh':
+    case 'bash':
+      return 'shell'
+    case 'py':
+      return 'python'
+    case 'json':
+      return 'json'
+    case 'yaml':
+    case 'yml':
+      return 'yaml'
+    case 'md':
+    case 'markdown':
+      return 'markdown'
+    case 'conf':
+    case 'cfg':
+    case 'ini':
+      return 'ini'
+    default:
+      return 'plaintext'
+  }
+}
 
 export type WorkbenchTabId = 'tab-terminal' | `file:${string}`
 
@@ -110,12 +142,15 @@ const FileEditorPanel: FC<{
           保存
         </button>
       </div>
-      <textarea
-        value={tab.content}
-        onChange={(e) => onChange(e.target.value)}
-        spellCheck={false}
-        className="min-h-0 flex-1 resize-none border-0 bg-[#0F1011] px-4 py-3 font-mono text-[13px] leading-5 text-[#E0E3EE] outline-none"
-      />
+      <div className="min-h-0 flex-1">
+        <MonacoEditor
+          value={tab.content}
+          language={detectLanguage(tab.path)}
+          path={tab.path}
+          onChange={onChange}
+          onSave={onSave}
+        />
+      </div>
     </div>
   )
 }
@@ -130,6 +165,8 @@ const EditorArea: FC<EditorAreaProps> = ({
   onFileSaved,
 }) => {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
+  const setActiveFilePath = useEditorStore((s) => s.setActiveFilePath)
+  const setCursorPosition = useEditorStore((s) => s.setCursorPosition)
   const [savingId, setSavingId] = useState<string | null>(null)
 
   const tabs = useMemo(() => {
@@ -169,6 +206,17 @@ const EditorArea: FC<EditorAreaProps> = ({
 
   const activeFile = fileTabs.find((f) => f.id === activeTabId)
 
+  // 切换 Tab 时同步 editor-store 的 activeFilePath（供 StatusBar 显示）
+  // 终端 tab 或无激活文件时清空光标位置
+  useEffect(() => {
+    if (activeFile) {
+      setActiveFilePath(activeFile.path)
+    } else {
+      setActiveFilePath(null)
+      setCursorPosition(null)
+    }
+  }, [activeFile, setActiveFilePath, setCursorPosition])
+
   const handleSave = useCallback(async () => {
     if (!activeFile || !activeSessionId) return
     if (!isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) return
@@ -202,7 +250,8 @@ const EditorArea: FC<EditorAreaProps> = ({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-[var(--trae-bg-base-default)]">
-      <div className="flex h-9 shrink-0 items-stretch border-b border-[var(--trae-border-neutral-l1)]">
+      {/* 标签栏 — 设计稿高度 40px */}
+      <div className="flex h-10 shrink-0 items-stretch border-b border-[var(--trae-border-neutral-l1)]">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const isTerm = tab.id === 'tab-terminal'
@@ -210,7 +259,7 @@ const EditorArea: FC<EditorAreaProps> = ({
             <div
               key={tab.id}
               className={cn(
-                'group relative flex h-9 items-center gap-1.5 border-r border-[var(--trae-border-neutral-l1)] px-3 text-[12px]',
+                'group relative flex h-10 items-center gap-2 border-r border-[var(--trae-border-neutral-l1)] px-3.5 text-[13px]',
                 isActive
                   ? 'bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)]'
                   : 'text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l1)]',
@@ -221,13 +270,13 @@ const EditorArea: FC<EditorAreaProps> = ({
               )}
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5"
+                className="inline-flex items-center gap-2"
                 onClick={() => onTabChange(tab.id)}
               >
                 {isTerm ? (
-                  <TerminalIcon className="size-3.5" />
+                  <TerminalIcon className="size-4" />
                 ) : (
-                  <FileText className="size-3.5" />
+                  <FileText className="size-4" />
                 )}
                 <span className="max-w-[140px] truncate">{tab.label}</span>
               </button>
@@ -235,32 +284,34 @@ const EditorArea: FC<EditorAreaProps> = ({
                 <button
                   type="button"
                   title="关闭"
-                  className="ml-0.5 rounded p-0.5 opacity-0 hover:bg-[var(--trae-bg-overlay-l2)] group-hover:opacity-100"
+                  className="ml-1 rounded p-0.5 opacity-0 hover:bg-[var(--trae-bg-overlay-l2)] group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation()
                     onCloseFile?.(tab.id)
                   }}
                 >
-                  <X className="size-3" />
+                  <X className="size-3.5" />
                 </button>
               )}
             </div>
           )
         })}
-        <div className="flex flex-1 items-center justify-end gap-1 px-2">
+        <div className="flex flex-1 items-center justify-end gap-1.5 px-3">
           <button
             type="button"
-            title="分屏（即将支持）"
-            className="flex size-7 items-center justify-center rounded text-[var(--trae-text-tertiary)]"
+            title="分屏"
+            onClick={() => { /* TODO: 分屏功能 */ }}
+            className="flex size-8 items-center justify-center rounded text-[var(--trae-text-tertiary)] transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-secondary)] active:scale-95"
           >
-            <Columns2 className="size-3.5" />
+            <Columns2 className="size-4" />
           </button>
           <button
             type="button"
             title="更多"
-            className="flex size-7 items-center justify-center rounded text-[var(--trae-text-tertiary)]"
+            onClick={() => { /* TODO: 更多选项菜单 */ }}
+            className="flex size-8 items-center justify-center rounded text-[var(--trae-text-tertiary)] transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-secondary)] active:scale-95"
           >
-            <MoreHorizontal className="size-3.5" />
+            <MoreHorizontal className="size-4" />
           </button>
         </div>
       </div>
