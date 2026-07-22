@@ -26,17 +26,7 @@ export function LogSidebar({
   const systemSources = LOG_SOURCES.filter((s) => s.group === 'system')
 
   return (
-    <nav
-      className="flex shrink-0 flex-col"
-      style={{
-        width: 180,
-        gap: 4,
-        padding: 8,
-        background: 'var(--trae-bg-base-secondary)',
-        border: '1px solid var(--trae-border-neutral-l1)',
-        borderRadius: 'var(--trae-radius-8)',
-      }}
-    >
+    <nav className="log-sidebar flex shrink-0 flex-col">
       {mainSources.map((src) => (
         <LogSourceRow
           key={src.id}
@@ -47,27 +37,10 @@ export function LogSidebar({
       ))}
 
       {/* 分隔线 */}
-      <div
-        style={{
-          height: 1,
-          margin: '8px 4px',
-          background: 'var(--trae-border-neutral-l2)',
-        }}
-      />
+      <div className="log-source-divider" />
 
       {/* Section label */}
-      <div
-        style={{
-          padding: '6px 8px 2px',
-          fontSize: 9,
-          fontWeight: 600,
-          color: 'var(--trae-text-tertiary)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-        }}
-      >
-        服务器系统日志
-      </div>
+      <div className="log-source-section-label">服务器系统日志</div>
 
       {systemSources.map((src) => (
         <LogSourceRow
@@ -95,61 +68,27 @@ function LogSourceRow({
   mono?: boolean
 }) {
   const Icon = source.icon
-  const countColor = source.alert
-    ? 'var(--trae-status-alert-default)'
-    : active
-      ? 'var(--trae-text-brand)'
-      : 'var(--trae-text-tertiary)'
+  const isAlertCount = !!source.alert
 
   return (
     <div
       onClick={() => onSelect(source.id)}
-      className="flex cursor-pointer items-center transition-colors"
-      style={{
-        height: 32,
-        padding: '0 8px 0 6px',
-        gap: 8,
-        borderLeft: active
-          ? '2px solid var(--trae-border-brand)'
-          : '2px solid transparent',
-        borderRadius: 'var(--trae-radius-4)',
-        background: active ? 'var(--trae-bg-overlay-l2)' : 'transparent',
-        color: active ? 'var(--trae-text-default)' : 'var(--trae-text-secondary)',
-      }}
+      className={`log-source-row flex items-center transition-colors ${active ? 'is-active' : ''}`}
     >
       <Icon
         size={14}
-        className="shrink-0"
+        className="log-source-icon"
         style={{
           color: active
             ? 'var(--trae-icon-brand)'
             : 'var(--trae-icon-secondary)',
         }}
       />
-      <span
-        className="flex-1 truncate"
-        style={{
-          fontSize: 'var(--trae-body-sm-font-size)',
-          fontWeight: active ? 'var(--trae-font-weight-medium)' : 'var(--trae-font-weight-default)',
-          fontFamily: mono ? 'var(--trae-font-family-mono)' : undefined,
-        }}
-      >
+      <span className={`log-source-label ${mono ? 'log-source-label-mono' : ''}`}>
         {source.label}
       </span>
       <span
-        className="inline-flex shrink-0 items-center justify-center"
-        style={{
-          minWidth: 20,
-          height: 16,
-          padding: '0 4px',
-          fontSize: 10,
-          color: countColor,
-          background: active
-            ? 'var(--trae-bg-brand-popup)'
-            : 'var(--trae-bg-overlay-l3)',
-          borderRadius: 'var(--trae-radius-full)',
-          fontVariantNumeric: 'tabular-nums',
-        }}
+        className={`log-source-count ${active ? 'is-active' : ''} ${isAlertCount ? 'is-alert' : ''}`}
       >
         {source.count}
       </span>

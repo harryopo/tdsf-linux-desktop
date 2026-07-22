@@ -143,7 +143,7 @@ const StepProgress: FC<{
             <div
               key={step.key}
               className={cn(
-                'flex items-start gap-2 rounded-[var(--trae-radius-4)] px-1.5 py-1 transition-colors',
+                'flex items-start gap-2 rounded-[var(--trae-radius-4)] px-2 py-1.5 transition-colors',
                 isCurrent && 'bg-[var(--trae-bg-overlay-l2)]'
               )}
             >

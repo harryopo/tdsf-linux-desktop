@@ -36,13 +36,14 @@ import ProfilerDialog from '../profiler/ProfilerDialog'
 import DeployDialog from '../deploy/DeployDialog'
 import type { SshConfig, SshConnectionState } from '@shared/models'
 import './ServerList.css'
+import '../../pages/SshSettings.css'
 
 /** 连接状态指示灯颜色映射 */
 const STATE_COLORS: Record<SshConnectionState, string> = {
-  disconnected: '#86868b',
-  connecting: '#ff9500',
-  connected: '#34c759',
-  error: '#ff3b30',
+  disconnected: 'var(--trae-text-tertiary)',
+  connecting: 'var(--trae-status-alert-default)',
+  connected: 'var(--trae-status-success-default)',
+  error: 'var(--trae-status-error-default)',
 }
 
 /** 连接状态中文标签 */
@@ -370,7 +371,7 @@ const ServerList: React.FC = () => {
       <div className="server-list-search">
         <Input
           placeholder="搜索服务器..."
-          prefix={<SearchOutlined style={{ color: '#86868b' }} />}
+          prefix={<SearchOutlined style={{ color: 'var(--trae-text-tertiary)' }} />}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           variant="borderless"

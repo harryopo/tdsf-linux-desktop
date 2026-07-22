@@ -33,6 +33,7 @@ import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
 import { cn } from '@/components/trae/utils'
+import './Settings.css'
 
 type ProtectionLevel = 'standard' | 'strict' | 'extreme'
 
@@ -106,19 +107,27 @@ const ACTION_LABEL: Record<RiskAction, string> = {
   custom: '可配置',
 }
 
-/** 风险等级标签样式（彩色背景 + 白字，对应设计稿 ds-risk-tag--*） */
+/** 风险等级标签样式（彩色背景 + 白字，对应设计稿 set-risk-tag--*） */
 const LEVEL_TAG_CLASS: Record<RiskLevel, string> = {
-  critical: 'bg-[var(--trae-status-error-default)] text-white',
-  high: 'bg-[var(--trae-status-warning-default)] text-white',
-  medium: 'bg-[var(--trae-status-primary-default)] text-white',
-  low: 'bg-[var(--trae-status-success-default)] text-white',
-  none: 'bg-[var(--trae-text-tertiary)] text-white',
+  critical: 'set-risk-tag--critical',
+  high: 'set-risk-tag--high',
+  medium: 'set-risk-tag--medium',
+  low: 'set-risk-tag--low',
+  none: 'set-risk-tag--none',
   custom: '',
 }
 
-/** 动作标签样式（灰底 + 边框，对应设计稿 ds-action-tag） */
-const ACTION_TAG_CLASS =
-  'inline-flex h-5 items-center justify-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-2 text-[10px] font-medium text-[var(--trae-text-secondary)]'
+/** 动作标签样式（灰底 + 边框，对应设计稿 set-action-tag） */
+const ACTION_TAG_CLASS = 'set-action-tag'
+
+/** 只读数值展示框（对应设计稿 set-num） */
+function ReadOnlyNum({ value }: { value: number | string }) {
+  return (
+    <div className="set-num">
+      {value}
+    </div>
+  )
+}
 
 export function RiskSettings() {
   // Card 1: 安全防护等级
@@ -201,61 +210,32 @@ export function RiskSettings() {
         desc="运维操作安全防护与审计策略"
       />
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="set-panel-content">
         {/* Card 1: 安全防护等级 */}
         <SettingsCard icon={Shield} title="安全防护等级" tag="protection.level">
           {/* 3 级单选卡片（带左侧 2px 蓝条 + radio dot） */}
-          <div className="grid grid-cols-3 gap-2.5 py-2 pb-2">
+          <div className="set-radiogroup">
             {PROTECTION_LEVELS.map((opt) => {
               const selected = protectionLevel === opt.value
               return (
-                <button
+                <label
                   key={opt.value}
-                  type="button"
-                  onClick={() => setProtectionLevel(opt.value)}
-                  className={cn(
-                    'relative flex flex-col gap-1.5 rounded-[var(--trae-radius-6)] border px-3 py-3 text-left transition-colors',
-                    selected
-                      ? 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)]'
-                      : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] hover:border-[var(--trae-border-neutral-l3)]',
-                  )}
+                  className={cn('set-radio-card btn-press', selected && 'is-checked')}
                 >
-                  {/* 选中态左侧 2px 蓝色指示条 */}
-                  {selected && (
-                    <span
-                      aria-hidden
-                      className="absolute -left-px top-2.5 bottom-2.5 w-0.5 rounded-r-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)]"
-                    />
-                  )}
-                  <div className="flex w-full items-center justify-between gap-2">
-                    <span
-                      className={cn(
-                        'text-[11px] font-medium',
-                        selected
-                          ? 'text-[var(--trae-text-default-hover)]'
-                          : 'text-[var(--trae-text-default)]',
-                      )}
-                    >
-                      {opt.label}
-                    </span>
-                    {/* radio dot */}
-                    <span
-                      className={cn(
-                        'flex size-3.5 shrink-0 items-center justify-center rounded-full border transition-colors',
-                        selected
-                          ? 'border-[var(--trae-bg-brand)]'
-                          : 'border-[var(--trae-border-neutral-l3)]',
-                      )}
-                    >
-                      {selected && (
-                        <span className="size-2 rounded-full bg-[var(--trae-bg-brand)]" />
-                      )}
-                    </span>
+                  <input
+                    type="radio"
+                    name="protection-level"
+                    checked={selected}
+                    onChange={() => setProtectionLevel(opt.value)}
+                  />
+                  <div className="set-radio-card__head">
+                    <span className="set-radio-card__title">{opt.label}</span>
+                    <span className="set-radio-card__dot" />
                   </div>
-                  <span className="text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+                  <span className="set-radio-card__desc">
                     {opt.desc}
                   </span>
-                </button>
+                </label>
               )
             })}
           </div>
@@ -273,11 +253,7 @@ export function RiskSettings() {
           <SettingsRow
             label="操作录像保留天数"
             desc="终端操作录像的保留周期"
-            control={
-              <div className="inline-flex h-[30px] min-w-[88px] items-center justify-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-2.5 font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">
-                {recordingRetention}
-              </div>
-            }
+            control={<ReadOnlyNum value={recordingRetention} />}
             isLast
           />
         </SettingsCard>
@@ -287,42 +263,29 @@ export function RiskSettings() {
           <p className="pb-2 pt-1 text-[11px] leading-[16px] text-[var(--trae-text-secondary)]">
             控制运维 Agent 执行命令时是否需要人工审批。建议生产环境使用「全部审批」或「智能自动」。
           </p>
-          <div className="grid grid-cols-3 gap-2.5 py-1 pb-2">
+          <div className="set-radiogroup">
             {PERMISSION_MODES.map((opt) => {
               const selected = permissionMode === opt.value
               const isDanger = opt.value === 'never'
               return (
-                <button
+                <label
                   key={opt.value}
-                  type="button"
-                  onClick={() => setPermissionMode(opt.value)}
                   className={cn(
-                    'relative flex flex-col gap-1.5 rounded-[var(--trae-radius-6)] border px-3 py-3 text-left transition-colors',
-                    selected
-                      ? isDanger
-                        ? 'border-[var(--trae-status-error)] bg-[var(--trae-bg-overlay-l2)]'
-                        : 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)]'
-                      : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] hover:border-[var(--trae-border-neutral-l3)]',
+                    'set-radio-card btn-press',
+                    selected && (isDanger ? 'is-checked is-danger' : 'is-checked'),
                   )}
                 >
-                  {selected && (
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'absolute -left-px top-2.5 bottom-2.5 w-0.5 rounded-r-[var(--trae-radius-6)]',
-                        isDanger ? 'bg-[var(--trae-status-error)]' : 'bg-[var(--trae-bg-brand)]'
-                      )}
-                    />
-                  )}
-                  <div className="flex w-full items-center justify-between gap-2">
+                  <input
+                    type="radio"
+                    name="permission-mode"
+                    checked={selected}
+                    onChange={() => setPermissionMode(opt.value)}
+                  />
+                  <div className="set-radio-card__head">
                     <span
                       className={cn(
-                        'text-[11px] font-medium',
-                        selected
-                          ? isDanger
-                            ? 'text-[var(--trae-status-error)]'
-                            : 'text-[var(--trae-text-default-hover)]'
-                          : 'text-[var(--trae-text-default)]',
+                        'set-radio-card__title',
+                        selected && isDanger && 'text-[var(--trae-status-error-default)]',
                       )}
                     >
                       {opt.label}
@@ -340,10 +303,10 @@ export function RiskSettings() {
                       {opt.badge}
                     </span>
                   </div>
-                  <span className="text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+                  <span className="set-radio-card__desc">
                     {opt.desc}
                   </span>
-                </button>
+                </label>
               )
             })}
           </div>
@@ -356,75 +319,55 @@ export function RiskSettings() {
 
         {/* Card 2: 命令风险评级规则表 */}
         <SettingsCard icon={AlertTriangle} title="命令风险评级规则" tag={`${rules.length} rules`}>
-          <div className="mt-1.5 overflow-x-auto rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
-            <table className="w-full border-collapse text-[12px]">
-              <thead>
-                <tr className="border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l2)] text-left text-[11px] font-medium text-[var(--trae-text-secondary)]">
-                  <th className="px-3 py-2" style={{ width: '34%' }}>
-                    命令模式
-                  </th>
-                  <th className="px-3 py-2" style={{ width: '18%' }}>
-                    风险等级
-                  </th>
-                  <th className="px-3 py-2" style={{ width: '18%' }}>
-                    动作
-                  </th>
-                  <th className="px-3 py-2 text-right" style={{ width: '30%' }}>
-                    操作
-                  </th>
+          <table className="set-table">
+            <thead>
+              <tr>
+                <th style={{ width: '34%' }}>命令模式</th>
+                <th style={{ width: '18%' }}>风险等级</th>
+                <th style={{ width: '18%' }}>动作</th>
+                <th className="col-actions" style={{ width: '30%' }}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((rule) => (
+                <tr key={rule.id}>
+                  <td className="col-cmd">{rule.pattern}</td>
+                  <td>
+                    {rule.level === 'custom' ? (
+                      <span className={ACTION_TAG_CLASS}>{LEVEL_LABEL[rule.level]}</span>
+                    ) : (
+                      <span className={cn('set-risk-tag', LEVEL_TAG_CLASS[rule.level])}>
+                        {LEVEL_LABEL[rule.level]}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={ACTION_TAG_CLASS}>{ACTION_LABEL[rule.action]}</span>
+                  </td>
+                  <td className="col-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleEditRule(rule)}
+                      aria-label={`编辑规则 ${rule.pattern}`}
+                      className="set-btn-ghost btn-press"
+                    >
+                      <Edit3 className="di-12" />
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRule(rule.id)}
+                      aria-label={`删除规则 ${rule.pattern}`}
+                      className="set-btn-danger btn-press"
+                    >
+                      <Trash2 className="di-12" />
+                      删除
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {rules.map((rule) => (
-                  <tr
-                    key={rule.id}
-                    className="border-b border-[var(--trae-border-neutral-l1)] last:border-0 transition-colors hover:bg-[var(--trae-bg-overlay-l1)]"
-                  >
-                    <td className="px-3 py-2.5 font-mono text-[12px] text-[var(--trae-code-text)]">
-                      {rule.pattern}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {rule.level === 'custom' ? (
-                        <span className={ACTION_TAG_CLASS}>{LEVEL_LABEL[rule.level]}</span>
-                      ) : (
-                        <span
-                          className={cn(
-                            'inline-flex h-5 items-center justify-center rounded-[var(--trae-radius-4)] px-2 text-[10px] font-semibold tracking-[0.02em] text-white',
-                            LEVEL_TAG_CLASS[rule.level],
-                          )}
-                        >
-                          {LEVEL_LABEL[rule.level]}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className={ACTION_TAG_CLASS}>{ACTION_LABEL[rule.action]}</span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleEditRule(rule)}
-                        aria-label={`编辑规则 ${rule.pattern}`}
-                        className="mr-1 inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-2.5 text-[10px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-95"
-                      >
-                        <Edit3 className="size-3" />
-                        编辑
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRule(rule.id)}
-                        aria-label={`删除规则 ${rule.pattern}`}
-                        className="inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3 text-[10px] font-medium text-[var(--trae-status-error-default)] transition-colors hover:border-[var(--trae-status-error-default)] hover:bg-[var(--trae-status-error-surface-l1)] active:scale-95"
-                      >
-                        <Trash2 className="size-3" />
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
 
           {/* 新增规则按钮 + 反馈 */}
           <div className="flex items-center gap-3 pt-3">
@@ -432,9 +375,9 @@ export function RiskSettings() {
               type="button"
               onClick={handleAddRule}
               aria-label="新增规则"
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-4 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] hover:border-[var(--trae-bg-brand-hover)] active:scale-95"
+              className="set-btn-primary btn-press"
             >
-              <Plus className="size-3.5" />
+              <Plus className="di-14" />
               新增规则
             </button>
             {ruleFeedback && (
@@ -470,11 +413,7 @@ export function RiskSettings() {
           <SettingsRow
             label="审计日志保留天数"
             desc="超过保留期的日志自动归档或清理"
-            control={
-              <div className="inline-flex h-[30px] min-w-[88px] items-center justify-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-2.5 font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">
-                {auditRetention}
-              </div>
-            }
+            control={<ReadOnlyNum value={auditRetention} />}
           />
           <SettingsRow
             label="审计日志存储路径"
@@ -483,7 +422,7 @@ export function RiskSettings() {
               <Input
                 value={auditPath}
                 onChange={(e) => setAuditPath(e.target.value)}
-                className="w-[280px] font-mono"
+                className="set-input"
               />
             }
             isLast
@@ -499,7 +438,8 @@ export function RiskSettings() {
               <Input
                 value={emergencyHotkey}
                 onChange={(e) => setEmergencyHotkey(e.target.value)}
-                className="w-[160px] font-mono"
+                className="set-input"
+                style={{ minWidth: 160 }}
               />
             }
           />
@@ -511,11 +451,7 @@ export function RiskSettings() {
           <SettingsRow
             label="回滚确认超时"
             desc="超时未确认则自动执行回滚"
-            control={
-              <div className="inline-flex h-[30px] min-w-[88px] items-center justify-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-2.5 font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">
-                {rollbackTimeout}
-              </div>
-            }
+            control={<ReadOnlyNum value={rollbackTimeout} />}
           />
           <SettingsRow
             label="紧急联系人"
@@ -524,7 +460,8 @@ export function RiskSettings() {
               <Input
                 value={emergencyContact}
                 onChange={(e) => setEmergencyContact(e.target.value)}
-                className="w-[220px] font-mono"
+                className="set-input"
+                style={{ minWidth: 220 }}
               />
             }
           />

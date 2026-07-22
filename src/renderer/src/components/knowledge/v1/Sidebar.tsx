@@ -22,67 +22,31 @@ interface SidebarProps {
 /** 热门知识卡片 */
 export function HotList({ onNavigate }: SidebarProps = {}) {
   return (
-    <section
-      className="border p-4"
-      style={{
-        background: 'var(--trae-bg-base-secondary)',
-        borderColor: 'var(--trae-border-neutral-l1)',
-        borderRadius: 'var(--trae-radius-8)',
-      }}
-    >
-      <div className="mb-3 flex items-center gap-2">
+    <section className="kb-side-card">
+      <div className="kb-side-card__head">
         <Star
           className="h-4 w-4"
           style={{ color: 'var(--trae-icon-brand)' }}
         />
-        <h2
-          className="font-semibold"
-          style={{
-            fontSize: 'var(--trae-heading-xs-font-size)',
-            lineHeight: 'var(--trae-heading-xs-line-height)',
-            color: 'var(--trae-text-default)',
-          }}
-        >
+        <h2 className="kb-side-card__title">
           热门知识
         </h2>
       </div>
-      <ol className="flex flex-col gap-2.5">
+      <ol className="kb-hot-list">
         {HOT_ITEMS.map((item) => (
           <li
             key={item.rank}
-            className="flex cursor-pointer items-center gap-2.5 transition-colors hover:text-[var(--trae-text-brand)]"
+            className="kb-hot-item"
             onClick={() => onNavigate?.(item.id)}
             title={`查看「${item.title}」详情`}
           >
-            <span
-              className="w-4 shrink-0 text-center font-semibold"
-              style={{
-                fontSize: 'var(--trae-body-sm-font-size)',
-                lineHeight: 'var(--trae-body-sm-line-height)',
-                color: 'var(--trae-text-brand)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
+            <span className="kb-hot-rank">
               {item.rank}
             </span>
-            <span
-              className="min-w-0 flex-1 truncate"
-              style={{
-                fontSize: 'var(--trae-body-sm-font-size)',
-                lineHeight: 'var(--trae-body-sm-line-height)',
-                color: 'var(--trae-text-default)',
-              }}
-            >
+            <span className="kb-hot-title">
               {item.title}
             </span>
-            <span
-              className="shrink-0"
-              style={{
-                fontSize: 'var(--trae-body-xs-font-size)',
-                color: 'var(--trae-text-tertiary)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
+            <span className="kb-hot-views">
               {item.views}
             </span>
           </li>
@@ -95,35 +59,21 @@ export function HotList({ onNavigate }: SidebarProps = {}) {
 /** 最近浏览卡片 */
 export function RecentList({ onNavigate }: SidebarProps = {}) {
   return (
-    <section
-      className="border p-4"
-      style={{
-        background: 'var(--trae-bg-base-secondary)',
-        borderColor: 'var(--trae-border-neutral-l1)',
-        borderRadius: 'var(--trae-radius-8)',
-      }}
-    >
-      <div className="mb-3 flex items-center gap-2">
+    <section className="kb-side-card">
+      <div className="kb-side-card__head">
         <Clock
           className="h-4 w-4"
           style={{ color: 'var(--trae-icon-brand)' }}
         />
-        <h2
-          className="font-semibold"
-          style={{
-            fontSize: 'var(--trae-heading-xs-font-size)',
-            lineHeight: 'var(--trae-heading-xs-line-height)',
-            color: 'var(--trae-text-default)',
-          }}
-        >
+        <h2 className="kb-side-card__title">
           最近浏览
         </h2>
       </div>
-      <ul className="flex flex-col gap-2.5">
+      <ul className="kb-recent-list">
         {RECENT_ITEMS.map((item, idx) => (
           <li
             key={idx}
-            className="flex cursor-pointer items-center gap-2.5 transition-colors hover:text-[var(--trae-text-brand)]"
+            className="kb-recent-item"
             onClick={() => onNavigate?.(item.id)}
             title={`查看「${item.title}」详情`}
           >
@@ -131,23 +81,10 @@ export function RecentList({ onNavigate }: SidebarProps = {}) {
               className="h-3.5 w-3.5 shrink-0"
               style={{ color: 'var(--trae-icon-secondary)' }}
             />
-            <span
-              className="min-w-0 flex-1 truncate"
-              style={{
-                fontSize: 'var(--trae-body-sm-font-size)',
-                lineHeight: 'var(--trae-body-sm-line-height)',
-                color: 'var(--trae-text-default)',
-              }}
-            >
+            <span className="kb-recent-title">
               {item.title}
             </span>
-            <span
-              className="shrink-0"
-              style={{
-                fontSize: 'var(--trae-body-xs-font-size)',
-                color: 'var(--trae-text-tertiary)',
-              }}
-            >
+            <span className="kb-recent-time">
               {item.time}
             </span>
           </li>
@@ -160,7 +97,7 @@ export function RecentList({ onNavigate }: SidebarProps = {}) {
 /** 右栏整体（HotList + RecentList） */
 export function Sidebar({ onNavigate }: SidebarProps = {}) {
   return (
-    <aside className="flex w-full shrink-0 flex-col gap-3 lg:w-[280px]">
+    <aside className="kb-sidebar">
       <HotList onNavigate={onNavigate} />
       <RecentList onNavigate={onNavigate} />
     </aside>

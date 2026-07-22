@@ -52,6 +52,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { SshConfig } from '@shared/models'
 import { cn } from '@/components/trae/utils'
+import './SshSettings.css'
 
 /** 服务器连接状态 → 状态点颜色 + 中文标签 */
 type ServerStatus = 'online' | 'connecting' | 'warning' | 'error' | 'offline'
@@ -68,11 +69,11 @@ function statusOf(
 }
 
 const STATUS_DOT_CLASS: Record<ServerStatus, string> = {
-  online: 'bg-[var(--trae-status-success-default)]',
-  connecting: 'bg-[var(--trae-status-alert-default)]',
-  warning: 'bg-[var(--trae-status-alert-default)]',
-  error: 'bg-[var(--trae-status-error-default)]',
-  offline: 'bg-[var(--trae-text-tertiary)]',
+  online: 'ssh-dot-online',
+  connecting: 'ssh-dot-connecting',
+  warning: 'ssh-dot-warning',
+  error: 'ssh-dot-error',
+  offline: 'ssh-dot-offline',
 }
 
 const STATUS_LABEL: Record<ServerStatus, string> = {
@@ -318,7 +319,7 @@ export function SshSettings() {
         desc="远程服务器连接与密钥管理"
       />
 
-      <div className="flex flex-col gap-5 p-6">
+      <div className="ssh-panel-content">
         {/* ===== Card 1: 已连接服务器 ===== */}
         <SettingsCard
           icon={Server}
@@ -346,47 +347,41 @@ export function SshSettings() {
                 <div
                   key={s.id}
                   className={cn(
-                    'flex items-center gap-3 py-3',
-                    idx === sortedServers.length - 1
-                      ? 'pb-0.5'
-                      : 'border-b border-[var(--trae-border-neutral-l1)]',
+                    'ssh-server-row',
+                    idx === sortedServers.length - 1 && 'ssh-server-row--last',
                   )}
                 >
-                  {/* 状态点 */}
                   <span
-                    className={cn('size-2 shrink-0 rounded-full', STATUS_DOT_CLASS[st])}
+                    className={cn('ssh-server-row__dot', STATUS_DOT_CLASS[st])}
                     aria-label={STATUS_LABEL[st]}
                   />
-                  {/* 名称 + IP（脱敏：不显示密码值，仅显示主机信息） */}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-medium leading-[16px] text-[var(--trae-text-default)]">
+                  <div className="ssh-server-row__main">
+                    <div className="ssh-server-row__name">
                       {s.name || s.host}
                     </div>
-                    <div className="mt-px font-mono text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+                    <div className="ssh-server-row__ip">
                       {s.host}
-                      <span className="ml-2 text-[var(--trae-text-tertiary)]">
+                      <span className="ssh-server-row__ip-status">
                         {STATUS_LABEL[st]}
                       </span>
                     </div>
                   </div>
-                  {/* 类型标签：密钥 / 密码（H3 修复：只显示标签，不显示密码值） */}
-                  <span className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-2 py-1 text-[10px] text-[var(--trae-text-secondary)]">
+                  <span className="ssh-server-row__type">
                     {isKeyAuth ? (
-                      <KeyRound className="size-3 text-[var(--trae-icon-secondary)]" />
+                      <KeyRound className="size-3" />
                     ) : (
-                      <Lock className="size-3 text-[var(--trae-icon-secondary)]" />
+                      <Lock className="size-3" />
                     )}
                     {isKeyAuth ? '密钥' : '密码'}
                   </span>
-                  {/* 操作按钮 */}
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="ssh-server-row__actions">
                     {st === 'online' ? (
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => void disconnectOne(s)}
                         aria-label={`断开 ${s.name || s.host}`}
-                        className="inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[10px] font-medium text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)] disabled:opacity-50"
+                        className="ssh-btn-danger ssh-btn-press"
                       >
                         {busy ? (
                           <Loader2 className="size-3 animate-spin" />
@@ -401,7 +396,7 @@ export function SshSettings() {
                         disabled={busy}
                         onClick={() => void connectOne(s)}
                         aria-label={`连接 ${s.name || s.host}`}
-                        className="inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-2.5 text-[10px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-50"
+                        className="ssh-btn-primary ssh-btn-primary-sm ssh-btn-press"
                       >
                         {busy ? (
                           <Loader2 className="size-3 animate-spin" />
@@ -418,7 +413,7 @@ export function SshSettings() {
                         setDialogOpen(true)
                       }}
                       aria-label={`编辑 ${s.name || s.host}`}
-                      className="inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-2 text-[10px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l1)]"
+                      className="ssh-btn-ghost ssh-btn-press"
                     >
                       <Pencil className="size-3" />
                       编辑
@@ -430,20 +425,20 @@ export function SshSettings() {
           )}
 
           {/* 添加服务器按钮 */}
-          <div className="flex flex-wrap items-center gap-3 pt-3">
+          <div className="ssh-card-footer">
             <button
               type="button"
               onClick={() => {
                 setEditing(null)
                 setDialogOpen(true)
               }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-4 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
+              className="ssh-btn-primary ssh-btn-press"
             >
               <Plus className="size-3.5" />
               添加服务器
             </button>
             {feedback && (
-              <span className="text-[11px] text-[var(--trae-status-success-default)]">
+              <span className="ssh-feedback">
                 {feedback}
               </span>
             )}
@@ -473,30 +468,25 @@ export function SshSettings() {
               <div
                 key={k.name}
                 className={cn(
-                  'flex items-center gap-3 py-3',
-                  idx === derivedKeys.length - 1
-                    ? 'pb-0.5'
-                    : 'border-b border-[var(--trae-border-neutral-l1)]',
+                  'ssh-key-row',
+                  idx === derivedKeys.length - 1 && 'ssh-key-row--last',
                 )}
               >
-                {/* 密钥图标 */}
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)]">
-                  <KeyRound className="size-4 text-[var(--trae-icon-brand)]" />
+                <div className="ssh-key-row__icon">
+                  <KeyRound className="size-4" />
                 </div>
-                {/* 密钥名 + meta */}
-                <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[11px] font-medium text-[var(--trae-text-default)]">
+                <div className="ssh-key-row__main">
+                  <div className="ssh-key-row__name">
                     {k.name}
                   </div>
-                  <div className="mt-px text-[10px] text-[var(--trae-text-secondary)]">
+                  <div className="ssh-key-row__meta">
                     {k.type} · {k.path}
                   </div>
                 </div>
-                {/* 删除按钮 */}
                 <button
                   type="button"
                   aria-label={`删除密钥 ${k.name}`}
-                  className="inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[10px] font-medium text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
+                  className="ssh-btn-danger ssh-btn-press"
                 >
                   <Trash2 className="size-3" />
                   删除
@@ -506,10 +496,10 @@ export function SshSettings() {
           )}
 
           {/* 上传 / 生成按钮 */}
-          <div className="flex gap-2 pt-3">
+          <div className="ssh-card-footer-row">
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3.5 text-[11px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l1)]"
+              className="ssh-btn-secondary ssh-btn-press"
             >
               <Upload className="size-3.5" />
               上传密钥
@@ -520,7 +510,7 @@ export function SshSettings() {
                 setEditing(null)
                 setDialogOpen(true)
               }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-3.5 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
+              className="ssh-btn-primary ssh-btn-press"
             >
               <Plus className="size-3.5" />
               生成新密钥
@@ -542,7 +532,7 @@ export function SshSettings() {
                 type="number"
                 value={defaultPort}
                 onChange={(e) => setDefaultPort(Number(e.target.value) || 22)}
-                className="h-[30px] w-[88px] justify-center text-center font-mono text-[13px]"
+                className="ssh-input-num"
               />
             }
           />
@@ -553,7 +543,7 @@ export function SshSettings() {
               <Input
                 value={defaultUser}
                 onChange={(e) => setDefaultUser(e.target.value)}
-                className="h-[30px] min-w-[140px] font-mono text-[13px]"
+                className="ssh-input-user"
               />
             }
           />
@@ -633,7 +623,7 @@ export function SshSettings() {
               <Input
                 value={knownHostsPath}
                 onChange={(e) => setKnownHostsPath(e.target.value)}
-                className="h-[30px] min-w-[280px] bg-[var(--trae-bg-base-default)] font-mono text-[12px] text-[var(--trae-text-secondary)]"
+                className="ssh-input-path"
               />
             }
             isLast

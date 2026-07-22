@@ -8,9 +8,14 @@
  * Lucide 图标：Clock / ArrowRight
  */
 import { Clock, ArrowRight } from 'lucide-react'
-import { Card } from '@/components/trae/Card'
-import { Progress } from '@/components/trae/Progress'
-import { type Course, levelStyle } from './types'
+import '../../../pages/TutorialPage.css'
+import { type Course } from './types'
+
+function levelBadgeClass(level: string): string {
+  if (level === '进阶') return 'tut-level-badge tut-level-badge--warning'
+  if (level === '中级') return 'tut-level-badge'
+  return 'tut-level-badge tut-level-badge--neutral'
+}
 
 /** 精选课程大卡 */
 export function FeaturedCourseCard({
@@ -21,85 +26,38 @@ export function FeaturedCourseCard({
   onOpen: (id: string) => void
 }) {
   return (
-    <Card
-      className="flex flex-col gap-3"
-      style={{ padding: 18 }}
+    <div
+      className="tut-featured-card"
       onClick={() => onOpen(course.id)}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className="inline-flex items-center"
-          style={{
-            padding: '0 8px',
-            height: 20,
-            borderRadius: 'var(--trae-radius-4)',
-            fontSize: 'var(--trae-body-xs-font-size)',
-            fontWeight: 'var(--trae-font-weight-medium)',
-            lineHeight: 1,
-            ...levelStyle(course.level),
-          }}
-        >
+      <div className="tut-featured-head">
+        <span className={levelBadgeClass(course.level)}>
           {course.level}
         </span>
-        <span
-          className="flex items-center gap-1 text-[var(--trae-text-tertiary)]"
-          style={{ fontSize: 'var(--trae-body-xs-font-size)' }}
-        >
+        <span className="tut-duration-tag">
           <Clock size={12} />
           {course.duration}
         </span>
       </div>
-      <h3
-        className="m-0 font-semibold"
-        style={{
-          fontSize: 'var(--trae-heading-sm-font-size)',
-          lineHeight: 'var(--trae-heading-sm-line-height)',
-          color: 'var(--trae-text-default)',
-        }}
-      >
-        {course.title}
-      </h3>
-      <p
-        className="m-0 text-[var(--trae-text-secondary)]"
-        style={{
-          fontSize: 'var(--trae-body-sm-font-size)',
-          lineHeight: 'var(--trae-body-sm-line-height)',
-        }}
-      >
-        {course.description}
-      </p>
-      <div>
-        <div
-          className="mb-1.5 flex items-center justify-between"
-          style={{ fontSize: 'var(--trae-body-xs-font-size)' }}
-        >
-          <span className="text-[var(--trae-text-tertiary)]">学习进度</span>
-          <span
-            className="font-medium text-[var(--trae-text-brand)]"
-            style={{ fontVariantNumeric: 'tabular-nums' }}
-          >
-            {course.progress}%
-          </span>
+      <h3 className="tut-featured-title">{course.title}</h3>
+      <p className="tut-featured-desc">{course.description}</p>
+      <div className="tut-progress-block">
+        <div className="tut-progress-row">
+          <span className="tut-progress-label">学习进度</span>
+          <span className="tut-progress-value">{course.progress}%</span>
         </div>
-        <Progress value={course.progress} className="h-1" />
+        <div className="tut-progress-bar">
+          <div
+            className="tut-progress-bar-fill"
+            style={{ width: `${course.progress}%` }}
+          />
+        </div>
       </div>
       <div>
         <button
           type="button"
           data-dom-id="open-course"
-          className="btn-press inline-flex items-center"
-          style={{
-            gap: 6,
-            padding: '7px 14px',
-            border: '1px solid var(--trae-bg-brand)',
-            borderRadius: 'var(--trae-radius-6)',
-            background: 'transparent',
-            color: 'var(--trae-text-brand)',
-            fontSize: 'var(--trae-body-sm-font-size)',
-            fontWeight: 'var(--trae-font-weight-medium)',
-            cursor: 'pointer',
-            transition: 'background .15s ease',
-          }}
+          className="tut-featured-btn tut-btn-press"
           onClick={(e) => {
             e.stopPropagation()
             onOpen(course.id)
@@ -109,6 +67,6 @@ export function FeaturedCourseCard({
           <ArrowRight size={12} />
         </button>
       </div>
-    </Card>
+    </div>
   )
 }

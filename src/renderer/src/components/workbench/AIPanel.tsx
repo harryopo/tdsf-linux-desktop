@@ -4,6 +4,9 @@
  * // @ai-session: ai-claude-20260720-wire
  * // @ai-task: Sprint-wire-AIPanel-to-agent-chat
  *
+ * WIP: 单文件 1596 行待拆分至 < 500 行（CLAUDE.md B1 开发阶段豁免 · reviewer agent P0 修复）
+ * 预计 Task 4.7 拆分：Composer / MessageList / TokenBudget / ToolPanel 独立组件
+ *
  * 设计稿：tdsf-linux-redesign/pages/workbench-ai.html 第 2514-3296 行
  *
  * 结构：40px 标题栏（AI运维助手 + Token曲线 + 收起） + 消息滚动区
@@ -40,6 +43,7 @@ import { LoopWorkflowPanel } from './LoopWorkflowPanel'
 import { useServerStore } from '@/stores/server-store'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { PaorApprovalRequest } from '@/types/electron'
+import './AIPanel.css'
 
 /** 工具面板徽章变体颜色 */
 const BADGE_COLOR: Record<string, string> = {
@@ -70,8 +74,8 @@ const PANEL_ICON: Record<string, { Icon: typeof Sparkles; color: string }> = {
 
 /** 迷你进度条 */
 const MiniBar: FC<{ percent: number; color?: string }> = ({ percent, color = 'var(--trae-bg-brand)' }) => (
-  <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--trae-bg-overlay-l3)]">
-    <div className="h-full rounded-full transition-all" style={{ width: `${percent}%`, background: color }} />
+  <div className="mini-bar-track">
+    <div className="mini-bar-fill" style={{ width: `${percent}%`, background: color }} />
   </div>
 )
 
@@ -86,36 +90,36 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
   return (
     <div className={cn(
-      isCorePanel && 'rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-secondary)]',
-      panel.type === 'summary-card' ? 'my-1.5 p-2 px-2.5' : isCorePanel ? 'my-1 p-2' : '',
+      'my-3',
+      panel.type === 'summary-card' && 'ai-summary-card',
     )}>
       <button
         type="button"
         onClick={() => !isCorePanel && setOpen((v) => !v)}
         disabled={isCorePanel}
         className={cn(
-          'ai-tool-row flex w-full items-center gap-1.5 px-2 text-left text-[11px] transition-colors',
-          isCorePanel ? 'cursor-default' : 'h-7 rounded-[var(--trae-radius-6)] hover:bg-[var(--trae-bg-overlay-l2)]',
+          'ai-tool-row',
+          isCorePanel && 'cursor-default',
         )}
       >
-        <Icon className={cn('size-3 shrink-0', panel.type === 'skill' && 'ai-tool-check')} style={{ color: iconColor }} />
+        <Icon className={cn(panel.type === 'skill' && 'ai-tool-check')} style={{ color: iconColor }} />
         {panel.type === 'skill' && panel.skillMeta ? (
-          <span className="text-[11px]">
+          <span>
             <span className="text-[var(--trae-text-default)]">调用Skill: </span>
             <span className="font-medium text-[var(--trae-text-brand)]">{panel.skillMeta.name}</span>
           </span>
         ) : (
-          <span className="text-[11px] font-medium text-[var(--trae-text-default)]">{panel.title}</span>
+          <span className="font-medium text-[var(--trae-text-default)]">{panel.title}</span>
         )}
         {panel.badge && panel.type !== 'summary-card' && (
           <span
             className={cn(
-              'inline-flex h-3.5 items-center rounded-[var(--trae-radius-4)] px-1 text-[11px]',
+              'ai-badge',
               panel.type === 'knowledge'
-                ? 'bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
+                ? 'ai-badge-brand'
                 : panel.type === 'thought'
-                  ? 'shimmer-text bg-[var(--trae-bg-overlay-l3)]'
-                  : 'bg-[var(--trae-bg-overlay-l3)]',
+                  ? 'shimmer-text ai-badge-default'
+                  : 'ai-badge-default',
             )}
             style={panel.type !== 'knowledge' && panel.type !== 'thought' && badgeColor ? { color: badgeColor } : undefined}
           >
@@ -123,18 +127,18 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
           </span>
         )}
         {panel.badge && panel.type === 'summary-card' && (
-          <span className="text-[10px] text-[var(--trae-text-tertiary)]">· {panel.badge}</span>
+          <span className="ai-summary-stat">· {panel.badge}</span>
         )}
         {typeof panel.duration === 'number' && (
-          <span className="ml-auto text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+          <span className="ai-step-duration">
             {panel.duration.toFixed(1)}s
           </span>
         )}
         {!isCorePanel && (
           <ChevronDown
             className={cn(
-              'ai-chev size-2.5 shrink-0 text-[var(--trae-text-tertiary)] transition-transform duration-150',
-              open && 'rotate-90',
+              'ai-chev',
+              open && 'ai-chev-open',
             )}
           />
         )}
@@ -142,53 +146,45 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
       <div
         className={cn(
-          'ai-tool-body grid transition-[grid-template-rows] duration-200',
-          !isCorePanel && 'ml-1.5',
+          'ai-tool-body',
+          (open || isCorePanel) && 'ai-tool-body-open',
         )}
-        style={{
-          gridTemplateRows: open || isCorePanel ? '1fr' : '0fr',
-          transitionTimingFunction: 'cubic-bezier(0.3, 0, 0, 1)',
-        }}
       >
-        <div className={cn(
-          'ai-tool-inner min-h-0 overflow-hidden',
-          !isCorePanel && 'border-l border-[var(--trae-border-neutral-l1)] py-1 pl-[26px] pr-2',
-          isCorePanel && 'pt-1',
-        )}>
+        <div className={cn(!isCorePanel && 'ai-tool-inner')}>
           {/* Skill 面板完整详情（按设计稿：info row + 输入参数 + 执行步骤 + 输出结果） */}
           {panel.type === 'skill' && panel.skillMeta && (
-            <div className="flex flex-col gap-1.5 text-[10px]">
+            <div className="ai-skill-steps">
               {/* Skill info row */}
-              <div className="flex items-center gap-1.5">
+              <div className="ai-skill-step">
                 <span className="font-medium text-[var(--trae-text-default)]">{panel.skillMeta.name}</span>
-                <span className="inline-flex h-3.5 items-center rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-overlay-l3)] px-1 text-[11px] text-[var(--trae-text-tertiary)]">
+                <span className="ai-badge ai-badge-default">
                   {panel.skillMeta.version}
                 </span>
-                <span className="inline-flex h-3.5 items-center rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-overlay-l3)] px-1 text-[11px] text-[var(--trae-text-tertiary)]">
+                <span className="ai-badge ai-badge-default">
                   {panel.skillMeta.scope}
                 </span>
               </div>
               {/* 输入参数 */}
-              <div className="text-[10px] font-medium text-[var(--trae-text-tertiary)]">输入参数</div>
-              <div className="rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-terminal-block-bg)] p-2 font-mono text-[10px] leading-[1.5] text-[var(--trae-code-text)]">
+              <div className="font-medium text-[var(--trae-text-tertiary)]">输入参数</div>
+              <div className="ai-code-block">
                 {panel.skillMeta.input}
               </div>
               {/* 执行步骤 */}
-              <div className="text-[10px] font-medium text-[var(--trae-text-tertiary)]">执行步骤</div>
-              <div className="flex flex-col gap-0.5">
+              <div className="font-medium text-[var(--trae-text-tertiary)]">执行步骤</div>
+              <div className="ai-skill-steps">
                 {panel.steps?.map((step, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <CheckCircle2 className="size-2.5 shrink-0 text-[var(--trae-status-success-default)]" />
+                  <div key={i} className="ai-skill-step">
+                    <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
                     <span className="flex-1 text-[var(--trae-text-secondary)]">{step.label}</span>
                     {typeof step.duration === 'number' && (
-                      <span className="text-[var(--trae-text-tertiary)] tabular-nums">{step.duration.toFixed(1)}s</span>
+                      <span className="ai-step-duration">{step.duration.toFixed(1)}s</span>
                     )}
                   </div>
                 ))}
               </div>
               {/* 输出结果 */}
-              <div className="text-[10px] font-medium text-[var(--trae-text-tertiary)]">输出结果</div>
-              <div className="rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-terminal-block-bg)] p-2 font-mono text-[10px] leading-[1.5] text-[var(--trae-code-text)]">
+              <div className="font-medium text-[var(--trae-text-tertiary)]">输出结果</div>
+              <div className="ai-code-block">
                 {panel.skillMeta.output}
               </div>
             </div>
@@ -196,15 +192,15 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 步骤列表（thought 等，支持 label + description 分离渲染） */}
           {panel.steps && panel.type !== 'progress' && panel.type !== 'skill' && (
-            <div className="flex flex-col gap-1 text-[10px] leading-[1.5]">
+            <div className="ai-step-list">
               {panel.steps.map((step, i) => (
-                <div key={i} className="flex items-start gap-1.5">
+                <div key={i} className="ai-step-item">
                   {step.status === 'success' ? (
-                    <CheckCircle2 className="mt-px size-2.5 shrink-0 text-[var(--trae-status-success-default)]" />
+                    <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
                   ) : step.status === 'active' ? (
-                    <Loader2 className="mt-px size-2.5 shrink-0 animate-spin text-[var(--trae-bg-brand)]" />
+                    <Loader2 className="animate-spin text-[var(--trae-bg-brand)]" />
                   ) : (
-                    <Circle className="mt-px size-2.5 shrink-0 text-[var(--trae-text-tertiary)]" />
+                    <Circle className="text-[var(--trae-text-tertiary)]" />
                   )}
                   <span className={cn(
                     'flex-1',
@@ -223,7 +219,7 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
                     )}
                   </span>
                   {typeof step.duration === 'number' && (
-                    <span className="ml-auto text-[var(--trae-text-tertiary)] tabular-nums">
+                    <span className="ai-step-duration">
                       {step.duration.toFixed(1)}s
                     </span>
                   )}
@@ -234,42 +230,40 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 命令面板 + 在终端运行/执行/沙箱预演/回滚 按钮 */}
           {panel.command && (
-            <div className="flex flex-col gap-1 text-[10px]">
-              <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-secondary)] p-2">
+            <div className="flex flex-col gap-1.5">
+              <div className="ai-cmd-panel">
                 {/* Terminal block header bar（Claude Code style） */}
-                <div className="mb-1.5 flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] pb-1.5">
-                  <Terminal className="size-3 text-[var(--trae-bg-brand)]" />
-                  <span className="font-mono text-[11px] font-semibold text-[var(--trae-text-default)]">prod-web-01</span>
+                <div className="ai-cmd-header">
+                  <Terminal className="text-[var(--trae-bg-brand)]" />
+                  <span className="ai-cmd-host">prod-web-01</span>
                   <div className="flex-1" />
                   <button
                     type="button"
                     onClick={() => onAction?.('copyCommand', panel.command?.cmd)}
-                    className="btn-press flex size-[22px] items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-icon-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                    className="ai-composer-icon-btn btn-press"
                     title="复制"
                   >
-                    <Copy className="size-3" />
+                    <Copy />
                   </button>
                   <button
                     type="button"
-                    onClick={() => onAction?.('runInTerminal')}
-                    className="btn-press inline-flex h-[22px] items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
+                    onClick={() => onAction?.('runInTerminal', panel.command?.cmd)}
+                    className="ai-btn-run btn-press"
                     title="在终端运行"
                   >
-                    <Play className="size-3" />
+                    <Play />
                     在终端运行
                   </button>
                 </div>
-                <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-terminal-block-bg)] py-2 px-2.5 font-mono text-[11px] leading-4 text-[var(--trae-code-text)]">
+                <div className="ai-cmd-block">
                   <span className="text-[var(--trae-brand-3)]">{panel.command.prompt}</span>{' '}
                   <span>{panel.command.cmd}</span>
                 </div>
                 {panel.command.translation && (
-                  <div className="mt-1 font-mono text-[10px] text-[var(--trae-brand-3)]"># {panel.command.translation}</div>
+                  <div className="ai-cmd-translation"># {panel.command.translation}</div>
                 )}
                 {panel.command.output && (
-                  <div className={cn(
-                    'mt-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-terminal-block-bg)] py-2 px-2.5 font-mono text-[11px] leading-4',
-                  )}>
+                  <div className="ai-cmd-output">
                     {panel.command.output.map((line, i) => {
                       const cmdSuccess = panel.command?.success ?? false
                       return (
@@ -289,36 +283,36 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
                 )}
               </div>
               {/* 执行状态 */}
-              <div className="mb-1.5 flex items-center gap-1 text-[10px]">
-                <CheckCircle2 className="size-2.5 text-[var(--trae-status-success-default)]" />
+              <div className="ai-exec-status">
+                <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
                 <span className="font-medium text-[var(--trae-status-success-default)]">执行成功</span>
                 <span className="text-[var(--trae-text-tertiary)]">·</span>
                 <span className="tabular-nums text-[var(--trae-text-tertiary)]">1.2s</span>
               </div>
               {/* 执行 / 沙箱预演 / 回滚 按钮组 */}
-              <div className="flex items-center gap-1 pt-0.5">
+              <div className="ai-action-group">
                 <button
                   type="button"
-                  onClick={() => onAction?.('execute')}
-                  className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-2 text-[10px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
+                  onClick={() => onAction?.('execute', panel.command?.cmd)}
+                  className="ai-action-btn ai-action-btn-primary btn-press"
                 >
-                  <Zap className="size-2.5" />
+                  <Zap />
                   执行
                 </button>
                 <button
                   type="button"
-                  onClick={() => onAction?.('sandbox')}
-                  className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-transparent px-2 text-[10px] text-[var(--trae-text-brand)] transition-colors hover:bg-[var(--trae-bg-brand-popup)]"
+                  onClick={() => onAction?.('sandbox', panel.command?.cmd)}
+                  className="ai-action-btn ai-action-btn-secondary btn-press"
                 >
-                  <Shield className="size-2.5" />
+                  <Shield />
                   沙箱预演
                 </button>
                 <button
                   type="button"
-                  onClick={() => onAction?.('rollback')}
-                  className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
+                  onClick={() => onAction?.('rollback', panel.command?.cmd)}
+                  className="ai-action-btn ai-action-btn-ghost btn-press"
                 >
-                  <RotateCcw className="size-2.5" />
+                  <RotateCcw />
                   回滚
                 </button>
               </div>
@@ -327,15 +321,15 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 指标对比表 */}
           {panel.metrics && (
-            <div className="py-1 text-[10px] leading-[1.8] tabular-nums">
-              <div className="grid grid-cols-[80px_60px_60px_auto] gap-1 text-[var(--trae-text-tertiary)]">
+            <div className="py-1 text-[12px] tabular-nums">
+              <div className="ai-metric-grid text-[var(--trae-text-tertiary)]">
                 <span className="font-medium">指标</span>
                 <span className="text-right">前</span>
                 <span className="text-right">后</span>
                 <span className="text-right">变化</span>
               </div>
               {panel.metrics.map((m, i) => (
-                <div key={i} className="grid grid-cols-[80px_60px_60px_auto] gap-1">
+                <div key={i} className="ai-metric-grid">
                   <span className="font-medium text-[var(--trae-text-default)]">{m.label}</span>
                   <span className="text-right" style={{ color: m.beforeColor ?? 'var(--trae-status-error-default)' }}>{m.before}</span>
                   <span className="text-right text-[var(--trae-text-default)]">{m.after}</span>
@@ -352,29 +346,29 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 知识库结果 */}
           {panel.kbResults && (
-            <div className="flex flex-col gap-1 py-1 text-[10px]">
-              <div className="mb-1.5 font-mono text-[10px] text-[var(--trae-text-tertiary)]">
+            <div className="ai-kb-list py-1 text-[12px]">
+              <div className="ai-cmd-translation">
                 查询: &quot;nginx worker_connections 上限 P99延迟&quot;
               </div>
               {panel.kbResults.map((kb, i) => (
                 <div
                   key={i}
-                  className="rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] py-2 px-2.5"
+                  className="ai-kb-item"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[11px] text-[var(--trae-text-tertiary)]">{kb.id}</span>
-                    <span className="flex-1 truncate font-medium text-[var(--trae-text-default)]">{kb.title}</span>
+                  <div className="ai-kb-header">
+                    <span className="ai-kb-id">{kb.id}</span>
+                    <span className="ai-kb-title">{kb.title}</span>
                     {kb.cited && (
-                      <span className="inline-flex h-3.5 items-center rounded-[var(--trae-radius-4)] bg-[var(--trae-status-success-surface-l1)] px-1 text-[11px] text-[var(--trae-status-success-default)]">
+                      <span className="ai-badge ai-badge-success">
                         已引用
                       </span>
                     )}
                   </div>
-                  <div className="my-1 flex items-center gap-2">
+                  <div className="ai-kb-bar">
                     <MiniBar percent={kb.percent} color={kb.color} />
-                    <span className="shrink-0 font-mono text-[11px] tabular-nums" style={{ color: kb.color }}>{kb.percent}%</span>
+                    <span className="ai-kb-percent" style={{ color: kb.color }}>{kb.percent}%</span>
                   </div>
-                  {kb.desc && <div className="truncate text-[var(--trae-text-tertiary)]">{kb.desc}</div>}
+                  {kb.desc && <div className="ai-kb-desc">{kb.desc}</div>}
                 </div>
               ))}
             </div>
@@ -382,17 +376,15 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 联网搜索结果 */}
           {panel.webResults && (
-            <div className="flex flex-col gap-[3px] py-1 text-[10px]">
+            <div className="ai-web-list py-1 text-[12px]">
               {panel.webResults.map((web, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <span className="flex-1 truncate text-[var(--trae-text-default)]">{web.title}</span>
-                  <span className="shrink-0 text-[11px] text-[var(--trae-text-tertiary)]">{web.source}</span>
+                <div key={i} className="ai-web-item">
+                  <span className="ai-web-title">{web.title}</span>
+                  <span className="ai-web-source">{web.source}</span>
                   <span
                     className={cn(
-                      'inline-flex h-3.5 shrink-0 items-center rounded-[var(--trae-radius-4)] px-1 text-[11px]',
-                      web.highMatch
-                        ? 'bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                        : 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-tertiary)]',
+                      'ai-badge',
+                      web.highMatch ? 'ai-badge-brand' : 'ai-badge-default',
                     )}
                   >
                     {web.percent}%
@@ -404,15 +396,15 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* SRE 黄金信号 2x2 网格 */}
           {panel.signals && (
-            <div className="grid grid-cols-2 gap-1 py-1">
+            <div className="ai-signal-grid py-1">
               {panel.signals.map((signal, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] py-[5px] px-1.5"
+                  className="ai-signal-item"
                 >
-                  <span className="size-1.5 rounded-full" style={{ background: signal.statusColor }} />
-                  <span className="text-[10px] text-[var(--trae-text-tertiary)]">{signal.label}</span>
-                  <span className="ml-auto text-[10px] font-medium tabular-nums" style={{ color: signal.statusColor }}>
+                  <span className="ai-signal-dot" style={{ background: signal.statusColor }} />
+                  <span className="ai-signal-label">{signal.label}</span>
+                  <span className="ai-signal-value" style={{ color: signal.statusColor }}>
                     {signal.value}
                   </span>
                 </div>
@@ -422,12 +414,12 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 证据来源 */}
           {panel.evidences && (
-            <div className="flex flex-col gap-2 py-1">
+            <div className="ai-evidence-list py-1">
               {panel.evidences.map((ev, i) => (
                 <div key={i}>
-                  <div className="mb-0.5 flex items-center gap-1.5 text-[10px]">
-                    <span className="flex-1 truncate text-[var(--trae-text-default)]">{ev.label}</span>
-                    <span className="tabular-nums text-[var(--trae-text-tertiary)]">{ev.percent}%</span>
+                  <div className="ai-evidence-header">
+                    <span className="ai-evidence-label">{ev.label}</span>
+                    <span className="ai-evidence-percent">{ev.percent}%</span>
                   </div>
                   <MiniBar percent={ev.percent} color={ev.color} />
                 </div>
@@ -437,10 +429,10 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 
           {/* 汇总卡片 7 步完成列表 */}
           {panel.summaryItems && (
-            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 py-1 text-[10px] text-[var(--trae-text-secondary)]">
+            <div className="ai-summary-grid py-1 text-[12px]">
               {panel.summaryItems.map((item, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <CheckCircle2 className="size-2.5 shrink-0 text-[var(--trae-status-success-default)]" />
+                <div key={i} className="ai-summary-item">
+                  <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
                   {item}
                 </div>
               ))}
@@ -455,13 +447,13 @@ const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: 
 /** 执行进度面板（非折叠） */
 const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: string) => void }> = ({ panel, onAction }) => {
   return (
-    <div className="my-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-secondary)] p-2">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <Zap className="size-3 text-[var(--trae-bg-brand)]" />
-        <span className="text-[11px] font-semibold text-[var(--trae-text-default)]">{panel.title}</span>
+    <div className="ai-progress-panel my-4">
+      <div className="ai-progress-header">
+        <Zap className="size-3.5 text-[var(--trae-bg-brand)]" />
+        <span className="ai-progress-title">{panel.title}</span>
         {panel.badge && (
-          <span className="inline-flex h-4 items-center gap-1 rounded-full bg-[var(--trae-bg-brand-popup)] px-1.5 text-[11px] font-medium text-[var(--trae-text-brand)]">
-            <span className="ai-pulse-dot inline-block size-[5px] rounded-full bg-[var(--trae-bg-brand)]" />
+          <span className="ai-progress-badge">
+            <span className="ai-progress-pulse" />
             {panel.badge}
           </span>
         )}
@@ -469,42 +461,42 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
         <button
           type="button"
           onClick={() => onAction?.('pauseExec')}
-          className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
         >
-          <Pause className="size-2.5" />
+          <Pause className="size-3" />
           暂停
         </button>
         <button
           type="button"
           onClick={() => onAction?.('rollbackExec')}
-          className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2 text-[10px] text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2.5 text-[12px] text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
         >
-          <RotateCcw className="size-2.5" />
+          <RotateCcw className="size-3" />
           回滚
         </button>
       </div>
-      <div className="flex flex-col gap-0.5 text-[10px]">
+      <div className="ai-progress-steps">
         {panel.steps?.map((step, i) => (
-          <div key={i} className="flex items-center gap-1.5">
+          <div key={i} className="ai-progress-step">
             {step.status === 'success' ? (
               <>
-                <CheckCircle2 className="size-2.5 shrink-0 text-[var(--trae-status-success-default)]" />
+                <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
                 <span className="flex-1 text-[var(--trae-text-secondary)]">{step.label}</span>
                 {typeof step.duration === 'number' && (
-                  <span className="tabular-nums text-[var(--trae-text-tertiary)]">{step.duration.toFixed(1)}s</span>
+                  <span className="ai-step-duration">{step.duration.toFixed(1)}s</span>
                 )}
               </>
             ) : step.status === 'active' ? (
               <>
-                <span className="ai-pulse-dot inline-block size-2 shrink-0 rounded-full bg-[var(--trae-bg-brand)]" />
+                <span className="ai-progress-pulse-step" />
                 <span className="flex-1 text-[var(--trae-text-brand)]">{step.label}</span>
-                {step.hint && <span className="text-[11px] text-[var(--trae-text-brand)]">{step.hint}</span>}
+                {step.hint && <span className="text-[12px] text-[var(--trae-text-brand)]">{step.hint}</span>}
               </>
             ) : (
               <>
-                <span className="inline-block size-2 shrink-0 rounded-full border border-[var(--trae-border-neutral-l2)]" />
+                <span className="ai-progress-pending" />
                 <span className="flex-1 text-[var(--trae-text-tertiary)]">{step.label}</span>
-                {step.hint && <span className="text-[11px] text-[var(--trae-text-tertiary)]">{step.hint}</span>}
+                {step.hint && <span className="text-[12px] text-[var(--trae-text-tertiary)]">{step.hint}</span>}
               </>
             )}
           </div>
@@ -519,23 +511,23 @@ const RollbackPanel: FC<{ panel: AIToolPanel }> = ({ panel }) => {
   const rb = panel.rollback
   if (!rb) return null
   return (
-    <div className="my-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-bg-base-secondary)] p-2 opacity-85">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <RotateCcw className="size-3 text-[var(--trae-status-error-default)]" />
-        <span className="text-[11px] font-semibold text-[var(--trae-text-default)]">{panel.title}</span>
+    <div className="ai-rollback-panel my-4">
+      <div className="ai-progress-header">
+        <RotateCcw className="size-3.5 text-[var(--trae-status-error-default)]" />
+        <span className="ai-progress-title">{panel.title}</span>
         {panel.badge && (
-          <span className="inline-flex h-3.5 items-center rounded-[var(--trae-radius-4)] bg-[var(--trae-status-error-surface-l1)] px-1 text-[11px] text-[var(--trae-status-error-default)]">
+          <span className="ai-badge ai-badge-error">
             {panel.badge}
           </span>
         )}
-        {rb.time && <span className="ml-auto text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">{rb.time}</span>}
+        {rb.time && <span className="ml-auto ai-step-duration">{rb.time}</span>}
       </div>
-      <div className="mb-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] p-2 font-mono text-[11px] leading-4 text-[var(--trae-code-text)]">
+      <div className="ai-cmd-block mb-2">
         <span className="text-[var(--trae-brand-3)]">root@prod-web-01:~#</span> {rb.cmd}
       </div>
-      <div className="mb-1 text-[10px] text-[var(--trae-text-tertiary)]">回滚原因：{rb.reason}</div>
-      <div className="flex items-center gap-1 text-[10px]">
-        <CheckCircle2 className="size-2.5 text-[var(--trae-status-success-default)]" />
+      <div className="mb-2 text-[12px] text-[var(--trae-text-tertiary)]">回滚原因：{rb.reason}</div>
+      <div className="ai-exec-status">
+        <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
         <span className="font-medium text-[var(--trae-status-success-default)]">{rb.status}</span>
         <span className="text-[var(--trae-text-tertiary)]">·</span>
         <span className="text-[var(--trae-text-tertiary)]">nginx已恢复</span>
@@ -549,33 +541,34 @@ const PausePanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?:
   const pause = panel.pause
   if (!pause) return null
   return (
-    <div className="my-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-alert-surface-l2)] bg-[var(--trae-bg-base-secondary)] p-2">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <Pause className="size-3 text-[var(--trae-status-alert-default)]" />
-        <span className="text-[11px] font-semibold text-[var(--trae-text-default)]">{panel.title}</span>
+    <div className="ai-pause-panel my-4">
+      <div className="ai-progress-header">
+        <Pause className="size-3.5 text-[var(--trae-status-alert-default)]" />
+        <span className="ai-progress-title">{panel.title}</span>
         {panel.badge && (
-          <span className="inline-flex h-3.5 items-center rounded-[var(--trae-radius-4)] bg-[var(--trae-status-alert-surface-l1)] px-1 text-[11px] text-[var(--trae-status-alert-default)]">
+          <span className="ai-badge ai-badge-alert">
             {panel.badge}
           </span>
         )}
-        <span className="ml-auto text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">{pause.pausedFor}</span>
+        <span className="ml-auto ai-step-duration">{pause.pausedFor}</span>
       </div>
-      <div className="mb-1.5 text-[10px] leading-[1.5] text-[var(--trae-text-tertiary)]">{pause.description}</div>
-      <div className="flex items-center gap-1">
+      <div className="mb-2 text-[12px] leading-[1.5] text-[var(--trae-text-tertiary)]">{pause.description}</div>
+      <div className="ai-action-group">
         <button
           type="button"
           onClick={() => onAction?.('resumeExec')}
-          className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-2 text-[10px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
+          className="ai-action-btn ai-action-btn-primary btn-press"
         >
-          <Play className="size-2.5" />
+          <Play />
           继续执行
         </button>
         <button
           type="button"
           onClick={() => onAction?.('terminateTask')}
-          className="btn-press inline-flex h-6 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2 text-[10px] text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
+          className="ai-action-btn ai-action-btn-ghost btn-press"
+          style={{ borderColor: 'var(--trae-status-error-default)', color: 'var(--trae-status-error-default)' }}
         >
-          <X className="size-2.5" />
+          <X />
           终止任务
         </button>
       </div>
@@ -586,107 +579,104 @@ const PausePanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?:
 /** AI 富文本内容块渲染（表格 / 洞察 / 操作按钮） */
 const BlockRenderer: FC<{ blocks: ChatBlock[]; onNavigate?: (path: string) => void }> = ({ blocks, onNavigate }) => {
   return (
-    <div className="mb-3 flex gap-2">
+    <div className="ai-msg-with-avatar">
       {/* AI 头像 */}
-      <div className="flex size-6 shrink-0 items-center justify-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)]">
-        <Sparkles className="size-3.5 text-[var(--trae-text-onbrand)]" />
+      <div className="ai-avatar">
+        <Sparkles />
       </div>
-      {/* 内容卡片（设计稿 padding: 10px 12px） */}
-      <div className="min-w-0 flex-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] py-2.5 px-3">
-        {blocks.map((block, i) => {
-          if (block.type === 'paragraph') {
-            return (
-              <p key={i} className="mb-2 text-[11px] leading-[1.6] text-[var(--trae-text-default)]">
-                {block.text}
-              </p>
-            )
-          }
-          if (block.type === 'table') {
-            return (
-              <div key={i} className="mb-2.5 overflow-hidden rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)]">
-                {/* 表头 */}
-                <div className="flex border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l2)] px-2.5 py-1.5 text-[10px] font-semibold text-[var(--trae-text-secondary)]">
-                  {block.headers.map((h, idx) => (
-                    <span
-                      key={idx}
-                      className={cn(
-                        'shrink-0',
-                        idx === 0 ? 'flex-1' : 'text-right',
-                        idx === 1 && 'w-[70px]',
-                        idx === 2 && 'w-[70px]',
-                        idx === 3 && 'w-[50px]',
-                      )}
-                    >
-                      {h}
-                    </span>
-                  ))}
-                </div>
-                {/* 数据行 */}
-                {block.rows.map((row, rIdx) => (
-                  <div
-                    key={rIdx}
-                    className={cn(
-                      'flex px-2.5 py-1.5 text-[10px] tabular-nums text-[var(--trae-text-default)]',
-                      rIdx < block.rows.length - 1 && 'border-b border-[var(--trae-border-neutral-l1)]',
-                    )}
-                  >
-                    {row.cells.map((cell, cIdx) => (
+      {/* 内容卡片 */}
+      <div className="ai-card-wrap">
+        <div className="ai-card">
+          {blocks.map((block, i) => {
+            if (block.type === 'paragraph') {
+              return (
+                <p key={i} className="mb-2.5 text-[12px] leading-[1.6] text-[var(--trae-text-default)]">
+                  {block.text}
+                </p>
+              )
+            }
+            if (block.type === 'table') {
+              return (
+                <div key={i} className="ai-table">
+                  {/* 表头 */}
+                  <div className="ai-table-header">
+                    {block.headers.map((h, idx) => (
                       <span
-                        key={cIdx}
+                        key={idx}
                         className={cn(
                           'shrink-0',
-                          cIdx === 0 ? 'flex-1' : 'text-right',
-                          cIdx === 1 && 'w-[70px]',
-                          cIdx === 2 && 'w-[70px]',
-                          cIdx === 3 && 'w-[50px]',
+                          idx === 0 ? 'flex-1' : 'text-right',
+                          idx === 1 && 'w-[70px]',
+                          idx === 2 && 'w-[70px]',
+                          idx === 3 && 'w-[50px]',
                         )}
-                        style={{ color: row.cellColors?.[cIdx] }}
                       >
-                        {cell}
+                        {h}
                       </span>
                     ))}
                   </div>
-                ))}
-              </div>
-            )
-          }
-          if (block.type === 'insight') {
-            return (
-              <div
-                key={i}
-                className="mb-2 rounded-[0_var(--trae-radius-4)_var(--trae-radius-4)_0] border-l-2 border-[var(--trae-bg-brand)] bg-[var(--trae-bg-overlay-l1)] py-2 px-2.5"
-              >
-                <div className="mb-1 flex items-center gap-1">
-                  <AlertTriangle className="size-3 text-[var(--trae-icon-brand)]" />
-                  <span className="text-[10px] font-semibold text-[var(--trae-text-default)]">{block.title}</span>
+                  {/* 数据行 */}
+                  {block.rows.map((row, rIdx) => (
+                    <div
+                      key={rIdx}
+                      className="ai-table-row"
+                    >
+                      {row.cells.map((cell, cIdx) => (
+                        <span
+                          key={cIdx}
+                          className={cn(
+                            'shrink-0',
+                            cIdx === 0 ? 'flex-1' : 'text-right',
+                            cIdx === 1 && 'w-[70px]',
+                            cIdx === 2 && 'w-[70px]',
+                            cIdx === 3 && 'w-[50px]',
+                          )}
+                          style={{ color: row.cellColors?.[cIdx] }}
+                        >
+                          {cell}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
                 </div>
-                <p className="text-[10px] leading-[1.5] text-[var(--trae-text-secondary)]">{block.text}</p>
-              </div>
-            )
-          }
-          if (block.type === 'actions') {
-            return (
-              <div key={i} className="flex gap-1.5">
-                {block.buttons.map((btn, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => onNavigate?.(btn.navigate)}
-                    className={cn(
-                      'btn-press h-[26px] px-2.5 text-[10px] font-medium transition-colors',
-                      btn.primary
-                        ? 'rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)] hover:bg-[var(--trae-bg-brand-hover)]'
-                        : 'rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]',
-                    )}
-                  >
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
-            )
-          }
-          return null
-        })}
+              )
+            }
+            if (block.type === 'insight') {
+              return (
+                <div
+                  key={i}
+                  className="ai-insight"
+                >
+                  <div className="ai-insight-header">
+                    <AlertTriangle className="size-3.5 text-[var(--trae-icon-brand)]" />
+                    <span className="ai-insight-title">{block.title}</span>
+                  </div>
+                  <p className="ai-insight-text">{block.text}</p>
+                </div>
+              )
+            }
+            if (block.type === 'actions') {
+              return (
+                <div key={i} className="ai-chips">
+                  {block.buttons.map((btn, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => onNavigate?.(btn.navigate)}
+                      className={cn(
+                        'ai-chip btn-press',
+                        btn.primary && 'ai-chip-primary',
+                      )}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              )
+            }
+            return null
+          })}
+        </div>
       </div>
     </div>
   )
@@ -696,20 +686,20 @@ const BlockRenderer: FC<{ blocks: ChatBlock[]; onNavigate?: (path: string) => vo
 const MessageRow: FC<{ message: ChatMessage; onAction?: (action: string, payload?: string) => void; onNavigate?: (path: string) => void }> = ({ message, onAction, onNavigate }) => {
   if (message.role === 'user') {
     return (
-      <div className="ai-msg flex justify-end">
-        <div className="flex max-w-[80%] flex-col items-end gap-0.5">
-          <div className="rounded-[6px_2px_6px_6px] bg-[var(--trae-bg-brand)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--trae-text-onbrand)] shadow-sm">
+      <div className="ai-msg ai-msg-user">
+        <div className="ai-msg-user-inner">
+          <div className="ai-msg-user-bubble">
             {message.text}
           </div>
           {message.time && (
-            <span className="text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">{message.time}</span>
+            <span className="ai-msg-time">{message.time}</span>
           )}
         </div>
       </div>
     )
   }
   return (
-    <div className="ai-msg flex flex-col gap-0">
+    <div className="ai-msg ai-msg-multi">
       {message.blocks && message.blocks.length > 0 && (
         <BlockRenderer blocks={message.blocks} onNavigate={onNavigate} />
       )}
@@ -720,8 +710,8 @@ const MessageRow: FC<{ message: ChatMessage; onAction?: (action: string, payload
         return <ToolPanel key={i} panel={panel} onAction={onAction} />
       })}
       {message.summary && message.summaryVariant === 'checked' && (
-        <div className="flex items-start gap-1.5 py-1">
-          <CheckCircle2 className="mt-px size-3 shrink-0 text-[var(--trae-status-success-default)]" />
+        <div className="ai-summary-item py-1">
+          <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
           <div className="flex-1">
             <div className="text-[11px] leading-[1.6] text-[var(--trae-text-default)]">{message.summary}</div>
           </div>
@@ -732,25 +722,25 @@ const MessageRow: FC<{ message: ChatMessage; onAction?: (action: string, payload
           <div className="text-[11px] leading-[1.6] text-[var(--trae-text-default)]">{message.summary}</div>
           {/* 操作 chips：查看监控 / 记录决策 / 更新知识库（仅 msg-2 summary 显示，设计稿无图标） */}
           {message.id === 'msg-2' && (
-            <div className="mt-1 flex flex-wrap items-center gap-1">
+            <div className="ai-chips">
               <button
                 type="button"
                 onClick={() => onNavigate?.('/monitor')}
-                className="btn-press inline-flex h-[22px] items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                className="ai-chip btn-press"
               >
                 查看监控
               </button>
               <button
                 type="button"
                 onClick={() => onNavigate?.('/history')}
-                className="btn-press inline-flex h-[22px] items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                className="ai-chip btn-press"
               >
                 记录决策
               </button>
               <button
                 type="button"
                 onClick={() => onNavigate?.('/knowledge')}
-                className="btn-press inline-flex h-[22px] items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                className="ai-chip btn-press"
               >
                 更新知识库
               </button>
@@ -759,7 +749,7 @@ const MessageRow: FC<{ message: ChatMessage; onAction?: (action: string, payload
         </div>
       )}
       {typeof message.tokens === 'number' && (
-        <div className="ai-token-pop mt-1.5 flex items-center gap-1 px-1.5 py-1 text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+        <div className="ai-token-row ai-token-pop">
           <Clock className="size-2.5" />
           <span>
             {message.summaryVariant === 'checked' ? (
@@ -795,12 +785,12 @@ const LiveMessageRow: FC<{ message: AgentMessage }> = ({ message }) => {
       minute: '2-digit',
     })
     return (
-      <div className="ai-msg flex justify-end">
-        <div className="flex max-w-[80%] flex-col items-end gap-0.5">
-          <div className="rounded-[6px_2px_6px_6px] bg-[var(--trae-bg-brand)] px-3 py-2 text-[11px] leading-[1.5] text-[var(--trae-text-onbrand)] shadow-sm whitespace-pre-wrap">
+      <div className="ai-msg ai-msg-user">
+        <div className="ai-msg-user-inner">
+          <div className="ai-msg-user-bubble whitespace-pre-wrap">
             {message.content}
           </div>
-          <span className="text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">{time}</span>
+          <span className="ai-msg-time">{time}</span>
         </div>
       </div>
     )
@@ -808,32 +798,34 @@ const LiveMessageRow: FC<{ message: AgentMessage }> = ({ message }) => {
 
   // assistant / system
   return (
-    <div className="ai-msg flex flex-col gap-0">
-      <div className="mb-1 flex gap-2">
-        <div className="flex size-6 shrink-0 items-center justify-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)]">
+    <div className="ai-msg ai-msg-multi">
+      <div className="ai-msg-with-avatar">
+        <div className="ai-avatar">
           {message.isStreaming ? (
-            <Loader2 className="size-3.5 animate-spin text-[var(--trae-text-onbrand)]" />
+            <Loader2 className="animate-spin" />
           ) : (
-            <Sparkles className="size-3.5 text-[var(--trae-text-onbrand)]" />
+            <Sparkles />
           )}
         </div>
-        <div
-          className={cn(
-            'min-w-0 flex-1 rounded-[var(--trae-radius-6)] border px-3 py-2.5 text-[11px] leading-[1.6] whitespace-pre-wrap',
-            message.isError
-              ? 'border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)]'
-              : 'border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] text-[var(--trae-text-default)]',
-          )}
-        >
-          {message.content || (message.isStreaming ? '思考中…' : '')}
-          {message.isStreaming && (
-            <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-[var(--trae-bg-brand)] align-middle" />
-          )}
+        <div className="ai-card-wrap">
+          <div
+            className="ai-card whitespace-pre-wrap"
+            style={message.isError ? {
+              borderColor: 'var(--trae-status-error-surface-l2)',
+              background: 'var(--trae-status-error-surface-l1)',
+              color: 'var(--trae-status-error-default)',
+            } : undefined}
+          >
+            {message.content || (message.isStreaming ? '思考中…' : '')}
+            {message.isStreaming && (
+              <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--trae-bg-brand)] align-middle" />
+            )}
+          </div>
         </div>
       </div>
       {(message.usage || message.model) && !message.isStreaming && (
-        <div className="ai-token-pop mt-0.5 flex items-center gap-1 px-8 text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
-          <Clock className="size-2.5" />
+        <div className="ai-token-row ai-token-pop" style={{ paddingLeft: 32 }}>
+          <Clock className="size-3" />
           <span>
             {message.model ? `${message.model} · ` : ''}
             {message.usage
@@ -887,7 +879,7 @@ const PaorApprovalCard: FC<{
       </div>
       {/* 风险描述 */}
       {request.riskDescription && (
-        <div className="text-[10px] leading-[1.4] text-[var(--trae-text-tertiary)]">
+        <div className="text-[11px] leading-[1.4] text-[var(--trae-text-tertiary)]">
           {request.riskDescription}
         </div>
       )}
@@ -916,10 +908,10 @@ const PaorApprovalCard: FC<{
             <X className="mr-1 size-3" />
             拒绝
           </button>
-          <span className="text-[10px] text-[var(--trae-text-tertiary)]">60 秒未响应自动拒绝</span>
+          <span className="text-[11px] text-[var(--trae-text-tertiary)]">60 秒未响应自动拒绝</span>
         </div>
       ) : (
-        <div className="text-[10px] text-[var(--trae-text-tertiary)]">已响应，等待 PAOR 循环继续…</div>
+        <div className="text-[11px] text-[var(--trae-text-tertiary)]">已响应，等待 PAOR 循环继续…</div>
       )}
     </div>
   )
@@ -937,7 +929,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const [input, setInput] = useState('')
   const [activeChip, setActiveChip] = useState<string | null>(null)
   const [showTranslation, setShowTranslation] = useState(true)
-  const [showDemo, setShowDemo] = useState(false)
+  const [showDemo, setShowDemo] = useState(true)
   const [ctxTooltipVisible, setCtxTooltipVisible] = useState(false)
   /** 演示模式：true=走循环工程 7 步 HITL；false=普通 agent:chat */
   const [demoMode, setDemoMode] = useState(false)
@@ -948,6 +940,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     messages: liveMessages,
     isStreaming,
     lastError,
+    currentCorrelationId,
     providers,
     selectedProviderId,
     setSelectedProviderId,
@@ -1029,21 +1022,137 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [liveMessages, hasLiveConversation, isStreaming, hasLoopRunning, loop.phase, loop.workflowState, loop.decisionCard, loop.finalCard])
 
-  /** 处理工具面板操作（在终端运行/执行/沙箱预演/回滚）— Wire-2 再接真路径 */
-  const handleToolAction = (action: string, payload?: string) => {
+  /** 处理工具面板操作（在终端运行/执行/沙箱预演/回滚/暂停/终止）
+   *
+   * Wire-2（2026-07-22）：真实 IPC 接线
+   * - copyCommand: 复制命令到剪贴板
+   * - runInTerminal / execute / rollback / rollbackExec: 调用 sshExec(activeSessionId, cmd)
+   * - sandbox: 调用 sandboxCreate + sandboxExecute（沙箱预演）
+   * - pauseExec / terminateTask: 调用 agentChatCancel(currentCorrelationId) 取消流
+   * - resumeExec: 当前 IPC 不支持恢复，提示用户重新发送
+   *
+   * 非 Electron 环境降级为提示消息，UI 不崩溃。
+   */
+  const handleToolAction = async (action: string, payload?: string) => {
+    // 1. 复制命令：直接写入剪贴板
     if (action === 'copyCommand') {
       if (payload) {
-        void navigator.clipboard
-          .writeText(payload)
-          .then(() => message.success('命令已复制到剪贴板'))
-          .catch(() => message.error('复制失败，请手动选择文本'))
+        try {
+          await navigator.clipboard.writeText(payload)
+          message.success('命令已复制到剪贴板')
+        } catch {
+          message.error('复制失败，请手动选择文本')
+        }
       }
       return
     }
-    // 其余工具面板操作（在终端运行 / 执行 / 沙箱预演 / 回滚 / 暂停 / 终止）
-    // 这些操作需要在远程主机上执行命令，必须先连接 SSH 服务器
-    void action
-    void message.warning('该功能需要连接 SSH 服务器后使用')
+
+    // 2. 暂停 / 终止任务：取消当前 agent chat 流
+    if (action === 'pauseExec' || action === 'terminateTask') {
+      try {
+        const api = window.electronAPI
+        // 优先使用 agentChatCancel(correlationId) 取消当前对话流
+        if (currentCorrelationId && api?.agentChatCancel) {
+          await api.agentChatCancel(currentCorrelationId)
+        } else if (activeSessionId && api?.agentCancel) {
+          // fallback: agentCancel(sessionId) —— v0.8 旧接口，按 sessionId 取消
+          await api.agentCancel(activeSessionId)
+        } else {
+          void cancel()
+        }
+        message.info(action === 'pauseExec' ? '已暂停当前任务' : '已终止当前任务')
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        message.error(`操作失败：${reason}`)
+      }
+      return
+    }
+
+    // 3. 恢复执行：当前 IPC 不支持恢复，提示用户重新发送
+    if (action === 'resumeExec') {
+      message.info('当前任务已暂停，请重新发送消息以恢复执行')
+      return
+    }
+
+    // 4. 命令类操作（runInTerminal / execute / sandbox / rollback / rollbackExec）必须有 payload
+    if (!payload) {
+      message.warning('未找到可执行的命令')
+      return
+    }
+
+    const api = window.electronAPI
+
+    // 4.1 沙箱预演：sandboxCreate + sandboxExecute
+    if (action === 'sandbox') {
+      if (!api?.sandboxCreate || !api?.sandboxExecute) {
+        message.warning('当前环境不支持沙箱执行（非 Electron 环境）')
+        return
+      }
+      const hide = message.loading('准备沙箱环境...', 0)
+      try {
+        // 查找现有沙箱（复用 RUNNING 状态的沙箱）
+        let sandboxId: string | null = null
+        if (api.sandboxList) {
+          const listResult = await api.sandboxList(10)
+          if (listResult && 'items' in listResult && Array.isArray(listResult.items)) {
+            const ready = listResult.items.find((s) => s.status === 'RUNNING')
+            if (ready) sandboxId = ready.id
+          }
+        }
+        if (!sandboxId) {
+          const createResult = await api.sandboxCreate()
+          if (!createResult || 'success' in createResult) {
+            const err = createResult as { success: false; error: string } | null
+            throw new Error(`沙箱创建失败：${err?.error || '未知错误'}`)
+          }
+          if (!createResult.id) throw new Error('沙箱创建返回无效 ID')
+          sandboxId = createResult.id
+        }
+
+        // 执行命令
+        const execResult = await api.sandboxExecute(sandboxId, payload)
+        hide()
+        if (!execResult || 'success' in execResult) {
+          const err = execResult as { success: false; error: string } | null
+          throw new Error(err?.error || '沙箱执行返回未知错误')
+        }
+        if (execResult.exitCode === 0) {
+          message.success(`沙箱执行成功（耗时 ${execResult.durationMs ?? 0}ms）`)
+        } else {
+          message.warning(`沙箱执行完成（exit=${execResult.exitCode}）`)
+        }
+      } catch (err) {
+        hide()
+        const reason = err instanceof Error ? err.message : String(err)
+        message.error(`沙箱执行失败：${reason}`)
+      }
+      return
+    }
+
+    // 4.2 SSH 命令执行：runInTerminal / execute / rollback / rollbackExec
+    if (!activeSessionId) {
+      message.warning('该功能需要连接 SSH 服务器后使用')
+      return
+    }
+    if (!api?.sshExec) {
+      message.warning('当前环境不支持 SSH 执行（非 Electron 环境）')
+      return
+    }
+
+    const hide = message.loading(`正在执行命令：${payload}`, 0)
+    try {
+      const result = await api.sshExec(activeSessionId, payload)
+      hide()
+      if (result.exitCode === 0) {
+        message.success(`命令执行成功（耗时 ${result.duration}ms）`)
+      } else {
+        message.warning(`命令执行完成（exit=${result.exitCode}）`)
+      }
+    } catch (err) {
+      hide()
+      const reason = err instanceof Error ? err.message : String(err)
+      message.error(`命令执行失败：${reason}`)
+    }
   }
 
   /** 处理消息中的导航操作（查看监控/记录决策/更新知识库） */
@@ -1124,7 +1233,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
           <span className="whitespace-nowrap text-[13px] font-semibold text-[var(--trae-text-default)]">AI运维助手</span>
           <span
             className={cn(
-              'inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-[10px] font-medium',
+              'inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-[11px] font-medium',
               demoMode
                 ? 'bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)]'
                 : isStreaming
@@ -1176,7 +1285,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
               type="button"
               title={showDemo ? '隐藏设计稿示例' : '显示设计稿示例'}
               onClick={() => setShowDemo((v) => !v)}
-              className="btn-press px-1.5 h-7 rounded-[var(--trae-radius-4)] text-[10px] text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+              className="btn-press px-1.5 h-7 rounded-[var(--trae-radius-4)] text-[11px] text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             >
               {showDemo ? '示例开' : '示例关'}
             </button>
@@ -1205,7 +1314,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       </div>
 
       {/* ===== 消息滚动区 ===== */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-[var(--trae-bg-base-default)] px-4 py-3">
+      <div className="ai-messages flex flex-col gap-6">
         {providers.length === 0 && (
           <div className="flex items-start gap-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-2.5">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--trae-status-alert-default)]" />
@@ -1317,11 +1426,11 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       </div>
 
       {/* ===== Composer chips ===== */}
-      <div className="flex flex-wrap items-center gap-1 px-3 pt-1.5">
+      <div className="ai-composer-chips">
         {/* 演示模式切换 chip —— 接入真实循环工程 7 步 HITL */}
         <button
           type="button"
-          title={demoMode ? '退出演示模式（回到普通 agent:chat）' : '进入演示模式（接入循环工程 7 步 HITL：假设计→决策卡片→执行→验证）'}
+          title={demoMode ? '退出演示模式（回到普通 agent:chat）' : '进入演示模式（接入循环工程 7 步 HITL：假设置→决策卡片→执行→验证）'}
           onClick={() => {
             if (loop.isRunning) {
               // 切换前先取消进行中的循环工程
@@ -1330,10 +1439,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
             setDemoMode((v) => !v)
           }}
           className={cn(
-            'btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border px-2 text-[12px] font-medium transition-colors',
-            demoMode
-              ? 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)]'
-              : 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l2)]',
+            'ai-composer-chip btn-press',
+            demoMode && 'ai-chip-primary',
           )}
         >
           <Workflow className="size-3" />
@@ -1345,7 +1452,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
           )}
         </button>
 
-        <span className="mx-0.5 h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
+        <span className="ai-composer-divider" />
 
         {MOCK_COMPOSER_CHIPS.map((chip) => (
           <button
@@ -1353,10 +1460,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
             type="button"
             onClick={() => handleChipClick(chip)}
             className={cn(
-              'btn-press inline-flex h-7 items-center rounded-[var(--trae-radius-4)] border px-2 text-[12px] transition-colors',
-              activeChip === chip
-                ? 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                : 'border-[var(--trae-border-neutral-l2)] bg-transparent text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)]',
+              'ai-composer-chip btn-press',
+              activeChip === chip && 'ai-chip-primary',
             )}
           >
             {chip}
@@ -1365,18 +1470,16 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       </div>
 
       {/* ===== Composer 输入框 ===== */}
-      <div className="px-3 pb-2.5 pt-2">
-        <div
-          className="flex w-full flex-col gap-1.5 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-2 transition-colors focus-within:border-[var(--trae-bg-brand)] focus-within:shadow-[0_0_0_2px_rgba(56,123,255,0.15)]"
-        >
-          <div className="flex min-h-4 items-center gap-1.5">
-            <span className="inline-flex h-[18px] items-center gap-1 rounded-[var(--trae-radius-4)] bg-black px-1.5 text-[10px] text-white">
-              <Cpu className="size-2.5" />
+      <div className="ai-composer-outer">
+        <div className="ai-composer">
+          <div className="ai-composer-top">
+            <span className="ai-agent-badge">
+              <Cpu className="size-3" />
               Agent
-              <span className="ml-0.5 inline-block size-1 rounded-full bg-[var(--trae-status-success-default)]" />
+              <span className="ai-agent-dot" />
             </span>
             <span
-              className="pointer-events-none text-[10px] text-[var(--trae-text-tertiary)]"
+              className="ai-composer-placeholder"
               style={{ display: input ? 'none' : undefined }}
             >
               您正在与Agent聊天，输入 '/' 获取更多能力
@@ -1394,18 +1497,18 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                 handleSendToggle()
               }
             }}
-            className="min-h-5 w-full resize-none border-none bg-transparent text-[11px] leading-[1.5] text-[var(--trae-text-default)] outline-none"
+            className="ai-composer-textarea"
             placeholder=""
             style={{ maxHeight: 120 }}
           />
 
-          <div className="flex items-center justify-between gap-1.5">
-            <div className="flex items-center gap-0.5">
+          <div className="ai-composer-toolbar">
+            <div className="ai-composer-tools-left">
               <button
                 type="button"
                 title="@提及"
                 onClick={() => insertPrefix('@')}
-                className="btn-press flex size-[26px] items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                className="ai-composer-icon-btn btn-press"
               >
                 <AtSign className="size-3.5" />
               </button>
@@ -1413,7 +1516,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                 type="button"
                 title="#引用资源"
                 onClick={() => insertPrefix('#')}
-                className="btn-press flex size-[26px] items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                className="ai-composer-icon-btn btn-press"
               >
                 <Hash className="size-3.5" />
               </button>
@@ -1421,13 +1524,21 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                 type="button"
                 title="图片"
                 onClick={() => {
-                  void message.warning('图片附件暂未上线，请使用文本输入')
+                  // WIP: 图片附件暂未上线（CLAUDE.md A4 诚实标注 · A7 质量优先）
+                  //
+                  // 真实实现路径（预计 v1.0 P1 完成）：
+                  // 1. main 进程新增 fs:upload-image IPC 通道（支持本地图片读取 + base64 编码）
+                  // 2. 渲染层打开文件选择器（antd Upload 或 input[type=file]）
+                  // 3. 图片压缩（browser-image-compression，限制 4MB 内）
+                  // 4. 转为 base64 注入消息上下文（vision-capable model）
+                  // 5. Provider 支持检查（OpenAI Vision / Claude Vision / Ollama llava）
+                  void message.warning('图片附件暂未上线（WIP · 预计 v1.0 P1 完成），请使用文本输入')
                 }}
-                className="btn-press flex size-[26px] items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+                className="ai-composer-icon-btn btn-press"
               >
                 <ImageIcon className="size-3.5" />
               </button>
-              <span className="mx-1 h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
+              <span className="ai-composer-divider" />
 
               {/* 上下文使用率徽章 */}
               <span
@@ -1479,9 +1590,17 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                     <button
                       type="button"
                       onClick={() => {
-                        void message.warning('上下文压缩暂未上线')
+                        // WIP: 上下文压缩暂未上线（CLAUDE.md A4 诚实标注 · A7 质量优先）
+                        //
+                        // 真实实现路径（预计 v1.0 P1 完成）：
+                        // 1. 实现对话历史摘要算法（rolling summary）
+                        // 2. 当 ctxUsedPct > 80% 时自动触发压缩
+                        // 3. 保留最近 N 轮 + 系统提示 + 工具调用结果
+                        // 4. 早期对话用 LLM 生成摘要替换原始消息
+                        // 5. 压缩后更新 ctxUsedTokens / ctxTotalTokens 状态
+                        void message.warning('上下文压缩暂未上线（WIP · 预计 v1.0 P1 完成）')
                       }}
-                      className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[10px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
+                      className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[11px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
                     >
                       压缩上下文
                     </button>
@@ -1495,7 +1614,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                   type="button"
                   title="切换模型"
                   onClick={() => setProviderMenuOpen((v) => !v)}
-                  className="btn-press inline-flex h-6 max-w-[140px] items-center gap-1 rounded-full border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
+                  className="ai-model-btn btn-press"
                 >
                   <span className="truncate">{providerLabel}</span>
                   <ChevronDown className="size-2.5 shrink-0" />
@@ -1503,7 +1622,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                 {providerMenuOpen && (
                   <div className="absolute bottom-[calc(100%+4px)] left-0 z-50 min-w-[180px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] py-1 shadow-xl">
                     {providers.length === 0 ? (
-                      <div className="px-3 py-2 text-[10px] text-[var(--trae-text-tertiary)]">
+                      <div className="px-3 py-2 text-[11px] text-[var(--trae-text-tertiary)]">
                         暂无 Provider，请到设置 → 模型配置添加
                       </div>
                     ) : (
@@ -1532,7 +1651,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                     <div className="my-1 border-t border-[var(--trae-border-neutral-l1)]" />
                     <button
                       type="button"
-                      className="flex w-full px-3 py-1.5 text-left text-[10px] text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
+                      className="flex w-full px-3 py-1.5 text-left text-[11px] text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
                       onClick={() => {
                         setProviderMenuOpen(false)
                         navigate('/settings/model')
@@ -1558,23 +1677,23 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
                   ? (!loop.isRunning && !input.trim())
                   : (!isStreaming && !input.trim())
               }
-              className="wb-send-btn btn-press flex size-8 shrink-0 items-center justify-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-40"
+              className="ai-send-btn btn-press wb-send-btn disabled:opacity-40"
             >
               {(demoMode && loop.isRunning) || (!demoMode && isStreaming) ? (
-                <Square className="size-3.5 fill-[var(--trae-text-onbrand)] text-[var(--trae-text-onbrand)]" />
+                <Square className="fill-[var(--trae-text-onbrand)] text-[var(--trae-text-onbrand)]" />
               ) : (
-                <ArrowUp className="size-4 text-[var(--trae-text-onbrand)]" />
+                <ArrowUp />
               )}
             </button>
           </div>
         </div>
 
         {/* Token 统计行（今日真实 token，预算条保留设计示意） */}
-        <div className="mt-1.5 flex items-center gap-1.5 px-0.5">
+        <div className="ai-token-row">
           <BarChart className="size-2.5 text-[var(--trae-text-tertiary)]" />
-          <span className="whitespace-nowrap text-[10px] text-[var(--trae-text-tertiary)]">
+          <span className="whitespace-nowrap">
             今日{' '}
-            <span className="tabular-nums text-[var(--trae-text-secondary)]">
+            <span className="text-[var(--trae-text-secondary)]">
               {tokenStats.today.toLocaleString()}
             </span>{' '}
             tokens
@@ -1587,59 +1706,11 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
               }}
             />
           </div>
-          <span className="whitespace-nowrap text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+          <span className="whitespace-nowrap">
             累计 {tokenStats.total.toLocaleString()}
           </span>
         </div>
       </div>
-
-      {/* AI 面板动画：消息淡入 / shimmer / check pop / pulse / token pop */}
-      <style>{`
-        .btn-press { transition: transform 80ms ease-out; }
-        .btn-press:active { transform: scale(0.92); }
-        @keyframes ai-fade-in {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .ai-msg { animation: ai-fade-in 0.3s cubic-bezier(0.3, 0, 0, 1) both; }
-        @keyframes ai-shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .shimmer-text {
-          background: linear-gradient(90deg, var(--trae-text-tertiary) 0%, var(--trae-text-default) 50%, var(--trae-text-tertiary) 100%);
-          background-size: 200% 100%;
-          -webkit-background-clip: text;
-          background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: ai-shimmer 2s linear infinite;
-        }
-        @keyframes ai-check-pop {
-          0% { transform: scale(0); }
-          60% { transform: scale(1.15); }
-          100% { transform: scale(1); }
-        }
-        .ai-tool-check { animation: ai-check-pop 0.25s cubic-bezier(0.3, 0, 0, 1) both; }
-        @keyframes ai-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(56, 123, 255, 0.5); }
-          50% { box-shadow: 0 0 0 4px rgba(56, 123, 255, 0); }
-        }
-        .ai-pulse-dot { animation: ai-pulse 1.5s infinite; }
-        @keyframes token-pop {
-          0% { opacity: 0; transform: translateY(-4px) scale(0.96); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .ai-token-pop {
-          animation: token-pop 0.25s cubic-bezier(0.3, 0, 0, 1) both;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .ai-msg { animation: none; }
-          .ai-token-pop { animation: none; }
-          .ai-tool-check { animation: none; }
-          .ai-pulse-dot { animation: none; }
-          .shimmer-text { animation: none; -webkit-text-fill-color: var(--trae-text-secondary); }
-        }
-      `}</style>
     </div>
   )
 }

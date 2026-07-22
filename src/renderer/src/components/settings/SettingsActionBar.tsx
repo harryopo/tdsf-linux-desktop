@@ -60,21 +60,21 @@ export function SettingsActionBar({
   }
 
   return (
-    <div className="mt-1 flex items-center gap-3 border-t border-[var(--trae-border-neutral-l1)] pt-4">
+    <div className="set-actionbar">
       <button
         type="button"
         onClick={handleSave}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-4 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] hover:border-[var(--trae-bg-brand-hover)] active:scale-95"
+        className="set-btn-primary btn-press"
       >
-        <Check className="size-3.5" />
+        <Check className="di-14" />
         {saveLabel}
       </button>
       <button
         type="button"
         onClick={handleReset}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-3.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:border-[var(--trae-border-neutral-l3)] hover:bg-[var(--trae-bg-overlay-l1)] active:scale-95"
+        className="set-btn-secondary btn-press"
       >
-        <RotateCcw className="size-3.5" />
+        <RotateCcw className="di-14" />
         {resetLabel}
       </button>
 
@@ -92,12 +92,12 @@ export function SettingsActionBar({
         >
           {feedback === 'saved' ? (
             <>
-              <Check className="size-3.5" />
+              <Check className="di-14" />
               设置已保存
             </>
           ) : (
             <>
-              <RotateCcw className="size-3.5" />
+              <RotateCcw className="di-14" />
               已恢复默认设置
             </>
           )}

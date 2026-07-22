@@ -42,7 +42,7 @@ export function SettingsSlider({
 }: SettingsSliderProps) {
   const displayValue = precision > 0 ? value.toFixed(precision) : String(value)
   return (
-    <div className="flex items-center gap-3" style={{ width }}>
+    <div className="set-slider" style={width !== 240 ? { width } : undefined}>
       <Slider
         value={[value]}
         min={min}
@@ -51,7 +51,7 @@ export function SettingsSlider({
         onValueChange={(arr) => onValueChange(arr[0] ?? 0)}
         className="flex-1"
       />
-      <span className="shrink-0 text-right font-mono text-[13px] font-medium tabular-nums text-[var(--trae-bg-brand)]" style={{ minWidth: 40 }}>
+      <span className="set-slider__val">
         {prefix}
         {displayValue}
         {suffix}

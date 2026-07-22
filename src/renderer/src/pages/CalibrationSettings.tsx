@@ -23,6 +23,7 @@ import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import CalibrationPanel from '@/components/ai/CalibrationPanel'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import './Settings.css'
 
 /**
  * CalibrationSettings 校准设置页
@@ -43,37 +44,30 @@ export function CalibrationSettings() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col gap-6 p-8">
+    <div>
       <SettingsPageHeader
         icon={GaugeCircle}
         title="可信度校准"
         desc="基于 ECE 评估与 Temperature Scaling 的 LLM 校准器。按 Provider 分类管理 T 值，缓解现代神经网络的过度自信偏置。"
       />
 
-      {/* 警告条：生产环境慎用测试样本注入 */}
-      {!isElectronAPIAvailable() && (
-        <SettingsCard icon={Info} title="环境提示">
-          <div
-            style={{
-              padding: '12px 16px',
-              background: 'var(--color-warning-alpha-10, rgba(255,184,0,0.1))',
-              border: '1px solid var(--color-warning, #ffb800)',
-              borderRadius: 'var(--radius-sm, 4px)',
-              color: 'var(--color-text-primary)',
-              fontSize: 12,
-            }}
-          >
-            当前不在 Electron 环境中，校准面板 IPC 不可用。请在 tdsf-linux-desktop 主应用中访问此页面。
-          </div>
-        </SettingsCard>
-      )}
+      <div className="set-panel-content">
+        {/* 警告条：生产环境慎用测试样本注入 */}
+        {!isElectronAPIAvailable() && (
+          <SettingsCard icon={Info} title="环境提示">
+            <div className="set-calib-notice">
+              当前不在 Electron 环境中，校准面板 IPC 不可用。请在 tdsf-linux-desktop 主应用中访问此页面。
+            </div>
+          </SettingsCard>
+        )}
 
-      {/* 主面板 */}
-      <SettingsCard icon={BarChart3} title="ECE 校准器" tag="Provider 分类 Temperature Scaling">
-        <CalibrationPanel
-          enableTestSample={devMode}
-        />
-      </SettingsCard>
+        {/* 主面板 */}
+        <SettingsCard icon={BarChart3} title="ECE 校准器" tag="Provider 分类 Temperature Scaling">
+          <CalibrationPanel
+            enableTestSample={devMode}
+          />
+        </SettingsCard>
+      </div>
     </div>
   )
 }

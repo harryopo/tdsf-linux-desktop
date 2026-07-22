@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
+import '../terminal/Terminal.css'
 import MonacoEditor, { type MonacoEditorLanguage } from './MonacoEditor'
 import { useServerStore } from '@/stores/server-store'
 import { useEditorStore } from '@/stores/editor-store'
@@ -85,18 +86,18 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
 }) => {
   if (sessionId) {
     return (
-      <div className="relative min-h-0 flex-1 bg-[#0F1011]">
+      <div className="term-panel">
         <TerminalView sessionId={sessionId} visible={visible} />
       </div>
     )
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 bg-[#0F1011] px-6 text-center">
-      <TerminalIcon className="size-8 text-[var(--trae-text-tertiary)]" />
-      <div className="text-[13px] text-[var(--trae-text-secondary)]">
+    <div className="term-empty">
+      <TerminalIcon />
+      <div className="term-empty-text">
         连接 SSH 后，这里显示真实 Shell（xterm）
       </div>
-      <div className="max-w-md font-mono text-[11px] leading-5 text-[var(--trae-text-tertiary)]">
+      <div className="term-empty-hint">
         设置 → SSH 连接 → 添加主机并连接，再回到工作台。
       </div>
     </div>
@@ -111,24 +112,24 @@ const FileEditorPanel: FC<{
 }> = ({ tab, onChange, onSave, saving }) => {
   if (tab.loading) {
     return (
-      <div className="flex flex-1 items-center justify-center gap-2 text-[13px] text-[var(--trae-text-tertiary)]">
-        <Loader2 className="size-4 animate-spin" />
+      <div className="term-file-loading">
+        <Loader2 className="term-spin" />
         读取 {tab.path}…
       </div>
     )
   }
   if (tab.error) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
-        <div className="text-[13px] text-[var(--trae-status-error-default)]">{tab.error}</div>
-        <div className="font-mono text-[11px] text-[var(--trae-text-tertiary)]">{tab.path}</div>
+      <div className="term-file-error">
+        <div className="term-file-error-msg">{tab.error}</div>
+        <div className="term-file-error-path">{tab.path}</div>
       </div>
     )
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-8 shrink-0 items-center justify-between border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-3">
-        <span className="truncate font-mono text-[11px] text-[var(--trae-text-tertiary)]">
+    <div className="term-file-editor">
+      <div className="term-file-header">
+        <span className="term-file-path">
           {tab.path}
           {tab.dirty ? ' · 未保存' : ''}
         </span>
@@ -136,13 +137,13 @@ const FileEditorPanel: FC<{
           type="button"
           onClick={onSave}
           disabled={!tab.dirty || saving}
-          className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-2.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] disabled:opacity-40"
+          className="term-save-btn"
         >
-          {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+          {saving ? <Loader2 className="term-spin" /> : <Save />}
           保存
         </button>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className="term-file-editor-body">
         <MonacoEditor
           value={tab.content}
           language={detectLanguage(tab.path)}
@@ -249,9 +250,8 @@ const EditorArea: FC<EditorAreaProps> = ({
   }, [handleSave])
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-[var(--trae-bg-base-default)]">
-      {/* 标签栏 — 设计稿高度 40px */}
-      <div className="flex h-10 shrink-0 items-stretch border-b border-[var(--trae-border-neutral-l1)]">
+    <div className="term-editor-area">
+      <div className="term-tab-bar">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const isTerm = tab.id === 'tab-terminal'
@@ -259,64 +259,62 @@ const EditorArea: FC<EditorAreaProps> = ({
             <div
               key={tab.id}
               className={cn(
-                'group relative flex h-10 items-center gap-2 border-r border-[var(--trae-border-neutral-l1)] px-3.5 text-[13px]',
-                isActive
-                  ? 'bg-[var(--trae-bg-base-default)] text-[var(--trae-text-default)]'
-                  : 'text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l1)]',
+                'term-tab-item',
+                isActive ? 'term-tab-item-active' : '',
               )}
             >
               {isActive && (
-                <span className="absolute inset-x-0 top-0 h-0.5 bg-[var(--trae-bg-brand)]" />
+                <span className="term-tab-indicator" />
               )}
               <button
                 type="button"
-                className="inline-flex items-center gap-2"
+                className="term-tab-btn"
                 onClick={() => onTabChange(tab.id)}
               >
                 {isTerm ? (
-                  <TerminalIcon className="size-4" />
+                  <TerminalIcon />
                 ) : (
-                  <FileText className="size-4" />
+                  <FileText />
                 )}
-                <span className="max-w-[140px] truncate">{tab.label}</span>
+                <span className="term-tab-label">{tab.label}</span>
               </button>
               {!isTerm && (
                 <button
                   type="button"
                   title="关闭"
-                  className="ml-1 rounded p-0.5 opacity-0 hover:bg-[var(--trae-bg-overlay-l2)] group-hover:opacity-100"
+                  className="term-tab-close"
                   onClick={(e) => {
                     e.stopPropagation()
                     onCloseFile?.(tab.id)
                   }}
                 >
-                  <X className="size-3.5" />
+                  <X />
                 </button>
               )}
             </div>
           )
         })}
-        <div className="flex flex-1 items-center justify-end gap-1.5 px-3">
+        <div className="term-tab-actions">
           <button
             type="button"
-            title="分屏"
-            onClick={() => { /* TODO: 分屏功能 */ }}
-            className="flex size-8 items-center justify-center rounded text-[var(--trae-text-tertiary)] transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-secondary)] active:scale-95"
+            title="分屏（开发中）"
+            disabled
+            className="term-action-btn"
           >
-            <Columns2 className="size-4" />
+            <Columns2 />
           </button>
           <button
             type="button"
-            title="更多"
-            onClick={() => { /* TODO: 更多选项菜单 */ }}
-            className="flex size-8 items-center justify-center rounded text-[var(--trae-text-tertiary)] transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-secondary)] active:scale-95"
+            title="更多（开发中）"
+            disabled
+            className="term-action-btn"
           >
-            <MoreHorizontal className="size-4" />
+            <MoreHorizontal />
           </button>
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="term-content-area">
         {activeTabId === 'tab-terminal' ? (
           <TerminalPanel
             sessionId={activeSessionId}
@@ -330,7 +328,7 @@ const EditorArea: FC<EditorAreaProps> = ({
             onSave={() => void handleSave()}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center text-[13px] text-[var(--trae-text-tertiary)]">
+          <div className="term-file-empty">
             从左侧打开文件
           </div>
         )}
