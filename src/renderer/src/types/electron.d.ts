@@ -32,6 +32,10 @@ import type {
   // Phase L 主机密钥校验弹窗事件载荷
   SshHostKeyPromptEvent,
   SshHostKeyResponseAction,
+  // Phase M SSH 密钥管理共享类型
+  SshKeyPair,
+  GenerateKeyPairRequest,
+  GenerateKeyPairResponse,
 } from '@shared/models'
 
 // 部署助手类型（来自共享层 @shared/deploy-types）
@@ -488,6 +492,74 @@ export interface ElectronAPI {
     requestId: string,
     action: SshHostKeyResponseAction,
   ): Promise<boolean>
+
+  // ===== Phase M：SSH 密钥管理（删除 / 上传 / 生成 / 列表） =====
+  // 通道与主进程 ipc/ssh.ts 一一对应：
+  // - ssh:delete-keypair   → sshDeleteKeyring（幂等删除 ~/.ssh/<keyName> + .pub）
+  // - ssh:upload-keypair   → sshUploadKeypair（文件对话框 + 复制 + chmod 600 + derive 公钥）
+  // - ssh:generate-keypair → sshGenerateKeypair（ssh-keygen 生成 ed25519/rsa 密钥对）
+  // - ssh:list-keypairs    → sshListKeypairs（扫描 ~/.ssh/ 列出所有密钥对）
+  //
+  // 安全说明：
+  // - 所有文件 I/O 在主进程执行，渲染进程不直接访问文件系统
+  // - 私钥权限 600（owner rw only），公钥 644（owner rw / others r）
+  // - 删除操作幂等：删除不存在的密钥返回 success=true，不抛错
+
+  /**
+   * 删除 SSH 密钥对（Phase M）
+   *
+   * 删除 ~/.ssh/ 目录下指定密钥文件（私钥 + 公钥 .pub）。
+   * 幂等：删除不存在的密钥返回 success=true，不抛错。
+   *
+   * @param keyName 密钥名称（如 id_ed25519），不含路径
+   * @returns { success: boolean, error?: string }
+   */
+  sshDeleteKeyring(
+    keyName: string,
+  ): Promise<{ success: boolean; error?: string }>
+
+  /**
+   * 上传 SSH 私钥到 ~/.ssh/（Phase M）
+   *
+   * 主进程弹出文件选择对话框，用户选择私钥文件后：
+   * 1. 复制到 ~/.ssh/<filename>
+   * 2. chmod 600 设置私钥权限
+   * 3. ssh-keygen -y derive 公钥，写入 .pub，chmod 644
+   *
+   * 用户取消选择时返回 { success: false, canceled: true }，UI 应静默处理。
+   *
+   * @returns { success, keyPair?, error?, canceled? }
+   */
+  sshUploadKeypair(): Promise<{
+    success: boolean
+    keyPair?: SshKeyPair
+    error?: string
+    canceled?: boolean
+  }>
+
+  /**
+   * 生成 SSH 密钥对（Phase M）
+   *
+   * 调用 ssh-keygen 生成 ed25519（默认）或 rsa（4096 位）密钥对，
+   * 输出到 ~/.ssh/<name>。私钥权限 600，公钥 644。
+   *
+   * @param request { type, name, passphrase?, comment? }
+   * @returns GenerateKeyPairResponse（成功含 keyPair，失败含 error）
+   */
+  sshGenerateKeypair(
+    request: GenerateKeyPairRequest,
+  ): Promise<GenerateKeyPairResponse>
+
+  /**
+   * 列出 ~/.ssh/ 目录下所有密钥对（Phase M）
+   *
+   * 扫描 ~/.ssh/ 目录，排除 .pub / known_hosts / config / authorized_keys /
+   * 备份文件 / 隐藏文件，返回 SshKeyPair[]。
+   *
+   * @returns SshKeyPair[]（空目录返回空数组，不抛错）
+   */
+  sshListKeypairs(): Promise<SshKeyPair[]>
+
   /**
    * 监听 SSH 心跳保活状态变更（K.2）
    *
