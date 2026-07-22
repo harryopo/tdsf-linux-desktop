@@ -477,3 +477,160 @@ Task 6.1 cron-parser 实现
 ---
 
 *v8.1 归档更新 · 2026-07-21 · Phase 7.6*
+
+---
+
+## polish-tdsf-p1-issues 经验总结（v8.2 新增 · 2026-07-21 夜间）
+
+> 本节记录 `polish-tdsf-p1-issues` spec 全 Phase 执行过程中沉淀的最佳实践与架构模式。
+> 关联文档：`.learnings/LEARNINGS.md` LRN-20260721-009 至 013
+
+### 1. IPC 通道集中化模式（19 域 71 通道常量）
+
+**目标**：消除代码中所有 IPC 通道字面量字符串，统一到 `src/shared/ipc-channels.ts` 单一事实源。
+
+**实现**（commit ff37091）：
+- 19 个域 × 平均 3.7 个通道 = 71 个通道常量
+- 每域用 `as const` 标注，确保字面量类型推断
+- 三层引用同步：main (`ipcMain.handle`) / preload (`ipcRenderer.invoke`) / renderer (`window.electronAPI.xxx`)
+
+**模式**：
+
+```typescript
+// src/shared/ipc-channels.ts
+export const IPC_CHANNELS = {
+  LOOP: {
+    START: 'loop:start',
+    CONFIRM: 'loop:confirm',
+    CANCEL: 'loop:cancel',
+    BLOCKED: 'loop:blocked',  // Phase D 新增
+  } as const,
+  SCHEDULER: {
+    LIST: 'scheduler:list',
+    TOGGLE: 'scheduler:toggle',
+    TRIGGER: 'scheduler:trigger',
+    STATUS: 'scheduler:status',
+  } as const,
+  // ... 其他 17 个域
+} as const
+
+// 引用方（main / preload / renderer）
+import { IPC_CHANNELS } from '@shared/ipc-channels'
+ipcMain.handle(IPC_CHANNELS.LOOP.START, handler)
+```
+
+**最佳实践**（详见 LRN-20260721-009）：
+1. 三阶段渐进式集中化：扩展常量 → 批量替换 → 全量验证
+2. 每域用 `as const` 标注，避免类型推断为 `string`
+3. grep 验证 0 残留字面量
+
+### 2. 大文件拆分模式（helpers + config + 主文件）
+
+**目标**：把超过 500 行的文件按职责拆分为主文件 + helpers + config 子模块。
+
+**实现**（commit ca0228e）：
+- `credibility.ts` 597 → 445 行（抽出 `credibility-helpers.ts` 188 行）
+- `sandbox.ts` 715 → 392 行（抽出 `sandbox-approval.ts` 199 行 + `sandbox-config.ts` 208 行）
+
+**模式**：
+
+```
+原文件（715 行，混杛建模 + 审批 + 配置）
+  ↓ 拆分
+├── sandbox.ts          （392 行，主流程 orchestrator）
+├── sandbox-approval.ts （199 行，审批流逻辑）
+└── sandbox-config.ts   （208 行，配置读取与校验）
+```
+
+**最佳实践**（详见 LRN-20260721-010）：
+1. 四步依赖分析法：识别类型边界 → 工具边界 → 逻辑边界 → 抽出测试
+2. 主文件保留 orchestrator 角色，不包含具体业务逻辑
+3. 抽出后立即跑 typecheck + 单测验证接口兼容
+4. 命名约定：`<原文件名>-helpers.ts` / `<原文件名>-<职责>.ts` / `<原文件名>-types.ts`
+
+### 3. 脱敏工具的 8 类正则规则
+
+**目标**：所有写入日志/数据库/UI 的错误信息必须先经过 `redactSensitiveInfo()` 脱敏。
+
+**实现**（commit 1fd3ee0）：
+- 新建 `src/main/services/security/redact.ts`
+- 8 类正则规则覆盖常见敏感信息
+
+**8 类正则规则**：
+
+| 序号 | 类别 | 正则模式示例 |
+|------|------|--------------|
+| 1 | API Key / Token | `(api[_-]?key\|token\|secret)['"\s:=]+['"]?[A-Za-z0-9_-]{20,}` |
+| 2 | 密码 | `(password\|passwd\|pwd)['"\s:=]+['"]?[^\s'"]{6,}` |
+| 3 | 私钥（PEM 块） | `-----BEGIN (RSA\|EC\|DSA\|OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END.*PRIVATE KEY-----` |
+| 4 | JWT | `eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}` |
+| 5 | IPv4 | `\b(\d{1,3}\.){3}\d{1,3}\b`（白名单除外） |
+| 6 | 邮箱 | `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}` |
+| 7 | 手机号 | `\b1[3-9]\d{9}\b` |
+| 8 | .env 文件路径 | `(?:^\|[\\/\\])\.env(?:[\\/\\]\|$\|\b)` |
+
+**最佳实践**（详见 LRN-20260721-011）：
+1. 所有正则必须有边界约束（`^` / `$` / `\b` / 字符类）
+2. 白名单机制：已知安全的 IP / 邮箱不脱敏
+3. 单测覆盖正例 + 反例两类
+4. 脱敏后日志保留可读性，避免连续 `[REDACTED]`
+
+**应用场景**：
+- `daily-decision-archive.ts` catch 块写入日志前
+- 任何 `console.error(error.message)` 调用前
+- IPC 错误响应推送到渲染层前
+
+### 4. SSH 预检查的 blocked 事件架构
+
+**目标**：在 `doExecute` 前检查 SSH 连接状态，未连接时推 `loop:blocked` 事件让 UI 显示 BlockedCard。
+
+**实现**（commit 3c393a5）：
+- `SshConnectionManager.hasActiveConnection()` 同步方法（不抛错）
+- `loop-engineering-subagent.ts` SSH 预检查 + `loop:blocked` 事件
+- `LoopWorkflowPanel.tsx` 新增 `<BlockedCard />` 组件
+
+**架构决策**（详见 LRN-20260721-012）：
+
+选择独立事件 `loop:blocked` 而非复用 `loop:step` 的 `step: 'blocked'` 状态。原因：
+1. **关注点分离**：blocked 是"前置失败"，与 HITL 7 步流程正交，不应混入 step 状态机
+2. **UI 渲染清晰**：BlockedCard 是独立组件，与 StepProgress 并列渲染
+3. **可扩展性**：未来可增加"权限不足 blocked"、"资源不足 blocked"
+
+**事件流**：
+
+```
+正常流程：loop:start → loop:step(collect) → ... → loop:step(verify) → loop:done
+预检查失败：loop:start → loop:blocked(reason=no-ssh-connection) → 等待用户操作 → loop:start（重试）
+```
+
+**最佳实践**：
+1. 事件 payload 含 `{ reason: string, suggestion: string, retryable: boolean }` 三字段
+2. blocked 不抛错、不中断 workflow，用户可解决后重试
+3. 渲染层订阅独立事件时，useEffect cleanup 中正确取消订阅
+
+### 5. lint warnings 修复的 3 种策略
+
+**目标**：将 `no-explicit-any` warnings 从 3 个降至 0，不引入新 any。
+
+**实现**（commit 2d3e348）：
+- `client-manager.ts` 2 处 no-explicit-any 修复
+- `langfuse.ts` 1 处 no-explicit-any 修复
+- lint 0 errors / 0 warnings（原 3 → 0）
+
+**3 种修复策略**（详见 LRN-20260721-013）：
+
+| 策略 | 适用场景 | 示例 |
+|------|----------|------|
+| `unknown` + 类型守卫 | `catch (error)` 子句 | `catch (error: unknown) { if (error instanceof Error) ... }` |
+| `Record<string, unknown>` | 函数参数传给 SDK | `function logEvent(name: string, metadata: Record<string, unknown>)` |
+| 具体 SDK 类型 | SDK 返回值解构 | `import type { SDKResponse } from 'sdk'; const result: SDKResponse = await sdk.fetch()` |
+
+**最佳实践**：
+1. `catch (error)` 子句一律用 `unknown` + 类型守卫，禁止 `catch (error: any)`
+2. 函数参数禁止 `any`，必须用 `Record<string, unknown>` 或具体 interface
+3. SDK 调用优先 `import type` 引入 SDK 类型
+4. pre-commit hook 加入 `eslint --max-warnings=0` 阻止新 any 进入仓库
+
+---
+
+*v8.2 归档更新 · 2026-07-21 夜间 · polish-tdsf-p1-issues Phase F*
