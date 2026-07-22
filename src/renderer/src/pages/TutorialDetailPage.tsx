@@ -260,7 +260,7 @@ export function TutorialDetailPage() {
                 <div style={{ marginTop: 6, fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-code-constant)', fontFamily: 'var(--trae-font-family-mono)' }}># 查看并调整TCP连接队列长度</div>
               </div>
               {/* 注意事项 alert */}
-              <div className="flex items-start" style={{ marginTop: 12, gap: 8, padding: '8px 12px', background: 'var(--trae-status-warning-surface-l1)', borderLeft: '3px solid var(--trae-status-warning-default)', borderRadius: '0 4px 4px 0' }}>
+              <div className="flex items-start" style={{ marginTop: 12, gap: 8, padding: '8px 12px', background: 'var(--trae-status-warning-surface-l1)', borderLeft: '3px solid var(--trae-status-warning-default)', borderRadius: '0 var(--trae-radius-4) var(--trae-radius-4) 0' }}>
                 <Info size={14} className="mt-px shrink-0" style={{ color: 'var(--trae-status-warning-default)' }} />
                 <span style={{ fontSize: 'var(--trae-body-sm-font-size)', lineHeight: 'var(--trae-body-sm-line-height)', color: 'var(--trae-text-default)' }}>修改内核参数需谨慎，建议先在测试环境验证</span>
               </div>

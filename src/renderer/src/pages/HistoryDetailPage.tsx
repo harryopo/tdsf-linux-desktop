@@ -241,7 +241,7 @@ export function HistoryDetailPage() {
                   </div>
                   <div className="flex-1 min-w-0" style={{ paddingBottom: isLast ? 0 : '8px' }}>
                     <div className="flex items-center" style={{ gap: '6px', marginBottom: 2 }}>
-                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', fontWeight: 600, color: 'var(--trae-text-default)' }}>Step {step.num} · {step.title}</span>
+                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', fontWeight: 'var(--trae-font-weight-strong)' as const, color: 'var(--trae-text-default)' }}>Step {step.num} · {step.title}</span>
                       <span className="inline-flex items-center" style={{ padding: '0 6px', height: 18, borderRadius: 'var(--trae-radius-2)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 1, background: 'var(--trae-status-success-surface-l1)', color: 'var(--trae-status-success-default)' }}>已完成</span>
                     </div>
                     <p className="m-0" style={{ fontSize: 'var(--trae-body-sm-font-size)', color: 'var(--trae-text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{step.desc}</p>

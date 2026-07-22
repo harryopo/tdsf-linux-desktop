@@ -153,7 +153,7 @@ export function LogsPage() {
               height: 18,
               padding: '0 8px',
               fontSize: 9,
-              fontWeight: 500,
+              fontWeight: 'var(--trae-font-weight-medium)',
               color: 'var(--trae-text-brand)',
               background: 'var(--trae-bg-brand-popup)',
               border: '1px solid var(--trae-border-brand)',
