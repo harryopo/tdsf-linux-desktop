@@ -69,6 +69,10 @@ import { registerFileWatcherIpcHandlers } from './file-watcher'
 // 通道：expectation:check / expectation:format
 // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
 import { registerExpectationHandlers } from './expectation'
+// v0.9.3 §11 遗留项 2 P2-H 新增：Task Protocol step 2 check-permission 审批 IPC
+// 通道：task:permission-approve（渲染进程响应审批请求）
+// 让 Subagent 调度支持用户审批，从"默认允许"升级为"理解后批准"
+import { registerTaskPermissionHandlers } from './task-permission-approval'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -205,6 +209,12 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 通道：expectation:check / expectation:format
   // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警（ExpectedOutput 组件消费）
   registerExpectationHandlers()
+
+  // v0.9.3 §11 遗留项 2 P2-H 新增：Task Protocol step 2 check-permission 审批 IPC
+  // 通道：task:permission-approve（渲染进程响应审批请求）
+  // 让 Subagent 调度支持用户审批，从"默认允许"升级为"理解后批准"
+  // 消费方：TaskPermissionApprovalDialog.tsx
+  registerTaskPermissionHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar

@@ -44,11 +44,13 @@ import SidecarStatusPanel from './SidecarStatusPanel'
 import AttentionBubble from './AttentionBubble'
 import ExpectedOutput from './ExpectedOutput'
 import SandboxApprovalDialog from './SandboxApprovalDialog'
+import TaskPermissionApprovalDialog from './TaskPermissionApprovalDialog'
 import { AtCommandChip, AtCommandPicker, AtCommandBadge, useAtCommandInjection } from './at-commands'
 import McpStatusBar from './McpStatusBar'
 import type { AtCommand } from '@shared/at-command-types'
 import type { ThinkingStrength, PersistedProviderConfig, AgentMode } from '@shared/agent-types'
 import type { SandboxApprovalRequest } from '../../types/electron'
+import type { TaskPermissionApprovalRequest } from '../../types/electron'
 import './ChatPanel.css'
 
 const { TextArea } = Input
@@ -154,6 +156,8 @@ const ChatPanel: React.FC = () => {
   const [sidecarStatusOpen, setSidecarStatusOpen] = useState(false)
   /** v0.9.3 §11 改进点 4 P2-C：sandbox 命令审批请求队列 */
   const [sandboxApprovalRequests, setSandboxApprovalRequests] = useState<SandboxApprovalRequest[]>([])
+  /** v0.9.3 §11 遗留项 2 P2-H：Subagent 调度审批请求队列 */
+  const [taskPermissionRequests, setTaskPermissionRequests] = useState<TaskPermissionApprovalRequest[]>([])
   /** v0.9 @触发检测的防抖计时器 */
   const pickerDebounceRef = useRef<number | null>(null)
   /** v0.9 消息对应的注入命令记录：messageId → AtCommand[] */
@@ -329,6 +333,24 @@ const ChatPanel: React.FC = () => {
   /** v0.9.3 §11 改进点 4 P2-C：审批请求已处理回调 */
   const handleSandboxApprovalResolved = useCallback((callId: string) => {
     setSandboxApprovalRequests((prev) => prev.filter((r) => r.callId !== callId))
+  }, [])
+
+  // ===== v0.9.3 §11 遗留项 2 P2-H：监听 Subagent 调度审批请求 =====
+  useEffect(() => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.onTaskPermissionApprovalRequest) return
+
+    const offTaskPermission = window.electronAPI.onTaskPermissionApprovalRequest((request) => {
+      setTaskPermissionRequests((prev) => [...prev, request])
+    })
+
+    return () => {
+      offTaskPermission()
+    }
+  }, [])
+
+  /** v0.9.3 §11 遗留项 2 P2-H：Subagent 审批请求已处理回调 */
+  const handleTaskPermissionResolved = useCallback((callId: string) => {
+    setTaskPermissionRequests((prev) => prev.filter((r) => r.callId !== callId))
   }, [])
 
   // ===== v0.8.0 监听预填消息（终端翻译模块联动） =====
@@ -871,6 +893,12 @@ const ChatPanel: React.FC = () => {
       <SandboxApprovalDialog
         requests={sandboxApprovalRequests}
         onResolved={handleSandboxApprovalResolved}
+      />
+
+      {/* ===== v0.9.3 §11 遗留项 2 P2-H：Subagent 调度审批弹窗（三态权限 R12） ===== */}
+      <TaskPermissionApprovalDialog
+        requests={taskPermissionRequests}
+        onResolved={handleTaskPermissionResolved}
       />
 
       {/* ===== v0.9 输入区（含 @命令 Chip 列表 + Picker） ===== */}

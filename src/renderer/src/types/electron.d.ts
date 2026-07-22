@@ -274,6 +274,47 @@ export interface PaorApprovalRequest {
   timestamp: number
 }
 
+/**
+ * Task Protocol 审批请求载荷（v0.9.3 §11 遗留项 2 P2-H 新增）
+ *
+ * 主进程在 task-protocol step 2 check-permission 推送 task:permission-approval-request 事件，
+ * 渲染进程弹窗显示 taskId / subagentName / inputSummary，用户通过 taskPermissionApprove(callId, decision) 响应。
+ *
+ * 30 秒未响应主进程自动拒绝。
+ */
+export interface TaskPermissionApprovalRequest {
+  /** 审批调用 ID（与 taskPermissionApprove 的 callId 参数对应） */
+  callId: string
+  /** 任务 ID（来自 TaskProtocolContext.taskId） */
+  taskId: string
+  /** 目标 Subagent 名称 */
+  subagentName: string
+  /** 任务输入摘要（可选，前 200 字符） */
+  inputSummary?: string
+  /** 父会话 ID（可选） */
+  parentSessionId?: string
+  /** 关联 ID（可选，用于日志追踪） */
+  correlationId?: string
+  /** 时间戳（ms） */
+  timestamp: number
+  /** 权限模式（always/auto/never） */
+  mode: 'always' | 'auto' | 'never'
+}
+
+/**
+ * Task Protocol 审批决策（v0.9.3 §11 遗留项 2 P2-H 新增）
+ *
+ * 渲染进程通过 taskPermissionApprove(callId, decision) 响应审批请求。
+ */
+export interface TaskPermissionDecision {
+  /** 是否批准 */
+  approved: boolean
+  /** 拒绝原因（approved=false 时填充，可选） */
+  rejectReason?: string
+  /** 是否记住决策（可选，默认 false；v1.6 实现持久化规则表） */
+  remember?: boolean
+}
+
 // ============================================================================
 // v0.9 @命令元信息类型（与 preload/index.ts 中的 AtCommandInfo 对应）
 // ============================================================================
@@ -1259,6 +1300,16 @@ export interface ElectronAPI {
    * 渲染进程弹窗让用户确认后调用 paorApprove() 响应。60 秒未响应自动拒绝。
    */
   onPaorApprovalRequest(callback: (request: PaorApprovalRequest) => void): () => void
+  /**
+   * 监听 Task Protocol 审批请求（v0.9.3 §11 遗留项 2 P2-H 新增）
+   *
+   * Subagent 调度时（task-protocol step 2），主进程推送 task:permission-approval-request 事件，
+   * 渲染进程弹窗显示 taskId / subagentName / inputSummary，用户通过 taskPermissionApprove() 响应。
+   * 30 秒未响应主进程自动拒绝。
+   */
+  onTaskPermissionApprovalRequest(
+    callback: (request: TaskPermissionApprovalRequest) => void
+  ): () => void
   /** 监听 Web 部署助手实时日志 */
   onDeployLog(callback: (event: DeployLogEventModel) => void): () => void
   /** 监听部署步骤状态变化 */
@@ -1445,6 +1496,28 @@ export interface ElectronAPI {
    * @returns 格式化后的字符串
    */
   expectationFormat(violations: ExpectationViolation[]): Promise<string>
+
+  // ----- v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批（1 个）-----
+  /**
+   * 响应 Subagent 调度审批请求
+   *
+   * 通道：task:permission-approve
+   * 用途：Subagent 调度时（task-protocol step 2），主进程推送审批请求到 UI，
+   *      用户通过本函数响应（approve/reject + remember）
+   *
+   * 三态权限审批（R12）：
+   * - mode='always'：每次都询问用户（触发推送）
+   * - mode='auto'：自动允许（不推送，step 2 直接通过）
+   * - mode='never'：自动拒绝（不推送，step 2 直接失败）
+   *
+   * @param callId 审批调用 ID（与 onTaskPermissionApprovalRequest 推送的 request.callId 对应）
+   * @param decision 审批决策（approved + rejectReason + remember）
+   * @returns void（主进程通过 Promise resolve 通知 step 2 继续/中止）
+   */
+  taskPermissionApprove(
+    callId: string,
+    decision: TaskPermissionDecision
+  ): Promise<void>
 
   // ----- 组 4：Subagent 自定义 Agent 加载器（2 个）-----
   /**

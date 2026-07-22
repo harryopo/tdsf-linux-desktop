@@ -71,6 +71,8 @@ import { STEP_FUNCTIONS, stepCleanup, stepReturnResult } from './task-protocol-s
 import { TASK_PROTOCOL_STEPS } from './task-protocol-types'
 import type { TaskProtocolContext, StepResult } from './task-protocol-types'
 import { logger } from '../../../services/log/logger'
+// P2-I: 任务记忆沉淀服务（step 14 之后调用，幂等 + 静默吞错）
+import { sedimentTaskMemory } from '../../memory/task-sediment'
 
 /**
  * 子日志器（自动注入协议前缀）
@@ -185,6 +187,29 @@ export async function executeTaskProtocol(
         log.warn('return-result step exception', {
           error: err instanceof Error ? err.message : String(err),
           taskId: ctx.taskId,
+        })
+      }
+    }
+
+    // P2-I: 任务记忆沉淀（step 14 之后调用）
+    // 双轨写入：知识库 + Markdown；幂等 + 错误降级链 + AttentionTracker.reset()
+    // 静默吞错：沉淀失败绝不影响主任务返回
+    if (!ctx.cancelled) {
+      try {
+        const sedimentResult = await sedimentTaskMemory(ctx)
+        log.info('任务记忆沉淀完成', {
+          taskId: ctx.taskId,
+          sedimentId: sedimentResult.sedimentId,
+          writtenTo: sedimentResult.writtenTo,
+          reason: sedimentResult.reason,
+          lessonsCount: sedimentResult.lessons.length,
+          attentionArchived: sedimentResult.attentionArchived,
+        })
+      } catch (err) {
+        // 静默吞错：仅记录日志，不影响主任务返回
+        log.warn('任务记忆沉淀异常（静默吞错）', {
+          taskId: ctx.taskId,
+          error: err instanceof Error ? err.message : String(err),
         })
       }
     }

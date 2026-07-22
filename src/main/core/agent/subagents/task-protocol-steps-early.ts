@@ -14,6 +14,11 @@ import type { TaskProtocolContext, StepResult, SubagentMeta, DerivedPermissions 
 import type { SubagentRegistry } from './base'
 import { AttentionTracker } from '../attention-tracker'
 import { log, createBuiltinRegistry } from './task-protocol-helpers'
+// v0.9.3 §11 遗留项 2 P2-H 新增：Task Protocol step 2 check-permission 审批 IPC
+import {
+  waitForTaskPermissionApproval,
+  type TaskPermissionApprovalRequest,
+} from '../../../ipc/task-permission-approval'
 
 // ============================================================================
 // step 1-2：输入校验 + 权限检查（保留并增强）
@@ -79,12 +84,25 @@ export async function stepValidateInput(ctx: TaskProtocolContext): Promise<StepR
  * 借鉴 Kilo Code：ctx.ask({ permission: "task", patterns: [subagent_type] })
  * - 用户审批 subagent 调度（可保存永久规则，下次同类自动通过）
  *
- * 当前版本：默认允许（骨架），但检查 ctx.cancelled 状态。
- * 后续增强：通过 IPC 推送审批请求到 UI，等待用户响应。
+ * v0.9.3 §11 遗留项 2 P2-H 升级：从"默认允许"升级为"三态权限审批"
+ *
+ * 三态权限审批（R12，参考 AgentScope Permission）：
+ * - ctx.defaultPermission = 'auto' → 自动允许（适用于可信 subagent，如 builtin）
+ * - ctx.defaultPermission = 'never' → 自动拒绝（适用于黑名单 subagent）
+ * - ctx.defaultPermission = 'always'（默认）：
+ *   · ctx.mainWindow 存在 → 推送审批请求到 UI，等待用户响应（30 秒超时自动拒绝）
+ *   · ctx.mainWindow 不存在 → 降级为默认允许（保持向后兼容，单测场景不受影响）
+ *
+ * 审批请求载荷（TaskPermissionApprovalRequest）包含：
+ * - taskId / subagentName / inputSummary（可选）/ parentSessionId（可选）/ correlationId（可选）
+ * - 用户响应（TaskPermissionDecision）：approved + rejectReason（可选）+ remember（可选）
+ *
+ * remember=true 时，主进程记录日志（持久化规则表留待 v1.6 实现）
  */
 export async function stepCheckPermission(ctx: TaskProtocolContext): Promise<StepResult> {
   const start = Date.now()
   try {
+    // 1. 检查 cancelled 状态
     if (ctx.cancelled) {
       return {
         step: 'check-permission',
@@ -93,21 +111,147 @@ export async function stepCheckPermission(ctx: TaskProtocolContext): Promise<Ste
         durationMs: Date.now() - start,
       }
     }
-    log.debug('step 2/14 check-permission 通过（默认允许，IPC 审批待集成）', {
+
+    // 2. 读取默认权限模式（默认 'always'）
+    const mode = ctx.defaultPermission ?? 'always'
+
+    // 3. 'auto' 模式：自动允许（不推送审批请求）
+    if (mode === 'auto') {
+      log.debug('step 2/14 check-permission 通过（mode=auto，自动允许）', {
+        taskId: ctx.taskId,
+        subagentName: ctx.subagentName,
+      })
+      return {
+        step: 'check-permission',
+        success: true,
+        output: { approved: true, source: 'mode-auto', mode },
+        durationMs: Date.now() - start,
+      }
+    }
+
+    // 4. 'never' 模式：自动拒绝（不推送审批请求）
+    if (mode === 'never') {
+      log.warn('step 2/14 check-permission 拒绝（mode=never，自动拒绝）', {
+        taskId: ctx.taskId,
+        subagentName: ctx.subagentName,
+      })
+      return {
+        step: 'check-permission',
+        success: false,
+        error: `Subagent "${ctx.subagentName}" 被权限规则拒绝（mode=never）`,
+        durationMs: Date.now() - start,
+      }
+    }
+
+    // 5. 'always' 模式：需要用户审批
+    // 5.1 mainWindow 不存在 → 降级为默认允许（向后兼容）
+    if (!ctx.mainWindow) {
+      log.warn('step 2/14 check-permission 降级为默认允许（mainWindow 不存在，单测/CLI 场景）', {
+        taskId: ctx.taskId,
+        subagentName: ctx.subagentName,
+        mode,
+      })
+      return {
+        step: 'check-permission',
+        success: true,
+        output: { approved: true, source: 'default-allow-no-mainwindow', mode },
+        durationMs: Date.now() - start,
+      }
+    }
+
+    // 5.2 mainWindow 已销毁 → 降级为默认允许
+    if (ctx.mainWindow.isDestroyed()) {
+      log.warn('step 2/14 check-permission 降级为默认允许（mainWindow 已销毁）', {
+        taskId: ctx.taskId,
+        subagentName: ctx.subagentName,
+        mode,
+      })
+      return {
+        step: 'check-permission',
+        success: true,
+        output: { approved: true, source: 'default-allow-destroyed', mode },
+        durationMs: Date.now() - start,
+      }
+    }
+
+    // 5.3 构建审批请求载荷
+    // inputSummary：从 ctx.input 提取前 200 字符作为摘要（避免过长）
+    const inputSummary =
+      typeof ctx.input === 'string'
+        ? ctx.input.slice(0, 200)
+        : ctx.input !== undefined
+          ? JSON.stringify(ctx.input).slice(0, 200)
+          : undefined
+
+    const callId = `taskperm-${ctx.taskId}-${Date.now().toString(36)}`
+    const request: TaskPermissionApprovalRequest = {
+      callId,
       taskId: ctx.taskId,
       subagentName: ctx.subagentName,
+      inputSummary,
+      parentSessionId: ctx.parentSessionId,
+      correlationId: ctx.correlationId,
+      timestamp: Date.now(),
+      mode,
+    }
+
+    // 5.4 推送审批请求并等待响应（30 秒超时自动拒绝）
+    log.info('step 2/14 check-permission 推送审批请求到 UI', {
+      callId,
+      taskId: ctx.taskId,
+      subagentName: ctx.subagentName,
+      mode,
+    })
+
+    const decision = await waitForTaskPermissionApproval(ctx.mainWindow, request)
+
+    // 5.5 处理用户决策
+    if (decision.approved) {
+      log.info('step 2/14 check-permission 通过（用户批准）', {
+        callId,
+        taskId: ctx.taskId,
+        subagentName: ctx.subagentName,
+        remember: decision.remember ?? false,
+      })
+      return {
+        step: 'check-permission',
+        success: true,
+        output: {
+          approved: true,
+          source: 'user-approved',
+          mode,
+          remember: decision.remember ?? false,
+        },
+        durationMs: Date.now() - start,
+      }
+    }
+
+    // 用户拒绝
+    log.warn('step 2/14 check-permission 拒绝（用户拒绝）', {
+      callId,
+      taskId: ctx.taskId,
+      subagentName: ctx.subagentName,
+      rejectReason: decision.rejectReason,
+      remember: decision.remember ?? false,
     })
     return {
       step: 'check-permission',
-      success: true,
-      output: { approved: true, source: 'default-allow' },
+      success: false,
+      error: `用户拒绝 Subagent "${ctx.subagentName}" 调度${decision.rejectReason ? `：${decision.rejectReason}` : ''}`,
       durationMs: Date.now() - start,
     }
   } catch (err) {
+    // 超时或其他异常 → 失败
+    const errMsg = err instanceof Error ? err.message : String(err)
+    log.error('step 2/14 check-permission 异常', {
+      taskId: ctx.taskId,
+      subagentName: ctx.subagentName,
+      error: errMsg,
+    })
     return {
       step: 'check-permission',
       success: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: errMsg,
       durationMs: Date.now() - start,
     }
   }
