@@ -21,10 +21,41 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { SSH } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { SftpManager } from '../services/ssh/sftp'
-import type { SshConfig } from '@shared/models'
+import type {
+  SshConfig,
+  SshHostKeyPromptEvent,
+  SshHostKeyResponseAction,
+  SshHostKeyResponsePayload,
+} from '@shared/models'
 
 /** 终端数据推送通道名 */
 const TERMINAL_DATA_CHANNEL = 'terminal:data'
+
+/**
+ * Phase L：主机密钥确认弹窗 pending request 表
+ *
+ * key: requestId（SshHostKeyPromptEvent.requestId）
+ * value: { resolve, reject, timer }
+ *
+ * 工作流程：
+ * 1. hostKeyConfirmHandler 收到 prompt → 存入 pendingHostKeyRequests → webContents.send 推送
+ * 2. 渲染进程弹窗，用户选择后 ipcRenderer.invoke('ssh:host-key-response', payload)
+ * 3. ssh:host-key-response handler 取出 pending → resolve(action)
+ * 4. hostKeyConfirmHandler 的 Promise resolve → hostVerifier 继续/中断握手
+ *
+ * 超时保护：5 分钟未响应自动 reject（用户可能离开电脑）
+ */
+const pendingHostKeyRequests = new Map<
+  string,
+  {
+    resolve: (action: SshHostKeyResponseAction) => void
+    reject: (err: Error) => void
+    timer: NodeJS.Timeout
+  }
+>()
+
+/** 主机密钥弹窗超时时间（毫秒） */
+const HOST_KEY_PROMPT_TIMEOUT_MS = 5 * 60 * 1000
 
 /**
  * 注册 SSH/SFTP 相关 IPC handlers
@@ -47,6 +78,50 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       mainWindow.webContents.send(SSH.STATE_CHANGED, event)
     }
   })
+
+  // ------------------------------------------------------------------
+  // Phase L：主机密钥校验弹窗（known_hosts）
+  // ------------------------------------------------------------------
+  // 注册 hostKeyConfirmHandler：当 hostVerifier 检测到首次连接/密钥变更时，
+  // 推送 SshHostKeyPromptEvent 到渲染进程，等待用户响应。
+  sshManager.setHostKeyConfirmHandler(
+    (prompt: SshHostKeyPromptEvent): Promise<SshHostKeyResponseAction> => {
+      return new Promise<SshHostKeyResponseAction>((resolve, reject) => {
+        // 超时保护：5 分钟未响应自动拒绝
+        const timer = setTimeout(() => {
+          pendingHostKeyRequests.delete(prompt.requestId)
+          reject(new Error('主机密钥确认超时（5 分钟未响应）'))
+        }, HOST_KEY_PROMPT_TIMEOUT_MS)
+
+        pendingHostKeyRequests.set(prompt.requestId, { resolve, reject, timer })
+
+        // 推送到渲染进程弹窗
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(SSH.HOST_KEY_PROMPT, prompt)
+        } else {
+          // 窗口已销毁，直接拒绝
+          clearTimeout(timer)
+          pendingHostKeyRequests.delete(prompt.requestId)
+          reject(new Error('主窗口已关闭，无法显示主机密钥确认弹窗'))
+        }
+      })
+    },
+  )
+
+  /** ssh:host-key-response — 渲染进程响应用户选择（Phase L） */
+  ipcMain.handle(
+    SSH.HOST_KEY_RESPONSE,
+    async (_event, payload: SshHostKeyResponsePayload): Promise<boolean> => {
+      const pending = pendingHostKeyRequests.get(payload.requestId)
+      if (!pending) {
+        throw new Error(`无效或已过期的主机密钥请求: ${payload.requestId}`)
+      }
+      clearTimeout(pending.timer)
+      pendingHostKeyRequests.delete(payload.requestId)
+      pending.resolve(payload.action)
+      return true
+    },
+  )
 
   // ------------------------------------------------------------------
   // SSH 连接管理

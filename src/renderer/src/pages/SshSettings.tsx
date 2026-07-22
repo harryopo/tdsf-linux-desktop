@@ -141,8 +141,13 @@ export function SshSettings() {
   // Card 4: 安全设置（设计稿默认：密码认证 off / Root on / 严格 on / known_hosts 路径）
   const [allowPasswordAuth, setAllowPasswordAuth] = useState(false)
   const [allowRootLogin, setAllowRootLogin] = useState(true)
-  const [strictHostKeyCheck, setStrictHostKeyCheck] = useState(true)
-  const [knownHostsPath, setKnownHostsPath] = useState('~/.ssh/known_hosts')
+  // Phase L：strictHostKeyCheck / knownHostsPath 从 store 初始化，handleSaveDefaults 时写回 store
+  const [strictHostKeyCheck, setStrictHostKeyCheck] = useState(
+    sshDefaults.strictHostKeyCheck ?? true,
+  )
+  const [knownHostsPath, setKnownHostsPath] = useState(
+    sshDefaults.knownHostsPath ?? '~/.ssh/known_hosts',
+  )
 
   useEffect(() => {
     void hydrateFromMain()
@@ -152,6 +157,9 @@ export function SshSettings() {
     setDefaultPort(sshDefaults.port ?? 22)
     setDefaultUser(sshDefaults.username ?? 'root')
     setConnectTimeoutSec(Math.max(5, Math.round((sshTimeout || 30000) / 1000)))
+    // Phase L：同步 store 中的主机密钥校验配置
+    setStrictHostKeyCheck(sshDefaults.strictHostKeyCheck ?? true)
+    setKnownHostsPath(sshDefaults.knownHostsPath ?? '~/.ssh/known_hosts')
   }, [sshDefaults, sshTimeout])
 
   const showFb = useCallback((msg: string) => {
@@ -175,10 +183,14 @@ export function SshSettings() {
       setConnectionState(server.id, 'connecting')
       try {
         // K.3：合并 keepAlive 配置到 SshConfig（滑块值 > 0 才启用心跳）
+        // Phase L：合并 strictHostKeyCheck / knownHostsPath 到 SshConfig，
+        //          主进程 buildConnectOptions 会据此注入 hostVerifier
         const mergedConfig: SshConfig = {
           ...server,
           keepAlive: keepAliveIntervalSec > 0,
           keepAliveIntervalSec,
+          strictHostKeyCheck,
+          knownHostsPath,
         }
         const sessionId = await window.electronAPI.sshConnect(mergedConfig)
         try {
@@ -207,6 +219,8 @@ export function SshSettings() {
       setSessionMapping,
       showFb,
       keepAliveIntervalSec,
+      strictHostKeyCheck,
+      knownHostsPath,
     ],
   )
 
@@ -263,6 +277,9 @@ export function SshSettings() {
       port: defaultPort,
       username: defaultUser,
       authType: allowPasswordAuth ? 'password' : 'privateKey',
+      // Phase L：主机密钥校验配置写回 store
+      strictHostKeyCheck,
+      knownHostsPath,
     })
     setSshTimeout(connectTimeoutSec * 1000)
     await saveSettings()
@@ -274,6 +291,8 @@ export function SshSettings() {
     defaultUser,
     allowPasswordAuth,
     connectTimeoutSec,
+    strictHostKeyCheck,
+    knownHostsPath,
     setSshDefaults,
     setSshTimeout,
     saveSettings,

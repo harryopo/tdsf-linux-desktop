@@ -21,7 +21,15 @@ import type { ConnectConfig } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { SshConfig, CommandResult, SshConnectionState, SshStateEvent } from '@shared/models'
+import type {
+  SshConfig,
+  CommandResult,
+  SshConnectionState,
+  SshStateEvent,
+  SshHostKeyPromptEvent,
+  SshHostKeyResponseAction,
+} from '@shared/models'
+import { createHostVerifier } from './known-hosts'
 
 /** 单个 SSH 会话的内部条目 */
 interface SessionEntry {
@@ -79,6 +87,17 @@ export class SshConnectionManager {
   /** 状态变更回调列表（IPC 层注册，用于推送 SshStateEvent 到渲染进程） */
   private stateChangeCallbacks: Array<(event: SshStateEvent) => void> = []
 
+  /**
+   * 主机密钥确认回调（Phase L）
+   *
+   * IPC 层通过 setHostKeyConfirmHandler 注册，当 hostVerifier 检测到
+   * 首次连接或密钥变更时调用，推送 SshHostKeyPromptEvent 到渲染进程弹窗，
+   * 等待用户选择后返回 SshHostKeyResponseAction。
+   */
+  private hostKeyConfirmHandler:
+    | ((prompt: SshHostKeyPromptEvent) => Promise<SshHostKeyResponseAction>)
+    | null = null
+
   /** 获取单例实例 */
   public static getInstance(): SshConnectionManager {
     if (!SshConnectionManager.instance) {
@@ -89,6 +108,20 @@ export class SshConnectionManager {
 
   /** 私有构造，强制单例 */
   private constructor() {}
+
+  /**
+   * 注册主机密钥确认回调（Phase L）
+   *
+   * IPC 层在 registerSshIpcHandlers 时调用，注入一个将 prompt 推送到渲染进程、
+   * 等待用户响应后 resolve action 的 Promise 包装器。
+   *
+   * @param handler 确认回调，接收 SshHostKeyPromptEvent，返回用户选择的动作
+   */
+  public setHostKeyConfirmHandler(
+    handler: (prompt: SshHostKeyPromptEvent) => Promise<SshHostKeyResponseAction>,
+  ): void {
+    this.hostKeyConfirmHandler = handler
+  }
 
   // ------------------------------------------------------------------
   // 连接 / 断开
@@ -413,7 +446,7 @@ export class SshConnectionManager {
         entry.state = 'error'
         reject(err)
       }
-      const targetOpts = this.buildConnectOptions(config)
+      const targetOpts = this.buildConnectOptions(config, entry.sessionId)
 
       // 跳板机模式
       if (config.jumpHost) {
@@ -645,8 +678,13 @@ export class SshConnectionManager {
    * - password: 直接传 password
    * - privateKey: 优先用 config.privateKey 内容，否则读 privateKeyPath 文件
    * - passphrase 私钥口令
+   *
+   * Phase L：主机密钥校验
+   * - 当 config.strictHostKeyCheck === true 且已注册 hostKeyConfirmHandler 时，
+   *   注入 hostVerifier 回调，首次连接弹窗确认，密钥变更弹窗警告
+   * - sessionId 为目标主机会话 ID（跳板机连接不传，跳过 hostVerifier）
    */
-  private buildConnectOptions(config: SshConfig): ConnectConfig {
+  private buildConnectOptions(config: SshConfig, sessionId?: string): ConnectConfig {
     const opts: ConnectConfig = {
       host: config.host,
       port: config.port,
@@ -677,6 +715,22 @@ export class SshConnectionManager {
         opts.passphrase = config.passphrase
       }
     }
+
+    // Phase L：主机密钥校验（仅目标主机，跳板机暂不启用）
+    if (config.strictHostKeyCheck === true && sessionId && this.hostKeyConfirmHandler) {
+      opts.hostVerifier = createHostVerifier({
+        host: config.host,
+        port: config.port,
+        sessionId,
+        serverId: config.id,
+        knownHostsPath: config.knownHostsPath,
+        confirm: this.hostKeyConfirmHandler,
+        onError: (err: Error) => {
+          console.error(`[SSH] hostVerifier 错误 [${config.host}:${config.port}]:`, err.message)
+        },
+      })
+    }
+
     return opts
   }
 
