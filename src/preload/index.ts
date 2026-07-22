@@ -27,6 +27,7 @@ import {
   SERVER,
   MONITOR,
   LLM,
+  LLM_INLINE,
   MCP,
   SANDBOX,
   AT_COMMANDS,
@@ -853,6 +854,85 @@ const claudeSdk = {
    */
   cancel: (correlationId: string): Promise<boolean> =>
     ipcRenderer.invoke('claude-sdk:cancel', correlationId),
+}
+
+// ============================================================================
+// v2.0 Phase B 新增：内联补全 + Diff 应用类型（内联定义，与主进程结构一致）
+// ============================================================================
+
+/** 内联补全请求参数（与主进程 InlineCompletionRequest 一致） */
+interface InlineCompletionRequest {
+  filePath: string
+  language: string
+  content: string
+  cursorLineNumber: number
+  cursorColumn: number
+  contextBefore?: string
+  contextAfter?: string
+}
+
+/** 单条补全项（与 Monaco InlineCompletion item 结构兼容） */
+interface InlineCompletionItem {
+  insertText: string
+  range: {
+    startLineNumber: number
+    startColumn: number
+    endLineNumber: number
+    endColumn: number
+  }
+}
+
+/**
+ * v2.0 Phase B 内联补全 + Diff 应用 invoke 调用
+ *
+ * 通道与主进程 ipc/llm-inline.ts 一一对应：
+ * - llm:inline-completion         → inlineCompletion（请求光标位置补全）
+ * - llm:inline-completion:cancel  → inlineCompletionCancel（取消进行中的补全）
+ * - llm:apply-diff                → applyDiff（应用 diff，写入新内容到本地文件）
+ * - llm:diff-preview              → diffPreview（预览 diff，返回 unified diff 字符串）
+ */
+const llmInline = {
+  /**
+   * 请求光标位置补全
+   *
+   * @param req 补全请求（文件路径 + 语言 + 内容 + 光标位置 + 上下文）
+   * @returns 补全项列表（空数组表示无补全 / 超时 / 被限流）
+   */
+  inlineCompletion: (req: InlineCompletionRequest): Promise<InlineCompletionItem[]> =>
+    ipcRenderer.invoke(LLM_INLINE.INLINE_COMPLETION, req),
+
+  /**
+   * 取消所有进行中的补全请求
+   */
+  inlineCompletionCancel: (): Promise<void> =>
+    ipcRenderer.invoke(LLM_INLINE.INLINE_COMPLETION_CANCEL),
+
+  /**
+   * 应用 diff 到本地文件（写入新内容）
+   *
+   * 注意：仅处理本地文件系统；远程文件请走 sftp:writeFile。
+   *
+   * @param payload { filePath: 绝对路径, newContent: 新内容 }
+   * @returns { success, error? }
+   */
+  applyDiff: (payload: {
+    filePath: string
+    newContent: string
+  }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(LLM_INLINE.APPLY_DIFF, payload),
+
+  /**
+   * 预览 diff（unified diff 格式）
+   *
+   * @param payload { filePath, originalContent, modifiedContent }
+   * @returns { diff: string }（unified diff，无变更返回空字符串）
+   */
+  diffPreview: (payload: {
+    filePath: string
+    originalContent: string
+    modifiedContent: string
+  }): Promise<{ diff: string }> =>
+    ipcRenderer.invoke(LLM_INLINE.DIFF_PREVIEW, payload),
 }
 
 /**
@@ -1805,6 +1885,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   claudeSdkStream: claudeSdk.stream,
   claudeSdkCancel: claudeSdk.cancel,
 
+  // ===== v2.0 Phase B 扁平化：内联补全 + Diff 应用 =====
+  // 通道与主进程 ipc/llm-inline.ts 一一对应；UI 调用方式：
+  //   const items = await window.electronAPI.llmInlineCompletion(req)
+  //   await window.electronAPI.llmInlineCompletionCancel()
+  //   const r = await window.electronAPI.llmApplyDiff({ filePath, newContent })
+  //   const { diff } = await window.electronAPI.llmDiffPreview({ filePath, originalContent, modifiedContent })
+  llmInlineCompletion: llmInline.inlineCompletion,
+  llmInlineCompletionCancel: llmInline.inlineCompletionCancel,
+  llmApplyDiff: llmInline.applyDiff,
+  llmDiffPreview: llmInline.diffPreview,
+
   // ===== v0.9 OpenHands 沙箱集成扁平化 =====
   // 通道与主进程 ipc/sandbox.ts 一一对应；UI 调用方式：
   //   const info = await window.electronAPI.sandboxCreate()
@@ -2574,6 +2665,11 @@ export type ElectronAPI = {
   claudeSdkGenerate: typeof claudeSdk.generate
   claudeSdkStream: typeof claudeSdk.stream
   claudeSdkCancel: typeof claudeSdk.cancel
+  // v2.0 Phase B：内联补全 + Diff 应用（llm:inline-completion / cancel / apply-diff / diff-preview）
+  llmInlineCompletion: typeof llmInline.inlineCompletion
+  llmInlineCompletionCancel: typeof llmInline.inlineCompletionCancel
+  llmApplyDiff: typeof llmInline.applyDiff
+  llmDiffPreview: typeof llmInline.diffPreview
   // v0.9 OpenHands 沙箱集成
   sandboxDetectDocker: typeof sandbox.detectDocker
   sandboxStart: typeof sandbox.start
