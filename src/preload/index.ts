@@ -22,12 +22,15 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import {
   SSH,
+  SFTP,
+  TERMINAL,
   STORAGE,
   CONFIG,
   SERVER,
   MONITOR,
   LLM,
   LLM_INLINE,
+  AGENT,
   MCP,
   SANDBOX,
   AT_COMMANDS,
@@ -500,7 +503,7 @@ const ssh = {
 
   /** 执行 SSH 命令 */
   exec: (sessionId: string, command: string): Promise<CommandResult> =>
-    ipcRenderer.invoke('ssh:exec', sessionId, command),
+    ipcRenderer.invoke(SSH.EXEC, sessionId, command),
 
   /** 交互式 Shell 操作 */
   shell: {
@@ -510,11 +513,11 @@ const ssh = {
 
     /** 向 shell 写入数据 */
     write: (sessionId: string, data: string): Promise<boolean> =>
-      ipcRenderer.invoke('ssh:shell:write', sessionId, data),
+      ipcRenderer.invoke(SSH.SHELL_WRITE, sessionId, data),
 
     /** 调整 shell 终端窗口大小 */
     resize: (sessionId: string, cols: number, rows: number): Promise<boolean> =>
-      ipcRenderer.invoke('ssh:shell:resize', sessionId, cols, rows),
+      ipcRenderer.invoke(SSH.SHELL_RESIZE, sessionId, cols, rows),
   },
 
   /**
@@ -611,7 +614,7 @@ const ssh = {
 const sftp = {
   /** 列出远程目录 */
   list: (sessionId: string, remotePath: string): Promise<SftpEntry[]> =>
-    ipcRenderer.invoke('sftp:list', sessionId, remotePath),
+    ipcRenderer.invoke(SFTP.LIST, sessionId, remotePath),
 
   /** 上传文件 */
   upload: (
@@ -619,7 +622,7 @@ const sftp = {
     localPath: string,
     remotePath: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:upload', sessionId, localPath, remotePath),
+    ipcRenderer.invoke(SFTP.UPLOAD, sessionId, localPath, remotePath),
 
   /** 下载文件 */
   download: (
@@ -627,11 +630,11 @@ const sftp = {
     remotePath: string,
     localPath: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:download', sessionId, remotePath, localPath),
+    ipcRenderer.invoke(SFTP.DOWNLOAD, sessionId, remotePath, localPath),
 
   /** 删除文件/目录 */
   delete: (sessionId: string, remotePath: string): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:delete', sessionId, remotePath),
+    ipcRenderer.invoke(SFTP.DELETE, sessionId, remotePath),
 
   /** 重命名 */
   rename: (
@@ -639,7 +642,7 @@ const sftp = {
     oldPath: string,
     newPath: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:rename', sessionId, oldPath, newPath),
+    ipcRenderer.invoke(SFTP.RENAME, sessionId, oldPath, newPath),
 
   /** 修改权限 */
   chmod: (
@@ -647,11 +650,11 @@ const sftp = {
     remotePath: string,
     mode: number
   ): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:chmod', sessionId, remotePath, mode),
+    ipcRenderer.invoke(SFTP.CHMOD, sessionId, remotePath, mode),
 
   /** 读取远程文件内容到字符串（v0.8 IDE 工作台，10MB 上限） */
   readFile: (sessionId: string, remotePath: string): Promise<string> =>
-    ipcRenderer.invoke('sftp:readFile', sessionId, remotePath),
+    ipcRenderer.invoke(SFTP.READ_FILE, sessionId, remotePath),
 
   /** 写入字符串到远程文件（v0.8 IDE 工作台，覆盖原文件） */
   writeFile: (
@@ -659,15 +662,15 @@ const sftp = {
     remotePath: string,
     content: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:writeFile', sessionId, remotePath, content),
+    ipcRenderer.invoke(SFTP.WRITE_FILE, sessionId, remotePath, content),
 
   /** 获取文件/目录元信息（返回 SftpEntry 或 null） */
   stat: (sessionId: string, remotePath: string): Promise<SftpEntry | null> =>
-    ipcRenderer.invoke('sftp:stat', sessionId, remotePath),
+    ipcRenderer.invoke(SFTP.STAT, sessionId, remotePath),
 
   /** 创建远程目录 */
   mkdir: (sessionId: string, remotePath: string): Promise<boolean> =>
-    ipcRenderer.invoke('sftp:mkdir', sessionId, remotePath),
+    ipcRenderer.invoke(SFTP.MKDIR, sessionId, remotePath),
 }
 
 /**
@@ -676,7 +679,7 @@ const sftp = {
 const monitor = {
   /** 启动监控 */
   start: (sessionId: string, interval: number): Promise<boolean> =>
-    ipcRenderer.invoke('monitor:start', sessionId, interval),
+    ipcRenderer.invoke(MONITOR.START, sessionId, interval),
 
   /** 停止监控 */
   stop: (sessionId: string): Promise<boolean> =>
@@ -684,7 +687,7 @@ const monitor = {
 
   /** 获取系统静态信息 */
   getSystemInfo: (sessionId: string): Promise<SystemInfo> =>
-    ipcRenderer.invoke('monitor:getSystemInfo', sessionId),
+    ipcRenderer.invoke(MONITOR.GET_SYSTEM_INFO, sessionId),
 }
 
 /**
@@ -693,7 +696,7 @@ const monitor = {
 const storage = {
   /** 加密保存 API Key */
   saveApiKey: (provider: string, key: string): Promise<boolean> =>
-    ipcRenderer.invoke('storage:saveApiKey', provider, key),
+    ipcRenderer.invoke(STORAGE.SAVE_API_KEY, provider, key),
 
   /** 读取并解密 API Key */
   getApiKey: (provider: string): Promise<string | null> =>
@@ -723,7 +726,7 @@ const config = {
 const llm = {
   /** 普通对话（流式推送 token，返回完整文本） */
   chat: (messages: ChatMessage[]): Promise<string> =>
-    ipcRenderer.invoke('llm:chat', messages),
+    ipcRenderer.invoke(LLM.CHAT, messages),
 
   /** 测试连接 */
   test: (config: LlmConfig): Promise<boolean> =>
@@ -731,15 +734,15 @@ const llm = {
 
   /** 分析问题（内置降级，返回 JSON 字符串） */
   analyze: (problem: string, evidences: unknown[]): Promise<string> =>
-    ipcRenderer.invoke('llm:analyze', problem, evidences),
+    ipcRenderer.invoke(LLM.ANALYZE, problem, evidences),
 
   /** 校验 LLM 配置是否有效（不发起网络请求） */
   validate: (config: LlmConfig): Promise<LlmValidationResult> =>
-    ipcRenderer.invoke('llm:validate', config),
+    ipcRenderer.invoke(LLM.VALIDATE, config),
 
   /** 带系统环境上下文的对话 */
   chatWithContext: (messages: ChatMessage[], envCtx: EnvironmentContext): Promise<string> =>
-    ipcRenderer.invoke('llm:chat-with-context', messages, envCtx),
+    ipcRenderer.invoke(LLM.CHAT_WITH_CONTEXT, messages, envCtx),
 }
 
 /**
@@ -812,7 +815,7 @@ const agentRuntime = {
     sshSessionId?: string,
   ): Promise<string> =>
     // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）
-    ipcRenderer.invoke('agent:chat', messages, providerId, strength, undefined, sshSessionId),
+    ipcRenderer.invoke(AGENT.CHAT, messages, providerId, strength, undefined, sshSessionId),
 
   /**
    * 取消进行中的 chat 请求
@@ -825,7 +828,7 @@ const agentRuntime = {
    * @returns 是否成功取消（false 表示请求已结束或不存在）
    */
   cancel: (sessionIdOrCorrelationId: string): Promise<boolean> =>
-    ipcRenderer.invoke('agent:chat:cancel', sessionIdOrCorrelationId),
+    ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionIdOrCorrelationId),
 
   /**
    * PAOR 自动循环（Plan→Act→Observe→Reflect 多步自主编排）
@@ -840,7 +843,7 @@ const agentRuntime = {
    * @returns PAOR 循环完整结果（含可审计的迭代轨迹）
    */
   paor: (task: string, sshSessionId: string, maxIterations?: number): Promise<unknown> =>
-    ipcRenderer.invoke('agent:paor', task, sshSessionId, maxIterations),
+    ipcRenderer.invoke(AGENT.PAOR, task, sshSessionId, maxIterations),
 
   /**
    * 响应 PAOR 审批请求（v0.9.5 新增）
@@ -903,7 +906,7 @@ const system = {
    */
   cancel: (sessionId: string): Promise<{ agentChat: boolean; claudeSdk: boolean }> =>
     Promise.all([
-      ipcRenderer.invoke('agent:chat:cancel', sessionId),
+      ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionId),
       ipcRenderer.invoke('claude-sdk:cancel', sessionId),
     ]).then(([agentChat, claudeSdk]) => ({ agentChat, claudeSdk })),
 }
@@ -1934,7 +1937,7 @@ function createListener<T extends unknown[]>(
 const on = {
   /** 监听终端 Shell 数据推送 */
   terminalData: (callback: (sessionId: string, data: string) => void): (() => void) => {
-    return createListener('terminal:data', callback)
+    return createListener(TERMINAL.DATA, callback)
   },
 
   /** 监听 SSH 心跳保活状态变更（K.2：心跳失败/重连/最终断开时推送） */
@@ -1954,37 +1957,37 @@ const on = {
 
   /** 监听监控数据推送（实时指标，每 interval 秒一次） */
   monitorData: (callback: (sessionId: string, data: MonitorData) => void): (() => void) => {
-    return createListener('monitor:data', callback)
+    return createListener(MONITOR.DATA, callback)
   },
 
   /** 监听系统信息推送（首次采集时推送一次） */
   monitorSystemInfo: (callback: (sessionId: string, info: SystemInfo) => void): (() => void) => {
-    return createListener('monitor:systemInfo', callback)
+    return createListener(MONITOR.SYSTEM_INFO, callback)
   },
 
   /** 监听 LLM 流式 token 推送（兼容旧版） */
   llmToken: (callback: (token: string) => void): (() => void) => {
-    return createListener('llm:token', callback)
+    return createListener(LLM.TOKEN, callback)
   },
 
   /** 监听 LLM 流式 token 块推送（增强版，含 totalTokens） */
   llmChunk: (callback: (chunk: LlmStreamChunk) => void): (() => void) => {
-    return createListener('llm:chunk', callback)
+    return createListener(LLM.CHUNK, callback)
   },
 
   /** 监听 LLM 流式完成信号（含完整文本） */
   llmDone: (callback: (fullText: string) => void): (() => void) => {
-    return createListener('llm:done', callback)
+    return createListener(LLM.DONE, callback)
   },
 
   /** 监听 LLM 流式错误信号（含错误码/消息/是否可重试） */
   llmError: (callback: (error: LlmError) => void): (() => void) => {
-    return createListener('llm:error', callback)
+    return createListener(LLM.ERROR, callback)
   },
 
   /** 监听 Agent 工作流步骤变更 */
   agentStep: (callback: (state: AgentWorkflowState) => void): (() => void) => {
-    return createListener('agent:step', callback)
+    return createListener(AGENT.STEP, callback)
   },
 
   // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
@@ -2032,15 +2035,15 @@ const on = {
   // v0.9 Supervisor chat 流式事件
   /** 监听 Supervisor 流式 token 块推送 */
   agentChunk: (callback: (payload: AgentChunkPayload) => void): (() => void) => {
-    return createListener('agent:chunk', callback)
+    return createListener(AGENT.CHUNK, callback)
   },
   /** 监听 Supervisor chat 完成信号（含完整结果） */
   agentDone: (callback: (payload: AgentDonePayload) => void): (() => void) => {
-    return createListener('agent:done', callback)
+    return createListener(AGENT.DONE, callback)
   },
   /** 监听 Supervisor chat 错误信号 */
   agentError: (callback: (payload: AgentErrorPayload) => void): (() => void) => {
-    return createListener('agent:error', callback)
+    return createListener(AGENT.ERROR, callback)
   },
 
   // v0.9 Claude Agent SDK 流式事件（独立于 agent:chunk/done/error，避免通道混用）
@@ -2261,9 +2264,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v0.8 旧 agent:cancel IPC 通道仍保留在主进程 ipc/agent.ts 中（向后兼容 IPC 层），
   // 但 preload 不再暴露 v0.8 旧 agentCancel 方法（v0.8 AgentWorkflow 已被 v0.9 Supervisor 取代）。
   agentStart: (sessionId: string, problem: string): Promise<boolean> =>
-    ipcRenderer.invoke('agent:start', sessionId, problem),
+    ipcRenderer.invoke(AGENT.START, sessionId, problem),
   agentConfirm: (sessionId: string, approved: boolean): Promise<boolean> =>
-    ipcRenderer.invoke('agent:confirm', sessionId, approved),
+    ipcRenderer.invoke(AGENT.CONFIRM, sessionId, approved),
 
   // ===== v0.9 Agent Runtime 扁平化（Supervisor chat + Provider + Token） =====
   agentChat: agentRuntime.chat,
@@ -2549,16 +2552,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ===== LLM Tool Calling 扁平化（v0.5.0）=====
   llmChatWithTools: (messages: ChatMessage[]): Promise<string> =>
-    ipcRenderer.invoke('llm:chat-with-tools', messages),
+    ipcRenderer.invoke(LLM.CHAT_WITH_TOOLS, messages),
   llmToolApprove: (response: ToolApprovalResponse): Promise<boolean> =>
-    ipcRenderer.invoke('llm:tool-approve', response),
+    ipcRenderer.invoke(LLM.TOOL_APPROVE, response),
 
   // 工具调用事件监听
   onLlmToolProgress: (callback: (progress: ToolCallProgress) => void): (() => void) => {
-    return createListener('llm:tool-progress', callback)
+    return createListener(LLM.TOOL_PROGRESS, callback)
   },
   onLlmToolApproval: (callback: (request: ToolApprovalRequest) => void): (() => void) => {
-    return createListener('llm:tool-approval', callback)
+    return createListener(LLM.TOOL_APPROVAL, callback)
   },
 
   // ===== 日志系统（v0.7.0）=====

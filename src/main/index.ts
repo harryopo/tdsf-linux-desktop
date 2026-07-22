@@ -28,6 +28,7 @@ import { warmupSessionKeyCache } from './ipc/sandbox'
 // Phase 6 Task 6.5：调度器初始化（定时任务自动化：每日巡检 / 归档 / 周报）
 import { initScheduler, cleanupScheduler } from './ipc/scheduler'
 import { initLogger, logger } from './services/log/logger'
+import { redactSecrets } from './services/security/redact'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
 
@@ -44,7 +45,6 @@ logger.info('APP', 'TDSF-Linux Desktop 启动', {
 // 用于诊断 preload 与 main 版本不匹配问题（如渲染进程加载了旧版 preload）
 // 日志格式：[ipc] protocol version: x.y.z
 logger.info('IPC', `protocol version: ${IPC_PROTOCOL_VERSION}`)
-console.log(`[ipc] protocol version: ${IPC_PROTOCOL_VERSION}`)
 
 // 启动本地崩溃收集（不上传服务器），便于排查 renderer/native 崩溃
 app.setPath('crashDumps', path.join(app.getPath('userData'), 'crashes'))
@@ -66,15 +66,19 @@ app.whenReady().then(() => {
   // 必须在窗口创建前完成，否则 knowledge/history IPC 会拿到内存数据库
   const dbPath = resolveDbPath(app.getPath('userData'))
   const db = DatabaseManager.getInstance(dbPath)
-  console.log(`[DB] 数据库已初始化: ${dbPath}, 可用=${db.isAvailable()}, 向量=${db.isVectorEnabled()}`)
+  // v2.2 修复问题 #46：不输出 dbPath（含用户目录路径，可能泄漏用户名）
+  logger.info('DB', '数据库已初始化', {
+    available: db.isAvailable(),
+    vector: db.isVectorEnabled(),
+  })
 
   // 0.0a 加载教程种子（v0.7.0 Sprint 5：保证 knowledge_entries 有 10 篇内置教程）
   //    如果数据库已有教程则跳过，避免覆盖
   try {
     const seedCount = loadTutorialSeeds(db)
-    console.log(`[TUTORIAL] 种子加载完成: 新增 ${seedCount} 篇`)
+    logger.info('TUTORIAL', '种子加载完成', { seedCount })
   } catch (err) {
-    console.warn('[TUTORIAL] 种子加载失败:', (err as Error).message)
+    logger.warn('TUTORIAL', '种子加载失败', { error: redactSecrets((err as Error).message) })
   }
 
   // 0.0 初始化可观测性服务（Langfuse），未配置 Key 时静默降级
@@ -86,7 +90,9 @@ app.whenReady().then(() => {
     port: 3107
   }
   void McpServerService.getInstance(mcpConfig).start().catch((err) => {
-    console.error('[MCP] 启动失败:', err)
+    logger.error('MCP', '启动失败', {
+      error: redactSecrets((err as Error).message ?? String(err)),
+    })
   })
 
   // 1. 创建主窗口

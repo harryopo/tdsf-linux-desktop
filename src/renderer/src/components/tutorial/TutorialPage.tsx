@@ -42,6 +42,9 @@ import { StaggerList } from '../common'
 import type { TutorialEntry, TutorialCategory, TutorialCategorySummary } from '@shared/tutorial-types'
 import { TUTORIAL_CATEGORY_LABELS, TUTORIAL_DIFFICULTY_LABELS, TUTORIAL_DIFFICULTY_COLORS } from '@shared/tutorial-types'
 import type { TutorialSourceSpec, CrawlProgress } from '@shared/crawler-types'
+// v2.2 修复问题 #43：dangerouslySetInnerHTML 渲染 Markdown HTML 需经 DOMPurify 消毒防 XSS
+// 教程内容来源含爬虫抓取的 HTML，可能包含 <script> / on*=/javascript: 等恶意载荷
+import DOMPurify from 'dompurify'
 import './TutorialPage.css'
 
 /** 简易 Markdown 渲染（支持标题、代码块、列表、段落、加粗） */
@@ -647,7 +650,7 @@ const TutorialPage: React.FC = () => {
 
             <div
               className="tutorial-detail-content"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.content) }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMarkdown(detail.content)) }}
             />
 
             {detail.commands.length > 0 && (
