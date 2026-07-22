@@ -17,7 +17,7 @@
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label/aria-pressed；li role=button + tabIndex + onKeyDown；Modal role=dialog + aria-modal + ESC 关闭 + 焦点管理；prefers-reduced-motion 禁用按压动画
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { message, Spin } from 'antd'
 import {
@@ -26,7 +26,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import { Empty } from '@/components/trae/Empty'
-import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
+import { isElectronAPIAvailable } from '@/utils/electron-api'
+import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
 import './KnowledgePage.css'
 
 // ==================== 类型定义 ====================
@@ -41,10 +42,21 @@ interface KnowledgeItem {
   updatedAt: string
   views: string
   matchScore: number
+  /** 创建时间戳（ms），用于 AI 知识沉淀统计 */
+  createdAt: number
+  /** 更新时间戳（ms），用于最近浏览排序 */
+  rawUpdatedAt: number
+  /** 标签，用于判断 AI 贡献率 */
+  tags: string[]
 }
 
 interface HotItem { rank: number; title: string; views: string; id: string }
 interface RecentItem { title: string; time: string; id: string }
+
+/** 判断标签是否表明该条目由 AI 沉淀 */
+function isAiContribution(tags: string[]): boolean {
+  return tags.some((t) => /ai|agent|自动|沉淀/i.test(t))
+}
 
 /** 将时间戳格式化为相对时间（如：2天前、3小时前） */
 function formatRelativeTime(ts: number): string {
@@ -53,11 +65,12 @@ function formatRelativeTime(ts: number): string {
   const hour = 60 * minute
   const day = 24 * hour
   const week = 7 * day
+  const month = 30 * day
   if (diff < minute) return '刚刚'
   if (diff < hour) return `${Math.floor(diff / minute)}分钟前`
   if (diff < day) return `${Math.floor(diff / hour)}小时前`
   if (diff < week) return `${Math.floor(diff / day)}天前`
-  return `${Math.floor(diff / week)}周前`
+  return `${Math.floor(diff / month)}月前`
 }
 
 /**
@@ -82,6 +95,9 @@ function mapEntryToItem(entry: KnowledgeEntry): KnowledgeItem {
     updatedAt: formatRelativeTime(entry.updatedAt),
     views: entry.useCount > 0 ? String(entry.useCount) : '0',
     matchScore: Math.min(99, Math.round((entry.successRate ?? 0) * 100)),
+    createdAt: entry.createdAt,
+    rawUpdatedAt: entry.updatedAt,
+    tags: entry.tags ?? [],
   }
 }
 
@@ -99,11 +115,11 @@ const CATEGORIES: { id: KnowledgeCategory; label: string }[] = [
 ]
 
 const KNOWLEDGE_ITEMS: KnowledgeItem[] = [
-  { id: 'KB-NGINX-014', title: 'Nginx worker_connections 调优指南', summary: '当worker_connections达到上限时,请求将排队等待,响应延迟急剧上升。本文详解worker_processes与worker_connections的协同调优,含压力测试数据。', category: 'nginx', updatedAt: '2天前', views: '1.2k', matchScore: 98 },
-  { id: 'KB-MYSQL-007', title: 'MySQL连接数过多的排查与解决', summary: 'SHOW PROCESSLIST查看活跃连接,调整max_connections与wait_timeout,定位慢查询与长事务,释放被占用的连接池资源。', category: 'mysql', updatedAt: '5天前', views: '890', matchScore: 95 },
-  { id: 'KB-SHELL-021', title: 'Linux磁盘空间满的应急处理', summary: '使用du和find定位大文件,清理日志、临时文件与孤立数据,扩展分区或挂载新盘,避免服务因磁盘写满而崩溃。', category: 'shell', updatedAt: '1周前', views: '2.1k', matchScore: 92 },
-  { id: 'KB-DOCKER-003', title: 'Docker容器日志清理方案', summary: 'docker system prune清理无用镜像和日志,配置log-rotate与max-size限制,持久化日志到外部采集系统。', category: 'docker', updatedAt: '3天前', views: '670', matchScore: 88 },
-  { id: 'KB-SEC-009', title: 'SSH安全加固最佳实践', summary: '禁用root登录、密钥认证替代密码、修改默认端口、配置fail2ban防暴力破解,构建最小化暴露面。', category: 'security', updatedAt: '1周前', views: '1.5k', matchScore: 85 },
+  { id: 'KB-NGINX-014', title: 'Nginx worker_connections 调优指南', summary: '当worker_connections达到上限时,请求将排队等待,响应延迟急剧上升。本文详解worker_processes与worker_connections的协同调优,含压力测试数据。', category: 'nginx', updatedAt: '2天前', views: '1.2k', matchScore: 98, createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 2 * 24 * 60 * 60 * 1000, tags: ['nginx', 'AI沉淀'] },
+  { id: 'KB-MYSQL-007', title: 'MySQL连接数过多的排查与解决', summary: 'SHOW PROCESSLIST查看活跃连接,调整max_connections与wait_timeout,定位慢查询与长事务,释放被占用的连接池资源。', category: 'mysql', updatedAt: '5天前', views: '890', matchScore: 95, createdAt: Date.now() - 5 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 5 * 24 * 60 * 60 * 1000, tags: ['mysql', 'AI沉淀'] },
+  { id: 'KB-SHELL-021', title: 'Linux磁盘空间满的应急处理', summary: '使用du和find定位大文件,清理日志、临时文件与孤立数据,扩展分区或挂载新盘,避免服务因磁盘写满而崩溃。', category: 'shell', updatedAt: '1周前', views: '2.1k', matchScore: 92, createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000, tags: ['shell', '用户贡献'] },
+  { id: 'KB-DOCKER-003', title: 'Docker容器日志清理方案', summary: 'docker system prune清理无用镜像和日志,配置log-rotate与max-size限制,持久化日志到外部采集系统。', category: 'docker', updatedAt: '3天前', views: '670', matchScore: 88, createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 3 * 24 * 60 * 60 * 1000, tags: ['docker', 'AI沉淀'] },
+  { id: 'KB-SEC-009', title: 'SSH安全加固最佳实践', summary: '禁用root登录、密钥认证替代密码、修改默认端口、配置fail2ban防暴力破解,构建最小化暴露面。', category: 'security', updatedAt: '1周前', views: '1.5k', matchScore: 85, createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000, tags: ['security', 'AI沉淀'] },
 ]
 
 const HOT_ITEMS: HotItem[] = [
@@ -135,7 +151,12 @@ export function KnowledgePage() {
   const [activeCategory, setActiveCategory] = useState<KnowledgeCategory>('all')
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(KNOWLEDGE_ITEMS)
   const [loadingItems, setLoadingItems] = useState(false)
+  const [useReal, setUseReal] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // —— 真实热门/最近浏览数据（IPC 获取，null 表示尚未获取或失败，回退到派生逻辑） ——
+  const [hotItemsOverride, setHotItemsOverride] = useState<HotItem[] | null>(null)
+  const [recentItemsOverride, setRecentItemsOverride] = useState<RecentItem[] | null>(null)
 
   // —— 贡献知识 Modal 状态 ——
   const [showContributeModal, setShowContributeModal] = useState(false)
@@ -149,8 +170,76 @@ export function KnowledgePage() {
   const contributeTitleInputRef = useRef<HTMLInputElement>(null)
 
   const handleBack = () => navigate('/workbench')
-  const handleOpenKnowledge = (id: string) => navigate(`/knowledge/${id}`)
+
+  /** 打开知识详情：fire-and-forget 调用 kbView 记录浏览历史 */
+  const handleOpenKnowledge = (id: string) => {
+    if (isElectronAPIAvailable() && window.electronAPI?.kbView) {
+      try {
+        // fire-and-forget：不阻塞跳转，错误仅 warn
+        void window.electronAPI.kbView(id).catch((err) => {
+          console.warn('[KnowledgePage] 记录浏览失败', err)
+        })
+      } catch (err) {
+        console.warn('[KnowledgePage] 调用 kbView 异常', err)
+      }
+    }
+    navigate(`/knowledge/${id}`)
+  }
+
   const handleAiSearchFocus = () => searchInputRef.current?.focus()
+
+  /** 重新拉取知识列表（kbSearch），用于贡献成功后刷新列表 */
+  const refreshKnowledgeList = useCallback(async () => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.kbSearch) return
+    try {
+      const entries = await window.electronAPI.kbSearch('', undefined, 100)
+      if (Array.isArray(entries) && entries.length > 0) {
+        setKnowledgeItems(entries.map(mapEntryToItem))
+        setUseReal(true)
+      }
+    } catch (err) {
+      console.warn('[KnowledgePage] 刷新知识列表失败', err)
+    }
+  }, [])
+
+  /** 重新拉取热门知识（kbHot），返回真实热门 Top5 */
+  const refreshHotItems = useCallback(async () => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.kbHot) return
+    try {
+      const entries = await window.electronAPI.kbHot(5)
+      if (Array.isArray(entries)) {
+        setHotItemsOverride(
+          entries.map((entry, index) => ({
+            rank: index + 1,
+            title: entry.title,
+            views: String(entry.useCount),
+            id: entry.id,
+          })),
+        )
+      }
+    } catch (err) {
+      console.warn('[KnowledgePage] 拉取热门知识失败', err)
+    }
+  }, [])
+
+  /** 重新拉取最近浏览（kbRecentViews），返回真实浏览历史 Top3 */
+  const refreshRecentItems = useCallback(async () => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.kbRecentViews) return
+    try {
+      const entries: KbViewHistoryEntry[] = await window.electronAPI.kbRecentViews(3)
+      if (Array.isArray(entries)) {
+        setRecentItemsOverride(
+          entries.map((entry) => ({
+            title: entry.title,
+            time: formatRelativeTime(entry.viewedAt),
+            id: entry.entryId,
+          })),
+        )
+      }
+    } catch (err) {
+      console.warn('[KnowledgePage] 拉取最近浏览失败', err)
+    }
+  }, [])
 
   /** 打开贡献知识 Modal：重置表单 + 切换到表单态 */
   const handleContribute = () => {
@@ -210,6 +299,10 @@ export function KnowledgePage() {
       if (success) {
         message.success('知识已成功贡献到知识库')
         setContributeSubmitted(true)
+        // 任务 H：贡献成功后刷新知识列表（kbSearch）与热门列表（kbHot）
+        // fire-and-forget：刷新失败不影响提交流程，错误已在 refresh 函数内 warn
+        void refreshKnowledgeList()
+        void refreshHotItems()
       } else {
         message.error('知识库写入失败（kbAdd 返回 false）')
       }
@@ -229,7 +322,10 @@ export function KnowledgePage() {
       .kbSearch('', undefined, 100)
       .then((entries) => {
         if (cancelled) return
-        setKnowledgeItems(entries.map(mapEntryToItem))
+        if (Array.isArray(entries) && entries.length > 0) {
+          setKnowledgeItems(entries.map(mapEntryToItem))
+          setUseReal(true)
+        }
       })
       .catch((err) => {
         if (cancelled) return
@@ -243,6 +339,13 @@ export function KnowledgePage() {
       cancelled = true
     }
   }, [])
+
+  /** 挂载时拉取真实热门知识（kbHot）和最近浏览记录（kbRecentViews）
+   *  IPC 不可用或失败时，回退到从 knowledgeItems 派生的逻辑（在 useMemo 中处理） */
+  useEffect(() => {
+    void refreshHotItems()
+    void refreshRecentItems()
+  }, [refreshHotItems, refreshRecentItems])
 
   /** ESC 关闭 Modal + 打开时聚焦标题输入框（焦点管理） */
   useEffect(() => {
@@ -268,6 +371,52 @@ export function KnowledgePage() {
       return catMatch && searchMatch
     })
   }, [searchQuery, activeCategory, knowledgeItems])
+
+  /** 热门知识：优先用 kbHot 真实数据，IPC 不可用则回退到 knowledgeItems 派生（按 views 降序 Top5） */
+  const hotItems = useMemo<HotItem[]>(() => {
+    if (hotItemsOverride) return hotItemsOverride
+    if (!useReal) return HOT_ITEMS
+    return knowledgeItems
+      .slice()
+      .sort((a, b) => Number(b.views) - Number(a.views))
+      .slice(0, 5)
+      .map((item, index) => ({
+        rank: index + 1,
+        title: item.title,
+        views: item.views,
+        id: item.id,
+      }))
+  }, [knowledgeItems, useReal, hotItemsOverride])
+
+  /** 最近浏览：优先用 kbRecentViews 真实数据，IPC 不可用则回退到 knowledgeItems 派生（按 updatedAt 降序 Top3） */
+  const recentItems = useMemo<RecentItem[]>(() => {
+    if (recentItemsOverride) return recentItemsOverride
+    if (!useReal) return RECENT_ITEMS
+    return knowledgeItems
+      .slice()
+      .sort((a, b) => b.rawUpdatedAt - a.rawUpdatedAt)
+      .slice(0, 3)
+      .map((item) => ({
+        title: item.title,
+        time: item.updatedAt,
+        id: item.id,
+      }))
+  }, [knowledgeItems, useReal, recentItemsOverride])
+
+  /** AI 知识沉淀统计：从真实条目派生 */
+  const contributionStats = useMemo<{ label: string; value: string; brand: boolean }[]>(() => {
+    if (!useReal) return CONTRIBUTION_STATS
+    const total = knowledgeItems.length
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const weeklyNew = knowledgeItems.filter((item) => item.createdAt >= weekAgo).length
+    const aiCount = knowledgeItems.filter((item) => isAiContribution(item.tags)).length
+    const aiRate = total > 0 ? Math.round((aiCount / total) * 100) : 0
+    return [
+      { label: '已收录', value: `${total.toLocaleString()} 条`, brand: false },
+      { label: '本周新增', value: `${weeklyNew} 条`, brand: false },
+      { label: 'AI贡献率', value: `${aiRate}%`, brand: true },
+    ]
+  }, [knowledgeItems, useReal])
 
   return (
     <main className="kb-page">
@@ -375,7 +524,7 @@ export function KnowledgePage() {
                 <h2 className="kb-side-card__title">热门知识</h2>
               </div>
               <ol className="kb-hot-list">
-                {HOT_ITEMS.map((hot) => (
+                {hotItems.map((hot) => (
                   <li
                     key={hot.id}
                     data-dom-id={`goto-hot-knowledge-${hot.id}`}
@@ -406,7 +555,7 @@ export function KnowledgePage() {
                 <h2 className="kb-side-card__title">最近浏览</h2>
               </div>
               <ul className="kb-recent-list">
-                {RECENT_ITEMS.map((recent) => (
+                {recentItems.map((recent) => (
                   <li
                     key={recent.id}
                     data-dom-id={`goto-recent-knowledge-${recent.id}`}
@@ -442,7 +591,7 @@ export function KnowledgePage() {
             <p className="kb-contribution__desc">AI Agent在运维过程中自动沉淀知识,持续丰富知识库</p>
           </div>
           <div className="kb-stats">
-            {CONTRIBUTION_STATS.map((stat) => (
+            {contributionStats.map((stat) => (
               <div key={stat.label} className="kb-stat">
                 <span className="kb-stat__label">{stat.label}</span>
                 <span className={cn('kb-stat__value', stat.brand && 'kb-stat__value--brand')}>{stat.value}</span>

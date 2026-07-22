@@ -22,7 +22,7 @@
  */
 
 import type { DatabaseManager } from './database'
-import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
+import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
 
 /** Jaccard 相似度去重阈值 */
 const DEDUP_THRESHOLD = 0.6
@@ -290,6 +290,70 @@ export class KnowledgeRepository {
         .run(newRate, id)
     } catch {
       // 忽略错误
+    }
+  }
+
+  /**
+   * 记录浏览：自增 useCount + 写入浏览历史表
+   *
+   * @param id 知识条目 ID
+   */
+  recordView(id: string): void {
+    try {
+      // 1. 自增 useCount
+      this.incrementUseCount(id)
+
+      // 2. 写入浏览历史
+      const entry = this.getById(id)
+      if (!entry) return
+      this.db
+        .prepare('INSERT INTO kb_view_history (entryId, title, viewedAt) VALUES (?, ?, ?)')
+        .run(id, entry.title, Date.now())
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  /**
+   * 获取热门知识（按 useCount 降序）
+   *
+   * @param limit 返回数量，默认 5
+   * @returns KnowledgeEntry[]
+   */
+  getHot(limit: number = 5): KnowledgeEntry[] {
+    try {
+      const rows = this.db
+        .prepare('SELECT * FROM knowledge_entries ORDER BY useCount DESC LIMIT ?')
+        .all(limit) as KnowledgeRow[]
+      return rows.map((r) => this.deserialize(r))
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * 获取最近浏览记录
+   *
+   * 从 kb_view_history 表按时间倒序查询。
+   *
+   * @param limit 返回数量，默认 5
+   * @returns KbViewHistoryEntry[]
+   */
+  getRecentViews(limit: number = 5): KbViewHistoryEntry[] {
+    try {
+      const rows = this.db
+        .prepare(
+          `SELECT entryId, title, viewedAt FROM kb_view_history
+           ORDER BY viewedAt DESC LIMIT ?`
+        )
+        .all(limit) as Array<{ entryId: string; title: string; viewedAt: number }>
+      return rows.map((r) => ({
+        entryId: r.entryId,
+        title: r.title,
+        viewedAt: r.viewedAt,
+      }))
+    } catch {
+      return []
     }
   }
 

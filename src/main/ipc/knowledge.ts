@@ -148,4 +148,56 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
       throw new Error(`知识库导出失败: ${(err as Error).message}`)
     }
   })
+
+  // ------------------------------------------------------------------
+  // kb:view — 记录浏览（自增 useCount + 写浏览历史）
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(id: string)
+   * 返回：boolean
+   */
+  ipcMain.handle(KNOWLEDGE.VIEW, async (_event, id: string) => {
+    try {
+      const repo = getKnowledgeRepo()
+      repo.recordView(id)
+      return true
+    } catch (err) {
+      throw new Error(`记录浏览失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // kb:hot — 热门知识（按 useCount 降序）
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(limit?: number)
+   * 返回：KnowledgeEntry[]
+   */
+  ipcMain.handle(KNOWLEDGE.HOT, async (_event, limit?: number) => {
+    try {
+      const repo = getKnowledgeRepo()
+      return repo.getHot(limit ?? 5)
+    } catch (err) {
+      throw new Error(`获取热门知识失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // kb:recentViews — 最近浏览记录
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(limit?: number)
+   * 返回：KbViewHistoryEntry[]
+   */
+  ipcMain.handle(KNOWLEDGE.RECENT_VIEWS, async (_event, limit?: number) => {
+    try {
+      const repo = getKnowledgeRepo()
+      return repo.getRecentViews(limit ?? 5)
+    } catch (err) {
+      throw new Error(`获取最近浏览失败: ${(err as Error).message}`)
+    }
+  })
 }

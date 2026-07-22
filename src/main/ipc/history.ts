@@ -17,7 +17,6 @@ import { HISTORY } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
 import type { DecisionCard } from '@shared/models'
-
 /**
  * 获取决策历史仓储实例
  * @returns DecisionRepository 实例
@@ -86,6 +85,23 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
       return repo.save(card)
     } catch (err) {
       throw new Error(`保存决策卡片失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // history:stats — 决策统计聚合
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：无
+   * 返回：HistoryStats
+   */
+  ipcMain.handle(HISTORY.STATS, async () => {
+    try {
+      const repo = getDecisionRepo()
+      return repo.getStats()
+    } catch (err) {
+      throw new Error(`获取决策统计失败: ${(err as Error).message}`)
     }
   })
 }

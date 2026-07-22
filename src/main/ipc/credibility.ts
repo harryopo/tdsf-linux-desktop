@@ -1,53 +1,32 @@
 /**
- * Credibility IPC Handlers（v0.9 新增 + v0.9.6 P1 扩展 + v0.9.6 P2 扩展）
+ * Credibility IPC Handlers（v0.9 新增 + v0.9.6 P2 扩展）
  *
  * 注册 v0.9 引入的可信度算法（D-S 证据理论 + PCR5 冲突融合）相关 IPC 通道。
- * v0.9.6 P1 扩展：注册 ECE 校准器相关 IPC 通道（CalibrationTuner）。
- * v0.9.6 P2 扩展：注册 EU AI Act 审计报告导出 IPC 通道。
+ * v0.9.6 P2 扩展：注册审计报告导出 IPC 通道。
  *
  * 通道命名规范（与 IpcChannelMap 对应，方案书 §11.2）：
  * - credibility:assess — 评估给定证据集的可信度（返回 ConfidenceAssessment）
  * - credibility:dag    — 获取 DAG 可视化数据（返回 DagData）
- * - credibility:calibrate — 触发指定 Provider 的 Temperature Scaling 校准
- * - credibility:get-calibration — 获取指定 Provider 的当前校准状态
- * - credibility:get-calibration-state — 获取全局校准状态（持久化）
- * - credibility:reset-calibration — 重置指定 Provider 的校准
- * - credibility:compute-ece — 计算指定 Provider 的当前 ECE（不修改 T）
- * - credibility:add-calibration-sample — 记录新的校准样本（自动入库）
- * - credibility:export-audit-report — 导出 EU AI Act 合规审计报告（v0.9.6 P2）
+ * - credibility:export-audit-report — 导出审计报告（v0.9.6 P2）
  * - credibility:list-audit-reports — 列出已落盘的审计报告（v0.9.6 P2）
  * - credibility:load-audit-report — 加载已落盘的审计报告（v0.9.6 P2）
+ * - credibility:format-audit-report — 仅格式化审计报告（v0.9.6 P2）
  *
  * 证据源输入格式（CredibilityEvidenceInput）：
  *   { sourceId: 'log', fields: { drainMatch: 0.85, sourcePrior: 0.6 } }
  *
- * 校准通道论文支撑（Guo et al. 2017, ICML, arXiv:1706.04599）：
- *   不同 LLM（DeepSeek / Claude / GPT / Ollama）应使用不同 Temperature Scaling 参数 T。
- *   校准状态按 Provider 隔离，持久化到 calibration-state.json。
- *
  * 审计报告通道法规支撑：
- *   - EU AI Act 2026 Art.11/12/13/14/15
  *   - NIST AI RMF 1.0
  *   - NIST AI 600-1 GenAI Profile
  *
  * 调研文档：d:\ai\linux教学一体\idea-to-dev-output\22-可信度算法论文支撑调研.md
  * 方案书依据：v0.9 §可信度算法升级（D-S + PCR5 + 6 源证据融合）
- *           + v0.9.6 P1 §ECE 校准器 + v0.9.6 P2 §EU AI Act 审计报告
+ *           + v0.9.6 P2 §审计报告
  */
 
 import { ipcMain } from 'electron'
 import { getFusionEngine } from '../core/agent/credibility/fusion-engine'
 import { generateDagData } from '../core/agent/credibility/visualizer'
-import { getCalibrationTuner } from '../core/agent/credibility/calibration/calibration-tuner'
-import type {
-  CalibrationSample,
-  CalibrationState,
-  EceResult,
-  OptimizeTOptions,
-  ProviderCalibration,
-  ProviderId,
-  TemperatureScalingResult,
-} from '../core/agent/credibility/calibration/types'
 import type {
   CredibilityEvidenceInput,
   ConfidenceAssessment,
@@ -59,6 +38,77 @@ import {
   createMassFunctionsFromInputs,
   serializeMassFunction,
 } from './credibility-helpers'
+// v2.3.2 新增：简化导出 HTML 报告所需
+import { CREDIBILITY } from '@shared/ipc-channels'
+import type { DatabaseManager } from '../services/db/database'
+import type { DecisionCard, EvidenceSource, RiskLevel } from '@shared/models'
+import type { AuditSourceEvidence } from '../core/agent/credibility/audit/types'
+
+// ============================================================================
+// v2.3.2 辅助：EvidenceSource → 6 源审计 ID 映射
+// ============================================================================
+/**
+ * EvidenceSource（业务侧 5 类）→ AuditSourceEvidence.sourceId（审计侧 6 类）映射
+ *
+ * 业务侧来源（@shared/models.EvidenceSource）：
+ *   log / metric / command / config / knowledge
+ *
+ * 审计侧 6 源 ID（EU AI Act Art.10 + 可信度算法 6 源融合）：
+ *   S1-log / S2-knowledge / S3-ai-param / S4-human / S5-history / S6-best-practice
+ *
+ * 映射规则：
+ *   - log       → S1-log（日志源直接对齐）
+ *   - knowledge → S2-knowledge（知识库直接对齐）
+ *   - metric    → S3-ai-param（指标作为 AI 参数化输入）
+ *   - command   → S4-human（命令通常由人工触发）
+ *   - config    → S6-best-practice（配置项参考最佳实践）
+ *   - 缺失/未知 → 按 idx 兜底循环（含 S5-history）
+ */
+const EVIDENCE_SOURCE_MAP: Record<EvidenceSource, AuditSourceEvidence['sourceId']> = {
+  log: 'S1-log',
+  knowledge: 'S2-knowledge',
+  metric: 'S3-ai-param',
+  command: 'S4-human',
+  config: 'S6-best-practice',
+}
+
+const FALLBACK_SOURCE_IDS: AuditSourceEvidence['sourceId'][] = [
+  'S1-log',
+  'S2-knowledge',
+  'S3-ai-param',
+  'S4-human',
+  'S5-history',
+  'S6-best-practice',
+]
+
+/**
+ * 将业务侧 EvidenceSource 映射为审计侧 6 源 ID
+ * @param source 业务侧证据来源（可能为 undefined）
+ * @param idx 证据序号（兜底用）
+ * @returns 6 源审计 ID
+ */
+function mapEvidenceToSourceId(
+  source: EvidenceSource | undefined,
+  idx: number,
+): AuditSourceEvidence['sourceId'] {
+  if (source && EVIDENCE_SOURCE_MAP[source]) {
+    return EVIDENCE_SOURCE_MAP[source]
+  }
+  return FALLBACK_SOURCE_IDS[idx % FALLBACK_SOURCE_IDS.length]
+}
+
+/**
+ * 判断风险等级是否为高风险（HIGH / CRITICAL）
+ *
+ * RiskLevel 类型为 `'SAFE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'`（大写），
+ * 不能直接与字面量 `'high'` / `'critical'` 比较。
+ *
+ * @param level 风险等级（可能为 undefined）
+ * @returns true 表示高风险
+ */
+function isHighRiskLevel(level: RiskLevel | undefined): boolean {
+  return level === 'HIGH' || level === 'CRITICAL'
+}
 
 // ============================================================================
 // IPC Handler 注册
@@ -70,8 +120,11 @@ import {
  * 注册以下通道：
  * - credibility:assess — 评估给定证据集的可信度
  * - credibility:dag    — 获取 DAG 可视化数据
+ * - credibility:export-decision-html — 按 decisionId 简化导出 HTML 报告（v2.3.2 新增）
+ *
+ * @param db 数据库管理器（v2.3.2 新增：简化导出 HTML 报告时查询 DecisionCard）
  */
-export function registerCredibilityHandlers(): void {
+export function registerCredibilityHandlers(db?: DatabaseManager): void {
   // ------------------------------------------------------------------
   // credibility:assess — 评估给定证据集的可信度
   // ------------------------------------------------------------------
@@ -94,18 +147,10 @@ export function registerCredibilityHandlers(): void {
         const massFunctions = createMassFunctionsFromInputs(inputs)
 
         // 2. 融合并评估
-        //
-        // v2.0 Phase E：fuseAndAssess 默认应用 Temperature Scaling 校准
-        // 和附加 ECE 报告（applyCalibration=true + includeEceReport=true）。
-        // 返回的 internalAssessment 携带 calibratedConfidence 和 eceReport 字段。
-        // 论文：Guo et al. 2017, ICML, arXiv:1706.04599 §3.1-3.2
         const engine = getFusionEngine()
         const internalAssessment = engine.fuseAndAssess(massFunctions)
 
         // 3. 序列化为共享类型（将 Map-based MassFunction 转为 Array-based）
-        //
-        // v2.0 Phase E：透传 calibratedConfidence 和 eceReport 字段
-        // （均为可选，未启用校准时为 undefined，调用方应回退到 confidence）
         const assessment: ConfidenceAssessment = {
           belief: internalAssessment.belief,
           plausibility: internalAssessment.plausibility,
@@ -116,15 +161,10 @@ export function registerCredibilityHandlers(): void {
           sources: internalAssessment.sources,
           fusionSteps: internalAssessment.fusionSteps,
           fusedMassFunction: serializeMassFunction(internalAssessment.fusedMassFunction),
-          calibratedConfidence: internalAssessment.calibratedConfidence,
-          eceReport: internalAssessment.eceReport,
         }
 
         logger.info('IPC.CREDIBILITY', `credibility:assess 完成`, {
           confidence: assessment.confidence.toFixed(4),
-          calibratedConfidence: assessment.calibratedConfidence?.toFixed(4),
-          ece: assessment.eceReport?.ece.toFixed(4),
-          eceSamples: assessment.eceReport?.totalSamples,
           belief: assessment.belief.toFixed(4),
           plausibility: assessment.plausibility.toFixed(4),
           conflictLevel: assessment.conflictLevel.toFixed(4),
@@ -185,169 +225,9 @@ export function registerCredibilityHandlers(): void {
   )
 
   // =====================================================================
-  // v0.9.6 P1：ECE 校准器 IPC handlers
-  // ---------------------------------------------------------------------
-  // 论文支撑：Guo, Pleiss, Sun, Weinberger 2017, "On Calibration of Modern
-  //   Neural Networks", ICML, arXiv:1706.04599 §3.1
-  //   不同 LLM（DeepSeek / Claude / GPT / Ollama）应使用不同 T 值。
-  // =====================================================================
-
-  // ------------------------------------------------------------------
-  // credibility:calibrate — 触发指定 Provider 的重新校准
-  // ------------------------------------------------------------------
-  // 参数：(providerId: string, options?: OptimizeTOptions)
-  // 返回：TemperatureScalingResult（最优 T、ECE 改善、searchTrace 等）
-  // 设计：基于当前已收集的 CalibrationSample 网格搜索最优 T
-  ipcMain.handle(
-    'credibility:calibrate',
-    async (
-      _event,
-      providerId: ProviderId,
-      options?: OptimizeTOptions
-    ): Promise<TemperatureScalingResult> => {
-      try {
-        logger.info('IPC.CREDIBILITY', `credibility:calibrate 启动`, {
-          providerId,
-          options,
-        })
-        const tuner = getCalibrationTuner()
-        const result = tuner.tuneProvider(providerId, options ?? {})
-        logger.info('IPC.CREDIBILITY', `credibility:calibrate 完成`, {
-          providerId,
-          optimalT: result.optimalT.toFixed(4),
-          eceBefore: result.eceBefore.toFixed(4),
-          eceAfter: result.eceAfter.toFixed(4),
-          sampleCount: result.sampleCount,
-        })
-        return result
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '校准失败'
-        logger.error('IPC.CREDIBILITY', `credibility:calibrate 失败: ${msg}`)
-        throw new Error(`可信度校准失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:get-calibration — 获取指定 Provider 的当前校准状态
-  // ------------------------------------------------------------------
-  // 参数：(providerId: string)
-  // 返回：ProviderCalibration（optimalT / lastCalibratedAt / sampleCount / ece）
-  // 设计：未校准过的 Provider 返回 optimalT = defaultT = 1.0
-  ipcMain.handle(
-    'credibility:get-calibration',
-    async (_event, providerId: ProviderId): Promise<ProviderCalibration> => {
-      try {
-        const tuner = getCalibrationTuner()
-        return tuner.getProviderCalibration(providerId)
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '获取校准状态失败'
-        logger.error('IPC.CREDIBILITY', `credibility:get-calibration 失败: ${msg}`)
-        throw new Error(`获取校准状态失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:get-calibration-state — 获取全局校准状态（持久化）
-  // ------------------------------------------------------------------
-  // 参数：()
-  // 返回：CalibrationState（含所有 Provider 校准表 + defaultT）
-  ipcMain.handle(
-    'credibility:get-calibration-state',
-    async (): Promise<CalibrationState> => {
-      try {
-        const tuner = getCalibrationTuner()
-        return tuner.getState()
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '获取全局校准状态失败'
-        logger.error('IPC.CREDIBILITY', `credibility:get-calibration-state 失败: ${msg}`)
-        throw new Error(`获取全局校准状态失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:reset-calibration — 重置指定 Provider 的校准
-  // ------------------------------------------------------------------
-  // 参数：(providerId: string)
-  // 返回：boolean（是否成功重置）
-  ipcMain.handle(
-    'credibility:reset-calibration',
-    async (_event, providerId: ProviderId): Promise<boolean> => {
-      try {
-        logger.info('IPC.CREDIBILITY', `credibility:reset-calibration 启动`, { providerId })
-        const tuner = getCalibrationTuner()
-        const ok = tuner.resetProvider(providerId)
-        logger.info('IPC.CREDIBILITY', `credibility:reset-calibration 完成`, {
-          providerId,
-          reset: ok,
-        })
-        return ok
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '重置校准失败'
-        logger.error('IPC.CREDIBILITY', `credibility:reset-calibration 失败: ${msg}`)
-        throw new Error(`重置校准失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:compute-ece — 计算指定 Provider 的当前 ECE（不修改 T）
-  // ------------------------------------------------------------------
-  // 参数：(providerId: string, numBuckets?: number)
-  // 返回：EceResult（ECE / MCE / 各桶统计 / 总样本数）
-  // 设计：用于 UI 实时展示校准质量，不触发重新校准
-  ipcMain.handle(
-    'credibility:compute-ece',
-    async (
-      _event,
-      providerId: ProviderId,
-      numBuckets?: number
-    ): Promise<EceResult> => {
-      try {
-        const tuner = getCalibrationTuner()
-        return tuner.computeEce(providerId, numBuckets)
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '计算 ECE 失败'
-        logger.error('IPC.CREDIBILITY', `credibility:compute-ece 失败: ${msg}`)
-        throw new Error(`计算 ECE 失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:add-calibration-sample — 记录新的校准样本
-  // ------------------------------------------------------------------
-  // 参数：(sample: CalibrationSample)
-  // 返回：boolean（是否成功入库）
-  // 设计：UI 决策卡状态变为 'verified' 时回灌，触发 ECE/T 更新
-  ipcMain.handle(
-    'credibility:add-calibration-sample',
-    async (_event, sample: CalibrationSample): Promise<boolean> => {
-      try {
-        logger.info('IPC.CREDIBILITY', `credibility:add-calibration-sample 启动`, {
-          decisionId: sample.decisionId,
-          providerId: sample.providerId,
-          reportedConfidence: sample.reportedConfidence,
-          wasCorrect: sample.wasCorrect,
-        })
-        const tuner = getCalibrationTuner()
-        tuner.addSample(sample)
-        return true
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '记录校准样本失败'
-        logger.error('IPC.CREDIBILITY', `credibility:add-calibration-sample 失败: ${msg}`)
-        throw new Error(`记录校准样本失败: ${msg}`)
-      }
-    }
-  )
-
-  // =====================================================================
-  // v0.9.6 P2：EU AI Act 合规审计报告 IPC handlers
+  // v0.9.6 P2：审计报告 IPC handlers
   // ---------------------------------------------------------------------
   // 法规依据：
-  //   - EU AI Act 2026（Regulation 2024/1689）Art.11/12/13/14/15/19
   //   - NIST AI RMF 1.0（AI 100-1）
   //   - NIST AI 600-1 GenAI Profile（2024-07-26）
   // 设计：将 report-builder + exporter 暴露给渲染层 + CLI
@@ -358,7 +238,7 @@ export function registerCredibilityHandlers(): void {
   // ------------------------------------------------------------------
   // 参数：(input: AuditReportInput, options?: ExportOptions)
   // 返回：ExportResult（含 reportId / fingerprint / 文件路径 / 字节数）
-  // 设计：默认 JSON 格式；支持 writeAllFormats 一次导出 JSON+MD+HTML
+  // 设计：默认 JSON 格式；支持 writeAllFormats 一次导出 JSON+MD
   ipcMain.handle(
     'credibility:export-audit-report',
     async (
@@ -468,20 +348,160 @@ export function registerCredibilityHandlers(): void {
     }
   )
 
+  // ------------------------------------------------------------------
+  // credibility:export-decision-html — 按 decisionId 简化导出 HTML 报告（v2.3.2 新增）
+  // ------------------------------------------------------------------
+  // 参数：(decisionId: string, format: string)
+  // 返回：写入的文件路径（string）
+  // 设计：从 DecisionCard 构造简化 AuditReportInput，缺失字段用默认值填充，
+  //       调用现有 exportAuditReport 导出 HTML 文件
+  ipcMain.handle(
+    CREDIBILITY.EXPORT_DECISION_HTML,
+    async (_event, decisionId: string, format: string): Promise<string> => {
+      try {
+        if (!db) {
+          throw new Error('数据库不可用，无法导出 HTML 报告')
+        }
+        if (!decisionId || typeof decisionId !== 'string') {
+          throw new Error('decisionId 参数无效')
+        }
+
+        // 1. 从 DecisionRepository 查询 DecisionCard
+        const { DecisionRepository } = await import('../services/db/decision-repo')
+        const repo = new DecisionRepository(db)
+        const card: DecisionCard | null = repo.getById(decisionId)
+        if (!card) {
+          throw new Error(`未找到决策记录 #${decisionId}`)
+        }
+
+        // 2. 构造简化 AuditReportInput（缺失字段用默认值填充）
+        const auditFormat = format === 'markdown' ? 'markdown' : format === 'json' ? 'json' : 'html'
+        const { exportAuditReport } = await import(
+          '../core/agent/credibility/audit/exporter'
+        )
+        const input = buildSimplifiedAuditInput(card)
+        const result = await exportAuditReport(input, { format: auditFormat })
+
+        // 3. 返回第一个写入的文件路径
+        const firstFile = result.written[0]?.filepath ?? ''
+        logger.info('IPC.CREDIBILITY', `credibility:export-decision-html 完成`, {
+          decisionId,
+          format: auditFormat,
+          reportId: result.reportId,
+          filepath: firstFile,
+        })
+        return firstFile
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '简化导出 HTML 报告失败'
+        logger.error('IPC.CREDIBILITY', `credibility:export-decision-html 失败: ${msg}`)
+        throw new Error(`简化导出 HTML 报告失败: ${msg}`)
+      }
+    }
+  )
+
   logger.info('IPC.CREDIBILITY', `Credibility IPC handlers 已注册`, {
     channels: [
       'credibility:assess',
       'credibility:dag',
-      'credibility:calibrate',
-      'credibility:get-calibration',
-      'credibility:get-calibration-state',
-      'credibility:reset-calibration',
-      'credibility:compute-ece',
-      'credibility:add-calibration-sample',
       'credibility:export-audit-report',
       'credibility:list-audit-reports',
       'credibility:load-audit-report',
       'credibility:format-audit-report',
+      'credibility:export-decision-html',
     ],
   })
+}
+
+// ============================================================================
+// v2.3.2 辅助函数：从 DecisionCard 构造简化 AuditReportInput
+// ============================================================================
+
+/**
+ * 从 DecisionCard 构造简化 AuditReportInput
+ *
+ * 缺失字段（6 源证据 / 融合步骤 / 校准状态）用默认值填充：
+ * - sourceEvidences: 从 card.evidences 派生（每条证据映射为一个源）
+ * - confidenceAssessment: 从 card.confidence 派生
+ * - calibration: null（未校准）
+ * - humanOversight: 从 card.status 派生
+ * - decisionAction: 从 card.fixCommand 派生
+ *
+ * @param card 决策卡片
+ * @returns 简化 AuditReportInput（足够生成 HTML 报告）
+ */
+function buildSimplifiedAuditInput(card: DecisionCard): import('../core/agent/credibility/audit/types').AuditReportInput {
+  const decisionTime = card.timestamp || Date.now()
+  const decisionTimeIso = new Date(decisionTime).toISOString()
+  const highRisk = isHighRiskLevel(card.risk?.level)
+  return {
+    decisionContext: {
+      decisionId: card.id,
+      decisionTitle: card.problem,
+      decisionTime,
+      decisionTimeIso,
+      provider: 'TDSF Desktop',
+      modelVersion: 'v1.0',
+      deployer: 'local-user',
+      intendedPurpose: 'Linux 运维决策辅助',
+      knownLimitations: ['基于有限证据的启发式推理', '可能存在误报'],
+      deployerContact: 'local-user@tdsf.local',
+      domain: 'linux-ops',
+      isHighRisk: highRisk,
+    },
+    sourceEvidences: card.evidences.map((ev, idx) => ({
+      sourceId: mapEvidenceToSourceId(ev.source, idx),
+      sourceName: ev.source || `证据 ${idx + 1}`,
+      focalElements: { T: ev.confidence ?? 0.5, F: 1 - (ev.confidence ?? 0.5) },
+      rawConfidence: ev.confidence ?? 0.5,
+      calibratedConfidence: ev.confidence ?? 0.5,
+      calibrationTemperature: 1.0,
+      weight: 1 / Math.max(card.evidences.length, 1),
+      inputData: { content: ev.content, source: ev.source },
+      dataProvenance: ev.source || 'unknown',
+      dataTimestamp: decisionTime,
+    })),
+    confidenceAssessment: {
+      belief: card.confidence,
+      plausibility: Math.min(card.confidence + 0.2, 1),
+      confidence: card.confidence,
+      uncertainty: Math.max(1 - card.confidence, 0),
+      conflictLevel: 0,
+      ruleUsed: 'dempster',
+      fusionSteps: [],
+    },
+    calibration: null,
+    humanOversight: {
+      oversightMode: 'human-in-the-loop',
+      approvalStatus:
+        card.status === 'approved' || card.status === 'executed' || card.status === 'verified'
+          ? 'approved'
+          : card.status === 'rejected'
+          ? 'rejected'
+          : 'pending',
+      approver: null,
+      approvedAtIso: null,
+      approverComment: null,
+      triggeredHighRiskInterception: highRisk,
+      interceptedCommandCount: card.status === 'rejected' ? 1 : 0,
+    },
+    decisionAction: {
+      actionType: card.fixCommand ? 'command' : 'no-op',
+      description: card.fixDescription || card.problem,
+      command: card.fixCommand || null,
+      sandboxResult: null,
+      executionResult:
+        card.status === 'executed' || card.status === 'verified'
+          ? 'success'
+          : card.status === 'failed'
+          ? 'failed'
+          : 'not-executed',
+      executedAtIso:
+        card.status === 'executed' || card.status === 'verified' ? decisionTimeIso : null,
+      affectedResources: card.serverId ? [card.serverId] : [],
+      isRollbackable: Boolean(card.rollbackCommand),
+    },
+    deployerContact: 'local-user@tdsf.local',
+    domain: 'linux-ops',
+    isHighRisk: highRisk,
+  }
 }

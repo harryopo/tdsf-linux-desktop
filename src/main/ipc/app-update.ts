@@ -17,7 +17,7 @@
  * - 不发送任何用户隐私信息到 GitHub（仅 GET 公开 Release）
  */
 import { ipcMain, shell } from 'electron'
-import { existsSync, statSync } from 'fs'
+import { existsSync, statSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { APP } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
@@ -277,4 +277,50 @@ export function registerAppUpdateHandlers(): void {
       logPath,
     }
   })
+
+  /**
+   * app:export-model-stats — 导出模型配置与 Token 统计
+   *
+   * 将当前页面可见的模型配置、KPI 与预算信息持久化到 userData/exports 目录，
+   * 便于用户存档或后续排查。文件名带时间戳避免覆盖。
+   *
+   * @param stats 渲染进程构造的统计对象（已脱敏，不含明文 apiKey）
+   * @returns { filePath: string; size: number } 写入后的文件路径与字节数
+   */
+  ipcMain.handle(
+    APP.EXPORT_MODEL_STATS,
+    async (_event, stats: unknown): Promise<{ filePath: string; size: number }> => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { app } = require('electron')
+      const dataPath = app.getPath('userData')
+      const exportsDir = join(dataPath, 'exports')
+      if (!existsSync(exportsDir)) {
+        mkdirSync(exportsDir, { recursive: true })
+      }
+
+      const now = new Date()
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+      const filePath = join(exportsDir, `model-stats-${timestamp}.json`)
+
+      const payload = {
+        exportedAt: now.toISOString(),
+        version: getCurrentVersion(),
+        stats,
+      }
+
+      try {
+        const content = JSON.stringify(payload, null, 2)
+        writeFileSync(filePath, content, 'utf8')
+        const { size } = statSync(filePath)
+        logger.info('APP_UPDATE', '模型统计导出成功', { filePath, size })
+        return { filePath, size }
+      } catch (err) {
+        const rawMessage = err instanceof Error ? err.message : String(err)
+        const safeMessage = redactSecrets(rawMessage)
+        logger.error('APP_UPDATE', '模型统计导出失败', { error: safeMessage })
+        throw new Error(`导出失败: ${safeMessage}`)
+      }
+    }
+  )
 }

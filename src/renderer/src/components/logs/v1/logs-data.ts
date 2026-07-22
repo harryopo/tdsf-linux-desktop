@@ -13,7 +13,6 @@ import {
   Terminal,
   Cpu,
   Shield,
-  Sparkles,
   AlertTriangle,
   FileText,
   Lock,
@@ -57,11 +56,10 @@ export interface LevelStat {
 
 /** 日志源列表（9 项 = 5 主类 + 4 服务器系统日志路径） */
 export const LOG_SOURCES: LogSourceItem[] = [
-  // 主类（5 项）
+  // 主类（4 项）
   { id: 'system', label: '系统日志', count: '1,247', group: 'main', icon: Terminal },
   { id: 'app', label: '应用日志', count: '856', group: 'main', icon: Cpu },
   { id: 'security', label: '安全日志', count: '43', group: 'main', icon: Shield },
-  { id: 'ai', label: 'AI决策日志', count: '127', group: 'main', icon: Sparkles },
   { id: 'alert', label: '告警日志', count: '18', group: 'main', icon: AlertTriangle },
   // 服务器系统日志（4 项）
   { id: 'messages', label: '/var/log/messages', count: '3.2k', group: 'system', icon: FileText },

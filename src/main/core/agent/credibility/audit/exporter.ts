@@ -125,7 +125,7 @@ export async function exportAuditReport(
 
   // 2. 决定导出格式
   const formats: AuditFormat[] = writeAllFormats
-    ? ['json', 'markdown', 'html']
+    ? ['json', 'markdown']
     : [format]
 
   // 3. 落盘

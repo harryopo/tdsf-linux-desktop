@@ -40,7 +40,8 @@ import {
   Loader2,
   type LucideIcon,
 } from 'lucide-react'
-import type { PersistedProviderConfig } from '@shared/agent-types'
+import type { PersistedProviderConfig, TokenUsageRecord } from '@shared/agent-types'
+import type { ToolCallStat, BudgetAlert } from '@shared/models'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
@@ -66,12 +67,7 @@ interface TempPreset {
   value: number
 }
 
-/** 功能调用统计行 */
-interface ToolCallStat {
-  name: string
-  count: number
-  percent: number
-}
+// 注：ToolCallStat 类型已从 @shared/models 导入（v2.3.2 改为真实 IPC 数据）
 
 /** 对话记录行 */
 interface ConversationRow {
@@ -85,12 +81,8 @@ interface ConversationRow {
   statusType: 'success' | 'warning' | 'danger'
 }
 
-/** 告警历史行 */
-interface AlertHistoryRow {
-  level: 'alert' | 'error'
-  text: string
-  time: string
-}
+// 注：BudgetAlert 类型已从 @shared/models 导入（v2.3.2 改为真实 IPC 数据）
+// 旧的 AlertHistoryRow 接口已移除，统一使用 BudgetAlert
 
 /** 测试连接日志行（动态渲染真实 llmTest 结果） */
 interface TestLogLine {
@@ -135,13 +127,8 @@ const THINKING_LEVELS = [
   { value: 'high', label: '高' },
 ] as const
 
-const TOOL_CALL_STATS: ToolCallStat[] = [
-  { name: '终端命令执行', count: 89, percent: 35 },
-  { name: '知识库检索', count: 67, percent: 26 },
-  { name: '联网搜索', count: 45, percent: 18 },
-  { name: 'Skill调用', count: 38, percent: 15 },
-  { name: '方法论应用', count: 15, percent: 6 },
-]
+// v2.3.2：TOOL_CALL_STATS 和 ALERT_HISTORY 静态数据已移除，
+// 改为通过 modelToolCalls() / budgetAlerts() IPC 加载真实数据
 
 const CONVERSATIONS: ConversationRow[] = [
   {
@@ -196,11 +183,7 @@ const CONVERSATIONS: ConversationRow[] = [
   },
 ]
 
-const ALERT_HISTORY: AlertHistoryRow[] = [
-  { level: 'alert', text: 'Token日消耗超过5000', time: '3天前' },
-  { level: 'alert', text: 'API响应时间 > 500ms', time: '1周前' },
-  { level: 'error', text: '连接失败3次', time: '2周前' },
-]
+// v2.3.2：ALERT_HISTORY 静态数据已移除，改为通过 budgetAlerts() IPC 加载真实数据
 
 export function ModelSettings() {
   const { llmConfig, setLlmConfig, loadSettings, saveSettings } = useSettingsStore()
@@ -229,6 +212,10 @@ export function ModelSettings() {
   const [alertThreshold, setAlertThreshold] = useState(80)
   const [emailNotify, setEmailNotify] = useState(true)
 
+  // v2.3.2 新增：工具调用统计 + 预算告警（真实 IPC 数据，表为空时返回空数组）
+  const [toolCallStats, setToolCallStats] = useState<ToolCallStat[]>([])
+  const [budgetAlerts, setBudgetAlerts] = useState<BudgetAlert[]>([])
+
   // Section 3: API 测试连接
   const [isTesting, setIsTesting] = useState(false)
   const [testResult, setTestResult] = useState<'idle' | 'success' | 'error'>('idle')
@@ -239,6 +226,8 @@ export function ModelSettings() {
   // Section 6: 对话记录
   const [statusFilter, setStatusFilter] = useState<'全部状态' | '成功' | '已拦截' | '失败'>('全部状态')
   const [currentPage, setCurrentPage] = useState(1)
+  // 对话记录行：优先使用真实 tokenRecords，IPC 不可用或返回空时回退到静态 CONVERSATIONS
+  const [conversationRows, setConversationRows] = useState<ConversationRow[]>(CONVERSATIONS)
 
   // 导出统计反馈
   const [exportFeedback, setExportFeedback] = useState<string | null>(null)
@@ -291,6 +280,74 @@ export function ModelSettings() {
     return () => {
       if (exportTimerRef.current != null) clearTimeout(exportTimerRef.current)
       if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
+    }
+  }, [])
+
+  // 加载真实 token 使用记录，映射为对话表格行
+  // - IPC 不可用 / 返回空数组 / 调用异常时，保持使用静态 CONVERSATIONS（fallback）
+  // - token:records 只记录成功调用，status 始终映射为 '成功'
+  useEffect(() => {
+    if (!isElectronAPIAvailable()) return
+    let cancelled = false
+
+    const loadRecords = async () => {
+      try {
+        const records: TokenUsageRecord[] = await window.electronAPI.tokenRecords(100)
+        if (cancelled) return
+        if (!Array.isArray(records) || records.length === 0) return
+
+        const rows: ConversationRow[] = records.map((r) => ({
+          time: new Date(r.timestamp).toLocaleString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            month: '2-digit',
+            day: '2-digit',
+          }),
+          input: r.subagent || 'direct',
+          model: r.model,
+          modelTagType: 'brand' as const,
+          inputTokens: r.inputTokens.toLocaleString('en-US'),
+          outputTokens: r.outputTokens.toLocaleString('en-US'),
+          status: '成功',
+          statusType: 'success' as const,
+        }))
+        if (cancelled) return
+        setConversationRows(rows)
+      } catch (err) {
+        console.error('[ModelSettings] 加载 tokenRecords 失败，回退到静态数据:', err)
+      }
+    }
+
+    void loadRecords()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // v2.3.2 新增：加载工具调用统计 + 预算告警（真实 IPC 数据）
+  // - IPC 不可用 / 调用异常时，保持空数组（显示"暂无数据"而非 mock 数据）
+  // - 表为空时 IPC 返回空数组，前端显示空状态
+  useEffect(() => {
+    if (!isElectronAPIAvailable()) return
+    let cancelled = false
+
+    const loadStats = async () => {
+      try {
+        const [stats, alerts] = await Promise.all([
+          window.electronAPI.modelToolCalls(),
+          window.electronAPI.budgetAlerts(20),
+        ])
+        if (cancelled) return
+        if (Array.isArray(stats)) setToolCallStats(stats)
+        if (Array.isArray(alerts)) setBudgetAlerts(alerts)
+      } catch (err) {
+        console.error('[ModelSettings] 加载 modelToolCalls / budgetAlerts 失败:', err)
+      }
+    }
+
+    void loadStats()
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -447,16 +504,59 @@ export function ModelSettings() {
     }, 3000)
   }
 
-  // 导出统计：模拟导出反馈
-  const handleExportStats = () => {
+  // 导出统计：真实导出当前模型配置与预算信息（v2.3 活功能转换）
+  const handleExportStats = async () => {
     setExportFeedback('正在导出统计数据...')
     if (exportTimerRef.current != null) clearTimeout(exportTimerRef.current)
-    exportTimerRef.current = setTimeout(() => {
-      setExportFeedback('已导出到 ~/.tdsf/exports/stats.json')
-    }, 600)
+
+    const stats = {
+      model: {
+        selectedModel,
+        endpoint,
+        temperature,
+        maxToken,
+        thinkingLevel,
+        requestTimeout,
+        hasApiKey: apiKey.length > 0,
+      },
+      budget: {
+        monthlyBudget,
+        alertThreshold,
+        emailNotify,
+      },
+      test: {
+        result: testResult,
+        lastTestTime,
+        latencyMs: testLatency,
+      },
+      exportedAt: new Date().toISOString(),
+    }
+
+    try {
+      if (isElectronAPIAvailable() && window.electronAPI?.appExportModelStats) {
+        const { filePath, size } = await window.electronAPI.appExportModelStats(stats)
+        setExportFeedback(`已导出到 ${filePath} (${size} 字节)`)
+      } else {
+        // 非 Electron 环境：通过浏览器下载 JSON 文件
+        const blob = new Blob([JSON.stringify(stats, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `model-stats-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+        setExportFeedback('已开始下载 JSON 文件')
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      setExportFeedback(`导出失败：${reason}`)
+    }
+
     exportTimerRef.current = setTimeout(() => {
       setExportFeedback(null)
-    }, 3000)
+    }, 4000)
   }
 
   // 切换状态筛选
@@ -469,7 +569,7 @@ export function ModelSettings() {
   }
 
   // 过滤对话记录
-  const filteredConversations = CONVERSATIONS.filter((row) => {
+  const filteredConversations = conversationRows.filter((row) => {
     if (statusFilter === '全部状态') return true
     return row.status === statusFilter
   })
@@ -869,7 +969,12 @@ export function ModelSettings() {
         <SettingsCard icon={Layers} title="功能调用统计" tag="usage.tools" className="p-5">
           {/* 功能调用排行（水平条形图） */}
           <div className="set-tool-stats">
-            {TOOL_CALL_STATS.map((s) => (
+            {toolCallStats.length === 0 ? (
+              <div className="set-tool-stats__empty">
+                暂无工具调用数据
+              </div>
+            ) : (
+              toolCallStats.map((s) => (
               <div key={s.name} className="set-tool-row">
                 <span className="set-tool-row__name">
                   {s.name}
@@ -888,7 +993,8 @@ export function ModelSettings() {
                   {s.percent}%
                 </span>
               </div>
-            ))}
+            ))
+            )}
           </div>
 
           {/* 底部统计行 */}
@@ -896,7 +1002,7 @@ export function ModelSettings() {
             <span className="set-tool-summary__item">
               总调用{' '}
               <span className="set-tool-summary__val set-tool-summary__val--default">
-                254
+                {toolCallStats.reduce((sum, s) => sum + s.count, 0)}
               </span>{' '}
               次
             </span>
@@ -1150,7 +1256,12 @@ export function ModelSettings() {
               告警历史
             </span>
             <div className="set-alert-history__list">
-              {ALERT_HISTORY.map((h, idx) => (
+              {budgetAlerts.length === 0 ? (
+                <div className="set-alert-history__empty">
+                  暂无告警历史
+                </div>
+              ) : (
+                budgetAlerts.map((h, idx) => (
                 <div
                   key={`${h.text}-${idx}`}
                   className="set-alert-history__item"
@@ -1169,10 +1280,16 @@ export function ModelSettings() {
                     </span>
                   </div>
                   <span className="set-alert-history__time">
-                    {h.time}
+                    {new Date(h.timestamp).toLocaleString('zh-CN', {
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </span>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           </div>
         </SettingsCard>

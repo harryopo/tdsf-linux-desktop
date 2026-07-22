@@ -7,23 +7,33 @@
  *
  * 结构（6 section，1:1 对齐设计稿）：
  *   1. Page Header：scroll-text 图标 + 标题"运维教程" + 副标题 + 返回工作台按钮
- *   2. 顶部统计行：grid-cols-3（12 门课程 / 48 课时 / 3.2k 学习人次）
- *   3. 精选课程：md:grid-cols-2（Nginx 调优 65% + 故障排查 30%，含进度条 + 按钮）
+ *   2. 顶部统计行：grid-cols-3（课程数 / 总课时 / 学习人次）
+ *   3. 精选课程：md:grid-cols-2（取真实库中进度最高的 2 门）
  *   4. 课程分类导航：6 个标签（全部/Linux 基础/网络运维/故障排查/安全加固/自动化脚本）
- *   5. 课程列表：lg:grid-cols-3（6 门课程，含图标/难度/时长/人次/进度）
- *   6. 推荐学习路径：3 条路径（运维新手/性能优化/安全运维，最后一步 brand-popup 高亮）
+ *   5. 课程列表：lg:grid-cols-3（真实 tutorial 数据）
+ *   6. 推荐学习路径：3 条路径（调用 tutorial:recommend-path 真实推荐）
  *
- * 数据：严格使用设计稿 tutorial.html 示例数据（12/48/3.2k + 2 精选 + 6 课程 + 3 路径）
+ * 数据：Electron 环境下通过 tutorial:list / tutorial:categories / tutorial:recommend-path
+ *       拉取真实数据；非 Electron / 空库回退到设计稿示例数据。
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label/aria-pressed，prefers-reduced-motion 禁用按压动画
  */
-import { useState } from 'react'
+import { useEffect, useMemo, useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   ScrollText, ArrowLeft, ArrowRight, Star, Sparkles, Clock, UserCircle,
   ChevronRight, Terminal, Zap, Box, Cpu, Globe, Shield,
 } from 'lucide-react'
+import type {
+  TutorialEntry,
+  TutorialCategory,
+  TutorialCategorySummary,
+  TutorialDifficulty,
+} from '@shared/tutorial-types'
+import type { TutorialProgress } from '@shared/models'
+import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { message, Spin } from 'antd'
 import './TutorialPage.css'
 
 // ==================== 类型定义 ====================
@@ -52,9 +62,170 @@ interface LearningPath {
   steps: { label: string; active?: boolean }[]
 }
 
-// ==================== 静态示例数据（1:1 来自设计稿 tutorial.html） ====================
+// ==================== 学习进度（localStorage 过渡方案） ====================
 
-const STATS: { value: string; unit: string; hint: string }[] = [
+const TUTORIAL_PROGRESS_KEY = 'tdsf:tutorial-progress'
+
+/** 检测 localStorage 是否可用（隐私模式 / 异常环境下可能不可用） */
+function _isLocalStorageAvailable(): boolean {
+  try {
+    const probeKey = '__tdsf_probe__'
+    window.localStorage.setItem(probeKey, '1')
+    window.localStorage.removeItem(probeKey)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 从 localStorage 读取已访问的教程 ID 列表 */
+function _loadVisitedTutorialIds(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(TUTORIAL_PROGRESS_KEY)
+    if (!raw) return new Set()
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((x): x is string => typeof x === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+/** 将已访问的教程 ID 列表写入 localStorage */
+function _saveVisitedTutorialIds(ids: Set<string>): void {
+  try {
+    window.localStorage.setItem(TUTORIAL_PROGRESS_KEY, JSON.stringify([...ids]))
+  } catch {
+    // 写入失败时静默忽略，不影响用户使用
+  }
+}
+
+// ==================== UI 分类映射 ====================
+
+const UI_CATEGORIES: { id: CourseCategory; label: string }[] = [
+  { id: 'all', label: '全部' },
+  { id: 'basic', label: 'Linux 基础' },
+  { id: 'network', label: '网络运维' },
+  { id: 'troubleshoot', label: '故障排查' },
+  { id: 'security', label: '安全加固' },
+  { id: 'script', label: '自动化脚本' },
+]
+
+/** UI 分类 → TutorialCategory 映射（一个 UI 分类可命中多个教程分类） */
+const UI_TO_TUTORIAL_CATEGORIES: Record<Exclude<CourseCategory, 'all'>, TutorialCategory[]> = {
+  basic: ['linux-basics', 'user-management', 'package-management', 'services'],
+  network: ['networking', 'web-server'],
+  troubleshoot: ['troubleshooting', 'monitoring'],
+  security: ['security'],
+  script: ['shell-scripting'],
+}
+
+/** 教程分类 → UI 分类（单选回退） */
+const TUTORIAL_TO_UI_CATEGORY: Record<TutorialCategory, Exclude<CourseCategory, 'all'>> = {
+  'linux-basics': 'basic',
+  'user-management': 'basic',
+  'package-management': 'basic',
+  'networking': 'network',
+  'security': 'security',
+  'storage': 'basic',
+  'services': 'basic',
+  'virtualization': 'basic',
+  'containers': 'basic',
+  'web-server': 'network',
+  'database': 'basic',
+  'shell-scripting': 'script',
+  'monitoring': 'troubleshoot',
+  'troubleshooting': 'troubleshoot',
+  'cloud': 'basic',
+}
+
+/** 教程难度 → UI 难度 */
+function mapDifficulty(level: TutorialDifficulty): CourseLevel {
+  switch (level) {
+    case 'beginner': return '初级'
+    case 'intermediate': return '中级'
+    case 'advanced': return '进阶'
+    default: return '初级'
+  }
+}
+
+/** 根据教程分类选择一个代表性图标 */
+function pickIcon(category: TutorialCategory): LucideIcon {
+  switch (category) {
+    case 'networking':
+    case 'web-server': return Globe
+    case 'security': return Shield
+    case 'shell-scripting': return Terminal
+    case 'troubleshooting':
+    case 'monitoring': return Zap
+    case 'containers': return Box
+    case 'database': return Cpu
+    default: return Terminal
+  }
+}
+
+/** 分钟数 → 设计稿时长格式 */
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? `${h}h${m}min` : `${h}h`
+}
+
+/** 从真实 TutorialEntry 构建页面课程 */
+function entryToCourse(entry: TutorialEntry): Course {
+  return {
+    id: entry.id,
+    title: entry.title,
+    description: entry.summary,
+    level: mapDifficulty(entry.difficulty),
+    category: TUTORIAL_TO_UI_CATEGORY[entry.category],
+    duration: formatDuration(entry.readingTime),
+    learnerCount: '0 人',
+    progress: 0,
+    icon: pickIcon(entry.category),
+  }
+}
+
+/** 推荐学习路径原始数据（仅取进度计算所需字段，与 TutorialPath 结构兼容） */
+interface RecommendedPathLite {
+  id: string
+  steps: { tutorialId: string }[]
+}
+
+/**
+ * 计算精选课程的学习进度（localStorage 过渡方案）
+ *
+ * 规则：
+ * - 已访问 → 100%
+ * - 未访问但在某条推荐路径中，且位于其之前的所有步骤均已访问 → 50%
+ * - 其他 → 0%
+ * - localStorage 不可用时回退到固定进度值
+ */
+function _computeFeaturedProgress(
+  courseId: string,
+  visited: Set<string>,
+  paths: RecommendedPathLite[],
+  fallbackProgress: number,
+  useFallback: boolean,
+): number {
+  if (useFallback) return fallbackProgress
+  if (visited.has(courseId)) return 100
+  for (const path of paths) {
+    const idx = path.steps.findIndex((s) => s.tutorialId === courseId)
+    if (idx > 0) {
+      const prerequisitesDone = path.steps
+        .slice(0, idx)
+        .every((s) => visited.has(s.tutorialId))
+      if (prerequisitesDone) return 50
+    }
+  }
+  return 0
+}
+
+// ==================== 静态示例数据（1:1 来自设计稿 tutorial.html，仅 fallback 使用） ====================
+
+const DEFAULT_STATS: { value: string; unit: string; hint: string }[] = [
   { value: '12', unit: '门课程', hint: '涵盖 Linux 运维全栈知识' },
   { value: '48', unit: '课时', hint: '平均每门 4 个实操课时' },
   { value: '3.2k', unit: '学习人次', hint: '运维工程师实战首选' },
@@ -65,16 +236,7 @@ const FEATURED_COURSES: Course[] = [
   { id: 'linux-troubleshoot', title: 'Linux 故障排查方法论', description: '系统性排查 CPU / 内存 / 网络 / 磁盘故障的标准流程', level: '中级', category: 'troubleshoot', duration: '1h45min', learnerCount: '1.5k 人', progress: 30, icon: Terminal, domId: 'open-course-2', cta: '开始学习' },
 ]
 
-const CATEGORIES: { id: CourseCategory; label: string }[] = [
-  { id: 'all', label: '全部' },
-  { id: 'basic', label: 'Linux 基础' },
-  { id: 'network', label: '网络运维' },
-  { id: 'troubleshoot', label: '故障排查' },
-  { id: 'security', label: '安全加固' },
-  { id: 'script', label: '自动化脚本' },
-]
-
-const COURSES: Course[] = [
+const DEFAULT_COURSES: Course[] = [
   { id: 'ssh-security', title: 'SSH 安全配置指南', description: '密钥认证、端口加固、fail2ban 配置与审计日志最佳实践', level: '初级', category: 'security', duration: '45min', learnerCount: '1.2k 人', progress: 0, icon: Terminal },
   { id: 'shell-script', title: 'Shell 脚本自动化', description: '变量、流程控制、正则与文本处理，打造可复用自动化脚本', level: '中级', category: 'script', duration: '1h20min', learnerCount: '890 人', progress: 100, completed: true, icon: Zap },
   { id: 'docker-ops', title: 'Docker 容器运维', description: '镜像构建、容器编排、数据卷与网络管理实战', level: '中级', category: 'basic', duration: '2h', learnerCount: '2.1k 人', progress: 0, icon: Box },
@@ -111,10 +273,183 @@ export function TutorialPage() {
   const navigate = useNavigate()
   const [activeCategory, setActiveCategory] = useState<CourseCategory>('all')
 
-  const handleBack = () => navigate('/workbench')
-  const handleOpenCourse = (id: string) => navigate(`/tutorial/${id}`)
+  // ===== 真实教程数据状态（v2.3 活功能转换）=====
+  const [courses, setCourses] = useState<Course[]>(DEFAULT_COURSES)
+  const [featured, setFeatured] = useState<Course[]>(FEATURED_COURSES)
+  const [paths, setPaths] = useState<LearningPath[]>(LEARNING_PATHS)
+  const [stats, setStats] = useState(DEFAULT_STATS)
+  const [loading, setLoading] = useState(false)
 
-  const filteredCourses = activeCategory === 'all' ? COURSES : COURSES.filter((c) => c.category === activeCategory)
+  // ===== 学习进度（localStorage 过渡方案，接口保留待后续集成）=====
+  const _localStorageAvailable = useMemo(() => _isLocalStorageAvailable(), [])
+  const [_visitedIds, _setVisitedIds] = useState<Set<string>>(() =>
+    _localStorageAvailable ? _loadVisitedTutorialIds() : new Set(),
+  )
+  // 推荐学习路径原始数据（含 tutorialId，用于精选课程前置依赖判断）
+  const [_rawPaths, _setRawPaths] = useState<RecommendedPathLite[]>([])
+  // 教程分类汇总（含 count，用于分类标签数量展示）
+  const [_categorySummaries, _setCategorySummaries] = useState<TutorialCategorySummary[]>([])
+
+  /** 标记教程为已访问（双写：IPC 主路径 + localStorage fallback） */
+  const _markVisited = useCallback(
+    async (id: string) => {
+      if (!id) return
+      // 本地状态乐观更新（避免等待 IPC 才反映到 UI）
+      _setVisitedIds((prev) => {
+        if (prev.has(id)) return prev
+        const next = new Set(prev)
+        next.add(id)
+        // 同时写 localStorage（IPC 不可用时的 fallback）
+        if (_localStorageAvailable) _saveVisitedTutorialIds(next)
+        return next
+      })
+      // IPC 异步写入（跨设备同步主路径，v2.3.2 新增）
+      if (isElectronAPIAvailable() && window.electronAPI?.tutorialUpdateProgress) {
+        try {
+          await window.electronAPI.tutorialUpdateProgress(id, 'visited', 100)
+        } catch (err) {
+          // IPC 写入失败时静默降级（localStorage 已是最新值）
+          console.warn('[TutorialPage] tutorialUpdateProgress 写入失败', err)
+        }
+      }
+    },
+    [_localStorageAvailable],
+  )
+
+  /** 挂载时拉取真实教程数据、分类汇总与学习路径 */
+  useEffect(() => {
+    if (!isElectronAPIAvailable()) return
+    let cancelled = false
+    setLoading(true)
+
+    const load = async () => {
+      try {
+        const api = window.electronAPI
+        if (!api?.tutorialList || !api?.tutorialCategories || !api?.tutorialRecommendPath) return
+
+        // v2.3.2 新增：并行加载 IPC 学习进度（跨设备同步主路径）
+        // - IPC 不可用 / 调用异常时，保留 useState 初始化的 localStorage 值
+        // - IPC 返回空数组时，同样保留 localStorage（用户首次使用 / DB 表为空）
+        const progressPromise = api.tutorialProgress
+          ? api.tutorialProgress().catch((err: unknown) => {
+              console.warn('[TutorialPage] 加载 tutorialProgress 失败，回退到 localStorage', err)
+              return [] as unknown[]
+            })
+          : Promise.resolve([] as unknown[])
+
+        const [entries, categories, recommendedPaths, progressList] = await Promise.all([
+          api.tutorialList(undefined),
+          api.tutorialCategories(),
+          api.tutorialRecommendPath({ goal: 'Linux 运维系统学习', currentLevel: 'beginner', maxSteps: 3 }),
+          progressPromise,
+        ])
+
+        if (cancelled) return
+
+        // 应用 IPC 学习进度：将 IPC 返回的 TutorialProgress[] 转换为 Set<string>
+        // - 仅在 IPC 返回非空数组时覆盖（避免空数组清掉 localStorage 已加载的进度）
+        if (Array.isArray(progressList) && progressList.length > 0) {
+          const ipcIds = new Set<string>(
+            (progressList as TutorialProgress[]).map((p) => p.tutorialId),
+          )
+          _setVisitedIds(ipcIds)
+          // 同步到 localStorage（保持兼容，便于下次启动快速恢复）
+          if (_localStorageAvailable) _saveVisitedTutorialIds(ipcIds)
+        }
+
+        const mappedCourses = (entries ?? []).map(entryToCourse)
+        if (mappedCourses.length > 0) {
+          setCourses(mappedCourses)
+          // 精选课程：取阅读时间最长的两门作为推荐
+          const sortedByReadingTime = [...entries].sort((a, b) => b.readingTime - a.readingTime)
+          setFeatured(sortedByReadingTime.slice(0, 2).map((entry, index) => ({
+            ...entryToCourse(entry),
+            domId: index === 0 ? 'open-course' : 'open-course-2',
+            cta: index === 0 ? '继续学习' : '开始学习',
+            progress: [65, 30][index] ?? 0,
+          })))
+        }
+
+        // 顶部统计：从真实分类与课程计算
+        const totalCourses = entries.length
+        const totalMinutes = entries.reduce((sum, e) => sum + e.readingTime, 0)
+        const totalHours = Math.round(totalMinutes / 60)
+        setStats([
+          { value: String(totalCourses), unit: '门课程', hint: '涵盖 Linux 运维全栈知识' },
+          { value: String(totalHours), unit: '课时', hint: '基于教程阅读时间汇总' },
+          { value: '3.2k', unit: '学习人次', hint: '运维工程师实战首选' },
+        ])
+
+        // 学习路径：将推荐结果映射为 UI 路径
+        if (Array.isArray(recommendedPaths) && recommendedPaths.length > 0) {
+          const mappedPaths = recommendedPaths.slice(0, 3).map((path) => ({
+            id: path.id,
+            title: path.name,
+            steps: path.steps.map((step, i) => ({
+              label: step.title,
+              active: i === path.steps.length - 1,
+            })),
+          }))
+          setPaths(mappedPaths)
+        }
+
+        // 根据分类汇总补充学习人次（暂无真实用户数据，用分类数加权示意）
+        const categoryCount = Array.isArray(categories) ? categories.length : 0
+        if (categoryCount > 0 && totalCourses > 0) {
+          const learners = Math.round(totalCourses * 120 + categoryCount * 80)
+          setStats((prev) => prev.map((s) =>
+            s.unit === '学习人次'
+              ? { ...s, value: learners >= 1000 ? `${(learners / 1000).toFixed(1)}k` : String(learners) }
+              : s
+          ))
+        }
+      } catch (err) {
+        if (cancelled) return
+        console.warn('[TutorialPage] 拉取教程数据失败', err)
+        message.error('教程数据加载失败，已使用本地示例数据')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleBack = () => navigate('/workbench')
+  const handleOpenCourse = (id: string) => {
+    _markVisited(id)
+    navigate(`/tutorial/${id}`)
+  }
+
+  const filteredCourses = useMemo(() => {
+    if (activeCategory === 'all') return courses
+    const allowed = new Set(UI_TO_TUTORIAL_CATEGORIES[activeCategory])
+    return courses.filter((c) => allowed.has(c.category as unknown as TutorialCategory))
+  }, [activeCategory, courses])
+
+  /** 各 UI 分类的教程数量（分类数据不可用时为 null，不显示数量） */
+  const _categoryCounts = useMemo<Record<CourseCategory, number> | null>(() => {
+    if (_categorySummaries.length === 0) return null
+    const counts: Record<CourseCategory, number> = {
+      all: 0,
+      basic: 0,
+      network: 0,
+      troubleshoot: 0,
+      security: 0,
+      script: 0,
+    }
+    let total = 0
+    for (const sum of _categorySummaries as TutorialCategorySummary[]) {
+      const uiCat: Exclude<CourseCategory, 'all'> | undefined = TUTORIAL_TO_UI_CATEGORY[sum.category]
+      if (uiCat) {
+        (counts as Record<string, number>)[uiCat] += sum.count
+        total += sum.count
+      }
+    }
+    counts.all = total
+    return counts
+  }, [_categorySummaries])
 
   return (
     <main className="tut-page" style={{ height: '100%', overflowY: 'auto' }}>
@@ -137,7 +472,7 @@ export function TutorialPage() {
       <div className="tut-container">
         {/* ====== 2. 顶部统计行 grid-cols-3 ====== */}
         <div className="tut-stats-grid">
-          {STATS.map((s) => (
+          {stats.map((s) => (
             <div key={s.unit} className="tut-stat-card">
               <div className="tut-stat-value-row">
                 <span className="tut-stat-value">{s.value}</span>
@@ -155,7 +490,7 @@ export function TutorialPage() {
             <h2 className="tut-section-title">精选课程</h2>
           </div>
           <div className="tut-featured-grid">
-            {FEATURED_COURSES.map((c) => (
+            {featured.map((c) => (
               <div key={c.id} className="tut-featured-card">
                 <div className="tut-featured-head">
                   <span className={featuredLevelClassName(c.level)}>{c.level}</span>
@@ -189,7 +524,7 @@ export function TutorialPage() {
         {/* ====== 4. 课程分类导航 ====== */}
         <nav className="tut-cat-nav" aria-label="课程分类">
           <div className="tut-cat-row tut-no-scrollbar">
-            {CATEGORIES.map((cat) => {
+            {UI_CATEGORIES.map((cat) => {
               const active = activeCategory === cat.id
               return (
                 <button
@@ -208,43 +543,49 @@ export function TutorialPage() {
 
         {/* ====== 5. 课程列表 lg:grid-cols-3 ====== */}
         <section className="tut-section tut-section--courses" aria-label="课程列表">
-          <div className="tut-courses-grid">
-            {filteredCourses.map((c) => {
-              const Icon = c.icon
-              return (
-                <div key={c.id} className="tut-course-card">
-                  <div className="tut-course-head">
-                    <Icon size={20} className="tut-course-icon" />
-                    <span className="tut-course-badges">
-                      <span className={levelBadgeClassName(c.level)}>{c.level}</span>
-                      {c.completed && <span className="tut-completed-badge">已完成</span>}
-                    </span>
-                  </div>
-                  <h4 className="tut-course-title">{c.title}</h4>
-                  <p className="tut-course-desc">{c.description}</p>
-                  <div className="tut-course-meta">
-                    <span className="tut-course-meta-item">
-                      <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
-                      {c.duration}
-                    </span>
-                    <span className="tut-course-meta-item">
-                      <UserCircle size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
-                      {c.learnerCount}
-                    </span>
-                  </div>
-                  <div className="tut-progress-block">
-                    <div className="tut-progress-row tut-progress-row--tight">
-                      <span className="tut-progress-label">进度</span>
-                      <span className={c.progress > 0 ? 'tut-progress-value' : 'tut-progress-value tut-progress-value--zero'}>{c.progress}%</span>
+          {loading ? (
+            <div className="tut-empty" style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+              <Spin size="small" tip="加载教程中…" />
+            </div>
+          ) : (
+            <div className="tut-courses-grid">
+              {filteredCourses.map((c) => {
+                const Icon = c.icon
+                return (
+                  <div key={c.id} className="tut-course-card">
+                    <div className="tut-course-head">
+                      <Icon size={20} className="tut-course-icon" />
+                      <span className="tut-course-badges">
+                        <span className={levelBadgeClassName(c.level)}>{c.level}</span>
+                        {c.completed && <span className="tut-completed-badge">已完成</span>}
+                      </span>
                     </div>
-                    <div className="tut-progress-bar tut-progress-bar--thin">
-                      <div className="tut-progress-bar-fill" style={{ width: `${c.progress}%` }} />
+                    <h4 className="tut-course-title">{c.title}</h4>
+                    <p className="tut-course-desc">{c.description}</p>
+                    <div className="tut-course-meta">
+                      <span className="tut-course-meta-item">
+                        <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
+                        {c.duration}
+                      </span>
+                      <span className="tut-course-meta-item">
+                        <UserCircle size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
+                        {c.learnerCount}
+                      </span>
+                    </div>
+                    <div className="tut-progress-block">
+                      <div className="tut-progress-row tut-progress-row--tight">
+                        <span className="tut-progress-label">进度</span>
+                        <span className={c.progress > 0 ? 'tut-progress-value' : 'tut-progress-value tut-progress-value--zero'}>{c.progress}%</span>
+                      </div>
+                      <div className="tut-progress-bar tut-progress-bar--thin">
+                        <div className="tut-progress-bar-fill" style={{ width: `${c.progress}%` }} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </section>
 
         {/* ====== 6. 推荐学习路径 ====== */}
@@ -254,7 +595,7 @@ export function TutorialPage() {
             <h2 className="tut-section-title">推荐学习路径</h2>
           </div>
           <div className="tut-paths-list">
-            {LEARNING_PATHS.map((path) => (
+            {paths.map((path) => (
               <div key={path.id} className="tut-path-row">
                 <span className="tut-path-title">{path.title}</span>
                 <span className="tut-path-steps tut-no-scrollbar">

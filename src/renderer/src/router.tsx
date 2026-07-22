@@ -24,9 +24,8 @@
  * |18 | /settings/ssh        | SshSettings          | lazy    |
  * |19 | /settings/terminal   | TerminalSettings     | lazy    |
  * |20 | /settings/decision   | DecisionSettings     | lazy    |
- * |21 | /settings/calibration| CalibrationSettings  | lazy    |  v0.9.6 P1 新增：ECE 校准器控制台
- * |22 | /settings/alerts     | AlertsSettings       | lazy    |  告警阈值指引页（nav-alerts 统一 9 项）
- * |23 | /settings/about      | AboutSettings        | lazy    |
+ * |21 | /settings/alerts     | AlertsSettings       | lazy    |  告警阈值指引页（nav-alerts 统一 9 项）
+ * |22 | /settings/about      | AboutSettings        | lazy    |
  *
  * 守卫：
  * - BootPage 完成后才进入 Workbench（用 BootGuard 软守卫，批次 1 不强制）
@@ -100,9 +99,6 @@ const TerminalSettings = lazy(() =>
 const DecisionSettings = lazy(() =>
   import('./pages/DecisionSettings').then((m) => ({ default: m.DecisionSettings })),
 )
-const CalibrationSettings = lazy(() =>
-  import('./pages/CalibrationSettings').then((m) => ({ default: m.CalibrationSettings })),
-)
 const AboutSettings = lazy(() =>
   import('./pages/AboutSettings').then((m) => ({ default: m.AboutSettings })),
 )
@@ -167,7 +163,6 @@ const Router: React.FC = () => {
               <Route path="ssh" element={<SshSettings />} />
               <Route path="terminal" element={<TerminalSettings />} />
               <Route path="decision" element={<DecisionSettings />} />
-              <Route path="calibration" element={<CalibrationSettings />} />
               <Route path="alerts" element={<AlertsSettings />} />
             </Route>
 

@@ -22,7 +22,7 @@
 /* 卡片网格（3 列） */
 .sidecar-status-panel__grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--space-3, 12px);
 }
 

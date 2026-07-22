@@ -21,6 +21,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { TUTORIAL } from '@shared/ipc-channels'
 import type { DatabaseManager } from '../services/db/database'
+import type { TutorialProgress } from '@shared/models'
 import { TutorialRepository } from '../services/tutorial/tutorial-repo'
 import { loadTutorialSeeds, getSeedVersion } from '../services/tutorial/seed-loader'
 import { TutorialCrawlerService } from '../services/tutorial/crawler/tutorial-crawler-service'
@@ -363,6 +364,122 @@ export function registerTutorialIpcHandlers(
         })
         // 抛错让渲染进程捕获
         throw new Error(`路径推荐失败: ${(err as Error).message}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // tutorial:stats — 教程统计聚合
+  // ------------------------------------------------------------------
+  ipcMain.handle(TUTORIAL.STATS, async () => {
+    try {
+      const entries = repo.listAll()
+      const categories = repo.categorySummary()
+      const totalCourses = entries.length
+      const totalViews = entries.reduce((sum, e) => sum + ((e as unknown as { useCount?: number })?.useCount ?? 0), 0)
+      const totalMinutes = entries.reduce((sum, e) => sum + e.readingTime, 0)
+      return {
+        totalCourses,
+        totalViews,
+        totalHours: Math.round(totalMinutes / 60),
+        categoryCount: categories.length,
+      }
+    } catch (err) {
+      throw new Error(`获取教程统计失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ========== v2.3.2 新增：教程学习进度（跨设备同步） ==========
+
+  /**
+   * tutorial:progress — 查询所有教程学习进度
+   *
+   * 用于 TutorialPage 替代 localStorage 过渡方案，实现跨设备同步。
+   * 数据库不可用或表为空时返回空数组（前端展示为"未开始学习"）。
+   *
+   * @returns TutorialProgress[] 按 updatedAt 倒序（最近学习的在前）
+   */
+  ipcMain.handle(TUTORIAL.PROGRESS, (): TutorialProgress[] => {
+    try {
+      if (!db.isAvailable()) return []
+      const rows = db
+        .prepare(
+          `SELECT tutorialId, status, progress, visitedAt, updatedAt
+           FROM user_tutorial_progress
+           ORDER BY updatedAt DESC`
+        )
+        .all() as Array<{
+          tutorialId: string
+          status: string
+          progress: number
+          visitedAt: number
+          updatedAt: number
+        }>
+      return rows.map((r) => ({
+        tutorialId: r.tutorialId,
+        status: r.status === 'completed' ? 'completed' : 'visited',
+        progress: r.progress,
+        visitedAt: r.visitedAt,
+        updatedAt: r.updatedAt,
+      }))
+    } catch (err) {
+      logger.error('TUTORIAL', 'tutorial:progress 失败', { err: (err as Error).message })
+      return []
+    }
+  })
+
+  /**
+   * tutorial:updateProgress — 更新单条教程学习进度（UPSERT）
+   *
+   * 写入策略：
+   *   - 首次写入：visitedAt = updatedAt = Date.now()
+   *   - 再次更新：保留原 visitedAt，仅更新 status / progress / updatedAt
+   *
+   * 幂等性：同一 tutorialId 多次调用只产生一行记录（INSERT OR REPLACE）。
+   *
+   * @param tutorialId 教程 ID
+   * @param status 学习状态（visited / completed）
+   * @param progress 进度百分比 [0, 100]
+   * @returns true 表示写入成功
+   */
+  ipcMain.handle(
+    TUTORIAL.UPDATE_PROGRESS,
+    (_event, tutorialId: string, status: 'visited' | 'completed', progress: number): boolean => {
+      try {
+        if (!tutorialId || typeof tutorialId !== 'string') {
+          throw new Error('tutorialId 参数无效')
+        }
+        if (status !== 'visited' && status !== 'completed') {
+          throw new Error('status 参数无效，必须为 visited 或 completed')
+        }
+        const safeProgress = Math.min(Math.max(Math.floor(progress ?? 0), 0), 100)
+        const now = Date.now()
+
+        // 查询是否已存在记录（保留原 visitedAt）
+        const existing = db
+          .prepare('SELECT visitedAt FROM user_tutorial_progress WHERE tutorialId = ?')
+          .get(tutorialId) as { visitedAt: number } | undefined
+        const visitedAt = existing?.visitedAt ?? now
+
+        // UPSERT：INSERT OR REPLACE 保留主键唯一性
+        db.prepare(
+          `INSERT OR REPLACE INTO user_tutorial_progress
+           (tutorialId, status, progress, visitedAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?)`
+        ).run(tutorialId, status, safeProgress, visitedAt, now)
+
+        logger.info('TUTORIAL', 'tutorial:updateProgress 写入成功', {
+          tutorialId,
+          status,
+          progress: safeProgress,
+        })
+        return true
+      } catch (err) {
+        logger.error('TUTORIAL', 'tutorial:updateProgress 失败', {
+          err: (err as Error).message,
+          tutorialId,
+        })
+        return false
       }
     }
   )

@@ -19,7 +19,7 @@
  */
 
 import type { DatabaseManager } from './database'
-import type { DecisionCard, Evidence, RiskAssessment } from '@shared/models'
+import type { DecisionCard, Evidence, HistoryStats, RiskAssessment } from '@shared/models'
 
 /** 默认每页数量 */
 const DEFAULT_PAGE_SIZE = 20
@@ -54,10 +54,10 @@ export class DecisionRepository {
           `INSERT OR REPLACE INTO decision_cards
            (id, problem, hypothesis, evidences, confidence, risk,
             fixCommand, fixDescription, rollbackCommand, status,
-            timestamp, sessionId)
+            timestamp, sessionId, serverId, durationMs)
            VALUES (@id, @problem, @hypothesis, @evidences, @confidence, @risk,
                    @fixCommand, @fixDescription, @rollbackCommand, @status,
-                   @timestamp, @sessionId)`
+                   @timestamp, @sessionId, @serverId, @durationMs)`
         )
         .run(serialized)
       return true
@@ -114,6 +114,58 @@ export class DecisionRepository {
       return result.changes > 0
     } catch {
       return false
+    }
+  }
+
+  /**
+   * 聚合统计决策历史
+   *
+   * 计算：总数 / 成功数 / 失败数 / 拦截数 / 成功率 / 平均置信度 / 平均耗时 / 服务器列表
+   *
+   * @returns HistoryStats
+   */
+  getStats(): HistoryStats {
+    const rows = this.db
+      .prepare('SELECT status, confidence, durationMs, serverId FROM decision_cards')
+      .all() as Array<{ status: string; confidence: number; durationMs: number | null; serverId: string | null }>
+
+    const total = rows.length
+    if (total === 0) {
+      return {
+        total: 0, success: 0, failed: 0, intercepted: 0,
+        successRate: 0, avgConfidence: 0, avgDurationMs: 0, servers: [],
+      }
+    }
+
+    let success = 0
+    let failed = 0
+    let intercepted = 0
+    let confSum = 0
+    let durSum = 0
+    let durCount = 0
+    const serverSet = new Set<string>()
+
+    for (const r of rows) {
+      if (r.status === 'verified' || r.status === 'executed' || r.status === 'approved') success++
+      else if (r.status === 'failed') failed++
+      else if (r.status === 'rejected') intercepted++
+      confSum += r.confidence
+      if (r.durationMs != null && r.durationMs > 0) {
+        durSum += r.durationMs
+        durCount++
+      }
+      if (r.serverId) serverSet.add(r.serverId)
+    }
+
+    return {
+      total,
+      success,
+      failed,
+      intercepted,
+      successRate: total > 0 ? success / total : 0,
+      avgConfidence: total > 0 ? confSum / total : 0,
+      avgDurationMs: durCount > 0 ? Math.round(durSum / durCount) : 0,
+      servers: Array.from(serverSet),
     }
   }
 
@@ -219,7 +271,9 @@ export class DecisionRepository {
       rollbackCommand: card.rollbackCommand ?? null,
       status: card.status,
       timestamp: card.timestamp,
-      sessionId: card.sessionId ?? null
+      sessionId: card.sessionId ?? null,
+      serverId: card.serverId ?? null,
+      durationMs: card.durationMs ?? null
     }
   }
 
@@ -241,7 +295,9 @@ export class DecisionRepository {
       rollbackCommand: row.rollbackCommand ?? undefined,
       status: row.status as DecisionCard['status'],
       timestamp: row.timestamp,
-      sessionId: row.sessionId ?? undefined
+      sessionId: row.sessionId ?? undefined,
+      serverId: row.serverId ?? undefined,
+      durationMs: row.durationMs ?? undefined
     }
   }
 }
@@ -292,6 +348,8 @@ interface DecisionRow {
   status: string
   timestamp: number
   sessionId: string | null
+  serverId: string | null
+  durationMs: number | null
 }
 
 /** 序列化后的行类型 */
@@ -308,4 +366,6 @@ interface SerializedDecisionRow {
   status: string
   timestamp: number
   sessionId: string | null
+  serverId: string | null
+  durationMs: number | null
 }

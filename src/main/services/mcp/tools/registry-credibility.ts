@@ -1,15 +1,13 @@
 /**
  * MCP 工具注册表 - 决策域（v2.0 Phase F.3）
  *
- * 3 个决策域工具，复用现有可信度融合引擎 + 校准器 + 决策历史仓储：
- * 1. credibility_assess    - 多源证据融合评估（D-S + PCR5 + ECE 校准）
- * 2. credibility_calibrate - Provider 校准（基于历史样本计算最优 T）
- * 3. decision_history      - 决策卡片历史查询（FTS5 全文检索 + LIKE 降级）
+ * 2 个决策域工具，复用现有可信度融合引擎 + 决策历史仓储：
+ * 1. credibility_assess    - 多源证据融合评估（D-S + PCR5）
+ * 2. decision_history      - 决策卡片历史查询（FTS5 全文检索 + LIKE 降级）
  *
  * 论文支撑：
  * - Dempster-Shafer 证据理论（Dempster 1967, Shafer 1976）
  * - PCR5 冲突融合（Smets 2007）
- * - ECE + Temperature Scaling（Guo et al. 2017, arXiv:1706.04599）
  */
 import {
   createMassFunction,
@@ -17,8 +15,6 @@ import {
   UNTRUSTED,
 } from '../../../core/agent/credibility/ds-theory'
 import { getFusionEngine } from '../../../core/agent/credibility/fusion-engine'
-import { getCalibrationTuner } from '../../../core/agent/credibility/calibration/calibration-tuner'
-import type { FuseAssessOptions } from '../../../core/agent/credibility/fusion-engine'
 import type { DatabaseManager } from '../../db/database'
 import { DecisionRepository } from '../../db/decision-repo'
 import type { McpToolRegistration } from './registry'
@@ -69,7 +65,7 @@ function confidenceToMass(
 }
 
 /**
- * 创建决策域 3 个 MCP 工具
+ * 创建决策域 2 个 MCP 工具
  *
  * @param db DatabaseManager 实例（decision_history 工具需要，无 db 时该工具返回错误）
  */
@@ -80,7 +76,7 @@ export function createCredibilityMcpTools(db: DatabaseManager | null): McpToolRe
       meta: {
         name: 'credibility_assess',
         description:
-          '多源证据融合评估可信度（D-S 证据理论 + PCR5 冲突融合 + Temperature Scaling 校准）。输入证据源列表（含 confidence），返回信任区间 [Bel, Pl]、综合可信度、冲突程度、ECE 报告。',
+          '多源证据融合评估可信度（D-S 证据理论 + PCR5 冲突融合）。输入证据源列表（含 confidence），返回信任区间 [Bel, Pl]、综合可信度、冲突程度。',
         inputSchema: {
           type: 'object',
           properties: {
@@ -99,18 +95,6 @@ export function createCredibilityMcpTools(db: DatabaseManager | null): McpToolRe
                   },
                 },
               },
-            },
-            providerId: {
-              type: 'string',
-              description: 'LLM Provider ID（可选，用于按 Provider 查找 T 值）',
-            },
-            applyCalibration: {
-              type: 'boolean',
-              description: '是否应用 Temperature Scaling 校准（默认 true）',
-            },
-            includeEceReport: {
-              type: 'boolean',
-              description: '是否附加 ECE 评估报告（默认 true）',
             },
           },
           required: ['sources'],
@@ -139,24 +123,14 @@ export function createCredibilityMcpTools(db: DatabaseManager | null): McpToolRe
           massFunctions.push(confidenceToMass(sourceId, sourceName, confidence))
         }
 
-        // 构造评估选项
-        const options: FuseAssessOptions = {
-          applyCalibration: args.applyCalibration !== false,
-          includeEceReport: args.includeEceReport !== false,
-        }
-        if (typeof args.providerId === 'string' && args.providerId) {
-          options.providerId = args.providerId
-        }
-
         // 调用融合引擎
         const engine = getFusionEngine()
-        const assessment = engine.fuseAndAssess(massFunctions, options)
+        const assessment = engine.fuseAndAssess(massFunctions)
 
         return toMcpTextResult({
           belief: assessment.belief,
           plausibility: assessment.plausibility,
           confidence: assessment.confidence,
-          calibratedConfidence: assessment.calibratedConfidence,
           uncertainty: assessment.uncertainty,
           conflictLevel: assessment.conflictLevel,
           ruleUsed: assessment.ruleUsed,
@@ -171,119 +145,11 @@ export function createCredibilityMcpTools(db: DatabaseManager | null): McpToolRe
             resultBelief: s.resultBelief,
             resultPlausibility: s.resultPlausibility,
           })),
-          eceReport: assessment.eceReport
-            ? {
-                ece: assessment.eceReport.ece,
-                mce: assessment.eceReport.mce,
-                numBuckets: assessment.eceReport.numBuckets,
-                totalSamples: assessment.eceReport.totalSamples,
-                providerId: assessment.eceReport.providerId,
-              }
-            : undefined,
         })
       },
     },
 
-    // ── 2. credibility_calibrate ──────────────────────────────────
-    {
-      meta: {
-        name: 'credibility_calibrate',
-        description:
-          '校准指定 LLM Provider 的置信度（基于历史样本计算最优 Temperature Scaling 参数 T）。返回校准前/后 ECE、最优 T、改善幅度。也可只查询当前 ECE 不修改 T。',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            providerId: {
-              type: 'string',
-              description: 'LLM Provider ID（如 deepseek/claude/openai/ollama）',
-            },
-            mode: {
-              type: 'string',
-              enum: ['tune', 'query'],
-              description:
-                'tune=触发重新校准（修改 T），query=只查询当前 ECE 不修改（默认 query）',
-            },
-            numBuckets: {
-              type: 'number',
-              description: 'ECE 分桶数（默认 10，最大 20）',
-            },
-          },
-          required: ['providerId'],
-        },
-      },
-      call: async (args) => {
-        const providerId = requireNonString(args.providerId, 'providerId')
-        if (!providerId) {
-          return toMcpErrorResult('参数 providerId 必填且为非空字符串')
-        }
-        const mode = args.mode === 'tune' ? 'tune' : 'query'
-        const numBucketsRaw = typeof args.numBuckets === 'number' ? args.numBuckets : 10
-        const numBuckets = Math.max(1, Math.min(20, Math.floor(numBucketsRaw)))
-
-        const tuner = getCalibrationTuner()
-        const sampleCount = tuner.getSampleCount(providerId)
-        const beforeCalibration = tuner.getProviderCalibration(providerId)
-
-        if (mode === 'query') {
-          // 查询模式：只计算当前 ECE，不修改 T
-          const ece = tuner.computeEce(providerId, numBuckets)
-          return toMcpTextResult({
-            mode: 'query',
-            providerId,
-            sampleCount,
-            currentT: beforeCalibration.optimalT,
-            lastCalibratedAt: beforeCalibration.lastCalibratedAt || undefined,
-            eceBefore: beforeCalibration.eceBefore || undefined,
-            eceAfter: beforeCalibration.eceAfter || undefined,
-            currentEce: {
-              ece: ece.ece,
-              mce: ece.mce,
-              numBuckets: ece.numBuckets,
-              totalSamples: ece.totalSamples,
-              buckets: ece.bucketStats.map((b) => ({
-                range: `[${b.bucketLower.toFixed(2)}, ${b.bucketUpper.toFixed(2)})`,
-                avgConfidence: b.avgConfidence,
-                accuracy: b.accuracy,
-                calibrationGap: b.calibrationGap,
-                count: b.count,
-              })),
-            },
-          })
-        }
-
-        // tune 模式：触发重新校准
-        if (sampleCount < 20) {
-          return toMcpTextResult({
-            mode: 'tune',
-            providerId,
-            sampleCount,
-            success: false,
-            message: `样本数不足（${sampleCount} < 20），无法触发重新校准`,
-          })
-        }
-
-        const result = tuner.tuneProvider(providerId, { numBuckets })
-        return toMcpTextResult({
-          mode: 'tune',
-          providerId,
-          sampleCount,
-          success: true,
-          optimalT: result.optimalT,
-          eceBefore: result.eceBefore,
-          eceAfter: result.eceAfter,
-          improvement: result.improvement,
-          searchTrace: result.searchTrace.map((t) => ({
-            t: t.t,
-            ece: t.ece,
-            nll: t.nll,
-          })),
-          calibratedAt: result.calibratedAt,
-          message: `校准完成：T=${result.optimalT.toFixed(4)}, ECE ${result.eceBefore.toFixed(4)} → ${result.eceAfter.toFixed(4)} (改善 ${(result.improvement * 100).toFixed(2)}%)`,
-        })
-      },
-    },
-
-    // ── 3. decision_history ───────────────────────────────────────
+    // ── 2. decision_history ───────────────────────────────────────
     {
       meta: {
         name: 'decision_history',
@@ -337,13 +203,11 @@ export function createCredibilityMcpTools(db: DatabaseManager | null): McpToolRe
 /** 决策域工具名清单 */
 export const CREDIBILITY_TOOL_NAMES = [
   'credibility_assess',
-  'credibility_calibrate',
   'decision_history',
 ] as const
 
 /** 决策域工具元数据（用于 listRegisteredTools 展示） */
 export const CREDIBILITY_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'credibility_assess', description: '多源证据融合评估可信度（D-S + PCR5 + ECE 校准）' },
-  { name: 'credibility_calibrate', description: '校准指定 LLM Provider 的置信度（Temperature Scaling）' },
+  { name: 'credibility_assess', description: '多源证据融合评估可信度（D-S + PCR5）' },
   { name: 'decision_history', description: '查询历史决策卡片（FTS5 全文检索）' },
 ]

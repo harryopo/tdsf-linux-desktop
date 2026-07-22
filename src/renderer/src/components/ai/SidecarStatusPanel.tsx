@@ -45,8 +45,6 @@ import {
   ReloadOutlined,
   ApiOutlined,
   ExperimentOutlined,
-  BarChartOutlined,
-  RobotOutlined,
   BulbOutlined,
 } from '@ant-design/icons'
 import './SidecarStatusPanel.css'
@@ -56,9 +54,9 @@ const { Text, Paragraph } = Typography
 /** 状态类型（与 main/core/sidecar/sidecar-manager.ts SidecarStatus 对齐） */
 type SidecarStatus = 'stopped' | 'starting' | 'ready' | 'degraded' | 'crashed'
 
-/** 单个 Sidecar 状态项（与 main/ipc/sidecar.ts sidecar:list-status 返回对齐） */
+/** 单个 Sidecar 状态项 */
 interface SidecarItem {
-  id: 'sre' | 'analytics' | 'agent'
+  id: 'sre'
   name: string
   port: number
   status: SidecarStatus
@@ -110,8 +108,6 @@ const STATUS_CONFIG: Record<
 /** Sidecar 类型图标映射 */
 const SIDECAR_ICON: Record<string, React.ReactNode> = {
   sre: <ExperimentOutlined />,
-  analytics: <BarChartOutlined />,
-  agent: <RobotOutlined />,
 }
 
 /** Sidecar 类型标签映射 */
@@ -120,16 +116,6 @@ const SIDECAR_TAG: Record<string, { tag: string; color: string; note: string }> 
     tag: 'SRE',
     color: 'purple',
     note: 'Drain3 + OpenDerisk + 可选 LLM 增强',
-  },
-  analytics: {
-    tag: 'Analytics',
-    color: 'blue',
-    note: 'DoWhy + Phoenix（v1.5 占位，v1.6 真实集成）',
-  },
-  agent: {
-    tag: 'Agent',
-    color: 'cyan',
-    note: 'smolagents + AgentScope（v1.5 占位，v1.6 真实集成）',
   },
 }
 
@@ -147,12 +133,6 @@ const SidecarStatusPanel: React.FC<SidecarStatusPanelProps> = ({ open, onClose }
   /** 记录每个 sidecar 正在进行的操作（用于按钮 loading） */
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [lastRefresh, setLastRefresh] = useState<number>(0)
-  /** 占位端点测试响应（用于弹窗展示，替代 console.log） */
-  const [toolCallResult, setToolCallResult] = useState<{
-    sidecarId: string
-    endpoint: string
-    data: unknown
-  } | null>(null)
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // ============================================================
@@ -223,35 +203,6 @@ const SidecarStatusPanel: React.FC<SidecarStatusPanelProps> = ({ open, onClose }
   }, [refresh])
 
   // ============================================================
-  // 测试占位端点（仅 Sidecar-B/C）
-  // ============================================================
-  const handleTestToolCall = useCallback(async (sidecarId: SidecarItem['id']) => {
-    if (!window.electronAPI?.sidecarToolCall) return
-    setBusy((prev) => ({ ...prev, [sidecarId]: true }))
-    try {
-      // Sidecar-B 测 /analytics/dowhy，Sidecar-C 测 /agent/code-task
-      const endpoint = sidecarId === 'analytics' ? '/analytics/dowhy' : '/agent/code-task'
-      const payload =
-        sidecarId === 'analytics'
-          ? { treatment: 'latency', outcome: 'errors', confounders: ['load', 'cpu'] }
-          : { task: '写一个 hello world 函数' }
-      const resp = await window.electronAPI.sidecarToolCall(sidecarId, endpoint, payload)
-      if (resp.ok) {
-        message.success(`占位端点调用成功（${endpoint}）`)
-        // 将占位响应存入状态，由结果弹窗展示（替代 console.log 占位）
-        setToolCallResult({ sidecarId, endpoint, data: resp.data })
-      } else {
-        message.error(`占位调用失败：${resp.error ?? 'unknown'}`)
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      message.error(`占位调用异常：${errMsg}`)
-    } finally {
-      setBusy((prev) => ({ ...prev, [sidecarId]: false }))
-    }
-  }, [])
-
-  // ============================================================
   // 生命周期：open 时启动轮询，关闭时清理
   // ============================================================
   useEffect(() => {
@@ -290,9 +241,9 @@ const SidecarStatusPanel: React.FC<SidecarStatusPanelProps> = ({ open, onClose }
       title={
         <Space>
           <ApiOutlined style={{ color: 'var(--color-primary)' }} />
-          <span>多 Sidecar 状态面板（v1.5）</span>
+          <span>Sidecar 状态面板（v1.5）</span>
           <Tag color="default" style={{ marginLeft: 8 }}>
-            A / B / C 三进程隔离
+            Sidecar-A 进程隔离
           </Tag>
         </Space>
       }
@@ -304,7 +255,7 @@ const SidecarStatusPanel: React.FC<SidecarStatusPanelProps> = ({ open, onClose }
           <div className="sidecar-status-panel__toolbar">
             <Space size="middle">
               <Text type="secondary">
-                <BulbOutlined /> Sidecar-A 为生产就绪；B/C 为 v1.5 占位（v1.6 真实集成）
+                <BulbOutlined /> Sidecar-A 为生产就绪
               </Text>
             </Space>
             <Space>
@@ -410,20 +361,6 @@ const SidecarStatusPanel: React.FC<SidecarStatusPanelProps> = ({ open, onClose }
                           启动
                         </Button>
                       )}
-                      {/* 占位端点测试（仅 B/C） */}
-                      {item.id !== 'sre' && (
-                        <Tooltip title={`测试 ${item.id === 'analytics' ? '/analytics/dowhy' : '/agent/code-task'} 占位端点`}>
-                          <Button
-                            size="small"
-                            icon={<ExperimentOutlined />}
-                            loading={busy[item.id]}
-                            onClick={() => handleTestToolCall(item.id)}
-                            disabled={!isRunning}
-                          >
-                            测试占位
-                          </Button>
-                        </Tooltip>
-                      )}
                     </div>
                   </Card>
                 )
@@ -453,53 +390,6 @@ const SidecarStatusPanel: React.FC<SidecarStatusPanelProps> = ({ open, onClose }
           </div>
         </div>
       </Spin>
-
-      {/* 占位端点测试响应弹窗（替代 console.log，便于直观查看返回数据） */}
-      <Modal
-        open={toolCallResult !== null}
-        onCancel={() => setToolCallResult(null)}
-        onOk={() => setToolCallResult(null)}
-        footer={null}
-        width={640}
-        title={
-          <Space>
-            <ExperimentOutlined style={{ color: 'var(--color-primary)' }} />
-            <span>占位端点响应</span>
-            {toolCallResult && (
-              <Tag color={SIDECAR_TAG[toolCallResult.sidecarId]?.color ?? 'default'}>
-                {SIDECAR_TAG[toolCallResult.sidecarId]?.tag ?? toolCallResult.sidecarId}
-              </Tag>
-            )}
-          </Space>
-        }
-        destroyOnClose
-      >
-        {toolCallResult && (
-          <div>
-            <Paragraph type="secondary" style={{ fontSize: 12 }}>
-              端点：<Text code>{toolCallResult.endpoint}</Text>
-            </Paragraph>
-            <pre
-              style={{
-                maxHeight: 360,
-                overflow: 'auto',
-                padding: 12,
-                borderRadius: 6,
-                background: 'var(--color-bg-elevated)',
-                fontSize: 12,
-                lineHeight: 1.6,
-              }}
-            >
-              {JSON.stringify(toolCallResult.data, null, 2)}
-            </pre>
-            <div style={{ textAlign: 'right', marginTop: 12 }}>
-              <Button type="primary" onClick={() => setToolCallResult(null)}>
-                关闭
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </Modal>
   )
 }

@@ -21,6 +21,14 @@ import type {
   KnowledgeEntry,
   KnowledgeType,
   DecisionCard,
+  KbViewHistoryEntry,
+  HistoryStats,
+  TutorialStats,
+  // v2.3.2 新增：模型统计 + 预算告警类型
+  ToolCallStat,
+  BudgetAlert,
+  // v2.3.2 新增：教程学习进度类型（跨设备同步）
+  TutorialProgress,
   AgentWorkflowState,
   ProfilerRunResponse,
   // v0.9.5 P0 新增：MCP 5 阶段状态机
@@ -98,14 +106,6 @@ import type {
   CredibilityEvidenceInput,
   ConfidenceAssessment,
   DagData,
-  // v0.9.6 P1 新增：ECE 校准器共享类型（CalibrationTuner）
-  CalibrationSample,
-  CalibrationState,
-  EceResult,
-  OptimizeTOptions,
-  ProviderCalibration,
-  ProviderId,
-  TemperatureScalingResult,
 } from '@shared/agent-types'
 
 // v0.9.5 P0 新增：5 组缺失 IPC 通道共享类型（成本透明 / 模式切换 / 注意力 / Subagent / Provider 信息）
@@ -890,6 +890,18 @@ export interface ElectronAPI {
    */
   appGetInfo(): Promise<AppInfo>
 
+  /**
+   * 导出模型配置与统计
+   *
+   * 通道：app:export-model-stats
+   * 使用场景：ModelSettings 页面"导出统计"按钮，将当前模型配置、KPI、预算信息
+   * 写入 userData/exports/model-stats-YYYYMMDD-HHmmss.json。
+   *
+   * @param stats 渲染进程构造的统计对象（建议已脱敏，不含明文 apiKey）
+   * @returns { filePath: string; size: number } 写入后的文件路径与字节数
+   */
+  appExportModelStats(stats: unknown): Promise<{ filePath: string; size: number }>
+
   // ===== v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image） =====
   // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
   // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
@@ -1087,76 +1099,8 @@ export interface ElectronAPI {
    */
   credibilityDag(inputs: CredibilityEvidenceInput[]): Promise<DagData>
 
-  // v0.9.6 P1：ECE 校准器 API（Temperature Scaling，按 Provider 分类）
-  // 论文支撑：Guo et al. 2017, "On Calibration of Modern Neural Networks", ICML
-  //   arXiv:1706.04599 §3.1-3.2
-
-  /**
-   * 触发指定 Provider 的重新校准
-   *
-   * 基于历史决策样本网格搜索最优 Temperature Scaling 参数 T 值。
-   * 不同 LLM（DeepSeek / Claude / GPT / Ollama）应使用不同 T。
-   *
-   * @param providerId Provider ID（如 'deepseek' / 'claude'）
-   * @param options 可选优化参数（tMin / tMax / tSteps / numBuckets / minSamples）
-   * @returns TemperatureScalingResult（最优 T、ECE 改善、searchTrace）
-   */
-  credibilityCalibrate(
-    providerId: ProviderId,
-    options?: OptimizeTOptions
-  ): Promise<TemperatureScalingResult>
-
-  /**
-   * 获取指定 Provider 的当前校准状态
-   *
-   * 未校准过的 Provider 返回 optimalT = defaultT = 1.0
-   *
-   * @param providerId Provider ID
-   * @returns ProviderCalibration（optimalT / lastCalibratedAt / sampleCount / ece）
-   */
-  credibilityGetCalibration(providerId: ProviderId): Promise<ProviderCalibration>
-
-  /**
-   * 获取全局校准状态（含所有 Provider 的 T 值表）
-   *
-   * @returns CalibrationState（providers + defaultT + updatedAt）
-   */
-  credibilityGetCalibrationState(): Promise<CalibrationState>
-
-  /**
-   * 重置指定 Provider 的校准（T 回到 defaultT=1.0）
-   *
-   * @param providerId Provider ID
-   * @returns boolean（是否成功重置）
-   */
-  credibilityResetCalibration(providerId: ProviderId): Promise<boolean>
-
-  /**
-   * 计算指定 Provider 的当前 ECE（不修改 T）
-   *
-   * 用于 UI 实时展示校准质量，不触发重新校准。
-   *
-   * @param providerId Provider ID
-   * @param numBuckets 可选分桶数（默认 10）
-   * @returns EceResult（ECE / MCE / 各桶统计 / 总样本数）
-   */
-  credibilityComputeEce(
-    providerId: ProviderId,
-    numBuckets?: number
-  ): Promise<EceResult>
-
-  /**
-   * 记录新的校准样本（决策卡验证后回灌 ground truth）
-   *
-   * 满足 RETUNE_THRESHOLD 阈值后，下次 calibrate 会重新计算最优 T。
-   *
-   * @param sample CalibrationSample（决策 ID、置信度、是否正确、Provider、时间戳）
-   * @returns boolean（是否成功入库）
-   */
-  credibilityAddCalibrationSample(sample: CalibrationSample): Promise<boolean>
-
   // ========================================================================
-  // v0.9.6 P2：EU AI Act 合规审计报告（4 个新通道）
+  // v0.9.6 P2：审计报告（4 个新通道）
   // ========================================================================
 
   /**
@@ -1222,6 +1166,12 @@ export interface ElectronAPI {
   kbImport(entries: KnowledgeEntry[]): Promise<number>
   /** 导出知识库 */
   kbExport(type?: KnowledgeType): Promise<KnowledgeEntry[]>
+  /** 记录浏览（自增 useCount + 写浏览历史） */
+  kbView(id: string): Promise<boolean>
+  /** 热门知识（按 useCount 降序） */
+  kbHot(limit?: number): Promise<KnowledgeEntry[]>
+  /** 最近浏览记录 */
+  kbRecentViews(limit?: number): Promise<KbViewHistoryEntry[]>
 
   // ===== 决策历史 =====
   /** 获取决策历史列表 */
@@ -1230,6 +1180,8 @@ export interface ElectronAPI {
   historyGet(id: string): Promise<DecisionCard | null>
   /** 保存决策记录 */
   historySave(card: DecisionCard): Promise<boolean>
+  /** 决策统计聚合（成功率/平均耗时等） */
+  historyStats(): Promise<HistoryStats>
 
   // ===== 系统架构感知 =====
   /** 执行 27 项并发探查 + 风险检测 + md 渲染 */
@@ -1317,6 +1269,24 @@ export interface ElectronAPI {
    * @returns TutorialPath[]（按融合分数排序的学习路径）
    */
   tutorialRecommendPath(options?: RecommendPathOptions): Promise<TutorialPath[]>
+  /** 教程统计（总课程/总浏览/总课时/分类数） */
+  tutorialStats(): Promise<TutorialStats>
+  /** 教程学习进度列表（跨设备同步，按 updatedAt 倒序） */
+  tutorialProgress(): Promise<TutorialProgress[]>
+  /** 更新单条教程学习进度（UPSERT，tutorialId + status + progress） */
+  tutorialUpdateProgress(
+    tutorialId: string,
+    status: 'visited' | 'completed',
+    progress: number,
+  ): Promise<boolean>
+
+  // ===== v2.3.2 模型统计 + 预算告警 =====
+  /** 工具调用统计（按工具名聚合 count + percent，表为空时返回空数组） */
+  modelToolCalls(): Promise<ToolCallStat[]>
+  /** 预算告警历史（最近 N 条，默认 20） */
+  budgetAlerts(limit?: number): Promise<BudgetAlert[]>
+  /** 按 decisionId 简化导出 HTML 报告（返回文件路径） */
+  credibilityExportAudit(decisionId: string, format: string): Promise<string>
 
   // ===== 教程爬虫（v0.6.0）=====
   /** 列出所有可用源（含元信息、license、kind） */
@@ -1802,12 +1772,12 @@ export interface ElectronAPI {
     | { ok: false; error: string }
   >
 
-  // ===== v1.5 新增：多 Sidecar 状态管理（A/B/C 三 Sidecar 架构）=====
+  // ===== v1.5 新增：Sidecar 状态管理 =====
   /**
    * 单个 Sidecar 状态项（v1.5）
-   * - id: sre / analytics / agent
+   * - id: sre
    * - name: 中文显示名
-   * - port: 监听端口（19000/19001/19002）
+   * - port: 监听端口（19000）
    * - status: 状态（stopped/starting/ready/degraded/crashed）
    * - lastError: 最近一次错误（crashed 时显示）
    */
@@ -1816,7 +1786,7 @@ export interface ElectronAPI {
     data?: Record<
       string,
       {
-        id: 'sre' | 'analytics' | 'agent'
+        id: 'sre'
         name: string
         port: number
         status: 'stopped' | 'starting' | 'ready' | 'degraded' | 'crashed'
@@ -1831,21 +1801,21 @@ export interface ElectronAPI {
    * @param sidecarId 'sre' | 'analytics' | 'agent'
    */
   sidecarStartOne(
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: 'sre',
   ): Promise<{ ok: boolean; status: string; error?: string }>
   /**
    * 停止指定 Sidecar（v1.5）
    * 通道：sidecar:stop-one
    */
   sidecarStopOne(
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: 'sre',
   ): Promise<{ ok: boolean }>
   /**
    * 单个 Sidecar 健康检查（v1.5）
    * 通道：sidecar:health-one
    */
   sidecarHealthOne(
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: 'sre',
   ): Promise<{
     ok: boolean
     error?: string
@@ -1855,15 +1825,14 @@ export interface ElectronAPI {
     uptime_seconds?: number
   }>
   /**
-   * 通用 Sidecar 工具调用（v1.5 多 Sidecar 架构）
-   * 用于 Sidecar-B/C 的占位端点（dowhy/phoenix/smolagents/agentscope）
+   * 通用 Sidecar 工具调用
    * 通道：sidecar:tool-call
    *
    * @example
-   * window.electronAPI.sidecarToolCall('analytics', '/analytics/dowhy', { treatment, outcome, confounders })
+   * window.electronAPI.sidecarToolCall('sre', '/some/endpoint', { ... })
    */
   sidecarToolCall(
-    sidecarId: 'sre' | 'analytics' | 'agent',
+    sidecarId: 'sre',
     endpoint: string,
     payload?: unknown,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }>
@@ -1889,6 +1858,24 @@ export interface ElectronAPI {
    * @returns TutorialPath[]（按融合分数排序的学习路径）
    */
   tutorialRecommendPath(options?: RecommendPathOptions): Promise<TutorialPath[]>
+  /** 教程统计 */
+  tutorialStats(): Promise<TutorialStats>
+  /** 教程学习进度列表（跨设备同步，按 updatedAt 倒序） */
+  tutorialProgress(): Promise<TutorialProgress[]>
+  /** 更新单条教程学习进度（UPSERT，tutorialId + status + progress） */
+  tutorialUpdateProgress(
+    tutorialId: string,
+    status: 'visited' | 'completed',
+    progress: number,
+  ): Promise<boolean>
+
+  // ===== v2.3.2 模型统计 + 预算告警（第二处声明）=====
+  /** 工具调用统计 */
+  modelToolCalls(): Promise<ToolCallStat[]>
+  /** 预算告警历史 */
+  budgetAlerts(limit?: number): Promise<BudgetAlert[]>
+  /** 按 decisionId 简化导出 HTML 报告 */
+  credibilityExportAudit(decisionId: string, format: string): Promise<string>
 
   // ===== v1.5 循环工程子 Agent（loop:* 通道）=====
   /** 启动循环工程（假设生成 + 7步HITL工作流） */

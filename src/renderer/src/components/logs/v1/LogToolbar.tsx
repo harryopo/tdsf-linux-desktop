@@ -16,7 +16,7 @@
  *   - 自动滚动 switch（useState 由父组件控制）
  *   - 刷新 / 导出 按钮（onClick 回调）
  */
-import { Search, RefreshCw, Download, Sparkles } from 'lucide-react'
+import { Search, RefreshCw, Download } from 'lucide-react'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -28,10 +28,6 @@ export function LogToolbar({
   onKeywordChange,
   activeLevel,
   onLevelChange,
-  autoScroll,
-  onAutoScrollChange,
-  onAnalyze,
-  analyzing,
   onRefresh,
   onExport,
 }: {
@@ -39,10 +35,6 @@ export function LogToolbar({
   onKeywordChange: (v: string) => void
   activeLevel: LogLevel | 'ALL'
   onLevelChange: (level: LogLevel | 'ALL') => void
-  autoScroll: boolean
-  onAutoScrollChange: (v: boolean) => void
-  onAnalyze: () => void
-  analyzing: boolean
   onRefresh: () => void
   onExport: () => void
 }) {
@@ -79,31 +71,6 @@ export function LogToolbar({
 
       {/* 3. 右侧 cluster */}
       <div className="log-right-cluster flex shrink-0 items-center">
-        {/* AI 分析按钮 */}
-        <button
-          type="button"
-          onClick={onAnalyze}
-          disabled={analyzing}
-          aria-label={analyzing ? 'AI 分析中' : 'AI 分析当前日志'}
-          className="log-btn-press log-ai-btn inline-flex items-center justify-center transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <Sparkles size={13} style={{ color: 'var(--trae-icon-brand)' }} />
-          <span>{analyzing ? '分析中…' : 'AI 分析'}</span>
-        </button>
-
-        {/* 自动滚动 switch */}
-        <label
-          className="log-autoscroll-label flex cursor-pointer select-none items-center"
-          onClick={() => onAutoScrollChange(!autoScroll)}
-        >
-          <span className={`log-switch ${autoScroll ? 'is-on' : ''}`}>
-            <span
-              className={`log-switch-thumb ${autoScroll ? 'is-on' : 'is-off'}`}
-            />
-          </span>
-          <span className="log-autoscroll-text">自动滚动</span>
-        </label>
-
         {/* 刷新按钮 */}
         <button
           type="button"

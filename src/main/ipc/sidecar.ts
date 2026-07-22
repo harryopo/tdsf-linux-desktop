@@ -8,24 +8,24 @@
  * - 'sidecar:health'    → health（健康检查）
  * - 'sidecar:pipeline'  → runPipeline（端到端 pipeline：日志 → Drain3 → OpenDerisk）
  *
- * v1.5 新增通道（多 Sidecar 架构）：
- * - 'sidecar:list-status'  → 列出所有 sidecar 状态（A/B/C）
- * - 'sidecar:start-one'    → 启动指定 sidecar（sre/analytics/agent）
- * - 'sidecar:stop-one'     → 停止指定 sidecar
- * - 'sidecar:health-one'   → 单个 sidecar 的健康检查
- * - 'sidecar:tool-call'    → 通用工具调用（Sidecar-B/C 占位端点）
+ * v1.5 新增通道：
+ * - 'sidecar:list-status'  → 列出 sidecar 状态
+ * - 'sidecar:start-one'    → 启动 sidecar
+ * - 'sidecar:stop-one'     → 停止 sidecar
+ * - 'sidecar:health-one'   → sidecar 的健康检查
+ * - 'sidecar:tool-call'    → 通用工具调用
  * - 'sidecar:parse-logs'   → 单独调 Drain3 解析（不调 OpenDerisk）
  *
  * 设计原则：
  * - 单一职责：本文件只做 IPC 通道注册，业务逻辑在 SidecarManager
  * - 错误向上抛：主进程捕获后返回 500 状态 + 错误消息给渲染进程
  * - 启动幂等：start 调用多次只启动一次（SidecarManager 内部已保证）
- * - v1.5：start/stop/health 仍保留单数版（向后兼容 Sidecar-A），新增复数版支持多 sidecar
+ * - v1.5：start/stop/health 兼容 Single/Multi 通道
  *
  * 使用场景：
  * - ChatPanel 顶部按钮"🔍 SRE 诊断" → 调用 sidecar:start → 提示用户输入日志 → 调用 sidecar:pipeline → 展示诊断结果
- * - SidecarStatusPanel 启动时 → 调用 sidecar:list-status → 展示 A/B/C 状态卡
- * - 用户点击 Sidecar-B 启动 → 调用 sidecar:start-one('analytics') → 调 tool-call 测试占位
+ * - SidecarStatusPanel 启动时 → 调用 sidecar:list-status → 展示 Sidecar 状态
+ * - 用户点击 Sidecar-A 启动 → 调用 sidecar:start-one('sre')
  */
 
 import { ipcMain } from 'electron'
@@ -139,7 +139,7 @@ export function registerSidecarIpcHandlers(): void {
       const statuses = getAllSidecarStatuses()
       // 合并 SIDECAR_CONFIGS 中的元数据（name/port）
       const data: Record<string, { id: string; name: string; port: number; status: SidecarStatus; lastError: string | null }> = {}
-      for (const [id, config] of Object.entries(SIDECAR_CONFIGS)) {
+      for (const [id, config] of Object.entries(SIDECAR_CONFIGS).filter(([k]) => k === 'sre')) {
         const s = statuses[id] ?? { status: 'stopped' as SidecarStatus, lastError: null }
         data[id] = {
           id,
@@ -162,7 +162,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   ipcMain.handle(
     'sidecar:start-one',
-    async (_event, sidecarId: 'sre' | 'analytics' | 'agent') => {
+    async (_event, sidecarId: string) => {
       logger.info('IPC.Sidecar', `用户请求启动 ${sidecarId}`)
       try {
         const m = getSidecarManager(sidecarId)
@@ -200,7 +200,7 @@ export function registerSidecarIpcHandlers(): void {
   // ------------------------------------------------------------------
   ipcMain.handle(
     'sidecar:health-one',
-    async (_event, sidecarId: 'sre' | 'analytics' | 'agent') => {
+    async (_event, sidecarId: string) => {
       try {
         const m = getSidecarManager(sidecarId)
         const health = await m.health()
@@ -214,13 +214,13 @@ export function registerSidecarIpcHandlers(): void {
 
   // ------------------------------------------------------------------
   // sidecar:tool-call — 通用 Sidecar 工具调用
-  // 用于 Sidecar-B/C 的占位端点（dowhy/phoenix/smolagents/agentscope）
+  // 通用 Sidecar 工具调用
   // ------------------------------------------------------------------
   ipcMain.handle(
     'sidecar:tool-call',
     async (
       _event,
-      sidecarId: 'sre' | 'analytics' | 'agent',
+      sidecarId: string,
       endpoint: string,
       payload: unknown,
     ) => {
@@ -278,7 +278,7 @@ export function registerSidecarIpcHandlers(): void {
     },
   )
 
-  logger.info('IPC.Sidecar', 'Sidecar IPC handlers 注册完成（5 v1.0 + 6 v1.5 = 11 通道）')
+  logger.info('IPC.Sidecar', 'Sidecar IPC handlers 注册完成')
 }
 
 /**
