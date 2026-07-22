@@ -22,9 +22,12 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { spawn } from 'node:child_process'
-import { SSH } from '@shared/ipc-channels'
+import { z } from 'zod'
+import { SSH, SFTP, TERMINAL } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { SftpManager } from '../services/ssh/sftp'
+import { logger } from '../services/log/logger'
+import { redactSecrets } from '../core/agent/providers/redact'
 import type {
   SshConfig,
   SshHostKeyPromptEvent,
@@ -35,8 +38,74 @@ import type {
   GenerateKeyPairResponse,
 } from '@shared/models'
 
-/** 终端数据推送通道名 */
-const TERMINAL_DATA_CHANNEL = 'terminal:data'
+// ============================================================================
+// v2.2 修复问题 #41：ssh:exec 高危命令拦截
+// ============================================================================
+// 设计要点：
+// - 审计日志：每次 ssh:exec 调用都记录 sessionId + command（脱敏后）到 logger
+// - 黑名单拦截：匹配高危命令模式的直接拒绝，返回错误，不透传到 SSH 通道
+// - 完整 HITL 审批成本高（需复用 sandbox-approval 机制），此处采用简化方案
+//   后续如需完整审批，可接入 task-permission-approval 通道
+// ============================================================================
+
+/**
+ * 高危命令黑名单（匹配则拦截，不执行）
+ *
+ * 覆盖场景：
+ * - rm -rf /           递归删除根目录
+ * - shutdown / reboot  关机重启
+ * - mkfs.*             格式化文件系统
+ * - dd ... of=/dev/    写入块设备
+ * - chmod 777 /        危险权限
+ * - :(){:|:&};:        fork 炸弹
+ * - > /dev/sda         覆盖块设备
+ */
+const DANGEROUS_COMMAND_PATTERNS: RegExp[] = [
+  /^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r?)\s+\/(\s|$)/, // rm -rf /
+  /^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r?)\s+\/\*\s*/,   // rm -rf /*
+  /^\s*shutdown\b/,
+  /^\s*reboot\b/,
+  /^\s*poweroff\b/,
+  /^\s*halt\b/,
+  /^\s*init\s+0\b/,
+  /^\s*mkfs\b/,
+  /^\s*dd\b.*\bof=\/dev\//,
+  /^\s*chmod\s+777\s+\/(\s|$)/,
+  /^\s*:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, // fork bomb
+  /^\s*>\s*\/dev\/(sd|nvme|vd)/,
+]
+
+/**
+ * 检查命令是否为高危命令
+ *
+ * @param command 用户输入的命令
+ * @returns true 表示高危，应拦截
+ */
+function isDangerousCommand(command: string): boolean {
+  const trimmed = command.trim()
+  for (const pattern of DANGEROUS_COMMAND_PATTERNS) {
+    pattern.lastIndex = 0
+    if (pattern.test(trimmed)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * v2.3 修复问题 #41 补齐：ssh:exec 入参 zod 校验 schema（B9 用户输入 IPC 必须校验）
+ *
+ * 校验规则：
+ * - sessionId: 非空字符串，长度 1-200（防止超长字符串攻击）
+ * - command: 非空字符串，长度 1-10000（防止超长命令导致 SSH 通道阻塞）
+ */
+const sshExecSchema = z.object({
+  sessionId: z.string().min(1).max(200),
+  command: z.string().min(1).max(10000),
+})
+
+/** 终端数据推送通道名（引用共享常量，保持与 preload 一致） */
+const TERMINAL_DATA_CHANNEL = TERMINAL.DATA
 
 /**
  * Phase L：主机密钥确认弹窗 pending request 表
@@ -136,8 +205,8 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
 
   /** ssh:connect — 建立 SSH 连接，返回 sessionId */
   ipcMain.handle(SSH.CONNECT, async (_event, config: SshConfig) => {
-    // 调试日志：输出收到的连接配置（脱敏）
-    console.log('[SSH] 收到连接请求:', {
+    // 调试日志：输出收到的连接配置（不记录密码/私钥原文，仅记录存在性）
+    logger.debug('SSH', '收到连接请求', {
       host: config.host,
       port: config.port,
       username: config.username,
@@ -151,8 +220,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       const sessionId = await sshManager.connect(config)
       return sessionId
     } catch (err) {
-      console.error('[SSH] 连接失败:', (err as Error).message)
-      throw new Error(`SSH 连接失败: ${(err as Error).message}`)
+      const safeMsg = redactSecrets((err as Error).message)
+      logger.error('SSH', '连接失败', { error: safeMsg })
+      throw new Error(`SSH 连接失败: ${safeMsg}`)
     }
   })
 
@@ -161,18 +231,48 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     try {
       return await sshManager.disconnect(sessionId)
     } catch (err) {
-      throw new Error(`SSH 断开失败: ${(err as Error).message}`)
+      const safeMsg = redactSecrets((err as Error).message)
+      logger.error('SSH', '断开失败', { sessionId, error: safeMsg })
+      throw new Error(`SSH 断开失败: ${safeMsg}`)
     }
   })
 
-  /** ssh:exec — 执行命令 */
+  /** ssh:exec — 执行命令（含 zod 校验 + 审计日志 + 高危命令拦截） */
   ipcMain.handle(
-    'ssh:exec',
+    SSH.EXEC,
     async (_event, sessionId: string, command: string) => {
+      // v2.3 修复问题 #41 补齐：zod schema 校验（B9 用户输入 IPC 必须校验）
+      const parsed = sshExecSchema.safeParse({ sessionId, command })
+      if (!parsed.success) {
+        const issues = parsed.error.issues
+          .map((i) => `${i.path.join('.')}: ${i.message}`)
+          .join('; ')
+        logger.warn('SSH', 'exec 入参校验失败', { issues })
+        throw new Error(`SSH exec 参数无效: ${issues}`)
+      }
+      const { sessionId: safeSessionId, command: safeCommand } = parsed.data
+
+      // v2.2 修复问题 #41：命令审计日志（谁在什么时候执行了什么命令）
+      logger.info('SSH', 'exec 审计', {
+        sessionId: safeSessionId,
+        command: redactSecrets(safeCommand),
+      })
+
+      // 高危命令黑名单拦截（简化方案，替代完整 HITL 审批）
+      if (isDangerousCommand(safeCommand)) {
+        logger.warn('SSH', '高危命令已拦截', {
+          sessionId: safeSessionId,
+          command: redactSecrets(safeCommand),
+        })
+        throw new Error('高危命令已被拦截，请通过终端手动执行')
+      }
+
       try {
-        return await sshManager.exec(sessionId, command)
+        return await sshManager.exec(safeSessionId, safeCommand)
       } catch (err) {
-        throw new Error(`命令执行失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '命令执行失败', { sessionId: safeSessionId, error: safeMsg })
+        throw new Error(`命令执行失败: ${safeMsg}`)
       }
     }
   )
@@ -197,30 +297,36 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       })
       return true
     } catch (err) {
-      throw new Error(`启动 Shell 失败: ${(err as Error).message}`)
+      const safeMsg = redactSecrets((err as Error).message)
+      logger.error('SSH', '启动 Shell 失败', { sessionId, error: safeMsg })
+      throw new Error(`启动 Shell 失败: ${safeMsg}`)
     }
   })
 
   /** ssh:shell:write — 向 shell 写入数据 */
   ipcMain.handle(
-    'ssh:shell:write',
+    SSH.SHELL_WRITE,
     async (_event, sessionId: string, data: string) => {
       try {
         return await sshManager.writeShell(sessionId, data)
       } catch (err) {
-        throw new Error(`写入 Shell 失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '写入 Shell 失败', { sessionId, error: safeMsg })
+        throw new Error(`写入 Shell 失败: ${safeMsg}`)
       }
     }
   )
 
   /** ssh:shell:resize — 调整 shell 终端窗口大小 */
   ipcMain.handle(
-    'ssh:shell:resize',
+    SSH.SHELL_RESIZE,
     async (_event, sessionId: string, cols: number, rows: number) => {
       try {
         return await sshManager.resizeShell(sessionId, cols, rows)
       } catch (err) {
-        throw new Error(`调整 Shell 大小失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '调整 Shell 大小失败', { sessionId, error: safeMsg })
+        throw new Error(`调整 Shell 大小失败: ${safeMsg}`)
       }
     }
   )
@@ -231,19 +337,21 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
 
   /** sftp:list — 列出远程目录 */
   ipcMain.handle(
-    'sftp:list',
+    SFTP.LIST,
     async (_event, sessionId: string, remotePath: string) => {
       try {
         return await sftpManager.list(sessionId, remotePath)
       } catch (err) {
-        throw new Error(`SFTP 列目录失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 列目录失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 列目录失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:upload — 上传文件 */
   ipcMain.handle(
-    'sftp:upload',
+    SFTP.UPLOAD,
     async (
       _event,
       sessionId: string,
@@ -253,14 +361,16 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       try {
         return await sftpManager.upload(sessionId, localPath, remotePath)
       } catch (err) {
-        throw new Error(`SFTP 上传失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 上传失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 上传失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:download — 下载文件 */
   ipcMain.handle(
-    'sftp:download',
+    SFTP.DOWNLOAD,
     async (
       _event,
       sessionId: string,
@@ -270,26 +380,30 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       try {
         return await sftpManager.download(sessionId, remotePath, localPath)
       } catch (err) {
-        throw new Error(`SFTP 下载失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 下载失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 下载失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:delete — 删除文件/目录 */
   ipcMain.handle(
-    'sftp:delete',
+    SFTP.DELETE,
     async (_event, sessionId: string, remotePath: string) => {
       try {
         return await sftpManager.delete(sessionId, remotePath)
       } catch (err) {
-        throw new Error(`SFTP 删除失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 删除失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 删除失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:rename — 重命名 */
   ipcMain.handle(
-    'sftp:rename',
+    SFTP.RENAME,
     async (
       _event,
       sessionId: string,
@@ -299,19 +413,23 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       try {
         return await sftpManager.rename(sessionId, oldPath, newPath)
       } catch (err) {
-        throw new Error(`SFTP 重命名失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 重命名失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 重命名失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:chmod — 修改权限 */
   ipcMain.handle(
-    'sftp:chmod',
+    SFTP.CHMOD,
     async (_event, sessionId: string, remotePath: string, mode: number) => {
       try {
         return await sftpManager.chmod(sessionId, remotePath, mode)
       } catch (err) {
-        throw new Error(`SFTP chmod 失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP chmod 失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP chmod 失败: ${safeMsg}`)
       }
     }
   )
@@ -322,19 +440,21 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
 
   /** sftp:readFile — 读取远程文件内容到字符串（10MB 上限，用于代码编辑器） */
   ipcMain.handle(
-    'sftp:readFile',
+    SFTP.READ_FILE,
     async (_event, sessionId: string, remotePath: string) => {
       try {
         return await sftpManager.readFile(sessionId, remotePath)
       } catch (err) {
-        throw new Error(`SFTP 读取文件失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 读取文件失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 读取文件失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:writeFile — 写入字符串到远程文件（覆盖原文件，用于代码编辑器保存） */
   ipcMain.handle(
-    'sftp:writeFile',
+    SFTP.WRITE_FILE,
     async (
       _event,
       sessionId: string,
@@ -344,31 +464,37 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       try {
         return await sftpManager.writeFile(sessionId, remotePath, content)
       } catch (err) {
-        throw new Error(`SFTP 写入文件失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP 写入文件失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP 写入文件失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:stat — 获取文件/目录元信息（返回 SftpEntry 或 null） */
   ipcMain.handle(
-    'sftp:stat',
+    SFTP.STAT,
     async (_event, sessionId: string, remotePath: string) => {
       try {
         return await sftpManager.stat(sessionId, remotePath)
       } catch (err) {
-        throw new Error(`SFTP stat 失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP stat 失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP stat 失败: ${safeMsg}`)
       }
     }
   )
 
   /** sftp:mkdir — 创建远程目录 */
   ipcMain.handle(
-    'sftp:mkdir',
+    SFTP.MKDIR,
     async (_event, sessionId: string, remotePath: string) => {
       try {
         return await sftpManager.mkdir(sessionId, remotePath)
       } catch (err) {
-        throw new Error(`SFTP mkdir 失败: ${(err as Error).message}`)
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', 'SFTP mkdir 失败', { sessionId, error: safeMsg })
+        throw new Error(`SFTP mkdir 失败: ${safeMsg}`)
       }
     }
   )
@@ -439,7 +565,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
             fs.unlinkSync(privateKeyPath)
           }
         } catch (err) {
-          console.warn(`[SSH] 删除私钥失败 ${privateKeyPath}:`, (err as Error).message)
+          logger.warn('SSH', '删除私钥失败', { keyName, error: redactSecrets((err as Error).message) })
         }
 
         // 幂等删除公钥
@@ -448,14 +574,15 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
             fs.unlinkSync(publicKeyPath)
           }
         } catch (err) {
-          console.warn(`[SSH] 删除公钥失败 ${publicKeyPath}:`, (err as Error).message)
+          logger.warn('SSH', '删除公钥失败', { keyName, error: redactSecrets((err as Error).message) })
         }
 
-        console.log(`[SSH] 密钥已删除: ${keyName}`)
+        logger.info('SSH', '密钥已删除', { keyName })
         return { success: true }
       } catch (err) {
-        console.error('[SSH] 删除密钥失败:', (err as Error).message)
-        return { success: false, error: (err as Error).message }
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '删除密钥失败', { keyName, error: safeMsg })
+        return { success: false, error: safeMsg }
       }
     },
   )
@@ -549,11 +676,13 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
           createdAt: Date.now(),
         }
 
-        console.log(`[SSH] 私钥已上传: ${keyName}`)
+        logger.info('SSH', '私钥已上传', { keyName })
         return { success: true, keyPair }
       } catch (err) {
-        console.error('[SSH] 上传私钥失败:', (err as Error).message)
-        return { success: false, error: (err as Error).message }
+        const safeMsg = redactSecrets((err as Error).message)
+        // keyName 在 try 块内定义，catch 块不可访问，故仅记录 error
+        logger.error('SSH', '上传私钥失败', { error: safeMsg })
+        return { success: false, error: safeMsg }
       }
     },
   )
@@ -640,11 +769,13 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
           createdAt: Date.now(),
         }
 
-        console.log(`[SSH] 密钥已生成: ${keyName} (${keyType})`)
+        logger.info('SSH', '密钥已生成', { keyName, keyType })
         return { success: true, keyPair }
       } catch (err) {
-        console.error('[SSH] 生成密钥失败:', (err as Error).message)
-        return { success: false, error: (err as Error).message }
+        const safeMsg = redactSecrets((err as Error).message)
+        // keyName 在 try 块内定义，catch 块不可访问，故仅记录 error
+        logger.error('SSH', '生成密钥失败', { error: safeMsg })
+        return { success: false, error: safeMsg }
       }
     },
   )
@@ -732,7 +863,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
 
         return keyPairs
       } catch (err) {
-        console.error('[SSH] 列出密钥失败:', (err as Error).message)
+        logger.error('SSH', '列出密钥失败', { error: redactSecrets((err as Error).message) })
         return []
       }
     },

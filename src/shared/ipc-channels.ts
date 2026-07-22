@@ -38,31 +38,85 @@ export const SCHEDULER = {
  * Agent IPC 通道常量
  *
  * 通道列表：
- * - CANCEL  invoke  渲染 → 主：取消正在执行的 Agent 会话
+ * - CHAT        invoke  渲染 → 主：启动 Supervisor 流式 chat
+ * - CHAT_CANCEL invoke  渲染 → 主：取消进行中的 chat 请求
+ * - PAOR        invoke  渲染 → 主：PAOR 自动循环（Plan→Act→Observe→Reflect）
+ * - START       invoke  渲染 → 主：启动 Agent 工作流（旧版扁平化兼容）
+ * - CONFIRM     invoke  渲染 → 主：人工确认 Agent 决策（旧版扁平化兼容）
+ * - CANCEL      invoke  渲染 → 主：取消正在执行的 Agent 会话
+ * - STEP        push     主 → 渲染：Agent 工作流步骤变更
+ * - CHUNK       push     主 → 渲染：Supervisor 流式 token 块推送
+ * - DONE        push     主 → 渲染：Supervisor chat 完成信号
+ * - ERROR       push     主 → 渲染：Supervisor chat 错误信号
  */
 export const AGENT = {
+  /** 启动 Supervisor 流式 chat（invoke: 渲染 → 主，v0.9） */
+  CHAT: 'agent:chat',
+  /** 取消进行中的 chat 请求（invoke: 渲染 → 主，v0.9） */
+  CHAT_CANCEL: 'agent:chat:cancel',
+  /** PAOR 自动循环（invoke: 渲染 → 主，v0.9.5） */
+  PAOR: 'agent:paor',
+  /** 启动 Agent 工作流（invoke: 渲染 → 主，v0.8 旧版扁平化兼容） */
+  START: 'agent:start',
+  /** 人工确认 Agent 决策（invoke: 渲染 → 主，v0.8 旧版扁平化兼容） */
+  CONFIRM: 'agent:confirm',
   /** 取消正在执行的 Agent 会话（invoke: 渲染 → 主） */
   CANCEL: 'agent:cancel',
+  /** Agent 工作流步骤变更推送（push: 主 → 渲染） */
+  STEP: 'agent:step',
+  /** Supervisor 流式 token 块推送（push: 主 → 渲染，v0.9） */
+  CHUNK: 'agent:chunk',
+  /** Supervisor chat 完成信号推送（push: 主 → 渲染，v0.9） */
+  DONE: 'agent:done',
+  /** Supervisor chat 错误信号推送（push: 主 → 渲染，v0.9） */
+  ERROR: 'agent:error',
 } as const
 
 /**
  * LLM IPC 通道常量
  *
  * 通道列表：
- * - CHAT         invoke  渲染 → 主：单轮对话推理
- * - TEST         invoke  渲染 → 主：测试 LLM API 连通性
- * - VALIDATE     invoke  渲染 → 主：校验 LLM 配置有效性
- * - TOOL_APPROVE invoke  渲染 → 主：人工审批工具调用请求
+ * - CHAT              invoke  渲染 → 主：单轮对话推理
+ * - TEST              invoke  渲染 → 主：测试 LLM API 连通性
+ * - ANALYZE           invoke  渲染 → 主：分析问题（内置降级）
+ * - VALIDATE          invoke  渲染 → 主：校验 LLM 配置有效性
+ * - CHAT_WITH_CONTEXT invoke  渲染 → 主：带系统环境上下文的对话
+ * - CHAT_WITH_TOOLS   invoke  渲染 → 主：带工具调用的对话
+ * - TOOL_APPROVE      invoke  渲染 → 主：人工审批工具调用请求
+ * - TOKEN             push     主 → 渲染：流式 token 推送（兼容旧版）
+ * - CHUNK             push     主 → 渲染：流式 token 块推送（增强版）
+ * - DONE              push     主 → 渲染：流式完成信号
+ * - ERROR             push     主 → 渲染：流式错误信号
+ * - TOOL_PROGRESS     push     主 → 渲染：工具调用进度
+ * - TOOL_APPROVAL     push     主 → 渲染：工具调用审批请求
  */
 export const LLM = {
   /** 单轮对话推理（invoke: 渲染 → 主） */
   CHAT: 'llm:chat',
   /** 测试 LLM API 连通性（invoke: 渲染 → 主） */
   TEST: 'llm:test',
+  /** 分析问题（invoke: 渲染 → 主，内置降级，返回 JSON 字符串） */
+  ANALYZE: 'llm:analyze',
   /** 校验 LLM 配置有效性（invoke: 渲染 → 主） */
   VALIDATE: 'llm:validate',
+  /** 带系统环境上下文的对话（invoke: 渲染 → 主） */
+  CHAT_WITH_CONTEXT: 'llm:chat-with-context',
+  /** 带工具调用的对话（invoke: 渲染 → 主，v0.5.0） */
+  CHAT_WITH_TOOLS: 'llm:chat-with-tools',
   /** 人工审批工具调用请求（invoke: 渲染 → 主） */
   TOOL_APPROVE: 'llm:tool-approve',
+  /** 流式 token 推送（push: 主 → 渲染，兼容旧版） */
+  TOKEN: 'llm:token',
+  /** 流式 token 块推送（push: 主 → 渲染，增强版，含 totalTokens） */
+  CHUNK: 'llm:chunk',
+  /** 流式完成信号推送（push: 主 → 渲染，含完整文本） */
+  DONE: 'llm:done',
+  /** 流式错误信号推送（push: 主 → 渲染，含错误码/消息/是否可重试） */
+  ERROR: 'llm:error',
+  /** 工具调用进度推送（push: 主 → 渲染） */
+  TOOL_PROGRESS: 'llm:tool-progress',
+  /** 工具调用审批请求推送（push: 主 → 渲染） */
+  TOOL_APPROVAL: 'llm:tool-approval',
 } as const
 
 /**
@@ -93,7 +147,10 @@ export const LLM_INLINE = {
  * 通道列表：
  * - CONNECT       invoke  渲染 → 主：建立 SSH 连接
  * - DISCONNECT    invoke  渲染 → 主：断开 SSH 连接
+ * - EXEC          invoke  渲染 → 主：执行一次性 SSH 命令
  * - SHELL_START   invoke  渲染 → 主：启动交互式 Shell
+ * - SHELL_WRITE   invoke  渲染 → 主：向交互式 Shell 写入数据
+ * - SHELL_RESIZE  invoke  渲染 → 主：调整 Shell 终端窗口大小
  * - STATE_CHANGED push    主 → 渲染：心跳保活状态变更（重连/最终断开）
  */
 export const SSH = {
@@ -101,8 +158,14 @@ export const SSH = {
   CONNECT: 'ssh:connect',
   /** 断开 SSH 连接（invoke: 渲染 → 主） */
   DISCONNECT: 'ssh:disconnect',
+  /** 执行一次性 SSH 命令（invoke: 渲染 → 主，非交互式） */
+  EXEC: 'ssh:exec',
   /** 启动交互式 Shell（invoke: 渲染 → 主） */
   SHELL_START: 'ssh:shell:start',
+  /** 向交互式 Shell 写入数据（invoke: 渲染 → 主） */
+  SHELL_WRITE: 'ssh:shell:write',
+  /** 调整 Shell 终端窗口大小（invoke: 渲染 → 主） */
+  SHELL_RESIZE: 'ssh:shell:resize',
   /** 心跳保活状态变更推送（push: 主 → 渲染），载荷 SshStateEvent */
   STATE_CHANGED: 'ssh:state-changed',
   /**
@@ -146,6 +209,54 @@ export const SSH = {
 } as const
 
 /**
+ * SFTP 文件操作 IPC 通道常量
+ *
+ * 通道列表：
+ * - LIST      invoke  渲染 → 主：列出远程目录
+ * - UPLOAD    invoke  渲染 → 主：上传文件
+ * - DOWNLOAD  invoke  渲染 → 主：下载文件
+ * - DELETE    invoke  渲染 → 主：删除文件/目录
+ * - RENAME    invoke  渲染 → 主：重命名
+ * - CHMOD     invoke  渲染 → 主：修改权限
+ * - READ_FILE invoke  渲染 → 主：读取远程文件内容到字符串
+ * - WRITE_FILE invoke 渲染 → 主：写入字符串到远程文件
+ * - STAT      invoke  渲染 → 主：获取文件/目录元信息
+ * - MKDIR     invoke  渲染 → 主：创建远程目录
+ */
+export const SFTP = {
+  /** 列出远程目录（invoke: 渲染 → 主） */
+  LIST: 'sftp:list',
+  /** 上传文件（invoke: 渲染 → 主） */
+  UPLOAD: 'sftp:upload',
+  /** 下载文件（invoke: 渲染 → 主） */
+  DOWNLOAD: 'sftp:download',
+  /** 删除文件/目录（invoke: 渲染 → 主） */
+  DELETE: 'sftp:delete',
+  /** 重命名（invoke: 渲染 → 主） */
+  RENAME: 'sftp:rename',
+  /** 修改权限（invoke: 渲染 → 主） */
+  CHMOD: 'sftp:chmod',
+  /** 读取远程文件内容到字符串（invoke: 渲染 → 主，10MB 上限） */
+  READ_FILE: 'sftp:readFile',
+  /** 写入字符串到远程文件（invoke: 渲染 → 主，覆盖原文件） */
+  WRITE_FILE: 'sftp:writeFile',
+  /** 获取文件/目录元信息（invoke: 渲染 → 主，返回 SftpEntry 或 null） */
+  STAT: 'sftp:stat',
+  /** 创建远程目录（invoke: 渲染 → 主） */
+  MKDIR: 'sftp:mkdir',
+} as const
+
+/**
+ * 终端数据推送 IPC 通道常量
+ *
+ * - TERMINAL_DATA push 主 → 渲染：交互式 Shell 数据回传
+ */
+export const TERMINAL = {
+  /** Shell 数据回传推送（push: 主 → 渲染） */
+  DATA: 'terminal:data',
+} as const
+
+/**
  * v2.0 Phase C 新增：SFTP 文件搜索 + 内容 grep IPC 通道常量
  *
  * 通道列表：
@@ -184,10 +295,13 @@ export const FILE_WATCH = {
  * 安全存储 IPC 通道常量
  *
  * 通道列表：
+ * - SAVE_API_KEY    invoke  渲染 → 主：加密保存 API Key
  * - GET_API_KEY     invoke  渲染 → 主：读取加密存储的 API Key
  * - DELETE_API_KEY  invoke  渲染 → 主：删除加密存储的 API Key
  */
 export const STORAGE = {
+  /** 加密保存 API Key（invoke: 渲染 → 主） */
+  SAVE_API_KEY: 'storage:saveApiKey',
   /** 读取加密存储的 API Key（invoke: 渲染 → 主） */
   GET_API_KEY: 'storage:getApiKey',
   /** 删除加密存储的 API Key（invoke: 渲染 → 主） */
@@ -252,11 +366,23 @@ export const LOOP = {
  * 监控 IPC 通道常量
  *
  * 通道列表：
- * - STOP  invoke  渲染 → 主：停止服务器监控
+ * - START           invoke  渲染 → 主：启动服务器监控
+ * - STOP            invoke  渲染 → 主：停止服务器监控
+ * - GET_SYSTEM_INFO invoke  渲染 → 主：获取系统静态信息
+ * - DATA            push    主 → 渲染：监控数据推送（实时指标）
+ * - SYSTEM_INFO     push    主 → 渲染：系统信息推送（首次采集时一次）
  */
 export const MONITOR = {
+  /** 启动服务器监控（invoke: 渲染 → 主） */
+  START: 'monitor:start',
   /** 停止服务器监控（invoke: 渲染 → 主） */
   STOP: 'monitor:stop',
+  /** 获取系统静态信息（invoke: 渲染 → 主） */
+  GET_SYSTEM_INFO: 'monitor:getSystemInfo',
+  /** 监控数据推送（push: 主 → 渲染，实时指标，每 interval 秒一次） */
+  DATA: 'monitor:data',
+  /** 系统信息推送（push: 主 → 渲染，首次采集时推送一次） */
+  SYSTEM_INFO: 'monitor:systemInfo',
 } as const
 
 /**
