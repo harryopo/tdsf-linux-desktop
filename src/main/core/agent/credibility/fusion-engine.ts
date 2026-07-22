@@ -7,13 +7,21 @@
  *
  * 冲突阈值 0.3 参考 sift-kernel（数字取证 MCP 服务器）的经验值。
  *
- * 调研文档：d:\ai\linux教学一体\idea-to-dev-output\22-可信度算法论文支撑调研.md §6.4
+ * v2.0 Phase E（ECE 校准集成）：
+ * - 在 6 源证据融合完成后，应用 Temperature Scaling 校准最终置信度
+ * - 同时附加 ECE 评估报告，让调用方获知当前校准度
+ * - 论文支撑：Guo et al. 2017, ICML, arXiv:1706.04599 §3.1-3.2
+ *   - §3.1 ECE：分桶计算 |acc - conf| 加权平均
+ *   - §3.2 Temperature Scaling：单参数后处理校准 conf_T = sigmoid(logit(conf) / T)
+ *
+ * 调研文档：d:\ai\linux教学一体\idea-to-dev-output\22-可信度算法论文支撑调研.md §6.4 + §4
  *
  * 融合流程：
  * 1. 接收 6 源证据的 Mass 函数列表
  * 2. 两两迭代组合：m_12 = combine(m_1, m_2), m_123 = combine(m_12, m_3), ...
  * 3. 每步根据冲突系数自适应选择 Dempster 或 PCR5
  * 4. 对最终融合结果计算 Bel({T}) / Pl({T}) / 综合可信度
+ * 5. 应用 Temperature Scaling 校准 + 附加 ECE 报告（v2.0 Phase E 新增）
  */
 
 import {
@@ -26,6 +34,9 @@ import {
   createVacuousMassFunction,
 } from './ds-theory'
 import { pcr5Combine } from './pcr5'
+import { getCalibrationTuner } from './calibration/calibration-tuner'
+import { applyTemperature } from './calibration/temperature-scaling'
+import type { EceResult, ProviderId } from './calibration/types'
 
 // ============================================================================
 // 类型定义
@@ -55,6 +66,10 @@ export interface FusionStep {
  * 可信度评估结果
  *
  * 包含信任区间、综合可信度、冲突程度、来源追溯和融合步骤。
+ *
+ * v2.0 Phase E 新增字段（均为可选，向后兼容）：
+ * - calibratedConfidence：应用 Temperature Scaling 校准后的置信度
+ * - eceReport：当前 CalibrationTuner 累积样本的 ECE 评估报告
  */
 export interface ConfidenceAssessment {
   /** 信任度下界 Bel({T}) ∈ [0, 1] */
@@ -80,6 +95,55 @@ export interface ConfidenceAssessment {
   fusionSteps: FusionStep[]
   /** 融合后的 Mass 函数（用于进一步分析或 DAG 可视化） */
   fusedMassFunction: MassFunction
+  /**
+   * 校准后置信度（v2.0 Phase E 新增，可选）
+   *
+   * 应用 Temperature Scaling 后的 confidence 值：
+   *   calibratedConfidence = sigmoid(logit(confidence) / T)
+   *
+   * 当 fuseAndAssess 的 options.applyCalibration=true 时填充。
+   * 未启用校准时为 undefined（调用方应回退到 confidence 字段）。
+   *
+   * 论文：Guo et al. 2017, ICML, arXiv:1706.04599 §3.2
+   */
+  calibratedConfidence?: number
+  /**
+   * ECE 评估报告（v2.0 Phase E 新增，可选）
+   *
+   * 当前 CalibrationTuner 累积样本的 ECE 指标（含分桶统计）。
+   * 当 fuseAndAssess 的 options.includeEceReport=true 时填充。
+   *
+   * 论文：Guo et al. 2017, ICML, arXiv:1706.04599 §3.1
+   */
+  eceReport?: EceResult
+}
+
+/**
+ * 融合评估选项（v2.0 Phase E 新增）
+ *
+ * 控制 fuseAndAssess 是否应用 Temperature Scaling 校准 + 附加 ECE 报告。
+ * 默认行为：applyCalibration=true + includeEceReport=true（保持 v2.0 后默认启用校准）
+ */
+export interface FuseAssessOptions {
+  /**
+   * Provider ID（用于按 Provider 查找 T 值）
+   *
+   * - 提供：使用 CalibrationTuner 中该 Provider 的 optimalT
+   * - 未提供：使用全局 defaultT（通常为 1.0，即无校准）
+   */
+  providerId?: ProviderId
+  /**
+   * 是否应用 Temperature Scaling 校准（默认 true）
+   *
+   * 启用后 assessment.calibratedConfidence 字段会被填充。
+   */
+  applyCalibration?: boolean
+  /**
+   * 是否附加 ECE 评估报告（默认 true）
+   *
+   * 启用后 assessment.eceReport 字段会被填充。
+   */
+  includeEceReport?: boolean
 }
 
 // ============================================================================
@@ -253,14 +317,39 @@ export class FusionEngine {
    * 等价于先调用 fuse() 再调用 assess()，但会填充完整的融合步骤追踪
    * 和冲突程度信息。
    *
+   * v2.0 Phase E 新增：在融合完成后，可选地应用 Temperature Scaling 校准
+   * 和附加 ECE 评估报告（默认启用）。
+   *
    * @param massFunctions - 待融合的 Mass 函数列表
-   * @returns 完整的可信度评估结果（含融合步骤、冲突程度、来源列表）
+   * @param options - 融合评估选项（v2.0 Phase E 新增，可选）
+   * @returns 完整的可信度评估结果（含融合步骤、冲突程度、来源列表、
+   *          可选的 calibratedConfidence 和 eceReport）
    */
-  fuseAndAssess(massFunctions: MassFunction[]): ConfidenceAssessment {
+  fuseAndAssess(
+    massFunctions: MassFunction[],
+    options: FuseAssessOptions = {}
+  ): ConfidenceAssessment {
+    const {
+      providerId,
+      applyCalibration = true,
+      includeEceReport = true,
+    } = options
+
     // 空列表：返回完全无知的评估
     if (massFunctions.length === 0) {
       const vacuous = createVacuousMassFunction('empty', '空证据集')
-      return this.assess(vacuous)
+      const emptyAssessment = this.assess(vacuous)
+      // 即使无证据，也填充校准字段（保持接口一致性）
+      if (applyCalibration) {
+        emptyAssessment.calibratedConfidence = this.calibrate(
+          emptyAssessment.confidence,
+          providerId
+        )
+      }
+      if (includeEceReport) {
+        emptyAssessment.eceReport = this.getEceReport(providerId ?? null)
+      }
+      return emptyAssessment
     }
 
     // 融合
@@ -276,7 +365,7 @@ export class FusionEngine {
     // 基础评估
     const baseAssessment = this.assess(fused)
 
-    return {
+    const result: ConfidenceAssessment = {
       ...baseAssessment,
       conflictLevel: maxConflict,
       ruleUsed,
@@ -287,6 +376,84 @@ export class FusionEngine {
       })),
       fusionSteps: steps,
     }
+
+    // v2.0 Phase E：应用 Temperature Scaling 校准
+    if (applyCalibration) {
+      result.calibratedConfidence = this.calibrate(result.confidence, providerId)
+    }
+
+    // v2.0 Phase E：附加 ECE 评估报告
+    if (includeEceReport) {
+      result.eceReport = this.getEceReport(providerId ?? null)
+    }
+
+    return result
+  }
+
+  // ==========================================================================
+  // v2.0 Phase E：ECE 校准集成
+  // ---------------------------------------------------------------------
+  // 论文支撑：
+  // - Guo, Pleiss, Sun, Weinberger 2017, "On Calibration of Modern Neural
+  //   Networks", ICML, arXiv:1706.04599
+  //   - §3.1 ECE：分桶计算 |acc - conf| 加权平均
+  //   - §3.2 Temperature Scaling：单参数后处理校准
+  // - Naeini et al. 2015, "Obtaining Well Calibrated Probabilities Using
+  //   Bayesian Binning", AAAI（ECE 起源论文）
+  //
+  // 设计：
+  // - FusionEngine 不直接持有 CalibrationTuner，而是通过 getCalibrationTuner()
+  //   获取全局单例（与 ai-param-source.ts 等其他模块共享同一份状态）
+  // - T 值按 Provider 分类，未提供 providerId 时使用全局 defaultT
+  // ==========================================================================
+
+  /**
+   * 应用 Temperature Scaling 校准到 confidence
+   *
+   * 公式（Guo et al. 2017, arXiv:1706.04599 §3.2）：
+   *   z = logit(conf) = log(conf / (1 - conf))
+   *   z' = z / T
+   *   conf_T = sigmoid(z') = 1 / (1 + exp(-z / T))
+   *
+   * T 取值行为：
+   * - T = 1.0：无校准（返回原值）
+   * - T > 1.0：平滑（confidence → 0.5，缓解过度自信）
+   * - T < 1.0：锐化（confidence → 0/1，加剧自信）
+   *
+   * @param confidence - 原始 confidence ∈ [0, 1]
+   * @param providerId - Provider ID（未提供则用全局 defaultT）
+   * @returns 校准后 confidence ∈ [0, 1]
+   */
+  calibrate(confidence: number, providerId?: ProviderId): number {
+    const tuner = getCalibrationTuner()
+    if (providerId === undefined) {
+      // 无 providerId：使用全局 defaultT（通常为 1.0，等价于无校准）
+      const t = tuner.getState().defaultT
+      return applyTemperature(confidence, t)
+    }
+    // 有 providerId：使用该 Provider 的 optimalT（未校准过则返回 defaultT）
+    return tuner.applyCalibration(confidence, providerId)
+  }
+
+  /**
+   * 计算 ECE 评估报告
+   *
+   * 公式（Guo et al. 2017, arXiv:1706.04599 §3.1）：
+   *   将 [0, 1] 分成 M 个等宽 bin
+   *   ECE = Σ_m (|B_m| / N) × |acc(B_m) - conf(B_m)|
+   *
+   * 数据源：当前 CalibrationTuner 累积的所有历史样本（按 Provider 过滤）
+   *
+   * @param providerId - Provider ID（null 表示全局聚合所有 Provider）
+   * @param numBuckets - 分桶数（默认 10，参考 Guo 2017 实验设置）
+   * @returns ECE 评估结果（含 ECE/MCE/各桶统计/总样本数）
+   */
+  getEceReport(
+    providerId: ProviderId | null = null,
+    numBuckets?: number
+  ): EceResult {
+    const tuner = getCalibrationTuner()
+    return tuner.computeEce(providerId, numBuckets)
   }
 }
 

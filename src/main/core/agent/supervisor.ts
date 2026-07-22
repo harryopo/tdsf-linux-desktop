@@ -12,6 +12,36 @@
  * - 人工审批闸门（Hard Constraint 4，已接入 BaseSubagent.execute 流程）
  * - 支持请求取消（AbortController）
  *
+ * ============================================================================
+ * v2.0 Phase E.3 边界声明（Mastra vs Supervisor，详见 docs/AGENT-BOUNDARY.md）
+ * ============================================================================
+ *
+ * 【本文件：SupervisorAgent】— **多步场景专用**
+ *
+ * 适用条件（满足任意 1 项即走 Supervisor）：
+ *   1. 需要多步推理：PAOR 4 阶段循环（plan/act/observe/reflect）
+ *   2. 需要 HITL 审批：高危操作（写文件、执行命令、修改 sandbox）
+ *   3. 需要 Subagent 调度：8 个 Subagent 之一（explore/coding/verify/...）
+ *   4. 需要可信度评估：6 源证据融合 + 决策卡 + 审计报告
+ *   5. 需要上下文 compaction：长对话压缩（5 层 L1-L4）
+ *
+ * 典型场景：
+ *   - 复杂故障诊断（"服务为什么变慢了"）→ PAOR 多轮 + 多 Subagent
+ *   - 高危命令执行（"重启 nginx"）→ 7 步 HITL 审批
+ *   - 跨 Subagent 协作（explore + coding + verify）→ Plan 阶段调度
+ *   - 决策卡生成 + EU AI Act 审计报告 → credibility 子系统
+ *
+ * 不适用场景（应走 Mastra OpsAgent）：
+ *   - 单轮简单查询（如"查看 CPU 使用率"）→ Mastra 一次工具调用
+ *   - 教程搜索（如"搜索 nginx 教程"）→ Mastra tutorial_search
+ *   - MCP Server 无状态单次请求 → Mastra Agent.generate()
+ *
+ * 与 Mastra OpsAgent 的关系：
+ *   - **不互相调用**：supervisor 不调用 ops-agent，ops-agent 也不调用 supervisor
+ *   - **共享工具**：两者都通过 ToolRegistry 复用 5 个核心工具
+ *   - **路由由 IPC 层决定**：上层 IPC handler 根据请求复杂度选择路径
+ *   - **共享 Provider**：两者都通过 provider-registry 获取 LLM 实例
+ *
  * 已实现：
  * - chat() 方法：streamText 包装 + redact + token 统计 + compaction
  * - PAOR 四阶段完整实现（plan/act/observe/reflect + runPaorLoop 自动循环）
@@ -19,6 +49,9 @@
  * - cancelRequest() 取消进行中的请求
  *
  * 方案书依据：v0.9 §3.2（PAOR 循环）+ §3.1（8 个 Subagent）+ §10（Hard Constraints）
+ *             + v2.0 Phase E.3 TD-3 边界澄清
+ *
+ * 详见决策树：docs/AGENT-BOUNDARY.md §决策树
  */
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
 import { z } from 'zod'

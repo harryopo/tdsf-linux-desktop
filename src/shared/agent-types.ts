@@ -529,6 +529,12 @@ export interface FusionStepData {
  * 可信度评估结果（用于 IPC 传输）
  *
  * 包含信任区间 [Bel, Pl]、综合可信度、冲突程度、来源追溯和融合步骤。
+ *
+ * v2.0 Phase E 新增字段（均为可选，向后兼容）：
+ * - calibratedConfidence：应用 Temperature Scaling 校准后的置信度
+ * - eceReport：当前 CalibrationTuner 累积样本的 ECE 评估报告
+ *
+ * 论文支撑：Guo et al. 2017, ICML, arXiv:1706.04599 §3.1-3.2
  */
 export interface ConfidenceAssessment {
   /** 信任度下界 Bel({T}) ∈ [0, 1] */
@@ -553,6 +559,48 @@ export interface ConfidenceAssessment {
   fusionSteps: FusionStepData[]
   /** 融合后的 Mass 函数（序列化形式，用于进一步分析或展示） */
   fusedMassFunction: SerializableMassFunction
+  /**
+   * 校准后置信度（v2.0 Phase E 新增，可选）
+   *
+   * 应用 Temperature Scaling 后的 confidence 值：
+   *   calibratedConfidence = sigmoid(logit(confidence) / T)
+   *
+   * 当 fuseAndAssess 启用 applyCalibration（默认）时填充。
+   * 未启用校准时为 undefined（调用方应回退到 confidence 字段）。
+   *
+   * 论文：Guo et al. 2017, ICML, arXiv:1706.04599 §3.2
+   */
+  calibratedConfidence?: number
+  /**
+   * ECE 评估报告（v2.0 Phase E 新增，可选）
+   *
+   * 当前 CalibrationTuner 累积样本的 ECE 指标（含分桶统计）。
+   * 当 fuseAndAssess 启用 includeEceReport（默认）时填充。
+   *
+   * 论文：Guo et al. 2017, ICML, arXiv:1706.04599 §3.1
+   *       Naeini et al. 2015, AAAI（ECE 起源论文）
+   */
+  eceReport?: EceResult
+}
+
+/**
+ * 融合评估选项（v2.0 Phase E 新增，用于 IPC 4 步同步）
+ *
+ * 注意：本类型当前未在 IPC 入参中暴露（保持 credibility:assess 现有签名
+ * 兼容）。FusionEngine 内部默认应用校准 + 附加 ECE 报告。后续若需要
+ * 在 IPC 层精细控制校准行为，可通过扩展 CredibilityEvidenceInput.fields
+ * 或新增 IPC 通道暴露此 options。
+ *
+ * 字段语义与 main/core/agent/credibility/fusion-engine.ts 的 FuseAssessOptions
+ * 完全一致。
+ */
+export interface FuseAssessOptions {
+  /** Provider ID（用于按 Provider 查找 T 值，未提供则用全局 defaultT） */
+  providerId?: ProviderId
+  /** 是否应用 Temperature Scaling 校准（默认 true） */
+  applyCalibration?: boolean
+  /** 是否附加 ECE 评估报告（默认 true） */
+  includeEceReport?: boolean
 }
 
 /**
