@@ -14,10 +14,10 @@
 | Phase 1 | ✅ 完成 | 134 Token 全覆盖 | 2f45c9c / 7d63be0 / fc547ed / 8fbd6ae / 4dc9ae2 |
 | Phase 2 | ✅ 完成 | 14 页面 1:1 复刻 | f6b0fad / e4b5f86 / d97bfc9 / 06d8ccc / c88c7bf / 80d1f2f / b0e80eb / ... |
 | Phase 3 | ✅ 完成 | 73 个 data-dom-id 全接入 | ac20d82 / 5c7c8cc / 6d6e207 |
-| Phase 4 | ✅ 完成 | 23/23 冒烟测试 | 1641809 |
+| Phase 4 | ✅ PARTIAL | 23/23 冒烟测试（Task 4.9 待用户手动） | 1641809 |
 | Phase 5 | ✅ PARTIAL | 4/5 通过（5.5 打包 SKIP） | 7376191 |
 | Phase 6 | ✅ 完成 | 36/36 集成测试 | 1a10f31 / df28733 / 9991d83 |
-| Phase 7 | 🔄 进行中 | 归档五件套 | - |
+| Phase 7 | ✅ 完成 | 归档五件套 + verifier 8.9/10 | a841e1e / 7e9e411 |
 
 ---
 
@@ -96,38 +96,43 @@
   - 36 个集成测试覆盖全部 IPC 通道
   - 调度器（daily-decision-archive / daily-health-check / weekly-ops-report）
 
-### Phase 7 · 归档五件套
+### Phase 7 · 归档五件套 + verifier 终评
 
-- **状态**：🔄 进行中（Phase 7.6 当前执行中）
-- **验证门禁**：归档五件套文档齐全
+- **状态**：✅ 完成（2026-07-22 心跳检查同步）
+- **验证门禁**：归档五件套文档齐全 + verifier 终评 8.9/10 ≥ 8.5 阈值
+- **commit**：a841e1e（归档五件套）/ 7e9e411（verifier 二次复审修复）
 - **交付物**：
-  - Task 7.1 ~ 7.5 待补
-  - Task 7.6 ✅ 本次执行：LEARNINGS.md / PROGRESS.md / AGENTS.md / CLAUDE.md / project_memory.md / verify-report.md
-  - Task 7.7 待执行：verifier 全量 review
+  - Task 7.1 ✅ 单任务循环协议（spec → implementer → spec-reviewer → code-quality-reviewer → fix-implementer）
+  - Task 7.2 ✅ 编译门禁三绿（lint + typecheck:node/web + build 全 exit 0，2026-07-22 心跳四绿再验证）
+  - Task 7.3 ✅ 7 维质量评分（总分 8.8/10 ≥ 8.5 阈值）
+  - Task 7.4 ✅ 死代码治理决策树（静态扫描 + 动态走查 + 73 data-dom-id diff + 决策树分类 + 输出表格）
+  - Task 7.5 ✅ 全链路补齐 checklist（8 项全通过）
+  - Task 7.6 ✅ 归档五件套（LEARNINGS.md / PROGRESS.md / AGENTS.md / CLAUDE.md / project_memory.md / verify-report.md）
+  - Task 7.7 ✅ verifier-subagent 最终全量 review（首次 8.8/10 + 二次复审 8.9/10，P0=0 / P1=7 / P2=4）
 
 ---
 
-## 编译门禁三绿状态
+## 编译门禁三绿状态（2026-07-22 心跳验证）
 
 | 门禁 | 命令 | 状态 |
 |------|------|------|
-| TypeScript Node | `pnpm typecheck:node` | ✅ exit 0 |
-| TypeScript Web | `pnpm typecheck:web` | ✅ exit 0 |
-| ESLint | `pnpm lint` | ✅ exit 0（3 个 pre-existing warnings） |
+| TypeScript Node | `pnpm typecheck:node` | ✅ exit 0（2026-07-22 心跳验证） |
+| TypeScript Web | `pnpm typecheck:web` | ✅ exit 0（2026-07-22 心跳验证） |
+| ESLint | `pnpm lint` | ✅ exit 0（3 个 pre-existing warnings，CLAUDE.md B3 白名单） |
 | 冒烟测试 | `pnpm test:smoke` | ✅ 23/23 |
 | cron-parser 单测 | `tsx scripts/test-cron-parser.ts` | ✅ 37/37 |
 | 集成测试 | `tsx scripts/test-scheduler.ts` | ✅ 36/36 |
-| electron-vite build | `pnpm build` | ✅ PASS |
-| electron-builder --win | `pnpm build:win` | ⏭️ SKIP（缺 Windows SDK） |
+| electron-vite build | `pnpm build` | ✅ PASS（2026-07-22 心跳验证，built in 8.52s） |
+| electron-builder --win | `pnpm build:win` | ⏭️ SKIP（缺 Windows SDK，待用户安装） |
 
 ---
 
 ## 遗留问题
 
-1. **Task 5.5 打包验证 SKIP**：VS Build Tools 缺 Windows SDK，非代码问题。用户醒后按 LRN-20260721-006 步骤安装即可。
+1. **Task 5.5 打包验证 SKIP**：VS Build Tools 缺 Windows SDK，非代码问题。用户醒后按 LRN-20260721-006 步骤安装即可恢复 `pnpm build:win`。
 2. **Task 4.9 端到端演示**：需用户手动验证（需真实 Linux 服务器环境 + API Key 配置）。
-3. **3 个 pre-existing lint warnings**：均为 `no-explicit-any`，低优先级。
+3. **3 个 pre-existing lint warnings**：均为 `no-explicit-any`，低优先级，CLAUDE.md B3 白名单允许保留。
 
 ---
 
-*PROGRESS 文档结束 · Phase 7.6 归档更新于 2026-07-21*
+*PROGRESS 文档结束 · 2026-07-22 心跳检查同步更新*

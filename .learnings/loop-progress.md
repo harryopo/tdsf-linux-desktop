@@ -1,7 +1,36 @@
 # Loop Engineering Progress
 
-> 最后更新：2026-07-21
-> 轮次：Round 20
+> 最后更新：2026-07-22
+> 轮次：Round 21
+
+## 夜间心跳检查 + 文档同步 (2026-07-22 Round 21 — ai-glm-20260722-heartbeat)
+
+**触发**：用户夜间自动循环工程心跳检查请求。用户提供上下文为「已完成 Phase 0 + Phase 1 + Phase 2 Task 2.1/2.2，下一步推进 Task 2.3」。
+
+**关键发现**：用户提供的上下文严重过时。经核实 spec 三件套 + git log + verify-report.md，实际进度远超用户预期：
+
+| 检查项 | 用户上下文 | 实际状态 |
+|--------|-----------|---------|
+| Phase 0-1 | 已完成 | ✅ 已完成（一致） |
+| Phase 2 | Task 2.1/2.2 完成，Task 2.3 待推进 | ✅ Task 2.1-2.13 全部完成，Task 2.14 N/A |
+| Phase 3-7 | 未提及 | ✅ 全部完成（含 verifier 终评 8.9/10） |
+
+**处置决策**：按硬约束「诚实知止」「不盲目开发」「不允许降质减配」，**不**派遣 implementer-subagent 重做已完成的 Task 2.3，**不**虚构新任务消耗夜间时间。改为执行真正有价值的夜间工作。
+
+| 改动 | 说明 |
+|------|------|
+| 编译门禁四绿再验证 | typecheck:node exit 0 / typecheck:web exit 0 / lint exit 0 (3 pre-existing) / build exit 0 (8.52s) |
+| checklist.md Phase 7.6 同步 | 5 项归档五件套从 `[ ]` 勾选为 `[x]`（实际 tasks.md 已勾选，checklist.md 漏勾） |
+| checklist.md 整体验收同步 | 32 项从 `[ ]` 勾选为 `[x]`，2 项保持 `[ ]` 标注「待用户手动」（Task 4.9 端到端演示 + Task 5.5 打包） |
+| PROGRESS.md Phase 7 状态同步 | 从「🔄 进行中」改为「✅ 完成」；commit 字段补充 a841e1e / 7e9e411 |
+| tasks.md Task 5.3/5.4 状态同步 | Task 5.3 从 `[ ]` 同步为 `[x]`（commit verify-phase5 已验证）；Task 5.4 从 `[ ]` 同步为 `[x]`（19 页面截图齐备） |
+| tasks.md Task 5.5 状态细化 | 从 `[ ] 待后续` 改为 `[-] SKIPPED`，标注根因（缺 Windows SDK）+ 2026-07-22 心跳验证 pnpm build PASS |
+
+**未执行**（明确需用户手动操作）：
+- Task 4.9 真实端到端演示验证（需 Linux 服务器 + API Key 配置）
+- Task 5.5 打包验证（需用户安装 Windows SDK）
+
+**最终结论**：✅ PARTIAL 通过 — 夜间自动化部分全部通过，verifier 终评 8.9/10 ≥ 8.5 阈值；待用户手动验证 2 项。
 
 ## ESLint 清零 + 遗留配置清理 (2026-07-21 Round 20 — QoderWork)
 
