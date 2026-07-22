@@ -194,13 +194,17 @@ describe('[task-protocol-step-2] check-permission', () => {
     vi.clearAllMocks()
   })
 
-  it('2.1 成功路径：cancelled=false → 默认允许，返回 source=default-allow', async () => {
+  it('2.1 成功路径：cancelled=false 且未注入 mainWindow → 降级默认允许（source=default-allow-no-mainwindow）', async () => {
     const ctx = makeCtx({ cancelled: false })
     const result = await stepCheckPermission(ctx)
 
     expect(result.success).toBe(true)
     expect(result.step).toBe('check-permission')
-    expect(result.output).toEqual({ approved: true, source: 'default-allow' })
+    expect(result.output).toEqual({
+      approved: true,
+      source: 'default-allow-no-mainwindow',
+      mode: 'always',
+    })
   })
 
   it('2.2 失败路径：cancelled=true → success=false 且 error 提示已取消', async () => {
@@ -218,6 +222,27 @@ describe('[task-protocol-step-2] check-permission', () => {
     const result = await stepCheckPermission(ctx)
     expect(typeof result.durationMs).toBe('number')
     expect(result.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('2.4 边界：defaultPermission=auto → 自动允许（source=mode-auto，不依赖 mainWindow）', async () => {
+    const ctx = makeCtx({ cancelled: false, defaultPermission: 'auto' })
+    const result = await stepCheckPermission(ctx)
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual({
+      approved: true,
+      source: 'mode-auto',
+      mode: 'auto',
+    })
+  })
+
+  it('2.5 失败路径：defaultPermission=never → 自动拒绝（不推送审批请求）', async () => {
+    const ctx = makeCtx({ cancelled: false, defaultPermission: 'never' })
+    const result = await stepCheckPermission(ctx)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('never')
+    expect(result.error).toContain(ctx.subagentName)
   })
 })
 
