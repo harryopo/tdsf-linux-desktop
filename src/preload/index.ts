@@ -1657,6 +1657,9 @@ const on = {
   loopError: (callback: (payload: unknown) => void): (() => void) => {
     return createListener('loop:error', callback)
   },
+  loopBlocked: (callback: (payload: unknown) => void): (() => void) => {
+    return createListener('loop:blocked', callback)
+  },
 
   // Phase 6 Task 6.5：调度器状态变更推送（主 → 渲染）
   /**
@@ -2424,6 +2427,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => { ipcRenderer.off('loop:error', handler) }
   },
 
+  // 事件：loop:blocked — 工作流被阻止（如 SSH 未连接）
+  onLoopBlocked: (
+    callback: (payload: {
+      type: 'loop:blocked'
+      correlationId: string
+      step: string
+      reason: string
+      message: string
+    }) => void,
+  ) => {
+    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
+    ipcRenderer.on('loop:blocked', handler)
+    return () => { ipcRenderer.off('loop:blocked', handler) }
+  },
+
   // ===== Phase 6 Task 6.5：调度器扁平化（定时任务自动化）=====
   // 通道与主进程 ipc/scheduler.ts 一一对应；UI 调用方式：
   //   const tasks = await window.electronAPI.schedulerList()
@@ -2859,6 +2877,17 @@ export type ElectronAPI = {
 
   onLoopError: (
     callback: (payload: { type: 'loop:error'; correlationId: string; error: string; state?: unknown }) => void,
+  ) => () => void
+
+  /** 监听 loop:blocked — 工作流被阻止（如 SSH 未连接） */
+  onLoopBlocked: (
+    callback: (payload: {
+      type: 'loop:blocked'
+      correlationId: string
+      step: string
+      reason: string
+      message: string
+    }) => void,
   ) => () => void
 
   // ===== Phase 6 Task 6.5：调度器（定时任务自动化）=====

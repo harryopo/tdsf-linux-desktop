@@ -103,6 +103,7 @@ export type LoopEngineeringEvent =
   | { type: 'loop:decision'; correlationId: string; state: AgentWorkflowState; decisionCard: DecisionCard }
   | { type: 'loop:done'; correlationId: string; state: AgentWorkflowState; decisionCard: DecisionCard | null }
   | { type: 'loop:error'; correlationId: string; error: string; state?: AgentWorkflowState }
+  | { type: 'loop:blocked'; correlationId: string; step: string; reason: string; message: string }
 
 // ============================================================================
 // SSH 执行器适配器（复用 agent.ts 中的实现，独立一份避免循环依赖）
@@ -243,6 +244,31 @@ export class LoopEngineeringSubagent extends BaseSubagent {
         success: false,
         output: null,
         error: 'LoopEngineeringInput 缺少必需字段：problem / connId',
+        durationMs: 0,
+      }
+    }
+
+    // ─── SSH 预检查：显式检测是否有活动 SSH 连接 ───────────────────
+    // 不依赖 requireConnected 抛错兜底，提供更早的 UI 提示
+    // 原有 requireConnected 抛错兜底保留作为第二层防线
+    if (!this.sshManager.hasActiveConnection()) {
+      const blockedMessage = '请先连接 SSH 服务器后再执行此操作'
+      this.emit('loop:blocked', {
+        correlationId,
+        step: 'execute',
+        reason: 'SSH_NO_CONNECTION',
+        message: blockedMessage,
+      })
+      this.forwardLog(
+        'agent',
+        'WARN',
+        `[LoopEngineering] SSH 预检查未通过：无活动连接，已阻止 execute 步骤`
+      )
+      return {
+        taskId: task.id,
+        success: false,
+        output: { correlationId, status: 'blocked', reason: 'SSH_NO_CONNECTION' },
+        error: blockedMessage,
         durationMs: 0,
       }
     }
