@@ -37,6 +37,32 @@ import {
   TOKEN,
   SFTP_SEARCH,
   FILE_WATCH,
+  LOOP,
+  LOG,
+  KNOWLEDGE,
+  HISTORY,
+  DIAGNOSTICS,
+  SIDECAR,
+  TUTORIAL,
+  DEPLOY,
+  PROMPTFOO,
+  PROFILER,
+  SYSTEM,
+  CLAUDE_SDK,
+  PROVIDER,
+  CREDIBILITY,
+  MODE,
+  ATTENTION,
+  EXPECTATION,
+  TASK,
+  SUBAGENT,
+  PAOR,
+  // v2.2 P1 修复 #18/#20：补齐 MCP 外部调用通道集中化
+  MCP_EXTERNAL,
+  // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
+  APP,
+  // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
+  FS,
 } from '@shared/ipc-channels'
 import type {
   SshConfig,
@@ -717,7 +743,7 @@ const config = {
 
   /** 写入配置 */
   set: (key: string, value: unknown): Promise<boolean> =>
-    ipcRenderer.invoke('config:set', key, value),
+    ipcRenderer.invoke(CONFIG.SET, key, value),
 }
 
 /**
@@ -751,15 +777,15 @@ const llm = {
 const server = {
   /** 加载服务器列表（敏感信息从 safeStorage 解密） */
   list: (): Promise<SshConfig[]> =>
-    ipcRenderer.invoke('server:list'),
+    ipcRenderer.invoke(SERVER.LIST),
 
   /** 保存服务器列表（敏感信息加密存储） */
   save: (servers: SshConfig[]): Promise<boolean> =>
-    ipcRenderer.invoke('server:save', servers),
+    ipcRenderer.invoke(SERVER.SAVE, servers),
 
   /** 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
   export: (): Promise<string> =>
-    ipcRenderer.invoke('server:export'),
+    ipcRenderer.invoke(SERVER.EXPORT),
 
   /** 导入服务器列表（生成新 ID，敏感信息留空） */
   import: (json: string): Promise<SshConfig[]> =>
@@ -767,7 +793,7 @@ const server = {
 
   /** 删除服务器凭证 */
   deleteCred: (serverId: string): Promise<boolean> =>
-    ipcRenderer.invoke('server:delete-cred', serverId),
+    ipcRenderer.invoke(SERVER.DELETE_CRED, serverId),
 }
 
 /**
@@ -776,19 +802,19 @@ const server = {
 const profiler = {
   /** 执行系统架构感知（27 项探查 + 风险检测 + md 渲染） */
   run: (sessionId: string, host: string): Promise<ProfilerRunResponse> =>
-    ipcRenderer.invoke('profiler:run', sessionId, host),
+    ipcRenderer.invoke(PROFILER.RUN, sessionId, host),
 
   /** 导出 md 文件 */
   exportMd: (md: string, outputPath: string): Promise<{ filePath: string; size: number }> =>
-    ipcRenderer.invoke('profiler:exportMd', md, outputPath),
+    ipcRenderer.invoke(PROFILER.EXPORT_MD, md, outputPath),
 
   /** 导出 PDF 文件 */
   exportPdf: (md: string, outputPath: string): Promise<{ filePath: string; size: number }> =>
-    ipcRenderer.invoke('profiler:exportPdf', md, outputPath),
+    ipcRenderer.invoke(PROFILER.EXPORT_PDF, md, outputPath),
 
   /** 生成默认文件名 */
   defaultFileName: (host: string, ext: 'md' | 'pdf'): Promise<string> =>
-    ipcRenderer.invoke('profiler:defaultFileName', host, ext),
+    ipcRenderer.invoke(PROFILER.DEFAULT_FILE_NAME, host, ext),
 }
 
 /**
@@ -855,7 +881,7 @@ const agentRuntime = {
    * @param approved 是否批准执行
    */
   approve: (callId: string, approved: boolean): Promise<boolean> =>
-    ipcRenderer.invoke('paor:approve', callId, approved),
+    ipcRenderer.invoke(PAOR.APPROVE, callId, approved),
 }
 
 /**
@@ -888,7 +914,7 @@ const system = {
    * @returns { ok: true, timestamp: number, protocolVersion: string }
    */
   ping: (): Promise<SystemPingResponse> =>
-    ipcRenderer.invoke('system:ping'),
+    ipcRenderer.invoke(SYSTEM.PING),
 
   /**
    * 通过 sessionId 统一取消进行中的会话（v0.9.4 新增）
@@ -907,8 +933,75 @@ const system = {
   cancel: (sessionId: string): Promise<{ agentChat: boolean; claudeSdk: boolean }> =>
     Promise.all([
       ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionId),
-      ipcRenderer.invoke('claude-sdk:cancel', sessionId),
+      ipcRenderer.invoke(CLAUDE_SDK.CANCEL, sessionId),
     ]).then(([agentChat, claudeSdk]) => ({ agentChat, claudeSdk })),
+}
+
+/**
+ * v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
+ *
+ * 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面。
+ * 不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子）。
+ *
+ * 通道与主进程 ipc/app-update.ts 一一对应。
+ *
+ * 使用场景：AboutSettings 页面"检查更新"按钮
+ */
+const appUpdate = {
+  /**
+   * 检查 GitHub Releases 是否有新版本
+   *
+   * 主进程 fetch GitHub API（10 秒超时），比对 semver 版本号。
+   * 返回 AppUpdateInfo（hasUpdate=true 表示有新版本）或 AppUpdateError（已脱敏）。
+   */
+  checkUpdate: async (): Promise<
+    | {
+        hasUpdate: boolean
+        latestVersion: string
+        currentVersion: string
+        releaseUrl: string
+        releaseNotes: string
+        publishedAt: string
+      }
+    | { hasUpdate: false; error: string }
+  > => ipcRenderer.invoke(APP.CHECK_UPDATE),
+
+  /**
+   * 打开浏览器到 Release 页面（让用户手动下载安装包）
+   *
+   * @param releaseUrl 可选，指定 Release URL；无参数时打开 Releases 列表页面
+   */
+  downloadUpdate: (releaseUrl?: string): Promise<boolean> =>
+    ipcRenderer.invoke(APP.DOWNLOAD_UPDATE, releaseUrl),
+}
+
+/**
+ * v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
+ *
+ * AIPanel 图片附件基础版：弹出文件选择对话框 → 读取图片 → 返回 base64 data URL。
+ * 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp。
+ *
+ * 通道与主进程 ipc/fs-upload.ts 一一对应。
+ *
+ * 使用场景：AIPanel 图片附件按钮
+ */
+const fsUpload = {
+  /**
+   * 选择图片文件并返回 base64 data URL
+   *
+   * 主进程 dialog.showOpenDialog 弹出文件选择器，读取文件转 base64。
+   * 返回 ImageUploadResult（success=true）或 ImageUploadError（success=false）。
+   */
+  uploadImage: async (): Promise<
+    | {
+        success: true
+        dataUrl: string
+        fileName: string
+        fileSize: number
+        mimeType: string
+      }
+    | { success: false; error: string }
+  > => ipcRenderer.invoke(FS.UPLOAD_IMAGE),
 }
 
 /**
@@ -917,19 +1010,19 @@ const system = {
 const provider = {
   /** 列出所有 Provider 配置（不含 apiKey） */
   list: (onlyEnabled?: boolean): Promise<PersistedProviderConfig[]> =>
-    ipcRenderer.invoke('provider:list', onlyEnabled),
+    ipcRenderer.invoke(PROVIDER.LIST, onlyEnabled),
 
   /** 获取指定 Provider 配置（不含 apiKey） */
   get: (id: string): Promise<PersistedProviderConfig | null> =>
-    ipcRenderer.invoke('provider:get', id),
+    ipcRenderer.invoke(PROVIDER.GET, id),
 
   /** 保存 / 更新 Provider 配置（apiKey 自动走 SecureStore 加密） */
   save: (config: ProviderConfig): Promise<boolean> =>
-    ipcRenderer.invoke('provider:save', config),
+    ipcRenderer.invoke(PROVIDER.SAVE, config),
 
   /** 设置默认 Provider ID */
   setDefault: (id: string): Promise<boolean> =>
-    ipcRenderer.invoke('provider:set-default', id),
+    ipcRenderer.invoke(PROVIDER.SET_DEFAULT, id),
 }
 
 /**
@@ -938,7 +1031,7 @@ const provider = {
 const token = {
   /** 获取 token 统计聚合（当日/当周/当月/总 + 按 Subagent/Provider 分布） */
   stats: (): Promise<TokenStats> =>
-    ipcRenderer.invoke('token:stats'),
+    ipcRenderer.invoke(TOKEN.STATS),
 
   /** 重置 token 统计（清空所有记录） */
   reset: (): Promise<boolean> =>
@@ -951,7 +1044,7 @@ const token = {
    * @returns TokenUsageRecord[]（按时间正序，最近一条在末尾）
    */
   records: (limit?: number): Promise<TokenUsageRecord[]> =>
-    ipcRenderer.invoke('token:records', limit),
+    ipcRenderer.invoke(TOKEN.RECORDS, limit),
 }
 
 /**
@@ -983,7 +1076,7 @@ const claudeSdk = {
    * @returns 完整 ChatResult
    */
   generate: (providerId: string, params: ClaudeSdkChatParams): Promise<ChatResult> =>
-    ipcRenderer.invoke('claude-sdk:generate', providerId, params),
+    ipcRenderer.invoke(CLAUDE_SDK.GENERATE, providerId, params),
 
   /**
    * 异步流式调用（立即返回 correlationId，后续通过事件推送 token/done/error）
@@ -995,7 +1088,7 @@ const claudeSdk = {
    * @returns correlationId（用于监听 claude-sdk:chunk/done/error + 取消请求）
    */
   stream: (providerId: string, params: ClaudeSdkChatParams): Promise<string> =>
-    ipcRenderer.invoke('claude-sdk:stream', providerId, params),
+    ipcRenderer.invoke(CLAUDE_SDK.STREAM, providerId, params),
 
   /**
    * 取消进行中的请求
@@ -1004,7 +1097,7 @@ const claudeSdk = {
    * @returns 是否成功取消（false 表示请求已结束或不存在）
    */
   cancel: (correlationId: string): Promise<boolean> =>
-    ipcRenderer.invoke('claude-sdk:cancel', correlationId),
+    ipcRenderer.invoke(CLAUDE_SDK.CANCEL, correlationId),
 }
 
 // ============================================================================
@@ -1110,23 +1203,23 @@ const sandbox = {
 
   /** 启动 OpenHands App Server 容器（首次启动需拉镜像，可能数分钟） */
   start: (): Promise<{ success: true } | SandboxErrorResponse> =>
-    ipcRenderer.invoke('sandbox:start'),
+    ipcRenderer.invoke(SANDBOX.START),
 
   /** 停止 OpenHands App Server 容器 */
   stop: (): Promise<{ success: true } | SandboxErrorResponse> =>
-    ipcRenderer.invoke('sandbox:stop'),
+    ipcRenderer.invoke(SANDBOX.STOP),
 
   /** 获取沙箱集成状态（Docker + OpenHands 健康） */
   status: (): Promise<SandboxHealthStatus> =>
-    ipcRenderer.invoke('sandbox:status'),
+    ipcRenderer.invoke(SANDBOX.STATUS),
 
   /** 创建新沙箱（隔离 Docker 容器） */
   create: (sandboxSpecId?: string): Promise<SandboxInfo | SandboxErrorResponse> =>
-    ipcRenderer.invoke('sandbox:create', sandboxSpecId),
+    ipcRenderer.invoke(SANDBOX.CREATE, sandboxSpecId),
 
   /** 列出当前用户的所有沙箱 */
   list: (limit?: number): Promise<SandboxPage | SandboxErrorResponse> =>
-    ipcRenderer.invoke('sandbox:list', limit),
+    ipcRenderer.invoke(SANDBOX.LIST, limit),
 
   /**
    * 在沙箱内执行 shell 命令
@@ -1143,7 +1236,7 @@ const sandbox = {
     sandboxId: string,
     command: string
   ): Promise<SandboxCommandResult | SandboxErrorResponse> =>
-    ipcRenderer.invoke('sandbox:execute', sandboxId, command),
+    ipcRenderer.invoke(SANDBOX.EXECUTE, sandboxId, command),
 
   /**
    * 响应沙箱命令审批请求（P-2：HC-6 强制审批）
@@ -1155,11 +1248,11 @@ const sandbox = {
    * @param approved 是否批准执行
    */
   approve: (callId: string, approved: boolean): Promise<boolean> =>
-    ipcRenderer.invoke('sandbox:approve', callId, approved),
+    ipcRenderer.invoke(SANDBOX.APPROVE, callId, approved),
 
   /** 删除沙箱（不可逆，工作区数据将丢失） */
   delete: (sandboxId: string): Promise<{ success: true } | SandboxErrorResponse> =>
-    ipcRenderer.invoke('sandbox:delete', sandboxId),
+    ipcRenderer.invoke(SANDBOX.DELETE, sandboxId),
 }
 
 /**
@@ -1199,7 +1292,7 @@ const atCommands = {
     source?: AtCommandSource,
     userId?: string
   ): Promise<AtCommand> =>
-    ipcRenderer.invoke('at:resolve', type, args, source, userId),
+    ipcRenderer.invoke(AT_COMMANDS.RESOLVE, type, args, source, userId),
 
   /**
    * 解析文本中所有 @命令
@@ -1214,7 +1307,7 @@ const atCommands = {
     source?: AtCommandSource,
     userId?: string
   ): Promise<AtCommandParseResult> =>
-    ipcRenderer.invoke('at:parse', text, source, userId),
+    ipcRenderer.invoke(AT_COMMANDS.PARSE, text, source, userId),
 }
 
 /**
@@ -1267,7 +1360,7 @@ const credibility = {
    * @returns ConfidenceAssessment（含 Bel/Pl/confidence/conflictLevel/fusionSteps）
    */
   assess: (inputs: CredibilityEvidenceInput[]): Promise<ConfidenceAssessment> =>
-    ipcRenderer.invoke('credibility:assess', inputs),
+    ipcRenderer.invoke(CREDIBILITY.ASSESS, inputs),
 
   /**
    * 获取 DAG 可视化数据
@@ -1276,7 +1369,7 @@ const credibility = {
    * @returns DagData（含 nodes + edges，用于 React Flow 渲染）
    */
   dag: (inputs: CredibilityEvidenceInput[]): Promise<DagData> =>
-    ipcRenderer.invoke('credibility:dag', inputs),
+    ipcRenderer.invoke(CREDIBILITY.DAG, inputs),
 
   // ========================================================================
   // v0.9.6 P1：ECE 校准器方法（CalibrationTuner）
@@ -1295,7 +1388,7 @@ const credibility = {
     providerId: ProviderId,
     options?: OptimizeTOptions
   ): Promise<TemperatureScalingResult> =>
-    ipcRenderer.invoke('credibility:calibrate', providerId, options),
+    ipcRenderer.invoke(CREDIBILITY.CALIBRATE, providerId, options),
 
   /**
    * 获取指定 Provider 的当前校准状态
@@ -1304,7 +1397,7 @@ const credibility = {
    * @returns ProviderCalibration（optimalT / lastCalibratedAt / sampleCount / ece）
    */
   getCalibration: (providerId: ProviderId): Promise<ProviderCalibration> =>
-    ipcRenderer.invoke('credibility:get-calibration', providerId),
+    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION, providerId),
 
   /**
    * 获取全局校准状态（含所有 Provider 的 T 值表）
@@ -1312,7 +1405,7 @@ const credibility = {
    * @returns CalibrationState（providers + defaultT + updatedAt）
    */
   getCalibrationState: (): Promise<CalibrationState> =>
-    ipcRenderer.invoke('credibility:get-calibration-state'),
+    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION_STATE),
 
   /**
    * 重置指定 Provider 的校准（T 回到 defaultT=1.0）
@@ -1321,7 +1414,7 @@ const credibility = {
    * @returns boolean（是否成功重置）
    */
   resetCalibration: (providerId: ProviderId): Promise<boolean> =>
-    ipcRenderer.invoke('credibility:reset-calibration', providerId),
+    ipcRenderer.invoke(CREDIBILITY.RESET_CALIBRATION, providerId),
 
   /**
    * 计算指定 Provider 的当前 ECE（不修改 T）
@@ -1331,7 +1424,7 @@ const credibility = {
    * @returns EceResult（ECE / MCE / 各桶统计 / 总样本数）
    */
   computeEce: (providerId: ProviderId, numBuckets?: number): Promise<EceResult> =>
-    ipcRenderer.invoke('credibility:compute-ece', providerId, numBuckets),
+    ipcRenderer.invoke(CREDIBILITY.COMPUTE_ECE, providerId, numBuckets),
 
   /**
    * 记录新的校准样本
@@ -1343,7 +1436,7 @@ const credibility = {
    * @returns boolean（是否成功入库）
    */
   addCalibrationSample: (sample: CalibrationSample): Promise<boolean> =>
-    ipcRenderer.invoke('credibility:add-calibration-sample', sample),
+    ipcRenderer.invoke(CREDIBILITY.ADD_CALIBRATION_SAMPLE, sample),
 
   // ========================================================================
   // v0.9.6 P2：EU AI Act 合规审计报告方法
@@ -1367,7 +1460,7 @@ const credibility = {
    * @returns ExportResult（reportId / fingerprint / 文件路径 / 字节数）
    */
   exportAuditReport: (input: AuditReportInput, options?: ExportOptions): Promise<ExportResult> =>
-    ipcRenderer.invoke('credibility:export-audit-report', input, options),
+    ipcRenderer.invoke(CREDIBILITY.EXPORT_AUDIT_REPORT, input, options),
 
   /**
    * 列出已落盘的审计报告
@@ -1378,7 +1471,7 @@ const credibility = {
    * @returns AuditReportListItem[]（decisionId / fingerprint / complianceScore / filepath）
    */
   listAuditReports: (outputDir?: string): Promise<AuditReportListItem[]> =>
-    ipcRenderer.invoke('credibility:list-audit-reports', outputDir),
+    ipcRenderer.invoke(CREDIBILITY.LIST_AUDIT_REPORTS, outputDir),
 
   /**
    * 从已落盘的 JSON 报告重建 ComplianceAuditReport 对象
@@ -1389,7 +1482,7 @@ const credibility = {
    * @returns ComplianceAuditReport（完整结构）
    */
   loadAuditReport: (filepath: string): Promise<ComplianceAuditReport> =>
-    ipcRenderer.invoke('credibility:load-audit-report', filepath),
+    ipcRenderer.invoke(CREDIBILITY.LOAD_AUDIT_REPORT, filepath),
 
   /**
    * 仅格式化（不落盘），用于预览
@@ -1399,7 +1492,7 @@ const credibility = {
    * @returns string（序列化后的报告内容）
    */
   formatAuditReport: (input: AuditReportInput, format: AuditFormat): Promise<string> =>
-    ipcRenderer.invoke('credibility:format-audit-report', input, format),
+    ipcRenderer.invoke(CREDIBILITY.FORMAT_AUDIT_REPORT, input, format),
 }
 
 // ============================================================================
@@ -1433,7 +1526,7 @@ const tokenCostStats = {
    * @returns CostStats（含 todayCost/weekCost/monthCost/totalCost + bySubagent/byProvider）
    */
   costStats: (): Promise<CostStats> =>
-    ipcRenderer.invoke('token:cost-stats'),
+    ipcRenderer.invoke(TOKEN.COST_STATS),
 }
 
 /**
@@ -1460,7 +1553,7 @@ const mode = {
    * @returns ModeInfo[]（5 个 mode：chat / ask / plan / code / debug）
    */
   list: (): Promise<ModeListResponse> =>
-    ipcRenderer.invoke('mode:list'),
+    ipcRenderer.invoke(MODE.LIST),
 
   /**
    * 设置当前默认 mode
@@ -1469,7 +1562,7 @@ const mode = {
    * @returns { success, previousMode, currentMode }（非法 mode 返回 success=false）
    */
   setDefault: (request: ModeSetDefaultRequest): Promise<ModeSetDefaultResponse> =>
-    ipcRenderer.invoke('mode:set-default', request),
+    ipcRenderer.invoke(MODE.SET_DEFAULT, request),
 
   /**
    * 返回当前默认 mode
@@ -1477,7 +1570,7 @@ const mode = {
    * @returns { mode, displayName }（便于 UI 直接渲染）
    */
   getCurrent: (): Promise<ModeCurrentResponse> =>
-    ipcRenderer.invoke('mode:get-current'),
+    ipcRenderer.invoke(MODE.GET_CURRENT),
 }
 
 /**
@@ -1505,11 +1598,11 @@ const mode = {
 const attention = {
   /** 获取当前 attention（始终非 null，since 字段必有） */
   current: (): Promise<AttentionFocus> =>
-    ipcRenderer.invoke('attention:current'),
+    ipcRenderer.invoke(ATTENTION.CURRENT),
 
   /** 获取历史 attention 列表（按时间顺序，最早在前） */
   history: (): Promise<AttentionFocus[]> =>
-    ipcRenderer.invoke('attention:history'),
+    ipcRenderer.invoke(ATTENTION.HISTORY),
 
   /**
    * 跟踪关注的文件
@@ -1518,7 +1611,7 @@ const attention = {
    * @returns true 表示跟踪成功
    */
   trackFiles: (files: string[]): Promise<boolean> =>
-    ipcRenderer.invoke('attention:track-files', files),
+    ipcRenderer.invoke(ATTENTION.TRACK_FILES, files),
 
   /**
    * 跟踪关注的命令
@@ -1527,7 +1620,7 @@ const attention = {
    * @returns true 表示跟踪成功
    */
   trackCommands: (commands: string[]): Promise<boolean> =>
-    ipcRenderer.invoke('attention:track-commands', commands),
+    ipcRenderer.invoke(ATTENTION.TRACK_COMMANDS, commands),
 
   /**
    * 跟踪关注的错误
@@ -1536,7 +1629,7 @@ const attention = {
    * @returns true 表示跟踪成功
    */
   trackErrors: (errors: string[]): Promise<boolean> =>
-    ipcRenderer.invoke('attention:track-errors', errors),
+    ipcRenderer.invoke(ATTENTION.TRACK_ERRORS, errors),
 
   /**
    * 跟踪关注的搜索关键词
@@ -1545,7 +1638,7 @@ const attention = {
    * @returns true 表示跟踪成功
    */
   trackKeywords: (keywords: string[]): Promise<boolean> =>
-    ipcRenderer.invoke('attention:track-keywords', keywords),
+    ipcRenderer.invoke(ATTENTION.TRACK_KEYWORDS, keywords),
 
   /**
    * 重置当前 attention（归档到 history）
@@ -1553,7 +1646,7 @@ const attention = {
    * @returns true 表示重置成功
    */
   reset: (): Promise<boolean> =>
-    ipcRenderer.invoke('attention:reset'),
+    ipcRenderer.invoke(ATTENTION.RESET),
 }
 
 /**
@@ -1586,7 +1679,7 @@ const expectation = {
     actualOutput: string,
     actualExitCode: number
   ): Promise<ExpectationCheckResult> =>
-    ipcRenderer.invoke('expectation:check', expectation, actualOutput, actualExitCode),
+    ipcRenderer.invoke(EXPECTATION.CHECK, expectation, actualOutput, actualExitCode),
 
   /**
    * 格式化违规列表为人类可读字符串
@@ -1595,7 +1688,7 @@ const expectation = {
    * @returns 格式化后的字符串
    */
   format: (violations: ExpectationViolation[]): Promise<string> =>
-    ipcRenderer.invoke('expectation:format', violations),
+    ipcRenderer.invoke(EXPECTATION.FORMAT, violations),
 }
 
 /**
@@ -1631,7 +1724,7 @@ const taskPermission = {
     callId: string,
     decision: TaskPermissionDecision
   ): Promise<void> =>
-    ipcRenderer.invoke('task:permission-approve', callId, decision),
+    ipcRenderer.invoke(TASK.PERMISSION_APPROVE, callId, decision),
 }
 
 /**
@@ -1657,7 +1750,7 @@ const subagent = {
    * @returns CustomAgentConfig[]（目录不存在返回空数组，不抛错）
    */
   list: (): Promise<CustomAgentConfig[]> =>
-    ipcRenderer.invoke('subagent:list'),
+    ipcRenderer.invoke(SUBAGENT.LIST),
 
   /**
    * 重新加载指定 agent 或全部重载
@@ -1666,7 +1759,7 @@ const subagent = {
    * @returns { success, reloaded, failed }（即使部分失败也返回 success=true）
    */
   reload: (request?: SubagentReloadRequest): Promise<SubagentReloadResponse> =>
-    ipcRenderer.invoke('subagent:reload', request),
+    ipcRenderer.invoke(SUBAGENT.RELOAD, request),
 }
 
 /**
@@ -1695,7 +1788,7 @@ const providerInfo = {
    * @returns ProviderCapabilities | null（Provider 不存在时返回 null）
    */
   capabilities: (request: ProviderCapabilitiesRequest): Promise<ProviderCapabilitiesResponse> =>
-    ipcRenderer.invoke('provider:capabilities', request),
+    ipcRenderer.invoke(PROVIDER.CAPABILITIES, request),
 
   /**
    * 查询所有 provider 类型的能力声明默认表
@@ -1703,7 +1796,7 @@ const providerInfo = {
    * @returns Record<string, ProviderCapabilities>（按 ProviderType 索引）
    */
   capabilitiesAll: (): Promise<ProviderCapabilitiesAllResponse> =>
-    ipcRenderer.invoke('provider:capabilities-all'),
+    ipcRenderer.invoke(PROVIDER.CAPABILITIES_ALL),
 
   /**
    * 查询指定 provider 的定价表
@@ -1712,7 +1805,7 @@ const providerInfo = {
    * @returns ModelPricing | null（Provider 不存在时返回 null）
    */
   pricing: (request: ProviderPricingRequest): Promise<ProviderPricingResponse> =>
-    ipcRenderer.invoke('provider:pricing', request),
+    ipcRenderer.invoke(PROVIDER.PRICING, request),
 
   /**
    * 查询所有 provider 类型的定价表默认表
@@ -1720,7 +1813,7 @@ const providerInfo = {
    * @returns Record<string, ModelPricing>（按 ProviderType 索引）
    */
   pricingAll: (): Promise<ProviderPricingAllResponse> =>
-    ipcRenderer.invoke('provider:pricing-all'),
+    ipcRenderer.invoke(PROVIDER.PRICING_ALL),
 }
 
 // ============================================================================
@@ -1993,11 +2086,11 @@ const on = {
   // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
   /** 获取 MCP 状态机当前状态 */
   mcpGetState: (): Promise<McpStateContext> => {
-    return ipcRenderer.invoke('mcp:get-state')
+    return ipcRenderer.invoke(MCP.GET_STATE)
   },
   /** 重置 MCP 状态机（用户手动恢复） */
   mcpReset: (): Promise<boolean> => {
-    return ipcRenderer.invoke('mcp:reset')
+    return ipcRenderer.invoke(MCP.RESET)
   },
   /** 监听 MCP 状态变更推送 */
   mcpStateChanged: (callback: (ctx: McpStateContext) => void): (() => void) => {
@@ -2013,7 +2106,7 @@ const on = {
   mcpExternalTools: (): Promise<
     Array<{ name: string; description: string; serverId: string; serverName: string }>
   > => {
-    return ipcRenderer.invoke('mcp:external-tools')
+    return ipcRenderer.invoke(MCP.EXTERNAL_TOOLS)
   },
   /** 调用外部 MCP 工具 */
   mcpExternalCall: (
@@ -2025,11 +2118,11 @@ const on = {
     content: Array<{ type: 'text'; text: string }>
     error?: string
   }> => {
-    return ipcRenderer.invoke('mcp:external-call', serverId, toolName, args)
+    return ipcRenderer.invoke(MCP_EXTERNAL.EXTERNAL_CALL, serverId, toolName, args)
   },
   /** 重连外部 MCP 服务器 */
   mcpExternalReconnect: (serverId: string): Promise<boolean> => {
-    return ipcRenderer.invoke('mcp:external-reconnect', serverId)
+    return ipcRenderer.invoke(MCP.EXTERNAL_RECONNECT, serverId)
   },
 
   // v0.9 Supervisor chat 流式事件
@@ -2282,6 +2375,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v0.9.4 新增：系统级 IPC（协议版本 + 心跳保活）
   getProtocolVersion: system.getProtocolVersion,
   systemPing: system.ping,
+  // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
+  // 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater
+  appCheckUpdate: appUpdate.checkUpdate,
+  appDownloadUpdate: appUpdate.downloadUpdate,
+  // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
+  // AIPanel 图片附件基础版：dialog + base64 data URL，不引入图片压缩库
+  fsUploadImage: fsUpload.uploadImage,
   providerList: provider.list,
   providerGet: provider.get,
   providerSave: provider.save,
@@ -2353,69 +2453,69 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>
-    ipcRenderer.invoke('kb:search', query, type, limit),
+    ipcRenderer.invoke(KNOWLEDGE.SEARCH, query, type, limit),
   kbAdd: (entry: unknown): Promise<boolean> =>
-    ipcRenderer.invoke('kb:add', entry),
+    ipcRenderer.invoke(KNOWLEDGE.ADD, entry),
   kbUpdate: (id: string, entry: unknown): Promise<boolean> =>
-    ipcRenderer.invoke('kb:update', id, entry),
+    ipcRenderer.invoke(KNOWLEDGE.UPDATE, id, entry),
   kbDelete: (id: string): Promise<boolean> =>
-    ipcRenderer.invoke('kb:delete', id),
+    ipcRenderer.invoke(KNOWLEDGE.DELETE, id),
   kbExport: (type: string): Promise<string> =>
-    ipcRenderer.invoke('kb:export', type),
+    ipcRenderer.invoke(KNOWLEDGE.EXPORT, type),
   kbImport: (data: string): Promise<number> =>
-    ipcRenderer.invoke('kb:import', data),
+    ipcRenderer.invoke(KNOWLEDGE.IMPORT, data),
 
   // ===== 历史决策扁平化 =====
   historyList: (offset: number, limit: number): Promise<unknown[]> =>
-    ipcRenderer.invoke('history:list', offset, limit),
+    ipcRenderer.invoke(HISTORY.LIST, offset, limit),
   historyGet: (id: string): Promise<unknown> =>
-    ipcRenderer.invoke('history:get', id),
+    ipcRenderer.invoke(HISTORY.GET, id),
   // P-8 修复：补充暴露 history:save 通道（主进程已注册，但 preload 此前未暴露）
   historySave: (card: DecisionCard): Promise<boolean> =>
-    ipcRenderer.invoke('history:save', card),
+    ipcRenderer.invoke(HISTORY.SAVE, card),
 
   // ===== 系统架构感知扁平化 =====
   profilerRun: (sessionId: string, host: string): Promise<ProfilerRunResponse> =>
-    ipcRenderer.invoke('profiler:run', sessionId, host),
+    ipcRenderer.invoke(PROFILER.RUN, sessionId, host),
   profilerExportMd: (
     md: string,
     outputPath: string
   ): Promise<{ filePath: string; size: number }> =>
-    ipcRenderer.invoke('profiler:exportMd', md, outputPath),
+    ipcRenderer.invoke(PROFILER.EXPORT_MD, md, outputPath),
   profilerExportPdf: (
     md: string,
     outputPath: string
   ): Promise<{ filePath: string; size: number }> =>
-    ipcRenderer.invoke('profiler:exportPdf', md, outputPath),
+    ipcRenderer.invoke(PROFILER.EXPORT_PDF, md, outputPath),
   profilerDefaultFileName: (host: string, ext: 'md' | 'pdf'): Promise<string> =>
-    ipcRenderer.invoke('profiler:defaultFileName', host, ext),
+    ipcRenderer.invoke(PROFILER.DEFAULT_FILE_NAME, host, ext),
 
   // ===== 知识库教程扁平化 =====
   tutorialList: (category?: TutorialCategory): Promise<TutorialEntry[]> =>
-    ipcRenderer.invoke('tutorial:list', category),
+    ipcRenderer.invoke(TUTORIAL.LIST, category),
   tutorialGet: (id: string): Promise<TutorialEntry | null> =>
-    ipcRenderer.invoke('tutorial:get', id),
+    ipcRenderer.invoke(TUTORIAL.GET, id),
   tutorialSearch: (query: string, limit?: number): Promise<TutorialEntry[]> =>
-    ipcRenderer.invoke('tutorial:search', query, limit),
+    ipcRenderer.invoke(TUTORIAL.SEARCH, query, limit),
   tutorialCategories: (): Promise<TutorialCategorySummary[]> =>
-    ipcRenderer.invoke('tutorial:categories'),
+    ipcRenderer.invoke(TUTORIAL.CATEGORIES),
   tutorialSeedVersion: (): Promise<string> =>
-    ipcRenderer.invoke('tutorial:seedVersion'),
+    ipcRenderer.invoke(TUTORIAL.SEED_VERSION),
   tutorialSeedReload: (): Promise<number> =>
-    ipcRenderer.invoke('tutorial:seedReload'),
+    ipcRenderer.invoke(TUTORIAL.SEED_RELOAD),
 
   // ===== 教程爬虫扁平化（v0.6.0）=====
   tutorialListSources: (): Promise<TutorialSourceSpec[]> =>
-    ipcRenderer.invoke('tutorial:listSources'),
+    ipcRenderer.invoke(TUTORIAL.LIST_SOURCES),
   tutorialCrawlStart: (args?: { sourceIds?: string[]; force?: boolean }): Promise<{
     success: boolean
     error?: string
     results: CrawlResult[]
-  }> => ipcRenderer.invoke('tutorial:crawlStart', args),
+  }> => ipcRenderer.invoke(TUTORIAL.CRAWL_START, args),
   tutorialCrawlStatus: (): Promise<CrawlStatus> =>
-    ipcRenderer.invoke('tutorial:crawlStatus'),
+    ipcRenderer.invoke(TUTORIAL.CRAWL_STATUS),
   tutorialCrawlCancel: (): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke('tutorial:crawlCancel'),
+    ipcRenderer.invoke(TUTORIAL.CRAWL_CANCEL),
 
   // 教程爬虫事件监听
   onTutorialCrawlProgress: (callback: (progress: CrawlProgress) => void): (() => void) => {
@@ -2433,9 +2533,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     usageRatio: number
     bySource: Array<{ sourceId: string; bytes: number; files: number }>
     orphanFiles: number
-  }> => ipcRenderer.invoke('tutorial:diskInfo'),
+  }> => ipcRenderer.invoke(TUTORIAL.DISK_INFO),
   tutorialCleanupOrphans: (): Promise<{ success: boolean; cleanedBytes: number }> =>
-    ipcRenderer.invoke('tutorial:cleanupOrphans'),
+    ipcRenderer.invoke(TUTORIAL.CLEANUP_ORPHANS),
   tutorialCheckpoints: (): Promise<
     Array<{
       sourceId: string
@@ -2447,9 +2547,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       errorMessage: string | null
       updatedAt: number
     }>
-  > => ipcRenderer.invoke('tutorial:checkpoints'),
+  > => ipcRenderer.invoke(TUTORIAL.CHECKPOINTS),
   tutorialResetCheckpoint: (sourceId: string): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke('tutorial:resetCheckpoint', sourceId),
+    ipcRenderer.invoke(TUTORIAL.RESET_CHECKPOINT, sourceId),
 
   // ===== 教程混合检索 + embedding 回填 + 检索状态（v0.9.6 Sprint 7 任务 E）=====
   // 通道与主进程 ipc/tutorial.ts 一一对应：
@@ -2474,7 +2574,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     query: string,
     options?: TutorialHybridSearchOptions
   ): Promise<HybridSearchResult[]> =>
-    ipcRenderer.invoke('tutorial:hybrid-search', query, options),
+    ipcRenderer.invoke(TUTORIAL.HYBRID_SEARCH, query, options),
   /**
    * 回填缺失的 embedding 字段（长任务，2578 条需 1-3 分钟）
    *
@@ -2484,14 +2584,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   tutorialBackfillEmbeddings: (
     options?: TutorialBackfillOptions
   ): Promise<TutorialBackfillResult> =>
-    ipcRenderer.invoke('tutorial:backfill-embeddings', options),
+    ipcRenderer.invoke(TUTORIAL.BACKFILL_EMBEDDINGS, options),
   /**
    * 获取检索状态（向量是否可用 + 模型是否加载 + 总条目数）
    *
    * @returns TutorialSearchStatus（vectorEnabled / embeddingModelLoaded / embeddingDim / totalEntries）
    */
   tutorialSearchStatus: (): Promise<TutorialSearchStatus> =>
-    ipcRenderer.invoke('tutorial:search-status'),
+    ipcRenderer.invoke(TUTORIAL.SEARCH_STATUS),
 
   // ===== 学习路径推荐（v0.9.6 Sprint 9）=====
   // 通道与主进程 ipc/tutorial.ts 一一对应：
@@ -2511,31 +2611,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns TutorialPath[]（按融合分数排序的学习路径）
    */
   tutorialRecommendPath: (options?: RecommendPathOptions): Promise<TutorialPath[]> =>
-    ipcRenderer.invoke('tutorial:recommend-path', options),
+    ipcRenderer.invoke(TUTORIAL.RECOMMEND_PATH, options),
 
   // ===== Web 部署助手扁平化 =====
   deployListTemplates: (): Promise<DeployTemplateModel[]> =>
-    ipcRenderer.invoke('deploy:listTemplates'),
+    ipcRenderer.invoke(DEPLOY.LIST_TEMPLATES),
   deployGetTemplate: (id: string): Promise<DeployTemplateModel | null> =>
-    ipcRenderer.invoke('deploy:getTemplate', id),
+    ipcRenderer.invoke(DEPLOY.GET_TEMPLATE, id),
   deployValidate: (
     templateId: string,
     values: Record<string, string>
-  ): Promise<string[]> => ipcRenderer.invoke('deploy:validate', templateId, values),
+  ): Promise<string[]> => ipcRenderer.invoke(DEPLOY.VALIDATE, templateId, values),
   deployBuild: (
     templateId: string,
     values: Record<string, string>,
     targetHost: string
   ): Promise<{ plan?: DeployPlanModel; errors: string[] }> =>
-    ipcRenderer.invoke('deploy:build', templateId, values, targetHost),
+    ipcRenderer.invoke(DEPLOY.BUILD, templateId, values, targetHost),
   deployExecute: (
     plan: DeployPlanModel,
     sessionId: string
-  ): Promise<DeployResultModel> => ipcRenderer.invoke('deploy:execute', plan, sessionId),
+  ): Promise<DeployResultModel> => ipcRenderer.invoke(DEPLOY.EXECUTE, plan, sessionId),
   deployCancel: (planId: string): Promise<boolean> =>
-    ipcRenderer.invoke('deploy:cancel', planId),
+    ipcRenderer.invoke(DEPLOY.CANCEL, planId),
   deployGetStatus: (planId: string): Promise<{ status: string; currentIndex: number; total: number } | null> =>
-    ipcRenderer.invoke('deploy:getStatus', planId),
+    ipcRenderer.invoke(DEPLOY.GET_STATUS, planId),
 
   // 部署事件监听
   onDeployLog: (callback: (event: DeployLogEventModel) => void): (() => void) => {
@@ -2567,22 +2667,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===== 日志系统（v0.7.0）=====
   /** 读取日志条目（按条件过滤） */
   logRead: (filter?: { level?: string; category?: string; categoryPrefix?: string; keyword?: string; since?: string; limit?: number }): Promise<unknown[]> =>
-    ipcRenderer.invoke('log:read', filter),
+    ipcRenderer.invoke(LOG.READ, filter),
   /** 获取日志统计 */
   logStats: (): Promise<{ total: number; byLevel: Record<string, number>; byCategory: Record<string, number>; oldestTs: string | null; newestTs: string | null }> =>
-    ipcRenderer.invoke('log:stats'),
+    ipcRenderer.invoke(LOG.STATS),
   /** 清空内存 buffer */
   logClearBuffer: (): Promise<boolean> =>
-    ipcRenderer.invoke('log:clearBuffer'),
+    ipcRenderer.invoke(LOG.CLEAR_BUFFER),
   /** 设置最低日志级别 */
   logSetMinLevel: (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'): Promise<boolean> =>
-    ipcRenderer.invoke('log:setMinLevel', level),
+    ipcRenderer.invoke(LOG.SET_MIN_LEVEL, level),
   /** 异步刷新待写入日志 */
   logFlush: (): Promise<boolean> =>
-    ipcRenderer.invoke('log:flush'),
+    ipcRenderer.invoke(LOG.FLUSH),
   /** 渲染进程日志上报（转发到主进程 logger） */
   logRenderer: (payload: { level: string; category: string; message: string; meta?: Record<string, unknown>; correlationId?: string }): Promise<boolean> =>
-    ipcRenderer.invoke('log:renderer', payload),
+    ipcRenderer.invoke(LOG.RENDERER, payload),
 
   // ===== v0.9.5 P0 新增：5 组缺失 IPC 通道扁平化（17 个方法） =====
   // 通道与主进程 ipc/{token-stats,mode,attention,subagent,provider-info}.ts 一一对应
@@ -2640,25 +2740,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * 通道：sidecar:start
    */
   sidecarStart: (): Promise<{ ok: boolean; status: string; error?: string }> =>
-    ipcRenderer.invoke('sidecar:start'),
+    ipcRenderer.invoke(SIDECAR.START),
   /**
    * 停止 Sidecar-A 进程
    * 通道：sidecar:stop
    */
   sidecarStop: (): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke('sidecar:stop'),
+    ipcRenderer.invoke(SIDECAR.STOP),
   /**
    * 获取 Sidecar 当前状态（stopped/starting/ready/degraded/crashed）
    * 通道：sidecar:status
    */
   sidecarStatus: (): Promise<{ status: string; lastError: string | null; restartCount: number }> =>
-    ipcRenderer.invoke('sidecar:status'),
+    ipcRenderer.invoke(SIDECAR.STATUS),
   /**
    * 主动健康检查（调用 Sidecar-A /health 端点）
    * 通道：sidecar:health
    */
   sidecarHealth: (): Promise<{ ok: boolean; error?: string; status?: string; version?: string; adapters?: { drain3: { ready: boolean; total_clusters: number }; open_derisk: { ready: boolean; mode: string; rules_count: number } }; uptime_seconds?: number }> =>
-    ipcRenderer.invoke('sidecar:health'),
+    ipcRenderer.invoke(SIDECAR.HEALTH),
   /**
    * 端到端 Pipeline（v1.0 核心，v1.5 增强）：日志输入 → Drain3 解析 → OpenDerisk 诊断
    * 通道：sidecar:pipeline
@@ -2699,29 +2799,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
       }
     | { ok: false; error: string }
-  > => ipcRenderer.invoke('sidecar:pipeline', logLines, serviceName, llmConfig),
+  > => ipcRenderer.invoke(SIDECAR.PIPELINE, logLines, serviceName, llmConfig),
 
   // ===== v1.5 新增：多 Sidecar 状态查询（v1.5 多 Sidecar 架构）=====
   // 通道：sidecar:list-status → 返回所有 sidecar（A/B/C）的状态
   // 使用场景：UI 状态条 / SidecarStatusPanel 展示
   sidecarListStatus: (): Promise<SidecarListStatusResponse> =>
-    ipcRenderer.invoke('sidecar:list-status'),
+    ipcRenderer.invoke(SIDECAR.LIST_STATUS),
 
   // 通道：sidecar:start-one → 启动指定 sidecar（sre/analytics/agent）
   sidecarStartOne: (
     sidecarId: 'sre' | 'analytics' | 'agent',
   ): Promise<{ ok: boolean; status: string; error?: string }> =>
-    ipcRenderer.invoke('sidecar:start-one', sidecarId),
+    ipcRenderer.invoke(SIDECAR.START_ONE, sidecarId),
 
   // 通道：sidecar:stop-one → 停止指定 sidecar
   sidecarStopOne: (sidecarId: 'sre' | 'analytics' | 'agent'): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke('sidecar:stop-one', sidecarId),
+    ipcRenderer.invoke(SIDECAR.STOP_ONE, sidecarId),
 
   // 通道：sidecar:health-one → 单个 sidecar 的健康检查
   sidecarHealthOne: (
     sidecarId: 'sre' | 'analytics' | 'agent',
   ): Promise<SidecarHealthOneResponse> =>
-    ipcRenderer.invoke('sidecar:health-one', sidecarId),
+    ipcRenderer.invoke(SIDECAR.HEALTH_ONE, sidecarId),
 
   // 通道：sidecar:tool-call → 通用 Sidecar 工具调用（用于 Sidecar-B/C 的占位端点）
   // 例如：sidecar:tool-call('analytics', '/analytics/dowhy', { treatment, outcome, ... })
@@ -2730,66 +2830,66 @@ contextBridge.exposeInMainWorld('electronAPI', {
     endpoint: string,
     payload: unknown,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('sidecar:tool-call', sidecarId, endpoint, payload),
+    ipcRenderer.invoke(SIDECAR.TOOL_CALL, sidecarId, endpoint, payload),
 
   // 通道：sidecar:parse-logs → 单独调用 Drain3 解析（不调 OpenDerisk）
   sidecarParseLogs: (
     logLines: string[],
     maxClusters?: number,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('sidecar:parse-logs', logLines, maxClusters),
+    ipcRenderer.invoke(SIDECAR.PARSE_LOGS, logLines, maxClusters),
 
   // ===== v1.5 新增：Promptfoo 红队 / Prompt 评估 =====
   // 通道：promptfoo:run-red-team → 运行红队测试（注入攻击场景，验证模型安全性）
   promptfooRunRedTeam: (
     modelProvider?: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('promptfoo:run-red-team', modelProvider),
+    ipcRenderer.invoke(PROMPTFOO.RUN_RED_TEAM, modelProvider),
 
   // 通道：promptfoo:run-eval → 运行 Prompt 评估（基于断言的 prompt 质量评估）
   promptfooRunEval: (
     modelProvider?: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('promptfoo:run-eval', modelProvider),
+    ipcRenderer.invoke(PROMPTFOO.RUN_EVAL, modelProvider),
 
   // 通道：promptfoo:list-tests → 列出所有可用测试用例
   promptfooListTests: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('promptfoo:list-tests'),
+    ipcRenderer.invoke(PROMPTFOO.LIST_TESTS),
 
   // ===== v1.5 新增：诊断服务（后端日志检测）=====
   // 通道：diagnostics:get-report → 获取完整诊断报告（含统计 + 检测结果）
   diagnosticsGetReport: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:get-report'),
+    ipcRenderer.invoke(DIAGNOSTICS.GET_REPORT),
 
   // 通道：diagnostics:get-logs → 获取缓冲区日志（可按来源/级别过滤）
   diagnosticsGetLogs: (
     options?: { source?: 'sre' | 'analytics' | 'agent' | 'main' | 'renderer'; level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; limit?: number },
   ): Promise<{ ok: boolean; data?: unknown; total?: number; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:get-logs', options),
+    ipcRenderer.invoke(DIAGNOSTICS.GET_LOGS, options),
 
   // 通道：diagnostics:get-findings → 获取检测结果（可按严重性过滤）
   diagnosticsGetFindings: (
     options?: { severity?: 'info' | 'warning' | 'error' | 'critical'; limit?: number },
   ): Promise<{ ok: boolean; data?: unknown; total?: number; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:get-findings', options),
+    ipcRenderer.invoke(DIAGNOSTICS.GET_FINDINGS, options),
 
   // 通道：diagnostics:get-stats → 获取累计统计
   diagnosticsGetStats: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:get-stats'),
+    ipcRenderer.invoke(DIAGNOSTICS.GET_STATS),
 
   // 通道：diagnostics:clear → 清空缓冲区（保留累计统计）
   diagnosticsClear: (): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:clear'),
+    ipcRenderer.invoke(DIAGNOSTICS.CLEAR),
 
   // 通道：diagnostics:set-enabled → 启用/禁用实时推送
   diagnosticsSetEnabled: (enabled: boolean): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:set-enabled', enabled),
+    ipcRenderer.invoke(DIAGNOSTICS.SET_ENABLED, enabled),
 
   // 通道：diagnostics:ingest-test → 测试用：注入测试日志（仅 dev 模式）
   diagnosticsIngestTest: (
     event: { source: 'sre' | 'analytics' | 'agent' | 'main' | 'renderer'; level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; raw: string },
   ): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('diagnostics:ingest-test', event),
+    ipcRenderer.invoke(DIAGNOSTICS.INGEST_TEST, event),
 
   /**
    * 监听诊断服务实时日志批次推送
@@ -2808,7 +2908,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }>) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, events: unknown) => callback(events as never)
-    ipcRenderer.on('diagnostics:log-batch', handler)
+    ipcRenderer.on(DIAGNOSTICS.LOG_BATCH, handler)
     return () => { ipcRenderer.off('diagnostics:log-batch', handler) }
   },
 
@@ -2836,22 +2936,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       strength?: 'fast' | 'standard' | 'deep'
     },
   ): Promise<{ correlationId: string; status: string; error?: string }> =>
-    ipcRenderer.invoke('loop:start', input),
+    ipcRenderer.invoke(LOOP.START, input),
 
   // 通道：loop:confirm → 人工确认（批准/拒绝）
   loopConfirm: (correlationId: string, approved: boolean): Promise<boolean> =>
-    ipcRenderer.invoke('loop:confirm', correlationId, approved),
+    ipcRenderer.invoke(LOOP.CONFIRM, correlationId, approved),
 
   // 通道：loop:cancel → 取消工作流
   loopCancel: (correlationId: string): Promise<boolean> =>
-    ipcRenderer.invoke('loop:cancel', correlationId),
+    ipcRenderer.invoke(LOOP.CANCEL, correlationId),
 
   // 事件：loop:llm-start — LLM 推理开始
   onLoopLlmStart: (
     callback: (payload: { type: 'loop:llm-start'; correlationId: string; problem: string }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:llm-start', handler)
+    ipcRenderer.on(LOOP.LLM_START, handler)
     return () => { ipcRenderer.off('loop:llm-start', handler) }
   },
 
@@ -2864,7 +2964,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:llm-done', handler)
+    ipcRenderer.on(LOOP.LLM_DONE, handler)
     return () => { ipcRenderer.off('loop:llm-done', handler) }
   },
 
@@ -2885,7 +2985,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:step', handler)
+    ipcRenderer.on(LOOP.STEP, handler)
     return () => { ipcRenderer.off('loop:step', handler) }
   },
 
@@ -2911,7 +3011,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:decision', handler)
+    ipcRenderer.on(LOOP.DECISION, handler)
     return () => { ipcRenderer.off('loop:decision', handler) }
   },
 
@@ -2925,7 +3025,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:done', handler)
+    ipcRenderer.on(LOOP.DONE, handler)
     return () => { ipcRenderer.off('loop:done', handler) }
   },
 
@@ -2934,7 +3034,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     callback: (payload: { type: 'loop:error'; correlationId: string; error: string; state?: unknown }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:error', handler)
+    ipcRenderer.on(LOOP.ERROR, handler)
     return () => { ipcRenderer.off('loop:error', handler) }
   },
 
@@ -2949,7 +3049,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => void,
   ) => {
     const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on('loop:blocked', handler)
+    ipcRenderer.on(LOOP.BLOCKED, handler)
     return () => { ipcRenderer.off('loop:blocked', handler) }
   },
 
@@ -3102,6 +3202,11 @@ export type ElectronAPI = {
   // v0.9.4 新增：系统级 IPC（协议版本 + 心跳保活 + 通用取消）
   getProtocolVersion: typeof system.getProtocolVersion
   systemPing: typeof system.ping
+  // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
+  appCheckUpdate: typeof appUpdate.checkUpdate
+  appDownloadUpdate: typeof appUpdate.downloadUpdate
+  // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
+  fsUploadImage: typeof fsUpload.uploadImage
   providerList: typeof provider.list
   providerGet: typeof provider.get
   providerSave: typeof provider.save

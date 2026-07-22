@@ -25,11 +25,11 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Modal, Spin, message } from 'antd'
+import { Spin, message } from 'antd'
 import {
   Activity, AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock,
-  Edit3, Eye, FileText, MessageSquare, ThumbsDown, ThumbsUp,
-  Wrench, Zap,
+  Edit3, Eye, FileText, Loader2, MessageSquare, Save, ThumbsDown, ThumbsUp,
+  Wrench, X, Zap,
 } from 'lucide-react'
 import {
   CardHead,
@@ -60,6 +60,15 @@ export function KnowledgeDetailPage() {
   const [realEntry, setRealEntry] = useState<KnowledgeEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [useReal, setUseReal] = useState(false)
+
+  // ===== v2.2 P1 修复 #25：编辑模式状态 =====
+  // 编辑模式仅在 useReal=true 时可用（设计稿示例数据不可编辑）
+  // 编辑字段：title / problem / rootCause（核心三字段，其余字段通过 kbUpdate 部分更新保留原值）
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editProblem, setEditProblem] = useState('')
+  const [editRootCause, setEditRootCause] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   // 加载真实知识条目（按 URL :id 精确匹配）
   useEffect(() => {
@@ -127,32 +136,75 @@ export function KnowledgeDetailPage() {
   // ===== 事件处理 =====
   const handleBackWorkbench = () => navigate('/workbench')
   const handleBackKnowledge = () => navigate('/knowledge')
+
+  /**
+   * 进入编辑模式（v2.2 P1 修复 #25：真实实现，替代原 WIP Modal.confirm）
+   *
+   * 仅在 useReal=true（真实数据）时可用。设计稿示例数据不可编辑。
+   * 进入编辑模式时，将当前真实数据复制到 editXxx 状态，作为 textarea 的初始值。
+   */
   const handleEdit = () => {
-    // WIP: 编辑功能暂未上线（CLAUDE.md A4 诚实标注 · A7 质量优先）
-    //
-    // 真实实现路径（预计 v1.0 P1 完成）：
-    // 1. main 进程新增 knowledge:update IPC 通道（写入 Markdown 文件 + 更新索引）
-    // 2. 渲染层打开编辑 Modal/抽屉，加载当前条目 Markdown 内容
-    // 3. Monaco Editor 编辑 + 预览（复用现有 EditorArea 组件）
-    // 4. 保存时调用 window.electronAPI.knowledgeUpdate(id, content, metadata)
-    // 5. 成功后刷新详情页 + 知识库列表
-    //
-    // 当前用 AntD Modal.confirm 替代 window.alert（无障碍 + 焦点管理）
-    // Modal.confirm 默认包含 role="dialog" + aria-modal="true" + aria-labelledby（title）
-    // 默认支持 ESC 关闭，且 autoFocusButton="ok" 使 OK 按钮在打开时获得焦点
-    Modal.confirm({
-      title: '编辑知识条目',
-      content: '编辑功能暂未上线（WIP · 预计 v1.0 P1 完成），是否跳转到知识库管理？',
-      okText: '前往管理',
-      cancelText: '取消',
-      autoFocusButton: 'ok',
-      onOk: () => navigate('/knowledge'),
-      afterClose: () => {
-        // 关闭后焦点返回触发按钮（无障碍）
-        editButtonRef.current?.focus()
-      },
-    })
+    if (!useReal || !realEntry) {
+      // 设计稿示例数据不可编辑：提示用户先导入真实知识条目
+      message.info('当前为示例数据，不可编辑。请先在知识库管理中导入真实条目。')
+      return
+    }
+    setEditTitle(realEntry.title)
+    setEditProblem(realEntry.problem)
+    setEditRootCause(realEntry.rootCause ?? '')
+    setIsEditing(true)
   }
+
+  /**
+   * 保存编辑：调用 kbUpdate IPC 部分更新知识条目
+   *
+   * kbUpdate 签名：kbUpdate(id: string, partial: Partial<KnowledgeEntry>): Promise<boolean>
+   * 仅更新 title / problem / rootCause 三个字段，其余字段保留原值。
+   *
+   * 保存成功后：
+   * - 更新 realEntry 本地状态（UI 立即刷新）
+   * - 退出编辑模式
+   * - 显示成功提示
+   */
+  const handleSave = async () => {
+    if (!isSaving && realEntry) {
+      setIsSaving(true)
+      try {
+        const ok = await window.electronAPI.kbUpdate(realEntry.id, {
+          title: editTitle.trim(),
+          problem: editProblem.trim(),
+          rootCause: editRootCause.trim(),
+        })
+        if (ok) {
+          // 本地状态立即刷新（避免重新拉取 kbExport）
+          setRealEntry({
+            ...realEntry,
+            title: editTitle.trim(),
+            problem: editProblem.trim(),
+            rootCause: editRootCause.trim(),
+          })
+          setIsEditing(false)
+          message.success('知识条目已保存')
+        } else {
+          message.error('保存失败：主进程返回 false，请检查日志')
+        }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        message.error(`保存失败：${reason}`)
+      } finally {
+        setIsSaving(false)
+      }
+    }
+  }
+
+  /** 取消编辑：丢弃修改，退出编辑模式 */
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setEditTitle('')
+    setEditProblem('')
+    setEditRootCause('')
+  }
+
   const handleTocClick = (target: string) => {
     setActiveSection(target)
     const el = document.getElementById(target)
@@ -202,21 +254,78 @@ export function KnowledgeDetailPage() {
             </button>
           </div>
           <div className="kb-detail-titlewrap">
-            <h1 className="kb-detail-title">
-              {displayTitle}
-            </h1>
+            {isEditing ? (
+              // v2.2 P1 修复 #25：编辑模式 - 标题变为 textarea
+              <textarea
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                aria-label="编辑标题"
+                className="kb-detail-title kb-detail-title--edit"
+                rows={1}
+                style={{
+                  width: '100%',
+                  minHeight: '2.5rem',
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--trae-border-brand, var(--trae-border-default))',
+                  borderRadius: 'var(--trae-radius-md, 6px)',
+                  background: 'var(--trae-bg-elevated)',
+                  color: 'var(--trae-text-primary)',
+                  fontSize: 'var(--trae-h1-font-size, 1.5rem)',
+                  fontWeight: 'var(--trae-h1-font-weight, 700)',
+                  resize: 'vertical',
+                  outline: 'none',
+                }}
+              />
+            ) : (
+              <h1 className="kb-detail-title">
+                {displayTitle}
+              </h1>
+            )}
           </div>
-          <button
-            type="button"
-            ref={editButtonRef}
-            data-dom-id="edit-knowledge"
-            aria-label="编辑知识"
-            onClick={handleEdit}
-            className="kb-detail-edit kb-btn-press"
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-            编辑
-          </button>
+          {isEditing ? (
+            // v2.2 P1 修复 #25：编辑模式 - 显示保存/取消按钮组
+            <div className="kb-detail-edit-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
+                aria-label="保存"
+                className="kb-detail-edit kb-btn-press"
+                style={{
+                  background: 'var(--trae-bg-brand)',
+                  color: 'var(--trae-text-on-brand)',
+                  borderColor: 'var(--trae-border-brand)',
+                  opacity: isSaving ? 0.7 : 1,
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {isSaving ? '保存中...' : '保存'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                disabled={isSaving}
+                aria-label="取消"
+                className="kb-detail-edit kb-btn-press"
+              >
+                <X className="h-3.5 w-3.5" />
+                取消
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              ref={editButtonRef}
+              data-dom-id="edit-knowledge"
+              aria-label="编辑知识"
+              onClick={handleEdit}
+              className="kb-detail-edit kb-btn-press"
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+              编辑
+            </button>
+          )}
         </div>
 
         <div className="kb-detail-header__row2">
@@ -271,7 +380,27 @@ export function KnowledgeDetailPage() {
           <section id="sec-1" className="kb-detail-card">
             <CardHead icon={<Activity className="h-4 w-4" />} title="问题描述" tag="SYMPTOM" />
             <div className="kb-body">
-              {useReal ? (
+              {isEditing && useReal ? (
+                // v2.2 P1 修复 #25：编辑模式 - 问题描述变为 textarea
+                <textarea
+                  value={editProblem}
+                  onChange={(e) => setEditProblem(e.target.value)}
+                  aria-label="编辑问题描述"
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid var(--trae-border-brand, var(--trae-border-default))',
+                    borderRadius: 'var(--trae-radius-md, 6px)',
+                    background: 'var(--trae-bg-elevated)',
+                    color: 'var(--trae-text-primary)',
+                    fontSize: 'var(--trae-body-font-size, 14px)',
+                    lineHeight: 'var(--trae-body-line-height, 1.6)',
+                    resize: 'vertical',
+                    outline: 'none',
+                  }}
+                />
+              ) : useReal ? (
                 // 真实数据：单一段落展示（KnowledgeEntry.problem 是纯文本字符串）
                 <p className="kb-body__p">{displayProblem}</p>
               ) : (
@@ -293,7 +422,27 @@ export function KnowledgeDetailPage() {
           <section id="sec-2" className="kb-detail-card">
             <CardHead icon={<Zap className="h-4 w-4" />} title="根因分析" tag="ROOT CAUSE" />
             <div className="kb-body">
-              {useReal ? (
+              {isEditing && useReal ? (
+                // v2.2 P1 修复 #25：编辑模式 - 根因分析变为 textarea
+                <textarea
+                  value={editRootCause}
+                  onChange={(e) => setEditRootCause(e.target.value)}
+                  aria-label="编辑根因分析"
+                  rows={6}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid var(--trae-border-brand, var(--trae-border-default))',
+                    borderRadius: 'var(--trae-radius-md, 6px)',
+                    background: 'var(--trae-bg-elevated)',
+                    color: 'var(--trae-text-primary)',
+                    fontSize: 'var(--trae-body-font-size, 14px)',
+                    lineHeight: 'var(--trae-body-line-height, 1.6)',
+                    resize: 'vertical',
+                    outline: 'none',
+                  }}
+                />
+              ) : useReal ? (
                 // 真实数据：单一段落展示（KnowledgeEntry.rootCause 是纯文本字符串）
                 <p className="kb-body__p">{displayRootCause}</p>
               ) : (
