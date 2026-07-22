@@ -452,6 +452,11 @@ export class LlmClient {
    *   - 原返回 `echo "需要人工诊断"` 是无意义命令，用户执行后看不到任何诊断输出
    *   - 改为综合健康检查脚本，与 agent-workflow.ts 的 deriveFixCommand 保持一致
    *   - 确保即使降级到最低级别，用户也能看到实际系统状态
+   *
+   * Phase D 对齐（polish-tdsf-p1-issues）：
+   *   - 兜底命令统一为 `echo "LLM_UNAVAILABLE"`，便于上游识别 LLM 不可用场景
+   *   - confidence 对齐为 0.3，与 spec 要求一致
+   *   - 字段格式（hypothesis/fixCommand/confidence）与 rule-engine.ts 保持一致
    */
   private fallbackToRules(problem: string, evidences: Evidence[]): AnalysisResult {
     const logs = evidences.map((e) => e.content).join('\n')
@@ -464,10 +469,9 @@ export class LlmClient {
       }
     }
     return {
-      hypothesis: '暂无匹配的故障规则，已生成综合系统健康检查脚本供人工排查',
-      fixCommand:
-        "echo '=== 系统健康检查 ===' && uname -a && echo '--- CPU/负载 ---' && uptime && cat /proc/loadavg && echo '--- 内存 ---' && free -h && echo '--- 磁盘 ---' && df -h && echo '--- 顶部进程 ---' && ps aux --sort=-%cpu | head -10",
-      confidence: 0.1
+      hypothesis: 'LLM 不可用且无匹配故障规则，已降级到兜底命令',
+      fixCommand: 'echo "LLM_UNAVAILABLE"',
+      confidence: 0.3
     }
   }
 }

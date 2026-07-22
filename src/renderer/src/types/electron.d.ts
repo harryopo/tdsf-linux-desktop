@@ -1499,6 +1499,17 @@ export interface ElectronAPI {
       error: string
     }) => void,
   ): () => void
+
+  /** 监听 loop:blocked — 工作流被阻止（如 SSH 未连接） */
+  onLoopBlocked(
+    callback: (payload: {
+      type: 'loop:blocked'
+      correlationId: string
+      step: string
+      reason: string
+      message: string
+    }) => void,
+  ): () => void
 }
 
 /** 扩展 Window 接口，声明 electronAPI 全局变量 */

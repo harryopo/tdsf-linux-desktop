@@ -21,6 +21,7 @@
  */
 
 import { FC, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
   Circle,
@@ -33,6 +34,7 @@ import {
   Play,
   X,
   ChevronRight,
+  PlugZap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import type {
@@ -292,6 +294,44 @@ const DecisionCardView: FC<{
   )
 }
 
+/** 被阻止卡片（SSH 未连接等场景） */
+const BlockedCard: FC<{
+  reason: string | null
+  message: string | null
+  onGoToSsh: () => void
+}> = ({ reason, message, onGoToSsh }) => {
+  const isSshBlocked = reason === 'SSH_NO_CONNECTION'
+  return (
+    <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-status-warning-surface-l2)] bg-[var(--trae-status-warning-surface-l1)] p-3">
+      <div className="mb-1 flex items-center gap-1.5">
+        <AlertTriangle className="size-3.5 text-[var(--trae-status-warning-default)]" />
+        <span className="text-[12px] font-semibold text-[var(--trae-status-warning-default)]">
+          {isSshBlocked ? 'SSH 未连接' : '操作被阻止'}
+        </span>
+        {reason && (
+          <span className="ml-auto rounded-full bg-[var(--trae-status-warning-surface-l2)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--trae-status-warning-default)]">
+            {reason}
+          </span>
+        )}
+      </div>
+      <div className="mb-2 text-[11px] leading-4 text-[var(--trae-text-secondary)]">
+        {message ?? '请先完成前置条件后再执行此操作'}
+      </div>
+      {isSshBlocked && (
+        <button
+          type="button"
+          data-dom-id="goto-ssh-settings"
+          onClick={onGoToSsh}
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-3 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
+        >
+          <PlugZap className="size-3" />
+          去连接 SSH
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** 完成状态卡片 */
 const CompletionCard: FC<{
   finalCard: UseLoopEngineeringResult['finalCard']
@@ -379,7 +419,20 @@ export interface LoopWorkflowPanelProps {
  * 不显示时返回 null。显示时占据 AIPanel 消息区域。
  */
 export const LoopWorkflowPanel: FC<LoopWorkflowPanelProps> = ({ loop }) => {
-  const { phase, hypothesis, workflowState, decisionCard, finalCard, error, confirm, cancel } = loop
+  const {
+    phase,
+    hypothesis,
+    workflowState,
+    decisionCard,
+    finalCard,
+    error,
+    blockedReason,
+    blockedMessage,
+    confirm,
+    cancel,
+  } = loop
+
+  const navigate = useNavigate()
 
   // 空闲时不显示
   if (phase === 'idle') return null
@@ -391,6 +444,10 @@ export const LoopWorkflowPanel: FC<LoopWorkflowPanelProps> = ({ loop }) => {
   const handleReject = useCallback(() => {
     void confirm(false)
   }, [confirm])
+
+  const handleGoToSsh = useCallback(() => {
+    navigate('/settings/ssh')
+  }, [navigate])
 
   return (
     <div className="flex flex-col gap-2">
@@ -405,6 +462,7 @@ export const LoopWorkflowPanel: FC<LoopWorkflowPanelProps> = ({ loop }) => {
           {phase === 'awaiting' && '等待用户确认'}
           {phase === 'done' && '已完成'}
           {phase === 'error' && '执行出错'}
+          {phase === 'blocked' && '操作被阻止'}
         </span>
         {(phase === 'workflow' || phase === 'awaiting') && (
           <button
@@ -436,6 +494,15 @@ export const LoopWorkflowPanel: FC<LoopWorkflowPanelProps> = ({ loop }) => {
       {/* 完成状态 */}
       {(phase === 'done' || phase === 'error') && (
         <CompletionCard finalCard={finalCard} error={error} />
+      )}
+
+      {/* 被阻止状态（SSH 未连接等） */}
+      {phase === 'blocked' && (
+        <BlockedCard
+          reason={blockedReason}
+          message={blockedMessage}
+          onGoToSsh={handleGoToSsh}
+        />
       )}
     </div>
   )

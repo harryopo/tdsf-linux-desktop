@@ -97,6 +97,7 @@ export type LoopPhase =
   | 'awaiting'     // 等待用户确认
   | 'done'         // 完成
   | 'error'        // 出错
+  | 'blocked'      // 被阻止（如 SSH 未连接）
 
 /** Hook 返回值 */
 export interface UseLoopEngineeringResult {
@@ -114,6 +115,10 @@ export interface UseLoopEngineeringResult {
   finalCard: DecisionCard | null
   /** 错误信息 */
   error: string | null
+  /** 被阻止的原因（blocked 阶段携带，如 'SSH_NO_CONNECTION'） */
+  blockedReason: string | null
+  /** 被阻止的提示消息（blocked 阶段携带） */
+  blockedMessage: string | null
   /** 是否正在运行（llm-thinking / workflow / awaiting 三个阶段） */
   isRunning: boolean
   /** 启动循环工程 */
@@ -141,6 +146,8 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
   const [decisionCard, setDecisionCard] = useState<DecisionCard | null>(null)
   const [finalCard, setFinalCard] = useState<DecisionCard | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [blockedReason, setBlockedReason] = useState<string | null>(null)
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
 
   /** 用于在事件回调中读取最新 correlationId */
   const correlationRef = useRef<string | null>(null)
@@ -191,6 +198,13 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
       setPhase('error')
     })
 
+    const offBlocked = api.onLoopBlocked((payload) => {
+      if (payload.correlationId !== correlationRef.current) return
+      setBlockedReason(payload.reason)
+      setBlockedMessage(payload.message)
+      setPhase('blocked')
+    })
+
     return () => {
       offLlmStart()
       offLlmDone()
@@ -198,6 +212,7 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
       offDecision()
       offDone()
       offError()
+      offBlocked()
     }
   }, [])
 
@@ -221,6 +236,8 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
       setDecisionCard(null)
       setFinalCard(null)
       setError(null)
+      setBlockedReason(null)
+      setBlockedMessage(null)
 
       try {
         const result = await window.electronAPI.loopStart({
@@ -290,6 +307,8 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
     setDecisionCard(null)
     setFinalCard(null)
     setError(null)
+    setBlockedReason(null)
+    setBlockedMessage(null)
   }, [])
 
   const isRunning = phase === 'llm-thinking' || phase === 'workflow' || phase === 'awaiting'
@@ -302,6 +321,8 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
     decisionCard,
     finalCard,
     error,
+    blockedReason,
+    blockedMessage,
     isRunning,
     start,
     confirm,

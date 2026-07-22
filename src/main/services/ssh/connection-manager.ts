@@ -334,6 +334,24 @@ export class SshConnectionManager {
     return entry.client
   }
 
+  /**
+   * 检查是否有活动 SSH 连接
+   *
+   * 用于循环工程等场景的预检查：在调用 exec/startShell 之前
+   * 先同步判断是否存在 status === 'connected' 的会话，避免依赖
+   * requireConnected 抛错兜底，提供更早的 UI 提示。
+   *
+   * @returns true 表示至少有一个活动连接，false 表示无连接
+   */
+  public hasActiveConnection(): boolean {
+    for (const entry of this.sessions.values()) {
+      if (entry.state === 'connected') {
+        return true
+      }
+    }
+    return false
+  }
+
   // ------------------------------------------------------------------
   // 内部实现
   // ------------------------------------------------------------------
