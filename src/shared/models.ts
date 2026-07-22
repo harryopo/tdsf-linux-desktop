@@ -684,6 +684,50 @@ export interface SftpEntry {
 }
 
 // ============================================================================
+// Phase M：SSH 密钥管理相关类型（密钥列表/生成/上传/删除）
+// ============================================================================
+
+/**
+ * 密钥对信息
+ *
+ * 描述 ~/.ssh/ 目录下的一对公私钥，用于 Card 2 密钥管理列表展示
+ * 与 ssh:generate-keypair / ssh:upload-keypair 的响应载荷。
+ */
+export interface SshKeyPair {
+  /** 密钥名称（如 id_ed25519） */
+  name: string
+  /** 密钥类型（ed25519/rsa） */
+  type: 'ed25519' | 'rsa'
+  /** 私钥路径 */
+  privateKeyPath: string
+  /** 公钥路径 */
+  publicKeyPath: string
+  /** 公钥内容（用于展示指纹） */
+  publicKeyContent?: string
+  /** 创建时间 */
+  createdAt?: number
+}
+
+/** 生成密钥对请求（ssh:generate-keypair 入参） */
+export interface GenerateKeyPairRequest {
+  /** 密钥类型 */
+  type: 'ed25519' | 'rsa'
+  /** 密钥名称（不含路径，默认放在 ~/.ssh/） */
+  name: string
+  /** passphrase（可选） */
+  passphrase?: string
+  /** 注释（默认 user@host） */
+  comment?: string
+}
+
+/** 生成密钥对响应（ssh:generate-keypair 返回值） */
+export interface GenerateKeyPairResponse {
+  success: boolean
+  keyPair?: SshKeyPair
+  error?: string
+}
+
+// ============================================================================
 // 系统架构感知（System Profiler）相关类型
 // ============================================================================
 

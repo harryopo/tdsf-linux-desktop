@@ -115,6 +115,34 @@ export const SSH = {
    * 载荷 SshHostKeyResponsePayload，用户选择后响应主进程的 pending Promise
    */
   HOST_KEY_RESPONSE: 'ssh:host-key-response',
+  /**
+   * 删除 SSH 密钥对（invoke: 渲染 → 主，Phase M）
+   *
+   * 删除 ~/.ssh/ 目录下指定密钥文件（私钥 + 公钥 .pub）。
+   * 幂等：删除不存在的密钥返回 success=true。
+   */
+  DELETE_KEYPAIR: 'ssh:delete-keypair',
+  /**
+   * 上传 SSH 私钥（invoke: 渲染 → 主，Phase M）
+   *
+   * 弹出文件选择对话框 → 用户选择私钥文件 → 复制到 ~/.ssh/ → chmod 600。
+   * 公钥同步生成（ssh-keygen -y derive 公钥，写入 .pub，chmod 644）。
+   */
+  UPLOAD_KEYPAIR: 'ssh:upload-keypair',
+  /**
+   * 生成 SSH 密钥对（invoke: 渲染 → 主，Phase M）
+   *
+   * 调用 ssh-keygen 生成 ed25519 / rsa 密钥对，默认输出到 ~/.ssh/。
+   * 私钥权限 600，公钥 644。
+   */
+  GENERATE_KEYPAIR: 'ssh:generate-keypair',
+  /**
+   * 列出 ~/.ssh/ 目录下所有密钥对（invoke: 渲染 → 主，Phase M）
+   *
+   * 扫描 ~/.ssh/ 目录，识别私钥文件（无 .pub 后缀的非配置文件），
+   * 返回 SshKeyPair[]。用于 Card 2 密钥列表展示。
+   */
+  LIST_KEYPAIRS: 'ssh:list-keypairs',
 } as const
 
 /**
