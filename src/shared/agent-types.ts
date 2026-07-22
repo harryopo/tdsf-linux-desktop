@@ -1232,3 +1232,97 @@ export interface OptimizeTOptions {
   /** 最小样本数（少于该值不优化，返回 T=1.0） */
   minSamples?: number
 }
+
+// ============================================================================
+// v0.9.4 批次 4 - 任务 5：预期回显监控共享类型
+//
+// 借鉴 Kilo Code 的"预期回显"机制：
+//   执行命令前先记录"预期输出特征"，执行后对比实际输出，发现异常时告警。
+//
+// 这部分类型从 src/main/core/agent/expectation-monitor.ts 提取到 shared，
+// 以便 preload/renderer 可以直接导入，避免主进程模块跨端引用。
+//
+// 方案书依据：v0.9.4 §11 第 7 类（其他 3 项 - 任务 5）
+// ============================================================================
+
+/**
+ * 命令预期配置
+ *
+ * 由调用方（running-subagent / supervisor）在执行命令前构造，
+ * 传入 checkExpectation 进行对比。
+ */
+export interface CommandExpectation {
+  /** 命令文本 */
+  command: string
+  /**
+   * 预期必须出现的关键词（任一匹配即视为符合预期）
+   *
+   * 空数组或 undefined 表示不检查 mustContain 规则。
+   */
+  mustContain?: string[]
+  /**
+   * 预期不能出现的关键词（任一匹配即视为违反预期）
+   *
+   * 例如：['Permission denied', 'command not found', 'No such file or directory']
+   */
+  mustNotContain?: string[]
+  /**
+   * 预期退出码（默认 0）
+   *
+   * 设为 null 表示不检查退出码。
+   */
+  expectedExitCode?: number | null
+  /**
+   * 超时阈值（ms，默认 30000）
+   *
+   * 注意：超时检查不由本模块执行（由调用方控制超时），
+   * 此字段仅作为元数据记录，便于审计。
+   */
+  timeoutMs?: number
+}
+
+/**
+ * 预期违反类型
+ */
+export type ExpectationViolationType =
+  | 'missing-required' // 缺少必须出现的关键词
+  | 'forbidden-found' // 出现了禁止的关键词
+  | 'exit-code-mismatch' // 退出码不匹配
+  | 'timeout' // 超时（由调用方标记）
+
+/**
+ * 预期违反详情
+ *
+ * checkExpectation 返回的违规列表元素。
+ */
+export interface ExpectationViolation {
+  /** 违反类型 */
+  type: ExpectationViolationType
+  /** 实际退出码（exit-code-mismatch / timeout 时填充） */
+  actualExitCode?: number
+  /** 实际输出片段（截断 500 字符，避免长输出导致日志膨胀） */
+  actualOutputSnippet: string
+  /** 违反原因（人类可读） */
+  reason: string
+  /** 触发违反的关键词（missing-required / forbidden-found 时填充） */
+  triggeredKeyword?: string
+}
+
+/**
+ * 预期检查结果（IPC 传输载荷）
+ *
+ * 由主进程 expectation:check 通道返回，包含违规列表与是否通过。
+ * 渲染层据此展示"预期 vs 实际"对比 UI。
+ */
+export interface ExpectationCheckResult {
+  /** 是否符合预期（violations.length === 0） */
+  met: boolean
+  /** 违规列表（空数组表示符合预期） */
+  violations: ExpectationViolation[]
+  /** 原始预期配置（便于 UI 展示对比） */
+  expectation: CommandExpectation
+  /** 实际退出码 */
+  actualExitCode: number
+  /** 检查时间戳（ms） */
+  timestamp: number
+}

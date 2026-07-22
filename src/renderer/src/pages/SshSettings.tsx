@@ -84,25 +84,6 @@ const STATUS_LABEL: Record<ServerStatus, string> = {
   offline: '未连接',
 }
 
-/** 从私钥路径提取 basename 作为密钥名（如 ~/.ssh/id_rsa → id_rsa） */
-function keyNameFromPath(p: string | undefined): string {
-  if (!p) return 'unknown_key'
-  const trimmed = p.replace(/[/\\]+$/, '')
-  const parts = trimmed.split(/[/\\]/)
-  return parts[parts.length - 1] || 'unknown_key'
-}
-
-/** 从私钥路径推断密钥类型（用于 meta 显示） */
-function keyTypeFromPath(p: string | undefined): string {
-  if (!p) return 'Private Key'
-  const name = keyNameFromPath(p).toLowerCase()
-  if (name.includes('ed25519')) return 'ED25519'
-  if (name.includes('ecdsa')) return 'ECDSA'
-  if (name.includes('dsa')) return 'DSA'
-  if (name.includes('rsa')) return 'RSA'
-  return 'Private Key'
-}
-
 export function SshSettings() {
   const servers = useServerStore((s) => s.servers)
   const connectionStates = useServerStore((s) => s.connectionStates)

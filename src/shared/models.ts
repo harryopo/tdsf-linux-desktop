@@ -63,6 +63,7 @@ export type SshHostKeyType =
   | 'ecdsa-sha2-nistp384'
   | 'ecdsa-sha2-nistp521'
   | 'ssh-dss'
+  // eslint-disable-next-line @typescript-eslint/ban-types
   | (string & {})
 
 /** SSH 主机密钥元信息 */

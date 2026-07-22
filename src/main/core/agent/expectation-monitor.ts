@@ -16,70 +16,20 @@
  * - 历史会话回放时验证输出一致性
  *
  * 方案书依据：v0.9.4 §11 第 7 类（其他 3 项 - 任务 5）
- */
-
-/**
- * 命令预期配置
  *
- * 由调用方（running-subagent / supervisor）在执行命令前构造，
- * 传入 checkExpectation 进行对比。
+ * 注意：CommandExpectation / ExpectationViolationType / ExpectationViolation 三个类型
+ * 已迁移到 @shared/agent-types.ts（v0.9.4 批次 4 - 任务 5 P2-E），
+ * 此处仅做类型重导出，便于主进程内部模块按需引用。
  */
-export interface CommandExpectation {
-  /** 命令文本 */
-  command: string
-  /**
-   * 预期必须出现的关键词（任一匹配即视为符合预期）
-   *
-   * 空数组或 undefined 表示不检查 mustContain 规则。
-   */
-  mustContain?: string[]
-  /**
-   * 预期不能出现的关键词（任一匹配即视为违反预期）
-   *
-   * 例如：['Permission denied', 'command not found', 'No such file or directory']
-   */
-  mustNotContain?: string[]
-  /**
-   * 预期退出码（默认 0）
-   *
-   * 设为 null 表示不检查退出码。
-   */
-  expectedExitCode?: number | null
-  /**
-   * 超时阈值（ms，默认 30000）
-   *
-   * 注意：超时检查不由本模块执行（由调用方控制超时），
-   * 此字段仅作为元数据记录，便于审计。
-   */
-  timeoutMs?: number
-}
 
-/**
- * 预期违反类型
- */
-export type ExpectationViolationType =
-  | 'missing-required' // 缺少必须出现的关键词
-  | 'forbidden-found' // 出现了禁止的关键词
-  | 'exit-code-mismatch' // 退出码不匹配
-  | 'timeout' // 超时（由调用方标记）
+import type {
+  CommandExpectation,
+  ExpectationViolation,
+  ExpectationViolationType,
+} from '@shared/agent-types'
 
-/**
- * 预期违反详情
- *
- * checkExpectation 返回的违规列表元素。
- */
-export interface ExpectationViolation {
-  /** 违反类型 */
-  type: ExpectationViolationType
-  /** 实际退出码（exit-code-mismatch / timeout 时填充） */
-  actualExitCode?: number
-  /** 实际输出片段（截断 500 字符，避免长输出导致日志膨胀） */
-  actualOutputSnippet: string
-  /** 违反原因（人类可读） */
-  reason: string
-  /** 触发违反的关键词（missing-required / forbidden-found 时填充） */
-  triggeredKeyword?: string
-}
+// 重导出共享类型，便于现有主进程代码 `from '../core/agent/expectation-monitor'` 不破坏
+export type { CommandExpectation, ExpectationViolation, ExpectationViolationType }
 
 /**
  * 实际输出片段的最大长度（字符数）

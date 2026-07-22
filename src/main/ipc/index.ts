@@ -62,9 +62,13 @@ import { registerSchedulerIpcHandlers } from './scheduler'
 // v2.0 Phase C 新增：SFTP 文件搜索 + grep（QuickFileSearch / GlobalSearch UI）
 // 通道：sftp:search / sftp:grep
 import { registerSftpSearchIpcHandlers } from './sftp-search'
-// v2.0 Phase C 新增：远程文件监听（inotifywait 长连接 + 轮询降级）
+// v2.0 Phase C 新增：远程文件监听（inotifywait 长连接 + 5s 轮询降级）
 // 通道：file:watch:start / file:watch:stop + 推送 file:changed
 import { registerFileWatcherIpcHandlers } from './file-watcher'
+// v0.9.4 批次 4 - 任务 5 P2-E 新增：预期回显监控 IPC
+// 通道：expectation:check / expectation:format
+// 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
+import { registerExpectationHandlers } from './expectation'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -196,6 +200,11 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 通道：file:watch:start / file:watch:stop + 推送 file:changed
   // 不需要 mainWindow：FileWatcherAdapter 内部通过 BrowserWindow.getAllWindows() 广播
   registerFileWatcherIpcHandlers()
+
+  // v0.9.4 批次 4 - 任务 5 P2-E 新增：预期回显监控 IPC
+  // 通道：expectation:check / expectation:format
+  // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警（ExpectedOutput 组件消费）
+  registerExpectationHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar

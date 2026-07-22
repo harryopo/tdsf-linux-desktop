@@ -786,6 +786,106 @@
   height: 10px;
 }
 
+/* ===== v0.9.3 §11 改进点 26 P2-F：成本累计展示行 =====
+ *
+ * 设计原则：
+ * - 与 .ai-token-row 视觉对齐（同样 padding/font-size/numeric）
+ * - 单行紧凑布局，三档（本次会话/今日/本月）用 · 分隔
+ * - "本次会话"档位用 brand 色（强调当前会话消耗）
+ * - hover 时整行背景轻微高亮，reset 按钮显示
+ * - reset 按钮默认半透明，hover 时 brand 色高亮
+ */
+.ai-cost-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.ai-cost-row:hover {
+  background: var(--trae-bg-overlay-l2);
+}
+
+.ai-cost-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--trae-text-brand);
+  flex-shrink: 0;
+}
+
+.ai-cost-segment {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.ai-cost-label {
+  color: var(--trae-text-tertiary);
+  font-size: 10px;
+}
+
+.ai-cost-value {
+  color: var(--trae-text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* "本次会话" 档位用 brand 色强调 */
+.ai-cost-session .ai-cost-value {
+  color: var(--trae-text-brand);
+  font-weight: 600;
+}
+
+.ai-cost-divider {
+  color: var(--trae-text-tertiary);
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.ai-cost-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--trae-text-tertiary);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.ai-cost-row:hover .ai-cost-reset-btn {
+  opacity: 1;
+}
+
+.ai-cost-reset-btn:hover {
+  color: var(--trae-text-brand);
+  background: var(--trae-bg-overlay-l3);
+}
+
+.ai-cost-reset-btn:focus-visible {
+  outline: 1px solid var(--trae-border-brand);
+  opacity: 1;
+}
+
 /* ===== MD 风格表格 ===== */
 .ai-table {
   margin-bottom: 10px;

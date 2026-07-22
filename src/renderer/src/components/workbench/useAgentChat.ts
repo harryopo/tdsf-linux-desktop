@@ -18,6 +18,7 @@ import type {
   PersistedProviderConfig,
   ThinkingStrength,
   TokenStats,
+  CostStats,
 } from '@shared/agent-types'
 
 function genId(prefix = 'msg'): string {
@@ -45,6 +46,26 @@ export interface UseAgentChatResult {
   setThinkingStrength: (s: ThinkingStrength) => void
   /** Token 统计 */
   tokenStats: TokenStats
+  /**
+   * 成本统计（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * USD 成本聚合（todayCost/weekCost/monthCost/totalCost + by 维度）。
+   * 由 IPC token:cost-stats 加载，在 agent:done/error 后刷新。
+   */
+  costStats: CostStats
+  /**
+   * 本次会话累计成本（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * = costStats.totalCost - sessionCostBaseline（≥0）。
+   * 让用户感知当前会话的真实开销，与"今日累计"区分开。
+   */
+  sessionCost: number
+  /**
+   * 重置本次会话成本基线（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * 用户主动点击"重置会话成本"按钮时调用，让 sessionCost 从 0 重新累计。
+   */
+  resetSessionCost: () => void
   /** 发送用户消息（走 agent:chat） */
   send: (text: string) => Promise<void>
   /** 取消当前流式请求 */
@@ -67,6 +88,9 @@ export function useAgentChat(): UseAgentChatResult {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const providers = useAgentStore((s) => s.providers)
   const tokenStats = useAgentStore((s) => s.tokenStats)
+  // v0.9.3 §11 改进点 26 P2-F：从 store 读取成本统计 + 会话基线
+  const costStats = useAgentStore((s) => s.costStats)
+  const sessionCostBaseline = useAgentStore((s) => s.sessionCostBaseline)
 
   const addMessage = useAgentStore((s) => s.addMessage)
   const appendToken = useAgentStore((s) => s.appendToken)
@@ -79,6 +103,9 @@ export function useAgentChat(): UseAgentChatResult {
   const setProviders = useAgentStore((s) => s.setProviders)
   const setSelectedProviderId = useAgentStore((s) => s.setSelectedProviderId)
   const setThinkingStrength = useAgentStore((s) => s.setThinkingStrength)
+  // v0.9.3 §11 改进点 26 P2-F：设置成本统计 + 重置会话基线
+  const setCostStats = useAgentStore((s) => s.setCostStats)
+  const resetSessionCostBaseline = useAgentStore((s) => s.resetSessionCostBaseline)
 
   const subscribedRef = useRef(false)
 
@@ -108,8 +135,19 @@ export function useAgentChat(): UseAgentChatResult {
       } catch (err) {
         console.error('[useAgentChat] 加载 Token 统计失败:', err)
       }
+
+      // v0.9.3 §11 改进点 26 P2-F：加载成本统计（USD）
+      // 首次加载时 store 会自动记录 sessionCostBaseline
+      try {
+        if (window.electronAPI.tokenCostStats) {
+          const costStats = await window.electronAPI.tokenCostStats()
+          setCostStats(costStats)
+        }
+      } catch (err) {
+        console.error('[useAgentChat] 加载成本统计失败:', err)
+      }
     })()
-  }, [setProviders, setSelectedProviderId, setTokenStats])
+  }, [setProviders, setSelectedProviderId, setTokenStats, setCostStats])
 
   // 订阅主进程流式事件
   useEffect(() => {
@@ -125,11 +163,15 @@ export function useAgentChat(): UseAgentChatResult {
     const offDone = window.electronAPI.onAgentDone((payload) => {
       finalizeMessage(payload)
       void window.electronAPI.tokenStats?.().then(setTokenStats).catch(() => {})
+      // v0.9.3 §11 改进点 26 P2-F：流式结束后刷新成本统计
+      void window.electronAPI.tokenCostStats?.().then(setCostStats).catch(() => {})
     })
 
     const offError = window.electronAPI.onAgentError((payload) => {
       markError(payload)
       void window.electronAPI.tokenStats?.().then(setTokenStats).catch(() => {})
+      // v0.9.3 §11 改进点 26 P2-F：错误后也刷新成本统计（部分 token 可能已计费）
+      void window.electronAPI.tokenCostStats?.().then(setCostStats).catch(() => {})
     })
 
     return () => {
@@ -138,7 +180,7 @@ export function useAgentChat(): UseAgentChatResult {
       offDone()
       offError()
     }
-  }, [appendToken, finalizeMessage, markError, setTokenStats])
+  }, [appendToken, finalizeMessage, markError, setTokenStats, setCostStats])
 
   const send = useCallback(
     async (text: string) => {
@@ -278,6 +320,23 @@ export function useAgentChat(): UseAgentChatResult {
     clearMessages()
   }, [clearMessages])
 
+  /**
+   * 重置本次会话成本基线（v0.9.3 §11 改进点 26 P2-F）
+   *
+   * 用户主动点击"重置会话成本"按钮时调用。
+   * 将 sessionCostBaseline 设为当前 totalCost，让 sessionCost 从 0 重新累计。
+   */
+  const resetSessionCost = useCallback(() => {
+    resetSessionCostBaseline()
+  }, [resetSessionCostBaseline])
+
+  // 计算本次会话累计成本：currentTotalCost - sessionCostBaseline（≥0）
+  // baseline 为 null 时（未加载过 costStats）返回 0
+  const sessionCost =
+    sessionCostBaseline === null
+      ? 0
+      : Math.max(0, costStats.totalCost - sessionCostBaseline)
+
   return {
     messages,
     isStreaming,
@@ -289,6 +348,9 @@ export function useAgentChat(): UseAgentChatResult {
     thinkingStrength,
     setThinkingStrength,
     tokenStats,
+    costStats,
+    sessionCost,
+    resetSessionCost,
     send,
     cancel,
     clear,
