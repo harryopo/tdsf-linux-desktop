@@ -166,8 +166,9 @@ export class McpClientManager {
         arguments: args,
       })
 
-      // MCP SDK callTool 返回 CallToolResult（content 类型为 ContentBlock[]）
-      const rawContent = (result as any).content as Array<Record<string, unknown>> | undefined
+      // MCP SDK callTool 返回联合类型（CallToolResult | CompatibilityCallToolResult）
+      // CompatibilityCallToolResult 分支无显式 content 字段，用类型断言到具体形状避免 any
+      const rawContent = (result as { content?: Array<Record<string, unknown>> }).content
       const content =
         rawContent?.map((item) => {
           if (item.type === 'text') {
@@ -378,7 +379,7 @@ export class McpClientManager {
       // 获取工具列表并缓存
       try {
         const toolsResult = await ctx.client.listTools()
-        ctx.cachedTools = (toolsResult.tools ?? []).map((t: any) => ({
+        ctx.cachedTools = (toolsResult.tools ?? []).map((t) => ({
           name: t.name,
           description: t.description ?? '',
         }))
