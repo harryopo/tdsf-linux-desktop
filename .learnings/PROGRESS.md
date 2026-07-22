@@ -241,10 +241,10 @@
 
 | Phase | 主题 | 状态 | Commit | 文件变化 |
 |-------|------|------|--------|----------|
-| 规范调整 | CLAUDE.md v2.5 + AGENTS.md v8.7 大文件拆分质量优先 | ✅ | 待提交 | 2文件 |
-| T | Phase T 功能真实化（8 Task：HistoryPage/GeneralSettings/KnowledgePage/LogsPage/TutorialDetailPage/DecisionDetailPage/AIPanel/AboutSettings） | ✅ | 待提交 | 渲染层 + main IPC + preload + 类型 |
-| U | Phase U UI 交互细节修复（6 Task：滚动/按钮反馈/Modal/表单验证/空状态/响应式） | ✅ | 待提交 | 渲染层组件 + CSS |
-| V | 归档 + PROGRESS 更新 | ✅ | 待提交 | 归档文档 |
+| 规范调整 | CLAUDE.md v2.5 + AGENTS.md v8.7 大文件拆分质量优先 | ✅ | `8879628` | 2文件 |
+| T | Phase T 功能真实化（8 Task：HistoryPage/GeneralSettings/KnowledgePage/LogsPage/TutorialDetailPage/DecisionDetailPage/AIPanel/AboutSettings） | ✅ | `8879628` | 渲染层 + main IPC + preload + 类型 |
+| U | Phase U UI 交互细节修复（6 Task：滚动/按钮反馈/Modal/表单验证/空状态/响应式） | ✅ | `8879628` | 渲染层组件 + CSS |
+| V | 归档 + PROGRESS 更新 | ✅ | `8879628` | 归档文档 |
 
 **关键指标**：
 - 编译门禁：typecheck:node ✅ + typecheck:web ✅ + lint ✅（三绿全通过）
