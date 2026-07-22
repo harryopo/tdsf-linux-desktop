@@ -4,7 +4,7 @@
  * 路由：/settings/terminal
  *
  * 设计稿：settings-terminal.html
- * - Card 1: 默认 Shell 配置（Shell / 参数 / 登录提示 / 颜色方案）
+ * - Card 1: 默认 Shell 配置（Shell / 参数 / 颜色方案）
  * - Card 2: 终端行为（字号 / 字体族 / 行高 / 光标 / 闪烁 / 缓冲区）
  * - Card 3: 复制与粘贴（自动复制 / 右键粘贴 / 去换行 / 去控制字符）
  * - Card 4: 高级（Bell / 鼠标 / WebGL / SSH 心跳 / 命令超时）
@@ -39,7 +39,6 @@ export function TerminalSettings() {
   // Card 1: 默认 Shell 配置
   const [shell, setShell] = usePersistentState('terminal.shell', '/bin/bash')
   const [shellArgs, setShellArgs] = usePersistentState('terminal.shellArgs', '-l')
-  const [loginMessage, setLoginMessage] = usePersistentState('terminal.loginMessage', true)
   const [colorScheme, setColorScheme] = usePersistentState('terminal.colorScheme', 'dark')
 
   // Card 2: 终端行为
@@ -101,11 +100,6 @@ export function TerminalSettings() {
                 className="term-settings-input"
               />
             }
-          />
-          <SettingsRow
-            label="登录提示"
-            desc="在终端启动时显示登录欢迎信息"
-            control={<Switch checked={loginMessage} onCheckedChange={setLoginMessage} />}
           />
           <SettingsRow
             label="颜色方案"

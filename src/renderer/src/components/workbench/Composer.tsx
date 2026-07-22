@@ -44,6 +44,8 @@ export interface ComposerProps {
   cancel: () => Promise<void>
   /** 用户成功发送消息后回调（父组件收起 demo） */
   onAfterSend: () => void
+  /** 压缩上下文回调（T.7） */
+  onCompressContext?: () => void
 }
 
 /** AIPanel 输入区域（Composer chips + 输入框 + 工具栏 + Provider 选择 + Send 按钮） */
@@ -60,6 +62,7 @@ const Composer: FC<ComposerProps> = ({
   send,
   cancel,
   onAfterSend,
+  onCompressContext,
 }) => {
   const navigate = useNavigate()
   const [input, setInput] = useState('')
@@ -399,6 +402,7 @@ const Composer: FC<ComposerProps> = ({
                 ctxUsedPct={ctxUsedPct}
                 ctxUsedTokens={ctxUsedTokens}
                 ctxTotalTokens={ctxTotalTokens}
+                onCompress={onCompressContext}
               />
 
               {/* Provider 选择（真列表） */}

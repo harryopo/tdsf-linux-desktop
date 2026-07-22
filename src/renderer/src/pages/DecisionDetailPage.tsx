@@ -499,7 +499,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+        className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
       >
         重试
       </button>
@@ -520,7 +520,7 @@ function EmptyStateView({ meta, onBack }: { meta: EmptyMeta; onBack: () => void 
     <button
       type="button"
       onClick={onBack}
-      className="inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+      className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
     >
       <ArrowLeft className="h-3.5 w-3.5" />
       返回工作台
@@ -633,8 +633,8 @@ export function DecisionDetailPage() {
   /**
    * 调用 loopConfirm IPC 进行决策审批
    *
-   * preload 实际签名：loopConfirm(correlationId: string, approved: boolean) => Promise<boolean>
-   * （非任务描述的 { correlationId, action } 对象格式，已通过读取 preload/index.ts 确认）
+   * preload 签名：loopConfirm(correlationId: string, approved: boolean, newCommand?: string) => Promise<boolean>
+   * T.6: 已扩展 newCommand 参数，支持修改修复命令后批准执行。
    *
    * 失败降级：IPC 不可用或调用失败时，回退到本地 card.status 更新 + handleAction 浮层提示
    * 高危二次确认：risk.level ∈ {HIGH, CRITICAL} 时弹 Modal.confirm
@@ -732,13 +732,13 @@ export function DecisionDetailPage() {
     setModifyModalOpen(true)
   }, [card])
 
+
+
   /**
    * 确认修改后的 fixCommand 并提交审批
    *
-   * TODO(Phase 4): preload 当前 loopConfirm 签名为 (correlationId, approved: boolean)，
-   * 不支持 newCommand 参数。当主进程扩展支持 modify action 后，
-   * 改为 loopConfirm(correlationId, { action: 'modify', newCommand })。
-   * 当前实现：本地更新 fixCommand，并调用 loopConfirm(id, true) 批准修改后的命令。
+   * T.6: loopConfirm 已扩展支持 newCommand 参数。
+   * 调用 loopConfirm(card.id, true, trimmed) 将修改后的命令传回主进程执行。
    */
   const handleModifyConfirm = useCallback(async () => {
     if (!card || !modifyCommand.trim()) return
@@ -746,9 +746,7 @@ export function DecisionDetailPage() {
     try {
       const trimmed = modifyCommand.trim()
       if (window.electronAPI?.loopConfirm) {
-        // TODO(Phase 4): 待主进程扩展 loopConfirm 支持 newCommand 参数后，
-        // 改为传 { action: 'modify', newCommand: trimmed }
-        await window.electronAPI.loopConfirm(card.id, true)
+        await window.electronAPI.loopConfirm(card.id, true, trimmed)
       }
       // 无论 IPC 是否可用，都同步本地 fixCommand（IPC 降级路径）
       setCard((prev) => (prev ? { ...prev, fixCommand: trimmed, status: 'approved' as const } : prev))

@@ -17,7 +17,7 @@
  * （定时任务分区由 SchedulerPanel 自包含：状态、订阅、降级均内部处理。）
  */
 import { useState, useRef, useEffect } from 'react'
-import { Globe, Rocket, Database, Bell, Download, Trash2, type LucideIcon } from 'lucide-react'
+import { Globe, Rocket, Database, Bell, Download, Trash2, Loader2, type LucideIcon } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -32,7 +32,7 @@ import './Settings.css'
 /**
  * 已知持久化配置 key 清单（用于"导出数据"功能逐项拉取）
  *
- * WIP：当前仅覆盖 usePersistentState 已接入的 key（appearance/general/decision/
+ * 当前仅覆盖 usePersistentState 已接入的 key（appearance/general/decision/
  * risk/terminal 五个命名空间）。server list / llm config 走 SecureStore 加密存储，
  * 不在导出范围（避免泄露敏感信息）。后续如新增 key 需同步更新此清单。
  */
@@ -139,10 +139,17 @@ function RowSelect({
 }
 
 /** 只读路径展示框（对应设计稿 ds-input--readonly） */
-function ReadOnlyPath({ value }: { value: string }) {
+function ReadOnlyPath({ value, loading }: { value: string; loading?: boolean }) {
   return (
     <div className="set-input set-input--readonly">
-      {value}
+      {loading ? (
+        <span className="inline-flex items-center gap-1.5 text-[var(--trae-text-tertiary)]">
+          <Loader2 className="size-3.5 animate-spin" />
+          加载中…
+        </span>
+      ) : (
+        value
+      )}
     </div>
   )
 }
@@ -191,11 +198,30 @@ export function GeneralSettings() {
   const [checkUpdate, setCheckUpdate] = usePersistentState('general.checkUpdate', true)
   const [backgroundRun, setBackgroundRun] = usePersistentState('general.backgroundRun', false)
 
-  // Card 3: 数据与存储（dataPath / logPath 为只读展示项，不持久化）
-  const [dataPath] = useState('~/.tdsf/data')
-  const [logPath] = useState('~/.tdsf/logs')
+  // Card 3: 数据与存储（dataPath / logPath 从 app:get-info 拉取真实路径）
+  const [dataPath, setDataPath] = useState('~/.tdsf/data')
+  const [logPath, setLogPath] = useState('~/.tdsf/logs')
+  const [pathsLoading, setPathsLoading] = useState(true)
   const [autoCleanLog, setAutoCleanLog] = usePersistentState('general.autoCleanLog', true)
   const [logRetention, setLogRetention] = usePersistentState('general.logRetention', '30')
+
+  // 挂载时拉取真实数据/日志路径
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electronAPI?.appGetInfo) {
+      setPathsLoading(false)
+      return
+    }
+    window.electronAPI
+      .appGetInfo()
+      .then((info) => {
+        if (info.dataPath) setDataPath(info.dataPath)
+        if (info.logPath) setLogPath(info.logPath)
+      })
+      .catch((err) => {
+        console.warn('[GeneralSettings] 获取应用路径失败', err)
+      })
+      .finally(() => setPathsLoading(false))
+  }, [])
 
   // Card 4: 通知
   const [desktopNotify, setDesktopNotify] = usePersistentState('general.desktopNotify', true)
@@ -215,7 +241,7 @@ export function GeneralSettings() {
     }
   }, [])
   const handleExportData = async () => {
-    // WIP: 非 Electron 环境降级为提示
+    // 非 Electron 环境降级为提示
     if (typeof window === 'undefined' || !window.electronAPI?.configGet) {
       setStorageFeedback('当前环境不支持导出数据（非 Electron 环境）')
       if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
@@ -235,8 +261,9 @@ export function GeneralSettings() {
             if (value !== undefined && value !== null) {
               config[key] = value
             }
-          } catch {
+          } catch (err) {
             // 单项失败不影响整体导出，跳过该项
+            console.warn(`[GeneralSettings] 导出配置项失败: ${key}`, err)
           }
         }),
       )
@@ -276,7 +303,7 @@ export function GeneralSettings() {
     }
   }
   const handleClearCache = async () => {
-    // WIP: 非 Electron 环境降级为提示
+    // 非 Electron 环境降级为提示
     if (typeof window === 'undefined' || !window.electronAPI?.logClearBuffer) {
       setStorageFeedback('当前环境不支持清除缓存（非 Electron 环境）')
       if (storageFeedbackTimer.current != null) clearTimeout(storageFeedbackTimer.current)
@@ -366,12 +393,12 @@ export function GeneralSettings() {
           <SettingsRow
             label="数据存储路径"
             desc="应用数据的本地存储目录"
-            control={<ReadOnlyPath value={dataPath} />}
+            control={<ReadOnlyPath value={dataPath} loading={pathsLoading} />}
           />
           <SettingsRow
             label="日志文件路径"
             desc="运行日志文件存储目录"
-            control={<ReadOnlyPath value={logPath} />}
+            control={<ReadOnlyPath value={logPath} loading={pathsLoading} />}
           />
           <SettingsRow
             label="自动清理日志"
