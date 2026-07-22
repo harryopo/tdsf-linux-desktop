@@ -37,7 +37,7 @@ import {
   Lock,
   type LucideIcon,
 } from 'lucide-react'
-import { message } from 'antd'
+import { message, Modal, Form, Input as AntdInput, Select } from 'antd'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
@@ -50,7 +50,7 @@ import ConnectDialog from '@/components/layout/ConnectDialog'
 import { useServerStore } from '@/stores/server-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import type { SshConfig } from '@shared/models'
+import type { SshConfig, SshKeyPair, GenerateKeyPairRequest } from '@shared/models'
 import { cn } from '@/components/trae/utils'
 import './SshSettings.css'
 
@@ -110,6 +110,7 @@ export function SshSettings() {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const addServer = useServerStore((s) => s.addServer)
   const updateServer = useServerStore((s) => s.updateServer)
+  const removeServer = useServerStore((s) => s.removeServer)
   const setActiveSession = useServerStore((s) => s.setActiveSession)
   const setConnectionState = useServerStore((s) => s.setConnectionState)
   const setSessionMapping = useServerStore((s) => s.setSessionMapping)
@@ -126,6 +127,13 @@ export function SshSettings() {
   const [editing, setEditing] = useState<SshConfig | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+
+  // Phase M：SSH 密钥管理状态
+  // keyPairs 来自主进程扫描 ~/.ssh/（真实文件列表），非派生自服务器配置
+  const [keyPairs, setKeyPairs] = useState<SshKeyPair[]>([])
+  const [genModalOpen, setGenModalOpen] = useState(false)
+  const [genLoading, setGenLoading] = useState(false)
+  const [genForm] = Form.useForm<GenerateKeyPairRequest>()
 
   // Card 3: 连接默认设置（真 settings store）
   const [defaultPort, setDefaultPort] = useState(sshDefaults.port ?? 22)
@@ -166,6 +174,27 @@ export function SshSettings() {
     setFeedback(msg)
     window.setTimeout(() => setFeedback(null), 2500)
   }, [])
+
+  /**
+   * 刷新 SSH 密钥列表（Phase M）
+   *
+   * 调用 ssh:list-keypairs IPC 扫描 ~/.ssh/ 目录，获取真实密钥文件列表。
+   * 在删除/上传/生成操作后调用以反映最新状态。
+   */
+  const refreshKeys = useCallback(async () => {
+    if (!isElectronAPIAvailable()) return
+    try {
+      const list = await window.electronAPI.sshListKeypairs()
+      setKeyPairs(list)
+    } catch (err) {
+      console.error('[SshSettings] 加载密钥列表失败:', err)
+    }
+  }, [])
+
+  // Phase M：首次加载时扫描 ~/.ssh/ 密钥列表
+  useEffect(() => {
+    void refreshKeys()
+  }, [refreshKeys])
 
   const connectOne = useCallback(
     async (server: SshConfig) => {
@@ -322,21 +351,6 @@ export function SshSettings() {
     [servers],
   )
 
-  /** 派生密钥列表：从 authType=privateKey 的服务器提取（去重，按路径） */
-  const derivedKeys = useMemo(() => {
-    const map = new Map<string, { name: string; type: string; path: string }>()
-    for (const s of servers) {
-      if (s.authType === 'privateKey' && s.privateKeyPath) {
-        const path = s.privateKeyPath
-        const name = keyNameFromPath(path)
-        if (!map.has(name)) {
-          map.set(name, { name, type: keyTypeFromPath(path), path })
-        }
-      }
-    }
-    return Array.from(map.values())
-  }, [servers])
-
   const ipcAvailable = isElectronAPIAvailable()
 
   return (
@@ -446,6 +460,29 @@ export function SshSettings() {
                       <Pencil className="size-3" />
                       编辑
                     </button>
+                    {/* M.1：删除服务器按钮（Modal.confirm 确认后调用 removeServer） */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        Modal.confirm({
+                          title: '删除服务器',
+                          content: `确定要删除服务器「${s.name || s.host}」吗？此操作不可撤销。`,
+                          okText: '删除',
+                          okType: 'danger',
+                          cancelText: '取消',
+                          onOk: async () => {
+                            await removeServer(s.id)
+                            message.success('服务器已删除')
+                            showFb('服务器已删除')
+                          },
+                        })
+                      }}
+                      aria-label={`删除 ${s.name || s.host}`}
+                      className="ssh-btn-danger ssh-btn-press"
+                    >
+                      <Trash2 className="size-3" />
+                      删除
+                    </button>
                   </div>
                 </div>
               )
@@ -477,7 +514,7 @@ export function SshSettings() {
         <SettingsCard
           icon={KeyRound}
           title="SSH 密钥管理"
-          tag={`${derivedKeys.length} keys`}
+          tag={`${keyPairs.length} keys`}
         >
           {!ipcAvailable ? (
             <Empty
@@ -485,19 +522,19 @@ export function SshSettings() {
               title="无法加载密钥"
               description="Electron IPC 不可用，请在桌面端运行以管理 SSH 密钥。"
             />
-          ) : derivedKeys.length === 0 ? (
+          ) : keyPairs.length === 0 ? (
             <Empty
               icon={KeyRound}
               title="暂无 SSH 密钥"
-              description="添加服务器时选择「密钥文件认证」并填写私钥路径，密钥将自动出现在此列表。"
+              description="点击下方「上传密钥」或「生成新密钥」来管理 ~/.ssh/ 目录下的 SSH 密钥。"
             />
           ) : (
-            derivedKeys.map((k, idx) => (
+            keyPairs.map((k, idx) => (
               <div
                 key={k.name}
                 className={cn(
                   'ssh-key-row',
-                  idx === derivedKeys.length - 1 && 'ssh-key-row--last',
+                  idx === keyPairs.length - 1 && 'ssh-key-row--last',
                 )}
               >
                 <div className="ssh-key-row__icon">
@@ -508,11 +545,36 @@ export function SshSettings() {
                     {k.name}
                   </div>
                   <div className="ssh-key-row__meta">
-                    {k.type} · {k.path}
+                    {k.type.toUpperCase()} · {k.privateKeyPath}
                   </div>
                 </div>
+                {/* M.2：删除密钥按钮（Modal.confirm + sshDeleteKeyring + refreshKeys） */}
                 <button
                   type="button"
+                  onClick={() => {
+                    Modal.confirm({
+                      title: '删除密钥',
+                      content: `确定要删除密钥「${k.name}」吗？使用该密钥的服务器连接将受影响。`,
+                      okText: '删除',
+                      okType: 'danger',
+                      cancelText: '取消',
+                      onOk: async () => {
+                        try {
+                          const res = await window.electronAPI.sshDeleteKeyring(k.name)
+                          if (res.success) {
+                            message.success('密钥已删除')
+                            await refreshKeys()
+                          } else {
+                            message.error(`删除失败: ${res.error || '未知错误'}`)
+                          }
+                        } catch (err) {
+                          message.error(
+                            `删除失败: ${err instanceof Error ? err.message : String(err)}`,
+                          )
+                        }
+                      },
+                    })
+                  }}
                   aria-label={`删除密钥 ${k.name}`}
                   className="ssh-btn-danger ssh-btn-press"
                 >
@@ -525,18 +587,36 @@ export function SshSettings() {
 
           {/* 上传 / 生成按钮 */}
           <div className="ssh-card-footer-row">
+            {/* M.3：上传私钥按钮（sshUploadKeypair，用户取消静默处理） */}
             <button
               type="button"
+              onClick={async () => {
+                try {
+                  const res = await window.electronAPI.sshUploadKeypair()
+                  if (res.canceled) return // 用户取消文件选择，静默
+                  if (res.success) {
+                    message.success('密钥上传成功')
+                    await refreshKeys()
+                  } else {
+                    message.error(`上传失败: ${res.error || '未知错误'}`)
+                  }
+                } catch (err) {
+                  message.error(
+                    `上传失败: ${err instanceof Error ? err.message : String(err)}`,
+                  )
+                }
+              }}
               className="ssh-btn-secondary ssh-btn-press"
             >
               <Upload className="size-3.5" />
               上传密钥
             </button>
+            {/* M.4：生成新密钥按钮（打开 Form Modal → sshGenerateKeypair） */}
             <button
               type="button"
               onClick={() => {
-                setEditing(null)
-                setDialogOpen(true)
+                genForm.resetFields()
+                setGenModalOpen(true)
               }}
               className="ssh-btn-primary ssh-btn-press"
             >
@@ -680,6 +760,84 @@ export function SshSettings() {
           setEditing(null)
         }}
       />
+
+      {/* M.4：生成 SSH 密钥对 Modal（Form + sshGenerateKeypair） */}
+      <Modal
+        title="生成 SSH 密钥"
+        open={genModalOpen}
+        onCancel={() => setGenModalOpen(false)}
+        confirmLoading={genLoading}
+        okText="生成"
+        cancelText="取消"
+        onOk={async () => {
+          try {
+            const values = await genForm.validateFields()
+            setGenLoading(true)
+            const res = await window.electronAPI.sshGenerateKeypair({
+              type: values.type,
+              name: values.name,
+              passphrase: values.passphrase || undefined,
+              comment: values.comment || undefined,
+            })
+            if (res.success && res.keyPair) {
+              message.success(`密钥 ${res.keyPair.name} 已生成`)
+              setGenModalOpen(false)
+              await refreshKeys()
+            } else {
+              message.error(`生成失败: ${res.error || '未知错误'}`)
+            }
+          } catch (err) {
+            // antd Form.validateFields reject 时返回 errorFields 对象，不关闭弹窗
+            if (err && typeof err === 'object' && 'errorFields' in err) {
+              return
+            }
+            message.error(
+              `生成失败: ${err instanceof Error ? err.message : String(err)}`,
+            )
+          } finally {
+            setGenLoading(false)
+          }
+        }}
+      >
+        <Form
+          form={genForm}
+          layout="vertical"
+          initialValues={{ type: 'ed25519' }}
+          className="ssh-gen-form"
+        >
+          <Form.Item
+            name="type"
+            label="密钥类型"
+            rules={[{ required: true, message: '请选择密钥类型' }]}
+          >
+            <Select
+              options={[
+                { value: 'ed25519', label: 'ED25519（推荐，更安全更快）' },
+                { value: 'rsa', label: 'RSA 4096（兼容性最好）' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="name"
+            label="密钥名称"
+            rules={[
+              { required: true, message: '请输入密钥名称' },
+              {
+                pattern: /^[a-zA-Z0-9_\-]+$/,
+                message: '仅允许字母、数字、下划线、连字符',
+              },
+            ]}
+          >
+            <AntdInput placeholder="例如 id_ed25519" />
+          </Form.Item>
+          <Form.Item name="passphrase" label="口令（可选）">
+            <AntdInput.Password placeholder="留空表示无口令" />
+          </Form.Item>
+          <Form.Item name="comment" label="注释（可选）">
+            <AntdInput placeholder="例如 user@host" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }

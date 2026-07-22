@@ -17,7 +17,11 @@
  * - 这里额外捕获并转为 Error 对象，确保序列化正常
  */
 
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, dialog } from 'electron'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import * as os from 'node:os'
+import { spawn } from 'node:child_process'
 import { SSH } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { SftpManager } from '../services/ssh/sftp'
@@ -26,6 +30,9 @@ import type {
   SshHostKeyPromptEvent,
   SshHostKeyResponseAction,
   SshHostKeyResponsePayload,
+  SshKeyPair,
+  GenerateKeyPairRequest,
+  GenerateKeyPairResponse,
 } from '@shared/models'
 
 /** 终端数据推送通道名 */
@@ -364,5 +371,370 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
         throw new Error(`SFTP mkdir 失败: ${(err as Error).message}`)
       }
     }
+  )
+
+  // ========================================================================
+  // Phase M：SSH 密钥管理（删除 / 上传 / 生成 / 列表）
+  // ========================================================================
+  // 设计要点：
+  // - 所有密钥文件统一存放在 ~/.ssh/ 目录（os.homedir()/.ssh/）
+  // - 私钥权限 600（owner read/write only），公钥 644（owner write / others read）
+  // - 删除操作幂等：删除不存在的密钥返回 success=true，不抛错
+  // - 上传私钥后自动 derive 公钥（ssh-keygen -y），保证密钥对完整
+  // - 生成密钥默认类型 ed25519（更安全更短，性能优于 RSA）
+  // - 主进程负责所有文件 I/O，渲染进程不直接访问文件系统
+  // ========================================================================
+
+  /**
+   * 获取 ~/.ssh/ 目录路径，确保目录存在
+   *
+   * @returns ~/.ssh/ 绝对路径
+   */
+  function ensureSshDir(): string {
+    const sshDir = path.join(os.homedir(), '.ssh')
+    if (!fs.existsSync(sshDir)) {
+      fs.mkdirSync(sshDir, { recursive: true, mode: 0o700 })
+    }
+    return sshDir
+  }
+
+  /**
+   * 从私钥路径推断密钥类型
+   * - 名称含 ed25519 → ed25519
+   * - 名称含 rsa → rsa
+   * - 默认 ed25519
+   */
+  function inferKeyType(privateKeyPath: string): 'ed25519' | 'rsa' {
+    const name = path.basename(privateKeyPath).toLowerCase()
+    if (name.includes('rsa')) return 'rsa'
+    return 'ed25519'
+  }
+
+  /**
+   * ssh:delete-keypair — 删除指定密钥对（私钥 + 公钥 .pub）
+   *
+   * 幂等：删除不存在的文件返回 success=true，不抛错。
+   *
+   * @param keyName 密钥名称（如 id_ed25519），不含路径
+   * @returns { success: boolean, error?: string }
+   */
+  ipcMain.handle(
+    SSH.DELETE_KEYPAIR,
+    async (_event, keyName: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        if (!keyName || typeof keyName !== 'string') {
+          return { success: false, error: '密钥名称不能为空' }
+        }
+        // 安全检查：禁止路径分隔符（防止目录穿越）
+        if (keyName.includes('/') || keyName.includes('\\') || keyName.includes('..')) {
+          return { success: false, error: '密钥名称不能包含路径分隔符' }
+        }
+        const sshDir = path.join(os.homedir(), '.ssh')
+        const privateKeyPath = path.join(sshDir, keyName)
+        const publicKeyPath = `${privateKeyPath}.pub`
+
+        // 幂等删除私钥
+        try {
+          if (fs.existsSync(privateKeyPath)) {
+            fs.unlinkSync(privateKeyPath)
+          }
+        } catch (err) {
+          console.warn(`[SSH] 删除私钥失败 ${privateKeyPath}:`, (err as Error).message)
+        }
+
+        // 幂等删除公钥
+        try {
+          if (fs.existsSync(publicKeyPath)) {
+            fs.unlinkSync(publicKeyPath)
+          }
+        } catch (err) {
+          console.warn(`[SSH] 删除公钥失败 ${publicKeyPath}:`, (err as Error).message)
+        }
+
+        console.log(`[SSH] 密钥已删除: ${keyName}`)
+        return { success: true }
+      } catch (err) {
+        console.error('[SSH] 删除密钥失败:', (err as Error).message)
+        return { success: false, error: (err as Error).message }
+      }
+    },
+  )
+
+  /**
+   * ssh:upload-keypair — 上传私钥到 ~/.ssh/
+   *
+   * 流程：
+   * 1. dialog.showOpenDialog 让用户选择私钥文件
+   * 2. 复制文件到 ~/.ssh/<filename>
+   * 3. chmod 600 设置私钥权限
+   * 4. 调用 ssh-keygen -y -f <privateKey> derive 公钥，写入 .pub，chmod 644
+   * 5. 返回 SshKeyPair 信息
+   *
+   * @returns { success: boolean, keyPair?: SshKeyPair, error?: string, canceled?: boolean }
+   */
+  ipcMain.handle(
+    SSH.UPLOAD_KEYPAIR,
+    async (): Promise<{
+      success: boolean
+      keyPair?: SshKeyPair
+      error?: string
+      canceled?: boolean
+    }> => {
+      try {
+        // 1. 弹出文件选择对话框
+        const result = await dialog.showOpenDialog(mainWindow, {
+          title: '选择私钥文件',
+          defaultPath: os.homedir(),
+          properties: ['openFile'],
+          filters: [
+            { name: '所有文件', extensions: ['*'] },
+            { name: '私钥文件', extensions: ['pem', 'key', 'id_rsa', 'id_ed25519'] },
+          ],
+        })
+
+        if (result.canceled || result.filePaths.length === 0) {
+          return { success: false, canceled: true }
+        }
+
+        const sourcePath = result.filePaths[0]
+        const keyName = path.basename(sourcePath)
+        // 安全检查：禁止路径分隔符
+        if (keyName.includes('/') || keyName.includes('\\') || keyName.includes('..')) {
+          return { success: false, error: '密钥文件名不合法' }
+        }
+
+        const sshDir = ensureSshDir()
+        const privateKeyPath = path.join(sshDir, keyName)
+        const publicKeyPath = `${privateKeyPath}.pub`
+
+        // 2. 复制文件到 ~/.ssh/
+        fs.copyFileSync(sourcePath, privateKeyPath)
+
+        // 3. 设置私钥权限 600
+        fs.chmodSync(privateKeyPath, 0o600)
+
+        // 4. derive 公钥（ssh-keygen -y -f <privateKey>）
+        const publicKeyContent = await new Promise<string>((resolve, reject) => {
+          const proc = spawn('ssh-keygen', ['-y', '-f', privateKeyPath])
+          let stdout = ''
+          let stderr = ''
+          proc.stdout.on('data', (data: Buffer) => {
+            stdout += data.toString()
+          })
+          proc.stderr.on('data', (data: Buffer) => {
+            stderr += data.toString()
+          })
+          proc.on('close', (code: number | null) => {
+            if (code === 0) {
+              resolve(stdout.trim())
+            } else {
+              reject(new Error(`ssh-keygen derive 公钥失败 (exit ${code}): ${stderr}`))
+            }
+          })
+          proc.on('error', (err: Error) => {
+            reject(new Error(`ssh-keygen 启动失败: ${err.message}`))
+          })
+        })
+
+        // 写入公钥文件 + chmod 644
+        fs.writeFileSync(publicKeyPath, publicKeyContent + '\n', { mode: 0o644 })
+        fs.chmodSync(publicKeyPath, 0o644)
+
+        const keyPair: SshKeyPair = {
+          name: keyName,
+          type: inferKeyType(privateKeyPath),
+          privateKeyPath,
+          publicKeyPath,
+          publicKeyContent,
+          createdAt: Date.now(),
+        }
+
+        console.log(`[SSH] 私钥已上传: ${keyName}`)
+        return { success: true, keyPair }
+      } catch (err) {
+        console.error('[SSH] 上传私钥失败:', (err as Error).message)
+        return { success: false, error: (err as Error).message }
+      }
+    },
+  )
+
+  /**
+   * ssh:generate-keypair — 调用 ssh-keygen 生成新密钥对
+   *
+   * @param request GenerateKeyPairRequest
+   * @returns GenerateKeyPairResponse
+   */
+  ipcMain.handle(
+    SSH.GENERATE_KEYPAIR,
+    async (_event, request: GenerateKeyPairRequest): Promise<GenerateKeyPairResponse> => {
+      try {
+        if (!request || !request.name) {
+          return { success: false, error: '密钥名称不能为空' }
+        }
+        const keyName = request.name
+        // 安全检查：禁止路径分隔符
+        if (keyName.includes('/') || keyName.includes('\\') || keyName.includes('..')) {
+          return { success: false, error: '密钥名称不能包含路径分隔符' }
+        }
+        const keyType = request.type === 'rsa' ? 'rsa' : 'ed25519'
+        // rsa 时强制 4096 位（更安全）
+        const passphrase = request.passphrase || ''
+        const comment = request.comment || `${os.userInfo().username}@${os.hostname()}`
+
+        const sshDir = ensureSshDir()
+        const privateKeyPath = path.join(sshDir, keyName)
+        const publicKeyPath = `${privateKeyPath}.pub`
+
+        // 文件已存在则拒绝（避免覆盖现有密钥）
+        if (fs.existsSync(privateKeyPath)) {
+          return {
+            success: false,
+            error: `密钥已存在: ${keyName}（请先删除或更换名称）`,
+          }
+        }
+
+        // 构造 ssh-keygen 参数
+        const args: string[] = ['-t', keyType, '-f', privateKeyPath, '-N', passphrase, '-C', comment]
+        if (keyType === 'rsa') {
+          // -b 必须在 -t 之后
+          args.splice(2, 0, '-b', '4096')
+        }
+
+        // 执行 ssh-keygen
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn('ssh-keygen', args)
+          let stderr = ''
+          proc.stderr.on('data', (data: Buffer) => {
+            stderr += data.toString()
+          })
+          proc.on('close', (code: number | null) => {
+            if (code === 0) {
+              resolve()
+            } else {
+              reject(new Error(`ssh-keygen 退出码 ${code}: ${stderr}`))
+            }
+          })
+          proc.on('error', (err: Error) => {
+            reject(new Error(`ssh-keygen 启动失败: ${err.message}`))
+          })
+        })
+
+        // 设置权限：私钥 600，公钥 644
+        fs.chmodSync(privateKeyPath, 0o600)
+        fs.chmodSync(publicKeyPath, 0o644)
+
+        // 读取公钥内容
+        let publicKeyContent: string | undefined
+        try {
+          publicKeyContent = fs.readFileSync(publicKeyPath, 'utf-8').trim()
+        } catch {
+          publicKeyContent = undefined
+        }
+
+        const keyPair: SshKeyPair = {
+          name: keyName,
+          type: keyType,
+          privateKeyPath,
+          publicKeyPath,
+          publicKeyContent,
+          createdAt: Date.now(),
+        }
+
+        console.log(`[SSH] 密钥已生成: ${keyName} (${keyType})`)
+        return { success: true, keyPair }
+      } catch (err) {
+        console.error('[SSH] 生成密钥失败:', (err as Error).message)
+        return { success: false, error: (err as Error).message }
+      }
+    },
+  )
+
+  /**
+   * ssh:list-keypairs — 列出 ~/.ssh/ 目录下所有密钥对
+   *
+   * 扫描 ~/.ssh/ 目录，识别私钥文件：
+   * - 排除 .pub 文件（这些是公钥）
+   * - 排除 known_hosts / config / authorized_keys 等配置文件
+   * - 排除目录
+   * - 文件名以 . 开头或 .bak/.old 结尾的也排除
+   *
+   * @returns SshKeyPair[]
+   */
+  ipcMain.handle(
+    SSH.LIST_KEYPAIRS,
+    async (): Promise<SshKeyPair[]> => {
+      try {
+        const sshDir = path.join(os.homedir(), '.ssh')
+        if (!fs.existsSync(sshDir)) {
+          return []
+        }
+
+        // 排除的文件名（配置文件，不是密钥）
+        const EXCLUDED_NAMES = new Set([
+          'known_hosts',
+          'known_hosts.old',
+          'authorized_keys',
+          'config',
+          'environment',
+        ])
+
+        const stat = fs.statSync(sshDir)
+        if (!stat.isDirectory()) {
+          return []
+        }
+
+        const entries = fs.readdirSync(sshDir, { withFileTypes: true })
+        const keyPairs: SshKeyPair[] = []
+
+        for (const entry of entries) {
+          if (!entry.isFile()) continue
+          const name = entry.name
+          // 跳过公钥文件
+          if (name.endsWith('.pub')) continue
+          // 跳过配置文件
+          if (EXCLUDED_NAMES.has(name)) continue
+          // 跳过备份文件
+          if (name.endsWith('.bak') || name.endsWith('.old')) continue
+          // 跳过隐藏文件
+          if (name.startsWith('.')) continue
+
+          const privateKeyPath = path.join(sshDir, name)
+          const publicKeyPath = `${privateKeyPath}.pub`
+
+          // 检查是否有对应的 .pub 文件
+          let publicKeyContent: string | undefined
+          try {
+            if (fs.existsSync(publicKeyPath)) {
+              publicKeyContent = fs.readFileSync(publicKeyPath, 'utf-8').trim()
+            }
+          } catch {
+            publicKeyContent = undefined
+          }
+
+          // 读取私钥文件 stat 获取创建时间
+          let createdAt: number | undefined
+          try {
+            const privateKeyStat = fs.statSync(privateKeyPath)
+            createdAt = privateKeyStat.birthtimeMs || privateKeyStat.mtimeMs
+          } catch {
+            createdAt = undefined
+          }
+
+          keyPairs.push({
+            name,
+            type: inferKeyType(privateKeyPath),
+            privateKeyPath,
+            publicKeyPath,
+            publicKeyContent,
+            createdAt,
+          })
+        }
+
+        return keyPairs
+      } catch (err) {
+        console.error('[SSH] 列出密钥失败:', (err as Error).message)
+        return []
+      }
+    },
   )
 }

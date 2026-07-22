@@ -56,6 +56,10 @@ import type {
   // Phase L 主机密钥校验弹窗事件载荷
   SshHostKeyPromptEvent,
   SshHostKeyResponseAction,
+  // Phase M SSH 密钥管理共享类型
+  SshKeyPair,
+  GenerateKeyPairRequest,
+  GenerateKeyPairResponse,
 } from '@shared/models'
 import type {
   TutorialEntry,
@@ -480,6 +484,79 @@ const ssh = {
     requestId: string,
     action: SshHostKeyResponseAction,
   ): Promise<boolean> => ipcRenderer.invoke(SSH.HOST_KEY_RESPONSE, { requestId, action }),
+
+  // ========================================================================
+  // Phase M：SSH 密钥管理（删除 / 上传 / 生成 / 列表）
+  // ========================================================================
+  // 通道与主进程 ipc/ssh.ts 一一对应：
+  // - ssh:delete-keypair   → deleteKeyring（幂等删除 ~/.ssh/<keyName> + .pub）
+  // - ssh:upload-keypair   → uploadKeypair（文件对话框 + 复制 + chmod 600 + derive 公钥）
+  // - ssh:generate-keypair → generateKeypair（ssh-keygen 生成 ed25519/rsa 密钥对）
+  // - ssh:list-keypairs    → listKeypairs（扫描 ~/.ssh/ 列出所有密钥对）
+  //
+  // 安全说明：
+  // - 所有文件 I/O 在主进程执行，渲染进程不直接访问文件系统
+  // - 私钥权限 600（owner rw only），公钥 644（owner rw / others r）
+  // - 删除操作幂等：删除不存在的密钥返回 success=true，不抛错
+  // ========================================================================
+
+  /**
+   * 删除 SSH 密钥对（Phase M）
+   *
+   * 幂等：删除不存在的密钥返回 success=true，不抛错。
+   *
+   * @param keyName 密钥名称（如 id_ed25519），不含路径
+   * @returns { success: boolean, error?: string }
+   */
+  deleteKeyring: (
+    keyName: string,
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(SSH.DELETE_KEYPAIR, keyName),
+
+  /**
+   * 上传 SSH 私钥到 ~/.ssh/（Phase M）
+   *
+   * 流程：
+   * 1. 主进程弹出文件选择对话框
+   * 2. 用户选择私钥文件后复制到 ~/.ssh/<filename>
+   * 3. chmod 600 设置私钥权限
+   * 4. ssh-keygen -y derive 公钥，写入 .pub，chmod 644
+   *
+   * 用户取消选择时返回 { success: false, canceled: true }，UI 应静默处理。
+   *
+   * @returns { success, keyPair?, error?, canceled? }
+   */
+  uploadKeypair: (): Promise<{
+    success: boolean
+    keyPair?: SshKeyPair
+    error?: string
+    canceled?: boolean
+  }> => ipcRenderer.invoke(SSH.UPLOAD_KEYPAIR),
+
+  /**
+   * 生成 SSH 密钥对（Phase M）
+   *
+   * 调用 ssh-keygen 生成 ed25519（默认）或 rsa（4096 位）密钥对，
+   * 输出到 ~/.ssh/<name>。私钥权限 600，公钥 644。
+   *
+   * @param request { type, name, passphrase?, comment? }
+   * @returns GenerateKeyPairResponse（成功含 keyPair，失败含 error）
+   */
+  generateKeypair: (
+    request: GenerateKeyPairRequest,
+  ): Promise<GenerateKeyPairResponse> =>
+    ipcRenderer.invoke(SSH.GENERATE_KEYPAIR, request),
+
+  /**
+   * 列出 ~/.ssh/ 目录下所有密钥对（Phase M）
+   *
+   * 扫描 ~/.ssh/ 目录，排除 .pub / known_hosts / config / authorized_keys /
+   * 备份文件 / 隐藏文件，返回 SshKeyPair[]。
+   *
+   * @returns SshKeyPair[]（空目录返回空数组，不抛错）
+   */
+  listKeypairs: (): Promise<SshKeyPair[]> =>
+    ipcRenderer.invoke(SSH.LIST_KEYPAIRS),
 }
 
 /**
@@ -2001,6 +2078,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sshShellResize: ssh.shell.resize,
   /** 响应主机密钥确认弹窗（Phase L） */
   sshRespondHostKey: ssh.respondHostKey,
+  // Phase M：SSH 密钥管理扁平化（删除 / 上传 / 生成 / 列表）
+  /** 删除 SSH 密钥对（幂等） */
+  sshDeleteKeyring: ssh.deleteKeyring,
+  /** 上传 SSH 私钥（文件对话框 + 复制 + chmod 600 + derive 公钥） */
+  sshUploadKeypair: ssh.uploadKeypair,
+  /** 生成 SSH 密钥对（ssh-keygen ed25519/rsa） */
+  sshGenerateKeypair: ssh.generateKeypair,
+  /** 列出 ~/.ssh/ 目录下所有密钥对 */
+  sshListKeypairs: ssh.listKeypairs,
 
   // ===== SFTP 扁平化 =====
   sftpList: sftp.list,
@@ -2829,6 +2915,15 @@ export type ElectronAPI = {
   sshShellResize: typeof ssh.shell.resize
   /** 响应主机密钥确认弹窗（Phase L） */
   sshRespondHostKey: typeof ssh.respondHostKey
+  // Phase M：SSH 密钥管理（删除 / 上传 / 生成 / 列表）
+  /** 删除 SSH 密钥对（幂等） */
+  sshDeleteKeyring: typeof ssh.deleteKeyring
+  /** 上传 SSH 私钥（文件对话框 + 复制 + chmod 600 + derive 公钥） */
+  sshUploadKeypair: typeof ssh.uploadKeypair
+  /** 生成 SSH 密钥对（ssh-keygen ed25519/rsa） */
+  sshGenerateKeypair: typeof ssh.generateKeypair
+  /** 列出 ~/.ssh/ 目录下所有密钥对 */
+  sshListKeypairs: typeof ssh.listKeypairs
   // SFTP
   sftpList: typeof sftp.list
   sftpUpload: typeof sftp.upload
