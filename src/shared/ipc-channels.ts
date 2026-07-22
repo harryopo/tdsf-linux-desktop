@@ -105,6 +105,41 @@ export const SSH = {
 } as const
 
 /**
+ * v2.0 Phase C 新增：SFTP 文件搜索 + 内容 grep IPC 通道常量
+ *
+ * 通道列表：
+ * - SEARCH  invoke  渲染 → 主：模糊查找远程文件（find -type f -name）
+ * - GREP    invoke  渲染 → 主：远程内容搜索（grep -rn）
+ *
+ * 设计依据：v2.0 Phase C · Task C.1 / C.2（IPC 4 步同步铁律）
+ */
+export const SFTP_SEARCH = {
+  /** 模糊查找远程文件（invoke: 渲染 → 主，3 秒超时，最多 50 条） */
+  SEARCH: 'sftp:search',
+  /** 远程内容 grep（invoke: 渲染 → 主，支持 regex/wholeWord/caseSensitive） */
+  GREP: 'sftp:grep',
+} as const
+
+/**
+ * v2.0 Phase C 新增：远程文件监听 IPC 通道常量
+ *
+ * 通道列表：
+ * - WATCH_START  invoke  渲染 → 主：开始监听远程路径文件变更
+ * - WATCH_STOP   invoke  渲染 → 主：停止监听
+ * - CHANGED      push     主 → 渲染：文件变更事件推送
+ *
+ * 设计依据：v2.0 Phase C · Task C.3（IPC 4 步同步铁律，inotifywait 优先 + 轮询降级）
+ */
+export const FILE_WATCH = {
+  /** 开始监听远程路径文件变更（invoke: 渲染 → 主），返回 watchId */
+  WATCH_START: 'file:watch:start',
+  /** 停止监听（invoke: 渲染 → 主），参数 { watchId } */
+  WATCH_STOP: 'file:watch:stop',
+  /** 文件变更事件推送（push: 主 → 渲染），载荷 { watchId, path, event } */
+  CHANGED: 'file:changed',
+} as const
+
+/**
  * 安全存储 IPC 通道常量
  *
  * 通道列表：

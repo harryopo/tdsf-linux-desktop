@@ -467,6 +467,16 @@ export interface ElectronAPI {
   sftpStat(sessionId: string, remotePath: string): Promise<import('@shared/models').SftpEntry | null>
   /** 创建远程目录 */
   sftpMkdir(sessionId: string, remotePath: string): Promise<boolean>
+  /** 模糊查找远程文件（sftp:search，find -name 模糊匹配，最多 50 条，3 秒超时） */
+  sftpSearch(
+    sessionId: string,
+    path: string,
+    query: string
+  ): Promise<{ files: import('@preload/index').SftpSearchFileEntry[]; error?: string }>
+  /** 远程内容 grep（sftp:grep，grep -rn 内容正则，最多 100 条，3 秒超时） */
+  sftpGrep(
+    params: import('@preload/index').SftpGrepParams
+  ): Promise<{ results: import('@preload/index').SftpGrepMatch[]; error?: string }>
 
   // ===== 监控相关 =====
   /** 启动监控采集 */

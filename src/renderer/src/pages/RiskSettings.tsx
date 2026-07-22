@@ -48,6 +48,28 @@ const PROTECTION_LEVELS: ProtectionOption[] = [
   { value: 'extreme', label: '极限', desc: '全量审计+双人审批+沙箱预演' },
 ]
 
+/**
+ * v2.0 Phase C Task C.6：三态权限模式（与主进程 risk-engine.ts PermissionMode 同构）
+ *
+ * - 'always'：所有命令都需要人工审批（HC-6 默认，最严格）
+ * - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 需审批（兼顾效率与安全）
+ * - 'never'：所有命令自动执行，不弹审批（仅用于演示/沙箱，生产禁用）
+ */
+type PermissionMode = 'always' | 'auto' | 'never'
+
+interface PermissionOption {
+  value: PermissionMode
+  label: string
+  desc: string
+  badge: string
+}
+
+const PERMISSION_MODES: PermissionOption[] = [
+  { value: 'always', label: '全部审批', desc: '所有命令都需人工确认后才执行', badge: '最严' },
+  { value: 'auto', label: '智能自动', desc: 'SAFE/LOW 自动放行，MEDIUM 及以上需审批', badge: '推荐' },
+  { value: 'never', label: '自动放行', desc: '所有命令自动执行，无审批弹窗（仅沙箱）', badge: '危险' },
+]
+
 type RiskLevel = 'none' | 'low' | 'medium' | 'high' | 'critical' | 'custom'
 type RiskAction = 'allow' | 'notify' | 'confirm' | 'block' | 'custom'
 
@@ -105,6 +127,10 @@ export function RiskSettings() {
   const [desensitize, setDesensitize] = usePersistentState('risk.desensitize', true)
   // recordingRetention 为只读展示项，无对应 setter
   const [recordingRetention] = usePersistentState('risk.recordingRetention', 90)
+
+  // Card 1.5: v2.0 Phase C Task C.6 三态权限模式（与主进程 risk-engine.ts PermissionMode 对应）
+  // 默认 'always'（HC-6 强制审批），用户可在设置中切换为 'auto' 提升效率
+  const [permissionMode, setPermissionMode] = usePersistentState<PermissionMode>('risk.permissionMode', 'always')
 
   // Card 2: 风险规则
   const [rules, setRules] = usePersistentState<RiskRule[]>('risk.rules', INITIAL_RULES)
@@ -254,6 +280,78 @@ export function RiskSettings() {
             }
             isLast
           />
+        </SettingsCard>
+
+        {/* Card 1.5: v2.0 Phase C Task C.6 命令审批模式（三态权限） */}
+        <SettingsCard icon={Shield} title="命令审批模式" tag={PERMISSION_MODES.find((m) => m.value === permissionMode)?.label ?? '全部审批'}>
+          <p className="pb-2 pt-1 text-[11px] leading-[16px] text-[var(--trae-text-secondary)]">
+            控制运维 Agent 执行命令时是否需要人工审批。建议生产环境使用「全部审批」或「智能自动」。
+          </p>
+          <div className="grid grid-cols-3 gap-2.5 py-1 pb-2">
+            {PERMISSION_MODES.map((opt) => {
+              const selected = permissionMode === opt.value
+              const isDanger = opt.value === 'never'
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPermissionMode(opt.value)}
+                  className={cn(
+                    'relative flex flex-col gap-1.5 rounded-[var(--trae-radius-6)] border px-3 py-3 text-left transition-colors',
+                    selected
+                      ? isDanger
+                        ? 'border-[var(--trae-status-error)] bg-[var(--trae-bg-overlay-l2)]'
+                        : 'border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand-popup)]'
+                      : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] hover:border-[var(--trae-border-neutral-l3)]',
+                  )}
+                >
+                  {selected && (
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute -left-px top-2.5 bottom-2.5 w-0.5 rounded-r-[var(--trae-radius-6)]',
+                        isDanger ? 'bg-[var(--trae-status-error)]' : 'bg-[var(--trae-bg-brand)]'
+                      )}
+                    />
+                  )}
+                  <div className="flex w-full items-center justify-between gap-2">
+                    <span
+                      className={cn(
+                        'text-[11px] font-medium',
+                        selected
+                          ? isDanger
+                            ? 'text-[var(--trae-status-error)]'
+                            : 'text-[var(--trae-text-default-hover)]'
+                          : 'text-[var(--trae-text-default)]',
+                      )}
+                    >
+                      {opt.label}
+                    </span>
+                    <span
+                      className={cn(
+                        'inline-flex h-4 items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 text-[9px] font-medium',
+                        opt.value === 'never'
+                          ? 'bg-[var(--trae-status-error)]/10 text-[var(--trae-status-error)]'
+                          : opt.value === 'auto'
+                            ? 'bg-[var(--trae-bg-brand)]/15 text-[var(--trae-text-brand)]'
+                            : 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)]'
+                      )}
+                    >
+                      {opt.badge}
+                    </span>
+                  </div>
+                  <span className="text-[10px] leading-[14px] text-[var(--trae-text-secondary)]">
+                    {opt.desc}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {permissionMode === 'never' && (
+            <div className="mb-1 mt-0.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error)]/30 bg-[var(--trae-status-error)]/10 px-3 py-2 text-[11px] text-[var(--trae-status-error)]">
+              ⚠️ 自动放行模式存在风险：所有命令将跳过审批直接执行，仅建议在隔离的演示/沙箱环境使用。
+            </div>
+          )}
         </SettingsCard>
 
         {/* Card 2: 命令风险评级规则表 */}
