@@ -3,7 +3,7 @@
  *
  * L1 语法检查：Shell 语法基础验证（未闭合引号、管道、括号等）
  * L2 风险评估：5 级风险分级（SAFE/LOW/MEDIUM/HIGH/CRITICAL）
- * L3 人工确认：HIGH 及以上需要人工确认
+ * L3 人工确认：HIGH 及以上需要人工确认（v2.0 Phase C Task C.6 引入三态权限模式）
  * L4 审计日志：记录所有命令及风险评估结果
  *
  * 风险分级标准：
@@ -12,9 +12,25 @@
  *   - MEDIUM：systemctl stop, service stop, cp/mv 覆盖, sudo → 需确认
  *   - LOW：cat, ls, ps, df, free, top（只读命令） → 提示
  *   - SAFE：echo, pwd, whoami, date → 自动执行
+ *
+ * v2.0 Phase C Task C.6 三态权限模式（PermissionMode）：
+ *   - 'always'：所有命令都需要人工审批（最严格，HC-6 默认）
+ *   - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 仍需审批（兼顾效率与安全）
+ *   - 'never'：所有命令都自动执行，不弹审批（仅用于演示/沙箱环境，生产环境禁用）
+ *
+ *   设计依据：AgentScope Permission 三态 + HITL CoPilot 87.5% 接受率论文验证
  */
 
 import type { RiskAssessment, RiskLevel } from '../../shared/models'
+
+/**
+ * 三态权限模式（v2.0 Phase C Task C.6）
+ *
+ * - 'always'：所有命令都需要人工审批
+ * - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 需审批
+ * - 'never'：所有命令自动执行（仅演示/沙箱）
+ */
+export type PermissionMode = 'always' | 'auto' | 'never'
 
 // ────────── 风险模式定义 ──────────
 
@@ -373,6 +389,34 @@ export function requiresConfirmation(level: RiskLevel): boolean {
  */
 export function shouldBlock(level: RiskLevel): boolean {
   return level === 'CRITICAL'
+}
+
+/**
+ * 判断在指定权限模式下，命令是否可以自动执行（无需人工审批）
+ *
+ * v2.0 Phase C Task C.6 三态权限决策核心：
+ *   - 'always'：永远返回 false，所有命令都要人工审批
+ *   - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 需审批
+ *   - 'never'：永远返回 true（CRITICAL 仍走 shouldBlock 阻止，但在审批环节不弹窗）
+ *
+ * 注意：本函数仅决定"是否需要弹审批窗"，是否真正阻止执行由 shouldBlock 决定。
+ * 例如 'never' 模式下 CRITICAL 命令不弹窗但会被 shouldBlock 阻止。
+ *
+ * @param level - 风险等级
+ * @param mode - 权限模式（默认 'always'，最严格）
+ * @returns true 表示可自动执行，false 表示需要人工审批
+ */
+export function shouldAutoApprove(level: RiskLevel, mode: PermissionMode = 'always'): boolean {
+  switch (mode) {
+    case 'always':
+      return false
+    case 'auto':
+      return level === 'SAFE' || level === 'LOW'
+    case 'never':
+      return true
+    default:
+      return false
+  }
 }
 
 // ────────── L4: 审计日志 ──────────

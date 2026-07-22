@@ -32,6 +32,8 @@ import {
   SANDBOX,
   AT_COMMANDS,
   TOKEN,
+  SFTP_SEARCH,
+  FILE_WATCH,
 } from '@shared/ipc-channels'
 import type {
   SshConfig,
@@ -1546,6 +1548,128 @@ const scheduler = {
 }
 
 // ============================================================================
+// v2.0 Phase C 新增：SFTP 文件搜索 + grep + 文件监听（QuickFileSearch / GlobalSearch / FileWatcher UI）
+// ============================================================================
+
+/**
+ * SFTP 文件搜索单条结果（结构主进程 sftp-search.ts SftpSearchFileEntry 一致）
+ *
+ * 注意：preload 不能直接 import 主进程模块，这里内联定义同结构类型。
+ */
+export interface SftpSearchFileEntry {
+  /** 完整远程路径 */
+  path: string
+  /** 文件名（path 最后一段） */
+  name: string
+  /** 文件大小（字节，未能解析时为 0） */
+  size: number
+  /** 修改时间（ms，未能解析时为 0） */
+  mtime: number
+}
+
+/**
+ * SFTP grep 单条匹配（结构主进程 sftp-search.ts SftpGrepMatch 一致）
+ */
+export interface SftpGrepMatch {
+  /** 文件路径 */
+  file: string
+  /** 行号（1-based，未能解析时为 0） */
+  line: number
+  /** 整行文本 */
+  text: string
+  /** 匹配到的子串 */
+  match: string
+}
+
+/**
+ * sftp:grep 请求参数
+ */
+export interface SftpGrepParams {
+  sessionId: string
+  path: string
+  pattern: string
+  isRegex: boolean
+  caseSensitive: boolean
+  wholeWord: boolean
+}
+
+/**
+ * 文件变更事件类型（结构主进程 file-watcher.ts FileChangeEvent 一致）
+ */
+export type FileChangeEvent = 'modify' | 'create' | 'delete' | 'move'
+
+/**
+ * file:changed 推送载荷（结构主进程 file-watcher.ts FileChangedPayload 一致）
+ */
+export interface FileChangedPayload {
+  watchId: string
+  path: string
+  event: FileChangeEvent
+}
+
+/**
+ * SFTP 文件搜索 + grep 封装
+ *
+ * 通道与主进程 ipc/sftp-search.ts 一一对应；UI 调用方式：
+ *   const { files } = await window.electronAPI.sftpSearch(sessionId, '/etc', 'nginx')
+ *   const { results } = await window.electronAPI.sftpGrep({ sessionId, path, pattern, ... })
+ */
+const sftpSearch = {
+  /**
+   * 模糊查找远程文件（find -type f -name）
+   *
+   * @param sessionId SSH 会话 ID
+   * @param path 搜索根目录（绝对路径）
+   * @param query 文件名模糊匹配（不支持正则，shell glob）
+   * @returns 文件列表（最多 50 条，3 秒超时返回空数组）
+   */
+  search: (
+    sessionId: string,
+    path: string,
+    query: string
+  ): Promise<{ files: SftpSearchFileEntry[]; error?: string }> =>
+    ipcRenderer.invoke(SFTP_SEARCH.SEARCH, sessionId, path, query),
+
+  /**
+   * 远程内容 grep（grep -rn）
+   *
+   * @param params 搜索参数（sessionId/path/pattern/isRegex/caseSensitive/wholeWord）
+   * @returns 匹配列表（最多 100 条，3 秒超时返回空数组）
+   */
+  grep: (params: SftpGrepParams): Promise<{ results: SftpGrepMatch[]; error?: string }> =>
+    ipcRenderer.invoke(SFTP_SEARCH.GREP, params),
+}
+
+/**
+ * 远程文件监听封装
+ *
+ * 通道与主进程 ipc/file-watcher.ts 一一对应；UI 调用方式：
+ *   const { watchId } = await window.electronAPI.fileWatchStart(sessionId, '/var/log')
+ *   const off = window.electronAPI.onFileChanged((payload) => { ... })
+ *   await window.electronAPI.fileWatchStop(watchId)
+ */
+const fileWatch = {
+  /**
+   * 开始监听远程路径文件变更
+   *
+   * @param sessionId SSH 会话 ID
+   * @param path 监听根目录（绝对路径）
+   * @returns watchId（用于后续 stop 调用）
+   */
+  start: (sessionId: string, path: string): Promise<{ watchId: string }> =>
+    ipcRenderer.invoke(FILE_WATCH.WATCH_START, sessionId, path),
+
+  /**
+   * 停止监听
+   *
+   * @param watchId start 返回的 watchId
+   * @returns { success: boolean }
+   */
+  stop: (watchId: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke(FILE_WATCH.WATCH_STOP, watchId),
+}
+
+// ============================================================================
 // 事件监听封装（主 → 渲染，单向推送）
 // ============================================================================
 
@@ -1754,6 +1878,21 @@ const on = {
    */
   schedulerStatus: (callback: (status: SchedulerTaskStatus) => void): (() => void) => {
     return createListener(SCHEDULER.STATUS, callback)
+  },
+
+  // v2.0 Phase C 新增：远程文件变更事件监听
+  /**
+   * 监听远程文件变更（file:changed 推送）
+   *
+   * 主进程 FileWatcherAdapter 在 inotifywait / 轮询检测到文件变更时，
+   * 通过 file:changed 通道推送 FileChangedPayload 到渲染层。
+   * 渲染层据此刷新 FileTree / EditorArea / 决策卡片等 UI。
+   *
+   * @param callback 回调函数，接收 FileChangedPayload
+   * @returns 取消监听函数（在 React useEffect cleanup 中调用）
+   */
+  fileChanged: (callback: (payload: FileChangedPayload) => void): (() => void) => {
+    return createListener(FILE_WATCH.CHANGED, callback)
   },
 }
 
@@ -2544,6 +2683,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   schedulerTrigger: scheduler.trigger,
   // 事件监听：scheduler:status — 任务状态变更推送
   onSchedulerStatusChange: on.schedulerStatus,
+
+  // ===== v2.0 Phase C 扁平化：SFTP 文件搜索 + grep + 文件监听 =====
+  // 通道与主进程 ipc/sftp-search.ts / ipc/file-watcher.ts 一一对应；UI 调用方式：
+  //   const { files } = await window.electronAPI.sftpSearch(sessionId, '/etc', 'nginx')
+  //   const { results } = await window.electronAPI.sftpGrep({ sessionId, path, pattern, ... })
+  //   const { watchId } = await window.electronAPI.fileWatchStart(sessionId, '/var/log')
+  //   const off = window.electronAPI.onFileChanged((payload) => { ... })
+  //   await window.electronAPI.fileWatchStop(watchId)
+  sftpSearch: sftpSearch.search,
+  sftpGrep: sftpSearch.grep,
+  fileWatchStart: fileWatch.start,
+  fileWatchStop: fileWatch.stop,
+  // 事件监听：file:changed — 文件变更推送
+  onFileChanged: on.fileChanged,
 } as unknown as ElectronAPI)
 
 // ============================================================================
@@ -2996,4 +3149,16 @@ export type ElectronAPI = {
   schedulerTrigger: typeof scheduler.trigger
   /** 监听任务状态变更推送（scheduler:status），返回取消监听函数 */
   onSchedulerStatusChange: (callback: (status: SchedulerTaskStatus) => void) => () => void
+
+  // ===== v2.0 Phase C：SFTP 文件搜索 + grep + 文件监听 =====
+  /** 模糊查找远程文件（sftp:search），返回 { files, error? } */
+  sftpSearch: typeof sftpSearch.search
+  /** 远程内容 grep（sftp:grep），返回 { results, error? } */
+  sftpGrep: typeof sftpSearch.grep
+  /** 开始监听远程路径文件变更（file:watch:start），返回 { watchId } */
+  fileWatchStart: typeof fileWatch.start
+  /** 停止监听（file:watch:stop），返回 { success } */
+  fileWatchStop: typeof fileWatch.stop
+  /** 监听文件变更推送（file:changed），返回取消监听函数 */
+  onFileChanged: (callback: (payload: FileChangedPayload) => void) => () => void
 }

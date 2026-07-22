@@ -59,6 +59,12 @@ import { registerLoopEngineeringHandlers, cleanupLoopEngineering } from './loop-
 // Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
 // 通道：scheduler:list / toggle / trigger + 推送 scheduler:status
 import { registerSchedulerIpcHandlers } from './scheduler'
+// v2.0 Phase C 新增：SFTP 文件搜索 + grep（QuickFileSearch / GlobalSearch UI）
+// 通道：sftp:search / sftp:grep
+import { registerSftpSearchIpcHandlers } from './sftp-search'
+// v2.0 Phase C 新增：远程文件监听（inotifywait 长连接 + 轮询降级）
+// 通道：file:watch:start / file:watch:stop + 推送 file:changed
+import { registerFileWatcherIpcHandlers } from './file-watcher'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -180,6 +186,16 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 注意：调度器单例初始化（register 3 个定时任务 + start）在 main/index.ts 的
   // app.whenReady() 中调用 initScheduler()，确保 BrowserWindow 已创建后再启动推送
   registerSchedulerIpcHandlers()
+
+  // v2.0 Phase C 新增：SFTP 文件搜索 + grep（QuickFileSearch / GlobalSearch UI）
+  // 通道：sftp:search（find -name 模糊匹配）/ sftp:grep（grep -rn 内容正则）
+  // 不需要 mainWindow：所有操作都是请求-响应模式
+  registerSftpSearchIpcHandlers()
+
+  // v2.0 Phase C 新增：远程文件监听（inotifywait 长连接 + 5s 轮询降级）
+  // 通道：file:watch:start / file:watch:stop + 推送 file:changed
+  // 不需要 mainWindow：FileWatcherAdapter 内部通过 BrowserWindow.getAllWindows() 广播
+  registerFileWatcherIpcHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar
