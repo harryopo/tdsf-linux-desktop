@@ -51,6 +51,8 @@ import type {
   ProfilerRunResponse,
   DecisionCard,
   ExternalMcpServerStatus,
+  // K.2 心跳保活状态变更事件载荷
+  SshStateEvent,
 } from '@shared/models'
 import type {
   TutorialEntry,
@@ -1713,6 +1715,11 @@ const on = {
     return createListener('terminal:data', callback)
   },
 
+  /** 监听 SSH 心跳保活状态变更（K.2：心跳失败/重连/最终断开时推送） */
+  sshStateChanged: (callback: (event: SshStateEvent) => void): (() => void) => {
+    return createListener(SSH.STATE_CHANGED, callback)
+  },
+
   /** 监听监控数据推送（实时指标，每 interval 秒一次） */
   monitorData: (callback: (sessionId: string, data: MonitorData) => void): (() => void) => {
     return createListener('monitor:data', callback)
@@ -1963,6 +1970,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ===== 事件监听扁平化 =====
   onTerminalData: on.terminalData,
+  /** 监听 SSH 心跳保活状态变更（K.2） */
+  onSshStateChanged: on.sshStateChanged,
   onMonitorData: on.monitorData,
   onMonitorSystemInfo: on.monitorSystemInfo,
   onLlmToken: on.llmToken,
@@ -2779,6 +2788,8 @@ export type ElectronAPI = {
   profilerDefaultFileName: typeof profiler.defaultFileName
   // Events - 每个方法返回一个取消监听函数
   onTerminalData: (callback: (sessionId: string, data: string) => void) => () => void
+  /** 监听 SSH 心跳保活状态变更（K.2） */
+  onSshStateChanged: (callback: (event: SshStateEvent) => void) => () => void
   onMonitorData: (callback: (sessionId: string, data: MonitorData) => void) => () => void
   onMonitorSystemInfo: (callback: (sessionId: string, info: SystemInfo) => void) => () => void
   onLlmToken: (callback: (token: string) => void) => () => void

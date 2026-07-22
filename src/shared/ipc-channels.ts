@@ -91,9 +91,10 @@ export const LLM_INLINE = {
  * SSH IPC 通道常量
  *
  * 通道列表：
- * - CONNECT      invoke  渲染 → 主：建立 SSH 连接
- * - DISCONNECT   invoke  渲染 → 主：断开 SSH 连接
- * - SHELL_START  invoke  渲染 → 主：启动交互式 Shell
+ * - CONNECT       invoke  渲染 → 主：建立 SSH 连接
+ * - DISCONNECT    invoke  渲染 → 主：断开 SSH 连接
+ * - SHELL_START   invoke  渲染 → 主：启动交互式 Shell
+ * - STATE_CHANGED push    主 → 渲染：心跳保活状态变更（重连/最终断开）
  */
 export const SSH = {
   /** 建立 SSH 连接（invoke: 渲染 → 主） */
@@ -102,6 +103,8 @@ export const SSH = {
   DISCONNECT: 'ssh:disconnect',
   /** 启动交互式 Shell（invoke: 渲染 → 主） */
   SHELL_START: 'ssh:shell:start',
+  /** 心跳保活状态变更推送（push: 主 → 渲染），载荷 SshStateEvent */
+  STATE_CHANGED: 'ssh:state-changed',
 } as const
 
 /**
