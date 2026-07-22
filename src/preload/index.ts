@@ -53,6 +53,9 @@ import type {
   ExternalMcpServerStatus,
   // K.2 心跳保活状态变更事件载荷
   SshStateEvent,
+  // Phase L 主机密钥校验弹窗事件载荷
+  SshHostKeyPromptEvent,
+  SshHostKeyResponseAction,
 } from '@shared/models'
 import type {
   TutorialEntry,
@@ -126,6 +129,10 @@ import type {
   ProviderPricingRequest,
   ProviderPricingResponse,
   ProviderPricingAllResponse,
+  // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控共享类型（expectation:check / format）
+  CommandExpectation,
+  ExpectationCheckResult,
+  ExpectationViolation,
 } from '@shared/agent-types'
 // v0.9.5 P0 新增：MCP 5 阶段状态机共享类型（来自 @shared/models）
 import type { McpStateContext } from '@shared/models'
@@ -459,6 +466,20 @@ const ssh = {
     resize: (sessionId: string, cols: number, rows: number): Promise<boolean> =>
       ipcRenderer.invoke('ssh:shell:resize', sessionId, cols, rows),
   },
+
+  /**
+   * 响应主机密钥确认弹窗（Phase L）
+   *
+   * 渲染进程收到 onSshHostKeyPrompt 事件后，弹窗等待用户选择，
+   * 然后调用此方法将用户选择发送回主进程，恢复 SSH 握手。
+   *
+   * @param requestId 关联请求 ID（来自 SshHostKeyPromptEvent.requestId）
+   * @param action 用户选择的动作
+   */
+  respondHostKey: (
+    requestId: string,
+    action: SshHostKeyResponseAction,
+  ): Promise<boolean> => ipcRenderer.invoke(SSH.HOST_KEY_RESPONSE, { requestId, action }),
 }
 
 /**
@@ -1410,6 +1431,48 @@ const attention = {
 }
 
 /**
+ * v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控 invoke 调用
+ *
+ * 通道与主进程 ipc/expectation.ts 一一对应：
+ * - expectation:check  → check（对比预期与实际输出，返回 ExpectationCheckResult）
+ * - expectation:format → format（格式化违规列表为人类可读字符串）
+ *
+ * 使用场景：
+ * - UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
+ * - 在 Tooltip / 详情面板中展示完整违规描述
+ *
+ * 设计要点：
+ * - check 接收 3 参数（expectation + actualOutput + actualExitCode）
+ * - format 接收违规列表，返回字符串
+ * - 类型已迁移到 @shared/agent-types.ts（SSOT）
+ */
+const expectation = {
+  /**
+   * 对比预期与实际输出
+   *
+   * @param expectation 命令预期配置（command + mustContain + mustNotContain + expectedExitCode + timeoutMs）
+   * @param actualOutput 实际输出（字符串）
+   * @param actualExitCode 实际退出码
+   * @returns ExpectationCheckResult（含 met / violations / expectation / actualExitCode / timestamp）
+   */
+  check: (
+    expectation: CommandExpectation,
+    actualOutput: string,
+    actualExitCode: number
+  ): Promise<ExpectationCheckResult> =>
+    ipcRenderer.invoke('expectation:check', expectation, actualOutput, actualExitCode),
+
+  /**
+   * 格式化违规列表为人类可读字符串
+   *
+   * @param violations 违规列表（空数组返回"符合预期（无违规）"）
+   * @returns 格式化后的字符串
+   */
+  format: (violations: ExpectationViolation[]): Promise<string> =>
+    ipcRenderer.invoke('expectation:format', violations),
+}
+
+/**
  * v0.9.5 P0 - 组 4：Subagent 自定义 Agent 加载器 invoke 调用
  *
  * 通道与主进程 ipc/subagent.ts 一一对应：
@@ -1720,6 +1783,16 @@ const on = {
     return createListener(SSH.STATE_CHANGED, callback)
   },
 
+  /**
+   * 监听主机密钥确认弹窗推送（Phase L）
+   *
+   * 首次连接或密钥变更时，主进程推送 SshHostKeyPromptEvent，
+   * 渲染进程弹窗等待用户选择后通过 sshRespondHostKey 响应。
+   */
+  sshHostKeyPrompt: (callback: (prompt: SshHostKeyPromptEvent) => void): (() => void) => {
+    return createListener(SSH.HOST_KEY_PROMPT, callback)
+  },
+
   /** 监听监控数据推送（实时指标，每 interval 秒一次） */
   monitorData: (callback: (sessionId: string, data: MonitorData) => void): (() => void) => {
     return createListener('monitor:data', callback)
@@ -1926,6 +1999,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sshShellStart: ssh.shell.start,
   sshShellWrite: ssh.shell.write,
   sshShellResize: ssh.shell.resize,
+  /** 响应主机密钥确认弹窗（Phase L） */
+  sshRespondHostKey: ssh.respondHostKey,
 
   // ===== SFTP 扁平化 =====
   sftpList: sftp.list,
@@ -1972,6 +2047,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onTerminalData: on.terminalData,
   /** 监听 SSH 心跳保活状态变更（K.2） */
   onSshStateChanged: on.sshStateChanged,
+  /** 监听主机密钥确认弹窗推送（Phase L） */
+  onSshHostKeyPrompt: on.sshHostKeyPrompt,
   onMonitorData: on.monitorData,
   onMonitorSystemInfo: on.monitorSystemInfo,
   onLlmToken: on.llmToken,
@@ -2345,6 +2422,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   attentionTrackErrors: attention.trackErrors,
   attentionTrackKeywords: attention.trackKeywords,
   attentionReset: attention.reset,
+
+  // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控（2 个）
+  expectationCheck: expectation.check,
+  expectationFormat: expectation.format,
 
   // 组 4：Subagent 自定义 Agent 加载器（2 个）
   subagentList: subagent.list,
@@ -2746,6 +2827,8 @@ export type ElectronAPI = {
   sshShellStart: typeof ssh.shell.start
   sshShellWrite: typeof ssh.shell.write
   sshShellResize: typeof ssh.shell.resize
+  /** 响应主机密钥确认弹窗（Phase L） */
+  sshRespondHostKey: typeof ssh.respondHostKey
   // SFTP
   sftpList: typeof sftp.list
   sftpUpload: typeof sftp.upload
@@ -2790,6 +2873,8 @@ export type ElectronAPI = {
   onTerminalData: (callback: (sessionId: string, data: string) => void) => () => void
   /** 监听 SSH 心跳保活状态变更（K.2） */
   onSshStateChanged: (callback: (event: SshStateEvent) => void) => () => void
+  /** 监听主机密钥确认弹窗推送（Phase L） */
+  onSshHostKeyPrompt: (callback: (prompt: SshHostKeyPromptEvent) => void) => () => void
   onMonitorData: (callback: (sessionId: string, data: MonitorData) => void) => () => void
   onMonitorSystemInfo: (callback: (sessionId: string, info: SystemInfo) => void) => () => void
   onLlmToken: (callback: (token: string) => void) => () => void
@@ -2932,6 +3017,9 @@ export type ElectronAPI = {
   attentionTrackErrors: typeof attention.trackErrors
   attentionTrackKeywords: typeof attention.trackKeywords
   attentionReset: typeof attention.reset
+  // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控（2 个）
+  expectationCheck: typeof expectation.check
+  expectationFormat: typeof expectation.format
   // 组 4：Subagent 自定义 Agent 加载器（2 个）
   subagentList: typeof subagent.list
   subagentReload: typeof subagent.reload

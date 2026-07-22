@@ -55,6 +55,10 @@ const DEFAULT_SSH_DEFAULTS: Partial<SshConfig> = {
   // K.3：心跳保活间隔默认值，与后端 KEEPALIVE_DEFAULT_INTERVAL_SEC 一致（30 秒），
   // 渲染层 SshSettings 滑块不再使用本地 state，统一从此处读取。
   keepAliveIntervalSec: 30,
+  // Phase L：默认启用严格主机密钥校验（known_hosts 验证）
+  strictHostKeyCheck: true,
+  // Phase L：默认 known_hosts 文件路径
+  knownHostsPath: '~/.ssh/known_hosts',
 }
 
 /** 默认风险规则 */

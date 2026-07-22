@@ -19,6 +19,7 @@ import { useEffect } from 'react'
 import Router from './router'
 import { useServerStore } from './stores/server-store'
 import { logger } from './utils/logger'
+import HostKeyPromptDialog from './components/ssh/HostKeyPromptDialog'
 
 /** App 应用根组件 */
 const App: React.FC = () => {
@@ -37,7 +38,13 @@ const App: React.FC = () => {
       })
   }, [])
 
-  return <Router />
+  return (
+    <>
+      <Router />
+      {/* Phase L：全局主机密钥确认弹窗（首次连接/密钥变更时由主进程推送触发） */}
+      <HostKeyPromptDialog />
+    </>
+  )
 }
 
 export default App

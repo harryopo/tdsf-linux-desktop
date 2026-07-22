@@ -29,6 +29,9 @@ import type {
   ExternalMcpServerStatus,
   // K.2 心跳保活状态变更事件载荷
   SshStateEvent,
+  // Phase L 主机密钥校验弹窗事件载荷
+  SshHostKeyPromptEvent,
+  SshHostKeyResponseAction,
 } from '@shared/models'
 
 // 部署助手类型（来自共享层 @shared/deploy-types）
@@ -118,6 +121,10 @@ import type {
   ProviderPricingRequest,
   ProviderPricingResponse,
   ProviderPricingAllResponse,
+  // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控共享类型
+  CommandExpectation,
+  ExpectationCheckResult,
+  ExpectationViolation,
 } from '@shared/agent-types'
 
 // ============================================================================
@@ -219,6 +226,26 @@ export interface SandboxApprovalRequest {
   reasons: string[]
   /** 推送时间戳（ms） */
   timestamp: number
+  /** 会话 ID（v0.9.4 新增，可选） */
+  sessionId?: string
+  /**
+   * 可能的副作用（v0.9.3 §11 改进点 4 P2-C 新增，可选）
+   *
+   * 根据 risk 和 reasons 推导，告诉用户"执行后会发生什么"。
+   */
+  sideEffects?: string[]
+  /**
+   * 推荐的回滚命令（v0.9.3 §11 改进点 4 P2-C 新增，可选）
+   *
+   * 命令执行失败或结果不符合预期时，用户可执行的回滚命令。
+   */
+  rollbackCommand?: string
+  /**
+   * 建议的更安全替代方案（v0.9.3 §11 改进点 4 P2-C 新增，可选）
+   *
+   * 如果存在更安全的等价命令，给出建议。
+   */
+  saferAlternative?: string
 }
 
 /**
@@ -448,6 +475,20 @@ export interface ElectronAPI {
   /** 调整 Shell 终端尺寸 */
   sshShellResize(sessionId: string, cols: number, rows: number): Promise<boolean>
   /**
+   * 响应主机密钥确认弹窗（Phase L）
+   *
+   * 渲染进程收到 onSshHostKeyPrompt 事件后弹窗，用户选择后调用此方法
+   * 将选择发送回主进程，恢复或中断 SSH 握手。
+   *
+   * @param requestId 关联请求 ID（来自 SshHostKeyPromptEvent.requestId）
+   * @param action 用户选择的动作（accept-once / accept-and-save / reject）
+   * @returns 是否成功响应
+   */
+  sshRespondHostKey(
+    requestId: string,
+    action: SshHostKeyResponseAction,
+  ): Promise<boolean>
+  /**
    * 监听 SSH 心跳保活状态变更（K.2）
    *
    * 心跳失败触发重连、重连成功/失败时，主进程通过此通道推送 SshStateEvent。
@@ -455,6 +496,15 @@ export interface ElectronAPI {
    * @returns 取消监听函数
    */
   onSshStateChanged(callback: (event: SshStateEvent) => void): () => void
+  /**
+   * 监听主机密钥确认弹窗推送（Phase L）
+   *
+   * 首次连接或密钥变更时，主进程推送 SshHostKeyPromptEvent。
+   * 渲染进程弹窗等待用户选择，然后通过 sshRespondHostKey 响应。
+   *
+   * @returns 取消监听函数
+   */
+  onSshHostKeyPrompt(callback: (prompt: SshHostKeyPromptEvent) => void): () => void
 
   // ===== SFTP 文件管理 =====
   /** 列出远程目录内容 */
@@ -1295,6 +1345,34 @@ export interface ElectronAPI {
    * @returns true 表示重置成功
    */
   attentionReset(): Promise<boolean>
+
+  // ----- v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控（2 个）-----
+  /**
+   * 对比预期与实际输出
+   *
+   * 通道：expectation:check
+   * 用途：UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
+   *
+   * @param expectation 命令预期配置（command + mustContain + mustNotContain + expectedExitCode + timeoutMs）
+   * @param actualOutput 实际输出（字符串）
+   * @param actualExitCode 实际退出码
+   * @returns ExpectationCheckResult（含 met / violations / expectation / actualExitCode / timestamp）
+   */
+  expectationCheck(
+    expectation: CommandExpectation,
+    actualOutput: string,
+    actualExitCode: number
+  ): Promise<ExpectationCheckResult>
+  /**
+   * 格式化违规列表为人类可读字符串
+   *
+   * 通道：expectation:format
+   * 用途：UI 在 Tooltip / 详情面板中展示完整违规描述
+   *
+   * @param violations 违规列表（空数组返回"符合预期（无违规）"）
+   * @returns 格式化后的字符串
+   */
+  expectationFormat(violations: ExpectationViolation[]): Promise<string>
 
   // ----- 组 4：Subagent 自定义 Agent 加载器（2 个）-----
   /**

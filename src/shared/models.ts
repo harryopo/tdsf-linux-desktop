@@ -38,6 +38,105 @@ export interface SshConfig {
   keepAlive?: boolean
   /** 心跳保活间隔（秒），不传时后端默认 30s */
   keepAliveIntervalSec?: number
+  /**
+   * 是否启用严格主机密钥校验（Phase L）
+   * - true：首次连接弹窗确认，密钥变更拒绝连接
+   * - false / undefined：跳过 known_hosts 校验（不推荐，存在中间人攻击风险）
+   */
+  strictHostKeyCheck?: boolean
+  /**
+   * known_hosts 文件路径（Phase L）
+   * 不传时默认使用 `~/.ssh/known_hosts`（主进程解析为 app.getPath('home')/.ssh/known_hosts）
+   */
+  knownHostsPath?: string
+}
+
+// ============================================================================
+// Phase L：SSH 主机密钥校验（known_hosts）相关类型
+// ============================================================================
+
+/** SSH 主机密钥类型（OpenSSH 兼容） */
+export type SshHostKeyType =
+  | 'ssh-rsa'
+  | 'ssh-ed25519'
+  | 'ecdsa-sha2-nistp256'
+  | 'ecdsa-sha2-nistp384'
+  | 'ecdsa-sha2-nistp521'
+  | 'ssh-dss'
+  | (string & {})
+
+/** SSH 主机密钥元信息 */
+export interface SshHostKeyMeta {
+  /** 密钥类型（如 'ssh-ed25519'） */
+  keyType: SshHostKeyType
+  /** base64 编码的公钥数据（不含类型前缀） */
+  keyData: string
+  /** OpenSSH 兼容的 SHA256 指纹（格式：`SHA256:base64`） */
+  sha256: string
+}
+
+/** known_hosts 校验结果状态 */
+export type SshHostKeyStatus = 'match' | 'mismatch' | 'not-found' | 'revoked'
+
+/** known_hosts 校验结果 */
+export interface SshHostKeyCheckResult {
+  /** 校验状态 */
+  status: SshHostKeyStatus
+  /** 当前服务器返回的密钥元信息 */
+  currentKey: SshHostKeyMeta
+  /** known_hosts 中已记录的密钥元信息（mismatch 时用于对比） */
+  knownKey?: SshHostKeyMeta
+}
+
+/**
+ * 主机密钥确认弹窗事件（主 → 渲染推送，Phase L）
+ *
+ * 当 hostVerifier 检测到首次连接（not-found）或密钥变更（mismatch）时，
+ * 主进程通过 IPC 推送此事件到渲染进程，弹窗等待用户选择。
+ */
+export interface SshHostKeyPromptEvent {
+  /** 唯一请求 ID，用于关联响应 */
+  requestId: string
+  /** 会话 ID（对应 SshConnectionManager 的 sessionId） */
+  sessionId: string
+  /** 服务器 ID（对应 SshConfig.id） */
+  serverId: string
+  /** 主机地址 */
+  host: string
+  /** 端口 */
+  port: number
+  /** 触发场景：首次连接 / 密钥变更 */
+  scenario: 'unknown-host' | 'host-key-changed'
+  /** 当前服务器返回的密钥元信息 */
+  currentKey: SshHostKeyMeta
+  /** known_hosts 中已记录的密钥元信息（仅 host-key-changed 时有值） */
+  knownKey?: SshHostKeyMeta
+  /** 构建好的提示文案（可直接展示） */
+  promptMessage: string
+}
+
+/**
+ * 用户对主机密钥弹窗的响应动作（渲染 → 主，Phase L）
+ *
+ * - accept-once：仅本次继续连接（不写入 known_hosts）
+ * - accept-and-save：继续连接并保存密钥到 known_hosts
+ * - reject：拒绝连接（终止握手）
+ */
+export type SshHostKeyResponseAction =
+  | 'accept-once'
+  | 'accept-and-save'
+  | 'reject'
+
+/**
+ * 主机密钥响应载荷（渲染 → 主 invoke）
+ *
+ * 渲染进程通过 sshRespondHostKey(requestId, action) 响应主进程的弹窗推送。
+ */
+export interface SshHostKeyResponsePayload {
+  /** 关联请求 ID */
+  requestId: string
+  /** 用户选择的动作 */
+  action: SshHostKeyResponseAction
 }
 
 /** SSH 命令执行结果 */
