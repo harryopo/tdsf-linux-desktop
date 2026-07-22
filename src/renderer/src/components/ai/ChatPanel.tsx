@@ -41,10 +41,14 @@ import CredibilityPanel from './CredibilityPanel'
 import PlanBuildButton from './PlanBuildButton'
 import SrePipelinePanel from './SrePipelinePanel'
 import SidecarStatusPanel from './SidecarStatusPanel'
+import AttentionBubble from './AttentionBubble'
+import ExpectedOutput from './ExpectedOutput'
+import SandboxApprovalDialog from './SandboxApprovalDialog'
 import { AtCommandChip, AtCommandPicker, AtCommandBadge, useAtCommandInjection } from './at-commands'
 import McpStatusBar from './McpStatusBar'
 import type { AtCommand } from '@shared/at-command-types'
 import type { ThinkingStrength, PersistedProviderConfig, AgentMode } from '@shared/agent-types'
+import type { SandboxApprovalRequest } from '../../types/electron'
 import './ChatPanel.css'
 
 const { TextArea } = Input
@@ -148,6 +152,8 @@ const ChatPanel: React.FC = () => {
   const [sreOpen, setSreOpen] = useState(false)
   /** v1.5: 多 Sidecar 状态面板 */
   const [sidecarStatusOpen, setSidecarStatusOpen] = useState(false)
+  /** v0.9.3 §11 改进点 4 P2-C：sandbox 命令审批请求队列 */
+  const [sandboxApprovalRequests, setSandboxApprovalRequests] = useState<SandboxApprovalRequest[]>([])
   /** v0.9 @触发检测的防抖计时器 */
   const pickerDebounceRef = useRef<number | null>(null)
   /** v0.9 消息对应的注入命令记录：messageId → AtCommand[] */
@@ -306,6 +312,24 @@ const ChatPanel: React.FC = () => {
       offToolApproval()
     }
   }, [upsertToolCall, setPendingApproval])
+
+  // ===== v0.9.3 §11 改进点 4 P2-C：监听沙箱命令审批请求 =====
+  useEffect(() => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.onSandboxApprovalRequest) return
+
+    const offSandboxApproval = window.electronAPI.onSandboxApprovalRequest((request) => {
+      setSandboxApprovalRequests((prev) => [...prev, request])
+    })
+
+    return () => {
+      offSandboxApproval()
+    }
+  }, [])
+
+  /** v0.9.3 §11 改进点 4 P2-C：审批请求已处理回调 */
+  const handleSandboxApprovalResolved = useCallback((callId: string) => {
+    setSandboxApprovalRequests((prev) => prev.filter((r) => r.callId !== callId))
+  }, [])
 
   // ===== v0.8.0 监听预填消息（终端翻译模块联动） =====
   useEffect(() => {
@@ -738,6 +762,12 @@ const ChatPanel: React.FC = () => {
         </div>
       )}
 
+      {/* ===== v0.9.4 §11 改进点 24: Agent 注意力关注点气泡 ===== */}
+      <AttentionBubble />
+
+      {/* ===== v0.9.4 §11 改进点 25: 预期回显对比面板（折叠式，默认折叠） ===== */}
+      <ExpectedOutput />
+
       {/* ===== 消息列表 ===== */}
       <div className="chat-panel-messages">
         {agentMessages.length === 0 ? (
@@ -835,6 +865,12 @@ const ChatPanel: React.FC = () => {
       <ToolApprovalModal
         request={pendingApproval}
         onClose={() => setPendingApproval(null)}
+      />
+
+      {/* ===== v0.9.3 §11 改进点 4 P2-C：沙箱命令审批弹窗（含副作用/回滚/替代方案） ===== */}
+      <SandboxApprovalDialog
+        requests={sandboxApprovalRequests}
+        onResolved={handleSandboxApprovalResolved}
       />
 
       {/* ===== v0.9 输入区（含 @命令 Chip 列表 + Picker） ===== */}

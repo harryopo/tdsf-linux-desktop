@@ -27,6 +27,7 @@ import type {
   PersistedProviderConfig,
   ThinkingStrength,
   TokenStats,
+  CostStats,
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
@@ -77,6 +78,21 @@ const DEFAULT_TOKEN_STATS: TokenStats = {
 }
 
 /**
+ * 默认成本统计（v0.9.3 §11 改进点 26 P2-F 新增）
+ *
+ * 与 DEFAULT_TOKEN_STATS 对应，用于 Token 监控面板展示 USD 成本。
+ * 初始值全 0，由 useAgentChat 在挂载时通过 IPC token:cost-stats 加载。
+ */
+const DEFAULT_COST_STATS: CostStats = {
+  todayCost: 0,
+  weekCost: 0,
+  monthCost: 0,
+  totalCost: 0,
+  bySubagent: {},
+  byProvider: {},
+}
+
+/**
  * Agent Store 状态接口
  */
 interface AgentState {
@@ -95,6 +111,22 @@ interface AgentState {
   providers: PersistedProviderConfig[]
   /** Token 统计聚合 */
   tokenStats: TokenStats
+  /**
+   * 成本统计聚合（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * 与 tokenStats 对应，展示 USD 成本（todayCost/weekCost/monthCost/totalCost + by 维度）。
+   * 由 useAgentChat 通过 IPC token:cost-stats 加载，并在 agent:done 事件后刷新。
+   */
+  costStats: CostStats
+  /**
+   * 本次会话成本基线（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * 在 useAgentChat 首次加载 costStats 时记录 totalCost 作为基线。
+   * sessionCost = currentTotalCost - sessionCostBaseline（≥0）。
+   * 用于"本次会话累计成本：$X.XX"展示，让用户感知当前会话的真实开销。
+   * 初始为 null（未加载过 costStats），加载后为非负数字。
+   */
+  sessionCostBaseline: number | null
   /** 最近一次错误（来自 AgentErrorPayload） */
   lastError: string | null
   /** 当前 Agent 模式（v0.9.5 P0：Mode 五模式切换，默认 'chat'） */
@@ -125,6 +157,21 @@ interface AgentState {
   setProviders: (providers: PersistedProviderConfig[]) => void
   /** 设置 Token 统计 */
   setTokenStats: (stats: TokenStats) => void
+  /**
+   * 设置成本统计（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * 同时处理 sessionCostBaseline：
+   * - 如果当前 sessionCostBaseline 为 null（首次加载），则记录当前 totalCost 作为基线
+   * - 否则保留现有基线，仅更新 costStats
+   */
+  setCostStats: (stats: CostStats) => void
+  /**
+   * 重置本次会话成本基线（v0.9.3 §11 改进点 26 P2-F 新增）
+   *
+   * 用户主动"重置会话成本"或清空对话时调用，将基线设为当前 totalCost，
+   * 让"本次会话"从 0 重新累计。
+   */
+  resetSessionCostBaseline: () => void
   /** 设置当前 Agent mode（v0.9.5 P0） */
   setCurrentMode: (mode: AgentMode) => void
   /** 设置 mode 列表（v0.9.5 P0） */
@@ -145,6 +192,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
   selectedProviderId: null,
   providers: [],
   tokenStats: DEFAULT_TOKEN_STATS,
+  costStats: DEFAULT_COST_STATS,
+  sessionCostBaseline: null,
   lastError: null,
   currentMode: 'chat',
   modeList: [],
@@ -263,6 +312,21 @@ export const useAgentStore = create<AgentState>()((set) => ({
 
   // 设置 Token 统计
   setTokenStats: (stats) => set({ tokenStats: stats }),
+
+  // 设置成本统计（v0.9.3 §11 改进点 26 P2-F）
+  // 首次加载时记录 sessionCostBaseline，后续保留基线只更新 costStats
+  setCostStats: (stats) =>
+    set((state) => ({
+      costStats: stats,
+      sessionCostBaseline:
+        state.sessionCostBaseline === null ? stats.totalCost : state.sessionCostBaseline,
+    })),
+
+  // 重置本次会话成本基线（用户主动重置时调用）
+  resetSessionCostBaseline: () =>
+    set((state) => ({
+      sessionCostBaseline: state.costStats.totalCost,
+    })),
 
   // 设置当前 Agent mode（v0.9.5 P0）
   setCurrentMode: (mode) => set({ currentMode: mode }),

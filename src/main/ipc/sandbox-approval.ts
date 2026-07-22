@@ -67,6 +67,27 @@ export interface SandboxApprovalRequest {
    * 通过审批请求推送回渲染进程，便于 UI 关联请求与响应、支持主动取消。
    */
   sessionId?: string
+  /**
+   * 可能的副作用（v0.9.3 §11 改进点 4 P2-C 新增，可选）
+   *
+   * 根据 risk 和 reasons 推导，告诉用户"执行后会发生什么"。
+   * 例如：['该命令将删除 /var/log 下的所有日志文件', '系统将无法回溯历史日志']
+   */
+  sideEffects?: string[]
+  /**
+   * 推荐的回滚命令（v0.9.3 §11 改进点 4 P2-C 新增，可选）
+   *
+   * 命令执行失败或结果不符合预期时，用户可执行的回滚命令。
+   * 例如：'git checkout . && git clean -fd'
+   */
+  rollbackCommand?: string
+  /**
+   * 建议的更安全替代方案（v0.9.3 §11 改进点 4 P2-C 新增，可选）
+   *
+   * 如果存在更安全的等价命令，给出建议。
+   * 例如：'建议使用 rm -rf /var/log/old/*.log 而非 rm -rf /var/log/*'
+   */
+  saferAlternative?: string
 }
 
 /**
@@ -132,6 +153,185 @@ export function assessCommandRiskRegex(
 }
 
 /**
+ * 推导命令可能的副作用（v0.9.3 §11 改进点 4 P2-C 新增）
+ *
+ * 根据 risk 和 reasons 推导，告诉用户"执行后会发生什么"。
+ * 用于审批弹窗中"为什么需要审批"区块的副作用提示。
+ *
+ * @param command 待执行的命令
+ * @param risk 风险等级
+ * @param reasons 风险原因列表
+ * @returns 副作用描述列表（空数组表示无明显副作用）
+ */
+function deriveSideEffects(
+  command: string,
+  risk: CommandRiskLevel,
+  reasons: string[]
+): string[] {
+  const effects: string[] = []
+
+  // 高危命令的副作用
+  if (risk === 'high') {
+    if (/\brm\s+-rf\b/i.test(command)) {
+      effects.push('将递归删除指定目录及其所有子文件，操作不可逆')
+    }
+    if (/chmod\s+777/i.test(command)) {
+      effects.push('所有用户都将获得读写执行权限，存在安全隐患')
+    }
+    if (/\biptables\b/i.test(command)) {
+      effects.push('将修改防火墙规则，可能导致网络连接中断')
+    }
+    if (/\bdd\s+if=/i.test(command)) {
+      effects.push('将直接写入磁盘设备，可能覆盖现有数据')
+    }
+    if (/mkfs/i.test(command)) {
+      effects.push('将格式化文件系统，磁盘上所有数据将丢失')
+    }
+    if (/\b(shutdown|reboot|halt|poweroff)\b/i.test(command)) {
+      effects.push('将导致系统关机或重启，所有未保存的工作将丢失')
+    }
+    if (/\bkillall\b/i.test(command)) {
+      effects.push('将终止所有同名进程，可能影响系统稳定性')
+    }
+  }
+
+  // 中危命令的副作用
+  if (risk === 'medium') {
+    if (/\b(yum|apt|dnf|pip|npm|pnpm)\s+(install|remove|upgrade|purge)\b/i.test(command)) {
+      effects.push('将修改系统软件包，可能影响依赖关系')
+    }
+    if (/\buser(add|del|mod)\b/i.test(command)) {
+      effects.push('将修改用户账户，可能影响登录权限')
+    }
+    if (/\bsystemctl\s+(start|stop|restart|enable|disable)\b/i.test(command)) {
+      effects.push('将修改服务运行状态，可能影响系统功能')
+    }
+    if (/\bsudo\b/i.test(command)) {
+      effects.push('将以 root 权限执行，请确认命令安全性')
+    }
+    if (/>\s*\/etc\//i.test(command)) {
+      effects.push('将修改系统配置文件，可能影响系统行为')
+    }
+  }
+
+  // 如果没有具体副作用但有风险原因，使用通用提示
+  if (effects.length === 0 && reasons.length > 0) {
+    effects.push(`检测到 ${reasons.length} 项风险因素，请仔细确认后执行`)
+  }
+
+  return effects
+}
+
+/**
+ * 推荐回滚命令（v0.9.3 §11 改进点 4 P2-C 新增）
+ *
+ * 根据命令类型给出回滚建议。无法回滚的命令返回 undefined。
+ *
+ * @param command 待执行的命令
+ * @param risk 风险等级
+ * @returns 回滚命令字符串（undefined 表示无法回滚或无需回滚）
+ */
+function deriveRollbackCommand(
+  command: string,
+  risk: CommandRiskLevel
+): string | undefined {
+  // git 相关操作可回滚
+  if (/\bgit\s+add\b/i.test(command) || /\bgit\s+commit\b/i.test(command)) {
+    return 'git reset --hard HEAD~1'
+  }
+  if (/\bgit\s+checkout\b/i.test(command)) {
+    return 'git checkout -（恢复到上一个分支）'
+  }
+  if (/\bgit\s+reset\b/i.test(command)) {
+    return 'git reflog + git reset --hard <旧 commit>'
+  }
+
+  // 包安装可回滚
+  const pkgMatch = command.match(/\b(yum|apt|dnf)\s+install\s+(\S+)/i)
+  if (pkgMatch) {
+    const pkgManager = pkgMatch[1].toLowerCase()
+    const pkg = pkgMatch[2]
+    if (pkgManager === 'yum' || pkgManager === 'dnf') {
+      return `${pkgManager} remove ${pkg}`
+    }
+    if (pkgManager === 'apt') {
+      return `apt remove ${pkg}`
+    }
+  }
+
+  // 服务管理可回滚
+  const svcMatch = command.match(/\bsystemctl\s+(start|stop|restart)\s+(\S+)/i)
+  if (svcMatch) {
+    const action = svcMatch[1].toLowerCase()
+    const svc = svcMatch[2]
+    const reverse = action === 'stop' ? 'start' : 'stop'
+    return `systemctl ${reverse} ${svc}`
+  }
+
+  // 文件修改可回滚（如果有备份）
+  if (/>\s*\/etc\//i.test(command)) {
+    return '从备份恢复：cp /etc/xxx.bak /etc/xxx（建议操作前先备份）'
+  }
+
+  // 高危且无法回滚的命令
+  if (risk === 'high') {
+    if (/\brm\s+-rf\b/i.test(command)) return undefined  // rm -rf 无法回滚
+    if (/mkfs/i.test(command)) return undefined
+    if (/\bdd\s+if=/i.test(command)) return undefined
+  }
+
+  return undefined
+}
+
+/**
+ * 建议更安全的替代方案（v0.9.3 §11 改进点 4 P2-C 新增）
+ *
+ * 如果存在更安全的等价命令，给出建议。
+ *
+ * @param command 待执行的命令
+ * @param risk 风险等级
+ * @returns 替代方案字符串（undefined 表示无更安全方案）
+ */
+function deriveSaferAlternative(
+  command: string,
+  risk: CommandRiskLevel
+): string | undefined {
+  // rm -rf 根目录 → 建议精确路径
+  if (/\brm\s+-rf\b/i.test(command) && /(^|\s|["'`])\/($|\s|\*|["'`])/.test(command)) {
+    return '危险：rm -rf / 会删除整个文件系统。建议明确指定要删除的子目录，如 rm -rf /var/log/old/'
+  }
+
+  // rm -rf 通配符 → 建议先 ls 查看
+  if (/\brm\s+-rf\b.*\*/i.test(command)) {
+    return '建议先执行 ls 查看匹配的文件列表，确认后再删除'
+  }
+
+  // chmod 777 → 建议 750/755
+  if (/chmod\s+777/i.test(command)) {
+    return '建议使用 chmod 755（目录）或 chmod 644（文件），仅所有者可写'
+  }
+
+  // systemctl stop → 建议 mask（更彻底）
+  if (/\bsystemctl\s+stop\b/i.test(command)) {
+    return '若需长期禁用服务，建议使用 systemctl mask 而非 stop（防止被其他服务唤醒）'
+  }
+
+  // sudo + curl → 警告
+  if (/\bsudo\b.*\bcurl\b/i.test(command) || /\bcurl\b.*\|\s*sudo\b/i.test(command)) {
+    return '警告：sudo + curl 存在远程代码执行风险，建议先下载脚本审查后再执行'
+  }
+
+  // 高危命令无替代方案
+  if (risk === 'high') {
+    if (/mkfs/i.test(command)) return undefined
+    if (/\bdd\s+if=/i.test(command)) return undefined
+    if (/\b(shutdown|reboot|halt|poweroff)\b/i.test(command)) return undefined
+  }
+
+  return undefined
+}
+
+/**
  * 安全推送事件到渲染进程（窗口已销毁时跳过）
  */
 export function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
@@ -160,6 +360,10 @@ export function waitForSandboxApproval(
   return new Promise<boolean>(async (resolve, reject) => {
     // assessCommandRisk 改为 async（AST 解析），在 Promise 内 await
     const { risk, reasons } = await assessCommandRisk(command)
+    // v0.9.3 §11 改进点 4 P2-C：推导副作用 / 回滚命令 / 更安全替代方案
+    const sideEffects = deriveSideEffects(command, risk, reasons)
+    const rollbackCommand = deriveRollbackCommand(command, risk)
+    const saferAlternative = deriveSaferAlternative(command, risk)
     const request: SandboxApprovalRequest = {
       callId,
       sandboxId,
@@ -168,6 +372,9 @@ export function waitForSandboxApproval(
       reasons,
       timestamp: Date.now(),
       sessionId,
+      sideEffects,
+      rollbackCommand,
+      saferAlternative,
     }
     safeSend(mainWindow, SANDBOX_APPROVAL_CHANNEL, request)
 

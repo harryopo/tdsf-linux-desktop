@@ -1,0 +1,161 @@
+/**
+ * AttentionBubble 样式（v0.9.4 §11 改进点 24）
+ *
+ * 设计原则：
+ * - 复用 ChatPanel.css 的 CSS 变量系统（--color-* / --space-* / --font-size-*）
+ * - 紧凑布局（不抢占消息列表空间）
+ * - 4 类关注点横向排列，每类用 Tag 展示
+ * - 折叠态：仅显示 header + count；展开态：显示完整列表
+ */
+
+.attention-bubble {
+  margin: var(--space-2) var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-card);
+  font-size: var(--font-size-xs, 11px);
+  animation: attentionBubbleFadeIn 200ms ease-out;
+}
+
+@keyframes attentionBubbleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.attention-bubble-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-1, 4px);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs, 11px);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.attention-bubble-icon {
+  color: var(--color-primary, #4f46e5);
+  font-size: 12px;
+}
+
+.attention-bubble-title {
+  color: var(--color-text-secondary);
+}
+
+.attention-bubble-since {
+  margin-left: auto;
+  color: var(--color-text-tertiary, #999);
+  font-size: 10px;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+}
+
+.attention-bubble-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+}
+
+.attention-bubble-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.attention-bubble-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 48px;
+  color: var(--color-text-tertiary, #999);
+  font-size: 10px;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.attention-bubble-group-name {
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.attention-bubble-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.06));
+  color: var(--color-text-tertiary, #999);
+  font-size: 9px;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+}
+
+.attention-bubble-group-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.attention-bubble-tag {
+  margin: 0;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+  line-height: 16px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-bubble-tag-overflow {
+  background: var(--color-bg-secondary, rgba(0, 0, 0, 0.06));
+  border: 1px dashed var(--color-border, #d9d9d9);
+  color: var(--color-text-tertiary, #999);
+  cursor: help;
+}
+
+.attention-bubble-overflow {
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: var(--font-family-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+}
+
+.attention-bubble-overflow-item {
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  word-break: break-all;
+}
+
+.attention-bubble-overflow-item:last-child {
+  border-bottom: none;
+}
+
+/* 暗色模式适配 */
+:global(.dark) .attention-bubble,
+.dark .attention-bubble {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(.dark) .attention-bubble-group-count,
+.dark .attention-bubble-group-count {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+:global(.dark) .attention-bubble-tag-overflow,
+.dark .attention-bubble-tag-overflow {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.5);
+}
