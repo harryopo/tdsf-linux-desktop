@@ -207,3 +207,26 @@
 - Hard Constraint 对齐：42/42 全部通过
 - 经验沉淀：6 条（LRN-20260722-009 至 014）
 - 新增IPC通道：SSH.STATE_CHANGED + HOST_KEY_PROMPT + HOST_KEY_RESPONSE + DELETE_KEYPAIR + UPLOAD_KEYPAIR + GENERATE_KEYPAIR + LIST_KEYPAIRS（7个，全部完成4步同步）
+
+---
+
+## v2.2 深度功能审计 + 修复循环工程（2026-07-22）
+
+> 审计报告：`.learnings/v2.2-audit-report.md`
+> 归档：`docs/v2.2-deep-fix-archive/`
+
+| Phase | 主题 | 状态 | Commit | 文件变化 |
+|-------|------|------|--------|----------|
+| P | P0安全修复(6Task): 脱敏统一+logger替换+ssh:exec审计+XSS防护 | ✅ | `640d56f` | 10文件 575+/245- |
+| Q | P0代码规范(3Task): IPC常量化+antd-tokens单一数据源 | ✅ | `640d56f` | 同上 |
+| R | P1功能实现(4Task): IPC域常量补齐+检查更新+知识编辑+图片附件 | ✅ | `68e21e5` | 9文件 1613+/218- |
+| S | 归档 | ✅ | — | 归档文档 |
+
+**关键指标**：
+- 编译门禁：typecheck:node ✅ + typecheck:web ✅ + lint ✅（三绿全通过）
+- 审计问题：68个（P0:8/P1:22/P2:25/P3:13）
+- 修复数量：13个（P0:8全修复 + P1:4关键修复），修复率19%
+- 综合 7 维评分：8.4/10
+- 新增IPC通道：app:check-update + app:download-update + fs:upload-image（3个，4步同步）
+- 安全增强：DOMPurify XSS防护 + ssh:exec高危命令黑名单(12条) + 脱敏函数统一
+- 代码规范：preload 32处字面量常量化 + main.tsx 28处硬编码颜色消除
