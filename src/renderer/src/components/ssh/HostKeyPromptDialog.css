@@ -1,0 +1,179 @@
+/* ============================================================
+   HostKeyPromptDialog.css — SSH 主机密钥确认弹窗（Phase L）
+   全部使用 var(--trae-*) 设计系统变量，禁止硬编码颜色
+   类名用 hkp- 前缀（Host Key Prompt）避免冲突
+   ============================================================ */
+
+/* ===== 弹窗标题 ===== */
+.hkp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--trae-font-family-heading);
+  font-size: var(--trae-heading-xs-font-size);
+  font-weight: var(--trae-heading-xs-font-weight);
+  color: var(--trae-text-default);
+}
+
+.hkp-title-icon {
+  font-size: 18px;
+}
+
+.hkp-title-icon--info {
+  color: var(--trae-bg-brand);
+}
+
+.hkp-title-icon--warning {
+  color: var(--trae-status-error-default);
+}
+
+/* ===== 弹窗内容区 ===== */
+.hkp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+/* ===== 提示文案区块 ===== */
+.hkp-prompt-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--trae-bg-base-tertiary);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+}
+
+.hkp-alert-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--trae-status-error-default);
+}
+
+.hkp-prompt-text {
+  flex: 1 1 auto;
+  margin: 0;
+  font-family: var(--trae-font-family-default);
+  font-size: var(--trae-body-sm-font-size);
+  line-height: var(--trae-body-sm-line-height);
+  color: var(--trae-text-default);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ===== 密钥详情区块 ===== */
+.hkp-key-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--trae-bg-base-secondary);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+}
+
+.hkp-key-section--known {
+  border-color: var(--trae-status-error-surface-l1);
+  background: var(--trae-status-error-surface-l1);
+}
+
+.hkp-key-section__label {
+  font-size: var(--trae-body-xs-font-size);
+  line-height: var(--trae-body-xs-line-height);
+  font-weight: var(--trae-body-sm-strong-font-weight);
+  color: var(--trae-text-secondary);
+}
+
+.hkp-key-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hkp-key-detail__type {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  background: var(--trae-bg-overlay-l1);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-4);
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-body-xs-font-size);
+  font-weight: var(--trae-font-weight-code);
+  color: var(--trae-text-default);
+}
+
+.hkp-key-detail__fingerprint {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0;
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-code-terminal-font-size);
+  font-weight: var(--trae-font-weight-code);
+  color: var(--trae-text-default);
+  word-break: break-all;
+  background: transparent;
+}
+
+/* ===== 安全提示 ===== */
+.hkp-hint {
+  padding: 8px 14px;
+  background: var(--trae-bg-overlay-l1);
+  border-radius: var(--trae-radius-6);
+  font-size: var(--trae-body-xs-font-size);
+  line-height: var(--trae-body-xs-line-height);
+  color: var(--trae-text-secondary);
+}
+
+.hkp-hint--warning {
+  color: var(--trae-status-error-default);
+  background: var(--trae-status-error-surface-l1);
+}
+
+/* ===== 底部按钮区 ===== */
+.hkp-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hkp-btn {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--trae-radius-6);
+  font-size: var(--trae-body-sm-font-size);
+  font-weight: var(--trae-body-sm-strong-font-weight);
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.hkp-btn--save {
+  /* 保存并继续：主操作按钮（antd primary 或 danger 自动处理背景色） */
+}
+
+.hkp-btn--once {
+  /* 仅本次继续：次要按钮 */
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l2);
+  color: var(--trae-text-default);
+}
+
+.hkp-btn--once:hover {
+  background: var(--trae-bg-overlay-l1);
+  border-color: var(--trae-border-neutral-l3);
+}
+
+.hkp-btn--reject {
+  /* 拒绝连接：危险按钮 */
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l2);
+  color: var(--trae-status-error-default);
+}
+
+.hkp-btn--reject:hover {
+  background: var(--trae-status-error-surface-l1);
+  border-color: var(--trae-status-error-default);
+}

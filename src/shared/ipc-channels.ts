@@ -105,6 +105,16 @@ export const SSH = {
   SHELL_START: 'ssh:shell:start',
   /** 心跳保活状态变更推送（push: 主 → 渲染），载荷 SshStateEvent */
   STATE_CHANGED: 'ssh:state-changed',
+  /**
+   * 主机密钥确认弹窗推送（push: 主 → 渲染，Phase L）
+   * 载荷 SshHostKeyPromptEvent，首次连接或密钥变更时推送
+   */
+  HOST_KEY_PROMPT: 'ssh:host-key-prompt',
+  /**
+   * 主机密钥弹窗用户响应（invoke: 渲染 → 主，Phase L）
+   * 载荷 SshHostKeyResponsePayload，用户选择后响应主进程的 pending Promise
+   */
+  HOST_KEY_RESPONSE: 'ssh:host-key-response',
 } as const
 
 /**
