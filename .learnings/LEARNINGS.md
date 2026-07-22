@@ -372,4 +372,310 @@ Phase 3.2 subagent 在执行报告中声称「Phase 6.4 / 6.5 已完成」，但
 
 ---
 
+## LRN-20260721-009 · IPC 通道集中化的最佳实践（先扩展常量 → 再批量替换 → 验证）
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 夜间 |
+| 严重级别 | P3（经验沉淀） |
+| 发现阶段 | polish-tdsf-p1-issues Phase A · IPC 通道集中化 |
+| 关联 Task | Phase A（commit ff37091） |
+
+### 现象
+
+执行 Phase A IPC 通道集中化时，初次尝试同时修改常量定义和字面量引用，导致 typecheck:node / typecheck:web 同时大量报错，难以定位是常量定义错误还是引用错误。
+
+### 根因
+
+IPC 通道字面量分布在 main / preload / renderer 三层共 12 个文件，无单一事实源。一次性大改时：
+1. 常量定义遗漏（如 `LOOP_*` 通道漏写 `as const`）导致类型推断为 string 而非字面量联合
+2. 引用替换与定义扩展未对齐时，typecheck 错误信息难以追溯到根因
+3. 渲染层 `window.electronAPI.xxx` 的字面量在 preload 暴露层和 d.ts 类型层需同步更新
+
+### 方案（最佳实践）
+
+**三阶段渐进式集中化**：
+
+1. **阶段 1 · 扩展常量**（仅改 `src/shared/ipc-channels.ts`）
+   - 列出所有 19 个域（agent / credibility / sandbox / at-commands / claude-sdk / token / mode / attention / subagent / provider / sidecar / diagnostics / loop / scheduler / ssh / llm / monitor / knowledge / log 等）
+   - 每域用 `as const` 标注，确保字面量类型推断
+   - 验证 `typecheck:node` 通过（常量文件先单独验证）
+
+2. **阶段 2 · 批量替换**（按层替换 main → preload → renderer）
+   - main 层替换 `ipcMain.handle('xxx', ...)` → `ipcMain.handle(IPC_CHANNELS.DOMAIN.XXX, ...)`
+   - preload 层替换 `ipcRenderer.invoke('xxx', ...)` → `ipcRenderer.invoke(IPC_CHANNELS.DOMAIN.XXX, ...)`
+   - renderer 层替换 `window.electronAPI.xxx` 字面量（如有）
+   - 每层替换后单独 typecheck，定位错误
+
+3. **阶段 3 · 全量验证**（typecheck:node + typecheck:web + lint + 冒烟测试）
+   - 71 个通道常量必须 100% 覆盖原有字面量（grep 验证 0 残留）
+   - 冒烟测试保证 IPC 调用链路未断裂
+
+### 防护建议
+
+- CLAUDE.md A 红线新增：「所有新增 IPC 通道必须定义在 `src/shared/ipc-channels.ts` 中，禁止在代码中使用字面量字符串」
+- pre-commit hook 加入 grep 检测：`ipcMain.handle\(['"][a-z]+:` 应匹配 `IPC_CHANNELS.`
+- ESLint 自定义规则禁止 `ipcRenderer.invoke('xxx:yyy')` 字面量调用
+
+---
+
+## LRN-20260721-010 · 大文件拆分的依赖分析（先识别类型/工具/逻辑边界 → 抽出后跑测试验证接口兼容）
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 夜间 |
+| 严重级别 | P3（经验沉淀） |
+| 发现阶段 | polish-tdsf-p1-issues Phase B · 大文件拆分 |
+| 关联 Task | Phase B（commit ca0228e） |
+
+### 现象
+
+Phase B 拆分 `credibility.ts`（597 行 → 445 行）和 `sandbox.ts`（715 行 → 392 行）时，初次按"长度切分"失败：
+- 抽出的 helper 函数引用了主文件的内部类型，导致循环 import
+- 主文件 import 抽出模块后，部分类型推断变成 `any`（缺少类型导出）
+- 抽出后单测失败：mock 路径未同步调整
+
+### 根因
+
+大文件拆分的边界不是"行数"而是"职责"。三类边界需识别：
+1. **类型边界**：interface / type 定义应放在哪一层？helpers 共享的类型 vs 主文件独占的类型
+2. **工具边界**：纯函数 helper（无副作用，可独立测试）vs 主流程函数（有状态依赖）
+3. **逻辑边界**：单一职责原则——approval/config/execution 应各自独立，而非混杂在主流程
+
+### 方案（最佳实践）
+
+**四步依赖分析法**：
+
+1. **第 1 步 · 识别类型边界**
+   - Grep `^export (interface|type)` 列出所有类型
+   - 标注每个类型的"消费方"：仅主文件用 / 仅 helper 用 / 两者都用
+   - "两者都用"的类型移到 `xxx-helpers.ts` 或 `xxx-types.ts`（共享层）
+
+2. **第 2 步 · 识别工具边界**
+   - Grep `^function |^async function ` 列出所有函数
+   - 标注每个函数的"副作用"：纯函数 / 调用 IPC / 调用 DB / 调用 electron API
+   - 纯函数移到 `xxx-helpers.ts`，有副作用的留在主文件
+
+3. **第 3 步 · 识别逻辑边界**
+   - 按功能聚合：approval（审批）/ config（配置）/ execution（执行）应分开
+   - 例如 sandbox.ts 拆分为 sandbox.ts + sandbox-approval.ts + sandbox-config.ts
+   - 主文件保留 orchestrator 角色，调用各子模块
+
+4. **第 4 步 · 抽出 + 测试验证**
+   - 一次只抽一个文件，抽出后立即 `pnpm typecheck:node` + `pnpm typecheck:web`
+   - 同步调整测试 mock 路径（`jest.mock('./credibility')` → `jest.mock('./credibility-helpers')`）
+   - 跑全量冒烟测试验证接口兼容
+
+### 防护建议
+
+- 单文件 ≤ 500 行硬约束（CLAUDE.md A2）应在 pre-commit hook 加入行数检查
+- 抽出 helper 文件命名约定：`<原文件名>-helpers.ts` / `<原文件名>-<职责>.ts`
+- 类型共享层命名约定：`<原文件名>-types.ts`（如类型多到需要独立文件）
+- 拆分后主文件应保留"orchestrator"角色，不应再包含具体业务逻辑
+
+---
+
+## LRN-20260721-011 · redact 工具的正则陷阱（.env 路径误匹配纯文本 → 要求前缀盘符/路径分隔符）
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 夜间 |
+| 严重级别 | P1（脱敏工具误判可能泄露或过度脱敏） |
+| 发现阶段 | polish-tdsf-p1-issues Phase C · 错误脱敏 |
+| 关联 Task | Phase C（commit 1fd3ee0） |
+
+### 现象
+
+`redact.ts` 初版正则 `/.env/g` 在脱敏日志时，把日志中的纯文本 "production.env"、"development.env" 也匹配了，导致脱敏后日志可读性极差（大量 `[REDACTED]` 出现在非敏感文本中）。
+
+### 根因
+
+正则 `/.env/g` 缺少边界约束：
+1. 文件路径中的 `.env`（如 `~/.env`、`C:\Users\xxx\.env`）应被脱敏
+2. 但单词内的 `.env`（如 `production.environment`、`node_env`、`process.env`）不应被脱敏
+3. 初版未区分"路径分隔符前的 .env"与"单词字符前的 .env"
+
+### 方案（正则改进）
+
+要求 `.env` 前必须是「盘符前缀」或「路径分隔符」，避免误匹配纯文本：
+
+```typescript
+// 错误：会误匹配 production.env / development.env
+const ENV_FILE_PATTERN = /\.env/g
+
+// 正确：要求前面是路径分隔符或字符串起始
+const ENV_FILE_PATTERN = /(?:^|[\\/\\])\.env(?:[\\/\\]|$|\b)/g
+```
+
+`redact.ts` 最终实现 8 类正则规则：
+1. **API Key / Token**：`(api[_-]?key|token|secret)['"\s:=]+['"]?[A-Za-z0-9_-]{20,}`
+2. **密码**：`(password|passwd|pwd)['"\s:=]+['"]?[^\s'"]{6,}`
+3. **私钥**：`-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END.*PRIVATE KEY-----`
+4. **JWT**：`eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`
+5. **IPv4**：`\b(\d{1,3}\.){3}\d{1,3}\b`（仅当不在 IP 白名单中时脱敏）
+6. **邮箱**：`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+7. **手机号**：`\b1[3-9]\d{9}\b`
+8. **.env 文件路径**：`(?:^|[\\/\\])\.env(?:[\\/\\]|$|\b)`
+
+### 防护建议
+
+- 所有脱敏正则必须有「边界约束」：`^` / `$` / `\b` / 字符类 `[\\/\s]` 等
+- 脱敏工具必须有「白名单」机制：已知安全的 IP / 邮箱 / 关键词不脱敏
+- 单元测试必须覆盖「正例」（应脱敏）+「反例」（不应脱敏）两类
+- 脱敏后日志必须保留可读性，不应出现 `... [REDACTED] [REDACTED] [REDACTED]` 连续脱敏
+
+---
+
+## LRN-20260721-012 · SSH 预检查的 blocked 事件架构（独立事件类型 vs 复用 step 事件的 tradeoff）
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 夜间 |
+| 严重级别 | P2（架构设计决策） |
+| 发现阶段 | polish-tdsf-p1-issues Phase D · SSH 预检查 |
+| 关联 Task | Phase D（commit 3c393a5） |
+
+### 现象
+
+Phase D 实现 SSH 预检查时，需在 `doExecute` 前检查 SSH 连接状态。如果未连接，应推事件让 UI 显示"BlockedCard"。设计决策有两种方案：
+
+- **方案 A**：独立事件 `loop:blocked`，payload 含 `{ reason, suggestion }`
+- **方案 B**：复用 `loop:step` 事件，新增 `step: 'blocked'` 状态
+
+### 根因（架构 tradeoff）
+
+**方案 A（独立事件）优势**：
+- UI 监听 `loop:blocked` 时立即渲染 BlockedCard，无需在 step handler 中分支
+- 事件类型清晰，便于日志分析和监控
+- 未来可扩展多个 blocked 原因（SSH 未连接 / 权限不足 / 资源不足）
+
+**方案 A 劣势**：
+- 渲染层需新增订阅 `loop:blocked`，多一个事件监听器
+- 事件流被拆分：`step → blocked → step → done` 而非 `step(blocked) → step(running) → done`
+
+**方案 B（复用 step）优势**：
+- 渲染层只订阅 `loop:step`，handler 内分支处理 `step === 'blocked'`
+- 事件流连贯，StepProgress 组件可统一渲染所有步骤状态
+
+**方案 B 劣势**：
+- StepProgress 组件的 step 类型联合扩展，需处理 'blocked' 额外状态
+- blocked 不属于 7 步 HITL 流程，强行塞入 step 会破坏状态机清晰度
+
+### 方案（最终选择 A）
+
+选择**方案 A：独立事件 `loop:blocked`**。原因：
+1. **关注点分离**：blocked 是"前置失败"，与 HITL 7 步流程是正交关系，不应混入 step 状态机
+2. **UI 渲染清晰**：BlockedCard 是独立组件，与 StepProgress 并列渲染，而非 StepProgress 的一个状态
+3. **可扩展性**：未来如增加"权限不足 blocked"、"资源不足 blocked"，只需扩展 blocked payload，不影响 step 状态机
+
+实现：
+- `loop-engineering-subagent.ts` 在 `doExecute` 前调用 `SshConnectionManager.hasActiveConnection()`
+- 未连接时 `emit('loop:blocked', { reason: 'no-ssh-connection', suggestion: '请先在 SSH 设置中连接服务器' })`
+- 不抛错，不中断 workflow（用户可解决后重试）
+- 渲染层 `useLoopEngineering` 新增 `onLoopBlockedChange` 订阅，`LoopWorkflowPanel` 渲染 `<BlockedCard />`
+
+### 防护建议
+
+- 事件设计原则：「正交关注点用独立事件，线性流程用同一事件的 step 状态」
+- 事件 payload 应含 `{ reason: string, suggestion: string, retryable: boolean }` 三字段，便于 UI 通用化
+- 渲染层订阅独立事件时，必须在 useEffect cleanup 中正确取消订阅，避免内存泄漏
+- 独立事件不应与现有事件形成隐式时序依赖（如 `blocked` 后必须 `step`，这种隐式约定应避免）
+
+---
+
+## LRN-20260721-013 · lint warnings 修复策略（unknown + 类型守卫 vs Record<string, unknown> vs 具体 SDK 类型）
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-21 夜间 |
+| 严重级别 | P3（lint 修复策略） |
+| 发现阶段 | polish-tdsf-p1-issues Phase G · lint warnings 修复 |
+| 关联 Task | Phase G（commit 2d3e348） |
+
+### 现象
+
+Phase G 修复 3 处 `no-explicit-any` warnings 时，发现不同场景需用不同策略：
+
+1. `client-manager.ts:170` — `catch (error: any)` 后访问 `error.message`
+2. `client-manager.ts:381` — 函数参数 `metadata: any` 传给 SDK
+3. `langfuse.ts:138` — SDK 返回值 `result: any` 直接解构
+
+### 根因
+
+`any` 类型的三种使用场景，对应三种修复策略：
+
+| 场景 | 类型来源 | 修复策略 |
+|------|----------|----------|
+| `catch (error: any)` | JS 标准 catch 子句默认 any | `unknown` + 类型守卫 |
+| 函数参数传给 SDK | SDK 类型缺失或不完整 | `Record<string, unknown>` |
+| SDK 返回值解构 | SDK 类型推断失败 | 引入具体 SDK 类型 |
+
+### 方案（三种修复策略）
+
+**策略 1 · `unknown` + 类型守卫**（适用于 catch 子句）
+
+```typescript
+// 错误：
+catch (error: any) {
+  console.error(error.message)
+}
+
+// 正确：
+catch (error: unknown) {
+  if (error instanceof Error) {
+    console.error(error.message)
+  } else {
+    console.error(String(error))
+  }
+}
+```
+
+适用场景：`catch (error)` 子句、JSON.parse 失败、外部回调错误。类型守卫必须覆盖所有分支，避免后续 `error` 仍为 unknown。
+
+**策略 2 · `Record<string, unknown>`**（适用于传给 SDK 的元数据）
+
+```typescript
+// 错误：
+function logEvent(name: string, metadata: any) {
+  sdk.track(name, metadata)
+}
+
+// 正确：
+function logEvent(name: string, metadata: Record<string, unknown>) {
+  sdk.track(name, metadata as Record<string, unknown> as SDKMetadata)
+}
+```
+
+适用场景：SDK 接受 `Record<string, unknown>` 但 d.ts 声明为 any 时。注意：仍需 `as` 断言，但比 `any` 更安全——调用方必须显式构造对象，不能传函数引用。
+
+**策略 3 · 具体 SDK 类型**（适用于 SDK 返回值解构）
+
+```typescript
+// 错误：
+const result: any = await sdk.fetch()
+const { id, name } = result
+
+// 正确（如有 SDK 类型）：
+import type { SDKResponse } from 'sdk'
+const result: SDKResponse = await sdk.fetch()
+const { id, name } = result
+
+// 正确（如 SDK 无类型，本地声明）：
+interface LocalSDKResponse { id: string; name: string }
+const result = (await sdk.fetch()) as LocalSDKResponse
+const { id, name } = result
+```
+
+适用场景：SDK 返回 any 但实际有稳定结构时。优先用 SDK 自带类型，其次本地声明 interface，最后才用 `as` 断言。
+
+### 防护建议
+
+- `catch (error)` 子句一律用 `unknown` + 类型守卫，禁止 `catch (error: any)`（CLAUDE.md A 红线候选）
+- 函数参数禁止 `any`，必须用 `Record<string, unknown>` 或具体 interface
+- SDK 调用优先 `import type` 引入 SDK 类型，避免本地重复声明
+- 如 SDK 类型不完整，向 SDK 仓库提交 PR 补全类型，而非用 `as any` 绕过
+- pre-commit hook 加入 `eslint --max-warnings=0` 阻止新 any 进入仓库
+
+---
+
 *LEARNINGS 文档结束 · 持续更新中*
