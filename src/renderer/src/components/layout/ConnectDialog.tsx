@@ -52,14 +52,15 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
     passphrase: '',
   }
 
-  /** 对话框打开时重置表单 */
+  /** 对话框打开时重置表单；关闭时清理测试状态 */
   useEffect(() => {
     if (open) {
       form.resetFields()
       form.setFieldsValue(initialValues)
+    } else {
+      setTesting(false)
     }
-     
-  }, [open, server])
+  }, [open, server, initialValues, form])
 
   /** 认证方式切换 */
   const authType = Form.useWatch('authType', form)
@@ -102,8 +103,13 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
       await window.electronAPI.sshDisconnect(sessionId)
       message.success('连接测试成功')
     } catch (error) {
-      if (error instanceof Error && error.message) {
+      if (error && typeof error === 'object' && 'errorFields' in error) {
+        console.warn('[ConnectDialog] 表单校验失败', error)
+      } else if (error instanceof Error && error.message) {
         message.error(`连接测试失败: ${error.message}`)
+      } else {
+        console.warn('[ConnectDialog] 测试连接失败', error)
+        message.error('连接测试失败')
       }
     } finally {
       setTesting(false)
@@ -119,8 +125,13 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
         ...values,
       }
       onSave(config)
-    } catch {
-      // 表单校验失败，不关闭对话框
+    } catch (err) {
+      if (err && typeof err === 'object' && 'errorFields' in err) {
+        console.warn('[ConnectDialog] 表单校验失败', err)
+      } else {
+        console.warn('[ConnectDialog] 保存失败', err)
+        message.error('保存失败，请检查表单')
+      }
     }
   }, [form, server, onSave])
 
@@ -134,6 +145,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
       cancelText="取消"
       width={480}
       destroyOnClose
+      maskClosable={!testing}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Button

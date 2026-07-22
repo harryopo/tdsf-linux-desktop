@@ -973,6 +973,14 @@ const appUpdate = {
    */
   downloadUpdate: (releaseUrl?: string): Promise<boolean> =>
     ipcRenderer.invoke(APP.DOWNLOAD_UPDATE, releaseUrl),
+
+  /**
+   * 获取应用真实信息（T.8：版本/安装路径/构建时间）
+   *
+   * 返回 AppInfo，AboutSettings 用其替换设计稿示例值。
+   */
+  getInfo: (): Promise<{ version: string; installPath: string; buildTime: string; buildBadge: string }> =>
+    ipcRenderer.invoke(APP.GET_INFO),
 }
 
 /**
@@ -2379,6 +2387,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater
   appCheckUpdate: appUpdate.checkUpdate,
   appDownloadUpdate: appUpdate.downloadUpdate,
+  // T.8：应用信息 IPC（app:get-info）
+  appGetInfo: appUpdate.getInfo,
   // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
   // AIPanel 图片附件基础版：dialog + base64 data URL，不引入图片压缩库
   fsUploadImage: fsUpload.uploadImage,
@@ -2938,9 +2948,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ): Promise<{ correlationId: string; status: string; error?: string }> =>
     ipcRenderer.invoke(LOOP.START, input),
 
-  // 通道：loop:confirm → 人工确认（批准/拒绝）
-  loopConfirm: (correlationId: string, approved: boolean): Promise<boolean> =>
-    ipcRenderer.invoke(LOOP.CONFIRM, correlationId, approved),
+  // 通道：loop:confirm → 人工确认（批准/拒绝/修改后批准）
+  // T.6: 新增可选 newCommand 参数，支持 DecisionDetailPage 修改修复命令后批准执行
+  loopConfirm: (correlationId: string, approved: boolean, newCommand?: string): Promise<boolean> =>
+    ipcRenderer.invoke(LOOP.CONFIRM, correlationId, approved, newCommand),
 
   // 通道：loop:cancel → 取消工作流
   loopCancel: (correlationId: string): Promise<boolean> =>
@@ -3468,7 +3479,7 @@ export type ElectronAPI = {
     strength?: 'fast' | 'standard' | 'deep'
   }) => Promise<{ correlationId: string; status: string; error?: string }>
 
-  loopConfirm: (correlationId: string, approved: boolean) => Promise<boolean>
+  loopConfirm: (correlationId: string, approved: boolean, newCommand?: string) => Promise<boolean>
 
   loopCancel: (correlationId: string) => Promise<boolean>
 

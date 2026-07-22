@@ -160,6 +160,8 @@ export class AgentWorkflow extends EventEmitter {
   /** P2-6: 确认超时定时器 */
   private confirmTimeout: ReturnType<typeof setTimeout> | null = null
   private cancelled = false
+  /** T.6: 用户修改后的修复命令（approved + newCommand 时写入） */
+  private modifiedCommand: string | null = null
   /** D.5: HITL 工作流根 trace（Langfuse 未启用时为 null） */
   private hitlTrace: TraceHandle | null = null
 
@@ -291,9 +293,14 @@ export class AgentWorkflow extends EventEmitter {
       }
 
       // Step 6: 执行（同样记录到 toolCallLog，供后续审计）
+      // T.6: 若用户在确认时传入修改后的命令，优先执行 modifiedCommand
+      const commandToExecute = this.modifiedCommand ?? fixCommand
+      if (this.modifiedCommand && this.state.decisionCard) {
+        this.state.decisionCard = { ...this.state.decisionCard, fixCommand: this.modifiedCommand }
+      }
       await this.runStep('execute', async () => {
         if (trackedSsh) {
-          return await trackedSsh.execute(connId, fixCommand)
+          return await trackedSsh.execute(connId, commandToExecute)
         }
         return { exitCode: 0, stdout: 'dry-run mode', stderr: '' }
       })
@@ -337,11 +344,15 @@ export class AgentWorkflow extends EventEmitter {
    * 在 confirmation:required 事件触发后调用此方法恢复工作流。
    *
    * @param approved - true 批准执行，false 拒绝执行
+   * @param newCommand - T.6: 用户修改后的修复命令（approved=true 时生效）
    */
-  confirm(approved: boolean): void {
+  confirm(approved: boolean, newCommand?: string): void {
     if (this.confirmTimeout) {
       clearTimeout(this.confirmTimeout)
       this.confirmTimeout = null
+    }
+    if (approved && newCommand && newCommand.trim().length > 0) {
+      this.modifiedCommand = newCommand.trim()
     }
     if (this.confirmResolve) {
       this.confirmResolve(approved)
@@ -383,6 +394,7 @@ export class AgentWorkflow extends EventEmitter {
   private reset(): void {
     this.cancelled = false
     this.confirmResolve = null
+    this.modifiedCommand = null
     if (this.confirmTimeout) {
       clearTimeout(this.confirmTimeout)
       this.confirmTimeout = null

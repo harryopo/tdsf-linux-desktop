@@ -233,11 +233,7 @@
 }
 
 .hist-timeline-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 128px;
-  font-size: var(--trae-body-sm-font-size);
+  min-height: 160px;
   color: var(--trae-text-tertiary);
 }
 

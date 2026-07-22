@@ -34,6 +34,8 @@ import {
   SunOutlined,
   MoonOutlined,
 } from '@ant-design/icons'
+import { Inbox } from 'lucide-react'
+import { Empty } from '@/components/trae/Empty'
 import { useSettingsStore, type RiskRule, type AssetTag } from '../../stores/settings-store'
 import { useThemeStore } from '../../stores/theme-store'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
@@ -107,8 +109,14 @@ export const LlmConfigSection: React.FC = () => {
       setLlmConfig(values)
       await saveSettings()
       message.success('LLM 配置已保存')
-    } catch {
-      // 校验失败
+    } catch (err) {
+      if (err && typeof err === 'object' && 'errorFields' in err) {
+        // 表单校验失败，由 antd 自动展示错误提示
+        console.warn('[LlmConfigSection] 表单校验失败', err)
+      } else {
+        console.warn('[LlmConfigSection] 保存失败', err)
+        message.error('保存失败，请重试')
+      }
     }
   }, [form, setLlmConfig, saveSettings])
 
@@ -126,8 +134,10 @@ export const LlmConfigSection: React.FC = () => {
       } else {
         message.error('连接测试失败，请检查配置')
       }
-    } catch {
-      message.error('测试请求失败')
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      console.warn('[LlmConfigSection] LLM 测试失败', err)
+      message.error(`测试请求失败：${reason}`)
     } finally {
       setTesting(false)
     }
@@ -195,8 +205,13 @@ export const SshConfigSection: React.FC = () => {
       setSshTimeout(timeout)
       await saveSettings()
       message.success('SSH 配置已保存')
-    } catch {
-      // 校验失败
+    } catch (err) {
+      if (err && typeof err === 'object' && 'errorFields' in err) {
+        console.warn('[SshConfigSection] 表单校验失败', err)
+      } else {
+        console.warn('[SshConfigSection] 保存失败', err)
+        message.error('保存失败，请重试')
+      }
     }
   }, [form, setSshDefaults, setSshTimeout, saveSettings])
 
@@ -276,8 +291,13 @@ export const RiskRulesSection: React.FC = () => {
       await saveSettings()
       message.success(editingIndex !== null ? '规则已更新' : '规则已添加')
       setModalOpen(false)
-    } catch {
-      // 校验失败
+    } catch (err) {
+      if (err && typeof err === 'object' && 'errorFields' in err) {
+        console.warn('[RiskRulesSection] 表单校验失败', err)
+      } else {
+        console.warn('[RiskRulesSection] 保存规则失败', err)
+        message.error('保存规则失败，请重试')
+      }
     }
   }, [form, editingIndex, addRiskRule, updateRiskRule, saveSettings])
 
@@ -357,9 +377,14 @@ export const RiskRulesSection: React.FC = () => {
         title={editingIndex !== null ? '编辑规则' : '添加规则'}
         open={modalOpen}
         onOk={handleModalOk}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => {
+          setModalOpen(false)
+          setEditingIndex(null)
+          form.resetFields()
+        }}
         okText="保存"
         cancelText="取消"
+        destroyOnClose
       >
         <Form form={form} layout="vertical">
           <Form.Item label="规则名称" name="name" rules={[{ required: true, message: '请输入规则名称' }]}>
@@ -402,8 +427,13 @@ export const AssetTagsSection: React.FC = () => {
       await saveSettings()
       form.resetFields()
       message.success('标签已添加')
-    } catch {
-      // 校验失败
+    } catch (err) {
+      if (err && typeof err === 'object' && 'errorFields' in err) {
+        console.warn('[AssetTagsSection] 表单校验失败', err)
+      } else {
+        console.warn('[AssetTagsSection] 添加标签失败', err)
+        message.error('添加标签失败，请重试')
+      }
     }
   }, [form, addAssetTag, saveSettings])
 
@@ -433,7 +463,11 @@ export const AssetTagsSection: React.FC = () => {
         </Form.Item>
       </Form>
       {assetTags.length === 0 ? (
-        <span style={{ color: 'var(--color-text-secondary)' }}>暂无标签，请添加</span>
+        <Empty
+          icon={Inbox}
+          title="暂无资产标签"
+          description="请在上方表单中添加标签，用于对服务器资产进行分类和快速筛选。"
+        />
       ) : (
         <div className="settings-tags-list">
           {assetTags.map((tag) => (

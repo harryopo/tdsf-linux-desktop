@@ -16,7 +16,8 @@
 import './HistoryPage.css'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Clock, Cpu, Filter, Search, Sparkles, UserCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock, Cpu, Filter, Inbox, Search, Sparkles, UserCircle } from 'lucide-react'
+import { Empty } from '@/components/trae/Empty'
 
 type DecisionStatus = '成功' | '失败' | '已拦截'
 type RiskLevel = '低风险' | '中风险' | '高风险'
@@ -27,6 +28,16 @@ interface DecisionRecord {
   id: number; time: string; title: string; status: DecisionStatus; risk: RiskLevel
   server: string; actor: ActorType; confidence: number; command: string
   desc: string; durationSec: number; isDanger: boolean
+  /** 记录时间戳（ms），用于时间范围筛选 */
+  timestamp: number
+}
+
+/** 以当前时间为基准，生成 N 天前某时刻的时间戳（ms） */
+function daysAgoTs(days: number, hour: number, minute: number): number {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  d.setHours(hour, minute, 0, 0)
+  return d.getTime()
 }
 
 // ===== 静态示例数据（1:1 来自设计稿 history.html） =====
@@ -44,12 +55,12 @@ const PAGINATION: (number | null)[] = [1, 2, 3, null, 25]
 const TOTAL_RECORDS = 247
 
 const RECORDS: DecisionRecord[] = [
-  { id: 1, time: '14:23', title: '重启 nginx 服务', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.87, command: 'sudo systemctl restart nginx', desc: 'nginx P99延迟升高，重启后恢复', durationSec: 8, isDanger: false },
-  { id: 2, time: '13:45', title: '清理 MySQL 长查询', status: '成功', risk: '中风险', server: 'prod-db-02', actor: 'root', confidence: 0.91, command: "mysql -e 'KILL 9800'", desc: 'MySQL连接数过多，清理长查询', durationSec: 3, isDanger: false },
-  { id: 3, time: '12:30', title: '高危命令拦截', status: '已拦截', risk: '高风险', server: 'backup-01', actor: 'ai-agent', confidence: 0.45, command: 'rm -rf /var/log/*', desc: '高危命令被四层风险控制拦截', durationSec: 1, isDanger: true },
-  { id: 4, time: '11:15', title: '平滑重载 nginx 配置', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.93, command: 'nginx -s reload', desc: '配置变更后平滑重载', durationSec: 2, isDanger: false },
-  { id: 5, time: '10:08', title: '重启 Docker 服务', status: '失败', risk: '中风险', server: 'staging-web', actor: 'root', confidence: 0.62, command: 'systemctl restart docker', desc: 'Docker重启失败，容器异常退出', durationSec: 15, isDanger: false },
-  { id: 6, time: '09:30', title: '调整 swap 倾向参数', status: '成功', risk: '低风险', server: 'prod-db-02', actor: 'root', confidence: 0.88, command: 'sysctl -w vm.swappiness=10', desc: '调整swap倾向参数优化内存', durationSec: 1, isDanger: false },
+  { id: 1, time: '14:23', title: '重启 nginx 服务', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.87, command: 'sudo systemctl restart nginx', desc: 'nginx P99延迟升高，重启后恢复', durationSec: 8, isDanger: false, timestamp: daysAgoTs(0, 14, 23) },
+  { id: 2, time: '13:45', title: '清理 MySQL 长查询', status: '成功', risk: '中风险', server: 'prod-db-02', actor: 'root', confidence: 0.91, command: "mysql -e 'KILL 9800'", desc: 'MySQL连接数过多，清理长查询', durationSec: 3, isDanger: false, timestamp: daysAgoTs(0, 13, 45) },
+  { id: 3, time: '12:30', title: '高危命令拦截', status: '已拦截', risk: '高风险', server: 'backup-01', actor: 'ai-agent', confidence: 0.45, command: 'rm -rf /var/log/*', desc: '高危命令被四层风险控制拦截', durationSec: 1, isDanger: true, timestamp: daysAgoTs(2, 12, 30) },
+  { id: 4, time: '11:15', title: '平滑重载 nginx 配置', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.93, command: 'nginx -s reload', desc: '配置变更后平滑重载', durationSec: 2, isDanger: false, timestamp: daysAgoTs(3, 11, 15) },
+  { id: 5, time: '10:08', title: '重启 Docker 服务', status: '失败', risk: '中风险', server: 'staging-web', actor: 'root', confidence: 0.62, command: 'systemctl restart docker', desc: 'Docker重启失败，容器异常退出', durationSec: 15, isDanger: false, timestamp: daysAgoTs(8, 10, 8) },
+  { id: 6, time: '09:30', title: '调整 swap 倾向参数', status: '成功', risk: '低风险', server: 'prod-db-02', actor: 'root', confidence: 0.88, command: 'sysctl -w vm.swappiness=10', desc: '调整swap倾向参数优化内存', durationSec: 1, isDanger: false, timestamp: daysAgoTs(15, 9, 30) },
 ]
 
 // ===== 辅助函数 =====
@@ -78,6 +89,7 @@ export function HistoryPage() {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<string>('全部状态')
   const [serverFilter, setServerFilter] = useState<string>('全部服务器')
+  const [timeRangeFilter, setTimeRangeFilter] = useState<string>(TIME_RANGES[0])
   const [keyword, setKeyword] = useState<string>('')
   const [currentPage, setCurrentPage] = useState<number>(1)
 
@@ -85,6 +97,12 @@ export function HistoryPage() {
     let result: DecisionRecord[] = RECORDS
     if (statusFilter !== '全部状态') result = result.filter((r) => r.status === statusFilter)
     if (serverFilter !== '全部服务器') result = result.filter((r) => r.server === serverFilter)
+    if (timeRangeFilter !== '全部') {
+      const now = Date.now()
+      const cutoffMs = timeRangeFilter === '近7天' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000
+      const cutoff = now - cutoffMs
+      result = result.filter((r) => r.timestamp >= cutoff)
+    }
     const kw = keyword.trim().toLowerCase()
     if (kw) {
       result = result.filter((r) =>
@@ -94,7 +112,7 @@ export function HistoryPage() {
       )
     }
     return result
-  }, [statusFilter, serverFilter, keyword])
+  }, [statusFilter, serverFilter, timeRangeFilter, keyword])
 
   const optStyle = { background: 'var(--trae-bg-base-secondary)', color: 'var(--trae-text-default)' }
 
@@ -135,10 +153,9 @@ export function HistoryPage() {
       <section className="hist-filter-section">
         <div className="hist-filter-bar">
           <div className="hist-filter-left">
-            {/* WIP: 时间范围筛选未接过滤逻辑，暂禁用避免误导（CLAUDE.md A4 诚实标注） */}
-            <label className="hist-select-wrap is-disabled" aria-disabled="true">
+            <label className="hist-select-wrap">
               <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
-              <select aria-label="时间范围筛选（开发中）" value={TIME_RANGES[0]} disabled className="hist-select">
+              <select aria-label="时间范围筛选" value={timeRangeFilter} onChange={(e) => setTimeRangeFilter(e.target.value)} className="hist-select">
                 {TIME_RANGES.map((t) => (<option key={t} style={optStyle}>{t}</option>))}
               </select>
             </label>
@@ -166,7 +183,12 @@ export function HistoryPage() {
       <section className="hist-timeline-section">
         <div className="hist-timeline">
           {filteredRecords.length === 0 && (
-            <div className="hist-timeline-empty">未匹配到任何决策记录</div>
+            <Empty
+              icon={Inbox}
+              title="未匹配到任何决策记录"
+              description="当前筛选条件下没有历史决策数据，请尝试调整时间范围、服务器或状态筛选。"
+              className="hist-timeline-empty"
+            />
           )}
           {filteredRecords.map((record, idx) => {
             const isLast = idx === filteredRecords.length - 1

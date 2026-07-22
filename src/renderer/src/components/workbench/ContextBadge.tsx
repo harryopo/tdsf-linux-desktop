@@ -9,6 +9,8 @@ export interface ContextBadgeProps {
   ctxUsedTokens: string
   /** 总 tokens 文本（如 "200K"） */
   ctxTotalTokens: string
+  /** 压缩上下文回调（T.7） */
+  onCompress?: () => void
 }
 
 /**
@@ -17,7 +19,7 @@ export interface ContextBadgeProps {
  * - 圆环 SVG 显示使用率百分比
  * - Hover 弹出 tooltip 展示详细 token 数 + "压缩上下文"按钮（WIP 暂未上线）
  */
-const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTotalTokens }) => {
+const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTotalTokens, onCompress }) => {
   const [ctxTooltipVisible, setCtxTooltipVisible] = useState(false)
 
   return (
@@ -70,8 +72,13 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           <button
             type="button"
             onClick={() => {
-              // WIP: 上下文压缩暂未上线（CLAUDE.md A4 诚实标注 · A7 质量优先）
-              void message.warning('上下文压缩暂未上线（WIP · 预计 v1.0 P1 完成）')
+              if (onCompress) {
+                onCompress()
+                void message.success('上下文已压缩')
+              } else {
+                // WIP: 父组件未传入压缩回调时的降级提示
+                void message.warning('上下文压缩回调未绑定（WIP）')
+              }
             }}
             className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[11px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
           >

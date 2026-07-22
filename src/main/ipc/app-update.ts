@@ -17,6 +17,8 @@
  * - 不发送任何用户隐私信息到 GitHub（仅 GET 公开 Release）
  */
 import { ipcMain, shell } from 'electron'
+import { existsSync, statSync } from 'fs'
+import { join } from 'path'
 import { APP } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
@@ -116,6 +118,24 @@ function getCurrentVersion(): string {
   return v.startsWith('v') ? v : `v${v}`
 }
 
+/**
+ * 应用信息（T.8：AboutSettings 真实应用信息）
+ */
+export interface AppInfo {
+  /** 应用版本号（含 v 前缀，来自 package.json） */
+  version: string
+  /** 应用安装/资源路径 */
+  installPath: string
+  /** 构建时间（ISO 8601 字符串，来自 package.json 修改时间） */
+  buildTime: string
+  /** 构建时间展示文本 */
+  buildBadge: string
+  /** 应用数据目录（app.getPath('userData')） */
+  dataPath: string
+  /** 应用日志目录（userData/logs） */
+  logPath: string
+}
+
 /** 注册应用更新 IPC handlers（无需 mainWindow） */
 export function registerAppUpdateHandlers(): void {
   /**
@@ -208,9 +228,53 @@ export function registerAppUpdateHandlers(): void {
       } catch (err) {
         const rawMessage = err instanceof Error ? err.message : String(err)
         const safeMessage = redactSecrets(rawMessage)
-        logger.error('APP_UPDATE', '打开下载页面失败', { error: safeMessage, url })
-        throw new Error(`打开下载页面失败: ${safeMessage}`)
-      }
+      logger.error('APP_UPDATE', '打开下载页面失败', { error: safeMessage, url })
+      throw new Error(`打开下载页面失败: ${safeMessage}`)
     }
-  )
+  })
+
+  /**
+   * app:get-info — 获取应用真实信息（T.8）
+   *
+   * 返回：
+   * - version：app.getVersion()（package.json version）
+   * - installPath：app.getAppPath()（打包后指向 resources/app.asar 或源码目录）
+   * - buildTime：package.json 修改时间的 ISO 字符串
+   * - buildBadge：Build YYYY.MM.DD 格式展示文本
+   * - dataPath：app.getPath('userData')（应用数据目录）
+   * - logPath：userData/logs（应用日志目录）
+   */
+  ipcMain.handle(APP.GET_INFO, (): AppInfo => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron')
+    const version = getCurrentVersion()
+    const installPath = app.getAppPath()
+    const dataPath = app.getPath('userData')
+    const logPath = join(dataPath, 'logs')
+
+    let buildTime = new Date().toISOString()
+    try {
+      const pkgPath = join(installPath, 'package.json')
+      if (existsSync(pkgPath)) {
+        const stat = statSync(pkgPath)
+        buildTime = stat.mtime.toISOString()
+      }
+    } catch (err) {
+      logger.warn('APP_UPDATE', '读取 package.json 修改时间失败', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+
+    const d = new Date(buildTime)
+    const buildBadge = `Build ${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+
+    return {
+      version,
+      installPath,
+      buildTime,
+      buildBadge,
+      dataPath,
+      logPath,
+    }
+  })
 }

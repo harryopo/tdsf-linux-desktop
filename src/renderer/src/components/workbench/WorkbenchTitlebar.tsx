@@ -12,9 +12,7 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import {
   Folder,
   ChevronDown,
-  Search,
   PanelRight,
-  LayoutGrid,
   Settings,
   Plus,
   Loader2,
@@ -261,14 +259,8 @@ export function WorkbenchTitlebar({
         </div>
 
         <div className="wb-titlebar-right">
-          <IconButton title="搜索（开发中）" onClick={() => message.warning('全局搜索需要连接 SSH 服务器后使用')}>
-            <Search className="size-4" />
-          </IconButton>
           <IconButton title="AI面板" onClick={onToggleAI} active={aiPanelVisible} domId="collapse-ai">
             <PanelRight className="size-4" />
-          </IconButton>
-          <IconButton title="布局（开发中）" onClick={() => message.warning('分屏布局暂未上线，可在设置中调整面板宽度')}>
-            <LayoutGrid className="size-4" />
           </IconButton>
           <IconButton title="设置" onClick={() => navigate('/settings')}>
             <Settings className="size-4" />

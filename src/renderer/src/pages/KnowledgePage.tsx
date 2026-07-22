@@ -13,18 +13,19 @@
  *      - 右：热门知识 Top5 + 最近浏览 3 项
  *   4. AI 知识沉淀：已收录 1,247 条 / 本周新增 23 条 / AI 贡献率 68% + 贡献知识按钮
  *
- * 数据：严格使用设计稿 knowledge.html 示例数据（5 卡片 + 5 热门 + 3 最近 + 贡献统计）
+ * 数据：Electron 环境下通过 kbSearch 拉取真实知识库条目；非 Electron 环境回退到设计稿示例数据
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label/aria-pressed；li role=button + tabIndex + onKeyDown；Modal role=dialog + aria-modal + ESC 关闭 + 焦点管理；prefers-reduced-motion 禁用按压动画
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { message, Spin } from 'antd'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
-  ArrowUpRight, Star, FileText, Plus, X, Check,
+  ArrowUpRight, Star, FileText, Plus, X, Check, Inbox,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { Empty } from '@/components/trae/Empty'
 import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
 import './KnowledgePage.css'
 
@@ -45,7 +46,46 @@ interface KnowledgeItem {
 interface HotItem { rank: number; title: string; views: string; id: string }
 interface RecentItem { title: string; time: string; id: string }
 
-// ==================== 静态示例数据（1:1 来自设计稿 knowledge.html） ====================
+/** 将时间戳格式化为相对时间（如：2天前、3小时前） */
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+  const week = 7 * day
+  if (diff < minute) return '刚刚'
+  if (diff < hour) return `${Math.floor(diff / minute)}分钟前`
+  if (diff < day) return `${Math.floor(diff / hour)}小时前`
+  if (diff < week) return `${Math.floor(diff / day)}天前`
+  return `${Math.floor(diff / week)}周前`
+}
+
+/**
+ * 将真实 KnowledgeEntry 映射为页面展示用的 KnowledgeItem
+ * - category：优先匹配 tags/keywords 中的 UI 分类，未命中则按 type 回退
+ * - views：使用 useCount
+ * - matchScore：使用 successRate 百分比（最高 99）
+ */
+const UI_CATEGORIES: Exclude<KnowledgeCategory, 'all'>[] = ['nginx', 'mysql', 'docker', 'network', 'security', 'shell', 'systemd']
+
+function mapEntryToItem(entry: KnowledgeEntry): KnowledgeItem {
+  const allLabels = new Set<string>(UI_CATEGORIES)
+  const matched = [...(entry.tags ?? []), ...(entry.keywords ?? [])].find((tag) => allLabels.has(tag))
+  const category: Exclude<KnowledgeCategory, 'all'> =
+    matched as Exclude<KnowledgeCategory, 'all'> | undefined ??
+    (entry.type === 'command_skill' ? 'shell' : entry.type === 'tutorial' ? 'systemd' : 'security')
+  return {
+    id: entry.id,
+    title: entry.title,
+    summary: entry.problem,
+    category,
+    updatedAt: formatRelativeTime(entry.updatedAt),
+    views: entry.useCount > 0 ? String(entry.useCount) : '0',
+    matchScore: Math.min(99, Math.round((entry.successRate ?? 0) * 100)),
+  }
+}
+
+// ==================== 静态示例数据（1:1 来自设计稿 knowledge.html，仅非 Electron 环境使用） ====================
 
 const CATEGORIES: { id: KnowledgeCategory; label: string }[] = [
   { id: 'all', label: '全部' },
@@ -93,6 +133,8 @@ export function KnowledgePage() {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState<KnowledgeCategory>('all')
+  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(KNOWLEDGE_ITEMS)
+  const [loadingItems, setLoadingItems] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // —— 贡献知识 Modal 状态 ——
@@ -130,10 +172,9 @@ export function KnowledgePage() {
     const summary = contributeForm.summary.trim()
     if (!title || !summary) return
 
-    // WIP: 非 Electron 环境降级为本地演示（CLAUDE.md A4 诚实标注）
+    // 非 Electron 环境无法真实写入，仅提示用户
     if (typeof window === 'undefined' || !window.electronAPI?.kbAdd) {
-      message.warning('当前环境不支持贡献知识（非 Electron 环境），已切换到演示模式')
-      setContributeSubmitted(true)
+      message.warning('当前环境不支持贡献知识（非 Electron 环境）')
       return
     }
 
@@ -179,6 +220,30 @@ export function KnowledgePage() {
     }
   }
 
+  /** 挂载时从主进程知识库拉取真实数据（Electron 环境） */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electronAPI?.kbSearch) return
+    let cancelled = false
+    setLoadingItems(true)
+    window.electronAPI
+      .kbSearch('', undefined, 100)
+      .then((entries) => {
+        if (cancelled) return
+        setKnowledgeItems(entries.map(mapEntryToItem))
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('[KnowledgePage] 拉取知识库失败', err)
+        message.error('知识库加载失败，已使用本地示例数据')
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingItems(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   /** ESC 关闭 Modal + 打开时聚焦标题输入框（焦点管理） */
   useEffect(() => {
     if (!showContributeModal) return
@@ -197,12 +262,12 @@ export function KnowledgePage() {
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    return KNOWLEDGE_ITEMS.filter((item) => {
+    return knowledgeItems.filter((item) => {
       const catMatch = activeCategory === 'all' || item.category === activeCategory
       const searchMatch = q === '' || item.title.toLowerCase().includes(q) || item.summary.toLowerCase().includes(q)
       return catMatch && searchMatch
     })
-  }, [searchQuery, activeCategory])
+  }, [searchQuery, activeCategory, knowledgeItems])
 
   return (
     <main className="kb-page">
@@ -262,8 +327,17 @@ export function KnowledgePage() {
         <div className="kb-layout">
           {/* 左栏：知识卡片列表 */}
           <div className="kb-list">
-            {filteredItems.length === 0 ? (
-              <div className="kb-empty">未找到匹配的知识条目</div>
+            {loadingItems ? (
+              <div className="kb-empty">
+                <Spin size="small" tip="加载知识库中…" />
+              </div>
+            ) : filteredItems.length === 0 ? (
+              <Empty
+                icon={Inbox}
+                title="未找到匹配的知识条目"
+                description="当前分类或搜索词下没有相关知识，请尝试切换分类或清空搜索关键词。"
+                className="kb-empty"
+              />
             ) : (
               filteredItems.map((item) => (
                 <article key={item.id} className="kb-card">

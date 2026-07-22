@@ -60,9 +60,6 @@ export function CorrelationCard({ alert }: CorrelationCardProps) {
           <span className="mon-corr-title">
             关联分析
           </span>
-          <span className="mon-corr-ai-tag">
-            AI
-          </span>
         </div>
         <span className="mon-corr-based whitespace-nowrap">
           基于 {current.server}

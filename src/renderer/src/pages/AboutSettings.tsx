@@ -11,14 +11,15 @@
  * 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater。
  */
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
-import { RefreshCw, ArrowRight, Loader2, FileText, Download } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { RefreshCw, ArrowRight, Loader2, FileText, Download, ArrowLeft } from 'lucide-react'
 import {
-  APP_VERSION, APP_BUILD_LABEL, APP_BUILD_BADGE, APP_BUILD_TIME, APP_INSTALL_PATH,
+  APP_VERSION, APP_BUILD_BADGE, APP_BUILD_TIME, APP_INSTALL_PATH,
   LINK_URLS, LINK_CARDS, FOOTER_LINKS,
   detectRuntimeEnv, detectOsName,
   type SysInfoItem, type LinkCard, type FooterLink,
 } from './about-settings.constants'
-import type { AppUpdateInfo } from '../types/electron'
+import type { AppUpdateInfo, AppInfo } from '../types/electron'
 import './Settings.css'
 
 interface BadgeConfig {
@@ -31,14 +32,8 @@ const BADGE_CLASS: Record<BadgeConfig['variant'], string> = {
   neutral: 'set-ab-badge set-ab-badge--neutral',
 }
 
-/** Hero Badge 配置（3 个：版本 + stable + 构建标识） */
-const HERO_BADGES: BadgeConfig[] = [
-  { label: APP_BUILD_LABEL, variant: 'brand' },
-  { label: 'stable', variant: 'neutral' },
-  { label: APP_BUILD_BADGE, variant: 'neutral' },
-]
-
 export function AboutSettings() {
+  const navigate = useNavigate()
   const [feedback, setFeedback] = useState<string | null>(null)
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isChecking, setIsChecking] = useState(false)
@@ -47,21 +42,64 @@ export function AboutSettings() {
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null)
   const [updateError, setUpdateError] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  // T.8：真实应用信息（从主进程 app:get-info 加载）
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
+  const [appInfoLoading, setAppInfoLoading] = useState(false)
+  const [appInfoError, setAppInfoError] = useState<string | null>(null)
+
+  const displayVersion = appInfo?.version ?? APP_VERSION
+  const displayBuildTime = appInfo?.buildTime
+    ? new Date(appInfo.buildTime).toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : APP_BUILD_TIME
+  const displayBuildBadge = appInfo?.buildBadge ?? APP_BUILD_BADGE
+  const displayInstallPath = appInfo?.installPath ?? APP_INSTALL_PATH
+
+  /** Hero Badge 配置（3 个：版本 + stable + 构建标识），优先用 app:get-info 真实值 */
+  const heroBadges = useMemo<BadgeConfig[]>(() => {
+    return [
+      { label: displayVersion, variant: 'brand' },
+      { label: 'stable', variant: 'neutral' },
+      { label: displayBuildBadge, variant: 'neutral' },
+    ]
+  }, [displayVersion, displayBuildBadge])
 
   const sysInfo = useMemo<SysInfoItem[]>(() => {
     return [
-      { key: '版本', value: `${APP_VERSION} (stable)` },
-      { key: '构建时间', value: APP_BUILD_TIME },
+      { key: '版本', value: `${displayVersion} (stable)` },
+      { key: '构建时间', value: displayBuildTime },
       { key: '更新通道', value: 'Stable' },
       { key: '运行环境', value: detectRuntimeEnv() },
       { key: '操作系统', value: detectOsName() },
-      { key: '安装路径', value: APP_INSTALL_PATH },
+      { key: '安装路径', value: displayInstallPath },
       { key: '官网', value: 'tdsf.dev', isLink: true },
       { key: '项目仓库', value: 'github.com/tdsf/linux-platform', isLink: true },
     ]
-  }, [])
+  }, [displayVersion, displayBuildTime, displayInstallPath])
 
   useEffect(() => {
+    // T.8：挂载时加载真实应用信息
+    setAppInfoLoading(true)
+    setAppInfoError(null)
+    window.electronAPI
+      .appGetInfo()
+      .then((info) => {
+        setAppInfo(info)
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err)
+        setAppInfoError(message)
+        // IPC 失败时使用本地常量兜底，不阻塞页面
+      })
+      .finally(() => {
+        setAppInfoLoading(false)
+      })
+
     return () => {
       if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current)
       if (checkingTimerRef.current != null) clearTimeout(checkingTimerRef.current)
@@ -167,6 +205,20 @@ export function AboutSettings() {
 
   return (
     <div className="set-ab-page">
+      {/* ===== Top back bar ===== */}
+      <div className="set-ab-backbar">
+        <button
+          type="button"
+          data-dom-id="back-settings"
+          aria-label="返回设置"
+          onClick={() => navigate('/settings')}
+          className="set-backbtn btn-press"
+        >
+          <ArrowLeft className="di-14" />
+          返回设置
+        </button>
+      </div>
+
       {/* ===== Hero ===== */}
       <div className="set-ab-hero">
         {/* Logo */}
@@ -192,7 +244,7 @@ export function AboutSettings() {
 
         {/* Badges：3 个（版本 + stable + 构建标识） */}
         <div className="set-ab-hero__badges">
-          {HERO_BADGES.map((badge) => (
+          {heroBadges.map((badge) => (
             <span
               key={badge.label}
               className={BADGE_CLASS[badge.variant]}
@@ -310,6 +362,22 @@ export function AboutSettings() {
 
       {/* ===== System info ===== */}
       <div className="set-ab-sysinfo">
+        {(appInfoLoading || appInfoError) && (
+          <div className="set-ab-sysinfo__row">
+            <span className="set-ab-sysinfo__key">应用信息</span>
+            <span className="set-ab-sysinfo__val" style={{ color: 'var(--trae-text-tertiary)' }}>
+              {appInfoLoading && (
+                <>
+                  <Loader2 className="mr-1 inline size-3 animate-spin" />
+                  正在从主进程加载真实应用信息…
+                </>
+              )}
+              {!appInfoLoading && appInfoError && (
+                <>加载真实应用信息失败（{appInfoError}），当前显示兜底值</>
+              )}
+            </span>
+          </div>
+        )}
         {sysInfo.map((item) => (
           <div key={item.key} className="set-ab-sysinfo__row">
             <span className="set-ab-sysinfo__key">

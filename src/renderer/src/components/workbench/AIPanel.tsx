@@ -71,6 +71,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     send,
     cancel,
     clear,
+    compressContext,
   } = useAgentChat()
 
   /** 循环工程子 Agent —— 演示模式专用 */
@@ -300,6 +301,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         send={send}
         cancel={cancel}
         onAfterSend={() => setShowDemo(false)}
+        onCompressContext={compressContext}
       />
 
       {/* ===== Token / 成本统计行 ===== */}

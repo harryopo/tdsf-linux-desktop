@@ -1,11 +1,10 @@
 /**
  * SettingsPageHeader — 设置页顶部标题区
  *
- * 设计稿：ds-pageheader（标题 + 描述 + 双返回按钮）
+ * 设计稿：ds-pageheader（标题 + 描述 + 单返回按钮）
  * - 左侧：40×40 品牌色图标盒 + 标题(h1) + 副标题(p)
- * - 右侧：返回工作台 + 返回设置 双按钮（outline 风格）
- *   - data-dom-id="back-workbench" → /workbench
- *   - data-dom-id="back-settings"  → /settings（9 项卡片入口）
+ * - 右侧：仅保留"返回设置"按钮（outline 风格）
+ *   - data-dom-id="back-settings"  → /settings（设置首页卡片入口）
  *
  * 用法：
  * ```tsx
@@ -39,16 +38,6 @@ export function SettingsPageHeader({ icon: Icon, title, desc }: SettingsPageHead
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          data-dom-id="back-workbench"
-          aria-label="返回工作台"
-          onClick={() => navigate('/workbench')}
-          className="set-backbtn btn-press"
-        >
-          <ArrowLeft className="di-14" />
-          返回工作台
-        </button>
         <button
           type="button"
           data-dom-id="back-settings"

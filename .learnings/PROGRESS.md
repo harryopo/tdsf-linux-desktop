@@ -230,3 +230,26 @@
 - 新增IPC通道：app:check-update + app:download-update + fs:upload-image（3个，4步同步）
 - 安全增强：DOMPurify XSS防护 + ssh:exec高危命令黑名单(12条) + 脱敏函数统一
 - 代码规范：preload 32处字面量常量化 + main.tsx 28处硬编码颜色消除
+
+---
+
+## v2.3 UI 与功能平衡修复循环工程（2026-07-23）
+
+> 方案书：`docs/v2.3-ui-function-balance-plan.md`
+> 归档：`docs/v2.3-ui-function-balance-archive/`
+> 规范基线：CLAUDE.md v2.5 + AGENTS.md v8.7（B1 单文件行数放宽为质量优先按需拆分）
+
+| Phase | 主题 | 状态 | Commit | 文件变化 |
+|-------|------|------|--------|----------|
+| 规范调整 | CLAUDE.md v2.5 + AGENTS.md v8.7 大文件拆分质量优先 | ✅ | 待提交 | 2文件 |
+| T | Phase T 功能真实化（8 Task：HistoryPage/GeneralSettings/KnowledgePage/LogsPage/TutorialDetailPage/DecisionDetailPage/AIPanel/AboutSettings） | ✅ | 待提交 | 渲染层 + main IPC + preload + 类型 |
+| U | Phase U UI 交互细节修复（6 Task：滚动/按钮反馈/Modal/表单验证/空状态/响应式） | ✅ | 待提交 | 渲染层组件 + CSS |
+| V | 归档 + PROGRESS 更新 | ✅ | 待提交 | 归档文档 |
+
+**关键指标**：
+- 编译门禁：typecheck:node ✅ + typecheck:web ✅ + lint ✅（三绿全通过）
+- Phase T 完成：8/8 功能真实化任务
+- Phase U 完成：6/6 UI 交互细节修复
+- 新增 IPC 通道：`app:get-info`（4 步同步）
+- 规范调整：B1 单文件行数从强制 ≤500 行改为质量优先按需拆分
+- 用户约束对齐：未拆分大文件、未弹窗询问、颜色全用 token

@@ -12,6 +12,8 @@
  *
  * JS 交互：父组件传入过滤后的日志列表（按 level + keyword 筛选）
  */
+import { Inbox } from 'lucide-react'
+import { Empty } from '@/components/trae/Empty'
 import {
   type LogEntry,
   LEVEL_STATS,
@@ -29,7 +31,12 @@ export function LogViewer({ entries }: { entries: LogEntry[] }) {
       {/* 2. 日志行（可滚动） */}
       <div className="log-lines min-h-0 flex-1 overflow-y-auto">
         {entries.length === 0 ? (
-          <div className="log-empty">无匹配日志</div>
+          <Empty
+            icon={Inbox}
+            title="无匹配日志"
+            description="当前日志源为空或筛选条件未命中任何日志，请尝试切换日志源、调整级别过滤或清空搜索关键词。"
+            className="log-empty"
+          />
         ) : (
           entries.map((entry) => (
             <LogRow key={entry.id} entry={entry} />

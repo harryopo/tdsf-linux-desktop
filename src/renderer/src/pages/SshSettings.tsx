@@ -746,10 +746,16 @@ export function SshSettings() {
       <Modal
         title="生成 SSH 密钥"
         open={genModalOpen}
-        onCancel={() => setGenModalOpen(false)}
+        onCancel={() => {
+          setGenModalOpen(false)
+          setGenLoading(false)
+          genForm.resetFields()
+        }}
         confirmLoading={genLoading}
         okText="生成"
         cancelText="取消"
+        destroyOnClose
+        maskClosable={!genLoading}
         onOk={async () => {
           try {
             const values = await genForm.validateFields()

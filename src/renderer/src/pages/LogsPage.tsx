@@ -6,8 +6,8 @@
  * Spec: build-runnable-tdsf-from-design · Task 2.5
  *
  * 结构（app-shell 全屏 flex-col）：
- *   1. Header (48px)：file-text 图标 + 标题"系统日志" + 副标题 + AI 决策数据源 chip + 返回工作台按钮
- *   2. Toolbar：搜索框 + 5 个级别过滤 + AI 日志分析 + 自动滚动 switch + 刷新/导出图标按钮
+ *   1. Header (48px)：file-text 图标 + 标题"系统日志" + 副标题 + 返回工作台按钮
+ *   2. Toolbar：搜索框 + 5 个级别过滤 + 自动滚动 switch + 刷新/导出图标按钮
  *   3. 两栏布局：
  *      - 左 180px LogSidebar：5 主类 + 4 服务器系统日志路径
  *      - 右 LogViewer：终端风格（#0F1011）+ 浮动统计卡 + 15 行日志 + 闪烁光标
@@ -16,18 +16,18 @@
  * 数据：
  *   - 初次进入展示设计稿 15 行示例数据（便于空库场景下仍有可视化）
  *   - 点击"刷新"调用 IPC log:read 拉取真实日志流，转换后注入 LogViewer
- *   - 点击"AI 分析"调用 IPC llmAnalyze，将当前过滤后的日志作为 Evidence 输入
  *
  * 视觉：全部 var(--trae-*) token；终端背景 #0F1011（设计稿 --log-terminal-bg）
  * 无障碍：role="log" aria-live="polite"、role="status"、按钮 aria-label、prefers-reduced-motion
  */
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Modal, Spin, message } from 'antd'
-import { FileText, ArrowLeft, Sparkles, Clock, RefreshCw, Download } from 'lucide-react'
+import { Spin, message } from 'antd'
+import { FileText, ArrowLeft, Clock, RefreshCw, Download } from 'lucide-react'
 import { LogSidebar } from '@/components/logs/v1/LogSidebar'
 import { LogToolbar } from '@/components/logs/v1/LogToolbar'
 import { LogViewer } from '@/components/logs/v1/LogViewer'
+import { isElectronAPIAvailable } from '@/utils/electron-api'
 import {
   type LogLevel,
   type LogEntry,
@@ -38,10 +38,8 @@ import {
   LATEST_TIMESTAMP,
   ipcLogEntriesToLogEntries,
 } from '@/components/logs/v1/logs-data'
+import type { Evidence } from '@shared/models'
 import './LogsPage.css'
-
-/** AI 分析状态机 */
-type AnalyzeState = 'idle' | 'loading' | 'done' | 'error'
 
 /** LogsPage — 系统日志页 */
 export function LogsPage() {
@@ -54,15 +52,14 @@ export function LogsPage() {
   const [autoScroll, setAutoScroll] = useState(true)
 
   // ===== 真实日志流状态（v1.0 P0 接入 log:read IPC） =====
-  // displayEntries 同时承载设计稿示例数据与 IPC 返回的真实日志
-  const [displayEntries, setDisplayEntries] = useState<LogEntry[]>(LOG_ENTRIES)
+  // Electron 环境下挂载时自动拉取真实日志；非 Electron 环境回退到设计稿示例数据
+  const [displayEntries, setDisplayEntries] = useState<LogEntry[]>([])
   // 标记当前是否已加载真实日志（影响状态栏的"实时流"指示与刷新语义）
   const [loadedReal, setLoadedReal] = useState(false)
-
-  // ===== AI 分析状态（v1.0 P0 接入 llmAnalyze IPC） =====
-  const [analyzeState, setAnalyzeState] = useState<AnalyzeState>('idle')
-  const [analyzeResult, setAnalyzeResult] = useState<string>('')
-  const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false)
+  // 真实日志加载中状态
+  const [loading, setLoading] = useState(false)
+  // AI 日志分析中状态
+  const [analyzing, setAnalyzing] = useState(false)
 
   // ===== 本地过滤（基于 displayEntries：真实数据 / 设计稿示例数据） =====
   const filteredEntries = useMemo(() => {
@@ -79,109 +76,95 @@ export function LogsPage() {
   // ===== 事件处理 =====
   const handleBack = () => navigate('/workbench')
 
-  const handleRefresh = async () => {
-    // 真实 IPC 调用：从 main 进程 log:read 通道读取最新日志
+  /**
+   * 从主进程拉取真实日志
+   * - Electron 环境：调用 log:read IPC
+   * - 非 Electron 环境：回退到设计稿示例数据并提示
+   */
+  const loadLogs = async (opts?: { silent?: boolean }) => {
     if (typeof window === 'undefined' || !window.electronAPI?.logRead) {
-      // WIP: 非 Electron 环境降级为静态数据提示（CLAUDE.md A4 诚实标注）
-      message.warning('当前环境不支持日志读取（非 Electron 环境）')
+      setDisplayEntries(LOG_ENTRIES)
+      setLoadedReal(false)
+      message.warning('当前环境不支持日志读取（非 Electron 环境），展示示例数据')
       return
     }
+    setLoading(true)
     try {
       const result = await window.electronAPI.logRead({ limit: 200 })
       if (Array.isArray(result) && result.length > 0) {
-        // 真实日志流注入 LogViewer（v1.0 P0 接线完成）
         const entries = ipcLogEntriesToLogEntries(result as IpcLogEntry[])
         setDisplayEntries(entries)
         setLoadedReal(true)
-        message.success(`已加载 ${entries.length} 条真实日志`)
+        if (!opts?.silent) message.success(`已加载 ${entries.length} 条真实日志`)
       } else {
-        // 库为空时保留设计稿示例数据，避免空白页
-        message.info('日志库暂无数据，保留示例数据展示')
+        setDisplayEntries([])
+        setLoadedReal(true)
+        if (!opts?.silent) message.info('日志库暂无数据')
       }
     } catch (err) {
-      // 错误已由 main 进程 logger 记录，此处给用户可见反馈避免静默失败
       const reason = err instanceof Error ? err.message : String(err)
+      console.warn('[LogsPage] 日志读取失败', err)
       message.error(`日志读取失败：${reason}`)
+    } finally {
+      setLoading(false)
     }
   }
 
+  /** 挂载时自动拉取真实日志（Electron 环境） */
+  useEffect(() => {
+    void loadLogs({ silent: true })
+  }, [])
+
+  const handleRefresh = async () => {
+    await loadLogs()
+  }
+
   /**
-   * AI 日志分析（v1.0 P0 接入 llmAnalyze IPC）
-   *
-   * 流程：
-   *   1. 将 filteredEntries 转换为 Evidence[]（source='log'，content=日志消息）
-   *   2. 调用 llmAnalyze(question, evidences)
-   *   3. 弹窗展示分析结果
-   *
-   * Evidence 字段填充策略：
-   *   - id：日志条目 id 转字符串
-   *   - source：'log'（EvidenceSource 枚举）
-   *   - sourceDetail：日志来源（source 字段）
-   *   - content：日志消息 + 时间戳 + 级别（便于 LLM 上下文）
-   *   - drainMatch / sourcePrior / confidence：日志场景默认 1.0（原始数据未经算法处理）
-   *   - timestamp：解析时间戳字符串为 ms
-   *   - verified：false（原始日志未经 Ground-Check）
+   * AI 分析当前过滤后的日志
+   * - 将日志内容封装为 Evidence 调用 llmAnalyze IPC
+   * - 分析结果以 message.info 展示（不弹窗）
+   * - 失败时降级提示，保证可用性
    */
-  const handleAnalyze = async () => {
-    if (typeof window === 'undefined' || !window.electronAPI?.llmAnalyze) {
+  const handleAnalyze = useCallback(async () => {
+    if (!isElectronAPIAvailable()) {
       message.warning('当前环境不支持 AI 分析（非 Electron 环境）')
       return
     }
     if (filteredEntries.length === 0) {
-      message.warning('没有可分析的日志（当前过滤结果为空）')
+      message.info('当前没有可分析的日志')
       return
     }
-
-    setAnalyzeState('loading')
-    setAnalyzeModalOpen(true)
-    setAnalyzeResult('')
-
+    setAnalyzing(true)
     try {
-      // 将日志条目转换为 Evidence
-      const today = new Date()
-      const baseTs = today.getTime()
-      const evidences = filteredEntries.map((entry, idx) => {
-        // 解析 HH:mm:ss.SSS 为今天的 ms 时间戳
-        const parts = entry.timestamp.split(':')
-        const secParts = (parts[2] || '0').split('.')
-        const h = parseInt(parts[0] || '0', 10)
-        const m = parseInt(parts[1] || '0', 10)
-        const s = parseInt(secParts[0] || '0', 10)
-        const ms = parseInt((secParts[1] || '0').padEnd(3, '0').slice(0, 3), 10)
-        const ts = new Date(today)
-        ts.setHours(h, m, s, ms)
-        return {
-          id: `log-${entry.id}-${idx}`,
-          source: 'log' as const,
-          sourceDetail: entry.source,
-          content: `[${entry.timestamp}] [${entry.level}] ${entry.message}`,
-          drainMatch: 1.0,
-          sourcePrior: 1.0,
-          confidence: 1.0,
-          timestamp: isNaN(ts.getTime()) ? baseTs : ts.getTime(),
-          verified: false,
-        }
-      })
-
-      // 构造分析问题
-      const levelSummary = filteredEntries.reduce(
-        (acc, e) => { acc[e.level] = (acc[e.level] || 0) + 1; return acc },
-        {} as Record<string, number>,
+      const logText = filteredEntries
+        .slice(-50)
+        .map((e) => `[${e.timestamp}] [${e.level}] ${e.source}: ${e.message}`)
+        .join('\n')
+      const evidence: Evidence = {
+        id: `log-analysis-${Date.now()}`,
+        source: 'log',
+        sourceDetail: activeSource,
+        content: logText,
+        drainMatch: 0.8,
+        sourcePrior: 0.75,
+        confidence: 0.75,
+        timestamp: Date.now(),
+        verified: true,
+      }
+      const result = await window.electronAPI.llmAnalyze('分析以下系统日志，给出可能的原因和修复建议', [evidence])
+      const parsed = JSON.parse(result) as { hypothesis?: string; fixCommand?: string; confidence?: number }
+      message.info(
+        `AI 分析结论：${parsed.hypothesis ?? '暂无结论'}${parsed.fixCommand ? `（建议命令：${parsed.fixCommand}）` : ''}`,
+        5,
       )
-      const summary = Object.entries(levelSummary)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join('，')
-      const question = `请分析以下 ${filteredEntries.length} 条系统日志（${summary}），识别异常模式、根因假设、关联事件，并给出处置建议。`
-
-      const result = await window.electronAPI.llmAnalyze(question, evidences)
-      setAnalyzeResult(result || '（AI 返回空结果）')
-      setAnalyzeState('done')
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
-      setAnalyzeResult(`分析失败：${reason}`)
-      setAnalyzeState('error')
+      console.warn('[LogsPage] AI 日志分析失败', err)
+      message.error(`AI 分析失败：${reason}`)
+    } finally {
+      setAnalyzing(false)
     }
-  }
+  }, [activeSource, filteredEntries])
 
   /**
    * 导出日志（v1.0 P1 接入 log:read IPC 全量拉取 + CSV/JSON 双格式下载）
@@ -264,10 +247,7 @@ export function LogsPage() {
           <FileText size={20} className="shrink-0" style={{ color: 'var(--trae-icon-brand)' }} />
           <h1 className="log-header-title m-0 truncate">系统日志</h1>
           <span className="log-header-subtitle truncate">实时日志流与历史检索</span>
-          <span className="log-header-ai-chip inline-flex items-center">
-            <Sparkles size={10} style={{ color: 'var(--trae-icon-brand)' }} />
-            AI 决策数据源
-          </span>
+
         </div>
 
         <button
@@ -291,7 +271,7 @@ export function LogsPage() {
         autoScroll={autoScroll}
         onAutoScrollChange={setAutoScroll}
         onAnalyze={handleAnalyze}
-        analyzing={analyzeState === 'loading'}
+        analyzing={analyzing}
         onRefresh={handleRefresh}
         onExport={handleExport}
       />
@@ -308,6 +288,11 @@ export function LogsPage() {
           aria-label="系统日志流"
           className="log-viewer-role-wrap relative flex min-w-0 flex-1 flex-col"
         >
+          {loading && (
+            <div className="log-loading-overlay">
+              <Spin size="small" tip="加载日志中…" />
+            </div>
+          )}
           <LogViewer entries={filteredEntries} />
         </div>
       </div>
@@ -352,39 +337,6 @@ export function LogsPage() {
         </button>
       </footer>
 
-      {/* ===== 5. AI 分析结果弹窗（v1.0 P0 接入 llmAnalyze IPC） ===== */}
-      <Modal
-        open={analyzeModalOpen}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={16} style={{ color: 'var(--trae-icon-brand)' }} />
-            <span>AI 日志分析结果</span>
-          </div>
-        }
-        onCancel={() => setAnalyzeModalOpen(false)}
-        footer={null}
-        width={680}
-        styles={{
-          body: { maxHeight: '60vh', overflow: 'auto', whiteSpace: 'pre-wrap' as const },
-        }}
-      >
-        {analyzeState === 'loading' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '24px 0' }}>
-            <Spin size="small" />
-            <span>正在分析 {filteredEntries.length} 条日志…</span>
-          </div>
-        )}
-        {analyzeState === 'done' && (
-          <div style={{ lineHeight: 1.7, color: 'var(--trae-text-default)' }}>
-            {analyzeResult}
-          </div>
-        )}
-        {analyzeState === 'error' && (
-          <div style={{ color: 'var(--trae-status-error-default)' }}>
-            {analyzeResult}
-          </div>
-        )}
-      </Modal>
     </main>
   )
 }

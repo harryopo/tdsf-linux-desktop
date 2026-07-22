@@ -395,15 +395,16 @@ export class LoopEngineeringSubagent extends BaseSubagent {
    *
    * @param correlationId 关联 ID
    * @param approved true 批准执行，false 拒绝
+   * @param newCommand T.6: 用户修改后的修复命令（approved=true 时生效）
    */
-  confirm(correlationId: string, approved: boolean): boolean {
+  confirm(correlationId: string, approved: boolean, newCommand?: string): boolean {
     const workflow = this.activeWorkflows.get(correlationId)
     if (!workflow) {
       this.log.warn(`[LoopEngineering] confirm 失败：correlationId 不存在或工作流已结束`, { correlationId })
       return false
     }
     try {
-      workflow.confirm(approved)
+      workflow.confirm(approved, newCommand)
       this.forwardLog('agent', 'INFO', `[LoopEngineering] 用户${approved ? '批准' : '拒绝'}执行`)
       return true
     } catch (err) {
