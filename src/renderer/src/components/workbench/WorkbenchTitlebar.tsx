@@ -109,6 +109,11 @@ export function WorkbenchTitlebar({
         setConnectionState(server.id, 'connected')
         setSessionMapping(server.id, sessionId)
         setActiveSession(sessionId)
+        try {
+          await window.electronAPI.monitorStart(sessionId, 3)
+        } catch (err) {
+          console.warn('[WorkbenchTitlebar] monitorStart failed:', err)
+        }
         setMenuOpen(false)
         message.success(`已连接 ${server.name || server.host}`)
       } catch (err) {

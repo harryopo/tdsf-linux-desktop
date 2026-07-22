@@ -8,14 +8,15 @@
  * - **双重持久化**：localStorage 缓存 + 主进程 ConfigStore 权威存储
  *
  * 持久化策略（v0.7.0+）：
- * - localStorage（zustand persist）：快速 cache，避免 IPC 频繁往返
- * - 主进程 electron-store：权威持久化（重装/迁移不丢失）
- * - 同步流程：任何变更 → 立即 IPC serverSave → 写入主进程
- * - 加载流程：启动时优先从主进程加载（如果 localStorage 没有则用主进程数据）
+ * - localStorage（zustand persist）：非敏感字段的快速 cache（脱敏，无密码）
+ * - 主进程 electron-store + SecureStore：权威持久化（含敏感信息加密存储）
+ * - 同步流程：任何变更 → 立即 IPC serverSave（传完整对象含密码）→ 主进程分离存储
+ * - 加载流程：启动时以主进程为权威数据源（含密码），覆盖 localStorage 缓存
  *
  * 敏感信息（密码/私钥）：
- * - 不持久化到 localStorage（脱敏）
- * - 由主进程 safeStorage 加密存储（ConfigStore.saveServerList）
+ * - 不持久化到 localStorage（partialize 脱敏）
+ * - 由主进程 safeStorage 加密存储（ConfigStore.saveServerList 分离存储逻辑）
+ * - syncToMain 传完整对象给主进程，不在渲染层脱敏（否则主进程收不到密码）
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -57,8 +58,17 @@ interface ServerState {
 }
 
 /**
- * 同步到主进程（脱敏后调用 server:save）
- * 即使失败也不阻塞 UI（localStorage 已经持久化）
+ * 同步到主进程（传完整 server 对象，含敏感信息）
+ *
+ * 注意：不在此处脱敏。主进程的 saveServerList 会自行分离存储：
+ * - 非敏感字段（host/port/username 等）→ electron-store（明文 JSON）
+ * - 敏感字段（password/privateKey/passphrase）→ SecureStore（safeStorage 加密）
+ *
+ * IPC 通道是进程内通信，password 不经过网络，安全风险可控。
+ * 若在此处脱敏，主进程将永远收不到敏感信息，SecureStore 不会被写入，
+ * 重启后密码丢失。
+ *
+ * 即使失败也不阻塞 UI（localStorage 已经持久化非敏感字段）。
  */
 async function syncToMain(servers: SshConfig[]): Promise<boolean> {
   if (!isElectronAPIAvailable()) {
@@ -66,15 +76,7 @@ async function syncToMain(servers: SshConfig[]): Promise<boolean> {
     return false
   }
   try {
-    // 脱敏：移除密码/私钥/口令（主进程会从 safeStorage 重新加密）
-    const sanitized = servers.map((s) => {
-      const { password, privateKey, passphrase, ...rest } = s
-      void password
-      void privateKey
-      void passphrase
-      return rest
-    })
-    const ok = await window.electronAPI.serverSave(sanitized as SshConfig[])
+    const ok = await window.electronAPI.serverSave(servers)
     if (ok) {
       console.log(`[ServerStore] 已同步 ${servers.length} 个服务器到主进程`)
     }
@@ -118,6 +120,15 @@ export const useServerStore = create<ServerState>()(
           connectionStates: newConnectionStates,
           sessionMap: newSessionMap,
         })
+        // 先清除 SecureStore 中该服务器的凭据（防止密码残留泄漏），再同步列表
+        // saveServerList 只保存现存服务器的凭据，不会清理已删除服务器的旧凭据
+        if (isElectronAPIAvailable()) {
+          try {
+            await window.electronAPI.serverDeleteCred(serverId)
+          } catch (err) {
+            console.error(`[ServerStore] 清除服务器 ${serverId} 凭据失败:`, err)
+          }
+        }
         await syncToMain(newServers)
       },
 
@@ -166,8 +177,12 @@ export const useServerStore = create<ServerState>()(
 
       /**
        * 从主进程加载服务器列表（应用启动时调用一次）
-       * 优先级：localStorage（已 hydrate） > 主进程
-       * 如果 localStorage 没有数据但主进程有，使用主进程数据
+       *
+       * 策略：主进程权威 + localStorage 缓存非敏感字段
+       * - 密码/privateKey/passphrase 只从主进程获取（localStorage 脱敏，不含敏感信息）
+       * - 主进程有数据：始终以主进程为准（含密码），覆盖 localStorage 缓存
+       * - 主进程无数据但 localStorage 有：可能是旧版本迁移或主进程数据丢失，
+       *   用 localStorage 回写主进程（注意：此时密码可能缺失，需用户重新输入）
        */
       hydrateFromMain: async () => {
         if (!isElectronAPIAvailable()) {
@@ -184,13 +199,13 @@ export const useServerStore = create<ServerState>()(
           const localServers = get().servers
           console.log(`[ServerStore] 主进程返回 ${mainServers.length} 个，localStorage 有 ${localServers.length} 个`)
 
-          // 决策：localStorage 没有但主进程有 → 用主进程
-          if (localServers.length === 0 && mainServers.length > 0) {
-            console.log('[ServerStore] localStorage 为空，使用主进程数据')
+          if (mainServers.length > 0) {
+            // 主进程权威：使用主进程完整数据（含密码），覆盖 localStorage 缓存
+            console.log('[ServerStore] 使用主进程数据（含密码）作为权威数据源')
             set({ servers: mainServers, _hydrated: true })
           } else if (localServers.length > 0) {
-            // localStorage 有数据：以 localStorage 为准，但回写到主进程（防止主进程数据丢失）
-            console.log('[ServerStore] localStorage 有数据，回写主进程以保证一致')
+            // 主进程为空但 localStorage 有：可能是旧版本迁移，回写主进程
+            console.log('[ServerStore] 主进程为空，使用 localStorage 数据回写主进程')
             set({ _hydrated: true })
             await syncToMain(localServers)
           } else {

@@ -396,6 +396,16 @@ class SupervisorAgent {
     // 采用 text-fallback 模式（按句子切分 + text-feature entropy）
     const traceCollector = createCotTraceCollector()
 
+    // Phase J.3：DeepSeek 思考模式参数
+    // 当 provider 类型为 deepseek 且思考强度为 deep 时，启用思考模式：
+    // - thinking: { type: 'enabled' } — 启用思考链（DeepSeek-V4-Pro）
+    // - reasoning_effort: 'high' — 思考强度高（消耗更多 token 但推理更深）
+    // 通过 providerOptions 透传到 @ai-sdk/openai 的 createOpenAI 调用，
+    // SDK 会原样转发给 DeepSeek API（OpenAI 兼容协议的扩展字段）。
+    // 注意：仅在 deepseek + deep 时启用，避免 fast/standard 模式产生不必要的思考开销。
+    const enableDeepseekThinking =
+      modelInstance.config.type === 'deepseek' && strength === 'deep'
+
     this.log.info('chat 调用开始', {
       correlationId,
       providerId: resolvedProviderId,
@@ -405,6 +415,7 @@ class SupervisorAgent {
       maxTokens: effectiveMaxTokens,
       messageCount: compaction.messages.length,
       compactionLevel: compaction.level,
+      thinkingEnabled: enableDeepseekThinking,
     })
 
     try {
@@ -469,12 +480,22 @@ class SupervisorAgent {
           : undefined
 
       // 8. 调用 streamText（Vercel AI SDK v7；可选 tools + stopWhen）
+      // Phase J.3：传入 providerOptions 以支持 DeepSeek 思考模式（thinking + reasoning_effort）
+      // enableDeepseekThinking 为 false 时传 undefined，SDK 会忽略 providerOptions。
       const result = streamText({
         model: modelInstance.model,
         messages: compaction.messages,
         temperature,
         maxOutputTokens: effectiveMaxTokens,
         abortSignal: abortController.signal,
+        providerOptions: enableDeepseekThinking
+          ? {
+              deepseek: {
+                thinking: { type: 'enabled' },
+                reasoning_effort: 'high',
+              },
+            }
+          : undefined,
         ...(tools
           ? {
               tools,

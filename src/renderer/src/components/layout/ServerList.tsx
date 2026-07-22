@@ -226,8 +226,14 @@ const ServerList: React.FC = () => {
         okText: '删除',
         cancelText: '取消',
         okButtonProps: { danger: true },
-        onOk: () => {
-          removeServer(server.id)
+        onOk: async () => {
+          // 先清除 SecureStore 凭据（双保险：removeServer 内部也会调用一次，幂等）
+          try {
+            await window.electronAPI.serverDeleteCred(server.id)
+          } catch (err) {
+            console.error(`[ServerList] 清除服务器 ${server.id} 凭据失败:`, err)
+          }
+          await removeServer(server.id)
           message.success('已删除')
         },
       })

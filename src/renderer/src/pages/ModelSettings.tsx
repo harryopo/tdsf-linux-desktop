@@ -211,7 +211,7 @@ export function ModelSettings() {
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
 
   // Section 2: 模型配置
-  const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-chat')
+  const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-v4-flash')
   const [temperature, setTemperature] = useState(llmConfig.temperature ?? 0.3)
   const [thinkingLevel, setThinkingLevel] = useState<'low' | 'medium' | 'high'>('medium')
   const [maxToken, setMaxToken] = useState(llmConfig.maxTokens ?? 4096)
@@ -219,7 +219,7 @@ export function ModelSettings() {
   const [requestTimeout, setRequestTimeout] = useState((llmConfig.timeout ?? 30000) / 1000)
 
   // Section 3: API 接入
-  const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com/v1')
+  const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com')
   const [apiKey, setApiKey] = useState(llmConfig.apiKey || '')
   const [showApiKey, setShowApiKey] = useState(false)
   const [organization, setOrganization] = useState('')
