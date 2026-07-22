@@ -13,9 +13,10 @@
  *
  * 交互：
  * - 点击切换激活项（用 useState）
- * - 提供 onNavigate 回调（可选，由父组件传入实际路由跳转）
+ * - v2.0 Phase C Task C.5：默认 useNavigate 路由跳转；父组件可传入 onNavigate 覆盖
  */
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '@/components/trae/utils'
 import {
   TraeHomeIcon,
@@ -30,6 +31,19 @@ import {
 
 /** 导航项 ID */
 export type NavId = 'home' | 'tutorial' | 'decision' | 'monitor' | 'knowledge' | 'history' | 'logs' | 'settings'
+
+/** NavId → 路由路径映射（与 router.tsx MainLayout 子路由对应）
+ * - decision 没有独立列表页，跳转到 /history（决策历史列表） */
+const NAV_ROUTES: Record<NavId, string> = {
+  home: '/workbench',
+  tutorial: '/tutorial',
+  decision: '/history',
+  monitor: '/monitor',
+  knowledge: '/knowledge',
+  history: '/history',
+  logs: '/logs',
+  settings: '/settings',
+}
 
 /** 导航项配置 */
 interface NavItem {
@@ -58,7 +72,7 @@ const BOTTOM_NAV_ITEMS: NavItem[] = [{ id: 'settings', label: '设置', icon: Tr
 export interface ActivityRailProps {
   /** 当前激活项 */
   activeId?: NavId
-  /** 导航回调 */
+  /** 导航回调（可选；未传则默认走 useNavigate 路由跳转） */
   onNavigate?: (id: NavId) => void
 }
 
@@ -66,10 +80,17 @@ export interface ActivityRailProps {
 export function ActivityRail({ activeId: activeIdProp, onNavigate }: ActivityRailProps) {
   const [internalActive, setInternalActive] = useState<NavId>('home')
   const activeId = activeIdProp ?? internalActive
+  const navigate = useNavigate()
 
   const handleClick = (id: NavId) => {
     setInternalActive(id)
-    onNavigate?.(id)
+    // 父组件传 onNavigate 则优先使用（向后兼容）；否则默认走 useNavigate 路由跳转
+    if (onNavigate) {
+      onNavigate(id)
+    } else {
+      const route = NAV_ROUTES[id]
+      if (route) navigate(route)
+    }
   }
 
   return (
