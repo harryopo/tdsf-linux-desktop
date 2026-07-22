@@ -22,6 +22,8 @@ import { verifyAllEvidences, type ToolCallRecord } from './grounding'
 import { getDrain3Bridge, type LogTemplate } from '../services/log/drain3-bridge'
 import { shouldResample, resampleAndVote } from './sampling'
 import { calculateEvidenceConfidence } from './confidence'
+import type { TraceHandle } from '../services/observability/langfuse'
+import { startHitlTrace, startHitlStepTrace } from '../services/observability/langfuse-trace'
 
 /** 工作流事件名常量 */
 export const WORKFLOW_EVENTS = {
@@ -158,6 +160,8 @@ export class AgentWorkflow extends EventEmitter {
   /** P2-6: 确认超时定时器 */
   private confirmTimeout: ReturnType<typeof setTimeout> | null = null
   private cancelled = false
+  /** D.5: HITL 工作流根 trace（Langfuse 未启用时为 null） */
+  private hitlTrace: TraceHandle | null = null
 
   constructor() {
     super()
@@ -187,6 +191,13 @@ export class AgentWorkflow extends EventEmitter {
    */
   async start(params: WorkflowStartParams): Promise<DecisionCard | null> {
     this.reset()
+    // D.5: 启动 HITL 根 trace（Langfuse 未启用时为 null，无副作用降级）
+    this.hitlTrace = startHitlTrace({
+      sessionId: params.connId,
+      workflowName: 'hitl-workflow',
+      userQuery: params.problem,
+      metadata: { connId: params.connId, logsLength: params.logs.length },
+    })
     const { problem, logs, connId, sshExecutor, evidenceCollector, getLlmFixCommand, llmReasoner } = params
 
     // ── 方案书 §4.2：工具调用溯源日志（Ground-Check 的输入） ──
@@ -313,6 +324,9 @@ export class AgentWorkflow extends EventEmitter {
     } catch (err) {
       this.state.error = err instanceof Error ? err.message : String(err)
       this.emit(WORKFLOW_EVENTS.ERROR, this.state.error)
+      // D.5: 结束 HITL trace（ERROR level）
+      this.hitlTrace?.end({ level: 'ERROR', statusMessage: this.state.error })
+      this.hitlTrace = null
       return null
     }
   }
@@ -373,6 +387,8 @@ export class AgentWorkflow extends EventEmitter {
       clearTimeout(this.confirmTimeout)
       this.confirmTimeout = null
     }
+    // D.5: 清理上一次运行的 trace 引用（trace 本身已在前次结束时 end）
+    this.hitlTrace = null
     this.state = this.createInitialState()
   }
 
@@ -395,10 +411,19 @@ export class AgentWorkflow extends EventEmitter {
       this.state.waitingForConfirmation = true
     }
     this.emit(WORKFLOW_EVENTS.STEP_CHANGED, this.getState())
-    const result = await fn()
-    this.state.completedSteps.push(step)
-    this.state.stepDetails[step] = this.truncate(this.safeStringify(result))
-    return result
+    // D.5: 每步创建独立 span（hitl-${step}），Langfuse 未启用时为 noop
+    const stepSpan = startHitlStepTrace(this.hitlTrace, step)
+    try {
+      const result = await fn()
+      this.state.completedSteps.push(step)
+      this.state.stepDetails[step] = this.truncate(this.safeStringify(result))
+      stepSpan.end(result)
+      return result
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      stepSpan.end({ error: errMsg }, 'ERROR', errMsg)
+      throw err
+    }
   }
 
   /**
@@ -825,6 +850,13 @@ export class AgentWorkflow extends EventEmitter {
    * 发射完成事件
    */
   private emitComplete(): void {
+    // D.5: 结束 HITL trace（cancelled 用 WARNING，正常完成用 DEFAULT）
+    if (this.cancelled) {
+      this.hitlTrace?.end({ level: 'WARNING', statusMessage: 'cancelled' })
+    } else {
+      this.hitlTrace?.end({ level: 'DEFAULT' })
+    }
+    this.hitlTrace = null
     this.emit(WORKFLOW_EVENTS.COMPLETED, this.getState())
   }
 
@@ -832,6 +864,9 @@ export class AgentWorkflow extends EventEmitter {
    * 发射取消事件
    */
   private emitCancel(): void {
+    // D.5: 结束 HITL trace（WARNING level）
+    this.hitlTrace?.end({ level: 'WARNING', statusMessage: 'cancelled' })
+    this.hitlTrace = null
     this.emit(WORKFLOW_EVENTS.CANCELLED, this.getState())
   }
 

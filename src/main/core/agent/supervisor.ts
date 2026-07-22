@@ -35,6 +35,7 @@ import { logger } from '../../services/log/logger'
 import { SshConnectionManager } from '../../services/ssh/connection-manager'
 import { createCotTraceCollector } from './credibility/mass-functions/cot-trace-collector'
 import { assessRisk } from '../risk-engine'
+import { withCallbackStreamTrace } from '../../services/observability/langfuse-trace'
 
 /**
  * 流式 chat 调用参数
@@ -236,6 +237,44 @@ class SupervisorAgent {
   /**
    * 流式 chat 调用（核心入口）
    *
+   * D.5: 在入口包一层 withCallbackStreamTrace，记录 Langfuse 流式 trace。
+   * 真正的流式逻辑在 chatImpl() 中（未修改）。
+   *
+   * @param params chat 调用参数
+   */
+  async chat(params: ChatParams): Promise<void> {
+    const correlationId =
+      params.correlationId ?? `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+    // 提取最后一条 user 消息文本作为 trace input（仅 string content，多模态跳过）
+    let userQuery: string | undefined
+    for (let i = params.messages.length - 1; i >= 0; i--) {
+      const m = params.messages[i]
+      if (m.role === 'user' && typeof m.content === 'string') {
+        userQuery = m.content
+        break
+      }
+    }
+
+    return withCallbackStreamTrace(
+      (p) => this.chatImpl(p),
+      { ...params, correlationId },
+      {
+        sessionId: correlationId,
+        workflowName: 'supervisor-chat',
+        userQuery,
+        metadata: {
+          providerId: params.providerId,
+          strength: params.strength ?? 'standard',
+          sshSessionId: params.sshSessionId,
+        },
+      }
+    )
+  }
+
+  /**
+   * 流式 chat 调用内部实现（被 chat() 包装）
+   *
    * 流程：
    * 1. 获取 Provider 配置（含 apiKey，从 SecureStore 解密）
    * 2. 对消息内容进行 redactSecrets 脱敏（Hard Constraint 6）
@@ -245,9 +284,9 @@ class SupervisorAgent {
    * 6. 累积 token 使用并记录到 token-stats
    * 7. 完成时调用 onDone，错误时调用 onError
    *
-   * @param params chat 调用参数
+   * @param params chat 调用参数（correlationId 由 chat() 保证已设置）
    */
-  async chat(params: ChatParams): Promise<void> {
+  private async chatImpl(params: ChatParams): Promise<void> {
     const {
       messages,
       providerId,
