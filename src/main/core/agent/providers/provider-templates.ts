@@ -36,38 +36,45 @@ import type { ProviderConfig } from './types'
  */
 export const PROVIDER_TEMPLATES: ProviderConfig[] = [
   // ===== DeepSeek（主推，国内可用 + 256K 上下文 + 成本低）=====
+  // 注意：baseURL 不含 /v1 后缀——@ai-sdk/openai 的 createOpenAI 会自动追加 /v1，
+  // 显式写 /v1 会变成 /v1/v1 双重后缀导致 404。
+  // 模型名更新（2026/07/24 旧模型 deepseek-chat / deepseek-reasoner / deepseek-coder 弃用）：
+  // - deepseek-v4-flash：替代 deepseek-chat（非思考模式，主对话 + 摘要 + 编程）
+  // - deepseek-v4-pro：新思考模式模型（thinking + reasoning_effort 参数）
+  //
   // 主对话 + 摘要（256K 长上下文适合压缩任务）
   {
     id: 'deepseek-v4',
-    name: 'DeepSeek V4',
+    name: 'DeepSeek V4 Flash',
     type: 'deepseek',
-    baseURL: 'https://api.deepseek.com/v1',
-    model: 'deepseek-chat',
+    baseURL: 'https://api.deepseek.com',
+    model: 'deepseek-v4-flash',
     defaultParams: { temperature: 0.7, maxTokens: 4096 },
     builtin: true,
     enabled: true,
     roles: ['chat', 'summarize'],
   },
   // DeepSeek Coder（编程 Subagent 专用）→ edit + apply
+  // coder 已合并到主模型，使用 deepseek-v4-flash 即可（编程能力已内置）
   {
     id: 'deepseek-coder-v3',
     name: 'DeepSeek Coder V3',
     type: 'deepseek',
-    baseURL: 'https://api.deepseek.com/v1',
-    model: 'deepseek-coder',
+    baseURL: 'https://api.deepseek.com',
+    model: 'deepseek-v4-flash',
     defaultParams: { temperature: 0.2, maxTokens: 8192 },
     builtin: true,
     enabled: true,
     roles: ['edit', 'apply'],
   },
-  // DeepSeek Reasoner（思考 Subagent 专用，对应 DeepSeek-R1 推理模型）→ preview
-  // R1 推理模型适合"先思考再回答"的预览场景
+  // DeepSeek Reasoner（思考 Subagent 专用，对应 DeepSeek-V4-Pro 推理模型）→ preview
+  // V4-Pro 思考模型适合"先思考再回答"的预览场景（thinking + reasoning_effort=high）
   {
     id: 'deepseek-reasoner',
-    name: 'DeepSeek Reasoner (R1)',
+    name: 'DeepSeek Reasoner (V4 Pro)',
     type: 'deepseek',
-    baseURL: 'https://api.deepseek.com/v1',
-    model: 'deepseek-reasoner',
+    baseURL: 'https://api.deepseek.com',
+    model: 'deepseek-v4-pro',
     defaultParams: { temperature: 0.6, maxTokens: 8192 },
     builtin: true,
     enabled: true,
