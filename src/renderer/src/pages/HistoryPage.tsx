@@ -100,7 +100,7 @@ export function HistoryPage() {
     border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)',
     gap: '6px', cursor: 'pointer',
   }
-  const selectCls = 'appearance-none bg-transparent border-none text-[11px] text-[var(--trae-text-default)] cursor-pointer outline-none pr-4'
+  const selectCls = 'appearance-none bg-transparent border-none text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-default)] cursor-pointer outline-none pr-4'
   const optStyle: CSSProperties = { background: 'var(--trae-bg-base-secondary)', color: 'var(--trae-text-default)' }
 
   return (
@@ -110,14 +110,14 @@ export function HistoryPage() {
         <div className="flex flex-row items-center gap-3 min-w-0">
           <Clock className="shrink-0 w-[22px] h-[22px]" style={{ color: 'var(--trae-bg-brand)' }} />
           <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="font-semibold text-[var(--trae-text-default)]" style={{ fontSize: '28px', lineHeight: '36px' }}>历史决策</span>
-            <span className="text-[11px] text-[var(--trae-text-secondary)]">AI运维决策的完整审计追溯</span>
+            <span className="font-semibold text-[var(--trae-text-default)]" style={{ fontSize: 'var(--trae-heading-2xl-font-size)', lineHeight: 'var(--trae-heading-2xl-line-height)' }}>历史决策</span>
+            <span className="text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">AI运维决策的完整审计追溯</span>
           </div>
         </div>
         <button
           type="button" data-dom-id="back-workbench" aria-label="返回工作台"
           onClick={() => navigate('/workbench')}
-          className="btn-press inline-flex items-center gap-1.5 h-7 px-3 text-[11px] font-medium text-[var(--trae-text-default)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
+          className="btn-press inline-flex items-center gap-1.5 h-7 px-3 text-[var(--trae-body-sm-font-size)] font-medium text-[var(--trae-text-default)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] transition-colors duration-150"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> 返回工作台
         </button>
@@ -127,8 +127,8 @@ export function HistoryPage() {
       <section className="grid grid-cols-2 lg:grid-cols-4" style={{ gap: '16px', padding: '24px 24px 0' }}>
         {STATS.map((stat) => (
           <div key={stat.label} className="flex flex-col" style={{ gap: '8px', padding: '16px', background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', minWidth: 0 }}>
-            <span className="font-medium text-[var(--trae-text-tertiary)]" style={{ fontSize: '10px', lineHeight: '14px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</span>
-            <span className="font-semibold" style={{ fontSize: '24px', lineHeight: '1.1', color: stat.color, fontFamily: 'var(--trae-font-family-mono)' }}>{stat.value}</span>
+            <span className="font-medium text-[var(--trae-text-tertiary)]" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{stat.label}</span>
+            <span className="font-semibold" style={{ fontSize: 'var(--trae-heading-xl-font-size)', lineHeight: '1.1', color: stat.color, fontFamily: 'var(--trae-font-family-mono)' }}>{stat.value}</span>
             <svg width="100%" height="24" viewBox="0 0 100 24" preserveAspectRatio="none" style={{ marginTop: 'auto', display: 'block' }}>
               <polyline points={stat.sparkline} fill="none" stroke={stat.color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -161,7 +161,7 @@ export function HistoryPage() {
           </div>
           <div className="inline-flex items-center shrink-0" style={{ height: '28px', minWidth: '220px', padding: '0 12px', background: 'var(--trae-bg-base-tertiary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', gap: '6px', flex: '0 1 280px' }}>
             <Search className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
-            <input type="text" data-dom-id="search-history" aria-label="搜索历史决策" placeholder="搜索决策..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-0 bg-transparent border-none outline-none text-[11px] text-[var(--trae-text-default)]" />
+            <input type="text" data-dom-id="search-history" aria-label="搜索历史决策" placeholder="搜索决策..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="flex-1 min-w-0 bg-transparent border-none outline-none text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-default)]" />
           </div>
         </div>
       </section>
@@ -170,42 +170,42 @@ export function HistoryPage() {
       <section className="flex-1" style={{ padding: '0 24px 24px' }}>
         <div className="flex flex-col">
           {filteredRecords.length === 0 && (
-            <div className="flex items-center justify-center h-32 text-[11px] text-[var(--trae-text-tertiary)]">未匹配到任何决策记录</div>
+            <div className="flex items-center justify-center h-32 text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-tertiary)]">未匹配到任何决策记录</div>
           )}
           {filteredRecords.map((record, idx) => {
             const isLast = idx === filteredRecords.length - 1
             return (
               <div key={record.id} className="flex" style={{ gap: '16px' }}>
                 <div className="flex flex-col items-center" style={{ width: '56px', flexShrink: 0, paddingTop: '2px' }}>
-                  <span className="text-[var(--trae-text-tertiary)]" style={{ fontSize: '10px', lineHeight: '1', fontFamily: 'var(--trae-font-family-mono)', whiteSpace: 'nowrap' }}>{record.time}</span>
+                  <span className="text-[var(--trae-text-tertiary)]" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: '1', fontFamily: 'var(--trae-font-family-mono)', whiteSpace: 'nowrap' }}>{record.time}</span>
                   <span style={{ marginTop: '6px', width: '10px', height: '10px', borderRadius: '50%', background: dotColor(record.status), border: '2px solid var(--trae-bg-base-default)', boxSizing: 'border-box', flexShrink: 0, zIndex: 1 }} />
                   {!isLast && <div style={{ flex: '1', width: '2px', background: 'var(--trae-border-neutral-l1)', marginTop: '4px', minHeight: '24px' }} />}
                 </div>
                 <div className="flex-1 min-w-0" style={{ marginBottom: isLast ? '0' : '16px' }}>
                   <div className="history-card" style={{ padding: '16px', background: 'var(--trae-bg-base-secondary)', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-8)', transition: 'background .15s ease, border-color .15s ease' }}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-[var(--trae-text-default)]" style={{ fontSize: '16px', lineHeight: '1.3' }}>{record.title}</span>
-                      <span className="inline-flex items-center font-medium" style={{ padding: '2px 8px', borderRadius: 'var(--trae-radius-4)', fontSize: '10px', lineHeight: '14px', ...statusBadgeStyle(record.status) }}>{record.status}</span>
-                      <span className="inline-flex items-center font-medium" style={{ padding: '2px 8px', borderRadius: 'var(--trae-radius-4)', fontSize: '10px', lineHeight: '14px', ...riskBadgeStyle(record.risk) }}>{record.risk}</span>
+                      <span className="font-semibold text-[var(--trae-text-default)]" style={{ fontSize: 'var(--trae-heading-sm-font-size)', lineHeight: '1.3' }}>{record.title}</span>
+                      <span className="inline-flex items-center font-medium" style={{ padding: '2px 8px', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', ...statusBadgeStyle(record.status) }}>{record.status}</span>
+                      <span className="inline-flex items-center font-medium" style={{ padding: '2px 8px', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', ...riskBadgeStyle(record.risk) }}>{record.risk}</span>
                     </div>
                     <div className="flex flex-wrap items-center" style={{ gap: '8px 16px', marginTop: '8px' }}>
-                      <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-secondary)]">
+                      <span className="inline-flex items-center gap-1.5 text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">
                         <Cpu className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />{record.server}
                       </span>
-                      <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--trae-text-secondary)]">
+                      <span className="inline-flex items-center gap-1.5 text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">
                         {record.actor === 'ai-agent' ? <Sparkles className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" /> : <UserCircle className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />}
                         {record.actor}
                       </span>
-                      <span className="text-[11px] text-[var(--trae-text-secondary)]">
+                      <span className="text-[var(--trae-body-sm-font-size)] text-[var(--trae-text-secondary)]">
                         置信度 <span className="font-medium" style={{ color: 'var(--trae-bg-brand)', fontFamily: 'var(--trae-font-family-mono)' }}>{record.confidence.toFixed(2)}</span>
                       </span>
-                      <code className="font-mono" style={{ fontSize: '10px', lineHeight: '14px', color: record.isDanger ? 'var(--trae-status-error-default)' : 'var(--trae-code-text)', background: record.isDanger ? 'var(--trae-status-error-surface-l1)' : 'var(--trae-bg-base-default)', padding: '2px 6px', borderRadius: 'var(--trae-radius-2)', border: '1px solid var(--trae-border-neutral-l1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', display: 'inline-block' }}>
+                      <code className="font-mono" style={{ fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)', color: record.isDanger ? 'var(--trae-status-error-default)' : 'var(--trae-code-text)', background: record.isDanger ? 'var(--trae-status-error-surface-l1)' : 'var(--trae-bg-base-default)', padding: '2px 6px', borderRadius: 'var(--trae-radius-2)', border: '1px solid var(--trae-border-neutral-l1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', display: 'inline-block' }}>
                         {record.command}
                       </code>
                     </div>
-                    <p className="text-[var(--trae-text-tertiary)]" style={{ marginTop: '8px', fontSize: '10px', lineHeight: '14px' }}>{record.desc}</p>
+                    <p className="text-[var(--trae-text-tertiary)]" style={{ marginTop: '8px', fontSize: 'var(--trae-body-xs-font-size)', lineHeight: 'var(--trae-body-xs-line-height)' }}>{record.desc}</p>
                     <div className="flex items-center justify-between" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--trae-border-neutral-l1)', gap: '12px' }}>
-                      <span className="inline-flex items-center gap-1.5 text-[10px] text-[var(--trae-text-tertiary)]">
+                      <span className="inline-flex items-center gap-1.5 text-[var(--trae-body-xs-font-size)] text-[var(--trae-text-tertiary)]">
                         <Clock className="shrink-0 w-3 h-3 text-[var(--trae-text-tertiary)]" />
                         耗时 <span className="text-[var(--trae-text-secondary)]" style={{ fontFamily: 'var(--trae-font-family-mono)' }}>{record.durationSec}s</span>
                       </span>
@@ -213,7 +213,7 @@ export function HistoryPage() {
                         type="button" data-dom-id={`goto-history-detail-${record.id}`}
                         aria-label={`查看决策 ${record.title} 的详情`}
                         onClick={() => navigate(`/history/${record.id}`)}
-                        className="btn-press inline-flex items-center shrink-0 gap-1 text-[10px] text-[var(--trae-bg-brand)] bg-transparent border-none cursor-pointer hover:underline"
+                        className="btn-press inline-flex items-center shrink-0 gap-1 text-[var(--trae-body-xs-font-size)] text-[var(--trae-bg-brand)] bg-transparent border-none cursor-pointer hover:underline"
                       >
                         查看详情 <ArrowRight className="w-3 h-3" />
                       </button>
@@ -228,7 +228,7 @@ export function HistoryPage() {
 
       {/* 5. 底部分页栏 */}
       <footer className="flex flex-wrap items-center justify-between" style={{ gap: '12px', padding: '16px 24px', borderTop: '1px solid var(--trae-border-neutral-l1)', background: 'var(--trae-bg-base-secondary)' }}>
-        <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+        <span className="text-[var(--trae-body-xs-font-size)] text-[var(--trae-text-tertiary)]">
           共 <span className="text-[var(--trae-text-secondary)]" style={{ fontFamily: 'var(--trae-font-family-mono)' }}>{TOTAL_RECORDS}</span> 条记录
         </span>
         <div className="flex items-center gap-1">
@@ -238,7 +238,7 @@ export function HistoryPage() {
           {PAGINATION.map((page, idx) => {
             if (page === null) {
               return (
-                <button key={`ellipsis-${idx}`} type="button" disabled className="btn-press inline-flex items-center justify-center cursor-not-allowed" style={{ minWidth: '28px', height: '28px', padding: '0 4px', background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-tertiary)', fontSize: '11px' }}>…</button>
+                <button key={`ellipsis-${idx}`} type="button" disabled className="btn-press inline-flex items-center justify-center cursor-not-allowed" style={{ minWidth: '28px', height: '28px', padding: '0 4px', background: 'transparent', border: '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>…</button>
               )
             }
             const isActive = page === currentPage
@@ -247,7 +247,7 @@ export function HistoryPage() {
                 key={page} type="button" aria-label={`第 ${page} 页`} aria-pressed={isActive}
                 onClick={() => setCurrentPage(page)}
                 className="btn-press inline-flex items-center justify-center cursor-pointer"
-                style={{ minWidth: '28px', height: '28px', padding: '0 8px', background: isActive ? 'var(--trae-bg-brand)' : 'transparent', color: isActive ? 'var(--trae-text-onbrand)' : 'var(--trae-text-secondary)', border: isActive ? '1px solid var(--trae-bg-brand)' : '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: '11px', fontFamily: 'var(--trae-font-family-mono)' }}
+                style={{ minWidth: '28px', height: '28px', padding: '0 8px', background: isActive ? 'var(--trae-bg-brand)' : 'transparent', color: isActive ? 'var(--trae-text-onbrand)' : 'var(--trae-text-secondary)', border: isActive ? '1px solid var(--trae-bg-brand)' : '1px solid var(--trae-border-neutral-l1)', borderRadius: 'var(--trae-radius-4)', fontSize: 'var(--trae-body-sm-font-size)', fontFamily: 'var(--trae-font-family-mono)' }}
               >
                 {page}
               </button>
