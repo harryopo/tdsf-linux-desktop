@@ -79,6 +79,23 @@ const MiniBar: FC<{ percent: number; color?: string }> = ({ percent, color = 'va
   </div>
 )
 
+/**
+ * 格式化 USD 成本展示（v0.9.3 §11 改进点 26 P2-F 辅助函数）
+ *
+ * - 0 → "$0.00"
+ * - (0, 0.01) → "<$0.01"（避免显示 $0.00 失真，让用户知道有消耗）
+ * - [0.01, 1) → 保留 3 位小数（如 $0.023）
+ * - [1, 100) → 保留 2 位小数（如 $1.50 / $12.34）
+ * - [100, ∞) → 保留 2 位小数 + 千位分隔符（如 $1,234.56）
+ */
+function formatCost(usd: number): string {
+  if (!Number.isFinite(usd) || usd <= 0) return '0.00'
+  if (usd < 0.01) return '<0.01'
+  if (usd < 1) return usd.toFixed(3)
+  if (usd < 100) return usd.toFixed(2)
+  return usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 /** 单条工具面板（可折叠，grid-rows 动画） */
 const ToolPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?: string) => void }> = ({ panel, onAction }) => {
   const [open, setOpen] = useState<boolean>(panel.defaultOpen ?? false)
@@ -945,6 +962,10 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     selectedProviderId,
     setSelectedProviderId,
     tokenStats,
+    // v0.9.3 §11 改进点 26 P2-F：成本统计 + 会话累计 + 重置
+    costStats,
+    sessionCost,
+    resetSessionCost,
     send,
     cancel,
     clear,
@@ -1709,6 +1730,54 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
           <span className="whitespace-nowrap">
             累计 {tokenStats.total.toLocaleString()}
           </span>
+        </div>
+
+        {/*
+          * v0.9.3 §11 改进点 26 P2-F：成本累计展示
+          *
+          * 方案书要求："本次会话累计成本：¥X.XX / 今日累计：¥X.XX / 本月累计：¥X.XX"
+          * 本实现使用 USD（与主进程 CostStats 单位一致），展示三档：
+          *   本次会话 $X.XX · 今日 $X.XX · 本月 $X.XX
+          * 并提供"重置会话"按钮（RotateCcw 图标），让用户主动重置 sessionCostBaseline。
+          * 设计原则：
+          *   - 单行紧凑布局，与上方 token-row 视觉对齐
+          *   - 三档均显示 USD，金额 < 0.01 时显示 "<$0.01" 避免显示 $0.00 失真
+          *   - hover 行整体高亮（CSS .ai-cost-row:hover）
+          *   - ResetConfirmationTooltip 在按钮 hover 时提示"重置本次会话成本统计"
+          */}
+        <div className="ai-cost-row" title="Token 成本透明化（v0.9.3 §11 改进点 26）">
+          <span className="ai-cost-icon" aria-hidden>
+            $
+          </span>
+          <span className="ai-cost-segment ai-cost-session" title="自本次会话启动以来的累计成本">
+            <span className="ai-cost-label">本次会话</span>
+            <span className="ai-cost-value">
+              ${formatCost(sessionCost)}
+            </span>
+          </span>
+          <span className="ai-cost-divider" aria-hidden>·</span>
+          <span className="ai-cost-segment" title="今日累计成本（UTC+8 当日 00:00 起）">
+            <span className="ai-cost-label">今日</span>
+            <span className="ai-cost-value">
+              ${formatCost(costStats.todayCost)}
+            </span>
+          </span>
+          <span className="ai-cost-divider" aria-hidden>·</span>
+          <span className="ai-cost-segment" title="本月累计成本（UTC+8 当月 1 日 00:00 起）">
+            <span className="ai-cost-label">本月</span>
+            <span className="ai-cost-value">
+              ${formatCost(costStats.monthCost)}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="ai-cost-reset-btn"
+            onClick={resetSessionCost}
+            title="重置本次会话成本统计（本次会话从 0 重新累计）"
+            aria-label="重置本次会话成本"
+          >
+            <RotateCcw className="size-2.5" />
+          </button>
         </div>
       </div>
     </div>
