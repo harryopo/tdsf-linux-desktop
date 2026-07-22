@@ -114,7 +114,7 @@ export function AboutSettings() {
             background: 'var(--trae-bg-brand-popup)',
             border: '1px solid var(--trae-bg-brand)',
             borderRadius: 'var(--trae-radius-10)',
-            boxShadow: '0 4px 24px rgba(56, 123, 255, 0.15)',
+            boxShadow: 'var(--trae-shadow-hero)',
           }}
         >
           {/* TDSF Logo — 圆角立方体 + 终端光标，替代设计稿 logo.svg */}
