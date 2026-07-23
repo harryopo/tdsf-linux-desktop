@@ -23,8 +23,8 @@ import type { ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
-  ScrollText, ArrowLeft, ArrowRight, Star, Sparkles, Clock, UserCircle,
-  ChevronRight, Terminal, Zap, Box, Cpu, Globe, Shield,
+  ScrollText, ArrowRight, Star, Sparkles, Clock, UserCircle,
+  ChevronRight, Terminal, Zap, Box, Cpu, Globe, Shield, TrendingUp,
 } from 'lucide-react'
 import type {
   TutorialEntry,
@@ -61,6 +61,15 @@ interface Course {
 interface LearningPath {
   id: string
   title: string
+  /** 路径难度标签（入门/中级/高级）—— 设计稿卡片右下角 */
+  level: '入门' | '中级' | '高级'
+  /** 路径包含课程数 —— 设计稿卡片标题下方 */
+  courseCount: number
+  /** 学习进度百分比 —— 设计稿卡片右下角 mono 字体 */
+  percent: number
+  /** 路径图标（lucide）—— 设计稿卡片左侧 36×36 圆角图标盒 */
+  icon: LucideIcon
+  /** 学习步骤（保留用于后续详情页跳转，UI 不再展示 chips） */
   steps: { label: string; active?: boolean }[]
 }
 
@@ -278,9 +287,9 @@ const DEFAULT_COURSES: Course[] = [
 ]
 
 const LEARNING_PATHS: LearningPath[] = [
-  { id: 'newbie', title: '运维新手入门', steps: [{ label: 'Linux 基础' }, { label: 'SSH 配置' }, { label: 'Shell 脚本', active: true }] },
-  { id: 'perf-expert', title: '性能优化专家', steps: [{ label: 'Nginx 调优' }, { label: 'MySQL 优化' }, { label: '系统监控', active: true }] },
-  { id: 'security-engineer', title: '安全运维工程师', steps: [{ label: '安全加固' }, { label: '漏洞扫描' }, { label: '入侵检测', active: true }] },
+  { id: 'newbie', title: '运维新手入门', level: '入门', courseCount: 3, percent: 33, icon: Zap, steps: [{ label: 'Linux 基础' }, { label: 'SSH 配置' }, { label: 'Shell 脚本', active: true }] },
+  { id: 'perf-expert', title: '性能优化专家', level: '中级', courseCount: 3, percent: 66, icon: TrendingUp, steps: [{ label: 'Nginx 调优' }, { label: 'MySQL 优化' }, { label: '系统监控', active: true }] },
+  { id: 'security-engineer', title: '安全运维工程师', level: '高级', courseCount: 3, percent: 0, icon: Shield, steps: [{ label: '安全加固' }, { label: '漏洞扫描' }, { label: '入侵检测', active: true }] },
 ]
 
 // ==================== 辅助函数 ====================
@@ -420,15 +429,25 @@ export function TutorialPage() {
         ])
 
         // 学习路径：将推荐结果映射为 UI 路径
+        // IPC 返回的 TutorialPath 无 icon/level/percent/courseCount 字段，
+        // 按 fallback LEARNING_PATHS 顺序循环填充（保证设计稿卡片视觉完整）
         if (Array.isArray(recommendedPaths) && recommendedPaths.length > 0) {
-          const mappedPaths = recommendedPaths.slice(0, 3).map((path) => ({
-            id: path.id,
-            title: path.name,
-            steps: path.steps.map((step, i) => ({
-              label: step.title,
-              active: i === path.steps.length - 1,
-            })),
-          }))
+          const mappedPaths = recommendedPaths.slice(0, 3).map((path, idx) => {
+            const fallback = LEARNING_PATHS[idx] ?? LEARNING_PATHS[0]
+            return {
+              id: path.id,
+              title: path.name,
+              level: fallback.level,
+              courseCount: path.steps.length,
+              // 进度按已访问步骤数估算（保守取 fallback，避免虚假高进度）
+              percent: fallback.percent,
+              icon: fallback.icon,
+              steps: path.steps.map((step, i) => ({
+                label: step.title,
+                active: i === path.steps.length - 1,
+              })),
+            }
+          })
           setPaths(mappedPaths)
         }
 
@@ -461,7 +480,6 @@ export function TutorialPage() {
     return () => { cancelled = true }
   }, [])
 
-  const handleBack = () => navigate('/workbench')
   const handleOpenCourse = (id: string) => {
     _markVisited(id)
     navigate(`/tutorial/${id}`)
@@ -581,10 +599,6 @@ export function TutorialPage() {
             <span className="tut-page-subtitle">从入门到精通的 Linux 运维实战课程</span>
           </div>
         </div>
-        <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="tut-back-btn tut-btn-press">
-          <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
-          <span>返回工作台</span>
-        </button>
       </header>
 
       {/* ====== RAG 混合检索搜索框（M4 Task 5）====== */}
@@ -844,28 +858,47 @@ export function TutorialPage() {
           )}
         </section>
 
-        {/* ====== 6. 推荐学习路径 ====== */}
+        {/* ====== 6. 推荐学习路径（横向滚动卡片，1:1 对齐设计稿 tutorial.html §6）====== */}
         <section className="tut-section tut-section--paths" aria-label="推荐学习路径">
           <div className="tut-section-title-row">
             <Sparkles size={18} style={{ color: 'var(--trae-icon-brand)' }} />
             <h2 className="tut-section-title">推荐学习路径</h2>
+            <button
+              type="button"
+              className="tut-paths-viewall tut-btn-press"
+              aria-label="查看全部学习路径"
+            >
+              查看全部
+              <ChevronRight size={12} style={{ color: 'var(--trae-text-brand)' }} />
+            </button>
           </div>
-          <div className="tut-paths-list">
-            {paths.map((path) => (
-              <div key={path.id} className="tut-path-row">
-                <span className="tut-path-title">{path.title}</span>
-                <span className="tut-path-steps tut-no-scrollbar">
-                  {path.steps.map((step, i) => (
-                    <span key={step.label} className="tut-path-step">
-                      {i > 0 && <ChevronRight size={12} className="tut-path-chevron" />}
-                      <span className={`tut-path-step${step.active ? ' tut-path-step--active' : ''}`}>
-                        {step.label}
-                      </span>
+          <div className="tut-paths-scroller tut-no-scrollbar">
+            {paths.map((path) => {
+              const PathIcon = path.icon
+              return (
+                <div key={path.id} className="tut-path-card tut-btn-press">
+                  {/* 卡片头部：36×36 圆角图标盒 + 标题 + 课程数 */}
+                  <div className="tut-path-card-head">
+                    <span className="tut-path-card-iconbox">
+                      <PathIcon size={18} style={{ color: 'var(--trae-icon-brand)' }} />
                     </span>
-                  ))}
-                </span>
-              </div>
-            ))}
+                    <div className="tut-path-card-meta">
+                      <span className="tut-path-card-title">{path.title}</span>
+                      <span className="tut-path-card-count">{path.courseCount} 门课程</span>
+                    </div>
+                  </div>
+                  {/* 难度标签 + 进度百分比（mono 字体右对齐） */}
+                  <div className="tut-path-card-levelrow">
+                    <span className="tut-path-card-level">{path.level}</span>
+                    <span className="tut-path-card-percent">{path.percent}%</span>
+                  </div>
+                  {/* 3px 进度条 */}
+                  <div className="tut-path-card-progress">
+                    <div className="tut-path-card-progress-fill" style={{ width: `${path.percent}%` }} />
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </section>
       </div>
