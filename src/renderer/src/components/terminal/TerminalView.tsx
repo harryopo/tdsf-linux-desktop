@@ -14,7 +14,7 @@
  * - useEffect 中初始化（DOM 就绪后）
  * - 组件卸载时 dispose 终端实例
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -23,7 +23,9 @@ import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import { useTranslateStore } from '../../stores/translate-store'
+import { useEditorStore } from '../../stores/editor-store'
 import { SelectionManager } from './selection-manager'
+import TerminalSearchBar from './TerminalSearchBar'
 import './TerminalView.css'
 import './Terminal.css'
 
@@ -49,8 +51,12 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
   const terminalRef = useRef<Terminal | null>(null)
   /** FitAddon 实例引用 */
   const fitRef = useRef<FitAddon | null>(null)
+  /** SearchAddon 实例引用（供 TerminalSearchBar 使用） */
+  const searchAddonRef = useRef<SearchAddon | null>(null)
   /** 当前字体大小 */
   const fontSizeRef = useRef<number>(DEFAULT_FONT_SIZE)
+  /** 终端搜索栏显隐状态（Ctrl+F 触发） */
+  const [searchOpen, setSearchOpen] = useState(false)
   /** v0.8.0 翻译开关状态（订阅 store 变化以动态挂载/卸载 SelectionManager） */
   const translateEnabled = useTranslateStore((s) => s.enabled)
 
@@ -103,6 +109,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
 
     const searchAddon = new SearchAddon()
     terminal.loadAddon(searchAddon)
+    searchAddonRef.current = searchAddon
 
     // 默认使用 xterm.js 内置 Canvas 渲染器，避免 WebGL 在部分 GPU 驱动下崩溃
     // 如需启用 WebGL 加速，可取消下面注释并安装 @xterm/addon-webgl
@@ -190,6 +197,10 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
         e.preventDefault()
         fontSizeRef.current = DEFAULT_FONT_SIZE
         terminal.options.fontSize = DEFAULT_FONT_SIZE
+      } else if (e.ctrlKey && e.key === 'f') {
+        // Ctrl+F 触发终端搜索栏
+        e.preventDefault()
+        setSearchOpen(true)
       }
     }
     terminal.textarea?.addEventListener('keydown', handleKeyDown)
@@ -212,6 +223,28 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       })
     }
 
+    // ===== 7.6 v2.0 xterm 选中桥接 → editor-store.selection =====
+    // 选中终端文本时，写入 editor-store.selection（type='cmd'），触发 SelectionPopover 浮层
+    // 鼠标松开后 50ms 检查选中（避免拖拽过程中频繁触发）
+    let selectionDebounce: ReturnType<typeof setTimeout> | null = null
+    const selectionDisposable = terminal.onSelectionChange(() => {
+      if (selectionDebounce) clearTimeout(selectionDebounce)
+      selectionDebounce = setTimeout(() => {
+        if (!terminalRef.current) return
+        const text = terminalRef.current.getSelection()
+        const { setSelection } = useEditorStore.getState()
+        if (text && text.trim().length > 0) {
+          setSelection({
+            text: text.trim(),
+            type: 'cmd',
+          })
+        } else {
+          // 选中清空时也清除 store（避免浮层残留）
+          setSelection(null)
+        }
+      }, 50)
+    })
+
     // ===== 8. 清理 =====
     return () => {
       // 取消 IPC 事件监听
@@ -229,6 +262,13 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
         selectionManager.dispose()
         selectionManager = null
       }
+      // v2.0 清理 xterm 选中监听
+      selectionDisposable.dispose()
+      if (selectionDebounce) {
+        clearTimeout(selectionDebounce)
+      }
+      // v2.0 清理 SearchAddon 引用
+      searchAddonRef.current = null
       try {
         terminal.dispose()
       } catch {
@@ -245,7 +285,14 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
     <div
       ref={containerRef}
       className={`terminal-view ${visible ? 'visible' : 'hidden'}`}
-    />
+      style={{ position: 'relative' }}
+    >
+      <TerminalSearchBar
+        open={searchOpen}
+        searchAddon={searchAddonRef.current}
+        onClose={() => setSearchOpen(false)}
+      />
+    </div>
   )
 }
 
