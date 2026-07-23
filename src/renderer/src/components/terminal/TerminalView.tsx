@@ -37,8 +37,8 @@ interface TerminalViewProps {
   visible: boolean
 }
 
-/** 终端默认字体大小 */
-const DEFAULT_FONT_SIZE = 13
+/** 终端默认字体大小（设计稿要求 11px JetBrains Mono） */
+const DEFAULT_FONT_SIZE = 11
 /** 终端最小/最大字体大小 */
 const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 32

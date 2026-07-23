@@ -411,7 +411,7 @@
   gap: 4px;
   width: 48px;
   padding: 8px 0;
-  background: var(--trae-bg-base-secondary);
+  background: var(--trae-bg-base-default);
   border-right: 1px solid var(--trae-border-neutral-l1);
   flex-shrink: 0;
 }
