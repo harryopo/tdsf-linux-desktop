@@ -67,7 +67,15 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
   } = props
 
   return (
-    <SettingsCard icon={Cpu} title="模型配置" tag="model.config" className="p-5">
+    <SettingsCard
+      icon={Cpu}
+      title="模型配置"
+      tag="model.config"
+      className="p-5"
+      hideTag
+      noHeadBorder
+      headMb="lg"
+    >
       {/* 当前模型展示行 */}
       <div className="set-model-current">
         <div className="set-model-current__info">

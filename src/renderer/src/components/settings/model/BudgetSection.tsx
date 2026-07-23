@@ -40,7 +40,16 @@ export function BudgetSection(props: BudgetSectionProps) {
   } = props
 
   return (
-    <SettingsCard icon={AlertCircle} title="预算与告警" tag="budget" className="p-5">
+    <SettingsCard
+      icon={AlertCircle}
+      title="预算与告警"
+      tag="budget"
+      className="p-5"
+      hideTag
+      noHeadBorder
+      headMb="lg"
+      iconColor="var(--trae-status-alert-default)"
+    >
       {/* 月度预算设置 */}
       <div className="set-budget-row">
         <div className="set-budget-row__head">

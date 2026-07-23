@@ -4,7 +4,7 @@
  * 路由：/settings/model
  *
  * 设计稿：settings-model.html（1:1 迁移）
- * - PageHeader: 模型配置 / AI 模型管理与 Token 用量统计
+ * - Header: 三列布局（左返回 + 中居中标题+副标题 + 右保存配置按钮）→ ModelSettingsHeader
  * - Section 1: KPI 统计行（Token 总量 / 成本 / 对话次数 / 成功率）→ ModelKpiBar
  * - Section 2: 模型配置（当前模型 + 可选模型列表 + 温度滑块+预设 + 思考强度分段 + 3 列数字输入）→ ModelConfigSection
  * - Section 3: API 接入与测试（Endpoint + API Key + 组织 ID + 测试连接 + 结果卡 + 日志）→ ApiTestSection
@@ -17,15 +17,14 @@
  * v1.5 改造：接入真实 IPC 存储（providerList / providerSave / providerSetDefault）
  * v2.3.2 改造：toolCallStats / budgetAlerts 接入真实 IPC 数据
  * M5 Task 6：拆分为 7 Section 组件，本文件仅负责状态管理 + Section 组合（≤500 行）。
+ * v2.3.3 视觉重构：替换 SettingsPageHeader 为 ModelSettingsHeader（三列布局对齐设计稿），
+ *                  所有 Section 卡片头部移除 tag + border-bottom（hideTag + noHeadBorder + headMb='lg'），
+ *                  ModelKpiBar 改为 grid 布局对齐设计稿 lg:grid-cols-4。
  */
 import { useState, useEffect, useRef } from 'react'
-import {
-  Cpu,
-  type LucideIcon,
-} from 'lucide-react'
 import type { PersistedProviderConfig, TokenUsageRecord } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
-import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { ModelSettingsHeader } from '@/components/settings/model/ModelSettingsHeader'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
 import { ModelConfigSection } from '@/components/settings/model/ModelConfigSection'
 import { ApiTestSection } from '@/components/settings/model/ApiTestSection'
@@ -447,10 +446,10 @@ export function ModelSettings() {
 
   return (
     <div>
-      <SettingsPageHeader
-        icon={Cpu as LucideIcon}
+      <ModelSettingsHeader
         title="模型配置"
         desc="AI模型管理与Token用量统计"
+        onSave={handleSaveAll}
       />
 
       <div className="set-panel-content">
