@@ -1166,6 +1166,8 @@ export interface ElectronAPI {
   kbUpdate(id: string, partial: Partial<KnowledgeEntry>): Promise<boolean>
   /** 删除知识条目 */
   kbDelete(id: string): Promise<boolean>
+  /** 按 id 查询单条知识条目（未找到返回 null） */
+  kbGet(id: string): Promise<KnowledgeEntry | null>
   /** 批量导入知识 */
   kbImport(entries: KnowledgeEntry[]): Promise<number>
   /** 导出知识库 */

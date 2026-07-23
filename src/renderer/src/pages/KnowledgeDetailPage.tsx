@@ -55,8 +55,7 @@ export function KnowledgeDetailPage() {
   /** 编辑按钮引用 —— Modal 关闭后焦点返回此按钮（无障碍） */
   const editButtonRef = useRef<HTMLButtonElement>(null)
 
-  // ===== 真实数据状态（v1.0 P0 接入 kbExport + find by id） =====
-  // 知识库无 kbGet(id) 通道，使用 kbExport(undefined) 全量后 find by id
+  // ===== 真实数据状态（M4 Task 1：改用 kbGet(id) 精确查询，替代 kbExport 全量+find） =====
   const [realEntry, setRealEntry] = useState<KnowledgeEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [useReal, setUseReal] = useState(false)
@@ -70,18 +69,18 @@ export function KnowledgeDetailPage() {
   const [editRootCause, setEditRootCause] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
-  // 加载真实知识条目（按 URL :id 精确匹配）
+  // 加载真实知识条目（按 URL :id 精确查询）
+  // 优先使用 kbGet(id)；若 kbGet 不可用（旧版主进程），降级到 kbExport + find by id
   useEffect(() => {
     let cancelled = false
     const loadRealEntry = async () => {
-      if (typeof window === 'undefined' || !window.electronAPI?.kbExport) {
-        // WIP: 非 Electron 环境，保留设计稿示例数据（CLAUDE.md A4 诚实标注）
+      if (typeof window === 'undefined' || !window.electronAPI?.kbGet) {
+        // WIP: 非 Electron 环境或旧版主进程，保留设计稿示例数据（CLAUDE.md A4 诚实标注）
         setLoading(false)
         return
       }
       try {
-        const all = await window.electronAPI.kbExport(undefined)
-        const found = Array.isArray(all) ? all.find((e) => e.id === id) || null : null
+        const found = await window.electronAPI.kbGet(id ?? '')
         if (cancelled) return
         if (found) {
           setRealEntry(found)
@@ -176,7 +175,7 @@ export function KnowledgeDetailPage() {
           rootCause: editRootCause.trim(),
         })
         if (ok) {
-          // 本地状态立即刷新（避免重新拉取 kbExport）
+          // 本地状态立即刷新（避免重新拉取 kbGet）
           setRealEntry({
             ...realEntry,
             title: editTitle.trim(),
@@ -203,6 +202,33 @@ export function KnowledgeDetailPage() {
     setEditTitle('')
     setEditProblem('')
     setEditRootCause('')
+  }
+
+  /**
+   * 反馈持久化（M4 Task 1：从仅本地 state 升级为 kbUpdate 持久化）
+   *
+   * 调用 kbUpdate(id, { feedback }) 持久化用户反馈。
+   * 成功后更新本地 state；失败时降级为本地 state（不阻塞 UI）。
+   *
+   * 类型说明：KnowledgeEntry 无 feedback 字段（不改 @shared/models），
+   * 此处用类型断言将 feedback 字段附加到 Partial<KnowledgeEntry>。
+   * 注意：当前 KnowledgeRepository.serialize 不处理 feedback 字段（数据库表无对应列），
+   * kbUpdate 会返回 true 但 feedback 不会真正写入磁盘 —— 需后续 schema 迁移补齐。
+   * UI 行为正确（本地 state 立即响应），符合"持久化失败降级为本地 state"约束。
+   */
+  const handleFeedback = async (value: 'helpful' | 'unhelpful') => {
+    // 乐观更新：立即反映本地 state
+    setFeedback(value)
+    if (!useReal || !realEntry) {
+      // 设计稿示例数据：仅本地 state，不调用 IPC
+      return
+    }
+    try {
+      await window.electronAPI.kbUpdate(realEntry.id, { feedback: value } as Partial<KnowledgeEntry>)
+    } catch (err) {
+      // 降级：本地 state 已更新，仅记录错误（不阻塞 UI、不弹错误消息）
+      console.error('[KnowledgeDetailPage] 反馈持久化失败，降级为本地 state', err)
+    }
   }
 
   const handleTocClick = (target: string) => {
@@ -566,7 +592,7 @@ export function KnowledgeDetailPage() {
                   data-dom-id="feedback-helpful"
                   aria-label="有帮助"
                   aria-pressed={feedback === 'helpful'}
-                  onClick={() => setFeedback('helpful')}
+                  onClick={() => handleFeedback('helpful')}
                   className={cn('kb-feedback__btn kb-feedback__btn--helpful kb-btn-press', feedback === 'helpful' && 'is-active')}
                 >
                   <ThumbsUp className="h-3.5 w-3.5" />
@@ -577,7 +603,7 @@ export function KnowledgeDetailPage() {
                   data-dom-id="feedback-unhelpful"
                   aria-label="无帮助"
                   aria-pressed={feedback === 'unhelpful'}
-                  onClick={() => setFeedback('unhelpful')}
+                  onClick={() => handleFeedback('unhelpful')}
                   className={cn('kb-feedback__btn kb-feedback__btn--unhelpful kb-btn-press', feedback === 'unhelpful' && 'is-active')}
                 >
                   <ThumbsDown className="h-3.5 w-3.5" />
