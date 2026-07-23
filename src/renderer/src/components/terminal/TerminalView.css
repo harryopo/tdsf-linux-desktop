@@ -22,10 +22,14 @@
 /* xterm.js 终端内部样式微调 */
 .terminal-view .xterm {
   height: 100%;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 11px;
 }
 
 .terminal-view .xterm-viewport {
   background-color: var(--trae-terminal-block-bg) !important;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 11px;
 }
 
 /* 终端滚动条 */

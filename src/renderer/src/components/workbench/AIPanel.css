@@ -1194,3 +1194,90 @@
   .shimmer-text { animation: none; -webkit-text-fill-color: var(--trae-text-secondary); }
   .mini-bar-fill { transition: none; }
 }
+
+/* ========================================================================
+   Task 9.3 / 9.4 — Tool panel 展开折叠 + 执行控制 4 按钮（TRAE token 对齐）
+   类名前缀 wb- 避免与 .ai-* 冲突；仅样式定义，组件按需引用
+   ======================================================================== */
+
+/* ===== Step 9.3: Tool panel 展开折叠样式 ===== */
+.wb-tool-panel {
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  margin-bottom: var(--trae-spacer-8);
+  overflow: hidden;
+}
+
+.wb-tool-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--trae-spacer-8) var(--trae-spacer-12);
+  background: var(--trae-bg-base-tertiary);
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--trae-body-md-font-size);
+  color: var(--trae-text-secondary);
+  transition: background var(--trae-duration-fast) var(--trae-ease-out);
+}
+
+.wb-tool-panel-header:hover {
+  background: var(--trae-bg-overlay-l1);
+}
+
+.wb-tool-panel-body {
+  padding: var(--trae-spacer-8) var(--trae-spacer-12);
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--trae-text-default);
+  border-top: 1px solid var(--trae-border-neutral-l1);
+}
+
+.wb-tool-panel.is-collapsed .wb-tool-panel-body {
+  display: none;
+}
+
+/* ===== Step 9.4: 执行控制 4 按钮视觉 ===== */
+.wb-exec-controls {
+  display: flex;
+  gap: var(--trae-spacer-8);
+  padding: var(--trae-spacer-8) var(--trae-spacer-12);
+  border-top: 1px solid var(--trae-border-neutral-l1);
+}
+
+.wb-exec-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: var(--trae-body-sm-font-size);
+  border: 1px solid var(--trae-border-neutral-l1);
+  background: var(--trae-bg-base-tertiary);
+  color: var(--trae-text-secondary);
+  border-radius: var(--trae-radius-4);
+  cursor: pointer;
+  transition: all var(--trae-duration-fast) var(--trae-ease-out);
+  font-family: inherit;
+}
+
+.wb-exec-btn:hover {
+  background: var(--trae-bg-overlay-l1);
+  color: var(--trae-text-default);
+}
+
+.wb-exec-btn.is-primary {
+  background: var(--trae-bg-brand);
+  color: var(--trae-text-onbrand);
+  border-color: var(--trae-bg-brand);
+}
+
+.wb-exec-btn.is-primary:hover {
+  background: var(--trae-bg-brand-hover);
+  border-color: var(--trae-bg-brand-hover);
+}
+
+.wb-exec-btn.is-danger {
+  color: var(--trae-status-error);
+  border-color: var(--trae-status-error);
+}
+
+.wb-exec-btn.is-danger:hover {
+  background: var(--trae-status-error-surface-l1);
+}
