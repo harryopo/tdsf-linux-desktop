@@ -6,10 +6,10 @@
  * Spec: build-runnable-tdsf-from-design · Task 2.5
  *
  * 结构（app-shell 全屏 flex-col）：
- *   1. Header (48px)：file-text 图标 + 标题"系统日志" + 副标题 + 返回工作台按钮
- *   2. Toolbar：搜索框 + 5 个级别过滤 + 自动滚动 switch + 刷新/导出图标按钮
+ *   1. Header (48px)：file-text 图标 + 标题"系统日志" + 副标题 + AI 决策数据源 chip
+ *   2. Toolbar：搜索框(300px) + 5 个级别过滤 + AI 日志分析按钮 + 自动滚动 switch + 刷新/导出图标按钮
  *   3. 两栏布局：
- *      - 左 180px LogSidebar：5 主类 + 4 服务器系统日志路径
+ *      - 左 180px LogSidebar：5 主类(系统/应用/安全/AI决策/告警) + 4 服务器系统日志路径
  *      - 右 LogViewer：终端风格（#0F1011）+ 浮动统计卡 + 15 行日志 + 闪烁光标
  *   4. Status bar (24px)：系统日志 · 1,247 条 + 最新 14:23:17 + 实时流 + 导出 CSV
  *
@@ -21,10 +21,8 @@
  * 无障碍：role="log" aria-live="polite"、role="status"、按钮 aria-label、prefers-reduced-motion
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Spin, message, Button, Tooltip } from 'antd'
-import { RobotOutlined } from '@ant-design/icons'
-import { FileText, ArrowLeft, Clock, RefreshCw, Download } from 'lucide-react'
+import { Spin, message } from 'antd'
+import { FileText, Sparkles, Clock, RefreshCw, Download } from 'lucide-react'
 import { LogSidebar } from '@/components/logs/v1/LogSidebar'
 import { LogToolbar } from '@/components/logs/v1/LogToolbar'
 import { LogViewer } from '@/components/logs/v1/LogViewer'
@@ -61,8 +59,6 @@ function computeMaxTsIso(entries: Array<{ ts: string | number }>): string {
 
 /** LogsPage — 系统日志页 */
 export function LogsPage() {
-  const navigate = useNavigate()
-
   // ===== UI 状态 =====
   const [activeSource, setActiveSource] = useState(DEFAULT_LOG_SOURCE_ID)
   const [activeLevel, setActiveLevel] = useState<LogLevel | 'ALL'>('ALL')
@@ -105,8 +101,6 @@ export function LogsPage() {
   }, [displayEntries, activeLevel, keyword])
 
   // ===== 事件处理 =====
-  const handleBack = () => navigate('/workbench')
-
   /**
    * 从主进程拉取真实日志
    * - Electron 环境：调用 log:read IPC
@@ -316,51 +310,21 @@ export function LogsPage() {
       className="log-main flex h-full w-full flex-col overflow-y-auto"
       data-viewport-mode="app-shell"
     >
-      {/* ===== 1. Header (48px) ===== */}
+      {/* ===== 1. Header (48px) — 设计稿 1:1：图标 + 标题 + 副标题 + AI 决策数据源 chip ===== */}
       <header className="log-header flex shrink-0 items-center justify-between">
         <div className="log-header-left flex min-w-0 items-center">
           <FileText size={20} className="shrink-0" style={{ color: 'var(--trae-icon-brand)' }} />
           <h1 className="log-header-title m-0 truncate">系统日志</h1>
           <span className="log-header-subtitle truncate">实时日志流与历史检索</span>
-
-        </div>
-
-        <div className="log-header-right flex shrink-0 items-center gap-2">
-          {/* AI 日志分析按钮（M3 Task 4，对接 sidecar:pipeline） */}
-          <Tooltip
-            title={
-              filteredEntries.length === 0
-                ? '当前无日志，无法分析'
-                : filteredEntries.length < 5
-                  ? '日志数量不足，至少需要 5 条'
-                  : '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'
-            }
-          >
-            <Button
-              type="primary"
-              size="small"
-              icon={<RobotOutlined />}
-              onClick={() => setAiPanelOpen(true)}
-              disabled={filteredEntries.length < 5}
-            >
-              AI 分析
-            </Button>
-          </Tooltip>
-
-          <button
-            type="button"
-            data-dom-id="back-workbench"
-            aria-label="返回工作台"
-            onClick={handleBack}
-            className="log-back-btn log-btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors"
-          >
-            <ArrowLeft size={16} style={{ color: 'var(--trae-icon-default)' }} />
-            <span>返回工作台</span>
-          </button>
+          {/* AI 决策数据源 chip（设计稿：sparkles 图标 + 品牌色描边） */}
+          <span className="log-header-ai-chip inline-flex items-center">
+            <Sparkles size={10} style={{ color: 'var(--trae-icon-brand)' }} />
+            <span>AI 决策数据源</span>
+          </span>
         </div>
       </header>
 
-      {/* ===== 2. Toolbar ===== */}
+      {/* ===== 2. Toolbar — AI 日志分析按钮按设计稿移入此处 ===== */}
       <LogToolbar
         keyword={keyword}
         onKeywordChange={setKeyword}
@@ -370,6 +334,15 @@ export function LogsPage() {
         onExport={handleExport}
         autoScroll={autoScroll}
         onAutoScrollChange={handleAutoScrollChange}
+        onAiAnalysis={() => setAiPanelOpen(true)}
+        aiAnalysisDisabled={filteredEntries.length < 5}
+        aiAnalysisTooltip={
+          filteredEntries.length === 0
+            ? '当前无日志，无法分析'
+            : filteredEntries.length < 5
+              ? '日志数量不足，至少需要 5 条'
+              : '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'
+        }
       />
 
       {/* ===== 3. 两栏布局 ===== */}
