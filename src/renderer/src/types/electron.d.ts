@@ -1304,6 +1304,17 @@ export interface ElectronAPI {
    */
   riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
 
+  // ===== M3 Task 2 新增：告警确认（alert:ack） =====
+  /**
+   * 确认告警（标记已处理），主进程内存 Map 记录 ack 状态
+   *
+   * 通道：alert:ack
+   * 用途：渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer
+   * @param alertId 告警 ID（字符串，由渲染层基于告警字段生成）
+   * @returns true 表示确认成功；false 表示 alertId 为空（不抛错）
+   */
+  alertAck(alertId: string): Promise<boolean>
+
   // ===== 教程爬虫（v0.6.0）=====
   /** 列出所有可用源（含元信息、license、kind） */
   tutorialListSources(): Promise<TutorialSourceSpec[]>
@@ -1898,6 +1909,8 @@ export interface ElectronAPI {
   credibilityExportAudit(decisionId: string, format: string): Promise<string>
   /** 检查命令风险等级（M2 Task 2，桥接 assessCommandRisk） */
   riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
+  /** 确认告警（M3 Task 2，主进程内存 Map 记录 ack 状态） */
+  alertAck(alertId: string): Promise<boolean>
 
   // ===== v1.5 循环工程子 Agent（loop:* 通道）=====
   /** 启动循环工程（假设生成 + 7步HITL工作流） */

@@ -51,6 +51,8 @@ import { sampleKpiStats, sampleAlerts } from '@/pages/__fixtures__/monitor-sampl
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
 import type { MonitorData } from '@shared/models'
+// M3 Task 2：时间范围切换切片工具（KPI 数据源按 range 过滤）
+import { sliceMonitorData } from '@/utils/monitor-time-range'
 import './MonitorPage.css'
 
 /**
@@ -207,11 +209,13 @@ export function MonitorPage() {
   }, [systemInfo])
 
   // KPI 数据（nullable）：实时优先，无数据时 DEV 模式用 sampleKpiStats fallback，非 DEV 返回 null
+  // M3 Task 2：KPI 数据源按 range 切片（取切片后最后一条作为 latest）
   const kpiStats = useMemo<KpiStat[] | null>(() => {
-    const live = computeKpiStats(monitorData)
+    const sliced = sliceMonitorData(monitorData, range)
+    const live = computeKpiStats(sliced)
     if (live) return live
     return import.meta.env.DEV ? sampleKpiStats : null
-  }, [monitorData])
+  }, [monitorData, range])
 
   // 顶部 critical 告警横幅数据（nullable）：实时优先，无数据时 DEV 模式用 sampleAlerts[0] fallback，非 DEV 返回 null
   const criticalAlert = useMemo<AlertRecord | null>(() => {
@@ -352,10 +356,10 @@ export function MonitorPage() {
 
       {/* 4. 图表 2×2 网格 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-3">
-        <CpuAreaChart />
-        <MemoryLineChart />
-        <DiskIoBarChart />
-        <NetworkFlowChart />
+        <CpuAreaChart range={range} />
+        <MemoryLineChart range={range} />
+        <DiskIoBarChart range={range} />
+        <NetworkFlowChart range={range} />
       </div>
 
       {/* 5. 告警列表 + 关联分析卡片（左右双栏布局，桌面端并列） */}

@@ -19,7 +19,8 @@
  *
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.6
  */
-import { Drawer, Tag } from 'antd'
+import { useState } from 'react'
+import { Drawer, Tag, Tooltip } from 'antd'
 import type { AlertRecord, RiskLevel } from './mock-data'
 
 /** 风险级别 → Tag 颜色 + 中文标签 */
@@ -88,8 +89,14 @@ export interface AlertDrawerProps {
  *
  * - 从右侧滑入，宽度 420px
  * - 显示告警级别、标题、详情字段、影响范围、处置建议
+ * - 底部"标记已处理"按钮：调用 alert:ack IPC（主进程内存 Map 记录），降级时 disabled
  */
 export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
+  // M3 Task 2：标记已处理状态（alert:ack IPC 调用中 / 错误信息）
+  // hooks 必须在条件 return 之前调用（React hooks 规则）
+  const [acking, setAcking] = useState(false)
+  const [ackError, setAckError] = useState<string | null>(null)
+
   if (!alert) {
     return (
       <Drawer
@@ -109,6 +116,41 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
   }
 
   const risk = riskTagProps(alert.level)
+
+  /**
+   * 生成稳定 alertId：基于告警字段组合（AlertRecord 无 id 字段，由渲染层生成）
+   *
+   * 主进程内存 Map 以此字符串为 key 记录 ack 状态。
+   * 同一告警（time + server + desc）始终生成相同 alertId，保证 ack 状态一致。
+   */
+  const alertId = `${alert.time}|${alert.server}|${alert.desc.slice(0, 30)}`
+
+  /**
+   * electronAPI 可用性检查（降级判断）
+   *
+   * 旧版 preload 未暴露 alertAck 时，按钮 disabled + tooltip 提示
+   */
+  const ackAvailable =
+    typeof window !== 'undefined' &&
+    typeof window.electronAPI?.alertAck === 'function'
+
+  /** 标记已处理：调用 alert:ack IPC，成功后关闭 Drawer */
+  const handleAck = async () => {
+    setAcking(true)
+    setAckError(null)
+    try {
+      const ok = await window.electronAPI.alertAck(alertId)
+      if (ok) {
+        onClose()
+      } else {
+        setAckError('确认失败：告警 ID 无效')
+      }
+    } catch (err) {
+      setAckError(err instanceof Error ? err.message : '确认告警失败')
+    } finally {
+      setAcking(false)
+    }
+  }
 
   return (
     <Drawer
@@ -227,6 +269,34 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
           className="flex items-center justify-end gap-2 p-3 border-t"
           style={{ borderColor: 'var(--trae-border-neutral-l1)' }}
         >
+          {ackError && (
+            <span
+              className="mon-drawer-ack-error mr-auto"
+              style={{ color: 'var(--trae-status-error-default)' }}
+              role="alert"
+            >
+              {ackError}
+            </span>
+          )}
+          <Tooltip title={ackAvailable ? '' : '主进程 IPC 不可用'}>
+            <span>
+              <button
+                type="button"
+                onClick={handleAck}
+                disabled={!ackAvailable || acking}
+                className="mon-drawer-footer-btn mon-drawer-ack-btn"
+                style={{
+                  background: ackAvailable ? 'var(--trae-bg-brand)' : 'var(--trae-bg-overlay-l2)',
+                  color: ackAvailable ? 'var(--trae-text-onbrand)' : 'var(--trae-text-tertiary)',
+                  border: '1px solid var(--trae-border-neutral-l1)',
+                  cursor: ackAvailable && !acking ? 'pointer' : 'not-allowed',
+                  opacity: acking ? 0.6 : 1,
+                }}
+              >
+                {acking ? '处理中...' : '标记已处理'}
+              </button>
+            </span>
+          </Tooltip>
           <button
             type="button"
             onClick={onClose}
