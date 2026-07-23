@@ -1,40 +1,56 @@
 /**
- * Charts — 4 个 SVG 图表（24h 数据，1:1 复刻设计稿 monitor.html）
+ * Charts — 4 个 recharts 图表（24h 数据，1:1 复刻设计稿 monitor.html）
  *
  * 设计稿：monitor.html 第 4 段 图表网格 2x2
  *
- * 1:1 复刻视觉：
- * - 图表卡片：200px 高，p-3，背景 var(--bg-base-secondary)，边框 var(--border-neutral-l1)，圆角 var(--radius-8)
- * - SVG viewBox="0 0 600 140" preserveAspectRatio="none"（拉伸填充）
- * - 网格线 3 条（y=35/70/105），颜色 var(--viz-ui-chart-axis)
- * - x 轴 5 个时间标签（00:00/06:00/12:00/18:00/24:00）
+ * M3-1: 从纯 SVG 迁移到 recharts
+ * - CpuAreaChart → AreaChart + Area（CPU 使用率 24h 面积图）
+ * - MemoryLineChart → LineChart + Line（内存 24h 折线图，3 条 used/buffer/cache）
+ * - DiskIoBarChart → BarChart + Bar（磁盘 IO 24h 柱状图）
+ * - NetworkFlowChart → LineChart + 双 Line（网络流量 24h 入站/出站）
  *
- * 4 个图表：
- * - CpuAreaChart：CPU 使用率面积图（24h），渐变填充 + 描边
- * - MemoryLineChart：内存使用折线图（24h，3 条线：used/buffer/cache）
- * - DiskIoBarChart：磁盘 IO 柱状图（24h，24 个柱子）
- * - NetworkFlowChart：网络流量双折线（24h，入站/出站）
+ * 视觉对齐：
+ * - 图表卡片：200px 高，p-3，背景 var(--bg-base-secondary)
+ * - 图表主体高度 140px（ResponsiveContainer height={140}）
+ * - 网格线 3 条（CartesianGrid horizontal）
+ * - x 轴 5 个时间标签（00:00/06:00/12:00/18:00/24:00，由 ChartCard 底部渲染）
  *
  * 数据策略：
- * - 有监控数据（useMonitorStore）→ 使用实时数据构建路径
- * - 无监控数据 → 使用设计稿示例数据 fallback（sampleCpuAreaPath 等）
+ * - 有监控数据（useMonitorStore）→ 实时 map 为 recharts data
+ * - 无监控数据 → 解析 sample SVG 数据为 recharts data fallback
  *
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.3
  */
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 import {
   sampleCpuAreaPath,
-  sampleMemLines,
   sampleDiskIo,
+  sampleMemLines,
   sampleNetFlow,
   chartXLabels,
 } from './mock-data'
 
 // ===== 常量 =====
 
-const CHART_W = 600
+/** 图表主体高度（与原 SVG viewBox 高度一致） */
 const CHART_H = 140
+/** 原 SVG viewBox 宽度（用于 sample 数据 x 坐标换算） */
+const SVG_W = 600
+/** 原 SVG viewBox 高度（用于 sample 数据 y 坐标换算） */
+const SVG_H = 140
 
 // ===== 数据 Hook =====
 
@@ -42,43 +58,89 @@ const CHART_H = 140
 function useActiveMonitorData() {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const data = useMonitorStore((s) =>
-    activeSessionId ? s.getMonitorData(activeSessionId) : []
+    activeSessionId ? s.getMonitorData(activeSessionId) : [],
   )
   return data
 }
 
-// ===== SVG 路径构建工具（实时数据用） =====
+// ===== sample 数据解析（SVG path/polyline → recharts data） =====
 
-/** 构建折线 SVG path */
-function buildLinePath(values: number[], width: number, height: number, maxVal = 100): string {
-  if (values.length < 2) return `M0,${height} L${width},${height}`
-  const step = width / (values.length - 1)
-  return values
-    .map((v, i) => {
-      const x = (i * step).toFixed(1)
-      const y = (height - (Math.min(v, maxVal) / maxVal) * height).toFixed(1)
-      return `${i === 0 ? 'M' : 'L'}${x},${y}`
-    })
-    .join(' ')
+/** x 坐标 0~600 → 时间标签 00:00~24:00（每 25 单位 = 1h） */
+function xToTimeLabel(x: number): string {
+  const hours = (x / SVG_W) * 24
+  const h = Math.round(hours)
+  if (h >= 24) return '24:00'
+  return `${String(h).padStart(2, '0')}:00`
 }
 
-/** 构建面积 SVG path（折线 + 底部封闭） */
-function buildAreaPath(values: number[], width: number, height: number, maxVal = 100): string {
-  const line = buildLinePath(values, width, height, maxVal)
-  return `${line} L${width},${height} L0,${height} Z`
+/** 解析 SVG polyline points "0,80 50,75..." 为数据点（y 翻转：SVG 底部为 0） */
+function parsePolyline(points: string): Array<{ x: number; y: number }> {
+  return points.split(' ').map((p) => {
+    const [x, y] = p.split(',').map(Number)
+    return { x, y: SVG_H - y }
+  })
 }
 
-/** 构建 polyline points 字符串 */
-function buildPolylinePoints(values: number[], width: number, height: number, maxVal = 100): string {
-  if (values.length < 2) return `0,${height} ${width},${height}`
-  const step = width / (values.length - 1)
-  return values
-    .map((v, i) => {
-      const x = (i * step).toFixed(1)
-      const y = (height - (Math.min(v, maxVal) / maxVal) * height).toFixed(1)
-      return `${x},${y}`
-    })
-    .join(' ')
+/** 解析 SVG path "M 0,105 L 25,95..." 为数据点（y 翻转） */
+function parsePath(pathStr: string): Array<{ x: number; y: number }> {
+  const cleaned = pathStr.replace(/^M\s+/, '').replace(/\s+L\s+/g, ' ')
+  return cleaned.split(' ').map((p) => {
+    const [x, y] = p.split(',').map(Number)
+    return { x, y: SVG_H - y }
+  })
+}
+
+/** 把 SVG y 坐标（0~140）转换为业务百分比（0~100） */
+function svgYToPercent(y: number): number {
+  return Math.round((y / SVG_H) * 100 * 10) / 10
+}
+
+/** sample CPU 面积图 → recharts data */
+function buildSampleCpuData(): Array<{ time: string; cpu: number }> {
+  return parsePath(sampleCpuAreaPath).map((p) => ({
+    time: xToTimeLabel(p.x),
+    cpu: svgYToPercent(p.y),
+  }))
+}
+
+/** sample 内存折线图 → recharts data（3 条线 used/buffer/cache） */
+function buildSampleMemData(): Array<{ time: string; used: number; buffer: number; cache: number }> {
+  const used = parsePolyline(sampleMemLines.used)
+  const buffer = parsePolyline(sampleMemLines.buffer)
+  const cache = parsePolyline(sampleMemLines.cache)
+  return used.map((p, i) => ({
+    time: xToTimeLabel(p.x),
+    used: svgYToPercent(p.y),
+    buffer: svgYToPercent(buffer[i].y),
+    cache: svgYToPercent(cache[i].y),
+  }))
+}
+
+/** sample 磁盘 IO 柱状图 → recharts data（柱高 h 转换为业务值） */
+function buildSampleDiskIoData(): Array<{ time: string; io: number }> {
+  return sampleDiskIo.map((bar) => ({
+    time: xToTimeLabel(bar.x),
+    io: svgYToPercent(bar.h),
+  }))
+}
+
+/** sample 网络流量 → recharts data（入站/出站双线） */
+function buildSampleNetFlowData(): Array<{ time: string; inbound: number; outbound: number }> {
+  const inbound = parsePolyline(sampleNetFlow.inbound)
+  const outbound = parsePolyline(sampleNetFlow.outbound)
+  return inbound.map((p, i) => ({
+    time: xToTimeLabel(p.x),
+    inbound: svgYToPercent(p.y),
+    outbound: svgYToPercent(outbound[i].y),
+  }))
+}
+
+// ===== 实时数据格式化 =====
+
+/** 格式化时间戳为 HH:MM */
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 // ===== 图表卡片容器 =====
@@ -104,7 +166,7 @@ function ChartCard({
         <span className="mon-chart-title">{title}</span>
         {legend ?? rightHint}
       </div>
-      {/* SVG 主体 */}
+      {/* 图表主体 */}
       <div className="flex-1 min-h-0">{children}</div>
       {/* x 轴刻度 */}
       <div className="mon-chart-axis flex justify-between mt-2">
@@ -116,20 +178,28 @@ function ChartCard({
   )
 }
 
+// ===== 共享坐标轴样式 =====
+
+const AXIS_TICK_STYLE = {
+  fontSize: '10px',
+  fill: 'var(--trae-text-tertiary)',
+} as const
+
 // ===== 4 个图表组件 =====
 
 /** CPU 使用率面积图（24h） */
 export function CpuAreaChart() {
   const monitorData = useActiveMonitorData()
   const recent = monitorData.slice(-60)
-  const cpuValues = recent.map((d) => d.cpuUsage)
-  const latest = cpuValues.length > 0 ? cpuValues[cpuValues.length - 1] : 68
+  const useSample = recent.length < 2
 
-  // 有实时数据用实时，否则用设计稿示例 path
-  const linePath = recent.length >= 2 ? buildLinePath(cpuValues, CHART_W, CHART_H, 100) : sampleCpuAreaPath
-  const areaPath = recent.length >= 2
-    ? buildAreaPath(cpuValues, CHART_W, CHART_H, 100)
-    : `${sampleCpuAreaPath} L 600,140 L 0,140 Z`
+  const data = useSample
+    ? buildSampleCpuData()
+    : recent.map((d) => ({
+        time: formatTime(d.timestamp),
+        cpu: Number(d.cpuUsage.toFixed(1)),
+      }))
+  const latest = data.length > 0 ? data[data.length - 1].cpu : 68
 
   return (
     <ChartCard
@@ -140,29 +210,44 @@ export function CpuAreaChart() {
         </span>
       }
     >
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" width="100%" height="100%" className="block">
-        <defs>
-          <linearGradient id="cpuAreaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--trae-bg-brand)" stopOpacity="0.4" />
-            <stop offset="100%" stopColor="var(--trae-bg-brand)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {/* 网格线 */}
-        <line x1="0" y1="35" x2={CHART_W} y2="35" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="70" x2={CHART_W} y2="70" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="105" x2={CHART_W} y2="105" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        {/* 面积填充 */}
-        <path d={areaPath} fill="url(#cpuAreaGrad)" />
-        {/* 描边折线 */}
-        <path
-          d={linePath}
-          fill="none"
-          stroke="var(--trae-bg-brand)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <ResponsiveContainer width="100%" height={CHART_H}>
+        <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+          <defs>
+            <linearGradient id="cpuAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--trae-bg-brand)" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="var(--trae-bg-brand)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="var(--trae-viz-ui-chart-axis)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="time"
+            tick={false}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[0, 100]}
+            tick={AXIS_TICK_STYLE}
+            axisLine={false}
+            tickLine={false}
+            width={28}
+          />
+          <Area
+            type="monotone"
+            dataKey="cpu"
+            stroke="var(--trae-bg-brand)"
+            strokeWidth={2}
+            fill="url(#cpuAreaGrad)"
+            isAnimationActive={false}
+            dot={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }
@@ -171,10 +256,16 @@ export function CpuAreaChart() {
 export function MemoryLineChart() {
   const monitorData = useActiveMonitorData()
   const recent = monitorData.slice(-60)
-  const memValues = recent.map((d) => d.memoryUsage)
-
-  // 有实时数据用实时（仅 used 线），否则用设计稿示例 3 条线
   const useSample = recent.length < 2
+
+  const data = useSample
+    ? buildSampleMemData()
+    : recent.map((d) => ({
+        time: formatTime(d.timestamp),
+        used: Number(d.memoryUsage.toFixed(1)),
+        buffer: 0,
+        cache: 0,
+      }))
 
   return (
     <ChartCard
@@ -196,68 +287,71 @@ export function MemoryLineChart() {
         </div>
       }
     >
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" width="100%" height="100%" className="block">
-        {/* 网格线 */}
-        <line x1="0" y1="35" x2={CHART_W} y2="35" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="70" x2={CHART_W} y2="70" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="105" x2={CHART_W} y2="105" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        {useSample ? (
-          <>
-            {/* used 实线 */}
-            <polyline
-              points={sampleMemLines.used}
-              fill="none"
-              stroke="var(--trae-bg-brand)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* buffer 虚线 */}
-            <polyline
-              points={sampleMemLines.buffer}
-              fill="none"
-              stroke="var(--trae-bg-brand-hover)"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-              strokeLinecap="round"
-            />
-            {/* cache 虚线 */}
-            <polyline
-              points={sampleMemLines.cache}
-              fill="none"
-              stroke="var(--trae-brand-3)"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-              strokeLinecap="round"
-            />
-          </>
-        ) : (
-          <polyline
-            points={buildPolylinePoints(memValues, CHART_W, CHART_H, 100)}
-            fill="none"
-            stroke="var(--trae-bg-brand)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+      <ResponsiveContainer width="100%" height={CHART_H}>
+        <LineChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="var(--trae-viz-ui-chart-axis)"
+            vertical={false}
           />
-        )}
-      </svg>
+          <XAxis
+            dataKey="time"
+            tick={false}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[0, 100]}
+            tick={AXIS_TICK_STYLE}
+            axisLine={false}
+            tickLine={false}
+            width={28}
+          />
+          <Line
+            type="monotone"
+            dataKey="used"
+            stroke="var(--trae-bg-brand)"
+            strokeWidth={2}
+            isAnimationActive={false}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="buffer"
+            stroke="var(--trae-bg-brand-hover)"
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            isAnimationActive={false}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="cache"
+            stroke="var(--trae-brand-3)"
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            isAnimationActive={false}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }
 
-/** 磁盘 IO 柱状图（24h，24 个柱子） */
+/** 磁盘 IO 柱状图（24h） */
 export function DiskIoBarChart() {
   const monitorData = useActiveMonitorData()
-  const recent = monitorData.slice(-12)
-  const diskValues = recent.map((d) => d.diskUsage)
-
+  const recent = monitorData.slice(-24)
   const useSample = recent.length < 2
 
-  // 实时数据柱子布局
-  const barCount = diskValues.length
-  const gap = 4
-  const barWidth = barCount > 0 ? (CHART_W - gap * (barCount + 1)) / barCount : 0
+  const data = useSample
+    ? buildSampleDiskIoData()
+    : recent.map((d) => ({
+        time: formatTime(d.timestamp),
+        io: Number(((d.diskUsage / 100) * 100).toFixed(1)),
+      }))
 
   return (
     <ChartCard
@@ -266,37 +360,35 @@ export function DiskIoBarChart() {
         <span className="mon-chart-hint">MB/s</span>
       }
     >
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" width="100%" height="100%" className="block">
-        {/* 网格线 */}
-        <line x1="0" y1="35" x2={CHART_W} y2="35" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="70" x2={CHART_W} y2="70" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="105" x2={CHART_W} y2="105" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        {useSample ? (
-          <g fill="var(--trae-bg-brand)">
-            {sampleDiskIo.map((bar, i) => (
-              <rect key={i} x={bar.x} y={bar.y} width={bar.w} height={bar.h} />
-            ))}
-          </g>
-        ) : (
-          <g fill="var(--trae-bg-brand)">
-            {diskValues.map((v, i) => {
-              const barH = (Math.min(v, 100) / 100) * CHART_H
-              const x = gap + i * (barWidth + gap)
-              const y = CHART_H - barH
-              return (
-                <rect
-                  key={i}
-                  x={x.toFixed(1)}
-                  y={y.toFixed(1)}
-                  width={barWidth.toFixed(1)}
-                  height={barH.toFixed(1)}
-                  rx="2"
-                />
-              )
-            })}
-          </g>
-        )}
-      </svg>
+      <ResponsiveContainer width="100%" height={CHART_H}>
+        <BarChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="var(--trae-viz-ui-chart-axis)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="time"
+            tick={false}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[0, 100]}
+            tick={AXIS_TICK_STYLE}
+            axisLine={false}
+            tickLine={false}
+            width={28}
+          />
+          <Bar
+            dataKey="io"
+            fill="var(--trae-bg-brand)"
+            radius={[2, 2, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }
@@ -305,14 +397,21 @@ export function DiskIoBarChart() {
 export function NetworkFlowChart() {
   const monitorData = useActiveMonitorData()
   const recent = monitorData.slice(-60)
-  const inValues = recent.map((d) => d.networkIn)
-  const outValues = recent.map((d) => d.networkOut)
-
   const useSample = recent.length < 2
 
   // 动态 maxVal：取所有值中的最大值，最小为 100
-  const allValues = [...inValues, ...outValues]
+  const allValues = useSample
+    ? []
+    : recent.flatMap((d) => [d.networkIn, d.networkOut])
   const maxVal = allValues.length > 0 ? Math.max(...allValues, 100) : 100
+
+  const data = useSample
+    ? buildSampleNetFlowData()
+    : recent.map((d) => ({
+        time: formatTime(d.timestamp),
+        inbound: Number(((d.networkIn / maxVal) * 100).toFixed(1)),
+        outbound: Number(((d.networkOut / maxVal) * 100).toFixed(1)),
+      }))
 
   return (
     <ChartCard
@@ -330,53 +429,45 @@ export function NetworkFlowChart() {
         </div>
       }
     >
-      <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" width="100%" height="100%" className="block">
-        {/* 网格线 */}
-        <line x1="0" y1="35" x2={CHART_W} y2="35" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="70" x2={CHART_W} y2="70" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        <line x1="0" y1="105" x2={CHART_W} y2="105" stroke="var(--trae-viz-ui-chart-axis)" strokeWidth="1" />
-        {useSample ? (
-          <>
-            <polyline
-              points={sampleNetFlow.inbound}
-              fill="none"
-              stroke="var(--trae-bg-brand)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <polyline
-              points={sampleNetFlow.outbound}
-              fill="none"
-              stroke="var(--trae-brand-3)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </>
-        ) : (
-          <>
-            {/* 入站 */}
-            <polyline
-              points={buildPolylinePoints(inValues, CHART_W, CHART_H, maxVal)}
-              fill="none"
-              stroke="var(--trae-bg-brand)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* 出站 */}
-            <polyline
-              points={buildPolylinePoints(outValues, CHART_W, CHART_H, maxVal)}
-              fill="none"
-              stroke="var(--trae-brand-3)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </>
-        )}
-      </svg>
+      <ResponsiveContainer width="100%" height={CHART_H}>
+        <LineChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="var(--trae-viz-ui-chart-axis)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="time"
+            tick={false}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            domain={[0, 100]}
+            tick={AXIS_TICK_STYLE}
+            axisLine={false}
+            tickLine={false}
+            width={28}
+          />
+          <Line
+            type="monotone"
+            dataKey="inbound"
+            stroke="var(--trae-bg-brand)"
+            strokeWidth={2}
+            isAnimationActive={false}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="outbound"
+            stroke="var(--trae-brand-3)"
+            strokeWidth={2}
+            isAnimationActive={false}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </ChartCard>
   )
 }
