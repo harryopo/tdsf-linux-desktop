@@ -301,8 +301,12 @@
 #gen-state:checked ~ label.gen-toggle .gen-icon-stop { display: inline-block; }
 
 /* ========================================================================
-   Workbench Shell Layout (1:1 from 工作台.html)
+   Workbench Shell Layout (1:1 from workbench-disconnected.html / workbench-ai.html)
    类名前缀 wb- 避免冲突
+
+   重要:本节用 .wb-shell 前缀提升选择器优先级,覆盖 workbench-density.css
+        中错误的尺寸覆盖(44px titlebar / 40×40 nav / 26px statusbar),
+        严格对齐设计稿 40px / 36×36 / 24px。
    ======================================================================== */
 
 /* ===== Workbench Shell (App-Shell Viewport) ===== */
@@ -312,6 +316,43 @@
   font-family: 'SF Pro Text', "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   font-size: 11px;
   line-height: 1.5;
+}
+
+/* ===== Density 修正:强制对齐设计稿 40px / 36×36 / 24px
+   覆盖 workbench-density.css 的 .wb-shell .wb-* 错误覆盖 */
+.wb-shell .wb-titlebar {
+  height: 40px;
+  padding: 0 12px;
+}
+.wb-shell .wb-nav-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+.wb-shell .wb-statusbar,
+.wb-shell .wb-statusbar button {
+  min-height: 0;
+  height: 24px;
+  font-size: 10px;
+}
+.wb-shell button:not(:disabled) {
+  min-height: auto;
+}
+.wb-shell .wb-aipanel textarea {
+  font-size: 11px;
+  line-height: 1.5;
+  min-height: 20px;
+}
+.wb-shell .wb-aipanel .ai-send-btn {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+}
+.wb-shell .wb-filetree {
+  font-size: 11px;
+}
+.wb-shell .wb-aipanel {
+  font-size: 11px;
 }
 
 /* ===== Titlebar (40px) ===== */
@@ -438,7 +479,7 @@
 
 .wb-nav-btn.is-active {
   background: var(--trae-bg-overlay-l3);
-  color: var(--trae-icon-default);
+  color: var(--trae-icon-brand);
 }
 
 .wb-nav-indicator {
@@ -783,4 +824,335 @@
   overflow: hidden;
   background: var(--trae-bg-base-default);
   color: var(--trae-text-default);
+}
+
+/* ========================================================================
+   设计稿对齐补丁(2026-07-23 1:1 重构)
+   - Titlebar TDSF Logo(40px 高度内 16px shield + 11px 字)
+   - 服务器选择器 disconnected 视觉对齐(灰圆点 + chevron)
+   - FileTree 空状态:32×32 圆角图标盒 + 24px 连接按钮(brand 色 + plug 图标)
+   - EditorArea 终端空状态:终端窗口模拟 + "连接服务器" 按钮
+   - AIPanel 内联连接提示卡片
+   ======================================================================== */
+
+/* ===== Titlebar TDSF Logo ===== */
+.wb-titlebar-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  user-select: none;
+}
+
+.wb-titlebar-logo-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--trae-bg-brand);
+  flex-shrink: 0;
+}
+
+.wb-titlebar-logo-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wb-titlebar-logo-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--trae-text-default);
+  letter-spacing: 0.02em;
+}
+
+/* ===== 服务器选择器:连接状态圆点(未连接灰色 / 已连接绿色 / 连接中黄色) ===== */
+.wb-server-picker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--trae-text-tertiary);
+  flex-shrink: 0;
+}
+
+.wb-server-picker-dot.is-connected {
+  background: var(--trae-status-success-default);
+}
+
+.wb-server-picker-dot.is-connecting {
+  background: var(--trae-status-alert-default);
+}
+
+.wb-server-picker-dot.is-error {
+  background: var(--trae-status-error-default);
+}
+
+.wb-server-picker-chevron {
+  transition: transform 160ms ease-out;
+  flex-shrink: 0;
+}
+
+.wb-server-picker[aria-expanded="true"] .wb-server-picker-chevron {
+  transform: rotate(180deg);
+}
+
+/* ===== FileTree 空状态:对齐设计稿 workbench-disconnected.html
+   32×32 圆角6图标盒(folder-off 灰)+ "尚未连接 SSH服务器" + 24px 连接按钮(brand 色 + plug 图标) */
+.wb-filetree-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+  flex: 1;
+  animation: ai-fade-in 0.5s cubic-bezier(0.3, 0, 0, 1) both;
+  animation-delay: 0.1s;
+}
+
+.wb-filetree-empty-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--trae-bg-overlay-l2);
+  border-radius: 6px;
+  color: var(--trae-icon-tertiary);
+}
+
+.wb-filetree-empty-icon-box svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wb-filetree-empty-text {
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  line-height: 1.5;
+}
+
+.wb-filetree-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--trae-bg-brand);
+  color: var(--trae-text-onbrand);
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease-out, transform 80ms ease-out;
+  box-shadow: 0 0 0 0 rgba(56, 123, 255, 0.3);
+  animation: ai-pulse 2s ease-out infinite;
+}
+
+.wb-filetree-empty-btn:hover {
+  background: var(--trae-bg-brand-hover);
+}
+
+.wb-filetree-empty-btn:active {
+  transform: scale(0.97);
+}
+
+.wb-filetree-empty-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* ===== EditorArea 终端空状态:对齐设计稿 workbench-disconnected.html
+   深色背景 #0F1011 + 240px 终端窗口模拟(3 圆点 + "terminal" 文字 + 等待光标)
+   + "终端未连接" + "连接SSH服务器后,终端将自动打开" + "连接服务器" 按钮 */
+.wb-shell .term-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex: 1;
+  background: var(--trae-bg-code-block, #0f1011);
+  padding: 32px 16px;
+  animation: ai-fade-in 0.5s cubic-bezier(0.3, 0, 0, 1) both;
+  animation-delay: 0.2s;
+}
+
+/* 隐藏 EditorArea.tsx 默认的 TerminalIcon + 文案(设计稿不显示) */
+.wb-shell .term-empty > svg,
+.wb-shell .term-empty > .term-empty-text,
+.wb-shell .term-empty > .term-empty-hint {
+  display: none;
+}
+
+/* 终端窗口模拟卡片 */
+.wb-term-empty-mock {
+  width: 240px;
+  background: var(--trae-bg-base-secondary);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.wb-term-empty-mock-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--trae-bg-overlay-l1);
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+}
+
+.wb-term-empty-mock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--trae-border-neutral-l2);
+}
+
+.wb-term-empty-mock-title {
+  font-size: 9px;
+  color: var(--trae-text-tertiary);
+  margin-left: 4px;
+  font-family: var(--trae-font-family-mono);
+}
+
+.wb-term-empty-mock-body {
+  padding: 12px;
+  font-family: var(--trae-font-family-mono);
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  line-height: 1.6;
+}
+
+.wb-term-empty-mock-prompt {
+  color: var(--trae-text-secondary);
+  animation: ai-pulse 2.5s ease-in-out infinite;
+}
+
+.wb-term-empty-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--trae-text-secondary);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.wb-term-empty-subtitle {
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.wb-term-empty-connect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--trae-text-brand);
+  border: 1px solid var(--trae-bg-brand);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out, transform 80ms ease-out;
+}
+
+.wb-term-empty-connect-btn:hover {
+  background: var(--trae-bg-brand-popup);
+}
+
+.wb-term-empty-connect-btn:active {
+  transform: scale(0.97);
+}
+
+.wb-term-empty-connect-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ===== AIPanel 内联连接提示卡片:对齐设计稿 ===== */
+.wb-ai-connect-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--trae-bg-brand-popup);
+  border: 1px solid var(--trae-border-brand);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: ai-fade-in 0.5s cubic-bezier(0.3, 0, 0, 1) both;
+  animation-delay: 0.3s;
+}
+
+.wb-ai-connect-card-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--trae-icon-brand);
+  flex-shrink: 0;
+}
+
+.wb-ai-connect-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-ai-connect-card-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--trae-text-default);
+}
+
+.wb-ai-connect-card-subtitle {
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  margin-top: 1px;
+}
+
+.wb-ai-connect-card-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--trae-bg-brand);
+  color: var(--trae-text-onbrand);
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease-out, transform 80ms ease-out;
+}
+
+.wb-ai-connect-card-btn:hover {
+  background: var(--trae-bg-brand-hover);
+}
+
+.wb-ai-connect-card-btn:active {
+  transform: scale(0.97);
+}
+
+/* ===== Reduced motion 补丁:新增动画类禁用 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .wb-filetree-empty,
+  .wb-filetree-empty-btn,
+  .wb-shell .term-empty,
+  .wb-term-empty-mock-prompt,
+  .wb-ai-connect-card {
+    animation: none;
+  }
+  .wb-server-picker-chevron,
+  .wb-term-empty-connect-btn,
+  .wb-ai-connect-card-btn,
+  .wb-filetree-empty-btn {
+    transition: none;
+  }
 }

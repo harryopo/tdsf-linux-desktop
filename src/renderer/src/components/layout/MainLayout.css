@@ -1,176 +1,55 @@
 /**
- * MainLayout 布局样式 v2.0 — 生产交付级极致美学
+ * MainLayout 布局样式 v3.0 — 纯 Outlet 容器
  *
  * 设计原理（WHY）：
- * - 三栏比例 1 : 1.618 : 1（黄金分割 φ）
- * - 顶部导航栏 56px（黄金比例：48 × φ/1.4 ≈ 55.4）
- * - 所有颜色/间距/动效统一走 v2.0 变量
- * - 微动效：hover/focus 精致打磨
+ * - 设计稿每个页面都是自包含的完整布局（含自己的 Titlebar + ActivityRail + StatusBar），
+ *   MainLayout 只需提供纯 Outlet 容器，让每个页面自己管理布局。
+ * - 之前版本（v1.0/v2.0）在这里加了 Header + ActivityRail + StatusBar，
+ *   导致 WorkbenchPage 内部已有的 ActivityRail 出现"双层侧边栏"，违反设计稿。
+ * - v3.0：彻底删除弃用的 .main-layout-* / .main-layout-header / .main-layout-left 等
+ *   样式（已被 Workbench.css 的 .wb-* 类替代），仅保留 .wb-main-layout 容器样式。
  *
- * 实际像素（1440px 屏）：
- * - 左栏 240px + 中栏自适应 + 右栏 360px
- * - 中栏占据剩余空间，作为视觉焦点
+ * 视觉对齐：tdsf-linux-redesign/pages/workbench-disconnected.html
+ * - 容器满屏（100vh × 100vw）+ 暗色背景 + overflow:hidden
+ * - 内容淡入动画（克制的 200ms fadeIn）
  */
 
-/* ===== 主布局容器 ===== */
-.main-layout {
-  display: flex;
-  flex-direction: column;
+/* ===== 主布局容器（纯 Outlet 容器，无外层栏）===== */
+.wb-main-layout {
   height: 100vh;
   width: 100vw;
-  background: var(--color-bg-primary);
   overflow: hidden;
-  /* 极致美学：内容淡入 */
-  animation: fadeIn var(--duration-slow) var(--ease-out-expo);
+  background: var(--trae-bg-base-default);
+  color: var(--trae-text-default);
+  font-family: 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
+  animation: wb-main-layout-fade-in var(--trae-duration-normal, 200ms) var(--trae-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* ==========================================================================
-   顶部导航栏 — 56px（黄金比例）
-   ========================================================================== */
-.main-layout-header {
-  display: flex;
-  align-items: center;
-  height: var(--layout-header-height);
-  min-height: var(--layout-header-height);
-  padding: 0 var(--space-6);       /* 26px 内边距（φ × 16） */
-  background: var(--color-bg-card);
-  border-bottom: 1px solid var(--color-border);
-  /* 微妙的底部分隔阴影（仅在有滚动时显示，由 sticky 处理） */
-  position: relative;
-  z-index: 10;
-  user-select: none;
-}
-
-/* Logo 区域 */
-.main-layout-logo {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-right: var(--space-8);    /* 42px（φ × 26） */
-  user-select: none;
-  cursor: pointer;
-  transition: opacity var(--duration-fast) var(--ease-out-quad);
-}
-
-.main-layout-logo:hover {
-  opacity: 0.75;
-}
-
-.logo-text {
-  font-size: var(--font-size-md);  /* 16px */
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-  letter-spacing: var(--letter-spacing-tight);
-}
-
-.logo-subtitle {
-  font-size: var(--font-size-xs);  /* 12px */
-  color: var(--color-text-tertiary);
-  font-weight: var(--font-weight-regular);
-  letter-spacing: var(--letter-spacing-wide);
-}
-
-/* 导航标签容器 */
-.main-layout-nav {
-  flex: 1;
-  min-width: 0;
-}
-
-.main-layout-nav .ant-tabs-nav {
-  margin: 0 !important;
-}
-
-.main-layout-nav .ant-tabs-tab {
-  padding: 16px var(--space-4) !important;  /* 16px 上下、16px 左右 */
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
-  letter-spacing: var(--letter-spacing-tight);
-}
-
-/* 导航标签文字 */
-.nav-tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-base);
-  letter-spacing: var(--letter-spacing-tight);
-}
-
-/* ==========================================================================
-   三栏内容区 — φ 比例（1 : 1.618 : 1）
-   ========================================================================== */
-.main-layout-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ===== 左栏：服务器列表（1 单位） ===== */
-.main-layout-left {
-  width: var(--layout-left-width);
-  min-width: var(--layout-left-width);
-  background: var(--color-bg-card);
-  border-right: 1px solid var(--color-border);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  /* 微妙的内容进入动画 */
-  animation: slideInLeft var(--duration-slow) var(--ease-out-expo);
-}
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-8px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-/* ===== 中栏：主内容区（φ 单位 = 主导视觉） ===== */
-.main-layout-center {
-  flex: var(--layout-center-flex);
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-bg-primary);
-  animation: fadeInUp var(--duration-slow) var(--ease-out-expo);
-}
-
-/* ===== 右栏：AI 助手面板（约 1.6 单位） ===== */
-.main-layout-right {
-  width: var(--layout-right-width);
-  min-width: var(--layout-right-width);
-  background: var(--color-bg-card);
-  border-left: 1px solid var(--color-border);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  animation: slideInRight var(--duration-slow) var(--ease-out-expo);
-}
-
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(8px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-/* ==========================================================================
-   响应式调整（保留桌面端为主）
-   ========================================================================== */
-@media (max-width: 1200px) {
-  /* 中等屏幕：右栏稍窄 */
-  :root {
-    --layout-right-width: 320px;
+@keyframes wb-main-layout-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
-@media (max-width: 1024px) {
-  /* 较小屏幕：可隐藏右栏或缩小 */
-  :root {
-    --layout-left-width: 200px;
-    --layout-right-width: 280px;
+/* ===== Reduced motion：禁用淡入动画 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .wb-main-layout {
+    animation: none;
   }
+}
+
+/* ===== 兼容旧 .main-layout 类名（防止其他页面遗漏引用）=====
+   将旧类名 alias 到 .wb-main-layout 同样的样式，避免视觉断裂。
+   仅作为向后兼容层，新代码应使用 .wb-main-layout。 */
+.main-layout {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--trae-bg-base-default);
+  color: var(--trae-text-default);
 }

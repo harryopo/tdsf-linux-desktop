@@ -16,10 +16,11 @@ import {
   Server,
   Folder,
   FolderOpen,
+  FolderX,
   FileText,
   File,
   Loader2,
-  Link2,
+  Plug,
   FolderPlus,
   Trash2,
 } from 'lucide-react'
@@ -520,19 +521,24 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
             }}
           >
             {!connected ? (
+              // 设计稿空状态(workbench-disconnected.html 第 335-343 行):
+              // 32×32 圆角6 灰色图标盒(folder-off) + "尚未连接\nSSH服务器" + 24px brand 连接按钮(plug)
               <div className="wb-filetree-empty">
-                <Link2 className="size-6 wb-filetree-empty-icon" />
+                <div className="wb-filetree-empty-icon-box">
+                  <FolderX className="size-4" />
+                </div>
                 <div className="wb-filetree-empty-text">
-                  尚未连接 SSH
+                  尚未连接
                   <br />
-                  连接后将列出远程目录
+                  SSH服务器
                 </div>
                 <button
                   type="button"
                   onClick={() => navigate('/settings/ssh')}
-                  className="wb-filetree-connect-btn"
+                  className="wb-filetree-empty-btn"
                 >
-                  去连接服务器
+                  <Plug className="size-2.5" />
+                  连接
                 </button>
               </div>
             ) : (
