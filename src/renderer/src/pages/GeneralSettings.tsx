@@ -17,7 +17,7 @@
  * （定时任务分区由 SchedulerPanel 自包含：状态、订阅、降级均内部处理。）
  */
 import { useState, useRef, useEffect } from 'react'
-import { Globe, Rocket, Database, Bell, Download, Trash2, Loader2, type LucideIcon } from 'lucide-react'
+import { Settings, Globe, Rocket, Database, Bell, Download, Trash2, Loader2, type LucideIcon } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -332,7 +332,7 @@ export function GeneralSettings() {
   return (
     <div>
       <SettingsPageHeader
-        icon={Globe as LucideIcon}
+        icon={Settings as LucideIcon}
         title="通用"
         desc="语言、启动与数据偏好"
       />

@@ -17,7 +17,7 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { Moon, Palette, Type, LayoutGrid, Code2, type LucideIcon } from 'lucide-react'
+import { Moon, Palette, Type, LayoutGrid, Code2, SlidersHorizontal, type LucideIcon } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -202,7 +202,7 @@ export function AppearanceSettings() {
   return (
     <div>
       <SettingsPageHeader
-        icon={Palette as LucideIcon}
+        icon={SlidersHorizontal as LucideIcon}
         title="外观"
         desc="主题、颜色与字体偏好"
       />
