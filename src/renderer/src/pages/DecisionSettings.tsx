@@ -16,8 +16,10 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { GitBranch, Layers, Shield, Bell, type LucideIcon } from 'lucide-react'
+import { Button } from 'antd'
+import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -152,6 +154,21 @@ const DEFAULT_CHANNELS: Record<string, boolean> = Object.fromEntries(
   NOTIFY_CHANNELS.map((c) => [c.id, c.defaultValue]),
 )
 
+/**
+ * 测试评估用的模拟 6 源证据输入
+ *
+ * 用于在 DecisionSettings 页面验证当前 6 源权重对 credibilityAssess 决策可信度的影响。
+ * 字段值取各 sourceId 的合法必填/可选字段（见 @shared/agent-types CredibilityEvidenceInput）。
+ */
+const TEST_ASSESS_INPUTS: CredibilityEvidenceInput[] = [
+  { sourceId: 'log', fields: { drainMatch: 0.85, sourcePrior: 0.6 } },
+  { sourceId: 'kb', fields: { hasResults: true, topScore: 0.8, avgScore: 0.6 } },
+  { sourceId: 'ai-param', fields: { verbalizedConfidence: 0.7 } },
+  { sourceId: 'human', fields: { hasAnnotations: true, positiveRate: 0.9, agreement: 0.8 } },
+  { sourceId: 'history', fields: { hasCases: true, weightedSuccessRate: 0.75 } },
+  { sourceId: 'best-practice', fields: { hasMatches: true, positiveRate: 0.8, negativeRate: 0.2 } },
+]
+
 export function DecisionSettings() {
   // Card 1: 决策流程配置
   const [tierStates, setTierStates] = usePersistentState<Record<string, boolean>>(
@@ -186,6 +203,25 @@ export function DecisionSettings() {
     DEFAULT_CHANNELS,
   )
   const [webhookUrl, setWebhookUrl] = usePersistentState('decision.webhookUrl', 'https://hooks.tdsf.dev/alerts')
+
+  // Card 2 测试评估：调用 credibilityAssess 验证当前 6 源权重对决策可信度的影响
+  const [testResult, setTestResult] = useState<ConfidenceAssessment | null>(null)
+  const [testError, setTestError] = useState<string | null>(null)
+  const [testing, setTesting] = useState(false)
+
+  const handleTestAssess = async () => {
+    setTesting(true)
+    setTestResult(null)
+    setTestError(null)
+    try {
+      const result = await window.electronAPI.credibilityAssess(TEST_ASSESS_INPUTS)
+      setTestResult(result)
+    } catch (err) {
+      setTestError((err as Error)?.message ?? '评估失败')
+    } finally {
+      setTesting(false)
+    }
+  }
 
   return (
     <div>
@@ -279,6 +315,29 @@ export function DecisionSettings() {
             <span className="set-weight-summary__val">
               {totalWeight}
             </span>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <Button
+              type="primary"
+              loading={testing}
+              onClick={handleTestAssess}
+            >
+              测试当前权重对决策的影响
+            </Button>
+            {testResult && (
+              <div style={{ marginTop: 12, padding: 12, background: 'var(--trae-bg-overlay-l2)', borderRadius: 6 }}>
+                <div>综合可信度: {(testResult.confidence * 100).toFixed(1)}%</div>
+                <div>融合规则: {testResult.ruleUsed}</div>
+                <div>冲突程度: {(testResult.conflictLevel * 100).toFixed(1)}%</div>
+                <div>信任区间: [{(testResult.belief * 100).toFixed(1)}%, {(testResult.plausibility * 100).toFixed(1)}%]</div>
+                <div>参与源数: {testResult.sources.length}</div>
+              </div>
+            )}
+            {testError && (
+              <div style={{ marginTop: 12, padding: 12, background: 'var(--trae-bg-overlay-l2)', borderRadius: 6, color: 'var(--color-error)' }}>
+                评估失败: {testError}
+              </div>
+            )}
           </div>
         </SettingsCard>
 
