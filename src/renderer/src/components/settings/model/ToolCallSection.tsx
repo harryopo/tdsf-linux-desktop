@@ -18,7 +18,15 @@ export function ToolCallSection(props: ToolCallSectionProps) {
   const { toolCallStats } = props
 
   return (
-    <SettingsCard icon={Layers} title="功能调用统计" tag="usage.tools" className="p-5">
+    <SettingsCard
+      icon={Layers}
+      title="功能调用统计"
+      tag="usage.tools"
+      className="p-5"
+      hideTag
+      noHeadBorder
+      headMb="lg"
+    >
       {/* 功能调用排行（水平条形图） */}
       <div className="set-tool-stats">
         {toolCallStats.length === 0 ? (

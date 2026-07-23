@@ -16,7 +16,15 @@ export interface TokenStatsSectionProps {
 
 export function TokenStatsSection(_props: TokenStatsSectionProps) {
   return (
-    <SettingsCard icon={BarChart3} title="Token使用统计" tag="usage.tokens" className="p-5">
+    <SettingsCard
+      icon={BarChart3}
+      title="Token使用统计"
+      tag="usage.tokens"
+      className="p-5"
+      hideTag
+      noHeadBorder
+      headMb="lg"
+    >
       <TokenUsageChart />
     </SettingsCard>
   )
