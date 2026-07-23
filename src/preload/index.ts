@@ -59,6 +59,8 @@ import {
   PAOR,
   // M2 Task 2 新增：命令风险评估 IPC（risk:check）
   RISK,
+  // M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
+  ALERT,
   // v2.2 P1 修复 #18/#20：补齐 MCP 外部调用通道集中化
   MCP_EXTERNAL,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
@@ -2395,6 +2397,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 桥接 assessCommandRisk（AST 优先 + 正则降级），空命令返回 low（不抛错）
   riskCheck: (command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }> =>
     ipcRenderer.invoke(RISK.CHECK, command),
+
+  // ===== M3 Task 2 新增：告警确认扁平化（alert:ack） =====
+  // 通道与主进程 ipc/alert.ts 一一对应；UI 调用方式：
+  //   const ok = await window.electronAPI.alertAck('alert-id-xxx')
+  // 主进程内存 Map 记录 ack 状态（不持久化），ack 成功返回 true，空 alertId 返回 false
+  alertAck: (alertId: string): Promise<boolean> =>
+    ipcRenderer.invoke(ALERT.ACK, alertId),
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>

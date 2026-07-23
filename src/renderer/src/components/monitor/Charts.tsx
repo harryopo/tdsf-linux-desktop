@@ -42,6 +42,8 @@ import {
   sampleNetFlow,
   chartXLabels,
 } from './mock-data'
+// M3 Task 2：时间范围切换切片工具（Chart 数据源按 range 过滤）
+import { sliceMonitorData, type TimeRange } from '../../utils/monitor-time-range'
 
 // ===== 常量 =====
 
@@ -188,9 +190,10 @@ const AXIS_TICK_STYLE = {
 // ===== 4 个图表组件 =====
 
 /** CPU 使用率面积图（24h） */
-export function CpuAreaChart() {
+export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const recent = monitorData.slice(-60)
+  const sliced = sliceMonitorData(monitorData, range ?? '24H')
+  const recent = sliced.slice(-60)
   const useSample = recent.length < 2
 
   const data = useSample
@@ -253,9 +256,10 @@ export function CpuAreaChart() {
 }
 
 /** 内存使用折线图（24h，3 条线：used/buffer/cache） */
-export function MemoryLineChart() {
+export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const recent = monitorData.slice(-60)
+  const sliced = sliceMonitorData(monitorData, range ?? '24H')
+  const recent = sliced.slice(-60)
   const useSample = recent.length < 2
 
   const data = useSample
@@ -341,9 +345,10 @@ export function MemoryLineChart() {
 }
 
 /** 磁盘 IO 柱状图（24h） */
-export function DiskIoBarChart() {
+export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const recent = monitorData.slice(-24)
+  const sliced = sliceMonitorData(monitorData, range ?? '24H')
+  const recent = sliced.slice(-24)
   const useSample = recent.length < 2
 
   const data = useSample
@@ -394,9 +399,10 @@ export function DiskIoBarChart() {
 }
 
 /** 网络流量双折线图（24h，入站 / 出站） */
-export function NetworkFlowChart() {
+export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const recent = monitorData.slice(-60)
+  const sliced = sliceMonitorData(monitorData, range ?? '24H')
+  const recent = sliced.slice(-60)
   const useSample = recent.length < 2
 
   // 动态 maxVal：取所有值中的最大值，最小为 100

@@ -1024,4 +1024,19 @@ export const RISK = {
   CHECK: 'risk:check',
 } as const
 
+/**
+ * 告警 IPC 通道常量（M3 新增：告警确认）
+ *
+ * 通道列表：
+ * - ACK invoke  渲染 → 主：确认告警（标记已处理，主进程内存 Map 记录）
+ *
+ * 设计依据：M3 Task 2 · IPC 4 步同步铁律
+ * 告警是瞬时状态，主进程内存 Map 存储 ack 状态，重启后重置（不持久化到磁盘）。
+ * 渲染层在 AlertDrawer "标记已处理" 按钮中调用，ack 后关闭 Drawer。
+ */
+export const ALERT = {
+  /** 确认告警（invoke: 渲染 → 主，主进程内存 Map 记录 ack 状态） */
+  ACK: 'alert:ack',
+} as const
+
 

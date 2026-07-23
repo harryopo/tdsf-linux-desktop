@@ -34,6 +34,9 @@ import { registerCredibilityHandlers } from './credibility'
 // M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
 // 通道：risk:check（渲染层主动查询命令风险等级，供 DecisionPage 高危拦截清单使用）
 import { registerRiskHandlers } from './risk'
+// M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
+// 通道：alert:ack（渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer）
+import { registerAlertHandlers } from './alert'
 import { registerSandboxIpcHandlers } from './sandbox'
 import { registerAtCommandHandlers } from './at-commands'
 import { registerClaudeSdkHandlers } from './claude-sdk'
@@ -149,6 +152,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
   // 通道：risk:check（渲染层主动查询命令风险等级，供 DecisionPage 高危拦截清单使用）
   registerRiskHandlers()
+  // M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
+  // 通道：alert:ack（渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer）
+  registerAlertHandlers()
   // v0.9 新增：OpenHands 沙箱集成 IPC（Docker 检测 + 沙箱生命周期 + 命令执行）
   // P-2 + P-4 修复：传递 mainWindow 用于 IPC 层强制审批 + session_api_key 句柄模式
   registerSandboxIpcHandlers(mainWindow)
