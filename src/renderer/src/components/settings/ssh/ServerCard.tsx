@@ -8,6 +8,9 @@
  * - 添加服务器按钮
  * - IPC 不可用时的 Empty 提示
  *
+ * 视觉对齐设计稿 ds-server-row（紧凑单行：dot + name/ip + type 标签 + actions）。
+ * 状态文字不直接渲染在 IP 行（设计稿无），仅通过状态点颜色提示。
+ *
  * 状态与回调全部通过 props 注入；本组件无自身状态。
  */
 import {
@@ -26,7 +29,7 @@ import { Empty } from '@/components/trae/Empty'
 import { cn } from '@/components/trae/utils'
 import type { SshConfig } from '@shared/models'
 
-/** 服务器连接状态 → 状态点颜色 + 中文标签 */
+/** 服务器连接状态 → 状态点颜色 + 中文标签（aria 用） */
 type ServerStatus = 'online' | 'connecting' | 'warning' | 'error' | 'offline'
 
 function statusOf(
@@ -134,9 +137,6 @@ export function ServerCard(props: ServerCardProps) {
                 </div>
                 <div className="ssh-server-row__ip">
                   {s.host}
-                  <span className="ssh-server-row__ip-status">
-                    {STATUS_LABEL[st]}
-                  </span>
                 </div>
               </div>
               <span className="ssh-server-row__type">
@@ -148,18 +148,29 @@ export function ServerCard(props: ServerCardProps) {
                 {isKeyAuth ? '密钥' : '密码'}
               </span>
               <div className="ssh-server-row__actions">
+                {/* 编辑按钮（设计稿 ds-btn-ghost） */}
+                <button
+                  type="button"
+                  onClick={() => onEdit(s)}
+                  aria-label={`编辑 ${s.name || s.host}`}
+                  className="set-btn-ghost btn-press"
+                >
+                  <Pencil className="di-12" />
+                  编辑
+                </button>
+                {/* 断开/连接按钮：online 时为断开（ds-btn-danger），其他为连接（ds-btn-primary 小尺寸） */}
                 {st === 'online' ? (
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => onDisconnect(s)}
                     aria-label={`断开 ${s.name || s.host}`}
-                    className="ssh-btn-danger ssh-btn-press"
+                    className="set-btn-danger btn-press"
                   >
                     {busy ? (
-                      <Loader2 className="size-3 animate-spin" />
+                      <Loader2 className="di-12 animate-spin" />
                     ) : (
-                      <Unplug className="size-3" />
+                      <Unplug className="di-12" />
                     )}
                     断开
                   </button>
@@ -169,34 +180,24 @@ export function ServerCard(props: ServerCardProps) {
                     disabled={busy}
                     onClick={() => onConnect(s)}
                     aria-label={`连接 ${s.name || s.host}`}
-                    className="ssh-btn-primary ssh-btn-primary-sm ssh-btn-press"
+                    className="set-btn-primary ssh-btn-primary-sm btn-press"
                   >
                     {busy ? (
-                      <Loader2 className="size-3 animate-spin" />
+                      <Loader2 className="di-12 animate-spin" />
                     ) : (
-                      <Link2 className="size-3" />
+                      <Link2 className="di-12" />
                     )}
                     连接
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => onEdit(s)}
-                  aria-label={`编辑 ${s.name || s.host}`}
-                  className="ssh-btn-ghost ssh-btn-press"
-                >
-                  <Pencil className="size-3" />
-                  编辑
-                </button>
-                {/* M.1：删除服务器按钮（Modal.confirm 确认后调用 removeServer） */}
+                {/* 删除按钮（保留功能，小图标 ghost） */}
                 <button
                   type="button"
                   onClick={() => onDelete(s)}
                   aria-label={`删除 ${s.name || s.host}`}
-                  className="ssh-btn-danger ssh-btn-press"
+                  className="set-btn-ghost btn-press"
                 >
-                  <Trash2 className="size-3" />
-                  删除
+                  <Trash2 className="di-12" />
                 </button>
               </div>
             </div>
@@ -209,9 +210,9 @@ export function ServerCard(props: ServerCardProps) {
         <button
           type="button"
           onClick={onAdd}
-          className="ssh-btn-primary ssh-btn-press"
+          className="set-btn-primary btn-press"
         >
-          <Plus className="size-3.5" />
+          <Plus className="di-14" />
           添加服务器
         </button>
         {feedback && (

@@ -7,6 +7,9 @@
  * - Keep Alive 间隔滑块（0~300s，0=关闭，重启连接后生效）
  * - 压缩传输 / X11 转发 开关
  *
+ * 视觉对齐设计稿 ds-row（label + desc + control）。
+ * 控件类名统一使用 set-* （set-num / set-input / SettingsSlider / Switch）。
+ *
  * 所有状态由父级持有，通过 props 注入；本组件无自身状态。
  */
 import { Settings } from 'lucide-react'
