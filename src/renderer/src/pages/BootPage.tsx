@@ -31,19 +31,170 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as THREE from 'three'
+import { ArrowRight } from 'lucide-react'
+import { isElectronAPIAvailable } from '@/utils/electron-api'
+
+/** 全屏四边形顶点（兼容 Three r15x+ / WebGL2） */
+const VERTEX_SHADER = /* glsl */ `
+  void main() {
+    gl_Position = vec4(position, 1.0);
+  }
+`
+
+/**
+ * 设计稿 boot.html 原版 fragment（r128 用 gl_FragColor）。
+ * Three 0.185 默认 WebGL2 时仍可通过 glslVersion: GLSL1 跑通。
+ */
+const FRAGMENT_SHADER = /* glsl */ `
+  precision highp float;
+  uniform vec2 resolution;
+  uniform float time;
+
+  void main(void) {
+    vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y);
+    float t = time * 0.05;
+    float lineWidth = 0.002;
+
+    vec3 color = vec3(0.0);
+    for (int j = 0; j < 3; j++) {
+      for (int i = 0; i < 5; i++) {
+        float rawPhase = fract(t - 0.01 * float(j) + float(i) * 0.01);
+        float easedPhase = mix(rawPhase, rawPhase * rawPhase * (3.0 - 2.0 * rawPhase), 0.6);
+        color[j] += lineWidth * float(i * i) / abs(easedPhase * 5.0 - length(uv) + mod(uv.x + uv.y, 0.2));
+      }
+    }
+
+    gl_FragColor = vec4(color[0], color[1], color[2], 1.0);
+  }
+`
+
 const PROGRESS_DURATION_MS = 3000
 const PROGRESS_DELAY_MS = 500
+const BOOT_VERSION_TEXT = 'v2.0 · 2026 火山杯 Agent 创新大赛'
 
 /** BootPage Shader 启动加载页 */
 export function BootPage() {
   const navigate = useNavigate()
+  const canvasHostRef = useRef<HTMLDivElement>(null)
   const [progress, setProgress] = useState(0)
   const [loaded, setLoaded] = useState(false)
+  const [webglFailed, setWebglFailed] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const timersRef = useRef<number[]>([])
 
-  // v3.0 救赎版: 用 CSS 渐变替代 Three.js WebGL shader，减依赖 ~600KB
-  // 保留原 webglFailed 时的 radial-gradient 作为默认背景
+  // M5 Task 3: 监听主进程加载阶段推送
+  // - 收到 stage 后推进 progress 到对应百分比
+  // - 保留 3s 最小展示时长：即使 stage='done' 提前到达，也要等动画完成才显示就绪
+  // - 降级：IPC 不可用时（开发模式或非 Electron），回退到原 3s 假动画
+  useEffect(() => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.onBootLoadingStage) return
+
+    const unsubscribe = window.electronAPI.onBootLoadingStage((payload) => {
+      // 仅推进 progress（不回退），保留动画的视觉连续性
+      setProgress((prev) => Math.max(prev, payload.progress))
+      if (payload.stage === 'done') {
+        setLoaded(true)
+      }
+    })
+
+    return unsubscribe
+  }, [])
+
+  // Three.js shader 背景（SubTask 2.1.1）
+  useEffect(() => {
+    const container = canvasHostRef.current
+    if (!container) return
+
+    let disposed = false
+    let renderer: THREE.WebGLRenderer | null = null
+    let animationId = 0
+    // 提升到 try 作用域外，便于 cleanup 显式释放（P1-1）
+    let geometry: THREE.PlaneGeometry | null = null
+    let material: THREE.ShaderMaterial | null = null
+    let canvas: HTMLCanvasElement | null = null
+    let handleContextLost: ((event: Event) => void) | null = null
+
+    try {
+      // 全屏 shader 四边形用正交相机（避免新版 three 对裸 Camera 的差异）
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+
+      const scene = new THREE.Scene()
+      geometry = new THREE.PlaneGeometry(2, 2)
+      const uniforms = {
+        time: { value: 1.0 },
+        resolution: { value: new THREE.Vector2(1, 1) },
+      }
+
+      material = new THREE.ShaderMaterial({
+        uniforms,
+        vertexShader: VERTEX_SHADER,
+        fragmentShader: FRAGMENT_SHADER,
+        // 强制 GLSL1，保留设计稿 gl_FragColor 写法
+        glslVersion: THREE.GLSL1,
+      })
+
+      const mesh = new THREE.Mesh(geometry, material)
+      scene.add(mesh)
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+      renderer.setClearColor(0x000000, 1)
+      canvas = renderer.domElement
+      canvas.style.display = 'block'
+      canvas.style.width = '100%'
+      canvas.style.height = '100%'
+      container.appendChild(canvas)
+
+      // P1-2: webglcontextlost 事件监听 — GPU 崩溃时降级到纯黑底，避免黑屏无反馈
+      handleContextLost = (event: Event) => {
+        event.preventDefault() // 阻止默认行为，允许后续清理
+        setWebglFailed(true)
+      }
+      canvas.addEventListener('webglcontextlost', handleContextLost)
+
+      const onResize = () => {
+        if (!renderer || !container) return
+        const width = container.clientWidth || window.innerWidth
+        const height = container.clientHeight || window.innerHeight
+        renderer.setSize(width, height, false)
+        uniforms.resolution.value.x = renderer.domElement.width
+        uniforms.resolution.value.y = renderer.domElement.height
+      }
+
+      onResize()
+      window.addEventListener('resize', onResize)
+
+      const animate = () => {
+        if (disposed || !renderer) return
+        animationId = window.requestAnimationFrame(animate)
+        uniforms.time.value += 0.05
+        renderer.render(scene, camera)
+      }
+      animate()
+
+      return () => {
+        disposed = true
+        window.cancelAnimationFrame(animationId)
+        window.removeEventListener('resize', onResize)
+        if (canvas && handleContextLost) {
+          canvas.removeEventListener('webglcontextlost', handleContextLost)
+        }
+        // P1-1: 显式释放 GPU 上下文 + geometry / material
+        // forceContextLoss 主动释放 GPU 资源，避免反复进出启动页导致显存泄漏
+        renderer?.forceContextLoss()
+        geometry?.dispose()
+        material?.dispose()
+        renderer?.dispose()
+        if (canvas && canvas.parentNode === container) {
+          container.removeChild(canvas)
+        }
+      }
+    } catch (err) {
+      console.error('[BootPage] WebGL shader 初始化失败，回退纯黑底:', err)
+      setWebglFailed(true)
+    }
+  }, [])
 
   // prefers-reduced-motion JS 判断（SubTask 2.1.5）
   // shader 核心视觉保留，仅用 JS 状态控制 UI 进度条是否走动画
@@ -107,25 +258,27 @@ export function BootPage() {
       style={{ background: 'var(--trae-shader-bg)' }}
       aria-label="TDSF Linux 运维助手 启动加载"
     >
-      {/* v3.0 救赎版: CSS 渐变背景替代 Three.js WebGL shader */}
+      {/* Shader 背景（SubTask 2.1.1） */}
       <div
+        ref={canvasHostRef}
         className="absolute inset-0 z-0 overflow-hidden"
-        style={{
-          background:
-            'radial-gradient(ellipse at 50% 40%, var(--trae-status-primary-surface-l3) 0%, var(--trae-shader-bg) 70%)',
-        }}
+        style={{ background: 'var(--trae-shader-bg)' }}
         aria-hidden="true"
       />
+      {webglFailed && (
+        <div
+          className="pointer-events-none absolute inset-0 z-[1]"
+          style={{
+            background:
+              'radial-gradient(ellipse at 50% 40%, var(--trae-status-primary-surface-l3) 0%, var(--trae-shader-bg) 70%)',
+          }}
+        />
+      )}
 
-      {/* 前景：居中标题 + 进度线（SubTask 2.1.2 / 2.1.3）
-          设计稿无按钮与状态文案，整个标题区作为点击热区进入工作台 */}
+      {/* 前景：居中标题 + 按钮 + 进度（SubTask 2.1.2 / 2.1.3） */}
       <div
-        className="pointer-events-auto absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center"
+        className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center"
         style={{ paddingBottom: '4vh' }}
-        onClick={handleEnter}
-        role="button"
-        aria-label={loaded ? '点击进入工作台' : '正在加载'}
-        aria-disabled={!loaded}
       >
         <h1
           className="boot-title whitespace-nowrap text-center text-7xl font-semibold"
@@ -142,7 +295,20 @@ export function BootPage() {
           TDSF LINUX
         </h1>
 
-        {/* 设计稿极简进度线（无按钮、无状态文案） */}
+        <button
+          type="button"
+          data-dom-id="boot-enter"
+          aria-label="进入工作台"
+          disabled={!loaded}
+          onClick={handleEnter}
+          className="boot-enter-btn"
+        >
+          <span className="boot-enter-label">进入工作台</span>
+          <ArrowRight className="boot-enter-icon size-4" aria-hidden="true" />
+        </button>
+
+        {/* P1-3: 进度条 a11y — role="progressbar" + aria-value*
+         * aria-live 移到内部 sr-only span，避免 progressbar 本身频繁播报百分比变化 */}
         <div
           className="boot-progress"
           role="progressbar"
@@ -151,14 +317,26 @@ export function BootPage() {
           aria-valuemax={100}
           aria-label="加载进度"
         >
+          {/* 屏幕阅读器播报：仅在状态变化时（loaded true/false）触发，避免每帧播报百分比 */}
           <span className="boot-sr-only" aria-live="polite">
-            {loaded ? '已就绪' : '正在加载'}
+            {loaded ? '就绪 · 点击进入工作台' : '正在加载运维内核...'}
           </span>
           <div className="boot-progress-track">
             <div className="boot-progress-fill" style={{ width: `${progress}%` }} />
           </div>
+          <span className="boot-progress-label">
+            {loaded ? '就绪 · 点击进入工作台' : '正在加载运维内核...'}
+          </span>
         </div>
       </div>
+
+      {/* 底部版本信息（SubTask 2.1.4） */}
+      <footer
+        className="boot-footer pointer-events-none absolute bottom-0 left-0 right-0 z-10 flex justify-center"
+        style={{ padding: 'var(--spacing-16) 0' }}
+      >
+        <span className="boot-version">{BOOT_VERSION_TEXT}</span>
+      </footer>
 
       <style>{`
         .boot-title {
