@@ -3,6 +3,13 @@
  *
  * // @ai-session: ai-claude-20260720-wb3
  * // @ai-task: overnight-phase-C-ssh-connect
+ * // @redesign: 2026-07-23 1:1 对齐 workbench-ai.html / workbench-disconnected.html
+ *
+ * 设计稿结构（workbench-ai.html 第 2289-2388 行）:
+ * - 左侧: TDSF Logo(shield.svg + "TDSF" 字) + 服务器选择器
+ * - 右侧 4 按钮(28×28): 搜索 / AI面板 / 终端面板 / 设置
+ * - 未连接态(workbench-disconnected.html 第 284-292 行): 仅 搜索 + 设置 2 按钮
+ * - 设计稿无红黄绿窗口控制点,已移除
  *
  * - 服务器列表 / 切换来自 useServerStore
  * - 新建连接：ConnectDialog → 保存配置 → sshConnect + shellStart
@@ -16,6 +23,9 @@ import {
   Settings,
   Plus,
   Loader2,
+  Search,
+  SquareTerminal,
+  Shield,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
@@ -28,11 +38,14 @@ import type { SshConfig } from '@shared/models'
 export interface WorkbenchTitlebarProps {
   onToggleAI?: () => void
   aiPanelVisible?: boolean
+  /** 终端面板按钮回调（切换到终端 tab） */
+  onToggleTerminal?: () => void
 }
 
 export function WorkbenchTitlebar({
   onToggleAI,
   aiPanelVisible = true,
+  onToggleTerminal,
 }: WorkbenchTitlebarProps) {
   const navigate = useNavigate()
   const servers = useServerStore((s) => s.servers)
@@ -70,6 +83,10 @@ export function WorkbenchTitlebar({
   const connState = activeServer
     ? connectionStates[activeServer.id] ?? 'disconnected'
     : 'disconnected'
+
+  // 未连接 SSH 时,右侧仅显示 搜索 + 设置 2 按钮(对齐 workbench-disconnected.html 第 284-292 行)
+  // 已连接时显示 4 按钮: 搜索 / AI面板 / 终端面板 / 设置(对齐 workbench-ai.html 第 2375-2388 行)
+  const isDisconnected = !activeSessionId
 
   useEffect(() => {
     if (!menuOpen) return
@@ -148,10 +165,12 @@ export function WorkbenchTitlebar({
         aria-label="工作台顶部栏"
       >
         <div className="wb-titlebar-left">
-          <div className="wb-titlebar-dots" aria-hidden>
-            <span className="wb-titlebar-dot" style={{ background: 'var(--trae-status-error-default)' }} />
-            <span className="wb-titlebar-dot" style={{ background: 'var(--trae-status-alert-default)' }} />
-            <span className="wb-titlebar-dot" style={{ background: 'var(--trae-status-success-default)' }} />
+          {/* TDSF Logo: shield + "TDSF" 字（设计稿 workbench-ai.html 第 2290-2294 行） */}
+          <div className="wb-titlebar-logo" aria-hidden>
+            <span className="wb-titlebar-logo-mark">
+              <Shield className="size-4" />
+            </span>
+            <span className="wb-titlebar-logo-text">TDSF</span>
           </div>
           <div className="relative flex items-center gap-2" ref={menuRef}>
           <button
@@ -259,10 +278,27 @@ export function WorkbenchTitlebar({
         </div>
 
         <div className="wb-titlebar-right">
-          <IconButton title="AI面板" onClick={onToggleAI} active={aiPanelVisible} domId="collapse-ai">
-            <PanelRight className="size-4" />
+          {/* 搜索按钮(设计稿 workbench-ai.html 第 2376-2378 行 / workbench-disconnected.html 第 286-288 行) */}
+          <IconButton title="搜索" onClick={() => navigate('/history')}>
+            <Search className="size-4" />
           </IconButton>
-          <IconButton title="设置" onClick={() => navigate('/settings')}>
+          {/* 未连接态仅 搜索 + 设置 2 按钮;已连接态补齐 AI面板 + 终端面板 */}
+          {!isDisconnected && (
+            <>
+              <IconButton
+                title="AI面板"
+                onClick={onToggleAI}
+                active={aiPanelVisible}
+                domId="btn-toggle-ai"
+              >
+                <PanelRight className="size-4" />
+              </IconButton>
+              <IconButton title="终端面板" onClick={onToggleTerminal}>
+                <SquareTerminal className="size-4" />
+              </IconButton>
+            </>
+          )}
+          <IconButton title="设置" onClick={() => navigate('/settings')} domId="nav-settings">
             <Settings className="size-4" />
           </IconButton>
         </div>
