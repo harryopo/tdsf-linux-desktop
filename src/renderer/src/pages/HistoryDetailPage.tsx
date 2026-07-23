@@ -2,78 +2,103 @@
  * HistoryDetailPage — 历史决策详情页（1:1 复刻 history-detail.html 设计稿）
  *
  * 路由：/history/:id · 设计稿：tdsf-linux-redesign/pages/history-detail.html
- * Spec: build-runnable-tdsf-from-design · Task 2.11
+ * Spec: build-runnable-tdsf-from-design · Task 2.11 / M2 Task 4
  *
  * 结构（5 张卡片 1:1 对齐设计稿）：
- *   Header（返回工作台 + 返回历史决策 / 已执行 + 时间戳）
- *   Title（决策记录 #DEC-2024-0718-001）
- *   Card 1 决策摘要 · Card 2 证据溯源链 7步HITL · Card 3 执行结果表
+ *   Header（返回工作台 + 返回历史决策 / 状态标签 + 时间戳）
+ *   Title（决策记录 #<id>）
+ *   Card 1 决策摘要 · Card 2 证据溯源链 7步HITL · Card 3 执行结果
  *   Card 4 知识库更新（关联知识跳转入口）· Card 5 操作日志
+ *
+ * 数据来源：window.electronAPI.historyGet(id) → DecisionCard
+ * 复用工具：@/utils/decision-mappers（buildTimelineSteps / buildAuditRows）
+ * 复用组件：@/components/decision/LoadingState / ErrorState
  *
  * data-dom-id：back-workbench / back-history / goto-knowledge-detail
  * 视觉：全部 var(--trae-*) token；代码块背景 var(--trae-bg-code-block)
  * 无障碍：button type="button" + aria-label；prefers-reduced-motion 禁用按压动画
  */
 import './HistoryPage.css'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   Activity, ArrowLeft, ArrowRight, Book, Check, CheckCircle2,
   Clock, List, ScrollText, Shield, Sparkles, Terminal,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
-
-// ==================== 静态示例数据（1:1 来自设计稿 history-detail.html） ====================
-
-const DECISION_ID = 'DEC-2024-0718-001'
-const DECISION_TIMESTAMP = '2024-07-18 14:32:15'
-const KNOWLEDGE_ID = 'KB-021'
-const CONFIDENCE = 0.87
-
-interface EvidenceStep { num: number; title: string; desc: string; time: string }
-
-const EVIDENCE_STEPS: EvidenceStep[] = [
-  { num: 1, title: '数据采集', desc: '采集 32 项指标：CPU 68%、内存 4.2G、worker_connections 达上限 10240、P99 延迟 1.2s。Nginx access.log 显示 502 错误率 12%。', time: '14:32:15' },
-  { num: 2, title: '异常分析', desc: '连接数耗尽 + 502 激增。根因定位：worker_connections 设为 10240，但实际并发达 15360，超出上限 50%。', time: '14:32:16' },
-  { num: 3, title: '推理归因', desc: 'worker_connections 低于实际并发需求。建议提升至 20480 并热加载 nginx，预计可消除 502 错误。', time: '14:32:17' },
-  { num: 4, title: '交叉校验', desc: '沙箱环境验证通过，知识库 KB-021 匹配一致。历史 7 天内 3 次相似事件均通过此方案解决。', time: '14:32:18' },
-  { num: 5, title: '人工确认', desc: '工程师审核通过命令。已拦截 8 项高危命令（rm -rf、dd、mkfs 等），仅保留 nginx -s reload 安全命令。', time: '14:32:20' },
-  { num: 6, title: '执行变更', desc: '热加载 nginx 配置：worker_connections 10240 → 20480。零停机，2 秒完成。', time: '14:32:22' },
-  { num: 7, title: '效果验证', desc: '60 秒后回采指标，确认 502 错误率降至 0%、P99 延迟恢复正常。', time: '14:33:24' },
-]
-
-interface ResultRow { metric: string; before: string; after: string; delta: string }
-
-const RESULT_ROWS: ResultRow[] = [
-  { metric: '502错误率', before: '12%', after: '0%', delta: '-12%' },
-  { metric: 'P99延迟', before: '1.2s', after: '180ms', delta: '-85%' },
-  { metric: '并发连接数', before: '15360', after: '8200', delta: '-47%' },
-  { metric: 'CPU使用率', before: '68%', after: '45%', delta: '-23%' },
-]
-
-type LogIconName = 'sparkles' | 'shield' | 'check' | 'terminal' | 'activity' | 'check-circle'
-
-interface LogEntry { time: string; icon: LogIconName; desc: ReactNode }
-
-const ACTION_LOGS: LogEntry[] = [
-  { time: '14:32:15', icon: 'sparkles', desc: 'AI 提出决策建议' },
-  { time: '14:32:18', icon: 'shield', desc: '系统自动校验安全性' },
-  { time: '14:32:20', icon: 'check', desc: '工程师审核通过' },
-  { time: '14:32:22', icon: 'terminal', desc: <>执行 <span style={{ fontFamily: 'var(--trae-font-family-mono)', color: 'var(--trae-text-default)' }}>nginx -s reload</span></> },
-  { time: '14:32:24', icon: 'activity', desc: '开始效果监控' },
-  { time: '14:33:24', icon: 'check-circle', desc: '验证通过，决策完成' },
-]
+import type { CSSProperties, ReactNode } from 'react'
+import type { DecisionCard } from '@shared/models'
+import { LoadingState } from '@/components/decision/LoadingState'
+import { ErrorState } from '@/components/decision/ErrorState'
+import {
+  buildTimelineSteps, buildAuditRows,
+} from '@/utils/decision-mappers'
+import type { AuditRow } from '@/components/decision/ExecutionResult'
 
 // ==================== 样式常量 ====================
 
 const MONO_STYLE = { fontFamily: 'var(--trae-font-family-mono)', fontVariantNumeric: 'tabular-nums' as const }
 
-const LOG_ICON_PROPS: Record<LogIconName, { color: string; Icon: typeof Sparkles }> = {
+// ==================== 辅助函数 ====================
+
+/** 时间戳格式化为 YYYY-MM-DD HH:mm:ss（本地时区） */
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/** DecisionCard 状态 → 标签 + className（CSS token 仅有 success/warning/danger/brand） */
+const STATUS_LABEL: Record<DecisionCard['status'], { label: string; className: string }> = {
+  pending: { label: '待执行', className: 'hist-tag' },
+  approved: { label: '已批准', className: 'hist-tag' },
+  rejected: { label: '已拒绝', className: 'hist-tag hist-tag--danger' },
+  executed: { label: '已执行', className: 'hist-tag hist-tag--success' },
+  verified: { label: '已验证', className: 'hist-tag hist-tag--success' },
+  failed: { label: '执行失败', className: 'hist-tag hist-tag--danger' },
+}
+
+/** 审计行结果 → 中文标签 */
+const AUDIT_RESULT_LABEL: Record<AuditRow['result'], string> = {
+  completed: '已完成',
+  waiting: '等待中',
+  pending: '待触发',
+  passed: '已通过',
+}
+
+/** 审计行结果 → tag className */
+function auditResultTagClass(result: AuditRow['result']): string {
+  if (result === 'completed' || result === 'passed') return 'hist-tag hist-tag--success'
+  if (result === 'waiting') return 'hist-tag hist-tag--warning'
+  return 'hist-tag'
+}
+
+/** 审计行操作者 → 图标名 */
+type AuditIconName = 'sparkles' | 'shield' | 'check' | 'terminal' | 'activity' | 'check-circle' | 'dot'
+
+const AUDIT_ICON_PROPS: Record<AuditIconName, { color: string; Icon: typeof Sparkles }> = {
   sparkles: { color: 'var(--trae-text-brand)', Icon: Sparkles },
   shield: { color: 'var(--trae-icon-secondary)', Icon: Shield },
   check: { color: 'var(--trae-status-success-default)', Icon: Check },
   terminal: { color: 'var(--trae-text-brand)', Icon: Terminal },
   activity: { color: 'var(--trae-icon-secondary)', Icon: Activity },
   'check-circle': { color: 'var(--trae-status-success-default)', Icon: CheckCircle2 },
+  dot: { color: 'var(--trae-text-tertiary)', Icon: Activity },
+}
+
+/** 根据审计行操作者推断图标 */
+function pickAuditIcon(operator: string, result: AuditRow['result']): AuditIconName {
+  const op = operator.toLowerCase()
+  if (op.includes('engineer')) return result === 'completed' || result === 'passed' ? 'check' : 'shield'
+  if (op.includes('ai') || op.includes('engine')) return 'sparkles'
+  if (op.includes('executor')) return 'terminal'
+  if (op.includes('sandbox')) return 'activity'
+  if (result === 'completed' || result === 'passed') return 'check-circle'
+  return 'dot'
+}
+
+/** 从 buildAuditRows 产生的 timestamp（yyyy-mm-dd HH:MM:SS）提取 HH:MM:SS */
+function extractTime(ts: string): string {
+  return ts.length >= 19 ? ts.slice(11, 19) : ts
 }
 
 // ==================== 辅助子组件 ====================
@@ -112,8 +137,8 @@ function ActorBadge({ type, icon, label }: { type: 'ai' | 'approve'; icon: React
 }
 
 /** 日志行图标 */
-function LogIcon({ name }: { name: LogIconName }) {
-  const { color, Icon } = LOG_ICON_PROPS[name]
+function AuditLogIcon({ name }: { name: AuditIconName }) {
+  const { color, Icon } = AUDIT_ICON_PROPS[name]
   return <Icon className="shrink-0" style={{ width: 14, height: 14, color }} />
 }
 
@@ -122,11 +147,87 @@ function LogIcon({ name }: { name: LogIconName }) {
 export function HistoryDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  void id
+
+  const [card, setCard] = useState<DecisionCard | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  /** 加载决策数据 */
+  const loadCard = useCallback(async () => {
+    if (!id) {
+      setError('缺少决策 ID')
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await window.electronAPI.historyGet(id)
+      setCard(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载决策详情失败')
+      console.warn('[HistoryDetailPage] historyGet failed:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => { void loadCard() }, [loadCard])
 
   const handleBackWorkbench = () => navigate('/workbench')
   const handleBackHistory = () => navigate('/history')
-  const handleGotoKnowledge = () => navigate(`/knowledge/${KNOWLEDGE_ID}`)
+
+  // ===== 状态渲染 =====
+  if (loading) return <LoadingState />
+  if (error) return <ErrorState message={error} onRetry={() => void loadCard()} />
+
+  // 空状态：决策不存在
+  if (!card) {
+    return (
+      <main className="hist-detail-page">
+        <header className="hist-detail-header">
+          <div className="hist-detail-back-row">
+            <button type="button" aria-label="返回历史决策" onClick={handleBackHistory} className="hist-back-btn hist-btn-press">
+              <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
+              返回历史决策
+            </button>
+          </div>
+        </header>
+        <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
+          <CheckCircle2 className="shrink-0" style={{ width: 32, height: 32, color: 'var(--trae-text-tertiary)' }} />
+          <span className="text-[13px]" style={{ color: 'var(--trae-text-secondary)' }}>
+            决策不存在（#{id ?? 'N/A'}）
+          </span>
+          <button
+            type="button"
+            onClick={handleBackHistory}
+            className="hist-back-btn hist-btn-press"
+          >
+            <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
+            返回历史决策
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  // ===== 数据映射 =====
+  const timelineSteps = buildTimelineSteps(card)
+  const auditRows = buildAuditRows(card)
+  const statusMeta = STATUS_LABEL[card.status]
+  const timestampStr = formatTimestamp(card.timestamp)
+  const durationLabel = card.durationMs != null ? `${card.durationMs}ms` : '—'
+  const completedSteps = timelineSteps.filter(s => s.status === 'completed').length
+  const allCompleted = completedSteps === timelineSteps.length
+
+  // Card 3 执行结果状态展示
+  const executionSuccess = card.status === 'executed' || card.status === 'verified'
+  const executionFailed = card.status === 'failed'
+  const executionHeadline = executionSuccess
+    ? { text: '执行成功', color: 'var(--trae-status-success-default)' }
+    : executionFailed
+      ? { text: '执行失败', color: 'var(--trae-status-error-default)' }
+      : { text: statusMeta.label, color: 'var(--trae-status-alert-default)' }
 
   return (
     <main className="hist-detail-page">
@@ -143,10 +244,10 @@ export function HistoryDetailPage() {
           </button>
         </div>
         <div className="hist-detail-actions">
-          <span className="hist-tag hist-tag--success">已执行</span>
+          <span className={statusMeta.className}>{statusMeta.label}</span>
           <span className="hist-detail-timestamp">
             <Clock className="shrink-0" style={{ width: 12, height: 12, color: 'var(--trae-text-tertiary)' }} />
-            <span className="hist-detail-timestamp-val">{DECISION_TIMESTAMP}</span>
+            <span className="hist-detail-timestamp-val">{timestampStr}</span>
           </span>
         </div>
       </header>
@@ -154,7 +255,7 @@ export function HistoryDetailPage() {
       {/* 2. Title block */}
       <div className="hist-detail-title-wrap">
         <h1 className="hist-detail-title">
-          决策记录 <span className="hist-detail-id">#{DECISION_ID}</span>
+          决策记录 <span className="hist-detail-id">#{card.id}</span>
         </h1>
       </div>
 
@@ -163,19 +264,22 @@ export function HistoryDetailPage() {
         {/* Card 1: 决策摘要 */}
         <section className="hist-card">
           <SectionHead icon={<ScrollText className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="决策摘要" />
-          <SummaryRow label="问题">Nginx 502 错误率激增至 <span style={{ ...MONO_STYLE, color: 'var(--trae-status-error-default)', fontWeight: 'var(--trae-font-weight-medium)' }}>12%</span></SummaryRow>
-          <SummaryRow label="根因">worker_connections 配置不足（<span style={MONO_STYLE}>10240</span> &lt; 实际并发 <span style={MONO_STYLE}>15360</span>）</SummaryRow>
-          <SummaryRow label="决策">将 worker_connections 从 <span style={MONO_STYLE}>10240</span> 提升至 <span style={{ ...MONO_STYLE, color: 'var(--trae-text-brand)', fontWeight: 'var(--trae-font-weight-medium)' }}>20480</span></SummaryRow>
+          <SummaryRow label="问题">{card.problem}</SummaryRow>
+          <SummaryRow label="根因">{card.hypothesis}</SummaryRow>
+          <SummaryRow label="决策">{card.fixDescription}</SummaryRow>
           <SummaryRow label="执行命令">
             <div className="hist-cmd">
-              <span style={{ color: 'var(--trae-text-brand)' }}>nginx</span> <span style={{ color: 'var(--trae-text-default)' }}>-s reload</span> <span style={{ color: 'var(--trae-text-tertiary)' }}># 热加载 nginx 配置</span>
+              <span style={{ color: 'var(--trae-text-default)' }}>{card.fixCommand}</span>
             </div>
           </SummaryRow>
           <SummaryRow label="置信度">
             <div className="hist-conf-wrap">
-              <span className="hist-conf-val">{CONFIDENCE.toFixed(2)}</span>
+              <span className="hist-conf-val">{card.confidence.toFixed(2)}</span>
               <div className="hist-conf-bar">
-                <div className="hist-conf-bar-fill" style={{ width: `${CONFIDENCE * 100}%` }} />
+                <div
+                  className="hist-conf-bar-fill"
+                  style={{ width: `${Math.min(Math.max(card.confidence, 0), 1) * 100}%` }}
+                />
               </div>
             </div>
           </SummaryRow>
@@ -183,7 +287,11 @@ export function HistoryDetailPage() {
             <ActorBadge type="ai" icon={<Sparkles style={{ width: 12, height: 12 }} />} label="AI Agent" />
           </SummaryRow>
           <SummaryRow label="审核人">
-            <ActorBadge type="approve" icon={<Check style={{ width: 12, height: 12 }} />} label="Engineer Zhang" />
+            <ActorBadge
+              type="approve"
+              icon={<Check style={{ width: 12, height: 12 }} />}
+              label={card.risk.requireConfirmation ? 'Engineer' : '低风险自动通过'}
+            />
           </SummaryRow>
         </section>
 
@@ -195,28 +303,45 @@ export function HistoryDetailPage() {
             right={
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="hist-tag">7步 · HITL</span>
-                <span className="hist-tag hist-tag--success">全部完成</span>
+                <span className={allCompleted ? 'hist-tag hist-tag--success' : 'hist-tag'}>
+                  {completedSteps}/7 已完成
+                </span>
               </div>
             }
           />
           <div className="hist-timeline">
-            {EVIDENCE_STEPS.map((step, idx) => {
-              const isLast = idx === EVIDENCE_STEPS.length - 1
+            {timelineSteps.map((step, idx) => {
+              const isLast = idx === timelineSteps.length - 1
+              const isCompleted = step.status === 'completed'
+              const isInProgress = step.status === 'in-progress'
+              const dotStyle: CSSProperties = isCompleted
+                ? {}
+                : isInProgress
+                  ? { background: 'var(--trae-bg-brand)', opacity: 0.6 }
+                  : { background: 'transparent', border: '2px dashed var(--trae-border-neutral-l2)' }
+              const stepLabel = isCompleted ? '已完成' : isInProgress ? '进行中' : '待执行'
               return (
                 <div key={step.num} className={isLast ? 'hist-ev-step is-last' : 'hist-ev-step'}>
                   <div className="hist-ev-step-rail">
-                    <div className="hist-ev-step-dot">
-                      <Check style={{ width: 12, height: 12, color: 'var(--trae-text-onbrand)' }} />
+                    <div className="hist-ev-step-dot" style={dotStyle}>
+                      {isCompleted && <Check style={{ width: 12, height: 12, color: 'var(--trae-text-onbrand)' }} />}
                     </div>
-                    {!isLast && <div className="hist-ev-step-connector" />}
+                    {!isLast && (
+                      <div
+                        className="hist-ev-step-connector"
+                        style={isCompleted ? undefined : { background: 'var(--trae-border-neutral-l1)' }}
+                      />
+                    )}
                   </div>
                   <div className={isLast ? 'hist-ev-step-body is-last' : 'hist-ev-step-body'}>
                     <div className="hist-ev-step-title-row">
                       <span className="hist-ev-step-title">Step {step.num} · {step.title}</span>
-                      <span className="hist-tag hist-tag--success">已完成</span>
+                      <span className={isCompleted ? 'hist-tag hist-tag--success' : 'hist-tag'}>
+                        {stepLabel}
+                      </span>
                     </div>
                     <p className="hist-ev-step-desc">{step.desc}</p>
-                    <p className="hist-ev-step-time">{step.time}</p>
+                    {step.timestamp && <p className="hist-ev-step-time">{extractTime(step.timestamp)}</p>}
                   </div>
                 </div>
               )
@@ -224,19 +349,40 @@ export function HistoryDetailPage() {
           </div>
         </section>
 
-        {/* Card 3: 执行结果 */}
+        {/* Card 3: 执行结果（DecisionCard 无 before/after 指标对比数据） */}
         <section className="hist-card">
           <SectionHead
             icon={<Activity className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />}
             title="执行结果"
             right={
-              <span className="hist-result-success">
-                <CheckCircle2 className="shrink-0" style={{ width: 14, height: 14, color: 'var(--trae-status-success-default)' }} />
-                执行成功
+              <span className="hist-result-success" style={{ color: executionHeadline.color }}>
+                <CheckCircle2 className="shrink-0" style={{ width: 14, height: 14, color: executionHeadline.color }} />
+                {executionHeadline.text}
               </span>
             }
           />
-          <div className="hist-table-wrap">
+          <div className="hist-row">
+            <span className="hist-row-label">状态</span>
+            <div className="hist-row-value">
+              <span className={statusMeta.className}>{statusMeta.label}</span>
+            </div>
+          </div>
+          <div className="hist-row">
+            <span className="hist-row-label">执行命令</span>
+            <div className="hist-row-value">
+              <div className="hist-cmd">
+                <span style={{ color: 'var(--trae-text-default)' }}>{card.fixCommand}</span>
+              </div>
+            </div>
+          </div>
+          <div className="hist-row">
+            <span className="hist-row-label">耗时</span>
+            <div className="hist-row-value">
+              <span style={MONO_STYLE}>{durationLabel}</span>
+            </div>
+          </div>
+          {/* DecisionCard 无 before/after 指标对比数据，显示占位表格 */}
+          <div className="hist-table-wrap" style={{ marginTop: 12 }}>
             <table className="hist-table">
               <thead>
                 <tr>
@@ -246,54 +392,63 @@ export function HistoryDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {RESULT_ROWS.map((row) => (
-                  <tr key={row.metric}>
-                    <td>{row.metric}</td>
-                    <td className="num">{row.before}</td>
-                    <td className="num">{row.after}</td>
-                    <td className="num delta-up">{row.delta}</td>
-                  </tr>
-                ))}
+                <tr>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--trae-text-tertiary)' }}>
+                    暂无指标对比数据
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
         </section>
 
-        {/* Card 4: 知识库更新（关联知识跳转入口） */}
+        {/* Card 4: 知识库更新（DecisionCard 无 knowledgeId，展示决策已归档） */}
         <section className="hist-card">
           <SectionHead icon={<Book className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="知识库更新" />
           <div className="hist-kb-row">
             <div className="hist-kb-left">
               <CheckCircle2 className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-status-success-default)' }} />
-              <span className="hist-kb-desc">本次决策已更新至知识库</span>
-              <span className="hist-kb-link">{KNOWLEDGE_ID}</span>
+              <span className="hist-kb-desc">决策已归档至本地历史库</span>
+              <span className="hist-kb-link">{card.id}</span>
             </div>
             <button
               type="button"
               data-dom-id="goto-knowledge-detail"
-              aria-label={`查看知识 ${KNOWLEDGE_ID} 的详情`}
-              onClick={handleGotoKnowledge}
+              aria-label="查看关联知识库"
+              onClick={() => navigate('/knowledge')}
               className="hist-kb-btn hist-btn-press"
             >
-              查看知识详情
+              查看知识库
               <ArrowRight className="shrink-0" style={{ width: 12, height: 12 }} />
             </button>
           </div>
         </section>
 
-        {/* Card 5: 操作日志 */}
+        {/* Card 5: 操作日志（使用 buildAuditRows） */}
         <section className="hist-card">
           <SectionHead icon={<List className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="操作日志" />
           <div className="hist-timeline">
-            {ACTION_LOGS.map((log, idx) => (
-              <div key={idx} className="hist-log-row">
-                <span className="hist-log-time">{log.time}</span>
-                <span className="hist-log-icon">
-                  <LogIcon name={log.icon} />
-                </span>
-                <span className="hist-log-desc">{log.desc}</span>
-              </div>
-            ))}
+            {auditRows.map((row, idx) => {
+              const iconName = pickAuditIcon(row.operator, row.result)
+              return (
+                <div key={idx} className="hist-log-row">
+                  <span className="hist-log-time">{extractTime(row.timestamp)}</span>
+                  <span className="hist-log-icon">
+                    <AuditLogIcon name={iconName} />
+                  </span>
+                  <span className="hist-log-desc">
+                    <span style={{ color: 'var(--trae-text-secondary)', marginRight: 6 }}>[{row.operator}]</span>
+                    {row.action}
+                    <span style={{ marginLeft: 8, color: 'var(--trae-text-tertiary)', fontFamily: 'var(--trae-font-family-mono)' }}>
+                      {row.hash}
+                    </span>
+                    <span className={auditResultTagClass(row.result)} style={{ marginLeft: 8 }}>
+                      {AUDIT_RESULT_LABEL[row.result]}
+                    </span>
+                  </span>
+                </div>
+              )
+            })}
           </div>
         </section>
       </div>
