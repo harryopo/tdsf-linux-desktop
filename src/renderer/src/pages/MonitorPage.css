@@ -63,8 +63,63 @@ table.mon-table td {
   padding: 7px 10px !important;
 }
 
-/* ===== 主容器 ===== */
+/* ===== 主容器 =====
+ *
+ * monitor.html 特有 density override（覆盖全局 trae-tokens.css）
+ * 1:1 对齐 monitor.html 第 364-404 行 :root density override 块
+ * - spacer 压缩：16/24/32/40 → 12/16/24/32px（信息密度更高）
+ * - 字号压缩：body-sm=11px / heading-xs=12px / heading-sm=12px / heading-lg=20px / heading-2xl=20px
+ * - 作用域限定 .mon-main，不影响其他页面
+ */
 .mon-main {
+  /* spacer 压缩 */
+  --trae-spacer-16: 12px;
+  --trae-spacer-24: 16px;
+  --trae-spacer-32: 24px;
+  --trae-spacer-40: 32px;
+
+  /* 字号压缩 — 正文 */
+  --trae-body-xs-font-size: 10px;
+  --trae-body-xs-line-height: 14px;
+  --trae-body-sm-font-size: 11px;
+  --trae-body-sm-line-height: 16px;
+  --trae-body-sm-strong-font-size: 11px;
+  --trae-body-sm-strong-line-height: 16px;
+  --trae-body-md-font-size: 11px;
+  --trae-body-md-line-height: 16px;
+  --trae-body-md-strong-font-size: 11px;
+  --trae-body-md-strong-line-height: 16px;
+  --trae-body-base-font-size: 11px;
+  --trae-body-base-line-height: 16px;
+  --trae-body-base-strong-font-size: 11px;
+  --trae-body-base-strong-line-height: 16px;
+
+  /* 字号压缩 — 标题 */
+  --trae-heading-3xs-font-size: 10px;
+  --trae-heading-3xs-line-height: 14px;
+  --trae-heading-2xs-font-size: 12px;
+  --trae-heading-2xs-line-height: 16px;
+  --trae-heading-xs-font-size: 12px;
+  --trae-heading-xs-line-height: 16px;
+  --trae-heading-sm-font-size: 12px;
+  --trae-heading-sm-line-height: 16px;
+  --trae-heading-md-font-size: 20px;
+  --trae-heading-md-line-height: 26px;
+  --trae-heading-lg-font-size: 20px;
+  --trae-heading-lg-line-height: 26px;
+  --trae-heading-xl-font-size: 20px;
+  --trae-heading-xl-line-height: 26px;
+  --trae-heading-2xl-font-size: 20px;
+  --trae-heading-2xl-line-height: 26px;
+  --trae-heading-3xl-font-size: 24px;
+  --trae-heading-3xl-line-height: 30px;
+
+  /* 字号压缩 — 代码 */
+  --trae-code-editor-font-size: 11px;
+  --trae-code-editor-line-height: 16px;
+  --trae-code-terminal-font-size: 11px;
+  --trae-code-terminal-line-height: 16px;
+
   background: var(--trae-bg-base-default);
   color: var(--trae-text-default);
   padding: 16px;
