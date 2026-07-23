@@ -32,6 +32,23 @@ export type FullCmdSegment = { type: 'name' | 'flag' | 'path' | 'val' | 'sym' | 
 export type ListCmdSegment = { type: 'name' | 'flag' | 'path' | 'val' | 'sym' | 'text'; text: string }
 
 // ============================================================================
+// 时间格式化（本地时区，YYYY-MM-DD HH:mm:ss）
+// ============================================================================
+
+/**
+ * 将时间戳（ms）格式化为本地时区字符串 YYYY-MM-DD HH:mm:ss
+ *
+ * 取代 toISOString()（UTC），与页面顶部 formatTimestamp 保持时区一致，
+ * 避免审计行与决策标题时间戳出现 8 小时偏差（Task 6 修复 [I1]）。
+ */
+function formatLocalTs(tsMs: number): string {
+  const d = new Date(tsMs)
+  if (Number.isNaN(d.getTime())) return 'Invalid Date'
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+// ============================================================================
 // 风险等级元信息
 // ============================================================================
 
@@ -158,10 +175,7 @@ export function buildTimelineSteps(card: DecisionCard): TimelineStep[] {
   // 基于决策起始时间戳生成各步骤时间戳（每步间隔 3-15 秒）
   const baseTs = new Date(card.timestamp)
   const stepOffsets = [0, 3, 7, 12, 15, 18, 22] // 秒
-  const fmtTs = (offsetSec: number): string => {
-    const t = new Date(baseTs.getTime() + offsetSec * 1000)
-    return t.toISOString().replace('T', ' ').slice(0, 19)
-  }
+  const fmtTs = (offsetSec: number): string => formatLocalTs(baseTs.getTime() + offsetSec * 1000)
 
   return stepDefs.map((step, idx) => {
     let status: 'completed' | 'in-progress' | 'pending'
@@ -240,10 +254,7 @@ export function buildDangerCommands(card: DecisionCard): DangerCommand[] {
 /** 从 DecisionCard 构建审计日志行 */
 export function buildAuditRows(card: DecisionCard): AuditRow[] {
   const ts = new Date(card.timestamp)
-  const fmt = (d: Date, offsetSec: number): string => {
-    const t = new Date(d.getTime() + offsetSec * 1000)
-    return t.toISOString().replace('T', ' ').slice(0, 19)
-  }
+  const fmt = (d: Date, offsetSec: number): string => formatLocalTs(d.getTime() + offsetSec * 1000)
 
   const rows: AuditRow[] = [
     {
