@@ -15,6 +15,7 @@
  * （规则操作反馈为瞬时 UI 状态，不持久化。）
  */
 import { useState, useEffect, useRef } from 'react'
+import { Modal, Form, Input as AntInput, Select } from 'antd'
 import {
   Shield,
   AlertTriangle,
@@ -120,6 +121,31 @@ const LEVEL_TAG_CLASS: Record<RiskLevel, string> = {
 /** 动作标签样式（灰底 + 边框，对应设计稿 set-action-tag） */
 const ACTION_TAG_CLASS = 'set-action-tag'
 
+/** 规则编辑弹窗 - 风险等级 Select 选项（5 个，不含 custom；value 类型与 RiskLevel 兼容） */
+const LEVEL_OPTIONS: { value: RiskLevel; label: string }[] = [
+  { value: 'none', label: LEVEL_LABEL.none },
+  { value: 'low', label: LEVEL_LABEL.low },
+  { value: 'medium', label: LEVEL_LABEL.medium },
+  { value: 'high', label: LEVEL_LABEL.high },
+  { value: 'critical', label: LEVEL_LABEL.critical },
+]
+
+/** 规则编辑弹窗 - 动作 Select 选项（5 个） */
+const ACTION_OPTIONS: { value: RiskAction; label: string }[] = [
+  { value: 'allow', label: ACTION_LABEL.allow },
+  { value: 'notify', label: ACTION_LABEL.notify },
+  { value: 'confirm', label: ACTION_LABEL.confirm },
+  { value: 'block', label: ACTION_LABEL.block },
+  { value: 'custom', label: ACTION_LABEL.custom },
+]
+
+/** 规则编辑表单值 */
+interface RuleFormValues {
+  pattern: string
+  level: RiskLevel
+  action: RiskAction
+}
+
 /** 只读数值展示框（对应设计稿 set-num） */
 function ReadOnlyNum({ value }: { value: number | string }) {
   return (
@@ -146,12 +172,28 @@ export function RiskSettings() {
   const [ruleFeedback, setRuleFeedback] = useState<string | null>(null)
   const ruleFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // 规则编辑弹窗状态：editingRule=null 表示新增模式，否则为编辑模式
+  const [editingRule, setEditingRule] = useState<RiskRule | null>(null)
+  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
+  const [ruleForm] = Form.useForm<RuleFormValues>()
+
   // 清理反馈定时器
   useEffect(() => {
     return () => {
       if (ruleFeedbackTimerRef.current != null) clearTimeout(ruleFeedbackTimerRef.current)
     }
   }, [])
+
+  // Modal 打开时同步表单初始值（编辑模式回填，新增模式用默认值）
+  useEffect(() => {
+    if (isRuleModalOpen) {
+      ruleForm.setFieldsValue({
+        pattern: editingRule?.pattern ?? '',
+        level: editingRule?.level ?? 'medium',
+        action: editingRule?.action ?? 'notify',
+      })
+    }
+  }, [isRuleModalOpen, editingRule, ruleForm])
 
   // 显示规则操作反馈（2s 后自动消失）
   const showRuleFeedback = (msg: string) => {
@@ -160,9 +202,10 @@ export function RiskSettings() {
     ruleFeedbackTimerRef.current = setTimeout(() => setRuleFeedback(null), 2000)
   }
 
-  // 编辑规则（mock：仅显示反馈，真实场景应打开编辑弹窗）
+  // 编辑规则：设置 editingRule 并打开 Modal
   const handleEditRule = (rule: RiskRule) => {
-    showRuleFeedback(`编辑规则：${rule.pattern}`)
+    setEditingRule(rule)
+    setIsRuleModalOpen(true)
   }
 
   // 删除规则
@@ -172,17 +215,39 @@ export function RiskSettings() {
     if (target) showRuleFeedback(`已删除规则：${target.pattern}`)
   }
 
-  // 新增规则（mock：添加一条默认规则）
+  // 新增规则：editingRule=null 表示新增模式，打开 Modal
   const handleAddRule = () => {
-    const newId = `r${Date.now()}`
-    const newRule: RiskRule = {
-      id: newId,
-      pattern: '新规则 (点击编辑)',
-      level: 'medium',
-      action: 'notify',
+    setEditingRule(null)
+    setIsRuleModalOpen(true)
+  }
+
+  // 保存规则（Modal 确认按钮）：editingRule=null 时新增，否则替换 id 匹配的规则
+  const handleSaveRule = async () => {
+    try {
+      const values = await ruleForm.validateFields()
+      const newRule: RiskRule = {
+        id: editingRule?.id ?? `r${Date.now()}`,
+        pattern: values.pattern,
+        level: values.level,
+        action: values.action,
+      }
+      if (editingRule === null) {
+        setRules((prev) => [...prev, newRule])
+      } else {
+        setRules((prev) => prev.map((r) => (r.id === newRule.id ? newRule : r)))
+      }
+      setIsRuleModalOpen(false)
+      setEditingRule(null)
+      showRuleFeedback(`已保存规则：${newRule.pattern}`)
+    } catch {
+      // 表单验证失败，保持 Modal 打开等待用户修正
     }
-    setRules((prev) => [...prev, newRule])
-    showRuleFeedback('已添加新规则，请点击编辑配置')
+  }
+
+  // 取消编辑：关闭 Modal 并清空 editingRule 避免状态泄漏
+  const handleCancelEdit = () => {
+    setIsRuleModalOpen(false)
+    setEditingRule(null)
   }
 
   // Card 3: 审计日志
@@ -472,6 +537,33 @@ export function RiskSettings() {
             isLast
           />
         </SettingsCard>
+
+        {/* 规则编辑弹窗（新增/编辑模式共用） */}
+        <Modal
+          title={editingRule === null ? '新增规则' : '编辑规则'}
+          open={isRuleModalOpen}
+          onOk={handleSaveRule}
+          onCancel={handleCancelEdit}
+          okText="保存"
+          cancelText="取消"
+          destroyOnClose
+        >
+          <Form form={ruleForm} layout="vertical" preserve={false}>
+            <Form.Item
+              name="pattern"
+              label="命令模式"
+              rules={[{ required: true, message: '请输入命令模式' }]}
+            >
+              <AntInput placeholder="如：rm -rf *" />
+            </Form.Item>
+            <Form.Item name="level" label="风险等级">
+              <Select options={LEVEL_OPTIONS} />
+            </Form.Item>
+            <Form.Item name="action" label="动作">
+              <Select options={ACTION_OPTIONS} />
+            </Form.Item>
+          </Form>
+        </Modal>
 
         <SettingsActionBar />
       </div>
