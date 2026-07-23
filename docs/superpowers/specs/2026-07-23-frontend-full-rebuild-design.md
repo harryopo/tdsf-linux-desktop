@@ -325,6 +325,30 @@
 
 **开源参考**：无额外依赖，复用现有 Three.js + Radix UI
 
+**实施完成**：2026-07-23
+- ✅ Task 1: P0 修复 ModelSettings 导出统计方法名 bug（commit ce1b953）— `appExportModelStats` → `exportModelStats` + IPC 4 步同步 + ElectronAPI 接口声明
+- ✅ Task 2: SettingsLayout nav 补齐 6 项（commit a79e465）— nav-decision / nav-risk 等齐全
+- ✅ Task 3: BootPage 进度条对接真实加载阶段（commit 14debeb）— `BOOT.LOADING_STAGE` 4 步同步（ipc-channels.ts:1053 / boot.ts:64 / preload/index.ts:2420-2421）
+- ✅ Task 4: DecisionSettings 6 源权重影响 `credibilityAssess`（commit e5b09df）
+- ✅ Task 5: SettingsPage 字段预览（commit c6e2cef）
+- ✅ Task 6: ModelSettings 1276 行拆分（commit 6102a50）— 主文件 466 行 + 7 子模块（ApiTestSection 231 / BudgetSection 141 / ConversationSection 193 / ModelActionBar 73 / ModelConfigSection 250 / TokenStatsSection 16 / ToolCallSection 68 / constants 122）
+- ✅ Task 7: SshSettings 778 行拆分（commit 24cb742）— 主文件 482 行 + 4 子模块（ServerCard 212 / KeyCard 100 / DefaultsCard 119 / SecurityCard 80）
+- ✅ Task 8: 端到端验收 + 编译门禁三绿（typecheck:node + typecheck:web + lint 全 exit 0）
+
+**端到端验收**：
+- [x] typecheck:node + typecheck:web + lint 三绿
+- [x] ModelSettings.tsx ≤ 500 行（实际 466 行）
+- [x] SshSettings.tsx < 600 行（实际 482 行）
+- [x] 拆分子模块每个 ≤ 500 行（model 8 文件 / ssh 4 文件全通过）
+- [x] P0 修复验证：`appExportModelStats` 0 处出现
+- [x] `exportModelStats` 三处文件一致（preload/index.ts:992 / electron.d.ts:907 / ModelSettings.tsx:396-397）
+- [x] SettingsLayout nav 6 项齐全（含 nav-decision:37 / nav-risk:38）
+- [x] BOOT 域 IPC 4 步同步（ipc-channels.ts 定义 / boot.ts send / preload on+off）
+- [x] `onBootLoadingStage` 类型声明齐全（electron.d.ts 2 处 / preload/index.ts 1 处 / BootPage.tsx 1 处）
+- [ ] 启动动画 → 进度条真实加载 → 进入工作台（需 dev 运行验证）
+- [ ] 模型配置 → 保存 → "导出统计"按钮可用（需 dev 运行验证）
+- [ ] 决策控制 → 6 源权重保存 → 影响决策（需 dev 运行验证）
+
 ---
 
 ## 四、开源调研清单（优先级排序）
