@@ -405,7 +405,7 @@ export function KnowledgeDetailPage() {
 
           <section id="sec-1" className="kb-detail-card">
             <CardHead icon={<Activity className="h-4 w-4" />} title="问题描述" tag="SYMPTOM" />
-            <div className="kb-body">
+            <div className="kb-detail-card__body kb-body">
               {isEditing && useReal ? (
                 // v2.2 P1 修复 #25：编辑模式 - 问题描述变为 textarea
                 <textarea
@@ -447,7 +447,7 @@ export function KnowledgeDetailPage() {
 
           <section id="sec-2" className="kb-detail-card">
             <CardHead icon={<Zap className="h-4 w-4" />} title="根因分析" tag="ROOT CAUSE" />
-            <div className="kb-body">
+            <div className="kb-detail-card__body kb-body">
               {isEditing && useReal ? (
                 // v2.2 P1 修复 #25：编辑模式 - 根因分析变为 textarea
                 <textarea
@@ -534,7 +534,7 @@ export function KnowledgeDetailPage() {
 
           <section id="sec-4" className="kb-detail-card">
             <CardHead icon={<Wrench className="h-4 w-4" />} title="解决方案" tag="FIX" />
-            <div className="kb-body">
+            <div className="kb-detail-card__body kb-body">
               <p className="kb-body__p">
                 需同步调整 <strong className="kb-body__strong">Nginx 配置</strong>和{' '}
                 <strong className="kb-body__strong">系统级文件描述符限制</strong>，否则 Nginx 配置不生效。
@@ -566,7 +566,7 @@ export function KnowledgeDetailPage() {
 
           <section id="sec-5" className="kb-detail-card">
             <CardHead icon={<CheckCircle2 className="h-4 w-4" />} title="验证方法" tag="VERIFY" />
-            <div className="kb-body">
+            <div className="kb-detail-card__body kb-body">
               <p className="kb-body__p">{displayVerification}</p>
               <CodeBlock code={displayVerifyCmd} copyId="verify" />
               {!useReal && (
