@@ -17,6 +17,7 @@ import {
   FileText,
   Lock,
 } from 'lucide-react'
+import type { LogStats } from '@shared/models'
 
 // ==================== 类型定义 ====================
 
@@ -50,6 +51,8 @@ export interface LogEntry {
 export interface LevelStat {
   level: LogLevel
   count: number
+  /** 级别对应的语义色 token（INFO/WARN/ERROR/DEBUG 各自的颜色） */
+  color: string
 }
 
 // ==================== Mock 数据 ====================
@@ -88,14 +91,6 @@ export const LOG_ENTRIES: LogEntry[] = [
   { id: 13, timestamp: '14:23:15.123', level: 'INFO', source: 'verifier', message: '验证: P99 延迟 180ms (阈值 < 200ms)' },
   { id: 14, timestamp: '14:23:16.456', level: 'INFO', source: 'ai-agent', message: '决策完成, 结果: 成功, 耗时: 15.2s' },
   { id: 15, timestamp: '14:23:17.789', level: 'DEBUG', source: 'system', message: '知识库更新: KB-021 匹配次数 +1' },
-]
-
-/** 日志级别统计（浮动卡 4 项） */
-export const LEVEL_STATS: LevelStat[] = [
-  { level: 'INFO', count: 11 },
-  { level: 'WARN', count: 2 },
-  { level: 'ERROR', count: 1 },
-  { level: 'DEBUG', count: 1 },
 ]
 
 /** Level filter 选项（5 项） */
@@ -213,4 +208,30 @@ export function ipcLogEntryToLogEntry(ipc: IpcLogEntry, idx: number): LogEntry {
  */
 export function ipcLogEntriesToLogEntries(ipcEntries: IpcLogEntry[]): LogEntry[] {
   return ipcEntries.map(ipcLogEntryToLogEntry)
+}
+
+/**
+ * 将 LogStats IPC 返回值映射为 LevelStat[]（浮动统计卡用）。
+ *
+ * @param stats 来自 logStats() IPC 的统计数据（byLevel 为 Record<string, number>）
+ * @returns 4 项级别统计（INFO/WARN/ERROR/DEBUG），count 来自 byLevel，color 用 token
+ *
+ * 说明：byLevel 的 key 在后端可能为大写级别名（INFO/WARN/ERROR/DEBUG/FATAL），
+ *      这里对每个级别同时尝试大写与小写 key，兼容后端实现差异；FATAL 归并到 ERROR。
+ */
+export function mapLogStats(stats: LogStats): LevelStat[] {
+  const byLevel = stats.byLevel ?? {}
+  // 兼容大小写 key（后端可能返回 INFO 或 info）
+  const pick = (upper: string, lower: string): number => {
+    const v = byLevel[upper] ?? byLevel[lower]
+    return typeof v === 'number' ? v : 0
+  }
+  // FATAL 归并到 ERROR
+  const errorCount = pick('ERROR', 'error') + pick('FATAL', 'fatal')
+  return [
+    { level: 'INFO', count: pick('INFO', 'info'), color: 'var(--trae-bg-brand)' },
+    { level: 'WARN', count: pick('WARN', 'warn'), color: 'var(--trae-status-alert-default)' },
+    { level: 'ERROR', count: errorCount, color: 'var(--trae-status-error-default)' },
+    { level: 'DEBUG', count: pick('DEBUG', 'debug'), color: 'var(--trae-text-tertiary)' },
+  ]
 }
