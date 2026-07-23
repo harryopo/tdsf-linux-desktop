@@ -431,6 +431,7 @@ export const LOG = {
  * - DELETE  invoke  渲染 → 主：删除知识条目
  * - IMPORT  invoke  渲染 → 主：批量导入知识条目
  * - EXPORT  invoke  渲染 → 主：批量导出知识条目
+ * - GET     invoke  渲染 → 主：按 id 查询单条知识条目（M4 Task 1 新增，替代 kbExport 误用）
  */
 export const KNOWLEDGE = {
   /** 新增知识条目（invoke: 渲染 → 主） */
@@ -445,6 +446,8 @@ export const KNOWLEDGE = {
   SEARCH: 'kb:search',
   /** 更新知识条目（invoke: 渲染 → 主） */
   UPDATE: 'kb:update',
+  /** 按 id 查询单条知识条目（invoke: 渲染 → 主，未找到返回 null） */
+  GET: 'kb:get',
   /** 记录浏览（invoke: 渲染 → 主） */
   VIEW: 'kb:view',
   /** 热门知识（invoke: 渲染 → 主） */
