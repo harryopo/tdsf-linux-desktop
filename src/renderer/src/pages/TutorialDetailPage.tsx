@@ -6,9 +6,9 @@
  * Spec: build-runnable-tdsf-from-design · Task 2.7
  *
  * 结构（4 section，1:1 对齐设计稿）：
- *   1. Page Header：返回工作台 + 返回教程 + 居中标题/副标题 + 难度/时长/进度 tag
+ *   1. Page Header：返回教程 + 居中标题/副标题 + 难度/时长/进度 tag
  *   2. 章节进度条卡片：5 章节（2 完成 + 1 进行中蓝脉冲 + 2 待学习）
- *   3. 两栏布局：左栏（当前章节 + 实践 + 知识检查）+ 右栏（目录 + 讲师 + 相关课程）
+ *   3. 两栏布局：左栏（当前章节 + 实践 + 知识检查）+ 右栏（目录 + 相关课程）
  *   4. sticky 底部学习统计栏：已学习时长 + 进度条 + 继续学习按钮
  *
  * 数据：严格使用设计稿 tutorial-detail.html 示例数据（Nginx 性能调优 / 5 章节 / 3 测验 / 3 相关课程）
@@ -20,7 +20,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Modal, Spin, message, Button } from 'antd'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
-  Terminal, List, UserCircle, Star, ChevronRight,
+  Terminal, List, Star, ChevronRight,
 } from 'lucide-react'
 import type { TutorialEntry } from '@shared/tutorial-types'
 import { TUTORIAL_DIFFICULTY_LABELS } from '@shared/tutorial-types'
@@ -102,8 +102,6 @@ const RELATED_COURSES: RelatedCourse[] = [
   { id: 'linux-troubleshoot', title: 'Linux故障排查', level: '中级', duration: '1h45min' },
   { id: 'docker-ops', title: 'Docker容器运维', level: '中级', duration: '2h' },
 ]
-
-const INSTRUCTOR_TAGS: string[] = ['nginx', '性能优化', '内核调优']
 
 // ==================== 辅助函数 ====================
 
@@ -275,7 +273,6 @@ export function TutorialDetailPage() {
   }, [activeChapter])
 
   // ===== 事件处理 =====
-  const handleBackWorkbench = () => navigate('/workbench')
   const handleBackTutorial = () => navigate('/tutorial')
   const handlePrev = () => !isFirst && setActiveChapter(activeChapter - 1)
   const handleNext = () => !isLast && setActiveChapter(activeChapter + 1)
@@ -441,12 +438,8 @@ export function TutorialDetailPage() {
 
         {/* ====== 1. Page Header ====== */}
         <header className="tut-detail-header">
-          {/* 左：返回按钮 */}
+          {/* 左：返回按钮（1:1 对齐设计稿 tutorial-detail.html：仅保留"返回教程"按钮） */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBackWorkbench} className="tut-detail-back-btn tut-btn-press">
-              <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
-              <span>返回工作台</span>
-            </button>
             <button type="button" data-dom-id="back-tutorial" aria-label="返回教程" onClick={handleBackTutorial} className="tut-detail-back-btn tut-btn-press">
               <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
               <span>返回教程</span>
@@ -656,27 +649,6 @@ export function TutorialDetailPage() {
                   )
                 })}
               </ul>
-            </div>
-
-            {/* 【讲师信息卡片】 */}
-            <div className="tut-card" style={{ padding: 14 }}>
-              <div className="tut-card-title-row" style={{ marginBottom: 12 }}>
-                <UserCircle size={14} className="tut-card-icon--secondary" />
-                <h2 className="tut-card-title">讲师</h2>
-              </div>
-              <div className="tut-instructor-info">
-                <div className="tut-instructor-avatar">张</div>
-                <div className="tut-instructor-meta">
-                  <span className="tut-instructor-name">张工</span>
-                  <span className="tut-instructor-role">资深SRE工程师</span>
-                </div>
-              </div>
-              <p className="tut-instructor-bio">10年Linux运维经验</p>
-              <div className="tut-instructor-tags">
-                {INSTRUCTOR_TAGS.map((tag) => (
-                  <span key={tag} className="tut-instructor-tag">{tag}</span>
-                ))}
-              </div>
             </div>
 
             {/* 【相关推荐卡片】 */}
