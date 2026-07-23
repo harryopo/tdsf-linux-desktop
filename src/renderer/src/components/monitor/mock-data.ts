@@ -67,7 +67,12 @@ export type TimeRange = (typeof timeRanges)[number]
 
 // ===== 设计稿示例数据 fallback =====
 
-/** 4 个 KPI 示例数据（1:1 来自 monitor.html） */
+/** 4 个 KPI 示例数据（1:1 来自 monitor.html）
+ *
+ * ringColor 使用 trae token（禁止硬编码 hex）：
+ * - CPU/内存/网络：var(--trae-bg-brand)（品牌蓝 #387BFF）
+ * - 磁盘：var(--trae-status-warning-default)（警告色，对应设计稿 #F59E0B）
+ */
 export const sampleKpiStats: KpiStat[] = [
   {
     label: 'CPU',
@@ -76,7 +81,7 @@ export const sampleKpiStats: KpiStat[] = [
     sub: '8 核心',
     delta: 5,
     trend: 'up',
-    ringColor: '#387BFF',
+    ringColor: 'var(--trae-bg-brand)',
     sparkline: [],
   },
   {
@@ -86,7 +91,7 @@ export const sampleKpiStats: KpiStat[] = [
     sub: '4.2 / 8 GB',
     delta: 3,
     trend: 'up',
-    ringColor: '#387BFF',
+    ringColor: 'var(--trae-bg-brand)',
     sparkline: [],
   },
   {
@@ -96,7 +101,7 @@ export const sampleKpiStats: KpiStat[] = [
     sub: '156 / 200 GB',
     delta: 12,
     trend: 'up',
-    ringColor: '#F59E0B',
+    ringColor: 'var(--trae-status-warning-default)',
     sparkline: [],
   },
   {
@@ -106,7 +111,7 @@ export const sampleKpiStats: KpiStat[] = [
     sub: '2.0 MB/s',
     delta: -0.3,
     trend: 'down',
-    ringColor: '#387BFF',
+    ringColor: 'var(--trae-bg-brand)',
     sparkline: [],
   },
 ]

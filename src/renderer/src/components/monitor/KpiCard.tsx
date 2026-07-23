@@ -3,21 +3,18 @@
  *
  * 设计稿：monitor.html 第 3 段 KPI 4 列
  *
- * 1:1 复刻设计稿视觉：
- * - 左侧 72×72 recharts RadialBarChart 环形进度图（CPU/内存/磁盘）
- *   - 背景圆：var(--trae-bg-overlay-l3)（原 SVG #3A3D42 的 token 等价物）
+ * 1:1 复刻设计稿视觉（纯 SVG 实现，无 recharts 依赖）：
+ * - 左侧 72×72 SVG 环形进度图（CPU/内存/磁盘）
+ *   - 背景圆：var(--trae-border-neutral-l1)（原 SVG #3A3D42 的 token 等价物）
  *   - 进度圆：主色（CPU/内存 var(--trae-bg-brand)，磁盘 var(--trae-status-warning-default)）
  *   - 中心数字（16px, 600）+ 单位（9px）
  * - 网络用迷你双向折线图 SVG（上行品牌蓝实线 + 下行灰虚线）
  * - 右侧信息：图标 + 标签 + 主值（"8 核心" / "4.2 / 8 GB" / "156 / 200 GB" / "2.0 MB/s"）+ 趋势 delta
  *
- * 配色：磁盘 78% 用 amber 警告色（设计稿示例），其他用品牌蓝
- *
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.2
- * M3-1: 从 SVG RingProgress 迁移到 recharts RadialBarChart
+ * Redesign: 1:1 对齐 monitor.html — 从 recharts RadialBarChart 回到原生 SVG circle
  */
 import { Cpu, Database, Globe, MemoryStick, TrendingDown, TrendingUp } from 'lucide-react'
-import { PolarAngleAxis, RadialBar, RadialBarChart } from 'recharts'
 import type { KpiStat } from './mock-data'
 
 /** 图标按 label 映射（替代设计稿的 SVG mask） */
@@ -37,19 +34,23 @@ function iconForLabel(label: string) {
 }
 
 /**
- * 环形进度图（72×72，recharts RadialBarChart）
+ * 环形进度图（72×72，纯 SVG）
  *
- * 视觉对齐原 SVG RingProgress：
- * - 72×72 canvas
- * - 中心 (36, 36)
- * - 半径 30，环厚 6（innerRadius=27, outerRadius=33）
- * - 起点 12 点（startAngle=90），顺时针 360°（endAngle=-270）
- * - PolarAngleAxis domain=[0,100] 让 percent 直接映射到角度比例
+ * 1:1 对齐 monitor.html 第 647-658 行 SVG 结构：
+ * - 72×72 canvas，viewBox 0 0 72 72
+ * - 圆心 (36, 36)，半径 30，描边宽 6
+ * - transform: rotate(-90deg) 让起点在 12 点位置
+ * - stroke-dasharray=188.4（周长 = 2π × 30 ≈ 188.4955）
+ * - stroke-dashoffset = 周长 × (1 - percent/100)
+ *   - CPU 68% → 60.3，内存 52% → 90.4，磁盘 78% → 41.4
+ * - stroke-linecap=round
  *
  * @param percent - 0~100
- * @param color - 进度圆颜色（token）
+ * @param color - 进度圆颜色（token，如 var(--trae-bg-brand)）
  * @param centerValue - 中心数字
  */
+const RING_CIRCUMFERENCE = 188.4
+
 function RingProgress({
   percent,
   color,
@@ -60,29 +61,39 @@ function RingProgress({
   centerValue: number
 }) {
   const clamped = Math.max(0, Math.min(100, percent))
-  const data = [{ name: 'progress', value: clamped, fill: color }]
+  const offset = RING_CIRCUMFERENCE * (1 - clamped / 100)
+  const offsetStr = offset.toFixed(2)
   return (
     <div className="mon-kpi-ring-wrap">
-      <RadialBarChart
-        width={72}
-        height={72}
-        cx={36}
-        cy={36}
-        innerRadius={27}
-        outerRadius={33}
-        data={data}
-        startAngle={90}
-        endAngle={-270}
-        barSize={6}
+      <svg
+        width="72"
+        height="72"
+        viewBox="0 0 72 72"
+        className="mon-kpi-ring-svg"
+        aria-hidden="true"
       >
-        <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-        <RadialBar
-          background={{ fill: 'var(--trae-bg-overlay-l3)' }}
-          dataKey="value"
-          cornerRadius={3}
-          fill={color}
+        {/* 背景圆 */}
+        <circle
+          cx="36"
+          cy="36"
+          r="30"
+          fill="none"
+          stroke="var(--trae-border-neutral-l1)"
+          strokeWidth="6"
         />
-      </RadialBarChart>
+        {/* 进度圆 */}
+        <circle
+          cx="36"
+          cy="36"
+          r="30"
+          fill="none"
+          stroke={color}
+          strokeWidth="6"
+          strokeDasharray={RING_CIRCUMFERENCE}
+          strokeDashoffset={offsetStr}
+          strokeLinecap="round"
+        />
+      </svg>
       <div className="mon-kpi-ring-center">
         <div className="mon-kpi-ring-value">
           {centerValue}
@@ -98,12 +109,10 @@ function RingProgress({
 /**
  * 网络迷你双向折线图 SVG（72×72）
  *
- * M3-1 决策：保留 SVG 实现（迁移到 recharts LineChart 复杂度高且视觉无收益，
- * 72×72 的迷你图用 SVG 更精简；recharts 主要价值在 24h 主图表）
- *
+ * 1:1 对齐 monitor.html 第 740-750 行：
  * - 上行：品牌蓝实线（var(--trae-bg-brand)）
  * - 下行：灰色虚线（var(--trae-text-tertiary)）
- * - 中线：1px 灰色虚线（var(--trae-bg-overlay-l3)）
+ * - 中线：1px 灰色虚线（var(--trae-border-neutral-l1)）
  * - 上下行标签（mono 8px）
  */
 function NetworkMiniChart() {
@@ -135,7 +144,7 @@ function NetworkMiniChart() {
           y1="36"
           x2="68"
           y2="36"
-          stroke="var(--trae-bg-overlay-l3)"
+          stroke="var(--trae-border-neutral-l1)"
           strokeWidth="1"
           strokeDasharray="1,3"
         />
