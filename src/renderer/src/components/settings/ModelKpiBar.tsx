@@ -152,18 +152,18 @@ export function ModelKpiBar() {
   return (
     <section
       aria-label="本月概览"
-      className="flex flex-col gap-3"
+      className="set-model-kpi-grid"
     >
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
-          className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:border-[var(--trae-border-neutral-l2)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.2)]"
+          className="set-model-kpi-card"
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+          <div className="set-model-kpi-card__head">
+            <span className="set-model-kpi-card__label">
               {kpi.label}
             </span>
-            <span className="inline-flex items-center gap-0.5 font-mono text-[10px] tabular-nums text-[var(--trae-status-success-default)]">
+            <span className="set-model-kpi-card__trend">
               <svg
                 width="10"
                 height="10"
@@ -183,15 +183,15 @@ export function ModelKpiBar() {
               {kpi.trend}
             </span>
           </div>
-          <div className="mb-2 flex items-baseline gap-1">
+          <div className="set-model-kpi-card__value-row">
             <span
-              className="font-mono text-[24px] font-semibold leading-[1.1] tabular-nums"
+              className="set-model-kpi-card__value"
               style={{ color: kpi.valueColor }}
             >
               {kpi.value}
             </span>
             {kpi.unit != null && kpi.unit !== '' && (
-              <span className="text-[11px] text-[var(--trae-text-secondary)]">
+              <span className="set-model-kpi-card__unit">
                 {kpi.unit}
               </span>
             )}

@@ -70,7 +70,15 @@ export function ApiTestSection(props: ApiTestSectionProps) {
   } = props
 
   return (
-    <SettingsCard icon={KeyRound} title="API接入与测试" tag="api.config" className="p-5">
+    <SettingsCard
+      icon={KeyRound}
+      title="API接入与测试"
+      tag="api.config"
+      className="p-5"
+      hideTag
+      noHeadBorder
+      headMb="lg"
+    >
       {/* API 配置表单 */}
       <div className="set-api-form">
         <div className="set-api-row">

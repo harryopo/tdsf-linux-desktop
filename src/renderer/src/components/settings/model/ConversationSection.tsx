@@ -38,7 +38,15 @@ export function ConversationSection(props: ConversationSectionProps) {
   } = props
 
   return (
-    <SettingsCard icon={ListOrdered} title="对话记录" tag="conversation.history" className="p-5">
+    <SettingsCard
+      icon={ListOrdered}
+      title="对话记录"
+      tag="conversation.history"
+      className="p-5"
+      hideTag
+      noHeadBorder
+      headMb="lg"
+    >
       {/* 工具栏 */}
       <div className="set-conv-toolbar">
         <div className="set-conv-search">
