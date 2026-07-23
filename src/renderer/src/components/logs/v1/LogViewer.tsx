@@ -12,20 +12,44 @@
  *
  * JS 交互：父组件传入过滤后的日志列表（按 level + keyword 筛选）
  */
+import { type RefObject } from 'react'
 import { Inbox } from 'lucide-react'
 import { Empty } from '@/components/trae/Empty'
 import {
   type LogEntry,
+  type LevelStat,
   getLevelColor,
   getLevelSoftColor,
 } from './logs-data'
 
 /** LogViewer — 终端式日志查看器 */
-export function LogViewer({ entries }: { entries: LogEntry[] }) {
+export function LogViewer({
+  entries,
+  levelStats,
+  scrollRef,
+}: {
+  entries: LogEntry[]
+  /** 浮动统计卡数据（来自 log:stats IPC，经 mapLogStats 映射） */
+  levelStats?: LevelStat[]
+  /** 滚动容器 ref（供父组件自动滚动到底部） */
+  scrollRef?: RefObject<HTMLDivElement>
+}) {
   return (
     <section className="log-viewer relative flex min-w-0 flex-1 flex-col">
+      {/* 0. 浮动统计卡（absolute top-right，设计稿元素，数据来自 log:stats） */}
+      {levelStats && levelStats.length > 0 && (
+        <div className="log-stats-card flex items-center" role="status" aria-label="日志级别统计">
+          {levelStats.map((s) => (
+            <div key={s.level} className="log-stats-item flex items-center" style={{ color: s.color }}>
+              <span>{s.level}</span>
+              <span className="log-stats-count">{s.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 1. 日志行（可滚动） */}
-      <div className="log-lines min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="log-lines min-h-0 flex-1 overflow-y-auto">
         {entries.length === 0 ? (
           <Empty
             icon={Inbox}
