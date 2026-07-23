@@ -31,6 +31,9 @@ import { registerDeployIpcHandlers } from './deploy'
 import { registerLlmToolHandlers } from './llm-tools'
 import { registerLogIpcHandlers } from './log'
 import { registerCredibilityHandlers } from './credibility'
+// M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
+// 通道：risk:check（渲染层主动查询命令风险等级，供 DecisionPage 高危拦截清单使用）
+import { registerRiskHandlers } from './risk'
 import { registerSandboxIpcHandlers } from './sandbox'
 import { registerAtCommandHandlers } from './at-commands'
 import { registerClaudeSdkHandlers } from './claude-sdk'
@@ -143,6 +146,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v0.9 新增：可信度算法 IPC（D-S 证据理论 + PCR5 冲突融合 + 6 源证据）
   // v2.3.2：传递 db 用于 credibility:export-decision-html 简化导出
   registerCredibilityHandlers(db)
+  // M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
+  // 通道：risk:check（渲染层主动查询命令风险等级，供 DecisionPage 高危拦截清单使用）
+  registerRiskHandlers()
   // v0.9 新增：OpenHands 沙箱集成 IPC（Docker 检测 + 沙箱生命周期 + 命令执行）
   // P-2 + P-4 修复：传递 mainWindow 用于 IPC 层强制审批 + session_api_key 句柄模式
   registerSandboxIpcHandlers(mainWindow)

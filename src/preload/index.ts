@@ -57,6 +57,8 @@ import {
   TASK,
   SUBAGENT,
   PAOR,
+  // M2 Task 2 新增：命令风险评估 IPC（risk:check）
+  RISK,
   // v2.2 P1 修复 #18/#20：补齐 MCP 外部调用通道集中化
   MCP_EXTERNAL,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
@@ -2386,6 +2388,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v2.3.2 新增：按 decisionId 简化导出 HTML 报告
   credibilityExportAudit: (decisionId: string, format: string): Promise<string> =>
     ipcRenderer.invoke(CREDIBILITY.EXPORT_DECISION_HTML, decisionId, format),
+
+  // ===== M2 Task 2 新增：命令风险评估扁平化（risk:check） =====
+  // 通道与主进程 ipc/risk.ts 一一对应；UI 调用方式：
+  //   const { risk, reasons } = await window.electronAPI.riskCheck('rm -rf /')
+  // 桥接 assessCommandRisk（AST 优先 + 正则降级），空命令返回 low（不抛错）
+  riskCheck: (command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }> =>
+    ipcRenderer.invoke(RISK.CHECK, command),
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>
