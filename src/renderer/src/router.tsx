@@ -65,6 +65,9 @@ const KnowledgeDetailPage = lazy(() =>
 const DecisionDetailPage = lazy(() =>
   import('./pages/DecisionDetailPage').then((m) => ({ default: m.DecisionDetailPage })),
 )
+const DecisionPage = lazy(() =>
+  import('./pages/DecisionPage').then((m) => ({ default: m.DecisionPage })),
+)
 const TutorialPage = lazy(() =>
   import('./pages/TutorialPage').then((m) => ({ default: m.TutorialPage })),
 )
@@ -142,6 +145,7 @@ const Router: React.FC = () => {
             <Route path="knowledge/:id" element={<KnowledgeDetailPage />} />
 
             {/* 决策详情 */}
+            <Route path="decision" element={<DecisionPage />} />
             <Route path="decision/:id" element={<DecisionDetailPage />} />
 
             {/* 教程 */}
