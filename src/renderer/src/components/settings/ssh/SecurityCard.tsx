@@ -7,6 +7,10 @@
  * - 严格主机密钥检查开关（默认 on）
  * - Known Hosts 文件路径输入
  *
+ * 视觉对齐设计稿 ds-row（label + desc + control）。
+ * Known Hosts 路径输入框使用 ssh-input-path（设计稿 ds-input readonly 风格：
+ * 背景 bg-base-default，文字 text-secondary，等宽字体）。
+ *
  * 所有状态由父级持有，通过 props 注入；本组件无自身状态。
  */
 import { Shield } from 'lucide-react'
