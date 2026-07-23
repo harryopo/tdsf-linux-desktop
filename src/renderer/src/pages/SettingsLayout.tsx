@@ -1,22 +1,23 @@
 /**
  * SettingsLayout — 设置布局（嵌套路由父级）
  *
- * 设计稿：settings.html 的 ds-layout + ds-nav 部分
+ * 设计稿：settings.html 的 ds-layout + ds-nav 部分（最新版 tdsf-linux-redesign）
  * - 无顶部"设置"大标题栏（设计稿设置子页顶部为各子页标题 + 返回设置）
- * - 左侧 NavList 220px：6 项导航（通用/SSH/终端设置/外观/决策控制/风险控制）
+ * - 左侧 NavList 220px：6 项导航（通用/SSH/AI引擎/告警阈值/外观/关于）
  * - 每个 nav 项 36px 高，激活时左侧 2px 品牌色指示条
  * - 右侧 Outlet 子路由出口（/settings 根路径渲染 SettingsPage 快捷入口）
  *
- * 6 项导航（data-dom-id）：
- * - nav-general / nav-ssh / nav-terminal-settings / nav-appearance / nav-decision / nav-risk
- * - 模型配置与关于按设计稿为独立页面，不显示在嵌套导航中
+ * 6 项导航（data-dom-id）— 严格按设计稿 settings.html 1994-2016 行：
+ * - nav-general(通用) / nav-ssh(SSH连接) / nav-model-config(AI引擎)
+ * - nav-alerts(告警阈值) / nav-appearance(外观) / nav-about(关于)
+ * - 终端设置/决策控制/风险控制/知识库 移至 SettingsPage 卡片入口
  *
  * 无障碍：NavLink(<a>) 自带 aria-current="page"（激活态）+ 键盘可访问；
  *         button type + aria-label；prefers-reduced-motion 禁用按压动画
  */
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  Settings, KeySquare, Terminal, Palette, ShieldCheck, AlertTriangle, type LucideIcon,
+  Settings, KeySquare, Sparkles, Bell, Palette, Info, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import './Settings.css'
@@ -28,14 +29,14 @@ interface SettingsNavItem {
   domId: string
 }
 
-/** 6 项核心导航（模型配置 / 关于为独立页面，不嵌套在此导航中） */
+/** 6 项核心导航 — 严格按设计稿 settings.html ds-nav__item 顺序 */
 const SETTINGS_NAV: SettingsNavItem[] = [
   { to: '/settings/general', label: '通用', icon: Settings, domId: 'nav-general' },
   { to: '/settings/ssh', label: 'SSH 连接', icon: KeySquare, domId: 'nav-ssh' },
-  { to: '/settings/terminal', label: '终端设置', icon: Terminal, domId: 'nav-terminal-settings' },
+  { to: '/settings/model', label: 'AI 引擎', icon: Sparkles, domId: 'nav-model-config' },
+  { to: '/settings/alerts', label: '告警阈值', icon: Bell, domId: 'nav-alerts' },
   { to: '/settings/appearance', label: '外观', icon: Palette, domId: 'nav-appearance' },
-  { to: '/settings/decision', label: '决策控制', icon: ShieldCheck, domId: 'nav-decision' },
-  { to: '/settings/risk', label: '风险控制', icon: AlertTriangle, domId: 'nav-risk' },
+  { to: '/settings/about', label: '关于', icon: Info, domId: 'nav-about' },
 ]
 
 export function SettingsLayout() {
