@@ -1292,6 +1292,18 @@ export interface ElectronAPI {
   /** 按 decisionId 简化导出 HTML 报告（返回文件路径） */
   credibilityExportAudit(decisionId: string, format: string): Promise<string>
 
+  // ===== M2 Task 2 新增：命令风险评估（risk:check） =====
+  /**
+   * 检查命令风险等级（桥接主进程 assessCommandRisk：AST 优先 + 正则降级）
+   *
+   * 通道：risk:check
+   * 用途：渲染层在执行命令前主动查询风险等级（如 DecisionPage 高危拦截清单）
+   * @param command 待检查的命令字符串
+   * @returns { risk: 'low' | 'medium' | 'high', reasons: string[] }
+   *          空命令返回 { risk: 'low', reasons: [] }（不抛错）
+   */
+  riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
+
   // ===== 教程爬虫（v0.6.0）=====
   /** 列出所有可用源（含元信息、license、kind） */
   tutorialListSources(): Promise<TutorialSourceSpec[]>
@@ -1884,6 +1896,8 @@ export interface ElectronAPI {
   budgetAlerts(limit?: number): Promise<BudgetAlert[]>
   /** 按 decisionId 简化导出 HTML 报告 */
   credibilityExportAudit(decisionId: string, format: string): Promise<string>
+  /** 检查命令风险等级（M2 Task 2，桥接 assessCommandRisk） */
+  riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
 
   // ===== v1.5 循环工程子 Agent（loop:* 通道）=====
   /** 启动循环工程（假设生成 + 7步HITL工作流） */

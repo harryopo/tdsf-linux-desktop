@@ -1009,4 +1009,19 @@ export const TASK = {
   PERMISSION_APPROVE: 'task:permission-approve',
 } as const
 
+/**
+ * 风险评估 IPC 通道常量（M2 新增：命令风险检查）
+ *
+ * 通道列表：
+ * - CHECK invoke 渲染 → 主：检查命令风险等级（AST + 正则降级）
+ *
+ * 设计依据：M2 Task 2 · IPC 4 步同步铁律
+ * 桥接主进程 assessCommandRisk（src/main/ipc/sandbox-approval.ts），
+ * 该函数已封装 AST 优先 + 正则降级逻辑，返回 { risk, reasons }。
+ */
+export const RISK = {
+  /** 检查命令风险等级（invoke: 渲染 → 主，桥接 assessCommandRisk） */
+  CHECK: 'risk:check',
+} as const
+
 
