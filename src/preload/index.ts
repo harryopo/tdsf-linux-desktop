@@ -61,6 +61,8 @@ import {
   RISK,
   // M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
   ALERT,
+  // M5 Task 3 新增：启动加载阶段推送 IPC（boot:loading-stage，主进程向渲染层推送加载进度）
+  BOOT,
   // v2.2 P1 修复 #18/#20：补齐 MCP 外部调用通道集中化
   MCP_EXTERNAL,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
@@ -2404,6 +2406,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 主进程内存 Map 记录 ack 状态（不持久化），ack 成功返回 true，空 alertId 返回 false
   alertAck: (alertId: string): Promise<boolean> =>
     ipcRenderer.invoke(ALERT.ACK, alertId),
+
+  // ===== M5 Task 3 新增：BootPage 加载阶段推送（boot:loading-stage） =====
+  // 通道与主进程 ipc/boot.ts 一一对应；UI 调用方式：
+  //   const unsubscribe = window.electronAPI.onBootLoadingStage((payload) => { ... })
+  // payload: { stage: 'ipc-ready'|'sqlite-init'|'kb-indexed'|'done', progress: 0-100, message: string }
+  // 返回 unsubscribe 函数，组件卸载时调用以避免内存泄漏
+  onBootLoadingStage: (
+    callback: (stage: { stage: string; progress: number; message: string }) => void,
+  ) => {
+    const handler = (_event: IpcRendererEvent, payload: unknown) =>
+      callback(payload as { stage: string; progress: number; message: string })
+    ipcRenderer.on(BOOT.LOADING_STAGE, handler)
+    return () => ipcRenderer.off(BOOT.LOADING_STAGE, handler)
+  },
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>

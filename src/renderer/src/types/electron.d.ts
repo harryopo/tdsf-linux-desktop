@@ -1317,6 +1317,15 @@ export interface ElectronAPI {
    */
   alertAck(alertId: string): Promise<boolean>
 
+  /** BootPage 加载阶段推送订阅（M5 Task 3） */
+  onBootLoadingStage(
+    callback: (stage: {
+      stage: 'ipc-ready' | 'sqlite-init' | 'kb-indexed' | 'done'
+      progress: number
+      message: string
+    }) => void,
+  ): () => void
+
   // ===== 教程爬虫（v0.6.0）=====
   /** 列出所有可用源（含元信息、license、kind） */
   tutorialListSources(): Promise<TutorialSourceSpec[]>
@@ -1913,6 +1922,15 @@ export interface ElectronAPI {
   riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
   /** 确认告警（M3 Task 2，主进程内存 Map 记录 ack 状态） */
   alertAck(alertId: string): Promise<boolean>
+
+  /** BootPage 加载阶段推送订阅（M5 Task 3） */
+  onBootLoadingStage(
+    callback: (stage: {
+      stage: 'ipc-ready' | 'sqlite-init' | 'kb-indexed' | 'done'
+      progress: number
+      message: string
+    }) => void,
+  ): () => void
 
   // ===== v1.5 循环工程子 Agent（loop:* 通道）=====
   /** 启动循环工程（假设生成 + 7步HITL工作流） */
