@@ -66,19 +66,6 @@
   border-radius: 3px;
 }
 
-.log-back-btn {
-  gap: var(--trae-spacer-6);
-  height: 32px;
-  padding: 0 var(--trae-spacer-12);
-  font-size: var(--trae-body-sm-font-size);
-  font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-default);
-  background: var(--trae-bg-overlay-l2);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  cursor: pointer;
-}
-
 /* ===== 2. Toolbar ===== */
 .log-toolbar {
   display: flex;
@@ -91,9 +78,8 @@
 
 .log-search {
   position: relative;
-  flex: 1 1 240px;
-  max-width: 300px;
-  min-width: 180px;
+  width: 300px;
+  flex-shrink: 0;
 }
 
 .log-search-icon {
@@ -168,6 +154,11 @@
   border: 1px solid var(--trae-border-brand);
   border-radius: var(--trae-radius-4);
   cursor: pointer;
+}
+
+.log-ai-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .log-autoscroll-label {

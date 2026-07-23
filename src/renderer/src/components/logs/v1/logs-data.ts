@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   FileText,
   Lock,
+  Sparkles,
 } from 'lucide-react'
 import type { LogStats } from '@shared/models'
 
@@ -59,10 +60,11 @@ export interface LevelStat {
 
 /** 日志源列表（9 项 = 5 主类 + 4 服务器系统日志路径） */
 export const LOG_SOURCES: LogSourceItem[] = [
-  // 主类（4 项）
+  // 主类（5 项：系统/应用/安全/AI决策/告警，与设计稿 1:1）
   { id: 'system', label: '系统日志', count: '1,247', group: 'main', icon: Terminal },
   { id: 'app', label: '应用日志', count: '856', group: 'main', icon: Cpu },
   { id: 'security', label: '安全日志', count: '43', group: 'main', icon: Shield },
+  { id: 'ai-decision', label: 'AI决策日志', count: '127', group: 'main', icon: Sparkles },
   { id: 'alert', label: '告警日志', count: '18', group: 'main', icon: AlertTriangle },
   // 服务器系统日志（4 项）
   { id: 'messages', label: '/var/log/messages', count: '3.2k', group: 'system', icon: FileText },
