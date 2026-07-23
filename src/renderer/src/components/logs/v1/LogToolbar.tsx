@@ -16,8 +16,8 @@
  *   - 自动滚动 switch（useState 由父组件控制）
  *   - 刷新 / 导出 按钮（onClick 回调）
  */
-import { Search, RefreshCw, Download } from 'lucide-react'
-import { Switch } from 'antd'
+import { Search, RefreshCw, Download, Sparkles } from 'lucide-react'
+import { Switch, Tooltip } from 'antd'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -33,6 +33,9 @@ export function LogToolbar({
   onExport,
   autoScroll = true,
   onAutoScrollChange,
+  onAiAnalysis,
+  aiAnalysisDisabled = false,
+  aiAnalysisTooltip,
 }: {
   keyword: string
   onKeywordChange: (v: string) => void
@@ -44,6 +47,12 @@ export function LogToolbar({
   autoScroll?: boolean
   /** 自动滚动状态变更回调 */
   onAutoScrollChange?: (checked: boolean) => void
+  /** AI 日志分析按钮点击回调（设计稿：Toolbar 右侧 cluster 首项） */
+  onAiAnalysis?: () => void
+  /** AI 日志分析按钮是否禁用（日志条数 < 5 时禁用） */
+  aiAnalysisDisabled?: boolean
+  /** AI 日志分析按钮 Tooltip 文案 */
+  aiAnalysisTooltip?: string
 }) {
   return (
     <div className="log-toolbar flex shrink-0 items-center">
@@ -78,6 +87,21 @@ export function LogToolbar({
 
       {/* 3. 右侧 cluster */}
       <div className="log-right-cluster flex shrink-0 items-center">
+        {/* AI 日志分析按钮（设计稿：品牌色描边 + sparkles 图标，置于自动滚动之前） */}
+        {onAiAnalysis && (
+          <Tooltip title={aiAnalysisTooltip ?? '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'}>
+            <button
+              type="button"
+              onClick={onAiAnalysis}
+              disabled={aiAnalysisDisabled}
+              className="log-btn-press log-ai-btn inline-flex items-center justify-center transition-colors"
+            >
+              <Sparkles size={14} style={{ color: 'var(--trae-icon-brand)' }} />
+              <span>AI 日志分析</span>
+            </button>
+          </Tooltip>
+        )}
+
         {/* 自动滚动 switch（设计稿 32x18 椭圆，复用 .log-autoscroll-label 间距） */}
         <div className="log-autoscroll-label flex items-center">
           <span className="log-autoscroll-text">自动滚动</span>
