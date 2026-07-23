@@ -7,7 +7,7 @@
  *
  * 结构（4 section，1:1 对齐设计稿）：
  *   1. Page Header：layers 图标 + 标题"运维知识库" + 副标题 + 返回工作台按钮
- *   2. 搜索栏：搜索框 + 语义搜索开关 + 8 个分类标签（all/nginx/mysql/docker/network/security/shell/systemd）
+ *   2. 搜索栏：搜索框 + AI检索按钮 + 8 个分类标签（all/nginx/mysql/docker/network/security/shell/systemd）
  *   3. 两栏布局：
  *      - 左：5 个推荐知识卡片（标题 + 匹配度 + 摘要 + 标签/时间/浏览量/查看详情）
  *      - 右：热门知识 Top5 + 最近浏览 3 项
@@ -19,7 +19,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message, Spin, Switch } from 'antd'
+import { message, Spin } from 'antd'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
   ArrowUpRight, Star, FileText, Plus, X, Check, Inbox,
@@ -458,32 +458,16 @@ export function KnowledgePage() {
                 className="kb-search-input"
               />
             </div>
-            <div
-              className="kb-semantic-toggle"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                height: 40,
-                padding: '0 12px',
-                background: 'var(--trae-bg-overlay-l2)',
-                border: '1px solid var(--trae-border-neutral-l1)',
-                borderRadius: 'var(--trae-radius-6)',
-                fontSize: 'var(--trae-body-sm-font-size)',
-                color: 'var(--trae-text-secondary)',
-                flexShrink: 0,
-              }}
+            <button
+              type="button"
+              onClick={() => setSemanticSearch(!semanticSearch)}
+              aria-pressed={semanticSearch}
+              aria-label="AI检索"
+              className="kb-ai-search-btn kb-btn-press"
             >
-              <Sparkles size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
-              <span>语义搜索</span>
-              <Switch
-                size="small"
-                checked={semanticSearch}
-                onChange={setSemanticSearch}
-                aria-label="语义搜索开关"
-                style={semanticSearch ? { backgroundColor: 'var(--trae-bg-brand)' } : undefined}
-              />
-            </div>
+              <Sparkles size={16} style={{ color: 'var(--trae-icon-onbrand)' }} />
+              <span>AI检索</span>
+            </button>
           </div>
           {/* 分类标签栏 */}
           <div className="kb-cat-bar kb-no-scrollbar">
