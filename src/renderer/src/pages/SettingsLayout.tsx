@@ -3,12 +3,12 @@
  *
  * 设计稿：settings.html 的 ds-layout + ds-nav 部分
  * - 无顶部"设置"大标题栏（设计稿设置子页顶部为各子页标题 + 返回设置）
- * - 左侧 NavList 220px：6 项导航（统一 data-dom-id）
+ * - 左侧 NavList 220px：6 项导航（通用/SSH/终端设置/外观/决策控制/风险控制）
  * - 每个 nav 项 36px 高，激活时左侧 2px 品牌色指示条
  * - 右侧 Outlet 子路由出口（/settings 根路径渲染 SettingsPage 快捷入口）
  *
  * 6 项导航（data-dom-id）：
- * - nav-general / nav-ssh / nav-terminal-settings / nav-appearance
+ * - nav-general / nav-ssh / nav-terminal-settings / nav-appearance / nav-decision / nav-risk
  * - 模型配置与关于按设计稿为独立页面，不显示在嵌套导航中
  *
  * 无障碍：NavLink(<a>) 自带 aria-current="page"（激活态）+ 键盘可访问；
@@ -16,7 +16,7 @@
  */
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  Settings, KeySquare, Terminal, Palette, type LucideIcon,
+  Settings, KeySquare, Terminal, Palette, ShieldCheck, AlertTriangle, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import './Settings.css'
@@ -34,6 +34,8 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { to: '/settings/ssh', label: 'SSH 连接', icon: KeySquare, domId: 'nav-ssh' },
   { to: '/settings/terminal', label: '终端设置', icon: Terminal, domId: 'nav-terminal-settings' },
   { to: '/settings/appearance', label: '外观', icon: Palette, domId: 'nav-appearance' },
+  { to: '/settings/decision', label: '决策控制', icon: ShieldCheck, domId: 'nav-decision' },
+  { to: '/settings/risk', label: '风险控制', icon: AlertTriangle, domId: 'nav-risk' },
 ]
 
 export function SettingsLayout() {
