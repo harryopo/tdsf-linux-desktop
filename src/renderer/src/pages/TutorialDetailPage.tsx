@@ -183,6 +183,33 @@ export function TutorialDetailPage() {
     return () => { cancelled = true }
   }, [id])
 
+  // 加载真实学习进度（M4 Task 2 接入 tutorialProgress IPC，替代硬编码 completedChapters）
+  // 根据进度百分比反推章节完成状态：进度 60% × 5 章 = 3 章 → [true, true, true, false, false]
+  useEffect(() => {
+    let cancelled = false
+    const loadProgress = async () => {
+      if (typeof window === 'undefined' || !window.electronAPI?.tutorialProgress || !id) return
+      try {
+        const progressList = await window.electronAPI.tutorialProgress()
+        if (cancelled) return
+        const current = progressList.find((p) => p.tutorialId === id)
+        if (current) {
+          // 根据进度百分比反推章节完成状态
+          const completedCount = Math.round((current.progress / 100) * CHAPTERS.length)
+          const newCompleted = CHAPTERS.map((_, idx) => idx < completedCount)
+          setCompletedChapters(newCompleted)
+        }
+        // 未找到进度记录时保持硬编码默认值（[true, true, false, false, false]）
+      } catch (err) {
+        if (cancelled) return
+        console.error('[TutorialDetailPage] 进度加载失败', err)
+        // 降级：保持硬编码默认值，不阻塞 UI
+      }
+    }
+    loadProgress()
+    return () => { cancelled = true }
+  }, [id])
+
   // ===== 渲染辅助：根据 useReal 决定字段来源 =====
   // 真实数据：title/summary/difficulty/readingTime/content/commands
   // 设计稿示例：Nginx 性能调优实战 / 从worker_connections到内核参数的全面优化 / 进阶 / 2h30min
@@ -221,9 +248,24 @@ export function TutorialDetailPage() {
   const handleBackTutorial = () => navigate('/tutorial')
   const handlePrev = () => !isFirst && setActiveChapter(activeChapter - 1)
   const handleNext = () => !isLast && setActiveChapter(activeChapter + 1)
-  const handleComplete = () => {
-    setCompletedChapters((prev) => { const next = [...prev]; next[activeChapter] = true; return next })
-    if (!isLast) setActiveChapter(activeChapter + 1)
+  const handleComplete = async () => {
+    const newCompleted = [...completedChapters]
+    newCompleted[activeChapter] = true
+    const progressPct = Math.round((newCompleted.filter(Boolean).length / newCompleted.length) * 100)
+    const allCompleted = newCompleted.every(Boolean)
+    try {
+      if (id) {
+        // 章节完成持久化：status 类型仅允许 'visited' | 'completed'
+        // 全部章节完成 → 'completed'；部分完成 → 'visited'（学习中）
+        await window.electronAPI.tutorialUpdateProgress(id, allCompleted ? 'completed' : 'visited', progressPct)
+      }
+    } catch (err) {
+      console.error('[TutorialDetailPage] 章节完成持久化失败', err)
+      // 降级：仅更新本地 state，不阻塞 UI
+    } finally {
+      setCompletedChapters(newCompleted)
+      if (!isLast) setActiveChapter(activeChapter + 1)
+    }
   }
   const handleGotoChapter = (idx: number) => setActiveChapter(idx)
   const handleGotoRelated = (targetId: string) => navigate(`/tutorial/${targetId}`)
@@ -310,13 +352,25 @@ export function TutorialDetailPage() {
     }
   }
 
-  const handleSubmitQuiz = () => {
+  const handleSubmitQuiz = async () => {
     let correct = 0
     QUIZ_QUESTIONS.forEach((q) => {
       const correctOpt = q.options.find((o) => o.correct)
       if (quizAnswers[q.id] === correctOpt?.key) correct++
     })
-    setQuizResult({ correct, total: QUIZ_QUESTIONS.length, passed: correct === QUIZ_QUESTIONS.length })
+    const total = QUIZ_QUESTIONS.length
+    const score = Math.round((correct / total) * 100)
+    const passed = score >= 60
+    setQuizResult({ correct, total, passed })
+    try {
+      if (id && passed) {
+        // 测验通过 → 进度设为 100%（status='completed'）
+        await window.electronAPI.tutorialUpdateProgress(id, 'completed', 100)
+      }
+    } catch (err) {
+      console.error('[TutorialDetailPage] 测验提交持久化失败', err)
+      // 降级：仅本地 state（quizResult 已设置），不阻塞 UI
+    }
   }
 
   return (
