@@ -90,6 +90,9 @@ import { registerFsIpcHandlers } from './fs-upload'
 // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
 // 补齐 ModelSettings 最后两处静态数据
 import { registerModelStatsHandlers } from './model-stats'
+// M5 Task 3 新增：启动加载阶段推送 IPC（boot:loading-stage，主进程向渲染层推送加载进度）
+// 通道：boot:loading-stage（push: 主 → 渲染，BootPage 据此推进进度条）
+import { pushBootLoadingStage } from './boot'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -259,4 +262,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar
   // 暴露 cleanupLoopEngineering 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupLoopEngineering?: typeof cleanupLoopEngineering }).__cleanupLoopEngineering = cleanupLoopEngineering
+
+  // M5 Task 3: 推送 IPC ready 阶段给 BootPage
+  // 注意：这里仅推送 'ipc-ready'，后续 sqlite-init / kb-indexed / done 由各模块 init 完成后推送
+  // 单 AI 模式下使用 BrowserWindow.getAllWindows() 获取所有窗口
+  pushBootLoadingStage('ipc-ready', BrowserWindow.getAllWindows())
 }

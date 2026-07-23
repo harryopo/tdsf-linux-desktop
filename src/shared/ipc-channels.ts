@@ -1042,4 +1042,15 @@ export const ALERT = {
   ACK: 'alert:ack',
 } as const
 
+/**
+ * BOOT 域 — 启动加载阶段推送
+ *
+ * 主进程在加载关键阶段（IPC ready / SQLite init / KB indexed / done）时
+ * 通过 push 通道向渲染层推送当前阶段，BootPage 据此推进进度条。
+ */
+export const BOOT = {
+  /** 加载阶段推送（push: 主 → 渲染） */
+  LOADING_STAGE: 'boot:loading-stage',
+} as const
+
 
