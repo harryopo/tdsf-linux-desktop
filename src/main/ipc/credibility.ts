@@ -33,6 +33,7 @@ import type {
   DagData,
 } from '@shared/agent-types'
 import { logger } from '../services/log/logger'
+import { ConfigStore } from '../services/storage/config-store'
 // 辅助函数从 credibility-helpers.ts 导入（保持主文件 ≤500 行）
 import {
   createMassFunctionsFromInputs,
@@ -161,6 +162,46 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
           sources: internalAssessment.sources,
           fusionSteps: internalAssessment.fusionSteps,
           fusedMassFunction: serializeMassFunction(internalAssessment.fusedMassFunction),
+        }
+
+        // 4. 应用 DecisionSettings 6 源权重（降级方案：在融合结果上按平均权重线性调整）
+        //    背景：FusionEngine 不支持运行时设置权重（D-S + PCR5 算法核心不应修改），
+        //    因此读取 configSet 持久化的 decision.weights，对最终 confidence 做加权。
+        //    权重 key 为业务侧 ID（system-metrics / history-match / ...），与算法侧
+        //    sourceId（log / kb / ...）命名不同，但降级方案仅用权重数值的均值，
+        //    不依赖 ID 映射，符合"Demo 加分项"定位。
+        //    读取失败时降级到默认权重（不调整），不阻塞评估。
+        try {
+          const weightsConfig = (ConfigStore.get('decision.weights') ?? {}) as Record<string, unknown>
+          const weightValues = Object.values(weightsConfig)
+          const numericWeights = weightValues.filter(
+            (w): w is number => typeof w === 'number',
+          )
+          const totalWeight = numericWeights.reduce((s, w) => s + w, 0)
+          if (numericWeights.length > 0 && totalWeight > 0) {
+            // 归一化平均权重 ∈ [0, 1]，作为 confidence 的线性调整系数
+            const weightFactor = totalWeight / (numericWeights.length * 100)
+            const originalConfidence = assessment.confidence
+            assessment.confidence = originalConfidence * weightFactor
+            logger.info('IPC.CREDIBILITY', `credibility:assess 应用 6 源权重`, {
+              weightCount: numericWeights.length,
+              totalWeight,
+              avgWeight: totalWeight / numericWeights.length,
+              weightFactor: weightFactor.toFixed(4),
+              originalConfidence: originalConfidence.toFixed(4),
+              adjustedConfidence: assessment.confidence.toFixed(4),
+            })
+          } else {
+            logger.info('IPC.CREDIBILITY', `credibility:assess 跳过权重调整（权重为空或总和为 0）`, {
+              weightCount: numericWeights.length,
+              totalWeight,
+            })
+          }
+        } catch (weightErr) {
+          // configStore 读取失败时降级到默认权重（不调整），不阻塞评估
+          logger.warn('IPC.CREDIBILITY', `credibility:assess 读取 decision.weights 失败，降级到默认权重`, {
+            error: (weightErr as Error)?.message ?? String(weightErr),
+          })
         }
 
         logger.info('IPC.CREDIBILITY', `credibility:assess 完成`, {
