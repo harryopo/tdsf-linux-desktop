@@ -22,11 +22,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Spin, message } from 'antd'
+import { Spin, message, Button, Tooltip } from 'antd'
+import { RobotOutlined } from '@ant-design/icons'
 import { FileText, ArrowLeft, Clock, RefreshCw, Download } from 'lucide-react'
 import { LogSidebar } from '@/components/logs/v1/LogSidebar'
 import { LogToolbar } from '@/components/logs/v1/LogToolbar'
 import { LogViewer } from '@/components/logs/v1/LogViewer'
+import { AiLogAnalysisPanel } from '@/components/logs/AiLogAnalysisPanel'
 import {
   type LogLevel,
   type LogEntry,
@@ -85,6 +87,10 @@ export function LogsPage() {
   const [autoScroll, setAutoScroll] = useState(true)
   // 日志级别统计（浮动卡，来自 log:stats IPC，经 mapLogStats 映射）
   const [levelStats, setLevelStats] = useState<LevelStat[]>([])
+
+  // ===== AI 日志分析（M3 Task 4） =====
+  // AiLogAnalysisPanel Drawer 开关；按钮在 Header 右侧（与"返回工作台"并排）
+  const [aiPanelOpen, setAiPanelOpen] = useState(false)
 
   // ===== 本地过滤（基于 displayEntries：真实数据 / 设计稿示例数据） =====
   const filteredEntries = useMemo(() => {
@@ -319,16 +325,39 @@ export function LogsPage() {
 
         </div>
 
-        <button
-          type="button"
-          data-dom-id="back-workbench"
-          aria-label="返回工作台"
-          onClick={handleBack}
-          className="log-back-btn log-btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors"
-        >
-          <ArrowLeft size={16} style={{ color: 'var(--trae-icon-default)' }} />
-          <span>返回工作台</span>
-        </button>
+        <div className="log-header-right flex shrink-0 items-center gap-2">
+          {/* AI 日志分析按钮（M3 Task 4，对接 sidecar:pipeline） */}
+          <Tooltip
+            title={
+              filteredEntries.length === 0
+                ? '当前无日志，无法分析'
+                : filteredEntries.length < 5
+                  ? '日志数量不足，至少需要 5 条'
+                  : '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'
+            }
+          >
+            <Button
+              type="primary"
+              size="small"
+              icon={<RobotOutlined />}
+              onClick={() => setAiPanelOpen(true)}
+              disabled={filteredEntries.length < 5}
+            >
+              AI 分析
+            </Button>
+          </Tooltip>
+
+          <button
+            type="button"
+            data-dom-id="back-workbench"
+            aria-label="返回工作台"
+            onClick={handleBack}
+            className="log-back-btn log-btn-press inline-flex shrink-0 cursor-pointer items-center transition-colors"
+          >
+            <ArrowLeft size={16} style={{ color: 'var(--trae-icon-default)' }} />
+            <span>返回工作台</span>
+          </button>
+        </div>
       </header>
 
       {/* ===== 2. Toolbar ===== */}
@@ -411,6 +440,13 @@ export function LogsPage() {
           <span className="log-status-text">导出CSV</span>
         </button>
       </footer>
+
+      {/* ===== 5. AI 日志分析 Drawer（M3 Task 4，对接 sidecar:pipeline） ===== */}
+      <AiLogAnalysisPanel
+        open={aiPanelOpen}
+        logs={filteredEntries}
+        onClose={() => setAiPanelOpen(false)}
+      />
 
     </main>
   )
