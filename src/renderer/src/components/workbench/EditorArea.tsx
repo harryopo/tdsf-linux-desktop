@@ -8,7 +8,8 @@
  * - file:*：sftpReadFile / sftpWriteFile
  * - 仍保留可选 demo 标签（无会话时示意）
  */
-import { useCallback, useEffect, useMemo, useState, type FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
+import { message } from 'antd'
 import {
   Terminal as TerminalIcon,
   FileText,
@@ -24,11 +25,13 @@ import TerminalView from '@/components/terminal/TerminalView'
 import SelectionPopover from '@/components/terminal/SelectionPopover'
 import '../terminal/Terminal.css'
 import MonacoEditor, { type MonacoEditorLanguage } from './MonacoEditor'
+import FileChangeNotice from './FileChangeNotice'
 import { useServerStore } from '@/stores/server-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { useTranslateStore } from '@/stores/translate-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { OpenFileRequest } from './FileTree'
+import type { FileChangedPayload } from '@preload/index'
 
 /**
  * 根据文件扩展名识别 Monaco 语言标识
@@ -205,6 +208,11 @@ const EditorArea: FC<EditorAreaProps> = ({
   const setCursorPosition = useEditorStore((s) => s.setCursorPosition)
   const [savingId, setSavingId] = useState<string | null>(null)
 
+  /** 外部变更提示：path 集合（表示该文件有未处理的外部变更） */
+  const [changedFiles, setChangedFiles] = useState<Set<string>>(new Set())
+  /** path → watchId 映射（null 表示 fileWatchStart 进行中）；用于 fileWatchStop */
+  const watchIdMapRef = useRef<Map<string, string | null>>(new Map())
+
   const tabs = useMemo(() => {
     const list: Array<{ id: WorkbenchTabId; label: string; dirty?: boolean }> = [
       { id: 'tab-terminal', label: '终端' },
@@ -241,6 +249,8 @@ const EditorArea: FC<EditorAreaProps> = ({
   }, [activeTabId, fileTabs, activeSessionId, onFileLoaded])
 
   const activeFile = fileTabs.find((f) => f.id === activeTabId)
+  /** 当前激活文件的远程路径（终端 tab 或无激活文件时为 null） */
+  const activeFilePath = activeFile?.path ?? null
 
   // 切换 Tab 时同步 editor-store 的 activeFilePath（供 StatusBar 显示）
   // 终端 tab 或无激活文件时清空光标位置
@@ -283,6 +293,85 @@ const EditorArea: FC<EditorAreaProps> = ({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [handleSave])
+
+  // ===== FileWatcher：监听远程文件外部变更 =====
+  // 1. 全局监听 onFileChanged 事件，将变更路径加入 changedFiles
+  // 2. fileTabs 变化时，为新打开的文件 fileWatchStart，为已关闭的文件 fileWatchStop
+  // 3. 会话切换 / 组件卸载时停止所有监听
+  // 注意：实际 IPC 签名 fileWatchStart 返回 { watchId }，fileWatchStop(watchId)，
+  //       因此用 watchIdMapRef 维护 path → watchId 映射（null 表示启动中）。
+  useEffect(() => {
+    if (!isElectronAPIAvailable() || !window.electronAPI.onFileChanged) return
+
+    const off = window.electronAPI.onFileChanged((payload: FileChangedPayload) => {
+      setChangedFiles((prev) => {
+        const next = new Set(prev)
+        next.add(payload.path)
+        return next
+      })
+    })
+
+    return () => {
+      off()
+    }
+  }, [])
+
+  // 当前打开文件变化时启动/停止监听
+  useEffect(() => {
+    if (!isElectronAPIAvailable()) return
+    const api = window.electronAPI
+    if (!api.fileWatchStart || !api.fileWatchStop || !activeSessionId) return
+
+    const currentPaths = new Set(
+      fileTabs
+        .filter((t) => t.id.startsWith('file:'))
+        .map((t) => t.id.slice('file:'.length)),
+    )
+
+    // 启动当前打开但尚未监听（且不在启动中）的文件监听
+    for (const path of currentPaths) {
+      if (watchIdMapRef.current.has(path)) continue
+      // 标记为启动中，防止并发重复 fileWatchStart
+      watchIdMapRef.current.set(path, null)
+      void api
+        .fileWatchStart(activeSessionId, path)
+        .then(({ watchId }) => {
+          // 启动完成：若 path 仍在监听集合（值仍为 null），写入 watchId；
+          // 若已被移除（文件已关闭 / 会话已切换），立即停止以避免泄漏
+          if (watchIdMapRef.current.get(path) === null) {
+            watchIdMapRef.current.set(path, watchId)
+          } else {
+            void api.fileWatchStop(watchId).catch(() => {})
+          }
+        })
+        .catch(() => {
+          // 监听启动失败：移除标记，不影响编辑
+          watchIdMapRef.current.delete(path)
+        })
+    }
+
+    // 停止已关闭文件的监听
+    for (const [path, watchId] of watchIdMapRef.current) {
+      if (currentPaths.has(path)) continue
+      if (watchId) {
+        void api.fileWatchStop(watchId).catch(() => {})
+      }
+      watchIdMapRef.current.delete(path)
+    }
+  }, [fileTabs, activeSessionId])
+
+  // 会话切换 / 组件卸载时停止所有监听
+  useEffect(() => {
+    return () => {
+      if (!isElectronAPIAvailable() || !window.electronAPI.fileWatchStop) return
+      for (const [, watchId] of watchIdMapRef.current) {
+        if (watchId) {
+          void window.electronAPI.fileWatchStop(watchId).catch(() => {})
+        }
+      }
+      watchIdMapRef.current.clear()
+    }
+  }, [activeSessionId])
 
   return (
     <div className="term-editor-area">
@@ -348,6 +437,41 @@ const EditorArea: FC<EditorAreaProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 远程文件外部变更提示 */}
+      {activeFilePath && changedFiles.has(activeFilePath) && (
+        <FileChangeNotice
+          path={activeFilePath}
+          onReload={async () => {
+            if (!activeSessionId || !activeFilePath) return
+            if (!isElectronAPIAvailable() || !window.electronAPI.sftpReadFile) return
+            try {
+              const content = await window.electronAPI.sftpReadFile(
+                activeSessionId,
+                activeFilePath,
+              )
+              onFileContentChange?.(`file:${activeFilePath}`, content)
+              setChangedFiles((prev) => {
+                const next = new Set(prev)
+                next.delete(activeFilePath)
+                return next
+              })
+            } catch (err) {
+              message.error(
+                `重新加载失败: ${err instanceof Error ? err.message : String(err)}`,
+              )
+            }
+          }}
+          onDismiss={() => {
+            if (!activeFilePath) return
+            setChangedFiles((prev) => {
+              const next = new Set(prev)
+              next.delete(activeFilePath)
+              return next
+            })
+          }}
+        />
+      )}
 
       <div className="term-content-area">
         {activeTabId === 'tab-terminal' ? (

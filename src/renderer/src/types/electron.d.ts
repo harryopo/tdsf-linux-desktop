@@ -746,6 +746,10 @@ export interface ElectronAPI {
   sftpGrep(
     params: import('@preload/index').SftpGrepParams
   ): Promise<{ results: import('@preload/index').SftpGrepMatch[]; error?: string }>
+  /** 开始监听远程路径文件变更（file:watch:start），返回 { watchId } */
+  fileWatchStart(sessionId: string, path: string): Promise<{ watchId: string }>
+  /** 停止监听（file:watch:stop），返回 { success } */
+  fileWatchStop(watchId: string): Promise<{ success: boolean }>
 
   // ===== 监控相关 =====
   /** 启动监控采集 */
@@ -1341,6 +1345,10 @@ export interface ElectronAPI {
   onMonitorData(callback: (sessionId: string, data: MonitorData) => void): () => void
   /** 监听系统信息推送（首次采集时推送一次），返回取消监听函数 */
   onMonitorSystemInfo(callback: (sessionId: string, info: SystemInfo) => void): () => void
+  /** 监听远程文件外部变更推送（file:changed），返回取消监听函数 */
+  onFileChanged(
+    callback: (payload: import('@preload/index').FileChangedPayload) => void
+  ): () => void
   /** 监听 LLM 流式 token，返回取消监听函数 */
   onLlmToken(callback: (token: string) => void): () => void
   /**
