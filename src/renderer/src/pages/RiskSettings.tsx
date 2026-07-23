@@ -15,7 +15,6 @@
  * （规则操作反馈为瞬时 UI 状态，不持久化。）
  */
 import { useState, useEffect, useRef } from 'react'
-import { Modal, Form, Input as AntInput, Select } from 'antd'
 import {
   Shield,
   AlertTriangle,
@@ -31,6 +30,15 @@ import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
+import { RiskRuleModal } from '@/components/settings/RiskRuleModal'
+import {
+  type RiskRule,
+  INITIAL_RULES,
+  LEVEL_LABEL,
+  ACTION_LABEL,
+  LEVEL_TAG_CLASS,
+  ACTION_TAG_CLASS,
+} from '@/components/settings/risk-types'
 import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
 import { cn } from '@/components/trae/utils'
@@ -72,80 +80,6 @@ const PERMISSION_MODES: PermissionOption[] = [
   { value: 'never', label: '自动放行', desc: '所有命令自动执行，无审批弹窗（仅沙箱）', badge: '危险' },
 ]
 
-type RiskLevel = 'none' | 'low' | 'medium' | 'high' | 'critical' | 'custom'
-type RiskAction = 'allow' | 'notify' | 'confirm' | 'block' | 'custom'
-
-interface RiskRule {
-  id: string
-  pattern: string
-  level: RiskLevel
-  action: RiskAction
-}
-
-const INITIAL_RULES: RiskRule[] = [
-  { id: 'r1', pattern: 'rm -rf *', level: 'critical', action: 'block' },
-  { id: 'r2', pattern: 'chmod 777', level: 'high', action: 'confirm' },
-  { id: 'r3', pattern: 'systemctl restart', level: 'medium', action: 'notify' },
-  { id: 'r4', pattern: 'cat /var/log/*', level: 'low', action: 'allow' },
-  { id: 'r5', pattern: 'grep / ps / ls', level: 'none', action: 'allow' },
-  { id: 'r6', pattern: '自定义正则', level: 'custom', action: 'custom' },
-]
-
-const LEVEL_LABEL: Record<RiskLevel, string> = {
-  none: '无',
-  low: '低',
-  medium: '中',
-  high: '高',
-  critical: '极高',
-  custom: '可配置',
-}
-
-const ACTION_LABEL: Record<RiskAction, string> = {
-  allow: '放行',
-  notify: '通知',
-  confirm: '确认',
-  block: '拦截',
-  custom: '可配置',
-}
-
-/** 风险等级标签样式（彩色背景 + 白字，对应设计稿 set-risk-tag--*） */
-const LEVEL_TAG_CLASS: Record<RiskLevel, string> = {
-  critical: 'set-risk-tag--critical',
-  high: 'set-risk-tag--high',
-  medium: 'set-risk-tag--medium',
-  low: 'set-risk-tag--low',
-  none: 'set-risk-tag--none',
-  custom: '',
-}
-
-/** 动作标签样式（灰底 + 边框，对应设计稿 set-action-tag） */
-const ACTION_TAG_CLASS = 'set-action-tag'
-
-/** 规则编辑弹窗 - 风险等级 Select 选项（5 个，不含 custom；value 类型与 RiskLevel 兼容） */
-const LEVEL_OPTIONS: { value: RiskLevel; label: string }[] = [
-  { value: 'none', label: LEVEL_LABEL.none },
-  { value: 'low', label: LEVEL_LABEL.low },
-  { value: 'medium', label: LEVEL_LABEL.medium },
-  { value: 'high', label: LEVEL_LABEL.high },
-  { value: 'critical', label: LEVEL_LABEL.critical },
-]
-
-/** 规则编辑弹窗 - 动作 Select 选项（5 个） */
-const ACTION_OPTIONS: { value: RiskAction; label: string }[] = [
-  { value: 'allow', label: ACTION_LABEL.allow },
-  { value: 'notify', label: ACTION_LABEL.notify },
-  { value: 'confirm', label: ACTION_LABEL.confirm },
-  { value: 'block', label: ACTION_LABEL.block },
-  { value: 'custom', label: ACTION_LABEL.custom },
-]
-
-/** 规则编辑表单值 */
-interface RuleFormValues {
-  pattern: string
-  level: RiskLevel
-  action: RiskAction
-}
-
 /** 只读数值展示框（对应设计稿 set-num） */
 function ReadOnlyNum({ value }: { value: number | string }) {
   return (
@@ -175,7 +109,6 @@ export function RiskSettings() {
   // 规则编辑弹窗状态：editingRule=null 表示新增模式，否则为编辑模式
   const [editingRule, setEditingRule] = useState<RiskRule | null>(null)
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
-  const [ruleForm] = Form.useForm<RuleFormValues>()
 
   // 清理反馈定时器
   useEffect(() => {
@@ -183,17 +116,6 @@ export function RiskSettings() {
       if (ruleFeedbackTimerRef.current != null) clearTimeout(ruleFeedbackTimerRef.current)
     }
   }, [])
-
-  // Modal 打开时同步表单初始值（编辑模式回填，新增模式用默认值）
-  useEffect(() => {
-    if (isRuleModalOpen) {
-      ruleForm.setFieldsValue({
-        pattern: editingRule?.pattern ?? '',
-        level: editingRule?.level ?? 'medium',
-        action: editingRule?.action ?? 'notify',
-      })
-    }
-  }, [isRuleModalOpen, editingRule, ruleForm])
 
   // 显示规则操作反馈（2s 后自动消失）
   const showRuleFeedback = (msg: string) => {
@@ -221,27 +143,16 @@ export function RiskSettings() {
     setIsRuleModalOpen(true)
   }
 
-  // 保存规则（Modal 确认按钮）：editingRule=null 时新增，否则替换 id 匹配的规则
-  const handleSaveRule = async () => {
-    try {
-      const values = await ruleForm.validateFields()
-      const newRule: RiskRule = {
-        id: editingRule?.id ?? `r${Date.now()}`,
-        pattern: values.pattern,
-        level: values.level,
-        action: values.action,
-      }
-      if (editingRule === null) {
-        setRules((prev) => [...prev, newRule])
-      } else {
-        setRules((prev) => prev.map((r) => (r.id === newRule.id ? newRule : r)))
-      }
-      setIsRuleModalOpen(false)
-      setEditingRule(null)
-      showRuleFeedback(`已保存规则：${newRule.pattern}`)
-    } catch {
-      // 表单验证失败，保持 Modal 打开等待用户修正
+  // 保存规则（Modal onSave 回调）：editingRule=null 时新增，否则替换 id 匹配的规则
+  const handleSaveRule = (newRule: RiskRule) => {
+    if (editingRule === null) {
+      setRules((prev) => [...prev, newRule])
+    } else {
+      setRules((prev) => prev.map((r) => (r.id === newRule.id ? newRule : r)))
     }
+    setIsRuleModalOpen(false)
+    setEditingRule(null)
+    showRuleFeedback(`已保存规则：${newRule.pattern}`)
   }
 
   // 取消编辑：关闭 Modal 并清空 editingRule 避免状态泄漏
@@ -539,31 +450,12 @@ export function RiskSettings() {
         </SettingsCard>
 
         {/* 规则编辑弹窗（新增/编辑模式共用） */}
-        <Modal
-          title={editingRule === null ? '新增规则' : '编辑规则'}
+        <RiskRuleModal
           open={isRuleModalOpen}
-          onOk={handleSaveRule}
+          editingRule={editingRule}
+          onSave={handleSaveRule}
           onCancel={handleCancelEdit}
-          okText="保存"
-          cancelText="取消"
-          destroyOnClose
-        >
-          <Form form={ruleForm} layout="vertical" preserve={false}>
-            <Form.Item
-              name="pattern"
-              label="命令模式"
-              rules={[{ required: true, message: '请输入命令模式' }]}
-            >
-              <AntInput placeholder="如：rm -rf *" />
-            </Form.Item>
-            <Form.Item name="level" label="风险等级">
-              <Select options={LEVEL_OPTIONS} />
-            </Form.Item>
-            <Form.Item name="action" label="动作">
-              <Select options={ACTION_OPTIONS} />
-            </Form.Item>
-          </Form>
-        </Modal>
+        />
 
         <SettingsActionBar />
       </div>
