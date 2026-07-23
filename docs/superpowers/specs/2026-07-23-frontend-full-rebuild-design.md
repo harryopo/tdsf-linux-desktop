@@ -186,6 +186,29 @@
 4. 历史页查看 → 点详情 → 真实数据展示（非静态）
 5. 决策控制/风险控制设置 → 保存 → 影响后续决策
 
+**实施进度**（2026-07-23 完成）：
+- ✅ Task 1: 抽离共享工具函数和组件（commit 0cc72ed）— decision-mappers.ts + ConfidenceGauge/LoadingState/ErrorState
+- ✅ Task 2: 新增 risk:check IPC 4 步同步（commit 6b48036）— 桥接 assessCommandRisk
+- ✅ Task 3: 新建 DecisionPage + /decision 路由（commit 9efff0e + fix 9f65ac2）— 双态切换（活跃决策/历史列表）+ 5 loop 事件订阅 + 三按钮决策交互
+- ✅ Task 4: 重做 HistoryDetailPage（commit 382e369）— 接入 historyGet IPC，5 卡片布局
+- ✅ Task 5: HistoryPage sparkline 动态化 + RiskSettings 规则编辑弹窗（commit 0414627 + fix 062e32c）— buildSparklinePoints + antd Modal + 文件拆分
+- ✅ Task 6: 端到端验收 + 编译门禁 + UTC 时区修复 — typecheck:node + typecheck:web + lint 三绿
+- 跨 Task 技术债 [I1] 修复：decision-mappers.ts fmt() 改为本地时区 formatLocalTs，与页面顶部 formatTimestamp 一致
+
+**遗留技术债**（Minor，不阻塞 M2 合并）：
+- successRate/avgConfidence sparkline 归一化采用 max-bucket 策略（非线性映射，视觉对比度优先）
+- DEFAULT_STATS 兜底 sparkline 保留硬编码（brief 字面矛盾，仅 useReal=false 时使用）
+- LEVEL_OPTIONS 不含 custom 导致编辑 custom 规则时 Select 不显示选中标记（功能无影响）
+- buildSparklinePoints "空数组返回 ''" 分支无实际调用路径（stats useMemo 用 baselineSparkline 兜底）
+
+**端到端验收**（Step 6.2 待 dev 环境手动验证）：
+- [x] typecheck:node + typecheck:web + lint 三绿
+- [ ] 工作台 AI 提问 → 触发决策 → 跳转 AI可信决策页（需 dev 运行验证）
+- [ ] 决策页展示置信度 + 6源证据 + 7步链 + 4层风险 + 高危拦截（需 dev 运行验证）
+- [ ] 采纳并执行 → 4层风险审批 → 执行 → 记录到历史（需 dev 运行验证）
+- [x] 历史页查看 → 点详情 → 真实数据展示（HistoryDetailPage 接入 historyGet）
+- [x] 决策控制/风险控制设置 → 保存 → 影响后续决策（RiskSettings Modal 弹窗实现）
+
 **开源参考**：
 - mastra 的 workflow + suspend/resume 实现"中风险确认/高风险双审"
 - reactflow 实现 7 步证据溯源链 DAG 可视化（节点可点击展开 tool panel）
