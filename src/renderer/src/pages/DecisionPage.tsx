@@ -27,12 +27,12 @@
  *
  * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Modal, Input } from 'antd'
 import {
-  Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
-  AlertTriangle, Terminal, Check, X, Edit3, History,
+  Sparkles, ArrowLeft, Fingerprint, Activity,
+  AlertTriangle, History,
 } from 'lucide-react'
 import { ConfidenceGauge } from '@/components/decision/ConfidenceGauge'
 import { LoadingState } from '@/components/decision/LoadingState'
@@ -40,246 +40,26 @@ import { ErrorState } from '@/components/decision/ErrorState'
 import { ApprovalStateMachine } from '@/components/decision/ApprovalStateMachine'
 import { EvidenceRadar } from '@/components/decision/EvidenceRadar'
 import { EvidenceList } from '@/components/decision/EvidenceList'
+import { HistoryCard } from '@/components/decision/HistoryCard'
+import { CommandTerminal } from '@/components/decision/CommandTerminal'
 import {
-  riskLevelMeta,
-  parseCommandSegments,
   buildEvidenceSources,
   buildTimelineSteps,
   buildRiskGates,
   buildDangerCommands,
 } from '@/utils/decision-mappers'
 import type { DecisionCard } from '@shared/models'
-
-// ============================================================================
-// 类型定义
-// ============================================================================
-
-/** loop:step 事件载荷的 state 子结构（与 electron.d.ts 同步） */
-interface LoopStepState {
-  currentStep: 'collect' | 'analyze' | 'reason' | 'check' | 'confirm' | 'execute' | 'verify'
-  completedSteps: string[]
-  stepDetails: Record<string, string>
-  waitingForConfirmation: boolean
-  decisionCard: unknown | null
-  error: string | null
-  timestamp: number
-}
-
-/** loop:blocked 事件载荷 */
-interface LoopBlockedPayload {
-  type: 'loop:blocked'
-  correlationId: string
-  step: string
-  reason: string
-  message: string
-}
-
-/** loop 错误载荷 */
-interface LoopErrorPayload {
-  type: 'loop:error'
-  correlationId: string
-  error: string
-}
-
-// ============================================================================
-// 类型守卫
-// ============================================================================
-
-/** 校验 unknown 是否为 DecisionCard（结构最小校验，避免 any） */
-function isDecisionCard(value: unknown): value is DecisionCard {
-  if (typeof value !== 'object' || value === null) return false
-  const v = value as Record<string, unknown>
-  return (
-    typeof v.id === 'string' &&
-    typeof v.problem === 'string' &&
-    typeof v.confidence === 'number' &&
-    typeof v.fixCommand === 'string' &&
-    typeof v.timestamp === 'number'
-  )
-}
-
-// ============================================================================
-// 子组件
-// ============================================================================
-
-/** 历史决策卡片：决策ID + 时间 + 场景 + 置信度 + 状态 */
-function HistoryCard({ card, onClick }: { card: DecisionCard; onClick: () => void }) {
-  const ts = new Date(card.timestamp)
-  const timeStr = `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(2, '0')}-${String(ts.getDate()).padStart(2, '0')} ${String(ts.getHours()).padStart(2, '0')}:${String(ts.getMinutes()).padStart(2, '0')}:${String(ts.getSeconds()).padStart(2, '0')}`
-  const riskMeta = riskLevelMeta(card.risk.level)
-  const statusText: Record<DecisionCard['status'], string> = {
-    pending: '待审批',
-    approved: '已批准',
-    rejected: '已拒绝',
-    executed: '已执行',
-    verified: '已验证',
-    failed: '执行失败',
-  }
-  const statusClass: Record<DecisionCard['status'], string> = {
-    pending: 'border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] text-[var(--trae-status-alert-default)]',
-    approved: 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]',
-    rejected: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-[var(--trae-status-error-default)]',
-    executed: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-[var(--trae-status-success-default)]',
-    verified: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-[var(--trae-status-success-default)]',
-    failed: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-[var(--trae-status-error-default)]',
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full flex-col gap-2 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-4 text-left transition-colors hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
-      aria-label={`查看决策 ${card.id} 详情`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Fingerprint className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-          <span className="font-mono text-[11px] font-medium tabular-nums text-[var(--trae-text-default)]">
-            #{card.id}
-          </span>
-        </div>
-        <span className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-[10px] font-medium ${statusClass[card.status]}`}>
-          {statusText[card.status]}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 text-[12px] text-[var(--trae-text-default)]">
-        <Activity className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-        <span className="truncate">{card.problem.slice(0, 40) || '未命名场景'}</span>
-      </div>
-      <div className="flex items-center justify-between gap-3 text-[10px] text-[var(--trae-text-tertiary)]">
-        <div className="flex items-center gap-1.5">
-          <Clock className="h-3 w-3" />
-          <span className="font-mono tabular-nums">{timeStr}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-1">
-            <span className="text-[var(--trae-text-tertiary)]">置信度</span>
-            <span className="font-mono font-medium tabular-nums text-[var(--trae-text-brand)]">
-              {card.confidence.toFixed(2)}
-            </span>
-          </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-[10px] text-[var(--trae-text-secondary)]">
-            {riskMeta.urgency}
-          </span>
-        </div>
-      </div>
-    </button>
-  )
-}
-
-/** 命令决策终端（活跃态简化版：fixCommand + 修复说明 + 三按钮） */
-function CommandTerminal({
-  card,
-  waiting,
-  confirming,
-  onAccept,
-  onModify,
-  onReject,
-}: {
-  card: DecisionCard
-  waiting: boolean
-  confirming: boolean
-  onAccept: () => void
-  onModify: () => void
-  onReject: () => void
-}) {
-  const segments = parseCommandSegments(card.fixCommand)
-  const disabled = confirming || !waiting
-  return (
-    <div className="flex min-w-[340px] flex-1 flex-col overflow-hidden rounded-[var(--trae-radius-10)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]">
-      {/* 终端 header */}
-      <div className="flex items-center gap-2 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-4 py-2.5">
-        <div className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--trae-status-error-default)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--trae-status-alert-default)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--trae-status-success-default)]" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Terminal className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-          <span className="font-mono text-[10px] text-[var(--trae-text-secondary)]">
-            决策命令 · #{card.id}
-          </span>
-        </div>
-        {waiting && (
-          <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
-            等待确认
-          </span>
-        )}
-      </div>
-      {/* 命令展示 */}
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] px-4 py-3 font-mono text-[14px] leading-[1.8]">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[12px] text-[var(--trae-text-tertiary)]">$</span>
-            <code className="flex-1 break-all">
-              {segments.map((seg, i) => (
-                <span
-                  key={i}
-                  className={
-                    seg.type === 'name'
-                      ? 'text-[var(--trae-text-brand)]'
-                      : seg.type === 'flag'
-                      ? 'text-[var(--trae-text-default)]'
-                      : seg.type === 'path'
-                      ? 'text-[var(--trae-text-default)]'
-                      : seg.type === 'sym'
-                      ? 'text-[var(--trae-text-tertiary)]'
-                      : seg.type === 'comment'
-                      ? 'text-[var(--trae-text-tertiary)]'
-                      : 'text-[var(--trae-text-default)]'
-                  }
-                >
-                  {i > 0 && seg.type !== 'comment' ? ' ' : ''}
-                  {seg.text}
-                </span>
-              ))}
-            </code>
-          </div>
-        </div>
-        {card.fixDescription && (
-          <p className="text-[11px] leading-[1.6] text-[var(--trae-text-secondary)]">
-            {card.fixDescription}
-          </p>
-        )}
-        {/* 三按钮 */}
-        <div className="mt-auto flex gap-2">
-          <button
-            type="button"
-            onClick={onAccept}
-            disabled={disabled}
-            data-dom-id="accept-execute"
-            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--bg-brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--bg-brand-hover)] disabled:opacity-50"
-          >
-            <Check className="h-3.5 w-3.5" />
-            采纳并执行
-          </button>
-          <button
-            type="button"
-            onClick={onModify}
-            disabled={disabled}
-            data-dom-id="modify-cmd"
-            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] disabled:opacity-50"
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-            修改
-          </button>
-          <button
-            type="button"
-            onClick={onReject}
-            disabled={confirming}
-            data-dom-id="reject-cmd"
-            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.06)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-status-error-default)] transition-colors hover:bg-[rgba(246,90,90,0.12)] disabled:opacity-50"
-          >
-            <X className="h-3.5 w-3.5" />
-            拒绝
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
+import {
+  type LoopStepState,
+  type LoopBlockedPayload,
+  type LoopErrorPayload,
+  isDecisionCard,
+} from './decision-loop-helpers'
 
 // ============================================================================
 // DecisionPage 主组件
+// 子组件 HistoryCard / CommandTerminal 已抽离到
+// @/components/decision/HistoryCard.tsx 和 CommandTerminal.tsx
 // ============================================================================
 
 export function DecisionPage() {
@@ -302,6 +82,11 @@ export function DecisionPage() {
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
 
+  // ===== 卸载守卫 + timer refs（防止组件卸载后 setState 警告） =====
+  const mountedRef = useRef(true)
+  const doneTimerRef = useRef<number | null>(null)
+  const feedbackTimerRef = useRef<number | null>(null)
+
   /** 加载历史决策列表 */
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
@@ -323,10 +108,19 @@ export function DecisionPage() {
     }
   }, [])
 
-  /** 显示操作反馈（2 秒后清除） */
+  /** 显示操作反馈（2 秒后清除，组件卸载则不更新 state） */
   const showFeedback = useCallback((text: string) => {
     setActionFeedback(text)
-    window.setTimeout(() => setActionFeedback(null), 2000)
+    // 清理上一个未触发的 feedback timer，避免快速连续调用时计时被前一个覆盖
+    if (feedbackTimerRef.current !== null) {
+      window.clearTimeout(feedbackTimerRef.current)
+    }
+    feedbackTimerRef.current = window.setTimeout(() => {
+      if (mountedRef.current) {
+        setActionFeedback(null)
+      }
+      feedbackTimerRef.current = null
+    }, 2000)
   }, [])
 
   // ===== mount 时加载历史 + 订阅 loop 事件 =====
@@ -374,11 +168,18 @@ export function DecisionPage() {
           showFeedback('决策工作流已完成')
           // 完成后刷新历史列表 + 退出活跃态（保留 decisionCard 5 秒让用户看到最终结果）
           void loadHistory()
-          window.setTimeout(() => {
-            setCorrelationId(null)
-            setCurrentStep(null)
-            setDecisionCard(null)
-            setWaitingForConfirmation(false)
+          // 清理上一个未触发的 done timer，避免快速连续完成时计时被覆盖
+          if (doneTimerRef.current !== null) {
+            window.clearTimeout(doneTimerRef.current)
+          }
+          doneTimerRef.current = window.setTimeout(() => {
+            if (mountedRef.current) {
+              setCorrelationId(null)
+              setCurrentStep(null)
+              setDecisionCard(null)
+              setWaitingForConfirmation(false)
+            }
+            doneTimerRef.current = null
           }, 5000)
         }),
       )
@@ -406,8 +207,17 @@ export function DecisionPage() {
       )
     }
 
-    // 清理所有订阅
+    // 清理所有订阅 + timer + 标记卸载（防止 setTimeout 回调在卸载后 setState）
     return () => {
+      mountedRef.current = false
+      if (doneTimerRef.current !== null) {
+        window.clearTimeout(doneTimerRef.current)
+        doneTimerRef.current = null
+      }
+      if (feedbackTimerRef.current !== null) {
+        window.clearTimeout(feedbackTimerRef.current)
+        feedbackTimerRef.current = null
+      }
       for (const unsub of unsubs) {
         try {
           unsub()
