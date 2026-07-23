@@ -100,6 +100,7 @@
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-8);
   min-width: 0;
+  box-shadow: var(--trae-shadow-card);
 }
 
 .hist-stat-label {
@@ -294,6 +295,7 @@
   background: var(--trae-bg-base-secondary);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-8);
+  box-shadow: var(--trae-shadow-card);
   transition: background .15s ease, border-color .15s ease;
 }
 
