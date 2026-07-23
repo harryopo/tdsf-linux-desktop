@@ -20,6 +20,7 @@ import type {
   TokenStats,
   CostStats,
 } from '@shared/agent-types'
+import type { AgentWorkflowState } from '@shared/models'
 
 function genId(prefix = 'msg'): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -109,6 +110,8 @@ export function useAgentChat(): UseAgentChatResult {
   // v0.9.3 §11 改进点 26 P2-F：设置成本统计 + 重置会话基线
   const setCostStats = useAgentStore((s) => s.setCostStats)
   const resetSessionCostBaseline = useAgentStore((s) => s.resetSessionCostBaseline)
+  // M1 Task 7：订阅 onAgentStep，写入流式消息 stepState
+  const updateStepState = useAgentStore((s) => s.updateStepState)
 
   const subscribedRef = useRef(false)
 
@@ -177,13 +180,19 @@ export function useAgentChat(): UseAgentChatResult {
       void window.electronAPI.tokenCostStats?.().then(setCostStats).catch(() => {})
     })
 
+    // M1 Task 7：订阅 onAgentStep，将工作流状态写入当前流式消息
+    const offStep = window.electronAPI.onAgentStep?.((state: AgentWorkflowState) => {
+      updateStepState(state)
+    })
+
     return () => {
       subscribedRef.current = false
       offChunk()
       offDone()
       offError()
+      offStep?.()
     }
-  }, [appendToken, finalizeMessage, markError, setTokenStats, setCostStats])
+  }, [appendToken, finalizeMessage, markError, setTokenStats, setCostStats, updateStepState])
 
   const send = useCallback(
     async (text: string) => {

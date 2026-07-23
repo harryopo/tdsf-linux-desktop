@@ -34,6 +34,7 @@ import type {
   AgentMode,
   ModeInfo,
 } from '@shared/agent-types'
+import type { AgentWorkflowState } from '@shared/models'
 
 /**
  * Agent 对话消息（扩展 ChatMessage，含元信息）
@@ -63,6 +64,8 @@ export interface AgentMessage {
     outputTokens: number
     totalTokens: number
   }
+  /** Agent 工作流状态（onAgentStep 推送，仅 assistant 消息） */
+  stepState?: AgentWorkflowState | null
 }
 
 /**
@@ -143,6 +146,8 @@ interface AgentState {
   finalizeMessage: (payload: AgentDonePayload) => void
   /** 标记错误 */
   markError: (payload: AgentErrorPayload) => void
+  /** 更新当前流式消息的 stepState */
+  updateStepState: (stepState: AgentWorkflowState) => void
   /** 清空所有消息 */
   clearMessages: () => void
   /**
@@ -291,6 +296,19 @@ export const useAgentStore = create<AgentState>()((set) => ({
         currentCorrelationId: null,
         lastError: payload.message,
       }
+    }),
+
+  // 更新当前流式消息的 stepState（onAgentStep 推送）
+  updateStepState: (stepState) =>
+    set((state) => {
+      const next = [...state.messages]
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].role === 'assistant' && next[i].isStreaming) {
+          next[i] = { ...next[i], stepState }
+          break
+        }
+      }
+      return { messages: next }
     }),
 
   // 清空所有消息
