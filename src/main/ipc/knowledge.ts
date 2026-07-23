@@ -168,6 +168,26 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
   })
 
   // ------------------------------------------------------------------
+  // kb:get — 按 id 查询单条知识条目（M4 Task 1 新增，替代 kbExport 误用）
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(id: string)
+   * 返回：KnowledgeEntry | null（未找到返回 null，不抛错）
+   *
+   * 使用场景：KnowledgeDetailPage 按 URL :id 精确加载单条知识条目，
+   * 替代原 kbExport(undefined) + find by id 的低效全量查询。
+   */
+  ipcMain.handle(KNOWLEDGE.GET, async (_event, id: string): Promise<KnowledgeEntry | null> => {
+    try {
+      const repo = getKnowledgeRepo()
+      return repo.getById(id)
+    } catch (err) {
+      throw new Error(`知识库查询失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
   // kb:hot — 热门知识（按 useCount 降序）
   // ------------------------------------------------------------------
 

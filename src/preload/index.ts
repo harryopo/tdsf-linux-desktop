@@ -2416,6 +2416,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(KNOWLEDGE.DELETE, id),
   kbExport: (type: string): Promise<string> =>
     ipcRenderer.invoke(KNOWLEDGE.EXPORT, type),
+  kbGet: (id: string): Promise<unknown> =>
+    ipcRenderer.invoke(KNOWLEDGE.GET, id),
   kbImport: (data: string): Promise<number> =>
     ipcRenderer.invoke(KNOWLEDGE.IMPORT, data),
   kbView: (id: string): Promise<boolean> =>
@@ -3227,6 +3229,7 @@ export type ElectronAPI = {
   kbUpdate: (id: string, entry: unknown) => Promise<boolean>
   kbDelete: (id: string) => Promise<boolean>
   kbExport: (type: string) => Promise<string>
+  kbGet: (id: string) => Promise<unknown>
   kbImport: (data: string) => Promise<number>
   kbView: (id: string) => Promise<boolean>
   kbHot: (limit?: number) => Promise<unknown[]>
