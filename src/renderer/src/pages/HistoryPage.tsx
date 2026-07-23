@@ -119,6 +119,95 @@ const DEFAULT_RECORDS: DecisionRecord[] = [
 
 // ===== 辅助函数 =====
 
+/**
+ * 基于决策记录数组按时间序列派生 sparkline 数据点。
+ *
+ * x 坐标范围 0-100，y 坐标范围 0-24（SVG viewBox="0 0 100 24"）。
+ * 默认分桶数 8（与原硬编码数据点数量一致）。
+ *
+ * 边界：
+ * - records 为空时返回空字符串 ''
+ * - 仅有 1 条记录时返回水平线 '0,12 100,12'
+ * - 所有桶值都为 0 时返回基线 '0,24 100,24'
+ *
+ * metric 计算：
+ * - count：每个时间桶内的记录数（归一化到 0-24，max 为所有桶最大值）
+ * - successRate：每个桶内 status==='成功' 的比例（0-1 映射到 0-24）
+ * - avgConfidence：每个桶内 confidence 平均值（0-1 映射到 0-24）
+ * - avgDuration：每个桶内 durationSec 平均值（归一化到 0-24）
+ */
+function buildSparklinePoints(
+  records: DecisionRecord[],
+  metric: 'count' | 'successRate' | 'avgConfidence' | 'avgDuration',
+  options?: { buckets?: number },
+): string {
+  if (records.length === 0) return ''
+  if (records.length === 1) return '0,12 100,12'
+
+  const buckets = options?.buckets ?? 8
+
+  // 按时间排序，计算时间范围
+  const sorted = [...records].sort((a, b) => a.timestamp - b.timestamp)
+  const minTime = sorted[0].timestamp
+  const maxTime = sorted[sorted.length - 1].timestamp
+  const timeRange = maxTime - minTime
+
+  // 所有记录时间相同 → 水平线
+  if (timeRange === 0) return '0,12 100,12'
+
+  const bucketSize = timeRange / buckets
+
+  // 累加每个桶的值与计数
+  const sums = new Array<number>(buckets).fill(0)
+  const counts = new Array<number>(buckets).fill(0)
+
+  for (const r of sorted) {
+    const idx = Math.min(buckets - 1, Math.floor((r.timestamp - minTime) / bucketSize))
+    let v = 0
+    if (metric === 'count') {
+      v = 1
+    } else if (metric === 'successRate') {
+      v = r.status === '成功' ? 1 : 0
+    } else if (metric === 'avgConfidence') {
+      v = r.confidence
+    } else {
+      // avgDuration
+      v = r.durationSec
+    }
+    sums[idx] += v
+    counts[idx] += 1
+  }
+
+  // 计算每个桶的最终值
+  const values: number[] = new Array(buckets)
+  let maxVal = 0
+  for (let i = 0; i < buckets; i++) {
+    let v: number
+    if (metric === 'count') {
+      v = sums[i]
+    } else if (counts[i] === 0) {
+      v = 0
+    } else {
+      // successRate: 0-1；avgConfidence: 0-1；avgDuration: 秒
+      v = sums[i] / counts[i]
+    }
+    values[i] = v
+    if (v > maxVal) maxVal = v
+  }
+
+  // 所有桶值为 0 → 基线
+  if (maxVal === 0) return '0,24 100,24'
+
+  // 归一化到 0-24 范围，生成 points 字符串
+  const points: string[] = []
+  for (let i = 0; i < buckets; i++) {
+    const x = (i / (buckets - 1)) * 100
+    const y = 24 - (values[i] / maxVal) * 24
+    points.push(`${x.toFixed(2)},${y.toFixed(2)}`)
+  }
+  return points.join(' ')
+}
+
 function dotColor(status: DecisionStatus): string {
   if (status === '成功') return 'var(--trae-status-success-default)'
   if (status === '失败') return 'var(--trae-status-error-default)'
@@ -204,12 +293,17 @@ export function HistoryPage() {
 
   // 统计数字：优先使用真实 stats；不可用时回退到 records 派生 / DEFAULT_STATS
   const stats = useMemo<StatItem[]>(() => {
+    // records 为空时使用基线（不是空 SVG），保证视觉占位
+    const baselineSparkline = '0,24 100,24'
+    const sparkFor = (metric: 'count' | 'successRate' | 'avgConfidence' | 'avgDuration'): string =>
+      records.length === 0 ? baselineSparkline : buildSparklinePoints(records, metric)
+
     if (historyStats) {
       return [
-        { label: '总决策数', value: String(historyStats.total), color: 'var(--trae-bg-brand)', sparkline: '0,18 14,14 28,16 42,10 56,12 70,7 84,9 100,5' },
-        { label: '成功率', value: `${(historyStats.successRate * 100).toFixed(1)}%`, color: 'var(--trae-status-success-default)', sparkline: '0,16 14,18 28,12 42,14 56,9 70,11 84,6 100,8' },
-        { label: '平均置信度', value: historyStats.avgConfidence.toFixed(2), color: 'var(--trae-bg-brand)', sparkline: '0,14 14,12 28,15 42,9 56,11 70,8 84,10 100,6' },
-        { label: '平均响应时间', value: `${Math.round(historyStats.avgDurationMs / 1000)}s`, color: 'var(--trae-text-secondary)', sparkline: '0,8 14,12 28,10 42,14 56,11 70,16 84,13 100,15' },
+        { label: '总决策数', value: String(historyStats.total), color: 'var(--trae-bg-brand)', sparkline: sparkFor('count') },
+        { label: '成功率', value: `${(historyStats.successRate * 100).toFixed(1)}%`, color: 'var(--trae-status-success-default)', sparkline: sparkFor('successRate') },
+        { label: '平均置信度', value: historyStats.avgConfidence.toFixed(2), color: 'var(--trae-bg-brand)', sparkline: sparkFor('avgConfidence') },
+        { label: '平均响应时间', value: `${Math.round(historyStats.avgDurationMs / 1000)}s`, color: 'var(--trae-text-secondary)', sparkline: sparkFor('avgDuration') },
       ]
     }
     if (!useReal) return DEFAULT_STATS
@@ -223,10 +317,10 @@ export function HistoryPage() {
       ? `${Math.round(records.reduce((sum, r) => sum + r.durationSec, 0) / total)}s`
       : '0s'
     return [
-      { label: '总决策数', value: String(total), color: 'var(--trae-bg-brand)', sparkline: '0,18 14,14 28,16 42,10 56,12 70,7 84,9 100,5' },
-      { label: '成功率', value: successRate, color: 'var(--trae-status-success-default)', sparkline: '0,16 14,18 28,12 42,14 56,9 70,11 84,6 100,8' },
-      { label: '平均置信度', value: avgConfidence, color: 'var(--trae-bg-brand)', sparkline: '0,14 14,12 28,15 42,9 56,11 70,8 84,10 100,6' },
-      { label: '平均响应时间', value: avgDuration, color: 'var(--trae-text-secondary)', sparkline: '0,8 14,12 28,10 42,14 56,11 70,16 84,13 100,15' },
+      { label: '总决策数', value: String(total), color: 'var(--trae-bg-brand)', sparkline: sparkFor('count') },
+      { label: '成功率', value: successRate, color: 'var(--trae-status-success-default)', sparkline: sparkFor('successRate') },
+      { label: '平均置信度', value: avgConfidence, color: 'var(--trae-bg-brand)', sparkline: sparkFor('avgConfidence') },
+      { label: '平均响应时间', value: avgDuration, color: 'var(--trae-text-secondary)', sparkline: sparkFor('avgDuration') },
     ]
   }, [records, useReal, historyStats])
 
