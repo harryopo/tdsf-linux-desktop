@@ -17,7 +17,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Modal, Spin, message } from 'antd'
+import { Modal, Spin, message, Button } from 'antd'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
   Terminal, List, UserCircle, Star, ChevronRight,
@@ -154,6 +154,16 @@ export function TutorialDetailPage() {
   const [sandboxResult, setSandboxResult] = useState<{ stdout: string; stderr: string; exitCode: number } | null>(null)
   const [sandboxModalOpen, setSandboxModalOpen] = useState(false)
 
+  // ===== 沙箱审批状态（M4 Task 3 接入 onSandboxApprovalRequest + sandboxApprove IPC） =====
+  // HC-6 强制审批：sandboxExecute 调用后主进程推送 sandbox:approval-request 事件，
+  // 渲染层弹窗显示命令 + 风险等级，用户通过 sandboxApprove(callId, approved) 响应后才执行。
+  const [approvalModal, setApprovalModal] = useState<{
+    open: boolean
+    callId: string
+    command: string
+    loading: boolean
+  }>({ open: false, callId: '', command: '', loading: false })
+
   // 加载真实教程条目（按 URL :id 精确匹配）
   useEffect(() => {
     let cancelled = false
@@ -209,6 +219,27 @@ export function TutorialDetailPage() {
     loadProgress()
     return () => { cancelled = true }
   }, [id])
+
+  // 监听沙箱命令审批请求（M4 Task 3 接入 onSandboxApprovalRequest IPC）
+  // HC-6 强制审批：sandboxExecute 调用后主进程推送 sandbox:approval-request 事件，
+  // 渲染层弹窗显示命令，用户批准/拒绝后通过 sandboxApprove(callId, approved) 响应。
+  // onSandboxApprovalRequest 返回 unsubscribe 函数，组件卸载时调用以避免内存泄漏。
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electronAPI?.onSandboxApprovalRequest) {
+      // 降级：非 Electron 环境或 IPC 未暴露时不监听
+      console.warn('[TutorialDetailPage] onSandboxApprovalRequest IPC 不可用，跳过审批监听')
+      return
+    }
+    const unsubscribe = window.electronAPI.onSandboxApprovalRequest((request) => {
+      setApprovalModal({
+        open: true,
+        callId: request.callId,
+        command: request.command,
+        loading: false,
+      })
+    })
+    return () => { unsubscribe?.() }
+  }, [])
 
   // ===== 渲染辅助：根据 useReal 决定字段来源 =====
   // 真实数据：title/summary/difficulty/readingTime/content/commands
@@ -349,6 +380,29 @@ export function TutorialDetailPage() {
       message.error(`沙箱执行失败：${reason}`)
     } finally {
       setSandboxRunning(false)
+    }
+  }
+
+  /**
+   * 响应沙箱命令审批请求（M4 Task 3 接入 sandboxApprove IPC）
+   *
+   * 用户在审批 Modal 点击"批准执行"/"拒绝执行"后调用：
+   *   1. 设置 loading 防止重复点击
+   *   2. 调用 sandboxApprove(callId, approved) 将决策回传主进程
+   *   3. 无论成功/失败，finally 关闭 Modal（失败时 console.error 记录）
+   *
+   * 安全说明：
+   *   - 拒绝时主进程自动清理沙箱状态（由主进程处理，渲染层无需额外清理）
+   *   - sandboxApprove 调用失败 → console.error + 关闭 Modal（降级策略）
+   */
+  const handleApprove = async (approved: boolean) => {
+    setApprovalModal((prev) => ({ ...prev, loading: true }))
+    try {
+      await window.electronAPI.sandboxApprove(approvalModal.callId, approved)
+    } catch (err) {
+      console.error('[TutorialDetailPage] 沙箱审批失败', err)
+    } finally {
+      setApprovalModal({ open: false, callId: '', command: '', loading: false })
     }
   }
 
@@ -740,6 +794,38 @@ export function TutorialDetailPage() {
                 )}
               </div>
             )}
+          </Modal>
+
+          {/* 沙箱命令审批 Modal（M4 Task 3 接入 onSandboxApprovalRequest + sandboxApprove IPC） */}
+          {/* HC-6 强制审批：sandboxExecute 调用后主进程推送审批请求，用户批准/拒绝后才执行 */}
+          <Modal
+            title="沙箱命令审批"
+            open={approvalModal.open}
+            onCancel={() => handleApprove(false)}
+            footer={[
+              <Button key="reject" danger onClick={() => handleApprove(false)} loading={approvalModal.loading}>
+                拒绝执行
+              </Button>,
+              <Button key="approve" type="primary" onClick={() => handleApprove(true)} loading={approvalModal.loading}>
+                批准执行
+              </Button>,
+            ]}
+          >
+            <div style={{ marginBottom: 8, color: 'var(--trae-text-secondary)' }}>即将在沙箱中执行以下命令：</div>
+            <pre style={{
+              padding: 12,
+              background: 'var(--trae-bg-overlay-l1)',
+              borderRadius: 4,
+              fontFamily: 'var(--trae-font-family-mono)',
+              fontSize: 12,
+              color: 'var(--trae-text-default)',
+              overflowX: 'auto',
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}>
+              {approvalModal.command}
+            </pre>
           </Modal>
         </>
       )}
