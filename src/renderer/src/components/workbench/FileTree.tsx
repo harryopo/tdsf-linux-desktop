@@ -8,7 +8,7 @@
  * 数据：useServerStore 会话 + window.electronAPI.sftpList 懒加载
  * 无会话：显示连接引导（不再用 MOCK_FILE_TREE）
  */
-import { useCallback, useEffect, useMemo, useState, type FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -29,6 +29,9 @@ import { cn } from '@/components/trae/utils'
 import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { SftpEntry } from '@shared/models'
+import FileTreeContextMenu, { type MenuAction } from './FileTreeContextMenu'
+import ChmodDialog from './ChmodDialog'
+import RenameDialog from './RenameDialog'
 
 export interface OpenFileRequest {
   /** 远程绝对路径 */
@@ -44,7 +47,7 @@ export interface FileTreeProps {
   onOpenFile?: (file: OpenFileRequest) => void
 }
 
-interface TreeNode {
+export interface TreeNode {
   id: string
   name: string
   path: string
@@ -120,6 +123,16 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [rootLoading, setRootLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** 右键菜单目标节点（null = 空白右键） */
+  const [menuNode, setMenuNode] = useState<TreeNode | null>(null)
+  /** chmod 对话框目标 */
+  const [chmodTarget, setChmodTarget] = useState<TreeNode | null>(null)
+  /** rename 对话框目标 */
+  const [renameTarget, setRenameTarget] = useState<TreeNode | null>(null)
+  /** 上传用隐藏 input */
+  const uploadInputRef = useRef<HTMLInputElement | null>(null)
+  /** 上传目标目录路径 */
+  const uploadTargetDirRef = useRef<string>('/')
 
   const loadDir = useCallback(
     async (dirPath: string): Promise<TreeNode[]> => {
@@ -253,6 +266,192 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     }
   }, [sessionId, connected, activeFilePath, rootPath, loadRoot])
 
+  /** 处理右键菜单动作 */
+  const handleMenuAction = useCallback(
+    async (action: MenuAction, node: TreeNode | null) => {
+      if (!sessionId || !connected) {
+        message.warning('请先连接 SSH')
+        return
+      }
+      const api = window.electronAPI
+      if (!api || !isElectronAPIAvailable()) {
+        message.error('electronAPI 不可用')
+        return
+      }
+
+      // mkdir：复用现有 handleMkdir 逻辑，但用 prompt
+      if (action === 'mkdir') {
+        const parentDir = node?.isDirectory ? node.path : rootPath
+        const name = window.prompt('新建目录名称', 'new-folder')
+        if (!name?.trim()) return
+        const safe = name.trim().replace(/[\\/]/g, '_')
+        const full = joinPath(parentDir, safe)
+        try {
+          await api.sftpMkdir(sessionId, full)
+          message.success(`已创建 ${full}`)
+          await loadRoot()
+        } catch (err) {
+          message.error(`创建失败: ${err instanceof Error ? err.message : String(err)}`)
+        }
+        return
+      }
+
+      // refresh：复用 loadRoot
+      if (action === 'refresh') {
+        await loadRoot()
+        return
+      }
+
+      // delete：复用 handleDelete 逻辑
+      if (action === 'delete') {
+        if (!node) return
+        if (node.path === '/' || node.path === '.' || node.path === '..') {
+          message.error('禁止删除根路径')
+          return
+        }
+        if (!window.confirm(`确认删除远程路径？\n${node.path}`)) return
+        try {
+          await api.sftpDelete(sessionId, node.path)
+          message.success(`已删除 ${node.path}`)
+          await loadRoot()
+        } catch (err) {
+          message.error(`删除失败: ${err instanceof Error ? err.message : String(err)}`)
+        }
+        return
+      }
+
+      // rename：打开对话框
+      if (action === 'rename') {
+        if (!node) return
+        setRenameTarget(node)
+        return
+      }
+
+      // chmod：打开对话框
+      if (action === 'chmod') {
+        if (!node) return
+        setChmodTarget(node)
+        return
+      }
+
+      // upload：触发隐藏 input
+      if (action === 'upload') {
+        const targetDir = node?.isDirectory ? node.path : rootPath
+        uploadTargetDirRef.current = targetDir
+        uploadInputRef.current?.click()
+        return
+      }
+
+      // download：调用 sftpDownload
+      if (action === 'download') {
+        if (!node) return
+        const localPath = window.prompt(
+          `保存到本地路径（Windows 路径）`,
+          `D:\\downloads\\${node.name}`,
+        )
+        if (!localPath?.trim()) return
+        try {
+          message.loading({ content: `下载中: ${node.name}`, key: 'download', duration: 0 })
+          await api.sftpDownload(sessionId, node.path, localPath.trim())
+          message.success({ content: `下载完成: ${localPath}`, key: 'download' })
+        } catch (err) {
+          message.error({
+            content: `下载失败: ${err instanceof Error ? err.message : String(err)}`,
+            key: 'download',
+          })
+        }
+        return
+      }
+    },
+    [sessionId, connected, rootPath, loadRoot],
+  )
+
+  /** 处理隐藏 input 选择文件后上传 */
+  const handleUploadFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file || !sessionId) return
+      const api = window.electronAPI
+      if (!api?.sftpUpload) {
+        message.error('sftpUpload 不可用')
+        return
+      }
+      const remotePath = joinPath(uploadTargetDirRef.current, file.name)
+      try {
+        message.loading({ content: `上传中: ${file.name}`, key: 'upload', duration: 0 })
+        // sftpUpload 签名：(sessionId, localPath, remotePath)
+        // 注意：File 对象需先保存到临时路径，这里用 file.path（Electron 暴露）
+        const localPath = (file as File & { path?: string }).path ?? ''
+        if (!localPath) {
+          message.error({ content: '无法获取本地文件路径', key: 'upload' })
+          return
+        }
+        await api.sftpUpload(sessionId, localPath, remotePath)
+        message.success({ content: `上传完成: ${remotePath}`, key: 'upload' })
+        await loadRoot()
+      } catch (err) {
+        message.error({
+          content: `上传失败: ${err instanceof Error ? err.message : String(err)}`,
+          key: 'upload',
+        })
+      } finally {
+        // 重置 input，允许重复选择同一文件
+        if (uploadInputRef.current) uploadInputRef.current.value = ''
+      }
+    },
+    [sessionId, loadRoot],
+  )
+
+  /** 处理 chmod 确认 */
+  const handleChmodOk = useCallback(
+    async (mode: string) => {
+      if (!chmodTarget || !sessionId) return
+      const api = window.electronAPI
+      if (!api?.sftpChmod) {
+        message.error('sftpChmod 不可用')
+        return
+      }
+      // sftpChmod 签名：(sessionId, remotePath, mode: number)
+      // 对话框返回 3 位八进制字符串，需解析为十进制数字（如 '755' → 0o755 = 493）
+      const modeNum = parseInt(mode, 8)
+      if (Number.isNaN(modeNum)) {
+        message.error('权限格式无效')
+        return
+      }
+      try {
+        await api.sftpChmod(sessionId, chmodTarget.path, modeNum)
+        message.success(`权限已修改为 ${mode}`)
+        setChmodTarget(null)
+      } catch (err) {
+        message.error(`修改权限失败: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    [chmodTarget, sessionId],
+  )
+
+  /** 处理 rename 确认 */
+  const handleRenameOk = useCallback(
+    async (newName: string) => {
+      if (!renameTarget || !sessionId) return
+      const api = window.electronAPI
+      if (!api?.sftpRename) {
+        message.error('sftpRename 不可用')
+        return
+      }
+      const parentDir = renameTarget.path.split('/').slice(0, -1).join('/') || '/'
+      const newPath = joinPath(parentDir, newName)
+      try {
+        await api.sftpRename(sessionId, renameTarget.path, newPath)
+        message.success(`已重命名为 ${newName}`)
+        setRenameTarget(null)
+        await loadRoot()
+      } catch (err) {
+        message.error(`重命名失败: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    [renameTarget, sessionId, loadRoot],
+  )
+
   return (
     <div className="wb-filetree">
       <div className="wb-filetree-header">
@@ -309,59 +508,97 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
       )}
 
       <div role="tree" className="wb-filetree-scroll">
-        {!connected ? (
-          <div className="wb-filetree-empty">
-            <Link2 className="size-6 wb-filetree-empty-icon" />
-            <div className="wb-filetree-empty-text">
-              尚未连接 SSH
-              <br />
-              连接后将列出远程目录
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/settings/ssh')}
-              className="wb-filetree-connect-btn"
-            >
-              去连接服务器
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="wb-filetree-server-head">
-              <Server className="size-3.5 text-[var(--trae-text-brand)]" />
-              <span className="wb-filetree-server-name">
-                {activeServer?.name || activeServer?.host || 'server'}
-              </span>
-              <span className="wb-filetree-status-dot" style={{ background: 'var(--trae-status-success-default)' }} />
-            </div>
-
-            {error && (
-              <div className="wb-filetree-error">
-                {error}
-              </div>
-            )}
-
-            {rootLoading && nodes.length === 0 ? (
-              <div className="wb-filetree-loading">
-                <Loader2 className="size-4 animate-spin" />
-                加载目录…
+        <FileTreeContextMenu
+          node={menuNode}
+          rootPath={rootPath}
+          onAction={handleMenuAction}
+        >
+          <div
+            onContextMenu={(e) => {
+              // 空白处右键：清除节点选中
+              if (e.target === e.currentTarget) setMenuNode(null)
+            }}
+          >
+            {!connected ? (
+              <div className="wb-filetree-empty">
+                <Link2 className="size-6 wb-filetree-empty-icon" />
+                <div className="wb-filetree-empty-text">
+                  尚未连接 SSH
+                  <br />
+                  连接后将列出远程目录
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/settings/ssh')}
+                  className="wb-filetree-connect-btn"
+                >
+                  去连接服务器
+                </button>
               </div>
             ) : (
-              nodes.map((node) => (
-                <NodeRow
-                  key={node.id}
-                  node={node}
-                  depth={0}
-                  expanded={expanded}
-                  activeFilePath={activeFilePath}
-                  onToggle={toggleDir}
-                  onOpen={handleFileClick}
-                />
-              ))
+              <>
+                <div className="wb-filetree-server-head">
+                  <Server className="size-3.5 text-[var(--trae-text-brand)]" />
+                  <span className="wb-filetree-server-name">
+                    {activeServer?.name || activeServer?.host || 'server'}
+                  </span>
+                  <span className="wb-filetree-status-dot" style={{ background: 'var(--trae-status-success-default)' }} />
+                </div>
+
+                {error && (
+                  <div className="wb-filetree-error">
+                    {error}
+                  </div>
+                )}
+
+                {rootLoading && nodes.length === 0 ? (
+                  <div className="wb-filetree-loading">
+                    <Loader2 className="size-4 animate-spin" />
+                    加载目录…
+                  </div>
+                ) : (
+                  nodes.map((node) => (
+                    <NodeRow
+                      key={node.id}
+                      node={node}
+                      depth={0}
+                      expanded={expanded}
+                      activeFilePath={activeFilePath}
+                      onToggle={toggleDir}
+                      onOpen={handleFileClick}
+                      onContextMenu={(_e, n) => setMenuNode(n)}
+                    />
+                  ))
+                )}
+              </>
             )}
-          </>
-        )}
+          </div>
+        </FileTreeContextMenu>
       </div>
+
+      {/* 隐藏文件上传 input */}
+      <input
+        ref={uploadInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        onChange={(e) => void handleUploadFile(e)}
+      />
+
+      {/* Chmod 对话框 */}
+      <ChmodDialog
+        open={chmodTarget !== null}
+        path={chmodTarget?.path ?? ''}
+        onCancel={() => setChmodTarget(null)}
+        onOk={handleChmodOk}
+      />
+
+      {/* Rename 对话框 */}
+      <RenameDialog
+        open={renameTarget !== null}
+        oldName={renameTarget?.name ?? ''}
+        onCancel={() => setRenameTarget(null)}
+        onOk={handleRenameOk}
+      />
     </div>
   )
 }
@@ -373,6 +610,7 @@ interface NodeRowProps {
   activeFilePath?: string
   onToggle: (node: TreeNode) => void
   onOpen: (node: TreeNode) => void
+  onContextMenu?: (e: React.MouseEvent, node: TreeNode) => void
 }
 
 const NodeRow: FC<NodeRowProps> = ({
@@ -382,6 +620,7 @@ const NodeRow: FC<NodeRowProps> = ({
   activeFilePath,
   onToggle,
   onOpen,
+  onContextMenu,
 }) => {
   const isOpen = expanded.has(node.path)
   const isActive = !node.isDirectory && activeFilePath === node.path
@@ -395,6 +634,7 @@ const NodeRow: FC<NodeRowProps> = ({
         aria-selected={isActive}
         tabIndex={0}
         onClick={() => onOpen(node)}
+        onContextMenu={(e) => onContextMenu?.(e, node)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -447,6 +687,7 @@ const NodeRow: FC<NodeRowProps> = ({
               activeFilePath={activeFilePath}
               onToggle={onToggle}
               onOpen={onOpen}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>
