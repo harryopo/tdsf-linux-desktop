@@ -16,9 +16,12 @@ import { type LogSourceItem, LOG_SOURCES } from './logs-data'
 export function LogSidebar({
   activeId,
   onSelect,
+  onSourceChange,
 }: {
   activeId: string
   onSelect: (id: string) => void
+  /** 点击日志源时额外触发的回调（传入完整 source 对象，供父组件重拉日志） */
+  onSourceChange?: (source: LogSourceItem) => void
 }) {
   // 主类日志源（5 项）
   const mainSources = LOG_SOURCES.filter((s) => s.group === 'main')
@@ -33,6 +36,7 @@ export function LogSidebar({
           source={src}
           active={src.id === activeId}
           onSelect={onSelect}
+          onSourceChange={onSourceChange}
         />
       ))}
 
@@ -48,6 +52,7 @@ export function LogSidebar({
           source={src}
           active={src.id === activeId}
           onSelect={onSelect}
+          onSourceChange={onSourceChange}
           mono
         />
       ))}
@@ -60,19 +65,26 @@ function LogSourceRow({
   source,
   active,
   onSelect,
+  onSourceChange,
   mono,
 }: {
   source: LogSourceItem
   active: boolean
   onSelect: (id: string) => void
+  onSourceChange?: (source: LogSourceItem) => void
   mono?: boolean
 }) {
   const Icon = source.icon
   const isAlertCount = !!source.alert
 
+  const handleClick = () => {
+    onSelect(source.id)
+    onSourceChange?.(source)
+  }
+
   return (
     <div
-      onClick={() => onSelect(source.id)}
+      onClick={handleClick}
       className={`log-source-row flex items-center transition-colors ${active ? 'is-active' : ''}`}
     >
       <Icon

@@ -17,6 +17,7 @@
  *   - 刷新 / 导出 按钮（onClick 回调）
  */
 import { Search, RefreshCw, Download } from 'lucide-react'
+import { Switch } from 'antd'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -30,6 +31,8 @@ export function LogToolbar({
   onLevelChange,
   onRefresh,
   onExport,
+  autoScroll = true,
+  onAutoScrollChange,
 }: {
   keyword: string
   onKeywordChange: (v: string) => void
@@ -37,6 +40,10 @@ export function LogToolbar({
   onLevelChange: (level: LogLevel | 'ALL') => void
   onRefresh: () => void
   onExport: () => void
+  /** 自动滚动开关（受控） */
+  autoScroll?: boolean
+  /** 自动滚动状态变更回调 */
+  onAutoScrollChange?: (checked: boolean) => void
 }) {
   return (
     <div className="log-toolbar flex shrink-0 items-center">
@@ -71,6 +78,17 @@ export function LogToolbar({
 
       {/* 3. 右侧 cluster */}
       <div className="log-right-cluster flex shrink-0 items-center">
+        {/* 自动滚动 switch（设计稿 32x18 椭圆，复用 .log-autoscroll-label 间距） */}
+        <div className="log-autoscroll-label flex items-center">
+          <span className="log-autoscroll-text">自动滚动</span>
+          <Switch
+            size="small"
+            checked={autoScroll}
+            onChange={onAutoScrollChange}
+            aria-label="自动滚动"
+          />
+        </div>
+
         {/* 刷新按钮 */}
         <button
           type="button"

@@ -20,7 +20,7 @@
  * 视觉：全部 var(--trae-*) token；终端背景 #0F1011（设计稿 --log-terminal-bg）
  * 无障碍：role="log" aria-live="polite"、role="status"、按钮 aria-label、prefers-reduced-motion
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Spin, message } from 'antd'
 import { FileText, ArrowLeft, Clock, RefreshCw, Download } from 'lucide-react'
@@ -31,13 +31,31 @@ import {
   type LogLevel,
   type LogEntry,
   type IpcLogEntry,
+  type LevelStat,
+  type LogSourceItem,
   LOG_ENTRIES,
   DEFAULT_LOG_SOURCE_ID,
   TOTAL_LOG_COUNT,
   LATEST_TIMESTAMP,
   ipcLogEntriesToLogEntries,
+  mapLogStats,
 } from '@/components/logs/v1/logs-data'
 import './LogsPage.css'
+
+/**
+ * 从 IPC 日志数组中计算最新时间戳的 ISO 字符串（供实时轮询 logRead since 增量拉取用）。
+ *
+ * @param entries IPC 返回的日志条目（ts 为 ISO 字符串或 ms 时间戳）
+ * @returns 最新一条日志的 ISO 字符串；数组为空或无效时返回空串
+ */
+function computeMaxTsIso(entries: Array<{ ts: string | number }>): string {
+  let maxMs = 0
+  for (const e of entries) {
+    const ms = typeof e.ts === 'number' ? e.ts : new Date(e.ts).getTime()
+    if (Number.isFinite(ms) && ms > maxMs) maxMs = ms
+  }
+  return maxMs > 0 ? new Date(maxMs).toISOString() : ''
+}
 
 /** LogsPage — 系统日志页 */
 export function LogsPage() {
@@ -55,6 +73,18 @@ export function LogsPage() {
   const [loadedReal, setLoadedReal] = useState(false)
   // 真实日志加载中状态
   const [loading, setLoading] = useState(false)
+
+  // ===== 实时流 + log:stats（M3 Task 3） =====
+  // 最新一条日志的 ISO 时间戳，用于实时轮询 logRead({since}) 增量拉取
+  const lastTsRef = useRef<string>('')
+  // 自动滚动开关（用 ref 同步给 setInterval 闭包，避免陈旧 state）
+  const autoScrollRef = useRef<boolean>(true)
+  // LogViewer 滚动容器 ref（供自动滚动到底部）
+  const viewerRef = useRef<HTMLDivElement>(null)
+  // 自动滚动受控 state（与 LogToolbar Switch 联动）
+  const [autoScroll, setAutoScroll] = useState(true)
+  // 日志级别统计（浮动卡，来自 log:stats IPC，经 mapLogStats 映射）
+  const [levelStats, setLevelStats] = useState<LevelStat[]>([])
 
   // ===== 本地过滤（基于 displayEntries：真实数据 / 设计稿示例数据） =====
   const filteredEntries = useMemo(() => {
@@ -89,10 +119,13 @@ export function LogsPage() {
         const entries = ipcLogEntriesToLogEntries(result as IpcLogEntry[])
         setDisplayEntries(entries)
         setLoadedReal(true)
+        // 更新 lastTsRef（供实时轮询 since 增量拉取）
+        lastTsRef.current = computeMaxTsIso(result)
         if (!opts?.silent) message.success(`已加载 ${entries.length} 条真实日志`)
       } else {
         setDisplayEntries([])
         setLoadedReal(true)
+        lastTsRef.current = ''
         if (!opts?.silent) message.info('日志库暂无数据')
       }
     } catch (err) {
@@ -111,6 +144,95 @@ export function LogsPage() {
 
   const handleRefresh = async () => {
     await loadLogs()
+  }
+
+  // ===== 实时日志流（5s 轮询，M3 Task 3） =====
+  // 用轮询而非 push，避免新增 IPC 通道；since 增量拉取 + id|timestamp 去重 + 2000 条截断
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electronAPI?.logRead) return
+    const interval = setInterval(async () => {
+      try {
+        const filter: { since?: string; limit: number } = { limit: 200 }
+        if (lastTsRef.current) filter.since = lastTsRef.current
+        const result = await window.electronAPI.logRead(filter)
+        if (!Array.isArray(result) || result.length === 0) return
+        const newEntries = ipcLogEntriesToLogEntries(result as IpcLogEntry[])
+        // 更新 lastTsRef（供下一轮 since）
+        lastTsRef.current = computeMaxTsIso(result)
+        setDisplayEntries((prev) => {
+          // 去重：相同 id|timestamp 视为同一日志
+          const existingKeys = new Set(prev.map((e) => `${e.id}|${e.timestamp}`))
+          const filtered = newEntries.filter((e) => !existingKeys.has(`${e.id}|${e.timestamp}`))
+          if (filtered.length === 0) return prev
+          const merged = [...prev, ...filtered]
+          // 限制最多 2000 条，超出截断头部
+          return merged.length > 2000 ? merged.slice(-2000) : merged
+        })
+        // 自动滚动到底部（用 ref 同步，避免闭包陈旧）
+        if (autoScrollRef.current) {
+          requestAnimationFrame(() => {
+            const el = viewerRef.current
+            if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+          })
+        }
+      } catch (err) {
+        console.error('[LogsPage] 实时轮询失败', err)
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ===== log:stats 动态统计（10s 轮询，M3 Task 3） =====
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.electronAPI?.logStats) return
+    const fetchStats = async () => {
+      try {
+        const stats = await window.electronAPI.logStats()
+        setLevelStats(mapLogStats(stats))
+      } catch (err) {
+        console.error('[LogsPage] logStats 失败', err)
+      }
+    }
+    void fetchStats()
+    const interval = setInterval(fetchStats, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // ===== 源切换重拉（M3 Task 3） =====
+  const handleSourceChange = async (source: LogSourceItem) => {
+    // 激活态由 onSelect={setActiveSource} 同步更新，这里仅负责重拉日志
+    if (typeof window === 'undefined' || !window.electronAPI?.logRead) {
+      // 非 Electron 环境：保持当前示例数据，不重拉
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await window.electronAPI.logRead({ category: source.id, limit: 200 })
+      if (Array.isArray(result) && result.length > 0) {
+        const entries = ipcLogEntriesToLogEntries(result as IpcLogEntry[])
+        setDisplayEntries(entries)
+        setLoadedReal(true)
+        lastTsRef.current = computeMaxTsIso(result)
+      } else {
+        setDisplayEntries([])
+        setLoadedReal(true)
+        lastTsRef.current = ''
+      }
+      message.success(`已切换到 ${source.label}`)
+    } catch (err) {
+      console.error('[LogsPage] 源切换重拉失败', err)
+      setDisplayEntries([])
+      message.error(`源切换失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ===== 自动滚动开关（与 LogToolbar Switch 联动） =====
+  const handleAutoScrollChange = (checked: boolean) => {
+    setAutoScroll(checked)
+    // 同步给 ref，供 setInterval 闭包读取（避免陈旧 state）
+    autoScrollRef.current = checked
   }
 
   /**
@@ -217,12 +339,18 @@ export function LogsPage() {
         onLevelChange={setActiveLevel}
         onRefresh={handleRefresh}
         onExport={handleExport}
+        autoScroll={autoScroll}
+        onAutoScrollChange={handleAutoScrollChange}
       />
 
       {/* ===== 3. 两栏布局 ===== */}
       <div className="log-body flex min-h-0 flex-1">
         {/* 左：日志源侧边栏 (180px) */}
-        <LogSidebar activeId={activeSource} onSelect={setActiveSource} />
+        <LogSidebar
+          activeId={activeSource}
+          onSelect={setActiveSource}
+          onSourceChange={handleSourceChange}
+        />
 
         {/* 右：终端式日志查看器（无障碍：role=log + aria-live） */}
         <div
@@ -236,7 +364,11 @@ export function LogsPage() {
               <Spin size="small" tip="加载日志中…" />
             </div>
           )}
-          <LogViewer entries={filteredEntries} />
+          <LogViewer
+            entries={filteredEntries}
+            levelStats={levelStats}
+            scrollRef={viewerRef}
+          />
         </div>
       </div>
 
