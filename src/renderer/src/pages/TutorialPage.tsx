@@ -19,6 +19,7 @@
  * 无障碍：button type + aria-label/aria-pressed，prefers-reduced-motion 禁用按压动画
  */
 import { useEffect, useMemo, useCallback, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -33,7 +34,8 @@ import type {
 } from '@shared/tutorial-types'
 import type { TutorialProgress } from '@shared/models'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import { message, Spin } from 'antd'
+import { message, Spin, Input, Button, Empty } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import './TutorialPage.css'
 
 // ==================== 类型定义 ====================
@@ -60,6 +62,24 @@ interface LearningPath {
   id: string
   title: string
   steps: { label: string; active?: boolean }[]
+}
+
+/**
+ * 搜索结果统一项（混合检索 / 关键词检索共用）
+ *
+ * `tutorialHybridSearch` 返回 `TutorialHybridSearchResult[]`（含 rrfScore/source），
+ * `tutorialSearch` 返回 `TutorialEntry[]`（含 summary/category/difficulty）。
+ * 为统一渲染，提取最小公共字段；hybrid 独有调试字段以可选形式保留用于 UI 高亮。
+ */
+interface SearchResultItem {
+  id: string
+  title: string
+  summary: string
+  category?: TutorialCategory
+  /** RRF 融合分（仅 hybrid 来源时有值，越大越相关） */
+  rrfScore?: number
+  /** 召回来源（仅 hybrid 来源时有值：fts / vec / both） */
+  matchSource?: 'fts' | 'vec' | 'both'
 }
 
 // ==================== 学习进度（localStorage 过渡方案） ====================
@@ -137,6 +157,18 @@ const TUTORIAL_TO_UI_CATEGORY: Record<TutorialCategory, Exclude<CourseCategory, 
   'monitoring': 'troubleshoot',
   'troubleshooting': 'troubleshoot',
   'cloud': 'basic',
+}
+
+/**
+ * TutorialCategory 类型守卫
+ *
+ * `tutorialHybridSearch` 返回的 `category` 字段类型是 `string | undefined`（取自 tags[0]），
+ * 需校验后才能赋值给强类型的 `TutorialCategory`。
+ * 利用 `TUTORIAL_TO_UI_CATEGORY` 的 keys 作为合法值集合（与 @shared/tutorial-types 一致）。
+ */
+const VALID_TUTORIAL_CATEGORIES = new Set<string>(Object.keys(TUTORIAL_TO_UI_CATEGORY))
+function isValidTutorialCategory(value: unknown): value is TutorialCategory {
+  return typeof value === 'string' && VALID_TUTORIAL_CATEGORIES.has(value)
 }
 
 /** 教程难度 → UI 难度 */
@@ -290,6 +322,13 @@ export function TutorialPage() {
   // 教程分类汇总（含 count，用于分类标签数量展示）
   const [_categorySummaries, _setCategorySummaries] = useState<TutorialCategorySummary[]>([])
 
+  // ===== RAG 混合检索（M4 Task 5）=====
+  // searchQuery：搜索框输入；searchResults：null=未搜索态，[]：搜索完成无结果，长度>0：搜索有结果
+  // searching：异步检索中（控制 loading UI）
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResultItem[] | null>(null)
+  const [searching, setSearching] = useState(false)
+
   /** 标记教程为已访问（双写：IPC 主路径 + localStorage fallback） */
   const _markVisited = useCallback(
     async (id: string) => {
@@ -393,6 +432,12 @@ export function TutorialPage() {
           setPaths(mappedPaths)
         }
 
+        // v2.3.2 修复：把 categories 写入 _categorySummaries，让 _categoryCounts 真正可用
+        // 此前 state 仅声明未填充，导致分类数量始终显示 0
+        if (Array.isArray(categories) && categories.length > 0) {
+          _setCategorySummaries(categories)
+        }
+
         // 根据分类汇总补充学习人次（暂无真实用户数据，用分类数加权示意）
         const categoryCount = Array.isArray(categories) ? categories.length : 0
         if (categoryCount > 0 && totalCourses > 0) {
@@ -421,6 +466,80 @@ export function TutorialPage() {
     _markVisited(id)
     navigate(`/tutorial/${id}`)
   }
+
+  /**
+   * RAG 混合检索（M4 Task 5）
+   *
+   * 优先调用 `tutorialHybridSearch`（FTS5 BM25 + vec0 KNN + RRF 融合），
+   * 失败时降级到 `tutorialSearch`（Jaccard 关键词搜索），
+   * 两次都失败时设置空结果数组（UI 显示 Empty）。
+   *
+   * 清空搜索框 → setSearchResults(null) 恢复原课程列表（不在本函数内处理，由 onChange 直接置空）。
+   */
+  const handleSearch = useCallback(async () => {
+    const query = searchQuery.trim()
+    if (!query) {
+      // 空查询：清空结果，恢复原课程列表
+      setSearchResults(null)
+      return
+    }
+    setSearching(true)
+    try {
+      const api = window.electronAPI
+      if (!api?.tutorialHybridSearch) {
+        // IPC 未暴露 hybrid → 直接降级到 tutorialSearch
+        throw new Error('tutorialHybridSearch not available')
+      }
+      const hybridResults = await api.tutorialHybridSearch(query)
+      const items: SearchResultItem[] = hybridResults.map((r) => ({
+        id: r.id,
+        title: r.title,
+        // TutorialHybridSearchResult.problem 字段即教程摘要
+        summary: r.problem,
+        // r.category 是 string，需校验后才能赋值给 TutorialCategory
+        category: isValidTutorialCategory(r.category) ? r.category : undefined,
+        rrfScore: r.rrfScore,
+        matchSource: r.source,
+      }))
+      setSearchResults(items)
+    } catch (err) {
+      console.error('[TutorialPage] 混合检索失败，降级到 tutorialSearch', err)
+      // 降级路径：tutorialSearch
+      try {
+        const api = window.electronAPI
+        if (!api?.tutorialSearch) {
+          setSearchResults([])
+          return
+        }
+        const fallback = await api.tutorialSearch(query)
+        const items: SearchResultItem[] = fallback.map((e) => ({
+          id: e.id,
+          title: e.title,
+          summary: e.summary,
+          category: e.category,
+        }))
+        setSearchResults(items)
+      } catch (fallbackErr) {
+        console.error('[TutorialPage] tutorialSearch 也失败', fallbackErr)
+        setSearchResults([])
+      }
+    } finally {
+      setSearching(false)
+    }
+  }, [searchQuery])
+
+  /** 搜索框 onChange：清空时同步清掉 searchResults（恢复原课程列表） */
+  const handleSearchInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value
+      setSearchQuery(val)
+      // 清空时立即恢复原课程列表，避免残留过期结果
+      if (!val.trim() && searchResults !== null) {
+        setSearchResults(null)
+      }
+    },
+    [searchResults],
+  )
 
   const filteredCourses = useMemo(() => {
     if (activeCategory === 'all') return courses
@@ -467,6 +586,44 @@ export function TutorialPage() {
           <span>返回工作台</span>
         </button>
       </header>
+
+      {/* ====== RAG 混合检索搜索框（M4 Task 5）====== */}
+      <div
+        className="tut-search-wrap"
+        style={{
+          padding: '14px 32px',
+          borderBottom: '1px solid var(--trae-border-neutral-l1)',
+          background: 'var(--trae-bg-base-default)',
+        }}
+      >
+        <div className="tut-search-row">
+          <Input
+            placeholder="搜索教程（支持 RAG 语义检索）..."
+            value={searchQuery}
+            onChange={handleSearchInputChange}
+            onPressEnter={handleSearch}
+            prefix={<SearchOutlined style={{ color: 'var(--trae-text-tertiary)' }} />}
+            allowClear
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: 40,
+              fontFamily: 'var(--trae-font-family-mono)',
+              background: 'var(--trae-bg-base-secondary)',
+              borderColor: 'var(--trae-border-neutral-l1)',
+              color: 'var(--trae-text-default)',
+            }}
+          />
+          <Button
+            type="primary"
+            onClick={handleSearch}
+            loading={searching}
+            style={{ height: 40, flexShrink: 0 }}
+          >
+            搜索
+          </Button>
+        </div>
+      </div>
 
       {/* ====== 内容容器 ====== */}
       <div className="tut-container">
@@ -526,6 +683,8 @@ export function TutorialPage() {
           <div className="tut-cat-row tut-no-scrollbar">
             {UI_CATEGORIES.map((cat) => {
               const active = activeCategory === cat.id
+              // 分类数量：_categoryCounts 为 null（数据未加载）时不显示括号
+              const catCount = _categoryCounts ? _categoryCounts[cat.id] : null
               return (
                 <button
                   key={cat.id}
@@ -535,15 +694,112 @@ export function TutorialPage() {
                   className={`tut-cat-label tut-btn-press${active ? ' tut-cat-label--active' : ''}`}
                 >
                   {cat.label}
+                  {catCount !== null && (
+                    <span
+                      className="tut-cat-count"
+                      style={{
+                        marginLeft: 6,
+                        fontVariantNumeric: 'tabular-nums',
+                        // active 状态下用 onbrand 色保持对比度，否则用 tertiary 弱化
+                        color: active ? 'var(--trae-text-onbrand)' : 'var(--trae-text-tertiary)',
+                        opacity: 0.85,
+                      }}
+                    >
+                      ({catCount})
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
         </nav>
 
-        {/* ====== 5. 课程列表 lg:grid-cols-3 ====== */}
-        <section className="tut-section tut-section--courses" aria-label="课程列表">
-          {loading ? (
+        {/* ====== 5. 课程列表 / 搜索结果列表 ====== */}
+        <section
+          className="tut-section tut-section--courses"
+          aria-label={searchResults !== null ? '搜索结果' : '课程列表'}
+        >
+          {searchResults !== null ? (
+            // ====== 搜索结果模式（M4 Task 5）======
+            // searchResults !== null 表示用户已发起搜索（含空结果），渲染替代原课程列表
+            <div className="tut-search-results">
+              <div className="tut-section-title-row" style={{ marginBottom: 12 }}>
+                <SearchOutlined size={18} style={{ color: 'var(--trae-icon-brand)' }} />
+                <h3
+                  className="tut-section-title"
+                  style={{ fontSize: 'var(--trae-body-md-font-size)' }}
+                >
+                  搜索结果（{searchResults.length}）
+                </h3>
+                {searching && <Spin size="small" />}
+              </div>
+              {searchResults.length === 0 ? (
+                <Empty
+                  description="未找到相关教程"
+                  style={{ padding: '40px 0', color: 'var(--trae-text-tertiary)' }}
+                />
+              ) : (
+                <div className="tut-courses-grid">
+                  {searchResults.map((item) => (
+                    <div
+                      key={item.id}
+                      className="tut-result-card"
+                      onClick={() => handleOpenCourse(item.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleOpenCourse(item.id)
+                        }
+                      }}
+                    >
+                      <div className="tut-result-head">
+                        <h4 className="tut-result-title">{item.title}</h4>
+                        {typeof item.rrfScore === 'number' && (
+                          <span
+                            className="tut-result-score"
+                            style={{ color: 'var(--trae-text-brand)' }}
+                            title={`RRF 融合分：${item.rrfScore.toFixed(4)}`}
+                          >
+                            {item.rrfScore.toFixed(3)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="tut-result-snippet">{item.summary}</p>
+                      <div className="tut-result-meta">
+                        {item.matchSource && (
+                          <span
+                            className="tut-result-source"
+                            style={{
+                              background:
+                                item.matchSource === 'both'
+                                  ? 'var(--trae-bg-brand-popup)'
+                                  : 'var(--trae-bg-overlay-l2)',
+                              color:
+                                item.matchSource === 'both'
+                                  ? 'var(--trae-text-brand)'
+                                  : 'var(--trae-text-secondary)',
+                            }}
+                          >
+                            {item.matchSource === 'both' ? '语义+关键词' : item.matchSource === 'vec' ? '语义' : '关键词'}
+                          </span>
+                        )}
+                        {(() => {
+                          // 提取到 IIFE 内，避免 TS 在嵌套 && 中无法收窄 item.category 类型
+                          const cat = item.category
+                          if (!cat) return null
+                          const uiCatId = TUTORIAL_TO_UI_CATEGORY[cat]
+                          const uiCatLabel = UI_CATEGORIES.find((c) => c.id === uiCatId)?.label
+                          return uiCatLabel ? <span>{uiCatLabel}</span> : null
+                        })()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : loading ? (
             <div className="tut-empty" style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
               <Spin size="small" tip="加载教程中…" />
             </div>
