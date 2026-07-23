@@ -904,7 +904,7 @@ export interface ElectronAPI {
    * @param stats 渲染进程构造的统计对象（建议已脱敏，不含明文 apiKey）
    * @returns { filePath: string; size: number } 写入后的文件路径与字节数
    */
-  appExportModelStats(stats: unknown): Promise<{ filePath: string; size: number }>
+  exportModelStats(stats: unknown): Promise<{ filePath: string; size: number }>
 
   // ===== v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image） =====
   // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
