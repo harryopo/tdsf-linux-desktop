@@ -8,6 +8,8 @@
  * - 生成新密钥按钮（触发父级打开生成 Modal）
  * - IPC 不可用 / 空列表时的 Empty 提示
  *
+ * 视觉对齐设计稿 ds-key-row（icon + name/meta + 删除按钮）。
+ *
  * 实际 IPC 调用（sshDeleteKeyring / sshUploadKeypair）通过回调注入；
  * 生成密钥 Modal 留在 SshSettings.tsx 顶层（需 genForm 状态），通过 onGenerate 触发。
  */
@@ -61,7 +63,7 @@ export function KeyCard(props: KeyCardProps) {
             )}
           >
             <div className="ssh-key-row__icon">
-              <KeyRound className="size-4" />
+              <KeyRound className="di-16" />
             </div>
             <div className="ssh-key-row__main">
               <div className="ssh-key-row__name">
@@ -76,9 +78,9 @@ export function KeyCard(props: KeyCardProps) {
               type="button"
               onClick={() => onDelete(k)}
               aria-label={`删除密钥 ${k.name}`}
-              className="ssh-btn-danger ssh-btn-press"
+              className="set-btn-danger btn-press"
             >
-              <Trash2 className="size-3" />
+              <Trash2 className="di-12" />
               删除
             </button>
           </div>
@@ -91,18 +93,18 @@ export function KeyCard(props: KeyCardProps) {
         <button
           type="button"
           onClick={onUpload}
-          className="ssh-btn-secondary ssh-btn-press"
+          className="set-btn-secondary btn-press"
         >
-          <Upload className="size-3.5" />
+          <Upload className="di-14" />
           上传密钥
         </button>
         {/* M.4：生成新密钥按钮（打开 Form Modal → sshGenerateKeypair） */}
         <button
           type="button"
           onClick={onGenerate}
-          className="ssh-btn-primary ssh-btn-press"
+          className="set-btn-primary btn-press"
         >
-          <Plus className="size-3.5" />
+          <Plus className="di-14" />
           生成新密钥
         </button>
       </div>

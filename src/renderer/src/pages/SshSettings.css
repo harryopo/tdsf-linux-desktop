@@ -1,528 +1,12 @@
 /* ============================================================
-   SshSettings.css — 1:1 从设计稿 SSH 连接.html 提取
-   所有值均为设计稿原始 CSS 值，变量统一使用 var(--trae-*)
-   类名用 ssh- 前缀避免冲突
+   SshSettings.css — SSH 设置页特有样式
+   公共样式（set-card / set-row / set-btn-* / set-input / di-*
+   / btn-press / set-pageheader / set-panel-content / set-actionbar）
+   复用自 Settings.css，本文件仅保留 SSH 业务特有的视觉规则。
+   变量统一使用 var(--trae-*)
    ============================================================ */
 
-/* ===== 主容器 ===== */
-.ssh-settings {
-  width: 100%;
-  min-height: 100%;
-  background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
-  font-family: var(--trae-font-family-default);
-  font-size: var(--trae-body-base-font-size);
-  line-height: var(--trae-body-base-line-height);
-}
-.ssh-settings * {
-  box-sizing: border-box;
-}
-
-/* ===== 图标尺寸 ===== */
-.ssh-di-12 { width: 12px; height: 12px; }
-.ssh-di-14 { width: 14px; height: 14px; }
-.ssh-di-16 { width: 16px; height: 16px; }
-.ssh-di-18 { width: 18px; height: 18px; }
-.ssh-di-20 { width: 20px; height: 20px; }
-
-/* ===== Page Header ===== */
-.ssh-pageheader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 20px 24px 18px;
-  border-bottom: 1px solid var(--trae-border-neutral-l1);
-}
-.ssh-pageheader__left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.ssh-pageheader__iconwrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: var(--trae-bg-brand-popup);
-  border: 1px solid var(--trae-border-brand);
-  border-radius: var(--trae-radius-10);
-}
-.ssh-pageheader__title h1 {
-  margin: 0;
-  font-family: var(--trae-font-family-heading);
-  font-size: var(--trae-heading-2xl-font-size);
-  font-weight: var(--trae-heading-2xl-font-weight);
-  line-height: var(--trae-heading-2xl-line-height);
-  color: var(--trae-text-default);
-  letter-spacing: -0.012em;
-}
-.ssh-pageheader__title p {
-  margin: 2px 0 0;
-  font-size: var(--trae-body-xs-font-size);
-  line-height: var(--trae-body-xs-line-height);
-  color: var(--trae-text-secondary);
-}
-
-/* ===== Back Button ===== */
-.ssh-backbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  background: transparent;
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-size: var(--trae-body-sm-font-size);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-}
-.ssh-backbtn:hover {
-  background: var(--trae-bg-overlay-l1);
-  border-color: var(--trae-border-neutral-l3);
-}
-
-/* ===== Layout ===== */
-.ssh-layout {
-  display: flex;
-  gap: 20px;
-  padding: 20px 24px 96px;
-  align-items: flex-start;
-}
-
-/* ===== Nav ===== */
-.ssh-nav {
-  flex: 0 0 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  background: var(--trae-bg-base-secondary);
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-8);
-  position: sticky;
-  top: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.ssh-nav__item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-secondary);
-  font-size: var(--trae-body-sm-font-size);
-  font-weight: var(--trae-body-sm-font-weight);
-  cursor: pointer;
-  transition: background .15s ease, color .15s ease;
-}
-.ssh-nav__item:hover {
-  background: var(--trae-bg-overlay-l1);
-  color: var(--trae-text-default);
-}
-.ssh-nav__item [data-icon] {
-  color: var(--trae-icon-secondary);
-  transition: color .15s ease;
-}
-.ssh-nav__item:hover [data-icon] {
-  color: var(--trae-icon-default);
-}
-.ssh-nav__item.is-active {
-  background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-}
-.ssh-nav__item.is-active [data-icon] {
-  color: var(--trae-bg-brand);
-}
-.ssh-nav__item.is-active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: var(--trae-bg-brand);
-  border-radius: var(--trae-radius-full);
-}
-
-/* ===== Panel ===== */
-.ssh-panel {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.ssh-panel-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px 96px;
-}
-
-/* ===== Card ===== */
-.ssh-card {
-  background: var(--trae-bg-base-secondary);
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-8);
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.ssh-card__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--trae-border-neutral-l1);
-}
-.ssh-card__head [data-icon] {
-  color: var(--trae-bg-brand);
-}
-.ssh-card__title {
-  font-family: var(--trae-font-family-default);
-  font-size: var(--trae-heading-xs-font-size);
-  font-weight: var(--trae-heading-xs-font-weight);
-  line-height: var(--trae-heading-xs-line-height);
-  color: var(--trae-text-default);
-}
-.ssh-card__tag {
-  margin-left: auto;
-  font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-tertiary);
-  font-family: var(--trae-font-family-mono);
-}
-
-/* ===== Row ===== */
-.ssh-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--trae-border-neutral-l1);
-}
-.ssh-row:last-child {
-  border-bottom: none;
-  padding-bottom: 2px;
-}
-.ssh-row__text {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.ssh-row__label {
-  font-size: var(--trae-body-sm-strong-font-size);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-  line-height: 18px;
-  color: var(--trae-text-default);
-}
-.ssh-row__desc {
-  margin-top: 2px;
-  font-size: var(--trae-body-xs-font-size);
-  line-height: var(--trae-body-xs-line-height);
-  color: var(--trae-text-secondary);
-}
-.ssh-row__control {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-}
-
-/* ===== Select ===== */
-.ssh-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 8px 0 12px;
-  background: var(--trae-bg-base-tertiary);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-size: var(--trae-body-sm-font-size);
-  cursor: pointer;
-  transition: border-color .15s ease;
-}
-.ssh-select:hover {
-  border-color: var(--trae-border-neutral-l3);
-}
-.ssh-select [data-icon] {
-  color: var(--trae-text-tertiary);
-}
-
-/* ===== Num ===== */
-.ssh-num {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 10px;
-  background: var(--trae-bg-base-tertiary);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-code-editor-font-size);
-  font-weight: var(--trae-font-weight-code);
-  font-variant-numeric: tabular-nums;
-  min-width: 88px;
-  justify-content: center;
-}
-
-/* ===== Input ===== */
-.ssh-input {
-  display: inline-flex;
-  align-items: center;
-  height: 30px;
-  padding: 0 10px;
-  background: var(--trae-bg-base-tertiary);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-code-editor-font-size);
-  font-weight: var(--trae-font-weight-code);
-  min-width: 280px;
-}
-.ssh-input-num {
-  height: 30px;
-  width: 88px;
-  text-align: center;
-  background: var(--trae-bg-base-tertiary);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-code-editor-font-size);
-  font-weight: var(--trae-font-weight-code);
-  font-variant-numeric: tabular-nums;
-}
-.ssh-input-user {
-  height: 30px;
-  min-width: 140px;
-  background: var(--trae-bg-base-tertiary);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-code-editor-font-size);
-  font-weight: var(--trae-font-weight-code);
-}
-.ssh-input-path {
-  height: 30px;
-  min-width: 280px;
-  background: var(--trae-bg-base-default);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-secondary);
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-code-terminal-font-size);
-}
-
-/* ===== Toggle ===== */
-.ssh-toggle {
-  position: relative;
-  display: inline-block;
-  width: 34px;
-  height: 18px;
-  flex: 0 0 auto;
-  cursor: pointer;
-}
-.ssh-toggle input {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  margin: 0;
-}
-.ssh-toggle__track {
-  position: absolute;
-  inset: 0;
-  background: var(--trae-border-neutral-l3);
-  border-radius: var(--trae-radius-full);
-  transition: background .18s ease;
-}
-.ssh-toggle__thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  background: var(--trae-special-white);
-  border-radius: 50%;
-  transition: transform .18s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 1px 2px rgba(0,0,0,.3);
-}
-.ssh-toggle input:checked ~ .ssh-toggle__track {
-  background: var(--trae-bg-brand);
-}
-.ssh-toggle input:checked ~ .ssh-toggle__track .ssh-toggle__thumb {
-  transform: translateX(16px);
-}
-
-/* ===== Slider ===== */
-.ssh-slider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 240px;
-}
-.ssh-slider__track {
-  position: relative;
-  flex: 1 1 auto;
-  height: 4px;
-  background: var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-full);
-}
-.ssh-slider__fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--trae-bg-brand);
-  border-radius: var(--trae-radius-full);
-}
-.ssh-slider__thumb {
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  background: var(--trae-special-white);
-  border-radius: 50%;
-  transform: translate(-50%,-50%);
-  box-shadow: 0 0 0 2px var(--trae-bg-brand),0 1px 3px rgba(0,0,0,.4);
-}
-.ssh-slider__val {
-  flex: 0 0 auto;
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-code-editor-font-size);
-  font-weight: var(--trae-font-weight-code);
-  color: var(--trae-bg-brand);
-  font-variant-numeric: tabular-nums;
-  min-width: 34px;
-  text-align: right;
-}
-
-/* ===== Action Bar ===== */
-.ssh-actionbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 0 0;
-  margin-top: 4px;
-  border-top: 1px solid var(--trae-border-neutral-l1);
-}
-
-/* ===== Buttons ===== */
-.ssh-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 16px;
-  background: var(--trae-bg-brand);
-  border: 1px solid var(--trae-bg-brand);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-onbrand);
-  font-size: var(--trae-body-sm-font-size);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-  cursor: pointer;
-  transition: background .15s ease;
-}
-.ssh-btn-primary:hover {
-  background: var(--trae-bg-brand-hover);
-  border-color: var(--trae-bg-brand-hover);
-}
-.ssh-btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.ssh-btn-primary-sm {
-  height: 28px;
-  padding: 0 12px;
-  font-size: var(--trae-body-xs-font-size);
-  gap: 4px;
-}
-
-.ssh-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 14px;
-  background: transparent;
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-size: var(--trae-body-sm-font-size);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-}
-.ssh-btn-secondary:hover {
-  background: var(--trae-bg-overlay-l1);
-  border-color: var(--trae-border-neutral-l3);
-}
-
-.ssh-btn-danger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 12px;
-  background: transparent;
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-status-error-default);
-  font-size: var(--trae-body-xs-font-size);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-}
-.ssh-btn-danger:hover {
-  background: var(--trae-status-error-surface-l1);
-  border-color: var(--trae-status-error-default);
-}
-.ssh-btn-danger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.ssh-btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px;
-  background: transparent;
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
-  font-size: var(--trae-body-xs-font-size);
-  font-weight: var(--trae-body-sm-strong-font-weight);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-}
-.ssh-btn-ghost:hover {
-  background: var(--trae-bg-overlay-l1);
-  border-color: var(--trae-border-neutral-l3);
-}
-
-/* ===== 按压反馈 ===== */
-.ssh-btn-press {
-  transition: transform 80ms ease-out;
-}
-.ssh-btn-press:active {
-  transform: scale(0.92);
-}
-
-/* ===== Server Row ===== */
+/* ===== Server Row（紧凑单行：dot + name/ip + type 标签 + actions） ===== */
 .ssh-server-row {
   display: flex;
   align-items: center;
@@ -556,10 +40,6 @@
   color: var(--trae-text-secondary);
   margin-top: 1px;
 }
-.ssh-server-row__ip-status {
-  margin-left: 8px;
-  color: var(--trae-text-tertiary);
-}
 .ssh-server-row__type {
   flex: 0 0 auto;
   display: inline-flex;
@@ -583,7 +63,7 @@
   margin-left: auto;
 }
 
-/* ===== Key Row ===== */
+/* ===== Key Row（icon + name/meta + 删除按钮） ===== */
 .ssh-key-row {
   display: flex;
   align-items: center;
@@ -626,7 +106,7 @@
   margin-top: 1px;
 }
 
-/* ===== Card footer button row ===== */
+/* ===== Card footer（添加服务器 / 上传密钥 / 生成新密钥 按钮容器） ===== */
 .ssh-card-footer {
   display: flex;
   flex-wrap: wrap;
@@ -644,14 +124,65 @@
   color: var(--trae-status-success-default);
 }
 
-/* ===== 状态点颜色 ===== */
+/* ===== 状态点颜色（与设计稿 ds-server-row__dot 内联色对齐） ===== */
 .ssh-dot-online { background: var(--trae-status-success-default); }
 .ssh-dot-connecting { background: var(--trae-status-alert-default); }
 .ssh-dot-warning { background: var(--trae-status-alert-default); }
 .ssh-dot-error { background: var(--trae-status-error-default); }
 .ssh-dot-offline { background: var(--trae-text-tertiary); }
 
-/* ===== ConnectDialog (antd Modal 覆盖) ===== */
+/* ===== Input 元素专用样式（input 标签不能用 set-num / set-input 的 inline-flex 容器样式） ===== */
+
+/* 默认端口输入框（紧凑数字框，居中、等宽、tabular-nums） */
+.ssh-input-num {
+  height: 30px;
+  width: 88px;
+  text-align: center;
+  background: var(--trae-bg-base-tertiary);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  color: var(--trae-text-default);
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-code-editor-font-size);
+  font-weight: var(--trae-font-weight-code);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 默认用户输入框（中等宽度，等宽字体） */
+.ssh-input-user {
+  height: 30px;
+  min-width: 140px;
+  background: var(--trae-bg-base-tertiary);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  color: var(--trae-text-default);
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-code-editor-font-size);
+  font-weight: var(--trae-font-weight-code);
+}
+
+/* Known Hosts 路径输入框（设计稿 ds-input readonly 风格：
+   深底色 + 次要文字色，提示此路径通常不改） */
+.ssh-input-path {
+  height: 30px;
+  min-width: 280px;
+  background: var(--trae-bg-base-default);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  color: var(--trae-text-secondary);
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-code-terminal-font-size);
+}
+
+/* ===== 小尺寸 Primary 按钮（连接按钮，对齐设计稿 ds-btn-primary 紧凑变体） ===== */
+.ssh-btn-primary-sm {
+  height: 28px;
+  padding: 0 12px;
+  font-size: var(--trae-body-xs-font-size);
+  gap: 4px;
+}
+
+/* ===== ConnectDialog (antd Modal 覆盖，对齐设计稿 ds-modal 风格) ===== */
 .ssh-modal .ant-modal-content {
   background: var(--trae-bg-base-secondary);
   border: 1px solid var(--trae-border-neutral-l1);
@@ -668,7 +199,7 @@
   color: var(--trae-text-default);
   font-family: var(--trae-font-family-default);
   font-size: var(--trae-heading-xs-font-size);
-  font-weight: var(--trae-heading-xs-font-weight);
+  font-weight: var(--trae-font-weight-strong);
 }
 .ssh-modal .ant-modal-close {
   color: var(--trae-text-secondary);
@@ -796,51 +327,15 @@
   color: var(--trae-text-secondary);
 }
 
-/* ===== ServerList 补充（按压反馈共享） ===== */
-.ssh-icon-btn-run {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: var(--trae-bg-brand);
-  border: none;
-  border-radius: var(--trae-radius-6);
-  cursor: pointer;
-  transition: background .15s ease;
-}
-.ssh-icon-btn-run:hover {
-  background: var(--trae-bg-brand-hover);
-}
-
-/* ===== 动画 ===== */
-@keyframes ssh-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes ssh-fade-in-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes ssh-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+/* ===== 生成密钥 Modal 表单（紧凑垂直布局） ===== */
+.ssh-gen-form .ant-form-item {
+  margin-bottom: 12px;
 }
 
 /* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
-  .ssh-btn-press,
-  .ssh-backbtn,
-  .ssh-btn-primary,
-  .ssh-btn-secondary,
-  .ssh-btn-danger,
-  .ssh-btn-ghost,
-  .ssh-nav__item,
-  .ssh-select,
-  .ssh-toggle__track,
-  .ssh-toggle__thumb {
+  .ssh-btn-primary-sm,
+  .ssh-modal .ant-btn {
     transition: none !important;
   }
 }

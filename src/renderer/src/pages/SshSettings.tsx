@@ -407,7 +407,7 @@ export function SshSettings() {
         desc="远程服务器连接与密钥管理"
       />
 
-      <div className="ssh-panel-content">
+      <div className="set-panel-content">
         <ServerCard
           servers={sortedServers}
           connectionStates={connectionStates}
