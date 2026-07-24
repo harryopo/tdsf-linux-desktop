@@ -1,0 +1,328 @@
+/**
+ * design-tokens.css — 设计令牌桥接层
+ *
+ * 作用：将 design-app 的短名变量（如 --text-secondary）桥接到
+ * desktop 的 --trae-* 前缀变量，让 Ds* 组件库在 desktop 中正常工作。
+ *
+ * 此文件不定义任何新颜色值，只做别名映射。
+ * 所有实际颜色值在 trae-tokens.css 中定义。
+ *
+ * 引入顺序：trae-tokens.css → tailwind.css → 本文件 → global.css
+ */
+
+:root {
+  /* ============================================================
+     背景色桥接（--bg-* → --trae-bg-*）
+     ============================================================ */
+  --bg-base-default: var(--trae-bg-base-default);
+  --bg-base-secondary: var(--trae-bg-base-secondary);
+  --bg-base-tertiary: var(--trae-bg-base-tertiary);
+  --bg-overlay-l1: var(--trae-bg-overlay-l1);
+  --bg-overlay-l2: var(--trae-bg-overlay-l2);
+  --bg-overlay-l3: var(--trae-bg-overlay-l3);
+  --bg-overlay-l4: var(--trae-bg-overlay-l4);
+  --bg-menu: var(--trae-bg-menu);
+  --bg-tooltip: var(--trae-bg-tooltip);
+  --bg-invert: var(--trae-bg-invert);
+  --bg-invert-hover: var(--trae-bg-invert-hover);
+  --bg-invert-active: var(--trae-bg-invert-active);
+  --bg-invert-disabled: var(--trae-bg-invert-disabled);
+
+  /* 品牌色 */
+  --bg-brand: var(--trae-bg-brand);
+  --bg-brand-hover: var(--trae-bg-brand-hover);
+  --bg-brand-active: var(--trae-bg-brand-active);
+  --bg-brand-disabled: var(--trae-bg-brand-disabled);
+  --bg-brand-popup: var(--trae-bg-brand-popup);
+
+  /* ============================================================
+     文字色桥接（--text-* → --trae-text-*）
+     ============================================================ */
+  --text-default: var(--trae-text-default);
+  --text-default-hover: var(--trae-text-default-hover);
+  --text-default-active: var(--trae-text-default-active);
+  --text-secondary: var(--trae-text-secondary);
+  --text-secondary-hover: var(--trae-text-secondary-hover);
+  --text-secondary-active: var(--trae-text-secondary-active);
+  --text-tertiary: var(--trae-text-tertiary);
+  --text-disabled: var(--trae-text-disabled);
+  --text-onbrand: var(--trae-text-onbrand);
+  --text-onaccent: var(--trae-text-onaccent);
+  --text-brand: var(--trae-text-brand);
+  --text-brand-hover: var(--trae-text-brand-hover);
+
+  /* ============================================================
+     图标色桥接（--icon-* → --trae-icon-*）
+     ============================================================ */
+  --icon-default: var(--trae-icon-default);
+  --icon-default-hover: var(--trae-icon-default-hover);
+  --icon-default-active: var(--trae-icon-default-active);
+  --icon-secondary: var(--trae-icon-secondary);
+  --icon-secondary-hover: var(--trae-icon-secondary-hover);
+  --icon-secondary-active: var(--trae-icon-secondary-active);
+  --icon-tertiary: var(--trae-icon-tertiary);
+  --icon-disabled: var(--trae-icon-disabled);
+  --icon-onbrand: var(--trae-icon-onbrand);
+  --icon-onaccent: var(--trae-icon-onaccent);
+  --icon-brand: var(--trae-icon-brand);
+  --icon-brand-hover: var(--trae-icon-brand-hover);
+
+  /* ============================================================
+     边框色桥接（--border-* → --trae-border-*）
+     ============================================================ */
+  --border-neutral-l1: var(--trae-border-neutral-l1);
+  --border-neutral-l2: var(--trae-border-neutral-l2);
+  --border-neutral-l3: var(--trae-border-neutral-l3);
+  --border-brand: var(--trae-border-brand);
+
+  /* ============================================================
+     状态色桥接（--status-* → --trae-status-*）
+     ============================================================ */
+  --status-primary-default: var(--trae-status-primary-default);
+  --status-primary-hover: var(--trae-status-primary-hover);
+  --status-primary-active: var(--trae-status-primary-active);
+  --status-primary-surface-l1: var(--trae-status-primary-surface-l1);
+  --status-primary-surface-l2: var(--trae-status-primary-surface-l2);
+  --status-primary-surface-l3: var(--trae-status-primary-surface-l3);
+
+  --status-success-default: var(--trae-status-success-default);
+  --status-success-hover: var(--trae-status-success-hover);
+  --status-success-active: var(--trae-status-success-active);
+  --status-success-surface-l1: var(--trae-status-success-surface-l1);
+  --status-success-surface-l2: var(--trae-status-success-surface-l2);
+  --status-success-surface-l3: var(--trae-status-success-surface-l3);
+
+  --status-alert-default: var(--trae-status-alert-default);
+  --status-alert-hover: var(--trae-status-alert-hover);
+  --status-alert-active: var(--trae-status-alert-active);
+  --status-alert-surface-l1: var(--trae-status-alert-surface-l1);
+  --status-alert-surface-l2: var(--trae-status-alert-surface-l2);
+  --status-alert-surface-l3: var(--trae-status-alert-surface-l3);
+
+  --status-warning-default: var(--trae-status-warning-default);
+  --status-warning-hover: var(--trae-status-warning-hover);
+  --status-warning-active: var(--trae-status-warning-active);
+  --status-warning-surface-l1: var(--trae-status-warning-surface-l1);
+  --status-warning-surface-l2: var(--trae-status-warning-surface-l2);
+  --status-warning-surface-l3: var(--trae-status-warning-surface-l3);
+
+  --status-error-default: var(--trae-status-error-default);
+  --status-error-hover: var(--trae-status-error-hover);
+  --status-error-active: var(--trae-status-error-active);
+  --status-error-surface-l1: var(--trae-status-error-surface-l1);
+  --status-error-surface-l2: var(--trae-status-error-surface-l2);
+  --status-error-surface-l3: var(--trae-status-error-surface-l3);
+
+  /* ============================================================
+     排版桥接（body / heading → --trae-body / --trae-heading）
+     ============================================================ */
+  /* Body */
+  --body-xs-font-size: var(--trae-body-xs-font-size);
+  --body-xs-line-height: var(--trae-body-xs-line-height);
+  --body-xs-font-weight: var(--trae-body-xs-font-weight);
+  --body-sm-font-size: var(--trae-body-sm-font-size);
+  --body-sm-line-height: var(--trae-body-sm-line-height);
+  --body-sm-font-weight: var(--trae-body-sm-font-weight);
+  --body-sm-strong-font-size: var(--trae-body-sm-strong-font-size);
+  --body-sm-strong-line-height: var(--trae-body-sm-strong-line-height);
+  --body-sm-strong-font-weight: var(--trae-body-sm-strong-font-weight);
+  --body-md-font-size: var(--trae-body-md-font-size);
+  --body-md-line-height: var(--trae-body-md-line-height);
+  --body-md-font-weight: var(--trae-body-md-font-weight);
+  --body-md-strong-font-size: var(--trae-body-md-strong-font-size);
+  --body-md-strong-line-height: var(--trae-body-md-strong-line-height);
+  --body-md-strong-font-weight: var(--trae-body-md-strong-font-weight);
+  --body-base-font-size: var(--trae-body-base-font-size);
+  --body-base-line-height: var(--trae-body-base-line-height);
+  --body-base-font-weight: var(--trae-body-base-font-weight);
+  --body-base-strong-font-size: var(--trae-body-base-strong-font-size);
+  --body-base-strong-line-height: var(--trae-body-base-strong-line-height);
+  --body-base-strong-font-weight: var(--trae-body-base-strong-font-weight);
+
+  /* Heading */
+  --heading-3xs-font-size: var(--trae-heading-3xs-font-size);
+  --heading-3xs-line-height: var(--trae-heading-3xs-line-height);
+  --heading-3xs-font-weight: var(--trae-heading-3xs-font-weight);
+  --heading-2xs-font-size: var(--trae-heading-2xs-font-size);
+  --heading-2xs-line-height: var(--trae-heading-2xs-line-height);
+  --heading-2xs-font-weight: var(--trae-heading-2xs-font-weight);
+  --heading-xs-font-size: var(--trae-heading-xs-font-size);
+  --heading-xs-line-height: var(--trae-heading-xs-line-height);
+  --heading-xs-font-weight: var(--trae-heading-xs-font-weight);
+  --heading-sm-font-size: var(--trae-heading-sm-font-size);
+  --heading-sm-line-height: var(--trae-heading-sm-line-height);
+  --heading-sm-font-weight: var(--trae-heading-sm-font-weight);
+  --heading-md-font-size: var(--trae-heading-md-font-size);
+  --heading-md-line-height: var(--trae-heading-md-line-height);
+  --heading-md-font-weight: var(--trae-heading-md-font-weight);
+  --heading-lg-font-size: var(--trae-heading-lg-font-size);
+  --heading-lg-line-height: var(--trae-heading-lg-line-height);
+  --heading-lg-font-weight: var(--trae-heading-lg-font-weight);
+  --heading-xl-font-size: var(--trae-heading-xl-font-size);
+  --heading-xl-line-height: var(--trae-heading-xl-line-height);
+  --heading-xl-font-weight: var(--trae-heading-xl-font-weight);
+  --heading-2xl-font-size: var(--trae-heading-2xl-font-size);
+  --heading-2xl-line-height: var(--trae-heading-2xl-line-height);
+  --heading-2xl-font-weight: var(--trae-heading-2xl-font-weight);
+
+  /* Code */
+  --code-editor-font-size: var(--trae-code-editor-font-size);
+  --code-editor-line-height: var(--trae-code-editor-line-height);
+  --code-terminal-font-size: var(--trae-code-terminal-font-size);
+  --code-terminal-line-height: var(--trae-code-terminal-line-height);
+
+  /* ============================================================
+     间距桥接（--spacer-* → --trae-spacer-*）
+     ============================================================ */
+  --spacer-0: var(--trae-spacer-0);
+  --spacer-4: var(--trae-spacer-4);
+  --spacer-6: var(--trae-spacer-6);
+  --spacer-8: var(--trae-spacer-8);
+  --spacer-12: var(--trae-spacer-12);
+  --spacer-16: var(--trae-spacer-16);
+  --spacer-24: var(--trae-spacer-24);
+  --spacer-32: var(--trae-spacer-32);
+  --spacer-40: var(--trae-spacer-40);
+
+  /* ============================================================
+     字重桥接
+     ============================================================ */
+  --font-weight-default: var(--trae-font-weight-default);
+  --font-weight-code: var(--trae-font-weight-code);
+  --font-weight-medium: var(--trae-font-weight-medium);
+  --font-weight-strong: var(--trae-font-weight-strong);
+
+  /* ============================================================
+     阴影桥接
+     ============================================================ */
+  --shadow-1: var(--trae-shadow-1);
+  --shadow-2: var(--trae-shadow-2);
+  --shadow-3: var(--trae-shadow-3);
+  --glow-brand: var(--trae-glow-brand);
+
+  /* ============================================================
+     动画桥接
+     ============================================================ */
+  --duration-fast: var(--trae-duration-fast);
+  --duration-normal: var(--trae-duration-normal);
+  --duration-slow: var(--trae-duration-slow);
+  --ease-out: var(--trae-ease-out);
+  --ease-in-out: var(--trae-ease-in-out);
+
+  /* ============================================================
+     Shader 启动页专用色
+     ============================================================ */
+  --shader-bg: var(--trae-shader-bg);
+  --shader-fg: var(--trae-shader-fg);
+  --shader-brand: var(--trae-shader-brand);
+  --shader-muted: var(--trae-shader-muted);
+  --shader-muted-foreground: var(--trae-shader-muted-foreground);
+  --shader-primary: #1D4ED8;
+}
+
+/* ============================================================
+   页面切换入场动画（配合 AppLayout / MainLayout）
+   ============================================================ */
+.page-enter {
+  animation: fade-in-up 0.22s ease-out both;
+}
+
+/* shimmer-text（AI 思考完成提示渐变文字） */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--text-tertiary) 0%,
+    var(--bg-brand) 50%,
+    var(--text-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2s linear infinite;
+}
+
+/* glow-ring（连接按钮发光环效果） */
+.glow-ring {
+  box-shadow: 0 0 0 2px var(--bg-brand), 0 0 12px rgba(56, 123, 255, 0.4);
+}
+
+/* ============================================================
+   实时监控页卡片样式（mon-stat-card / mon-chart-card）
+   ============================================================ */
+.mon-stat-card {
+  background: var(--bg-base-secondary);
+  border: 1px solid var(--border-neutral-l1);
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.mon-chart-card {
+  background: var(--bg-base-secondary);
+  border: 1px solid var(--border-neutral-l1);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================
+   启动加载页特殊配色（仅 /boot 路由用）
+   ============================================================ */
+.boot-shader-theme {
+  --color-background: #000000;
+  --color-foreground: #FFFFFF;
+}
+
+/* ============================================================
+   入场动画 keyframes（design-app 迁移）
+   ============================================================ */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes monFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes monSlideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   prefers-reduced-motion 补充
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none !important;
+  }
+  .mon-stat-card,
+  .mon-chart-card {
+    animation: none !important;
+  }
+}

@@ -52,7 +52,7 @@ const PaorApprovalCard: FC<{
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[11px] font-medium text-[var(--trae-text-onbrand)] hover:bg-[var(--trae-bg-brand-hover)]"
+            className="btn-press inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
             onClick={() => {
               setResponded(true)
               void onApprove(request.callId, true)
@@ -63,7 +63,7 @@ const PaorApprovalCard: FC<{
           </button>
           <button
             type="button"
-            className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[11px] font-medium text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)]"
+            className="btn-press inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[11px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
             onClick={() => {
               setResponded(true)
               void onApprove(request.callId, false)
