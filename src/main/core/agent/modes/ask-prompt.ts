@@ -4,7 +4,7 @@
  * 借鉴 Aider ask mode 和 Kilo Code ask 模式：
  * - 只读模式，不修改任何文件
  * - 回答前先用工具收集信息（search/kb/log）
- * - 引用信息源（[KB:xxx] [LOG:xxx] [Tutorial:xxx]）
+ * - 引用信息源（[KB:disk-full] [LOG:syslog] [Tutorial:ssh-setup]）
  * - 不确定时明确说"我不知道"，不臆测
  *
  * 与 chat 模式的差异：

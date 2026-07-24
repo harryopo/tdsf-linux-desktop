@@ -3,7 +3,7 @@
  *
  * 单一来源：所有 LLM Tool Calling 和 MCP Server 工具都从这里取。
  * 加新工具只需：
- * 1. 在 tools/ 目录新建 xxx.ts
+ * 1. 在 tools/ 目录新建 my-tool.ts
  * 2. 在本文件注册（allTools + META）
  * 3. 同步在 shared/llm-tool-types.ts 加 TOOL_IDS 常量
  */
