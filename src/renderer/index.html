@@ -9,6 +9,14 @@
     <meta name="context-menu" content="no" />
     <!-- 页面标题 -->
     <title>TDSF-Linux Desktop</title>
+
+    <!-- Web 字体引入（设计稿字体栈对齐）
+         设计稿用 "SF Pro Text" / "SF Pro"（Apple 专有字体，Windows 无）
+         策略：Inter 替代 SF Pro Text（视觉接近，开源免费）
+              JetBrains Mono 作为代码字体（设计稿一致）
+              中文 fallback 到 Microsoft YaHei（Windows 自带）
+         加载方式：npm 包 @fontsource/inter + @fontsource/jetbrains-mono（本地化，离线可用）
+         在 src/renderer/src/main.tsx 中 import 引入 -->
   </head>
   <body>
     <!-- React 根挂载点 -->

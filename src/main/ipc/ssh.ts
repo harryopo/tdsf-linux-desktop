@@ -28,6 +28,8 @@ import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { SftpManager } from '../services/ssh/sftp'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
+import { recordToolCall } from './model-stats'
+import { DatabaseManager } from '../services/db/database'
 import type {
   SshConfig,
   SshHostKeyPromptEvent,
@@ -268,7 +270,12 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       }
 
       try {
-        return await sshManager.exec(safeSessionId, safeCommand)
+        const result = await sshManager.exec(safeSessionId, safeCommand)
+        // v2.4 Phase A：记录用户直接通过终端执行命令的工具调用（区别于 LLM 工具调用）
+        // 工具名与 ModelSettings 显示一致，让"功能调用统计"反映真实使用频率
+        // recordToolCall 内部已 try/catch，db 不可用时静默返回
+        recordToolCall(DatabaseManager.getInstance(), '终端命令执行')
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', '命令执行失败', { sessionId: safeSessionId, error: safeMsg })

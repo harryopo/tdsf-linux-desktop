@@ -183,6 +183,18 @@ import type {
   ExportResult,
   AuditReportListItem,
 } from '../main/core/agent/credibility/audit/exporter'
+// v2.4 Phase C 收尾：校准模块类型（type-only import，6 个校准 IPC 方法所需）
+import type {
+  CalibrationSample,
+  CalibrationState,
+  EceResult,
+  OptimizeTOptions,
+  ProviderCalibration,
+  ProviderId,
+  TemperatureScalingResult,
+} from '../main/core/agent/credibility/calibration/types'
+// v2.4 Phase C 收尾：assess 方法 options 参数类型
+import type { FuseAssessOptions } from '../main/core/agent/credibility/fusion-engine'
 // v0.9 @命令共享类型（8 类 @命令：log/cmd/file/metric/decision/kb/skill/server）
 import type {
   AtCommand,
@@ -1368,10 +1380,14 @@ const credibility = {
    * 评估给定证据集的可信度
    *
    * @param inputs 证据源输入列表（至少 1 个，最多 6 个）
+   * @param options 融合评估选项（v2.4 Phase C 新增：applyCalibration + providerId）
    * @returns ConfidenceAssessment（含 Bel/Pl/confidence/conflictLevel/fusionSteps）
    */
-  assess: (inputs: CredibilityEvidenceInput[]): Promise<ConfidenceAssessment> =>
-    ipcRenderer.invoke(CREDIBILITY.ASSESS, inputs),
+  assess: (
+    inputs: CredibilityEvidenceInput[],
+    options?: FuseAssessOptions
+  ): Promise<ConfidenceAssessment> =>
+    ipcRenderer.invoke(CREDIBILITY.ASSESS, inputs, options),
 
   /**
    * 获取 DAG 可视化数据
@@ -1437,6 +1453,71 @@ const credibility = {
    */
   formatAuditReport: (input: AuditReportInput, format: AuditFormat): Promise<string> =>
     ipcRenderer.invoke(CREDIBILITY.FORMAT_AUDIT_REPORT, input, format),
+
+  // ========================================================================
+  // v2.4 Phase C 收尾：校准方法（6 个）
+  // ------------------------------------------------------------------------
+  // 论文支撑：Guo et al. 2017 (ICML, arXiv:1706.04599) §3.2 Temperature Scaling
+  // 通道与主进程 ipc/credibility.ts 的 6 个校准 handler 一一对应
+  // ========================================================================
+
+  /**
+   * 校准指定 Provider（基于历史样本计算最优 T）
+   *
+   * @param providerId Provider ID（如 'deepseek' / 'claude' / 'openai'）
+   * @param options 优化选项（tMin / tMax / tSteps / numBuckets / minSamples）
+   * @returns TemperatureScalingResult（含 optimalT / eceBefore / eceAfter / searchTrace）
+   */
+  calibrate: (
+    providerId: ProviderId,
+    options?: OptimizeTOptions
+  ): Promise<TemperatureScalingResult> =>
+    ipcRenderer.invoke(CREDIBILITY.CALIBRATE, providerId, options),
+
+  /**
+   * 获取指定 Provider 的当前校准状态
+   *
+   * @param providerId Provider ID
+   * @returns ProviderCalibration（未校准时返回 defaultT=1.0 的默认状态）
+   */
+  getCalibration: (providerId: ProviderId): Promise<ProviderCalibration> =>
+    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION, providerId),
+
+  /**
+   * 获取全局校准状态（所有 Provider）
+   *
+   * @returns CalibrationState（含 providers 表 + defaultT + updatedAt）
+   */
+  getCalibrationState: (): Promise<CalibrationState> =>
+    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION_STATE),
+
+  /**
+   * 重置指定 Provider 的校准（T 回到 defaultT）
+   *
+   * @param providerId Provider ID
+   * @returns boolean（true 表示已重置，false 表示该 Provider 未校准过）
+   */
+  resetCalibration: (providerId: ProviderId): Promise<boolean> =>
+    ipcRenderer.invoke(CREDIBILITY.RESET_CALIBRATION, providerId),
+
+  /**
+   * 计算指定 Provider 的当前 ECE（不修改 T）
+   *
+   * @param providerId Provider ID
+   * @param numBuckets 分桶数（默认 10）
+   * @returns EceResult（含 ece / mce / bucketStats / totalSamples）
+   */
+  computeEce: (providerId: ProviderId, numBuckets?: number): Promise<EceResult> =>
+    ipcRenderer.invoke(CREDIBILITY.COMPUTE_ECE, providerId, numBuckets),
+
+  /**
+   * 记录新的校准样本（内存操作，不持久化）
+   *
+   * @param sample 校准样本（decisionId / reportedConfidence / wasCorrect / providerId / timestamp）
+   * @returns boolean（始终 true，失败抛错）
+   */
+  addCalibrationSample: (sample: CalibrationSample): Promise<boolean> =>
+    ipcRenderer.invoke(CREDIBILITY.ADD_CALIBRATION_SAMPLE, sample),
 }
 
 // ============================================================================
@@ -2392,6 +2473,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v2.3.2 新增：按 decisionId 简化导出 HTML 报告
   credibilityExportAudit: (decisionId: string, format: string): Promise<string> =>
     ipcRenderer.invoke(CREDIBILITY.EXPORT_DECISION_HTML, decisionId, format),
+  // v2.4 Phase C 收尾：校准扁平化 API（6 个，与 credibility 对象的校准方法一一对应）
+  // UI 调用方式：
+  //   const result = await window.electronAPI.credibilityCalibrate('deepseek', { tMin: 0.1 })
+  //   const state = await window.electronAPI.credibilityGetCalibrationState()
+  //   const ok = await window.electronAPI.credibilityAddCalibrationSample(sample)
+  credibilityCalibrate: credibility.calibrate,
+  credibilityGetCalibration: credibility.getCalibration,
+  credibilityGetCalibrationState: credibility.getCalibrationState,
+  credibilityResetCalibration: credibility.resetCalibration,
+  credibilityComputeEce: credibility.computeEce,
+  credibilityAddCalibrationSample: credibility.addCalibrationSample,
 
   // ===== M2 Task 2 新增：命令风险评估扁平化（risk:check） =====
   // 通道与主进程 ipc/risk.ts 一一对应；UI 调用方式：

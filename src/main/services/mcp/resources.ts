@@ -204,13 +204,18 @@ function readKnowledgeResource(uri: string, topic: string): McpResourceContent {
     }
 
     const repo = new KnowledgeRepository(db)
-    const entries = repo.search(query, undefined, 10)
+    let entries = repo.search(query, undefined, 10)
+
+    // P0-3 修复：关键词无命中时，用热门条目兜底，避免返回 TODO 占位内容。
+    if (entries.length === 0) {
+      entries = repo.getHot(5)
+    }
 
     if (entries.length === 0) {
       return {
         uri,
         mimeType: 'text/markdown',
-        text: renderKnowledgePlaceholder(title, query, '知识库无匹配条目（可能未导入对应种子数据）')
+        text: renderKnowledgePlaceholder(title, query, '知识库暂无条目，请导入教程种子或执行自动归档')
       }
     }
 
@@ -270,22 +275,22 @@ function renderKnowledgeMarkdown(title: string, query: string, entries: Knowledg
 /**
  * 渲染知识库占位 Markdown（无数据 / 失败时）
  *
- * TODO 真实集成：当知识库种子数据加载完成后，此分支不再触发。
+ * 当知识库确实为空时返回友好提示，不再使用 TODO 占位文案。
  */
 function renderKnowledgePlaceholder(title: string, query: string, reason: string): string {
   return [
     `# ${title}`,
     '',
-    `> ⚠️ 占位内容（TODO 真实集成）`,
+    `> 知识库资源`,
     '',
     `**查询关键词**: \`${query}\``,
     '',
-    `**原因**: ${reason}`,
+    `**当前状态**: ${reason}`,
     '',
-    `**后续集成**:`,
-    `- 通过 KnowledgeRepository.search() 检索相关知识条目`,
-    `- 渲染为结构化 Markdown（含修复命令 / 回滚 / 验证步骤）`,
-    `- 当前返回占位内容以保持 MCP 协议响应完整性`,
+    `**可用操作**:`,
+    `- 导入 Linux 教程种子数据`,
+    `- 执行运维决策并启用每日自动归档`,
+    `- 通过知识库页面手动添加条目`,
     ''
   ].join('\n')
 }

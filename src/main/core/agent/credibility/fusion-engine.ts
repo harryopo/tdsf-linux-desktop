@@ -26,6 +26,9 @@ import {
   createVacuousMassFunction,
 } from './ds-theory'
 import { pcr5Combine } from './pcr5'
+// v2.4 Phase C：恢复 calibration 模块集成（ECE + Temperature Scaling）
+import { getCalibrationTuner } from './calibration/calibration-tuner'
+import type { EceResult } from './calibration/types'
 
 // ============================================================================
 // 类型定义
@@ -80,6 +83,20 @@ export interface ConfidenceAssessment {
   fusionSteps: FusionStep[]
   /** 融合后的 Mass 函数（用于进一步分析或 DAG 可视化） */
   fusedMassFunction: MassFunction
+  /** v2.4 Phase C：校准后可信度（applyCalibration=true 时填充） */
+  calibratedConfidence?: number
+  /** v2.4 Phase C：ECE 评估报告（applyCalibration=true 时填充） */
+  eceReport?: EceResult
+}
+
+/**
+ * v2.4 Phase C：融合评估选项
+ */
+export interface FuseAssessOptions {
+  /** 是否应用 Temperature Scaling 校准（默认 false） */
+  applyCalibration?: boolean
+  /** Provider ID（用于分类校准，applyCalibration=true 时必填） */
+  providerId?: string
 }
 
 // ============================================================================
@@ -253,10 +270,20 @@ export class FusionEngine {
    * 等价于先调用 fuse() 再调用 assess()，但会填充完整的融合步骤追踪
    * 和冲突程度信息。
    *
+   * v2.4 Phase C：新增 options 参数，支持应用 Temperature Scaling 校准。
+   * 当 applyCalibration=true 且 providerId 提供时，会：
+   * 1. 从 CalibrationTuner 获取该 Provider 的最优 T
+   * 2. 对综合可信度应用 Temperature Scaling 得到 calibratedConfidence
+   * 3. 计算 ECE 评估报告填充到 eceReport
+   *
    * @param massFunctions - 待融合的 Mass 函数列表
+   * @param options - 融合评估选项（v2.4 Phase C 新增）
    * @returns 完整的可信度评估结果（含融合步骤、冲突程度、来源列表）
    */
-  fuseAndAssess(massFunctions: MassFunction[]): ConfidenceAssessment {
+  fuseAndAssess(
+    massFunctions: MassFunction[],
+    options?: FuseAssessOptions
+  ): ConfidenceAssessment {
 
     // 融合
     const fused = this.fuse(massFunctions)
@@ -281,6 +308,21 @@ export class FusionEngine {
         confidence: mf.confidence,
       })),
       fusionSteps: steps,
+    }
+
+    // v2.4 Phase C：应用 Temperature Scaling 校准
+    // 论文支撑：Guo et al. 2017, ICML, arXiv:1706.04599 §3.2
+    if (options?.applyCalibration && options.providerId) {
+      try {
+        const tuner = getCalibrationTuner()
+        result.calibratedConfidence = tuner.applyCalibration(
+          result.confidence,
+          options.providerId
+        )
+        result.eceReport = tuner.computeEce(options.providerId)
+      } catch {
+        // 校准失败不影响主流程，calibratedConfidence/eceReport 保持 undefined
+      }
     }
 
     return result

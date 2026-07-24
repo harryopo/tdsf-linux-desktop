@@ -28,6 +28,79 @@ export function formatAsJson(report: ComplianceAuditReport, pretty = true): stri
   return JSON.stringify(report, null, pretty ? 2 : 0)
 }
 
+/**
+ * 校验 JSON 审计报告
+ *
+ * 用途：落盘前 / 导入时快速校验报告结构完整性。
+ *
+ * @param json - JSON 字符串
+ * @returns 校验结果（valid + 错误列表）
+ */
+export function validateJsonReport(json: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = []
+
+  let report: unknown
+  try {
+    report = JSON.parse(json)
+  } catch {
+    errors.push('JSON 解析失败：输入不是合法的 JSON 字符串')
+    return { valid: false, errors }
+  }
+
+  if (typeof report !== 'object' || report === null) {
+    errors.push('报告必须是 JSON 对象')
+    return { valid: false, errors }
+  }
+
+  const r = report as Record<string, unknown>
+
+  const requiredTopFields = [
+    'regulatory',
+    'metadata',
+    'decisionContext',
+    'sourceEvidences',
+    'fusionResult',
+    'calibration',
+    'humanOversight',
+    'decisionAction',
+    'decisionOutcome',
+    'transparency',
+    'genaiRiskCoverage',
+    'overallCompliance',
+  ]
+  for (const field of requiredTopFields) {
+    if (!(field in r)) {
+      errors.push(`缺少必填字段: ${field}`)
+    }
+  }
+
+  if (typeof r.metadata === 'object' && r.metadata !== null) {
+    const m = r.metadata as Record<string, unknown>
+    if (!m.reportId) errors.push('metadata.reportId 不能为空')
+    if (!m.fingerprint) errors.push('metadata.fingerprint 不能为空')
+  } else {
+    errors.push('metadata 必须是对象')
+  }
+
+  if (typeof r.decisionContext === 'object' && r.decisionContext !== null) {
+    const ctx = r.decisionContext as Record<string, unknown>
+    if (!ctx.decisionId) errors.push('decisionContext.decisionId 不能为空')
+    if (!ctx.decisionTitle) errors.push('decisionContext.decisionTitle 不能为空')
+  } else {
+    errors.push('decisionContext 必须是对象')
+  }
+
+  if (!Array.isArray(r.sourceEvidences)) {
+    errors.push('sourceEvidences 必须是数组')
+  }
+
+  if (!Array.isArray(r.genaiRiskCoverage)) {
+    errors.push('genaiRiskCoverage 必须是数组')
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 // ============================================================================
 // Markdown 格式化器
 // ============================================================================
@@ -328,6 +401,103 @@ function verdictToIcon(verdict: GenaiRiskCoverage['verdict']): string {
 }
 
 // ============================================================================
+// HTML 格式化器
+// ============================================================================
+
+/**
+ * 转义 HTML 特殊字符（XSS 防护）
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/**
+ * HTML 格式化器入口
+ *
+ * 用途：自包含的 HTML 审计报告，可直接在浏览器中打开或作为邮件正文。
+ * 设计：顶部元数据卡片 + Markdown 主体，内联 CSS 保证离线可读。
+ *
+ * @param report - 合规审计报告
+ * @returns HTML 字符串（完整文档，以 <!DOCTYPE html> 开头）
+ */
+export function formatAsHtml(report: ComplianceAuditReport): string {
+  const title = report.decisionContext.decisionTitle
+  const markdown = formatAsMarkdown(report)
+  const score = report.overallCompliance.complianceScore
+
+  const css = `
+:root {
+  --color-bg: #ffffff;
+  --color-text: #1f2937;
+  --color-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-primary: #4f46e5;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+h1 { color: var(--color-primary); border-bottom: 2px solid var(--color-border); padding-bottom: 12px; }
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  background: #f9fafb;
+}
+.card p { margin: 6px 0; }
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f3f4f6;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+}
+@media print {
+  body { background: #fff; }
+  .card { break-inside: avoid; box-shadow: none; }
+  pre { background: #fff; border: 1px solid #d1d5db; }
+}
+`.trim()
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)} - 合规审计报告</title>
+<style>${css}</style>
+</head>
+<body>
+<h1>合规审计报告：${escapeHtml(title)}</h1>
+<div class="card">
+  <p>决策 ID：${escapeHtml(report.decisionContext.decisionId)}</p>
+  <p>报告 ID：${escapeHtml(report.metadata.reportId)}</p>
+  <p>合规评分：${score}/100</p>
+  <p>生成时间：${escapeHtml(report.metadata.generatedAtIso)}</p>
+  <p>SHA-256 指纹：${escapeHtml(report.metadata.fingerprint)}</p>
+</div>
+<div class="card">
+  <pre>${escapeHtml(markdown)}</pre>
+</div>
+</body>
+</html>`
+}
+
+// ============================================================================
 // 统一入口
 // ============================================================================
 
@@ -345,6 +515,9 @@ export function formatReport(
   switch (format) {
     case 'json':
       return formatAsJson(report)
+    case 'html':
+      return formatAsHtml(report)
+    case 'markdown':
     default:
       return formatAsMarkdown(report)
   }
@@ -357,6 +530,8 @@ export function getFileExtension(format: AuditFormat): string {
   switch (format) {
     case 'json':
       return 'json'
+    case 'html':
+      return 'html'
     case 'markdown':
     default:
       return 'md'
@@ -370,6 +545,8 @@ export function getMimeType(format: AuditFormat): string {
   switch (format) {
     case 'json':
       return 'application/json'
+    case 'html':
+      return 'text/html'
     case 'markdown':
     default:
       return 'text/markdown'

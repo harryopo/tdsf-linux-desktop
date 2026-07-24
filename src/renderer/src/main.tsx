@@ -30,6 +30,18 @@ import { traeAntdDarkToken, traeAntdLightToken, traeAntdComponentsConfig } from 
 import './styles/tailwind.css'
 import './styles/global.css'
 
+// Web 字体引入（设计稿字体栈对齐）
+// Inter 替代 SF Pro Text（视觉接近，开源免费，本地化无 CDN 依赖）
+// JetBrains Mono 作为代码字体（设计稿一致）
+// 仅引入所需字重，避免打包体积过大
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
+import '@fontsource/inter/600.css'
+import '@fontsource/inter/700.css'
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/500.css'
+import '@fontsource/jetbrains-mono/600.css'
+
 // 捕获 renderer 进程中未捕获的 JS 异常，输出到控制台便于调试
 window.addEventListener('error', (event) => {
   console.error('[Renderer Error]', event.error)

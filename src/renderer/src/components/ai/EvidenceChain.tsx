@@ -66,9 +66,9 @@ const SOURCE_ICONS: Record<EvidenceSource, React.ReactNode> = {
  * - 红色 < 0.5
  */
 const getConfidenceColor = (confidence: number): string => {
-  if (confidence >= 0.7) return '#34c759'
-  if (confidence >= 0.5) return '#ff9500'
-  return '#ff3b30'
+  if (confidence >= 0.7) return 'var(--trae-risk-safe)'
+  if (confidence >= 0.5) return 'var(--trae-risk-medium)'
+  return 'var(--trae-risk-critical)'
 }
 
 /** 根据置信度获取进度条状态 */
@@ -91,7 +91,7 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
   if (evidences.length === 0) {
     return (
       <div className="evidence-chain-empty">
-        <ExclamationCircleOutlined style={{ color: '#86868b' }} />
+        <ExclamationCircleOutlined style={{ color: 'var(--trae-text-tertiary)' }} />
         <span>暂无证据</span>
       </div>
     )
@@ -207,7 +207,7 @@ const EvidenceChain: React.FC<EvidenceChainProps> = ({ evidences }) => {
                   <span className="evidence-detail-label">Ground-Check</span>
                   <span
                     className="evidence-detail-value"
-                    style={{ color: evidence.verified ? '#34c759' : '#ff3b30' }}
+                    style={{ color: evidence.verified ? 'var(--trae-risk-safe)' : 'var(--trae-risk-critical)' }}
                   >
                     {evidence.verified ? '已验证' : '未验证'}
                   </span>
