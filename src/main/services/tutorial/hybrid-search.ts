@@ -603,58 +603,7 @@ function runVecSearch(
 }
 
 // ============================================================================
-// 测试用例（注释形式，便于教学和理解）
+// 测试用例已迁移到 tests/services/tutorial/hybrid-search.test.ts
+// 迁移时间：v2.5 Phase D1
+// 迁移原因：注释形式的测试无法被 CI 执行，转为 vitest 用例保证覆盖
 // ============================================================================
-
-/*
-// 环境准备：
-//   const db = DatabaseManager.getInstance(':memory:')
-//   const tutorialRepo = new TutorialRepository(db)
-//   tutorialRepo.upsertMany([
-//     { id: 't1', title: 'SSH 免密配置', summary: '配置 ssh key 实现免密登录', keywords: ['ssh', 'key'], ... },
-//     { id: 't2', title: 'Nginx 502 错误排查', summary: '502 Bad Gateway 故障处理', keywords: ['nginx', '502'], ... },
-//     ...
-//   ])
-
-// 测试 1：纯 FTS 检索（无向量）
-//   场景：用户输入关键词，但未提供 queryEmbedding
-//   期望：返回包含 "ssh" 的教程，source 全部为 'fts'，vecDistance 全部为 -1
-const result1 = hybridSearch(db, { query: 'ssh 配置', limit: 5 })
-// 断言：
-//   result1.length === 5
-//   result1.every(r => r.source === 'fts')
-//   result1.every(r => r.vecDistance === -1)
-//   result1[0].title 包含 'ssh'（最相关的排第一）
-//   result1 按 rrfScore 降序排列
-
-// 测试 2：纯向量检索（无 FTS）
-//   场景：用户输入空 query，但提供了 queryEmbedding
-//   期望：返回最近邻的 5 条，source 全部为 'vec'，ftsScore 全部为 0
-const fakeVec = new Float32Array(384)  // 假设 embedding 模型输出 384 维
-const result2 = hybridSearch(db, { query: '', queryEmbedding: fakeVec, limit: 5 })
-// 断言：
-//   result2.length === 5
-//   result2.every(r => r.source === 'vec')
-//   result2.every(r => r.ftsScore === 0)
-//   result2.every(r => r.vecDistance >= 0 && r.vecDistance <= 2)
-//   result2 按 vecDistance 升序（即 rrfScore 降序）
-
-// 测试 3：混合检索（FTS + 向量）
-//   场景：用户同时提供 query 和 queryEmbedding，模拟真实生产用法
-//   期望：返回 10 条，部分 source='both'（同时命中 FTS + vec），rrfScore 较高
-const realVec = await embeddingModel.encode('nginx 502')  // 外部生成向量
-const result3 = hybridSearch(db, {
-  query: 'nginx 502',
-  queryEmbedding: realVec,
-  limit: 10
-})
-// 断言：
-//   result3.length === 10
-//   result3 中存在 r.source === 'both' 的条目（双路命中）
-//   result3 中 'both' 条目的 rrfScore > 'fts' 或 'vec' 单路条目（双路加分）
-//   result3[0] 是 rrfScore 最高的条目（可能同时包含 'nginx' 关键词且向量最近邻）
-//
-// 教学要点：
-//   - RRF 让"nginx 502 关键词命中" + "向量语义相近" 的条目双重加分，排到最前
-//   - 这正是 RRF 相对于单路检索的核心优势：召回率 + 精确率兼顾
-*/
