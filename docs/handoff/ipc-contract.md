@@ -1,7 +1,8 @@
 # IPC 通道契约文档
 
 > 生成时间：2026-07-24
-> 适用版本：v2.4（Phase A/B/C 已落地）
+> 最后更新：2026-07-24（v2.5 Phase C/D/E 落地）
+> 适用版本：v2.5（Phase A/B/C + v2.5 循环工程已落地）
 > 来源：`src/shared/ipc-channels.ts` + `src/main/ipc/*` + `src/preload/index.ts`
 >
 > 铁律（IPC 4 步同步）：
@@ -17,7 +18,9 @@
 - **方向**
   - `invoke`：渲染 → 主（请求-响应，`ipcRenderer.invoke` ↔ `ipcMain.handle`）
   - `push`：主 → 渲染（单向推送，`webContents.send` ↔ `ipcRenderer.on`）
-- **v2.4 标记**：🔥 = v2.4 Phase A/B/C 新增或修改的通道/能力
+- **版本标记**
+  - 🔥 = v2.4 Phase A/B/C 新增或修改的通道/能力
+  - 🚀 = v2.5 循环工程新增或修改的通道/能力
 - **错误处理**：除非另行说明，所有 invoke 通道在主进程出错时均 `throw Error`，前端应用 `try/catch` 捕获
 
 ---
@@ -365,13 +368,96 @@
 | `tutorial:checkpoints` | `tutorialCheckpoints` | 无 | `Promise<Array<...>>` | — |
 | `tutorial:resetCheckpoint` | `tutorialResetCheckpoint` | `(sourceId)` | `Promise<{success}>` | — |
 | `tutorial:search-status` | `tutorialSearchStatus` | 无 | `Promise<TutorialSearchStatus>` | — |
-| `tutorial:backfill-embeddings` | `tutorialBackfillEmbeddings` | `(options?)` | `Promise<TutorialBackfillResult>` | — |
+| `tutorial:backfill-embeddings` | `tutorialBackfillEmbeddings` | `(options?)` | `Promise<TutorialBackfillResult>` | 同步阻塞版（旧，保留向后兼容，内部委托给 `EmbeddingBackfillService.start()` 同步等待） |
+| `tutorial:backfill-start` | `tutorialBackfillStart` | `(options?: BackfillStartOptions)` | `Promise<BackfillStartResult>` | 🚀 v2.5 Phase C：异步启动回填，立即返回 taskId，不阻塞 UI |
+| `tutorial:backfill-cancel` | `tutorialBackfillCancel` | 无 | `Promise<BackfillCancelResult>` | 🚀 v2.5 Phase C：取消正在运行的回填（标记 cancelled，下页检查退出） |
+| `tutorial:backfill-status` | `tutorialBackfillStatus` | 无 | `Promise<BackfillStatusResult>` | 🚀 v2.5 Phase C：查询当前回填状态（running + taskId） |
 | `tutorial:recommend-path` | `tutorialRecommendPath` | `(options?)` | `Promise<TutorialPath[]>` | 4 层融合推荐 |
 | `tutorial:stats` | `tutorialStats` | 无 | `Promise<unknown>` | — |
 | `tutorial:progress` | `tutorialProgress` | 无 | `Promise<unknown[]>` | v2.3.2 跨设备同步 |
 | `tutorial:updateProgress` | `tutorialUpdateProgress` | `(tutorialId, status, progress)` | `Promise<boolean>` | v2.3.2 |
 
-**push 通道**：`tutorial:crawlProgress`（`onTutorialCrawlProgress`）、`tutorial:crawlDone`（`onTutorialCrawlDone`）。
+**push 通道**：
+- `tutorial:crawlProgress`（`onTutorialCrawlProgress`）
+- `tutorial:crawlDone`（`onTutorialCrawlDone`）
+- 🚀 `tutorial:backfill-progress`（`onTutorialBackfillProgress`）：v2.5 Phase C 新增，回填进度推送（主 → 渲染），每页（pageSize=100）完成后触发一次，任务结束时推送最终状态。
+
+### 17.1 🚀 v2.5 异步回填通道详解（Phase C）
+
+**背景**：2578 条教程首次回填需 1-3 分钟，旧版同步通道 `tutorial:backfill-embeddings` 会阻塞 UI。新通道启动后立即返回 taskId，渲染层通过 `onTutorialBackfillProgress` 订阅进度推送，实现非阻塞 UI + 进度条 + 取消能力。
+
+**类型定义**（`src/shared/tutorial-types.ts`）：
+
+```typescript
+/** 回填任务状态 */
+export type BackfillStatus = 'running' | 'completed' | 'cancelled' | 'failed'
+
+/** tutorial:backfill-progress 通道的载荷（主 → 渲染 push） */
+export interface BackfillProgress {
+  taskId: string
+  processed: number
+  total: number
+  failed: number
+  pct: number          // 0-1
+  currentBatch: number
+  eta: number          // 剩余 ms（估算）
+  status: BackfillStatus
+  error?: string
+}
+
+/** tutorial:backfill-start 通道的参数 */
+export interface BackfillStartOptions {
+  pageSize?: number       // 默认 100，每次查询 100 条进行推理
+  inferenceBatch?: number // 默认 8，ONNX 内部 batching
+}
+
+/** tutorial:backfill-start 通道的返回值 */
+export interface BackfillStartResult {
+  ok: boolean
+  taskId: string          // ok=true 时非空
+  error?: string
+}
+
+/** tutorial:backfill-cancel 通道的返回值 */
+export interface BackfillCancelResult {
+  ok: boolean
+}
+
+/** tutorial:backfill-status 通道的返回值 */
+export interface BackfillStatusResult {
+  running: boolean
+  taskId: string | null   // running=true 时非空
+}
+```
+
+**UI 调用示例**：
+
+```typescript
+// 启动异步回填
+const { ok, taskId } = await window.electronAPI.tutorialBackfillStart()
+if (ok) {
+  // 订阅进度推送
+  const unsub = window.electronAPI.onTutorialBackfillProgress((p) => {
+    setProgress(p.pct)  // 0-1
+    setEta(p.eta)       // 剩余 ms
+    if (p.status === 'completed' || p.status === 'cancelled' || p.status === 'failed') {
+      unsub()  // 任务结束时取消订阅
+    }
+  })
+}
+
+// 取消回填（可选）
+await window.electronAPI.tutorialBackfillCancel()
+
+// 查询状态（可选，用于页面刷新后恢复 UI）
+const { running, taskId } = await window.electronAPI.tutorialBackfillStatus()
+```
+
+**进度推送频率**：2578 条 / 100 页 ≈ 26 次推送，避免过细推送导致渲染卡顿。
+
+**断点续传**：分页查询 `WHERE embedding IS NULL` 自动跳过已处理记录，任务中断后重启不会重复处理。
+
+**单例守卫**：`EmbeddingBackfillService.getInstance().isRunning()` 防止并发启动，已在运行的回填会返回 `{ ok: false, error: '已有回填任务在运行' }`。
 
 ---
 
@@ -678,7 +764,7 @@ interface BudgetAlert {
 | SIDECAR | 11 | 0 | 11 |
 | SANDBOX | 9 | 1 | 10 |
 | MCP（含 external） | 6 | 1 | 7 |
-| TUTORIAL | 21 | 2 | 23 |
+| TUTORIAL | 24 | 3 | 27 |
 | DEPLOY | 7 | 3 | 10 |
 | PROFILER | 4 | 0 | 4 |
 | AT_COMMANDS | 3 | 0 | 3 |
@@ -696,6 +782,31 @@ interface BudgetAlert {
 | STORAGE / CONFIG / SERVER | 10 | 0 | 10 |
 | SYSTEM / APP / FS | 6 | 0 | 6 |
 | RISK / ALERT / BOOT | 2 | 1 | 3 |
-| **合计** | **≈ 194** | **≈ 37** | **≈ 231** |
+| **合计** | **≈ 197** | **≈ 38** | **≈ 235** |
 
 > 说明：部分 push 通道（如 `mcp:state-changed`、`paor:approval-request`）使用字面量字符串未集中到 `ipc-channels.ts`，本表按实际注册统计。
+> v2.5 变更：TUTORIAL 域新增 3 个 invoke（backfill-start/cancel/status）+ 1 个 push（backfill-progress），合计 +4 通道。
+
+---
+
+## 附录 C：v2.5 循环工程完成度速查 🚀
+
+| Phase | 任务 | 状态 | 证据 |
+|-------|------|------|------|
+| **P1-8** | `rollback-generator.ts` 18 条规则 + 5 不可逆黑名单 | ✅ | `src/main/services/security/rollback-generator.ts` 存在，38 测试全绿 |
+| **P1-8** | `sandbox-approval.ts` 集成 `generateRollbackCommand` | ✅ | `src/main/ipc/sandbox-approval.ts` import 并委托 |
+| **C** | `EmbeddingBackfillService` 单例 + 分页 + 取消 | ✅ | `src/main/services/tutorial/backfill-service.ts` 存在，22 测试全绿 |
+| **C** | `BACKFILL_START` / `BACKFILL_CANCEL` / `BACKFILL_STATUS` / `BACKFILL_PROGRESS` 常量 | ✅ | `src/shared/ipc-channels.ts:645-651` |
+| **C** | 3 个 `ipcMain.handle` 注册 + push 推送 | ✅ | `src/main/ipc/tutorial.ts` |
+| **C** | preload 暴露 4 个方法 | ✅ | `src/preload/index.ts:3387-3392` |
+| **C** | `BackfillProgress` / `BackfillStartOptions` / 等类型 | ✅ | `src/shared/tutorial-types.ts` |
+| **D1** | hybrid-search 注释测试迁移到 vitest | ✅ | `tests/services/tutorial/hybrid-search.test.ts` 18 用例 |
+| **D2** | path-recommender 注释逻辑清理 | ✅ | `src/main/services/tutorial/path-recommender.ts` |
+| **D3** | 8 个文件 xxx 占位替换为具体示例 | ✅ | logger / registry / redact / dispatcher / openhands-runner / ask-prompt / mode-registry / plan-prompt |
+| **E** | v2.5 归档 + 交接文档 + CHANGELOG + 记忆 | ✅ | `docs/archive/v2.5-loop-engineering-archive/` + 本文档更新 |
+
+**完成度**：11 项全部 ✅（v2.5 循环工程后端任务全部交付）
+
+**前端待接入**：
+- `TutorialPage` 接入 `tutorial:backfill-start` + `onTutorialBackfillProgress`（P3）
+- 其他 v2.4 遗留前端待办详见 `frontend-backend-boundary.md` 第 8.3 节
