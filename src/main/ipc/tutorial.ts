@@ -32,6 +32,14 @@ import { logger } from '../services/log/logger'
 // - EmbeddingService：用于 isLoaded() 判断模型是否已加载到内存
 // - EMBEDDING_DIM：BGE-small-zh-v1.5 固定 512 维，用于 search-status 返回
 import { EmbeddingService, EMBEDDING_DIM } from '../services/tutorial/embedding-service'
+// v2.5 Phase C：异步分批回填服务（替代同步 backfillEmbeddings，支持进度推送 + 取消）
+// - EmbeddingBackfillService：单例，提供 start / cancel / getStatus
+// - DEFAULT_PAGE_SIZE / DEFAULT_INFERENCE_BATCH：与 service 内部默认值保持一致
+import {
+  EmbeddingBackfillService,
+  DEFAULT_PAGE_SIZE as DEFAULT_BACKFILL_PAGE_SIZE,
+  DEFAULT_INFERENCE_BATCH as DEFAULT_BACKFILL_INFERENCE_BATCH,
+} from '../services/tutorial/backfill-service'
 // v1.0 Sprint 9：教学路径推荐
 // - PathRecommender：4 层融合算法（分类依赖 + 难度递进 + 命令关联 + 混合检索）
 import { PathRecommender, type RecommendPathOptions, type TutorialPath } from '../services/tutorial/path-recommender'
@@ -246,17 +254,17 @@ export function registerTutorialIpcHandlers(
   )
 
   /**
-   * tutorial:backfill-embeddings — 回填缺失的 embedding 字段
+   * tutorial:backfill-embeddings — 回填缺失的 embedding 字段（旧版同步通道）
+   *
+   * ⚠️ v2.5 Phase C 改造说明：
+   *   - 此通道保留向后兼容，内部委托给 EmbeddingBackfillService.start() 同步等待完成
+   *   - 推荐新代码使用 `tutorial:backfill-start` + `tutorial:backfill-progress` 异步通道
+   *   - 旧通道仍返回 { total, success, failed } 统计信息
    *
    * 应用场景：
    *   - 老版本数据未生成 embedding（同步版 upsertMany 入库的历史数据）
    *   - EmbeddingService 当时不可用，后续模型下载成功后补齐
    *   - 数据库迁移后需要重建向量索引
-   *
-   * 长任务提示：
-   *   - 2578 条教程首次回填需 1-3 分钟（取决于 CPU 性能）
-   *   - 当前实现为同步等待（未推送进度事件）
-   *   - TODO: 后续可改为异步 + 推送 tutorial:backfill-progress 事件
    *
    * @param options.batchSize 每批大小（默认 8，与 generateEmbeddings 内部一致）
    * @returns { total, success, failed } 统计信息
@@ -265,15 +273,39 @@ export function registerTutorialIpcHandlers(
     'tutorial:backfill-embeddings',
     async (_event, options?: { batchSize?: number }) => {
       try {
-        logger.info('TUTORIAL', '启动 embedding 回填任务', {
+        logger.info('TUTORIAL', '启动 embedding 回填任务（旧版同步通道）', {
           batchSize: options?.batchSize ?? 8
         })
-        // 调用 tutorialRepo.backfillEmbeddings（内部已分批 + 事务回填）
-        const result = await repo.backfillEmbeddings({
-          batchSize: options?.batchSize
+        // v2.5 Phase C：委托给 EmbeddingBackfillService 同步等待完成
+        // 推理批次大小使用调用方传入的 batchSize（默认 8），分页大小用默认值 100
+        const backfillService = EmbeddingBackfillService.getInstance()
+        if (backfillService.isRunning()) {
+          return {
+            total: 0,
+            success: 0,
+            failed: 0,
+            error: '已有回填任务在运行，请先取消或等待完成'
+          }
+        }
+        const result = await backfillService.start(
+          db,
+          `backfill-sync-${Date.now()}`,
+          DEFAULT_BACKFILL_PAGE_SIZE,
+          options?.batchSize ?? DEFAULT_BACKFILL_INFERENCE_BATCH
+        )
+        logger.info('TUTORIAL', 'embedding 回填完成（旧版同步通道）', {
+          taskId: result.taskId,
+          processed: result.processed,
+          total: result.total,
+          failed: result.failed,
+          status: result.status,
         })
-        logger.info('TUTORIAL', 'embedding 回填完成', result)
-        return result
+        // 转换为旧通道的返回值格式
+        return {
+          total: result.total,
+          success: result.processed - result.failed,
+          failed: result.failed
+        }
       } catch (err) {
         logger.error('TUTORIAL', 'backfill-embeddings 失败', {
           err: (err as Error).message
@@ -285,6 +317,114 @@ export function registerTutorialIpcHandlers(
           failed: 0,
           error: (err as Error).message
         }
+      }
+    }
+  )
+
+  // ========== v2.5 Phase C：异步分批回填（推荐用法） ==========
+
+  /**
+   * tutorial:backfill-start — 启动异步回填，立即返回 taskId
+   *
+   * 设计要点：
+   *   - 不 await service.start()，让任务在后台运行
+   *   - 立即返回 { ok: true, taskId } 让渲染层订阅 progress 通道
+   *   - 进度通过 tutorial:backfill-progress push 通道推送（主 → 渲染）
+   *   - 单例守卫：已有任务运行时返回 { ok: false, error }
+   *
+   * @param options.pageSize 分页大小（默认 100）
+   * @param options.inferenceBatch 推理批次大小（默认 8）
+   * @returns { ok: boolean, taskId: string, error?: string }
+   */
+  ipcMain.handle(
+    TUTORIAL.BACKFILL_START,
+    async (
+      _event,
+      options?: { pageSize?: number; inferenceBatch?: number }
+    ): Promise<{ ok: boolean; taskId: string; error?: string }> => {
+      try {
+        const backfillService = EmbeddingBackfillService.getInstance()
+        if (backfillService.isRunning()) {
+          return {
+            ok: false,
+            taskId: '',
+            error: '已有回填任务在运行，请先取消或等待完成'
+          }
+        }
+
+        const taskId = `backfill-${Date.now()}`
+        const pageSize = options?.pageSize ?? DEFAULT_BACKFILL_PAGE_SIZE
+        const inferenceBatch = options?.inferenceBatch ?? DEFAULT_BACKFILL_INFERENCE_BATCH
+
+        // 不 await：让任务在后台运行，立即返回 taskId
+        // 错误由 service.start() 内部处理并推送到 progress 通道
+        void backfillService.start(db, taskId, pageSize, inferenceBatch).catch((err) => {
+          logger.error('TUTORIAL.BACKFILL', '后台回填任务异常', {
+            taskId,
+            error: (err as Error).message,
+          })
+        })
+
+        logger.info('TUTORIAL.BACKFILL', '异步回填任务已启动', {
+          taskId,
+          pageSize,
+          inferenceBatch,
+        })
+
+        return { ok: true, taskId }
+      } catch (err) {
+        logger.error('TUTORIAL.BACKFILL', 'backfill-start 失败', {
+          error: (err as Error).message,
+        })
+        return {
+          ok: false,
+          taskId: '',
+          error: (err as Error).message,
+        }
+      }
+    }
+  )
+
+  /**
+   * tutorial:backfill-cancel — 取消正在运行的回填任务
+   *
+   * 实现：
+   *   - 标记 cancelled = true
+   *   - 下页查询后检查退出（单页内不会中止）
+   *   - 若任务未运行，无操作（返回 ok: true）
+   *
+   * @returns { ok: boolean }
+   */
+  ipcMain.handle(
+    TUTORIAL.BACKFILL_CANCEL,
+    async (): Promise<{ ok: boolean }> => {
+      try {
+        EmbeddingBackfillService.getInstance().cancel()
+        return { ok: true }
+      } catch (err) {
+        logger.error('TUTORIAL.BACKFILL', 'backfill-cancel 失败', {
+          error: (err as Error).message,
+        })
+        return { ok: false }
+      }
+    }
+  )
+
+  /**
+   * tutorial:backfill-status — 查询当前回填状态
+   *
+   * @returns { running: boolean, taskId: string | null }
+   */
+  ipcMain.handle(
+    TUTORIAL.BACKFILL_STATUS,
+    async (): Promise<{ running: boolean; taskId: string | null }> => {
+      try {
+        return EmbeddingBackfillService.getInstance().getStatus()
+      } catch (err) {
+        logger.error('TUTORIAL.BACKFILL', 'backfill-status 失败', {
+          error: (err as Error).message,
+        })
+        return { running: false, taskId: null }
       }
     }
   )
