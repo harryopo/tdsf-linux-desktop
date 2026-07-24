@@ -103,7 +103,12 @@ import type {
   TutorialEntry,
   TutorialCategory,
   TutorialCategorySummary,
-  TutorialDifficulty
+  TutorialDifficulty,
+  BackfillProgress,
+  BackfillStartOptions,
+  BackfillStartResult,
+  BackfillCancelResult,
+  BackfillStatusResult,
 } from '@shared/tutorial-types'
 import type {
   DeployTemplate as DeployTemplateModel,
@@ -3378,6 +3383,15 @@ export type ElectronAPI = {
   tutorialBackfillEmbeddings: (
     options?: TutorialBackfillOptions
   ) => Promise<TutorialBackfillResult>
+  // v2.5 Phase C：异步分批回填（推荐用法）
+  tutorialBackfillStart: (
+    options?: BackfillStartOptions
+  ) => Promise<BackfillStartResult>
+  tutorialBackfillCancel: () => Promise<BackfillCancelResult>
+  tutorialBackfillStatus: () => Promise<BackfillStatusResult>
+  onTutorialBackfillProgress: (
+    callback: (progress: BackfillProgress) => void
+  ) => () => void
   tutorialSearchStatus: () => Promise<TutorialSearchStatus>
   // Deploy
   deployListTemplates: () => Promise<DeployTemplateModel[]>

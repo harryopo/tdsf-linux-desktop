@@ -148,3 +148,76 @@ export const TUTORIAL_DIFFICULTY_COLORS: Record<TutorialDifficulty, string> = {
   intermediate: '#faad14',
   advanced: '#f5222d'
 }
+
+// ============================================================================
+// v2.5 Phase C：教程 embedding 异步分批回填
+//
+// 通道列表：
+// - tutorial:backfill-start     invoke  渲染 → 主：启动异步回填，立即返回 taskId
+// - tutorial:backfill-cancel    invoke  渲染 → 主：取消正在运行的回填任务
+// - tutorial:backfill-status    invoke  渲染 → 主：查询当前回填状态
+// - tutorial:backfill-progress  push    主 → 渲染：进度推送（每页完成后触发）
+//
+// 设计原则：
+// - 2578 条教程首次回填需 1-3 分钟，必须异步避免阻塞 IPC
+// - 分页查询（pageSize=100）+ 事务外推理 + 事务内写入（better-sqlite3 约束）
+// - 进度推送频率：2578 / 100 = 26 次，避免渲染层卡顿
+// - 断点续传：WHERE embedding IS NULL 自动跳过已处理条目
+// ============================================================================
+
+/** 回填任务状态 */
+export type BackfillStatus = 'running' | 'completed' | 'cancelled' | 'failed'
+
+/** tutorial:backfill-progress 通道的载荷（主 → 渲染 push） */
+export interface BackfillProgress {
+  /** 任务 ID（启动时生成，如 `backfill-1721812800000`） */
+  taskId: string
+  /** 已处理条目数 */
+  processed: number
+  /** 待处理总条目数（启动时统计一次） */
+  total: number
+  /** 失败条目数（单批失败累计） */
+  failed: number
+  /** 进度百分比 [0, 1] */
+  pct: number
+  /** 当前批次序号（从 0 开始） */
+  currentBatch: number
+  /** 估算剩余时间（ms） */
+  eta: number
+  /** 任务状态 */
+  status: BackfillStatus
+  /** 错误信息（status='failed' 时存在） */
+  error?: string
+}
+
+/** tutorial:backfill-start 通道的参数 */
+export interface BackfillStartOptions {
+  /** 分页大小（默认 100，每次查询 100 条进行推理） */
+  pageSize?: number
+  /** 推理批次大小（默认 8，ONNX 内部 batching） */
+  inferenceBatch?: number
+}
+
+/** tutorial:backfill-start 通道的返回值 */
+export interface BackfillStartResult {
+  /** 是否成功启动 */
+  ok: boolean
+  /** 任务 ID（用于订阅进度和取消） */
+  taskId: string
+  /** 错误信息（ok=false 时存在，如"已有回填任务在运行"） */
+  error?: string
+}
+
+/** tutorial:backfill-cancel 通道的返回值 */
+export interface BackfillCancelResult {
+  /** 是否成功标记取消（实际取消会在下一页检查时生效） */
+  ok: boolean
+}
+
+/** tutorial:backfill-status 通道的返回值 */
+export interface BackfillStatusResult {
+  /** 是否有回填任务正在运行 */
+  running: boolean
+  /** 当前任务 ID（无任务时为 null） */
+  taskId: string | null
+}
