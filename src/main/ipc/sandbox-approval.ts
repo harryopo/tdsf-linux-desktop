@@ -14,6 +14,8 @@ import type { SandboxInfo } from '../services/sandbox/types'
 import { logger } from '../services/log/logger'
 // AST 危险命令识别（tree-sitter-bash，覆盖 6 类绕过，AST 失败时降级到正则）
 import { assessWithAst } from '../core/risk-engine-ast'
+// P1-8 修复：回滚命令动态生成（18 条规则 + 不可逆黑名单 + 路径解析）
+import { generateRollbackCommand } from '../services/security/rollback-generator'
 
 // ============================================================================
 // P-2 + P-4 修复新增：句柄模式 + IPC 层强制审批
@@ -225,7 +227,8 @@ function deriveSideEffects(
 /**
  * 推荐回滚命令（v0.9.3 §11 改进点 4 P2-C 新增）
  *
- * 根据命令类型给出回滚建议。无法回滚的命令返回 undefined。
+ * P1-8 修复（v2.5）：委托给 rollback-generator 模块，支持 18 条命令回滚规则 +
+ * 不可逆命令黑名单 + 真实文件路径解析，替代原硬编码的 `cp /etc/xxx.bak /etc/xxx` 占位。
  *
  * @param command 待执行的命令
  * @param risk 风险等级
@@ -235,52 +238,7 @@ function deriveRollbackCommand(
   command: string,
   risk: CommandRiskLevel
 ): string | undefined {
-  // git 相关操作可回滚
-  if (/\bgit\s+add\b/i.test(command) || /\bgit\s+commit\b/i.test(command)) {
-    return 'git reset --hard HEAD~1'
-  }
-  if (/\bgit\s+checkout\b/i.test(command)) {
-    return 'git checkout -（恢复到上一个分支）'
-  }
-  if (/\bgit\s+reset\b/i.test(command)) {
-    return 'git reflog + git reset --hard <旧 commit>'
-  }
-
-  // 包安装可回滚
-  const pkgMatch = command.match(/\b(yum|apt|dnf)\s+install\s+(\S+)/i)
-  if (pkgMatch) {
-    const pkgManager = pkgMatch[1].toLowerCase()
-    const pkg = pkgMatch[2]
-    if (pkgManager === 'yum' || pkgManager === 'dnf') {
-      return `${pkgManager} remove ${pkg}`
-    }
-    if (pkgManager === 'apt') {
-      return `apt remove ${pkg}`
-    }
-  }
-
-  // 服务管理可回滚
-  const svcMatch = command.match(/\bsystemctl\s+(start|stop|restart)\s+(\S+)/i)
-  if (svcMatch) {
-    const action = svcMatch[1].toLowerCase()
-    const svc = svcMatch[2]
-    const reverse = action === 'stop' ? 'start' : 'stop'
-    return `systemctl ${reverse} ${svc}`
-  }
-
-  // 文件修改可回滚（如果有备份）
-  if (/>\s*\/etc\//i.test(command)) {
-    return '从备份恢复：cp /etc/xxx.bak /etc/xxx（建议操作前先备份）'
-  }
-
-  // 高危且无法回滚的命令
-  if (risk === 'high') {
-    if (/\brm\s+-rf\b/i.test(command)) return undefined  // rm -rf 无法回滚
-    if (/mkfs/i.test(command)) return undefined
-    if (/\bdd\s+if=/i.test(command)) return undefined
-  }
-
-  return undefined
+  return generateRollbackCommand(command, risk)
 }
 
 /**
