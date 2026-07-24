@@ -28,7 +28,9 @@ export default defineConfig({
       '@main': resolve(__dirname, 'src/main'),
       '@shared': resolve(__dirname, 'src/shared'),
       // 渲染层别名（tsx 组件测试用）
-      '@renderer': resolve(__dirname, 'src/renderer/src')
+      '@renderer': resolve(__dirname, 'src/renderer/src'),
+      // tsconfig.web.json 中定义的 @/ 别名（渲染层组件通用）
+      '@': resolve(__dirname, 'src/renderer/src')
     }
   },
   test: {

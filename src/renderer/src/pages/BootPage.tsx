@@ -1,33 +1,22 @@
 /**
- * BootPage — Shader 动画启动页（1:1 复刻 tdsf-linux-redesign/pages/boot.html）
- *
- * // @ai-session: ai-20260721-boot-fix
- * // @ai-task: Task-2.1 boot-page 1:1 复刻 + P0/P1/P2 修复
+ * BootPage — Shader 动画启动页（1:1 复刻 design-assets/pages/启动加载.html）
  *
  * 路由：/ 与 /boot
- * 设计稿：tdsf-linux-redesign/pages/boot.html
+ * 设计稿：design-assets/pages/启动加载.html
  *
- * 视觉：
- * - 纯黑底 (var(--trae-shader-bg)) + Three.js 全屏 fragment shader 流光
- * - 居中大标题 TDSF LINUX (var(--trae-font-family-heading))，双层 text-shadow
- * - 进度条 280×2px，白→蓝渐变光带（rgba + hex 混合），3s 填充
- * - 状态文字「正在加载运维内核...」→「就绪 · 点击进入工作台」
- * - 「进入工作台」按钮 (data-dom-id="boot-enter"，spec §B border solid hex +
- *   设计稿 rgba 半透明白底 + backdrop-filter 玻璃质感)
- * - 底部版本信息「v2.0 · 2026 火山杯 Agent 创新大赛」(12px var(--trae-text-tertiary))
+ * 视觉（严格按设计稿 1:1）：
+ * - 纯黑底 (#000) + Three.js 全屏 fragment shader 流光
+ * - 居中大标题 TDSF LINUX，双层 text-shadow（品牌蓝外光晕 + 黑色内描边）
+ * - 「进入工作台」按钮 (data-dom-id="boot-enter"，rgba 半透明白底 + backdrop-filter 玻璃质感)
+ * - 隐藏入口按钮 (data-dom-id="boot-disconnected"，display:none，画布交互兼容)
+ * - 加载进度条 280×2px，白→蓝渐变光带，3s 填充，role="status" aria-live="polite"
  * - prefers-reduced-motion: 禁用 UI 动画，shader 保留
  *
- * 健壮性：
- * - webglcontextlost 监听 + forceContextLoss 显式释放 GPU 上下文（P1-1 / P1-2）
- * - progressbar role + aria-valuenow/min/max + sr-only aria-live 状态播报（P1-3）
- * - requestAnimationFrame 替代 setInterval(30ms) 进度动画（P2-3）
- *
- * SubTasks:
- * - 2.1.1 Three.js shader 动画 ✅
- * - 2.1.2 标题 + 按钮 (boot-enter) ✅
- * - 2.1.3 进度条 + 状态文字 ✅
- * - 2.1.4 底部版本信息 ✅
- * - 2.1.5 prefers-reduced-motion 支持 ✅
+ * 工程增强（设计稿未含但不影响视觉）：
+ * - webglcontextlost 监听 + forceContextLoss 显式释放 GPU 上下文
+ * - requestAnimationFrame 替代 CSS animation（支持 IPC 推进进度）
+ * - IPC onBootLoadingStage 对接主进程真实加载阶段
+ * - prefers-reduced-motion JS 判断 + CSS @media 双重支持
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -71,7 +60,6 @@ const FRAGMENT_SHADER = /* glsl */ `
 
 const PROGRESS_DURATION_MS = 3000
 const PROGRESS_DELAY_MS = 500
-const BOOT_VERSION_TEXT = 'v2.0 · 2026 火山杯 Agent 创新大赛'
 
 /** BootPage Shader 启动加载页 */
 export function BootPage() {
@@ -275,7 +263,7 @@ export function BootPage() {
         />
       )}
 
-      {/* 前景：居中标题 + 按钮 + 进度（SubTask 2.1.2 / 2.1.3） */}
+      {/* 前景：居中标题 + 按钮 + 进度条（设计稿 1:1） */}
       <div
         className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center"
         style={{ paddingBottom: '4vh' }}
@@ -287,7 +275,7 @@ export function BootPage() {
             color: 'var(--trae-shader-fg)',
             letterSpacing: '0.18em',
             textIndent: '0.18em',
-            // P1-4: 设计稿双层 text-shadow（品牌蓝外光晕 + 黑色内描边增强对比）
+            // 设计稿双层 text-shadow（品牌蓝外光晕 + 黑色内描边增强对比）
             textShadow:
               '0 0 40px rgba(56, 123, 255, 0.35), 0 0 12px rgba(0, 0, 0, 0.6)',
           }}
@@ -307,36 +295,27 @@ export function BootPage() {
           <ArrowRight className="boot-enter-icon size-4" aria-hidden="true" />
         </button>
 
-        {/* P1-3: 进度条 a11y — role="progressbar" + aria-value*
-         * aria-live 移到内部 sr-only span，避免 progressbar 本身频繁播报百分比变化 */}
+        {/* 隐藏入口：未连接状态页面（画布交互兼容，设计稿要求 data-dom-id 不可省略） */}
+        <button data-dom-id="boot-disconnected" type="button" style={{ display: 'none' }} aria-hidden="true" />
+
+        {/* 加载进度条 — role="progressbar" 提供 aria-valuenow 等无障碍属性 */}
         <div
           className="boot-progress"
           role="progressbar"
+          aria-label="加载进度"
           aria-valuenow={progress}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="加载进度"
+          aria-live="polite"
         >
-          {/* 屏幕阅读器播报：仅在状态变化时（loaded true/false）触发，避免每帧播报百分比 */}
-          <span className="boot-sr-only" aria-live="polite">
-            {loaded ? '就绪 · 点击进入工作台' : '正在加载运维内核...'}
-          </span>
           <div className="boot-progress-track">
             <div className="boot-progress-fill" style={{ width: `${progress}%` }} />
           </div>
           <span className="boot-progress-label">
-            {loaded ? '就绪 · 点击进入工作台' : '正在加载运维内核...'}
+            {loaded ? '就绪 · 点击进入工作台' : '系统初始化中…'}
           </span>
         </div>
       </div>
-
-      {/* 底部版本信息（SubTask 2.1.4） */}
-      <footer
-        className="boot-footer pointer-events-none absolute bottom-0 left-0 right-0 z-10 flex justify-center"
-        style={{ padding: 'var(--spacing-16) 0' }}
-      >
-        <span className="boot-version">{BOOT_VERSION_TEXT}</span>
-      </footer>
 
       <style>{`
         .boot-title {
@@ -437,11 +416,11 @@ export function BootPage() {
         }
         .boot-progress-fill {
           height: 100%;
-          /* P0-2: 设计稿白→蓝渐变光带（rgba + hex 混合，spec §B 仅禁 border rgba） */
+          /* 设计稿白→蓝渐变光带（rgba + token 混合） */
           background: linear-gradient(
             90deg,
             rgba(255, 255, 255, 0.35) 0%,
-            #ffffff 50%,
+            var(--trae-special-white) 50%,
             var(--trae-bg-brand) 100%
           );
           border-radius: 1px;
@@ -449,34 +428,12 @@ export function BootPage() {
           transition: width 0.08s linear;
         }
         .boot-progress-label {
-          font-size: 11px;
-          color: var(--trae-shader-muted-foreground);
-          font-variant-numeric: tabular-nums;
-          letter-spacing: 0.04em;
-        }
-
-        /* P1-3: 屏幕阅读器专用隐藏文本（aria-live 进度状态播报） */
-        .boot-sr-only {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip: rect(0, 0, 0, 0);
-          white-space: nowrap;
-          border: 0;
-        }
-
-        /* 底部版本信息（SubTask 2.1.4） */
-        .boot-footer {
-          user-select: none;
-        }
-        .boot-version {
           font-family: var(--trae-font-family-default);
           font-size: 12px;
-          color: var(--trae-text-tertiary);
-          letter-spacing: 0.04em;
+          line-height: 16px;
+          color: var(--trae-shader-muted);
+          letter-spacing: 0.02em;
+          pointer-events: auto;
         }
 
         @keyframes boot-fade-in {

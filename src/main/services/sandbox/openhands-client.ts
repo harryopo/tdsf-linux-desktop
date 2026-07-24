@@ -5,7 +5,7 @@
  *
  * 路由清单（与 sandbox_router.py 一一对应）：
  * - GET    /sandboxes/search                            → searchSandboxes
- * - GET    /sandboxes?id=xxx                            → batchGetSandbox（未实现，预留）
+ * - GET    /sandboxes?id=xxx&id=yyy                      → batchGetSandbox
  * - GET    /sandboxes/{sandbox_id}                      → getSandbox
  * - POST   /sandboxes?sandbox_spec_id=xxx               → createSandbox
  * - POST   /sandboxes/{sandbox_id}/pause                → pauseSandbox
@@ -206,6 +206,26 @@ export class OpenHandsClient {
     const url = new URL('/sandboxes/search', this.baseUrl)
     url.searchParams.set('limit', String(limit))
     return await this.request<SandboxPage>('GET', url)
+  }
+
+  /**
+   * 批量获取多个沙箱信息
+   *
+   * 对应：GET /sandboxes?id=xxx&id=yyy
+   *
+   * @param sandboxIds 沙箱 ID 数组
+   * @returns SandboxInfo 数组（顺序与请求参数一致；不存在的 ID 会由后端决定返回或省略）
+   */
+  async batchGetSandbox(sandboxIds: string[]): Promise<SandboxInfo[]> {
+    if (sandboxIds.length === 0) {
+      return []
+    }
+    const url = new URL('/sandboxes', this.baseUrl)
+    for (const id of sandboxIds) {
+      url.searchParams.append('id', id)
+    }
+    logger.info('IPC.SANDBOX', '批量查询沙箱', { count: sandboxIds.length })
+    return await this.request<SandboxInfo[]>('GET', url)
   }
 
   // ========================================================================

@@ -270,7 +270,7 @@ const DeployDialog: React.FC<DeployDialogProps> = ({ open, sessionId, host, onCl
       destroyOnClose
       title={
         <Space>
-          <RocketOutlined style={{ color: '#2c7be5' }} />
+          <RocketOutlined style={{ color: 'var(--trae-bg-brand)' }} />
           <span>Web 部署助手 — {host}</span>
         </Space>
       }
@@ -507,18 +507,18 @@ const DeployDialog: React.FC<DeployDialogProps> = ({ open, sessionId, host, onCl
                         <span className="deploy-step-desc">{s.description}</span>
                         {result ? (
                           result.status === 'success' ? (
-                            <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                            <CheckCircleOutlined style={{ color: 'var(--trae-status-success-default)' }} />
                           ) : result.status === 'failed' ? (
-                            <CloseCircleOutlined style={{ color: '#f5222d' }} />
+                            <CloseCircleOutlined style={{ color: 'var(--trae-status-error-default)' }} />
                           ) : result.status === 'running' ? (
-                            <LoadingOutlined style={{ color: '#1890ff' }} />
+                            <LoadingOutlined style={{ color: 'var(--trae-bg-brand)' }} />
                           ) : (
-                            <ClockCircleOutlined style={{ color: '#86868b' }} />
+                            <ClockCircleOutlined style={{ color: 'var(--trae-text-tertiary)' }} />
                           )
                         ) : running && i === stepResults.length ? (
-                          <LoadingOutlined style={{ color: '#1890ff' }} />
+                          <LoadingOutlined style={{ color: 'var(--trae-bg-brand)' }} />
                         ) : (
-                          <ClockCircleOutlined style={{ color: '#86868b' }} />
+                          <ClockCircleOutlined style={{ color: 'var(--trae-text-tertiary)' }} />
                         )}
                         <Tag color={DEPLOY_RISK_COLORS[s.risk]}>
                           {RISK_ICON_MAP[DEPLOY_RISK_ICON_NAMES[s.risk]]} {DEPLOY_RISK_LABELS[s.risk]}
@@ -587,11 +587,11 @@ const DeployDialog: React.FC<DeployDialogProps> = ({ open, sessionId, host, onCl
                   description={
                     <Space size="large" wrap>
                       <span>
-                        <CheckCircleFilled style={{ color: '#52c41a', marginRight: 4 }} />
+                        <CheckCircleFilled style={{ color: 'var(--trae-status-success-default)', marginRight: 4 }} />
                         成功 <b>{finalResult.successCount}</b> 步
                       </span>
                       <span>
-                        <CloseCircleFilled style={{ color: '#ff4d4f', marginRight: 4 }} />
+                        <CloseCircleFilled style={{ color: 'var(--trae-status-error-default)', marginRight: 4 }} />
                         失败 <b>{finalResult.failedCount}</b> 步
                       </span>
                       <span>

@@ -93,9 +93,25 @@ function toClaudeSdkError(err: unknown): { message: string; code: AgentErrorPayl
  * 缓存策略：
  * - 首次调用时实例化（从 SecureStore 解密 apiKey 后构造）
  * - 后续调用复用实例（避免重复构造 + 重复校验）
- * - Provider 配置变更时（provider:save）应主动清理缓存（暂未实现，因 ClaudeSdkProvider 不持久化 apiKey 之外的状态）
+ * - Provider 配置变更时（provider:save）通过 clearClaudeSdkProviderCache() 主动清理缓存
  */
 const providerCache = new Map<string, ClaudeSdkProvider>()
+
+/**
+ * 清理 ClaudeSdkProvider 实例缓存
+ *
+ * 在 Provider 配置保存（provider:save）时调用，确保用户修改设置后下次请求
+ * 会基于最新配置重新构造实例，而不是复用过期缓存。
+ *
+ * 安全性：仅清理缓存 Map，不影响进行中的请求（进行中的请求已持有 provider 引用）。
+ */
+export function clearClaudeSdkProviderCache(): void {
+  const size = providerCache.size
+  if (size > 0) {
+    providerCache.clear()
+    logger.info('IPC.CLAUDE_SDK', `providerCache 已清理`, { clearedCount: size })
+  }
+}
 
 /**
  * 获取或创建 ClaudeSdkProvider 实例

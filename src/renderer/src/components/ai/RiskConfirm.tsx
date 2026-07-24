@@ -36,11 +36,11 @@ interface RiskConfirmProps {
 
 /** 风险等级配置 */
 const RISK_CONFIG: Record<RiskLevel, { color: string; label: string; countdown: number }> = {
-  SAFE: { color: '#34c759', label: '安全', countdown: 0 },
-  LOW: { color: '#30b0c7', label: '低风险', countdown: 5 },
-  MEDIUM: { color: '#ff9500', label: '中风险', countdown: 5 },
-  HIGH: { color: '#ff6b35', label: '高风险', countdown: 10 },
-  CRITICAL: { color: '#ff3b30', label: '极高风险', countdown: 0 },
+  SAFE: { color: 'var(--trae-risk-safe)', label: '安全', countdown: 0 },
+  LOW: { color: 'var(--trae-risk-low)', label: '低风险', countdown: 5 },
+  MEDIUM: { color: 'var(--trae-risk-medium)', label: '中风险', countdown: 5 },
+  HIGH: { color: 'var(--trae-risk-high)', label: '高风险', countdown: 10 },
+  CRITICAL: { color: 'var(--trae-risk-critical)', label: '极高风险', countdown: 0 },
 }
 
 /** RiskConfirm 风险确认对话框 */
