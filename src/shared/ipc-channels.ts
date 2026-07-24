@@ -639,8 +639,16 @@ export const TUTORIAL = {
   SEARCH: 'tutorial:search',
   /** 混合检索教程（invoke: 渲染 → 主，FTS + 向量） */
   HYBRID_SEARCH: 'tutorial:hybrid-search',
-  /** 回填 embedding 向量（invoke: 渲染 → 主） */
+  /** 回填 embedding 向量（invoke: 渲染 → 主，旧版同步通道，v2.5 保留向后兼容） */
   BACKFILL_EMBEDDINGS: 'tutorial:backfill-embeddings',
+  /** 启动异步回填（invoke: 渲染 → 主，v2.5 Phase C 新增，立即返回 taskId） */
+  BACKFILL_START: 'tutorial:backfill-start',
+  /** 取消异步回填（invoke: 渲染 → 主，v2.5 Phase C 新增） */
+  BACKFILL_CANCEL: 'tutorial:backfill-cancel',
+  /** 查询回填状态（invoke: 渲染 → 主，v2.5 Phase C 新增） */
+  BACKFILL_STATUS: 'tutorial:backfill-status',
+  /** 回填进度推送（push: 主 → 渲染，v2.5 Phase C 新增，每页完成后触发） */
+  BACKFILL_PROGRESS: 'tutorial:backfill-progress',
   /** 学习路径推荐（invoke: 渲染 → 主） */
   RECOMMEND_PATH: 'tutorial:recommend-path',
   /** 教程统计（invoke: 渲染 → 主，总浏览人次 + 总课程数） */
