@@ -1,7 +1,8 @@
 # 前后端职责边界与共享层契约
 
 > 生成时间：2026-07-24
-> 适用版本：v2.4（Phase A/B/C 已落地）
+> 最后更新：2026-07-24（v2.5 循环工程落地）
+> 适用版本：v2.5（Phase A/B/C + v2.5 循环工程已落地）
 > 范围：TDSF Linux Desktop（Electron 三进程架构）
 > 配套文档：[`ipc-contract.md`](./ipc-contract.md)、[`data-flow.md`](./data-flow.md)
 
@@ -9,7 +10,7 @@
 
 ## 0. 文档目的
 
-本文档明确划分 TDSF Linux Desktop 项目中**主进程（后端）**与**渲染进程（前端）**的职责边界，定义 `src/shared/` 共享层类型契约，并汇总 v2.4 Phase A/B/C 后端新增能力清单，作为前后端交接的权威依据。
+本文档明确划分 TDSF Linux Desktop 项目中**主进程（后端）**与**渲染进程（前端）**的职责边界，定义 `src/shared/` 共享层类型契约，并汇总 v2.4 Phase A/B/C + v2.5 循环工程后端新增能力清单，作为前后端交接的权威依据。
 
 **铁律**：
 - 后端不直接操作 DOM；前端不直接访问 Node.js API（fs / child_process / network / ssh2 等）。
@@ -548,9 +549,156 @@ fuseAndAssess(
 
 ---
 
-## 7. 跨层契约与约束
+## 7. v2.5 后端新增能力清单 🚀
 
-### 7.1 类型契约
+### 7.1 P1-8：回滚命令动态生成（`rollback-generator.ts`）
+
+**目的**：替换 `sandbox-approval.ts` 中硬编码的 `xxx.bak` 占位回滚命令，为 18 条 Linux 常见操作生成针对性回滚命令，并对 5 类不可逆命令拒绝执行。
+
+**实现位置**：
+- `src/main/services/security/rollback-generator.ts`（新建，规则表 + 黑名单 + 路径解析）
+- `src/main/ipc/sandbox-approval.ts`（修改，`deriveRollbackCommand` 委托给 `generateRollbackCommand`）
+- `tests/services/security/rollback-generator.test.ts`（新建，38 用例）
+
+**能力清单**：
+
+| 能力 | 说明 |
+|------|------|
+| 18 条回滚规则 | 覆盖 git / systemctl / chmod / useradd / file-overwrite / package-install 等常见操作 |
+| 5 条不可逆黑名单 | `rm -rf` / `mkfs` / `dd if=` / `shutdown` / `> /dev/sd` 返回 `undefined`（拒绝执行） |
+| 路径解析 | 从命令中提取真实文件路径生成针对性回滚（如 `> /etc/sysctl.conf` → `cp /etc/sysctl.conf.bak /etc/sysctl.conf`） |
+| 风险等级联动 | `high` 风险且无规则时返回 `undefined`；`medium` 风险尝试通用回滚 |
+
+**前端影响**：无新增 IPC 通道，`sandbox:approval-request` 推送的 `rollbackCommand` 字段从硬编码占位变为动态生成。前端无需改动，但展示的回滚命令会更具体、更可用。
+
+---
+
+### 7.2 P1-9：异步 embedding 回填服务（`EmbeddingBackfillService`）
+
+**目的**：解决 2578 条教程首次 embedding 回填阻塞 UI 的问题，改为异步后台任务 + 进度推送 + 取消能力。
+
+**实现位置**：
+- `src/main/services/tutorial/backfill-service.ts`（新建，单例 + 分页 + 取消 + 进度推送）
+- `src/main/ipc/tutorial.ts`（修改，3 新 invoke handler + 1 push 通道 + 旧 handler 委托）
+- `src/shared/ipc-channels.ts`（修改，4 新常量）
+- `src/shared/tutorial-types.ts`（修改，5 新类型）
+- `src/preload/index.ts`（修改，4 新方法 + 注释）
+- `tests/services/tutorial/backfill-service.test.ts`（新建，22 用例）
+
+**新增 IPC 通道**（详见 [`ipc-contract.md`](./ipc-contract.md) 第 17 章 + 17.1 节）：
+
+| 通道 | 方向 | Preload API | 用途 |
+|------|------|-------------|------|
+| `tutorial:backfill-start` | invoke | `tutorialBackfillStart` | 启动异步回填，立即返回 taskId |
+| `tutorial:backfill-cancel` | invoke | `tutorialBackfillCancel` | 取消正在运行的回填 |
+| `tutorial:backfill-status` | invoke | `tutorialBackfillStatus` | 查询当前回填状态 |
+| `tutorial:backfill-progress` | push | `onTutorialBackfillProgress` | 进度推送（每页完成后触发） |
+
+**共享层新增类型**（`src/shared/tutorial-types.ts`）：
+
+```typescript
+export type BackfillStatus = 'running' | 'completed' | 'cancelled' | 'failed'
+
+export interface BackfillProgress {
+  taskId: string
+  processed: number
+  total: number
+  failed: number
+  pct: number          // 0-1
+  currentBatch: number
+  eta: number          // 剩余 ms（估算）
+  status: BackfillStatus
+  error?: string
+}
+
+export interface BackfillStartOptions {
+  pageSize?: number       // 默认 100
+  inferenceBatch?: number // 默认 8
+}
+
+export interface BackfillStartResult {
+  ok: boolean
+  taskId: string
+  error?: string
+}
+
+export interface BackfillCancelResult { ok: boolean }
+
+export interface BackfillStatusResult {
+  running: boolean
+  taskId: string | null
+}
+```
+
+**前端接入要点**：
+1. `TutorialPage` 进入时调用 `tutorialBackfillStatus()` 检查是否有正在运行的回填
+2. 用户点击"开始回填"按钮调用 `tutorialBackfillStart()`，获取 `taskId`
+3. 立即订阅 `onTutorialBackfillProgress(cb)`，在回调中更新进度条（`pct` 0-1）和 ETA
+4. 任务结束（`status === 'completed' | 'cancelled' | 'failed'`）时取消订阅
+5. 提供"取消"按钮调用 `tutorialBackfillCancel()`
+6. 旧通道 `tutorial:backfill-embeddings` 保留向后兼容，但内部已委托给新 service 同步等待
+
+**核心设计**：
+- 单例 + 状态守卫：`EmbeddingBackfillService.getInstance().isRunning()` 防止并发启动
+- 分页查询：`LIMIT 100` + `WHERE embedding IS NULL` 自动断点续传
+- 事务边界：embedding 推理在事务外（async），写入在事务内（同步），符合 better-sqlite3 约束
+- 取消机制：`cancelled` 标记，每页处理后检查，单页内不会中止（保证数据一致性）
+- 错误隔离：单批 embedding 失败记录 `failed` 计数，继续下一页
+- ETA 估算：`elapsed / processed * remaining`
+- 进度推送频率：2578 条 / 100 页 ≈ 26 次推送
+
+**详细数据流**：详见 [`data-flow.md`](./data-flow.md) 第 7 节"embedding 回填流"。
+
+---
+
+### 7.3 P2：代码整洁（注释测试迁移 + 注释清理 + 占位替换）
+
+**目的**：清理后端代码中的注释测试、注释逻辑、xxx 占位符，提升可维护性。
+
+**变更清单**：
+
+| Phase | 文件 | 变更 |
+|-------|------|------|
+| D1 | `src/main/services/tutorial/hybrid-search.ts` | 删除 52 行 `/* */` 注释测试代码 + 添加迁移说明 |
+| D1 | `tests/services/tutorial/hybrid-search.test.ts`（新建） | 18 用例覆盖 RRF 融合 / FTS 转义 / 降级等场景 |
+| D2 | `src/main/services/tutorial/path-recommender.ts` | 删除注释掉的"跳过比当前水平低的分类"逻辑 + 添加废弃说明 |
+| D3 | 8 个文件 | `xxx` 占位注释替换为具体示例（详见下表） |
+
+**P2-3 占位替换清单**（仅注释和示例字符串，不改业务逻辑）：
+
+| 文件 | 占位 | 替换为 |
+|------|------|--------|
+| `services/log/logger.ts` | `sessionId: 'sess_xxx'` | `sessionId: 'sess_abc123'` |
+| `services/llm/tools/registry.ts` | `'xxx.ts'` | `'my-tool.ts'` |
+| `core/agent/providers/redact.ts` | `sk-xxx` | `sk-ant-api03-xxx` |
+| `core/agent/subagents/dispatcher.ts` | `sess_xxx` | `sess_abc123` |
+| `services/sandbox/openhands-runner.ts` | `xxx.yml` | `sandbox.yml` |
+| `core/agent/modes/ask-prompt.ts` | `[KB:xxx]` | `[KB:disk-full]` |
+| `core/agent/modes/mode-registry.ts` | `[LOG:xxx]` | `[LOG:auth]` |
+| `core/agent/modes/plan-prompt.ts` | `1. xxx` | `1. 检查磁盘空间` |
+
+**前端影响**：无。本批次 P2 仅清理后端代码，不涉及 IPC 通道或共享类型变更。
+
+---
+
+### 7.4 v2.5 共享层新增类型汇总
+
+`src/shared/tutorial-types.ts` 新增 5 个类型（详见 7.2 节）：
+
+| 类型 | 用途 |
+|------|------|
+| `BackfillStatus` | 回填任务状态联合类型 |
+| `BackfillProgress` | push 通道载荷 |
+| `BackfillStartOptions` | start 通道参数 |
+| `BackfillStartResult` | start 通道返回值 |
+| `BackfillCancelResult` | cancel 通道返回值 |
+| `BackfillStatusResult` | status 通道返回值 |
+
+---
+
+## 8. 跨层契约与约束
+
+### 8.1 类型契约
 
 | 契约 | 说明 |
 |------|------|
@@ -559,7 +707,7 @@ fuseAndAssess(
 | **通道常量** | `src/shared/ipc-channels.ts` 是通道名字符串的唯一来源，禁止字面量硬编码 |
 | **推送载荷** | push 通道的载荷类型必须在 `src/shared/` 定义，preload 的 `onXxx` 回调签名引用该类型 |
 
-### 7.2 错误处理契约
+### 8.2 错误处理契约
 
 | 层 | 处理方式 |
 |----|---------|
@@ -569,7 +717,7 @@ fuseAndAssess(
 | **DB 降级** | `db.isAvailable() === false` 时返回空数组/空对象，不抛错 |
 | **Sidecar 不可用** | 返回 `{ ok: false, error: '...' }`，前端显示"Sidecar 未启动"提示 |
 
-### 7.3 性能契约
+### 8.3 性能契约
 
 | 场景 | 约束 |
 |------|------|
@@ -580,7 +728,7 @@ fuseAndAssess(
 | 预算告警查询 | `limit` 上限 100，默认 20 |
 | IPC handler 启动 | `system:ping` 必须最早注册，确保心跳可用 |
 
-### 7.4 安全契约
+### 8.4 安全契约
 
 | 契约 | 说明 |
 |------|------|
@@ -591,7 +739,7 @@ fuseAndAssess(
 | **沙箱隔离** | OpenHands 沙箱通过 Docker 容器隔离，不直接在宿主执行 |
 | **Token 透明** | 每次 LLM 调用后展示 token + 成本（USD），硬约束 |
 
-### 7.5 日志契约
+### 8.5 日志契约
 
 - 统一通过 `src/main/services/log/logger.ts` 的 `logger` 实例
 - 域标识符规范：`IPC.SSH` / `IPC.LLM` / `IPC.CREDIBILITY` / `IPC.MODEL_STATS` 等
@@ -601,9 +749,9 @@ fuseAndAssess(
 
 ---
 
-## 8. 交接检查清单
+## 9. 交接检查清单
 
-### 8.1 前端开发者在接入新 IPC 时需确认
+### 9.1 前端开发者在接入新 IPC 时需确认
 
 - [ ] 通道常量已在 `src/shared/ipc-channels.ts` 定义
 - [ ] handler 已在 `src/main/ipc/*.ts` 注册并在 `index.ts` 调用 `registerXxxHandlers`
@@ -613,7 +761,7 @@ fuseAndAssess(
 - [ ] DB 相关 handler 已处理 `db.isAvailable() === false` 降级
 - [ ] 错误消息用户可读（不暴露 stack trace）
 
-### 8.2 后端开发者在新增能力时需确认
+### 9.2 后端开发者在新增能力时需确认
 
 - [ ] 共享类型已迁移到 `src/shared/`（不在 main 私有）
 - [ ] IPC 4 步同步全部完成
@@ -621,8 +769,9 @@ fuseAndAssess(
 - [ ] 涉及 DB 写入的函数提供了 `recordXxx` 辅助函数供其他模块调用
 - [ ] 静默失败策略已实施（不影响主流程）
 - [ ] v2.4 新增能力已在本文档第 6 节登记
+- [ ] v2.5 新增能力已在本文档第 7 节登记
 
-### 8.3 v2.4 收尾待办
+### 9.3 v2.4 + v2.5 收尾待办
 
 | 优先级 | 待办 | 关联 Phase | 阻塞方 | 状态 |
 |--------|------|-----------|--------|------|
@@ -638,6 +787,14 @@ fuseAndAssess(
 | P2 | `alertTokenBudgetExceeded` 接入实际 token 成本监控循环 | Phase B | 后端 | ✅ 完成 |
 | P3 | `ModelSettings` 页面消费 `model:toolCalls` + `budget:alerts` | Phase A/B | 前端 | ⏳ 待前端接入 |
 | P3 | 校准状态管理 UI（`CalibrationSettings` 组件） | Phase C | 前端 | ⏳ 待前端接入 |
+| 🚀 P1 | `rollback-generator.ts` 18 条规则 + 不可逆黑名单 | v2.5 P1-8 | 后端 | ✅ 完成 |
+| 🚀 P1 | `EmbeddingBackfillService` 异步回填 + 4 个 IPC 通道 | v2.5 Phase C | 后端 | ✅ 完成 |
+| 🚀 P2 | hybrid-search 注释测试迁移到 vitest | v2.5 Phase D1 | 后端 | ✅ 完成 |
+| 🚀 P2 | path-recommender 注释清理 | v2.5 Phase D2 | 后端 | ✅ 完成 |
+| 🚀 P2 | 8 个文件 xxx 占位替换 | v2.5 Phase D3 | 后端 | ✅ 完成 |
+| 🚀 P3 | `TutorialPage` 接入 `tutorial:backfill-start` + `onTutorialBackfillProgress` | v2.5 Phase C | 前端 | ⏳ 待前端接入 |
+| 🚀 P4 | EmbeddingService 读写锁（回填 + 实时检索并发） | v2.5 后续 | 后端 | ⏳ 待规划 |
+| 🚀 P4 | 回填进度推送频率动态调整 | v2.5 后续 | 后端 | ⏳ 待规划 |
 
 ---
 

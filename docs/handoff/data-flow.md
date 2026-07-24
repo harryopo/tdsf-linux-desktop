@@ -1,14 +1,15 @@
 # 核心数据流文档
 
 > 生成时间：2026-07-24
-> 适用版本：v2.4（Phase A/B/C 已落地）
+> 最后更新：2026-07-24（v2.5 Phase C 异步回填数据流落地）
+> 适用版本：v2.5（Phase A/B/C + v2.5 循环工程已落地）
 > 配套文档：[`ipc-contract.md`](./ipc-contract.md)、[`frontend-backend-boundary.md`](./frontend-backend-boundary.md)
 
 ---
 
 ## 0. 文档目的
 
-本文档详细描述 TDSF Linux Desktop 项目的 6 条核心数据流，包括每条流的时序、参与的 IPC 通道、数据结构、错误处理与 v2.4 关联点，作为前后端联调与功能交接的权威依据。
+本文档详细描述 TDSF Linux Desktop 项目的 7 条核心数据流，包括每条流的时序、参与的 IPC 通道、数据结构、错误处理与 v2.4 / v2.5 关联点，作为前后端联调与功能交接的权威依据。
 
 **覆盖流**：
 1. AI 问答流（含流式推送 + Token 统计）
@@ -17,6 +18,7 @@
 4. Token 统计流（数量 + 成本双轨）
 5. 工具调用统计流（🔥 v2.4 Phase A）
 6. 预算告警流（🔥 v2.4 Phase B）
+7. Embedding 异步回填流（🚀 v2.5 Phase C）
 
 ---
 
@@ -722,9 +724,250 @@ LIMIT ?
 
 ---
 
-## 7. 通用数据流模式
+## 7. Embedding 异步回填流（🚀 v2.5 Phase C）
 
-### 7.1 invoke 请求-响应模式
+### 7.1 流程概览
+
+用户在教程设置页点击"回填 embedding" → 前端调用 `tutorial:backfill-start` → 主进程启动 `EmbeddingBackfillService` 单例 → 分页查询 `knowledge_entries` 中 `embedding IS NULL` 的教程 → 事务外批量推理（ONNX）+ 事务内批量写入 → 每页完成后推送 `tutorial:backfill-progress` → 用户可随时通过 `tutorial:backfill-cancel` 取消 → 任务结束时推送最终状态。
+
+**替代的旧通道**：`tutorial:backfill-embeddings`（同步 `await`，2578 条需 1-3 分钟，期间 IPC 阻塞、UI 冻结、无进度无取消）。旧通道仍保留以兼容，但推荐使用新通道。
+
+### 7.2 时序图
+
+```
+渲染进程              Preload                主进程 IPC          EmbeddingBackfillService     SQLite + ONNX
+   │                    │                       │                       │                         │
+   │ 1. 点击"回填"      │                       │                       │                         │
+   │ ────────────────►  │ 2. tutorialBackfillStart()                  │                         │
+   │                    │ ───────────────────►  │ 3. 单例守卫           │                         │
+   │                    │                       │    isRunning()?      │                         │
+   │                    │                       │ ──────────────────►  │ 4. start(db, taskId)    │
+   │                    │                       │    void (不 await)   │    running=true          │
+   │                    │ ◄───────────────────  │ 5. 立即返回 taskId   │                         │
+   │ 6. { ok, taskId }  │                       │                       │ 7. ensureLoaded()       │
+   │ ◄────────────────  │                       │                       │ ─────────────────────► │ ONNX 加载
+   │                    │                       │                       │                         │
+   │ 7. 订阅进度         │                       │                       │ 8. COUNT(*)             │
+   │ onTutorialBackfillProgress(cb)             │                       │ ─────────────────────► │ WHERE embedding IS NULL
+   │ ────────────────►  │                       │                       │ ◄─────────────────────  │ total = 2578
+   │                    │                       │                       │                         │
+   │                    │                       │                       │ 9. 循环每页（pageSize=100）
+   │                    │                       │                       │  a. SELECT LIMIT 100    │
+   │                    │                       │                       │  b. 检查 cancelled      │
+   │                    │                       │                       │  c. 事务外推理（async）  │
+   │                    │                       │                       │     embedBatch(texts,8) │
+   │                    │                       │                       │ ─────────────────────► │ ONNX 推理
+   │                    │                       │                       │ ◄─────────────────────  │ Float32Array[]
+   │                    │                       │                       │  d. 事务内写入（sync）   │
+   │                    │                       │                       │     UPDATE embedding    │
+   │                    │                       │                       │  e. 推进度              │
+   │                    │                       │ ◄─────────────────   │ pushProgress(p)         │
+   │                    │ ◄───────────────────  │ webContents.send      │                         │
+   │ 10. 进度回调        │                       │  (BACKFILL_PROGRESS) │                         │
+   │ ◄────────────────  │                       │                       │                         │
+   │ (每页重复 9-10)     │                       │                       │                         │
+   │                    │                       │                       │                         │
+   │ ─── 用户点击"取消" ────────────────────►   │                       │                         │
+   │                    │ tutorialBackfillCancel()                     │                         │
+   │                    │ ───────────────────►  │ cancel()              │                         │
+   │                    │                       │ ──────────────────►  │ cancelled=true          │
+   │                    │                       │                       │ (下页查询后退出)         │
+   │                    │                       │                       │                         │
+   │                    │                       │                       │ 11. 推送最终状态         │
+   │                    │                       │ ◄─────────────────   │ status: 'completed'     │
+   │                    │ ◄───────────────────  │                       │   / 'cancelled' / 'failed'
+   │ 12. 最终进度回调    │                       │                       │                         │
+   │ ◄────────────────  │                       │                       │ running=false           │
+```
+
+### 7.3 关键 IPC 通道
+
+| 通道 | 方向 | Preload API | 说明 |
+|------|------|-------------|------|
+| `tutorial:backfill-start` | invoke | `tutorialBackfillStart` | 启动异步回填，立即返回 `{ ok, taskId }`，参数 `BackfillStartOptions` |
+| `tutorial:backfill-cancel` | invoke | `tutorialBackfillCancel` | 标记取消，下页检查后退出，返回 `{ ok }` |
+| `tutorial:backfill-status` | invoke | `tutorialBackfillStatus` | 查询当前状态，返回 `{ running, taskId }` |
+| `tutorial:backfill-progress` | push | `onTutorialBackfillProgress` | 进度推送，载荷 `BackfillProgress`，每页完成后触发 |
+
+### 7.4 数据结构
+
+```typescript
+// 回填任务状态（src/shared/tutorial-types.ts）
+type BackfillStatus = 'running' | 'completed' | 'cancelled' | 'failed'
+
+// 启动参数
+interface BackfillStartOptions {
+  pageSize?: number       // 分页大小，默认 100
+  inferenceBatch?: number // ONNX 推理批次，默认 8
+}
+
+// 启动结果
+interface BackfillStartResult {
+  ok: boolean
+  taskId: string          // ok=true 时非空
+  error?: string          // ok=false 时填充
+}
+
+// 取消结果
+interface BackfillCancelResult {
+  ok: boolean
+}
+
+// 状态查询结果
+interface BackfillStatusResult {
+  running: boolean
+  taskId: string | null   // running=true 时非空
+}
+
+// 进度推送载荷（主 → 渲染）
+interface BackfillProgress {
+  taskId: string
+  processed: number       // 已处理条目数（含失败）
+  total: number           // 待回填总数（启动时一次性统计）
+  failed: number          // 失败条目数
+  pct: number             // 进度百分比 0-1
+  currentBatch: number    // 当前批次索引（从 0 开始）
+  eta: number             // 剩余毫秒（估算）
+  status: BackfillStatus
+  error?: string          // status='failed' 时填充
+}
+```
+
+### 7.5 服务实现：`EmbeddingBackfillService`
+
+**实现位置**：`src/main/services/tutorial/backfill-service.ts`
+
+**单例模式**：
+
+```typescript
+export class EmbeddingBackfillService {
+  private static instance: EmbeddingBackfillService | null = null
+  private running = false       // 单例守卫
+  private cancelled = false     // 取消标记
+  private currentTaskId: string | null = null
+
+  static getInstance(): EmbeddingBackfillService {
+    if (!EmbeddingBackfillService.instance) {
+      EmbeddingBackfillService.instance = new EmbeddingBackfillService()
+    }
+    return EmbeddingBackfillService.instance
+  }
+}
+```
+
+**关键设计**：
+
+| 设计点 | 实现方式 | 原因 |
+|--------|---------|------|
+| 单例守卫 | `if (this.running) throw` | 防止并发启动多个回填任务抢占 ONNX 推理 |
+| 异步启动 | `void service.start(db, taskId)` 不 await | 立即返回 taskId，UI 非阻塞 |
+| 事务外推理 | `await embeddingService.embedBatch(texts, 8)` | better-sqlite3 事务不支持 async，推理必须在事务外 |
+| 事务内写入 | `db.transaction(updateStmt.run)` | 保证一批写入原子性，避免半成品 |
+| 取消机制 | `cancelled = true`，下页检查后退出 | 单页内不中止，保证数据一致性 |
+| 错误隔离 | 单批推理失败累计 `failed`，继续下一页 | 局部失败不影响整体任务 |
+| 断点续传 | `WHERE embedding IS NULL` 自动跳过 | 中断后重启不重复处理 |
+| ETA 估算 | `elapsed / processed * remaining` | 简单线性估算，满足 UI 显示需求 |
+
+### 7.6 分页查询 SQL
+
+```sql
+-- 统计总数（启动时一次性）
+SELECT COUNT(*) AS c
+FROM knowledge_entries
+WHERE type = 'tutorial' AND (embedding IS NULL OR embedding = '')
+
+-- 分页查询（每页 pageSize=100）
+SELECT id, title, problem AS content
+FROM knowledge_entries
+WHERE type = 'tutorial' AND (embedding IS NULL OR embedding = '')
+LIMIT ?
+
+-- 批量更新（事务内）
+UPDATE knowledge_entries
+SET embedding = ?
+WHERE id = ? AND type = 'tutorial'
+```
+
+**断点续传原理**：每页查询都用 `WHERE embedding IS NULL` 过滤，已写入的条目自动跳过；即使任务中途崩溃，重启后从剩余未处理条目继续。
+
+### 7.7 文本预处理
+
+```typescript
+const texts = rows.map((r) => {
+  const titlePart = r.title ?? ''
+  const contentPart = (r.content ?? '').slice(0, MAX_CONTENT_LENGTH) // 1500 字符
+  return `${titlePart}\n\n${contentPart}`.trim()
+})
+```
+
+**为什么 title 加权在前**：embedding 模型对文本前部更敏感，title 通常比 content 更能反映教程主题。
+
+**为什么截断到 1500 字符**：约 500-700 tokens，避免超过 embedding 模型 512 token 限制。
+
+### 7.8 进度推送频率
+
+| 触发时机 | 频率 | 说明 |
+|---------|------|------|
+| 每页完成 | 约 26 次（2578 / 100） | 主频率，每次推送完整 `BackfillProgress` |
+| 任务结束 | 1 次 | 推送最终状态（completed / cancelled / failed） |
+| 单批推理失败 | 同页 | 立即推送一次 `status='running'`，failed 计数累加 |
+
+### 7.9 错误处理
+
+| 错误场景 | 处理方式 | status |
+|---------|---------|--------|
+| 已有任务运行 | IPC handler 返回 `{ ok: false, error: '已有回填任务在运行' }` | — |
+| 数据库不可用 | `start()` 抛 Error，IPC handler catch 返回 `{ ok: false }` | — |
+| Embedding 模型加载失败 | 推送 `status='failed'`，`error` 字段填充 | `failed` |
+| 单批推理失败 | 累计 `failed`，跳过本批，继续下一页 | `running` |
+| 单批写入失败 | 累计 `failed`，继续下一页 | `running` |
+| 未预期异常 | 推送 `status='failed'`，记录 logger.error | `failed` |
+
+### 7.10 前端集成示例
+
+```typescript
+// 1. 启动回填
+const { ok, taskId, error } = await window.electronAPI.tutorialBackfillStart()
+if (!ok) {
+  message.error(`启动失败：${error}`)
+  return
+}
+
+// 2. 订阅进度
+const unsubscribe = window.electronAPI.onTutorialBackfillProgress((p) => {
+  setProgress({
+    pct: p.pct,           // 0-1
+    processed: p.processed,
+    total: p.total,
+    failed: p.failed,
+    eta: p.eta,
+    status: p.status,
+  })
+
+  if (p.status === 'completed' || p.status === 'cancelled' || p.status === 'failed') {
+    unsubscribe()  // 任务结束，取消订阅
+    if (p.status === 'completed') message.success('回填完成')
+    if (p.status === 'failed') message.error(`回填失败：${p.error}`)
+  }
+})
+
+// 3. 用户取消
+const handleCancel = () => {
+  window.electronAPI.tutorialBackfillCancel()
+}
+```
+
+### 7.11 v2.5 关联点
+
+- **替代旧通道**：`tutorial:backfill-embeddings`（同步阻塞 UI，无进度无取消），新通道为推荐用法
+- **IPC 4 步同步**：通道常量 → `ipcMain.handle` → preload 暴露 → `ElectronAPI` 类型声明（全完成）
+- **测试覆盖**：`tests/services/tutorial/backfill-service.test.ts` 22 个用例（单例、并发、取消、错误隔离、进度推送、ETA 估算）
+
+---
+
+## 8. 通用数据流模式
+
+### 8.1 invoke 请求-响应模式
 
 适用于一次性操作（SSH 连接、命令执行、配置读写）。
 
@@ -739,7 +982,7 @@ LIMIT ?
 - 返回 Promise，支持 async/await
 - 错误通过 Promise rejection 传递
 
-### 7.2 push 推送订阅模式
+### 8.2 push 推送订阅模式
 
 适用于持续数据流（终端输出、监控数据、LLM 流式 token）。
 
@@ -755,7 +998,7 @@ LIMIT ?
 - Preload 返回取消订阅函数，组件 unmount 时调用
 - 推送前检查 `mainWindow.isDestroyed()`，避免向已关闭窗口推送
 
-### 7.3 双向确认模式
+### 8.3 双向确认模式
 
 适用于需要用户确认的操作（主机密钥校验、Task 审批）。
 
@@ -770,7 +1013,7 @@ LIMIT ?
 - 主进程通过 `requestId` 关联请求与响应
 - 参考 `ssh:host-key-prompt` + `ssh:host-key-response`
 
-### 7.4 流式推送模式
+### 8.4 流式推送模式
 
 适用于 LLM 流式输出、Agent 步骤推送。
 
@@ -790,7 +1033,7 @@ LIMIT ?
 
 ---
 
-## 8. 跨流关联矩阵
+## 9. 跨流关联矩阵
 
 | 源流 | 目标流 | 关联点 | 说明 |
 |------|--------|--------|------|
@@ -801,15 +1044,17 @@ LIMIT ?
 | Token 统计流 | 预算告警流 | `token:stats` 检查成本 | 🔥 v2.4 调用 `alertTokenBudgetExceeded` |
 | 工具调用统计流 | 前端展示 | `ModelSettings` 页面 | 🔥 v2.4 消费 `model:toolCalls` |
 | 预算告警流 | 前端展示 | `ModelSettings` 页面 | 🔥 v2.4 消费 `budget:alerts` |
+| Embedding 回填流 | 前端展示 | 教程设置页进度条 | 🚀 v2.5 消费 `tutorial:backfill-progress` |
+| Embedding 回填流 | 混合检索流 | `knowledge_entries.embedding` 字段 | 🚀 v2.5 回填后供 `hybridSearch` 向量检索使用 |
 
 ---
 
-## 9. 数据持久化汇总
+## 10. 数据持久化汇总
 
-| 表 | 写入方 | 读取方 | v2.4 关联 |
-|----|--------|--------|-----------|
+| 表 | 写入方 | 读取方 | v2.4 / v2.5 关联 |
+|----|--------|--------|-----------------|
 | `decisions` | Agent 工作流 / 决策审批 | `history:list` / `history:stats` | — |
-| `knowledge_entries` | 知识库管理 | `knowledge:list` / `knowledge:search` | — |
+| `knowledge_entries` | 知识库管理 / 🚀 `EmbeddingBackfillService` | `knowledge:list` / `knowledge:search` / `hybridSearch` | 🚀 v2.5 Phase C：`embedding` 字段被回填 |
 | `tool_call_log` | `recordToolCall`（🔥 v2.4） | `model:toolCalls`（🔥 v2.4） | 🔥 Phase A |
 | `budget_alerts` | `recordBudgetAlert`（🔥 v2.4） | `budget:alerts`（🔥 v2.4） | 🔥 Phase B |
 | `kb_view_history` | 知识库浏览 | `knowledge:view-history` | — |
@@ -818,7 +1063,7 @@ LIMIT ?
 
 ---
 
-## 10. v2.4 数据流完成度矩阵
+## 11. v2.4 + v2.5 数据流完成度矩阵
 
 | 编号 | 数据流 | 完成度 | 验证证据 |
 |------|--------|--------|---------|
@@ -829,8 +1074,9 @@ LIMIT ?
 | DF-5 | 工具调用统计流（🔥 Phase A） | ✅ | `model-stats.ts` `recordToolCall` + `model:toolCalls` |
 | DF-6 | 预算告警流（🔥 Phase B） | ✅ | `budget-alerter.ts` + `model-stats.ts` `recordBudgetAlert` + `budget:alerts` |
 | DF-7 | 校准数据流（⚠️ Phase C） | ⚠️ | `fusion-engine.ts` `fuseAndAssess(options)` 已支持，但 IPC 透传未完成 |
+| DF-8 | Embedding 异步回填流（🚀 v2.5 Phase C） | ✅ | `backfill-service.ts` + `tutorial.ts` 3 个 `ipcMain.handle` + preload 4 方法 + 22 测试用例 |
 
-**完成度**：7 条数据流中 6 条 ✅，1 条 ⚠️（校准流的 IPC 暴露层未完成，详见 [`frontend-backend-boundary.md`](./frontend-backend-boundary.md) 附录 A）
+**完成度**：8 条数据流中 7 条 ✅，1 条 ⚠️（校准流的 IPC 暴露层未完成，详见 [`frontend-backend-boundary.md`](./frontend-backend-boundary.md) 附录 A）
 
 ---
 
