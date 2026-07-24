@@ -416,9 +416,10 @@ export class PathRecommender {
       // 确定该分类的难度
       const categoryDifficulty = CATEGORY_DEFAULT_DIFFICULTY[category] ?? 'beginner'
 
-      // 跳过比当前水平低的分类（可选）
-      // const levelOrder = { beginner: 0, intermediate: 1, advanced: 2 }
-      // if (levelOrder[categoryDifficulty] < levelOrder[currentLevel]) continue
+      // 注：v2.5 Phase D2 移除了"跳过比当前水平低的分类"逻辑
+      // 原因：分类级过滤过于粗暴，会完全跳过低难度分类的教程，
+      //       剥夺用户复习基础内容的机会。当前的难度过滤（下方 filter）
+      //       已足够保证推荐结果的难度匹配。
 
       // 从该分类取教程
       const entries = repo.listByCategory(category)

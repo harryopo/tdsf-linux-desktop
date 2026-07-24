@@ -6,9 +6,9 @@
  *
  * 覆盖范围：
  * - 文件路径敏感（.env / .ssh / *_key / id_rsa / *.pem 等）
- * - API Key / Token 模式（sk-xxx / Bearer xxx / AKIDxxx 等）
+ * - API Key / Token 模式（sk-ant-api03-xxx / Bearer token / AKIDxxx 等）
  * - 私钥 PEM 块（-----BEGIN ... PRIVATE KEY-----）
- * - 密码赋值（password=xxx / passwd xxx 等）
+ * - 密码赋值（password=secret / passwd secret 等）
  *
  * 使用方式：
  * ```ts

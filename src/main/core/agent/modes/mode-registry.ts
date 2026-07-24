@@ -82,7 +82,7 @@ const DEBUG_MODE_SYSTEM_PROMPT = `你是 Linux 运维调试专家，专长于系
 工具使用：
 - 可用工具：search、kb、log、metric、history、tutorial、file.read、profiler
 - 不允许写文件、执行命令、修改 sandbox 配置
-- 引用证据时标注来源：[LOG:xxx] [METRIC:xxx] [PROFILER:xxx]`
+- 引用证据时标注来源：[LOG:auth] [METRIC:cpu] [PROFILER:nginx]`
 
 /**
  * 5 个模式的默认配置表

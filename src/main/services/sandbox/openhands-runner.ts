@@ -128,7 +128,7 @@ export class OpenHandsRunner {
   /**
    * 停止 OpenHands 容器
    *
-   * 执行 `docker compose -f xxx.yml down`，优雅停止并移除容器。
+   * 执行 `docker compose -f sandbox.yml down`，优雅停止并移除容器。
    * 工作区数据通过 volume 持久化，下次启动可恢复。
    */
   async stop(): Promise<void> {

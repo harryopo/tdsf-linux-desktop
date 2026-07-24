@@ -18,7 +18,7 @@
  *
  * // 子 logger（自动添加 category 前缀）
  * const ipcLog = logger.child('IPC')
- * ipcLog.info('连接已建立', { sessionId: 'xxx' })
+ * ipcLog.info('连接已建立', { sessionId: 'sess_abc123' })
  * ```
  *
  * 测试读取示例：

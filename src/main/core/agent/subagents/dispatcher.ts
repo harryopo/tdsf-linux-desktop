@@ -434,7 +434,7 @@ async function approveActions(results: SubagentResult[]): Promise<ApprovalResult
  * const registry = createAllSubagents() // 实现 SubagentRegistry 接口
  * const result = await dispatchSubagents({
  *   userRequest: '帮我搜索 nginx 部署教程',
- *   sessionId: 'sess_xxx',
+ *   sessionId: 'sess_abc123',
  *   mode: 'chat',
  *   strength: 'standard',
  * }, registry)
