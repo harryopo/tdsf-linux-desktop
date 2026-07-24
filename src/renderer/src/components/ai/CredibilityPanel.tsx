@@ -129,12 +129,12 @@ const SOURCE_CONFIGS: SourceConfig[] = [
 
 /** Source 节点颜色（按 sourceId 区分） */
 const SOURCE_COLORS: Record<CredibilitySourceId, string> = {
-  log: '#3b82f6',
-  kb: '#8b5cf6',
-  'ai-param': '#ec4899',
-  human: '#10b981',
-  history: '#f59e0b',
-  'best-practice': '#06b6d4',
+  log: 'var(--trae-bg-brand)',
+  kb: 'var(--trae-brand-purple-500)',
+  'ai-param': 'var(--trae-accent-magenta)',
+  human: 'var(--trae-status-success-default)',
+  history: 'var(--trae-status-alert-default)',
+  'best-practice': 'var(--trae-accent-cyan)',
 }
 
 /** 格式化百分比 */
@@ -145,7 +145,7 @@ function formatPercent(n: number | undefined): string {
 
 /** ===== 自定义节点：source（圆形） ===== */
 const SourceNode: React.FC<{ data: NodeRenderData }> = ({ data }) => {
-  const color = data.sourceId ? SOURCE_COLORS[data.sourceId as CredibilitySourceId] ?? '#3b82f6' : '#3b82f6'
+  const color = data.sourceId ? SOURCE_COLORS[data.sourceId as CredibilitySourceId] ?? 'var(--trae-bg-brand)' : 'var(--trae-bg-brand)'
   return (
     <div
       className="cred-dag-node cred-dag-source-node"

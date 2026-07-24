@@ -45,14 +45,16 @@
 
   /* === 3. 字体系统 ===
    *
-   * 字体策略（spec §B 字体栈对齐 Scenario）：
-   * - 正文：SF Pro Text（macOS）→ Microsoft YaHei（Windows）→ system-ui
-   * - 标题：SF Pro（macOS）→ Microsoft YaHei（Windows）→ system-ui
-   * - 代码：JetBrains Mono → SF Mono → Consolas → monospace
-   * - 离线模式 fallback 到 system-ui
+   * 字体策略（设计稿字体栈对齐 + 国内可用性）：
+   * - 设计稿用 "SF Pro Text" / "SF Pro"（Apple 专有字体，Windows 无）
+   * - 正文：Inter（Web 字体，视觉接近 SF Pro Text）→ Microsoft YaHei（中文）→ system-ui
+   * - 标题：Inter（Web 字体，视觉接近 SF Pro）→ Microsoft YaHei（中文）→ system-ui
+   * - 代码：JetBrains Mono（Web 字体）→ SF Mono → Consolas → monospace
+   * - 离线降级：CDN 不可达时自动 fallback 到 system-ui
+   * - Web 字体通过 index.html 引入（字节跳动 CDN 镜像，国内可访问）
    */
-  --trae-font-family-default: 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --trae-font-family-heading: 'SF Pro', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-default: 'Inter', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --trae-font-family-heading: 'Inter', 'SF Pro', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
   --trae-font-family-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   --trae-font-weight-default: 400;
   --trae-font-weight-code: 450;

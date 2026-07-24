@@ -96,9 +96,13 @@ export function createOpsAgent(config: OpsAgentConfig) {
   const mastraTools = adaptToolsToMastra(tools, metas)
 
   // 3. 构建 LLM model（Vercel AI SDK LanguageModel）
+  // P0-4 修复：API Key 为空时明确报错，避免发送 'placeholder' 导致 401
+  if (!llmConfig.apiKey || llmConfig.apiKey.trim().length === 0) {
+    throw new Error('Mastra Ops Agent 需要配置 API Key，请在设置中配置模型 API Key')
+  }
   const openai = createOpenAI({
     baseURL: llmConfig.baseUrl || 'https://api.openai.com/v1',
-    apiKey: llmConfig.apiKey || 'placeholder',
+    apiKey: llmConfig.apiKey,
   })
   const model = openai(llmConfig.model || 'gpt-4o')
 

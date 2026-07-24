@@ -11,6 +11,7 @@ import type { ToolDefinition } from '@shared/llm-tool-types'
 import type { ToolCallMeta, ToolId } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import type { DatabaseManager } from '../../db/database'
+import { recordToolCall } from '../../../ipc/model-stats'
 
 import { sshExecTool, SSH_EXEC_META } from './ssh-exec'
 import { createTutorialSearchTool, TUTORIAL_SEARCH_META } from './tutorial-search'
@@ -58,8 +59,10 @@ export function getToolMeta(id: ToolId): ToolCallMeta | undefined {
 export class ToolRegistry {
   private tools: Map<ToolId, ToolDefinition> = new Map()
   private metas: Map<ToolId, ToolCallMeta> = new Map()
+  private db?: DatabaseManager
 
   constructor(db?: DatabaseManager) {
+    this.db = db
     this.register(sshExecTool, SSH_EXEC_META)
     this.register(monitorGetTool, MONITOR_GET_META)
     this.register(deployListTool, DEPLOY_LIST_META)
@@ -71,9 +74,30 @@ export class ToolRegistry {
     }
   }
 
-  /** 注册一个工具（同时存 tool + meta） */
+  /**
+   * 注册一个工具（同时存 tool + meta）
+   *
+   * v2.4 新增：自动包装 execute，在工具调用完成后记录到 tool_call_log 表
+   * 这样 ModelSettings 的"功能调用统计"能显示真实数据
+   */
   private register(tool: ToolDefinition, meta: ToolCallMeta): void {
-    this.tools.set(tool.name as ToolId, tool)
+    const db = this.db
+    if (db && tool.execute) {
+      const originalExecute = tool.execute
+      const toolLabel = meta.label
+      const wrappedTool: ToolDefinition = {
+        ...tool,
+        execute: async (args: unknown) => {
+          const result = await originalExecute(args)
+          // 记录工具调用（无论成功/失败都记录，让统计真实反映使用频率）
+          recordToolCall(db, toolLabel)
+          return result
+        },
+      }
+      this.tools.set(tool.name as ToolId, wrappedTool)
+    } else {
+      this.tools.set(tool.name as ToolId, tool)
+    }
     this.metas.set(tool.name as ToolId, meta)
   }
 

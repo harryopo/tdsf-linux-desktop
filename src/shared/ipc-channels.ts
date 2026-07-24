@@ -969,6 +969,12 @@ export const BUDGET = {
  * - LOAD_AUDIT_REPORT       invoke  渲染 → 主：加载审计报告
  * - FORMAT_AUDIT_REPORT     invoke  渲染 → 主：格式化审计报告
  * - EXPORT_DECISION_HTML    invoke  渲染 → 主：按 decisionId 简化导出 HTML 报告
+ * - CALIBRATE               invoke  渲染 → 主：校准指定 Provider（v2.4 Phase C 新增）
+ * - GET_CALIBRATION         invoke  渲染 → 主：获取指定 Provider 的当前 T 值（v2.4 Phase C 新增）
+ * - GET_CALIBRATION_STATE   invoke  渲染 → 主：获取全局校准状态（v2.4 Phase C 新增）
+ * - RESET_CALIBRATION       invoke  渲染 → 主：重置指定 Provider 的校准（v2.4 Phase C 新增）
+ * - COMPUTE_ECE             invoke  渲染 → 主：计算指定 Provider 的当前 ECE（v2.4 Phase C 新增）
+ * - ADD_CALIBRATION_SAMPLE  invoke  渲染 → 主：记录新的校准样本（v2.4 Phase C 新增）
  */
 export const CREDIBILITY = {
   /** 评估可信度（invoke: 渲染 → 主） */
@@ -985,6 +991,19 @@ export const CREDIBILITY = {
   FORMAT_AUDIT_REPORT: 'credibility:format-audit-report',
   /** 按 decisionId 简化导出 HTML 报告（invoke: 渲染 → 主，v2.3.2 新增） */
   EXPORT_DECISION_HTML: 'credibility:export-decision-html',
+  // v2.4 Phase C 收尾：校准 IPC 通道（6 个）
+  /** 校准指定 Provider（基于历史样本，invoke: 渲染 → 主） */
+  CALIBRATE: 'credibility:calibrate',
+  /** 获取指定 Provider 的当前 T 值（invoke: 渲染 → 主） */
+  GET_CALIBRATION: 'credibility:get-calibration',
+  /** 获取全局校准状态（invoke: 渲染 → 主） */
+  GET_CALIBRATION_STATE: 'credibility:get-calibration-state',
+  /** 重置指定 Provider 的校准（invoke: 渲染 → 主） */
+  RESET_CALIBRATION: 'credibility:reset-calibration',
+  /** 计算指定 Provider 的当前 ECE（invoke: 渲染 → 主） */
+  COMPUTE_ECE: 'credibility:compute-ece',
+  /** 记录新的校准样本（invoke: 渲染 → 主） */
+  ADD_CALIBRATION_SAMPLE: 'credibility:add-calibration-sample',
 } as const
 
 /**

@@ -10,6 +10,7 @@
  */
 
 import type { MassFunction } from '../core/agent/credibility/ds-theory'
+import { applyDiscount } from '../core/agent/credibility/ds-theory'
 import { createLogMassFunction } from '../core/agent/credibility/mass-functions/log-source'
 import { createKbMassFunction } from '../core/agent/credibility/mass-functions/kb-source'
 import { createAiParamMassFunction } from '../core/agent/credibility/mass-functions/ai-param-source'
@@ -185,4 +186,95 @@ export function serializeMassFunction(mf: MassFunction): SerializableMassFunctio
  */
 export function createMassFunctionsFromInputs(inputs: CredibilityEvidenceInput[]): MassFunction[] {
   return inputs.map((input) => createMassFunctionFromInput(input))
+}
+
+// ============================================================================
+// 6 源权重应用（Shafer Discounting）
+// ============================================================================
+//
+// 论文支撑：Shafer, G. 1976, "A Mathematical Theory of Evidence",
+//           Princeton University Press, Chapter 9 §Discounting
+//
+// 在融合前对每个证据源独立应用权重折扣，符合 D-S 公理。
+// 替代旧版"在融合结果上叠加线性调整"的降级方案（P1-7 修复）。
+// ============================================================================
+
+/**
+ * 6 源证据的默认权重映射（业务侧 ID → 算法侧 sourceId）
+ *
+ * 业务侧权重 key（ConfigStore decision.weights）：
+ *   - system-metrics → log（系统指标来自日志）
+ *   - knowledge-base → kb（知识库匹配）
+ *   - ai-analysis → ai-param（AI 参数化分析）
+ *   - human-input → human（人工标注）
+ *   - history-match → history（历史案例匹配）
+ *   - best-practice → best-practice（最佳实践）
+ *
+ * 说明：如果 ConfigStore 的权重 key 与此映射不匹配，
+ * 会降级到均值权重（保持向后兼容）。
+ */
+const WEIGHT_KEY_TO_SOURCE_ID: Record<string, string> = {
+  'system-metrics': 'log',
+  'knowledge-base': 'kb',
+  'ai-analysis': 'ai-param',
+  'human-input': 'human',
+  'history-match': 'history',
+  'best-practice': 'best-practice',
+}
+
+/**
+ * 对 Mass 函数列表应用 Shafer Discounting 权重折扣
+ *
+ * 读取 ConfigStore 的 decision.weights 配置，按业务侧 ID 映射到算法侧 sourceId，
+ * 对每个 Mass 函数应用对应的权重折扣。
+ *
+ * 论文支撑：Shafer 1976 §Discounting
+ *
+ * 权重归一化：ConfigStore 中权重值为 0-100（业务侧刻度），
+ *            除以 100 归一化到 [0, 1]（算法侧刻度）。
+ *
+ * 降级策略：
+ *   1. 若 weightsConfig 无有效数值权重，返回原列表（不折扣）
+ *   2. 若某 sourceId 在映射表中找不到对应权重 key，使用均值权重（保持向后兼容）
+ *
+ * @param massFunctions - 原始 Mass 函数列表
+ * @param weightsConfig - 权重配置（业务侧 ID → 权重值 0-100）
+ * @returns 折扣后的 Mass 函数列表（原列表不变，返回新数组）
+ */
+export function applyWeightsToMassFunctions(
+  massFunctions: MassFunction[],
+  weightsConfig: Record<string, unknown>,
+): MassFunction[] {
+  // 1) 提取数值权重并归一化到 [0, 1]（ConfigStore 权重刻度为 0-100）
+  const numericWeights: Record<string, number> = {}
+  for (const [key, value] of Object.entries(weightsConfig)) {
+    if (typeof value === 'number' && value >= 0) {
+      numericWeights[key] = Math.min(value / 100, 1)
+    }
+  }
+
+  // 2) 如果没有有效权重，返回原列表（不折扣，保持向后兼容）
+  if (Object.keys(numericWeights).length === 0) {
+    return massFunctions
+  }
+
+  // 3) 预计算均值权重（用于 sourceId 未在映射表中的降级场景）
+  const weightValues = Object.values(numericWeights)
+  const avgWeight = weightValues.reduce((s, w) => s + w, 0) / weightValues.length
+
+  // 4) 对每个 Mass 函数应用对应权重
+  return massFunctions.map((mf) => {
+    // 查找该 sourceId 对应的业务侧权重 key
+    const weightKey = Object.entries(WEIGHT_KEY_TO_SOURCE_ID).find(
+      ([, sourceId]) => sourceId === mf.sourceId,
+    )?.[0]
+
+    if (weightKey && numericWeights[weightKey] !== undefined) {
+      // 命中映射：用对应权重
+      return applyDiscount(mf, numericWeights[weightKey])
+    }
+
+    // 未命中映射：降级到均值权重（保持向后兼容）
+    return applyDiscount(mf, avgWeight)
+  })
 }

@@ -20,6 +20,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { KNOWLEDGE } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { KnowledgeRepository } from '../services/db/knowledge-repo'
+import { recordToolCall } from './model-stats'
 import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
 
 /**
@@ -54,7 +55,11 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
     async (_event, query: string, type?: KnowledgeType, limit?: number) => {
       try {
         const repo = getKnowledgeRepo()
-        return repo.search(query, type, limit)
+        const results = repo.search(query, type, limit)
+        // v2.4 Phase A：记录知识库检索调用，与 ModelSettings 工具调用统计对应
+        // recordToolCall 内部已 try/catch，db 不可用时静默返回
+        recordToolCall(DatabaseManager.getInstance(), '知识库检索')
+        return results
       } catch (err) {
         throw new Error(`知识库搜索失败: ${(err as Error).message}`)
       }

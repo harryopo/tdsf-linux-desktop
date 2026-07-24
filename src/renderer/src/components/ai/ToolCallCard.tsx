@@ -45,15 +45,15 @@ function PhaseIcon({ phase }: { phase: ToolCallProgress['phase'] }) {
   switch (phase) {
     case 'start':
     case 'executing':
-      return <LoadingOutlined spin style={{ color: '#1890ff' }} />
+      return <LoadingOutlined spin style={{ color: 'var(--trae-bg-brand)' }} />
     case 'success':
-      return <CheckCircleOutlined style={{ color: '#52c41a' }} />
+      return <CheckCircleOutlined style={{ color: 'var(--trae-status-success-default)' }} />
     case 'failed':
-      return <CloseCircleOutlined style={{ color: '#f5222d' }} />
+      return <CloseCircleOutlined style={{ color: 'var(--trae-status-error-default)' }} />
     case 'awaiting-approval':
-      return <ExclamationCircleOutlined style={{ color: '#fa8c16' }} />
+      return <ExclamationCircleOutlined style={{ color: 'var(--trae-status-alert-default)' }} />
     default:
-      return <ClockCircleOutlined style={{ color: '#999' }} />
+      return <ClockCircleOutlined style={{ color: 'var(--trae-text-tertiary)' }} />
   }
 }
 

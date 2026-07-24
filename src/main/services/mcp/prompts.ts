@@ -23,6 +23,7 @@
 import type { KnowledgeEntry } from '@shared/models'
 import { DatabaseManager } from '../../services/db/database'
 import { KnowledgeRepository } from '../../services/db/knowledge-repo'
+import { logger } from '../../services/log/logger'
 
 // ============================================================================
 // 类型定义
@@ -122,20 +123,23 @@ export const MCP_PROMPTS: McpPrompt[] = [
  *
  * 防御式设计：
  * - 必填参数缺失时抛 Error（让 server.ts 返回错误响应）
+ * - 未知 prompt id 时优雅降级：logger.warn 记录 + 返回 null（让 server.ts 返回空响应）
  * - 知识库查询失败时不阻断，仅省略相关条目
  *
  * @param id Prompt ID（如 'diagnose-high-load'）
  * @param args 参数键值对
- * @returns 消息序列（system + user）
- * @throws Error 当 prompt id 未知或必填参数缺失时
+ * @returns 消息序列（system + user）；未知 prompt id 时返回 null
+ * @throws Error 当必填参数缺失时
  */
 export async function getPrompt(
   id: string,
   args: Record<string, string>
-): Promise<McpPromptMessage[]> {
+): Promise<McpPromptMessage[] | null> {
   const prompt = MCP_PROMPTS.find((p) => p.id === id)
   if (!prompt) {
-    throw new Error(`未知 prompt: ${id}`)
+    // v2.4 Phase D2：未知 prompt id 优雅降级（不抛错，返回 null 让 MCP 客户端自行处理）
+    logger.warn('MCP.PROMPTS', `未知 prompt id 请求`, { id })
+    return null
   }
 
   // 校验必填参数
@@ -158,8 +162,11 @@ export async function getPrompt(
       return buildReviewSecurityHardening(args)
     case 'explain-command':
       return buildExplainCommand(args)
-    default:
-      throw new Error(`Prompt 未实现: ${id}`)
+    default: {
+      // 类型安全兜底：理论上不可达（前面已校验 prompt 存在），但仍降级返回 null
+      logger.warn('MCP.PROMPTS', `Prompt 未实现，降级返回 null`, { id })
+      return null
+    }
   }
 }
 

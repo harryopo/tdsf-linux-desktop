@@ -37,7 +37,7 @@ import {
   setDefaultProviderId,
   ensureProvidersInitialized,
 } from '../core/agent/providers/provider-registry'
-import { getTokenStats, resetTokenStats, getTokenRecords } from '../core/agent/providers/token-stats'
+import { getTokenStats, resetTokenStats, getTokenRecords, getCostStats } from '../core/agent/providers/token-stats'
 import type {
   ProviderConfig,
   PersistedProviderConfig,
@@ -53,8 +53,13 @@ import type {
 } from '@shared/agent-types'
 import type { ChatMessage } from '@shared/models'
 import { logger } from '../services/log/logger'
+// v2.4 Phase B：预算告警检查（token 月成本超阈值时记录到 budget_alerts 表）
+import { ConfigStore } from '../services/storage/config-store'
+import { alertTokenBudgetExceeded } from '../services/llm/budget-alerter'
 // v0.9.4 新增：session-registry 集中维护 sessionId → AbortController Map，支持 abort signal + TTL 清理
 import { getSessionRegistry } from '../core/agent/session-registry'
+// v2.4 Phase D1：Provider 配置保存时清理 ClaudeSdkProvider 缓存，避免旧实例被复用
+import { clearClaudeSdkProviderCache } from './claude-sdk'
 
 /** 流式 token 推送通道名 */
 const AGENT_CHUNK_CHANNEL = 'agent:chunk'
@@ -289,6 +294,11 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
     'provider:save',
     async (_event, config: ProviderConfig): Promise<boolean> => {
       const ok = saveProvider(config)
+      // v2.4 Phase D1：保存成功后清理 ClaudeSdkProvider 缓存，
+      // 确保下次 claude-sdk:generate / claude-sdk:stream 基于最新配置重新构造实例
+      if (ok) {
+        clearClaudeSdkProviderCache()
+      }
       logger.info('IPC.PROVIDER', `provider:save`, {
         id: config.id,
         name: config.name,
@@ -324,6 +334,20 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         month: stats.month,
         total: stats.total,
       })
+      // v2.4 Phase B：检查月成本是否超阈值，超阈值时记录告警
+      // 阈值 = monthlyBudget * alertThreshold / 100（默认 2.0 * 80 / 100 = 1.6 USD）
+      // alertTokenBudgetExceeded 内部有当日去重，不会刷屏
+      try {
+        const costStats = getCostStats()
+        const monthlyBudget = (ConfigStore.get('monthlyBudget') as number) ?? 2.0
+        const alertThreshold = (ConfigStore.get('alertThreshold') as number) ?? 80
+        const threshold = (monthlyBudget * alertThreshold) / 100
+        if (threshold > 0 && costStats.monthCost >= threshold) {
+          alertTokenBudgetExceeded(costStats.monthCost, threshold, '月')
+        }
+      } catch {
+        // 静默失败：成本检查失败不影响 token:stats 正常返回
+      }
       return stats
     }
   )

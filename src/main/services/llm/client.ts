@@ -30,6 +30,11 @@ import type {
 } from '@shared/models'
 import { analyzeByRules } from '@main/core/rule-engine'
 import { SYSTEM_PROMPT, buildAnalysisPrompt, buildEnvironmentContextPrompt } from './prompt-templates'
+import {
+  alertLlmSlowResponse,
+  alertLlmFailure,
+  alertLlmSuccess,
+} from './budget-alerter'
 
 /** analyze() 方法的返回类型 */
 export interface AnalysisResult {
@@ -299,6 +304,8 @@ export class LlmClient {
       // 解析失败 → 降级
       return this.fallbackToRules(problem, evidences)
     } catch (err) {
+      // v2.4 Phase B：连续失败告警（累计 3 次触发 error 级告警）
+      alertLlmFailure('analyze', (err as Error).message)
       // 调用失败 → 降级到规则引擎，并在假设中标注错误信息
       const ruleResult = this.fallbackToRules(problem, evidences)
       return {
@@ -318,11 +325,16 @@ export class LlmClient {
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await fn()
+        const result = await fn()
+        // v2.4 Phase B：调用成功时重置连续失败计数
+        alertLlmSuccess()
+        return result
       } catch (err) {
         lastError = err as Error
         // 最后一次尝试或不可重试的错误 → 直接抛出
         if (attempt === MAX_RETRIES || !this.isRetryableError(err)) {
+          // v2.4 Phase B：连续失败告警（累计 3 次触发 error 级告警）
+          alertLlmFailure('chatWithRetry', lastError.message)
           throw lastError
         }
         const delay = RETRY_BASE_DELAY * Math.pow(2, attempt)
@@ -380,6 +392,8 @@ export class LlmClient {
     const duration = Date.now() - startTime
     const tokenInfo = totalTokens !== undefined ? `, tokens=${totalTokens}` : ''
     console.log(`[LLM] ${method} 耗时=${duration}ms${tokenInfo} model=${this.config.model}`)
+    // v2.4 Phase B：响应慢告警（>5000ms），让 ModelSettings 告警历史显示真实记录
+    alertLlmSlowResponse(method, duration)
   }
 
   /**
@@ -469,9 +483,9 @@ export class LlmClient {
       }
     }
     return {
-      hypothesis: 'LLM 不可用且无匹配故障规则，已降级到兜底命令',
+      hypothesis: 'LLM 不可用且无匹配故障规则，建议人工诊断',
       fixCommand: 'echo "LLM_UNAVAILABLE"',
-      confidence: 0.3
+      confidence: 0.2
     }
   }
 }

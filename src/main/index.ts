@@ -104,7 +104,8 @@ app.whenReady().then(() => {
   // 2.1 Phase 6 Task 6.5：初始化调度器（注册 3 个定时任务 + 启动引擎 + 设置状态推送）
   //     必须在 IPC handlers 注册之后调用（scheduler:status push 通道依赖 BrowserWindow 已创建）
   //     必须在 app.whenReady() 之后调用（Scheduler 内部使用 setInterval，Electron API 可用）
-  initScheduler()
+  // P0-1 修复：传入 db，让每日决策归档任务注入真实 repository。
+  initScheduler(db)
 
   // 3. P-4 恢复方案 A：异步预热 sessionKeyMap 缓存
   //    不 await（不阻塞应用启动），后台执行即可

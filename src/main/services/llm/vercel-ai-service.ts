@@ -18,6 +18,8 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { z } from 'zod'
 import type { LlmConfig } from '@shared/models'
 import { LlmClient } from './client'
+import { logger } from '../log/logger'
+import { estimateTokens, estimateMessageTokens } from '../../core/agent/context'
 
 // 内部工具参数类型（VercelAiService.generate 入参用，等价于 @shared/llm-tool-types.ToolDefinition）
 type InternalToolDef = {
@@ -41,6 +43,15 @@ export interface AiCallResult {
   }
   /** 完成原因 */
   finishReason: string
+  /**
+   * 是否为估算的 token 用量（v2.4 Phase D D3 新增，可选）
+   *
+   * - true：降级路径下 LlmClient 不返回真实 usage，由 estimateTokens 估算
+   * - false / undefined：来自 LLM API 的真实 usage
+   *
+   * 渲染层 / 统计层可据此在 UI 标记"估算值"，与真实 token 区分。
+   */
+  estimated?: boolean
 }
 
 /** Vercel AI SDK 包装 */
@@ -169,15 +180,38 @@ export class VercelAiService {
 
   /**
    * 降级到现有 LlmClient
+   *
+   * Token 估算策略（v2.4 Phase D D3）：
+   * - LlmClient.chat 仅返回纯文本，不返回 usage，原先降级路径 token 全为 0
+   * - 现复用 context.ts 的 estimateTokens / estimateMessageTokens 做粗略估算
+   *   （英文约 4 字符/token，中文约 1.5 字符/token，取折中 3 字符/token 保守估算）
+   * - 输入：基于 messages 数组估算 promptTokens
+   * - 输出：基于 chat 返回的 text 估算 completionTokens
+   * - 设置 estimated: true 标记，供下游统计层区分真实/估算 token
+   *
+   * 注意：估算值会进入 TokenStats / CostStats 聚合（与真实 token 一同累计），
+   * 渲染层可通过 estimated 字段决定是否在 UI 标注"估算"。
    */
   private async fallbackToLlmClient(messages: ModelMessage[]): Promise<AiCallResult> {
     const chatMessages = this.toChatMessages(messages)
     const text = await this.fallbackClient.chat(chatMessages)
+    // 估算输入 token（基于消息列表，含已注入的 system prompt 由 LlmClient 内部处理）
+    const promptTokens = estimateMessageTokens(messages)
+    // 估算输出 token（基于 LlmClient.chat 返回的文本）
+    const completionTokens = estimateTokens(text)
+    const totalTokens = promptTokens + completionTokens
+    logger.info('LLM.VERCEL', '降级路径 token 估算', {
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      messageCount: messages.length,
+    })
     return {
       text,
       toolResults: [],
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      finishReason: 'fallback'
+      usage: { promptTokens, completionTokens, totalTokens },
+      finishReason: 'fallback',
+      estimated: true
     }
   }
 

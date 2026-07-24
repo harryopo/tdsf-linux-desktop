@@ -47,11 +47,11 @@ const RISK_COLORS: Record<
   ProfilerRiskLevel,
   { bg: string; border: string; text: string; icon: React.ReactNode }
 > = {
-  critical: { bg: '#fff1f0', border: '#ff4d4f', text: '#cf1322', icon: <WarningFilled /> },
-  high:     { bg: '#fff7e6', border: '#fa8c16', text: '#d46b08', icon: <WarningOutlined /> },
-  medium:   { bg: '#fffbe6', border: '#faad14', text: '#d48806', icon: <ExclamationCircleOutlined /> },
-  low:      { bg: '#f6ffed', border: '#52c41a', text: '#389e0d', icon: <BulbOutlined /> },
-  info:     { bg: '#e6f7ff', border: '#1890ff', text: '#096dd9', icon: <InfoCircleOutlined /> }
+  critical: { bg: 'var(--trae-status-error-surface-l1)', border: 'var(--trae-status-error-default)', text: 'var(--trae-status-error-default)', icon: <WarningFilled /> },
+  high:     { bg: 'var(--trae-status-warning-surface-l1)', border: 'var(--trae-status-alert-default)', text: 'var(--trae-status-alert-default)', icon: <WarningOutlined /> },
+  medium:   { bg: 'var(--trae-status-alert-surface-l1)', border: 'var(--trae-status-alert-default)', text: 'var(--trae-status-alert-default)', icon: <ExclamationCircleOutlined /> },
+  low:      { bg: 'var(--trae-status-success-surface-l1)', border: 'var(--trae-status-success-default)', text: 'var(--trae-status-success-default)', icon: <BulbOutlined /> },
+  info:     { bg: 'var(--trae-status-primary-surface-l1)', border: 'var(--trae-bg-brand)', text: 'var(--trae-bg-brand)', icon: <InfoCircleOutlined /> }
 }
 
 /** 风险等级中文标签 */
@@ -286,7 +286,7 @@ const ProfilerDialog: React.FC<ProfilerDialogProps> = ({ open, sessionId, host, 
       destroyOnClose
       title={
         <Space>
-          <RocketOutlined style={{ color: '#2c7be5' }} />
+          <RocketOutlined style={{ color: 'var(--trae-bg-brand)' }} />
           <span>系统架构感知 — {host}</span>
         </Space>
       }
@@ -379,11 +379,11 @@ const ProfilerDialog: React.FC<ProfilerDialogProps> = ({ open, sessionId, host, 
               <span>
                 <DownloadOutlined /> 共 <b>{data.result.items.length}</b> 项探查
               </span>
-              <span style={{ color: '#52c41a' }}>
+              <span style={{ color: 'var(--trae-status-success-default)' }}>
                 <CheckCircleOutlined /> 成功 <b>{data.result.items.length - data.result.errors.length}</b>
               </span>
               {data.result.errors.length > 0 && (
-                <span style={{ color: '#ff4d4f' }}>
+                <span style={{ color: 'var(--trae-status-error-default)' }}>
                   <CloseCircleOutlined /> 失败 <b>{data.result.errors.length}</b>
                 </span>
               )}

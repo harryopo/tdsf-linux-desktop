@@ -200,14 +200,48 @@ export class DatabaseManager {
   /**
    * 创建 mock Statement（回退模式下使用）
    *
-   * 所有方法返回空结果，不会抛出异常。
+   * 行为设计（v2.4 Phase D4）：
+   * - run() 写入操作（INSERT/UPDATE/DELETE/CREATE/DROP/ALTER/REPLACE）抛出明确错误，
+   *   避免写入静默失败导致数据丢失而不自知
+   * - run() 读取操作（SELECT 等）仍返回空结果，保持降级链路
+   * - get() / all() 返回空结果（读取降级）
+   * - bind() / finalize() 保持链式调用兼容
+   *
+   * 安全性：所有已知调用方均有 try/catch 或 isAvailable() 前置检查，抛错不会导致崩溃。
    */
-  private createMockStatement(_sql: string): Statement {
+  private createMockStatement(sql: string): Statement {
+    // 检测是否为写入操作（DML/DDL）
+    const trimmedSql = sql.trim().toUpperCase()
+    const isWriteOperation =
+      trimmedSql.startsWith('INSERT') ||
+      trimmedSql.startsWith('UPDATE') ||
+      trimmedSql.startsWith('DELETE') ||
+      trimmedSql.startsWith('CREATE') ||
+      trimmedSql.startsWith('DROP') ||
+      trimmedSql.startsWith('ALTER') ||
+      trimmedSql.startsWith('REPLACE')
+
     // 使用类型断言绕过 Statement 接口限制
     return {
-      run: () => ({ changes: 0, lastInsertRowid: 0n }),
-      get: () => undefined,
-      all: () => [],
+      run: (...params: unknown[]) => {
+        void params
+        if (isWriteOperation) {
+          // 写入操作抛错：避免静默失败，让调用方明确感知数据库不可用
+          throw new Error(
+            'Database unavailable: better-sqlite3 not loaded. Write operation rejected.'
+          )
+        }
+        // 读取操作（如 SELECT ... RUN）返回空结果，保持降级
+        return { changes: 0, lastInsertRowid: 0n }
+      },
+      get: (...params: unknown[]) => {
+        void params
+        return undefined
+      },
+      all: (...params: unknown[]) => {
+        void params
+        return []
+      },
       bind: function (...params: unknown[]) {
         void params
         return this

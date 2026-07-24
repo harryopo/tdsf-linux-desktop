@@ -26,6 +26,8 @@
 
 import { ipcMain } from 'electron'
 import { getFusionEngine } from '../core/agent/credibility/fusion-engine'
+// v2.4 Phase C 收尾：assess handler 透传 options 参数
+import type { FuseAssessOptions } from '../core/agent/credibility/fusion-engine'
 import { generateDagData } from '../core/agent/credibility/visualizer'
 import type {
   CredibilityEvidenceInput,
@@ -38,12 +40,24 @@ import { ConfigStore } from '../services/storage/config-store'
 import {
   createMassFunctionsFromInputs,
   serializeMassFunction,
+  applyWeightsToMassFunctions,
 } from './credibility-helpers'
 // v2.3.2 新增：简化导出 HTML 报告所需
 import { CREDIBILITY } from '@shared/ipc-channels'
 import type { DatabaseManager } from '../services/db/database'
 import type { DecisionCard, EvidenceSource, RiskLevel } from '@shared/models'
 import type { AuditSourceEvidence } from '../core/agent/credibility/audit/types'
+// v2.4 Phase C 收尾：校准模块 import（6 个 IPC handler 所需）
+import { getCalibrationTuner } from '../core/agent/credibility/calibration/calibration-tuner'
+import type {
+  CalibrationSample,
+  CalibrationState,
+  EceResult,
+  OptimizeTOptions,
+  ProviderCalibration,
+  ProviderId,
+  TemperatureScalingResult,
+} from '../core/agent/credibility/calibration/types'
 
 // ============================================================================
 // v2.3.2 辅助：EvidenceSource → 6 源审计 ID 映射
@@ -129,15 +143,25 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
   // ------------------------------------------------------------------
   // credibility:assess — 评估给定证据集的可信度
   // ------------------------------------------------------------------
-  // 参数：(inputs: CredibilityEvidenceInput[])
+  // 参数：(inputs: CredibilityEvidenceInput[], options?: FuseAssessOptions)
   // 返回：ConfidenceAssessment（含信任区间、综合可信度、冲突程度、融合步骤）
+  // v2.4 Phase C：options 透传给 fuseAndAssess，支持 Temperature Scaling 校准
+  // v2.4 Phase D5：6 源权重通过 Shafer Discounting 在融合前应用（替代旧版线性调整）
+  //   论文支撑：Shafer 1976, "A Mathematical Theory of Evidence", Chapter 9 §Discounting
+  //   修复 P1-7：旧版在融合结果上叠加线性系数违反 D-S 公理，现改为融合前折扣
   ipcMain.handle(
     'credibility:assess',
-    async (_event, inputs: CredibilityEvidenceInput[]): Promise<ConfidenceAssessment> => {
+    async (
+      _event,
+      inputs: CredibilityEvidenceInput[],
+      options?: FuseAssessOptions
+    ): Promise<ConfidenceAssessment> => {
       try {
         logger.info('IPC.CREDIBILITY', `credibility:assess 启动`, {
           sourceCount: inputs?.length ?? 0,
           sourceIds: inputs?.map((i) => i.sourceId) ?? [],
+          applyCalibration: options?.applyCalibration ?? false,
+          providerId: options?.providerId,
         })
 
         if (!inputs || inputs.length === 0) {
@@ -147,11 +171,36 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
         // 1. 创建 Mass 函数列表
         const massFunctions = createMassFunctionsFromInputs(inputs)
 
-        // 2. 融合并评估
-        const engine = getFusionEngine()
-        const internalAssessment = engine.fuseAndAssess(massFunctions)
+        // 2. 应用 6 源权重折扣（Shafer Discounting，融合前应用）
+        //    论文支撑：Shafer 1976, "A Mathematical Theory of Evidence", Chapter 9 §Discounting
+        //    读取 ConfigStore 的 decision.weights，按业务侧 ID 映射到算法侧 sourceId，
+        //    对每个 Mass 函数独立折扣（w·m(A) for A≠Θ, w·m(Θ)+(1-w) for Θ）。
+        //    替代旧版"在融合结果上叠加线性调整"的降级方案（P1-7 修复）。
+        //    读取/应用失败时降级到无权重融合（不阻塞评估）。
+        let weightedMassFunctions = massFunctions
+        try {
+          const weightsConfig = (ConfigStore.get('decision.weights') ?? {}) as Record<string, unknown>
+          weightedMassFunctions = applyWeightsToMassFunctions(massFunctions, weightsConfig)
+          if (weightedMassFunctions !== massFunctions) {
+            logger.info('IPC.CREDIBILITY', `credibility:assess 应用 Shafer Discounting 权重`, {
+              sourceCount: massFunctions.length,
+              weightsConfigKeys: Object.keys(weightsConfig),
+            })
+          }
+        } catch (weightErr) {
+          // 权重应用失败时降级到无权重融合（不阻塞评估）
+          logger.warn('IPC.CREDIBILITY', `credibility:assess 应用权重失败，降级到无权重融合`, {
+            error: (weightErr as Error)?.message ?? String(weightErr),
+          })
+        }
 
-        // 3. 序列化为共享类型（将 Map-based MassFunction 转为 Array-based）
+        // 3. 融合并评估（v2.4 Phase C：透传 options 支持校准）
+        //    使用折扣后的 Mass 函数列表作为融合输入
+        const engine = getFusionEngine()
+        const internalAssessment = engine.fuseAndAssess(weightedMassFunctions, options)
+
+        // 4. 序列化为共享类型（将 Map-based MassFunction 转为 Array-based）
+        //    v2.4 Phase C：透传 calibratedConfidence / eceReport（若有）
         const assessment: ConfidenceAssessment = {
           belief: internalAssessment.belief,
           plausibility: internalAssessment.plausibility,
@@ -162,46 +211,12 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
           sources: internalAssessment.sources,
           fusionSteps: internalAssessment.fusionSteps,
           fusedMassFunction: serializeMassFunction(internalAssessment.fusedMassFunction),
-        }
-
-        // 4. 应用 DecisionSettings 6 源权重（降级方案：在融合结果上按平均权重线性调整）
-        //    背景：FusionEngine 不支持运行时设置权重（D-S + PCR5 算法核心不应修改），
-        //    因此读取 configSet 持久化的 decision.weights，对最终 confidence 做加权。
-        //    权重 key 为业务侧 ID（system-metrics / history-match / ...），与算法侧
-        //    sourceId（log / kb / ...）命名不同，但降级方案仅用权重数值的均值，
-        //    不依赖 ID 映射，符合"Demo 加分项"定位。
-        //    读取失败时降级到默认权重（不调整），不阻塞评估。
-        try {
-          const weightsConfig = (ConfigStore.get('decision.weights') ?? {}) as Record<string, unknown>
-          const weightValues = Object.values(weightsConfig)
-          const numericWeights = weightValues.filter(
-            (w): w is number => typeof w === 'number',
-          )
-          const totalWeight = numericWeights.reduce((s, w) => s + w, 0)
-          if (numericWeights.length > 0 && totalWeight > 0) {
-            // 归一化平均权重 ∈ [0, 1]，作为 confidence 的线性调整系数
-            const weightFactor = totalWeight / (numericWeights.length * 100)
-            const originalConfidence = assessment.confidence
-            assessment.confidence = originalConfidence * weightFactor
-            logger.info('IPC.CREDIBILITY', `credibility:assess 应用 6 源权重`, {
-              weightCount: numericWeights.length,
-              totalWeight,
-              avgWeight: totalWeight / numericWeights.length,
-              weightFactor: weightFactor.toFixed(4),
-              originalConfidence: originalConfidence.toFixed(4),
-              adjustedConfidence: assessment.confidence.toFixed(4),
-            })
-          } else {
-            logger.info('IPC.CREDIBILITY', `credibility:assess 跳过权重调整（权重为空或总和为 0）`, {
-              weightCount: numericWeights.length,
-              totalWeight,
-            })
-          }
-        } catch (weightErr) {
-          // configStore 读取失败时降级到默认权重（不调整），不阻塞评估
-          logger.warn('IPC.CREDIBILITY', `credibility:assess 读取 decision.weights 失败，降级到默认权重`, {
-            error: (weightErr as Error)?.message ?? String(weightErr),
-          })
+          ...(internalAssessment.calibratedConfidence !== undefined
+            ? { calibratedConfidence: internalAssessment.calibratedConfidence }
+            : {}),
+          ...(internalAssessment.eceReport !== undefined
+            ? { eceReport: internalAssessment.eceReport }
+            : {}),
         }
 
         logger.info('IPC.CREDIBILITY', `credibility:assess 完成`, {
@@ -261,6 +276,153 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
         const msg = (err as Error)?.message ?? 'DAG 数据生成失败'
         logger.error('IPC.CREDIBILITY', `credibility:dag 失败: ${msg}`)
         throw new Error(`DAG 数据生成失败: ${msg}`)
+      }
+    }
+  )
+
+  // =====================================================================
+  // v2.4 Phase C 收尾：校准 IPC handlers（6 个）
+  // ---------------------------------------------------------------------
+  // 论文支撑：Guo et al. 2017 (ICML, arXiv:1706.04599) §3.2 Temperature Scaling
+  // 设计：将 CalibrationTuner 暴露给渲染层，支持按 Provider 分类校准
+  // 注意：getCalibrationTuner() 是单例懒加载，无样本时 tuneProvider 返回 T=1.0
+  // =====================================================================
+
+  // ------------------------------------------------------------------
+  // credibility:calibrate — 校准指定 Provider（基于历史样本）
+  // ------------------------------------------------------------------
+  // 参数：(providerId: ProviderId, options?: OptimizeTOptions)
+  // 返回：TemperatureScalingResult（含 optimalT / eceBefore / eceAfter / searchTrace）
+  ipcMain.handle(
+    CREDIBILITY.CALIBRATE,
+    async (
+      _event,
+      providerId: ProviderId,
+      options?: OptimizeTOptions
+    ): Promise<TemperatureScalingResult> => {
+      try {
+        const tuner = getCalibrationTuner()
+        const result = tuner.tuneProvider(providerId, options ?? {})
+        logger.info('IPC.CREDIBILITY', `credibility:calibrate 完成`, {
+          providerId,
+          optimalT: result.optimalT,
+          eceBefore: result.eceBefore,
+          eceAfter: result.eceAfter,
+        })
+        return result
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '校准失败'
+        logger.error('IPC.CREDIBILITY', `credibility:calibrate 失败: ${msg}`)
+        throw new Error(`校准失败: ${msg}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // credibility:get-calibration — 获取指定 Provider 的当前校准状态
+  // ------------------------------------------------------------------
+  // 参数：(providerId: ProviderId)
+  // 返回：ProviderCalibration（未校准时返回 defaultT=1.0 的默认状态）
+  ipcMain.handle(
+    CREDIBILITY.GET_CALIBRATION,
+    async (_event, providerId: ProviderId): Promise<ProviderCalibration> => {
+      try {
+        const tuner = getCalibrationTuner()
+        return tuner.getProviderCalibration(providerId)
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '获取校准状态失败'
+        logger.error('IPC.CREDIBILITY', `credibility:get-calibration 失败: ${msg}`)
+        throw new Error(`获取校准状态失败: ${msg}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // credibility:get-calibration-state — 获取全局校准状态
+  // ------------------------------------------------------------------
+  // 参数：无
+  // 返回：CalibrationState（含所有 Provider 的校准状态 + defaultT + updatedAt）
+  ipcMain.handle(
+    CREDIBILITY.GET_CALIBRATION_STATE,
+    async (): Promise<CalibrationState> => {
+      try {
+        const tuner = getCalibrationTuner()
+        return tuner.getState()
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '获取全局校准状态失败'
+        logger.error('IPC.CREDIBILITY', `credibility:get-calibration-state 失败: ${msg}`)
+        throw new Error(`获取全局校准状态失败: ${msg}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // credibility:reset-calibration — 重置指定 Provider 的校准（T 回到 defaultT）
+  // ------------------------------------------------------------------
+  // 参数：(providerId: ProviderId)
+  // 返回：boolean（true 表示已重置，false 表示该 Provider 未校准过）
+  ipcMain.handle(
+    CREDIBILITY.RESET_CALIBRATION,
+    async (_event, providerId: ProviderId): Promise<boolean> => {
+      try {
+        const tuner = getCalibrationTuner()
+        const ok = tuner.resetProvider(providerId)
+        logger.info('IPC.CREDIBILITY', `credibility:reset-calibration`, {
+          providerId,
+          ok,
+        })
+        return ok
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '重置校准失败'
+        logger.error('IPC.CREDIBILITY', `credibility:reset-calibration 失败: ${msg}`)
+        throw new Error(`重置校准失败: ${msg}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // credibility:compute-ece — 计算指定 Provider 的当前 ECE（不修改 T）
+  // ------------------------------------------------------------------
+  // 参数：(providerId: ProviderId, numBuckets?: number)
+  // 返回：EceResult（含 ece / mce / bucketStats / totalSamples）
+  ipcMain.handle(
+    CREDIBILITY.COMPUTE_ECE,
+    async (
+      _event,
+      providerId: ProviderId,
+      numBuckets?: number
+    ): Promise<EceResult> => {
+      try {
+        const tuner = getCalibrationTuner()
+        return tuner.computeEce(providerId, numBuckets)
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '计算 ECE 失败'
+        logger.error('IPC.CREDIBILITY', `credibility:compute-ece 失败: ${msg}`)
+        throw new Error(`计算 ECE 失败: ${msg}`)
+      }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // credibility:add-calibration-sample — 记录新的校准样本（内存操作，不持久化）
+  // ------------------------------------------------------------------
+  // 参数：(sample: CalibrationSample)
+  // 返回：boolean（始终 true，失败抛错）
+  ipcMain.handle(
+    CREDIBILITY.ADD_CALIBRATION_SAMPLE,
+    async (_event, sample: CalibrationSample): Promise<boolean> => {
+      try {
+        const tuner = getCalibrationTuner()
+        tuner.addSample(sample)
+        logger.info('IPC.CREDIBILITY', `credibility:add-calibration-sample`, {
+          decisionId: sample.decisionId,
+          providerId: sample.providerId,
+        })
+        return true
+      } catch (err) {
+        const msg = (err as Error)?.message ?? '添加校准样本失败'
+        logger.error('IPC.CREDIBILITY', `credibility:add-calibration-sample 失败: ${msg}`)
+        throw new Error(`添加校准样本失败: ${msg}`)
       }
     }
   )
@@ -449,6 +611,13 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
       'credibility:load-audit-report',
       'credibility:format-audit-report',
       'credibility:export-decision-html',
+      // v2.4 Phase C 收尾：校准 IPC 通道（6 个）
+      'credibility:calibrate',
+      'credibility:get-calibration',
+      'credibility:get-calibration-state',
+      'credibility:reset-calibration',
+      'credibility:compute-ece',
+      'credibility:add-calibration-sample',
     ],
   })
 }

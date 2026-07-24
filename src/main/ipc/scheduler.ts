@@ -27,8 +27,17 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { logger } from '../services/log/logger'
 import { Scheduler } from '../services/scheduler/scheduler'
 import { createDailyHealthCheckTask } from '../services/scheduler/daily-health-check'
-import { createDailyDecisionArchiveTask } from '../services/scheduler/daily-decision-archive'
-import { createWeeklyOpsReportTask } from '../services/scheduler/weekly-ops-report'
+import { createDailyDecisionArchiveTaskWithRepos } from '../services/scheduler/daily-decision-archive'
+import { createWeeklyOpsReportTaskWithRepos } from '../services/scheduler/weekly-ops-report'
+import {
+  ArchiveDecisionRepositoryAdapter,
+  ArchiveKnowledgeRepositoryAdapter,
+  DecisionWeeklyRepositoryAdapter,
+  KnowledgeWeeklyRepositoryAdapter,
+} from '../services/scheduler/archive-repo-adapter'
+import { DecisionRepository } from '../services/db/decision-repo'
+import { KnowledgeRepository } from '../services/db/knowledge-repo'
+import type { DatabaseManager } from '../services/db/database'
 import { SCHEDULER } from '@shared/ipc-channels'
 import type {
   SchedulerTaskId,
@@ -256,13 +265,30 @@ export function setupSchedulerStatusPush(): void {
  *   - daily-decision-archive  cron `0 18 * * *`  每日 18:00 归档
  *   - weekly-ops-report       cron `0 9 * * 1`   每周一 09:00 周报
  */
-export function initScheduler(): void {
+export function initScheduler(db: DatabaseManager): void {
   const scheduler = Scheduler.getInstance()
 
   // 1. 注册 3 个定时任务（默认全部启用）
   scheduler.register(createDailyHealthCheckTask())
-  scheduler.register(createDailyDecisionArchiveTask())
-  scheduler.register(createWeeklyOpsReportTask())
+
+  // P0-1 修复：注入真实 DecisionRepository / KnowledgeRepository 适配器，
+  // 让每日决策归档真正查询并写入知识库。
+  const decisionRepo = new DecisionRepository(db)
+  const knowledgeRepo = new KnowledgeRepository(db)
+  scheduler.register(
+    createDailyDecisionArchiveTaskWithRepos(
+      new ArchiveDecisionRepositoryAdapter(decisionRepo),
+      new ArchiveKnowledgeRepositoryAdapter(knowledgeRepo, db)
+    )
+  )
+
+  // P0-2 修复：注入真实周报仓储适配器，让运维周报基于真实数据统计。
+  scheduler.register(
+    createWeeklyOpsReportTaskWithRepos(
+      new DecisionWeeklyRepositoryAdapter(db),
+      new KnowledgeWeeklyRepositoryAdapter(db)
+    )
+  )
 
   // 2. 设置事件转发（task-start/done/error → scheduler:status push）
   setupSchedulerStatusPush()

@@ -314,6 +314,13 @@ export class McpServerService {
       const { name, arguments: args } = request.params
       const promptArgs: Record<string, string> = args ?? {}
       const messages = await getPrompt(name, promptArgs)
+      // v2.4 Phase D2：未知 prompt id 时 getPrompt 返回 null，返回空 messages 让 MCP 客户端自行处理
+      if (messages === null) {
+        return {
+          description: undefined,
+          messages: []
+        }
+      }
       const adapted = adaptPromptMessagesForMcp(messages)
       const promptMeta = MCP_PROMPTS.find((p) => p.id === name)
       return {

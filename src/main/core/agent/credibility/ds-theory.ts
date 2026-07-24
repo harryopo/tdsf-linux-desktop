@@ -441,3 +441,113 @@ function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0
   return Math.min(1, Math.max(0, value))
 }
+
+// ============================================================================
+// Shafer Discounting（权重折扣）
+// ============================================================================
+//
+// 论文支撑：Shafer, G. 1976, "A Mathematical Theory of Evidence",
+//           Princeton University Press, Chapter 9 §Discounting
+//           Smets, P. 1993, "Belief Functions: The Disjunctive Rule of
+//           Combination and the Generalized Bayesian Theorem"
+//
+// 在 D-S 证据理论中，权重处理的标准方法是 Shafer Discounting：
+// 对每个证据源 i，给定可靠性权重 w_i ∈ [0, 1]，按以下公式折扣其 Mass 函数：
+//   m'_i(A) = w_i × m_i(A)            for A ≠ Θ（非全集焦元）
+//   m'_i(Θ) = m_i(Θ) + (1 - w_i)      全集吸收剩余质量
+// 这样保证 Σ m' = 1，且低权重证据对融合结果影响减小。
+//
+// 与"在融合结果上叠加线性调整"的区别：
+//   - Discounting 在融合前对每个证据源独立折扣，符合 D-S 公理
+//   - 融合（Dempster/PCR5）本身已是加权融合机制，无需在结果上再叠加线性系数
+// ============================================================================
+
+/**
+ * 应用 Shafer Discounting（权重折扣）到 Mass 函数
+ *
+ * 论文支撑：Shafer, G. 1976, "A Mathematical Theory of Evidence",
+ *           Princeton University Press, Chapter 9 §Discounting
+ *
+ * 折扣公式（Shafer 1976 原始定义）：
+ *   m'(A) = w × m(A)             for A ≠ Θ（非全集焦元）
+ *   m'(Θ) = w × m(Θ) + (1 - w)   全集：折扣后剩余质量 + 无知质量
+ *
+ * 注意：全集 Θ 的质量本身也参与折扣（w·m(Θ)），再加 (1-w) 补齐。
+ * 这是保证归一化的关键——不能写成 m'(Θ) = m(Θ) + (1-w)。
+ *
+ * 直观解释：
+ *   - w = 1.0：完全信任该证据源，不折扣（m' = m）
+ *   - w = 0.5：半信任，所有焦元质量打 5 折，剩余 50% 归入"不确定"（Θ）
+ *   - w = 0.0：完全不信任，所有质量归入 Θ（等价于无信息 VBF）
+ *
+ * 数学保证（归一化保持）：
+ *   设原始 Mass 已归一化：Σ_{A≠Θ} m(A) + m(Θ) = 1
+ *   折扣后总和：
+ *     Σm' = Σ_{A≠Θ} w·m(A) + [w·m(Θ) + (1-w)]
+ *         = w · [Σ_{A≠Θ} m(A) + m(Θ)] + (1-w)
+ *         = w · 1 + (1-w)
+ *         = 1  ✓
+ *
+ * @param mf - 原始 Mass 函数（必须已归一化，Σm=1）
+ * @param weight - 可靠性权重 w ∈ [0, 1]（超出范围会 clamp）
+ * @returns 折扣后的新 Mass 函数（不修改原对象）
+ */
+export function applyDiscount(mf: MassFunction, weight: number): MassFunction {
+  const w = Math.max(0, Math.min(1, weight))
+  const newFocalElements = new Map<string, number>()
+
+  // 识别全集 Θ 的 key（在二元框架 {T, ¬T} 中为 'T|¬T'）
+  const universeKey = findUniverseKey(mf.focalElements)
+
+  for (const [key, mass] of mf.focalElements) {
+    if (key === universeKey) {
+      // 全集：m'(Θ) = w·m(Θ) + (1 - w)
+      //   w·m(Θ)：折扣后剩余的全集质量
+      //   (1-w)：未分派的"无知"质量归入全集
+      newFocalElements.set(key, w * mass + (1 - w))
+    } else {
+      // 非全集：m'(A) = w × m(A)
+      newFocalElements.set(key, w * mass)
+    }
+  }
+
+  return {
+    ...mf,
+    focalElements: newFocalElements,
+  }
+}
+
+/**
+ * 在 focalElements 中找到全集 Θ 的 key
+ *
+ * 全集是包含识别框架所有元素的焦元。在二元框架 {T, ¬T} 中，
+ * 全集 key 为 'T|¬T'。
+ *
+ * 实现策略（精确优先，启发式降级）：
+ *   1. 精确匹配：用 focalKey(new Set([TRUSTED, UNTRUSTED])) 计算 'T|¬T'，
+ *      若 focalElements 包含该 key，直接返回（O(1)）
+ *   2. 启发式降级：遍历所有 key，返回元素数量最多的那个
+ *      （用于支持未来非二元框架扩展）
+ *
+ * @param focalElements - 焦元 Map
+ * @returns 全集 key（找不到则返回元素最多的那个 key；空 Map 返回 ''）
+ */
+function findUniverseKey(focalElements: Map<string, number>): string {
+  // 1) 精确匹配：二元框架的全集 key
+  const binaryUniverseKey = focalKey(new Set<string>([TRUSTED, UNTRUSTED]))
+  if (focalElements.has(binaryUniverseKey)) {
+    return binaryUniverseKey
+  }
+
+  // 2) 启发式降级：元素数量最多的 key（支持非二元框架扩展）
+  let universeKey = ''
+  let maxElements = 0
+  for (const key of focalElements.keys()) {
+    const elementCount = key.split('|').length
+    if (elementCount > maxElements) {
+      maxElements = elementCount
+      universeKey = key
+    }
+  }
+  return universeKey
+}
