@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { FC } from 'react'
-import { Sparkles, Workflow, AlertTriangle } from 'lucide-react'
+import { Sparkles, Workflow, AlertTriangle, Search, Terminal, FileText, TrendingUp } from 'lucide-react'
 import { LoopWorkflowPanel } from './LoopWorkflowPanel'
 import { MOCK_CHAT_MESSAGES } from './mock-data'
 import { useLoopEngineering } from './useLoopEngineering'
@@ -111,32 +111,80 @@ const MessageList: FC<MessageListProps> = ({
           ))}
         </>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 py-10 text-center">
-          <Sparkles className="size-7 text-[var(--trae-text-brand)] opacity-80" />
-          <div className="text-[14px] font-medium text-[var(--trae-text-default)]">开始与运维 Agent 对话</div>
-          <div className="max-w-[300px] text-[12px] leading-5 text-[var(--trae-text-tertiary)]">
-            主路径：agent:chat → Supervisor
-            {activeSessionId ? '（已连 SSH，可调用只读诊断工具）' : '（未连 SSH 时仅文本；连接后可只读摸机）'}
-            。也可打开「演示模式」走 7 步 HITL。
+        /* ===== 欢迎态：能力网格 + 快捷 chips（对齐 design-app 视觉） ===== */
+        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8">
+          {/* 品牌图标 */}
+          <div className="flex size-10 items-center justify-center rounded-[10px] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)]">
+            <Sparkles className="size-5 text-[var(--trae-icon-brand)]" />
           </div>
-          {!activeSessionId && (
-            <button
-              type="button"
-              onClick={() => navigate('/settings/ssh')}
-              className="inline-flex h-8 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
-            >
-              去连接 SSH
-            </button>
-          )}
-          {providers.length === 0 && (
-            <button
-              type="button"
-              onClick={() => navigate('/settings/model')}
-              className="inline-flex h-8 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[12px] font-medium text-[var(--trae-text-onbrand)]"
-            >
-              去配置模型
-            </button>
-          )}
+
+          {/* 问候语 */}
+          <div className="mt-3 text-[13px] font-semibold text-[var(--trae-text-default)]">
+            你好，我是 TDSF AI 运维助手
+          </div>
+          <div className="mt-1.5 max-w-[380px] text-center text-[11px] leading-relaxed text-[var(--trae-text-secondary)]">
+            {activeSessionId
+              ? '已连接服务器，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'
+              : '连接 SSH 服务器后，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'}
+          </div>
+
+          {/* 能力网格 2×2 */}
+          <div className="mt-4 grid w-full max-w-[400px] grid-cols-2 gap-2">
+            {([
+              { icon: <Search className="size-3" />, title: '故障诊断', desc: '快速定位系统异常' },
+              { icon: <Terminal className="size-3" />, title: '命令执行', desc: '安全执行运维命令' },
+              { icon: <FileText className="size-3" />, title: '配置分析', desc: '解读配置文件' },
+              { icon: <TrendingUp className="size-3" />, title: '性能优化', desc: '发现性能瓶颈' },
+            ] as const).map((cap) => (
+              <div
+                key={cap.title}
+                className="flex items-center gap-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-2 text-left transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l2)]"
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-icon-secondary)]">
+                  {cap.icon}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-medium text-[var(--trae-text-default)]">{cap.title}</div>
+                  <div className="text-[10px] text-[var(--trae-text-tertiary)]">{cap.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 快捷 chips */}
+          <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+            {['诊断 Nginx 502', '查看磁盘空间', '检查端口占用', '分析错误日志'].map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                className="inline-flex h-5 items-center whitespace-nowrap rounded-[4px] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-2 text-[10px] text-[var(--trae-text-secondary)] transition-colors duration-[120ms] hover:border-[var(--trae-border-brand)] hover:text-[var(--trae-text-brand)]"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          {/* 引导按钮（未连接/未配置时显示） */}
+          <div className="mt-5 flex items-center gap-2">
+            {!activeSessionId && (
+              <button
+                type="button"
+                onClick={() => navigate('/settings/ssh')}
+                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[11px] text-[var(--trae-text-brand)] transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-brand-popup)]"
+              >
+                连接 SSH 服务器
+              </button>
+            )}
+            {providers.length === 0 && (
+              <button
+                type="button"
+                onClick={() => navigate('/settings/model')}
+                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-opacity duration-150 hover:opacity-90"
+              >
+                配置 AI 模型
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

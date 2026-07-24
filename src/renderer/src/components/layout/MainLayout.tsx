@@ -16,15 +16,19 @@
  *
  * 暗色模式默认开启（在 main.tsx 中 document.documentElement.classList.add('dark')）。
  */
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import '@/components/layout/MainLayout.css'
 import '@/components/workbench/Workbench.css'
 
-/** MainLayout 极简主布局（纯 Outlet 容器） */
+/** MainLayout 极简主布局（纯 Outlet 容器 + 路由切换入场动画） */
 const MainLayout: React.FC = () => {
+  const location = useLocation()
   return (
     <div className="wb-main-layout">
-      <Outlet />
+      {/* key 驱动路由切换时重新触发 .page-enter 入场动画（fade-in-up 0.22s） */}
+      <div key={location.pathname} className="page-enter" style={{ height: '100%', width: '100%' }}>
+        <Outlet />
+      </div>
     </div>
   )
 }

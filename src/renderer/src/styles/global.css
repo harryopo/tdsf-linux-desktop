@@ -114,8 +114,8 @@ textarea,
    ========================================================================== */
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -123,13 +123,17 @@ textarea,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--trae-border-neutral-l2);
+  background: color-mix(in srgb, var(--trae-border-neutral-l2) 65%, transparent);
   border-radius: 4px;
   transition: background var(--trae-duration-fast) var(--trae-ease-out);
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--trae-border-neutral-l3);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--trae-text-tertiary);
 }
 
 /* 滚动条角落 */
