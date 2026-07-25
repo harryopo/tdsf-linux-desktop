@@ -13,65 +13,23 @@
   flex-shrink: 0;
 }
 
-/* ===== AI message animations ===== */
-@keyframes ai-fade-in { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
-@keyframes ai-check-pop { 0%{transform:scale(0);} 60%{transform:scale(1.15);} 100%{transform:scale(1);} }
+/* ===== Workbench-only animations (not in AIPanel.css) ===== */
 @keyframes ai-dots { 0%,20%{opacity:.2;} 50%{opacity:1;} 80%,100%{opacity:.2;} }
-@keyframes ai-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(56,123,255,0.5);} 50%{box-shadow:0 0 0 4px rgba(56,123,255,0);} }
-@keyframes ai-shimmer { 0%{background-position:-200% 0;} 100%{background-position:200% 0;} }
-@keyframes ai-blink { 0%,50%{opacity:1;} 51%,100%{opacity:0;} }
-@keyframes fillBar { from{width:0;} }
-@keyframes token-pop { 0%{opacity:0;transform:translateY(-4px) scale(0.96);} 100%{opacity:1;transform:translateY(0) scale(1);} }
 @keyframes selPopIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.ai-msg { animation: ai-fade-in 0.3s cubic-bezier(.3,0,0,1) both; margin-bottom: 12px; }
-.ai-tool-check { animation: ai-check-pop 0.25s cubic-bezier(.3,0,0,1) both; }
 .ai-dots span { display: inline-block; animation: ai-dots 1.4s infinite; }
 .ai-dots span:nth-child(2){ animation-delay: 0.2s; }
 .ai-dots span:nth-child(3){ animation-delay: 0.4s; }
-.ai-pulse-dot { animation: ai-pulse 1.5s infinite; }
 .ai-term-cursor { display: inline-block; width: 7px; height: 13px; background: var(--trae-bg-brand, var(--bg-brand)); vertical-align: text-bottom; animation: ai-blink 1s infinite; }
 .ai-fill-bar > div { animation: fillBar 0.6s cubic-bezier(.2,.8,.2,1) both; }
-.ai-token-pop { animation: token-pop 0.25s cubic-bezier(.3,0,0,1) both; }
 
-.shimmer-text {
-  background: linear-gradient(90deg, var(--trae-text-tertiary, var(--text-tertiary)) 0%, var(--trae-text-default, var(--text-default)) 50%, var(--trae-text-tertiary, var(--text-tertiary)) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: ai-shimmer 2s linear infinite;
-}
-
-/* ===== Collapsible tool card (grid-rows 0fr -> 1fr) ===== */
+/* ===== CSS-only toggle (file tree / design HTML fallback) ===== */
 .ai-tool-toggle { display: none; }
-.ai-composer:focus-within {
-  border-color: var(--trae-border-brand, var(--border-brand));
-  box-shadow: 0 0 0 3px var(--trae-bg-brand-popup, rgba(56,123,255,0.12)) inset;
-}
-.ai-tool-row {
-  display: flex; align-items: center; gap: 6px;
-  height: 28px; padding: 0 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--trae-text-secondary, var(--text-secondary));
-  transition: background 0.12s ease, color 0.12s ease;
-  user-select: none;
-}
-.ai-tool-row:hover { background: var(--trae-bg-overlay-l2, var(--bg-overlay-l2)); color: var(--trae-text-default, var(--text-default)); }
-.ai-tool-body {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.2s cubic-bezier(.3,0,0,1);
-}
-.ai-tool-body > .ai-tool-inner { overflow: hidden; min-height: 0; }
 .ai-tool-toggle:checked ~ .ai-tool-body { grid-template-rows: 1fr; }
 .ai-tool-toggle:checked ~ .ai-tool-row .ai-chev { transform: rotate(90deg); }
-.ai-chev { transition: transform 0.15s ease; display: inline-flex; }
 
 /* ===== Token curve popover (CSS-only toggle) ===== */
 .tk-pop-toggle { display: none; }
@@ -307,9 +265,7 @@
    Workbench Shell Layout (1:1 from workbench-disconnected.html / workbench-ai.html)
    类名前缀 wb- 避免冲突
 
-   重要:本节用 .wb-shell 前缀提升选择器优先级,覆盖 workbench-density.css
-        中错误的尺寸覆盖(44px titlebar / 40×40 nav / 26px statusbar),
-        严格对齐设计稿 40px / 36×36 / 24px。
+   设计稿尺寸：Titlebar 40px / NavBtn 36×36 / StatusBar 24px / AIPanel 560px
    ======================================================================== */
 
 /* ===== Workbench Shell (App-Shell Viewport) ===== */
@@ -321,8 +277,7 @@
   line-height: 1.5;
 }
 
-/* ===== Density 修正:强制对齐设计稿 40px / 36×36 / 24px
-   覆盖 workbench-density.css 的 .wb-shell .wb-* 错误覆盖 */
+/* ===== 设计稿尺寸保护（高优先级声明） */
 .wb-shell .wb-titlebar {
   height: 40px;
   padding: 0 8px;
@@ -785,6 +740,107 @@
 .wb-ft-empty-dir {
   font-size: 11px;
   color: var(--trae-text-tertiary);
+}
+
+/* ===== SFTP Transfer Panel ===== */
+.wb-filetree-transfer-panel {
+  flex-shrink: 0;
+  border-top: 1px solid var(--trae-border-neutral-l1);
+  background: var(--trae-bg-base-secondary);
+  padding: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.wb-filetree-transfer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.wb-filetree-transfer-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--trae-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.wb-filetree-transfer-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--trae-icon-tertiary);
+  cursor: pointer;
+}
+
+.wb-filetree-transfer-clear:hover {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--trae-text-default);
+}
+
+.wb-filetree-transfer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wb-filetree-transfer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wb-filetree-transfer-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wb-filetree-transfer-name {
+  font-size: 10px;
+  color: var(--trae-text-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-filetree-transfer-size {
+  font-size: 9px;
+  color: var(--trae-text-tertiary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-filetree-transfer-bar {
+  height: 3px;
+  border-radius: 9999px;
+  background: var(--trae-bg-overlay-l3);
+  overflow: hidden;
+}
+
+.wb-filetree-transfer-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--trae-bg-brand);
+  transition: width 0.2s ease;
+}
+
+.wb-filetree-transfer-fill.is-done {
+  background: var(--trae-status-success-default);
+}
+
+.wb-filetree-transfer-fill.is-error {
+  background: var(--trae-status-error-default);
 }
 
 /* ===== Status Bar (24px) ===== */

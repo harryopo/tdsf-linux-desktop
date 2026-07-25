@@ -794,6 +794,24 @@ export interface SftpEntry {
   group: string
 }
 
+/**
+ * SFTP 上传/下载进度事件（主 → 渲染，通道 sftp:progress）
+ */
+export interface SftpProgressEvent {
+  /** 传输任务 ID（调用 upload/download 时传入，用于关联 UI） */
+  transferId: string
+  /** 传输类型 */
+  type: 'upload' | 'download'
+  /** 远程路径 */
+  remotePath: string
+  /** 本地路径 */
+  localPath: string
+  /** 已传输字节 */
+  transferred: number
+  /** 总字节（可能为 0，表示未知） */
+  total: number
+}
+
 // ============================================================================
 // Phase M：SSH 密钥管理相关类型（密钥列表/生成/上传/删除）
 // ============================================================================
