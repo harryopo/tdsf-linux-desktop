@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- v0.9.7 P3 M1：Token logprobs 直采 — **部分落地 + Claude 兑底（诚实策略）**
+  - 论文依据：**Zhao 2026, arXiv:2603.18940** §3 — token-level answer-distribution entropy 比 text-Shannon entropy 更预测 LLM 推理可靠性
+  - **诚实策略**：4/8 provider 直采 + 4/8 provider 兑底（用户主用 Claude 走 fallback 路径）
+    - **支持 4/8 provider**（OpenAI 协议族）：openai-compatible / deepseek / qwen / volcengine-ark / ollama
+    - **兑底 4/8 provider**（不暴露 logprobs）：anthropic / claude-sdk / google → 走 thinking-block / text-fallback
+  - `ProviderCapabilities.logprobs: boolean` 字段（`src/shared/agent-types.ts` + 8 provider 默认表）
+  - `tokenLogprobShannonEntropy(logprobs)` 纯函数（数值稳定：max-subtraction + log₂ 归一化）
+  - `CotTraceCollector.recordTokenLogprobEntropies` 方法（4 优先级降级：thinking-block / turn-text / **logprobs** / text-fallback）
+  - supervisor.ts 集成：`providerOptions.openai = { logprobs: true, top_logprobs: 5 }` + 捕获 `result.fullStream` 的 `providerMetadata.openai.logprobs[]`
+  - 测试覆盖 **+44**：tokenLogprobShannonEntropy 14 + recordTokenLogprobEntropies 15 + provider-capabilities 15
+
+### Added (prior v0.9.6 P2 M6/M7)
 - v0.9.6 P2 M6：CoT-shape 熵轨迹可视化渲染（ConfidenceBreakdown 内嵌纯 SVG 折线图）
   - 320×80 viewBox，水平网格 + y 轴标签 + 主折线（绿/黄）+ 轨迹点 + 违规红圆标记
   - 单调性 tag + 5 列统计指标（步数/H₀/Hₙ/ΔH/形状置信度）+ 论文依据
@@ -22,11 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 现已在 CSS 文件末尾补齐完整 CoT 区样式块
 
 ### Quality
-- 全量测试：1122 → 1304（+182，+16.2%）
+- 全量测试：1304 → 1348（+44，+3.4%）
 - 五绿门禁 4/5 通过：typecheck:node / typecheck:web / lint / test
-- 完成度：~98% → ~100%（P2 M6/M7 全部完成）
+- 完成度：100%（P2 M6/M7 + P3 M1 全部完成）
 
 ### Planned
+- v0.9.7+ P3 M2：thinking block 内部再切分（进一步细化 trace step）
+- v0.9.7+ P3 M3：自适应权重（按 provider 类别动态调整 4 路融合比例）
 - v1.5: Firecracker microVM sandbox (replaces Docker)
 - v1.5: Full OpenTelemetry integration (Langfuse + Tempo)
 - v2.0: code-server / Theia IDE embedding
