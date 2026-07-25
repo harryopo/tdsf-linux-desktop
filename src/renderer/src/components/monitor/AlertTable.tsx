@@ -161,7 +161,7 @@ function AlertRow({
         className="mon-table-td whitespace-nowrap"
         style={{ color: statusColor(record.status) }}
       >
-        ● {record.status}
+        {record.status}
       </td>
     </tr>
   )

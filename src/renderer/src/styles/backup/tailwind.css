@@ -1,0 +1,92 @@
+/**
+ * Tailwind CSS v4 入口样式
+ *
+ * 说明：
+ * - Tailwind v4 用 @import "tailwindcss" 引入全部能力（含 preflight）
+ * - @theme 中定义 Tailwind 原生 token，会生成对应工具类（如 bg-background）
+ * - TRAE 完整 token 在 trae-tokens.css 中定义，此文件只做桥接
+ * - 与 AntD 5 共存：通过 @layer 让 AntD 样式优先于 Tailwind preflight
+ *
+ * 引入顺序（CSS 规范要求 @import 必须在所有其他规则之前）：
+ * 1. Google Fonts CDN — Inter（SF Pro Text 开源等价）+ JetBrains Mono
+ * 2. trae-tokens.css — TRAE 完整 token（CSS 变量）
+ * 3. tailwindcss — Tailwind preflight + 工具类
+ * 4. @theme inline — Tailwind 语义 token 桥接到 TRAE 变量
+ *
+ * 字体策略：
+ * - 在线模式：CDN 加载 Inter + JetBrains Mono（GitHub/Figma/Linear 同款字体）
+ * - 离线模式：fallback 到 system-ui（macOS = SF Pro Text，Windows = Segoe UI Variable）
+ * - Inter 是 SF Pro Text 的最佳开源等价（字宽、x-height、字重 1:1 对齐）
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import './trae-tokens.css';
+@import 'tailwindcss';
+
+/*
+ * Tailwind v4 语义 token 桥接
+ * 让 Tailwind 工具类（如 bg-background / text-foreground）使用 TRAE token
+ */
+@theme inline {
+  --color-background: var(--trae-bg-base-default);
+  --color-foreground: var(--trae-text-default);
+  --color-card: var(--trae-bg-base-secondary);
+  --color-card-foreground: var(--trae-text-default);
+  --color-popover: var(--trae-bg-menu);
+  --color-popover-foreground: var(--trae-text-default);
+  --color-primary: var(--trae-bg-brand);
+  --color-primary-foreground: var(--trae-text-onbrand);
+  --color-secondary: var(--trae-bg-base-tertiary);
+  --color-secondary-foreground: var(--trae-text-default);
+  --color-muted: var(--trae-bg-base-tertiary);
+  --color-muted-foreground: var(--trae-text-secondary);
+  --color-accent: var(--trae-bg-overlay-l2);
+  --color-accent-foreground: var(--trae-text-default);
+  --color-destructive: var(--trae-status-error);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--trae-border-neutral-l1);
+  --color-input: var(--trae-border-neutral-l2);
+  --color-ring: var(--trae-bg-brand);
+
+  --color-success: var(--trae-status-success);
+  --color-warning: var(--trae-status-alert);
+  --color-error: var(--trae-status-error);
+  --color-info: var(--trae-status-primary);
+
+  --radius-sm: var(--trae-radius-4);
+  --radius-md: var(--trae-radius-6);
+  --radius-lg: var(--trae-radius-8);
+  --radius-xl: var(--trae-radius-10);
+
+  --font-sans: 'Inter', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+}
+
+/*
+ * Tailwind v4 默认暗色模式
+ * 设计稿是 dark-only，默认给 <html> 加 dark 类
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 与 AntD 5 共存：
+ * - 让 Tailwind preflight 不覆盖 AntD 组件样式
+ * - 通过 important 选择性提升 Tailwind 优先级（仅在 .tw-layer 内）
+ */
+@layer base {
+  * {
+    border-color: var(--trae-border-neutral-l1);
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--trae-bg-base-default);
+    color: var(--trae-text-default);
+    font-family: var(--trae-font-family-default);
+    font-size: 13px;
+    line-height: 20px;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

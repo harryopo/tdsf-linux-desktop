@@ -1,0 +1,623 @@
+/**
+ * TDSF 全局样式 v3.0 — 基于 TRAE 设计 token
+ *
+ * 设计哲学：
+ * 1. TRAE 黑蓝美学（深炭黑 #1A1B1D + 科技蓝 #387BFF）
+ * 2. IDE 密度（13px 正文字号 + 紧凑间距）
+ * 3. 克制动效（200ms ease-out 标准过渡）
+ *
+ * 注意：
+ * - 本文件只包含全局重置、滚动条、AntD 覆盖、工具类
+ * - 所有设计 token 统一来自 trae-tokens.css（--trae-* 前缀）
+ * - 旧 --color-* / --space-* / --radius-* 变量在 trae-tokens.css 中有别名兼容
+ *
+ * 章节：
+ * 1. 全局重置 + 文字渲染优化
+ * 2. 滚动条美化（macOS 风格）
+ * 3. 焦点环 / 选中态 / 关键帧动画
+ * 4. Ant Design 5 主题覆盖（TRAE 风格）
+ * 5. 通用工具类
+ */
+
+/* ==========================================================================
+   0. 设计 Token 别名（间距 / 圆角，引用 trae-tokens.css）
+   ========================================================================== */
+:root {
+  /*
+   * 间距别名 --spacing-*（spec §B 绝对像素语义，对齐设计稿 0/4/6/8/12/16/24/32/40px）
+   *
+   * 命名区分说明：
+   * - 本文件用 `--spacing-<px>` 表示「绝对像素值」（如 --spacing-4 = 4px）
+   * - trae-tokens.css 用 `--space-<step>` 表示「步进语义」（如 --space-4 = 16px = 4 步 × 4px）
+   * - 二者前缀不同，避免 CSS 级联覆盖冲突（P0 修复：原 --space-* 同名覆盖 trae-tokens.css）
+   */
+  --spacing-0: var(--trae-spacer-0);
+  --spacing-4: var(--trae-spacer-4);
+  --spacing-6: var(--trae-spacer-6);
+  --spacing-8: var(--trae-spacer-8);
+  --spacing-12: var(--trae-spacer-12);
+  --spacing-16: var(--trae-spacer-16);
+  --spacing-24: var(--trae-spacer-24);
+  --spacing-32: var(--trae-spacer-32);
+  --spacing-40: var(--trae-spacer-40);
+
+  /*
+   * 圆角别名 --radius-*（spec §B 绝对像素语义，对齐设计稿 2/4/6/8/10px）
+   * 注：trae-tokens.css 未定义 --radius-2/4/6/8/10 同名变量，无级联冲突，保持原命名
+   */
+  --radius-2: var(--trae-radius-2);
+  --radius-4: var(--trae-radius-4);
+  --radius-6: var(--trae-radius-6);
+  --radius-8: var(--trae-radius-8);
+  --radius-10: var(--trae-radius-10);
+}
+
+/* ==========================================================================
+   1. 全局重置 + 文字抗锯齿 + 渲染优化
+   ========================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--trae-font-family-default);
+  font-size: var(--trae-body-base-font-size);
+  line-height: var(--trae-body-base-line-height);
+  color: var(--trae-text-default);
+  background-color: var(--trae-bg-base-default);
+
+  /* 文字抗锯齿 + 渲染优化 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'tnum' 1, 'lnum' 1, 'kern' 1, 'liga' 1, 'calt' 1;
+
+  /* 桌面应用体验：禁止文本选择 */
+  user-select: none;
+  -webkit-user-select: none;
+
+  /* 默认过渡（克制） */
+  transition: background-color var(--trae-duration-base) var(--trae-ease-out),
+              color var(--trae-duration-base) var(--trae-ease-out);
+}
+
+/* 代码字体（等宽，引用 trae-tokens.css，对齐 spec §B 字体栈对齐 Scenario） */
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--trae-font-family-mono);
+}
+
+/* 允许输入框、文本域选择文本 */
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ==========================================================================
+   2. 滚动条美化（macOS 风格 + TRAE 暗色）
+   ========================================================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--trae-border-neutral-l2);
+  border-radius: 4px;
+  transition: background var(--trae-duration-fast) var(--trae-ease-out);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--trae-border-neutral-l3);
+}
+
+/* 滚动条角落 */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ==========================================================================
+   3. 焦点环 / 选中态 / 关键帧动画
+   ========================================================================== */
+
+/* 焦点环（focus-visible，键盘导航可见） */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--trae-status-primary-surface-l2);
+  transition: box-shadow var(--trae-duration-fast) ease;
+}
+
+/* 文本选中（主题色） */
+::selection {
+  background: var(--trae-status-primary-surface-l2);
+  color: var(--trae-text-default);
+}
+
+/* 关键帧动画 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUpStagger {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes typingPulse {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 减少动画偏好（无障碍） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   3.5 全局按钮按压反馈（跨页面统一）
+   ========================================================================== */
+
+/** 通用按压反馈类：配合 transition 使用，提供 80ms scale 微动效 */
+.btn-press {
+  transition: transform 80ms ease-out;
+}
+
+.btn-press:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-press {
+    transition: none;
+  }
+
+  .btn-press:active {
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   4. Ant Design 5 主题覆盖（TRAE 黑蓝风格）
+   ========================================================================== */
+
+/* === 主按钮 === */
+.ant-btn-primary {
+  background: var(--trae-bg-brand) !important;
+  border: none !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+  border-radius: var(--trae-radius-4) !important;
+  box-shadow: 0 1px 2px rgba(56, 123, 255, 0.2);
+  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
+}
+
+.ant-btn-primary:not(:disabled):hover {
+  background: var(--trae-bg-brand-hover) !important;
+  box-shadow: 0 4px 12px rgba(56, 123, 255, 0.3);
+}
+
+.ant-btn-primary:not(:disabled):active {
+  background: var(--trae-bg-brand-active) !important;
+  transition-duration: var(--trae-duration-fast);
+}
+
+.ant-btn-primary:disabled {
+  background: var(--trae-bg-brand-disabled) !important;
+  color: var(--trae-text-tertiary) !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* === 默认按钮 === */
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):not(.ant-btn-text):not(.ant-btn-link) {
+  border-radius: var(--trae-radius-4) !important;
+  border-color: var(--trae-border-neutral-l2) !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
+}
+
+.ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover {
+  border-color: var(--trae-bg-brand) !important;
+  color: var(--trae-text-brand) !important;
+}
+
+/* === 输入框 === */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-select-selector,
+.ant-picker {
+  border-radius: var(--trae-radius-4) !important;
+  transition: all var(--trae-duration-base) var(--trae-ease-out) !important;
+  font-size: var(--trae-body-base-font-size) !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input-number:focus,
+.ant-input-number-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  border-color: var(--trae-bg-brand) !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
+  color: var(--trae-text-tertiary);
+}
+
+/* === 卡片 === */
+.ant-card {
+  border-radius: var(--trae-radius-8) !important;
+  border: 1px solid var(--trae-border-neutral-l1) !important;
+  background: var(--trae-bg-base-secondary) !important;
+  transition: all var(--trae-duration-base) var(--trae-ease-out) !important;
+}
+
+.ant-card:hover {
+  box-shadow: var(--trae-shadow-card);
+}
+
+/* === Modal === */
+.ant-modal-content {
+  border-radius: var(--trae-radius-8) !important;
+  box-shadow: var(--trae-shadow-card) !important;
+  background: var(--trae-bg-base-tertiary) !important;
+  overflow: hidden;
+  padding: 0;
+}
+
+.ant-modal-header {
+  border-bottom: 1px solid var(--trae-border-neutral-l1) !important;
+  padding: 14px 16px !important;
+  margin: 0 !important;
+}
+
+.ant-modal-title {
+  font-size: var(--trae-heading-sm-font-size) !important;
+  font-weight: var(--trae-font-weight-strong) !important;
+}
+
+.ant-modal-body {
+  padding: 16px !important;
+}
+
+.ant-modal-footer {
+  border-top: 1px solid var(--trae-border-neutral-l1) !important;
+  padding: 12px 16px !important;
+  margin: 0 !important;
+}
+
+/* Modal 背景遮罩 + 模糊 */
+.ant-modal-mask {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* === Tabs === */
+.ant-tabs-ink-bar {
+  height: 2px !important;
+  background: var(--trae-bg-brand) !important;
+  border-radius: 1px;
+}
+
+.ant-tabs-tab {
+  font-size: var(--trae-body-base-font-size) !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--trae-text-brand) !important;
+  font-weight: var(--trae-font-weight-strong) !important;
+}
+
+/* === 表格 === */
+.ant-table-tbody > tr {
+  transition: background var(--trae-duration-fast) var(--trae-ease-out) !important;
+}
+
+.ant-table-tbody > tr:hover {
+  background: var(--trae-status-primary-surface-l1) !important;
+}
+
+.ant-table-thead > tr > th {
+  font-weight: var(--trae-font-weight-strong) !important;
+  background: var(--trae-bg-base-default) !important;
+  color: var(--trae-text-secondary) !important;
+  border-bottom: 1px solid var(--trae-border-neutral-l2) !important;
+}
+
+/* === Select / Dropdown === */
+.ant-select-selector {
+  border-radius: var(--trae-radius-4) !important;
+}
+
+.ant-dropdown-menu {
+  border-radius: var(--trae-radius-6) !important;
+  box-shadow: var(--trae-shadow-card) !important;
+  padding: 4px !important;
+  border: 1px solid var(--trae-border-neutral-l1) !important;
+  background: var(--trae-bg-overlay-l3) !important;
+}
+
+.ant-dropdown-menu-item {
+  border-radius: var(--trae-radius-4) !important;
+  margin: 2px 0 !important;
+  font-size: var(--trae-body-base-font-size) !important;
+  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
+}
+
+.ant-dropdown-menu-item:hover {
+  background: var(--trae-status-primary-surface-l1) !important;
+}
+
+.ant-dropdown-menu-item-selected {
+  background: var(--trae-status-primary-surface-l2) !important;
+  color: var(--trae-text-brand) !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+}
+
+/* === Tooltip === */
+.ant-tooltip-inner {
+  border-radius: var(--trae-radius-4) !important;
+  box-shadow: var(--trae-shadow-card) !important;
+  font-size: var(--trae-body-sm-font-size) !important;
+  padding: 6px 10px !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+  background: var(--trae-bg-tooltip) !important;
+  color: var(--trae-text-default) !important;
+}
+
+.ant-tooltip-arrow::before {
+  background: var(--trae-bg-tooltip) !important;
+}
+
+/* === Drawer === */
+.ant-drawer-content {
+  border-radius: var(--trae-radius-8) 0 0 var(--trae-radius-8) !important;
+  background: var(--trae-bg-base-tertiary) !important;
+}
+
+/* === Tag === */
+.ant-tag {
+  border-radius: var(--trae-radius-4) !important;
+  font-size: var(--trae-body-sm-font-size) !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+  padding: 2px 8px !important;
+  border: none !important;
+}
+
+/* === Message / Notification === */
+.ant-message-notice-content {
+  border-radius: var(--trae-radius-6) !important;
+  box-shadow: var(--trae-shadow-card) !important;
+  background: var(--trae-bg-base-tertiary) !important;
+  border: 1px solid var(--trae-border-neutral-l1) !important;
+  font-size: var(--trae-body-base-font-size) !important;
+}
+
+.ant-notification-notice {
+  border-radius: var(--trae-radius-6) !important;
+  box-shadow: var(--trae-shadow-card) !important;
+  background: var(--trae-bg-base-tertiary) !important;
+  border: 1px solid var(--trae-border-neutral-l1) !important;
+}
+
+.ant-notification-notice-message {
+  font-size: var(--trae-body-base-strong-font-size) !important;
+  font-weight: var(--trae-font-weight-strong) !important;
+}
+
+/* === Switch === */
+.ant-switch {
+  transition: all var(--trae-duration-base) var(--trae-ease-out) !important;
+}
+
+.ant-switch.ant-switch-checked {
+  background: var(--trae-bg-brand) !important;
+}
+
+/* === Slider === */
+.ant-slider .ant-slider-track {
+  background: var(--trae-bg-brand) !important;
+}
+
+.ant-slider .ant-slider-handle::after {
+  box-shadow: 0 0 0 2px var(--trae-bg-brand) !important;
+  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
+}
+
+.ant-slider .ant-slider-handle:hover::after,
+.ant-slider .ant-slider-handle:focus::after {
+  box-shadow: 0 0 0 5px var(--trae-status-primary-surface-l2) !important;
+}
+
+/* === Checkbox / Radio === */
+.ant-checkbox-checked .ant-checkbox-inner {
+  background: var(--trae-bg-brand) !important;
+  border-color: var(--trae-bg-brand) !important;
+}
+
+.ant-radio-checked .ant-radio-inner {
+  border-color: var(--trae-bg-brand) !important;
+  background: var(--trae-bg-brand) !important;
+}
+
+/* === Form Item === */
+.ant-form-item-label > label {
+  font-size: var(--trae-body-base-font-size) !important;
+  font-weight: var(--trae-font-weight-medium) !important;
+  color: var(--trae-text-default) !important;
+}
+
+.ant-form-item-explain-error {
+  font-size: var(--trae-body-sm-font-size) !important;
+  color: var(--trae-status-error) !important;
+  margin-top: 4px !important;
+}
+
+/* === Empty === */
+.ant-empty-description {
+  color: var(--trae-text-tertiary) !important;
+  font-size: var(--trae-body-base-font-size) !important;
+}
+
+/* === Progress === */
+.ant-progress-bg {
+  background: var(--trae-bg-brand) !important;
+}
+
+/* === Alert === */
+.ant-alert {
+  border-radius: var(--trae-radius-6) !important;
+  border: 1px solid var(--trae-border-neutral-l1) !important;
+  font-size: var(--trae-body-base-font-size) !important;
+  padding: 10px 12px !important;
+}
+
+/* === Spin === */
+.ant-spin-dot-item {
+  background: var(--trae-bg-brand) !important;
+}
+
+.ant-spin-text {
+  color: var(--trae-text-secondary) !important;
+  font-size: var(--trae-body-sm-font-size) !important;
+  margin-top: 8px !important;
+}
+
+/* === Pagination === */
+.ant-pagination-item-active {
+  border-color: var(--trae-bg-brand) !important;
+  background: var(--trae-bg-brand) !important;
+}
+
+.ant-pagination-item-active a {
+  color: var(--trae-text-onbrand) !important;
+}
+
+/* === Statistic === */
+.ant-statistic-content {
+  font-weight: var(--trae-font-weight-strong) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* === Timeline === */
+.ant-timeline .ant-timeline-item-tail {
+  border-left: 2px solid var(--trae-border-neutral-l1) !important;
+}
+
+.ant-timeline .ant-timeline-item-head {
+  background: var(--trae-bg-base-tertiary) !important;
+  border-color: var(--trae-bg-brand) !important;
+  box-shadow: 0 0 0 4px var(--trae-status-primary-surface-l1) !important;
+}
+
+/* === Avatar === */
+.ant-avatar {
+  font-weight: var(--trae-font-weight-strong) !important;
+  transition: transform var(--trae-duration-base) var(--trae-ease-out) !important;
+}
+
+/* === Divider === */
+.ant-divider {
+  border-color: var(--trae-border-neutral-l1) !important;
+  margin: 12px 0 !important;
+}
+
+/* ==========================================================================
+   5. 通用工具类
+   ========================================================================== */
+
+/* 文字截断 */
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 多行截断（2 行） */
+.text-ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 数字等宽 */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 渐入动画（直接使用） */
+.fade-in-up {
+  animation: fadeInUp var(--trae-duration-base) var(--trae-ease-out) both;
+}
+
+/* 交互卡片（hover 提升 + 阴影） */
+.interactive-card {
+  transition: transform var(--trae-duration-base) var(--trae-ease-out),
+              box-shadow var(--trae-duration-base) var(--trae-ease-out),
+              border-color var(--trae-duration-base) var(--trae-ease-out);
+  cursor: pointer;
+}
+
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--trae-shadow-card);
+  border-color: var(--trae-bg-brand);
+}
+
+.interactive-card:active {
+  transform: scale(0.99);
+  transition-duration: var(--trae-duration-fast);
+}

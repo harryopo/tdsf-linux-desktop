@@ -29,6 +29,8 @@ export interface MessageListProps {
   showDemo: boolean
   onToolAction: (action: string, payload?: string) => void
   onMessageNavigate: (path: string) => void
+  /** 切换到示例模式（展示完整 Agent 诊断流程） */
+  onShowDemo?: () => void
 }
 
 /** AIPanel 消息滚动区 */
@@ -49,6 +51,7 @@ const MessageList: FC<MessageListProps> = ({
   showDemo,
   onToolAction,
   onMessageNavigate,
+  onShowDemo,
 }) => {
   return (
     <div className="ai-messages flex flex-col gap-6">
@@ -182,6 +185,16 @@ const MessageList: FC<MessageListProps> = ({
                 className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-[11px] font-medium text-[var(--trae-text-onbrand)] transition-opacity duration-150 hover:opacity-90"
               >
                 配置 AI 模型
+              </button>
+            )}
+            {onShowDemo && (
+              <button
+                type="button"
+                onClick={onShowDemo}
+                className="inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-[11px] text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:text-[var(--trae-text-brand)]"
+              >
+                <Sparkles className="size-3" />
+                查看诊断示例
               </button>
             )}
           </div>

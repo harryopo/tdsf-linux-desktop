@@ -32,12 +32,11 @@ import {
 /** 导航项 ID */
 export type NavId = 'home' | 'tutorial' | 'decision' | 'monitor' | 'knowledge' | 'history' | 'logs' | 'settings'
 
-/** NavId → 路由路径映射（与 router.tsx MainLayout 子路由对应）
- * - decision 没有独立列表页，跳转到 /history（决策历史列表） */
+/** NavId → 路由路径映射（与 router.tsx MainLayout 子路由对应） */
 const NAV_ROUTES: Record<NavId, string> = {
   home: '/workbench',
   tutorial: '/tutorial',
-  decision: '/history',
+  decision: '/decision',
   monitor: '/monitor',
   knowledge: '/knowledge',
   history: '/history',

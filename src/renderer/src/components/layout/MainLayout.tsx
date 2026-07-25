@@ -1,32 +1,55 @@
 /**
- * MainLayout — v3.0 极简主布局（纯 Outlet 容器）
+ * MainLayout — v4.0 全局持久布局（ActivityRail + Outlet）
  *
- * 设计稿每个页面都是自包含的完整布局（含自己的 Titlebar + ActivityRail + StatusBar），
- * 因此 MainLayout 只需提供 <Outlet />，不要包裹任何外层栏，避免与页面内部栏重复。
+ * 设计稿要求：左侧 IDE 侧边栏（ActivityRail 48px）在任何页面切换时始终保持可见。
+ * 参考：tdsf-design-app/src/layouts/AppLayout.tsx
  *
- * 之前版本（v1.0/v2.0）在这里加了 Header + ActivityRail + StatusBar，
- * 导致 WorkbenchPage 内部已有的 ActivityRail 出现"双层侧边栏"，违反设计稿。
- *
- * v3.0 修复策略：
- * - MainLayout 退化为纯 Outlet 容器，让每个页面自己管理布局
- * - 引入 MainLayout.css（仅 .wb-main-layout 容器样式，删除弃用 .main-layout-* 样式）
- * - 仍引入 Workbench.css 以兼容旧 .wb-* 类名引用（其他设置页可能依赖）
- *
- * 视觉对齐：tdsf-linux-redesign/pages/workbench-disconnected.html
+ * v4.0 变更（2026-07-25）：
+ * - 将 ActivityRail 从 WorkbenchPage 提升至 MainLayout，实现全局持久导航
+ * - 通过 useLocation 自动推导当前激活的导航项（无需各页面手动传 activeId）
+ * - Outlet 区域保留 page-enter 入场动画
  *
  * 暗色模式默认开启（在 main.tsx 中 document.documentElement.classList.add('dark')）。
  */
 import { Outlet, useLocation } from 'react-router-dom'
+import { ActivityRail, type NavId } from '@/components/workbench/ActivityRail'
 import '@/components/layout/MainLayout.css'
 import '@/components/workbench/Workbench.css'
 
-/** MainLayout 极简主布局（纯 Outlet 容器 + 路由切换入场动画） */
+/** 路由路径 → NavId 反向映射（用于从 URL 推导激活态） */
+const PATH_TO_NAV: [string, NavId][] = [
+  ['/workbench', 'home'],
+  ['/tutorial', 'tutorial'],
+  ['/decision', 'decision'],
+  ['/monitor', 'monitor'],
+  ['/knowledge', 'knowledge'],
+  ['/history', 'history'],
+  ['/logs', 'logs'],
+  ['/settings', 'settings'],
+]
+
+/** 根据当前 pathname 推导激活的导航项 */
+function deriveActiveNav(pathname: string): NavId {
+  for (const [prefix, navId] of PATH_TO_NAV) {
+    if (pathname === prefix || pathname.startsWith(prefix + '/')) {
+      return navId
+    }
+  }
+  return 'home'
+}
+
+/** MainLayout 全局持久布局（ActivityRail + Outlet） */
 const MainLayout: React.FC = () => {
   const location = useLocation()
+  const activeNav = deriveActiveNav(location.pathname)
+
   return (
     <div className="wb-main-layout">
-      {/* key 驱动路由切换时重新触发 .page-enter 入场动画（fade-in-up 0.22s） */}
-      <div key={location.pathname} className="page-enter" style={{ height: '100%', width: '100%' }}>
+      {/* 全局持久侧边栏：任何路由切换都保持可见 */}
+      <ActivityRail activeId={activeNav} />
+
+      {/* 主内容区：key 驱动路由切换时重新触发 .page-enter 入场动画 */}
+      <div key={location.pathname} className="page-enter" style={{ height: '100%', width: '100%', minWidth: 0, flex: 1 }}>
         <Outlet />
       </div>
     </div>

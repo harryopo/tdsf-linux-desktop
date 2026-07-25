@@ -1,6 +1,7 @@
 # 归档文档索引
 
 > 前期调研成果全部保留在此，按需查阅。后续迭代开发时可参考对应方案书。
+> **更新**：2026-07-25 新增 7 个 docs/ 根目录冗余文档归档（详见末尾"docs/ 根目录冗余文档归档"章节）
 
 ---
 
@@ -14,6 +15,7 @@
 | `v2.x-v2.2-p2-agent-enhancement-archive/` | v2.2 | P2 Agent 架构强化（9 Task） |
 | `v2.x-v2.3-p3-audit-p0-fix-archive/` | v2.3 | 第五波 P3 审计 P0 红线修复 |
 | `v2.x-v2.3-ui-function-balance-archive/` | v2.3 | UI 与功能平衡修复 |
+| `v0.x-root-docs-archive/` | v0.x | 根目录旧版文档归档（HANDOVER/TUTORIAL/DEV_SKILLS/问答归档 等 5 个文件，2026-07-25 归档） |
 
 ---
 
@@ -108,4 +110,20 @@
 
 ---
 
-*索引生成于 2026-07-23 · 总计 54 个归档文件/目录*
+## docs/ 根目录冗余文档归档（2026-07-25）
+
+> 7 个 docs/ 根目录下的过期方案书/审查报告，已被新版文档取代，2026-07-25 归档：
+
+| 原路径 | 归档路径 | 归档原因 |
+|--------|---------|---------|
+| `docs/救赎之路-项目重塑方案.md` | `archive/救赎之路-项目重塑方案-v2026-07-23.md` | 已被 TDSF高质量做大方案-终稿.md 取代 |
+| `docs/v2.3-外部独立审查报告.md` | `archive/v2.3-外部独立审查报告.md` | v2.3 已归档版本 |
+| `docs/v2.4-backend-completion-plan.md` | `archive/v2.4-backend-completion-plan.md` | v2.4 已归档版本 |
+| `docs/v2.5-research-backend-enhancement.md` | `archive/v2.5-research-backend-enhancement.md` | v2.5 已归档版本 |
+| `docs/后端功能审计报告-2026-07-24.md` | `archive/后端功能审计报告-2026-07-24.md` | 已被 handoff/backend-completion-audit.md 取代 |
+| `docs/项目救援盘点.md` | `archive/项目救援盘点-v2026-07-23.md` | 2026-07-23 时的复盘，已失去时效性 |
+| `docs/问答归档.md` | `archive/问答归档-v2026-07-20-4buttons.md` | 已被 handoff/ + qa-archive/ 取代 |
+
+---
+
+*索引生成于 2026-07-23 · 2026-07-25 更新 · 总计 61 个归档文件/目录*
