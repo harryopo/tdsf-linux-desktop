@@ -1,5 +1,5 @@
 /**
- * FileTree — 工作台左侧资源管理器（真 SFTP）
+ * FileTree — 工作台左侧资源管理器（真 SFTP + react-arborist 虚拟滚动）
  *
  * // @ai-session: ai-claude-20260720-wb3
  * // @ai-task: overnight-phase-A-sftp-tree
@@ -7,8 +7,22 @@
  * 设计稿：workbench-ai.html 资源管理器 200px
  * 数据：useServerStore 会话 + window.electronAPI.sftpList 懒加载
  * 无会话：显示连接引导（不再用 MOCK_FILE_TREE）
+ *
+ * v0.9.7 升级：
+ * - 使用 react-arborist 替换自定义树，支持虚拟滚动（万级目录不卡顿）
+ * - 新增 SFTP 传输进度面板（监听 onSftpProgress）
+ * - 上传/下载携带 transferId，支持进度关联
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+  type FC,
+} from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -22,13 +36,15 @@ import {
   Plug,
   FolderPlus,
   Trash2,
+  X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
+import { Tree, type NodeApi, type TreeApi } from 'react-arborist'
 import { cn } from '@/components/trae/utils'
 import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import type { SftpEntry } from '@shared/models'
+import type { SftpEntry, SftpProgressEvent } from '@shared/models'
 import FileTreeContextMenu, { type MenuAction } from './FileTreeContextMenu'
 import ChmodDialog from './ChmodDialog'
 import RenameDialog from './RenameDialog'
@@ -57,6 +73,17 @@ export interface TreeNode {
   loading?: boolean
 }
 
+/** 传输任务 */
+interface TransferTask {
+  transferId: string
+  type: 'upload' | 'download'
+  remotePath: string
+  localPath: string
+  transferred: number
+  total: number
+  status: 'running' | 'done' | 'error'
+}
+
 function joinPath(parent: string, name: string): string {
   if (parent === '/') return `/${name}`
   return parent.endsWith('/') ? `${parent}${name}` : `${parent}/${name}`
@@ -83,11 +110,8 @@ function entriesToNodes(entries: SftpEntry[], parentPath: string): TreeNode[] {
   })
 }
 
-function updateNode(
-  nodes: TreeNode[],
-  path: string,
-  patch: Partial<TreeNode>,
-): TreeNode[] {
+/** 递归更新树节点 */
+function updateNode(nodes: TreeNode[], path: string, patch: Partial<TreeNode>): TreeNode[] {
   return nodes.map((n) => {
     if (n.path === path) return { ...n, ...patch }
     if (n.children) {
@@ -96,6 +120,14 @@ function updateNode(
     return n
   })
 }
+
+/** NodeRenderer 上下文 */
+interface FileTreeRendererContextType {
+  activeFilePath?: string
+  onContextMenu: (node: TreeNode) => void
+}
+
+const FileTreeRendererContext = createContext<FileTreeRendererContextType | null>(null)
 
 const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
   const navigate = useNavigate()
@@ -120,19 +152,22 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
 
   const [rootPath, setRootPath] = useState('/')
   const [nodes, setNodes] = useState<TreeNode[]>([])
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [rootLoading, setRootLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  /** 右键菜单目标节点（null = 空白右键） */
+  /** 右键菜单目标节点（null = 空白处） */
   const [menuNode, setMenuNode] = useState<TreeNode | null>(null)
   /** chmod 对话框目标 */
   const [chmodTarget, setChmodTarget] = useState<TreeNode | null>(null)
   /** rename 对话框目标 */
   const [renameTarget, setRenameTarget] = useState<TreeNode | null>(null)
+  /** 传输任务队列 */
+  const [transfers, setTransfers] = useState<TransferTask[]>([])
   /** 上传用隐藏 input */
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   /** 上传目标目录路径 */
   const uploadTargetDirRef = useRef<string>('/')
+  /** react-arborist Tree ref（用于通过 id 获取 NodeApi，触发手动 toggle） */
+  const treeRef = useRef<TreeApi<TreeNode> | null>(null)
 
   const loadDir = useCallback(
     async (dirPath: string): Promise<TreeNode[]> => {
@@ -156,7 +191,6 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     try {
       const children = await loadDir(rootPath)
       setNodes(children)
-      setExpanded(new Set([rootPath]))
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
@@ -170,19 +204,54 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     void loadRoot()
   }, [loadRoot])
 
-  const toggleDir = useCallback(
-    async (node: TreeNode) => {
+  /** 监听 SFTP 进度推送 */
+  useEffect(() => {
+    if (!isElectronAPIAvailable() || !window.electronAPI.onSftpProgress) return
+    const off = window.electronAPI.onSftpProgress((event: SftpProgressEvent) => {
+      setTransfers((prev) => {
+        const exists = prev.find((t) => t.transferId === event.transferId)
+        if (!exists) {
+          return [
+            ...prev,
+            {
+              transferId: event.transferId,
+              type: event.type,
+              remotePath: event.remotePath,
+              localPath: event.localPath,
+              transferred: event.transferred,
+              total: event.total,
+              status: 'running',
+            },
+          ]
+        }
+        return prev.map((t) =>
+          t.transferId === event.transferId
+            ? { ...t, transferred: event.transferred, total: event.total }
+            : t,
+        )
+      })
+    })
+    return off
+  }, [])
+
+  /** 自动清理已完成任务 */
+  useEffect(() => {
+    const doneTasks = transfers.filter((t) => t.status === 'done' || t.status === 'error')
+    if (doneTasks.length === 0) return
+    const timer = setTimeout(() => {
+      setTransfers((prev) => prev.filter((t) => t.status !== 'done' && t.status !== 'error'))
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [transfers])
+
+  /** 展开/折叠目录 + 懒加载子节点 */
+  const handleToggle = useCallback(
+    async (nodeApi: NodeApi<TreeNode>) => {
+      const node = nodeApi.data
       if (!node.isDirectory) return
 
-      setExpanded((prev) => {
-        const next = new Set(prev)
-        if (next.has(node.path)) next.delete(node.path)
-        else next.add(node.path)
-        return next
-      })
-
-      // 折叠不卸载；展开时若未加载则拉子目录
-      if (!node.loaded && !node.loading) {
+      // 折叠时直接由 react-arborist 处理；展开时若未加载则拉取子目录
+      if (!nodeApi.isOpen && !node.loaded && !node.loading) {
         setNodes((prev) => updateNode(prev, node.path, { loading: true }))
         try {
           const children = await loadDir(node.path)
@@ -203,15 +272,17 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     [loadDir],
   )
 
-  const handleFileClick = useCallback(
-    (node: TreeNode) => {
+  /** 激活节点：文件打开，目录展开 */
+  const handleActivate = useCallback(
+    (nodeApi: NodeApi<TreeNode>) => {
+      const node = nodeApi.data
       if (node.isDirectory) {
-        void toggleDir(node)
+        nodeApi.toggle()
         return
       }
       onOpenFile?.({ path: node.path, name: node.name })
     },
-    [onOpenFile, toggleDir],
+    [onOpenFile],
   )
 
   /** 在当前根路径新建目录 */
@@ -265,6 +336,11 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
       message.error(`删除失败: ${err instanceof Error ? err.message : String(err)}`)
     }
   }, [sessionId, connected, activeFilePath, rootPath, loadRoot])
+
+  /** 生成唯一 transferId */
+  const nextTransferId = useCallback((): string => {
+    return `xfer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  }, [])
 
   /** 处理右键菜单动作 */
   const handleMenuAction = useCallback(
@@ -342,7 +418,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
         return
       }
 
-      // download：调用 sftpDownload
+      // download：调用 sftpDownload（带 transferId + 进度）
       if (action === 'download') {
         if (!node) return
         const localPath = window.prompt(
@@ -350,23 +426,38 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
           `D:\\downloads\\${node.name}`,
         )
         if (!localPath?.trim()) return
+        const transferId = nextTransferId()
         try {
-          message.loading({ content: `下载中: ${node.name}`, key: 'download', duration: 0 })
-          await api.sftpDownload(sessionId, node.path, localPath.trim())
-          message.success({ content: `下载完成: ${localPath}`, key: 'download' })
+          setTransfers((prev) => [
+            ...prev,
+            {
+              transferId,
+              type: 'download',
+              remotePath: node.path,
+              localPath: localPath.trim(),
+              transferred: 0,
+              total: 0,
+              status: 'running',
+            },
+          ])
+          await api.sftpDownload(sessionId, node.path, localPath.trim(), transferId)
+          setTransfers((prev) =>
+            prev.map((t) => (t.transferId === transferId ? { ...t, status: 'done' } : t)),
+          )
+          message.success(`下载完成: ${localPath}`)
         } catch (err) {
-          message.error({
-            content: `下载失败: ${err instanceof Error ? err.message : String(err)}`,
-            key: 'download',
-          })
+          setTransfers((prev) =>
+            prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
+          )
+          message.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
         }
         return
       }
     },
-    [sessionId, connected, rootPath, loadRoot],
+    [sessionId, connected, rootPath, loadRoot, nextTransferId],
   )
 
-  /** 处理隐藏 input 选择文件后上传 */
+  /** 处理隐藏 input 选择文件后上传（带 transferId + 进度） */
   const handleUploadFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
@@ -377,29 +468,41 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
         return
       }
       const remotePath = joinPath(uploadTargetDirRef.current, file.name)
+      const transferId = nextTransferId()
       try {
-        message.loading({ content: `上传中: ${file.name}`, key: 'upload', duration: 0 })
-        // sftpUpload 签名：(sessionId, localPath, remotePath)
-        // 注意：File 对象需先保存到临时路径，这里用 file.path（Electron 暴露）
+        setTransfers((prev) => [
+          ...prev,
+          {
+            transferId,
+            type: 'upload',
+            remotePath,
+            localPath: (file as File & { path?: string }).path ?? file.name,
+            transferred: 0,
+            total: file.size,
+            status: 'running',
+          },
+        ])
         const localPath = (file as File & { path?: string }).path ?? ''
         if (!localPath) {
-          message.error({ content: '无法获取本地文件路径', key: 'upload' })
+          message.error('无法获取本地文件路径')
           return
         }
-        await api.sftpUpload(sessionId, localPath, remotePath)
-        message.success({ content: `上传完成: ${remotePath}`, key: 'upload' })
+        await api.sftpUpload(sessionId, localPath, remotePath, transferId)
+        setTransfers((prev) =>
+          prev.map((t) => (t.transferId === transferId ? { ...t, status: 'done' } : t)),
+        )
+        message.success(`上传完成: ${remotePath}`)
         await loadRoot()
       } catch (err) {
-        message.error({
-          content: `上传失败: ${err instanceof Error ? err.message : String(err)}`,
-          key: 'upload',
-        })
+        setTransfers((prev) =>
+          prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
+        )
+        message.error(`上传失败: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
-        // 重置 input，允许重复选择同一文件
         if (uploadInputRef.current) uploadInputRef.current.value = ''
       }
     },
-    [sessionId, loadRoot],
+    [sessionId, loadRoot, nextTransferId],
   )
 
   /** 处理 chmod 确认 */
@@ -411,8 +514,6 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
         message.error('sftpChmod 不可用')
         return
       }
-      // sftpChmod 签名：(sessionId, remotePath, mode: number)
-      // 对话框返回 3 位八进制字符串，需解析为十进制数字（如 '755' → 0o755 = 493）
       const modeNum = parseInt(mode, 8)
       if (Number.isNaN(modeNum)) {
         message.error('权限格式无效')
@@ -452,266 +553,305 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     [renameTarget, sessionId, loadRoot],
   )
 
-  return (
-    <div className="wb-filetree">
-      <div className="wb-filetree-header">
-        <span className="wb-filetree-title">
-          资源管理器
-        </span>
-        <div className="wb-filetree-actions">
-          <button
-            type="button"
-            title="新建目录"
-            onClick={() => void handleMkdir()}
-            disabled={!connected}
-            className="wb-filetree-action-btn"
-          >
-            <FolderPlus className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            title={activeFilePath ? `删除 ${activeFilePath}` : '删除路径'}
-            onClick={() => void handleDelete()}
-            disabled={!connected}
-            className="wb-filetree-action-btn is-danger"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            title="刷新"
-            onClick={() => void loadRoot()}
-            disabled={!connected || rootLoading}
-            className="wb-filetree-action-btn"
-          >
-            {rootLoading ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="size-3.5" />
-            )}
-          </button>
-        </div>
-      </div>
+  const rendererContext = useMemo(
+    () => ({
+      activeFilePath,
+      onContextMenu: setMenuNode,
+    }),
+    [activeFilePath],
+  )
 
-      {connected && (
-        <div className="wb-filetree-root-input-wrap">
-          <input
-            value={rootPath}
-            onChange={(e) => setRootPath(e.target.value || '/')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void loadRoot()
-            }}
-            className="wb-filetree-root-input"
-            spellCheck={false}
-          />
+  /** 树容器可用高度（减去 header、root input、传输面板） */
+  const treeHeight = 400
+
+  return (
+    <FileTreeRendererContext.Provider value={rendererContext}>
+      <div className="wb-filetree">
+        <div className="wb-filetree-header">
+          <span className="wb-filetree-title">资源管理器</span>
+          <div className="wb-filetree-actions">
+            <button
+              type="button"
+              title="新建目录"
+              onClick={() => void handleMkdir()}
+              disabled={!connected}
+              className="wb-filetree-action-btn"
+            >
+              <FolderPlus className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              title={activeFilePath ? `删除 ${activeFilePath}` : '删除路径'}
+              onClick={() => void handleDelete()}
+              disabled={!connected}
+              className="wb-filetree-action-btn is-danger"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              title="刷新"
+              onClick={() => void loadRoot()}
+              disabled={!connected || rootLoading}
+              className="wb-filetree-action-btn"
+            >
+              {rootLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+            </button>
+          </div>
         </div>
+
+        {connected && (
+          <div className="wb-filetree-root-input-wrap">
+            <input
+              value={rootPath}
+              onChange={(e) => setRootPath(e.target.value || '/')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void loadRoot()
+              }}
+              className="wb-filetree-root-input"
+              spellCheck={false}
+            />
+          </div>
+        )}
+
+        <div className="wb-filetree-scroll">
+          <FileTreeContextMenu
+            node={menuNode}
+            rootPath={rootPath}
+            onAction={handleMenuAction}
+          >
+            <div
+              className="h-full"
+              onContextMenu={(e) => {
+                if (e.target === e.currentTarget) setMenuNode(null)
+              }}
+            >
+              {!connected ? (
+                <div className="wb-filetree-empty">
+                  <div className="wb-filetree-server-head">
+                    <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--trae-text-tertiary)]">
+                      服务器
+                    </span>
+                  </div>
+                  <div className="wb-filetree-empty-state">
+                    <Plug className="size-5 text-[var(--trae-icon-tertiary)]" />
+                    <div className="wb-filetree-empty-text">
+                      尚未连接
+                      <br />
+                      SSH服务器
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/settings/ssh')}
+                      className="wb-filetree-empty-btn"
+                      data-dom-id="connect-ssh"
+                    >
+                      <Plug className="size-3" />
+                      连接
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="wb-filetree-server-head">
+                    <Server className="size-3.5 text-[var(--trae-text-brand)]" />
+                    <span className="wb-filetree-server-name">
+                      {activeServer?.name || activeServer?.host || 'server'}
+                    </span>
+                    <span
+                      className="wb-filetree-status-dot"
+                      style={{ background: 'var(--trae-status-success-default)' }}
+                    />
+                  </div>
+
+                  {error && <div className="wb-filetree-error">{error}</div>}
+
+                  {rootLoading && nodes.length === 0 ? (
+                    <div className="wb-filetree-loading">
+                      <Loader2 className="size-4 animate-spin" />
+                      加载目录…
+                    </div>
+                  ) : (
+                    <Tree
+                      ref={treeRef}
+                      data={nodes}
+                      width="100%"
+                      height={treeHeight}
+                      rowHeight={24}
+                      indent={14}
+                      paddingTop={4}
+                      paddingBottom={4}
+                      onToggle={(id) => {
+                        const nodeApi = treeRef.current?.get(id)
+                        if (nodeApi) void handleToggle(nodeApi)
+                      }}
+                      onActivate={(nodeApi) => handleActivate(nodeApi)}
+                      openByDefault={false}
+                      selection={activeFilePath}
+                    >
+                      {ArboristNodeRow}
+                    </Tree>
+                  )}
+                </>
+              )}
+            </div>
+          </FileTreeContextMenu>
+        </div>
+
+        {/* SFTP 传输进度面板 */}
+        {transfers.length > 0 && (
+          <div className="wb-filetree-transfer-panel">
+            <div className="wb-filetree-transfer-header">
+              <span className="wb-filetree-transfer-title">传输</span>
+              <button
+                type="button"
+                className="wb-filetree-transfer-clear"
+                onClick={() => setTransfers([])}
+                title="清空"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+            <div className="wb-filetree-transfer-list">
+              {transfers.slice(0, 5).map((t) => (
+                <div key={t.transferId} className="wb-filetree-transfer-item">
+                  <div className="wb-filetree-transfer-info">
+                    <span className="wb-filetree-transfer-name">
+                      {t.type === 'upload' ? '↑' : '↓'} {t.remotePath.split('/').pop()}
+                    </span>
+                    <span className="wb-filetree-transfer-size">
+                      {formatBytes(t.transferred)} / {formatBytes(t.total)}
+                    </span>
+                  </div>
+                  <div className="wb-filetree-transfer-bar">
+                    <div
+                      className={cn(
+                        'wb-filetree-transfer-fill',
+                        t.status === 'error' && 'is-error',
+                        t.status === 'done' && 'is-done',
+                      )}
+                      style={{
+                        width: `${t.total > 0 ? Math.min(100, (t.transferred / t.total) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 隐藏文件上传 input */}
+        <input
+          ref={uploadInputRef}
+          type="file"
+          style={{ display: 'none' }}
+          onChange={(e) => void handleUploadFile(e)}
+        />
+
+        {/* Chmod 对话框 */}
+        <ChmodDialog
+          open={chmodTarget !== null}
+          path={chmodTarget?.path ?? ''}
+          onCancel={() => setChmodTarget(null)}
+          onOk={handleChmodOk}
+        />
+
+        {/* Rename 对话框 */}
+        <RenameDialog
+          open={renameTarget !== null}
+          oldName={renameTarget?.name ?? ''}
+          onCancel={() => setRenameTarget(null)}
+          onOk={handleRenameOk}
+        />
+      </div>
+    </FileTreeRendererContext.Provider>
+  )
+}
+
+/** react-arborist 节点渲染器 */
+function ArboristNodeRow({
+  node,
+  style,
+  dragHandle,
+}: {
+  node: NodeApi<TreeNode>
+  style: React.CSSProperties
+  dragHandle?: (el: HTMLDivElement | null) => void
+}) {
+  const ctx = useContext(FileTreeRendererContext)
+  if (!ctx) return null
+
+  const data = node.data
+  const isOpen = node.isOpen
+  const isActive = !data.isDirectory && ctx.activeFilePath === data.path
+  const isLoading = data.loading
+
+  return (
+    <div
+      ref={dragHandle}
+      style={style}
+      role="treeitem"
+      aria-expanded={data.isDirectory ? isOpen : undefined}
+      aria-selected={isActive}
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation()
+        node.activate()
+      }}
+      onContextMenu={(e) => {
+        e.stopPropagation()
+        ctx.onContextMenu(data)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          node.activate()
+        }
+      }}
+      className={cn('wb-ft-row', isActive && 'is-active')}
+    >
+      {data.isDirectory ? (
+        <span className="wb-ft-chev" onClick={(e) => { e.stopPropagation(); node.toggle() }}>
+          {isLoading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : isOpen ? (
+            <ChevronDown className="size-3.5" />
+          ) : (
+            <ChevronRight className="size-3.5" />
+          )}
+        </span>
+      ) : (
+        <span className="wb-ft-ic" />
       )}
 
-      <div role="tree" className="wb-filetree-scroll">
-        <FileTreeContextMenu
-          node={menuNode}
-          rootPath={rootPath}
-          onAction={handleMenuAction}
-        >
-          <div
-            onContextMenu={(e) => {
-              // 空白处右键：清除节点选中
-              if (e.target === e.currentTarget) setMenuNode(null)
-            }}
-          >
-            {!connected ? (
-              // 设计稿空状态(workbench-ai.html 第 2604-2613 行):
-              // "服务器" header + plug图标 + "未连接服务器" + "连接"按钮(plug图标)
-              <div className="wb-filetree-empty">
-                <div className="wb-filetree-server-head">
-                  <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--trae-text-tertiary)]">服务器</span>
-                </div>
-                <div className="wb-filetree-empty-state">
-                  <Plug className="size-5 text-[var(--trae-icon-tertiary)]" />
-                  <div className="wb-filetree-empty-text">
-                    尚未连接
-                    <br />
-                    SSH服务器
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/settings/ssh')}
-                    className="wb-filetree-empty-btn"
-                    data-dom-id="connect-ssh"
-                  >
-                    <Plug className="size-3" />
-                    连接
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="wb-filetree-server-head">
-                  <Server className="size-3.5 text-[var(--trae-text-brand)]" />
-                  <span className="wb-filetree-server-name">
-                    {activeServer?.name || activeServer?.host || 'server'}
-                  </span>
-                  <span className="wb-filetree-status-dot" style={{ background: 'var(--trae-status-success-default)' }} />
-                </div>
+      {data.isDirectory ? (
+        isOpen ? (
+          <FolderOpen className="size-3.5 shrink-0 text-[var(--trae-accent-blue)]" />
+        ) : (
+          <Folder className="size-3.5 shrink-0 text-[var(--trae-accent-blue)]" />
+        )
+      ) : data.name.endsWith('.log') || data.name.endsWith('.conf') ? (
+        <FileText className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
+      ) : (
+        <File className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
+      )}
 
-                {error && (
-                  <div className="wb-filetree-error">
-                    {error}
-                  </div>
-                )}
-
-                {rootLoading && nodes.length === 0 ? (
-                  <div className="wb-filetree-loading">
-                    <Loader2 className="size-4 animate-spin" />
-                    加载目录…
-                  </div>
-                ) : (
-                  nodes.map((node) => (
-                    <NodeRow
-                      key={node.id}
-                      node={node}
-                      depth={0}
-                      expanded={expanded}
-                      activeFilePath={activeFilePath}
-                      onToggle={toggleDir}
-                      onOpen={handleFileClick}
-                      onContextMenu={(_e, n) => setMenuNode(n)}
-                    />
-                  ))
-                )}
-              </>
-            )}
-          </div>
-        </FileTreeContextMenu>
-      </div>
-
-      {/* 隐藏文件上传 input */}
-      <input
-        ref={uploadInputRef}
-        type="file"
-        style={{ display: 'none' }}
-        onChange={(e) => void handleUploadFile(e)}
-      />
-
-      {/* Chmod 对话框 */}
-      <ChmodDialog
-        open={chmodTarget !== null}
-        path={chmodTarget?.path ?? ''}
-        onCancel={() => setChmodTarget(null)}
-        onOk={handleChmodOk}
-      />
-
-      {/* Rename 对话框 */}
-      <RenameDialog
-        open={renameTarget !== null}
-        oldName={renameTarget?.name ?? ''}
-        onCancel={() => setRenameTarget(null)}
-        onOk={handleRenameOk}
-      />
+      <span className="wb-ft-label">{data.name}</span>
     </div>
   )
 }
 
-interface NodeRowProps {
-  node: TreeNode
-  depth: number
-  expanded: Set<string>
-  activeFilePath?: string
-  onToggle: (node: TreeNode) => void
-  onOpen: (node: TreeNode) => void
-  onContextMenu?: (e: React.MouseEvent, node: TreeNode) => void
-}
-
-const NodeRow: FC<NodeRowProps> = ({
-  node,
-  depth,
-  expanded,
-  activeFilePath,
-  onToggle,
-  onOpen,
-  onContextMenu,
-}) => {
-  const isOpen = expanded.has(node.path)
-  const isActive = !node.isDirectory && activeFilePath === node.path
-  const pad = 10 + depth * 14
-
-  return (
-    <>
-      <div
-        role="treeitem"
-        aria-expanded={node.isDirectory ? isOpen : undefined}
-        aria-selected={isActive}
-        tabIndex={0}
-        onClick={() => onOpen(node)}
-        onContextMenu={(e) => onContextMenu?.(e, node)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onOpen(node)
-          }
-        }}
-        style={{ paddingLeft: pad }}
-        className={cn(
-          'wb-ft-row',
-          isActive && 'is-active',
-        )}
-      >
-        {node.isDirectory ? (
-          <span className="wb-ft-chev">
-            {node.loading ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : isOpen ? (
-              <ChevronDown className="size-3.5" />
-            ) : (
-              <ChevronRight className="size-3.5" />
-            )}
-          </span>
-        ) : (
-          <span className="wb-ft-ic" />
-        )}
-
-        {node.isDirectory ? (
-          isOpen ? (
-            <FolderOpen className="size-3.5 shrink-0 text-[var(--trae-accent-blue)]" />
-          ) : (
-            <Folder className="size-3.5 shrink-0 text-[var(--trae-accent-blue)]" />
-          )
-        ) : node.name.endsWith('.log') || node.name.endsWith('.conf') ? (
-          <FileText className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
-        ) : (
-          <File className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
-        )}
-
-        <span className="wb-ft-label">{node.name}</span>
-      </div>
-
-      {node.isDirectory && isOpen && node.children && node.children.length > 0 && (
-        <div role="group">
-          {node.children.map((child) => (
-            <NodeRow
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              expanded={expanded}
-              activeFilePath={activeFilePath}
-              onToggle={onToggle}
-              onOpen={onOpen}
-              onContextMenu={onContextMenu}
-            />
-          ))}
-        </div>
-      )}
-
-      {node.isDirectory && isOpen && node.loaded && (node.children?.length ?? 0) === 0 && (
-        <div
-          className="wb-ft-empty-dir"
-          style={{ paddingLeft: pad + 28 }}
-        >
-          （空目录）
-        </div>
-      )}
-    </>
-  )
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
 }
 
 export default FileTree
