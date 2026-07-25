@@ -30,7 +30,7 @@ const AIPanelHeader: FC<AIPanelHeaderProps> = ({
   onClear,
 }) => {
   return (
-    <div className="relative flex h-8 shrink-0 items-center justify-between gap-2 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-3">
+    <div className="relative flex h-10 shrink-0 items-center justify-between gap-2 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-3">
       {/* Left: title + live badge */}
       <div className="flex min-w-0 items-center gap-2">
         <Sparkles className="size-3.5 text-[var(--trae-text-brand)]" />
