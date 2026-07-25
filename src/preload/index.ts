@@ -3679,4 +3679,31 @@ export type ElectronAPI = {
   fileWatchStop: typeof fileWatch.stop
   /** 监听文件变更推送（file:changed），返回取消监听函数 */
   onFileChanged: (callback: (payload: FileChangedPayload) => void) => () => void
+
+  // ===== v2.4 Phase C 收尾：校准扁平化 API 类型声明（6 个）=====
+  // 通道与主进程 ipc/credibility.ts 的 6 个校准 handler 一一对应；
+  // 类型来源：src/main/core/agent/credibility/calibration/types.ts
+  // 实际方法绑定见上方 credibilityCalibrate 等 6 行（line 2486-2491）
+  // UI 调用示例：
+  //   const result = await window.electronAPI.credibilityCalibrate('deepseek', { tMin: 0.1 })
+  //   const state = await window.electronAPI.credibilityGetCalibrationState()
+  //   const ok = await window.electronAPI.credibilityAddCalibrationSample(sample)
+  /** 校准指定 Provider（基于历史样本，Temperature Scaling 优化 T 值） */
+  credibilityCalibrate: (
+    providerId: ProviderId,
+    options?: OptimizeTOptions,
+  ) => Promise<TemperatureScalingResult>
+  /** 获取指定 Provider 的当前校准（无则返回 defaultT=1.0 的默认值） */
+  credibilityGetCalibration: (providerId: ProviderId) => Promise<ProviderCalibration>
+  /** 获取全局校准状态（持久化到磁盘的 CalibrationState） */
+  credibilityGetCalibrationState: () => Promise<CalibrationState>
+  /** 重置指定 Provider 的校准（T 回到 1.0，保留累计样本数） */
+  credibilityResetCalibration: (providerId: ProviderId) => Promise<boolean>
+  /** 计算指定 Provider 的当前 ECE（不修改 T，sampleSize 可选用于抽样评估） */
+  credibilityComputeEce: (
+    providerId: ProviderId,
+    sampleSize?: number,
+  ) => Promise<EceResult>
+  /** 记录新的校准样本（自动入库，用于后续 ECE 评估与 T 优化） */
+  credibilityAddCalibrationSample: (sample: CalibrationSample) => Promise<boolean>
 }
