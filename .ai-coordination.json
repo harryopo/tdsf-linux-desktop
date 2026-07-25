@@ -2,32 +2,37 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-25T07:20:00.000Z",
+  "lastUpdated": "2026-07-25T07:20:37.257Z",
   "sessions": {
     "ai-kimi-20260725-backend": {
       "aiName": "ai-kimi-20260725-backend",
       "sessionId": "ai-kimi-20260725-backend",
-      "startedAt": "2026-07-25T07:16:25.079Z",
-      "lastActiveAt": "2026-07-25T07:16:25.286Z",
-      "task": "清理过期session并启用多AI模式",
+      "startedAt": "2026-07-25T07:20:36.957Z",
+      "lastActiveAt": "2026-07-25T07:20:37.257Z",
+      "task": "后端AI：Agent核心与PAOR循环",
       "claimedFiles": [
         {
-          "path": ".ai-coordination.json",
-          "task": "清理过期session并启用多AI模式",
-          "claimedAt": "2026-07-25T07:16:25.079Z"
+          "path": "src/main/core/agent/",
+          "task": "后端AI：Agent核心与PAOR循环",
+          "claimedAt": "2026-07-25T07:20:36.957Z"
         },
         {
-          "path": "AGENTS.md",
-          "task": "更新多AI并行工作流",
-          "claimedAt": "2026-07-25T07:16:25.183Z"
+          "path": "src/main/services/terminal/",
+          "task": "后端AI：终端智能补全引擎",
+          "claimedAt": "2026-07-25T07:20:37.056Z"
         },
         {
-          "path": "docs/competition/generate-ppts.js",
-          "task": "比赛PPT生成脚本",
-          "claimedAt": "2026-07-25T07:16:25.286Z"
+          "path": "src/main/services/ssh/",
+          "task": "后端AI：SSH/SFTP与会话复用",
+          "claimedAt": "2026-07-25T07:20:37.161Z"
+        },
+        {
+          "path": "docs/handoff/",
+          "task": "后端AI：前后端交接文档",
+          "claimedAt": "2026-07-25T07:20:37.257Z"
         }
       ],
-      "expiresAt": "2026-07-25T09:16:25.286Z"
+      "expiresAt": "2026-07-25T09:20:37.257Z"
     }
   },
   "history": [
@@ -2459,6 +2464,55 @@
       "file": ".ai-coordination.json,docs/patches/,docs/competition/generate-ppts.js",
       "task": "协调完成：5 commit 落地（1ec9b93+93d60ab+6ff1815+保留 9451a20+3bca2d2）",
       "timestamp": "2026-07-25T07:20:00.000Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "release",
+      "file": ".ai-coordination.json",
+      "task": "清理过期session并启用多AI模式",
+      "timestamp": "2026-07-25T07:20:36.855Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "更新多AI并行工作流",
+      "timestamp": "2026-07-25T07:20:36.855Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "release",
+      "file": "docs/competition/generate-ppts.js",
+      "task": "比赛PPT生成脚本",
+      "timestamp": "2026-07-25T07:20:36.855Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "src/main/core/agent/",
+      "task": "后端AI：Agent核心与PAOR循环",
+      "timestamp": "2026-07-25T07:20:36.957Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "src/main/services/terminal/",
+      "task": "后端AI：终端智能补全引擎",
+      "timestamp": "2026-07-25T07:20:37.056Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "src/main/services/ssh/",
+      "task": "后端AI：SSH/SFTP与会话复用",
+      "timestamp": "2026-07-25T07:20:37.161Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "docs/handoff/",
+      "task": "后端AI：前后端交接文档",
+      "timestamp": "2026-07-25T07:20:37.257Z"
     }
   ],
   "coordinationAudit": {
@@ -2487,7 +2541,10 @@
       }
     ],
     "currentStashCount": 0,
-    "currentBranches": ["master", "feat/translate-v1.4.0"],
+    "currentBranches": [
+      "master",
+      "feat/translate-v1.4.0"
+    ],
     "masterAheadOfOrigin": 5,
     "gateStatus": "4/5 绿（typecheck:node ✅ + typecheck:web ✅ + lint ✅ + test ✅ 1346/1346，build:win 按惯例跳过）"
   }
