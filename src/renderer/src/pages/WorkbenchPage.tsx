@@ -19,7 +19,6 @@
  *   workbench-density.css 的错误覆盖）
  */
 import { useCallback, useState, type FC } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { WorkbenchTitlebar } from '@/components/workbench/WorkbenchTitlebar'
 import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
 import EditorArea, {
@@ -34,7 +33,6 @@ import '@/styles/workbench-density.css'
 import '@/components/workbench/Workbench.css'
 
 export const WorkbenchPage: FC = () => {
-  const navigate = useNavigate()
   const [activeTabId, setActiveTabId] = useState<WorkbenchTabId>('tab-terminal')
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>()
   const [fileTabs, setFileTabs] = useState<WorkbenchFileTab[]>([])

@@ -443,17 +443,48 @@ textarea,
 /* === Message / Notification === */
 .ant-message-notice-content {
   border-radius: var(--trae-radius-6) !important;
-  box-shadow: var(--trae-shadow-card) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
   background: var(--trae-bg-base-tertiary) !important;
-  border: 1px solid var(--trae-border-neutral-l1) !important;
-  font-size: var(--trae-body-base-font-size) !important;
+  border: 1px solid var(--trae-border-neutral-l2) !important;
+  font-size: var(--trae-body-sm-font-size) !important;
+  padding: 8px 16px !important;
+  color: var(--trae-text-default) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.ant-message-notice-content .anticon {
+  font-size: 16px !important;
+}
+
+.ant-message-success .anticon {
+  color: var(--trae-status-success-default) !important;
+}
+
+.ant-message-error .anticon {
+  color: var(--trae-status-error-default) !important;
+}
+
+.ant-message-warning .anticon {
+  color: var(--trae-status-alert-default) !important;
+}
+
+.ant-message-info .anticon {
+  color: var(--trae-bg-brand) !important;
+}
+
+.ant-message-notice-content .ant-message-notice-content-ele {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
 }
 
 .ant-notification-notice {
   border-radius: var(--trae-radius-6) !important;
-  box-shadow: var(--trae-shadow-card) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
   background: var(--trae-bg-base-tertiary) !important;
-  border: 1px solid var(--trae-border-neutral-l1) !important;
+  border: 1px solid var(--trae-border-neutral-l2) !important;
 }
 
 .ant-notification-notice-message {

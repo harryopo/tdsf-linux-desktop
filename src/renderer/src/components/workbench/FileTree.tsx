@@ -16,7 +16,6 @@ import {
   Server,
   Folder,
   FolderOpen,
-  FolderX,
   FileText,
   File,
   Loader2,
