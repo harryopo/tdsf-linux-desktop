@@ -13,7 +13,7 @@
  * - 用户未设置 capabilities 时返回默认表
  * - 返回值是深拷贝（避免污染原对象）
  * - Claude / Google / claude-sdk 不支持 logprobs（兑底到 text-fallback）
- * - 4/8 OpenAI 兼容 provider 支持 logprobs
+ * - 5/8 OpenAI 兼容 provider 支持 logprobs
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -67,9 +67,9 @@ describe('provider-capabilities — 默认表完整性（v0.9.7 P3 M1 加 logpro
 })
 
 // ============================================================================
-// v0.9.7 P3 M1 新增：logprobs 能力分级（4/8 支持）
+// v0.9.7 P3 M1 新增：logprobs 能力分级（5/8 支持）
 // ============================================================================
-describe('provider-capabilities — logprobs 能力分级（4/8 支持）', () => {
+describe('provider-capabilities — logprobs 能力分级（5/8 支持）', () => {
   it('支持 logprobs：openai-compatible / deepseek / qwen / volcengine-ark / ollama', () => {
     const supported: ProviderType[] = [
       'openai-compatible',
@@ -90,7 +90,7 @@ describe('provider-capabilities — logprobs 能力分级（4/8 支持）', () =
     }
   })
 
-  it('4/8 = 50% 主流 provider 支持 logprobs（论文级 token entropy）', () => {
+  it('5/8 = 62.5% 主流 provider 支持 logprobs（论文级 token entropy）', () => {
     const total = Object.keys(PROVIDER_CAPABILITIES).length
     const supported = Object.values(PROVIDER_CAPABILITIES).filter((c) => c.logprobs).length
     expect(supported).toBe(5) // openai-compatible / deepseek / qwen / volcengine-ark / ollama
