@@ -50,7 +50,7 @@ export interface AIPanelProps {
 const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const navigate = useNavigate()
   const [showTranslation, setShowTranslation] = useState(true)
-  const [showDemo, setShowDemo] = useState(true)
+  const [showDemo, setShowDemo] = useState(false)
   /** 演示模式：true=走循环工程 7 步 HITL；false=普通 agent:chat */
   const [demoMode, setDemoMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -326,7 +326,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         setShowTranslation={setShowTranslation}
         onClear={() => {
           clear()
-          setShowDemo(true)
+          setShowDemo(false)
         }}
       />
 

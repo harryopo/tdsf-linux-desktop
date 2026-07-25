@@ -34,6 +34,7 @@ import { useServerStore } from '@/stores/server-store'
 import { cn } from '@/components/trae/utils'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import ConnectDialog from '@/components/layout/ConnectDialog'
+import CommandPalette from '@/components/workbench/CommandPalette'
 import type { SshConfig } from '@shared/models'
 
 export interface WorkbenchTitlebarProps {
@@ -69,6 +70,7 @@ export function WorkbenchTitlebar({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeServer = useMemo(() => {
@@ -106,6 +108,18 @@ export function WorkbenchTitlebar({
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [menuOpen])
+
+  // Cmd+K / Ctrl+K 全局快捷键打开搜索面板
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const connectServer = useCallback(
     async (server: SshConfig) => {
@@ -338,7 +352,7 @@ export function WorkbenchTitlebar({
             </button>
           )}
           {/* 搜索按钮(设计稿 workbench-ai.html 第 2376-2378 行 / workbench-disconnected.html 第 286-288 行) */}
-          <IconButton title="搜索" onClick={() => navigate('/history')}>
+          <IconButton title="搜索 (Cmd+K)" onClick={() => setSearchOpen(true)}>
             <Search className="size-4" />
           </IconButton>
           <IconButton
@@ -364,6 +378,8 @@ export function WorkbenchTitlebar({
         onSave={(cfg) => void handleDialogSave(cfg)}
         onCancel={() => setDialogOpen(false)}
       />
+
+      <CommandPalette visible={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   )
 }
