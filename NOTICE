@@ -1,0 +1,161 @@
+TDSF-Linux Desktop
+Copyright 2026 TDSF Contributors
+
+本产品包含以下第三方开源软件组件，
+依据其各自许可协议进行使用、修改和分发。
+完整许可证文本请参见各组件的 LICENSE 文件或上游仓库。
+
+================================================================================
+运行时依赖
+================================================================================
+
+[Electron]                            MIT
+  https://www.electronjs.org/
+  Copyright OpenJS Foundation and Electron contributors
+
+[React]                               MIT
+  https://react.dev/
+  Copyright Meta Platforms, Inc. and affiliates
+
+[TypeScript]                           Apache-2.0
+  https://www.typescriptlang.org/
+  Copyright Microsoft Corporation
+
+[Vite]                                MIT
+  https://vitejs.dev/
+  Copyright Evan You and Vite contributors
+
+[Ant Design]                           MIT
+  https://ant.design/
+  Copyright Ant Group
+
+[ssh2]                                MIT
+  https://github.com/mscdex/ssh2
+  Copyright Brian White
+
+[xterm.js]                             MIT
+  https://xtermjs.org/
+  Copyright The xterm.js authors
+
+[Monaco Editor]                        MIT
+  https://microsoft.github.io/monaco-editor/
+  Copyright Microsoft Corporation
+
+[react-arborist]                      MIT
+  https://github.com/brimdata/react-arborist
+  Copyright Brim Data
+
+[Lucide Icons]                         ISC
+  https://lucide.dev/
+  Copyright Lucide Contributors
+
+[Zustand]                              MIT
+  https://github.com/pmndrs/zustand
+  Copyright Poimandres
+
+[Tailwind CSS]                         MIT
+  https://tailwindcss.com/
+  Copyright Tailwind Labs, Inc.
+
+================================================================================
+AI 编排 / 推理
+================================================================================
+
+[LangChain]                           MIT
+  https://www.langchain.com/
+  Copyright LangChain, Inc.
+
+[LangGraph]                           MIT
+  https://langchain-ai.github.io/langgraph/
+  Copyright LangChain, Inc.
+
+[FastAPI]                             MIT
+  https://fastapi.tiangolo.com/
+  Copyright Sebastián Ramírez
+
+[ChromaDB]                            Apache-2.0
+  https://www.trychroma.com/
+  Copyright Chroma
+
+================================================================================
+数据源 / 教程词库
+================================================================================
+
+[jaywcjlove/linux-command]             MIT
+  https://github.com/jaywcjlove/linux-command
+  Copyright Kenny Wong
+  用于：Linux 命令中文释义词典
+
+[tldr-pages]                          CC BY 4.0
+  https://github.com/tldr-pages/tldr
+  Copyright tldr-pages contributors
+  用于：命令使用示例
+
+[Linux 中国]                           CC BY-NC-SA 4.0（仅本地学习使用）
+  https://linux.cn/
+  用于：教程文章聚合
+
+[鸟哥的 Linux 私房菜]                   仅学习使用
+  http://linux.vbird.org/
+  用于：基础概念解释
+
+[阮一峰的网络日志]                     CC BY 4.0
+  http://www.ruanyifeng.com/blog/
+  用于：教学文章聚合
+
+================================================================================
+测试 / 工具
+================================================================================
+
+[Vitest]                              MIT
+  https://vitest.dev/
+  Copyright Anthony Fu and Vitest contributors
+
+[Playwright]                          Apache-2.0
+  https://playwright.dev/
+  Copyright Microsoft Corporation
+
+[ESLint]                              MIT
+  https://eslint.org/
+  Copyright OpenJS Foundation and ESLint contributors
+
+[Prettier]                            MIT
+  https://prettier.io/
+  Copyright James Long and contributors
+
+================================================================================
+学术参考 / 论文
+================================================================================
+
+[Zhao 2026 - CoT Entropy Trajectory]   arXiv (学术参考)
+  Zhao, X. 2026. "Entropy Trajectory Shape Predicts LLM Reasoning Reliability"
+  arXiv:2603.18940v1, 2026-03-19
+
+[Smarandache 2006 - D-S + PCR5]        IEEE (学术参考)
+  Smarandache, F. 2006. "Unification of Fusion Theories, Rules, and Filters"
+  IEEE Sensors Journal
+
+================================================================================
+赛事平台
+================================================================================
+
+[火山引擎 / 火山杯 2026]                赛事平台
+  https://www.volcengine.com/
+  提供：比赛平台与算力支持
+
+================================================================================
+完整依赖列表
+================================================================================
+
+运行时 + 开发时全部依赖（含间接依赖）详见 package.json。
+每个依赖的精确许可证可通过 `pnpm licenses list` 命令查询。
+
+================================================================================
+声明
+================================================================================
+
+本项目以 MIT 协议开源，但其中部分第三方组件可能采用其他许可证。
+使用本项目时，请遵守所有相关许可证的要求。
+
+如有遗漏或错误，请提交 Issue：
+https://github.com/harryopo/tdsf-linux-desktop/issues/new
