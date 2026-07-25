@@ -20,9 +20,7 @@
  */
 import { useCallback, useState, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plug } from 'lucide-react'
 import { WorkbenchTitlebar } from '@/components/workbench/WorkbenchTitlebar'
-import { ActivityRail, type NavId } from '@/components/workbench/ActivityRail'
 import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
 import EditorArea, {
   createLoadingFileTab,
@@ -32,32 +30,15 @@ import EditorArea, {
 } from '@/components/workbench/EditorArea'
 import AIPanel from '@/components/workbench/AIPanel'
 import { StatusBar } from '@/components/workbench/StatusBar'
-import { useServerStore } from '@/stores/server-store'
 import '@/styles/workbench-density.css'
 import '@/components/workbench/Workbench.css'
 
-const NAV_ROUTE_MAP: Record<NavId, string> = {
-  home: '/workbench',
-  tutorial: '/tutorial',
-  decision: '/history',
-  monitor: '/monitor',
-  knowledge: '/knowledge',
-  history: '/history',
-  logs: '/logs',
-  settings: '/settings',
-}
-
 export const WorkbenchPage: FC = () => {
   const navigate = useNavigate()
-  const [activeNav, setActiveNav] = useState<NavId>('home')
   const [activeTabId, setActiveTabId] = useState<WorkbenchTabId>('tab-terminal')
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>()
   const [fileTabs, setFileTabs] = useState<WorkbenchFileTab[]>([])
   const [aiPanelVisible, setAiPanelVisible] = useState(true)
-
-  // 未连接 SSH 时显示设计稿版终端空状态浮层（data-dom-id="connect-server-btn"）
-  const activeSessionId = useServerStore((s) => s.activeSessionId)
-  const isDisconnected = !activeSessionId
 
   const handleOpenFile = useCallback((req: OpenFileRequest) => {
     const id = fileTabId(req.path)
@@ -129,20 +110,6 @@ export const WorkbenchPage: FC = () => {
     )
   }, [])
 
-  const handleNavigate = useCallback(
-    (id: NavId) => {
-      setActiveNav(id)
-      const path = NAV_ROUTE_MAP[id]
-      if (path && path !== '/workbench') navigate(path)
-    },
-    [navigate],
-  )
-
-  // 跳转 SSH 设置页（保留现有 IPC 路径：ConnectDialog 在 WorkbenchTitlebar 内）
-  const handleConnectServer = useCallback(() => {
-    navigate('/settings/ssh')
-  }, [navigate])
-
   return (
     <div
       className="wb-shell flex h-full w-full flex-col overflow-hidden"
@@ -155,10 +122,9 @@ export const WorkbenchPage: FC = () => {
       />
 
       <div className="wb-main-body flex min-h-0 flex-1 overflow-hidden">
-        <ActivityRail activeId={activeNav} onNavigate={handleNavigate} />
         <FileTree activeFilePath={activeFilePath} onOpenFile={handleOpenFile} />
 
-        {/* EditorArea 包裹层：未连接 SSH 时叠加设计稿版空状态浮层 */}
+        {/* EditorArea 包裹层 */}
         <div className="wb-editor-wrap relative flex min-w-0 flex-1 flex-col">
           <EditorArea
             activeTabId={activeTabId}
@@ -169,50 +135,6 @@ export const WorkbenchPage: FC = () => {
             onFileLoaded={handleFileLoaded}
             onFileSaved={handleFileSaved}
           />
-
-          {isDisconnected && (
-            <div
-              className="wb-term-empty-overlay"
-              role="status"
-              aria-label="终端未连接"
-            >
-              {/* 终端窗口模拟卡片（240px 宽，3 圆点 + "terminal" 文字 + 等待光标） */}
-              <div className="wb-term-empty-mock">
-                <div className="wb-term-empty-mock-header">
-                  <span className="wb-term-empty-mock-dot" />
-                  <span className="wb-term-empty-mock-dot" />
-                  <span className="wb-term-empty-mock-dot" />
-                  <span className="wb-term-empty-mock-title">terminal</span>
-                </div>
-                <div className="wb-term-empty-mock-body">
-                  <div>
-                    $ <span className="wb-term-empty-mock-prompt">等待SSH连接...</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 标题 + 副标题 */}
-              <div>
-                <div className="wb-term-empty-title">终端未连接</div>
-                <div className="wb-term-empty-subtitle">
-                  连接SSH服务器后，终端将自动打开
-                </div>
-              </div>
-
-              {/* 连接服务器按钮（data-dom-id 对齐设计稿 workbench-ai.html） */}
-              <button
-                type="button"
-                title="连接服务器"
-                aria-label="连接服务器"
-                data-dom-id="connect-server-btn"
-                className="wb-term-empty-connect-btn"
-                onClick={handleConnectServer}
-              >
-                <Plug className="size-3" />
-                连接服务器
-              </button>
-            </div>
-          )}
         </div>
 
         {aiPanelVisible && <AIPanel onClose={() => setAiPanelVisible(false)} />}
