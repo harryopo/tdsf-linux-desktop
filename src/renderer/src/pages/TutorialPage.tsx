@@ -20,6 +20,8 @@ import { FeaturedCourses } from '@/components/tutorial/FeaturedCourses'
 import { CategoryNav } from '@/components/tutorial/CategoryNav'
 import { CourseList } from '@/components/tutorial/CourseList'
 import { LearningPath } from '@/components/tutorial/LearningPath'
+import { EmbeddingBanner } from '@/components/tutorial/EmbeddingBanner'
+import { useHybridSearch } from '@/hooks/useHybridSearch'
 import {
   type Course, type CourseCategory, type LearningPath as LearningPathItem,
   type SearchResultItem, type RecommendedPathLite, type StatItem,
@@ -55,6 +57,26 @@ export function TutorialPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResultItem[] | null>(null)
   const [searching, setSearching] = useState(false)
+
+  // ===== v2.5 Phase C：EmbeddingBanner 状态管理 =====
+  // useHybridSearch 主要提供 status/progress/isBackfilling/canCancel 等 Banner 状态，
+  // 并封装 v2.5 异步 4 通道（start/cancel/status/progress）的调用逻辑。
+  // 搜索逻辑仍由本页 handleSearch 直接调用 tutorialHybridSearch（保留原 1:1 设计稿交互）。
+  const {
+    status: hybridStatus,
+    progress: backfillProgress,
+    isBackfilling,
+    hasAsyncBackfill,
+    backfill,
+    cancelBackfill,
+    skip,
+    dismissBanner,
+    bannerVisible,
+  } = useHybridSearch({
+    mode: 'semantic',
+    query: '', // hook 内部防抖搜索不使用，搜索由本页 handleSearch 触发
+    bannerEnabled: true,
+  })
 
   /** 标记教程为已访问（双写：IPC 主路径 + localStorage fallback） */
   const _markVisited = useCallback(
@@ -274,6 +296,54 @@ export function TutorialPage() {
         onSearch={handleSearch}
         searching={searching}
       />
+      {/* ===== v2.5 Phase C：EmbeddingBanner（语义检索能力引导）===== */}
+      {/* 显示条件：bannerVisible（status 不可用 / 模型未加载 / 进度进行中 / 完成 / 错误） */}
+      {/* canCancel：v2.5 异步 4 通道全部可用时为 true（hook 内部 hasAsyncBackfill） */}
+      {bannerVisible && (
+        <div
+          style={{
+            padding: '0 32px 12px',
+            background: 'var(--trae-bg-base-default)',
+          }}
+        >
+          <EmbeddingBanner
+            status={hybridStatus}
+            progress={backfillProgress}
+            isBackfilling={isBackfilling}
+            canCancel={hasAsyncBackfill}
+            onBackfill={() => {
+              void backfill()
+            }}
+            onCancel={() => {
+              void cancelBackfill()
+            }}
+            onClose={() => {
+              dismissBanner()
+            }}
+          />
+          {/* 「跳过提示」次级按钮（仅 idle 模式且未持久化跳过时显示） */}
+          {!isBackfilling &&
+            backfillProgress === null &&
+            !hybridStatus?.embeddingModelLoaded && (
+              <button
+                type="button"
+                onClick={skip}
+                style={{
+                  marginTop: 6,
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--trae-text-tertiary)',
+                  fontSize: 'var(--trae-body-xs-font-size)',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                }}
+                aria-label="跳过本次提示"
+              >
+                不再提示
+              </button>
+            )}
+        </div>
+      )}
       <div className="tut-container">
         <TutorialStats stats={stats} />
         <FeaturedCourses featured={featured} onOpenCourse={handleOpenCourse} />

@@ -1,8 +1,8 @@
 /**
- * useHybridSearch — 混合检索 Hook（Sprint 7 任务 F）
+ * useHybridSearch — 混合检索 Hook（Sprint 7 任务 F + v2.5 Phase C 异步回填升级）
  *
  * 设计目标：
- * - 封装 tutorialHybridSearch / tutorialSearchStatus / tutorialBackfillEmbeddings 三个 IPC
+ * - 封装 tutorialHybridSearch / tutorialSearchStatus / 4 个异步 backfill 通道
  * - 防抖 300ms（避免频繁调用 IPC）
  * - 检测新 API 可用性，不可用时降级到 tutorialSearch（关键词搜索）+ 本地过滤
  * - 管理 SearchStatus / BackfillProgress / skipped 状态
@@ -10,15 +10,21 @@
  *
  * 输入输出契约：
  *   输入：mode / query / debounceMs / limit / storageKey
- *   输出：results / loading / error / status / progress / skipped / backfill / skip / dismissBanner
+ *   输出：results / loading / error / status / progress / skipped /
+ *         backfill / cancelBackfill / isBackfilling / skip / dismissBanner
  *
  * 降级策略：
  * 1. tutorialHybridSearch 不可用 + 用户选 semantic → 自动切回 keyword + 标记 semanticDisabled
  * 2. tutorialSearch 也不可用 → 返回空结果 + 提示"IPC 不可用"
  * 3. tutorialSearchStatus 不可用 → status=null，Banner 不渲染，搜索仍可工作（默认关键词）
+ * 4. v2.5 异步 4 通道不可用 → 回退到旧的同步 tutorialBackfillEmbeddings（如有）
  *
- * 注意：preload 暴露的 tutorialBackfillEmbeddings 是一次性同步等待返回（非流式推送），
- *      所以 progress 只能反映 "开始 / 结束 / 错误" 三个状态，中间显示 indeterminate 进度条。
+ * v2.5 Phase C 升级要点：
+ * - 旧：tutorialBackfillEmbeddings 同步阻塞，progress 只能反映 "开始/结束/错误"
+ * - 新：tutorialBackfillStart 异步启动 + onTutorialBackfillProgress 流式进度推送
+ *       + tutorialBackfillCancel 取消 + tutorialBackfillStatus 查询状态
+ * - 进度从 indeterminate 升级为真实 pct（processed/total）
+ * - 支持页面刷新后恢复进度（挂载时调用 status 检查）
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
@@ -30,7 +36,14 @@ import type {
   SearchResultItem,
 } from '@/components/tutorial/v1/hybrid-search-types'
 import { toSearchResultItem } from '@/components/tutorial/v1/hybrid-search-types'
-import type { TutorialEntry } from '@shared/tutorial-types'
+import type {
+  TutorialEntry,
+  BackfillProgress as BackfillStreamProgress,
+  BackfillStartOptions,
+  BackfillStartResult,
+  BackfillCancelResult,
+  BackfillStatusResult,
+} from '@shared/tutorial-types'
 
 /** useHybridSearch 配置项 */
 export interface UseHybridSearchOptions {
@@ -66,8 +79,14 @@ export interface UseHybridSearchResult {
   skipped: boolean
   /** 语义模式是否可用（受 status.vectorEnabled + status.embeddingModelLoaded 影响） */
   semanticAvailable: boolean
-  /** 触发模型下载 + embedding 回填 */
+  /** 触发模型下载 + embedding 回填（v2.5 优先用异步 4 通道，回退到同步） */
   backfill: () => Promise<void>
+  /** 取消正在运行的异步回填任务（仅 v2.5 异步模式有效） */
+  cancelBackfill: () => Promise<void>
+  /** 是否正在异步回填中（用于 UI 显示取消按钮 / 禁用开始按钮） */
+  isBackfilling: boolean
+  /** v2.5 异步 4 通道是否全部可用（用于 UI 显示取消按钮 canCancel prop） */
+  hasAsyncBackfill: boolean
   /** 跳过本次提示（持久化 skipped=true） */
   skip: () => void
   /** 关闭 Banner（仅当前会话，不持久化） */
@@ -135,13 +154,31 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
   const [progress, setProgress] = useState<BackfillProgress | null>(null)
   const [skipped, setSkipped] = useState<boolean>(() => readSkipped(storageKey))
   const [dismissed, setDismissed] = useState<boolean>(false)
+  // v2.5 Phase C：异步回填运行中标志（用于 UI 显示取消按钮 / 禁用开始按钮）
+  const [isBackfilling, setIsBackfilling] = useState<boolean>(false)
+  // 当前异步任务 ID（用于取消和状态查询，null 表示无任务）
+  const backfillTaskIdRef = useRef<string | null>(null)
 
   // ===== 检测新 API 可用性 =====
   // 在每次渲染时检测（不会触发 re-render，仅用于决策）
   const api = getAPI()
   const hasHybridSearch = typeof api?.tutorialHybridSearch === 'function'
   const hasSearchStatus = typeof api?.tutorialSearchStatus === 'function'
-  const hasBackfill = typeof api?.tutorialBackfillEmbeddings === 'function'
+  // v2.5 异步 4 通道（推荐用法）
+  const hasBackfillStart = typeof api?.tutorialBackfillStart === 'function'
+  const hasBackfillCancel = typeof api?.tutorialBackfillCancel === 'function'
+  const hasBackfillStatus = typeof api?.tutorialBackfillStatus === 'function'
+  const hasBackfillProgressListener =
+    typeof api?.onTutorialBackfillProgress === 'function'
+  // v2.5 4 通道全部可用时启用异步模式
+  const hasAsyncBackfill =
+    hasBackfillStart &&
+    hasBackfillCancel &&
+    hasBackfillStatus &&
+    hasBackfillProgressListener
+  // 旧版同步回填（降级方案，v2.5 4 通道不可用时使用）
+  const hasLegacyBackfill = typeof api?.tutorialBackfillEmbeddings === 'function'
+  const hasBackfill = hasAsyncBackfill || hasLegacyBackfill
   const hasLegacySearch = typeof api?.tutorialSearch === 'function'
 
   // 语义模式可用性：vectorEnabled && embeddingModelLoaded && hasHybridSearch
@@ -172,6 +209,83 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
       cancelled = true
     }
   }, [hasSearchStatus])
+
+  // ===== v2.5 Phase C：订阅异步回填进度推送 =====
+  // 主进程在每页（pageSize=100）完成后通过 BACKFILL_PROGRESS 通道推送进度，
+  // 2578 条教程约推送 26 次，避免 IPC 阻塞 + 渲染卡顿。
+  // 订阅在挂载时建立，卸载时自动取消（createListener 返回 unsubscribe 函数）。
+  useEffect(() => {
+    if (!hasBackfillProgressListener) return
+    const fn = api!.onTutorialBackfillProgress as (
+      callback: (progress: BackfillStreamProgress) => void,
+    ) => () => void
+    const unsubscribe = fn((p: BackfillStreamProgress) => {
+      // 把主进程的 BackfillProgress 映射为 UI 用的 BackfillProgress
+      // 主进程字段：taskId/processed/total/failed/pct/currentBatch/eta/status/error
+      // UI 字段：phase/current/total/errorMessage
+      if (p.status === 'running') {
+        setProgress({
+          phase: 'generating-embeddings',
+          current: p.processed,
+          total: p.total,
+        })
+        setIsBackfilling(true)
+        backfillTaskIdRef.current = p.taskId
+      } else if (p.status === 'completed') {
+        setProgress({
+          phase: 'done',
+          current: p.processed,
+          total: p.total,
+        })
+        setIsBackfilling(false)
+        backfillTaskIdRef.current = null
+        // 完成后重新拉取 status（模型已加载、向量已就绪）
+        if (hasSearchStatus) {
+          const statusFn = api!.tutorialSearchStatus as () => Promise<SearchStatus>
+          void statusFn().then((s) => setStatus(s)).catch(() => {})
+        }
+      } else if (p.status === 'cancelled') {
+        // 取消后保留当前进度，但不再显示 loading
+        setIsBackfilling(false)
+        backfillTaskIdRef.current = null
+      } else if (p.status === 'failed') {
+        setProgress({
+          phase: 'error',
+          current: p.processed,
+          total: p.total,
+          errorMessage: p.error ?? `回填失败，${p.failed} 条目处理错误`,
+        })
+        setIsBackfilling(false)
+        backfillTaskIdRef.current = null
+      }
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [hasBackfillProgressListener, hasSearchStatus])
+
+  // ===== v2.5 Phase C：挂载时检查是否有未完成的回填任务 =====
+  // 场景：用户启动回填后刷新页面 / 切换路由返回，需恢复 isBackfilling 状态
+  useEffect(() => {
+    if (!hasBackfillStatus) return
+    const fn = api!.tutorialBackfillStatus as () => Promise<BackfillStatusResult>
+    void fn()
+      .then((s) => {
+        if (s.running && s.taskId) {
+          setIsBackfilling(true)
+          backfillTaskIdRef.current = s.taskId
+          // 进入 indeterminate 进度（等待第一次 progress 推送）
+          setProgress({
+            phase: 'generating-embeddings',
+            current: 0,
+            total: -1,
+          })
+        }
+      })
+      .catch((err) => {
+        console.warn('[useHybridSearch] tutorialBackfillStatus failed:', err)
+      })
+  }, [hasBackfillStatus])
 
   // ===== 防抖搜索 =====
   // 用 ref 保存最新的 IPC 调用函数，避免 useEffect 频繁重建
@@ -319,8 +433,69 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
   }
 
   // ===== backfill：触发模型下载 + embedding 回填 =====
+  // v2.5 Phase C：优先用异步 4 通道（start + progress 监听 + cancel），
+  // 4 通道不可用时降级到旧版同步 tutorialBackfillEmbeddings。
   const backfill = useCallback(async (): Promise<void> => {
     if (!hasBackfill) {
+      setError('IPC 通道不可用：tutorialBackfill* 系列方法均未暴露')
+      return
+    }
+    // 已有任务在运行，避免重复启动
+    if (isBackfilling) {
+      console.warn('[useHybridSearch] backfill 已在运行中，忽略重复触发')
+      return
+    }
+    setDismissed(false) // 重新显示 Banner
+
+    // ===== 路径 A：v2.5 异步 4 通道（推荐）=====
+    if (hasAsyncBackfill) {
+      // 进入下载阶段（indeterminate 进度，等待第一次 progress 推送）
+      setProgress({
+        phase: 'downloading-model',
+        current: 0,
+        total: -1, // 未知
+      })
+      setIsBackfilling(true)
+      try {
+        const fn = api!.tutorialBackfillStart as (
+          options?: BackfillStartOptions,
+        ) => Promise<BackfillStartResult>
+        const result = await fn({ pageSize: 100, inferenceBatch: 8 })
+        if (result.ok && result.taskId) {
+          backfillTaskIdRef.current = result.taskId
+          // 进度由 onTutorialBackfillProgress 订阅回调推送，这里不阻塞
+          // 进入 generating-embeddings 阶段（仍 indeterminate 直到首次推送）
+          setProgress({
+            phase: 'generating-embeddings',
+            current: 0,
+            total: -1,
+          })
+        } else {
+          // 启动失败（如已有任务在运行）
+          setIsBackfilling(false)
+          setProgress({
+            phase: 'error',
+            current: 0,
+            total: 0,
+            errorMessage: result.error ?? '启动异步回填失败',
+          })
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error('[useHybridSearch] async backfill start failed:', err)
+        setIsBackfilling(false)
+        setProgress({
+          phase: 'error',
+          current: 0,
+          total: 0,
+          errorMessage: message,
+        })
+      }
+      return
+    }
+
+    // ===== 路径 B：旧版同步回填（降级方案）=====
+    if (!hasLegacyBackfill) {
       setError('IPC 通道不可用：tutorialBackfillEmbeddings 未暴露')
       return
     }
@@ -330,7 +505,6 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
       current: 0,
       total: -1, // 未知
     })
-    setDismissed(false) // 重新显示 Banner
     try {
       const fn = api!.tutorialBackfillEmbeddings as (
         options?: { batchSize?: number }
@@ -360,7 +534,7 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      console.error('[useHybridSearch] backfill failed:', err)
+      console.error('[useHybridSearch] legacy backfill failed:', err)
       setProgress({
         phase: 'error',
         current: 0,
@@ -368,7 +542,32 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
         errorMessage: message,
       })
     }
-  }, [hasBackfill, hasSearchStatus])
+  }, [hasBackfill, hasAsyncBackfill, hasLegacyBackfill, hasSearchStatus, isBackfilling])
+
+  // ===== cancelBackfill：取消正在运行的异步回填任务（仅 v2.5 异步模式有效）=====
+  const cancelBackfill = useCallback(async (): Promise<void> => {
+    if (!hasBackfillCancel) {
+      console.warn('[useHybridSearch] tutorialBackfillCancel 不可用')
+      return
+    }
+    if (!isBackfilling) {
+      console.warn('[useHybridSearch] 当前无回填任务在运行，无需取消')
+      return
+    }
+    try {
+      const fn = api!.tutorialBackfillCancel as () => Promise<BackfillCancelResult>
+      const result = await fn()
+      if (result.ok) {
+        // 标记取消中，实际取消会在主进程下一页检查时生效
+        // 真正的 isBackfilling=false 由 progress 推送的 cancelled 状态触发
+        console.info('[useHybridSearch] 已请求取消回填任务')
+      } else {
+        console.warn('[useHybridSearch] 取消回填任务失败')
+      }
+    } catch (err) {
+      console.error('[useHybridSearch] cancelBackfill failed:', err)
+    }
+  }, [hasBackfillCancel, isBackfilling])
 
   // ===== skip：跳过 Banner（持久化） =====
   const skip = useCallback((): void => {
@@ -410,6 +609,9 @@ export function useHybridSearch(options: UseHybridSearchOptions): UseHybridSearc
     skipped,
     semanticAvailable,
     backfill,
+    cancelBackfill,
+    isBackfilling,
+    hasAsyncBackfill,
     skip,
     dismissBanner,
     bannerVisible,
