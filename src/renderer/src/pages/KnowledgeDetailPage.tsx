@@ -133,7 +133,6 @@ export function KnowledgeDetailPage() {
     : VERIFY_CMD
 
   // ===== 事件处理 =====
-  const handleBackWorkbench = () => navigate('/workbench')
   const handleBackKnowledge = () => navigate('/knowledge')
 
   /**

@@ -61,6 +61,7 @@ export function WorkbenchTitlebar({
   const [menuOpen, setMenuOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [connectingId, setConnectingId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeServer = useMemo(() => {
@@ -76,13 +77,19 @@ export function WorkbenchTitlebar({
     return servers[0] ?? null
   }, [activeSessionId, sessionMap, servers, connectionStates])
 
-  const serverLabel = activeServer
-    ? activeServer.name || activeServer.host
-    : '未连接服务器'
-
   const connState = activeServer
     ? connectionStates[activeServer.id] ?? 'disconnected'
     : 'disconnected'
+
+  const filteredServers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return servers
+    return servers.filter(
+      (s) =>
+        (s.name ?? '').toLowerCase().includes(q) ||
+        s.host.toLowerCase().includes(q),
+    )
+  }, [servers, searchQuery])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -171,103 +178,136 @@ export function WorkbenchTitlebar({
           <div className="relative flex items-center gap-2" ref={menuRef}>
           <button
             type="button"
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => {
+              setMenuOpen((v) => !v)
+              setSearchQuery('')
+            }}
             className="wb-server-picker"
             title="切换 / 连接服务器"
           >
-            <Folder className="size-4" />
             <span
               className={cn(
-                'max-w-[180px] truncate',
-                connState === 'connected'
-                  ? 'text-[var(--trae-text-default)]'
-                  : 'text-[var(--trae-text-tertiary)]',
-              )}
-            >
-              {serverLabel}
-            </span>
-            <span
-              className={cn(
-                'inline-block size-1.5 rounded-full',
+                'inline-block size-1.5 shrink-0 rounded-full',
                 connState === 'connected' && 'bg-[var(--trae-status-success-default)]',
                 connState === 'connecting' && 'bg-[var(--trae-status-alert-default)]',
                 connState === 'error' && 'bg-[var(--trae-status-error-default)]',
                 (connState === 'disconnected' || !activeServer) &&
                   'bg-[var(--trae-text-tertiary)]',
               )}
+              title={connState === 'connected' ? '已连接' : connState === 'connecting' ? '连接中' : connState === 'error' ? '连接失败' : '未连接'}
             />
-            <ChevronDown className="size-3.5" />
+            <Server className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
+            <span
+              className={cn(
+                'max-w-[160px] truncate font-mono text-[11px] tabular-nums',
+                connState === 'connected'
+                  ? 'text-[var(--trae-text-default)]'
+                  : 'text-[var(--trae-text-tertiary)]',
+              )}
+            >
+              {activeServer ? activeServer.host : '未连接'}
+            </span>
+            {activeServer && (
+              <>
+                <span className="text-[10px] text-[var(--trae-text-tertiary)]">·</span>
+                <span className="text-[10px] text-[var(--trae-text-secondary)]">
+                  {activeServer.username}
+                </span>
+              </>
+            )}
+            <ChevronDown className={cn('size-3 shrink-0 text-[var(--trae-text-tertiary)] transition-transform', menuOpen && 'rotate-180')} />
           </button>
 
           {menuOpen && (
-            <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[260px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] py-1 shadow-xl">
-              {servers.length === 0 ? (
-                <div className="px-3 py-3 text-[12px] text-[var(--trae-text-tertiary)]">
-                  暂无服务器，请新建连接
+            <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[320px] rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+              {/* 搜索栏 */}
+              <div className="flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] px-3 py-2.5">
+                <div className="flex flex-1 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1">
+                  <Search className="size-3 shrink-0 text-[var(--trae-text-tertiary)]" />
+                  <input
+                    type="text"
+                    placeholder="搜索服务器..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent text-[11px] text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
+                    autoFocus
+                  />
                 </div>
-              ) : (
-                servers.map((srv) => {
-                  const st = connectionStates[srv.id] ?? 'disconnected'
-                  const active = activeServer?.id === srv.id
-                  const busy = connectingId === srv.id
-                  return (
-                    <button
-                      key={srv.id}
-                      type="button"
-                      disabled={busy}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] disabled:opacity-60',
-                        active && 'bg-[var(--trae-bg-overlay-l1)]',
-                      )}
-                      onClick={() => void connectServer(srv)}
-                    >
-                      {busy ? (
-                        <Loader2 className="size-3.5 shrink-0 animate-spin" />
-                      ) : (
+              </div>
+              {/* 服务器列表 */}
+              <div className="max-h-[280px] overflow-y-auto py-1">
+                {filteredServers.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-[11px] text-[var(--trae-text-tertiary)]">
+                    {servers.length === 0 ? '暂无服务器，请新建连接' : '未找到匹配的服务器'}
+                  </div>
+                ) : (
+                  filteredServers.map((srv) => {
+                    const st = connectionStates[srv.id] ?? 'disconnected'
+                    const active = activeServer?.id === srv.id
+                    const busy = connectingId === srv.id
+                    return (
+                      <button
+                        key={srv.id}
+                        type="button"
+                        disabled={busy}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)] disabled:opacity-60',
+                          active && 'bg-[var(--trae-bg-overlay-l3)]',
+                        )}
+                        onClick={() => void connectServer(srv)}
+                      >
+                        {busy ? (
+                          <Loader2 className="size-3.5 shrink-0 animate-spin text-[var(--trae-text-tertiary)]" />
+                        ) : (
+                          <Server
+                            className={cn(
+                              'size-3.5 shrink-0',
+                              st === 'connected'
+                                ? 'text-[var(--trae-bg-brand)]'
+                                : 'text-[var(--trae-text-tertiary)]',
+                            )}
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[11px] font-medium text-[var(--trae-text-default)]">
+                            {srv.name || srv.host}
+                          </div>
+                          <div className="truncate font-mono text-[9px] tabular-nums text-[var(--trae-text-tertiary)]">
+                            {srv.host}:{srv.port} · {srv.username}
+                          </div>
+                        </div>
                         <span
                           className={cn(
                             'inline-block size-1.5 shrink-0 rounded-full',
-                            st === 'connected' &&
-                              'bg-[var(--trae-status-success-default)]',
-                            st === 'connecting' &&
-                              'bg-[var(--trae-status-alert-default)]',
+                            st === 'connected' && 'bg-[var(--trae-status-success-default)]',
+                            st === 'connecting' && 'bg-[var(--trae-status-alert-default)]',
                             st === 'error' && 'bg-[var(--trae-status-error-default)]',
                             st === 'disconnected' && 'bg-[var(--trae-text-tertiary)]',
                           )}
+                          title={st === 'connected' ? '已连接' : st === 'connecting' ? '连接中' : st === 'error' ? '连接失败' : '未连接'}
                         />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-[var(--trae-text-default)]">
-                        {srv.name || srv.host}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-[var(--trae-text-tertiary)]">
-                        {st === 'connected' ? '已连接' : srv.host}
-                      </span>
-                    </button>
-                  )
-                })
-              )}
-              <div className="my-1 border-t border-[var(--trae-border-neutral-l1)]" />
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
-                onClick={() => {
-                  setMenuOpen(false)
-                  setDialogOpen(true)
-                }}
-              >
-                <Plus className="size-3.5" />
-                新建连接…
-              </button>
-              <button
-                type="button"
-                className="flex w-full px-3 py-2 text-left text-[12px] text-[var(--trae-text-secondary)] hover:bg-[var(--trae-bg-overlay-l2)]"
-                onClick={() => {
-                  setMenuOpen(false)
-                  navigate('/settings/ssh')
-                }}
-              >
-                打开 SSH 设置…
-              </button>
+                        <span className="shrink-0 font-mono text-[9px] tabular-nums text-[var(--trae-text-tertiary)]">
+                          {st === 'connected' ? '在线' : st === 'connecting' ? '...' : st === 'error' ? '超时' : '—'}
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+              {/* 底部：添加新连接 */}
+              <div className="border-t border-[var(--trae-border-neutral-l1)] px-3 py-2">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-dashed border-[var(--trae-border-neutral-l2)] py-1.5 text-[11px] text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-bg-brand)] hover:text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l1)]"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setDialogOpen(true)
+                  }}
+                >
+                  <Plus className="size-3" />
+                  添加新连接
+                </button>
+              </div>
             </div>
           )}
         </div>

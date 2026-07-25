@@ -120,8 +120,15 @@
   padding-top: 12px;
 }
 .ssh-feedback {
-  font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-status-success-default);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--trae-text-default);
+  background: var(--trae-status-success-surface-l1);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  padding: 4px 10px;
 }
 
 /* ===== 状态点颜色（与设计稿 ds-server-row__dot 内联色对齐） ===== */

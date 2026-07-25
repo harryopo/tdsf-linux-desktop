@@ -174,7 +174,6 @@ export function HistoryDetailPage() {
 
   useEffect(() => { void loadCard() }, [loadCard])
 
-  const handleBackWorkbench = () => navigate('/workbench')
   const handleBackHistory = () => navigate('/history')
 
   // ===== 状态渲染 =====
