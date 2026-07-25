@@ -17,7 +17,7 @@
  *
  * 选择器策略：
  *   - 优先使用 [data-dom-id="xxx"]（语义化、稳定）
- *   - fallback 到 .wb-*/.tut-*/.hist-*/.mon-*/.kb-*/.set-*/.log-* 语义化 className
+ *   - fallback 到 .wb-* / .tut-* / .hist-* / .mon-* / .kb-* / .set-* / .log-* 语义化 className
  *
  * 降级策略：
  *   - 若 out/main/index.js 不存在（未 build），整个 suite skip
@@ -140,7 +140,9 @@ test.describe('Demo 9 步主路径', () => {
       'nav-settings',
     ]
     for (const domId of expectedDomIds) {
-      const btn = window.locator(`[data-dom-id="${domId}"]`)
+      // 限定 .wb-nav-btn（ActivityRail 风格）避免与 Titlebar 的 wb-icon-btn 同 domId 冲突
+      // v4.0 重构后 Titlebar 也加了 settings 按钮（domId="nav-settings-top"），故用 .wb-nav-btn 精确选择
+      const btn = window.locator(`.wb-nav-btn[data-dom-id="${domId}"]`)
       await expect(btn).toBeVisible()
     }
 
@@ -291,7 +293,8 @@ test.describe('Demo 9 步主路径', () => {
     })
     await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-    await window.locator('[data-dom-id="nav-settings"]').click()
+    // 限定 ActivityRail（.wb-nav-btn）点击，避免与 Titlebar 的 wb-icon-btn 冲突
+    await window.locator('.wb-nav-btn[data-dom-id="nav-settings"]').click()
 
     // 等待设置页根元素 .set-page 加载（SettingsLayout 主容器）
     await window.waitForSelector('.set-page', { timeout: 15000 })
