@@ -2,13 +2,13 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-25T07:30:37.492Z",
+  "lastUpdated": "2026-07-25T08:38:28.410Z",
   "sessions": {
     "ai-kimi-20260725-backend": {
       "aiName": "ai-kimi-20260725-backend",
       "sessionId": "ai-kimi-20260725-backend",
       "startedAt": "2026-07-25T07:20:36.957Z",
-      "lastActiveAt": "2026-07-25T07:28:44.106Z",
+      "lastActiveAt": "2026-07-25T08:15:44.594Z",
       "task": "后端AI：Agent核心与PAOR循环",
       "claimedFiles": [
         {
@@ -37,7 +37,7 @@
           "claimedAt": "2026-07-25T07:28:44.106Z"
         }
       ],
-      "expiresAt": "2026-07-25T11:28:44.106Z"
+      "expiresAt": "2026-07-25T12:15:44.594Z"
     },
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
@@ -2559,6 +2559,20 @@
       "file": "src/renderer/src/pages/SettingsPage.tsx",
       "task": "P0-3 SettingsPage 校准设置快捷入口",
       "timestamp": "2026-07-25T07:30:37.492Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "src/main/services/scheduler/",
+      "task": "后端AI：调度器真实仓储注入（daily-decision-archive + weekly-ops-report）",
+      "timestamp": "2026-07-25T08:15:44.594Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "release",
+      "file": "src/main/services/scheduler/",
+      "task": "后端AI：调度器真实仓储注入（daily-decision-archive + weekly-ops-report）",
+      "timestamp": "2026-07-25T08:38:28.410Z"
     }
   ],
   "coordinationAudit": {

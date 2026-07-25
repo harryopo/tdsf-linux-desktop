@@ -284,7 +284,7 @@ function buildKnowledgeContent(decision: ArchivedDecision): string {
  * @param timezone IANA 时区（如 Asia/Shanghai）
  * @returns { start, end } epoch ms
  */
-function getTodayRange(
+export function getTodayRange(
   now: Date,
   timezone: string
 ): { start: number; end: number } {
