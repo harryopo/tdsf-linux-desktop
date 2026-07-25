@@ -26,6 +26,7 @@ import { useTranslateStore } from '../../stores/translate-store'
 import { useEditorStore } from '../../stores/editor-store'
 import { SelectionManager } from './selection-manager'
 import TerminalSearchBar from './TerminalSearchBar'
+import TerminalCompletionAddon from './TerminalCompletionAddon'
 import './TerminalView.css'
 import './Terminal.css'
 
@@ -57,6 +58,8 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
   const fontSizeRef = useRef<number>(DEFAULT_FONT_SIZE)
   /** 终端搜索栏显隐状态（Ctrl+F 触发） */
   const [searchOpen, setSearchOpen] = useState(false)
+  /** v0.9.7 终端实例已打开到 DOM，可挂载补全覆盖层 */
+  const [terminalReady, setTerminalReady] = useState(false)
   /** v0.8.0 翻译开关状态（订阅 store 变化以动态挂载/卸载 SelectionManager） */
   const translateEnabled = useTranslateStore((s) => s.enabled)
 
@@ -126,6 +129,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
 
     // ===== 3. 打开终端到容器 =====
     terminal.open(containerRef.current)
+    setTerminalReady(true)
 
     // 延迟一帧再 fit，确保容器尺寸已计算
     requestAnimationFrame(() => {
@@ -269,6 +273,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       }
       // v2.0 清理 SearchAddon 引用
       searchAddonRef.current = null
+      setTerminalReady(false)
       try {
         terminal.dispose()
       } catch {
@@ -292,6 +297,12 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
         searchAddon={searchAddonRef.current}
         onClose={() => setSearchOpen(false)}
       />
+      {terminalReady && terminalRef.current && (
+        <TerminalCompletionAddon
+          terminal={terminalRef.current}
+          sessionId={sessionId}
+        />
+      )}
     </div>
   )
 }

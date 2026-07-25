@@ -260,6 +260,25 @@ export const TERMINAL = {
 } as const
 
 /**
+ * 终端智能补全 IPC 通道常量（v0.9.7 P3 M1 新增：零 Token 本地补全）
+ *
+ * 通道列表：
+ * - COMPLETE  invoke  渲染 → 主：根据当前输入返回补全建议
+ * - ACCEPT    invoke  渲染 → 主：用户接受某条建议（提升 Frecency 分数）
+ * - IMPORT    invoke  渲染 → 主：批量导入历史命令（如读取远端 ~/.bash_history）
+ *
+ * 设计依据：v0.9.7 P3 M1 · 终端补全引擎 Phase 1（IPC 4 步同步铁律）
+ */
+export const TERMINAL_COMPLETION = {
+  /** 请求补全建议（invoke: 渲染 → 主，返回 CompletionSuggestion[]） */
+  COMPLETE: 'terminal-completion:complete',
+  /** 接受建议（invoke: 渲染 → 主，提升 Frecency 分数） */
+  ACCEPT: 'terminal-completion:accept',
+  /** 批量导入历史命令（invoke: 渲染 → 主，参数 commands: string[], directory?: string） */
+  IMPORT: 'terminal-completion:import',
+} as const
+
+/**
  * v2.0 Phase C 新增：SFTP 文件搜索 + 内容 grep IPC 通道常量
  *
  * 通道列表：

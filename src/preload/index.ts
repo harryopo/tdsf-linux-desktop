@@ -56,6 +56,8 @@ import {
   EXPECTATION,
   TASK,
   SUBAGENT,
+  // v0.9.7 P3 M1 新增：终端智能补全
+  TERMINAL_COMPLETION,
   PAOR,
   // M2 Task 2 新增：命令风险评估 IPC（risk:check）
   RISK,
@@ -163,6 +165,9 @@ import type {
   CustomAgentConfig,
   SubagentReloadRequest,
   SubagentReloadResponse,
+  // v0.9.7 P3 M1 新增：terminal-completion:* 3 通道（终端智能补全）
+  // 来源：src/main/services/terminal/terminal-completion-engine.ts（避免 renderer 直接耦合主进程）
+  TerminalCompletionSuggestion,
   // 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
   ProviderCapabilitiesRequest,
   ProviderCapabilitiesResponse,
@@ -1799,6 +1804,53 @@ const subagent = {
 }
 
 /**
+ * v0.9.7 P3 M1 新增：终端智能补全 invoke 调用
+ *
+ * 通道与主进程 ipc/terminal-completion.ts 一一对应：
+ * - terminal-completion:complete → complete（请求补全建议）
+ * - terminal-completion:accept   → accept（接受建议，提升 Frecency 分数）
+ * - terminal-completion:import   → import（批量导入历史命令）
+ *
+ * 与现有 terminalData 的区别：
+ * - terminalData 是 push 模式（主 → 渲染，Shell 数据回传）
+ * - terminalCompletion 是 invoke 模式（渲染 → 主，请求-响应）
+ *
+ * 使用场景：
+ * - 终端 UI 输入时调用 complete(input) 弹窗展示建议
+ * - 用户按 Tab 接受某条建议后调用 accept(command) 提升权重
+ * - 远端登录后调用 import(commands) 导入 ~/.bash_history
+ */
+const terminalCompletion = {
+  /**
+   * 请求补全建议
+   *
+   * @param input 当前已输入的文本（如 "tail -"）
+   * @returns CompletionSuggestion[] 按 Frecency 分数降序排列
+   */
+  complete: (input: string): Promise<TerminalCompletionSuggestion[]> =>
+    ipcRenderer.invoke(TERMINAL_COMPLETION.COMPLETE, input),
+
+  /**
+   * 接受某条建议（提升 Frecency 分数，让后续补全更精准）
+   *
+   * @param command 完整命令文本
+   * @returns boolean 是否成功
+   */
+  accept: (command: string): Promise<boolean> =>
+    ipcRenderer.invoke(TERMINAL_COMPLETION.ACCEPT, command),
+
+  /**
+   * 批量导入历史命令（如读取远端 ~/.bash_history）
+   *
+   * @param commands 命令列表
+   * @param directory 工作目录（可选）
+   * @returns boolean 是否成功
+   */
+  import: (commands: string[], directory?: string): Promise<boolean> =>
+    ipcRenderer.invoke(TERMINAL_COMPLETION.IMPORT, commands, directory),
+}
+
+/**
  * v0.9.5 P0 - 组 5：Provider Info 能力 + 定价透明 invoke 调用
  *
  * 通道与主进程 ipc/provider-info.ts 一一对应：
@@ -2351,6 +2403,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sftpWriteFile: sftp.writeFile,
   sftpStat: sftp.stat,
   sftpMkdir: sftp.mkdir,
+
+  // ===== 终端智能补全扁平化（v0.9.7 P3 M1） =====
+  terminalCompletionComplete: terminalCompletion.complete,
+  terminalCompletionAccept: terminalCompletion.accept,
+  terminalCompletionImport: terminalCompletion.import,
 
   // ===== 监控扁平化 =====
   monitorStart: monitor.start,

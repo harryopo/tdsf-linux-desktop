@@ -1005,6 +1005,25 @@ export interface SubagentReloadResponse {
 }
 
 /**
+ * v0.9.7 P3 M1 新增：终端智能补全建议项
+ *
+ * 主进程 src/main/services/terminal/terminal-completion-engine.ts 的同名接口
+ * 在此重复声明（IPC 跨进程类型边界，主进程服务类型不能直接穿透 preload）。
+ *
+ * 字段：
+ * - command     完整命令（用户补全后应追加的完整文本）
+ * - completion  需要追加到当前输入后面的文本（去掉前缀后剩余部分）
+ * - score       Frecency 分数（频次 + 时间衰减）
+ * - source      建议来源：history（用户历史）/ static（静态兜底）
+ */
+export interface TerminalCompletionSuggestion {
+  command: string
+  completion: string
+  score: number
+  source: 'history' | 'static'
+}
+
+/**
  * provider:capabilities IPC 通道请求参数
  */
 export interface ProviderCapabilitiesRequest {
