@@ -1,0 +1,18 @@
+/**
+ * 终端智能补全灰色尾随建议样式
+ *
+ * 定位：绝对定位覆盖在 xterm.js 终端上方，与当前输入对齐。
+ * 视觉：低对比度灰色文字，不干扰用户正常输入。
+ */
+.terminal-completion-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+  padding-left: 2px;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.3;
+  color: rgba(232, 232, 232, 0.45);
+  white-space: pre;
+  user-select: none;
+}

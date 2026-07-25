@@ -25,7 +25,7 @@ import { spawn } from 'node:child_process'
 import { z } from 'zod'
 import { SSH, SFTP, TERMINAL } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
-import { SftpManager } from '../services/ssh/sftp'
+import { ElectermSftpManager } from '../services/ssh/electerm-sftp'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
 import { recordToolCall } from './model-stats'
@@ -142,7 +142,7 @@ const HOST_KEY_PROMPT_TIMEOUT_MS = 5 * 60 * 1000
  */
 export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
   const sshManager = SshConnectionManager.getInstance()
-  const sftpManager = new SftpManager(sshManager)
+  const sftpManager = new ElectermSftpManager(sshManager)
 
   // ------------------------------------------------------------------
   // SSH 心跳保活状态变更推送（K.2）

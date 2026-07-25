@@ -137,6 +137,8 @@ import type {
   CommandExpectation,
   ExpectationCheckResult,
   ExpectationViolation,
+  // v0.9.7 P3 M1 新增：终端智能补全建议项
+  TerminalCompletionSuggestion,
 } from '@shared/agent-types'
 
 // ============================================================================
@@ -1800,6 +1802,33 @@ export interface ElectronAPI {
    * @returns { success, reloaded, failed }（即使部分失败也返回 success=true）
    */
   subagentReload(request?: SubagentReloadRequest): Promise<SubagentReloadResponse>
+
+  // ----- v0.9.7 P3 M1 新增：终端智能补全（3 个）-----
+  /**
+   * 请求补全建议
+   *
+   * 通道：terminal-completion:complete
+   * @param input 当前已输入的文本（如 "tail -"）
+   * @returns TerminalCompletionSuggestion[] 按 Frecency 分数降序排列
+   */
+  terminalCompletionComplete(input: string): Promise<TerminalCompletionSuggestion[]>
+  /**
+   * 接受某条建议（提升 Frecency 分数，让后续补全更精准）
+   *
+   * 通道：terminal-completion:accept
+   * @param command 完整命令文本
+   * @returns boolean 是否成功
+   */
+  terminalCompletionAccept(command: string): Promise<boolean>
+  /**
+   * 批量导入历史命令（如读取远端 ~/.bash_history）
+   *
+   * 通道：terminal-completion:import
+   * @param commands 命令列表
+   * @param directory 工作目录（可选）
+   * @returns boolean 是否成功
+   */
+  terminalCompletionImport(commands: string[], directory?: string): Promise<boolean>
 
   // ----- 组 5：Provider Info 能力 + 定价透明（4 个）-----
   /**
