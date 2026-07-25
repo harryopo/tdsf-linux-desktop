@@ -44,6 +44,8 @@ import type {
   SshKeyPair,
   GenerateKeyPairRequest,
   GenerateKeyPairResponse,
+  // SFTP 进度推送事件载荷（onSftpProgress 回调参数）
+  SftpProgressEvent,
 } from '@shared/models'
 
 // 部署助手类型（来自共享层 @shared/deploy-types）
@@ -69,6 +71,12 @@ import type {
   CrawlResult,
   CrawlStatus
 } from '@shared/crawler-types'
+
+// P0-3：PAOR 自动循环共享类型（agent:paor + agent:paor:iteration + paor:approve）
+import type {
+  PaorIterationEvent,
+  PaorLoopResult,
+} from '@shared/paor-types'
 
 // v0.9 Agent Runtime 共享类型（Provider 抽象 + Token 统计 + Supervisor chat 载荷）
 import type {
@@ -714,14 +722,52 @@ export interface ElectronAPI {
    * @returns 取消监听函数
    */
   onSshHostKeyPrompt(callback: (prompt: SshHostKeyPromptEvent) => void): () => void
+  /**
+   * 监听 SFTP 上传/下载进度推送（v0.9.7 SFTP 文件浏览增强）
+   *
+   * 主进程在 sftp:upload / sftp:download 传输过程中通过 step 回调推送 SftpProgressEvent，
+   * 渲染进程通过本监听器接收进度，更新传输队列 UI。
+   *
+   * @param callback 接收进度事件的回调
+   * @returns 取消监听函数
+   */
+  onSftpProgress(
+    callback: (event: import('@shared/models').SftpProgressEvent) => void,
+  ): () => void
 
   // ===== SFTP 文件管理 =====
   /** 列出远程目录内容 */
   sftpList(sessionId: string, remotePath: string): Promise<import('@shared/models').SftpEntry[]>
-  /** 上传本地文件到远程 */
-  sftpUpload(sessionId: string, localPath: string, remotePath: string): Promise<boolean>
-  /** 下载远程文件到本地 */
-  sftpDownload(sessionId: string, remotePath: string, localPath: string): Promise<boolean>
+  /**
+   * 上传本地文件到远程（v0.9.7 新增 transferId 参数用于进度推送）
+   *
+   * @param sessionId SSH 会话 ID
+   * @param localPath 本地文件路径
+   * @param remotePath 远程目标路径
+   * @param transferId 传输任务 ID（可选，传入后主进程通过 sftp:progress 推送进度）
+   * @returns 是否成功
+   */
+  sftpUpload(
+    sessionId: string,
+    localPath: string,
+    remotePath: string,
+    transferId?: string,
+  ): Promise<boolean>
+  /**
+   * 下载远程文件到本地（v0.9.7 新增 transferId 参数用于进度推送）
+   *
+   * @param sessionId SSH 会话 ID
+   * @param remotePath 远程文件路径
+   * @param localPath 本地目标路径
+   * @param transferId 传输任务 ID（可选，传入后主进程通过 sftp:progress 推送进度）
+   * @returns 是否成功
+   */
+  sftpDownload(
+    sessionId: string,
+    remotePath: string,
+    localPath: string,
+    transferId?: string,
+  ): Promise<boolean>
   /** 删除远程文件/目录 */
   sftpDelete(sessionId: string, remotePath: string): Promise<boolean>
   /** 重命名远程文件/目录 */
@@ -750,6 +796,13 @@ export interface ElectronAPI {
   fileWatchStart(sessionId: string, path: string): Promise<{ watchId: string }>
   /** 停止监听（file:watch:stop），返回 { success } */
   fileWatchStop(watchId: string): Promise<{ success: boolean }>
+  /**
+   * 订阅 SFTP 文件传输进度推送（sftp:progress，主 → 渲染）
+   *
+   * @param callback 进度回调，参数为 SftpProgressEvent
+   * @returns 取消监听函数
+   */
+  onSftpProgress(callback: (event: SftpProgressEvent) => void): () => void
 
   // ===== 监控相关 =====
   /** 启动监控采集 */
@@ -832,7 +885,7 @@ export interface ElectronAPI {
    * @param maxIterations 最大迭代次数（默认 5）
    * @returns PAOR 循环完整结果（含可审计的迭代轨迹）
    */
-  agentPaor(task: string, sshSessionId: string, maxIterations?: number): Promise<unknown>
+  agentPaor(task: string, sshSessionId: string, maxIterations?: number): Promise<PaorLoopResult>
   /**
    * 响应 PAOR 审批请求（v0.9.5 新增）
    *
@@ -1501,6 +1554,17 @@ export interface ElectronAPI {
    * 渲染进程弹窗让用户确认后调用 paorApprove() 响应。60 秒未响应自动拒绝。
    */
   onPaorApprovalRequest(callback: (request: PaorApprovalRequest) => void): () => void
+  /**
+   * 监听 PAOR 迭代进度（v0.9.5 新增，P0-3 补全 IPC 4 步同步）
+   *
+   * 主进程在每轮 PAOR 迭代（Plan→Act→Observe→Reflect）完成后推送
+   * agent:paor:iteration 事件，渲染进程通过本监听器接收迭代轨迹，
+   * 用于实时展示 PAOR 循环进度（执行命令、输出、反思决策）。
+   *
+   * @param callback 接收迭代事件的回调
+   * @returns 取消订阅函数（调用后不再接收后续迭代事件）
+   */
+  onAgentPaorIteration(callback: (event: PaorIterationEvent) => void): () => void
   /**
    * 监听 Task Protocol 审批请求（v0.9.3 §11 遗留项 2 P2-H 新增）
    *
