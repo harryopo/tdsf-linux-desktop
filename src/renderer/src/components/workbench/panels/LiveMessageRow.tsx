@@ -1,5 +1,5 @@
-import type { FC } from 'react'
-import { Clock, Loader2, Pause, Sparkles } from 'lucide-react'
+import { type FC } from 'react'
+import { Clock, Loader2, Pause, Play, Shield, Sparkles } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { AgentStep } from '@shared/models'
 
@@ -17,14 +17,44 @@ const STEP_LABELS: Record<AgentStep, string> = {
   verify: '验证',
 }
 
+/** 从消息文本中提取 shell 命令（```bash 代码块或 $ 前缀行） */
+function extractCommands(content: string): string[] {
+  const commands: string[] = []
+  // 匹配 ```bash ... ``` 代码块
+  const codeBlockRe = /```(?:bash|shell|sh|zsh)?\s*\n([\s\S]*?)```/g
+  let match = codeBlockRe.exec(content)
+  while (match) {
+    const lines = match[1].split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
+    commands.push(...lines)
+    match = codeBlockRe.exec(content)
+  }
+  // 如果没有代码块，尝试匹配 $ 前缀行
+  if (commands.length === 0) {
+    const dollarRe = /^\$\s+(.+)$/gm
+    let m = dollarRe.exec(content)
+    while (m) {
+      commands.push(m[1].trim())
+      m = dollarRe.exec(content)
+    }
+  }
+  return commands
+}
+
+interface LiveMessageRowProps {
+  message: AgentMessage
+  onNavigate?: (path: string) => void
+  /** 工具操作回调（执行/沙箱预演等） */
+  onToolAction?: (action: string, payload?: string) => void
+  /** 活跃 SSH 会话 ID（执行命令需要） */
+  activeSessionId?: string | null
+}
+
 /**
  * 实时 Agent 消息行（useAgentStore / Supervisor 主路径）
- * 设计稿富文本面板仍由 mock MessageRow 承担；实时路径先做可靠的文本气泡 + 流式光标。
  *
- * M1 Task 7-8：新增 onAgentStep 流式步骤进度条 + 底部 3 动作按钮（查看监控/记录决策/更新知识库）。
- * v3.1 视觉打磨：内联样式 → Tailwind token 类，添加 btn-press / hover / transition。
+ * v3.2 命令检测：自动解析 agent 回复中的 bash 代码块，添加"执行"/"沙箱预演"按钮。
  */
-const LiveMessageRow: FC<{ message: AgentMessage; onNavigate?: (path: string) => void }> = ({ message, onNavigate }) => {
+const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAction, activeSessionId }) => {
   /** 渲染 Agent 工作流步骤进度条（如果 message.stepState 存在） */
   const renderStepProgress = () => {
     if (!message.stepState) return null
@@ -53,6 +83,44 @@ const LiveMessageRow: FC<{ message: AgentMessage; onNavigate?: (path: string) =>
             </span>
           )
         })}
+      </div>
+    )
+  }
+
+  /** 从消息中提取命令，渲染执行/沙箱预演按钮 */
+  const renderCommandButtons = () => {
+    if (message.isStreaming || message.isError) return null
+    if (!onToolAction || !activeSessionId) return null
+    const commands = extractCommands(message.content)
+    if (commands.length === 0) return null
+    return (
+      <div className="mt-2 flex flex-col gap-1.5 border-t border-[var(--trae-border-neutral-l1)] pt-2">
+        <div className="text-[10px] text-[var(--trae-text-tertiary)]">检测到 {commands.length} 条命令：</div>
+        {commands.map((cmd, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <code className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 py-1 font-mono text-[11px] text-[var(--trae-text-default)]">
+              {cmd}
+            </code>
+            <button
+              type="button"
+              onClick={() => onToolAction('execute', cmd)}
+              title="在终端执行"
+              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-bg-brand)] bg-[var(--trae-bg-brand)] px-2 py-1 text-[10px] font-medium text-[var(--trae-text-onbrand)] transition-opacity hover:opacity-90"
+            >
+              <Play className="size-3" />
+              执行
+            </button>
+            <button
+              type="button"
+              onClick={() => onToolAction('sandbox', cmd)}
+              title="沙箱预演"
+              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-transparent px-2 py-1 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-border-brand)] hover:text-[var(--trae-text-brand)]"
+            >
+              <Shield className="size-3" />
+              沙箱
+            </button>
+          </div>
+        ))}
       </div>
     )
   }
@@ -133,6 +201,7 @@ const LiveMessageRow: FC<{ message: AgentMessage; onNavigate?: (path: string) =>
         </div>
       </div>
       {renderStepProgress()}
+      {renderCommandButtons()}
       {(message.usage || message.model) && !message.isStreaming && (
         <div className="ai-token-row ai-token-pop pl-8">
           <Clock className="size-3" />
