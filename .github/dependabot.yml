@@ -1,0 +1,86 @@
+# Dependabot 配置 — 自动依赖更新 + 安全扫描
+#
+# 火山杯开源加分项：
+# - 每周一自动检查 npm 依赖更新（patch/minor 自动合并，major 需评审）
+# - GitHub Actions 依赖同步更新
+# - 启用安全警报分组
+
+version: 2
+
+# 启用自动 rebase，减少 PR 冲突
+rebase-strategy: auto
+
+# 同时更新 5 个 PR，避免一次开太多
+open-pull-requests-limit: 5
+
+# 统一提交信息前缀
+commit-message:
+  prefix: "deps"
+  prefix-development: "deps(dev)"
+  prefix-security: "deps(security)"
+
+# ============ npm 依赖 ============
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Shanghai"
+    # 自动按 semver 分类
+    versioning-strategy: increase
+    # PR 标题加 scope
+    labels:
+      - "dependencies"
+      - "automated"
+    # 重要：排除 native 依赖（避免与 pnpm rebuild 冲突）
+    ignore:
+      - dependency-name: "better-sqlite3"
+      - dependency-name: "ssh2"
+      - dependency-name: "@xterm/*"
+    # 限制 PR 数量
+    open-pull-requests-limit: 8
+    # 分组更新（把同类更新合并到 1 个 PR）
+    groups:
+      production:
+        dependency-type: "production"
+        patterns:
+          - "*"
+      development:
+        dependency-type: "development"
+        patterns:
+          - "*"
+
+  # ============ GitHub Actions 依赖 ============
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:30"
+      timezone: "Asia/Shanghai"
+    labels:
+      - "dependencies"
+      - "ci"
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+          - "github/*"
+          - "pnpm/*"
+          - "node/*"
+
+  # ============ pip 依赖（sidecar-a）============
+  - package-ecosystem: "pip"
+    directory: "/sidecar-a"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "04:00"
+      timezone: "Asia/Shanghai"
+    labels:
+      - "dependencies"
+      - "sidecar"
+    open-pull-requests-limit: 5

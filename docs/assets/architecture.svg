@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <!-- 标题 -->
+  <text x="600" y="40" text-anchor="middle" font-size="24" font-weight="700" fill="#1f2937">TDSF-Linux Desktop 系统架构图</text>
+  <text x="600" y="68" text-anchor="middle" font-size="13" fill="#6b7280">SSH 终端 + AI 辅助 + 高危命令拦截 + 可信决策评估</text>
+
+  <!-- 图例 -->
+  <g transform="translate(40, 100)">
+    <rect x="0" y="0" width="14" height="14" fill="#4f46e5" rx="2"/>
+    <text x="22" y="11" font-size="12" fill="#374151">Electron 进程</text>
+    <rect x="140" y="0" width="14" height="14" fill="#10b981" rx="2"/>
+    <text x="162" y="11" font-size="12" fill="#374151">外部服务</text>
+    <rect x="270" y="0" width="14" height="14" fill="#f59e0b" rx="2"/>
+    <text x="292" y="11" font-size="12" fill="#374151">数据流 / IPC</text>
+  </g>
+
+  <!-- 渲染层 -->
+  <g id="renderer" transform="translate(40, 140)">
+    <rect x="0" y="0" width="340" height="200" fill="#eef2ff" stroke="#4f46e5" stroke-width="2" rx="8"/>
+    <text x="170" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#4f46e5">渲染进程 (Renderer)</text>
+    <text x="170" y="48" text-anchor="middle" font-size="11" fill="#6b7280">React 18 + Antd 5 + Zustand 4</text>
+
+    <rect x="20" y="68" width="140" height="50" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="90" y="90" text-anchor="middle" font-size="12" fill="#374151">工作台</text>
+    <text x="90" y="105" text-anchor="middle" font-size="10" fill="#9ca3af">SSH 终端 / SFTP</text>
+
+    <rect x="180" y="68" width="140" height="50" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="250" y="90" text-anchor="middle" font-size="12" fill="#374151">AI 对话</text>
+    <text x="250" y="105" text-anchor="middle" font-size="10" fill="#9ca3af">ChatPanel + CoT 可视化</text>
+
+    <rect x="20" y="128" width="140" height="50" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="90" y="150" text-anchor="middle" font-size="12" fill="#374151">知识库</text>
+    <text x="90" y="165" text-anchor="middle" font-size="10" fill="#9ca3af">教程词库 2236 词条</text>
+
+    <rect x="180" y="128" width="140" height="50" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="250" y="150" text-anchor="middle" font-size="12" fill="#374151">设置</text>
+    <text x="250" y="165" text-anchor="middle" font-size="10" fill="#9ca3af">9 个子页 (含关于)</text>
+  </g>
+
+  <!-- Preload -->
+  <g id="preload" transform="translate(430, 140)">
+    <rect x="0" y="0" width="120" height="200" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" rx="8"/>
+    <text x="60" y="28" text-anchor="middle" font-size="14" font-weight="600" fill="#92400e">Preload</text>
+    <text x="60" y="46" text-anchor="middle" font-size="10" fill="#a16207">contextBridge</text>
+    <line x1="20" y1="60" x2="100" y2="60" stroke="#fbbf24" stroke-width="1"/>
+    <text x="60" y="78" text-anchor="middle" font-size="10" fill="#78350f">contextIsolation: true</text>
+    <text x="60" y="94" text-anchor="middle" font-size="10" fill="#78350f">nodeIntegration: false</text>
+    <text x="60" y="110" text-anchor="middle" font-size="10" fill="#78350f">sandbox: true</text>
+    <line x1="20" y1="124" x2="100" y2="124" stroke="#fbbf24" stroke-width="1"/>
+    <text x="60" y="142" text-anchor="middle" font-size="10" fill="#78350f">API 暴露</text>
+    <text x="60" y="158" text-anchor="middle" font-size="9" fill="#a16207">window.electronAPI</text>
+    <text x="60" y="172" text-anchor="middle" font-size="9" fill="#a16207">+ 25+ 通道</text>
+  </g>
+
+  <!-- 主进程 -->
+  <g id="main" transform="translate(600, 140)">
+    <rect x="0" y="0" width="320" height="200" fill="#eef2ff" stroke="#4f46e5" stroke-width="2" rx="8"/>
+    <text x="160" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#4f46e5">主进程 (Main)</text>
+    <text x="160" y="48" text-anchor="middle" font-size="11" fill="#6b7280">Node.js + IPC 4 步同步</text>
+
+    <rect x="15" y="62" width="90" height="46" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="60" y="80" text-anchor="middle" font-size="11" fill="#374151">SSH 客户端</text>
+    <text x="60" y="96" text-anchor="middle" font-size="9" fill="#9ca3af">ssh2 + xterm.js</text>
+
+    <rect x="115" y="62" width="90" height="46" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="160" y="80" text-anchor="middle" font-size="11" fill="#374151">风险引擎</text>
+    <text x="160" y="96" text-anchor="middle" font-size="9" fill="#9ca3af">12 条黑名单</text>
+
+    <rect x="215" y="62" width="90" height="46" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="260" y="80" text-anchor="middle" font-size="11" fill="#374151">AI 编排</text>
+    <text x="260" y="96" text-anchor="middle" font-size="9" fill="#9ca3af">14 步协议</text>
+
+    <rect x="15" y="118" width="90" height="46" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="60" y="136" text-anchor="middle" font-size="11" fill="#374151">可信度</text>
+    <text x="60" y="152" text-anchor="middle" font-size="9" fill="#9ca3af">D-S + PCR5</text>
+
+    <rect x="115" y="118" width="90" height="46" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="160" y="136" text-anchor="middle" font-size="11" fill="#374151">MCP 工具</text>
+    <text x="160" y="152" text-anchor="middle" font-size="9" fill="#9ca3af">25+ 工具</text>
+
+    <rect x="215" y="118" width="90" height="46" fill="#fff" stroke="#c7d2fe" rx="4"/>
+    <text x="260" y="136" text-anchor="middle" font-size="11" fill="#374151">SQLite</text>
+    <text x="260" y="152" text-anchor="middle" font-size="9" fill="#9ca3af">better-sqlite3 + vec</text>
+  </g>
+
+  <!-- 外部服务 -->
+  <g id="external" transform="translate(970, 140)">
+    <rect x="0" y="0" width="190" height="200" fill="#d1fae5" stroke="#10b981" stroke-width="2" rx="8"/>
+    <text x="95" y="28" text-anchor="middle" font-size="14" font-weight="600" fill="#065f46">外部服务</text>
+
+    <rect x="20" y="50" width="150" height="36" fill="#fff" stroke="#6ee7b7" rx="4"/>
+    <text x="95" y="68" text-anchor="middle" font-size="11" fill="#374151">Anthropic Claude</text>
+    <text x="95" y="80" text-anchor="middle" font-size="9" fill="#9ca3af">Sonnet / Opus</text>
+
+    <rect x="20" y="92" width="150" height="36" fill="#fff" stroke="#6ee7b7" rx="4"/>
+    <text x="95" y="110" text-anchor="middle" font-size="11" fill="#374151">OpenAI / Gemini / 火山方舟</text>
+    <text x="95" y="122" text-anchor="middle" font-size="9" fill="#9ca3af">多 Provider 路由</text>
+
+    <rect x="20" y="134" width="150" height="36" fill="#fff" stroke="#6ee7b7" rx="4"/>
+    <text x="95" y="152" text-anchor="middle" font-size="11" fill="#374151">Sidecar (Python)</text>
+    <text x="95" y="164" text-anchor="middle" font-size="9" fill="#9ca3af">SRE / Analyst / Agent</text>
+  </g>
+
+  <!-- 数据流连接线 -->
+  <!-- 渲染层 -> Preload -->
+  <line x1="380" y1="240" x2="430" y2="240" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="405" y="232" text-anchor="middle" font-size="10" fill="#92400e">IPC</text>
+
+  <!-- Preload -> 主进程 -->
+  <line x1="550" y1="240" x2="600" y2="240" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 主进程 -> 外部 -->
+  <line x1="920" y1="240" x2="970" y2="240" stroke="#10b981" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="945" y="232" text-anchor="middle" font-size="10" fill="#065f46">HTTPS</text>
+
+  <!-- Arrow marker -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/>
+    </marker>
+  </defs>
+
+  <!-- 可信度算法说明 -->
+  <g transform="translate(40, 380)">
+    <rect x="0" y="0" width="1120" height="180" fill="#f9fafb" stroke="#d1d5db" stroke-width="1" rx="8"/>
+    <text x="560" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2937">可信度评估算法（D-S 证据理论 + PCR5 融合）</text>
+    <text x="560" y="50" text-anchor="middle" font-size="11" fill="#6b7280">每个 AI 决策展示 6 源证据权重 + 融合公式</text>
+
+    <!-- 6 源证据 -->
+    <g transform="translate(30, 70)">
+      <text x="0" y="0" font-size="13" font-weight="600" fill="#374151">6 源证据：</text>
+      <rect x="100" y="-14" width="120" height="22" fill="#dbeafe" stroke="#3b82f6" rx="4"/>
+      <text x="160" y="0" text-anchor="middle" font-size="11" fill="#1e40af">规则匹配</text>
+
+      <rect x="230" y="-14" width="120" height="22" fill="#dcfce7" stroke="#22c55e" rx="4"/>
+      <text x="290" y="0" text-anchor="middle" font-size="11" fill="#14532d">知识库</text>
+
+      <rect x="360" y="-14" width="120" height="22" fill="#fef3c7" stroke="#eab308" rx="4"/>
+      <text x="420" y="0" text-anchor="middle" font-size="11" fill="#713f12">历史</text>
+
+      <rect x="490" y="-14" width="120" height="22" fill="#fce7f3" stroke="#ec4899" rx="4"/>
+      <text x="550" y="0" text-anchor="middle" font-size="11" fill="#831843">CoT 熵轨迹</text>
+
+      <rect x="620" y="-14" width="120" height="22" fill="#e9d5ff" stroke="#a855f7" rx="4"/>
+      <text x="680" y="0" text-anchor="middle" font-size="11" fill="#581c87">LLM 自评</text>
+
+      <rect x="750" y="-14" width="120" height="22" fill="#fed7aa" stroke="#f97316" rx="4"/>
+      <text x="810" y="0" text-anchor="middle" font-size="11" fill="#7c2d12">用户偏好</text>
+    </g>
+
+    <!-- 融合公式 -->
+    <text x="30" y="120" font-size="13" font-weight="600" fill="#374151">融合算法：</text>
+    <text x="30" y="145" font-size="11" fill="#4b5563" font-family="ui-monospace, 'Cascadia Code', 'Fira Code', monospace">m₁₂(A) = Σ(B∩C=A) m₁(B)·m₂(C)              ← 经典 D-S 组合（会归零化冲突证据）</text>
+    <text x="30" y="163" font-size="11" fill="#4b5563" font-family="ui-monospace, 'Cascadia Code', 'Fira Code', monospace">m₁₂(A) = m₁(A)·m₂(X) + m₁(X)·m₂(A)          ← PCR5 比例冲突再分配（Smarandache 2006）</text>
+  </g>
+
+  <!-- 风险拦截流程 -->
+  <g transform="translate(40, 590)">
+    <rect x="0" y="0" width="1120" height="180" fill="#fef2f2" stroke="#ef4444" stroke-width="1" rx="8"/>
+    <text x="560" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#7f1d1d">高危命令拦截流程（12 条黑名单 + 三态审批）</text>
+
+    <!-- 流程节点 -->
+    <g font-size="11" fill="#1f2937">
+      <rect x="30" y="60" width="140" height="46" fill="#fff" stroke="#fca5a5" rx="6"/>
+      <text x="100" y="80" text-anchor="middle" font-weight="600">用户输入命令</text>
+      <text x="100" y="96" text-anchor="middle" fill="#6b7280">SSH 终端</text>
+
+      <rect x="210" y="60" width="140" height="46" fill="#fff" stroke="#fca5a5" rx="6"/>
+      <text x="280" y="80" text-anchor="middle" font-weight="600">风险引擎扫描</text>
+      <text x="280" y="96" text-anchor="middle" fill="#6b7280">AST + 正则</text>
+
+      <rect x="390" y="60" width="140" height="46" fill="#fff" stroke="#fca5a5" rx="6"/>
+      <text x="460" y="80" text-anchor="middle" font-weight="600">匹配黑名单？</text>
+      <text x="460" y="96" text-anchor="middle" fill="#6b7280">12 条规则</text>
+
+      <rect x="570" y="40" width="140" height="46" fill="#fef3c7" stroke="#f59e0b" rx="6"/>
+      <text x="640" y="60" text-anchor="middle" font-weight="600">ALWAYS</text>
+      <text x="640" y="76" text-anchor="middle" fill="#6b7280">自动放行</text>
+
+      <rect x="570" y="100" width="140" height="46" fill="#fef3c7" stroke="#f59e0b" rx="6"/>
+      <text x="640" y="120" text-anchor="middle" font-weight="600">AUTO</text>
+      <text x="640" y="136" text-anchor="middle" fill="#6b7280">用户审批</text>
+
+      <rect x="750" y="60" width="140" height="46" fill="#fee2e2" stroke="#ef4444" rx="6"/>
+      <text x="820" y="80" text-anchor="middle" font-weight="600">NEVER</text>
+      <text x="820" y="96" text-anchor="middle" fill="#6b7280">强制拦截</text>
+
+      <rect x="930" y="60" width="140" height="46" fill="#fff" stroke="#fca5a5" rx="6"/>
+      <text x="1000" y="80" text-anchor="middle" font-weight="600">决策可追溯</text>
+      <text x="1000" y="96" text-anchor="middle" fill="#6b7280">历史决策页</text>
+    </g>
+
+    <!-- 流程箭头 -->
+    <g stroke="#ef4444" stroke-width="1.5" fill="none">
+      <line x1="170" y1="83" x2="210" y2="83" marker-end="url(#arrow-red)"/>
+      <line x1="350" y1="83" x2="390" y2="83" marker-end="url(#arrow-red)"/>
+      <line x1="530" y1="63" x2="570" y2="63" marker-end="url(#arrow-red)"/>
+      <line x1="530" y1="123" x2="570" y2="123" marker-end="url(#arrow-red)"/>
+      <line x1="530" y1="83" x2="570" y2="123" marker-end="url(#arrow-red)"/>
+      <line x1="710" y1="63" x2="750" y2="83" marker-end="url(#arrow-red)"/>
+      <line x1="710" y1="123" x2="750" y2="83" marker-end="url(#arrow-red)"/>
+      <line x1="890" y1="83" x2="930" y2="83" marker-end="url(#arrow-red)"/>
+    </g>
+
+    <defs>
+      <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"/>
+      </marker>
+    </defs>
+
+    <text x="30" y="160" font-size="10" fill="#6b7280">黑名单示例：rm -rf / · mkfs · dd if=/dev/zero · (){:|:&amp;};: · chmod -R 777 / · passwd root · …（共 12 条）</text>
+  </g>
+
+  <!-- 页脚 -->
+  <text x="600" y="790" text-anchor="middle" font-size="10" fill="#9ca3af">© 2026 TDSF · MIT License · 详见 docs/assets/architecture.svg</text>
+</svg>

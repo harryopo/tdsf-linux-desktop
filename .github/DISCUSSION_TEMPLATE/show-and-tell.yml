@@ -1,0 +1,32 @@
+name: "Show and tell"
+description: 分享你用 TDSF-Linux Desktop 做的项目
+title: "[Show] "
+labels: ["show-and-tell"]
+body:
+  - type: textarea
+    id: project
+    attributes:
+      label: 项目介绍
+      description: 你做了什么？
+      placeholder: |
+        - 项目名：
+        - 简介：
+        - 链接：（GitHub / 博客 / 视频）
+    validations:
+      required: true
+  - type: textarea
+    id: tech
+    attributes:
+      label: 技术栈
+      description: 使用了哪些技术？TDSF 帮到了什么？
+  - type: input
+    id: screenshot
+    attributes:
+      label: 截图 / 视频链接
+      description: 推荐附上截图或演示视频
+      placeholder: https://...
+  - type: textarea
+    id: feedback
+    attributes:
+      label: 反馈与建议
+      description: 对 TDSF 有什么改进建议？

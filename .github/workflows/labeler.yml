@@ -1,0 +1,59 @@
+# PR 自动 Label — 配合 .github/labeler.yml
+#
+# 火山杯开源加分项：
+# - 自动按文件路径分类 PR
+# - 自动统计改动规模（S/M/L/XL）
+# - 与 dependabot.yml / codeql.yml 配合形成完整 CI/CD 安全网
+
+name: "PR Labeler"
+
+on:
+  - pull_request_target
+
+# 权限：让 labeler 写 label
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  labeler:
+    name: Auto-label by paths & size
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply file-path labels
+        uses: actions/labeler@v5
+        with:
+          configuration-path: .github/labeler.yml
+          fail-on-missing-config: false
+
+      - name: Apply size label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const changedFiles = pr.changed_files;
+            let sizeLabel = 'size: XL';
+            if (changedFiles <= 3) sizeLabel = 'size: S';
+            else if (changedFiles <= 10) sizeLabel = 'size: M';
+            else if (changedFiles <= 30) sizeLabel = 'size: L';
+            // 删旧 size label
+            const labels = pr.labels.map(l => l.name);
+            for (const old of ['size: S','size: M','size: L','size: XL']) {
+              if (labels.includes(old) && old !== sizeLabel) {
+                try { await github.rest.issues.removeLabel({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, name: old }); } catch {}
+              }
+            }
+            // 加新 label
+            if (!labels.includes(sizeLabel)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: [sizeLabel],
+              });
+            }
