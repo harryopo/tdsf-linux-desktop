@@ -77,6 +77,8 @@ import type {
   SshConfig,
   CommandResult,
   SftpEntry,
+  // SFTP 传输进度事件（v0.9.7 SFTP 文件浏览增强）
+  SftpProgressEvent,
   SystemInfo,
   MonitorData,
   AgentWorkflowState,
@@ -210,6 +212,8 @@ import type {
 // Phase 6 Task 6.5：调度器共享类型 + IPC 通道常量
 import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
 import { SCHEDULER } from '@shared/ipc-channels'
+// P0-3：PAOR 迭代进度共享类型（agent:paor:iteration 通道载荷）
+import type { PaorIterationEvent } from '@shared/paor-types'
 
 // ============================================================================
 // v0.9.6 Sprint 7 任务 E：混合检索结果类型（内联定义，与 main/services/tutorial/hybrid-search.ts 保持一致）
@@ -660,21 +664,23 @@ const sftp = {
   list: (sessionId: string, remotePath: string): Promise<SftpEntry[]> =>
     ipcRenderer.invoke(SFTP.LIST, sessionId, remotePath),
 
-  /** 上传文件 */
+  /** 上传文件（支持 transferId 进度关联） */
   upload: (
     sessionId: string,
     localPath: string,
-    remotePath: string
+    remotePath: string,
+    transferId?: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.UPLOAD, sessionId, localPath, remotePath),
+    ipcRenderer.invoke(SFTP.UPLOAD, sessionId, localPath, remotePath, transferId),
 
-  /** 下载文件 */
+  /** 下载文件（支持 transferId 进度关联） */
   download: (
     sessionId: string,
     remotePath: string,
-    localPath: string
+    localPath: string,
+    transferId?: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.DOWNLOAD, sessionId, remotePath, localPath),
+    ipcRenderer.invoke(SFTP.DOWNLOAD, sessionId, remotePath, localPath, transferId),
 
   /** 删除文件/目录 */
   delete: (sessionId: string, remotePath: string): Promise<boolean> =>
@@ -2088,6 +2094,16 @@ const on = {
     return createListener(MONITOR.SYSTEM_INFO, callback)
   },
 
+  /**
+   * 监听 SFTP 上传/下载进度推送（v0.9.7 SFTP 文件浏览增强）
+   *
+   * 主进程在 sftp:upload / sftp:download 传输过程中通过 step 回调推送进度，
+   * 渲染进程通过本监听器接收 SftpProgressEvent，更新传输队列 UI。
+   */
+  sftpProgress: (callback: (event: SftpProgressEvent) => void): (() => void) => {
+    return createListener(SFTP.PROGRESS, callback)
+  },
+
   /** 监听 LLM 流式 token 推送（兼容旧版） */
   llmToken: (callback: (token: string) => void): (() => void) => {
     return createListener(LLM.TOKEN, callback)
@@ -2205,6 +2221,21 @@ const on = {
    */
   paorApprovalRequest: (callback: (request: PaorApprovalRequest) => void): (() => void) => {
     return createListener('paor:approval-request', callback)
+  },
+
+  /**
+   * 监听 PAOR 迭代进度（v0.9.5 新增，P0-3 补全 IPC 4 步同步）
+   *
+   * 主进程在每轮 PAOR 迭代（Plan→Act→Observe→Reflect）完成后推送
+   * agent:paor:iteration 事件，渲染进程通过本监听器接收迭代轨迹，
+   * 用于实时展示 PAOR 循环进度（执行命令、输出、反思决策）。
+   *
+   * 事件载荷：{ sshSessionId, iteration: PaorIteration }
+   * - sshSessionId: 关联的 SSH 会话 ID（多会话区分）
+   * - iteration: 本轮迭代轨迹（含 act/observe/reflect 三个阶段结果）
+   */
+  agentPaorIteration: (callback: (event: PaorIterationEvent) => void): (() => void) => {
+    return createListener('agent:paor:iteration', callback)
   },
 
   /**
@@ -2357,6 +2388,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSshHostKeyPrompt: on.sshHostKeyPrompt,
   onMonitorData: on.monitorData,
   onMonitorSystemInfo: on.monitorSystemInfo,
+  /** 监听 SFTP 上传/下载进度推送（v0.9.7 SFTP 文件浏览增强） */
+  onSftpProgress: on.sftpProgress,
   onLlmToken: on.llmToken,
   onLlmChunk: on.llmChunk,
   onLlmDone: on.llmDone,
@@ -2377,6 +2410,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // v0.9.5 PAOR 审批请求事件（PAOR 循环遇到高危命令时推送审批请求）
   onPaorApprovalRequest: on.paorApprovalRequest,
+  // v0.9.5 PAOR 迭代进度事件（每轮 Plan→Act→Observe→Reflect 完成后推送）
+  onAgentPaorIteration: on.agentPaorIteration,
 
   // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批请求事件
   // （Subagent 调度时主进程推送审批请求，用户响应后 step 2 继续/中止）
@@ -3327,6 +3362,8 @@ export type ElectronAPI = {
   onSshHostKeyPrompt: (callback: (prompt: SshHostKeyPromptEvent) => void) => () => void
   onMonitorData: (callback: (sessionId: string, data: MonitorData) => void) => () => void
   onMonitorSystemInfo: (callback: (sessionId: string, info: SystemInfo) => void) => () => void
+  /** 监听 SFTP 上传/下载进度推送（v0.9.7 SFTP 文件浏览增强） */
+  onSftpProgress: (callback: (event: SftpProgressEvent) => void) => () => void
   onLlmToken: (callback: (token: string) => void) => () => void
   onLlmChunk: (callback: (chunk: LlmStreamChunk) => void) => () => void
   onLlmDone: (callback: (fullText: string) => void) => () => void

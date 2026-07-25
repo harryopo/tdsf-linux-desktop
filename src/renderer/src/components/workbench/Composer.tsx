@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import {
   ArrowUp, AtSign, ChevronDown, Cpu, Hash,
-  Image as ImageIcon, Loader2, Square, Workflow, X,
+  Image as ImageIcon, Loader2, Square, Workflow, X, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import { MOCK_COMPOSER_CHIPS } from './mock-data'
 import { useLoopEngineering } from './useLoopEngineering'
+import type { UsePaorLoopResult } from './usePaorLoop'
 import ContextBadge from './ContextBadge'
 import type { PersistedProviderConfig, TokenStats } from '@shared/agent-types'
 import type { ImageUploadResult } from '@/types/electron'
@@ -35,6 +36,8 @@ export interface ComposerProps {
   setDemoMode: (v: boolean | ((prev: boolean) => boolean)) => void
   isStreaming: boolean
   loop: ReturnType<typeof useLoopEngineering>
+  /** PAOR 自动循环（v0.9.5 P0-3：Plan→Act→Observe→Reflect） */
+  paor: UsePaorLoopResult
   activeSessionId: string | null
   providers: PersistedProviderConfig[]
   selectedProviderId: string | null
@@ -54,6 +57,7 @@ const Composer: FC<ComposerProps> = ({
   setDemoMode,
   isStreaming,
   loop,
+  paor,
   activeSessionId,
   providers,
   selectedProviderId,
@@ -220,6 +224,51 @@ const Composer: FC<ComposerProps> = ({
     textareaRef.current?.focus()
   }
 
+  /**
+   * 启动 PAOR 自动循环（v0.9.5 P0-3）
+   *
+   * 流程：
+   * 1. 校验：输入框不能为空、必须连接 SSH、必须配置 Provider
+   * 2. 调用 paor.start(task, sshSessionId, maxIterations=5)
+   * 3. 成功启动后清空输入框，UI 状态由 AIPanel 的 useEffect 监听 paor.iterations 展示
+   *
+   * 与 handleSendToggle 的区别：
+   * - handleSendToggle：发送单条消息（agent:chat）或启动循环工程（loop.start）
+   * - handlePaorStart：启动 PAOR 自主循环（agent:paor），主进程 Supervisor 编排多步运维任务
+   *
+   * 注意：PAOR 运行中无法取消（主进程目前不支持 agent:paor:cancel），
+   * 只能等迭代上限或人工拒绝高危命令触发 riskBlocked。
+   */
+  const handlePaorStart = async () => {
+    if (paor.isRunning) {
+      message.warning('PAOR 循环正在运行中，请等待完成')
+      return
+    }
+    const task = input.trim()
+    if (!task) {
+      message.warning('请输入运维任务描述后再点击 PAOR 自主循环')
+      textareaRef.current?.focus()
+      return
+    }
+    if (!activeSessionId) {
+      message.warning('PAOR 需要先连接 SSH 服务器（顶栏服务器菜单或「设置 → SSH」）')
+      return
+    }
+    if (providers.length === 0) {
+      message.warning('请先配置模型 Provider（设置 → 模型）')
+      return
+    }
+    setInput('')
+    onAfterSend()
+    const ok = await paor.start(task, activeSessionId, 5)
+    if (ok) {
+      message.info({
+        content: `PAOR 自主循环已启动\n任务：${task.length > 60 ? `${task.slice(0, 60)}...` : task}\n最大迭代：5 轮`,
+        duration: 4,
+      })
+    }
+  }
+
   return (
     <>
       {/* ===== Composer chips ===== */}
@@ -243,6 +292,31 @@ const Composer: FC<ComposerProps> = ({
           <Workflow className="size-3" />
           {demoMode ? '演示模式：开' : '演示模式'}
           {demoMode && !activeSessionId && (
+            <span className="ml-0.5 inline-flex h-3.5 items-center rounded-full bg-[var(--trae-status-alert-surface-l1)] px-1 text-[11px] text-[var(--trae-status-alert-default)]">
+              未连接
+            </span>
+          )}
+        </button>
+
+        {/* PAOR 自主循环 chip —— v0.9.5 P0-3：Plan→Act→Observe→Reflect 主进程编排 */}
+        <button
+          type="button"
+          title={
+            paor.isRunning
+              ? `PAOR 循环运行中（已迭代 ${paor.currentIteration} 轮）`
+              : 'PAOR 自主循环（Plan→Act→Observe→Reflect 多步运维任务自动编排，高危命令自动拦截）'
+          }
+          onClick={handlePaorStart}
+          disabled={paor.isRunning}
+          className={cn(
+            'ai-composer-chip btn-press',
+            paor.isRunning && 'ai-chip-primary',
+          )}
+          style={paor.isRunning ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+        >
+          <Zap className="size-3" />
+          {paor.isRunning ? `PAOR 运行中(${paor.currentIteration})` : 'PAOR 自主循环'}
+          {!activeSessionId && !paor.isRunning && (
             <span className="ml-0.5 inline-flex h-3.5 items-center rounded-full bg-[var(--trae-status-alert-surface-l1)] px-1 text-[11px] text-[var(--trae-status-alert-default)]">
               未连接
             </span>
