@@ -15,6 +15,7 @@ import type {
   TutorialCategorySummary,
   TutorialDifficulty,
 } from '@shared/tutorial-types'
+import type { PathStep, TutorialPath } from '@/types/electron'
 
 // ==================== 类型定义 ====================
 
@@ -49,8 +50,8 @@ export interface LearningPathStep {
 export interface LearningPath {
   id: string
   title: string
-  /** 路径难度标签（入门/中级/高级）—— 保留用于后续详情页跳转 */
-  level: '入门' | '中级' | '高级'
+  /** 路径难度标签（初级/中级/进阶）—— 与课程难度保持一致 */
+  level: CourseLevel
   /** 路径包含课程数 */
   courseCount: number
   /** 学习进度百分比 —— 设计稿进度条填充宽度 */
@@ -232,6 +233,61 @@ export function entryToCourse(entry: TutorialEntry): Course {
     learnerCount: '0 人',
     progress: 0,
     icon: pickIcon(entry.category),
+  }
+}
+
+/** 将主进程返回的 PathStep 映射为 UI 时间线节点 */
+function mapPathStep(
+  step: PathStep,
+  index: number,
+  visited: Set<string>,
+  prevTutorialId?: string,
+): LearningPathStep {
+  const isCompleted = visited.has(step.tutorialId)
+  // 第一个未完成的步骤标记为 current，其前为 completed，其后为 upcoming
+  let status: LearningPathStep['status'] = 'upcoming'
+  if (isCompleted) {
+    status = 'completed'
+  } else if (index === 0 || (prevTutorialId && visited.has(prevTutorialId))) {
+    status = 'current'
+  }
+  return {
+    label: step.title,
+    description: step.why || step.summary,
+    status,
+  }
+}
+
+/**
+ * 将主进程返回的 TutorialPath 映射为页面 LearningPath
+ *
+ * 进度计算：
+ * - 已访问（visited 包含 tutorialId）→ completed
+ * - 第一个未访问且其前一步已完成（或是首步）→ current
+ * - 其余 → upcoming
+ */
+export function tutorialPathToLearningPath(
+  path: TutorialPath,
+  visited?: Set<string>,
+): LearningPath {
+  const visitedSet = visited ?? new Set<string>()
+  const steps = path.steps.map((step, index) =>
+    mapPathStep(step, index, visitedSet, index > 0 ? path.steps[index - 1]?.tutorialId : undefined),
+  )
+  const completedCount = steps.filter((s) => s.status === 'completed').length
+  const totalCount = steps.length
+  const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+
+  return {
+    id: path.id,
+    title: path.name,
+    level: mapDifficulty(path.targetDifficulty as TutorialDifficulty),
+    courseCount: totalCount,
+    percent,
+    completedCount,
+    totalCount,
+    icon: TrendingUp,
+    steps,
   }
 }
 
