@@ -926,6 +926,7 @@ describe('任务 4：Provider 能力声明', () => {
         toolCall: true,
         vision: true,
         contextWindow: 200_000,
+        logprobs: false,
       })
     })
 
