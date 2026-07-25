@@ -31,6 +31,12 @@ _legacy-python/.ruff_cache/
 
 # Electron
 release/
+release-fresh/
+release-build/
+
+# scripts/ 编译产物（tsx 跑出的 .cjs 不入库）
+scripts/.cjs/
+scripts/*.cjs
 
 # electron-vite 临时配置（dev 模式下动态生成）
 electron.vite.config.*.mjs
