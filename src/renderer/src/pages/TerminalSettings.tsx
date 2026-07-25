@@ -40,6 +40,7 @@ export function TerminalSettings() {
   const [shell, setShell] = usePersistentState('terminal.shell', '/bin/bash')
   const [shellArgs, setShellArgs] = usePersistentState('terminal.shellArgs', '-l')
   const [colorScheme, setColorScheme] = usePersistentState('terminal.colorScheme', 'dark')
+  const [loginShell, setLoginShell] = usePersistentState('terminal.loginShell', true)
 
   // Card 2: 终端行为
   const [fontSize, setFontSize] = usePersistentState('terminal.fontSize', 14)
@@ -117,6 +118,11 @@ export function TerminalSettings() {
                 </SelectContent>
               </Select>
             }
+          />
+          <SettingsRow
+            label="登录提示"
+            desc="以登录 Shell 方式启动，加载用户环境配置"
+            control={<Switch checked={loginShell} onCheckedChange={setLoginShell} />}
             isLast
           />
         </SettingsCard>

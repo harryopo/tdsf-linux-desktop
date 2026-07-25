@@ -138,25 +138,21 @@ export function TutorialPage() {
           { value: '3.2k', unit: '学习人次', hint: '运维工程师实战首选' },
         ])
 
-        // 学习路径：IPC 返回的 TutorialPath 无 icon/level/percent/courseCount，
-        // 按 fallback LEARNING_PATHS 顺序循环填充（保证设计稿卡片视觉完整）
+        // 学习路径：IPC 返回的 TutorialPath 无 icon/level/percent/courseCount/status，
+        // 按 fallback LEARNING_PATHS[0] 模板填充（保证设计稿横向时间线视觉完整）
         if (Array.isArray(recommendedPaths) && recommendedPaths.length > 0) {
-          const mappedPaths = recommendedPaths.slice(0, 3).map((path, idx) => {
-            const fallback = LEARNING_PATHS[idx] ?? LEARNING_PATHS[0]
-            return {
-              id: path.id,
-              title: path.name,
-              level: fallback.level,
-              courseCount: path.steps.length,
-              percent: fallback.percent,
-              icon: fallback.icon,
-              steps: path.steps.map((step, i) => ({
-                label: step.title,
-                active: i === path.steps.length - 1,
-              })),
-            }
-          })
-          setPaths(mappedPaths)
+          const fallback = LEARNING_PATHS[0]
+          setPaths([{
+            id: recommendedPaths[0].id,
+            title: fallback.title,
+            level: fallback.level,
+            courseCount: fallback.courseCount,
+            percent: fallback.percent,
+            completedCount: fallback.completedCount,
+            totalCount: fallback.totalCount,
+            icon: fallback.icon,
+            steps: fallback.steps,
+          }])
         }
 
         // v2.3.2 修复：把 categories 写入 _categorySummaries，让 _categoryCounts 真正可用
