@@ -108,6 +108,9 @@ const AboutSettings = lazy(() =>
 const AlertsSettings = lazy(() =>
   import('./pages/AlertsSettings').then((m) => ({ default: m.AlertsSettings })),
 )
+const CalibrationSettings = lazy(() =>
+  import('./pages/CalibrationSettings').then((m) => ({ default: m.CalibrationSettings })),
+)
 
 /** Suspense 加载占位 */
 function PageLoading() {
@@ -168,6 +171,8 @@ const Router: React.FC = () => {
               <Route path="terminal" element={<TerminalSettings />} />
               <Route path="decision" element={<DecisionSettings />} />
               <Route path="alerts" element={<AlertsSettings />} />
+              {/* 校准设置：8 个 ProviderType 分类校准 + Temperature Scaling */}
+              <Route path="calibration" element={<CalibrationSettings />} />
             </Route>
 
             {/* 模型配置：设计稿为独立居中布局，无侧边栏 */}

@@ -128,6 +128,14 @@ const QUICK_ENTRIES: QuickEntry[] = [
       { type: 'toggle', label: '开机自启', desc: '系统启动时自动运行', defaultChecked: false },
     ],
   },
+  {
+    domId: 'nav-calibration-settings', to: '/settings/calibration', icon: Activity,
+    title: '校准设置', desc: 'AI 置信度 Temperature Scaling 优化', tag: 'calibration.settings',
+    previews: [
+      { type: 'slider', label: '默认 T', desc: '未校准 Provider 的默认温度', configKey: 'calibration.defaultT', min: 0.1, max: 5, defaultFill: 20, sliderVal: '1.00' },
+      { type: 'num', label: '最小样本', desc: '触发校准的最小历史样本数', configKey: 'calibration.minSamples', defaultVal: '20' },
+    ],
+  },
 ]
 
 /** slider 填充百分比（configGet 真实值优先，否则 defaultFill） */
