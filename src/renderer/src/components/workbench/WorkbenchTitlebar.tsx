@@ -17,13 +17,13 @@
  */
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import {
-  Folder,
   ChevronDown,
   PanelRight,
   Settings,
   Plus,
   Loader2,
   Search,
+  Server,
   SquareTerminal,
   Shield,
 } from 'lucide-react'
