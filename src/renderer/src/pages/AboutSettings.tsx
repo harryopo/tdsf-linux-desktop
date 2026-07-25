@@ -78,7 +78,7 @@ export function AboutSettings() {
       { key: '操作系统', value: detectOsName() },
       { key: '安装路径', value: displayInstallPath },
       { key: '官网', value: 'tdsf.dev', isLink: true },
-      { key: '项目仓库', value: 'github.com/tdsf/linux-platform', isLink: true },
+      { key: '项目仓库', value: 'github.com/harryopo/tdsf-linux-desktop', isLink: true },
     ]
   }, [displayVersion, displayBuildTime, displayInstallPath])
 
@@ -192,7 +192,7 @@ export function AboutSettings() {
   }
 
   const handleViewChangelog = () => {
-    window.open(LINK_URLS.releases, '_blank', 'noopener,noreferrer')
+    window.open(LINK_URLS.changelog, '_blank', 'noopener,noreferrer')
   }
 
   const handleLinkCardClick = (card: LinkCard) => {

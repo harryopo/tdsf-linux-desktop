@@ -22,6 +22,22 @@ TDSF-Linux Desktop 是一款 **面向 Linux 运维学习者与初学者的桌面
 
 **核心场景**：学生/新人连上服务器执行命令时，AI 在旁边实时解释、提醒、拦截高危操作，所有决策都附上论文支撑的可信度评估。
 
+### 界面预览
+
+> 📸 真实截图（含中文界面 + 暗色主题），未经任何美化
+
+| 页面 | 预览 | 描述 |
+|------|------|------|
+| **主页 + SSH 终端** | ![Home](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/01-home-terminal.png) | 左侧 SSH 终端 + 右侧 AI 对话面板 |
+| **主页 + 监控** | ![Monitor](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/02-home-monitor.png) | 系统资源实时监控 |
+| **设置 → 外观** | ![Appearance](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/03-settings-appearance.png) | 主题/字体/暗色模式 |
+| **设置 → LLM** | ![LLM](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/04-settings-llm.png) | AI Provider 配置 |
+| **设置 → 高危命令** | ![Risk](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/06-settings-risk.png) | 黑名单 + 三态审批 |
+| **历史决策** | ![History](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/07-history.png) | 所有 AI 决策可追溯 |
+| **知识库** | ![Knowledge](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/08-knowledge-command.png) | 教程词库 + 事件沉淀 |
+
+更多截图见 [tests/e2e/screenshots-acceptance/](tests/e2e/screenshots-acceptance/)
+
 ### 核心特性
 
 #### 🔐 SSH 终端 + 高危命令拦截
