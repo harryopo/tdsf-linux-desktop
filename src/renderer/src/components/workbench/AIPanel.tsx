@@ -38,7 +38,6 @@ import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
 import Composer from './Composer'
-import TokenCostRow from './TokenCostRow'
 
 /** AIPanel props */
 export interface AIPanelProps {
@@ -64,10 +63,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     selectedProviderId,
     setSelectedProviderId,
     tokenStats,
-    // v0.9.3 §11 改进点 26 P2-F：成本统计 + 会话累计 + 重置
-    costStats,
-    sessionCost,
-    resetSessionCost,
     send,
     cancel,
     clear,
@@ -285,6 +280,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         showDemo={showDemo}
         onToolAction={handleToolAction}
         onMessageNavigate={handleMessageNavigate}
+        onShowDemo={() => setShowDemo(true)}
       />
 
       {/* ===== Composer（chips + 输入框 + 工具栏） ===== */}
@@ -304,13 +300,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         onCompressContext={compressContext}
       />
 
-      {/* ===== Token / 成本统计行 ===== */}
-      <TokenCostRow
-        tokenStats={tokenStats}
-        costStats={costStats}
-        sessionCost={sessionCost}
-        onResetSessionCost={resetSessionCost}
-      />
+      {/* Token/成本统计行已移除 — 设计稿无此区域，节省垂直空间 */}
     </div>
   )
 }

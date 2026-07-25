@@ -521,25 +521,27 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
             }}
           >
             {!connected ? (
-              // 设计稿空状态(workbench-disconnected.html 第 335-343 行):
-              // 32×32 圆角6 灰色图标盒(folder-off) + "尚未连接\nSSH服务器" + 24px brand 连接按钮(plug)
+              // 设计稿空状态(workbench-ai.html 第 2604-2613 行):
+              // "服务器" header + plug图标 + "未连接服务器" + "连接"按钮(plug图标)
               <div className="wb-filetree-empty">
-                <div className="wb-filetree-empty-icon-box">
-                  <FolderX className="size-4" />
+                <div className="wb-filetree-server-head">
+                  <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--trae-text-tertiary)]">服务器</span>
                 </div>
-                <div className="wb-filetree-empty-text">
-                  尚未连接
-                  <br />
-                  SSH服务器
+                <div className="wb-filetree-empty-state">
+                  <Plug className="size-5 text-[var(--trae-icon-tertiary)]" />
+                  <div className="wb-filetree-empty-text">
+                    未连接服务器
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/settings/ssh')}
+                    className="wb-filetree-empty-btn"
+                    data-dom-id="connect-ssh"
+                  >
+                    <Plug className="size-3" />
+                    连接
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigate('/settings/ssh')}
-                  className="wb-filetree-empty-btn"
-                >
-                  <Plug className="size-2.5" />
-                  连接
-                </button>
               </div>
             ) : (
               <>

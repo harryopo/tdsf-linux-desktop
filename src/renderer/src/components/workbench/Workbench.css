@@ -50,7 +50,7 @@
 .ai-tool-toggle { display: none; }
 .ai-composer:focus-within {
   border-color: var(--trae-border-brand, var(--border-brand));
-  box-shadow: 0 0 0 2px rgba(56,123,255,0.15);
+  box-shadow: 0 0 0 3px var(--trae-bg-brand-popup, rgba(56,123,255,0.12)) inset;
 }
 .ai-tool-row {
   display: flex; align-items: center; gap: 6px;
@@ -325,7 +325,7 @@
    覆盖 workbench-density.css 的 .wb-shell .wb-* 错误覆盖 */
 .wb-shell .wb-titlebar {
   height: 40px;
-  padding: 0 12px;
+  padding: 0 8px;
 }
 .wb-shell .wb-nav-btn {
   width: 36px;
@@ -364,7 +364,7 @@
   align-items: center;
   justify-content: space-between;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 8px;
   background: var(--trae-bg-base-secondary);
   border-bottom: 1px solid var(--trae-border-neutral-l1);
   flex-shrink: 0;
@@ -452,10 +452,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   width: 48px;
   padding: 8px 0;
-  background: var(--trae-bg-base-default);
+  background: var(--trae-bg-base-secondary);
   border-right: 1px solid var(--trae-border-neutral-l1);
   flex-shrink: 0;
 }
@@ -467,7 +467,7 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -538,7 +538,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
+  height: 32px;
   padding: 0 8px;
   border-bottom: 1px solid var(--trae-border-neutral-l1);
   flex-shrink: 0;
@@ -549,7 +549,7 @@
   font-weight: 600;
   color: var(--trae-text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
 .wb-filetree-actions {
@@ -915,9 +915,16 @@
   transform: rotate(180deg);
 }
 
-/* ===== FileTree 空状态:对齐设计稿 workbench-disconnected.html
-   32×32 圆角6图标盒(folder-off 灰)+ "尚未连接 SSH服务器" + 24px 连接按钮(brand 色 + plug 图标) */
+/* ===== FileTree 空状态:对齐设计稿 workbench-ai.html 第 2604-2613 行
+   "服务器" header + plug图标 + "未连接服务器" + "连接"按钮(plug图标) */
 .wb-filetree-empty {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.wb-filetree-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -930,24 +937,8 @@
   animation-delay: 0.1s;
 }
 
-.wb-filetree-empty-icon-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: var(--trae-bg-overlay-l2);
-  border-radius: 6px;
-  color: var(--trae-icon-tertiary);
-}
-
-.wb-filetree-empty-icon-box svg {
-  width: 16px;
-  height: 16px;
-}
-
 .wb-filetree-empty-text {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--trae-text-tertiary);
   line-height: 1.5;
 }
@@ -983,118 +974,74 @@
   height: 10px;
 }
 
-/* ===== EditorArea 终端空状态:对齐设计稿 workbench-disconnected.html
-   深色背景 #0F1011 + 240px 终端窗口模拟(3 圆点 + "terminal" 文字 + 等待光标)
-   + "终端未连接" + "连接SSH服务器后,终端将自动打开" + "连接服务器" 按钮 */
-.wb-shell .term-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  flex: 1;
-  background: var(--trae-bg-code-block, #0f1011);
-  padding: 32px 16px;
-  animation: ai-fade-in 0.5s cubic-bezier(0.3, 0, 0, 1) both;
-  animation-delay: 0.2s;
+/* ===== EditorArea 终端演示内容:对齐设计稿 workbench-ai.html 第 2769-2817 行
+   深色背景 #0F1011 + JetBrains Mono + nginx排查场景的SSH输出 */
+.wb-term-mock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #0F1011;
+  overflow-y: auto;
+  animation: ai-fade-in 0.4s cubic-bezier(0.3, 0, 0, 1) both;
 }
 
-/* 隐藏 EditorArea.tsx 默认的 TerminalIcon + 文案(设计稿不显示) */
-.wb-shell .term-empty > svg,
-.wb-shell .term-empty > .term-empty-text,
-.wb-shell .term-empty > .term-empty-hint {
-  display: none;
-}
-
-/* 终端窗口模拟卡片 */
-.wb-term-empty-mock {
-  width: 240px;
-  background: var(--trae-bg-base-secondary);
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-.wb-term-empty-mock-header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 8px;
-  background: var(--trae-bg-overlay-l1);
-  border-bottom: 1px solid var(--trae-border-neutral-l1);
-}
-
-.wb-term-empty-mock-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background: var(--trae-border-neutral-l2);
-}
-
-.wb-term-empty-mock-title {
-  font-size: 9px;
-  color: var(--trae-text-tertiary);
-  margin-left: 4px;
-  font-family: var(--trae-font-family-mono);
-}
-
-.wb-term-empty-mock-body {
-  padding: 12px;
-  font-family: var(--trae-font-family-mono);
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
-  line-height: 1.6;
-}
-
-.wb-term-empty-mock-prompt {
-  color: var(--trae-text-secondary);
-  animation: ai-pulse 2.5s ease-in-out infinite;
-}
-
-.wb-term-empty-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--trae-text-secondary);
-  margin-bottom: 4px;
-  text-align: center;
-}
-
-.wb-term-empty-subtitle {
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
-  line-height: 1.6;
-  text-align: center;
-}
-
-.wb-term-empty-connect-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 14px;
-  background: transparent;
-  color: var(--trae-text-brand);
-  border: 1px solid var(--trae-bg-brand);
-  border-radius: 4px;
+.wb-term-mock-output {
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
   font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: #E0E3EE;
+}
+
+.wb-term-mock-line {
+  margin-bottom: 0;
+}
+
+.wb-term-mock-tertiary {
+  color: var(--trae-text-tertiary);
+}
+
+.wb-term-mock-prompt {
+  color: var(--trae-bg-brand, #387BFF);
   font-weight: 500;
-  cursor: pointer;
-  transition: background 120ms ease-out, color 120ms ease-out, transform 80ms ease-out;
 }
 
-.wb-term-empty-connect-btn:hover {
-  background: var(--trae-bg-brand-popup);
+.wb-term-mock-cmd {
+  color: #E0E3EE;
 }
 
-.wb-term-empty-connect-btn:active {
-  transform: scale(0.97);
+.wb-term-mock-comment {
+  color: var(--trae-text-tertiary);
+  font-size: 10px;
+  margin-top: 1px;
+  margin-bottom: 2px;
 }
 
-.wb-term-empty-connect-btn svg {
-  width: 12px;
-  height: 12px;
+.wb-term-mock-success {
+  color: #82D99F;
+}
+
+.wb-term-mock-warning {
+  color: #F29D79;
+}
+
+.wb-term-mock-error {
+  color: #F65A5A;
+}
+
+.wb-term-mock-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: #E0E3EE;
+  animation: ai-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes ai-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
 /* ===== AIPanel 内联连接提示卡片:对齐设计稿 ===== */
@@ -1163,15 +1110,15 @@
 @media (prefers-reduced-motion: reduce) {
   .wb-filetree-empty,
   .wb-filetree-empty-btn,
-  .wb-shell .term-empty,
-  .wb-term-empty-mock-prompt,
+  .wb-term-mock-overlay,
   .wb-ai-connect-card {
     animation: none;
   }
   .wb-server-picker-chevron,
-  .wb-term-empty-connect-btn,
   .wb-ai-connect-card-btn,
-  .wb-filetree-empty-btn {
+  .wb-filetree-empty-btn,
+  .wb-term-mock-cursor {
     transition: none;
+    animation: none;
   }
 }

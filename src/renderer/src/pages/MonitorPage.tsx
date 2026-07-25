@@ -5,12 +5,11 @@
  * Spec: build-runnable-tdsf-from-design · Task 2.4
  *
  * 设计稿：monitor.html
- * - Header（标题 + 副标题 + 返回 + 1H/6H/24H 切换 + 刷新）
+ * - Header（标题 + 副标题 + 1H/6H/24H 切换 + 刷新）
  * - Critical alert 横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer）
  * - KPI 4 列网格（CPU / 内存 / 磁盘 / 网络 I/O）
  * - 2×2 图表网格（CPU 面积 / 内存折线 / 磁盘柱状 / 网络双折线）
  * - 告警列表 table-panel（6 行 + goto-alert-row-N data-dom-id + 点击行弹出 Drawer）
- * - 关联分析卡片（影响评估 + 处置建议 3 步）
  * - 进程监控 TOP 5 CPU
  * - AlertDrawer（DEC-3 决策告警详情抽屉）
  *
@@ -26,8 +25,7 @@
  * - 卡片 hover 仅改变阴影，无 border + scale 同时变化
  */
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, RefreshCw, Activity } from 'lucide-react'
+import { AlertCircle, RefreshCw, Activity } from 'lucide-react'
 import { KpiCard } from '@/components/monitor/KpiCard'
 import {
   CpuAreaChart,
@@ -37,7 +35,6 @@ import {
 } from '@/components/monitor/Charts'
 import { AlertTable } from '@/components/monitor/AlertTable'
 import { AlertDrawer } from '@/components/monitor/AlertDrawer'
-import { CorrelationCard } from '@/components/monitor/CorrelationCard'
 import { ProcessTable } from '@/components/monitor/ProcessTable'
 import { EmptyMonitorState } from '@/components/monitor/EmptyMonitorState'
 import {
@@ -153,7 +150,6 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
  * MonitorPage 主组件
  */
 export function MonitorPage() {
-  const navigate = useNavigate()
   const [range, setRange] = useState<TimeRange>('24H')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -201,6 +197,13 @@ export function MonitorPage() {
     }
   }, [activeSessionId])
 
+  // 无活跃会话时立即清除 loading，让 DEV 模式的 sampleKpiStats 可以渲染
+  useEffect(() => {
+    if (!activeSessionId) {
+      setLoading(false)
+    }
+  }, [activeSessionId])
+
   // 更新服务器标签
   useEffect(() => {
     if (systemInfo) {
@@ -218,11 +221,13 @@ export function MonitorPage() {
   }, [monitorData, range])
 
   // 顶部 critical 告警横幅数据（nullable）：实时优先，无数据时 DEV 模式用 sampleAlerts[0] fallback，非 DEV 返回 null
+  // 横幅 desc 比告警表格多 "，建议清理 /var/log 旧日志" 后缀（1:1 对齐 monitor.html 第 636 行）
+  // 横幅 time 用相对时间（1:1 对齐 monitor.html 第 637 行 "2分钟前"）
   const criticalAlert = useMemo<AlertRecord | null>(() => {
     const latest = monitorData[monitorData.length - 1]
     if (latest && latest.diskUsage > 85) {
       return {
-        time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+        time: '刚刚',
         level: 'critical',
         server: systemInfo?.hostname ?? 'prod-web-01',
         desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值85%，建议清理 /var/log 旧日志`,
@@ -236,7 +241,14 @@ export function MonitorPage() {
         ],
       }
     }
-    return import.meta.env.DEV ? sampleAlerts[0] ?? null : null
+    if (import.meta.env.DEV && sampleAlerts[0]) {
+      return {
+        ...sampleAlerts[0],
+        desc: '磁盘使用率92%超过阈值85%，建议清理 /var/log 旧日志',
+        time: '2分钟前',
+      }
+    }
+    return null
   }, [monitorData, systemInfo])
 
   // 打开 Drawer（接收指定告警）
@@ -275,15 +287,6 @@ export function MonitorPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            data-dom-id="back-workbench"
-            onClick={() => navigate('/workbench')}
-            className="mon-btn-sm mon-btn-back mon-btn-press inline-flex items-center gap-1.5 px-3"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>返回</span>
-          </button>
           <TimeRangeSwitcher value={range} onChange={setRange} />
           <button
             type="button"
@@ -362,10 +365,9 @@ export function MonitorPage() {
         <NetworkFlowChart range={range} />
       </div>
 
-      {/* 5. 告警列表 + 关联分析卡片（左右双栏布局，桌面端并列） */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-2 mb-3">
+      {/* 5. 告警列表（全宽，1:1 对齐设计稿 monitor.html） */}
+      <div className="mb-3">
         <AlertTable onOpenDrawer={openDrawer} />
-        <CorrelationCard alert={criticalAlert ?? undefined} />
       </div>
 
       {/* 6. 进程监控 */}

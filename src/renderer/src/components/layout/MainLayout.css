@@ -1,21 +1,19 @@
 /**
- * MainLayout 布局样式 v3.0 — 纯 Outlet 容器
+ * MainLayout 布局样式 v4.0 — 全局持久 ActivityRail + Outlet
  *
  * 设计原理（WHY）：
- * - 设计稿每个页面都是自包含的完整布局（含自己的 Titlebar + ActivityRail + StatusBar），
- *   MainLayout 只需提供纯 Outlet 容器，让每个页面自己管理布局。
- * - 之前版本（v1.0/v2.0）在这里加了 Header + ActivityRail + StatusBar，
- *   导致 WorkbenchPage 内部已有的 ActivityRail 出现"双层侧边栏"，违反设计稿。
- * - v3.0：彻底删除弃用的 .main-layout-* / .main-layout-header / .main-layout-left 等
- *   样式（已被 Workbench.css 的 .wb-* 类替代），仅保留 .wb-main-layout 容器样式。
+ * - 设计稿要求左侧 IDE 侧边栏（ActivityRail 48px）在任何页面切换时始终保持可见。
+ * - MainLayout 使用 flex 水平布局：ActivityRail（固定 48px）+ Outlet（flex-1）。
+ * - 参考：tdsf-design-app/src/layouts/AppLayout.tsx
  *
  * 视觉对齐：tdsf-linux-redesign/pages/workbench-disconnected.html
  * - 容器满屏（100vh × 100vw）+ 暗色背景 + overflow:hidden
  * - 内容淡入动画（克制的 200ms fadeIn）
  */
 
-/* ===== 主布局容器（纯 Outlet 容器，无外层栏）===== */
+/* ===== 主布局容器（ActivityRail + Outlet 水平排列）===== */
 .wb-main-layout {
+  display: flex;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
