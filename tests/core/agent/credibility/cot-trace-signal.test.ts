@@ -20,6 +20,7 @@ import { describe, it, expect } from 'vitest'
 import {
   analyzeCotEntropyTrajectory,
   cotEntropyTrajectoryConfidence,
+  tokenLogprobShannonEntropy,
   type CotEntropyTrajectory,
 } from '../../../../src/main/core/agent/credibility/mass-functions/cot-trace-signal'
 
@@ -216,6 +217,110 @@ describe('cot-trace-signal — CoT-shape 熵轨迹分析（Zhao 2026）', () => 
       expect(typeof r.steps).toBe('number')
       expect(typeof r.confidence).toBe('number')
       expect(typeof r.summary).toBe('string')
+    })
+  })
+})
+
+// ============================================================================
+// 纯函数：tokenLogprobShannonEntropy（v0.9.7 P3 M1 新增）
+//
+// 论文支撑：
+// - Zhao, X. 2026, arXiv:2603.18940 §3 — token-level answer-distribution entropy
+// - 比 text-Shannon entropy 更预测 LLM 推理可靠性
+//
+// 测试目标：
+// - 边界：空 / 单元素 / 数值非法（-Infinity / NaN / 字符串）
+// - 数值正确性：均匀分布 = 1；独热 = 0
+// - 数值稳定性：极大负数 logprob 不应导致 NaN
+// - 归一化：所有结果 ∈ [0, 1]
+// ============================================================================
+describe('cot-trace-signal — tokenLogprobShannonEntropy（v0.9.7 P3 M1）', () => {
+  describe('边界条件', () => {
+    it('空数组 → 0（无 token）', () => {
+      expect(tokenLogprobShannonEntropy([])).toBe(0)
+    })
+
+    it('单元素 logprob → 0（完全确定，无分布可言）', () => {
+      expect(tokenLogprobShannonEntropy([0])).toBe(0)
+      expect(tokenLogprobShannonEntropy([-1.5])).toBe(0)
+    })
+
+    it('非数组输入 → 0（防御性）', () => {
+      expect(tokenLogprobShannonEntropy(null as unknown as number[])).toBe(0)
+      expect(tokenLogprobShannonEntropy(undefined as unknown as number[])).toBe(0)
+    })
+  })
+
+  describe('数值正确性', () => {
+    it('2 个相等 logprob（均匀分布 N=2）→ 归一化熵 = 1', () => {
+      // p₁ = p₂ = 0.5；H = -2·0.5·log₂(0.5) = 1；归一化：H / log₂(2) = 1 / 1 = 1
+      expect(tokenLogprobShannonEntropy([0, 0])).toBeCloseTo(1, 9)
+    })
+
+    it('3 个相等 logprob（均匀分布 N=3）→ 归一化熵 = 1', () => {
+      // p_i = 1/3；H = log₂(3)；归一化：H / log₂(3) = 1
+      expect(tokenLogprobShannonEntropy([-1, -1, -1])).toBeCloseTo(1, 9)
+    })
+
+    it('5 个相等 logprob（均匀分布 N=5）→ 归一化熵 = 1', () => {
+      expect(tokenLogprobShannonEntropy([-2, -2, -2, -2, -2])).toBeCloseTo(1, 9)
+    })
+
+    it('独热（1 个 ≈0，其余 -Infinity）→ 0', () => {
+      // OpenAI 实际场景：top-1 logprob ≈ 0，top-2..N 为 -Infinity
+      // 过滤后只剩 1 个有效值，函数约定返回 0
+      expect(tokenLogprobShannonEntropy([0, -Infinity, -Infinity])).toBe(0)
+    })
+
+    it('极度不均 [0, -5, -10] → 熵低（接近 0）', () => {
+      // p₁ ≈ 1.0，p₂ ≈ 0.0067，p₃ ≈ 4.5e-5
+      // H ≈ 0.0054（几乎全在一个 token）
+      const h = tokenLogprobShannonEntropy([0, -5, -10])
+      expect(h).toBeGreaterThan(0)
+      expect(h).toBeLessThan(0.05)
+    })
+  })
+
+  describe('数值稳定性', () => {
+    it('极大负数 logprob（-1000）不导致 NaN / Infinity', () => {
+      const h = tokenLogprobShannonEntropy([0, -1000, -1000])
+      expect(Number.isFinite(h)).toBe(true)
+      expect(h).toBeGreaterThanOrEqual(0)
+      expect(h).toBeLessThanOrEqual(1)
+    })
+
+    it('包含 NaN → 跳过非法值后计算', () => {
+      // [0, NaN, -1] 过滤后为 [0, -1]
+      // p₁ = 1/(1+0.37) = 0.73，p₂ = 0.27
+      // H ≈ 0.86 bit；归一化：H / log₂(2) = 0.86
+      const h = tokenLogprobShannonEntropy([0, NaN, -1])
+      expect(Number.isFinite(h)).toBe(true)
+      expect(h).toBeGreaterThan(0.8)
+      expect(h).toBeLessThan(0.9)
+    })
+
+    it('包含字符串 / null → 跳过', () => {
+      // [0, "0.5", -1, null] 过滤后为 [0, -1]
+      const h = tokenLogprobShannonEntropy([0, '0.5' as unknown as number, -1, null as unknown as number])
+      expect(h).toBeGreaterThan(0.8)
+      expect(h).toBeLessThan(0.9)
+    })
+  })
+
+  describe('归一化与 clamp 契约', () => {
+    it('所有返回结果 ∈ [0, 1]', () => {
+      const samples: number[][] = [
+        [0, -1, -2, -3, -4],
+        [-0.5, -0.5, -0.5, -0.5, -0.5],
+        [-0.001, -0.002, -0.003],
+        [-10, -20, -30, -40, -50],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      ]
+      for (const s of samples) {
+        const h = tokenLogprobShannonEntropy(s)
+        expect(h).toBeGreaterThanOrEqual(0)
+        expect(h).toBeLessThanOrEqual(1)
+      }
     })
   })
 })

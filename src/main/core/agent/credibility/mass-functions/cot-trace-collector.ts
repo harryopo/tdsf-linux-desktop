@@ -43,6 +43,7 @@
  */
 
 import type { CotEntropyTrajectory } from './cot-trace-signal'
+import { tokenLogprobShannonEntropy } from './cot-trace-signal'
 
 /**
  * Trace 收集来源类型（按优先级）
@@ -314,6 +315,43 @@ export class CotTraceCollector {
   accumulateFinalText(text: string): void {
     if (this.state === 'finalized') return
     if (text) this.finalText += text
+  }
+
+  /**
+   * 记录基于 token logprobs 的真实分布熵（v0.9.7 P3 M1 新增）
+   *
+   * 输入：每个 token 的 top-N logprobs（由 OpenAI 协议 providerMetadata 返回）。
+   * 对每个 token，调用 `tokenLogprobShannonEntropy` 计算其 answer-distribution
+   * Shannon 熵，并作为一个 trace point。
+   *
+   * 论文依据：Zhao 2026, arXiv:2603.18940 §3 — token-level answer-distribution
+   * entropy 比 text-Shannon entropy 更预测 LLM 推理可靠性。
+   *
+   * 注意：
+   * - 委托给 `tokenLogprobShannonEntropy`（DRY 单一实现，cot-trace-signal.ts）
+   * - N<2 时返回 0（完全确定 / 退化为单值）
+   * - 与 accumulateFinalText 可共存，但 finalize 会优先使用显式 points
+   *
+   * @param tokenLogprobs 每个 token 的 top-N logprobs 数组
+   */
+  recordTokenLogprobEntropies(tokenLogprobs: number[][]): void {
+    if (this.state === 'finalized') {
+      throw new Error('CotTraceCollector 已 finalized，不可再记录')
+    }
+    if (!Array.isArray(tokenLogprobs) || tokenLogprobs.length === 0) return
+
+    for (const logprobs of tokenLogprobs) {
+      if (!Array.isArray(logprobs) || logprobs.length === 0) continue
+      const entropy = tokenLogprobShannonEntropy(logprobs)
+      // tokenLogprobShannonEntropy 已 clamp 到 [0, 1]、过滤非法值、
+      // 数值稳定（max-subtraction）、归一化到 log₂(N)
+      this.state = 'recording'
+      this.points.push({
+        text: `[token-logprobs N=${logprobs.length}]`,
+        entropy,
+        source: 'turn-text',
+      })
+    }
   }
 
   /**

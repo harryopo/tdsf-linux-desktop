@@ -620,3 +620,190 @@ describe('sdk-trace-adapter — 纯函数提取', () => {
     expect(extractNumTurns(errorResult)).toBe(-1)
   })
 })
+
+// ============================================================================
+// CotTraceCollector：recordTokenLogprobEntropies（v0.9.7 P3 M1 新增）
+//
+// 论文支撑：Zhao, X. 2026, arXiv:2603.18940 §3 — token-level answer-distribution
+// entropy 比 text-Shannon entropy 更预测 LLM 推理可靠性。
+//
+// 测试目标：
+// - 单 token / 多 token logprobs 都能记录为 trace points
+// - 每个 token 算 1 个熵值（多 token → 多 trace point）
+// - 边界：空 / 单元素 / 含非法值（NaN / -Infinity）→ 委托给 tokenLogprobShannonEntropy
+// - 状态机：与 recordThinkingBlock / recordTurnText 共享 'recording' 状态
+// - finalize 后抛错
+// ============================================================================
+describe('cot-trace-collector — recordTokenLogprobEntropies（v0.9.7 P3 M1）', () => {
+  it('多 token logprobs → 每个 token 1 个 trace point（uniform=1）', () => {
+    const c = createCotTraceCollector()
+    // 3 个 token，每个 token 的 top-3 logprobs 均匀分布（logprob 相等）
+    // → 归一化熵 ≈ 1（最大熵）
+    c.recordTokenLogprobEntropies([
+      [-1, -1, -1],
+      [-0.5, -0.5, -0.5],
+      [-2, -2, -2],
+    ])
+    const r = c.finalize()
+    expect(r.collected).toBe(true)
+    expect(r.totalSteps).toBe(3)
+    // 每个 token 都是均匀分布 → 熵 = 1
+    for (const h of r.trajectory) {
+      expect(h).toBeCloseTo(1, 6)
+    }
+    expect(r.sourceBreakdown['turn-text']).toBe(3)
+  })
+
+  it('极度不均的 logprobs → 熵接近 0', () => {
+    const c = createCotTraceCollector()
+    // 1 个 token，独热：top-1 ≈ 0，其余 -Infinity → 委托给函数返回 0
+    c.recordTokenLogprobEntropies([[0, -Infinity, -Infinity]])
+    const r = c.finalize()
+    expect(r.trajectory[0]).toBe(0)
+  })
+
+  it('混合：均匀 + 不均 token → 各算各的', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([
+      [-1, -1, -1], // 均匀 → 1
+      [0, -10, -10], // 独热 → ≈0
+    ])
+    const r = c.finalize()
+    expect(r.totalSteps).toBe(2)
+    expect(r.trajectory[0]).toBeCloseTo(1, 6)
+    expect(r.trajectory[1]).toBeLessThan(0.05)
+  })
+
+  it('空数组 → 静默跳过（不抛错、不改 state）', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([])
+    const r = c.finalize()
+    expect(r.collected).toBe(false)
+    expect(r.totalSteps).toBe(0)
+  })
+
+  it('非数组输入 → 静默跳过（防御性）', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies(null as unknown as number[][])
+    c.recordTokenLogprobEntropies(undefined as unknown as number[][])
+    const r = c.finalize()
+    expect(r.collected).toBe(false)
+  })
+
+  it('token 内含空数组 → 静默跳过该 token', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([
+      [], // 跳过
+      [-1, -1, -1], // 保留
+      [], // 跳过
+    ])
+    const r = c.finalize()
+    expect(r.totalSteps).toBe(1)
+    expect(r.trajectory[0]).toBeCloseTo(1, 6)
+  })
+
+  it('含 NaN → tokenLogprobShannonEntropy 内部过滤', () => {
+    const c = createCotTraceCollector()
+    // [0, 0, NaN] 过滤后 [0, 0] → 均匀分布 → 归一化熵 = 1
+    c.recordTokenLogprobEntropies([[0, 0, NaN]])
+    const r = c.finalize()
+    expect(r.totalSteps).toBe(1)
+    expect(Number.isFinite(r.trajectory[0])).toBe(true)
+    expect(r.trajectory[0]).toBeCloseTo(1, 6)
+  })
+
+  it('state 从 init → recording', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([[0, -0.5, -1]])
+    const r = c.finalize()
+    expect(r.collected).toBe(true)
+  })
+
+  it('finalize 后再调用 → 抛错', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([[0, -1]])
+    c.finalize()
+    expect(() => c.recordTokenLogprobEntropies([[0, -1]])).toThrow(/finalized/)
+  })
+
+  it('与 recordTurnText 互不冲突（都归到 turn-text）', () => {
+    const c = createCotTraceCollector()
+    c.recordTurnText('First turn.')
+    c.recordTokenLogprobEntropies([[-1, -1]])
+    const r = c.finalize()
+    expect(r.totalSteps).toBe(2)
+    expect(r.sourceBreakdown['turn-text']).toBe(2)
+  })
+})
+
+// ============================================================================
+// CotTraceCollector：4 优先级降级（v0.9.7 P3 M1 新增 logprobs 优先级）
+//
+// 论文支撑：Zhao 2026, arXiv:2603.18940 — token-level entropy 比 text-entropy 预测力更强
+//
+// 优先级：
+// 1. thinking-block (Anthropic Claude with thinking) — 显式 reasoning 块
+// 2. turn-text / logprobs (Reasoning model 多 turn + OpenAI 协议 logprobs 直采)
+// 3. text-fallback (句子切分启发式)
+//
+// 互斥：一旦有 1+2 路径触发，fallback 不再切分 finalText
+// ============================================================================
+describe('cot-trace-collector — 4 优先级降级（v0.9.7 P3 M1 加 logprobs）', () => {
+  it('thinking + logprobs 并存：fallback 仍被抑制（两者都不触发切分）', () => {
+    const c = createCotTraceCollector()
+    c.recordThinkingBlock('Step 1 reasoning.')
+    // logprobs 也作为显式 trace 点 push（与 thinking-block 并存，不互斥）
+    c.recordTokenLogprobEntropies([[-1, -1]])
+    c.accumulateFinalText('A lot of fallback text. Multiple sentences here.')
+    const r = c.finalize()
+    expect(r.usedFallback).toBe(false)
+    expect(r.totalSteps).toBe(2) // thinking + logprobs 都 push
+    expect(r.sourceBreakdown['thinking-block']).toBe(1)
+    expect(r.sourceBreakdown['turn-text']).toBe(1) // logprobs 归到 turn-text
+    expect(r.sourceBreakdown['text-fallback']).toBe(0) // fallback 被抑制
+  })
+
+  it('优先级 2a: turn-text 优先于 logprobs（同 source，但先来先记）', () => {
+    const c = createCotTraceCollector()
+    c.recordTurnText('Turn 1 reasoning.')
+    c.recordTokenLogprobEntropies([[-1, -1, -1]])
+    const r = c.finalize()
+    expect(r.usedFallback).toBe(false)
+    expect(r.totalSteps).toBe(2)
+    expect(r.sourceBreakdown['turn-text']).toBe(2)
+  })
+
+  it('优先级 2b: logprobs 触发 → 不进 fallback（即使有 finalText）', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([[-1, -1, -1]])
+    c.accumulateFinalText('A lot of fallback text. Multiple sentences here. Even more.')
+    const r = c.finalize()
+    expect(r.usedFallback).toBe(false)
+    expect(r.totalSteps).toBe(1)
+    expect(r.sourceBreakdown['turn-text']).toBe(1)
+    expect(r.sourceBreakdown['text-fallback']).toBe(0)
+  })
+
+  it('优先级 3: 无任何显式 trace → 仅 finalText 触发 fallback', () => {
+    const c = createCotTraceCollector()
+    c.recordTokenLogprobEntropies([]) // 空输入，state 不变
+    c.accumulateFinalText('First sentence here. Second sentence here. Third one here. Fourth sentence here.')
+    const r = c.finalize()
+    expect(r.usedFallback).toBe(true)
+    expect(r.totalSteps).toBeGreaterThan(1)
+    expect(r.sourceBreakdown['text-fallback']).toBe(r.totalSteps)
+  })
+
+  it('Claude 兑底（anthropic / claude-sdk / google 不支持 logprobs）→ 走 text-fallback', () => {
+    // 模拟 supervisor.ts 中 enableLogprobs=false 的情况：
+    // - 不调用 recordTokenLogprobEntropies
+    // - 仅调用 accumulateFinalText
+    // - finalize 走 sentence-splitting fallback
+    const c = createCotTraceCollector()
+    c.accumulateFinalText('System CPU usage is high. Memory is at 80%. Disk I/O looks normal.')
+    const r = c.finalize()
+    expect(r.usedFallback).toBe(true)
+    expect(r.totalSteps).toBeGreaterThanOrEqual(1)
+    expect(r.sourceBreakdown['text-fallback']).toBeGreaterThan(0)
+  })
+})

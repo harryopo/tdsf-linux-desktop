@@ -57,6 +57,7 @@ import { streamText, generateText, tool, isStepCount, type ModelMessage } from '
 import { z } from 'zod'
 import { createLanguageModel, getDefaultParams } from './providers/provider-factory'
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
+import { getProviderCapabilities } from './providers/provider-capabilities'
 import { redactSecrets } from './providers/redact'
 import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeeded } from './context'
@@ -392,8 +393,9 @@ class SupervisorAgent {
       strength === 'deep' ? maxTokens * 2 : strength === 'fast' ? Math.floor(maxTokens / 2) : maxTokens
 
     // v0.9.6 P2 M5+：CoT 熵轨迹收集器
+    // v0.9.7 P3 M1 升级：若 provider 支持 logprobs，优先走真实 token entropy 路径
     // Vercel AI SDK v7 路径：streamText 不暴露 per-step content block，
-    // 采用 text-fallback 模式（按句子切分 + text-feature entropy）
+    // logprobs 通过 fullStream 的 providerMetadata 事件返回
     const traceCollector = createCotTraceCollector()
 
     // Phase J.3：DeepSeek 思考模式参数
@@ -406,6 +408,13 @@ class SupervisorAgent {
     const enableDeepseekThinking =
       modelInstance.config.type === 'deepseek' && strength === 'deep'
 
+    // v0.9.7 P3 M1：logprobs 直采支持
+    // 检查 provider 是否支持 logprobs（OpenAI 协议：deepseek/qwen/volcengine-ark/ollama/openai-compatible）
+    // - 支持：透传 providerOptions.openai.logprobs + top_logprobs，fullStream 捕获 providerMetadata
+    // - 不支持：保持现有 text-fallback 路径（Claude/google/claude-sdk）
+    const caps = getProviderCapabilities(modelInstance.config)
+    const enableLogprobs = caps.logprobs === true
+
     this.log.info('chat 调用开始', {
       correlationId,
       providerId: resolvedProviderId,
@@ -416,6 +425,7 @@ class SupervisorAgent {
       messageCount: compaction.messages.length,
       compactionLevel: compaction.level,
       thinkingEnabled: enableDeepseekThinking,
+      logprobsEnabled: enableLogprobs,
     })
 
     try {
@@ -482,20 +492,37 @@ class SupervisorAgent {
       // 8. 调用 streamText（Vercel AI SDK v7；可选 tools + stopWhen）
       // Phase J.3：传入 providerOptions 以支持 DeepSeek 思考模式（thinking + reasoning_effort）
       // enableDeepseekThinking 为 false 时传 undefined，SDK 会忽略 providerOptions。
+      // v0.9.7 P3 M1：若 provider 支持 logprobs，透传 providerOptions.openai.logprobs + top_logprobs
+      const providerOptions =
+        enableDeepseekThinking || enableLogprobs
+          ? {
+              ...(enableDeepseekThinking
+                ? {
+                    deepseek: {
+                      thinking: { type: 'enabled' as const },
+                      reasoning_effort: 'high' as const,
+                    },
+                  }
+                : {}),
+              ...(enableLogprobs
+                ? {
+                    // OpenAI 协议：传 logprobs=true + top_logprobs=5
+                    // SDK 会透传到 OpenAI / DeepSeek / Qwen / Volcengine / Ollama 等兼容 API
+                    openai: {
+                      logprobs: true as const,
+                      top_logprobs: 5 as const,
+                    },
+                  }
+                : {}),
+            }
+          : undefined
       const result = streamText({
         model: modelInstance.model,
         messages: compaction.messages,
         temperature,
         maxOutputTokens: effectiveMaxTokens,
         abortSignal: abortController.signal,
-        providerOptions: enableDeepseekThinking
-          ? {
-              deepseek: {
-                thinking: { type: 'enabled' },
-                reasoning_effort: 'high',
-              },
-            }
-          : undefined,
+        providerOptions,
         ...(tools
           ? {
               tools,
@@ -504,15 +531,54 @@ class SupervisorAgent {
           : {}),
       })
 
-      // 累积完整文本
+      // 累积完整文本 + logprobs
+      // v0.9.7 P3 M1：遍历 fullStream 而非 textStream，以捕获 providerMetadata 事件
+      // 论文依据：Zhao 2026 — 用 token-level answer-distribution entropy 而非 text entropy
       let fullText = ''
-      for await (const chunk of result.textStream) {
-        if (chunk) {
-          fullText += chunk
-          onToken?.(chunk)
-          // v0.9.6 P2 M5+：累积到 trace collector（fallback 切分在 finalize 进行）
-          traceCollector.accumulateFinalText(chunk)
+      for await (const part of result.fullStream) {
+        const partType = (part as { type?: string }).type
+        if (partType === 'text-delta') {
+          // 文本增量：累积 + 回调 + trace fallback
+          const text = (part as { text?: string }).text ?? ''
+          if (text) {
+            fullText += text
+            onToken?.(text)
+            // 兑底：若未启用 logprobs，仍累积文本用于 fallback 切分
+            if (!enableLogprobs) {
+              traceCollector.accumulateFinalText(text)
+            }
+          }
+        } else if (partType === 'response-metadata' || partType === 'provider-metadata') {
+          // v0.9.7 P3 M1：捕获 OpenAI 协议返回的 logprobs
+          // OpenAI 协议将 logprobs 放在 providerMetadata.openai.logprobs[]
+          // 每项结构：{ token, logprob, topLogprobs: [{token, logprob, ...}] }
+          const meta = (part as { providerMetadata?: { openai?: { logprobs?: unknown } } })
+            .providerMetadata
+          const logprobsRaw = meta?.openai?.logprobs
+          if (Array.isArray(logprobsRaw) && logprobsRaw.length > 0) {
+            // 提取每个 token 的 top-N logprobs（数字数组）
+            const tokenLogprobs: number[][] = []
+            for (const item of logprobsRaw) {
+              if (item && typeof item === 'object') {
+                const topLps = (item as { topLogprobs?: Array<{ logprob?: number }> })
+                  .topLogprobs
+                if (Array.isArray(topLps) && topLps.length > 0) {
+                  const lps: number[] = []
+                  for (const tl of topLps) {
+                    if (typeof tl?.logprob === 'number' && Number.isFinite(tl.logprob)) {
+                      lps.push(tl.logprob)
+                    }
+                  }
+                  if (lps.length > 0) tokenLogprobs.push(lps)
+                }
+              }
+            }
+            if (tokenLogprobs.length > 0) {
+              traceCollector.recordTokenLogprobEntropies(tokenLogprobs)
+            }
+          }
         }
+        // 其他事件类型（tool-call / tool-result / finish-step / finish 等）忽略
       }
 
       // 8. 获取 token 使用（v7：result.usage 是 Promise）

@@ -114,6 +114,24 @@ export interface ProviderCapabilities {
   vision: boolean
   /** 上下文窗口大小（token 数，0 表示未知） */
   contextWindow: number
+  /**
+   * 是否支持 token logprobs（v0.9.7 P3 M1 新增）
+   * - true：provider 暴露 per-token logprobs，可计算**真实** token-distribution Shannon 熵
+   * - false：provider 不暴露 logprobs，可信度模块走 thinking-block / text-fallback 兑底
+   *
+   * 论文依据：Zhao 2026, arXiv:2603.18940 — token entropy 比 text-Shannon entropy 更预测 LLM 推理可靠性
+   *
+   * 主流支持情况（2024-2025）：
+   * - openai / openai-compatible：支持（`logprobs=true, top_logprobs=N`）
+   * - deepseek：支持
+   * - qwen：支持（火山方舟 / 阿里百炼 OpenAI 兼容端点）
+   * - volcengine-ark：支持
+   * - ollama：支持（`logprobs: true`）
+   * - anthropic：不支持（Anthropic 协议无 logprobs 字段）
+   * - google：不支持（Gemini 协议无 token-level logprobs）
+   * - claude-sdk：不支持（Agent SDK 不暴露 per-step logprobs）
+   */
+  logprobs: boolean
 }
 
 /**
