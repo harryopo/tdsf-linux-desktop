@@ -2,77 +2,32 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-22T03:59:14.133Z",
+  "lastUpdated": "2026-07-25T07:20:00.000Z",
   "sessions": {
-    "ai-glm-20260722-phaseC-v2.0": {
-      "aiName": "ai-glm-20260722-phaseC-v2.0",
-      "sessionId": "ai-glm-20260722-phaseC-v2.0",
-      "startedAt": "2026-07-22T03:40:55.626Z",
-      "lastActiveAt": "2026-07-22T03:59:14.133Z",
-      "task": "phaseC-file-search-permission",
+    "ai-kimi-20260725-backend": {
+      "aiName": "ai-kimi-20260725-backend",
+      "sessionId": "ai-kimi-20260725-backend",
+      "startedAt": "2026-07-25T07:16:25.079Z",
+      "lastActiveAt": "2026-07-25T07:16:25.286Z",
+      "task": "清理过期session并启用多AI模式",
       "claimedFiles": [
         {
-          "path": "src/renderer/src/components/workbench/QuickFileSearch.tsx",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:40:55.626Z"
+          "path": ".ai-coordination.json",
+          "task": "清理过期session并启用多AI模式",
+          "claimedAt": "2026-07-25T07:16:25.079Z"
         },
         {
-          "path": "src/renderer/src/components/workbench/GlobalSearch.tsx",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:40:55.706Z"
+          "path": "AGENTS.md",
+          "task": "更新多AI并行工作流",
+          "claimedAt": "2026-07-25T07:16:25.183Z"
         },
         {
-          "path": "src/main/services/ssh/file-watcher.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:40:55.781Z"
-        },
-        {
-          "path": "src/renderer/src/stores/workbench-store.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:40:55.853Z"
-        },
-        {
-          "path": "src/main/ipc/sftp-search.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:40:55.921Z"
-        },
-        {
-          "path": "src/main/ipc/file-watcher.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:04.351Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:04.423Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:04.495Z"
-        },
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:04.570Z"
-        },
-        {
-          "path": "src/main/core/risk-engine.ts",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:04.641Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/ActivityRail.tsx",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:11.671Z"
-        },
-        {
-          "path": "src/renderer/src/pages/RiskSettings.tsx",
-          "task": "phaseC-file-search-permission",
-          "claimedAt": "2026-07-22T03:41:11.747Z"
+          "path": "docs/competition/generate-ppts.js",
+          "task": "比赛PPT生成脚本",
+          "claimedAt": "2026-07-25T07:16:25.286Z"
         }
       ],
-      "expiresAt": "2026-07-22T05:59:14.133Z"
+      "expiresAt": "2026-07-25T09:16:25.286Z"
     }
   },
   "history": [
@@ -2455,6 +2410,85 @@
       "file": "src/renderer/src/pages/RiskSettings.tsx",
       "task": "Phase C Task C.6 添加权限模式选择器",
       "timestamp": "2026-07-22T03:59:14.133Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": ".ai-coordination.json",
+      "task": "清理过期session并启用多AI模式",
+      "timestamp": "2026-07-25T07:16:06.795Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": ".ai-coordination.json",
+      "task": "清理过期session并启用多AI模式",
+      "timestamp": "2026-07-25T07:16:24.975Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": ".ai-coordination.json",
+      "task": "清理过期session并启用多AI模式",
+      "timestamp": "2026-07-25T07:16:25.079Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "AGENTS.md",
+      "task": "更新多AI并行工作流",
+      "timestamp": "2026-07-25T07:16:25.183Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "docs/competition/generate-ppts.js",
+      "task": "比赛PPT生成脚本",
+      "timestamp": "2026-07-25T07:16:25.286Z"
+    },
+    {
+      "sessionId": "ai-glm-20260725-coordinator",
+      "action": "claim",
+      "file": ".ai-coordination.json,docs/patches/,docs/competition/generate-ppts.js",
+      "task": "协调其他AI冲突+清理stash+归档patch+提交调研文档",
+      "timestamp": "2026-07-25T07:20:00.000Z"
+    },
+    {
+      "sessionId": "ai-glm-20260725-coordinator",
+      "action": "release",
+      "file": ".ai-coordination.json,docs/patches/,docs/competition/generate-ppts.js",
+      "task": "协调完成：5 commit 落地（1ec9b93+93d60ab+6ff1815+保留 9451a20+3bca2d2）",
+      "timestamp": "2026-07-25T07:20:00.000Z"
     }
-  ]
+  ],
+  "coordinationAudit": {
+    "lastAudit": "2026-07-25T07:20:00.000Z",
+    "auditor": "ai-glm-20260725-coordinator",
+    "findings": [
+      {
+        "issue": "2 个 git 进程卡住（git restore .gitignore）5 分钟，导致 index.lock 阻塞",
+        "resolution": "kill 卡住进程 + 移除 index.lock + 完成被阻塞的 .gitignore restore",
+        "timestamp": "2026-07-25T07:13:39.000Z"
+      },
+      {
+        "issue": "2 个 stash 跨 AI 修改高共享文件（preload/ipc-channels/agent-types 等）",
+        "resolution": "评估后批量 drop（stash@{0} tutorial-script-wip + stash@{1} other-ai-p0prep）",
+        "timestamp": "2026-07-25T07:15:00.000Z"
+      },
+      {
+        "issue": "feat/translate-v1.4.0 cherry-pick 与 master TutorialPage.tsx 冲突（4 文件）",
+        "resolution": "保留 worktree（其他 AI 还在用 v1.4.0 词库升级）+ patch 归档到 docs/patches/translate-v1.3.0-wordbank.patch",
+        "timestamp": "2026-07-25T07:14:00.000Z"
+      },
+      {
+        "issue": "3 份调研文档 untracked（01-SSH-IDE + 02-终端补全 + settings-audit）",
+        "resolution": "commit 1ec9b93 保留有价值调研产出",
+        "timestamp": "2026-07-25T07:10:00.000Z"
+      }
+    ],
+    "currentStashCount": 0,
+    "currentBranches": ["master", "feat/translate-v1.4.0"],
+    "masterAheadOfOrigin": 5,
+    "gateStatus": "4/5 绿（typecheck:node ✅ + typecheck:web ✅ + lint ✅ + test ✅ 1346/1346，build:win 按惯例跳过）"
+  }
 }
