@@ -457,3 +457,73 @@
 .credibility-formula-expr sup {
   font-size: 9px;
 }
+
+/* ===== v0.9.6 P2 M7：CoT 熵轨迹输入区 ===== */
+.credibility-cot-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  background: var(--color-bg-inset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.credibility-cot-section .credibility-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.credibility-cot-tag {
+  margin-left: auto !important;
+  font-family: var(--font-family-mono);
+  font-size: 10px !important;
+}
+
+.credibility-cot-textarea {
+  font-family: var(--font-family-mono) !important;
+  font-size: 12px !important;
+  background: var(--color-bg-card) !important;
+  border-color: var(--color-border) !important;
+}
+
+.credibility-cot-textarea:focus,
+.credibility-cot-textarea:hover {
+  border-color: var(--color-link) !important;
+}
+
+.credibility-cot-analysis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.credibility-cot-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 9px;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.credibility-cot-stat strong {
+  font-size: 12px;
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.credibility-cot-paper {
+  font-size: 9px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  letter-spacing: 0.01em;
+}

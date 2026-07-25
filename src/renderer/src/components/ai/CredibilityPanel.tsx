@@ -17,7 +17,7 @@
  * 方案书依据：v0.9 §可信度算法升级（D-S + PCR5 + 6 源证据融合）
  */
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Button, Collapse, Tag, Slider, Switch, message, Tooltip, Empty } from 'antd'
+import { Button, Collapse, Tag, Slider, Switch, message, Tooltip, Empty, Input } from 'antd'
 import {
   ApartmentOutlined,
   PlayCircleOutlined,
@@ -41,6 +41,7 @@ import type {
   DagData,
   DagNodeData,
 } from '@shared/agent-types'
+import { analyzeCotEntropyTrajectory } from '@shared/cot-trace-analyzer'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import './CredibilityPanel.css'
 
@@ -126,6 +127,31 @@ const SOURCE_CONFIGS: SourceConfig[] = [
     ],
   },
 ]
+
+/** v0.9.6 P2 M7：CoT 熵轨迹 TextArea 默认示例（论文核心场景 1：完美单调链） */
+const DEFAULT_COT_TEXT = '0.9, 0.7, 0.5, 0.3, 0.1'
+
+/**
+ * 解析 CoT 熵轨迹 TextArea 文本
+ *
+ * 支持分隔符：英文逗号 `,` / 英文分号 `;` / 换行符 `\n` / 全角逗号 `，`
+ * 容忍：空白 / 缺失末尾分隔符
+ * 兜底：非法值（NaN/Infinity/超界）→ 过滤；空数组返回 undefined
+ */
+function parseCotTrajectoryText(text: string): number[] | undefined {
+  if (!text || text.trim().length === 0) return undefined
+  const parts = text
+    .split(/[,,;;\n，]+/g)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  const nums: number[] = []
+  for (const p of parts) {
+    const n = Number(p)
+    if (!Number.isFinite(n) || Number.isNaN(n)) continue
+    nums.push(Math.max(0, Math.min(1, n)))
+  }
+  return nums.length > 0 ? nums : undefined
+}
 
 /** Source 节点颜色（按 sourceId 区分） */
 const SOURCE_COLORS: Record<CredibilitySourceId, string> = {
@@ -297,6 +323,16 @@ const CredibilityPanel: React.FC<CredibilityPanelProps> = ({
     }
   )
 
+  /** v0.9.6 P2 M7：CoT 熵轨迹原始输入（TextArea 字符串） */
+  const [cotTrajectoryText, setCotTrajectoryText] = useState<string>(DEFAULT_COT_TEXT)
+  /** v0.9.6 P2 M7：CoT 熵轨迹解析结果（实时 useMemo 缓存） */
+  const cotTrajectory = useMemo(() => parseCotTrajectoryText(cotTrajectoryText), [cotTrajectoryText])
+  /** v0.9.6 P2 M7：CoT 熵轨迹分析（实时分析结果，UI 反馈） */
+  const cotAnalysis = useMemo(
+    () => (cotTrajectory ? analyzeCotEntropyTrajectory(cotTrajectory) : null),
+    [cotTrajectory]
+  )
+
   /** 评估结果 */
   const [assessment, setAssessment] = useState<ConfidenceAssessment | null>(null)
   /** DAG 数据 */
@@ -324,11 +360,21 @@ const CredibilityPanel: React.FC<CredibilityPanelProps> = ({
 
   /** 构造 CredibilityEvidenceInput[] */
   const buildInputs = useCallback((): CredibilityEvidenceInput[] => {
-    return SOURCE_CONFIGS.map((cfg) => ({
-      sourceId: cfg.id,
-      fields: fieldValues[cfg.id] ?? {},
-    }))
-  }, [fieldValues])
+    return SOURCE_CONFIGS.map((cfg) => {
+      const fields: Record<string, number | boolean | number[]> = {
+        ...(fieldValues[cfg.id] ?? {}),
+      }
+      // v0.9.6 P2 M7：把 CoT 熵轨迹注入 S3 (ai-param) — 触发 4 路融合
+      // 仅在解析成功时注入；空 / 非法文本走 v0.9.6 P1 行为
+      if (cfg.id === 'ai-param' && cotTrajectory && cotTrajectory.length > 0) {
+        fields.cotEntropyTrajectory = cotTrajectory
+      }
+      return {
+        sourceId: cfg.id,
+        fields,
+      }
+    })
+  }, [fieldValues, cotTrajectory])
 
   /** 评估 */
   const handleAssess = useCallback(async () => {
@@ -365,6 +411,7 @@ const CredibilityPanel: React.FC<CredibilityPanelProps> = ({
       }
     }
     setFieldValues(initial)
+    setCotTrajectoryText(DEFAULT_COT_TEXT) // v0.9.6 P2 M7：重置 CoT 默认示例
     setAssessment(null)
     setDagData(null)
     setError(null)
@@ -475,6 +522,51 @@ const CredibilityPanel: React.FC<CredibilityPanelProps> = ({
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* ===== v0.9.6 P2 M7：CoT 熵轨迹输入（S3 ai-param 4 路融合） ===== */}
+                <div className="credibility-cot-section">
+                  <div className="credibility-section-title">
+                    CoT 熵轨迹（ai-param 第 4 路）
+                    {cotAnalysis && (
+                      <Tag
+                        color={cotAnalysis.monotone ? 'success' : 'warning'}
+                        className="credibility-cot-tag"
+                      >
+                        {cotAnalysis.monotone ? '单调链' : `非单调链 · ${cotAnalysis.violations} 次违规`}
+                      </Tag>
+                    )}
+                  </div>
+                  <Input.TextArea
+                    value={cotTrajectoryText}
+                    onChange={(e) => setCotTrajectoryText(e.target.value)}
+                    autoSize={{ minRows: 2, maxRows: 4 }}
+                    placeholder="每步 Shannon 熵 ∈ [0, 1]，支持 , / ; / 换行 / 全角，分隔"
+                    className="credibility-cot-textarea"
+                    aria-label="CoT 熵轨迹输入"
+                  />
+                  {cotAnalysis && (
+                    <div className="credibility-cot-analysis">
+                      <span className="credibility-cot-stat">
+                        步数 <strong>{cotAnalysis.steps}</strong>
+                      </span>
+                      <span className="credibility-cot-stat">
+                        H₀ <strong>{cotAnalysis.startEntropy.toFixed(3)}</strong>
+                      </span>
+                      <span className="credibility-cot-stat">
+                        Hₙ <strong>{cotAnalysis.endEntropy.toFixed(3)}</strong>
+                      </span>
+                      <span className="credibility-cot-stat">
+                        形状置信度{' '}
+                        <strong style={{ color: cotAnalysis.confidence >= 0.7 ? 'var(--color-success)' : cotAnalysis.confidence >= 0.5 ? 'var(--color-warning)' : 'var(--color-error)' }}>
+                          {(cotAnalysis.confidence * 100).toFixed(0)}%
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                  <div className="credibility-cot-paper">
+                    论文依据：Zhao 2026, arXiv:2603.18940 — 熵轨迹单调性预测 LLM 推理可靠性
                   </div>
                 </div>
 
