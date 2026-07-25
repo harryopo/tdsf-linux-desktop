@@ -2503,6 +2503,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appDownloadUpdate: appUpdate.downloadUpdate,
   // T.8：应用信息 IPC（app:get-info）
   appGetInfo: appUpdate.getInfo,
+  // v2.3 活功能转换：导出模型统计 IPC（app:export-model-stats）
+  // P0-1 修复：暴露到渲染层供 ModelSettings "导出统计" 按钮调用
+  appExportModelStats: appUpdate.exportModelStats,
   // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
   // AIPanel 图片附件基础版：dialog + base64 data URL，不引入图片压缩库
   fsUploadImage: fsUpload.uploadImage,
