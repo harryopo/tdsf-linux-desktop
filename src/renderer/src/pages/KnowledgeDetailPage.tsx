@@ -260,16 +260,6 @@ export function KnowledgeDetailPage() {
           <div className="kb-detail-back-group">
             <button
               type="button"
-              data-dom-id="back-workbench"
-              aria-label="返回工作台"
-              onClick={handleBackWorkbench}
-              className="kb-detail-back kb-btn-press"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              返回工作台
-            </button>
-            <button
-              type="button"
               data-dom-id="back-knowledge"
               aria-label="返回知识库"
               onClick={handleBackKnowledge}

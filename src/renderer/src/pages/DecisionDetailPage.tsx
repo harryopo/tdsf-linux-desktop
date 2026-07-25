@@ -386,7 +386,9 @@ export function DecisionDetailPage() {
           </div>
           <button
             type="button"
+            data-dom-id="back-workbench"
             onClick={() => navigate('/workbench')}
+            style={{ display: 'none' }}
             className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[11px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             aria-label="返回工作台"
           >

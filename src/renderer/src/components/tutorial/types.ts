@@ -36,19 +36,33 @@ export interface Course {
   cta?: string
 }
 
+/** 学习路径单步节点（横向时间线） */
+export interface LearningPathStep {
+  /** 步骤名称 —— 设计稿节点下方粗体文字 */
+  label: string
+  /** 步骤描述 —— 设计稿节点下方小字（可选） */
+  description?: string
+  /** 步骤状态：completed=已完成（勾选）/ current=进行中（脉冲）/ upcoming=未开始（虚化） */
+  status: 'completed' | 'current' | 'upcoming'
+}
+
 export interface LearningPath {
   id: string
   title: string
-  /** 路径难度标签（入门/中级/高级）—— 设计稿卡片右下角 */
+  /** 路径难度标签（入门/中级/高级）—— 保留用于后续详情页跳转 */
   level: '入门' | '中级' | '高级'
-  /** 路径包含课程数 —— 设计稿卡片标题下方 */
+  /** 路径包含课程数 */
   courseCount: number
-  /** 学习进度百分比 —— 设计稿卡片右下角 mono 字体 */
+  /** 学习进度百分比 —— 设计稿进度条填充宽度 */
   percent: number
-  /** 路径图标（lucide）—— 设计稿卡片左侧 36×36 圆角图标盒 */
+  /** 已完成步骤数 —— 设计稿 "2/5 已完成" 徽标分子 */
+  completedCount: number
+  /** 总步骤数 —— 设计稿 "2/5 已完成" 徽标分母 */
+  totalCount: number
+  /** 路径图标（lucide）—— 设计稿进度头左侧 trending-up 图标 */
   icon: LucideIcon
-  /** 学习步骤（保留用于后续详情页跳转，UI 不再展示 chips） */
-  steps: { label: string; active?: boolean }[]
+  /** 学习步骤（横向时间线节点，5 个） */
+  steps: LearningPathStep[]
 }
 
 /**
@@ -314,7 +328,21 @@ export const DEFAULT_COURSES: Course[] = [
 ]
 
 export const LEARNING_PATHS: LearningPath[] = [
-  { id: 'newbie', title: '运维新手入门', level: '入门', courseCount: 3, percent: 33, icon: Zap, steps: [{ label: 'Linux 基础' }, { label: 'SSH 配置' }, { label: 'Shell 脚本', active: true }] },
-  { id: 'perf-expert', title: '性能优化专家', level: '中级', courseCount: 3, percent: 66, icon: TrendingUp, steps: [{ label: 'Nginx 调优' }, { label: 'MySQL 优化' }, { label: '系统监控', active: true }] },
-  { id: 'security-engineer', title: '安全运维工程师', level: '高级', courseCount: 3, percent: 0, icon: Shield, steps: [{ label: '安全加固' }, { label: '漏洞扫描' }, { label: '入侵检测', active: true }] },
+  {
+    id: 'ops-growth',
+    title: '运维工程师成长路线',
+    level: '中级',
+    courseCount: 5,
+    percent: 40,
+    completedCount: 2,
+    totalCount: 5,
+    icon: TrendingUp,
+    steps: [
+      { label: 'Linux基础', description: '命令行与文件系统', status: 'completed' },
+      { label: 'Shell编程', description: '脚本自动化与文本处理', status: 'completed' },
+      { label: '服务管理', description: 'systemd与服务编排', status: 'current' },
+      { label: '安全配置', description: '防火墙与入侵检测', status: 'upcoming' },
+      { label: '故障排查', description: '性能分析与日志诊断', status: 'upcoming' },
+    ],
+  },
 ]

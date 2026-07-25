@@ -133,10 +133,10 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
     <div className="term-empty">
       <TerminalIcon />
       <div className="term-empty-text">
-        连接 SSH 后，这里显示真实 Shell（xterm）
+        终端待连接
       </div>
       <div className="term-empty-hint">
-        设置 → SSH 连接 → 添加主机并连接，再回到工作台。
+        请在左侧资源管理器连接服务器
       </div>
     </div>
   )
