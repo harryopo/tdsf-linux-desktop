@@ -2,13 +2,13 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-25T07:20:37.257Z",
+  "lastUpdated": "2026-07-25T07:30:37.492Z",
   "sessions": {
     "ai-kimi-20260725-backend": {
       "aiName": "ai-kimi-20260725-backend",
       "sessionId": "ai-kimi-20260725-backend",
       "startedAt": "2026-07-25T07:20:36.957Z",
-      "lastActiveAt": "2026-07-25T07:20:37.257Z",
+      "lastActiveAt": "2026-07-25T07:28:44.106Z",
       "task": "后端AI：Agent核心与PAOR循环",
       "claimedFiles": [
         {
@@ -30,9 +30,34 @@
           "path": "docs/handoff/",
           "task": "后端AI：前后端交接文档",
           "claimedAt": "2026-07-25T07:20:37.257Z"
+        },
+        {
+          "path": "docs/handoff/p1-backend-plan-and-multi-ai-handover.md",
+          "task": "P1后端开发计划与多AI交接建议",
+          "claimedAt": "2026-07-25T07:28:44.106Z"
         }
       ],
-      "expiresAt": "2026-07-25T09:20:37.257Z"
+      "expiresAt": "2026-07-25T11:28:44.106Z"
+    },
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-07-25T07:30:37.447Z",
+      "lastActiveAt": "2026-07-25T07:30:37.492Z",
+      "task": "P0-3 新建 CalibrationSettings 组件接入校准 6 通道",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/pages/CalibrationSettings.tsx",
+          "task": "P0-3 新建 CalibrationSettings 组件接入校准 6 通道",
+          "claimedAt": "2026-07-25T07:30:37.447Z"
+        },
+        {
+          "path": "src/renderer/src/pages/SettingsPage.tsx",
+          "task": "P0-3 SettingsPage 校准设置快捷入口",
+          "claimedAt": "2026-07-25T07:30:37.492Z"
+        }
+      ],
+      "expiresAt": "2026-07-25T09:30:37.492Z"
     }
   },
   "history": [
@@ -2513,6 +2538,27 @@
       "file": "docs/handoff/",
       "task": "后端AI：前后端交接文档",
       "timestamp": "2026-07-25T07:20:37.257Z"
+    },
+    {
+      "sessionId": "ai-kimi-20260725-backend",
+      "action": "claim",
+      "file": "docs/handoff/p1-backend-plan-and-multi-ai-handover.md",
+      "task": "P1后端开发计划与多AI交接建议",
+      "timestamp": "2026-07-25T07:28:44.106Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/CalibrationSettings.tsx",
+      "task": "P0-3 新建 CalibrationSettings 组件接入校准 6 通道",
+      "timestamp": "2026-07-25T07:30:37.447Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SettingsPage.tsx",
+      "task": "P0-3 SettingsPage 校准设置快捷入口",
+      "timestamp": "2026-07-25T07:30:37.492Z"
     }
   ],
   "coordinationAudit": {
