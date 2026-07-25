@@ -103,10 +103,45 @@ Preload (preload/) — contextBridge 安全桥接
 
 ## 文件所有权
 
-单 AI 工作模式。Git 是最终事实源。
+比赛冲刺阶段启用**有限多 AI 并行模式**。Git 是最终事实源，`.ai-coordination.json` 是中央登记簿。
 
-> 多 AI 协作协议（claim/release）见 `CLAUDE.md` "AI 协作协议" 章节，比赛阶段不启用。
+### 多 AI 并行工作流（v10.2 启用）
+
+1. **启动预检**：每个 AI 会话开始前运行 `pnpm ai:check`
+2. **声明所有权**：修改文件前 `pnpm ai:claim -f <file> -t <task>`
+3. **释放所有权**：修改完成后 `pnpm ai:release -f <file>` 或 `--all`
+4. **提交规范**：commit message 包含 sessionId，例如 `feat(xxx): [ai-20260725-001] ...`
+5. **高共享文件中央协调**：以下文件禁止并行修改，需由当前主导 AI 串行处理
+   - `src/shared/ipc-channels.ts`
+   - `src/shared/agent-types.ts`
+   - `src/shared/models.ts`
+   - `src/preload/index.ts`
+   - `src/preload/index.d.ts`
+   - `src/main/ipc/index.ts`
+   - `package.json`
+   - `AGENTS.md`
+   - `CLAUDE.md`
+
+### 模块分工建议
+
+| AI 角色 | 负责目录 | 禁止触碰 |
+|---------|----------|----------|
+| 后端 AI | `src/main/`, `src/shared/`, Python sidecar | `src/renderer/src/components/`（除非修复类型错误） |
+| 前端 AI | `src/renderer/src/`, 设计稿还原 | `src/main/core/`, `src/main/services/ssh/` |
+| 质量 AI | `tests/`, E2E, 死代码审计 | 业务代码只读 |
+
+### 分支策略
+
+- `master`：单一可发布状态，仅合并已通过 4/5 绿的 PR/commit
+- `ai-coordination-staging-YYYYMMDD`：多 AI WIP 临时汇总分支
+- 每个 AI 在自己的 feature 分支工作，完成后先合并到 staging，再由主导 AI 合并到 master
+
+### 冲突处理
+
+- 发现冲突先 `git status`，不要覆盖他人修改
+- 高共享文件冲突时，优先与相关 AI 协商，或统一由后端 AI 串行处理
+- 过期 claim 由任一 AI 在修改 `.ai-coordination.json` 时清理
 
 ---
 
-*v10.1 · 2026-07-25 · Demo 优先，接口保留，后续迭代*
+*v10.2 · 2026-07-25 · 比赛冲刺有限多 AI 模式启用*
