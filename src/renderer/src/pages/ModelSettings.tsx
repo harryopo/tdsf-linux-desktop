@@ -393,8 +393,8 @@ export function ModelSettings() {
     }
 
     try {
-      if (isElectronAPIAvailable() && window.electronAPI?.exportModelStats) {
-        const { filePath, size } = await window.electronAPI.exportModelStats(stats)
+      if (isElectronAPIAvailable() && window.electronAPI?.appExportModelStats) {
+        const { filePath, size } = await window.electronAPI.appExportModelStats(stats)
         setExportFeedback(`已导出到 ${filePath} (${size} 字节)`)
       } else {
         // 非 Electron 环境：通过浏览器下载 JSON 文件
