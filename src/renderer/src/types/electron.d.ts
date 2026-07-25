@@ -1262,6 +1262,50 @@ export interface ElectronAPI {
    */
   tutorialSearchStatus(): Promise<TutorialSearchStatus>
 
+  // ===== v2.5 Phase C：异步分批回填（推荐用法，替代 tutorialBackfillEmbeddings 同步阻塞）=====
+  // 通道与主进程 ipc/tutorial.ts 一一对应：
+  // - tutorial:backfill-start    → tutorialBackfillStart（启动异步任务，立即返回 taskId）
+  // - tutorial:backfill-cancel   → tutorialBackfillCancel（标记取消，下一页检查时生效）
+  // - tutorial:backfill-status   → tutorialBackfillStatus（查询是否有任务在运行）
+  // - tutorial:backfill-progress → onTutorialBackfillProgress（订阅进度推送）
+  //
+  // 类型来源：@shared/tutorial-types.ts
+  // UI 调用示例：
+  //   const { ok, taskId } = await window.electronAPI.tutorialBackfillStart({ pageSize: 100 })
+  //   const unsubscribe = window.electronAPI.onTutorialBackfillProgress(p => setPct(p.pct))
+  //   await window.electronAPI.tutorialBackfillCancel()
+  /**
+   * 启动异步分批回填任务（非阻塞，立即返回 taskId）
+   *
+   * @param options.pageSize 分页大小（默认 100）
+   * @param options.inferenceBatch 推理批次大小（默认 8）
+   * @returns { ok, taskId, error? } 启动结果
+   */
+  tutorialBackfillStart(
+    options?: import('@shared/tutorial-types').BackfillStartOptions
+  ): Promise<import('@shared/tutorial-types').BackfillStartResult>
+  /**
+   * 取消正在运行的回填任务（标记 cancelled，下一页检查时生效）
+   *
+   * @returns { ok } 是否成功标记取消
+   */
+  tutorialBackfillCancel(): Promise<import('@shared/tutorial-types').BackfillCancelResult>
+  /**
+   * 查询回填任务状态（是否有任务在运行）
+   *
+   * @returns { running, taskId } 运行状态
+   */
+  tutorialBackfillStatus(): Promise<import('@shared/tutorial-types').BackfillStatusResult>
+  /**
+   * 订阅回填进度推送（主进程通过 tutorial:backfill-progress 推送）
+   *
+   * @param callback 进度回调（含 processed/total/pct/eta/status）
+   * @returns 取消监听函数
+   */
+  onTutorialBackfillProgress(
+    callback: (progress: import('@shared/tutorial-types').BackfillProgress) => void
+  ): () => void
+
   // ===== v0.9.6 Sprint 9：学习路径推荐 =====
   // 通道与主进程 ipc/tutorial.ts 一一对应：
   // - tutorial:recommend-path → tutorialRecommendPath（4 层融合路径推荐）
@@ -2017,6 +2061,39 @@ export interface ElectronAPI {
       message: string
     }) => void,
   ): () => void
+
+  // ===== v2.4 Phase C 收尾：校准扁平化 API 类型声明（6 个）=====
+  // 通道与主进程 ipc/credibility.ts 的 6 个校准 handler 一一对应；
+  // 类型来源：src/main/core/agent/credibility/calibration/types.ts
+  // （tsconfig.web.json 已 include calibration 目录并配置 @main/* 别名）
+  // UI 调用示例：
+  //   const result = await window.electronAPI.credibilityCalibrate('deepseek', { tMin: 0.1 })
+  //   const state = await window.electronAPI.credibilityGetCalibrationState()
+  //   const ok = await window.electronAPI.credibilityAddCalibrationSample(sample)
+  /** 校准指定 Provider（基于历史样本，Temperature Scaling 优化 T 值） */
+  credibilityCalibrate(
+    providerId: import('@main/core/agent/credibility/calibration/types').ProviderId,
+    options?: import('@main/core/agent/credibility/calibration/types').OptimizeTOptions,
+  ): Promise<import('@main/core/agent/credibility/calibration/types').TemperatureScalingResult>
+  /** 获取指定 Provider 的当前校准（无则返回 defaultT=1.0 的默认值） */
+  credibilityGetCalibration(
+    providerId: import('@main/core/agent/credibility/calibration/types').ProviderId
+  ): Promise<import('@main/core/agent/credibility/calibration/types').ProviderCalibration>
+  /** 获取全局校准状态（持久化到磁盘的 CalibrationState） */
+  credibilityGetCalibrationState(): Promise<import('@main/core/agent/credibility/calibration/types').CalibrationState>
+  /** 重置指定 Provider 的校准（T 回到 1.0，保留累计样本数） */
+  credibilityResetCalibration(
+    providerId: import('@main/core/agent/credibility/calibration/types').ProviderId
+  ): Promise<boolean>
+  /** 计算指定 Provider 的当前 ECE（不修改 T，sampleSize 可选用于抽样评估） */
+  credibilityComputeEce(
+    providerId: import('@main/core/agent/credibility/calibration/types').ProviderId,
+    sampleSize?: number,
+  ): Promise<import('@main/core/agent/credibility/calibration/types').EceResult>
+  /** 记录新的校准样本（自动入库，用于后续 ECE 评估与 T 优化） */
+  credibilityAddCalibrationSample(
+    sample: import('@main/core/agent/credibility/calibration/types').CalibrationSample
+  ): Promise<boolean>
 }
 
 /** 扩展 Window 接口，声明 electronAPI 全局变量 */
