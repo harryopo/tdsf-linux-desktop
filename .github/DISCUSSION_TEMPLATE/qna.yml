@@ -1,0 +1,51 @@
+name: Q&A
+description: 使用问题、配置问题、与 AI 讨论
+title: "[Q&A] "
+labels: ["question"]
+body:
+  - type: dropdown
+    id: topic
+    attributes:
+      label: 问题分类
+      options:
+        - 安装 / 启动
+        - SSH 连接
+        - AI 配置
+        - 高危命令拦截
+        - 教程词库
+        - 可信度评估
+        - 设置项
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: 问题描述
+      description: 清楚描述你的问题
+      placeholder: |
+        - 你想做什么？
+        - 实际发生了什么？
+        - 期望发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: 操作系统、软件版本、相关配置
+      placeholder: |
+        - 操作系统：Windows 11 / macOS 14 / Ubuntu 22.04
+        - 软件版本：v1.0.0
+        - LLM Provider：Anthropic Claude Sonnet 4
+        - 节点：Node.js 20.10
+  - type: textarea
+    id: attempts
+    attributes:
+      label: 已尝试的方法
+      description: 你已经试过哪些方法？结果如何？
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志（可选）
+      description: 粘贴相关日志或错误信息

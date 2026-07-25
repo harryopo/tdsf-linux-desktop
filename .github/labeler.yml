@@ -1,0 +1,105 @@
+# GitHub Issue / PR 自动 Label 配置
+#
+# 火山杯开源加分项：
+# - 自动给 Issue 打上分类标签（bug / enhancement / question / docs）
+# - 自动按文件路径给 PR 打标签（renderer / main / tests / docs）
+# - 减少人工标注成本
+#
+# 配套工作流：.github/workflows/labeler.yml
+
+# ============ Issue Label 配置 ============
+# 配合 issue-label-bot（GitHub 内置）
+# 用户在创建 Issue 时可通过下拉框选择
+
+# Issue Label 颜色建议（提交 PR 到仓库时由 maintainer 设定）
+# bug:        #d73a4a (红)
+# enhancement: #a2eeef (青)
+# question:    #d876e3 (紫)
+# docs:        #0075ca (蓝)
+# good first issue: #7057ff (紫)
+# help wanted: #008672 (绿)
+# duplicate:   #cfd3d7 (灰)
+# wontfix:     #ffffff (白)
+
+# ============ PR 自动 Label 规则 ============
+# 通过 actions/labeler@v5 按文件路径匹配
+
+# 源码分类
+"area: renderer":
+  - src/renderer/src/**/*
+
+"area: main":
+  - src/main/**/*
+
+"area: preload":
+  - src/preload/**/*
+
+"area: shared":
+  - src/shared/**/*
+
+"area: ipc":
+  - src/main/ipc/**/*
+
+"area: services":
+  - src/main/services/**/*
+
+"area: sidecar":
+  - sidecar-a/**/*
+  - _legacy-python/**/*
+
+# 测试
+"test: unit":
+  - tests/unit/**/*
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+
+"test: e2e":
+  - tests/e2e/**/*
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+
+"test: visual":
+  - tests/e2e/visual.spec.ts
+  - tests/e2e/screenshots-acceptance/**
+
+# 文档 / 资源
+"docs":
+  - "**/*.md"
+  - docs/**
+
+"assets":
+  - "**/*.svg"
+  - "**/*.png"
+  - "**/*.jpg"
+  - resources/**
+  - "docs/assets/**"
+  - "docs/audit-screenshots/**"
+
+# CI / DevOps
+"ci":
+  - .github/workflows/**
+  - .github/dependabot.yml
+  - .github/labeler.yml
+
+"build":
+  - electron-builder.json
+  - electron.vite.config.ts
+  - package.json
+  - pnpm-*.yaml
+  - scripts/**
+
+# 依赖 / 兼容性
+"dependencies":
+  - package.json
+  - pnpm-lock.yaml
+  - sidecar-a/requirements.txt
+
+# 规模
+"size: S":
+  - changed-files: 1-3
+"size: M":
+  - changed-files: 4-10
+"size: L":
+  - changed-files: 11-30
+"size: XL":
+  - changed-files: 31+

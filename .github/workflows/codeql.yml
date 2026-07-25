@@ -1,0 +1,66 @@
+# CodeQL — GitHub 原生安全分析
+#
+# 火山杯开源加分项：
+# - 自动扫描 TypeScript / JavaScript 代码安全漏洞
+# - 每周一扫描 + PR 触发
+# - 与安全策略联动（详见 SECURITY.md）
+
+name: "CodeQL"
+
+on:
+  push:
+    branches: [master, feat/**, fix/**]
+  pull_request:
+    branches: [master]
+  schedule:
+    # 每周一 06:00 北京时间扫描（错开 Dependabot 的 04:00）
+    - cron: "22:00 SUN"  # 22:00 UTC = 06:00 CST 第二天（周一）
+
+# 同 ci.yml 的并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["typescript", "javascript"]
+        # 排除 sidecar-a 的 Python（暂未启用 Python 分析）
+        # 排除 docs/ 和 tests/ 下的 demo 代码
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # 不使用默认 queries，使用 security-and-quality 套件
+          queries: security-and-quality
+          # 排除不需要扫描的路径
+          paths-ignore:
+            - docs/**
+            - tests/**
+            - "**/*.test.ts"
+            - "**/*.test.tsx"
+            - "**/*.spec.ts"
+            - "**/*.spec.tsx"
+            - "**/__tests__/**"
+            - "_legacy-python/**"
+            - "scripts/**"
+            - "sidecar-a/**"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

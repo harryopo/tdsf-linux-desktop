@@ -215,6 +215,10 @@ tdsf-linux-desktop/
 
 发现安全漏洞？请阅读 [SECURITY.md](SECURITY.md) 私密披露，**不要**在 Issue 中公开。
 
+### 行为准则
+
+本项目采用 [Contributor Covenant 2.1](CODE_OF_CONDUCT.md) 行为准则，参与即视为同意。
+
 ### 许可证
 
 [MIT License](LICENSE) — 商业使用、修改、分发、私用均允许。

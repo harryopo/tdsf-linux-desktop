@@ -1,0 +1,84 @@
+# Citation File Format (CFF) — 项目引用元数据
+#
+# 火山杯开源加分项：
+# - 学术/比赛引用标准格式（CFF 1.2.0）
+# - GitHub 自动识别并在 About 侧边栏显示 "Cite this repository"
+# - 可被 Zotero / Mendeley 自动导入
+#
+# 验证：https://citation-file-format.github.io/cff-validator/
+
+cff-version: 1.2.0
+message: |
+  If you use this software in your research, education, or competition submission,
+  please cite it using the metadata below.
+title: "TDSF-Linux Desktop"
+abstract: |
+  TDSF-Linux Desktop is a human-machine collaborative trusted-decision desktop
+  assistant for Linux operations. It combines an SSH terminal, AI assistance
+  (multi-provider LLM), high-risk command interception, log analysis, and
+  paper-supported credibility assessment (D-S evidence theory + PCR5 fusion)
+  into a unified Electron application. The project targets Linux operations
+  learners and beginners, lowering the learning barrier to zero.
+
+  This project is submitted to 2026 Volcano Cup competition, theme: Educational
+  Technology.
+type: software
+license: MIT
+license-url: https://github.com/harryopo/tdsf-linux-desktop/blob/master/LICENSE
+url: "https://harryopo.github.io/tdsf-linux-desktop/"
+repository: "https://github.com/harryopo/tdsf-linux-desktop"
+repository-code: "https://github.com/harryopo/tdsf-linux-desktop"
+keywords:
+  - linux
+  - ssh
+  - electron
+  - artificial-intelligence
+  - large-language-models
+  - credibility
+  - d-s-evidence-theory
+  - pcr5-fusion
+  - desktop-application
+  - educational-technology
+  - volcano-cup-2026
+
+# 作者信息（比赛团队）
+authors:
+  - family-names: "Chen"
+    given-names: "Hongyu"
+    alias: harryopo
+    affiliation: "深圳信息职业技术大学"
+    orcid: https://orcid.org/0000-0000-0000-0000
+
+# 引用建议格式
+preferred-citation:
+  type: software
+  title: "TDSF-Linux Desktop: Human-Machine Collaborative Trusted-Decision Desktop Assistant for Linux Operations"
+  authors:
+    - family-names: "Chen"
+      given-names: "Hongyu"
+      alias: harryopo
+      affiliation: "深圳信息职业技术大学"
+  year: 2026
+  url: "https://github.com/harryopo/tdsf-linux-desktop"
+  date-released: 2026-07-25
+  version: "1.0.0"
+
+# 关联项目（项目依赖的参考论文 / 开源项目）
+references:
+  - type: article
+    title: "Chain-of-Thought Shape Entropy Trajectory Analysis for LLM Credibility Assessment"
+    authors:
+      - family-names: "Zhao"
+    year: 2026
+    arxiv: "2603.18940"
+  - type: article
+    title: "Unification of Fusion Rules in Dempster-Shafer Evidence Theory (PCR5)"
+    authors:
+      - family-names: "Smarandache"
+      - family-names: "Dezert"
+    year: 2006
+
+# 状态与版本
+status: active
+version: "1.0.0"
+date-released: 2026-07-25
