@@ -1,18 +1,21 @@
-# TDSF-Linux Desktop - AI Agent 开发指南 v10.0
+# TDSF-Linux Desktop - AI Agent 开发指南 v10.1
 
-> 更新日期：2026-07-23
-> 编码规范见 `CODING.md`（80 行核心标准）
+> 更新日期：2026-07-25
+> 编码规范见 `CODING.md`（v1.1 核心）
+> AI 入口指引见 `CLAUDE.md`（v1.1，6 条核心红线 + 三绿硬门禁）
 > 旧版归档：`docs/archive/CLAUDE-v2.5.md` · `docs/archive/AGENTS-v8.7.md`
 > 前期调研文档索引：`docs/archive/README.md`
-> 当前阶段：**两周交付冲刺**（比赛截止前交付 Demo 产品）
+> 当前阶段：**比赛冲刺**（截止 2026-07-30，剩 5 天）
 
 ---
 
 ## 项目定位
 
-**TDSF-Linux Desktop** = SSH 终端 + AI 辅助问答 + 高危命令拦截 + 日志分析
+**TDSF-Linux Desktop** = SSH 终端 + AI 辅助 + 高危命令拦截 + 日志分析 + 可信决策
 
 > 帮助 Linux 初学者不怕命令行的桌面工具。
+
+> 详细的 6 条核心红线、三绿硬门禁、两绿软门禁、AI 协作协议、降级保留原则见 `CLAUDE.md`。
 
 ---
 
@@ -33,35 +36,32 @@
 
 ---
 
-## 两周交付路线（2026-07-23 至比赛截止）
+## 比赛冲刺路线（2026-07-25 至 2026-07-30）
 
-### 第一周：Demo 产品交付
+详细 Day 1-6 行动清单见 `../TDSF高质量做大方案-终稿.md` §14。
 
-> **目标**：能跑、能演示、核心链路打通。可以粗糙，不能缺环节。
+### Day 1（2026-07-25）：基线建立
+- 治理工具：Knip + Playwright + Stop Hook + PreEdit Hook + CI
+- 基线验证：三绿 + deadcode + test:e2e + verifier subagent
 
-| # | 模块 | 内容 | 验收标准 |
-|---|------|------|----------|
-| W1.1 | SSH 连接 + 终端 | ssh2 + xterm.js 完整链路 | 连接→输入命令→看到输出 |
-| W1.2 | AI 基础问答 | Supervisor.chat() + 流式输出到前端 | 提问→AI 回复→文字渲染 |
-| W1.3 | 高危命令拦截 | 12 条黑名单 + 审批弹窗 | 执行 rm -rf / → 拦截弹窗 |
-| W1.4 | SFTP 文件管理 | 上传/下载/删除/重命名 | 拖拽上传→服务器可见 |
-| W1.5 | 简易监控 | CPU/内存/磁盘面板 | 连上服务器→数据刷新 |
-| W1.6 | 设置页面 | SSH 配置 + 外观 + AI 引擎选择 | 改配置→保存→生效 |
-| W1.7 | Demo 打包 | build:win → .exe 可安装 | 另一台电脑能装能用 |
+### Day 2（2026-07-26）：Demo 9 步主路径验收
+- 走通 Demo 9 步主路径 + 完整 E2E 测试
+- 修复 P0 阻塞 + 视觉对比设计稿
 
-### 第二周：打磨与增强
+### Day 3（2026-07-27）：打包 + 演示材料
+- windows-latest CI build:win + 本地安装测试
+- PPT 演示脚本 + 5 分钟录屏
 
-> **目标**：视觉统一、交互流畅、展示效果好。
+### Day 4（2026-07-28）：Bug 修复 + 质量加固
+- 修复 P1 严重问题 + 死占位 UI
+- deadcode 清理 + E2E 回归
 
-| # | 模块 | 内容 | 验收标准 |
-|---|------|------|----------|
-| W2.1 | Credibility 可视化 | DAG + 证据链 + 置信度环形图 | DecisionCard 完整展示 |
-| W2.2 | Task Protocol 审批 | 三态权限弹窗 + 14 步进度 | Subagent 调度→弹窗→确认 |
-| W2.3 | 教程浏览 | 7 爬虫源 + 分类 + 搜索 | 搜索→结果列表→点开阅读 |
-| W2.4 | 日志分析 | Drain3 模板提取 + 分析报告 | tail 日志→模板识别→展示 |
-| W2.5 | AI Panel 增强 | @命令划选注入 + MCP 工具选择 | @ssh → 自动补全工具列表 |
-| W2.6 | UI 统一 | 暗色主题 + 颜色 token + 间距对齐 | 所有页面风格一致 |
-| W2.7 | 最终打包 + 测试 | build:win + 全流程走通 | 安装→SSH→AI→命令→监控 |
+### Day 5（2026-07-29）：冻结 + 演示彩排
+- 全量回归测试（五绿全过）
+- 演示彩排 + git tag v1.0
+
+### Day 6（2026-07-30）：比赛日
+- 上午仅修紧急 Bug，下午演示
 
 ---
 
@@ -81,30 +81,6 @@
 
 ---
 
-## 开发命令
-
-```bash
-pnpm dev              # 启动开发模式
-pnpm build:win        # Windows 打包
-pnpm test             # 单元测试
-pnpm lint             # ESLint
-pnpm typecheck:node   # 主进程类型检查
-pnpm typecheck:web    # 渲染进程类型检查
-```
-
-## Git Commit 规范
-
-```
-feat: 添加SSH密钥认证
-fix: 修复终端中文乱码
-refactor: 删除冗余模块
-test: 添加单元测试
-docs: 更新文档
-chore: 清理依赖
-```
-
----
-
 ## 三进程架构
 
 ```
@@ -113,11 +89,7 @@ Preload (preload/) — contextBridge 安全桥接
 渲染进程 (renderer/) — React 18 + Ant Design 5，沙箱隔离
 ```
 
-## IPC 安全三原则
-
-1. `contextIsolation: true`
-2. `nodeIntegration: false`
-3. `sandbox: true`
+> Electron 安全三原则（contextIsolation:true / nodeIntegration:false / sandbox:true）见 `CLAUDE.md` 第 4 条核心红线。
 
 ---
 
@@ -125,6 +97,7 @@ Preload (preload/) — contextBridge 安全桥接
 
 - **reviewer**：`.claude/agents/reviewer.md` — 每个 Task 完成后 7 维审查
 - **outsider-reviewer**：`.claude/agents/outsider-reviewer.md` — 每 3-5 版本 11 维审查
+- **verifier subagent**：声明"任务完成"前必须 dispatch（见 `CLAUDE.md` 第 6 条核心红线）
 
 ---
 
@@ -132,6 +105,8 @@ Preload (preload/) — contextBridge 安全桥接
 
 单 AI 工作模式。Git 是最终事实源。
 
+> 多 AI 协作协议（claim/release）见 `CLAUDE.md` "AI 协作协议" 章节，比赛阶段不启用。
+
 ---
 
-*v10.0 · 2026-07-23 · Demo 优先，接口保留，后续迭代*
+*v10.1 · 2026-07-25 · Demo 优先，接口保留，后续迭代*

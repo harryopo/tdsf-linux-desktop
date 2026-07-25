@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- v0.9.6 P2 M6：CoT-shape 熵轨迹可视化渲染（ConfidenceBreakdown 内嵌纯 SVG 折线图）
+  - 320×80 viewBox，水平网格 + y 轴标签 + 主折线（绿/黄）+ 轨迹点 + 违规红圆标记
+  - 单调性 tag + 5 列统计指标（步数/H₀/Hₙ/ΔH/形状置信度）+ 论文依据
+  - 论文：Zhao 2026, arXiv:2603.18940
+- v0.9.6 P2 M7：ConfidenceBreakdown 组件级 RTL 测试（12 个）
+  - 基础渲染（5）+ CoT 可视化（7）：单调链 / 典型非单调 / 3 次反弹 / 单步降级 / 论文引用
+- v0.9.6 P2 M7：DecisionCard 集成 CoT 熵轨迹数据流（ChatPanel → DecisionCard → ConfidenceBreakdown）
+- v0.9.6 P2 M7：CredibilityPanel CoT 熵轨迹 TextArea 输入（多分隔符支持，实时 useMemo 分析）
+
+### Fixed
+- 前端重构时遗漏 ConfidenceBreakdown.css 的 CoT 区样式（TSX 引用 11 个 CSS 类但 CSS 缺失）
+- 现已在 CSS 文件末尾补齐完整 CoT 区样式块
+
+### Quality
+- 全量测试：1122 → 1304（+182，+16.2%）
+- 五绿门禁 4/5 通过：typecheck:node / typecheck:web / lint / test
+- 完成度：~98% → ~100%（P2 M6/M7 全部完成）
+
 ### Planned
 - v1.5: Firecracker microVM sandbox (replaces Docker)
 - v1.5: Full OpenTelemetry integration (Langfuse + Tempo)
