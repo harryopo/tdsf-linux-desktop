@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - v0.9.7 P3 M1：Token logprobs 直采 — **部分落地 + Claude 兑底（诚实策略）**
   - 论文依据：**Zhao 2026, arXiv:2603.18940** §3 — token-level answer-distribution entropy 比 text-Shannon entropy 更预测 LLM 推理可靠性
-  - **诚实策略**：4/8 provider 直采 + 4/8 provider 兑底（用户主用 Claude 走 fallback 路径）
-    - **支持 4/8 provider**（OpenAI 协议族）：openai-compatible / deepseek / qwen / volcengine-ark / ollama
-    - **兑底 4/8 provider**（不暴露 logprobs）：anthropic / claude-sdk / google → 走 thinking-block / text-fallback
+  - **诚实策略**：5/8 provider 直采 + 3/8 provider 兑底（用户主用 Claude 走 fallback 路径）
+    - **支持 5/8 provider**（OpenAI 协议族）：openai-compatible / deepseek / qwen / volcengine-ark / ollama
+    - **兑底 3/8 provider**（不暴露 logprobs）：anthropic / google / claude-sdk → 走 thinking-block / text-fallback
   - `ProviderCapabilities.logprobs: boolean` 字段（`src/shared/agent-types.ts` + 8 provider 默认表）
   - `tokenLogprobShannonEntropy(logprobs)` 纯函数（数值稳定：max-subtraction + log₂ 归一化）
   - `CotTraceCollector.recordTokenLogprobEntropies` 方法（4 优先级降级：thinking-block / turn-text / **logprobs** / text-fallback）
