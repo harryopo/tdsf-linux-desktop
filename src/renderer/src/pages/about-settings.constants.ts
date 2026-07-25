@@ -22,6 +22,7 @@ import {
   Scale,
   MessageCircle,
   Shield,
+  ListChecks,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -51,6 +52,16 @@ export interface FooterLink {
 // ============================================================================
 // 应用版本 / 构建信息常量
 // ============================================================================
+
+/**
+ * 飞书问卷链接（产品调研 + 用户反馈）
+ *
+ * 制作教程：docs/guides/feishu-survey-guide.md
+ * 火山杯 2026 比赛期间收集用户反馈与产品改进建议。
+ *
+ * TODO: 用户提供 URL 后填入下方（确保以 https:// 开头）
+ */
+export const FEISHU_FEEDBACK_URL = 'https://www.feishu.cn/forms/PLACEHOLDER_REPLACE_ME'
 
 /** 应用版本（与 package.json version 对齐） */
 export const APP_VERSION = '1.0.0'
@@ -82,13 +93,16 @@ export const APP_INSTALL_PATH = 'C:\\Program Files\\TDSF'
 // ============================================================================
 
 export const LINK_URLS = {
-  home: 'https://tdsf.dev',
-  github: 'https://github.com/tdsf-linux/tdsf-linux-desktop',
-  docs: 'https://github.com/tdsf-linux/tdsf-linux-desktop#readme',
-  feedback: 'https://github.com/tdsf-linux/tdsf-linux-desktop/issues/new',
+  home: 'https://harryopo.github.io/tdsf-linux-desktop/',
+  github: 'https://github.com/harryopo/tdsf-linux-desktop',
+  docs: 'https://github.com/harryopo/tdsf-linux-desktop/blob/master/README.md',
+  feedback: 'https://github.com/harryopo/tdsf-linux-desktop/issues/new/choose',
+  changelog: 'https://github.com/harryopo/tdsf-linux-desktop/blob/master/CHANGELOG.md',
+  releases: 'https://github.com/harryopo/tdsf-linux-desktop/releases',
   privacy:
-    'https://github.com/tdsf-linux/tdsf-linux-desktop/blob/main/docs/飞书文档-隐私政策-大纲.md',
-  releases: 'https://github.com/tdsf-linux/tdsf-linux-desktop/releases',
+    'https://github.com/harryopo/tdsf-linux-desktop/blob/master/LICENSE',
+  contribute: 'https://github.com/harryopo/tdsf-linux-desktop/blob/master/CONTRIBUTING.md',
+  survey: FEISHU_FEEDBACK_URL,
 } as const
 
 export const LINK_CARDS: LinkCard[] = [
@@ -96,35 +110,44 @@ export const LINK_CARDS: LinkCard[] = [
     id: 'docs',
     icon: FileText,
     title: '在线文档',
-    desc: '使用手册与 API 参考',
+    desc: '使用手册 / API 参考 / 架构说明',
     url: LINK_URLS.docs,
   },
   {
     id: 'opensource',
     icon: Scale,
     title: '开源许可',
-    desc: '第三方依赖与许可证',
+    desc: 'MIT License + 第三方依赖致谢',
     url: LINK_URLS.github,
   },
   {
     id: 'feedback',
     icon: MessageCircle,
-    title: '问题反馈',
-    desc: '提交 Bug 或功能建议',
+    title: '问题反馈 (GitHub)',
+    desc: '提交 Bug 报告或功能建议',
     url: LINK_URLS.feedback,
+  },
+  {
+    id: 'survey',
+    icon: ListChecks,
+    title: '产品调研问卷',
+    desc: '飞书问卷 · 2 分钟 · 助力产品迭代',
+    url: LINK_URLS.survey,
   },
   {
     id: 'privacy',
     icon: Shield,
     title: '隐私政策',
-    desc: '数据收集与使用说明',
+    desc: '数据收集与使用说明（MIT 开源）',
     url: LINK_URLS.privacy,
   },
 ]
 
 export const FOOTER_LINKS: FooterLink[] = [
   { label: '服务条款', url: LINK_URLS.docs },
-  { label: '联系方式', url: LINK_URLS.feedback },
+  { label: '贡献指南', url: LINK_URLS.contribute },
+  { label: '问题反馈', url: LINK_URLS.feedback },
+  { label: '产品调研', url: LINK_URLS.survey },
   { label: '致谢' },
 ]
 

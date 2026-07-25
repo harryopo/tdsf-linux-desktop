@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- TDSF Logo: rounded cube + terminal cursor + emerald color -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="cube" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#e4e8eb" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆形（圆角方形） -->
+  <rect x="8" y="8" width="112" height="112" rx="24" ry="24" fill="url(#bg)"/>
+
+  <!-- 终端方框 -->
+  <rect x="36" y="36" width="56" height="40" rx="6" ry="6" fill="none" stroke="url(#cube)" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- > 符号（终端 prompt） -->
+  <path d="M48 50 L58 56 L48 62" fill="none" stroke="url(#cube)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 光标（实心方块） -->
+  <rect x="64" y="58" width="16" height="4" fill="url(#cube)" rx="1"/>
+
+  <!-- 底部三条线（命令输出） -->
+  <line x1="48" y1="72" x2="80" y2="72" stroke="url(#cube)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- 顶部 T 字标识 -->
+  <text x="64" y="28" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="14" font-weight="700" fill="#ffffff" letter-spacing="2">TDSF</text>
+</svg>
