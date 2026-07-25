@@ -2602,6 +2602,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return createListener('tutorial:crawlDone', callback)
   },
 
+  // v2.5 Phase C：异步回填进度推送监听（主 → 渲染，每页完成后触发）
+  // 通道：tutorial:backfill-progress（TUTORIAL.BACKFILL_PROGRESS 常量）
+  // 主进程推送位置：src/main/services/tutorial/backfill-service.ts:449
+  //   win.webContents.send(TUTORIAL.BACKFILL_PROGRESS, p)
+  // UI 调用示例：
+  //   useEffect(() => {
+  //     const off = window.electronAPI.onTutorialBackfillProgress(p => setPct(p.pct))
+  //     return off  // 组件卸载时自动取消监听
+  //   }, [])
+  onTutorialBackfillProgress: (callback: (progress: BackfillProgress) => void): (() => void) => {
+    return createListener(TUTORIAL.BACKFILL_PROGRESS, callback)
+  },
+
   // ===== 教程磁盘 + 断点续传（v0.7.0）=====
   tutorialDiskInfo: (): Promise<{
     tempBytes: number
@@ -2669,6 +2682,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   tutorialSearchStatus: (): Promise<TutorialSearchStatus> =>
     ipcRenderer.invoke(TUTORIAL.SEARCH_STATUS),
+
+  // ===== v2.5 Phase C：异步分批回填（推荐用法，替代 tutorialBackfillEmbeddings 同步阻塞）=====
+  // 通道与主进程 ipc/tutorial.ts 一一对应：
+  // - tutorial:backfill-start    → tutorialBackfillStart（启动异步任务，立即返回 taskId）
+  // - tutorial:backfill-cancel   → tutorialBackfillCancel（标记取消，下一页检查时生效）
+  // - tutorial:backfill-status   → tutorialBackfillStatus（查询是否有任务在运行）
+  // - tutorial:backfill-progress → onTutorialBackfillProgress（订阅进度推送，见 on 对象）
+  //
+  // 类型来源：@shared/tutorial-types.ts
+  // UI 调用示例：
+  //   const { ok, taskId } = await window.electronAPI.tutorialBackfillStart({ pageSize: 100 })
+  //   const unsubscribe = window.electronAPI.onTutorialBackfillProgress(p => setPct(p.pct))
+  //   await window.electronAPI.tutorialBackfillCancel()
+  /**
+   * 启动异步分批回填任务（非阻塞，立即返回 taskId）
+   *
+   * @param options.pageSize 分页大小（默认 100，每次查询 100 条进行推理）
+   * @param options.inferenceBatch 推理批次大小（默认 8，ONNX 内部 batching）
+   * @returns { ok, taskId, error? } 启动结果（ok=false 时 error 描述原因，如"已有任务在运行"）
+   */
+  tutorialBackfillStart: (
+    options?: BackfillStartOptions
+  ): Promise<BackfillStartResult> =>
+    ipcRenderer.invoke(TUTORIAL.BACKFILL_START, options),
+  /**
+   * 取消正在运行的回填任务（标记 cancelled，下一页检查时生效）
+   *
+   * @returns { ok } 是否成功标记取消（任务未运行时也返回 ok=true）
+   */
+  tutorialBackfillCancel: (): Promise<BackfillCancelResult> =>
+    ipcRenderer.invoke(TUTORIAL.BACKFILL_CANCEL),
+  /**
+   * 查询回填任务状态（是否有任务在运行）
+   *
+   * @returns { running, taskId } 运行状态（taskId 为 null 表示无任务）
+   */
+  tutorialBackfillStatus: (): Promise<BackfillStatusResult> =>
+    ipcRenderer.invoke(TUTORIAL.BACKFILL_STATUS),
 
   // ===== 学习路径推荐（v0.9.6 Sprint 9）=====
   // 通道与主进程 ipc/tutorial.ts 一一对应：
