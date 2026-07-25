@@ -87,6 +87,9 @@ import { registerAppUpdateHandlers } from './app-update'
 // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
 // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
 import { registerFsIpcHandlers } from './fs-upload'
+// v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete/accept/import）
+// 通道：3 个 invoke，从渲染层发起补全请求 / 接受建议 / 批量导入历史命令
+import { registerTerminalCompletionIpcHandlers } from './terminal-completion'
 // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
 // 补齐 ModelSettings 最后两处静态数据
 import { registerModelStatsHandlers } from './model-stats'
@@ -257,6 +260,14 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 消费方：AIPanel.tsx 图片附件按钮
   // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
   registerFsIpcHandlers()
+
+  // v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete/accept/import）
+  // 通道：terminal-completion:complete（请求补全建议）
+  //       terminal-completion:accept（接受建议，提升 Frecency）
+  //       terminal-completion:import（批量导入历史命令）
+  // 消费方：终端 UI（Phase 2 待集成）
+  // 引擎：Trie + SQLite 历史索引 + 静态 Linux 命令兜底
+  registerTerminalCompletionIpcHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
   ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar
