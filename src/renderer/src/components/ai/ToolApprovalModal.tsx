@@ -100,8 +100,8 @@ const ToolApprovalModal: React.FC<ToolApprovalModalProps> = ({ request, onClose 
             <Paragraph>
               <pre
                 style={{
-                  background: '#1e1e1e',
-                  color: '#d4d4d4',
+                  background: 'var(--trae-bg-code-block, #1e1e1e)',
+                  color: 'var(--trae-code-text, #d4d4d4)',
                   padding: 12,
                   borderRadius: 4,
                   overflow: 'auto',

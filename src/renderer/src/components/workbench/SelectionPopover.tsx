@@ -145,7 +145,7 @@ export const SelectionPopover: FC = () => {
           border: '1px solid var(--trae-text-brand, #4aa8ff)',
           borderRadius: 4,
           background: 'var(--trae-text-brand, #4aa8ff)',
-          color: '#fff',
+          color: 'var(--trae-special-white, #fff)',
           cursor: 'pointer',
           flexShrink: 0,
         }}

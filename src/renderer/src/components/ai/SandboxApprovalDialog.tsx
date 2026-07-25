@@ -104,7 +104,7 @@ const SandboxApprovalDialog: React.FC<SandboxApprovalDialogProps> = ({
       open={!!currentRequest}
       title={
         <Space>
-          <ExclamationCircleOutlined style={{ color: isHighRisk ? '#ff4d4f' : '#faad14' }} />
+          <ExclamationCircleOutlined style={{ color: isHighRisk ? 'var(--trae-status-error-default, #ff4d4f)' : 'var(--trae-status-alert-default, #faad14)' }} />
           <span>沙箱命令审批</span>
           {requests.length > 1 && (
             <Tag color="processing">待审批 {requests.length} 条</Tag>

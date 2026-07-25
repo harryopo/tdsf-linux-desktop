@@ -36,7 +36,8 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 768,
     show: false, // 等渲染进程 ready-to-show 后再显示，避免白屏
     title: 'TDSF-Linux Desktop',
-    backgroundColor: '#1f1f1f',
+    // 与渲染层 --trae-bg-base-default (#1a1b1d) 对齐，避免白屏闪烁
+    backgroundColor: '#1a1b1d',
     // 允许用户全屏（设计稿是 IDE 风格，全屏后体验更好）
     simpleFullscreen: true,
     fullscreenable: true,

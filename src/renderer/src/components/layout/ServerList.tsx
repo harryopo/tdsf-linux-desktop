@@ -389,7 +389,7 @@ const ServerList: React.FC = () => {
       <div className="server-list-items">
         {filteredServers.length === 0 ? (
           <div className="server-list-empty">
-            <DesktopOutlined style={{ fontSize: 32, color: '#86868b' }} />
+            <DesktopOutlined style={{ fontSize: 32, color: 'var(--trae-icon-tertiary, #86868b)' }} />
             <p>{searchText ? '未找到匹配的服务器' : '点击 + 新建连接'}</p>
           </div>
         ) : (

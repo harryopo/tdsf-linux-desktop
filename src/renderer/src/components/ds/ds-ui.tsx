@@ -387,8 +387,8 @@ export function DsCard({
             gap: '8px',
             marginBottom: '4px',
             paddingBottom: '12px',
-            borderBottom: '1px solid #3A3D42',
-            background: '#252629',
+            borderBottom: '1px solid var(--trae-border-neutral-l1, #3A3D42)',
+            background: 'var(--trae-bg-overlay-l2, #252629)',
             margin: '-16px -16px 12px',
             padding: '12px 16px',
             borderTopLeftRadius: 'var(--radius-8)',
@@ -605,7 +605,7 @@ export function DsToggle({
             left: '2px',
             width: '14px',
             height: '14px',
-            background: '#FFFFFF',
+            background: 'var(--trae-special-white, #FFFFFF)',
             borderRadius: '50%',
             transform: checked ? 'translateX(16px)' : 'translateX(0)',
             transition: 'transform .18s cubic-bezier(.4,0,.2,1)',
@@ -679,7 +679,7 @@ export function DsSlider({
               left: `${percent}%`,
               width: '14px',
               height: '14px',
-              background: '#FFFFFF',
+              background: 'var(--trae-special-white, #FFFFFF)',
               borderRadius: '50%',
               transform: 'translate(-50%, -50%)',
               boxShadow: '0 0 0 2px var(--bg-brand), 0 1px 3px rgba(0,0,0,.4)',
@@ -795,7 +795,7 @@ function dsBtnVariantStyle(variant: DsBtnVariant): CSSProperties {
       return {
         background: 'var(--status-error-default)',
         borderColor: 'var(--status-error-default)',
-        color: '#FFFFFF',
+        color: 'var(--trae-special-white, #FFFFFF)',
       }
   }
 }

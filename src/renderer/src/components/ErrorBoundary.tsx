@@ -75,7 +75,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </Button>,
             ]}
           />
-          <div style={{ marginTop: 16, background: '#f5f5f5', padding: 12, borderRadius: 8, maxHeight: 200, overflow: 'auto' }}>
+          <div style={{ marginTop: 16, background: 'var(--trae-bg-overlay-l2, #1f1f1f)', color: 'var(--trae-text-default, #d1d3db)', padding: 12, borderRadius: 8, maxHeight: 200, overflow: 'auto' }}>
             <Paragraph>
               <Text strong>错误信息：</Text>
             </Paragraph>
