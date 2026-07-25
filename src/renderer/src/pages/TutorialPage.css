@@ -458,7 +458,7 @@
   gap: 4px;
 }
 
-/* ===== 推荐学习路径（横向滚动卡片，1:1 对齐设计稿 tutorial.html §6）===== */
+/* ===== 推荐学习路径（横向时间线，1:1 对齐设计稿 tutorial.html §6）===== */
 .tut-paths-viewall {
   margin-left: auto;
   display: inline-flex;
@@ -478,100 +478,139 @@
   background: var(--trae-bg-overlay-l2);
 }
 
-.tut-paths-scroller {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.tut-path-card {
-  flex: 0 0 280px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+/* 时间线卡片容器 */
+.tut-path-timeline-card {
   background: var(--trae-bg-base-secondary);
   border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
-  cursor: pointer;
-  transition: background .2s ease-out, border-color .2s ease-out;
-}
-.tut-path-card:hover {
-  background: var(--trae-bg-base-tertiary);
-  border-color: var(--trae-border-brand);
-}
-
-.tut-path-card-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.tut-path-card-iconbox {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--trae-bg-brand-popup);
   border-radius: var(--trae-radius-8);
+  padding: 16px;
 }
 
-.tut-path-card-meta {
-  min-width: 0;
-  flex: 1 1 auto;
+/* 进度头：trending-up 图标 + 路线名 + "2/5 已完成" + 进度条 */
+.tut-path-progress-header {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
 }
-
-.tut-path-card-title {
+.tut-path-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tut-path-progress-name {
   font-size: var(--trae-body-sm-strong-font-size);
   font-weight: var(--trae-body-sm-strong-font-weight);
   color: var(--trae-text-default);
-  line-height: 18px;
 }
-
-.tut-path-card-count {
-  font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-secondary);
-}
-
-.tut-path-card-levelrow {
+.tut-path-progress-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
-
-.tut-path-card-level {
-  padding: 2px 8px;
-  background: var(--trae-bg-overlay-l3);
-  border-radius: var(--trae-radius-4);
-  font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-secondary);
-}
-
-.tut-path-card-percent {
-  margin-left: auto;
+.tut-path-progress-count {
   font-size: var(--trae-body-xs-font-size);
   color: var(--trae-text-tertiary);
-  font-family: var(--trae-code-editor-font-family);
   font-variant-numeric: tabular-nums;
 }
-
-.tut-path-card-progress {
-  height: 3px;
+.tut-path-progress-bar {
+  width: 80px;
+  height: 4px;
   background: var(--trae-bg-overlay-l3);
   border-radius: var(--trae-radius-full);
   overflow: hidden;
 }
-
-.tut-path-card-progress-fill {
+.tut-path-progress-fill {
   height: 100%;
   background: var(--trae-bg-brand);
   border-radius: var(--trae-radius-full);
+}
+
+/* 横向时间线节点容器 */
+.tut-path-nodes {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+/* 单个节点：纵向排列（圆圈行 + 名称 + 描述） */
+.tut-path-node {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+/* 节点圆圈行：左连接线 + 圆圈 + 右连接线 */
+.tut-path-node-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* 连接线（flex:1 撑满，高度 2px） */
+.tut-path-connector {
+  flex: 1;
+  height: 2px;
+}
+.tut-path-connector--brand {
+  background: var(--trae-bg-brand);
+}
+.tut-path-connector--neutral {
+  background: var(--trae-border-neutral-l1);
+}
+
+/* 32×32 圆圈 */
+.tut-path-node-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--trae-radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.tut-path-node-circle--completed {
+  background: var(--trae-bg-brand);
+  color: var(--trae-text-onbrand);
+}
+.tut-path-node-circle--current {
+  background: var(--trae-bg-brand);
+  color: var(--trae-text-onbrand);
+  box-shadow: 0 0 0 3px var(--trae-bg-brand-popup);
+}
+.tut-path-node-circle--upcoming {
+  background: var(--trae-bg-base-tertiary);
+  color: var(--trae-text-secondary);
+}
+
+/* 圆圈内数字 */
+.tut-path-node-number {
+  font-size: var(--trae-body-sm-strong-font-size);
+  font-weight: var(--trae-font-weight-strong);
+  line-height: 1;
+}
+
+/* 节点名称 */
+.tut-path-node-label {
+  font-size: var(--trae-body-sm-strong-font-size);
+  font-weight: var(--trae-body-sm-strong-font-weight);
+  color: var(--trae-text-secondary);
+  line-height: 18px;
+}
+.tut-path-node-label--active {
+  color: var(--trae-text-default);
+}
+
+/* 节点描述 */
+.tut-path-node-desc {
+  font-size: var(--trae-body-xs-font-size);
+  color: var(--trae-text-tertiary);
+  line-height: 16px;
 }
 
 /* ============================================================

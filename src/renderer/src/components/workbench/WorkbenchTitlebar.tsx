@@ -84,10 +84,6 @@ export function WorkbenchTitlebar({
     ? connectionStates[activeServer.id] ?? 'disconnected'
     : 'disconnected'
 
-  // 未连接 SSH 时,右侧仅显示 搜索 + 设置 2 按钮(对齐 workbench-disconnected.html 第 284-292 行)
-  // 已连接时显示 4 按钮: 搜索 / AI面板 / 终端面板 / 设置(对齐 workbench-ai.html 第 2375-2388 行)
-  const isDisconnected = !activeSessionId
-
   useEffect(() => {
     if (!menuOpen) return
     const onDoc = (e: MouseEvent) => {
@@ -282,22 +278,17 @@ export function WorkbenchTitlebar({
           <IconButton title="搜索" onClick={() => navigate('/history')}>
             <Search className="size-4" />
           </IconButton>
-          {/* 未连接态仅 搜索 + 设置 2 按钮;已连接态补齐 AI面板 + 终端面板 */}
-          {!isDisconnected && (
-            <>
-              <IconButton
-                title="AI面板"
-                onClick={onToggleAI}
-                active={aiPanelVisible}
-                domId="btn-toggle-ai"
-              >
-                <PanelRight className="size-4" />
-              </IconButton>
-              <IconButton title="终端面板" onClick={onToggleTerminal}>
-                <SquareTerminal className="size-4" />
-              </IconButton>
-            </>
-          )}
+          <IconButton
+            title="AI面板"
+            onClick={onToggleAI}
+            active={aiPanelVisible}
+            domId="btn-toggle-ai"
+          >
+            <PanelRight className="size-4" />
+          </IconButton>
+          <IconButton title="终端面板" onClick={onToggleTerminal}>
+            <SquareTerminal className="size-4" />
+          </IconButton>
           <IconButton title="设置" onClick={() => navigate('/settings')} domId="nav-settings">
             <Settings className="size-4" />
           </IconButton>

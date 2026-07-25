@@ -530,7 +530,9 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
                 <div className="wb-filetree-empty-state">
                   <Plug className="size-5 text-[var(--trae-icon-tertiary)]" />
                   <div className="wb-filetree-empty-text">
-                    未连接服务器
+                    尚未连接
+                    <br />
+                    SSH服务器
                   </div>
                   <button
                     type="button"

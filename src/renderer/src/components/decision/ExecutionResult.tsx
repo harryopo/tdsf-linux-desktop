@@ -199,7 +199,7 @@ export function ExecutionResult({
           <div className="mt-auto flex gap-2">
             <button
               type="button"
-              data-dom-id="approve-execution"
+              data-dom-id="accept-execute"
               onClick={onAccept}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
             >
@@ -208,7 +208,7 @@ export function ExecutionResult({
             </button>
             <button
               type="button"
-              data-dom-id="modify-execution"
+              data-dom-id="modify-cmd"
               onClick={onModify}
               className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
             >
@@ -217,7 +217,7 @@ export function ExecutionResult({
             </button>
             <button
               type="button"
-              data-dom-id="reject-execution"
+              data-dom-id="reject-cmd"
               onClick={onReject}
               className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
             >

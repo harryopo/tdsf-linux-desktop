@@ -65,7 +65,7 @@ export function StatusBar() {
     : provider
       ? `AI · ${provider.name || provider.model}`
       : selectedProviderId
-        ? 'AI已就绪'
+        ? 'AI已激活'
         : 'AI未配置'
 
   const aiColor = isStreaming

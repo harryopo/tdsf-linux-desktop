@@ -109,7 +109,7 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
         <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
           <span
             className="font-mono font-bold leading-none tabular-nums text-[var(--trae-text-brand)]"
-            style={{ fontSize: '48px' }}
+            style={{ fontSize: '40px' }}
           >
             {value.toFixed(2)}
           </span>

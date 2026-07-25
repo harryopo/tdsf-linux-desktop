@@ -234,10 +234,6 @@ export function HistoryDetailPage() {
       {/* 1. Page header */}
       <header className="hist-detail-header">
         <div className="hist-detail-back-row">
-          <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBackWorkbench} className="hist-back-btn hist-btn-press">
-            <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
-            返回工作台
-          </button>
           <button type="button" data-dom-id="back-history" aria-label="返回历史决策" onClick={handleBackHistory} className="hist-back-btn hist-btn-press">
             <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
             返回历史决策
@@ -304,7 +300,7 @@ export function HistoryDetailPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="hist-tag">7步 · HITL</span>
                 <span className={allCompleted ? 'hist-tag hist-tag--success' : 'hist-tag'}>
-                  {completedSteps}/7 已完成
+                  全部完成
                 </span>
               </div>
             }
@@ -408,7 +404,7 @@ export function HistoryDetailPage() {
           <div className="hist-kb-row">
             <div className="hist-kb-left">
               <CheckCircle2 className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-status-success-default)' }} />
-              <span className="hist-kb-desc">决策已归档至本地历史库</span>
+              <span className="hist-kb-desc">本次决策已更新至知识库</span>
               <span className="hist-kb-link">{card.id}</span>
             </div>
             <button
@@ -418,7 +414,7 @@ export function HistoryDetailPage() {
               onClick={() => navigate('/knowledge')}
               className="hist-kb-btn hist-btn-press"
             >
-              查看知识库
+              查看知识详情
               <ArrowRight className="shrink-0" style={{ width: 12, height: 12 }} />
             </button>
           </div>
