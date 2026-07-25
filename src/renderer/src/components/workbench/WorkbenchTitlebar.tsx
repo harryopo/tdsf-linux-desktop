@@ -26,6 +26,7 @@ import {
   Server,
   SquareTerminal,
   Shield,
+  Save,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
@@ -40,12 +41,18 @@ export interface WorkbenchTitlebarProps {
   aiPanelVisible?: boolean
   /** 终端面板按钮回调（切换到终端 tab） */
   onToggleTerminal?: () => void
+  /** P1-3：全部保存按钮回调（一键保存所有未保存文件） */
+  onSaveAll?: () => void
+  /** P1-3：是否存在未保存文件（用于按钮高亮提示） */
+  hasUnsavedFiles?: boolean
 }
 
 export function WorkbenchTitlebar({
   onToggleAI,
   aiPanelVisible = true,
   onToggleTerminal,
+  onSaveAll,
+  hasUnsavedFiles = false,
 }: WorkbenchTitlebarProps) {
   const navigate = useNavigate()
   const servers = useServerStore((s) => s.servers)
@@ -314,6 +321,22 @@ export function WorkbenchTitlebar({
         </div>
 
         <div className="wb-titlebar-right">
+          {/* P1-3：全部保存按钮（仅当有未保存文件时显示，并在 onSaveAll 可用时） */}
+          {onSaveAll && hasUnsavedFiles && (
+            <button
+              type="button"
+              title="全部保存（一键保存所有未保存文件）"
+              aria-label="全部保存"
+              onClick={onSaveAll}
+              data-dom-id="btn-save-all"
+              className={cn(
+                'wb-icon-btn',
+                'has-unsaved',
+              )}
+            >
+              <Save className="size-4" />
+            </button>
+          )}
           {/* 搜索按钮(设计稿 workbench-ai.html 第 2376-2378 行 / workbench-disconnected.html 第 286-288 行) */}
           <IconButton title="搜索" onClick={() => navigate('/history')}>
             <Search className="size-4" />
@@ -329,7 +352,7 @@ export function WorkbenchTitlebar({
           <IconButton title="终端面板" onClick={onToggleTerminal}>
             <SquareTerminal className="size-4" />
           </IconButton>
-          <IconButton title="设置" onClick={() => navigate('/settings')} domId="nav-settings">
+          <IconButton title="设置" onClick={() => navigate('/settings')} domId="nav-settings-top">
             <Settings className="size-4" />
           </IconButton>
         </div>

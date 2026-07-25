@@ -9,7 +9,7 @@
  * - 仍保留可选 demo 标签（无会话时示意）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
-import { message } from 'antd'
+import { message, Dropdown, type MenuProps } from 'antd'
 import {
   Terminal as TerminalIcon,
   FileText,
@@ -81,6 +81,10 @@ export interface EditorAreaProps {
   onTabChange: (tabId: WorkbenchTabId) => void
   fileTabs: WorkbenchFileTab[]
   onCloseFile?: (tabId: WorkbenchTabId) => void
+  /** P1-4：关闭其他文件 Tab（保留 keepTabId，关闭其余所有文件） */
+  onCloseOthers?: (keepTabId: WorkbenchTabId) => void
+  /** P1-4：关闭所有文件 Tab（终端 tab 不在内，始终保留） */
+  onCloseAll?: () => void
   onFileContentChange?: (tabId: WorkbenchTabId, content: string) => void
   onFileLoaded?: (tabId: WorkbenchTabId, content: string, error?: string) => void
   onFileSaved?: (tabId: WorkbenchTabId, content: string) => void
@@ -199,6 +203,8 @@ const EditorArea: FC<EditorAreaProps> = ({
   onTabChange,
   fileTabs,
   onCloseFile,
+  onCloseOthers,
+  onCloseAll,
   onFileContentChange,
   onFileLoaded,
   onFileSaved,
@@ -373,13 +379,50 @@ const EditorArea: FC<EditorAreaProps> = ({
     }
   }, [activeSessionId])
 
+  /**
+   * P1-4：构建文件 Tab 右键菜单项
+   *
+   * 菜单项（与 VS Code 行为对齐）：
+   * - 关闭：仅关闭当前 tab（onCloseFile）
+   * - 关闭其他：保留当前 tab，关闭其余所有文件（onCloseOthers）
+   * - 关闭所有：关闭所有文件 tab（终端 tab 不在内，始终保留）（onCloseAll）
+   *
+   * 当对应回调未提供时，菜单项禁用。
+   */
+  const buildFileContextMenuItems = useCallback(
+    (tabId: WorkbenchTabId): MenuProps['items'] => {
+      const otherCount = fileTabs.filter((t) => t.id !== tabId).length
+      return [
+        {
+          key: 'close',
+          label: '关闭',
+          disabled: !onCloseFile,
+          onClick: () => onCloseFile?.(tabId),
+        },
+        {
+          key: 'close-others',
+          label: `关闭其他${otherCount > 0 ? ` (${otherCount})` : ''}`,
+          disabled: !onCloseOthers || otherCount === 0,
+          onClick: () => onCloseOthers?.(tabId),
+        },
+        {
+          key: 'close-all',
+          label: `关闭所有${fileTabs.length > 0 ? ` (${fileTabs.length})` : ''}`,
+          disabled: !onCloseAll || fileTabs.length === 0,
+          onClick: () => onCloseAll?.(),
+        },
+      ]
+    },
+    [fileTabs, onCloseFile, onCloseOthers, onCloseAll],
+  )
+
   return (
     <div className="term-editor-area">
       <div className="term-tab-bar">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const isTerm = tab.id === 'tab-terminal'
-          return (
+          const tabInner = (
             <div
               key={tab.id}
               className={cn(
@@ -417,6 +460,20 @@ const EditorArea: FC<EditorAreaProps> = ({
               )}
             </div>
           )
+          // P1-4：文件 Tab 支持右键菜单（关闭 / 关闭其他 / 关闭所有）
+          if (!isTerm) {
+            return (
+              <Dropdown
+                key={tab.id}
+                menu={{ items: buildFileContextMenuItems(tab.id) }}
+                trigger={['contextMenu']}
+                placement="bottomLeft"
+              >
+                {tabInner}
+              </Dropdown>
+            )
+          }
+          return tabInner
         })}
         <div className="term-tab-actions">
           <button

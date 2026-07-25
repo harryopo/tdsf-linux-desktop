@@ -28,6 +28,7 @@ import { SecurityCard } from '@/components/settings/ssh/SecurityCard'
 import { useServerStore } from '@/stores/server-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import type { SshConfig, SshKeyPair, GenerateKeyPairRequest } from '@shared/models'
 import './SshSettings.css'
 
@@ -71,12 +72,14 @@ export function SshSettings() {
   )
   // K.3：keepAlive 直接联动 store（不再使用本地 state），与后端默认 30s 对齐
   const keepAliveIntervalSec = sshDefaults.keepAliveIntervalSec ?? 30
-  const [compression, setCompression] = useState(true)
-  const [x11Forward, setX11Forward] = useState(false)
+  // P1-2: compression / x11Forward 改用 usePersistentState 持久化到 electron-store
+  const [compression, setCompression] = usePersistentState<boolean>('ssh.compression', true)
+  const [x11Forward, setX11Forward] = usePersistentState<boolean>('ssh.x11Forward', false)
 
   // Card 4: 安全设置（设计稿默认：密码认证 off / Root on / 严格 on / known_hosts 路径）
-  const [allowPasswordAuth, setAllowPasswordAuth] = useState(false)
-  const [allowRootLogin, setAllowRootLogin] = useState(true)
+  // P1-2: allowPasswordAuth / allowRootLogin 改用 usePersistentState 持久化
+  const [allowPasswordAuth, setAllowPasswordAuth] = usePersistentState<boolean>('ssh.allowPasswordAuth', false)
+  const [allowRootLogin, setAllowRootLogin] = usePersistentState<boolean>('ssh.allowRootLogin', true)
   // Phase L：strictHostKeyCheck / knownHostsPath 从 store 初始化，handleSaveDefaults 时写回 store
   const [strictHostKeyCheck, setStrictHostKeyCheck] = useState(
     sshDefaults.strictHostKeyCheck ?? true,
