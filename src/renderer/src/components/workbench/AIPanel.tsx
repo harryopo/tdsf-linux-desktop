@@ -32,6 +32,7 @@ import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import { useAgentChat } from './useAgentChat'
 import { useLoopEngineering } from './useLoopEngineering'
+import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
 import type { PaorApprovalRequest } from '@/types/electron'
 import './AIPanel.css'
@@ -72,6 +73,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   /** 循环工程子 Agent —— 演示模式专用 */
   const loop = useLoopEngineering()
 
+  /** PAOR 自动循环（v0.9.5 P0-3：Plan→Act→Observe→Reflect 主进程编排） */
+  const paor = usePaorLoop()
+
   /** 当前活跃 SSH 会话 ID（演示模式启动循环工程时使用） */
   const activeSessionId = useServerStore((s) => s.activeSessionId)
 
@@ -98,6 +102,70 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     await api.paorApprove(callId, approved)
     setPaorApprovals((prev) => prev.filter((r) => r.callId !== callId))
   }
+
+  /**
+   * 监听 PAOR 迭代进度，实时展示在 message.info（v0.9.5 P0-3）
+   *
+   * 每轮迭代（Plan→Act→Observe→Reflect）完成后触发：
+   * - 显示迭代序号 + 执行命令 + 观察状态 + 反思决策
+   * - 高危命令被拦截时显示 riskBlocked 提示
+   *
+   * 注意：用 message.info 而非 message.loading，因为迭代可能间隔较长（数秒），
+   * loading 会持续显示直到下一次迭代，体验更佳；但 message.info 不会自动消失，
+   * 需手动控制时长（设为 6 秒，避免堆积）。
+   */
+  const lastIterationRef = useRef(0)
+  useEffect(() => {
+    if (paor.iterations.length === 0) return
+    const latest = paor.iterations[paor.iterations.length - 1]
+    if (latest.iteration <= lastIterationRef.current) return
+    lastIterationRef.current = latest.iteration
+
+    const cmdPreview =
+      latest.act.command.length > 60
+        ? `${latest.act.command.slice(0, 60)}...`
+        : latest.act.command
+    const statusIcon =
+      latest.riskBlocked
+        ? '⛔'
+        : latest.observe.status === 'success'
+          ? '✅'
+          : latest.observe.status === 'partial'
+            ? '⚠️'
+            : '❌'
+    const decisionMap: Record<string, string> = {
+      continue: '继续下一步',
+      retry: '重试当前步骤',
+      abort: '中止循环',
+      done: '任务完成',
+    }
+    const decisionText = decisionMap[latest.reflect.decision] ?? latest.reflect.decision
+    message.info({
+      content: `PAOR 迭代 ${latest.iteration} ${statusIcon}\n命令：${cmdPreview}\n观察：${latest.observe.status} → 决策：${decisionText}`,
+      duration: 6,
+    })
+  }, [paor.iterations])
+
+  /** PAOR 完成时展示最终摘要 */
+  useEffect(() => {
+    if (!paor.result) return
+    const statusMap: Record<string, string> = {
+      done: '✅ 计划完成',
+      abort: '⛔ 已中止',
+      max_iterations: '⏱️ 达到迭代上限',
+    }
+    const statusText = statusMap[paor.result.status] ?? paor.result.status
+    message.success({
+      content: `PAOR 循环结束 ${statusText}（${paor.result.iterations.length} 轮迭代，耗时 ${(paor.result.durationMs / 1000).toFixed(1)}s）\n摘要：${paor.result.summary}`,
+      duration: 10,
+    })
+  }, [paor.result])
+
+  /** PAOR 出错时提示 */
+  useEffect(() => {
+    if (!paor.error) return
+    message.error(`PAOR 错误：${paor.error}`)
+  }, [paor.error])
 
   /** 实时消息滚动到底部 */
   useEffect(() => {
@@ -289,6 +357,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         setDemoMode={setDemoMode}
         isStreaming={isStreaming}
         loop={loop}
+        paor={paor}
         activeSessionId={activeSessionId}
         providers={providers}
         selectedProviderId={selectedProviderId}
