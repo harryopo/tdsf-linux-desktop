@@ -993,6 +993,59 @@
   color: var(--trae-text-default);
 }
 
+/* ===== Markdown 渲染内容（真实教程数据） ===== */
+.tut-md-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tut-md-h2 {
+  font-size: var(--trae-heading-sm-font-size, 16px);
+  line-height: var(--trae-heading-sm-line-height, 24px);
+  font-weight: var(--trae-heading-sm-font-weight, var(--trae-font-weight-strong, 600));
+  color: var(--trae-text-default);
+  margin: 12px 0 4px;
+}
+
+.tut-md-h2--major {
+  font-size: var(--trae-heading-md-font-size, 20px);
+  line-height: var(--trae-heading-md-line-height, 28px);
+  color: var(--trae-bg-brand);
+}
+
+.tut-md-h3 {
+  font-size: var(--trae-heading-xs-font-size, 13px);
+  line-height: var(--trae-heading-xs-line-height, 20px);
+  font-weight: var(--trae-heading-xs-font-weight, var(--trae-font-weight-strong, 600));
+  color: var(--trae-text-default);
+  margin: 10px 0 2px;
+}
+
+.tut-md-blockquote {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--trae-status-warning-surface-l1);
+  border-left: 3px solid var(--trae-status-warning-default);
+  border-radius: 0 var(--trae-radius-4) var(--trae-radius-4) 0;
+  align-items: flex-start;
+}
+
+.tut-md-code {
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--trae-body-sm-font-size, 11px);
+  color: var(--trae-code-constant, #80BBFF);
+  background: var(--trae-bg-overlay-l1, #1F2023);
+  padding: 1px 4px;
+  border-radius: var(--trae-radius-2, 2px);
+}
+
+.tut-md-pre {
+  margin-top: 10px;
+}
+
 /* ===== 按钮组 ===== */
 .tut-btn-group {
   display: flex;

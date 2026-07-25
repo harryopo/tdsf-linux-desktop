@@ -15,7 +15,7 @@
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Modal, Spin, message, Button } from 'antd'
 import {
@@ -128,6 +128,156 @@ function formatReadingTime(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return m === 0 ? `${h}h` : `${h}h ${m}min`
+}
+
+// ==================== 轻量 Markdown 渲染器 ====================
+
+/**
+ * 渲染内联 `code` 片段
+ * 将 `code` 形式的文本转为 <code> 元素，其余保持纯文本
+ */
+function renderInlineCode(text: string): ReactNode {
+  const parts = text.split(/(`[^`]+`)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+      return (
+        <code key={i} className="tut-md-code">
+          {part.slice(1, -1)}
+        </code>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
+/**
+ * 轻量 Markdown 渲染器
+ *
+ * 支持：
+ * - ## heading    → styled <h2>
+ * - ### heading   → styled <h3>
+ * - # heading     → styled <h2> (major, brand color)
+ * - > blockquote  → styled alert (warning surface + left border)
+ * - ```lang code``` → styled <pre> with syntax coloring
+ * - 普通文本      → styled <p>
+ * - `inline code` → styled <code>
+ *
+ * 设计稿对齐：tutorial-detail.html 的 article > h2 / p / pre / alert 结构
+ */
+function renderMarkdownContent(content: string): ReactNode {
+  const lines = content.split('\n')
+  const blocks: ReactNode[] = []
+  let i = 0
+  let keyCounter = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // 空行 — 跳过
+    if (line.trim() === '') {
+      i++
+      continue
+    }
+
+    // 代码块：```lang ... ```
+    if (line.trim().startsWith('```')) {
+      const codeLines: string[] = []
+      i++
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i])
+        i++
+      }
+      i++ // 跳过结束 ```
+
+      blocks.push(
+        <pre key={keyCounter++} className="tut-code-block tut-md-pre">
+          {codeLines.map((cl, idx) => {
+            const trimmed = cl.trimStart()
+            let color = 'var(--trae-code-text)'
+            if (trimmed.startsWith('#') || trimmed.startsWith('//')) {
+              color = 'var(--trae-code-doc)'
+            } else if (trimmed.startsWith('$') || trimmed.startsWith('user@') || trimmed.startsWith('root@')) {
+              color = 'var(--trae-code-constant)'
+            }
+            return (
+              <span key={idx} style={{ color, display: 'block' }}>
+                {cl || '\u00A0'}
+              </span>
+            )
+          })}
+        </pre>
+      )
+      continue
+    }
+
+    // H3：### heading
+    if (line.startsWith('### ')) {
+      blocks.push(
+        <h3 key={keyCounter++} className="tut-md-h3">
+          {renderInlineCode(line.slice(4))}
+        </h3>
+      )
+      i++
+      continue
+    }
+
+    // H2：## heading
+    if (line.startsWith('## ')) {
+      blocks.push(
+        <h2 key={keyCounter++} className="tut-md-h2">
+          {renderInlineCode(line.slice(3))}
+        </h2>
+      )
+      i++
+      continue
+    }
+
+    // H1：# heading（非 shebang #!）
+    if (line.startsWith('# ') && !line.startsWith('#!')) {
+      blocks.push(
+        <h2 key={keyCounter++} className="tut-md-h2 tut-md-h2--major">
+          {renderInlineCode(line.slice(2))}
+        </h2>
+      )
+      i++
+      continue
+    }
+
+    // Blockquote：> text
+    if (line.startsWith('> ')) {
+      const quoteLines: string[] = [line.slice(2)]
+      i++
+      while (i < lines.length && lines[i].startsWith('> ')) {
+        quoteLines.push(lines[i].slice(2))
+        i++
+      }
+      blocks.push(
+        <div key={keyCounter++} className="tut-md-blockquote">
+          <Info size={14} className="tut-alert-icon" />
+          <span className="tut-alert-text">{renderInlineCode(quoteLines.join(' '))}</span>
+        </div>
+      )
+      continue
+    }
+
+    // 普通段落 — 收集连续非特殊行
+    const paraLines: string[] = [line]
+    i++
+    while (i < lines.length && lines[i].trim() !== '' &&
+           !lines[i].startsWith('## ') && !lines[i].startsWith('### ') &&
+           !lines[i].startsWith('# ') && !lines[i].startsWith('> ') &&
+           !lines[i].trim().startsWith('```')) {
+      paraLines.push(lines[i])
+      i++
+    }
+    blocks.push(
+      <p key={keyCounter++} className="tut-paragraph">
+        {renderInlineCode(paraLines.join(' '))}
+      </p>
+    )
+  }
+
+  return <div className="tut-md-content">{blocks}</div>
 }
 
 // ==================== 主组件 ====================
@@ -519,12 +669,16 @@ export function TutorialDetailPage() {
                   ))}
                 </ul>
               </div>
-              {/* 内容正文 */}
-              <div className="tut-paragraphs">
-                {displayParagraphs.map((p, i) => (
-                  <p key={i} className="tut-paragraph">{p}</p>
-                ))}
-              </div>
+              {/* 内容正文：真实数据用 Markdown 渲染器，设计稿示例用静态段落 */}
+              {useReal && tutorialEntry
+                ? renderMarkdownContent(tutorialEntry.content)
+                : (
+                  <div className="tut-paragraphs">
+                    {displayParagraphs.map((p, i) => (
+                      <p key={i} className="tut-paragraph">{p}</p>
+                    ))}
+                  </div>
+                )}
               {/* 命令示例块 */}
               <div style={{ marginTop: 12 }}>
                 <pre className="tut-code-block">
