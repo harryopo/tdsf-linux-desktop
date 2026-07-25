@@ -65,7 +65,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
   return (
     <Result
       icon={
-        <span style={{ color: '#ff4d4f', fontSize: 64, lineHeight: 1 }}>
+        <span style={{ color: 'var(--trae-status-error-default, #ff4d4f)', fontSize: 64, lineHeight: 1 }}>
           {config.icon}
         </span>
       }

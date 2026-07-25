@@ -313,7 +313,7 @@
 
 /* ===== 右：终端式日志查看器 ===== */
 .log-viewer {
-  background: #0F1011;
+  background: var(--trae-bg-code-block, #0F1011);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-8);
   overflow: hidden;

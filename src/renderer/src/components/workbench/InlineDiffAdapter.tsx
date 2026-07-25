@@ -114,7 +114,7 @@ export const InlineDiffAdapter: FC<InlineDiffAdapterProps> = ({
               border: '1px solid var(--trae-status-success-default, #4ec9b0)',
               borderRadius: 4,
               background: 'var(--trae-status-success-default, #4ec9b0)',
-              color: '#fff',
+              color: 'var(--trae-special-white, #fff)',
               cursor: 'pointer',
             }}
           >

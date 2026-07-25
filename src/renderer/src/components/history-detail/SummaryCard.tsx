@@ -91,7 +91,7 @@ export function SummaryCard({ card }: SummaryCardProps) {
       <Row label="执行命令">
         <div
           className="font-mono text-[12px] leading-[1.6] px-3 py-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]"
-          style={{ background: '#0F1011' }}
+          style={{ background: 'var(--trae-bg-code-block, #0F1011)' }}
         >
           {fixCommand ? (
             <span style={{ color: 'var(--trae-text-default)' }}>{fixCommand}</span>
