@@ -28,6 +28,7 @@ import {
   UI_TO_TUTORIAL_CATEGORIES, DEFAULT_STATS, FEATURED_COURSES, DEFAULT_COURSES,
   LEARNING_PATHS, isLocalStorageAvailable, loadVisitedTutorialIds,
   saveVisitedTutorialIds, isValidTutorialCategory, entryToCourse, computeCategoryCounts,
+  tutorialPathToLearningPath,
 } from '@/components/tutorial/types'
 import './TutorialPage.css'
 
@@ -130,12 +131,11 @@ export function TutorialPage() {
         if (cancelled) return
 
         // 应用 IPC 学习进度（仅在 IPC 返回非空数组时覆盖，避免空数组清掉 localStorage）
+        const ipcVisitedIds = new Set<string>()
         if (Array.isArray(progressList) && progressList.length > 0) {
-          const ipcIds = new Set<string>(
-            (progressList as TutorialProgress[]).map((p) => p.tutorialId),
-          )
-          _setVisitedIds(ipcIds)
-          if (_localStorageAvailable) saveVisitedTutorialIds(ipcIds)
+          progressList.forEach((p) => ipcVisitedIds.add((p as TutorialProgress).tutorialId))
+          _setVisitedIds(ipcVisitedIds)
+          if (_localStorageAvailable) saveVisitedTutorialIds(ipcVisitedIds)
         }
 
         const mappedCourses = (entries ?? []).map(entryToCourse)
@@ -160,21 +160,9 @@ export function TutorialPage() {
           { value: '3.2k', unit: '学习人次', hint: '运维工程师实战首选' },
         ])
 
-        // 学习路径：IPC 返回的 TutorialPath 无 icon/level/percent/courseCount/status，
-        // 按 fallback LEARNING_PATHS[0] 模板填充（保证设计稿横向时间线视觉完整）
+        // 学习路径：将 IPC 返回的 TutorialPath 映射为页面 LearningPath，保留真实 steps
         if (Array.isArray(recommendedPaths) && recommendedPaths.length > 0) {
-          const fallback = LEARNING_PATHS[0]
-          setPaths([{
-            id: recommendedPaths[0].id,
-            title: fallback.title,
-            level: fallback.level,
-            courseCount: fallback.courseCount,
-            percent: fallback.percent,
-            completedCount: fallback.completedCount,
-            totalCount: fallback.totalCount,
-            icon: fallback.icon,
-            steps: fallback.steps,
-          }])
+          setPaths(recommendedPaths.map((p) => tutorialPathToLearningPath(p, ipcVisitedIds)))
         }
 
         // v2.3.2 修复：把 categories 写入 _categorySummaries，让 _categoryCounts 真正可用
