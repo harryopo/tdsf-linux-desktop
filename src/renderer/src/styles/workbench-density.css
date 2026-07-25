@@ -1,61 +1,9 @@
 /**
- * workbench-density — 工作台 + 设置页可读密度
+ * workbench-density — 设置页可读密度
  *
- * 设计稿 token（workbench-ai / settings-ssh）:
- * - body-base: 13px / line 20
- * - 按钮高度: 28–32px
- * - spacer: 8/12/16
- *
- * 用户反馈：字太小、按钮多而紧、边距顶格 → 加大正文与可点区，放宽内边距
+ * 工作台 (.wb-shell) 的密度由 Workbench.css 控制，严格对齐设计稿。
+ * 本文件仅保留设置页的可读密度规则。
  */
-.wb-shell {
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--trae-text-default);
-}
-
-.wb-shell button:not(:disabled) {
-  min-height: 32px;
-}
-
-.wb-shell .wb-nav-btn {
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
-}
-
-.wb-shell .wb-statusbar,
-.wb-shell .wb-statusbar button {
-  min-height: 0;
-  height: 26px;
-  font-size: 12px;
-}
-
-.wb-shell .wb-titlebar {
-  height: 44px;
-  padding-left: 14px;
-  padding-right: 14px;
-}
-
-.wb-shell .wb-filetree {
-  font-size: 13px;
-}
-
-.wb-shell .wb-aipanel {
-  font-size: 13px;
-}
-
-.wb-shell .wb-aipanel textarea {
-  font-size: 13px;
-  line-height: 1.55;
-  min-height: 56px;
-}
-
-.wb-shell .wb-aipanel .wb-send-btn {
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
-}
 
 /* 设置页（SSH 等）共用可读密度 */
 .settings-readable,

@@ -18,7 +18,7 @@
  * - 左侧风险色带强化视觉层次
  * - 命令使用终端背景色代码块展示
  */
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Button, Tag, Tooltip, Collapse, message } from 'antd'
 import {
   CheckCircleOutlined,
@@ -38,8 +38,10 @@ import SectionTitle from '../common/SectionTitle'
 import ConfidenceBreakdown from './ConfidenceBreakdown'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import { buildCredibilityInputs, fingerprint } from '../../utils/evidence-to-input'
+import { analyzeCotEntropyTrajectory } from '@shared/cot-trace-analyzer'
 import type { DecisionCard as DecisionCardType, RiskLevel } from '@shared/models'
 import type { ConfidenceAssessment } from '@shared/agent-types'
+import type { CotTraceAnalysis } from '@shared/cot-trace-analyzer'
 import './DecisionCard.css'
 
 /** DecisionCard 组件 Props */
@@ -52,6 +54,16 @@ interface DecisionCardProps {
   onReject?: (card: DecisionCardType) => void
   /** 批准/拒绝进行中标记（P1-2: 防重复点击） */
   confirming?: boolean
+  /**
+   * CoT 熵轨迹（v0.9.6 P2 M5+ 新增，可选）
+   *
+   * 由 ChatPanel 从 agent-store 最后一条 assistant 消息透传过来。
+   * 透传到可信度评估 S3 (ai-param) 4 路融合 + 渲染到 ConfidenceBreakdown 的 CoT 轨迹图。
+   *
+   * 不传时：S3 走 v0.9.6 P1 行为（verbalized + logprob + consistency 3 路融合），
+   *         ConfidenceBreakdown 也不展示 CoT 轨迹区。
+   */
+  cotEntropyTrajectory?: number[]
 }
 
 /** 风险等级配置（v2.2：全部 token 化） */
@@ -225,6 +237,7 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
   onApprove,
   onReject,
   confirming = false,
+  cotEntropyTrajectory,
 }) => {
   /** 风险确认对话框是否打开 */
   const [riskConfirmOpen, setRiskConfirmOpen] = useState(false)
@@ -243,6 +256,18 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
     }
   }, [])
 
+  /**
+   * P2 M6：CoT 熵轨迹分析
+   *
+   * useMemo 缓存：仅当 cotEntropyTrajectory 变化时重算
+   * - undefined / 空数组 → 返回 undefined（不渲染）
+   * - 非空数组 → 调用 analyzeCotEntropyTrajectory 得到完整分析
+   */
+  const cotTraceAnalysis = useMemo<CotTraceAnalysis | undefined>(() => {
+    if (!cotEntropyTrajectory || cotEntropyTrajectory.length === 0) return undefined
+    return analyzeCotEntropyTrajectory(cotEntropyTrajectory)
+  }, [cotEntropyTrajectory])
+
   /** P1: 自动调用 credibilityAssess（基于 evidence + card.confidence） */
   useEffect(() => {
     if (!isElectronAPIAvailable() || !window.electronAPI?.credibilityAssess) {
@@ -255,6 +280,8 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
       cardId: card.id,
       evidences: card.evidences,
       llmVerbalized: card.confidence,
+      // v0.9.6 P2 M5+：把 cotEntropyTrajectory 纳入指纹，变化时重算
+      cotEntropyTrajectory,
     })
     if (fp === lastFingerprintRef.current) return
     lastFingerprintRef.current = fp
@@ -265,6 +292,8 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
       cardId: card.id,
       evidences: card.evidences,
       llmVerbalized: card.confidence,
+      // v0.9.6 P2 M5+：透传 CoT 熵轨迹到 S3 ai-param 4 路融合
+      cotEntropyTrajectory,
     })
 
     void window.electronAPI
@@ -287,7 +316,7 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
           setCredLoading(false)
         }
       })
-  }, [card.id, card.confidence, card.evidences])
+  }, [card.id, card.confidence, card.evidences, cotEntropyTrajectory])
 
   /** 上一指纹（用于 useEffect 内部比较） */
   const lastFingerprintRef = useRef<string>('')
@@ -361,7 +390,10 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
 
       {/* ===== P1: 可信度评估明细（D-S + PCR5 6 源融合） ===== */}
       {assessment && (
-        <ConfidenceBreakdown assessment={assessment} />
+        <ConfidenceBreakdown
+          assessment={assessment}
+          cotTraceAnalysis={cotTraceAnalysis}
+        />
       )}
       {credLoading && !assessment && (
         <div className="decision-card-cred-loading">正在评估 6 源证据...</div>

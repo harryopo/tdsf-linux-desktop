@@ -842,16 +842,28 @@ const ChatPanel: React.FC = () => {
         )}
 
         {/* ===== v0.8 决策卡片（保留兼容） ===== */}
-        {decisionCard && (
-          <div className="chat-panel-decision">
-            <DecisionCard
-              card={decisionCard}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              confirming={confirming}
-            />
-          </div>
-        )}
+        {decisionCard && (() => {
+          // v0.9.6 P2 M5+：透传最后一条 assistant 消息的 CoT 熵轨迹
+          let latestCotEntropyTrajectory: number[] | undefined
+          for (let i = agentMessages.length - 1; i >= 0; i--) {
+            const m = agentMessages[i]
+            if (m.role === 'assistant' && m.cotEntropyTrajectory && m.cotEntropyTrajectory.length > 0) {
+              latestCotEntropyTrajectory = m.cotEntropyTrajectory
+              break
+            }
+          }
+          return (
+            <div className="chat-panel-decision">
+              <DecisionCard
+                card={decisionCard}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                confirming={confirming}
+                cotEntropyTrajectory={latestCotEntropyTrajectory}
+              />
+            </div>
+          )
+        })()}
 
         {/* ===== v0.9 可信度面板（决策卡片下方，折叠） ===== */}
         {decisionCard && (

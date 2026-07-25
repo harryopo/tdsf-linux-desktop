@@ -222,6 +222,7 @@ export const SSH = {
  * - WRITE_FILE invoke 渲染 → 主：写入字符串到远程文件
  * - STAT      invoke  渲染 → 主：获取文件/目录元信息
  * - MKDIR     invoke  渲染 → 主：创建远程目录
+ * - PROGRESS  push    主 → 渲染：上传/下载进度推送
  */
 export const SFTP = {
   /** 列出远程目录（invoke: 渲染 → 主） */
@@ -244,6 +245,8 @@ export const SFTP = {
   STAT: 'sftp:stat',
   /** 创建远程目录（invoke: 渲染 → 主） */
   MKDIR: 'sftp:mkdir',
+  /** 上传/下载进度推送（push: 主 → 渲染，载荷 SftpProgressEvent） */
+  PROGRESS: 'sftp:progress',
 } as const
 
 /**

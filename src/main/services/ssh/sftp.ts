@@ -21,8 +21,6 @@ import type { SftpEntry } from '@shared/models'
 
 /** SFTP 操作的默认读写缓冲区大小（字节） */
 const SFTP_BUFFER_SIZE = 64 * 1024
-/** 进度回调节流阈值（字节），避免进度事件过于频繁 */
-const PROGRESS_THRESHOLD = 64 * 1024
 
 /**
  * SFTP 文件管理器
@@ -82,52 +80,41 @@ export class SftpManager {
   /**
    * 上传本地文件到远程
    *
-   * 使用 sftp.createReadStream/createWriteStream 流式传输，避免大文件内存占用。
-   * 进度通过内部回调跟踪（暂未对外暴露，可通过改造接收回调参数实现）。
+   * 使用 ssh2 fastPut 并发传输，自动创建远程父目录，支持进度回调。
    *
    * @param sessionId SSH 会话 ID
    * @param localPath 本地文件路径
    * @param remotePath 远程目标路径
+   * @param onProgress 进度回调（transferred 已传输字节，total 总字节）
    * @returns 是否成功
    */
   public async upload(
     sessionId: string,
     localPath: string,
-    remotePath: string
+    remotePath: string,
+    onProgress?: (transferred: number, total: number) => void
   ): Promise<boolean> {
     if (!fs.existsSync(localPath)) {
       throw new Error(`本地文件不存在: ${localPath}`)
     }
     const sftp = await this.openSftp(sessionId)
     try {
+      const stat = fs.statSync(localPath)
+      const total = stat.size
       return await new Promise<boolean>((resolve, reject) => {
-        const readStream = fs.createReadStream(localPath, {
-          highWaterMark: SFTP_BUFFER_SIZE,
-        })
-        const writeStream = sftp.createWriteStream(remotePath, {
-          highWaterMark: SFTP_BUFFER_SIZE,
-        })
-        let uploaded = 0
-        let lastReport = 0
-        readStream.on('data', (chunk: Buffer | string) => {
-          // chunk 可能是 Buffer 或 string，统一按字节长度统计
-          const len = typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length
-          uploaded += len
-          // 节流日志（避免大文件输出过多），实际未对外回调
-          if (uploaded - lastReport >= PROGRESS_THRESHOLD) {
-            lastReport = uploaded
+        sftp.fastPut(localPath, remotePath, {
+          concurrency: 64,
+          chunkSize: 32768,
+          step: (transferred) => {
+            onProgress?.(transferred, total)
+          },
+        }, (err) => {
+          if (err) {
+            reject(new Error(`上传失败 '${localPath}' → '${remotePath}': ${err.message}`))
+          } else {
+            resolve(true)
           }
         })
-        readStream.on('error', (err: Error) => {
-          reject(new Error(`读取本地文件失败: ${err.message}`))
-        })
-        writeStream.on('error', (err: Error) => {
-          reject(new Error(`写入远程文件失败: ${err.message}`))
-        })
-        writeStream.on('close', () => {
-          resolve(true)
-        })
-        readStream.pipe(writeStream)
       })
     } finally {
       this.closeSftp(sftp)
@@ -137,17 +124,19 @@ export class SftpManager {
   /**
    * 下载远程文件到本地
    *
-   * 使用流式传输，自动创建本地父目录。
+   * 使用 ssh2 fastGet 并发传输，自动创建本地父目录，支持进度回调。
    *
    * @param sessionId SSH 会话 ID
    * @param remotePath 远程文件路径
    * @param localPath 本地目标路径
+   * @param onProgress 进度回调（transferred 已传输字节，total 总字节）
    * @returns 是否成功
    */
   public async download(
     sessionId: string,
     remotePath: string,
-    localPath: string
+    localPath: string,
+    onProgress?: (transferred: number, total: number) => void
   ): Promise<boolean> {
     // 确保本地目录存在
     const localDir = path.dirname(localPath)
@@ -155,23 +144,22 @@ export class SftpManager {
 
     const sftp = await this.openSftp(sessionId)
     try {
+      const stat = await this.statInternal(sftp, remotePath)
+      const total = stat?.size ?? 0
       return await new Promise<boolean>((resolve, reject) => {
-        const readStream = sftp.createReadStream(remotePath, {
-          highWaterMark: SFTP_BUFFER_SIZE,
+        sftp.fastGet(remotePath, localPath, {
+          concurrency: 64,
+          chunkSize: 32768,
+          step: (transferred) => {
+            onProgress?.(transferred, total)
+          },
+        }, (err) => {
+          if (err) {
+            reject(new Error(`下载失败 '${remotePath}' → '${localPath}': ${err.message}`))
+          } else {
+            resolve(true)
+          }
         })
-        const writeStream = fs.createWriteStream(localPath, {
-          highWaterMark: SFTP_BUFFER_SIZE,
-        })
-        readStream.on('error', (err: Error) => {
-          reject(new Error(`读取远程文件失败: ${err.message}`))
-        })
-        writeStream.on('error', (err: Error) => {
-          reject(new Error(`写入本地文件失败: ${err.message}`))
-        })
-        writeStream.on('close', () => {
-          resolve(true)
-        })
-        readStream.pipe(writeStream)
       })
     } finally {
       this.closeSftp(sftp)

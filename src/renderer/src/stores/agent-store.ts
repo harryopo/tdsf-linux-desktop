@@ -64,6 +64,24 @@ export interface AgentMessage {
     outputTokens: number
     totalTokens: number
   }
+  /**
+   * CoT 熵轨迹（v0.9.6 P2 M5+ 新增，可选）
+   *
+   * 由主进程 CotTraceCollector 在流式过程中累积，每步一个 Shannon 熵 ∈ [0, 1]。
+   * done 事件回填到对应 assistant 消息，供 DecisionCard 渲染时透传到可信度评估。
+   *
+   * 数据来源（详见 src/main/core/agent/credibility/mass-functions/cot-trace-collector.ts）：
+   * 1. Anthropic Claude with thinking（最高优先级）
+   * 2. Reasoning model 多 turn（次优先级）
+   * 3. 文本启发式 fallback（按句子切分）
+   *
+   * 透传路径：ChatResult.cotEntropyTrajectory → agent-store → DecisionCard prop
+   *   → buildCredibilityInputs → S3 ai-param.fields.cotEntropyTrajectory
+   *   → IPC credibility:assess → createAiParamMassFunction → CoT-shape 融合
+   *
+   * 论文依据：Zhao 2026, arXiv:2603.18940
+   */
+  cotEntropyTrajectory?: number[]
   /** Agent 工作流状态（onAgentStep 推送，仅 assistant 消息） */
   stepState?: AgentWorkflowState | null
 }
@@ -241,7 +259,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
       return { messages }
     }),
 
-  // 完成消息（done 事件回填 usage/model/providerId 等）
+  // 完成消息（done 事件回填 usage/model/providerId/cotEntropyTrajectory 等）
   finalizeMessage: (payload) =>
     set((state) => {
       const messages = [...state.messages]
@@ -251,12 +269,19 @@ export const useAgentStore = create<AgentState>()((set) => ({
           if (msg.correlationId && msg.correlationId !== payload.correlationId) {
             continue
           }
+          // v0.9.6 P2 M5+：回填 CoT 熵轨迹（可选，undefined / 空数组不写）
+          const cotTrajectory =
+            payload.result.cotEntropyTrajectory &&
+            payload.result.cotEntropyTrajectory.length > 0
+              ? payload.result.cotEntropyTrajectory
+              : msg.cotEntropyTrajectory
           messages[i] = {
             ...msg,
             isStreaming: false,
             providerId: payload.result.providerId,
             model: payload.result.model,
             usage: payload.result.usage,
+            cotEntropyTrajectory: cotTrajectory,
           }
           break
         }

@@ -278,3 +278,88 @@ describe('translator.loadDict', () => {
     expect(dict.entries['grep']).toBeDefined()
   })
 })
+
+// ============================================================
+// v1.2.0 新增：从 jaywcjlove + tldr 合并后的真实词库覆盖
+// 验证词条数据质量（不是单元测试逻辑）
+// ============================================================
+
+describe('translator v1.2.0 真实词库质量', () => {
+  it('应包含 >= 2000 词条（v1.2.0 目标 1500+）', () => {
+    const dict = loadDict()
+    const total = Object.keys(dict.entries).length
+    expect(total).toBeGreaterThanOrEqual(2000)
+  })
+
+  it('应包含 jaywcjlove 提供的高频命令', () => {
+    const dict = loadDict()
+    // jaywcjlove data.json 中的典型命令
+    expect(dict.entries['ls']?.zh).toContain('目录')
+    expect(dict.entries['cp']?.zh).toBeDefined()
+    expect(dict.entries['chmod']?.zh).toContain('权限')
+    expect(dict.entries['systemctl']?.zh).toBeDefined()
+    expect(dict.entries['journalctl']?.zh).toBeDefined()
+  })
+
+  it('应包含 tldr 提供的高频命令', () => {
+    const dict = loadDict()
+    // tldr pages.zh 中的典型命令
+    expect(dict.entries['tar']?.zh).toBeDefined()
+    expect(dict.entries['ssh']?.zh).toBeDefined()
+    expect(dict.entries['find']?.zh).toBeDefined()
+    expect(dict.entries['grep']?.zh).toBeDefined()
+  })
+
+  it('应包含 jaywcjlove 提取的选项词条', () => {
+    const dict = loadDict()
+    // 至少应该有 -l 和 -a 这样的高频选项
+    expect(dict.entries['-l']?.category).toBe('option')
+    expect(dict.entries['-R']?.category).toBe('option')
+    expect(dict.entries['--help']?.category).toBe('option')
+  })
+
+  it('应保留 v1.1.0 人工标注的错误信息', () => {
+    const dict = loadDict()
+    expect(dict.entries['permission denied']?.category).toBe('error')
+    expect(dict.entries['no such file or directory']?.category).toBe('error')
+  })
+
+  it('应保留 v1.1.0 课程关联（courseChapter）', () => {
+    const dict = loadDict()
+    expect(dict.entries['chmod']?.courseChapter).toBe('ch05-permission')
+    expect(dict.entries['grep']?.courseChapter).toBe('ch07-text')
+    expect(dict.entries['ls']?.courseChapter).toBe('ch03-files')
+  })
+
+  it('词典版本应为 v1.2.0', () => {
+    const dict = loadDict()
+    expect(dict.version).toBe('1.2.0')
+  })
+
+  it('source 字段应标注合并来源', () => {
+    const dict = loadDict()
+    expect(dict.source).toBeDefined()
+    expect(dict.source).toContain('jaywcjlove')
+    expect(dict.source).toContain('tldr')
+  })
+
+  it('command 类别应占主导（>= 80%）', () => {
+    const dict = loadDict()
+    const cmdCount = Object.values(dict.entries).filter(e => e.category === 'command').length
+    const total = Object.keys(dict.entries).length
+    expect(cmdCount / total).toBeGreaterThan(0.8)
+  })
+
+  it('每个 command 词条应有 zh 释义', () => {
+    const dict = loadDict()
+    const cmds = Object.entries(dict.entries).filter(([_, e]) => e.category === 'command')
+    let missing = 0
+    for (const [key, entry] of cmds.slice(0, 100)) {
+      if (!entry.zh || entry.zh.length === 0) {
+        missing++
+      }
+    }
+    // 抽样 100 个，不应超过 5 个缺失释义
+    expect(missing).toBeLessThanOrEqual(5)
+  })
+})

@@ -32,8 +32,17 @@ _legacy-python/.ruff_cache/
 # Electron
 release/
 
+# electron-vite 临时配置（dev 模式下动态生成）
+electron.vite.config.*.mjs
+
 # Testing
 coverage/
+test-results/
+playwright-report/
+
+# E2E 截图（本地调试 + 视觉回归基线，不入库）
+tests/e2e/screenshots*/
+tests/e2e/screenshots-acceptance/
 
 # CodeGraph 本地索引（不入库）
 .codegraph/
@@ -43,3 +52,16 @@ scripts/ai-coordination/.ai-session.local
 
 # AI 协作 - 临时 scratch
 .ai-scratch/
+
+# 浏览器检查截图（本地调试用，不入库）
+scripts/browser-check/screenshots-fresh/
+
+# 字典备份文件（不入库）
+src/renderer/src/assets/dict/*.bak.json
+
+# 调研文档草稿（不入库，正式发布才纳入 docs/）
+docs/skill-research/*-草稿.md
+docs/skill-research/*-draft.md
+
+# dict-import 抓取缓存（不入库，可重新抓取）
+scripts/dict-import/.cache/

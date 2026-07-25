@@ -356,17 +356,33 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
-  /** sftp:upload — 上传文件 */
+  /** sftp:upload — 上传文件（支持 transferId + 进度推送） */
   ipcMain.handle(
     SFTP.UPLOAD,
     async (
       _event,
       sessionId: string,
       localPath: string,
-      remotePath: string
+      remotePath: string,
+      transferId?: string
     ) => {
       try {
-        return await sftpManager.upload(sessionId, localPath, remotePath)
+        return await sftpManager.upload(
+          sessionId,
+          localPath,
+          remotePath,
+          (transferred, total) => {
+            if (!transferId || mainWindow.isDestroyed()) return
+            mainWindow.webContents.send(SFTP.PROGRESS, {
+              transferId,
+              type: 'upload',
+              remotePath,
+              localPath,
+              transferred,
+              total,
+            })
+          }
+        )
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 上传失败', { sessionId, error: safeMsg })
@@ -375,17 +391,33 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
-  /** sftp:download — 下载文件 */
+  /** sftp:download — 下载文件（支持 transferId + 进度推送） */
   ipcMain.handle(
     SFTP.DOWNLOAD,
     async (
       _event,
       sessionId: string,
       remotePath: string,
-      localPath: string
+      localPath: string,
+      transferId?: string
     ) => {
       try {
-        return await sftpManager.download(sessionId, remotePath, localPath)
+        return await sftpManager.download(
+          sessionId,
+          remotePath,
+          localPath,
+          (transferred, total) => {
+            if (!transferId || mainWindow.isDestroyed()) return
+            mainWindow.webContents.send(SFTP.PROGRESS, {
+              transferId,
+              type: 'download',
+              remotePath,
+              localPath,
+              transferred,
+              total,
+            })
+          }
+        )
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 下载失败', { sessionId, error: safeMsg })

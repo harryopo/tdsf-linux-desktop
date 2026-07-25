@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd tdsf-linux-desktop && pnpm typecheck:node && pnpm typecheck:web && pnpm lint",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/pre-edit-check.cjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
