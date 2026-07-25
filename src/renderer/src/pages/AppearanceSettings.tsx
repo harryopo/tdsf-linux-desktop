@@ -392,7 +392,19 @@ export function AppearanceSettings() {
           </div>
         </SettingsCard>
 
-        <SettingsActionBar />
+        <SettingsActionBar
+          onReset={() => {
+            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
+            setThemeMode('dark')
+            setAccentColor('#387BFF')
+            setUiFont('SF Pro Text')
+            setCodeFont('JetBrains Mono')
+            setFontSize(13)
+            setLineHeight(1.5)
+            setDensity('standard')
+            setCodeTheme('one-dark')
+          }}
+        />
       </div>
     </div>
   )

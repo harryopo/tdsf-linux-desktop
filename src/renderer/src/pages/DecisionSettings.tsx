@@ -482,7 +482,24 @@ export function DecisionSettings() {
           </div>
         </SettingsCard>
 
-        <SettingsActionBar />
+        <SettingsActionBar
+          onReset={() => {
+            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
+            setTierStates(DEFAULT_TIER_STATES)
+            setConfidenceThreshold(60)
+            setDecisionTimeout(120)
+            setWeights(DEFAULT_WEIGHTS)
+            setTextAreas(DEFAULT_TEXTAREAS)
+            setFileSizeLimit(100)
+            setBatchLimit(50)
+            setRollbackRetention(24)
+            setPreExecNotify(true)
+            setSmsNotify(false)
+            setReceiver('admin@tdsf.dev')
+            setChannels(DEFAULT_CHANNELS)
+            setWebhookUrl('https://hooks.tdsf.dev/alerts')
+          }}
+        />
       </div>
     </div>
   )

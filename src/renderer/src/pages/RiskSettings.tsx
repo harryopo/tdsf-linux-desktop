@@ -25,6 +25,7 @@ import {
   Plus,
   type LucideIcon,
 } from 'lucide-react'
+import { Modal } from 'antd'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -130,11 +131,21 @@ export function RiskSettings() {
     setIsRuleModalOpen(true)
   }
 
-  // 删除规则
+  // 删除规则（P1-2 7.2：添加二次确认，与 SSH 删除服务器/密钥行为一致）
   const handleDeleteRule = (ruleId: string) => {
     const target = rules.find((r) => r.id === ruleId)
-    setRules((prev) => prev.filter((r) => r.id !== ruleId))
-    if (target) showRuleFeedback(`已删除规则：${target.pattern}`)
+    if (!target) return
+    Modal.confirm({
+      title: '确认删除规则',
+      content: `确定要删除规则"${target.pattern}"吗？此操作不可撤销。`,
+      okText: '删除',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        setRules((prev) => prev.filter((r) => r.id !== ruleId))
+        showRuleFeedback(`已删除规则：${target.pattern}`)
+      },
+    })
   }
 
   // 新增规则：editingRule=null 表示新增模式，打开 Modal
@@ -457,7 +468,26 @@ export function RiskSettings() {
           onCancel={handleCancelEdit}
         />
 
-        <SettingsActionBar />
+        <SettingsActionBar
+          onReset={() => {
+            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
+            // 注意：recordingRetention / auditRetention / rollbackTimeout 为只读展示项（无 setter），不参与重置
+            setProtectionLevel('strict')
+            setAutoBlock(true)
+            setDesensitize(true)
+            setPermissionMode('always')
+            setRules(INITIAL_RULES)
+            setAuditCmdExec(true)
+            setAuditFileMod(true)
+            setAuditAiDecision(true)
+            setAuditSshConn(true)
+            setAuditPath('/var/log/tdsf/audit')
+            setEmergencyHotkey('Ctrl+Shift+X')
+            setAutoRollback(true)
+            setEmergencyContact('security@tdsf.dev')
+            setAutoNotify(true)
+          }}
+        />
       </div>
     </div>
   )

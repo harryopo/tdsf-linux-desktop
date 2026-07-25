@@ -279,7 +279,30 @@ export function TerminalSettings() {
           />
         </SettingsCard>
 
-        <SettingsActionBar />
+        <SettingsActionBar
+          onReset={() => {
+            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
+            setShell('/bin/bash')
+            setShellArgs('-l')
+            setColorScheme('dark')
+            setLoginShell(true)
+            setFontSize(14)
+            setFontFamily('jetbrains-mono')
+            setLineHeight(1.4)
+            setCursorStyle('block')
+            setCursorBlink(true)
+            setScrollback(10000)
+            setAutoCopy(false)
+            setRightClickPaste(true)
+            setStripNewline(false)
+            setStripControlChars(true)
+            setBellEnabled(false)
+            setMouseSupport(true)
+            setWebglRenderer(true)
+            setSshHeartbeat(30)
+            setCmdTimeout(300)
+          }}
+        />
       </div>
     </div>
   )

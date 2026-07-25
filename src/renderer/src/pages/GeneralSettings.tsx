@@ -492,7 +492,28 @@ export function GeneralSettings() {
         {/* Card 5: 定时任务（每日健康巡检 / 每日决策归档 / 运维周报） */}
         <SchedulerPanel />
 
-        <SettingsActionBar />
+        <SettingsActionBar
+          onReset={() => {
+            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
+            setLanguage('zh-CN')
+            setTimezone('Asia/Shanghai')
+            setDateFormat('YYYY-MM-DD')
+            setNumberFormat('1,234.56')
+            setStartupView('workbench')
+            setAutoRestore(true)
+            setCheckUpdate(true)
+            setBackgroundRun(false)
+            setAutoCleanLog(true)
+            setLogRetention('30')
+            setDesktopNotify(true)
+            setSound(false)
+            setEmail(false)
+            setNotifyPosition('bottom-right')
+            setDoNotDisturb(false)
+            setDndStart('22:00')
+            setDndEnd('08:00')
+          }}
+        />
       </div>
     </div>
   )

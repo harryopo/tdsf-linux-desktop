@@ -33,6 +33,7 @@ import { ToolCallSection } from '@/components/settings/model/ToolCallSection'
 import { ConversationSection } from '@/components/settings/model/ConversationSection'
 import { BudgetSection } from '@/components/settings/model/BudgetSection'
 import { ModelActionBar } from '@/components/settings/model/ModelActionBar'
+import { usePersistentState } from '@/hooks/usePersistentState'
 import {
   CONVERSATIONS,
   MODELS,
@@ -55,21 +56,21 @@ export function ModelSettings() {
   // Section 2: 模型配置
   const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-v4-flash')
   const [temperature, setTemperature] = useState(llmConfig.temperature ?? 0.3)
-  const [thinkingLevel, setThinkingLevel] = useState<'low' | 'medium' | 'high'>('medium')
+  const [thinkingLevel, setThinkingLevel] = usePersistentState<'low' | 'medium' | 'high'>('model.thinkingLevel', 'medium')
   const [maxToken, setMaxToken] = useState(llmConfig.maxTokens ?? 4096)
-  const [contextWindow, setContextWindow] = useState(32768)
+  const [contextWindow, setContextWindow] = usePersistentState<number>('model.contextWindow', 32768)
   const [requestTimeout, setRequestTimeout] = useState((llmConfig.timeout ?? 30000) / 1000)
 
   // Section 3: API 接入
   const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com')
   const [apiKey, setApiKey] = useState(llmConfig.apiKey || '')
   const [showApiKey, setShowApiKey] = useState(false)
-  const [organization, setOrganization] = useState('')
+  const [organization, setOrganization] = usePersistentState<string>('model.organization', '')
 
-  // Section 7: 预算与告警
-  const [monthlyBudget, setMonthlyBudget] = useState(2.0)
-  const [alertThreshold, setAlertThreshold] = useState(80)
-  const [emailNotify, setEmailNotify] = useState(true)
+  // Section 7: 预算与告警 (P1-2: 改用 usePersistentState 持久化)
+  const [monthlyBudget, setMonthlyBudget] = usePersistentState<number>('model.monthlyBudget', 2.0)
+  const [alertThreshold, setAlertThreshold] = usePersistentState<number>('model.alertThreshold', 80)
+  const [emailNotify, setEmailNotify] = usePersistentState<boolean>('model.emailNotify', true)
 
   // v2.3.2 新增：工具调用统计 + 预算告警（真实 IPC 数据，表为空时返回空数组）
   const [toolCallStats, setToolCallStats] = useState<ToolCallStat[]>([])
