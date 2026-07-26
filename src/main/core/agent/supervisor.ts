@@ -651,10 +651,39 @@ class SupervisorAgent {
           compactionLevel: compaction.level === 'L5' ? 'L4' : compaction.level,
         })
       } else {
+        // v2.3.8 增强：把诊断信息全部写日志，方便用户/开发者从主进程日志定位根因
+        // Vercel AI SDK 的错误对象通常含 status / statusCode / responseBody 等字段
+        // - status: HTTP 状态码（404/401/429/500）
+        // - responseBody: 服务端返回的原始响应（可能含 model 不存在说明）
+        // - data: OpenAI 兼容错误对象（type/code/message）
+        const apiErr = err as {
+          status?: number
+          statusCode?: number
+          responseBody?: string
+          data?: { code?: string; type?: string; message?: string; param?: string }
+          url?: string
+        }
         this.log.error('chat 调用失败', {
           correlationId,
-          error: error.message,
+          providerId: resolvedProviderId,
+          model: modelInstance.resolvedModel,
+          baseURL: modelInstance.config.baseURL,
+          strength,
+          temperature,
+          maxTokens: effectiveMaxTokens,
+          messageCount: compaction.messages.length,
           durationMs: Date.now() - startTime,
+          // 关键诊断信息
+          errorName: (err as Error)?.name,
+          errorMessage: error.message,
+          errorStack: error.stack?.split('\n').slice(0, 6).join('\n'),
+          httpStatus: apiErr.status ?? apiErr.statusCode,
+          responseBody: apiErr.responseBody,
+          apiErrorCode: apiErr.data?.code,
+          apiErrorType: apiErr.data?.type,
+          apiErrorParam: apiErr.data?.param,
+          apiErrorMessage: apiErr.data?.message,
+          requestUrl: apiErr.url,
         })
         onError?.(error)
       }

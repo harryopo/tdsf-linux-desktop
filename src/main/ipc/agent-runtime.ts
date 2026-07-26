@@ -103,26 +103,91 @@ function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]
 
 /**
  * 错误码识别（与 llm.ts toLlmError 保持一致风格）
+ *
+ * v2.3.8 改造：补齐 400/404/parser/缺少模型/缺少 Key 等模式，并把 raw message
+ * 拼到最终 message 后面，避免错误被吞成"Agent 调用失败"导致用户看不到根因。
+ *
+ * 设计目标：让前端的"测试连接"日志和"AI 对话"错误都能展示具体失败原因。
+ * 已知错误信号（Vercel AI SDK + @ai-sdk/openai + DeepSeek API）：
+ *  - 401 / "Unauthorized" / "invalid api key" → AUTH（Key 错）
+ *  - 402 → PAYMENT_REQUIRED（账户欠费）
+ *  - 403 → PERMISSION（权限不足 / 模型未开通）
+ *  - 404 / "model not found" / "does not exist" → MODEL_NOT_FOUND
+ *  - 400 / "invalid_request_error" / "bad request" → BAD_REQUEST
+ *  - 408 / 409 / "context_length_exceeded" → CONTEXT_OVERFLOW
+ *  - 422 / "unprocessable entity" → VALIDATION
+ *  - 429 / "rate limit" / "too many requests" → RATE_LIMIT
+ *  - timeout / aborted → TIMEOUT
+ *  - network / fetch failed / econnreset / etimedout / enotfound → NETWORK
+ *  - 5xx / "server error" / "internal error" → SERVER
+ *  - "json" / "parse" / "unexpected token" → PARSE（响应解析失败）
+ *  - 缺少 API Key / "missing" / "required" → NO_API_KEY
+ *  - 其它 → UNKNOWN（仍会附 raw message）
  */
 function toAgentError(err: unknown): { message: string; code: AgentErrorPayload['code'] } {
-  const msg = (err as Error)?.message ?? '未知错误'
-  const lowerMsg = msg.toLowerCase()
-  if (lowerMsg.includes('401') || lowerMsg.includes('unauthorized') || lowerMsg.includes('invalid api key')) {
-    return { message: 'API Key 无效或已过期', code: 'AUTH' }
+  const rawMsg = (err as Error)?.message ?? '未知错误'
+  const lowerMsg = rawMsg.toLowerCase()
+  // 401/403/认证
+  if (lowerMsg.includes('401') || lowerMsg.includes('unauthorized') ||
+      lowerMsg.includes('invalid api key') || lowerMsg.includes('authentication')) {
+    return { message: `API Key 无效或已过期（${rawMsg}）`, code: 'AUTH' }
   }
-  if (lowerMsg.includes('429') || lowerMsg.includes('rate limit')) {
-    return { message: '请求过于频繁，请稍后重试', code: 'RATE_LIMIT' }
+  if (lowerMsg.includes('402') || lowerMsg.includes('payment required')) {
+    return { message: `账户欠费，请充值后重试（${rawMsg}）`, code: 'PAYMENT_REQUIRED' }
   }
-  if (lowerMsg.includes('timeout') || lowerMsg.includes('aborted')) {
-    return { message: '请求超时', code: 'TIMEOUT' }
+  if (lowerMsg.includes('403') || lowerMsg.includes('permission') || lowerMsg.includes('forbidden')) {
+    return { message: `权限不足或模型未开通（${rawMsg}）`, code: 'PERMISSION' }
   }
-  if (lowerMsg.includes('network') || lowerMsg.includes('fetch failed') || lowerMsg.includes('econnreset')) {
-    return { message: '网络连接异常', code: 'NETWORK' }
+  // 404 / 模型不存在
+  if (lowerMsg.includes('404') || lowerMsg.includes('model not found') ||
+      lowerMsg.includes('does not exist') || lowerMsg.includes('no such model')) {
+    return { message: `模型不存在或 endpoint 错误（${rawMsg}）`, code: 'MODEL_NOT_FOUND' }
   }
-  if (/\b5\d{2}\b/.test(lowerMsg) || lowerMsg.includes('server error')) {
-    return { message: '服务器内部错误', code: 'SERVER' }
+  // 400 / 非法请求
+  if (lowerMsg.includes('400') || lowerMsg.includes('bad request') ||
+      lowerMsg.includes('invalid_request_error') || lowerMsg.includes('invalid request')) {
+    return { message: `请求参数错误（${rawMsg}）`, code: 'BAD_REQUEST' }
   }
-  return { message: 'Agent 调用失败', code: 'UNKNOWN' }
+  // 上下文超限
+  if (lowerMsg.includes('408') || lowerMsg.includes('context_length_exceeded') ||
+      lowerMsg.includes('context length') || lowerMsg.includes('maximum context')) {
+    return { message: `上下文超限（${rawMsg}）`, code: 'CONTEXT_OVERFLOW' }
+  }
+  if (lowerMsg.includes('422') || lowerMsg.includes('unprocessable')) {
+    return { message: `请求被服务器拒绝（${rawMsg}）`, code: 'VALIDATION' }
+  }
+  // 429 限流
+  if (lowerMsg.includes('429') || lowerMsg.includes('rate limit') || lowerMsg.includes('too many requests')) {
+    return { message: `请求过于频繁，请稍后重试（${rawMsg}）`, code: 'RATE_LIMIT' }
+  }
+  // 超时
+  if (lowerMsg.includes('timeout') || lowerMsg.includes('aborted') || lowerMsg.includes('abort')) {
+    return { message: `请求超时（${rawMsg}）`, code: 'TIMEOUT' }
+  }
+  // 网络
+  if (lowerMsg.includes('network') || lowerMsg.includes('fetch failed') ||
+      lowerMsg.includes('econnreset') || lowerMsg.includes('etimedout') ||
+      lowerMsg.includes('enotfound') || lowerMsg.includes('econnrefused') ||
+      lowerMsg.includes('socket hang up')) {
+    return { message: `网络连接异常（${rawMsg}）`, code: 'NETWORK' }
+  }
+  // 5xx
+  if (/\b5\d{2}\b/.test(lowerMsg) || lowerMsg.includes('server error') ||
+      lowerMsg.includes('internal error') || lowerMsg.includes('bad gateway')) {
+    return { message: `服务器内部错误（${rawMsg}）`, code: 'SERVER' }
+  }
+  // 响应解析失败
+  if (lowerMsg.includes('json') || lowerMsg.includes('parse') ||
+      lowerMsg.includes('unexpected token') || lowerMsg.includes('malformed')) {
+    return { message: `LLM 响应解析失败（${rawMsg}）`, code: 'PARSE' }
+  }
+  // 缺少 API Key
+  if (lowerMsg.includes('api key') || lowerMsg.includes('api_key') ||
+      lowerMsg.includes('missing') && lowerMsg.includes('key')) {
+    return { message: `未配置 API Key（${rawMsg}）`, code: 'NO_API_KEY' }
+  }
+  // 兜底：附 raw message 让用户能看到原始错误
+  return { message: `Agent 调用失败（${rawMsg}）`, code: 'UNKNOWN' }
 }
 
 /**
