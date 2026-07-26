@@ -53,6 +53,18 @@ export interface DictEntry {
   level?: DifficultyLevel
   /** 关联课程章节 ID */
   courseChapter?: string
+  /**
+   * 语法（v1.3.0 新增）
+   * 例：`-rwxr-xr-x`、`setenforce [0|1]`、`firewall-cmd [--zone=zone] <action>`
+   * 浮层可选展开"语法"区
+   */
+  syntax?: string
+  /**
+   * 补充说明（v1.3.0 新增）
+   * 比 zh 更详细的背景/原理/注意事项
+   * 浮层可选展开"详细"区
+   */
+  detail?: string
 }
 
 /** 词典结构 */
