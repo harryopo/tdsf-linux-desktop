@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-25T08:41:10.953Z",
+  "lastUpdated": "2026-07-25T12:08:59.704Z",
   "sessions": {
     "ai-kimi-20260725-backend": {
       "aiName": "ai-kimi-20260725-backend",
@@ -2609,6 +2609,174 @@
       "file": "src/renderer/src/types/electron.d.ts",
       "task": "后端AI代提交：补齐 appExportModelStats 类型声明",
       "timestamp": "2026-07-25T08:41:10.953Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "fix-filetree-double-click",
+      "timestamp": "2026-07-25T11:13:20.100Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "fix-model-settings",
+      "timestamp": "2026-07-25T11:15:59.688Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/model/constants.ts",
+      "task": "fix-model-settings",
+      "timestamp": "2026-07-25T11:16:01.069Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/model/ModelConfigSection.tsx",
+      "task": "fix-model-settings",
+      "timestamp": "2026-07-25T11:16:02.478Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "fix-filetree-double-click",
+      "timestamp": "2026-07-25T11:18:21.105Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "fix-model-settings",
+      "timestamp": "2026-07-25T11:18:22.578Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/model/constants.ts",
+      "task": "fix-model-settings",
+      "timestamp": "2026-07-25T11:18:24.030Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/model/ModelConfigSection.tsx",
+      "task": "fix-model-settings",
+      "timestamp": "2026-07-25T11:18:25.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "simplify-model-config",
+      "timestamp": "2026-07-25T11:46:28.742Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/model/constants.ts",
+      "task": "simplify-model-config",
+      "timestamp": "2026-07-25T11:46:30.125Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/model/ModelConfigSection.tsx",
+      "task": "simplify-model-config",
+      "timestamp": "2026-07-25T11:46:31.564Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "simplify-model-config",
+      "timestamp": "2026-07-25T11:48:57.273Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/model/constants.ts",
+      "task": "simplify-model-config",
+      "timestamp": "2026-07-25T11:48:58.731Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/model/ModelConfigSection.tsx",
+      "task": "simplify-model-config",
+      "timestamp": "2026-07-25T11:49:00.164Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/MonitorPage.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:02:14.733Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/Charts.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:02:16.184Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/AlertTable.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:02:17.616Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/ProcessTable.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:02:19.064Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/KpiCard.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:02:20.543Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/MonitorPage.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:08:53.687Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/Charts.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:08:55.066Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/AlertTable.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:08:56.587Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/ProcessTable.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:08:58.222Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/KpiCard.tsx",
+      "task": "monitor-real-data",
+      "timestamp": "2026-07-25T12:08:59.704Z"
     }
   ],
   "coordinationAudit": {
