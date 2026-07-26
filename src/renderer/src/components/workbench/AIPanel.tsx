@@ -46,13 +46,15 @@ export interface AIPanelProps {
   onClose?: () => void
 }
 
-/** AIPanel 560px AI 助手面板 */
+/**
+ * AIPanel 560px AI 助手面板
+ *
+ * v2.3.6 修复：彻底移除"演示模式"死代码（showDemo/demoMode/MOCK_CHAT_MESSAGES）。
+ * 设计稿不再展示设计稿示例消息，发送消息后直接走真实 agent:chat。
+ */
 const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const navigate = useNavigate()
   const [showTranslation, setShowTranslation] = useState(true)
-  const [showDemo, setShowDemo] = useState(false)
-  /** 演示模式：true=走循环工程 7 步 HITL；false=普通 agent:chat */
-  const [demoMode, setDemoMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -70,20 +72,20 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     compressContext,
   } = useAgentChat()
 
-  /** 循环工程子 Agent —— 演示模式专用 */
+  /** 循环工程子 Agent —— PAOR 循环专用 */
   const loop = useLoopEngineering()
 
   /** PAOR 自动循环（v0.9.5 P0-3：Plan→Act→Observe→Reflect 主进程编排） */
   const paor = usePaorLoop()
 
-  /** 当前活跃 SSH 会话 ID（演示模式启动循环工程时使用） */
+  /** 当前活跃 SSH 会话 ID（PAOR 循环工程 + 只读 SSH 工具用） */
   const activeSessionId = useServerStore((s) => s.activeSessionId)
 
   /** v0.9.5 PAOR 审批请求队列（高危命令等待用户批准/拒绝） */
   const [paorApprovals, setPaorApprovals] = useState<PaorApprovalRequest[]>([])
 
   const hasLiveConversation = liveMessages.length > 0
-  /** 演示模式下循环工程已启动（loop.phase !== 'idle'）则视为有"实时"内容 */
+  /** 循环工程已启动（loop.phase !== 'idle'）则视为有"实时"内容 */
   const hasLoopRunning = loop.phase !== 'idle'
 
   /** 监听主进程推送的 PAOR 审批请求 */
@@ -167,10 +169,32 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     message.error(`PAOR 错误：${paor.error}`)
   }, [paor.error])
 
-  /** 实时消息滚动到底部 */
+  /**
+   * 实时消息滚动到底部
+   *
+   * v2.3.4 修复：原实现 messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+   *   默认 block:'start' 会把空 div 滚到 .ai-messages 视口顶部，导致最后一条消息正文
+   *   被推到视口外，用户感知为"输入后消息不见"。改为直接 scrollTo 到 .ai-messages
+   *   的 scrollHeight（= 滚到底），配合 .ai-messages 的 padding-bottom 留出 Composer 空间。
+   * v2.3.5 配合：AIPanel.css 已加 scroll-padding-bottom: 8px + padding-bottom: 16px，
+   *   scrollTo 末尾时 Composer 与最后一条消息有呼吸空间。
+   */
   useEffect(() => {
     if (!hasLiveConversation && !hasLoopRunning) return
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const end = messagesEndRef.current
+    if (!end) return
+    // 找到 .ai-messages 滚动容器（closest 找到最近 .ai-messages 祖先）
+    const scrollContainer = (end.closest('.ai-messages') as HTMLElement | null) ?? end.parentElement
+    if (!scrollContainer) {
+      // 兜底：找不到滚动容器时退回 scrollIntoView
+      end.scrollIntoView({ block: 'end', behavior: 'smooth' })
+      return
+    }
+    // 直接 scrollTo 到容器底部（等价于贴齐最后一行消息的下边缘）
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: 'smooth',
+    })
   }, [liveMessages, hasLiveConversation, isStreaming, hasLoopRunning, loop.phase, loop.workflowState, loop.decisionCard, loop.finalCard])
 
   /** 处理工具面板操作（在终端运行/执行/沙箱预演/回滚/暂停/终止）
@@ -312,21 +336,16 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="wb-aipanel flex w-[560px] shrink-0 flex-col border-l border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)]">
+    <div className="wb-aipanel flex h-full min-h-0 w-[560px] shrink-0 flex-col overflow-hidden border-l border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)]">
       {/* ===== 标题栏 40px ===== */}
       <AIPanelHeader
         onClose={onClose}
-        demoMode={demoMode}
         isStreaming={isStreaming}
         hasLiveConversation={hasLiveConversation}
-        loopIsRunning={loop.isRunning}
-        showDemo={showDemo}
-        setShowDemo={setShowDemo}
         showTranslation={showTranslation}
         setShowTranslation={setShowTranslation}
         onClear={() => {
           clear()
-          setShowDemo(false)
         }}
       />
 
@@ -334,7 +353,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       <MessageList
         providers={providers}
         navigate={navigate}
-        demoMode={demoMode}
         hasLoopRunning={hasLoopRunning}
         activeSessionId={activeSessionId}
         loop={loop}
@@ -345,16 +363,12 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         liveMessages={liveMessages}
         lastError={lastError}
         isStreaming={isStreaming}
-        showDemo={showDemo}
         onToolAction={handleToolAction}
         onMessageNavigate={handleMessageNavigate}
-        onShowDemo={() => setShowDemo(true)}
       />
 
       {/* ===== Composer（chips + 输入框 + 工具栏） ===== */}
       <Composer
-        demoMode={demoMode}
-        setDemoMode={setDemoMode}
         isStreaming={isStreaming}
         loop={loop}
         paor={paor}
@@ -365,7 +379,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         tokenStats={tokenStats}
         send={send}
         cancel={cancel}
-        onAfterSend={() => setShowDemo(false)}
         onCompressContext={compressContext}
       />
 

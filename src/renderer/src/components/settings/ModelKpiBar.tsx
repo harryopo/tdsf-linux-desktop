@@ -12,7 +12,10 @@
  * - 对话次数      ← tokenRecords(1000).length
  * - 成功率        ← historyStats().successRate（[0,1] 小数）
  *
- * IPC 不可用或调用失败时回退到设计示意默认值（保证 UI 不空白）。
+ * v2.3.3 修复：
+ * - 删掉 DEFAULT_KPIS 静态假数据（45.6K/$0.68/127次/89.3%）
+ * - 真实数据加载完成前显示骨架占位（"—"），不显示假数字误导用户
+ * - 失败时仍 fallback 到 0/0/0/0%（不显示设计示意）
  */
 import { useEffect, useState } from 'react'
 import type { TokenStats, CostStats } from '@shared/agent-types'
@@ -35,81 +38,85 @@ interface KpiCardData {
   strokeColor: string
 }
 
-/** 设计示意默认值（IPC 不可用 / 失败时回退） */
-const DEFAULT_KPIS: KpiCardData[] = [
-  {
-    label: '本月Token总量',
-    value: '45.6',
-    unit: 'K',
-    trend: '+12%',
-    valueColor: 'var(--trae-bg-brand)',
-    points: '0,20 15,18 30,14 45,16 60,10 75,12 90,6 105,8 120,4',
-    strokeColor: 'var(--trae-bg-brand)',
-  },
-  {
-    label: '本月成本',
-    value: '$0.68',
-    trend: '+$0.08',
-    valueColor: 'var(--trae-status-success-default)',
-    points: '0,18 15,16 30,17 45,14 60,15 75,12 90,13 105,10 120,8',
-    strokeColor: 'var(--trae-status-success-default)',
-  },
-  {
-    label: '对话次数',
-    value: '127',
-    unit: '次',
-    trend: '+15',
-    valueColor: 'var(--trae-bg-brand)',
-    points: '0,20 15,17 30,19 45,15 60,13 75,15 90,10 105,12 120,6',
-    strokeColor: 'var(--trae-bg-brand)',
-  },
-  {
-    label: '成功率',
-    value: '89.3',
-    unit: '%',
-    trend: '+2.1%',
-    valueColor: 'var(--trae-status-success-default)',
-    points: '0,16 15,14 30,15 45,12 60,13 75,10 90,11 105,8 120,6',
-    strokeColor: 'var(--trae-status-success-default)',
-  },
+/** 真实数据加载前的骨架占位（4 个 KPI 全部 —，无 sparkline） */
+const LOADING_KPIS: KpiCardData[] = [
+  { label: '本月Token总量', value: '—', trend: '', points: '', strokeColor: 'var(--trae-bg-brand)' },
+  { label: '本月成本', value: '—', trend: '', points: '', strokeColor: 'var(--trae-status-success-default)' },
+  { label: '对话次数', value: '—', trend: '', points: '', strokeColor: 'var(--trae-bg-brand)' },
+  { label: '成功率', value: '—', trend: '', points: '', strokeColor: 'var(--trae-status-success-default)' },
 ]
+
+/** 空数据骨架（IPC 返回全 0，无趋势） */
+function buildEmptyKpis(): KpiCardData[] {
+  return [
+    { label: '本月Token总量', value: '0.0', unit: 'K', trend: '—', points: '', strokeColor: 'var(--trae-bg-brand)' },
+    { label: '本月成本', value: '$0.00', trend: '—', points: '', strokeColor: 'var(--trae-status-success-default)' },
+    { label: '对话次数', value: '0', unit: '次', trend: '—', points: '', strokeColor: 'var(--trae-bg-brand)' },
+    { label: '成功率', value: '0.0', unit: '%', trend: '—', points: '', strokeColor: 'var(--trae-status-success-default)' },
+  ]
+}
 
 /** 将 token 数格式化为 "K" 单位字符串（保留 1 位小数） */
 function formatTokenK(tokens: number): string {
   return (tokens / 1000).toFixed(1)
 }
 
-/** 基于真实 IPC 数据构建 KPI 列表（保留设计稿的 trend / sparkline / 颜色） */
+/** 基于真实 IPC 数据构建 KPI 列表（删除 v2.3.3 前的 DEFAULT_KPIS fallback） */
 function buildKpis(
   tokenStats: TokenStats,
   costStats: CostStats,
   conversationCount: number,
   successRate: number | null,
 ): KpiCardData[] {
-  return DEFAULT_KPIS.map((kpi) => {
-    switch (kpi.label) {
-      case '本月Token总量':
-        return { ...kpi, value: formatTokenK(tokenStats.month), unit: 'K' }
-      case '本月成本':
-        return { ...kpi, value: `$${costStats.monthCost.toFixed(2)}`, unit: undefined }
-      case '对话次数':
-        return { ...kpi, value: String(conversationCount), unit: '次' }
-      case '成功率':
-        // IPC 返回可用统计时用真实成功率，否则保留设计示意值
-        return successRate !== null
-          ? { ...kpi, value: (successRate * 100).toFixed(1), unit: '%' }
-          : kpi
-      default:
-        return kpi
-    }
-  })
+  return [
+    {
+      label: '本月Token总量',
+      value: formatTokenK(tokenStats.month),
+      unit: 'K',
+      trend: tokenStats.month > 0 ? `${tokenStats.month} tokens` : '—',
+      valueColor: 'var(--trae-bg-brand)',
+      points: '',
+      strokeColor: 'var(--trae-bg-brand)',
+    },
+    {
+      label: '本月成本',
+      value: `$${costStats.monthCost.toFixed(2)}`,
+      trend: costStats.monthCost > 0 ? `$${costStats.monthCost.toFixed(2)}` : '—',
+      valueColor: 'var(--trae-status-success-default)',
+      points: '',
+      strokeColor: 'var(--trae-status-success-default)',
+    },
+    {
+      label: '对话次数',
+      value: String(conversationCount),
+      unit: '次',
+      trend: conversationCount > 0 ? `${conversationCount} 条` : '—',
+      valueColor: 'var(--trae-bg-brand)',
+      points: '',
+      strokeColor: 'var(--trae-bg-brand)',
+    },
+    {
+      label: '成功率',
+      value: successRate !== null ? (successRate * 100).toFixed(1) : '0.0',
+      unit: '%',
+      trend: successRate !== null ? `${(successRate * 100).toFixed(1)}%` : '—',
+      valueColor: 'var(--trae-status-success-default)',
+      points: '',
+      strokeColor: 'var(--trae-status-success-default)',
+    },
+  ]
 }
 
 export function ModelKpiBar() {
-  const [kpis, setKpis] = useState<KpiCardData[]>(DEFAULT_KPIS)
+  // 初始骨架占位：4 个 "—"，避免 SSR/首屏出现假数字
+  // 加载完成后由 setKpis 覆盖 LOADING_KPIS
+  const [kpis, setKpis] = useState<KpiCardData[]>(LOADING_KPIS)
 
   useEffect(() => {
-    if (!isElectronAPIAvailable()) return
+    if (!isElectronAPIAvailable()) {
+      setKpis(buildEmptyKpis())
+      return
+    }
     let cancelled = false
 
     const load = async () => {
@@ -129,7 +136,6 @@ export function ModelKpiBar() {
               historyStats = stats
             }
           } catch (err) {
-            // 单独捕获：成功率卡片回退到设计示意值
             console.warn('[ModelKpiBar] 拉取历史统计失败:', err)
           }
         }
@@ -138,8 +144,11 @@ export function ModelKpiBar() {
         const successRate = historyStats !== null ? historyStats.successRate : null
         setKpis(buildKpis(tokenStats, costStats, records.length, successRate))
       } catch (err) {
-        // 失败时保留设计示意默认值，避免 UI 空白
         console.error('[ModelKpiBar] 加载 KPI 统计失败:', err)
+        // 失败时显示全 0 骨架（不再回退到设计示意值）
+        if (!cancelled) {
+          setKpis(buildEmptyKpis())
+        }
       }
     }
 
@@ -196,26 +205,28 @@ export function ModelKpiBar() {
               </span>
             )}
           </div>
-          <svg
-            width="100%"
-            height="24"
-            viewBox="0 0 120 24"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <polyline
-              points={kpi.points}
-              fill="none"
-              stroke={kpi.strokeColor}
-              strokeWidth="1.5"
-              opacity="0.8"
-            />
-            <polyline
-              points={`${kpi.points} 120,24 0,24`}
-              fill={kpi.strokeColor}
-              opacity="0.08"
-            />
-          </svg>
+          {kpi.points && (
+            <svg
+              width="100%"
+              height="24"
+              viewBox="0 0 120 24"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <polyline
+                points={kpi.points}
+                fill="none"
+                stroke={kpi.strokeColor}
+                strokeWidth="1.5"
+                opacity="0.8"
+              />
+              <polyline
+                points={`${kpi.points} 120,24 0,24`}
+                fill={kpi.strokeColor}
+                opacity="0.08"
+              />
+            </svg>
+          )}
         </div>
       ))}
     </section>

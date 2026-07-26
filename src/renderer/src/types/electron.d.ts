@@ -14,6 +14,7 @@ import type {
   ChatMessage,
   LlmConfig,
   LlmValidationResult,
+  LlmTestResult,
   EnvironmentContext,
   LlmStreamChunk,
   LlmError,
@@ -817,8 +818,14 @@ export interface ElectronAPI {
   // ===== LLM 相关 =====
   /** LLM 对话 */
   llmChat(messages: ChatMessage[]): Promise<string>
-  /** 测试 LLM 连接 */
-  llmTest(config: LlmConfig): Promise<boolean>
+  /**
+   * 测试 LLM 连接
+   * v2.3.4 改造：返回详细诊断信息，便于 UI 定位失败原因
+   * - ok=true: 连接成功
+   * - ok=false: 失败，error 字段含具体原因（401/404/网络/超时等），code 用于分类
+   * - latency: 总是返回（毫秒）
+   */
+  llmTest(config: LlmConfig): Promise<LlmTestResult>
   /** LLM 分析（结合证据） */
   llmAnalyze(question: string, evidences: Evidence[]): Promise<string>
   /**

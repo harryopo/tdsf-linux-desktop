@@ -48,36 +48,45 @@ const LLM_ERROR_CHANNEL = 'llm:error'
 
 /**
  * 错误码映射：根据错误信息判断错误类型
+ *
+ * v2.3.4 改进：把原始 message 也拼到最终 message 后面，便于 UI 调试
+ * - 例如 "API Key 无效或已过期（401 Unauthorized）" 让用户知道是 key 错
  * @param err 错误对象
  * @returns LlmError（不包含 stack trace）
  */
 function toLlmError(err: unknown): LlmError {
-  const msg = (err as Error).message ?? '未知错误'
-  const lowerMsg = msg.toLowerCase()
+  const rawMsg = (err as Error).message ?? '未知错误'
+  const lowerMsg = rawMsg.toLowerCase()
   // 认证错误
   if (lowerMsg.includes('401') || lowerMsg.includes('unauthorized') ||
       lowerMsg.includes('invalid api key')) {
-    return { code: 'AUTH', message: 'API Key 无效或已过期', retryable: false }
+    return { code: 'AUTH', message: `API Key 无效或已过期（${rawMsg}）`, retryable: false }
+  }
+  // 模型不存在
+  if (lowerMsg.includes('404') || lowerMsg.includes('model not found') ||
+      lowerMsg.includes('does not exist')) {
+    return { code: 'MODEL_NOT_FOUND', message: `模型不存在或 endpoint 错误（${rawMsg}）`, retryable: false }
   }
   // 限流
   if (lowerMsg.includes('429') || lowerMsg.includes('rate limit')) {
-    return { code: 'RATE_LIMIT', message: '请求过于频繁，请稍后重试', retryable: true }
+    return { code: 'RATE_LIMIT', message: `请求过于频繁，请稍后重试（${rawMsg}）`, retryable: true }
   }
   // 超时
   if (lowerMsg.includes('timeout') || lowerMsg.includes('aborted')) {
-    return { code: 'TIMEOUT', message: '请求超时', retryable: true }
+    return { code: 'TIMEOUT', message: `请求超时（${rawMsg}）`, retryable: true }
   }
   // 网络错误
   if (lowerMsg.includes('network') || lowerMsg.includes('fetch failed') ||
-      lowerMsg.includes('econnreset') || lowerMsg.includes('etimedout')) {
-    return { code: 'NETWORK', message: '网络连接异常', retryable: true }
+      lowerMsg.includes('econnreset') || lowerMsg.includes('etimedout') ||
+      lowerMsg.includes('enotfound') || lowerMsg.includes('econnrefused')) {
+    return { code: 'NETWORK', message: `网络连接异常（${rawMsg}）`, retryable: true }
   }
   // 5xx 服务端错误
   if (/\b5\d{2}\b/.test(lowerMsg) || lowerMsg.includes('server error')) {
-    return { code: 'SERVER', message: '服务器内部错误', retryable: true }
+    return { code: 'SERVER', message: `服务器内部错误（${rawMsg}）`, retryable: true }
   }
   // 兜底
-  return { code: 'UNKNOWN', message: 'LLM 调用失败', retryable: false }
+  return { code: 'UNKNOWN', message: `LLM 调用失败（${rawMsg}）`, retryable: false }
 }
 
 /**
@@ -158,15 +167,48 @@ export function registerLlmHandlers(mainWindow: BrowserWindow): void {
   })
 
   // ------------------------------------------------------------------
-  // llm:test — 测试连接
+  // llm:test — 测试连接（返回详细诊断信息，便于 UI 定位失败原因）
   // ------------------------------------------------------------------
 
+  /**
+   * 测试连接结果
+   * - ok=true 表示连接成功（收到正常响应）
+   * - ok=false 时 error 提供具体失败原因（401/404/网络/超时/Key 缺失等）
+   * - latency 永远返回（无论成功失败，便于 UI 展示）
+   */
   ipcMain.handle(LLM.TEST, async (_event, config: LlmConfig) => {
     const client = new LlmClient(config)
     if (!client.isAvailable()) {
-      return false
+      return {
+        ok: false,
+        latency: 0,
+        error: 'API Key 未配置（请在设置中填写有效的 API Key）',
+        code: 'NO_API_KEY',
+      }
     }
-    return client.testConnection()
+    const startTime = Date.now()
+    try {
+      const result = await client.testConnection()
+      const latency = Date.now() - startTime
+      if (result) {
+        return { ok: true, latency }
+      }
+      return {
+        ok: false,
+        latency,
+        error: 'LLM 返回失败（请检查 API Key / Endpoint / 模型名是否正确）',
+        code: 'TEST_FAILED',
+      }
+    } catch (err) {
+      const latency = Date.now() - startTime
+      const llmErr = toLlmError(err)
+      return {
+        ok: false,
+        latency,
+        error: llmErr.message,
+        code: llmErr.code,
+      }
+    }
   })
 
   // ------------------------------------------------------------------

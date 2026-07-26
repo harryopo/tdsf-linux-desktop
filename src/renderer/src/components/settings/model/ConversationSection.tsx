@@ -3,7 +3,9 @@
  *
  * 从 ModelSettings.tsx 抽取，负责搜索框 + 状态筛选 + 对话表格 + 分页栏。
  *
- * 原 Section 6：对话记录 SettingsCard。
+ * v2.3.3 修复：
+ * - 删除"未匹配筛选"和"暂无对话记录"混用同一文案（无数据时显示真实提示）
+ * - isLoading 时显示 skeleton 而非空表格
  */
 import {
   ListOrdered,
@@ -26,6 +28,8 @@ export interface ConversationSectionProps {
   currentPage: number
   /** 设置当前页码回调 */
   onCurrentPageChange: (page: number) => void
+  /** 是否正在加载 */
+  isLoading: boolean
 }
 
 export function ConversationSection(props: ConversationSectionProps) {
@@ -35,7 +39,34 @@ export function ConversationSection(props: ConversationSectionProps) {
     filteredConversations,
     currentPage,
     onCurrentPageChange,
+    isLoading,
   } = props
+
+  // 空状态文案：未匹配筛选 vs 真实无数据 vs 加载中
+  const renderEmptyState = () => {
+    if (isLoading) {
+      return (
+        <tr>
+          <td colSpan={6} className="set-conv-empty">
+            正在加载对话记录...
+          </td>
+        </tr>
+      )
+    }
+    if (filteredConversations.length === 0) {
+      const hasFilter = statusFilter !== '全部状态'
+      return (
+        <tr>
+          <td colSpan={6} className="set-conv-empty">
+            {hasFilter
+              ? `没有匹配「${statusFilter}」的记录`
+              : '暂无对话记录，请先在 AI 面板发送消息后再来查看'}
+          </td>
+        </tr>
+      )
+    }
+    return null
+  }
 
   return (
     <SettingsCard
@@ -97,11 +128,7 @@ export function ConversationSection(props: ConversationSectionProps) {
           </thead>
           <tbody>
             {filteredConversations.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="set-conv-empty">
-                  没有匹配 "{statusFilter}" 的记录
-                </td>
-              </tr>
+              renderEmptyState()
             ) : (
               filteredConversations.map((row, idx) => (
               <tr key={`${row.time}-${idx}`}>

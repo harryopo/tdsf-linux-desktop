@@ -4,11 +4,8 @@
  * // @ai-session: ai-glm-20260721-loop-eng
  * // @ai-task: loop-engineering-wire
  *
- * 用户原话：
- *   "我要从「假设计 → 可演示真 IDE」做完一整轮，你设计循环工程配置子agent达到这个目标"
- *
  * 设计目标：
- *   封装 loop:* IPC 通道，让 AIPanel 的"演示模式"接入真实循环工程：
+ *   封装 loop:* IPC 通道，让 AIPanel 接入真实循环工程：
  *   1. start(problem, connId, opts?) — 启动循环工程
  *   2. 自动订阅 loop:llm-start / llm-done / step / decision / done / error 事件
  *   3. 暴露当前状态（llmHypothesis / currentStep / decisionCard / error）
@@ -28,9 +25,11 @@
  *   [完成]     onLoopDone
  *
  * 与 useAgentChat 的关系：
- *   - useAgentChat：普通对话模式（agent:chat → Supervisor.chat 流式文本）
- *   - useLoopEngineering：演示模式（loop:start → 完整 7 步 HITL）
- *   - 两者独立，AIPanel 通过"演示模式"chip 切换
+ *   - useAgentChat：单次 chat（agent:chat → Supervisor 流式文本）
+ *   - useLoopEngineering：多步编排（loop:start → 完整 7 步 HITL）
+ *   - 两者独立，由用户根据任务复杂度选择
+ *
+ * v2.3.7 修复：移除"演示模式"表述，统一为真实功能描述。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'

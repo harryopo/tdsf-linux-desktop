@@ -286,6 +286,24 @@ export interface LlmValidationResult {
 }
 
 /**
+ * LLM 测试连接结果
+ *
+ * v2.3.4 新增：替代之前的 `boolean` 返回值，UI 能看到具体失败原因
+ * - ok=true: 连接成功
+ * - ok=false: 失败，error 字段含具体原因（401/404/网络/超时等），code 用于分类
+ * - latency: 总是返回（毫秒），失败时也返回（用于 UI 展示"请求耗时 X ms 后失败"）
+ */
+export interface LlmTestResult {
+  ok: boolean
+  /** 测试耗时（毫秒） */
+  latency: number
+  /** 失败原因（ok=true 时为 undefined） */
+  error?: string
+  /** 错误码（NETWORK/TIMEOUT/AUTH/MODEL_NOT_FOUND/RATE_LIMIT/SERVER/NO_API_KEY/UNKNOWN） */
+  code?: string
+}
+
+/**
  * 系统环境上下文
  *
  * 用于 llm:chat-with-context 通道，将当前系统状态传递给 LLM。

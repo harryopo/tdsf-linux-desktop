@@ -148,12 +148,11 @@ describe('LlmClient — LLM 客户端', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1)
   })
 
-  it('testConnection: API 调用失败时返回 false', async () => {
+  it('testConnection: API 调用失败时抛出错误（v2.3.4 改造：透传原始错误便于上层 toLlmError 分类）', async () => {
     mockCreate.mockRejectedValueOnce(new Error('Network error'))
 
     const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
-    const result = await client.testConnection()
-    expect(result).toBe(false)
+    await expect(client.testConnection()).rejects.toThrow('Network error')
   })
 
   // ────────── chat ──────────

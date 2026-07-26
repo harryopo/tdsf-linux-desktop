@@ -44,56 +44,6 @@ export const THINKING_LEVELS = [
   { value: 'high', label: '高' },
 ] as const
 
-/** 对话记录静态回退数据（IPC 不可用或返回空时使用） */
-export const CONVERSATIONS: ConversationRow[] = [
-  {
-    time: '14:23',
-    input: 'nginx延迟排查',
-    model: 'DeepSeek-R1',
-    modelTagType: 'brand',
-    inputTokens: '1,245',
-    outputTokens: '890',
-    status: '成功',
-    statusType: 'success',
-  },
-  {
-    time: '13:45',
-    input: 'MySQL连接数',
-    model: 'DeepSeek-R1',
-    modelTagType: 'brand',
-    inputTokens: '980',
-    outputTokens: '670',
-    status: '成功',
-    statusType: 'success',
-  },
-  {
-    time: '12:30',
-    input: '高危命令拦截',
-    model: 'DeepSeek-R1',
-    modelTagType: 'brand',
-    inputTokens: '320',
-    outputTokens: '150',
-    status: '已拦截',
-    statusType: 'warning',
-  },
-  {
-    time: '11:15',
-    input: 'nginx reload',
-    model: 'GPT-4o',
-    modelTagType: 'neutral',
-    inputTokens: '450',
-    outputTokens: '280',
-    status: '成功',
-    statusType: 'success',
-  },
-  {
-    time: '10:08',
-    input: 'Docker重启',
-    model: 'DeepSeek-R1',
-    modelTagType: 'brand',
-    inputTokens: '680',
-    outputTokens: '520',
-    status: '失败',
-    statusType: 'danger',
-  },
-]
+// 注：v2.3.3 起删除了 CONVERSATIONS 静态假数据。
+// 真实对话记录来自 tokenRecords IPC；无数据时显示空状态而非假数据。
+// 详见 ModelSettings.tsx 中 tokenRecords 的加载逻辑。

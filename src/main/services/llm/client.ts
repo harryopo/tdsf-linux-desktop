@@ -126,31 +126,34 @@ export class LlmClient {
 
   /**
    * 测试连接（发送极简请求验证 API Key/baseURL，超时 10s）
+   *
+   * v2.3.4 改造：抛出错误而不是吞掉，便于 UI 看到具体失败原因
+   * - 之前 catch 后 return false，上层 llm.ts 只能看到 "失败" 看不到原因
+   * - 现在抛出原始错误，llm.ts 的 toLlmError 会解析 401/404/网络/超时等
+   * - API Key 缺失仍返回 false（不算"调用失败"，是配置缺失）
+   *
    * @returns true 表示连接正常
+   * @throws 调用失败时抛出 Error（错误信息已含具体原因）
    */
   async testConnection(): Promise<boolean> {
     if (!this.client) {
       return false
     }
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10_000)
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 10_000)
-      try {
-        await this.client.chat.completions.create(
-          {
-            model: this.config.model,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 8,
-            temperature: 0
-          },
-          { signal: controller.signal }
-        )
-        return true
-      } finally {
-        clearTimeout(timer)
-      }
-    } catch {
-      return false
+      await this.client.chat.completions.create(
+        {
+          model: this.config.model,
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 8,
+          temperature: 0
+        },
+        { signal: controller.signal }
+      )
+      return true
+    } finally {
+      clearTimeout(timer)
     }
   }
 

@@ -454,7 +454,8 @@ export const LoopWorkflowPanel: FC<LoopWorkflowPanelProps> = ({ loop }) => {
       {/* 阶段指示器 */}
       <div className="flex items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5">
         <Sparkles className="size-3 text-[var(--trae-text-brand)]" />
-        <span className="text-[11px] font-medium text-[var(--trae-text-default)]">演示模式</span>
+        {/* v2.3.7 修复：原硬编码"演示模式"误导用户，实际为真实循环工程（loop:* IPC + 7 步 HITL），改为"AI 编排" */}
+        <span className="text-[11px] font-medium text-[var(--trae-text-default)]">AI 编排</span>
         <ChevronRight className="size-3 text-[var(--trae-text-tertiary)]" />
         <span className="text-[11px] text-[var(--trae-text-secondary)]">
           {phase === 'llm-thinking' && 'LLM 推理中…'}

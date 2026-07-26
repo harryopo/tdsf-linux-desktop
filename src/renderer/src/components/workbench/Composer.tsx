@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import {
   ArrowUp, AtSign, ChevronDown, Cpu, Hash,
-  Image as ImageIcon, Loader2, Square, Workflow, X, Zap,
+  Image as ImageIcon, Loader2, Square, X, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
-import { MOCK_COMPOSER_CHIPS } from './mock-data'
+// v2.3.7 修复：MOCK_COMPOSER_CHIPS → QUICK_PROMPT_TEMPLATES（mock-data.ts v2.3.6 已重命名）
+// 之前的 import 指向不存在的导出 → Composer 模块加载失败 → AIPanel 整个组件崩 → "Agent 调用失败"
+import { QUICK_PROMPT_TEMPLATES } from './mock-data'
 import { useLoopEngineering } from './useLoopEngineering'
 import type { UsePaorLoopResult } from './usePaorLoop'
 import ContextBadge from './ContextBadge'
@@ -32,8 +34,6 @@ export interface ImageAttachment {
 
 /** Composer props */
 export interface ComposerProps {
-  demoMode: boolean
-  setDemoMode: (v: boolean | ((prev: boolean) => boolean)) => void
   isStreaming: boolean
   loop: ReturnType<typeof useLoopEngineering>
   /** PAOR 自动循环（v0.9.5 P0-3：Plan→Act→Observe→Reflect） */
@@ -45,18 +45,15 @@ export interface ComposerProps {
   tokenStats: TokenStats
   send: (text: string) => Promise<void>
   cancel: () => Promise<void>
-  /** 用户成功发送消息后回调（父组件收起 demo） */
-  onAfterSend: () => void
   /** 压缩上下文回调（T.7） */
   onCompressContext?: () => void
 }
 
 /** AIPanel 输入区域（Composer chips + 输入框 + 工具栏 + Provider 选择 + Send 按钮） */
 const Composer: FC<ComposerProps> = ({
-  demoMode,
-  setDemoMode,
   isStreaming,
-  loop,
+  // v2.3.7 修复：loop 由 AIPanel 单独控制循环工程面板，Composer 仅 PAOR chip
+  loop: _loop,
   paor,
   activeSessionId,
   providers,
@@ -65,7 +62,6 @@ const Composer: FC<ComposerProps> = ({
   tokenStats,
   send,
   cancel,
-  onAfterSend,
   onCompressContext,
 }) => {
   const navigate = useNavigate()
@@ -111,15 +107,10 @@ const Composer: FC<ComposerProps> = ({
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
   }, [input])
 
-  /** 处理发送/停止 — 主路径 agent:chat 或 演示模式 loop:start */
+  /** 处理发送/停止 — 主路径 agent:chat */
   const handleSendToggle = () => {
-    // 演示模式：循环工程运行中 → 点击发送键表示取消
-    if (demoMode && loop.isRunning) {
-      void loop.cancel()
-      return
-    }
-    // 普通模式：流式生成中 → 取消
-    if (!demoMode && isStreaming) {
+    // 流式生成中 → 取消
+    if (isStreaming) {
       void cancel()
       return
     }
@@ -131,26 +122,14 @@ const Composer: FC<ComposerProps> = ({
       : input
     setInput('')
     setAttachments([])
-    onAfterSend()
 
-    if (demoMode) {
-      // 演示模式：启动循环工程 7 步 HITL
-      if (!activeSessionId) {
-        loop.reset()
-        message.warning('演示模式需要先连接 SSH。请用顶栏服务器菜单或「设置 → SSH」连接主机。')
-        return
-      }
-      if (providers.length === 0) {
-        message.warning('请先配置模型 Provider（设置 → 模型）')
-        return
-      }
-      void loop.start(text, activeSessionId, {
-        providerId: selectedProviderId ?? undefined,
-        strength: 'standard',
-      })
-    } else {
-      void send(text)
+    // 检查 Provider 是否配置
+    if (providers.length === 0) {
+      message.warning('请先配置模型 Provider（设置 → 模型）')
+      return
     }
+
+    void send(text)
   }
 
   /** 在输入框追加前缀 */
@@ -259,7 +238,6 @@ const Composer: FC<ComposerProps> = ({
       return
     }
     setInput('')
-    onAfterSend()
     const ok = await paor.start(task, activeSessionId, 5)
     if (ok) {
       message.info({
@@ -273,31 +251,6 @@ const Composer: FC<ComposerProps> = ({
     <>
       {/* ===== Composer chips ===== */}
       <div className="ai-composer-chips">
-        {/* 演示模式切换 chip —— 接入真实循环工程 7 步 HITL */}
-        <button
-          type="button"
-          title={demoMode ? '退出演示模式（回到普通 agent:chat）' : '进入演示模式（接入循环工程 7 步 HITL：假设置→决策卡片→执行→验证）'}
-          onClick={() => {
-            if (loop.isRunning) {
-              // 切换前先取消进行中的循环工程
-              void loop.cancel()
-            }
-            setDemoMode((v) => !v)
-          }}
-          className={cn(
-            'ai-composer-chip btn-press',
-            demoMode && 'ai-chip-primary',
-          )}
-        >
-          <Workflow className="size-3" />
-          {demoMode ? '演示模式：开' : '演示模式'}
-          {demoMode && !activeSessionId && (
-            <span className="ml-0.5 inline-flex h-3.5 items-center rounded-full bg-[var(--trae-status-alert-surface-l1)] px-1 text-[11px] text-[var(--trae-status-alert-default)]">
-              未连接
-            </span>
-          )}
-        </button>
-
         {/* PAOR 自主循环 chip —— v0.9.5 P0-3：Plan→Act→Observe→Reflect 主进程编排 */}
         <button
           type="button"
@@ -325,7 +278,7 @@ const Composer: FC<ComposerProps> = ({
 
         <span className="ai-composer-divider" />
 
-        {MOCK_COMPOSER_CHIPS.map((chip) => (
+        {QUICK_PROMPT_TEMPLATES.map((chip) => (
           <button
             key={chip}
             type="button"
@@ -537,20 +490,12 @@ const Composer: FC<ComposerProps> = ({
 
             <button
               type="button"
-              title={
-                demoMode
-                  ? (loop.isRunning ? '取消循环工程' : '启动循环工程')
-                  : (isStreaming ? '停止生成' : '发送')
-              }
+              title={isStreaming ? '停止生成' : '发送'}
               onClick={handleSendToggle}
-              disabled={
-                demoMode
-                  ? (!loop.isRunning && !input.trim())
-                  : (!isStreaming && !input.trim())
-              }
+              disabled={!isStreaming && !input.trim()}
               className="ai-send-btn btn-press wb-send-btn disabled:opacity-40"
             >
-              {(demoMode && loop.isRunning) || (!demoMode && isStreaming) ? (
+              {isStreaming ? (
                 <Square className="fill-[var(--trae-text-onbrand)] text-[var(--trae-text-onbrand)]" />
               ) : (
                 <ArrowUp />

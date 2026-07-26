@@ -15,9 +15,9 @@
  * - 网格线 3 条（CartesianGrid horizontal）
  * - x 轴 5 个时间标签（00:00/06:00/12:00/18:00/24:00，由 ChartCard 底部渲染）
  *
- * 数据策略：
+ * 数据策略（v2.3.7）：
  * - 有监控数据（useMonitorStore）→ 实时 map 为 recharts data
- * - 无监控数据 → 解析 sample SVG 数据为 recharts data fallback
+ * - 无监控数据 → 显示 EmptyMonitorState 占位，不再回退 sample 数据
  *
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.3
  */
@@ -35,24 +35,16 @@ import {
 } from 'recharts'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
-import {
-  sampleCpuAreaPath,
-  sampleDiskIo,
-  sampleMemLines,
-  sampleNetFlow,
-  chartXLabels,
-} from './mock-data'
+// v2.3.7 修复：移除 sample* mock 数据导入，统一显示 EmptyMonitorState
+import { chartXLabels, type TimeRange } from './mock-data'
+import { EmptyMonitorState } from './EmptyMonitorState'
 // M3 Task 2：时间范围切换切片工具（Chart 数据源按 range 过滤）
-import { sliceMonitorData, type TimeRange } from '../../utils/monitor-time-range'
+import { sliceMonitorData } from '../../utils/monitor-time-range'
 
 // ===== 常量 =====
 
 /** 图表主体高度（与原 SVG viewBox 高度一致） */
 const CHART_H = 140
-/** 原 SVG viewBox 宽度（用于 sample 数据 x 坐标换算） */
-const SVG_W = 600
-/** 原 SVG viewBox 高度（用于 sample 数据 y 坐标换算） */
-const SVG_H = 140
 
 // ===== 数据 Hook =====
 
@@ -65,79 +57,6 @@ function useActiveMonitorData() {
   return data
 }
 
-// ===== sample 数据解析（SVG path/polyline → recharts data） =====
-
-/** x 坐标 0~600 → 时间标签 00:00~24:00（每 25 单位 = 1h） */
-function xToTimeLabel(x: number): string {
-  const hours = (x / SVG_W) * 24
-  const h = Math.round(hours)
-  if (h >= 24) return '24:00'
-  return `${String(h).padStart(2, '0')}:00`
-}
-
-/** 解析 SVG polyline points "0,80 50,75..." 为数据点（y 翻转：SVG 底部为 0） */
-function parsePolyline(points: string): Array<{ x: number; y: number }> {
-  return points.split(' ').map((p) => {
-    const [x, y] = p.split(',').map(Number)
-    return { x, y: SVG_H - y }
-  })
-}
-
-/** 解析 SVG path "M 0,105 L 25,95..." 为数据点（y 翻转） */
-function parsePath(pathStr: string): Array<{ x: number; y: number }> {
-  const cleaned = pathStr.replace(/^M\s+/, '').replace(/\s+L\s+/g, ' ')
-  return cleaned.split(' ').map((p) => {
-    const [x, y] = p.split(',').map(Number)
-    return { x, y: SVG_H - y }
-  })
-}
-
-/** 把 SVG y 坐标（0~140）转换为业务百分比（0~100） */
-function svgYToPercent(y: number): number {
-  return Math.round((y / SVG_H) * 100 * 10) / 10
-}
-
-/** sample CPU 面积图 → recharts data */
-function buildSampleCpuData(): Array<{ time: string; cpu: number }> {
-  return parsePath(sampleCpuAreaPath).map((p) => ({
-    time: xToTimeLabel(p.x),
-    cpu: svgYToPercent(p.y),
-  }))
-}
-
-/** sample 内存折线图 → recharts data（3 条线 used/buffer/cache） */
-function buildSampleMemData(): Array<{ time: string; used: number; buffer: number; cache: number }> {
-  const used = parsePolyline(sampleMemLines.used)
-  const buffer = parsePolyline(sampleMemLines.buffer)
-  const cache = parsePolyline(sampleMemLines.cache)
-  return used.map((p, i) => ({
-    time: xToTimeLabel(p.x),
-    used: svgYToPercent(p.y),
-    buffer: svgYToPercent(buffer[i].y),
-    cache: svgYToPercent(cache[i].y),
-  }))
-}
-
-/** sample 磁盘 IO 柱状图 → recharts data（柱高 h 转换为业务值） */
-function buildSampleDiskIoData(): Array<{ time: string; io: number }> {
-  return sampleDiskIo.map((bar) => ({
-    time: xToTimeLabel(bar.x),
-    io: svgYToPercent(bar.h),
-  }))
-}
-
-/** sample 网络流量 → recharts data（入站/出站双线） */
-function buildSampleNetFlowData(): Array<{ time: string; inbound: number; outbound: number }> {
-  const inbound = parsePolyline(sampleNetFlow.inbound)
-  const outbound = parsePolyline(sampleNetFlow.outbound)
-  return inbound.map((p, i) => ({
-    time: xToTimeLabel(p.x),
-    inbound: svgYToPercent(p.y),
-    outbound: svgYToPercent(outbound[i].y),
-  }))
-}
-
-// ===== 实时数据格式化 =====
 
 /** 格式化时间戳为 HH:MM */
 function formatTime(timestamp: number): string {
@@ -194,24 +113,30 @@ export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
   const sliced = sliceMonitorData(monitorData, range ?? '24H')
   const recent = sliced.slice(-60)
-  const useSample = recent.length < 2
 
-  const data = useSample
-    ? buildSampleCpuData()
-    : recent.map((d) => ({
-        time: formatTime(d.timestamp),
-        cpu: Number(d.cpuUsage.toFixed(1)),
-      }))
-  const latest = data.length > 0 ? data[data.length - 1].cpu : 68
+  // 无实时数据时显示 Empty 状态（v2.3.7：彻底移除 sample data fallback）
+  if (recent.length === 0) {
+    return (
+      <ChartCard title="CPU使用率(24h)">
+        <EmptyMonitorState
+          title="暂无CPU监控数据"
+          description="连接服务器后将显示实时CPU使用率曲线"
+          showAction={false}
+        />
+      </ChartCard>
+    )
+  }
+
+  const data = recent.map((d) => ({
+    time: formatTime(d.timestamp),
+    cpu: Number(d.cpuUsage.toFixed(1)),
+  }))
+  const latest = data[data.length - 1].cpu
 
   return (
     <ChartCard
       title="CPU使用率(24h)"
-      rightHint={
-        <span className="mon-chart-value">
-          {Math.round(latest)}%
-        </span>
-      }
+      rightHint={<span className="mon-chart-value">{Math.round(latest)}%</span>}
     >
       <ResponsiveContainer width="100%" height={CHART_H}>
         <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
@@ -260,16 +185,26 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
   const sliced = sliceMonitorData(monitorData, range ?? '24H')
   const recent = sliced.slice(-60)
-  const useSample = recent.length < 2
 
-  const data = useSample
-    ? buildSampleMemData()
-    : recent.map((d) => ({
-        time: formatTime(d.timestamp),
-        used: Number(d.memoryUsage.toFixed(1)),
-        buffer: 0,
-        cache: 0,
-      }))
+  // 无实时数据时显示 Empty 状态
+  if (recent.length === 0) {
+    return (
+      <ChartCard title="内存使用(24h)" legend={<span />}>
+        <EmptyMonitorState
+          title="暂无内存监控数据"
+          description="连接服务器后将显示实时内存使用曲线"
+          showAction={false}
+        />
+      </ChartCard>
+    )
+  }
+
+  const data = recent.map((d) => ({
+    time: formatTime(d.timestamp),
+    used: Number(d.memoryUsage.toFixed(1)),
+    buffer: 0,
+    cache: 0,
+  }))
 
   return (
     <ChartCard
@@ -349,14 +284,24 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
   const sliced = sliceMonitorData(monitorData, range ?? '24H')
   const recent = sliced.slice(-24)
-  const useSample = recent.length < 2
 
-  const data = useSample
-    ? buildSampleDiskIoData()
-    : recent.map((d) => ({
-        time: formatTime(d.timestamp),
-        io: Number(((d.diskUsage / 100) * 100).toFixed(1)),
-      }))
+  // 无实时数据时显示 Empty 状态
+  if (recent.length === 0) {
+    return (
+      <ChartCard title="磁盘IO(24h)" rightHint={<span className="mon-chart-hint">MB/s</span>}>
+        <EmptyMonitorState
+          title="暂无磁盘IO数据"
+          description="连接服务器后将显示实时磁盘IO柱状图"
+          showAction={false}
+        />
+      </ChartCard>
+    )
+  }
+
+  const data = recent.map((d) => ({
+    time: formatTime(d.timestamp),
+    io: Number(((d.diskUsage / 100) * 100).toFixed(1)),
+  }))
 
   return (
     <ChartCard
@@ -403,21 +348,29 @@ export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
   const sliced = sliceMonitorData(monitorData, range ?? '24H')
   const recent = sliced.slice(-60)
-  const useSample = recent.length < 2
+
+  // 无实时数据时显示 Empty 状态
+  if (recent.length === 0) {
+    return (
+      <ChartCard title="网络流量(24h)" legend={<span />}>
+        <EmptyMonitorState
+          title="暂无网络流量数据"
+          description="连接服务器后将显示实时网络流量曲线"
+          showAction={false}
+        />
+      </ChartCard>
+    )
+  }
 
   // 动态 maxVal：取所有值中的最大值，最小为 100
-  const allValues = useSample
-    ? []
-    : recent.flatMap((d) => [d.networkIn, d.networkOut])
+  const allValues = recent.flatMap((d) => [d.networkIn, d.networkOut])
   const maxVal = allValues.length > 0 ? Math.max(...allValues, 100) : 100
 
-  const data = useSample
-    ? buildSampleNetFlowData()
-    : recent.map((d) => ({
-        time: formatTime(d.timestamp),
-        inbound: Number(((d.networkIn / maxVal) * 100).toFixed(1)),
-        outbound: Number(((d.networkOut / maxVal) * 100).toFixed(1)),
-      }))
+  const data = recent.map((d) => ({
+    time: formatTime(d.timestamp),
+    inbound: Number(((d.networkIn / maxVal) * 100).toFixed(1)),
+    outbound: Number(((d.networkOut / maxVal) * 100).toFixed(1)),
+  }))
 
   return (
     <ChartCard
