@@ -387,8 +387,27 @@ export interface AgentErrorPayload {
   correlationId: string
   /** 错误信息（不含 stack trace） */
   message: string
-  /** 错误码 */
-  code: 'AUTH' | 'RATE_LIMIT' | 'TIMEOUT' | 'NETWORK' | 'SERVER' | 'UNKNOWN' | 'CANCELLED'
+  /** 错误码
+   * v2.3.8 扩充：补齐 402/403/404/400/422/parser/missing key 等细粒度错误码，
+   * 与 src/main/ipc/agent-runtime.ts 的 toAgentError 保持一致。
+   * 旧 code（AUTH/RATE_LIMIT/TIMEOUT/NETWORK/SERVER/UNKNOWN/CANCELLED）向后兼容。
+   */
+  code:
+    | 'AUTH'
+    | 'PAYMENT_REQUIRED'
+    | 'PERMISSION'
+    | 'MODEL_NOT_FOUND'
+    | 'BAD_REQUEST'
+    | 'CONTEXT_OVERFLOW'
+    | 'VALIDATION'
+    | 'RATE_LIMIT'
+    | 'TIMEOUT'
+    | 'NETWORK'
+    | 'SERVER'
+    | 'PARSE'
+    | 'NO_API_KEY'
+    | 'UNKNOWN'
+    | 'CANCELLED'
   /** 会话 ID（v0.9.4 新增，可选） */
   sessionId?: string
 }
