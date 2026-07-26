@@ -36,9 +36,7 @@ import { ModelActionBar } from '@/components/settings/model/ModelActionBar'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import {
   CONVERSATIONS,
-  MODELS,
   type ConversationRow,
-  type ModelOption,
   type TestLogLine,
 } from '@/components/settings/model/constants'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -50,7 +48,6 @@ export function ModelSettings() {
 
   // Provider 列表
   const [providers, setProviders] = useState<PersistedProviderConfig[]>([])
-  const [loadingProviders, setLoadingProviders] = useState(false)
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
 
   // Section 2: 模型配置
@@ -94,11 +91,10 @@ export function ModelSettings() {
   const exportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 加载 Provider 列表
+  // 加载 Provider 列表（仅用于保存时回写默认 Provider）
   useEffect(() => {
     const loadProviders = async () => {
       if (!isElectronAPIAvailable()) return
-      setLoadingProviders(true)
       try {
         const list = await window.electronAPI.providerList()
         setProviders(list)
@@ -116,8 +112,6 @@ export function ModelSettings() {
         }
       } catch (err) {
         console.error('[ModelSettings] 加载 Provider 列表失败:', err)
-      } finally {
-        setLoadingProviders(false)
       }
     }
 
@@ -210,16 +204,6 @@ export function ModelSettings() {
       cancelled = true
     }
   }, [])
-
-  // 切换模型：循环切换到下一个模型
-  const handleSwitchModel = () => {
-    const modelOptions = providers.length > 0
-      ? providers.map((p) => p.model)
-      : MODELS.map((m) => m.name)
-    const currentIndex = modelOptions.findIndex((m) => m === selectedModel)
-    const nextIndex = (currentIndex + 1) % modelOptions.length
-    setSelectedModel(modelOptions[nextIndex])
-  }
 
   // 测试连接：调用真实 llmTest IPC（llm:test 通道），测量往返延迟
   const handleTestConnection = async () => {
@@ -434,19 +418,8 @@ export function ModelSettings() {
     return row.status === statusFilter
   })
 
-  // 可选模型列表（优先使用真实 provider 数据，降级用 mock）
-  const modelOptions: ModelOption[] = providers.length > 0
-    ? providers.map((p) => ({
-        name: p.model,
-        tag: p.builtin ? '推荐' : '可选',
-        tagType: (p.builtin ? 'brand' : 'default') as 'brand' | 'default',
-        desc: p.name,
-        selected: p.model === selectedModel,
-      }))
-    : MODELS
-
   return (
-    <div>
+    <div className="set-page" style={{ height: '100%', overflowY: 'auto' }}>
       <ModelSettingsHeader
         title="模型配置"
         desc="AI模型管理与Token用量统计"
@@ -460,9 +433,6 @@ export function ModelSettings() {
         {/* Section 2: 模型配置 */}
         <ModelConfigSection
           selectedModel={selectedModel}
-          onSwitchModel={handleSwitchModel}
-          loadingProviders={loadingProviders}
-          modelOptions={modelOptions}
           onSelectModel={setSelectedModel}
           temperature={temperature}
           onTemperatureChange={setTemperature}

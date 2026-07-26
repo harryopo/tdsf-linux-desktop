@@ -1,28 +1,20 @@
 /**
  * ModelConfigSection — 模型配置 Section（M5 Task 6 拆分）
  *
- * 从 ModelSettings.tsx 抽取，负责模型 Provider 选择 + 温度/思考强度/Token 等参数配置。
+ * 从 ModelSettings.tsx 抽取，负责模型名配置 + 温度/思考强度/Token 等参数配置。
  *
- * 原 Section 2：当前模型展示行 + 可选模型卡片网格 + 参数配置区（温度/思考强度/数字输入组）。
+ * 当前模型展示行 + 通用模型名输入（任意 OpenAI 兼容模型）+ 参数配置区。
+ * 不再展示预设模型卡片：模型名完全由用户输入，Endpoint 在 API 接入区配置。
  */
-import { Cpu, ChevronDown, CheckCircle2, Info } from 'lucide-react'
+import { useState } from 'react'
+import { Cpu, CheckCircle2, Info } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { Slider } from '@/components/trae/Slider'
-import {
-  TEMP_PRESETS,
-  THINKING_LEVELS,
-  type ModelOption,
-} from './constants'
+import { TEMP_PRESETS, THINKING_LEVELS } from './constants'
 
 export interface ModelConfigSectionProps {
   /** 当前选中的模型名 */
   selectedModel: string
-  /** 切换模型回调（循环切换到下一个） */
-  onSwitchModel: () => void
-  /** 是否正在加载 Provider 列表（禁用切换按钮） */
-  loadingProviders: boolean
-  /** 可选模型卡片列表（父组件派生，优先用真实 Provider，降级用 MODELS） */
-  modelOptions: ModelOption[]
   /** 选中指定模型回调 */
   onSelectModel: (name: string) => void
   /** 温度参数（0.0-1.0） */
@@ -50,9 +42,6 @@ export interface ModelConfigSectionProps {
 export function ModelConfigSection(props: ModelConfigSectionProps) {
   const {
     selectedModel,
-    onSwitchModel,
-    loadingProviders,
-    modelOptions,
     onSelectModel,
     temperature,
     onTemperatureChange,
@@ -65,6 +54,15 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
     requestTimeout,
     onRequestTimeoutChange,
   } = props
+
+  const [customModel, setCustomModel] = useState('')
+
+  const applyCustomModel = () => {
+    const name = customModel.trim()
+    if (!name) return
+    onSelectModel(name)
+    setCustomModel('')
+  }
 
   return (
     <SettingsCard
@@ -80,63 +78,48 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
       <div className="set-model-current">
         <div className="set-model-current__info">
           <span className="set-model-current__name">
-            {selectedModel}
-          </span>
-          <span className="set-model-current__ver">
-            v1.0
+            {selectedModel || '未设置模型'}
           </span>
           <span className="set-model-current__status">
             <CheckCircle2 className="size-3.5" />
-            已连接
+            当前模型
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onSwitchModel}
-          disabled={loadingProviders}
-          aria-label="切换模型"
-          className="set-model-switch-btn btn-press"
-        >
-          <span>切换模型</span>
-          <ChevronDown className="size-3.5" />
-        </button>
       </div>
 
-      {/* 可选模型列表 */}
-      <div className="set-model-grid">
-        {modelOptions.map((m) => {
-          const isSelected = m.name === selectedModel
-          return (
+      {/* 模型名输入：任意 OpenAI 兼容模型（配合 API 接入区的 Endpoint） */}
+      <div className="set-model-custom" style={{ marginTop: 12 }}>
+        <div className="set-model-num-item" style={{ flex: 1 }}>
+          <label className="set-model-num-item__label" htmlFor="custom-model-input">
+            模型名 Model
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              id="custom-model-input"
+              type="text"
+              value={customModel}
+              placeholder="输入模型名，如 deepseek-v4-flash / doubao-seed-1-6-250615"
+              onChange={(e) => setCustomModel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') applyCustomModel()
+              }}
+              spellCheck={false}
+              className="set-model-num-item__input"
+              style={{ flex: 1 }}
+            />
             <button
-              key={m.name}
               type="button"
-              onClick={() => onSelectModel(m.name)}
-              className={
-                'set-model-card btn-press' +
-                (isSelected ? ' is-selected' : '')
-              }
+              onClick={applyCustomModel}
+              disabled={!customModel.trim()}
+              className="set-model-switch-btn btn-press"
             >
-              <div className="set-model-card__head">
-                <span className="set-model-card__name">
-                  {m.name}
-                </span>
-                <span
-                  className={
-                    'set-model-card__tag ' +
-                    (m.tagType === 'brand'
-                      ? 'set-model-card__tag--brand'
-                      : 'set-model-card__tag--default')
-                  }
-                >
-                  {m.tag}
-                </span>
-              </div>
-              <p className="set-model-card__desc">
-                {m.desc}
-              </p>
+              使用
             </button>
-          )
-        })}
+          </div>
+          <span className="set-model-num-item__hint">
+            输入任意 OpenAI 兼容模型名，Endpoint / API Key 在下方 API 接入区配置
+          </span>
+        </div>
       </div>
 
       {/* 参数配置区 */}

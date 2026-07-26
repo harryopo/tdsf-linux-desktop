@@ -5,15 +5,6 @@
  * 仅包含纯静态数据，不包含运行时状态。
  */
 
-/** 可选模型卡片 */
-export interface ModelOption {
-  name: string
-  tag: string
-  tagType: 'brand' | 'default'
-  desc: string
-  selected: boolean
-}
-
 /** 温度预设按钮 */
 export interface TempPreset {
   label: string
@@ -38,31 +29,6 @@ export interface TestLogLine {
   text: string
   tone: 'default' | 'success' | 'error'
 }
-
-/** 默认可选模型列表（无真实 Provider 时降级使用） */
-export const MODELS: ModelOption[] = [
-  {
-    name: 'DeepSeek-R1',
-    tag: '推荐',
-    tagType: 'brand',
-    desc: '推理强 · 适合复杂分析',
-    selected: true,
-  },
-  {
-    name: 'GPT-4o',
-    tag: '可选',
-    tagType: 'default',
-    desc: '通用强 · 速度快',
-    selected: false,
-  },
-  {
-    name: 'Claude-3.5',
-    tag: '可选',
-    tagType: 'default',
-    desc: '代码强 · 上下文长',
-    selected: false,
-  },
-]
 
 /** 温度预设按钮 */
 export const TEMP_PRESETS: TempPreset[] = [
