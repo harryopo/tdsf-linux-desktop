@@ -11,6 +11,7 @@
  * Wire-2：挂载时加载 providerList + tokenStats；暴露 Provider 选择给 AIPanel
  */
 import { useCallback, useEffect, useRef } from 'react'
+import { message } from 'antd'
 import { useAgentStore, type AgentMessage } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -199,6 +200,19 @@ export function useAgentChat(): UseAgentChatResult {
       const raw = text.trim()
       if (!raw) return
       if (useAgentStore.getState().isStreaming) return
+
+      // v2.3.9 修复：AI 对话走 Provider 系统，必须确认已配置 API Key。
+      // 旧 LLM 设置页的"测试连接"只验证 llmTest 通道，不会把 Key 同步到
+      // Provider 的 SecureStore（key='provider:${id}'）。如果用户测试通过但
+      // 没保存，agent:chat 会调用失败。这里提前拦截，给出明确引导。
+      const state = useAgentStore.getState()
+      const selectedProvider = state.providers.find((p) => p.id === state.selectedProviderId)
+      if (selectedProvider && selectedProvider.hasApiKey === false) {
+        message.warning(
+          `当前模型 "${selectedProvider.name || selectedProvider.id}" 未配置 API Key，请到设置 → 模型中配置并保存`
+        )
+        return
+      }
 
       const userMessage: AgentMessage = {
         id: genId('user'),

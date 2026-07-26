@@ -77,7 +77,9 @@ const Composer: FC<ComposerProps> = ({
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId) ?? null
   const providerLabel = selectedProvider
-    ? selectedProvider.name || selectedProvider.model || selectedProvider.id
+    ? `${selectedProvider.name || selectedProvider.model || selectedProvider.id}${
+        selectedProvider.hasApiKey === false ? ' (未配置Key)' : ''
+      }`
     : providers.length === 0
       ? '未配置模型'
       : '选择模型'
@@ -454,17 +456,25 @@ const Composer: FC<ComposerProps> = ({
                         <button
                           key={p.id}
                           type="button"
+                          disabled={p.hasApiKey === false}
                           className={cn(
                             'flex w-full flex-col items-start px-3 py-1.5 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)]',
                             p.id === selectedProviderId && 'bg-[var(--trae-bg-overlay-l1)]',
+                            p.hasApiKey === false && 'opacity-50 cursor-not-allowed',
                           )}
                           onClick={() => {
                             setSelectedProviderId(p.id)
                             setProviderMenuOpen(false)
                           }}
+                          title={p.hasApiKey === false ? '未配置 API Key，请到设置 → 模型中配置' : ''}
                         >
                           <span className="text-[11px] text-[var(--trae-text-default)]">
                             {p.name || p.id}
+                            {p.hasApiKey === false && (
+                              <span className="ml-1 text-[10px] text-[var(--trae-status-alert-default)]">
+                                (未配置Key)
+                              </span>
+                            )}
                           </span>
                           <span className="text-[11px] text-[var(--trae-text-tertiary)]">
                             {p.model}

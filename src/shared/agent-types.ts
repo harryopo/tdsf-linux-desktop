@@ -226,8 +226,15 @@ export interface ProviderConfig {
  * 持久化版本的 Provider 配置（不含 apiKey，存入 electron-store）
  *
  * apiKey 单独走 SecureStore.saveApiKey(`provider:${id}`, key)
+ *
+ * v2.3.9 修复：provider:list 返回时由主进程附加 hasApiKey 标识，
+ * 前端用来区分"已配置 API Key"与"未配置 API Key"，避免用户测试连接
+ * 成功（走旧 llmTest 通道）但 AI 对话（走 Provider 通道）因无 Key 而失败。
  */
-export type PersistedProviderConfig = Omit<ProviderConfig, 'apiKey'>
+export interface PersistedProviderConfig extends Omit<ProviderConfig, 'apiKey'> {
+  /** 是否已配置 API Key（Ollama 本地无 Key 也视为 true；由 provider:list 运行时附加） */
+  hasApiKey?: boolean
+}
 
 /**
  * Token 使用记录（单次调用）

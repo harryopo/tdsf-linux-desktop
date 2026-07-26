@@ -286,6 +286,38 @@ export function ModelSettings() {
           { time: timestamp(), text: `收到响应 (${latency}ms)`, tone: 'default' },
           { time: timestamp(), text: '连接验证通过', tone: 'success' },
         ])
+
+        // v2.3.9 修复：测试连接成功后，自动把当前配置同步到 Provider 系统。
+        // 旧 LLM 设置页的"测试连接"只验证 llmTest 通道，Key 存到旧的 'llm' key；
+        // 而 AI 对话走 Provider 系统（SecureStore key='provider:${id}'）。如果不同步，
+        // 用户测试通过但 AI 对话仍因无 Key 而报"Agent 调用失败"。
+        if (isElectronAPIAvailable() && providers.length > 0) {
+          const defaultProvider = providers[0]
+          try {
+            await window.electronAPI.providerSave({
+              ...defaultProvider,
+              baseURL: endpoint,
+              model: selectedModel,
+              apiKey,
+              defaultParams: {
+                ...defaultProvider.defaultParams,
+                temperature,
+                maxTokens: maxToken,
+              },
+            })
+            await window.electronAPI.providerSetDefault(defaultProvider.id)
+            setTestLogs((prev) => [
+              ...prev,
+              { time: timestamp(), text: '已自动保存到 Provider 配置', tone: 'success' },
+            ])
+          } catch (saveErr) {
+            console.error('[ModelSettings] 测试通过后自动保存 Provider 失败:', saveErr)
+            setTestLogs((prev) => [
+              ...prev,
+              { time: timestamp(), text: '自动保存 Provider 失败，请手动点击"保存所有配置"', tone: 'error' },
+            ])
+          }
+        }
       } else {
         setTestResult('error')
         // 把后端提供的具体原因写到日志里
