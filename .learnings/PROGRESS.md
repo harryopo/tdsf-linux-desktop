@@ -253,3 +253,32 @@
 - 新增 IPC 通道：`app:get-info`（4 步同步）
 - 规范调整：B1 单文件行数从强制 ≤500 行改为质量优先按需拆分
 - 用户约束对齐：未拆分大文件、未弹窗询问、颜色全用 token
+
+---
+
+## 2026-07-26 桌面端审查与修复循环（ai-20260720171157-6577）
+
+> 计划文档：`.learnings/2026-07-26-审查与修复计划.md`
+> 触发：用户「当前的桌面端进展怎么样了，你去检查一下项目进度，再看看还有哪些没有完善的地方，进行修复审查」
+
+| 批次 | 主题 | Commit | 文件变化 |
+|------|------|--------|---------|
+| 0 | 解除 E2E 截图追踪（screenshots-acceptance 被 .gitignore L48 屏蔽） | 526e1e7（含） | 1 文件 rm |
+| 1 | ModelSettings 简化（删除 MODELS 卡片，改为通用模型名输入） | `526e1e7` | 3 文件 +48/-129 |
+| 2 | 教程+文件树+指纹回滚（CourseList 分页 / FileTree 双击+预取 / TutorialPage 净化 / evidence 指纹回滚） | `c04c90d` | 5 文件 +157/-138 |
+| 3 | 词库 v1.3.0 兼容字段（SelectionPopover syntax/detail 可选） | `1fe83cb` | 2 文件 +28 |
+| 4 | AI 协作+文档+截图解除追踪 | `3121723` | 3 文件 +225/-40 |
+
+**关键指标**：
+- 编译门禁：typecheck:node ✅ + typecheck:web ✅ + lint ✅（三绿）+ test 1366/1366 ✅ + build PASS ✅（五绿）
+- 未提交修改 16 → 0，工作区干净
+- 未推送 commits：领先 origin/master 20 commits（push 后 CI 跑 build:win）
+- 关键修复：FileTree 双击 bug（react-arborist isOpen 语义）+ TutorialPage 进度合并（IPC + localStorage 不互覆盖）
+
+**风险评估**：
+- 词库 syntax/detail 字段为"潜在死代码"（v1.4.0/v1.5.0 词库未填充），但 optional 字段不影响门禁，保留为未来 v1.6+ 词库铺路
+- evidence-to-input.ts 指纹函数回滚了 cotEntropyTrajectory 逻辑（grep 验证是唯一调用方）
+- E2E 截图 git rm --cached 符合"文件跟踪管理"硬约束（.gitignore 已生效但 git 仍追踪）
+
+**未执行**（明确需用户手动操作）：
+- 推送 20 个 commits 到 origin（让 CI 跑 build:win）

@@ -678,4 +678,149 @@ const { id, name } = result
 
 ---
 
+## LRN-20260726-001 · react-arborist `isOpen` 语义陷阱（点击两次才能展开的根因）
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-26 |
+| 严重级别 | P1（用户体验 bug） |
+| 发现阶段 | 2026-07-26 桌面端审查与修复 · Batch 2 |
+| 关联 Task | FileTree 双击修复（commit c04c90d） |
+
+### 现象
+
+用户点击 SSH 远程文件树节点时，第一次点击无效（仅高亮），必须再点一次才能展开子目录。控制台无报错，但 expand 回调未触发。
+
+### 根因
+
+`react-arborist` 的 `onToggle(nodeApi)` 触发时，**`nodeApi.isOpen` 已被 react-arborist 内部更新为新值**（即 `true`）。
+原代码用 `if (!nodeApi.isOpen && !node.loaded && !node.loading)` 作为"即将展开"的判断条件，导致：
+- 第一次点击 → `isOpen` 变为 `true` → 条件不满足 → 不加载子目录
+- 用户看到点击无反应，再点一次 → 折叠 → 条件不满足 → 仍不加载
+
+正确判断应该是「节点未加载过」（`!node.loaded && !node.loading`），而**不是「节点即将展开」**。
+
+### 修复方案
+
+```typescript
+// 错误：用 isOpen 判断"即将展开"，与 react-arborist 语义不符
+if (!nodeApi.isOpen && !node.loaded && !node.loading) {
+  setNodes((prev) => updateNode(prev, node.path, { loading: true }))
+  // ... 加载子目录
+}
+
+// 正确：只要未加载过就拉取（折叠时预取也无害）
+if (!node.loaded && !node.loading) {
+  setNodes((prev) => updateNode(prev, node.path, { loading: true }))
+  // ... 加载子目录
+}
+```
+
+附加优化：加载根目录时启动后台预取一级子目录（限并发 4 + 世代号作废旧请求），消除首次展开的等待感。
+
+### 防护建议
+
+- 任何 tree 组件的 onToggle 处理都应**只依赖节点数据状态**（loaded/loading），不依赖 `isOpen` 反推意图
+- 添加 e2e 覆盖：点一次必须展开（不能依赖两次点击兜底）
+- 第三方 tree 组件升级时优先看 onToggle 回调参数语义是否变化
+
+---
+
+## LRN-20260726-002 · IPC + localStorage 进度数据合并的不可覆盖原则
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-26 |
+| 严重级别 | P2（数据正确性） |
+| 发现阶段 | 2026-07-26 桌面端审查与修复 · Batch 2 |
+| 关联 Task | TutorialPage 进度合并（commit c04c90d） |
+
+### 现象
+
+`TutorialPage` 拉取 IPC `tutorialProgress` 时，原代码：
+```typescript
+const ipcVisitedIds = new Set<string>()
+if (Array.isArray(progressList) && progressList.length > 0) {
+  progressList.forEach((p) => ipcVisitedIds.add(p.tutorialId))
+  _setVisitedIds(ipcVisitedIds)
+  if (_localStorageAvailable) saveVisitedTutorialIds(ipcVisitedIds)
+}
+```
+
+当 IPC 返回**空数组**（用户首次访问、跨设备未同步）时，`ipcVisitedIds` 是空集合 → `_setVisitedIds` 用空集合**覆盖**了 localStorage 中已有的访问记录 → 用户本地进度被清空。
+
+### 根因
+
+跨设备同步的 IPC 数据与 localStorage fallback 之间的关系被误处理为"覆盖"而非"合并"。当 IPC 不可用 / 返回空时，localStorage 反而被错误清空。
+
+### 修复方案
+
+「合并而非覆盖」原则：
+1. 初始 visitedIds = localStorage 中的已访问 ID（已有状态）
+2. IPC 返回非空时，把 IPC ID 加入 visitedIds（**add** 而非 replace）
+3. IPC 返回为空 / 不可用时，**保持 localStorage 不变**
+
+```typescript
+// 正确：合并而非覆盖
+const visitedIds = new Set<string>(_visitedIds) // 从 localStorage 起步
+if (Array.isArray(progressList) && progressList.length > 0) {
+  const ipcIds = new Set<string>(
+    (progressList as TutorialProgress[]).map((p) => p.tutorialId),
+  )
+  ipcIds.forEach((id) => visitedIds.add(id)) // add 不是 replace
+  _setVisitedIds(visitedIds)
+  if (_localStorageAvailable) saveVisitedTutorialIds(visitedIds)
+}
+```
+
+### 防护建议
+
+- 「远端数据 + 本地 fallback」场景一律用**合并**语义（Set add / Object.assign / 数组去重 concat）
+- 永远不在「远端数据为空」时**反向**清空本地数据
+- 单元测试覆盖：远端空 + 本地有数据 → 本地不被清空
+- 设计 IPC 接口时，返回的列表应**包含所有已知数据**（而非只返回增量），避免本地需要做"差量合并"的复杂逻辑
+
+---
+
+## LRN-20260726-003 · E2E 截图追踪与 .gitignore 失效的硬约束遵循
+
+| 字段 | 内容 |
+|------|------|
+| 发现时间 | 2026-07-26 |
+| 严重级别 | P2（仓库体积污染） |
+| 发现阶段 | 2026-07-26 桌面端审查与修复 · Step 0 |
+| 关联 Task | E2E 截图解除追踪（commit 526e1e7 含） |
+
+### 现象
+
+`tests/e2e/screenshots-acceptance/01-home-terminal.png`（133KB）虽然 `.gitignore` L48 已经写了 `tests/e2e/screenshots-acceptance/`，但 git 仍将其作为已追踪文件保留。导致：
+- 仓库体积虚增
+- 视觉回归基线被无意 commit
+- 截图二进制 diff 经常产生合并冲突
+
+### 根因
+
+`.gitignore` 规则只对**未追踪文件**生效。对于**已经追踪**的文件，即使路径在 .gitignore 中，git 仍会跟踪。必须用 `git rm --cached <file>` 显式解除追踪。
+
+### 修复方案
+
+```bash
+# 解除单个文件追踪（保留本地工作区文件）
+git rm --cached tests/e2e/screenshots-acceptance/01-home-terminal.png
+
+# 解除整个目录追踪
+git rm --cached -r tests/e2e/screenshots-acceptance/
+
+# 之后 .gitignore 规则对新增/修改文件生效
+```
+
+### 防护建议
+
+- 新增 .gitignore 规则后，对已追踪的相关文件执行 `git rm --cached`
+- pre-commit hook 加入 `git ls-files --error-unmatch <path>` 检测"想忽略但已追踪"的文件
+- 仓库初始化时，CI 跑一次 `git ls-files | grep -E '\.(png|jpg|log)$'` 检查意外入库的二进制/日志
+- 大型项目在迁移 .gitignore 时，配合 `git filter-branch` 或 `git filter-repo` 彻底清理历史追踪
+
+---
+
 *LEARNINGS 文档结束 · 持续更新中*
