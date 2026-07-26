@@ -48,18 +48,18 @@ cat docs/handoff/ipc-4step-sync-audit.md
 
 ### 已完成项（前一任 AI 交付）
 
-| 项 | 状态 | 提交 | 说明 |
-|----|------|------|------|
-| 前端 UI 重构（设计稿 1:1 对齐） | ✅ | e7a3d15 / 44f26f7 / 1ae9df3 | 14 文件全局对齐 + 6 项视觉修复 + 三面板基线 |
-| 死代码清理 | ✅ | a104e71 | 3850+ 行清理 |
-| ModelSettings exportModelStats BUG 修复（原 P0-1） | ✅ | ce1b953 | preload 暴露名 `exportModelStats`（非 `appExportModelStats`） |
-| ElectronAPI 类型声明补齐（原 P0-2） | ✅ | 29aad7b | 校准 6 + backfill 4 = 10 个方法类型已声明 |
-| SettingsLayout 6 项导航对齐设计稿 | ✅ | 88317af | 通用/SSH/AI引擎/告警阈值/外观/关于 |
-| BootPage 进度条对接真实加载阶段 | ✅ | 14debeb | boot:loading-stage IPC 4 步同步 |
-| DecisionSettings 6 源权重 | ✅ | e5b09df | credibilityAssess 联动 |
-| TutorialPage RAG 混合检索 | ✅ | a15e511 | 分类数量展示 |
-| TutorialDetailPage 沙箱审批 UI | ✅ | 24c5e18 | onSandboxApprovalRequest + sandboxApprove |
-| 编译门禁三绿 | ✅ | — | typecheck:node + typecheck:web + lint 全过 |
+| 项                                                 | 状态 | 提交                        | 说明                                                             |
+| -------------------------------------------------- | ---- | --------------------------- | ---------------------------------------------------------------- |
+| 前端 UI 重构（设计稿 1:1 对齐）                    | ✅   | e7a3d15 / 44f26f7 / 1ae9df3 | 14 文件全局对齐 + 6 项视觉修复 + 三面板基线                      |
+| 死代码清理                                         | ✅   | a104e71                     | 3850+ 行清理                                                     |
+| ModelSettings exportModelStats BUG 修复（原 P0-1） | ✅   | ce1b953                     | preload 暴露名`exportModelStats`（非 `appExportModelStats`） |
+| ElectronAPI 类型声明补齐（原 P0-2）                | ✅   | 29aad7b                     | 校准 6 + backfill 4 = 10 个方法类型已声明                        |
+| SettingsLayout 6 项导航对齐设计稿                  | ✅   | 88317af                     | 通用/SSH/AI引擎/告警阈值/外观/关于                               |
+| BootPage 进度条对接真实加载阶段                    | ✅   | 14debeb                     | boot:loading-stage IPC 4 步同步                                  |
+| DecisionSettings 6 源权重                          | ✅   | e5b09df                     | credibilityAssess 联动                                           |
+| TutorialPage RAG 混合检索                          | ✅   | a15e511                     | 分类数量展示                                                     |
+| TutorialDetailPage 沙箱审批 UI                     | ✅   | 24c5e18                     | onSandboxApprovalRequest + sandboxApprove                        |
+| 编译门禁三绿                                       | ✅   | —                          | typecheck:node + typecheck:web + lint 全过                       |
 
 ### 未提交变更（需处理）
 
@@ -76,6 +76,7 @@ Untracked:  前端交付说明.md                                     # 前一�
 **⚠️ 风险**：`src/preload/index.ts` 的中文注释出现 GBK 乱码（如 `锛堝紓姝ュ洖濉...`），是 PowerShell GBK 编码导致。需要修复为 UTF-8 中文或改为英文注释后再提交。
 
 **处理建议**：
+
 1. 先 `git diff src/preload/index.ts` 查看乱码位置
 2. 用 Edit 工具将乱码注释修复为可读中文（或英文）
 3. 验证 `pnpm typecheck:node` 仍通过
@@ -90,11 +91,13 @@ Untracked:  前端交付说明.md                                     # 前一�
 **问题**：前端 `src/renderer/src/hooks/useHybridSearch.ts:335` 仍用旧版同步 `tutorialBackfillEmbeddings`，2578 条教程首次回填会阻塞 UI 1-3 分钟。
 
 **后端 + preload 已就绪**（4 步同步完整）：
+
 - 通道：`TUTORIAL.BACKFILL_START` / `BACKFILL_CANCEL` / `BACKFILL_STATUS` / `BACKFILL_PROGRESS`
 - preload 已暴露：`tutorialBackfillStart` / `tutorialBackfillCancel` / `tutorialBackfillStatus` / `onTutorialBackfillProgress`
 - 类型已声明：见 `src/renderer/src/types/electron.d.ts:1284/1292/1298/1305`
 
 **实施步骤**：
+
 1. 在 `useHybridSearch.ts` 的 `backfill` 回调中（第 322-371 行），用 `tutorialBackfillStart({ pageSize: 100, inferenceBatch: 8 })` 替换 `tutorialBackfillEmbeddings()`
 2. 紧接着订阅 `onTutorialBackfillProgress(p => setProgress(...))`，将 `p.pct` / `p.eta` / `p.processed` / `p.total` / `p.failed` 写入 progress state（需扩展 `BackfillProgress` 类型以匹配新载荷）
 3. 在 `TutorialPage` 添加"取消回填"按钮调用 `tutorialBackfillCancel()`
@@ -104,6 +107,7 @@ Untracked:  前端交付说明.md                                     # 前一�
 **进度推送频率**：2578 条 / 100 页 = 26 次推送，频率合理。
 
 **验证**：
+
 - 首次回填时 UI 不阻塞，进度条 0-100% 平滑推进
 - 取消按钮可中断回填
 - 刷新页面后能恢复显示运行中任务
@@ -113,11 +117,13 @@ Untracked:  前端交付说明.md                                     # 前一�
 **问题**：`src/renderer/src/components/workbench/AIPanel.tsx` 第 85-100 行已订阅 `onPaorApprovalRequest` + 调用 `paorApprove`（审批响应链已通），但**没有 `agentPaor` 启动调用**，PAOR 自动循环无法主动启动。
 
 **后端已就绪**：
+
 - 通道：`AGENT.PAOR` / `PAOR.APPROVE` / `PAOR.APPROVAL_REQUEST`（push）
 - preload 已暴露：`agentPaor` / `paorApprove` / `onPaorApprovalRequest`
 - 类型已声明：`electron.d.ts:835` `agentPaor(task: string, sshSessionId: string, maxIterations?: number): Promise<unknown>`
 
 **实施步骤**：
+
 1. 在 `AIPanel.tsx` 增加"PAOR 自动循环"按钮（建议放在发送按钮旁，或作为 Composer 的辅助操作）
 2. 点击后调用 `window.electronAPI.agentPaor(task, sshSessionId, maxIterations?)` 启动
    - `task`：用户输入的运维任务描述
@@ -133,11 +139,13 @@ Untracked:  前端交付说明.md                                     # 前一�
 **状态**：前一任 AI 在 `前端交付说明.md` 第 123 行明确表示"ECE 校准跳过"（Demo 阶段简化）。
 
 **后端已就绪**（如需启用）：
+
 - 主进程 `credibility.ts:296/326/345/364/388/411` 已注册 6 个 handler
 - preload 已暴露 6 个方法
 - 类型已声明
 
 **决策建议**：
+
 - 若比赛演示不涉及校准 → 跳过（与前一任 AI 决策一致）
 - 若比赛演示需要展示可信度校准 → 新建 `src/renderer/src/pages/CalibrationSettings.tsx` + 在 `SettingsLayout.tsx` 添加"校准"导航项
 - UI 包含：校准状态卡片 / 触发校准按钮 / ECE 值显示 / 重置按钮 / 校准样本列表
@@ -146,6 +154,7 @@ Untracked:  前端交付说明.md                                     # 前一�
 ## P1 项（建议接入，提升功能完整度）
 
 详见 `docs/handoff/HANDOVER.md` 第 4 节 P1 清单（13 项），包括：
+
 - Claude Agent SDK 6 通道
 - Subagent 管理
 - 外部 MCP 服务器
@@ -210,20 +219,20 @@ docs(handoff): 归档前端交付说明
 
 ## 重要文档参考
 
-| 文档 | 路径 | 用途 |
-|------|------|------|
-| **前端交付说明** ⭐ | `前端交付说明.md`（根目录，未追踪） | 前一任 AI 写的完整前端文档（代码规模/路由/设计系统/状态管理/Agent 对接） |
-| 统一入口 | `docs/handoff/HANDOVER.md` | TOP 5 关键发现 + P0-P3 行动清单 |
-| IPC 契约 | `docs/handoff/ipc-contract.md` | 36 域 / 211 handler / 全量参数与返回值 |
-| 前后端职责边界 | `docs/handoff/frontend-backend-boundary.md` | 共享层契约 + v2.4/v2.5 新增能力清单 |
-| 核心数据流 | `docs/handoff/data-flow.md` | 7 条数据流时序图 |
-| 后端完成度审计 | `docs/handoff/backend-completion-audit.md` | 211 handler + 15 services + 30+ core 模块 |
-| 前端待接入清单 | `docs/handoff/frontend-integration-checklist.md` | 231 调用 + 75 孤儿 API |
-| IPC 4 步同步审计 | `docs/handoff/ipc-4step-sync-audit.md` | 4 步同步缺失项 + 类型声明修复清单 |
-| 前端集成验证 | `docs/handoff/frontend-integration-verification.md` | P0 项实测状态（部分已过时，需对照本文档） |
-| 编译门禁验证 | `docs/handoff/build-gate-verification.md` | 四绿实测报告 |
-| v2.5 方案书 | `docs/v2.5-loop-engineering-plan.md` | v2.5 Phase C/D/E 任务清单 |
-| 项目根 CLAUDE.md | `../../CLAUDE.md` | 工作区入口 + CodeGraph 使用指引 |
+| 文档                      | 路径                                                  | 用途                                                                     |
+| ------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **前端交付说明** ⭐ | `前端交付说明.md`（根目录，未追踪）                 | 前一任 AI 写的完整前端文档（代码规模/路由/设计系统/状态管理/Agent 对接） |
+| 统一入口                  | `docs/handoff/HANDOVER.md`                          | TOP 5 关键发现 + P0-P3 行动清单                                          |
+| IPC 契约                  | `docs/handoff/ipc-contract.md`                      | 36 域 / 211 handler / 全量参数与返回值                                   |
+| 前后端职责边界            | `docs/handoff/frontend-backend-boundary.md`         | 共享层契约 + v2.4/v2.5 新增能力清单                                      |
+| 核心数据流                | `docs/handoff/data-flow.md`                         | 7 条数据流时序图                                                         |
+| 后端完成度审计            | `docs/handoff/backend-completion-audit.md`          | 211 handler + 15 services + 30+ core 模块                                |
+| 前端待接入清单            | `docs/handoff/frontend-integration-checklist.md`    | 231 调用 + 75 孤儿 API                                                   |
+| IPC 4 步同步审计          | `docs/handoff/ipc-4step-sync-audit.md`              | 4 步同步缺失项 + 类型声明修复清单                                        |
+| 前端集成验证              | `docs/handoff/frontend-integration-verification.md` | P0 项实测状态（部分已过时，需对照本文档）                                |
+| 编译门禁验证              | `docs/handoff/build-gate-verification.md`           | 四绿实测报告                                                             |
+| v2.5 方案书               | `docs/v2.5-loop-engineering-plan.md`                | v2.5 Phase C/D/E 任务清单                                                |
+| 项目根 CLAUDE.md          | `../../CLAUDE.md`                                   | 工作区入口 + CodeGraph 使用指引                                          |
 
 ## CodeGraph 图谱（动工前先查）
 
@@ -249,37 +258,39 @@ codegraph callees <SymbolName>
 请按以下顺序执行：
 
 1. **处理未提交变更**（优先，避免后续冲突）
+
    - `git status` 确认 4 个未提交文件
    - 修复 `src/preload/index.ts` 中文注释乱码（用 Edit 工具逐行修复为可读中文）
    - 验证 `pnpm typecheck:node` 仍通过
    - 提交：`fix(preload): 修复 backfill 4 通道中文注释乱码`
    - 3 个 CSS 文件单独提交：`style(workbench): 视觉微调`
    - `前端交付说明.md` 移动到 `docs/handoff/前端交付说明.md` 并提交
-
 2. **读必读文档**
+
    - `前端交付说明.md`（前一任 AI 的完整交付说明）
    - `docs/handoff/HANDOVER.md`（后端交接总说明）
    - `docs/handoff/ipc-4step-sync-audit.md`（类型声明修复清单）
-
 3. **从 P0-1 开始**（v2.5 backfill 接入，比赛演示核心场景）
+
    - 改 `src/renderer/src/hooks/useHybridSearch.ts:322-371` 的 `backfill` 回调
    - 用新版 4 通道替换旧版同步调用
    - 验证：首次回填时 UI 不阻塞，进度条 0-100% 平滑推进
-
 4. **做 P0-3**（PAOR 启动入口，~1h）
+
    - 在 `AIPanel.tsx` 增加"PAOR 自动循环"按钮
    - 调用 `agentPaor(task, sshSessionId, maxIterations?)` 启动
    - 验证：触发 PAOR 后遇到高危命令时弹窗
-
 5. **P0-4 视比赛需要决定**
+
    - 若比赛演示不涉及校准 → 跳过（与前一任 AI 决策一致）
    - 若需要 → 新建 `CalibrationSettings.tsx` + 添加导航项
-
 6. **所有 P0 完成后**
+
    - 跑 `pnpm build:win` 完成第五绿门禁
    - 更新 `docs/handoff/frontend-integration-verification.md` 状态
 
 **重要提示**：
+
 - 动工前先 `git status` 确认工作区状态
 - 不碰 `src/main/`，仅改 `src/renderer/` + 必要时 `src/preload/index.ts`
 - 遇到文档与代码不一致时，以代码为准，并更新文档
@@ -293,15 +304,18 @@ codegraph callees <SymbolName>
 上方 `---` 之间的内容即为接手 AI 提示词 v2，可直接复制粘贴发给新接手 AI。
 
 **与 v1 的差异**：
+
 - v1 假设 P0-1/P0-2/P0-3/P0-4 都未做
 - v2 基于**前一任 AI 实际进度**：P0-2 已完成、P0-1 部分完成（类型声明已补齐但前端未接入）、P0-3 审批链已通但启动入口缺失、P0-4 明确跳过
 
 **使用建议**：
+
 1. 将整段提示词作为新接手 AI 的第一条用户消息
 2. 新接手 AI 完成每个 P0 项后，要求其更新 `docs/handoff/frontend-integration-verification.md` 状态
 3. 所有 P0 项完成后，要求新接手 AI 跑一次 `pnpm build:win` 完成第五绿门禁
 
 **预计工作量**：
+
 - 处理未提交变更：~30min（含乱码修复）
 - P0-1 backfill 接入：~2h
 - P0-3 PAOR 启动入口：~1h
@@ -309,6 +323,7 @@ codegraph callees <SymbolName>
 - 合计：~3.5h（不含 P0-4）/ ~6.5h（含 P0-4）
 
 **关键提醒**：
+
 - 前一任 AI 已完成 UI 重构 + 类型声明补齐，**不要重做**
 - 重点在 P0-1（backfill 前端接入）和 P0-3（PAOR 启动入口）
 - 未提交变更有中文乱码，**必须先处理再开工**

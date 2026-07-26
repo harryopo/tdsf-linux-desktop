@@ -114,7 +114,6 @@ hooks:
   # 失败后回调（升级到 AI）
   onFailure: "escalate-to-ai"
 ---
-
 # OOM Killer 诊断步骤
 
 ## Step 1: 采集 OOM 日志
@@ -129,6 +128,7 @@ journalctl -k --since "1 hour ago" | grep -i "killed process\|oom"
 ```
 
 **关键信息提取**：
+
 - 被杀进程名和 PID
 - 被杀时的内存占用
 - OOM 触发时间
@@ -144,6 +144,7 @@ dmesg -T | grep "Killed process" | tail -5
 ```
 
 **字段解读**：
+
 - `total-vm`：进程申请的虚拟内存总量
 - `anon-rss`：实际使用的物理内存（匿名页）
 - 如果 `anon-rss` 很大 → 进程确实是内存大户
@@ -162,6 +163,7 @@ ps aux --sort=-%mem | head -11
 ```
 
 **判断要点**：
+
 - `MemAvailable` < 总内存 10% → 内存严重不足
 - `SwapFree` < `SwapTotal` 10% → Swap 也快满了
 - 某进程 `%MEM` > 50% → 找到内存大户
@@ -260,13 +262,13 @@ watch -n 60 'dmesg -T | tail -5 | grep -c "Killed process"'
 
 ## 教学总结
 
-| 知识点 | 要点 |
-|--------|------|
-| OOM 触发条件 | 物理内存 + Swap 耗尽 |
-| 进程选择算法 | oom_score 打分（内存越多分越高） |
-| 诊断三板斧 | dmesg 看日志 + ps 看占用 + free 看整体 |
-| 修复三方案 | 重启进程 / 加内存 / 调参数 |
-| 预防措施 | 监控告警 + oom_score_adj 保护关键进程 |
+| 知识点       | 要点                                   |
+| ------------ | -------------------------------------- |
+| OOM 触发条件 | 物理内存 + Swap 耗尽                   |
+| 进程选择算法 | oom_score 打分（内存越多分越高）       |
+| 诊断三板斧   | dmesg 看日志 + ps 看占用 + free 看整体 |
+| 修复三方案   | 重启进程 / 加内存 / 调参数             |
+| 预防措施     | 监控告警 + oom_score_adj 保护关键进程  |
 
 ## 相关命令（CET-4 词汇标注）
 
