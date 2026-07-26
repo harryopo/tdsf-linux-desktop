@@ -248,6 +248,22 @@ const SelectionPopover: React.FC = () => {
                 </div>
               )}
 
+              {/* 语法（v1.3.0 新增） */}
+              {result.primary?.entry.syntax && (
+                <div className="trans-syntax">
+                  <span className="trans-syntax-label">语法</span>
+                  <code>{result.primary.entry.syntax}</code>
+                </div>
+              )}
+
+              {/* 详细（v1.3.0 新增：背景/原理/注意事项） */}
+              {result.primary?.entry.detail && (
+                <div className="trans-detail">
+                  <span className="trans-detail-label">详细</span>
+                  <span className="trans-detail-text">{result.primary.entry.detail}</span>
+                </div>
+              )}
+
               {/* 关联课程（待课程模块完善后启用跳转） */}
               {courseHint && (
                 <div className="trans-course" title="点击跳转到该章节（待课程模块启用）">
