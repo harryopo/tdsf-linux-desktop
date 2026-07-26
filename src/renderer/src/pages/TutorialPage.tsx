@@ -20,15 +20,13 @@ import { FeaturedCourses } from '@/components/tutorial/FeaturedCourses'
 import { CategoryNav } from '@/components/tutorial/CategoryNav'
 import { CourseList } from '@/components/tutorial/CourseList'
 import { LearningPath } from '@/components/tutorial/LearningPath'
-import { EmbeddingBanner } from '@/components/tutorial/EmbeddingBanner'
-import { useHybridSearch } from '@/hooks/useHybridSearch'
 import {
   type Course, type CourseCategory, type LearningPath as LearningPathItem,
   type SearchResultItem, type RecommendedPathLite, type StatItem,
   UI_TO_TUTORIAL_CATEGORIES, DEFAULT_STATS, FEATURED_COURSES, DEFAULT_COURSES,
   LEARNING_PATHS, isLocalStorageAvailable, loadVisitedTutorialIds,
   saveVisitedTutorialIds, isValidTutorialCategory, entryToCourse, computeCategoryCounts,
-  tutorialPathToLearningPath,
+  computeFeaturedProgress, tutorialPathToLearningPath,
 } from '@/components/tutorial/types'
 import './TutorialPage.css'
 
@@ -58,26 +56,6 @@ export function TutorialPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResultItem[] | null>(null)
   const [searching, setSearching] = useState(false)
-
-  // ===== v2.5 Phase C：EmbeddingBanner 状态管理 =====
-  // useHybridSearch 主要提供 status/progress/isBackfilling/canCancel 等 Banner 状态，
-  // 并封装 v2.5 异步 4 通道（start/cancel/status/progress）的调用逻辑。
-  // 搜索逻辑仍由本页 handleSearch 直接调用 tutorialHybridSearch（保留原 1:1 设计稿交互）。
-  const {
-    status: hybridStatus,
-    progress: backfillProgress,
-    isBackfilling,
-    hasAsyncBackfill,
-    backfill,
-    cancelBackfill,
-    skip,
-    dismissBanner,
-    bannerVisible,
-  } = useHybridSearch({
-    mode: 'semantic',
-    query: '', // hook 内部防抖搜索不使用，搜索由本页 handleSearch 触发
-    bannerEnabled: true,
-  })
 
   /** 标记教程为已访问（双写：IPC 主路径 + localStorage fallback） */
   const _markVisited = useCallback(
@@ -131,11 +109,14 @@ export function TutorialPage() {
         if (cancelled) return
 
         // 应用 IPC 学习进度（仅在 IPC 返回非空数组时覆盖，避免空数组清掉 localStorage）
-        const ipcVisitedIds = new Set<string>()
+        const visitedIds = new Set<string>(_visitedIds)
         if (Array.isArray(progressList) && progressList.length > 0) {
-          progressList.forEach((p) => ipcVisitedIds.add((p as TutorialProgress).tutorialId))
-          _setVisitedIds(ipcVisitedIds)
-          if (_localStorageAvailable) saveVisitedTutorialIds(ipcVisitedIds)
+          const ipcIds = new Set<string>(
+            (progressList as TutorialProgress[]).map((p) => p.tutorialId),
+          )
+          ipcIds.forEach((id) => visitedIds.add(id))
+          _setVisitedIds(visitedIds)
+          if (_localStorageAvailable) saveVisitedTutorialIds(visitedIds)
         }
 
         const mappedCourses = (entries ?? []).map(entryToCourse)
@@ -143,12 +124,23 @@ export function TutorialPage() {
           setCourses(mappedCourses)
           // 精选课程：取阅读时间最长的两门作为推荐
           const sortedByReadingTime = [...entries].sort((a, b) => b.readingTime - a.readingTime)
-          setFeatured(sortedByReadingTime.slice(0, 2).map((entry, index) => ({
-            ...entryToCourse(entry),
-            domId: index === 0 ? 'open-course' : 'open-course-2',
-            cta: index === 0 ? '继续学习' : '开始学习',
-            progress: [65, 30][index] ?? 0,
-          })))
+          const featuredEntries = sortedByReadingTime.slice(0, 2)
+          // 构建路径精简结构，用于计算精选课程进度
+          const pathLite: RecommendedPathLite[] = Array.isArray(recommendedPaths)
+            ? recommendedPaths.map((p) => ({ id: p.id, steps: p.steps.map((s) => ({ tutorialId: s.tutorialId })) }))
+            : []
+          _setRawPaths(pathLite)
+          setFeatured(featuredEntries.map((entry, index) => {
+            const base = entryToCourse(entry)
+            const progress = computeFeaturedProgress(entry.id, visitedIds, pathLite, [65, 30][index] ?? 0, false)
+            const cta = progress === 100 ? '复习' : progress > 0 ? '继续学习' : '开始学习'
+            return {
+              ...base,
+              domId: index === 0 ? 'open-course' : 'open-course-2',
+              cta,
+              progress,
+            }
+          }))
         }
 
         const totalCourses = entries.length
@@ -157,28 +149,17 @@ export function TutorialPage() {
         setStats([
           { value: String(totalCourses), unit: '门课程', hint: '涵盖 Linux 运维全栈知识' },
           { value: String(totalHours), unit: '课时', hint: '基于教程阅读时间汇总' },
-          { value: '3.2k', unit: '学习人次', hint: '运维工程师实战首选' },
+          { value: '—', unit: '学习人次', hint: '暂无真实用户数据' },
         ])
 
         // 学习路径：将 IPC 返回的 TutorialPath 映射为页面 LearningPath，保留真实 steps
         if (Array.isArray(recommendedPaths) && recommendedPaths.length > 0) {
-          setPaths(recommendedPaths.map((p) => tutorialPathToLearningPath(p, ipcVisitedIds)))
+          setPaths(recommendedPaths.map((p) => tutorialPathToLearningPath(p, visitedIds)))
         }
 
         // v2.3.2 修复：把 categories 写入 _categorySummaries，让 _categoryCounts 真正可用
         if (Array.isArray(categories) && categories.length > 0) {
           _setCategorySummaries(categories)
-        }
-
-        // 根据分类汇总补充学习人次（暂无真实用户数据，用分类数加权示意）
-        const categoryCount = Array.isArray(categories) ? categories.length : 0
-        if (categoryCount > 0 && totalCourses > 0) {
-          const learners = Math.round(totalCourses * 120 + categoryCount * 80)
-          setStats((prev) => prev.map((s) =>
-            s.unit === '学习人次'
-              ? { ...s, value: learners >= 1000 ? `${(learners / 1000).toFixed(1)}k` : String(learners) }
-              : s
-          ))
         }
       } catch (err) {
         if (cancelled) return
@@ -284,54 +265,6 @@ export function TutorialPage() {
         onSearch={handleSearch}
         searching={searching}
       />
-      {/* ===== v2.5 Phase C：EmbeddingBanner（语义检索能力引导）===== */}
-      {/* 显示条件：bannerVisible（status 不可用 / 模型未加载 / 进度进行中 / 完成 / 错误） */}
-      {/* canCancel：v2.5 异步 4 通道全部可用时为 true（hook 内部 hasAsyncBackfill） */}
-      {bannerVisible && (
-        <div
-          style={{
-            padding: '0 32px 12px',
-            background: 'var(--trae-bg-base-default)',
-          }}
-        >
-          <EmbeddingBanner
-            status={hybridStatus}
-            progress={backfillProgress}
-            isBackfilling={isBackfilling}
-            canCancel={hasAsyncBackfill}
-            onBackfill={() => {
-              void backfill()
-            }}
-            onCancel={() => {
-              void cancelBackfill()
-            }}
-            onClose={() => {
-              dismissBanner()
-            }}
-          />
-          {/* 「跳过提示」次级按钮（仅 idle 模式且未持久化跳过时显示） */}
-          {!isBackfilling &&
-            backfillProgress === null &&
-            !hybridStatus?.embeddingModelLoaded && (
-              <button
-                type="button"
-                onClick={skip}
-                style={{
-                  marginTop: 6,
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--trae-text-tertiary)',
-                  fontSize: 'var(--trae-body-xs-font-size)',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                }}
-                aria-label="跳过本次提示"
-              >
-                不再提示
-              </button>
-            )}
-        </div>
-      )}
       <div className="tut-container">
         <TutorialStats stats={stats} />
         <FeaturedCourses featured={featured} onOpenCourse={handleOpenCourse} />

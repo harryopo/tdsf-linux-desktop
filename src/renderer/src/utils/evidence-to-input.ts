@@ -169,14 +169,10 @@ export function buildCredibilityInputs(ctx: DecisionContext): CredibilityEvidenc
  * 输入指纹（用于去重）
  *
  * 当 evidence 列表内容未变时，避免重复调用 credibilityAssess。
- * v0.9.6 P2 M5+：把 cotEntropyTrajectory 纳入指纹，CoT 轨迹变化时触发重算。
  */
 export function fingerprint(ctx: DecisionContext): string {
   const evidenceSig = ctx.evidences
     .map((e) => `${e.id}:${e.confidence.toFixed(2)}:${e.verified ? 1 : 0}`)
     .join('|')
-  const cotSig = ctx.cotEntropyTrajectory
-    ? ctx.cotEntropyTrajectory.map((v) => v.toFixed(3)).join(',')
-    : 'none'
-  return `${ctx.cardId}|${ctx.llmVerbalized.toFixed(2)}|${evidenceSig}|cot:${cotSig}`
+  return `${ctx.cardId}|${ctx.llmVerbalized.toFixed(2)}|${evidenceSig}`
 }

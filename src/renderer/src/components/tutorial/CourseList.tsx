@@ -7,12 +7,21 @@
  *   - 其他：按分类过滤后的课程卡片网格（1:1 设计稿课程卡）
  *
  * 课程卡片含：图标 / 难度+完成度徽章 / 标题 / 描述 / 时长+人次 / 进度条。
+ *
+ * 分页说明：
+ * - 为避免一次性渲染 2600+ 课程卡片导致页面过长、学习路径被推出视口，
+ *   课程列表采用「加载更多」分页，每次额外加载 PAGE_SIZE 条。
+ * - 搜索结果不启用分页，确保用户能直接看到全部匹配结果。
  */
+import { useEffect, useMemo, useState } from 'react'
 import { Clock, UserCircle } from 'lucide-react'
 import { SearchOutlined } from '@ant-design/icons'
-import { Spin, Empty } from 'antd'
+import { Spin, Empty, Button } from 'antd'
 import type { Course, SearchResultItem } from './types'
 import { levelBadgeClassName, UI_CATEGORIES, TUTORIAL_TO_UI_CATEGORY } from './types'
+
+/** 课程列表每页数量（避免一次性渲染大量卡片导致页面过长） */
+const PAGE_SIZE = 12
 
 interface CourseListProps {
   loading: boolean
@@ -29,6 +38,26 @@ export function CourseList({
   searching,
   onOpenCourse,
 }: CourseListProps) {
+  // 分页状态：仅在普通课程列表模式下启用；切换分类/搜索时重置
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const visibleItems = useMemo(
+    () =>
+      searchResults !== null
+        ? searchResults
+        : filteredCourses.slice(0, visibleCount),
+    [searchResults, filteredCourses, visibleCount],
+  )
+  const hasMore = searchResults === null && filteredCourses.length > visibleCount
+
+  // 切换分类或过滤条件变化时重置分页
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [filteredCourses])
+  // 进入/退出搜索模式时重置分页
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE)
+  }, [searchResults !== null])
+
   return (
     <section
       className="tut-section tut-section--courses"
@@ -120,43 +149,72 @@ export function CourseList({
         </div>
       ) : (
         // ====== 正常课程列表 ======
-        <div className="tut-courses-grid">
-          {filteredCourses.map((c) => {
-            const Icon = c.icon
-            return (
-              <div key={c.id} className="tut-course-card">
-                <div className="tut-course-head">
-                  <Icon size={20} className="tut-course-icon" />
-                  <span className="tut-course-badges">
-                    <span className={levelBadgeClassName(c.level)}>{c.level}</span>
-                    {c.completed && <span className="tut-completed-badge">已完成</span>}
-                  </span>
-                </div>
-                <h4 className="tut-course-title">{c.title}</h4>
-                <p className="tut-course-desc">{c.description}</p>
-                <div className="tut-course-meta">
-                  <span className="tut-course-meta-item">
-                    <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
-                    {c.duration}
-                  </span>
-                  <span className="tut-course-meta-item">
-                    <UserCircle size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
-                    {c.learnerCount}
-                  </span>
-                </div>
-                <div className="tut-progress-block">
-                  <div className="tut-progress-row tut-progress-row--tight">
-                    <span className="tut-progress-label">进度</span>
-                    <span className={c.progress > 0 ? 'tut-progress-value' : 'tut-progress-value tut-progress-value--zero'}>{c.progress}%</span>
+        <>
+          <div className="tut-courses-grid">
+            {(visibleItems as Course[]).map((c) => {
+              const Icon = c.icon
+              return (
+                <div
+                  key={c.id}
+                  className="tut-course-card"
+                  onClick={() => onOpenCourse(c.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onOpenCourse(c.id)
+                    }
+                  }}
+                >
+                  <div className="tut-course-head">
+                    <Icon size={20} className="tut-course-icon" />
+                    <span className="tut-course-badges">
+                      <span className={levelBadgeClassName(c.level)}>{c.level}</span>
+                      {c.completed && <span className="tut-completed-badge">已完成</span>}
+                    </span>
                   </div>
-                  <div className="tut-progress-bar tut-progress-bar--thin">
-                    <div className="tut-progress-bar-fill" style={{ width: `${c.progress}%` }} />
+                  <h4 className="tut-course-title">{c.title}</h4>
+                  <p className="tut-course-desc">{c.description}</p>
+                  <div className="tut-course-meta">
+                    <span className="tut-course-meta-item">
+                      <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
+                      {c.duration}
+                    </span>
+                    <span className="tut-course-meta-item">
+                      <UserCircle size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
+                      {c.learnerCount}
+                    </span>
+                  </div>
+                  <div className="tut-progress-block">
+                    <div className="tut-progress-row tut-progress-row--tight">
+                      <span className="tut-progress-label">进度</span>
+                      <span className={c.progress > 0 ? 'tut-progress-value' : 'tut-progress-value tut-progress-value--zero'}>{c.progress}%</span>
+                    </div>
+                    <div className="tut-progress-bar tut-progress-bar--thin">
+                      <div className="tut-progress-bar-fill" style={{ width: `${c.progress}%` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+          {hasMore && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+              <Button
+                type="default"
+                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                style={{
+                  borderRadius: 'var(--trae-radius-6)',
+                  borderColor: 'var(--trae-border-neutral-l2)',
+                  color: 'var(--trae-text-secondary)',
+                }}
+              >
+                加载更多（{visibleItems.length}/{filteredCourses.length}）
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </section>
   )

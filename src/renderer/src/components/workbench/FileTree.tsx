@@ -180,6 +180,33 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     [sessionId],
   )
 
+  /** 预取代数标记：rootPath/session 变化后作废旧的后台预取 */
+  const prefetchGenRef = useRef(0)
+
+  /** 后台预取一级子目录（限并发 4，失败静默），消除首次展开的等待 */
+  const prefetchChildren = useCallback(
+    async (children: TreeNode[]) => {
+      const gen = ++prefetchGenRef.current
+      const dirs = children.filter((c) => c.isDirectory).slice(0, 30)
+      const CONCURRENCY = 4
+      for (let i = 0; i < dirs.length; i += CONCURRENCY) {
+        if (gen !== prefetchGenRef.current) return
+        await Promise.all(
+          dirs.slice(i, i + CONCURRENCY).map(async (d) => {
+            try {
+              const kids = await loadDir(d.path)
+              if (gen !== prefetchGenRef.current) return
+              setNodes((prev) => updateNode(prev, d.path, { children: kids, loaded: true }))
+            } catch {
+              // 预取失败静默，用户实际点击时会重试并显示错误
+            }
+          }),
+        )
+      }
+    },
+    [loadDir],
+  )
+
   const loadRoot = useCallback(async () => {
     if (!connected || !sessionId) {
       setNodes([])
@@ -191,6 +218,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     try {
       const children = await loadDir(rootPath)
       setNodes(children)
+      void prefetchChildren(children)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
@@ -198,7 +226,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     } finally {
       setRootLoading(false)
     }
-  }, [connected, sessionId, rootPath, loadDir])
+  }, [connected, sessionId, rootPath, loadDir, prefetchChildren])
 
   useEffect(() => {
     void loadRoot()
@@ -250,8 +278,10 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
       const node = nodeApi.data
       if (!node.isDirectory) return
 
-      // 折叠时直接由 react-arborist 处理；展开时若未加载则拉取子目录
-      if (!nodeApi.isOpen && !node.loaded && !node.loading) {
+      // onToggle 触发时 react-arborist 已更新 isOpen（此时展开=true），
+      // 不能用 !isOpen 判断"即将展开"——否则首次点击不加载、需点两次。
+      // 只要未加载过就拉取子目录（折叠时预取也无害）。
+      if (!node.loaded && !node.loading) {
         setNodes((prev) => updateNode(prev, node.path, { loading: true }))
         try {
           const children = await loadDir(node.path)

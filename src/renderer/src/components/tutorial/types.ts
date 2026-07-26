@@ -251,9 +251,11 @@ function mapPathStep(
   } else if (index === 0 || (prevTutorialId && visited.has(prevTutorialId))) {
     status = 'current'
   }
+  const rawDesc = step.why || step.summary || ''
+  const description = rawDesc.length > 40 ? `${rawDesc.slice(0, 40)}…` : rawDesc
   return {
     label: step.title,
-    description: step.why || step.summary,
+    description,
     status,
   }
 }
