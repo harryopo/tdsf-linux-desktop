@@ -36,6 +36,8 @@ import {
   saveProvider,
   setDefaultProviderId,
   ensureProvidersInitialized,
+  // v2.3.7 修复：PersistedProviderConfigWithKey 是 registry 内部类型，不再 re-export 自 types
+  type PersistedProviderConfigWithKey,
 } from '../core/agent/providers/provider-registry'
 import { getTokenStats, resetTokenStats, getTokenRecords, getCostStats } from '../core/agent/providers/token-stats'
 import type {
@@ -266,9 +268,11 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // provider:list — 列出所有 Provider
   // ------------------------------------------------------------------
+  // v2.3.6 增强：返回 PersistedProviderConfigWithKey（含 hasApiKey 标识），
+  // 前端 UI 用 hasApiKey 区分"已配置 Key"和"未配置 Key"。
   ipcMain.handle(
     'provider:list',
-    async (_event, onlyEnabled?: boolean): Promise<PersistedProviderConfig[]> => {
+    async (_event, onlyEnabled?: boolean): Promise<PersistedProviderConfigWithKey[]> => {
       const providers = listProviders(onlyEnabled === true)
       logger.debug('IPC.PROVIDER', `provider:list`, { count: providers.length, onlyEnabled })
       return providers

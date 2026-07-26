@@ -5,9 +5,13 @@
  *
  * 当前模型展示行 + 通用模型名输入（任意 OpenAI 兼容模型）+ 参数配置区。
  * 不再展示预设模型卡片：模型名完全由用户输入，Endpoint 在 API 接入区配置。
+ *
+ * v2.3.4 改造：高级参数（温度/思考强度/Max Tokens/Context Window/Timeout）
+ *                 折叠为 `<details>`，默认收起。普通用户只需要"当前模型" +
+ *                 "模型名输入"两行即可使用，进阶参数按需展开。
  */
 import { useState } from 'react'
-import { Cpu, CheckCircle2, Info } from 'lucide-react'
+import { Cpu, CheckCircle2, Info, Settings2 } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { Slider } from '@/components/trae/Slider'
 import { TEMP_PRESETS, THINKING_LEVELS } from './constants'
@@ -122,134 +126,156 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
         </div>
       </div>
 
-      {/* 参数配置区 */}
-      <div className="set-model-params">
-        {/* a. 温度参数 */}
-        <div className="set-model-param">
-          <div className="set-model-param__head">
-            <div className="set-model-param__head-left">
-              <span className="set-model-param__label">
-                温度参数 Temperature
-              </span>
-              <span className="set-model-param__range">
-                0.0 – 1.0
+      {/* 参数配置区（v2.3.4 折叠为 details，默认收起） */}
+      <details
+        className="set-model-params-details"
+        style={{ marginTop: 12 }}
+      >
+        <summary
+          className="set-model-params-details__summary"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            padding: '8px 0',
+            color: 'var(--trae-text-secondary)',
+            fontSize: 13,
+            listStyle: 'none',
+            userSelect: 'none',
+          }}
+        >
+          <Settings2 className="size-3.5" />
+          <span>高级参数（温度 / 思考强度 / Token 限制）</span>
+        </summary>
+        <div className="set-model-params" style={{ marginTop: 8 }}>
+          {/* a. 温度参数 */}
+          <div className="set-model-param">
+            <div className="set-model-param__head">
+              <div className="set-model-param__head-left">
+                <span className="set-model-param__label">
+                  温度参数 Temperature
+                </span>
+                <span className="set-model-param__range">
+                  0.0 – 1.0
+                </span>
+              </div>
+              <span className="set-model-param__val">
+                {temperature.toFixed(1)}
               </span>
             </div>
-            <span className="set-model-param__val">
-              {temperature.toFixed(1)}
-            </span>
+            <Slider
+              value={[temperature]}
+              min={0}
+              max={1}
+              step={0.1}
+              onValueChange={(arr) => onTemperatureChange(arr[0] ?? 0)}
+              className="w-full"
+            />
+            <div className="set-model-param__info">
+              <Info className="size-3.5" />
+              <p className="set-model-param__info-text">
+                推荐：运维分析场景建议 0.2-0.4，平衡准确性与创造性。过低(0-0.2)回复过于保守，过高(0.6-1.0)可能产生幻觉。
+              </p>
+            </div>
+            <div className="set-model-presets">
+              {TEMP_PRESETS.map((p) => {
+                const active = Math.abs(temperature - p.value) < 0.001
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => onTemperatureChange(p.value)}
+                    className={
+                      'set-model-preset btn-press' +
+                      (active ? ' is-active' : '')
+                    }
+                  >
+                    {p.label} {p.value}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <Slider
-            value={[temperature]}
-            min={0}
-            max={1}
-            step={0.1}
-            onValueChange={(arr) => onTemperatureChange(arr[0] ?? 0)}
-            className="w-full"
-          />
-          <div className="set-model-param__info">
-            <Info className="size-3.5" />
-            <p className="set-model-param__info-text">
-              推荐：运维分析场景建议 0.2-0.4，平衡准确性与创造性。过低(0-0.2)回复过于保守，过高(0.6-1.0)可能产生幻觉。
+
+          {/* b. 思考强度 */}
+          <div className="set-model-param">
+            <div className="set-model-param__head">
+              <span className="set-model-param__label">
+                思考强度 Thinking Effort
+              </span>
+            </div>
+            <div className="set-model-segment">
+              {THINKING_LEVELS.map((t) => {
+                const active = thinkingLevel === t.value
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => onThinkingLevelChange(t.value)}
+                    className={
+                      'set-model-segment__btn' +
+                      (active ? ' is-active' : '')
+                    }
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="set-model-param__range">
+              低=快速响应 · 中=平衡 · 高=深度推理（消耗更多token）
             </p>
           </div>
-          <div className="set-model-presets">
-            {TEMP_PRESETS.map((p) => {
-              const active = Math.abs(temperature - p.value) < 0.001
-              return (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => onTemperatureChange(p.value)}
-                  className={
-                    'set-model-preset btn-press' +
-                    (active ? ' is-active' : '')
-                  }
-                >
-                  {p.label} {p.value}
-                </button>
-              )
-            })}
-          </div>
-        </div>
 
-        {/* b. 思考强度 */}
-        <div className="set-model-param">
-          <div className="set-model-param__head">
-            <span className="set-model-param__label">
-              思考强度 Thinking Effort
-            </span>
-          </div>
-          <div className="set-model-segment">
-            {THINKING_LEVELS.map((t) => {
-              const active = thinkingLevel === t.value
-              return (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => onThinkingLevelChange(t.value)}
-                  className={
-                    'set-model-segment__btn' +
-                    (active ? ' is-active' : '')
-                  }
-                >
-                  {t.label}
-                </button>
-              )
-            })}
-          </div>
-          <p className="set-model-param__range">
-            低=快速响应 · 中=平衡 · 高=深度推理（消耗更多token）
-          </p>
-        </div>
-
-        {/* c/d/e. 数字输入组 */}
-        <div className="set-model-num-grid">
-          <div className="set-model-num-item">
-            <label className="set-model-num-item__label">
-              最大Token Max Tokens
-            </label>
-            <input
-              type="number"
-              value={maxToken}
-              onChange={(e) => onMaxTokenChange(Number(e.target.value))}
-              aria-label="最大Token"
-              className="set-model-num-item__input"
-            />
-            <span className="set-model-num-item__hint">
-              单次响应最大长度
-            </span>
-          </div>
-          <div className="set-model-num-item">
-            <label className="set-model-num-item__label">
-              上下文窗口 Context Window
-            </label>
-            <input
-              type="number"
-              value={contextWindow}
-              onChange={(e) => onContextWindowChange(Number(e.target.value))}
-              aria-label="上下文窗口"
-              className="set-model-num-item__input"
-            />
-            <span className="set-model-num-item__hint">
-              对话历史保留长度
-            </span>
-          </div>
-          <div className="set-model-num-item">
-            <label className="set-model-num-item__label">
-              请求超时 Timeout
-            </label>
-            <input
-              type="number"
-              value={requestTimeout}
-              onChange={(e) => onRequestTimeoutChange(Number(e.target.value))}
-              aria-label="请求超时"
-              className="set-model-num-item__input"
-            />
-            <span className="set-model-num-item__hint">秒</span>
+          {/* c/d/e. 数字输入组 */}
+          <div className="set-model-num-grid">
+            <div className="set-model-num-item">
+              <label className="set-model-num-item__label">
+                最大Token Max Tokens
+              </label>
+              <input
+                type="number"
+                value={maxToken}
+                onChange={(e) => onMaxTokenChange(Number(e.target.value))}
+                aria-label="最大Token"
+                className="set-model-num-item__input"
+              />
+              <span className="set-model-num-item__hint">
+                单次响应最大长度
+              </span>
+            </div>
+            <div className="set-model-num-item">
+              <label className="set-model-num-item__label">
+                上下文窗口 Context Window
+              </label>
+              <input
+                type="number"
+                value={contextWindow}
+                onChange={(e) => onContextWindowChange(Number(e.target.value))}
+                aria-label="上下文窗口"
+                className="set-model-num-item__input"
+              />
+              <span className="set-model-num-item__hint">
+                对话历史保留长度
+              </span>
+            </div>
+            <div className="set-model-num-item">
+              <label className="set-model-num-item__label">
+                请求超时 Timeout
+              </label>
+              <input
+                type="number"
+                value={requestTimeout}
+                onChange={(e) => onRequestTimeoutChange(Number(e.target.value))}
+                aria-label="请求超时"
+                className="set-model-num-item__input"
+              />
+              <span className="set-model-num-item__hint">秒</span>
+            </div>
           </div>
         </div>
-      </div>
+      </details>
     </SettingsCard>
   )
 }

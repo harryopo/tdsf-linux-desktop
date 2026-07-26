@@ -22,7 +22,8 @@
  *                  ModelKpiBar 改为 grid 布局对齐设计稿 lg:grid-cols-4。
  */
 import { useState, useEffect, useRef } from 'react'
-import type { PersistedProviderConfig, TokenUsageRecord } from '@shared/agent-types'
+import { CheckCircle2, AlertCircle, Info, KeyRound } from 'lucide-react'
+import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
 import { ModelSettingsHeader } from '@/components/settings/model/ModelSettingsHeader'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
@@ -34,14 +35,22 @@ import { ConversationSection } from '@/components/settings/model/ConversationSec
 import { BudgetSection } from '@/components/settings/model/BudgetSection'
 import { ModelActionBar } from '@/components/settings/model/ModelActionBar'
 import { usePersistentState } from '@/hooks/usePersistentState'
-import {
-  CONVERSATIONS,
-  type ConversationRow,
-  type TestLogLine,
-} from '@/components/settings/model/constants'
+import type { TestLogLine } from '@/components/settings/model/constants'
 import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import './Settings.css'
+
+/** 对话表格行类型（v2.3.3 删掉 CONVERSATIONS 后单独定义） */
+interface ConversationRow {
+  time: string
+  input: string
+  model: string
+  modelTagType: 'brand' | 'neutral'
+  inputTokens: string
+  outputTokens: string
+  status: string
+  statusType: 'success' | 'warning' | 'danger'
+}
 
 export function ModelSettings() {
   const { llmConfig, setLlmConfig, loadSettings, saveSettings } = useSettingsStore()
@@ -83,8 +92,13 @@ export function ModelSettings() {
   // Section 6: 对话记录
   const [statusFilter, setStatusFilter] = useState<'全部状态' | '成功' | '已拦截' | '失败'>('全部状态')
   const [currentPage, setCurrentPage] = useState(1)
-  // 对话记录行：优先使用真实 tokenRecords，IPC 不可用或返回空时回退到静态 CONVERSATIONS
-  const [conversationRows, setConversationRows] = useState<ConversationRow[]>(CONVERSATIONS)
+  // 对话记录行：默认空数组，真实 tokenRecords 加载后填充
+  // v2.3.3 修复：删除静态 CONVERSATIONS fallback，避免无数据时显示假数据误导用户
+  const [conversationRows, setConversationRows] = useState<ConversationRow[]>([])
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false)
+
+  // 预算已用金额（来自 tokenCostStats IPC，无数据时为 0）
+  const [usedAmount, setUsedAmount] = useState(0)
 
   // 导出统计反馈
   const [exportFeedback, setExportFeedback] = useState<string | null>(null)
@@ -138,37 +152,51 @@ export function ModelSettings() {
   }, [])
 
   // 加载真实 token 使用记录，映射为对话表格行
-  // - IPC 不可用 / 返回空数组 / 调用异常时，保持使用静态 CONVERSATIONS（fallback）
+  // - v2.3.3 修复：删掉 "if (records.length === 0) return" — 真实数据应总是接管，无数据时 isLoading 状态用于显示空状态
   // - token:records 只记录成功调用，status 始终映射为 '成功'
   useEffect(() => {
     if (!isElectronAPIAvailable()) return
     let cancelled = false
 
     const loadRecords = async () => {
+      setIsLoadingRecords(true)
       try {
-        const records: TokenUsageRecord[] = await window.electronAPI.tokenRecords(100)
+        const [records, costStats] = await Promise.all([
+          window.electronAPI.tokenRecords(100),
+          window.electronAPI.tokenCostStats().catch(() => null),
+        ])
         if (cancelled) return
-        if (!Array.isArray(records) || records.length === 0) return
 
-        const rows: ConversationRow[] = records.map((r) => ({
-          time: new Date(r.timestamp).toLocaleString('zh-CN', {
-            hour: '2-digit',
-            minute: '2-digit',
-            month: '2-digit',
-            day: '2-digit',
-          }),
-          input: r.subagent || 'direct',
-          model: r.model,
-          modelTagType: 'brand' as const,
-          inputTokens: r.inputTokens.toLocaleString('en-US'),
-          outputTokens: r.outputTokens.toLocaleString('en-US'),
-          status: '成功',
-          statusType: 'success' as const,
-        }))
-        if (cancelled) return
-        setConversationRows(rows)
+        if (costStats && typeof costStats.monthCost === 'number') {
+          setUsedAmount(costStats.monthCost)
+        }
+
+        if (Array.isArray(records) && records.length > 0) {
+          const rows: ConversationRow[] = records.map((r) => ({
+            time: new Date(r.timestamp).toLocaleString('zh-CN', {
+              hour: '2-digit',
+              minute: '2-digit',
+              month: '2-digit',
+              day: '2-digit',
+            }),
+            input: r.subagent || 'direct',
+            model: r.model,
+            modelTagType: 'brand' as const,
+            inputTokens: r.inputTokens.toLocaleString('en-US'),
+            outputTokens: r.outputTokens.toLocaleString('en-US'),
+            status: '成功',
+            statusType: 'success' as const,
+          }))
+          setConversationRows(rows)
+        } else {
+          setConversationRows([])
+        }
       } catch (err) {
-        console.error('[ModelSettings] 加载 tokenRecords 失败，回退到静态数据:', err)
+        if (cancelled) return
+        console.error('[ModelSettings] 加载 tokenRecords 失败:', err)
+        setConversationRows([])
+      } finally {
+        if (!cancelled) setIsLoadingRecords(false)
       }
     }
 
@@ -206,6 +234,8 @@ export function ModelSettings() {
   }, [])
 
   // 测试连接：调用真实 llmTest IPC（llm:test 通道），测量往返延迟
+  //
+  // v2.3.4 改造：使用 LlmTestResult 而非 boolean，能拿到具体失败原因（401/404/网络/超时等）
   const handleTestConnection = async () => {
     if (isTesting) return
     setIsTesting(true)
@@ -237,7 +267,7 @@ export function ModelSettings() {
 
     const startedAt = performance.now()
     try {
-      const ok = await window.electronAPI.llmTest({
+      const result = await window.electronAPI.llmTest({
         baseUrl: endpoint,
         apiKey,
         model: selectedModel,
@@ -245,10 +275,11 @@ export function ModelSettings() {
         maxTokens: maxToken,
         timeout: requestTimeout * 1000,
       })
-      const latency = Math.round(performance.now() - startedAt)
+      // 用主进程返回的 latency 优先，更精确
+      const latency = result.latency > 0 ? result.latency : Math.round(performance.now() - startedAt)
       setTestLatency(latency)
       setLastTestTime(timestamp())
-      if (ok) {
+      if (result.ok) {
         setTestResult('success')
         setTestLogs((prev) => [
           ...prev,
@@ -257,10 +288,13 @@ export function ModelSettings() {
         ])
       } else {
         setTestResult('error')
+        // 把后端提供的具体原因写到日志里
+        const code = result.code ? `[${result.code}] ` : ''
+        const reason = result.error ?? '请检查 API Key / Endpoint / 模型名配置'
         setTestLogs((prev) => [
           ...prev,
           { time: timestamp(), text: `连接失败 (${latency}ms)`, tone: 'error' },
-          { time: timestamp(), text: '请检查 API Key / Endpoint / 模型名配置', tone: 'error' },
+          { time: timestamp(), text: `${code}${reason}`, tone: 'error' },
         ])
       }
     } catch (err) {
@@ -427,6 +461,104 @@ export function ModelSettings() {
       />
 
       <div className="set-panel-content">
+        {/* v2.3.4 新增：状态/引导卡
+            - API Key 为空时显示详细引导（"如何让模型连上"）
+            - 已配置时显示简洁状态（已就绪 / 待测试 / 最近测试结果） */}
+        <div
+          className={
+            'set-status-banner ' +
+            (apiKey
+              ? testResult === 'success'
+                ? 'set-status-banner--ok'
+                : testResult === 'error'
+                  ? 'set-status-banner--error'
+                  : 'set-status-banner--pending'
+              : 'set-status-banner--warn')
+          }
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+            padding: '12px 16px',
+            borderRadius: 8,
+            fontSize: 13,
+            lineHeight: 1.6,
+          }}
+        >
+          {apiKey ? (
+            testResult === 'success' ? (
+              <>
+                <CheckCircle2 className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-status-success-default)' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                    模型已就绪 · {selectedModel || '未命名模型'}
+                  </div>
+                  <div style={{ color: 'var(--trae-text-secondary)' }}>
+                    Endpoint: {endpoint || '(未配置)'} · 最近测试: {lastTestTime || '未测试'} ({testLatency ?? '--'}ms)
+                  </div>
+                </div>
+              </>
+            ) : testResult === 'error' ? (
+              <>
+                <AlertCircle className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-status-alert-default)' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                    最近测试失败 · 请检查下方配置
+                  </div>
+                  <div style={{ color: 'var(--trae-text-secondary)' }}>
+                    在下方「API 接入与测试」区查看失败原因，重新填入 API Key 后再次「测试连接」。
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <Info className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-bg-brand)' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                    API Key 已配置 · 尚未测试
+                  </div>
+                  <div style={{ color: 'var(--trae-text-secondary)' }}>
+                    在下方「API 接入与测试」区点击「测试连接」验证配置。
+                  </div>
+                </div>
+              </>
+            )
+          ) : (
+            <>
+              <KeyRound className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-status-alert-default)' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  还没有配置 API Key · 大模型无法连接
+                </div>
+                <div style={{ color: 'var(--trae-text-secondary)', marginBottom: 6 }}>
+                  填入 API Key 即可让 AI 助手、命令分析、日志诊断等所有 LLM 功能正常工作。
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--trae-text-secondary)' }}>
+                  <div>
+                    <strong>推荐：DeepSeek V4 Flash</strong> ·
+                    国内直连 · 100 万 Token 上下文 · 价格亲民
+                  </div>
+                  <div>
+                    申请 API Key：<a
+                      href="https://platform.deepseek.com/api_keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--trae-bg-brand)', textDecoration: 'underline' }}
+                    >
+                      platform.deepseek.com/api_keys
+                    </a>
+                    {' '}（注册后「API Keys」→「Create new secret key」）
+                  </div>
+                  <div>
+                    默认 Endpoint 已配置为 <code style={{ background: 'var(--trae-bg-surface-secondary)', padding: '1px 6px', borderRadius: 4 }}>https://api.deepseek.com</code>，
+                    填入 Key 后点击「测试连接」即可。
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Section 1: KPI 统计行 */}
         <ModelKpiBar />
 
@@ -478,6 +610,7 @@ export function ModelSettings() {
           filteredConversations={filteredConversations}
           currentPage={currentPage}
           onCurrentPageChange={setCurrentPage}
+          isLoading={isLoadingRecords}
         />
 
         {/* Section 7: 预算与告警 */}
@@ -489,6 +622,7 @@ export function ModelSettings() {
           emailNotify={emailNotify}
           onEmailNotifyChange={setEmailNotify}
           budgetAlerts={budgetAlerts}
+          usedAmount={usedAmount}
         />
 
         {/* ActionBar: 恢复默认 / 导出统计 / 保存所有配置（设计稿：sticky 底部操作栏） */}

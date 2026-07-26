@@ -1,3 +1,13 @@
+/**
+ * AIPanelHeader — 40px 标题栏
+ *
+ * v2.3.6 修复：彻底移除"示例开/示例关"按钮和 showDemo/setShowDemo props。
+ * 设计稿不再展示设计稿示例消息，避免给用户"演示数据是真的"错觉。
+ *
+ * 保留：
+ * - 左：AI 运维助手标题 + live badge（生成中 / 已连接 / 就绪）
+ * - 右：清空对话、命令翻译注释切换、收起 AI 面板
+ */
 import type { FC } from 'react'
 import { ChevronDown, ChevronUp, PanelRightClose, RotateCcw, Sparkles } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
@@ -5,12 +15,8 @@ import { cn } from '@/components/trae/utils'
 /** AIPanelHeader props */
 export interface AIPanelHeaderProps {
   onClose?: () => void
-  demoMode: boolean
   isStreaming: boolean
   hasLiveConversation: boolean
-  loopIsRunning: boolean
-  showDemo: boolean
-  setShowDemo: (v: boolean | ((prev: boolean) => boolean)) => void
   showTranslation: boolean
   setShowTranslation: (v: boolean | ((prev: boolean) => boolean)) => void
   onClear: () => void
@@ -19,12 +25,8 @@ export interface AIPanelHeaderProps {
 /** AIPanel 40px 标题栏（AI运维助手 + live badge + 工具按钮） */
 const AIPanelHeader: FC<AIPanelHeaderProps> = ({
   onClose,
-  demoMode,
   isStreaming,
   hasLiveConversation,
-  loopIsRunning,
-  showDemo,
-  setShowDemo,
   showTranslation,
   setShowTranslation,
   onClear,
@@ -38,38 +40,32 @@ const AIPanelHeader: FC<AIPanelHeaderProps> = ({
         <span
           className={cn(
             'inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-[11px] font-medium',
-            demoMode
-              ? 'bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)]'
-              : isStreaming
-                ? 'bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                : hasLiveConversation
-                  ? 'bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
-                  : 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-tertiary)]',
+            isStreaming
+              ? 'bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
+              : hasLiveConversation
+                ? 'bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
+                : 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-tertiary)]',
           )}
         >
           <span
             className={cn(
               'inline-block size-1 rounded-full',
-              demoMode
-                ? 'ai-pulse-dot bg-[var(--trae-text-onbrand)]'
-                : isStreaming
-                  ? 'ai-pulse-dot bg-[var(--trae-bg-brand)]'
-                  : hasLiveConversation
-                    ? 'bg-[var(--trae-status-success-default)]'
-                    : 'bg-[var(--trae-text-tertiary)]',
+              isStreaming
+                ? 'ai-pulse-dot bg-[var(--trae-bg-brand)]'
+                : hasLiveConversation
+                  ? 'bg-[var(--trae-status-success-default)]'
+                  : 'bg-[var(--trae-text-tertiary)]',
             )}
           />
-          {demoMode
-            ? (loopIsRunning ? '循环工程运行中' : '演示就绪')
-            : isStreaming
-              ? '生成中'
-              : hasLiveConversation
-                ? '已连接'
-                : '就绪'}
+          {isStreaming
+            ? '生成中'
+            : hasLiveConversation
+              ? '已连接'
+              : '就绪'}
         </span>
       </div>
 
-      {/* Right: clear / demo toggle / translate / collapse */}
+      {/* Right: clear / translate / collapse */}
       <div className="flex items-center gap-1">
         {hasLiveConversation && (
           <button
@@ -79,16 +75,6 @@ const AIPanelHeader: FC<AIPanelHeaderProps> = ({
             className="btn-press flex size-7 items-center justify-center rounded-[var(--trae-radius-4)] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
           >
             <RotateCcw className="size-3.5" />
-          </button>
-        )}
-        {!hasLiveConversation && (
-          <button
-            type="button"
-            title={showDemo ? '隐藏设计稿示例' : '显示设计稿示例'}
-            onClick={() => setShowDemo((v) => !v)}
-            className="btn-press px-1.5 h-7 rounded-[var(--trae-radius-4)] text-[11px] text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
-          >
-            {showDemo ? '示例开' : '示例关'}
           </button>
         )}
         <button

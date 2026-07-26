@@ -149,27 +149,47 @@ export function HistoryPage() {
   const [currentPage, setCurrentPage] = useState<number>(1)
 
   // ===== 真实决策历史状态（v2.3 活功能转换：接入 historyList / historyStats IPC） =====
-  const [records, setRecords] = useState<DecisionRecord[]>(DEFAULT_RECORDS)
+  // v2.3.4 修复：初始使用 [] 而非 DEFAULT_RECORDS。
+  // 原因：原实现在 IPC 拉取为空时仍保留 6 条设计稿示例，连接服务器后用户看到的是死代码。
+  // 新策略：
+  //   - 真实数据（useReal=true）→ records 来自 IPC
+  //   - 拉取到非空数据 → setRecords + setUseReal(true)
+  //   - 拉取为空 → setRecords([]) + setUseReal(true)，Empty 组件接管
+  //   - 非 Electron 环境 → setUseReal(false) 回退到 DEFAULT_RECORDS（明确标注演示）
+  const [records, setRecords] = useState<DecisionRecord[]>([])
   const [useReal, setUseReal] = useState(false)
   const [historyStats, setHistoryStats] = useState<HistoryStats | null>(null)
 
   // 挂载时拉取真实决策历史与统计数据
   useEffect(() => {
-    if (!isElectronAPIAvailable() || !window.electronAPI?.historyList) return
+    if (!isElectronAPIAvailable() || !window.electronAPI?.historyList) {
+      // 非 Electron 环境：明确标注为演示数据
+      setRecords(DEFAULT_RECORDS)
+      setUseReal(false)
+      return
+    }
     let cancelled = false
 
     window.electronAPI
       .historyList(0, 1000)
       .then((cards) => {
         if (cancelled) return
+        // v2.3.4 修复：无论拉取结果如何都 setUseReal(true)
+        // - 拉取到非空：渲染真实数据
+        // - 拉取为空：setRecords([]) 让 Empty 组件接管（不再保留 DEFAULT_RECORDS）
         if (Array.isArray(cards) && cards.length > 0) {
           setRecords(cards.map(decisionCardToRecord))
-          setUseReal(true)
+        } else {
+          setRecords([])
         }
+        setUseReal(true)
       })
       .catch((err) => {
         if (cancelled) return
         console.warn('[HistoryPage] 拉取决策历史失败', err)
+        // 失败时也标记 useReal=true，让页面显示 Empty 状态而非假数据
+        setRecords([])
+        setUseReal(true)
       })
       .finally(() => {
         // no-op：保留 finally 钩子便于后续接入加载态

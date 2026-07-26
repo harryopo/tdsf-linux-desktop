@@ -128,11 +128,15 @@ export const LlmConfigSection: React.FC = () => {
         return
       }
       setTesting(true)
-      const ok = await window.electronAPI.llmTest(values)
-      if (ok) {
-        message.success('连接测试成功')
+      // v2.3.4 改造：使用 LlmTestResult 而非 boolean，能拿到具体失败原因
+      const result = await window.electronAPI.llmTest(values)
+      if (result.ok) {
+        message.success(`连接测试成功（${result.latency}ms）`)
       } else {
-        message.error('连接测试失败，请检查配置')
+        // 把后端返回的具体错误展示给用户（之前只显示"连接失败"看不到原因）
+        const code = result.code ? ` [${result.code}]` : ''
+        const reason = result.error ?? '请检查配置'
+        message.error(`连接测试失败${code}：${reason}`)
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)

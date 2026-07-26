@@ -12,6 +12,8 @@
  * - 每个 Provider 的 apiKey 单独存入 SecureStore，key 格式：`provider:${providerId}`
  * - 默认 Provider ID 存入 electron-store 的 'agentDefaultProviderId' 键
  *
+ * v2.3.6 修复：listProviders 返回时附带 hasApiKey 标识，方便前端 UI 区分"已配置 Key"和"未配置 Key"。
+ *
  * 方案书依据：v0.9 §3 决策 1（Provider 抽象）+ §11.2（IPC 命名规范）
  */
 import { ConfigStore } from '../../../services/storage/config-store'
@@ -86,21 +88,54 @@ function saveToStore(providers: PersistedProviderConfig[]): void {
 }
 
 /**
+ * Provider 配置（带 API Key 状态）—— listProviders 返回类型
+ *
+ * v2.3.6 新增：在 PersistedProviderConfig 基础上加 hasApiKey 标识，
+ * 前端 UI 用来区分"已配置 API Key"（可直接调用）和"未配置 API Key"（需先配置）。
+ *
+ * Ollama 本地 Provider 不需要 API Key，hasApiKey 始终为 true（前端无需提示）。
+ */
+export interface PersistedProviderConfigWithKey extends PersistedProviderConfig {
+  /** 是否已配置 API Key（Ollama 本地无 Key 也视为已配置） */
+  hasApiKey: boolean
+}
+
+/**
+ * 检查某个 Provider 是否已配置 API Key
+ *
+ * Ollama 本地无需 API Key（视为已配置）。其他 Provider 通过 SecureStore 查询。
+ *
+ * @param id Provider ID
+ * @returns 是否已配置 API Key
+ */
+export function hasProviderApiKey(id: string): boolean {
+  // Ollama 本地 Provider 不需要 API Key
+  const base = getProvider(id)
+  if (base?.type === 'ollama') {
+    return true
+  }
+  const apiKey = SecureStore.getApiKey(`${SECURE_KEY_PREFIX}${id}`)
+  return typeof apiKey === 'string' && apiKey.length > 0
+}
+
+/**
  * 列出所有 Provider 配置（含用户自定义 + 预置模板，不含 apiKey）
+ *
+ * v2.3.6 增强：每条返回 PersistedProviderConfigWithKey（含 hasApiKey 标识）。
+ * 前端 UI 用 hasApiKey 区分"已配置"与"未配置"（已配置可点选，未配置需先到设置页配置）。
  *
  * @param onlyEnabled 是否仅返回 enabled=true 的 Provider（UI 选择器用）
  */
-export function listProviders(onlyEnabled = false): PersistedProviderConfig[] {
+export function listProviders(onlyEnabled = false): PersistedProviderConfigWithKey[] {
   const providers = loadFromStore()
   if (providers.length === 0) {
     // 兜底：如果存储为空（未初始化），返回预置模板
     initializeProviders()
     return listProviders(onlyEnabled)
   }
-  if (onlyEnabled) {
-    return providers.filter((p) => p.enabled !== false)
-  }
-  return providers
+  const baseList = onlyEnabled ? providers.filter((p) => p.enabled !== false) : providers
+  // 附加 hasApiKey 标识
+  return baseList.map((p) => ({ ...p, hasApiKey: hasProviderApiKey(p.id) }))
 }
 
 /**

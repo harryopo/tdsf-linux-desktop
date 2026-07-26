@@ -21,6 +21,10 @@
 import type { LanguageModel } from 'ai'
 
 // Re-export 共享类型（保持 main 内部 `from './types'` / `from '../providers/types'` 路径不变）
+//
+// v2.3.7 修复：移除 `PersistedProviderConfigWithKey` 的 re-export —— 该类型实际在
+// `provider-registry.ts` 中本地定义（仅 main 进程使用），并未迁移到 @shared。
+// 错误地 re-export 会导致 main 端 tsc 编译失败（"no exported member"）。
 export type {
   ProviderType,
   ThinkingStrength,

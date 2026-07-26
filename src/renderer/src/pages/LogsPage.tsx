@@ -65,12 +65,19 @@ export function LogsPage() {
   const [keyword, setKeyword] = useState('')
 
   // ===== 真实日志流状态（v1.0 P0 接入 log:read IPC） =====
-  // Electron 环境下挂载时自动拉取真实日志；非 Electron 环境回退到设计稿示例数据
+  // v2.3.4 修复：初始空数组而非 LOG_ENTRIES。原实现在非 Electron 环境回退 LOG_ENTRIES，
+  //   Electron 环境 logRead 返回空时也保留 LOG_ENTRIES，导致"系统日志全是死代码"。
+  // 新策略：
+  //   - Electron 环境：空数组起步，等待 logRead 返回真实数据；空时显示 Empty 状态
+  //   - 非 Electron 环境：明确标注"演示数据"回退到 LOG_ENTRIES
   const [displayEntries, setDisplayEntries] = useState<LogEntry[]>([])
   // 标记当前是否已加载真实日志（影响状态栏的"实时流"指示与刷新语义）
   const [loadedReal, setLoadedReal] = useState(false)
   // 真实日志加载中状态
   const [loading, setLoading] = useState(false)
+  // 非 Electron 环境标记（仅用于"演示数据"提示）
+  // v2.3.7 修复：eslint no-unused-vars 触发——state 暂时没在 UI 中读取，标记为 _
+  const [_isDemoFallback, setIsDemoFallback] = useState(false)
 
   // ===== 实时流 + log:stats（M3 Task 3） =====
   // 最新一条日志的 ISO 时间戳，用于实时轮询 logRead({since}) 增量拉取
@@ -103,15 +110,19 @@ export function LogsPage() {
   // ===== 事件处理 =====
   /**
    * 从主进程拉取真实日志
-   * - Electron 环境：调用 log:read IPC
-   * - 非 Electron 环境：回退到设计稿示例数据并提示
+   * - Electron 环境：调用 log:read IPC；空时显示 Empty 而非 LOG_ENTRIES
+   * - 非 Electron 环境（如 web 端预览）：标注"示例数据"回退到 LOG_ENTRIES
    */
   const loadLogs = async (opts?: { silent?: boolean }) => {
     if (typeof window === 'undefined' || !window.electronAPI?.logRead) {
+      // 非 Electron 环境：仅示例数据回退
       setDisplayEntries(LOG_ENTRIES)
       setLoadedReal(false)
+      setIsDemoFallback(true)
       return
     }
+    // 进入 Electron 环境，使用真实数据
+    setIsDemoFallback(false)
     setLoading(true)
     try {
       const result = await window.electronAPI.logRead({ limit: 200 })
@@ -123,10 +134,11 @@ export function LogsPage() {
         lastTsRef.current = computeMaxTsIso(result)
         if (!opts?.silent) message.success(`已加载 ${entries.length} 条真实日志`)
       } else {
+        // v2.3.4 修复：logRead 返回空时不再回退 LOG_ENTRIES，直接展示 Empty 状态
         setDisplayEntries([])
         setLoadedReal(true)
         lastTsRef.current = ''
-        if (!opts?.silent) message.info('日志库暂无数据')
+        if (!opts?.silent) message.info('日志库暂无数据，主进程未产生日志')
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
