@@ -161,7 +161,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules for Electron
-        run: pnpm rebuild
+        run: pnpm run rebuild
 
       - name: Build app
         run: pnpm build
