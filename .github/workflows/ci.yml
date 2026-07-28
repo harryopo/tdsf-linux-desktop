@@ -121,6 +121,74 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
 
+  # ===== IPC 契约三方对账（防断链门禁） =====
+  # 对账 main handler / preload 暴露 / 渲染层调用三方集合，
+  # FAIL 级断链（invoke 无 handler / 调用未暴露方法）直接红。
+  # 背景：typecheck/lint/单测查不出端到端接线断裂（假 UI/死按钮病灶）。
+  audit-ipc:
+    name: IPC Contract Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: IPC contract audit
+        run: pnpm audit:ipc
+
+  # ===== 端到端接线验证（真实 Electron + 行为断言） =====
+  # 验证 preload 契约运行时可达 / Agent 事件回流 / 发送按钮有反馈 / 假 UI 不复活。
+  # Windows runner 可直接跑有头 Electron，无需 xvfb。
+  e2e-wiring:
+    name: E2E Wiring (Electron)
+    runs-on: windows-latest
+    needs: [typecheck-node, typecheck-web, lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native modules for Electron
+        run: pnpm rebuild
+
+      - name: Build app
+        run: pnpm build
+
+      - name: Run wiring verification E2E
+        run: pnpm test:e2e:wiring
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-wiring
+          path: playwright-report/
+          retention-days: 7
+
   # ===== Build (Windows) =====
   build-win:
     name: Build (Windows)
