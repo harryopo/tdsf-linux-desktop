@@ -163,7 +163,8 @@ jobs:
       - name: Rebuild native modules for Electron
         # 只重编 better-sqlite3（prebuild 下载，无需 VS）：ssh2/cpu-features 在 runner 上 node-gyp@9
         # 检测不到 VS 会红，ssh2 无原生加速时自动回退纯 JS，接线验证不受影响。
-        run: npx electron-rebuild -f -w better-sqlite3
+        # 注意：-w 不限制依赖树扫描，必须用 --only。
+        run: npx electron-rebuild -f --only better-sqlite3
 
       - name: Build app
         run: pnpm build
