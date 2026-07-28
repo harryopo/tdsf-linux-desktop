@@ -365,6 +365,30 @@ describe('KnowledgeRepository — 知识库仓储', () => {
     expect(results).toHaveLength(2)
   })
 
+  // 回归：空查询=浏览全部（v2.4 修复知识库页面空白 bug）
+  // 曾经空 query 分词后为空直接 return []，叠加渲染层移除 mock 后知识库全空白
+  it('search: 空查询返回全部条目（浏览全部语义）', () => {
+    repo.add(makeEntry({ id: 'browse-1', keywords: ['磁盘'], useCount: 5 }))
+    repo.add(makeEntry({ id: 'browse-2', keywords: ['内存'], useCount: 10 }))
+    repo.add(makeEntry({ id: 'browse-3', keywords: ['网络'], useCount: 1 }))
+
+    const all = repo.search('')
+    expect(all).toHaveLength(3)
+    // 空查询按 useCount 降序：browse-2(10) > browse-1(5) > browse-3(1)
+    expect(all[0].id).toBe('browse-2')
+    expect(all[2].id).toBe('browse-3')
+  })
+
+  it('search: 空查询 + limit 截断，仍按 useCount 降序', () => {
+    repo.add(makeEntry({ id: 'top', keywords: ['a'], useCount: 100 }))
+    repo.add(makeEntry({ id: 'mid', keywords: ['b'], useCount: 50 }))
+    repo.add(makeEntry({ id: 'low', keywords: ['c'], useCount: 1 }))
+
+    const limited = repo.search('   ', undefined, 2)
+    expect(limited).toHaveLength(2)
+    expect(limited.map((e) => e.id)).toEqual(['top', 'mid'])
+  })
+
   // ────────── 批量导入 ──────────
 
   it('importEntries: 批量导入知识条目', () => {

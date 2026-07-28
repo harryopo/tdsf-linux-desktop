@@ -25,6 +25,12 @@ npm-debug.log*
 .env
 .env.local
 
+# E2E 本地凭据（SSH 密码 / API Key 等，绝不提交）+ 临时测试产物
+**/.ssh-credentials.local.json
+**/*-credentials.local.json
+.tmp-*.log
+.tmp-*.json
+
 # Legacy Python code (reference only)
 _legacy-python/__pycache__/
 _legacy-python/.mypy_cache/
