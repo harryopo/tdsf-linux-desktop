@@ -2,29 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-28T10:22:12.109Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-07-28T10:22:11.086Z",
-      "lastActiveAt": "2026-07-28T10:22:12.109Z",
-      "task": "guard-hook-selfinstall",
-      "claimedFiles": [
-        {
-          "path": "package.json",
-          "task": "guard-hook-selfinstall",
-          "claimedAt": "2026-07-28T10:22:11.086Z"
-        },
-        {
-          "path": "scripts/ai-coordination/",
-          "task": "guard-hook-selfinstall",
-          "claimedAt": "2026-07-28T10:22:12.109Z"
-        }
-      ],
-      "expiresAt": "2026-07-28T12:22:12.109Z"
-    }
-  },
+  "lastUpdated": "2026-07-28T10:26:23.077Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -2783,6 +2762,20 @@
       "file": "scripts/ai-coordination/",
       "task": "guard-hook-selfinstall",
       "timestamp": "2026-07-28T10:22:12.109Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "package.json",
+      "task": "guard-hook-selfinstall",
+      "timestamp": "2026-07-28T10:26:23.077Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/ai-coordination/",
+      "task": "guard-hook-selfinstall",
+      "timestamp": "2026-07-28T10:26:23.077Z"
     }
   ],
   "coordinationAudit": {
