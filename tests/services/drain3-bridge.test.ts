@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { existsSync } from 'fs'
+import { resolve } from 'path'
 import { Drain3Bridge, getDrain3Bridge } from '../../src/main/services/log/drain3-bridge'
 
 describe('Drain3Bridge 单元测试', () => {
@@ -69,7 +70,7 @@ describe('Drain3Bridge 单元测试', () => {
     })
 
     it('内置脚本文件存在（drain3_bridge.py）', () => {
-      const scriptPath = 'd:/ai/linux教学一体/tdsf-linux-desktop/src/main/services/log/drain3_bridge.py'
+      const scriptPath = resolve(__dirname, '../../src/main/services/log/drain3_bridge.py')
       expect(existsSync(scriptPath)).toBe(true)
     })
   })
