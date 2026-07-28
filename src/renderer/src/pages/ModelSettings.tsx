@@ -55,8 +55,11 @@ interface ConversationRow {
 export function ModelSettings() {
   const { llmConfig, setLlmConfig, loadSettings, saveSettings } = useSettingsStore()
 
-  // Provider 列表
+  // Provider 列表 + 当前默认 Provider ID
+  // P0 修复：本页同步目标从“盲写 providers[0] 并强制设默认”改为“写当前默认 Provider”，
+  // 避免非首位 Provider 拿不到 Key、用户在 AIPanel 选的默认 Provider 被覆盖。
   const [providers, setProviders] = useState<PersistedProviderConfig[]>([])
+  const [defaultProviderId, setDefaultProviderId] = useState<string | null>(null)
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
 
   // Section 2: 模型配置
@@ -105,16 +108,25 @@ export function ModelSettings() {
   const exportTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 加载 Provider 列表（仅用于保存时回写默认 Provider）
+  // 加载 Provider 列表 + 默认 Provider ID（同步目标）
   useEffect(() => {
     const loadProviders = async () => {
       if (!isElectronAPIAvailable()) return
       try {
         const list = await window.electronAPI.providerList()
         setProviders(list)
-        // 如果有默认 provider，使用它的配置
-        if (list.length > 0 && !llmConfig.baseUrl) {
-          const defaultProvider = list[0]
+        // P0 修复：读真实默认 Provider ID，不再假定 providers[0] 就是默认
+        let resolvedDefaultId: string | null = null
+        try {
+          resolvedDefaultId = await window.electronAPI.providerGetDefault()
+        } catch {
+          resolvedDefaultId = list.length > 0 ? list[0].id : null
+        }
+        setDefaultProviderId(resolvedDefaultId)
+        // 如果有默认 provider，使用它的配置预填表单
+        const defaultProvider =
+          list.find((p) => p.id === resolvedDefaultId) ?? (list.length > 0 ? list[0] : null)
+        if (defaultProvider && !llmConfig.baseUrl) {
           setEndpoint(defaultProvider.baseURL)
           setSelectedModel(defaultProvider.model)
           if (defaultProvider.defaultParams?.temperature !== undefined) {
@@ -233,6 +245,30 @@ export function ModelSettings() {
     }
   }, [])
 
+  // P0 修复：把当前表单配置同步到“当前默认 Provider”（而非盲写 providers[0]）。
+  // 仅当默认 Provider 不存在（存储异常）时才回退到 providers[0] 并补设默认，
+  // 不再无条件 providerSetDefault 覆盖用户在 AIPanel 的选择。
+  const syncToDefaultProvider = async (): Promise<void> => {
+    if (!isElectronAPIAvailable() || providers.length === 0) return
+    const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
+    await window.electronAPI.providerSave({
+      ...target,
+      baseURL: endpoint,
+      model: selectedModel,
+      apiKey,
+      defaultParams: {
+        ...target.defaultParams,
+        temperature,
+        maxTokens: maxToken,
+      },
+    })
+    // 仅在默认 Provider 失效回退时才补设默认，保持存储一致性
+    if (target.id !== defaultProviderId) {
+      await window.electronAPI.providerSetDefault(target.id)
+      setDefaultProviderId(target.id)
+    }
+  }
+
   // 测试连接：调用真实 llmTest IPC（llm:test 通道），测量往返延迟
   //
   // v2.3.4 改造：使用 LlmTestResult 而非 boolean，能拿到具体失败原因（401/404/网络/超时等）
@@ -287,28 +323,15 @@ export function ModelSettings() {
           { time: timestamp(), text: '连接验证通过', tone: 'success' },
         ])
 
-        // v2.3.9 修复：测试连接成功后，自动把当前配置同步到 Provider 系统。
-        // 旧 LLM 设置页的"测试连接"只验证 llmTest 通道，Key 存到旧的 'llm' key；
-        // 而 AI 对话走 Provider 系统（SecureStore key='provider:${id}'）。如果不同步，
+        // v2.3.9 修复 + P0 强化：测试连接成功后，自动把当前配置同步到默认 Provider。
+        // AI 对话走 Provider 系统（SecureStore key='provider:${id}'），不同步则
         // 用户测试通过但 AI 对话仍因无 Key 而报"Agent 调用失败"。
         if (isElectronAPIAvailable() && providers.length > 0) {
-          const defaultProvider = providers[0]
           try {
-            await window.electronAPI.providerSave({
-              ...defaultProvider,
-              baseURL: endpoint,
-              model: selectedModel,
-              apiKey,
-              defaultParams: {
-                ...defaultProvider.defaultParams,
-                temperature,
-                maxTokens: maxToken,
-              },
-            })
-            await window.electronAPI.providerSetDefault(defaultProvider.id)
+            await syncToDefaultProvider()
             setTestLogs((prev) => [
               ...prev,
-              { time: timestamp(), text: '已自动保存到 Provider 配置', tone: 'success' },
+              { time: timestamp(), text: '已自动保存到默认 Provider 配置', tone: 'success' },
             ])
           } catch (saveErr) {
             console.error('[ModelSettings] 测试通过后自动保存 Provider 失败:', saveErr)
@@ -365,22 +388,8 @@ export function ModelSettings() {
       // 保存到主进程
       await saveSettings()
 
-      // 如果有真实的 providerSave，也保存一份
-      if (isElectronAPIAvailable() && providers.length > 0) {
-        const defaultProvider = providers[0]
-        await window.electronAPI.providerSave({
-          ...defaultProvider,
-          baseURL: endpoint,
-          model: selectedModel,
-          apiKey,
-          defaultParams: {
-            ...defaultProvider.defaultParams,
-            temperature,
-            maxTokens: maxToken,
-          },
-        })
-        await window.electronAPI.providerSetDefault(defaultProvider.id)
-      }
+      // 同步一份到默认 Provider（P0 修复：不再盲写 providers[0] + 强制设默认）
+      await syncToDefaultProvider()
 
       setSaveFeedback('配置已保存')
       if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)

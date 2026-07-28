@@ -16,8 +16,7 @@
  * - llm:done  — 完成信号（含完整文本）
  * - llm:error — 错误信号（含错误码/消息/是否可重试）
  *
- * 配置获取：LLM 配置从 ConfigStore.getLlmConfig() 读取，
- * API Key 从 SecureStore.getApiKey('llm') 读取并回填。
+ * 配置获取：统一走 resolveLlmConfig（Provider 体系优先，旧 'llm' Key 兜底）。
  *
  * 安全原则：错误信息不泄露内部实现（不返回 stack trace 给渲染进程）
  */
@@ -25,8 +24,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
-import { ConfigStore } from '../services/storage/config-store'
-import { SecureStore } from '../services/storage/secure-store'
+import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import type {
   ChatMessage,
   Evidence,
@@ -92,26 +90,13 @@ function toLlmError(err: unknown): LlmError {
 /**
  * 获取 LLM 客户端实例
  *
- * 从 ConfigStore 读取配置，从 SecureStore 读取 API Key，
+ * 配置统一走 resolveLlmConfig（Provider 体系优先，旧 'llm' Key 兜底），
  * 每次调用都构造新的 LlmClient（配置可能已变更）。
  *
  * @returns LlmClient 实例（API Key 为空时 client.isAvailable() 返回 false）
  */
 function getLlmClient(): LlmClient {
-  const config = ConfigStore.getLlmConfig()
-  if (!config) {
-    return new LlmClient({
-      baseUrl: '',
-      apiKey: '',
-      model: '',
-      temperature: 0.7,
-      maxTokens: 2048,
-      timeout: 30_000
-    })
-  }
-  const apiKey = SecureStore.getApiKey('llm') ?? ''
-  const fullConfig: LlmConfig = { ...config, apiKey }
-  return new LlmClient(fullConfig)
+  return new LlmClient(resolveLlmConfig('ipc/llm'))
 }
 
 /**

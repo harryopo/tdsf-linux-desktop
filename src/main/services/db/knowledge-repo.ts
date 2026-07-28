@@ -52,22 +52,33 @@ export class KnowledgeRepository {
    * 将查询字符串分词后与每条知识的 keywords 集合计算 Jaccard 相似度，
    * 按相似度降序返回。
    *
-   * @param query 查询字符串
+   * 空查询语义（v2.4 修复）：query 为空（或分词后为空）时，视为"浏览全部"，
+   * 返回全部条目（可按 type 过滤），按 useCount 降序 —— 供 KnowledgePage
+   * 初始加载全量知识列表用。此前空查询直接返回 []，叠加渲染层移除 mock 后
+   * 导致知识库页面完全空白。
+   *
+   * @param query 查询字符串（空 = 浏览全部）
    * @param type 知识类型过滤（可选）
    * @param limit 返回数量上限
-   * @returns 匹配的知识条目数组（按相似度降序）
+   * @returns 匹配的知识条目数组（有查询词时按相似度降序，空查询按 useCount 降序）
    */
   search(query: string, type?: KnowledgeType, limit: number = DEFAULT_SEARCH_LIMIT): KnowledgeEntry[] {
     const queryKeywords = this.tokenize(query)
-    if (queryKeywords.length === 0) {
-      return []
-    }
-    const querySet = new Set(queryKeywords)
 
     // 查询所有候选条目（按 type 过滤）
     const rows = type
       ? this.db.prepare('SELECT * FROM knowledge_entries WHERE type = ?').all(type)
       : this.db.prepare('SELECT * FROM knowledge_entries').all()
+
+    // 空查询 = 浏览全部：按 useCount 降序返回前 limit 条（不做相似度过滤）
+    if (queryKeywords.length === 0) {
+      return (rows as KnowledgeRow[])
+        .map((row) => this.deserialize(row))
+        .sort((a, b) => b.useCount - a.useCount)
+        .slice(0, limit)
+    }
+
+    const querySet = new Set(queryKeywords)
 
     // 计算每条目与查询的 Jaccard 相似度
     const scored: Array<{ entry: KnowledgeEntry; score: number }> = []

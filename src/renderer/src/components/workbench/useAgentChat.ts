@@ -7,10 +7,10 @@
  * 主路径（见 docs/AGENT_MAIN_PATH.md）：
  *   AIPanel → agentChat IPC → Supervisor.chat → agent:chunk/done/error → useAgentStore
  *
- * Wire-1：流式 send/cancel + 事件订阅
+ * Wire-1：流式 send/cancel（事件订阅已提升到 stores/agent-stream-subscription 全局绑定）
  * Wire-2：挂载时加载 providerList + tokenStats；暴露 Provider 选择给 AIPanel
  */
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect } from 'react'
 import { message } from 'antd'
 import { useAgentStore, type AgentMessage } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
@@ -21,7 +21,6 @@ import type {
   TokenStats,
   CostStats,
 } from '@shared/agent-types'
-import type { AgentWorkflowState } from '@shared/models'
 
 function genId(prefix = 'msg'): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -97,9 +96,6 @@ export function useAgentChat(): UseAgentChatResult {
   const sessionCostBaseline = useAgentStore((s) => s.sessionCostBaseline)
 
   const addMessage = useAgentStore((s) => s.addMessage)
-  const appendToken = useAgentStore((s) => s.appendToken)
-  const finalizeMessage = useAgentStore((s) => s.finalizeMessage)
-  const markError = useAgentStore((s) => s.markError)
   const clearMessages = useAgentStore((s) => s.clearMessages)
   const compressMessages = useAgentStore((s) => s.compressMessages)
   const setStreaming = useAgentStore((s) => s.setStreaming)
@@ -111,10 +107,6 @@ export function useAgentChat(): UseAgentChatResult {
   // v0.9.3 §11 改进点 26 P2-F：设置成本统计 + 重置会话基线
   const setCostStats = useAgentStore((s) => s.setCostStats)
   const resetSessionCostBaseline = useAgentStore((s) => s.resetSessionCostBaseline)
-  // M1 Task 7：订阅 onAgentStep，写入流式消息 stepState
-  const updateStepState = useAgentStore((s) => s.updateStepState)
-
-  const subscribedRef = useRef(false)
 
   // Wire-2：加载 Provider 列表 + Token 统计（只跑一次）
   useEffect(() => {
@@ -156,44 +148,8 @@ export function useAgentChat(): UseAgentChatResult {
     })()
   }, [setProviders, setSelectedProviderId, setTokenStats, setCostStats])
 
-  // 订阅主进程流式事件
-  useEffect(() => {
-    if (!isElectronAPIAvailable()) {
-      return
-    }
-    subscribedRef.current = true
-
-    const offChunk = window.electronAPI.onAgentChunk((payload) => {
-      appendToken(payload)
-    })
-
-    const offDone = window.electronAPI.onAgentDone((payload) => {
-      finalizeMessage(payload)
-      void window.electronAPI.tokenStats?.().then(setTokenStats).catch(() => {})
-      // v0.9.3 §11 改进点 26 P2-F：流式结束后刷新成本统计
-      void window.electronAPI.tokenCostStats?.().then(setCostStats).catch(() => {})
-    })
-
-    const offError = window.electronAPI.onAgentError((payload) => {
-      markError(payload)
-      void window.electronAPI.tokenStats?.().then(setTokenStats).catch(() => {})
-      // v0.9.3 §11 改进点 26 P2-F：错误后也刷新成本统计（部分 token 可能已计费）
-      void window.electronAPI.tokenCostStats?.().then(setCostStats).catch(() => {})
-    })
-
-    // M1 Task 7：订阅 onAgentStep，将工作流状态写入当前流式消息
-    const offStep = window.electronAPI.onAgentStep?.((state: AgentWorkflowState) => {
-      updateStepState(state)
-    })
-
-    return () => {
-      subscribedRef.current = false
-      offChunk()
-      offDone()
-      offError()
-      offStep?.()
-    }
-  }, [appendToken, finalizeMessage, markError, setTokenStats, setCostStats, updateStepState])
+  // 流式事件（agent:chunk/done/error/step）的订阅已提升到应用入口全局绑定
+  // （stores/agent-stream-subscription.ts），面板收起/卸载不再丢失事件。
 
   const send = useCallback(
     async (text: string) => {

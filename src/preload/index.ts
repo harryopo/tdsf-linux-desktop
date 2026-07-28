@@ -142,6 +142,7 @@ import type {
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
+  AgentToolEventPayload,
   // v0.9 可信度算法共享类型（D-S + PCR5 + 6 源证据 + DAG 可视化）
   CredibilityEvidenceInput,
   ConfidenceAssessment,
@@ -1071,6 +1072,10 @@ const provider = {
   /** 设置默认 Provider ID */
   setDefault: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(PROVIDER.SET_DEFAULT, id),
+
+  /** 获取默认 Provider ID（P0 修复：渲染层不再盲写 providers[0]） */
+  getDefault: (): Promise<string> =>
+    ipcRenderer.invoke(PROVIDER.GET_DEFAULT),
 }
 
 /**
@@ -2236,6 +2241,10 @@ const on = {
   agentError: (callback: (payload: AgentErrorPayload) => void): (() => void) => {
     return createListener(AGENT.ERROR, callback)
   },
+  /** 监听 Supervisor 工具调用事件（v2.4：真实工具执行可视化） */
+  agentToolEvent: (callback: (payload: AgentToolEventPayload) => void): (() => void) => {
+    return createListener('agent:tool-event', callback)
+  },
 
   // v0.9 Claude Agent SDK 流式事件（独立于 agent:chunk/done/error，避免通道混用）
   /** 监听 Claude SDK 流式 token 块推送 */
@@ -2456,6 +2465,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAgentChunk: on.agentChunk,
   onAgentDone: on.agentDone,
   onAgentError: on.agentError,
+  /** v2.4：Agent 工具调用事件（真实工具执行可视化） */
+  onAgentToolEvent: on.agentToolEvent,
 
   // v0.9 Claude Agent SDK 流式事件（独立于 Supervisor，避免通道混用）
   onClaudeSdkChunk: on.claudeSdkChunk,
@@ -2473,6 +2484,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批请求事件
   // （Subagent 调度时主进程推送审批请求，用户响应后 step 2 继续/中止）
   onTaskPermissionApprovalRequest: on.taskPermissionApprovalRequest,
+
+  // ===== MCP 扁平化（P1 修复：此前仅在 on 对象内定义、未暴露，前端永远调不到，
+  // 而 electron.d.ts 却声明了这些方法 —— 类型与运行时不一致的结构性断链） =====
+  // v0.9.5 P0：MCP 5 阶段生命周期状态机
+  mcpGetState: on.mcpGetState,
+  mcpReset: on.mcpReset,
+  onMcpStateChanged: on.mcpStateChanged,
+  // v0.9.6：外部 MCP Server（Client 侧）
+  mcpExternalStatus: on.mcpExternalStatus,
+  mcpExternalTools: on.mcpExternalTools,
+  mcpExternalCall: on.mcpExternalCall,
+  mcpExternalReconnect: on.mcpExternalReconnect,
 
   // ===== Agent 扁平化（旧 AgentWorkflow，v0.8 及之前） =====
   // 注意：v0.8 旧 agentCancel 已被 v0.9.4 新签名覆盖（通过 sessionId 统一取消多类会话）。
@@ -2513,6 +2536,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   providerGet: provider.get,
   providerSave: provider.save,
   providerSetDefault: provider.setDefault,
+  providerGetDefault: provider.getDefault,
   tokenStats: token.stats,
   tokenReset: token.reset,
   // P-5 新增：token 使用明细记录（Token 监控面板展示明细列表 + 分布图表）
@@ -3437,6 +3461,14 @@ export type ElectronAPI = {
   onClaudeSdkChunk: (callback: (payload: AgentChunkPayload) => void) => () => void
   onClaudeSdkDone: (callback: (payload: AgentDonePayload) => void) => () => void
   onClaudeSdkError: (callback: (payload: AgentErrorPayload) => void) => () => void
+  // MCP（P1 修复：补齐扁平化暴露的类型声明）
+  mcpGetState: typeof on.mcpGetState
+  mcpReset: typeof on.mcpReset
+  onMcpStateChanged: typeof on.mcpStateChanged
+  mcpExternalStatus: typeof on.mcpExternalStatus
+  mcpExternalTools: typeof on.mcpExternalTools
+  mcpExternalCall: typeof on.mcpExternalCall
+  mcpExternalReconnect: typeof on.mcpExternalReconnect
   // Agent（旧 AgentWorkflow，v0.8 及之前）
   agentStart: (sessionId: string, problem: string) => Promise<boolean>
   agentConfirm: (sessionId: string, approved: boolean) => Promise<boolean>
@@ -3458,6 +3490,7 @@ export type ElectronAPI = {
   providerGet: typeof provider.get
   providerSave: typeof provider.save
   providerSetDefault: typeof provider.setDefault
+  providerGetDefault: typeof provider.getDefault
   tokenStats: typeof token.stats
   tokenReset: typeof token.reset
   // P-5 新增：token 使用明细记录

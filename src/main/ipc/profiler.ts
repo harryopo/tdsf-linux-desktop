@@ -1,12 +1,13 @@
 /**
  * 系统架构感知 IPC Handlers
  *
- * 注册 profiler:* 三个 invoke 通道，桥接渲染进程与 SystemProfiler 模块。
+ * 注册 profiler:* 四个 invoke 通道，桥接渲染进程与 SystemProfiler 模块。
  *
  * 通道列表：
- * - profiler:run         — 执行 27 项系统探查 + 风险检测 + md 渲染，返回完整结果
- * - profiler:exportMd    — 将 md 文本写入文件
- * - profiler:exportPdf   — 将 md 文本渲染为 PDF 并写入文件
+ * - profiler:run             — 执行 27 项系统探查 + 风险检测 + md 渲染，返回完整结果
+ * - profiler:exportMd        — 将 md 文本写入文件
+ * - profiler:exportPdf       — 将 md 文本渲染为 PDF 并写入文件
+ * - profiler:defaultFileName — 生成默认导出文件名
  *
  * 设计原则：
  * - 探查过程可能耗时 3-8 秒，handler 直接返回 ProfilerRunResponse（含 result / md / risks / summary）

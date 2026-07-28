@@ -4,9 +4,9 @@
  * 设计稿：monitor.html 第 6 段 进程监控 table-panel
  * Spec: build-runnable-tdsf-from-design · Task 2.4
  *
- * 数据策略：
- * - 优先通过 sshExec 执行 `ps aux --sort=-%cpu | head -6` 获取真实进程列表
- * - 若无活跃会话或真实数据为空，使用 sampleProcesses 作为 fallback（保证页面可演示）
+ * 数据策略（P1 修复：移除 sampleProcesses 假进程 fallback）：
+ * - 通过 sshExec 执行 `ps aux --sort=-%cpu | head -6` 获取真实进程列表
+ * - 无活跃会话或数据为空时显示空态行（不再展示假进程误导用户）
  *
  * 视觉规范：
  * - 边框用 solid hex（var(--trae-border-neutral-l1)）
@@ -18,7 +18,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { useServerStore } from '../../stores/server-store'
 import { useMonitorStore } from '../../stores/monitor-store'
-import { sampleProcesses } from './mock-data'
 
 /** 进程运行状态（从 ps STAT 列推断） */
 type ProcessStatus = '运行中' | '睡眠' | '僵尸'
@@ -226,7 +225,7 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
     }
   }
 
-  /** 显示数据：真实数据优先，无活跃会话或为空时用 sampleProcesses fallback */
+  /** 显示数据（P1 修复：只用真实数据，无数据显示空态行，不再用 sampleProcesses 假进程） */
   type DisplayRow = { pid: number; name: string; cpu: number; mem: number; status: ProcessStatus }
   const displayProcesses: DisplayRow[] =
     !loading && !error && processes.length > 0
@@ -237,14 +236,7 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
           mem: p.mem,
           status: p.status,
         }))
-      : sampleProcesses.map((p) => ({
-          pid: p.pid,
-          name: p.name,
-          cpu: p.cpu,
-          mem: p.mem,
-          status: p.status,
-        }))
-  const isFallback = !activeSessionId || (!loading && !error && processes.length === 0)
+      : []
 
   return (
     <div className="mon-table-panel">
@@ -258,11 +250,6 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
           {processCount !== null && (
             <span className="mon-table-count">
               共 {processCount} 个进程
-            </span>
-          )}
-          {isFallback && (
-            <span className="mon-table-count-muted">
-              示例
             </span>
           )}
         </div>
@@ -315,6 +302,13 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
               <tr>
                 <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-status-error-default)', fontSize: 'var(--trae-body-sm-font-size)' }}>
                   {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && displayProcesses.length === 0 && (
+              <tr>
+                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>
+                  {activeSessionId ? '暂无进程数据，点击右上角刷新重试' : '连接 SSH 服务器后展示真实进程列表'}
                 </td>
               </tr>
             )}

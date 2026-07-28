@@ -84,6 +84,29 @@ export interface AgentMessage {
   cotEntropyTrajectory?: number[]
   /** Agent 工作流状态（onAgentStep 推送，仅 assistant 消息） */
   stepState?: AgentWorkflowState | null
+  /**
+   * 工具调用轨迹（v2.4 新增，仅 assistant 消息）
+   *
+   * 记录本条回复过程中 Agent 【真实执行】的工具调用（如 ssh_readonly 诊断命令），
+   * 由 agent:tool-event 事件驱动。每个元素是一次工具调用（call→result 合并）。
+   */
+  toolEvents?: AgentToolCall[]
+}
+
+/**
+ * 单次工具调用记录（call 与 result 按 toolCallId 合并）
+ */
+export interface AgentToolCall {
+  toolCallId: string
+  toolName: string
+  /** 调用入参（如命令文本） */
+  input?: string
+  /** 是否完成（收到 result） */
+  done: boolean
+  /** 是否成功 */
+  ok?: boolean
+  /** 输出摘要 */
+  output?: string
 }
 
 /**
@@ -166,6 +189,19 @@ interface AgentState {
   markError: (payload: AgentErrorPayload) => void
   /** 更新当前流式消息的 stepState */
   updateStepState: (stepState: AgentWorkflowState) => void
+  /**
+   * 追加/更新工具调用事件到当前流式 assistant 消息（v2.4）
+   *
+   * call 阶段：新增一条 AgentToolCall；result 阶段：按 toolCallId 找到并补全 done/ok/output。
+   */
+  appendToolEvent: (evt: {
+    toolCallId: string
+    phase: 'call' | 'result'
+    toolName: string
+    input?: string
+    ok?: boolean
+    output?: string
+  }) => void
   /** 清空所有消息 */
   clearMessages: () => void
   /**
@@ -330,6 +366,46 @@ export const useAgentStore = create<AgentState>()((set) => ({
       for (let i = next.length - 1; i >= 0; i--) {
         if (next[i].role === 'assistant' && next[i].isStreaming) {
           next[i] = { ...next[i], stepState }
+          break
+        }
+      }
+      return { messages: next }
+    }),
+
+  // 追加/更新工具调用事件到当前流式 assistant 消息（v2.4）
+  appendToolEvent: (evt) =>
+    set((state) => {
+      const next = [...state.messages]
+      for (let i = next.length - 1; i >= 0; i--) {
+        const msg = next[i]
+        if (msg.role === 'assistant' && msg.isStreaming) {
+          const events = [...(msg.toolEvents ?? [])]
+          if (evt.phase === 'call') {
+            // 新增一条调用（若同 toolCallId 已存在则跳过，避免重复）
+            if (!events.some((e) => e.toolCallId === evt.toolCallId)) {
+              events.push({
+                toolCallId: evt.toolCallId,
+                toolName: evt.toolName,
+                input: evt.input,
+                done: false,
+              })
+            }
+          } else {
+            // result：按 toolCallId 回填；找不到则新增一条已完成记录
+            const idx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
+            if (idx >= 0) {
+              events[idx] = { ...events[idx], done: true, ok: evt.ok, output: evt.output }
+            } else {
+              events.push({
+                toolCallId: evt.toolCallId,
+                toolName: evt.toolName,
+                done: true,
+                ok: evt.ok,
+                output: evt.output,
+              })
+            }
+          }
+          next[i] = { ...msg, toolEvents: events }
           break
         }
       }

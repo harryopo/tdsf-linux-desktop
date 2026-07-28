@@ -68,8 +68,8 @@ function extractField(yamlText: string, key: string): string | null {
  * @returns 字符串数组（空数组表示未找到或解析失败）
  */
 function extractArray(yamlText: string, key: string): string[] {
-  // 1. 尝试行内数组格式：key: [a, b, c]
-  const inlineRegex = new RegExp(`^${key}:\\s*\\[(.+?)\\]`, 'm')
+  // 1. 尝试行内数组格式：key: [a, b, c]（容忍前导缩进，嵌套字段也适用）
+  const inlineRegex = new RegExp(`^[ \\t]*${key}:\\s*\\[(.+?)\\]`, 'm')
   const inlineMatch = yamlText.match(inlineRegex)
   if (inlineMatch) {
     return inlineMatch[1]
@@ -78,11 +78,12 @@ function extractArray(yamlText: string, key: string): string[] {
       .filter(Boolean)
   }
 
-  // 2. 尝试缩进数组格式：
+  // 2. 尝试缩进数组格式（v2.4 P3 修复：键行可能自身缩进，如嵌套在 triggers: 下的
+  //    keywords: / patterns: / semantic:——原正则 ^key: 要求顶格，导致内置 skill 触发词全解析为空）：
   //    key:
   //      - item1
   //      - item2
-  const blockRegex = new RegExp(`^${key}:\\s*\\n((?:[ \\t]+-\\s+.+\\r?\\n?)+)`, 'm')
+  const blockRegex = new RegExp(`^[ \\t]*${key}:[ \\t]*\\r?\\n((?:[ \\t]+-\\s+.+\\r?\\n?)+)`, 'm')
   const blockMatch = yamlText.match(blockRegex)
   if (blockMatch) {
     return blockMatch[1]

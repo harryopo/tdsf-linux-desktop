@@ -12,33 +12,19 @@
 import { ipcMain } from 'electron'
 import { PROMPTFOO } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
-import { ConfigStore } from '../services/storage/config-store'
-import { SecureStore } from '../services/storage/secure-store'
-import type { LlmConfig, ChatMessage } from '@shared/models'
+import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
+import type { ChatMessage } from '@shared/models'
 import { RedTeamRunner, RED_TEAM_TEST_CASES } from '../services/promptfoo/red-team'
 import { EvalRunner, EVAL_TEST_CASES } from '../services/promptfoo/eval'
 
 /**
  * 获取 LLM 客户端实例（与 ipc/llm.ts 中的 getLlmClient 保持一致）
  *
- * 从 ConfigStore 读取配置，从 SecureStore 读取 API Key，
+ * 配置统一走 resolveLlmConfig（Provider 体系优先，旧 'llm' Key 兜底），
  * 每次调用都构造新的 LlmClient（配置可能已变更）。
  */
 function getLlmClient(): LlmClient {
-  const config = ConfigStore.getLlmConfig()
-  if (!config) {
-    return new LlmClient({
-      baseUrl: '',
-      apiKey: '',
-      model: '',
-      temperature: 0.7,
-      maxTokens: 2048,
-      timeout: 30_000
-    })
-  }
-  const apiKey = SecureStore.getApiKey('llm') ?? ''
-  const fullConfig: LlmConfig = { ...config, apiKey }
-  return new LlmClient(fullConfig)
+  return new LlmClient(resolveLlmConfig('ipc/promptfoo'))
 }
 
 // ============================================================

@@ -882,6 +882,8 @@ export const PROVIDER = {
   SAVE: 'provider:save',
   /** 设置默认 Provider（invoke: 渲染 → 主） */
   SET_DEFAULT: 'provider:set-default',
+  /** 获取默认 Provider ID（invoke: 渲染 → 主） */
+  GET_DEFAULT: 'provider:get-default',
   /** 查询单个 Provider 能力（invoke: 渲染 → 主） */
   CAPABILITIES: 'provider:capabilities',
   /** 查询所有 Provider 能力（invoke: 渲染 → 主） */

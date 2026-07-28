@@ -82,18 +82,21 @@ export class SystemMonitor extends EventEmitter {
    * 第一次网络数据仅记录基线，第二次开始计算速率。
    *
    * @param sessionId SSH 会话 ID
-   * @param interval 采集间隔（秒），最小 1 秒
+   * @param intervalMsArg 采集间隔（毫秒），最小 1000ms。
+   *   v2.4 修复：历史注释写“秒”但所有前端调用方实际传毫秒（MonitorPage 5000 / E2E 2000），
+   *   而后端又 ×1000，导致实际间隔 5000×1000ms≈83分钟——首次采集后几乎不刷新。
+   *   现统一按毫秒处理，与所有调用方对齐。
    * @returns 是否成功启动（已监控视为成功）
    */
   public async startMonitoring(
     sessionId: string,
-    interval: number
+    intervalMsArg: number
   ): Promise<boolean> {
     // 已监控直接返回
     if (this.states.has(sessionId)) {
       return true
     }
-    const intervalMs = Math.max(MIN_INTERVAL_MS, interval * 1000)
+    const intervalMs = Math.max(MIN_INTERVAL_MS, intervalMsArg)
     const state: MonitorState = {
       timer: null as unknown as NodeJS.Timeout,
       interval: intervalMs,
@@ -150,16 +153,16 @@ export class SystemMonitor extends EventEmitter {
    * @returns SystemInfo 系统静态信息
    */
   public async getSystemInfo(sessionId: string): Promise<SystemInfo> {
-    // 并行执行多个命令，提高采集效率
+    // v2.4 修复：合并为单条 exec（单 channel），避免并发 7 channel 撞爆 MaxSessions
     const [hostname, kernel, arch, osRelease, cpuInfo, memInfo, diskInfo] =
-      await Promise.all([
-        this.execSafe(sessionId, 'hostname'),
-        this.execSafe(sessionId, 'uname -r'),
-        this.execSafe(sessionId, 'uname -m'),
-        this.execSafe(sessionId, 'cat /etc/os-release'),
-        this.execSafe(sessionId, 'cat /proc/cpuinfo'),
-        this.execSafe(sessionId, "free -b | grep Mem | awk '{print $2}'"),
-        this.execSafe(sessionId, "df -B1 / | awk 'NR==2{print $2}'"),
+      await this.execBatch(sessionId, [
+        'hostname',
+        'uname -r',
+        'uname -m',
+        'cat /etc/os-release',
+        'cat /proc/cpuinfo',
+        "free -b | grep Mem | awk '{print $2}'",
+        "df -B1 / | awk 'NR==2{print $2}'",
       ])
 
     // 解析 CPU 型号和核心数
@@ -277,16 +280,16 @@ export class SystemMonitor extends EventEmitter {
 
     const currentTimestamp = Date.now()
 
-    // 并行执行所有采集命令
+    // v2.4 修复：合并为单条 exec（单 channel），避免每周期并发 7 channel
     const [cpuOut, memOut, diskOut, netOut, loadOut, uptimeOut, procOut] =
-      await Promise.all([
-        this.execSafe(sessionId, 'top -bn1 | grep "Cpu(s)" | head -1'),
-        this.execSafe(sessionId, "free -b | grep Mem | awk '{print $3/$2 * 100}'"),
-        this.execSafe(sessionId, "df -h / | awk 'NR==2{print $5}'"),
-        this.execSafe(sessionId, 'cat /proc/net/dev'),
-        this.execSafe(sessionId, 'cat /proc/loadavg'),
-        this.execSafe(sessionId, 'cat /proc/uptime'),
-        this.execSafe(sessionId, 'ps aux | wc -l'),
+      await this.execBatch(sessionId, [
+        'top -bn1 | grep "Cpu(s)" | head -1',
+        "free -b | grep Mem | awk '{print $3/$2 * 100}'",
+        "df -h / | awk 'NR==2{print $5}'",
+        'cat /proc/net/dev',
+        'cat /proc/loadavg',
+        'cat /proc/uptime',
+        'ps aux | wc -l',
       ])
 
     // 解析各项指标
@@ -336,6 +339,39 @@ export class SystemMonitor extends EventEmitter {
     } catch {
       return ''
     }
+  }
+
+  /**
+   * 批量执行多条命令 —— 合并为【单条 exec】（单个 SSH channel）
+   *
+   * v2.4 修复（SSH channel 耗尽）：此前采集用 Promise.all 并发 7 条 exec，
+   * 每条 exec 开一个 SSH channel；首次采集叠加 getSystemInfo 的 7 条 =
+   * 瞬间 14 个并发 channel，撞爆 OpenSSH 默认 MaxSessions=10，
+   * 表现为 "Channel open failure: open failed"、监控数据全 0。
+   *
+   * 改为用唯一分隔符把多条命令串联成一条命令、单次 exec，输出按分隔符切回。
+   * 好处：channel 数 7→1（远低于 MaxSessions），且只需一次网络往返，更快。
+   *
+   * 命令间用 `;` 顺序执行（非 `&&`）：单条命令失败不影响后续，对应段落为空串。
+   *
+   * @param sessionId SSH 会话 ID
+   * @param commands 命令数组
+   * @returns 与 commands 等长的 stdout 段落数组（失败/缺失段为空串）
+   */
+  private async execBatch(sessionId: string, commands: string[]): Promise<string[]> {
+    if (commands.length === 0) return []
+    const SEP = '__TDSF_MON_SEP_9f3c2b__'
+    const combined = commands.join(` ; echo '${SEP}' ; `)
+    let stdout = ''
+    try {
+      const result = await this.sshManager.exec(sessionId, combined)
+      stdout = result.stdout
+    } catch {
+      return commands.map(() => '')
+    }
+    const segments = stdout.split(SEP)
+    // 对齐命令数量：按序取段，去掉每段首尾多余换行；缺失段补空串
+    return commands.map((_, i) => (segments[i] ?? '').replace(/^\n+/, '').replace(/\n+$/, ''))
   }
 
   // ------------------------------------------------------------------

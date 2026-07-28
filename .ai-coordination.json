@@ -2,8 +2,34 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-28T10:26:23.077Z",
-  "sessions": {},
+  "lastUpdated": "2026-07-28T10:28:55.574Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-07-28T10:28:53.195Z",
+      "lastActiveAt": "2026-07-28T10:28:55.574Z",
+      "task": "quality-gate-batch2:核心行为变更入库",
+      "claimedFiles": [
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "quality-gate-batch2:核心行为变更入库",
+          "claimedAt": "2026-07-28T10:28:53.195Z"
+        },
+        {
+          "path": "src/shared/agent-types.ts",
+          "task": "quality-gate-batch2:核心行为变更入库",
+          "claimedAt": "2026-07-28T10:28:54.333Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "quality-gate-batch2:核心行为变更入库",
+          "claimedAt": "2026-07-28T10:28:55.574Z"
+        }
+      ],
+      "expiresAt": "2026-07-28T12:28:55.574Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -2776,6 +2802,27 @@
       "file": "scripts/ai-coordination/",
       "task": "guard-hook-selfinstall",
       "timestamp": "2026-07-28T10:26:23.077Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "quality-gate-batch2:核心行为变更入库",
+      "timestamp": "2026-07-28T10:28:53.195Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/agent-types.ts",
+      "task": "quality-gate-batch2:核心行为变更入库",
+      "timestamp": "2026-07-28T10:28:54.333Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "quality-gate-batch2:核心行为变更入库",
+      "timestamp": "2026-07-28T10:28:55.574Z"
     }
   ],
   "coordinationAudit": {

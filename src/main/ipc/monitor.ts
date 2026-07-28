@@ -58,7 +58,7 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
   // IPC handlers
   // ------------------------------------------------------------------
 
-  /** monitor:start — 启动监控，interval 单位为秒 */
+  /** monitor:start — 启动监控，interval 单位为毫秒（v2.4 修复：统一为毫秒，与前端调用方对齐） */
   ipcMain.handle(
     'monitor:start',
     async (_event, sessionId: string, interval: number) => {

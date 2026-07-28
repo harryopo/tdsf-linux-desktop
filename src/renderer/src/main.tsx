@@ -25,6 +25,8 @@ import zhCN from 'antd/locale/zh_CN'
 import App from './App'
 import { useThemeStore } from './stores/theme-store'
 import { ErrorBoundary } from './components/ErrorBoundary'
+// P0 修复：Agent 流式事件全局订阅（与 AIPanel 挂载解耦，防止流式中收起面板丢事件）
+import { initAgentStreamSubscription } from './stores/agent-stream-subscription'
 // v2.3 P3-B3: Antd 主题 token 从独立常量文件 import，消除 main.tsx 28 处硬编码颜色（B2 红线）
 import { traeAntdDarkToken, traeAntdLightToken, traeAntdComponentsConfig } from './styles/antd-tokens'
 import './styles/tailwind.css'
@@ -54,6 +56,27 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[Unhandled Rejection]', event.reason)
   event.preventDefault()
 })
+
+// Agent 流式事件在应用启动时绑定一次，组件卸载不解绑（幂等）
+initAgentStreamSubscription()
+
+// 仅测试环境（TDSF_E2E=1）：把关键 store 挂到 window，供 Playwright E2E 验证真实链路。
+// 生产环境不挂（import.meta.env.DEV 与 window 上无 __TDSF_E2E 标志时跳过）。
+// 背景：SSH 连接成功后需写入 server-store 的 activeSessionId/sessionMap，
+// 监控页才能读到会话；测试需能复制这一真实用户路径。
+if (import.meta.env.DEV || (typeof navigator !== 'undefined' && navigator.webdriver)) {
+  void Promise.all([
+    import('./stores/server-store'),
+    import('./stores/monitor-store'),
+    import('./stores/agent-store'),
+  ]).then(([server, monitor, agent]) => {
+    ;(window as unknown as Record<string, unknown>).__tdsfStores = {
+      server: server.useServerStore,
+      monitor: monitor.useMonitorStore,
+      agent: agent.useAgentStore,
+    }
+  })
+}
 
 /**
  * AntD 主题 token 与组件配置说明

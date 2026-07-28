@@ -28,8 +28,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { randomUUID } from 'crypto'
 import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
-import { ConfigStore } from '../services/storage/config-store'
-import { SecureStore } from '../services/storage/secure-store'
+import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { ToolRegistry } from '../services/llm/tools/registry'
 import { generateText, isStepCount } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -153,11 +152,8 @@ export function registerLlmToolHandlers(
   ipcMain.handle(
     'llm:chat-with-tools',
     async (_event, messages: ChatMessage[]) => {
-      const config = ConfigStore.getLlmConfig()
-      const apiKey = SecureStore.getApiKey('llm') ?? ''
-      const fullConfig: LlmConfig = config
-        ? { ...config, apiKey }
-        : { baseUrl: '', apiKey: '', model: '', temperature: 0.7, maxTokens: 2048, timeout: 30_000 }
+      // 配置统一走 resolveLlmConfig（Provider 体系优先，旧 'llm' Key 兜底）
+      const fullConfig: LlmConfig = resolveLlmConfig('ipc/llm-tools')
 
       // 无 API Key 降级到普通 LlmClient（不带工具）
       if (!fullConfig.apiKey || !fullConfig.baseUrl || !fullConfig.model) {

@@ -12,7 +12,8 @@ export interface SparklineRecord {
   timestamp: number
   status: string
   confidence: number
-  durationSec: number
+  /** 执行耗时（秒）；null 表示未记录（avgDuration 指标按 0 处理） */
+  durationSec: number | null
 }
 
 /** 基线 sparkline（records 为空时的视觉占位，对应水平线在底部） */
@@ -70,8 +71,8 @@ export function buildSparklinePoints(
     } else if (metric === 'avgConfidence') {
       v = r.confidence
     } else {
-      // avgDuration
-      v = r.durationSec
+      // avgDuration（未记录耗时的记录按 0 处理，不伪造）
+      v = r.durationSec ?? 0
     }
     sums[idx] += v
     counts[idx] += 1

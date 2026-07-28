@@ -13,11 +13,10 @@
  * - 进程监控 TOP 5 CPU
  * - AlertDrawer（DEC-3 决策告警详情抽屉）
  *
- * 数据策略（spec REMOVED Requirements：mock 数据仅保留在测试用例中）：
- * - 优先使用实时 monitor:data IPC 推送的数据
- * - 未连接或数据为空时：
- *   - DEV 模式下使用 sampleKpiStats / sampleAlerts 作为 fallback（保证页面可演示）
- *   - 非 DEV 模式使用 EmptyMonitorState 空状态组件
+ * 数据策略（P1 修复：彻底移除 DEV 假数据 fallback）：
+ * - 只使用实时 monitor:data IPC 推送的真实数据
+ * - 未连接或数据为空时一律显示 EmptyMonitorState 空态（DEV 与生产一致，
+ *   避免开发预览时把假服务器/假告警当真实状态）
  *
  * 视觉规范（spec §B）：
  * - 边框用 solid hex（var(--trae-border-neutral-l1/l2)）
@@ -43,8 +42,6 @@ import {
   type KpiStat,
   type AlertRecord,
 } from '@/components/monitor/mock-data'
-// DEV 模式下导入示例数据 fallback（production build 时 vite 会 tree-shake 移除）
-import { sampleKpiStats, sampleAlerts } from '@/pages/__fixtures__/monitor-sample'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
 import type { MonitorData } from '@shared/models'
@@ -153,7 +150,8 @@ export function MonitorPage() {
   const [range, setRange] = useState<TimeRange>('24H')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [serverLabel, setServerLabel] = useState('prod-web-01 · 192.168.1.10')
+  // P1 修复：移除硬编码假服务器标签 'prod-web-01 · 192.168.1.10'，未连接时诚实显示
+  const [serverLabel, setServerLabel] = useState('未连接服务器')
   // AlertDrawer 状态
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedAlert, setSelectedAlert] = useState<AlertRecord | null>(null)
@@ -166,23 +164,19 @@ export function MonitorPage() {
     activeSessionId ? s.getSystemInfo(activeSessionId) : null,
   )
 
-  // 订阅 monitor:data 推送
+  // monitor:data / systemInfo 订阅已提升到应用入口全局绑定
+  // （stores/agent-stream-subscription.ts），监控页未挂载时也不丢推送。
+  // 本页挂载时若已有历史数据，直接结束 loading。
   useEffect(() => {
-    if (!isElectronAPIAvailable()) return
-    const offData = window.electronAPI.onMonitorData((sessionId, data) => {
-      useMonitorStore.getState().addMonitorData(sessionId, data)
-      setLoading(false)
-    })
-    const offInfo = window.electronAPI.onMonitorSystemInfo((sessionId, info) => {
-      useMonitorStore.getState().setSystemInfo(sessionId, info)
-    })
-    return () => { offData(); offInfo() }
-  }, [])
+    if (monitorData.length > 0) setLoading(false)
+  }, [monitorData.length])
 
   // 连接后启动监控 + 获取系统信息
+  // P0 修复：卸载时不再 monitorStop —— 让监控在后台持续采集，数据持续进 store，
+  // 用户来回切页面不再中断采集（此前离开监控页即 stop，回来又是空白）。
   useEffect(() => {
     if (!activeSessionId || !isElectronAPIAvailable()) return
-    setLoading(true)
+    if (monitorData.length === 0) setLoading(true)
     window.electronAPI.monitorStart(activeSessionId, 5000)
     window.electronAPI.monitorGetSystemInfo(activeSessionId).then((info) => {
       if (info) {
@@ -193,14 +187,14 @@ export function MonitorPage() {
     const timer = setTimeout(() => setLoading(false), 3000)
     return () => {
       clearTimeout(timer)
-      window.electronAPI.monitorStop(activeSessionId).catch(() => {})
     }
-  }, [activeSessionId])
+  }, [activeSessionId, monitorData.length])
 
-  // 无活跃会话时立即清除 loading，让 DEV 模式的 sampleKpiStats 可以渲染
+  // 无活跃会话时立即清除 loading，直接展示空态（不再回退假数据）
   useEffect(() => {
     if (!activeSessionId) {
       setLoading(false)
+      setServerLabel('未连接服务器')
     }
   }, [activeSessionId])
 
@@ -211,25 +205,23 @@ export function MonitorPage() {
     }
   }, [systemInfo])
 
-  // KPI 数据（nullable）：实时优先，无数据时 DEV 模式用 sampleKpiStats fallback，非 DEV 返回 null
+  // KPI 数据（nullable）：只用真实数据，无数据返回 null → EmptyMonitorState
+  // P1 修复：移除 DEV sampleKpiStats fallback（开发预览时假 KPI 会被当真实状态）
   // M3 Task 2：KPI 数据源按 range 切片（取切片后最后一条作为 latest）
   const kpiStats = useMemo<KpiStat[] | null>(() => {
     const sliced = sliceMonitorData(monitorData, range)
-    const live = computeKpiStats(sliced)
-    if (live) return live
-    return import.meta.env.DEV ? sampleKpiStats : null
+    return computeKpiStats(sliced)
   }, [monitorData, range])
 
-  // 顶部 critical 告警横幅数据（nullable）：实时优先，无数据时 DEV 模式用 sampleAlerts[0] fallback，非 DEV 返回 null
-  // 横幅 desc 比告警表格多 "，建议清理 /var/log 旧日志" 后缀（1:1 对齐 monitor.html 第 636 行）
-  // 横幅 time 用相对时间（1:1 对齐 monitor.html 第 637 行 "2分钟前"）
+  // 顶部 critical 告警横幅数据（nullable）：只基于真实监控数据生成
+  // P1 修复：移除 DEV 假告警"磁盘92%…2分钟前"fallback 与假主机名 'prod-web-01'
   const criticalAlert = useMemo<AlertRecord | null>(() => {
     const latest = monitorData[monitorData.length - 1]
     if (latest && latest.diskUsage > 85) {
       return {
         time: '刚刚',
         level: 'critical',
-        server: systemInfo?.hostname ?? 'prod-web-01',
+        server: systemInfo?.hostname ?? '当前服务器',
         desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值85%，建议清理 /var/log 旧日志`,
         status: '未处理',
         source: '/dev/sda1 · /var/log',
@@ -239,13 +231,6 @@ export function MonitorPage() {
           '归档并压缩：tar -czf /tmp/log-$(date +%F).tar.gz /var/log/*.log && rm /var/log/*.log',
           '配置 logrotate 自动轮转：编辑 /etc/logrotate.d/nginx',
         ],
-      }
-    }
-    if (import.meta.env.DEV && sampleAlerts[0]) {
-      return {
-        ...sampleAlerts[0],
-        desc: '磁盘使用率92%超过阈值85%，建议清理 /var/log 旧日志',
-        time: '2分钟前',
       }
     }
     return null
@@ -268,7 +253,8 @@ export function MonitorPage() {
     window.electronAPI.monitorGetSystemInfo(activeSessionId).then((info) => {
       if (info) useMonitorStore.getState().setSystemInfo(activeSessionId, info)
     }).catch(() => {}).finally(() => {
-      setTimeout(() => setRefreshing(false), 800)
+      // P1 修复：请求结束即停止转圈，移除 800ms 人为延迟（假"刷新中"动画）
+      setRefreshing(false)
     })
   }, [activeSessionId])
 

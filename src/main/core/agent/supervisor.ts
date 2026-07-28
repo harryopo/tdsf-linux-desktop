@@ -70,6 +70,10 @@ import { SshConnectionManager } from '../../services/ssh/connection-manager'
 import { createCotTraceCollector } from './credibility/mass-functions/cot-trace-collector'
 import { assessRisk } from '../risk-engine'
 import { withCallbackStreamTrace } from '../../services/observability/langfuse-trace'
+import { DatabaseManager } from '../../services/db/database'
+import { KnowledgeRepository } from '../../services/db/knowledge-repo'
+import { TutorialRepository } from '../../services/tutorial/tutorial-repo'
+import { getSkillRouter } from '../../services/skills/skill-router-singleton'
 
 /**
  * 流式 chat 调用参数
@@ -87,6 +91,20 @@ export interface ChatParams {
   onDone?: (result: ChatResult) => void
   /** 错误回调 */
   onError?: (error: Error) => void
+  /**
+   * 工具事件回调（v2.4 新增，用于前端可视化真实工具调用）
+   *
+   * 主对话 Agent 真实调用工具（如 ssh_readonly）时，fullStream 产生 tool-call/
+   * tool-result 分片；此回调把它们透传给上层推送到前端。phase 区分开始/结果。
+   */
+  onToolEvent?: (evt: {
+    toolCallId: string
+    phase: 'call' | 'result'
+    toolName: string
+    input?: string
+    ok?: boolean
+    output?: string
+  }) => void
   /** 关联 ID（用于日志追踪 + 取消请求） */
   correlationId?: string
   /**
@@ -328,6 +346,7 @@ class SupervisorAgent {
       onToken,
       onDone,
       onError,
+      onToolEvent,
       correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       sshSessionId,
     } = params
@@ -429,8 +448,8 @@ class SupervisorAgent {
     })
 
     try {
-      // 7. 只读 SSH 工具（有活跃 SSH 会话时挂载）
-      const tools =
+      // 7. 只读 SSH 工具（有活跃 SSH 会话时挂载）—— 下方与知识检索工具合并为 tools
+      const sshTools =
         sshSessionId && SshConnectionManager.getInstance().getConnectionState(sshSessionId) === 'connected'
           ? {
               ssh_readonly: tool({
@@ -489,19 +508,94 @@ class SupervisorAgent {
             }
           : undefined
 
+      // 7b. 知识检索工具（只读，无副作用）：DatabaseManager 单例，db 可用即常驻，无需 SSH。
+      // 与 ssh_readonly 一样，其 tool-call/tool-result 会被下方 fullStream 捕获并经
+      // onToolEvent 推送到前端「执行卡片」，复用同一套可视化通道（v2.4 P2）。
+      const db = DatabaseManager.getInstance()
+      const tools = {
+        // 知识库检索：历史故障案例 / 命令技能（Jaccard 关键词匹配）
+        kb_search: tool({
+          description:
+            '检索本地运维知识库（历史故障案例 / 命令技能），返回匹配条目的标题、问题、修复命令等。' +
+            '当用户问"这类问题以前怎么解决 / 有没有处理经验"时优先调用。',
+          inputSchema: z.object({
+            query: z.string().min(1).describe('检索关键词（中英文均可），如: nginx 502 / 磁盘满 / OOM'),
+            limit: z.number().int().min(1).max(5).default(3).describe('返回条数（默认 3，上限 5）'),
+          }),
+          execute: async ({ query, limit }: { query: string; limit?: number }) => {
+            try {
+              const entries = new KnowledgeRepository(db).search(query, undefined, limit ?? 3)
+              const results = entries.map((e) => ({
+                id: e.id,
+                type: e.type,
+                title: e.title,
+                problem: e.problem,
+                commands: e.commands,
+                keywords: e.keywords,
+              }))
+              const summary = results.length
+                ? results.map((r, i) => `${i + 1}. [${r.title}] ${r.problem}`).join('\n')
+                : `未在知识库找到与"${query}"相关的条目`
+              return { ok: true, count: results.length, results, summary }
+            } catch (e) {
+              return { ok: false, error: e instanceof Error ? e.message : String(e) }
+            }
+          },
+        }),
+        // 教程检索：官方权威 Linux 教程库
+        tutorial_search: tool({
+          description:
+            '搜索官方 Linux 教程库，返回匹配教程的标题、摘要、分类、来源。' +
+            '当用户想学习 / 配置某项功能时优先调用，并在回答中给出教程来源。',
+          inputSchema: z.object({
+            query: z.string().min(1).describe('教程搜索关键词，如: nginx 反向代理 / systemd 服务'),
+            limit: z.number().int().min(1).max(5).default(3).describe('返回条数（默认 3，上限 5）'),
+          }),
+          execute: async ({ query, limit }: { query: string; limit?: number }) => {
+            try {
+              const entries = new TutorialRepository(db).search(query, limit ?? 3)
+              const results = entries.map((e) => ({
+                id: e.id,
+                title: e.title,
+                summary: e.summary,
+                category: e.category,
+                sourceName: e.source.name,
+              }))
+              const summary = results.length
+                ? results.map((r, i) => `${i + 1}. [${r.title}] ${r.summary}`).join('\n')
+                : `未找到与"${query}"相关的教程`
+              return { ok: true, count: results.length, results, summary }
+            } catch (e) {
+              return { ok: false, error: e instanceof Error ? e.message : String(e) }
+            }
+          },
+        }),
+        // 只读 SSH 诊断：有活跃 SSH 会话时才并入（沿用上方 sshTools 定义）
+        ...(sshTools ?? {}),
+      }
+
       // 8. 调用 streamText（Vercel AI SDK v7；可选 tools + stopWhen）
-      // Phase J.3：传入 providerOptions 以支持 DeepSeek 思考模式（thinking + reasoning_effort）
-      // enableDeepseekThinking 为 false 时传 undefined，SDK 会忽略 providerOptions。
-      // v0.9.7 P3 M1：若 provider 支持 logprobs，透传 providerOptions.openai.logprobs + top_logprobs
+      // Phase J.3 + v2.4 修复：DeepSeek V4 Flash 默认开启思考模式，会先输出
+      // reasoning_content 再输出正文 content。标准 @ai-sdk/openai 流式解析下，
+      // 若不显式控制，deep 之外的场景也会走思考模式、正文迟迟不来，甚至
+      // 表现为 "No output generated"。因此：
+      //   - deep 强度：显式启用思考（thinking enabled + reasoning_effort high）
+      //   - 其余强度：对 deepseek 显式【关闭】思考（thinking disabled），确保正文直出
+      const isDeepseek = modelInstance.config.type === 'deepseek'
       const providerOptions =
-        enableDeepseekThinking || enableLogprobs
+        enableDeepseekThinking || enableLogprobs || isDeepseek
           ? {
-              ...(enableDeepseekThinking
+              ...(isDeepseek
                 ? {
-                    deepseek: {
-                      thinking: { type: 'enabled' as const },
-                      reasoning_effort: 'high' as const,
-                    },
+                    deepseek: enableDeepseekThinking
+                      ? {
+                          thinking: { type: 'enabled' as const },
+                          reasoning_effort: 'high' as const,
+                        }
+                      : {
+                          // 非 deep 场景关闭思考模式，正文直接输出，省 token 且避免空输出
+                          thinking: { type: 'disabled' as const },
+                        },
                   }
                 : {}),
               ...(enableLogprobs
@@ -516,8 +610,60 @@ class SupervisorAgent {
                 : {}),
             }
           : undefined
+      // v2.4 P3：Skill 路由（把内置运维手册接进主对话，B 注入式）。
+      // 命中 skill（skill-only/skill-assisted）时，把手册内容注入 system prompt 作权威参考，
+      // 并经 onToolEvent 推送「技能匹配」卡片可视化；不短路、仍走 LLM 流式（低风险）。
+      let skillInjection = ''
+      try {
+        let lastUserText = ''
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const m = messages[i]
+          if (m.role === 'user' && typeof m.content === 'string') {
+            lastUserText = m.content
+            break
+          }
+        }
+        if (lastUserText) {
+          const skillRoute = (await getSkillRouter()).route(lastUserText)
+          if (skillRoute.decision !== 'ai-only' && skillRoute.matches.length > 0) {
+            const top = skillRoute.matches[0].skill
+            const body =
+              top.content.length > 2000 ? top.content.slice(0, 2000) + '\n...(内容已截断)' : top.content
+            skillInjection = `\n\n[已匹配运维手册「${top.name}」，请优先依据以下手册组织回答]\n${top.description}\n${body}`
+            // 可视化：复用工具执行卡片（call + result 同步补全）
+            const skillCallId = `skill_${correlationId}`
+            onToolEvent?.({ toolCallId: skillCallId, phase: 'call', toolName: 'skill_match', input: top.name })
+            onToolEvent?.({
+              toolCallId: skillCallId,
+              phase: 'result',
+              toolName: 'skill_match',
+              ok: true,
+              output: `决策 ${skillRoute.decision} | ${skillRoute.matches[0].reason} | 预计省 ${skillRoute.estimatedTokenSavings} token`,
+            })
+          }
+        }
+      } catch (err) {
+        this.log.warn('Skill 路由失败（已跳过，不影响对话）', {
+          correlationId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+
+      // v2.4：始终注入 system prompt 引导模型【真实调用工具】（知识检索常驻；SSH 视会话而定；skill 命中则附手册）。
+      const systemPrompt =
+        '你是 Linux 运维与教学助手，回答用中文。' +
+        '你有 kb_search 工具可检索本地运维知识库（历史故障案例/命令技能），' +
+        '遇到"这类问题以前怎么处理/有无经验"时优先检索；' +
+        '你有 tutorial_search 工具可搜索官方 Linux 教程，用户想学习/配置某功能时优先检索并给出教程来源。' +
+        (sshTools
+          ? '你已连接到一台真实服务器，还有 ssh_readonly 工具可执行【只读】诊断命令；' +
+            '当用户询问系统状态（磁盘/内存/CPU/进程/服务/日志等）或要求执行只读命令时，' +
+            '必须调用 ssh_readonly 获取真实输出后再回答，绝不凭空描述或编造结果。'
+          : '') +
+        skillInjection
       const result = streamText({
         model: modelInstance.model,
+        ...(systemPrompt ? { system: systemPrompt } : {}),
         messages: compaction.messages,
         temperature,
         maxOutputTokens: effectiveMaxTokens,
@@ -535,8 +681,18 @@ class SupervisorAgent {
       // v0.9.7 P3 M1：遍历 fullStream 而非 textStream，以捕获 providerMetadata 事件
       // 论文依据：Zhao 2026 — 用 token-level answer-distribution entropy 而非 text entropy
       let fullText = ''
+      // v2.4 修复：累积 reasoning 文本作为兵底 —— DeepSeek 思考模式下正文可能为空
+      // 而内容在 reasoning 里；若最终 fullText 空，用 reasoning 兑底，避免 "No output generated"。
+      let reasoningText = ''
       for await (const part of result.fullStream) {
         const partType = (part as { type?: string }).type
+        if (partType === 'error') {
+          // 流式底层错误（如 4xx）：ai-sdk 否则会吞成 "No output generated"，这里记录真实原因便于排查
+          const errPart = (part as { error?: unknown }).error
+          const errStr =
+            errPart instanceof Error ? `${errPart.name}: ${errPart.message}` : String(errPart)
+          this.log.error(`fullStream 底层错误：${errStr.slice(0, 800)}`, { correlationId })
+        }
         if (partType === 'text-delta') {
           // 文本增量：累积 + 回调 + trace fallback
           const text = (part as { text?: string }).text ?? ''
@@ -548,6 +704,13 @@ class SupervisorAgent {
               traceCollector.accumulateFinalText(text)
             }
           }
+        } else if (partType === 'reasoning-delta' || partType === 'reasoning') {
+          // DeepSeek 思考模式的推理内容（只累积不回调，作为正文为空时的兵底）
+          const rtext =
+            (part as { text?: string }).text ??
+            (part as { textDelta?: string }).textDelta ??
+            ''
+          if (rtext) reasoningText += rtext
         } else if (partType === 'response-metadata' || partType === 'provider-metadata') {
           // v0.9.7 P3 M1：捕获 OpenAI 协议返回的 logprobs
           // OpenAI 协议将 logprobs 放在 providerMetadata.openai.logprobs[]
@@ -577,13 +740,72 @@ class SupervisorAgent {
               traceCollector.recordTokenLogprobEntropies(tokenLogprobs)
             }
           }
+        } else if (partType === 'tool-call' || partType === 'tool-input-available') {
+          // v2.4：工具开始调用 → 推送 call 事件（真实发生的调用，非文本抽取）
+          const p = part as { toolCallId?: string; toolName?: string; input?: unknown; args?: unknown }
+          const rawInput = p.input ?? p.args
+          let inputStr = ''
+          if (typeof rawInput === 'string') inputStr = rawInput
+          else if (rawInput && typeof rawInput === 'object') {
+            // 入参优先取可读字段：ssh_readonly={command}，kb_search/tutorial_search={query}
+            const obj = rawInput as Record<string, unknown>
+            inputStr =
+              typeof obj.command === 'string'
+                ? obj.command
+                : typeof obj.query === 'string'
+                  ? obj.query
+                  : JSON.stringify(rawInput)
+          }
+          onToolEvent?.({
+            toolCallId: p.toolCallId ?? `tc_${Date.now()}`,
+            phase: 'call',
+            toolName: p.toolName ?? 'tool',
+            input: inputStr.slice(0, 2000),
+          })
+        } else if (partType === 'tool-result') {
+          // v2.4：工具返回结果 → 推送 result 事件
+          const p = part as { toolCallId?: string; toolName?: string; output?: unknown; result?: unknown }
+          const rawOut = p.output ?? p.result
+          let ok = true
+          let outStr = ''
+          if (rawOut && typeof rawOut === 'object') {
+            const obj = rawOut as Record<string, unknown>
+            if (typeof obj.ok === 'boolean') ok = obj.ok
+            if (typeof obj.error === 'string' && obj.error) {
+              ok = false
+              outStr = obj.error
+            } else if (typeof obj.stdout === 'string') {
+              outStr = obj.stdout || (typeof obj.stderr === 'string' ? obj.stderr : '')
+            } else if (typeof obj.summary === 'string') {
+              // kb_search / tutorial_search 等检索工具返回可读摘要
+              outStr = obj.summary
+            } else {
+              outStr = JSON.stringify(rawOut)
+            }
+          } else if (typeof rawOut === 'string') {
+            outStr = rawOut
+          }
+          onToolEvent?.({
+            toolCallId: p.toolCallId ?? `tc_${Date.now()}`,
+            phase: 'result',
+            toolName: p.toolName ?? 'tool',
+            ok,
+            output: outStr.slice(0, 4000),
+          })
         }
-        // 其他事件类型（tool-call / tool-result / finish-step / finish 等）忽略
+        // 其他事件类型（finish-step / finish 等）忽略
       }
 
       // 8. 获取 token 使用（v7：result.usage 是 Promise）
       const usage = await result.usage
       const finishReason = await result.finishReason
+
+      // v2.4 修复：正文为空但有 reasoning 时，用 reasoning 兑底并补发一次 onToken，
+      // 避免 DeepSeek 思考模式下“连上 API 但运行不显示”。
+      if (!fullText && reasoningText) {
+        fullText = reasoningText
+        onToken?.(reasoningText)
+      }
       const inputTokens = usage?.inputTokens ?? 0
       const outputTokens = usage?.outputTokens ?? 0
       const totalTokens = inputTokens + outputTokens

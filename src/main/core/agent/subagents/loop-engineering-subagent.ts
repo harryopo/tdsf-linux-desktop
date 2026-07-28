@@ -52,9 +52,8 @@ import { AgentWorkflow, WORKFLOW_EVENTS, type SshExecutor, type EvidenceCollecto
 import type { AgentWorkflowState, DecisionCard, Evidence } from '../../../../shared/models'
 import { SshConnectionManager } from '../../../services/ssh/connection-manager'
 import { LlmClient } from '../../../services/llm/client'
-import { ConfigStore } from '../../../services/storage/config-store'
-import { SecureStore } from '../../../services/storage/secure-store'
-import type { LlmConfig, ChatMessage } from '../../../../shared/models'
+import { resolveLlmConfig } from '../../../services/llm/llm-config-resolver'
+import type { ChatMessage } from '../../../../shared/models'
 import { getDiagnosticsService } from '../../../services/diagnostics/diagnostics-service'
 import type { LogSource, LogLevel } from '../../../services/diagnostics/types'
 import type { ThinkingStrength } from '../providers/types'
@@ -649,23 +648,10 @@ export class LoopEngineeringSubagent extends BaseSubagent {
   }
 
   /**
-   * 获取 LLM 客户端实例
+   * 获取 LLM 客户端实例（配置统一走 resolveLlmConfig，Provider 体系优先）
    */
   private getLlmClient(): LlmClient {
-    const config = ConfigStore.getLlmConfig()
-    if (!config) {
-      return new LlmClient({
-        baseUrl: '',
-        apiKey: '',
-        model: '',
-        temperature: 0.7,
-        maxTokens: 2048,
-        timeout: 30_000,
-      })
-    }
-    const apiKey = SecureStore.getApiKey('llm') ?? ''
-    const fullConfig: LlmConfig = { ...config, apiKey }
-    return new LlmClient(fullConfig)
+    return new LlmClient(resolveLlmConfig('loop-engineering-subagent'))
   }
 
   /**

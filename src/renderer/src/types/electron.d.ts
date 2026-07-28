@@ -89,6 +89,7 @@ import type {
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
+  AgentToolEventPayload,
 } from '@shared/agent-types'
 
 // v0.9 Claude Agent SDK 共享类型（claude-sdk:generate / stream / cancel + ChatResult）
@@ -992,6 +993,8 @@ export interface ElectronAPI {
   providerSave(config: ProviderConfig): Promise<boolean>
   /** 设置默认 Provider ID */
   providerSetDefault(id: string): Promise<boolean>
+  /** 获取默认 Provider ID（P0 修复：渲染层不再盲写 providers[0]） */
+  providerGetDefault(): Promise<string>
 
   // ===== v0.9 Token 统计 =====
   /** 获取 token 统计聚合（当日/当周/当月/总 + 按 Subagent/Provider 分布） */
@@ -1541,6 +1544,8 @@ export interface ElectronAPI {
   onAgentDone(callback: (payload: AgentDonePayload) => void): () => void
   /** v0.9 监听 Supervisor chat 错误信号 */
   onAgentError(callback: (payload: AgentErrorPayload) => void): () => void
+  /** v2.4 监听 Supervisor 工具调用事件（真实工具执行可视化） */
+  onAgentToolEvent(callback: (payload: AgentToolEventPayload) => void): () => void
   // v0.9 Claude Agent SDK 流式事件（独立于 Supervisor，避免通道混用）
   /** 监听 Claude SDK 流式 token 块推送 */
   onClaudeSdkChunk(callback: (payload: AgentChunkPayload) => void): () => void
