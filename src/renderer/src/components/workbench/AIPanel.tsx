@@ -20,7 +20,8 @@
  * Wire-1（2026-07-20）：
  * - 发送/停止 → useAgentChat → agent:chat 主路径（docs/AGENT_MAIN_PATH.md）
  * - 有真实对话时渲染 useAgentStore 消息；空列表默认真实空态（可手动打开设计稿示例）
- * - 工具面板按钮仍多为 mock（Wire-2+ 再接 HITL / 终端）
+ * - P1 修复（2026-07-27）：PAOR 迭代/结果/错误写入消息列表（持久可回看），
+ *   不再用 6-10s 自动消失的 toast；假"恢复执行"按钮已移除，"暂停"改为诚实的"停止"
  *
  * 数据：
  * - 实时：useAgentChat / useAgentStore
@@ -34,6 +35,7 @@ import { useAgentChat } from './useAgentChat'
 import { useLoopEngineering } from './useLoopEngineering'
 import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
+import { useAgentStore } from '@/stores/agent-store'
 import type { PaorApprovalRequest } from '@/types/electron'
 import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
@@ -81,6 +83,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   /** 当前活跃 SSH 会话 ID（PAOR 循环工程 + 只读 SSH 工具用） */
   const activeSessionId = useServerStore((s) => s.activeSessionId)
 
+  /** P1 修复：PAOR 进展/结果写入消息列表（而非 toast 一闪而过） */
+  const addAgentMessage = useAgentStore((s) => s.addMessage)
+
   /** v0.9.5 PAOR 审批请求队列（高危命令等待用户批准/拒绝） */
   const [paorApprovals, setPaorApprovals] = useState<PaorApprovalRequest[]>([])
 
@@ -106,15 +111,14 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   }
 
   /**
-   * 监听 PAOR 迭代进度，实时展示在 message.info（v0.9.5 P0-3）
+   * 监听 PAOR 迭代进度，写入消息列表（P1 修复）
    *
-   * 每轮迭代（Plan→Act→Observe→Reflect）完成后触发：
+   * 每轮迭代（Plan→Act→Observe→Reflect）完成后追加一条 assistant 消息：
    * - 显示迭代序号 + 执行命令 + 观察状态 + 反思决策
    * - 高危命令被拦截时显示 riskBlocked 提示
    *
-   * 注意：用 message.info 而非 message.loading，因为迭代可能间隔较长（数秒），
-   * loading 会持续显示直到下一次迭代，体验更佳；但 message.info 不会自动消失，
-   * 需手动控制时长（设为 6 秒，避免堆积）。
+   * 旧实现用 message.info toast（6 秒自动消失），用户错过就永远看不到结果；
+   * 现在写入 useAgentStore 消息列表，持久可回看。
    */
   const lastIterationRef = useRef(0)
   useEffect(() => {
@@ -142,13 +146,15 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       done: '任务完成',
     }
     const decisionText = decisionMap[latest.reflect.decision] ?? latest.reflect.decision
-    message.info({
-      content: `PAOR 迭代 ${latest.iteration} ${statusIcon}\n命令：${cmdPreview}\n观察：${latest.observe.status} → 决策：${decisionText}`,
-      duration: 6,
+    addAgentMessage({
+      id: `paor_iter_${latest.iteration}_${Date.now()}`,
+      role: 'assistant',
+      content: `${statusIcon} **PAOR 迭代 ${latest.iteration}**\n\n- 命令：\`${cmdPreview}\`${latest.riskBlocked ? '（高危命令已拦截）' : ''}\n- 观察：${latest.observe.status}\n- 决策：${decisionText}`,
+      timestamp: Date.now(),
     })
-  }, [paor.iterations])
+  }, [paor.iterations, addAgentMessage])
 
-  /** PAOR 完成时展示最终摘要 */
+  /** PAOR 完成时把最终摘要写入消息列表（P1 修复：不再用 10s toast） */
   useEffect(() => {
     if (!paor.result) return
     const statusMap: Record<string, string> = {
@@ -157,17 +163,25 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       max_iterations: '⏱️ 达到迭代上限',
     }
     const statusText = statusMap[paor.result.status] ?? paor.result.status
-    message.success({
-      content: `PAOR 循环结束 ${statusText}（${paor.result.iterations.length} 轮迭代，耗时 ${(paor.result.durationMs / 1000).toFixed(1)}s）\n摘要：${paor.result.summary}`,
-      duration: 10,
+    addAgentMessage({
+      id: `paor_result_${Date.now()}`,
+      role: 'assistant',
+      content: `**PAOR 循环结束** ${statusText}\n\n- 迭代轮次：${paor.result.iterations.length}\n- 耗时：${(paor.result.durationMs / 1000).toFixed(1)}s\n\n**摘要**：${paor.result.summary}`,
+      timestamp: Date.now(),
     })
-  }, [paor.result])
+  }, [paor.result, addAgentMessage])
 
-  /** PAOR 出错时提示 */
+  /** PAOR 出错时写入消息列表（标记 isError，错误必须上屏且可回看） */
   useEffect(() => {
     if (!paor.error) return
-    message.error(`PAOR 错误：${paor.error}`)
-  }, [paor.error])
+    addAgentMessage({
+      id: `paor_error_${Date.now()}`,
+      role: 'assistant',
+      content: `[错误] PAOR 循环失败：${paor.error}`,
+      timestamp: Date.now(),
+      isError: true,
+    })
+  }, [paor.error, addAgentMessage])
 
   /**
    * 实时消息滚动到底部
@@ -185,16 +199,15 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     if (!end) return
     // 找到 .ai-messages 滚动容器（closest 找到最近 .ai-messages 祖先）
     const scrollContainer = (end.closest('.ai-messages') as HTMLElement | null) ?? end.parentElement
-    if (!scrollContainer) {
-      // 兜底：找不到滚动容器时退回 scrollIntoView
-      end.scrollIntoView({ block: 'end', behavior: 'smooth' })
-      return
-    }
-    // 直接 scrollTo 到容器底部（等价于贴齐最后一行消息的下边缘）
-    scrollContainer.scrollTo({
-      top: scrollContainer.scrollHeight,
-      behavior: 'smooth',
+    if (!scrollContainer) return
+    // v2.4 修复（流式滚动抽搐）：流式期间用 'auto'（即时置底），不要用 'smooth'。
+    // smooth 在每个 token 都重启一次平滑动画、互相打断 → 视觉抽搐；
+    // auto 每帧瞬时贴底，配合 rAF 批处理，观感反而顺滑。仅流式结束后用一次 smooth。
+    const behavior: ScrollBehavior = isStreaming ? 'auto' : 'smooth'
+    const raf = requestAnimationFrame(() => {
+      scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior })
     })
+    return () => cancelAnimationFrame(raf)
   }, [liveMessages, hasLiveConversation, isStreaming, hasLoopRunning, loop.phase, loop.workflowState, loop.decisionCard, loop.finalCard])
 
   /** 处理工具面板操作（在终端运行/执行/沙箱预演/回滚/暂停/终止）
@@ -222,7 +235,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       return
     }
 
-    // 2. 暂停 / 终止任务：取消当前 agent chat 流
+    // 2. 停止 / 终止任务：取消当前 agent chat 流
+    // P1 修复：后端无"暂停/恢复"能力，pauseExec 实为终止；文案统一为"停止"，不再谎称"已暂停"
     if (action === 'pauseExec' || action === 'terminateTask') {
       try {
         const api = window.electronAPI
@@ -235,7 +249,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         } else {
           void cancel()
         }
-        message.info(action === 'pauseExec' ? '已暂停当前任务' : '已终止当前任务')
+        message.info('已停止当前任务（如需继续请重新发送消息）')
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
         message.error(`操作失败：${reason}`)
@@ -243,9 +257,10 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       return
     }
 
-    // 3. 恢复执行：当前 IPC 不支持恢复，提示用户重新发送
+    // 3. resumeExec：后端无恢复能力，假"恢复执行"按钮已从 PausePanel 移除；
+    //    保留此分支兼容存量 block 数据，诚实告知用户重新发送
     if (action === 'resumeExec') {
-      message.info('当前任务已暂停，请重新发送消息以恢复执行')
+      message.info('当前不支持恢复已停止的任务，请重新发送消息')
       return
     }
 

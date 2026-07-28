@@ -1,0 +1,182 @@
+/**
+ * MarkdownMessage 样式（v2.4 新增）
+ *
+ * 与 AIPanel/trae 设计变量对齐的 AI 回复 markdown 渲染样式。
+ * 仅作用于 .md-body 内，不影响其它区域。
+ */
+
+.md-body {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--trae-text-default);
+  word-break: break-word;
+}
+
+/* 段落 */
+.md-body .md-p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+.md-body .md-p:last-child {
+  margin-bottom: 0;
+}
+
+/* 标题 */
+.md-body .md-h {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--trae-text-default);
+}
+.md-body .md-h:first-child {
+  margin-top: 0;
+}
+.md-body .md-h1 {
+  font-size: 17px;
+}
+.md-body .md-h2 {
+  font-size: 15px;
+}
+.md-body .md-h3 {
+  font-size: 14px;
+}
+.md-body .md-h4,
+.md-body .md-h5,
+.md-body .md-h6 {
+  font-size: 13px;
+  color: var(--trae-text-secondary);
+}
+
+/* 行内代码 */
+.md-body .md-inline-code {
+  padding: 1px 5px;
+  border-radius: var(--trae-radius-4);
+  background: var(--trae-bg-overlay-l2);
+  border: 1px solid var(--trae-border-neutral-l1);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--trae-text-brand);
+}
+
+/* 代码块 */
+.md-body .md-code-block {
+  position: relative;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: var(--trae-radius-6);
+  background: var(--trae-terminal-block-bg, #1a1a1a);
+  border: 1px solid var(--trae-border-neutral-l1);
+  overflow-x: auto;
+}
+.md-body .md-code-block code {
+  display: block;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--trae-code-text, #e8e8e8);
+  white-space: pre;
+}
+.md-body .md-code-lang {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* 列表 */
+.md-body .md-list {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.md-body .md-list li {
+  margin: 2px 0;
+}
+.md-body ul.md-list {
+  list-style: disc;
+}
+.md-body ol.md-list {
+  list-style: decimal;
+}
+
+/* 引用 */
+.md-body .md-quote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--trae-border-brand, var(--trae-bg-brand));
+  background: var(--trae-bg-overlay-l1);
+  color: var(--trae-text-secondary);
+  border-radius: 0 var(--trae-radius-4) var(--trae-radius-4) 0;
+}
+
+/* 分割线 */
+.md-body .md-hr {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid var(--trae-border-neutral-l1);
+}
+
+/* 链接 */
+.md-body .md-link {
+  color: var(--trae-text-brand);
+  text-decoration: underline;
+}
+.md-body .md-link:hover {
+  opacity: 0.85;
+}
+
+/* ===== Agent 工具执行卡片（v2.4：真实工具调用可视化） ===== */
+.ai-tool-exec {
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+  background: var(--trae-bg-overlay-l1);
+  overflow: hidden;
+}
+.ai-tool-exec-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--trae-bg-overlay-l2);
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+}
+.ai-tool-exec-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--trae-text-default);
+}
+.ai-tool-exec-status {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--trae-text-brand);
+}
+.ai-tool-exec-cmd {
+  padding: 6px 10px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--trae-text-default);
+  word-break: break-all;
+}
+.ai-tool-exec-prompt {
+  color: var(--trae-text-brand);
+  user-select: none;
+}
+.ai-tool-exec-output {
+  margin: 0;
+  padding: 6px 10px;
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px dashed var(--trae-border-neutral-l1);
+  background: var(--trae-terminal-block-bg, #1a1a1a);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--trae-code-text, #e8e8e8);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ai-tool-exec-output.is-error {
+  color: var(--trae-status-error-default);
+}

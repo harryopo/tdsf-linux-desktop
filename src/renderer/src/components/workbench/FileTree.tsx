@@ -591,8 +591,27 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
     [activeFilePath],
   )
 
-  /** 树容器可用高度（减去 header、root input、传输面板） */
-  const treeHeight = 400
+  /**
+   * 树容器可用高度（v2.4 修复：不再写死 400px）
+   *
+   * react-arborist 的 Tree 要求显式像素高度；写死 400 与容器实际高度脱节，
+   * 导致面板高于 400 时列表截断+下方空白、低于 400 时双层滚动。
+   * 用 ResizeObserver 测量 .wb-filetree-scroll 实际高度，减去服务器信息头+内边距。
+   */
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [treeHeight, setTreeHeight] = useState(400)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const measure = () => {
+      // 减去服务器信息头（~28px）+ 容器上下内边距（~12px），最小 120
+      setTreeHeight(Math.max(120, el.clientHeight - 40))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [connected])
 
   return (
     <FileTreeRendererContext.Provider value={rendererContext}>
@@ -648,7 +667,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
           </div>
         )}
 
-        <div className="wb-filetree-scroll">
+        <div className="wb-filetree-scroll" ref={scrollRef}>
           <FileTreeContextMenu
             node={menuNode}
             rootPath={rootPath}

@@ -11,12 +11,10 @@
  *   - 「来源」列移除（保留在 AlertDrawer 详情中展示）
  * - 点击行弹出右侧 Drawer 展示详情（DEC-3 决策，通过 onOpenDrawer 回调上抛）
  *
- * 数据策略（spec REMOVED Requirements：mock 数据仅保留在测试用例中）：
+ * 数据策略（P1 修复：移除 DEV 假数据 fallback）：
  * - 优先使用父组件传入的 alerts（实时计算）
  * - 其次基于 monitor store 实时数据计算告警
- * - 若均无数据：
- *   - DEV 模式下使用 sampleAlerts 作为演示 fallback
- *   - 非 DEV 模式返回空数组（colSpan=5 显示「暂无告警」占位行）
+ * - 若均无数据：返回空数组（colSpan=5 显示「暂无告警」占位行，DEV 与生产一致）
  *
  * 视觉规范（spec §B）：
  * - 边框用 solid hex（var(--trae-border-neutral-l1)）
@@ -26,8 +24,6 @@
 import { useState, useMemo } from 'react'
 import { Filter, Search } from 'lucide-react'
 import type { AlertRecord, AlertStatus, RiskLevel } from './mock-data'
-// DEV 模式下导入示例数据 fallback（production build 时 vite 会 tree-shake 移除）
-import { sampleAlerts } from '@/pages/__fixtures__/monitor-sample'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 
@@ -184,17 +180,15 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
     activeSessionId ? s.systemInfo.get(activeSessionId) : undefined
   )
 
-  // 数据策略（spec REMOVED Requirements）：
-  // propAlerts > 实时计算 > (DEV ? sampleAlerts : [])
+  // 数据策略（P1 修复：移除 DEV sampleAlerts fallback，假告警会被当真实告警）：
+  // propAlerts > 实时计算 > 空列表（显示空态）
   const computedAlerts = useMemo(() => {
     if (propAlerts) return propAlerts
     if (!activeSessionId) {
-      return import.meta.env.DEV ? sampleAlerts : []
+      return []
     }
     const hostname = systemInfo?.hostname ?? '未知服务器'
-    const live = computeAlertsFromMonitorData(activeSessionId, hostname)
-    if (live.length > 0) return live
-    return import.meta.env.DEV ? sampleAlerts : []
+    return computeAlertsFromMonitorData(activeSessionId, hostname)
   }, [propAlerts, activeSessionId, systemInfo])
 
   /** 筛选未处理告警 + 搜索关键词匹配 */

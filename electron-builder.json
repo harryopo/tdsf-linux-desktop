@@ -8,6 +8,9 @@
     "out/**/*",
     "package.json"
   ],
+  "extraResources": [
+    { "from": "src/main/services/skills/builtin", "to": "skills-builtin" }
+  ],
   "asarUnpack": [
     "node_modules/better-sqlite3/**/*",
     "node_modules/@photostructure/sqlite-vec/**/*.{so,dylib,dll}",

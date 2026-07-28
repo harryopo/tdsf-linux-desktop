@@ -1,6 +1,6 @@
 import type { FC } from 'react'
 import {
-  CheckCircle2, Pause, RotateCcw, Zap,
+  CheckCircle2, RotateCcw, Square, Zap,
 } from 'lucide-react'
 import type { AIToolPanel } from '../mock-data'
 
@@ -18,13 +18,14 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
           </span>
         )}
         <div className="flex-1" />
+        {/* P1 修复：后端无暂停/恢复能力，pauseExec 实为终止流 —— 文案诚实化为"停止" */}
         <button
           type="button"
           onClick={() => onAction?.('pauseExec')}
           className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
         >
-          <Pause className="size-3" />
-          暂停
+          <Square className="size-3" />
+          停止
         </button>
         <button
           type="button"

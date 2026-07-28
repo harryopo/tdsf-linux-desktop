@@ -30,7 +30,8 @@ interface StatItem { label: string; value: string; color: string; sparkline: str
 interface DecisionRecord {
   id: string; time: string; title: string; status: DecisionStatus; risk: RiskLevel
   server: string; actor: ActorType; confidence: number; command: string
-  desc: string; durationSec: number; isDanger: boolean
+  /** 执行耗时（秒）；null 表示真实数据未记录耗时（UI 显示 —，不伪造） */
+  desc: string; durationSec: number | null; isDanger: boolean
   /** 记录时间戳（ms），用于时间范围筛选 */
   timestamp: number
 }
@@ -92,7 +93,9 @@ function decisionCardToRecord(card: DecisionCard): DecisionRecord {
     confidence: card.confidence,
     command: card.fixCommand || '无执行命令',
     desc: card.fixDescription || card.hypothesis || '',
-    durationSec: Math.max(1, Math.round((card.timestamp % 60000) / 1000)),
+    // P1 修复：耗时只用真实 durationMs；未记录时为 null（UI 显示 —），
+    // 不再用 timestamp % 60000 取模伪造假耗时
+    durationSec: card.durationMs != null ? Math.max(1, Math.round(card.durationMs / 1000)) : null,
     isDanger,
     timestamp: card.timestamp,
   }
@@ -244,9 +247,11 @@ export function HistoryPage() {
     const avgConfidence = total > 0
       ? (records.reduce((sum, r) => sum + r.confidence, 0) / total).toFixed(2)
       : '0.00'
-    const avgDuration = total > 0
-      ? `${Math.round(records.reduce((sum, r) => sum + r.durationSec, 0) / total)}s`
-      : '0s'
+    // P1 修复：平均响应时间只统计有真实耗时的记录，无数据显示 —
+    const withDuration = records.filter((r) => r.durationSec != null)
+    const avgDuration = withDuration.length > 0
+      ? `${Math.round(withDuration.reduce((sum, r) => sum + (r.durationSec ?? 0), 0) / withDuration.length)}s`
+      : '—'
     return [
       { label: '总决策数', value: String(total), color: 'var(--trae-bg-brand)', sparkline: sparkFor('count') },
       { label: '成功率', value: successRate, color: 'var(--trae-status-success-default)', sparkline: sparkFor('successRate') },
@@ -405,7 +410,7 @@ export function HistoryPage() {
                     <div className="hist-decision-footer">
                       <span className="hist-decision-duration">
                         <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
-                        耗时 <span className="hist-decision-duration-val">{record.durationSec}s</span>
+                        耗时 <span className="hist-decision-duration-val">{record.durationSec != null ? `${record.durationSec}s` : '—'}</span>
                       </span>
                       <button
                         type="button" data-dom-id={`goto-history-detail-${record.id}`}

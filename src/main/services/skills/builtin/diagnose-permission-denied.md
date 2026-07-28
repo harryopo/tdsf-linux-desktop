@@ -28,6 +28,7 @@ triggers:
 riskLevel: medium
 category: troubleshooting
 tags: [permission, security, user, chmod, chown, sudo]
+---
 
 teaching:
   principle: |

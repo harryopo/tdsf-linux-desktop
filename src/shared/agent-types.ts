@@ -355,6 +355,36 @@ export interface ChatResult {
 }
 
 /**
+ * agent:tool-event 推送载荷（工具调用实时可视化，v2.4 新增）
+ *
+ * 背景：主对话 Agent 真实会调用工具（如 ssh_readonly 执行诊断命令），
+ * 但此前 streamText 的 tool-call/tool-result 事件被丢弃，前端看不到。
+ * 本事件把【真实发生】的工具调用/结果推送到前端，用于渲染“执行卡片”。
+ *
+ * phase：
+ * - 'call'：工具开始调用（携带工具名 + 输入参数）
+ * - 'result'：工具返回结果（携带成败 + 输出摘要）
+ */
+export interface AgentToolEventPayload {
+  /** 关联 ID（与 agent:chunk 一致） */
+  correlationId: string
+  /** 工具调用唯一 ID（同一次调用的 call 与 result 共享，用于前端配对） */
+  toolCallId: string
+  /** 阶段：call=开始调用，result=返回结果 */
+  phase: 'call' | 'result'
+  /** 工具名（如 ssh_readonly / kb_search） */
+  toolName: string
+  /** 调用入参（call 阶段，已序列化为展示用的简短字符串，如命令文本） */
+  input?: string
+  /** 是否成功（result 阶段） */
+  ok?: boolean
+  /** 输出摘要（result 阶段，已截断） */
+  output?: string
+  /** 会话 ID（可选，与其它 agent 事件一致） */
+  sessionId?: string
+}
+
+/**
  * agent:chunk 推送载荷（流式 token 块）
  *
  * v0.9.4 新增 sessionId（可选，向后兼容）：

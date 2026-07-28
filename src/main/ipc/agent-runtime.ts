@@ -35,6 +35,7 @@ import {
   getProvider,
   saveProvider,
   setDefaultProviderId,
+  getDefaultProviderId,
   ensureProvidersInitialized,
   // v2.3.7 修复：PersistedProviderConfigWithKey 是 registry 内部类型，不再 re-export 自 types
   type PersistedProviderConfigWithKey,
@@ -52,6 +53,7 @@ import type {
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
+  AgentToolEventPayload,
 } from '@shared/agent-types'
 import type { ChatMessage } from '@shared/models'
 import { logger } from '../services/log/logger'
@@ -69,6 +71,8 @@ const AGENT_CHUNK_CHANNEL = 'agent:chunk'
 const AGENT_DONE_CHANNEL = 'agent:done'
 /** 流式错误信号通道名 */
 const AGENT_ERROR_CHANNEL = 'agent:error'
+/** 工具调用事件推送通道名（v2.4：真实工具执行可视化） */
+const AGENT_TOOL_EVENT_CHANNEL = 'agent:tool-event'
 
 /** PAOR 审批请求推送通道名 */
 const PAOR_APPROVAL_REQUEST_CHANNEL = 'paor:approval-request'
@@ -270,6 +274,20 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
             // 请求结束，从 session-registry 移除（释放内存）
             registry.remove(resolvedSessionId)
           },
+          onToolEvent: (evt) => {
+            // v2.4：把【真实发生】的工具调用/结果推送到渲染进程，供可视化
+            const payload: AgentToolEventPayload = {
+              correlationId,
+              toolCallId: evt.toolCallId,
+              phase: evt.phase,
+              toolName: evt.toolName,
+              input: evt.input,
+              ok: evt.ok,
+              output: evt.output,
+              sessionId: resolvedSessionId,
+            }
+            safeSend(mainWindow, AGENT_TOOL_EVENT_CHANNEL, payload)
+          },
         })
         .catch((err: unknown) => {
           // 兜底：supervisor.chat 内部异常（理论不应发生，因 onError 已处理）
@@ -387,6 +405,21 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       const ok = setDefaultProviderId(id)
       logger.info('IPC.PROVIDER', `provider:set-default`, { id, success: ok })
       return ok
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // provider:get-default — 获取默认 Provider ID（P0 修复：ModelSettings 盲写 providers[0]）
+  // ------------------------------------------------------------------
+  // 渲染层此前无法得知默认 Provider，只能盲写 providers[0] 并强制设默认，
+  // 导致非首位 Provider 拿不到 Key、用户默认选择被覆盖。
+  ipcMain.handle(
+    'provider:get-default',
+    async (): Promise<string> => {
+      ensureProvidersInitialized()
+      const id = getDefaultProviderId()
+      logger.debug('IPC.PROVIDER', `provider:get-default`, { id })
+      return id
     }
   )
 
@@ -542,6 +575,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       'provider:get',
       'provider:save',
       'provider:set-default',
+      'provider:get-default',
       'token:stats',
       'token:reset',
       'token:records',

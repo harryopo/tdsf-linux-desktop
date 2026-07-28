@@ -13,8 +13,6 @@ import { message, Dropdown, type MenuProps } from 'antd'
 import {
   Terminal as TerminalIcon,
   FileText,
-  Columns2,
-  MoreHorizontal,
   Save,
   Loader2,
   X,
@@ -475,24 +473,8 @@ const EditorArea: FC<EditorAreaProps> = ({
           }
           return tabInner
         })}
-        <div className="term-tab-actions">
-          <button
-            type="button"
-            title="分屏（开发中）"
-            disabled
-            className="term-action-btn"
-          >
-            <Columns2 />
-          </button>
-          <button
-            type="button"
-            title="更多（开发中）"
-            disabled
-            className="term-action-btn"
-          >
-            <MoreHorizontal />
-          </button>
-        </div>
+        {/* P1 修复：移除两个 A 级死按钮"分屏（开发中）""更多（开发中）"——
+            纯装饰无 handler，对应能力落地后再恢复按钮 */}
       </div>
 
       {/* 远程文件外部变更提示 */}

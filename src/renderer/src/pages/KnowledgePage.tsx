@@ -7,13 +7,16 @@
  *
  * 结构（4 section，1:1 对齐设计稿）：
  *   1. Page Header：layers 图标 + 标题"运维知识库" + 副标题 + 返回工作台按钮
- *   2. 搜索栏：搜索框 + AI检索按钮 + 8 个分类标签（all/nginx/mysql/docker/network/security/shell/systemd）
+ *   2. 搜索栏：搜索框 + 8 个分类标签（all/nginx/mysql/docker/network/security/shell/systemd）
+ *      （P1 修复：移除假"AI检索"开关 —— kbSearch 仅支持关键词检索，开关只翻转本地 state
+ *       不影响任何查询，属误导性假 UI；待 kbSearch 支持语义检索后再恢复）
  *   3. 两栏布局：
- *      - 左：5 个推荐知识卡片（标题 + 匹配度 + 摘要 + 标签/时间/浏览量/查看详情）
+ *      - 左：推荐知识卡片（标题 + 匹配度 + 摘要 + 标签/时间/浏览量/查看详情）
  *      - 右：热门知识 Top5 + 最近浏览 3 项
- *   4. AI 知识沉淀：已收录 1,247 条 / 本周新增 23 条 / AI 贡献率 68% + 贡献知识按钮
+ *   4. AI 知识沉淀：真实统计（收录数/周新增/AI贡献率）+ 贡献知识按钮
  *
- * 数据：Electron 环境下通过 kbSearch 拉取真实知识库条目；非 Electron 环境回退到设计稿示例数据
+ * 数据：Electron 环境下一律使用 kbSearch 真实数据（空库显示空态，不回退 mock）；
+ *       仅非 Electron 浏览器环境回退到设计稿示例数据
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label/aria-pressed；li role=button + tabIndex + onKeyDown；Modal role=dialog + aria-modal + ESC 关闭 + 焦点管理；prefers-reduced-motion 禁用按压动画
  */
@@ -149,16 +152,13 @@ export function KnowledgePage() {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState<KnowledgeCategory>('all')
-  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(KNOWLEDGE_ITEMS)
+  // P1 修复：Electron 环境初始为空列表（等待真实数据），mock 仅供非 Electron 浏览器预览
+  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(
+    () => (isElectronAPIAvailable() ? [] : KNOWLEDGE_ITEMS),
+  )
   const [loadingItems, setLoadingItems] = useState(false)
-  const [useReal, setUseReal] = useState(false)
+  const [useReal, setUseReal] = useState(() => isElectronAPIAvailable())
   const searchInputRef = useRef<HTMLInputElement>(null)
-
-  // —— 语义搜索开关（M4 Task 4）：默认关闭以避免增加默认查询延迟 ——
-  // 注意：当前 kbSearch IPC 签名为 (query, type?, limit?)，不支持 options 对象，
-  //       故开关状态仅作 UI 指示，不影响实际查询调用（降级策略）。
-  //       后续 kbSearch 升级支持 { semantic: true } 后，可在 refreshKnowledgeList 中接入。
-  const [semanticSearch, setSemanticSearch] = useState(false)
 
   // —— 真实热门/最近浏览数据（IPC 获取，null 表示尚未获取或失败，回退到派生逻辑） ——
   const [hotItemsOverride, setHotItemsOverride] = useState<HotItem[] | null>(null)
@@ -192,12 +192,13 @@ export function KnowledgePage() {
     navigate(`/knowledge/${id}`)
   }
 
-  /** 重新拉取知识列表（kbSearch），用于贡献成功后刷新列表 */
+  /** 重新拉取知识列表（kbSearch），用于贡献成功后刷新列表
+   *  P1 修复：空结果也接管（显示空态），不再因 length===0 而继续展示 mock 假数据 */
   const refreshKnowledgeList = useCallback(async () => {
     if (!isElectronAPIAvailable() || !window.electronAPI?.kbSearch) return
     try {
       const entries = await window.electronAPI.kbSearch('', undefined, 100)
-      if (Array.isArray(entries) && entries.length > 0) {
+      if (Array.isArray(entries)) {
         setKnowledgeItems(entries.map(mapEntryToItem))
         setUseReal(true)
       }
@@ -301,7 +302,8 @@ export function KnowledgePage() {
       const success = await window.electronAPI.kbAdd(newEntry)
       hide()
       if (success) {
-        message.success('知识已成功贡献到知识库')
+        // P1 修复：kbAdd 直接写库无审核流程，文案从"提交审核"改为诚实的"已收录"
+        message.success('知识已收录到知识库')
         setContributeSubmitted(true)
         // 任务 H：贡献成功后刷新知识列表（kbSearch）与热门列表（kbHot）
         // fire-and-forget：刷新失败不影响提交流程，错误已在 refresh 函数内 warn
@@ -317,7 +319,8 @@ export function KnowledgePage() {
     }
   }
 
-  /** 挂载时从主进程知识库拉取真实数据（Electron 环境） */
+  /** 挂载时从主进程知识库拉取真实数据（Electron 环境）
+   *  P1 修复：空库也接管为空列表（显示空态），不再把 mock 当真实数据展示 */
   useEffect(() => {
     if (typeof window === 'undefined' || !window.electronAPI?.kbSearch) return
     let cancelled = false
@@ -326,7 +329,7 @@ export function KnowledgePage() {
       .kbSearch('', undefined, 100)
       .then((entries) => {
         if (cancelled) return
-        if (Array.isArray(entries) && entries.length > 0) {
+        if (Array.isArray(entries)) {
           setKnowledgeItems(entries.map(mapEntryToItem))
           setUseReal(true)
         }
@@ -334,7 +337,7 @@ export function KnowledgePage() {
       .catch((err) => {
         if (cancelled) return
         console.warn('[KnowledgePage] 拉取知识库失败', err)
-        message.error('知识库加载失败，已使用本地示例数据')
+        message.error('知识库加载失败，请稍后重试')
       })
       .finally(() => {
         if (!cancelled) setLoadingItems(false)
@@ -443,7 +446,8 @@ export function KnowledgePage() {
 
         {/* ====== 2. Search Bar ====== */}
         <div className="kb-search-bar">
-          {/* 搜索输入框 + AI检索按钮 */}
+          {/* 搜索输入框（P1 修复：移除假"AI检索"开关 —— kbSearch 不支持语义检索，
+              旧开关只翻转本地 state 不影响查询，属误导性假 UI） */}
           <div className="kb-search-row">
             <div className="kb-search-wrapper">
               <Search size={16} className="shrink-0" style={{ color: 'var(--trae-icon-secondary)' }} />
@@ -458,16 +462,6 @@ export function KnowledgePage() {
                 className="kb-search-input"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setSemanticSearch(!semanticSearch)}
-              aria-pressed={semanticSearch}
-              aria-label="AI检索"
-              className="kb-ai-search-btn kb-btn-press"
-            >
-              <Sparkles size={16} style={{ color: 'var(--trae-icon-onbrand)' }} />
-              <span>AI检索</span>
-            </button>
           </div>
           {/* 分类标签栏 */}
           <div className="kb-cat-bar kb-no-scrollbar">
@@ -651,7 +645,7 @@ export function KnowledgePage() {
                 <div className="kb-modal__success-icon">
                   <Check size={20} style={{ color: 'var(--trae-icon-brand)' }} />
                 </div>
-                <p className="kb-modal__success-text">感谢贡献，知识已提交审核</p>
+                <p className="kb-modal__success-text">感谢贡献，知识已收录到知识库</p>
                 <button
                   type="button"
                   onClick={handleCloseContributeModal}
@@ -723,7 +717,7 @@ export function KnowledgePage() {
                     aria-label="提交知识贡献"
                     className="kb-btn-submit kb-btn-press"
                   >
-                    提交审核
+                    提交
                   </button>
                 </div>
               </form>

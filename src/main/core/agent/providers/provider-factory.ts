@@ -25,6 +25,51 @@ import type { ProviderConfig, ProviderModelInstance, PersistedProviderConfig } f
 import { logger } from '../../../services/log/logger'
 
 /**
+ * 创建 OpenAI 兼容协议的自定义 fetch，在出站请求 body 做两件事：
+ *
+ *  1.【所有兼容端】把 'developer' 角色改回 'system'：
+ *     @ai-sdk/openai v2 的 .chat() 会把 system 提示词转成 OpenAI 新版 'developer' 角色，
+ *     但 DeepSeek/Qwen/Volcengine/Ollama 等国产兼容端只认 system/user/assistant/tool，
+ *     收到 developer 会直接 400（"unknown variant `developer`"）——表现为流一开始就 error、
+ *     ai-sdk 报 "No output generated"。只要带 system 提示词就会触发（无 system 时不会）。
+ *
+ *  2.【仅 DeepSeek】注入 { thinking: { type: 'disabled' } } 关闭默认思考模式：
+ *     DeepSeek V4 Flash 默认把正文放 reasoning_content、content 为 null，标准 provider 只读
+ *     delta.content → 空输出。thinking:disabled 是官方 non-thinking 模式，正文直出且支持 function calling。
+ */
+function createOpenAiCompatFetch(injectDeepseekThinking: boolean): typeof fetch {
+  return async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    // 仅处理带 JSON body 的 POST（chat/completions）；其余请求原样放行
+    if (init?.body && typeof init.body === 'string') {
+      try {
+        const payload = JSON.parse(init.body) as Record<string, unknown>
+        let mutated = false
+        // 1. developer → system（所有兼容端）
+        if (Array.isArray(payload.messages)) {
+          for (const m of payload.messages as Array<Record<string, unknown>>) {
+            if (m && typeof m === 'object' && m.role === 'developer') {
+              m.role = 'system'
+              mutated = true
+            }
+          }
+        }
+        // 2. thinking:disabled（仅 DeepSeek，未显式指定时；含带 tools 的请求）
+        if (injectDeepseekThinking && !('thinking' in payload)) {
+          payload.thinking = { type: 'disabled' }
+          mutated = true
+        }
+        if (mutated) {
+          init = { ...init, body: JSON.stringify(payload) }
+        }
+      } catch {
+        // body 非 JSON 时不处理，原样放行
+      }
+    }
+    return fetch(input, init)
+  }
+}
+
+/**
  * 创建 LanguageModel 实例
  *
  * 根据 ProviderConfig.type 分发到对应的 @ai-sdk/* 工厂函数。
@@ -123,7 +168,6 @@ function buildModel(config: ProviderConfig): LanguageModel {
       return google(config.model)
     }
     case 'openai-compatible':
-    case 'deepseek':
     case 'qwen':
     case 'volcengine-ark':
     case 'ollama': {
@@ -131,8 +175,25 @@ function buildModel(config: ProviderConfig): LanguageModel {
       const openai = createOpenAI({
         apiKey: config.apiKey || 'ollama', // Ollama 默认无需 key，但 SDK 要求非空
         baseURL: config.baseURL,
+        // developer→system 角色修正（不注入 deepseek thinking）
+        fetch: createOpenAiCompatFetch(false),
       })
-      return openai(config.model)
+      // 必须用 .chat()：@ai-sdk/openai v2 的 openai(model) 默认走 Responses API（/responses），
+      // 而国产兼容端只实现了 /chat/completions，走 Responses 会导致端点不存在/空输出。
+      return openai.chat(config.model)
+    }
+    case 'deepseek': {
+      // DeepSeek V4 Flash/Pro 默认开启思考模式，正文在 content、思维链在 reasoning_content。
+      // 三层修复（均在 fetch 层 + .chat()）：
+      //   1. 用 .chat() 强制走 /chat/completions（默认 openai(model) 走 Responses API，DeepSeek 不支持）
+      //   2. fetch 把 developer 角色改回 system（@ai-sdk/openai 把 system 转成 developer，DeepSeek 拒收）
+      //   3. fetch 注入 { thinking: { type: 'disabled' } } 关闭思考，确保正文直出 delta.content
+      const openai = createOpenAI({
+        apiKey: config.apiKey!,
+        baseURL: config.baseURL,
+        fetch: createOpenAiCompatFetch(true),
+      })
+      return openai.chat(config.model)
     }
     case 'claude-sdk': {
       // 已在 createLanguageModel 入口处拦截，理论不会到达；防御性抛错
