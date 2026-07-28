@@ -161,10 +161,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Rebuild native modules for Electron
-        # 只重编 better-sqlite3（prebuild 下载，无需 VS）：ssh2/cpu-features 在 runner 上 node-gyp@9
-        # 检测不到 VS 会红，ssh2 无原生加速时自动回退纯 JS，接线验证不受影响。
-        # 注意：-w 不限制依赖树扫描，必须用 --only。
-        run: npx electron-rebuild -f --only better-sqlite3
+        # 只重编 better-sqlite3：ssh2 可选依赖 cpu-features 缺 VS 会红，无原生加速时 ssh2 自动回退纯 JS。
+        # 项目内 electron-rebuild@3.6 捆绑 node-gyp@9 无法识别 runner 上的新版 VS，
+        # 改用最新 @electron/rebuild（捆绑 node-gyp@11）；-w 不限制依赖树，必须用 --only。
+        run: npx --yes @electron/rebuild@4 -f --only better-sqlite3
 
       - name: Build app
         run: pnpm build
