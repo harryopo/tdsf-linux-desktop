@@ -20,6 +20,8 @@
     "test:e2e:fast": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:visual": "playwright test --grep visual",
+    "test:e2e:wiring": "playwright test tests/e2e/wiring-verification.spec.ts",
+    "audit:ipc": "npx tsx scripts/audit-ipc-contract.ts",
     "deadcode": "knip --no-exit-code",
     "deadcode:strict": "knip",
     "build:win": "pnpm build && electron-builder --win",
@@ -29,7 +31,9 @@
     "ai:check": "node scripts/ai-coordination/check-conflict.cjs",
     "ai:claim": "node scripts/ai-coordination/claim.cjs",
     "ai:release": "node scripts/ai-coordination/release.cjs",
-    "ai:status": "node scripts/ai-coordination/status.cjs"
+    "ai:status": "node scripts/ai-coordination/status.cjs",
+    "ai:install-hooks": "node scripts/ai-coordination/install-hooks.cjs",
+    "postinstall": "node scripts/ai-coordination/install-hooks.cjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.86",

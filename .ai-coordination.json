@@ -2,42 +2,27 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-25T12:08:59.704Z",
+  "lastUpdated": "2026-07-28T10:22:12.109Z",
   "sessions": {
-    "ai-kimi-20260725-backend": {
-      "aiName": "ai-kimi-20260725-backend",
-      "sessionId": "ai-kimi-20260725-backend",
-      "startedAt": "2026-07-25T07:20:36.957Z",
-      "lastActiveAt": "2026-07-25T08:15:44.594Z",
-      "task": "后端AI：Agent核心与PAOR循环",
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-07-28T10:22:11.086Z",
+      "lastActiveAt": "2026-07-28T10:22:12.109Z",
+      "task": "guard-hook-selfinstall",
       "claimedFiles": [
         {
-          "path": "src/main/core/agent/",
-          "task": "后端AI：Agent核心与PAOR循环",
-          "claimedAt": "2026-07-25T07:20:36.957Z"
+          "path": "package.json",
+          "task": "guard-hook-selfinstall",
+          "claimedAt": "2026-07-28T10:22:11.086Z"
         },
         {
-          "path": "src/main/services/terminal/",
-          "task": "后端AI：终端智能补全引擎",
-          "claimedAt": "2026-07-25T07:20:37.056Z"
-        },
-        {
-          "path": "src/main/services/ssh/",
-          "task": "后端AI：SSH/SFTP与会话复用",
-          "claimedAt": "2026-07-25T07:20:37.161Z"
-        },
-        {
-          "path": "docs/handoff/",
-          "task": "后端AI：前后端交接文档",
-          "claimedAt": "2026-07-25T07:20:37.257Z"
-        },
-        {
-          "path": "docs/handoff/p1-backend-plan-and-multi-ai-handover.md",
-          "task": "P1后端开发计划与多AI交接建议",
-          "claimedAt": "2026-07-25T07:28:44.106Z"
+          "path": "scripts/ai-coordination/",
+          "task": "guard-hook-selfinstall",
+          "claimedAt": "2026-07-28T10:22:12.109Z"
         }
       ],
-      "expiresAt": "2026-07-25T12:15:44.594Z"
+      "expiresAt": "2026-07-28T12:22:12.109Z"
     }
   },
   "history": [
@@ -2777,6 +2762,27 @@
       "file": "src/renderer/src/components/monitor/KpiCard.tsx",
       "task": "monitor-real-data",
       "timestamp": "2026-07-25T12:08:59.704Z"
+    },
+    {
+      "sessionId": "ai-qoder-20260727-desktop",
+      "action": "claim",
+      "file": "scripts/ai-coordination/precommit-guard.cjs",
+      "task": "F2:高共享文件pre-commit拦截",
+      "timestamp": "2026-07-27T09:49:24.395Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "guard-hook-selfinstall",
+      "timestamp": "2026-07-28T10:22:11.086Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/ai-coordination/",
+      "task": "guard-hook-selfinstall",
+      "timestamp": "2026-07-28T10:22:12.109Z"
     }
   ],
   "coordinationAudit": {
