@@ -106,6 +106,37 @@ describe('MemoryRepository — 存储与检索', () => {
     expect(repo.removeById(id)).toBe(true)
     expect(repo.list('fact')).toHaveLength(0)
   })
+
+  // v2.9 语义检索：embedding 列 + 向量检索降级
+  it('setEmbedding 写入后 listMissingEmbedding 不再包含该 key', () => {
+    repo.upsert({ type: 'environment', key: 'nginx-path', text: '生产机 nginx 安装在 /usr/local/nginx' })
+    expect(repo.listMissingEmbedding().some((m) => m.key === 'nginx-path')).toBe(true)
+    // 写入一个假的 512 维向量（测试环境无 embedding 服务，直接构造）
+    const fakeVec = Array.from({ length: 512 }, () => 0.01)
+    expect(repo.setEmbedding('nginx-path', fakeVec)).toBe(true)
+    expect(repo.listMissingEmbedding().some((m) => m.key === 'nginx-path')).toBe(false)
+  })
+
+  it('setEmbedding 空向量/不存在的 key 返回 false', () => {
+    expect(repo.setEmbedding('nope', [])).toBe(false)
+    expect(repo.setEmbedding('nonexistent-key', [0.1, 0.2])).toBe(false)
+  })
+
+  it('searchByVector 在向量扩展不可用时返回空数组（降级契约）', () => {
+    repo.upsert({ type: 'fact', key: 'f1', text: '一条用于向量检索降级测试的持久事实' })
+    repo.setEmbedding('f1', Array.from({ length: 512 }, () => 0.01))
+    // 测试环境 sqlite-vec 未加载 → isVectorEnabled=false → 返回 []（调用方降级关键词）
+    expect(repo.searchByVector([0.01, 0.02], 5)).toEqual([])
+  })
+
+  it('listMissingEmbedding 只返回 embedding 为空的记忆', () => {
+    repo.upsert({ type: 'fact', key: 'has-emb', text: '已有向量的记忆内容占位文本' })
+    repo.upsert({ type: 'fact', key: 'no-emb', text: '尚无向量的记忆内容占位文本' })
+    repo.setEmbedding('has-emb', Array.from({ length: 512 }, () => 0.02))
+    const missing = repo.listMissingEmbedding()
+    expect(missing.some((m) => m.key === 'no-emb')).toBe(true)
+    expect(missing.some((m) => m.key === 'has-emb')).toBe(false)
+  })
 })
 
 describe('memory-extractor — 解析与沉淀', () => {
