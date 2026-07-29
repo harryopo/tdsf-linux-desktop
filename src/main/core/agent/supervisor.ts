@@ -79,6 +79,8 @@ import { KnowledgeRepository } from '../../services/db/knowledge-repo'
 // v2.8 长期记忆：仓储 + 自动提取（对话结束 fire-and-forget）+ 工具失败教训沉淀
 import { MemoryRepository } from '../../services/db/memory-repo'
 import { extractMemories, recordToolFailure } from './memory/memory-extractor'
+// v2.9 语义检索：混合召回（向量+关键词）+ 后台 embedding 回填
+import { recallMemories, backfillMemoryEmbeddings } from './memory/memory-embedding'
 import { TutorialRepository } from '../../services/tutorial/tutorial-repo'
 import { getSkillRouter } from '../../services/skills/skill-router-singleton'
 
@@ -826,13 +828,14 @@ class SupervisorAgent {
           }),
           execute: async ({ query, limit }: { query: string; limit?: number }) => {
             try {
-              const memories = new MemoryRepository(db).search(query, limit ?? 3)
+              // v2.9 混合检索：优先向量语义召回，不足时关键词兜底（降级安全）
+              const { results: memories, mode } = await recallMemories(new MemoryRepository(db), query, limit ?? 3)
               const summary = memories.length
                 ? memories
                     .map((m, i) => `${i + 1}. [${m.type}] ${m.text}${m.why ? `（原因：${m.why}）` : ''}`)
                     .join('\n')
                 : `长期记忆中没有与"${query}"相关的内容`
-              return { ok: true, count: memories.length, summary }
+              return { ok: true, count: memories.length, mode, summary }
             } catch (e) {
               return { ok: false, error: e instanceof Error ? e.message : String(e) }
             }
@@ -1180,6 +1183,11 @@ class SupervisorAgent {
         fullText,
         correlationId,
       ).catch(() => { /* fire-and-forget */ })
+        .then(() => {
+          // v2.9 提取完成后后台回填缺失的 embedding（语义检索基础），
+          // 同样 fire-and-forget；模型不可用时自动降级跳过
+          void backfillMemoryEmbeddings(new MemoryRepository(db)).catch(() => { /* ignore */ })
+        })
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
 

@@ -415,6 +415,7 @@ export class DatabaseManager {
 
     // v2.8 新增：Agent 长期记忆表（自动沉淀：用户画像/错误教训/环境事实/偏好）
     // 设计参考 qwen-code 四分类生命周期 + kilo-code 工程约束（key upsert/审计/预算）
+    // v2.9：新增 embedding TEXT 列（JSON 向量）—— 支持 sqlite-vec 语义检索
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS agent_memories (
         id TEXT PRIMARY KEY,
@@ -426,12 +427,15 @@ export class DatabaseManager {
         useCount INTEGER NOT NULL DEFAULT 0,
         lastUsedAt INTEGER,
         pinned INTEGER NOT NULL DEFAULT 0,
+        embedding TEXT,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_mem_type ON agent_memories(type);
       CREATE INDEX IF NOT EXISTS idx_mem_lastUsedAt ON agent_memories(lastUsedAt);
     `)
+    // 迁移：为 v2.8 已建库补 embedding 列（幂等）
+    this.migrateAgentMemoriesTable()
 
     // v2.8 新增：记忆沉淀审计日志（对应 kilo decisions.jsonl：每次提取决策可追溯）
     this.db.exec(`
@@ -519,6 +523,25 @@ export class DatabaseManager {
       }
       if (!colNames.includes('durationMs')) {
         this.db.exec('ALTER TABLE decision_cards ADD COLUMN durationMs INTEGER')
+      }
+    } catch {
+      // 忽略迁移错误（表可能不存在或为新创建）
+    }
+  }
+
+  /**
+   * 迁移 agent_memories 表：为 v2.8 已建库补 embedding 列（v2.9 语义检索）
+   *
+   * 同 migrateDecisionCardsTable：SQLite 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS，
+   * 需先 PRAGMA table_info 检查再决定是否添加。
+   */
+  private migrateAgentMemoriesTable(): void {
+    try {
+      if (!this.db) return
+      const columns = this.db.prepare('PRAGMA table_info(agent_memories)').all() as Array<{ name: string }>
+      const colNames = columns.map((c) => c.name)
+      if (!colNames.includes('embedding')) {
+        this.db.exec('ALTER TABLE agent_memories ADD COLUMN embedding TEXT')
       }
     } catch {
       // 忽略迁移错误（表可能不存在或为新创建）

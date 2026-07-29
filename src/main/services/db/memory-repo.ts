@@ -219,6 +219,67 @@ export class MemoryRepository {
   }
 
   /**
+   * 向量语义检索（v2.9）：用 sqlite-vec vec_distance_cosine 直查主表 KNN
+   *
+   * 与 knowledge-repo.searchByVector 同模式：向量扩展不可用时返回空数组（调用方
+   * 降级到关键词 search）。命中同样刷新 useCount/lastUsedAt（LRU 依据）。
+   *
+   * @param queryEmbedding 查询向量（512 维，已加 BGE 查询前缀后生成）
+   * @param limit 返回数量上限
+   */
+  searchByVector(queryEmbedding: number[], limit = 5): AgentMemory[] {
+    if (!this.db.isVectorEnabled() || !Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
+      return []
+    }
+    try {
+      const queryVec = JSON.stringify(queryEmbedding)
+      const rows = this.db
+        .prepare(
+          `SELECT * FROM agent_memories
+           WHERE embedding IS NOT NULL
+           ORDER BY vec_distance_cosine(embedding, ?) ASC
+           LIMIT ?`,
+        )
+        .all(queryVec, limit) as MemoryRow[]
+      const out = rows.map(deserialize)
+      const now = Date.now()
+      const touch = this.db.prepare('UPDATE agent_memories SET useCount = useCount + 1, lastUsedAt = ? WHERE id = ?')
+      for (const m of out) touch.run(now, m.id)
+      return out
+    } catch {
+      // 向量查询失败 → 降级返回空数组（调用方改用关键词）
+      return []
+    }
+  }
+
+  /**
+   * 回填某条记忆的 embedding（v2.9）
+   *
+   * 由 memory-extractor 写入记忆后 fire-and-forget 调用（embedding 生成是异步重操作，
+   * 不阻塞 upsert）。embedding 以 JSON 数组存 TEXT 列，与知识库格式一致。
+   *
+   * @returns 是否写入成功
+   */
+  setEmbedding(key: string, embedding: number[]): boolean {
+    if (!Array.isArray(embedding) || embedding.length === 0) return false
+    try {
+      const r = this.db
+        .prepare('UPDATE agent_memories SET embedding = ? WHERE key = ?')
+        .run(JSON.stringify(embedding), key.trim().toLowerCase())
+      return r.changes > 0
+    } catch {
+      return false
+    }
+  }
+
+  /** 列出 embedding 缺失的记忆（供后台回填用） */
+  listMissingEmbedding(limit = 50): Array<{ key: string; text: string; why: string | null }> {
+    return this.db
+      .prepare('SELECT key, text, why FROM agent_memories WHERE embedding IS NULL ORDER BY updatedAt DESC LIMIT ?')
+      .all(limit) as Array<{ key: string; text: string; why: string | null }>
+  }
+
+  /**
    * 构建被动注入块（system prompt 用，硬预算 INJECT_BUDGET 字节）
    *
    * 优先级：correction 全量 > user_profile/preference > environment > fact；
