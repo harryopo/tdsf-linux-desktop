@@ -441,7 +441,11 @@ class SupervisorAgent {
     // 4. 创建 LanguageModel
     let modelInstance
     try {
-      modelInstance = createLanguageModel(config)
+      // v2.11：deep 强度且为 DeepSeek 时开启真实思考（fetch 层注入 thinking:enabled），
+      // 修复此前“深度思考开关无效 + 看不到思考展示”的根因
+      modelInstance = createLanguageModel(config, {
+        deepThinking: config.type === 'deepseek' && strength === 'deep',
+      })
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
       this.log.error('chat 调用失败：创建 LanguageModel 失败', {
