@@ -94,6 +94,9 @@ function stripInlineComment(cmd: string): string {
 /** 判断一行是否“像命令”（过滤流程图箭头/框线字符、HTML 标签、中文开头的说明文） */
 function looksLikeCommand(line: string): boolean {
   if (!line) return false
+  // v2.11：必须含至少一个字母/数字 → 过滤纯符号行（如单个 > / $ / | / —），
+  // 防止 AI 用 > 作提示符时漏出“空命令”条目
+  if (!/[a-zA-Z0-9]/.test(line)) return false
   // 流程图/示意图的箭头与框线字符 → 非命令
   if (/[\u25b6\u25bc\u25c0\u25b2\u2500\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2192\u2190\u2191\u2193]/.test(line)) return false
   // HTML/XML 标签行 → 非命令（heredoc 已整体处理，此处兜底）
@@ -117,9 +120,10 @@ function parseShellBlock(block: string): string[] {
   let i = 0
   let pending = ''
   while (i < lines.length) {
-    const rawTrim = lines[i].replace(/^\s*\$\s+/, '').trim() // 去掉行首 $ 提示符
+    const rawTrim = lines[i].replace(/^\s*[$>]\s+/, '').trim() // 去掉行首 $ 或 > 提示符
     i++
-    if (!rawTrim || rawTrim.startsWith('#')) continue
+    // v2.11：跳过空行/注释/单独提示符行（> 或 $ 自成一行，非真命令）
+    if (!rawTrim || rawTrim === '>' || rawTrim === '$' || rawTrim.startsWith('#')) continue
 
     // heredoc：<< EOF / <<-'EOF' → body 直到终止符全部并入当前命令（作为一条多行命令）
     const heredoc = rawTrim.match(/<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/)
@@ -154,7 +158,7 @@ function parseShellBlock(block: string): string[] {
  * 只处理【明确标注 shell 语系】的围栏代码块（```bash / ```sh …）；
  * 无语言标记、```html / ```text / ```yaml 等一律不当命令（避免把流程图/HTML 误列）。
  */
-function extractCommands(content: string): string[] {
+export function extractCommands(content: string): string[] {
   const commands: string[] = []
   const fenceRe = /```([\w-]*)[^\n]*\n([\s\S]*?)```/g
   let match = fenceRe.exec(content)
@@ -264,8 +268,11 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (!onToolAction || !activeSessionId) return null
     if (commands.length === 0) return null
     return (
-      <div className="mt-2 flex flex-col gap-1.5 border-t border-[var(--trae-border-neutral-l1)] pt-2">
-        <div className="text-[10px] text-[var(--trae-text-tertiary)]">检测到 {commands.length} 条命令：</div>
+      <div className="mt-2.5 flex flex-col gap-2 border-t border-[var(--trae-border-neutral-l1)] pt-2.5">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--trae-text-secondary)]">
+          <Play className="size-3 text-[var(--trae-text-brand)]" />
+          检测到 {commands.length} 条命令
+        </div>
         {commands.map((cmd, i) => {
           // 多行命令（如 heredoc）只展示首行 + 行数，避免擑爆列表；执行时仍用完整 cmd
           const multiline = cmd.includes('\n')
@@ -273,10 +280,10 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             ? `${cmd.split('\n')[0]} …(${cmd.split('\n').length} 行)`
             : cmd
           return (
-          <div key={i} className="flex items-center gap-1.5">
+          <div key={i} className="flex items-center gap-2">
             <code
               title={cmd}
-              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 py-1 font-mono text-[11px] text-[var(--trae-text-default)]"
+              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-[var(--trae-text-default)]"
             >
               {display}
             </code>
@@ -284,7 +291,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               type="button"
               onClick={() => onToolAction('execute', cmd)}
               title="发送到终端执行（回显可见）"
-              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 py-1 text-[10px] font-medium text-[var(--trae-text-brand)] transition-opacity hover:opacity-90"
+              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--trae-text-brand)] transition-opacity hover:opacity-90"
             >
               <Play className="size-3" />
               在终端执行
