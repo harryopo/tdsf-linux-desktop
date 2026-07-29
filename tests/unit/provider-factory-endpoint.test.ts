@@ -130,4 +130,25 @@ describe('provider-factory 端点回归（v2.4 修复锁死）', () => {
       globalFetchSpy.mockRestore()
     }
   })
+
+  it('v2.11 deepThinking=true 时自定义 fetch 应注入 thinking:enabled + reasoning_effort:high', async () => {
+    createLanguageModel(makeConfig({ type: 'deepseek' }), { deepThinking: true })
+    const injectedFetch = openaiCalls[0].options.fetch as typeof fetch
+    const globalFetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }))
+    try {
+      await injectedFetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        body: JSON.stringify({ model: 'deepseek-v4-flash', messages: [] }),
+      })
+      const passedInit = globalFetchSpy.mock.calls[0][1] as RequestInit
+      const passedBody = JSON.parse(passedInit.body as string)
+      // 关键断言：deep 模式开启真实思考（此前恒为 disabled 的回归锁死）
+      expect(passedBody.thinking).toEqual({ type: 'enabled' })
+      expect(passedBody.reasoning_effort).toBe('high')
+    } finally {
+      globalFetchSpy.mockRestore()
+    }
+  })
 })

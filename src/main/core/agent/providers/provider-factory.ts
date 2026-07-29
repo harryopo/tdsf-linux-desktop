@@ -37,7 +37,7 @@ import { logger } from '../../../services/log/logger'
  *     DeepSeek V4 Flash 默认把正文放 reasoning_content、content 为 null，标准 provider 只读
  *     delta.content → 空输出。thinking:disabled 是官方 non-thinking 模式，正文直出且支持 function calling。
  */
-function createOpenAiCompatFetch(injectDeepseekThinking: boolean): typeof fetch {
+function createOpenAiCompatFetch(deepseekThinking: 'enabled' | 'disabled' | false): typeof fetch {
   return async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     // 仅处理带 JSON body 的 POST（chat/completions）；其余请求原样放行
     if (init?.body && typeof init.body === 'string') {
@@ -53,9 +53,16 @@ function createOpenAiCompatFetch(injectDeepseekThinking: boolean): typeof fetch 
             }
           }
         }
-        // 2. thinking:disabled（仅 DeepSeek，未显式指定时；含带 tools 的请求）
-        if (injectDeepseekThinking && !('thinking' in payload)) {
-          payload.thinking = { type: 'disabled' }
+        // 2. DeepSeek 思考模式（仅 DeepSeek，未显式指定时）：
+        //    v2.11 修复：按 deep 强度注入 enabled/disabled。此前无条件 disabled，
+        //    导致 deep 模式的思考也被强制关掉（深度思考开关+思考展示归因）。
+        if (deepseekThinking && !('thinking' in payload)) {
+          if (deepseekThinking === 'enabled') {
+            payload.thinking = { type: 'enabled' }
+            if (!('reasoning_effort' in payload)) payload.reasoning_effort = 'high'
+          } else {
+            payload.thinking = { type: 'disabled' }
+          }
           mutated = true
         }
         if (mutated) {
@@ -84,7 +91,10 @@ function createOpenAiCompatFetch(injectDeepseekThinking: boolean): typeof fetch 
  * @returns LanguageModel 实例 + 元信息
  * @throws Error 如果 apiKey 缺失、baseURL 无效，或 type='claude-sdk'
  */
-export function createLanguageModel(config: ProviderConfig): ProviderModelInstance {
+export function createLanguageModel(
+  config: ProviderConfig,
+  opts?: { deepThinking?: boolean },
+): ProviderModelInstance {
   // claude-sdk 走独立路径，不通过此工厂创建 LanguageModel
   if (config.type === 'claude-sdk') {
     throw new Error(
@@ -112,7 +122,7 @@ export function createLanguageModel(config: ProviderConfig): ProviderModelInstan
     )
   }
 
-  const model = buildModel(config)
+  const model = buildModel(config, opts?.deepThinking === true)
   logger.info('AGENT.PROVIDER', `LanguageModel 已创建`, {
     id: config.id,
     name: config.name,
@@ -149,7 +159,7 @@ export function createLanguageModel(config: ProviderConfig): ProviderModelInstan
  * @param config Provider 配置
  * @returns LanguageModel 实例
  */
-function buildModel(config: ProviderConfig): LanguageModel {
+function buildModel(config: ProviderConfig, deepThinking = false): LanguageModel {
   switch (config.type) {
     case 'anthropic': {
       // Claude 直连（含 AWS Bedrock 兜底场景）
@@ -191,7 +201,9 @@ function buildModel(config: ProviderConfig): LanguageModel {
       const openai = createOpenAI({
         apiKey: config.apiKey!,
         baseURL: config.baseURL,
-        fetch: createOpenAiCompatFetch(true),
+        // v2.11：deep 强度 → 开启思考（thinking enabled + reasoning_effort high）；
+        // 其余强度 → 关闭思考（正文直出）。此前恒为 disabled 导致 deep 失效。
+        fetch: createOpenAiCompatFetch(deepThinking ? 'enabled' : 'disabled'),
       })
       return openai.chat(config.model)
     }
