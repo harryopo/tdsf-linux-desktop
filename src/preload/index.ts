@@ -868,7 +868,7 @@ const agentRuntime = {
   chat: (
     messages: ChatMessage[],
     providerId?: string,
-    strength?: ThinkingStrength,
+    strength?: ThinkingStrength | 'auto',
     sshSessionId?: string,
   ): Promise<string> =>
     // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）

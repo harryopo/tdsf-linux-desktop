@@ -878,7 +878,7 @@ export interface ElectronAPI {
   agentChat(
     messages: ChatMessage[],
     providerId?: string,
-    strength?: ThinkingStrength,
+    strength?: ThinkingStrength | 'auto',
     /** 活跃 SSH sessionId；传入后 Supervisor 启用 ssh_readonly 工具 */
     sshSessionId?: string,
   ): Promise<string>

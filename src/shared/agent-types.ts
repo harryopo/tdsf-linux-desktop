@@ -62,6 +62,15 @@ export type ProviderType =
 export type ThinkingStrength = 'fast' | 'standard' | 'deep'
 
 /**
+ * 用户侧可请求的思考强度（v2.10 新增 'auto'）
+ *
+ * - auto：按查询复杂度本地评分自动路由到 standard/deep（快慢思考结合）
+ * 内部执行时 supervisor 会把 auto 解析为 ThinkingStrength 三档之一，
+ * 因此 TokenUsageRecord / ChatResult 仍只记录解析后的三档，不含 auto。
+ */
+export type RequestedThinkingStrength = ThinkingStrength | 'auto'
+
+/**
  * 模型角色（v0.9.4 批次 2 - 任务 3，借鉴 ContinueDev ModelRole）
  *
  * 不同任务用不同模型：主对话用 chat，代码补全用 autocomplete 等。

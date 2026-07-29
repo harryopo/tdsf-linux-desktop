@@ -216,7 +216,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       _event,
       messages: ChatMessage[],
       providerId?: string,
-      strength?: ThinkingStrength,
+      strength?: ThinkingStrength | 'auto',
       sessionId?: string,
       sshSessionId?: string,
     ): Promise<string> => {

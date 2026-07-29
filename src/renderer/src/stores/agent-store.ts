@@ -160,8 +160,8 @@ interface AgentState {
   isStreaming: boolean
   /** 当前进行中的 chat correlationId（用于取消请求） */
   currentCorrelationId: string | null
-  /** 当前思考强度 */
-  thinkingStrength: ThinkingStrength
+  /** 当前思考强度（v2.10：'auto' = 按复杂度自动路由） */
+  thinkingStrength: ThinkingStrength | 'auto'
   /** 当前选择的 Provider ID */
   selectedProviderId: string | null
   /** Provider 列表（从 IPC 加载，不含 apiKey） */
@@ -229,8 +229,8 @@ interface AgentState {
   setStreaming: (streaming: boolean) => void
   /** 设置当前 correlationId */
   setCurrentCorrelationId: (id: string | null) => void
-  /** 设置思考强度 */
-  setThinkingStrength: (strength: ThinkingStrength) => void
+  /** 设置思考强度（v2.10：含 'auto'） */
+  setThinkingStrength: (strength: ThinkingStrength | 'auto') => void
   /** 设置选中的 Provider ID */
   setSelectedProviderId: (id: string | null) => void
   /** 设置 Provider 列表（从 IPC 加载后调用） */
@@ -268,7 +268,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
   messages: [],
   isStreaming: false,
   currentCorrelationId: null,
-  thinkingStrength: 'standard',
+  thinkingStrength: 'auto',
   selectedProviderId: null,
   providers: [],
   tokenStats: DEFAULT_TOKEN_STATS,

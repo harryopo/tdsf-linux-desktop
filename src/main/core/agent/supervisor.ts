@@ -56,6 +56,8 @@
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
 import { z } from 'zod'
 import { routeChatTools, CHAT_TOOL_CATALOG } from './tools/chat-tool-router'
+// v2.10 快慢思考自动路由：auto 档按复杂度解析为 standard/deep
+import { resolveThinkingStrength } from './thinking-router'
 import { createLanguageModel, getDefaultParams } from './providers/provider-factory'
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
 import { getProviderCapabilities } from './providers/provider-capabilities'
@@ -65,7 +67,7 @@ import { compactIfNeeded } from './context'
 import { createAllSubagents } from './subagents'
 import type { Subagent, SubagentName, SubagentTask, SubagentResult } from './subagents/base'
 import type { ThinkingStrength } from './providers/types'
-import type { ChatResult } from '@shared/agent-types'
+import type { ChatResult, RequestedThinkingStrength } from '@shared/agent-types'
 import { logger } from '../../services/log/logger'
 import { SshConnectionManager } from '../../services/ssh/connection-manager'
 import { preflightCheck } from '../../services/ssh/command-preflight'
@@ -92,8 +94,8 @@ export interface ChatParams {
   messages: ModelMessage[]
   /** Provider ID（不传时使用默认 Provider） */
   providerId?: string
-  /** 思考强度（影响 maxTokens 与后续是否调度 Subagent） */
-  strength?: ThinkingStrength
+  /** 思考强度（影响 maxTokens 与后续是否调度 Subagent；v2.10 支持 'auto' 自动路由） */
+  strength?: RequestedThinkingStrength
   /** token 流式回调（每个 chunk 调用一次） */
   onToken?: (delta: string) => void
   /**
@@ -366,7 +368,7 @@ class SupervisorAgent {
     const {
       messages,
       providerId,
-      strength = 'standard',
+      strength: requestedStrength = 'standard',
       onToken,
       onReasoning,
       onDone,
@@ -376,6 +378,20 @@ class SupervisorAgent {
       sshSessionId,
       approveWriteCommand,
     } = params
+
+    // v2.10 快慢思考自动路由：提前提取最后一条用户消息（复用于复杂度评分），
+    // strength='auto'（或未知值）时按复杂度解析为 standard/deep；显式档不覆盖。
+    // 解析后的 strength 为三档之一，下游（maxTokens/thinking/审批）均无感。
+    let earlyUserText = ''
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role === 'user' && typeof m.content === 'string') {
+        earlyUserText = m.content
+        break
+      }
+    }
+    const strengthRoute = resolveThinkingStrength(requestedStrength, earlyUserText)
+    const strength: ThinkingStrength = strengthRoute.resolved
 
     this.ensureInitialized()
     const startTime = Date.now()
@@ -875,6 +891,23 @@ class SupervisorAgent {
           toolName: 'tool_route',
           ok: true,
           output: `${toolRoute.reason}\n挂载：${mountedLabels || '（无）'}${unavailableNote}`,
+        })
+      }
+
+      // v2.10 快慢思考自动路由可视化：auto 档下推送一张「思考强度」卡片（复用 skill_match 模式），
+      // 让用户看到“为什么自动升/不升 deep”；显式档不推（用户已知自己选了什么）
+      if (strengthRoute.auto && strengthRoute.score) {
+        const sr = strengthRoute.score
+        const strengthCallId = `strength_${correlationId}`
+        const strengthLabel = strength === 'deep' ? '深度思考' : '标准思考'
+        const sigNote = sr.signals.length ? sr.signals.join('、') : '无明显复杂信号'
+        onToolEvent?.({ toolCallId: strengthCallId, phase: 'call', toolName: 'thinking_route', input: earlyUserText.slice(0, 80) || '(无用户消息)' })
+        onToolEvent?.({
+          toolCallId: strengthCallId,
+          phase: 'result',
+          toolName: 'thinking_route',
+          ok: true,
+          output: `自动评估 → ${strengthLabel}（复杂度 ${sr.score}）｜信号：${sigNote}`,
         })
       }
 
