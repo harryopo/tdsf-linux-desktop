@@ -24,6 +24,11 @@ import {
 } from '../services/sandbox/types'
 import { logger } from '../services/log/logger'
 import { sessionKeyMap } from './sandbox-approval'
+// v2.11 修复运行时 bug：原动态 require('../services/storage/config-store') 在打包产物
+// out/main/index.js 里按相对路径解析失败（Cannot find module），导致 sandboxConfig
+// 永远读不到只用默认值。改静态 import（electron-vite 正确打包）；
+// ConfigStore 是静态类，顶层 import 不会触发 app.getPath（.get() 仅在 app.ready 后的 handler 调）。
+import { ConfigStore } from '../services/storage/config-store'
 
 /**
  * 持久化的沙箱配置（存储在 ConfigStore 中，key='sandboxConfig'）
@@ -69,12 +74,6 @@ let cachedClient: OpenHandsClient | null = null
  */
 function readSandboxConfig(): PersistedSandboxConfig {
   try {
-    // 动态 require 避免顶层依赖 ConfigStore（ConfigStore 必须在 app.ready 后使用）
-    // 这里使用动态 import 的等价形式：直接 require
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ConfigStore } = require('../services/storage/config-store') as {
-      ConfigStore: { get: (key: string) => unknown }
-    }
     const cfg = ConfigStore.get('sandboxConfig') as PersistedSandboxConfig | undefined
     return cfg ?? {}
   } catch (err) {
