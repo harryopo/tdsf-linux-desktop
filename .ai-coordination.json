@@ -2,29 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-29T02:48:09.492Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-07-29T02:48:08.395Z",
-      "lastActiveAt": "2026-07-29T02:48:09.492Z",
-      "task": "v2.10 auto 思考强度类型",
-      "claimedFiles": [
-        {
-          "path": "src/shared/agent-types.ts",
-          "task": "v2.10 auto 思考强度类型",
-          "claimedAt": "2026-07-29T02:48:08.395Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "v2.10 strength auto",
-          "claimedAt": "2026-07-29T02:48:09.492Z"
-        }
-      ],
-      "expiresAt": "2026-07-29T04:48:09.492Z"
-    }
-  },
+  "lastUpdated": "2026-07-29T02:49:21.232Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -2937,6 +2916,20 @@
       "file": "src/preload/index.ts",
       "task": "v2.10 strength auto",
       "timestamp": "2026-07-29T02:48:09.492Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/agent-types.ts",
+      "task": "v2.10 auto 思考强度类型",
+      "timestamp": "2026-07-29T02:49:20.092Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "v2.10 strength auto",
+      "timestamp": "2026-07-29T02:49:21.232Z"
     }
   ],
   "coordinationAudit": {
