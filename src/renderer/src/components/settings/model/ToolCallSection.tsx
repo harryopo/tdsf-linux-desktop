@@ -57,7 +57,9 @@ export function ToolCallSection(props: ToolCallSectionProps) {
         )}
       </div>
 
-      {/* 底部统计行 */}
+      {/* 底部统计行（v2.11 去假：ToolCallStat 仅有 count/percent，
+          无成功率/耗时数据来源，移除原硬编码的 94.3%/2.1s。
+          仅保留真实可算的“总调用”） */}
       <div className="set-tool-summary">
         <span className="set-tool-summary__item">
           总调用{' '}
@@ -65,18 +67,6 @@ export function ToolCallSection(props: ToolCallSectionProps) {
             {toolCallStats.reduce((sum, s) => sum + s.count, 0)}
           </span>{' '}
           次
-        </span>
-        <span className="set-tool-summary__item">
-          成功率{' '}
-          <span className="set-tool-summary__val set-tool-summary__val--success">
-            94.3%
-          </span>
-        </span>
-        <span className="set-tool-summary__item">
-          平均耗时{' '}
-          <span className="set-tool-summary__val set-tool-summary__val--default">
-            2.1s
-          </span>
         </span>
       </div>
     </SettingsCard>

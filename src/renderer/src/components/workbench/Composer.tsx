@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import {
   ArrowUp, AtSign, ChevronDown, Cpu, Hash,
-  Image as ImageIcon, Loader2, Sparkles, Square, X, Zap,
+  Image as ImageIcon, Info, Loader2, Sparkles, Square, X, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import { useAgentStore } from '@/stores/agent-store'
@@ -393,11 +393,25 @@ const Composer: FC<ComposerProps> = ({
               className="ai-composer-attachments"
               style={{
                 display: 'flex',
-                gap: 'var(--trae-spacing-xs, 4px)',
+                flexDirection: 'column',
+                gap: '4px',
                 padding: '4px 0',
-                flexWrap: 'wrap',
               }}
             >
+              {/* v2.11 诚实明示：当前图片以文本（base64）附加，模型暂不支持真正识图（vision） */}
+              <div
+                style={{
+                  fontSize: '10px',
+                  color: 'var(--trae-text-tertiary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Info size={11} />
+                图片将以文本形式附加，当前模型暂不支持识图
+              </div>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
               {attachments.map((attachment, index) => (
                 <div
                   key={`${attachment.fileName}-${index}`}
@@ -448,6 +462,7 @@ const Composer: FC<ComposerProps> = ({
                   </button>
                 </div>
               ))}
+              </div>
             </div>
           )}
 

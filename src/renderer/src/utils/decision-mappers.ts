@@ -269,11 +269,17 @@ export function buildRiskGates(card: DecisionCard): RiskGate[] {
 export function buildDangerCommands(card: DecisionCard): DangerCommand[] {
   if (card.risk.matchedRules.length === 0) return []
 
+  // v2.11 去假：intercepted 来自真实的 card.risk.blocked / status（而非无条件永真）
+  // 拦截判定：风险引擎 blocked=true 或决策被 rejected → 已拦截；
+  // 若命中高危规则但状态为 executed/approved → 经审批放行（未拦截）
+  const intercepted = card.risk.blocked === true || card.status === 'rejected'
+
   return card.risk.matchedRules.map((rule, idx) => ({
     ruleId: rule.startsWith('R-') ? rule : `R-${String(idx + 1).padStart(3, '0')}`,
     level: (card.risk.level === 'HIGH' || card.risk.level === 'CRITICAL' ? 'high' : 'mid') as 'high' | 'mid',
     threat: card.risk.description || `命中规则 ${rule}`,
     segments: parseListSegments(card.fixCommand),
+    intercepted,
   }))
 }
 

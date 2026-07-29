@@ -32,6 +32,11 @@ export interface DangerCommand {
   level: DangerLevel
   /** 威胁描述 */
   threat: string
+  /**
+   * 是否真实被拦截（v2.11 去假：来自 card.risk.blocked，而非无条件永真）
+   * true=命令被风险引擎阻断；false=命中规则但经审批放行/已执行
+   */
+  intercepted: boolean
 }
 
 /** 命令分段类型 */
@@ -112,6 +117,9 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
 
   const highCmds = commands.filter((c) => c.level === 'high')
   const midCmds = commands.filter((c) => c.level === 'mid')
+  // v2.11 去假：按真实拦截状态统计，不再无条件声称“全部已拦截”
+  const interceptedCount = commands.filter((c) => c.intercepted).length
+  const allIntercepted = commands.length > 0 && interceptedCount === commands.length
 
   if (closed) {
     return null
@@ -127,9 +135,20 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
           <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-error-default)]">
             {commands.length} 条
           </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-success-default)]">
-            全部已拦截
-          </span>
+          {/* v2.11 去假：仅当全部真实被拦截才显“全部已拦截”，否则如实显示拦截比例 */}
+          {allIntercepted ? (
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-success-default)]">
+              全部已拦截
+            </span>
+          ) : interceptedCount > 0 ? (
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-alert-default)]">
+              已拦截 {interceptedCount}/{commands.length}
+            </span>
+          ) : (
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2 text-[10px] font-medium text-[var(--trae-text-tertiary)]">
+              规则命中
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -316,10 +335,18 @@ function DangerCard({ cmd }: { cmd: DangerCommand }) {
       </div>
       <div className="mt-1 flex items-center justify-between">
         <span className="text-[10px] text-[var(--trae-text-secondary)]">{cmd.threat}</span>
-        <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--trae-status-success-default)]">
-          <Check className="h-3 w-3 text-[var(--trae-status-success-default)]" />
-          已拦截
-        </span>
+        {/* v2.11 去假：按真实拦截状态渲染（intercepted 来自 card.risk.blocked） */}
+        {cmd.intercepted ? (
+          <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--trae-status-success-default)]">
+            <Check className="h-3 w-3 text-[var(--trae-status-success-default)]" />
+            已拦截
+          </span>
+        ) : (
+          <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--trae-status-alert-default)]">
+            <AlertTriangle className="h-3 w-3 text-[var(--trae-status-alert-default)]" />
+            已放行
+          </span>
+        )}
       </div>
     </div>
   )
