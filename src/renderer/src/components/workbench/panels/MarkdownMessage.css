@@ -6,8 +6,8 @@
  */
 
 .md-body {
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 12px;
+  line-height: 1.7;
   color: var(--trae-text-default);
   word-break: break-word;
 }
@@ -118,6 +118,39 @@
   border-top: 1px solid var(--trae-border-neutral-l1);
 }
 
+/* 表格（v2.5：AI 回复大量使用表格，之前裸出 | 符号） */
+.md-body .md-table-wrap {
+  margin: 8px 0;
+  overflow-x: auto;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+}
+.md-body .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.md-body .md-table th,
+.md-body .md-table td {
+  padding: 6px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+  white-space: nowrap;
+}
+.md-body .md-table th {
+  font-weight: 600;
+  color: var(--trae-text-secondary);
+  background: var(--trae-bg-overlay-l2);
+  font-size: 12px;
+}
+.md-body .md-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.md-body .md-table tbody tr:hover td {
+  background: var(--trae-bg-overlay-l1);
+}
+
 /* 链接 */
 .md-body .md-link {
   color: var(--trae-text-brand);
@@ -127,56 +160,210 @@
   opacity: 0.85;
 }
 
-/* ===== Agent 工具执行卡片（v2.4：真实工具调用可视化） ===== */
+/* ===== Agent 工具执行卡片（v2.4； v2.5 对齐设计稿 Panel F 命令卡；v2.8 终端风精修） ===== */
 .ai-tool-exec {
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
-  background: var(--trae-bg-overlay-l1);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-8);
+  background: var(--trae-bg-base-secondary);
+  padding: 10px 12px;
   overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 }
 .ai-tool-exec-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--trae-bg-overlay-l2);
+  gap: 8px;
+  padding: 0 2px 8px;
+  margin-bottom: 8px;
   border-bottom: 1px solid var(--trae-border-neutral-l1);
 }
 .ai-tool-exec-name {
   font-size: 12px;
   font-weight: 600;
   color: var(--trae-text-default);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
 }
 .ai-tool-exec-status {
   margin-left: auto;
   font-size: 11px;
   color: var(--trae-text-brand);
 }
+/* v2.8：头部状态胶囊（替代底部孤立的“✓ 执行成功”行，信息上提不占行） */
+.ai-tool-exec-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: var(--trae-radius-full);
+  font-size: 10px;
+  font-weight: 500;
+}
+.ai-tool-exec-pill.is-ok {
+  color: var(--trae-status-success-default);
+  background: var(--trae-status-success-surface-l1, rgba(52, 199, 89, 0.12));
+  border: 1px solid var(--trae-status-success-surface-l2, rgba(52, 199, 89, 0.3));
+}
+.ai-tool-exec-pill.is-fail {
+  color: var(--trae-status-error-default);
+  background: var(--trae-status-error-surface-l1, rgba(255, 59, 48, 0.12));
+  border: 1px solid var(--trae-status-error-surface-l2, rgba(255, 59, 48, 0.3));
+}
 .ai-tool-exec-cmd {
-  padding: 6px 10px;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  background: var(--trae-terminal-block-bg, #0f1011);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+  font-family: var(--app-code-font, 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace);
   font-size: 12px;
-  color: var(--trae-text-default);
+  line-height: 18px;
+  color: var(--trae-code-text, #e0e3ee);
   word-break: break-all;
 }
 .ai-tool-exec-prompt {
-  color: var(--trae-text-brand);
+  color: var(--trae-accent-cyan, #30b0c7);
+  font-weight: 600;
   user-select: none;
 }
 .ai-tool-exec-output {
   margin: 0;
-  padding: 6px 10px;
-  max-height: 220px;
+  padding: 10px 12px;
+  max-height: 260px;
   overflow: auto;
-  border-top: 1px dashed var(--trae-border-neutral-l1);
-  background: var(--trae-terminal-block-bg, #1a1a1a);
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--trae-code-text, #e8e8e8);
+  background: var(--trae-terminal-block-bg, #0f1011);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+  font-family: var(--app-code-font, 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace);
+  font-size: 12px;
+  line-height: 18px;
+  /* v2.8：输出用终端绿色系，与命令行区分，更有真终端感 */
+  color: var(--trae-terminal-output-text, #9ece9e);
   white-space: pre-wrap;
   word-break: break-all;
 }
 .ai-tool-exec-output.is-error {
   color: var(--trae-status-error-default);
+}
+/* 输出块细滚动条（终端观感） */
+.ai-tool-exec-output::-webkit-scrollbar {
+  width: 6px;
+}
+.ai-tool-exec-output::-webkit-scrollbar-thumb {
+  background: var(--trae-border-neutral-l2);
+  border-radius: 3px;
+}
+/* 执行状态行（✓ 执行成功 · 设计稿 L3243；v2.8 保留兼容旧消息） */
+.ai-tool-exec-status-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* ===== 深度思考折叠块（v2.5：设计稿 Panel A） ===== */
+.ai-reasoning {
+  margin-top: 4px;
+}
+.ai-reasoning .ai-tool-row {
+  background: transparent;
+  border: none;
+}
+.ai-reasoning-body {
+  margin-left: 6px;
+  padding: 6px 8px 6px 20px;
+  border-left: 1px solid var(--trae-border-neutral-l1);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--trae-text-tertiary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* ===== 检索类工具折叠卡（v2.5：设计稿 Panel C — 检索不伪装成终端命令） ===== */
+.ai-tool-search .ai-tool-row {
+  background: transparent;
+  border: none;
+}
+.ai-tool-search-body {
+  margin-left: 6px;
+  padding: 4px 8px 6px 20px;
+  border-left: 1px solid var(--trae-border-neutral-l1);
+}
+.ai-tool-search-query {
+  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 10px;
+  color: var(--trae-text-tertiary);
+}
+.ai-tool-search-output {
+  padding: 8px 10px;
+  background: var(--trae-bg-overlay-l1);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--trae-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.ai-tool-search-output.is-error {
+  color: var(--trae-status-error-default);
+  border-color: var(--trae-status-error-surface-l2);
+}
+
+/* ===== 聊天内可信度分析折叠块（v2.5） ===== */
+.ai-credibility {
+  margin-top: 2px;
+}
+.ai-credibility .ai-tool-row {
+  background: transparent;
+  border: none;
+}
+.ai-credibility-body {
+  margin-left: 6px;
+  padding: 6px 8px 6px 20px;
+  border-left: 1px solid var(--trae-border-neutral-l1);
+}
+
+/* 工具行小徽章（设计稿：14px 高、9-10px 字号） */
+.ai-tool-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 15px;
+  padding: 0 5px;
+  border-radius: var(--trae-radius-4);
+  background: var(--trae-bg-overlay-l3);
+  font-size: 9px;
+  color: var(--trae-text-tertiary);
+  white-space: nowrap;
+}
+.ai-tool-badge-brand {
+  background: var(--trae-bg-brand-popup);
+  color: var(--trae-text-brand);
+}
+.ai-tool-badge-error {
+  background: var(--trae-status-error-surface-l1);
+  color: var(--trae-status-error-default);
+}
+
+/* 流光文字（设计稿 .shimmer-text，思考中状态） */
+@keyframes ai-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.ai-shimmer-text {
+  background: linear-gradient(90deg, var(--trae-text-tertiary) 0%, var(--trae-text-default) 50%, var(--trae-text-tertiary) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ai-shimmer 2s linear infinite;
 }

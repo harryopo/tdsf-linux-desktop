@@ -77,12 +77,13 @@
 }
 
 .ai-msg-user-bubble {
-  background: var(--trae-bg-brand);
-  color: var(--trae-text-onbrand);
+  /* v2.5 对齐设计稿：深蓝 popup 底 + 默认文字（原亮蓝底白字过重） */
+  background: var(--trae-bg-brand-popup);
+  color: var(--trae-text-default);
   padding: 8px 12px;
   border-radius: 6px 2px 6px 6px;
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.6;
   max-width: 100%;
   word-break: break-word;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
@@ -963,6 +964,15 @@
 .ai-composer:focus-within {
   border-color: var(--trae-border-brand);
   box-shadow: 0 0 0 2px rgba(56, 123, 255, 0.15);
+}
+
+/* v2.5 修复：豁免全局 focus-visible 蓝框/蓝影（global.css *:focus-visible 与
+   Settings.css 泄漏规则）—— 输入态反馈由外层 .ai-composer:focus-within 承担，
+   内层 textarea 不应再叠一层突兀的蓝色矩形 */
+.ai-composer-textarea:focus,
+.ai-composer-textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .ai-composer-top {

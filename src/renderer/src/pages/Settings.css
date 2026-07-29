@@ -2350,15 +2350,17 @@
   .set-code-card { transition: none !important; }
 }
 
-:focus-visible {
+/* v2.5 修复：原裸写的 :focus-visible 全局规则泄漏到全应用（聊天输入框点击闪蓝条），
+   收窄到设置页作用域内 */
+.set-page :focus-visible {
   outline: 2px solid var(--trae-bg-brand);
   outline-offset: 2px;
 }
-button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+.set-page button:focus-visible,
+.set-page a:focus-visible,
+.set-page input:focus-visible,
+.set-page select:focus-visible,
+.set-page textarea:focus-visible {
   outline: 2px solid var(--trae-bg-brand);
   outline-offset: 2px;
 }

@@ -120,8 +120,10 @@ export function TutorialPage() {
         }
 
         const mappedCourses = (entries ?? []).map(entryToCourse)
+        // v2.6 去假：Electron 下无论空否都接管（空库时展示空列表，
+        // 不再让 DEFAULT_COURSES/FEATURED_COURSES 假课程带假学习人次静默常驻）
+        setCourses(mappedCourses)
         if (mappedCourses.length > 0) {
-          setCourses(mappedCourses)
           // 精选课程：取阅读时间最长的两门作为推荐
           const sortedByReadingTime = [...entries].sort((a, b) => b.readingTime - a.readingTime)
           const featuredEntries = sortedByReadingTime.slice(0, 2)
@@ -132,7 +134,8 @@ export function TutorialPage() {
           _setRawPaths(pathLite)
           setFeatured(featuredEntries.map((entry, index) => {
             const base = entryToCourse(entry)
-            const progress = computeFeaturedProgress(entry.id, visitedIds, pathLite, [65, 30][index] ?? 0, false)
+            // v2.6 去假：fallback 进度一律 0（此前传设计稿的 65/30，无学习记录也显示假进度）
+            const progress = computeFeaturedProgress(entry.id, visitedIds, pathLite, 0, false)
             const cta = progress === 100 ? '复习' : progress > 0 ? '继续学习' : '开始学习'
             return {
               ...base,
@@ -141,6 +144,10 @@ export function TutorialPage() {
               progress,
             }
           }))
+        } else {
+          // v2.6 去假：空库时精选与学习路径同步清空，不保留设计稿 mock
+          setFeatured([])
+          setPaths([])
         }
 
         const totalCourses = entries.length

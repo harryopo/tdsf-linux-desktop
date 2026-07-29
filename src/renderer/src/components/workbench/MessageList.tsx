@@ -17,6 +17,8 @@ import type { PaorApprovalRequest } from '@/types/electron'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import LiveMessageRow from './panels/LiveMessageRow'
 import PaorApprovalCard from './panels/PaorApprovalCard'
+// v2.6：空态能力卡点击注入提示词到输入框（Composer 消费 injectedAtCommand）
+import { useEditorStore } from '@/stores/editor-store'
 
 /** AIPanel 消息滚动区 props */
 export interface MessageListProps {
@@ -81,48 +83,52 @@ const MessageList: FC<MessageListProps> = ({
           <div ref={messagesEndRef} />
         </>
       ) : (
-        /* ===== 欢迎态：能力网格 + 快捷 chips（对齐 design-app 视觉） ===== */
-        <div className="flex flex-1 flex-col items-center justify-center px-4 py-8">
+        /* ===== 欢迎态：能力网格 + 快捷 chips（对齐 design-app 视觉） =====
+           v2.6：能力卡接真实交互（点击注入提示词到输入框）+ 间距放宽 */
+        <div className="flex flex-1 flex-col items-center justify-center px-6 py-10">
           {/* 品牌图标 */}
-          <div className="flex size-10 items-center justify-center rounded-[10px] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)]">
-            <Sparkles className="size-5 text-[var(--trae-icon-brand)]" />
+          <div className="flex size-12 items-center justify-center rounded-[12px] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)]">
+            <Sparkles className="size-6 text-[var(--trae-icon-brand)]" />
           </div>
 
           {/* 问候语 */}
-          <div className="mt-3 text-[13px] font-semibold text-[var(--trae-text-default)]">
+          <div className="mt-5 text-[15px] font-semibold text-[var(--trae-text-default)]">
             你好，我是 TDSF AI 运维助手
           </div>
-          <div className="mt-1.5 max-w-[380px] text-center text-[11px] leading-relaxed text-[var(--trae-text-secondary)]">
+          <div className="mt-2 max-w-[400px] text-center text-[12px] leading-relaxed text-[var(--trae-text-secondary)]">
             {activeSessionId
               ? '已连接服务器，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'
               : '连接 SSH 服务器后，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'}
           </div>
 
-          {/* 能力网格 2×2 */}
-          <div className="mt-4 grid w-full max-w-[400px] grid-cols-2 gap-2">
+          {/* 能力网格 2×2（v2.6：真按钮 —— 点击把对应提示词填入输入框并聚焦） */}
+          <div className="mt-6 grid w-full max-w-[460px] grid-cols-2 gap-3">
             {([
-              { icon: <Search className="size-3" />, title: '故障诊断', desc: '快速定位系统异常' },
-              { icon: <Terminal className="size-3" />, title: '命令执行', desc: '安全执行运维命令' },
-              { icon: <FileText className="size-3" />, title: '配置分析', desc: '解读配置文件' },
-              { icon: <TrendingUp className="size-3" />, title: '性能优化', desc: '发现性能瓶颈' },
+              { icon: <Search className="size-4" />, title: '故障诊断', desc: '快速定位系统异常', prompt: '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。' },
+              { icon: <Terminal className="size-4" />, title: '命令推荐', desc: '安全执行运维命令', prompt: '我想完成一项运维操作，请推荐安全的命令并说明风险：' },
+              { icon: <FileText className="size-4" />, title: '配置分析', desc: '解读配置文件', prompt: '请帮我分析以下配置文件的含义与潜在问题：' },
+              { icon: <TrendingUp className="size-4" />, title: '性能优化', desc: '发现性能瓶颈', prompt: '请分析当前服务器的性能瓶颈（CPU/内存/磁盘IO/网络）并给出优化建议，只读命令采集。' },
             ] as const).map((cap) => (
-              <div
+              <button
                 key={cap.title}
-                className="flex items-center gap-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-2 text-left transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l2)]"
+                type="button"
+                onClick={() => useEditorStore.getState().setInjectedAtCommand(cap.prompt)}
+                title={`点击将“${cap.title}”提示词填入输入框`}
+                className="btn-press flex items-center gap-3 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-3.5 py-3 text-left transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
               >
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-icon-secondary)]">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-[6px] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-icon-secondary)]">
                   {cap.icon}
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[11px] font-medium text-[var(--trae-text-default)]">{cap.title}</div>
-                  <div className="text-[10px] text-[var(--trae-text-tertiary)]">{cap.desc}</div>
+                  <div className="text-[12px] font-medium text-[var(--trae-text-default)]">{cap.title}</div>
+                  <div className="mt-0.5 text-[11px] text-[var(--trae-text-tertiary)]">{cap.desc}</div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
 
           {/* 引导按钮（未连接/未配置时显示） */}
-          <div className="mt-5 flex items-center gap-2">
+          <div className="mt-7 flex items-center gap-3">
             {!activeSessionId && (
               <button
                 type="button"

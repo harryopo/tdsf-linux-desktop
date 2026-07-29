@@ -151,6 +151,20 @@ export function HistoryDetailPage() {
   const [card, setCard] = useState<DecisionCard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /** v2.6：审计日志行（真 SHA-256 链，异步计算） */
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([])
+
+  useEffect(() => {
+    if (!card) {
+      setAuditRows([])
+      return
+    }
+    let cancelled = false
+    void buildAuditRows(card).then((rows) => {
+      if (!cancelled) setAuditRows(rows)
+    })
+    return () => { cancelled = true }
+  }, [card])
 
   /** 加载决策数据 */
   const loadCard = useCallback(async () => {
@@ -212,7 +226,6 @@ export function HistoryDetailPage() {
 
   // ===== 数据映射 =====
   const timelineSteps = buildTimelineSteps(card)
-  const auditRows = buildAuditRows(card)
   const statusMeta = STATUS_LABEL[card.status]
   const timestampStr = formatTimestamp(card.timestamp)
   const durationLabel = card.durationMs != null ? `${card.durationMs}ms` : '—'

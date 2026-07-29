@@ -22,7 +22,7 @@ import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { buildSparklinePoints, baselineSparkline, type SparklineMetric } from '@/utils/history-sparkline'
 import type { DecisionCard, HistoryStats } from '@shared/models'
 
-type DecisionStatus = '成功' | '失败' | '已拦截'
+type DecisionStatus = '成功' | '失败' | '已拦截' | '待处理'
 type RiskLevel = '低风险' | '中风险' | '高风险'
 type ActorType = 'root' | 'ai-agent'
 
@@ -57,7 +57,8 @@ function mapCardStatus(status: DecisionCard['status']): DecisionStatus {
       return '已拦截'
     case 'pending':
     default:
-      return '成功'
+      // v2.6 去假：pending/未知状态不再冒充“成功”
+      return '待处理'
   }
 }
 
@@ -110,7 +111,7 @@ const DEFAULT_STATS: StatItem[] = [
   { label: '平均响应时间', value: '12s', color: 'var(--trae-text-secondary)', sparkline: '0,8 14,12 28,10 42,14 56,11 70,16 84,13 100,15' },
 ]
 const TIME_RANGES: string[] = ['近7天', '近30天', '全部']
-const STATUSES: string[] = ['全部状态', '成功', '失败', '已拦截']
+const STATUSES: string[] = ['全部状态', '成功', '失败', '已拦截', '待处理']
 
 const DEFAULT_RECORDS: DecisionRecord[] = [
   { id: '1', time: '14:23', title: '重启 nginx 服务', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.87, command: 'sudo systemctl restart nginx', desc: 'nginx P99延迟升高，重启后恢复', durationSec: 8, isDanger: false, timestamp: daysAgoTs(0, 14, 23) },

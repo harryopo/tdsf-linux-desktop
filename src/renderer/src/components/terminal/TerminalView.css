@@ -2,12 +2,12 @@
  * TerminalView 终端样式
  */
 
-/* 终端容器 - 黑色背景 */
+/* 终端容器 - 与 xterm 主题同色（#0f1011），v2.5 加大内边距提升呼吸感 */
 .terminal-view {
   width: 100%;
   height: 100%;
   background: var(--trae-terminal-block-bg);
-  padding: 16px;
+  padding: 14px 16px 10px;
   overflow: hidden;
 }
 
@@ -19,17 +19,14 @@
   display: none;
 }
 
-/* xterm.js 终端内部样式微调 */
+/* xterm.js 终端内部样式微调
+   注：字号/字体由 xterm option 控制（支持 Ctrl+/- 缩放），CSS 不再硬编码覆盖 */
 .terminal-view .xterm {
   height: 100%;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
-  font-size: 11px;
 }
 
 .terminal-view .xterm-viewport {
   background-color: var(--trae-terminal-block-bg) !important;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
-  font-size: 11px;
 }
 
 /* 终端滚动条（v2.4 修复：原 6px + 20% 白在黑底上几乎不可见，误以为“无法滚动”；加宽加亮） */

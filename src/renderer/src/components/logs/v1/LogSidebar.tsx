@@ -17,11 +17,14 @@ export function LogSidebar({
   activeId,
   onSelect,
   onSourceChange,
+  counts,
 }: {
   activeId: string
   onSelect: (id: string) => void
   /** 点击日志源时额外触发的回调（传入完整 source 对象，供父组件重拉日志） */
   onSourceChange?: (source: LogSourceItem) => void
+  /** v2.6：真实计数（id → 文案），传入时覆盖 LOG_SOURCES 的设计稿硬编码计数 */
+  counts?: Record<string, string>
 }) {
   // 主类日志源（5 项）
   const mainSources = LOG_SOURCES.filter((s) => s.group === 'main')
@@ -33,7 +36,7 @@ export function LogSidebar({
       {mainSources.map((src) => (
         <LogSourceRow
           key={src.id}
-          source={src}
+          source={counts && counts[src.id] !== undefined ? { ...src, count: counts[src.id] } : src}
           active={src.id === activeId}
           onSelect={onSelect}
           onSourceChange={onSourceChange}
@@ -49,7 +52,7 @@ export function LogSidebar({
       {systemSources.map((src) => (
         <LogSourceRow
           key={src.id}
-          source={src}
+          source={counts && counts[src.id] !== undefined ? { ...src, count: counts[src.id] } : src}
           active={src.id === activeId}
           onSelect={onSelect}
           onSourceChange={onSourceChange}

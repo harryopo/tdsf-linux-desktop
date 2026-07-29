@@ -109,6 +109,20 @@ textarea,
   -webkit-user-select: text;
 }
 
+/* v2.6 修复：AI 对话消息（含流式输出/工具命令与输出）必须可选中复制 ——
+   body 级 user-select:none 白名单；消息内的按钮/操作行仍保持不可选 */
+.ai-msg,
+.ai-msg * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.ai-msg button,
+.ai-msg button * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* ==========================================================================
    2. 滚动条美化（macOS 风格 + TRAE 暗色）
    ========================================================================== */
@@ -441,6 +455,8 @@ textarea,
 }
 
 /* === Message / Notification === */
+/* v2.5.1 修复：原 display:flex 把胶囊撑成整行宽度（antd 默认 inline-block 才是胶囊），
+   全宽条连带 pointer-events 挡住顶部整排 UI —— 改 inline-flex 恢复胶囊宽度 */
 .ant-message-notice-content {
   border-radius: var(--trae-radius-6) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
@@ -449,9 +465,11 @@ textarea,
   font-size: var(--trae-body-sm-font-size) !important;
   padding: 8px 16px !important;
   color: var(--trae-text-default) !important;
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center !important;
   gap: 8px !important;
+  max-width: min(480px, 70vw) !important;
+  text-align: left !important;
 }
 
 .ant-message-notice-content .anticon {
@@ -655,4 +673,37 @@ textarea,
 .interactive-card:active {
   transform: scale(0.99);
   transition-duration: var(--trae-duration-fast);
+}
+
+/* ============================================================
+ * v2.7 界面密度（html[data-density]，由外观设置驱动，main.tsx Root 写入）
+ * 通过覆盖 spacer token 全局缩放间距（全仓 163 处消费）；
+ * standard 不覆盖，保持 trae-tokens.css 默认值
+ * ============================================================ */
+html[data-density='compact'] {
+  --trae-spacer-6: 4px;
+  --trae-spacer-8: 6px;
+  --trae-spacer-12: 9px;
+  --trae-spacer-16: 12px;
+  --trae-spacer-24: 18px;
+  --trae-spacer-32: 24px;
+  --trae-spacer-40: 32px;
+}
+
+html[data-density='comfortable'] {
+  --trae-spacer-6: 8px;
+  --trae-spacer-8: 10px;
+  --trae-spacer-12: 15px;
+  --trae-spacer-16: 20px;
+  --trae-spacer-24: 30px;
+  --trae-spacer-32: 40px;
+  --trae-spacer-40: 50px;
+}
+
+/* v2.7 代码字体：外观设置 codeFont → Root 写入 --app-code-font，
+ * 全局 code/pre 与 xterm 容器消费 */
+code,
+pre,
+kbd {
+  font-family: var(--app-code-font, var(--trae-font-family-mono, 'JetBrains Mono', Consolas, monospace));
 }

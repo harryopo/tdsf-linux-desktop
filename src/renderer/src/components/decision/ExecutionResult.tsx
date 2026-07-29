@@ -4,18 +4,18 @@
  * 设计稿：decision-detail.html 区域2 右侧（命令决策终端）+ 区域6（审计日志）
  *
  * 包含两部分：
- * 1. 命令决策终端：三色点 + 决策 ID + 已校验 tag + 命令块 + 影响范围/耗时/回滚 + 3 按钮
- * 2. 决策审计日志：6 行表格（时间戳/操作者/动作/SHA-256 哈希/结果）
+ * 1. 命令决策终端：三色点 + 决策 ID + 已校验 tag（按真实证据传入）+ 命令块 + 影响范围/回滚 + 操作区
+ * 2. 决策审计日志：表格（时间戳/操作者/动作/真 SHA-256 链式哈希/结果）
  *
- * 交互：
- * - 采纳执行 / 修改 / 拒绝 按钮回调（mock）
- * - 复制命令按钮（mock 切换"已复制"）
- * - 审计行 hover 高亮
+ * 交互（v2.6 已真实接线）：
+ * - approval 模式：采纳执行/修改/拒绝回调（活跃工作流 loopConfirm）
+ * - readonly 模式：状态徽章 + 重新在终端执行（sshShellWrite 真实发送）
+ * - 复制命令：navigator.clipboard 真实写入
  */
 import { useState } from 'react'
 import { message } from 'antd'
 import {
-  Terminal, Check, X, Edit3, Copy, CheckCheck,
+  Terminal, Check, X, Edit3, Copy, CheckCheck, Play, CheckCircle2, Loader2,
 } from 'lucide-react'
 
 /** 审计日志行类型 */
@@ -42,14 +42,27 @@ interface ExecutionResultProps {
   commandComment?: string
   /** 影响范围 */
   impact: string
-  /** 预计耗时 */
-  duration: string
+  /** 预计耗时（v2.6：可选，无真实数据时不展示，不再编造 ~120ms） */
+  duration?: string
   /** 回滚方案 */
   rollback: string
-  /** 是否已校验 */
+  /** 是否已校验（v2.6：默认 false，由调用方按真实证据传入） */
   verified?: boolean
   /** 审计日志行 */
   auditRows: AuditRow[]
+  /**
+   * 模式（v2.6）：approval=活跃审批（采纳/修改/拒绝）；
+   * readonly=历史回放（状态徽章 + 重新在终端执行）。默认 approval 保持兼容。
+   */
+  mode?: 'approval' | 'readonly'
+  /** 只读态状态文案（如“已执行”） */
+  statusLabel?: string
+  /** 重新执行中 */
+  rerunning?: boolean
+  /** 是否可重新执行（需活跃 SSH 会话） */
+  canRerun?: boolean
+  /** 重新在终端执行回调（readonly 模式） */
+  onRerun?: () => void
   /** 采纳执行回调 */
   onAccept?: () => void
   /** 修改回调 */
@@ -99,8 +112,13 @@ export function ExecutionResult({
   impact,
   duration,
   rollback,
-  verified = true,
+  verified = false,
   auditRows,
+  mode = 'approval',
+  statusLabel,
+  rerunning = false,
+  canRerun = true,
+  onRerun,
   onAccept,
   onModify,
   onReject,
@@ -127,7 +145,7 @@ export function ExecutionResult({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-1 basis-[420px] flex-col gap-6">
       {/* ===== 命令决策终端 ===== */}
       <div className="flex flex-1 min-w-[340px] flex-col overflow-hidden rounded-[var(--trae-radius-10)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)]">
         {/* 终端头部 */}
@@ -179,23 +197,46 @@ export function ExecutionResult({
             )}
           </div>
 
-          {/* 影响范围 / 预计耗时 / 回滚方案 */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* 影响范围 / 预计耗时（有真实值才显示）/ 回滚方案 */}
+          <div className={`grid gap-2 ${duration ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">影响范围</span>
               <span className="text-[12px] font-medium text-[var(--trae-text-default)]">{impact}</span>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">预计耗时</span>
-              <span className="font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">{duration}</span>
-            </div>
+            {duration && (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">预计耗时</span>
+                <span className="font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">{duration}</span>
+              </div>
+            )}
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">回滚方案</span>
               <span className="font-mono text-[12px] font-medium text-[var(--trae-text-default)]">{rollback}</span>
             </div>
           </div>
 
-          {/* 操作按钮 */}
+          {/* 操作区：approval=审批三按钮；readonly=状态徽章 + 重新在终端执行（v2.6） */}
+          {mode === 'readonly' ? (
+            <div className="mt-auto flex items-center gap-2">
+              {statusLabel && (
+                <span className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-3 text-[12px] font-medium text-[var(--trae-status-success-default)]">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {statusLabel}
+                </span>
+              )}
+              <button
+                type="button"
+                data-dom-id="rerun-cmd"
+                onClick={onRerun}
+                disabled={rerunning || !canRerun}
+                title={canRerun ? '把该命令重新发送到工作台终端执行（含前置预检）' : '需先连接 SSH 服务器'}
+                className="ml-auto inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-4 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {rerunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                {rerunning ? '发送中…' : '重新在终端执行'}
+              </button>
+            </div>
+          ) : (
           <div className="mt-auto flex gap-2">
             <button
               type="button"
@@ -225,6 +266,7 @@ export function ExecutionResult({
               拒绝
             </button>
           </div>
+          )}
         </div>
       </div>
 
@@ -238,7 +280,7 @@ export function ExecutionResult({
               不可篡改
             </span>
           </div>
-          <span className="text-[10px] text-[var(--trae-text-tertiary)]">法证级 · SHA-256 链式哈希</span>
+          <span className="text-[10px] text-[var(--trae-text-tertiary)]">SHA-256 链式哈希 · 逐行链接可验证</span>
         </div>
 
         {/* 表格 */}

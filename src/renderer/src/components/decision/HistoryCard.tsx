@@ -45,27 +45,35 @@ export function HistoryCard({ card, onClick }: HistoryCardProps) {
   const ts = new Date(card.timestamp)
   const timeStr = `${ts.getFullYear()}-${String(ts.getMonth() + 1).padStart(2, '0')}-${String(ts.getDate()).padStart(2, '0')} ${String(ts.getHours()).padStart(2, '0')}:${String(ts.getMinutes()).padStart(2, '0')}:${String(ts.getSeconds()).padStart(2, '0')}`
   const riskMeta = riskLevelMeta(card.risk.level)
+  // v2.6：长 ID 截断展示（dec_1785…lhjxb9），完整 ID 放 title
+  const shortId = card.id.length > 18 ? `${card.id.slice(0, 9)}…${card.id.slice(-6)}` : card.id
   return (
     <button
       type="button"
       onClick={onClick}
+      title={`#${card.id}`}
       className="flex w-full flex-col gap-2 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-4 text-left transition-colors hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
       aria-label={`查看决策 ${card.id} 详情`}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Fingerprint className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-          <span className="font-mono text-[11px] font-medium tabular-nums text-[var(--trae-text-default)]">
-            #{card.id}
+        <div className="flex min-w-0 items-center gap-2">
+          <Fingerprint className="h-3 w-3 shrink-0 text-[var(--trae-text-secondary)]" />
+          <span className="truncate font-mono text-[11px] font-medium tabular-nums text-[var(--trae-text-default)]">
+            #{shortId}
           </span>
         </div>
-        <span className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-[10px] font-medium ${STATUS_CLASS[card.status]}`}>
+        <span className={`inline-flex h-5 shrink-0 items-center rounded-[var(--trae-radius-4)] border px-2 text-[10px] font-medium ${STATUS_CLASS[card.status]}`}>
           {STATUS_TEXT[card.status]}
         </span>
       </div>
       <div className="flex items-center gap-2 text-[12px] text-[var(--trae-text-default)]">
-        <Activity className="h-3 w-3 text-[var(--trae-text-secondary)]" />
+        <Activity className="h-3 w-3 shrink-0 text-[var(--trae-text-secondary)]" />
         <span className="truncate">{card.problem.slice(0, 40) || '未命名场景'}</span>
+      </div>
+      {/* v2.6：命令预览行，提升卡片信息密度 */}
+      <div className="truncate rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-code-block)] px-2 py-1 font-mono text-[11px] text-[var(--trae-text-secondary)]">
+        <span className="mr-1 text-[var(--trae-text-tertiary)]">$</span>
+        {card.fixCommand}
       </div>
       <div className="flex items-center justify-between gap-3 text-[10px] text-[var(--trae-text-tertiary)]">
         <div className="flex items-center gap-1.5">

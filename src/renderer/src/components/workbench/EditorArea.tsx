@@ -27,6 +27,11 @@ import FileChangeNotice from './FileChangeNotice'
 import { useServerStore } from '@/stores/server-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { useTranslateStore } from '@/stores/translate-store'
+// v2.6 修复：AI 命令预测回显条此前只渲染在从未被挂载的 TerminalTabs（死文件）里，
+// setPendingCommand 写的 store 没有消费者 —— 搜到真实终端面板这里渲染
+import { useTerminalStore } from '@/stores/terminal-store'
+import { ThunderboltOutlined, CloseOutlined } from '@ant-design/icons'
+import '../terminal/TerminalTabs.css'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { OpenFileRequest } from './FileTree'
 import type { FileChangedPayload } from '@preload/index'
@@ -95,6 +100,14 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
   // v0.8.0 终端翻译开关状态（与 translate-store 联动，persist 持久化）
   const translateEnabled = useTranslateStore((s) => s.enabled)
   const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
+  // v2.6：AI 注入命令预测回显条（从死文件 TerminalTabs 迁入真实挂载点，12s 自动消隐）
+  const pendingCommand = useTerminalStore((s) => s.pendingCommand)
+  const setPendingCommand = useTerminalStore((s) => s.setPendingCommand)
+  useEffect(() => {
+    if (!pendingCommand) return
+    const timer = setTimeout(() => setPendingCommand(null), 12_000)
+    return () => clearTimeout(timer)
+  }, [pendingCommand, setPendingCommand])
 
   if (sessionId) {
     return (
@@ -122,6 +135,25 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
             </span>
           </button>
         </div>
+        {/* v2.6：AI 命令预测回显条 —— AI/决策页注入命令时立即可见，对应终端内真实回显 */}
+        {pendingCommand && (
+          <div className="term-pending-cmd">
+            <ThunderboltOutlined className="term-pending-cmd-icon" />
+            <span className="term-pending-cmd-label">AI 已注入命令</span>
+            <code className="term-pending-cmd-text" title={pendingCommand.command}>
+              {pendingCommand.command.split('\n')[0]}
+              {pendingCommand.command.includes('\n') ? ' …' : ''}
+            </code>
+            <button
+              type="button"
+              className="term-pending-cmd-close"
+              aria-label="关闭回显提示"
+              onClick={() => setPendingCommand(null)}
+            >
+              <CloseOutlined />
+            </button>
+          </div>
+        )}
         {/* 终端视图：包裹层 flex:1 确保高度占满剩余空间（.terminal-view 为 height:100%） */}
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
           <TerminalView sessionId={sessionId} visible={visible} />

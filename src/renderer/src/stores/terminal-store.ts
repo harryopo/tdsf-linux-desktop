@@ -27,12 +27,22 @@ interface TerminalTab {
   createdAt: number
 }
 
+/** AI 注入命令的预测回显记录（v2.5：终端顶部回显条） */
+export interface PendingCommand {
+  /** 完整命令文本 */
+  command: string
+  /** 发送时间戳（用于自动消隐） */
+  sentAt: number
+}
+
 /** 终端 Store 状态接口 */
 interface TerminalState {
   /** Tab 列表 */
   tabs: TerminalTab[]
   /** 当前活跃 Tab ID */
   activeTabId: string | null
+  /** 最近一条 AI 注入命令（预测回显条数据源，v2.5） */
+  pendingCommand: PendingCommand | null
 
   // ===== Actions =====
   /** 添加新 Tab */
@@ -47,12 +57,15 @@ interface TerminalState {
   closeOtherTabs: (tabId: string) => void
   /** 获取当前活跃 Tab */
   getActiveTab: () => TerminalTab | null
+  /** 登记/清除 AI 注入命令（预测回显条，v2.5） */
+  setPendingCommand: (cmd: PendingCommand | null) => void
 }
 
 /** 终端 Store */
 export const useTerminalStore = create<TerminalState>()((set, get) => ({
   tabs: [],
   activeTabId: null,
+  pendingCommand: null,
 
   // 添加新 Tab
   addTab: (tab) =>
@@ -112,4 +125,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
     const state = get()
     return state.tabs.find((t) => t.id === state.activeTabId) ?? null
   },
+
+  // 登记/清除 AI 注入命令（预测回显条，v2.5）
+  setPendingCommand: (cmd) => set({ pendingCommand: cmd }),
 }))

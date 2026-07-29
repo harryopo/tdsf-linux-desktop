@@ -102,10 +102,30 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
   const [analyzing, setAnalyzing] = useState(false)
   const [result, setResult] = useState<PipelineResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** v2.6：引擎启动阶段提示（sidecar 懒启动首次需 5-10 秒） */
+  const [phase, setPhase] = useState<'idle' | 'starting' | 'analyzing'>('idle')
 
   /** electronAPI 是否可用（非 Electron 环境降级） */
   const electronApiAvailable =
     typeof window !== 'undefined' && !!window.electronAPI?.sidecarPipeline
+
+  /**
+   * 把 sidecar 底层错误转成用户可操作的文案（v2.6）
+   *
+   * - spawn ENOENT / 启动失败：Python 环境缺失 → 给出搭建指引
+   * - 启动超时：依赖未安装/端口冲突
+   */
+  const friendlyError = (raw: string): string => {
+    if (/ENOENT|启动失败|启动超时|crashed|未就绪/i.test(raw)) {
+      return (
+        `${raw}\n\nAI 日志分析依赖本地 Python 分析引擎（Sidecar-A）。请确认：\n` +
+        `1. 项目根目录存在 .venv-sidecar-a 虚拟环境（python -m venv .venv-sidecar-a）\n` +
+        `2. 已安装依赖：.venv-sidecar-a 环境下 pip install -r sidecar-a/requirements.txt\n` +
+        `3. 端口 19000 未被占用`
+      )
+    }
+    return raw
+  }
 
   /** 执行 AI 分析 */
   const handleAnalyze = async () => {
@@ -121,18 +141,26 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
     setError(null)
     setResult(null)
     try {
+      // v2.6：先查引擎状态 —— 非 ready 时展示“启动中”提示（主进程 pipeline 已带懒启动）
+      try {
+        const st = await window.electronAPI.sidecarStatus?.()
+        setPhase(st && st.status !== 'ready' ? 'starting' : 'analyzing')
+      } catch {
+        setPhase('analyzing')
+      }
       // 将 IpcLogEntry[] 转换为纯文本日志行（与服务名一道传递，便于 sidecar 上下文诊断）
       const logLines = logs.map((l) => l.message)
       const resp = await window.electronAPI.sidecarPipeline(logLines)
       if (!resp.ok) {
-        setError(resp.error || 'AI 日志分析失败（sidecar 可能未启动）')
+        setError(friendlyError(resp.error || 'AI 日志分析失败（sidecar 可能未启动）'))
         return
       }
       setResult(resp.data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'AI 日志分析失败（sidecar 可能未启动）')
+      setError(friendlyError(err instanceof Error ? err.message : 'AI 日志分析失败（sidecar 可能未启动）'))
     } finally {
       setAnalyzing(false)
+      setPhase('idle')
     }
   }
 
@@ -203,7 +231,7 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
           type="error"
           showIcon
           message="分析失败"
-          description={error}
+          description={<span style={{ whiteSpace: 'pre-wrap' }}>{error}</span>}
           style={{ marginBottom: 12 }}
           action={
             <Button size="small" onClick={handleAnalyze} loading={analyzing}>
@@ -213,10 +241,16 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
         />
       )}
 
-      {/* 分析中加载态 */}
+      {/* 分析中加载态（v2.6：区分引擎启动/分析两阶段） */}
       {analyzing && (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin tip="正在执行 Drain3 模板聚类 + AI 根因分析..." />
+          <Spin
+            tip={
+              phase === 'starting'
+                ? '正在启动 AI 分析引擎（首次约 5-10 秒），随后自动分析...'
+                : '正在执行 Drain3 模板聚类 + AI 根因分析...'
+            }
+          />
         </div>
       )}
 

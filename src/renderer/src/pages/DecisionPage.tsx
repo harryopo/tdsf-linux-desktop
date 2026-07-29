@@ -390,7 +390,7 @@ export function DecisionPage() {
           <>
             {/* 区域2：置信度仪表 + 命令决策终端 */}
             <section className="flex flex-wrap items-stretch gap-6 px-8 pb-4">
-              <ConfidenceGauge value={decisionCard.confidence} sources={buildEvidenceSources(decisionCard.evidences)} />
+              <ConfidenceGauge value={decisionCard.confidence} sources={buildEvidenceSources(decisionCard.evidences, decisionCard.confidence)} />
               <CommandTerminal
                 card={decisionCard}
                 waiting={waitingForConfirmation}
@@ -425,7 +425,7 @@ export function DecisionPage() {
                   </span>
                 </div>
                 <div className="flex flex-col gap-8 lg:flex-row">
-                  <EvidenceRadar sources={buildEvidenceSources(decisionCard.evidences)} />
+                  <EvidenceRadar sources={buildEvidenceSources(decisionCard.evidences, decisionCard.confidence)} />
                   <div className="flex-1">
                     <EvidenceList
                       commands={buildDangerCommands(decisionCard)}
@@ -470,7 +470,8 @@ export function DecisionPage() {
                 点击卡片查看完整决策详情
               </span>
             </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {/* v2.6：自适应列宽（每列 320-460px），超宽屏不再把 3 张卡拉成满屏宽 */}
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(320px,460px))]">
               {historyCards.map((card) => (
                 <HistoryCard
                   key={card.id}

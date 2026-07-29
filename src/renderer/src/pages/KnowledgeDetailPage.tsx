@@ -23,7 +23,7 @@
  * 视觉：全部 var(--trae-*) token，全实色 hex 边框（背景 rgba 允许），shadow 用 var(--trae-shadow-card)
  * 无障碍：button type="button" + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Spin, message } from 'antd'
 import {
@@ -43,6 +43,8 @@ import {
 } from '@/components/knowledge-detail/v1'
 import type { KnowledgeEntry } from '@shared/models'
 import { cn } from '@/components/trae/utils'
+// v2.6：教程正文 markdown 渲染（复用工作台轻量安全渲染器，无 innerHTML）
+import MarkdownMessage from '@/components/workbench/panels/MarkdownMessage'
 import './KnowledgePage.css'
 
 /** KnowledgeDetailPage — 知识详情页 */
@@ -59,6 +61,8 @@ export function KnowledgeDetailPage() {
   const [realEntry, setRealEntry] = useState<KnowledgeEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [useReal, setUseReal] = useState(false)
+  /** v2.6 去假：Electron 下条目不存在时显示空态，不再回退到设计稿假文章 */
+  const [notFound, setNotFound] = useState(false)
 
   // ===== v2.2 P1 修复 #25：编辑模式状态 =====
   // 编辑模式仅在 useReal=true 时可用（设计稿示例数据不可编辑）
@@ -85,12 +89,15 @@ export function KnowledgeDetailPage() {
         if (found) {
           setRealEntry(found)
           setUseReal(true)
+        } else {
+          // v2.6 去假：查不到真实条目 → 空态页，不再冒充设计稿假文章
+          setNotFound(true)
         }
-        // 找不到真实条目时，useReal 保持 false，UI 降级到设计稿示例数据
       } catch (err) {
         if (cancelled) return
         const reason = err instanceof Error ? err.message : String(err)
-        message.warning(`知识库加载失败，使用示例数据：${reason}`)
+        message.error(`知识库加载失败：${reason}`)
+        setNotFound(true)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -131,6 +138,30 @@ export function KnowledgeDetailPage() {
   const displayVerifyCmd = useReal && realEntry?.verification
     ? realEntry.verification
     : VERIFY_CMD
+
+  /**
+   * v2.6 教程条目适配：教程的 rootCause 字段存的是内部 JSON（正文/来源/分类等），
+   * 直接当文本渲染会吐出一坨 JSON；这里解析后按教程语义渲染（markdown 正文 + 来源）。
+   * 另：教程的 successRate 存的是“阅读时长/60”（存储层 hack），不是成功率，
+   * 教程模式下不展示匹配度/置信度。
+   */
+  const isTutorial = useReal && realEntry?.type === 'tutorial'
+  const tutorialInfo = useMemo(() => {
+    if (!isTutorial || !realEntry?.rootCause) return null
+    try {
+      const j = JSON.parse(realEntry.rootCause) as Record<string, unknown>
+      return {
+        content: String(j['__tutorial_content'] ?? ''),
+        sourceUrl: String(j['__tutorial_source_url'] ?? ''),
+        sourceName: String(j['sourceName'] ?? ''),
+        sourceLicense: String(j['sourceLicense'] ?? ''),
+        readingTime: Number(j['__tutorial_reading_time'] ?? 0),
+        difficulty: String(j['__tutorial_difficulty'] ?? ''),
+      }
+    } catch {
+      return null
+    }
+  }, [isTutorial, realEntry])
 
   // ===== 事件处理 =====
   const handleBackKnowledge = () => navigate('/knowledge')
@@ -252,7 +283,22 @@ export function KnowledgeDetailPage() {
           <Spin tip="加载知识条目..." />
         </div>
       )}
-      {!loading && (
+      {!loading && notFound && (
+        // v2.6 去假：条目不存在的诚实空态（替代原来的 KB-NGINX-014 假文章回退）
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '80px 0', color: 'var(--trae-text-tertiary)' }}>
+          <AlertTriangle style={{ width: 32, height: 32 }} />
+          <div style={{ fontSize: 14, color: 'var(--trae-text-secondary)' }}>知识条目不存在或已删除（ID: {id ?? '未提供'}）</div>
+          <button
+            type="button"
+            onClick={handleBackKnowledge}
+            className="kb-detail-back kb-btn-press"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            返回知识库
+          </button>
+        </div>
+      )}
+      {!loading && !notFound && (
         <>
           <header className="kb-detail-header">
         <div className="kb-detail-header__row1">
@@ -352,13 +398,18 @@ export function KnowledgeDetailPage() {
               {tag}
             </span>
           ))}
-          <span className="kb-chip kb-chip--verified">
-            <CheckCircle2 className="h-3 w-3" />
-            已验证
-          </span>
-          <span className="kb-chip kb-chip--ai">
-            AI 沉淀
-          </span>
+          {/* v2.6 去假：彽章按真实数据条件渲染 —— 成功率≥80% 才算已验证，AI 沉淀看 tags */}
+          {(!useReal || displaySuccessRate >= 80) && (
+            <span className="kb-chip kb-chip--verified">
+              <CheckCircle2 className="h-3 w-3" />
+              已验证
+            </span>
+          )}
+          {(!useReal || displayTags.some((t) => t.toLowerCase().includes('ai'))) && (
+            <span className="kb-chip kb-chip--ai">
+              AI 沉淀
+            </span>
+          )}
         </div>
 
         <div className="kb-detail-header__row3">
@@ -366,26 +417,36 @@ export function KnowledgeDetailPage() {
             <Clock className="h-3 w-3" />
             更新于 <strong className="kb-meta__strong">{displayUpdatedAt}</strong>
           </span>
-          <span className="kb-meta__sep" />
-          <span className="kb-meta">
-            <FileText className="h-3 w-3" />
-            作者 <strong className="kb-meta__strong">运维团队</strong>
-          </span>
-          <span className="kb-meta__sep" />
-          <span className="kb-meta">
-            <FileText className="h-3 w-3" />
-            v<strong className="kb-meta__strong">2.3</strong>
-          </span>
+          {/* v2.6 去假：作者/版本无真实字段，仅设计稿预览显示 */}
+          {!useReal && (
+            <>
+              <span className="kb-meta__sep" />
+              <span className="kb-meta">
+                <FileText className="h-3 w-3" />
+                作者 <strong className="kb-meta__strong">运维团队</strong>
+              </span>
+              <span className="kb-meta__sep" />
+              <span className="kb-meta">
+                <FileText className="h-3 w-3" />
+                v<strong className="kb-meta__strong">2.3</strong>
+              </span>
+            </>
+          )}
           <span className="kb-meta__sep" />
           <span className="kb-meta">
             <Eye className="h-3 w-3" />
             <strong className="kb-meta__strong">{displayUseCount.toLocaleString()}</strong> 次阅读
           </span>
-          <span className="kb-meta__sep" />
-          <span className="kb-meta">
-            <CheckCircle2 className="h-3 w-3" />
-            匹配 <strong className="kb-meta__strong">{displaySuccessRate}%</strong>
-          </span>
+          {/* v2.6 去假：教程的 successRate 是阅读时长 hack，不是匹配度，不展示 */}
+          {!isTutorial && (
+            <>
+              <span className="kb-meta__sep" />
+              <span className="kb-meta">
+                <CheckCircle2 className="h-3 w-3" />
+                匹配 <strong className="kb-meta__strong">{displaySuccessRate}%</strong>
+              </span>
+            </>
+          )}
         </div>
       </header>
 
@@ -435,7 +496,7 @@ export function KnowledgeDetailPage() {
           </section>
 
           <section id="sec-2" className="kb-detail-card">
-            <CardHead icon={<Zap className="h-4 w-4" />} title="根因分析" tag="ROOT CAUSE" />
+            <CardHead icon={<Zap className="h-4 w-4" />} title={isTutorial ? '教程正文' : '根因分析'} tag={isTutorial ? 'TUTORIAL' : 'ROOT CAUSE'} />
             <div className="kb-detail-card__body kb-body">
               {isEditing && useReal ? (
                 // v2.2 P1 修复 #25：编辑模式 - 根因分析变为 textarea
@@ -457,6 +518,23 @@ export function KnowledgeDetailPage() {
                     outline: 'none',
                   }}
                 />
+              ) : isTutorial ? (
+                // v2.6：教程条目 —— 解析内部 JSON 渲染 markdown 正文 + 来源，不再吐原始 JSON
+                tutorialInfo && tutorialInfo.content ? (
+                  <>
+                    <MarkdownMessage content={tutorialInfo.content} />
+                    {(tutorialInfo.sourceName || tutorialInfo.sourceUrl) && (
+                      <p className="kb-body__p" style={{ marginTop: 12, color: 'var(--trae-text-tertiary)', fontSize: 12 }}>
+                        来源：{tutorialInfo.sourceName || '官方文档'}
+                        {tutorialInfo.sourceLicense ? `（${tutorialInfo.sourceLicense}）` : ''}
+                        {tutorialInfo.sourceUrl ? ` · ${tutorialInfo.sourceUrl}` : ''}
+                        {tutorialInfo.readingTime > 0 ? ` · 预计阅读 ${tutorialInfo.readingTime} 分钟` : ''}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="kb-body__p" style={{ color: 'var(--trae-text-tertiary)' }}>教程正文解析失败，请在教程页查看完整内容</p>
+                )
               ) : useReal ? (
                 // 真实数据：单一段落展示（KnowledgeEntry.rootCause 是纯文本字符串）
                 <p className="kb-body__p">{displayRootCause}</p>
@@ -491,6 +569,8 @@ export function KnowledgeDetailPage() {
             </div>
           </section>
 
+          {/* v2.6 去假：诊断步骤无真实字段，仅设计稿预览展示示例 4 步 */}
+          {!useReal && (
           <section id="sec-3" className="kb-detail-card">
             <CardHead icon={<Activity className="h-4 w-4" />} title="诊断步骤" tag="DIAGNOSE" />
             <div className="kb-detail-card__body">
@@ -520,15 +600,21 @@ export function KnowledgeDetailPage() {
               ))}
             </div>
           </section>
+          )}
 
           <section id="sec-4" className="kb-detail-card">
-            <CardHead icon={<Wrench className="h-4 w-4" />} title="解决方案" tag="FIX" />
+            <CardHead icon={<Wrench className="h-4 w-4" />} title={isTutorial ? '教程命令' : '解决方案'} tag="FIX" />
             <div className="kb-detail-card__body kb-body">
+              {/* v2.6 去假：设计稿专属引言仅预览模式显示 */}
+              {!useReal && (
               <p className="kb-body__p">
                 需同步调整 <strong className="kb-body__strong">Nginx 配置</strong>和{' '}
                 <strong className="kb-body__strong">系统级文件描述符限制</strong>，否则 Nginx 配置不生效。
               </p>
+              )}
+              {/* v2.6 去假：“调整前”对比块仅设计稿预览；真实条目只展示修复命令 */}
               <div className="kb-compare">
+                {!useReal && (
                 <div className="kb-compare__col">
                   <div className="kb-compare__head kb-compare__head--bad">
                     <span className="kb-compare__head-dot" />
@@ -538,26 +624,35 @@ export function KnowledgeDetailPage() {
                     {FIX_BEFORE}
                   </pre>
                 </div>
+                )}
                 <div className="kb-compare__col">
                   <div className="kb-compare__head kb-compare__head--good">
                     <Check className="h-3 w-3" />
-                    调整后（推荐）
+                    {useReal ? '修复命令' : '调整后（推荐）'}
                   </div>
                   <pre className="kb-compare__pre">
                     {displayFixAfter}
                   </pre>
                 </div>
               </div>
-              <p className="kb-body__p kb-body__p--mt">修改后执行以下命令使配置生效：</p>
-              <CodeBlock code={displayReloadCmd} copyId="reload" />
+              {/* v2.6 去假：真实条目仅在有回滚命令时展示（文案改回滚）；预览模式保留设计稿 reload 示例 */}
+              {(!useReal || displayRollback.length > 0) && (
+                <>
+                  <p className="kb-body__p kb-body__p--mt">{useReal ? '回滚/生效命令：' : '修改后执行以下命令使配置生效：'}</p>
+                  <CodeBlock code={displayReloadCmd} copyId="reload" />
+                </>
+              )}
             </div>
           </section>
 
+          {/* v2.6 去假：真实条目无 verification 字段时隐藏整节，不再用压测假文案兜底 */}
+          {(!useReal || Boolean(realEntry?.verification)) && (
           <section id="sec-5" className="kb-detail-card">
             <CardHead icon={<CheckCircle2 className="h-4 w-4" />} title="验证方法" tag="VERIFY" />
             <div className="kb-detail-card__body kb-body">
               <p className="kb-body__p">{displayVerification}</p>
-              <CodeBlock code={displayVerifyCmd} copyId="verify" />
+              {/* 真实条目的 verification 是单字段文本，上方已展示，不再重复渲染假命令块 */}
+              {!useReal && <CodeBlock code={displayVerifyCmd} copyId="verify" />}
               {!useReal && (
                 // 设计稿示例：显示验证通过结论（真实数据无对应字段，省略）
                 <div className="kb-result">
@@ -570,6 +665,7 @@ export function KnowledgeDetailPage() {
               )}
             </div>
           </section>
+          )}
 
           <section id="sec-6" className="kb-detail-card">
             <CardHead icon={<MessageSquare className="h-4 w-4" />} title="此知识对您有帮助吗？" />
@@ -607,6 +703,23 @@ export function KnowledgeDetailPage() {
           activeSection={activeSection}
           onTocClick={handleTocClick}
           onNavigate={handleNavigateRelated}
+          real={useReal && realEntry ? {
+            // v2.6：教程的 successRate 是阅读时长 hack，不传置信度（侧栏隐藏该卡）
+            confidencePct: isTutorial ? undefined : realEntry.successRate * 100,
+            metaRows: [
+              { key: '知识 ID', val: realEntry.id, mono: true },
+              { key: '类型', val: realEntry.type === 'incident_case' ? '故障案例' : realEntry.type === 'command_skill' ? '命令技能' : '教程' },
+              ...(isTutorial && tutorialInfo
+                ? [
+                    { key: '来源', val: tutorialInfo.sourceName || '官方文档' },
+                    ...(tutorialInfo.readingTime > 0 ? [{ key: '阅读时长', val: `约 ${tutorialInfo.readingTime} 分钟` }] : []),
+                  ]
+                : []),
+              { key: '创建时间', val: new Date(realEntry.createdAt).toISOString().slice(0, 10), mono: true },
+              { key: '更新时间', val: new Date(realEntry.updatedAt).toISOString().slice(0, 10), mono: true },
+              { key: '使用次数', val: `${realEntry.useCount} 次` },
+            ],
+          } : undefined}
         />
       </div>
 

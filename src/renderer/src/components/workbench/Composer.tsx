@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
 import {
   ArrowUp, AtSign, ChevronDown, Cpu, Hash,
-  Image as ImageIcon, Loader2, Square, X, Zap,
+  Image as ImageIcon, Loader2, Sparkles, Square, X, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { useAgentStore } from '@/stores/agent-store'
+// v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
+import { useEditorStore } from '@/stores/editor-store'
 // v2.3.7 修复：MOCK_COMPOSER_CHIPS → QUICK_PROMPT_TEMPLATES（mock-data.ts v2.3.6 已重命名）
 // 之前的 import 指向不存在的导出 → Composer 模块加载失败 → AIPanel 整个组件崩 → "Agent 调用失败"
 import { QUICK_PROMPT_TEMPLATES } from './mock-data'
@@ -75,6 +78,12 @@ const Composer: FC<ComposerProps> = ({
   const [providerMenuOpen, setProviderMenuOpen] = useState(false)
   const providerMenuRef = useRef<HTMLDivElement>(null)
 
+  // v2.5 深度思考开关：thinkingStrength='deep' 时后端启用 DeepSeek 思考模式
+  // （thinking enabled + reasoning_effort high），思考链经 reasoning chunk 折叠展示
+  const thinkingStrength = useAgentStore((s) => s.thinkingStrength)
+  const setThinkingStrength = useAgentStore((s) => s.setThinkingStrength)
+  const deepThinking = thinkingStrength === 'deep'
+
   const selectedProvider = providers.find((p) => p.id === selectedProviderId) ?? null
   const providerLabel = selectedProvider
     ? `${selectedProvider.name || selectedProvider.model || selectedProvider.id}${
@@ -108,6 +117,17 @@ const Composer: FC<ComposerProps> = ({
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`
   }, [input])
+
+  // v2.6 修复断链：消费 injectedAtCommand —— 编辑器/终端「发送到 AI」浮层与
+  // 空态能力卡注入的文本填入输入框并聚焦（此前 store 只写不读，按钮形同摆设）
+  const injectedAtCommand = useEditorStore((s) => s.injectedAtCommand)
+  const clearInjectedAtCommand = useEditorStore((s) => s.clearInjectedAtCommand)
+  useEffect(() => {
+    if (!injectedAtCommand) return
+    setInput((prev) => (prev.trim() ? `${prev} ${injectedAtCommand}` : injectedAtCommand))
+    clearInjectedAtCommand()
+    textareaRef.current?.focus()
+  }, [injectedAtCommand, clearInjectedAtCommand])
 
   /** 处理发送/停止 — 主路径 agent:chat */
   const handleSendToggle = () => {
@@ -187,6 +207,45 @@ const Composer: FC<ComposerProps> = ({
   /** 删除指定索引的图片附件 */
   const handleRemoveAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  /**
+   * 粘贴处理（v2.6）：剪贴板含图片（如截图）时转为图片附件；
+   * 纯文本粘贴保持浏览器默认行为（不 preventDefault）。
+   */
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        e.preventDefault()
+        if (attachments.length >= 4) {
+          message.warning('最多支持 4 张图片附件')
+          return
+        }
+        const file = item.getAsFile()
+        if (!file) return
+        if (file.size > 4 * 1024 * 1024) {
+          message.warning('图片超过 4MB，请压缩后再粘贴')
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = () => {
+          if (typeof reader.result !== 'string') return
+          setAttachments((prev) => {
+            if (prev.length >= 4) return prev
+            return [...prev, {
+              dataUrl: reader.result as string,
+              fileName: file.name || `粘贴图片-${Date.now()}.png`,
+              fileSize: file.size,
+              mimeType: file.type,
+            }]
+          })
+        }
+        reader.readAsDataURL(file)
+        return
+      }
+    }
   }
 
   /** chip 快捷填入可直接发送的运维提示词 */
@@ -317,6 +376,7 @@ const Composer: FC<ComposerProps> = ({
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={handlePaste}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -433,6 +493,22 @@ const Composer: FC<ComposerProps> = ({
                 ctxTotalTokens={ctxTotalTokens}
                 onCompress={onCompressContext}
               />
+
+              {/* v2.5 深度思考开关（DeepSeek 思考模式，思考链可折叠展示） */}
+              <button
+                type="button"
+                title={deepThinking ? '关闭深度思考（回到标准模式）' : '开启深度思考（思考链可见，耗时与 token 增加）'}
+                onClick={() => setThinkingStrength(deepThinking ? 'standard' : 'deep')}
+                className={cn(
+                  'btn-press inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] transition-colors',
+                  deepThinking
+                    ? 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
+                    : 'border-[var(--trae-border-neutral-l2)] bg-transparent text-[var(--trae-text-secondary)] hover:text-[var(--trae-text-default)]',
+                )}
+              >
+                <Sparkles className="size-3" />
+                深度思考
+              </button>
 
               {/* Provider 选择（真列表） */}
               <div className="relative" ref={providerMenuRef}>

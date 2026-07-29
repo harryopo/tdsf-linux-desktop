@@ -44,6 +44,8 @@ import {
 } from '@/components/monitor/mock-data'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
+// v2.7：告警阈值消费设置页 monitor.threshold.* 配置（不再硬编码 85）
+import { usePersistentState } from '@/hooks/usePersistentState'
 import type { MonitorData } from '@shared/models'
 // M3 Task 2：时间范围切换切片工具（KPI 数据源按 range 过滤）
 import { sliceMonitorData } from '@/utils/monitor-time-range'
@@ -215,14 +217,21 @@ export function MonitorPage() {
 
   // 顶部 critical 告警横幅数据（nullable）：只基于真实监控数据生成
   // P1 修复：移除 DEV 假告警"磁盘92%…2分钟前"fallback 与假主机名 'prod-web-01'
+  // v2.7：阈值不再硬编码 85 —— 消费设置页「告警阈值」monitor.threshold.* 配置，
+  // CPU/内存/磁盘三项均接入（磁盘优先展示，其次 CPU、内存）
+  const [cpuThreshold] = usePersistentState('monitor.threshold.cpu', 90)
+  const [memoryThreshold] = usePersistentState('monitor.threshold.memory', 90)
+  const [diskThreshold] = usePersistentState('monitor.threshold.disk', 85)
   const criticalAlert = useMemo<AlertRecord | null>(() => {
     const latest = monitorData[monitorData.length - 1]
-    if (latest && latest.diskUsage > 85) {
+    if (!latest) return null
+    const server = systemInfo?.hostname ?? '当前服务器'
+    if (latest.diskUsage > diskThreshold) {
       return {
         time: '刚刚',
         level: 'critical',
-        server: systemInfo?.hostname ?? '当前服务器',
-        desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值85%，建议清理 /var/log 旧日志`,
+        server,
+        desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值${diskThreshold}%，建议清理 /var/log 旧日志`,
         status: '未处理',
         source: '/dev/sda1 · /var/log',
         impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
@@ -233,8 +242,40 @@ export function MonitorPage() {
         ],
       }
     }
+    if (latest.cpuUsage > cpuThreshold) {
+      return {
+        time: '刚刚',
+        level: 'critical',
+        server,
+        desc: `CPU 使用率${Math.round(latest.cpuUsage)}%超过阈值${cpuThreshold}%，建议排查高负载进程`,
+        status: '未处理',
+        source: 'CPU · 全部核心',
+        impact: '持续高 CPU 可能导致服务响应变慢、请求超时甚至雪崩',
+        suggestions: [
+          '定位高 CPU 进程：top -o %CPU 或 ps aux --sort=-%cpu | head',
+          '查看负载趋势：uptime（对比 CPU 核数）',
+          '必要时限流或扩容：systemctl 重启异常服务 / 增加实例',
+        ],
+      }
+    }
+    if (latest.memoryUsage > memoryThreshold) {
+      return {
+        time: '刚刚',
+        level: 'critical',
+        server,
+        desc: `内存使用率${Math.round(latest.memoryUsage)}%超过阈值${memoryThreshold}%，存在 OOM 风险`,
+        status: '未处理',
+        source: '内存 · RSS/Cache',
+        impact: '内存耗尽时内核 OOM Killer 会强杀进程，可能误杀数据库/关键服务',
+        suggestions: [
+          '定位内存大户：ps aux --sort=-%mem | head',
+          '查看可回收缓存：free -m（buff/cache 可被回收）',
+          '检查 OOM 历史：dmesg | grep -i "out of memory"',
+        ],
+      }
+    }
     return null
-  }, [monitorData, systemInfo])
+  }, [monitorData, systemInfo, cpuThreshold, memoryThreshold, diskThreshold])
 
   // 打开 Drawer（接收指定告警）
   const openDrawer = useCallback((alert: AlertRecord) => {
