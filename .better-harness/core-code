@@ -1,0 +1,10 @@
+# Configured core boundary for change monitoring.
+# Include: main-process core, shared types, preload, and IPC directories.
+src/main/core/
+src/shared/
+src/preload/
+src/main/ipc/
+
+# Exclude high-churn supporting files: multi-AI coordination registry and learnings records.
+!.ai-coordination.json
+!.learnings/
