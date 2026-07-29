@@ -1,0 +1,534 @@
+[
+  {
+    "page": "工作台",
+    "label": "工作台",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "教程",
+    "verdict": "route",
+    "detail": "#/workbench → #/tutorial"
+  },
+  {
+    "page": "工作台",
+    "label": "决策",
+    "verdict": "route",
+    "detail": "#/workbench → #/decision"
+  },
+  {
+    "page": "工作台",
+    "label": "监控",
+    "verdict": "route",
+    "detail": "#/workbench → #/monitor"
+  },
+  {
+    "page": "工作台",
+    "label": "知识库",
+    "verdict": "route",
+    "detail": "#/workbench → #/knowledge"
+  },
+  {
+    "page": "工作台",
+    "label": "历史",
+    "verdict": "route",
+    "detail": "#/workbench → #/history"
+  },
+  {
+    "page": "工作台",
+    "label": "系统日志",
+    "verdict": "route",
+    "detail": "#/workbench → #/logs"
+  },
+  {
+    "page": "工作台",
+    "label": "设置",
+    "verdict": "route",
+    "detail": "#/workbench → #/settings"
+  },
+  {
+    "page": "工作台",
+    "label": "切换 / 连接服务器",
+    "verdict": "dom",
+    "detail": "mutations=2"
+  },
+  {
+    "page": "工作台",
+    "label": "E2E测试机\n192.168.45.200:22",
+    "verdict": "toast"
+  },
+  {
+    "page": "工作台",
+    "label": "添加新连接",
+    "verdict": "dialog"
+  },
+  {
+    "page": "工作台",
+    "label": "connect-ssh",
+    "verdict": "route",
+    "detail": "#/workbench → #/settings/ssh"
+  },
+  {
+    "page": "工作台",
+    "label": "终端",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "隐藏命令翻译注释",
+    "verdict": "dom",
+    "detail": "mutations=3"
+  },
+  {
+    "page": "工作台",
+    "label": "收起 AI 面板",
+    "verdict": "dom",
+    "detail": "mutations=2"
+  },
+  {
+    "page": "工作台",
+    "label": "0 Errors",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "AI · DeepSeek V4",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "光标位置（编辑器集成后自动更新）",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "文件编码",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "当前文件",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "P99 延迟（监控接入后自动更新）",
+    "verdict": "none"
+  },
+  {
+    "page": "工作台",
+    "label": "恢复默认",
+    "verdict": "skipped"
+  },
+  {
+    "page": "工作台",
+    "label": "取 消",
+    "verdict": "dom",
+    "detail": "mutations=18"
+  },
+  {
+    "page": "工作台",
+    "label": "删 除",
+    "verdict": "toast"
+  },
+  {
+    "page": "实时监控",
+    "label": "1H",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "实时监控",
+    "label": "6H",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "实时监控",
+    "label": "24H",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "实时监控",
+    "label": "刷新监控数据",
+    "verdict": "disabled"
+  },
+  {
+    "page": "实时监控",
+    "label": "前往工作台",
+    "verdict": "route",
+    "detail": "#/monitor → #/workbench"
+  },
+  {
+    "page": "实时监控",
+    "label": "筛选未处理",
+    "verdict": "dom",
+    "detail": "mutations=2"
+  },
+  {
+    "page": "实时监控",
+    "label": "刷新进程列表",
+    "verdict": "disabled"
+  },
+  {
+    "page": "决策历史",
+    "label": "返回工作台",
+    "verdict": "route",
+    "detail": "#/history → #/workbench"
+  },
+  {
+    "page": "决策历史",
+    "label": "上一页",
+    "verdict": "disabled"
+  },
+  {
+    "page": "决策历史",
+    "label": "第 1 页",
+    "verdict": "none"
+  },
+  {
+    "page": "决策历史",
+    "label": "下一页",
+    "verdict": "disabled"
+  },
+  {
+    "page": "知识库",
+    "label": "全部",
+    "verdict": "none"
+  },
+  {
+    "page": "知识库",
+    "label": "nginx",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "mysql",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "docker",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "network",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "security",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "shell",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "systemd",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "知识库",
+    "label": "贡献知识",
+    "verdict": "dialog"
+  },
+  {
+    "page": "决策中心",
+    "label": "返回工作台触发首次决策",
+    "verdict": "route",
+    "detail": "#/decision → #/workbench"
+  },
+  {
+    "page": "教程",
+    "label": "搜 索",
+    "verdict": "dom",
+    "detail": "mutations=5"
+  },
+  {
+    "page": "教程",
+    "label": "复习",
+    "verdict": "route",
+    "detail": "#/tutorial → #/tutorial/tut-selinux-basics"
+  },
+  {
+    "page": "教程",
+    "label": "开始学习",
+    "verdict": "route",
+    "detail": "#/tutorial → #/tutorial/tut-wordpress-ubuntu"
+  },
+  {
+    "page": "教程",
+    "label": "全部(10)",
+    "verdict": "none"
+  },
+  {
+    "page": "教程",
+    "label": "Linux 基础(4)",
+    "verdict": "dom",
+    "detail": "mutations=16"
+  },
+  {
+    "page": "教程",
+    "label": "网络运维(4)",
+    "verdict": "dom",
+    "detail": "mutations=6"
+  },
+  {
+    "page": "教程",
+    "label": "故障排查(0)",
+    "verdict": "dom",
+    "detail": "mutations=6"
+  },
+  {
+    "page": "教程",
+    "label": "安全加固(2)",
+    "verdict": "dom",
+    "detail": "mutations=8"
+  },
+  {
+    "page": "教程",
+    "label": "自动化脚本(0)",
+    "verdict": "dom",
+    "detail": "mutations=8"
+  },
+  {
+    "page": "教程",
+    "label": "查看全部学习路径",
+    "verdict": "none"
+  },
+  {
+    "page": "日志分析",
+    "label": "INFO",
+    "verdict": "dom",
+    "detail": "mutations=34"
+  },
+  {
+    "page": "日志分析",
+    "label": "WARN",
+    "verdict": "dom",
+    "detail": "mutations=52"
+  },
+  {
+    "page": "日志分析",
+    "label": "ERROR",
+    "verdict": "dom",
+    "detail": "mutations=11"
+  },
+  {
+    "page": "日志分析",
+    "label": "DEBUG",
+    "verdict": "dom",
+    "detail": "mutations=4"
+  },
+  {
+    "page": "日志分析",
+    "label": "AI 日志分析",
+    "verdict": "disabled"
+  },
+  {
+    "page": "日志分析",
+    "label": "自动滚动",
+    "verdict": "dom",
+    "detail": "mutations=7"
+  },
+  {
+    "page": "日志分析",
+    "label": "刷新",
+    "verdict": "toast"
+  },
+  {
+    "page": "日志分析",
+    "label": "导出日志",
+    "verdict": "toast"
+  },
+  {
+    "page": "日志分析",
+    "label": "导出 CSV",
+    "verdict": "toast"
+  },
+  {
+    "page": "设置-通用",
+    "label": "返回设置",
+    "verdict": "route",
+    "detail": "#/settings/general → #/settings"
+  },
+  {
+    "page": "设置-通用",
+    "label": "简体中文",
+    "verdict": "dom",
+    "detail": "mutations=43"
+  },
+  {
+    "page": "设置-通用",
+    "label": "Asia/Shanghai (UTC+8)",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "YYYY-MM-DD",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "1,234.56 (中文/英文)",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "(无标识图标按钮)",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "导出数据",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "清除缓存",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "右下角",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "每日健康巡检 启用开关",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "立即触发 每日健康巡检",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "每日决策归档 启用开关",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "立即触发 每日决策归档",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "运维周报 启用开关",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "立即触发 运维周报",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-通用",
+    "label": "保存设置",
+    "verdict": "unclickable",
+    "detail": "点击超时/被遮挡"
+  },
+  {
+    "page": "设置-模型",
+    "label": "保存配置",
+    "verdict": "dom",
+    "detail": "mutations=1"
+  },
+  {
+    "page": "设置-模型",
+    "label": "使用",
+    "verdict": "disabled"
+  },
+  {
+    "page": "设置-模型",
+    "label": "显示/隐藏API Key",
+    "verdict": "dom",
+    "detail": "mutations=3"
+  },
+  {
+    "page": "设置-模型",
+    "label": "测试连接",
+    "verdict": "dom",
+    "detail": "mutations=14"
+  },
+  {
+    "page": "设置-模型",
+    "label": "日",
+    "verdict": "dom",
+    "detail": "mutations=6"
+  },
+  {
+    "page": "设置-模型",
+    "label": "周",
+    "verdict": "dom",
+    "detail": "mutations=7"
+  },
+  {
+    "page": "设置-模型",
+    "label": "月",
+    "verdict": "dom",
+    "detail": "mutations=6"
+  },
+  {
+    "page": "设置-模型",
+    "label": "切换状态筛选",
+    "verdict": "dom",
+    "detail": "mutations=3"
+  },
+  {
+    "page": "设置-模型",
+    "label": "第 2 页",
+    "verdict": "dom",
+    "detail": "mutations=3"
+  },
+  {
+    "page": "设置-模型",
+    "label": "第 3 页",
+    "verdict": "dom",
+    "detail": "mutations=2"
+  },
+  {
+    "page": "设置-模型",
+    "label": "第 13 页",
+    "verdict": "dom",
+    "detail": "mutations=3"
+  },
+  {
+    "page": "设置-模型",
+    "label": "导出统计",
+    "verdict": "dom",
+    "detail": "mutations=2"
+  },
+  {
+    "page": "设置-模型",
+    "label": "保存所有配置",
+    "verdict": "dom",
+    "detail": "mutations=1"
+  }
+]
