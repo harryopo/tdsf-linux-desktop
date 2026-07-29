@@ -58,6 +58,15 @@ import { z } from 'zod'
 import { routeChatTools, CHAT_TOOL_CATALOG } from './tools/chat-tool-router'
 // v2.10 快慢思考自动路由：auto 档按复杂度解析为 standard/deep
 import { resolveThinkingStrength } from './thinking-router'
+// v2.11 PAOR 状态图编排：路由决策纯函数（可单测，默认行为与旧 switch 等价）
+import {
+  initPaorState,
+  shouldContinueLoop,
+  routePaorNext,
+  routeRiskRejected,
+  type PaorDecision,
+  type PaorRouteLimits,
+} from './paor-graph'
 import { createLanguageModel, getDefaultParams } from './providers/provider-factory'
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
 import { getProviderCapabilities } from './providers/provider-capabilities'
@@ -209,8 +218,8 @@ export interface ObserveResult {
  * PAOR Reflect 阶段反思决策
  */
 export interface ReflectResult {
-  /** 循环决策：继续下一步 / 重试 / 中止 / 计划完成 */
-  decision: 'continue' | 'retry' | 'abort' | 'done'
+  /** 循环决策：继续下一步 / 重试 / 中止 / 计划完成 / 回退重规划（v2.11） */
+  decision: 'continue' | 'retry' | 'abort' | 'done' | 'replan'
   /** 决策理由 */
   reasoning: string
   /** 可选的更新后计划（如需要调整步骤） */
@@ -239,8 +248,8 @@ export interface PaorIteration {
  * PAOR 自动循环最终结果
  */
 export interface PaorLoopResult {
-  /** 最终状态：done=计划完成，abort=中止，max_iterations=达到迭代上限 */
-  status: 'done' | 'abort' | 'max_iterations'
+  /** 最终状态：done=计划完成，abort=中止，max_iterations=达到迭代上限，blocked=重规划耗尽仍受阻（v2.11） */
+  status: 'done' | 'abort' | 'max_iterations' | 'blocked'
   /** 结构化计划 */
   plan: PlanObject
   /** 计划置信度 */
@@ -261,6 +270,8 @@ export interface PaorLoopOptions {
   maxIterations?: number
   /** 每步最大重试次数（默认 1） */
   maxRetriesPerStep?: number
+  /** 最大重新规划次数（v2.11，默认 0=禁用 replan 回退，保持旧行为） */
+  maxReplans?: number
   /**
    * 风险审批回调（Hard Constraint 4）
    *
@@ -1548,6 +1559,7 @@ class SupervisorAgent {
     const startTime = Date.now()
     const maxIterations = options.maxIterations ?? 5
     const maxRetries = options.maxRetriesPerStep ?? 1
+    const maxReplans = options.maxReplans ?? 0
 
     // ── Phase 1: Plan ──
     const { plan, confidence } = await this.plan(task)
@@ -1555,15 +1567,17 @@ class SupervisorAgent {
     this.log.info('[PAOR-Loop] 计划已生成', { goal: currentPlan.goal, steps: currentPlan.steps.length, confidence })
 
     const iterations: PaorIteration[] = []
-    let stepIndex = 0
-    let retryCount = 0
+    // v2.11 状态图编排：路由决策交给 paor-graph 纯函数，本循环只执行副作用
+    let graphState = initPaorState(currentPlan.steps.length)
     let iterationNum = 0
     let status: PaorLoopResult['status'] = 'max_iterations'
     let aborted = false
+    const routeLimits: PaorRouteLimits = { maxRetriesPerStep: maxRetries, maxReplans }
 
-    // ── Phase 2: 循环 Act → Observe → Reflect ──
-    while (iterationNum < maxIterations && stepIndex < currentPlan.steps.length && !aborted) {
+    // ── Phase 2: 循环 Act → Observe → Reflect（下一步由 routePaorNext 决定）──
+    while (shouldContinueLoop(graphState, iterationNum, maxIterations) && !aborted) {
       iterationNum++
+      const stepIndex = graphState.stepIndex
       const command = currentPlan.steps[stepIndex] ?? ''
 
       // 风险闸门（Hard Constraint 4）：HIGH/CRITICAL 需人工审批
@@ -1589,8 +1603,7 @@ class SupervisorAgent {
           iterations.push(iteration)
           options.onIteration?.(iteration)
           this.log.warn('[PAOR-Loop] 高危命令被拦截', { stepIndex, level: risk.level })
-          stepIndex++
-          retryCount = 0
+          graphState = routeRiskRejected(graphState).state
           continue
         }
       }
@@ -1605,6 +1618,7 @@ class SupervisorAgent {
       const reflectResult = await this.reflect(observeResult, currentPlan, stepIndex)
       if (reflectResult.updatedPlan) {
         currentPlan = reflectResult.updatedPlan
+        graphState = { ...graphState, totalSteps: currentPlan.steps.length }
       }
 
       const iteration: PaorIteration = {
@@ -1617,37 +1631,31 @@ class SupervisorAgent {
       iterations.push(iteration)
       options.onIteration?.(iteration)
 
-      // 循环控制
-      switch (reflectResult.decision) {
-        case 'done':
-          status = 'done'
-          stepIndex = currentPlan.steps.length // 退出循环
-          break
-        case 'abort':
-          status = 'abort'
-          aborted = true
-          break
-        case 'retry':
-          if (retryCount < maxRetries) {
-            retryCount++
-            this.log.info('[PAOR-Loop] 重试当前步骤', { stepIndex, retryCount })
-          } else {
-            // 重试耗尽，跳到下一步避免死循环
-            this.log.warn('[PAOR-Loop] 重试次数耗尽，跳到下一步', { stepIndex })
-            stepIndex++
-            retryCount = 0
-          }
-          break
-        case 'continue':
-        default:
-          stepIndex++
-          retryCount = 0
-          break
+      // v2.11 循环控制：路由决策交给纯函数引擎（默认行为与旧 switch 等价）
+      const route = routePaorNext(reflectResult.decision as PaorDecision, graphState, routeLimits)
+      graphState = route.state
+      if (route.action === 'retry-same') {
+        this.log.info('[PAOR-Loop] 重试当前步骤', { stepIndex, retryCount: graphState.retryCount })
+      } else if (route.action === 'replan') {
+        // 失败回退：携失败上下文重新规划（replanCount 已在引擎自增，防震荡）
+        this.log.warn('[PAOR-Loop] 回退重新规划', { replanCount: graphState.replanCount })
+        const failCtx = `${task}\n\n（上一轮步骤“${command}”未能推进，请重新规划更稳健的步骤）`
+        const replanned = await this.plan(failCtx)
+        currentPlan = replanned.plan
+        graphState = { ...initPaorState(currentPlan.steps.length), replanCount: graphState.replanCount }
+      } else if (route.terminal === 'done') {
+        status = 'done'
+      } else if (route.terminal === 'abort') {
+        status = 'abort'
+        aborted = true
+      } else if (route.terminal === 'blocked') {
+        status = 'blocked'
+        aborted = true
       }
     }
 
     // 所有步骤正常走完（最后一步 continue 导致 stepIndex 越界）也视为完成
-    if (!aborted && status === 'max_iterations' && stepIndex >= currentPlan.steps.length) {
+    if (!aborted && status === 'max_iterations' && graphState.stepIndex >= currentPlan.steps.length) {
       status = 'done'
     }
 
