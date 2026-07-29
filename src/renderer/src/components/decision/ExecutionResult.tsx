@@ -277,10 +277,10 @@ export function ExecutionResult({
           <div className="flex items-center gap-2">
             <span className="text-[16px] font-semibold text-[var(--trae-text-default)]">决策审计日志</span>
             <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
-              不可篡改
+              链式校验
             </span>
           </div>
-          <span className="text-[10px] text-[var(--trae-text-tertiary)]">SHA-256 链式哈希 · 逐行链接可验证</span>
+          <span className="text-[10px] text-[var(--trae-text-tertiary)]">SHA-256 链式哈希 · 逐行可验证篪改</span>
         </div>
 
         {/* 表格 */}
