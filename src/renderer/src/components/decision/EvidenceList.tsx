@@ -16,7 +16,7 @@
  */
 import { useState } from 'react'
 import {
-  AlertTriangle, ChevronDown, Shield, Trash2, Check, X,
+  AlertTriangle, ChevronDown, Shield, Check, X,
 } from 'lucide-react'
 
 /** 危险等级 */
@@ -108,7 +108,6 @@ function renderSegments(segments: CmdSegment[]) {
  */
 export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const [cleared, setCleared] = useState(false)
   const [closed, setClosed] = useState(false)
 
   const highCmds = commands.filter((c) => c.level === 'high')
@@ -160,7 +159,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
       </div>
 
       {/* 主体：统计 + 命令列表 */}
-      {expanded && !cleared && (
+      {expanded && (
         <div className="flex gap-6">
           {/* 左侧统计摘要 */}
           <div className="flex w-[172px] shrink-0 flex-col gap-4 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] p-4">
@@ -272,29 +271,13 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
         </div>
       )}
 
-      {/* 清空后占位 */}
-      {cleared && (
-        <div className="flex h-[200px] items-center justify-center text-[12px] text-[var(--trae-text-tertiary)]">
-          列表已清空
-        </div>
-      )}
-
-      {/* 底部：规则说明 + 清空按钮 */}
+      {/* 底部：规则说明（v2.6 去假：移除 mock“清空列表”按钮 ——
+          拦截记录属审计范围不应可清空，且原按钮仅改本地 state 刷新即复原） */}
       <div className="mt-4 flex items-center justify-between border-t border-[var(--trae-border-neutral-l1)] pt-4">
         <span className="flex items-center gap-2 text-[10px] text-[var(--trae-text-tertiary)]">
           <Shield className="h-3 w-3 text-[var(--trae-text-tertiary)]" />
           规则引擎 · {commands.length} 条规则 · 对应 L1 预拦截层 · 匹配后阻断执行并记录审计
         </span>
-        <button
-          type="button"
-          data-dom-id="clear-danger-list"
-          onClick={() => setCleared(true)}
-          className="flex items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
-          aria-label="清空列表"
-        >
-          <Trash2 className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-          清空列表
-        </button>
       </div>
 
       {/* danger-scroll 自定义滚动条样式 */}

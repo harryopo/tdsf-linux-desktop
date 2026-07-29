@@ -21,6 +21,48 @@ import type { AgentWorkflowState } from '@shared/models'
 /** 幂等守卫：整个渲染进程生命周期只绑定一次 */
 let subscribed = false
 
+// ============================================================================
+// 流式 chunk 批处理（v2.5 修复：流式输出卡顿/抽搐）
+//
+// 病因：每个 agent:chunk 都同步写一次 zustand store → 每 token 重渲染整个
+// 消息列表 + 重跑 Markdown 解析，高频 token 下主线程被打满，视觉抽搐。
+// 修复：按 correlationId 缓冲 delta，每 FLUSH_INTERVAL_MS 合并写入一次；
+// done/error 到达时先强制冲刷，保证尾部内容不丢。
+// ============================================================================
+
+/** 批处理刷新间隔（人眼对 ~20fps 的文本流已感知为连续） */
+const FLUSH_INTERVAL_MS = 45
+
+/** 待写入的 delta 缓冲（按 kind:correlationId 合并，正文与思考链分开累积） */
+const pendingDeltas = new Map<string, string>()
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 立即把缓冲区写入 store */
+function flushPendingChunks(): void {
+  if (flushTimer !== null) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  if (pendingDeltas.size === 0) return
+  const { appendToken } = useAgentStore.getState()
+  for (const [key, delta] of pendingDeltas) {
+    const sep = key.indexOf(':')
+    const kind = key.slice(0, sep) as 'text' | 'reasoning'
+    const correlationId = key.slice(sep + 1)
+    appendToken({ correlationId, delta, kind })
+  }
+  pendingDeltas.clear()
+}
+
+/** 缓冲一个 chunk，并确保刷新定时器在跑 */
+function bufferChunk(correlationId: string, delta: string, kind: 'text' | 'reasoning'): void {
+  const key = `${kind}:${correlationId}`
+  pendingDeltas.set(key, (pendingDeltas.get(key) ?? '') + delta)
+  if (flushTimer === null) {
+    flushTimer = setTimeout(flushPendingChunks, FLUSH_INTERVAL_MS)
+  }
+}
+
 /**
  * 初始化全局实时事件订阅（Agent 流式 + 监控数据）。
  * 在 main.tsx 应用入口调用；非 Electron 环境（浏览器 dev）静默跳过。
@@ -41,15 +83,18 @@ export function initAgentStreamSubscription(): void {
   }
 
   window.electronAPI.onAgentChunk((payload) => {
-    useAgentStore.getState().appendToken(payload)
+    // 不再每 token 写 store：缓冲后批量写入，消除流式卡顿（v2.5）
+    bufferChunk(payload.correlationId, payload.delta, payload.kind === 'reasoning' ? 'reasoning' : 'text')
   })
 
   window.electronAPI.onAgentDone((payload) => {
+    flushPendingChunks() // 先落盘尾部 token，再 finalize
     useAgentStore.getState().finalizeMessage(payload)
     refreshStats()
   })
 
   window.electronAPI.onAgentError((payload) => {
+    flushPendingChunks()
     useAgentStore.getState().markError(payload)
     refreshStats()
   })

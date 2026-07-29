@@ -61,14 +61,19 @@ export function SettingsActionBar({
 
   return (
     <div className="set-actionbar">
-      <button
-        type="button"
-        onClick={handleSave}
-        className="set-btn-primary btn-press"
-      >
-        <Check className="di-14" />
-        {saveLabel}
-      </button>
+      {/* v2.7 诚实化：onSave 未传时不再渲染假“保存设置”按钮（此前点了照弹
+          “设置已保存”但什么都没做）；设置页均为改动即存，保存按钮仅在
+          需要显式提交的页面（传入 onSave）才出现 */}
+      {onSave && (
+        <button
+          type="button"
+          onClick={handleSave}
+          className="set-btn-primary btn-press"
+        >
+          <Check className="di-14" />
+          {saveLabel}
+        </button>
+      )}
       <button
         type="button"
         onClick={handleReset}

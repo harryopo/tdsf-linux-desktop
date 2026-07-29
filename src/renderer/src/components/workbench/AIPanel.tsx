@@ -36,6 +36,10 @@ import { useLoopEngineering } from './useLoopEngineering'
 import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
 import { useAgentStore } from '@/stores/agent-store'
+import { useTerminalStore } from '@/stores/terminal-store'
+// v2.6 命令前置环境预检（与主进程 ssh_readonly 共用的纯函数）
+import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'
+import { buildChatDecisionCard, riskCheckToAssessment } from '@/utils/chat-decision'
 import type { PaorApprovalRequest } from '@/types/electron'
 import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
@@ -210,14 +214,15 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     return () => cancelAnimationFrame(raf)
   }, [liveMessages, hasLiveConversation, isStreaming, hasLoopRunning, loop.phase, loop.workflowState, loop.decisionCard, loop.finalCard])
 
-  /** 处理工具面板操作（在终端运行/执行/沙箱预演/回滚/暂停/终止）
+  /** 处理工具面板操作（在终端运行/执行/回滚/停止/终止）
    *
    * Wire-2（2026-07-22）：真实 IPC 接线
    * - copyCommand: 复制命令到剪贴板
-   * - runInTerminal / execute / rollback / rollbackExec: 调用 sshExec(activeSessionId, cmd)
-   * - sandbox: 调用 sandboxCreate + sandboxExecute（沙箱预演）
+   * - runInTerminal / execute / rollback / rollbackExec: 写入终端 Shell（sshShellWrite），
+   *   命令与回显在终端可见；写入前先发 Ctrl+U 清理半截输入，并登记预测回显（v2.5）
    * - pauseExec / terminateTask: 调用 agentChatCancel(currentCorrelationId) 取消流
    * - resumeExec: 当前 IPC 不支持恢复，提示用户重新发送
+   * - sandbox: v2.5 已全量移除沙箱功能，存量 block 数据的沙箱动作降级为提示
    *
    * 非 Electron 环境降级为提示消息，UI 不崩溃。
    */
@@ -264,7 +269,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       return
     }
 
-    // 4. 命令类操作（runInTerminal / execute / sandbox / rollback / rollbackExec）必须有 payload
+    // 4. 命令类操作（runInTerminal / execute / rollback / rollbackExec）必须有 payload
     if (!payload) {
       message.warning('未找到可执行的命令')
       return
@@ -272,76 +277,94 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
 
     const api = window.electronAPI
 
-    // 4.1 沙箱预演：sandboxCreate + sandboxExecute
+    // 4.1 沙箱功能已全量移除（v2.5）：存量 block 数据的沙箱动作降级为提示
     if (action === 'sandbox') {
-      if (!api?.sandboxCreate || !api?.sandboxExecute) {
-        message.warning('当前环境不支持沙箱执行（非 Electron 环境）')
-        return
-      }
-      const hide = message.loading('准备沙箱环境...', 0)
-      try {
-        // 查找现有沙箱（复用 RUNNING 状态的沙箱）
-        let sandboxId: string | null = null
-        if (api.sandboxList) {
-          const listResult = await api.sandboxList(10)
-          if (listResult && 'items' in listResult && Array.isArray(listResult.items)) {
-            const ready = listResult.items.find((s) => s.status === 'RUNNING')
-            if (ready) sandboxId = ready.id
-          }
-        }
-        if (!sandboxId) {
-          const createResult = await api.sandboxCreate()
-          if (!createResult || 'success' in createResult) {
-            const err = createResult as { success: false; error: string } | null
-            throw new Error(`沙箱创建失败：${err?.error || '未知错误'}`)
-          }
-          if (!createResult.id) throw new Error('沙箱创建返回无效 ID')
-          sandboxId = createResult.id
-        }
-
-        // 执行命令
-        const execResult = await api.sandboxExecute(sandboxId, payload)
-        hide()
-        if (!execResult || 'success' in execResult) {
-          const err = execResult as { success: false; error: string } | null
-          throw new Error(err?.error || '沙箱执行返回未知错误')
-        }
-        if (execResult.exitCode === 0) {
-          message.success(`沙箱执行成功（耗时 ${execResult.durationMs ?? 0}ms）`)
-        } else {
-          message.warning(`沙箱执行完成（exit=${execResult.exitCode}）`)
-        }
-      } catch (err) {
-        hide()
-        const reason = err instanceof Error ? err.message : String(err)
-        message.error(`沙箱执行失败：${reason}`)
-      }
+      message.info('沙箱功能已移除，请使用“在终端执行”')
       return
     }
 
     // 4.2 SSH 命令执行：runInTerminal / execute / rollback / rollbackExec
+    // v2.5 改造：从后台 sshExec（只弹 toast，用户看不到输出）改为写入终端 Shell，
+    // 命令与回显直接出现在终端里，用户全程可见、可中断（Ctrl+C）。
     if (!activeSessionId) {
       message.warning('该功能需要连接 SSH 服务器后使用')
       return
     }
-    if (!api?.sshExec) {
-      message.warning('当前环境不支持 SSH 执行（非 Electron 环境）')
+    if (!api?.sshShellWrite) {
+      message.warning('当前环境不支持终端执行（非 Electron 环境）')
       return
     }
 
-    const hide = message.loading(`正在执行命令：${payload}`, 0)
-    try {
-      const result = await api.sshExec(activeSessionId, payload)
-      hide()
-      if (result.exitCode === 0) {
-        message.success(`命令执行成功（耗时 ${result.duration}ms）`)
-      } else {
-        message.warning(`命令执行完成（exit=${result.exitCode}）`)
+    // v2.6 前置环境预检：发送到终端前先确认命令在服务器上存在（command -v），
+    // 缺失时阻断并明确提示；预检自身失败 fail-open 照常发送。
+    const preflightNames = extractCommandNames(payload)
+    if (preflightNames.length > 0 && api.sshExec) {
+      try {
+        const pre = await api.sshExec(activeSessionId, buildMissingCheckScript(preflightNames))
+        const missing = parseMissingOutput(pre.stdout)
+        if (missing.length > 0) {
+          message.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送（可先安装对应软件包）`)
+          return
+        }
+      } catch (err) {
+        // fail-open：预检失败不阻塞用户批准的执行
+        console.warn('[AIPanel] 命令前置预检失败，照常发送', err)
       }
+    }
+
+    try {
+      // v2.5 预测回显：先登记到 terminal-store（终端顶部回显条立即可见），
+      // 再发 Ctrl+U 清掉 shell 当前行可能的半截输入，避免命令拼接乱码
+      useTerminalStore.getState().setPendingCommand({ command: payload, sentAt: Date.now() })
+      const cmd = payload.endsWith('\n') ? payload : `${payload}\n`
+      await api.sshShellWrite(activeSessionId, `\x15${cmd}`)
+      message.success('命令已发送到终端，请在终端查看回显')
+
+      // v2.5 决策落库：用户批准执行 = 一次真实决策（AI 建议 → 人工批准 → 执行），
+      // 记入决策历史供 HistoryPage 展示；失败不打断主流程
+      void recordChatDecision(payload)
     } catch (err) {
-      hide()
+      useTerminalStore.getState().setPendingCommand(null)
       const reason = err instanceof Error ? err.message : String(err)
-      message.error(`命令执行失败：${reason}`)
+      message.error(`命令发送失败：${reason}`)
+    }
+  }
+
+  /** v2.5：把“用户批准执行的命令”作为决策记录落库（history:save）
+   *
+   * 上下文取自 agent-store：最后一条用户消息（问题）+ 最后一条 assistant 消息
+   * （根因假设 + 真实工具轨迹→证据链）；风险等级走真实 riskCheck IPC。
+   */
+  const recordChatDecision = async (command: string): Promise<void> => {
+    const api = window.electronAPI
+    if (!api?.historySave) return
+    try {
+      const msgs = useAgentStore.getState().messages
+      const lastUser = [...msgs].reverse().find((m) => m.role === 'user') ?? null
+      const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.isError) ?? null
+
+      // 风险评估：真实 riskCheck IPC（AST 优先 + 正则降级）；不可用时保守记 MEDIUM
+      let risk = riskCheckToAssessment('medium', ['riskCheck 不可用，保守记中风险'])
+      if (api.riskCheck) {
+        try {
+          const r = await api.riskCheck(command)
+          risk = riskCheckToAssessment(r.risk, r.reasons)
+        } catch {
+          // 保留保守默认
+        }
+      }
+
+      const card = buildChatDecisionCard({
+        command,
+        userMessage: lastUser,
+        assistantMessage: lastAssistant,
+        risk,
+        sessionId: activeSessionId,
+      })
+      await api.historySave(card)
+    } catch (err) {
+      // 落库失败不影响命令执行主流程，仅记日志
+      console.error('[AIPanel] 决策历史落库失败:', err)
     }
   }
 

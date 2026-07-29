@@ -15,7 +15,7 @@
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  * 无障碍：button type + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Modal, Spin, message, Button } from 'antd'
 import {
@@ -33,7 +33,7 @@ type ChapterStatus = 'completed' | 'in-progress' | 'pending'
 interface ChapterData { id: number; index: string; title: string; duration: string }
 interface QuizOption { key: string; label: string; correct?: boolean }
 interface QuizQuestion { id: string; question: string; options: QuizOption[] }
-interface RelatedCourse { id: string; title: string; level: '进阶' | '中级'; duration: string }
+interface RelatedCourse { id: string; title: string; level: string; duration: string }
 interface CodeLine { color: string; text: string }
 interface QuizResult { correct: number; total: number; passed: boolean }
 
@@ -128,6 +128,52 @@ function formatReadingTime(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return m === 0 ? `${h}h` : `${h}h ${m}min`
+}
+
+/** 真实教程章节（v2.6：从 markdown 正文按 ## 二级标题切分） */
+interface RealChapter {
+  /** 章节标题（去序号） */
+  title: string
+  /** 章节正文 markdown（含本节内容，不含 ## 标题行） */
+  body: string
+  /** 估算阅读分钟（按篇幅占比分摊 readingTime） */
+  minutes: number
+}
+
+/**
+ * 把教程 markdown 正文切分成真实章节（v2.6 修复“下一章内容不变”）
+ *
+ * 此前 5 章框架是设计稿硬编码，所有章节共用同一篇完整正文，
+ * 点“下一章”只有标题数字变。现按 ## 二级标题切分：每章有自己的内容；
+ * 开头无标题的引言作为“简介”章；无任何 ## 时整篇作为单章。
+ */
+function splitContentIntoChapters(content: string, totalMinutes: number): RealChapter[] {
+  const parts = content.split(/\n(?=##\s)/)
+  const chapters: Array<{ title: string; body: string }> = []
+  let intro = ''
+  for (const part of parts) {
+    const m = part.match(/^##\s+(.+)/)
+    if (m) {
+      chapters.push({
+        title: m[1].trim().replace(/^\d+[.、:：]\s*/, ''),
+        body: part.replace(/^##\s+.+\n?/, ''),
+      })
+    } else {
+      intro += part
+    }
+  }
+  if (chapters.length === 0) {
+    return [{ title: '教程正文', body: content, minutes: Math.max(1, totalMinutes || 1) }]
+  }
+  if (intro.trim()) {
+    chapters.unshift({ title: '简介', body: intro.trim() })
+  }
+  const totalLen = chapters.reduce((s, c) => s + c.body.length, 0) || 1
+  const budget = totalMinutes > 0 ? totalMinutes : chapters.length * 5
+  return chapters.map((c) => ({
+    ...c,
+    minutes: Math.max(1, Math.round(budget * (c.body.length / totalLen))),
+  }))
 }
 
 // ==================== 轻量 Markdown 渲染器 ====================
@@ -286,8 +332,10 @@ function renderMarkdownContent(content: string): ReactNode {
 export function TutorialDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [activeChapter, setActiveChapter] = useState(2)
-  const [completedChapters, setCompletedChapters] = useState<boolean[]>([true, true, false, false, false])
+  // v2.6 去假：初始无任何假进度（此前硬编码“第 3 章学习中 + 前 2 章已完成”，
+  // 首次打开真实教程即展示假进度）；真实进度由 tutorialProgress 回填
+  const [activeChapter, setActiveChapter] = useState(0)
+  const [completedChapters, setCompletedChapters] = useState<boolean[]>([false, false, false, false, false])
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({ q1: 'B', q2: 'C', q3: 'C' })
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null)
   const chapterTitleRef = useRef<HTMLHeadingElement>(null)
@@ -296,6 +344,8 @@ export function TutorialDetailPage() {
   const [tutorialEntry, setTutorialEntry] = useState<TutorialEntry | null>(null)
   const [loading, setLoading] = useState(true)
   const [useReal, setUseReal] = useState(false)
+  /** v2.6 去假：Electron 下条目不存在时显示空态，不再静默冒充设计稿假教程 */
+  const [notFound, setNotFound] = useState(false)
 
   // ===== 沙箱执行状态（v1.0 P0 接入 sandboxCreate + sandboxExecute IPC） =====
   const [sandboxRunning, setSandboxRunning] = useState(false)
@@ -327,12 +377,15 @@ export function TutorialDetailPage() {
         if (entry) {
           setTutorialEntry(entry)
           setUseReal(true)
+        } else {
+          // v2.6 去假：查无此条 → 空态页，不再静默展示“Nginx性能调优实战”假文章
+          setNotFound(true)
         }
-        // 找不到真实条目时，useReal 保持 false，UI 降级到设计稿示例数据
       } catch (err) {
         if (cancelled) return
         const reason = err instanceof Error ? err.message : String(err)
-        message.warning(`教程加载失败，使用示例数据：${reason}`)
+        message.error(`教程加载失败：${reason}`)
+        setNotFound(true)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -342,7 +395,7 @@ export function TutorialDetailPage() {
   }, [id])
 
   // 加载真实学习进度（M4 Task 2 接入 tutorialProgress IPC，替代硬编码 completedChapters）
-  // 根据进度百分比反推章节完成状态：进度 60% × 5 章 = 3 章 → [true, true, true, false, false]
+  // v2.6：章节数改为真实切分后的动态长度
   useEffect(() => {
     let cancelled = false
     const loadProgress = async () => {
@@ -352,9 +405,12 @@ export function TutorialDetailPage() {
         if (cancelled) return
         const current = progressList.find((p) => p.tutorialId === id)
         if (current) {
+          const chapterTotal = (useReal && tutorialEntry)
+            ? splitContentIntoChapters(tutorialEntry.content, tutorialEntry.readingTime).length
+            : CHAPTERS.length
           // 根据进度百分比反推章节完成状态
-          const completedCount = Math.round((current.progress / 100) * CHAPTERS.length)
-          const newCompleted = CHAPTERS.map((_, idx) => idx < completedCount)
+          const completedCount = Math.round((current.progress / 100) * chapterTotal)
+          const newCompleted = Array.from({ length: chapterTotal }, (_, idx) => idx < completedCount)
           setCompletedChapters(newCompleted)
         }
         // 未找到进度记录时保持硬编码默认值（[true, true, false, false, false]）
@@ -366,7 +422,7 @@ export function TutorialDetailPage() {
     }
     loadProgress()
     return () => { cancelled = true }
-  }, [id])
+  }, [id, useReal, tutorialEntry])
 
   // 监听沙箱命令审批请求（M4 Task 3 接入 onSandboxApprovalRequest IPC）
   // HC-6 强制审批：sandboxExecute 调用后主进程推送 sandbox:approval-request 事件，
@@ -412,10 +468,70 @@ export function TutorialDetailPage() {
     ? tutorialEntry.commands.map((cmd) => ({ color: 'var(--trae-code-text)', text: cmd }))
     : CODE_LINES
 
+  // ===== v2.6：真实章节切分（修复“下一章内容不变”） =====
+  const realChapters = useMemo(
+    () => (useReal && tutorialEntry ? splitContentIntoChapters(tutorialEntry.content, tutorialEntry.readingTime) : null),
+    [useReal, tutorialEntry],
+  )
+  /** 展示用章节：真实教程按标题切分；非 Electron 预览用设计稿 5 章 */
+  const displayChapters: ChapterData[] = useMemo(
+    () => realChapters
+      ? realChapters.map((c, i) => ({ id: i + 1, index: `${i + 1}`, title: c.title, duration: `${c.minutes}min` }))
+      : CHAPTERS,
+    [realChapters],
+  )
+
+  // 章节数变化时同步 completedChapters 长度 + 重置当前章（避免越界）
+  useEffect(() => {
+    if (!realChapters) return
+    setCompletedChapters((prev) =>
+      prev.length === realChapters.length ? prev : realChapters.map(() => false),
+    )
+    setActiveChapter((prev) => (prev < realChapters.length ? prev : 0))
+  }, [realChapters])
+
+  // ===== v2.6：相关课程真实化（此前硬编码 3 个不存在的 ID，点击后回退同一套示例数据） =====
+  const [realRelated, setRealRelated] = useState<RelatedCourse[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const loadRelated = async () => {
+      const api = window.electronAPI
+      if (!api?.tutorialList || !id) return
+      try {
+        const entries = (await api.tutorialList(undefined)) as TutorialEntry[]
+        if (cancelled || !Array.isArray(entries)) return
+        // 同分类优先，排除当前教程，取前 3 个真实存在的教程
+        const others = entries.filter((e) => e.id !== id)
+        const sameCat = others.filter((e) => e.category === tutorialEntry?.category)
+        const rest = others.filter((e) => e.category !== tutorialEntry?.category)
+        const picked = [...sameCat, ...rest].slice(0, 3)
+        setRealRelated(picked.map((e) => ({
+          id: e.id,
+          title: e.title,
+          level: TUTORIAL_DIFFICULTY_LABELS[e.difficulty] ?? String(e.difficulty),
+          duration: formatReadingTime(e.readingTime),
+        })))
+      } catch (err) {
+        console.warn('[TutorialDetailPage] 相关课程加载失败', err)
+      }
+    }
+    void loadRelated()
+    return () => { cancelled = true }
+  }, [id, tutorialEntry])
+  /** 相关课程：真实教程库优先；非 Electron 预览回退设计稿示例 */
+  const displayRelated = realRelated && realRelated.length > 0 ? realRelated : RELATED_COURSES
+
   const completedCount = completedChapters.filter(Boolean).length
   const isFirst = activeChapter === 0
-  const isLast = activeChapter === CHAPTERS.length - 1
-  const currentChapter = CHAPTERS[activeChapter]
+  const isLast = activeChapter === displayChapters.length - 1
+  const currentChapter = displayChapters[activeChapter] ?? displayChapters[0]
+  /** v2.6：真实进度百分比（替代硬编码 65%）与剩余分钟 */
+  const progressPct = displayChapters.length > 0
+    ? Math.round((completedCount / displayChapters.length) * 100)
+    : 0
+  const remainingMinutes = realChapters
+    ? realChapters.reduce((sum, c, i) => (completedChapters[i] ? sum : sum + c.minutes), 0)
+    : null
 
   // ===== 焦点管理：章节切换后聚焦新章节标题（无障碍） =====
   useEffect(() => {
@@ -447,7 +563,11 @@ export function TutorialDetailPage() {
   }
   const handleGotoChapter = (idx: number) => setActiveChapter(idx)
   const handleGotoRelated = (targetId: string) => navigate(`/tutorial/${targetId}`)
-  const handleContinueLearning = () => !isLast && setActiveChapter(activeChapter + 1)
+  /** v2.6：继续学习 = 跳到第一个未完成的章节（此前只是“下一章”的别名） */
+  const handleContinueLearning = () => {
+    const firstUnfinished = completedChapters.findIndex((c) => !c)
+    setActiveChapter(firstUnfinished >= 0 ? firstUnfinished : displayChapters.length - 1)
+  }
 
   /**
    * 打开沙箱并执行实践命令（v1.0 P0 接入 sandboxCreate + sandboxExecute IPC）
@@ -582,7 +702,18 @@ export function TutorialDetailPage() {
           <Spin tip="加载教程条目..." />
         </div>
       )}
-      {!loading && (
+      {!loading && notFound && (
+        // v2.6 去假：条目不存在的诚实空态（替代原来静默展示的设计稿假教程）
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '80px 0', color: 'var(--trae-text-tertiary)' }}>
+          <Info size={32} />
+          <div style={{ fontSize: 14, color: 'var(--trae-text-secondary)' }}>教程不存在或已下架（ID: {id ?? '未提供'}）</div>
+          <button type="button" onClick={handleBackTutorial} className="tut-detail-back-btn tut-btn-press">
+            <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
+            <span>返回教程列表</span>
+          </button>
+        </div>
+      )}
+      {!loading && !notFound && (
         <>
           <div className="tut-detail-container">
 
@@ -607,17 +738,17 @@ export function TutorialDetailPage() {
               <Clock size={11} style={{ color: 'var(--trae-text-secondary)' }} />
               {displayReadingTime}
             </span>
-            <span className="tut-detail-progress-pct">65%</span>
+            <span className="tut-detail-progress-pct">{useReal ? `${progressPct}%` : '65%'}</span>
           </div>
         </header>
 
         {/* ====== 2. 章节进度条卡片 ====== */}
         <section className="tut-progress-card">
           <div className="tut-progress-track">
-            {CHAPTERS.map((ch, i) => {
+            {displayChapters.map((ch, i) => {
               const status = getChapterStatus(i, activeChapter, completedChapters)
               return (
-                <div key={ch.id} style={{ display: 'flex', alignItems: 'center', flex: i < CHAPTERS.length - 1 ? '1 0 auto' : '0 0 auto' }}>
+                <div key={ch.id} style={{ display: 'flex', alignItems: 'center', flex: i < displayChapters.length - 1 ? '1 0 auto' : '0 0 auto' }}>
                   <div className="tut-progress-node">
                     {status === 'completed' && (
                       <div className="tut-progress-indicator tut-progress-indicator--completed">
@@ -635,14 +766,19 @@ export function TutorialDetailPage() {
                     )}
                     <span className={`tut-progress-node-label tut-progress-node-label--${status}`}>{ch.title}</span>
                   </div>
-                  {i < CHAPTERS.length - 1 && (
+                  {i < displayChapters.length - 1 && (
                     <div className={`tut-progress-connector ${completedChapters[i] ? 'tut-progress-connector--completed' : 'tut-progress-connector--pending'}`} />
                   )}
                 </div>
               )
             })}
           </div>
-          <div className="tut-progress-text">已完成 {completedCount}/5 章 · 预计还需 52min</div>
+          <div className="tut-progress-text">
+            已完成 {completedCount}/{displayChapters.length} 章
+            {remainingMinutes !== null
+              ? (remainingMinutes > 0 ? ` · 预计还需 ${formatReadingTime(remainingMinutes)}` : ' · 全部完成')
+              : ' · 预计还需 52min'}
+          </div>
         </section>
 
         {/* ====== 3. 两栏布局 ====== */}
@@ -657,7 +793,8 @@ export function TutorialDetailPage() {
                 <h2 ref={chapterTitleRef} tabIndex={-1} className="tut-card-title" style={{ outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
                 <span className="tut-detail-badge tut-detail-badge--brand">当前学习</span>
               </div>
-              {/* 学习目标 */}
+              {/* 学习目标（v2.6：无真实字段，仅设计稿预览展示） */}
+              {!useReal && (
               <div style={{ marginTop: 12 }}>
                 <div className="tut-objective-label">学习目标</div>
                 <ul className="tut-objective-list">
@@ -669,9 +806,10 @@ export function TutorialDetailPage() {
                   ))}
                 </ul>
               </div>
-              {/* 内容正文：真实数据用 Markdown 渲染器，设计稿示例用静态段落 */}
-              {useReal && tutorialEntry
-                ? renderMarkdownContent(tutorialEntry.content)
+              )}
+              {/* 内容正文（v2.6：真实数据只渲染当前章节的内容，不再每章都是全文） */}
+              {realChapters
+                ? renderMarkdownContent(realChapters[activeChapter]?.body ?? '')
                 : (
                   <div className="tut-paragraphs">
                     {displayParagraphs.map((p, i) => (
@@ -679,20 +817,24 @@ export function TutorialDetailPage() {
                     ))}
                   </div>
                 )}
-              {/* 命令示例块 */}
+              {/* 命令示例块（真实数据仅首章展示教程命令汇总，避免每章重复） */}
+              {(!useReal || activeChapter === 0) && (
               <div style={{ marginTop: 12 }}>
                 <pre className="tut-code-block">
                   {displayCodeLines.map((line, i) => (
                     <span key={i} style={{ color: line.color, display: 'block' }}>{line.text}</span>
                   ))}
                 </pre>
-                <div className="tut-code-caption"># 查看并调整TCP连接队列长度</div>
+                {!useReal && <div className="tut-code-caption"># 查看并调整TCP连接队列长度</div>}
               </div>
-              {/* 注意事项 alert */}
+              )}
+              {/* 注意事项 alert（v2.6：设计稿专属文案，仅预览展示） */}
+              {!useReal && (
               <div className="tut-alert">
                 <Info size={14} className="tut-alert-icon" />
                 <span className="tut-alert-text">修改内核参数需谨慎，建议先在测试环境验证</span>
               </div>
+              )}
               {/* 按钮组 */}
               <div className="tut-btn-group">
                 <button type="button" data-dom-id="btn-prev-chapter" aria-label="上一章" onClick={handlePrev} disabled={isFirst} className="tut-chapter-btn tut-chapter-btn--prev tut-btn-press">
@@ -788,7 +930,7 @@ export function TutorialDetailPage() {
                 <h2 className="tut-card-title">课程目录</h2>
               </div>
               <ul className="tut-catalog-list">
-                {CHAPTERS.map((ch, i) => {
+                {displayChapters.map((ch, i) => {
                   const status = getChapterStatus(i, activeChapter, completedChapters)
                   const isActive = i === activeChapter
                   return (
@@ -812,7 +954,7 @@ export function TutorialDetailPage() {
                 <h2 className="tut-card-title">相关课程</h2>
               </div>
               <ul className="tut-related-list">
-                {RELATED_COURSES.map((course, i) => (
+                {displayRelated.map((course, i) => (
                   <li key={course.id} data-dom-id={`goto-related-course-${i + 1}`} onClick={() => handleGotoRelated(course.id)} className="tut-related-item">
                     <div className="tut-related-title-row">
                       <span className="tut-related-title">{course.title}</span>
@@ -834,19 +976,23 @@ export function TutorialDetailPage() {
       {/* ====== 4. 底部学习统计栏（sticky 满宽） ====== */}
       <footer className="tut-detail-footer">
         <div className="tut-footer-inner">
-          {/* 左：已学习时长 */}
+          {/* 左：学习进度（v2.6：真实章节进度，不再编造已学习时长） */}
           <div className="tut-footer-time">
             <Clock size={14} style={{ color: 'var(--trae-text-secondary)' }} />
             <span>
-              已学习 <span className="tut-footer-time-value">1h38min</span> / 总时长 2h30min
+              {useReal ? (
+                <>已完成 <span className="tut-footer-time-value">{completedCount}/{displayChapters.length}</span> 章 · 总时长 {displayReadingTime}</>
+              ) : (
+                <>已学习 <span className="tut-footer-time-value">1h38min</span> / 总时长 2h30min</>
+              )}
             </span>
           </div>
-          {/* 中：进度条 */}
+          {/* 中：进度条（v2.6：真实百分比） */}
           <div className="tut-footer-progress">
             <div className="tut-footer-progress-bar">
-              <div className="tut-footer-progress-fill" style={{ width: '65%' }} />
+              <div className="tut-footer-progress-fill" style={{ width: useReal ? `${progressPct}%` : '65%' }} />
             </div>
-            <span className="tut-footer-progress-pct">65%</span>
+            <span className="tut-footer-progress-pct">{useReal ? `${progressPct}%` : '65%'}</span>
           </div>
           {/* 右：继续学习按钮 */}
           <button type="button" data-dom-id="btn-continue-learning" aria-label="继续学习" onClick={handleContinueLearning} className="tut-footer-continue-btn tut-btn-press">

@@ -17,8 +17,10 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { Moon, Palette, Type, LayoutGrid, Code2, SlidersHorizontal, type LucideIcon } from 'lucide-react'
-import { usePersistentState } from '@/hooks/usePersistentState'
+import { Moon, Type, LayoutGrid, Code2, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+// v2.7 真实落地：外观设置改用 appearance-store（main.tsx Root 实时应用到 CSS 变量/属性），
+// 替代此前 usePersistentState“真保存假生效”方案；强调色卡片无消费者已移除
+import { useAppearanceStore } from '@/stores/appearance-store'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
@@ -71,22 +73,6 @@ const THEME_MODES: ThemeModeOption[] = [
   },
 ]
 
-interface AccentColor {
-  value: string
-  label: string
-}
-
-const ACCENT_COLORS: AccentColor[] = [
-  { value: '#387BFF', label: 'Brand Blue' },
-  { value: '#22C55E', label: 'Green' },
-  { value: '#F59E0B', label: 'Amber' },
-  { value: '#EF4444', label: 'Red' },
-  { value: '#8B5CF6', label: 'Violet' },
-  { value: '#EC4899', label: 'Pink' },
-  { value: '#14B8A6', label: 'Teal' },
-  { value: '#F97316', label: 'Orange' },
-]
-
 const UI_FONTS = [
   { value: 'SF Pro Text', label: 'SF Pro Text' },
   { value: 'Microsoft YaHei', label: 'Microsoft YaHei' },
@@ -97,7 +83,7 @@ const CODE_FONTS = [
   { value: 'JetBrains Mono', label: 'JetBrains Mono' },
   { value: 'Fira Code', label: 'Fira Code' },
   { value: 'Consolas', label: 'Consolas' },
-  { value: 'SF Mono', label: 'SF Mono' },
+  { value: 'Cascadia Code', label: 'Cascadia Code' },
 ]
 
 interface CodeThemeOption {
@@ -178,26 +164,24 @@ const DENSITIES: { value: Density; name: string; desc: string }[] = [
 ]
 
 export function AppearanceSettings() {
-  // Card 1: 主题模式
-  const [themeMode, setThemeMode] = usePersistentState<ThemeMode>('appearance.theme', 'dark')
+  // v2.7：全部设置项来自 appearance-store（改动即时生效 + 自动持久化）
+  const themeMode = useAppearanceStore((s) => s.themeMode)
+  const uiFont = useAppearanceStore((s) => s.uiFont)
+  const codeFont = useAppearanceStore((s) => s.codeFont)
+  const fontSize = useAppearanceStore((s) => s.fontSize)
+  const lineHeight = useAppearanceStore((s) => s.lineHeight)
+  const density = useAppearanceStore((s) => s.density)
+  const codeTheme = useAppearanceStore((s) => s.codeTheme)
+  const setAppearance = useAppearanceStore((s) => s.setAppearance)
+  const resetAppearance = useAppearanceStore((s) => s.resetAppearance)
 
-  // Card 2: 强调色
-  const [accentColor, setAccentColor] = usePersistentState('appearance.accentColor', '#387BFF')
-
-  // Card 3: 字体设置
-  const [uiFont, setUiFont] = usePersistentState('appearance.uiFont', 'SF Pro Text')
-  const [codeFont, setCodeFont] = usePersistentState('appearance.codeFont', 'JetBrains Mono')
-  const [fontSize, setFontSize] = usePersistentState('appearance.fontSize', 13)
-  const [lineHeight, setLineHeight] = usePersistentState('appearance.lineHeight', 1.5)
-
-  // Card 4: 界面密度
-  const [density, setDensity] = usePersistentState<Density>('appearance.density', 'standard')
-
-  // Card 5: 代码高亮主题
-  const [codeTheme, setCodeTheme] = usePersistentState<CodeTheme>('appearance.codeTheme', 'one-dark')
-
-  // 当前选中的强调色 label（用于底部 "当前: #xxx (Color Name)" 文字）
-  const currentAccentLabel = ACCENT_COLORS.find((c) => c.value === accentColor)?.label ?? ''
+  const setThemeMode = (v: ThemeMode) => setAppearance('themeMode', v)
+  const setUiFont = (v: string) => setAppearance('uiFont', v)
+  const setCodeFont = (v: string) => setAppearance('codeFont', v)
+  const setFontSize = (v: number) => setAppearance('fontSize', v)
+  const setLineHeight = (v: number) => setAppearance('lineHeight', v)
+  const setDensity = (v: Density) => setAppearance('density', v)
+  const setCodeTheme = (v: CodeTheme) => setAppearance('codeTheme', v)
 
   return (
     <div>
@@ -257,27 +241,8 @@ export function AppearanceSettings() {
           </div>
         </SettingsCard>
 
-        {/* Card 2: 强调色（8 个色板 + "当前: #xxx" 文字） */}
-        <SettingsCard icon={Palette} title="强调色" tag="accent.color">
-          <div className="set-swatch-row">
-            {ACCENT_COLORS.map((c) => {
-              const selected = accentColor === c.value
-              return (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setAccentColor(c.value)}
-                  title={c.label}
-                  className={cn('set-swatch', selected && 'is-active')}
-                  style={{ backgroundColor: c.value }}
-                />
-              )
-            })}
-          </div>
-          <div className="mt-3 font-mono text-[10px] text-[var(--trae-text-secondary)]">
-            当前: {accentColor} ({currentAccentLabel})
-          </div>
-        </SettingsCard>
+        {/* v2.7：强调色卡片已移除 —— 全仓无消费者（品牌 token 派生链未建），
+            避免展示“选了没效果”的假设置；待品牌色派生机制落地后再恢复 */}
 
         {/* Card 3: 字体设置 */}
         <SettingsCard icon={Type} title="字体设置" tag="typography">
@@ -393,17 +358,7 @@ export function AppearanceSettings() {
         </SettingsCard>
 
         <SettingsActionBar
-          onReset={() => {
-            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
-            setThemeMode('dark')
-            setAccentColor('#387BFF')
-            setUiFont('SF Pro Text')
-            setCodeFont('JetBrains Mono')
-            setFontSize(13)
-            setLineHeight(1.5)
-            setDensity('standard')
-            setCodeTheme('one-dark')
-          }}
+          onReset={resetAppearance}
         />
       </div>
     </div>

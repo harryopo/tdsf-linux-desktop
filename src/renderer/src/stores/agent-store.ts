@@ -85,6 +85,13 @@ export interface AgentMessage {
   /** Agent 工作流状态（onAgentStep 推送，仅 assistant 消息） */
   stepState?: AgentWorkflowState | null
   /**
+   * 深度思考链内容（v2.5，仅 assistant 消息）
+   *
+   * DeepSeek 思考模式（strength='deep'）下由 kind='reasoning' 的 agent:chunk 累积，
+   * LiveMessageRow 渲染为可折叠的“深度思考”块（流式中默认展开，完成后收起）。
+   */
+  reasoning?: string
+  /**
    * 工具调用轨迹（v2.4 新增，仅 assistant 消息）
    *
    * 记录本条回复过程中 Agent 【真实执行】的工具调用（如 ssh_readonly 诊断命令），
@@ -107,6 +114,12 @@ export interface AgentToolCall {
   ok?: boolean
   /** 输出摘要 */
   output?: string
+  /**
+   * 文本锚点（v2.8）：call 事件到达时正文已流出的字符数。
+   * LiveMessageRow 据此把工具卡穿插到流式输出的真实发生位置，
+   * 而不是全部堆在消息尾部。
+   */
+  anchorOffset?: number
 }
 
 /**
@@ -192,11 +205,12 @@ interface AgentState {
   /**
    * 追加/更新工具调用事件到当前流式 assistant 消息（v2.4）
    *
-   * call 阶段：新增一条 AgentToolCall；result 阶段：按 toolCallId 找到并补全 done/ok/output。
+   * call 阶段：新增一条 AgentToolCall；output 阶段（v2.6）：按 toolCallId 累积流式输出；
+   * result 阶段：按 toolCallId 找到并补全 done/ok/output。
    */
   appendToolEvent: (evt: {
     toolCallId: string
-    phase: 'call' | 'result'
+    phase: 'call' | 'output' | 'result'
     toolName: string
     input?: string
     ok?: boolean
@@ -272,7 +286,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
       messages: [...state.messages, message],
     })),
 
-  // 追加流式 token 到最后一条 assistant 消息
+  // 追加流式 token 到最后一条 assistant 消息（kind='reasoning' 时追加到思考链）
   appendToken: (payload) =>
     set((state) => {
       const messages = [...state.messages]
@@ -284,11 +298,18 @@ export const useAgentStore = create<AgentState>()((set) => ({
           if (payload.correlationId && msg.correlationId && msg.correlationId !== payload.correlationId) {
             continue
           }
-          messages[i] = {
-            ...msg,
-            content: msg.content + payload.delta,
-            isStreaming: true,
-          }
+          messages[i] =
+            payload.kind === 'reasoning'
+              ? {
+                  ...msg,
+                  reasoning: (msg.reasoning ?? '') + payload.delta,
+                  isStreaming: true,
+                }
+              : {
+                  ...msg,
+                  content: msg.content + payload.delta,
+                  isStreaming: true,
+                }
           break
         }
       }
@@ -381,20 +402,49 @@ export const useAgentStore = create<AgentState>()((set) => ({
         if (msg.role === 'assistant' && msg.isStreaming) {
           const events = [...(msg.toolEvents ?? [])]
           if (evt.phase === 'call') {
-            // 新增一条调用（若同 toolCallId 已存在则跳过，避免重复）
-            if (!events.some((e) => e.toolCallId === evt.toolCallId)) {
+            // 新增一条调用（若同 toolCallId 已存在则补 anchorOffset，避免重复）
+            const existIdx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
+            if (existIdx < 0) {
               events.push({
                 toolCallId: evt.toolCallId,
                 toolName: evt.toolName,
                 input: evt.input,
                 done: false,
+                // v2.8：记录此刻正文长度作为穿插锚点（工具卡渲染在流式文本的真实发生位置）
+                anchorOffset: msg.content.length,
+              })
+            } else if (events[existIdx].anchorOffset === undefined) {
+              events[existIdx] = { ...events[existIdx], anchorOffset: msg.content.length, input: evt.input ?? events[existIdx].input }
+            }
+          } else if (evt.phase === 'output') {
+            // v2.6 流式中间输出：按 toolCallId 累积到 output（上限 12000 字符，与主进程推送上限一致）；
+            // 找不到时新增一条未完成记录（output 事件可能早于 fullStream 的 call 分片到达）
+            const idx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
+            const chunk = evt.output ?? ''
+            if (idx >= 0) {
+              const prev = events[idx].output ?? ''
+              if (prev.length < 12000) {
+                events[idx] = { ...events[idx], output: (prev + chunk).slice(0, 12000) }
+              }
+            } else {
+              events.push({
+                toolCallId: evt.toolCallId,
+                toolName: evt.toolName,
+                done: false,
+                output: chunk.slice(0, 12000),
+                anchorOffset: msg.content.length,
               })
             }
           } else {
-            // result：按 toolCallId 回填；找不到则新增一条已完成记录
+            // result：按 toolCallId 回填；找不到则新增一条已完成记录。
+            // v2.6：若已有流式累积输出且执行成功，保留累积内容（比 result 摘要更完整）；
+            // 失败时用 result 的错误信息覆盖。
             const idx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
             if (idx >= 0) {
-              events[idx] = { ...events[idx], done: true, ok: evt.ok, output: evt.output }
+              const streamed = events[idx].output
+              const finalOutput =
+                evt.ok !== false && streamed ? streamed : (evt.output ?? streamed)
+              events[idx] = { ...events[idx], done: true, ok: evt.ok, output: finalOutput }
             } else {
               events.push({
                 toolCallId: evt.toolCallId,
@@ -402,6 +452,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
                 done: true,
                 ok: evt.ok,
                 output: evt.output,
+                anchorOffset: msg.content.length,
               })
             }
           }

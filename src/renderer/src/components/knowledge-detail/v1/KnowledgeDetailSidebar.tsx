@@ -27,19 +27,34 @@ interface KnowledgeDetailSidebarProps {
   onTocClick: (target: string) => void
   /** 关联知识项点击回调（跳转知识详情） */
   onNavigate?: (id: string) => void
+  /**
+   * 真实数据（v2.6 去假）：传入时置信度/元信息按真实条目渲染，
+   * 关联知识（无真实推荐数据）整卡隐藏；不传 = 非 Electron 预览用设计稿示例。
+   */
+  real?: {
+    /** 置信度百分比（0-100，来自 successRate）；缺省 = 隐藏置信度卡（如教程类无此语义） */
+    confidencePct?: number
+    /** 元信息行（真实 id/分类/时间等） */
+    metaRows: Array<{ key: string; val: string; mono?: boolean; alert?: boolean }>
+  }
 }
 
-/** 知识置信度圆环参数（1:1 来自设计稿：r=24, 92%） */
+/** 知识置信度圆环参数（设计稿示例默认 92%；真实数据按 successRate 动态计算） */
 const CONF_RADIUS = 24
 const CONF_CIRCUMFERENCE = 2 * Math.PI * CONF_RADIUS
-const CONF_OFFSET = CONF_CIRCUMFERENCE * (1 - 0.92)
 
 /** 知识详情右栏组件 */
 export function KnowledgeDetailSidebar({
   activeSection,
   onTocClick,
   onNavigate,
+  real,
 }: KnowledgeDetailSidebarProps) {
+  const confidencePct = real ? Math.max(0, Math.min(100, Math.round(real.confidencePct ?? 0))) : 92
+  const confOffset = CONF_CIRCUMFERENCE * (1 - confidencePct / 100)
+  const metaRows = real ? real.metaRows : META_ROWS
+  /** 真实数据未提供置信度（如教程）时隐藏整张置信度卡 */
+  const showConfidence = !real || typeof real.confidencePct === 'number'
   return (
     <aside className="kb-detail-sidebar">
       {/* 1. 本页目录 */}
@@ -69,7 +84,8 @@ export function KnowledgeDetailSidebar({
         </div>
       </div>
 
-      {/* 2. 知识置信度 */}
+      {/* 2. 知识置信度（教程等无成功率语义的类型隐藏） */}
+      {showConfidence && (
       <div className="kb-detail-card">
         <CardHead icon={<Shield className="h-3.5 w-3.5" />} title="知识置信度" />
         <div className="kb-detail-card__body">
@@ -92,32 +108,39 @@ export function KnowledgeDetailSidebar({
                   stroke="var(--trae-status-success-default)"
                   strokeWidth="4"
                   strokeDasharray={CONF_CIRCUMFERENCE}
-                  strokeDashoffset={CONF_OFFSET}
+                  strokeDashoffset={confOffset}
                   strokeLinecap="round"
                   transform="rotate(-90 28 28)"
                 />
               </svg>
               <span className="kb-conf__value">
-                92%
+                {confidencePct}%
               </span>
             </div>
             <div className="kb-conf__info">
               <div className="kb-conf__label">综合置信度评分</div>
               <div className="kb-conf__sources">
-                <strong>6</strong>{' '}
-                个证据源支持
+                {real ? (
+                  <>基于真实使用成功率</>
+                ) : (
+                  <>
+                    <strong>6</strong>{' '}
+                    个证据源支持
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+      )}
 
       {/* 3. 元信息 */}
       <div className="kb-detail-card">
         <CardHead icon={<FileText className="h-3.5 w-3.5" />} title="元信息" />
         <div className="kb-detail-card__body">
           <div className="kb-metalist">
-            {META_ROWS.map((row) => (
+            {metaRows.map((row) => (
               <div
                 key={row.key}
                 className="kb-metalist__row"
@@ -138,7 +161,8 @@ export function KnowledgeDetailSidebar({
         </div>
       </div>
 
-      {/* 4. 关联知识（1:1 对齐设计稿 .kd-related__item） */}
+      {/* 4. 关联知识（仅设计稿预览；真实数据无推荐源，v2.6 去假整卡隐藏） */}
+      {!real && (
       <div className="kb-detail-card">
         <CardHead icon={<Link2 className="h-3.5 w-3.5" />} title="关联知识" />
         <div className="kb-detail-card__body">
@@ -173,6 +197,7 @@ export function KnowledgeDetailSidebar({
           </div>
         </div>
       </div>
+      )}
     </aside>
   )
 }

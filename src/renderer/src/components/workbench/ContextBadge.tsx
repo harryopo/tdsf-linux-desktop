@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react'
+import { useEffect, useRef, useState, type FC } from 'react'
 import { message } from 'antd'
 
 /** ContextBadge props */
@@ -17,16 +17,54 @@ export interface ContextBadgeProps {
  * Composer 工具栏上下文使用率徽章 + Hover tooltip
  *
  * - 圆环 SVG 显示使用率百分比
- * - Hover 弹出 tooltip 展示详细 token 数 + "压缩上下文"按钮（WIP 暂未上线）
+ * - Hover 弹出 tooltip 展示详细 token 数 + “压缩上下文”按钮
+ * - 修复：tooltip 与徽章间的 6px 悬空死区会在鼠标移向按钮途中触发 mouseleave
+ *   导致面板卸载、按钮点不到 —— 改用 padding 桥接间隙 + 延时关闭 + 点击徽章可固定
  */
 const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTotalTokens, onCompress }) => {
   const [ctxTooltipVisible, setCtxTooltipVisible] = useState(false)
+  /** 点击徽章固定 tooltip，不随 mouseleave 关闭 */
+  const [pinned, setPinned] = useState(false)
+  const hideTimerRef = useRef<number | null>(null)
+
+  const cancelHide = (): void => {
+    if (hideTimerRef.current !== null) {
+      window.clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }
+
+  const showTooltip = (): void => {
+    cancelHide()
+    setCtxTooltipVisible(true)
+  }
+
+  /** 延时关闭：给鼠标穿越徽章→面板的路径留出宽限 */
+  const hideTooltipDelayed = (): void => {
+    if (pinned) return
+    cancelHide()
+    hideTimerRef.current = window.setTimeout(() => {
+      setCtxTooltipVisible(false)
+      hideTimerRef.current = null
+    }, 150)
+  }
+
+  useEffect(() => cancelHide, [])
 
   return (
     <span
       className="relative inline-flex h-5 cursor-pointer items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-1.5"
-      onMouseEnter={() => setCtxTooltipVisible(true)}
-      onMouseLeave={() => setCtxTooltipVisible(false)}
+      onMouseEnter={showTooltip}
+      onMouseLeave={hideTooltipDelayed}
+      onClick={() => {
+        // 点击徽章切换固定状态，触控/精确点击场景下不依赖 hover
+        setPinned((p) => {
+          const next = !p
+          if (next) showTooltip()
+          else setCtxTooltipVisible(false)
+          return next
+        })
+      }}
     >
       <svg width="10" height="10" viewBox="0 0 36 36" className="shrink-0">
         <circle cx="18" cy="18" r="15" fill="none" stroke="var(--trae-bg-overlay-l3)" strokeWidth="3" />
@@ -42,9 +80,13 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
         {ctxUsedPct}%
       </span>
 
-      {/* Hover tooltip */}
+      {/* Hover tooltip：外层 pb-1.5 把原 6px 悬空间隙变成可悬停的 padding 桥，消除点击死区 */}
       {ctxTooltipVisible && (
-        <div className="absolute bottom-[calc(100%+6px)] left-1/2 z-50 min-w-[180px] -translate-x-1/2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] p-2.5 shadow-xl">
+        <div
+          className="absolute bottom-full left-1/2 z-50 -translate-x-1/2 pb-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="min-w-[180px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] p-2.5 shadow-xl">
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--trae-text-tertiary)]">
             上下文使用率
           </div>
@@ -84,6 +126,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           >
             压缩上下文
           </button>
+          </div>
         </div>
       )}
     </span>

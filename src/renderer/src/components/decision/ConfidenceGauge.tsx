@@ -55,7 +55,7 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
   const confidenceLabel = value >= 0.8 ? '高可信' : value >= 0.6 ? '中可信' : '低可信'
 
   return (
-    <div className="flex min-w-[300px] flex-[0_0_38%] flex-col items-center gap-4 rounded-[var(--trae-radius-10)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
+    <div className="flex w-full min-w-[280px] max-w-[400px] flex-none flex-col items-center gap-4 rounded-[var(--trae-radius-10)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
       <div className="flex items-center gap-1.5 self-start">
         <Activity className="h-3.5 w-3.5 text-[var(--trae-text-secondary)]" />
         <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--trae-text-secondary)]">
@@ -120,7 +120,7 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
         </div>
       </div>
       {/* 6 源权重明细 */}
-      <div className="grid w-full max-w-[260px] grid-cols-2 gap-x-3 gap-y-1">
+      <div className="grid w-full grid-cols-2 gap-x-4 gap-y-1.5">
         {weights.map((w) => (
           <div key={w.label} className="flex items-center gap-1.5">
             <span

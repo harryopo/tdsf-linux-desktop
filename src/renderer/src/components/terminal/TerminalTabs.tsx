@@ -12,9 +12,9 @@
  * - 每个 Tab 渲染一个 TerminalView（非活跃 Tab 隐藏而非卸载）
  * - 无 Tab 时显示空状态提示
  */
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Dropdown, message, Tooltip } from 'antd'
-import { CloseOutlined, PlusOutlined, TranslationOutlined } from '@ant-design/icons'
+import { CloseOutlined, PlusOutlined, ThunderboltOutlined, TranslationOutlined } from '@ant-design/icons'
 import type { MenuProps } from 'antd'
 import { useTerminalStore } from '../../stores/terminal-store'
 import { useServerStore } from '../../stores/server-store'
@@ -33,11 +33,21 @@ const TerminalTabs: React.FC = () => {
   const setActiveTab = useTerminalStore((s) => s.setActiveTab)
   const removeTab = useTerminalStore((s) => s.removeTab)
   const closeOtherTabs = useTerminalStore((s) => s.closeOtherTabs)
+  /** v2.5 AI 命令预测回显条 */
+  const pendingCommand = useTerminalStore((s) => s.pendingCommand)
+  const setPendingCommand = useTerminalStore((s) => s.setPendingCommand)
   const clearSessionMapping = useServerStore((s) => s.clearSessionMapping)
   const setConnectionState = useServerStore((s) => s.setConnectionState)
   /** v0.8.0 翻译模块状态 */
   const translateEnabled = useTranslateStore((s) => s.enabled)
   const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
+
+  /** v2.5 预测回显条自动消隐（命令发送 12s 后自动收起，避免长驻遮挡） */
+  useEffect(() => {
+    if (!pendingCommand) return
+    const timer = setTimeout(() => setPendingCommand(null), 12_000)
+    return () => clearTimeout(timer)
+  }, [pendingCommand, setPendingCommand])
 
   /** 关闭 Tab */
   const handleCloseTab = useCallback(
@@ -177,6 +187,26 @@ const TerminalTabs: React.FC = () => {
           </Tooltip>
         </div>
       </div>
+
+      {/* ===== v2.5 AI 命令预测回显条：AI 注入命令时立即可见，对应终端内的真实回显 ===== */}
+      {pendingCommand && (
+        <div className="term-pending-cmd">
+          <ThunderboltOutlined className="term-pending-cmd-icon" />
+          <span className="term-pending-cmd-label">AI 已注入命令</span>
+          <code className="term-pending-cmd-text" title={pendingCommand.command}>
+            {pendingCommand.command.split('\n')[0]}
+            {pendingCommand.command.includes('\n') ? ' …' : ''}
+          </code>
+          <button
+            type="button"
+            className="term-pending-cmd-close"
+            aria-label="关闭回显提示"
+            onClick={() => setPendingCommand(null)}
+          >
+            <CloseOutlined />
+          </button>
+        </div>
+      )}
 
       {/* ===== 终端内容区 ===== */}
       <div className="term-tabs-content">

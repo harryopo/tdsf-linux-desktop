@@ -24,6 +24,8 @@ import '@xterm/xterm/css/xterm.css'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import { useTranslateStore } from '../../stores/translate-store'
 import { useEditorStore } from '../../stores/editor-store'
+// v2.7：外观设置（代码主题/代码字体）的终端侧消费者
+import { useAppearanceStore, CODE_FONT_STACKS } from '../../stores/appearance-store'
 import { SelectionManager } from './selection-manager'
 import TerminalSearchBar from './TerminalSearchBar'
 import TerminalCompletionAddon from './TerminalCompletionAddon'
@@ -38,11 +40,38 @@ interface TerminalViewProps {
   visible: boolean
 }
 
-/** 终端默认字体大小（设计稿要求 11px JetBrains Mono） */
-const DEFAULT_FONT_SIZE = 11
+/** 终端默认字体大小（v2.5：11px 在 1080p+ 下过小显破碎，调大到 13px） */
+const DEFAULT_FONT_SIZE = 13
 /** 终端最小/最大字体大小 */
 const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 32
+
+/**
+ * v2.7：代码高亮主题 → xterm 色板（外观设置 syntax.theme 真实消费者）
+ * 背景色保持与容器 --trae-terminal-block-bg 对齐，ansi 色按主题调整
+ */
+const XTERM_THEMES: Record<string, Partial<import('@xterm/xterm').ITheme>> = {
+  'one-dark': {
+    background: '#0f1011', foreground: '#e8e8e8', cursor: '#4a9eff',
+    red: '#E06C75', green: '#98C379', yellow: '#E5C07B', blue: '#61AFEF',
+    magenta: '#C678DD', cyan: '#56B6C2',
+  },
+  monokai: {
+    background: '#1e1f1c', foreground: '#F8F8F2', cursor: '#F8F8F0',
+    red: '#F92672', green: '#A6E22E', yellow: '#E6DB74', blue: '#66D9EF',
+    magenta: '#AE81FF', cyan: '#A1EFE4',
+  },
+  'solarized-dark': {
+    background: '#002B36', foreground: '#93A1A1', cursor: '#93A1A1',
+    red: '#DC322F', green: '#859900', yellow: '#B58900', blue: '#268BD2',
+    magenta: '#D33682', cyan: '#2AA198',
+  },
+  'github-dark': {
+    background: '#0D1117', foreground: '#C9D1D9', cursor: '#58A6FF',
+    red: '#FF7B72', green: '#3FB950', yellow: '#D29922', blue: '#58A6FF',
+    magenta: '#BC8CFF', cyan: '#39C5CF',
+  },
+}
 
 /** TerminalView 终端视图 */
 const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
@@ -62,20 +91,37 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
   const [terminalReady, setTerminalReady] = useState(false)
   /** v0.8.0 翻译开关状态（订阅 store 变化以动态挂载/卸载 SelectionManager） */
   const translateEnabled = useTranslateStore((s) => s.enabled)
+  /** v2.8：订阅外观设置 —— 代码主题/字体切换对已打开的终端即时生效
+   *（此前只在终端创建时读一次，设置页切了颜色看不到变化） */
+  const appearanceCodeTheme = useAppearanceStore((s) => s.codeTheme)
+  const appearanceCodeFont = useAppearanceStore((s) => s.codeFont)
+
+  useEffect(() => {
+    const terminal = terminalRef.current
+    if (!terminal) return
+    const palette = XTERM_THEMES[appearanceCodeTheme]
+    if (palette) {
+      terminal.options.theme = { ...terminal.options.theme, ...palette }
+    }
+    const stack = CODE_FONT_STACKS[appearanceCodeFont]
+    if (stack) terminal.options.fontFamily = stack
+    fitRef.current?.fit()
+  }, [appearanceCodeTheme, appearanceCodeFont])
 
   useEffect(() => {
     if (!containerRef.current) return
 
     // ===== 1. 创建 Terminal 实例 =====
     const terminal = new Terminal({
-      // 黑色背景，与苹果极简 UI 形成对比
+      // v2.5 视觉修复：背景与容器变量 --trae-terminal-block-bg(#0f1011) 对齐，
+      // 消除之前 #1a1a1a vs #0f1011 的“双色套娃框”；光标/选区用品牌蓝
       theme: {
-        background: '#1a1a1a',
+        background: '#0f1011',
         foreground: '#e8e8e8',
-        cursor: '#e8e8e8',
-        cursorAccent: '#1a1a1a',
-        selectionBackground: 'rgba(255, 255, 255, 0.2)',
-        black: '#1a1a1a',
+        cursor: '#4a9eff',
+        cursorAccent: '#0f1011',
+        selectionBackground: 'rgba(74, 158, 255, 0.28)',
+        black: '#0f1011',
         red: '#ff3b30',
         green: '#34c759',
         yellow: '#ff9500',
@@ -92,15 +138,54 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
         brightCyan: '#5ac8fa',
         brightWhite: '#ffffff',
       },
-      fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
       fontSize: fontSizeRef.current,
-      lineHeight: 1.3,
+      lineHeight: 1.45,
       cursorBlink: true,
       cursorStyle: 'bar',
       allowProposedApi: true,
       scrollback: 10000,
     })
     terminalRef.current = terminal
+
+    // ===== v2.7 设置真实落地：异步应用终端设置 + 外观代码主题/字体 =====
+    // 此前 TerminalSettings 页的 terminal.* 保存后被这里的硬编码无视（假设置）；
+    // 现在创建后立即读取并覆盖 xterm options（xterm 支持运行时改 options）
+    void (async () => {
+      try {
+        const api = window.electronAPI
+        const app = useAppearanceStore.getState()
+        // 代码高亮主题色板（外观设置）
+        const themePalette = XTERM_THEMES[app.codeTheme]
+        if (themePalette) {
+          terminal.options.theme = { ...terminal.options.theme, ...themePalette }
+        }
+        // 代码字体（外观设置）
+        const codeStack = CODE_FONT_STACKS[app.codeFont]
+        if (codeStack) terminal.options.fontFamily = codeStack
+        // 终端专属设置（TerminalSettings 页 terminal.* key）
+        if (api?.configGet) {
+          const [fs, lh, cs, cb, sb] = await Promise.all([
+            api.configGet<number>('terminal.fontSize'),
+            api.configGet<number>('terminal.lineHeight'),
+            api.configGet<string>('terminal.cursorStyle'),
+            api.configGet<boolean>('terminal.cursorBlink'),
+            api.configGet<number>('terminal.scrollback'),
+          ])
+          if (typeof fs === 'number' && fs >= MIN_FONT_SIZE && fs <= MAX_FONT_SIZE) {
+            fontSizeRef.current = fs
+            terminal.options.fontSize = fs
+          }
+          if (typeof lh === 'number' && lh >= 1 && lh <= 2) terminal.options.lineHeight = lh
+          if (cs === 'block' || cs === 'underline' || cs === 'bar') terminal.options.cursorStyle = cs
+          if (typeof cb === 'boolean') terminal.options.cursorBlink = cb
+          if (typeof sb === 'number' && sb > 0) terminal.options.scrollback = sb
+        }
+        fitRef.current?.fit()
+      } catch (err) {
+        console.warn('[TerminalView] 应用终端设置失败（使用默认值）', err)
+      }
+    })()
 
     // ===== 2. 加载 Addon =====
     const fitAddon = new FitAddon()
@@ -210,22 +295,9 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
     terminal.textarea?.addEventListener('keydown', handleKeyDown)
 
     // ===== 7.5 v0.8.0 翻译选词监听 =====
-    // 仅当 enabled = true 时挂载，避免无谓开销
-    let selectionManager: SelectionManager | null = null
-    if (translateEnabled) {
-      selectionManager = new SelectionManager(terminal, (info) => {
-        const { setSelection } = useTranslateStore.getState()
-        if (info) {
-          setSelection({
-            text: info.text,
-            screenX: info.screenX,
-            screenY: info.screenY,
-          })
-        } else {
-          setSelection(null)
-        }
-      })
-    }
+    // v2.6 修复：已拆到独立 useEffect（见下方）。原来在这里挂载并把
+    // translateEnabled 放进本 effect 依赖，导致每次切换翻译开关都
+    // dispose 重建整个终端（屏幕内容全部丢失）。
 
     // ===== 7.6 v2.0 xterm 选中桥接 → editor-store.selection =====
     // 选中终端文本时，写入 editor-store.selection（type='cmd'），触发 SelectionPopover 浮层
@@ -261,11 +333,6 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
       }
-      // v0.8.0 清理选词监听
-      if (selectionManager) {
-        selectionManager.dispose()
-        selectionManager = null
-      }
       // v2.0 清理 xterm 选中监听
       selectionDisposable.dispose()
       if (selectionDebounce) {
@@ -282,7 +349,30 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [sessionId, translateEnabled])
+  }, [sessionId])
+
+  // ===== v0.8.0 翻译选词监听（v2.6 拆为独立 effect） =====
+  // 切换翻译开关只挂载/卸载 SelectionManager，不再重建终端实例
+  useEffect(() => {
+    if (!translateEnabled || !terminalReady || !terminalRef.current) return
+    const selectionManager = new SelectionManager(terminalRef.current, (info) => {
+      const { setSelection } = useTranslateStore.getState()
+      if (info) {
+        setSelection({
+          text: info.text,
+          screenX: info.screenX,
+          screenY: info.screenY,
+        })
+      } else {
+        setSelection(null)
+      }
+    })
+    return () => {
+      selectionManager.dispose()
+      // 关闭开关时清掉残留选区浮层
+      useTranslateStore.getState().clear()
+    }
+  }, [translateEnabled, terminalReady])
 
   // 非活跃 Tab 时隐藏容器（保持终端实例存活）
   // 注意：SelectionPopover 由 TerminalTabs 统一渲染（避免多实例）

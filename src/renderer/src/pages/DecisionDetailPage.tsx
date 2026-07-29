@@ -31,6 +31,7 @@ import { PCR5Result } from '@/components/decision/PCR5Result'
 import { ApprovalStateMachine } from '@/components/decision/ApprovalStateMachine'
 import { EvidenceList } from '@/components/decision/EvidenceList'
 import { ExecutionResult } from '@/components/decision/ExecutionResult'
+import type { AuditRow } from '@/components/decision/ExecutionResult'
 import { Empty } from '@/components/trae/Empty'
 import { ConfidenceGauge } from '@/components/decision/ConfidenceGauge'
 import { LoadingState } from '@/components/decision/LoadingState'
@@ -48,6 +49,10 @@ import {
 } from '@/utils/decision-mappers'
 import type { DecisionCard } from '@shared/models'
 import type { ConfidenceAssessment } from '@shared/agent-types'
+// v2.6：重新执行接真实终端（与 AIPanel 同路径：预检 + 预测回显 + sshShellWrite）
+import { useServerStore } from '@/stores/server-store'
+import { useTerminalStore } from '@/stores/terminal-store'
+import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'
 
 // 工具函数 / ConfidenceGauge / LoadingState / ErrorState 已抽离到：
 // - @/utils/decision-mappers
@@ -103,6 +108,11 @@ export function DecisionDetailPage() {
   const [modifyModalOpen, setModifyModalOpen] = useState(false)
   const [modifyCommand, setModifyCommand] = useState('')
   const [confirming, setConfirming] = useState(false)
+  /** v2.6：审计日志行（真 SHA-256 链，异步计算） */
+  const [auditRows, setAuditRows] = useState<AuditRow[]>([])
+  /** v2.6：重新执行需要活跃 SSH 会话 */
+  const activeSessionId = useServerStore((s) => s.activeSessionId)
+  const [rerunning, setRerunning] = useState(false)
 
   /** 加载决策数据 */
   const loadData = useCallback(async () => {
@@ -171,6 +181,19 @@ export function DecisionDetailPage() {
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  // v2.6：卡片就绪后异步计算真 SHA-256 链式审计行
+  useEffect(() => {
+    if (!card) {
+      setAuditRows([])
+      return
+    }
+    let cancelled = false
+    void buildAuditRows(card).then((rows) => {
+      if (!cancelled) setAuditRows(rows)
+    })
+    return () => { cancelled = true }
+  }, [card])
 
   /** 显示操作反馈 */
   const handleAction = (action: string) => {
@@ -311,6 +334,51 @@ export function DecisionDetailPage() {
   }, [card, modifyCommand])
 
   /**
+   * v2.6：重新在终端执行（历史已执行卡的真实功能，替代对 dec_ 卡无效的审批按钮）
+   *
+   * 与 AIPanel 「在终端执行」同路径：前置预检（command -v，fail-open）→
+   * 预测回显条 → Ctrl+U 清行 + 写入交互 Shell，命令与回显在终端全程可见。
+   */
+  const handleRerun = useCallback(async () => {
+    if (!card) return
+    const api = window.electronAPI
+    if (!activeSessionId) {
+      message.warning('重新执行需要先连接 SSH 服务器（顶栏服务器菜单或「设置 → SSH」）')
+      return
+    }
+    if (!api?.sshShellWrite) {
+      message.warning('当前环境不支持终端执行（非 Electron 环境）')
+      return
+    }
+    setRerunning(true)
+    try {
+      // 前置环境预检（缺命令阻断；预检自身失败 fail-open）
+      const names = extractCommandNames(card.fixCommand)
+      if (names.length > 0 && api.sshExec) {
+        try {
+          const pre = await api.sshExec(activeSessionId, buildMissingCheckScript(names))
+          const missing = parseMissingOutput(pre.stdout)
+          if (missing.length > 0) {
+            message.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送`)
+            return
+          }
+        } catch (err) {
+          console.warn('[DecisionDetailPage] 前置预检失败，照常发送', err)
+        }
+      }
+      useTerminalStore.getState().setPendingCommand({ command: card.fixCommand, sentAt: Date.now() })
+      const cmd = card.fixCommand.endsWith('\n') ? card.fixCommand : `${card.fixCommand}\n`
+      await api.sshShellWrite(activeSessionId, `\x15${cmd}`)
+      message.success('命令已发送到终端，请到工作台终端查看回显')
+    } catch (err) {
+      useTerminalStore.getState().setPendingCommand(null)
+      message.error(`发送失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setRerunning(false)
+    }
+  }, [card, activeSessionId])
+
+  /**
    * 导出 HTML 审计报告
    *
    * 调用 credibilityExportAudit IPC 导出 HTML 格式报告。
@@ -347,12 +415,11 @@ export function DecisionDetailPage() {
 
   // ===== 数据映射 =====
   const riskMeta = riskLevelMeta(card.risk.level)
-  const evidenceSources = buildEvidenceSources(card.evidences)
+  const evidenceSources = buildEvidenceSources(card.evidences, credibility?.confidence ?? card.confidence)
   const timelineSteps = buildTimelineSteps(card)
   const riskGates = buildRiskGates(card)
   const dangerCommands = buildDangerCommands(card)
   const commandSegments = parseCommandSegments(card.fixCommand)
-  const auditRows = buildAuditRows(card)
   const workflowSteps = buildWorkflowSteps(card)
 
   // 置信度：优先使用 credibilityAssess 结果，其次原始 credibility，最后 card.confidence
@@ -473,9 +540,22 @@ export function DecisionDetailPage() {
           commandSegments={commandSegments}
           commandComment={card.fixDescription}
           impact={card.risk.description || '目标服务'}
-          duration="~120ms"
           rollback={card.rollbackCommand ?? 'N/A'}
           auditRows={auditRows}
+          // v2.6：已执行/已拒绝/已验证的历史卡 → 只读态（审批按钮对历史卡无效），
+          // 提供真实的「重新在终端执行」；仅 pending/approved（活跃工作流）保留审批按钮
+          mode={card.status === 'pending' || card.status === 'approved' ? 'approval' : 'readonly'}
+          statusLabel={
+            card.status === 'executed' ? '已执行'
+            : card.status === 'verified' ? '已验证'
+            : card.status === 'rejected' ? '已拒绝'
+            : card.status === 'failed' ? '执行失败'
+            : undefined
+          }
+          verified={card.evidences.some((e) => e.verified)}
+          rerunning={rerunning}
+          canRerun={Boolean(activeSessionId)}
+          onRerun={() => void handleRerun()}
           onAccept={() => void handleApprove()}
           onModify={handleModifyOpen}
           onReject={() => void handleReject()}
