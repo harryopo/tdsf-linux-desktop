@@ -13,10 +13,18 @@
  * 一次性完成，而不是每次 monitor:start 时注册。
  */
 
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, Notification } from 'electron'
 import { MONITOR } from '@shared/ipc-channels'
 import { SystemMonitor } from '../services/ssh/monitor'
 import type { MonitorData, SystemInfo } from '@shared/models'
+// v2.9 告警自动检测：阀值评估纯函数 + 去抖
+import {
+  evaluateAlerts,
+  shouldNotify,
+  DEFAULT_ALERT_THRESHOLDS,
+  type AlertThresholds,
+} from '../services/ssh/alert-detector'
+import { ConfigStore } from '../services/storage/config-store'
 
 /** 监控数据推送通道名 */
 const MONITOR_DATA_CHANNEL = 'monitor:data'
@@ -24,8 +32,28 @@ const MONITOR_DATA_CHANNEL = 'monitor:data'
 /** 系统信息推送通道名（首次采集时推送） */
 const MONITOR_SYSTEM_INFO_CHANNEL = 'monitor:systemInfo'
 
+/** v2.9 告警事件推送通道名（后台检测到超阀时推送） */
+const MONITOR_ALERT_CHANNEL = 'monitor:alert'
+
 /** SystemMonitor 单例（整个应用共享一个实例） */
 let monitorInstance: SystemMonitor | null = null
+
+/** 告警去抖状态（dedupeKey → 上次通知时间）；主机名缓存供通知标题用 */
+const alertLastFired = new Map<string, number>()
+const sessionHostnames = new Map<string, string>()
+
+/** 读取告警阀值配置（设置页 monitor.threshold.*，缺省回退默认值） */
+function readThresholds(): AlertThresholds {
+  const num = (key: string, def: number): number => {
+    const v = ConfigStore.get(key)
+    return typeof v === 'number' && v > 0 ? v : def
+  }
+  return {
+    cpu: num('monitor.threshold.cpu', DEFAULT_ALERT_THRESHOLDS.cpu),
+    memory: num('monitor.threshold.memory', DEFAULT_ALERT_THRESHOLDS.memory),
+    disk: num('monitor.threshold.disk', DEFAULT_ALERT_THRESHOLDS.disk),
+  }
+}
 
 /**
  * 注册监控相关 IPC handlers
@@ -39,16 +67,38 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
   }
   const monitor = monitorInstance
 
-  // 注册监控数据回调：每次采集到新数据时推送到渲染进程
+  // 注册监控数据回调：每次采集到新数据时推送到渲染进程 + v2.9 后台告警检测
   monitor.onMonitorData((sessionId: string, data: MonitorData) => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(MONITOR_DATA_CHANNEL, sessionId, data)
+    }
+    // v2.9 后台告警：不依赖监控页是否打开，每次采集都判定阀值，
+    // 超阀且过了去抖冷却期 → 弹系统通知 + 推送 monitor:alert 事件供渲染层展示
+    try {
+      const thresholds = readThresholds()
+      const hostname = sessionHostnames.get(sessionId) ?? '服务器'
+      const alerts = evaluateAlerts(data, thresholds, hostname)
+      const now = Date.now()
+      for (const alert of alerts) {
+        if (!shouldNotify(alert.dedupeKey, now, alertLastFired)) continue
+        // 系统通知（支持时才弹）
+        if (Notification.isSupported()) {
+          new Notification({ title: alert.title, body: alert.body }).show()
+        }
+        // 推送给渲染层（日志页/监控页可展示）
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(MONITOR_ALERT_CHANNEL, sessionId, alert)
+        }
+      }
+    } catch {
+      // 告警检测失败绝不影响正常监控数据推送
     }
   })
 
   // 注册系统信息回调：首次采集到系统静态信息时推送到渲染进程
   // 这样渲染进程无需额外 invoke 请求，被动接收即可
   monitor.onSystemInfo((sessionId: string, info: SystemInfo) => {
+    sessionHostnames.set(sessionId, info.hostname || '服务器')
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send(MONITOR_SYSTEM_INFO_CHANNEL, sessionId, info)
     }

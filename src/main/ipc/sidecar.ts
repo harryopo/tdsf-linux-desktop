@@ -117,6 +117,13 @@ export function registerSidecarIpcHandlers(): void {
         `Pipeline 调用：${logLines.length} 行日志，服务=${serviceName ?? 'unknown'}, LLM=${llmConfig ? 'enabled' : 'disabled'}`,
       )
       try {
+        // v2.6 修复：懒启动 —— sidecar 不随应用自启，此前本通道是唯一没有
+        // “非 ready 先 start”逻辑的核心通道（tool-call/parse-logs 都有），
+        // 导致日志页「AI 日志分析」永远报「Sidecar 未就绪（status=stopped）」
+        if (manager.getStatus().status !== 'ready') {
+          logger.info('IPC.Sidecar', 'Pipeline 懒启动：Sidecar 非 ready，先拉起进程')
+          await manager.start()
+        }
         const data = await manager.runPipeline(logLines, serviceName, llmConfig)
         return { ok: true, data }
       } catch (err) {

@@ -23,6 +23,7 @@ import { ConfigStore } from './services/storage/config-store'
 import { McpServerService } from './services/mcp/server'
 import { DatabaseManager, resolveDbPath } from './services/db/database'
 import { loadTutorialSeeds } from './services/tutorial/seed-loader'
+import { loadKnowledgeSeeds } from './services/db/knowledge-seeds'
 // P-4 恢复方案 A：主进程启动时预热 sessionKeyMap 缓存（恢复主进程重启前活跃的沙箱 key）
 import { warmupSessionKeyCache } from './ipc/sandbox'
 // Phase 6 Task 6.5：调度器初始化（定时任务自动化：每日巡检 / 归档 / 周报）
@@ -79,6 +80,15 @@ app.whenReady().then(() => {
     logger.info('TUTORIAL', '种子加载完成', { seedCount })
   } catch (err) {
     logger.warn('TUTORIAL', '种子加载失败', { error: redactSecrets((err as Error).message) })
+  }
+
+  // 0.0b v2.6：加载运维知识库种子（12 条真实案例/命令技能）
+  //    已有案例/技能数据则跳过，不覆盖用户贡献与 AI 沉淀
+  try {
+    const kbSeedCount = loadKnowledgeSeeds(db)
+    logger.info('KB', '知识库种子加载完成', { kbSeedCount })
+  } catch (err) {
+    logger.warn('KB', '知识库种子加载失败', { error: redactSecrets((err as Error).message) })
   }
 
   // 0.0 初始化可观测性服务（Langfuse），未配置 Key 时静默降级

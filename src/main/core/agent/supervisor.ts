@@ -55,6 +55,7 @@
  */
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
 import { z } from 'zod'
+import { routeChatTools, CHAT_TOOL_CATALOG } from './tools/chat-tool-router'
 import { createLanguageModel, getDefaultParams } from './providers/provider-factory'
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
 import { getProviderCapabilities } from './providers/provider-capabilities'
@@ -67,11 +68,17 @@ import type { ThinkingStrength } from './providers/types'
 import type { ChatResult } from '@shared/agent-types'
 import { logger } from '../../services/log/logger'
 import { SshConnectionManager } from '../../services/ssh/connection-manager'
+import { preflightCheck } from '../../services/ssh/command-preflight'
+// v2.9 sftp_read 工具：复用 SftpManager 读远程文件内容（与 claude-sdk-tools 同模式）
+import { SftpManager } from '../../services/ssh/sftp'
 import { createCotTraceCollector } from './credibility/mass-functions/cot-trace-collector'
 import { assessRisk } from '../risk-engine'
 import { withCallbackStreamTrace } from '../../services/observability/langfuse-trace'
 import { DatabaseManager } from '../../services/db/database'
 import { KnowledgeRepository } from '../../services/db/knowledge-repo'
+// v2.8 长期记忆：仓储 + 自动提取（对话结束 fire-and-forget）+ 工具失败教训沉淀
+import { MemoryRepository } from '../../services/db/memory-repo'
+import { extractMemories, recordToolFailure } from './memory/memory-extractor'
 import { TutorialRepository } from '../../services/tutorial/tutorial-repo'
 import { getSkillRouter } from '../../services/skills/skill-router-singleton'
 
@@ -87,6 +94,13 @@ export interface ChatParams {
   strength?: ThinkingStrength
   /** token 流式回调（每个 chunk 调用一次） */
   onToken?: (delta: string) => void
+  /**
+   * 思考链增量回调（v2.5 深度思考可视化）
+   *
+   * DeepSeek 思考模式（strength='deep'）下 fullStream 产生 reasoning-delta 分片；
+   * 此回调把思考内容透传给上层推送到前端，渲染为可折叠的“深度思考”块。
+   */
+  onReasoning?: (delta: string) => void
   /** 完成回调（含完整文本和 token 使用） */
   onDone?: (result: ChatResult) => void
   /** 错误回调 */
@@ -96,10 +110,12 @@ export interface ChatParams {
    *
    * 主对话 Agent 真实调用工具（如 ssh_readonly）时，fullStream 产生 tool-call/
    * tool-result 分片；此回调把它们透传给上层推送到前端。phase 区分开始/结果。
+   * v2.6：新增 phase='output' —— ssh_readonly 执行中的 stdout/stderr 块实时透传，
+   * 前端得以流式展示命令输出（不再等命令结束才见结果）。
    */
   onToolEvent?: (evt: {
     toolCallId: string
-    phase: 'call' | 'result'
+    phase: 'call' | 'output' | 'result'
     toolName: string
     input?: string
     ok?: boolean
@@ -114,6 +130,12 @@ export interface ChatParams {
    * 此处必须是 SshConnectionManager 的 sessionId。
    */
   sshSessionId?: string
+  /**
+   * 写命令 HITL 审批回调（v2.9 新增）。
+   * ssh_write 工具执行前调用；未注入时写命令一律拒绝（安全默认）。
+   * agent-runtime 侧复用 PAOR 审批通道（paor:approval-request 卡片）实现。
+   */
+  approveWriteCommand?: (command: string, riskLevel: string, riskDescription: string) => Promise<boolean>
 }
 
 // ChatResult 类型从 @shared/agent-types 导入（供 preload/renderer 共享）
@@ -344,11 +366,13 @@ class SupervisorAgent {
       providerId,
       strength = 'standard',
       onToken,
+      onReasoning,
       onDone,
       onError,
       onToolEvent,
       correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       sshSessionId,
+      approveWriteCommand,
     } = params
 
     this.ensureInitialized()
@@ -448,6 +472,16 @@ class SupervisorAgent {
     })
 
     try {
+      // v2.6：提前提取最后一条用户消息（意图路由 + Skill 路由共用）
+      let lastUserText = ''
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i]
+        if (m.role === 'user' && typeof m.content === 'string') {
+          lastUserText = m.content
+          break
+        }
+      }
+
       // 7. 只读 SSH 工具（有活跃 SSH 会话时挂载）—— 下方与知识检索工具合并为 tools
       const sshTools =
         sshSessionId && SshConnectionManager.getInstance().getConnectionState(sshSessionId) === 'connected'
@@ -461,7 +495,10 @@ class SupervisorAgent {
                     .min(1)
                     .describe('只读 shell 命令，例如: df -h; free -m; systemctl status nginx --no-pager'),
                 }),
-                execute: async ({ command }: { command: string }) => {
+                execute: async (
+                  { command }: { command: string },
+                  execOpts?: { toolCallId?: string },
+                ) => {
                   const risk = assessRisk(command)
                   if (risk.blocked || risk.level === 'CRITICAL' || risk.level === 'HIGH') {
                     return {
@@ -483,9 +520,56 @@ class SupervisorAgent {
                     }
                   }
                   try {
+                    // v2.6 前置环境预检：执行前先确认命令行涉及的外部命令在目标机存在，
+                    // 缺失时直接返回明确原因（而非一堆 command not found 噪音）；
+                    // 预检自身失败 fail-open 放行，不阻塞主命令。
+                    const streamCallId = execOpts?.toolCallId
+                    const pre = await preflightCheck(sshSessionId, command)
+                    if (!pre.ok) {
+                      return {
+                        ok: false,
+                        error:
+                          `前置检查未通过：服务器上缺少命令 ${pre.missing.join('、')}。` +
+                          `请改用系统已有命令，或提示用户先安装对应软件包。`,
+                        stdout: '',
+                        stderr: '',
+                        exitCode: -1,
+                        preflight: { checked: pre.checked, missing: pre.missing },
+                      }
+                    }
+                    if (!pre.skipped && streamCallId && onToolEvent) {
+                      // 可视化：预检通过作为首行流式输出（同步回显到终端）
+                      onToolEvent({
+                        toolCallId: streamCallId,
+                        phase: 'output',
+                        toolName: 'ssh_readonly',
+                        output: `[前置检查] ✓ ${pre.checked.join('、')} 均可用\n`,
+                      })
+                    }
+                    // v2.6 流式输出：每收到一块 stdout/stderr 立即经 onToolEvent 推到前端
+                    //（phase='output'，与 fullStream 的 call/result 共用 toolCallId 配对），
+                    // 总量超 12000 字符后停止推送（累积结果仍完整，result 阶段另行截断）
+                    let streamedChars = 0
                     const r = await SshConnectionManager.getInstance().exec(
                       sshSessionId,
                       command,
+                      streamCallId && onToolEvent
+                        ? (chunk) => {
+                            if (streamedChars >= 12000) return
+                            const remain = 12000 - streamedChars
+                            const piece =
+                              chunk.length > remain
+                                ? `${chunk.slice(0, remain)}\n...(输出过长，流式展示已截断)`
+                                : chunk
+                            streamedChars += chunk.length
+                            onToolEvent({
+                              toolCallId: streamCallId,
+                              phase: 'output',
+                              toolName: 'ssh_readonly',
+                              output: piece,
+                            })
+                          }
+                        : undefined,
                     )
                     return {
                       ok: r.exitCode === 0,
@@ -505,6 +589,152 @@ class SupervisorAgent {
                   }
                 },
               }),
+              // v2.9 写操作工具（HITL 审批）：修改配置/重启服务/装包等，
+              // 每次执行前弹审批卡片，用户批准才执行；未注入审批回调一律拒绝
+              ssh_write: tool({
+                description:
+                  '在已连接主机上执行【写操作】命令（修改配置/重启服务/安装软件包等）。' +
+                  '每次执行都会弹出审批卡片，必须等用户批准；被拒绝时尊重决定不要重试。' +
+                  '只读查询请用 ssh_readonly。',
+                inputSchema: z.object({
+                  command: z.string().min(1).describe('写操作 shell 命令，如: systemctl restart nginx / yum install -y htop'),
+                  reason: z.string().min(1).describe('为什么需要执行（展示给用户的审批理由）'),
+                }),
+                execute: async (
+                  { command, reason }: { command: string; reason: string },
+                  execOpts?: { toolCallId?: string },
+                ) => {
+                  const risk = assessRisk(command)
+                  // 被风险引擎硬拦截（fork 炸弹/rm -rf / 等）的命令连审批机会都没有
+                  if (risk.blocked) {
+                    return { ok: false, error: `命令被风险引擎硬拦截（${risk.level}）：${risk.description}`, exitCode: -1 }
+                  }
+                  if (!approveWriteCommand) {
+                    return { ok: false, error: '当前会话未启用写命令审批通道，写操作已拒绝（安全默认）', exitCode: -1 }
+                  }
+                  const streamCallId = execOpts?.toolCallId
+                  // 可视化：审批等待中提示
+                  if (streamCallId && onToolEvent) {
+                    onToolEvent({
+                      toolCallId: streamCallId,
+                      phase: 'output',
+                      toolName: 'ssh_write',
+                      output: `[等待审批] 理由：${reason}（60 秒内未审批自动拒绝）\n`,
+                    })
+                  }
+                  let approved = false
+                  try {
+                    approved = await approveWriteCommand(command, risk.level, `${risk.description}｜AI 理由：${reason}`)
+                  } catch {
+                    approved = false
+                  }
+                  if (!approved) {
+                    return { ok: false, error: '用户拒绝执行（或审批超时）。请尊重决定，不要重试同一命令。', exitCode: -1 }
+                  }
+                  try {
+                    let streamedChars = 0
+                    const r = await SshConnectionManager.getInstance().exec(
+                      sshSessionId,
+                      command,
+                      streamCallId && onToolEvent
+                        ? (chunk) => {
+                            if (streamedChars >= 12000) return
+                            const piece = chunk.length > 12000 - streamedChars ? chunk.slice(0, 12000 - streamedChars) : chunk
+                            streamedChars += chunk.length
+                            onToolEvent({ toolCallId: streamCallId, phase: 'output', toolName: 'ssh_write', output: piece })
+                          }
+                        : undefined,
+                    )
+                    return {
+                      ok: r.exitCode === 0,
+                      exitCode: r.exitCode,
+                      stdout: (r.stdout || '').slice(0, 12000),
+                      stderr: (r.stderr || '').slice(0, 4000),
+                      approved: true,
+                      risk: risk.level,
+                    }
+                  } catch (e) {
+                    return { ok: false, error: e instanceof Error ? e.message : String(e), exitCode: -1 }
+                  }
+                },
+              }),
+              // v2.9 限时日志追踪：timeout N journalctl -f 实时跟踪后自动停止（纯只读）
+              ssh_journal_follow: tool({
+                description:
+                  '实时追踪系统/服务日志（journalctl -f）指定秒数后自动停止，适合排查间歇性报错。' +
+                  '输出实时流式展示；只读操作无需审批。',
+                inputSchema: z.object({
+                  unit: z.string().optional().describe('systemd 服务名（可选，如 nginx）；不传则跟踪全部日志'),
+                  seconds: z.number().int().min(3).max(30).default(10).describe('追踪时长秒数（3-30，默认 10）'),
+                }),
+                execute: async (
+                  { unit, seconds }: { unit?: string; seconds?: number },
+                  execOpts?: { toolCallId?: string },
+                ) => {
+                  // unit 白名单校验防注入（仅允许服务名字符）
+                  if (unit && !/^[A-Za-z0-9_.@-]+$/.test(unit)) {
+                    return { ok: false, error: `非法服务名：${unit}`, exitCode: -1 }
+                  }
+                  const dur = Math.min(Math.max(seconds ?? 10, 3), 30)
+                  const cmd = `timeout ${dur}s journalctl -f -n 20 --no-pager${unit ? ` -u ${unit}` : ''}`
+                  const streamCallId = execOpts?.toolCallId
+                  try {
+                    let streamedChars = 0
+                    const r = await SshConnectionManager.getInstance().exec(
+                      sshSessionId,
+                      cmd,
+                      streamCallId && onToolEvent
+                        ? (chunk) => {
+                            if (streamedChars >= 12000) return
+                            const piece = chunk.length > 12000 - streamedChars ? chunk.slice(0, 12000 - streamedChars) : chunk
+                            streamedChars += chunk.length
+                            onToolEvent({ toolCallId: streamCallId, phase: 'output', toolName: 'ssh_journal_follow', output: piece })
+                          }
+                        : undefined,
+                    )
+                    // timeout 到时退出码 124 = 正常结束（追踪完成）
+                    const normalEnd = r.exitCode === 0 || r.exitCode === 124
+                    return {
+                      ok: normalEnd,
+                      exitCode: r.exitCode,
+                      stdout: (r.stdout || '').slice(0, 12000),
+                      stderr: normalEnd ? '' : (r.stderr || '').slice(0, 2000),
+                      followedSeconds: dur,
+                    }
+                  } catch (e) {
+                    return { ok: false, error: e instanceof Error ? e.message : String(e), exitCode: -1 }
+                  }
+                },
+              }),
+              // v2.9 远程文件读取：下载日志/配置文件内容分析（只读，内容脱敏）
+              sftp_read: tool({
+                description:
+                  '读取远程服务器上的文本文件内容（日志/配置等）用于分析，上限 512KB。' +
+                  '适合“帮我看看这个配置文件/分析这个日志”场景。',
+                inputSchema: z.object({
+                  path: z.string().min(1).describe('远程文件绝对路径，如 /etc/nginx/nginx.conf'),
+                }),
+                execute: async ({ path: remotePath }: { path: string }) => {
+                  try {
+                    const content = await new SftpManager(SshConnectionManager.getInstance()).readFile(
+                      sshSessionId,
+                      remotePath,
+                      512 * 1024,
+                    )
+                    // HC-2：文件可能含密钥/凭证，强制脱敏后再给模型
+                    const safe = redactSecrets(content)
+                    return {
+                      ok: true,
+                      path: remotePath,
+                      size: content.length,
+                      content: safe.slice(0, 12000),
+                      truncated: safe.length > 12000,
+                    }
+                  } catch (e) {
+                    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+                  }
+                },
+              }),
             }
           : undefined
 
@@ -512,7 +742,7 @@ class SupervisorAgent {
       // 与 ssh_readonly 一样，其 tool-call/tool-result 会被下方 fullStream 捕获并经
       // onToolEvent 推送到前端「执行卡片」，复用同一套可视化通道（v2.4 P2）。
       const db = DatabaseManager.getInstance()
-      const tools = {
+      const candidateTools = {
         // 知识库检索：历史故障案例 / 命令技能（Jaccard 关键词匹配）
         kb_search: tool({
           description:
@@ -532,9 +762,21 @@ class SupervisorAgent {
                 problem: e.problem,
                 commands: e.commands,
                 keywords: e.keywords,
+                successRate: e.successRate,
+                useCount: e.useCount,
               }))
+              // v2.6：摘要附真实置信信息（成功率/使用次数），模型回答时引用，
+              // 用户在对话里能看到知识可信度依据（教程类 successRate 是阅读时长 hack，不标注）
               const summary = results.length
-                ? results.map((r, i) => `${i + 1}. [${r.title}] ${r.problem}`).join('\n')
+                ? results
+                    .map((r, i) => {
+                      const cred =
+                        r.type === 'tutorial'
+                          ? ''
+                          : `（成功率 ${Math.round(r.successRate * 100)}%，被使用 ${r.useCount} 次）`
+                      return `${i + 1}. [${r.title}]${cred} ${r.problem}`
+                    })
+                    .join('\n')
                 : `未在知识库找到与"${query}"相关的条目`
               return { ok: true, count: results.length, results, summary }
             } catch (e) {
@@ -561,8 +803,11 @@ class SupervisorAgent {
                 category: e.category,
                 sourceName: e.source.name,
               }))
+              // v2.6：摘要附来源名，模型回答时可标注教程出处
               const summary = results.length
-                ? results.map((r, i) => `${i + 1}. [${r.title}] ${r.summary}`).join('\n')
+                ? results
+                    .map((r, i) => `${i + 1}. [${r.title}]（来源：${r.sourceName}）${r.summary}`)
+                    .join('\n')
                 : `未找到与"${query}"相关的教程`
               return { ok: true, count: results.length, results, summary }
             } catch (e) {
@@ -570,8 +815,64 @@ class SupervisorAgent {
             }
           },
         }),
+        // v2.8 长期记忆回忆：跨会话记忆（用户画像/环境事实/错误教训）关键词检索
+        memory_recall: tool({
+          description:
+            '检索跨会话长期记忆（用户画像/偏好/服务器环境事实/历史错误教训）。' +
+            '用户提及"上次/之前/记得吗"或需要历史上下文时调用；记忆仅作参考，当前指令与真实状态优先。',
+          inputSchema: z.object({
+            query: z.string().min(1).describe('回忆关键词，如: nginx 安装路径 / 用户偏好 / 上次磁盘告警'),
+            limit: z.number().int().min(1).max(5).default(3).describe('返回条数（默认 3，上限 5）'),
+          }),
+          execute: async ({ query, limit }: { query: string; limit?: number }) => {
+            try {
+              const memories = new MemoryRepository(db).search(query, limit ?? 3)
+              const summary = memories.length
+                ? memories
+                    .map((m, i) => `${i + 1}. [${m.type}] ${m.text}${m.why ? `（原因：${m.why}）` : ''}`)
+                    .join('\n')
+                : `长期记忆中没有与"${query}"相关的内容`
+              return { ok: true, count: memories.length, summary }
+            } catch (e) {
+              return { ok: false, error: e instanceof Error ? e.message : String(e) }
+            }
+          },
+        }),
         // 只读 SSH 诊断：有活跃 SSH 会话时才并入（沿用上方 sshTools 定义）
         ...(sshTools ?? {}),
+      }
+
+      // 7c. v2.6 意图路由：根据用户消息按需选择本轮挂载的工具子集（零 Token 本地匹配），
+      // 并经 onToolEvent 推「工具装配」卡片可视化路由决策（复用 skill_match 卡片模式）。
+      const toolRoute = routeChatTools(lastUserText, { ssh: Boolean(sshTools), db: true })
+      const tools = Object.fromEntries(
+        Object.entries(candidateTools).filter(([name]) =>
+          (toolRoute.mounted as string[]).includes(name),
+        ),
+      ) as typeof candidateTools
+      const hasTools = Object.keys(tools).length > 0
+      {
+        const mountedLabels = CHAT_TOOL_CATALOG
+          .filter((e) => toolRoute.mounted.includes(e.id))
+          .map((e) => `${e.label}(${e.id})`)
+          .join('、')
+        const unavailableNote = toolRoute.unavailable.length
+          ? `\n不可用：${toolRoute.unavailable.map((u) => `${u.label}（${u.missing}）`).join('、')}`
+          : ''
+        const routeCallId = `route_${correlationId}`
+        onToolEvent?.({
+          toolCallId: routeCallId,
+          phase: 'call',
+          toolName: 'tool_route',
+          input: lastUserText.slice(0, 120) || '(无用户消息)',
+        })
+        onToolEvent?.({
+          toolCallId: routeCallId,
+          phase: 'result',
+          toolName: 'tool_route',
+          ok: true,
+          output: `${toolRoute.reason}\n挂载：${mountedLabels || '（无）'}${unavailableNote}`,
+        })
       }
 
       // 8. 调用 streamText（Vercel AI SDK v7；可选 tools + stopWhen）
@@ -615,14 +916,6 @@ class SupervisorAgent {
       // 并经 onToolEvent 推送「技能匹配」卡片可视化；不短路、仍走 LLM 流式（低风险）。
       let skillInjection = ''
       try {
-        let lastUserText = ''
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const m = messages[i]
-          if (m.role === 'user' && typeof m.content === 'string') {
-            lastUserText = m.content
-            break
-          }
-        }
         if (lastUserText) {
           const skillRoute = (await getSkillRouter()).route(lastUserText)
           if (skillRoute.decision !== 'ai-only' && skillRoute.matches.length > 0) {
@@ -649,18 +942,21 @@ class SupervisorAgent {
         })
       }
 
-      // v2.4：始终注入 system prompt 引导模型【真实调用工具】（知识检索常驻；SSH 视会话而定；skill 命中则附手册）。
+      // v2.4：始终注入 system prompt 引导模型【真实调用工具】。
+      // v2.6：工具提示改为按本轮实际挂载的工具动态拼接（chat-tool-router 的 promptHints），
+      // 未挂载的工具不再占用 prompt；skill 命中则附手册。
+      // v2.8：被动注入长期记忆块（硬预算 8KB，correction/画像优先；空库零开销）
+      let memoryInjection = ''
+      try {
+        memoryInjection = new MemoryRepository(db).buildInjectionBlock()
+      } catch (err) {
+        this.log.warn('长期记忆注入失败（已跳过）', {
+          correlationId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
       const systemPrompt =
-        '你是 Linux 运维与教学助手，回答用中文。' +
-        '你有 kb_search 工具可检索本地运维知识库（历史故障案例/命令技能），' +
-        '遇到"这类问题以前怎么处理/有无经验"时优先检索；' +
-        '你有 tutorial_search 工具可搜索官方 Linux 教程，用户想学习/配置某功能时优先检索并给出教程来源。' +
-        (sshTools
-          ? '你已连接到一台真实服务器，还有 ssh_readonly 工具可执行【只读】诊断命令；' +
-            '当用户询问系统状态（磁盘/内存/CPU/进程/服务/日志等）或要求执行只读命令时，' +
-            '必须调用 ssh_readonly 获取真实输出后再回答，绝不凭空描述或编造结果。'
-          : '') +
-        skillInjection
+        '你是 Linux 运维与教学助手，回答用中文。' + toolRoute.promptHints + skillInjection + memoryInjection
       const result = streamText({
         model: modelInstance.model,
         ...(systemPrompt ? { system: systemPrompt } : {}),
@@ -669,7 +965,7 @@ class SupervisorAgent {
         maxOutputTokens: effectiveMaxTokens,
         abortSignal: abortController.signal,
         providerOptions,
-        ...(tools
+        ...(hasTools
           ? {
               tools,
               stopWhen: isStepCount(4),
@@ -684,6 +980,8 @@ class SupervisorAgent {
       // v2.4 修复：累积 reasoning 文本作为兵底 —— DeepSeek 思考模式下正文可能为空
       // 而内容在 reasoning 里；若最终 fullText 空，用 reasoning 兑底，避免 "No output generated"。
       let reasoningText = ''
+      // v2.8：记录每个工具调用的入参（tool-result 失败时沉淀教训需要命令原文）
+      const lastToolInputs = new Map<string, string>()
       for await (const part of result.fullStream) {
         const partType = (part as { type?: string }).type
         if (partType === 'error') {
@@ -705,12 +1003,15 @@ class SupervisorAgent {
             }
           }
         } else if (partType === 'reasoning-delta' || partType === 'reasoning') {
-          // DeepSeek 思考模式的推理内容（只累积不回调，作为正文为空时的兵底）
+          // DeepSeek 思考模式的推理内容：累积作正文兜底 + 回调推送到前端折叠展示（v2.5）
           const rtext =
             (part as { text?: string }).text ??
             (part as { textDelta?: string }).textDelta ??
             ''
-          if (rtext) reasoningText += rtext
+          if (rtext) {
+            reasoningText += rtext
+            onReasoning?.(rtext)
+          }
         } else if (partType === 'response-metadata' || partType === 'provider-metadata') {
           // v0.9.7 P3 M1：捕获 OpenAI 协议返回的 logprobs
           // OpenAI 协议将 logprobs 放在 providerMetadata.openai.logprobs[]
@@ -762,6 +1063,8 @@ class SupervisorAgent {
             toolName: p.toolName ?? 'tool',
             input: inputStr.slice(0, 2000),
           })
+          // v2.8：缓存入参供失败教训沉淀使用
+          if (p.toolCallId) lastToolInputs.set(p.toolCallId, inputStr.slice(0, 200))
         } else if (partType === 'tool-result') {
           // v2.4：工具返回结果 → 推送 result 事件
           const p = part as { toolCallId?: string; toolName?: string; output?: unknown; result?: unknown }
@@ -792,6 +1095,17 @@ class SupervisorAgent {
             ok,
             output: outStr.slice(0, 4000),
           })
+          // v2.8：工具失败 → 错误教训快速沉淀（规则直写 correction，无 LLM 开销；
+          // 风险拦截/只读拒绝等护栏正常工作不算教训，recordToolFailure 内部过滤）
+          if (!ok && p.toolName && p.toolName !== 'tool_route' && p.toolName !== 'skill_match') {
+            recordToolFailure(
+              new MemoryRepository(db),
+              p.toolName,
+              lastToolInputs.get(p.toolCallId ?? '') ?? '',
+              outStr.slice(0, 300),
+              correlationId,
+            )
+          }
         }
         // 其他事件类型（finish-step / finish 等）忽略
       }
@@ -856,6 +1170,16 @@ class SupervisorAgent {
       })
 
       onDone?.(chatResult)
+
+      // v2.8：对话完成后 fire-and-forget 自动记忆提取（节流 5 分钟；
+      // 失败/超时只记日志，绝不影响主对话）
+      void extractMemories(
+        new MemoryRepository(db),
+        (sys, user, max) => this.callLlm(sys, user, max),
+        messages,
+        fullText,
+        correlationId,
+      ).catch(() => { /* fire-and-forget */ })
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
 

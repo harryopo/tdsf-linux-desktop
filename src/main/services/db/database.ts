@@ -413,6 +413,38 @@ export class DatabaseManager {
       );
     `)
 
+    // v2.8 新增：Agent 长期记忆表（自动沉淀：用户画像/错误教训/环境事实/偏好）
+    // 设计参考 qwen-code 四分类生命周期 + kilo-code 工程约束（key upsert/审计/预算）
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_memories (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        key TEXT NOT NULL UNIQUE,
+        text TEXT NOT NULL,
+        why TEXT,
+        sourceSession TEXT,
+        useCount INTEGER NOT NULL DEFAULT 0,
+        lastUsedAt INTEGER,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mem_type ON agent_memories(type);
+      CREATE INDEX IF NOT EXISTS idx_mem_lastUsedAt ON agent_memories(lastUsedAt);
+    `)
+
+    // v2.8 新增：记忆沉淀审计日志（对应 kilo decisions.jsonl：每次提取决策可追溯）
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS memory_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        trigger TEXT NOT NULL,
+        op TEXT NOT NULL,
+        detail TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_memaudit_ts ON memory_audit(ts);
+    `)
+
     // ────────── FTS5 + vec0 虚拟表（Sprint 7 任务 A 新增）──────────
     // 注册向量辅助函数（触发器同步用，必须最先执行）
     this.registerVectorHelpers()

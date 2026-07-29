@@ -363,6 +363,7 @@ export interface ChatResult {
  *
  * phase：
  * - 'call'：工具开始调用（携带工具名 + 输入参数）
+ * - 'output'：执行中间输出块（v2.6：ssh_readonly 流式 stdout/stderr，可多次）
  * - 'result'：工具返回结果（携带成败 + 输出摘要）
  */
 export interface AgentToolEventPayload {
@@ -370,15 +371,15 @@ export interface AgentToolEventPayload {
   correlationId: string
   /** 工具调用唯一 ID（同一次调用的 call 与 result 共享，用于前端配对） */
   toolCallId: string
-  /** 阶段：call=开始调用，result=返回结果 */
-  phase: 'call' | 'result'
+  /** 阶段：call=开始调用，output=执行中间输出，result=返回结果 */
+  phase: 'call' | 'output' | 'result'
   /** 工具名（如 ssh_readonly / kb_search） */
   toolName: string
   /** 调用入参（call 阶段，已序列化为展示用的简短字符串，如命令文本） */
   input?: string
   /** 是否成功（result 阶段） */
   ok?: boolean
-  /** 输出摘要（result 阶段，已截断） */
+  /** 输出（output 阶段为增量块；result 阶段为摘要，已截断） */
   output?: string
   /** 会话 ID（可选，与其它 agent 事件一致） */
   sessionId?: string
@@ -396,6 +397,12 @@ export interface AgentChunkPayload {
   correlationId: string
   /** 本 chunk 的文本增量 */
   delta: string
+  /**
+   * 增量类型（v2.5 深度思考可视化）
+   * - 缺省 / 'text'：正文增量
+   * - 'reasoning'：思考链增量（DeepSeek reasoning_content），前端折叠展示
+   */
+  kind?: 'text' | 'reasoning'
   /** 会话 ID（v0.9.4 新增，可选；主进程在 agent:chat / claude-sdk:stream 启动时回传） */
   sessionId?: string
 }

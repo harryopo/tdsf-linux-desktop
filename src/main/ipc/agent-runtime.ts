@@ -28,7 +28,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron'
 import type { ModelMessage } from 'ai'
-import { TOKEN } from '@shared/ipc-channels'
+import { TOKEN, TERMINAL } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
@@ -250,8 +250,41 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           strength,
           correlationId,
           sshSessionId,
+          // v2.9 写命令 HITL 审批：复用 PAOR 审批通道（paor:approval-request 卡片），
+          // ssh_write 工具 execute 内 await 此回调，用户批准才真执行；60 秒超时自动拒绝
+          approveWriteCommand: async (command, level, description): Promise<boolean> => {
+            const callId = `write_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+            const payload: PaorApprovalRequest = {
+              callId,
+              command,
+              riskLevel: level,
+              riskDescription: description,
+              stepIndex: 0,
+              timestamp: Date.now(),
+            }
+            logger.info('IPC.AGENT', 'ssh_write 推送审批请求', { callId, command, level })
+            safeSend(mainWindow, PAOR_APPROVAL_REQUEST_CHANNEL, payload)
+            return new Promise<boolean>((resolve) => {
+              const timeout = setTimeout(() => {
+                pendingPaorApprovals.delete(callId)
+                logger.warn('IPC.AGENT', 'ssh_write 审批超时，自动拒绝', { callId })
+                resolve(false)
+              }, PAOR_APPROVAL_TIMEOUT_MS)
+              pendingPaorApprovals.set(callId, { resolve, timeout })
+            })
+          },
           onToken: (delta) => {
             const payload: AgentChunkPayload = { correlationId, delta, sessionId: resolvedSessionId }
+            safeSend(mainWindow, AGENT_CHUNK_CHANNEL, payload)
+          },
+          onReasoning: (delta) => {
+            // v2.5：思考链增量复用 chunk 通道，kind='reasoning' 区分，前端折叠展示
+            const payload: AgentChunkPayload = {
+              correlationId,
+              delta,
+              kind: 'reasoning',
+              sessionId: resolvedSessionId,
+            }
             safeSend(mainWindow, AGENT_CHUNK_CHANNEL, payload)
           },
           onDone: (result: ChatResult) => {
@@ -287,6 +320,56 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               sessionId: resolvedSessionId,
             }
             safeSend(mainWindow, AGENT_TOOL_EVENT_CHANNEL, payload)
+
+            // v2.6：ssh_readonly 命令 + 实时输出同步回显到工作台终端（复用 terminal:data
+            // 本地注入 xterm，不经过远端 shell，不影响交互会话）：
+            // - call：青色 “⚡ AI $ 命令” 提示行
+            // - output：原样回显（\n 归一化为 \r\n）
+            // - result：绿/红状态尾行
+            if (evt.toolName === 'ssh_readonly' && sshSessionId) {
+              if (evt.phase === 'call' && evt.input) {
+                safeSend(
+                  mainWindow,
+                  TERMINAL.DATA,
+                  sshSessionId,
+                  `\r\n\x1b[36m⚡ AI 诊断命令 $ ${evt.input}\x1b[0m\r\n`,
+                )
+              } else if (evt.phase === 'output' && evt.output) {
+                safeSend(
+                  mainWindow,
+                  TERMINAL.DATA,
+                  sshSessionId,
+                  evt.output.replace(/\r?\n/g, '\r\n'),
+                )
+              } else if (evt.phase === 'result') {
+                safeSend(
+                  mainWindow,
+                  TERMINAL.DATA,
+                  sshSessionId,
+                  evt.ok
+                    ? '\r\n\x1b[32m✓ AI 命令执行完成\x1b[0m\r\n'
+                    : `\r\n\x1b[31m✗ AI 命令失败${evt.output ? `：${evt.output.slice(0, 200).replace(/\r?\n/g, ' ')}` : ''}\x1b[0m\r\n`,
+                )
+              }
+            }
+            // v2.9：写命令/日志追踪同样回显到终端（黄色标记写操作，与只读区分）
+            if ((evt.toolName === 'ssh_write' || evt.toolName === 'ssh_journal_follow') && sshSessionId) {
+              const label = evt.toolName === 'ssh_write' ? '✎ AI 写操作' : '↻ AI 日志追踪'
+              if (evt.phase === 'call' && evt.input) {
+                safeSend(mainWindow, TERMINAL.DATA, sshSessionId, `\r\n\x1b[33m${label} $ ${evt.input}\x1b[0m\r\n`)
+              } else if (evt.phase === 'output' && evt.output) {
+                safeSend(mainWindow, TERMINAL.DATA, sshSessionId, evt.output.replace(/\r?\n/g, '\r\n'))
+              } else if (evt.phase === 'result') {
+                safeSend(
+                  mainWindow,
+                  TERMINAL.DATA,
+                  sshSessionId,
+                  evt.ok
+                    ? '\r\n\x1b[32m✓ 完成\x1b[0m\r\n'
+                    : `\r\n\x1b[31m✗ 未执行/失败${evt.output ? `：${evt.output.slice(0, 200).replace(/\r?\n/g, ' ')}` : ''}\x1b[0m\r\n`,
+                )
+              }
+            }
           },
         })
         .catch((err: unknown) => {

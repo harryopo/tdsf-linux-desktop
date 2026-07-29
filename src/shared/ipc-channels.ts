@@ -455,6 +455,22 @@ export const LOG = {
  * - EXPORT  invoke  渲染 → 主：批量导出知识条目
  * - GET     invoke  渲染 → 主：按 id 查询单条知识条目（M4 Task 1 新增，替代 kbExport 误用）
  */
+/**
+ * Agent 长期记忆通道（v2.8）
+ *
+ * 自动沉淀的跨会话记忆（用户画像/偏好/环境事实/错误教训）管理。
+ */
+export const MEMORY = {
+  /** 列出全部记忆（invoke: 渲染 → 主，可按 type 过滤） */
+  LIST: 'memory:list',
+  /** 关键词检索记忆（invoke: 渲染 → 主） */
+  SEARCH: 'memory:search',
+  /** 按 id 删除记忆（invoke: 渲染 → 主） */
+  DELETE: 'memory:delete',
+  /** 沉淀审计日志（invoke: 渲染 → 主） */
+  AUDIT: 'memory:audit',
+} as const
+
 export const KNOWLEDGE = {
   /** 新增知识条目（invoke: 渲染 → 主） */
   ADD: 'kb:add',

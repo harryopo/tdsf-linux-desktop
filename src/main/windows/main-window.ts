@@ -12,7 +12,7 @@
  * - prod: 加载打包后的 renderer/index.html
  */
 
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, Menu, shell } from 'electron'
 import * as path from 'node:path'
 import * as url from 'node:url'
 
@@ -64,6 +64,27 @@ export function createMainWindow(): BrowserWindow {
   mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     shell.openExternal(targetUrl)
     return { action: 'deny' }
+  })
+
+  // v2.6 修复：右键上下文菜单（Electron 默认无右键菜单，用户在输入框右键无法粘贴）
+  // - 可编辑区：剪切/复制/粘贴/全选（按 editFlags 置灰）
+  // - 非编辑区有选中文本：复制
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    const template: Electron.MenuItemConstructorOptions[] = []
+    if (params.isEditable) {
+      template.push(
+        { role: 'cut', label: '剪切', enabled: params.editFlags.canCut },
+        { role: 'copy', label: '复制', enabled: params.editFlags.canCopy },
+        { role: 'paste', label: '粘贴', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', label: '全选' },
+      )
+    } else if (params.selectionText.trim()) {
+      template.push({ role: 'copy', label: '复制' })
+    }
+    if (template.length > 0) {
+      Menu.buildFromTemplate(template).popup()
+    }
   })
 
   // 阻止应用内导航到外部 URL（仅允许同源导航）

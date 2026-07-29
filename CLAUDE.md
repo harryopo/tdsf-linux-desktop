@@ -58,13 +58,10 @@ pnpm rebuild          # 重编译原生模块（better-sqlite3, ssh2）
 
 ## AI 协作协议
 
-- **比赛阶段强制单 AI 模式**：避免并发冲突重演（calibration 误删教训）
-- 若必须并行：
-  1. 用 `git worktree add` 隔离工作区
-  2. 修改前 `git status` 确认工作区干净
-  3. 修改后立即 `git commit` 提交
-  4. 高共享文件禁止并行修改：`preload/index.ts` / `main/ipc/index.ts` / `electron.d.ts`
-- 多 AI claim/release 协议保留：`pnpm ai:claim <file>` / `pnpm ai:release <file>`
+> **协作模式唯一权威：`AGENTS.md` §文件所有权**。
+> 当前允许几个 AI 并行、claim/release 工作流、高共享文件禁并行清单、
+> 分支策略与冲突处理均以该节为准，本文件不另行定义协作模式。
+> 模式变更只改 `AGENTS.md`；历史教训（calibration 误删）已沉淀于 `../.learnings/LEARNINGS.md`。
 
 ## 跨进程类型规则
 
