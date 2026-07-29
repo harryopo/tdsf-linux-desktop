@@ -42,9 +42,9 @@ export interface UseAgentChatResult {
   /** 设置 Provider */
   setSelectedProviderId: (id: string | null) => void
   /** 思考强度 */
-  thinkingStrength: ThinkingStrength
+  thinkingStrength: ThinkingStrength | 'auto'
   /** 设置思考强度 */
-  setThinkingStrength: (s: ThinkingStrength) => void
+  setThinkingStrength: (s: ThinkingStrength | 'auto') => void
   /** Token 统计 */
   tokenStats: TokenStats
   /**

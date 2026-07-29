@@ -78,8 +78,7 @@ const Composer: FC<ComposerProps> = ({
   const [providerMenuOpen, setProviderMenuOpen] = useState(false)
   const providerMenuRef = useRef<HTMLDivElement>(null)
 
-  // v2.5 深度思考开关：thinkingStrength='deep' 时后端启用 DeepSeek 思考模式
-  // （thinking enabled + reasoning_effort high），思考链经 reasoning chunk 折叠展示
+  // v2.5 深度思考开关；v2.10 改三态：auto（自动路由）→ deep（强制深度）→ standard（强制标准）
   const thinkingStrength = useAgentStore((s) => s.thinkingStrength)
   const setThinkingStrength = useAgentStore((s) => s.setThinkingStrength)
   const deepThinking = thinkingStrength === 'deep'
@@ -494,20 +493,30 @@ const Composer: FC<ComposerProps> = ({
                 onCompress={onCompressContext}
               />
 
-              {/* v2.5 深度思考开关（DeepSeek 思考模式，思考链可折叠展示） */}
+              {/* v2.10 思考强度三态开关：auto（智能）→ deep（深度）→ standard（标准）循环 */}
               <button
                 type="button"
-                title={deepThinking ? '关闭深度思考（回到标准模式）' : '开启深度思考（思考链可见，耗时与 token 增加）'}
-                onClick={() => setThinkingStrength(deepThinking ? 'standard' : 'deep')}
+                title={
+                  thinkingStrength === 'auto'
+                    ? '思考强度：自动（按问题复杂度智能选择）— 点击切为深度'
+                    : deepThinking
+                      ? '思考强度：深度（强制思考链，耗时与 token 增加）— 点击切为标准'
+                      : '思考强度：标准— 点击切为自动'
+                }
+                onClick={() =>
+                  setThinkingStrength(
+                    thinkingStrength === 'auto' ? 'deep' : deepThinking ? 'standard' : 'auto',
+                  )
+                }
                 className={cn(
                   'btn-press inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] transition-colors',
-                  deepThinking
+                  thinkingStrength === 'auto' || deepThinking
                     ? 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
                     : 'border-[var(--trae-border-neutral-l2)] bg-transparent text-[var(--trae-text-secondary)] hover:text-[var(--trae-text-default)]',
                 )}
               >
                 <Sparkles className="size-3" />
-                深度思考
+                {thinkingStrength === 'auto' ? '智能思考' : deepThinking ? '深度思考' : '标准思考'}
               </button>
 
               {/* Provider 选择（真列表） */}

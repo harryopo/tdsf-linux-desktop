@@ -22,6 +22,7 @@ function toolDisplayName(name: string): string {
     skill_match: '匹配技能',
     monitor_get: '采集监控',
     tool_route: '工具装配',
+    thinking_route: '思考强度',
   }
   return map[name] ?? name
 }
@@ -41,6 +42,8 @@ function searchToolIcon(name: string): JSX.Element {
       return <Wrench className={cls} />
     case 'tool_route':
       return <Wrench className={cls} />
+    case 'thinking_route':
+      return <Sparkles className={cls} />
     case 'monitor_get':
       return <Activity className={cls} />
     case 'sftp_read':
