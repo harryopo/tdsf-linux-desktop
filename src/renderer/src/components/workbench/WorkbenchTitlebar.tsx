@@ -242,15 +242,15 @@ export function WorkbenchTitlebar({
           {menuOpen && (
             <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[320px] rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
               {/* 搜索栏 */}
-              <div className="flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] px-3 py-2.5">
-                <div className="flex flex-1 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1">
-                  <Search className="size-3 shrink-0 text-[var(--trae-text-tertiary)]" />
+              <div className="flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] px-3 py-3">
+                <div className="flex flex-1 items-center gap-2 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5">
+                  <Search className="size-3.5 shrink-0 text-[var(--trae-text-tertiary)]" />
                   <input
                     type="text"
                     placeholder="搜索服务器..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-[11px] text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
+                    className="flex-1 bg-transparent text-[12px] text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
                     autoFocus
                   />
                 </div>
@@ -272,17 +272,17 @@ export function WorkbenchTitlebar({
                         type="button"
                         disabled={busy}
                         className={cn(
-                          'flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)] disabled:opacity-60',
+                          'flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)] disabled:opacity-60',
                           active && 'bg-[var(--trae-bg-overlay-l3)]',
                         )}
                         onClick={() => void connectServer(srv)}
                       >
                         {busy ? (
-                          <Loader2 className="size-3.5 shrink-0 animate-spin text-[var(--trae-text-tertiary)]" />
+                          <Loader2 className="size-4 shrink-0 animate-spin text-[var(--trae-text-tertiary)]" />
                         ) : (
                           <Server
                             className={cn(
-                              'size-3.5 shrink-0',
+                              'size-4 shrink-0',
                               st === 'connected'
                                 ? 'text-[var(--trae-bg-brand)]'
                                 : 'text-[var(--trae-text-tertiary)]',
@@ -290,25 +290,33 @@ export function WorkbenchTitlebar({
                           />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[11px] font-medium text-[var(--trae-text-default)]">
+                          <div className="truncate text-[13px] font-medium text-[var(--trae-text-default)]">
                             {srv.name || srv.host}
                           </div>
-                          <div className="truncate font-mono text-[9px] tabular-nums text-[var(--trae-text-tertiary)]">
+                          <div className="mt-0.5 truncate font-mono text-[11px] tabular-nums text-[var(--trae-text-tertiary)]">
                             {srv.host}:{srv.port} · {srv.username}
                           </div>
                         </div>
                         <span
                           className={cn(
-                            'inline-block size-1.5 shrink-0 rounded-full',
-                            st === 'connected' && 'bg-[var(--trae-status-success-default)]',
-                            st === 'connecting' && 'bg-[var(--trae-status-alert-default)]',
-                            st === 'error' && 'bg-[var(--trae-status-error-default)]',
-                            st === 'disconnected' && 'bg-[var(--trae-text-tertiary)]',
+                            'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums',
+                            st === 'connected' && 'bg-[rgba(51,193,146,0.14)] text-[var(--trae-status-success-default)]',
+                            st === 'connecting' && 'bg-[rgba(210,157,0,0.14)] text-[var(--trae-status-alert-default)]',
+                            st === 'error' && 'bg-[rgba(246,90,90,0.14)] text-[var(--trae-status-error-default)]',
+                            st === 'disconnected' && 'text-[var(--trae-text-tertiary)]',
                           )}
                           title={st === 'connected' ? '已连接' : st === 'connecting' ? '连接中' : st === 'error' ? '连接失败' : '未连接'}
-                        />
-                        <span className="shrink-0 font-mono text-[9px] tabular-nums text-[var(--trae-text-tertiary)]">
-                          {st === 'connected' ? '在线' : st === 'connecting' ? '...' : st === 'error' ? '超时' : '—'}
+                        >
+                          <span
+                            className={cn(
+                              'inline-block size-1.5 rounded-full',
+                              st === 'connected' && 'bg-[var(--trae-status-success-default)]',
+                              st === 'connecting' && 'bg-[var(--trae-status-alert-default)]',
+                              st === 'error' && 'bg-[var(--trae-status-error-default)]',
+                              st === 'disconnected' && 'bg-[var(--trae-text-tertiary)]',
+                            )}
+                          />
+                          {st === 'connected' ? '在线' : st === 'connecting' ? '连接中' : st === 'error' ? '超时' : '未连接'}
                         </span>
                       </button>
                     )
@@ -316,16 +324,16 @@ export function WorkbenchTitlebar({
                 )}
               </div>
               {/* 底部：添加新连接 */}
-              <div className="border-t border-[var(--trae-border-neutral-l1)] px-3 py-2">
+              <div className="border-t border-[var(--trae-border-neutral-l1)] px-3 py-2.5">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-dashed border-[var(--trae-border-neutral-l2)] py-1.5 text-[11px] text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-bg-brand)] hover:text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l1)]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-dashed border-[var(--trae-border-neutral-l2)] py-2 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-bg-brand)] hover:text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l1)]"
                   onClick={() => {
                     setMenuOpen(false)
                     setDialogOpen(true)
                   }}
                 >
-                  <Plus className="size-3" />
+                  <Plus className="size-3.5" />
                   添加新连接
                 </button>
               </div>
