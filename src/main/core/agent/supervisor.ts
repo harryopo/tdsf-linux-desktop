@@ -459,6 +459,12 @@ class SupervisorAgent {
     // 6. 创建 AbortController 并注册（用于 cancelRequest）
     const abortController = new AbortController()
     this.activeRequests.set(correlationId, abortController)
+    // v2.11 P0 修复“输出到一半卡死”：streamText 无内建超时，DeepSeek 思考期网络停顿
+    // 会让 fullStream 的 for-await 无限等待，onDone/onError 都不触发 → 前端 isStreaming 永远 true。
+    // 空闲看门狗状态（method 作用域，供 try/catch/finally 共享）：
+    const STREAM_IDLE_TIMEOUT_MS = 90_000
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+    let streamTimedOut = false
 
     // 思考强度影响 maxTokens：deep 模式翻倍
     const effectiveMaxTokens =
@@ -1029,7 +1035,17 @@ class SupervisorAgent {
       let reasoningText = ''
       // v2.8：记录每个工具调用的入参（tool-result 失败时沉淀教训需要命令原文）
       const lastToolInputs = new Map<string, string>()
+      // v2.11 P0：空闲看门狗 —— 每收到一个 part 重置计时；IDLE_MS 内零活动则判定卡死，abort 流并按超时报错
+      const armIdleWatchdog = (): void => {
+        if (idleTimer) clearTimeout(idleTimer)
+        idleTimer = setTimeout(() => {
+          streamTimedOut = true
+          try { abortController.abort() } catch { /* ignore */ }
+        }, STREAM_IDLE_TIMEOUT_MS)
+      }
+      armIdleWatchdog()
       for await (const part of result.fullStream) {
+        armIdleWatchdog() // 收到数据 → 重置空闲计时
         const partType = (part as { type?: string }).type
         if (partType === 'error') {
           // 流式底层错误（如 4xx）：ai-sdk 否则会吞成 "No output generated"，这里记录真实原因便于排查
@@ -1236,7 +1252,15 @@ class SupervisorAgent {
       const error = err instanceof Error ? err : new Error(String(err))
 
       // 区分取消和真实错误
-      if (abortController.signal.aborted) {
+      if (abortController.signal.aborted && streamTimedOut) {
+        // v2.11：空闲看门狗触发的超时 abort —— 按错误上报，让前端解卡并提示重试
+        this.log.error('chat 流式响应超时（空闲看门狗触发）', {
+          correlationId,
+          idleTimeoutMs: STREAM_IDLE_TIMEOUT_MS,
+          durationMs: Date.now() - startTime,
+        })
+        onError?.(new Error('AI 响应超时：模型长时间无输出，已中断。请重试，或在输入框换用更快的思考强度。'))
+      } else if (abortController.signal.aborted) {
         this.log.info('chat 调用已取消', { correlationId, durationMs: Date.now() - startTime })
         onDone?.({
           text: '',
@@ -1286,6 +1310,7 @@ class SupervisorAgent {
         onError?.(error)
       }
     } finally {
+      if (idleTimer) clearTimeout(idleTimer) // v2.11 P0：清理空闲看门狗，避免泄漏
       this.activeRequests.delete(correlationId)
     }
   }
