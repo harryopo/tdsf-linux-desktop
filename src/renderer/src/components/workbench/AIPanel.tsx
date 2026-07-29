@@ -148,6 +148,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       retry: '重试当前步骤',
       abort: '中止循环',
       done: '任务完成',
+      replan: '回退重新规划',
     }
     const decisionText = decisionMap[latest.reflect.decision] ?? latest.reflect.decision
     addAgentMessage({
@@ -165,6 +166,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       done: '✅ 计划完成',
       abort: '⛔ 已中止',
       max_iterations: '⏱️ 达到迭代上限',
+      blocked: '🚧 重规划耗尽仍受阻',
     }
     const statusText = statusMap[paor.result.status] ?? paor.result.status
     addAgentMessage({

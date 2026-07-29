@@ -50,8 +50,8 @@ export interface PaorObserveResult {
 
 /** PAOR Reflect 阶段反思决策 */
 export interface PaorReflectResult {
-  /** 循环决策：继续下一步 / 重试 / 中止 / 计划完成 */
-  decision: 'continue' | 'retry' | 'abort' | 'done'
+  /** 循环决策：继续下一步 / 重试 / 中止 / 计划完成 / 回退重规划（v2.11） */
+  decision: 'continue' | 'retry' | 'abort' | 'done' | 'replan'
   /** 决策理由 */
   reasoning: string
   /** 可选的更新后计划（如需要调整步骤） */
@@ -76,8 +76,8 @@ export interface PaorIteration {
 
 /** PAOR 自动循环最终结果 */
 export interface PaorLoopResult {
-  /** 最终状态：done=计划完成，abort=中止，max_iterations=达到迭代上限 */
-  status: 'done' | 'abort' | 'max_iterations'
+  /** 最终状态：done=计划完成，abort=中止，max_iterations=达到迭代上限，blocked=重规划耗尽仍受阻（v2.11） */
+  status: 'done' | 'abort' | 'max_iterations' | 'blocked'
   /** 结构化计划 */
   plan: PaorPlanObject
   /** 计划置信度 */
