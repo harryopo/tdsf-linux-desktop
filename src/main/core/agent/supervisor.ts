@@ -1353,12 +1353,14 @@ class SupervisorAgent {
     try {
       const modelInstance = createLanguageModel(config)
       const { temperature } = getDefaultParams(modelInstance.config)
+      // v2.11 修复运行时 bug：DeepSeek V4 等 reasoning 模型不接受 messages 数组里的
+      // system 角色（报 "System messages are not allowed... Use the instructions option"），
+      // 导致 callLlm 失败 → 记忆提取/PAOR 规划静默降级。改用 generateText 的 system 选项
+      //（与已工作正常的 streamText 路径一致），user 内容走 prompt。
       const result = await generateText({
         model: modelInstance.model,
-        messages: [
-          { role: 'system', content: systemPrompt } as ModelMessage,
-          { role: 'user', content: userPrompt } as ModelMessage,
-        ],
+        system: systemPrompt,
+        prompt: userPrompt,
         temperature,
         maxOutputTokens: maxTokens,
       })
