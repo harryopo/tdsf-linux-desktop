@@ -2,44 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-29T00:45:07.601Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-07-29T00:45:02.360Z",
-      "lastActiveAt": "2026-07-29T00:45:07.601Z",
-      "task": "v2.9 agent tools+memory+alert 后端批量入库",
-      "claimedFiles": [
-        {
-          "path": "src/shared/",
-          "task": "v2.9 agent tools+memory+alert 后端批量入库",
-          "claimedAt": "2026-07-29T00:45:02.360Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "v2.9 memory IPC 暴露",
-          "claimedAt": "2026-07-29T00:45:03.743Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "v2.9 memory handler 注册",
-          "claimedAt": "2026-07-29T00:45:05.118Z"
-        },
-        {
-          "path": "AGENTS.md",
-          "task": "v2.9 入库",
-          "claimedAt": "2026-07-29T00:45:06.374Z"
-        },
-        {
-          "path": "CLAUDE.md",
-          "task": "v2.9 入库",
-          "claimedAt": "2026-07-29T00:45:07.601Z"
-        }
-      ],
-      "expiresAt": "2026-07-29T03:45:07.601Z"
-    }
-  },
+  "lastUpdated": "2026-07-29T00:51:04.871Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -2903,6 +2867,41 @@
       "file": "CLAUDE.md",
       "task": "v2.9 入库",
       "timestamp": "2026-07-29T00:45:07.601Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/",
+      "task": "v2.9 agent tools+memory+alert 后端批量入库",
+      "timestamp": "2026-07-29T00:50:59.766Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "v2.9 memory IPC 暴露",
+      "timestamp": "2026-07-29T00:51:01.020Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "v2.9 memory handler 注册",
+      "timestamp": "2026-07-29T00:51:02.328Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "v2.9 入库",
+      "timestamp": "2026-07-29T00:51:03.661Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "CLAUDE.md",
+      "task": "v2.9 入库",
+      "timestamp": "2026-07-29T00:51:04.871Z"
     }
   ],
   "coordinationAudit": {
