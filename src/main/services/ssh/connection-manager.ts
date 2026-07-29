@@ -195,10 +195,16 @@ export class SshConnectionManager {
    *
    * @param sessionId 会话 ID
    * @param command 要执行的 shell 命令
+   * @param onData 可选流式回调（v2.6）：每收到一块 stdout/stderr 立即回调，
+   *               用于前端实时展示；回调异常不影响命令执行与累积结果
    * @returns 命令执行结果
    * @throws 会话不存在或未连接时 reject
    */
-  public async exec(sessionId: string, command: string): Promise<CommandResult> {
+  public async exec(
+    sessionId: string,
+    command: string,
+    onData?: (chunk: string, source: 'stdout' | 'stderr') => void,
+  ): Promise<CommandResult> {
     const entry = this.requireSession(sessionId)
     this.requireConnected(entry)
     entry.lastUsedAt = Date.now()
@@ -235,10 +241,26 @@ export class SshConnectionManager {
             return
           }
           stream.on('data', (chunk: Buffer) => {
-            stdout += chunk.toString('utf8')
+            const text = chunk.toString('utf8')
+            stdout += text
+            if (onData) {
+              try {
+                onData(text, 'stdout')
+              } catch {
+                // 流式回调异常不影响命令执行
+              }
+            }
           })
           stream.stderr.on('data', (chunk: Buffer) => {
-            stderr += chunk.toString('utf8')
+            const text = chunk.toString('utf8')
+            stderr += text
+            if (onData) {
+              try {
+                onData(text, 'stderr')
+              } catch {
+                // 流式回调异常不影响命令执行
+              }
+            }
           })
           stream.on('exit', (code: number | null) => {
             exitCode = code ?? 0

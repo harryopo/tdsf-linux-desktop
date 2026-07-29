@@ -191,19 +191,31 @@ export class TutorialRepository {
   search(query: string, limit = 10): TutorialEntry[] {
     const tokens = query
       .toLowerCase()
-      .split(/\s+/)
+      .split(/[\s,，。、；;:：!！?？()（）[\]【】"'`/\\|]+/)
       .filter((t) => t.length > 0)
     if (tokens.length === 0) return []
 
-    const querySet = new Set(tokens)
+    // v2.6 修复：原实现是空格分词 token 精确相等的 Jaccard，中文标题/摘要无空格，
+    // 中文查询几乎必然零命中。改为双向子串匹配评分：
+    // - 正向：查询 token 是教程文本（标题+摘要+关键词+标签）的子串
+    // - 反向：教程关键词/标签（长度≥2）是查询 token 的子串
+    // 得分 = 命中 token 数 / 查询 token 数，另加子串命中的关键词数微量加权。
     const candidates = this.listAll()
     const scored = candidates
       .map((t) => {
         const text = `${t.title} ${t.summary} ${t.keywords.join(' ')} ${t.tags.join(' ')}`.toLowerCase()
-        const tokens_in_text = new Set(text.split(/\s+/))
-        const intersection = new Set([...querySet].filter((x) => tokens_in_text.has(x)))
-        const union = new Set([...querySet, ...tokens_in_text])
-        const score = union.size === 0 ? 0 : intersection.size / union.size
+        const needles = [...t.keywords, ...t.tags]
+          .map((k) => k.toLowerCase())
+          .filter((k) => k.length >= 2)
+        let hit = 0
+        let keywordHits = 0
+        for (const token of tokens) {
+          const forward = text.includes(token)
+          const backward = needles.some((k) => token.includes(k))
+          if (forward || backward) hit++
+          if (backward) keywordHits++
+        }
+        const score = hit / tokens.length + keywordHits * 0.1
         return { t, score }
       })
       .filter((s) => s.score > 0)

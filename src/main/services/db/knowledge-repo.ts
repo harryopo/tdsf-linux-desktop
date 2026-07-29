@@ -80,12 +80,26 @@ export class KnowledgeRepository {
 
     const querySet = new Set(queryKeywords)
 
-    // 计算每条目与查询的 Jaccard 相似度
+    // v2.6 修复：原实现只对 keywords 做 token 精确相等的 Jaccard，中文查询（无空格
+    // 分词）几乎必然零命中。改为双向子串匹配 + Jaccard 加权综合评分：
+    // - 正向：查询 token 是“标题/问题/关键词/标签”拼接文本的子串（如 nginx、502）
+    // - 反向：条目关键词/标签（长度≥2）是查询 token 的子串（如关键词“磁盘”⊂“磁盘满了怎么办”）
+    // - Jaccard(query, keywords) 作加权项，保证关键词命中多的条目排序靠前
     const scored: Array<{ entry: KnowledgeEntry; score: number }> = []
     for (const row of rows as KnowledgeRow[]) {
       const entry = this.deserialize(row)
-      const entrySet = new Set(entry.keywords)
-      const score = jaccardSimilarity(querySet, entrySet)
+      const entrySet = new Set(entry.keywords.map((k) => k.toLowerCase()))
+      const haystack = `${entry.title} ${entry.problem} ${entry.keywords.join(' ')} ${entry.tags.join(' ')}`.toLowerCase()
+      const needles = [...entrySet, ...entry.tags.map((t) => t.toLowerCase())].filter((k) => k.length >= 2)
+
+      let hit = 0
+      for (const token of querySet) {
+        if (haystack.includes(token) || needles.some((k) => token.includes(k))) {
+          hit++
+        }
+      }
+      const hitRatio = hit / querySet.size
+      const score = hitRatio + jaccardSimilarity(querySet, entrySet)
       if (score > 0) {
         scored.push({ entry, score })
       }

@@ -40,6 +40,7 @@ import {
   LOOP,
   LOG,
   KNOWLEDGE,
+  MEMORY,
   HISTORY,
   DIAGNOSTICS,
   SIDECAR,
@@ -2658,6 +2659,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(KNOWLEDGE.HOT, limit),
   kbRecentViews: (limit?: number): Promise<unknown[]> =>
     ipcRenderer.invoke(KNOWLEDGE.RECENT_VIEWS, limit),
+
+  // ===== v2.8 Agent 长期记忆扁平化 =====
+  // 自动沉淀记忆的查看/检索/删除/审计（写入由主进程 supervisor 自动完成，不走 IPC）
+  memoryList: (type?: string): Promise<unknown[]> =>
+    ipcRenderer.invoke(MEMORY.LIST, type),
+  memorySearch: (query: string, limit?: number): Promise<unknown[]> =>
+    ipcRenderer.invoke(MEMORY.SEARCH, query, limit),
+  memoryDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(MEMORY.DELETE, id),
+  memoryAudit: (limit?: number): Promise<unknown[]> =>
+    ipcRenderer.invoke(MEMORY.AUDIT, limit),
 
   // ===== 历史决策扁平化 =====
   historyList: (offset: number, limit: number): Promise<unknown[]> =>

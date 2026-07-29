@@ -1244,6 +1244,16 @@ export interface ElectronAPI {
   /** 最近浏览记录 */
   kbRecentViews(limit?: number): Promise<KbViewHistoryEntry[]>
 
+  // ===== v2.8 Agent 长期记忆 =====
+  /** 列出全部长期记忆（可按 type 过滤：user_profile/preference/environment/correction/fact） */
+  memoryList(type?: string): Promise<unknown[]>
+  /** 关键词检索长期记忆 */
+  memorySearch(query: string, limit?: number): Promise<unknown[]>
+  /** 按 id 删除长期记忆（用户有权遗忘） */
+  memoryDelete(id: string): Promise<boolean>
+  /** 记忆沉淀审计日志 */
+  memoryAudit(limit?: number): Promise<unknown[]>
+
   // ===== 决策历史 =====
   /** 获取决策历史列表 */
   historyList(offset?: number, limit?: number): Promise<DecisionCard[]>

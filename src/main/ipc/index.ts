@@ -55,6 +55,8 @@ import { registerProviderInfoHandlers } from './provider-info'
 import { registerMcpStateHandlers } from './mcp'
 // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
 import { registerSidecarIpcHandlers, cleanupSidecar } from './sidecar'
+// v2.8 新增：Agent 长期记忆 IPC（自动沉淀记忆的查看/检索/删除/审计）
+import { registerMemoryIpcHandlers } from './memory'
 // v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
 import { registerPromptfooHandlers } from './promptfoo'
 // v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
@@ -205,6 +207,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
   // 暴露 sidecar:start / stop / status / health / pipeline
   registerSidecarIpcHandlers()
+
+  // v2.8 新增：Agent 长期记忆 IPC（memory:list/search/delete/audit）
+  registerMemoryIpcHandlers()
 
   // v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
   // 暴露 promptfoo:run-red-team / run-eval / list-tests
