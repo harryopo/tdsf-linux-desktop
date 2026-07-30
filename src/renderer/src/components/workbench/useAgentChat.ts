@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { message } from 'antd'
-import { useAgentStore, type AgentMessage } from '@/stores/agent-store'
+import { useAgentStore, type AgentMessage, type CompressResult } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type {
@@ -73,8 +73,8 @@ export interface UseAgentChatResult {
   cancel: () => Promise<void>
   /** 清空对话 */
   clear: () => void
-  /** 压缩上下文（T.7） */
-  compressContext: () => void
+  /** 压缩上下文（T.7）；返回真实压缩结果供 UI 准确反馈 */
+  compressContext: () => CompressResult
 }
 
 /**
@@ -308,8 +308,8 @@ export function useAgentChat(): UseAgentChatResult {
    * 非流式状态下触发 store.compressMessages，保留 system + 最近 N 条，
    * 中间历史用本地摘要消息替换。
    */
-  const compressContext = useCallback(() => {
-    compressMessages()
+  const compressContext = useCallback((): CompressResult => {
+    return compressMessages()
   }, [compressMessages])
 
   /**

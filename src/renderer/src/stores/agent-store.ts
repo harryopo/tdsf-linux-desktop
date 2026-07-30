@@ -39,6 +39,18 @@ import type { AgentWorkflowState } from '@shared/models'
 /**
  * Agent 对话消息（扩展 ChatMessage，含元信息）
  */
+/**
+ * 上下文压缩结果（v2.11 诚实化：让 UI 能准确反馈“压了多少 / 无需压缩”）
+ */
+export interface CompressResult {
+  /** 是否发生了压缩（false = 对话较短或流式中，未变） */
+  compressed: boolean
+  /** 被合并丢弃的消息条数 */
+  droppedMessages: number
+  /** 被合并的字符总数（近似 token 节省量） */
+  droppedChars: number
+}
+
 export interface AgentMessage {
   /** 消息唯一 ID */
   id: string
@@ -224,7 +236,7 @@ interface AgentState {
    * 简单策略：保留 system 消息 + 最近 N 条对话，中间历史用本地摘要消息替换，
    * 避免长对话超出模型上下文窗口。仅在非流式状态下执行。
    */
-  compressMessages: (opts?: { keepRecent?: number }) => void
+  compressMessages: (opts?: { keepRecent?: number }) => CompressResult
   /** 设置流式输出状态 */
   setStreaming: (streaming: boolean) => void
   /** 设置当前 correlationId */
@@ -472,8 +484,11 @@ export const useAgentStore = create<AgentState>()((set) => ({
       lastError: null,
     }),
 
-  // 上下文压缩（T.7）：保留 system 消息 + 最近 N 条，中间历史生成本地摘要
-  compressMessages: (opts) =>
+  // 上下文压缩（T.7）：保留 system 消息 + 最近 N 条，中间历史生成本地提要
+  // v2.11 诚实化：返回真实压缩结果（供 UI 准确反馈）。用闭包变量回传结果，
+  // 保留 set(updater) 的 state 强类型（本 store 未暴露 get）。这是本地截断（非 AI 语义摘要），快是设计使然。
+  compressMessages: (opts) => {
+    let result: CompressResult = { compressed: false, droppedMessages: 0, droppedChars: 0 }
     set((state) => {
       if (state.isStreaming || state.messages.length === 0) return state
 
@@ -490,16 +505,16 @@ export const useAgentStore = create<AgentState>()((set) => ({
       const assistantCount = dropped.filter((m) => m.role === 'assistant').length
       const droppedTokens = dropped.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
 
-      // 本地摘要：提取被压缩段落的主题/命令片段（启发式）
+      // 本地提要：提取被压缩段落的主题片段（启发式，非 AI 摘要）
       const snippets = dropped
         .filter((m) => m.role === 'user')
         .map((m) => m.content.slice(0, 40))
         .filter(Boolean)
         .slice(0, 3)
+      const topicNote = snippets.length > 0 ? `涉及主题：${snippets.join('；')}。` : ''
       const summaryText =
-        snippets.length > 0
-          ? `[上下文已压缩] 前面 ${userCount} 轮对话 / ${assistantCount} 条回复 / 约 ${droppedTokens} 字符已被摘要。主题包括：${snippets.join('；')}。`
-          : `[上下文已压缩] 前面 ${userCount} 轮对话 / ${assistantCount} 条回复 / 约 ${droppedTokens} 字符已被摘要。`
+        `[上下文已压缩（本地）] 已将较早的 ${userCount} 轮提问 / ${assistantCount} 条回复` +
+        `（约 ${droppedTokens} 字符）合并为提要，保留最近 ${kept.length} 条。${topicNote}`
 
       const summaryMessage: AgentMessage = {
         id: `compress_${Date.now()}`,
@@ -508,10 +523,11 @@ export const useAgentStore = create<AgentState>()((set) => ({
         timestamp: Date.now(),
       }
 
-      return {
-        messages: [...systemMessages, summaryMessage, ...kept],
-      }
-    }),
+      result = { compressed: true, droppedMessages: dropped.length, droppedChars: droppedTokens }
+      return { messages: [...systemMessages, summaryMessage, ...kept] }
+    })
+    return result
+  },
 
   // 设置流式输出状态
   setStreaming: (streaming) => set({ isStreaming: streaming }),
