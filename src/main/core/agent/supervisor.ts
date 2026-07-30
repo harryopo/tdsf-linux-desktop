@@ -1033,7 +1033,9 @@ class SupervisorAgent {
         ...(hasTools
           ? {
               tools,
-              stopWhen: isStepCount(4),
+              // v2.11 “无法持续完成一个命令”修复：步数上限 4→12，
+              // 允许多步工具链（多次命令执行+分析，含写操作审批循环）跑完
+              stopWhen: isStepCount(12),
             }
           : {}),
       })
@@ -1048,8 +1050,12 @@ class SupervisorAgent {
       // v2.8：记录每个工具调用的入参（tool-result 失败时沉淀教训需要命令原文）
       const lastToolInputs = new Map<string, string>()
       // v2.11 P0：空闲看门狗 —— 每收到一个 part 重置计时；IDLE_MS 内零活动则判定卡死，abort 流并按超时报错
+      // v2.11 修复“点击批准就停止”：工具执行期（tool-call → tool-result，含人工审批+SSH）无流式分片，
+      // 属正常等待，需暂停看门狗（inToolCall），否则审批稍久就会被误杀、批准后流已死
+      let inToolCall = false
       const armIdleWatchdog = (): void => {
-        if (idleTimer) clearTimeout(idleTimer)
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = undefined }
+        if (inToolCall) return // 工具执行/人工审批中：不计时
         idleTimer = setTimeout(() => {
           streamTimedOut = true
           try { abortController.abort() } catch { /* ignore */ }
@@ -1138,9 +1144,15 @@ class SupervisorAgent {
             toolName: p.toolName ?? 'tool',
             input: inputStr.slice(0, 2000),
           })
+          // v2.11：进入工具执行（含人工审批+SSH）→ 暂停看门狗，避免审批等待被误判超时
+          inToolCall = true
+          armIdleWatchdog()
           // v2.8：缓存入参供失败教训沉淀使用
           if (p.toolCallId) lastToolInputs.set(p.toolCallId, inputStr.slice(0, 200))
         } else if (partType === 'tool-result') {
+          // v2.11：工具返回 → 恢复看门狗（后续模型生成重新计时）
+          inToolCall = false
+          armIdleWatchdog()
           // v2.4：工具返回结果 → 推送 result 事件
           const p = part as { toolCallId?: string; toolName?: string; output?: unknown; result?: unknown }
           const rawOut = p.output ?? p.result
