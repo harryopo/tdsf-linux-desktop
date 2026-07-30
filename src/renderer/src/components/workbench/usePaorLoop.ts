@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   PaorIteration,
   PaorLoopResult,
+  PaorPlanObject,
 } from '@shared/paor-types'
 
 /** usePaorLoop 返回值 */
@@ -33,6 +34,8 @@ export interface UsePaorLoopResult {
   isRunning: boolean
   /** 已接收的迭代列表（按 iteration 升序） */
   iterations: PaorIteration[]
+  /** v2.11 结构化计划（Plan 阶段先行推送，供任务步骤卡渲染） */
+  plan: PaorPlanObject | null
   /** 最终结果（invoke 返回后设置） */
   result: PaorLoopResult | null
   /** 错误信息（null 表示无错误） */
@@ -69,6 +72,7 @@ export interface UsePaorLoopResult {
 export function usePaorLoop(): UsePaorLoopResult {
   const [isRunning, setIsRunning] = useState(false)
   const [iterations, setIterations] = useState<PaorIteration[]>([])
+  const [plan, setPlan] = useState<PaorPlanObject | null>(null)
   const [result, setResult] = useState<PaorLoopResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -83,22 +87,27 @@ export function usePaorLoop(): UsePaorLoopResult {
     const api = window.electronAPI
     if (!api?.onAgentPaorIteration) return
     const unsubscribe = api.onAgentPaorIteration((event) => {
-      // 仅处理当前活跃会话的迭代事件（避免多会话混淆）
+      // 仅处理当前活跃会话的事件（避免多会话混淆）
       if (
         activeSessionIdRef.current &&
         event.sshSessionId !== activeSessionIdRef.current
       ) {
         return
       }
+      // v2.11 plan-only 事件：计划先行推送，渲染任务步骤卡
+      if (event.plan) {
+        setPlan(event.plan)
+      }
+      // 迭代事件（plan-only 时 iteration 缺省，需守卫）
+      const it = event.iteration
+      if (!it) return
       setIterations((prev) => {
         // 避免重复（同一 iteration 序号只保留最新）
-        const existing = prev.find((it) => it.iteration === event.iteration.iteration)
+        const existing = prev.find((p) => p.iteration === it.iteration)
         if (existing) {
-          return prev.map((it) =>
-            it.iteration === event.iteration.iteration ? event.iteration : it,
-          )
+          return prev.map((p) => (p.iteration === it.iteration ? it : p))
         }
-        return [...prev, event.iteration]
+        return [...prev, it]
       })
     })
     return () => {
@@ -133,6 +142,7 @@ export function usePaorLoop(): UsePaorLoopResult {
 
       // 重置状态（清空上一次的结果）
       setIterations([])
+      setPlan(null)
       setResult(null)
       setError(null)
       setIsRunning(true)
@@ -162,6 +172,7 @@ export function usePaorLoop(): UsePaorLoopResult {
   // ===== reset：清空状态 =====
   const reset = useCallback(() => {
     setIterations([])
+    setPlan(null)
     setResult(null)
     setError(null)
     setIsRunning(false)
@@ -171,6 +182,7 @@ export function usePaorLoop(): UsePaorLoopResult {
   return {
     isRunning,
     iterations,
+    plan,
     result,
     error,
     currentIteration,

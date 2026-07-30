@@ -588,6 +588,10 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           onIteration: (iteration) => {
             safeSend(mainWindow, 'agent:paor:iteration', { sshSessionId, iteration })
           },
+          // v2.11 任务拆解可视化：计划就绪/重规划后先行推送结构化 plan（复用同一通道）
+          onPlan: (plan, planConfidence) => {
+            safeSend(mainWindow, 'agent:paor:iteration', { sshSessionId, plan, planConfidence })
+          },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
           approveRisk: async (command, level, description): Promise<boolean> => {
             const callId = `paor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`

@@ -282,6 +282,12 @@ export interface PaorLoopOptions {
   approveRisk?: (command: string, level: string, description: string) => Promise<boolean>
   /** 每轮迭代回调（供 UI 实时展示进度） */
   onIteration?: (iteration: PaorIteration) => void
+  /**
+   * v2.11 计划就绪回调（任务拆解可视化）
+   *
+   * Plan/重规划完成后立即调用，供主进程把结构化计划先行推送到前端（第一步执行前）。
+   */
+  onPlan?: (plan: PlanObject, confidence: number) => void
 }
 
 /**
@@ -1589,6 +1595,8 @@ class SupervisorAgent {
     const { plan, confidence } = await this.plan(task)
     let currentPlan = plan
     this.log.info('[PAOR-Loop] 计划已生成', { goal: currentPlan.goal, steps: currentPlan.steps.length, confidence })
+    // v2.11：计划就绪立即推送（第一步执行前），前端先渲染任务步骤卡
+    options.onPlan?.(currentPlan, confidence)
 
     const iterations: PaorIteration[] = []
     // v2.11 状态图编排：路由决策交给 paor-graph 纯函数，本循环只执行副作用
@@ -1667,6 +1675,8 @@ class SupervisorAgent {
         const replanned = await this.plan(failCtx)
         currentPlan = replanned.plan
         graphState = { ...initPaorState(currentPlan.steps.length), replanCount: graphState.replanCount }
+        // v2.11：重规划后推送新计划，前端刷新任务步骤卡
+        options.onPlan?.(currentPlan, replanned.confidence)
       } else if (route.terminal === 'done') {
         status = 'done'
       } else if (route.terminal === 'abort') {
