@@ -24,8 +24,9 @@ export interface ComplexityScore {
   signals: string[]
 }
 
-/** 升 deep 的分值阈值 */
-const DEEP_THRESHOLD = 3
+/** 升 deep 的分值阈值（v2.11：3→2，让单个强信号如“诊断/方案/优化/故障”即触发深度思考，
+ *  贴合运维分析类诉求；简单查询/寒暄仍被 SIMPLE 抑制到 standard） */
+const DEEP_THRESHOLD = 2
 
 /**
  * 复杂信号：深度排查 / 方案设计 / 多步推理类关键词（命中权重较高）
