@@ -403,6 +403,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         loop={loop}
         paorApprovals={paorApprovals}
         onPaorApprove={handlePaorApprove}
+        paorPlan={paor.plan}
+        paorIterations={paor.iterations}
+        paorRunning={paor.isRunning}
         messagesEndRef={messagesEndRef}
         hasLiveConversation={hasLiveConversation}
         liveMessages={liveMessages}

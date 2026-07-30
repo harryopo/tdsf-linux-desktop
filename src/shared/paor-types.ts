@@ -99,6 +99,13 @@ export interface PaorLoopResult {
 export interface PaorIterationEvent {
   /** 关联的 SSH 会话 ID（用于多会话区分） */
   sshSessionId: string
-  /** 本轮迭代轨迹 */
-  iteration: PaorIteration
+  /** 本轮迭代轨迹（plan-only 事件时缺省：首次规划/重规划后先行推送 plan） */
+  iteration?: PaorIteration
+  /**
+   * v2.11 任务拆解可视化：结构化计划。
+   * Plan 阶段完成后（第一步执行前）先行推送，前端据此渲染任务步骤卡（待执行/进行中/完成/失败）。
+   */
+  plan?: PaorPlanObject
+  /** 计划置信度（随 plan 一同推送） */
+  planConfidence?: number
 }

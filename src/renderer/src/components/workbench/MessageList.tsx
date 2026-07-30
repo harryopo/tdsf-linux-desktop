@@ -14,9 +14,11 @@ import { Sparkles, AlertTriangle, Search, Terminal, FileText, TrendingUp } from 
 import { useLoopEngineering } from './useLoopEngineering'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { PaorApprovalRequest } from '@/types/electron'
+import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import LiveMessageRow from './panels/LiveMessageRow'
 import PaorApprovalCard from './panels/PaorApprovalCard'
+import PaorPlanCard from './panels/PaorPlanCard'
 // v2.6：空态能力卡点击注入提示词到输入框（Composer 消费 injectedAtCommand）
 import { useEditorStore } from '@/stores/editor-store'
 
@@ -29,6 +31,10 @@ export interface MessageListProps {
   loop: ReturnType<typeof useLoopEngineering>
   paorApprovals: PaorApprovalRequest[]
   onPaorApprove: (callId: string, approved: boolean) => void
+  /** v2.11 任务拆解可视化：PAOR 结构化计划 + 迭代轨迹 + 是否运行中 */
+  paorPlan: PaorPlanObject | null
+  paorIterations: PaorIteration[]
+  paorRunning: boolean
   messagesEndRef: RefObject<HTMLDivElement>
   hasLiveConversation: boolean
   liveMessages: AgentMessage[]
@@ -48,6 +54,9 @@ const MessageList: FC<MessageListProps> = ({
   loop: _loop,
   paorApprovals,
   onPaorApprove,
+  paorPlan,
+  paorIterations,
+  paorRunning,
   messagesEndRef,
   hasLiveConversation,
   liveMessages,
@@ -58,7 +67,8 @@ const MessageList: FC<MessageListProps> = ({
 }) => {
   return (
     <div className="ai-messages flex flex-col gap-6">
-      {hasLiveConversation ? (
+      {/* v2.11：paorPlan 存在时即进入对话视图（计划先于首条迭代消息到达，不能落回欢迎态） */}
+      {hasLiveConversation || paorPlan ? (
         <>
           {liveMessages.map((msg) => (
             <LiveMessageRow key={msg.id} message={msg} onNavigate={onMessageNavigate} onToolAction={onToolAction} activeSessionId={activeSessionId} />
@@ -69,6 +79,10 @@ const MessageList: FC<MessageListProps> = ({
               <span>{lastError}</span>
             </div>
           )}
+          {/* v2.11 任务拆解可视化：PAOR 计划步骤卡 */}
+          {paorPlan && (
+            <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />
+          )}
           {paorApprovals.map((req) => (
             <PaorApprovalCard key={req.callId} request={req} onApprove={onPaorApprove} />
           ))}
@@ -77,6 +91,10 @@ const MessageList: FC<MessageListProps> = ({
       ) : hasLoopRunning ? (
         /* 循环工程进行中：渲染工作流面板 */
         <>
+          {/* v2.11 任务拆解可视化：PAOR 计划步骤卡 */}
+          {paorPlan && (
+            <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />
+          )}
           {paorApprovals.map((req) => (
             <PaorApprovalCard key={req.callId} request={req} onApprove={onPaorApprove} />
           ))}
