@@ -20,25 +20,45 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { wrapLanguageModel, extractReasoningMiddleware } from 'ai'
 import type { LanguageModel } from 'ai'
 import type { ProviderConfig, ProviderModelInstance, PersistedProviderConfig } from './types'
 import { logger } from '../../../services/log/logger'
+import { createReasoningTagState, rewriteSseLine } from './deepseek-reasoning-transform'
 
 /**
- * 创建 OpenAI 兼容协议的自定义 fetch，在出站请求 body 做两件事：
- *
- *  1.【所有兼容端】把 'developer' 角色改回 'system'：
- *     @ai-sdk/openai v2 的 .chat() 会把 system 提示词转成 OpenAI 新版 'developer' 角色，
- *     但 DeepSeek/Qwen/Volcengine/Ollama 等国产兼容端只认 system/user/assistant/tool，
- *     收到 developer 会直接 400（"unknown variant `developer`"）——表现为流一开始就 error、
- *     ai-sdk 报 "No output generated"。只要带 system 提示词就会触发（无 system 时不会）。
- *
- *  2.【仅 DeepSeek】注入 { thinking: { type: 'disabled' } } 关闭默认思考模式：
- *     DeepSeek V4 Flash 默认把正文放 reasoning_content、content 为 null，标准 provider 只读
- *     delta.content → 空输出。thinking:disabled 是官方 non-thinking 模式，正文直出且支持 function calling。
+ * DeepSeek thinking 开启时，把 SSE 响应流里的 reasoning_content 改写成 <think>…</think> 包裹的 content，
+ * 供上层 extractReasoningMiddleware 提取回 reasoning 分片（@ai-sdk/openai 2.x 不读 reasoning_content）。
+ * 按行缓冲处理跨块切分的 SSE 行。
  */
+function wrapDeepseekReasoningStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  const state = createReasoningTagState()
+  let buffer = ''
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      buffer += decoder.decode(chunk, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? '' // 保留未完整的最后一行
+      const rewritten = lines.map((l) => rewriteSseLine(l, state)).join('\n')
+      controller.enqueue(encoder.encode(rewritten + '\n'))
+    },
+    flush(controller) {
+      if (buffer) controller.enqueue(encoder.encode(rewriteSseLine(buffer, state)))
+    },
+  })
+  return body.pipeThrough(transform)
+}
+
 function createOpenAiCompatFetch(deepseekThinking: 'enabled' | 'disabled' | false): typeof fetch {
   return async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+/*
+ *  自定义 fetch 职责：
+ *  1.【所有兼容端】developer→system 角色修正（DeepSeek/Qwen/Volcengine/Ollama 只认 system）；
+ *  2.【仅 DeepSeek】按 deep 强度注入 thinking enabled/disabled（关时正文直出）；
+ *  3.【仅 deep】改写响应流，把 reasoning_content 包成 <think> 供中间件提取。
+ */
     // 仅处理带 JSON body 的 POST（chat/completions）；其余请求原样放行
     if (init?.body && typeof init.body === 'string') {
       try {
@@ -72,7 +92,16 @@ function createOpenAiCompatFetch(deepseekThinking: 'enabled' | 'disabled' | fals
         // body 非 JSON 时不处理，原样放行
       }
     }
-    return fetch(input, init)
+    const res = await fetch(input, init)
+    // v2.11：deep 档改写响应流，把 reasoning_content 包成 <think> 供中间件提取（仅 deep，控制爆炸半径）
+    if (deepseekThinking === 'enabled' && res.body && res.ok) {
+      return new Response(wrapDeepseekReasoningStream(res.body), {
+        status: res.status,
+        statusText: res.statusText,
+        headers: res.headers,
+      })
+    }
+    return res
   }
 }
 
@@ -205,7 +234,15 @@ function buildModel(config: ProviderConfig, deepThinking = false): LanguageModel
         // 其余强度 → 关闭思考（正文直出）。此前恒为 disabled 导致 deep 失效。
         fetch: createOpenAiCompatFetch(deepThinking ? 'enabled' : 'disabled'),
       })
-      return openai.chat(config.model)
+      const deepseekModel = openai.chat(config.model)
+      // v2.11 deep 档：用 extractReasoningMiddleware 把 fetch 层包的 <think> 段提取回 reasoning 分片
+      //（@ai-sdk/openai 不读 DeepSeek 的 reasoning_content，故先包 <think> 再提取）。standard/fast 不包裹、不包中间件。
+      return deepThinking
+        ? wrapLanguageModel({
+            model: deepseekModel,
+            middleware: extractReasoningMiddleware({ tagName: 'think' }),
+          })
+        : deepseekModel
     }
     case 'claude-sdk': {
       // 已在 createLanguageModel 入口处拦截，理论不会到达；防御性抛错
