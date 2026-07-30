@@ -42,8 +42,14 @@ describe('scoreComplexity — 复杂度评分', () => {
     expect(r.strength).toBe('deep')
   })
 
+  it('单个强信号（诊断/方案/优化）→ deep（v2.11 阈值 2）', () => {
+    expect(scoreComplexity('诊断一下当前系统健康状况').strength).toBe('deep')
+    expect(scoreComplexity('设计一个日志归档方案').strength).toBe('deep')
+    expect(scoreComplexity('优化一下这个服务的启动速度').strength).toBe('deep')
+  })
+
   it('简单信号抑制复杂词：单个弱信号不足以升 deep', () => {
-    // 仅"然后"一个弱信号(weight1) → 不到阈值3
+    // 仅"然后"一个弱信号(weight1) → 不到阈值2
     expect(scoreComplexity('先看下负载然后告诉我').strength).toBe('standard')
   })
 

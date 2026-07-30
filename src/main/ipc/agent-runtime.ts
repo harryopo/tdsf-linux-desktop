@@ -347,8 +347,9 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
                   TERMINAL.DATA,
                   sshSessionId,
                   evt.ok
-                    ? '\r\n\x1b[32m✓ AI 命令执行完成\x1b[0m\r\n'
-                    : `\r\n\x1b[31m✗ AI 命令失败${evt.output ? `：${evt.output.slice(0, 200).replace(/\r?\n/g, ' ')}` : ''}\x1b[0m\r\n`,
+                    // v2.11 去刷屏：成功只留一条暗淡分隔线（而非每条都醒目绿字）；失败仍醒目
+                    ? '\x1b[90m\u2500\u2500 AI \u2713 \u2500\u2500\x1b[0m\r\n'
+                    : `\r\n\x1b[31m\u2717 AI \u547d\u4ee4\u5931\u8d25${evt.output ? `\uff1a${evt.output.slice(0, 200).replace(/\r?\n/g, ' ')}` : ''}\x1b[0m\r\n`,
                 )
               }
             }
