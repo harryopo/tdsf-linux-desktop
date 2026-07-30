@@ -36,6 +36,7 @@ import {
   Plug,
   FolderPlus,
   Trash2,
+  PanelLeftClose,
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -61,6 +62,8 @@ export interface FileTreeProps {
   activeFilePath?: string
   /** 打开文件 */
   onOpenFile?: (file: OpenFileRequest) => void
+  /** 折叠面板（v2.11：资源管理器可折叠，与 AI 面板对齐） */
+  onCollapse?: () => void
 }
 
 export interface TreeNode {
@@ -129,7 +132,7 @@ interface FileTreeRendererContextType {
 
 const FileTreeRendererContext = createContext<FileTreeRendererContextType | null>(null)
 
-const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
+const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse }) => {
   const navigate = useNavigate()
   const servers = useServerStore((s) => s.servers)
   const activeSessionId = useServerStore((s) => s.activeSessionId)
@@ -650,6 +653,17 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile }) => {
                 <RefreshCw className="size-3.5" />
               )}
             </button>
+            {/* v2.11：折叠资源管理器（与 AI 面板可折叠对齐，释放水平空间） */}
+            {onCollapse && (
+              <button
+                type="button"
+                title="折叠资源管理器"
+                onClick={onCollapse}
+                className="wb-filetree-action-btn"
+              >
+                <PanelLeftClose className="size-3.5" />
+              </button>
+            )}
           </div>
         </div>
 

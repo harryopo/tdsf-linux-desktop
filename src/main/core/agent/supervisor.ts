@@ -652,15 +652,8 @@ class SupervisorAgent {
                     return { ok: false, error: '当前会话未启用写命令审批通道，写操作已拒绝（安全默认）', exitCode: -1 }
                   }
                   const streamCallId = execOpts?.toolCallId
-                  // 可视化：审批等待中提示
-                  if (streamCallId && onToolEvent) {
-                    onToolEvent({
-                      toolCallId: streamCallId,
-                      phase: 'output',
-                      toolName: 'ssh_write',
-                      output: `[等待审批] 理由：${reason}（60 秒内未审批自动拒绝）\n`,
-                    })
-                  }
+                  // v2.11：审批等待提示改由 PaorApprovalCard 呈现（风险色卡片+批准/拒绝按钮），
+                  // 不再把 "[等待审批]…" 纯文本塞进命令卡输出块（此前与卡片重复、混在终端输出里丑）
                   let approved = false
                   try {
                     approved = await approveWriteCommand(command, risk.level, `${risk.description}｜AI 理由：${reason}`)
