@@ -300,6 +300,9 @@ class SupervisorAgent {
   /** 已注册的 Subagent 表（由 Plan 阶段按 type 调度） */
   private readonly subagents: Record<SubagentName, Subagent>
 
+  /** v2.11 会话连贯：最近一次 auto 解析为 deep 的时刻（供“延续深度思考”判定） */
+  private lastDeepAt = 0
+
   /** 进行中的请求表：correlationId → AbortController（用于取消请求） */
   private readonly activeRequests = new Map<string, AbortController>()
 
@@ -407,8 +410,14 @@ class SupervisorAgent {
         break
       }
     }
-    const strengthRoute = resolveThinkingStrength(requestedStrength, earlyUserText)
+    // v2.11 会话连贯：3 分钟内进过深度思考则视为“分析会话中”，auto 档延续深度
+    const recentDeep = Date.now() - this.lastDeepAt < 3 * 60 * 1000
+    const strengthRoute = resolveThinkingStrength(requestedStrength, earlyUserText, { recentDeep })
     const strength: ThinkingStrength = strengthRoute.resolved
+    // 记录本次深度思考时刻（仅 auto 自动解析出的 deep 才参与连贯，避免显式档污染）
+    if (strengthRoute.auto && strength === 'deep') {
+      this.lastDeepAt = Date.now()
+    }
 
     this.ensureInitialized()
     const startTime = Date.now()

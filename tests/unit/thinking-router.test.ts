@@ -53,6 +53,22 @@ describe('scoreComplexity — 复杂度评分', () => {
     expect(scoreComplexity('先看下负载然后告诉我').strength).toBe('standard')
   })
 
+  it('v2.11 会话连贯：recentDeep 下非明显简单的追问延续深度思考', () => {
+    // 本句单独评分为 standard，但会话近期已深度 → 延续 deep
+    const r = resolveThinkingStrength('auto', '那内存呢，再看看具体进程', { recentDeep: true })
+    expect(r.resolved).toBe('deep')
+    expect(r.score?.signals).toContain('延续深度思考')
+  })
+
+  it('v2.11 会话连贯：明显寒暄/简单查询即使 recentDeep 也回落 standard', () => {
+    expect(resolveThinkingStrength('auto', '好的，谢谢', { recentDeep: true }).resolved).toBe('standard')
+    expect(resolveThinkingStrength('auto', '查看磁盘', { recentDeep: true }).resolved).toBe('standard')
+  })
+
+  it('v2.11 会话连贯：显式 standard 档不受 recentDeep 影响', () => {
+    expect(resolveThinkingStrength('standard', '随便问个复杂的问题', { recentDeep: true }).resolved).toBe('standard')
+  })
+
   it('signals 记录命中的信号（可视化用）', () => {
     const r = scoreComplexity('分析这次故障的根因')
     expect(r.signals.length).toBeGreaterThan(0)
