@@ -105,11 +105,14 @@ export function scoreComplexity(userText: string): ComplexityScore {
  *
  * @param requested 用户请求的强度（可能是 'auto'）
  * @param userText 用于评分的用户消息
+ * @param opts.recentDeep 会话连贯（v2.11）：近期已进入深度思考。auto 档下，若本句非明显
+ *   简单/嬒暄且评分为 standard，则延续深度思考（避免分析会话中思考时有时无的跳变）
  * @returns { resolved: 实际执行的三档, auto: 是否走了自动路由, score?: 评分详情 }
  */
 export function resolveThinkingStrength(
   requested: string | undefined,
   userText: string,
+  opts?: { recentDeep?: boolean },
 ): { resolved: ResolvedStrength; auto: boolean; score?: ComplexityScore } {
   if (requested === 'fast' || requested === 'standard' || requested === 'deep') {
     // 用户显式指定 → 尊重，不覆盖（不破坏现有手动 deep 行为）
@@ -117,5 +120,14 @@ export function resolveThinkingStrength(
   }
   // auto 或未指定 → 自动评分
   const score = scoreComplexity(userText)
-  return { resolved: score.strength, auto: true, score }
+  let resolved = score.strength
+  // v2.11 会话连贯：近期已深度思考且本句非明显简单→延续深度（分析会话内保持一致）
+  if (resolved === 'standard' && opts?.recentDeep) {
+    const hitSimple = score.signals.some((s) => s.startsWith('（简单'))
+    if (!hitSimple && userText.trim().length >= 8) {
+      resolved = 'deep'
+      score.signals.push('延续深度思考')
+    }
+  }
+  return { resolved, auto: true, score }
 }
