@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FC } from 'react'
 import { message } from 'antd'
+import type { CompressResult } from '@/stores/agent-store'
 
 /** ContextBadge props */
 export interface ContextBadgeProps {
@@ -9,8 +10,8 @@ export interface ContextBadgeProps {
   ctxUsedTokens: string
   /** 总 tokens 文本（如 "200K"） */
   ctxTotalTokens: string
-  /** 压缩上下文回调（T.7） */
-  onCompress?: () => void
+  /** 压缩上下文回调（T.7）；返回真实压缩结果供准确反馈 */
+  onCompress?: () => CompressResult | void
 }
 
 /**
@@ -114,12 +115,20 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           <button
             type="button"
             onClick={() => {
-              if (onCompress) {
-                onCompress()
-                void message.success('上下文已压缩')
+              if (!onCompress) {
+                // 父组件未传入压缩回调时隐藏不了，降级提示
+                void message.warning('当前环境不支持上下文压缩')
+                return
+              }
+              // v2.11 诚实化：按真实结果反馈（本地截断，瞬时完成），
+              // 不再无条件声称“已压缩”（即使对话太短根本没压）
+              const result = onCompress()
+              if (result && result.compressed) {
+                void message.success(
+                  `上下文已压缩：合并 ${result.droppedMessages} 条较早消息，约省 ${result.droppedChars} 字符`,
+              )
               } else {
-                // WIP: 父组件未传入压缩回调时的降级提示
-                void message.warning('上下文压缩回调未绑定（WIP）')
+                void message.info('当前对话较短，无需压缩')
               }
             }}
             className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[11px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
