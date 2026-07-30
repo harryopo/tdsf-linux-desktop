@@ -28,7 +28,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron'
 import type { ModelMessage } from 'ai'
-import { TOKEN, TERMINAL } from '@shared/ipc-channels'
+import { TOKEN } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
@@ -320,57 +320,12 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               sessionId: resolvedSessionId,
             }
             safeSend(mainWindow, AGENT_TOOL_EVENT_CHANNEL, payload)
-
-            // v2.6：ssh_readonly 命令 + 实时输出同步回显到工作台终端（复用 terminal:data
-            // 本地注入 xterm，不经过远端 shell，不影响交互会话）：
-            // - call：青色 “⚡ AI $ 命令” 提示行
-            // - output：原样回显（\n 归一化为 \r\n）
-            // - result：绿/红状态尾行
-            if (evt.toolName === 'ssh_readonly' && sshSessionId) {
-              if (evt.phase === 'call' && evt.input) {
-                safeSend(
-                  mainWindow,
-                  TERMINAL.DATA,
-                  sshSessionId,
-                  `\r\n\x1b[36m⚡ AI 诊断命令 $ ${evt.input}\x1b[0m\r\n`,
-                )
-              } else if (evt.phase === 'output' && evt.output) {
-                safeSend(
-                  mainWindow,
-                  TERMINAL.DATA,
-                  sshSessionId,
-                  evt.output.replace(/\r?\n/g, '\r\n'),
-                )
-              } else if (evt.phase === 'result') {
-                safeSend(
-                  mainWindow,
-                  TERMINAL.DATA,
-                  sshSessionId,
-                  evt.ok
-                    // v2.11 去刷屏：成功只留一条暗淡分隔线（而非每条都醒目绿字）；失败仍醒目
-                    ? '\x1b[90m\u2500\u2500 AI \u2713 \u2500\u2500\x1b[0m\r\n'
-                    : `\r\n\x1b[31m\u2717 AI \u547d\u4ee4\u5931\u8d25${evt.output ? `\uff1a${evt.output.slice(0, 200).replace(/\r?\n/g, ' ')}` : ''}\x1b[0m\r\n`,
-                )
-              }
-            }
-            // v2.9：写命令/日志追踪同样回显到终端（黄色标记写操作，与只读区分）
-            if ((evt.toolName === 'ssh_write' || evt.toolName === 'ssh_journal_follow') && sshSessionId) {
-              const label = evt.toolName === 'ssh_write' ? '✎ AI 写操作' : '↻ AI 日志追踪'
-              if (evt.phase === 'call' && evt.input) {
-                safeSend(mainWindow, TERMINAL.DATA, sshSessionId, `\r\n\x1b[33m${label} $ ${evt.input}\x1b[0m\r\n`)
-              } else if (evt.phase === 'output' && evt.output) {
-                safeSend(mainWindow, TERMINAL.DATA, sshSessionId, evt.output.replace(/\r?\n/g, '\r\n'))
-              } else if (evt.phase === 'result') {
-                safeSend(
-                  mainWindow,
-                  TERMINAL.DATA,
-                  sshSessionId,
-                  evt.ok
-                    ? '\r\n\x1b[32m✓ 完成\x1b[0m\r\n'
-                    : `\r\n\x1b[31m✗ 未执行/失败${evt.output ? `：${evt.output.slice(0, 200).replace(/\r?\n/g, ' ')}` : ''}\x1b[0m\r\n`,
-                )
-              }
-            }
+            
+            // v2.11 去混乱：AI 自主执行的命令不再注入 xterm 终端。
+            // 原先把 AI 的 ssh_readonly/ssh_write/ssh_journal_follow 命令行+真实输出+状态行
+            // 都回显到终端，与右侧 AI 面板的“终端命令卡”重复，且把用户自己的交互 shell
+            // 搅乱（真实回显与 AI 文字混在一起，丑且奇怪）。现 AI 命令执行仅在 AI 面板命令卡展示（agent:tool-event）；
+            // 终端只展示用户自己的交互命令与“在终端执行”按钮（用户主动）发送的命令。
           },
         })
         .catch((err: unknown) => {
