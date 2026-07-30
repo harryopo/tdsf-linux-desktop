@@ -501,6 +501,8 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           )}
         </div>
         <div className="ai-card-wrap">
+          {/* v2.11：深度思考块置于最终回答上方（对齐 Trae：先思考过程、后答案） */}
+          {renderReasoning()}
           {message.isError ? (
             <div className="ai-card border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)] whitespace-pre-wrap">
               {message.content}
@@ -540,7 +542,6 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         </div>
       </div>
       {renderStepProgress()}
-      {renderReasoning()}
       {renderToolEvents()}
       {/* v2.5：完成态且有真实工具轨迹时，展示 6 源 D-S/PCR5 可信度分析折叠块 */}
       {!message.isStreaming && !message.isError && (
