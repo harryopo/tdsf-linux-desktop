@@ -206,10 +206,15 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     // 找到 .ai-messages 滚动容器（closest 找到最近 .ai-messages 祖先）
     const scrollContainer = (end.closest('.ai-messages') as HTMLElement | null) ?? end.parentElement
     if (!scrollContainer) return
-    // v2.4 修复（流式滚动抽搐）：流式期间用 'auto'（即时置底），不要用 'smooth'。
-    // smooth 在每个 token 都重启一次平滑动画、互相打断 → 视觉抽搐；
+    // v2.4 修复（流式滚动抽摞）：流式期间用 'auto'（即时置底），不要用 'smooth'。
+    // smooth 在每个 token 都重启一次平滑动画、互相打断 → 视觉抽摞；
     // auto 每帧瞬时贴底，配合 rAF 批处理，观感反而顺滑。仅流式结束后用一次 smooth。
     const behavior: ScrollBehavior = isStreaming ? 'auto' : 'smooth'
+    // v2.11 修复“输入框被顶不丝滑”：仅当用户已在底部附近才跟随置底。
+    // 若用户上滚阅读历史（距底 > 160px），尊重其位置、不强行拽回底部。
+    const distanceToBottom =
+      scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight
+    if (distanceToBottom > 160) return
     const raf = requestAnimationFrame(() => {
       scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior })
     })

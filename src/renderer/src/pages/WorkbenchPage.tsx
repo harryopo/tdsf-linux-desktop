@@ -25,6 +25,7 @@
  */
 import { useCallback, useState, type FC } from 'react'
 import { Modal, message } from 'antd'
+import { PanelLeftOpen } from 'lucide-react'
 import { WorkbenchTitlebar } from '@/components/workbench/WorkbenchTitlebar'
 import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
 import EditorArea, {
@@ -45,6 +46,8 @@ export const WorkbenchPage: FC = () => {
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>()
   const [fileTabs, setFileTabs] = useState<WorkbenchFileTab[]>([])
   const [aiPanelVisible, setAiPanelVisible] = useState(true)
+  // v2.11：资源管理器折叠态（与 AI 面板对齐，折叠后显一条细边栏可再展开）
+  const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
   const activeSessionId = useServerStore((s) => s.activeSessionId)
 
   const handleOpenFile = useCallback((req: OpenFileRequest) => {
@@ -301,7 +304,23 @@ export const WorkbenchPage: FC = () => {
       />
 
       <div className="wb-main-body flex min-h-0 flex-1 overflow-hidden">
-        <FileTree activeFilePath={activeFilePath} onOpenFile={handleOpenFile} />
+        {fileTreeCollapsed ? (
+          <button
+            type="button"
+            title="展开资源管理器"
+            aria-label="展开资源管理器"
+            onClick={() => setFileTreeCollapsed(false)}
+            className="flex h-full w-7 shrink-0 items-start justify-center border-r border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] pt-2 text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+          >
+            <PanelLeftOpen className="size-4" />
+          </button>
+        ) : (
+          <FileTree
+            activeFilePath={activeFilePath}
+            onOpenFile={handleOpenFile}
+            onCollapse={() => setFileTreeCollapsed(true)}
+          />
+        )}
 
         {/* EditorArea 包裹层 */}
         <div className="wb-editor-wrap relative flex min-w-0 flex-1 flex-col">
