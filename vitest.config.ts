@@ -67,6 +67,17 @@ export default defineConfig({
          */
         external: ['electron', 'better-sqlite3', 'electron-store', '@photostructure/sqlite-vec']
       }
-    }
+    },
+    /**
+     * 覆盖率（v2.11 harness 修复 #1）：CI 以 `pnpm test -- --coverage` 运行并上传 codecov，
+     * 此前缺 provider 导致覆盖率证据不可靠。启用 v8 provider，输出 text + lcov（供 codecov）。
+     * 不设 thresholds，避免覆盖率门禁误红；覆盖率作为可观测信号而非硬门禁。
+     */
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      reportsDirectory: './coverage',
+      exclude: ['tests/**', 'out/**', '**/*.d.ts', '**/*.config.*', 'scripts/**'],
+    },
   }
 })

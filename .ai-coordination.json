@@ -2,8 +2,29 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-07-29T02:49:21.232Z",
-  "sessions": {},
+  "lastUpdated": "2026-07-31T06:24:43.174Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-07-31T06:24:42.011Z",
+      "lastActiveAt": "2026-07-31T06:24:43.174Z",
+      "task": "harness-fix-v2.11",
+      "claimedFiles": [
+        {
+          "path": "package.json",
+          "task": "harness-fix-v2.11",
+          "claimedAt": "2026-07-31T06:24:42.011Z"
+        },
+        {
+          "path": "CLAUDE.md",
+          "task": "harness-fix-v2.11",
+          "claimedAt": "2026-07-31T06:24:43.174Z"
+        }
+      ],
+      "expiresAt": "2026-07-31T08:24:43.174Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -2930,6 +2951,20 @@
       "file": "src/preload/index.ts",
       "task": "v2.10 strength auto",
       "timestamp": "2026-07-29T02:49:21.232Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "harness-fix-v2.11",
+      "timestamp": "2026-07-31T06:24:42.011Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "CLAUDE.md",
+      "task": "harness-fix-v2.11",
+      "timestamp": "2026-07-31T06:24:43.174Z"
     }
   ],
   "coordinationAudit": {
