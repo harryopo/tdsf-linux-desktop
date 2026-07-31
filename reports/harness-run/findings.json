@@ -1,0 +1,151 @@
+{
+  "summary": {
+    "projectName": "tdsf-linux-desktop",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 25,
+    "overview": "会话侧为 session-limited 审查：Qoder 39 会话/49 episode 的 populationCoverage 全为 0（编辑/门禁走对话工具调用，未落入会话结构化信号），故行为类判断保持 Unobserved，结论以已开箱的项目 Harness 机制为准。项目机制成熟：CLAUDE.md 六红线+三绿硬门禁、AGENTS.md §文件所有权单一权威、CI（typecheck×2/lint/三平台 vitest/IPC 契约对账/真机 e2e-wiring/build-win）、audit:ipc 直击假 UI 病灶。已确认的可修复缺口集中在门禁完整性与工装可复现性；2 条 Memory 因中文工作区 slug 标题扫描为空处于 unobserved，仅约束学习沉淀评分、不作 clean 采信。",
+    "aiAgentPractice": {
+      "inspectedSurfaces": [
+        "Rules"
+      ],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            ".qoder/rules/project-governance.md"
+          ]
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        }
+      ]
+    },
+    "assignmentSummaries": [],
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 70,
+        "summary": "CLAUDE.md/AGENTS.md/项目规则构成可达的权威上下文链且每会话注入；但唯一项目 Rule 含一处已过时的工作区结构事实，会误导定位。",
+        "findingRefs": [
+          "governance-rule-stale-structure-fact"
+        ]
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 66,
+        "summary": "启动/重建路径、Electron 安全三原则、高危命令黑名单、HITL 审批均有机制；但一个核心门禁工装依赖未固定的 npx 拉取，且并行守卫存在双源清单与无审计绕过口。",
+        "findingRefs": [
+          "audit-ipc-unpinned-tsx",
+          "ai-coord-guard-dual-source-and-bypass"
+        ]
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 72,
+        "summary": "验证面强（typecheck×2/lint/三平台单测/IPC 契约对账/真机接线 E2E 均进 CI）；但覆盖率步骤缺 provider、Knip 死代码门禁声明为 CI 用却未接线，削弱了声称的验证证据。",
+        "findingRefs": [
+          "ci-coverage-provider-missing",
+          "knip-deadcode-gate-drift"
+        ]
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 60,
+        "summary": "CI 必需检查+Windows 打包构成验收边界，高危写操作有 HITL 审批；但会话侧未观测到面向当前修订的合并/评审决策，交付验收部分 Unobserved。",
+        "findingRefs": []
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 44,
+        "summary": "存在 .learnings/ 与长期记忆机制，但历史学习捕获报告不可解析、2 条 Memory 标题不可观测、本窗口无可复现的学习闭环 owner，纵向有效性待后续窗口，无法claim later 改善。",
+        "findingRefs": []
+      }
+    ]
+  },
+  "findings": [
+    {
+      "id": "ci-coverage-provider-missing",
+      "title": "CI 单测声明覆盖率但缺 provider，覆盖率证据不可靠",
+      "severity": "Medium",
+      "reason": "事实：ci.yml 单测 job 以 `pnpm test -- --coverage` 运行并上传 codecov（fail_ci_if_error:false），但 package.json devDependencies 无任何 vitest coverage provider（@vitest/coverage-v8 等），vitest.config.ts 亦无 coverage 配置。推断：Vitest 2 在缺 provider 时通常报错或使覆盖率长期缺失，而 codecov 的失败不阻断会静默吞掉该信号，三平台矩阵实际提供的覆盖证据弱于声称。owner：ci.yml 单测步骤 + package.json devDependencies。不确定性：未读 CI 运行日志，无法断言当前红/绿。provider：Qoder 项目仓库。",
+      "expectedOutput": [
+        "覆盖率门禁要么真实产出可信的 coverage 证据，要么在 CI 中彻底移除，不留声明未兑现的静默步骤。"
+      ],
+      "expectedArtifact": "CI 配置",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在 tdsf-linux-desktop 内二选一并保持三绿门禁不变：(A) 把与 vitest 主版本匹配的 @vitest/coverage-v8 加入 package.json devDependencies 并在 vitest.config.ts 配置 coverage.provider='v8'；或 (B) 从 ci.yml 单测步骤移除 --coverage 与 codecov 上传，避免声明未兑现。二者不得混用。\n\n## Validation\n\n- 本地运行 `pnpm test -- --coverage`，确认不再报缺 provider 且生成 coverage/lcov.info（方案 A）或确认 ci.yml 不再引用 coverage（方案 B）\n- 运行 `pnpm typecheck:node && pnpm typecheck:web && pnpm lint` 保持三绿",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "knip-deadcode-gate-drift",
+      "title": "Knip 死代码门禁声明为 CI 用但未在任何 workflow 接线",
+      "severity": "Medium",
+      "reason": "事实：CLAUDE.md 声明 `pnpm deadcode:strict` 为“Knip 严格模式（CI 用）”，package.json 也有该脚本，但 ci.yml/codeql/labeler 三个 workflow 中不存在任何 knip job 或 step。推断：死代码门禁只是声明性存在、无机械强制，AGENTS.md Day5“五绿全过”的口径与 CI 实际 job 集合漂移。owner：.github/workflows/ci.yml + CLAUDE.md 门禁声明段。不确定性：不排除本地 hook 或人工执行 knip；漂移事实本身确定。provider：Qoder 项目仓库。",
+      "expectedOutput": [
+        "死代码门禁的声明与机械强制状态一致：要么进 CI 真正拦截，要么文档不再宣称它是 CI 门禁。"
+      ],
+      "expectedArtifact": "CI 配置",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在 tdsf-linux-desktop 内二选一消除声明与强制的漂移：(A) 在 ci.yml 增加一个运行 `pnpm deadcode:strict` 的 job（与现有 lint job 同构，pnpm install --frozen-lockfile 后执行）；或 (B) 修改 CLAUDE.md，把 deadcode 明确标注为“本地建议、非 CI 强制”，使文档与实际 CI job 集合一致。\n\n## Validation\n\n- `Select-String -Path .github/workflows/*.yml -Pattern knip` 确认方案 A 已接线，或确认 CLAUDE.md 不再声称 CI 强制\n- 若选 A，本地跑 `pnpm deadcode:strict` 确认可执行并观察是否有需先清理的死代码",
+      "dimensionRefs": [
+        "change-validation"
+      ]
+    },
+    {
+      "id": "audit-ipc-unpinned-tsx",
+      "title": "核心防断链门禁 audit:ipc 依赖未固定的 npx tsx 拉取",
+      "severity": "Medium",
+      "reason": "事实：package.json 的 `audit:ipc` 为 `npx tsx scripts/audit-ipc-contract.ts`，tsx 不在 devDependencies、版本未固定；CI 的 audit-ipc job 每次运行都依赖 registry 网络拉取 tsx。推断：该门禁专为查“假 UI/死按钮”端到端断链而设，但其可复现性与供应链边界弱——registry 波动/离线/tsx 大版本变更都可能让门禁 job 失败或行为漂移，与仓库 frozen-lockfile 的确定性安装原则不一致。owner：package.json 脚本与 devDependencies + ci.yml audit-ipc job。不确定性：实际失败率未观测；tsx 未声明是确定事实。provider：Qoder 项目仓库。",
+      "expectedOutput": [
+        "防断链门禁的工装从锁定依赖确定性解析，断网或 registry 波动下仍可复现执行。"
+      ],
+      "expectedArtifact": "依赖与脚本配置",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在 tdsf-linux-desktop 内把 tsx 固定进 devDependencies（与仓库既有 pnpm 版本约定一致），并将 `audit:ipc` 改为经锁定依赖运行（如 `pnpm exec tsx scripts/audit-ipc-contract.ts`），去除对 registry 临时拉取的依赖；随后更新 pnpm-lock.yaml。\n\n## Validation\n\n- `pnpm install --frozen-lockfile` 后运行 `pnpm audit:ipc`，确认从锁定依赖解析 tsx（可断网复验）\n- 确认 CI audit-ipc job 仍能通过（本地模拟 `pnpm install --frozen-lockfile && pnpm audit:ipc`）",
+      "dimensionRefs": [
+        "controlled-execution"
+      ]
+    },
+    {
+      "id": "governance-rule-stale-structure-fact",
+      "title": "每会话注入的项目规则含一处不存在的目录事实",
+      "severity": "Low",
+      "reason": "事实：.qoder/rules/project-governance.md 的“工作区结构事实”段声称子仓库含 tdsf-terminal-agent，但文件系统核查该目录不存在（仅有 tdsf-terminal-agent-clone 与 tdsf-terminal-agent.design）。推断：该 Rule 每会话注入，向 agent 提供错误的工作区地图，可能导致按错误名称寻找/引用仓库或误判 -clone 身份。owner：.qoder/rules/project-governance.md 的结构事实段（位于工作区根，非 tdsf-linux-desktop 内，修复需单独授权）。不确定性：未逐一核验其余子仓库 .git 存在性。provider：Qoder 工作区资产。",
+      "expectedOutput": [
+        "每会话注入的工作区结构事实与真实目录一致，不再向 agent 提供不存在的仓库名。"
+      ],
+      "expectedArtifact": "Qoder 规则",
+      "aiFixPrompt": "/better-harness fix this issue\n\n注意：该文件位于工作区根 .qoder/rules/，超出 tdsf-linux-desktop 修改边界，需单独授权后再改。授权后，对 project-governance.md 列出的每个目录逐一 `Test-Path <dir>` 核实真实清单，把 tdsf-terminal-agent 更正为实际存在的目录名（tdsf-terminal-agent-clone 等），使注入的工作区地图与文件系统一致。\n\n## Validation\n\n- 对更正后列出的每个目录运行 `Test-Path`，全部为 True\n- 确认 Rule 文本不再出现文件系统中不存在的目录名",
+      "dimensionRefs": [
+        "task-understanding"
+      ]
+    },
+    {
+      "id": "ai-coord-guard-dual-source-and-bypass",
+      "title": "并行守卫的高共享清单双源维护且绕过无审计",
+      "severity": "Low",
+      "reason": "事实：precommit-guard.cjs 把 AGENTS.md §高共享文件清单硬编码复制一份（注释自认“如 AGENTS.md 更新此处需同步”），构成同一清单的两个真相源；且 AI_COORD_BYPASS=1 可无审计跳过 claim 检查，“事后补登记”仅为注释约定、无机械追踪。推断：AGENTS.md 清单更新时守卫易与之漂移导致拦截口径不一致；绕过无留痕使多 AI 并行期的协调审计存在盲点。owner：scripts/ai-coordination/precommit-guard.cjs + AGENTS.md 清单。不确定性：影响仅限于多 AI 并行阶段；单 AI 时无实际后果。provider：Qoder 项目仓库。",
+      "expectedOutput": [
+        "高共享清单单源维护、守卫口径不再漂移，且每次绕过都留下可审计痕迹。"
+      ],
+      "expectedArtifact": "协作守卫脚本",
+      "aiFixPrompt": "/better-harness fix this issue\n\n在 tdsf-linux-desktop 内消除双源并补审计：让 precommit-guard.cjs 从单一真相源读取高共享清单（如从 AGENTS.md 解析或抽到一个被两侧共同引用的 JSON），不再硬编码副本；并在 AI_COORD_BYPASS=1 生效时向 .ai-coordination.json 或提交注记追加一条带时间戳/sessionId 的绕过记录。\n\n## Validation\n\n- 修改 AGENTS.md 清单后运行守卫，确认拦截口径随之变化（单源生效）\n- 以 AI_COORD_BYPASS=1 触发一次提交，确认产生可查的绕过审计记录",
+      "dimensionRefs": [
+        "controlled-execution"
+      ]
+    }
+  ]
+}
