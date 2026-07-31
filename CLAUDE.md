@@ -50,8 +50,8 @@ pnpm typecheck        # typecheck:node + typecheck:web
 pnpm lint:fix         # 自动修复
 pnpm test:watch       # 监听模式
 pnpm test:e2e         # Playwright E2E
-pnpm deadcode         # Knip 死代码扫描（不报错）
-pnpm deadcode:strict  # Knip 严格模式（CI 用）
+pnpm deadcode         # Knip 死代码扫描（不报错，本地建议）
+pnpm deadcode:strict  # Knip 严格模式（本地建议、非 CI 强制；当前有已知 default 导出误报，需清理后才能作硬门禁）
 pnpm build:win        # Windows 打包
 pnpm rebuild          # 重编译原生模块（better-sqlite3, ssh2）
 ```
