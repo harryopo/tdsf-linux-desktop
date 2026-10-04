@@ -35,6 +35,7 @@ import type {
   ModeInfo,
 } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
+import { acceptsStream, lastIndexWhere, ownsStream, replaceAt } from '@/lib/messageSync'
 
 /**
  * Agent 对话消息（扩展 ChatMessage，含元信息）
@@ -298,98 +299,95 @@ export const useAgentStore = create<AgentState>()((set) => ({
       messages: [...state.messages, message],
     })),
 
-  // 追加流式 token 到最后一条 assistant 消息（kind='reasoning' 时追加到思考链）
+  /**
+   * 追加流式 token 到最后一条 assistant 消息
+   *
+   * 会话归属：payload 必须对上 currentCorrelationId，否则整条丢弃。
+   * 挡的是"切走又切回"期间旧流在途的 chunk 落进新回答；以前靠反向扫描
+   * 找匹配，找不到就悄悄写到更早一条已完成的 assistant 消息上。
+   */
   appendToken: (payload) =>
     set((state) => {
-      const messages = [...state.messages]
-      // 找到最后一条 assistant 消息（按 correlationId 匹配，回退到最后一条 assistant）
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const msg = messages[i]
-        if (msg.role === 'assistant') {
-          // 优先按 correlationId 匹配，找不到则回退到最后一条 assistant
-          if (payload.correlationId && msg.correlationId && msg.correlationId !== payload.correlationId) {
-            continue
-          }
-          messages[i] =
-            payload.kind === 'reasoning'
-              ? {
-                  ...msg,
-                  reasoning: (msg.reasoning ?? '') + payload.delta,
-                  isStreaming: true,
-                }
-              : {
-                  ...msg,
-                  content: msg.content + payload.delta,
-                  isStreaming: true,
-                }
-          break
-        }
+      if (!acceptsStream(state.currentCorrelationId, payload.correlationId)) return state
+      const idx = lastIndexWhere(state.messages, (m) => m.role === 'assistant')
+      if (idx < 0) return state
+      const msg = state.messages[idx]
+      if (payload.correlationId && msg.correlationId && msg.correlationId !== payload.correlationId) {
+        return state
       }
-      return { messages }
+      const next =
+        payload.kind === 'reasoning'
+          ? { ...msg, reasoning: (msg.reasoning ?? '') + payload.delta, isStreaming: true }
+          : { ...msg, content: msg.content + payload.delta, isStreaming: true }
+      const messages = replaceAt(state.messages, idx, next)
+      return messages ? { messages } : state
     }),
 
-  // 完成消息（done 事件回填 usage/model/providerId/cotEntropyTrajectory 等）
+  /**
+   * 完成消息（done 事件回填 usage/model/providerId/cotEntropyTrajectory 等）
+   *
+   * done 是 CRITICAL 类：不认会话闸门，而是按 correlationId 认领自己那条，
+   * 迟到的 done 仍要把自己那条消息关掉，不能因为切了会话就让它永远卡在 streaming。
+   * 但绝不代关别人的消息 —— currentCorrelationId 只在相等时才清。
+   */
   finalizeMessage: (payload) =>
     set((state) => {
-      const messages = [...state.messages]
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const msg = messages[i]
-        if (msg.role === 'assistant') {
-          if (msg.correlationId && msg.correlationId !== payload.correlationId) {
-            continue
-          }
-          // v0.9.6 P2 M5+：回填 CoT 熵轨迹（可选，undefined / 空数组不写）
-          const cotTrajectory =
-            payload.result.cotEntropyTrajectory &&
-            payload.result.cotEntropyTrajectory.length > 0
-              ? payload.result.cotEntropyTrajectory
-              : msg.cotEntropyTrajectory
-          messages[i] = {
-            ...msg,
-            isStreaming: false,
-            providerId: payload.result.providerId,
-            model: payload.result.model,
-            usage: payload.result.usage,
-            cotEntropyTrajectory: cotTrajectory,
-          }
-          break
-        }
+      const idx = lastIndexWhere(
+        state.messages,
+        (m) => m.role === 'assistant' && ownsStream(m.correlationId, payload.correlationId)
+      )
+      if (idx < 0) {
+        return state.currentCorrelationId === payload.correlationId
+          ? { isStreaming: false, currentCorrelationId: null }
+          : state
       }
-      return {
-        messages,
+      const msg = state.messages[idx]
+      // v0.9.6 P2 M5+：回填 CoT 熵轨迹（可选，undefined / 空数组不写）
+      const cotTrajectory =
+        payload.result.cotEntropyTrajectory && payload.result.cotEntropyTrajectory.length > 0
+          ? payload.result.cotEntropyTrajectory
+          : msg.cotEntropyTrajectory
+      const messages = replaceAt(state.messages, idx, {
+        ...msg,
         isStreaming: false,
-        currentCorrelationId: null,
+        providerId: payload.result.providerId,
+        model: payload.result.model,
+        usage: payload.result.usage,
+        cotEntropyTrajectory: cotTrajectory,
+      })
+      const closesCurrent = state.currentCorrelationId === payload.correlationId
+      return {
+        ...(messages ? { messages } : {}),
+        ...(closesCurrent ? { isStreaming: false, currentCorrelationId: null } : {}),
       }
     }),
 
-  // 标记错误
+  /**
+   * 标记错误
+   *
+   * 与 finalizeMessage 同一条认领规则：按 correlationId 找自己那条，
+   * lastError 始终记录（它是全局提示，不属于任何一条消息）。
+   */
   markError: (payload) =>
     set((state) => {
-      const messages = [...state.messages]
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const msg = messages[i]
-        if (msg.role === 'assistant') {
-          if (msg.correlationId && msg.correlationId !== payload.correlationId) {
-            continue
-          }
-          messages[i] = {
-            ...msg,
-            isStreaming: false,
-            isError: true,
-            // 错误时追加错误信息到内容末尾（便于用户看到）
-            content: msg.content
-              ? `${msg.content}\n\n[错误] ${payload.message}`
-              : `[错误] ${payload.message}`,
-          }
-          break
-        }
-      }
-      return {
-        messages,
+      const idx = lastIndexWhere(
+        state.messages,
+        (m) => m.role === 'assistant' && ownsStream(m.correlationId, payload.correlationId)
+      )
+      const closesCurrent = state.currentCorrelationId === payload.correlationId
+      const base = closesCurrent
+        ? { isStreaming: false, currentCorrelationId: null }
+        : {}
+      if (idx < 0) return { ...base, lastError: payload.message }
+      const msg = state.messages[idx]
+      const messages = replaceAt(state.messages, idx, {
+        ...msg,
         isStreaming: false,
-        currentCorrelationId: null,
-        lastError: payload.message,
-      }
+        isError: true,
+        // 错误时追加错误信息到内容末尾（便于用户看到）
+        content: msg.content ? `${msg.content}\n\n[错误] ${payload.message}` : `[错误] ${payload.message}`,
+      })
+      return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
     }),
 
   // 更新当前流式消息的 stepState（onAgentStep 推送）

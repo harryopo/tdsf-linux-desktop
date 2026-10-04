@@ -16,51 +16,41 @@
 import { useAgentStore } from './agent-store'
 import { useMonitorStore } from './monitor-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { createDeltaCoalescer, DEFAULT_COALESCE_WINDOW_MS } from '@/lib/messageSync'
 import type { AgentWorkflowState } from '@shared/models'
 
 /** 幂等守卫：整个渲染进程生命周期只绑定一次 */
 let subscribed = false
 
 // ============================================================================
-// 流式 chunk 批处理（v2.5 修复：流式输出卡顿/抽搐）
+// 流式 chunk 合并写入
 //
 // 病因：每个 agent:chunk 都同步写一次 zustand store → 每 token 重渲染整个
 // 消息列表 + 重跑 Markdown 解析，高频 token 下主线程被打满，视觉抽搐。
-// 修复：按 correlationId 缓冲 delta，每 FLUSH_INTERVAL_MS 合并写入一次；
+// 修复：按 kind:correlationId 缓冲 delta，到窗口点合并写入一次；
 // done/error 到达时先强制冲刷，保证尾部内容不丢。
+//
+// v2.5 手写的那份缓冲已搬进 lib/messageSync 的 createDeltaCoalescer，
+// 这样合并语义（同 key 累加、窗口内只排一个定时器、flush 幂等）能被单测钉住。
 // ============================================================================
 
-/** 批处理刷新间隔（人眼对 ~20fps 的文本流已感知为连续） */
-const FLUSH_INTERVAL_MS = 45
+/** 待写入缓冲：正文与思考链分开累积，到点一次性吐给 store */
+const chunkCoalescer = createDeltaCoalescer(
+  (entries) => {
+    const { appendToken } = useAgentStore.getState()
+    for (const [key, delta] of entries) {
+      const sep = key.indexOf(':')
+      const kind = key.slice(0, sep) as 'text' | 'reasoning'
+      const correlationId = key.slice(sep + 1)
+      appendToken({ correlationId, delta, kind })
+    }
+  },
+  { windowMs: DEFAULT_COALESCE_WINDOW_MS }
+)
 
-/** 待写入的 delta 缓冲（按 kind:correlationId 合并，正文与思考链分开累积） */
-const pendingDeltas = new Map<string, string>()
-let flushTimer: ReturnType<typeof setTimeout> | null = null
-
-/** 立即把缓冲区写入 store */
+/** 立即把缓冲区写入 store（done/error 前必调，否则尾部 token 丢在半路） */
 function flushPendingChunks(): void {
-  if (flushTimer !== null) {
-    clearTimeout(flushTimer)
-    flushTimer = null
-  }
-  if (pendingDeltas.size === 0) return
-  const { appendToken } = useAgentStore.getState()
-  for (const [key, delta] of pendingDeltas) {
-    const sep = key.indexOf(':')
-    const kind = key.slice(0, sep) as 'text' | 'reasoning'
-    const correlationId = key.slice(sep + 1)
-    appendToken({ correlationId, delta, kind })
-  }
-  pendingDeltas.clear()
-}
-
-/** 缓冲一个 chunk，并确保刷新定时器在跑 */
-function bufferChunk(correlationId: string, delta: string, kind: 'text' | 'reasoning'): void {
-  const key = `${kind}:${correlationId}`
-  pendingDeltas.set(key, (pendingDeltas.get(key) ?? '') + delta)
-  if (flushTimer === null) {
-    flushTimer = setTimeout(flushPendingChunks, FLUSH_INTERVAL_MS)
-  }
+  chunkCoalescer.flush()
 }
 
 /**
@@ -83,8 +73,11 @@ export function initAgentStreamSubscription(): void {
   }
 
   window.electronAPI.onAgentChunk((payload) => {
-    // 不再每 token 写 store：缓冲后批量写入，消除流式卡顿（v2.5）
-    bufferChunk(payload.correlationId, payload.delta, payload.kind === 'reasoning' ? 'reasoning' : 'text')
+    // 不每 token 写 store：进合并缓冲，到点一次吐（会话归属由 appendToken 那侧把关）
+    chunkCoalescer.push(
+      `${payload.kind === 'reasoning' ? 'reasoning' : 'text'}:${payload.correlationId}`,
+      payload.delta
+    )
   })
 
   window.electronAPI.onAgentDone((payload) => {
