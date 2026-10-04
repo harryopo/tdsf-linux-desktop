@@ -29,7 +29,7 @@ const SEC_END = '# END secret gate';
 const SECRET_BLOCK = [
   SEC_BEGIN,
   'repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"',
-  'node "$repo_root/scripts/secret-gate.cjs" || exit 1',
+  'node "$repo_root/scripts/security/secret-gate.cjs" || exit 1',
   SEC_END,
 ].join('\n');
 
