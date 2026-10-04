@@ -144,32 +144,35 @@ export async function stepCheckPermission(ctx: TaskProtocolContext): Promise<Ste
     }
 
     // 5. 'always' 模式：需要用户审批
-    // 5.1 mainWindow 不存在 → 降级为默认允许（向后兼容）
+    // 5.1 mainWindow 不存在 → 拒绝。
+    //     以前这里"降级为默认允许"（注释写的是向后兼容/单测场景），等于
+    //     窗口一没了审批闸就自动放行 —— 需要人批的东西没人批时只能算不批。
+    //     单测/CLI 想跳过审批，请显式传 defaultPermission: 'auto'。
     if (!ctx.mainWindow) {
-      log.warn('step 2/14 check-permission 降级为默认允许（mainWindow 不存在，单测/CLI 场景）', {
+      log.warn('step 2/14 check-permission 拒绝（mainWindow 不存在，无人可批）', {
         taskId: ctx.taskId,
         subagentName: ctx.subagentName,
         mode,
       })
       return {
         step: 'check-permission',
-        success: true,
-        output: { approved: true, source: 'default-allow-no-mainwindow', mode },
+        success: false,
+        error: `Subagent "${ctx.subagentName}" 需要人工审批，但当前没有可弹窗的窗口，已拒绝`,
         durationMs: Date.now() - start,
       }
     }
 
-    // 5.2 mainWindow 已销毁 → 降级为默认允许
+    // 5.2 mainWindow 已销毁 → 同样拒绝（理由同上）
     if (ctx.mainWindow.isDestroyed()) {
-      log.warn('step 2/14 check-permission 降级为默认允许（mainWindow 已销毁）', {
+      log.warn('step 2/14 check-permission 拒绝（mainWindow 已销毁，无人可批）', {
         taskId: ctx.taskId,
         subagentName: ctx.subagentName,
         mode,
       })
       return {
         step: 'check-permission',
-        success: true,
-        output: { approved: true, source: 'default-allow-destroyed', mode },
+        success: false,
+        error: `Subagent "${ctx.subagentName}" 需要人工审批，但窗口已销毁，已拒绝`,
         durationMs: Date.now() - start,
       }
     }

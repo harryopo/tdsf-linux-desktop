@@ -27,6 +27,8 @@
 
 import { ipcMain, type BrowserWindow } from 'electron'
 import { logger } from '../services/log/logger'
+// D2：审批判定唯一权威 —— 只有字面 true 算批准
+import { readApproval, readRemember } from '../core/security/approval'
 
 // ============================================================================
 // 常量与类型定义
@@ -177,37 +179,44 @@ export function registerTaskPermissionHandlers(): void {
   // 返回：void（通过 Promise resolve 通知 waitForTaskPermissionApproval）
   //
   // 设计要点：
-  // - 不在校验入参类型（IPC 内部调用，信任渲染进程）
+  // - 入参按跨进程外部输入处理：decision 形状不对、approved 不是字面 true，一律按拒绝
   // - callId 不在 pendingTaskPermissionApprovals 中时静默忽略（可能已超时）
   // - remember=true 时记录日志（持久化规则表留待 v1.6）
   ipcMain.handle(
     TASK_PERMISSION_APPROVE_INVOKE,
-    async (_event, callId: string, decision: TaskPermissionDecision): Promise<void> => {
+    async (_event, callId: string, decisionRaw: unknown): Promise<void> => {
+      const approved = readApproval(decisionRaw)
+      const remember = readRemember(decisionRaw)
+      if (typeof decisionRaw !== 'object' || decisionRaw === null) {
+        logger.warn('IPC.TASK_PERMISSION', '审批响应形状非对象，按拒绝处理', {
+          callId,
+          type: typeof decisionRaw,
+        })
+      }
       const pending = pendingTaskPermissionApprovals.get(callId)
       if (!pending) {
         logger.warn('IPC.TASK_PERMISSION', `收到未知 callId 的审批响应（可能已超时）`, {
           callId,
-          approved: decision.approved,
+          approved,
         })
         return
       }
 
       clearTimeout(pending.timeout)
       pendingTaskPermissionApprovals.delete(callId)
-      pending.resolve(decision)
+      pending.resolve({ approved, remember })
 
       logger.info('IPC.TASK_PERMISSION', `收到审批响应`, {
         callId,
-        approved: decision.approved,
-        remember: decision.remember ?? false,
-        rejectReason: decision.rejectReason,
+        approved,
+        remember,
       })
 
       // remember=true 时记录日志（v1.6 实现持久化规则表）
-      if (decision.remember) {
+      if (remember) {
         logger.info('IPC.TASK_PERMISSION', `用户选择记住决策（持久化规则表 v1.6 实现）`, {
           callId,
-          approved: decision.approved,
+          approved,
         })
       }
     }

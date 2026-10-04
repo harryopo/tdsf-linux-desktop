@@ -43,6 +43,8 @@ import type {
 import { logger } from '../services/log/logger'
 // v0.9.4 新增：session-registry 集中维护 sessionId → AbortController Map，支持 abort signal + TTL 清理
 import { getSessionRegistry } from '../core/agent/session-registry'
+// D2：审批判定唯一权威 —— 只有字面 true 算批准
+import { readApproval } from '../core/security/approval'
 // 审批与危险度识别（从 sandbox-approval.ts 导入，保持主文件 ≤500 行）
 import {
   waitForSandboxApproval,
@@ -76,9 +78,17 @@ export function registerSandboxIpcHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // 参数：(callId: string, approved: boolean)
   // 返回：boolean（是否成功处理审批响应）
+  // 安全：HC-6 强制审批的批准位是跨进程外部输入，只有字面 true 算批准
   ipcMain.handle(
     'sandbox:approve',
-    async (_event, callId: string, approved: boolean): Promise<boolean> => {
+    async (_event, callId: string, approvedRaw: unknown): Promise<boolean> => {
+      const approved = readApproval(approvedRaw)
+      if (typeof approvedRaw !== 'boolean') {
+        logger.warn('IPC.SANDBOX', 'sandbox:approve 批准位非布尔，按拒绝处理', {
+          callId,
+          type: typeof approvedRaw,
+        })
+      }
       const pending = pendingSandboxApprovals.get(callId)
       if (!pending) {
         logger.warn('IPC.SANDBOX', 'sandbox:approve 收到未知 callId', { callId })

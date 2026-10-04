@@ -64,6 +64,8 @@ import { alertTokenBudgetExceeded } from '../services/llm/budget-alerter'
 import { getSessionRegistry } from '../core/agent/session-registry'
 // v2.4 Phase D1：Provider 配置保存时清理 ClaudeSdkProvider 缓存，避免旧实例被复用
 import { clearClaudeSdkProviderCache } from './claude-sdk'
+// D2：审批判定唯一权威 —— 只有字面 true 算批准
+import { readApproval } from '../core/security/approval'
 
 /** 流式 token 推送通道名 */
 const AGENT_CHUNK_CHANNEL = 'agent:chunk'
@@ -592,9 +594,17 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   // 参数：(callId: string, approved: boolean)
   // 返回：boolean（是否成功处理审批响应）
   // 说明：渲染进程用户点击"批准/拒绝"后调用，resolve agent:paor 中挂起的 approveRisk Promise
+  // 安全：approved 是跨进程外部输入，只有字面 true 算批准（见 core/security/approval.ts）
   ipcMain.handle(
     'paor:approve',
-    async (_event, callId: string, approved: boolean): Promise<boolean> => {
+    async (_event, callId: string, approvedRaw: unknown): Promise<boolean> => {
+      const approved = readApproval(approvedRaw)
+      if (typeof approvedRaw !== 'boolean') {
+        logger.warn('IPC.PAOR', 'paor:approve 批准位非布尔，按拒绝处理', {
+          callId,
+          type: typeof approvedRaw,
+        })
+      }
       const pending = pendingPaorApprovals.get(callId)
       if (!pending) {
         logger.warn('IPC.PAOR', 'paor:approve 收到未知 callId', { callId })

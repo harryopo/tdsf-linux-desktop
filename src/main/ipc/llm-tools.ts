@@ -30,6 +30,8 @@ import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
 import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { ToolRegistry } from '../services/llm/tools/registry'
+// D2：审批判定唯一权威 —— 只有字面 true 算批准
+import { readApproval } from '../core/security/approval'
 import { generateText, isStepCount } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import type {
@@ -130,19 +132,23 @@ export function registerLlmToolHandlers(
   // ------------------------------------------------------------------
   // llm:tool-approve — 用户审批响应
   // ------------------------------------------------------------------
-  ipcMain.handle(LLM.TOOL_APPROVE, async (_event, response: ToolApprovalResponse) => {
-    const pending = pendingApprovals.get(response.callId)
+  // 安全：response 整体是跨进程外部输入，callId 取不到就什么都不做；
+  //       批准位只有字面 true 算批准（见 core/security/approval.ts）
+  ipcMain.handle(LLM.TOOL_APPROVE, async (_event, response: unknown) => {
+    const payload = (response ?? {}) as Partial<ToolApprovalResponse>
+    const callId = typeof payload.callId === 'string' ? payload.callId : ''
+    const approved = readApproval(payload)
+    if (approved !== (payload.approved as unknown)) {
+      console.warn(`[llm:tool-approve] 批准位非布尔，按拒绝处理: ${typeof payload.approved}`)
+    }
+    const pending = pendingApprovals.get(callId)
     if (!pending) {
-      console.warn(`[llm:tool-approve] 找不到待审批的 callId: ${response.callId}`)
+      console.warn(`[llm:tool-approve] 找不到待审批的 callId: ${callId}`)
       return false
     }
     clearTimeout(pending.timeout)
-    pendingApprovals.delete(response.callId)
-    if (response.approved) {
-      pending.resolve(true)
-    } else {
-      pending.resolve(false)
-    }
+    pendingApprovals.delete(callId)
+    pending.resolve(approved)
     return true
   })
 

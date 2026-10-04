@@ -42,6 +42,8 @@ import {
   type LoopEngineeringEvent,
 } from '../core/agent/subagents/loop-engineering-subagent'
 import { createSubagentTask } from '../core/agent/subagents/base'
+// D2：审批判定唯一权威 —— 只有字面 true 算批准
+import { readApproval } from '../core/security/approval'
 import type { ThinkingStrength } from '../core/agent/providers/types'
 
 // ============================================================================
@@ -237,9 +239,16 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
     async (
       _event,
       correlationId: string,
-      approved: boolean,
+      approvedRaw: unknown,
       newCommand?: string,
     ): Promise<boolean> => {
+      const approved = readApproval(approvedRaw)
+      if (typeof approvedRaw !== 'boolean') {
+        logger.warn('IPC.LOOP', 'loop:confirm 批准位非布尔，按拒绝处理', {
+          correlationId,
+          type: typeof approvedRaw,
+        })
+      }
       if (!correlationId) {
         logger.warn('IPC.LOOP', `loop:confirm 缺少 correlationId`)
         return false

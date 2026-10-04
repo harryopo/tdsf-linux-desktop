@@ -194,17 +194,17 @@ describe('[task-protocol-step-2] check-permission', () => {
     vi.clearAllMocks()
   })
 
-  it('2.1 成功路径：cancelled=false 且未注入 mainWindow → 降级默认允许（source=default-allow-no-mainwindow）', async () => {
+  it('2.1 fail-closed：mode=always 且未注入 mainWindow → 拒绝（没有窗口可问就不算批）', async () => {
     const ctx = makeCtx({ cancelled: false })
     const result = await stepCheckPermission(ctx)
 
-    expect(result.success).toBe(true)
+    // D2 之前这里返回 success:true / source:'default-allow-no-mainwindow'，
+    // 等于窗口一关审批闸就自动放行。测试当时把缺陷写成了期望。
+    expect(result.success).toBe(false)
     expect(result.step).toBe('check-permission')
-    expect(result.output).toEqual({
-      approved: true,
-      source: 'default-allow-no-mainwindow',
-      mode: 'always',
-    })
+    expect(result.output).toBeUndefined()
+    expect(result.error).toContain('需要人工审批')
+    expect(result.error).toContain('已拒绝')
   })
 
   it('2.2 失败路径：cancelled=true → success=false 且 error 提示已取消', async () => {
@@ -243,6 +243,16 @@ describe('[task-protocol-step-2] check-permission', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('never')
     expect(result.error).toContain(ctx.subagentName)
+  })
+
+  it('2.6 fail-closed：mainWindow 已销毁 → 拒绝（D2 之前这里也是默认允许）', async () => {
+    const destroyed = { isDestroyed: () => true } as unknown as TaskProtocolContext['mainWindow']
+    const ctx = makeCtx({ cancelled: false, mainWindow: destroyed })
+    const result = await stepCheckPermission(ctx)
+
+    expect(result.success).toBe(false)
+    expect(result.output).toBeUndefined()
+    expect(result.error).toContain('窗口已销毁')
   })
 })
 
