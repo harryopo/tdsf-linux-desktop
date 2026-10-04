@@ -77,7 +77,8 @@ describe('LiveMessageRow — assistant 消息', () => {
         activeSessionId="sess-1"
       />
     )
-    expect(screen.getByText('检测到 1 条命令：')).toBeInTheDocument()
+    // v2.11 起标题不再带全角冒号（`ba82df6` 命令检测 UI 改版），断言与 :274 渲染文本对齐
+    expect(screen.getByText('检测到 1 条命令')).toBeInTheDocument()
     // 'df -h' 同时出现在 Markdown 代码块与命令行列表中 → 用 AllBy 断言
     expect(screen.getAllByText('df -h').length).toBeGreaterThanOrEqual(2)
 

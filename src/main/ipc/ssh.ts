@@ -28,6 +28,7 @@ import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { ElectermSftpManager } from '../services/ssh/electerm-sftp'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
+import { evaluateCommand } from '../core/command-gate'
 import { recordToolCall } from './model-stats'
 import { DatabaseManager } from '../services/db/database'
 import type {
@@ -50,49 +51,11 @@ import type {
 //   后续如需完整审批，可接入 task-permission-approval 通道
 // ============================================================================
 
-/**
- * 高危命令黑名单（匹配则拦截，不执行）
- *
- * 覆盖场景：
- * - rm -rf /           递归删除根目录
- * - shutdown / reboot  关机重启
- * - mkfs.*             格式化文件系统
- * - dd ... of=/dev/    写入块设备
- * - chmod 777 /        危险权限
- * - :(){:|:&};:        fork 炸弹
- * - > /dev/sda         覆盖块设备
- */
-const DANGEROUS_COMMAND_PATTERNS: RegExp[] = [
-  /^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r?)\s+\/(\s|$)/, // rm -rf /
-  /^\s*rm\s+(-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r?)\s+\/\*\s*/,   // rm -rf /*
-  /^\s*shutdown\b/,
-  /^\s*reboot\b/,
-  /^\s*poweroff\b/,
-  /^\s*halt\b/,
-  /^\s*init\s+0\b/,
-  /^\s*mkfs\b/,
-  /^\s*dd\b.*\bof=\/dev\//,
-  /^\s*chmod\s+777\s+\/(\s|$)/,
-  /^\s*:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, // fork bomb
-  /^\s*>\s*\/dev\/(sd|nvme|vd)/,
-]
-
-/**
- * 检查命令是否为高危命令
- *
- * @param command 用户输入的命令
- * @returns true 表示高危，应拦截
- */
-function isDangerousCommand(command: string): boolean {
-  const trimmed = command.trim()
-  for (const pattern of DANGEROUS_COMMAND_PATTERNS) {
-    pattern.lastIndex = 0
-    if (pattern.test(trimmed)) {
-      return true
-    }
-  }
-  return false
-}
+// ============================================================================
+//   高危命令判定统一由 core/command-gate.ts 提供（本文件不再自持规则表）
+//   此处只做"终端路径"的前置拦截以给出中文提示；执行出口 connection-manager.exec()
+//   会再判一次，AI 工具 / MCP / 部署 / 调度无法绕过。
+// ============================================================================
 
 /**
  * v2.3 修复问题 #41 补齐：ssh:exec 入参 zod 校验 schema（B9 用户输入 IPC 必须校验）
@@ -260,13 +223,15 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
         command: redactSecrets(safeCommand),
       })
 
-      // 高危命令黑名单拦截（简化方案，替代完整 HITL 审批）
-      if (isDangerousCommand(safeCommand)) {
+      // 高危命令拦截：判定与执行出口同源（core/command-gate）
+      const verdict = evaluateCommand(safeCommand)
+      if (verdict.level === 'block') {
         logger.warn('SSH', '高危命令已拦截', {
           sessionId: safeSessionId,
           command: redactSecrets(safeCommand),
+          reason: verdict.reason,
         })
-        throw new Error('高危命令已被拦截，请通过终端手动执行')
+        throw new Error(`高危命令已被拦截：${verdict.reason}`)
       }
 
       try {

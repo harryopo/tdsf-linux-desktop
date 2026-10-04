@@ -37,43 +37,30 @@ const store = new Store<{
   },
 })
 
-/** safeStorage 不可用时的警告缓存（避免重复打日志） */
-let safeStorageUnavailableWarned = false
-
 /**
- * 检查 safeStorage 是否可用，不可用时输出警告并降级
+ * 加密不可用即拒绝写入（fail-closed）
  *
- * 降级策略：safeStorage 不可用时（如 Linux 缺少 libsecret），
- * 仍然将数据存入 electron-store（明文），但输出警告日志。
- * 这样保证功能可用，但安全性降低（仅本地开发环境建议）。
- *
- * @returns true 表示加密可用 / 已确认降级
+ * 旧行为是 console.warn 一次后继续把凭据写成明文 base64——等于把
+ * SSH 密码/私钥/API Key 明文落盘还不告诉用户。现在改为抛错，
+ * 由 saveApiKey / saveServerCredential 捕获后返回 false，调用方据实提示。
  */
-function ensureStorageAvailable(): boolean {
-  if (safeStorage.isEncryptionAvailable()) {
-    return true
-  }
-  if (!safeStorageUnavailableWarned) {
-    console.warn(
-      '[SecureStore] safeStorage 加密不可用（可能缺少 libsecret/Keychain），' +
-      '敏感信息将以明文存储，建议在生产环境启用系统加密后端'
+function ensureStorageAvailable(): void {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error(
+      '系统加密后端不可用（safeStorage），已拒绝存储凭据。' +
+      '请启用 Windows 凭据管理器 / macOS Keychain / Linux libsecret 后重试'
     )
-    safeStorageUnavailableWarned = true
   }
-  return false
 }
 
 /**
- * 加密字符串（safeStorage 不可用时降级为明文 base64）
+ * 加密字符串（加密不可用时抛错，不再降级为明文 base64）
  * @param plain 明文
- * @returns base64 字符串（加密或明文）
+ * @returns base64 密文
  */
 function encryptString(plain: string): string {
-  if (safeStorage.isEncryptionAvailable()) {
-    return safeStorage.encryptString(plain).toString('base64')
-  }
-  // 降级：明文转 base64（仅作占位，非真正加密）
-  return Buffer.from(plain, 'utf-8').toString('base64')
+  ensureStorageAvailable()
+  return safeStorage.encryptString(plain).toString('base64')
 }
 
 /**
@@ -113,7 +100,7 @@ export class SecureStore {
   }
 
   /**
-   * 保存 API Key（加密后存储，safeStorage 不可用时降级为明文 base64）
+   * 保存 API Key（safeStorage 加密后存储；加密后端不可用时拒绝写入并返回 false）
    *
    * @param provider 服务商标识（如 'openai'、'anthropic'、'deepseek'）
    * @param key API Key 明文
@@ -121,7 +108,7 @@ export class SecureStore {
    */
   public static saveApiKey(provider: string, key: string): boolean {
     try {
-      ensureStorageAvailable()
+
       const base64 = encryptString(key)
       const apiKeys = store.get('apiKeys', {}) as Record<string, string>
       apiKeys[provider] = base64
@@ -199,7 +186,7 @@ export class SecureStore {
    */
   public static saveServerCredential(serverId: string, credential: ServerCredential): boolean {
     try {
-      ensureStorageAvailable()
+
       const json = JSON.stringify(credential)
       const base64 = encryptString(json)
       const creds = store.get('serverCreds', {}) as Record<string, string>

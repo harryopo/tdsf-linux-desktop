@@ -44,9 +44,9 @@ function loadCredentials(): { host: string; port: number; username: string; pass
     }
   }
   return {
-    host: process.env.TDSF_SSH_HOST ?? fileCred.host ?? '192.168.45.200',
+    host: process.env.TDSF_SSH_HOST ?? fileCred.host ?? '',
     port: Number(process.env.TDSF_SSH_PORT ?? fileCred.port ?? 22),
-    username: process.env.TDSF_SSH_USER ?? fileCred.username ?? 'root',
+    username: process.env.TDSF_SSH_USER ?? fileCred.username ?? '',
     password: process.env.TDSF_SSH_PASSWORD ?? fileCred.password ?? '',
   }
 }

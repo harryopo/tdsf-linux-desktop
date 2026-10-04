@@ -24,6 +24,15 @@ const BLOCK = [
   END,
 ].join('\n');
 
+const SEC_BEGIN = '# BEGIN secret gate (凭据形态拦截，替代未开通的 GitHub Secret Scanning)';
+const SEC_END = '# END secret gate';
+const SECRET_BLOCK = [
+  SEC_BEGIN,
+  'repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"',
+  'node "$repo_root/scripts/secret-gate.cjs" || exit 1',
+  SEC_END,
+].join('\n');
+
 // ---------- 1. 定位 hooks 目录（兼容 worktree / 自定义 git-dir） ----------
 let hooksDir;
 try {
@@ -49,17 +58,19 @@ if (fs.existsSync(hookFile)) {
   content = fs.readFileSync(hookFile, 'utf8');
 }
 
-// 旧版标记块（可能存在乱码注释头）一并识别替换：匹配任意 BEGIN ai-coordination guard 行
-const blockRe = /# BEGIN ai-coordination guard[^\n]*\n[\s\S]*?# END ai-coordination guard\n?/;
-
-if (blockRe.test(content)) {
-  content = content.replace(blockRe, BLOCK + '\n');
-} else if (content.trim() === '') {
-  content = '#!/bin/sh\n' + BLOCK + '\n';
-} else {
-  if (!content.endsWith('\n')) content += '\n';
-  content += BLOCK + '\n';
+/**
+ * 把标记块写入 hook：已有则原位刷新，没有则追加，空文件则补 shebang。
+ * beginRe 用「任意 BEGIN 行」匹配，兼容历史版本改过的注释文案。
+ */
+function mergeBlock(text, beginPrefix, block) {
+  const re = new RegExp(`${beginPrefix}[^\\n]*\\n[\\s\\S]*?# END [^\\n]*\\n?`);
+  if (re.test(text)) return text.replace(re, block + '\n');
+  if (text.trim() === '') return '#!/bin/sh\n' + block + '\n';
+  return (text.endsWith('\n') ? text : text + '\n') + block + '\n';
 }
+
+content = mergeBlock(content, '# BEGIN ai-coordination guard', BLOCK);
+content = mergeBlock(content, '# BEGIN secret gate', SECRET_BLOCK);
 
 try {
   fs.writeFileSync(hookFile, content, { encoding: 'utf8' });

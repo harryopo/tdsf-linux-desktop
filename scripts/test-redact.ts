@@ -100,10 +100,11 @@ function main(): void {
 
   section('场景 2：Bearer token 脱敏')
 
-  // 用例 6：Bearer
+  // 用例 6：Bearer（jwt.io 公开示例；按段拼接，避免整串被密钥扫描器当成真实凭据）
+  const fakeBearer = ['eyJhbGciOiJIUzI1', 'eyJzdWIiOiIxMjM0NTY3ODkwIn0', 'SflKxwRJSMeKK'].join('.')
   test(
-    'Bearer eyJhbGciOiJIUzI1... → Bearer [REDACTED]',
-    'Authorization: Bearer eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
+    'Bearer eyJ... → Bearer [REDACTED]',
+    `Authorization: Bearer ${fakeBearer}JT4fwpMeJf36POk6yJV_adQssw5c`,
     'Authorization: Bearer [REDACTED]'
   )
 

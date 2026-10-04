@@ -12,12 +12,70 @@
  * - prod: 加载打包后的 renderer/index.html
  */
 
-import { BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 import * as path from 'node:path'
-import * as url from 'node:url'
 
 /** 主窗口单例引用（避免被垃圾回收） */
 let mainWindow: BrowserWindow | null = null
+
+/**
+ * CSP 指令（渲染层不访问任何远程 API：LLM/SSH/爬虫全在主进程）
+ *
+ * style-src 保留 'unsafe-inline'：Antd 5 的 CSS-in-JS 运行时注入 <style>，
+ * 去掉会让组件样式失效。script-src 不放 inline，这是防 XSS 升级的关键位。
+ */
+const CSP_DIRECTIVES: string[] = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' ws: wss:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+]
+
+/** dev server 的 origin（打包后为 undefined） */
+function devServerOrigin(): string | undefined {
+  const url = process.env['ELECTRON_RENDERER_URL']
+  if (!url || app.isPackaged) return undefined
+  try {
+    return new URL(url).origin
+  } catch {
+    return undefined
+  }
+}
+
+/** 组装最终 CSP：开发模式需放行 Vite HMR 的内联脚本与 dev server 连接 */
+function buildCsp(origin: string | undefined): string {
+  const parts = [...CSP_DIRECTIVES]
+  if (origin) {
+    parts[1] = `script-src 'self' 'unsafe-inline' ${origin}`
+    parts[5] = `connect-src 'self' ws: wss: ${origin}`
+  }
+  return parts.join('; ')
+}
+
+/**
+ * 给窗口所属 session 注入 CSP 响应头
+ *
+ * 用响应头而非 <meta>：同一份策略要同时覆盖 dev（http）与打包（file），
+ * 而 meta 无法按环境放宽，会让开发模式被自己的策略拦死。
+ */
+function applyCsp(win: BrowserWindow, origin: string | undefined): void {
+  const policy = buildCsp(origin)
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [policy],
+      },
+    })
+  })
+}
 
 /**
  * 创建主窗口
@@ -61,8 +119,11 @@ export function createMainWindow(): BrowserWindow {
   })
 
   // 拦截外部链接，用系统默认浏览器打开（而非在应用内打开新窗口）
+  // 只放行 http/https：file:// 与自定义协议可被交给外部处理器执行本地程序
   mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-    shell.openExternal(targetUrl)
+    if (/^https?:\/\//i.test(targetUrl)) {
+      shell.openExternal(targetUrl)
+    }
     return { action: 'deny' }
   })
 
@@ -87,14 +148,24 @@ export function createMainWindow(): BrowserWindow {
     }
   })
 
-  // 阻止应用内导航到外部 URL（仅允许同源导航）
+  // 阻止应用内导航到其它 origin（dev 的同源 HMR 仍可，跨端口/跨协议一律拒）
+  // 旧实现只比 hostname 是不是 localhost，等于放行本机任意 HTTP 服务
   mainWindow.webContents.on('will-navigate', (event, navigateUrl) => {
-    const parsed = url.parse(navigateUrl)
-    // 允许 localhost（开发模式 HMR）
-    if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+    const originOf = (u: string): string => {
+      try {
+        return new URL(u).origin
+      } catch {
+        return ''
+      }
+    }
+    const current = mainWindow?.webContents.getURL() ?? ''
+    if (originOf(navigateUrl) !== originOf(current)) {
       event.preventDefault()
     }
   })
+
+  // 注入 CSP（必须在加载页面前挂好，否则首个文档拿不到策略）
+  applyCsp(mainWindow, devServerOrigin())
 
   // 根据环境加载入口页面
   loadEntry(mainWindow)
@@ -137,7 +208,9 @@ export function destroyMainWindow(): void {
  */
 function loadEntry(window: BrowserWindow): void {
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']
-  if (rendererUrl) {
+  // 打包产物忽略外部环境变量：否则被设置 ELECTRON_RENDERER_URL 的机器上，
+  // 安装版会加载任意远端 URL 并自动开 DevTools
+  if (rendererUrl && !app.isPackaged) {
     // 开发模式：加载 dev server URL
     window.loadURL(rendererUrl)
     // 开发模式自动打开 DevTools

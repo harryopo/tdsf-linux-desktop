@@ -21,6 +21,7 @@ import type { ConnectConfig } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { assertCommandAllowed } from '../../core/command-gate'
 import type {
   SshConfig,
   CommandResult,
@@ -207,6 +208,8 @@ export class SshConnectionManager {
   ): Promise<CommandResult> {
     const entry = this.requireSession(sessionId)
     this.requireConnected(entry)
+    // 风险闸落在这里而不是各 IPC 通道：AI 工具 / MCP / 部署 / 调度都走这个出口
+    assertCommandAllowed(command)
     entry.lastUsedAt = Date.now()
     const startTime = Date.now()
 
@@ -739,7 +742,8 @@ export class SshConnectionManager {
     }
 
     // Phase L：主机密钥校验（仅目标主机，跳板机暂不启用）
-    if (config.strictHostKeyCheck === true && sessionId && this.hostKeyConfirmHandler) {
+    // 默认开启：未显式写 false 即校验，避免旧配置静默跳过指纹确认
+    if (config.strictHostKeyCheck !== false && sessionId && this.hostKeyConfirmHandler) {
       opts.hostVerifier = createHostVerifier({
         host: config.host,
         port: config.port,

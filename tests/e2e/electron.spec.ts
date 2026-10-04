@@ -10,21 +10,43 @@
 
 import { test, expect, _electron as electron } from '@playwright/test'
 import { findLatestBuild, parseElectronApp } from 'electron-playwright-helpers'
+import fs from 'node:fs'
 import path from 'node:path'
 
 // ============================================================
 // 测试环境配置
 // ============================================================
 
-/** 测试用 SSH 服务器配置 */
+
+/** 本地凭据文件（.gitignore 已覆盖 tests/e2e/.ssh-credentials.local.json，不入库） */
+function readLocalCredential(): Record<string, string | number> {
+  try {
+    const p = path.resolve(process.cwd(), 'tests/e2e/.ssh-credentials.local.json')
+    if (!fs.existsSync(p)) return {}
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) as Record<string, string | number>
+  } catch {
+    return {}
+  }
+}
+
+const localCredential = readLocalCredential()
+/**
+ * 测试用 SSH 服务器配置
+ *
+ * 凭据一律来自环境或本地文件，不写死在源码里（历史版本曾把 root 口令提交进仓库）。
+ * 未配置时依赖真实 SSH 的用例应显式跳过，而不是拿假凭据跑出假绿。
+ */
 const TEST_SERVER = {
-  host: '192.168.45.200',
-  port: 22,
-  username: 'root',
-  password: '***REMOVED-SSH-CREDENTIAL***',
+  host: String(process.env.TDSF_SSH_HOST ?? localCredential.host ?? ''),
+  port: Number(process.env.TDSF_SSH_PORT ?? localCredential.port ?? 22),
+  username: String(process.env.TDSF_SSH_USER ?? localCredential.username ?? ''),
+  password: String(process.env.TDSF_SSH_PASSWORD ?? localCredential.password ?? ''),
   name: 'E2E测试机',
 }
 
+/** 缺少凭据时让相关用例跳过 */
+const sshReady =
+  TEST_SERVER.host !== '' && TEST_SERVER.username !== '' && TEST_SERVER.password !== ''
 /** 获取 Electron 应用入口路径 */
 function getElectronAppPath(): string {
   // 优先使用 out/main/index.js（electron-vite 构建产物）
