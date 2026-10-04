@@ -1,4 +1,4 @@
-// SSH 摸底脚本 - 一次性探查 192.168.45.200 系统信息
+// SSH 摸底脚本 - 一次性探查 192.0.2.10 系统信息
 // 凭据从 .env.local 读取（不入代码库），避免 dotenv 依赖
 const fs = require('fs')
 const path = require('path')

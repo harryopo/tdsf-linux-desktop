@@ -5,7 +5,7 @@
  * 并截图证明监控页展示的是真实数据而非占位。
  *
  * 凭据来源（不写死进代码，从环境变量读，默认用户已确认的测试机）：
- *   TDSF_SSH_HOST     默认 192.168.45.200
+ *   TDSF_SSH_HOST     默认 192.0.2.10
  *   TDSF_SSH_PORT     默认 22
  *   TDSF_SSH_USER     默认 root
  *   TDSF_SSH_PASSWORD 必填（无则整个 suite skip，避免误报）
@@ -27,7 +27,7 @@ const BUILD_READY = fs.existsSync(MAIN_ENTRY)
  * 凭据来源（优先级）：
  * 1. 环境变量 TDSF_SSH_*（CI / 手动）
  * 2. 本地凭据文件 tests/e2e/.ssh-credentials.local.json（gitignore 忽略，不提交）
- *    格式：{ "host": "192.168.45.200", "port": 22, "username": "root", "password": "xxx" }
+ *    格式：{ "host": "192.0.2.10", "port": 22, "username": "root", "password": "xxx" }
  *
  * 用文件而非命令行环境变量，是因为 PowerShell + sandbox 下
  * 「设环境变量 + npx 重定向」会触发 npx.ps1 的 StandardOutputEncoding 冲突，

@@ -137,7 +137,7 @@ httpd.service       enabled enabled`
 /** 构造一个最小但完整的 ProfilerResult */
 function makeResult(items: ProfilerItem[] = [], errors: any[] = []): ProfilerResult {
   return {
-    host: '192.168.45.200',
+    host: '192.0.2.10',
     sessionId: 'sess-1',
     generatedAt: new Date(2026, 6, 16, 13, 30, 0).getTime(),
     totalDurationMs: 2500,
@@ -168,7 +168,7 @@ describe('MarkdownRenderer - 头部与页脚', () => {
   it('头部包含目标主机与时间戳', () => {
     const result = makeResult()
     const md = renderProfilerMarkdown(result, [])
-    expect(md).toMatch(/# 系统架构感知报告 — 192\.168\.45\.200/)
+    expect(md).toMatch(/# 系统架构感知报告 — 192\.0\.2\.10/)
     expect(md).toContain('2026-07-16 13:30:00')
     expect(md).toContain('TDSF-Linux v0.4.0')
   })
@@ -285,7 +285,7 @@ Swap:         2.0Gi          0B       2.0Gi`)
   it('网络章节：4 个子节', () => {
     const result = makeResult([
       makeItem('network', 'ip addr show 2>/dev/null || ifconfig 2>/dev/null || echo "无网络工具"',
-        '1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536\n    inet 127.0.0.1/8\n2: ens33: <BROADCAST> mtu 1500\n    inet 192.168.45.200/24'),
+        '1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536\n    inet 127.0.0.1/8\n2: ens33: <BROADCAST> mtu 1500\n    inet 192.0.2.10/24'),
       makeItem('network', 'ip route 2>/dev/null || route -n 2>/dev/null', 'default via 192.168.45.2 dev ens33'),
       makeItem('network', 'cat /etc/resolv.conf 2>/dev/null | head -5', 'nameserver 114.114.114.114'),
       makeItem('network', 'ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || echo "无端口查看工具"',
@@ -297,7 +297,7 @@ Swap:         2.0Gi          0B       2.0Gi`)
     expect(md).toContain('### 路由表')
     expect(md).toContain('### DNS 配置')
     expect(md).toContain('### 监听端口')
-    expect(md).toContain('192.168.45.200/24')
+    expect(md).toContain('192.0.2.10/24')
   })
 
   it('用户章节：当前用户 + 可登录用户 + sudo', () => {

@@ -154,7 +154,7 @@ function parseIpAddr(stdout: string): string {
   //   1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536
   //       inet 127.0.0.1/8 scope host lo
   //   2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
-  //       inet 192.168.45.200/24 brd 192.168.45.255 scope global ens33
+  //       inet 192.0.2.10/24 brd 192.168.45.255 scope global ens33
   const lines = stdout.split('\n')
   const blocks: string[] = []
   let current = ''

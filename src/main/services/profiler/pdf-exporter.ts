@@ -504,7 +504,7 @@ export async function writeMdFile(
 /**
  * 根据主机名 + 时间戳生成默认 PDF 文件名
  *
- * 形如：system-report-192.168.45.200-20260716-133000.pdf
+ * 形如：system-report-192.0.2.10-20260716-133000.pdf
  */
 export function defaultPdfFileName(host: string, timestamp: number = Date.now()): string {
   const d = new Date(timestamp)

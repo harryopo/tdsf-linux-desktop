@@ -105,8 +105,8 @@ describe('PdfExporter - 工具函数', () => {
   describe('defaultPdfFileName', () => {
     it('生成标准格式 system-report-{host}-{timestamp}.pdf', () => {
       const ts = new Date(2026, 6, 16, 13, 30, 0).getTime()
-      const name = genName('192.168.45.200', ts)
-      expect(name).toBe('system-report-192.168.45.200-20260716-133000.pdf')
+      const name = genName('192.0.2.10', ts)
+      expect(name).toBe('system-report-192.0.2.10-20260716-133000.pdf')
     })
 
     it('替换主机名中非法文件名字符', () => {
@@ -199,9 +199,9 @@ describe('PdfExporter - markdownToHtml', () => {
   })
 
   it('完整报告样例（端到端）', () => {
-    const md = `# 系统架构感知报告 — 192.168.45.200
+    const md = `# 系统架构感知报告 — 192.0.2.10
 
-> **目标主机**：192.168.45.200 · **生成时间**：2026-07-16 13:30
+> **目标主机**：192.0.2.10 · **生成时间**：2026-07-16 13:30
 
 ## 📊 风险概览
 
@@ -229,7 +229,7 @@ uname -a
 - 未安装 \`vim\`
 `
     const html = markdownToHtml(md)
-    expect(html).toContain('<h1>系统架构感知报告 — 192.168.45.200</h1>')
+    expect(html).toContain('<h1>系统架构感知报告 — 192.0.2.10</h1>')
     expect(html).toContain('<blockquote>')
     expect(html).toContain('<table>')
     expect(html).toContain('<pre><code>uname -a</code></pre>')
