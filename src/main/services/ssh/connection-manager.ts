@@ -478,11 +478,16 @@ export class SshConnectionManager {
       // 跳板机模式
       if (config.jumpHost) {
         const jumpClient = new Client()
-        const jumpOpts = this.buildConnectOptions({
-          ...config.jumpHost,
-          id: 'jump',
-          name: 'jump',
-        } as SshConfig)
+        // 跳板机同样过主机密钥校验：不校验则 MITM 可落在承载最终主机流量的那一跳上。
+        // 复用目标会话的 sessionId 让确认弹窗仍能路由到本会话 UI。
+        const jumpOpts = this.buildConnectOptions(
+          {
+            ...config.jumpHost,
+            id: `jump:${config.jumpHost.host}:${config.jumpHost.port ?? 22}`,
+            name: '跳板机',
+          } as SshConfig,
+          entry.sessionId,
+        )
         jumpClient.on('ready', () => {
           // 通过跳板机转发到目标主机的 SSH 端口
           jumpClient.forwardOut(
@@ -709,7 +714,7 @@ export class SshConnectionManager {
    * Phase L：主机密钥校验
    * - 当 config.strictHostKeyCheck === true 且已注册 hostKeyConfirmHandler 时，
    *   注入 hostVerifier 回调，首次连接弹窗确认，密钥变更弹窗警告
-   * - sessionId 为目标主机会话 ID（跳板机连接不传，跳过 hostVerifier）
+   * - sessionId 为目标主机与跳板机**共用**的会话 ID（两跳都注入 hostVerifier；弹窗按 serverId 区分）
    */
   private buildConnectOptions(config: SshConfig, sessionId?: string): ConnectConfig {
     const opts: ConnectConfig = {

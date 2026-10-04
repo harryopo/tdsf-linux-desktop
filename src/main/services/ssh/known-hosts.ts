@@ -227,13 +227,49 @@ function parseKnownHostsLine(line: string): ParsedKnownHostLine | null {
 }
 
 /**
+ * OpenSSH 风格的主机名模式匹配（支持 `*` 通配、`?` 单字符、`!` 否定）
+ *
+ * 语义与 ssh_config(5) 一致：先判否定——任一 `!pattern` 命中即整体不匹配；
+ * 再判正向——任一非否定 pattern 命中即匹配。
+ */
+export function hostPatternMatches(patternField: string, candidate: string): boolean {
+  const patterns = patternField
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+
+  // 第一趟：只看否定项。任一命中即整体不匹配（OpenSSH 语义，与顺序无关）
+  const negatives = patterns.filter((p) => p.startsWith('!'))
+  if (negatives.some((p) => globMatch(p.slice(1), candidate))) return false
+
+  // 第二趟：只看正向项
+  const positives = patterns.filter((p) => !p.startsWith('!'))
+  if (positives.length === 0) return false // 只有否定项 ⇒ 该行不适用（宁可多问一次）
+  return positives.some((p) => globMatch(p, candidate))
+}
+
+/** 把 `*` / `?` 模式编译成正则（其余字符逐字转义） */
+function globMatch(pattern: string, candidate: string): boolean {
+  if (!/[*?]/.test(pattern)) return pattern.toLowerCase() === candidate.toLowerCase()
+  const body = pattern
+    .split('')
+    .map((ch) => {
+      if (ch === '*') return '.*'
+      if (ch === '?') return '.'
+      return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    })
+    .join('')
+  return new RegExp(`^${body}$`, 'i').test(candidate)
+}
+
+/**
  * 检查某行是否匹配候选主机名列表
  *
  * 匹配规则：
- *   - 明文主机名：直接比对（或候选列表包含）
+ *   - 明文主机名：直接比对，并支持 `*` / `?` / `!` 模式（OpenSSH 语义）
  *   - 哈希条目：用 matchesHashedHost 比对每个候选
  */
-function lineMatchesCandidate(line: ParsedKnownHostLine, candidates: string[]): boolean {
+export function lineMatchesCandidate(line: ParsedKnownHostLine, candidates: string[]): boolean {
   for (const entryHost of line.hostnames) {
     // 哈希条目
     if (entryHost.startsWith('|1|')) {
@@ -243,9 +279,11 @@ function lineMatchesCandidate(line: ParsedKnownHostLine, candidates: string[]): 
         }
       }
     } else {
-      // 明文主机名
-      if (candidates.includes(entryHost)) {
-        return true
+      // 明文主机名或模式串
+      for (const candidate of candidates) {
+        if (hostPatternMatches(entryHost, candidate)) {
+          return true
+        }
       }
     }
   }
