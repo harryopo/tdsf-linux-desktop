@@ -417,7 +417,9 @@ export class SshConnectionManager {
 
   /**
    * 获取会话对应的 ssh2 Client（供 SftpManager 等内部模块使用）
-   * @internal
+   *
+   * @internal 只允许用于 SFTP 子系统与流式订阅；**不要用返回的 Client 直接 exec 命令**，
+   * 那样会绕过 exec() 里的 command-gate 出口闸。需要执行命令请调本类的 exec()/execStream()。
    */
   public getClient(sessionId: string): Client {
     const entry = this.requireSession(sessionId)

@@ -14,6 +14,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import * as CHANNELS from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
 import { registerMonitorIpcHandlers } from './monitor'
@@ -109,6 +110,25 @@ import type { DatabaseManager } from '../services/db/database'
  * @param db 数据库管理器（教程 IPC 依赖）
  */
 export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseManager): void {
+  // 幂等前置：重复 ipcMain.handle 同一通道会抛错（macOS dock 恢复路径会二次调用本函数）。
+  // 先按共享通道表摘掉旧 handler，再照常注册——保留"新窗口拿到新引用"的原有语义。
+  for (const group of Object.values(CHANNELS)) {
+    if (!group || typeof group !== 'object') continue
+    for (const channel of Object.values(group as Record<string, unknown>)) {
+      if (typeof channel !== 'string') continue
+      try {
+        ipcMain.removeHandler(channel)
+      } catch {
+        /* 该通道本就没有 handler */
+      }
+    }
+  }
+  try {
+    ipcMain.removeHandler('system:ping')
+  } catch {
+    /* 同上 */
+  }
+
   // v0.9.4 新增：system:ping 心跳保活通道
   //
   // 设计说明：

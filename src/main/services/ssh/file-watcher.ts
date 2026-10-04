@@ -22,6 +22,7 @@ import { randomUUID } from 'node:crypto'
 import { FILE_WATCH } from '@shared/ipc-channels'
 import { SshConnectionManager } from './connection-manager'
 import type { Client, ClientChannel } from 'ssh2'
+import { assertCommandAllowed } from '../../core/command-gate'
 
 /** 文件变更事件类型 */
 export type FileChangeEvent = 'modify' | 'create' | 'delete' | 'move'
@@ -146,6 +147,8 @@ export class FileWatcherAdapter {
     const client: Client = this.sshManager.getClient(entry.sessionId)
     const safePath = `'${entry.path.replace(/'/g, `'\\''`)}'`
     const cmd = `inotifywait -m -r --format '%w%f %e' ${safePath} 2>/dev/null`
+    // 这里绕过了 connection-manager.exec() 的出口闸（需要长连接流），故就地判一次
+    assertCommandAllowed(cmd)
     try {
       client.exec(cmd, (err, stream) => {
         if (err) {
