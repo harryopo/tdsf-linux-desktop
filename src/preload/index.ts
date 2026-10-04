@@ -66,6 +66,8 @@ import {
   ALERT,
   // M5 Task 3 新增：启动加载阶段推送 IPC（boot:loading-stage，主进程向渲染层推送加载进度）
   BOOT,
+  // A4 新增：数据库状态 IPC（db:status，SQLite 降级可见化）
+  DB,
   // v2.2 P1 修复 #18/#20：补齐 MCP 外部调用通道集中化
   MCP_EXTERNAL,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
@@ -186,6 +188,8 @@ import type {
 import type { McpStateContext } from '@shared/models'
 // v0.9.4 IPC 协议版本号（同步常量，无需 IPC 调用，preload/renderer 直接 import）
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
+// A4 新增：数据库状态共享类型（db:status 返回值，渲染层降级横幅消费）
+import type { DbStatus } from '@shared/db-types'
 // v0.9.6 P2：EU AI Act 审计报告类型（type-only import，不引入运行时依赖）
 import type {
   AuditFormat,
@@ -970,6 +974,21 @@ const system = {
       ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionId),
       ipcRenderer.invoke(CLAUDE_SDK.CANCEL, sessionId),
     ]).then(([agentChat, claudeSdk]) => ({ agentChat, claudeSdk })),
+}
+
+/**
+ * A4 新增：数据库状态 IPC（db:status，SQLite 降级可见化）
+ *
+ * 主进程的 better-sqlite3 加载失败 / 库文件打不开 / schema 迁移中断，
+ * 过去只写进主进程日志，界面照常显示"已保存"。本通道把事实交给渲染层横幅。
+ */
+const dbStatus = {
+  /**
+   * 读取数据库运行状态
+   *
+   * @returns DbStatus（available=false 时数据不会持久化）
+   */
+  get: (): Promise<DbStatus> => ipcRenderer.invoke(DB.STATUS),
 }
 
 /**
@@ -2527,6 +2546,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // v0.9.4 新增：系统级 IPC（协议版本 + 心跳保活）
   getProtocolVersion: system.getProtocolVersion,
   systemPing: system.ping,
+  // A4 新增：数据库状态（渲染层降级横幅数据源，db:status）
+  dbGetStatus: dbStatus.get,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
   // 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater
   appCheckUpdate: appUpdate.checkUpdate,
@@ -3500,6 +3521,8 @@ export type ElectronAPI = {
   // v0.9.4 新增：系统级 IPC（协议版本 + 心跳保活 + 通用取消）
   getProtocolVersion: typeof system.getProtocolVersion
   systemPing: typeof system.ping
+  // A4 新增：数据库状态（db:status）
+  dbGetStatus: typeof dbStatus.get
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
   appCheckUpdate: typeof appUpdate.checkUpdate
   appDownloadUpdate: typeof appUpdate.downloadUpdate

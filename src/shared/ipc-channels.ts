@@ -1127,4 +1127,18 @@ export const BOOT = {
   LOADING_STAGE: 'boot:loading-stage',
 } as const
 
+/**
+ * DB 域 — 数据库运行状态（A4：SQLite 降级可见化）
+ *
+ * 通道列表：
+ * - STATUS invoke 渲染 → 主：读取 better-sqlite3 可用性与 schema 版本
+ *
+ * 设计依据：此前降级只写主进程日志（main/index.ts），渲染层无从知晓，
+ * 用户会在"数据静默不持久化"的状态下继续操作。STATUS 供全局横幅消费。
+ */
+export const DB = {
+  /** 读取数据库状态（invoke: 渲染 → 主，返回 DbStatus） */
+  STATUS: 'db:status',
+} as const
+
 

@@ -111,6 +111,9 @@ import type {
   AtCommandType,
 } from '@shared/at-command-types'
 
+// A4 新增：数据库状态（db:status，SQLite 降级可见化）
+import type { DbStatus } from '@shared/db-types'
+
 // v0.9 可信度算法共享类型（D-S + PCR5 + 6 源证据 + DAG 可视化）
 import type {
   CredibilityEvidenceInput,
@@ -924,6 +927,14 @@ export interface ElectronAPI {
    * @returns { ok: true, timestamp: number, protocolVersion: string }
    */
   systemPing(): Promise<SystemPingResponse>
+
+  /**
+   * 读取数据库运行状态（A4：SQLite 降级可见化，通道 db:status）
+   *
+   * available=false 表示 better-sqlite3 未加载或库文件打不开，
+   * 此时写入被拒绝、数据不会持久化，界面必须给出提示。
+   */
+  dbGetStatus(): Promise<DbStatus>
 
   // ===== v2.2 P1 修复 #24：应用更新（app:check-update / app:download-update） =====
   // 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面

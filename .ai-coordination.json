@@ -2,13 +2,13 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-04T15:19:14.066Z",
+  "lastUpdated": "2026-10-04T15:53:59.458Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
       "startedAt": "2026-10-04T15:14:45.735Z",
-      "lastActiveAt": "2026-10-04T15:19:14.066Z",
+      "lastActiveAt": "2026-10-04T15:53:59.458Z",
       "task": "A1-split-shell-write",
       "claimedFiles": [
         {
@@ -30,9 +30,19 @@
           "path": "src/renderer/src/types/electron.d.ts",
           "task": "A1",
           "claimedAt": "2026-10-04T15:19:13.978Z"
+        },
+        {
+          "path": "src/main/ipc/index.ts",
+          "task": "A4-sqlite-degradation-visible",
+          "claimedAt": "2026-10-04T15:53:21.836Z"
+        },
+        {
+          "path": "src/preload/index.d.ts",
+          "task": "A4-sqlite-degradation-visible",
+          "claimedAt": "2026-10-04T15:53:59.458Z"
         }
       ],
-      "expiresAt": "2026-10-04T17:19:14.066Z"
+      "expiresAt": "2026-10-04T17:53:59.458Z"
     }
   },
   "history": [
@@ -3143,6 +3153,34 @@
       "file": "src/main/ipc/ssh.ts",
       "task": "A1",
       "timestamp": "2026-10-04T15:19:14.066Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "A4-sqlite-degradation-visible",
+      "timestamp": "2026-10-04T15:53:21.497Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "A4-sqlite-degradation-visible",
+      "timestamp": "2026-10-04T15:53:21.671Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "A4-sqlite-degradation-visible",
+      "timestamp": "2026-10-04T15:53:21.836Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.d.ts",
+      "task": "A4-sqlite-degradation-visible",
+      "timestamp": "2026-10-04T15:53:59.458Z"
     }
   ],
   "coordinationAudit": {

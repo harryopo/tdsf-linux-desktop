@@ -7,7 +7,13 @@
  *   - 单例模式（一个进程一个 Database 实例）
  *   - WAL 模式（提升并发读写性能）
  *   - 自动建表（knowledge_entries / decision_cards / audit_logs / settings）
+ *   - schema 版本管理（PRAGMA user_version + MIGRATIONS 数组，见 schema-migrations.ts）
  *   - sqlite-vec 扩展加载（失败时降级到关键词搜索）
+ *
+ * 降级可见化（A4）：
+ *   better-sqlite3 加载失败、库文件打不开、迁移中途报错，这三种情况都走
+ *   getStatus() 上报，由渲染层全局横幅显示。以前只写主进程日志，
+ *   用户会以为数据已保存。
  *
  * 数据库文件位置：
  *   Electron 环境下位于 app.getPath('userData')/tdsf.db
@@ -20,23 +26,32 @@
 
 import type { Database as BetterSqlite3Database, Statement } from 'better-sqlite3'
 import * as path from 'node:path'
+import type { DbStatus } from '@shared/db-types'
+import { applyMigrations, readSchemaVersion, TARGET_SCHEMA_VERSION } from './schema-migrations'
 
 /** Database 类型别名（避免与类名冲突） */
 export type DbConnection = BetterSqlite3Database
 
+/** 原生模块加载结果：模块本身（可能为 null）与失败原因 */
+interface NativeLoadResult {
+  mod: typeof import('better-sqlite3') | null
+  error: string | null
+}
+
 /**
- * 动态加载 better-sqlite3，失败时返回 null
+ * 动态加载 better-sqlite3，失败时返回原因而不是静默吞掉
  *
  * better-sqlite3 是原生模块，在 Electron 环境下可能出现 ABI 不匹配导致加载失败。
- * 使用动态 require + try/catch 确保即使加载失败也不会崩溃。
+ * 使用动态 require + try/catch 确保即使加载失败也不会崩溃；失败原因必须带回调用方，
+ * 否则降级只存在于控制台里，用户无从知晓数据其实没有落盘。
  */
-function loadBetterSqlite3(): typeof import('better-sqlite3') | null {
+function loadBetterSqlite3(): NativeLoadResult {
   try {
-     
-    return require('better-sqlite3')
-  } catch {
-    console.warn('[DatabaseManager] better-sqlite3 加载失败，使用内存 Map 回退方案')
-    return null
+    return { mod: require('better-sqlite3'), error: null }
+  } catch (err) {
+    const msg = (err as Error)?.message ?? String(err)
+    console.warn('[DatabaseManager] better-sqlite3 加载失败，使用内存 Map 回退方案：', msg)
+    return { mod: null, error: msg }
   }
 }
 
@@ -50,6 +65,7 @@ function loadBetterSqlite3(): typeof import('better-sqlite3') | null {
  *   - prepare(sql): 预编译语句
  *   - isVectorEnabled(): 向量搜索是否可用
  *   - isAvailable(): 数据库是否真正可用（better-sqlite3 是否加载成功）
+ *   - getStatus(): 组装 DbStatus，供 IPC 推给渲染层降级横幅
  */
 export class DatabaseManager {
   /** 单例实例 */
@@ -64,6 +80,15 @@ export class DatabaseManager {
   /** better-sqlite3 是否加载成功 */
   private readonly dbAvailable: boolean
 
+  /** 降级原因（含底层错误消息）；dbAvailable=true 时为 null */
+  private readonly degradedReason: string | null
+
+  /** 迁移失败原因；迁移全部成功时为 null */
+  private migrationError: string | null = null
+
+  /** 迁移后的 user_version；降级时为 null */
+  private schemaVersion: number | null = null
+
   /** 内存回退存储（dbAvailable=false 时使用） */
   private readonly memoryStore: Map<string, string>
 
@@ -71,19 +96,32 @@ export class DatabaseManager {
   private constructor(dbPath: string) {
     this.memoryStore = new Map()
 
-    const BetterSqlite3 = loadBetterSqlite3()
+    const { mod: BetterSqlite3, error: loadError } = loadBetterSqlite3()
     if (!BetterSqlite3) {
       // better-sqlite3 加载失败，使用内存 Map 回退
       this.db = null
       this.dbAvailable = false
       this.vectorEnabled = false
+      this.degradedReason = `原生模块 better-sqlite3 未能加载（Electron ABI 不匹配？）：${loadError ?? '未知原因'}`
       console.warn('[DatabaseManager] 使用内存 Map 回退方案，数据不会持久化')
       return
     }
 
+    // 打开连接本身也可能失败（文件被锁、目录不可写、库文件损坏）。
+    // getInstance() 对外承诺不抛异常，所以这里转成同一条降级路径，而不是让主进程启动崩溃。
+    try {
+      this.db = new BetterSqlite3(dbPath)
+    } catch (err) {
+      this.dbAvailable = false
+      this.vectorEnabled = false
+      this.db = null
+      this.degradedReason = `数据库文件未能打开：${(err as Error)?.message ?? String(err)}`
+      console.warn('[DatabaseManager] 数据库打开失败，使用内存 Map 回退方案：', err)
+      return
+    }
+
     this.dbAvailable = true
-    // 打开数据库连接（dbPath 为 ':memory:' 时为内存数据库）
-    this.db = new BetterSqlite3(dbPath)
+    this.degradedReason = null
     // 启用 WAL 模式（提升并发读写性能，内存数据库下会被忽略）
     try {
       this.db.pragma('journal_mode = WAL')
@@ -92,7 +130,7 @@ export class DatabaseManager {
     }
     // 尝试加载 sqlite-vec 向量搜索扩展
     this.vectorEnabled = this.tryLoadVectorExtension()
-    // 初始化所有表
+    // 初始化所有表并补齐 schema 版本
     this.initTables()
   }
 
@@ -185,6 +223,24 @@ export class DatabaseManager {
    */
   isVectorEnabled(): boolean {
     return this.vectorEnabled
+  }
+
+  /**
+   * 组装数据库运行状态（供 db:status IPC 与渲染层降级横幅消费）
+   *
+   * 这是"降级可见化"的唯一数据源：available=false 或 migrationPending=true
+   * 时界面必须给出提示，不允许只在主进程日志里静默降级。
+   */
+  getStatus(): DbStatus {
+    return {
+      available: this.dbAvailable,
+      vectorEnabled: this.vectorEnabled,
+      schemaVersion: this.schemaVersion,
+      targetSchemaVersion: TARGET_SCHEMA_VERSION,
+      degradedReason: this.degradedReason,
+      migrationError: this.migrationError,
+      migrationPending: this.dbAvailable && this.schemaVersion !== TARGET_SCHEMA_VERSION,
+    }
   }
 
   /**
@@ -339,9 +395,6 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_dc_timestamp ON decision_cards(timestamp);
     `)
 
-    // 迁移：为旧表添加新列（ALTER TABLE 幂等检查）
-    this.migrateDecisionCardsTable()
-
     // 知识库浏览历史表
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS kb_view_history (
@@ -434,8 +487,6 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_mem_type ON agent_memories(type);
       CREATE INDEX IF NOT EXISTS idx_mem_lastUsedAt ON agent_memories(lastUsedAt);
     `)
-    // 迁移：为 v2.8 已建库补 embedding 列（幂等）
-    this.migrateAgentMemoriesTable()
 
     // v2.8 新增：记忆沉淀审计日志（对应 kilo decisions.jsonl：每次提取决策可追溯）
     this.db.exec(`
@@ -448,6 +499,10 @@ export class DatabaseManager {
       );
       CREATE INDEX IF NOT EXISTS idx_memaudit_ts ON memory_audit(ts);
     `)
+
+    // 结构迁移：按 PRAGMA user_version 补齐历史库缺列，并把版本号推到目标值。
+    // 必须在 FTS / vec0 之前执行 —— 那些虚拟表和触发器引用上面这些列。
+    this.runMigrations()
 
     // ────────── FTS5 + vec0 虚拟表（Sprint 7 任务 A 新增）──────────
     // 注册向量辅助函数（触发器同步用，必须最先执行）
@@ -508,44 +563,21 @@ export class DatabaseManager {
   }
 
   /**
-   * 迁移 decision_cards 表：为旧表添加 serverId / durationMs 列
+   * 执行 schema 迁移并记录结果
    *
-   * SQLite 不支持 IF NOT EXISTS 语法用于 ALTER TABLE ADD COLUMN，
-   * 需先检查 pragma table_info 再决定是否添加。
+   * 迁移失败不抛异常（应用要能带着旧 schema 继续跑），但失败原因写进
+   * this.migrationError，由 getStatus() 暴露给横幅 —— 静默降级正是本项要修的毛病。
    */
-  private migrateDecisionCardsTable(): void {
-    try {
-      if (!this.db) return
-      const columns = this.db.prepare('PRAGMA table_info(decision_cards)').all() as Array<{ name: string }>
-      const colNames = columns.map((c) => c.name)
-      if (!colNames.includes('serverId')) {
-        this.db.exec('ALTER TABLE decision_cards ADD COLUMN serverId TEXT')
-      }
-      if (!colNames.includes('durationMs')) {
-        this.db.exec('ALTER TABLE decision_cards ADD COLUMN durationMs INTEGER')
-      }
-    } catch {
-      // 忽略迁移错误（表可能不存在或为新创建）
+  private runMigrations(): void {
+    if (!this.dbAvailable || !this.db) return
+    const result = applyMigrations(this.db)
+    if (result.error) {
+      this.migrationError = result.error
+      console.warn(`[DatabaseManager] schema 迁移中断（user_version=${result.to}）：`, result.error)
+    } else if (result.applied.length > 0) {
+      console.log(`[DatabaseManager] schema 迁移完成：v${result.from} → v${result.to}`)
     }
-  }
-
-  /**
-   * 迁移 agent_memories 表：为 v2.8 已建库补 embedding 列（v2.9 语义检索）
-   *
-   * 同 migrateDecisionCardsTable：SQLite 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS，
-   * 需先 PRAGMA table_info 检查再决定是否添加。
-   */
-  private migrateAgentMemoriesTable(): void {
-    try {
-      if (!this.db) return
-      const columns = this.db.prepare('PRAGMA table_info(agent_memories)').all() as Array<{ name: string }>
-      const colNames = columns.map((c) => c.name)
-      if (!colNames.includes('embedding')) {
-        this.db.exec('ALTER TABLE agent_memories ADD COLUMN embedding TEXT')
-      }
-    } catch {
-      // 忽略迁移错误（表可能不存在或为新创建）
-    }
+    this.schemaVersion = readSchemaVersion(this.db)
   }
 
   /**

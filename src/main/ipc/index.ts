@@ -93,6 +93,9 @@ import { registerFsIpcHandlers } from './fs-upload'
 // v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete/accept/import）
 // 通道：3 个 invoke，从渲染层发起补全请求 / 接受建议 / 批量导入历史命令
 import { registerTerminalCompletionIpcHandlers } from './terminal-completion'
+// A4 新增：数据库状态 IPC（db:status，降级可见化）
+// 通道：db:status（渲染层全局横幅据此显示"数据未持久化"警告）
+import { registerDbHandlers } from './db'
 // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
 // 补齐 ModelSettings 最后两处静态数据
 import { registerModelStatsHandlers } from './model-stats'
@@ -163,6 +166,8 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
     registerTutorialIpcHandlers(db, mainWindow)
     // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
     registerModelStatsHandlers(db)
+    // A4 新增：数据库状态 IPC（db:status）——渲染层降级横幅的唯一数据源
+    registerDbHandlers(db)
   }
   // Web 部署助手 IPC（需要 mainWindow 用于日志推送）
   registerDeployIpcHandlers(mainWindow)

@@ -6,10 +6,31 @@
  * - MainLayout 使用 flex 水平布局：ActivityRail（固定 48px）+ Outlet（flex-1）。
  * - 参考：tdsf-design-app/src/layouts/AppLayout.tsx
  *
+ * A4 变更：新增 .wb-app-frame 外层纵向容器，用于在水平布局之上放一条全局横幅
+ * （数据库降级提示）。100vh 上移到 frame，内层 .wb-main-layout 改为吃剩余高度。
+ *
  * 视觉对齐：tdsf-linux-redesign/pages/workbench-disconnected.html
  * - 容器满屏（100vh × 100vw）+ 暗色背景 + overflow:hidden
  * - 内容淡入动画（克制的 200ms fadeIn）
  */
+
+/* ===== 应用外框（横幅在上，主布局占余下高度）===== */
+.wb-app-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* 子代选择器：Workbench.css 里还有一条同名的 .wb-main-layout { height: 100vh }，
+   用更高特异性覆盖它，避免依赖样式引入顺序。 */
+.wb-app-frame > .wb-main-layout {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  width: 100%;
+}
 
 /* ===== 主布局容器（ActivityRail + Outlet 水平排列）===== */
 .wb-main-layout {

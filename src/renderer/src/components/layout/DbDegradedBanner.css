@@ -1,0 +1,78 @@
+/**
+ * DbDegradedBanner 样式（A4：SQLite 降级可见化）
+ *
+ * 布局约束：横幅位于 .wb-app-frame 的 flex-col 首行，不参与 .wb-main-layout 的水平 flex，
+ * 因此自身只需 flex-shrink:0 + 固定内边距，高度由内容决定。
+ * 配色全部走语义令牌（design-tokens.css），不写死色值，浅色主题切换时自动跟随。
+ */
+
+.db-degraded-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--trae-text-default);
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+}
+
+.db-degraded-banner.is-critical {
+  background: var(--status-error-surface-l1);
+  border-bottom-color: var(--status-error-default);
+}
+
+.db-degraded-banner.is-warning {
+  background: var(--status-warning-surface-l1);
+  border-bottom-color: var(--status-warning-default);
+}
+
+.db-degraded-banner__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--trae-text-onbrand);
+}
+
+.db-degraded-banner.is-critical .db-degraded-banner__mark {
+  background: var(--status-error-default);
+}
+
+.db-degraded-banner.is-warning .db-degraded-banner__mark {
+  background: var(--status-warning-default);
+}
+
+.db-degraded-banner__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.db-degraded-banner__detail {
+  color: var(--trae-text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.db-degraded-banner__close {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--trae-text-secondary);
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  cursor: pointer;
+}
+
+.db-degraded-banner__close:hover {
+  color: var(--trae-text-default);
+}

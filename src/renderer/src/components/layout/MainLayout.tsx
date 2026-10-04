@@ -13,6 +13,7 @@
  */
 import { Outlet, useLocation } from 'react-router-dom'
 import { ActivityRail, type NavId } from '@/components/workbench/ActivityRail'
+import { DbDegradedBanner } from '@/components/layout/DbDegradedBanner'
 import '@/components/layout/MainLayout.css'
 import '@/components/workbench/Workbench.css'
 
@@ -44,13 +45,18 @@ const MainLayout: React.FC = () => {
   const activeNav = deriveActiveNav(location.pathname)
 
   return (
-    <div className="wb-main-layout">
-      {/* 全局持久侧边栏：任何路由切换都保持可见 */}
-      <ActivityRail activeId={activeNav} />
+    <div className="wb-app-frame">
+      {/* A4：数据库降级横幅——主进程 db:status 不可用时全页面顶部常驻提示 */}
+      <DbDegradedBanner />
 
-      {/* 主内容区：key 驱动路由切换时重新触发 .page-enter 入场动画 */}
-      <div key={location.pathname} className="page-enter" style={{ height: '100%', width: '100%', minWidth: 0, flex: 1 }}>
-        <Outlet />
+      <div className="wb-main-layout">
+        {/* 全局持久侧边栏：任何路由切换都保持可见 */}
+        <ActivityRail activeId={activeNav} />
+
+        {/* 主内容区：key 驱动路由切换时重新触发 .page-enter 入场动画 */}
+        <div key={location.pathname} className="page-enter" style={{ height: '100%', width: '100%', minWidth: 0, flex: 1 }}>
+          <Outlet />
+        </div>
       </div>
     </div>
   )

@@ -68,10 +68,21 @@ app.whenReady().then(() => {
   const dbPath = resolveDbPath(app.getPath('userData'))
   const db = DatabaseManager.getInstance(dbPath)
   // v2.2 修复问题 #46：不输出 dbPath（含用户目录路径，可能泄漏用户名）
+  // A4：状态同时送渲染层全局横幅，日志不再是降级的唯一落点
+  const dbStatus = db.getStatus()
   logger.info('DB', '数据库已初始化', {
-    available: db.isAvailable(),
-    vector: db.isVectorEnabled(),
+    available: dbStatus.available,
+    vector: dbStatus.vectorEnabled,
+    schemaVersion: dbStatus.schemaVersion,
+    targetSchemaVersion: dbStatus.targetSchemaVersion,
+    ...(dbStatus.degradedReason ? { degradedReason: dbStatus.degradedReason } : {}),
+    ...(dbStatus.migrationError ? { migrationError: dbStatus.migrationError } : {}),
   })
+  if (!dbStatus.available || dbStatus.migrationPending) {
+    logger.warn('DB', '数据库处于降级状态，界面将显示全局横幅', {
+      reason: dbStatus.degradedReason ?? dbStatus.migrationError,
+    })
+  }
 
   // 0.0a 加载教程种子（v0.7.0 Sprint 5：保证 knowledge_entries 有 10 篇内置教程）
   //    如果数据库已有教程则跳过，避免覆盖
