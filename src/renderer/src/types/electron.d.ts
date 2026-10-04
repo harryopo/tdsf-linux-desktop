@@ -625,6 +625,8 @@ export interface ElectronAPI {
   sshShellStart(sessionId: string): Promise<boolean>
   /** 向 Shell 写入数据 */
   sshShellWrite(sessionId: string, data: string): Promise<boolean>
+  /** 执行整条代写命令（AI 建议 / 决策页重跑）；主进程先过风险闸，block 级抛错 */
+  sshRunAuthored(sessionId: string, command: string): Promise<boolean>
   /** 调整 Shell 终端尺寸 */
   sshShellResize(sessionId: string, cols: number, rows: number): Promise<boolean>
   /**

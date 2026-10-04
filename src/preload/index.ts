@@ -566,9 +566,13 @@ const ssh = {
     start: (sessionId: string): Promise<boolean> =>
       ipcRenderer.invoke(SSH.SHELL_START, sessionId),
 
-    /** 向 shell 写入数据 */
+    /** 向 shell 写入数据（仅供用户键入，主进程不判定整条命令） */
     write: (sessionId: string, data: string): Promise<boolean> =>
       ipcRenderer.invoke(SSH.SHELL_WRITE, sessionId, data),
+
+    /** 执行整条代写命令（AI 建议 / 决策页重跑）：主进程先过风险闸 */
+    runAuthored: (sessionId: string, command: string): Promise<boolean> =>
+      ipcRenderer.invoke(SSH.SHELL_RUN_AUTHORED, sessionId, command),
 
     /** 调整 shell 终端窗口大小 */
     resize: (sessionId: string, cols: number, rows: number): Promise<boolean> =>
@@ -2388,6 +2392,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sshExec: ssh.exec,
   sshShellStart: ssh.shell.start,
   sshShellWrite: ssh.shell.write,
+  /** 执行整条代写命令（AI/决策页），主进程过风险闸 */
+  sshRunAuthored: ssh.shell.runAuthored,
   sshShellResize: ssh.shell.resize,
   /** 响应主机密钥确认弹窗（Phase L） */
   sshRespondHostKey: ssh.respondHostKey,
@@ -3398,6 +3404,7 @@ export type ElectronAPI = {
   sshExec: typeof ssh.exec
   sshShellStart: typeof ssh.shell.start
   sshShellWrite: typeof ssh.shell.write
+  sshRunAuthored: typeof ssh.shell.runAuthored
   sshShellResize: typeof ssh.shell.resize
   /** 响应主机密钥确认弹窗（Phase L） */
   sshRespondHostKey: typeof ssh.respondHostKey

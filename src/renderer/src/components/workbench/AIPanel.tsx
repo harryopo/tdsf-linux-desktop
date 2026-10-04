@@ -297,7 +297,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       message.warning('该功能需要连接 SSH 服务器后使用')
       return
     }
-    if (!api?.sshShellWrite) {
+    if (!api?.sshRunAuthored) {
       message.warning('当前环境不支持终端执行（非 Electron 环境）')
       return
     }
@@ -323,8 +323,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       // v2.5 预测回显：先登记到 terminal-store（终端顶部回显条立即可见），
       // 再发 Ctrl+U 清掉 shell 当前行可能的半截输入，避免命令拼接乱码
       useTerminalStore.getState().setPendingCommand({ command: payload, sentAt: Date.now() })
-      const cmd = payload.endsWith('\n') ? payload : `${payload}\n`
-      await api.sshShellWrite(activeSessionId, `\x15${cmd}`)
+      // 走 run-authored 而不是裸 shell write：命令由 AI 起草，主进程要过风险闸
+      await api.sshRunAuthored(activeSessionId, payload)
       message.success('命令已发送到终端，请在终端查看回显')
 
       // v2.5 决策落库：用户批准执行 = 一次真实决策（AI 建议 → 人工批准 → 执行），

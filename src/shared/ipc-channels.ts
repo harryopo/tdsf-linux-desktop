@@ -162,8 +162,15 @@ export const SSH = {
   EXEC: 'ssh:exec',
   /** 启动交互式 Shell（invoke: 渲染 → 主） */
   SHELL_START: 'ssh:shell:start',
-  /** 向交互式 Shell 写入数据（invoke: 渲染 → 主） */
+  /** 向交互式 Shell 写入数据（invoke: 渲染 → 主）— 仅供用户键入，主进程不做命令判定 */
   SHELL_WRITE: 'ssh:shell:write',
+  /**
+   * 执行"他人代写"的整条命令（invoke: 渲染 → 主）— AI 建议 / 决策页重新执行
+   *
+   * 与 SHELL_WRITE 分开是因为主进程无法逐键判定用户输入，但可以判定一整条命令：
+   * 本通道在写入前先过 core/command-gate，block 级直接拒绝。
+   */
+  SHELL_RUN_AUTHORED: 'ssh:shell:run-authored',
   /** 调整 Shell 终端窗口大小（invoke: 渲染 → 主） */
   SHELL_RESIZE: 'ssh:shell:resize',
   /** 心跳保活状态变更推送（push: 主 → 渲染），载荷 SshStateEvent */

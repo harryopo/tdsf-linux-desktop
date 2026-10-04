@@ -367,8 +367,8 @@ export function DecisionDetailPage() {
         }
       }
       useTerminalStore.getState().setPendingCommand({ command: card.fixCommand, sentAt: Date.now() })
-      const cmd = card.fixCommand.endsWith('\n') ? card.fixCommand : `${card.fixCommand}\n`
-      await api.sshShellWrite(activeSessionId, `\x15${cmd}`)
+      // 代写命令（历史上由 AI 起草）→ 走 run-authored，由主进程过风险闸
+      await api.sshRunAuthored(activeSessionId, card.fixCommand)
       message.success('命令已发送到终端，请到工作台终端查看回显')
     } catch (err) {
       useTerminalStore.getState().setPendingCommand(null)

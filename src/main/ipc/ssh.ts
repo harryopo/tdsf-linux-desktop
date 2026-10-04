@@ -289,6 +289,36 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
+  /**
+   * ssh:shell:run-authored — 执行整条"代写"命令（AI 建议 / 决策页重新执行）
+   *
+   * 与 SHELL_WRITE 的区别就在这里：命令是完整一条，故可在主进程过风险闸。
+   * block 级一律拒绝并抛错，渲染层原样把原因显示给用户。
+   */
+  ipcMain.handle(
+    SSH.SHELL_RUN_AUTHORED,
+    async (_event, sessionId: string, command: string) => {
+      const verdict = evaluateCommand(command)
+      if (verdict.level === 'block') {
+        logger.warn('SSH', '代写命令被风险闸拒绝', {
+          sessionId,
+          command: redactSecrets(command),
+          reason: verdict.reason,
+        })
+        throw new Error(`高危命令已被拦截：${verdict.reason}`)
+      }
+      const payload = command.endsWith('\n') ? command : `${command}\n`
+      // \x15 = Ctrl+U，清掉 shell 当前行可能的半截输入，避免拼接乱码
+      try {
+        return await sshManager.writeShell(sessionId, `\x15${payload}`)
+      } catch (err) {
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '执行代写命令失败', { sessionId, error: safeMsg })
+        throw new Error(`执行失败: ${safeMsg}`)
+      }
+    }
+  )
+
   /** ssh:shell:resize — 调整 shell 终端窗口大小 */
   ipcMain.handle(
     SSH.SHELL_RESIZE,
