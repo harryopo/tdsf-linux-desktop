@@ -45,7 +45,7 @@ export function LogViewer({
   /** 浮动统计卡数据（来自 log:stats IPC，经 mapLogStats 映射） */
   levelStats?: LevelStat[]
   /** 滚动容器 ref（供父组件自动滚动到底部；同时作为虚拟滚动的滚动元素） */
-  scrollRef?: RefObject<HTMLDivElement>
+  scrollRef?: RefObject<HTMLDivElement | null>
 }) {
   // 虚拟滚动容器 ref：优先用父组件传入的 scrollRef（便于自动滚动联动），
   // 父组件未传时回退到内部 fallbackRef

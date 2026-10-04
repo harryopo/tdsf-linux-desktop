@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type FC } from 'react'
+import { memo, useMemo, useState, type FC, type JSX } from 'react'
 import {
   Activity, BookOpen, Check, ChevronRight, Clock, Layers, Loader2, Pause, Play,
   Search, Sparkles, Terminal as TerminalIcon, Wrench, X,

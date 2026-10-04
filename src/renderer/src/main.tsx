@@ -18,6 +18,10 @@
  * - AntD 5 与 Tailwind v4 共存：通过 @layer + important 调整优先级
  * - 中文语言包 zhCN
  */
+// React 19 移除了 ReactDOM.render 等旧 API，antd 5 的静态方法
+// （message.* / notification.* / Modal.confirm，全仓 147 处）依赖它们。
+// 官方补丁必须在任何 antd import 之前执行，否则这些调用静默失效。
+import '@ant-design/v5-patch-for-react-19'
 import React, { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ConfigProvider, theme as antdTheme } from 'antd'

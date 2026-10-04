@@ -159,9 +159,7 @@ export function MonitorPage() {
   const [selectedAlert, setSelectedAlert] = useState<AlertRecord | null>(null)
 
   const activeSessionId = useServerStore((s) => s.activeSessionId)
-  const monitorData = useMonitorStore((s) =>
-    activeSessionId ? s.getMonitorData(activeSessionId) : [],
-  )
+  const monitorData = useMonitorStore((s) => s.getMonitorData(activeSessionId))
   const systemInfo = useMonitorStore((s) =>
     activeSessionId ? s.getSystemInfo(activeSessionId) : null,
   )

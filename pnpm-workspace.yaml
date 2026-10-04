@@ -18,3 +18,7 @@ onlyBuiltDependencies:
   - protobufjs
   - sharp
   - tree-sitter-bash
+overrides:
+  # react-arborist 锁着 use-sync-external-store@1.2.0，其 peer 只到 react 18；
+  # 1.7.0 的 peer 才含 ^19，升 React 19 后不强制会一直报 unmet peer。
+  use-sync-external-store: ^1.7.0

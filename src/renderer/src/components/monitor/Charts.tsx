@@ -48,13 +48,10 @@ const CHART_H = 140
 
 // ===== 数据 Hook =====
 
-/** 获取当前活跃会话的监控数据 */
+/** 获取当前活跃会话的监控数据（无会话时拿到稳定空数组，不能在调用处现造 []） */
 function useActiveMonitorData() {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
-  const data = useMonitorStore((s) =>
-    activeSessionId ? s.getMonitorData(activeSessionId) : [],
-  )
-  return data
+  return useMonitorStore((s) => s.getMonitorData(activeSessionId))
 }
 
 

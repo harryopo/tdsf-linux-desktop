@@ -35,7 +35,7 @@ export interface MessageListProps {
   paorPlan: PaorPlanObject | null
   paorIterations: PaorIteration[]
   paorRunning: boolean
-  messagesEndRef: RefObject<HTMLDivElement>
+  messagesEndRef: RefObject<HTMLDivElement | null>
   hasLiveConversation: boolean
   liveMessages: AgentMessage[]
   lastError: string | null

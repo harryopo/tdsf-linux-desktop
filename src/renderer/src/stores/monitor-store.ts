@@ -15,6 +15,15 @@ import type { MonitorData, SystemInfo } from '@shared/models'
 /** 每个会话保留的最大历史数据条数 */
 const MAX_HISTORY_COUNT = 60
 
+/**
+ * 无数据时的稳定空数组。
+ *
+ * 不能每次调用现造 `[]`：zustand 5 走 React 原生 useSyncExternalStore，
+ * 选择器返回新引用会被判成"快照变了"，直接 Maximum update depth exceeded
+ * （监控页 CpuAreaChart 在 React 18 下不报，升 19 后必崩）。
+ */
+const EMPTY_MONITOR_DATA: MonitorData[] = Object.freeze([]) as unknown as MonitorData[]
+
 /** 监控 Store 状态接口 */
 interface MonitorState {
   /** 监控数据历史：sessionId → MonitorData[]（最近60条） */
@@ -31,8 +40,8 @@ interface MonitorState {
   clearMonitorData: (sessionId: string) => void
   /** 清除所有监控数据 */
   clearAllMonitorData: () => void
-  /** 获取指定会话的监控数据历史 */
-  getMonitorData: (sessionId: string) => MonitorData[]
+  /** 获取指定会话的监控数据历史（无会话/无数据返回同一个稳定空数组） */
+  getMonitorData: (sessionId?: string | null) => MonitorData[]
   /** 获取指定会话的最新监控数据 */
   getLatestMonitorData: (sessionId: string) => MonitorData | null
   /** 获取指定会话的系统信息 */
@@ -79,8 +88,8 @@ export const useMonitorStore = create<MonitorState>()((set, get) => ({
 
   // 获取指定会话的监控数据历史
   getMonitorData: (sessionId) => {
-    const state = get()
-    return state.monitorData.get(sessionId) ?? []
+    if (!sessionId) return EMPTY_MONITOR_DATA
+    return get().monitorData.get(sessionId) ?? EMPTY_MONITOR_DATA
   },
 
   // 获取指定会话的最新监控数据

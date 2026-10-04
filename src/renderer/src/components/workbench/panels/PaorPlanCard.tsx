@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import type { FC, JSX } from 'react'
 import { Check, Loader2, Circle, X, ShieldAlert, ListChecks } from 'lucide-react'
 import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
 import {

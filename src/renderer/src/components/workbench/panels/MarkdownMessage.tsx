@@ -12,7 +12,7 @@
  * 不追求完整 CommonMark（不处理嵌套列表/HTML），够用且安全；
  * 如需完整能力后续可升级 react-markdown。
  */
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, type JSX, type ReactNode } from 'react'
 
 /** 行内解析：**粗** / *斜* / `码` / [文本](url)，返回 React 节点数组 */
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
