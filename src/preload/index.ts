@@ -2662,6 +2662,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(BOOT.LOADING_STAGE, handler)
     return () => ipcRenderer.off(BOOT.LOADING_STAGE, handler)
   },
+  // R0：拉取最近一次加载阶段。主进程 init 可能早于本页挂载，纯靠上面那条推送会错过 done
+  bootGetState: (): Promise<{ stage: string; progress: number; message: string } | null> =>
+    ipcRenderer.invoke(BOOT.GET_STATE),
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>

@@ -1449,6 +1449,13 @@ export interface ElectronAPI {
    */
   alertAck(alertId: string): Promise<boolean>
 
+  /** R0：拉取最近一次加载阶段（未推送过时为 null） */
+  bootGetState(): Promise<{
+    stage: 'ipc-ready' | 'sqlite-init' | 'kb-indexed' | 'done'
+    progress: number
+    message: string
+  } | null>
+
   /** BootPage 加载阶段推送订阅（M5 Task 3） */
   onBootLoadingStage(
     callback: (stage: {
@@ -2094,6 +2101,13 @@ export interface ElectronAPI {
   riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
   /** 确认告警（M3 Task 2，主进程内存 Map 记录 ack 状态） */
   alertAck(alertId: string): Promise<boolean>
+
+  /** R0：拉取最近一次加载阶段（未推送过时为 null） */
+  bootGetState(): Promise<{
+    stage: 'ipc-ready' | 'sqlite-init' | 'kb-indexed' | 'done'
+    progress: number
+    message: string
+  } | null>
 
   /** BootPage 加载阶段推送订阅（M5 Task 3） */
   onBootLoadingStage(

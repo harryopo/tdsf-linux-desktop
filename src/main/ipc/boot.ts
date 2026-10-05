@@ -14,7 +14,7 @@
  * 设计依据：M5 Task 3 · IPC 4 步同步铁律
  */
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { BOOT } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
 
@@ -54,6 +54,7 @@ export function pushBootLoadingStage(stage: BootStage, windows: BrowserWindow[])
     progress: STAGE_PROGRESS[stage].progress,
     message: STAGE_PROGRESS[stage].message,
   }
+  lastStage = payload
   logger.info('IPC.BOOT', '推送启动加载阶段', {
     stage: payload.stage,
     progress: payload.progress,
@@ -64,4 +65,36 @@ export function pushBootLoadingStage(stage: BootStage, windows: BrowserWindow[])
       win.webContents.send(BOOT.LOADING_STAGE, payload)
     }
   }
+}
+
+/**
+ * 最近一次推送的阶段。
+ *
+ * 存在的理由：主进程 init 可能比渲染层挂载快（生产构建里几乎必然），
+ * 那时 fire-and-forget 的推送没有任何订阅者，BootPage 收不到 done，
+ * 界面就永久停在"系统初始化中…"且"进入工作台"按钮点不动。
+ * 渲染层订阅之后必须还能把这一条拉回来。
+ */
+let lastStage: BootLoadingStage | null = null
+
+/** 供 handler 与测试读取；未推送过时为 null */
+export function getLatestBootStage(): BootLoadingStage | null {
+  return lastStage
+}
+
+/** 仅测试用：回到未推送状态 */
+export function __resetBootStageForTest(): void {
+  lastStage = null
+}
+
+/**
+ * 注册 boot 域的 invoke handler
+ *
+ * - BOOT.GET_STATE → 返回最近一次加载阶段（没有则 null），让渲染层补齐错过的推送
+ */
+export function registerBootHandlers(): void {
+  ipcMain.handle(BOOT.GET_STATE, (): BootLoadingStage | null => lastStage)
+  logger.info('IPC.BOOT', 'Boot IPC handlers 已注册', {
+    channels: [BOOT.GET_STATE],
+  })
 }

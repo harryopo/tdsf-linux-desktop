@@ -66,24 +66,37 @@ export function BootPage() {
   const navigate = useNavigate()
   const canvasHostRef = useRef<HTMLDivElement>(null)
   const [progress, setProgress] = useState(0)
-  const [loaded, setLoaded] = useState(false)
+  // R0：就绪 = 主进程真的走完 && 最小展示时长已过。
+  // 此前"就绪"由 requestAnimationFrame 数帧决定，窗口被最小化或遮挡时 RAF 停摆，
+  // 进度条走不完 → 永远进不了工作台（生产构建实测卡死的就是这条）。
+  const [bootDone, setBootDone] = useState(false)
+  const [minElapsed, setMinElapsed] = useState(false)
+  const loaded = bootDone && minElapsed
   const [webglFailed, setWebglFailed] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const timersRef = useRef<number[]>([])
 
   // M5 Task 3: 监听主进程加载阶段推送
-  // - 收到 stage 后推进 progress 到对应百分比
-  // - 保留 3s 最小展示时长：即使 stage='done' 提前到达，也要等动画完成才显示就绪
-  // - 降级：IPC 不可用时（开发模式或非 Electron），回退到原 3s 假动画
+  // R0 更正：此前只订阅不拉取。主进程 init 常常早于本页挂载（生产构建里几乎必然），
+  // done 推过来时还没有订阅者，于是永久停在"系统初始化中…"。订阅之后立刻补一次拉取。
   useEffect(() => {
-    if (!isElectronAPIAvailable() || !window.electronAPI?.onBootLoadingStage) return
+    if (!isElectronAPIAvailable() || !window.electronAPI?.onBootLoadingStage) {
+      setBootDone(true)
+      return
+    }
 
     const unsubscribe = window.electronAPI.onBootLoadingStage((payload) => {
       // 仅推进 progress（不回退），保留动画的视觉连续性
       setProgress((prev) => Math.max(prev, payload.progress))
       if (payload.stage === 'done') {
-        setLoaded(true)
+        setBootDone(true)
       }
+    })
+
+    void window.electronAPI.bootGetState?.().then((last) => {
+      if (!last) return
+      setProgress((prev) => Math.max(prev, last.progress))
+      if (last.stage === 'done') setBootDone(true)
     })
 
     return unsubscribe
@@ -194,18 +207,23 @@ export function BootPage() {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
+  // 最小展示时长：用 setTimeout 而不是数帧，窗口不可见时要依然生效
+  useEffect(() => {
+    if (reducedMotion) {
+      setProgress(100)
+      setMinElapsed(true)
+      return
+    }
+    const t = window.setTimeout(() => setMinElapsed(true), PROGRESS_DELAY_MS + PROGRESS_DURATION_MS)
+    return () => window.clearTimeout(t)
+  }, [reducedMotion])
+
   // 进度条 0 → 100（约 3s，与设计稿一致）
   // P2-3: 改用 requestAnimationFrame 替代 setInterval(30ms)
   // - 帧同步：与浏览器渲染节拍一致，避免 30ms 抖动和丢帧
-  // - 后台 tab 自动暂停：RAF 在 hidden tab 中不触发，节省 CPU
-  // - 取消时机清晰：useEffect cleanup cancelAnimationFrame 即可
+  // - 纯装饰：就绪判定已挪到 setTimeout + 主进程状态，RAF 停摆不再影响可用性
   useEffect(() => {
-    if (reducedMotion) {
-      // 减少动效：跳过 3s 动画，直接进入就绪态
-      setProgress(100)
-      setLoaded(true)
-      return
-    }
+    if (reducedMotion) return
     const startAt = Date.now() + PROGRESS_DELAY_MS
     let rafId = 0
     const tick = () => {
@@ -216,11 +234,8 @@ export function BootPage() {
       }
       const t = Math.min((now - startAt) / PROGRESS_DURATION_MS, 1)
       const eased = 1 - Math.pow(1 - t, 3)
-      setProgress(Math.round(eased * 100))
-      if (t >= 1) {
-        setLoaded(true)
-        return // 不再调度下一帧，RAF 自动停止
-      }
+      setProgress((prev) => Math.max(prev, Math.round(eased * 100)))
+      if (t >= 1) return
       rafId = window.requestAnimationFrame(tick)
     }
     rafId = window.requestAnimationFrame(tick)

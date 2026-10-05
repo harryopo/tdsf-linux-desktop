@@ -1143,6 +1143,8 @@ export const ALERT = {
 export const BOOT = {
   /** 加载阶段推送（push: 主 → 渲染） */
   LOADING_STAGE: 'boot:loading-stage',
+  /** 拉取最近一次加载阶段（invoke: 渲染 → 主）——补 push 之前订阅未就绪的竞态 */
+  GET_STATE: 'boot:get-state',
 } as const
 
 /**

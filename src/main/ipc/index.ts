@@ -101,7 +101,7 @@ import { registerDbHandlers } from './db'
 import { registerModelStatsHandlers } from './model-stats'
 // M5 Task 3 新增：启动加载阶段推送 IPC（boot:loading-stage，主进程向渲染层推送加载进度）
 // 通道：boot:loading-stage（push: 主 → 渲染，BootPage 据此推进进度条）
-import { pushBootLoadingStage } from './boot'
+import { pushBootLoadingStage, registerBootHandlers } from './boot'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
@@ -304,7 +304,10 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 现在由 main/index.ts 直接从各自模块 import，global 这层中转删掉。
 
   // M5 Task 3: 推送 IPC ready 阶段给 BootPage
-  // 注意：这里仅推送 'ipc-ready'，后续 sqlite-init / kb-indexed / done 由各模块 init 完成后推送
-  // 单 AI 模式下使用 BrowserWindow.getAllWindows() 获取所有窗口
+  // R0 更正：注释说"后续 sqlite-init / kb-indexed / done 由各模块推送"，实际此前
+  // 只有这一条被推过，done 从来没人发——渲染层的就绪只能靠动画猜。
+  // 现在这三条由 main/index.ts 的启动序列真实推送，并额外提供 boot:get-state 供拉取
+  // （主进程跑得快于渲染层挂载时，推送会丢，拉取补得上）。
+  registerBootHandlers()
   pushBootLoadingStage('ipc-ready', BrowserWindow.getAllWindows())
 }

@@ -31,6 +31,9 @@ import { initScheduler, cleanupScheduler } from './ipc/scheduler'
 // D3：退出时清理 sidecar 与循环工程（以前只挂 global 从未被调用）
 import { cleanupSidecar } from './ipc/sidecar'
 import { cleanupLoopEngineering } from './ipc/loop-engineering'
+// R0：启动阶段推送。此前只有 ipc-ready 被推过，done 从来没人发，
+//     渲染层的"就绪"完全依赖动画节拍，窗口被遮挡时就卡死在启动页。
+import { pushBootLoadingStage } from './ipc/boot'
 import { initLogger, logger } from './services/log/logger'
 import { redactSecrets } from './services/security/redact'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
@@ -86,6 +89,7 @@ app.whenReady().then(() => {
       reason: dbStatus.degradedReason ?? dbStatus.migrationError,
     })
   }
+  pushBootLoadingStage('sqlite-init', BrowserWindow.getAllWindows())
 
   // 0.0a 加载教程种子（v0.7.0 Sprint 5：保证 knowledge_entries 有 10 篇内置教程）
   //    如果数据库已有教程则跳过，避免覆盖
@@ -107,6 +111,7 @@ app.whenReady().then(() => {
 
   // 0.0 初始化可观测性服务（Langfuse），未配置 Key 时静默降级
   LangfuseService.getInstance().init()
+  pushBootLoadingStage('kb-indexed', BrowserWindow.getAllWindows())
 
   // 0.1 启动 MCP Server（仅在 MCP_SERVER_ENABLED=true 时启用）
   const mcpConfig = ConfigStore.getMcpConfig() ?? {
@@ -135,6 +140,9 @@ app.whenReady().then(() => {
   //    不 await（不阻塞应用启动），后台执行即可
   //    OpenHands 未启动时静默失败，下次 sandbox:list 时再尝试缓存
   void warmupSessionKeyCache()
+
+  // 启动序列走完了。这一步此前从未推送，渲染层只能靠动画自己猜"好了"。
+  pushBootLoadingStage('done', BrowserWindow.getAllWindows())
 
   // 4. macOS 激活时重建窗口
   app.on('activate', handleActivate)
