@@ -19,7 +19,21 @@ import {
   type SysInfoItem, type LinkCard, type FooterLink,
 } from './about-settings.constants'
 import type { AppUpdateInfo, AppInfo } from '../types/electron'
+import {
+  CAPABILITIES,
+  CAPABILITY_STATUS_LABELS,
+  capabilityCounts,
+  type CapabilityStatus,
+} from '@shared/capabilities'
+import { Chip } from '@/ui'
 import './Settings.css'
+
+/** 就绪度状态 → Chip 色调（待开发用描边而非彩色，避免和"降级"看起来一样严重） */
+const CHIP_TONE: Record<CapabilityStatus, 'success' | 'warning' | 'outline'> = {
+  live: 'success',
+  degraded: 'warning',
+  pending: 'outline',
+}
 
 interface BadgeConfig {
   label: string
@@ -44,6 +58,9 @@ export function AboutSettings() {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [appInfoLoading, setAppInfoLoading] = useState(false)
   const [appInfoError, setAppInfoError] = useState<string | null>(null)
+
+  /** 功能就绪度汇总：数字来自共享表，页面不自己数 */
+  const counts = useMemo(() => capabilityCounts(), [])
 
   const displayVersion = appInfo?.version ?? APP_VERSION
   const displayBuildTime = appInfo?.buildTime
@@ -428,6 +445,29 @@ export function AboutSettings() {
             </button>
           )
         })}
+      </div>
+
+      {/* ===== 功能就绪度（读 src/shared/capabilities.ts，页面不自写状态文案）===== */}
+      <div className="set-ab-sysinfo">
+        <div className="set-ab-sysinfo__row">
+          <span className="set-ab-sysinfo__key">功能就绪度</span>
+          <span className="set-ab-sysinfo__val">
+            {counts.live} 项已接通 · {counts.degraded} 项降级运行 · {counts.pending} 项待开发
+          </span>
+        </div>
+        {CAPABILITIES.map((cap) => (
+          <div key={cap.id} className="set-ab-sysinfo__row" style={{ alignItems: 'flex-start' }}>
+            <span className="set-ab-sysinfo__key">{cap.label}</span>
+            <span className="set-ab-sysinfo__val">
+              <Chip tone={CHIP_TONE[cap.status]} className="mb-1">
+                {CAPABILITY_STATUS_LABELS[cap.status]}
+              </Chip>
+              <span style={{ display: 'block', color: 'var(--trae-text-tertiary)', fontSize: 11 }}>
+                {cap.note}
+              </span>
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* ===== Footer ===== */}

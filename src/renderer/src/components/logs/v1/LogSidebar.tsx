@@ -105,7 +105,7 @@ function LogSourceRow({
       <span
         className={`log-source-count ${active ? 'is-active' : ''} ${isAlertCount ? 'is-alert' : ''}`}
       >
-        {source.count}
+        {source.count ?? '—'}
       </span>
     </div>
   )

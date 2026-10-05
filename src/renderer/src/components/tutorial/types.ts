@@ -363,44 +363,9 @@ export function featuredLevelClassName(level: CourseLevel): string {
   return 'tut-level-badge'
 }
 
-// ==================== 静态示例数据（1:1 来自设计稿 tutorial.html，仅 fallback 使用） ====================
-
-export const DEFAULT_STATS: StatItem[] = [
-  { value: '12', unit: '门课程', hint: '涵盖 Linux 运维全栈知识' },
-  { value: '48', unit: '课时', hint: '平均每门 4 个实操课时' },
-  { value: '3.2k', unit: '学习人次', hint: '运维工程师实战首选' },
-]
-
-export const FEATURED_COURSES: Course[] = [
-  { id: 'nginx-tuning', title: 'Nginx 性能调优实战', description: '从 worker_connections 到内核参数，全面优化 nginx 性能', level: '进阶', category: 'network', duration: '2h30min', learnerCount: '1.8k 人', progress: 65, icon: Cpu, domId: 'open-course', cta: '继续学习' },
-  { id: 'linux-troubleshoot', title: 'Linux 故障排查方法论', description: '系统性排查 CPU / 内存 / 网络 / 磁盘故障的标准流程', level: '中级', category: 'troubleshoot', duration: '1h45min', learnerCount: '1.5k 人', progress: 30, icon: Terminal, domId: 'open-course-2', cta: '开始学习' },
-]
-
-export const DEFAULT_COURSES: Course[] = [
-  { id: 'ssh-security', title: 'SSH 安全配置指南', description: '密钥认证、端口加固、fail2ban 配置与审计日志最佳实践', level: '初级', category: 'security', duration: '45min', learnerCount: '1.2k 人', progress: 0, icon: Terminal },
-  { id: 'shell-script', title: 'Shell 脚本自动化', description: '变量、流程控制、正则与文本处理，打造可复用自动化脚本', level: '中级', category: 'script', duration: '1h20min', learnerCount: '890 人', progress: 100, completed: true, icon: Zap },
-  { id: 'docker-ops', title: 'Docker 容器运维', description: '镜像构建、容器编排、数据卷与网络管理实战', level: '中级', category: 'basic', duration: '2h', learnerCount: '2.1k 人', progress: 0, icon: Box },
-  { id: 'mysql-tuning', title: 'MySQL 性能优化', description: '索引优化、慢查询分析、连接池调优与分表策略', level: '进阶', category: 'basic', duration: '3h', learnerCount: '670 人', progress: 0, icon: Cpu },
-  { id: 'network-capture', title: '网络抓包与分析', description: 'tcpdump、wireshark 抓包分析与 TCP 协议深度解读', level: '中级', category: 'network', duration: '1h', learnerCount: '540 人', progress: 45, icon: Globe },
-  { id: 'system-security', title: '系统安全加固', description: 'SELinux、防火墙、入侵检测与基线核查全流程', level: '进阶', category: 'security', duration: '2h15min', learnerCount: '980 人', progress: 0, icon: Shield },
-]
-
-export const LEARNING_PATHS: LearningPath[] = [
-  {
-    id: 'ops-growth',
-    title: '运维工程师成长路线',
-    level: '中级',
-    courseCount: 5,
-    percent: 40,
-    completedCount: 2,
-    totalCount: 5,
-    icon: TrendingUp,
-    steps: [
-      { label: 'Linux基础', description: '命令行与文件系统', status: 'completed' },
-      { label: 'Shell编程', description: '脚本自动化与文本处理', status: 'completed' },
-      { label: '服务管理', description: 'systemd与服务编排', status: 'current' },
-      { label: '安全配置', description: '防火墙与入侵检测', status: 'upcoming' },
-      { label: '故障排查', description: '性能分析与日志诊断', status: 'upcoming' },
-    ],
-  },
-]
+// ==================== 静态示例数据已于阶段 F4 删除 ====================
+//
+// 这里原本放着设计稿 tutorial.html 的示例统计（12 门课程 / 48 课时 / 3.2k 学习人次）、
+// 两门精选课、六门默认课和一条"运维工程师成长路线"。它们只在 IPC 没返回时顶位，
+// 而教程库真有数据时又会全部覆盖——也就是说界面上一度出现的数字，
+// 有一部分跟本机 SQLite 里的真实教程毫无关系。现在初始状态一律为空，由 TutorialPage 拉真实数据。

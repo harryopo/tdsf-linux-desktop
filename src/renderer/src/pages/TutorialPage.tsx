@@ -23,8 +23,8 @@ import { LearningPath } from '@/components/tutorial/LearningPath'
 import {
   type Course, type CourseCategory, type LearningPath as LearningPathItem,
   type SearchResultItem, type RecommendedPathLite, type StatItem,
-  UI_TO_TUTORIAL_CATEGORIES, DEFAULT_STATS, FEATURED_COURSES, DEFAULT_COURSES,
-  LEARNING_PATHS, isLocalStorageAvailable, loadVisitedTutorialIds,
+  UI_TO_TUTORIAL_CATEGORIES,
+  isLocalStorageAvailable, loadVisitedTutorialIds,
   saveVisitedTutorialIds, isValidTutorialCategory, entryToCourse, computeCategoryCounts,
   computeFeaturedProgress, tutorialPathToLearningPath,
 } from '@/components/tutorial/types'
@@ -35,11 +35,11 @@ export function TutorialPage() {
   const navigate = useNavigate()
   const [activeCategory, setActiveCategory] = useState<CourseCategory>('all')
 
-  // ===== 真实教程数据状态（v2.3 活功能转换）=====
-  const [courses, setCourses] = useState<Course[]>(DEFAULT_COURSES)
-  const [featured, setFeatured] = useState<Course[]>(FEATURED_COURSES)
-  const [paths, setPaths] = useState<LearningPathItem[]>(LEARNING_PATHS)
-  const [stats, setStats] = useState<StatItem[]>(DEFAULT_STATS)
+  // ===== 教程数据状态：一律从 IPC 取，初始为空（阶段 F4 起不再预置设计稿示例）=====
+  const [courses, setCourses] = useState<Course[]>([])
+  const [featured, setFeatured] = useState<Course[]>([])
+  const [paths, setPaths] = useState<LearningPathItem[]>([])
+  const [stats, setStats] = useState<StatItem[]>([])
   const [loading, setLoading] = useState(false)
 
   // ===== 学习进度（localStorage 过渡方案，接口保留待后续集成）=====
@@ -171,7 +171,11 @@ export function TutorialPage() {
       } catch (err) {
         if (cancelled) return
         console.warn('[TutorialPage] 拉取教程数据失败', err)
-        message.error('教程数据加载失败，已使用本地示例数据')
+        setCourses([])
+        setFeatured([])
+        setPaths([])
+        setStats([])
+        message.error('教程数据加载失败，列表已置空')
       } finally {
         if (!cancelled) setLoading(false)
       }

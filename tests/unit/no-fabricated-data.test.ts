@@ -26,8 +26,21 @@ function walk(dir: string, acc: string[] = []): string[] {
 
 const files = walk(RENDERER)
 
-/** 曾经真实出现在界面上的编造值：主机名、统计数、延迟、错误数 */
-const BANNED = ['prod-web-01', 'prod-db-02', 'backup-01', 'staging-web', '94.3%', 'P99 180ms', 'MOCK_CHAT_MESSAGES']
+/** 剥掉注释，只看真正会执行的代码（清理记录里会提到被删的字面量，那是处置说明不是回流） */
+function code(file: string): string {
+  return fs
+    .readFileSync(file, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+}
+
+/** 曾经真实出现在界面上的编造值：主机名、统计数、延迟、错误数、示例知识条目、示例课程数 */
+const BANNED = [
+  'prod-web-01', 'prod-db-02', 'backup-01', 'staging-web', '94.3%', 'P99 180ms', 'MOCK_CHAT_MESSAGES',
+  // 阶段 F4 清掉的设计稿示例：知识详情页那篇 Nginx 假文章、知识库页的假热门/假贡献统计、教程页的假课程数
+  'KB-NGINX-014', 'KB-NGINX-021', 'KB-MYSQL-007', 'KB-SYS-005', '运维团队', 'P99延迟优化实战',
+  '1,247 条', '3.2k', 'worker_connections 调优指南',
+]
 
 describe('渲染层不许出现编造数据', () => {
   it('扫到了页面文件（不是空跑）', () => {
@@ -52,14 +65,34 @@ describe('渲染层不许出现编造数据', () => {
     for (const f of files) {
       // 只看代码：本轮清掉假数据时，注释里会提到被删的值（"移除原硬编码的 94.3%"），
       // 那是记录处置过程，不是回流
-      const text = fs
-        .readFileSync(f, 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/^\s*\/\/.*$/gm, '')
+      const text = code(f)
       for (const bad of BANNED) {
         if (text.includes(bad)) hits.push(`${path.relative(ROOT, f).replace(/\\/g, '/')} → ${bad}`)
       }
     }
     expect(hits, `疑似编造数据回流：\n${hits.join('\n')}`).toEqual([])
+  })
+
+  it('阶段 F4：设计稿示例数据模块与示例兜底常量已不存在', () => {
+    // 知识详情页的示例文章（目录/诊断步骤/元信息/关联知识/FIX 命令块）
+    expect(fs.existsSync(path.join(RENDERER, 'components/knowledge-detail/v1/detail-data.ts'))).toBe(false)
+    const detail = code(path.join(RENDERER, 'pages/KnowledgeDetailPage.tsx'))
+    expect(detail).not.toMatch(/\buseReal\b/)
+    expect(detail).not.toMatch(/DIAGNOSE_STEPS|FIX_BEFORE|FIX_AFTER|VERIFY_CMD/)
+    // 教程页不许再用示例课程/示例统计顶位
+    const tutorial = code(path.join(RENDERER, 'pages/TutorialPage.tsx'))
+    expect(tutorial).not.toMatch(/DEFAULT_COURSES|FEATURED_COURSES|LEARNING_PATHS|DEFAULT_STATS/)
+    expect(tutorial).not.toContain('已使用本地示例数据')
+    // 知识库页同理
+    const kb = code(path.join(RENDERER, 'pages/KnowledgePage.tsx'))
+    expect(kb).not.toMatch(/KNOWLEDGE_ITEMS|HOT_ITEMS|RECENT_ITEMS|CONTRIBUTION_STATS/)
+    // 示例数据源头模块里也不许再导出这些常量
+    const tutorialTypes = code(path.join(RENDERER, 'components/tutorial/types.ts'))
+    expect(tutorialTypes).not.toMatch(/export const (DEFAULT_STATS|DEFAULT_COURSES|FEATURED_COURSES|LEARNING_PATHS)/)
+    // 系统日志页：设计稿那 15 条假日志（含假拦截、假置信度、假 P99）与状态栏假计数已删
+    const logs = code(path.join(RENDERER, 'pages/LogsPage.tsx'))
+    expect(logs).not.toMatch(/LOG_ENTRIES|TOTAL_LOG_COUNT|LATEST_TIMESTAMP/)
+    const logsData = code(path.join(RENDERER, 'components/logs/v1/logs-data.ts'))
+    expect(logsData).not.toMatch(/export const (LOG_ENTRIES|TOTAL_LOG_COUNT|LATEST_TIMESTAMP)/)
   })
 })

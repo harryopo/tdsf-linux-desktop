@@ -1,25 +1,24 @@
 /**
- * KnowledgeDetailPage — 知识详情页（1:1 复刻 knowledge-detail.html 设计稿）
+ * KnowledgeDetailPage — 知识详情页
  *
  * 路由：/knowledge/:id
- * 设计稿：tdsf-linux-redesign/pages/knowledge-detail.html
- * Spec: build-runnable-tdsf-from-design · Task 2.9
+ * 设计稿：tdsf-linux-redesign/pages/knowledge-detail.html（版式沿用，示例内容已删）
  *
- * 结构（1:1 对齐设计稿）：
- *   1. 紧凑 Header（3 行）：返回工作台 + 返回知识库 + 标题 + 编辑按钮 / 6 chips / 5 meta
+ * 结构：
+ *   1. 紧凑 Header（3 行）：返回知识库 + 标题 + 编辑按钮 / 条件徽章 / meta 行
  *   2. 两栏布局：
- *      - 主内容 6 section：问题描述 / 根因分析 / 诊断步骤(4 步) / 解决方案(配置对比) / 验证方法 / 反馈
- *      - 右侧 sticky 侧栏 4 卡片：目录 / 置信度 / 元信息 / 关联知识
+ *      - 主内容按条目实际有的字段成节：问题描述 / 根因分析（教程为正文）/ 解决方案 / 验证方法 / 反馈
+ *      - 右侧 sticky 侧栏：本页目录（与正文同源）/ 知识置信度 / 元信息
  *
  * data-dom-id 接入：
  *   - back-workbench / back-knowledge（返回）
  *   - edit-knowledge（编辑按钮）
- *   - copy-cmd-{1..4}（诊断步骤代码块）+ copy-cmd-reload（重载命令）+ copy-cmd-verify（验证命令）
+ *   - copy-cmd-fix / copy-cmd-reload（命令代码块）
  *   - feedback-helpful / feedback-unhelpful（反馈按钮）
- *   - goto-section-{1..6}（目录跳转，子组件接入）
- *   - goto-related-{1..3}（关联知识跳转，子组件接入）
+ *   - goto-section-N（目录跳转，N 随实际节数变化）
  *
- * 数据：严格使用设计稿 knowledge-detail.html 示例数据（KB-NGINX-014 Nginx worker_connections 调优）
+ * 数据：只渲染 kbGet(id) 拿到的真实条目；拿不到（非 Electron / 条目不存在 / 查询失败）一律走诚实空态，
+ *       不再有设计稿示例文章兜底（阶段 F4 删除）。
  * 视觉：全部 var(--trae-*) token，全实色 hex 边框（背景 rgba 允许），shadow 用 var(--trae-shadow-card)
  * 无障碍：button type="button" + aria-label，prefers-reduced-motion 禁用按压动画
  */
@@ -27,20 +26,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Spin, message } from 'antd'
 import {
-  Activity, AlertTriangle, ArrowLeft, Check, CheckCircle2, Clock,
-  Edit3, Eye, FileText, Loader2, MessageSquare, Save, ThumbsDown, ThumbsUp,
+  Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock,
+  Edit3, Eye, Loader2, MessageSquare, Save, ThumbsDown, ThumbsUp,
   Wrench, X, Zap,
 } from 'lucide-react'
-import {
-  CardHead,
-  CodeBlock,
-  DIAGNOSE_STEPS,
-  FIX_AFTER,
-  FIX_BEFORE,
-  FIX_RELOAD_CMD,
-  KnowledgeDetailSidebar,
-  VERIFY_CMD,
-} from '@/components/knowledge-detail/v1'
+import { CardHead, CodeBlock, KnowledgeDetailSidebar } from '@/components/knowledge-detail/v1'
 import type { KnowledgeEntry } from '@shared/models'
 import { cn } from '@/components/trae/utils'
 // v2.6：教程正文 markdown 渲染（复用工作台轻量安全渲染器，无 innerHTML）
@@ -60,12 +50,11 @@ export function KnowledgeDetailPage() {
   // ===== 真实数据状态（M4 Task 1：改用 kbGet(id) 精确查询，替代 kbExport 全量+find） =====
   const [realEntry, setRealEntry] = useState<KnowledgeEntry | null>(null)
   const [loading, setLoading] = useState(true)
-  const [useReal, setUseReal] = useState(false)
-  /** v2.6 去假：Electron 下条目不存在时显示空态，不再回退到设计稿假文章 */
+  /** 拿不到真实条目（非 Electron / 条目不存在 / 查询失败）时的诚实空态 */
   const [notFound, setNotFound] = useState(false)
 
   // ===== v2.2 P1 修复 #25：编辑模式状态 =====
-  // 编辑模式仅在 useReal=true 时可用（设计稿示例数据不可编辑）
+  // 编辑只对真实条目开放（示例数据已随 F4 删除，页面里不存在"不可编辑的假文章"）
   // 编辑字段：title / problem / rootCause（核心三字段，其余字段通过 kbUpdate 部分更新保留原值）
   const [isEditing, setIsEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -74,12 +63,12 @@ export function KnowledgeDetailPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   // 加载真实知识条目（按 URL :id 精确查询）
-  // 优先使用 kbGet(id)；若 kbGet 不可用（旧版主进程），降级到 kbExport + find by id
   useEffect(() => {
     let cancelled = false
     const loadRealEntry = async () => {
       if (typeof window === 'undefined' || !window.electronAPI?.kbGet) {
-        // WIP: 非 Electron 环境或旧版主进程，保留设计稿示例数据（CLAUDE.md A4 诚实标注）
+        // 阶段 F4：没有真实数据源就直接空态，不再显示设计稿示例文章
+        setNotFound(true)
         setLoading(false)
         return
       }
@@ -88,9 +77,7 @@ export function KnowledgeDetailPage() {
         if (cancelled) return
         if (found) {
           setRealEntry(found)
-          setUseReal(true)
         } else {
-          // v2.6 去假：查不到真实条目 → 空态页，不再冒充设计稿假文章
           setNotFound(true)
         }
       } catch (err) {
@@ -106,38 +93,23 @@ export function KnowledgeDetailPage() {
     return () => { cancelled = true }
   }, [id])
 
-  // ===== 渲染辅助：根据 useReal 决定字段来源 =====
-  // 真实数据：title/problem/rootCause/commands/rollbackCommands/verification/tags/updatedAt
-  // 设计稿示例：KB-NGINX-014 Nginx worker_connections 调优 + DIAGNOSE_STEPS + FIX_BEFORE/AFTER
-  const displayTitle = useReal && realEntry ? realEntry.title : 'Nginx worker_connections 调优指南'
-  const displayProblem = useReal && realEntry ? realEntry.problem : '高并发场景下 Nginx 出现 502 Bad Gateway 或 "accept() failed (24: Too many open files)" 错误，服务间歇性不可用。'
-  const displayRootCause = useReal && realEntry?.rootCause
-    ? realEntry.rootCause
-    : 'Nginx 采用多进程架构，每个 worker 进程独立处理连接。worker_connections 限制单个 worker 可同时持有的最大连接数。默认值 512 或 1024 远不能满足高并发需求。'
-  const displayCommands = useReal && realEntry ? realEntry.commands : []
-  const displayRollback = useReal && realEntry?.rollbackCommands ? realEntry.rollbackCommands : []
-  const displayVerification = useReal && realEntry?.verification
-    ? realEntry.verification
-    : '使用压测工具验证调优效果，确认连接数提升且无报错'
-  const displayTags = useReal && realEntry ? realEntry.tags : ['Nginx', '性能调优', '连接数']
-  const displayId = useReal && realEntry ? realEntry.id : 'KB-NGINX-014'
-  const displayUpdatedAt = useReal && realEntry
-    ? new Date(realEntry.updatedAt).toISOString().slice(0, 10)
-    : '2026-07-15'
-  const displayUseCount = useReal && realEntry ? realEntry.useCount : 1247
-  const displaySuccessRate = useReal && realEntry ? Math.round(realEntry.successRate * 100) : 92
+  // ===== 字段来源：只认真实条目，缺字段就留空，绝不用示例值补齐 =====
+  const displayTitle = realEntry?.title ?? ''
+  const displayProblem = realEntry?.problem ?? ''
+  const displayRootCause = realEntry?.rootCause ?? ''
+  const displayCommands = realEntry?.commands ?? []
+  const displayRollback = realEntry?.rollbackCommands ?? []
+  const displayVerification = realEntry?.verification ?? ''
+  const displayTags = realEntry?.tags ?? []
+  const displayId = realEntry?.id ?? id ?? ''
+  const displayUpdatedAt = realEntry ? new Date(realEntry.updatedAt).toISOString().slice(0, 10) : ''
+  const displayUseCount = realEntry?.useCount ?? 0
+  const displaySuccessRate = realEntry ? Math.round(realEntry.successRate * 100) : 0
 
-  // 解决方案块：真实数据 fallback 到设计稿示例（WIP · CLAUDE.md A4 诚实标注）
-  // 真实数据 commands[] 拼成多行；rollbackCommands[] 作为重载命令
-  const displayFixAfter = useReal && displayCommands.length > 0
-    ? displayCommands.join('\n')
-    : FIX_AFTER
-  const displayReloadCmd = useReal && displayRollback.length > 0
-    ? displayRollback.join('\n')
-    : FIX_RELOAD_CMD
-  const displayVerifyCmd = useReal && realEntry?.verification
-    ? realEntry.verification
-    : VERIFY_CMD
+  /** 解决方案与回滚命令：有内容才成节，空命令列表不再摆一个空代码块 */
+  const hasFixCommands = displayCommands.length > 0
+  const displayFixAfter = displayCommands.join('\n')
+  const displayReloadCmd = displayRollback.join('\n')
 
   /**
    * v2.6 教程条目适配：教程的 rootCause 字段存的是内部 JSON（正文/来源/分类等），
@@ -145,7 +117,7 @@ export function KnowledgeDetailPage() {
    * 另：教程的 successRate 存的是“阅读时长/60”（存储层 hack），不是成功率，
    * 教程模式下不展示匹配度/置信度。
    */
-  const isTutorial = useReal && realEntry?.type === 'tutorial'
+  const isTutorial = realEntry?.type === 'tutorial'
   const tutorialInfo = useMemo(() => {
     if (!isTutorial || !realEntry?.rootCause) return null
     try {
@@ -163,21 +135,28 @@ export function KnowledgeDetailPage() {
     }
   }, [isTutorial, realEntry])
 
+  /**
+   * 本页目录与正文 section 同源：正文没渲染的节绝不进目录。
+   * 原目录是设计稿写死的 6 项，含真实条目根本没有的"诊断步骤"，点了会跳到不存在的锚点。
+   */
+  const sections = [
+    { key: 'sec-1', label: '问题描述' },
+    { key: 'sec-2', label: isTutorial ? '教程正文' : '根因分析' },
+    ...(hasFixCommands ? [{ key: 'sec-4', label: isTutorial ? '教程命令' : '解决方案' }] : []),
+    ...(displayVerification ? [{ key: 'sec-5', label: '验证方法' }] : []),
+    { key: 'sec-6', label: '反馈' },
+  ]
+
   // ===== 事件处理 =====
   const handleBackKnowledge = () => navigate('/knowledge')
 
   /**
    * 进入编辑模式（v2.2 P1 修复 #25：真实实现，替代原 WIP Modal.confirm）
    *
-   * 仅在 useReal=true（真实数据）时可用。设计稿示例数据不可编辑。
-   * 进入编辑模式时，将当前真实数据复制到 editXxx 状态，作为 textarea 的初始值。
+   * 把当前真实数据复制到 editXxx 状态，作为 textarea 的初始值。
    */
   const handleEdit = () => {
-    if (!useReal || !realEntry) {
-      // 设计稿示例数据不可编辑：提示用户先导入真实知识条目
-      message.info('当前为示例数据，不可编辑。请先在知识库管理中导入真实条目。')
-      return
-    }
+    if (!realEntry) return
     setEditTitle(realEntry.title)
     setEditProblem(realEntry.problem)
     setEditRootCause(realEntry.rootCause ?? '')
@@ -249,10 +228,7 @@ export function KnowledgeDetailPage() {
   const handleFeedback = async (value: 'helpful' | 'unhelpful') => {
     // 乐观更新：立即反映本地 state
     setFeedback(value)
-    if (!useReal || !realEntry) {
-      // 设计稿示例数据：仅本地 state，不调用 IPC
-      return
-    }
+    if (!realEntry) return
     try {
       await window.electronAPI.kbUpdate(realEntry.id, { feedback: value } as Partial<KnowledgeEntry>)
     } catch (err) {
@@ -273,7 +249,6 @@ export function KnowledgeDetailPage() {
       block: 'start',
     })
   }
-  const handleNavigateRelated = (targetId: string) => navigate(`/knowledge/${targetId}`)
 
   return (
     <main className="kb-detail-page">
@@ -398,14 +373,14 @@ export function KnowledgeDetailPage() {
               {tag}
             </span>
           ))}
-          {/* v2.6 去假：彽章按真实数据条件渲染 —— 成功率≥80% 才算已验证，AI 沉淀看 tags */}
-          {(!useReal || displaySuccessRate >= 80) && (
+          {/* 徽章按真实数据条件渲染 —— 成功率≥80% 才算已验证，AI 沉淀看 tags */}
+          {displaySuccessRate >= 80 && (
             <span className="kb-chip kb-chip--verified">
               <CheckCircle2 className="h-3 w-3" />
               已验证
             </span>
           )}
-          {(!useReal || displayTags.some((t) => t.toLowerCase().includes('ai'))) && (
+          {displayTags.some((t) => t.toLowerCase().includes('ai')) && (
             <span className="kb-chip kb-chip--ai">
               AI 沉淀
             </span>
@@ -417,21 +392,6 @@ export function KnowledgeDetailPage() {
             <Clock className="h-3 w-3" />
             更新于 <strong className="kb-meta__strong">{displayUpdatedAt}</strong>
           </span>
-          {/* v2.6 去假：作者/版本无真实字段，仅设计稿预览显示 */}
-          {!useReal && (
-            <>
-              <span className="kb-meta__sep" />
-              <span className="kb-meta">
-                <FileText className="h-3 w-3" />
-                作者 <strong className="kb-meta__strong">运维团队</strong>
-              </span>
-              <span className="kb-meta__sep" />
-              <span className="kb-meta">
-                <FileText className="h-3 w-3" />
-                v<strong className="kb-meta__strong">2.3</strong>
-              </span>
-            </>
-          )}
           <span className="kb-meta__sep" />
           <span className="kb-meta">
             <Eye className="h-3 w-3" />
@@ -456,7 +416,7 @@ export function KnowledgeDetailPage() {
           <section id="sec-1" className="kb-detail-card">
             <CardHead icon={<Activity className="h-4 w-4" />} title="问题描述" tag="SYMPTOM" />
             <div className="kb-detail-card__body kb-body">
-              {isEditing && useReal ? (
+              {isEditing ? (
                 // v2.2 P1 修复 #25：编辑模式 - 问题描述变为 textarea
                 <textarea
                   value={editProblem}
@@ -476,21 +436,8 @@ export function KnowledgeDetailPage() {
                     outline: 'none',
                   }}
                 />
-              ) : useReal ? (
-                // 真实数据：单一段落展示（KnowledgeEntry.problem 是纯文本字符串）
-                <p className="kb-body__p">{displayProblem}</p>
               ) : (
-                // 设计稿示例：富文本结构（含 strong 高亮关键词）
-                <>
-                  <p className="kb-body__p">
-                    高并发场景下 Nginx 出现{' '}
-                    <strong className="kb-body__strong">502 Bad Gateway</strong> 或{' '}
-                    <strong className="kb-body__strong">"accept() failed (24: Too many open files)"</strong> 错误，服务间歇性不可用。
-                  </p>
-                  <p className="kb-body__p">
-                    典型触发条件：单机并发连接数超过 <code className="kb-body__code">1024</code>，或 Nginx worker 进程达到文件描述符上限。多见于流量突增、长连接保持、或反向代理后端响应缓慢的场景。
-                  </p>
-                </>
+                <p className="kb-body__p">{displayProblem}</p>
               )}
             </div>
           </section>
@@ -498,7 +445,7 @@ export function KnowledgeDetailPage() {
           <section id="sec-2" className="kb-detail-card">
             <CardHead icon={<Zap className="h-4 w-4" />} title={isTutorial ? '教程正文' : '根因分析'} tag={isTutorial ? 'TUTORIAL' : 'ROOT CAUSE'} />
             <div className="kb-detail-card__body kb-body">
-              {isEditing && useReal ? (
+              {isEditing ? (
                 // v2.2 P1 修复 #25：编辑模式 - 根因分析变为 textarea
                 <textarea
                   value={editRootCause}
@@ -535,136 +482,36 @@ export function KnowledgeDetailPage() {
                 ) : (
                   <p className="kb-body__p" style={{ color: 'var(--trae-text-tertiary)' }}>教程正文解析失败，请在教程页查看完整内容</p>
                 )
-              ) : useReal ? (
-                // 真实数据：单一段落展示（KnowledgeEntry.rootCause 是纯文本字符串）
-                <p className="kb-body__p">{displayRootCause}</p>
               ) : (
-                // 设计稿示例：富文本结构（含 code / formula 公式 / warn 警告块）
-                <>
-                  <p className="kb-body__p">
-                    Nginx 采用多进程架构，每个 worker 进程独立处理连接。
-                    <strong className="kb-body__strong">worker_connections</strong> 限制单个 worker 可同时持有的最大连接数。默认值{' '}
-                    <code className="kb-body__code">512</code> 或{' '}
-                    <code className="kb-body__code">1024</code> 远不能满足高并发需求。
-                  </p>
-                  <p className="kb-body__p">最大连接数公式：</p>
-                  <div className="kb-formula">
-                    <span className="kb-formula__comment">// max_clients = worker_processes × worker_connections / 2（反向代理）</span>
-                    <br />
-                    <span className="kb-formula__keyword">max_clients</span>{' '}
-                    = <span className="kb-formula__keyword">worker_processes</span>{' '}
-                    × <span className="kb-formula__keyword">worker_connections</span>{' '}
-                    ÷ <span className="kb-formula__number">2</span>
-                  </div>
-                  <p className="kb-body__p">作为反向代理时，每个客户端连接消耗 2 个 worker 连接（一个对客户端，一个对后端），因此需除以 2。</p>
-                  <div className="kb-warn">
-                    <AlertTriangle className="kb-warn__icon h-3.5 w-3.5" />
-                    <span>
-                      <strong className="kb-warn__strong">注意：</strong>
-                      worker_connections 不能超过系统 <code className="kb-body__code">ulimit -n</code> 的文件描述符上限，否则配置不生效。需同步调整系统级限制。
-                    </span>
-                  </div>
-                </>
+                // KnowledgeEntry.rootCause 是纯文本字符串
+                <p className="kb-body__p">{displayRootCause}</p>
               )}
             </div>
           </section>
 
-          {/* v2.6 去假：诊断步骤无真实字段，仅设计稿预览展示示例 4 步 */}
-          {!useReal && (
-          <section id="sec-3" className="kb-detail-card">
-            <CardHead icon={<Activity className="h-4 w-4" />} title="诊断步骤" tag="DIAGNOSE" />
-            <div className="kb-detail-card__body">
-              {DIAGNOSE_STEPS.map((step) => (
-                <div
-                  key={step.num}
-                  className="kb-step"
-                >
-                  <div className="kb-step__num">
-                    {step.num}
-                  </div>
-                  <div className="kb-step__body">
-                    <div className="kb-step__title">{step.title}</div>
-                    <div className="kb-step__desc">{step.desc}</div>
-                    <CodeBlock code={step.code} copyId={`${step.num}`} />
-                    {step.result && (
-                      <div className="kb-result">
-                        <CheckCircle2 className="kb-result__icon h-3.5 w-3.5" />
-                        <span>
-                          <strong className="kb-result__strong">诊断结论：</strong>
-                          {step.result}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* 解决方案：只在条目真有命令时成节（示例版里的"诊断步骤/调整前对比"随 F4 一并删除） */}
+          {hasFixCommands && (
+            <section id="sec-4" className="kb-detail-card">
+              <CardHead icon={<Wrench className="h-4 w-4" />} title={isTutorial ? '教程命令' : '解决方案'} tag="FIX" />
+              <div className="kb-detail-card__body kb-body">
+                <CodeBlock code={displayFixAfter} copyId="fix" />
+                {displayRollback.length > 0 && (
+                  <>
+                    <p className="kb-body__p kb-body__p--mt">回滚/生效命令：</p>
+                    <CodeBlock code={displayReloadCmd} copyId="reload" />
+                  </>
+                )}
+              </div>
+            </section>
           )}
 
-          <section id="sec-4" className="kb-detail-card">
-            <CardHead icon={<Wrench className="h-4 w-4" />} title={isTutorial ? '教程命令' : '解决方案'} tag="FIX" />
-            <div className="kb-detail-card__body kb-body">
-              {/* v2.6 去假：设计稿专属引言仅预览模式显示 */}
-              {!useReal && (
-              <p className="kb-body__p">
-                需同步调整 <strong className="kb-body__strong">Nginx 配置</strong>和{' '}
-                <strong className="kb-body__strong">系统级文件描述符限制</strong>，否则 Nginx 配置不生效。
-              </p>
-              )}
-              {/* v2.6 去假：“调整前”对比块仅设计稿预览；真实条目只展示修复命令 */}
-              <div className="kb-compare">
-                {!useReal && (
-                <div className="kb-compare__col">
-                  <div className="kb-compare__head kb-compare__head--bad">
-                    <span className="kb-compare__head-dot" />
-                    调整前（默认）
-                  </div>
-                  <pre className="kb-compare__pre">
-                    {FIX_BEFORE}
-                  </pre>
-                </div>
-                )}
-                <div className="kb-compare__col">
-                  <div className="kb-compare__head kb-compare__head--good">
-                    <Check className="h-3 w-3" />
-                    {useReal ? '修复命令' : '调整后（推荐）'}
-                  </div>
-                  <pre className="kb-compare__pre">
-                    {displayFixAfter}
-                  </pre>
-                </div>
+          {displayVerification && (
+            <section id="sec-5" className="kb-detail-card">
+              <CardHead icon={<CheckCircle2 className="h-4 w-4" />} title="验证方法" tag="VERIFY" />
+              <div className="kb-detail-card__body kb-body">
+                <p className="kb-body__p">{displayVerification}</p>
               </div>
-              {/* v2.6 去假：真实条目仅在有回滚命令时展示（文案改回滚）；预览模式保留设计稿 reload 示例 */}
-              {(!useReal || displayRollback.length > 0) && (
-                <>
-                  <p className="kb-body__p kb-body__p--mt">{useReal ? '回滚/生效命令：' : '修改后执行以下命令使配置生效：'}</p>
-                  <CodeBlock code={displayReloadCmd} copyId="reload" />
-                </>
-              )}
-            </div>
-          </section>
-
-          {/* v2.6 去假：真实条目无 verification 字段时隐藏整节，不再用压测假文案兜底 */}
-          {(!useReal || Boolean(realEntry?.verification)) && (
-          <section id="sec-5" className="kb-detail-card">
-            <CardHead icon={<CheckCircle2 className="h-4 w-4" />} title="验证方法" tag="VERIFY" />
-            <div className="kb-detail-card__body kb-body">
-              <p className="kb-body__p">{displayVerification}</p>
-              {/* 真实条目的 verification 是单字段文本，上方已展示，不再重复渲染假命令块 */}
-              {!useReal && <CodeBlock code={displayVerifyCmd} copyId="verify" />}
-              {!useReal && (
-                // 设计稿示例：显示验证通过结论（真实数据无对应字段，省略）
-                <div className="kb-result">
-                  <CheckCircle2 className="kb-result__icon h-3.5 w-3.5" />
-                  <span>
-                    <strong className="kb-result__strong">验证通过：</strong>
-                    5000 并发压测零报错，Active connections 峰值 4876，远低于 10240 上限，调优生效。
-                  </span>
-                </div>
-              )}
-            </div>
-          </section>
+            </section>
           )}
 
           <section id="sec-6" className="kb-detail-card">
@@ -702,24 +549,21 @@ export function KnowledgeDetailPage() {
         <KnowledgeDetailSidebar
           activeSection={activeSection}
           onTocClick={handleTocClick}
-          onNavigate={handleNavigateRelated}
-          real={useReal && realEntry ? {
-            // v2.6：教程的 successRate 是阅读时长 hack，不传置信度（侧栏隐藏该卡）
-            confidencePct: isTutorial ? undefined : realEntry.successRate * 100,
-            metaRows: [
-              { key: '知识 ID', val: realEntry.id, mono: true },
-              { key: '类型', val: realEntry.type === 'incident_case' ? '故障案例' : realEntry.type === 'command_skill' ? '命令技能' : '教程' },
-              ...(isTutorial && tutorialInfo
-                ? [
-                    { key: '来源', val: tutorialInfo.sourceName || '官方文档' },
-                    ...(tutorialInfo.readingTime > 0 ? [{ key: '阅读时长', val: `约 ${tutorialInfo.readingTime} 分钟` }] : []),
-                  ]
-                : []),
-              { key: '创建时间', val: new Date(realEntry.createdAt).toISOString().slice(0, 10), mono: true },
-              { key: '更新时间', val: new Date(realEntry.updatedAt).toISOString().slice(0, 10), mono: true },
-              { key: '使用次数', val: `${realEntry.useCount} 次` },
-            ],
-          } : undefined}
+          sections={sections}
+          confidencePct={isTutorial ? undefined : (realEntry?.successRate ?? 0) * 100}
+          metaRows={[
+            { key: '知识 ID', val: displayId, mono: true },
+            { key: '类型', val: realEntry?.type === 'incident_case' ? '故障案例' : realEntry?.type === 'command_skill' ? '命令技能' : '教程' },
+            ...(isTutorial && tutorialInfo
+              ? [
+                  { key: '来源', val: tutorialInfo.sourceName || '官方文档' },
+                  ...(tutorialInfo.readingTime > 0 ? [{ key: '阅读时长', val: `约 ${tutorialInfo.readingTime} 分钟` }] : []),
+                ]
+              : []),
+            { key: '创建时间', val: realEntry ? new Date(realEntry.createdAt).toISOString().slice(0, 10) : '', mono: true },
+            { key: '更新时间', val: displayUpdatedAt, mono: true },
+            { key: '使用次数', val: `${displayUseCount} 次` },
+          ]}
         />
       </div>
 

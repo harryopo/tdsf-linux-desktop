@@ -117,33 +117,9 @@ const CATEGORIES: { id: KnowledgeCategory; label: string }[] = [
   { id: 'systemd', label: 'systemd' },
 ]
 
-const KNOWLEDGE_ITEMS: KnowledgeItem[] = [
-  { id: 'KB-NGINX-014', title: 'Nginx worker_connections 调优指南', summary: '当worker_connections达到上限时,请求将排队等待,响应延迟急剧上升。本文详解worker_processes与worker_connections的协同调优,含压力测试数据。', category: 'nginx', updatedAt: '2天前', views: '1.2k', matchScore: 98, createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 2 * 24 * 60 * 60 * 1000, tags: ['nginx', 'AI沉淀'] },
-  { id: 'KB-MYSQL-007', title: 'MySQL连接数过多的排查与解决', summary: 'SHOW PROCESSLIST查看活跃连接,调整max_connections与wait_timeout,定位慢查询与长事务,释放被占用的连接池资源。', category: 'mysql', updatedAt: '5天前', views: '890', matchScore: 95, createdAt: Date.now() - 5 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 5 * 24 * 60 * 60 * 1000, tags: ['mysql', 'AI沉淀'] },
-  { id: 'KB-SHELL-021', title: 'Linux磁盘空间满的应急处理', summary: '使用du和find定位大文件,清理日志、临时文件与孤立数据,扩展分区或挂载新盘,避免服务因磁盘写满而崩溃。', category: 'shell', updatedAt: '1周前', views: '2.1k', matchScore: 92, createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000, tags: ['shell', '用户贡献'] },
-  { id: 'KB-DOCKER-003', title: 'Docker容器日志清理方案', summary: 'docker system prune清理无用镜像和日志,配置log-rotate与max-size限制,持久化日志到外部采集系统。', category: 'docker', updatedAt: '3天前', views: '670', matchScore: 88, createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 3 * 24 * 60 * 60 * 1000, tags: ['docker', 'AI沉淀'] },
-  { id: 'KB-SEC-009', title: 'SSH安全加固最佳实践', summary: '禁用root登录、密钥认证替代密码、修改默认端口、配置fail2ban防暴力破解,构建最小化暴露面。', category: 'security', updatedAt: '1周前', views: '1.5k', matchScore: 85, createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000, rawUpdatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000, tags: ['security', 'AI沉淀'] },
-]
-
-const HOT_ITEMS: HotItem[] = [
-  { rank: 1, title: 'P99延迟优化实战', views: '4.2k', id: 'KB-NGINX-014' },
-  { rank: 2, title: '系统巡检脚本大全', views: '3.8k', id: 'KB-SYS-005' },
-  { rank: 3, title: 'iptables防火墙配置', views: '3.1k', id: 'KB-NET-011' },
-  { rank: 4, title: 'Cron定时任务指南', views: '2.7k', id: 'KB-SHELL-021' },
-  { rank: 5, title: '内存泄漏排查', views: '2.3k', id: 'KB-MYSQL-007' },
-]
-
-const RECENT_ITEMS: RecentItem[] = [
-  { title: 'Nginx日志分析', time: '3小时前', id: 'KB-NGINX-021' },
-  { title: 'CPU负载高排查', time: '昨天', id: 'KB-NGINX-014' },
-  { title: 'systemd服务管理', time: '2天前', id: 'KB-SYS-005' },
-]
-
-const CONTRIBUTION_STATS: { label: string; value: string; brand: boolean }[] = [
-  { label: '已收录', value: '1,247 条', brand: false },
-  { label: '本周新增', value: '23 条', brand: false },
-  { label: 'AI贡献率', value: '68%', brand: true },
-]
+// 设计稿示例数据（假知识条目 / 假热门榜 / 假最近浏览 / 假"1,247 条·68%"贡献统计）
+// 已于阶段 F4 全部删除：知识库页只展示 kbSearch/kbHot/kbRecentViews 的真实结果，
+// 拿不到就是空态，贡献统计按真实条目现算。
 
 // ==================== 主组件 ====================
 
@@ -152,12 +128,9 @@ export function KnowledgePage() {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState<KnowledgeCategory>('all')
-  // P1 修复：Electron 环境初始为空列表（等待真实数据），mock 仅供非 Electron 浏览器预览
-  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>(
-    () => (isElectronAPIAvailable() ? [] : KNOWLEDGE_ITEMS),
-  )
+  // 初始为空，等 IPC 真实数据；非 Electron 环境同样留空（阶段 F4 起不再用示例条目顶位）
+  const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
-  const [useReal, setUseReal] = useState(() => isElectronAPIAvailable())
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // —— 真实热门/最近浏览数据（IPC 获取，null 表示尚未获取或失败，回退到派生逻辑） ——
@@ -200,7 +173,6 @@ export function KnowledgePage() {
       const entries = await window.electronAPI.kbSearch('', undefined, 100)
       if (Array.isArray(entries)) {
         setKnowledgeItems(entries.map(mapEntryToItem))
-        setUseReal(true)
       }
     } catch (err) {
       console.warn('[KnowledgePage] 刷新知识列表失败', err)
@@ -331,7 +303,6 @@ export function KnowledgePage() {
         if (cancelled) return
         if (Array.isArray(entries)) {
           setKnowledgeItems(entries.map(mapEntryToItem))
-          setUseReal(true)
         }
       })
       .catch((err) => {
@@ -382,7 +353,6 @@ export function KnowledgePage() {
   /** 热门知识：优先用 kbHot 真实数据，IPC 不可用则回退到 knowledgeItems 派生（按 views 降序 Top5） */
   const hotItems = useMemo<HotItem[]>(() => {
     if (hotItemsOverride) return hotItemsOverride
-    if (!useReal) return HOT_ITEMS
     return knowledgeItems
       .slice()
       .sort((a, b) => Number(b.views) - Number(a.views))
@@ -393,12 +363,11 @@ export function KnowledgePage() {
         views: item.views,
         id: item.id,
       }))
-  }, [knowledgeItems, useReal, hotItemsOverride])
+  }, [knowledgeItems, hotItemsOverride])
 
   /** 最近浏览：优先用 kbRecentViews 真实数据，IPC 不可用则回退到 knowledgeItems 派生（按 updatedAt 降序 Top3） */
   const recentItems = useMemo<RecentItem[]>(() => {
     if (recentItemsOverride) return recentItemsOverride
-    if (!useReal) return RECENT_ITEMS
     return knowledgeItems
       .slice()
       .sort((a, b) => b.rawUpdatedAt - a.rawUpdatedAt)
@@ -408,11 +377,10 @@ export function KnowledgePage() {
         time: item.updatedAt,
         id: item.id,
       }))
-  }, [knowledgeItems, useReal, recentItemsOverride])
+  }, [knowledgeItems, recentItemsOverride])
 
   /** AI 知识沉淀统计：从真实条目派生 */
   const contributionStats = useMemo<{ label: string; value: string; brand: boolean }[]>(() => {
-    if (!useReal) return CONTRIBUTION_STATS
     const total = knowledgeItems.length
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
     const weeklyNew = knowledgeItems.filter((item) => item.createdAt >= weekAgo).length
@@ -423,7 +391,7 @@ export function KnowledgePage() {
       { label: '本周新增', value: `${weeklyNew} 条`, brand: false },
       { label: 'AI贡献率', value: `${aiRate}%`, brand: true },
     ]
-  }, [knowledgeItems, useReal])
+  }, [knowledgeItems])
 
   return (
     <main className="kb-page">

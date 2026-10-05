@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-05T05:38:35.561Z",
+  "lastUpdated": "2026-10-05T06:17:56.008Z",
   "sessions": {},
   "history": [
     {
@@ -4267,6 +4267,174 @@
       "file": "src/renderer/src/components/settings/model/ModelSettingsHeader.tsx",
       "task": "F3 设置区路由归属：去掉与常驻左栏重复的返回按钮",
       "timestamp": "2026-10-05T05:38:35.561Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/KnowledgeDetailPage.tsx",
+      "task": "F4 删掉知识详情页的设计稿示例文章",
+      "timestamp": "2026-10-05T05:52:51.529Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/knowledge-detail/v1.tsx",
+      "task": "F4 删掉知识详情页的设计稿示例文章",
+      "timestamp": "2026-10-05T05:52:51.529Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/knowledge-detail/v1.ts",
+      "task": "F4 删掉知识详情页的设计稿示例文章",
+      "timestamp": "2026-10-05T05:52:51.529Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialPage.tsx",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T05:59:44.403Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/tutorial/types.ts",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T05:59:44.403Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/KnowledgePage.tsx",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T05:59:44.403Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/capabilities.ts",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T05:59:44.403Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/LogsPage.tsx",
+      "task": "F4 系统日志页去设计稿假日志",
+      "timestamp": "2026-10-05T06:10:16.151Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/logs/v1/logs-data.ts",
+      "task": "F4 系统日志页去设计稿假日志",
+      "timestamp": "2026-10-05T06:10:16.151Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/logs/v1/LogSidebar.tsx",
+      "task": "F4 系统日志页去设计稿假日志",
+      "timestamp": "2026-10-05T06:10:16.151Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/monitor-model.ts",
+      "task": "F4 能力就绪度表 + 监控模型残迹清理",
+      "timestamp": "2026-10-05T06:14:17.221Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "F4 能力就绪度表 + 监控模型残迹清理",
+      "timestamp": "2026-10-05T06:14:17.221Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/KnowledgeDetailPage.tsx",
+      "task": "F4 删掉知识详情页的设计稿示例文章",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/knowledge-detail/v1.tsx",
+      "task": "F4 删掉知识详情页的设计稿示例文章",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/knowledge-detail/v1.ts",
+      "task": "F4 删掉知识详情页的设计稿示例文章",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/TutorialPage.tsx",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/tutorial/types.ts",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/KnowledgePage.tsx",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/capabilities.ts",
+      "task": "F4 假数据兜底清零 + 能力降级表",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/LogsPage.tsx",
+      "task": "F4 系统日志页去设计稿假日志",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/logs/v1/logs-data.ts",
+      "task": "F4 系统日志页去设计稿假日志",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/logs/v1/LogSidebar.tsx",
+      "task": "F4 系统日志页去设计稿假日志",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/monitor-model.ts",
+      "task": "F4 能力就绪度表 + 监控模型残迹清理",
+      "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "F4 能力就绪度表 + 监控模型残迹清理",
+      "timestamp": "2026-10-05T06:17:56.008Z"
     }
   ],
   "coordinationAudit": {

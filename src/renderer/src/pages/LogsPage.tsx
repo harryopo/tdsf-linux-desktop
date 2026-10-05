@@ -33,10 +33,7 @@ import {
   type IpcLogEntry,
   type LevelStat,
   type LogSourceItem,
-  LOG_ENTRIES,
   DEFAULT_LOG_SOURCE_ID,
-  TOTAL_LOG_COUNT,
-  LATEST_TIMESTAMP,
   ipcLogEntriesToLogEntries,
   mapLogStats,
 } from '@/components/logs/v1/logs-data'
@@ -98,19 +95,16 @@ export function LogsPage() {
   const [keyword, setKeyword] = useState('')
 
   // ===== 真实日志流状态（v1.0 P0 接入 log:read IPC） =====
-  // v2.3.4 修复：初始空数组而非 LOG_ENTRIES。原实现在非 Electron 环境回退 LOG_ENTRIES，
-  //   Electron 环境 logRead 返回空时也保留 LOG_ENTRIES，导致"系统日志全是死代码"。
-  // 新策略：
-  //   - Electron 环境：空数组起步，等待 logRead 返回真实数据；空时显示 Empty 状态
-  //   - 非 Electron 环境：明确标注"演示数据"回退到 LOG_ENTRIES
+  // 数据只来自 log:read（本机日志库）与远程 /var/log 读取；
+  // 阶段 F4 起删掉了设计稿那 15 条示例日志（含假拦截记录、假置信度、假 P99），
+  // 读不到就显示空态并在状态栏写明原因。
   const [displayEntries, setDisplayEntries] = useState<LogEntry[]>([])
   // 标记当前是否已加载真实日志（影响状态栏的"实时流"指示与刷新语义）
   const [loadedReal, setLoadedReal] = useState(false)
   // 真实日志加载中状态
   const [loading, setLoading] = useState(false)
-  // 非 Electron 环境标记（仅用于“演示数据”提示）
-  // v2.3.7 修复：eslint no-unused-vars 触发——state 暂时没在 UI 中读取，标记为 _
-  const [_isDemoFallback, setIsDemoFallback] = useState(false)
+  // 日志读取接口不可用（非 Electron 运行环境）
+  const [isDemoFallback, setIsDemoFallback] = useState(false)
   
   // ===== v2.6：远程 /var/log 真实读取状态 =====
   const activeSessionId = useServerStore((s) => s.activeSessionId)
@@ -167,13 +161,12 @@ export function LogsPage() {
   // ===== 事件处理 =====
   /**
    * 从主进程拉取真实日志
-   * - Electron 环境：调用 log:read IPC；空时显示 Empty 而非 LOG_ENTRIES
-   * - 非 Electron 环境（如 web 端预览）：标注"示例数据"回退到 LOG_ENTRIES
+   * - Electron 环境：调用 log:read IPC；空时显示 Empty
+   * - 非 Electron 环境：读不到任何日志，留空并在状态栏写明接口不可用
    */
   const loadLogs = async (opts?: { silent?: boolean }) => {
     if (typeof window === 'undefined' || !window.electronAPI?.logRead) {
-      // 非 Electron 环境：仅示例数据回退
-      setDisplayEntries(LOG_ENTRIES)
+      setDisplayEntries([])
       setLoadedReal(false)
       setIsDemoFallback(true)
       return
@@ -436,7 +429,7 @@ export function LogsPage() {
           activeId={activeSource}
           onSelect={setActiveSource}
           onSourceChange={handleSourceChange}
-          counts={loadedReal ? sourceCounts : undefined}
+          counts={sourceCounts}
         />
 
         {/* 右：终端式日志查看器（无障碍：role=log + aria-live） */}
@@ -465,9 +458,9 @@ export function LogsPage() {
         <div className="log-status-left flex min-w-0 items-center">
           <FileText size={12} className="shrink-0" style={{ color: 'var(--trae-icon-tertiary)' }} />
           <span className="log-status-text truncate">
-            {loadedReal
-              ? `系统日志 · ${displayEntries.length} 条（真实数据）`
-              : `系统日志 · ${TOTAL_LOG_COUNT} 条（示例数据）`}
+            {isDemoFallback
+              ? '日志读取接口不可用（非 Electron 运行环境）'
+              : `系统日志 · ${displayEntries.length} 条${loadedReal ? '（真实数据）' : '（尚未加载）'}`}
           </span>
         </div>
 
@@ -475,9 +468,9 @@ export function LogsPage() {
         <div className="log-status-middle flex shrink-0 items-center">
           <Clock size={12} className="shrink-0" style={{ color: 'var(--trae-icon-tertiary)' }} />
           <span className="log-status-text">
-            最新: {loadedReal && displayEntries.length > 0
+            最新: {displayEntries.length > 0
               ? displayEntries[displayEntries.length - 1].timestamp
-              : LATEST_TIMESTAMP}
+              : '—'}
           </span>
           <RefreshCw
             size={12}
