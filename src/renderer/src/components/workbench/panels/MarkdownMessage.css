@@ -188,7 +188,7 @@
   font-size: 11px;
   color: var(--trae-text-brand);
 }
-/* v2.8：头部状态胶囊（替代底部孤立的“✓ 执行成功”行，信息上提不占行） */
+/* v2.8：头部状态胶囊（替代底部孤立的“执行成功”行，信息上提不占行） */
 .ai-tool-exec-pill {
   margin-left: auto;
   display: inline-flex;
@@ -253,7 +253,7 @@
   background: var(--trae-border-neutral-l2);
   border-radius: 3px;
 }
-/* 执行状态行（✓ 执行成功 · 设计稿 L3243；v2.8 保留兼容旧消息） */
+/* 执行状态行（"执行成功"提示 · 设计稿 L3243；v2.8 保留兼容旧消息） */
 .ai-tool-exec-status-row {
   display: flex;
   align-items: center;

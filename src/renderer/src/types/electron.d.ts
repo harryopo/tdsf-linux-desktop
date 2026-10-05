@@ -1949,7 +1949,7 @@ export interface ElectronAPI {
    * 通道：sidecar:pipeline
    *
    * 使用场景：
-   * - ChatPanel 顶部"🔍 SRE 诊断"按钮 → 弹窗输入日志 → 调此函数 → 展示诊断结果
+   * - ChatPanel 顶部"SRE 诊断"按钮 → 弹窗输入日志 → 调此函数 → 展示诊断结果
    * - 用户粘贴服务异常日志 → 1 次调用拿到结构化诊断（根因 + 置信度 + 严重度 + 建议）
    *
    * @param logLines 原始日志行列表

@@ -1,5 +1,5 @@
 /**
- * AIPanel — 560px 右侧 AI 助手面板
+ * AIPanel — 右侧 AI 停靠格（宽度由 shell/workbench-layout 的 Panel 管，可拖）
  *
  * // @ai-session: ai-claude-20260720-wire
  * // @ai-task: Sprint-wire-AIPanel-to-agent-chat
@@ -54,7 +54,7 @@ export interface AIPanelProps {
 }
 
 /**
- * AIPanel 560px AI 助手面板
+ * AIPanel 右侧 AI 停靠格
  *
  * v2.3.6 修复：彻底移除"演示模式"死代码（showDemo/demoMode/MOCK_CHAT_MESSAGES）。
  * 设计稿不再展示设计稿示例消息，发送消息后直接走真实 agent:chat。
@@ -136,14 +136,16 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       latest.act.command.length > 60
         ? `${latest.act.command.slice(0, 60)}...`
         : latest.act.command
-    const statusIcon =
+    // 状态用词不用表情：这些文本会进 markdown 消息与决策记录，
+    // 屏幕阅读器念不出符号，复制出去也容易变乱码
+    const statusWord =
       latest.riskBlocked
-        ? '⛔'
+        ? '已拦截'
         : latest.observe.status === 'success'
-          ? '✅'
+          ? '成功'
           : latest.observe.status === 'partial'
-            ? '⚠️'
-            : '❌'
+            ? '部分完成'
+            : '失败'
     const decisionMap: Record<string, string> = {
       continue: '继续下一步',
       retry: '重试当前步骤',
@@ -155,7 +157,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     addAgentMessage({
       id: `paor_iter_${latest.iteration}_${Date.now()}`,
       role: 'assistant',
-      content: `${statusIcon} **PAOR 迭代 ${latest.iteration}**\n\n- 命令：\`${cmdPreview}\`${latest.riskBlocked ? '（高危命令已拦截）' : ''}\n- 观察：${latest.observe.status}\n- 决策：${decisionText}`,
+      content: `**PAOR 迭代 ${latest.iteration} · ${statusWord}**\n\n- 命令：\`${cmdPreview}\`${latest.riskBlocked ? '（高危命令已拦截）' : ''}\n- 观察：${latest.observe.status}\n- 决策：${decisionText}`,
       timestamp: Date.now(),
     })
   }, [paor.iterations, addAgentMessage])
@@ -164,10 +166,10 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   useEffect(() => {
     if (!paor.result) return
     const statusMap: Record<string, string> = {
-      done: '✅ 计划完成',
-      abort: '⛔ 已中止',
-      max_iterations: '⏱️ 达到迭代上限',
-      blocked: '🚧 重规划耗尽仍受阻',
+      done: '计划完成',
+      abort: '已中止',
+      max_iterations: '达到迭代上限',
+      blocked: '重规划耗尽仍受阻',
     }
     const statusText = statusMap[paor.result.status] ?? paor.result.status
     addAgentMessage({
@@ -383,7 +385,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
 
   return (
     <div className="wb-aipanel relative flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-line bg-canvas">
-      {/* ===== 标题栏 40px ===== */}
+      {/* ===== 停靠格头部 32px ===== */}
       <AIPanelHeader
         onClose={onClose}
         isStreaming={isStreaming}

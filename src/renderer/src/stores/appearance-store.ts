@@ -13,12 +13,13 @@
  *   themeMode → theme-store（system 模式跟随 matchMedia）
  *   codeTheme/codeFont → TerminalView xterm 色板与字体 + code/pre CSS 变量
  */
+import type { CodeThemeId } from '@shared/code-themes'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type Density = 'compact' | 'standard' | 'comfortable'
-export type CodeTheme = 'one-dark' | 'monokai' | 'solarized-dark' | 'github-dark'
+export type CodeTheme = CodeThemeId
 
 /** 外观设置默认值（与设计稿 settings-appearance.html 一致） */
 export const APPEARANCE_DEFAULTS = {

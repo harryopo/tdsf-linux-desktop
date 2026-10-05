@@ -27,51 +27,17 @@ import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/trae/Select'
+import { CODE_THEMES, CODE_THEME_IDS, type CodeThemeId } from '@shared/code-themes'
+import { THEME_MODE_PREVIEWS as THEME_MODES } from '@shared/theme-mode-previews'
 import { cn } from '@/components/trae/utils'
 import './Settings.css'
 
 type ThemeMode = 'dark' | 'light' | 'system'
 type Density = 'compact' | 'standard' | 'comfortable'
-type CodeTheme = 'one-dark' | 'monokai' | 'solarized-dark' | 'github-dark'
+/** 主题 id 与配色都在 src/shared/code-themes.ts，这里不再抄一份 */
+type CodeTheme = CodeThemeId
 
-interface ThemeModeOption {
-  value: ThemeMode
-  name: string
-  desc: string
-  /** 预览背景（CSS background 值，可能是渐变） */
-  previewBg: string
-  /** 预览中线条颜色 */
-  lineColor: string
-  /** 预览中底部块颜色 */
-  blockColor: string
-}
 
-const THEME_MODES: ThemeModeOption[] = [
-  {
-    value: 'dark',
-    name: '深色模式',
-    desc: '适合夜间与低光环境',
-    previewBg: 'linear-gradient(135deg,#1A1B1D 0%,#222427 100%)',
-    lineColor: '#3A3D42',
-    blockColor: '#2A2D31',
-  },
-  {
-    value: 'light',
-    name: '浅色模式',
-    desc: '适合白天与高光环境',
-    previewBg: 'linear-gradient(135deg,#F5F6F8 0%,#FFFFFF 100%)',
-    lineColor: '#D1D5DB',
-    blockColor: '#E5E7EB',
-  },
-  {
-    value: 'system',
-    name: '跟随系统',
-    desc: '自动匹配操作系统偏好',
-    previewBg: 'linear-gradient(135deg,#1A1B1D 0%,#222427 50%,#F5F6F8 50%,#FFFFFF 100%)',
-    lineColor: 'transparent',
-    blockColor: 'transparent',
-  },
-]
 
 const UI_FONTS = [
   { value: 'SF Pro Text', label: 'SF Pro Text' },
@@ -102,60 +68,21 @@ interface CodeThemeOption {
   }
 }
 
-const CODE_THEMES: CodeThemeOption[] = [
-  {
-    value: 'one-dark',
-    name: 'One Dark',
-    previewBg: '#1A1B1D',
-    colors: {
-      base: '#E0E3EE',
-      kw: '#C678DD',
-      fn: '#61AFEF',
-      str: '#98C379',
-      com: '#7F838C',
-      varC: '#E06C75',
-    },
+const CODE_THEME_OPTIONS: CodeThemeOption[] = CODE_THEME_IDS.map((id) => ({
+  value: id,
+  name: CODE_THEMES[id].label,
+  // 预览底 = 终端真实背景：设置页看到的即是你得到的
+  previewBg: CODE_THEMES[id].terminal.background,
+  colors: {
+    base: CODE_THEMES[id].syntax.base,
+    kw: CODE_THEMES[id].syntax.keyword,
+    fn: CODE_THEMES[id].syntax.function,
+    str: CODE_THEMES[id].syntax.string,
+    com: CODE_THEMES[id].syntax.comment,
+    varC: CODE_THEMES[id].syntax.variable,
   },
-  {
-    value: 'monokai',
-    name: 'Monokai',
-    previewBg: '#272822',
-    colors: {
-      base: '#F8F8F2',
-      kw: '#F92672',
-      fn: '#66D9EF',
-      str: '#A6E22E',
-      com: '#75715E',
-      varC: '#F8F8F2',
-    },
-  },
-  {
-    value: 'solarized-dark',
-    name: 'Solarized Dark',
-    previewBg: '#002B36',
-    colors: {
-      base: '#93A1A1',
-      kw: '#859900',
-      fn: '#268BD2',
-      str: '#2AA198',
-      com: '#586E75',
-      varC: '#93A1A1',
-    },
-  },
-  {
-    value: 'github-dark',
-    name: 'GitHub Dark',
-    previewBg: '#0D1117',
-    colors: {
-      base: '#C9D1D9',
-      kw: '#FF7B72',
-      fn: '#D2A8FF',
-      str: '#A5D6FF',
-      com: '#8B949E',
-      varC: '#C9D1D9',
-    },
-  },
-]
+}))
+
 
 const DENSITIES: { value: Density; name: string; desc: string }[] = [
   { value: 'compact', name: '紧凑', desc: '减少间距，适合小屏幕' },
@@ -319,7 +246,7 @@ export function AppearanceSettings() {
         {/* Card 5: 代码高亮主题（4 个卡片网格 + 代码预览） */}
         <SettingsCard icon={Code2} title="代码高亮主题" tag="syntax.theme">
           <div className="set-code-grid">
-            {CODE_THEMES.map((opt) => {
+            {CODE_THEME_OPTIONS.map((opt) => {
               const selected = codeTheme === opt.value
               const c = opt.colors
               return (

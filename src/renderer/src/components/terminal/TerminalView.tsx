@@ -29,6 +29,7 @@ import { useAppearanceStore, CODE_FONT_STACKS } from '../../stores/appearance-st
 import { useTerminalStore } from '../../stores/terminal-store'
 import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../terminal/block-model'
 import { attachBlockCollector } from '../../terminal/block-collector'
+import { CODE_THEMES } from '@shared/code-themes'
 import { SelectionManager } from './selection-manager'
 import TerminalSearchBar from './TerminalSearchBar'
 import TerminalCompletionAddon from './TerminalCompletionAddon'
@@ -48,33 +49,6 @@ const DEFAULT_FONT_SIZE = 13
 /** 终端最小/最大字体大小 */
 const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 32
-
-/**
- * v2.7：代码高亮主题 → xterm 色板（外观设置 syntax.theme 真实消费者）
- * 背景色保持与容器 --trae-terminal-block-bg 对齐，ansi 色按主题调整
- */
-const XTERM_THEMES: Record<string, Partial<import('@xterm/xterm').ITheme>> = {
-  'one-dark': {
-    background: '#0f1011', foreground: '#e8e8e8', cursor: '#4a9eff',
-    red: '#E06C75', green: '#98C379', yellow: '#E5C07B', blue: '#61AFEF',
-    magenta: '#C678DD', cyan: '#56B6C2',
-  },
-  monokai: {
-    background: '#1e1f1c', foreground: '#F8F8F2', cursor: '#F8F8F0',
-    red: '#F92672', green: '#A6E22E', yellow: '#E6DB74', blue: '#66D9EF',
-    magenta: '#AE81FF', cyan: '#A1EFE4',
-  },
-  'solarized-dark': {
-    background: '#002B36', foreground: '#93A1A1', cursor: '#93A1A1',
-    red: '#DC322F', green: '#859900', yellow: '#B58900', blue: '#268BD2',
-    magenta: '#D33682', cyan: '#2AA198',
-  },
-  'github-dark': {
-    background: '#0D1117', foreground: '#C9D1D9', cursor: '#58A6FF',
-    red: '#FF7B72', green: '#3FB950', yellow: '#D29922', blue: '#58A6FF',
-    magenta: '#BC8CFF', cyan: '#39C5CF',
-  },
-}
 
 /** TerminalView 终端视图 */
 const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
@@ -102,7 +76,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
-    const palette = XTERM_THEMES[appearanceCodeTheme]
+    const palette = CODE_THEMES[appearanceCodeTheme]?.terminal
     if (palette) {
       terminal.options.theme = { ...terminal.options.theme, ...palette }
     }
@@ -116,31 +90,9 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
 
     // ===== 1. 创建 Terminal 实例 =====
     const terminal = new Terminal({
-      // v2.5 视觉修复：背景与容器变量 --trae-terminal-block-bg(#0f1011) 对齐，
-      // 消除之前 #1a1a1a vs #0f1011 的“双色套娃框”；光标/选区用品牌蓝
-      theme: {
-        background: '#0f1011',
-        foreground: '#e8e8e8',
-        cursor: '#4a9eff',
-        cursorAccent: '#0f1011',
-        selectionBackground: 'rgba(74, 158, 255, 0.28)',
-        black: '#0f1011',
-        red: '#ff3b30',
-        green: '#34c759',
-        yellow: '#ff9500',
-        blue: '#0071e3',
-        magenta: '#af52de',
-        cyan: '#30b0c7',
-        white: '#e8e8e8',
-        brightBlack: '#86868b',
-        brightRed: '#ff6b35',
-        brightGreen: '#30d158',
-        brightYellow: '#ffd60a',
-        brightBlue: '#4a9eff',
-        brightMagenta: '#c779ff',
-        brightCyan: '#5ac8fa',
-        brightWhite: '#ffffff',
-      },
+      // 配色来自 src/shared/code-themes.ts（与外观设置页同一份表），
+      // 初值取用户当前主题，避免"先画默认色、下一帧再改"的闪色
+      theme: { ...CODE_THEMES[useAppearanceStore.getState().codeTheme].terminal },
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
       fontSize: fontSizeRef.current,
       lineHeight: 1.45,
@@ -159,7 +111,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
         const api = window.electronAPI
         const app = useAppearanceStore.getState()
         // 代码高亮主题色板（外观设置）
-        const themePalette = XTERM_THEMES[app.codeTheme]
+        const themePalette = CODE_THEMES[app.codeTheme]?.terminal
         if (themePalette) {
           terminal.options.theme = { ...terminal.options.theme, ...themePalette }
         }

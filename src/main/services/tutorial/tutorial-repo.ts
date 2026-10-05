@@ -29,7 +29,12 @@
 import type { DatabaseManager } from '../db/database'
 import type { KnowledgeEntry } from '@shared/models'
 import type { TutorialEntry, TutorialCategory, TutorialDifficulty } from './types'
-import { TUTORIAL_CATEGORY_LABELS, TUTORIAL_DIFFICULTY_LABELS } from './types'
+import {
+  TUTORIAL_CATEGORY_LABELS,
+  TUTORIAL_DIFFICULTY_LABELS,
+  pickDistroTags,
+  stripStructuralTags
+} from './types'
 import {
   EmbeddingService,
   EmbeddingServiceUnavailableError,
@@ -106,9 +111,7 @@ export class TutorialRepository {
     }
     const category = (extra[FIELD_CATEGORY] as TutorialCategory) ?? 'linux-basics'
     const difficulty = (extra[FIELD_DIFFICULTY] as TutorialDifficulty) ?? 'beginner'
-    const distros = (k.tags ?? []).filter(
-      (t) => ['rhel', 'centos', 'rocky', 'fedora', 'ubuntu', 'debian', 'arch', 'opensuse'].includes(t)
-    ) as TutorialEntry['distros']
+    const distros = pickDistroTags(k.tags)
     return {
       id: k.id,
       title: k.title,
@@ -122,11 +125,7 @@ export class TutorialRepository {
         kind: extra[FIELD_SOURCE_KIND] as TutorialEntry['source']['kind'] | undefined
       },
       category,
-      tags: (k.tags ?? []).filter(
-        (t) => !Object.values(TUTORIAL_CATEGORY_LABELS).includes(t)
-            && !Object.values(TUTORIAL_DIFFICULTY_LABELS).includes(t)
-            && !['rhel', 'centos', 'rocky', 'fedora', 'ubuntu', 'debian', 'arch', 'opensuse'].includes(t)
-      ),
+      tags: stripStructuralTags(k.tags),
       difficulty,
       readingTime: Number(extra[FIELD_READING_TIME] ?? 5),
       content: String(extra[FIELD_CONTENT] ?? ''),
@@ -674,9 +673,7 @@ export class TutorialRepository {
       const category = (extra[FIELD_CATEGORY] as TutorialCategory) ?? 'linux-basics'
       const difficulty = (extra[FIELD_DIFFICULTY] as TutorialDifficulty) ?? 'beginner'
       const tagsArr: string[] = row.tags ? JSON.parse(String(row.tags)) : []
-      const distros = tagsArr.filter((t) =>
-        ['rhel', 'centos', 'rocky', 'fedora', 'ubuntu', 'debian', 'arch', 'opensuse'].includes(t)
-      ) as TutorialEntry['distros']
+      const distros = pickDistroTags(tagsArr)
       const keywords: string[] = row.keywords ? JSON.parse(String(row.keywords)) : []
       const commands: string[] = row.commands ? JSON.parse(String(row.commands)) : []
       return {
@@ -692,11 +689,7 @@ export class TutorialRepository {
           kind: extra[FIELD_SOURCE_KIND] as TutorialEntry['source']['kind'] | undefined
         },
         category,
-        tags: tagsArr.filter(
-          (t) => !Object.values(TUTORIAL_CATEGORY_LABELS).includes(t)
-            && !Object.values(TUTORIAL_DIFFICULTY_LABELS).includes(t)
-            && !['rhel', 'centos', 'rocky', 'fedora', 'ubuntu', 'debian', 'arch', 'opensuse'].includes(t)
-        ),
+        tags: stripStructuralTags(tagsArr),
         difficulty,
         readingTime: Number(extra[FIELD_READING_TIME] ?? 5),
         content: String(extra[FIELD_CONTENT] ?? ''),

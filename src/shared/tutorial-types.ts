@@ -116,23 +116,23 @@ export interface TutorialCategorySummary {
   label: string
 }
 
-/** 中文分类标签 */
+/** 中文分类标签（纯文字，界面与 AI 生成文案共用；图标由渲染端各自映射 lucide 组件） */
 export const TUTORIAL_CATEGORY_LABELS: Record<TutorialCategory, string> = {
-  'linux-basics': '🐧 Linux 基础',
-  'user-management': '👥 用户权限',
-  'package-management': '📦 软件管理',
-  'networking': '🌐 网络',
-  'security': '🔒 安全',
-  'storage': '💾 存储',
-  'services': '⚙️ 服务管理',
-  'virtualization': '🖥️ 虚拟化',
-  'containers': '📦 容器',
-  'web-server': '🌐 Web 服务器',
-  'database': '🗄️ 数据库',
-  'shell-scripting': '📜 Shell 脚本',
-  'monitoring': '📊 监控',
-  'troubleshooting': '🆘 排障',
-  'cloud': '☁️ 云'
+  'linux-basics': 'Linux 基础',
+  'user-management': '用户权限',
+  'package-management': '软件管理',
+  'networking': '网络',
+  'security': '安全',
+  'storage': '存储',
+  'services': '服务管理',
+  'virtualization': '虚拟化',
+  'containers': '容器',
+  'web-server': 'Web 服务器',
+  'database': '数据库',
+  'shell-scripting': 'Shell 脚本',
+  'monitoring': '监控',
+  'troubleshooting': '排障',
+  'cloud': '云'
 }
 
 /** 难度等级标签 */
@@ -140,6 +140,41 @@ export const TUTORIAL_DIFFICULTY_LABELS: Record<TutorialDifficulty, string> = {
   beginner: '入门',
   intermediate: '中级',
   advanced: '高级'
+}
+
+/** 全部发行版标签值（与 LinuxDistro 联合类型一一对应） */
+export const LINUX_DISTRO_VALUES: LinuxDistro[] = [
+  'rhel', 'centos', 'rocky', 'fedora', 'ubuntu', 'debian', 'arch', 'opensuse'
+]
+
+/**
+ * 去掉标签开头的表情/变体选择符。
+ *
+ * 旧库里的分类标签写作「企鹅 + Linux 基础」这类带表情的形态（表情已从标签表移除），
+ * 读回时必须先剥掉前缀再比对，否则历史数据会把分类名当普通标签吐回界面。
+ */
+export function stripLeadingEmoji(tag: string): string {
+  return tag.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{FE0E}\s]+/gu, '').trim()
+}
+
+/** 从标签列表里取出结构化的发行版（分类/难度同样冗余存在 tags 里，见 pickDistroTags 的反向用途） */
+export function pickDistroTags(tags: string[] | undefined): LinuxDistro[] {
+  return (tags ?? []).filter((t) => LINUX_DISTRO_VALUES.includes(t as LinuxDistro)) as LinuxDistro[]
+}
+
+/**
+ * 剔除 tags 里作为结构化字段冗余存储的分类/难度标签，只留真正的自由标签。
+ *
+ * 写入侧（TutorialRepository.toKnowledgeEntry）把分类标签、难度标签和发行版一起塞进 tags，
+ * 读取侧必须按同一套规则剥回去，两侧共用本函数以免规则漂移。
+ */
+export function stripStructuralTags(tags: string[] | undefined): string[] {
+  const internal = new Set<string>([
+    ...Object.values(TUTORIAL_CATEGORY_LABELS),
+    ...Object.values(TUTORIAL_DIFFICULTY_LABELS),
+    ...LINUX_DISTRO_VALUES
+  ])
+  return (tags ?? []).filter((t) => !internal.has(stripLeadingEmoji(t)))
 }
 
 /** 难度等级颜色 */

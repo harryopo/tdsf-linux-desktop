@@ -299,7 +299,7 @@ export function RiskSettings() {
           </div>
           {permissionMode === 'never' && (
             <div className="mb-1 mt-0.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error)]/30 bg-[var(--trae-status-error)]/10 px-3 py-2 text-[11px] text-[var(--trae-status-error)]">
-              ⚠️ 自动放行模式存在风险：所有命令将跳过审批直接执行，仅建议在隔离的演示/沙箱环境使用。
+              风险：自动放行模式——所有命令将跳过审批直接执行，仅建议在隔离的演示/沙箱环境使用。
             </div>
           )}
         </SettingsCard>

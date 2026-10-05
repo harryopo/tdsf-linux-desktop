@@ -392,7 +392,7 @@ export function CalibrationSettings() {
                     : '该 Provider 不暴露 logprobs，走 thinking-block / text-fallback 兑底'
                 }
               >
-                logprobs: {meta.logprobs ? '✓' : '—'}
+                logprobs: {meta.logprobs ? '有' : '无'}
               </span>
             </div>
           }

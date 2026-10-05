@@ -890,7 +890,7 @@ export function TutorialDetailPage() {
                       return (
                         <label key={opt.key} className={`tut-quiz-option${isCorrectSelected ? ' tut-quiz-option--correct' : ''}`}>
                           <input type="radio" name={q.id} checked={isSelected} onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt.key }))} style={{ accentColor: 'var(--trae-bg-brand)' }} />
-                          {opt.key}. {opt.label}{isCorrectSelected ? ' ✓' : ''}
+                          {opt.key}. {opt.label}{isCorrectSelected ? '（正确）' : ''}
                         </label>
                       )
                     })}
@@ -910,7 +910,7 @@ export function TutorialDetailPage() {
                     )}
                     <span className="tut-quiz-result-text">
                       {quizResult.passed
-                        ? `🎉 全部正确！答题情况：${quizResult.correct}/${quizResult.total}`
+                        ? `全部正确！答题情况：${quizResult.correct}/${quizResult.total}`
                         : `答题情况：${quizResult.correct}/${quizResult.total} 正确，请回顾章节内容后重试`}
                     </span>
                   </div>
