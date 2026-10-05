@@ -10,7 +10,7 @@
  * - NetworkFlowChart → LineChart + 双 Line（网络流量 24h 入站/出站）
  *
  * 视觉对齐：
- * - 图表卡片：200px 高，p-3，背景 var(--bg-base-secondary)
+ * - 图表卡片：200px 高，p-3，背景 var(--trae-bg-base-secondary)
  * - 图表主体高度 140px（ResponsiveContainer height={140}）
  * - 网格线 3 条（CartesianGrid horizontal）
  * - x 轴 5 个时间标签（00:00/06:00/12:00/18:00/24:00，由 ChartCard 底部渲染）

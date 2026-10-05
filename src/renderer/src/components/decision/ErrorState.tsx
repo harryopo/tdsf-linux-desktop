@@ -6,7 +6,7 @@
  *
  * 视觉：全屏居中 AlertTriangle 图标 + 错误消息 + 重试按钮。
  *
- * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
+ * Token 合规：所有颜色使用 var(--trae-*) 或 var(--trae-bg-brand)，无硬编码。
  */
 import { AlertTriangle } from 'lucide-react'
 

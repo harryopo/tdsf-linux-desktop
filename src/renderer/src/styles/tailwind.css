@@ -8,17 +8,14 @@
  * - 与 AntD 5 共存：通过 @layer 让 AntD 样式优先于 Tailwind preflight
  *
  * 引入顺序（CSS 规范要求 @import 必须在所有其他规则之前）：
- * 1. Google Fonts CDN — Inter（SF Pro Text 开源等价）+ JetBrains Mono
- * 2. trae-tokens.css — TRAE 完整 token（CSS 变量）
- * 3. tailwindcss — Tailwind preflight + 工具类
- * 4. @theme inline — Tailwind 语义 token 桥接到 TRAE 变量
+ * 1. trae-tokens.css — TRAE 完整 token（CSS 变量）
+ * 2. tailwindcss — Tailwind preflight + 工具类
+ * 3. @theme inline — Tailwind 语义 token 桥接到 TRAE 变量
  *
  * 字体策略：
- * - 在线模式：CDN 加载 Inter + JetBrains Mono（GitHub/Figma/Linear 同款字体）
- * - 离线模式：fallback 到 system-ui（macOS = SF Pro Text，Windows = Segoe UI Variable）
- * - Inter 是 SF Pro Text 的最佳开源等价（字宽、x-height、字重 1:1 对齐）
+ * - Inter / JetBrains Mono 由 main.tsx 的 @fontsource 本地包提供（400/500/600/700）
+ * - 不走 Google Fonts CDN：应用 CSP 会拦掉它（控制台一条 error），且离线启动会白等
  */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import './trae-tokens.css';
 @import 'tailwindcss';
 

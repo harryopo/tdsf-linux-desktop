@@ -37,7 +37,6 @@ import { initAgentStreamSubscription } from './stores/agent-stream-subscription'
 import { traeAntdDarkToken, traeAntdLightToken, traeAntdComponentsConfig } from './styles/antd-tokens'
 import './styles/tailwind.css'
 import './styles/global.css'
-import './styles/design-tokens.css'
 
 // Web 字体引入（设计稿字体栈对齐）
 // Inter 替代 SF Pro Text（视觉接近，开源免费，本地化无 CDN 依赖）

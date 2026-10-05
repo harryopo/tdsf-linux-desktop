@@ -12,7 +12,7 @@
  * - 中心：大号置信度数值 + 高/中/低可信 tag
  * - 底部：6 源权重明细 grid
  *
- * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
+ * Token 合规：所有颜色使用 var(--trae-*) 或 var(--trae-bg-brand)，无硬编码。
  */
 import { Activity } from 'lucide-react'
 import type { EvidenceSource } from '@/components/decision/EvidenceRadar'

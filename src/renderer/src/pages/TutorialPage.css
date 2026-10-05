@@ -42,7 +42,7 @@
   background: var(--trae-bg-base-default);
   color: var(--trae-text-default);
   min-height: 100vh;
-  font-family: var(--trae-body-base-font-family);
+  font-family: var(--trae-font-family-default);
   font-size: var(--trae-body-base-font-size);
 }
 
@@ -68,7 +68,7 @@
 }
 
 .tut-page-title {
-  font-family: var(--trae-heading-2xl-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-2xl-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-2xl-line-height);
@@ -76,7 +76,7 @@
 }
 
 .tut-page-subtitle {
-  font-family: var(--trae-body-xs-font-family);
+  font-family: var(--trae-font-family-default);
   font-size: var(--trae-body-xs-font-size);
   line-height: var(--trae-body-xs-line-height);
   color: var(--trae-text-tertiary);
@@ -90,7 +90,7 @@
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
   color: var(--trae-text-secondary);
-  font-family: var(--trae-body-md-font-family);
+  font-family: var(--trae-font-family-default);
   font-size: var(--trae-body-md-font-size);
   text-decoration: none;
   cursor: pointer;
@@ -130,7 +130,7 @@
 }
 
 .tut-stat-value {
-  font-family: var(--trae-heading-2xl-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-2xl-font-size);
   font-weight: var(--trae-font-weight-strong);
   color: var(--trae-text-brand);
@@ -170,7 +170,7 @@
 }
 
 .tut-section-title {
-  font-family: var(--trae-heading-md-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-md-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-md-line-height);
@@ -237,7 +237,7 @@
 }
 
 .tut-featured-title {
-  font-family: var(--trae-heading-sm-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-sm-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-sm-line-height);

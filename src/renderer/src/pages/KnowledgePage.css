@@ -59,7 +59,7 @@
 }
 
 .kb-header__title {
-  font-family: var(--trae-heading-2xl-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-2xl-font-size);
   line-height: var(--trae-heading-2xl-line-height);
   font-weight: var(--trae-font-weight-strong);

@@ -5,7 +5,7 @@
   min-height: 100%;
   background: var(--trae-bg-base-default);
   color: var(--trae-text-default);
-  font-family: var(--trae-body-base-font-family);
+  font-family: var(--trae-font-family-default);
   font-size: var(--trae-body-base-font-size);
   line-height: var(--trae-body-base-line-height);
 }
@@ -43,7 +43,7 @@
 .set-pageheader__iconwrap [data-icon] { color: var(--trae-bg-brand); }
 .set-pageheader__title h1 {
   margin: 0;
-  font-family: var(--trae-heading-2xl-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-2xl-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-2xl-line-height);
@@ -166,7 +166,7 @@
 }
 .set-card__head [data-icon] { color: var(--trae-bg-brand); }
 .set-card__title {
-  font-family: var(--trae-heading-xs-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-xs-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-xs-line-height);
@@ -650,7 +650,7 @@
   text-align: left;
   padding: 8px 12px;
   border-bottom: 1px solid var(--trae-border-neutral-l1);
-  font-family: var(--trae-body-sm-font-family);
+  font-family: var(--trae-font-family-default);
 }
 .set-table tbody td {
   background: transparent;
@@ -681,7 +681,7 @@
   font-weight: var(--trae-font-weight-strong);
   letter-spacing: 0.02em;
   color: var(--trae-special-white);
-  font-family: var(--trae-body-sm-font-family);
+  font-family: var(--trae-font-family-default);
 }
 .set-risk-tag--critical { background: var(--trae-status-error-default); }
 .set-risk-tag--high { background: var(--trae-status-warning-default); }
@@ -1038,7 +1038,7 @@
   box-shadow: 0 4px 24px rgba(56, 123, 255, 0.15);
 }
 .set-ab-hero__name {
-  font-family: var(--trae-heading-md-font-family);
+  font-family: var(--trae-font-family-heading);
   font-size: var(--trae-heading-lg-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-lg-line-height);
@@ -2432,7 +2432,7 @@
 }
 .set-model-header__title {
   margin: 0;
-  font-family: var(--trae-heading-md-font-family, inherit);
+  font-family: var(--trae-font-family-heading, inherit);
   font-size: var(--trae-heading-md-font-size);
   font-weight: var(--trae-font-weight-strong);
   line-height: var(--trae-heading-md-line-height, 1.2);

@@ -7,7 +7,7 @@
  * 视觉：终端样式（macOS 红黄绿三圆点 + Terminal 图标）+ 命令语法高亮（按
  * name/flag/path/sym/comment 着色）+ 等待确认徽章 + 三按钮组。
  *
- * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
+ * Token 合规：所有颜色使用 var(--trae-*) 或 var(--trae-bg-brand)，无硬编码。
  */
 import { Terminal, Check, X, Edit3 } from 'lucide-react'
 import type { DecisionCard } from '@shared/models'
@@ -102,7 +102,7 @@ export function CommandTerminal({
             onClick={onAccept}
             disabled={disabled}
             data-dom-id="accept-execute"
-            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--bg-brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--bg-brand-hover)] disabled:opacity-50"
+            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-50"
           >
             <Check className="h-3.5 w-3.5" />
             采纳并执行

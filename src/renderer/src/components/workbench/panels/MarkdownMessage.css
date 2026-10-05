@@ -238,7 +238,7 @@
   font-size: 12px;
   line-height: 18px;
   /* v2.8：输出用终端绿色系，与命令行区分，更有真终端感 */
-  color: var(--trae-terminal-output-text, #9ece9e);
+  color: var(--color-terminal-text, #9ece9e);
   white-space: pre-wrap;
   word-break: break-all;
 }

@@ -25,7 +25,7 @@
  * - buildEvidenceSources / buildTimelineSteps / buildRiskGates / buildDangerCommands /
  *   parseCommandSegments / riskLevelMeta
  *
- * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
+ * Token 合规：所有颜色使用 var(--trae-*) 或 var(--trae-bg-brand)，无硬编码。
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -318,7 +318,7 @@ export function DecisionPage() {
       <header className="flex flex-col gap-4 px-8 pb-4 pt-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Sparkles className="h-6 w-6 shrink-0 text-[var(--bg-brand)]" />
+            <Sparkles className="h-6 w-6 shrink-0 text-[var(--trae-bg-brand)]" />
             <div className="flex flex-col gap-1">
               <span className="text-[28px] font-semibold leading-[36px] text-[var(--trae-text-default)]">
                 可信决策内核
@@ -414,7 +414,7 @@ export function DecisionPage() {
               <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-[var(--bg-brand)]" />
+                    <Activity className="h-4 w-4 text-[var(--trae-bg-brand)]" />
                     <span className="text-[16px] font-semibold text-[var(--trae-text-default)]">六源证据融合</span>
                     <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
                       D-S 证据理论
@@ -461,7 +461,7 @@ export function DecisionPage() {
         ) : (
           <section className="px-8 pb-8">
             <div className="mb-4 flex items-center gap-2">
-              <History className="h-4 w-4 text-[var(--bg-brand)]" />
+              <History className="h-4 w-4 text-[var(--trae-bg-brand)]" />
               <span className="text-[16px] font-semibold text-[var(--trae-text-default)]">最近决策</span>
               <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-[10px] text-[var(--trae-text-secondary)]">
                 {historyCards.length} 条

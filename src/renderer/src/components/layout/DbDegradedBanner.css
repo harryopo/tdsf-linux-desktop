@@ -19,13 +19,13 @@
 }
 
 .db-degraded-banner.is-critical {
-  background: var(--status-error-surface-l1);
-  border-bottom-color: var(--status-error-default);
+  background: var(--trae-status-error-surface-l1);
+  border-bottom-color: var(--trae-status-error-default);
 }
 
 .db-degraded-banner.is-warning {
-  background: var(--status-warning-surface-l1);
-  border-bottom-color: var(--status-warning-default);
+  background: var(--trae-status-warning-surface-l1);
+  border-bottom-color: var(--trae-status-warning-default);
 }
 
 .db-degraded-banner__mark {
@@ -42,11 +42,11 @@
 }
 
 .db-degraded-banner.is-critical .db-degraded-banner__mark {
-  background: var(--status-error-default);
+  background: var(--trae-status-error-default);
 }
 
 .db-degraded-banner.is-warning .db-degraded-banner__mark {
-  background: var(--status-warning-default);
+  background: var(--trae-status-warning-default);
 }
 
 .db-degraded-banner__text {

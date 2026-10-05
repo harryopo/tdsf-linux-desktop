@@ -423,31 +423,31 @@ export function CalibrationSettings() {
             >
               <span>
                 最优 T：
-                <span className="font-mono text-[var(--trae-text-primary)]">
+                <span className="font-mono text-[var(--trae-text-default)]">
                   {cal?.optimalT?.toFixed(3) ?? '—'}
                 </span>
               </span>
               <span>
                 上次校准：
-                <span className="font-mono text-[var(--trae-text-primary)]">
+                <span className="font-mono text-[var(--trae-text-default)]">
                   {formatCalibratedAt(lastCalibratedAt)}
                 </span>
               </span>
               <span>
                 本次样本：
-                <span className="font-mono text-[var(--trae-text-primary)]">
+                <span className="font-mono text-[var(--trae-text-default)]">
                   {sampleCount}
                 </span>
               </span>
               <span>
                 累计样本：
-                <span className="font-mono text-[var(--trae-text-primary)]">
+                <span className="font-mono text-[var(--trae-text-default)]">
                   {totalSamplesEver}
                 </span>
               </span>
               <span>
                 当前 ECE：
-                <span className="font-mono text-[var(--trae-text-primary)]">
+                <span className="font-mono text-[var(--trae-text-default)]">
                   {formatEcePct(displayedEce)}
                 </span>
               </span>

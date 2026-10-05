@@ -7,7 +7,7 @@
  * 视觉：圆角卡片 + Fingerprint 头部 + Activity 场景 + Clock 时间 + 置信度数值 +
  * 状态徽章。Hover 时边框品牌化、背景叠加层加深。
  *
- * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
+ * Token 合规：所有颜色使用 var(--trae-*) 或 var(--trae-bg-brand)，无硬编码。
  */
 import { Fingerprint, Clock, Activity } from 'lucide-react'
 import type { DecisionCard } from '@shared/models'

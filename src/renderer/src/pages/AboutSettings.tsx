@@ -308,17 +308,17 @@ export function AboutSettings() {
             role="status"
             aria-live="polite"
             style={{
-              marginTop: 'var(--trae-spacing-md, 12px)',
-              padding: 'var(--trae-spacing-md, 12px) var(--trae-spacing-lg, 16px)',
-              borderRadius: 'var(--trae-radius-md, 8px)',
-              border: '1px solid var(--trae-border-brand, var(--trae-border-default))',
-              background: 'var(--trae-bg-brand-subtle, var(--trae-bg-elevated))',
+              marginTop: 'var(--trae-spacer-12, 12px)',
+              padding: 'var(--trae-spacer-12, 12px) var(--trae-spacer-16, 16px)',
+              borderRadius: 'var(--trae-radius-6, 8px)',
+              border: '1px solid var(--trae-border-brand, var(--trae-border-neutral-l1))',
+              background: 'var(--trae-bg-brand-popup, var(--trae-bg-base-tertiary))',
               fontSize: 'var(--trae-body-sm-font-size)',
-              color: 'var(--trae-text-primary)',
+              color: 'var(--trae-text-default)',
               textAlign: 'left',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--trae-spacing-sm, 8px)', marginBottom: 'var(--trae-spacing-xs, 4px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--trae-spacer-8, 8px)', marginBottom: 'var(--trae-spacer-4, 4px)' }}>
               <span className={BADGE_CLASS.brand} style={{ flexShrink: 0 }}>
                 {updateInfo.latestVersion}
               </span>
@@ -333,7 +333,7 @@ export function AboutSettings() {
                 maxHeight: '120px',
                 overflowY: 'auto',
                 whiteSpace: 'pre-wrap',
-                marginBottom: 'var(--trae-spacing-sm, 8px)',
+                marginBottom: 'var(--trae-spacer-8, 8px)',
               }}
             >
               {updateInfo.releaseNotes}
@@ -357,11 +357,11 @@ export function AboutSettings() {
           <div
             role="alert"
             style={{
-              marginTop: 'var(--trae-spacing-md, 12px)',
-              padding: 'var(--trae-spacing-sm, 8px) var(--trae-spacing-md, 12px)',
-              borderRadius: 'var(--trae-radius-md, 8px)',
+              marginTop: 'var(--trae-spacer-12, 12px)',
+              padding: 'var(--trae-spacer-8, 8px) var(--trae-spacer-12, 12px)',
+              borderRadius: 'var(--trae-radius-6, 8px)',
               border: '1px solid var(--trae-status-error-default)',
-              background: 'var(--trae-status-error-subtle, var(--trae-bg-elevated))',
+              background: 'var(--trae-status-error-surface-l1, var(--trae-bg-base-tertiary))',
               fontSize: 'var(--trae-body-xs-font-size)',
               color: 'var(--trae-status-error-default)',
               textAlign: 'left',

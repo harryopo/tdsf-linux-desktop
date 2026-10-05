@@ -6,7 +6,7 @@
  *
  * 视觉：全屏居中 Loader2 旋转图标 + 提示文案。
  *
- * Token 合规：所有颜色使用 var(--trae-*) 或 var(--bg-brand)，无硬编码。
+ * Token 合规：所有颜色使用 var(--trae-*) 或 var(--trae-bg-brand)，无硬编码。
  */
 import { Loader2 } from 'lucide-react'
 

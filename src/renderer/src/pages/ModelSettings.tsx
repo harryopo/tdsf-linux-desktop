@@ -591,7 +591,7 @@ export function ModelSettings() {
                     {' '}（注册后「API Keys」→「Create new secret key」）
                   </div>
                   <div>
-                    默认 Endpoint 已配置为 <code style={{ background: 'var(--trae-bg-surface-secondary)', padding: '1px 6px', borderRadius: 4 }}>https://api.deepseek.com</code>，
+                    默认 Endpoint 已配置为 <code style={{ background: 'var(--trae-bg-base-secondary)', padding: '1px 6px', borderRadius: 4 }}>https://api.deepseek.com</code>，
                     填入 Key 后点击「测试连接」即可。
                   </div>
                 </div>
