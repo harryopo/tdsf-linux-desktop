@@ -3,7 +3,7 @@
  *
  * 从 SshSettings.tsx 抽取，负责：
  * - 密钥列表渲染（名称 + 类型 + 私钥路径）
- * - 删除密钥按钮（Modal.confirm + sshDeleteKeyring + refreshKeys）
+ * - 删除密钥按钮（confirmDialog + sshDeleteKeyring + refreshKeys）
  * - 上传私钥按钮（sshUploadKeypair + refreshKeys）
  * - 生成新密钥按钮（触发父级打开生成 Modal）
  * - IPC 不可用 / 空列表时的 Empty 提示
@@ -24,7 +24,7 @@ export interface KeyCardProps {
   keyPairs: SshKeyPair[]
   /** Electron IPC 是否可用 */
   ipcAvailable: boolean
-  /** 删除密钥（已包含 Modal.confirm + sshDeleteKeyring + refreshKeys） */
+  /** 删除密钥（已包含 confirmDialog + sshDeleteKeyring + refreshKeys） */
   onDelete: (keyPair: SshKeyPair) => void
   /** 上传密钥（已包含 sshUploadKeypair + refreshKeys，用户取消静默处理） */
   onUpload: () => void
@@ -73,7 +73,7 @@ export function KeyCard(props: KeyCardProps) {
                 {k.type.toUpperCase()} · {k.privateKeyPath}
               </div>
             </div>
-            {/* M.2：删除密钥按钮（Modal.confirm + sshDeleteKeyring + refreshKeys） */}
+            {/* M.2：删除密钥按钮（confirmDialog + sshDeleteKeyring + refreshKeys） */}
             <button
               type="button"
               onClick={() => onDelete(k)}

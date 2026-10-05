@@ -58,4 +58,26 @@ describe('提示条已统一到 sonner toast', () => {
     const css = read('src/renderer/src/styles/global.css').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).not.toMatch(/\.ant-message/)
   })
+
+  it('antd 静态方法调用为 0（Modal.confirm / notification.*）', () => {
+    const hits = files
+      .filter((rel) => rel !== 'src/renderer/src/main.tsx') // 那处只剩说明性注释
+      .map((rel) => ({
+        rel,
+        n: (read(rel).match(/\bModal\.(confirm|info|success|error|warning|useModal)\s*\(/g) ?? [])
+          .length + (read(rel).match(/\bnotification\.[a-z]+\(/g) ?? []).length,
+      }))
+      .filter((x) => x.n > 0)
+      .map((x) => `${x.rel}×${x.n}`)
+    expect(
+      hits,
+      `又有人用 antd 静态方法（React 19 下依赖官方补丁）：\n${hits.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('确认框宿主挂在 App 里，否则 confirmDialog 的 Promise 永远不 resolve', () => {
+    const app = read('src/renderer/src/App.tsx')
+    expect(app).toMatch(/import \{[^}]*ConfirmHost[^}]*\} from '\.\/ui'/)
+    expect(app).toMatch(/<ConfirmHost\s*\/>/)
+  })
 })

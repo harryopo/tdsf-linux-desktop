@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plug, type LucideIcon } from 'lucide-react'
 import { Modal, Form, Input as AntdInput, Select } from 'antd'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/ui'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import ConnectDialog from '@/components/layout/ConnectDialog'
@@ -287,19 +288,17 @@ export function SshSettings() {
   }, [])
 
   const handleDeleteServer = useCallback(
-    (s: SshConfig) => {
-      Modal.confirm({
+    async (s: SshConfig) => {
+      const ok = await confirmDialog({
         title: '删除服务器',
-        content: `确定要删除服务器「${s.name || s.host}」吗？此操作不可撤销。`,
+        description: `确定要删除服务器「${s.name || s.host}」吗？此操作不可撤销。`,
         okText: '删除',
-        okType: 'danger',
-        cancelText: '取消',
-        onOk: async () => {
-          await removeServer(s.id)
-          toast.success('服务器已删除')
-          showFb('服务器已删除')
-        },
+        danger: true,
       })
+      if (!ok) return
+      await removeServer(s.id)
+      toast.success('服务器已删除')
+      showFb('服务器已删除')
     },
     [removeServer, showFb],
   )
@@ -307,29 +306,27 @@ export function SshSettings() {
   // ===== KeyCard 事件回调（从原内联 JSX 抽取） =====
 
   const handleDeleteKey = useCallback(
-    (k: SshKeyPair) => {
-      Modal.confirm({
+    async (k: SshKeyPair) => {
+      const ok = await confirmDialog({
         title: '删除密钥',
-        content: `确定要删除密钥「${k.name}」吗？使用该密钥的服务器连接将受影响。`,
+        description: `确定要删除密钥「${k.name}」吗？使用该密钥的服务器连接将受影响。`,
         okText: '删除',
-        okType: 'danger',
-        cancelText: '取消',
-        onOk: async () => {
-          try {
-            const res = await window.electronAPI.sshDeleteKeyring(k.name)
-            if (res.success) {
-              toast.success('密钥已删除')
-              await refreshKeys()
-            } else {
-              toast.error(`删除失败: ${res.error || '未知错误'}`)
-            }
-          } catch (err) {
-            toast.error(
-              `删除失败: ${err instanceof Error ? err.message : String(err)}`,
-            )
-          }
-        },
+        danger: true,
       })
+      if (!ok) return
+      try {
+        const res = await window.electronAPI.sshDeleteKeyring(k.name)
+        if (res.success) {
+          toast.success('密钥已删除')
+          await refreshKeys()
+        } else {
+          toast.error(`删除失败: ${res.error || '未知错误'}`)
+        }
+      } catch (err) {
+        toast.error(
+          `删除失败: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
     },
     [refreshKeys],
   )

@@ -172,12 +172,36 @@ try {
     }
   }
 
+  // ===== 确认框实测：confirmDialog 替代了 antd Modal.confirm，得能在真 Electron 里画出来 =====
+  let confirmCheck = { triggerable: false, rendered: false, closedByEsc: false, note: '' }
+  await evalIn(ws, `location.hash = '#/settings/risk'`)
+  await sleep(1500)
+  confirmCheck = await evalIn(ws, `(async () => {
+    const del = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('删除'));
+    if (!del) return { triggerable: false, rendered: false, closedByEsc: false, note: '风险设置页没有可删的规则行，确认框这条没测到' };
+    del.click();
+    await new Promise((r) => setTimeout(r, 900));
+    const dlg = document.querySelector('[role="dialog"]');
+    const rendered = Boolean(dlg);
+    const title = dlg ? (dlg.textContent || '').slice(0, 40) : null;
+    if (!rendered) return { triggerable: true, rendered: false, closedByEsc: false, note: '点了删除但没出对话框' };
+    dlg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 700));
+    const still = Boolean(document.querySelector('[role="dialog"]'));
+    return { triggerable: true, rendered: true, closedByEsc: !still, note: title };
+  })()`)
+
   console.log('=== F4/E 页面诚实性真机验证（构建产物 + 真实 userData 库） ===')
   console.log(JSON.stringify(rows, null, 2))
   console.log('=== 提示条实测（message → sonner 迁移后，toast 必须真的能弹出来）===')
   console.log(JSON.stringify(toastCheck, null, 2))
 
+  console.log('=== 确认框实测（confirmDialog 替代 Modal.confirm）===')
+  console.log(JSON.stringify(confirmCheck, null, 2))
+
   const fail = []
+  if (confirmCheck.triggerable && !confirmCheck.rendered) fail.push(`确认框没画出来：${confirmCheck.note}`)
+  if (confirmCheck.rendered && !confirmCheck.closedByEsc) fail.push('确认框按 Esc 关不掉（radix 的 dismiss 没接上 settle）')
   if (!toastCheck.clicked) fail.push(`没找到可点击的刷新按钮（候选文案 ${TOAST_TRIGGERS.join('/')}），提示条这半边等于没测`)
   else if (!toastCheck.toastShown) fail.push(`点了「${toastCheck.triggerText}」之后没有出现 sonner 提示条（toastCount=0）`)
   for (const r of rows) {

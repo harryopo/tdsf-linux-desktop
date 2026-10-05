@@ -22,6 +22,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Modal, Input } from 'antd'
+import { confirmDialog } from '@/ui'
 import { toast } from 'sonner'
 import {
   Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
@@ -209,7 +210,7 @@ export function DecisionDetailPage() {
    * T.6: 已扩展 newCommand 参数，支持修改修复命令后批准执行。
    *
    * 失败降级：IPC 不可用或调用失败时，回退到本地 card.status 更新 + handleAction 浮层提示
-   * 高危二次确认：risk.level ∈ {HIGH, CRITICAL} 时弹 Modal.confirm
+   * 高危二次确认：risk.level ∈ {HIGH, CRITICAL} 时弹 confirmDialog
    */
   const handleApprove = useCallback(async () => {
     if (!card) return
@@ -241,17 +242,15 @@ export function DecisionDetailPage() {
     }
 
     if (isHighRisk) {
-      Modal.confirm({
+      const ok = await confirmDialog({
         title: '确认采纳执行',
-        content: `当前决策为「${card.risk.level}」级别风险，确认要采纳执行此命令吗？`,
+        description: `当前决策为「${card.risk.level}」级别风险，确认要采纳执行此命令吗？`,
         okText: '确认执行',
-        cancelText: '取消',
-        okButtonProps: { danger: true },
-        onOk: () => doApprove(),
+        danger: true,
       })
-    } else {
-      void doApprove()
+      if (!ok) return
     }
+    void doApprove()
   }, [card])
 
   /** 拒绝决策执行：调用 loopConfirm(correlationId, false) */
@@ -284,17 +283,15 @@ export function DecisionDetailPage() {
     }
 
     if (isHighRisk) {
-      Modal.confirm({
+      const ok = await confirmDialog({
         title: '确认拒绝决策',
-        content: `当前决策为「${card.risk.level}」级别风险，确认要拒绝此命令吗？`,
+        description: `当前决策为「${card.risk.level}」级别风险，确认要拒绝此命令吗？`,
         okText: '确认拒绝',
-        cancelText: '取消',
-        okButtonProps: { danger: true },
-        onOk: () => doReject(),
+        danger: true,
       })
-    } else {
-      void doReject()
+      if (!ok) return
     }
+    void doReject()
   }, [card])
 
   /** 打开修改弹窗：编辑 fixCommand 字符串 */

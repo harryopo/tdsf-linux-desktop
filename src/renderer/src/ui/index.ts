@@ -15,3 +15,4 @@ export {
   Toaster,
 } from './overlay'
 export { Segmented, SessionTabs, type SegmentedItem, type SessionTab } from './tabs'
+export { ConfirmHost, confirmDialog, type ConfirmOptions } from './confirm'

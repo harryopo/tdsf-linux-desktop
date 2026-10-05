@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-05T06:47:52.904Z",
+  "lastUpdated": "2026-10-05T07:00:49.166Z",
   "sessions": {},
   "history": [
     {
@@ -4841,6 +4841,244 @@
       "file": "src/renderer/src/styles/global.css",
       "task": "阶段E：删零引用的页面样式与 !important",
       "timestamp": "2026-10-05T06:47:52.904Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/ui/index.ts",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/App.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/layout/ConnectDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/RiskRuleModal.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/ssh/KeyCard.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/ssh/ServerCard.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/ssh/HostKeyPromptDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/ChmodDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/RenameDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/KnowledgeDetailPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/RiskSettings.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SshSettings.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/main.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T06:51:42.957Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/ui/index.ts",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/App.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/layout/ConnectDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/RiskRuleModal.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/ssh/KeyCard.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/ssh/ServerCard.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/ssh/HostKeyPromptDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/ChmodDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/RenameDialog.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/KnowledgeDetailPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/RiskSettings.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/SshSettings.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/main.tsx",
+      "task": "退出 antd 第2批：Modal → radix Dialog",
+      "timestamp": "2026-10-05T07:00:49.166Z"
     }
   ],
   "coordinationAudit": {

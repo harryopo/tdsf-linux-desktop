@@ -26,6 +26,7 @@
 import { useCallback, useState, type FC } from 'react'
 import { Modal } from 'antd'
 import { toast } from 'sonner'
+import { confirmDialog } from '@/ui'
 import { PanelLeftOpen } from 'lucide-react'
 import { WorkbenchTitlebar } from '@/components/workbench/WorkbenchTitlebar'
 import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
@@ -239,7 +240,7 @@ export const WorkbenchPage: FC = () => {
    * - 含 dirty 文件时先弹批量确认"丢弃 N 个文件的未保存修改"
    */
   const handleCloseOthers = useCallback(
-    (keepTabId: WorkbenchTabId) => {
+    async (keepTabId: WorkbenchTabId) => {
       const others = fileTabs.filter((t) => t.id !== keepTabId)
       const dirtyList = others.filter((t) => t.dirty && !t.loading && !t.error)
       const doClose = () => {
@@ -254,14 +255,13 @@ export const WorkbenchPage: FC = () => {
         doClose()
         return
       }
-      Modal.confirm({
+      const ok = await confirmDialog({
         title: `丢弃 ${dirtyList.length} 个文件的未保存修改？`,
-        content: `将关闭以下 ${dirtyList.length} 个文件并丢失所有未保存的更改：${dirtyList.map((t) => t.name).join('、')}`,
+        description: `将关闭以下 ${dirtyList.length} 个文件并丢失所有未保存的更改：${dirtyList.map((t) => t.name).join('、')}`,
         okText: '丢弃并关闭',
-        cancelText: '取消',
-        okButtonProps: { danger: true },
-        onOk: () => doClose(),
+        danger: true,
       })
+      if (ok) doClose()
     },
     [fileTabs, activeTabId],
   )
@@ -271,7 +271,7 @@ export const WorkbenchPage: FC = () => {
    * - 关闭所有文件 tab（终端 tab 不在内，始终保留）
    * - 含 dirty 文件时先弹批量确认
    */
-  const handleCloseAll = useCallback(() => {
+  const handleCloseAll = useCallback(async () => {
     const dirtyList = fileTabs.filter((t) => t.dirty && !t.loading && !t.error)
     const doClose = () => {
       setFileTabs([])
@@ -282,14 +282,13 @@ export const WorkbenchPage: FC = () => {
       doClose()
       return
     }
-    Modal.confirm({
+    const ok = await confirmDialog({
       title: `丢弃 ${dirtyList.length} 个文件的未保存修改？`,
-      content: `将关闭全部 ${fileTabs.length} 个文件并丢失 ${dirtyList.length} 个文件的未保存更改：${dirtyList.map((t) => t.name).join('、')}`,
+      description: `将关闭全部 ${fileTabs.length} 个文件并丢失 ${dirtyList.length} 个文件的未保存更改：${dirtyList.map((t) => t.name).join('、')}`,
       okText: '丢弃并关闭全部',
-      cancelText: '取消',
-      okButtonProps: { danger: true },
-      onOk: () => doClose(),
+      danger: true,
     })
+    if (ok) doClose()
   }, [fileTabs])
 
   return (

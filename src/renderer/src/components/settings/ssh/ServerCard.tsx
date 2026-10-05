@@ -4,7 +4,7 @@
  * 从 SshSettings.tsx 抽取，负责：
  * - 服务器列表渲染（含状态点 + 名称 + IP + 认证类型标签）
  * - 连接 / 断开按钮
- * - 编辑 / 删除按钮（删除走 Modal.confirm）
+ * - 编辑 / 删除按钮（删除走 confirmDialog）
  * - 添加服务器按钮
  * - IPC 不可用时的 Empty 提示
  *
@@ -78,7 +78,7 @@ export interface ServerCardProps {
   onEdit: (server: SshConfig) => void
   /** 添加服务器（打开 ConnectDialog，server 为 null） */
   onAdd: () => void
-  /** 删除服务器（已包含 Modal.confirm 流程） */
+  /** 删除服务器（已包含 confirmDialog 流程） */
   onDelete: (server: SshConfig) => void
 }
 

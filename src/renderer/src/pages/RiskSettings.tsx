@@ -25,7 +25,7 @@ import {
   Plus,
   type LucideIcon,
 } from 'lucide-react'
-import { Modal } from 'antd'
+import { confirmDialog } from '@/ui'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -132,20 +132,18 @@ export function RiskSettings() {
   }
 
   // 删除规则（P1-2 7.2：添加二次确认，与 SSH 删除服务器/密钥行为一致）
-  const handleDeleteRule = (ruleId: string) => {
+  const handleDeleteRule = async (ruleId: string) => {
     const target = rules.find((r) => r.id === ruleId)
     if (!target) return
-    Modal.confirm({
+    const ok = await confirmDialog({
       title: '确认删除规则',
-      content: `确定要删除规则"${target.pattern}"吗？此操作不可撤销。`,
+      description: `确定要删除规则"${target.pattern}"吗？此操作不可撤销。`,
       okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { danger: true },
-      onOk: () => {
-        setRules((prev) => prev.filter((r) => r.id !== ruleId))
-        showRuleFeedback(`已删除规则：${target.pattern}`)
-      },
+      danger: true,
     })
+    if (!ok) return
+    setRules((prev) => prev.filter((r) => r.id !== ruleId))
+    showRuleFeedback(`已删除规则：${target.pattern}`)
   }
 
   // 新增规则：editingRule=null 表示新增模式，打开 Modal
