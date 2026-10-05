@@ -12,7 +12,7 @@
  * 暗色模式默认开启（在 main.tsx 中 document.documentElement.classList.add('dark')）。
  */
 import { Outlet, useLocation } from 'react-router-dom'
-import { ActivityRail, type NavId } from '@/components/workbench/ActivityRail'
+import { ActivityRail, type NavId } from '@/shell/activity-rail'
 import { DbDegradedBanner } from '@/components/layout/DbDegradedBanner'
 import '@/components/layout/MainLayout.css'
 import '@/components/workbench/Workbench.css'

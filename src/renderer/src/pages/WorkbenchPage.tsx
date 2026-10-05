@@ -36,6 +36,7 @@ import EditorArea, {
 } from '@/components/workbench/EditorArea'
 import AIPanel from '@/components/workbench/AIPanel'
 import { StatusBar } from '@/components/workbench/StatusBar'
+import { WorkbenchLayout } from '@/shell/workbench-layout'
 import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import '@/styles/workbench-density.css'
@@ -303,42 +304,47 @@ export const WorkbenchPage: FC = () => {
         hasUnsavedFiles={fileTabs.some((t) => t.dirty)}
       />
 
-      <div className="wb-main-body flex min-h-0 flex-1 overflow-hidden">
-        {fileTreeCollapsed ? (
-          <button
-            type="button"
-            title="展开资源管理器"
-            aria-label="展开资源管理器"
-            onClick={() => setFileTreeCollapsed(false)}
-            className="flex h-full w-7 shrink-0 items-start justify-center border-r border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] pt-2 text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
-          >
-            <PanelLeftOpen className="size-4" />
-          </button>
-        ) : (
+      <WorkbenchLayout
+        className="wb-main-body"
+        treeOpen={!fileTreeCollapsed}
+        aiOpen={aiPanelVisible}
+        tree={
           <FileTree
             activeFilePath={activeFilePath}
             onOpenFile={handleOpenFile}
             onCollapse={() => setFileTreeCollapsed(true)}
           />
-        )}
-
-        {/* EditorArea 包裹层 */}
-        <div className="wb-editor-wrap relative flex min-w-0 flex-1 flex-col">
-          <EditorArea
-            activeTabId={activeTabId}
-            onTabChange={handleTabChange}
-            fileTabs={fileTabs}
-            onCloseFile={handleCloseFile}
-            onCloseOthers={handleCloseOthers}
-            onCloseAll={handleCloseAll}
-            onFileContentChange={handleFileContentChange}
-            onFileLoaded={handleFileLoaded}
-            onFileSaved={handleFileSaved}
-          />
-        </div>
-
-        {aiPanelVisible && <AIPanel onClose={() => setAiPanelVisible(false)} />}
-      </div>
+        }
+        editor={
+          <div className="flex h-full min-h-0 min-w-0">
+            {fileTreeCollapsed ? (
+              <button
+                type="button"
+                title="展开资源管理器"
+                aria-label="展开资源管理器"
+                onClick={() => setFileTreeCollapsed(false)}
+                className="flex w-7 shrink-0 items-start justify-center border-r border-line bg-panel pt-2 text-ink-mute transition-colors hover:bg-hover hover:text-ink"
+              >
+                <PanelLeftOpen className="size-4" />
+              </button>
+            ) : null}
+            <div className="wb-editor-wrap relative flex min-w-0 flex-1 flex-col">
+              <EditorArea
+                activeTabId={activeTabId}
+                onTabChange={handleTabChange}
+                fileTabs={fileTabs}
+                onCloseFile={handleCloseFile}
+                onCloseOthers={handleCloseOthers}
+                onCloseAll={handleCloseAll}
+                onFileContentChange={handleFileContentChange}
+                onFileLoaded={handleFileLoaded}
+                onFileSaved={handleFileSaved}
+              />
+            </div>
+          </div>
+        }
+        ai={aiPanelVisible ? <AIPanel onClose={() => setAiPanelVisible(false)} /> : undefined}
+      />
 
       <StatusBar />
 

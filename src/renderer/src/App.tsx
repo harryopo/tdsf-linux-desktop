@@ -17,6 +17,7 @@
  */
 import { useEffect } from 'react'
 import Router from './router'
+import { Toaster, TooltipProvider } from './ui'
 import { useServerStore } from './stores/server-store'
 import { logger } from './utils/logger'
 import HostKeyPromptDialog from './components/ssh/HostKeyPromptDialog'
@@ -39,11 +40,12 @@ const App: React.FC = () => {
   }, [])
 
   return (
-    <>
+    <TooltipProvider>
       <Router />
       {/* Phase L：全局主机密钥确认弹窗（首次连接/密钥变更时由主进程推送触发） */}
       <HostKeyPromptDialog />
-    </>
+      <Toaster />
+    </TooltipProvider>
   )
 }
 

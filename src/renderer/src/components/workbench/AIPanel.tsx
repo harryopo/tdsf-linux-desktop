@@ -381,7 +381,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="wb-aipanel flex h-full min-h-0 w-[560px] shrink-0 flex-col overflow-hidden border-l border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)]">
+    <div className="wb-aipanel flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-line bg-canvas">
       {/* ===== 标题栏 40px ===== */}
       <AIPanelHeader
         onClose={onClose}

@@ -84,6 +84,29 @@
 
   --font-sans: var(--ui-family-ui);
   --font-mono: var(--ui-family-code);
+
+  /* 字号档位（Tailwind v4 的 --text-* 命名空间生成 text-body / text-caption 这类工具类，
+     带 --text-*--line-height 配对，避免"字号换了行高没换"） */
+  --text-micro: var(--ui-font-micro);
+  --text-micro--line-height: var(--ui-lh-none);
+  --text-caption: var(--ui-font-caption);
+  --text-caption--line-height: var(--ui-lh-snug);
+  --text-sm: var(--ui-font-sm);
+  --text-sm--line-height: var(--ui-lh-normal);
+  --text-md: var(--ui-font-md);
+  --text-md--line-height: var(--ui-lh-normal);
+  --text-body: var(--ui-font-body);
+  --text-body--line-height: var(--ui-lh-loose);
+  --text-composer: var(--ui-font-composer);
+  --text-composer--line-height: var(--ui-lh-normal);
+  --text-title: var(--ui-font-title);
+  --text-title--line-height: var(--ui-lh-snug);
+  --text-head: var(--ui-font-head);
+  --text-head--line-height: var(--ui-lh-tight);
+
+  /* 原子尺寸与间距步长：Tailwind 的间距工具类默认 0.25rem，这里显式钉成 4px，
+     与 ui-tokens 的 4 步进一致，组件里就不该再出现写死的 px 间距 */
+  --spacing: 4px;
 }
 
 /*
