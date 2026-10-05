@@ -36,7 +36,7 @@ import {
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 // v2.3.7 修复：移除 sample* mock 数据导入，统一显示 EmptyMonitorState
-import { chartXLabels, type TimeRange } from './mock-data'
+import type { TimeRange } from './monitor-model'
 import { EmptyMonitorState } from './EmptyMonitorState'
 // M3 Task 2：时间范围切换切片工具（Chart 数据源按 range 过滤）
 import { sliceMonitorData } from '../../utils/monitor-time-range'
@@ -61,6 +61,19 @@ function formatTime(timestamp: number): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
+/** 从真实采样点里取最多 count 个均匀分布的时间刻度（没数据就不画轴） */
+function axisFrom(points: Array<{ timestamp: number }>, count = 5): string[] {
+  if (points.length === 0) return []
+  if (points.length === 1) return [formatTime(points[0].timestamp)]
+  const step = (points.length - 1) / (Math.min(count, points.length) - 1)
+  const out: string[] = []
+  for (let i = 0; i < Math.min(count, points.length); i++) {
+    const label = formatTime(points[Math.round(i * step)].timestamp)
+    if (!out.includes(label)) out.push(label)
+  }
+  return out
+}
+
 // ===== 图表卡片容器 =====
 
 /** 图表容器（统一卡片样式 + 标题行 + 时间轴） */
@@ -69,11 +82,14 @@ function ChartCard({
   legend,
   children,
   rightHint,
+  axis = [],
 }: {
   title: string
   legend?: React.ReactNode
   rightHint?: React.ReactNode
   children: React.ReactNode
+  /** x 轴刻度：必须由当前真实采样点算出来，不给默认值、不接受写死的时间 */
+  axis?: string[]
 }) {
   return (
     <div
@@ -86,12 +102,14 @@ function ChartCard({
       </div>
       {/* 图表主体 */}
       <div className="flex-1 min-h-0">{children}</div>
-      {/* x 轴刻度 */}
-      <div className="mon-chart-axis flex justify-between mt-2">
-        {chartXLabels.map((label) => (
-          <span key={label}>{label}</span>
-        ))}
-      </div>
+      {/* x 轴刻度：无数据就不渲染，免得给空图配一条假时间轴 */}
+      {axis.length > 0 ? (
+        <div className="mon-chart-axis flex justify-between mt-2">
+          {axis.map((label, i) => (
+            <span key={`${label}-${i}`}>{label}</span>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -131,8 +149,9 @@ export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
   const latest = data[data.length - 1].cpu
 
   return (
-    <ChartCard
-      title="CPU使用率(24h)"
+    <ChartCard
+      title="CPU使用率(24h)"
+      axis={axisFrom(recent)}
       rightHint={<span className="mon-chart-value">{Math.round(latest)}%</span>}
     >
       <ResponsiveContainer width="100%" height={CHART_H}>
@@ -204,8 +223,9 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   }))
 
   return (
-    <ChartCard
-      title="内存使用(24h)"
+    <ChartCard
+      title="内存使用(24h)"
+      axis={axisFrom(recent)}
       legend={
         <div className="mon-chart-legend flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1">
@@ -301,8 +321,9 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
   }))
 
   return (
-    <ChartCard
-      title="磁盘IO(24h)"
+    <ChartCard
+      title="磁盘IO(24h)"
+      axis={axisFrom(recent)}
       rightHint={
         <span className="mon-chart-hint">MB/s</span>
       }
@@ -370,8 +391,9 @@ export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
   }))
 
   return (
-    <ChartCard
-      title="网络流量(24h)"
+    <ChartCard
+      title="网络流量(24h)"
+      axis={axisFrom(recent)}
       legend={
         <div className="mon-chart-legend flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1">

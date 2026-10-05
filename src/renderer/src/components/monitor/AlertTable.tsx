@@ -23,7 +23,7 @@
  */
 import { useState, useMemo } from 'react'
 import { Filter, Search } from 'lucide-react'
-import type { AlertRecord, AlertStatus, RiskLevel } from './mock-data'
+import type { AlertRecord, AlertStatus, RiskLevel } from './monitor-model'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 

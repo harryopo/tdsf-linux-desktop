@@ -15,7 +15,7 @@
  * Redesign: 1:1 对齐 monitor.html — 从 recharts RadialBarChart 回到原生 SVG circle
  */
 import { Cpu, Database, Globe, MemoryStick, TrendingDown, TrendingUp } from 'lucide-react'
-import type { KpiStat } from './mock-data'
+import type { KpiStat } from './monitor-model'
 
 /** 图标按 label 映射（替代设计稿的 SVG mask） */
 function iconForLabel(label: string) {

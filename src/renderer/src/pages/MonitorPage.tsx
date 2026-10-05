@@ -41,7 +41,7 @@ import {
   type TimeRange,
   type KpiStat,
   type AlertRecord,
-} from '@/components/monitor/mock-data'
+} from '@/components/monitor/monitor-model'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore } from '@/stores/server-store'
 // v2.7：告警阈值消费设置页 monitor.threshold.* 配置（不再硬编码 85）

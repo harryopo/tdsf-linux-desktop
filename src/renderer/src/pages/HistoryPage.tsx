@@ -36,13 +36,7 @@ interface DecisionRecord {
   timestamp: number
 }
 
-/** 以当前时间为基准，生成 N 天前某时刻的时间戳（ms） */
-function daysAgoTs(days: number, hour: number, minute: number): number {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  d.setHours(hour, minute, 0, 0)
-  return d.getTime()
-}
+
 
 /** 将 DecisionCard 状态映射为 UI 状态 */
 function mapCardStatus(status: DecisionCard['status']): DecisionStatus {
@@ -102,25 +96,9 @@ function decisionCardToRecord(card: DecisionCard): DecisionRecord {
   }
 }
 
-// ===== 静态示例数据（1:1 来自设计稿 history.html，仅非 Electron / 空库 fallback 使用） =====
-
-const DEFAULT_STATS: StatItem[] = [
-  { label: '总决策数', value: '247', color: 'var(--trae-bg-brand)', sparkline: '0,18 14,14 28,16 42,10 56,12 70,7 84,9 100,5' },
-  { label: '成功率', value: '94.3%', color: 'var(--trae-status-success-default)', sparkline: '0,16 14,18 28,12 42,14 56,9 70,11 84,6 100,8' },
-  { label: '平均置信度', value: '0.82', color: 'var(--trae-bg-brand)', sparkline: '0,14 14,12 28,15 42,9 56,11 70,8 84,10 100,6' },
-  { label: '平均响应时间', value: '12s', color: 'var(--trae-text-secondary)', sparkline: '0,8 14,12 28,10 42,14 56,11 70,16 84,13 100,15' },
-]
+// ===== 筛选选项 =====
 const TIME_RANGES: string[] = ['近7天', '近30天', '全部']
 const STATUSES: string[] = ['全部状态', '成功', '失败', '已拦截', '待处理']
-
-const DEFAULT_RECORDS: DecisionRecord[] = [
-  { id: '1', time: '14:23', title: '重启 nginx 服务', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.87, command: 'sudo systemctl restart nginx', desc: 'nginx P99延迟升高，重启后恢复', durationSec: 8, isDanger: false, timestamp: daysAgoTs(0, 14, 23) },
-  { id: '2', time: '13:45', title: '清理 MySQL 长查询', status: '成功', risk: '中风险', server: 'prod-db-02', actor: 'root', confidence: 0.91, command: "mysql -e 'KILL 9800'", desc: 'MySQL连接数过多，清理长查询', durationSec: 3, isDanger: false, timestamp: daysAgoTs(0, 13, 45) },
-  { id: '3', time: '12:30', title: '高危命令拦截', status: '已拦截', risk: '高风险', server: 'backup-01', actor: 'ai-agent', confidence: 0.45, command: 'rm -rf /var/log/*', desc: '高危命令被四层风险控制拦截', durationSec: 1, isDanger: true, timestamp: daysAgoTs(2, 12, 30) },
-  { id: '4', time: '11:15', title: '平滑重载 nginx 配置', status: '成功', risk: '低风险', server: 'prod-web-01', actor: 'root', confidence: 0.93, command: 'nginx -s reload', desc: '配置变更后平滑重载', durationSec: 2, isDanger: false, timestamp: daysAgoTs(3, 11, 15) },
-  { id: '5', time: '10:08', title: '重启 Docker 服务', status: '失败', risk: '中风险', server: 'staging-web', actor: 'root', confidence: 0.62, command: 'systemctl restart docker', desc: 'Docker重启失败，容器异常退出', durationSec: 15, isDanger: false, timestamp: daysAgoTs(8, 10, 8) },
-  { id: '6', time: '09:30', title: '调整 swap 倾向参数', status: '成功', risk: '低风险', server: 'prod-db-02', actor: 'root', confidence: 0.88, command: 'sysctl -w vm.swappiness=10', desc: '调整swap倾向参数优化内存', durationSec: 1, isDanger: false, timestamp: daysAgoTs(15, 9, 30) },
-]
 
 // ===== 辅助函数 =====
 
@@ -153,23 +131,22 @@ export function HistoryPage() {
   const [currentPage, setCurrentPage] = useState<number>(1)
 
   // ===== 真实决策历史状态（v2.3 活功能转换：接入 historyList / historyStats IPC） =====
-  // v2.3.4 修复：初始使用 [] 而非 DEFAULT_RECORDS。
+  // v2.3.4 起 IPC 拉空就显示空态；本轮删掉最后的非 Electron 假数据回退。
   // 原因：原实现在 IPC 拉取为空时仍保留 6 条设计稿示例，连接服务器后用户看到的是死代码。
   // 新策略：
-  //   - 真实数据（useReal=true）→ records 来自 IPC
-  //   - 拉取到非空数据 → setRecords + setUseReal(true)
-  //   - 拉取为空 → setRecords([]) + setUseReal(true)，Empty 组件接管
-  //   - 非 Electron 环境 → setUseReal(false) 回退到 DEFAULT_RECORDS（明确标注演示）
+  //   - Electron：records 来自 historyList IPC，拉空就是空态
+  //   - 非 Electron（浏览器预览）：无本地库可读，noLocalStore 说明原因
   const [records, setRecords] = useState<DecisionRecord[]>([])
-  const [useReal, setUseReal] = useState(false)
+  /** 非 Electron 环境（无本地决策库）；用于把"没有数据"说成原因而不是留白 */
+  const [noLocalStore, setNoLocalStore] = useState(false)
   const [historyStats, setHistoryStats] = useState<HistoryStats | null>(null)
 
   // 挂载时拉取真实决策历史与统计数据
   useEffect(() => {
     if (!isElectronAPIAvailable() || !window.electronAPI?.historyList) {
-      // 非 Electron 环境：明确标注为演示数据
-      setRecords(DEFAULT_RECORDS)
-      setUseReal(false)
+      // 非 Electron（浏览器预览）没有本地决策库可读：给空列表，让 Empty 状态说明清楚，
+      // 不再回退到设计稿那 6 条示例——它们带 prod-web-01 这种假主机名，会被当成真记录
+      setNoLocalStore(true)
       return
     }
     let cancelled = false
@@ -178,22 +155,18 @@ export function HistoryPage() {
       .historyList(0, 1000)
       .then((cards) => {
         if (cancelled) return
-        // v2.3.4 修复：无论拉取结果如何都 setUseReal(true)
-        // - 拉取到非空：渲染真实数据
-        // - 拉取为空：setRecords([]) 让 Empty 组件接管（不再保留 DEFAULT_RECORDS）
+        // 拉到什么就显示什么：为空就是没有记录，不补任何示例
         if (Array.isArray(cards) && cards.length > 0) {
           setRecords(cards.map(decisionCardToRecord))
         } else {
           setRecords([])
         }
-        setUseReal(true)
       })
       .catch((err) => {
         if (cancelled) return
         console.warn('[HistoryPage] 拉取决策历史失败', err)
-        // 失败时也标记 useReal=true，让页面显示 Empty 状态而非假数据
+        // 拉取失败就显示空状态并说明失败，不显示任何编造记录
         setRecords([])
-        setUseReal(true)
       })
       .finally(() => {
         // no-op：保留 finally 钩子便于后续接入加载态
@@ -227,7 +200,7 @@ export function HistoryPage() {
     return ['全部服务器', ...Array.from(set)]
   }, [records, historyStats])
 
-  // 统计数字：优先使用真实 stats；不可用时回退到 records 派生 / DEFAULT_STATS
+  // 统计数字：优先主进程聚合的 stats，其次由当前记录派生；两条都是真实来源，不写基线假值
   const stats = useMemo<StatItem[]>(() => {
     // records 为空时使用基线（不是空 SVG），保证视觉占位
     const sparkFor = (metric: SparklineMetric): string =>
@@ -241,7 +214,6 @@ export function HistoryPage() {
         { label: '平均响应时间', value: `${Math.round(historyStats.avgDurationMs / 1000)}s`, color: 'var(--trae-text-secondary)', sparkline: sparkFor('avgDuration') },
       ]
     }
-    if (!useReal) return DEFAULT_STATS
     const total = records.length
     const success = records.filter((r) => r.status === '成功').length
     const successRate = total > 0 ? `${((success / total) * 100).toFixed(1)}%` : '0%'
@@ -259,7 +231,7 @@ export function HistoryPage() {
       { label: '平均置信度', value: avgConfidence, color: 'var(--trae-bg-brand)', sparkline: sparkFor('avgConfidence') },
       { label: '平均响应时间', value: avgDuration, color: 'var(--trae-text-secondary)', sparkline: sparkFor('avgDuration') },
     ]
-  }, [records, useReal, historyStats])
+  }, [records, historyStats])
 
   const filteredRecords = useMemo(() => {
     let result: DecisionRecord[] = records
@@ -371,8 +343,20 @@ export function HistoryPage() {
           {filteredRecords.length === 0 && (
             <Empty
               icon={Inbox}
-              title="未匹配到任何决策记录"
-              description="当前筛选条件下没有历史决策数据，请尝试调整时间范围、服务器或状态筛选。"
+              title={
+                noLocalStore
+                  ? '浏览器预览环境读不到本机决策库'
+                  : records.length === 0
+                    ? '还没有决策记录'
+                    : '未匹配到任何决策记录'
+              }
+              description={
+                noLocalStore
+                  ? '在桌面应用里运行即可读取本机的决策历史；这里不展示示例数据。'
+                  : records.length === 0
+                    ? '与 AI 对话并执行命令后，每一次决策会记录在这里。'
+                    : '当前筛选条件下没有记录，请尝试调整时间范围、服务器或状态筛选。'
+              }
               className="hist-timeline-empty"
             />
           )}

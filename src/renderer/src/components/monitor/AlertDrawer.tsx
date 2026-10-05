@@ -21,7 +21,7 @@
  */
 import { useState } from 'react'
 import { Drawer, Tag, Tooltip } from 'antd'
-import type { AlertRecord, RiskLevel } from './mock-data'
+import type { AlertRecord, RiskLevel } from './monitor-model'
 
 /** 风险级别 → Tag 颜色 + 中文标签 */
 function riskTagProps(level: RiskLevel): { color: string; bg: string; label: string } {

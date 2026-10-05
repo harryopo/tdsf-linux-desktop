@@ -112,4 +112,23 @@ describe('recharts 3 真渲染', () => {
     expect(() => renderChart(<CpuAreaChart />)).not.toThrow()
     expect(screen.getByText(/暂无CPU监控数据/)).toBeInTheDocument()
   })
+
+  it('6. x 轴刻度只能来自真实采样点（写死的 00:00/06:00/12:00 时间轴已删）', () => {
+    const { container } = renderChart(<CpuAreaChart />)
+    const ticks = [...container.querySelectorAll('.mon-chart-axis span')].map((el) => el.textContent)
+    expect(ticks.length).toBeGreaterThan(0)
+    const real = new Set(
+      makeSeries(8).map((d) => {
+        const t = new Date(d.timestamp)
+        return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
+      })
+    )
+    for (const tick of ticks) expect(real.has(tick ?? ''), `刻度 ${tick} 不在数据时间里`).toBe(true)
+  })
+
+  it('7. 无数据时不渲染时间轴（不给空图配一条假刻度）', () => {
+    useServerStore.setState({ activeSessionId: 'sess-empty' })
+    const { container } = renderChart(<CpuAreaChart />)
+    expect(container.querySelector('.mon-chart-axis')).toBeNull()
+  })
 })
