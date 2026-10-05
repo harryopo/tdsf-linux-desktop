@@ -193,15 +193,15 @@ try {
   await cdp(ws, 'Runtime.enable')
   await cdp(ws, 'Page.enable')
 
-  // 启动页（three.js 着色动画）会自己走完，也可能要点"进入工作台"；两种都兜住
+  // 启动页要点了"进入工作台"才进主界面。必须点那个 button 本身：
+  // 按文字找会先命中它的父级 div（pointer-events-none），click() 打在上面什么都不做。
   let ready = false
   for (let i = 0; i < 40 && !ready; i++) {
     ready = await evalIn(ws, `!!document.querySelector('.wb-main-layout')`)
     if (!ready) {
       await evalIn(ws, `(() => {
-        const b = [...document.querySelectorAll('button,a,div,span')].find(e => /进入工作台/.test(e.textContent || ''));
-        if (b) b.click();
-        if (location.hash && location.hash !== '#/workbench') location.hash = '#/workbench';
+        const b = document.querySelector('button[data-dom-id="boot-enter"]');
+        if (b && !b.disabled) b.click();
         return true
       })()`)
       await sleep(1000)

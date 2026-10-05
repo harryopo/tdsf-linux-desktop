@@ -3,64 +3,92 @@
  *
  * 说明：
  * - Tailwind v4 用 @import "tailwindcss" 引入全部能力（含 preflight）
- * - @theme 中定义 Tailwind 原生 token，会生成对应工具类（如 bg-background）
- * - TRAE 完整 token 在 trae-tokens.css 中定义，此文件只做桥接
+ * - @theme 里定义的是 Tailwind 原生 token，会生成工具类（如 bg-canvas）
+ * - 色值唯一来源是 ui-tokens.css（cc-gui 视觉语言）；本文件只做名字桥接，不写任何颜色字面量
+ * - trae-tokens.css 是尚未重建的旧页面还在用的旧令牌源，外壳重建进度到 100% 的那个提交里整份删除
  * - 与 AntD 5 共存：通过 @layer 让 AntD 样式优先于 Tailwind preflight
  *
  * 引入顺序（CSS 规范要求 @import 必须在所有其他规则之前）：
- * 1. trae-tokens.css — TRAE 完整 token（CSS 变量）
- * 2. tailwindcss — Tailwind preflight + 工具类
- * 3. @theme inline — Tailwind 语义 token 桥接到 TRAE 变量
+ * 1. ui-tokens.css — 新令牌源（深浅两套 + 尺度）
+ * 2. trae-tokens.css — 旧页面遗留令牌（只被旧组件消费）
+ * 3. tailwindcss — preflight + 工具类
+ * 4. @theme inline — 工具类名桥接到 ui-tokens
  *
  * 字体策略：
  * - Inter / JetBrains Mono 由 main.tsx 的 @fontsource 本地包提供（400/500/600/700）
  * - 不走 Google Fonts CDN：应用 CSP 会拦掉它（控制台一条 error），且离线启动会白等
  */
+@import './ui-tokens.css';
 @import './trae-tokens.css';
 @import 'tailwindcss';
 
 /*
- * Tailwind v4 语义 token 桥接
- * 让 Tailwind 工具类（如 bg-background / text-foreground）使用 TRAE token
+ * Tailwind v4 token 桥接
+ *
+ * 两组名字：
+ * - 语义名（canvas/panel/sunken/raised/ink 系列/line 系列/accent 系列/status 系列）——新代码只用这组
+ * - shadcn 兼容名（background/foreground/card/…）——已存在的少量旧引用，随重建消失
  */
 @theme inline {
-  --color-background: var(--trae-bg-base-default);
-  --color-foreground: var(--trae-text-default);
-  --color-card: var(--trae-bg-base-secondary);
-  --color-card-foreground: var(--trae-text-default);
-  --color-popover: var(--trae-bg-menu);
-  --color-popover-foreground: var(--trae-text-default);
-  --color-primary: var(--trae-bg-brand);
-  --color-primary-foreground: var(--trae-text-onbrand);
-  --color-secondary: var(--trae-bg-base-tertiary);
-  --color-secondary-foreground: var(--trae-text-default);
-  --color-muted: var(--trae-bg-base-tertiary);
-  --color-muted-foreground: var(--trae-text-secondary);
-  --color-accent: var(--trae-bg-overlay-l2);
-  --color-accent-foreground: var(--trae-text-default);
-  --color-destructive: var(--trae-status-error);
-  --color-destructive-foreground: #ffffff;
-  --color-border: var(--trae-border-neutral-l1);
-  --color-input: var(--trae-border-neutral-l2);
-  --color-ring: var(--trae-bg-brand);
+  --color-canvas: var(--bg-primary);
+  --color-panel: var(--bg-secondary);
+  --color-sunken: var(--bg-tertiary);
+  --color-raised: var(--bg-elevated);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
 
-  --color-success: var(--trae-status-success);
-  --color-warning: var(--trae-status-alert);
-  --color-error: var(--trae-status-error);
-  --color-info: var(--trae-status-primary);
+  --color-ink: var(--text-primary);
+  --color-ink-strong: var(--text-secondary);
+  --color-ink-dim: var(--text-tertiary);
+  --color-ink-mute: var(--text-muted);
 
-  --radius-sm: var(--trae-radius-4);
-  --radius-md: var(--trae-radius-6);
-  --radius-lg: var(--trae-radius-8);
-  --radius-xl: var(--trae-radius-10);
+  --color-line: var(--border-primary);
+  --color-line-strong: var(--border-secondary);
+  --color-line-hover: var(--border-hover);
 
-  --font-sans: 'Inter', 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-text);
+  --color-accent-solid: var(--accent-solid);
+
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+  --color-error: var(--status-error);
+  --color-danger: var(--status-danger);
+  --color-info: var(--status-info);
+
+  /* shadcn 兼容名（旧引用） */
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--bg-secondary);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--bg-elevated);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--accent-solid);
+  --color-primary-foreground: var(--text-on-accent);
+  --color-secondary: var(--bg-tertiary);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--bg-tertiary);
+  --color-muted-foreground: var(--text-tertiary);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--status-error);
+  --color-destructive-foreground: var(--text-on-accent);
+  --color-border: var(--border-primary);
+  --color-input: var(--border-secondary);
+  --color-ring: var(--accent);
+
+  /* 尺度档位（cc-gui 事实标度：控件 4 / 卡片 6 / 面板 8 / 气泡 12） */
+  --radius-sm: var(--ui-radius-control);
+  --radius-md: var(--ui-radius-card);
+  --radius-lg: var(--ui-radius-panel);
+  --radius-xl: var(--ui-radius-bubble);
+
+  --font-sans: var(--ui-family-ui);
+  --font-mono: var(--ui-family-code);
 }
 
 /*
  * Tailwind v4 默认暗色模式
- * 设计稿是 dark-only，默认给 <html> 加 dark 类
+ * 主题由 <html data-theme> 决定，dark 类仍保留给旧组件的 dark: 变体
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -71,16 +99,15 @@
  */
 @layer base {
   * {
-    border-color: var(--trae-border-neutral-l1);
+    border-color: var(--border-primary);
   }
-  /* color-scheme 归 trae-tokens.css（深色在 :root，浅色在 :root[data-theme='light']），
-     这里不再重复声明，避免同一件事有两份真值 */
+  /* color-scheme 归令牌层（ui-tokens.css / trae-tokens.css），这里不再重复声明 */
   body {
-    background-color: var(--trae-bg-base-default);
-    color: var(--trae-text-default);
-    font-family: var(--trae-font-family-default);
-    font-size: 13px;
-    line-height: 20px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--ui-family-ui);
+    font-size: var(--ui-font-body);
+    line-height: var(--ui-lh-loose);
     font-feature-settings: 'tnum' 1, 'lnum' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

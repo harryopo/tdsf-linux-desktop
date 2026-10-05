@@ -1,0 +1,299 @@
+/**
+ * UI 令牌单源（界面语言层）
+ *
+ * 来源：jetbrains-cc-gui webview 的视觉语言（实测取自
+ * opensource-reference/jetbrains-cc-gui/webview/src/styles/less/variables.less 与
+ * components/*.less），不是我们旧的 TRAE 设计稿。
+ *
+ * 三条约定：
+ * 1. 本文件是全应用唯一写死颜色字面量的地方（浅色覆写也在本文件）。
+ *    trae-tokens.css 只服务尚未重建的旧页面，重建一块就删一块。
+ * 2. 尺度（圆角/间距/字号/字重/时长/层级/原子尺寸）不是随手写的，
+ *    右侧注释标了它在 cc-gui 里的出处；新值要能归进已有档位，不要新增档位。
+ * 3. 不引入 --idea-* / --vscode-* 兜底链：那是 JetBrains 宿主注入变量的遗产，
+ *    Electron 里永远取不到值，只会把字号悄悄降级成隐式默认。
+ */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* ===== 1. 背景（cc-gui VS Code 系中性灰，四档递进） ===== */
+  --bg-primary: #1e1e1e; /* 画布：消息流、编辑器、终端 */
+  --bg-chat: var(--bg-primary);
+  --bg-secondary: #252526; /* 面板：rail、标题栏、状态栏、文件树 */
+  --bg-tertiary: #2b2d31; /* 凹陷：输入底、分隔条、hover 前的控件底 */
+  --bg-elevated: #2d2d2d; /* 浮层：popover / dialog / composer 工具条 */
+  --bg-hover: #35373c;
+  --bg-active: #37373d;
+
+  /* ===== 2. 文字 ===== */
+  --text-primary: #cccccc; /* 正文 */
+  --text-secondary: #e0e0e0; /* 需要比正文更亮的名称/标题 */
+  --text-tertiary: #9aa0a6; /* 摘要、参数、说明：#858585 只有 4.52，叠一层透明度就掉出 AA */
+  --text-muted: #8b9096; /* 时间戳、快捷键片：cc-gui 原值 #666 在 #1e1e1e 上只有 2.90:1 */
+  --text-placeholder: #858b92;
+  --text-on-accent: #ffffff;
+
+  /* ===== 3. 边框 ===== */
+  --border-primary: #333333;
+  --border-secondary: #3e3e42;
+  --border-hover: #4a4a4f;
+
+  /* ===== 4. 强调色（三个角色必须分开，否则一定有一档不过 AA） ===== */
+  /* accent：焦点环、选中填充、图标——不承载文字 */
+  --accent: #007fd4;
+  --accent-hover: #026ec1;
+  --accent-active: #0060a0;
+  /* accent-text：链接、角色名、行内强调——在深底上 ≥4.5:1 */
+  --accent-text: #4a90e2;
+  --accent-text-hover: #6aa9e8;
+  /* accent-solid：主按钮底，配 --text-on-accent 白字 ≥4.5:1 */
+  --accent-solid: #0a6cb5;
+  --accent-solid-hover: #0a5f9e;
+  --accent-solid-active: #085186;
+
+  /* ===== 5. 状态色 ===== */
+  --status-success: #4caf50;
+  --status-warning: #ff9800;
+  --status-error: #f44336;
+  --status-danger: #ef5350;
+  --status-info: #64b5f6;
+  /* 状态底：同色相低透明度，用在 chip / banner / 工具块错误态 */
+  --status-success-soft: rgba(76, 175, 80, 0.15);
+  --status-warning-soft: rgba(255, 152, 0, 0.15);
+  --status-error-soft: rgba(244, 67, 54, 0.15);
+  --status-info-soft: rgba(100, 181, 246, 0.15);
+
+  /* ===== 6. 消息流 ===== */
+  --message-divider: rgba(255, 255, 255, 0.04);
+  --bubble-user-bg: #005fb8;
+  --bubble-user-text: #ffffff;
+  --bubble-user-code-bg: rgba(0, 0, 0, 0.2);
+  --role-user: #4a90e2;
+  --role-assistant: #d97757;
+
+  /* 工具块（cc-gui 活的是 .task-container 一族，不是 .tool-block） */
+  --tool-bg: rgba(0, 0, 0, 0.2);
+  --tool-bg-soft: rgba(0, 0, 0, 0.1);
+  --tool-icon: #64b5f6;
+  --tool-name: #90caf9;
+  --tool-summary: #888888;
+  --tool-file-link: #a5d6a7;
+  --tool-param-key: #78909c;
+  --tool-param-value: #cfd8dc;
+
+  /* 思考块 */
+  --thinking-border: #333333;
+  --thinking-text: #999999;
+
+  /* 代码 */
+  --code-block-bg: #1e1e1e;
+  --code-block-border: #333333;
+  --code-inline-bg: rgba(255, 255, 255, 0.1);
+
+  /* diff */
+  --diff-added-bg: rgba(76, 175, 80, 0.16);
+  --diff-added-text: #89d185;
+  --diff-deleted-bg: rgba(244, 67, 54, 0.16);
+  --diff-deleted-text: #ff6b6b;
+
+  /* 顶栏 / 状态条共用的一组（cc-gui 的 --color-chat-bars-*） */
+  --bars-bg: var(--bg-secondary);
+  --bars-border: var(--border-primary);
+  --bars-text: var(--text-secondary);
+  --bars-muted-text: var(--text-tertiary);
+  --bars-hover-bg: var(--bg-hover);
+  --bars-active-bg: var(--bg-active);
+
+  /* banner / notice */
+  --notice-info-bg: rgba(0, 127, 212, 0.12);
+  --notice-info-border: rgba(0, 127, 212, 0.35);
+  --notice-warning-bg: rgba(255, 193, 7, 0.12);
+  --notice-warning-border: rgba(255, 193, 7, 0.38);
+  --notice-warning-text: #ffa000;
+
+  /* 滚动条：全局 10px 轨 + 内嵌列表 6px 细轨（两级） */
+  --scrollbar-track: #1e1e1e;
+  --scrollbar-thumb: #424242;
+  --scrollbar-thumb-hover: #4f4f4f;
+
+  /* 阴影 */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* ===== 7. 尺度（--ui- 前缀避免与旧的 radius/space 别名撞名） ===== */
+  /* 圆角：cc-gui 全量统计只事实性使用 4/6/8（+行内 code 3、气泡 12、pill） */
+  --ui-radius-inline: 3px;
+  --ui-radius-control: 4px; /* 按钮、图标钮、chip、输入 */
+  --ui-radius-card: 6px; /* 工具块行内卡、badge 容器 */
+  --ui-radius-panel: 8px; /* task-container、dialog、composer */
+  --ui-radius-bubble: 12px; /* 用户气泡、permission 顶角 */
+  --ui-radius-pill: 999px;
+
+  /* 间距：4 步进，6/8 是"图标-文字"与"chip-chip"的默认档 */
+  --ui-space-1: 2px;
+  --ui-space-2: 4px;
+  --ui-space-3: 6px;
+  --ui-space-4: 8px;
+  --ui-space-5: 12px;
+  --ui-space-6: 16px;
+  --ui-space-7: 20px;
+  --ui-space-8: 24px;
+
+  /* 字体栈 */
+  --ui-family-ui: 'Inter', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --ui-family-code: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
+  /* 字号档位（cc-gui 事实分布 10/11/12/13/14，正文 13.5，再大跳 15/16） */
+  --ui-font-micro: 10px; /* 状态点旁注、进度 */
+  --ui-font-caption: 11px; /* 时间戳、参数 label、badge */
+  --ui-font-sm: 12px; /* 摘要、说明、thinking 正文 */
+  --ui-font-md: 13px; /* 工具名、控件文字 */
+  --ui-font-body: 13.5px; /* 消息正文与 markdown（全应用唯一正文档） */
+  --ui-font-composer: 14px; /* 输入区（比正文大，方便长文编辑） */
+  --ui-font-title: 15px; /* 弹窗标题 */
+  --ui-font-head: 16px; /* 页面级标题 */
+
+  /* 行高：只有 1 / 1.2 / 1.3 / 1.4 / 1.5 / 1.6 */
+  --ui-lh-none: 1; /* 图标按钮与 badge，消 inline 基线间隙 */
+  --ui-lh-tight: 1.3;
+  --ui-lh-snug: 1.4;
+  --ui-lh-normal: 1.5;
+  --ui-lh-loose: 1.6;
+
+  /* 字重：cc-gui 只用 400/500/600（700 仅一处） */
+  --ui-weight-regular: 400;
+  --ui-weight-medium: 500; /* 控件文字与名称 */
+  --ui-weight-semibold: 600; /* 标题、强调、徽标 */
+
+  /* 原子尺寸：图标按钮 24/28/32，状态点 8（pending 12 旋转环），行高 32 */
+  --ui-size-icon-sm: 20px;
+  --ui-size-icon-md: 24px;
+  --ui-size-icon-lg: 28px;
+  --ui-size-icon-xl: 32px;
+  --ui-size-dot: 8px;
+  --ui-size-row: 32px;
+  --ui-size-rail: 38px; /* IDE 外壳活动栏（借 clone/Lithe 的 38px，不是 cc-gui 的） */
+  --ui-size-titlebar: 40px;
+  --ui-size-statusbar: 24px;
+
+  /* 动效：微反馈 150ms / 状态切换 200ms / 入场 300ms */
+  --ui-dur-fast: 150ms;
+  --ui-dur-base: 200ms;
+  --ui-dur-slow: 300ms;
+  --ui-ease: ease;
+  --ui-ease-out: ease-out;
+  --ui-ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1); /* dropdown 入场 */
+
+  /* 层级（cc-gui 实测的六档，别自创中间值） */
+  --ui-z-sticky: 100;
+  --ui-z-dropdown: 1000;
+  --ui-z-modal: 1100;
+  --ui-z-toast: 9999;
+  --ui-z-permission: 10000; /* 审批条必须压过一切弹层 */
+  --ui-z-confirm: 20000;
+
+  /* 折叠预算：内容超高就走内滚，不撑破外壳 */
+  --ui-collapse-max-composer: 240px;
+  --ui-collapse-max-output: 150px;
+  --ui-collapse-max-popover: 200px;
+  --ui-collapse-max-command: 300px;
+}
+
+/* ============================================================
+ * 浅色：cc-gui 的 [data-theme='light'] 那一套（VS Code Light 系）
+ * 数值不是照抄——tests/unit/ui-tokens.test.ts 会算 WCAG 对比度，
+ * 低于 4.5:1 的组合直接红，所以 warning/danger 在这里比 cc-gui 原值暗。
+ * ============================================================ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-primary: #ffffff;
+  --bg-chat: var(--bg-primary);
+  --bg-secondary: #f3f3f3;
+  --bg-tertiary: #e8e8e8;
+  --bg-elevated: #f5f5f5;
+  --bg-hover: #e0e0e0;
+  --bg-active: #d6d6d6;
+
+  --text-primary: #333333;
+  --text-secondary: #1a1a1a;
+  --text-tertiary: #616468;
+  --text-muted: #6b7177;
+  --text-placeholder: #8a8f95;
+  --text-on-accent: #ffffff;
+
+  --border-primary: #d0d0d0;
+  --border-secondary: #c0c0c0;
+  --border-hover: #a0a0a0;
+
+  --accent: #0078d4;
+  --accent-hover: #106ebe;
+  --accent-active: #005a9e;
+  --accent-text: #0b62b5;
+  --accent-text-hover: #084d8f;
+  --accent-solid: #0f6cbd;
+  --accent-solid-hover: #0d5ea6;
+  --accent-solid-active: #0b5191;
+
+  --status-success: #107c10;
+  --status-warning: #a4650f;
+  --status-error: #c50f1f;
+  --status-danger: #b31824;
+  --status-info: #0b62b5;
+  --status-success-soft: rgba(16, 124, 16, 0.1);
+  --status-warning-soft: rgba(164, 101, 15, 0.12);
+  --status-error-soft: rgba(197, 15, 31, 0.1);
+  --status-info-soft: rgba(11, 98, 181, 0.1);
+
+  --message-divider: rgba(0, 0, 0, 0.06);
+  --bubble-user-bg: #0f6cbd;
+  --bubble-user-text: #ffffff;
+  --bubble-user-code-bg: rgba(0, 0, 0, 0.15);
+  --role-user: #0066cc;
+  --role-assistant: #c05010;
+
+  --tool-bg: rgba(0, 0, 0, 0.04);
+  --tool-bg-soft: rgba(0, 0, 0, 0.02);
+  --tool-icon: #0078d4;
+  --tool-name: #0b62b5;
+  --tool-summary: #616468;
+  --tool-file-link: #107c10;
+  --tool-param-key: #616468;
+  --tool-param-value: #333333;
+
+  --thinking-border: #d0d0d0;
+  --thinking-text: #616468;
+
+  --code-block-bg: #f6f8fa;
+  --code-block-border: #d0d0d0;
+  --code-inline-bg: rgba(0, 0, 0, 0.06);
+
+  --diff-added-bg: rgba(16, 124, 16, 0.12);
+  --diff-added-text: #0f7a0f;
+  --diff-deleted-bg: rgba(197, 15, 31, 0.1);
+  --diff-deleted-text: #b31824;
+
+  --bars-bg: var(--bg-secondary);
+  --bars-border: var(--border-primary);
+  --bars-text: var(--text-secondary);
+  --bars-muted-text: var(--text-tertiary);
+  --bars-hover-bg: var(--bg-hover);
+  --bars-active-bg: var(--bg-active);
+
+  --notice-info-bg: #eaf3ff;
+  --notice-info-border: #9ec4f5;
+  --notice-warning-bg: #fff6e6;
+  --notice-warning-border: #f3cf93;
+  --notice-warning-text: #7c4a00;
+
+  --scrollbar-track: #f0f0f0;
+  --scrollbar-thumb: #c0c0c0;
+  --scrollbar-thumb-hover: #a0a0a0;
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+}

@@ -20,21 +20,23 @@ const fs = require('fs');
 const path = require('path');
 
 const args = process.argv.slice(2);
-const opts = { file: '', task: '', session: '', ttlHours: 2, json: false };
+const opts = { files: [], task: '', session: '', ttlHours: 2, json: false };
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
-  if (a === '-f' || a === '--file') opts.file = args[++i];
+  // -f 可以重复给：一次任务通常要改好几个文件。过去这里用赋值，
+  // 结果只有最后一个 -f 生效，前面几个文件等于没登记（提交时被 ai-guard 拦）。
+  if (a === '-f' || a === '--file') opts.files.push(args[++i]);
   else if (a === '-t' || a === '--task') opts.task = args[++i];
   else if (a === '-s' || a === '--session') opts.session = args[++i];
   else if (a === '--ttl') opts.ttlHours = parseInt(args[++i], 10);
   else if (a === '--json') opts.json = true;
   else if (a === '-h' || a === '--help') {
-    console.log('Usage: node claim.cjs -f <file> -t <task> [-s <session>] [--ttl <hours>]');
+    console.log('Usage: node claim.cjs -f <file> [-f <file>...] -t <task> [-s <session>] [--ttl <hours>]');
     process.exit(0);
   }
 }
 
-if (!opts.file || !opts.task) {
+if (!opts.files.length || !opts.task) {
   console.error('[claim] 缺少必填参数 -f / -t');
   process.exit(2);
 }
@@ -73,7 +75,7 @@ if (!opts.session) {
 }
 
 log(`[claim] Session = ${opts.session}`, 'cyan');
-log(`[claim] File   = ${opts.file}`, 'cyan');
+log(`[claim] File   = ${opts.files.join(', ')}`, 'cyan');
 log(`[claim] Task   = ${opts.task}`, 'cyan');
 
 // ---------- 2. 加载中央登记 ----------
@@ -101,17 +103,17 @@ for (const key of expiredKeys) {
 for (const [key, entry] of Object.entries(coord.sessions || {})) {
   if (key === opts.session) continue;
   for (const f of (entry.claimedFiles || [])) {
-    if (f.path === opts.file) {
+    if (opts.files.includes(f.path)) {
       log('', 'reset');
       log(`❌ [CONFLICT] 文件被其他 AI 占用`, 'red');
-      log(`   文件:        ${opts.file}`, 'yellow');
+      log(`   文件:        ${f.path}`, 'yellow');
       log(`   占用 Session: ${key}`, 'yellow');
       log(`   占用 AI:     ${entry.aiName}`, 'yellow');
       log(`   占用任务:    ${entry.task}`, 'yellow');
       log(`   过期时间:    ${entry.expiresAt}`, 'yellow');
       log('', 'reset');
       log(`👉 建议：等待该 AI 完成（查看 git log），或切换到其他任务`, 'cyan');
-      if (opts.json) console.log(JSON.stringify({ ok: false, conflict: { session: key, file: opts.file } }));
+      if (opts.json) console.log(JSON.stringify({ ok: false, conflict: { session: key, file: f.path } }));
       process.exit(1);
     }
   }
@@ -133,27 +135,26 @@ if (!coord.sessions[opts.session]) {
 }
 
 const entry = coord.sessions[opts.session];
-const already = (entry.claimedFiles || []).some(f => f.path === opts.file);
-if (!already) {
-  if (!entry.claimedFiles) entry.claimedFiles = [];
-  entry.claimedFiles.push({
-    path: opts.file,
-    task: opts.task,
-    claimedAt: now.toISOString(),
-  });
+if (!entry.claimedFiles) entry.claimedFiles = [];
+for (const target of opts.files) {
+  const held = entry.claimedFiles.find((f) => f.path === target);
+  if (held) held.claimedAt = now.toISOString();
+  else entry.claimedFiles.push({ path: target, task: opts.task, claimedAt: now.toISOString() });
 }
 entry.lastActiveAt = now.toISOString();
 entry.expiresAt = expiresAt;  // 每次 claim 续期
 
 // ---------- 6. 追加 history ----------
 if (!coord.history) coord.history = [];
-coord.history.push({
-  sessionId: opts.session,
-  action: 'claim',
-  file: opts.file,
-  task: opts.task,
-  timestamp: now.toISOString(),
-});
+for (const target of opts.files) {
+  coord.history.push({
+    sessionId: opts.session,
+    action: 'claim',
+    file: target,
+    task: opts.task,
+    timestamp: now.toISOString(),
+  });
+}
 coord.lastUpdated = now.toISOString();
 
 // ---------- 7. 写回文件 ----------
@@ -162,13 +163,13 @@ fs.writeFileSync(coordinationFile, JSON.stringify(coord, null, 2) + '\n', 'utf8'
 log('', 'reset');
 log(`✅ [OK] 声明成功`, 'green');
 log(`   Session:    ${opts.session}`, 'green');
-log(`   File:       ${opts.file}`, 'green');
+log(`   File:       ${opts.files.join(', ')}`, 'green');
 log(`   Expires at: ${expiresAt}`, 'green');
 log('', 'reset');
-log(`💡 完成后请运行: node release.cjs -f "${opts.file}"`, 'cyan');
+log(`💡 完成后请运行: node release.cjs --all（或逐个 -f）`, 'cyan');
 log(`💡 commit message 建议包含 Session ID: ${opts.session}`, 'cyan');
 log(`💡 完成后必须 git add .ai-coordination.json（让其他 AI 看到状态）`, 'cyan');
 
 if (opts.json) {
-  console.log(JSON.stringify({ ok: true, session: opts.session, file: opts.file, expiresAt }));
+  console.log(JSON.stringify({ ok: true, session: opts.session, files: opts.files, expiresAt }));
 }

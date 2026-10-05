@@ -17,31 +17,43 @@ import * as path from 'node:path'
 
 const ROOT = path.resolve(__dirname, '../..')
 const TOKENS_FILE = path.join(ROOT, 'src/renderer/src/styles/trae-tokens.css')
+const UI_TOKENS_FILE = path.join(ROOT, 'src/renderer/src/styles/ui-tokens.css')
 const RENDERER = path.join(ROOT, 'src/renderer/src')
 
 const src = fs.readFileSync(TOKENS_FILE, 'utf8')
+const uiSrc = fs.readFileSync(UI_TOKENS_FILE, 'utf8')
 
-function blockOf(re: RegExp): string {
-  const m = re.exec(src)
+function blockOf(text: string, re: RegExp): string {
+  const m = re.exec(text)
   if (!m) throw new Error('令牌文件里找不到预期的选择器块：' + re)
   return m[1]
 }
-/** :root 基础块（跳过文件末尾的 :root[data-theme='light']） */
-const baseBlock = blockOf(/:root\s*\{([\s\S]*?)\n\}/)
-const lightBlock = blockOf(/:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/)
-
-function decls(block: string): Map<string, string> {
-  const out = new Map<string, string>()
+function decls(block: string, into: Map<string, string>): Map<string, string> {
   for (const m of block.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) {
-    if (!out.has(m[1])) out.set(m[1], m[2].trim())
+    if (!into.has(m[1])) into.set(m[1], m[2].trim())
   }
-  return out
+  return into
 }
-const base = decls(baseBlock)
-const light = decls(lightBlock)
+
+/**
+ * 两个令牌文件合成一个命名空间：
+ * ui-tokens.css 持有色值字面量（深浅两套），trae-tokens.css 的配色节已全部桥接到它。
+ * 所以旧名字要跟着 var 链跨文件解析，否则每条桥接都会被误报成浅色盲区。
+ */
+const base = decls(
+  blockOf(uiSrc, /:root,\s*\[data-theme='dark'\]\s*\{([\s\S]*?)\n\}/),
+  decls(blockOf(src, /:root\s*\{([\s\S]*?)\n\}/), new Map<string, string>())
+)
+const light = decls(
+  blockOf(uiSrc, /:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/),
+  decls(blockOf(src, /:root\[data-theme='light'\]\s*\{([\s\S]*?)\n\}/), new Map<string, string>())
+)
 
 const isColorValue = (v: string): boolean =>
   /^#[0-9a-f]{3,8}$/i.test(v) || /^rgba?\(/i.test(v) || /^hsla?\(/i.test(v)
+
+/** 浅色下的有效值：覆写优先，没覆写就用基础值（桥接名靠目标在浅色下的值翻面） */
+const lightMerged = new Map([...base, ...light])
 
 /** 跟着 var() 链找底层值；链断了或成环都按"未知"处理 */
 function resolvesToColor(name: string, seen = new Set<string>()): boolean {
@@ -132,8 +144,20 @@ describe('浅色主题令牌覆写完整性', () => {
   })
 
   it('没有"和深色同值"的假覆写', () => {
+    // 只比两边都是色值字面量的：桥接（var(...)）本来就靠目标翻面，算成假覆写是误报。
+    // 只管 --trae- 这一族：ui-tokens 的自有令牌由 tests/unit/ui-tokens.test.ts 负责，
+    // 两边各管各的命名空间，合并 map 只用来跟 var 链。
     const fake = [...light]
-      .filter(([n, v]) => base.has(n) && base.get(n)!.toLowerCase() === v.toLowerCase())
+      .filter(([n, v]) => {
+        const d = base.get(n)
+        return (
+          n.startsWith('--trae-') &&
+          d !== undefined &&
+          isColorValue(d) &&
+          isColorValue(v) &&
+          d.toLowerCase() === v.toLowerCase()
+        )
+      })
       .map(([n]) => n)
     expect(fake, `这些令牌覆写了但值没变:\n${fake.join('\n')}`).toEqual([])
   })
@@ -141,8 +165,14 @@ describe('浅色主题令牌覆写完整性', () => {
   it('color-scheme 只在令牌文件里声明，且深浅各一次', () => {
     const schemes = [...src.matchAll(/color-scheme\s*:\s*([a-z ]+);/g)].map((m) => m[1].trim())
     expect(schemes.sort()).toEqual(['dark', 'light'])
+    // 令牌层有两个文件：ui-tokens.css 是新外壳的唯一色值源，trae-tokens.css 是尚未重建页面的旧源。
+    // 外壳全部重建完的最后一个提交里删掉后者，这条白名单同步收成一份。
+    const TOKEN_FILES = new Set([
+      TOKENS_FILE,
+      path.join(ROOT, 'src/renderer/src/styles/ui-tokens.css'),
+    ])
     const offenders = walk(RENDERER)
-      .filter((f) => f.endsWith('.css') && f !== TOKENS_FILE)
+      .filter((f) => f.endsWith('.css') && !TOKEN_FILES.has(f))
       // 只认 CSS 声明：JS 里的 matchMedia('(prefers-color-scheme: dark)') 是读系统偏好，不是第二份真值
       .filter((f) =>
         /(^|[^-])color-scheme\s*:/.test(
@@ -165,6 +195,16 @@ describe('浅色主题令牌覆写完整性', () => {
       const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m)
       return (x + 0.05) / (y + 0.05)
     }
+    /** 跟 var 链取到最终 hex（桥接名要跨文件解析到 ui-tokens 的字面量） */
+    const hexOf = (name: string, map: Map<string, string>, seen = new Set<string>()): string | null => {
+      const v = map.get(name)
+      if (!v) return null
+      if (/^#[0-9a-f]{3,8}$/i.test(v)) return v
+      const ref = v.match(/var\((--[a-z0-9-]+)\b/)
+      if (!ref || seen.has(ref[1])) return null
+      seen.add(ref[1])
+      return hexOf(ref[1], map, seen)
+    }
     const pairs: [string, string, string][] = [
       ['--trae-text-default', '--trae-bg-base-default', '正文 / 画布'],
       ['--trae-text-secondary', '--trae-bg-base-default', '次级文字 / 画布'],
@@ -176,10 +216,12 @@ describe('浅色主题令牌覆写完整性', () => {
     ]
     const bad = pairs
       .map(([fg, bg, label]) => {
-        const r = ratio(String(light.get(fg) ?? base.get(fg)), String(light.get(bg) ?? base.get(bg)))
-        return { label, r: Number(r.toFixed(2)) }
+        const f = hexOf(fg, lightMerged)
+        const b = hexOf(bg, lightMerged)
+        if (!f || !b) return { label, r: -1 }
+        return { label, r: Number(ratio(f, b).toFixed(2)) }
       })
       .filter((x) => x.r < 4.5)
-    expect(bad, `浅色对比度不足 4.5:1 的组合:\n${JSON.stringify(bad)}`).toEqual([])
+    expect(bad, `浅色对比度不足 4.5:1 的组合（r=-1 表示跟 var 链取不到 hex）:\n${JSON.stringify(bad)}`).toEqual([])
   })
 })
