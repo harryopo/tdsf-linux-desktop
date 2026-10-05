@@ -208,7 +208,7 @@ export function HistoryDetailPage() {
         </header>
         <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
           <CheckCircle2 className="shrink-0" style={{ width: 32, height: 32, color: 'var(--trae-text-tertiary)' }} />
-          <span className="text-[13px]" style={{ color: 'var(--trae-text-secondary)' }}>
+          <span className="text-md" style={{ color: 'var(--trae-text-secondary)' }}>
             决策不存在（#{id ?? 'N/A'}）
           </span>
           <button

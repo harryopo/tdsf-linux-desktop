@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-05T06:17:56.008Z",
+  "lastUpdated": "2026-10-05T06:29:01.420Z",
   "sessions": {},
   "history": [
     {
@@ -4435,6 +4435,90 @@
       "file": "src/renderer/src/pages/AboutSettings.tsx",
       "task": "F4 能力就绪度表 + 监控模型残迹清理",
       "timestamp": "2026-10-05T06:17:56.008Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/ui-tokens.css",
+      "task": "E6 字号收敛到字阶",
+      "timestamp": "2026-10-05T06:19:44.747Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/tailwind.css",
+      "task": "E6 字号收敛到字阶",
+      "timestamp": "2026-10-05T06:19:44.747Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/trae-tokens.css",
+      "task": "E6 字号收敛到字阶",
+      "timestamp": "2026-10-05T06:19:44.747Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "E6 字号收敛：去掉与展示档成对行高重复的 leading",
+      "timestamp": "2026-10-05T06:20:48.005Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionPage.tsx",
+      "task": "E6 字号收敛：去掉与展示档成对行高重复的 leading",
+      "timestamp": "2026-10-05T06:20:48.005Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/ui-tokens.test.ts",
+      "task": "E6 字阶单源断言",
+      "timestamp": "2026-10-05T06:22:10.295Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/styles/ui-tokens.css",
+      "task": "E6 字号收敛到字阶",
+      "timestamp": "2026-10-05T06:29:01.420Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/styles/tailwind.css",
+      "task": "E6 字号收敛到字阶",
+      "timestamp": "2026-10-05T06:29:01.420Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/styles/trae-tokens.css",
+      "task": "E6 字号收敛到字阶",
+      "timestamp": "2026-10-05T06:29:01.420Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "E6 字号收敛：去掉与展示档成对行高重复的 leading",
+      "timestamp": "2026-10-05T06:29:01.420Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionPage.tsx",
+      "task": "E6 字号收敛：去掉与展示档成对行高重复的 leading",
+      "timestamp": "2026-10-05T06:29:01.420Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/ui-tokens.test.ts",
+      "task": "E6 字阶单源断言",
+      "timestamp": "2026-10-05T06:29:01.420Z"
     }
   ],
   "coordinationAudit": {

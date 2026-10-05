@@ -155,6 +155,7 @@
   --ui-font-composer: 14px; /* 输入区（比正文大，方便长文编辑） */
   --ui-font-title: 15px; /* 弹窗标题 */
   --ui-font-head: 16px; /* 页面级标题 */
+  --ui-font-display: 28px; /* KPI 大数字 / 决策页金额级展示（line-height 36px 随档位一起给） */
 
   /* 行高：只有 1 / 1.2 / 1.3 / 1.4 / 1.5 / 1.6 */
   --ui-lh-none: 1; /* 图标按钮与 badge，消 inline 基线间隙 */

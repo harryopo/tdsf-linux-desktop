@@ -58,24 +58,24 @@ export function HistoryCard({ card, onClick }: HistoryCardProps) {
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <Fingerprint className="h-3 w-3 shrink-0 text-[var(--trae-text-secondary)]" />
-          <span className="truncate font-mono text-[11px] font-medium tabular-nums text-[var(--trae-text-default)]">
+          <span className="truncate font-mono text-caption font-medium tabular-nums text-[var(--trae-text-default)]">
             #{shortId}
           </span>
         </div>
-        <span className={`inline-flex h-5 shrink-0 items-center rounded-[var(--trae-radius-4)] border px-2 text-[10px] font-medium ${STATUS_CLASS[card.status]}`}>
+        <span className={`inline-flex h-5 shrink-0 items-center rounded-[var(--trae-radius-4)] border px-2 text-micro font-medium ${STATUS_CLASS[card.status]}`}>
           {STATUS_TEXT[card.status]}
         </span>
       </div>
-      <div className="flex items-center gap-2 text-[12px] text-[var(--trae-text-default)]">
+      <div className="flex items-center gap-2 text-sm text-[var(--trae-text-default)]">
         <Activity className="h-3 w-3 shrink-0 text-[var(--trae-text-secondary)]" />
         <span className="truncate">{card.problem.slice(0, 40) || '未命名场景'}</span>
       </div>
       {/* v2.6：命令预览行，提升卡片信息密度 */}
-      <div className="truncate rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-code-block)] px-2 py-1 font-mono text-[11px] text-[var(--trae-text-secondary)]">
+      <div className="truncate rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-code-block)] px-2 py-1 font-mono text-caption text-[var(--trae-text-secondary)]">
         <span className="mr-1 text-[var(--trae-text-tertiary)]">$</span>
         {card.fixCommand}
       </div>
-      <div className="flex items-center justify-between gap-3 text-[10px] text-[var(--trae-text-tertiary)]">
+      <div className="flex items-center justify-between gap-3 text-micro text-[var(--trae-text-tertiary)]">
         <div className="flex items-center gap-1.5">
           <Clock className="h-3 w-3" />
           <span className="font-mono tabular-nums">{timeStr}</span>
@@ -87,7 +87,7 @@ export function HistoryCard({ card, onClick }: HistoryCardProps) {
               {card.confidence.toFixed(2)}
             </span>
           </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-[10px] text-[var(--trae-text-secondary)]">
+          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-[var(--trae-text-secondary)]">
             {riskMeta.urgency}
           </span>
         </div>

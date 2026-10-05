@@ -214,7 +214,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         >
           <Sparkles className="size-3 text-[var(--trae-bg-brand)]" />
           <span className="font-medium text-[var(--trae-text-default)]">深度思考</span>
-          <span className={`text-[10px] ${thinkingLive ? 'ai-shimmer-text' : 'text-[var(--trae-text-tertiary)]'}`}>
+          <span className={`text-micro ${thinkingLive ? 'ai-shimmer-text' : 'text-[var(--trae-text-tertiary)]'}`}>
             {thinkingLive ? '思考中…' : '已完成'}
           </span>
           <ChevronRight
@@ -235,7 +235,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (!message.stepState) return null
     const { currentStep, completedSteps, waitingForConfirmation } = message.stepState
     return (
-      <div className="mt-1.5 flex gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-base-tertiary)] px-2 py-1.5 text-[11px]">
+      <div className="mt-1.5 flex gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-base-tertiary)] px-2 py-1.5 text-caption">
         {ALL_STEPS.map((step) => {
           const isCompleted = completedSteps.includes(step)
           const isCurrent = currentStep === step
@@ -269,7 +269,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (commands.length === 0) return null
     return (
       <div className="mt-2.5 flex flex-col gap-2 border-t border-[var(--trae-border-neutral-l1)] pt-2.5">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-[var(--trae-text-secondary)]">
+        <div className="flex items-center gap-1.5 text-caption font-medium text-[var(--trae-text-secondary)]">
           <Play className="size-3 text-[var(--trae-text-brand)]" />
           检测到 {commands.length} 条命令
         </div>
@@ -283,7 +283,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           <div key={i} className="flex items-center gap-2">
             <code
               title={cmd}
-              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-[var(--trae-text-default)]"
+              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5 font-mono text-sm leading-[1.5] text-[var(--trae-text-default)]"
             >
               {display}
             </code>
@@ -291,7 +291,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               type="button"
               onClick={() => onToolAction('execute', cmd)}
               title="发送到终端执行（回显可见）"
-              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--trae-text-brand)] transition-opacity hover:opacity-90"
+              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2.5 py-1.5 text-caption font-medium text-[var(--trae-text-brand)] transition-opacity hover:opacity-90"
             >
               <Play className="size-3" />
               在终端执行
@@ -450,21 +450,21 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         <button
           type="button"
           onClick={() => onNavigate('/monitor')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-[11px] text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
+          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
         >
           查看监控
         </button>
         <button
           type="button"
           onClick={() => onNavigate('/history')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-[11px] text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
+          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
         >
           记录决策
         </button>
         <button
           type="button"
           onClick={() => onNavigate('/knowledge')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-[11px] text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
+          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
         >
           更新知识库
         </button>

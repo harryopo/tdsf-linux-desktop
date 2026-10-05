@@ -104,7 +104,7 @@ export function TokenUsageChart() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-12 text-[13px] text-[var(--trae-text-tertiary)]">
+      <div className="flex items-center justify-center gap-2 py-12 text-md text-[var(--trae-text-tertiary)]">
         <Loader2 className="size-4 animate-spin" />
         加载 Token 统计…
       </div>
@@ -125,7 +125,7 @@ export function TokenUsageChart() {
                   type="button"
                   onClick={() => setTimeRange(r)}
                   className={
-                    'inline-flex h-8 items-center justify-center rounded-[var(--trae-radius-4)] px-3 text-[12px] font-medium transition-colors ' +
+                    'inline-flex h-8 items-center justify-center rounded-[var(--trae-radius-4)] px-3 text-sm font-medium transition-colors ' +
                     (active
                       ? 'bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)]'
                       : 'text-[var(--trae-text-secondary)] hover:text-[var(--trae-text-default)]')
@@ -136,7 +136,7 @@ export function TokenUsageChart() {
               )
             })}
           </div>
-          <span className="text-[12px] text-[var(--trae-text-tertiary)]">
+          <span className="text-sm text-[var(--trae-text-tertiary)]">
             {rangeLabel} · 累计 {fmt(stats.total)} tokens
           </span>
         </div>
@@ -144,11 +144,11 @@ export function TokenUsageChart() {
 
       <div className="mb-4">
         <div className="mb-2 flex items-center gap-4">
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--trae-text-secondary)]">
+          <span className="inline-flex items-center gap-1.5 text-sm text-[var(--trae-text-secondary)]">
             <span className="inline-block h-0.5 w-3 bg-[var(--trae-bg-brand)]" />
             输入（估）
           </span>
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--trae-text-secondary)]">
+          <span className="inline-flex items-center gap-1.5 text-sm text-[var(--trae-text-secondary)]">
             <span className="inline-block h-0.5 w-3 bg-[var(--trae-accent-cyan,#04CBE5)]" />
             输出（估）
           </span>
@@ -193,14 +193,14 @@ export function TokenUsageChart() {
 
       <div className="mb-3 grid grid-cols-1 gap-4 border-t border-[var(--trae-border-neutral-l1)] py-3 md:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--trae-text-tertiary)]">
+          <span className="text-sm text-[var(--trae-text-tertiary)]">
             {rangeLabel}输入 Token（估）
           </span>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-[16px] font-semibold tabular-nums text-[var(--trae-text-default)]">
+            <span className="font-mono text-head font-semibold tabular-nums text-[var(--trae-text-default)]">
               {fmt(inputTokens)}
             </span>
-            <span className="text-[12px] text-[var(--trae-text-secondary)]">{inPct}%</span>
+            <span className="text-sm text-[var(--trae-text-secondary)]">{inPct}%</span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-[var(--trae-bg-overlay-l2)]">
             <div
@@ -210,14 +210,14 @@ export function TokenUsageChart() {
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--trae-text-tertiary)]">
+          <span className="text-sm text-[var(--trae-text-tertiary)]">
             {rangeLabel}输出 Token（估）
           </span>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-[16px] font-semibold tabular-nums text-[var(--trae-text-default)]">
+            <span className="font-mono text-head font-semibold tabular-nums text-[var(--trae-text-default)]">
               {fmt(outputTokens)}
             </span>
-            <span className="text-[12px] text-[var(--trae-text-secondary)]">{outPct}%</span>
+            <span className="text-sm text-[var(--trae-text-secondary)]">{outPct}%</span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-[var(--trae-bg-overlay-l2)]">
             <div
@@ -230,21 +230,21 @@ export function TokenUsageChart() {
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[var(--trae-text-tertiary)]">输入 / 输出比</span>
+          <span className="text-sm text-[var(--trae-text-tertiary)]">输入 / 输出比</span>
           <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-[16px] font-semibold tabular-nums text-[var(--trae-text-default)]">
+            <span className="font-mono text-head font-semibold tabular-nums text-[var(--trae-text-default)]">
               {ratio}
             </span>
-            <span className="text-[12px] text-[var(--trae-text-secondary)]">: 1</span>
+            <span className="text-sm text-[var(--trae-text-secondary)]">: 1</span>
           </div>
-          <span className="text-[12px] text-[var(--trae-text-tertiary)]">
+          <span className="text-sm text-[var(--trae-text-tertiary)]">
             今日 {fmt(stats.today)} · 本周 {fmt(stats.week)}
           </span>
         </div>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-4 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l1)] p-3">
-        <span className="inline-flex items-center gap-1.5 text-[12px] text-[var(--trae-text-secondary)]">
+        <span className="inline-flex items-center gap-1.5 text-sm text-[var(--trae-text-secondary)]">
           <Star className="size-3.5" />
           {rangeLabel}用量
           <span className="font-mono font-semibold tabular-nums text-[var(--trae-text-default)]">
@@ -252,27 +252,27 @@ export function TokenUsageChart() {
           </span>
           tokens
         </span>
-        <span className="font-mono text-[12px] tabular-nums text-[var(--trae-text-tertiary)]">
+        <span className="font-mono text-sm tabular-nums text-[var(--trae-text-tertiary)]">
           历史累计 {fmt(stats.total)}
         </span>
       </div>
 
       <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
         <div className="border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-3 py-2">
-          <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+          <span className="text-caption font-medium uppercase tracking-[0.04em] text-[var(--trae-text-tertiary)]">
             按 Provider 分布
           </span>
         </div>
-        <table className="w-full border-collapse text-[12px]">
+        <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-[var(--trae-border-neutral-l1)]">
-              <th className="px-3 py-2 text-left text-[11px] font-normal text-[var(--trae-text-tertiary)]">
+              <th className="px-3 py-2 text-left text-caption font-normal text-[var(--trae-text-tertiary)]">
                 Provider
               </th>
-              <th className="px-3 py-2 text-right text-[11px] font-normal text-[var(--trae-text-tertiary)]">
+              <th className="px-3 py-2 text-right text-caption font-normal text-[var(--trae-text-tertiary)]">
                 Tokens
               </th>
-              <th className="px-3 py-2 text-right text-[11px] font-normal text-[var(--trae-text-tertiary)]">
+              <th className="px-3 py-2 text-right text-caption font-normal text-[var(--trae-text-tertiary)]">
                 占比
               </th>
             </tr>

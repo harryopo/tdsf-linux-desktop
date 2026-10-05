@@ -174,7 +174,7 @@ function DndTimeRange({
         onChange={(e) => onStartChange(e.target.value)}
         className="set-time-input"
       />
-      <span className="text-[10px] text-[var(--trae-text-tertiary)]">至</span>
+      <span className="text-micro text-[var(--trae-text-tertiary)]">至</span>
       <input
         type="text"
         value={end}

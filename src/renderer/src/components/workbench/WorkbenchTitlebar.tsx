@@ -220,7 +220,7 @@ export function WorkbenchTitlebar({
             <Server className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
             <span
               className={cn(
-                'max-w-[160px] truncate font-mono text-[11px] tabular-nums',
+                'max-w-[160px] truncate font-mono text-caption tabular-nums',
                 connState === 'connected'
                   ? 'text-[var(--trae-text-default)]'
                   : 'text-[var(--trae-text-tertiary)]',
@@ -230,8 +230,8 @@ export function WorkbenchTitlebar({
             </span>
             {activeServer && (
               <>
-                <span className="text-[10px] text-[var(--trae-text-tertiary)]">·</span>
-                <span className="text-[10px] text-[var(--trae-text-secondary)]">
+                <span className="text-micro text-[var(--trae-text-tertiary)]">·</span>
+                <span className="text-micro text-[var(--trae-text-secondary)]">
                   {activeServer.username}
                 </span>
               </>
@@ -250,7 +250,7 @@ export function WorkbenchTitlebar({
                     placeholder="搜索服务器..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-[12px] text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
+                    className="flex-1 bg-transparent text-sm text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
                     autoFocus
                   />
                 </div>
@@ -258,7 +258,7 @@ export function WorkbenchTitlebar({
               {/* 服务器列表 */}
               <div className="max-h-[280px] overflow-y-auto py-1">
                 {filteredServers.length === 0 ? (
-                  <div className="px-3 py-6 text-center text-[11px] text-[var(--trae-text-tertiary)]">
+                  <div className="px-3 py-6 text-center text-caption text-[var(--trae-text-tertiary)]">
                     {servers.length === 0 ? '暂无服务器，请新建连接' : '未找到匹配的服务器'}
                   </div>
                 ) : (
@@ -290,16 +290,16 @@ export function WorkbenchTitlebar({
                           />
                         )}
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] font-medium text-[var(--trae-text-default)]">
+                          <div className="truncate text-md font-medium text-[var(--trae-text-default)]">
                             {srv.name || srv.host}
                           </div>
-                          <div className="mt-0.5 truncate font-mono text-[11px] tabular-nums text-[var(--trae-text-tertiary)]">
+                          <div className="mt-0.5 truncate font-mono text-caption tabular-nums text-[var(--trae-text-tertiary)]">
                             {srv.host}:{srv.port} · {srv.username}
                           </div>
                         </div>
                         <span
                           className={cn(
-                            'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium tabular-nums',
+                            'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium tabular-nums',
                             st === 'connected' && 'bg-[rgba(51,193,146,0.14)] text-[var(--trae-status-success-default)]',
                             st === 'connecting' && 'bg-[rgba(210,157,0,0.14)] text-[var(--trae-status-alert-default)]',
                             st === 'error' && 'bg-[rgba(246,90,90,0.14)] text-[var(--trae-status-error-default)]',
@@ -327,7 +327,7 @@ export function WorkbenchTitlebar({
               <div className="border-t border-[var(--trae-border-neutral-l1)] px-3 py-2.5">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-dashed border-[var(--trae-border-neutral-l2)] py-2 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-bg-brand)] hover:text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l1)]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-dashed border-[var(--trae-border-neutral-l2)] py-2 text-sm text-[var(--trae-text-secondary)] transition-colors hover:border-[var(--trae-bg-brand)] hover:text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l1)]"
                   onClick={() => {
                     setMenuOpen(false)
                     setDialogOpen(true)

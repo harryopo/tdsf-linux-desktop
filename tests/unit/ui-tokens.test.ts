@@ -157,8 +157,8 @@ describe('ui-tokens.css（cc-gui 令牌层）', () => {
     expect(radii.length).toBe(6)
     expect(radii.filter((v) => !allowed.has(v))).toEqual([])
 
-    // 字号：10/11/12/13/13.5/14/15/16
-    expect(scaleOf('--ui-font-').filter((v) => !/^(10|11|12|13|13\.5|14|15|16)px$/.test(v))).toEqual([])
+    // 字号：10/11/12/13/13.5/14/15/16 + 展示档 28（决策页 KPI，原 28px 与 30px 两种合并为一档）
+    expect(scaleOf('--ui-font-').filter((v) => !/^(10|11|12|13|13\.5|14|15|16|28)px$/.test(v))).toEqual([])
 
     // 时长三档 / 层级六档
     expect(scaleOf('--ui-dur-').sort()).toEqual(['150ms', '200ms', '300ms'])
@@ -182,4 +182,52 @@ describe('ui-tokens.css（cc-gui 令牌层）', () => {
 
   // 注释配对（本文件与 tailwind.css 各踩过一次提前闭合）不在这里查：
   // tests/unit/css-comment-balance.test.ts 横扫 src 下全部 CSS，两处各写一遍只会漂移。
+})
+
+describe('字阶单源（阶段 E6）', () => {
+  const RENDERER = path.join(ROOT, 'src/renderer/src')
+
+  function tsxFiles(dir: string, acc: string[] = []): string[] {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) tsxFiles(p, acc)
+      else if (/\.tsx$/.test(e.name)) acc.push(p)
+    }
+    return acc
+  }
+
+  it('组件里不许再出现绕过字阶的 text-[Npx]', () => {
+    const hits = tsxFiles(RENDERER)
+      .filter((f) => /text-\[[0-9.]+px\]/.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => f.split(ROOT).pop().replace(/\\/g, '/'))
+    expect(hits.length, `这些文件还在写死字号：\n${hits.join('\n')}`).toBe(0)
+  })
+
+  it('tailwind 的 --text-* 档位全部回落到 ui-tokens 的字号/行高刻度', () => {
+    const tw = fs.readFileSync(path.join(RENDERER, 'styles/tailwind.css'), 'utf8')
+    const pairs = [...tw.matchAll(/--text-([a-z-]+?)(--line-height)?:\s*([^;]+);/g)]
+    expect(pairs.length).toBeGreaterThan(0)
+    for (const m of pairs) {
+      const isLh = Boolean(m[2])
+      // 展示档的行高是设计定值（36px），其余必须回落刻度
+      const exempt = m[1] === 'display' && isLh
+      if (exempt) continue
+      expect(
+        m[3].trim(),
+        `${isLh ? '行高' : '字号'}档没有回落到 --ui-${isLh ? 'lh' : 'font'}-*：${m[0]}`,
+      ).toMatch(new RegExp(`var\\(--ui-${isLh ? 'lh' : 'font'}-`))
+    }
+  })
+
+  it('字号刻度与行高刻度成对存在（避免字号换了行高没换）', () => {
+    const tw = fs.readFileSync(path.join(RENDERER, 'styles/tailwind.css'), 'utf8')
+    const sizes = [...code.matchAll(/(--ui-font-[a-z]+)\s*:/g)].map((m) => m[1].replace('--ui-font-', ''))
+    expect(sizes.length).toBeGreaterThanOrEqual(9)
+    for (const bare of sizes) {
+      if (bare === 'display') continue // 展示档行高按设计定值 36px，不取比例刻度
+      expect(tw, `--ui-font-${bare} 在 tailwind 里没有成对的 --text-${bare}--line-height`).toContain(
+        `--text-${bare}--line-height`,
+      )
+    }
+  })
 })

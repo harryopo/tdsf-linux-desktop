@@ -15,7 +15,7 @@ export function LoadingState() {
   return (
     <main className="flex h-full w-full flex-col items-center justify-center gap-4 bg-[var(--trae-bg-base-default)]">
       <Loader2 className="h-8 w-8 animate-spin text-[var(--trae-bg-brand)]" />
-      <span className="text-[13px] text-[var(--trae-text-secondary)]">正在加载决策详情...</span>
+      <span className="text-md text-[var(--trae-text-secondary)]">正在加载决策详情...</span>
     </main>
   )
 }

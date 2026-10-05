@@ -22,11 +22,11 @@ export function ErrorState({ message, onRetry }: ErrorStateProps) {
   return (
     <main className="flex h-full w-full flex-col items-center justify-center gap-4 bg-[var(--trae-bg-base-default)]">
       <AlertTriangle className="h-8 w-8 text-[var(--trae-status-alert-default)]" />
-      <span className="text-[13px] text-[var(--trae-text-secondary)]">{message}</span>
+      <span className="text-md text-[var(--trae-text-secondary)]">{message}</span>
       <button
         type="button"
         onClick={onRetry}
-        className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
+        className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-sm text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
       >
         重试
       </button>

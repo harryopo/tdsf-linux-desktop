@@ -131,21 +131,21 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-[var(--trae-status-error-default)]" />
-          <span className="text-[16px] font-semibold text-[var(--trae-text-default)]">高危命令拦截清单</span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-error-default)]">
+          <span className="text-head font-semibold text-[var(--trae-text-default)]">高危命令拦截清单</span>
+          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] px-2 text-micro font-medium text-[var(--trae-status-error-default)]">
             {commands.length} 条
           </span>
           {/* v2.11 去假：仅当全部真实被拦截才显“全部已拦截”，否则如实显示拦截比例 */}
           {allIntercepted ? (
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-success-default)]">
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-[var(--trae-status-success-default)]">
               全部已拦截
             </span>
           ) : interceptedCount > 0 ? (
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-alert-default)]">
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-micro font-medium text-[var(--trae-status-alert-default)]">
               已拦截 {interceptedCount}/{commands.length}
             </span>
           ) : (
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2 text-[10px] font-medium text-[var(--trae-text-tertiary)]">
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2 text-micro font-medium text-[var(--trae-text-tertiary)]">
               规则命中
             </span>
           )}
@@ -155,7 +155,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
             type="button"
             data-dom-id="toggle-danger-panel"
             onClick={() => setExpanded((e) => !e)}
-            className="flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-1 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+            className="flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-1 text-micro text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             aria-label="展开或收起拦截清单"
             aria-expanded={expanded}
           >
@@ -168,7 +168,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
             type="button"
             data-dom-id="close-danger-panel"
             onClick={() => setClosed(true)}
-            className="flex items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 py-1 text-[10px] text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+            className="flex items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 py-1 text-micro text-[var(--trae-text-tertiary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             aria-label="关闭拦截清单面板"
             title="关闭面板"
           >
@@ -185,27 +185,27 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
             <div className="text-center">
               <div className="mb-1.5 flex items-center justify-center gap-1.5">
                 <Shield className="h-3.5 w-3.5 text-[var(--trae-status-error-default)]" />
-                <span className="text-[10px] tracking-[0.04em] text-[var(--trae-text-secondary)]">已拦截</span>
+                <span className="text-micro tracking-[0.04em] text-[var(--trae-text-secondary)]">已拦截</span>
               </div>
-              <div className="font-mono text-[30px] font-semibold leading-none tabular-nums text-[var(--trae-status-error-default)]">
+              <div className="font-mono text-display font-semibold leading-none tabular-nums text-[var(--trae-status-error-default)]">
                 {commands.length}
               </div>
-              <div className="mt-1 text-[10px] text-[var(--trae-text-tertiary)]">条高危命令</div>
+              <div className="mt-1 text-micro text-[var(--trae-text-tertiary)]">条高危命令</div>
             </div>
 
             <div className="h-px bg-[var(--trae-border-neutral-l1)]" />
 
             <div>
-              <div className="mb-3 text-[11px] tracking-[0.08em] text-[var(--trae-text-tertiary)]">危险等级</div>
+              <div className="mb-3 text-caption tracking-[0.08em] text-[var(--trae-text-tertiary)]">危险等级</div>
 
               {/* 高危 */}
               <div className="mb-3">
                 <div className="mb-1.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-[10px] text-[var(--trae-text-secondary)]">
+                  <span className="flex items-center gap-1.5 text-micro text-[var(--trae-text-secondary)]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--trae-status-error-default)]" />
                     高危
                   </span>
-                  <span className="font-mono text-[12px] font-semibold tabular-nums text-[var(--trae-status-error-default)]">
+                  <span className="font-mono text-sm font-semibold tabular-nums text-[var(--trae-status-error-default)]">
                     {highCmds.length}
                   </span>
                 </div>
@@ -220,11 +220,11 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
               {/* 中危 */}
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-[10px] text-[var(--trae-text-secondary)]">
+                  <span className="flex items-center gap-1.5 text-micro text-[var(--trae-text-secondary)]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[var(--trae-status-alert-default)]" />
                     中危
                   </span>
-                  <span className="font-mono text-[12px] font-semibold tabular-nums text-[var(--trae-status-alert-default)]">
+                  <span className="font-mono text-sm font-semibold tabular-nums text-[var(--trae-status-alert-default)]">
                     {midCmds.length}
                   </span>
                 </div>
@@ -240,8 +240,8 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
             <div className="h-px bg-[var(--trae-border-neutral-l1)]" />
 
             <div className="text-center">
-              <div className="font-mono text-[11px] tracking-[0.08em] text-[var(--trae-text-tertiary)]">RULE ENGINE</div>
-              <div className="mt-1 font-mono text-[12px] tabular-nums text-[var(--trae-text-secondary)]">
+              <div className="font-mono text-caption tracking-[0.08em] text-[var(--trae-text-tertiary)]">RULE ENGINE</div>
+              <div className="mt-1 font-mono text-sm tabular-nums text-[var(--trae-text-secondary)]">
                 R-001 ~ R-{String(commands.length).padStart(3, '0')}
               </div>
             </div>
@@ -254,8 +254,8 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
               <div>
                 <div className="mb-3 flex items-center gap-2 pl-1">
                   <span className="h-3.5 w-[3px] rounded-r bg-[var(--trae-status-error-default)]" />
-                  <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">高危命令</span>
-                  <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-error-default)]">
+                  <span className="text-sm font-semibold text-[var(--trae-text-default)]">高危命令</span>
+                  <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] px-2 text-micro font-medium text-[var(--trae-status-error-default)]">
                     {highCmds.length} 条
                   </span>
                   <span className="h-px flex-1 bg-[var(--trae-border-neutral-l1)]" />
@@ -273,8 +273,8 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
               <div>
                 <div className="mb-3 flex items-center gap-2 pl-1">
                   <span className="h-3.5 w-[3px] rounded-r bg-[var(--trae-status-alert-default)]" />
-                  <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">中危命令</span>
-                  <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-alert-default)]">
+                  <span className="text-sm font-semibold text-[var(--trae-text-default)]">中危命令</span>
+                  <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-micro font-medium text-[var(--trae-status-alert-default)]">
                     {midCmds.length} 条
                   </span>
                   <span className="h-px flex-1 bg-[var(--trae-border-neutral-l1)]" />
@@ -293,7 +293,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
       {/* 底部：规则说明（v2.6 去假：移除 mock“清空列表”按钮 ——
           拦截记录属审计范围不应可清空，且原按钮仅改本地 state 刷新即复原） */}
       <div className="mt-4 flex items-center justify-between border-t border-[var(--trae-border-neutral-l1)] pt-4">
-        <span className="flex items-center gap-2 text-[10px] text-[var(--trae-text-tertiary)]">
+        <span className="flex items-center gap-2 text-micro text-[var(--trae-text-tertiary)]">
           <Shield className="h-3 w-3 text-[var(--trae-text-tertiary)]" />
           规则引擎 · {commands.length} 条规则 · 对应 L1 预拦截层 · 匹配后阻断执行并记录审计
         </span>
@@ -323,26 +323,26 @@ function DangerCard({ cmd }: { cmd: DangerCommand }) {
   return (
     <div className={`danger-card rounded-r-[var(--trae-radius-4)] bg-[var(--trae-bg-base-tertiary)] p-2 transition-colors hover:bg-[var(--trae-bg-overlay-l2)] ${style.borderColor}`}>
       <div className="flex items-center gap-2">
-        <span className="shrink-0 font-mono text-[11px] tracking-[0.04em] tabular-nums text-[var(--trae-text-tertiary)]">
+        <span className="shrink-0 font-mono text-caption tracking-[0.04em] tabular-nums text-[var(--trae-text-tertiary)]">
           {cmd.ruleId}
         </span>
-        <code className="min-w-0 flex-1 overflow-hidden overflow-ellipsis whitespace-nowrap rounded-[var(--trae-radius-2)] bg-[var(--trae-bg-base-default)] px-2 py-0.5 font-mono text-[10px] leading-[1.4]">
+        <code className="min-w-0 flex-1 overflow-hidden overflow-ellipsis whitespace-nowrap rounded-[var(--trae-radius-2)] bg-[var(--trae-bg-base-default)] px-2 py-0.5 font-mono text-micro leading-[1.4]">
           {renderSegments(cmd.segments)}
         </code>
-        <span className={`inline-flex h-5 shrink-0 items-center rounded-[var(--trae-radius-4)] border px-1.5 text-[10px] font-medium ${style.tagClass}`}>
+        <span className={`inline-flex h-5 shrink-0 items-center rounded-[var(--trae-radius-4)] border px-1.5 text-micro font-medium ${style.tagClass}`}>
           {style.tagText}
         </span>
       </div>
       <div className="mt-1 flex items-center justify-between">
-        <span className="text-[10px] text-[var(--trae-text-secondary)]">{cmd.threat}</span>
+        <span className="text-micro text-[var(--trae-text-secondary)]">{cmd.threat}</span>
         {/* v2.11 去假：按真实拦截状态渲染（intercepted 来自 card.risk.blocked） */}
         {cmd.intercepted ? (
-          <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--trae-status-success-default)]">
+          <span className="flex shrink-0 items-center gap-1 text-micro text-[var(--trae-status-success-default)]">
             <Check className="h-3 w-3 text-[var(--trae-status-success-default)]" />
             已拦截
           </span>
         ) : (
-          <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--trae-status-alert-default)]">
+          <span className="flex shrink-0 items-center gap-1 text-micro text-[var(--trae-status-alert-default)]">
             <AlertTriangle className="h-3 w-3 text-[var(--trae-status-alert-default)]" />
             已放行
           </span>

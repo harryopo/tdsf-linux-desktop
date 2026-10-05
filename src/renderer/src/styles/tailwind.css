@@ -104,6 +104,8 @@
   --text-title--line-height: var(--ui-lh-snug);
   --text-head: var(--ui-font-head);
   --text-head--line-height: var(--ui-lh-tight);
+  --text-display: var(--ui-font-display);
+  --text-display--line-height: 36px; /* 与决策页原 leading-[36px] 等值，随档位成对给出 */
 
   /* 原子尺寸与间距步长：Tailwind 的间距工具类默认 0.25rem，这里显式钉成 4px，
      与 ui-tokens 的 4 步进一致，组件里就不该再出现写死的 px 间距 */

@@ -50,21 +50,21 @@ export function CommandTerminal({
         </div>
         <div className="flex items-center gap-1.5">
           <Terminal className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-          <span className="font-mono text-[10px] text-[var(--trae-text-secondary)]">
+          <span className="font-mono text-micro text-[var(--trae-text-secondary)]">
             决策命令 · #{card.id}
           </span>
         </div>
         {waiting && (
-          <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
+          <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
             等待确认
           </span>
         )}
       </div>
       {/* 命令展示 */}
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] px-4 py-3 font-mono text-[14px] leading-[1.8]">
+        <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] px-4 py-3 font-mono text-composer leading-[1.8]">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[12px] text-[var(--trae-text-tertiary)]">$</span>
+            <span className="font-mono text-sm text-[var(--trae-text-tertiary)]">$</span>
             <code className="flex-1 break-all">
               {segments.map((seg, i) => (
                 <span
@@ -91,7 +91,7 @@ export function CommandTerminal({
           </div>
         </div>
         {card.fixDescription && (
-          <p className="text-[11px] leading-[1.6] text-[var(--trae-text-secondary)]">
+          <p className="text-caption leading-[1.6] text-[var(--trae-text-secondary)]">
             {card.fixDescription}
           </p>
         )}
@@ -102,7 +102,7 @@ export function CommandTerminal({
             onClick={onAccept}
             disabled={disabled}
             data-dom-id="accept-execute"
-            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-50"
+            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-50"
           >
             <Check className="h-3.5 w-3.5" />
             采纳并执行
@@ -112,7 +112,7 @@ export function CommandTerminal({
             onClick={onModify}
             disabled={disabled}
             data-dom-id="modify-cmd"
-            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] disabled:opacity-50"
+            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] disabled:opacity-50"
           >
             <Edit3 className="h-3.5 w-3.5" />
             修改
@@ -122,7 +122,7 @@ export function CommandTerminal({
             onClick={onReject}
             disabled={confirming}
             data-dom-id="reject-cmd"
-            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.06)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-status-error-default)] transition-colors hover:bg-[rgba(246,90,90,0.12)] disabled:opacity-50"
+            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.06)] px-3 py-1.5 text-sm font-medium text-[var(--trae-status-error-default)] transition-colors hover:bg-[rgba(246,90,90,0.12)] disabled:opacity-50"
           >
             <X className="h-3.5 w-3.5" />
             拒绝

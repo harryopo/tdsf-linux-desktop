@@ -247,7 +247,7 @@ export function RiskSettings() {
 
         {/* Card 1.5: v2.0 Phase C Task C.6 命令审批模式（三态权限） */}
         <SettingsCard icon={Shield} title="命令审批模式" tag={PERMISSION_MODES.find((m) => m.value === permissionMode)?.label ?? '全部审批'}>
-          <p className="pb-2 pt-1 text-[11px] leading-[16px] text-[var(--trae-text-secondary)]">
+          <p className="pb-2 pt-1 text-caption leading-[16px] text-[var(--trae-text-secondary)]">
             控制运维 Agent 执行命令时是否需要人工审批。建议生产环境使用「全部审批」或「智能自动」。
           </p>
           <div className="set-radiogroup">
@@ -279,7 +279,7 @@ export function RiskSettings() {
                     </span>
                     <span
                       className={cn(
-                        'inline-flex h-4 items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 text-[9px] font-medium',
+                        'inline-flex h-4 items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 text-micro font-medium',
                         opt.value === 'never'
                           ? 'bg-[var(--trae-status-error)]/10 text-[var(--trae-status-error)]'
                           : opt.value === 'auto'
@@ -298,7 +298,7 @@ export function RiskSettings() {
             })}
           </div>
           {permissionMode === 'never' && (
-            <div className="mb-1 mt-0.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error)]/30 bg-[var(--trae-status-error)]/10 px-3 py-2 text-[11px] text-[var(--trae-status-error)]">
+            <div className="mb-1 mt-0.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error)]/30 bg-[var(--trae-status-error)]/10 px-3 py-2 text-caption text-[var(--trae-status-error)]">
               风险：自动放行模式——所有命令将跳过审批直接执行，仅建议在隔离的演示/沙箱环境使用。
             </div>
           )}
@@ -368,7 +368,7 @@ export function RiskSettings() {
               新增规则
             </button>
             {ruleFeedback && (
-              <span className="text-[10px] text-[var(--trae-status-success-default)]">
+              <span className="text-micro text-[var(--trae-status-success-default)]">
                 {ruleFeedback}
               </span>
             )}

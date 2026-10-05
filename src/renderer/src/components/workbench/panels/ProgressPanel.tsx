@@ -22,7 +22,7 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
         <button
           type="button"
           onClick={() => onAction?.('pauseExec')}
-          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-sm text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
         >
           <Square className="size-3" />
           停止
@@ -30,7 +30,7 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
         <button
           type="button"
           onClick={() => onAction?.('rollbackExec')}
-          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2.5 text-[12px] text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2.5 text-sm text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
         >
           <RotateCcw className="size-3" />
           回滚
@@ -51,13 +51,13 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
               <>
                 <span className="ai-progress-pulse-step" />
                 <span className="flex-1 text-[var(--trae-text-brand)]">{step.label}</span>
-                {step.hint && <span className="text-[12px] text-[var(--trae-text-brand)]">{step.hint}</span>}
+                {step.hint && <span className="text-sm text-[var(--trae-text-brand)]">{step.hint}</span>}
               </>
             ) : (
               <>
                 <span className="ai-progress-pending" />
                 <span className="flex-1 text-[var(--trae-text-tertiary)]">{step.label}</span>
-                {step.hint && <span className="text-[12px] text-[var(--trae-text-tertiary)]">{step.hint}</span>}
+                {step.hint && <span className="text-sm text-[var(--trae-text-tertiary)]">{step.hint}</span>}
               </>
             )}
           </div>

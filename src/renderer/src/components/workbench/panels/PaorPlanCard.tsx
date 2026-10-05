@@ -46,10 +46,10 @@ const PaorPlanCard: FC<{
       {/* 标题 + 进度 */}
       <div className="flex items-center gap-2">
         <ListChecks className="size-4 shrink-0 text-[var(--trae-text-brand)]" />
-        <span className="flex-1 truncate text-[13px] font-semibold text-[var(--trae-text-default)]" title={plan.goal}>
+        <span className="flex-1 truncate text-md font-semibold text-[var(--trae-text-default)]" title={plan.goal}>
           {plan.goal || '任务计划'}
         </span>
-        <span className="shrink-0 text-[11px] tabular-nums text-[var(--trae-text-tertiary)]">
+        <span className="shrink-0 text-caption tabular-nums text-[var(--trae-text-tertiary)]">
           {progress.done}/{progress.total}
         </span>
       </div>
@@ -68,7 +68,7 @@ const PaorPlanCard: FC<{
             <li key={i} className="flex items-start gap-2 py-0.5">
               <span className="mt-0.5 shrink-0">{STEP_ICON[st]}</span>
               <span
-                className={`flex-1 text-[12px] leading-[1.5] ${
+                className={`flex-1 text-sm leading-[1.5] ${
                   st === 'done'
                     ? 'text-[var(--trae-text-tertiary)] line-through'
                     : st === 'running'
@@ -78,7 +78,7 @@ const PaorPlanCard: FC<{
               >
                 {step}
               </span>
-              <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-[var(--trae-text-tertiary)]">
+              <span className="mt-0.5 shrink-0 text-micro tabular-nums text-[var(--trae-text-tertiary)]">
                 {STEP_LABEL[st]}
               </span>
             </li>
@@ -87,7 +87,7 @@ const PaorPlanCard: FC<{
       </ol>
       {/* 验证方法（若有） */}
       {plan.verification && (
-        <div className="border-t border-[var(--trae-border-neutral-l1)] pt-2 text-[11px] leading-[1.5] text-[var(--trae-text-tertiary)]">
+        <div className="border-t border-[var(--trae-border-neutral-l1)] pt-2 text-caption leading-[1.5] text-[var(--trae-text-tertiary)]">
           <span className="font-medium text-[var(--trae-text-secondary)]">验证：</span>
           {plan.verification}
         </div>

@@ -157,12 +157,12 @@ export function ExecutionResult({
           </div>
           <div className="flex items-center gap-1.5">
             <Terminal className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-            <span className="font-mono text-[10px] text-[var(--trae-text-secondary)]">
+            <span className="font-mono text-micro text-[var(--trae-text-secondary)]">
               决策命令 · {decisionId}
             </span>
           </div>
           {verified && (
-            <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-success-default)]">
+            <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-[var(--trae-status-success-default)]">
               已校验
             </span>
           )}
@@ -171,9 +171,9 @@ export function ExecutionResult({
         {/* 终端主体 */}
         <div className="flex flex-1 flex-col gap-3 p-4">
           {/* 命令块 */}
-          <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-code-block)] px-4 py-3 font-mono text-[15px] leading-[1.8]">
+          <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-code-block)] px-4 py-3 font-mono text-title leading-[1.8]">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[12px] text-[var(--trae-text-tertiary)]">$</span>
+              <span className="font-mono text-sm text-[var(--trae-text-tertiary)]">$</span>
               <span className="flex-1">
                 {commandSegments.map((seg, i) => (
                   <span key={i} className={CMD_COLORS[seg.type]}>
@@ -193,25 +193,25 @@ export function ExecutionResult({
               </button>
             </div>
             {commandComment && (
-              <div className="mt-1 pl-4 text-[12px] text-[var(--trae-text-tertiary)]"># {commandComment}</div>
+              <div className="mt-1 pl-4 text-sm text-[var(--trae-text-tertiary)]"># {commandComment}</div>
             )}
           </div>
 
           {/* 影响范围 / 预计耗时（有真实值才显示）/ 回滚方案 */}
           <div className={`grid gap-2 ${duration ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">影响范围</span>
-              <span className="text-[12px] font-medium text-[var(--trae-text-default)]">{impact}</span>
+              <span className="text-micro uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">影响范围</span>
+              <span className="text-sm font-medium text-[var(--trae-text-default)]">{impact}</span>
             </div>
             {duration && (
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">预计耗时</span>
-                <span className="font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">{duration}</span>
+                <span className="text-micro uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">预计耗时</span>
+                <span className="font-mono text-sm font-medium tabular-nums text-[var(--trae-text-default)]">{duration}</span>
               </div>
             )}
             <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">回滚方案</span>
-              <span className="font-mono text-[12px] font-medium text-[var(--trae-text-default)]">{rollback}</span>
+              <span className="text-micro uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)]">回滚方案</span>
+              <span className="font-mono text-sm font-medium text-[var(--trae-text-default)]">{rollback}</span>
             </div>
           </div>
 
@@ -219,7 +219,7 @@ export function ExecutionResult({
           {mode === 'readonly' ? (
             <div className="mt-auto flex items-center gap-2">
               {statusLabel && (
-                <span className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-3 text-[12px] font-medium text-[var(--trae-status-success-default)]">
+                <span className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-3 text-sm font-medium text-[var(--trae-status-success-default)]">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   {statusLabel}
                 </span>
@@ -230,7 +230,7 @@ export function ExecutionResult({
                 onClick={onRerun}
                 disabled={rerunning || !canRerun}
                 title={canRerun ? '把该命令重新发送到工作台终端执行（含前置预检）' : '需先连接 SSH 服务器'}
-                className="ml-auto inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-4 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="ml-auto inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-4 py-1.5 text-sm font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {rerunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                 {rerunning ? '发送中…' : '重新在终端执行'}
@@ -242,7 +242,7 @@ export function ExecutionResult({
               type="button"
               data-dom-id="accept-execute"
               onClick={onAccept}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
             >
               <Check className="h-3.5 w-3.5" />
               采纳执行
@@ -251,7 +251,7 @@ export function ExecutionResult({
               type="button"
               data-dom-id="modify-cmd"
               onClick={onModify}
-              className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
             >
               <Edit3 className="h-3.5 w-3.5" />
               修改
@@ -260,7 +260,7 @@ export function ExecutionResult({
               type="button"
               data-dom-id="reject-cmd"
               onClick={onReject}
-              className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-[12px] font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-default)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)]"
             >
               <X className="h-3.5 w-3.5" />
               拒绝
@@ -275,31 +275,31 @@ export function ExecutionResult({
         {/* 标题栏 */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-[16px] font-semibold text-[var(--trae-text-default)]">决策审计日志</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
+            <span className="text-head font-semibold text-[var(--trae-text-default)]">决策审计日志</span>
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
               链式校验
             </span>
           </div>
-          <span className="text-[10px] text-[var(--trae-text-tertiary)]">SHA-256 链式哈希 · 逐行可验证篪改</span>
+          <span className="text-micro text-[var(--trae-text-tertiary)]">SHA-256 链式哈希 · 逐行可验证篪改</span>
         </div>
 
         {/* 表格 */}
         <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
           {/* 表头 */}
           <div className="flex items-center gap-4 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-4 py-2">
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_160px]">
+            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_160px]">
               时间戳
             </span>
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_100px]">
+            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_100px]">
               操作者
             </span>
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-1 min-w-0">
+            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-1 min-w-0">
               动作
             </span>
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_120px]">
+            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_120px]">
               哈希
             </span>
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_64px] text-right">
+            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-tertiary)] flex-[0_0_64px] text-right">
               结果
             </span>
           </div>
@@ -317,31 +317,31 @@ export function ExecutionResult({
                 }`}
               >
                 <span
-                  className={`font-mono text-[10px] tabular-nums flex-[0_0_160px] ${
+                  className={`font-mono text-micro tabular-nums flex-[0_0_160px] ${
                     isPending ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-secondary)]'
                   }`}
                 >
                   {row.timestamp}
                 </span>
                 <span
-                  className={`text-[10px] flex-[0_0_100px] ${
+                  className={`text-micro flex-[0_0_100px] ${
                     isPending ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-secondary)]'
                   }`}
                 >
                   {row.operator}
                 </span>
                 <span
-                  className={`text-[10px] flex-1 min-w-0 ${
+                  className={`text-micro flex-1 min-w-0 ${
                     isPending ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-default)]'
                   }`}
                 >
                   {row.action}
                 </span>
-                <span className="font-mono text-[11px] flex-[0_0_120px] overflow-hidden overflow-ellipsis whitespace-nowrap text-[var(--trae-text-tertiary)]">
+                <span className="font-mono text-caption flex-[0_0_120px] overflow-hidden overflow-ellipsis whitespace-nowrap text-[var(--trae-text-tertiary)]">
                   {row.hash}
                 </span>
                 <span className="flex flex-[0_0_64px] justify-end">
-                  <span className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-1.5 text-[10px] font-medium ${tag.className}`}>
+                  <span className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-1.5 text-micro font-medium ${tag.className}`}>
                     {tag.text}
                   </span>
                 </span>

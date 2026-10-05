@@ -52,8 +52,8 @@ export function PCR5Result({ sources, fusedValue, conflictK }: PCR5ResultProps) 
             <Icon className="h-4 w-4 shrink-0 text-[var(--trae-text-secondary)]" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[12px] font-medium text-[var(--trae-text-default)]">{src.label}</span>
-                <span className="text-[10px] text-[var(--trae-text-tertiary)]">{src.desc}</span>
+                <span className="text-sm font-medium text-[var(--trae-text-default)]">{src.label}</span>
+                <span className="text-micro text-[var(--trae-text-tertiary)]">{src.desc}</span>
               </div>
               <div className="mt-1 h-[3px] overflow-hidden rounded-full bg-[var(--trae-bg-overlay-l2)]">
                 <div
@@ -62,7 +62,7 @@ export function PCR5Result({ sources, fusedValue, conflictK }: PCR5ResultProps) 
                 />
               </div>
             </div>
-            <span className="shrink-0 font-mono text-[12px] font-semibold tabular-nums text-[var(--trae-text-brand)]">
+            <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--trae-text-brand)]">
               {src.weight.toFixed(2)}
             </span>
           </div>
@@ -73,15 +73,15 @@ export function PCR5Result({ sources, fusedValue, conflictK }: PCR5ResultProps) 
       <div className="mt-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-4 py-3">
         <div className="mb-1.5 flex items-center gap-2">
           <Zap className="h-3.5 w-3.5 text-[var(--trae-text-brand)]" />
-          <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--trae-text-secondary)]">
+          <span className="text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-secondary)]">
             D-S 融合公式 · PCR5 冲突再分配
           </span>
         </div>
-        <code className="font-mono text-[12px] tabular-nums text-[var(--trae-text-brand)]">
+        <code className="font-mono text-sm tabular-nums text-[var(--trae-text-brand)]">
           m(A) = Σ m<sub>i</sub>(A) ± K(冲突项) ={' '}
           <strong className="font-semibold">{fusedValue.toFixed(2)}</strong>
         </code>
-        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-[var(--trae-text-tertiary)]">
+        <div className="mt-1.5 flex items-center gap-2 text-micro text-[var(--trae-text-tertiary)]">
           <span className="font-mono">K = {conflictK.toFixed(3)}</span>
           <span className="text-[var(--trae-text-tertiary)]">·</span>
           <span>PCR5 按比例分配冲突质量</span>

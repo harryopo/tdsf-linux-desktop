@@ -73,7 +73,7 @@ function EmptyStateView({ meta, onBack }: { meta: EmptyMeta; onBack: () => void 
     <button
       type="button"
       onClick={onBack}
-      className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
+      className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-sm text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
     >
       <ArrowLeft className="h-3.5 w-3.5" />
       返回工作台
@@ -443,10 +443,10 @@ export function DecisionDetailPage() {
           <div className="flex items-center gap-3">
             <Sparkles className="h-6 w-6 shrink-0 text-[var(--trae-bg-brand)]" />
             <div className="flex flex-col gap-1">
-              <span className="text-[28px] font-semibold leading-[36px] text-[var(--trae-text-default)]">
+              <span className="text-display font-semibold text-[var(--trae-text-default)]">
                 可信决策内核
               </span>
-              <span className="text-[11px] text-[var(--trae-text-tertiary)]">
+              <span className="text-caption text-[var(--trae-text-tertiary)]">
                 Human-in-the-Loop · 可解释 · 可审计 · #{id}
               </span>
             </div>
@@ -456,7 +456,7 @@ export function DecisionDetailPage() {
             data-dom-id="back-workbench"
             onClick={() => navigate('/workbench')}
             style={{ display: 'none' }}
-            className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-[11px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+            className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-caption text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             aria-label="返回工作台"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -468,29 +468,29 @@ export function DecisionDetailPage() {
         <div className="flex flex-wrap items-center gap-3 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] px-3 py-2">
           <div className="flex items-center gap-1.5">
             <Fingerprint className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-            <span className="font-mono text-[10px] text-[var(--trae-text-secondary)]">决策ID</span>
-            <span className="font-mono text-[12px] font-medium tabular-nums text-[var(--trae-text-default)]">
+            <span className="font-mono text-micro text-[var(--trae-text-secondary)]">决策ID</span>
+            <span className="font-mono text-sm font-medium tabular-nums text-[var(--trae-text-default)]">
               #{card.id}
             </span>
           </div>
           <span className="h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
           <div className="flex items-center gap-1.5">
             <Clock className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-            <span className="font-mono text-[10px] tabular-nums text-[var(--trae-text-secondary)]">
+            <span className="font-mono text-micro tabular-nums text-[var(--trae-text-secondary)]">
               {timeStr}
             </span>
           </div>
           <span className="h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
           <div className="flex items-center gap-1.5">
             <Activity className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-            <span className="text-[10px] text-[var(--trae-text-secondary)]">场景</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
+            <span className="text-micro text-[var(--trae-text-secondary)]">场景</span>
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
               {card.problem.slice(0, 20)}
             </span>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
-            <span className="text-[10px] text-[var(--trae-text-tertiary)]">紧急程度</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-[10px] font-medium text-[var(--trae-status-alert-default)]">
+            <span className="text-micro text-[var(--trae-text-tertiary)]">紧急程度</span>
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-micro font-medium text-[var(--trae-status-alert-default)]">
               {riskMeta.urgency}
             </span>
           </div>
@@ -501,7 +501,7 @@ export function DecisionDetailPage() {
               onClick={() => navigate('/knowledge')}
               data-dom-id="goto-related-knowledge"
               aria-label="跳转到关联知识库"
-              className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+              className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 text-micro text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             >
               <FileText className="h-3 w-3" />
               关联知识
@@ -511,7 +511,7 @@ export function DecisionDetailPage() {
               onClick={() => navigate('/history')}
               data-dom-id="goto-history-decisions"
               aria-label="跳转到历史决策"
-              className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+              className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 text-micro text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             >
               <Clock className="h-3 w-3" />
               历史决策
@@ -521,7 +521,7 @@ export function DecisionDetailPage() {
               onClick={() => navigate('/logs')}
               data-dom-id="goto-system-logs"
               aria-label="跳转到系统日志"
-              className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 text-[10px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+              className="inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] px-2 py-0.5 text-micro text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
             >
               <ScrollText className="h-3 w-3" />
               系统日志
@@ -569,12 +569,12 @@ export function DecisionDetailPage() {
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-[var(--trae-text-brand)]" />
-              <span className="text-[16px] font-semibold text-[var(--trae-text-default)]">六源证据融合</span>
-              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-[10px] font-medium text-[var(--trae-text-brand)]">
+              <span className="text-head font-semibold text-[var(--trae-text-default)]">六源证据融合</span>
+              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
                 D-S 证据理论
               </span>
             </div>
-            <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+            <span className="text-micro text-[var(--trae-text-tertiary)]">
               Dempster-Shafer · {credibility ? `规则: ${credibility.ruleUsed}` : '透明可追溯'}
             </span>
           </div>
@@ -605,7 +605,7 @@ export function DecisionDetailPage() {
           type="button"
           onClick={() => void handleExportHtml()}
           aria-label="导出 HTML 报告"
-          className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-[12px] text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
+          className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-sm text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] active:bg-[var(--trae-bg-overlay-l3)] active:text-[var(--trae-text-default)]"
         >
           <FileDown className="h-3.5 w-3.5" />
           导出 HTML 报告
@@ -617,7 +617,7 @@ export function DecisionDetailPage() {
         <div className="flex items-center gap-4">
           <div className="flex shrink-0 items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-[var(--trae-bg-brand)]" />
-            <span className="text-[10px] text-[var(--trae-text-secondary)]">Agent 工作流</span>
+            <span className="text-micro text-[var(--trae-text-secondary)]">Agent 工作流</span>
           </div>
           <div className="flex flex-1 items-center gap-2">
             {workflowSteps.map((step, idx) => (
@@ -639,7 +639,7 @@ export function DecisionDetailPage() {
                     <span className="h-2 w-2 rounded-full border border-[var(--trae-border-neutral-l2)] bg-transparent" />
                   )}
                   <span
-                    className={`text-[10px] ${
+                    className={`text-micro ${
                       step.status === 'in-progress'
                         ? 'font-medium text-[var(--trae-text-brand)]'
                         : step.status === 'pending'
@@ -660,7 +660,7 @@ export function DecisionDetailPage() {
               </div>
             ))}
           </div>
-          <span className="shrink-0 font-mono text-[12px] tabular-nums text-[var(--trae-text-secondary)]">
+          <span className="shrink-0 font-mono text-sm tabular-nums text-[var(--trae-text-secondary)]">
             {completedSteps} / 7
           </span>
         </div>
@@ -668,7 +668,7 @@ export function DecisionDetailPage() {
 
       {/* 操作反馈浮层 */}
       {actionFeedback && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-4 py-2 text-[12px] font-medium text-[var(--trae-text-brand)] shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-4 py-2 text-sm font-medium text-[var(--trae-text-brand)] shadow-lg">
           {actionFeedback}
         </div>
       )}
@@ -697,7 +697,7 @@ export function DecisionDetailPage() {
         focusTriggerAfterClose
       >
         <div className="flex flex-col gap-2 py-2">
-          <label htmlFor="modify-fix-command" className="text-[12px] text-[var(--trae-text-secondary)]">
+          <label htmlFor="modify-fix-command" className="text-sm text-[var(--trae-text-secondary)]">
             修复命令（提交后将以本命令执行变更）
           </label>
           <Input.TextArea
@@ -708,10 +708,10 @@ export function DecisionDetailPage() {
             autoSize={{ minRows: 2, maxRows: 6 }}
             disabled={confirming}
             autoFocus
-            className="font-mono text-[12px]"
+            className="font-mono text-sm"
             aria-label="修改后的修复命令"
           />
-          <p className="text-[11px] text-[var(--trae-text-tertiary)]">
+          <p className="text-caption text-[var(--trae-text-tertiary)]">
             提示：修改命令后将重新提交人工审批流程；按 ESC 可取消
           </p>
         </div>

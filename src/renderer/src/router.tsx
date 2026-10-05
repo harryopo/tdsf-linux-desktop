@@ -116,7 +116,7 @@ const CalibrationSettings = lazy(() =>
 function PageLoading() {
   return (
     <div className="flex h-full w-full items-center justify-center bg-[var(--trae-bg-base-default)] text-[var(--trae-text-tertiary)]">
-      <span className="text-[13px]">加载中...</span>
+      <span className="text-md">加载中...</span>
     </div>
   )
 }

@@ -196,7 +196,7 @@ export function SchedulerPanel() {
     return (
       <SettingsCard icon={Clock} title="定时任务" tag="scheduler">
         <div
-          className="flex items-center justify-center py-6 text-[12px] text-[var(--trae-text-tertiary)]"
+          className="flex items-center justify-center py-6 text-sm text-[var(--trae-text-tertiary)]"
           role="status"
         >
           请在桌面应用中查看定时任务
@@ -231,21 +231,21 @@ export function SchedulerPanel() {
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[12px] font-semibold text-[var(--trae-text-default)]">
+                    <span className="text-sm font-semibold text-[var(--trae-text-default)]">
                       {meta.name}
                     </span>
-                    <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+                    <span className="text-micro text-[var(--trae-text-tertiary)]">
                       {meta.nameEn}
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <code
-                      className="text-[11px] text-[var(--trae-text-tertiary)]"
+                      className="text-caption text-[var(--trae-text-tertiary)]"
                       style={{ fontFamily: 'var(--trae-font-family-mono)' }}
                     >
                       {meta.cron}
                     </code>
-                    <span className="text-[10px] text-[var(--trae-text-tertiary)]">
+                    <span className="text-micro text-[var(--trae-text-tertiary)]">
                       · {meta.cronDescription}
                     </span>
                   </div>
@@ -254,7 +254,7 @@ export function SchedulerPanel() {
                   role="status"
                   aria-label={`任务状态: ${statusStyle.label}`}
                   className={
-                    'inline-flex h-5 items-center gap-1 rounded-full px-2 text-[10px] font-medium' +
+                    'inline-flex h-5 items-center gap-1 rounded-full px-2 text-micro font-medium' +
                     (isRunning ? ' animate-pulse' : '')
                   }
                   style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}
@@ -269,7 +269,7 @@ export function SchedulerPanel() {
               </div>
 
               {/* 行 2：上次执行 + 下次执行 */}
-              <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+              <div className="mt-2 grid grid-cols-2 gap-2 text-micro">
                 <div className="flex items-center gap-1 text-[var(--trae-text-secondary)]">
                   <span className="text-[var(--trae-text-tertiary)]">上次:</span>
                   <span className="tabular-nums">{formatTime(task?.lastRunAt ?? null)}</span>
@@ -288,7 +288,7 @@ export function SchedulerPanel() {
 
               {/* 行 3：上次结果摘要 + 立即触发按钮 */}
               <div className="mt-1.5 flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1 truncate text-[11px] text-[var(--trae-text-secondary)]">
+                <div className="min-w-0 flex-1 truncate text-caption text-[var(--trae-text-secondary)]">
                   {lastSuccess === false && lastError ? (
                     <span className="text-[var(--trae-status-error-default)]">{lastError}</span>
                   ) : (

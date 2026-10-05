@@ -180,9 +180,9 @@ const CommandPalette: FC<CommandPaletteProps> = ({ visible, onClose }) => {
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="搜索知识库、历史决策..."
-            className="flex-1 bg-transparent text-[14px] text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
+            className="flex-1 bg-transparent text-composer text-[var(--trae-text-default)] outline-none placeholder:text-[var(--trae-text-tertiary)]"
           />
-          <kbd className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-1.5 text-[10px] text-[var(--trae-text-tertiary)]">
+          <kbd className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-1.5 text-micro text-[var(--trae-text-tertiary)]">
             Esc
           </kbd>
         </div>
@@ -190,24 +190,24 @@ const CommandPalette: FC<CommandPaletteProps> = ({ visible, onClose }) => {
         {/* 搜索结果 */}
         <div className="max-h-[360px] overflow-y-auto">
           {loading && (
-            <div className="flex items-center justify-center gap-2 px-4 py-8 text-[12px] text-[var(--trae-text-tertiary)]">
+            <div className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-[var(--trae-text-tertiary)]">
               <Loader2 className="size-4 animate-spin" />
               搜索中...
             </div>
           )}
 
           {!loading && query.trim() && results.length === 0 && (
-            <div className="px-4 py-8 text-center text-[12px] text-[var(--trae-text-tertiary)]">
+            <div className="px-4 py-8 text-center text-sm text-[var(--trae-text-tertiary)]">
               未找到匹配结果
             </div>
           )}
 
           {!loading && !query.trim() && (
-            <div className="px-4 py-6 text-center text-[12px] text-[var(--trae-text-tertiary)]">
+            <div className="px-4 py-6 text-center text-sm text-[var(--trae-text-tertiary)]">
               <div className="mb-1 text-[var(--trae-text-secondary)]">全局搜索</div>
               <div>输入关键词搜索知识库条目和历史决策记录</div>
-              <div className="mt-2 inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2 py-0.5 text-[11px]">
-                <kbd className="text-[10px]">Cmd+K</kbd>
+              <div className="mt-2 inline-flex items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2 py-0.5 text-caption">
+                <kbd className="text-micro">Cmd+K</kbd>
                 <span className="text-[var(--trae-text-tertiary)]">快速打开</span>
               </div>
             </div>
@@ -228,14 +228,14 @@ const CommandPalette: FC<CommandPaletteProps> = ({ visible, onClose }) => {
             >
               {typeIcon(item.type)}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-[var(--trae-text-default)]">
+                <div className="truncate text-md font-medium text-[var(--trae-text-default)]">
                   {item.title}
                 </div>
-                <div className="truncate text-[11px] text-[var(--trae-text-tertiary)]">
+                <div className="truncate text-caption text-[var(--trae-text-tertiary)]">
                   {item.subtitle}
                 </div>
               </div>
-              <span className="shrink-0 text-[10px] text-[var(--trae-text-tertiary)]">
+              <span className="shrink-0 text-micro text-[var(--trae-text-tertiary)]">
                 {item.type === 'knowledge' ? '知识库' : '历史'}
               </span>
             </button>

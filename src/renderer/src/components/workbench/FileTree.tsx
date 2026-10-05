@@ -696,7 +696,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
               {!connected ? (
                 <div className="wb-filetree-empty">
                   <div className="wb-filetree-server-head">
-                    <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--trae-text-tertiary)]">
+                    <span className="text-caption font-semibold tracking-[0.08em] text-[var(--trae-text-tertiary)]">
                       服务器
                     </span>
                   </div>

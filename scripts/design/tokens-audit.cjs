@@ -102,8 +102,21 @@ for (const f of activeCss) {
 const allSource = [...activeCss, ...allTs].map((f) => fs.readFileSync(f, 'utf8')).join('\n')
 const consumed = (name) => (allSource.match(new RegExp(`var\\(${name.replace(/[-]/g, '\\-')}`, 'g')) || []).length
 
-const fontSizeDefs = [...tokenDefs.keys()].filter((n) => /^--font-size-/.test(n))
+/**
+ * 字阶消费情况。
+ *
+ * 本仓库的字阶命名是 --ui-font-*（规范旧稿里写的 --font-size-* 从未落地，
+ * 也没有任何代码消费它），所以这里按真实命名统计，并单独数出
+ * 组件里还剩多少处 text-[Npx] 这种绕过字阶的魔法字号。
+ */
+const fontSizeDefs = [...tokenDefs.keys()].filter((n) => /^--ui-font-/.test(n))
 const fontSizeConsumed = fontSizeDefs.filter((n) => consumed(n) > 0)
+const unusedFontTiers = fontSizeDefs.filter((n) => consumed(n) === 0)
+let arbitraryTextSizes = 0
+for (const f of allTs) {
+  arbitraryTextSizes +=
+    (fs.readFileSync(f, 'utf8').match(/text-\[[0-9.]+px\]/g) || []).length
+}
 
 // ── 主题能力 ────────────────────────────────────────────────────────────────
 const themeSelectors = []
@@ -174,7 +187,11 @@ console.log(`CSS 文件：总 ${allCss.length} / 入口可达 ${activeCss.length
 for (const f of deadCss) console.log(`  死 CSS: ${rel(f)}（!important ${countIn(f, /!important/g)}）`)
 console.log(`活跃 !important = ${importantActive}（死目录另有 ${importantDead}，不计入基线）`)
 console.log(`text-[Npx] 任意值 = ${textPx}`)
-console.log(`--font-size-* 定义 ${fontSizeDefs.length} 档，被消费 ${fontSizeConsumed.length} 档`)
+console.log(
+  `--ui-font-* 字阶：定义 ${fontSizeDefs.length} 档，被组件消费 ${fontSizeConsumed.length} 档` +
+    (unusedFontTiers.length ? `（未被消费：${unusedFontTiers.join(', ')}）` : '') +
+    `；绕过字阶的 text-[Npx] = ${arbitraryTextSizes} 处`,
+)
 for (const n of fontSizeDefs) console.log(`  ${n}: var() 消费 ${consumed(n)} 次`)
 console.log(`[data-theme] / prefers-color-scheme 命中 = ${themeSelectors.length}`)
 for (const t of themeSelectors.slice(0, 12)) console.log(`  ${t}`)

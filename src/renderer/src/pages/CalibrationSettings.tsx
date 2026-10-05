@@ -374,14 +374,14 @@ export function CalibrationSettings() {
           control={
             <div className="flex items-center gap-2">
               <span
-                className="set-input set-input--readonly font-mono text-[12px]"
+                className="set-input set-input--readonly font-mono text-sm"
                 style={{ minWidth: 200 }}
               >
                 {providerKey}
               </span>
               <span
                 className={
-                  'inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-[10px] font-medium ' +
+                  'inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-micro font-medium ' +
                   (meta.logprobs
                     ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
                     : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-[var(--trae-text-tertiary)]')
@@ -418,7 +418,7 @@ export function CalibrationSettings() {
           desc="基于决策历史样本的 Temperature Scaling 优化结果"
           control={
             <div
-              className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-[var(--trae-text-secondary)]"
+              className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption text-[var(--trae-text-secondary)]"
               style={{ minWidth: 280 }}
             >
               <span>
@@ -507,7 +507,7 @@ export function CalibrationSettings() {
         {cardState.errorMessage != null && (
           <div
             role="alert"
-            className="mx-4 mb-3 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] px-3 py-2 text-[11px] text-[var(--trae-status-error-default)]"
+            className="mx-4 mb-3 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] px-3 py-2 text-caption text-[var(--trae-status-error-default)]"
           >
             {cardState.errorMessage}
           </div>
@@ -531,7 +531,7 @@ export function CalibrationSettings() {
             role="status"
             aria-live="polite"
             className={
-              'rounded-[var(--trae-radius-8)] border px-3 py-2 text-[12px] ' +
+              'rounded-[var(--trae-radius-8)] border px-3 py-2 text-sm ' +
               (topMessage.kind === 'success'
                 ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
                 : 'border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)]')
@@ -562,7 +562,7 @@ export function CalibrationSettings() {
             desc="触发 Temperature Scaling 优化的最小历史决策样本数"
             control={
               <span
-                className="set-input set-input--readonly font-mono text-[12px]"
+                className="set-input set-input--readonly font-mono text-sm"
                 style={{ minWidth: 80 }}
               >
                 {minSamples}
@@ -575,7 +575,7 @@ export function CalibrationSettings() {
         {/* 加载状态提示 */}
         {loading && (
           <SettingsCard icon={RefreshCw} title="加载中" tag="status">
-            <div className="px-4 py-3 text-[12px] text-[var(--trae-text-tertiary)]">
+            <div className="px-4 py-3 text-sm text-[var(--trae-text-tertiary)]">
               正在从主进程拉取校准状态与 Provider 列表…
             </div>
           </SettingsCard>
@@ -583,7 +583,7 @@ export function CalibrationSettings() {
 
         {loadError != null && (
           <SettingsCard icon={Activity} title="加载失败" tag="error">
-            <div className="px-4 py-3 text-[12px] text-[var(--trae-status-error-default)]">
+            <div className="px-4 py-3 text-sm text-[var(--trae-status-error-default)]">
               {loadError}
             </div>
           </SettingsCard>
@@ -592,7 +592,7 @@ export function CalibrationSettings() {
         {/* 实际 Provider 实例数量提示（仅展示，非交互） */}
         {!loading && providers.length > 0 && (
           <SettingsCard icon={Cpu} title="Provider 实例" tag="calibration.instances">
-            <div className="px-4 pb-3 text-[11px] text-[var(--trae-text-tertiary)]">
+            <div className="px-4 pb-3 text-caption text-[var(--trae-text-tertiary)]">
               当前已配置 {providers.length} 个 Provider 实例（ID: {providers.map((p) => p.id).join('、')}）。
               上方 8 个卡片为按 <code>ProviderType</code> 分类校准。
             </div>

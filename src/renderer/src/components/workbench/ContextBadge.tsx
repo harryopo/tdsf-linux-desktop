@@ -77,7 +77,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           transform="rotate(-90 18 18)" strokeLinecap="round"
         />
       </svg>
-      <span className="text-[11px] font-medium tabular-nums text-[var(--trae-text-secondary)]">
+      <span className="text-caption font-medium tabular-nums text-[var(--trae-text-secondary)]">
         {ctxUsedPct}%
       </span>
 
@@ -88,7 +88,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           onClick={(e) => e.stopPropagation()}
         >
           <div className="min-w-[180px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] p-2.5 shadow-xl">
-          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--trae-text-tertiary)]">
+          <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-[var(--trae-text-tertiary)]">
             上下文使用率
           </div>
           <div className="flex items-center gap-2">
@@ -106,10 +106,10 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
               </text>
             </svg>
             <div>
-              <div className="text-[11px] font-semibold text-[var(--trae-text-default)]">
+              <div className="text-caption font-semibold text-[var(--trae-text-default)]">
                 {ctxUsedTokens} / {ctxTotalTokens}
               </div>
-              <div className="text-[11px] text-[var(--trae-text-tertiary)]">tokens used</div>
+              <div className="text-caption text-[var(--trae-text-tertiary)]">tokens used</div>
             </div>
           </div>
           <button
@@ -131,7 +131,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
                 void message.info('当前对话较短，无需压缩')
               }
             }}
-            className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[11px] font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
+            className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-caption font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
           >
             压缩上下文
           </button>

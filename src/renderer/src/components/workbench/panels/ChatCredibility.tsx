@@ -108,7 +108,7 @@ const ChatCredibility: FC<ChatCredibilityProps> = ({ message, onAssessed }) => {
         <span className="ai-tool-badge" style={{ color: tone }}>
           {pct}% · {assessment.ruleUsed === 'pcr5' ? 'PCR5' : assessment.ruleUsed === 'mixed' ? '混合' : 'D-S'}
         </span>
-        <span className="text-[9px] text-[var(--trae-text-tertiary)]">
+        <span className="text-micro text-[var(--trae-text-tertiary)]">
           {evidences.length} 项证据
         </span>
         <ChevronRight
