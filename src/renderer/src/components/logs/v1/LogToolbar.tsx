@@ -17,7 +17,8 @@
  *   - 刷新 / 导出 按钮（onClick 回调）
  */
 import { Search, RefreshCw, Download, Sparkles } from 'lucide-react'
-import { Switch, Tooltip } from 'antd'
+import { Switch } from 'antd'
+import { Tooltip } from '@/ui'
 import {
   type LogLevel,
   LEVEL_FILTERS,
@@ -89,16 +90,18 @@ export function LogToolbar({
       <div className="log-right-cluster flex shrink-0 items-center">
         {/* AI 日志分析按钮（设计稿：品牌色描边 + sparkles 图标，置于自动滚动之前） */}
         {onAiAnalysis && (
-          <Tooltip title={aiAnalysisTooltip ?? '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'}>
-            <button
-              type="button"
-              onClick={onAiAnalysis}
-              disabled={aiAnalysisDisabled}
-              className="log-btn-press log-ai-btn inline-flex items-center justify-center transition-colors"
-            >
-              <Sparkles size={14} style={{ color: 'var(--trae-icon-brand)' }} />
-              <span>AI 日志分析</span>
-            </button>
+          <Tooltip content={aiAnalysisTooltip ?? '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'}>
+            <span className="inline-flex">
+              <button
+                type="button"
+                onClick={onAiAnalysis}
+                disabled={aiAnalysisDisabled}
+                className="log-btn-press log-ai-btn inline-flex items-center justify-center transition-colors"
+              >
+                <Sparkles size={14} style={{ color: 'var(--trae-icon-brand)' }} />
+                <span>AI 日志分析</span>
+              </button>
+            </span>
           </Tooltip>
         )}
 

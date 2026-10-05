@@ -59,10 +59,10 @@ const PREFIX_TO_COMPONENT = {
   'ant-typography': 'Typography',
 }
 
-/** 静态方法类：不经过 JSX 导入，按调用点判 */
+/** 静态方法类：不经过 JSX 导入，按真实调用点判（sonner 的 toast.* 不算 antd message） */
 const STATIC_FAMILIES = {
-  'ant-notification': /notification\./,
-  'ant-message': /toast\.[a-z]+\(|message\.[a-z]+\(/,
+  'ant-notification': /notification\.(open|success|error|info|warning)\(/,
+  'ant-message': /message\.(open|success|error|info|warning|warn|loading)\(/,
 }
 
 function walk(dir, acc = []) {
@@ -75,7 +75,10 @@ function walk(dir, acc = []) {
 }
 
 const sourceFiles = walk(SRC)
-const allSource = sourceFiles.map((f) => fs.readFileSync(f, 'utf8')).join('\n')
+/** 注释里的 message.* / notification.* 是说明文字不是调用，判活之前先剥注释 */
+const stripComments = (s) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+const allSource = sourceFiles.map((f) => stripComments(fs.readFileSync(f, 'utf8'))).join('\n')
 const importedNames = new Set()
 for (const m of allSource.matchAll(/import\s*\{([^}]*)\}\s*from\s*'antd'/g)) {
   for (let n of m[1].split(',')) {

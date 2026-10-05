@@ -353,46 +353,6 @@ textarea,
   border-radius: var(--trae-radius-4) !important;
 }
 
-.ant-dropdown-menu {
-  border-radius: var(--trae-radius-6) !important;
-  box-shadow: var(--trae-shadow-card) !important;
-  padding: 4px !important;
-  border: 1px solid var(--trae-border-neutral-l1) !important;
-  background: var(--trae-bg-overlay-l3) !important;
-}
-
-.ant-dropdown-menu-item {
-  border-radius: var(--trae-radius-4) !important;
-  margin: 2px 0 !important;
-  font-size: var(--trae-body-base-font-size) !important;
-  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
-}
-
-.ant-dropdown-menu-item:hover {
-  background: var(--trae-status-primary-surface-l1) !important;
-}
-
-.ant-dropdown-menu-item-selected {
-  background: var(--trae-status-primary-surface-l2) !important;
-  color: var(--trae-text-brand) !important;
-  font-weight: var(--trae-font-weight-medium) !important;
-}
-
-/* === Tooltip === */
-.ant-tooltip-inner {
-  border-radius: var(--trae-radius-4) !important;
-  box-shadow: var(--trae-shadow-card) !important;
-  font-size: var(--trae-body-sm-font-size) !important;
-  padding: 6px 10px !important;
-  font-weight: var(--trae-font-weight-medium) !important;
-  background: var(--trae-bg-tooltip) !important;
-  color: var(--trae-text-default) !important;
-}
-
-.ant-tooltip-arrow::before {
-  background: var(--trae-bg-tooltip) !important;
-}
-
 /* === Drawer === */
 .ant-drawer-content {
   border-radius: var(--trae-radius-8) 0 0 var(--trae-radius-8) !important;
@@ -406,22 +366,6 @@ textarea,
   font-weight: var(--trae-font-weight-medium) !important;
   padding: 2px 8px !important;
   border: none !important;
-}
-
-/* === Notification === */
-/* 注：原 === Message / Notification === 段落里的 .ant-message-* 七条覆盖已随
-   "message → sonner toast" 迁移删除（阶段：退出 antd 第 1 批），
-   提示气泡的样式改由 ui/overlay.tsx 的 Toaster 用令牌直接画。 */
-.ant-notification-notice {
-  border-radius: var(--trae-radius-6) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
-  background: var(--trae-bg-base-tertiary) !important;
-  border: 1px solid var(--trae-border-neutral-l2) !important;
-}
-
-.ant-notification-notice-message {
-  font-size: var(--trae-body-base-strong-font-size) !important;
-  font-weight: var(--trae-font-weight-strong) !important;
 }
 
 /* === Switch === */

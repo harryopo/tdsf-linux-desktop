@@ -9,7 +9,7 @@
  * - 仍保留可选 demo 标签（无会话时示意）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
-import { Dropdown, type MenuProps } from 'antd'
+import { ContextMenu, type ContextMenuEntry } from '@/ui'
 import { toast } from 'sonner'
 import {
   Terminal as TerminalIcon,
@@ -421,26 +421,26 @@ const EditorArea: FC<EditorAreaProps> = ({
    * 当对应回调未提供时，菜单项禁用。
    */
   const buildFileContextMenuItems = useCallback(
-    (tabId: WorkbenchTabId): MenuProps['items'] => {
+    (tabId: WorkbenchTabId): ContextMenuEntry[] => {
       const otherCount = fileTabs.filter((t) => t.id !== tabId).length
       return [
         {
           key: 'close',
           label: '关闭',
           disabled: !onCloseFile,
-          onClick: () => onCloseFile?.(tabId),
+          onSelect: () => onCloseFile?.(tabId),
         },
         {
           key: 'close-others',
           label: `关闭其他${otherCount > 0 ? ` (${otherCount})` : ''}`,
           disabled: !onCloseOthers || otherCount === 0,
-          onClick: () => onCloseOthers?.(tabId),
+          onSelect: () => onCloseOthers?.(tabId),
         },
         {
           key: 'close-all',
           label: `关闭所有${fileTabs.length > 0 ? ` (${fileTabs.length})` : ''}`,
           disabled: !onCloseAll || fileTabs.length === 0,
-          onClick: () => onCloseAll?.(),
+          onSelect: () => onCloseAll?.(),
         },
       ]
     },
@@ -494,14 +494,9 @@ const EditorArea: FC<EditorAreaProps> = ({
           // P1-4：文件 Tab 支持右键菜单（关闭 / 关闭其他 / 关闭所有）
           if (!isTerm) {
             return (
-              <Dropdown
-                key={tab.id}
-                menu={{ items: buildFileContextMenuItems(tab.id) }}
-                trigger={['contextMenu']}
-                placement="bottomLeft"
-              >
+              <ContextMenu key={tab.id} items={buildFileContextMenuItems(tab.id)}>
                 {tabInner}
-              </Dropdown>
+              </ContextMenu>
             )
           }
           return tabInner

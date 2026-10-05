@@ -4,7 +4,7 @@
  * 行为全部交给 radix（焦点陷阱、Esc、aria、portal），我们只负责 IDE 外观。
  * 层级用 ui-tokens 的六档：dropdown 1000、modal 1100、toast 9999、审批 10000。
  */
-import { forwardRef, type ReactNode } from 'react'
+import { forwardRef, useState, type ReactNode } from 'react'
 import * as RadixTooltip from '@radix-ui/react-tooltip'
 import * as RadixDialog from '@radix-ui/react-dialog'
 import * as RadixMenu from '@radix-ui/react-dropdown-menu'
@@ -18,6 +18,8 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 }
 
 export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+  // 空提示=这条提示不该出现（沿用 antd title='' 的语义），不包一层空气泡
+  if (content === null || content === undefined || content === '') return <>{children}</>
   return (
     <RadixTooltip.Root>
       <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
@@ -127,13 +129,24 @@ const menuItemClass = cn(
 export function MenuContent({
   children,
   className,
+  side,
+  align = 'start',
+  sideOffset,
 }: {
   children: ReactNode
   className?: string
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  align?: 'center' | 'end' | 'start'
+  sideOffset?: number
 }) {
   return (
     <RadixMenu.Portal>
-      <RadixMenu.Content align="start" className={cn(menuListClass, className)}>
+      <RadixMenu.Content
+        side={side}
+        align={align}
+        sideOffset={sideOffset}
+        className={cn(menuListClass, className)}
+      >
         {children}
       </RadixMenu.Content>
     </RadixMenu.Portal>
@@ -155,6 +168,83 @@ export const MenuLabel = ({ children }: { children: ReactNode }) => (
 )
 
 export const MenuSeparator = () => <RadixMenu.Separator className="my-1 h-px bg-line" />
+
+/** 右键菜单的一项；divider 是分隔线的占位类型 */
+export type ContextMenuEntry =
+  | {
+      key: string
+      label: ReactNode
+      icon?: ReactNode
+      danger?: boolean
+      disabled?: boolean
+      onSelect?: () => void
+    }
+  | { key: string; divider: true }
+
+const isDivider = (it: ContextMenuEntry): it is { key: string; divider: true } =>
+  'divider' in it && it.divider === true
+
+/**
+ * 右键菜单：包住任意子元素，右键在光标位置弹出菜单。
+ *
+ * 包装层用 display:contents，不改父级 flex/grid 布局；contextmenu 事件从子元素冒泡上来，
+ * 所以不需要 cloneElement 去改子元素 props。
+ * 定位靠一根 0 尺寸、不吃指针事件的 fixed trigger 钉在光标处——本仓库的
+ * @radix-ui/react-dropdown-menu 没有导出 Anchor，用 trigger 当锚点是现成的等效做法。
+ */
+export function ContextMenu({
+  items,
+  children,
+}: {
+  items: ContextMenuEntry[]
+  children: ReactNode
+}) {
+  const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
+
+  return (
+    <span
+      className="contents"
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setPoint({ x: e.clientX, y: e.clientY })
+      }}
+    >
+      {children}
+      <Menu open={point !== null} onOpenChange={(next) => !next && setPoint(null)}>
+        <MenuTrigger asChild>
+          <span
+            aria-hidden
+            style={{
+              position: 'fixed',
+              left: point?.x ?? 0,
+              top: point?.y ?? 0,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
+        </MenuTrigger>
+        <MenuContent side="right" align="start">
+          {items.map((it) =>
+            isDivider(it) ? (
+              <MenuSeparator key={it.key} />
+            ) : (
+              <MenuItem
+                key={it.key}
+                disabled={it.disabled}
+                onSelect={it.onSelect}
+                className={cn(it.danger && 'text-error data-[highlighted]:bg-error/10')}
+              >
+                {it.icon}
+                <span className="min-w-0 truncate">{it.label}</span>
+              </MenuItem>
+            )
+          )}
+        </MenuContent>
+      </Menu>
+    </span>
+  )
+}
 
 /** 全局 toast 出口：右下角，深色面板底，不用彩色大底条 */
 export function Toaster() {

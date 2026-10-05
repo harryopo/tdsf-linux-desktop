@@ -17,7 +17,8 @@
  * 样式：颜色全部 var(--trae-*) token；不引入新依赖。
  */
 import { useState } from 'react'
-import { Button, Drawer, Spin, Alert, Typography, Tag, Tooltip } from 'antd'
+import { Button, Drawer, Spin, Alert, Typography, Tag } from 'antd'
+import { Tooltip } from '@/ui'
 import { RobotOutlined } from '@ant-design/icons'
 import type { LogEntry } from './v1/logs-data'
 
@@ -174,7 +175,7 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
   /** 渲染右上角操作区（开始分析 / 重试按钮） */
   const renderExtra = () => (
     <Tooltip
-      title={
+      content={
         !electronApiAvailable
           ? '主进程 IPC 不可用，无法执行 AI 分析'
           : logs.length < 5
@@ -182,16 +183,18 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
             : ''
       }
     >
-      <Button
-        type="primary"
-        size="small"
-        icon={<RobotOutlined />}
-        loading={analyzing}
-        onClick={handleAnalyze}
-        disabled={!electronApiAvailable || logs.length < 5}
-      >
-        {analyzing ? '分析中...' : error ? '重新分析' : '开始分析'}
-      </Button>
+      <span className="inline-flex">
+        <Button
+          type="primary"
+          size="small"
+          icon={<RobotOutlined />}
+          loading={analyzing}
+          onClick={handleAnalyze}
+          disabled={!electronApiAvailable || logs.length < 5}
+        >
+          {analyzing ? '分析中...' : error ? '重新分析' : '开始分析'}
+        </Button>
+      </span>
     </Tooltip>
   )
 

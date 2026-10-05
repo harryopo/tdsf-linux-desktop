@@ -20,7 +20,8 @@
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.6
  */
 import { useState } from 'react'
-import { Drawer, Tag, Tooltip } from 'antd'
+import { Drawer, Tag } from 'antd'
+import { Tooltip } from '@/ui'
 import type { AlertRecord, RiskLevel } from './monitor-model'
 
 /** 风险级别 → Tag 颜色 + 中文标签 */
@@ -278,7 +279,7 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
               {ackError}
             </span>
           )}
-          <Tooltip title={ackAvailable ? '' : '主进程 IPC 不可用'}>
+          <Tooltip content={ackAvailable ? '' : '主进程 IPC 不可用'}>
             <span>
               <button
                 type="button"

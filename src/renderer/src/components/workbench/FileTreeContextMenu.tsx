@@ -10,7 +10,6 @@
  *   </FileTreeContextMenu>
  */
 import { type FC, type ReactNode, useMemo } from 'react'
-import { Dropdown, type MenuProps } from 'antd'
 import {
   FolderPlus,
   Upload,
@@ -20,6 +19,7 @@ import {
   Trash2,
   RefreshCw,
 } from 'lucide-react'
+import { ContextMenu, type ContextMenuEntry } from '@/ui'
 import type { TreeNode } from './FileTree'
 
 /** 右键菜单动作类型 */
@@ -43,40 +43,47 @@ export interface FileTreeContextMenuProps {
   children: ReactNode
 }
 
-/** 构造 antd Menu items */
-function buildMenuItems(node: TreeNode | null): MenuProps['items'] {
-  const isDir = node?.isDirectory ?? false
-  // 空白右键：仅显示新建目录 + 上传 + 刷新
+/** 按节点类型给菜单项（node=null 是空白处右键，只给目录级动作） */
+function buildMenuItems(
+  node: TreeNode | null,
+  onAction: FileTreeContextMenuProps['onAction']
+): ContextMenuEntry[] {
+  const act = (action: MenuAction) => () => onAction(action, node)
+  const item = (
+    key: MenuAction,
+    label: string,
+    icon: ReactNode,
+    danger?: boolean
+  ): ContextMenuEntry => ({ key, label, icon, danger, onSelect: act(key) })
+
   if (!node) {
     return [
-      { key: 'mkdir', icon: <FolderPlus size={14} />, label: '新建目录' },
-      { key: 'upload', icon: <Upload size={14} />, label: '上传文件' },
-      { type: 'divider' },
-      { key: 'refresh', icon: <RefreshCw size={14} />, label: '刷新' },
+      item('mkdir', '新建目录', <FolderPlus size={14} />),
+      item('upload', '上传文件', <Upload size={14} />),
+      { key: 'after-upload', divider: true },
+      item('refresh', '刷新', <RefreshCw size={14} />),
     ]
   }
-  // 目录右键
-  if (isDir) {
+  if (node.isDirectory) {
     return [
-      { key: 'mkdir', icon: <FolderPlus size={14} />, label: '新建子目录' },
-      { key: 'upload', icon: <Upload size={14} />, label: '上传到此目录' },
-      { key: 'download', icon: <Download size={14} />, label: '下载目录' },
-      { type: 'divider' },
-      { key: 'rename', icon: <Pencil size={14} />, label: '重命名' },
-      { key: 'chmod', icon: <KeyRound size={14} />, label: '修改权限' },
-      { type: 'divider' },
-      { key: 'delete', icon: <Trash2 size={14} />, label: '删除', danger: true },
-      { key: 'refresh', icon: <RefreshCw size={14} />, label: '刷新' },
+      item('mkdir', '新建子目录', <FolderPlus size={14} />),
+      item('upload', '上传到此目录', <Upload size={14} />),
+      item('download', '下载目录', <Download size={14} />),
+      { key: 'after-download', divider: true },
+      item('rename', '重命名', <Pencil size={14} />),
+      item('chmod', '修改权限', <KeyRound size={14} />),
+      { key: 'after-chmod', divider: true },
+      item('delete', '删除', <Trash2 size={14} />, true),
+      item('refresh', '刷新', <RefreshCw size={14} />),
     ]
   }
-  // 文件右键
   return [
-    { key: 'download', icon: <Download size={14} />, label: '下载文件' },
-    { type: 'divider' },
-    { key: 'rename', icon: <Pencil size={14} />, label: '重命名' },
-    { key: 'chmod', icon: <KeyRound size={14} />, label: '修改权限' },
-    { type: 'divider' },
-    { key: 'delete', icon: <Trash2 size={14} />, label: '删除', danger: true },
+    item('download', '下载文件', <Download size={14} />),
+    { key: 'after-download', divider: true },
+    item('rename', '重命名', <Pencil size={14} />),
+    item('chmod', '修改权限', <KeyRound size={14} />),
+    { key: 'after-chmod', divider: true },
+    item('delete', '删除', <Trash2 size={14} />, true),
   ]
 }
 
@@ -86,22 +93,9 @@ export const FileTreeContextMenu: FC<FileTreeContextMenuProps> = ({
   onAction,
   children,
 }) => {
-  const items = useMemo(() => buildMenuItems(node), [node])
+  const items = useMemo(() => buildMenuItems(node, onAction), [node, onAction])
 
-  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    onAction(key as MenuAction, node)
-  }
-
-  const menuProps: MenuProps = {
-    items,
-    onClick: handleMenuClick,
-  }
-
-  return (
-    <Dropdown menu={menuProps} trigger={['contextMenu']}>
-      {children as React.ReactElement}
-    </Dropdown>
-  )
+  return <ContextMenu items={items}>{children}</ContextMenu>
 }
 
 export default FileTreeContextMenu

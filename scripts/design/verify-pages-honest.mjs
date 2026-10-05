@@ -191,6 +191,39 @@ try {
     return { triggerable: true, rendered: true, closedByEsc: !still, note: title };
   })()`)
 
+  // ===== 悬浮提示实测：antd Tooltip 换成自研后，hover 必须真的出气泡 =====
+  let tipCheck = { found: false, shown: false, text: null, note: '' }
+  await evalIn(ws, `location.hash = '#/logs'`)
+  await sleep(1500)
+  tipCheck = await evalIn(ws, `(async () => {
+    const btn = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('AI 日志分析'));
+    if (!btn) return { found: false, shown: false, text: null, note: '日志页没有 AI 日志分析按钮，这条没测到' };
+    const host = btn.parentElement;
+    const r = btn.getBoundingClientRect();
+    // radix 的 Tooltip 由 pointermove/focus 触发，只发 pointerover 不会开
+    const mk = (type) => new PointerEvent(type, { bubbles: true, pointerType: 'mouse', clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 });
+    host.dispatchEvent(mk('pointerover'));
+    host.dispatchEvent(mk('pointermove'));
+    await new Promise((x) => setTimeout(x, 1500));
+    const tip = document.querySelector('[role="tooltip"]');
+    return { found: true, shown: Boolean(tip), text: tip ? (tip.textContent || '').trim().slice(0, 60) : null, note: '' };
+  })()`)
+
+  // ===== 右键菜单实测：antd Dropdown 换成自研 ContextMenu 后，右键必须出菜单 =====
+  let ctxCheck = { triggerable: false, rendered: false, note: '' }
+  await evalIn(ws, `location.hash = '#/workbench'`)
+  await sleep(2500)
+  ctxCheck = await evalIn(ws, `(async () => {
+    // 事件的 target 必须在 ContextMenu 包装层内部；打在包装层的祖先元素上不会冒泡进 handler
+    const target = document.querySelector('.wb-filetree-empty') || document.querySelector('.wb-filetree-scroll > *');
+    if (!target) return { triggerable: false, rendered: false, note: '工作台文件树里没有可右键的区域' };
+    const r = target.getBoundingClientRect();
+    target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 12, clientY: r.top + 12 }));
+    await new Promise((x) => setTimeout(x, 900));
+    const menu = document.querySelector('[role="menu"]');
+    return { triggerable: true, rendered: Boolean(menu), note: menu ? (menu.textContent || '').trim().slice(0, 40) : '右键之后没有菜单' };
+  })()`)
+
   console.log('=== F4/E 页面诚实性真机验证（构建产物 + 真实 userData 库） ===')
   console.log(JSON.stringify(rows, null, 2))
   console.log('=== 提示条实测（message → sonner 迁移后，toast 必须真的能弹出来）===')
@@ -199,9 +232,19 @@ try {
   console.log('=== 确认框实测（confirmDialog 替代 Modal.confirm）===')
   console.log(JSON.stringify(confirmCheck, null, 2))
 
+  console.log('=== 悬浮提示实测（antd Tooltip → 自研）===')
+  console.log(JSON.stringify(tipCheck, null, 2))
+
+  console.log('=== 右键菜单实测（antd Dropdown → 自研 ContextMenu）===')
+  console.log(JSON.stringify(ctxCheck, null, 2))
+
   const fail = []
   if (confirmCheck.triggerable && !confirmCheck.rendered) fail.push(`确认框没画出来：${confirmCheck.note}`)
   if (confirmCheck.rendered && !confirmCheck.closedByEsc) fail.push('确认框按 Esc 关不掉（radix 的 dismiss 没接上 settle）')
+  if (!tipCheck.found) fail.push(tipCheck.note)
+  else if (!tipCheck.shown) fail.push('悬停 AI 日志分析按钮没有出现气泡（自研 Tooltip 没接上）')
+  if (ctxCheck.triggerable && !ctxCheck.rendered) fail.push(`右键没有出现菜单：${ctxCheck.note}`)
+  if (!ctxCheck.triggerable) fail.push(ctxCheck.note)
   if (!toastCheck.clicked) fail.push(`没找到可点击的刷新按钮（候选文案 ${TOAST_TRIGGERS.join('/')}），提示条这半边等于没测`)
   else if (!toastCheck.toastShown) fail.push(`点了「${toastCheck.triggerText}」之后没有出现 sonner 提示条（toastCount=0）`)
   for (const r of rows) {

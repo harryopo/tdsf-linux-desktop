@@ -13,6 +13,8 @@ export {
   MenuItem,
   MenuLabel,
   MenuSeparator,
+  ContextMenu,
+  type ContextMenuEntry,
   Toaster,
 } from './overlay'
 export { Segmented, SessionTabs, type SegmentedItem, type SessionTab } from './tabs'
