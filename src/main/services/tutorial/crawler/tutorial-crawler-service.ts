@@ -34,11 +34,12 @@ import { getDiskBudget, sweepOrphans, type DiskInfo } from './disk-budget'
 import { filterLowQuality } from './quality-filter'
 import type { CrawlProgress, CrawlResult, CrawlStartArgs, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { TutorialEntry } from '../types'
+import { TUTORIAL } from '@shared/ipc-channels'
 
 /** 抓取进度事件 channel（与 preload 约定） */
-export const TUTORIAL_CRAWL_PROGRESS_CHANNEL = 'tutorial:crawlProgress'
+export const TUTORIAL_CRAWL_PROGRESS_CHANNEL = TUTORIAL.CRAWL_PROGRESS
 /** 抓取完成事件 channel */
-export const TUTORIAL_CRAWL_DONE_CHANNEL = 'tutorial:crawlDone'
+export const TUTORIAL_CRAWL_DONE_CHANNEL = TUTORIAL.CRAWL_DONE
 
 /** 抓取器函数签名 */
 type CrawlerFn = (

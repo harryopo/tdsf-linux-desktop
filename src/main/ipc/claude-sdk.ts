@@ -46,13 +46,14 @@ import type {
 } from '@shared/agent-types'
 // v0.9.4 新增：session-registry 集中维护 sessionId → AbortController Map，支持 abort signal + TTL 清理
 import { getSessionRegistry } from '../core/agent/session-registry'
+import { CLAUDE_SDK } from '@shared/ipc-channels'
 
 /** 流式 token 推送通道名 */
-const CLAUDE_SDK_CHUNK_CHANNEL = 'claude-sdk:chunk'
+const CLAUDE_SDK_CHUNK_CHANNEL = CLAUDE_SDK.CHUNK
 /** 流式完成信号通道名 */
-const CLAUDE_SDK_DONE_CHANNEL = 'claude-sdk:done'
+const CLAUDE_SDK_DONE_CHANNEL = CLAUDE_SDK.DONE
 /** 流式错误信号通道名 */
-const CLAUDE_SDK_ERROR_CHANNEL = 'claude-sdk:error'
+const CLAUDE_SDK_ERROR_CHANNEL = CLAUDE_SDK.ERROR
 
 /**
  * 安全推送事件到渲染进程（窗口已销毁时跳过）

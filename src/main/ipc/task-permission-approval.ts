@@ -27,6 +27,7 @@
 
 import { ipcMain, type BrowserWindow } from 'electron'
 import { logger } from '../services/log/logger'
+import { TASK } from '@shared/ipc-channels'
 // D2：审批判定唯一权威 —— 只有字面 true 算批准
 import { readApproval, readRemember } from '../core/security/approval'
 
@@ -35,9 +36,9 @@ import { readApproval, readRemember } from '../core/security/approval'
 // ============================================================================
 
 /** 审批请求推送通道（主 → 渲染，单向） */
-export const TASK_PERMISSION_APPROVAL_CHANNEL = 'task:permission-approval-request'
+export const TASK_PERMISSION_APPROVAL_CHANNEL = TASK.PERMISSION_APPROVAL_REQUEST
 /** 审批响应通道（渲染 → 主，通过 invoke） */
-export const TASK_PERMISSION_APPROVE_INVOKE = 'task:permission-approve'
+export const TASK_PERMISSION_APPROVE_INVOKE = TASK.PERMISSION_APPROVE
 /** 审批超时（30 秒，与 sandbox-approval 保持一致） */
 export const TASK_PERMISSION_APPROVAL_TIMEOUT_MS = 30_000
 

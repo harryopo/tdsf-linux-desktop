@@ -28,7 +28,7 @@
 
 import { ipcMain, BrowserWindow } from 'electron'
 import type { ModelMessage } from 'ai'
-import { TOKEN } from '@shared/ipc-channels'
+import { AGENT, PAOR, TOKEN } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
@@ -68,16 +68,16 @@ import { clearClaudeSdkProviderCache } from './claude-sdk'
 import { readApproval } from '../core/security/approval'
 
 /** 流式 token 推送通道名 */
-const AGENT_CHUNK_CHANNEL = 'agent:chunk'
+const AGENT_CHUNK_CHANNEL = AGENT.CHUNK
 /** 流式完成信号通道名 */
-const AGENT_DONE_CHANNEL = 'agent:done'
+const AGENT_DONE_CHANNEL = AGENT.DONE
 /** 流式错误信号通道名 */
-const AGENT_ERROR_CHANNEL = 'agent:error'
+const AGENT_ERROR_CHANNEL = AGENT.ERROR
 /** 工具调用事件推送通道名（v2.4：真实工具执行可视化） */
-const AGENT_TOOL_EVENT_CHANNEL = 'agent:tool-event'
+const AGENT_TOOL_EVENT_CHANNEL = AGENT.TOOL_EVENT
 
 /** PAOR 审批请求推送通道名 */
-const PAOR_APPROVAL_REQUEST_CHANNEL = 'paor:approval-request'
+const PAOR_APPROVAL_REQUEST_CHANNEL = PAOR.APPROVAL_REQUEST
 
 /** PAOR 审批超时（毫秒）—— 60 秒内未响应自动拒绝 */
 const PAOR_APPROVAL_TIMEOUT_MS = 60_000
@@ -544,11 +544,11 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         const result = await supervisor.runPaorLoop(task, sshSessionId, {
           maxIterations: maxIterations ?? 5,
           onIteration: (iteration) => {
-            safeSend(mainWindow, 'agent:paor:iteration', { sshSessionId, iteration })
+            safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, iteration })
           },
           // v2.11 任务拆解可视化：计划就绪/重规划后先行推送结构化 plan（复用同一通道）
           onPlan: (plan, planConfidence) => {
-            safeSend(mainWindow, 'agent:paor:iteration', { sshSessionId, plan, planConfidence })
+            safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, plan, planConfidence })
           },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
           approveRisk: async (command, level, description): Promise<boolean> => {
@@ -633,7 +633,13 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       'token:reset',
       'token:records',
     ],
-    pushChannels: [AGENT_CHUNK_CHANNEL, AGENT_DONE_CHANNEL, AGENT_ERROR_CHANNEL, 'agent:paor:iteration', PAOR_APPROVAL_REQUEST_CHANNEL],
+    pushChannels: [
+      AGENT_CHUNK_CHANNEL,
+      AGENT_DONE_CHANNEL,
+      AGENT_ERROR_CHANNEL,
+      AGENT.PAOR_ITERATION,
+      PAOR_APPROVAL_REQUEST_CHANNEL,
+    ],
     // v0.9.4 新增能力：sessionId + abort signal（向后兼容，旧调用方不受影响）
     v094Features: [
       'agent:chat 第 4 个参数 sessionId（可选，未提供时主进程自动生成并通过事件 payload 回传）',

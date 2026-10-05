@@ -70,6 +70,10 @@ export const AGENT = {
   DONE: 'agent:done',
   /** Supervisor chat 错误信号推送（push: 主 → 渲染，v0.9） */
   ERROR: 'agent:error',
+  /** 工具调用实时可视化推送（push: 主 → 渲染，v2.4） */
+  TOOL_EVENT: 'agent:tool-event',
+  /** PAOR 每轮迭代进度推送（push: 主 → 渲染，见 paor-types.ts） */
+  PAOR_ITERATION: 'agent:paor:iteration',
 } as const
 
 /**
@@ -605,6 +609,8 @@ export const SANDBOX = {
   EXECUTE: 'sandbox:execute',
   /** 审批沙箱命令（invoke: 渲染 → 主） */
   APPROVE: 'sandbox:approve',
+  /** 沙箱命令审批请求推送（push: 主 → 渲染） */
+  APPROVAL_REQUEST: 'sandbox:approval-request',
   /** 删除沙箱（invoke: 渲染 → 主） */
   DELETE: 'sandbox:delete',
 } as const
@@ -624,6 +630,8 @@ export const MCP = {
   GET_STATE: 'mcp:get-state',
   /** 重置 MCP（invoke: 渲染 → 主） */
   RESET: 'mcp:reset',
+  /** MCP 生命周期状态变更推送（push: 主 → 渲染） */
+  STATE_CHANGED: 'mcp:state-changed',
   /** 查询外部 MCP 服务器状态（invoke: 渲染 → 主） */
   EXTERNAL_STATUS: 'mcp:external-status',
   /** 查询外部 MCP 工具列表（invoke: 渲染 → 主） */
@@ -666,6 +674,10 @@ export const TUTORIAL = {
   CRAWL_STATUS: 'tutorial:crawlStatus',
   /** 取消爬取（invoke: 渲染 → 主） */
   CRAWL_CANCEL: 'tutorial:crawlCancel',
+  /** 爬取进度推送（push: 主 → 渲染） */
+  CRAWL_PROGRESS: 'tutorial:crawlProgress',
+  /** 爬取完成推送（push: 主 → 渲染） */
+  CRAWL_DONE: 'tutorial:crawlDone',
   /** 查询磁盘信息（invoke: 渲染 → 主） */
   DISK_INFO: 'tutorial:diskInfo',
   /** 清理孤儿文件（invoke: 渲染 → 主） */
@@ -728,6 +740,12 @@ export const DEPLOY = {
   BUILD: 'deploy:build',
   /** 执行部署计划（invoke: 渲染 → 主） */
   EXECUTE: 'deploy:execute',
+  /** 部署实时日志推送（push: 主 → 渲染） */
+  LOG: 'deploy:log',
+  /** 部署步骤状态变化推送（push: 主 → 渲染） */
+  STEP_UPDATE: 'deploy:stepUpdate',
+  /** 部署完成推送（push: 主 → 渲染） */
+  DONE: 'deploy:done',
 } as const
 
 /**
@@ -864,6 +882,8 @@ export const PROFILER = {
 export const PAOR = {
   /** 人工审批 PAOR 循环步骤（invoke: 渲染 → 主） */
   APPROVE: 'paor:approve',
+  /** 高危命令/步骤审批卡推送（push: 主 → 渲染，见 paor-types.ts） */
+  APPROVAL_REQUEST: 'paor:approval-request',
 } as const
 
 /**
@@ -873,6 +893,9 @@ export const PAOR = {
  * - GENERATE invoke  渲染 → 主：同步聚合对话（返回 ChatResult）
  * - STREAM   invoke  渲染 → 主：异步流式对话（立即返回 correlationId）
  * - CANCEL   invoke  渲染 → 主：取消进行中的流式请求
+ * - CHUNK    push   主 → 渲染：流式 token 块
+ * - DONE     push   主 → 渲染：流式完成信号
+ * - ERROR    push   主 → 渲染：流式错误信号
  */
 export const CLAUDE_SDK = {
   /** 同步聚合对话（invoke: 渲染 → 主，返回 ChatResult） */
@@ -881,6 +904,12 @@ export const CLAUDE_SDK = {
   STREAM: 'claude-sdk:stream',
   /** 取消进行中的流式请求（invoke: 渲染 → 主） */
   CANCEL: 'claude-sdk:cancel',
+  /** 流式 token 块推送（push: 主 → 渲染） */
+  CHUNK: 'claude-sdk:chunk',
+  /** 流式完成信号推送（push: 主 → 渲染） */
+  DONE: 'claude-sdk:done',
+  /** 流式错误信号推送（push: 主 → 渲染） */
+  ERROR: 'claude-sdk:error',
 } as const
 
 /**
@@ -1062,26 +1091,15 @@ export const CREDIBILITY = {
 } as const
 
 /**
- * MCP 外部服务器扩展通道（补充 MCP 域未覆盖的 external-call 通道）
- *
- * 通道列表：
- * - EXTERNAL_CALL invoke  渲染 → 主：调用外部 MCP 服务器工具
- *
- * 设计说明：MCP.EXTERNAL_STATUS / EXTERNAL_TOOLS / EXTERNAL_RECONNECT 已在 MCP 域中定义，
- * 仅 EXTERNAL_CALL 是独立通道（动态调用任意外部工具），故单独补充。
- */
-export const MCP_EXTERNAL = {
-  /** 调用外部 MCP 服务器工具（invoke: 渲染 → 主） */
-  EXTERNAL_CALL: 'mcp:external-call',
-} as const
-
-/**
  * 任务权限审批 IPC 通道常量
  *
  * 通道列表：
- * - PERMISSION_APPROVE invoke  渲染 → 主：任务权限审批响应
+ * - PERMISSION_APPROVAL_REQUEST push  主 → 渲染：Subagent 调度审批请求
+ * - PERMISSION_APPROVE        invoke  渲染 → 主：任务权限审批响应
  */
 export const TASK = {
+  /** Subagent 调度审批请求（push: 主 → 渲染） */
+  PERMISSION_APPROVAL_REQUEST: 'task:permission-approval-request',
   /** 任务权限审批响应（invoke: 渲染 → 主） */
   PERMISSION_APPROVE: 'task:permission-approve',
 } as const

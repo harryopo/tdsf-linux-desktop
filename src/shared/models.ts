@@ -699,7 +699,7 @@ export interface IpcChannelMap {
   'kb:export': { args: [KnowledgeType?]; return: KnowledgeEntry[] }
   'kb:view': { args: [string]; return: boolean }
   'kb:hot': { args: [number?]; return: KnowledgeEntry[] }
-  'kb:recentViews': { args: [number?]; return: KbViewHistoryEntry[] }
+  'kb:recent-views': { args: [number?]; return: KbViewHistoryEntry[] }
 
   // 决策历史
   'history:list': { args: [number?, number?]; return: DecisionCard[] }

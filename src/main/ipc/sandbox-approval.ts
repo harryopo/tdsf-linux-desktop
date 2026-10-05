@@ -12,6 +12,7 @@
 import type { BrowserWindow } from 'electron'
 import type { SandboxInfo } from '../services/sandbox/types'
 import { logger } from '../services/log/logger'
+import { SANDBOX } from '@shared/ipc-channels'
 // AST 危险命令识别（tree-sitter-bash，覆盖 6 类绕过，AST 失败时降级到正则）
 import { assessWithAst } from '../core/risk-engine-ast'
 // P1-8 修复：回滚命令动态生成（18 条规则 + 不可逆黑名单 + 路径解析）
@@ -47,7 +48,7 @@ export interface PendingSandboxApproval {
 export const pendingSandboxApprovals = new Map<string, PendingSandboxApproval>()
 
 /** 审批请求推送通道（主 → 渲染，单向） */
-export const SANDBOX_APPROVAL_CHANNEL = 'sandbox:approval-request'
+export const SANDBOX_APPROVAL_CHANNEL = SANDBOX.APPROVAL_REQUEST
 /** 审批超时（30 秒，与 llm-tools.ts 保持一致） */
 export const SANDBOX_APPROVAL_TIMEOUT_MS = 30_000
 

@@ -21,7 +21,7 @@ import { McpGateway } from '../core/agent/mcp-gateway'
 import { logger } from '../services/log/logger'
 
 /** 状态变更通道 */
-const MCP_STATE_CHANNEL = 'mcp:state-changed'
+const MCP_STATE_CHANNEL = MCP.STATE_CHANGED
 
 /**
  * 注册 MCP 状态机 IPC handlers
@@ -82,7 +82,7 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
   // mcp:external-call — 调用外部工具
   // ------------------------------------------------------------------
   ipcMain.handle(
-    'mcp:external-call',
+    MCP.EXTERNAL_CALL,
     async (
       _event,
       serverId: string,

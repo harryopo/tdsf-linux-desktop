@@ -140,7 +140,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // - 返回 { ok: true, timestamp: Date.now(), protocolVersion: '0.9.4' }
   // - 渲染进程通过 window.electronAPI.systemPing() 调用（preload 已暴露）
   // - 使用场景：渲染进程启动后定期（如每 30 秒）调用 systemPing() 检测主进程是否响应
-  ipcMain.handle('system:ping', (): SystemPingResponse => {
+  ipcMain.handle(CHANNELS.SYSTEM.PING, (): SystemPingResponse => {
     return {
       ok: true,
       timestamp: Date.now(),

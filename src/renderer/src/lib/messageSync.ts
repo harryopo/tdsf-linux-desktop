@@ -3,7 +3,7 @@
  *
  * 三件事：
  *   1. 事件分类表：把主进程推过来的每一类事件按"能不能丢、要不要认会话"归类，
- *      这张表是包内私有的，并被测试逐条钉住。以前 28 个推送点各写各的 if，
+ *      这张表是包内私有的，并被测试逐条钉住。以前 42 个推送点各写各的 if，
  *      没人说得清哪个能丢、哪个丢了就丢答案。
  *   2. 会话归属判定：流式事件必须属于"当前正在流的那一条"才允许落地。
  *      切会话/新建消息/清空之后，旧流在途的 chunk/step/tool 事件直接丢弃。
@@ -24,17 +24,27 @@
 /**
  * 主进程 → 渲染进程的推送通道名
  *
- * 这份清单不是手写的期望值，是从 preload 的 28 个监听点
+ * 这份清单不是手写的期望值，是从 preload 的 42 个监听点
  * （createListener / ipcRenderer.on）反解出来的实际推送面。
+ * D1 之前的数字是 28——那时 14 个推送通道直写字面量、没进中央表，
+ * 反解器看不见它们，于是"对上了"其实是漏了。中央表补齐后清单才是 42。
  * tests/unit/message-sync-table.test.ts 会再对一次，多一个少一个都红。
  */
 export type StreamEventName =
   | 'agent:chunk'
   | 'agent:done'
   | 'agent:error'
+  | 'agent:paor:iteration'
   | 'agent:step'
+  | 'agent:tool-event'
   | 'boot:loading-stage'
+  | 'claude-sdk:chunk'
+  | 'claude-sdk:done'
+  | 'claude-sdk:error'
   | 'diagnostics:log-batch'
+  | 'deploy:done'
+  | 'deploy:log'
+  | 'deploy:stepUpdate'
   | 'file:changed'
   | 'llm:chunk'
   | 'llm:done'
@@ -49,14 +59,20 @@ export type StreamEventName =
   | 'loop:llm-done'
   | 'loop:llm-start'
   | 'loop:step'
+  | 'mcp:state-changed'
   | 'monitor:data'
   | 'monitor:systemInfo'
+  | 'paor:approval-request'
+  | 'sandbox:approval-request'
   | 'scheduler:status'
   | 'sftp:progress'
   | 'ssh:host-key-prompt'
   | 'ssh:state-changed'
+  | 'task:permission-approval-request'
   | 'terminal:data'
   | 'tutorial:backfill-progress'
+  | 'tutorial:crawlDone'
+  | 'tutorial:crawlProgress'
 
 /**
  * 事件类别
@@ -271,6 +287,92 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: true,
     note: '回填进度条',
+  },
+  // ── 以下 14 条来自 D1：这些通道的名字此前只写在 preload 的字面量里、没进中央表，
+  //    所以阶段 C 那次"对表"根本没扫到它们。中央表补齐后对表才露出缺口。
+  'agent:tool-event': {
+    class: 'SNAPSHOT',
+    ownership: false,
+    coalescable: false,
+    note: '一次工具调用的阶段事件（call/output/result 靠 toolCallId 配对），合并会丢阶段',
+  },
+  'agent:paor:iteration': {
+    class: 'SNAPSHOT',
+    ownership: false,
+    coalescable: false,
+    note: '同一通道既推迭代轮次也推任务拆解计划，后者是整块内容，覆盖式合并会丢计划卡',
+  },
+  'claude-sdk:chunk': {
+    class: 'DELTA',
+    ownership: false,
+    coalescable: true,
+    note: 'Claude SDK 通道的 token 块，语义同 agent:chunk；渲染层目前未订阅，故无从做会话过滤',
+  },
+  'claude-sdk:done': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: '收尾事件，丢了消息停在 streaming；渲染层目前未订阅',
+  },
+  'claude-sdk:error': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: '错误不丢；渲染层目前未订阅',
+  },
+  'deploy:log': {
+    class: 'SNAPSHOT',
+    ownership: false,
+    coalescable: false,
+    note: '部署日志逐条追加，丢了就是少一行审计记录',
+  },
+  'deploy:stepUpdate': {
+    class: 'LATEST_ONLY',
+    ownership: false,
+    coalescable: true,
+    note: '步骤状态，最新一份覆盖旧的即可',
+  },
+  'deploy:done': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: '部署终态，丢了 UI 一直转圈',
+  },
+  'mcp:state-changed': {
+    class: 'LATEST_ONLY',
+    ownership: false,
+    coalescable: true,
+    note: 'MCP 生命周期状态机快照，只有最新状态有意义',
+  },
+  'paor:approval-request': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: '审批卡，丢了用户无从批准，主进程只能等到超时拒绝',
+  },
+  'sandbox:approval-request': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: '沙箱命令审批卡，同上，丢了命令永远挂着',
+  },
+  'task:permission-approval-request': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: 'Subagent 调度审批卡，丢了 30 秒后自动拒绝',
+  },
+  'tutorial:crawlProgress': {
+    class: 'LATEST_ONLY',
+    ownership: false,
+    coalescable: true,
+    note: '爬取进度百分比，只有最新值有意义',
+  },
+  'tutorial:crawlDone': {
+    class: 'CRITICAL',
+    ownership: false,
+    coalescable: false,
+    note: '爬取收尾事件，丢了 UI 停在爬取中',
   },
 } as const
 

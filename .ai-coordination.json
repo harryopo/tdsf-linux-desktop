@@ -2,8 +2,39 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-05T00:45:19.297Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-05T01:13:09.116Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-05T01:13:08.821Z",
+      "lastActiveAt": "2026-10-05T01:13:09.116Z",
+      "task": "D1-ipc-contract",
+      "claimedFiles": [
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "D1-ipc-contract",
+          "claimedAt": "2026-10-05T01:13:08.821Z"
+        },
+        {
+          "path": "src/shared/models.ts",
+          "task": "D1-ipc-contract",
+          "claimedAt": "2026-10-05T01:13:08.921Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "D1-ipc-contract",
+          "claimedAt": "2026-10-05T01:13:09.019Z"
+        },
+        {
+          "path": "src/main/ipc/index.ts",
+          "task": "D1-ipc-contract",
+          "claimedAt": "2026-10-05T01:13:09.116Z"
+        }
+      ],
+      "expiresAt": "2026-10-05T03:13:09.116Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -3280,6 +3311,216 @@
       "file": "src/main/ipc/index.ts",
       "task": "D3-sidecar-supervision",
       "timestamp": "2026-10-05T00:45:19.297Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.436Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.526Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.615Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/mcp.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.702Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.791Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/claude-sdk.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.884Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/sandbox-approval.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:04.974Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/task-permission-approval.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:05.071Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/deploy/executor.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:05.162Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/tutorial/crawler/tutorial-crawler-service.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:05.267Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/ipc-contract.test.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T00:57:05.363Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/diagnostics/diagnostics-service.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:02:17.915Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/lib/messageSync.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:06:02.220Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:42.952Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.050Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.152Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/mcp.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.242Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.425Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/claude-sdk.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.514Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/sandbox-approval.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.617Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/task-permission-approval.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.703Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/deploy/executor.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.795Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/diagnostics/diagnostics-service.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.884Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/tutorial/crawler/tutorial-crawler-service.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:43.977Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/lib/messageSync.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:44.070Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/ipc-contract.test.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:12:44.160Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:13:08.821Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:13:08.921Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:13:09.019Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "D1-ipc-contract",
+      "timestamp": "2026-10-05T01:13:09.116Z"
     }
   ],
   "coordinationAudit": {

@@ -40,6 +40,7 @@ import type {
   LogPushEvent,
 } from './types'
 import { logger } from '../../core/logger'
+import { DIAGNOSTICS } from '@shared/ipc-channels'
 
 /** 默认缓冲区大小（保留最近 1000 条日志） */
 const DEFAULT_BUFFER_SIZE = 1000
@@ -304,7 +305,7 @@ class DiagnosticsService extends EventEmitter {
     this.lastPushTime = Date.now()
 
     try {
-      this.mainWindow.webContents.send('diagnostics:log-batch', batch)
+      this.mainWindow.webContents.send(DIAGNOSTICS.LOG_BATCH, batch)
     } catch (err) {
       logger.warn(`[DiagnosticsService] 推送日志批次失败: ${(err as Error).message}`)
     }

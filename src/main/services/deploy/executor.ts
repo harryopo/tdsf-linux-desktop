@@ -22,11 +22,12 @@ import type {
   DeployResult,
   DeployLogEvent
 } from './types'
+import { DEPLOY } from '@shared/ipc-channels'
 
 /** 事件通道 */
-const CH_LOG = 'deploy:log'
-const CH_STEP = 'deploy:stepUpdate'
-const CH_DONE = 'deploy:done'
+const CH_LOG = DEPLOY.LOG
+const CH_STEP = DEPLOY.STEP_UPDATE
+const CH_DONE = DEPLOY.DONE
 
 /** 计划状态（运行时） */
 interface PlanState {

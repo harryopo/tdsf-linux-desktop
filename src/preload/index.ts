@@ -68,8 +68,6 @@ import {
   BOOT,
   // A4 新增：数据库状态 IPC（db:status，SQLite 降级可见化）
   DB,
-  // v2.2 P1 修复 #18/#20：补齐 MCP 外部调用通道集中化
-  MCP_EXTERNAL,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
   APP,
   // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
@@ -2221,7 +2219,7 @@ const on = {
   },
   /** 监听 MCP 状态变更推送 */
   mcpStateChanged: (callback: (ctx: McpStateContext) => void): (() => void) => {
-    return createListener('mcp:state-changed', callback)
+    return createListener(MCP.STATE_CHANGED, callback)
   },
 
   // v0.9.6 新增：外部 MCP Server（Client 侧）
@@ -2245,7 +2243,7 @@ const on = {
     content: Array<{ type: 'text'; text: string }>
     error?: string
   }> => {
-    return ipcRenderer.invoke(MCP_EXTERNAL.EXTERNAL_CALL, serverId, toolName, args)
+    return ipcRenderer.invoke(MCP.EXTERNAL_CALL, serverId, toolName, args)
   },
   /** 重连外部 MCP 服务器 */
   mcpExternalReconnect: (serverId: string): Promise<boolean> => {
@@ -2267,21 +2265,21 @@ const on = {
   },
   /** 监听 Supervisor 工具调用事件（v2.4：真实工具执行可视化） */
   agentToolEvent: (callback: (payload: AgentToolEventPayload) => void): (() => void) => {
-    return createListener('agent:tool-event', callback)
+    return createListener(AGENT.TOOL_EVENT, callback)
   },
 
   // v0.9 Claude Agent SDK 流式事件（独立于 agent:chunk/done/error，避免通道混用）
   /** 监听 Claude SDK 流式 token 块推送 */
   claudeSdkChunk: (callback: (payload: AgentChunkPayload) => void): (() => void) => {
-    return createListener('claude-sdk:chunk', callback)
+    return createListener(CLAUDE_SDK.CHUNK, callback)
   },
   /** 监听 Claude SDK 完成信号（含完整 ChatResult） */
   claudeSdkDone: (callback: (payload: AgentDonePayload) => void): (() => void) => {
-    return createListener('claude-sdk:done', callback)
+    return createListener(CLAUDE_SDK.DONE, callback)
   },
   /** 监听 Claude SDK 错误信号 */
   claudeSdkError: (callback: (payload: AgentErrorPayload) => void): (() => void) => {
-    return createListener('claude-sdk:error', callback)
+    return createListener(CLAUDE_SDK.ERROR, callback)
   },
 
   /**
@@ -2293,7 +2291,7 @@ const on = {
    * 注意：30 秒未响应主进程会自动拒绝并返回 APPROVAL_DENIED 错误。
    */
   sandboxApprovalRequest: (callback: (request: SandboxApprovalRequest) => void): (() => void) => {
-    return createListener('sandbox:approval-request', callback)
+    return createListener(SANDBOX.APPROVAL_REQUEST, callback)
   },
 
   /**
@@ -2305,7 +2303,7 @@ const on = {
    * 注意：60 秒未响应主进程会自动拒绝。
    */
   paorApprovalRequest: (callback: (request: PaorApprovalRequest) => void): (() => void) => {
-    return createListener('paor:approval-request', callback)
+    return createListener(PAOR.APPROVAL_REQUEST, callback)
   },
 
   /**
@@ -2320,7 +2318,7 @@ const on = {
    * - iteration: 本轮迭代轨迹（含 act/observe/reflect 三个阶段结果）
    */
   agentPaorIteration: (callback: (event: PaorIterationEvent) => void): (() => void) => {
-    return createListener('agent:paor:iteration', callback)
+    return createListener(AGENT.PAOR_ITERATION, callback)
   },
 
   /**
@@ -2332,30 +2330,30 @@ const on = {
    * 注意：30 秒未响应主进程会自动拒绝。
    */
   taskPermissionApprovalRequest: (callback: (request: TaskPermissionApprovalRequest) => void): (() => void) => {
-    return createListener('task:permission-approval-request', callback)
+    return createListener(TASK.PERMISSION_APPROVAL_REQUEST, callback)
   },
 
   // v1.5 循环工程事件监听器
   loopLlmStart: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:llm-start', callback)
+    return createListener(LOOP.LLM_START, callback)
   },
   loopLlmDone: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:llm-done', callback)
+    return createListener(LOOP.LLM_DONE, callback)
   },
   loopStep: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:step', callback)
+    return createListener(LOOP.STEP, callback)
   },
   loopDecision: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:decision', callback)
+    return createListener(LOOP.DECISION, callback)
   },
   loopDone: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:done', callback)
+    return createListener(LOOP.DONE, callback)
   },
   loopError: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:error', callback)
+    return createListener(LOOP.ERROR, callback)
   },
   loopBlocked: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener('loop:blocked', callback)
+    return createListener(LOOP.BLOCKED, callback)
   },
 
   // Phase 6 Task 6.5：调度器状态变更推送（主 → 渲染）
@@ -2754,10 +2752,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 教程爬虫事件监听
   onTutorialCrawlProgress: (callback: (progress: CrawlProgress) => void): (() => void) => {
-    return createListener('tutorial:crawlProgress', callback)
+    return createListener(TUTORIAL.CRAWL_PROGRESS, callback)
   },
   onTutorialCrawlDone: (callback: (result: CrawlResult) => void): (() => void) => {
-    return createListener('tutorial:crawlDone', callback)
+    return createListener(TUTORIAL.CRAWL_DONE, callback)
   },
 
   // v2.5 Phase C：异步回填进度推送监听（主 → 渲染，每页完成后触发）
@@ -2947,15 +2945,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 部署事件监听
   onDeployLog: (callback: (event: DeployLogEventModel) => void): (() => void) => {
-    return createListener('deploy:log', callback)
+    return createListener(DEPLOY.LOG, callback)
   },
   onDeployStepUpdate: (
     callback: (payload: { planId: string; step: DeployStepResultModel }) => void
   ): (() => void) => {
-    return createListener('deploy:stepUpdate', callback)
+    return createListener(DEPLOY.STEP_UPDATE, callback)
   },
   onDeployDone: (callback: (result: DeployResultModel) => void): (() => void) => {
-    return createListener('deploy:done', callback)
+    return createListener(DEPLOY.DONE, callback)
   },
 
   // ===== LLM Tool Calling 扁平化（v0.5.0）=====
