@@ -17,12 +17,12 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Modal, Spin, Button } from 'antd'
 import { toast } from 'sonner'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
-  Terminal, List, Star, ChevronRight,
+  Terminal, List, Star, ChevronRight, Loader2,
 } from 'lucide-react'
+import { Button, Dialog, DialogContent } from '@/ui'
 import type { TutorialEntry } from '@shared/tutorial-types'
 import { TUTORIAL_DIFFICULTY_LABELS } from '@shared/tutorial-types'
 import './TutorialPage.css'
@@ -697,10 +697,11 @@ export function TutorialDetailPage() {
 
   return (
     <main className="tut-detail-page" style={{ color: 'var(--trae-text-default)', height: '100%', overflowY: 'auto' }}>
-      {/* loading 占位：真实数据加载中时显示 Spin（避免短暂空白） */}
+      {/* loading 占位：真实数据加载中时显示旋转图标（避免短暂空白） */}
       {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 0' }}>
-          <Spin tip="加载教程条目..." />
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-dim">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          加载教程条目…
         </div>
       )}
       {!loading && notFound && (
@@ -1003,103 +1004,87 @@ export function TutorialDetailPage() {
         </div>
       </footer>
 
-          {/* 沙箱执行结果 Modal（v1.0 P0 接入 sandboxExecute IPC） */}
-          <Modal
-            title="沙箱执行结果"
-            open={sandboxModalOpen}
-            onOk={() => setSandboxModalOpen(false)}
-            onCancel={() => setSandboxModalOpen(false)}
-            okText="关闭"
-            cancelButtonProps={{ style: { display: 'none' } }}
-            width={680}
-          >
-            {sandboxResult && (
-              <div>
-                <div style={{ marginBottom: 12, fontSize: 13 }}>
-                  <strong>退出码：</strong>
-                  <span style={{
-                    color: sandboxResult.exitCode === 0
-                      ? 'var(--trae-status-success-default)'
-                      : 'var(--trae-status-warning-default)',
-                    fontWeight: 600,
-                    marginLeft: 6,
-                  }}>
-                    {sandboxResult.exitCode}
-                  </span>
+          {/* 沙箱执行结果 Dialog（v1.0 P0 接入 sandboxExecute IPC） */}
+          <Dialog open={sandboxModalOpen} onOpenChange={(next) => !next && setSandboxModalOpen(false)}>
+            <DialogContent
+              title="沙箱执行结果"
+              className="w-[min(680px,92vw)]"
+              footer={
+                <Button variant="solid" onClick={() => setSandboxModalOpen(false)}>
+                  关闭
+                </Button>
+              }
+            >
+              {sandboxResult && (
+                <div className="flex flex-col gap-3">
+                  <div className="text-sm">
+                    <span className="text-ink-dim">退出码：</span>
+                    <span
+                      className={
+                        'font-semibold ' +
+                        (sandboxResult.exitCode === 0 ? 'text-success' : 'text-warning')
+                      }
+                    >
+                      {sandboxResult.exitCode}
+                    </span>
+                  </div>
+                  {sandboxResult.stdout && (
+                    <div>
+                      <div className="mb-1 text-caption text-ink-dim">stdout：</div>
+                      <pre className="m-0 max-h-50 overflow-auto whitespace-pre-wrap break-words rounded-(--ui-radius-control) bg-sunken p-2.5 font-mono text-sm text-ink">
+                        {sandboxResult.stdout}
+                      </pre>
+                    </div>
+                  )}
+                  {sandboxResult.stderr && (
+                    <div>
+                      <div className="mb-1 text-caption text-ink-dim">stderr：</div>
+                      <pre className="m-0 max-h-37.5 overflow-auto whitespace-pre-wrap break-words rounded-(--ui-radius-control) bg-sunken p-2.5 font-mono text-sm text-warning">
+                        {sandboxResult.stderr}
+                      </pre>
+                    </div>
+                  )}
                 </div>
-                {sandboxResult.stdout && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 12, color: 'var(--trae-text-secondary)', marginBottom: 4 }}>stdout：</div>
-                    <pre style={{
-                      background: 'var(--trae-bg-overlay-l3)',
-                      padding: 10,
-                      borderRadius: 4,
-                      fontSize: 12,
-                      maxHeight: 200,
-                      overflow: 'auto',
-                      color: 'var(--trae-text-default)',
-                      margin: 0,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}>
-                      {sandboxResult.stdout}
-                    </pre>
-                  </div>
-                )}
-                {sandboxResult.stderr && (
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--trae-text-secondary)', marginBottom: 4 }}>stderr：</div>
-                    <pre style={{
-                      background: 'var(--trae-bg-overlay-l3)',
-                      padding: 10,
-                      borderRadius: 4,
-                      fontSize: 12,
-                      maxHeight: 150,
-                      overflow: 'auto',
-                      color: 'var(--trae-status-warning-default)',
-                      margin: 0,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}>
-                      {sandboxResult.stderr}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
-          </Modal>
+              )}
+            </DialogContent>
+          </Dialog>
 
-          {/* 沙箱命令审批 Modal（M4 Task 3 接入 onSandboxApprovalRequest + sandboxApprove IPC） */}
+          {/* 沙箱命令审批 Dialog（M4 Task 3 接入 onSandboxApprovalRequest + sandboxApprove IPC） */}
           {/* HC-6 强制审批：sandboxExecute 调用后主进程推送审批请求，用户批准/拒绝后才执行 */}
-          <Modal
-            title="沙箱命令审批"
+          {/* 关闭等同于拒绝（fail-closed），不存在"关掉弹窗命令照跑"的路径 */}
+          <Dialog
             open={approvalModal.open}
-            onCancel={() => handleApprove(false)}
-            footer={[
-              <Button key="reject" danger onClick={() => handleApprove(false)} loading={approvalModal.loading}>
-                拒绝执行
-              </Button>,
-              <Button key="approve" type="primary" onClick={() => handleApprove(true)} loading={approvalModal.loading}>
-                批准执行
-              </Button>,
-            ]}
+            onOpenChange={(next) => !next && void handleApprove(false)}
           >
-            <div style={{ marginBottom: 8, color: 'var(--trae-text-secondary)' }}>即将在沙箱中执行以下命令：</div>
-            <pre style={{
-              padding: 12,
-              background: 'var(--trae-bg-overlay-l1)',
-              borderRadius: 4,
-              fontFamily: 'var(--trae-font-family-mono)',
-              fontSize: 12,
-              color: 'var(--trae-text-default)',
-              overflowX: 'auto',
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}>
-              {approvalModal.command}
-            </pre>
-          </Modal>
+            <DialogContent
+              title="沙箱命令审批"
+              description="即将在沙箱中执行以下命令："
+              footer={
+                <>
+                  <Button
+                    disabled={approvalModal.loading}
+                    onClick={() => void handleApprove(false)}
+                  >
+                    拒绝执行
+                  </Button>
+                  <Button
+                    variant="solid"
+                    disabled={approvalModal.loading}
+                    onClick={() => void handleApprove(true)}
+                  >
+                    {approvalModal.loading && (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    )}
+                    批准执行
+                  </Button>
+                </>
+              }
+            >
+              <pre className="m-0 overflow-x-auto whitespace-pre-wrap break-words rounded-(--ui-radius-control) bg-sunken p-3 font-mono text-sm text-ink">
+                {approvalModal.command}
+              </pre>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </main>

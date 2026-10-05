@@ -29,11 +29,11 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Modal, Input } from 'antd'
 import {
   Sparkles, ArrowLeft, Fingerprint, Activity,
   AlertTriangle, History,
 } from 'lucide-react'
+import { Button, Dialog, DialogContent, TextArea } from '@/ui'
 import { ConfidenceGauge } from '@/components/decision/ConfidenceGauge'
 import { LoadingState } from '@/components/decision/LoadingState'
 import { ErrorState } from '@/components/decision/ErrorState'
@@ -485,29 +485,34 @@ export function DecisionPage() {
       )}
 
       {/* ===== 修改命令弹窗 ===== */}
-      <Modal
-        title="修改修复命令"
-        open={modifyModalOpen}
-        onOk={() => void handleModifyConfirm()}
-        onCancel={() => setModifyModalOpen(false)}
-        okText="提交审批"
-        cancelText="取消"
-        confirmLoading={confirming}
-        okButtonProps={{ disabled: !modifyCommand.trim() }}
-      >
-        <div className="py-2">
-          <p className="mb-2 text-sm text-[var(--trae-text-secondary)]">
+      <Dialog open={modifyModalOpen} onOpenChange={(next) => !next && setModifyModalOpen(false)}>
+        <DialogContent
+          title="修改修复命令"
+          footer={
+            <>
+              <Button onClick={() => setModifyModalOpen(false)}>取消</Button>
+              <Button
+                variant="solid"
+                disabled={!modifyCommand.trim() || confirming}
+                onClick={() => void handleModifyConfirm()}
+              >
+                {confirming ? '提交中…' : '提交审批'}
+              </Button>
+            </>
+          }
+        >
+          <p className="mb-2 text-sm text-ink-dim">
             修改后的命令将通过 loopConfirm 提交主进程执行。
           </p>
-          <Input.TextArea
+          <TextArea
             value={modifyCommand}
             onChange={(e) => setModifyCommand(e.target.value)}
-            autoSize={{ minRows: 3, maxRows: 8 }}
+            rows={5}
             placeholder="请输入修改后的修复命令"
             className="font-mono"
           />
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== 操作反馈浮层 ===== */}
       {actionFeedback && (

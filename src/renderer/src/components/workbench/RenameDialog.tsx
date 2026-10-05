@@ -2,7 +2,7 @@
  * RenameDialog — 重命名远程文件/目录对话框
  */
 import { useEffect, useState, type FC } from 'react'
-import { Modal, Input, Form } from 'antd'
+import { Button, Dialog, DialogContent, Field, TextInput } from '@/ui'
 
 export interface RenameDialogProps {
   open: boolean
@@ -36,26 +36,32 @@ const RenameDialog: FC<RenameDialogProps> = ({ open, oldName, onCancel, onOk }) 
   }
 
   return (
-    <Modal
-      title="重命名"
-      open={open}
-      onCancel={onCancel}
-      onOk={handleOk}
-      okButtonProps={{ disabled: !valid, loading }}
-      okText="确认"
-      cancelText="取消"
-    >
-      <Form layout="vertical">
-        <Form.Item label="新名称" required>
-          <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onPressEnter={handleOk}
-            autoFocus
-          />
-        </Form.Item>
-      </Form>
-    </Modal>
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent
+        title="重命名"
+        description={oldName}
+        footer={
+          <>
+            <Button onClick={onCancel}>取消</Button>
+            <Button variant="solid" disabled={!valid || loading} onClick={() => void handleOk()}>
+              {loading ? '提交中…' : '确认'}
+            </Button>
+          </>
+        }
+      >
+        <Field label="新名称" required>
+          {(id) => (
+            <TextInput
+              id={id}
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleOk()}
+            />
+          )}
+        </Field>
+      </DialogContent>
+    </Dialog>
   )
 }
 

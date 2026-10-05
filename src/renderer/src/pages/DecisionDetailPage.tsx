@@ -21,8 +21,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Modal, Input } from 'antd'
-import { confirmDialog } from '@/ui'
+import { Button, Dialog, DialogContent, TextArea, confirmDialog } from '@/ui'
 import { toast } from 'sonner'
 import {
   Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
@@ -681,39 +680,43 @@ export function DecisionDetailPage() {
 
       {/* modify-execution 弹窗：编辑 fixCommand 字符串后提交审批
           无障碍：title 关联 aria-labelledby（rc-dialog 自动生成 ariaId）、autoFocus 聚焦 TextArea、ESC 关闭（AntD 默认 keyboard=true） */}
-      <Modal
-        title={<span id="modify-execution-modal-title">修改修复命令</span>}
-        open={modifyModalOpen}
-        onOk={() => void handleModifyConfirm()}
-        onCancel={() => setModifyModalOpen(false)}
-        okText="确认提交"
-        cancelText="取消"
-        confirmLoading={confirming}
-        okButtonProps={{ disabled: !modifyCommand.trim() || confirming }}
-        destroyOnClose
-        maskClosable={false}
-        focusTriggerAfterClose
-      >
-        <div className="flex flex-col gap-2 py-2">
-          <label htmlFor="modify-fix-command" className="text-sm text-[var(--trae-text-secondary)]">
-            修复命令（提交后将以本命令执行变更）
-          </label>
-          <Input.TextArea
-            id="modify-fix-command"
-            value={modifyCommand}
-            onChange={(e) => setModifyCommand(e.target.value)}
-            placeholder="例如：systemctl restart nginx"
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            disabled={confirming}
-            autoFocus
-            className="font-mono text-sm"
-            aria-label="修改后的修复命令"
-          />
-          <p className="text-caption text-[var(--trae-text-tertiary)]">
-            提示：修改命令后将重新提交人工审批流程；按 ESC 可取消
-          </p>
-        </div>
-      </Modal>
+      <Dialog open={modifyModalOpen} onOpenChange={(next) => !next && setModifyModalOpen(false)}>
+        <DialogContent
+          title="修改修复命令"
+          closeOnOverlayClick={false}
+          footer={
+            <>
+              <Button onClick={() => setModifyModalOpen(false)}>取消</Button>
+              <Button
+                variant="solid"
+                disabled={!modifyCommand.trim() || confirming}
+                onClick={() => void handleModifyConfirm()}
+              >
+                {confirming ? '提交中…' : '确认提交'}
+              </Button>
+            </>
+          }
+        >
+          <div className="flex flex-col gap-2">
+            <label htmlFor="modify-fix-command" className="text-sm text-ink-dim">
+              修复命令（提交后将以本命令执行变更）
+            </label>
+            <TextArea
+              id="modify-fix-command"
+              value={modifyCommand}
+              onChange={(e) => setModifyCommand(e.target.value)}
+              placeholder="例如：systemctl restart nginx"
+              rows={3}
+              disabled={confirming}
+              autoFocus
+              className="font-mono text-sm"
+            />
+            <p className="text-caption text-ink-mute">
+              提示：修改命令后将重新提交人工审批流程；按 Esc 可取消
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }

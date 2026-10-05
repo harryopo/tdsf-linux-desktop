@@ -48,17 +48,32 @@ export function DialogContent({
   footer,
   children,
   className,
+  dismissible = true,
+  closeOnOverlayClick = true,
 }: {
   title: ReactNode
   description?: ReactNode
   footer?: ReactNode
   children?: ReactNode
   className?: string
+  /** 为 false 时 Esc 与关闭按钮都不放行——用于必须做选择的弹窗（如主机密钥确认） */
+  dismissible?: boolean
+  /** 点遮罩是否关闭；已填过内容的弹窗应设为 false，误点外部不该丢弃输入 */
+  closeOnOverlayClick?: boolean
 }) {
+  const blockEscape = (e: { preventDefault: () => void }) => {
+    if (!dismissible) e.preventDefault()
+  }
+  const blockOutside = (e: { preventDefault: () => void }) => {
+    if (!dismissible || !closeOnOverlayClick) e.preventDefault()
+  }
   return (
     <RadixDialog.Portal>
       <RadixDialog.Overlay className="fixed inset-0 z-(--ui-z-modal) bg-black/55 data-[state=open]:animate-in" />
       <RadixDialog.Content
+        onEscapeKeyDown={blockEscape}
+        onInteractOutside={blockOutside}
+        onPointerDownOutside={blockOutside}
         className={cn(
           'fixed left-1/2 top-1/2 z-(--ui-z-modal) w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2',
           'rounded-(--ui-radius-panel) border border-line-strong bg-raised shadow-(--shadow-lg)',
@@ -77,11 +92,13 @@ export function DialogContent({
               </RadixDialog.Description>
             ) : null}
           </div>
-          <RadixDialog.Close asChild>
-            <IconButton label="关闭" size="sm">
-              <X className="size-4" />
-            </IconButton>
-          </RadixDialog.Close>
+          {dismissible ? (
+            <RadixDialog.Close asChild>
+              <IconButton label="关闭" size="sm">
+                <X className="size-4" />
+              </IconButton>
+            </RadixDialog.Close>
+          ) : null}
         </div>
         {children ? <div className="px-4 py-3">{children}</div> : null}
         {footer ? (

@@ -12,21 +12,46 @@
  *
  * 挂载位置：App.tsx 根组件（全局监听，任何页面都能收到弹窗）
  *
- * CSS 变量：全部使用 var(--trae-*) 保持设计系统一致
+ * 不可关闭：这是必须做选择的安全闸门，Esc 与点遮罩都不放行（dismissible=false）。
  */
-import { useState, useEffect, useCallback } from 'react'
-import { Modal, Button } from 'antd'
-import {
-  SafetyCertificateOutlined,
-  WarningOutlined,
-  ExclamationCircleOutlined,
-} from '@ant-design/icons'
+import { useState, useEffect, useCallback, type FC } from 'react'
+import { ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { SshHostKeyPromptEvent, SshHostKeyResponseAction } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
-import './HostKeyPromptDialog.css'
+import { Button, Dialog, DialogContent } from '@/ui'
+
+/** 密钥指纹块：算法标签 + 指纹文本 */
+function KeyBlock({
+  label,
+  keyType,
+  sha256,
+  tone
+}: {
+  label: string
+  keyType: string
+  sha256: string
+  tone: 'normal' | 'warn'
+}) {
+  return (
+    <div
+      className={
+        'flex flex-col gap-1.5 rounded-(--ui-radius-control) border p-3 ' +
+        (tone === 'warn' ? 'border-error/40 bg-error/10' : 'border-line bg-sunken')
+      }
+    >
+      <span className="text-caption font-medium text-ink-dim">{label}</span>
+      <div className="flex items-center gap-2.5">
+        <span className="shrink-0 rounded-(--ui-radius-control) border border-line-strong px-2 py-0.5 font-mono text-micro text-ink">
+          {keyType}
+        </span>
+        <code className="min-w-0 break-all font-mono text-sm text-ink">{sha256}</code>
+      </div>
+    </div>
+  )
+}
 
 /** HostKeyPromptDialog 组件 */
-const HostKeyPromptDialog: React.FC = () => {
+const HostKeyPromptDialog: FC = () => {
   const [prompt, setPrompt] = useState<SshHostKeyPromptEvent | null>(null)
   const [responding, setResponding] = useState(false)
 
@@ -57,109 +82,81 @@ const HostKeyPromptDialog: React.FC = () => {
         setPrompt(null)
       }
     },
-    [prompt],
+    [prompt]
   )
 
   const isOpen = prompt !== null
   const isWarning = prompt?.scenario === 'host-key-changed'
-
-  /** 弹窗标题图标和文案 */
-  const titleIcon = isWarning ? (
-    <WarningOutlined className="hkp-title-icon hkp-title-icon--warning" />
-  ) : (
-    <SafetyCertificateOutlined className="hkp-title-icon hkp-title-icon--info" />
-  )
-  const titleText = isWarning ? '主机密钥变更警告' : '首次连接确认'
+  const TitleIcon = isWarning ? ShieldAlert : ShieldCheck
 
   return (
-    <Modal
-      open={isOpen}
-      title={
-        <div className="hkp-title">
-          {titleIcon}
-          <span>{titleText}</span>
-        </div>
-      }
-      closable={false}
-      maskClosable={false}
-      width={520}
-      destroyOnClose
-      className="hkp-dialog"
-      footer={
-        <div className="hkp-footer">
-          <Button
-            danger={isWarning}
-            type={isWarning ? 'primary' : 'default'}
-            loading={responding}
-            onClick={() => handleRespond('accept-and-save')}
-            className="hkp-btn hkp-btn--save"
-          >
-            保存并继续
-          </Button>
-          <Button
-            loading={responding}
-            onClick={() => handleRespond('accept-once')}
-            className="hkp-btn hkp-btn--once"
-          >
-            仅本次继续
-          </Button>
-          <Button
-            loading={responding}
-            onClick={() => handleRespond('reject')}
-            className="hkp-btn hkp-btn--reject"
-          >
-            拒绝连接
-          </Button>
-        </div>
-      }
-    >
-      {prompt && (
-        <div className="hkp-body">
-          {/* 提示文案 */}
-          <div className="hkp-prompt-message">
-            {isWarning ? (
-              <ExclamationCircleOutlined className="hkp-alert-icon" />
-            ) : null}
-            <pre className="hkp-prompt-text">{prompt.promptMessage}</pre>
-          </div>
+    <Dialog open={isOpen}>
+      <DialogContent
+        dismissible={false}
+        className="w-[min(520px,92vw)]"
+        title={
+          <span className="flex items-center gap-2">
+            <TitleIcon
+              className={'size-4.5 ' + (isWarning ? 'text-error' : 'text-accent-ink')}
+              aria-hidden
+            />
+            {isWarning ? '主机密钥变更警告' : '首次连接确认'}
+          </span>
+        }
+        footer={
+          <>
+            <Button disabled={responding} onClick={() => void handleRespond('reject')}>
+              拒绝连接
+            </Button>
+            <Button disabled={responding} onClick={() => void handleRespond('accept-once')}>
+              仅本次继续
+            </Button>
+            <Button
+              variant={isWarning ? 'danger' : 'solid'}
+              disabled={responding}
+              onClick={() => void handleRespond('accept-and-save')}
+            >
+              保存并继续
+            </Button>
+          </>
+        }
+      >
+        {prompt && (
+          <div className="flex flex-col gap-4">
+            <pre className="m-0 whitespace-pre-wrap break-all rounded-(--ui-radius-control) border border-line bg-sunken p-3 text-sm text-ink">
+              {prompt.promptMessage}
+            </pre>
 
-          {/* 当前密钥详情 */}
-          <div className="hkp-key-section">
-            <div className="hkp-key-section__label">服务器密钥指纹</div>
-            <div className="hkp-key-detail">
-              <span className="hkp-key-detail__type">
-                {prompt.currentKey.keyType}
-              </span>
-              <code className="hkp-key-detail__fingerprint">
-                {prompt.currentKey.sha256}
-              </code>
+            <KeyBlock
+              label="服务器密钥指纹"
+              keyType={prompt.currentKey.keyType}
+              sha256={prompt.currentKey.sha256}
+              tone="normal"
+            />
+
+            {isWarning && prompt.knownKey && (
+              <KeyBlock
+                label="已记录的旧密钥指纹"
+                keyType={prompt.knownKey.keyType}
+                sha256={prompt.knownKey.sha256}
+                tone="warn"
+              />
+            )}
+
+            <div
+              className={
+                'rounded-(--ui-radius-control) px-3 py-2 text-caption ' +
+                (isWarning ? 'bg-error/10 text-error' : 'bg-hover text-ink-dim')
+              }
+            >
+              {isWarning
+                ? '注意：密钥变更可能是中间人攻击，请确认服务器变更合法后再继续。'
+                : '提示：选择「保存并继续」后，后续连接此主机将自动校验密钥，无需再次确认。'}
             </div>
           </div>
-
-          {/* 密钥变更时显示旧密钥 */}
-          {isWarning && prompt.knownKey && (
-            <div className="hkp-key-section hkp-key-section--known">
-              <div className="hkp-key-section__label">已记录的旧密钥指纹</div>
-              <div className="hkp-key-detail">
-                <span className="hkp-key-detail__type">
-                  {prompt.knownKey.keyType}
-                </span>
-                <code className="hkp-key-detail__fingerprint">
-                  {prompt.knownKey.sha256}
-                </code>
-              </div>
-            </div>
-          )}
-
-          {/* 安全提示 */}
-          <div className={`hkp-hint ${isWarning ? 'hkp-hint--warning' : ''}`}>
-            {isWarning
-              ? '注意：密钥变更可能是中间人攻击，请确认服务器变更合法后再继续。'
-              : '提示：选择「保存并继续」后，后续连接此主机将自动校验密钥，无需再次确认。'}
-          </div>
-        </div>
-      )}
-    </Modal>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 

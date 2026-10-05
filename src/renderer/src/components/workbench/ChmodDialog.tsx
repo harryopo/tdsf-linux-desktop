@@ -5,7 +5,7 @@
  * 实时预览符号表示（rwxr-xr-x）
  */
 import { useEffect, useState, type FC } from 'react'
-import { Modal, Input, Form } from 'antd'
+import { Button, Dialog, DialogContent, Field, TextInput } from '@/ui'
 
 export interface ChmodDialogProps {
   open: boolean
@@ -49,40 +49,54 @@ const ChmodDialog: FC<ChmodDialogProps> = ({ open, path, onCancel, onOk }) => {
   }
 
   return (
-    <Modal
-      title="修改权限"
-      open={open}
-      onCancel={onCancel}
-      onOk={handleOk}
-      okButtonProps={{ disabled: !valid, loading }}
-      okText="确认修改"
-      cancelText="取消"
-    >
-      <div style={{ marginBottom: 8 }}>
-        <span style={{ color: 'var(--trae-text-secondary)', fontSize: 12 }}>
-          路径：
-        </span>
-        <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-          {path}
-        </code>
-      </div>
-      <Form layout="vertical">
-        <Form.Item label="权限（八进制）" required>
-          <Input
-            value={mode}
-            onChange={(e) => setMode(e.target.value.slice(0, 3))}
-            placeholder="如 755 / 644"
-            maxLength={3}
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          />
-        </Form.Item>
-        {symbol && (
-          <div style={{ fontSize: 12, color: 'var(--trae-text-secondary)' }}>
-            符号表示：<code style={{ fontFamily: "'JetBrains Mono', monospace" }}>{symbol}</code>
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent
+        title="修改权限"
+        footer={
+          <>
+            <Button onClick={onCancel}>取消</Button>
+            <Button variant="solid" disabled={!valid || loading} onClick={() => void handleOk()}>
+              {loading ? '提交中…' : '确认修改'}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-baseline gap-1 text-caption">
+            <span className="shrink-0 text-ink-dim">路径：</span>
+            <code className="min-w-0 truncate font-mono text-ink" title={path}>
+              {path}
+            </code>
           </div>
-        )}
-      </Form>
-    </Modal>
+
+          <Field
+            label="权限（八进制）"
+            required
+            hint={
+              symbol ? (
+                <span className="text-ink-dim">
+                  符号表示：<code className="font-mono text-ink">{symbol}</code>
+                </span>
+              ) : undefined
+            }
+          >
+            {(id) => (
+              <TextInput
+                id={id}
+                autoFocus
+                maxLength={3}
+                value={mode}
+                placeholder="如 755 / 644"
+                className="w-24 font-mono"
+                invalid={mode.length > 0 && !valid}
+                onChange={(e) => setMode(e.target.value.slice(0, 3))}
+                onKeyDown={(e) => e.key === 'Enter' && void handleOk()}
+              />
+            )}
+          </Field>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

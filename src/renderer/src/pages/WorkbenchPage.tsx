@@ -19,14 +19,13 @@
  *   workbench-density.css 的错误覆盖）
  *
  * P1-3 工作台文件编辑能力（2026-07-25）：
- * - 关闭未保存文件时弹出 Modal.confirm 二次确认，避免误丢数据
+ * - 关闭未保存文件时弹出三选项确认框，避免误丢数据
  * - "全部保存"按钮一键保存所有未保存文件
  * - 文件 Tab 右键菜单（关闭/关闭其他/关闭所有/全部保存）
  */
 import { useCallback, useState, type FC } from 'react'
-import { Modal } from 'antd'
 import { toast } from 'sonner'
-import { confirmDialog } from '@/ui'
+import { Button, Dialog, DialogContent, confirmDialog } from '@/ui'
 import { PanelLeftOpen } from 'lucide-react'
 import { WorkbenchTitlebar } from '@/components/workbench/WorkbenchTitlebar'
 import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
@@ -348,44 +347,44 @@ export const WorkbenchPage: FC = () => {
 
       <StatusBar />
 
-      {/* P1-3：关闭未保存文件时三选项确认 Modal */}
-      <Modal
+      {/* P1-3：关闭未保存文件时三选项确认 */}
+      <Dialog
         open={pendingCloseTab !== null}
-        title="未保存的更改"
-        okText="保存并关闭"
-        cancelText="取消"
-        onOk={() => void closePendingWithSave()}
-        onCancel={() => setPendingCloseTabId(null)}
-        okButtonProps={{ loading: closing }}
-        maskClosable={false}
-        keyboard={false}
-        destroyOnClose
+        onOpenChange={(next) => !next && setPendingCloseTabId(null)}
       >
-        {pendingCloseTab && (
-          <>
-            <p>
-              文件 <strong>{pendingCloseTab.name}</strong>（{pendingCloseTab.path}）
-              有未保存的更改，关闭前是否保存？
-            </p>
-            <div style={{ marginTop: 12 }}>
-              <button
-                type="button"
+        <DialogContent
+          title="未保存的更改"
+          description="「不保存关闭」将丢弃该文件所有未保存的更改"
+          closeOnOverlayClick={false}
+          footer={
+            <>
+              <Button
+                variant="danger"
+                disabled={closing}
                 onClick={() => {
                   setPendingCloseTabId(null)
                   closePendingWithoutSave()
                 }}
-                className="ant-btn ant-btn-default ant-btn-dangerous"
-                style={{ marginRight: 8 }}
               >
                 不保存关闭
-              </button>
-              <span style={{ color: 'var(--trae-text-tertiary)', fontSize: 12 }}>
-                点击"不保存关闭"将丢弃所有未保存的更改
-              </span>
-            </div>
-          </>
-        )}
-      </Modal>
+              </Button>
+              <Button disabled={closing} onClick={() => setPendingCloseTabId(null)}>
+                取消
+              </Button>
+              <Button variant="solid" disabled={closing} onClick={() => void closePendingWithSave()}>
+                {closing ? '保存中…' : '保存并关闭'}
+              </Button>
+            </>
+          }
+        >
+          {pendingCloseTab && (
+            <p className="text-md text-ink">
+              文件 <strong className="font-semibold text-ink-strong">{pendingCloseTab.name}</strong>
+              （{pendingCloseTab.path}）有未保存的更改，关闭前是否保存？
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
