@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-04T17:28:01.212Z",
+  "lastUpdated": "2026-10-05T00:45:19.297Z",
   "sessions": {},
   "history": [
     {
@@ -3224,6 +3224,62 @@
       "file": "src/renderer/src/stores/agent-stream-subscription.ts",
       "task": "C-stream-sync",
       "timestamp": "2026-10-04T17:28:01.212Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "D2-approval-fail-closed",
+      "timestamp": "2026-10-04T17:43:51.966Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/sandbox.ts",
+      "task": "D2-approval-fail-closed",
+      "timestamp": "2026-10-04T17:43:52.079Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/llm-tools.ts",
+      "task": "D2-approval-fail-closed",
+      "timestamp": "2026-10-04T17:43:52.185Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/loop-engineering.ts",
+      "task": "D2-approval-fail-closed",
+      "timestamp": "2026-10-04T17:43:52.286Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/task-permission-approval.ts",
+      "task": "D2-approval-fail-closed",
+      "timestamp": "2026-10-04T17:43:52.390Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent/subagents/task-protocol-steps-early.ts",
+      "task": "D2-approval-fail-closed",
+      "timestamp": "2026-10-04T17:43:52.492Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "D3-sidecar-supervision",
+      "timestamp": "2026-10-05T00:45:00.493Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "D3-sidecar-supervision",
+      "timestamp": "2026-10-05T00:45:19.297Z"
     }
   ],
   "coordinationAudit": {
