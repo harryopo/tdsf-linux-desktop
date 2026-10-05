@@ -73,9 +73,8 @@
   * {
     border-color: var(--trae-border-neutral-l1);
   }
-  html {
-    color-scheme: dark;
-  }
+  /* color-scheme 归 trae-tokens.css（深色在 :root，浅色在 :root[data-theme='light']），
+     这里不再重复声明，避免同一件事有两份真值 */
   body {
     background-color: var(--trae-bg-base-default);
     color: var(--trae-text-default);

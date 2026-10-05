@@ -1036,7 +1036,7 @@
   position: absolute;
   inset: 0;
   z-index: 10;
-  background: #0F1011;
+  background: var(--trae-bg-code-block);
   overflow-y: auto;
   animation: ai-fade-in 0.4s cubic-bezier(0.3, 0, 0, 1) both;
 }
@@ -1059,7 +1059,7 @@
 }
 
 .wb-term-mock-prompt {
-  color: var(--trae-bg-brand, #387BFF);
+  color: var(--trae-bg-brand, var(--trae-text-brand));
   font-weight: 500;
 }
 
@@ -1090,7 +1090,7 @@
   display: inline-block;
   width: 7px;
   height: 14px;
-  background: #E0E3EE;
+  background: var(--trae-code-text);
   animation: ai-blink 1s step-end infinite;
   vertical-align: text-bottom;
 }

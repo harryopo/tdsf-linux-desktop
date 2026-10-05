@@ -212,7 +212,7 @@
 .ai-tool-exec-cmd {
   padding: 9px 12px;
   margin-bottom: 6px;
-  background: var(--trae-terminal-block-bg, #0f1011);
+  background: var(--trae-terminal-block-bg, var(--trae-bg-code-block));
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-6);
   font-family: var(--app-code-font, 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace);
@@ -231,7 +231,7 @@
   padding: 10px 12px;
   max-height: 260px;
   overflow: auto;
-  background: var(--trae-terminal-block-bg, #0f1011);
+  background: var(--trae-terminal-block-bg, var(--trae-bg-code-block));
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-6);
   font-family: var(--app-code-font, 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace);

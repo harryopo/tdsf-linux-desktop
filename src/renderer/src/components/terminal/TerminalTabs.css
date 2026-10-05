@@ -15,8 +15,8 @@
   align-items: center;
   gap: 8px;
   padding: 5px 12px;
-  background: var(--trae-bg-brand-popup, #1e2a45);
-  border-bottom: 1px solid var(--trae-border-brand, #387bff);
+  background: var(--trae-bg-brand-popup, var(--trae-bg-brand-popup));
+  border-bottom: 1px solid var(--trae-border-brand, var(--trae-border-brand));
   flex-shrink: 0;
   animation: term-pending-in 0.2s ease-out;
 }
@@ -25,13 +25,13 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .term-pending-cmd-icon {
-  color: var(--trae-text-brand, #387bff);
+  color: var(--trae-text-brand, var(--trae-text-brand));
   font-size: 12px;
 }
 .term-pending-cmd-label {
   font-size: 11px;
   font-weight: 500;
-  color: var(--trae-text-brand, #387bff);
+  color: var(--trae-text-brand, var(--trae-text-brand));
   white-space: nowrap;
 }
 .term-pending-cmd-text {
@@ -53,13 +53,13 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--trae-text-tertiary, #666b75);
+  color: var(--trae-text-tertiary, var(--trae-text-tertiary));
   font-size: 10px;
   cursor: pointer;
 }
 .term-pending-cmd-close:hover {
   background: rgba(255, 255, 255, 0.08);
-  color: var(--trae-text-default, #d1d3db);
+  color: var(--trae-text-default, var(--trae-text-default));
 }
 
 /* ===== Tab 标签栏 ===== */

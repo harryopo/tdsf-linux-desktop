@@ -768,7 +768,7 @@
   width: 8px;
   height: 8px;
   border-radius: var(--trae-radius-full);
-  background: var(--trae-special-white, #ffffff);
+  background: var(--trae-special-white, var(--trae-shader-fg));
 }
 
 .tut-progress-node-label {
@@ -946,7 +946,7 @@
 
 /* ===== 代码块 ===== */
 .tut-code-block {
-  background: #0F1011;
+  background: var(--trae-bg-code-block);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-6);
   padding: 12px;

@@ -143,6 +143,18 @@ for (const f of [...activeCss, ...allTs]) {
   }
 }
 
+// ── 硬编码颜色（浅色主题下不会跟着翻面的残留源）───────────────────────────
+const HEX = /#[0-9a-fA-F]{3,8}\b/g
+const hexByFile = []
+for (const f of activeCss) {
+  if (rel(f).endsWith('styles/trae-tokens.css')) continue
+  const src = stripComments(fs.readFileSync(f, 'utf8'))
+  const n = (src.match(HEX) || []).length
+  if (n) hexByFile.push({ file: rel(f), n })
+}
+hexByFile.sort((a, b) => b.n - a.n)
+const hexTotal = hexByFile.reduce((s, x) => s + x.n, 0)
+
 // ── 报告 ────────────────────────────────────────────────────────────────────
 const importantActive = sumOver(activeCss, /!important/g)
 const importantDead = sumOver(deadCss, /!important/g)
@@ -168,6 +180,8 @@ console.log(`[data-theme] / prefers-color-scheme 命中 = ${themeSelectors.lengt
 for (const t of themeSelectors.slice(0, 12)) console.log(`  ${t}`)
 console.log('color-scheme 声明：')
 for (const t of colorSchemeHardcoded) console.log(`  ${t}`)
+console.log(`硬编码十六进制色（trae-tokens 之外）= ${hexTotal}，分布在 ${hexByFile.length} 个文件`)
+for (const x of hexByFile.slice(0, 12)) console.log(`  ${x.file} : ${x.n}`)
 console.log(`引用了但未定义的 CSS 变量（断链）= ${undefinedRefs.size}`)
 for (const [name, where] of undefinedRefs) {
   console.log(`  ${name} ← ${[...new Set(where)].slice(0, 4).join(', ')}`)

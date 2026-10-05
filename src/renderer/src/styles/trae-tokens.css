@@ -24,6 +24,10 @@
  * 12. 老 --color-* / --space-* / --radius-* 别名兼容
  */
 :root {
+  /* 原生控件（滚动条 / 表单 / 系统配色提示）随主题走；浅色在文件末尾的
+     :root[data-theme='light'] 里覆盖。这条只放在令牌源，避免样式层再写一份。 */
+  color-scheme: dark;
+
   /* === 1. 圆角系统 === */
   --trae-radius-2: 2px;
   --trae-radius-4: 4px;
@@ -553,4 +557,146 @@
 }
 .trae-color-bar--error {
   border-left-color: var(--trae-status-error-default);
+}
+
+/* ============================================================
+ * 14. 浅色主题覆写（html[data-theme='light']）
+ *
+ * 由 main.tsx 依 appearance-store.themeMode 写入 data-theme；
+ * 此前只有 antd 组件吃 traeAntdLightToken，自研界面全在 :root 深色值上，
+ * 所以"切浅色"过去只换了一半——这就是计划里说的"浅色是假的"。
+ *
+ * 取色规则（不是把深色逐条反相）：
+ * - 背景：画布 #f6f7f9 < 卡片 #ffffff < 内凹 #eef0f3，覆盖层再按 l1..l4 递深，
+ *   保持"层级越高越亮"的原有语义（深色是越亮越浮，浅色改成越白越浮）
+ * - 文字：#1f2328 / #59636e / #818b96 三级，对应深色 default/secondary/tertiary
+ * - 品牌蓝 #387bff 不动（深色下它是主 CTA，浅色下对比度 4.5:1 仍达标）
+ * - 状态色在浅色下统一压暗一档（如 success #33c192 → #1a9e73），
+ *   否则半透明 surface 叠在白底上会淡到看不见
+ * - 阴影换成低不透明度冷灰，深色那套 rgba(0,0,0,.3~.4) 在白底上是脏痕
+ * - invert 面（反色按钮/标签）在浅色下变成深色，与 :root 语义对偶
+ * ============================================================ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* 背景 */
+  --trae-bg-base-default: #f6f7f9;
+  --trae-bg-base-secondary: #ffffff;
+  --trae-bg-base-tertiary: #eef0f3;
+  --trae-bg-overlay-l1: #ffffff;
+  --trae-bg-overlay-l2: #f4f6f8;
+  --trae-bg-overlay-l3: #eceef2;
+  --trae-bg-overlay-l4: #e4e7ec;
+  --trae-bg-menu: #ffffff;
+  --trae-bg-tooltip: #ffffff;
+  --trae-bg-invert: #2b2f36;
+  --trae-bg-invert-hover: #3a3f47;
+  --trae-bg-invert-active: #4b5158;
+  --trae-bg-invert-disabled: #e4e7ec;
+  --trae-bg-code-block: #f6f8fa;
+
+  /* 品牌（浅色下主色压暗一档：#387bff 配白字对比度只有 3.86，不到 AA 的 4.5） */
+  --trae-bg-brand: #2f6ee8;
+  --trae-bg-brand-hover: #2a63d4;
+  --trae-bg-brand-active: #1c5bd6;
+  --trae-bg-brand-disabled: rgba(47, 110, 232, 0.25);
+  --trae-bg-brand-popup: #eaf1ff;
+  --trae-text-brand: #2f6ee8;
+  --trae-text-brand-hover: #1c5bd6;
+  --trae-icon-brand: #2f6ee8;
+  --trae-icon-brand-hover: #1c5bd6;
+  --trae-border-brand: #2f6ee8;
+  --trae-color-primary: #2f6ee8;
+  --trae-color-primary-hover: #2a63d4;
+  --trae-color-primary-soft: rgba(47, 110, 232, 0.1);
+
+  /* 文字 */
+  --trae-text-default: #1f2328;
+  --trae-text-default-hover: #0b0d0f;
+  --trae-text-default-active: #0b0d0f;
+  --trae-text-secondary: #59636e;
+  --trae-text-secondary-hover: #1f2328;
+  --trae-text-secondary-active: #1f2328;
+  --trae-text-tertiary: #818b96;
+  --trae-text-disabled: #a3abb4;
+  --trae-text-onbrand: #ffffff;
+  --trae-text-onaccent: #ffffff;
+
+  /* 图标 */
+  --trae-icon-default: #1f2328;
+  --trae-icon-default-hover: #0b0d0f;
+  --trae-icon-default-active: #0b0d0f;
+  --trae-icon-secondary: #59636e;
+  --trae-icon-secondary-hover: #1f2328;
+  --trae-icon-secondary-active: #1f2328;
+  --trae-icon-tertiary: #818b96;
+  --trae-icon-disabled: #a3abb4;
+  --trae-icon-onbrand: #ffffff;
+  --trae-icon-onaccent: #ffffff;
+
+  /* 边框 */
+  --trae-border-neutral-l1: #e3e6ea;
+  --trae-border-neutral-l2: #d3d8de;
+  --trae-border-neutral-l3: #b9c0c8;
+  --trae-border-contrast: #0b0d0f;
+
+  /* 状态色（浅色下压暗一档，surface 透明度同步下调）
+     压暗的量化依据：tests/unit/theme-light-coverage.test.ts 会算 WCAG 对比度，
+     低于 4.5:1 直接红——不是"看着差不多"。 */
+  --trae-status-primary-default: #2f6ee8;
+  --trae-status-primary-hover: #2a63d4;
+  --trae-status-primary-active: #1c5bd6;
+  --trae-status-primary-surface-l1: rgba(56, 123, 255, 0.1);
+  --trae-status-primary-surface-l2: rgba(56, 123, 255, 0.16);
+  --trae-status-primary-surface-l3: rgba(56, 123, 255, 0.22);
+  --trae-status-success-default: #12684a;
+  --trae-status-success-hover: #17845c;
+  --trae-status-success-active: #0e5740;
+  --trae-status-success-surface-l1: rgba(18, 104, 74, 0.1);
+  --trae-status-success-surface-l2: rgba(18, 104, 74, 0.16);
+  --trae-status-success-surface-l3: rgba(18, 104, 74, 0.22);
+  --trae-status-alert-default: #a8790a;
+  --trae-status-alert-hover: #c08c12;
+  --trae-status-alert-active: #8a6308;
+  --trae-status-alert-surface-l1: rgba(168, 121, 10, 0.1);
+  --trae-status-alert-surface-l2: rgba(168, 121, 10, 0.16);
+  --trae-status-alert-surface-l3: rgba(168, 121, 10, 0.22);
+  --trae-status-warning-default: #a4650f;
+  --trae-status-warning-hover: #b3661a;
+  --trae-status-warning-active: #8a530c;
+  --trae-status-warning-surface-l1: rgba(164, 101, 15, 0.1);
+  --trae-status-warning-surface-l2: rgba(164, 101, 15, 0.16);
+  --trae-status-warning-surface-l3: rgba(164, 101, 15, 0.22);
+  --trae-status-error-default: #c33b33;
+  --trae-status-error-hover: #d9463e;
+  --trae-status-error-active: #a8302a;
+  --trae-status-error-surface-l1: rgba(195, 59, 51, 0.1);
+  --trae-status-error-surface-l2: rgba(195, 59, 51, 0.16);
+  --trae-status-error-surface-l3: rgba(195, 59, 51, 0.22);
+
+  /* 阴影 */
+  --trae-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --trae-shadow-2: 0 2px 8px rgba(16, 24, 40, 0.1);
+  --trae-shadow-3: 0 8px 24px rgba(16, 24, 40, 0.14);
+  --trae-glow-brand: 0 0 24px rgba(56, 123, 255, 0.25);
+  --trae-shadow-card: 0 1px 3px rgba(16, 24, 40, 0.08);
+  --trae-shadow-hero: 0 4px 24px rgba(47, 110, 232, 0.12);
+
+  /* 代码高亮色板（深色是 GitHub-Dark 系，浅色换 GitHub-Light 系）
+     这组不翻面就会出现"白底上浅灰注释 + 白底上淡粉数字"——等于看不见 */
+  --trae-code-text: #24292f;
+  --trae-code-doc: #59636e;
+  --trae-code-link: #0969da;
+  --trae-code-number: #0550ae;
+  --trae-code-action: #8250df;
+  --trae-code-instruction: #6639ba;
+  --trae-code-function: #9a6700;
+  --trae-code-constant: #0550ae;
+  --trae-code-parameter: #1a7f37;
+  --trae-code-attribute: #116329;
+  --trae-code-tag: #cf222e;
+
+  /* 终端块与图表轴：深色下是近黑底，浅色下必须换，否则终端区整块是"白屏里挖了个黑洞" */
+  --trae-terminal-block-bg: #f6f8fa;
+  --trae-viz-ui-chart-axis: #a8aeb8;
 }
