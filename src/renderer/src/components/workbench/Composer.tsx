@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import {
-  ArrowUp, AtSign, ChevronDown, Cpu, Hash,
+  ArrowUp, AtSign, ChevronDown, Hash,
   Image as ImageIcon, Info, Loader2, Sparkles, Square, X, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { Button, Chip, Divider, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/ui'
 import { useAgentStore } from '@/stores/agent-store'
 // v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
 import { useEditorStore } from '@/stores/editor-store'
@@ -75,9 +76,6 @@ const Composer: FC<ComposerProps> = ({
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const [providerMenuOpen, setProviderMenuOpen] = useState(false)
-  const providerMenuRef = useRef<HTMLDivElement>(null)
-
   // v2.5 深度思考开关；v2.10 改三态：auto（自动路由）→ deep（强制深度）→ standard（强制标准）
   const thinkingStrength = useAgentStore((s) => s.thinkingStrength)
   const setThinkingStrength = useAgentStore((s) => s.setThinkingStrength)
@@ -96,18 +94,6 @@ const Composer: FC<ComposerProps> = ({
   const ctxUsedPct = Math.min(100, Math.round((tokenStats.today / 200_000) * 100))
   const ctxUsedTokens = tokenStats.today >= 1000 ? `${(tokenStats.today / 1000).toFixed(1)}K` : String(tokenStats.today)
   const ctxTotalTokens = '200K'
-
-  /** 点击外部关闭 Provider 菜单 */
-  useEffect(() => {
-    if (!providerMenuOpen) return
-    const onDoc = (e: MouseEvent) => {
-      if (!providerMenuRef.current?.contains(e.target as Node)) {
-        setProviderMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [providerMenuOpen])
 
   /** textarea auto-resize */
   useEffect(() => {
@@ -146,7 +132,7 @@ const Composer: FC<ComposerProps> = ({
 
     // 检查 Provider 是否配置
     if (providers.length === 0) {
-      message.warning('请先配置模型 Provider（设置 → 模型）')
+      toast.warning('请先配置模型 Provider（设置 → 模型）')
       return
     }
 
@@ -172,7 +158,7 @@ const Composer: FC<ComposerProps> = ({
     if (isUploadingImage) return
     const api = window.electronAPI
     if (!api?.fsUploadImage) {
-      message.warning('当前环境不支持图片上传（非 Electron 环境）')
+      toast.warning('当前环境不支持图片上传（非 Electron 环境）')
       return
     }
     setIsUploadingImage(true)
@@ -182,7 +168,7 @@ const Composer: FC<ComposerProps> = ({
         const uploadData = result as ImageUploadResult
         // 限制最多 4 张图片（避免消息过长）
         if (attachments.length >= 4) {
-          message.warning('最多支持 4 张图片附件')
+          toast.warning('最多支持 4 张图片附件')
           return
         }
         setAttachments((prev) => [...prev, {
@@ -193,11 +179,11 @@ const Composer: FC<ComposerProps> = ({
         }])
       } else if (result.error !== '用户取消选择') {
         // 用户取消不提示错误
-        message.error(`图片上传失败：${result.error}`)
+        toast.error(`图片上传失败：${result.error}`)
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
-      message.error(`图片上传失败：${reason}`)
+      toast.error(`图片上传失败：${reason}`)
     } finally {
       setIsUploadingImage(false)
     }
@@ -219,13 +205,13 @@ const Composer: FC<ComposerProps> = ({
       if (item.kind === 'file' && item.type.startsWith('image/')) {
         e.preventDefault()
         if (attachments.length >= 4) {
-          message.warning('最多支持 4 张图片附件')
+          toast.warning('最多支持 4 张图片附件')
           return
         }
         const file = item.getAsFile()
         if (!file) return
         if (file.size > 4 * 1024 * 1024) {
-          message.warning('图片超过 4MB，请压缩后再粘贴')
+          toast.warning('图片超过 4MB，请压缩后再粘贴')
           return
         }
         const reader = new FileReader()
@@ -280,341 +266,248 @@ const Composer: FC<ComposerProps> = ({
    */
   const handlePaorStart = async () => {
     if (paor.isRunning) {
-      message.warning('PAOR 循环正在运行中，请等待完成')
+      toast.warning('PAOR 循环正在运行中，请等待完成')
       return
     }
     const task = input.trim()
     if (!task) {
-      message.warning('请输入运维任务描述后再点击 PAOR 自主循环')
+      toast.warning('请输入运维任务描述后再点击 PAOR 自主循环')
       textareaRef.current?.focus()
       return
     }
     if (!activeSessionId) {
-      message.warning('PAOR 需要先连接 SSH 服务器（顶栏服务器菜单或「设置 → SSH」）')
+      toast.warning('PAOR 需要先连接 SSH 服务器（顶栏服务器菜单或「设置 → SSH」）')
       return
     }
     if (providers.length === 0) {
-      message.warning('请先配置模型 Provider（设置 → 模型）')
+      toast.warning('请先配置模型 Provider（设置 → 模型）')
       return
     }
     setInput('')
     const ok = await paor.start(task, activeSessionId, 5)
     if (ok) {
-      message.info({
-        content: `PAOR 自主循环已启动\n任务：${task.length > 60 ? `${task.slice(0, 60)}...` : task}\n最大迭代：5 轮`,
-        duration: 4,
-      })
+      toast.info(
+        `PAOR 自主循环已启动 · 任务：${task.length > 60 ? `${task.slice(0, 60)}...` : task} · 最大迭代 5 轮`
+      )
     }
   }
 
+
   return (
-    <>
-      {/* ===== Composer chips ===== */}
-      <div className="ai-composer-chips">
-        {/* PAOR 自主循环 chip —— v0.9.5 P0-3：Plan→Act→Observe→Reflect 主进程编排 */}
-        <button
-          type="button"
-          title={
-            paor.isRunning
-              ? `PAOR 循环运行中（已迭代 ${paor.currentIteration} 轮）`
-              : 'PAOR 自主循环（Plan→Act→Observe→Reflect 多步运维任务自动编排，高危命令自动拦截）'
-          }
-          onClick={handlePaorStart}
-          disabled={paor.isRunning}
-          className={cn(
-            'ai-composer-chip btn-press',
-            paor.isRunning && 'ai-chip-primary',
-          )}
-          style={paor.isRunning ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
-        >
-          <Zap className="size-3" />
-          {paor.isRunning ? `PAOR 运行中(${paor.currentIteration})` : 'PAOR 自主循环'}
-          {!activeSessionId && !paor.isRunning && (
-            <span className="ml-0.5 inline-flex h-3.5 items-center rounded-full bg-[var(--trae-status-alert-surface-l1)] px-1 text-[11px] text-[var(--trae-status-alert-default)]">
-              未连接
-            </span>
-          )}
-        </button>
-
-        <span className="ai-composer-divider" />
-
-        {QUICK_PROMPT_TEMPLATES.map((chip) => (
-          <button
-            key={chip}
-            type="button"
-            onClick={() => handleChipClick(chip)}
-            className={cn(
-              'ai-composer-chip btn-press',
-              activeChip === chip && 'ai-chip-primary',
-            )}
+    <footer className="shrink-0 border-t border-line bg-canvas p-2">
+      {/* ===== Composer 卡（cc-gui 语言：整块一个圆角容器，hover 与 focus 同值） ===== */}
+      <div
+        className={cn(
+          'flex flex-col overflow-hidden rounded-(--ui-radius-panel) border border-line-strong bg-panel',
+          'transition-[border-color,box-shadow] duration-[var(--ui-dur-fast)]',
+          'hover:border-accent focus-within:border-accent focus-within:shadow-[0_0_0_1px_var(--accent)]'
+        )}
+      >
+        {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词 */}
+        <div className="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5">
+          <Button
+            size="sm"
+            variant={paor.isRunning ? 'selected' : 'ghost'}
+            disabled={paor.isRunning}
+            onClick={handlePaorStart}
+            className="whitespace-nowrap"
+            title={
+              paor.isRunning
+                ? `PAOR 循环运行中（已迭代 ${paor.currentIteration} 轮）`
+                : 'PAOR 自主循环（Plan→Act→Observe→Reflect 多步运维任务自动编排，高危命令自动拦截）'
+            }
           >
-            {chip}
-          </button>
-        ))}
-      </div>
+            <Zap className="size-3" />
+            {paor.isRunning ? `PAOR 运行中(${paor.currentIteration})` : 'PAOR 自主循环'}
+            {!activeSessionId && !paor.isRunning ? <Chip tone="warning">未连接</Chip> : null}
+          </Button>
 
-      {/* ===== Composer 输入框 ===== */}
-      <div className="ai-composer-outer">
-        <div className="ai-composer">
-          <div className="ai-composer-top">
-            <span className="ai-agent-badge">
-              <Cpu className="size-3" />
-              Agent
-              <span className="ai-agent-dot" />
-            </span>
-            <span
-              className="ai-composer-placeholder"
-              style={{ display: input ? 'none' : undefined }}
+          <Divider vertical />
+
+          {QUICK_PROMPT_TEMPLATES.map((chip) => (
+            <Button
+              key={chip}
+              size="sm"
+              variant={activeChip === chip ? 'selected' : 'ghost'}
+              className="whitespace-nowrap"
+              onClick={() => handleChipClick(chip)}
             >
-              您正在与Agent聊天，输入 '/' 获取更多能力
+              {chip}
+            </Button>
+          ))}
+        </div>
+
+        {/* 输入区：用原生 placeholder，不再另起一个 span 叠在框上 */}
+        <label htmlFor="ai-composer-input" className="sr-only">
+          给 AI 的运维指令
+        </label>
+        <textarea
+          id="ai-composer-input"
+          ref={textareaRef}
+          rows={1}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onPaste={handlePaste}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSendToggle()
+            }
+          }}
+          placeholder="您正在与 Agent 聊天，输入 / 获取更多能力（Enter 发送，Shift+Enter 换行）"
+          className={cn(
+            'w-full resize-none bg-transparent px-3 py-2 text-composer leading-normal text-ink',
+            'max-h-(--ui-collapse-max-composer) overflow-y-auto outline-none',
+            'placeholder:text-ink-placeholder'
+          )}
+        />
+
+        {/* 图片附件：缩略图 + 删除，并诚实说明当前模型不识图 */}
+        {attachments.length > 0 ? (
+          <div className="flex flex-col gap-1 border-t border-line px-3 py-2">
+            <span className="flex items-center gap-1 text-micro text-ink-mute">
+              <Info className="size-3" aria-hidden />
+              图片将以文本形式附加，当前模型暂不支持识图
             </span>
-          </div>
-
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onPaste={handlePaste}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSendToggle()
-              }
-            }}
-            className="ai-composer-textarea"
-            placeholder=""
-            style={{ maxHeight: 120 }}
-          />
-
-          {/* v2.2 P1 修复 #22：图片附件预览区（缩略图 + 删除按钮） */}
-          {attachments.length > 0 && (
-            <div
-              className="ai-composer-attachments"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px',
-                padding: '4px 0',
-              }}
-            >
-              {/* v2.11 诚实明示：当前图片以文本（base64）附加，模型暂不支持真正识图（vision） */}
-              <div
-                style={{
-                  fontSize: '10px',
-                  color: 'var(--trae-text-tertiary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Info size={11} />
-                图片将以文本形式附加，当前模型暂不支持识图
-              </div>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            <div className="flex flex-wrap gap-2">
               {attachments.map((attachment, index) => (
                 <div
                   key={`${attachment.fileName}-${index}`}
-                  style={{
-                    position: 'relative',
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: 'var(--trae-radius-4, 4px)',
-                    overflow: 'hidden',
-                    border: '1px solid var(--trae-border-neutral-l2)',
-                    background: 'var(--trae-bg-overlay-l1)',
-                  }}
                   title={`${attachment.fileName} (${(attachment.fileSize / 1024).toFixed(1)}KB)`}
+                  className="relative size-13 overflow-hidden rounded-(--ui-radius-card) border border-line-strong bg-sunken"
                 >
-                  <img
-                    src={attachment.dataUrl}
-                    alt={attachment.fileName}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                  />
+                  <img src={attachment.dataUrl} alt={attachment.fileName} className="block size-full object-cover" />
                   <button
                     type="button"
                     onClick={() => handleRemoveAttachment(index)}
                     aria-label={`删除附件 ${attachment.fileName}`}
-                    title="删除"
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      right: 0,
-                      width: '16px',
-                      height: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'var(--trae-bg-overlay-l3)',
-                      border: 'none',
-                      borderRadius: '0 0 0 var(--trae-radius-4, 4px)',
-                      cursor: 'pointer',
-                      color: 'var(--trae-text-onbrand)',
-                      padding: 0,
-                    }}
+                    title="删除附件"
+                    className="absolute right-0 top-0 flex size-4 items-center justify-center rounded-bl-(--ui-radius-control) bg-ink-mute text-canvas hover:bg-error"
                   >
                     <X className="size-2.5" />
                   </button>
                 </div>
               ))}
-              </div>
             </div>
-          )}
+          </div>
+        ) : null}
 
-          <div className="ai-composer-toolbar">
-            <div className="ai-composer-tools-left">
-              <button
-                type="button"
-                title="@提及"
-                onClick={() => insertPrefix('@')}
-                className="ai-composer-icon-btn btn-press"
-              >
+        {/* 底部工具条：左簇动作与模型，右簇发送/停止（比容器深一档，形成底座带） */}
+        <div className="flex items-center justify-between gap-2 bg-sunken px-1.5 py-1">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <Tooltip content="@提及">
+              <IconButton label="@提及" size="sm" onClick={() => insertPrefix('@')}>
                 <AtSign className="size-3.5" />
-              </button>
-              <button
-                type="button"
-                title="#引用资源"
-                onClick={() => insertPrefix('#')}
-                className="ai-composer-icon-btn btn-press"
-              >
+              </IconButton>
+            </Tooltip>
+            <Tooltip content="#引用资源">
+              <IconButton label="#引用资源" size="sm" onClick={() => insertPrefix('#')}>
                 <Hash className="size-3.5" />
-              </button>
-              <button
-                type="button"
-                title="图片"
-                onClick={handleUploadImage}
-                disabled={isUploadingImage}
-                className="ai-composer-icon-btn btn-press"
-                style={isUploadingImage ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
-              >
+              </IconButton>
+            </Tooltip>
+            <Tooltip content={isUploadingImage ? '上传中…' : '添加图片'}>
+              <IconButton label="添加图片" size="sm" disabled={isUploadingImage} onClick={handleUploadImage}>
                 {isUploadingImage ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
                   <ImageIcon className="size-3.5" />
                 )}
-              </button>
-              <span className="ai-composer-divider" />
+              </IconButton>
+            </Tooltip>
 
-              {/* 上下文使用率徽章 */}
-              <ContextBadge
-                ctxUsedPct={ctxUsedPct}
-                ctxUsedTokens={ctxUsedTokens}
-                ctxTotalTokens={ctxTotalTokens}
-                onCompress={onCompressContext}
-              />
+            <Divider vertical />
 
-              {/* v2.10 思考强度三态开关：auto（智能）→ deep（深度）→ standard（标准）循环 */}
-              <button
-                type="button"
-                title={
-                  thinkingStrength === 'auto'
-                    ? '思考强度：自动（按问题复杂度智能选择）— 点击切为深度'
-                    : deepThinking
-                      ? '思考强度：深度（强制思考链，耗时与 token 增加）— 点击切为标准'
-                      : '思考强度：标准— 点击切为自动'
-                }
-                onClick={() =>
-                  setThinkingStrength(
-                    thinkingStrength === 'auto' ? 'deep' : deepThinking ? 'standard' : 'auto',
-                  )
-                }
-                className={cn(
-                  'btn-press inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] transition-colors',
-                  thinkingStrength === 'auto' || deepThinking
-                    ? 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                    : 'border-[var(--trae-border-neutral-l2)] bg-transparent text-[var(--trae-text-secondary)] hover:text-[var(--trae-text-default)]',
-                )}
-              >
-                <Sparkles className="size-3" />
-                {thinkingStrength === 'auto' ? '智能思考' : deepThinking ? '深度思考' : '标准思考'}
-              </button>
+            <ContextBadge
+              ctxUsedPct={ctxUsedPct}
+              ctxUsedTokens={ctxUsedTokens}
+              ctxTotalTokens={ctxTotalTokens}
+              onCompress={onCompressContext}
+            />
 
-              {/* Provider 选择（真列表） */}
-              <div className="relative" ref={providerMenuRef}>
-                <button
-                  type="button"
-                  title="切换模型"
-                  onClick={() => setProviderMenuOpen((v) => !v)}
-                  className="ai-model-btn btn-press"
-                >
-                  <span className="truncate">{providerLabel}</span>
-                  <ChevronDown className="size-2.5 shrink-0" />
-                </button>
-                {providerMenuOpen && (
-                  <div className="absolute bottom-[calc(100%+4px)] left-0 z-50 min-w-[180px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] py-1 shadow-xl">
-                    {providers.length === 0 ? (
-                      <div className="px-3 py-2 text-[11px] text-[var(--trae-text-tertiary)]">
-                        暂无 Provider，请到设置 → 模型配置添加
-                      </div>
-                    ) : (
-                      providers.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          disabled={p.hasApiKey === false}
-                          className={cn(
-                            'flex w-full flex-col items-start px-3 py-1.5 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)]',
-                            p.id === selectedProviderId && 'bg-[var(--trae-bg-overlay-l1)]',
-                            p.hasApiKey === false && 'opacity-50 cursor-not-allowed',
-                          )}
-                          onClick={() => {
-                            setSelectedProviderId(p.id)
-                            setProviderMenuOpen(false)
-                          }}
-                          title={p.hasApiKey === false ? '未配置 API Key，请到设置 → 模型中配置' : ''}
-                        >
-                          <span className="text-[11px] text-[var(--trae-text-default)]">
-                            {p.name || p.id}
-                            {p.hasApiKey === false && (
-                              <span className="ml-1 text-[10px] text-[var(--trae-status-alert-default)]">
-                                (未配置Key)
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-[11px] text-[var(--trae-text-tertiary)]">
-                            {p.model}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                    <div className="my-1 border-t border-[var(--trae-border-neutral-l1)]" />
-                    <button
-                      type="button"
-                      className="flex w-full px-3 py-1.5 text-left text-[11px] text-[var(--trae-text-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
-                      onClick={() => {
-                        setProviderMenuOpen(false)
-                        navigate('/settings/model')
-                      }}
-                    >
-                      打开模型设置…
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              title={isStreaming ? '停止生成' : '发送'}
-              onClick={handleSendToggle}
-              disabled={!isStreaming && !input.trim()}
-              className="ai-send-btn btn-press wb-send-btn disabled:opacity-40"
+            {/* 思考强度三态：auto → deep → standard。文案强制不换行（旧版在窄面板里会竖排断字） */}
+            <Button
+              size="sm"
+              variant={thinkingStrength === 'auto' || deepThinking ? 'selected' : 'ghost'}
+              className="whitespace-nowrap"
+              title={
+                thinkingStrength === 'auto'
+                  ? '思考强度：自动（按问题复杂度智能选择）— 点击切为深度'
+                  : deepThinking
+                    ? '思考强度：深度（强制思考链，耗时与 token 增加）— 点击切为标准'
+                    : '思考强度：标准 — 点击切为自动'
+              }
+              onClick={() =>
+                setThinkingStrength(
+                  thinkingStrength === 'auto' ? 'deep' : deepThinking ? 'standard' : 'auto'
+                )
+              }
             >
-              {isStreaming ? (
-                <Square className="fill-[var(--trae-text-onbrand)] text-[var(--trae-text-onbrand)]" />
-              ) : (
-                <ArrowUp />
-              )}
-            </button>
+              <Sparkles className="size-3" />
+              {thinkingStrength === 'auto' ? '智能思考' : deepThinking ? '深度思考' : '标准思考'}
+            </Button>
+
+            {/* 模型选择：radix Menu 接管开合、焦点与 Esc，不再手写 outside-click */}
+            <Menu>
+              <MenuTrigger asChild>
+                <Button size="sm" variant="ghost" className="max-w-[220px] whitespace-nowrap">
+                  <span className="truncate">{providerLabel}</span>
+                  <ChevronDown className="size-3 shrink-0" />
+                </Button>
+              </MenuTrigger>
+              <MenuContent className="min-w-[240px]">
+                {providers.length === 0 ? (
+                  <div className="px-2 py-1.5 text-caption text-ink-mute">
+                    暂无 Provider，请到设置 → 模型配置添加
+                  </div>
+                ) : (
+                  providers.map((p) => (
+                    <MenuItem
+                      key={p.id}
+                      disabled={p.hasApiKey === false}
+                      onSelect={() => setSelectedProviderId(p.id)}
+                      className="flex flex-col items-start gap-0.5"
+                      title={
+                        p.hasApiKey === false ? '未配置 API Key，请到设置 → 模型中配置' : undefined
+                      }
+                    >
+                      <span className="text-md text-ink">
+                        {p.name || p.id}
+                        {p.hasApiKey === false ? (
+                          <span className="ml-1 text-micro text-warning">(未配置 Key)</span>
+                        ) : null}
+                      </span>
+                      <span className="text-caption text-ink-mute">{p.model}</span>
+                    </MenuItem>
+                  ))
+                )}
+                <MenuSeparator />
+                <MenuItem onSelect={() => navigate('/settings/model')} className="text-accent-ink">
+                  打开模型设置…
+                </MenuItem>
+              </MenuContent>
+            </Menu>
           </div>
+
+          {/* 发送与停止共用一个位置（cc-gui 的 submit-button 语义），停止态换危险色 */}
+          <button
+            type="button"
+            aria-label={isStreaming ? '停止生成' : '发送'}
+            title={isStreaming ? '停止生成' : '发送'}
+            onClick={handleSendToggle}
+            disabled={!isStreaming && !input.trim() && attachments.length === 0}
+            className={cn(
+              'flex size-7 shrink-0 items-center justify-center rounded-(--ui-radius-control)',
+              'text-(--text-on-accent) transition-colors duration-[var(--ui-dur-fast)]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              isStreaming ? 'bg-error hover:bg-error/85' : 'bg-accent-solid hover:bg-accent-solid-hover'
+            )}
+          >
+            {isStreaming ? <Square className="size-3.5 fill-current" /> : <ArrowUp className="size-4" />}
+          </button>
         </div>
       </div>
-    </>
+    </footer>
   )
 }
 

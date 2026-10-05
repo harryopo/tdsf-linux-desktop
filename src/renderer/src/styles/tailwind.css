@@ -41,6 +41,7 @@
   --color-ink-strong: var(--text-secondary);
   --color-ink-dim: var(--text-tertiary);
   --color-ink-mute: var(--text-muted);
+  --color-ink-placeholder: var(--text-placeholder);
 
   --color-line: var(--border-primary);
   --color-line-strong: var(--border-secondary);
