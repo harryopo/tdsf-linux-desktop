@@ -988,10 +988,12 @@
   gap: 4px;
   height: 18px;
   padding: 0 6px;
-  background: #000;
+  /* 原来是 background:#000 + special-white：浅色主题下这是全界面唯一一块
+     没跟着翻面的纯黑（真机 CDP 实测出来的）。改成与代码块同一对令牌。 */
+  background: var(--trae-bg-code-block);
   border-radius: 4px;
   font-size: 10px;
-  color: var(--trae-special-white);
+  color: var(--trae-text-default);
   flex-shrink: 0;
 }
 
