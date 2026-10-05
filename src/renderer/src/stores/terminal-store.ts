@@ -35,6 +35,18 @@ export interface PendingCommand {
   sentAt: number
 }
 
+/** 命令块摘要（terminal/block-model 的对外投影，状态栏与 AI 上下文都读它） */
+export interface CommandBlockSummary {
+  /** 已切出的命令块总数 */
+  count: number
+  /** 最近一条有原文的命令 */
+  lastCommand: string | null
+  /** 最近一条已完成命令的退出码；null = 还没拿到 */
+  lastExitCode: number | null
+  /** 给 AI 的多行摘要（最近若干条命令 + 成败）；无历史时为空串 */
+  context: string
+}
+
 /** 终端 Store 状态接口 */
 interface TerminalState {
   /** Tab 列表 */
@@ -59,6 +71,10 @@ interface TerminalState {
   getActiveTab: () => TerminalTab | null
   /** 登记/清除 AI 注入命令（预测回显条，v2.5） */
   setPendingCommand: (cmd: PendingCommand | null) => void
+  /** 命令块摘要（OSC 133/633 切块结果，状态栏与 AI 上下文消费） */
+  commandBlocks: CommandBlockSummary | null
+  /** 写入命令块摘要 */
+  setCommandBlocks: (summary: CommandBlockSummary | null) => void
 }
 
 /** 终端 Store */
@@ -128,4 +144,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
 
   // 登记/清除 AI 注入命令（预测回显条，v2.5）
   setPendingCommand: (cmd) => set({ pendingCommand: cmd }),
+
+  commandBlocks: null,
+  setCommandBlocks: (summary) => set({ commandBlocks: summary }),
 }))

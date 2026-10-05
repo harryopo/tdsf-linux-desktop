@@ -8,11 +8,12 @@
  *
  * Wire-2：SSH / AI 状态来自 server-store + agent-store（不再写死 mock）
  */
-import { Terminal, CheckCircle, Sparkles, Code, Zap } from 'lucide-react'
+import { Terminal, Sparkles, Code } from 'lucide-react'
 import { useMemo } from 'react'
 import { useServerStore } from '@/stores/server-store'
 import { useAgentStore } from '@/stores/agent-store'
 import { useEditorStore } from '@/stores/editor-store'
+import { useTerminalStore } from '@/stores/terminal-store'
 
 /** StatusBar 工作台底部状态栏 */
 export function StatusBar() {
@@ -25,6 +26,7 @@ export function StatusBar() {
   const selectedProviderId = useAgentStore((s) => s.selectedProviderId)
   const providers = useAgentStore((s) => s.providers)
   const tokenStats = useAgentStore((s) => s.tokenStats)
+  const commandBlocks = useTerminalStore((s) => s.commandBlocks)
 
   const activeServer = useMemo(() => {
     if (activeSessionId) {
@@ -109,10 +111,6 @@ export function StatusBar() {
           )}
         </StatusItem>
 
-        <StatusItem>
-          <CheckCircle className="size-3 text-[var(--trae-status-success-default)]" />
-          <span>0 Errors</span>
-        </StatusItem>
 
         <StatusItem color={aiColor}>
           <Sparkles className="size-3" />
@@ -134,18 +132,17 @@ export function StatusBar() {
           <Code className="size-3" />
           <span className="max-w-[120px] truncate">{fileName}</span>
         </StatusItem>
+        {/* 命令块：OSC 133/633 切出来的真实计数（远端没装 shell integration 时就是 0） */}
         <StatusItem
-          title="P99 延迟（监控接入后自动更新）"
-          color={
-            connState === 'connected'
-              ? 'var(--trae-status-success-default)'
-              : 'var(--trae-text-tertiary)'
+          title={
+            commandBlocks?.context
+              ? `最近命令：
+${commandBlocks.context}`
+              : '尚无命令块（需要远端 shell 发送 OSC 133/633 序列）'
           }
         >
-          <Zap className="size-3" />
-          <span className="tabular-nums">
-            {connState === 'connected' ? 'P99 180ms' : 'P99 —'}
-          </span>
+          <Terminal className="size-3" />
+          <span className="tabular-nums">{commandBlocks?.count ?? 0} 命令块</span>
         </StatusItem>
       </div>
     </footer>

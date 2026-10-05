@@ -96,6 +96,23 @@ Preload (preload/) — contextBridge 安全桥接
 
 ---
 
+## 终端 OSC 规矩（动 xterm 之前必读）
+
+**注册 OSC handler 一律 `return false`。**
+
+`term.parser.registerOscHandler(ident, cb)` 的分发规则是：同一 ident **后注册的先被调用**，
+回调返回 `true` 表示"我已处理，停止传播"——于是谁先 `return true`，后面的 handler
+和 xterm 内建处理就全收不到。这类 bug 只坏一半：主力项目 tdsf-terminal-agent-clone
+曾因此本地终端一条命令块都产不出来，SSH 侧因注册顺序不同而侥幸正常。
+
+我们的 handler 只旁听（命令块收集器读 OSC 133/633），不接管渲染，所以永远返回 false。
+判据：`tests/unit/xterm-osc-return-false.test.ts` 扫 src 下每个 `registerOscHandler`，
+回调体必须以 `return false` 收尾且不得出现 `return true`。
+
+命令-输出块的切分逻辑在 `src/renderer/src/terminal/block-model.ts`（纯函数，可单测），
+xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`**，
+不要缓存行内容——滚动后行号会整体位移。
+
 ## 审查 Agent
 
 - **reviewer**：`.claude/agents/reviewer.md` — 每个 Task 完成后 7 维审查

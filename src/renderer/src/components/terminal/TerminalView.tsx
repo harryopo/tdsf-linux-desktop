@@ -26,6 +26,9 @@ import { useTranslateStore } from '../../stores/translate-store'
 import { useEditorStore } from '../../stores/editor-store'
 // v2.7：外观设置（代码主题/代码字体）的终端侧消费者
 import { useAppearanceStore, CODE_FONT_STACKS } from '../../stores/appearance-store'
+import { useTerminalStore } from '../../stores/terminal-store'
+import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../terminal/block-model'
+import { attachBlockCollector } from '../../terminal/block-collector'
 import { SelectionManager } from './selection-manager'
 import TerminalSearchBar from './TerminalSearchBar'
 import TerminalCompletionAddon from './TerminalCompletionAddon'
@@ -199,6 +202,21 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
     terminal.loadAddon(searchAddon)
     searchAddonRef.current = searchAddon
 
+    // 命令块收集器：旁听 OSC 133/633，把字符流切成【命令 → 输出 → 退出码】。
+    // handler 一律 return false（规矩见 terminal/block-collector.ts 文件头
+    // 与 tests/unit/xterm-osc-return-false.test.ts）——返回 true 会掐断 OSC 链。
+    const blockModel = createBlockModel()
+    const setCommandBlocks = useTerminalStore.getState().setCommandBlocks
+    const blockCollector = attachBlockCollector(terminal, blockModel, (m) => {
+      const last = lastBlock(m)
+      setCommandBlocks({
+        count: finishedBlocks(m).length,
+        lastCommand: last?.command ?? null,
+        lastExitCode: last?.exitCode ?? null,
+        context: toAiContext(m),
+      })
+    })
+
     // 默认使用 xterm.js 内置 Canvas 渲染器，避免 WebGL 在部分 GPU 驱动下崩溃
     // 如需启用 WebGL 加速，可取消下面注释并安装 @xterm/addon-webgl
     // try {
@@ -323,6 +341,9 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
 
     // ===== 8. 清理 =====
     return () => {
+      // 撤掉命令块收集器并清空摘要（不撤的话状态栏会留着上一个会话的命令）
+      blockCollector.dispose()
+      setCommandBlocks(null)
       // 取消 IPC 事件监听
       if (offTerminalData) {
         offTerminalData()
