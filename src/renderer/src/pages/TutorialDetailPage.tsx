@@ -17,7 +17,8 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Modal, Spin, message, Button } from 'antd'
+import { Modal, Spin, Button } from 'antd'
+import { toast } from 'sonner'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
   Terminal, List, Star, ChevronRight,
@@ -384,7 +385,7 @@ export function TutorialDetailPage() {
       } catch (err) {
         if (cancelled) return
         const reason = err instanceof Error ? err.message : String(err)
-        message.error(`教程加载失败：${reason}`)
+        toast.error(`教程加载失败：${reason}`)
         setNotFound(true)
       } finally {
         if (!cancelled) setLoading(false)
@@ -588,11 +589,11 @@ export function TutorialDetailPage() {
    */
   const handleOpenSandbox = async () => {
     if (typeof window === 'undefined' || !window.electronAPI?.sandboxExecute) {
-      message.warning('当前环境不支持沙箱执行（非 Electron 环境）')
+      toast.warning('当前环境不支持沙箱执行（非 Electron 环境）')
       return
     }
     setSandboxRunning(true)
-    const hide = message.loading('准备沙箱环境...', 0)
+    const hideId = toast.loading('准备沙箱环境...')
     try {
       // Step 1: 查找现有沙箱或创建新沙箱
       let sandboxId: string | null = null
@@ -623,7 +624,7 @@ export function TutorialDetailPage() {
 
       // Step 3: 执行命令（HC-6 强制审批：主进程会推送 sandbox:approval-request）
       const execResult = await window.electronAPI.sandboxExecute(sandboxId, practiceCommand)
-      hide()
+      toast.dismiss(hideId)
       // execResult 可能是 SandboxCommandResult 或 SandboxErrorResponse；用 'success' in 检查
       if (!execResult || 'success' in execResult) {
         const err = execResult as { success: false; error: string } | null
@@ -637,14 +638,14 @@ export function TutorialDetailPage() {
       })
       setSandboxModalOpen(true)
       if (execResult.exitCode === 0) {
-        message.success('沙箱执行成功')
+        toast.success('沙箱执行成功')
       } else {
-        message.warning(`沙箱执行完成（exit=${execResult.exitCode}）`)
+        toast.warning(`沙箱执行完成（exit=${execResult.exitCode}）`)
       }
     } catch (err) {
-      hide()
+      toast.dismiss(hideId)
       const reason = err instanceof Error ? err.message : String(err)
-      message.error(`沙箱执行失败：${reason}`)
+      toast.error(`沙箱执行失败：${reason}`)
     } finally {
       setSandboxRunning(false)
     }

@@ -13,7 +13,7 @@
  * - 复制命令：navigator.clipboard 真实写入
  */
 import { useState } from 'react'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import {
   Terminal, Check, X, Edit3, Copy, CheckCheck, Play, CheckCircle2, Loader2,
 } from 'lucide-react'
@@ -136,9 +136,9 @@ export function ExecutionResult({
       .trim()
     try {
       await navigator.clipboard.writeText(cmdText)
-      message.success('命令已复制到剪贴板')
+      toast.success('命令已复制到剪贴板')
     } catch {
-      message.error('复制失败，请手动选择文本')
+      toast.error('复制失败，请手动选择文本')
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)

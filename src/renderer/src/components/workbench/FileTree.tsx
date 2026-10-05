@@ -40,7 +40,7 @@ import {
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import { Tree, type NodeApi, type TreeApi } from 'react-arborist'
 import { cn } from '@/components/trae/utils'
 import { useServerStore } from '@/stores/server-store'
@@ -321,11 +321,11 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
   /** 在当前根路径新建目录 */
   const handleMkdir = useCallback(async () => {
     if (!sessionId || !connected) {
-      message.warning('请先连接 SSH')
+      toast.warning('请先连接 SSH')
       return
     }
     if (!isElectronAPIAvailable() || !window.electronAPI.sftpMkdir) {
-      message.error('sftpMkdir 不可用')
+      toast.error('sftpMkdir 不可用')
       return
     }
     const name = window.prompt('新建目录名称', 'new-folder')
@@ -334,21 +334,21 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
     const full = joinPath(rootPath, safe)
     try {
       await window.electronAPI.sftpMkdir(sessionId, full)
-      message.success(`已创建 ${full}`)
+      toast.success(`已创建 ${full}`)
       await loadRoot()
     } catch (err) {
-      message.error(`创建失败: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`创建失败: ${err instanceof Error ? err.message : String(err)}`)
     }
   }, [sessionId, connected, rootPath, loadRoot])
 
   /** 删除选中路径（当前高亮文件，或提示输入） */
   const handleDelete = useCallback(async () => {
     if (!sessionId || !connected) {
-      message.warning('请先连接 SSH')
+      toast.warning('请先连接 SSH')
       return
     }
     if (!isElectronAPIAvailable() || !window.electronAPI.sftpDelete) {
-      message.error('sftpDelete 不可用')
+      toast.error('sftpDelete 不可用')
       return
     }
     const target =
@@ -357,16 +357,16 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
     if (!target || !target.trim()) return
     const path = target.trim()
     if (path === '/' || path === '.' || path === '..') {
-      message.error('禁止删除根路径')
+      toast.error('禁止删除根路径')
       return
     }
     if (!window.confirm(`确认删除远程路径？\n${path}`)) return
     try {
       await window.electronAPI.sftpDelete(sessionId, path)
-      message.success(`已删除 ${path}`)
+      toast.success(`已删除 ${path}`)
       await loadRoot()
     } catch (err) {
-      message.error(`删除失败: ${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`删除失败: ${err instanceof Error ? err.message : String(err)}`)
     }
   }, [sessionId, connected, activeFilePath, rootPath, loadRoot])
 
@@ -379,12 +379,12 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
   const handleMenuAction = useCallback(
     async (action: MenuAction, node: TreeNode | null) => {
       if (!sessionId || !connected) {
-        message.warning('请先连接 SSH')
+        toast.warning('请先连接 SSH')
         return
       }
       const api = window.electronAPI
       if (!api || !isElectronAPIAvailable()) {
-        message.error('electronAPI 不可用')
+        toast.error('electronAPI 不可用')
         return
       }
 
@@ -397,10 +397,10 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
         const full = joinPath(parentDir, safe)
         try {
           await api.sftpMkdir(sessionId, full)
-          message.success(`已创建 ${full}`)
+          toast.success(`已创建 ${full}`)
           await loadRoot()
         } catch (err) {
-          message.error(`创建失败: ${err instanceof Error ? err.message : String(err)}`)
+          toast.error(`创建失败: ${err instanceof Error ? err.message : String(err)}`)
         }
         return
       }
@@ -415,16 +415,16 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
       if (action === 'delete') {
         if (!node) return
         if (node.path === '/' || node.path === '.' || node.path === '..') {
-          message.error('禁止删除根路径')
+          toast.error('禁止删除根路径')
           return
         }
         if (!window.confirm(`确认删除远程路径？\n${node.path}`)) return
         try {
           await api.sftpDelete(sessionId, node.path)
-          message.success(`已删除 ${node.path}`)
+          toast.success(`已删除 ${node.path}`)
           await loadRoot()
         } catch (err) {
-          message.error(`删除失败: ${err instanceof Error ? err.message : String(err)}`)
+          toast.error(`删除失败: ${err instanceof Error ? err.message : String(err)}`)
         }
         return
       }
@@ -477,12 +477,12 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
           setTransfers((prev) =>
             prev.map((t) => (t.transferId === transferId ? { ...t, status: 'done' } : t)),
           )
-          message.success(`下载完成: ${localPath}`)
+          toast.success(`下载完成: ${localPath}`)
         } catch (err) {
           setTransfers((prev) =>
             prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
           )
-          message.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
+          toast.error(`下载失败: ${err instanceof Error ? err.message : String(err)}`)
         }
         return
       }
@@ -497,7 +497,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
       if (!file || !sessionId) return
       const api = window.electronAPI
       if (!api?.sftpUpload) {
-        message.error('sftpUpload 不可用')
+        toast.error('sftpUpload 不可用')
         return
       }
       const remotePath = joinPath(uploadTargetDirRef.current, file.name)
@@ -517,20 +517,20 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
         ])
         const localPath = (file as File & { path?: string }).path ?? ''
         if (!localPath) {
-          message.error('无法获取本地文件路径')
+          toast.error('无法获取本地文件路径')
           return
         }
         await api.sftpUpload(sessionId, localPath, remotePath, transferId)
         setTransfers((prev) =>
           prev.map((t) => (t.transferId === transferId ? { ...t, status: 'done' } : t)),
         )
-        message.success(`上传完成: ${remotePath}`)
+        toast.success(`上传完成: ${remotePath}`)
         await loadRoot()
       } catch (err) {
         setTransfers((prev) =>
           prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
         )
-        message.error(`上传失败: ${err instanceof Error ? err.message : String(err)}`)
+        toast.error(`上传失败: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         if (uploadInputRef.current) uploadInputRef.current.value = ''
       }
@@ -544,20 +544,20 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
       if (!chmodTarget || !sessionId) return
       const api = window.electronAPI
       if (!api?.sftpChmod) {
-        message.error('sftpChmod 不可用')
+        toast.error('sftpChmod 不可用')
         return
       }
       const modeNum = parseInt(mode, 8)
       if (Number.isNaN(modeNum)) {
-        message.error('权限格式无效')
+        toast.error('权限格式无效')
         return
       }
       try {
         await api.sftpChmod(sessionId, chmodTarget.path, modeNum)
-        message.success(`权限已修改为 ${mode}`)
+        toast.success(`权限已修改为 ${mode}`)
         setChmodTarget(null)
       } catch (err) {
-        message.error(`修改权限失败: ${err instanceof Error ? err.message : String(err)}`)
+        toast.error(`修改权限失败: ${err instanceof Error ? err.message : String(err)}`)
       }
     },
     [chmodTarget, sessionId],
@@ -569,18 +569,18 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
       if (!renameTarget || !sessionId) return
       const api = window.electronAPI
       if (!api?.sftpRename) {
-        message.error('sftpRename 不可用')
+        toast.error('sftpRename 不可用')
         return
       }
       const parentDir = renameTarget.path.split('/').slice(0, -1).join('/') || '/'
       const newPath = joinPath(parentDir, newName)
       try {
         await api.sftpRename(sessionId, renameTarget.path, newPath)
-        message.success(`已重命名为 ${newName}`)
+        toast.success(`已重命名为 ${newName}`)
         setRenameTarget(null)
         await loadRoot()
       } catch (err) {
-        message.error(`重命名失败: ${err instanceof Error ? err.message : String(err)}`)
+        toast.error(`重命名失败: ${err instanceof Error ? err.message : String(err)}`)
       }
     },
     [renameTarget, sessionId, loadRoot],

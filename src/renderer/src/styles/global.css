@@ -454,50 +454,10 @@ textarea,
   border: none !important;
 }
 
-/* === Message / Notification === */
-/* v2.5.1 修复：原 display:flex 把胶囊撑成整行宽度（antd 默认 inline-block 才是胶囊），
-   全宽条连带 pointer-events 挡住顶部整排 UI —— 改 inline-flex 恢复胶囊宽度 */
-.ant-message-notice-content {
-  border-radius: var(--trae-radius-6) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
-  background: var(--trae-bg-base-tertiary) !important;
-  border: 1px solid var(--trae-border-neutral-l2) !important;
-  font-size: var(--trae-body-sm-font-size) !important;
-  padding: 8px 16px !important;
-  color: var(--trae-text-default) !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  max-width: min(480px, 70vw) !important;
-  text-align: left !important;
-}
-
-.ant-message-notice-content .anticon {
-  font-size: 16px !important;
-}
-
-.ant-message-success .anticon {
-  color: var(--trae-status-success-default) !important;
-}
-
-.ant-message-error .anticon {
-  color: var(--trae-status-error-default) !important;
-}
-
-.ant-message-warning .anticon {
-  color: var(--trae-status-alert-default) !important;
-}
-
-.ant-message-info .anticon {
-  color: var(--trae-bg-brand) !important;
-}
-
-.ant-message-notice-content .ant-message-notice-content-ele {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-}
-
+/* === Notification === */
+/* 注：原 === Message / Notification === 段落里的 .ant-message-* 七条覆盖已随
+   "message → sonner toast" 迁移删除（阶段：退出 antd 第 1 批），
+   提示气泡的样式改由 ui/overlay.tsx 的 Toaster 用令牌直接画。 */
 .ant-notification-notice {
   border-radius: var(--trae-radius-6) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;

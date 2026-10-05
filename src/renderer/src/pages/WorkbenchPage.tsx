@@ -24,7 +24,8 @@
  * - 文件 Tab 右键菜单（关闭/关闭其他/关闭所有/全部保存）
  */
 import { useCallback, useState, type FC } from 'react'
-import { Modal, message } from 'antd'
+import { Modal } from 'antd'
+import { toast } from 'sonner'
 import { PanelLeftOpen } from 'lucide-react'
 import { WorkbenchTitlebar } from '@/components/workbench/WorkbenchTitlebar'
 import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
@@ -77,7 +78,7 @@ export const WorkbenchPage: FC = () => {
   const saveFile = useCallback(
     async (tab: WorkbenchFileTab): Promise<boolean> => {
       if (!activeSessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) {
-        message.error('无法保存：无 SSH 会话或 sftpWriteFile 不可用')
+        toast.error('无法保存：无 SSH 会话或 sftpWriteFile 不可用')
         return false
       }
       try {
@@ -92,7 +93,7 @@ export const WorkbenchPage: FC = () => {
         return true
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        message.error(`保存 ${tab.name} 失败：${msg}`)
+        toast.error(`保存 ${tab.name} 失败：${msg}`)
         return false
       }
     },
@@ -177,7 +178,7 @@ export const WorkbenchPage: FC = () => {
   const handleSaveAll = useCallback(async () => {
     const dirtyTabs = fileTabs.filter((t) => t.dirty && !t.loading && !t.error)
     if (dirtyTabs.length === 0) {
-      message.info('没有未保存的文件')
+      toast.info('没有未保存的文件')
       return
     }
     let successCount = 0
@@ -186,9 +187,9 @@ export const WorkbenchPage: FC = () => {
       if (ok) successCount++
     }
     if (successCount === dirtyTabs.length) {
-      message.success(`已保存全部 ${successCount} 个文件`)
+      toast.success(`已保存全部 ${successCount} 个文件`)
     } else {
-      message.warning(`已保存 ${successCount}/${dirtyTabs.length} 个文件，部分失败`)
+      toast.warning(`已保存 ${successCount}/${dirtyTabs.length} 个文件，部分失败`)
     }
   }, [fileTabs, saveFile])
 

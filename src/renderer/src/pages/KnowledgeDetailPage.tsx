@@ -24,7 +24,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Spin, message } from 'antd'
+import { Spin } from 'antd'
+import { toast } from 'sonner'
 import {
   Activity, AlertTriangle, ArrowLeft, CheckCircle2, Clock,
   Edit3, Eye, Loader2, MessageSquare, Save, ThumbsDown, ThumbsUp,
@@ -83,7 +84,7 @@ export function KnowledgeDetailPage() {
       } catch (err) {
         if (cancelled) return
         const reason = err instanceof Error ? err.message : String(err)
-        message.error(`知识库加载失败：${reason}`)
+        toast.error(`知识库加载失败：${reason}`)
         setNotFound(true)
       } finally {
         if (!cancelled) setLoading(false)
@@ -192,13 +193,13 @@ export function KnowledgeDetailPage() {
             rootCause: editRootCause.trim(),
           })
           setIsEditing(false)
-          message.success('知识条目已保存')
+          toast.success('知识条目已保存')
         } else {
-          message.error('保存失败：主进程返回 false，请检查日志')
+          toast.error('保存失败：主进程返回 false，请检查日志')
         }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
-        message.error(`保存失败：${reason}`)
+        toast.error(`保存失败：${reason}`)
       } finally {
         setIsSaving(false)
       }

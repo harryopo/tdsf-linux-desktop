@@ -11,7 +11,7 @@
  * Wire-2：挂载时加载 providerList + tokenStats；暴露 Provider 选择给 AIPanel
  */
 import { useCallback, useEffect } from 'react'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import { useAgentStore, type AgentMessage, type CompressResult } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -164,7 +164,7 @@ export function useAgentChat(): UseAgentChatResult {
       const state = useAgentStore.getState()
       const selectedProvider = state.providers.find((p) => p.id === state.selectedProviderId)
       if (selectedProvider && selectedProvider.hasApiKey === false) {
-        message.warning(
+        toast.warning(
           `当前模型 "${selectedProvider.name || selectedProvider.id}" 未配置 API Key，请到设置 → 模型中配置并保存`
         )
         return

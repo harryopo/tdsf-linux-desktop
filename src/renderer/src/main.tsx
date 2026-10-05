@@ -19,7 +19,7 @@
  * - 中文语言包 zhCN
  */
 // React 19 移除了 ReactDOM.render 等旧 API，antd 5 的静态方法
-// （message.* / notification.* / Modal.confirm，全仓 147 处）依赖它们。
+// （Modal.confirm / notification.*，当前全仓剩 16 处；message.* 已迁到 sonner toast）依赖它们。
 // 官方补丁必须在任何 antd import 之前执行，否则这些调用静默失效。
 import '@ant-design/v5-patch-for-react-19'
 import React, { useEffect } from 'react'

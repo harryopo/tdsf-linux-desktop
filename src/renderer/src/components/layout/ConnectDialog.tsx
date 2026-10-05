@@ -14,7 +14,8 @@
  * - 分组清晰
  */
 import { useState, useEffect, useCallback } from 'react'
-import { Modal, Input, Form, Select, Button, Collapse, message } from 'antd'
+import { Modal, Input, Form, Select, Button, Collapse } from 'antd'
+import { toast } from 'sonner'
 import { FolderOpenOutlined, ApiOutlined } from '@ant-design/icons'
 import type { SshConfig } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
@@ -91,7 +92,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
     try {
       const values = await form.validateFields()
       if (!isElectronAPIAvailable()) {
-        message.error('electronAPI 不可用，无法测试连接')
+        toast.error('electronAPI 不可用，无法测试连接')
         return
       }
       setTesting(true)
@@ -101,15 +102,15 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
       }
       const sessionId = await window.electronAPI.sshConnect(config)
       await window.electronAPI.sshDisconnect(sessionId)
-      message.success('连接测试成功')
+      toast.success('连接测试成功')
     } catch (error) {
       if (error && typeof error === 'object' && 'errorFields' in error) {
         console.warn('[ConnectDialog] 表单校验失败', error)
       } else if (error instanceof Error && error.message) {
-        message.error(`连接测试失败: ${error.message}`)
+        toast.error(`连接测试失败: ${error.message}`)
       } else {
         console.warn('[ConnectDialog] 测试连接失败', error)
-        message.error('连接测试失败')
+        toast.error('连接测试失败')
       }
     } finally {
       setTesting(false)
@@ -130,7 +131,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
         console.warn('[ConnectDialog] 表单校验失败', err)
       } else {
         console.warn('[ConnectDialog] 保存失败', err)
-        message.error('保存失败，请检查表单')
+        toast.error('保存失败，请检查表单')
       }
     }
   }, [form, server, onSave])

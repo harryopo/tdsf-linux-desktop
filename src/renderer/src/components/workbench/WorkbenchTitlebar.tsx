@@ -29,7 +29,7 @@ import {
   Save,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import { useServerStore } from '@/stores/server-store'
 import { cn } from '@/components/trae/utils'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -124,7 +124,7 @@ export function WorkbenchTitlebar({
   const connectServer = useCallback(
     async (server: SshConfig) => {
       if (!isElectronAPIAvailable()) {
-        message.error('请在 Electron 桌面端运行')
+        toast.error('请在 Electron 桌面端运行')
         return
       }
       // 已有会话直接切换
@@ -143,7 +143,7 @@ export function WorkbenchTitlebar({
           await window.electronAPI.sshShellStart(sessionId)
         } catch (shellErr) {
           console.warn('[WorkbenchTitlebar] shell start failed', shellErr)
-          message.warning('Shell 启动失败，终端可能不可用')
+          toast.warning('Shell 启动失败，终端可能不可用')
         }
         setConnectionState(server.id, 'connected')
         setSessionMapping(server.id, sessionId)
@@ -154,10 +154,10 @@ export function WorkbenchTitlebar({
           console.warn('[WorkbenchTitlebar] monitorStart failed:', err)
         }
         setMenuOpen(false)
-        message.success(`已连接 ${server.name || server.host}`)
+        toast.success(`已连接 ${server.name || server.host}`)
       } catch (err) {
         setConnectionState(server.id, 'error')
-        message.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
+        toast.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setConnectingId(null)
       }

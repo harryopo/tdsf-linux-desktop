@@ -21,7 +21,8 @@
  * 无障碍：role="log" aria-live="polite"、role="status"、按钮 aria-label、prefers-reduced-motion
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Spin, message } from 'antd'
+import { Spin } from 'antd'
+import { toast } from 'sonner'
 import { FileText, Sparkles, Clock, RefreshCw, Download } from 'lucide-react'
 import { LogSidebar } from '@/components/logs/v1/LogSidebar'
 import { LogToolbar } from '@/components/logs/v1/LogToolbar'
@@ -182,18 +183,18 @@ export function LogsPage() {
         setLoadedReal(true)
         // 更新 lastTsRef（供实时轮询 since 增量拉取）
         lastTsRef.current = computeMaxTsIso(result)
-        if (!opts?.silent) message.success(`已加载 ${entries.length} 条真实日志`)
+        if (!opts?.silent) toast.success(`已加载 ${entries.length} 条真实日志`)
       } else {
         // v2.3.4 修复：logRead 返回空时不再回退 LOG_ENTRIES，直接展示 Empty 状态
         setDisplayEntries([])
         setLoadedReal(true)
         lastTsRef.current = ''
-        if (!opts?.silent) message.info('日志库暂无数据，主进程未产生日志')
+        if (!opts?.silent) toast.info('日志库暂无数据，主进程未产生日志')
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
       console.warn('[LogsPage] 日志读取失败', err)
-      message.error(`日志读取失败：${reason}`)
+      toast.error(`日志读取失败：${reason}`)
     } finally {
       setLoading(false)
     }
@@ -273,7 +274,7 @@ export function LogsPage() {
     const api = window.electronAPI
     if (!activeSessionId || !api?.sshExec) {
       setRemoteEntries([])
-      message.warning('读取服务器日志需要先连接 SSH（顶栏服务器菜单或「设置 → SSH」）')
+      toast.warning('读取服务器日志需要先连接 SSH（顶栏服务器菜单或「设置 → SSH」）')
       return
     }
     setLoading(true)
@@ -291,15 +292,15 @@ export function LogsPage() {
       const lines = tailRes.stdout.split('\n').filter((l) => l.trim().length > 0)
       if (lines.length === 0) {
         setRemoteEntries([])
-        message.info(`${path} 在服务器上不存在或为空`)
+        toast.info(`${path} 在服务器上不存在或为空`)
       } else {
         setRemoteEntries(lines.map((l, i) => remoteLineToLogEntry(l, i, source.label)))
-        message.success(`已读取 ${path} 最近 ${lines.length} 行（真实服务器文件）`)
+        toast.success(`已读取 ${path} 最近 ${lines.length} 行（真实服务器文件）`)
       }
     } catch (err) {
       console.error('[LogsPage] 远程日志读取失败', err)
       setRemoteEntries([])
-      message.error(`读取失败：${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`读取失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setLoading(false)
     }
@@ -333,13 +334,13 @@ export function LogsPage() {
         const result = await window.electronAPI.logRead({ limit: 10000 })
         if (Array.isArray(result) && result.length > 0) {
           exportEntries = ipcLogEntriesToLogEntries(result as IpcLogEntry[])
-          message.info(`准备导出 ${exportEntries.length} 条真实日志`)
+          toast.info(`准备导出 ${exportEntries.length} 条真实日志`)
         } else {
-          message.info('日志库为空，导出当前显示的示例数据')
+          toast.info('日志库为空，导出当前显示的示例数据')
         }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
-        message.warning(`全量日志拉取失败，导出当前显示数据：${reason}`)
+        toast.warning(`全量日志拉取失败，导出当前显示数据：${reason}`)
       }
     }
 
@@ -379,7 +380,7 @@ export function LogsPage() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-    message.success(`已导出 ${exportEntries.length} 条日志（CSV）`)
+    toast.success(`已导出 ${exportEntries.length} 条日志（CSV）`)
   }
 
   return (

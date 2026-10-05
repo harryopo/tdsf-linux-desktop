@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import type { TutorialCategory, TutorialCategorySummary } from '@shared/tutorial-types'
 import type { TutorialProgress } from '@shared/models'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import { TutorialHeader } from '@/components/tutorial/TutorialHeader'
 import { TutorialStats } from '@/components/tutorial/TutorialStats'
 import { FeaturedCourses } from '@/components/tutorial/FeaturedCourses'
@@ -175,7 +175,7 @@ export function TutorialPage() {
         setFeatured([])
         setPaths([])
         setStats([])
-        message.error('教程数据加载失败，列表已置空')
+        toast.error('教程数据加载失败，列表已置空')
       } finally {
         if (!cancelled) setLoading(false)
       }

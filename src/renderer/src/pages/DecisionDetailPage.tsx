@@ -21,7 +21,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Modal, Input, message } from 'antd'
+import { Modal, Input } from 'antd'
+import { toast } from 'sonner'
 import {
   Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
   FileText, ScrollText, AlertTriangle, FileDown,
@@ -343,11 +344,11 @@ export function DecisionDetailPage() {
     if (!card) return
     const api = window.electronAPI
     if (!activeSessionId) {
-      message.warning('重新执行需要先连接 SSH 服务器（顶栏服务器菜单或「设置 → SSH」）')
+      toast.warning('重新执行需要先连接 SSH 服务器（顶栏服务器菜单或「设置 → SSH」）')
       return
     }
     if (!api?.sshShellWrite) {
-      message.warning('当前环境不支持终端执行（非 Electron 环境）')
+      toast.warning('当前环境不支持终端执行（非 Electron 环境）')
       return
     }
     setRerunning(true)
@@ -359,7 +360,7 @@ export function DecisionDetailPage() {
           const pre = await api.sshExec(activeSessionId, buildMissingCheckScript(names))
           const missing = parseMissingOutput(pre.stdout)
           if (missing.length > 0) {
-            message.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送`)
+            toast.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送`)
             return
           }
         } catch (err) {
@@ -369,10 +370,10 @@ export function DecisionDetailPage() {
       useTerminalStore.getState().setPendingCommand({ command: card.fixCommand, sentAt: Date.now() })
       // 代写命令（历史上由 AI 起草）→ 走 run-authored，由主进程过风险闸
       await api.sshRunAuthored(activeSessionId, card.fixCommand)
-      message.success('命令已发送到终端，请到工作台终端查看回显')
+      toast.success('命令已发送到终端，请到工作台终端查看回显')
     } catch (err) {
       useTerminalStore.getState().setPendingCommand(null)
-      message.error(`发送失败：${err instanceof Error ? err.message : String(err)}`)
+      toast.error(`发送失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setRerunning(false)
     }
@@ -390,13 +391,13 @@ export function DecisionDetailPage() {
     try {
       const filepath = await window.electronAPI.credibilityExportAudit(card.id, 'html')
       if (filepath) {
-        message.success(`HTML 报告已导出到：${filepath}`)
+        toast.success(`HTML 报告已导出到：${filepath}`)
       } else {
-        message.warning('导出完成但未获取到文件路径')
+        toast.warning('导出完成但未获取到文件路径')
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
-      message.error(`导出 HTML 报告失败：${reason}`)
+      toast.error(`导出 HTML 报告失败：${reason}`)
       console.warn('[DecisionDetailPage] credibilityExportAudit failed:', err)
     }
   }, [card])

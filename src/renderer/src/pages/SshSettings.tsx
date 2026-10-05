@@ -17,7 +17,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plug, type LucideIcon } from 'lucide-react'
-import { message, Modal, Form, Input as AntdInput, Select } from 'antd'
+import { Modal, Form, Input as AntdInput, Select } from 'antd'
+import { toast } from 'sonner'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import ConnectDialog from '@/components/layout/ConnectDialog'
@@ -130,7 +131,7 @@ export function SshSettings() {
   const connectOne = useCallback(
     async (server: SshConfig) => {
       if (!isElectronAPIAvailable()) {
-        message.error('请在 Electron 桌面端运行')
+        toast.error('请在 Electron 桌面端运行')
         return
       }
       const existing = sessionMap[server.id]
@@ -157,16 +158,16 @@ export function SshSettings() {
           await window.electronAPI.sshShellStart(sessionId)
         } catch (e) {
           console.warn('[SshSettings] shell start', e)
-          message.warning('Shell 启动失败，终端可能不可用')
+          toast.warning('Shell 启动失败，终端可能不可用')
         }
         setConnectionState(server.id, 'connected')
         setSessionMapping(server.id, sessionId)
         setActiveSession(sessionId)
-        message.success(`已连接 ${server.name || server.host}`)
+        toast.success(`已连接 ${server.name || server.host}`)
         showFb(`已连接 ${server.name || server.host}`)
       } catch (err) {
         setConnectionState(server.id, 'error')
-        message.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
+        toast.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setBusyId(null)
       }
@@ -200,10 +201,10 @@ export function SshSettings() {
         if (activeSessionId === sid) setActiveSession(null)
         clearSessionMapping(server.id)
         setConnectionState(server.id, 'disconnected')
-        message.success(`已断开 ${server.name || server.host}`)
+        toast.success(`已断开 ${server.name || server.host}`)
         showFb(`已断开 ${server.name || server.host}`)
       } catch (err) {
-        message.error(`断开失败: ${err instanceof Error ? err.message : String(err)}`)
+        toast.error(`断开失败: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setBusyId(null)
       }
@@ -243,7 +244,7 @@ export function SshSettings() {
     })
     setSshTimeout(connectTimeoutSec * 1000)
     await saveSettings()
-    message.success('SSH 默认配置已保存')
+    toast.success('SSH 默认配置已保存')
     showFb('默认配置已保存')
   }, [
     sshDefaults,
@@ -295,7 +296,7 @@ export function SshSettings() {
         cancelText: '取消',
         onOk: async () => {
           await removeServer(s.id)
-          message.success('服务器已删除')
+          toast.success('服务器已删除')
           showFb('服务器已删除')
         },
       })
@@ -317,13 +318,13 @@ export function SshSettings() {
           try {
             const res = await window.electronAPI.sshDeleteKeyring(k.name)
             if (res.success) {
-              message.success('密钥已删除')
+              toast.success('密钥已删除')
               await refreshKeys()
             } else {
-              message.error(`删除失败: ${res.error || '未知错误'}`)
+              toast.error(`删除失败: ${res.error || '未知错误'}`)
             }
           } catch (err) {
-            message.error(
+            toast.error(
               `删除失败: ${err instanceof Error ? err.message : String(err)}`,
             )
           }
@@ -338,13 +339,13 @@ export function SshSettings() {
       const res = await window.electronAPI.sshUploadKeypair()
       if (res.canceled) return // 用户取消文件选择，静默
       if (res.success) {
-        message.success('密钥上传成功')
+        toast.success('密钥上传成功')
         await refreshKeys()
       } else {
-        message.error(`上传失败: ${res.error || '未知错误'}`)
+        toast.error(`上传失败: ${res.error || '未知错误'}`)
       }
     } catch (err) {
-      message.error(
+      toast.error(
         `上传失败: ${err instanceof Error ? err.message : String(err)}`,
       )
     }
@@ -366,18 +367,18 @@ export function SshSettings() {
         comment: values.comment || undefined,
       })
       if (res.success && res.keyPair) {
-        message.success(`密钥 ${res.keyPair.name} 已生成`)
+        toast.success(`密钥 ${res.keyPair.name} 已生成`)
         setGenModalOpen(false)
         await refreshKeys()
       } else {
-        message.error(`生成失败: ${res.error || '未知错误'}`)
+        toast.error(`生成失败: ${res.error || '未知错误'}`)
       }
     } catch (err) {
       // antd Form.validateFields reject 时返回 errorFields 对象，不关闭弹窗
       if (err && typeof err === 'object' && 'errorFields' in err) {
         return
       }
-      message.error(
+      toast.error(
         `生成失败: ${err instanceof Error ? err.message : String(err)}`,
       )
     } finally {

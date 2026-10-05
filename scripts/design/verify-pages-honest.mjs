@@ -151,10 +151,35 @@ try {
     })
   }
 
-  console.log('=== F4 页面诚实性真机验证（构建产物 + 真实 userData 库） ===')
+  // ===== 提示条实测：message 已换成 sonner toast，得证明"点了真会弹" =====
+  const TOAST_TRIGGERS = ['刷新', '重新加载', '保存', '导出']
+  await evalIn(ws, `location.hash = '#/logs'`)
+  await sleep(1500)
+  let toastCheck = { clicked: false, triggerText: null, toastCount: 0, toastShown: false }
+  for (const label of TOAST_TRIGGERS) {
+    const hit = await evalIn(ws, `(async () => {
+      const btn = [...document.querySelectorAll('button')]
+        .find((b) => !b.disabled && (b.textContent || '').includes(${JSON.stringify(label)}));
+      if (!btn) return null;
+      btn.click();
+      await new Promise((r) => setTimeout(r, 1500));
+      const toasts = [...document.querySelectorAll('[data-sonner-toast]')];
+      return { text: (btn.textContent || '').trim().slice(0, 20), count: toasts.length, msg: toasts.map((t) => (t.textContent || '').trim().slice(0, 60)) };
+    })()`)
+    if (hit) {
+      toastCheck = { clicked: true, triggerText: hit.text, toastCount: hit.count, toastShown: hit.count > 0, toastText: hit.msg }
+      break
+    }
+  }
+
+  console.log('=== F4/E 页面诚实性真机验证（构建产物 + 真实 userData 库） ===')
   console.log(JSON.stringify(rows, null, 2))
+  console.log('=== 提示条实测（message → sonner 迁移后，toast 必须真的能弹出来）===')
+  console.log(JSON.stringify(toastCheck, null, 2))
 
   const fail = []
+  if (!toastCheck.clicked) fail.push(`没找到可点击的刷新按钮（候选文案 ${TOAST_TRIGGERS.join('/')}），提示条这半边等于没测`)
+  else if (!toastCheck.toastShown) fail.push(`点了「${toastCheck.triggerText}」之后没有出现 sonner 提示条（toastCount=0）`)
   for (const r of rows) {
     if (r.chars < r.minChars) fail.push(`${r.page}：可见文本只有 ${r.chars} 字符（要求 ≥${r.minChars}），页面可能没渲染`)
     if (r.forbidden.length) fail.push(`${r.page}：界面出现违禁字串 ${r.forbidden.join(' / ')}`)

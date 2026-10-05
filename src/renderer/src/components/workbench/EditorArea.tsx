@@ -9,7 +9,8 @@
  * - 仍保留可选 demo 标签（无会话时示意）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
-import { message, Dropdown, type MenuProps } from 'antd'
+import { Dropdown, type MenuProps } from 'antd'
+import { toast } from 'sonner'
 import {
   Terminal as TerminalIcon,
   FileText,
@@ -528,7 +529,7 @@ const EditorArea: FC<EditorAreaProps> = ({
                 return next
               })
             } catch (err) {
-              message.error(
+              toast.error(
                 `重新加载失败: ${err instanceof Error ? err.message : String(err)}`,
               )
             }

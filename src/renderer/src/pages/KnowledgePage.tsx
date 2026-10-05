@@ -22,7 +22,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message, Spin } from 'antd'
+import { Spin } from 'antd'
+import { toast } from 'sonner'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
   ArrowUpRight, Star, FileText, Plus, X, Check, Inbox,
@@ -240,12 +241,12 @@ export function KnowledgePage() {
 
     // 非 Electron 环境无法真实写入，仅提示用户
     if (typeof window === 'undefined' || !window.electronAPI?.kbAdd) {
-      message.warning('当前环境不支持贡献知识（非 Electron 环境）')
+      toast.warning('当前环境不支持贡献知识（非 Electron 环境）')
       return
     }
 
     // 显示提交中状态（禁用按钮 + 提示用户等待）
-    const hide = message.loading('正在提交知识...', 0)
+    const hideId = toast.loading('正在提交知识...')
     try {
       // 构造 KnowledgeEntry 实例
       // - id：使用时间戳 + 随机后缀避免冲突
@@ -272,22 +273,22 @@ export function KnowledgePage() {
       }
 
       const success = await window.electronAPI.kbAdd(newEntry)
-      hide()
+      toast.dismiss(hideId)
       if (success) {
         // P1 修复：kbAdd 直接写库无审核流程，文案从"提交审核"改为诚实的"已收录"
-        message.success('知识已收录到知识库')
+        toast.success('知识已收录到知识库')
         setContributeSubmitted(true)
         // 任务 H：贡献成功后刷新知识列表（kbSearch）与热门列表（kbHot）
         // fire-and-forget：刷新失败不影响提交流程，错误已在 refresh 函数内 warn
         void refreshKnowledgeList()
         void refreshHotItems()
       } else {
-        message.error('知识库写入失败（kbAdd 返回 false）')
+        toast.error('知识库写入失败（kbAdd 返回 false）')
       }
     } catch (err) {
-      hide()
+      toast.dismiss(hideId)
       const reason = err instanceof Error ? err.message : String(err)
-      message.error(`知识贡献失败：${reason}`)
+      toast.error(`知识贡献失败：${reason}`)
     }
   }
 
@@ -308,7 +309,7 @@ export function KnowledgePage() {
       .catch((err) => {
         if (cancelled) return
         console.warn('[KnowledgePage] 拉取知识库失败', err)
-        message.error('知识库加载失败，请稍后重试')
+        toast.error('知识库加载失败，请稍后重试')
       })
       .finally(() => {
         if (!cancelled) setLoadingItems(false)
