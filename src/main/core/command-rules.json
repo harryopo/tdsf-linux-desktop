@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "_comment": "命令风险闸的判据数据（D4：规则数据化）。结构性拦截（fork 炸弹、rm -rf 根目录、dd 写块设备、重定向覆写磁盘、根级 chmod/chown）留在 command-gate.ts 的代码里，见 denyBaseline.blockDetectors —— 那几条靠正则和参数结构判断，写成数据只会让人误以为可以调级别。",
+
+  "protectedTargets": [
+    "/", "/*", "/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib64",
+    "/root", "/sbin", "/srv", "/usr", "/var", "/opt"
+  ],
+
+  "powerCommands": ["shutdown", "reboot", "halt", "poweroff", "init", "telinit"],
+
+  "shellLaunchers": ["bash", "sh", "zsh", "dash", "ksh"],
+
+  "readonlyCommands": [
+    "cat", "less", "more", "head", "tail", "grep", "egrep", "fgrep", "find", "fd",
+    "ls", "ll", "ps", "top", "htop", "free", "df", "du", "uptime", "whoami", "id",
+    "hostname", "uname", "which", "whereis", "stat", "file", "wc", "sort", "uniq",
+    "date", "env", "printenv", "ip", "ifconfig", "ss", "netstat", "lsof", "journalctl"
+  ],
+
+  "prefixSkips": {
+    "_comment": "取真正的命令名时要跳过的包装器：前缀命令与 VAR= 赋值",
+    "commands": ["sudo", "nohup", "time", "nice", "env", "xargs"],
+    "valueFlags": ["-u", "--user", "-n"]
+  },
+
+  "argvRules": [
+    {
+      "id": "rm",
+      "commands": ["rm"],
+      "subcommands": null,
+      "level": "high",
+      "reason": "删除文件/目录",
+      "requiresConfirm": true,
+      "audit": true,
+      "irreversible": true
+    },
+    {
+      "id": "account",
+      "commands": ["userdel", "groupdel", "passwd"],
+      "subcommands": null,
+      "level": "high",
+      "reason": "账户/口令变更",
+      "requiresConfirm": true,
+      "audit": true,
+      "irreversible": false
+    },
+    {
+      "id": "kill",
+      "commands": ["kill", "killall", "pkill"],
+      "subcommands": null,
+      "level": "high",
+      "reason": "终止进程",
+      "requiresConfirm": true,
+      "audit": true,
+      "irreversible": true
+    },
+    {
+      "id": "service-stop",
+      "commands": ["systemctl", "service"],
+      "subcommands": ["stop", "disable", "mask", "restart"],
+      "level": "medium",
+      "reason": "停止/重启/禁用系统服务",
+      "requiresConfirm": true,
+      "audit": true,
+      "irreversible": false
+    },
+    {
+      "id": "package-change",
+      "commands": ["apt", "apt-get", "yum", "dnf", "zypper"],
+      "subcommands": ["remove", "purge", "install", "update"],
+      "level": "medium",
+      "reason": "安装/卸载软件包",
+      "requiresConfirm": true,
+      "audit": true,
+      "irreversible": false
+    },
+    {
+      "id": "firewall",
+      "commands": ["iptables", "firewall-cmd", "ufw"],
+      "subcommands": null,
+      "level": "medium",
+      "reason": "变更防火墙规则",
+      "requiresConfirm": true,
+      "audit": true,
+      "irreversible": false
+    },
+    {
+      "id": "readonly",
+      "commands": "@readonlyCommands",
+      "subcommands": null,
+      "level": "low",
+      "reason": "只读查询命令",
+      "requiresConfirm": false,
+      "audit": false,
+      "irreversible": false
+    }
+  ],
+
+  "denyBaseline": {
+    "_comment": "数据不许把底线调低：这里列的命令即使在 argvRules 里被改成 medium/low/safe，加载时也会直接抛错（fail-closed，闸拒绝启动）。",
+    "mustNotBeBelow": {
+      "rm": "high",
+      "userdel": "high",
+      "groupdel": "high",
+      "passwd": "high",
+      "kill": "high",
+      "killall": "high",
+      "pkill": "high"
+    },
+    "blockDetectors": [
+      "forkBomb",
+      "rmRfProtectedTarget",
+      "deviceDestruction",
+      "powerOff",
+      "rootPermissionOpen"
+    ]
+  }
+}
