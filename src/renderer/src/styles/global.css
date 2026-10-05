@@ -311,18 +311,6 @@ textarea,
   color: var(--trae-text-tertiary);
 }
 
-/* === 卡片 === */
-.ant-card {
-  border-radius: var(--trae-radius-8) !important;
-  border: 1px solid var(--trae-border-neutral-l1) !important;
-  background: var(--trae-bg-base-secondary) !important;
-  transition: all var(--trae-duration-base) var(--trae-ease-out) !important;
-}
-
-.ant-card:hover {
-  box-shadow: var(--trae-shadow-card);
-}
-
 /* === Modal === */
 .ant-modal-content {
   border-radius: var(--trae-radius-8) !important;
@@ -358,40 +346,6 @@ textarea,
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   background: rgba(0, 0, 0, 0.5);
-}
-
-/* === Tabs === */
-.ant-tabs-ink-bar {
-  height: 2px !important;
-  background: var(--trae-bg-brand) !important;
-  border-radius: 1px;
-}
-
-.ant-tabs-tab {
-  font-size: var(--trae-body-base-font-size) !important;
-  font-weight: var(--trae-font-weight-medium) !important;
-  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
-}
-
-.ant-tabs-tab-active .ant-tabs-tab-btn {
-  color: var(--trae-text-brand) !important;
-  font-weight: var(--trae-font-weight-strong) !important;
-}
-
-/* === 表格 === */
-.ant-table-tbody > tr {
-  transition: background var(--trae-duration-fast) var(--trae-ease-out) !important;
-}
-
-.ant-table-tbody > tr:hover {
-  background: var(--trae-status-primary-surface-l1) !important;
-}
-
-.ant-table-thead > tr > th {
-  font-weight: var(--trae-font-weight-strong) !important;
-  background: var(--trae-bg-base-default) !important;
-  color: var(--trae-text-secondary) !important;
-  border-bottom: 1px solid var(--trae-border-neutral-l2) !important;
 }
 
 /* === Select / Dropdown === */
@@ -479,32 +433,6 @@ textarea,
   background: var(--trae-bg-brand) !important;
 }
 
-/* === Slider === */
-.ant-slider .ant-slider-track {
-  background: var(--trae-bg-brand) !important;
-}
-
-.ant-slider .ant-slider-handle::after {
-  box-shadow: 0 0 0 2px var(--trae-bg-brand) !important;
-  transition: all var(--trae-duration-fast) var(--trae-ease-out) !important;
-}
-
-.ant-slider .ant-slider-handle:hover::after,
-.ant-slider .ant-slider-handle:focus::after {
-  box-shadow: 0 0 0 5px var(--trae-status-primary-surface-l2) !important;
-}
-
-/* === Checkbox / Radio === */
-.ant-checkbox-checked .ant-checkbox-inner {
-  background: var(--trae-bg-brand) !important;
-  border-color: var(--trae-bg-brand) !important;
-}
-
-.ant-radio-checked .ant-radio-inner {
-  border-color: var(--trae-bg-brand) !important;
-  background: var(--trae-bg-brand) !important;
-}
-
 /* === Form Item === */
 .ant-form-item-label > label {
   font-size: var(--trae-body-base-font-size) !important;
@@ -522,11 +450,6 @@ textarea,
 .ant-empty-description {
   color: var(--trae-text-tertiary) !important;
   font-size: var(--trae-body-base-font-size) !important;
-}
-
-/* === Progress === */
-.ant-progress-bg {
-  background: var(--trae-bg-brand) !important;
 }
 
 /* === Alert === */
@@ -548,91 +471,9 @@ textarea,
   margin-top: 8px !important;
 }
 
-/* === Pagination === */
-.ant-pagination-item-active {
-  border-color: var(--trae-bg-brand) !important;
-  background: var(--trae-bg-brand) !important;
-}
-
-.ant-pagination-item-active a {
-  color: var(--trae-text-onbrand) !important;
-}
-
-/* === Statistic === */
-.ant-statistic-content {
-  font-weight: var(--trae-font-weight-strong) !important;
-  font-variant-numeric: tabular-nums;
-}
-
-/* === Timeline === */
-.ant-timeline .ant-timeline-item-tail {
-  border-left: 2px solid var(--trae-border-neutral-l1) !important;
-}
-
-.ant-timeline .ant-timeline-item-head {
-  background: var(--trae-bg-base-tertiary) !important;
-  border-color: var(--trae-bg-brand) !important;
-  box-shadow: 0 0 0 4px var(--trae-status-primary-surface-l1) !important;
-}
-
-/* === Avatar === */
-.ant-avatar {
-  font-weight: var(--trae-font-weight-strong) !important;
-  transition: transform var(--trae-duration-base) var(--trae-ease-out) !important;
-}
-
-/* === Divider === */
-.ant-divider {
-  border-color: var(--trae-border-neutral-l1) !important;
-  margin: 12px 0 !important;
-}
-
-/* ==========================================================================
-   5. 通用工具类
-   ========================================================================== */
-
-/* 文字截断 */
-.text-ellipsis {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 多行截断（2 行） */
-.text-ellipsis-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 /* 数字等宽 */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
-}
-
-/* 渐入动画（直接使用） */
-.fade-in-up {
-  animation: fadeInUp var(--trae-duration-base) var(--trae-ease-out) both;
-}
-
-/* 交互卡片（hover 提升 + 阴影） */
-.interactive-card {
-  transition: transform var(--trae-duration-base) var(--trae-ease-out),
-              box-shadow var(--trae-duration-base) var(--trae-ease-out),
-              border-color var(--trae-duration-base) var(--trae-ease-out);
-  cursor: pointer;
-}
-
-.interactive-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--trae-shadow-card);
-  border-color: var(--trae-bg-brand);
-}
-
-.interactive-card:active {
-  transform: scale(0.99);
-  transition-duration: var(--trae-duration-fast);
 }
 
 /* ============================================================

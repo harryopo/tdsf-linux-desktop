@@ -221,16 +221,6 @@
   border-top: 1px solid var(--trae-border-neutral-l1);
   padding-top: 12px;
 }
-.ssh-modal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.ssh-modal-footer-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 .ssh-modal .ant-form-item-label > label {
   color: var(--trae-text-default);
   font-size: var(--trae-body-sm-strong-font-size);
@@ -238,10 +228,6 @@
 }
 .ssh-modal .ant-form-item-label > label .ant-form-item-required::before {
   color: var(--trae-status-error-default);
-}
-.ssh-form-row {
-  display: flex;
-  gap: 12px;
 }
 .ssh-modal .ant-input,
 .ssh-modal .ant-input-affix-wrapper,
