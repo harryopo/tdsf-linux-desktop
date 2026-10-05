@@ -4,7 +4,7 @@
  * 路由：/settings/model
  *
  * 设计稿：settings-model.html（1:1 迁移）
- * - Header: 三列布局（左返回 + 中居中标题+副标题 + 右保存配置按钮）→ ModelSettingsHeader
+ * - Header: 与其余设置页共用 SettingsPageHeader（保存动作只在底部 ActionBar 出现一次）
  * - Section 1: KPI 统计行（Token 总量 / 成本 / 对话次数 / 成功率）→ ModelKpiBar
  * - Section 2: 模型配置（当前模型 + 可选模型列表 + 温度滑块+预设 + 思考强度分段 + 3 列数字输入）→ ModelConfigSection
  * - Section 3: API 接入与测试（Endpoint + API Key + 组织 ID + 测试连接 + 结果卡 + 日志）→ ApiTestSection
@@ -17,15 +17,15 @@
  * v1.5 改造：接入真实 IPC 存储（providerList / providerSave / providerSetDefault）
  * v2.3.2 改造：toolCallStats / budgetAlerts 接入真实 IPC 数据
  * M5 Task 6：拆分为 7 Section 组件，本文件仅负责状态管理 + Section 组合（≤500 行）。
- * v2.3.3 视觉重构：替换 SettingsPageHeader 为 ModelSettingsHeader（三列布局对齐设计稿），
- *                  所有 Section 卡片头部移除 tag + border-bottom（hideTag + noHeadBorder + headMb='lg'），
+ * v2.3.3 视觉重构：所有 Section 卡片头部移除 tag + border-bottom（hideTag + noHeadBorder + headMb='lg'），
  *                  ModelKpiBar 改为 grid 布局对齐设计稿 lg:grid-cols-4。
+ *                  （当时一并引入了三列 ModelSettingsHeader，随 F3 删除：返回口和底部保存都是重复件）
  */
 import { useState, useEffect, useRef } from 'react'
-import { CheckCircle2, AlertCircle, Info, KeyRound } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Info, KeyRound, Sparkles } from 'lucide-react'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
-import { ModelSettingsHeader } from '@/components/settings/model/ModelSettingsHeader'
+import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
 import { ModelConfigSection } from '@/components/settings/model/ModelConfigSection'
 import { ApiTestSection } from '@/components/settings/model/ApiTestSection'
@@ -494,11 +494,11 @@ export function ModelSettings() {
   })
 
   return (
-    <div className="set-page" style={{ height: '100%', overflowY: 'auto' }}>
-      <ModelSettingsHeader
+    <div>
+      <SettingsPageHeader
+        icon={Sparkles}
         title="模型配置"
         desc="AI模型管理与Token用量统计"
-        onSave={handleSaveAll}
       />
 
       <div className="set-panel-content">

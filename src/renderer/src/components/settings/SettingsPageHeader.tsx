@@ -1,19 +1,13 @@
 /**
- * SettingsPageHeader — 设置页顶部标题区
+ * SettingsPageHeader — 设置页顶部标题区（整个设置区共用的唯一 Header）
  *
- * 设计稿：ds-pageheader（标题 + 描述 + 单返回按钮）
- * - 左侧：40×40 品牌色图标盒 + 标题(h1) + 副标题(p)
- * - 右侧：仅保留"返回设置"按钮（outline 风格）
- *   - data-dom-id="back-settings"  → /settings（设置首页卡片入口）
+ * - 左侧：40×40 品牌色图标盒 + 标题(h1) + 副标题
+ * - 右侧：页面自己的动作按钮（如"保存配置"），由 actions 传入
  *
- * 用法：
- * ```tsx
- * <SettingsPageHeader icon={Settings} title="通用" desc="语言、时区与启动行为" />
- * ```
+ * 没有"返回设置"按钮：左栏导航在设置区常驻，页面内再放一个返回口就是重复出口。
  */
 import type { LucideIcon } from 'lucide-react'
-import { ArrowLeft } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import type { ReactNode } from 'react'
 
 export interface SettingsPageHeaderProps {
   /** 页面标题图标（Lucide） */
@@ -22,10 +16,16 @@ export interface SettingsPageHeaderProps {
   title: string
   /** 页面副标题描述 */
   desc: string
+  /** 右侧动作区（保存/测试等按钮），不传则只留标题 */
+  actions?: ReactNode
 }
 
-export function SettingsPageHeader({ icon: Icon, title, desc }: SettingsPageHeaderProps) {
-  const navigate = useNavigate()
+export function SettingsPageHeader({
+  icon: Icon,
+  title,
+  desc,
+  actions,
+}: SettingsPageHeaderProps) {
   return (
     <header className="set-pageheader">
       <div className="set-pageheader__left">
@@ -37,18 +37,7 @@ export function SettingsPageHeader({ icon: Icon, title, desc }: SettingsPageHead
           <p>{desc}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          data-dom-id="back-settings"
-          aria-label="返回设置"
-          onClick={() => navigate('/settings')}
-          className="set-backbtn btn-press"
-        >
-          <ArrowLeft className="di-14" />
-          返回设置
-        </button>
-      </div>
+      {actions != null && <div className="flex items-center gap-2">{actions}</div>}
     </header>
   )
 }

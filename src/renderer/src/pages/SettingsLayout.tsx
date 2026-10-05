@@ -29,7 +29,12 @@ interface SettingsNavItem {
   domId: string
 }
 
-/** 6 项核心导航 — 严格按设计稿 settings.html ds-nav__item 顺序 */
+/**
+ * 左栏导航（6 项）
+ *
+ * 归属规矩：这里的每个 to 都必须是 router 里 SettingsLayout 的嵌套子路由，
+ * 否则点过去会把整栏卸掉（F3 就是这么坏的，已由 tests/components/settings-nav-ownership.test.ts 锁住）。
+ */
 const SETTINGS_NAV: SettingsNavItem[] = [
   { to: '/settings/general', label: '通用', icon: Settings, domId: 'nav-general' },
   { to: '/settings/ssh', label: 'SSH 连接', icon: KeySquare, domId: 'nav-ssh' },

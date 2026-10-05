@@ -11,8 +11,7 @@
  * 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater。
  */
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { RefreshCw, ArrowRight, Loader2, FileText, Download, ArrowLeft } from 'lucide-react'
+import { RefreshCw, ArrowRight, Loader2, FileText, Download } from 'lucide-react'
 import {
   APP_VERSION, APP_BUILD_BADGE, APP_BUILD_TIME, APP_INSTALL_PATH,
   LINK_URLS, LINK_CARDS, FOOTER_LINKS,
@@ -33,7 +32,6 @@ const BADGE_CLASS: Record<BadgeConfig['variant'], string> = {
 }
 
 export function AboutSettings() {
-  const navigate = useNavigate()
   const [feedback, setFeedback] = useState<string | null>(null)
   const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isChecking, setIsChecking] = useState(false)
@@ -220,19 +218,7 @@ export function AboutSettings() {
 
   return (
     <div className="set-ab-page">
-      {/* ===== Top back bar ===== */}
-      <div className="set-ab-backbar">
-        <button
-          type="button"
-          data-dom-id="back-settings"
-          aria-label="返回设置"
-          onClick={() => navigate('/settings')}
-          className="set-backbtn btn-press"
-        >
-          <ArrowLeft className="di-14" />
-          返回设置
-        </button>
-      </div>
+      {/* 返回入口由 SettingsLayout 的左栏常驻导航承担，页面内不再自绘返回条 */}
 
       {/* ===== Hero ===== */}
       <div className="set-ab-hero">

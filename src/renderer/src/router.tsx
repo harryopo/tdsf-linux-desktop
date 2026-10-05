@@ -158,10 +158,12 @@ const Router: React.FC = () => {
             {/* 日志 */}
             <Route path="logs" element={<LogsPage />} />
 
-            {/* 设置（嵌套路由）
-                - /settings 根路径由 SettingsLayout 自身渲染 6 项卡片快捷入口
-                - 子路由通过 Outlet 渲染对应设置子页面
-                - model / about 按设计稿为独立页面，不嵌套在 SettingsLayout 中 */}
+            {/* 设置（全部嵌套在 SettingsLayout 里）
+                - /settings 根路径渲染 10 张卡片快捷入口（SettingsPage）
+                - 左侧导航列出的每一项都必须能在同一层布局里打开：
+                  曾经 model / about 挂在外面（照旧设计稿做"独立居中页"），
+                  结果点导航跳过去就把侧栏整块卸掉、高亮也丢了，URL 还看不出异常。
+                  IDE 的约定是设置区常驻左栏，所以这里全部收回嵌套。 */}
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<SettingsPage />} />
               <Route path="general" element={<GeneralSettings />} />
@@ -173,13 +175,9 @@ const Router: React.FC = () => {
               <Route path="alerts" element={<AlertsSettings />} />
               {/* 校准设置：8 个 ProviderType 分类校准 + Temperature Scaling */}
               <Route path="calibration" element={<CalibrationSettings />} />
+              <Route path="model" element={<ModelSettings />} />
+              <Route path="about" element={<AboutSettings />} />
             </Route>
-
-            {/* 模型配置：设计稿为独立居中布局，无侧边栏 */}
-            <Route path="settings/model" element={<ModelSettings />} />
-
-            {/* 关于页：设计稿为独立居中布局，不使用 SettingsLayout 侧边栏 */}
-            <Route path="settings/about" element={<AboutSettings />} />
           </Route>
 
           {/* 兜底：未匹配路由重定向到 / */}

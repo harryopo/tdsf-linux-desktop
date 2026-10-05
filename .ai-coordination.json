@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-05T05:29:22.508Z",
+  "lastUpdated": "2026-10-05T05:38:35.561Z",
   "sessions": {},
   "history": [
     {
@@ -4183,6 +4183,90 @@
       "file": "src/main/services/tutorial/tutorial-repo.ts",
       "task": "E5 emoji 清理：分类标签去表情 + 旧库标签兼容",
       "timestamp": "2026-10-05T05:29:22.508Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/router.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:30:54.973Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SettingsLayout.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:30:54.973Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:30:54.973Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:30:54.973Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/SettingsPageHeader.tsx",
+      "task": "F3 设置区路由归属：去掉与常驻左栏重复的返回按钮",
+      "timestamp": "2026-10-05T05:33:38.994Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/model/ModelSettingsHeader.tsx",
+      "task": "F3 设置区路由归属：去掉与常驻左栏重复的返回按钮",
+      "timestamp": "2026-10-05T05:33:38.994Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/router.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:38:35.561Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/SettingsLayout.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:38:35.561Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:38:35.561Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "F3 设置区路由归属：AI 引擎/关于 收回 SettingsLayout",
+      "timestamp": "2026-10-05T05:38:35.561Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/SettingsPageHeader.tsx",
+      "task": "F3 设置区路由归属：去掉与常驻左栏重复的返回按钮",
+      "timestamp": "2026-10-05T05:38:35.561Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/model/ModelSettingsHeader.tsx",
+      "task": "F3 设置区路由归属：去掉与常驻左栏重复的返回按钮",
+      "timestamp": "2026-10-05T05:38:35.561Z"
     }
   ],
   "coordinationAudit": {
