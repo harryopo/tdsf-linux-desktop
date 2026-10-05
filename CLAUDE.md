@@ -99,6 +99,8 @@ pnpm rebuild          # 重编译原生模块（better-sqlite3, ssh2）
 
 - 编码规范：`CODING.md`
 - 技术栈教程：`docs/技术栈教程注意事项-v1.0.md`
-- 开源复用清单：`../docs/technical/开源项目复用清单.md`
-- 项目救援盘点：`../docs/reports/项目救援盘点.md`
+- 开源复用清单：`docs/technical/开源项目复用清单.md`
+- 项目救援盘点：`docs/reports/项目救援盘点.md`
+- 当前交接（真值基线）：`docs/handoff/HANDOVER-2026-10-04.md`
 - 经验沉淀：`../.learnings/LEARNINGS.md`
+- 停用目录（设计原型/旧翻译项目/git 备份）：`_legacy/`（已 gitignore，勿提交）

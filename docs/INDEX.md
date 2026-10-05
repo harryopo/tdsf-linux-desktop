@@ -1,32 +1,33 @@
 # TDSF-Linux Desktop · 项目文档总索引
 
-> **更新时间**：2026-07-25 Asia/Shanghai（v2.2 同步：docs/ 目录归档 + 索引同步）
-> **比赛截止**：2026-07-30（剩 5 天）
+> **更新时间**：2026-10-04（文档归位 + 首页数字按代码重测）
 > **战略定位**：做大做精 · 不降级 · 不卡死阈值 · 保留所有技术亮点
-> **当前状态**：后端 95%+ / 前端重构中 / 三绿硬门禁全过 / 1282 测试通过
+> **当前状态**：见 `docs/handoff/HANDOVER-2026-10-04.md`。比赛（2026-07-30）已过，v1.0.0 已交付
+> **注意**：本文件 §0 里 2026-07-25 那批前端接入度数字未在本轮逐条复核，保留作快照；被复核过的已标注实测值
 
 ---
 
 ## 0. 一分钟速读
 
-| 维度 | 数值 |
-|------|------|
-| 后端 IPC handler 总数 | 211（全部真实业务逻辑） |
-| 后端完成度 | 95%+ |
-| 前端 electronAPI 调用次数 | 231 |
-| 前端孤儿 API 数 | ~75 |
-| 后端就绪但前端未接入 | ~50 |
-| 测试通过率 | 1282/1282 (100%) |
-| 编译门禁 | ✅ 三绿硬门禁全过 |
-| 比赛截止 | 2026-07-30（剩 5 天） |
+| 维度 | 2026-07-25 快照 | 2026-10-04 实测 |
+|------|-----------------|-----------------|
+| 后端 IPC handler 总数 | 211 | **217**（`grep -c ipcMain.handle(` 全文匹配，分布在 41 个文件） |
+| 后端完成度 | 95%+（全部真实业务逻辑） | 未复核 |
+| 前端 electronAPI 调用次数 | 231 | 未复核 |
+| 前端孤儿 API 数 | ~75 | 未复核 |
+| 后端就绪但前端未接入 | ~50 | 未复核 |
+| 测试通过率 | 1282/1282 (100%) | **1549/1550（1 条失败）**，vitest 收集 81 个测试文件 |
+| 编译门禁 | 三绿全过 | typecheck:node / typecheck:web / lint **exit 0**；`test` **exit 1**；`build:win` 未跑 |
+| 源码规模 | — | `src/` 587 个文件，`src/renderer/src/pages/` 34 个页面 |
+| 交付状态 | 距比赛 5 天 | v1.0.0 已交付，`master` HEAD `4d03f6f`（2026-07-31 deadcode 清理） |
 
 **5 份核心交付物**（2026-07-25 生成）：
 
-1. [TDSF高质量做大方案-终稿.md](../../TDSF高质量做大方案-终稿.md) — 核心交付物（简化 CLAUDE.md + 治理工具 + 5 天作战计划）
-2. [官方建议与项目实际对比分析.md](../../官方建议与项目实际对比分析.md) — 35 项 Gap 分析
-3. [Electron-高效开发-调研报告.md](../../Electron-高效开发-调研报告.md) — 必装库清单
-4. [AI辅助开发-调研报告.md](../../AI辅助开发-调研报告.md) — Anthropic 官方最佳实践
-5. [项目开发经验与约束合理性分析.md](../../项目开发经验与约束合理性分析.md) — 12 类问题时间线
+1. [reports/TDSF高质量做大方案-终稿.md](reports/TDSF高质量做大方案-终稿.md) — 核心交付物（简化 CLAUDE.md + 治理工具 + 5 天作战计划）
+2. [reports/官方建议与项目实际对比分析.md](reports/官方建议与项目实际对比分析.md) — 35 项 Gap 分析
+3. [references/technical/Electron-高效开发-调研报告.md](../../references/technical/Electron-高效开发-调研报告.md) — 必装库清单
+4. [references/technical/AI辅助开发-调研报告.md](../../references/technical/AI辅助开发-调研报告.md) — Anthropic 官方最佳实践
+5. [reports/项目开发经验与约束合理性分析.md](reports/项目开发经验与约束合理性分析.md) — 12 类问题时间线
 
 ---
 
@@ -35,9 +36,9 @@
 | 文档 | 路径 | 用途 | 行数 |
 |------|------|------|------|
 | **AI 接手提示词 v2.2** | [docs/handoff/AI_HANDOVER_PROMPT.md](handoff/AI_HANDOVER_PROMPT.md) | 接手 AI 第一条消息模板（v2.2 修正 backfill 4 方法失实描述） | ~580 行 |
-| **交接总说明** | [docs/handoff/HANDOVER.md](handoff/HANDOVER.md) | 统一入口 + TOP 5 关键发现 | ~350 行 |
+| **交接总说明** | [docs/handoff/HANDOVER-2026-10-04.md](handoff/HANDOVER-2026-10-04.md) | 统一入口 + TOP 5 关键发现 | ~350 行 |
 | **交接文档索引** | [docs/handoff/README.md](handoff/README.md) | 8 份交接文档清单 | ~75 行 |
-| **高质量做大方案** | [../../TDSF高质量做大方案-终稿.md](../../TDSF高质量做大方案-终稿.md) | 简化 CLAUDE.md + 治理工具 + 5 天作战 | ~540 行 |
+| **高质量做大方案** | [reports/TDSF高质量做大方案-终稿.md](reports/TDSF高质量做大方案-终稿.md) | 简化 CLAUDE.md + 治理工具 + 5 天作战 | ~540 行 |
 
 ---
 
@@ -63,7 +64,7 @@
 
 | # | 文档 | 路径 | 用途 |
 |---|------|------|------|
-| 1 | **HANDOVER.md** ⭐ | [handoff/HANDOVER.md](handoff/HANDOVER.md) | 统一入口 + TOP 5 关键发现 + P0-P3 行动清单 |
+| 1 | **HANDOVER-2026-10-04.md** ⭐ | [handoff/HANDOVER-2026-10-04.md](handoff/HANDOVER-2026-10-04.md) | 统一入口 + TOP 5 关键发现 + P0-P3 行动清单 |
 | 2 | IPC 契约 | [handoff/ipc-contract.md](handoff/ipc-contract.md) | 36 域 / 211 handler / 全量参数与返回值 |
 | 3 | 前后端职责边界 | [handoff/frontend-backend-boundary.md](handoff/frontend-backend-boundary.md) | 共享层契约 + v2.4/v2.5 新增能力清单 |
 | 4 | 核心数据流 | [handoff/data-flow.md](handoff/data-flow.md) | 7 条数据流时序图 |
@@ -86,35 +87,42 @@
 
 ---
 
-## 4. 最新调研报告（项目根目录，2026-07-25 生成）
+## 4. 调研报告与方案（2026-07-25 生成，2026-10-04 归位）
+
+> 原散落在工作区根目录，现按归属分两处：项目专属分析 → `docs/reports/`；跨项目技术调研 → 工作区 `references/technical/`。
 
 | # | 文档 | 路径 | 字数 | 核心价值 |
 |---|------|------|------|---------|
-| 1 | **TDSF高质量做大方案-终稿** | [../../TDSF高质量做大方案-终稿.md](../../TDSF高质量做大方案-终稿.md) | ~6000 字 | 核心交付物（简化 CLAUDE.md + 治理工具 + 5 天作战） |
-| 2 | 官方建议与项目实际对比分析 | [../../官方建议与项目实际对比分析.md](../../官方建议与项目实际对比分析.md) | ~7000 字 | 35 项 Gap 分析 + 改进优先级矩阵 |
-| 3 | Electron 高效开发调研 | [../../Electron-高效开发-调研报告.md](../../Electron-高效开发-调研报告.md) | ~8000 字 | 必装库清单 + 主流桌面应用架构 |
-| 4 | AI 辅助开发调研 | [../../AI辅助开发-调研报告.md](../../AI辅助开发-调研报告.md) | ~8000 字 | Anthropic 官方最佳实践 + 4 级 Verification Gate |
-| 5 | 项目开发经验与约束合理性分析 | [../../项目开发经验与约束合理性分析.md](../../项目开发经验与约束合理性分析.md) | ~5200 字 | 12 类问题时间线 + 约束合理性评估 |
-| 6 | 桌面开发经验总结与约束完善方案 | [../../桌面开发经验总结与约束完善方案.md](../../桌面开发经验总结与约束完善方案.md) | ~3500 字 | 综合方案 + 行动清单 |
+| 1 | **TDSF高质量做大方案-终稿** | [reports/TDSF高质量做大方案-终稿.md](reports/TDSF高质量做大方案-终稿.md) | ~6000 字 | 核心交付物（简化 CLAUDE.md + 治理工具 + 5 天作战） |
+| 2 | 官方建议与项目实际对比分析 | [reports/官方建议与项目实际对比分析.md](reports/官方建议与项目实际对比分析.md) | ~7000 字 | 35 项 Gap 分析 + 改进优先级矩阵 |
+| 3 | Electron 高效开发调研 | [../../references/technical/Electron-高效开发-调研报告.md](../../references/technical/Electron-高效开发-调研报告.md) | ~8000 字 | 必装库清单 + 主流桌面应用架构 |
+| 4 | AI 辅助开发调研 | [../../references/technical/AI辅助开发-调研报告.md](../../references/technical/AI辅助开发-调研报告.md) | ~8000 字 | Anthropic 官方最佳实践 + 4 级 Verification Gate |
+| 5 | 项目开发经验与约束合理性分析 | [reports/项目开发经验与约束合理性分析.md](reports/项目开发经验与约束合理性分析.md) | ~5200 字 | 12 类问题时间线 + 约束合理性评估 |
+| 6 | 桌面开发经验总结与约束完善方案 | [reports/桌面开发经验总结与约束完善方案.md](reports/桌面开发经验总结与约束完善方案.md) | ~3500 字 | 综合方案 + 行动清单 |
 
 ---
 
-## 5. 项目报告（docs/reports/，工作区根）
+## 5. 项目报告（docs/reports/）
 
 | 文档 | 路径 | 用途 |
 |------|------|------|
-| 项目交接文档 | [../../docs/reports/TDSF_DESKTOP_HANDOVER.md](../../docs/reports/TDSF_DESKTOP_HANDOVER.md) | 工作区级别交接 |
-| 项目救援盘点 | [../../docs/reports/项目救援盘点.md](../../docs/reports/项目救援盘点.md) | 多 AI 并行冲突复盘 |
-| 循环工程质量根因分析 | [../../docs/reports/循环工程质量根因分析与改进方案.md](../../docs/reports/循环工程质量根因分析与改进方案.md) | AI 自检失效分析 |
-| 开发方向优化报告 | [../../docs/reports/开发方向优化报告.md](../../docs/reports/开发方向优化报告.md) | 开发方向优化 |
+| **当前交接（真值基线）** | [handoff/HANDOVER-2026-10-04.md](handoff/HANDOVER-2026-10-04.md) | 接手必读，实测门禁状态 |
+| 项目救援盘点 | [reports/项目救援盘点.md](reports/项目救援盘点.md) | 多 AI 并行冲突复盘 |
+| 循环工程质量根因分析 | [reports/循环工程质量根因分析与改进方案.md](reports/循环工程质量根因分析与改进方案.md) | AI 自检失效分析 |
+| 开发方向优化报告 | [reports/开发方向优化报告.md](reports/开发方向优化报告.md) | 开发方向优化 |
+| AI Coding Agent 自检失效根因 | [reports/AI_Coding_Agent_自检失效根因分析报告.md](reports/AI_Coding_Agent_自检失效根因分析报告.md) | 自检失效根因 |
+| 历史交接（已失效，仅存档） | [archive/handover-history/](archive/handover-history/) | 2026-07-22 / 07-25 两版，勿据此开工 |
 
 ---
 
-## 6. 技术参考（docs/technical/，工作区根）
+## 6. 技术参考（docs/technical/）
 
 | 文档 | 路径 | 用途 |
 |------|------|------|
-| **开源项目复用清单** | [../../docs/technical/开源项目复用清单.md](../../docs/technical/开源项目复用清单.md) | 18 个开源参考项目详细复用矩阵 |
+| **开源项目复用清单** | [technical/开源项目复用清单.md](technical/开源项目复用清单.md) | 18 个开源参考项目详细复用矩阵（CLAUDE.md A8 配套主清单） |
+| TDSF-Linux 技术方案书 | [technical/TDSF-Linux-技术方案书.md](technical/TDSF-Linux-技术方案书.md) | 早期方案书（Python 版转写，历史） |
+| 运维 AI 决策可信度调研 | [technical/运维AI决策可信度调研方案.md](technical/运维AI决策可信度调研方案.md) | 可信度算法选型依据 |
+| Electron 测试自动化调研 | [technical/electron-test-automation-research.md](technical/electron-test-automation-research.md) | E2E 方案选型 |
 
 ---
 
@@ -207,8 +215,8 @@
 ### 9.1 给接手 AI（5 分钟起步）
 
 1. **必读**：[AI_HANDOVER_PROMPT.md](handoff/AI_HANDOVER_PROMPT.md) v2.2 — 接手 AI 第一条消息（v2.2 修正 backfill 4 方法失实描述 + P0 执行顺序调整）
-2. **必读**：[HANDOVER.md](handoff/HANDOVER.md) — 一分钟速读 + TOP 5 关键发现
-3. **必读**：[../../TDSF高质量做大方案-终稿.md](../../TDSF高质量做大方案-终稿.md) — 最新约束与治理工具
+2. **必读**：[HANDOVER-2026-10-04.md](handoff/HANDOVER-2026-10-04.md) — 一分钟速读 + TOP 5 关键发现
+3. **必读**：[reports/TDSF高质量做大方案-终稿.md](reports/TDSF高质量做大方案-终稿.md) — 最新约束与治理工具
 4. **必读**：[frontend-integration-verification.md](handoff/frontend-integration-verification.md) — P0 项实测状态
 5. **参考**：[ipc-4step-sync-audit.md](handoff/ipc-4step-sync-audit.md) — 类型声明修复清单（注意：文档中"类型声明缺失"描述可能过时，以 AI_HANDOVER_PROMPT.md v2.2 实测为准）
 
@@ -226,9 +234,9 @@
 
 ### 9.4 给项目决策者
 
-1. [../../TDSF高质量做大方案-终稿.md](../../TDSF高质量做大方案-终稿.md) — 核心交付物
-2. [../../官方建议与项目实际对比分析.md](../../官方建议与项目实际对比分析.md) — 35 项 Gap 分析
-3. [../../项目开发经验与约束合理性分析.md](../../项目开发经验与约束合理性分析.md) — 12 类问题时间线
+1. [reports/TDSF高质量做大方案-终稿.md](reports/TDSF高质量做大方案-终稿.md) — 核心交付物
+2. [reports/官方建议与项目实际对比分析.md](reports/官方建议与项目实际对比分析.md) — 35 项 Gap 分析
+3. [reports/项目开发经验与约束合理性分析.md](reports/项目开发经验与约束合理性分析.md) — 12 类问题时间线
 
 ---
 

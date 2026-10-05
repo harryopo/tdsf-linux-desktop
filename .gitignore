@@ -74,3 +74,10 @@ docs/skill-research/*-draft.md
 
 # dict-import 抓取缓存（不入库，可重新抓取）
 scripts/dict-import/.cache/
+
+# 工作区收纳进来的停用目录（含各自 node_modules，不入库）
+/_legacy/
+
+# desktop 仓库自己的第二个 worktree（分支 feat/translate-v1.5.0），
+# 历史在主仓库对象库里，但绝不能被外层工作树 add 进去
+/tdsf-translate-v140/
