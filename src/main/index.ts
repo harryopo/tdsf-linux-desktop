@@ -28,6 +28,9 @@ import { loadKnowledgeSeeds } from './services/db/knowledge-seeds'
 import { warmupSessionKeyCache } from './ipc/sandbox'
 // Phase 6 Task 6.5：调度器初始化（定时任务自动化：每日巡检 / 归档 / 周报）
 import { initScheduler, cleanupScheduler } from './ipc/scheduler'
+// D3：退出时清理 sidecar 与循环工程（以前只挂 global 从未被调用）
+import { cleanupSidecar } from './ipc/sidecar'
+import { cleanupLoopEngineering } from './ipc/loop-engineering'
 import { initLogger, logger } from './services/log/logger'
 import { redactSecrets } from './services/security/redact'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
@@ -206,6 +209,21 @@ async function handleBeforeQuit(): Promise<void> {
   try {
     // Phase 6 Task 6.5：清理调度器（停止轮询 + 清空任务 + 移除监听）
     cleanupScheduler()
+  } catch {
+    // 忽略清理异常
+  }
+  try {
+    // D3：关掉 Python sidecar。以前 cleanupSidecar 只挂到 global 上没人调，
+    // 应用退出后 sidecar 进程留在机器上。
+    await cleanupSidecar()
+  } catch (err) {
+    logger.warn('APP', 'sidecar 清理失败', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  try {
+    // D3：清理循环工程的事件监听
+    cleanupLoopEngineering()
   } catch {
     // 忽略清理异常
   }

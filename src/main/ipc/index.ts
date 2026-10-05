@@ -55,7 +55,7 @@ import { registerProviderInfoHandlers } from './provider-info'
 // v0.9.5 P0 新增：MCP 5 阶段状态机 IPC（借鉴 claw-code §3.3）
 import { registerMcpStateHandlers } from './mcp'
 // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
-import { registerSidecarIpcHandlers, cleanupSidecar } from './sidecar'
+import { registerSidecarIpcHandlers } from './sidecar'
 // v2.8 新增：Agent 长期记忆 IPC（自动沉淀记忆的查看/检索/删除/审计）
 import { registerMemoryIpcHandlers } from './memory'
 // v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
@@ -64,7 +64,7 @@ import { registerPromptfooHandlers } from './promptfoo'
 import { registerDiagnosticsHandlers } from './diagnostics'
 // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
 // 通道：loop:start / loop:confirm / loop:cancel + 推送 loop:step/decision/done/error
-import { registerLoopEngineeringHandlers, cleanupLoopEngineering } from './loop-engineering'
+import { registerLoopEngineeringHandlers } from './loop-engineering'
 // Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
 // 通道：scheduler:list / toggle / trigger + 推送 scheduler:status
 import { registerSchedulerIpcHandlers } from './scheduler'
@@ -300,9 +300,8 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerTerminalCompletionIpcHandlers()
 
   // 暴露 cleanupSidecar 供 main/index.ts 在 before-quit 时调用
-  ;(global as { __cleanupSidecar?: typeof cleanupSidecar }).__cleanupSidecar = cleanupSidecar
-  // 暴露 cleanupLoopEngineering 供 main/index.ts 在 before-quit 时调用
-  ;(global as { __cleanupLoopEngineering?: typeof cleanupLoopEngineering }).__cleanupLoopEngineering = cleanupLoopEngineering
+  // A4/D3：以前挂到 global 上却没人调用，Python sidecar 因此被留成孤儿进程；
+  // 现在由 main/index.ts 直接从各自模块 import，global 这层中转删掉。
 
   // M5 Task 3: 推送 IPC ready 阶段给 BootPage
   // 注意：这里仅推送 'ipc-ready'，后续 sqlite-init / kb-indexed / done 由各模块 init 完成后推送

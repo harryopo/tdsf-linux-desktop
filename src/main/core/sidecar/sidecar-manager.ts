@@ -136,6 +136,55 @@ const SIDECAR_A_CONFIG = SIDECAR_CONFIGS.sre
  * v1.5 修复：导出类（export）以支持集成测试直接实例化
  * 生产代码仍推荐使用 getSidecarManager() 工厂函数获取单例
  */
+/** 重启预算：30 秒窗口内最多 3 次（D3） */
+export const RESTART_BUDGET_MAX = 3
+export const RESTART_BUDGET_WINDOW_MS = 30_000
+/** 单次 HTTP 请求上限：健康检查快，业务调用给到 180 秒 */
+export const HEALTH_REQUEST_TIMEOUT_MS = 5_000
+export const BUSINESS_REQUEST_TIMEOUT_MS = 180_000
+/** stderr 环形缓冲行数（崩溃时最后几行才是现场） */
+export const STDERR_RING_SIZE = 40
+
+/**
+ * 进程是否还活着（signal 0 只做存在性探测，不发真信号）
+ *
+ * Windows 上 Node 同样支持用 0 探测存在性；进程不在时抛 ESRCH。
+ */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 滚动窗口内还剩多少重启预算
+ *
+ * 抽成纯函数是为了能被单测钉住 —— 以前的"累计 3 次、成功即清零"
+ * 让每隔 30 秒崩一次的 sidecar 可以无限重启，那种缺陷光看代码看不出来。
+ */
+export function remainingRestartBudget(
+  restartTimes: readonly number[],
+  now: number,
+  max: number = RESTART_BUDGET_MAX,
+  windowMs: number = RESTART_BUDGET_WINDOW_MS
+): number {
+  const used = restartTimes.filter((t) => now - t < windowMs).length
+  return Math.max(0, max - used)
+}
+
+/** 预算是否还允许再重启一次 */
+export function canRestartWithinBudget(
+  restartTimes: readonly number[],
+  now: number,
+  max: number = RESTART_BUDGET_MAX,
+  windowMs: number = RESTART_BUDGET_WINDOW_MS
+): boolean {
+  return remainingRestartBudget(restartTimes, now, max, windowMs) > 0
+}
+
 export class SidecarManager extends EventEmitter {
   private config: SidecarConfig
   private process: ChildProcess | null = null
@@ -143,10 +192,48 @@ export class SidecarManager extends EventEmitter {
   private healthCheckTimer: NodeJS.Timeout | null = null
   private lastError: string | null = null
   private restartCount = 0
+  /** 最近若干次重启的时间戳，用于 30 秒滚动窗口预算 */
+  private restartTimes: number[] = []
+  /** stderr 环形缓冲，崩溃时把最后几行带进日志与状态 */
+  private readonly stderrRing: string[] = []
+  /** 主动停止标记：区分"用户关的应用"与"进程自己崩了" */
+  private stopping = false
+  /** 排队中的重启定时器，stop() 必须掐掉它 */
+  private restartTimer: NodeJS.Timeout | null = null
 
   constructor(config: SidecarConfig = SIDECAR_A_CONFIG) {
     super()
     this.config = config
+  }
+
+  /**
+   * 重启预算判定（D3）
+   *
+   * 以前是"累计 3 次、成功启动后清零"，于是每隔 30 秒崩一次的 sidecar
+   * 可以无限重启。改成滚动窗口：只看最近 30 秒内的重启次数。
+   */
+  private canRestart(now = Date.now()): boolean {
+    return canRestartWithinBudget(this.restartTimes, now)
+  }
+
+  /** 记一次重启并返回窗口内已用次数 */
+  private recordRestart(now = Date.now()): number {
+    this.restartTimes.push(now)
+    this.restartCount = this.restartTimes.length
+    return this.restartCount
+  }
+
+  /** 追加一行 stderr，超出环形上限就丢最旧的 */
+  private pushStderrLine(line: string): void {
+    const trimmed = line.trim()
+    if (!trimmed) return
+    this.stderrRing.push(trimmed)
+    if (this.stderrRing.length > STDERR_RING_SIZE) this.stderrRing.shift()
+  }
+
+  /** 取 stderr 尾部若干行（默认全部已缓冲的） */
+  getStderrTail(limit = STDERR_RING_SIZE): string[] {
+    return this.stderrRing.slice(-Math.max(0, Math.min(limit, STDERR_RING_SIZE)))
   }
 
   /**
@@ -211,6 +298,8 @@ export class SidecarManager extends EventEmitter {
       logger.info(`[SidecarManager] Sidecar ${this.config.id} 已在运行中`)
       return
     }
+    // 显式 start() 就是"我要它跑起来"，解除上一次的主动停止标记
+    this.stopping = false
 
     this.status = 'starting'
     this.lastError = null
@@ -239,6 +328,7 @@ export class SidecarManager extends EventEmitter {
       })
       this.process.stderr?.on('data', (data) => {
         const text = data.toString().trim()
+        this.pushStderrLine(text)
         logger.warn(`[${this.config.id}] ${text}`)
         // stderr 转发到诊断服务（标记 isStderr=true）
         this.forwardLog(text, true)
@@ -251,19 +341,40 @@ export class SidecarManager extends EventEmitter {
         // 转发退出事件到诊断服务（触发 sidecar_crash 规则）
         this.forwardLog(`[SidecarManager] ${exitMsg}`, code !== 0 && code !== null)
 
+        // 主动停止（应用退出/用户关面板）不重启，也不算崩溃
+        if (this.stopping) {
+          this.status = 'stopped'
+          this.emit('status', this.status)
+          this.emit('exit', { code, signal })
+          return
+        }
+
         this.status = 'crashed'
         this.emit('status', this.status)
         this.emit('exit', { code, signal })
 
-        // 自动重启（最多 3 次）
-        if (this.restartCount < 3) {
-          this.restartCount++
-          const restartMsg = `自动重启 ${this.config.id}（第 ${this.restartCount} 次）`
+        // 崩溃时把 stderr 尾部带进日志，否则只有一句"退出了"，现场全丢
+        const tail = this.getStderrTail(5)
+        if (tail.length > 0) {
+          logger.warn(`[SidecarManager] ${this.config.id} 最后 5 行 stderr：${tail.join(' ⏎ ')}`)
+        }
+
+        // 自动重启（30 秒窗口内最多 3 次）
+        if (this.canRestart()) {
+          const n = this.recordRestart()
+          const restartMsg = `自动重启 ${this.config.id}（窗口内第 ${n} 次）`
           logger.info(`[SidecarManager] ${restartMsg}`)
           this.forwardLog(`[SidecarManager] ${restartMsg}`, false)
-          setTimeout(() => this.start(), 2000)
+          // 句柄必须存下来：stop() 不掐掉它的话，应用都关了 start() 还会再跑一次
+          this.restartTimer = setTimeout(() => {
+            this.restartTimer = null
+            if (this.stopping) return
+            void this.start().catch(() => {
+              /* start() 内部已记录失败，这里只防未处理拒绝 */
+            })
+          }, 2000)
         } else {
-          const limitMsg = `Sidecar ${this.config.id} 重启超限（3 次），停止重试`
+          const limitMsg = `Sidecar ${this.config.id} 重启超限（${RESTART_BUDGET_WINDOW_MS / 1000} 秒内 ${RESTART_BUDGET_MAX} 次），停止重试`
           logger.error(`[SidecarManager] ${limitMsg}`)
           this.forwardLog(`[SidecarManager] ${limitMsg}`, true)
         }
@@ -282,6 +393,13 @@ export class SidecarManager extends EventEmitter {
       logger.info(`[SidecarManager] ${readyMsg}`)
       this.forwardLog(`[SidecarManager] ${readyMsg}`, false)
     } catch (err) {
+      // 已经被 stop() 接管：不要把状态改回 crashed，也不要去动进程
+      if (this.stopping) {
+        this.status = 'stopped'
+        this.emit('status', this.status)
+        logger.info(`[SidecarManager] ${this.config.id} 启动过程中被停止，按停止处理`)
+        return
+      }
       this.status = 'crashed'
       this.lastError = err instanceof Error ? err.message : String(err)
       this.emit('status', this.status)
@@ -299,6 +417,8 @@ export class SidecarManager extends EventEmitter {
   private async waitForReady(timeoutMs: number): Promise<void> {
     const start = Date.now()
     while (Date.now() - start < timeoutMs) {
+      // 期间被 stop() 了就立刻退出，否则这个循环会在停止之后才醒来并把状态改坏
+      if (this.stopping) throw new Error('Sidecar 在等待就绪期间被停止')
       try {
         const resp = await this.health()
         if (resp.status === 'ok') return
@@ -339,7 +459,9 @@ export class SidecarManager extends EventEmitter {
    * 健康检查
    */
   async health(): Promise<HealthResponse> {
-    const resp = await fetch(`http://${this.config.host}:${this.config.port}/health`)
+    const resp = await fetch(`http://${this.config.host}:${this.config.port}/health`, {
+      signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS),
+    })
     if (!resp.ok) {
       throw new Error(`HTTP ${resp.status}`)
     }
@@ -371,6 +493,7 @@ export class SidecarManager extends EventEmitter {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(BUSINESS_REQUEST_TIMEOUT_MS),
     })
     if (!resp.ok) {
       const errText = await resp.text()
@@ -387,6 +510,7 @@ export class SidecarManager extends EventEmitter {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ log_lines: logLines, max_clusters: maxClusters }),
+      signal: AbortSignal.timeout(BUSINESS_REQUEST_TIMEOUT_MS),
     })
     if (!resp.ok) throw new Error(`Drain3 失败：HTTP ${resp.status}`)
     return (await resp.json()) as PipelineResponse['parse']
@@ -400,6 +524,7 @@ export class SidecarManager extends EventEmitter {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ log_templates: templates, service_name: serviceName }),
+      signal: AbortSignal.timeout(BUSINESS_REQUEST_TIMEOUT_MS),
     })
     if (!resp.ok) throw new Error(`OpenDerisk 失败：HTTP ${resp.status}`)
     return resp.json()
@@ -409,35 +534,74 @@ export class SidecarManager extends EventEmitter {
    * 停止 Sidecar
    */
   async stop(): Promise<void> {
+    // 先立标记：否则 exit 回调会把"用户关的应用"当成崩溃去重启
+    this.stopping = true
+    // 掐掉排队中的重启——真机跑出来过：stop 之后 start() 又被定时器拉起一次
+    if (this.restartTimer !== null) {
+      clearTimeout(this.restartTimer)
+      this.restartTimer = null
+    }
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer)
       this.healthCheckTimer = null
     }
     if (this.process) {
       logger.info(`[SidecarManager] 停止 ${this.config.id}（PID=${this.process.pid}）`)
-      this.process.kill('SIGTERM')
-      // 等待进程退出（最多 3s）
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => {
-          this.process?.kill('SIGKILL')
-          resolve()
-        }, 3000)
-        this.process?.on('exit', () => {
-          clearTimeout(timer)
-          resolve()
+      const pid = this.process.pid
+      // 早就退出的进程（如启动即失败）没有第二次 exit 事件可等，
+      // 再挂监听就会白等满 3 秒才走 SIGKILL 分支
+      const alreadyGone = this.process.exitCode !== null || this.process.signalCode !== null
+      if (!alreadyGone) {
+        this.process.kill('SIGTERM')
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => {
+            this.process?.kill('SIGKILL')
+            resolve()
+          }, 3000)
+          this.process?.on('exit', () => {
+            clearTimeout(timer)
+            resolve()
+          })
         })
-      })
+      }
+      // SIGTERM/SIGKILL 之后仍活着的，就是拖家带口的孤儿进程，补一刀
+      if (pid !== undefined && isPidAlive(pid)) {
+        logger.warn(`[SidecarManager] ${this.config.id} PID=${pid} 未响应退出信号，强杀`)
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // 已经在这两步之间自己退了
+        }
+      }
       this.process = null
     }
     this.status = 'stopped'
     this.emit('status', this.status)
+    // 下次手动 start() 从零开始算重启预算
+    this.restartTimes = []
+    this.restartCount = 0
   }
 
   /**
    * 获取当前状态
    */
-  getStatus(): { status: SidecarStatus; lastError: string | null; restartCount: number } {
-    return { status: this.status, lastError: this.lastError, restartCount: this.restartCount }
+  getStatus(): {
+    status: SidecarStatus
+    lastError: string | null
+    restartCount: number
+    /** 最近 30 秒窗口内的重启次数（预算见 RESTART_BUDGET_MAX） */
+    restartsInWindow: number
+    /** stderr 尾部若干行，崩溃现场靠它定位 */
+    stderrTail: string[]
+  } {
+    const now = Date.now()
+    return {
+      status: this.status,
+      lastError: this.lastError,
+      restartCount: this.restartCount,
+      restartsInWindow: this.restartTimes.filter((t) => now - t < RESTART_BUDGET_WINDOW_MS).length,
+      stderrTail: this.getStderrTail(),
+    }
   }
 
   private sleep(ms: number): Promise<void> {
