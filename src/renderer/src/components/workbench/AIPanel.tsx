@@ -30,7 +30,7 @@
  */
 import { useState, useRef, useEffect, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { message } from 'antd'
+import { toast } from 'sonner'
 import { useAgentChat } from './useAgentChat'
 import { useLoopEngineering } from './useLoopEngineering'
 import { usePaorLoop } from './usePaorLoop'
@@ -45,6 +45,7 @@ import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
 import Composer from './Composer'
+import { PermissionBar } from '@/dock/permission-bar'
 
 /** AIPanel props */
 export interface AIPanelProps {
@@ -239,9 +240,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       if (payload) {
         try {
           await navigator.clipboard.writeText(payload)
-          message.success('命令已复制到剪贴板')
+          toast.success('命令已复制到剪贴板')
         } catch {
-          message.error('复制失败，请手动选择文本')
+          toast.error('复制失败，请手动选择文本')
         }
       }
       return
@@ -261,10 +262,10 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         } else {
           void cancel()
         }
-        message.info('已停止当前任务（如需继续请重新发送消息）')
+        toast('已停止当前任务（如需继续请重新发送消息）')
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
-        message.error(`操作失败：${reason}`)
+        toast.error(`操作失败：${reason}`)
       }
       return
     }
@@ -272,13 +273,13 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     // 3. resumeExec：后端无恢复能力，假"恢复执行"按钮已从 PausePanel 移除；
     //    保留此分支兼容存量 block 数据，诚实告知用户重新发送
     if (action === 'resumeExec') {
-      message.info('当前不支持恢复已停止的任务，请重新发送消息')
+      toast('当前不支持恢复已停止的任务，请重新发送消息')
       return
     }
 
     // 4. 命令类操作（runInTerminal / execute / rollback / rollbackExec）必须有 payload
     if (!payload) {
-      message.warning('未找到可执行的命令')
+      toast.warning('未找到可执行的命令')
       return
     }
 
@@ -286,7 +287,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
 
     // 4.1 沙箱功能已全量移除（v2.5）：存量 block 数据的沙箱动作降级为提示
     if (action === 'sandbox') {
-      message.info('沙箱功能已移除，请使用“在终端执行”')
+      toast('沙箱功能已移除，请使用“在终端执行”')
       return
     }
 
@@ -294,11 +295,11 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     // v2.5 改造：从后台 sshExec（只弹 toast，用户看不到输出）改为写入终端 Shell，
     // 命令与回显直接出现在终端里，用户全程可见、可中断（Ctrl+C）。
     if (!activeSessionId) {
-      message.warning('该功能需要连接 SSH 服务器后使用')
+      toast.warning('该功能需要连接 SSH 服务器后使用')
       return
     }
     if (!api?.sshRunAuthored) {
-      message.warning('当前环境不支持终端执行（非 Electron 环境）')
+      toast.warning('当前环境不支持终端执行（非 Electron 环境）')
       return
     }
 
@@ -310,7 +311,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         const pre = await api.sshExec(activeSessionId, buildMissingCheckScript(preflightNames))
         const missing = parseMissingOutput(pre.stdout)
         if (missing.length > 0) {
-          message.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送（可先安装对应软件包）`)
+          toast.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送（可先安装对应软件包）`)
           return
         }
       } catch (err) {
@@ -325,7 +326,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       useTerminalStore.getState().setPendingCommand({ command: payload, sentAt: Date.now() })
       // 走 run-authored 而不是裸 shell write：命令由 AI 起草，主进程要过风险闸
       await api.sshRunAuthored(activeSessionId, payload)
-      message.success('命令已发送到终端，请在终端查看回显')
+      toast.success('命令已发送到终端，请在终端查看回显')
 
       // v2.5 决策落库：用户批准执行 = 一次真实决策（AI 建议 → 人工批准 → 执行），
       // 记入决策历史供 HistoryPage 展示；失败不打断主流程
@@ -333,7 +334,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     } catch (err) {
       useTerminalStore.getState().setPendingCommand(null)
       const reason = err instanceof Error ? err.message : String(err)
-      message.error(`命令发送失败：${reason}`)
+      toast.error(`命令发送失败：${reason}`)
     }
   }
 
@@ -381,7 +382,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   }
 
   return (
-    <div className="wb-aipanel flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-line bg-canvas">
+    <div className="wb-aipanel relative flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-line bg-canvas">
       {/* ===== 标题栏 40px ===== */}
       <AIPanelHeader
         onClose={onClose}
@@ -430,7 +431,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         onCompressContext={compressContext}
       />
 
-      {/* Token/成本统计行已移除 — 设计稿无此区域，节省垂直空间 */}
+      {/* 高危命令审批：贴底固定条，默认选中"拒绝"、Esc 即拒（详见 dock/permission-bar.tsx） */}
+      <PermissionBar requests={paorApprovals} onRespond={handlePaorApprove} />
     </div>
   )
 }

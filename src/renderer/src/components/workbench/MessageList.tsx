@@ -17,7 +17,6 @@ import type { PaorApprovalRequest } from '@/types/electron'
 import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import LiveMessageRow from './panels/LiveMessageRow'
-import PaorApprovalCard from './panels/PaorApprovalCard'
 import PaorPlanCard from './panels/PaorPlanCard'
 // v2.6：空态能力卡点击注入提示词到输入框（Composer 消费 injectedAtCommand）
 import { useEditorStore } from '@/stores/editor-store'
@@ -52,8 +51,8 @@ const MessageList: FC<MessageListProps> = ({
   activeSessionId,
   // v2.3.7 修复：loop 仍由 AIPanel 持有，MessageList 暂不需要（仅 hasLoopRunning 触发 workflow 分支）
   loop: _loop,
-  paorApprovals,
-  onPaorApprove,
+  paorApprovals: _paorApprovals,
+  onPaorApprove: _onPaorApprove,
   paorPlan,
   paorIterations,
   paorRunning,
@@ -74,7 +73,7 @@ const MessageList: FC<MessageListProps> = ({
             <LiveMessageRow key={msg.id} message={msg} onNavigate={onMessageNavigate} onToolAction={onToolAction} activeSessionId={activeSessionId} />
           ))}
           {lastError && !isStreaming && (
-            <div className="flex items-start gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] px-2.5 py-2 text-[12px] text-[var(--trae-status-error-default)]">
+            <div className="flex items-start gap-2 rounded-(--ui-radius-card) border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               <span>{lastError}</span>
             </div>
@@ -83,9 +82,6 @@ const MessageList: FC<MessageListProps> = ({
           {paorPlan && (
             <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />
           )}
-          {paorApprovals.map((req) => (
-            <PaorApprovalCard key={req.callId} request={req} onApprove={onPaorApprove} />
-          ))}
           <div ref={messagesEndRef} />
         </>
       ) : hasLoopRunning ? (
@@ -95,9 +91,6 @@ const MessageList: FC<MessageListProps> = ({
           {paorPlan && (
             <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />
           )}
-          {paorApprovals.map((req) => (
-            <PaorApprovalCard key={req.callId} request={req} onApprove={onPaorApprove} />
-          ))}
           <div ref={messagesEndRef} />
         </>
       ) : (
