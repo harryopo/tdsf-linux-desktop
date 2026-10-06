@@ -22,6 +22,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type {} from '@testing-library/jest-dom'
 
 import { ModelSettings } from '@renderer/pages/ModelSettings'
+import { SETTINGS_SECTIONS } from '@renderer/pages/settings-sections'
 
 /** 渲染整页（带路由上下文） */
 function renderPage() {
@@ -40,9 +41,11 @@ describe('ModelSettings — 模型配置页冒烟', () => {
 
   it('1. 无 electronAPI 时整页渲染不崩溃，Header 标题可见', () => {
     renderPage()
-    // '模型配置' 同时是页面 h1 与 Section 卡片标题 → 用 heading role 精确断言
+    // 标题与说明都取自 settings-sections 单源，断言跟着同一份数据走，
+    // 这样改文案时不需要再来改测试（'模型配置' 同时是 Section 卡片标题 → 用 heading role 精确断言）
+    const section = SETTINGS_SECTIONS.find((s) => s.to === '/settings/model')
     expect(screen.getByRole('heading', { level: 1, name: '模型配置' })).toBeInTheDocument()
-    expect(screen.getByText('AI模型管理与Token用量统计')).toBeInTheDocument()
+    expect(screen.getByText(section!.desc)).toBeInTheDocument()
   })
 
   it('2. API Key 为空时给出下一步指引，且不替用户选服务商', () => {

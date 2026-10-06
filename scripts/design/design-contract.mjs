@@ -87,8 +87,8 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 72,
-    why: '2026-10-06 关于页与模型页重做后实测 74→72。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 71,
+    why: '2026-10-06 设置区标题改走 settings-sections 单源后实测 72→71。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',

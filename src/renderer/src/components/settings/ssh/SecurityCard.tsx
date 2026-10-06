@@ -23,9 +23,6 @@ export interface SecurityCardProps {
   /** 允许密码认证（默认 off） */
   allowPasswordAuth: boolean
   onAllowPasswordAuthChange: (v: boolean) => void
-  /** 允许 Root 登录（默认 on） */
-  allowRootLogin: boolean
-  onAllowRootLoginChange: (v: boolean) => void
   /** 严格主机密钥检查（默认 on） */
   strictHostKeyCheck: boolean
   onStrictHostKeyCheckChange: (v: boolean) => void
@@ -38,8 +35,6 @@ export function SecurityCard(props: SecurityCardProps) {
   const {
     allowPasswordAuth,
     onAllowPasswordAuthChange,
-    allowRootLogin,
-    onAllowRootLoginChange,
     strictHostKeyCheck,
     onStrictHostKeyCheckChange,
     knownHostsPath,
@@ -53,16 +48,11 @@ export function SecurityCard(props: SecurityCardProps) {
       tag="security"
     >
       <SettingsRow
-        label="允许密码认证"
-        desc="允许使用密码方式登录服务器"
+        label="默认用密码认证"
+        desc="关掉则新服务器默认走私钥认证；只影响新建时的默认选项，单台服务器仍可另选"
         control={
           <Switch checked={allowPasswordAuth} onCheckedChange={onAllowPasswordAuthChange} />
         }
-      />
-      <SettingsRow
-        label="允许 Root 登录"
-        desc="允许以 root 用户身份直接登录"
-        control={<Switch checked={allowRootLogin} onCheckedChange={onAllowRootLoginChange} />}
       />
       <SettingsRow
         label="严格主机密钥检查"

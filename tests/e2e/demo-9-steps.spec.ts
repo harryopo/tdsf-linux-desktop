@@ -299,12 +299,12 @@ test.describe('Demo 9 步主路径', () => {
     // 等待设置页根元素 .set-page 加载（SettingsLayout 主容器）
     await window.waitForSelector('.set-page', { timeout: 15000 })
 
-    // 验证左侧导航存在（6 项核心导航）
+    // 验证左侧导航存在（10 项 = settings-sections.ts 的章节清单）
     const navItems = window.locator('.set-nav__item')
-    await expect(navItems).toHaveCount(6)
+    await expect(navItems).toHaveCount(10)
 
     // 验证关键设置导航的 data-dom-id
-    const expectedDomIds = ['nav-general', 'nav-ssh', 'nav-model-config', 'nav-alerts', 'nav-appearance', 'nav-about']
+    const expectedDomIds = ['nav-general', 'nav-ssh', 'nav-model-config', 'nav-alerts', 'nav-appearance', 'nav-about', 'nav-calibration', 'nav-terminal', 'nav-risk', 'nav-decision']
     for (const domId of expectedDomIds) {
       const link = window.locator(`[data-dom-id="${domId}"]`)
       await expect(link).toBeVisible()

@@ -28,10 +28,11 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import {
-  Activity, Cpu, RefreshCw, BarChart3, RotateCcw, type LucideIcon,
+  Activity, Cpu, RefreshCw, BarChart3, RotateCcw,
 } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
@@ -518,11 +519,7 @@ export function CalibrationSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={Activity as LucideIcon}
-        title="校准设置"
-        desc="AI 模型置信度校准与 Temperature Scaling 优化"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/calibration')} />
 
       <div className="set-subpage__body">
         {/* 顶部消息（2.5s 自动消失） */}

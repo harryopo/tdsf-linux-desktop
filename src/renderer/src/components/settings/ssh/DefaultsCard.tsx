@@ -16,7 +16,6 @@ import { Settings } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
-import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
 
 export interface DefaultsCardProps {
@@ -32,12 +31,6 @@ export interface DefaultsCardProps {
   /** Keep Alive 间隔（秒，0=关闭） */
   keepAliveIntervalSec: number
   onKeepAliveChange: (sec: number) => void
-  /** 压缩传输 */
-  compression: boolean
-  onCompressionChange: (v: boolean) => void
-  /** X11 转发 */
-  x11Forward: boolean
-  onX11ForwardChange: (v: boolean) => void
 }
 
 export function DefaultsCard(props: DefaultsCardProps) {
@@ -50,10 +43,6 @@ export function DefaultsCard(props: DefaultsCardProps) {
     onTimeoutChange,
     keepAliveIntervalSec,
     onKeepAliveChange,
-    compression,
-    onCompressionChange,
-    x11Forward,
-    onX11ForwardChange,
   } = props
 
   return (
@@ -112,16 +101,6 @@ export function DefaultsCard(props: DefaultsCardProps) {
             onValueChange={onKeepAliveChange}
           />
         }
-      />
-      <SettingsRow
-        label="压缩传输"
-        desc="启用 SSH 连接数据压缩"
-        control={<Switch checked={compression} onCheckedChange={onCompressionChange} />}
-      />
-      <SettingsRow
-        label="X11 转发"
-        desc="允许 X11 图形界面转发"
-        control={<Switch checked={x11Forward} onCheckedChange={onX11ForwardChange} />}
         isLast
       />
     </SettingsCard>

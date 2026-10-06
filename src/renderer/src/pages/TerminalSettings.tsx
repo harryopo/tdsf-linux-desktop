@@ -13,9 +13,10 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { Terminal, Type, Copy, Cpu, type LucideIcon } from 'lucide-react'
+import { Terminal, Type, Copy, Cpu } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
@@ -40,7 +41,6 @@ export function TerminalSettings() {
   const [shell, setShell] = usePersistentState('terminal.shell', '/bin/bash')
   const [shellArgs, setShellArgs] = usePersistentState('terminal.shellArgs', '-l')
   const [colorScheme, setColorScheme] = usePersistentState('terminal.colorScheme', 'dark')
-  const [loginShell, setLoginShell] = usePersistentState('terminal.loginShell', true)
 
   // Card 2: 终端行为
   const [fontSize, setFontSize] = usePersistentState('terminal.fontSize', 14)
@@ -65,11 +65,7 @@ export function TerminalSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={Terminal as LucideIcon}
-        title="终端设置"
-        desc="Shell 环境与终端行为配置"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/terminal')} />
 
       <div className="set-subpage__body">
         {/* Card 1: 默认 Shell 配置 */}
@@ -105,6 +101,7 @@ export function TerminalSettings() {
           <SettingsRow
             label="颜色方案"
             desc="终端配色主题方案"
+            isLast
             control={
               <Select value={colorScheme} onValueChange={setColorScheme}>
                 <SelectTrigger className={selectTriggerCls}>
@@ -118,12 +115,6 @@ export function TerminalSettings() {
                 </SelectContent>
               </Select>
             }
-          />
-          <SettingsRow
-            label="登录提示"
-            desc="以登录 Shell 方式启动，加载用户环境配置"
-            control={<Switch checked={loginShell} onCheckedChange={setLoginShell} />}
-            isLast
           />
         </SettingsCard>
 
@@ -285,7 +276,6 @@ export function TerminalSettings() {
             setShell('/bin/bash')
             setShellArgs('-l')
             setColorScheme('dark')
-            setLoginShell(true)
             setFontSize(14)
             setFontFamily('jetbrains-mono')
             setLineHeight(1.4)

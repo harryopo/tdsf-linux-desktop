@@ -154,7 +154,10 @@
    悬浮提示用 `Tooltip`（`content` 传空即不渲染）；轻提示用 `sonner` 的 `toast`。
 6. 三态必须齐：空态（`Empty`，给下一步动作）、加载（`Spinner` 或骨架）、错误（说清怎么办）。
 7. 数字与列表只来自 IPC。没有链路就显示"—"并说明为什么，**不许造示例数据**。
-8. 提交前自己跑三件事：`node scripts/design/design-contract.mjs`、
+8. 设置区加一节：只在 `pages/settings-sections.ts` 登记（左栏、目录页、子页标题三处都从它读），
+   再在 `router.tsx` 的 SettingsLayout 嵌套里挂子路由；子页标题写 `<SettingsPageHeader {...settingsHeader('/settings/xxx')} />`，
+   不要在页面里自己拼图标/标题/说明（`tests/components/settings-nav-ownership.test.ts` 会双向对账）。
+9. 提交前自己跑三件事：`node scripts/design/design-contract.mjs`、
    `pnpm build && node scripts/design/ui-audit.mjs --gate`、`pnpm test`。
 
 ## 10. 界面文案准则（"过时字眼"就靠这几条拦）

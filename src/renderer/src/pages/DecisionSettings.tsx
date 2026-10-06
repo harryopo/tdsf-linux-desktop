@@ -17,11 +17,12 @@
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
 import { type ReactNode, useState } from 'react'
-import { GitBranch, Layers, Shield, Bell, type LucideIcon } from 'lucide-react'
+import { GitBranch, Layers, Shield, Bell } from 'lucide-react'
 import { Button } from 'antd'
 import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
@@ -225,11 +226,7 @@ export function DecisionSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={GitBranch as LucideIcon}
-        title="决策控制"
-        desc="AI 运维决策流程与审批策略"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/decision')} />
 
       <div className="set-subpage__body">
         {/* Card 1: 决策流程配置 */}

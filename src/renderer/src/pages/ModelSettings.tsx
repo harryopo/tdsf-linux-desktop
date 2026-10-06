@@ -22,10 +22,10 @@
  *                  （当时一并引入了三列 ModelSettingsHeader，随 F3 删除：返回口和底部保存都是重复件）
  */
 import { useState, useEffect, useRef } from 'react'
-import { Sparkles } from 'lucide-react'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
 import { ModelConfigSection } from '@/components/settings/model/ModelConfigSection'
 import { ApiTestSection } from '@/components/settings/model/ApiTestSection'
@@ -496,11 +496,7 @@ export function ModelSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={Sparkles}
-        title="模型配置"
-        desc="AI模型管理与Token用量统计"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/model')} />
 
       <div className="set-subpage__body">
         {/* Section 1: KPI 统计行 */}

@@ -17,11 +17,12 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { Moon, Type, LayoutGrid, Code2, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import { Moon, Type, LayoutGrid, Code2 } from 'lucide-react'
 // v2.7 真实落地：外观设置改用 appearance-store（main.tsx Root 实时应用到 CSS 变量/属性），
 // 替代此前 usePersistentState“真保存假生效”方案；强调色卡片无消费者已移除
 import { useAppearanceStore } from '@/stores/appearance-store'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
@@ -102,11 +103,7 @@ export function AppearanceSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={SlidersHorizontal as LucideIcon}
-        title="外观"
-        desc="主题、颜色与字体偏好"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/appearance')} />
 
       <div className="set-subpage__body">
         {/* Card 1: 主题模式（带视觉预览的 radio 卡片） */}

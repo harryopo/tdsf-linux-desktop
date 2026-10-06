@@ -11,7 +11,7 @@
  * 常量与探测函数见 about-settings.constants.ts。
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Download, ExternalLink, Info, ListChecks, MonitorPlay, RefreshCw, Sparkles } from 'lucide-react'
+import { Download, ExternalLink, ListChecks, MonitorPlay, RefreshCw, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   APP_VERSION,
@@ -28,7 +28,9 @@ import {
   capabilityCounts,
   type CapabilityStatus,
 } from '@shared/capabilities'
-import { Button, Chip, PageHeader, Spinner } from '@/ui'
+import { Button, Chip, Spinner } from '@/ui'
+import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import './Settings.css'
@@ -130,7 +132,7 @@ export function AboutSettings() {
 
   return (
     <div className="set-subpage">
-      <PageHeader icon={Info} title="关于" subtitle="版本、更新与运行环境" />
+      <SettingsPageHeader {...settingsHeader('/settings/about')} />
       <div className="set-subpage__body">
         <SettingsCard icon={RefreshCw} title="版本与更新" hideTag noHeadBorder>
           <SettingsRow label="当前版本" desc="随安装包分发" control={<Value>{version} · {buildBadge}</Value>} />

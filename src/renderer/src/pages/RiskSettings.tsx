@@ -23,11 +23,11 @@ import {
   Edit3,
   Trash2,
   Plus,
-  type LucideIcon,
 } from 'lucide-react'
 import { confirmDialog } from '@/ui'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
@@ -189,11 +189,7 @@ export function RiskSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={Shield as LucideIcon}
-        title="风险控制"
-        desc="运维操作安全防护与审计策略"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/risk')} />
 
       <div className="set-subpage__body">
         {/* Card 1: 安全防护等级 */}

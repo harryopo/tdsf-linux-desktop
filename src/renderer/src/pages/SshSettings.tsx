@@ -16,11 +16,11 @@
  * IPC 不可用：Card 内显示 Empty 组件（spec REMOVED 要求）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Plug, type LucideIcon } from 'lucide-react'
 import { Modal, Form, Input as AntdInput, Select } from 'antd'
 import { toast } from 'sonner'
 import { confirmDialog } from '@/ui'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import ConnectDialog from '@/components/layout/ConnectDialog'
 import { ServerCard } from '@/components/settings/ssh/ServerCard'
@@ -74,14 +74,8 @@ export function SshSettings() {
   )
   // K.3：keepAlive 直接联动 store（不再使用本地 state），与后端默认 30s 对齐
   const keepAliveIntervalSec = sshDefaults.keepAliveIntervalSec ?? 30
-  // P1-2: compression / x11Forward 改用 usePersistentState 持久化到 electron-store
-  const [compression, setCompression] = usePersistentState<boolean>('ssh.compression', true)
-  const [x11Forward, setX11Forward] = usePersistentState<boolean>('ssh.x11Forward', false)
-
-  // Card 4: 安全设置（设计稿默认：密码认证 off / Root on / 严格 on / known_hosts 路径）
-  // P1-2: allowPasswordAuth / allowRootLogin 改用 usePersistentState 持久化
+  // Card 4: 安全设置（strictHostKeyCheck / knownHostsPath 从 store 初始化，保存时写回）
   const [allowPasswordAuth, setAllowPasswordAuth] = usePersistentState<boolean>('ssh.allowPasswordAuth', false)
-  const [allowRootLogin, setAllowRootLogin] = usePersistentState<boolean>('ssh.allowRootLogin', true)
   // Phase L：strictHostKeyCheck / knownHostsPath 从 store 初始化，handleSaveDefaults 时写回 store
   const [strictHostKeyCheck, setStrictHostKeyCheck] = useState(
     sshDefaults.strictHostKeyCheck ?? true,
@@ -267,10 +261,7 @@ export function SshSettings() {
     setConnectTimeoutSec(30)
     // K.3：重置 keepAlive 到后端默认 30s（与 DEFAULT_SSH_DEFAULTS 一致）
     setSshDefaults({ keepAliveIntervalSec: 30 })
-    setCompression(true)
-    setX11Forward(false)
     setAllowPasswordAuth(false)
-    setAllowRootLogin(true)
     setStrictHostKeyCheck(true)
     setKnownHostsPath('~/.ssh/known_hosts')
   }, [setSshDefaults])
@@ -402,11 +393,7 @@ export function SshSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={Plug as LucideIcon}
-        title="SSH 连接"
-        desc="远程服务器连接与密钥管理"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/ssh')} />
 
       <div className="set-subpage__body">
         <ServerCard
@@ -439,17 +426,11 @@ export function SshSettings() {
           onTimeoutChange={setConnectTimeoutSec}
           keepAliveIntervalSec={keepAliveIntervalSec}
           onKeepAliveChange={(v) => setSshDefaults({ keepAliveIntervalSec: v })}
-          compression={compression}
-          onCompressionChange={setCompression}
-          x11Forward={x11Forward}
-          onX11ForwardChange={setX11Forward}
         />
 
         <SecurityCard
           allowPasswordAuth={allowPasswordAuth}
           onAllowPasswordAuthChange={setAllowPasswordAuth}
-          allowRootLogin={allowRootLogin}
-          onAllowRootLoginChange={setAllowRootLogin}
           strictHostKeyCheck={strictHostKeyCheck}
           onStrictHostKeyCheckChange={setStrictHostKeyCheck}
           knownHostsPath={knownHostsPath}

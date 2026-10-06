@@ -10,10 +10,11 @@
  *
  * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
  */
-import { Bell, Cpu, HardDrive, ArrowRight, type LucideIcon } from 'lucide-react'
+import { Cpu, HardDrive, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
@@ -39,11 +40,7 @@ export function AlertsSettings() {
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader
-        icon={Bell as LucideIcon}
-        title="告警阈值"
-        desc="CPU / 内存 / 磁盘超过阈值时在监控页触发告警横幅"
-      />
+      <SettingsPageHeader {...settingsHeader('/settings/alerts')} />
 
       <div className="set-subpage__body">
         <SettingsCard icon={Cpu} title="资源告警阈值" tag="monitor.threshold">

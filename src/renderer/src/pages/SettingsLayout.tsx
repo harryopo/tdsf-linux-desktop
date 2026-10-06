@@ -1,50 +1,20 @@
 /**
  * SettingsLayout — 设置布局（嵌套路由父级）
  *
- * 设计稿：settings.html 的 ds-layout + ds-nav 部分（最新版 tdsf-linux-redesign）
+ * 规矩：
  * - 标题栏归各子页自己（PageHeader 必须是子页第一个节点，位置/字号与其他模块一致），
  *   所以这一层不能再给子页容器加任何内距，否则左上角会整体下移右移
- * - 左侧 NavList 220px：6 项导航（通用/SSH/AI引擎/告警阈值/外观/关于），自己带留白
- * - 每个 nav 项 36px 高，激活时左侧 2px 品牌色指示条
- * - 右侧 Outlet 子路由出口（/settings 根路径渲染 SettingsPage 快捷入口）
+ * - 左栏 220px 常驻，项数 = router 里 SettingsLayout 的嵌套子路由数，一一对应
+ * - 右侧 Outlet 子路由出口（/settings 根路径渲染 SettingsPage 目录页）
  * - 滚动由各子页正文容器承担，本层不出滚动条
  *
- * 6 项导航（data-dom-id）— 严格按设计稿 settings.html 1994-2016 行：
- * - nav-general(通用) / nav-ssh(SSH连接) / nav-model-config(AI引擎)
- * - nav-alerts(告警阈值) / nav-appearance(外观) / nav-about(关于)
- * - 终端设置/决策控制/风险控制/知识库 移至 SettingsPage 卡片入口
- *
  * 无障碍：NavLink(<a>) 自带 aria-current="page"（激活态）+ 键盘可访问；
- *         button type + aria-label；prefers-reduced-motion 禁用按压动画
+ *         prefers-reduced-motion 禁用按压动画
  */
 import { NavLink, Outlet } from 'react-router-dom'
-import {
-  Settings, KeySquare, Sparkles, Bell, Palette, Info, type LucideIcon,
-} from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { SETTINGS_SECTIONS } from './settings-sections'
 import './Settings.css'
-
-interface SettingsNavItem {
-  to: string
-  label: string
-  icon: LucideIcon
-  domId: string
-}
-
-/**
- * 左栏导航（6 项）
- *
- * 归属规矩：这里的每个 to 都必须是 router 里 SettingsLayout 的嵌套子路由，
- * 否则点过去会把整栏卸掉（F3 就是这么坏的，已由 tests/components/settings-nav-ownership.test.ts 锁住）。
- */
-const SETTINGS_NAV: SettingsNavItem[] = [
-  { to: '/settings/general', label: '通用', icon: Settings, domId: 'nav-general' },
-  { to: '/settings/ssh', label: 'SSH 连接', icon: KeySquare, domId: 'nav-ssh' },
-  { to: '/settings/model', label: 'AI 引擎', icon: Sparkles, domId: 'nav-model-config' },
-  { to: '/settings/alerts', label: '告警阈值', icon: Bell, domId: 'nav-alerts' },
-  { to: '/settings/appearance', label: '外观', icon: Palette, domId: 'nav-appearance' },
-  { to: '/settings/about', label: '关于', icon: Info, domId: 'nav-about' },
-]
 
 export function SettingsLayout() {
   return (
@@ -53,7 +23,7 @@ export function SettingsLayout() {
       <div className="set-layout">
         {/* Left Nav：独立卡片（边框 + 圆角 + padding 8px），sticky 跟随滚动 */}
         <aside className="set-nav">
-          {SETTINGS_NAV.map((item) => (
+          {SETTINGS_SECTIONS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -70,7 +40,7 @@ export function SettingsLayout() {
           ))}
         </aside>
 
-        {/* Right Panel：子路由出口（/settings 根路径渲染 SettingsPage 快捷入口） */}
+        {/* Right Panel：子路由出口（/settings 根路径渲染 SettingsPage 目录页） */}
         <main className="set-panel">
           <Outlet />
         </main>
