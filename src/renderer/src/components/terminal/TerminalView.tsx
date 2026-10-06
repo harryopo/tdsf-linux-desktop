@@ -31,6 +31,7 @@ import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../
 import { attachBlockCollector } from '../../terminal/block-collector'
 import { CODE_THEMES } from '@shared/code-themes'
 import { SelectionManager } from './selection-manager'
+import { formatTerminalClipboard } from './clipboard-format'
 import TerminalSearchBar from './TerminalSearchBar'
 import TerminalCompletionAddon from './TerminalCompletionAddon'
 import './TerminalView.css'
@@ -62,6 +63,14 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
   const searchAddonRef = useRef<SearchAddon | null>(null)
   /** 当前字体大小 */
   const fontSizeRef = useRef<number>(DEFAULT_FONT_SIZE)
+  /** 复制相关开关（终端设置页 terminal.autoCopy / stripNewline / stripControlChars，异步读回来后给选区监听用） */
+  const copyPrefsRef = useRef({
+    autoCopy: false,
+    stripNewline: false,
+    stripControlChars: true,
+  })
+  /** 视觉响铃开关（terminal.bellEnabled，异步读回来后给 onBell 用） */
+  const bellRef = useRef(false)
   /** 终端搜索栏显隐状态（Ctrl+F 触发） */
   const [searchOpen, setSearchOpen] = useState(false)
   /** v0.9.7 终端实例已打开到 DOM，可挂载补全覆盖层 */
@@ -120,12 +129,16 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
         if (codeStack) terminal.options.fontFamily = codeStack
         // 终端专属设置（TerminalSettings 页 terminal.* key）
         if (api?.configGet) {
-          const [fs, lh, cs, cb, sb] = await Promise.all([
+          const [fs, lh, cs, cb, sb, bell, autoCopy, stripNl, stripCc] = await Promise.all([
             api.configGet<number>('terminal.fontSize'),
             api.configGet<number>('terminal.lineHeight'),
             api.configGet<string>('terminal.cursorStyle'),
             api.configGet<boolean>('terminal.cursorBlink'),
             api.configGet<number>('terminal.scrollback'),
+            api.configGet<boolean>('terminal.bellEnabled'),
+            api.configGet<boolean>('terminal.autoCopy'),
+            api.configGet<boolean>('terminal.stripNewline'),
+            api.configGet<boolean>('terminal.stripControlChars'),
           ])
           if (typeof fs === 'number' && fs >= MIN_FONT_SIZE && fs <= MAX_FONT_SIZE) {
             fontSizeRef.current = fs
@@ -135,6 +148,13 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
           if (cs === 'block' || cs === 'underline' || cs === 'bar') terminal.options.cursorStyle = cs
           if (typeof cb === 'boolean') terminal.options.cursorBlink = cb
           if (typeof sb === 'number' && sb > 0) terminal.options.scrollback = sb
+          // 响铃：xterm 5 没有 bellStyle 选项，只能自己听 onBell 闪一下容器
+          if (typeof bell === 'boolean') bellRef.current = bell
+          copyPrefsRef.current = {
+            autoCopy: autoCopy === true,
+            stripNewline: stripNl === true,
+            stripControlChars: stripCc !== false,
+          }
         }
         fitRef.current?.fit()
       } catch (err) {
@@ -284,6 +304,13 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
             text: text.trim(),
             type: 'cmd',
           })
+          // 选中即复制（terminal.autoCopy）：Linux 终端的老习惯，默认关
+          if (copyPrefsRef.current.autoCopy) {
+            const clipText = formatTerminalClipboard(text, copyPrefsRef.current)
+            void navigator.clipboard?.writeText(clipText).catch(() => {
+              // 剪贴板权限被拒时保持"只选中不复制"，不打断输入
+            })
+          }
         } else {
           // 选中清空时也清除 store（避免浮层残留）
           setSelection(null)
@@ -291,10 +318,21 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       }, 50)
     })
 
+    // ===== 7.7 视觉响铃（terminal.bellEnabled）=====
+    // xterm 5 的 ITerminalOptions 没有 bellStyle，只能自己听 onBell 给容器加一闪
+    const bellDisposable = terminal.onBell(() => {
+      if (!bellRef.current) return
+      const el = containerRef.current
+      if (!el) return
+      el.classList.add('term-bell-flash')
+      setTimeout(() => el.classList.remove('term-bell-flash'), 220)
+    })
+
     // ===== 8. 清理 =====
     return () => {
       // 撤掉命令块收集器并清空摘要（不撤的话状态栏会留着上一个会话的命令）
       blockCollector.dispose()
+      bellDisposable.dispose()
       setCommandBlocks(null)
       // 取消 IPC 事件监听
       if (offTerminalData) {

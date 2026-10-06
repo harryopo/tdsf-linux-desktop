@@ -5,10 +5,16 @@
  *
  * 设计稿：settings-terminal.html
  * - Card 1: 默认 Shell 配置（Shell）
- * - Card 2: 终端行为（字号 / 字体族 / 行高 / 光标 / 闪烁 / 缓冲区）
- * - Card 3: 复制与粘贴（自动复制 / 右键粘贴 / 去换行 / 去控制字符）
- * - Card 4: 高级（Bell / 鼠标 / WebGL / SSH 心跳 / 命令超时）
+ * - Card 2: 终端行为（字号 / 行高 / 光标 / 闪烁 / 缓冲区）
+ * - Card 3: 复制与粘贴（选中自动复制 / 去换行 / 去控制字符）
+ * - Card 4: 高级（Bell / 命令超时）
  * - ActionBar: 保存 / 恢复默认
+ *
+ * 已删掉的假设置（全仓零消费者，遵循 DESIGN.md §10）：
+ * - 字体族 terminal.fontFamily：终端字体实际走外观页的 appearance.codeFont，两处会互相打架
+ * - 右键粘贴 terminal.rightClickPaste、鼠标支持 terminal.mouseSupport、
+ *   WebGL 渲染 terminal.webglRenderer：xterm 侧没有对应开关（WebGL addon 根本没装）
+ * - SSH 心跳 terminal.sshHeartbeat：心跳走 SSH 连接页的 sshDefaults.keepAliveIntervalSec
  *
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
@@ -42,7 +48,6 @@ export function TerminalSettings() {
 
   // Card 2: 终端行为
   const [fontSize, setFontSize] = usePersistentState('terminal.fontSize', 14)
-  const [fontFamily, setFontFamily] = usePersistentState('terminal.fontFamily', 'jetbrains-mono')
   const [lineHeight, setLineHeight] = usePersistentState('terminal.lineHeight', 1.4)
   const [cursorStyle, setCursorStyle] = usePersistentState('terminal.cursorStyle', 'block')
   const [cursorBlink, setCursorBlink] = usePersistentState('terminal.cursorBlink', true)
@@ -50,15 +55,11 @@ export function TerminalSettings() {
 
   // Card 3: 复制与粘贴
   const [autoCopy, setAutoCopy] = usePersistentState('terminal.autoCopy', false)
-  const [rightClickPaste, setRightClickPaste] = usePersistentState('terminal.rightClickPaste', true)
   const [stripNewline, setStripNewline] = usePersistentState('terminal.stripNewline', false)
   const [stripControlChars, setStripControlChars] = usePersistentState('terminal.stripControlChars', true)
 
   // Card 4: 高级
   const [bellEnabled, setBellEnabled] = usePersistentState('terminal.bellEnabled', false)
-  const [mouseSupport, setMouseSupport] = usePersistentState('terminal.mouseSupport', true)
-  const [webglRenderer, setWebglRenderer] = usePersistentState('terminal.webglRenderer', true)
-  const [sshHeartbeat, setSshHeartbeat] = usePersistentState('terminal.sshHeartbeat', 30)
   const [cmdTimeout, setCmdTimeout] = usePersistentState('terminal.cmdTimeout', 300)
 
   return (
@@ -102,23 +103,6 @@ export function TerminalSettings() {
                 suffix="px"
                 onValueChange={setFontSize}
               />
-            }
-          />
-          <SettingsRow
-            label="字体族"
-            desc="终端使用的等宽字体"
-            control={
-              <Select value={fontFamily} onValueChange={setFontFamily}>
-                <SelectTrigger className={selectTriggerCls}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="jetbrains-mono">JetBrains Mono</SelectItem>
-                  <SelectItem value="sf-mono">SF Mono</SelectItem>
-                  <SelectItem value="consolas">Consolas</SelectItem>
-                  <SelectItem value="fira-code">Fira Code</SelectItem>
-                </SelectContent>
-              </Select>
             }
           />
           <SettingsRow
@@ -179,11 +163,6 @@ export function TerminalSettings() {
             control={<Switch checked={autoCopy} onCheckedChange={setAutoCopy} />}
           />
           <SettingsRow
-            label="右键粘贴"
-            desc="在终端中右键单击直接粘贴剪贴板内容"
-            control={<Switch checked={rightClickPaste} onCheckedChange={setRightClickPaste} />}
-          />
-          <SettingsRow
             label="复制去除换行"
             desc="复制多行内容时自动去除换行符"
             control={<Switch checked={stripNewline} onCheckedChange={setStripNewline} />}
@@ -199,31 +178,9 @@ export function TerminalSettings() {
         {/* Card 4: 高级 */}
         <SettingsCard icon={Cpu} title="高级" tag="advanced">
           <SettingsRow
-            label="启用 Bell 铃声"
-            desc="命令执行完成或出错时发出提示音"
+            label="启用 Bell 提示"
+            desc="命令响铃时终端闪一下屏（visual bell）"
             control={<Switch checked={bellEnabled} onCheckedChange={setBellEnabled} />}
-          />
-          <SettingsRow
-            label="启用鼠标支持"
-            desc="允许在终端中使用鼠标选择、滚动与点击"
-            control={<Switch checked={mouseSupport} onCheckedChange={setMouseSupport} />}
-          />
-          <SettingsRow
-            label="启用 WebGL 渲染"
-            desc="使用 GPU 加速终端渲染以提升性能"
-            control={<Switch checked={webglRenderer} onCheckedChange={setWebglRenderer} />}
-          />
-          <SettingsRow
-            label="SSH 心跳间隔秒"
-            desc="SSH 会话保活心跳包发送间隔"
-            control={
-              <Input
-                type="number"
-                value={sshHeartbeat}
-                onChange={(e) => setSshHeartbeat(Number(e.target.value))}
-                className="term-settings-num"
-              />
-            }
           />
           <SettingsRow
             label="命令执行超时秒"
@@ -245,19 +202,14 @@ export function TerminalSettings() {
             // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
             setShell('/bin/bash')
             setFontSize(14)
-            setFontFamily('jetbrains-mono')
             setLineHeight(1.4)
             setCursorStyle('block')
             setCursorBlink(true)
             setScrollback(10000)
             setAutoCopy(false)
-            setRightClickPaste(true)
             setStripNewline(false)
             setStripControlChars(true)
             setBellEnabled(false)
-            setMouseSupport(true)
-            setWebglRenderer(true)
-            setSshHeartbeat(30)
             setCmdTimeout(300)
           }}
         />

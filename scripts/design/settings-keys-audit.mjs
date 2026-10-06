@@ -49,6 +49,10 @@ const WIRED = {
   'terminal.cursorStyle': 'components/terminal/TerminalView.tsx',
   'terminal.cursorBlink': 'components/terminal/TerminalView.tsx',
   'terminal.scrollback': 'components/terminal/TerminalView.tsx',
+  'terminal.bellEnabled': 'components/terminal/TerminalView.tsx 听 onBell 闪终端（.term-bell-flash）',
+  'terminal.autoCopy': 'components/terminal/TerminalView.tsx 选区监听里写剪贴板',
+  'terminal.stripNewline': 'components/terminal/clipboard-format.ts（复制与选中即复制共用）',
+  'terminal.stripControlChars': 'components/terminal/clipboard-format.ts',
   // 模型/预算：主进程运行时取值
   llmConfig: 'src/main/services/storage/config-store.ts',
   monthlyBudget: 'src/main/ipc/agent-runtime.ts',
@@ -92,22 +96,13 @@ const FAKE = {
   'decision.batchLimit': '未接',
   'decision.fileSizeLimit': '未接',
   'decision.rollbackRetention': '未接：没有回滚功能',
-  // 终端设置页：xterm/pty 侧没取值
+  // 终端设置页：剩下的两条要动主进程才接得上
   'terminal.shell': '未接：本地 pty 用固定 shell',
-  'terminal.fontFamily': '重复：终端字体实际走 appearance.codeFont',
-  'terminal.webglRenderer': '未接：渲染器不由这个开关决定',
-  'terminal.bellEnabled': '未接：没设 xterm bellStyle',
-  'terminal.mouseSupport': '未接',
-  'terminal.autoCopy': '未接',
-  'terminal.rightClickPaste': '未接：右键行为由自研 ContextMenu 决定',
   'terminal.cmdTimeout': '未接',
-  'terminal.stripControlChars': '未接：清洗逻辑写死在发送侧',
-  'terminal.stripNewline': '未接：同上',
-  'terminal.sshHeartbeat': '重复：心跳走 sshDefaults.keepAliveIntervalSec',
 }
 
 /** 假设置上限：等于 2026-10-06 实测值，只能往下调 */
-const FAKE_CAP = 27
+const FAKE_CAP = 18
 
 /** 递归收集 .ts/.tsx（跳过 .d.ts） */
 function sourceFiles(dir, acc = []) {

@@ -458,24 +458,13 @@
   border-color: var(--trae-border-brand);
 }
 
-.term-settings-input {
-  height: 30px;
-  min-width: 140px;
-  background: var(--trae-bg-base-secondary);
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
-  color: var(--text-primary);
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-body-sm-font-size);
-}
-
-.term-settings-input:hover {
-  border-color: var(--trae-border-neutral-l3);
-}
-
-.term-settings-input:focus-within,
-.term-settings-input:focus {
-  border-color: var(--trae-border-brand);
+/* 视觉响铃（terminal.bellEnabled）：xterm 5 没有 bellStyle，收到 BEL 时由 TerminalView 加这个类 */
+.terminal-view.term-bell-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--bg-active);
 }
 
 .term-settings-num {

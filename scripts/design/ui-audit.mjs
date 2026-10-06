@@ -109,6 +109,9 @@ const MEASURE = `(async () => {
   const families = new Set();
   const familySample = {};
   const low = [];
+  // 主题色样本（代码主题预览）里的文字颜色就是"内容"本身，不按界面文字判；
+  // 但豁免必须显式挂在 [data-audit-exempt] 上，并且逐屏报出条数，不许拿它当万能消音键
+  const exemptContrast = [];
   const clipped = [];
   for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,p,span,button,a,label,td,th,div,code,li')) {
     const txt = (el.textContent || '').trim();
@@ -138,7 +141,10 @@ const MEASURE = `(async () => {
       const large = parseFloat(cs.fontSize) >= 18.5 || (parseFloat(cs.fontSize) >= 15 && parseInt(cs.fontWeight, 10) >= 700);
       const need = large ? 3 : 4.5;
       if (contrast + 0.001 < need) {
-        low.push({ text: txt.slice(0, 26), size: px(cs.fontSize), weight: cs.fontWeight, contrast: f(contrast), need, color: cs.color, cls: (el.className || '').toString().slice(0, 46) });
+        const row = { text: txt.slice(0, 26), size: px(cs.fontSize), weight: cs.fontWeight, contrast: f(contrast), need, color: cs.color, cls: (el.className || '').toString().slice(0, 46) };
+        const ex = el.closest('[data-audit-exempt]');
+        if (ex) exemptContrast.push({ ...row, reason: ex.getAttribute('data-audit-exempt') });
+        else low.push(row);
       }
     }
     const ovY = el.scrollHeight - el.clientHeight;
@@ -262,6 +268,8 @@ const MEASURE = `(async () => {
     bottomFit,
     lowContrast: low.sort((a, b) => a.contrast - b.contrast).slice(0, 20),
     lowContrastCount: low.length,
+    exemptContrastCount: exemptContrast.length,
+    exemptContrastReasons: [...new Set(exemptContrast.map((e) => e.reason + '(' + e.text + ' ' + e.contrast + ':1)'))].slice(0, 6),
     clipped,
     iconSizes: Object.fromEntries(Object.entries(icons).sort((a, b) => b[1] - a[1]).slice(0, 14)),
     offTierIcons: offTierIcons.slice(0, 6),
@@ -283,10 +291,18 @@ const ROUTES = [
   { hash: '#/monitor', name: '06-monitor' },
   { hash: '#/decision', name: '07-decision' },
   { hash: '#/settings', name: '08-settings' },
-  { hash: '#/settings/ssh', name: '09-settings-ssh' },
-  { hash: '#/settings/model', name: '10-settings-model' },
-  { hash: '#/settings/risk', name: '11-settings-risk' },
-  { hash: '#/settings/about', name: '12-settings-about' },
+  // 设置区 10 个子页全覆盖：标题单源改动（settings-sections）要有真机证据，
+  // 少测一页就可能有一页的左上角标题悄悄跑偏
+  { hash: '#/settings/general', name: '09a-settings-general' },
+  { hash: '#/settings/appearance', name: '09b-settings-appearance' },
+  { hash: '#/settings/terminal', name: '09c-settings-terminal' },
+  { hash: '#/settings/decision', name: '09d-settings-decision' },
+  { hash: '#/settings/alerts', name: '09e-settings-alerts' },
+  { hash: '#/settings/calibration', name: '09f-settings-calibration' },
+  { hash: '#/settings/ssh', name: '10-settings-ssh' },
+  { hash: '#/settings/model', name: '11-settings-model' },
+  { hash: '#/settings/risk', name: '12-settings-risk' },
+  { hash: '#/settings/about', name: '13-settings-about' },
 ]
 
 const report = { screens: [] }
@@ -380,12 +396,16 @@ try {
   if (process.argv.includes('--gate')) {
     const MAX_COMBOS = 12 // 单屏 (字号/字重/字体族) 组合数上限；实测最松的一屏是 10
     const bad = []
+    const exemptNotes = []
     const pages = [report.boot.measure, ...report.screens].filter(Boolean)
     // 弹层那几条是在"页面 + 浮层"整体上量的，组合数/字体族会把页面本身重复计入，只查对比度与遮挡
     const layers = [report.modalAntd, report.confirmDialog, report.contextMenu].filter(Boolean)
     for (const s of [...pages, ...layers]) {
       const at = s.route || 'boot/弹层'
       if (s.lowContrastCount) bad.push(`${at}: ${s.lowContrastCount} 处文字达不到 WCAG AA（最低 ${s.lowContrast[0]?.contrast}:1 — "${s.lowContrast[0]?.text}"）`)
+      if (s.exemptContrastCount) {
+        exemptNotes.push(`${at}: ${s.exemptContrastCount} 处对比度未判（${s.exemptContrastReasons.join('、')}）`)
+      }
       for (const c of s.clipped) bad.push(`${at}: 文字被藏起来且无省略号 — "${c.text}" (${c.cls}) ${c.over}`)
     }
     for (const s of pages) {
@@ -436,6 +456,7 @@ try {
       process.exit(1)
     }
     console.log('PASS：全部界面达到 DESIGN.md §8 的对比度 / 字阶 / 图标刻度 / 无遮挡要求')
+    for (const n of exemptNotes) console.log('  对比度豁免：' + n)
   }
 } catch (err) {
   console.error('取证脚本异常：' + (err && err.stack ? err.stack : err))

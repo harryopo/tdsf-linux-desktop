@@ -22,6 +22,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslateStore } from '../../stores/translate-store'
 import { useAIStore } from '../../stores/ai-store'
 import { translate, loadDict, type TranslateResult } from './translator'
+import { formatTerminalClipboard } from './clipboard-format'
+import { usePersistentState } from '../../hooks/usePersistentState'
 import { getCourseHint } from '../../utils/course-matcher'
 import './SelectionPopover.css'
 
@@ -41,6 +43,9 @@ const SelectionPopover: React.FC = () => {
   const selection = useTranslateStore((s) => s.currentSelection)
   const clear = useTranslateStore((s) => s.clear)
   const setPrefillMessage = useAIStore((s) => s.setPrefillMessage)
+  // 复制清洗开关（终端设置页写的 terminal.stripNewline / terminal.stripControlChars）
+  const [stripNewline] = usePersistentState('terminal.stripNewline', false)
+  const [stripControlChars] = usePersistentState('terminal.stripControlChars', true)
 
   const [panelOpen, setPanelOpen] = useState(false)
 
@@ -102,10 +107,14 @@ const SelectionPopover: React.FC = () => {
 
   /**
    * 复制到剪贴板（同步优先，降级异步）
+   * 清洗规则来自终端设置页（terminal.stripControlChars / terminal.stripNewline）
    */
   const handleCopy = useCallback(() => {
     if (!selection) return
-    const text = selection.text
+    const text = formatTerminalClipboard(selection.text, {
+      stripNewline,
+      stripControlChars,
+    })
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text).catch(() => {
         // 降级：传统 execCommand
@@ -115,7 +124,7 @@ const SelectionPopover: React.FC = () => {
       fallbackCopy(text)
     }
     setPanelOpen(false)
-  }, [selection])
+  }, [selection, stripNewline, stripControlChars])
 
   /**
    * 询问 AI（词典无命中时的兜底）

@@ -242,6 +242,9 @@ export function AppearanceSettings() {
                   {/* 代码预览块：呈现该主题下的语法高亮配色 */}
                   <div
                     className="set-code-preview"
+                    // 主题色样本：这段代码的颜色就是"要看的东西"本身，
+                    // 不按界面文字判对比度（ui-audit 会单独报豁免条数）
+                    data-audit-exempt="code-theme-swatch"
                     style={{ background: opt.previewBg }}
                   >
                     <div style={{ color: c.base }}>
