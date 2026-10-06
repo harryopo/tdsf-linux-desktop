@@ -5,9 +5,8 @@
  *
  * 设计稿：settings-decision.html
  * - Card 1: 决策流程配置（3 个风险等级开关 + 置信度阈值 + 决策超时）
- * - Card 2: 证据源权重配置（6 源权重滑块 + 综合权重总和 summary）
+ * - Card 2: 证据源权重配置（6 源权重滑块 + 综合权重总和 summary + 权重影响测试）
  * - Card 3: 风险控制策略（命令黑名单 + 敏感目录 + 文件大小/批量数/回滚时长）
- * - Card 4: 审批通知（前置通知 + 短信 + 接收人 + 多选渠道 + Webhook URL）
  * - ActionBar: 保存 / 恢复默认
  *
  * D-S 证据理论：6 个独立证据源（系统指标/历史决策/知识库/日志/人工经验/模型推理）
@@ -17,7 +16,7 @@
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
 import { type ReactNode, useState } from 'react'
-import { GitBranch, Layers, Shield, Bell } from 'lucide-react'
+import { GitBranch, Layers, Shield } from 'lucide-react'
 import { Button } from 'antd'
 import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -30,7 +29,6 @@ import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
 import { Slider } from '@/components/trae/Slider'
-import { Checkbox } from '@/components/trae/Checkbox'
 import './Settings.css'
 
 /**
@@ -73,12 +71,6 @@ interface TextAreaBlock {
   hint: string
   desc: string
   defaultValue: string
-}
-
-interface NotifyChannel {
-  id: string
-  label: string
-  defaultValue: boolean
 }
 
 const RISK_TIERS: RiskTierOption[] = [
@@ -134,13 +126,6 @@ const TEXTAREA_BLOCKS: TextAreaBlock[] = [
   },
 ]
 
-const NOTIFY_CHANNELS: NotifyChannel[] = [
-  { id: 'in-app', label: '站内信', defaultValue: true },
-  { id: 'email', label: '邮件', defaultValue: true },
-  { id: 'sms', label: '短信', defaultValue: false },
-  { id: 'webhook', label: 'Webhook', defaultValue: true },
-]
-
 /** 各 record 类型设置项的默认值（与原 lazy useState 初始化保持一致） */
 const DEFAULT_TIER_STATES: Record<string, boolean> = Object.fromEntries(
   RISK_TIERS.map((t) => [t.key, t.defaultValue]),
@@ -150,9 +135,6 @@ const DEFAULT_WEIGHTS: Record<string, number> = Object.fromEntries(
 )
 const DEFAULT_TEXTAREAS: Record<string, string> = Object.fromEntries(
   TEXTAREA_BLOCKS.map((b) => [b.id, b.defaultValue]),
-)
-const DEFAULT_CHANNELS: Record<string, boolean> = Object.fromEntries(
-  NOTIFY_CHANNELS.map((c) => [c.id, c.defaultValue]),
 )
 
 /**
@@ -194,16 +176,6 @@ export function DecisionSettings() {
   const [fileSizeLimit, setFileSizeLimit] = usePersistentState('decision.fileSizeLimit', 100)
   const [batchLimit, setBatchLimit] = usePersistentState('decision.batchLimit', 50)
   const [rollbackRetention, setRollbackRetention] = usePersistentState('decision.rollbackRetention', 24)
-
-  // Card 4: 审批通知
-  const [preExecNotify, setPreExecNotify] = usePersistentState('decision.preExecNotify', true)
-  const [smsNotify, setSmsNotify] = usePersistentState('decision.smsNotify', false)
-  const [receiver, setReceiver] = usePersistentState('decision.receiver', 'admin@tdsf.dev')
-  const [channels, setChannels] = usePersistentState<Record<string, boolean>>(
-    'decision.channels',
-    DEFAULT_CHANNELS,
-  )
-  const [webhookUrl, setWebhookUrl] = usePersistentState('decision.webhookUrl', 'https://hooks.tdsf.dev/alerts')
 
   // Card 2 测试评估：调用 credibilityAssess 验证当前 6 源权重对决策可信度的影响
   const [testResult, setTestResult] = useState<ConfidenceAssessment | null>(null)
@@ -408,77 +380,6 @@ export function DecisionSettings() {
           />
         </SettingsCard>
 
-        {/* Card 4: 审批通知 */}
-        <SettingsCard icon={Bell} title="审批通知" tag="approval.notify">
-          <SettingsRow
-            label="命令执行前通知"
-            desc="命令执行前向接收人发送审批通知"
-            control={<Switch checked={preExecNotify} onCheckedChange={setPreExecNotify} />}
-          />
-          <SettingsRow
-            label="高风险操作短信通知"
-            desc="高风险操作除常规通知外追加短信提醒"
-            control={<Switch checked={smsNotify} onCheckedChange={setSmsNotify} />}
-          />
-          <SettingsRow
-            label="通知接收人"
-            desc="审批通知的默认接收人邮箱"
-            control={
-              <Input
-                value={receiver}
-                onChange={(e) => setReceiver(e.target.value)}
-                className="set-input"
-              />
-            }
-          />
-          <div className="set-block">
-            <div className="set-block__head">
-              <div>
-                <div className="set-block__label">
-                  通知方式
-                </div>
-                <div className="set-block__desc">
-                  选择审批通知的发送渠道
-                </div>
-              </div>
-              <span className="set-block__hint">可多选</span>
-            </div>
-            <div className="set-checkgroup">
-              {NOTIFY_CHANNELS.map((c) => (
-                <label
-                  key={c.id}
-                  className="set-checkbox"
-                >
-                  <Checkbox
-                    checked={channels[c.id] ?? false}
-                    onCheckedChange={(v) => setChannels((prev) => ({ ...prev, [c.id]: v === true }))}
-                  />
-                  {c.label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="set-block set-block--last">
-            <div className="set-block__head">
-              <div>
-                <div className="set-block__label">
-                  Webhook URL
-                </div>
-                <div className="set-block__desc">
-                  审批通知将以此 URL 作为 Webhook 推送目标
-                </div>
-              </div>
-              <span className="set-block__hint">POST JSON</span>
-            </div>
-            <Input
-              value={webhookUrl}
-              onChange={(e) => setWebhookUrl(e.target.value)}
-              spellCheck={false}
-              className="set-input set-input--full"
-            />
-          </div>
-        </SettingsCard>
-
         <SettingsActionBar
           onReset={() => {
             // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
@@ -490,11 +391,6 @@ export function DecisionSettings() {
             setFileSizeLimit(100)
             setBatchLimit(50)
             setRollbackRetention(24)
-            setPreExecNotify(true)
-            setSmsNotify(false)
-            setReceiver('admin@tdsf.dev')
-            setChannels(DEFAULT_CHANNELS)
-            setWebhookUrl('https://hooks.tdsf.dev/alerts')
           }}
         />
       </div>

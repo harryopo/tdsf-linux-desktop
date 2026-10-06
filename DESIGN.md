@@ -157,7 +157,10 @@
 8. 设置区加一节：只在 `pages/settings-sections.ts` 登记（左栏、目录页、子页标题三处都从它读），
    再在 `router.tsx` 的 SettingsLayout 嵌套里挂子路由；子页标题写 `<SettingsPageHeader {...settingsHeader('/settings/xxx')} />`，
    不要在页面里自己拼图标/标题/说明（`tests/components/settings-nav-ownership.test.ts` 会双向对账）。
-9. 提交前自己跑三件事：`node scripts/design/design-contract.mjs`、
+9. 加一个能写进 config 的设置：必须同时在 `scripts/design/settings-keys-audit.mjs` 的 `WIRED` 里
+   登记"谁按这个键取值"。接不上消费者就别加控件——`pnpm test` 里的设置键登记闸会拦新增未登记的键，
+   已知的"拨了没反应"清单（`FAKE`）只许减不许加。
+10. 提交前自己跑三件事：`node scripts/design/design-contract.mjs`、
    `pnpm build && node scripts/design/ui-audit.mjs --gate`、`pnpm test`。
 
 ## 10. 界面文案准则（"过时字眼"就靠这几条拦）

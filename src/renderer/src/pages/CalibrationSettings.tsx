@@ -5,19 +5,26 @@
  *
  * 设计稿：settings-calibration.html（自主设计，未在 tdsf-linux-redesign 设计稿中）
  * - Header: SettingsPageHeader（Activity 图标 + 校准设置 + AI 置信度 Temperature Scaling）
- * - Card 1: 全局默认（默认 T 值滑块 0.1-5.0 + 最小样本数）
+ * - Card 1: 全局校准阈值（最小样本数，只读展示）
  * - Card 2-9: 8 个 ProviderType 逐个校准卡片
  *   - Provider 信息（logprobs 支持徽章 + ProviderType 描述）
  *   - 校准 T 值滑块（0.1-5.0 step 0.1，编辑后调用 calibrate）
  *   - 状态行：最优 T / 上次校准时间 / 样本数 / 改善百分比 / 当前 ECE
  *   - 操作：校准 / 重置 / 计算 ECE
- * - ActionBar: 保存（持久化全局默认）/ 恢复默认
+ * - 无 ActionBar：本页唯一的全局参数「最小样本数」为只读展示，
+ *   由 usePersistentState 从 electron-store 读回并随 calibrate 请求送进引擎
  *
  * 数据流：
  * 1. 挂载：credibilityGetCalibrationState() 拉全局状态 + providerList() 拉 provider 实例
- * 2. 校准：credibilityCalibrate(providerId) → 更新 state
+ * 2. 校准：credibilityCalibrate(providerId, { tMin,tMax,tSteps,minSamples }) → 更新 state
+ *    minSamples 是真实入参：主进程 tuneProvider → optimizeTemperature 用它做样本量门禁
  * 3. 重置：credibilityResetCalibration(providerId) → 更新 state
  * 4. 计算 ECE：credibilityComputeEce(providerId) → 临时展示
+ *
+ * 已移除的假设置（v10.x 清理）：原「默认 T 值」滑块写 calibration.defaultT。
+ * 主进程 CalibrationState.defaultT 只由常量 DEFAULT_OPTIMAL_T 决定
+ * （core/agent/credibility/calibration/calibration-tuner.ts:45/97），
+ * 引擎从不读 electron-store 的 calibration.defaultT，滑块对校准结果零影响。
  *
  * 设计依据：
  * - v0.9.6 P1 §ECE 校准器（CalibrationTuner）
@@ -36,7 +43,6 @@ import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
-import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import './Settings.css'
 import type { ProviderType, PersistedProviderConfig } from '@shared/agent-types'
 import type {
@@ -49,6 +55,12 @@ import type {
 // ============================================================================
 // 常量与 Provider 描述
 // ============================================================================
+
+/**
+ * 未校准 Provider 的显示用默认 T（仅作滑块初值展示）
+ * 与主进程常量 DEFAULT_OPTIMAL_T 对齐（calibration/calibration-tuner.ts:45）
+ */
+const FALLBACK_DISPLAY_T = 1.0
 
 /** ProviderType 显示元数据（中文名 + 描述 + 协议族分组） */
 interface ProviderMeta {
@@ -114,9 +126,8 @@ function calcImprovementPct(before: number, after: number): string {
 // ============================================================================
 
 export function CalibrationSettings() {
-  // 全局默认（持久化）
-  const [defaultT, setDefaultT] = usePersistentState<number>('calibration.defaultT', 1.0)
-  const [minSamples, setMinSamples] = usePersistentState<number>('calibration.minSamples', 20)
+  // 全局校准阈值（持久化到 electron-store，随 credibilityCalibrate 传入主进程引擎）
+  const [minSamples] = usePersistentState<number>('calibration.minSamples', 20)
 
   // 全局校准状态（从主进程拉取）
   const [globalState, setGlobalState] = useState<CalibrationState | null>(null)
@@ -163,9 +174,6 @@ export function CalibrationSettings() {
         if (cancelled) return
         setGlobalState(state)
         setProviders(Array.isArray(providerList) ? providerList : [])
-        if (state.defaultT != null && state.defaultT > 0) {
-          setDefaultT(state.defaultT)
-        }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)
         if (!cancelled) {
@@ -179,7 +187,7 @@ export function CalibrationSettings() {
     return () => {
       cancelled = true
     }
-  }, [setDefaultT])
+  }, [])
 
   // 刷新全局状态（操作后调用）
   const refreshState = useCallback(async () => {
@@ -285,39 +293,6 @@ export function CalibrationSettings() {
     [showTopMessage, updateCardState],
   )
 
-  // 保存全局默认
-  const handleSaveDefaults = useCallback(async () => {
-    if (!window.electronAPI) {
-      showTopMessage('error', '非 Electron 环境，无法保存')
-      return
-    }
-    try {
-      // 通过 configSet 持久化全局默认（与持久化 hook 写入的 key 一致）
-      await window.electronAPI.configSet('calibration.defaultT', defaultT)
-      await window.electronAPI.configSet('calibration.minSamples', minSamples)
-      // 同时刷新主进程 CalibrationState.defaultT
-      const state = await window.electronAPI.credibilityGetCalibrationState()
-      if (state) {
-        // 仅刷新前端 state 以反映新的 defaultT
-        setGlobalState({ ...state, defaultT })
-      }
-      showTopMessage(
-        'success',
-        `全局默认已保存：T=${defaultT.toFixed(2)}，最小样本数=${minSamples}`,
-      )
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      showTopMessage('error', `保存全局默认失败：${reason}`)
-    }
-  }, [defaultT, minSamples, showTopMessage])
-
-  // 恢复默认
-  const handleResetDefaults = useCallback(() => {
-    setDefaultT(1.0)
-    setMinSamples(20)
-    showTopMessage('success', '已恢复默认参数（尚未保存到主进程）')
-  }, [setDefaultT, setMinSamples, showTopMessage])
-
   // 取得 providerKey 关联的 ProviderCalibration（可能为 null）
   const getCalibrationFor = useCallback(
     (providerKey: string): ProviderCalibration | null => {
@@ -328,15 +303,15 @@ export function CalibrationSettings() {
     [globalState],
   )
 
-  // 取得显示 T（pending 优先；否则已校准的 optimalT；否则 defaultT）
+  // 取得显示 T（pending 优先；否则已校准的 optimalT；否则主进程下发的 defaultT）
   const getDisplayT = useCallback(
     (providerKey: string): number => {
       if (pendingT[providerKey] != null) return pendingT[providerKey]
       const cal = getCalibrationFor(providerKey)
       if (cal && cal.optimalT > 0) return cal.optimalT
-      return defaultT
+      return globalState?.defaultT ?? FALLBACK_DISPLAY_T
     },
-    [pendingT, getCalibrationFor, defaultT],
+    [pendingT, getCalibrationFor, globalState],
   )
 
   // 渲染 provider 卡片
@@ -538,25 +513,11 @@ export function CalibrationSettings() {
           </div>
         )}
 
-        {/* Card 1: 全局默认 */}
-        <SettingsCard icon={Activity} title="全局默认" tag="calibration.global">
-          <SettingsRow
-            label="默认 T 值"
-            desc="未校准 Provider 使用的默认温度缩放因子（1.0 = 无校准）"
-            control={
-              <SettingsSlider
-                value={defaultT}
-                min={0.1}
-                max={5.0}
-                step={0.05}
-                precision={2}
-                onValueChange={setDefaultT}
-              />
-            }
-          />
+        {/* Card 1: 全局校准阈值（只读展示；值随 calibrate 请求进入主进程引擎） */}
+        <SettingsCard icon={Activity} title="全局校准阈值" tag="calibration.global">
           <SettingsRow
             label="最小样本数"
-            desc="触发 Temperature Scaling 优化的最小历史决策样本数"
+            desc="触发 Temperature Scaling 优化的最小历史决策样本数；随每次校准请求传入主进程，样本不足则返回 T=1.0"
             control={
               <span
                 className="set-input set-input--readonly font-mono text-sm"
@@ -598,13 +559,6 @@ export function CalibrationSettings() {
 
         {/* Card 2-9: 8 个 ProviderType 逐个校准卡片 */}
         {PROVIDER_META.map(renderProviderCard)}
-
-        <SettingsActionBar
-          onSave={handleSaveDefaults}
-          onReset={handleResetDefaults}
-          saveLabel="保存全局默认"
-          resetLabel="恢复默认参数"
-        />
       </div>
     </div>
   )

@@ -6,9 +6,13 @@
  * 设计稿：settings-risk.html（1:1 复刻）
  * - Card 1: 安全防护等级（3 级单选卡片 + 自动拦截 + 脱敏 + 录像保留）
  * - Card 2: 命令风险评级规则表（6 条规则 + 编辑/删除按钮 + 新增规则按钮）
- * - Card 3: 审计日志（4 个开关 + 保留天数 + 存储路径，共 6 行）
- * - Card 4: 应急响应（紧急快捷键 + 自动回滚 + 回滚超时 + 联系人 + 故障通知，共 5 行）
+ * - Card 3: 审计日志（4 个开关 + 保留天数，共 5 行）
  * - ActionBar: 保存 / 恢复默认
+ *
+ * 已移除的假设置（全仓零消费者，遵循 DESIGN.md §10「界面不写未实现的能力」）：
+ * 审计日志存储路径（risk.auditPath）与整张「应急响应」Card
+ * （risk.emergencyHotkey / risk.autoRollback / risk.rollbackTimeout /
+ *  risk.emergencyContact / risk.autoNotify）。
  *
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
@@ -19,7 +23,6 @@ import {
   Shield,
   AlertTriangle,
   ScrollText,
-  Zap,
   Edit3,
   Trash2,
   Plus,
@@ -41,7 +44,6 @@ import {
   ACTION_TAG_CLASS,
 } from '@/components/settings/risk-types'
 import { Switch } from '@/components/trae/Switch'
-import { Input } from '@/components/trae/Input'
 import { cn } from '@/components/trae/utils'
 import './Settings.css'
 
@@ -177,15 +179,6 @@ export function RiskSettings() {
   const [auditSshConn, setAuditSshConn] = usePersistentState('risk.auditSshConn', true)
   // auditRetention 为只读展示项，无对应 setter
   const [auditRetention] = usePersistentState('risk.auditRetention', 180)
-  const [auditPath, setAuditPath] = usePersistentState('risk.auditPath', '/var/log/tdsf/audit')
-
-  // Card 4: 应急响应
-  const [emergencyHotkey, setEmergencyHotkey] = usePersistentState('risk.emergencyHotkey', 'Ctrl+Shift+X')
-  const [autoRollback, setAutoRollback] = usePersistentState('risk.autoRollback', true)
-  // rollbackTimeout 为只读展示项，无对应 setter
-  const [rollbackTimeout] = usePersistentState('risk.rollbackTimeout', 30)
-  const [emergencyContact, setEmergencyContact] = usePersistentState('risk.emergencyContact', 'security@tdsf.dev')
-  const [autoNotify, setAutoNotify] = usePersistentState('risk.autoNotify', true)
 
   return (
     <div className="set-subpage">
@@ -369,7 +362,7 @@ export function RiskSettings() {
           </div>
         </SettingsCard>
 
-        {/* Card 3: 审计日志（6 行） */}
+        {/* Card 3: 审计日志（5 行） */}
         <SettingsCard icon={ScrollText} title="审计日志" tag="audit.log">
           <SettingsRow
             label="记录所有命令执行"
@@ -395,61 +388,6 @@ export function RiskSettings() {
             label="审计日志保留天数"
             desc="超过保留期的日志自动归档或清理"
             control={<ReadOnlyNum value={auditRetention} />}
-          />
-          <SettingsRow
-            label="审计日志存储路径"
-            desc="本地落盘目录，建议挂载独立分区"
-            control={
-              <Input
-                value={auditPath}
-                onChange={(e) => setAuditPath(e.target.value)}
-                className="set-input"
-              />
-            }
-            isLast
-          />
-        </SettingsCard>
-
-        {/* Card 4: 应急响应（5 行） */}
-        <SettingsCard icon={Zap} title="应急响应" tag="incident.response">
-          <SettingsRow
-            label="紧急停止快捷键"
-            desc="触发后立即中断所有正在执行的命令"
-            control={
-              <Input
-                value={emergencyHotkey}
-                onChange={(e) => setEmergencyHotkey(e.target.value)}
-                className="set-input"
-                style={{ minWidth: 160 }}
-              />
-            }
-          />
-          <SettingsRow
-            label="自动回滚"
-            desc="检测到异常时自动回滚操作"
-            control={<Switch checked={autoRollback} onCheckedChange={setAutoRollback} />}
-          />
-          <SettingsRow
-            label="回滚确认超时"
-            desc="超时未确认则自动执行回滚"
-            control={<ReadOnlyNum value={rollbackTimeout} />}
-          />
-          <SettingsRow
-            label="紧急联系人"
-            desc="高危事件发生时通知的邮箱或 IM 账号"
-            control={
-              <Input
-                value={emergencyContact}
-                onChange={(e) => setEmergencyContact(e.target.value)}
-                className="set-input"
-                style={{ minWidth: 220 }}
-              />
-            }
-          />
-          <SettingsRow
-            label="故障自动通知"
-            desc="服务异常或规则触发时自动推送通知"
-            control={<Switch checked={autoNotify} onCheckedChange={setAutoNotify} />}
             isLast
           />
         </SettingsCard>
@@ -465,7 +403,7 @@ export function RiskSettings() {
         <SettingsActionBar
           onReset={() => {
             // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
-            // 注意：recordingRetention / auditRetention / rollbackTimeout 为只读展示项（无 setter），不参与重置
+            // 注意：recordingRetention / auditRetention 为只读展示项（无 setter），不参与重置
             setProtectionLevel('strict')
             setAutoBlock(true)
             setDesensitize(true)
@@ -475,11 +413,6 @@ export function RiskSettings() {
             setAuditFileMod(true)
             setAuditAiDecision(true)
             setAuditSshConn(true)
-            setAuditPath('/var/log/tdsf/audit')
-            setEmergencyHotkey('Ctrl+Shift+X')
-            setAutoRollback(true)
-            setEmergencyContact('security@tdsf.dev')
-            setAutoNotify(true)
           }}
         />
       </div>

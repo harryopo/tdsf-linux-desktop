@@ -4,7 +4,7 @@
  * 路由：/settings/terminal
  *
  * 设计稿：settings-terminal.html
- * - Card 1: 默认 Shell 配置（Shell / 参数 / 颜色方案）
+ * - Card 1: 默认 Shell 配置（Shell）
  * - Card 2: 终端行为（字号 / 字体族 / 行高 / 光标 / 闪烁 / 缓冲区）
  * - Card 3: 复制与粘贴（自动复制 / 右键粘贴 / 去换行 / 去控制字符）
  * - Card 4: 高级（Bell / 鼠标 / WebGL / SSH 心跳 / 命令超时）
@@ -39,8 +39,6 @@ const selectTriggerCls = 'term-settings-select'
 export function TerminalSettings() {
   // Card 1: 默认 Shell 配置
   const [shell, setShell] = usePersistentState('terminal.shell', '/bin/bash')
-  const [shellArgs, setShellArgs] = usePersistentState('terminal.shellArgs', '-l')
-  const [colorScheme, setColorScheme] = usePersistentState('terminal.colorScheme', 'dark')
 
   // Card 2: 终端行为
   const [fontSize, setFontSize] = usePersistentState('terminal.fontSize', 14)
@@ -73,6 +71,7 @@ export function TerminalSettings() {
           <SettingsRow
             label="默认 Shell"
             desc="新终端会话使用的默认 Shell 程序"
+            isLast
             control={
               <Select value={shell} onValueChange={setShell}>
                 <SelectTrigger className={selectTriggerCls}>
@@ -83,35 +82,6 @@ export function TerminalSettings() {
                   <SelectItem value="/bin/zsh">/bin/zsh</SelectItem>
                   <SelectItem value="/bin/fish">/bin/fish</SelectItem>
                   <SelectItem value="/bin/sh">/bin/sh</SelectItem>
-                </SelectContent>
-              </Select>
-            }
-          />
-          <SettingsRow
-            label="Shell 参数"
-            desc="启动 Shell 时传递的命令行参数"
-            control={
-              <Input
-                value={shellArgs}
-                onChange={(e) => setShellArgs(e.target.value)}
-                className="term-settings-input"
-              />
-            }
-          />
-          <SettingsRow
-            label="颜色方案"
-            desc="终端配色主题方案"
-            isLast
-            control={
-              <Select value={colorScheme} onValueChange={setColorScheme}>
-                <SelectTrigger className={selectTriggerCls}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="solarized-dark">Solarized Dark</SelectItem>
-                  <SelectItem value="dracula">Dracula</SelectItem>
                 </SelectContent>
               </Select>
             }
@@ -274,8 +244,6 @@ export function TerminalSettings() {
           onReset={() => {
             // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
             setShell('/bin/bash')
-            setShellArgs('-l')
-            setColorScheme('dark')
             setFontSize(14)
             setFontFamily('jetbrains-mono')
             setLineHeight(1.4)

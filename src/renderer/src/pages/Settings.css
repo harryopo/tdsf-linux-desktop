@@ -225,7 +225,6 @@
   background: var(--trae-bg-base-default);
   color: var(--text-tertiary);
 }
-.set-input--full { width: 100%; min-width: 0; }
 
 .set-textarea {
   display: block;
@@ -309,17 +308,6 @@
   color: var(--accent-text);
   font-variant-numeric: tabular-nums;
 }
-
-/* ===== Checkbox / checkgroup ===== */
-.set-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-size: var(--trae-body-sm-font-size);
-  color: var(--text-primary);
-}
-.set-checkgroup { display: flex; flex-wrap: wrap; gap: 14px; }
 
 /* ===== Action Bar ===== */
 .set-actionbar {
