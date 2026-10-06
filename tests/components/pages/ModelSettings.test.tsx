@@ -45,12 +45,11 @@ describe('ModelSettings — 模型配置页冒烟', () => {
     expect(screen.getByText('AI模型管理与Token用量统计')).toBeInTheDocument()
   })
 
-  it('2. API Key 为空时显示引导卡（含 DeepSeek 申请链接）', () => {
+  it('2. API Key 为空时给出下一步指引，且不替用户选服务商', () => {
     renderPage()
-    expect(screen.getByText(/还没有配置 API Key/)).toBeInTheDocument()
-    const link = screen.getByRole('link', { name: /platform\.deepseek\.com/ })
-    expect(link).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys')
-    expect(link).toHaveAttribute('target', '_blank')
+    expect(screen.getByText(/还没填 API Key/)).toBeInTheDocument()
+    // 引导文案不再硬编码某家服务商的申请链接（旧版写死 platform.deepseek.com）
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('3. 主要 Section 骨架均渲染（配置/接入/预算）', () => {

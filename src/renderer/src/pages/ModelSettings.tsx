@@ -22,7 +22,7 @@
  *                  （当时一并引入了三列 ModelSettingsHeader，随 F3 删除：返回口和底部保存都是重复件）
  */
 import { useState, useEffect, useRef } from 'react'
-import { CheckCircle2, AlertCircle, Info, KeyRound, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
@@ -37,6 +37,7 @@ import { ModelActionBar } from '@/components/settings/model/ModelActionBar'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { TestLogLine } from '@/components/settings/model/constants'
 import { useSettingsStore } from '@/stores/settings-store'
+import { useAgentStore } from '@/stores/agent-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import './Settings.css'
 
@@ -65,21 +66,24 @@ export function ModelSettings() {
   // Section 2: 模型配置
   const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-v4-flash')
   const [temperature, setTemperature] = useState(llmConfig.temperature ?? 0.3)
-  const [thinkingLevel, setThinkingLevel] = usePersistentState<'low' | 'medium' | 'high'>('model.thinkingLevel', 'medium')
+  // 思考强度只有一个真值：agent-store 的 thinkingStrength（Composer 与主进程都读它）。
+  // 原来这里另存一份 model.thinkingLevel，全仓零消费者，改了也不影响实际调用。
+  const thinkingLevel = useAgentStore((s) => s.thinkingStrength)
+  const setThinkingLevel = useAgentStore((s) => s.setThinkingStrength)
   const [maxToken, setMaxToken] = useState(llmConfig.maxTokens ?? 4096)
-  const [contextWindow, setContextWindow] = usePersistentState<number>('model.contextWindow', 32768)
   const [requestTimeout, setRequestTimeout] = useState((llmConfig.timeout ?? 30000) / 1000)
 
   // Section 3: API 接入
   const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com')
   const [apiKey, setApiKey] = useState(llmConfig.apiKey || '')
   const [showApiKey, setShowApiKey] = useState(false)
-  const [organization, setOrganization] = usePersistentState<string>('model.organization', '')
 
-  // Section 7: 预算与告警 (P1-2: 改用 usePersistentState 持久化)
-  const [monthlyBudget, setMonthlyBudget] = usePersistentState<number>('model.monthlyBudget', 2.0)
-  const [alertThreshold, setAlertThreshold] = usePersistentState<number>('model.alertThreshold', 80)
-  const [emailNotify, setEmailNotify] = usePersistentState<boolean>('model.emailNotify', true)
+  // Section 7: 预算与告警
+  // 键名必须和主进程一致：agent-runtime 读 ConfigStore.get('monthlyBudget' / 'alertThreshold')。
+  // 之前写成 'model.monthlyBudget'，electron-store 按点号存成嵌套对象，
+  // 主进程永远读不到 → 用户改的预算从未生效，提醒一直按默认 2.0 USD / 80% 算。
+  const [monthlyBudget, setMonthlyBudget] = usePersistentState<number>('monthlyBudget', 2.0)
+  const [alertThreshold, setAlertThreshold] = usePersistentState<number>('alertThreshold', 80)
 
   // v2.3.2 新增：工具调用统计 + 预算告警（真实 IPC 数据，表为空时返回空数组）
   const [toolCallStats, setToolCallStats] = useState<ToolCallStat[]>([])
@@ -409,13 +413,11 @@ export function ModelSettings() {
   // 恢复默认：重置可编辑模型参数为默认值（不触发保存）
   const handleResetDefaults = () => {
     setTemperature(0.3)
-    setThinkingLevel('medium')
+    setThinkingLevel('auto')
     setMaxToken(4096)
-    setContextWindow(32768)
     setRequestTimeout(30)
     setMonthlyBudget(2.0)
     setAlertThreshold(80)
-    setEmailNotify(true)
     setSaveFeedback('已恢复默认参数（尚未保存）')
     if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
     saveFeedbackTimerRef.current = setTimeout(() => {
@@ -441,7 +443,6 @@ export function ModelSettings() {
       budget: {
         monthlyBudget,
         alertThreshold,
-        emailNotify,
       },
       test: {
         result: testResult,
@@ -502,104 +503,6 @@ export function ModelSettings() {
       />
 
       <div className="set-subpage__body">
-        {/* v2.3.4 新增：状态/引导卡
-            - API Key 为空时显示详细引导（"如何让模型连上"）
-            - 已配置时显示简洁状态（已就绪 / 待测试 / 最近测试结果） */}
-        <div
-          className={
-            'set-status-banner ' +
-            (apiKey
-              ? testResult === 'success'
-                ? 'set-status-banner--ok'
-                : testResult === 'error'
-                  ? 'set-status-banner--error'
-                  : 'set-status-banner--pending'
-              : 'set-status-banner--warn')
-          }
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 12,
-            padding: '12px 16px',
-            borderRadius: 8,
-            fontSize: 13,
-            lineHeight: 1.6,
-          }}
-        >
-          {apiKey ? (
-            testResult === 'success' ? (
-              <>
-                <CheckCircle2 className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--status-success-text)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                    模型已就绪 · {selectedModel || '未命名模型'}
-                  </div>
-                  <div style={{ color: 'var(--text-tertiary)' }}>
-                    Endpoint: {endpoint || '(未配置)'} · 最近测试: {lastTestTime || '未测试'} ({testLatency ?? '--'}ms)
-                  </div>
-                </div>
-              </>
-            ) : testResult === 'error' ? (
-              <>
-                <AlertCircle className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--status-error-text)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                    最近测试失败 · 请检查下方配置
-                  </div>
-                  <div style={{ color: 'var(--text-tertiary)' }}>
-                    在下方「API 接入与测试」区查看失败原因，重新填入 API Key 后再次「测试连接」。
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <Info className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--accent-text)' }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                    API Key 已配置 · 尚未测试
-                  </div>
-                  <div style={{ color: 'var(--text-tertiary)' }}>
-                    在下方「API 接入与测试」区点击「测试连接」验证配置。
-                  </div>
-                </div>
-              </>
-            )
-          ) : (
-            <>
-              <KeyRound className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--status-error-text)' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  还没有配置 API Key · 大模型无法连接
-                </div>
-                <div style={{ color: 'var(--text-tertiary)', marginBottom: 6 }}>
-                  填入 API Key 即可让 AI 助手、命令分析、日志诊断等所有 LLM 功能正常工作。
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--text-tertiary)' }}>
-                  <div>
-                    <strong>推荐：DeepSeek V4 Flash</strong> ·
-                    国内直连 · 100 万 Token 上下文 · 价格亲民
-                  </div>
-                  <div>
-                    申请 API Key：<a
-                      href="https://platform.deepseek.com/api_keys"
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: 'var(--accent-text)', textDecoration: 'underline' }}
-                    >
-                      platform.deepseek.com/api_keys
-                    </a>
-                    {' '}（注册后「API Keys」→「Create new secret key」）
-                  </div>
-                  <div>
-                    默认 Endpoint 已配置为 <code style={{ background: 'var(--trae-bg-base-secondary)', padding: '1px 6px', borderRadius: 4 }}>https://api.deepseek.com</code>，
-                    填入 Key 后点击「测试连接」即可。
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Section 1: KPI 统计行 */}
         <ModelKpiBar />
 
@@ -613,8 +516,6 @@ export function ModelSettings() {
           onThinkingLevelChange={setThinkingLevel}
           maxToken={maxToken}
           onMaxTokenChange={setMaxToken}
-          contextWindow={contextWindow}
-          onContextWindowChange={setContextWindow}
           requestTimeout={requestTimeout}
           onRequestTimeoutChange={setRequestTimeout}
         />
@@ -627,8 +528,6 @@ export function ModelSettings() {
           onApiKeyChange={setApiKey}
           showApiKey={showApiKey}
           onToggleShowApiKey={() => setShowApiKey((v) => !v)}
-          organization={organization}
-          onOrganizationChange={setOrganization}
           onTestConnection={handleTestConnection}
           isTesting={isTesting}
           lastTestTime={lastTestTime}
@@ -660,8 +559,6 @@ export function ModelSettings() {
           onMonthlyBudgetChange={setMonthlyBudget}
           alertThreshold={alertThreshold}
           onAlertThresholdChange={setAlertThreshold}
-          emailNotify={emailNotify}
-          onEmailNotifyChange={setEmailNotify}
           budgetAlerts={budgetAlerts}
           usedAmount={usedAmount}
         />

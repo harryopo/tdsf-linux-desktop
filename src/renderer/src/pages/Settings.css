@@ -1627,9 +1627,12 @@
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 8px;
-  padding: 12px 0 24px;
-  background: linear-gradient(to top, var(--trae-bg-base-default) 70%, transparent);
+  /* 通栏贴底：负 margin 抵掉 .set-subpage__body 的 20px 内边距。
+     之前是透明渐变浮层，按钮直接压在 API Key 输入行上看不清 */
+  margin: 8px -20px -20px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-primary);
 }
 .set-model-actionbar__feedback {
   font-size: var(--ui-font-micro);

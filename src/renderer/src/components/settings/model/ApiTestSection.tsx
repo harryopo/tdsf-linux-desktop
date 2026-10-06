@@ -30,10 +30,6 @@ export interface ApiTestSectionProps {
   showApiKey: boolean
   /** 切换 API Key 显示/隐藏 */
   onToggleShowApiKey: () => void
-  /** 组织 ID（可选） */
-  organization: string
-  /** 修改组织 ID 回调 */
-  onOrganizationChange: (value: string) => void
   /** 点击测试连接回调 */
   onTestConnection: () => void
   /** 是否正在测试中（禁用按钮 + 显示 loading） */
@@ -58,8 +54,6 @@ export function ApiTestSection(props: ApiTestSectionProps) {
     onApiKeyChange,
     showApiKey,
     onToggleShowApiKey,
-    organization,
-    onOrganizationChange,
     onTestConnection,
     isTesting,
     lastTestTime,
@@ -114,20 +108,15 @@ export function ApiTestSection(props: ApiTestSectionProps) {
               {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
-        </div>
-        <div className="set-api-row">
-          <label className="set-api-row__label">
-            组织ID Organization{' '}
-            <span className="set-api-row__label-hint">(可选)</span>
-          </label>
-          <input
-            type="text"
-            value={organization}
-            onChange={(e) => onOrganizationChange(e.target.value)}
-            placeholder="输入组织ID（可选）"
-            aria-label="组织ID"
-            className="set-api-input"
-          />
+          {!apiKey && (
+            <p
+              role="status"
+              className="mt-2 rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-mute"
+            >
+              还没填 API Key，大模型连不上。到你所选服务商的控制台创建一个 Key 粘进来，
+              再点下面的「测试连接」验证；填好前 AI 助手、命令分析与日志诊断都不可用。
+            </p>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,8 @@
 /**
  * BudgetSection — 预算与告警 Section（M5 Task 6 拆分）
  *
- * 从 ModelSettings.tsx 抽取，负责月度预算设置 + 告警阈值 + 邮件通知 + 告警历史。
+ * 从 ModelSettings.tsx 抽取，负责月度预算 + 告警阈值 + 告警历史。
+ * 邮件通知开关已删：全仓没有任何发信链路，是个"开了也没用"的假设置。
  *
  * v2.3.3 修复：
  * - "已用 $0.68 / 剩余 $1.32" 改为真实 usedAmount 计算
@@ -11,7 +12,6 @@
 import { AlertCircle } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { Slider } from '@/components/trae/Slider'
-import { Switch } from '@/components/trae/Switch'
 import type { BudgetAlert } from '@shared/models'
 
 export interface BudgetSectionProps {
@@ -23,10 +23,6 @@ export interface BudgetSectionProps {
   alertThreshold: number
   /** 修改告警阈值回调 */
   onAlertThresholdChange: (value: number) => void
-  /** 是否启用邮件通知 */
-  emailNotify: boolean
-  /** 切换邮件通知回调 */
-  onEmailNotifyChange: (value: boolean) => void
   /** 告警历史列表（来自 budgetAlerts IPC） */
   budgetAlerts: BudgetAlert[]
   /** 已用金额（美元，来自 tokenCostStats IPC） */
@@ -39,8 +35,6 @@ export function BudgetSection(props: BudgetSectionProps) {
     onMonthlyBudgetChange,
     alertThreshold,
     onAlertThresholdChange,
-    emailNotify,
-    onEmailNotifyChange,
     budgetAlerts,
     usedAmount,
   } = props
@@ -148,10 +142,6 @@ export function BudgetSection(props: BudgetSectionProps) {
             onValueChange={(arr) => onAlertThresholdChange(arr[0] ?? 0)}
             className="w-full"
           />
-          <div className="set-alert-notify">
-            <span className="set-alert-notify__label">邮件通知</span>
-            <Switch checked={emailNotify} onCheckedChange={onEmailNotifyChange} />
-          </div>
         </div>
 
         {/* 告警历史 */}

@@ -111,10 +111,13 @@ export function ModelKpiBar() {
   // 初始骨架占位：4 个 "—"，避免 SSR/首屏出现假数字
   // 加载完成后由 setKpis 覆盖 LOADING_KPIS
   const [kpis, setKpis] = useState<KpiCardData[]>(LOADING_KPIS)
+  // 'empty' 时不摆四张全 0 的卡（读起来像"系统在跑但没成果"），改成一句话说明还没产生调用
+  const [state, setState] = useState<'loading' | 'empty' | 'data'>('loading')
 
   useEffect(() => {
     if (!isElectronAPIAvailable()) {
       setKpis(buildEmptyKpis())
+      setState('empty')
       return
     }
     let cancelled = false
@@ -143,11 +146,13 @@ export function ModelKpiBar() {
         if (cancelled) return
         const successRate = historyStats !== null ? historyStats.successRate : null
         setKpis(buildKpis(tokenStats, costStats, records.length, successRate))
+        setState(records.length === 0 ? 'empty' : 'data')
       } catch (err) {
         console.error('[ModelKpiBar] 加载 KPI 统计失败:', err)
         // 失败时显示全 0 骨架（不再回退到设计示意值）
         if (!cancelled) {
           setKpis(buildEmptyKpis())
+          setState('empty')
         }
       }
     }
@@ -163,6 +168,15 @@ export function ModelKpiBar() {
       aria-label="本月概览"
       className="set-model-kpi-grid"
     >
+      {state === 'empty' ? (
+        <p
+          role="status"
+          className="col-span-full rounded-(--ui-radius-card) border border-line bg-panel px-4 py-3 text-caption text-ink-mute"
+        >
+          还没有调用记录。填好 API Key 并在工作台问一句，这里就开始统计本月 Token、成本、对话次数与成功率。
+        </p>
+      ) : (
+      <>
       {kpis.map((kpi) => (
         <div
           key={kpi.label}
@@ -229,6 +243,8 @@ export function ModelKpiBar() {
           )}
         </div>
       ))}
+      </>
+      )}
     </section>
   )
 }

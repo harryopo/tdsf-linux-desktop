@@ -37,11 +37,17 @@ export const TEMP_PRESETS: TempPreset[] = [
   { label: '创新', value: 0.7 },
 ]
 
-/** 思考强度分段控件选项 */
+/**
+ * 思考强度分段控件选项：取值必须与 @shared/agent-types 的
+ * RequestedThinkingStrength（'auto' | 'fast' | 'standard' | 'deep'）一致。
+ * 之前这里写的是 low/medium/high 三档，和运行时用的词不一样，
+ * 用户在设置里选的"中"根本对应不到任何真实档位。
+ */
 export const THINKING_LEVELS = [
-  { value: 'low', label: '低' },
-  { value: 'medium', label: '中' },
-  { value: 'high', label: '高' },
+  { value: 'auto', label: '自动' },
+  { value: 'fast', label: '快速' },
+  { value: 'standard', label: '标准' },
+  { value: 'deep', label: '深度' },
 ] as const
 
 // 注：v2.3.3 起删除了 CONVERSATIONS 静态假数据。
