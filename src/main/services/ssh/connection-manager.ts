@@ -22,6 +22,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { assertCommandAllowed } from '../../core/command-gate'
+import { ConfigStore } from '../storage/config-store'
 import { AuditRepo } from '../db/audit-repo'
 import { DatabaseManager } from '../db/database'
 import type {
@@ -63,7 +64,28 @@ interface SessionEntry {
 /** 默认连接超时（毫秒） */
 const DEFAULT_CONNECT_TIMEOUT_MS = 30_000
 /** 默认命令执行超时（毫秒） */
+/**
+ * 单条命令的默认执行超时（毫秒）。
+ * 实际取值走设置页 terminal.cmdTimeout（秒），见 resolveExecTimeoutMs；
+ * 这个常量是"没配过 / 配了脏值"时的兜底。
+ */
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000
+export const EXEC_TIMEOUT_MIN_SEC = 10
+export const EXEC_TIMEOUT_MAX_SEC = 600
+
+/**
+ * 设置页「命令执行超时秒」-> 毫秒。
+ * 只认 10–600 秒，越界夹住、脏值回默认 30 秒——
+ * 不能因为用户在输入框里掏了个空值就把超时变成 NaN（setTimeout(NaN) 会立刻触发）。
+ */
+export function resolveExecTimeoutMs(raw: unknown): number {
+  const sec =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? Math.round(raw)
+      : DEFAULT_EXEC_TIMEOUT_MS / 1000
+  const clamped = Math.min(EXEC_TIMEOUT_MAX_SEC, Math.max(EXEC_TIMEOUT_MIN_SEC, sec))
+  return clamped * 1000
+}
 /** keepAlive 默认心跳间隔（秒），可被 SshConfig.keepAliveIntervalSec 覆盖 */
 const KEEPALIVE_DEFAULT_INTERVAL_SEC = 30
 /** keepAlive 最大失败次数，超过则触发重连 */
@@ -241,6 +263,8 @@ export class SshConnectionManager {
     assertCommandAllowed(command)
     entry.lastUsedAt = Date.now()
     const startTime = Date.now()
+    // 单条命令超时走设置页 terminal.cmdTimeout（秒），脏值回 30 秒
+    const execTimeoutMs = resolveExecTimeoutMs(ConfigStore.get('terminal.cmdTimeout'))
     // 审计是旁路：记不上（开关关了 / 库降级）也不影响命令本身
     const auditExec = (action: string, code: number | null): void => {
       new AuditRepo(DatabaseManager.getInstance()).log({
@@ -274,8 +298,8 @@ export class SshConnectionManager {
         resolve({ exitCode, stdout, stderr, duration: Date.now() - startTime })
       }
       const timer = setTimeout(
-        () => fail(new Error(`命令执行超时（${DEFAULT_EXEC_TIMEOUT_MS}ms）: ${command}`)),
-        DEFAULT_EXEC_TIMEOUT_MS
+        () => fail(new Error(`命令执行超时（${execTimeoutMs}ms）: ${command}`)),
+        execTimeoutMs
       )
 
       try {

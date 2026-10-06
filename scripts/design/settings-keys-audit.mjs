@@ -53,6 +53,7 @@ const WIRED = {
   'terminal.autoCopy': 'components/terminal/TerminalView.tsx 选区监听里写剪贴板',
   'terminal.stripNewline': 'components/terminal/clipboard-format.ts（复制与选中即复制共用）',
   'terminal.stripControlChars': 'components/terminal/clipboard-format.ts',
+  'terminal.cmdTimeout': 'services/ssh/connection-manager.ts resolveExecTimeoutMs（单条命令超时）',
   // 模型/预算：主进程运行时取值
   llmConfig: 'src/main/services/storage/config-store.ts',
   monthlyBudget: 'src/main/ipc/agent-runtime.ts',
@@ -92,14 +93,10 @@ const FAKE = {
   'risk.auditFileMod': '未接：远程文件改动还没有统一写入口（SFTP 传输在渲染层发起）',
   'risk.recordingRetention': '未接：没有操作录像功能',
   'risk.rules': '未接：真正生效的规则在 src/main/core/command-rules.json',
-  // 决策控制页：本轮已删掉 4 条（置信度阈值/文件大小/批量数/回滚时长），剩这条要接进执行链
-  // 终端设置页：剩下的两条要动主进程才接得上
-  'terminal.shell': '未接：本地 pty 用固定 shell',
-  'terminal.cmdTimeout': '未接',
 }
 
 /** 假设置上限：等于 2026-10-06 实测值，只能往下调 */
-const FAKE_CAP = 9
+const FAKE_CAP = 7
 
 /** 递归收集 .ts/.tsx（跳过 .d.ts） */
 function sourceFiles(dir, acc = []) {

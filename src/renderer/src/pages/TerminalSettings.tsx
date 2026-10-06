@@ -4,22 +4,27 @@
  * 路由：/settings/terminal
  *
  * 设计稿：settings-terminal.html
- * - Card 1: 默认 Shell 配置（Shell）
- * - Card 2: 终端行为（字号 / 行高 / 光标 / 闪烁 / 缓冲区）
- * - Card 3: 复制与粘贴（选中自动复制 / 去换行 / 去控制字符）
- * - Card 4: 高级（Bell / 命令超时）
+ * - Card 1: 终端行为（字号 / 行高 / 光标 / 闪烁 / 缓冲区）
+ * - Card 2: 复制与粘贴（选中自动复制 / 去换行 / 去控制字符）
+ * - Card 3: 高级（Bell / 命令执行超时）
  * - ActionBar: 保存 / 恢复默认
  *
  * 已删掉的假设置（全仓零消费者，遵循 DESIGN.md §10）：
+ * - 默认 Shell（terminal.shell）：本应用没有本地 pty（全仓没有 node-pty），
+ *   终端一律是 SSH 对端的登录 shell，选 /bin/zsh 还是 /bin/fish 都不起作用
  * - 字体族 terminal.fontFamily：终端字体实际走外观页的 appearance.codeFont，两处会互相打架
  * - 右键粘贴 terminal.rightClickPaste、鼠标支持 terminal.mouseSupport、
  *   WebGL 渲染 terminal.webglRenderer：xterm 侧没有对应开关（WebGL addon 根本没装）
  * - SSH 心跳 terminal.sshHeartbeat：心跳走 SSH 连接页的 sshDefaults.keepAliveIntervalSec
  *
+ * 已真接上的：字号/行高/光标样式/闪烁/回滚行数（TerminalView 读）、
+ * 响铃（onBell 闪屏）、选中即复制与两项清洗（clipboard-format）、
+ * 命令执行超时（connection-manager resolveExecTimeoutMs）。
+ *
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { Terminal, Type, Copy, Cpu } from 'lucide-react'
+import { Type, Copy, Cpu } from 'lucide-react'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
@@ -43,10 +48,7 @@ import './Settings.css'
 const selectTriggerCls = 'term-settings-select'
 
 export function TerminalSettings() {
-  // Card 1: 默认 Shell 配置
-  const [shell, setShell] = usePersistentState('terminal.shell', '/bin/bash')
-
-  // Card 2: 终端行为
+  // Card 1: 终端行为
   const [fontSize, setFontSize] = usePersistentState('terminal.fontSize', 14)
   const [lineHeight, setLineHeight] = usePersistentState('terminal.lineHeight', 1.4)
   const [cursorStyle, setCursorStyle] = usePersistentState('terminal.cursorStyle', 'block')
@@ -60,36 +62,14 @@ export function TerminalSettings() {
 
   // Card 4: 高级
   const [bellEnabled, setBellEnabled] = usePersistentState('terminal.bellEnabled', false)
-  const [cmdTimeout, setCmdTimeout] = usePersistentState('terminal.cmdTimeout', 300)
+  const [cmdTimeout, setCmdTimeout] = usePersistentState('terminal.cmdTimeout', 30)
 
   return (
     <div className="set-subpage">
       <SettingsPageHeader {...settingsHeader('/settings/terminal')} />
 
       <div className="set-subpage__body">
-        {/* Card 1: 默认 Shell 配置 */}
-        <SettingsCard icon={Terminal} title="默认 Shell 配置" tag="shell.defaults">
-          <SettingsRow
-            label="默认 Shell"
-            desc="新终端会话使用的默认 Shell 程序"
-            isLast
-            control={
-              <Select value={shell} onValueChange={setShell}>
-                <SelectTrigger className={selectTriggerCls}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="/bin/bash">/bin/bash</SelectItem>
-                  <SelectItem value="/bin/zsh">/bin/zsh</SelectItem>
-                  <SelectItem value="/bin/fish">/bin/fish</SelectItem>
-                  <SelectItem value="/bin/sh">/bin/sh</SelectItem>
-                </SelectContent>
-              </Select>
-            }
-          />
-        </SettingsCard>
-
-        {/* Card 2: 终端行为 */}
+        {/* Card 1: 终端行为 */}
         <SettingsCard icon={Type} title="终端行为" tag="terminal.behavior">
           <SettingsRow
             label="字体大小"
@@ -184,7 +164,7 @@ export function TerminalSettings() {
           />
           <SettingsRow
             label="命令执行超时秒"
-            desc="单条命令最长执行时间，超时自动终止"
+            desc="单条命令最长执行时间，超时自动终止；可填 10–600 秒，脏值按 30 秒"
             control={
               <Input
                 type="number"
@@ -200,7 +180,6 @@ export function TerminalSettings() {
         <SettingsActionBar
           onReset={() => {
             // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
-            setShell('/bin/bash')
             setFontSize(14)
             setLineHeight(1.4)
             setCursorStyle('block')
