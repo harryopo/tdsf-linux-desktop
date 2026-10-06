@@ -67,6 +67,7 @@ const WIRED = {
   'ssh.allowPasswordAuth': "pages/SshSettings.tsx 换算成 sshDefaults.authType（'password'/'privateKey'）",
   // 决策与校准：主进程按键取值
   'decision.weights': 'src/main/ipc/credibility.ts',
+  'decision.decisionTimeout': 'src/main/core/agent-workflow.ts resolveConfirmTimeoutMs（确认超时自动拒绝）',
   'calibration.minSamples': 'pages/CalibrationSettings.tsx 取出后当 IPC 入参 → tuneProvider → optimizeTemperature',
   // 纯界面态：本页读回来恢复展开/草稿，行为确实变了
   'decision.tierStates': 'pages/DecisionSettings.tsx 恢复风险层级展开状态',
@@ -90,19 +91,14 @@ const FAKE = {
   'risk.auditRetention': '未接：只读展示项，值写死 180',
   'risk.recordingRetention': '未接：没有操作录像功能',
   'risk.rules': '未接：真正生效的规则在 src/main/core/command-rules.json',
-  // 决策控制页：阈值类参数没进决策链
-  'decision.confidenceThreshold': '未接：审批阈值由主进程自己定',
-  'decision.decisionTimeout': '未接',
-  'decision.batchLimit': '未接',
-  'decision.fileSizeLimit': '未接',
-  'decision.rollbackRetention': '未接：没有回滚功能',
+  // 决策控制页：本轮已删掉 4 条（置信度阈值/文件大小/批量数/回滚时长），剩这条要接进执行链
   // 终端设置页：剩下的两条要动主进程才接得上
   'terminal.shell': '未接：本地 pty 用固定 shell',
   'terminal.cmdTimeout': '未接',
 }
 
 /** 假设置上限：等于 2026-10-06 实测值，只能往下调 */
-const FAKE_CAP = 18
+const FAKE_CAP = 13
 
 /** 递归收集 .ts/.tsx（跳过 .d.ts） */
 function sourceFiles(dir, acc = []) {

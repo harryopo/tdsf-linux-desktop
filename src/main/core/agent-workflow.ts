@@ -15,6 +15,7 @@
  */
 
 import { EventEmitter } from 'events'
+import { ConfigStore } from '../services/storage/config-store'
 import type { AgentStep, AgentWorkflowState, DecisionCard, Evidence } from '../../shared/models'
 import { assessRisk } from './risk-engine'
 import { generateDecisionCard } from './decision-engine'
@@ -133,6 +134,26 @@ export interface WorkflowStartParams {
     hypothesis: string
     confidence: number
   } | null>
+}
+
+/**
+ * 人工确认的超时（毫秒）——来自设置页「决策控制 → 决策超时秒数」(decision.decisionTimeout)
+ *
+ * 单独导出一个纯函数是为了能被单测直接判：脏值（字符串 / NaN / 越界）
+ * 一律回到 5 分钟，而不是抛异常把整条工作流带崩。
+ * 超时语义是 fail-closed：到点自动**拒绝**，不会自动放行。
+ */
+export const CONFIRM_TIMEOUT_DEFAULT_SEC = 300
+export const CONFIRM_TIMEOUT_MIN_SEC = 30
+export const CONFIRM_TIMEOUT_MAX_SEC = 1800
+
+export function resolveConfirmTimeoutMs(raw: unknown): number {
+  const sec =
+    typeof raw === 'number' && Number.isFinite(raw)
+      ? Math.round(raw)
+      : CONFIRM_TIMEOUT_DEFAULT_SEC
+  const clamped = Math.min(CONFIRM_TIMEOUT_MAX_SEC, Math.max(CONFIRM_TIMEOUT_MIN_SEC, sec))
+  return clamped * 1000
 }
 
 /**
@@ -450,20 +471,20 @@ export class AgentWorkflow extends EventEmitter {
    */
   private async waitForConfirmation(): Promise<boolean> {
     // waitingForConfirmation 已在 runStep('confirm') 中提前设为 true
-    const CONFIRM_TIMEOUT_MS = 5 * 60 * 1000 // 5 分钟
+    const timeoutMs = resolveConfirmTimeoutMs(ConfigStore.get('decision.decisionTimeout'))
     return new Promise<boolean>((resolve) => {
       // 关键：先赋值 confirmResolve，再 emit 事件。
       // 否则同步事件处理器调用 confirm() 时 confirmResolve 仍为 null，
       // 导致 Promise 永远无法 resolve（测试超时）。
       this.confirmResolve = resolve
-      // 超时自动拒绝
+      // 超时自动拒绝（fail-closed：超时是拒绝，不是放行）
       this.confirmTimeout = setTimeout(() => {
         if (this.confirmResolve) {
-          console.log('[AgentWorkflow] 确认超时（5分钟），自动拒绝')
+          console.log(`[AgentWorkflow] 确认超时（${timeoutMs / 1000}秒），自动拒绝`)
           this.confirmResolve(false)
           this.confirmResolve = null
         }
-      }, CONFIRM_TIMEOUT_MS)
+      }, timeoutMs)
       // emit 放在赋值之后，确保同步事件处理器中的 confirm() 调用生效
       this.emit(WORKFLOW_EVENTS.CONFIRMATION_REQUIRED, this.getState())
     })

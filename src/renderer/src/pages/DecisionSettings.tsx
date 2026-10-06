@@ -4,10 +4,18 @@
  * 路由：/settings/decision
  *
  * 设计稿：settings-decision.html
- * - Card 1: 决策流程配置（3 个风险等级开关 + 置信度阈值 + 决策超时）
+ * - Card 1: 决策流程配置（3 个风险等级开关 + 决策超时秒数）
  * - Card 2: 证据源权重配置（6 源权重滑块 + 综合权重总和 summary + 权重影响测试）
- * - Card 3: 风险控制策略（命令黑名单 + 敏感目录 + 文件大小/批量数/回滚时长）
+ * - Card 3: 审批补充说明（草稿存本机）
  * - ActionBar: 保存 / 恢复默认
+ *
+ * 已删掉的假设置（全仓零消费者，遵循 DESIGN.md §10）：
+ * - 最低置信度阈值 decision.confidenceThreshold：工作流是 HITL，每一步 confirm 都要人点头，
+ *   没有"高于某值就自动执行"这条路径；把它接上去等于给用户一个能关掉审批的开关
+ * - 文件修改大小限制 / 批量操作数量上限 / 操作回滚保留时长：没有对应的执行与回滚机制
+ *
+ * 决策超时 decision.decisionTimeout 本轮已真接上：
+ * 主进程 agent-workflow.ts resolveConfirmTimeoutMs 读它，到点自动拒绝（fail-closed）。
  *
  * D-S 证据理论：6 个独立证据源（系统指标/历史决策/知识库/日志/人工经验/模型推理）
  * 各源权重通过滑块配置（0-100），综合权重总和反映证据强度。
@@ -24,7 +32,6 @@ import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
-import { SettingsSlider } from '@/components/settings/SettingsSlider'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
@@ -158,8 +165,7 @@ export function DecisionSettings() {
     'decision.tierStates',
     DEFAULT_TIER_STATES,
   )
-  const [confidenceThreshold, setConfidenceThreshold] = usePersistentState('decision.confidenceThreshold', 60)
-  const [decisionTimeout, setDecisionTimeout] = usePersistentState('decision.decisionTimeout', 120)
+  const [decisionTimeout, setDecisionTimeout] = usePersistentState('decision.decisionTimeout', 300)
 
   // Card 2: 证据源权重
   const [weights, setWeights] = usePersistentState<Record<string, number>>(
@@ -168,14 +174,11 @@ export function DecisionSettings() {
   )
   const totalWeight = EVIDENCE_SOURCES.reduce((sum, s) => sum + (weights[s.id] ?? 0), 0)
 
-  // Card 3: 风险控制策略
+  // Card 3: 审批补充说明（草稿保存在本机，重启后还在）
   const [textAreas, setTextAreas] = usePersistentState<Record<string, string>>(
     'decision.textAreas',
     DEFAULT_TEXTAREAS,
   )
-  const [fileSizeLimit, setFileSizeLimit] = usePersistentState('decision.fileSizeLimit', 100)
-  const [batchLimit, setBatchLimit] = usePersistentState('decision.batchLimit', 50)
-  const [rollbackRetention, setRollbackRetention] = usePersistentState('decision.rollbackRetention', 24)
 
   // Card 2 测试评估：调用 credibilityAssess 验证当前 6 源权重对决策可信度的影响
   const [testResult, setTestResult] = useState<ConfidenceAssessment | null>(null)
@@ -222,21 +225,8 @@ export function DecisionSettings() {
             />
           ))}
           <SettingsRow
-            label="最低置信度阈值"
-            desc="低于此值的 AI 决策不执行，避免误操作"
-            control={
-              <SettingsSlider
-                value={confidenceThreshold}
-                min={0}
-                max={100}
-                step={5}
-                onValueChange={setConfidenceThreshold}
-              />
-            }
-          />
-          <SettingsRow
             label="决策超时秒数"
-            desc="超时未确认的决策将自动拒绝"
+            desc="到点自动拒绝（不会自动放行）；可填 30–1800 秒，留空或越界按 300 秒"
             control={
               <Input
                 type="number"
@@ -311,7 +301,7 @@ export function DecisionSettings() {
         </SettingsCard>
 
         {/* Card 3: 风险控制策略 */}
-        <SettingsCard icon={Shield} title="风险控制策略" tag="risk.policy">
+        <SettingsCard icon={Shield} title="审批补充说明" tag="decision.notes">
           {TEXTAREA_BLOCKS.map((blk, idx) => (
             <div
               key={blk.id}
@@ -341,56 +331,15 @@ export function DecisionSettings() {
               />
             </div>
           ))}
-          <SettingsRow
-            label="文件修改大小限制"
-            desc="单次操作允许修改的文件大小上限（MB）"
-            control={
-              <Input
-                type="number"
-                value={fileSizeLimit}
-                onChange={(e) => setFileSizeLimit(Number(e.target.value))}
-                className="set-num"
-              />
-            }
-          />
-          <SettingsRow
-            label="批量操作数量上限"
-            desc="单次批量操作涉及的文件/对象数量上限"
-            control={
-              <Input
-                type="number"
-                value={batchLimit}
-                onChange={(e) => setBatchLimit(Number(e.target.value))}
-                className="set-num"
-              />
-            }
-          />
-          <SettingsRow
-            label="操作回滚保留时长"
-            desc="操作回滚快照的保留时长（小时）"
-            control={
-              <Input
-                type="number"
-                value={rollbackRetention}
-                onChange={(e) => setRollbackRetention(Number(e.target.value))}
-                className="set-num"
-              />
-            }
-            isLast
-          />
         </SettingsCard>
 
         <SettingsActionBar
           onReset={() => {
             // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
             setTierStates(DEFAULT_TIER_STATES)
-            setConfidenceThreshold(60)
-            setDecisionTimeout(120)
+            setDecisionTimeout(300)
             setWeights(DEFAULT_WEIGHTS)
             setTextAreas(DEFAULT_TEXTAREAS)
-            setFileSizeLimit(100)
-            setBatchLimit(50)
-            setRollbackRetention(24)
           }}
         />
       </div>
