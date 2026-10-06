@@ -43,7 +43,14 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
 export const Dialog = RadixDialog.Root
 export const DialogTrigger = RadixDialog.Trigger
 
-/** 居中对话框：面板底 + 1px 边 + 中阴影，不做毛玻璃（IDE 里半透明只会让文字难读） */
+/**
+ * 对话框（2026-10-06 按 Apple 美学重做）
+ *
+ * - 遮罩：压暗 + 轻微背景模糊（Apple 的 depth/vibrancy 语言），不再是纯黑纱
+ * - 面板：18px 圆角、浮层底色、一层大范围软阴影，不描边（阴影和 1px 边不叠着用）
+ * - variant='panel'：内容型（表单/详情），标题左对齐、底部按钮右对齐
+ * - variant='alert'：确认型（macOS 警告框），标题与正文居中、按钮等宽铺满一行
+ */
 export function DialogContent({
   title,
   description,
@@ -52,6 +59,7 @@ export function DialogContent({
   className,
   dismissible = true,
   closeOnOverlayClick = true,
+  variant = 'panel',
 }: {
   title: ReactNode
   description?: ReactNode
@@ -62,6 +70,7 @@ export function DialogContent({
   dismissible?: boolean
   /** 点遮罩是否关闭；已填过内容的弹窗应设为 false，误点外部不该丢弃输入 */
   closeOnOverlayClick?: boolean
+  variant?: 'panel' | 'alert'
 }) {
   const blockEscape = (e: { preventDefault: () => void }) => {
     if (!dismissible) e.preventDefault()
@@ -69,42 +78,68 @@ export function DialogContent({
   const blockOutside = (e: { preventDefault: () => void }) => {
     if (!dismissible || !closeOnOverlayClick) e.preventDefault()
   }
+  const alert = variant === 'alert'
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="fixed inset-0 z-(--ui-z-modal) bg-black/55 data-[state=open]:animate-in" />
+      <RadixDialog.Overlay className="fixed inset-0 z-(--ui-z-modal) bg-black/50 backdrop-blur-[2px] data-[state=open]:animate-in" />
       <RadixDialog.Content
         onEscapeKeyDown={blockEscape}
         onInteractOutside={blockOutside}
         onPointerDownOutside={blockOutside}
         className={cn(
           'fixed left-1/2 top-1/2 z-(--ui-z-modal) w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2',
-          'rounded-(--ui-radius-panel) border border-line-strong bg-raised shadow-(--shadow-lg)',
+          'overflow-hidden rounded-(--ui-radius-panel) bg-raised shadow-(--shadow-lg)',
           'focus:outline-none',
           className
         )}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <RadixDialog.Title className="text-title font-semibold text-ink-strong">
-              {title}
-            </RadixDialog.Title>
+        {alert ? (
+          <div className="flex flex-col items-center gap-1.5 px-7 pt-7 pb-6 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <RadixDialog.Title className="text-title font-semibold text-ink-strong">
+                {title}
+              </RadixDialog.Title>
+            </div>
             {description ? (
-              <RadixDialog.Description className="mt-1 text-sm text-ink-dim">
+              <RadixDialog.Description className="max-w-[46ch] text-md leading-relaxed text-ink-dim">
                 {description}
               </RadixDialog.Description>
             ) : null}
+            {children ? <div className="mt-2 w-full">{children}</div> : null}
           </div>
-          {dismissible ? (
-            <RadixDialog.Close asChild>
-              <IconButton label="关闭" size="sm">
-                <X className="size-4" />
-              </IconButton>
-            </RadixDialog.Close>
-          ) : null}
-        </div>
-        {children ? <div className="px-4 py-3">{children}</div> : null}
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-1">
+              <div className="min-w-0">
+                <RadixDialog.Title className="text-title font-semibold text-ink-strong">
+                  {title}
+                </RadixDialog.Title>
+                {description ? (
+                  <RadixDialog.Description className="mt-1 text-md text-ink-dim">
+                    {description}
+                  </RadixDialog.Description>
+                ) : null}
+              </div>
+              {dismissible ? (
+                <RadixDialog.Close asChild>
+                  <IconButton label="关闭" size="sm">
+                    <X className="size-4" />
+                  </IconButton>
+                </RadixDialog.Close>
+              ) : null}
+            </div>
+            {children ? <div className="px-6 py-4">{children}</div> : null}
+          </>
+        )}
         {footer ? (
-          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+          <div
+            className={cn(
+              alert
+                ? // 苹果式告警：按钮通栏等宽、贴住面板底边，靠 1px 分隔线而不是圆角分家
+                  'grid grid-flow-col auto-cols-fr gap-px bg-line [&>button]:h-12 [&>button]:w-full [&>button]:rounded-none'
+                : 'flex items-center justify-end gap-3 border-t border-line px-6 py-4'
+            )}
+          >
             {footer}
           </div>
         ) : null}
@@ -117,7 +152,7 @@ export const Menu = RadixMenu.Root
 export const MenuTrigger = RadixMenu.Trigger
 
 const menuListClass = cn(
-  'z-(--ui-z-dropdown) min-w-[180px] overflow-hidden rounded-(--ui-radius-panel) border border-line-strong',
+  'z-(--ui-z-dropdown) min-w-[180px] overflow-hidden rounded-(--ui-radius-card) border border-line-strong',
   'bg-raised p-1 shadow-(--shadow-md)'
 )
 

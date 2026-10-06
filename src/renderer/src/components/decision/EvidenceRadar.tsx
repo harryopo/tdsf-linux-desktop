@@ -181,7 +181,7 @@ export function EvidenceRadar({ sources }: EvidenceRadarProps) {
           {sources[5]?.label ?? ''}
         </text>
       </svg>
-      <div className="text-center text-micro tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+      <div className="text-center text-micro tracking-[0.04em] text-ink-mute">
         权重分布雷达 · 6 源
       </div>
     </div>

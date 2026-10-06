@@ -32,7 +32,7 @@ const COMMAND_TOOLS = new Set(['ssh_readonly', 'ssh_write', 'ssh_journal_follow'
 
 /** 检索类工具图标（设计稿 Panel B/C/D：brand 色小图标） */
 function searchToolIcon(name: string): JSX.Element {
-  const cls = 'size-3 text-[var(--trae-bg-brand)]'
+  const cls = 'size-3 text-(--accent-text)'
   switch (name) {
     case 'kb_search':
       return <Layers className={cls} />
@@ -212,13 +212,13 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           className="ai-tool-row w-full text-left"
           onClick={() => setReasoningOpen(!reasoningExpanded)}
         >
-          <Sparkles className="size-3 text-[var(--trae-bg-brand)]" />
-          <span className="font-medium text-[var(--trae-text-default)]">深度思考</span>
-          <span className={`text-micro ${thinkingLive ? 'ai-shimmer-text' : 'text-[var(--trae-text-tertiary)]'}`}>
+          <Sparkles className="size-3 text-(--accent-text)" />
+          <span className="font-medium text-ink">深度思考</span>
+          <span className={`text-micro ${thinkingLive ? 'ai-shimmer-text' : 'text-ink-mute'}`}>
             {thinkingLive ? '思考中…' : '已完成'}
           </span>
           <ChevronRight
-            className={`ml-auto size-2.5 text-[var(--trae-text-tertiary)] transition-transform duration-150 ${reasoningExpanded ? 'rotate-90' : ''}`}
+            className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${reasoningExpanded ? 'rotate-90' : ''}`}
           />
         </button>
         {reasoningExpanded && (
@@ -246,15 +246,15 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               className={[
                 'inline-flex items-center gap-0.5 rounded-[2px] border px-1.5 py-0.5 transition-colors duration-150',
                 isCompleted
-                  ? 'border-transparent bg-[var(--trae-bg-brand)] font-medium text-[var(--trae-text-onbrand)]'
+                  ? 'border-transparent bg-accent-solid font-medium text-[var(--trae-text-onbrand)]'
                   : isCurrent
-                    ? 'border-transparent bg-[var(--trae-status-primary-surface-l2)] font-medium text-[var(--trae-text-brand)]'
-                    : 'border-transparent bg-transparent text-[var(--trae-text-tertiary)]',
+                    ? 'border-transparent bg-[var(--trae-status-primary-surface-l2)] font-medium text-(--accent-text)'
+                    : 'border-transparent bg-transparent text-ink-mute',
                 isWaiting ? 'border-[var(--trae-status-alert-default)]' : '',
               ].join(' ')}
             >
               {STEP_LABELS[step]}
-              {isWaiting && <Pause className="size-2.5" />}
+              {isWaiting && <Pause className="size-3" />}
             </span>
           )
         })}
@@ -269,8 +269,8 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (commands.length === 0) return null
     return (
       <div className="mt-2.5 flex flex-col gap-2 border-t border-[var(--trae-border-neutral-l1)] pt-2.5">
-        <div className="flex items-center gap-1.5 text-caption font-medium text-[var(--trae-text-secondary)]">
-          <Play className="size-3 text-[var(--trae-text-brand)]" />
+        <div className="flex items-center gap-1.5 text-caption font-medium text-ink-dim">
+          <Play className="size-3 text-(--accent-text)" />
           检测到 {commands.length} 条命令
         </div>
         {commands.map((cmd, i) => {
@@ -283,7 +283,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           <div key={i} className="flex items-center gap-2">
             <code
               title={cmd}
-              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5 font-mono text-sm leading-[1.5] text-[var(--trae-text-default)]"
+              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5 font-mono text-sm leading-[1.5] text-ink"
             >
               {display}
             </code>
@@ -291,7 +291,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               type="button"
               onClick={() => onToolAction('execute', cmd)}
               title="发送到终端执行（回显可见）"
-              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2.5 py-1.5 text-caption font-medium text-[var(--trae-text-brand)] transition-opacity hover:opacity-90"
+              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2.5 py-1.5 text-caption font-medium text-(--accent-text) transition-opacity hover:opacity-90"
             >
               <Play className="size-3" />
               在终端执行
@@ -316,14 +316,14 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           <div className="ai-tool-exec-head">
             {evt.done ? (
               evt.ok ? (
-                <Check className="size-3.5 text-[var(--trae-status-success-default)]" />
+                <Check className="size-3.5 text-(--status-success-text)" />
               ) : (
-                <X className="size-3.5 text-[var(--trae-status-error-default)]" />
+                <X className="size-3.5 text-(--status-error-text)" />
               )
             ) : (
-              <Loader2 className="size-3.5 animate-spin text-[var(--trae-text-brand)]" />
+              <Loader2 className="size-3.5 animate-spin text-(--accent-text)" />
             )}
-            <TerminalIcon className="size-3.5 text-[var(--trae-text-brand)]" />
+            <TerminalIcon className="size-3.5 text-(--accent-text)" />
             <span className="ai-tool-exec-name">{toolDisplayName(evt.toolName)}</span>
             {!evt.done && <span className="ai-tool-exec-status">执行中…</span>}
             {evt.done && (
@@ -365,7 +365,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           }
         >
           {searchToolIcon(evt.toolName)}
-          <span className="text-[var(--trae-text-default)]">{toolDisplayName(evt.toolName)}</span>
+          <span className="text-ink">{toolDisplayName(evt.toolName)}</span>
           <span
             className={`ai-tool-badge ${
               !evt.done
@@ -377,11 +377,11 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                     : ''
             }`}
           >
-            {!evt.done && <Loader2 className="size-2.5 animate-spin" />}
+            {!evt.done && <Loader2 className="size-3 animate-spin" />}
             {badge}
           </span>
           <ChevronRight
-            className={`ml-auto size-2.5 text-[var(--trae-text-tertiary)] transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+            className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
           />
         </button>
         {expanded && (
@@ -450,21 +450,21 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         <button
           type="button"
           onClick={() => onNavigate('/monitor')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
+          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-ink"
         >
           查看监控
         </button>
         <button
           type="button"
           onClick={() => onNavigate('/history')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
+          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-ink"
         >
           记录决策
         </button>
         <button
           type="button"
           onClick={() => onNavigate('/knowledge')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-[var(--trae-text-secondary)] transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-[var(--trae-text-default)]"
+          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-ink"
         >
           更新知识库
         </button>
@@ -504,7 +504,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           {/* v2.11：深度思考块置于最终回答上方（对齐 Trae：先思考过程、后答案） */}
           {renderReasoning()}
           {message.isError ? (
-            <div className="ai-card border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)] whitespace-pre-wrap">
+            <div className="ai-card border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] text-(--status-error-text) whitespace-pre-wrap">
               {message.content}
             </div>
           ) : segments.segs.length > 0 ? (
@@ -516,7 +516,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                   <div key={`seg-${i}`} className="ai-card">
                     <MarkdownMessage content={seg.text} />
                     {message.isStreaming && i === segments.segs.length - 1 && (
-                      <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--trae-bg-brand)] align-middle" />
+                      <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
                     )}
                   </div>
                 ) : (
@@ -526,7 +526,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               {/* 流式中且最后一片是工具卡 → 光标单独补一行（命令后续文本即将到来） */}
               {message.isStreaming && segments.segs[segments.segs.length - 1]?.kind === 'tool' && (
                 <div className="ai-card">
-                  <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--trae-bg-brand)] align-middle" />
+                  <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
                 </div>
               )}
             </div>
@@ -535,7 +535,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               {/* 有思考链时不重复显示占位（下方“深度思考”块已有“思考中…”） */}
               {message.isStreaming && !message.reasoning ? '思考中…' : ''}
               {message.isStreaming && (
-                <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--trae-bg-brand)] align-middle" />
+                <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
               )}
             </div>
           )}

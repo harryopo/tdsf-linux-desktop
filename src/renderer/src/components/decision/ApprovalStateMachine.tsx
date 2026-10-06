@@ -70,29 +70,29 @@ function getGateStyle(status: StepStatus): {
     case 'completed':
       return {
         border: 'border-[var(--trae-border-neutral-l1)]',
-        labelColor: 'text-[var(--trae-text-tertiary)]',
-        iconColor: 'text-[var(--trae-status-success-default)]',
+        labelColor: 'text-ink-mute',
+        iconColor: 'text-(--status-success-text)',
         iconBg: '',
         tag: '已启用',
-        tagClass: 'bg-[rgba(51,193,146,0.12)] text-[var(--trae-status-success-default)] border-[var(--trae-status-success-default)]',
+        tagClass: 'bg-[rgba(51,193,146,0.12)] text-(--status-success-text) border-[var(--trae-status-success-default)]',
       }
     case 'in-progress':
       return {
         border: 'border-[var(--trae-border-brand)]',
-        labelColor: 'text-[var(--trae-text-brand)]',
+        labelColor: 'text-(--accent-text)',
         iconColor: '',
-        iconBg: 'bg-[var(--trae-bg-brand)]',
+        iconBg: 'bg-accent-solid',
         tag: '待审批',
         tagClass: 'bg-[rgba(210,157,0,0.12)] text-[var(--trae-status-alert-default)] border-[var(--trae-status-alert-default)]',
       }
     case 'pending':
       return {
         border: 'border-dashed border-[var(--trae-border-neutral-l2)]',
-        labelColor: 'text-[var(--trae-text-tertiary)]',
-        iconColor: 'text-[var(--trae-text-tertiary)]',
+        labelColor: 'text-ink-mute',
+        iconColor: 'text-ink-mute',
         iconBg: '',
         tag: '待触发',
-        tagClass: 'bg-[var(--trae-bg-overlay-l1)] text-[var(--trae-text-tertiary)] border-[var(--trae-border-neutral-l1)]',
+        tagClass: 'bg-[var(--trae-bg-overlay-l1)] text-ink-mute border-[var(--trae-border-neutral-l1)]',
       }
   }
 }
@@ -112,19 +112,19 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
         {/* 标题栏 */}
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-head font-semibold text-[var(--trae-text-default)]">证据溯源链</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-[var(--trae-text-secondary)]">
+            <span className="text-title font-semibold text-ink">证据溯源链</span>
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-ink-dim">
               7 步 · HITL
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
               进行中
             </span>
             <button
               type="button"
               onClick={() => setExpanded((e) => !e)}
-              className="inline-flex h-6 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-2.5 text-micro font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l3)] hover:text-[var(--trae-text-default)]"
+              className="inline-flex h-6 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-2.5 text-micro font-medium text-ink-dim transition-colors hover:bg-hover hover:text-ink"
               aria-label={expanded ? '收起' : '展开'}
             >
               {expanded ? '收起' : '展开'}
@@ -143,17 +143,17 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                   {/* 左侧节点 + 连接线 */}
                   <div className="flex flex-col items-center shrink-0">
                     {step.status === 'completed' && (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--trae-bg-brand)]">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-solid">
                         <Check className="h-3.5 w-3.5 text-[var(--trae-text-onbrand)]" />
                       </div>
                     )}
                     {step.status === 'in-progress' && (
                       <div className="relative h-7 w-7">
                         <span
-                          className="absolute inset-0 rounded-full bg-[var(--trae-bg-brand)] opacity-40"
+                          className="absolute inset-0 rounded-full bg-accent-solid opacity-40"
                           style={{ animation: 'pulse-ring 2s cubic-bezier(.4,0,.6,1) infinite' }}
                         />
-                        <span className="absolute inset-0 flex items-center justify-center rounded-full border-2 border-[var(--trae-bg-base-secondary)] bg-[var(--trae-bg-brand)]">
+                        <span className="absolute inset-0 flex items-center justify-center rounded-full border-2 border-[var(--trae-bg-base-secondary)] bg-accent-solid">
                           <User className="h-3.5 w-3.5 text-[var(--trae-text-onbrand)]" />
                         </span>
                       </div>
@@ -166,7 +166,7 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                       <div
                         className={`w-0.5 flex-1 min-h-[32px] ${
                           step.status === 'completed'
-                            ? 'bg-[var(--trae-bg-brand)]'
+                            ? 'bg-accent-solid'
                             : step.status === 'in-progress'
                             ? 'border-l-2 border-dashed border-[var(--trae-border-neutral-l2)]'
                             : 'border-l-2 border-dashed border-[var(--trae-border-neutral-l2)]'
@@ -190,24 +190,24 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                         <span
                           className={`text-sm font-semibold ${
                             step.status === 'in-progress'
-                              ? 'text-[var(--trae-text-brand)]'
+                              ? 'text-(--accent-text)'
                               : step.status === 'pending'
-                              ? 'text-[var(--trae-text-tertiary)]'
-                              : 'text-[var(--trae-text-default)]'
+                              ? 'text-ink-mute'
+                              : 'text-ink'
                           }`}
                         >
                           Step {step.num} · {step.title}
                         </span>
-                        <span className="font-mono text-micro tracking-[0.04em] text-[var(--trae-text-tertiary)]">
+                        <span className="font-mono text-micro tracking-[0.04em] text-ink-mute">
                           {step.stepKey}
                         </span>
                         <span
                           className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-micro font-medium ${
                             step.status === 'completed'
-                              ? 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-[var(--trae-status-success-default)]'
+                              ? 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-(--status-success-text)'
                               : step.status === 'in-progress'
-                              ? 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]'
-                              : 'border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] text-[var(--trae-text-tertiary)]'
+                              ? 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-(--accent-text)'
+                              : 'border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] text-ink-mute'
                           }`}
                         >
                           {step.status === 'completed' ? '已完成' : step.status === 'in-progress' ? '进行中' : '待决定'}
@@ -215,13 +215,13 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                       </div>
                       <div className="flex items-center gap-3">
                         {step.timestamp && (
-                          <span className="font-mono text-micro tabular-nums text-[var(--trae-text-tertiary)]">
+                          <span className="font-mono text-micro tabular-nums text-ink-mute">
                             {step.timestamp}
                           </span>
                         )}
                         <span
                           className={`font-mono text-micro tabular-nums ${
-                            step.status === 'pending' ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-brand)]'
+                            step.status === 'pending' ? 'text-ink-mute' : 'text-(--accent-text)'
                           }`}
                         >
                           权重 {step.weight.toFixed(2)}
@@ -230,7 +230,7 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                     </div>
                     <p
                       className={`text-sm leading-[1.6] ${
-                        step.status === 'pending' ? 'text-[var(--trae-text-tertiary)]' : 'text-[var(--trae-text-secondary)]'
+                        step.status === 'pending' ? 'text-ink-mute' : 'text-ink-dim'
                       }`}
                     >
                       {step.desc}
@@ -247,12 +247,12 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
       <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-head font-semibold text-[var(--trae-text-default)]">四层风险控制</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-[var(--trae-status-success-default)]">
+            <span className="text-title font-semibold text-ink">四层风险控制</span>
+            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-(--status-success-text)">
               全部启用
             </span>
           </div>
-          <span className="text-micro text-[var(--trae-text-tertiary)]">阶段门流水线 · 层层把关</span>
+          <span className="text-micro text-ink-mute">阶段门流水线 · 层层把关</span>
         </div>
 
         {/* 横向流水线 L1 → L2 → L3 → L4 */}
@@ -271,16 +271,16 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                   {gate.status === 'in-progress' ? (
                     <div className="relative h-6 w-6">
                       <span
-                        className="absolute inset-0 rounded-full bg-[var(--trae-bg-brand)] opacity-40"
+                        className="absolute inset-0 rounded-full bg-accent-solid opacity-40"
                         style={{ animation: 'pulse-ring 2s cubic-bezier(.4,0,.6,1) infinite' }}
                       />
-                      <Icon className="absolute inset-0 m-auto h-6 w-6 text-[var(--trae-bg-brand)]" />
+                      <Icon className="absolute inset-0 m-auto h-6 w-6 text-(--accent-text)" />
                     </div>
                   ) : (
                     <Icon className={`h-6 w-6 ${style.iconColor}`} />
                   )}
-                  <span className="text-center text-sm font-medium text-[var(--trae-text-default)]">{gate.name}</span>
-                  <span className="text-center text-micro text-[var(--trae-text-tertiary)]">{gate.desc}</span>
+                  <span className="text-center text-sm font-medium text-ink">{gate.name}</span>
+                  <span className="text-center text-micro text-ink-mute">{gate.desc}</span>
                   <span
                     className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-micro font-medium ${style.tagClass}`}
                   >
@@ -290,7 +290,7 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                 {/* 箭头 */}
                 {idx < gates.length - 1 && (
                   <div className="flex items-center shrink-0">
-                    <ChevronRight className="h-4 w-4 text-[var(--trae-text-tertiary)]" />
+                    <ChevronRight className="h-4 w-4 text-ink-mute" />
                   </div>
                 )}
               </div>

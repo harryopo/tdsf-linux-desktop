@@ -1,8 +1,11 @@
 /**
- * 活动栏（IDE 外壳左侧 38px）
+ * 活动栏（IDE 外壳左侧 64px，图标 + 文字标签）
  *
- * 对齐 VS Code / cc-gui 宿主的语言：图标默认弱前景，选中项靠
- * "左侧 2px 亮条 + 提亮图标 + 轻微底色"表达，不做整块圆角色板（那是营销页的写法）。
+ * 2026-10-06 按用户"左侧 IDE 的 UI 太小了"重做：
+ * 原来 38px 宽、18px 图标、无文字，选中态只有一根 2px 亮条——看不清也认不出。
+ * 现在按 Apple 侧栏语言：52×52 的圆角块（radius 12）承载 22px 图标 + 11px 标签，
+ * 选中态用整块圆角底色（macOS 侧栏选中就是圆角矩形，不是一根线），
+ * 图标与文字同时提亮，鼠标悬停再给一次底色。
  *
  * 保留 wb-activity-rail / wb-nav-btn 这两个类名当钩子：
  * 真机验证脚本 scripts/design/verify-theme.mjs 与 E2E 按它们取节点。
@@ -82,14 +85,12 @@ export function ActivityRail({ activeId: activeIdProp, onNavigate }: ActivityRai
   return (
     <TooltipProvider>
       <nav
-        className="wb-activity-rail flex w-(--ui-size-rail) shrink-0 flex-col items-center border-r border-line bg-panel py-2"
+        className="wb-activity-rail flex w-(--ui-size-rail) shrink-0 flex-col items-center gap-1 bg-panel px-1.5 py-3"
         aria-label="主导航"
       >
         {PRIMARY_NAV.map((item) => (
           <RailButton key={item.id} item={item} active={item.id === activeId} onClick={() => go(item.id)} />
         ))}
-
-        <span aria-hidden className="my-2 h-px w-6 bg-line-strong opacity-60" />
 
         <div className="flex-1" />
 
@@ -120,16 +121,17 @@ function RailButton({
         aria-current={active ? 'page' : undefined}
         data-dom-id={item.domId}
         className={cn(
-          'wb-nav-btn relative flex size-8 items-center justify-center rounded-none',
-          'text-ink-mute transition-colors duration-[var(--ui-dur-fast)]',
-          'hover:text-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          active && 'text-ink-strong'
+          'wb-nav-btn flex w-full flex-col items-center justify-center gap-1',
+          'h-(--ui-size-rail-item) rounded-(--ui-radius-control)',
+          'transition-colors duration-[var(--ui-dur-fast)]',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+          active
+            ? 'bg-active text-ink-strong'
+            : 'text-ink-mute hover:bg-hover hover:text-ink-strong'
         )}
       >
-        {active && (
-          <span aria-hidden className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-ink-strong" />
-        )}
-        <Icon className="size-[18px]" strokeWidth={active ? 2 : 1.6} />
+        <Icon className="size-(--ui-size-glyph)" strokeWidth={active ? 2 : 1.7} />
+        <span className="text-micro leading-none">{item.label}</span>
       </button>
     </Tooltip>
   )

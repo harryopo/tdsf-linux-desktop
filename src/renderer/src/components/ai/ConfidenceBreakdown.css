@@ -88,7 +88,7 @@
 .confidence-breakdown-interval-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: var(--trae-font-weight-medium);
   font-family: var(--trae-font-family-mono);
 }
@@ -111,7 +111,7 @@
 }
 
 .confidence-breakdown-cell-label {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--color-text-secondary);
 }
 
@@ -151,7 +151,7 @@
 
 .confidence-breakdown-conflict-hint {
   color: var(--color-warning);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   margin-left: auto;
 }
 
@@ -192,7 +192,7 @@
 }
 
 .confidence-breakdown-cot-tag {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: var(--trae-font-weight-medium);
   font-family: var(--trae-font-family-mono);
   padding: 1px 6px;
@@ -210,7 +210,7 @@
 }
 
 .confidence-breakdown-cot-empty {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: var(--color-text-tertiary);
   text-align: center;
   padding: 8px 0;
@@ -235,7 +235,7 @@
 }
 
 .confidence-breakdown-cot-stat-label {
-  font-size: 9px;
+  font-size: var(--ui-font-micro);
   color: var(--color-text-secondary);
   letter-spacing: 0.02em;
 }
@@ -248,7 +248,7 @@
 }
 
 .confidence-breakdown-cot-paper {
-  font-size: 9px;
+  font-size: var(--ui-font-micro);
   color: var(--color-text-tertiary);
   font-style: italic;
   line-height: 1.3;

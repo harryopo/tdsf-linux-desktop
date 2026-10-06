@@ -401,14 +401,14 @@ export function SshSettings() {
   const ipcAvailable = isElectronAPIAvailable()
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Plug as LucideIcon}
         title="SSH 连接"
         desc="远程服务器连接与密钥管理"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         <ServerCard
           servers={sortedServers}
           connectionStates={connectionStates}

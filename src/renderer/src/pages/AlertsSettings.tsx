@@ -38,14 +38,14 @@ export function AlertsSettings() {
   )
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Bell as LucideIcon}
         title="告警阈值"
         desc="CPU / 内存 / 磁盘超过阈值时在监控页触发告警横幅"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         <SettingsCard icon={Cpu} title="资源告警阈值" tag="monitor.threshold">
           <SettingsRow
             label="CPU 使用率"

@@ -3,8 +3,9 @@
  *
  * 路由：/history · 设计稿：history.html 第 1883-2253 行
  *
- * 结构：Page header + 统计概览 4 列（含 sparkline）+ 筛选栏（3 下拉 + 1 搜索）
+ * 结构：PageHeader（全站统一页头原语）+ 统计概览 4 列（含 sparkline）+ 筛选栏（3 下拉 + 1 搜索）
  *       + 决策时间线 6 卡片 + 分页栏（共 247 条 / 1·2·3·…·25）
+ *       页头 full-bleed 直挂页面根，正文在 min-h-0 flex-1 overflow-y-auto 容器里滚动。
  *
  * 数据：静态示例数据 1:1 来自设计稿，无 IPC / 无 mock 随机数据。
  * 筛选搜索为客户端真实过滤（useMemo 作用于 6 条静态记录）。
@@ -17,6 +18,7 @@ import './HistoryPage.css'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Clock, Cpu, Filter, Inbox, Search, Sparkles, UserCircle } from 'lucide-react'
+import { Button, PageHeader } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { buildSparklinePoints, baselineSparkline, type SparklineMetric } from '@/utils/history-sparkline'
@@ -208,10 +210,10 @@ export function HistoryPage() {
 
     if (historyStats) {
       return [
-        { label: '总决策数', value: String(historyStats.total), color: 'var(--trae-bg-brand)', sparkline: sparkFor('count') },
-        { label: '成功率', value: `${(historyStats.successRate * 100).toFixed(1)}%`, color: 'var(--trae-status-success-default)', sparkline: sparkFor('successRate') },
-        { label: '平均置信度', value: historyStats.avgConfidence.toFixed(2), color: 'var(--trae-bg-brand)', sparkline: sparkFor('avgConfidence') },
-        { label: '平均响应时间', value: `${Math.round(historyStats.avgDurationMs / 1000)}s`, color: 'var(--trae-text-secondary)', sparkline: sparkFor('avgDuration') },
+        { label: '总决策数', value: String(historyStats.total), color: 'var(--accent-text)', sparkline: sparkFor('count') },
+        { label: '成功率', value: `${(historyStats.successRate * 100).toFixed(1)}%`, color: 'var(--status-success-text)', sparkline: sparkFor('successRate') },
+        { label: '平均置信度', value: historyStats.avgConfidence.toFixed(2), color: 'var(--accent-text)', sparkline: sparkFor('avgConfidence') },
+        { label: '平均响应时间', value: `${Math.round(historyStats.avgDurationMs / 1000)}s`, color: 'var(--text-tertiary)', sparkline: sparkFor('avgDuration') },
       ]
     }
     const total = records.length
@@ -226,10 +228,10 @@ export function HistoryPage() {
       ? `${Math.round(withDuration.reduce((sum, r) => sum + (r.durationSec ?? 0), 0) / withDuration.length)}s`
       : '—'
     return [
-      { label: '总决策数', value: String(total), color: 'var(--trae-bg-brand)', sparkline: sparkFor('count') },
-      { label: '成功率', value: successRate, color: 'var(--trae-status-success-default)', sparkline: sparkFor('successRate') },
-      { label: '平均置信度', value: avgConfidence, color: 'var(--trae-bg-brand)', sparkline: sparkFor('avgConfidence') },
-      { label: '平均响应时间', value: avgDuration, color: 'var(--trae-text-secondary)', sparkline: sparkFor('avgDuration') },
+      { label: '总决策数', value: String(total), color: 'var(--accent-text)', sparkline: sparkFor('count') },
+      { label: '成功率', value: successRate, color: 'var(--status-success-text)', sparkline: sparkFor('successRate') },
+      { label: '平均置信度', value: avgConfidence, color: 'var(--accent-text)', sparkline: sparkFor('avgConfidence') },
+      { label: '平均响应时间', value: avgDuration, color: 'var(--text-tertiary)', sparkline: sparkFor('avgDuration') },
     ]
   }, [records, historyStats])
 
@@ -272,28 +274,29 @@ export function HistoryPage() {
     return [1, null, currentPage - 1, currentPage, currentPage + 1, null, totalPages]
   }, [currentPage, totalPages])
 
-  const optStyle = { background: 'var(--trae-bg-base-secondary)', color: 'var(--trae-text-default)' }
+  const optStyle = { background: 'var(--trae-bg-base-secondary)', color: 'var(--text-primary)' }
 
   return (
     <main className="hist-page">
-      {/* 1. Page header */}
-      <header className="hist-header">
-        <div className="hist-header-main">
-          <Clock className="shrink-0 w-[22px] h-[22px]" style={{ color: 'var(--trae-bg-brand)' }} />
-          <div className="hist-header-text">
-            <span className="hist-header-title">历史决策</span>
-            <span className="hist-header-subtitle">AI运维决策的完整审计追溯</span>
-          </div>
-        </div>
-        <button
-          type="button" data-dom-id="back-workbench" aria-label="返回工作台"
-          onClick={() => navigate('/workbench')}
-          className="hist-back-btn hist-btn-press"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> 返回工作台
-        </button>
-      </header>
-
+      {/* 1. 页头：全站唯一 PageHeader（字号/位置/高度与其余模块一致） */}
+      <PageHeader
+        icon={Clock}
+        title="历史决策"
+        subtitle="AI运维决策的完整审计追溯"
+        actions={
+          <Button
+            variant="outline"
+            size="md"
+            data-dom-id="back-workbench"
+            aria-label="返回工作台"
+            onClick={() => navigate('/workbench')}
+          >
+            <ArrowLeft className="size-4" />
+            <span>返回工作台</span>
+          </Button>
+        }
+      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* 2. 统计概览 4 列 */}
       <section className="hist-stats">
         {stats.map((stat) => (
@@ -312,26 +315,26 @@ export function HistoryPage() {
         <div className="hist-filter-bar">
           <div className="hist-filter-left">
             <label className="hist-select-wrap">
-              <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+              <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
               <select aria-label="时间范围筛选" value={timeRangeFilter} onChange={(e) => setTimeRangeFilter(e.target.value)} className="hist-select">
                 {TIME_RANGES.map((t) => (<option key={t} style={optStyle}>{t}</option>))}
               </select>
             </label>
             <label className="hist-select-wrap">
-              <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+              <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
               <select aria-label="服务器筛选" value={serverFilter} onChange={(e) => setServerFilter(e.target.value)} className="hist-select">
                 {servers.map((s) => (<option key={s} style={optStyle}>{s}</option>))}
               </select>
             </label>
             <label className="hist-select-wrap">
-              <Filter className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+              <Filter className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
               <select data-dom-id="filter-status" aria-label="状态筛选" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="hist-select">
                 {STATUSES.map((s) => (<option key={s} style={optStyle}>{s}</option>))}
               </select>
             </label>
           </div>
           <div className="hist-search-box">
-            <Search className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+            <Search className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
             <input type="text" data-dom-id="search-history" aria-label="搜索历史决策" placeholder="搜索决策..." value={keyword} onChange={(e) => setKeyword(e.target.value)} className="hist-search-input" />
           </div>
         </div>
@@ -378,10 +381,10 @@ export function HistoryPage() {
                     </div>
                     <div className="hist-decision-meta">
                       <span className="hist-decision-meta-item">
-                        <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />{record.server}
+                        <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />{record.server}
                       </span>
                       <span className="hist-decision-meta-item">
-                        {record.actor === 'ai-agent' ? <Sparkles className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} /> : <UserCircle className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />}
+                        {record.actor === 'ai-agent' ? <Sparkles className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} /> : <UserCircle className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />}
                         {record.actor}
                       </span>
                       <span className="hist-decision-confidence">
@@ -394,7 +397,7 @@ export function HistoryPage() {
                     <p className="hist-decision-desc">{record.desc}</p>
                     <div className="hist-decision-footer">
                       <span className="hist-decision-duration">
-                        <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--trae-text-tertiary)' }} />
+                        <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
                         耗时 <span className="hist-decision-duration-val">{record.durationSec != null ? `${record.durationSec}s` : '—'}</span>
                       </span>
                       <button
@@ -457,6 +460,7 @@ export function HistoryPage() {
           </button>
         </div>
       </footer>
+      </div>
     </main>
   )
 }

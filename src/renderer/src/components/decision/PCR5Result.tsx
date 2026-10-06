@@ -49,20 +49,20 @@ export function PCR5Result({ sources, fusedValue, conflictK }: PCR5ResultProps) 
             key={src.label}
             className="evidence-card flex items-center gap-3 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-base-tertiary)] px-3 py-2 transition-colors hover:bg-[var(--trae-bg-overlay-l1)]"
           >
-            <Icon className="h-4 w-4 shrink-0 text-[var(--trae-text-secondary)]" />
+            <Icon className="h-4 w-4 shrink-0 text-ink-dim" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-[var(--trae-text-default)]">{src.label}</span>
-                <span className="text-micro text-[var(--trae-text-tertiary)]">{src.desc}</span>
+                <span className="text-sm font-medium text-ink">{src.label}</span>
+                <span className="text-micro text-ink-mute">{src.desc}</span>
               </div>
               <div className="mt-1 h-[3px] overflow-hidden rounded-full bg-[var(--trae-bg-overlay-l2)]">
                 <div
-                  className="h-full rounded-full bg-[var(--trae-bg-brand)] transition-all duration-700"
+                  className="h-full rounded-full bg-accent-solid transition-all duration-700"
                   style={{ width: getBarWidth(src.weight) }}
                 />
               </div>
             </div>
-            <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-[var(--trae-text-brand)]">
+            <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-(--accent-text)">
               {src.weight.toFixed(2)}
             </span>
           </div>
@@ -72,18 +72,18 @@ export function PCR5Result({ sources, fusedValue, conflictK }: PCR5ResultProps) 
       {/* D-S 融合公式 + PCR5 冲突再分配 */}
       <div className="mt-1 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-4 py-3">
         <div className="mb-1.5 flex items-center gap-2">
-          <Zap className="h-3.5 w-3.5 text-[var(--trae-text-brand)]" />
-          <span className="text-micro font-medium uppercase tracking-[0.06em] text-[var(--trae-text-secondary)]">
+          <Zap className="h-3.5 w-3.5 text-(--accent-text)" />
+          <span className="text-micro font-medium uppercase tracking-[0.06em] text-ink-dim">
             D-S 融合公式 · PCR5 冲突再分配
           </span>
         </div>
-        <code className="font-mono text-sm tabular-nums text-[var(--trae-text-brand)]">
+        <code className="font-mono text-sm tabular-nums text-(--accent-text)">
           m(A) = Σ m<sub>i</sub>(A) ± K(冲突项) ={' '}
           <strong className="font-semibold">{fusedValue.toFixed(2)}</strong>
         </code>
-        <div className="mt-1.5 flex items-center gap-2 text-micro text-[var(--trae-text-tertiary)]">
+        <div className="mt-1.5 flex items-center gap-2 text-micro text-ink-mute">
           <span className="font-mono">K = {conflictK.toFixed(3)}</span>
-          <span className="text-[var(--trae-text-tertiary)]">·</span>
+          <span className="text-ink-mute">·</span>
           <span>PCR5 按比例分配冲突质量</span>
         </div>
       </div>

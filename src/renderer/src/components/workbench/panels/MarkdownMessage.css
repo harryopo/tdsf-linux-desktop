@@ -8,7 +8,7 @@
 .md-body {
   font-size: 12px;
   line-height: 1.7;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -26,7 +26,7 @@
   margin: 12px 0 6px;
   font-weight: 600;
   line-height: 1.4;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 .md-body .md-h:first-child {
   margin-top: 0;
@@ -44,7 +44,7 @@
 .md-body .md-h5,
 .md-body .md-h6 {
   font-size: 13px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
 }
 
 /* 行内代码 */
@@ -53,9 +53,9 @@
   border-radius: var(--trae-radius-4);
   background: var(--trae-bg-overlay-l2);
   border: 1px solid var(--trae-border-neutral-l1);
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-family: var(--ui-family-code);
   font-size: 12px;
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
 }
 
 /* 代码块 */
@@ -70,7 +70,7 @@
 }
 .md-body .md-code-block code {
   display: block;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  font-family: var(--ui-family-code);
   font-size: 12px;
   line-height: 1.5;
   color: var(--trae-code-text, #e8e8e8);
@@ -80,8 +80,8 @@
   position: absolute;
   top: 4px;
   right: 8px;
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -107,7 +107,7 @@
   padding: 4px 12px;
   border-left: 3px solid var(--trae-border-brand, var(--trae-bg-brand));
   background: var(--trae-bg-overlay-l1);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   border-radius: 0 var(--trae-radius-4) var(--trae-radius-4) 0;
 }
 
@@ -140,7 +140,7 @@
 }
 .md-body .md-table th {
   font-weight: 600;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   background: var(--trae-bg-overlay-l2);
   font-size: 12px;
 }
@@ -153,7 +153,7 @@
 
 /* 链接 */
 .md-body .md-link {
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
   text-decoration: underline;
 }
 .md-body .md-link:hover {
@@ -180,13 +180,13 @@
 .ai-tool-exec-name {
   font-size: 12px;
   font-weight: 600;
-  color: var(--trae-text-default);
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
+  color: var(--text-primary);
+  font-family: var(--ui-family-code);
 }
 .ai-tool-exec-status {
   margin-left: auto;
   font-size: 11px;
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
 }
 /* v2.8：头部状态胶囊（替代底部孤立的“执行成功”行，信息上提不占行） */
 .ai-tool-exec-pill {
@@ -196,16 +196,16 @@
   height: 18px;
   padding: 0 8px;
   border-radius: var(--trae-radius-full);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
 }
 .ai-tool-exec-pill.is-ok {
-  color: var(--trae-status-success-default);
+  color: var(--status-success-text);
   background: var(--trae-status-success-surface-l1, rgba(52, 199, 89, 0.12));
   border: 1px solid var(--trae-status-success-surface-l2, rgba(52, 199, 89, 0.3));
 }
 .ai-tool-exec-pill.is-fail {
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
   background: var(--trae-status-error-surface-l1, rgba(255, 59, 48, 0.12));
   border: 1px solid var(--trae-status-error-surface-l2, rgba(255, 59, 48, 0.3));
 }
@@ -215,7 +215,7 @@
   background: var(--trae-terminal-block-bg, var(--trae-bg-code-block));
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-6);
-  font-family: var(--app-code-font, 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace);
+  font-family: var(--app-code-font, var(--ui-family-code));
   font-size: 12px;
   line-height: 18px;
   color: var(--trae-code-text, #e0e3ee);
@@ -234,7 +234,7 @@
   background: var(--trae-terminal-block-bg, var(--trae-bg-code-block));
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-6);
-  font-family: var(--app-code-font, 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace);
+  font-family: var(--app-code-font, var(--ui-family-code));
   font-size: 12px;
   line-height: 18px;
   /* v2.8：输出用终端绿色系，与命令行区分，更有真终端感 */
@@ -243,7 +243,7 @@
   word-break: break-all;
 }
 .ai-tool-exec-output.is-error {
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
 }
 /* 输出块细滚动条（终端观感） */
 .ai-tool-exec-output::-webkit-scrollbar {
@@ -259,7 +259,7 @@
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
 }
 
@@ -277,7 +277,7 @@
   border-left: 1px solid var(--trae-border-neutral-l1);
   font-size: 11px;
   line-height: 1.6;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 260px;
@@ -296,9 +296,9 @@
 }
 .ai-tool-search-query {
   margin-bottom: 4px;
-  font-family: 'JetBrains Mono', 'SFMono-Regular', 'Consolas', monospace;
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
 }
 .ai-tool-search-output {
   padding: 8px 10px;
@@ -307,14 +307,14 @@
   border-radius: var(--trae-radius-4);
   font-size: 11px;
   line-height: 1.6;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
   overflow-y: auto;
 }
 .ai-tool-search-output.is-error {
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
   border-color: var(--trae-status-error-surface-l2);
 }
 
@@ -341,17 +341,17 @@
   padding: 0 5px;
   border-radius: var(--trae-radius-4);
   background: var(--trae-bg-overlay-l3);
-  font-size: 9px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .ai-tool-badge-brand {
   background: var(--trae-bg-brand-popup);
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
 }
 .ai-tool-badge-error {
   background: var(--trae-status-error-surface-l1);
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
 }
 
 /* 流光文字（设计稿 .shimmer-text，思考中状态） */

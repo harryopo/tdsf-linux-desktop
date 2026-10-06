@@ -105,7 +105,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
         boxShadow: 'var(--trae-shadow-2)',
       }}
     >
-      <Search size={14} style={{ color: 'var(--trae-text-tertiary)' }} />
+      <Search size={14} style={{ color: 'var(--text-muted)' }} />
       <input
         ref={inputRef}
         value={keyword}
@@ -117,7 +117,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
           background: 'transparent',
           border: 'none',
           outline: 'none',
-          color: 'var(--trae-text-default)',
+          color: 'var(--text-primary)',
           fontSize: 12,
           fontFamily: "'JetBrains Mono', monospace",
         }}
@@ -126,7 +126,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
         <span
           style={{
             fontSize: 11,
-            color: 'var(--trae-text-tertiary)',
+            color: 'var(--text-muted)',
             minWidth: 28,
             textAlign: 'center',
             fontFamily: "'JetBrains Mono', monospace",
@@ -177,7 +177,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
           border: '1px solid var(--trae-border-neutral-l1)',
           borderRadius: 4,
           cursor: 'pointer',
-          color: 'var(--trae-text-secondary)',
+          color: 'var(--text-tertiary)',
           display: 'inline-flex',
           alignItems: 'center',
         }}
@@ -194,7 +194,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
           border: '1px solid var(--trae-border-neutral-l1)',
           borderRadius: 4,
           cursor: 'pointer',
-          color: 'var(--trae-text-secondary)',
+          color: 'var(--text-tertiary)',
           display: 'inline-flex',
           alignItems: 'center',
         }}
@@ -210,7 +210,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          color: 'var(--trae-text-secondary)',
+          color: 'var(--text-tertiary)',
           display: 'inline-flex',
           alignItems: 'center',
         }}

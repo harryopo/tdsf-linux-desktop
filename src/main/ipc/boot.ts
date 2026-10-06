@@ -30,9 +30,9 @@ export interface BootLoadingStage {
 
 /** 阶段 → 进度百分比映射（保留 3s 最小展示时长由渲染层控制） */
 const STAGE_PROGRESS: Record<BootStage, { progress: number; message: string }> = {
-  'ipc-ready': { progress: 30, message: '初始化 IPC 通道...' },
-  'sqlite-init': { progress: 60, message: '加载数据库...' },
-  'kb-indexed': { progress: 85, message: '索引知识库...' },
+  'ipc-ready': { progress: 30, message: '正在初始化 IPC 通道…' },
+  'sqlite-init': { progress: 60, message: '正在加载本地数据库…' },
+  'kb-indexed': { progress: 85, message: '正在索引知识库…' },
   done: { progress: 100, message: '就绪 · 点击进入工作台' },
 }
 

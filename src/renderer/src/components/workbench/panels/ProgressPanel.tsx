@@ -9,7 +9,7 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
   return (
     <div className="ai-progress-panel my-4">
       <div className="ai-progress-header">
-        <Zap className="size-3.5 text-[var(--trae-bg-brand)]" />
+        <Zap className="size-3.5 text-(--accent-text)" />
         <span className="ai-progress-title">{panel.title}</span>
         {panel.badge && (
           <span className="ai-progress-badge">
@@ -22,7 +22,7 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
         <button
           type="button"
           onClick={() => onAction?.('pauseExec')}
-          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-sm text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-sm text-ink-dim transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
         >
           <Square className="size-3" />
           停止
@@ -30,7 +30,7 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
         <button
           type="button"
           onClick={() => onAction?.('rollbackExec')}
-          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2.5 text-sm text-[var(--trae-status-error-default)] transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
+          className="btn-press inline-flex h-7 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] px-2.5 text-sm text-(--status-error-text) transition-colors hover:bg-[var(--trae-status-error-surface-l1)]"
         >
           <RotateCcw className="size-3" />
           回滚
@@ -41,8 +41,8 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
           <div key={i} className="ai-progress-step">
             {step.status === 'success' ? (
               <>
-                <CheckCircle2 className="text-[var(--trae-status-success-default)]" />
-                <span className="flex-1 text-[var(--trae-text-secondary)]">{step.label}</span>
+                <CheckCircle2 className="text-(--status-success-text)" />
+                <span className="flex-1 text-ink-dim">{step.label}</span>
                 {typeof step.duration === 'number' && (
                   <span className="ai-step-duration">{step.duration.toFixed(1)}s</span>
                 )}
@@ -50,14 +50,14 @@ const ProgressPanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payloa
             ) : step.status === 'active' ? (
               <>
                 <span className="ai-progress-pulse-step" />
-                <span className="flex-1 text-[var(--trae-text-brand)]">{step.label}</span>
-                {step.hint && <span className="text-sm text-[var(--trae-text-brand)]">{step.hint}</span>}
+                <span className="flex-1 text-(--accent-text)">{step.label}</span>
+                {step.hint && <span className="text-sm text-(--accent-text)">{step.hint}</span>}
               </>
             ) : (
               <>
                 <span className="ai-progress-pending" />
-                <span className="flex-1 text-[var(--trae-text-tertiary)]">{step.label}</span>
-                {step.hint && <span className="text-sm text-[var(--trae-text-tertiary)]">{step.hint}</span>}
+                <span className="flex-1 text-ink-mute">{step.label}</span>
+                {step.hint && <span className="text-sm text-ink-mute">{step.hint}</span>}
               </>
             )}
           </div>

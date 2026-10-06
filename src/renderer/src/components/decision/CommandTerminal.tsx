@@ -49,13 +49,13 @@ export function CommandTerminal({
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--trae-status-success-default)]" />
         </div>
         <div className="flex items-center gap-1.5">
-          <Terminal className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-          <span className="font-mono text-micro text-[var(--trae-text-secondary)]">
+          <Terminal className="h-3 w-3 text-ink-dim" />
+          <span className="font-mono text-micro text-ink-dim">
             决策命令 · #{card.id}
           </span>
         </div>
         {waiting && (
-          <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
+          <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
             等待确认
           </span>
         )}
@@ -64,23 +64,23 @@ export function CommandTerminal({
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-default)] px-4 py-3 font-mono text-composer leading-[1.8]">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-sm text-[var(--trae-text-tertiary)]">$</span>
+            <span className="font-mono text-sm text-ink-mute">$</span>
             <code className="flex-1 break-all">
               {segments.map((seg, i) => (
                 <span
                   key={i}
                   className={
                     seg.type === 'name'
-                      ? 'text-[var(--trae-text-brand)]'
+                      ? 'text-(--accent-text)'
                       : seg.type === 'flag'
-                      ? 'text-[var(--trae-text-default)]'
+                      ? 'text-ink'
                       : seg.type === 'path'
-                      ? 'text-[var(--trae-text-default)]'
+                      ? 'text-ink'
                       : seg.type === 'sym'
-                      ? 'text-[var(--trae-text-tertiary)]'
+                      ? 'text-ink-mute'
                       : seg.type === 'comment'
-                      ? 'text-[var(--trae-text-tertiary)]'
-                      : 'text-[var(--trae-text-default)]'
+                      ? 'text-ink-mute'
+                      : 'text-ink'
                   }
                 >
                   {i > 0 && seg.type !== 'comment' ? ' ' : ''}
@@ -91,7 +91,7 @@ export function CommandTerminal({
           </div>
         </div>
         {card.fixDescription && (
-          <p className="text-caption leading-[1.6] text-[var(--trae-text-secondary)]">
+          <p className="text-caption leading-[1.6] text-ink-dim">
             {card.fixDescription}
           </p>
         )}
@@ -102,7 +102,7 @@ export function CommandTerminal({
             onClick={onAccept}
             disabled={disabled}
             data-dom-id="accept-execute"
-            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-brand)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-50"
+            className="btn-press inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] bg-accent-solid px-3 py-1.5 text-sm font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)] disabled:opacity-50"
           >
             <Check className="h-3.5 w-3.5" />
             采纳并执行
@@ -112,7 +112,7 @@ export function CommandTerminal({
             onClick={onModify}
             disabled={disabled}
             data-dom-id="modify-cmd"
-            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-sm font-medium text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)] disabled:opacity-50"
+            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-3 py-1.5 text-sm font-medium text-ink-dim transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-ink disabled:opacity-50"
           >
             <Edit3 className="h-3.5 w-3.5" />
             修改
@@ -122,7 +122,7 @@ export function CommandTerminal({
             onClick={onReject}
             disabled={confirming}
             data-dom-id="reject-cmd"
-            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.06)] px-3 py-1.5 text-sm font-medium text-[var(--trae-status-error-default)] transition-colors hover:bg-[rgba(246,90,90,0.12)] disabled:opacity-50"
+            className="btn-press inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.06)] px-3 py-1.5 text-sm font-medium text-(--status-error-text) transition-colors hover:bg-[rgba(246,90,90,0.12)] disabled:opacity-50"
           >
             <X className="h-3.5 w-3.5" />
             拒绝

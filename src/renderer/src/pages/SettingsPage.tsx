@@ -5,6 +5,7 @@
  * 设计稿：settings.html 的 ds-panel 卡片网格部分（ds-card ds-card-setting）
  *
  * 结构：
+ *   - PageHeader（标题「设置」，与其他模块同一字号/同一位置）+ 卡片正文区
  *   - 9 个概览卡片（对应 9 个功能模块），grid 布局（md:2 列 / lg:3 列）
  *   - 每个卡片含图标 + 标题 + 描述 + 跳转箭头 + 控件预览（toggle/slider/select/input/num）
  *   - 点击卡片跳转对应页面；控件为静态预览（不绑定交互）
@@ -15,9 +16,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Terminal, Shield, ShieldAlert, BookOpen, GraduationCap, Clock,
+  Settings, Terminal, Shield, ShieldAlert, BookOpen, GraduationCap, Clock,
   Activity, FileText, Power, ChevronRight, type LucideIcon,
 } from 'lucide-react'
+import { PageHeader } from '@/ui'
 import './Settings.css'
 
 type PreviewType = 'toggle' | 'slider' | 'select' | 'input' | 'num'
@@ -244,39 +246,47 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <section className="set-panel-content">
-      <div className="set-quickgrid">
-        {QUICK_ENTRIES.map((entry) => {
-          const Icon = entry.icon
-          return (
-            <Link
-              key={entry.domId}
-              to={entry.to}
-              data-dom-id={entry.domId}
-              aria-label={`进入${entry.title}`}
-              className="ds-card ds-card-setting btn-press"
-            >
-              {/* 卡片头部：图标 + 标题 + 描述 + 跳转箭头 */}
-              <div className="ds-card__head">
-                <div className="ds-card__head-left">
-                  <span className="ds-card__icon">
-                    <Icon size={18} />
-                  </span>
-                  <div className="ds-card__head-text">
-                    <div className="ds-card__title">{entry.title}</div>
-                    <div className="ds-card__desc">{entry.desc}</div>
+    <div className="set-subpage">
+      <PageHeader
+        icon={Settings}
+        title="设置"
+        subtitle="九大功能模块的偏好入口，点卡片进入对应设置页"
+      />
+
+      <div className="set-subpage__body">
+        <div className="set-quickgrid">
+          {QUICK_ENTRIES.map((entry) => {
+            const Icon = entry.icon
+            return (
+              <Link
+                key={entry.domId}
+                to={entry.to}
+                data-dom-id={entry.domId}
+                aria-label={`进入${entry.title}`}
+                className="ds-card ds-card-setting btn-press"
+              >
+                {/* 卡片头部：图标 + 标题 + 描述 + 跳转箭头 */}
+                <div className="ds-card__head">
+                  <div className="ds-card__head-left">
+                    <span className="ds-card__icon">
+                      <Icon size={18} />
+                    </span>
+                    <div className="ds-card__head-text">
+                      <div className="ds-card__title">{entry.title}</div>
+                      <div className="ds-card__desc">{entry.desc}</div>
+                    </div>
                   </div>
+                  <ChevronRight size={16} className="ds-card__arrow" />
                 </div>
-                <ChevronRight size={16} className="ds-card__arrow" />
-              </div>
-              {/* 控件预览：直接铺控件预览，非空入口链接 */}
-              <div className="ds-card__previews">
-                {entry.previews.map((ctrl) => renderPreview(ctrl, previewValues))}
-              </div>
-            </Link>
-          )
-        })}
+                {/* 控件预览：直接铺控件预览，非空入口链接 */}
+                <div className="ds-card__previews">
+                  {entry.previews.map((ctrl) => renderPreview(ctrl, previewValues))}
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       </div>
-    </section>
+    </div>
   )
 }

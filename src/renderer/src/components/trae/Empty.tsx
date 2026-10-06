@@ -32,14 +32,14 @@ function Empty({ icon: Icon, title, description, action, className, ...props }: 
     >
       {Icon && (
         <div className="flex size-12 items-center justify-center rounded-full bg-[var(--trae-bg-overlay-l2)]">
-          <Icon className="size-6 text-[var(--trae-text-tertiary)]" />
+          <Icon className="size-6 text-ink-mute" />
         </div>
       )}
       {title && (
-        <div className="text-composer font-medium text-[var(--trae-text-default)]">{title}</div>
+        <div className="text-composer font-medium text-ink">{title}</div>
       )}
       {description && (
-        <div className="max-w-sm text-sm text-[var(--trae-text-secondary)]">{description}</div>
+        <div className="max-w-sm text-sm text-ink-dim">{description}</div>
       )}
       {action && <div className="mt-2">{action}</div>}
     </div>

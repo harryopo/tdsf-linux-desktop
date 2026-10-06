@@ -188,14 +188,14 @@ export function RiskSettings() {
   const [autoNotify, setAutoNotify] = usePersistentState('risk.autoNotify', true)
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Shield as LucideIcon}
         title="风险控制"
         desc="运维操作安全防护与审计策略"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* Card 1: 安全防护等级 */}
         <SettingsCard icon={Shield} title="安全防护等级" tag="protection.level">
           {/* 3 级单选卡片（带左侧 2px 蓝条 + radio dot） */}
@@ -245,7 +245,7 @@ export function RiskSettings() {
 
         {/* Card 1.5: v2.0 Phase C Task C.6 命令审批模式（三态权限） */}
         <SettingsCard icon={Shield} title="命令审批模式" tag={PERMISSION_MODES.find((m) => m.value === permissionMode)?.label ?? '全部审批'}>
-          <p className="pb-2 pt-1 text-caption leading-[16px] text-[var(--trae-text-secondary)]">
+          <p className="pb-2 pt-1 text-caption leading-[16px] text-ink-dim">
             控制运维 Agent 执行命令时是否需要人工审批。建议生产环境使用「全部审批」或「智能自动」。
           </p>
           <div className="set-radiogroup">
@@ -270,7 +270,7 @@ export function RiskSettings() {
                     <span
                       className={cn(
                         'set-radio-card__title',
-                        selected && isDanger && 'text-[var(--trae-status-error-default)]',
+                        selected && isDanger && 'text-(--status-error-text)',
                       )}
                     >
                       {opt.label}
@@ -279,10 +279,10 @@ export function RiskSettings() {
                       className={cn(
                         'inline-flex h-4 items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 text-micro font-medium',
                         opt.value === 'never'
-                          ? 'bg-[var(--trae-status-error)]/10 text-[var(--trae-status-error)]'
+                          ? 'bg-error/10 text-(--status-error-text)'
                           : opt.value === 'auto'
-                            ? 'bg-[var(--trae-bg-brand)]/15 text-[var(--trae-text-brand)]'
-                            : 'bg-[var(--trae-bg-overlay-l3)] text-[var(--trae-text-secondary)]'
+                            ? 'bg-accent-solid/15 text-(--accent-text)'
+                            : 'bg-hover text-ink-dim'
                       )}
                     >
                       {opt.badge}
@@ -296,7 +296,7 @@ export function RiskSettings() {
             })}
           </div>
           {permissionMode === 'never' && (
-            <div className="mb-1 mt-0.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error)]/30 bg-[var(--trae-status-error)]/10 px-3 py-2 text-caption text-[var(--trae-status-error)]">
+            <div className="mb-1 mt-0.5 rounded-(--ui-radius-control) border border-error/30 bg-error/10 px-3 py-2 text-caption text-(--status-error-text)">
               风险：自动放行模式——所有命令将跳过审批直接执行，仅建议在隔离的演示/沙箱环境使用。
             </div>
           )}
@@ -366,7 +366,7 @@ export function RiskSettings() {
               新增规则
             </button>
             {ruleFeedback && (
-              <span className="text-micro text-[var(--trae-status-success-default)]">
+              <span className="text-micro text-(--status-success-text)">
                 {ruleFeedback}
               </span>
             )}

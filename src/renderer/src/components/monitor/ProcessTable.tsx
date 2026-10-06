@@ -37,17 +37,17 @@ function statusStyle(status: ProcessStatus): { color: string; dot: string } {
   switch (status) {
     case '运行中':
       return {
-        color: 'var(--trae-status-success-default)',
+        color: 'var(--status-success-text)',
         dot: 'var(--trae-status-success-default)',
       }
     case '睡眠':
       return {
-        color: 'var(--trae-text-tertiary)',
+        color: 'var(--text-muted)',
         dot: 'var(--trae-text-tertiary)',
       }
     case '僵尸':
       return {
-        color: 'var(--trae-status-error-default)',
+        color: 'var(--status-error-text)',
         dot: 'var(--trae-status-error-default)',
       }
   }
@@ -123,7 +123,7 @@ function ProcessRowComponent({
     <tr data-mon-hover className="mon-table-row-nocursor">
       <td
         className="mon-table-td-mono whitespace-nowrap tabular-nums"
-        style={{ color: 'var(--trae-text-secondary)', ...noBorderStyle }}
+        style={{ color: 'var(--text-tertiary)', ...noBorderStyle }}
       >
         {pid}
       </td>
@@ -257,11 +257,11 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
           type="button"
           onClick={() => void handleRefresh()}
           disabled={loading || !activeSessionId}
-          className="mon-btn-sm mon-btn-press inline-flex items-center justify-center px-2 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mon-btn-sm mon-btn-press inline-flex items-center justify-center px-2 bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="刷新进程列表"
         >
           <RefreshCw
-            className={`w-3 h-3 text-[var(--trae-text-secondary)] ${spinning ? 'animate-spin' : ''}`}
+            className={`w-3 h-3 text-ink-dim ${spinning ? 'animate-spin' : ''}`}
           />
         </button>
       </div>
@@ -291,7 +291,7 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
             {loading && (
               <tr>
                 <td colSpan={5} className="mon-table-td text-center">
-                  <span className="inline-flex items-center gap-2" style={{ color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>
+                  <span className="inline-flex items-center gap-2" style={{ color: 'var(--text-muted)', fontSize: 'var(--trae-body-sm-font-size)' }}>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     正在获取进程列表...
                   </span>
@@ -300,14 +300,14 @@ export function ProcessTable({ onRefresh }: ProcessTableProps) {
             )}
             {!loading && error && (
               <tr>
-                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-status-error-default)', fontSize: 'var(--trae-body-sm-font-size)' }}>
+                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--status-error-text)', fontSize: 'var(--trae-body-sm-font-size)' }}>
                   {error}
                 </td>
               </tr>
             )}
             {!loading && !error && displayProcesses.length === 0 && (
               <tr>
-                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-sm-font-size)' }}>
+                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--text-muted)', fontSize: 'var(--trae-body-sm-font-size)' }}>
                   {activeSessionId ? '暂无进程数据，点击右上角刷新重试' : '连接 SSH 服务器后展示真实进程列表'}
                 </td>
               </tr>

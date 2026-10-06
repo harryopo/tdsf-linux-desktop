@@ -67,9 +67,10 @@ export function ConfirmHost() {
     <Dialog open={Boolean(state)} onOpenChange={(open) => !open && settle(false)}>
       {opts ? (
         <DialogContent
+          variant="alert"
           title={opts.title}
           description={opts.description}
-          className="w-[min(440px,92vw)]"
+          className="w-[min(420px,92vw)]"
           footer={
             <>
               <Button

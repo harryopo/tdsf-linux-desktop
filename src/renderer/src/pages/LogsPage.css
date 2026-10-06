@@ -22,48 +22,7 @@
 /* ===== 主容器 ===== */
 .log-main {
   background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
-}
-
-/* ===== 1. Header (48px) ===== */
-.log-header {
-  padding: 0 var(--trae-spacer-16);
-  border-bottom: 1px solid var(--trae-border-neutral-l1);
-  background: var(--trae-bg-base-default);
-  height: 48px;
-}
-
-.log-header-left {
-  gap: var(--trae-spacer-12);
-}
-
-.log-header-title {
-  font-family: var(--trae-font-family-heading);
-  font-weight: var(--trae-font-weight-strong);
-  color: var(--trae-text-default);
-  letter-spacing: -0.01em;
-  line-height: 28px;
-  font-size: 18px;
-  width: 111px;
-}
-
-.log-header-subtitle {
-  font-size: var(--trae-body-xs-font-size);
-  line-height: 1;
-  color: var(--trae-text-tertiary);
-  white-space: nowrap;
-}
-
-.log-header-ai-chip {
-  gap: 4px;
-  height: 18px;
-  padding: 0 8px;
-  font-size: 9px;
-  font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-brand);
-  background: var(--trae-bg-brand-popup);
-  border: 1px solid var(--trae-border-brand);
-  border-radius: 3px;
+  color: var(--text-primary);
 }
 
 /* ===== 2. Toolbar ===== */
@@ -99,7 +58,7 @@
   padding: 0 var(--trae-spacer-12) 0 32px;
   font-family: var(--trae-font-family-mono);
   font-size: var(--trae-body-sm-font-size);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   background: var(--trae-bg-base-default);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
@@ -121,7 +80,7 @@
   padding: 0 var(--trae-spacer-12);
   font-size: var(--trae-body-xs-font-size);
   font-weight: var(--trae-font-weight-default);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   background: transparent;
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-4);
@@ -130,7 +89,7 @@
 }
 
 .log-level-btn.active {
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
   background: var(--trae-bg-brand-popup);
   border-color: var(--trae-border-brand);
   font-weight: var(--trae-font-weight-medium);
@@ -149,7 +108,7 @@
   gap: 6px;
   font-size: var(--trae-body-xs-font-size);
   font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
   background: var(--trae-bg-brand-popup);
   border: 1px solid var(--trae-border-brand);
   border-radius: var(--trae-radius-4);
@@ -176,7 +135,7 @@
 }
 
 .log-switch.is-on {
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
 }
 
 .log-switch-thumb {
@@ -202,14 +161,14 @@
 
 .log-autoscroll-text {
   font-size: var(--trae-body-sm-font-size);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   white-space: nowrap;
 }
 
 .log-icon-btn {
   width: 28px;
   height: 28px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   background: transparent;
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
@@ -238,14 +197,14 @@
   gap: var(--trae-spacer-8);
   border-left: 2px solid transparent;
   border-radius: var(--trae-radius-4);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   cursor: pointer;
 }
 
 .log-source-row.is-active {
   border-left: 2px solid var(--trae-border-brand);
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .log-source-icon {
@@ -280,20 +239,20 @@
   min-width: 20px;
   height: 16px;
   padding: 0 var(--trae-spacer-4);
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   background: var(--trae-bg-overlay-l3);
   border-radius: var(--trae-radius-full);
   font-variant-numeric: tabular-nums;
 }
 
 .log-source-count.is-active {
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
   background: var(--trae-bg-brand-popup);
 }
 
 .log-source-count.is-alert {
-  color: var(--trae-status-alert-default);
+  color: var(--status-error-text);
 }
 
 .log-source-divider {
@@ -304,9 +263,9 @@
 
 .log-source-section-label {
   padding: 6px 8px 2px;
-  font-size: 9px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -347,7 +306,7 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   font-family: var(--trae-font-family-mono);
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-variant-numeric: tabular-nums;
 }
 
@@ -356,7 +315,7 @@
 }
 
 .log-stats-count {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-weight: var(--trae-font-weight-medium);
 }
 
@@ -370,7 +329,7 @@
 }
 
 .log-empty {
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   font-size: var(--trae-body-sm-font-size);
   font-family: var(--trae-font-family-default);
   padding: var(--trae-spacer-16);
@@ -383,13 +342,13 @@
 
 .log-row-timestamp {
   width: 92px;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .log-row-separator {
   width: 14px;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   opacity: 0.4;
 }
 
@@ -399,7 +358,7 @@
   justify-content: center;
   width: 52px;
   height: 16px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: var(--trae-font-weight-medium);
   border-radius: var(--trae-radius-2);
 }
@@ -410,7 +369,7 @@
 
 .log-row-source {
   width: 104px;
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -419,7 +378,7 @@
 .log-row-message {
   flex: 1;
   min-width: 0;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -442,7 +401,7 @@
   border-top: 1px solid var(--trae-border-neutral-l1);
   font-family: var(--trae-font-family-mono);
   font-size: 11px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 

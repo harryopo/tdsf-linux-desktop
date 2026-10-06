@@ -222,7 +222,7 @@ test.describe('Demo 9 步主路径', () => {
     await window.waitForSelector('.hist-page', { timeout: 15000 })
 
     // 验证标题"历史决策"
-    const title = await window.locator('.hist-header-title').textContent()
+    const title = await window.locator('[data-dom-id="page-title"]').textContent()
     expect(title?.trim()).toBe('历史决策')
 
     const hash = await window.evaluate(() => window.location.hash)
@@ -272,7 +272,7 @@ test.describe('Demo 9 步主路径', () => {
     await window.waitForSelector('.kb-page', { timeout: 15000 })
 
     // 验证标题"运维知识库"
-    const title = await window.locator('.kb-header__title').textContent()
+    const title = await window.locator('[data-dom-id="page-title"]').textContent()
     expect(title?.trim()).toBe('运维知识库')
 
     const hash = await window.evaluate(() => window.location.hash)

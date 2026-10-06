@@ -115,7 +115,7 @@ const CalibrationSettings = lazy(() =>
 /** Suspense 加载占位 */
 function PageLoading() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-[var(--trae-bg-base-default)] text-[var(--trae-text-tertiary)]">
+    <div className="flex h-full w-full items-center justify-center bg-[var(--trae-bg-base-default)] text-ink-mute">
       <span className="text-md">加载中...</span>
     </div>
   )

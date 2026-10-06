@@ -56,6 +56,12 @@
   --color-error: var(--status-error);
   --color-danger: var(--status-danger);
   --color-info: var(--status-info);
+  /* 状态文字档：chip / banner 里的文字用这组，不用上面的纯色（纯色当字在 soft 底上不到 AA） */
+  --color-success-text: var(--status-success-text);
+  --color-warning-text: var(--status-warning-text);
+  --color-error-text: var(--status-error-text);
+  --color-danger-text: var(--status-danger-text);
+  --color-info-text: var(--status-info-text);
 
   /* shadcn 兼容名（旧引用） */
   --color-background: var(--bg-primary);
@@ -105,7 +111,9 @@
   --text-head: var(--ui-font-head);
   --text-head--line-height: var(--ui-lh-tight);
   --text-display: var(--ui-font-display);
-  --text-display--line-height: 36px; /* 与决策页原 leading-[36px] 等值，随档位成对给出 */
+  --text-display--line-height: var(--ui-lh-tight); /* 30px × 1.3 */
+  --text-splash: var(--ui-font-splash);
+  --text-splash--line-height: var(--ui-lh-none); /* 启动页字标单行，行高取 1 */
 
   /* 原子尺寸与间距步长：Tailwind 的间距工具类默认 0.25rem，这里显式钉成 4px，
      与 ui-tokens 的 4 步进一致，组件里就不该再出现写死的 px 间距 */

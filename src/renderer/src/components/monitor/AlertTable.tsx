@@ -136,7 +136,7 @@ function AlertRow({
       data-mon-hover
       className="mon-table-row"
     >
-      <td className="mon-table-td whitespace-nowrap tabular-nums" style={{ color: 'var(--trae-text-secondary)' }}>
+      <td className="mon-table-td whitespace-nowrap tabular-nums" style={{ color: 'var(--text-tertiary)' }}>
         {record.time}
       </td>
       <td className="mon-table-td whitespace-nowrap">
@@ -222,21 +222,21 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
             title={filterOn ? '取消筛选未处理' : '筛选未处理'}
             className={
               filterOn
-                ? 'mon-btn-sm mon-btn-press inline-flex items-center gap-1 px-2 text-[var(--trae-text-onbrand)] bg-[var(--trae-bg-brand)] border border-[var(--trae-bg-brand)] rounded-[var(--trae-radius-4)] cursor-pointer'
-                : 'mon-btn-sm mon-btn-press inline-flex items-center gap-1 px-2 text-[var(--trae-text-secondary)] bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-[var(--trae-bg-overlay-l3)]'
+                ? 'mon-btn-sm mon-btn-press inline-flex items-center gap-1 px-2 text-[var(--trae-text-onbrand)] bg-accent-solid border border-[var(--trae-bg-brand)] rounded-[var(--trae-radius-4)] cursor-pointer'
+                : 'mon-btn-sm mon-btn-press inline-flex items-center gap-1 px-2 text-ink-dim bg-[var(--trae-bg-overlay-l2)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)] cursor-pointer hover:bg-hover'
             }
           >
             <Filter className="w-3 h-3" />
             <span>筛选</span>
           </button>
           <div className="mon-btn-sm inline-flex items-center gap-1 px-2 bg-[var(--trae-bg-overlay-l1)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)]">
-            <Search className="w-3 h-3 text-[var(--trae-text-tertiary)]" />
+            <Search className="w-3 h-3 text-ink-mute" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索告警..."
-              className="bg-transparent border-none outline-none text-[var(--trae-text-default)] w-[100px]"
+              className="bg-transparent border-none outline-none text-ink w-[100px]"
               style={{ fontSize: 'var(--trae-body-xs-font-size)' }}
             />
           </div>
@@ -268,7 +268,7 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
             ))}
             {visibleAlerts.length === 0 && (
               <tr>
-                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--trae-text-tertiary)' }}>
+                <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--text-muted)' }}>
                   暂无告警，系统运行正常
                 </td>
               </tr>

@@ -36,10 +36,6 @@
   padding: 8px 12px !important;
 }
 
-.mon-header {
-  padding-bottom: 10px !important;
-  margin-bottom: 10px !important;
-}
 
 .mon-btn-sm {
   height: 26px !important;
@@ -58,87 +54,7 @@ table.mon-table td {
   padding: 7px 10px !important;
 }
 
-/* ===== 主容器 =====
- *
- * monitor.html 特有 density override（覆盖全局 trae-tokens.css）
- * 1:1 对齐 monitor.html 第 364-404 行 :root density override 块
- * - spacer 压缩：16/24/32/40 → 12/16/24/32px（信息密度更高）
- * - 字号压缩：body-sm=11px / heading-xs=12px / heading-sm=12px / heading-lg=20px / heading-2xl=20px
- * - 作用域限定 .mon-main，不影响其他页面
- */
-.mon-main {
-  /* spacer 压缩 */
-  --trae-spacer-16: 12px;
-  --trae-spacer-24: 16px;
-  --trae-spacer-32: 24px;
-  --trae-spacer-40: 32px;
 
-  /* 字号压缩 — 正文 */
-  --trae-body-xs-font-size: 10px;
-  --trae-body-xs-line-height: 14px;
-  --trae-body-sm-font-size: 11px;
-  --trae-body-sm-line-height: 16px;
-  --trae-body-sm-strong-font-size: 11px;
-  --trae-body-sm-strong-line-height: 16px;
-  --trae-body-md-font-size: 11px;
-  --trae-body-md-line-height: 16px;
-  --trae-body-md-strong-font-size: 11px;
-  --trae-body-md-strong-line-height: 16px;
-  --trae-body-base-font-size: 11px;
-  --trae-body-base-line-height: 16px;
-  --trae-body-base-strong-font-size: 11px;
-  --trae-body-base-strong-line-height: 16px;
-
-  /* 字号压缩 — 标题 */
-  --trae-heading-3xs-font-size: 10px;
-  --trae-heading-3xs-line-height: 14px;
-  --trae-heading-2xs-font-size: 12px;
-  --trae-heading-2xs-line-height: 16px;
-  --trae-heading-xs-font-size: 12px;
-  --trae-heading-xs-line-height: 16px;
-  --trae-heading-sm-font-size: 12px;
-  --trae-heading-sm-line-height: 16px;
-  --trae-heading-md-font-size: 20px;
-  --trae-heading-md-line-height: 26px;
-  --trae-heading-lg-font-size: 20px;
-  --trae-heading-lg-line-height: 26px;
-  --trae-heading-xl-font-size: 20px;
-  --trae-heading-xl-line-height: 26px;
-  --trae-heading-2xl-font-size: 20px;
-  --trae-heading-2xl-line-height: 26px;
-  --trae-heading-3xl-font-size: 24px;
-  --trae-heading-3xl-line-height: 30px;
-
-  /* 字号压缩 — 代码 */
-  --trae-code-editor-font-size: 11px;
-  --trae-code-editor-line-height: 16px;
-  --trae-code-terminal-font-size: 11px;
-  --trae-code-terminal-line-height: 16px;
-
-  background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
-  padding: 16px;
-}
-
-/* ===== 页面头部 ===== */
-.mon-header-bar {
-  border-bottom: 1px solid var(--trae-border-neutral-l1);
-}
-
-.mon-title {
-  font-family: var(--trae-font-family-heading);
-  font-size: var(--trae-heading-2xl-font-size);
-  line-height: var(--trae-heading-2xl-line-height);
-  font-weight: var(--trae-font-weight-strong);
-  color: var(--trae-text-default);
-  text-wrap: balance;
-}
-
-.mon-subtitle {
-  font-size: var(--trae-body-xs-font-size);
-  line-height: var(--trae-body-xs-line-height);
-  color: var(--trae-text-tertiary);
-}
 
 /* ===== 时间范围切换组 ===== */
 .mon-range-group {
@@ -150,7 +66,7 @@ table.mon-table td {
 .mon-range-label {
   font-size: var(--trae-body-xs-font-size);
   font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   background: transparent;
   border: none;
   border-radius: var(--trae-radius-4);
@@ -160,7 +76,7 @@ table.mon-table td {
 }
 
 .mon-range-label:hover:not(.active) {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   background: var(--trae-bg-overlay-l1);
 }
 
@@ -171,7 +87,7 @@ table.mon-table td {
 
 .mon-range-label.active {
   color: var(--trae-text-onbrand) !important;
-  background: var(--trae-bg-brand) !important;
+  background: var(--accent-solid) !important;
 }
 
 .mon-btn-refresh {
@@ -213,12 +129,12 @@ table.mon-table td {
 .mon-alert-desc {
   font-size: var(--trae-body-sm-font-size);
   line-height: var(--trae-body-sm-line-height);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .mon-alert-time {
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
 }
 
 /* ===== KPI 卡片 ===== */
@@ -253,13 +169,13 @@ table.mon-table td {
   font-variant-numeric: tabular-nums;
   font-size: 16px;
   font-weight: 600;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   line-height: 1;
 }
 
 .mon-kpi-ring-unit {
-  font-size: 9px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   line-height: 1;
   margin-top: 1px;
 }
@@ -280,7 +196,7 @@ table.mon-table td {
 
 .mon-kpi-label {
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   font-weight: 500;
   letter-spacing: 0.04em;
 }
@@ -290,7 +206,7 @@ table.mon-table td {
   font-variant-numeric: tabular-nums;
   font-size: var(--trae-body-sm-strong-font-size);
   font-weight: 600;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .mon-kpi-trend {
@@ -305,7 +221,7 @@ table.mon-table td {
 }
 
 .mon-kpi-trend-text {
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
 }
 
 /* ===== 网络迷你图 ===== */
@@ -342,7 +258,7 @@ table.mon-table td {
 .mon-chart-title {
   font-size: var(--trae-heading-xs-font-size);
   font-weight: var(--trae-font-weight-strong);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .mon-chart-value {
@@ -350,12 +266,12 @@ table.mon-table td {
   font-variant-numeric: tabular-nums;
   font-size: var(--trae-heading-xs-font-size);
   font-weight: var(--trae-font-weight-strong);
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
 }
 
 .mon-chart-legend {
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
 }
 
 .mon-chart-dot {
@@ -367,13 +283,13 @@ table.mon-table td {
 
 .mon-chart-hint {
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .mon-chart-axis {
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -392,7 +308,7 @@ table.mon-table td {
 .mon-table-panel-title {
   font-size: var(--trae-heading-xs-font-size);
   font-weight: var(--trae-font-weight-strong);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .mon-table-count {
@@ -404,7 +320,7 @@ table.mon-table td {
   white-space: nowrap;
   font-size: var(--trae-body-xs-font-size);
   background: var(--trae-bg-overlay-l3);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   border-radius: var(--trae-radius-2);
   font-variant-numeric: tabular-nums;
 }
@@ -418,7 +334,7 @@ table.mon-table td {
   white-space: nowrap;
   font-size: var(--trae-body-xs-font-size);
   background: var(--trae-bg-brand-popup);
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
   border-radius: var(--trae-radius-2);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -437,7 +353,7 @@ table.mon-table td {
   padding: 8px 12px;
   font-size: var(--trae-body-xs-font-size);
   font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   border-bottom: 1px solid var(--trae-border-neutral-l1);
@@ -503,14 +419,14 @@ table.mon-table td {
 /* ===== AlertDrawer ===== */
 .mon-drawer-detail-label {
   font-size: var(--trae-body-sm-font-size);
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   min-width: 60px;
   flex-shrink: 0;
 }
 
 .mon-drawer-detail-value {
   font-size: var(--trae-body-base-font-size);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   flex: 1;
   min-width: 0;
   word-break: break-word;
@@ -519,7 +435,7 @@ table.mon-table td {
 .mon-drawer-section-title {
   font-size: var(--trae-body-sm-font-size);
   font-weight: 600;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -527,13 +443,13 @@ table.mon-table td {
 .mon-drawer-section-text {
   font-size: var(--trae-body-sm-font-size);
   line-height: var(--trae-body-sm-line-height);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .mon-drawer-title {
   font-size: var(--trae-heading-sm-font-size);
   font-weight: 600;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   line-height: var(--trae-heading-sm-line-height);
   word-break: break-word;
 }
@@ -546,9 +462,9 @@ table.mon-table td {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
   color: var(--trae-text-onbrand);
   font-family: var(--trae-font-family-mono);
 }
@@ -556,7 +472,7 @@ table.mon-table td {
 .mon-drawer-step-text {
   font-size: var(--trae-body-sm-font-size);
   line-height: var(--trae-body-sm-line-height);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   word-break: break-word;
 }
 
@@ -569,7 +485,7 @@ table.mon-table td {
   justify-content: center;
   border-radius: var(--trae-radius-4);
   cursor: pointer;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   transition: background-color 0.15s ease;
 }
 
@@ -584,7 +500,7 @@ table.mon-table td {
   padding: 0 12px;
   font-size: var(--trae-body-sm-font-size);
   font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   background: var(--trae-bg-overlay-l2);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
@@ -617,11 +533,11 @@ table.mon-table td {
   padding: 0 12px;
   font-size: var(--trae-body-sm-font-size);
   font-weight: var(--trae-font-weight-medium);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .mon-empty-action:hover {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }

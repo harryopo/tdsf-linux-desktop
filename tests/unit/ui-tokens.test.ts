@@ -81,13 +81,27 @@ const CONTRAST_PAIRS: [string, string, string][] = [
   ['--text-primary', '--bg-elevated', '正文 / 浮层'],
   ['--text-secondary', '--bg-primary', '强调文字 / 画布'],
   ['--text-tertiary', '--bg-primary', '摘要文字 / 画布'],
+  ['--text-tertiary', '--bg-hover', '摘要文字 / hover 底（最浅的一档背景）'],
+  ['--text-tertiary', '--bg-active', '摘要文字 / active 底'],
   ['--text-muted', '--bg-primary', '时间戳 / 画布'],
+  ['--text-muted', '--bg-elevated', '时间戳 / 浮层'],
+  ['--text-muted', '--bg-active', '时间戳 / active 底'],
+  ['--text-placeholder', '--bg-tertiary', '输入占位 / 输入底'],
+  ['--text-placeholder', '--bg-elevated', '输入占位 / 浮层输入底'],
   ['--accent-text', '--bg-primary', '链接 / 画布'],
   ['--text-on-accent', '--accent-solid', '主按钮文字 / 按钮底'],
   ['--status-success', '--bg-primary', '成功色 / 画布'],
   ['--status-warning', '--bg-primary', '警告色 / 画布'],
   ['--status-error', '--bg-primary', '错误色 / 画布'],
   ['--status-danger', '--bg-primary', '危险色 / 画布'],
+  // chip / banner 里的文字用 -text 档：纯色状态字压在 soft 底上实测只有 2.16–3.9:1
+  ['--status-success-text', '--bg-elevated', '成功 chip 文字 / 浮层'],
+  ['--status-warning-text', '--bg-elevated', '警告 chip 文字 / 浮层'],
+  ['--status-error-text', '--bg-elevated', '错误 chip 文字 / 浮层'],
+  ['--status-danger-text', '--bg-elevated', '危险 chip 文字 / 浮层'],
+  ['--status-info-text', '--bg-elevated', '信息 chip 文字 / 浮层'],
+  ['--status-success-text', '--bg-hover', '成功 chip 文字 / hover 底'],
+  ['--status-error-text', '--bg-hover', '错误 chip 文字 / hover 底'],
   ['--bubble-user-text', '--bubble-user-bg', '用户气泡文字 / 气泡底'],
   ['--role-assistant', '--bg-primary', 'AI 角色标识色 / 画布'],
 ]
@@ -151,14 +165,18 @@ describe('ui-tokens.css（cc-gui 令牌层）', () => {
     const scaleOf = (prefix: string): string[] =>
       [...dark.keys()].filter((n) => n.startsWith(prefix)).map((n) => dark.get(n)!)
 
-    // cc-gui 实测：radius 4/6/8 为骨干，另加行内 code 3、气泡 12、pill
-    const allowed = new Set(['3px', '4px', '6px', '8px', '12px', '999px'])
+    // Apple 美学刻度：6 行内 / 10 控件 / 14 卡片 / 18 面板 / 22 气泡 + pill。
+    // 嵌套遵守 concentricity：内层圆角 = 外层圆角 − 内缩距离，算出 ≤0 就用直角。
+    const allowed = new Set(['6px', '10px', '14px', '18px', '22px', '999px'])
     const radii = scaleOf('--ui-radius-')
     expect(radii.length).toBe(6)
     expect(radii.filter((v) => !allowed.has(v))).toEqual([])
 
-    // 字号：10/11/12/13/13.5/14/15/16 + 展示档 28（决策页 KPI，原 28px 与 30px 两种合并为一档）
-    expect(scaleOf('--ui-font-').filter((v) => !/^(10|11|12|13|13\.5|14|15|16|28)px$/.test(v))).toEqual([])
+    // 字号：Trae 中等密度档 11/12/13/14/15/16/17/20 + 展示档 30 + 启动页字标 44。10px 整档已废（AA 底线）
+    expect(
+      scaleOf('--ui-font-').filter((v) => !/^(11|12|13|14|15|16|17|20|30|44)px$/.test(v))
+    ).toEqual([])
+    expect(scaleOf('--ui-font-').filter((v) => parseInt(v, 10) < 11)).toEqual([])
 
     // 时长三档 / 层级六档
     expect(scaleOf('--ui-dur-').sort()).toEqual(['150ms', '200ms', '300ms'])
@@ -203,15 +221,24 @@ describe('字阶单源（阶段 E6）', () => {
     expect(hits.length, `这些文件还在写死字号：\n${hits.join('\n')}`).toBe(0)
   })
 
+  it('页面不许自写标题栏：h1 只能出自 ui/PageHeader（BootPage 的字标除外）', () => {
+    const hits = tsxFiles(path.join(RENDERER, 'pages'))
+      .filter((f) => !f.endsWith('BootPage.tsx'))
+      .filter((f) => /<h1[\s>]/.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => f.split(ROOT).pop().replace(/\\/g, '/'))
+    expect(
+      hits.length,
+      `这些页面还在自写 <h1>，改用 <PageHeader>：\n${hits.join('\n')}`
+    ).toBe(0)
+  })
+
   it('tailwind 的 --text-* 档位全部回落到 ui-tokens 的字号/行高刻度', () => {
     const tw = fs.readFileSync(path.join(RENDERER, 'styles/tailwind.css'), 'utf8')
     const pairs = [...tw.matchAll(/--text-([a-z-]+?)(--line-height)?:\s*([^;]+);/g)]
     expect(pairs.length).toBeGreaterThan(0)
     for (const m of pairs) {
       const isLh = Boolean(m[2])
-      // 展示档的行高是设计定值（36px），其余必须回落刻度
-      const exempt = m[1] === 'display' && isLh
-      if (exempt) continue
+      // 没有例外档：展示档的行高也曾写成 36px 定值，2026-10-05 起统一回落到 --ui-lh-* 刻度
       expect(
         m[3].trim(),
         `${isLh ? '行高' : '字号'}档没有回落到 --ui-${isLh ? 'lh' : 'font'}-*：${m[0]}`,

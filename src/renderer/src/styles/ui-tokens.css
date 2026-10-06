@@ -30,9 +30,12 @@
   /* ===== 2. 文字 ===== */
   --text-primary: #cccccc; /* 正文 */
   --text-secondary: #e0e0e0; /* 需要比正文更亮的名称/标题 */
-  --text-tertiary: #9aa0a6; /* 摘要、参数、说明：#858585 只有 4.52，叠一层透明度就掉出 AA */
-  --text-muted: #8b9096; /* 时间戳、快捷键片：cc-gui 原值 #666 在 #1e1e1e 上只有 2.90:1 */
-  --text-placeholder: #858b92;
+  /* 下面三档的取值口径：在 canvas/panel/sunken/elevated/hover/active 六种底上全部 ≥4.5:1。
+     旧值 #9aa0a6 / #8b9096 / #858b92 在 hover(#35373c) 与 active(#37373d) 底上只有 3.4–4.5，
+     2026-10-05 真机量出设置页 28 处、监控 12 处不达标，就是这三档造成的。 */
+  --text-tertiary: #a3a9b0; /* 摘要、参数、说明 */
+  --text-muted: #9ba1a8; /* 时间戳、快捷键片 */
+  --text-placeholder: #a2a8af; /* 输入占位：AA 要求与正文同级，不给浅灰特权 */
   --text-on-accent: #ffffff;
 
   /* ===== 3. 边框 ===== */
@@ -45,9 +48,10 @@
   --accent: #007fd4;
   --accent-hover: #026ec1;
   --accent-active: #0060a0;
-  /* accent-text：链接、角色名、行内强调——在深底上 ≥4.5:1 */
-  --accent-text: #4a90e2;
-  --accent-text-hover: #6aa9e8;
+  /* accent-text：链接、角色名、行内强调——在深底上 ≥4.5:1。
+     旧值 #4a90e2 在 hover/active 底上只有 3.6:1，真机量出 12 处"品牌色小字"不达标。 */
+  --accent-text: #6aa9e8;
+  --accent-text-hover: #8ac0f2;
   /* accent-solid：主按钮底，配 --text-on-accent 白字 ≥4.5:1 */
   --accent-solid: #0a6cb5;
   --accent-solid-hover: #0a5f9e;
@@ -64,6 +68,13 @@
   --status-warning-soft: rgba(255, 152, 0, 0.15);
   --status-error-soft: rgba(244, 67, 54, 0.15);
   --status-info-soft: rgba(100, 181, 246, 0.15);
+  /* 状态文字：不能直接拿状态色当字色。实测 --status-error 在 error-soft 上只有 3.23:1，
+     风险等级"高"那个 chip 就是这样量出 2.16:1 的。文字一律用同色相更亮的一档。 */
+  --status-success-text: #7ee081;
+  --status-warning-text: #ffb54d;
+  --status-error-text: #ff8a80;
+  --status-danger-text: #ffa8a8;
+  --status-info-text: #8ac9ff;
 
   /* ===== 6. 消息流 ===== */
   --message-divider: rgba(255, 255, 255, 0.04);
@@ -118,18 +129,23 @@
   --scrollbar-thumb: #424242;
   --scrollbar-thumb-hover: #4f4f4f;
 
-  /* 阴影 */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  /* 阴影：Apple 的层次靠"大范围、低不透明度"的软阴影表达，不靠描边加硬投影叠着。
+     规则：一个浮层只允许一层阴影；有阴影就不再叠 1px 边框做装饰。 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.48);
 
   /* ===== 7. 尺度（--ui- 前缀避免与旧的 radius/space 别名撞名） ===== */
-  /* 圆角：cc-gui 全量统计只事实性使用 4/6/8（+行内 code 3、气泡 12、pill） */
-  --ui-radius-inline: 3px;
-  --ui-radius-control: 4px; /* 按钮、图标钮、chip、输入 */
-  --ui-radius-card: 6px; /* 工具块行内卡、badge 容器 */
-  --ui-radius-panel: 8px; /* task-container、dialog、composer */
-  --ui-radius-bubble: 12px; /* 用户气泡、permission 顶角 */
+  /* 圆角：2026-10-06 按用户"要苹果美学、圆角多一些"重排。
+     Apple 的嵌套规则（HIG / 窗口圆角演进）：内层曲率要"正好嵌在外层容器的圆角里"，
+     即 inner ≈ outer − 内边距。所以档位之间留出差值，不是随手递增：
+       行内 6 → 控件 10 → 卡片 14 → 面板/弹窗 18 → 气泡 22 → pill
+     卡片 14 与 Apple 的 RoundedRectangle(12) 材质卡同量级；弹窗 18 接近 macOS 窗口观感。 */
+  --ui-radius-inline: 6px;
+  --ui-radius-control: 10px; /* 按钮、输入、图标钮、chip、菜单项 */
+  --ui-radius-card: 14px; /* 卡片、面板内区块、下拉菜单容器 */
+  --ui-radius-panel: 18px; /* 弹窗、抽屉、composer */
+  --ui-radius-bubble: 22px; /* 消息气泡、超大容器 */
   --ui-radius-pill: 999px;
 
   /* 间距：4 步进，6/8 是"图标-文字"与"chip-chip"的默认档 */
@@ -146,16 +162,18 @@
   --ui-family-ui: 'Inter', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
   --ui-family-code: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
 
-  /* 字号档位（cc-gui 事实分布 10/11/12/13/14，正文 13.5，再大跳 15/16） */
-  --ui-font-micro: 10px; /* 状态点旁注、进度 */
-  --ui-font-caption: 11px; /* 时间戳、参数 label、badge */
-  --ui-font-sm: 12px; /* 摘要、说明、thinking 正文 */
-  --ui-font-md: 13px; /* 工具名、控件文字 */
-  --ui-font-body: 13.5px; /* 消息正文与 markdown（全应用唯一正文档） */
-  --ui-font-composer: 14px; /* 输入区（比正文大，方便长文编辑） */
-  --ui-font-title: 15px; /* 弹窗标题 */
-  --ui-font-head: 16px; /* 页面级标题 */
-  --ui-font-display: 28px; /* KPI 大数字 / 决策页金额级展示（line-height 36px 随档位一起给） */
+  /* 字号档位（2026-10-05 按用户选定的 Trae 中等密度重排；旧 cc-gui 13.5 正文档偏密）
+     硬底线 11px：10px 档在真机量出 4.18:1 的低对比文字最多，整档取消。 */
+  --ui-font-micro: 11px; /* 最低可读底线：状态点旁注、进度百分比 */
+  --ui-font-caption: 12px; /* 时间戳、参数 label、badge、chip */
+  --ui-font-sm: 13px; /* 摘要、说明、thinking 正文 */
+  --ui-font-md: 14px; /* 控件文字、列表项、表格 */
+  --ui-font-body: 15px; /* 消息正文与 markdown（全应用唯一正文档） */
+  --ui-font-composer: 16px; /* 输入区 */
+  --ui-font-title: 17px; /* 弹窗标题 */
+  --ui-font-head: 20px; /* 页面级标题 */
+  --ui-font-display: 30px; /* KPI 大数字（line-height 38px 随档位一起给） */
+  --ui-font-splash: 44px; /* 仅启动页字标一处；界面内不许引用（tests 里按用量卡） */
 
   /* 行高：只有 1 / 1.2 / 1.3 / 1.4 / 1.5 / 1.6 */
   --ui-lh-none: 1; /* 图标按钮与 badge，消 inline 基线间隙 */
@@ -169,16 +187,21 @@
   --ui-weight-medium: 500; /* 控件文字与名称 */
   --ui-weight-semibold: 600; /* 标题、强调、徽标 */
 
-  /* 原子尺寸：图标按钮 24/28/32，状态点 8（pending 12 旋转环），行高 32 */
-  --ui-size-icon-sm: 20px;
-  --ui-size-icon-md: 24px;
-  --ui-size-icon-lg: 28px;
-  --ui-size-icon-xl: 32px;
+  /* 原子尺寸：图标按钮 28/32/36，状态点 8（pending 12 旋转环），行高 34
+     2026-10-06：用户反馈"左侧 IDE 的 UI 太小了"，活动栏 38→56、图标 20→22、栏内项 40 高。
+     Apple 的最小可点目标口径是 44pt（iOS），桌面端按 40 高 + 22 图标执行，留白靠 inset 给。 */
+  --ui-size-icon-sm: 24px;
+  --ui-size-icon-md: 28px;
+  --ui-size-icon-lg: 32px;
+  --ui-size-icon-xl: 36px;
+  --ui-size-glyph: 20px; /* 活动栏/空态图标本体 */
   --ui-size-dot: 8px;
-  --ui-size-row: 32px;
-  --ui-size-rail: 38px; /* IDE 外壳活动栏（借 clone/Lithe 的 38px，不是 cc-gui 的） */
-  --ui-size-titlebar: 40px;
-  --ui-size-statusbar: 24px;
+  --ui-size-row: 34px;
+  --ui-size-rail: 64px; /* IDE 外壳活动栏（原 38px 太小：图标 18px、无文字标签） */
+  --ui-size-rail-item: 52px;
+  --ui-size-page-header: 56px; /* PageHeader 唯一高度，八个模块左上角对齐靠它 */
+  --ui-size-titlebar: 44px;
+  --ui-size-statusbar: 26px;
 
   /* 动效：微反馈 150ms / 状态切换 200ms / 入场 300ms */
   --ui-dur-fast: 150ms;
@@ -221,9 +244,11 @@
 
   --text-primary: #333333;
   --text-secondary: #1a1a1a;
-  --text-tertiary: #616468;
-  --text-muted: #6b7177;
-  --text-placeholder: #8a8f95;
+  /* 浅色同理：这三档要在 white/sec/ter/ele/hov/act 六种底上都 ≥4.5:1。
+     旧值 #616468 / #6b7177 / #8a8f95 在 #d6d6d6 上只有 4.09 / 3.40 / 2.24。 */
+  --text-tertiary: #4e5155;
+  --text-muted: #54575b;
+  --text-placeholder: #5b6066;
   --text-on-accent: #ffffff;
 
   --border-primary: #d0d0d0;
@@ -248,6 +273,12 @@
   --status-warning-soft: rgba(164, 101, 15, 0.12);
   --status-error-soft: rgba(197, 15, 31, 0.1);
   --status-info-soft: rgba(11, 98, 181, 0.1);
+  /* 浅色里状态文字要比状态色更暗，才压得住 soft 底 */
+  --status-success-text: #0b5c0b;
+  --status-warning-text: #7a4b0b;
+  --status-error-text: #a80d1a;
+  --status-danger-text: #940b16;
+  --status-info-text: #095196;
 
   --message-divider: rgba(0, 0, 0, 0.06);
   --bubble-user-bg: #0f6cbd;

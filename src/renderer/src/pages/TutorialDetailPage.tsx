@@ -5,8 +5,8 @@
  * 设计稿：tdsf-linux-redesign/pages/tutorial-detail.html
  * Spec: build-runnable-tdsf-from-design · Task 2.7
  *
- * 结构（4 section，1:1 对齐设计稿）：
- *   1. Page Header：返回教程 + 居中标题/副标题 + 难度/时长/进度 tag
+ * 结构（4 section）：
+ *   1. 页头：全站唯一 PageHeader 原语（图标 + 标题/副标题 + 返回按钮与难度/时长/进度 Chip，左上角对齐其余模块）
  *   2. 章节进度条卡片：5 章节（2 完成 + 1 进行中蓝脉冲 + 2 待学习）
  *   3. 两栏布局：左栏（当前章节 + 实践 + 知识检查）+ 右栏（目录 + 相关课程）
  *   4. sticky 底部学习统计栏：已学习时长 + 进度条 + 继续学习按钮
@@ -22,7 +22,7 @@ import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
   Terminal, List, Star, ChevronRight, Loader2,
 } from 'lucide-react'
-import { Button, Dialog, DialogContent } from '@/ui'
+import { Button, Chip, Dialog, DialogContent, PageHeader } from '@/ui'
 import type { TutorialEntry } from '@shared/tutorial-types'
 import { TUTORIAL_DIFFICULTY_LABELS } from '@shared/tutorial-types'
 import './TutorialPage.css'
@@ -695,54 +695,61 @@ export function TutorialDetailPage() {
     }
   }
 
-  return (
-    <main className="tut-detail-page" style={{ color: 'var(--trae-text-default)', height: '100%', overflowY: 'auto' }}>
-      {/* loading 占位：真实数据加载中时显示旋转图标（避免短暂空白） */}
-      {loading && (
+  // loading 占位：真实数据加载中时显示旋转图标（避免短暂空白）
+  if (loading) {
+    return (
+      <main className="tut-detail-page flex h-full w-full flex-col">
         <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-dim">
           <Loader2 className="size-4 animate-spin" aria-hidden />
           加载教程条目…
         </div>
-      )}
-      {!loading && notFound && (
-        // v2.6 去假：条目不存在的诚实空态（替代原来静默展示的设计稿假教程）
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '80px 0', color: 'var(--trae-text-tertiary)' }}>
-          <Info size={32} />
-          <div style={{ fontSize: 14, color: 'var(--trae-text-secondary)' }}>教程不存在或已下架（ID: {id ?? '未提供'}）</div>
-          <button type="button" onClick={handleBackTutorial} className="tut-detail-back-btn tut-btn-press">
-            <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
-            <span>返回教程列表</span>
-          </button>
-        </div>
-      )}
-      {!loading && !notFound && (
-        <>
-          <div className="tut-detail-container">
+      </main>
+    )
+  }
 
-        {/* ====== 1. Page Header ====== */}
-        <header className="tut-detail-header">
-          {/* 左：返回按钮（1:1 对齐设计稿 tutorial-detail.html：仅保留"返回教程"按钮） */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button type="button" data-dom-id="back-tutorial" aria-label="返回教程" onClick={handleBackTutorial} className="tut-detail-back-btn tut-btn-press">
-              <ArrowLeft size={14} style={{ color: 'var(--trae-icon-secondary)' }} />
-              <span>返回教程</span>
-            </button>
+  // v2.6 去假：条目不存在的诚实空态（替代原来静默展示的设计稿假教程）
+  if (notFound) {
+    return (
+      <main className="tut-detail-page flex h-full w-full flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '80px 0', color: 'var(--text-muted)' }}>
+            <Info size={32} />
+            <div className="text-sm" style={{ color: 'var(--text-tertiary)' }}>教程不存在或已下架（ID: {id ?? '未提供'}）</div>
+            <Button onClick={handleBackTutorial}>
+              <ArrowLeft className="size-4" />
+              <span>返回教程列表</span>
+            </Button>
           </div>
-          {/* 中：标题 + 副标题 */}
-          <div className="tut-detail-title-wrap">
-            <h1 className="tut-detail-title">{displayTitle}</h1>
-            <span className="tut-detail-subtitle">{displaySummary}</span>
-          </div>
-          {/* 右：难度 tag + 时长 tag + 进度 */}
-          <div className="tut-detail-meta">
-            <span className="tut-detail-badge tut-detail-badge--brand">{displayDifficultyLabel}</span>
-            <span className="tut-detail-badge tut-detail-badge--neutral">
-              <Clock size={11} style={{ color: 'var(--trae-text-secondary)' }} />
-              {displayReadingTime}
-            </span>
-            <span className="tut-detail-progress-pct">{useReal ? `${progressPct}%` : '65%'}</span>
-          </div>
-        </header>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="tut-detail-page flex h-full w-full flex-col">
+        {/* ====== 1. 页头：全站唯一 PageHeader（标题/副标题/返回/徽章左上角与其余模块统一） ====== */}
+        <PageHeader
+          icon={List}
+          title={displayTitle}
+          subtitle={displaySummary}
+          actions={
+            <>
+              <Button data-dom-id="back-tutorial" aria-label="返回教程" onClick={handleBackTutorial}>
+                <ArrowLeft className="size-4" />
+                <span>返回教程</span>
+              </Button>
+              <Chip tone="accent">{displayDifficultyLabel}</Chip>
+              <Chip tone="neutral">
+                <Clock className="size-3" />
+                {displayReadingTime}
+              </Chip>
+              <Chip tone="outline">{useReal ? `${progressPct}%` : '65%'}</Chip>
+            </>
+          }
+        />
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="tut-detail-container">
 
         {/* ====== 2. 章节进度条卡片 ====== */}
         <section className="tut-progress-card">
@@ -793,7 +800,7 @@ export function TutorialDetailPage() {
             <article className="tut-card tut-fade-in">
               <div className="tut-card-title-row" style={{ justifyContent: 'space-between' }}>
                 <h2 ref={chapterTitleRef} tabIndex={-1} className="tut-card-title" style={{ outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
-                <span className="tut-detail-badge tut-detail-badge--brand">当前学习</span>
+                <Chip tone="accent">当前学习</Chip>
               </div>
               {/* 学习目标（v2.6：无真实字段，仅设计稿预览展示） */}
               {!useReal && (
@@ -840,16 +847,16 @@ export function TutorialDetailPage() {
               {/* 按钮组 */}
               <div className="tut-btn-group">
                 <button type="button" data-dom-id="btn-prev-chapter" aria-label="上一章" onClick={handlePrev} disabled={isFirst} className="tut-chapter-btn tut-chapter-btn--prev tut-btn-press">
-                  <ArrowLeft size={13} style={{ color: 'currentColor' }} />
+                  <ArrowLeft size={14} style={{ color: 'currentColor' }} />
                   上一章
                 </button>
                 <button type="button" data-dom-id="btn-complete-chapter" aria-label="标记完成" onClick={handleComplete} className="tut-chapter-btn tut-chapter-btn--complete tut-btn-press">
-                  <Check size={13} style={{ color: 'var(--trae-special-white)' }} />
+                  <Check size={14} style={{ color: 'var(--trae-special-white)' }} />
                   标记完成
                 </button>
                 <button type="button" data-dom-id="btn-next-chapter" aria-label="下一章" onClick={handleNext} disabled={isLast} className="tut-chapter-btn tut-chapter-btn--next tut-btn-press">
                   下一章
-                  <ArrowRight size={13} style={{ color: 'currentColor' }} />
+                  <ArrowRight size={14} style={{ color: 'currentColor' }} />
                 </button>
               </div>
             </article>
@@ -857,7 +864,7 @@ export function TutorialDetailPage() {
             {/* 【实践练习卡片】 */}
             <article className="tut-card tut-fade-in tut-fade-in--delay-1">
               <div className="tut-card-title-row">
-                <Terminal size={15} className="tut-card-icon--brand" />
+                <Terminal size={14} className="tut-card-icon--brand" />
                 <h2 className="tut-card-title">动手实践</h2>
               </div>
               <p className="tut-practice-desc">在沙箱环境中调整nginx内核参数，观察P99延迟变化</p>
@@ -868,7 +875,7 @@ export function TutorialDetailPage() {
               </pre>
               <div className="tut-practice-btn-row">
                 <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} disabled={sandboxRunning} className="tut-practice-btn tut-btn-press">
-                  <Terminal size={13} style={{ color: 'currentColor' }} />
+                  <Terminal size={14} style={{ color: 'currentColor' }} />
                   {sandboxRunning ? '沙箱执行中...' : '打开沙箱练习'}
                 </button>
               </div>
@@ -877,7 +884,7 @@ export function TutorialDetailPage() {
             {/* 【知识检查卡片】 */}
             <article className="tut-card tut-fade-in tut-fade-in--delay-2">
               <div className="tut-card-title-row">
-                <CheckCircle2 size={15} className="tut-card-icon--brand" />
+                <CheckCircle2 size={14} className="tut-card-icon--brand" />
                 <h2 className="tut-card-title">知识检查</h2>
               </div>
               {QUIZ_QUESTIONS.map((q) => (
@@ -891,7 +898,7 @@ export function TutorialDetailPage() {
                       const isCorrectSelected = !!opt.correct && isSelected
                       return (
                         <label key={opt.key} className={`tut-quiz-option${isCorrectSelected ? ' tut-quiz-option--correct' : ''}`}>
-                          <input type="radio" name={q.id} checked={isSelected} onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt.key }))} style={{ accentColor: 'var(--trae-bg-brand)' }} />
+                          <input type="radio" name={q.id} checked={isSelected} onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt.key }))} style={{ accentColor: 'var(--accent-text)' }} />
                           {opt.key}. {opt.label}{isCorrectSelected ? '（正确）' : ''}
                         </label>
                       )
@@ -906,9 +913,9 @@ export function TutorialDetailPage() {
                 {quizResult && (
                   <div role="status" aria-live="polite" className={`tut-quiz-result tut-quiz-result--${quizResult.passed ? 'passed' : 'failed'}`}>
                     {quizResult.passed ? (
-                      <CheckCircle2 size={14} style={{ color: 'var(--trae-status-success-default)' }} />
+                      <CheckCircle2 size={14} style={{ color: 'var(--status-success-text)' }} />
                     ) : (
-                      <Info size={14} style={{ color: 'var(--trae-status-warning-default)' }} />
+                      <Info size={14} style={{ color: 'var(--status-warning-text)' }} />
                     )}
                     <span className="tut-quiz-result-text">
                       {quizResult.passed
@@ -938,7 +945,7 @@ export function TutorialDetailPage() {
                   return (
                     <li key={ch.id} data-dom-id={`goto-chapter-${ch.id}`} onClick={() => handleGotoChapter(i)} className={`tut-catalog-row${isActive ? ' tut-catalog-row--current' : ''}`}>
                       <span className={`tut-catalog-index${isActive ? ' tut-catalog-index--current' : ''}`}>{ch.index}</span>
-                      {status === 'completed' && <Check size={13} style={{ color: 'var(--trae-status-success-default)', flexShrink: 0 }} />}
+                      {status === 'completed' && <Check size={14} style={{ color: 'var(--status-success-text)', flexShrink: 0 }} />}
                       {status === 'in-progress' && <span className="tut-catalog-dot--current" />}
                       {status === 'pending' && <span className="tut-catalog-circle--pending" />}
                       <span className={`tut-catalog-title${isActive ? ' tut-catalog-title--current' : status === 'pending' ? ' tut-catalog-title--pending' : ''}`}>{ch.title}</span>
@@ -960,7 +967,7 @@ export function TutorialDetailPage() {
                   <li key={course.id} data-dom-id={`goto-related-course-${i + 1}`} onClick={() => handleGotoRelated(course.id)} className="tut-related-item">
                     <div className="tut-related-title-row">
                       <span className="tut-related-title">{course.title}</span>
-                      <ChevronRight size={13} style={{ color: 'var(--trae-text-tertiary)', flexShrink: 0 }} />
+                      <ChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                     </div>
                     <div className="tut-related-meta">
                       <span className={`tut-related-level-badge ${course.level === '进阶' ? 'tut-related-level-badge--brand' : 'tut-related-level-badge--neutral'}`}>{course.level}</span>
@@ -980,7 +987,7 @@ export function TutorialDetailPage() {
         <div className="tut-footer-inner">
           {/* 左：学习进度（v2.6：真实章节进度，不再编造已学习时长） */}
           <div className="tut-footer-time">
-            <Clock size={14} style={{ color: 'var(--trae-text-secondary)' }} />
+            <Clock size={14} style={{ color: 'var(--text-tertiary)' }} />
             <span>
               {useReal ? (
                 <>已完成 <span className="tut-footer-time-value">{completedCount}/{displayChapters.length}</span> 章 · 总时长 {displayReadingTime}</>
@@ -999,7 +1006,7 @@ export function TutorialDetailPage() {
           {/* 右：继续学习按钮 */}
           <button type="button" data-dom-id="btn-continue-learning" aria-label="继续学习" onClick={handleContinueLearning} className="tut-footer-continue-btn tut-btn-press">
             继续学习
-            <ArrowRight size={13} style={{ color: 'var(--trae-special-white)' }} />
+            <ArrowRight size={14} style={{ color: 'var(--trae-special-white)' }} />
           </button>
         </div>
       </footer>
@@ -1085,8 +1092,7 @@ export function TutorialDetailPage() {
               </pre>
             </DialogContent>
           </Dialog>
-        </>
-      )}
+        </div>
     </main>
   )
 }

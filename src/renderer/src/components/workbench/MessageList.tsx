@@ -103,10 +103,10 @@ const MessageList: FC<MessageListProps> = ({
           </div>
 
           {/* 问候语 */}
-          <div className="mt-5 text-title font-semibold text-[var(--trae-text-default)]">
+          <div className="mt-5 text-title font-semibold text-ink">
             你好，我是 TDSF AI 运维助手
           </div>
-          <div className="mt-2 max-w-[400px] text-center text-sm leading-relaxed text-[var(--trae-text-secondary)]">
+          <div className="mt-2 max-w-[400px] text-center text-sm leading-relaxed text-ink-dim">
             {activeSessionId
               ? '已连接服务器，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'
               : '连接 SSH 服务器后，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'}
@@ -131,8 +131,8 @@ const MessageList: FC<MessageListProps> = ({
                   {cap.icon}
                 </span>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-[var(--trae-text-default)]">{cap.title}</div>
-                  <div className="mt-0.5 text-caption text-[var(--trae-text-tertiary)]">{cap.desc}</div>
+                  <div className="text-sm font-medium text-ink">{cap.title}</div>
+                  <div className="mt-0.5 text-caption text-ink-mute">{cap.desc}</div>
                 </div>
               </button>
             ))}
@@ -144,7 +144,7 @@ const MessageList: FC<MessageListProps> = ({
               <button
                 type="button"
                 onClick={() => navigate('/settings/ssh')}
-                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-caption text-[var(--trae-text-brand)] transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-brand-popup)]"
+                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-caption text-(--accent-text) transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-brand-popup)]"
               >
                 连接 SSH 服务器
               </button>
@@ -153,7 +153,7 @@ const MessageList: FC<MessageListProps> = ({
               <button
                 type="button"
                 onClick={() => navigate('/settings/model')}
-                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-brand)] px-3 text-caption font-medium text-[var(--trae-text-onbrand)] transition-opacity duration-150 hover:opacity-90"
+                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-accent-solid px-3 text-caption font-medium text-[var(--trae-text-onbrand)] transition-opacity duration-150 hover:opacity-90"
               >
                 配置 AI 模型
               </button>

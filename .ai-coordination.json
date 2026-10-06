@@ -2,8 +2,49 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-05T09:14:58.615Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-06T02:22:20.386Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-06T02:22:09.905Z",
+      "lastActiveAt": "2026-10-06T02:22:20.386Z",
+      "task": "apple-aesthetic-unify",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/ui/surface.tsx",
+          "task": "apple-aesthetic-unify",
+          "claimedAt": "2026-10-06T02:22:09.905Z"
+        },
+        {
+          "path": "src/renderer/src/ui/index.ts",
+          "task": "apple-aesthetic-unify",
+          "claimedAt": "2026-10-06T02:22:11.559Z"
+        },
+        {
+          "path": "src/renderer/src/ui/confirm.tsx",
+          "task": "apple-aesthetic-unify",
+          "claimedAt": "2026-10-06T02:22:13.171Z"
+        },
+        {
+          "path": "src/renderer/src/styles/ui-tokens.css",
+          "task": "apple-aesthetic-unify",
+          "claimedAt": "2026-10-06T02:22:14.771Z"
+        },
+        {
+          "path": "tests/unit/ui-tokens.test.ts",
+          "task": "apple-aesthetic-unify",
+          "claimedAt": "2026-10-06T02:22:16.402Z"
+        },
+        {
+          "path": "DESIGN.md",
+          "task": "apple-aesthetic-unify",
+          "claimedAt": "2026-10-06T02:22:20.386Z"
+        }
+      ],
+      "expiresAt": "2026-10-06T04:22:20.386Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -5289,6 +5330,83 @@
       "file": "src/renderer/src/components/workbench/FileTreeContextMenu.tsx",
       "task": "E-batch4 antd Tooltip/Dropdown 退出",
       "timestamp": "2026-10-05T09:14:58.615Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/ui-tokens.css",
+      "task": "UI 统一美化：Trae 中等字阶 + AA 对比度",
+      "timestamp": "2026-10-05T09:55:47.971Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/tailwind.css",
+      "task": "UI 统一美化：Trae 中等字阶 + AA 对比度",
+      "timestamp": "2026-10-05T09:55:47.971Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/ui-tokens.test.ts",
+      "task": "UI 统一美化：Trae 中等字阶 + AA 对比度",
+      "timestamp": "2026-10-05T09:55:47.971Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/BootPage.tsx",
+      "task": "UI 统一美化：Trae 中等字阶 + AA 对比度",
+      "timestamp": "2026-10-05T09:55:47.971Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/ui/surface.tsx",
+      "task": "UI 统一美化：Trae 中等字阶 + AA 对比度",
+      "timestamp": "2026-10-05T09:55:47.971Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/ui/surface.tsx",
+      "task": "apple-aesthetic-unify",
+      "timestamp": "2026-10-06T02:22:09.905Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/ui/index.ts",
+      "task": "apple-aesthetic-unify",
+      "timestamp": "2026-10-06T02:22:11.559Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/ui/confirm.tsx",
+      "task": "apple-aesthetic-unify",
+      "timestamp": "2026-10-06T02:22:13.171Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/ui-tokens.css",
+      "task": "apple-aesthetic-unify",
+      "timestamp": "2026-10-06T02:22:14.771Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/ui-tokens.test.ts",
+      "task": "apple-aesthetic-unify",
+      "timestamp": "2026-10-06T02:22:16.402Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "DESIGN.md",
+      "task": "apple-aesthetic-unify",
+      "timestamp": "2026-10-06T02:22:20.386Z"
     }
   ],
   "coordinationAudit": {

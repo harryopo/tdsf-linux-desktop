@@ -70,8 +70,8 @@
 /* ===== Workbench Shell (App-Shell Viewport) ===== */
 .wb-shell {
   background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
-  font-family: 'SF Pro Text', "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--ui-family-ui);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -85,7 +85,7 @@
 .wb-shell .wb-statusbar button {
   min-height: 0;
   height: 24px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
 }
 .wb-shell button:not(:disabled) {
   min-height: auto;
@@ -132,7 +132,7 @@
   height: 24px;
   padding: 0 8px;
   background: var(--trae-bg-overlay-l1);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: 4px;
   font-size: 11px;
@@ -166,12 +166,12 @@
 
 .wb-icon-btn:hover {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .wb-icon-btn.is-active {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
 }
 
 /* ===== Main Body ===== */
@@ -209,9 +209,9 @@
 }
 
 .wb-filetree-title {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -237,12 +237,12 @@
 
 .wb-filetree-action-btn:hover {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .wb-filetree-action-btn.is-danger:hover {
   background: var(--trae-status-error-surface-l1);
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
 }
 
 .wb-filetree-action-btn:disabled {
@@ -268,12 +268,12 @@
   padding: 0 8px;
   font-family: var(--trae-font-family-mono);
   font-size: 11px;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   outline: none;
 }
 
 .wb-filetree-root-input:focus {
-  border-color: var(--trae-bg-brand);
+  border-color: var(--accent-text);
 }
 
 .wb-filetree-scroll {
@@ -282,7 +282,7 @@
   overflow-y: auto;
   padding: 4px 0;
   font-size: 11px;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .wb-filetree-empty {
@@ -297,7 +297,7 @@
 .wb-filetree-empty-text {
   font-size: 12px;
   line-height: 20px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
 }
 
 .wb-filetree-server-head {
@@ -313,7 +313,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .wb-filetree-status-dot {
@@ -330,7 +330,7 @@
   background: var(--trae-status-error-surface-l1);
   padding: 6px 8px;
   font-size: 11px;
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
 }
 
 .wb-filetree-loading {
@@ -340,7 +340,7 @@
   gap: 8px;
   padding: 32px 0;
   font-size: 12px;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
 }
 
 /* ===== File tree node rows (1:1 with .ft-row design tokens) ===== */
@@ -364,7 +364,7 @@
 
 .wb-ft-row.is-active {
   background: var(--trae-bg-brand-popup);
-  color: var(--trae-text-brand);
+  color: var(--accent-text);
 }
 
 .wb-ft-row.is-server {
@@ -416,9 +416,9 @@
 }
 
 .wb-filetree-transfer-title {
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 600;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -438,7 +438,7 @@
 
 .wb-filetree-transfer-clear:hover {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .wb-filetree-transfer-list {
@@ -461,8 +461,8 @@
 }
 
 .wb-filetree-transfer-name {
-  font-size: 10px;
-  color: var(--trae-text-default);
+  font-size: var(--ui-font-micro);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -471,8 +471,8 @@
 }
 
 .wb-filetree-transfer-size {
-  font-size: 9px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -487,7 +487,7 @@
 .wb-filetree-transfer-fill {
   height: 100%;
   border-radius: 9999px;
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
   transition: width 0.2s ease;
 }
 
@@ -508,8 +508,8 @@
   padding: 0 8px;
   background: var(--trae-bg-base-secondary);
   border-top: 1px solid var(--trae-border-neutral-l1);
-  font-size: 10px;
-  color: var(--trae-text-secondary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-tertiary);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -527,18 +527,18 @@
   height: 18px;
   padding: 0 6px;
   border-radius: 4px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   cursor: pointer;
   background: transparent;
   border: none;
   font-family: inherit;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   transition: background 0.12s ease, color 0.12s ease;
 }
 
 .wb-status-item:hover {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .wb-status-item-dot {
@@ -554,7 +554,7 @@
   width: 100vw;
   overflow: hidden;
   background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 /* ========================================================================
@@ -581,7 +581,7 @@
   justify-content: center;
   width: 16px;
   height: 16px;
-  color: var(--trae-bg-brand);
+  color: var(--accent-text);
   flex-shrink: 0;
 }
 
@@ -593,7 +593,7 @@
 .wb-titlebar-logo-text {
   font-size: 11px;
   font-weight: 600;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   letter-spacing: 0.02em;
 }
 
@@ -629,7 +629,7 @@
 
 .wb-filetree-empty-text {
   font-size: 11px;
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
@@ -639,11 +639,11 @@
   gap: 4px;
   height: 24px;
   padding: 0 10px;
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
   color: var(--trae-text-onbrand);
   border: none;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
   cursor: pointer;
   transition: background 120ms ease-out, transform 80ms ease-out;
@@ -660,8 +660,8 @@
 }
 
 .wb-filetree-empty-btn svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
 @keyframes ai-blink {

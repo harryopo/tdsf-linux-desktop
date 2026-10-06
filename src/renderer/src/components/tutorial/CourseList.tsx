@@ -80,7 +80,7 @@ export function CourseList({
           {searchResults.length === 0 ? (
             <Empty
               description="未找到相关教程"
-              style={{ padding: '40px 0', color: 'var(--trae-text-tertiary)' }}
+              style={{ padding: '40px 0', color: 'var(--text-muted)' }}
             />
           ) : (
             <div className="tut-courses-grid">
@@ -103,7 +103,7 @@ export function CourseList({
                     {typeof item.rrfScore === 'number' && (
                       <span
                         className="tut-result-score"
-                        style={{ color: 'var(--trae-text-brand)' }}
+                        style={{ color: 'var(--accent-text)' }}
                         title={`RRF 融合分：${item.rrfScore.toFixed(4)}`}
                       >
                         {item.rrfScore.toFixed(3)}
@@ -207,7 +207,7 @@ export function CourseList({
                 style={{
                   borderRadius: 'var(--trae-radius-6)',
                   borderColor: 'var(--trae-border-neutral-l2)',
-                  color: 'var(--trae-text-secondary)',
+                  color: 'var(--text-tertiary)',
                 }}
               >
                 加载更多（{visibleItems.length}/{filteredCourses.length}）

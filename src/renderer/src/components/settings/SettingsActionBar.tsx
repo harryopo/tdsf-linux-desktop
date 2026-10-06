@@ -91,8 +91,8 @@ export function SettingsActionBar({
           className={
             'inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-6)] border px-3 text-sm font-medium ' +
             (feedback === 'saved'
-              ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
-              : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-[var(--trae-text-secondary)]')
+              ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-(--status-success-text)'
+              : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-ink-dim')
           }
         >
           {feedback === 'saved' ? (

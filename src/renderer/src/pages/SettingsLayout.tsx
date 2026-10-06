@@ -2,10 +2,12 @@
  * SettingsLayout — 设置布局（嵌套路由父级）
  *
  * 设计稿：settings.html 的 ds-layout + ds-nav 部分（最新版 tdsf-linux-redesign）
- * - 无顶部"设置"大标题栏（设计稿设置子页顶部为各子页标题 + 返回设置）
- * - 左侧 NavList 220px：6 项导航（通用/SSH/AI引擎/告警阈值/外观/关于）
+ * - 标题栏归各子页自己（PageHeader 必须是子页第一个节点，位置/字号与其他模块一致），
+ *   所以这一层不能再给子页容器加任何内距，否则左上角会整体下移右移
+ * - 左侧 NavList 220px：6 项导航（通用/SSH/AI引擎/告警阈值/外观/关于），自己带留白
  * - 每个 nav 项 36px 高，激活时左侧 2px 品牌色指示条
  * - 右侧 Outlet 子路由出口（/settings 根路径渲染 SettingsPage 快捷入口）
+ * - 滚动由各子页正文容器承担，本层不出滚动条
  *
  * 6 项导航（data-dom-id）— 严格按设计稿 settings.html 1994-2016 行：
  * - nav-general(通用) / nav-ssh(SSH连接) / nav-model-config(AI引擎)
@@ -46,7 +48,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
 
 export function SettingsLayout() {
   return (
-    <main className="set-page" style={{ height: '100%', overflowY: 'auto' }}>
+    <main className="set-page" style={{ height: '100%', overflow: 'hidden' }}>
       {/* ====== Two Column Layout（左 nav 220px + 右 Outlet）====== */}
       <div className="set-layout">
         {/* Left Nav：独立卡片（边框 + 圆角 + padding 8px），sticky 跟随滚动 */}

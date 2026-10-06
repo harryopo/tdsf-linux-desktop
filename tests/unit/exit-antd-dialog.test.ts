@@ -50,8 +50,8 @@ const PENDING_FORM = [
   'src/renderer/src/pages/SshSettings.tsx',
 ]
 
-/** 还 import antd 的渲染层文件数闸门：2026-10-05 实测 15，只许降不许升（全仓库唯一口径） */
-const CAP_ANTD_FILES = 15
+/** 还 import antd 的渲染层文件数闸门：2026-10-06 实测 11（Spin 退出 3 个页面），只许降不许升 */
+const CAP_ANTD_FILES = 11
 
 describe('对话框已统一到自研 Dialog', () => {
   it('扫到了源码文件（不是空跑）', () => {

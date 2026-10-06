@@ -1,13 +1,14 @@
 /**
- * SettingsPageHeader — 设置页顶部标题区（整个设置区共用的唯一 Header）
+ * SettingsPageHeader — 设置区 9 个子页共用的顶部标题区
  *
- * - 左侧：40×40 品牌色图标盒 + 标题(h1) + 副标题
- * - 右侧：页面自己的动作按钮（如"保存配置"），由 actions 传入
+ * 只是 PageHeader 的一层薄封装：让设置区各页沿用同一个标题（字号、位置、高度
+ * 与其余模块完全一致），同时保留 .set-pageheader 这个类名给自动化脚本当钩子。
  *
  * 没有"返回设置"按钮：左栏导航在设置区常驻，页面内再放一个返回口就是重复出口。
  */
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { PageHeader } from '@/ui'
 
 export interface SettingsPageHeaderProps {
   /** 页面标题图标（Lucide） */
@@ -21,23 +22,18 @@ export interface SettingsPageHeaderProps {
 }
 
 export function SettingsPageHeader({
-  icon: Icon,
+  icon,
   title,
   desc,
   actions,
 }: SettingsPageHeaderProps) {
   return (
-    <header className="set-pageheader">
-      <div className="set-pageheader__left">
-        <span className="set-pageheader__iconwrap">
-          <Icon className="di-20" />
-        </span>
-        <div className="set-pageheader__title">
-          <h1>{title}</h1>
-          <p>{desc}</p>
-        </div>
-      </div>
-      {actions != null && <div className="flex items-center gap-2">{actions}</div>}
-    </header>
+    <PageHeader
+      className="set-pageheader"
+      icon={icon}
+      title={title}
+      subtitle={desc}
+      actions={actions}
+    />
   )
 }

@@ -18,11 +18,11 @@ import {
  * 状态由 derivePlanStepStatuses 纯函数从 iterations 推导，随迭代实时更新。
  */
 const STEP_ICON: Record<PaorStepStatus, JSX.Element> = {
-  done: <Check className="size-3.5 text-[var(--trae-status-success-default)]" />,
-  running: <Loader2 className="size-3.5 animate-spin text-[var(--trae-text-brand)]" />,
-  failed: <X className="size-3.5 text-[var(--trae-status-error-default)]" />,
+  done: <Check className="size-3.5 text-(--status-success-text)" />,
+  running: <Loader2 className="size-3.5 animate-spin text-(--accent-text)" />,
+  failed: <X className="size-3.5 text-(--status-error-text)" />,
   blocked: <ShieldAlert className="size-3.5 text-[var(--trae-status-alert-default)]" />,
-  pending: <Circle className="size-3.5 text-[var(--trae-text-tertiary)]" />,
+  pending: <Circle className="size-3.5 text-ink-mute" />,
 }
 
 const STEP_LABEL: Record<PaorStepStatus, string> = {
@@ -45,18 +45,18 @@ const PaorPlanCard: FC<{
     <div className="flex flex-col gap-2.5 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-secondary)] p-3">
       {/* 标题 + 进度 */}
       <div className="flex items-center gap-2">
-        <ListChecks className="size-4 shrink-0 text-[var(--trae-text-brand)]" />
-        <span className="flex-1 truncate text-md font-semibold text-[var(--trae-text-default)]" title={plan.goal}>
+        <ListChecks className="size-4 shrink-0 text-(--accent-text)" />
+        <span className="flex-1 truncate text-md font-semibold text-ink" title={plan.goal}>
           {plan.goal || '任务计划'}
         </span>
-        <span className="shrink-0 text-caption tabular-nums text-[var(--trae-text-tertiary)]">
+        <span className="shrink-0 text-caption tabular-nums text-ink-mute">
           {progress.done}/{progress.total}
         </span>
       </div>
       {/* 进度条 */}
       <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--trae-bg-overlay-l2)]">
         <div
-          className="h-full rounded-full bg-[var(--trae-bg-brand)] transition-all duration-300"
+          className="h-full rounded-full bg-accent-solid transition-all duration-300"
           style={{ width: `${progress.percent}%` }}
         />
       </div>
@@ -70,15 +70,15 @@ const PaorPlanCard: FC<{
               <span
                 className={`flex-1 text-sm leading-[1.5] ${
                   st === 'done'
-                    ? 'text-[var(--trae-text-tertiary)] line-through'
+                    ? 'text-ink-mute line-through'
                     : st === 'running'
-                      ? 'text-[var(--trae-text-default)] font-medium'
-                      : 'text-[var(--trae-text-secondary)]'
+                      ? 'text-ink font-medium'
+                      : 'text-ink-dim'
                 }`}
               >
                 {step}
               </span>
-              <span className="mt-0.5 shrink-0 text-micro tabular-nums text-[var(--trae-text-tertiary)]">
+              <span className="mt-0.5 shrink-0 text-micro tabular-nums text-ink-mute">
                 {STEP_LABEL[st]}
               </span>
             </li>
@@ -87,8 +87,8 @@ const PaorPlanCard: FC<{
       </ol>
       {/* 验证方法（若有） */}
       {plan.verification && (
-        <div className="border-t border-[var(--trae-border-neutral-l1)] pt-2 text-caption leading-[1.5] text-[var(--trae-text-tertiary)]">
-          <span className="font-medium text-[var(--trae-text-secondary)]">验证：</span>
+        <div className="border-t border-[var(--trae-border-neutral-l1)] pt-2 text-caption leading-[1.5] text-ink-mute">
+          <span className="font-medium text-ink-dim">验证：</span>
           {plan.verification}
         </div>
       )}

@@ -139,7 +139,7 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
             gap: 6,
             cursor: 'pointer',
             padding: '8px 0',
-            color: 'var(--trae-text-secondary)',
+            color: 'var(--text-tertiary)',
             fontSize: 13,
             listStyle: 'none',
             userSelect: 'none',

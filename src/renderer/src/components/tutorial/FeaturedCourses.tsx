@@ -45,7 +45,7 @@ export function FeaturedCourses({ featured, onOpenCourse }: FeaturedCoursesProps
             <div>
               <button type="button" data-dom-id={c.domId} aria-label={c.cta} onClick={() => onOpenCourse(c.id)} className="tut-featured-btn tut-btn-press">
                 {c.cta}
-                <ArrowRight size={12} style={{ color: 'var(--trae-text-brand)' }} />
+                <ArrowRight size={12} style={{ color: 'var(--accent-text)' }} />
               </button>
             </div>
           </div>

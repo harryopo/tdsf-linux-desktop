@@ -384,7 +384,7 @@ const Composer: FC<ComposerProps> = ({
                     title="删除附件"
                     className="absolute right-0 top-0 flex size-4 items-center justify-center rounded-bl-(--ui-radius-control) bg-ink-mute text-canvas hover:bg-error"
                   >
-                    <X className="size-2.5" />
+                    <X className="size-3" />
                   </button>
                 </div>
               ))}

@@ -53,15 +53,12 @@
 }
 
 /* ==========================================================================
-   1. 全局重置 + 文字抗锯齿 + 渲染优化
+   1. 文字抗锯齿 + 渲染优化
    ========================================================================== */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* 这里原来有一条无 @layer 的通用重置（margin/padding 归零 + box-sizing）。
+   未分层规则的优先级高于所有 @layer，于是它把 Tailwind 的间距工具类全部压成 0——
+   真机量出来"进入工作台"按钮文字到边框 0px、全站按钮贴字，就是它。
+   box-sizing 与 margin/padding 的归零 Tailwind preflight 已经在 @layer base 里做了，不再重复。 */
 
 html,
 body,
@@ -72,11 +69,13 @@ body,
 }
 
 body {
-  font-family: var(--trae-font-family-default);
-  font-size: var(--trae-body-base-font-size);
-  line-height: var(--trae-body-base-line-height);
-  color: var(--trae-text-default);
-  background-color: var(--trae-bg-base-default);
+  /* 全站唯一字体族与正文档：旧值 --trae-font-family-default 排在 Inter 前面的是 -apple-system，
+     真机量出来整个应用其实没在用 Inter（@fontsource 装了却没消费）。 */
+  font-family: var(--ui-family-ui);
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
 
   /* 文字抗锯齿 + 渲染优化 */
   -webkit-font-smoothing: antialiased;
@@ -169,7 +168,7 @@ textarea,
 /* 文本选中（主题色） */
 ::selection {
   background: var(--trae-status-primary-surface-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 /* 关键帧动画 */
@@ -245,7 +244,7 @@ textarea,
 
 /* === 主按钮 === */
 .ant-btn-primary {
-  background: var(--trae-bg-brand) !important;
+  background: var(--accent-solid) !important;
   border: none !important;
   font-weight: var(--trae-font-weight-medium) !important;
   border-radius: var(--trae-radius-4) !important;
@@ -265,7 +264,7 @@ textarea,
 
 .ant-btn-primary:disabled {
   background: var(--trae-bg-brand-disabled) !important;
-  color: var(--trae-text-tertiary) !important;
+  color: var(--text-muted) !important;
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -279,8 +278,8 @@ textarea,
 }
 
 .ant-btn:not(.ant-btn-primary):not(.ant-btn-dangerous):hover {
-  border-color: var(--trae-bg-brand) !important;
-  color: var(--trae-text-brand) !important;
+  border-color: var(--accent-text) !important;
+  color: var(--accent-text) !important;
 }
 
 /* === 输入框 === */
@@ -301,14 +300,14 @@ textarea,
 .ant-input-number-focused,
 .ant-select-focused .ant-select-selector,
 .ant-picker-focused {
-  border-color: var(--trae-bg-brand) !important;
+  border-color: var(--accent-text) !important;
   box-shadow: none !important;
   outline: none;
 }
 
 .ant-input::placeholder,
 .ant-input-affix-wrapper input::placeholder {
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
 }
 
 /* === Modal === */
@@ -374,14 +373,14 @@ textarea,
 }
 
 .ant-switch.ant-switch-checked {
-  background: var(--trae-bg-brand) !important;
+  background: var(--accent-solid) !important;
 }
 
 /* === Form Item === */
 .ant-form-item-label > label {
   font-size: var(--trae-body-base-font-size) !important;
   font-weight: var(--trae-font-weight-medium) !important;
-  color: var(--trae-text-default) !important;
+  color: var(--text-primary) !important;
 }
 
 .ant-form-item-explain-error {
@@ -392,7 +391,7 @@ textarea,
 
 /* === Empty === */
 .ant-empty-description {
-  color: var(--trae-text-tertiary) !important;
+  color: var(--text-muted) !important;
   font-size: var(--trae-body-base-font-size) !important;
 }
 
@@ -406,11 +405,11 @@ textarea,
 
 /* === Spin === */
 .ant-spin-dot-item {
-  background: var(--trae-bg-brand) !important;
+  background: var(--accent-solid) !important;
 }
 
 .ant-spin-text {
-  color: var(--trae-text-secondary) !important;
+  color: var(--text-tertiary) !important;
   font-size: var(--trae-body-sm-font-size) !important;
   margin-top: 8px !important;
 }

@@ -269,14 +269,14 @@ export function TutorialPage() {
   )
 
   return (
-    <main className="tut-page" style={{ height: '100%', overflowY: 'auto' }}>
+    <main className="tut-page flex h-full flex-col">
       <TutorialHeader
         searchQuery={searchQuery}
         onSearchInputChange={handleSearchInputChange}
         onSearch={handleSearch}
         searching={searching}
       />
-      <div className="tut-container">
+      <div className="tut-container min-h-0 flex-1 overflow-y-auto">
         <TutorialStats stats={stats} />
         <FeaturedCourses featured={featured} onOpenCourse={handleOpenCourse} />
         <CategoryNav

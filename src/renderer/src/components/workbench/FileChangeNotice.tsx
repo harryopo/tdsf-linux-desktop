@@ -40,7 +40,7 @@ const FileChangeNotice: FC<FileChangeNoticeProps> = ({
               padding: '2px 10px',
               fontSize: 12,
               border: '1px solid var(--trae-bg-brand)',
-              background: 'var(--trae-bg-brand)',
+              background: 'var(--accent-solid)',
               color: 'var(--trae-text-onbrand)',
               borderRadius: 'var(--trae-radius-4)',
               cursor: 'pointer',
@@ -56,7 +56,7 @@ const FileChangeNotice: FC<FileChangeNoticeProps> = ({
               fontSize: 12,
               border: '1px solid var(--trae-border-neutral-l1)',
               background: 'transparent',
-              color: 'var(--trae-text-secondary)',
+              color: 'var(--text-tertiary)',
               borderRadius: 'var(--trae-radius-4)',
               cursor: 'pointer',
             }}

@@ -78,20 +78,20 @@ function getStatusStyle(state: TaskState): { bg: string; color: string; label: s
   if (state === 'enabled') {
     return {
       bg: 'color-mix(in srgb, var(--trae-status-success-default) 14%, transparent)',
-      color: 'var(--trae-status-success-default)',
+      color: 'var(--status-success-text)',
       label: '启用',
     }
   }
   if (state === 'running') {
     return {
       bg: 'color-mix(in srgb, var(--trae-bg-brand) 14%, transparent)',
-      color: 'var(--trae-bg-brand)',
+      color: 'var(--accent-text)',
       label: '运行中',
     }
   }
   return {
     bg: 'var(--trae-bg-overlay-l2)',
-    color: 'var(--trae-text-tertiary)',
+    color: 'var(--text-muted)',
     label: '禁用',
   }
 }
@@ -196,7 +196,7 @@ export function SchedulerPanel() {
     return (
       <SettingsCard icon={Clock} title="定时任务" tag="scheduler">
         <div
-          className="flex items-center justify-center py-6 text-sm text-[var(--trae-text-tertiary)]"
+          className="flex items-center justify-center py-6 text-sm text-ink-mute"
           role="status"
         >
           请在桌面应用中查看定时任务
@@ -231,21 +231,21 @@ export function SchedulerPanel() {
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-semibold text-[var(--trae-text-default)]">
+                    <span className="text-sm font-semibold text-ink">
                       {meta.name}
                     </span>
-                    <span className="text-micro text-[var(--trae-text-tertiary)]">
+                    <span className="text-micro text-ink-mute">
                       {meta.nameEn}
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     <code
-                      className="text-caption text-[var(--trae-text-tertiary)]"
+                      className="text-caption text-ink-mute"
                       style={{ fontFamily: 'var(--trae-font-family-mono)' }}
                     >
                       {meta.cron}
                     </code>
-                    <span className="text-micro text-[var(--trae-text-tertiary)]">
+                    <span className="text-micro text-ink-mute">
                       · {meta.cronDescription}
                     </span>
                   </div>
@@ -270,27 +270,27 @@ export function SchedulerPanel() {
 
               {/* 行 2：上次执行 + 下次执行 */}
               <div className="mt-2 grid grid-cols-2 gap-2 text-micro">
-                <div className="flex items-center gap-1 text-[var(--trae-text-secondary)]">
-                  <span className="text-[var(--trae-text-tertiary)]">上次:</span>
+                <div className="flex items-center gap-1 text-ink-dim">
+                  <span className="text-ink-mute">上次:</span>
                   <span className="tabular-nums">{formatTime(task?.lastRunAt ?? null)}</span>
                   {lastResult != null &&
                     (lastSuccess ? (
-                      <CheckCircle2 className="size-3 text-[var(--trae-status-success-default)]" />
+                      <CheckCircle2 className="size-3 text-(--status-success-text)" />
                     ) : (
-                      <XCircle className="size-3 text-[var(--trae-status-error-default)]" />
+                      <XCircle className="size-3 text-(--status-error-text)" />
                     ))}
                 </div>
-                <div className="flex items-center gap-1 text-[var(--trae-text-secondary)]">
-                  <span className="text-[var(--trae-text-tertiary)]">下次:</span>
+                <div className="flex items-center gap-1 text-ink-dim">
+                  <span className="text-ink-mute">下次:</span>
                   <span className="tabular-nums">{formatTime(task?.nextRunAt ?? null)}</span>
                 </div>
               </div>
 
               {/* 行 3：上次结果摘要 + 立即触发按钮 */}
               <div className="mt-1.5 flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1 truncate text-caption text-[var(--trae-text-secondary)]">
+                <div className="min-w-0 flex-1 truncate text-caption text-ink-dim">
                   {lastSuccess === false && lastError ? (
-                    <span className="text-[var(--trae-status-error-default)]">{lastError}</span>
+                    <span className="text-(--status-error-text)">{lastError}</span>
                   ) : (
                     lastSummary
                   )}
@@ -301,7 +301,7 @@ export function SchedulerPanel() {
                   onClick={() => void handleTrigger(meta.id)}
                   disabled={isRunning}
                   aria-label={`立即触发 ${meta.name}`}
-                  className="border-[var(--trae-bg-brand)] text-[var(--trae-bg-brand)] hover:bg-[var(--trae-bg-brand)] hover:text-[var(--trae-text-onbrand)]"
+                  className="border-[var(--trae-bg-brand)] text-(--accent-text) hover:bg-accent-solid hover:text-[var(--trae-text-onbrand)]"
                 >
                   <Zap className="size-3" />
                   {isRunning ? '执行中…' : '立即触发'}

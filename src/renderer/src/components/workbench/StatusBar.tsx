@@ -105,7 +105,7 @@ export function StatusBar() {
           <span className="wb-status-item-dot" style={{ background: sshColor }} />
           <span>{sshLabel}</span>
           {activeServer && (
-            <span className="max-w-[100px] truncate text-[var(--trae-text-tertiary)]">
+            <span className="max-w-[100px] truncate text-ink-mute">
               {activeServer.host}
             </span>
           )}

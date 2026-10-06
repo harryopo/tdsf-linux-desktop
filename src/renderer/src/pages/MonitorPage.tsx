@@ -25,6 +25,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { AlertCircle, RefreshCw, Activity } from 'lucide-react'
+import { IconButton, PageHeader } from '@/ui'
 import { KpiCard } from '@/components/monitor/KpiCard'
 import {
   CpuAreaChart,
@@ -109,7 +110,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `${latest.loadAverage?.toFixed(2) ?? '--'} load`,
       delta: Math.round(latest.cpuUsage - prev.cpuUsage),
       trend: latest.cpuUsage >= prev.cpuUsage ? 'up' : 'down',
-      ringColor: 'var(--trae-bg-brand)',
+      ringColor: 'var(--accent-text)',
       sparkline: cpuSpark,
     },
     {
@@ -119,7 +120,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `${latest.processCount ?? '--'} 进程`,
       delta: Math.round(latest.memoryUsage - prev.memoryUsage),
       trend: latest.memoryUsage >= prev.memoryUsage ? 'up' : 'down',
-      ringColor: 'var(--trae-bg-brand)',
+      ringColor: 'var(--accent-text)',
       sparkline: memSpark,
     },
     {
@@ -129,7 +130,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `uptime ${Math.floor(latest.uptime / 3600)}h`,
       delta: Math.round(latest.diskUsage - prev.diskUsage),
       trend: latest.diskUsage >= prev.diskUsage ? 'up' : 'down',
-      ringColor: 'var(--trae-status-warning-default)',
+      ringColor: 'var(--status-warning-text)',
       sparkline: diskSpark,
     },
     {
@@ -139,7 +140,7 @@ function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `↓${Math.round(latest.networkIn)} ↑${Math.round(latest.networkOut)}`,
       delta: Math.round((latest.networkIn + latest.networkOut) - (prev.networkIn + prev.networkOut)),
       trend: (latest.networkIn + latest.networkOut) >= (prev.networkIn + prev.networkOut) ? 'up' : 'down',
-      ringColor: 'var(--trae-bg-brand)',
+      ringColor: 'var(--accent-text)',
       sparkline: netSpark,
     },
   ]
@@ -298,33 +299,26 @@ export function MonitorPage() {
   }, [activeSessionId])
 
   return (
-    <main className="mon-main h-full w-full overflow-y-auto">
-      {/* 1. page-header */}
-      <header
-        className="mon-header mon-header-bar flex items-start justify-between gap-4"
-      >
-        <div className="flex flex-col gap-1.5 min-w-0">
-          <h1 className="mon-title">
-            实时监控
-          </h1>
-          <p className="mon-subtitle truncate">
-            {serverLabel}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <TimeRangeSwitcher value={range} onChange={setRange} />
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={!activeSessionId}
-            aria-label="刷新监控数据"
-            className="mon-btn-icon mon-btn-refresh mon-btn-press inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[var(--trae-text-secondary)] ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-      </header>
-
+    <main className="flex h-full w-full flex-col bg-canvas">
+      <PageHeader
+        icon={Activity}
+        title="实时监控"
+        subtitle={serverLabel}
+        actions={
+          <>
+            <TimeRangeSwitcher value={range} onChange={setRange} />
+            <IconButton
+              label="刷新监控数据"
+              size="lg"
+              onClick={handleRefresh}
+              disabled={!activeSessionId}
+            >
+              <RefreshCw className={refreshing ? 'size-4 animate-spin' : 'size-4'} />
+            </IconButton>
+          </>
+        }
+      />
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
       {/* 2. 顶部 critical 告警横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer）
           三态渲染：有告警 → 红色横幅；无告警 → 灰色占位 */}
       {criticalAlert ? (
@@ -336,7 +330,7 @@ export function MonitorPage() {
         >
           <AlertCircle
             className="w-3.5 h-3.5 shrink-0 mt-0.5"
-            style={{ color: 'var(--trae-status-error-default)' }}
+            style={{ color: 'var(--status-error-text)' }}
           />
           <p className="mon-alert-desc flex-1 min-w-0">
             {criticalAlert.desc}
@@ -351,9 +345,9 @@ export function MonitorPage() {
         >
           <AlertCircle
             className="w-3.5 h-3.5 shrink-0"
-            style={{ color: 'var(--trae-status-success-default)' }}
+            style={{ color: 'var(--status-success-text)' }}
           />
-          <p className="mon-alert-desc flex-1 min-w-0" style={{ color: 'var(--trae-text-secondary)' }}>
+          <p className="mon-alert-desc flex-1 min-w-0" style={{ color: 'var(--text-tertiary)' }}>
             系统运行正常，暂无 critical 告警
           </p>
         </div>
@@ -368,7 +362,7 @@ export function MonitorPage() {
               key={i}
               className="mon-kpi-card flex h-[100px] items-center justify-center"
             >
-              <Activity className="w-4 h-4 text-[var(--trae-text-tertiary)] animate-pulse" />
+              <Activity className="w-4 h-4 text-ink-mute animate-pulse" />
             </div>
           ))}
         </div>
@@ -397,6 +391,7 @@ export function MonitorPage() {
 
       {/* 6. 进程监控 */}
       <ProcessTable onRefresh={handleRefresh} />
+      </div>
 
       {/* 7. 告警详情 Drawer（DEC-3 决策，不新建 alert-detail.html） */}
       <AlertDrawer open={drawerOpen} alert={selectedAlert} onClose={closeDrawer} />

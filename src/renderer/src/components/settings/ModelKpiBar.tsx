@@ -40,19 +40,19 @@ interface KpiCardData {
 
 /** 真实数据加载前的骨架占位（4 个 KPI 全部 —，无 sparkline） */
 const LOADING_KPIS: KpiCardData[] = [
-  { label: '本月Token总量', value: '—', trend: '', points: '', strokeColor: 'var(--trae-bg-brand)' },
-  { label: '本月成本', value: '—', trend: '', points: '', strokeColor: 'var(--trae-status-success-default)' },
-  { label: '对话次数', value: '—', trend: '', points: '', strokeColor: 'var(--trae-bg-brand)' },
-  { label: '成功率', value: '—', trend: '', points: '', strokeColor: 'var(--trae-status-success-default)' },
+  { label: '本月Token总量', value: '—', trend: '', points: '', strokeColor: 'var(--accent-text)' },
+  { label: '本月成本', value: '—', trend: '', points: '', strokeColor: 'var(--status-success-text)' },
+  { label: '对话次数', value: '—', trend: '', points: '', strokeColor: 'var(--accent-text)' },
+  { label: '成功率', value: '—', trend: '', points: '', strokeColor: 'var(--status-success-text)' },
 ]
 
 /** 空数据骨架（IPC 返回全 0，无趋势） */
 function buildEmptyKpis(): KpiCardData[] {
   return [
-    { label: '本月Token总量', value: '0.0', unit: 'K', trend: '—', points: '', strokeColor: 'var(--trae-bg-brand)' },
-    { label: '本月成本', value: '$0.00', trend: '—', points: '', strokeColor: 'var(--trae-status-success-default)' },
-    { label: '对话次数', value: '0', unit: '次', trend: '—', points: '', strokeColor: 'var(--trae-bg-brand)' },
-    { label: '成功率', value: '0.0', unit: '%', trend: '—', points: '', strokeColor: 'var(--trae-status-success-default)' },
+    { label: '本月Token总量', value: '0.0', unit: 'K', trend: '—', points: '', strokeColor: 'var(--accent-text)' },
+    { label: '本月成本', value: '$0.00', trend: '—', points: '', strokeColor: 'var(--status-success-text)' },
+    { label: '对话次数', value: '0', unit: '次', trend: '—', points: '', strokeColor: 'var(--accent-text)' },
+    { label: '成功率', value: '0.0', unit: '%', trend: '—', points: '', strokeColor: 'var(--status-success-text)' },
   ]
 }
 
@@ -74,35 +74,35 @@ function buildKpis(
       value: formatTokenK(tokenStats.month),
       unit: 'K',
       trend: tokenStats.month > 0 ? `${tokenStats.month} tokens` : '—',
-      valueColor: 'var(--trae-bg-brand)',
+      valueColor: 'var(--accent-text)',
       points: '',
-      strokeColor: 'var(--trae-bg-brand)',
+      strokeColor: 'var(--accent-text)',
     },
     {
       label: '本月成本',
       value: `$${costStats.monthCost.toFixed(2)}`,
       trend: costStats.monthCost > 0 ? `$${costStats.monthCost.toFixed(2)}` : '—',
-      valueColor: 'var(--trae-status-success-default)',
+      valueColor: 'var(--status-success-text)',
       points: '',
-      strokeColor: 'var(--trae-status-success-default)',
+      strokeColor: 'var(--status-success-text)',
     },
     {
       label: '对话次数',
       value: String(conversationCount),
       unit: '次',
       trend: conversationCount > 0 ? `${conversationCount} 条` : '—',
-      valueColor: 'var(--trae-bg-brand)',
+      valueColor: 'var(--accent-text)',
       points: '',
-      strokeColor: 'var(--trae-bg-brand)',
+      strokeColor: 'var(--accent-text)',
     },
     {
       label: '成功率',
       value: successRate !== null ? (successRate * 100).toFixed(1) : '0.0',
       unit: '%',
       trend: successRate !== null ? `${(successRate * 100).toFixed(1)}%` : '—',
-      valueColor: 'var(--trae-status-success-default)',
+      valueColor: 'var(--status-success-text)',
       points: '',
-      strokeColor: 'var(--trae-status-success-default)',
+      strokeColor: 'var(--status-success-text)',
     },
   ]
 }
@@ -174,8 +174,8 @@ export function ModelKpiBar() {
             </span>
             <span className="set-model-kpi-card__trend">
               <svg
-                width="10"
-                height="10"
+                width="12"
+                height="12"
                 viewBox="0 0 10 10"
                 aria-hidden="true"
                 className="inline-block"

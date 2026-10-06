@@ -76,7 +76,7 @@ export function BudgetSection(props: BudgetSectionProps) {
             justifyContent: 'space-between',
             cursor: 'pointer',
             padding: '8px 0',
-            color: 'var(--trae-text-secondary)',
+            color: 'var(--text-tertiary)',
             fontSize: 13,
             listStyle: 'none',
             userSelect: 'none',
@@ -85,7 +85,7 @@ export function BudgetSection(props: BudgetSectionProps) {
           <span>预算与告警设置（月度预算 / 告警阈值 / 通知）</span>
           <span
             className="set-budget-summary-meta"
-            style={{ fontSize: 12, color: 'var(--trae-text-tertiary)' }}
+            style={{ fontSize: 12, color: 'var(--text-muted)' }}
           >
             ${usedAmount.toFixed(2)} / ${monthlyBudget.toFixed(2)}
           </span>

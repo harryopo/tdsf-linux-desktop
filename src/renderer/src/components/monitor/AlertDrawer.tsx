@@ -29,19 +29,19 @@ function riskTagProps(level: RiskLevel): { color: string; bg: string; label: str
   switch (level) {
     case 'critical':
       return {
-        color: 'var(--trae-status-error-default)',
+        color: 'var(--status-error-text)',
         bg: 'var(--trae-status-error-surface-l1)',
         label: 'critical',
       }
     case 'high':
       return {
-        color: 'var(--trae-status-warning-default)',
+        color: 'var(--status-warning-text)',
         bg: 'var(--trae-status-warning-surface-l1)',
         label: 'high',
       }
     case 'medium':
       return {
-        color: 'var(--trae-status-alert-default)',
+        color: 'var(--status-error-text)',
         bg: 'var(--trae-status-alert-surface-l1)',
         label: 'medium',
       }
@@ -185,7 +185,7 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
                   color: risk.color,
                   background: risk.bg,
                   border: 'none',
-                  fontSize: 10,
+                  fontSize: 11,
                   padding: '1px 6px',
                   lineHeight: '16px',
                   margin: 0,
@@ -273,7 +273,7 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
           {ackError && (
             <span
               className="mon-drawer-ack-error mr-auto"
-              style={{ color: 'var(--trae-status-error-default)' }}
+              style={{ color: 'var(--status-error-text)' }}
               role="alert"
             >
               {ackError}

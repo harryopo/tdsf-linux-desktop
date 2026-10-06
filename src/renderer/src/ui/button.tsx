@@ -21,7 +21,8 @@ const button = cva(
         solid: 'bg-accent-solid text-(--text-on-accent) hover:bg-accent-solid-hover active:bg-accent-solid-active',
         outline: 'border border-line-strong bg-transparent text-ink hover:bg-hover hover:text-ink-strong',
         ghost: 'bg-transparent text-ink-dim hover:bg-hover hover:text-ink',
-        danger: 'border border-error/40 bg-transparent text-error hover:bg-error/10 active:bg-error/20',
+        danger:
+          'border border-error/40 bg-transparent text-(--status-error-text) hover:bg-error/10 active:bg-error/20',
         selected: 'bg-active text-ink',
       },
       size: {

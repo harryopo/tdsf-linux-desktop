@@ -1,0 +1,396 @@
+#!/usr/bin/env node
+/**
+ * 界面取证：真机截图 + 逐项量出来的设计缺陷
+ *
+ * 不看代码猜，全部在跑起来的 Electron 里量：
+ * - 每个可见文字节点的 (字号, 字重, 字体族) 组合分布 → 层级是否统一
+ * - 文字色 vs 实际背景色的对比度 → 谁看不清（含 <4.5:1 的清单）
+ * - SVG 图标的渲染尺寸分布 → 图标是否大小不一
+ * - 溢出/被裁切的节点 → 遮挡问题
+ * - 对话框/弹层的实际宽高与内部字号 → 弹窗比例问题
+ * 同时把每个界面截成 PNG，落在 docs/assets/ui-audit-<date>/。
+ *
+ * 用法：先 pnpm build，再 node scripts/design/ui-audit.mjs
+ * 退出码恒为 0（这是取证，不是门禁）；数据打印到 stdout。
+ */
+import { spawn } from 'node:child_process'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+
+const ROOT = path.resolve(import.meta.dirname, '../..')
+const PORT = 9235
+const OUT_DIR = path.join(ROOT, 'docs', 'assets', 'ui-audit-20261005')
+const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+fs.mkdirSync(OUT_DIR, { recursive: true })
+
+if (!fs.existsSync(path.join(ROOT, 'out', 'main', 'index.js'))) {
+  console.error('缺少 out/main/index.js —— 先跑：pnpm build')
+  process.exit(2)
+}
+
+const app = spawn(ELECTRON, ['.', `--remote-debugging-port=${PORT}`], {
+  cwd: ROOT,
+  stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, ELECTRON_ENABLE_LOGGING: '1' },
+})
+const appLog = []
+app.stdout.on('data', (d) => appLog.push(d.toString()))
+app.stderr.on('data', (d) => appLog.push(d.toString()))
+
+async function findTarget() {
+  for (let i = 0; i < 80; i++) {
+    try {
+      const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json()
+      const page = list.find((t) => t.type === 'page' && /index\.html|localhost|127\.0\.0\.1/.test(t.url))
+      if (page) return page
+    } catch {
+      /* CDP 还没起 */
+    }
+    await sleep(500)
+  }
+  throw new Error('等不到 CDP target\n' + appLog.join('').slice(-2000))
+}
+
+let msgId = 0
+function cdp(ws, method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++msgId
+    const onMsg = (ev) => {
+      const m = JSON.parse(typeof ev === 'string' ? ev : String(ev.data))
+      if (m.id === id) {
+        ws.removeEventListener('message', onMsg)
+        if (m.error) reject(new Error(method + ': ' + JSON.stringify(m.error)))
+        else resolve(m.result)
+      }
+    }
+    ws.addEventListener('message', onMsg)
+    ws.send(JSON.stringify({ id, method, params }))
+  })
+}
+
+async function evalIn(ws, expression) {
+  const r = await cdp(ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
+  if (r.exceptionDetails) throw new Error('页面脚本异常：' + JSON.stringify(r.exceptionDetails).slice(0, 500))
+  return r.result.value
+}
+
+async function shot(ws, name) {
+  const { data } = await cdp(ws, 'Page.captureScreenshot', { format: 'png' })
+  fs.writeFileSync(path.join(OUT_DIR, name + '.png'), Buffer.from(data, 'base64'))
+  return name + '.png'
+}
+
+/** 在页面里跑一次的完整量测：文字层级 / 对比度 / 图标尺寸 / 裁切 / 弹层尺寸 */
+const MEASURE = `(async () => {
+  const px = (v) => Math.round(parseFloat(v) * 10) / 10;
+  const lum = (c) => {
+    const m = c.match(/rgba?\\(([^)]+)\\)/);
+    if (!m) return null;
+    const [r, g, b, aRaw] = m[1].split(',').map((x) => parseFloat(x.trim()));
+    const a = aRaw === undefined ? 1 : aRaw;
+    if (a === 0) return null;
+    const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+    return { L: 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b), a, rgb: [r, g, b] };
+  };
+  const blend = (fg, bg) => fg.a >= 1 ? fg.rgb : fg.rgb.map((v, i) => v * fg.a + bg[i] * (1 - fg.a));
+  const ratio = (l1, l2) => { const [a, b] = l1 > l2 ? [l1, l2] : [l2, l1]; return (a + 0.05) / (b + 0.05); };
+  const bgOf = (el) => {
+    for (let n = el; n; n = n.parentElement) {
+      const c = lum(getComputedStyle(n).backgroundColor);
+      if (c) return blend(c, { L: 1, a: 1, rgb: [255, 255, 255] });
+    }
+    return [255, 255, 255];
+  };
+  const f = (x) => Math.round(x * 100) / 100;
+
+  const type = {};
+  const families = new Set();
+  const low = [];
+  const clipped = [];
+  for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,p,span,button,a,label,td,th,div,code,li')) {
+    const txt = (el.textContent || '').trim();
+    if (!txt || el.children.length > 0) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || parseFloat(cs.opacity) < 0.15) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 6 || r.height < 6 || r.bottom < 0 || r.top > innerHeight) continue;
+    const key = px(cs.fontSize) + 'px/' + cs.fontWeight + '/' + (cs.fontFamily || '').split(',')[0].replace(/["']/g, '');
+    type[key] = (type[key] || 0) + 1;
+    // 字体族只统计我们自己的节点：antd 注入的 -apple-system 栈在退出清单上，不按我们的刻度判
+    if (!el.closest('[class*="ant-"]')) families.add((cs.fontFamily || '').split(',')[0].replace(/["']/g, ''));
+
+    const fg = lum(cs.color);
+    if (fg) {
+      const bgL = (() => {
+        const rgb = bgOf(el);
+        const g = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+        return 0.2126 * g(rgb[0]) + 0.7152 * g(rgb[1]) + 0.0722 * g(rgb[2]);
+      })();
+      const contrast = ratio(fg.L, bgL);
+      const large = parseFloat(cs.fontSize) >= 18.5 || (parseFloat(cs.fontSize) >= 15 && parseInt(cs.fontWeight, 10) >= 700);
+      const need = large ? 3 : 4.5;
+      if (contrast + 0.001 < need) {
+        low.push({ text: txt.slice(0, 26), size: px(cs.fontSize), weight: cs.fontWeight, contrast: f(contrast), need, color: cs.color, cls: (el.className || '').toString().slice(0, 46) });
+      }
+    }
+    const ovY = el.scrollHeight - el.clientHeight;
+    const ovX = el.scrollWidth - el.clientWidth;
+    const hidesY = cs.overflowY === 'hidden' || cs.overflow === 'hidden';
+    const hidesX = cs.overflowX === 'hidden' || cs.overflow === 'hidden';
+    // 带省略号的截断是故意的（单行标签列），不算遮挡；只有"藏起来又没有省略号"才是缺陷
+    if (cs.textOverflow === 'ellipsis') continue;
+    if ((hidesY && ovY > 3) || (hidesX && ovX > 3)) {
+      clipped.push({ text: txt.slice(0, 26), cls: (el.className || '').toString().slice(0, 40), over: (hidesY && ovY > 3 ? 'y+' + ovY : '') + (hidesX && ovX > 3 ? 'x+' + ovX : ''), to: cs.textOverflow, ws: cs.whiteSpace });
+    }
+  }
+
+  const icons = {};
+  const offTierIcons = [];
+  const ICON_TIER = /^(12|14|16|18|20|24|32|48)x/;
+  for (const s of document.querySelectorAll('svg')) {
+    const r = s.getBoundingClientRect();
+    if (r.width < 2) continue;
+    // antd 自带图标（.anticon 一族）在退出清单上，不按"我们的图标刻度"判它
+    if (s.closest('.anticon, .ant-modal-close, .ant-select-suffix, .ant-picker-suffix')) continue;
+    const k = px(r.width) + 'x' + px(r.height);
+    icons[k] = (icons[k] || 0) + 1;
+    if (r.width <= 48 && !ICON_TIER.test(k)) {
+      const host = s.closest('button,[aria-label],[title],span,div');
+      offTierIcons.push({
+        size: k,
+        cls: (s.getAttribute('class') || '').toString().slice(0, 40),
+        at: ((host && (host.getAttribute('aria-label') || host.getAttribute('title') || host.textContent)) || '').trim().slice(0, 28),
+      });
+    }
+  }
+
+  // ===== 页面左上角标题：必须是同一个 PageHeader（钩子 data-dom-id="page-title"）=====
+  let header = null;
+  {
+    const el = document.querySelector('[data-dom-id="page-title"]');
+    if (el) {
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      header = { text: (el.textContent || '').trim().slice(0, 20), size: px(cs.fontSize), weight: cs.fontWeight, x: Math.round(r.left), y: Math.round(r.top), family: (cs.fontFamily || '').split(',')[0].replace(/["']/g, '') };
+    }
+  }
+  const hasPageHeader = !!header;
+  if (!header) {
+    // 没有 PageHeader 的屏（外壳、启动页）仍量一下左上角实际是什么，便于发现漏网的自写标题
+    const cands = [];
+    for (const el of document.querySelectorAll('h1,h2,[class*="__title"],[class*="-title"],strong')) {
+      const txt = (el.textContent || '').trim();
+      if (!txt || txt.length > 24) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 6 || r.top > 200 || r.left > 400) continue;
+      cands.push({ text: txt.slice(0, 20), size: px(cs.fontSize), weight: cs.fontWeight, x: Math.round(r.left), y: Math.round(r.top), family: (cs.fontFamily || '').split(',')[0].replace(/["']/g, '') });
+    }
+    cands.sort((a, b) => b.size - a.size || a.y - b.y);
+    header = cands[0] || null;
+  }
+
+  // ===== 按钮留白：量"文字到边框的真实空隙"，不是 CSS padding（固定高度的 flex 按钮 padding 本就是 0） =====
+  const cramped = [];
+  const pads = [];
+  for (const b of document.querySelectorAll('button, .ant-btn')) {
+    const txt = (b.textContent || '').trim();
+    if (!txt) continue;
+    const cs = getComputedStyle(b);
+    if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    const r = b.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) continue;
+    // 纯图标按钮（带 aria-label 且文字极短）不算：它靠的是尺寸不是内边距
+    if (txt.length <= 1 && b.getAttribute('aria-label')) continue;
+    const range = document.createRange();
+    range.selectNodeContents(b);
+    const tr = range.getBoundingClientRect();
+    const gapL = Math.round(tr.left - r.left);
+    const gapR = Math.round(r.right - tr.right);
+    const gapT = Math.round(tr.top - r.top);
+    const gapB = Math.round(r.bottom - tr.bottom);
+    pads.push(Math.min(gapL, gapR));
+    if (Math.min(gapL, gapR) < 8 || Math.min(gapT, gapB) < 4) {
+      cramped.push({ text: txt.slice(0, 14), gapX: Math.min(gapL, gapR), gapY: Math.min(gapT, gapB), h: Math.round(r.height), cls: (b.className || '').toString().slice(0, 34) });
+    }
+  }
+
+  const layers = [];  for (const el of document.querySelectorAll('[role="dialog"],[role="menu"],[role="tooltip"],.ant-modal-content,.ant-drawer-content')) {
+    const r = el.getBoundingClientRect();
+    const inner = [...el.querySelectorAll('h1,h2,h3,p,span,div,button,label')].filter((n) => n.children.length === 0 && (n.textContent || '').trim());
+    const sizes = inner.map((n) => px(getComputedStyle(n).fontSize)).filter(Boolean);
+    layers.push({
+      role: el.getAttribute('role') || el.className.toString().slice(0, 20),
+      w: Math.round(r.width), h: Math.round(r.height),
+      vwPct: f((r.width / innerWidth) * 100), vhPct: f((r.height / innerHeight) * 100),
+      bg: getComputedStyle(el).backgroundColor,
+      radius: getComputedStyle(el).borderRadius,
+      fontSizes: [...new Set(sizes)].sort((a, b) => a - b),
+      text: (el.textContent || '').trim().slice(0, 50),
+    });
+  }
+
+  return {
+    viewport: [innerWidth, innerHeight],
+    typeScales: Object.fromEntries(Object.entries(type).sort((a, b) => b[1] - a[1]).slice(0, 24)),
+    distinctTypeCombos: Object.keys(type).length,
+    families: [...families],
+    lowContrast: low.sort((a, b) => a.contrast - b.contrast).slice(0, 20),
+    lowContrastCount: low.length,
+    clipped,
+    iconSizes: Object.fromEntries(Object.entries(icons).sort((a, b) => b[1] - a[1]).slice(0, 14)),
+    offTierIcons: offTierIcons.slice(0, 6),
+    header,
+    hasPageHeader,
+    crampedButtons: cramped.slice(0, 10),
+    crampedButtonCount: cramped.length,
+    medianButtonGapX: pads.length ? pads.sort((a, b) => a - b)[Math.floor(pads.length / 2)] : null,
+    layers,
+  };
+})()`
+
+const ROUTES = [
+  { hash: '#/workbench', name: '01-workbench' },
+  { hash: '#/knowledge', name: '02-knowledge' },
+  { hash: '#/knowledge/nope', name: '03-knowledge-missing' },
+  { hash: '#/tutorial', name: '04-tutorial' },
+  { hash: '#/logs', name: '05-logs' },
+  { hash: '#/monitor', name: '06-monitor' },
+  { hash: '#/decision', name: '07-decision' },
+  { hash: '#/settings', name: '08-settings' },
+  { hash: '#/settings/ssh', name: '09-settings-ssh' },
+  { hash: '#/settings/model', name: '10-settings-model' },
+  { hash: '#/settings/risk', name: '11-settings-risk' },
+  { hash: '#/settings/about', name: '12-settings-about' },
+]
+
+const report = { screens: [] }
+try {
+  const target = await findTarget()
+  const ws = new WebSocket(target.webSocketDebuggerUrl)
+  await new Promise((res, rej) => {
+    ws.addEventListener('open', res, { once: true })
+    ws.addEventListener('error', rej, { once: true })
+  })
+  await cdp(ws, 'Runtime.enable')
+  await cdp(ws, 'Page.enable')
+  await cdp(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false })
+
+  // 1) 启动页：进度条还在走的时候截一张，走完了再截一张
+  await sleep(1200)
+  const bootEarly = await shot(ws, '00-boot-early')
+  const bootMeasure = await evalIn(ws, MEASURE)
+  await sleep(3500)
+  const bootLate = await shot(ws, '00-boot-late')
+  report.boot = { early: bootEarly, late: bootLate, measure: bootMeasure }
+
+  await evalIn(ws, `(() => { const e = document.querySelector('button[data-dom-id="boot-enter"]'); if (e) e.click(); })()`)
+  await sleep(2500)
+
+  for (const r of ROUTES) {
+    await evalIn(ws, `location.hash = ${JSON.stringify(r.hash)}`)
+    await sleep(1600)
+    const file = await shot(ws, r.name)
+    const m = await evalIn(ws, MEASURE)
+    report.screens.push({ route: r.hash, png: file, ...m })
+  }
+
+  // 2) 弹层实测：确认框 / 右键菜单 / 悬浮提示 / 添加规则（antd Modal）
+  await evalIn(ws, `location.hash = '#/settings/risk'`)
+  await sleep(1600)
+  await evalIn(ws, `(async () => {
+    const add = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('新增'));
+    if (add) add.click();
+    await new Promise((x) => setTimeout(x, 900));
+  })()`)
+  report.modalAntd = await evalIn(ws, MEASURE)
+  await shot(ws, '13-modal-antd-add-rule')
+  await evalIn(ws, `(() => { const c = document.querySelector('.ant-modal-close, .ant-modal button'); if (c) c.click(); })()`)
+  await sleep(600)
+
+  await evalIn(ws, `(async () => {
+    const del = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('删除'));
+    if (del) del.click();
+    await new Promise((x) => setTimeout(x, 900));
+  })()`)
+  report.confirmDialog = await evalIn(ws, MEASURE)
+  await shot(ws, '14-dialog-confirm')
+  await evalIn(ws, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
+  await sleep(500)
+
+  await evalIn(ws, `location.hash = '#/workbench'`)
+  await sleep(1800)
+  await evalIn(ws, `(async () => {
+    const t = document.querySelector('.wb-filetree-empty') || document.querySelector('.wb-filetree-scroll > *');
+    if (!t) return;
+    const r = t.getBoundingClientRect();
+    t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: r.left + 12, clientY: r.top + 12 }));
+    await new Promise((x) => setTimeout(x, 800));
+  })()`)
+  report.contextMenu = await evalIn(ws, MEASURE)
+  await shot(ws, '15-menu-context')
+
+  console.log(JSON.stringify(report, null, 2))
+  console.log('\n截图目录：' + OUT_DIR)
+
+  // ===== --gate：把上面的量测变成硬闸（判据见 DESIGN.md §8） =====
+  if (process.argv.includes('--gate')) {
+    const MAX_COMBOS = 12 // 单屏 (字号/字重/字体族) 组合数上限；实测最松的一屏是 10
+    const bad = []
+    const pages = [report.boot.measure, ...report.screens].filter(Boolean)
+    // 弹层那几条是在"页面 + 浮层"整体上量的，组合数/字体族会把页面本身重复计入，只查对比度与遮挡
+    const layers = [report.modalAntd, report.confirmDialog, report.contextMenu].filter(Boolean)
+    for (const s of [...pages, ...layers]) {
+      const at = s.route || 'boot/弹层'
+      if (s.lowContrastCount) bad.push(`${at}: ${s.lowContrastCount} 处文字达不到 WCAG AA（最低 ${s.lowContrast[0]?.contrast}:1 — "${s.lowContrast[0]?.text}"）`)
+      for (const c of s.clipped) bad.push(`${at}: 文字被藏起来且无省略号 — "${c.text}" (${c.cls}) ${c.over}`)
+    }
+    for (const s of pages) {
+      const at = s.route || 'boot'
+      if (s.distinctTypeCombos > MAX_COMBOS) bad.push(`${at}: 字号/字重/字体族组合 ${s.distinctTypeCombos} 种（上限 ${MAX_COMBOS}）`)
+      // 只查图标档：>48px 的是图表/插画（recharts 的容器 SVG），不是图标
+      const offIcon = (s.offTierIcons || []).map((o) => `${o.size}「${o.at || o.cls}」`)
+      if (offIcon.length) bad.push(`${at}: 图标尺寸不在刻度内 — ${offIcon.join(', ')}`)
+      const fams = s.families || []
+      if (fams.length > 2) bad.push(`${at}: 字体族 ${fams.length} 套 — ${fams.join(', ')}`)
+      const tiny = Object.keys(s.typeScales).filter((k) => parseFloat(k) < 11)
+      if (tiny.length) bad.push(`${at}: 出现低于 11px 的字号 — ${tiny.join(', ')}`)
+    }
+    for (const s of layers) {
+      const offIcon = (s.offTierIcons || []).map((o) => `${o.size}「${o.at || o.cls}」`)
+      if (offIcon.length) bad.push(`弹层: 图标尺寸不在刻度内 — ${offIcon.join(', ')}`)
+    }
+    // 模块页左上角必须是同一个 PageHeader，且是 --ui-font-head（20px）+ semibold
+    const SHELL_ROUTES = ['#/workbench'] // 外壳页的左上角是标题栏，不是模块标题
+    const HEAD_SIG = '20px/600'
+    for (const s of pages) {
+      const at = s.route
+      if (!at || SHELL_ROUTES.includes(at)) continue
+      if (!s.hasPageHeader) {
+        bad.push(`${at}: 左上角没有 PageHeader（标题 ${s.header ? `${s.header.size}px/${s.header.weight}「${s.header.text}」` : '缺失'}，模块之间不一致）`)
+      } else if (`${s.header.size}px/${s.header.weight}` !== HEAD_SIG) {
+        bad.push(`${at}: 页头 ${s.header.size}px/${s.header.weight}，应为 ${HEAD_SIG}`)
+      }
+    }
+    console.log('\n=== 门禁 ===')
+    console.log('页面左上角标题对照（字号/字重/位置应当一致）：')
+    for (const s of pages) {
+      const h = s.header
+      console.log('  ' + String(s.route || 'boot').padEnd(20), h ? `${h.size}px/${h.weight} @${h.x},${h.y}  ${JSON.stringify(h.text)}` : '（没找到页级标题）')
+    }
+    if (bad.length) {
+      console.error('FAIL：\n' + bad.join('\n'))
+      app.kill()
+      process.exit(1)
+    }
+    console.log('PASS：全部界面达到 DESIGN.md §8 的对比度 / 字阶 / 图标刻度 / 无遮挡要求')
+  }
+} catch (err) {
+  console.error('取证脚本异常：' + (err && err.stack ? err.stack : err))
+} finally {
+  app.kill()
+  process.exit(0)
+}

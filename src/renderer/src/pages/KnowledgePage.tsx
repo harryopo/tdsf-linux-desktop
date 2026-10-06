@@ -22,13 +22,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Spin } from 'antd'
 import { toast } from 'sonner'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
   ArrowUpRight, Star, FileText, Plus, X, Check, Inbox,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { Button, PageHeader, Spinner } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
@@ -396,22 +396,24 @@ export function KnowledgePage() {
 
   return (
     <main className="kb-page">
-      <div className="kb-container">
-
-        {/* ====== 1. Page Header ====== */}
-        <header className="kb-header">
-          <div className="kb-header__main">
-            <div className="kb-header__title-row">
-              <Layers size={26} strokeWidth={2} style={{ color: 'var(--trae-icon-brand)' }} />
-              <h1 className="kb-header__title">运维知识库</h1>
-            </div>
-            <p className="kb-header__subtitle">AI驱动的运维知识检索与沉淀</p>
-          </div>
-          <button type="button" data-dom-id="back-workbench" aria-label="返回工作台" onClick={handleBack} className="kb-back-btn kb-btn-press">
-            <ArrowLeft size={14} style={{ color: 'var(--trae-icon-default)' }} />
+      <PageHeader
+        icon={Layers}
+        title="运维知识库"
+        subtitle="AI 驱动的运维知识检索与沉淀"
+        actions={
+          <Button
+            variant="outline"
+            size="md"
+            data-dom-id="back-workbench"
+            aria-label="返回工作台"
+            onClick={handleBack}
+          >
+            <ArrowLeft className="size-4" />
             <span>返回工作台</span>
-          </button>
-        </header>
+          </Button>
+        }
+      />
+      <div className="kb-container">
 
         {/* ====== 2. Search Bar ====== */}
         <div className="kb-search-bar">
@@ -451,7 +453,7 @@ export function KnowledgePage() {
           <div className="kb-list">
             {loadingItems ? (
               <div className="kb-empty">
-                <Spin size="small" tip="加载知识库中…" />
+                <Spinner label="加载知识库中…" />
               </div>
             ) : filteredItems.length === 0 ? (
               <Empty

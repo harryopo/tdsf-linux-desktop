@@ -8,7 +8,9 @@
  * - zustand persist（localStorage）即时生效 + 跨启动恢复
  * - 每次变更 fire-and-forget 双写 configSet（保持 GeneralSettings"导出数据"兼容）
  * - 应用点在 main.tsx Root：
- *   fontSize/lineHeight/uiFont → documentElement CSS 变量（global.css body 消费）
+ *   fontSize/lineHeight → documentElement CSS 变量（global.css body 消费）
+ *   界面字体不再可选：全站唯一字体族由 ui-tokens 的 --ui-family-ui 单源，
+ *   可选的"界面字体"会用 -apple-system 开头的栈覆盖它，实测造成一屏三套族
  *   density → html[data-density] 属性（global.css 密度规则消费）
  *   themeMode → theme-store（system 模式跟随 matchMedia）
  *   codeTheme/codeFont → TerminalView xterm 色板与字体 + code/pre CSS 变量
@@ -21,24 +23,14 @@ export type ThemeMode = 'dark' | 'light' | 'system'
 export type Density = 'compact' | 'standard' | 'comfortable'
 export type CodeTheme = CodeThemeId
 
-/** 外观设置默认值（与设计稿 settings-appearance.html 一致） */
+/** 外观设置默认值（字号与 --ui-font-md 档一致，Trae 中等密度） */
 export const APPEARANCE_DEFAULTS = {
   themeMode: 'dark' as ThemeMode,
-  uiFont: 'SF Pro Text',
   codeFont: 'JetBrains Mono',
-  fontSize: 13,
+  fontSize: 14,
   lineHeight: 1.5,
   density: 'standard' as Density,
   codeTheme: 'one-dark' as CodeTheme,
-}
-
-/** UI 字体选项 → 实际 font-family 栈 */
-export const UI_FONT_STACKS: Record<string, string> = {
-  'SF Pro Text': "-apple-system, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
-  'Segoe UI': "'Segoe UI', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif",
-  'PingFang SC': "'PingFang SC', -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif",
-  'Microsoft YaHei': "'Microsoft YaHei', -apple-system, 'Segoe UI', 'PingFang SC', sans-serif",
-  'System UI': "system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
 }
 
 /** 代码字体选项 → 实际 font-family 栈 */
@@ -51,7 +43,6 @@ export const CODE_FONT_STACKS: Record<string, string> = {
 
 interface AppearanceState {
   themeMode: ThemeMode
-  uiFont: string
   codeFont: string
   fontSize: number
   lineHeight: number
@@ -69,7 +60,6 @@ interface AppearanceState {
 /** 双写 electron-store 的 key 映射（与旧 usePersistentState key 保持一致） */
 const CONFIG_KEY_MAP: Record<keyof typeof APPEARANCE_DEFAULTS, string> = {
   themeMode: 'appearance.theme',
-  uiFont: 'appearance.uiFont',
   codeFont: 'appearance.codeFont',
   fontSize: 'appearance.fontSize',
   lineHeight: 'appearance.lineHeight',

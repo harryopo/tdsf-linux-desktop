@@ -696,7 +696,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
               {!connected ? (
                 <div className="wb-filetree-empty">
                   <div className="wb-filetree-server-head">
-                    <span className="text-caption font-semibold tracking-[0.08em] text-[var(--trae-text-tertiary)]">
+                    <span className="text-caption font-semibold tracking-[0.08em] text-ink-mute">
                       服务器
                     </span>
                   </div>
@@ -721,7 +721,7 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
               ) : (
                 <>
                   <div className="wb-filetree-server-head">
-                    <Server className="size-3.5 text-[var(--trae-text-brand)]" />
+                    <Server className="size-3.5 text-(--accent-text)" />
                     <span className="wb-filetree-server-name">
                       {activeServer?.name || activeServer?.host || 'server'}
                     </span>
@@ -899,9 +899,9 @@ function ArboristNodeRow({
           <Folder className="size-3.5 shrink-0 text-[var(--trae-accent-blue)]" />
         )
       ) : data.name.endsWith('.log') || data.name.endsWith('.conf') ? (
-        <FileText className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
+        <FileText className="size-3.5 shrink-0 text-ink-dim" />
       ) : (
-        <File className="size-3.5 shrink-0 text-[var(--trae-text-secondary)]" />
+        <File className="size-3.5 shrink-0 text-ink-dim" />
       )}
 
       <span className="wb-ft-label">{data.name}</span>

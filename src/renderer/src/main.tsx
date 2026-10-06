@@ -29,7 +29,7 @@ import zhCN from 'antd/locale/zh_CN'
 import App from './App'
 import { useThemeStore } from './stores/theme-store'
 // v2.7 外观设置真实落地：字号/行高/字体/密度/主题模式的应用点
-import { useAppearanceStore, UI_FONT_STACKS, CODE_FONT_STACKS } from './stores/appearance-store'
+import { useAppearanceStore, CODE_FONT_STACKS } from './stores/appearance-store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 // P0 修复：Agent 流式事件全局订阅（与 AIPanel 挂载解耦，防止流式中收起面板丢事件）
 import { initAgentStreamSubscription } from './stores/agent-stream-subscription'
@@ -116,22 +116,19 @@ const Root: React.FC = () => {
   // ===== v2.7 外观设置真实落地（此前只存不用，设置页全部形同摆设） =====
   const fontSize = useAppearanceStore((s) => s.fontSize)
   const lineHeight = useAppearanceStore((s) => s.lineHeight)
-  const uiFont = useAppearanceStore((s) => s.uiFont)
   const density = useAppearanceStore((s) => s.density)
   const themeMode = useAppearanceStore((s) => s.themeMode)
   const codeFont = useAppearanceStore((s) => s.codeFont)
 
-  // 字号/行高/界面字体 → 覆盖 global.css body 消费的 --trae token
+  // 字号/行高 → 覆盖 global.css body 消费的 --trae token（界面字体不可选，见 ui-tokens）
   useEffect(() => {
     const el = document.documentElement
     el.style.setProperty('--trae-body-base-font-size', `${fontSize}px`)
     el.style.setProperty('--trae-body-base-line-height', String(lineHeight))
-    const stack = UI_FONT_STACKS[uiFont]
-    if (stack) el.style.setProperty('--trae-font-family-default', stack)
     // 代码字体 → --app-code-font（global.css code/pre/kbd 与 xterm 消费）
     const codeStack = CODE_FONT_STACKS[codeFont]
     if (codeStack) el.style.setProperty('--app-code-font', codeStack)
-  }, [fontSize, lineHeight, uiFont, codeFont])
+  }, [fontSize, lineHeight, codeFont])
 
   // 界面密度 → html[data-density]（global.css 密度规则消费）
   useEffect(() => {

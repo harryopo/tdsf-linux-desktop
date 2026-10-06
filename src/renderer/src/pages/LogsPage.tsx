@@ -21,9 +21,9 @@
  * 无障碍：role="log" aria-live="polite"、role="status"、按钮 aria-label、prefers-reduced-motion
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Spin } from 'antd'
 import { toast } from 'sonner'
 import { FileText, Sparkles, Clock, RefreshCw, Download } from 'lucide-react'
+import { Chip, PageHeader, Spinner } from '@/ui'
 import { LogSidebar } from '@/components/logs/v1/LogSidebar'
 import { LogToolbar } from '@/components/logs/v1/LogToolbar'
 import { LogViewer } from '@/components/logs/v1/LogViewer'
@@ -384,23 +384,19 @@ export function LogsPage() {
   }
 
   return (
-    <main
-      className="log-main flex h-full w-full flex-col overflow-y-auto"
-      data-viewport-mode="app-shell"
-    >
-      {/* ===== 1. Header (48px) — 设计稿 1:1：图标 + 标题 + 副标题 + AI 决策数据源 chip ===== */}
-      <header className="log-header flex shrink-0 items-center justify-between">
-        <div className="log-header-left flex min-w-0 items-center">
-          <FileText size={20} className="shrink-0" style={{ color: 'var(--trae-icon-brand)' }} />
-          <h1 className="log-header-title m-0 truncate">系统日志</h1>
-          <span className="log-header-subtitle truncate">实时日志流与历史检索</span>
-          {/* AI 决策数据源 chip（设计稿：sparkles 图标 + 品牌色描边） */}
-          <span className="log-header-ai-chip inline-flex items-center">
-            <Sparkles size={10} style={{ color: 'var(--trae-icon-brand)' }} />
+    <main className="log-main flex h-full w-full flex-col" data-viewport-mode="app-shell">
+      {/* ===== 1. 页头（全站唯一 PageHeader）===== */}
+      <PageHeader
+        icon={FileText}
+        title="系统日志"
+        subtitle="实时日志流与历史检索"
+        actions={
+          <Chip tone="accent" className="gap-1.5">
+            <Sparkles size={12} />
             <span>AI 决策数据源</span>
-          </span>
-        </div>
-      </header>
+          </Chip>
+        }
+      />
 
       {/* ===== 2. Toolbar — AI 日志分析按钮按设计稿移入此处 ===== */}
       <LogToolbar
@@ -442,7 +438,7 @@ export function LogsPage() {
         >
           {loading && (
             <div className="log-loading-overlay">
-              <Spin size="small" tip="加载日志中…" />
+              <Spinner label="加载日志中…" />
             </div>
           )}
           <LogViewer

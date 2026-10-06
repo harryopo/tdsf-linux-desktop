@@ -29,7 +29,7 @@ export function LearningPath({ paths }: LearningPathProps) {
           aria-label="查看全部学习路径"
         >
           查看全部
-          <ChevronRight size={12} style={{ color: 'var(--trae-text-brand)' }} />
+          <ChevronRight size={12} style={{ color: 'var(--accent-text)' }} />
         </button>
       </div>
 

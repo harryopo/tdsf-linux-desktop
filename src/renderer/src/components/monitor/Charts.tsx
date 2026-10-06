@@ -229,7 +229,7 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
       legend={
         <div className="mon-chart-legend flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1">
-            <span className="mon-chart-dot" style={{ background: 'var(--trae-bg-brand)' }} />
+            <span className="mon-chart-dot" style={{ background: 'var(--accent-solid)' }} />
             used
           </span>
           <span className="flex items-center gap-1">
@@ -397,7 +397,7 @@ export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
       legend={
         <div className="mon-chart-legend flex items-center gap-2 shrink-0">
           <span className="flex items-center gap-1">
-            <span className="mon-chart-dot" style={{ background: 'var(--trae-bg-brand)' }} />
+            <span className="mon-chart-dot" style={{ background: 'var(--accent-solid)' }} />
             入站
           </span>
           <span className="flex items-center gap-1">

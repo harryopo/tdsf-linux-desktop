@@ -17,7 +17,7 @@
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   animation: sel-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ui-family-ui);
 }
 
 @keyframes sel-fade-in {
@@ -64,7 +64,7 @@
 .sel-kbd {
   margin-left: 2px;
   padding: 1px 5px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   color: #86868b;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 3px;
@@ -86,7 +86,7 @@
   color: #e8e8e8;
   font-size: 13px;
   animation: sel-fade-in 220ms ease;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ui-family-ui);
 }
 
 .trans-header {
@@ -98,7 +98,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .trans-word {
-  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+  font-family: var(--ui-family-code);
   color: #5ac8fa;
   font-size: 14px;
   font-weight: 500;
@@ -155,7 +155,7 @@
   font-size: 12px;
 }
 .trans-seg-word {
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-family: var(--ui-family-code);
   color: #5ac8fa;
   background: rgba(90, 200, 250, 0.08);
   padding: 1px 5px;
@@ -188,12 +188,12 @@
   padding: 1px 5px;
   background: rgba(90, 200, 250, 0.15);
   color: #5ac8fa;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   border-radius: 3px;
   font-weight: 500;
 }
 .trans-example code {
-  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-family: var(--ui-family-code);
   word-break: break-all;
 }
 
@@ -219,7 +219,7 @@
   padding: 1px 5px;
   background: rgba(48, 209, 88, 0.15);
   color: #30d158;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   border-radius: 3px;
   font-weight: 500;
 }

@@ -62,9 +62,10 @@ export const traeAntdDarkToken = {
   borderRadiusSM: 4,
   borderRadiusLG: 8,
   // 字体 - TRAE 字体栈
-  fontFamily:
-    '"SF Pro Text", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-  fontSize: 13,
+  // 字体栈只有一个来源（ui-tokens）。旧值把没安装的 SF Pro Text 排在第一位，
+  // 真机量出一屏里同时出现 Inter / -apple-system / SF Pro Text 三套族。字号跟 md 档对齐。
+  fontFamily: 'var(--ui-family-ui)',
+  fontSize: 14,
   // 线条宽度
   lineWidth: 1,
   // 阴影 - TRAE 单层阴影
@@ -111,9 +112,10 @@ export const traeAntdLightToken = {
   borderRadius: 4,
   borderRadiusSM: 4,
   borderRadiusLG: 8,
-  fontFamily:
-    '"SF Pro Text", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-  fontSize: 13,
+  // 字体栈只有一个来源（ui-tokens）。旧值把没安装的 SF Pro Text 排在第一位，
+  // 真机量出一屏里同时出现 Inter / -apple-system / SF Pro Text 三套族。字号跟 md 档对齐。
+  fontFamily: 'var(--ui-family-ui)',
+  fontSize: 14,
   lineWidth: 1,
   boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
   boxShadowSecondary: '0 1px 3px rgba(0,0,0,0.1)',

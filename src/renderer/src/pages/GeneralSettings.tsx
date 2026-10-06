@@ -44,7 +44,7 @@ const EXPORT_CONFIG_KEYS: readonly string[] = [
   'general.desktopNotify', 'general.sound', 'general.email', 'general.notifyPosition',
   'general.doNotDisturb', 'general.dndStart', 'general.dndEnd',
   // appearance.*
-  'appearance.accentColor', 'appearance.uiFont', 'appearance.codeFont',
+  'appearance.accentColor', 'appearance.codeFont',
   'appearance.fontSize', 'appearance.lineHeight',
   // decision.*
   'decision.confidenceThreshold', 'decision.decisionTimeout',
@@ -143,7 +143,7 @@ function ReadOnlyPath({ value, loading }: { value: string; loading?: boolean }) 
   return (
     <div className="set-input set-input--readonly">
       {loading ? (
-        <span className="inline-flex items-center gap-1.5 text-[var(--trae-text-tertiary)]">
+        <span className="inline-flex items-center gap-1.5 text-ink-mute">
           <Loader2 className="size-3.5 animate-spin" />
           加载中…
         </span>
@@ -174,7 +174,7 @@ function DndTimeRange({
         onChange={(e) => onStartChange(e.target.value)}
         className="set-time-input"
       />
-      <span className="text-micro text-[var(--trae-text-tertiary)]">至</span>
+      <span className="text-micro text-ink-mute">至</span>
       <input
         type="text"
         value={end}
@@ -330,14 +330,14 @@ export function GeneralSettings() {
   }
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Settings as LucideIcon}
         title="通用"
         desc="语言、启动与数据偏好"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* Card 1: 语言与地区 */}
         <SettingsCard icon={Globe} title="语言与地区" tag="locale">
           <SettingsRow

@@ -199,9 +199,9 @@ export function KpiCard({ stat }: { stat: KpiStat }) {
         {/* 趋势 */}
         <div className="mon-kpi-trend">
           {stat.trend === 'up' ? (
-            <TrendingUp className="h-2.5 w-2.5" style={{ color: trendColor }} />
+            <TrendingUp className="h-3 w-3" style={{ color: trendColor }} />
           ) : (
-            <TrendingDown className="h-2.5 w-2.5" style={{ color: trendColor }} />
+            <TrendingDown className="h-3 w-3" style={{ color: trendColor }} />
           )}
           <span className="mon-kpi-trend-delta" style={{ color: trendColor }}>
             {stat.trend === 'up' ? '+' : ''}

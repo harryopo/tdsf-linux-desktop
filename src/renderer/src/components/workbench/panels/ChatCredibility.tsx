@@ -104,15 +104,15 @@ const ChatCredibility: FC<ChatCredibilityProps> = ({ message, onAssessed }) => {
         onClick={() => setExpanded((v) => !v)}
       >
         <ShieldCheck className="size-3" style={{ color: tone }} />
-        <span className="text-[var(--trae-text-default)]">可信度分析</span>
+        <span className="text-ink">可信度分析</span>
         <span className="ai-tool-badge" style={{ color: tone }}>
           {pct}% · {assessment.ruleUsed === 'pcr5' ? 'PCR5' : assessment.ruleUsed === 'mixed' ? '混合' : 'D-S'}
         </span>
-        <span className="text-micro text-[var(--trae-text-tertiary)]">
+        <span className="text-micro text-ink-mute">
           {evidences.length} 项证据
         </span>
         <ChevronRight
-          className={`ml-auto size-2.5 text-[var(--trae-text-tertiary)] transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+          className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
         />
       </button>
       {expanded && (

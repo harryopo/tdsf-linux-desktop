@@ -1,12 +1,15 @@
 /**
- * 面与原语：面板、面板头、分隔、chip、状态点、折叠区
+ * 面与原语：页头、面板、面板头、分隔、chip、状态点、折叠区
  *
- * 这些形状直接对齐 cc-gui 实测值：面板头 8px 12px、chip 1px 6px / 11px、
+ * 页头尺寸对齐 Apple HIG 的 Headline（17pt Semibold）与 8pt 栅格；图标走
+ * "强调色淡底圆角方块"而不是裸图标，这样六个模块的左上角看起来是同一套东西。
+ * 其余形状对齐 cc-gui 实测值：面板头 8px 12px、chip 1px 6px / 11px、
  * 状态点 8px（pending 换 12px 旋转环，避免被读成"卡住的静态点"）、
  * 折叠一律用 grid-template-rows 0fr↔1fr（不用 max-height 猜高度）。
  */
 import { type HTMLAttributes, type ReactNode } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { Loader2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 
 /** 一个可停靠的面板（终端格、AI 格、文件树格的最外层） */
@@ -44,6 +47,55 @@ export function PanelHeader({
   )
 }
 
+/**
+ * 页头：每个模块左上角那一大字。全站唯一入口，页面不得自写标题栏。
+ *
+ * 尺寸/字号/位置由这里定死，页内正文另用容器控制留白：
+ * 高 56px（--ui-size-page-header）、左右 20px、标题 20px Semibold、副标题 12px。
+ * 页内小节标题低一级用 17px Semibold，不能和模块标题同大。
+ * 必须是页面根的第一个子节点（full-bleed），塞进带 padding 的容器里会破坏对齐。
+ */
+export function PageHeader({
+  icon: Icon,
+  title,
+  subtitle,
+  actions,
+  className,
+}: {
+  icon?: LucideIcon
+  title: ReactNode
+  subtitle?: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <header
+      className={cn(
+        'flex h-(--ui-size-page-header) shrink-0 items-center gap-3 border-b border-line bg-panel px-5',
+        className
+      )}
+    >
+      {Icon && (
+        <span
+          aria-hidden
+          className="flex size-9 shrink-0 items-center justify-center rounded-(--ui-radius-control) bg-accent/12 text-accent-ink"
+        >
+          <Icon className="size-5" strokeWidth={1.8} />
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <h1 data-dom-id="page-title" className="truncate text-head font-semibold text-ink">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="truncate text-caption leading-tight text-ink-mute">{subtitle}</p>
+        ) : null}
+      </div>
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+    </header>
+  )
+}
+
 export function Divider({ vertical = false, className }: { vertical?: boolean; className?: string }) {
   return (
     <span
@@ -61,9 +113,9 @@ const chip = cva(
       tone: {
         neutral: 'bg-hover text-ink-dim',
         accent: 'bg-accent/15 text-accent-ink',
-        success: 'bg-success/15 text-success',
-        warning: 'bg-warning/15 text-warning',
-        error: 'bg-error/15 text-error',
+        success: 'bg-success/15 text-success-text',
+        warning: 'bg-warning/15 text-warning-text',
+        error: 'bg-error/15 text-error-text',
         outline: 'border border-line-strong bg-transparent text-ink-dim',
       },
     },
@@ -112,8 +164,24 @@ export function StatusDot({
   )
 }
 
-/** 折叠区：grid 0fr↔1fr，DOM 常驻，展开高度自适应，不需要 JS 量高 */
-export function Collapse({
+/**
+ * 进行中指示：旋转环 + 文案，role=status 让读屏念得出"加载中"。
+ * 页面里凡是"转圈 + 提示文字"都用它，不要再各自引 antd Spin。
+ */
+export function Spinner({ label, className }: { label?: string; className?: string }) {
+  return (
+    <span
+      role="status"
+      aria-label={label ?? '加载中'}
+      className={cn('inline-flex items-center gap-2 text-caption text-ink-mute', className)}
+    >
+      <Loader2 aria-hidden className="size-4 animate-spin" />
+      {label ? <span>{label}</span> : null}
+    </span>
+  )
+}
+
+/** 折叠区：grid 0fr↔1fr，DOM 常驻，展开高度自适应，不需要 JS 量高 */export function Collapse({
   open,
   children,
   className,

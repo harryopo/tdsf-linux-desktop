@@ -14,18 +14,18 @@
   padding: 6px 12px;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   border-bottom: 1px solid var(--trae-border-neutral-l1);
 }
 
 .db-degraded-banner.is-critical {
   background: var(--trae-status-error-surface-l1);
-  border-bottom-color: var(--trae-status-error-default);
+  border-bottom-color: var(--status-error-text);
 }
 
 .db-degraded-banner.is-warning {
   background: var(--trae-status-warning-surface-l1);
-  border-bottom-color: var(--trae-status-warning-default);
+  border-bottom-color: var(--status-warning-text);
 }
 
 .db-degraded-banner__mark {
@@ -57,7 +57,7 @@
 }
 
 .db-degraded-banner__detail {
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   font-size: 11px;
   overflow-wrap: anywhere;
 }
@@ -66,7 +66,7 @@
   flex-shrink: 0;
   padding: 2px 10px;
   font-size: 12px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   background: transparent;
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-4);
@@ -74,5 +74,5 @@
 }
 
 .db-degraded-banner__close:hover {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }

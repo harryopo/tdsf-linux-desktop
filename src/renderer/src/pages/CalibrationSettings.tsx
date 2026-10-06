@@ -383,8 +383,8 @@ export function CalibrationSettings() {
                 className={
                   'inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-2 text-micro font-medium ' +
                   (meta.logprobs
-                    ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
-                    : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-[var(--trae-text-tertiary)]')
+                    ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-(--status-success-text)'
+                    : 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-ink-mute')
                 }
                 title={
                   meta.logprobs
@@ -418,43 +418,43 @@ export function CalibrationSettings() {
           desc="基于决策历史样本的 Temperature Scaling 优化结果"
           control={
             <div
-              className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption text-[var(--trae-text-secondary)]"
+              className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption text-ink-dim"
               style={{ minWidth: 280 }}
             >
               <span>
                 最优 T：
-                <span className="font-mono text-[var(--trae-text-default)]">
+                <span className="font-mono text-ink">
                   {cal?.optimalT?.toFixed(3) ?? '—'}
                 </span>
               </span>
               <span>
                 上次校准：
-                <span className="font-mono text-[var(--trae-text-default)]">
+                <span className="font-mono text-ink">
                   {formatCalibratedAt(lastCalibratedAt)}
                 </span>
               </span>
               <span>
                 本次样本：
-                <span className="font-mono text-[var(--trae-text-default)]">
+                <span className="font-mono text-ink">
                   {sampleCount}
                 </span>
               </span>
               <span>
                 累计样本：
-                <span className="font-mono text-[var(--trae-text-default)]">
+                <span className="font-mono text-ink">
                   {totalSamplesEver}
                 </span>
               </span>
               <span>
                 当前 ECE：
-                <span className="font-mono text-[var(--trae-text-default)]">
+                <span className="font-mono text-ink">
                   {formatEcePct(displayedEce)}
                 </span>
               </span>
               {displayedEceBefore != null && cardState.lastResult && (
                 <span>
                   改善：
-                  <span className="font-mono text-[var(--trae-status-success-default)]">
+                  <span className="font-mono text-(--status-success-text)">
                     {calcImprovementPct(
                       cardState.lastResult.eceBefore,
                       cardState.lastResult.eceAfter,
@@ -507,7 +507,7 @@ export function CalibrationSettings() {
         {cardState.errorMessage != null && (
           <div
             role="alert"
-            className="mx-4 mb-3 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] px-3 py-2 text-caption text-[var(--trae-status-error-default)]"
+            className="mx-4 mb-3 rounded-[var(--trae-radius-4)] border border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] px-3 py-2 text-caption text-(--status-error-text)"
           >
             {cardState.errorMessage}
           </div>
@@ -517,14 +517,14 @@ export function CalibrationSettings() {
   }
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Activity as LucideIcon}
         title="校准设置"
         desc="AI 模型置信度校准与 Temperature Scaling 优化"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* 顶部消息（2.5s 自动消失） */}
         {topMessage != null && (
           <div
@@ -533,8 +533,8 @@ export function CalibrationSettings() {
             className={
               'rounded-[var(--trae-radius-8)] border px-3 py-2 text-sm ' +
               (topMessage.kind === 'success'
-                ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-[var(--trae-status-success-default)]'
-                : 'border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] text-[var(--trae-status-error-default)]')
+                ? 'border-[var(--trae-status-success-default)] bg-[var(--trae-status-success-surface-l1)] text-(--status-success-text)'
+                : 'border-[var(--trae-status-error-default)] bg-[var(--trae-status-error-surface-l1)] text-(--status-error-text)')
             }
           >
             {topMessage.text}
@@ -575,7 +575,7 @@ export function CalibrationSettings() {
         {/* 加载状态提示 */}
         {loading && (
           <SettingsCard icon={RefreshCw} title="加载中" tag="status">
-            <div className="px-4 py-3 text-sm text-[var(--trae-text-tertiary)]">
+            <div className="px-4 py-3 text-sm text-ink-mute">
               正在从主进程拉取校准状态与 Provider 列表…
             </div>
           </SettingsCard>
@@ -583,7 +583,7 @@ export function CalibrationSettings() {
 
         {loadError != null && (
           <SettingsCard icon={Activity} title="加载失败" tag="error">
-            <div className="px-4 py-3 text-sm text-[var(--trae-status-error-default)]">
+            <div className="px-4 py-3 text-sm text-(--status-error-text)">
               {loadError}
             </div>
           </SettingsCard>
@@ -592,7 +592,7 @@ export function CalibrationSettings() {
         {/* 实际 Provider 实例数量提示（仅展示，非交互） */}
         {!loading && providers.length > 0 && (
           <SettingsCard icon={Cpu} title="Provider 实例" tag="calibration.instances">
-            <div className="px-4 pb-3 text-caption text-[var(--trae-text-tertiary)]">
+            <div className="px-4 pb-3 text-caption text-ink-mute">
               当前已配置 {providers.length} 个 Provider 实例（ID: {providers.map((p) => p.id).join('、')}）。
               上方 8 个卡片为按 <code>ProviderType</code> 分类校准。
             </div>

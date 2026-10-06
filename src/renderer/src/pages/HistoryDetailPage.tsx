@@ -5,10 +5,11 @@
  * Spec: build-runnable-tdsf-from-design · Task 2.11 / M2 Task 4
  *
  * 结构（5 张卡片 1:1 对齐设计稿）：
- *   Header（返回工作台 + 返回历史决策 / 状态标签 + 时间戳）
- *   Title（决策记录 #<id>）
+ *   PageHeader（全站统一页头原语：决策记录 #id + 状态 Chip + 时间戳 + 返回按钮）
  *   Card 1 决策摘要 · Card 2 证据溯源链 7步HITL · Card 3 执行结果
  *   Card 4 知识库更新（关联知识跳转入口）· Card 5 操作日志
+ *   页头 full-bleed 直挂页面根，正文在 min-h-0 flex-1 overflow-y-auto 容器里滚动，
+ *   900px 内容宽度由 .hist-detail-content 控制在正文上，不再居中夹标题。
  *
  * 数据来源：window.electronAPI.historyGet(id) → DecisionCard
  * 复用工具：@/utils/decision-mappers（buildTimelineSteps / buildAuditRows）
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { DecisionCard } from '@shared/models'
+import { Chip, PageHeader } from '@/ui'
 import { LoadingState } from '@/components/decision/LoadingState'
 import { ErrorState } from '@/components/decision/ErrorState'
 import {
@@ -47,14 +49,20 @@ function formatTimestamp(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-/** DecisionCard 状态 → 标签 + className（CSS token 仅有 success/warning/danger/brand） */
-const STATUS_LABEL: Record<DecisionCard['status'], { label: string; className: string }> = {
-  pending: { label: '待执行', className: 'hist-tag' },
-  approved: { label: '已批准', className: 'hist-tag' },
-  rejected: { label: '已拒绝', className: 'hist-tag hist-tag--danger' },
-  executed: { label: '已执行', className: 'hist-tag hist-tag--success' },
-  verified: { label: '已验证', className: 'hist-tag hist-tag--success' },
-  failed: { label: '执行失败', className: 'hist-tag hist-tag--danger' },
+/** DecisionCard 状态 → 页头 Chip 色调 */
+type StatusTone = 'neutral' | 'accent' | 'success' | 'warning' | 'error'
+
+/** DecisionCard 状态 → 标签 + className + Chip 色调（CSS token 仅有 success/warning/danger/brand） */
+const STATUS_LABEL: Record<
+  DecisionCard['status'],
+  { label: string; className: string; tone: StatusTone }
+> = {
+  pending: { label: '待执行', className: 'hist-tag', tone: 'warning' },
+  approved: { label: '已批准', className: 'hist-tag', tone: 'accent' },
+  rejected: { label: '已拒绝', className: 'hist-tag hist-tag--danger', tone: 'error' },
+  executed: { label: '已执行', className: 'hist-tag hist-tag--success', tone: 'success' },
+  verified: { label: '已验证', className: 'hist-tag hist-tag--success', tone: 'success' },
+  failed: { label: '执行失败', className: 'hist-tag hist-tag--danger', tone: 'error' },
 }
 
 /** 审计行结果 → 中文标签 */
@@ -76,13 +84,13 @@ function auditResultTagClass(result: AuditRow['result']): string {
 type AuditIconName = 'sparkles' | 'shield' | 'check' | 'terminal' | 'activity' | 'check-circle' | 'dot'
 
 const AUDIT_ICON_PROPS: Record<AuditIconName, { color: string; Icon: typeof Sparkles }> = {
-  sparkles: { color: 'var(--trae-text-brand)', Icon: Sparkles },
+  sparkles: { color: 'var(--accent-text)', Icon: Sparkles },
   shield: { color: 'var(--trae-icon-secondary)', Icon: Shield },
-  check: { color: 'var(--trae-status-success-default)', Icon: Check },
-  terminal: { color: 'var(--trae-text-brand)', Icon: Terminal },
+  check: { color: 'var(--status-success-text)', Icon: Check },
+  terminal: { color: 'var(--accent-text)', Icon: Terminal },
   activity: { color: 'var(--trae-icon-secondary)', Icon: Activity },
-  'check-circle': { color: 'var(--trae-status-success-default)', Icon: CheckCircle2 },
-  dot: { color: 'var(--trae-text-tertiary)', Icon: Activity },
+  'check-circle': { color: 'var(--status-success-text)', Icon: CheckCircle2 },
+  dot: { color: 'var(--text-muted)', Icon: Activity },
 }
 
 /** 根据审计行操作者推断图标 */
@@ -102,6 +110,22 @@ function extractTime(ts: string): string {
 }
 
 // ==================== 辅助子组件 ====================
+
+/** 返回历史决策列表：页头动作区按钮（正常态与"记录不存在"态共用） */
+function BackToHistoryButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-dom-id="back-history"
+      aria-label="返回历史决策"
+      onClick={onClick}
+      className="hist-back-btn hist-btn-press"
+    >
+      <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
+      返回历史决策
+    </button>
+  )
+}
 
 /** 卡片头部条（1:1 对齐 .hist-section-head） */
 function SectionHead({ icon, title, right }: { icon: ReactNode; title: string; right?: ReactNode }) {
@@ -194,31 +218,19 @@ export function HistoryDetailPage() {
   if (loading) return <LoadingState />
   if (error) return <ErrorState message={error} onRetry={() => void loadCard()} />
 
-  // 空状态：决策不存在
+  // 空状态：决策不存在（页头仍是同一个 PageHeader，左上角与其余模块对齐）
   if (!card) {
     return (
       <main className="hist-detail-page">
-        <header className="hist-detail-header">
-          <div className="hist-detail-back-row">
-            <button type="button" aria-label="返回历史决策" onClick={handleBackHistory} className="hist-back-btn hist-btn-press">
-              <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
-              返回历史决策
-            </button>
-          </div>
-        </header>
-        <div className="flex h-[60vh] w-full flex-col items-center justify-center gap-4">
-          <CheckCircle2 className="shrink-0" style={{ width: 32, height: 32, color: 'var(--trae-text-tertiary)' }} />
-          <span className="text-md" style={{ color: 'var(--trae-text-secondary)' }}>
-            决策不存在（#{id ?? 'N/A'}）
-          </span>
-          <button
-            type="button"
-            onClick={handleBackHistory}
-            className="hist-back-btn hist-btn-press"
-          >
-            <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
-            返回历史决策
-          </button>
+        <PageHeader
+          icon={ScrollText}
+          title={`决策记录 #${id ?? 'N/A'}`}
+          subtitle="未找到该决策记录"
+          actions={<BackToHistoryButton onClick={handleBackHistory} />}
+        />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto">
+          <CheckCircle2 className="size-8 shrink-0 text-ink-mute" />
+          <span className="text-md text-ink-dim">决策不存在（#{id ?? 'N/A'}）</span>
         </div>
       </main>
     )
@@ -236,38 +248,33 @@ export function HistoryDetailPage() {
   const executionSuccess = card.status === 'executed' || card.status === 'verified'
   const executionFailed = card.status === 'failed'
   const executionHeadline = executionSuccess
-    ? { text: '执行成功', color: 'var(--trae-status-success-default)' }
+    ? { text: '执行成功', color: 'var(--status-success-text)' }
     : executionFailed
-      ? { text: '执行失败', color: 'var(--trae-status-error-default)' }
-      : { text: statusMeta.label, color: 'var(--trae-status-alert-default)' }
+      ? { text: '执行失败', color: 'var(--status-error-text)' }
+      : { text: statusMeta.label, color: 'var(--status-error-text)' }
 
   return (
     <main className="hist-detail-page">
-      {/* 1. Page header */}
-      <header className="hist-detail-header">
-        <div className="hist-detail-back-row">
-          <button type="button" data-dom-id="back-history" aria-label="返回历史决策" onClick={handleBackHistory} className="hist-back-btn hist-btn-press">
-            <ArrowLeft className="shrink-0" style={{ width: 14, height: 14 }} />
-            返回历史决策
-          </button>
-        </div>
-        <div className="hist-detail-actions">
-          <span className={statusMeta.className}>{statusMeta.label}</span>
-          <span className="hist-detail-timestamp">
-            <Clock className="shrink-0" style={{ width: 12, height: 12, color: 'var(--trae-text-tertiary)' }} />
-            <span className="hist-detail-timestamp-val">{timestampStr}</span>
-          </span>
-        </div>
-      </header>
+      {/* 1. 页头：全站唯一 PageHeader（标题字号/位置/高度与其余模块一致） */}
+      <PageHeader
+        icon={ScrollText}
+        title={`决策记录 #${card.id}`}
+        subtitle={card.problem}
+        actions={
+          <>
+            <Chip tone={statusMeta.tone}>{statusMeta.label}</Chip>
+            <span className="hist-detail-timestamp">
+              <Clock className="size-3 shrink-0 text-ink-mute" />
+              <span className="hist-detail-timestamp-val">{timestampStr}</span>
+            </span>
+            <BackToHistoryButton onClick={handleBackHistory} />
+          </>
+        }
+      />
 
-      {/* 2. Title block */}
-      <div className="hist-detail-title-wrap">
-        <h1 className="hist-detail-title">
-          决策记录 <span className="hist-detail-id">#{card.id}</span>
-        </h1>
-      </div>
-
-      {/* 3. Content cards */}
+      {/* 2. 正文：滚动交给这一层，900px 内容宽度留在正文容器上（不夹页头） */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Content cards */}
       <div className="hist-detail-content">
         {/* Card 1: 决策摘要 */}
         <section className="hist-card">
@@ -277,7 +284,7 @@ export function HistoryDetailPage() {
           <SummaryRow label="决策">{card.fixDescription}</SummaryRow>
           <SummaryRow label="执行命令">
             <div className="hist-cmd">
-              <span style={{ color: 'var(--trae-text-default)' }}>{card.fixCommand}</span>
+              <span style={{ color: 'var(--text-primary)' }}>{card.fixCommand}</span>
             </div>
           </SummaryRow>
           <SummaryRow label="置信度">
@@ -325,7 +332,7 @@ export function HistoryDetailPage() {
               const dotStyle: CSSProperties = isCompleted
                 ? {}
                 : isInProgress
-                  ? { background: 'var(--trae-bg-brand)', opacity: 0.6 }
+                  ? { background: 'var(--accent-solid)', opacity: 0.6 }
                   : { background: 'transparent', border: '2px dashed var(--trae-border-neutral-l2)' }
               const stepLabel = isCompleted ? '已完成' : isInProgress ? '进行中' : '待执行'
               return (
@@ -379,7 +386,7 @@ export function HistoryDetailPage() {
             <span className="hist-row-label">执行命令</span>
             <div className="hist-row-value">
               <div className="hist-cmd">
-                <span style={{ color: 'var(--trae-text-default)' }}>{card.fixCommand}</span>
+                <span style={{ color: 'var(--text-primary)' }}>{card.fixCommand}</span>
               </div>
             </div>
           </div>
@@ -401,7 +408,7 @@ export function HistoryDetailPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--trae-text-tertiary)' }}>
+                  <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                     暂无指标对比数据
                   </td>
                 </tr>
@@ -415,7 +422,7 @@ export function HistoryDetailPage() {
           <SectionHead icon={<Book className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="知识库更新" />
           <div className="hist-kb-row">
             <div className="hist-kb-left">
-              <CheckCircle2 className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-status-success-default)' }} />
+              <CheckCircle2 className="shrink-0" style={{ width: 16, height: 16, color: 'var(--status-success-text)' }} />
               <span className="hist-kb-desc">本次决策已更新至知识库</span>
               <span className="hist-kb-link">{card.id}</span>
             </div>
@@ -445,9 +452,9 @@ export function HistoryDetailPage() {
                     <AuditLogIcon name={iconName} />
                   </span>
                   <span className="hist-log-desc">
-                    <span style={{ color: 'var(--trae-text-secondary)', marginRight: 6 }}>[{row.operator}]</span>
+                    <span style={{ color: 'var(--text-tertiary)', marginRight: 6 }}>[{row.operator}]</span>
                     {row.action}
-                    <span style={{ marginLeft: 8, color: 'var(--trae-text-tertiary)', fontFamily: 'var(--trae-font-family-mono)' }}>
+                    <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontFamily: 'var(--trae-font-family-mono)' }}>
                       {row.hash}
                     </span>
                     <span className={auditResultTagClass(row.result)} style={{ marginLeft: 8 }}>
@@ -459,6 +466,7 @@ export function HistoryDetailPage() {
             })}
           </div>
         </section>
+      </div>
       </div>
     </main>
   )

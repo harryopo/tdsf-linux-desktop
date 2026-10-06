@@ -363,7 +363,7 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
           style={{
             textAlign: 'center',
             padding: '40px 0',
-            color: 'var(--trae-text-tertiary)',
+            color: 'var(--text-muted)',
           }}
         >
           <Text type="secondary">点击右上角"开始分析"按钮启动 AI 日志分析</Text>

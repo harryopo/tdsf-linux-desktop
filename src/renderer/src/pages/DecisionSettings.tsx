@@ -224,14 +224,14 @@ export function DecisionSettings() {
   }
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={GitBranch as LucideIcon}
         title="决策控制"
         desc="AI 运维决策流程与审批策略"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* Card 1: 决策流程配置 */}
         <SettingsCard icon={GitBranch} title="决策流程配置" tag="decision.flow">
           {RISK_TIERS.map((t) => (

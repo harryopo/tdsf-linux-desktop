@@ -64,14 +64,14 @@ export function TerminalSettings() {
   const [cmdTimeout, setCmdTimeout] = usePersistentState('terminal.cmdTimeout', 300)
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Terminal as LucideIcon}
         title="终端设置"
         desc="Shell 环境与终端行为配置"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* Card 1: 默认 Shell 配置 */}
         <SettingsCard icon={Terminal} title="默认 Shell 配置" tag="shell.defaults">
           <SettingsRow

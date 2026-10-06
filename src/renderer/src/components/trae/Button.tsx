@@ -25,15 +25,15 @@ const buttonVariants = cva(
         primary:
           'bg-[var(--trae-bg-invert)] text-[var(--trae-bg-base-default)] hover:bg-[var(--trae-bg-invert-hover)] active:bg-[var(--trae-bg-invert-active)]',
         secondary:
-          'bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-text-default)] hover:bg-[var(--trae-bg-overlay-l3)]',
-        ghost: 'bg-transparent text-[var(--trae-text-default)] hover:bg-[var(--trae-bg-overlay-l2)]',
+          'bg-[var(--trae-bg-overlay-l2)] text-ink hover:bg-hover',
+        ghost: 'bg-transparent text-ink hover:bg-[var(--trae-bg-overlay-l2)]',
         outline:
-          'border-[var(--trae-border-neutral-l2)] bg-transparent text-[var(--trae-text-default)] hover:bg-[var(--trae-bg-overlay-l2)]',
+          'border-[var(--trae-border-neutral-l2)] bg-transparent text-ink hover:bg-[var(--trae-bg-overlay-l2)]',
         destructive:
           'bg-[var(--trae-status-error-default)] text-white hover:bg-[var(--trae-status-error-hover)]',
         brand:
-          'bg-[var(--trae-bg-brand)] text-[var(--trae-text-onbrand)] hover:bg-[var(--trae-bg-brand-hover)] active:bg-[var(--trae-bg-brand-active)]',
-        link: 'bg-transparent text-[var(--trae-text-brand)] underline-offset-4 hover:underline',
+          'bg-accent-solid text-[var(--trae-text-onbrand)] hover:bg-[var(--trae-bg-brand-hover)] active:bg-[var(--trae-bg-brand-active)]',
+        link: 'bg-transparent text-(--accent-text) underline-offset-4 hover:underline',
       },
       size: {
         sm: 'h-6 px-2 text-caption',

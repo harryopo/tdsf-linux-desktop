@@ -33,11 +33,11 @@ const STATUS_TEXT: Record<DecisionCard['status'], string> = {
 /** 状态徽章 className 映射（边框 + 半透明背景 + 文字色） */
 const STATUS_CLASS: Record<DecisionCard['status'], string> = {
   pending: 'border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] text-[var(--trae-status-alert-default)]',
-  approved: 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-[var(--trae-text-brand)]',
-  rejected: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-[var(--trae-status-error-default)]',
-  executed: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-[var(--trae-status-success-default)]',
-  verified: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-[var(--trae-status-success-default)]',
-  failed: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-[var(--trae-status-error-default)]',
+  approved: 'border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-(--accent-text)',
+  rejected: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-(--status-error-text)',
+  executed: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-(--status-success-text)',
+  verified: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-(--status-success-text)',
+  failed: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-(--status-error-text)',
 }
 
 /** 历史决策卡片：决策ID + 时间 + 场景 + 置信度 + 状态 */
@@ -57,8 +57,8 @@ export function HistoryCard({ card, onClick }: HistoryCardProps) {
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Fingerprint className="h-3 w-3 shrink-0 text-[var(--trae-text-secondary)]" />
-          <span className="truncate font-mono text-caption font-medium tabular-nums text-[var(--trae-text-default)]">
+          <Fingerprint className="h-3 w-3 shrink-0 text-ink-dim" />
+          <span className="truncate font-mono text-caption font-medium tabular-nums text-ink">
             #{shortId}
           </span>
         </div>
@@ -66,28 +66,28 @@ export function HistoryCard({ card, onClick }: HistoryCardProps) {
           {STATUS_TEXT[card.status]}
         </span>
       </div>
-      <div className="flex items-center gap-2 text-sm text-[var(--trae-text-default)]">
-        <Activity className="h-3 w-3 shrink-0 text-[var(--trae-text-secondary)]" />
+      <div className="flex items-center gap-2 text-sm text-ink">
+        <Activity className="h-3 w-3 shrink-0 text-ink-dim" />
         <span className="truncate">{card.problem.slice(0, 40) || '未命名场景'}</span>
       </div>
       {/* v2.6：命令预览行，提升卡片信息密度 */}
-      <div className="truncate rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-code-block)] px-2 py-1 font-mono text-caption text-[var(--trae-text-secondary)]">
-        <span className="mr-1 text-[var(--trae-text-tertiary)]">$</span>
+      <div className="truncate rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-code-block)] px-2 py-1 font-mono text-caption text-ink-dim">
+        <span className="mr-1 text-ink-mute">$</span>
         {card.fixCommand}
       </div>
-      <div className="flex items-center justify-between gap-3 text-micro text-[var(--trae-text-tertiary)]">
+      <div className="flex items-center justify-between gap-3 text-micro text-ink-mute">
         <div className="flex items-center gap-1.5">
           <Clock className="h-3 w-3" />
           <span className="font-mono tabular-nums">{timeStr}</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1">
-            <span className="text-[var(--trae-text-tertiary)]">置信度</span>
-            <span className="font-mono font-medium tabular-nums text-[var(--trae-text-brand)]">
+            <span className="text-ink-mute">置信度</span>
+            <span className="font-mono font-medium tabular-nums text-(--accent-text)">
               {card.confidence.toFixed(2)}
             </span>
           </span>
-          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-[var(--trae-text-secondary)]">
+          <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-ink-dim">
             {riskMeta.urgency}
           </span>
         </div>

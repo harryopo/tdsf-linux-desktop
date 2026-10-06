@@ -494,14 +494,14 @@ export function ModelSettings() {
   })
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={Sparkles}
         title="模型配置"
         desc="AI模型管理与Token用量统计"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* v2.3.4 新增：状态/引导卡
             - API Key 为空时显示详细引导（"如何让模型连上"）
             - 已配置时显示简洁状态（已就绪 / 待测试 / 最近测试结果） */}
@@ -529,36 +529,36 @@ export function ModelSettings() {
           {apiKey ? (
             testResult === 'success' ? (
               <>
-                <CheckCircle2 className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-status-success-default)' }} />
+                <CheckCircle2 className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--status-success-text)' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, marginBottom: 2 }}>
                     模型已就绪 · {selectedModel || '未命名模型'}
                   </div>
-                  <div style={{ color: 'var(--trae-text-secondary)' }}>
+                  <div style={{ color: 'var(--text-tertiary)' }}>
                     Endpoint: {endpoint || '(未配置)'} · 最近测试: {lastTestTime || '未测试'} ({testLatency ?? '--'}ms)
                   </div>
                 </div>
               </>
             ) : testResult === 'error' ? (
               <>
-                <AlertCircle className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-status-alert-default)' }} />
+                <AlertCircle className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--status-error-text)' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, marginBottom: 2 }}>
                     最近测试失败 · 请检查下方配置
                   </div>
-                  <div style={{ color: 'var(--trae-text-secondary)' }}>
+                  <div style={{ color: 'var(--text-tertiary)' }}>
                     在下方「API 接入与测试」区查看失败原因，重新填入 API Key 后再次「测试连接」。
                   </div>
                 </div>
               </>
             ) : (
               <>
-                <Info className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-bg-brand)' }} />
+                <Info className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--accent-text)' }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, marginBottom: 2 }}>
                     API Key 已配置 · 尚未测试
                   </div>
-                  <div style={{ color: 'var(--trae-text-secondary)' }}>
+                  <div style={{ color: 'var(--text-tertiary)' }}>
                     在下方「API 接入与测试」区点击「测试连接」验证配置。
                   </div>
                 </div>
@@ -566,15 +566,15 @@ export function ModelSettings() {
             )
           ) : (
             <>
-              <KeyRound className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--trae-status-alert-default)' }} />
+              <KeyRound className="size-4 mt-0.5" style={{ flexShrink: 0, color: 'var(--status-error-text)' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>
                   还没有配置 API Key · 大模型无法连接
                 </div>
-                <div style={{ color: 'var(--trae-text-secondary)', marginBottom: 6 }}>
+                <div style={{ color: 'var(--text-tertiary)', marginBottom: 6 }}>
                   填入 API Key 即可让 AI 助手、命令分析、日志诊断等所有 LLM 功能正常工作。
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--trae-text-secondary)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, color: 'var(--text-tertiary)' }}>
                   <div>
                     <strong>推荐：DeepSeek V4 Flash</strong> ·
                     国内直连 · 100 万 Token 上下文 · 价格亲民
@@ -584,7 +584,7 @@ export function ModelSettings() {
                       href="https://platform.deepseek.com/api_keys"
                       target="_blank"
                       rel="noreferrer"
-                      style={{ color: 'var(--trae-bg-brand)', textDecoration: 'underline' }}
+                      style={{ color: 'var(--accent-text)', textDecoration: 'underline' }}
                     >
                       platform.deepseek.com/api_keys
                     </a>

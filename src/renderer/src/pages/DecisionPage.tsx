@@ -33,7 +33,7 @@ import {
   Sparkles, ArrowLeft, Fingerprint, Activity,
   AlertTriangle, History,
 } from 'lucide-react'
-import { Button, Dialog, DialogContent, TextArea } from '@/ui'
+import { Button, Dialog, DialogContent, PageHeader, TextArea } from '@/ui'
 import { ConfidenceGauge } from '@/components/decision/ConfidenceGauge'
 import { LoadingState } from '@/components/decision/LoadingState'
 import { ErrorState } from '@/components/decision/ErrorState'
@@ -313,71 +313,70 @@ export function DecisionPage() {
   const isActive = correlationId !== null
 
   return (
-    <main className="flex h-full w-full flex-col overflow-y-auto bg-[var(--trae-bg-base-default)]">
-      {/* ===== Header ===== */}
-      <header className="flex flex-col gap-4 px-8 pb-4 pt-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Sparkles className="h-6 w-6 shrink-0 text-[var(--trae-bg-brand)]" />
-            <div className="flex flex-col gap-1">
-              <span className="text-display font-semibold text-[var(--trae-text-default)]">
-                可信决策内核
+    <main className="flex h-full w-full flex-col bg-[var(--trae-bg-base-default)]">
+      {/* ===== 页头（全站唯一 PageHeader，八个模块左上角对齐）===== */}
+      <PageHeader
+        icon={Sparkles}
+        title="可信决策内核"
+        subtitle={
+          <>
+            Human-in-the-Loop · 可解释 · 可审计
+            {isActive && correlationId && (
+              <span className="ml-2 font-mono text-(--accent-text)">
+                · #{correlationId.slice(0, 12)}
               </span>
-              <span className="text-caption text-[var(--trae-text-tertiary)]">
-                Human-in-the-Loop · 可解释 · 可审计
-                {isActive && correlationId && (
-                  <span className="ml-2 font-mono text-[var(--trae-text-brand)]">
-                    · #{correlationId.slice(0, 12)}
-                  </span>
-                )}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
+            )}
+          </>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="md"
             onClick={() => navigate('/workbench')}
             data-dom-id="back-workbench"
             aria-label="返回工作台"
-            className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-2.5 text-caption text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            返回工作台
-          </button>
-        </div>
+            <ArrowLeft className="size-4" />
+            <span>返回工作台</span>
+          </Button>
+        }
+      />
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {/* 活跃决策态摘要条 */}
         {isActive && decisionCard && (
-          <div className="flex flex-wrap items-center gap-3 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-3 py-2">
-            <div className="flex items-center gap-1.5">
-              <Activity className="h-3 w-3 text-[var(--trae-text-brand)]" />
-              <span className="text-micro text-[var(--trae-text-secondary)]">当前步骤</span>
-              <span className="font-mono text-sm font-medium tabular-nums text-[var(--trae-text-brand)]">
-                {currentStep ?? '—'}
-              </span>
+          <div className="px-8 pt-4 pb-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <Activity className="h-3 w-3 text-(--accent-text)" />
+                <span className="text-micro text-ink-dim">当前步骤</span>
+                <span className="font-mono text-sm font-medium tabular-nums text-(--accent-text)">
+                  {currentStep ?? '—'}
+                </span>
+              </div>
+              <span className="h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
+              <div className="flex items-center gap-1.5">
+                <Fingerprint className="h-3 w-3 text-ink-dim" />
+                <span className="text-micro text-ink-dim">决策ID</span>
+                <span className="font-mono text-sm font-medium tabular-nums text-ink">
+                  #{decisionCard.id}
+                </span>
+              </div>
+              <span className="h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-micro text-ink-mute">场景</span>
+                <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
+                  {decisionCard.problem.slice(0, 24) || '未命名场景'}
+                </span>
+              </div>
+              {loopBlocked && (
+                <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-micro font-medium text-[var(--trae-status-alert-default)]">
+                  阻塞 · {loopBlocked.step}
+                </span>
+              )}
             </div>
-            <span className="h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
-            <div className="flex items-center gap-1.5">
-              <Fingerprint className="h-3 w-3 text-[var(--trae-text-secondary)]" />
-              <span className="text-micro text-[var(--trae-text-secondary)]">决策ID</span>
-              <span className="font-mono text-sm font-medium tabular-nums text-[var(--trae-text-default)]">
-                #{decisionCard.id}
-              </span>
-            </div>
-            <span className="h-3.5 w-px bg-[var(--trae-border-neutral-l2)]" />
-            <div className="flex items-center gap-1.5">
-              <span className="text-micro text-[var(--trae-text-tertiary)]">场景</span>
-              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
-                {decisionCard.problem.slice(0, 24) || '未命名场景'}
-              </span>
-            </div>
-            {loopBlocked && (
-              <span className="ml-auto inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-alert-default)] bg-[rgba(210,157,0,0.12)] px-2 text-micro font-medium text-[var(--trae-status-alert-default)]">
-                阻塞 · {loopBlocked.step}
-              </span>
-            )}
           </div>
         )}
-      </header>
 
       {/* ===== 主体内容 ===== */}
       {isActive ? (
@@ -414,13 +413,13 @@ export function DecisionPage() {
               <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-[var(--trae-bg-brand)]" />
-                    <span className="text-head font-semibold text-[var(--trae-text-default)]">六源证据融合</span>
-                    <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-[var(--trae-text-brand)]">
+                    <Activity className="h-4 w-4 text-(--accent-text)" />
+                    <span className="text-title font-semibold text-ink">六源证据融合</span>
+                    <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
                       D-S 证据理论
                     </span>
                   </div>
-                  <span className="text-micro text-[var(--trae-text-tertiary)]">
+                  <span className="text-micro text-ink-mute">
                     Dempster-Shafer · 透明可追溯
                   </span>
                 </div>
@@ -445,28 +444,28 @@ export function DecisionPage() {
           <ErrorState message={historyError} onRetry={() => void loadHistory()} />
         ) : historyCards.length === 0 ? (
           <div className="flex h-[400px] flex-col items-center justify-center gap-4">
-            <AlertTriangle className="h-8 w-8 text-[var(--trae-text-tertiary)]" />
-            <span className="text-md text-[var(--trae-text-secondary)]">
+            <AlertTriangle className="h-8 w-8 text-ink-mute" />
+            <span className="text-md text-ink-dim">
               暂无决策记录
             </span>
             <button
               type="button"
               onClick={() => navigate('/workbench')}
-              className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-sm text-[var(--trae-text-secondary)] transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-[var(--trae-text-default)]"
+              className="btn-press inline-flex h-8 items-center gap-1.5 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-3 text-sm text-ink-dim transition-colors hover:bg-[var(--trae-bg-overlay-l2)] hover:text-ink"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               返回工作台触发首次决策
             </button>
           </div>
         ) : (
-          <section className="px-8 pb-8">
+          <section className="px-8 pt-4 pb-8">
             <div className="mb-4 flex items-center gap-2">
-              <History className="h-4 w-4 text-[var(--trae-bg-brand)]" />
-              <span className="text-head font-semibold text-[var(--trae-text-default)]">最近决策</span>
-              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-[var(--trae-text-secondary)]">
+              <History className="h-4 w-4 text-(--accent-text)" />
+              <span className="text-title font-semibold text-ink">最近决策</span>
+              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro text-ink-dim">
                 {historyCards.length} 条
               </span>
-              <span className="text-micro text-[var(--trae-text-tertiary)]">
+              <span className="text-micro text-ink-mute">
                 点击卡片查看完整决策详情
               </span>
             </div>
@@ -483,6 +482,7 @@ export function DecisionPage() {
           </section>
         )
       )}
+      </div>
 
       {/* ===== 修改命令弹窗 ===== */}
       <Dialog open={modifyModalOpen} onOpenChange={(next) => !next && setModifyModalOpen(false)}>
@@ -516,7 +516,7 @@ export function DecisionPage() {
 
       {/* ===== 操作反馈浮层 ===== */}
       {actionFeedback && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-4 py-2 text-sm font-medium text-[var(--trae-text-brand)] shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-4 py-2 text-sm font-medium text-(--accent-text) shadow-lg">
           {actionFeedback}
         </div>
       )}

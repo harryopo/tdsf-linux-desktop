@@ -1,14 +1,11 @@
 /**
- * TutorialHeader — 运维教程页顶部区域
+ * TutorialHeader — 运维教程页顶部：全站唯一 PageHeader + RAG 混合检索搜索框（M4 Task 5）
  *
- * 包含：页面 Header（scroll-text 图标 + 标题"运维教程" + 副标题）
- *       与 RAG 混合检索搜索框（M4 Task 5）。
- * 搜索相关状态由父组件 TutorialPage 管理，通过 props 传入。
+ * 搜索状态由父组件 TutorialPage 管理，这里只管外观。
  */
-import type { ChangeEvent } from 'react'
-import { ScrollText } from 'lucide-react'
-import { Input, Button } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import type { ChangeEvent, KeyboardEvent } from 'react'
+import { ScrollText, Search } from 'lucide-react'
+import { Button, PageHeader, TextInput } from '@/ui'
 
 interface TutorialHeaderProps {
   searchQuery: string
@@ -23,56 +20,36 @@ export function TutorialHeader({
   onSearch,
   searching,
 }: TutorialHeaderProps) {
-  return (
-    <>
-      {/* ====== 1. Page Header ====== */}
-      <header className="tut-page-header">
-        <div className="tut-page-header__left">
-          <ScrollText size={26} strokeWidth={2} style={{ color: 'var(--trae-icon-brand)' }} />
-          <div className="tut-page-header__title-wrap">
-            <span className="tut-page-title">运维教程</span>
-            <span className="tut-page-subtitle">从入门到精通的 Linux 运维实战课程</span>
-          </div>
-        </div>
-      </header>
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') onSearch()
+  }
 
-      {/* ====== RAG 混合检索搜索框（M4 Task 5）====== */}
-      <div
-        className="tut-search-wrap"
-        style={{
-          padding: '14px 32px',
-          borderBottom: '1px solid var(--trae-border-neutral-l1)',
-          background: 'var(--trae-bg-base-default)',
-        }}
-      >
-        <div className="tut-search-row">
-          <Input
-            placeholder="搜索教程（支持 RAG 语义检索）..."
-            value={searchQuery}
-            onChange={onSearchInputChange}
-            onPressEnter={onSearch}
-            prefix={<SearchOutlined style={{ color: 'var(--trae-text-tertiary)' }} />}
-            allowClear
-            style={{
-              flex: 1,
-              minWidth: 0,
-              height: 40,
-              fontFamily: 'var(--trae-font-family-mono)',
-              background: 'var(--trae-bg-base-secondary)',
-              borderColor: 'var(--trae-border-neutral-l1)',
-              color: 'var(--trae-text-default)',
-            }}
-          />
-          <Button
-            type="primary"
-            onClick={onSearch}
-            loading={searching}
-            style={{ height: 40, flexShrink: 0 }}
-          >
-            搜索
+  return (
+    <PageHeader
+      icon={ScrollText}
+      title="运维教程"
+      subtitle="从入门到精通的 Linux 运维实战课程"
+      actions={
+        <>
+          <span className="relative">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-mute"
+            />
+            <TextInput
+              aria-label="搜索教程"
+              value={searchQuery}
+              onChange={onSearchInputChange}
+              onKeyDown={onKeyDown}
+              placeholder="搜索教程（支持 RAG 语义检索）…"
+              className="w-[280px] pl-8"
+            />
+          </span>
+          <Button variant="solid" size="lg" disabled={searching} onClick={onSearch}>
+            {searching ? '搜索中…' : '搜索'}
           </Button>
-        </div>
-      </div>
-    </>
+        </>
+      }
+    />
   )
 }

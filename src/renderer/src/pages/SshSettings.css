@@ -1,8 +1,9 @@
 /* ============================================================
    SshSettings.css — SSH 设置页特有样式
    公共样式（set-card / set-row / set-btn-* / set-input / di-*
-   / btn-press / set-pageheader / set-panel-content / set-actionbar）
+   / btn-press / set-subpage / set-subpage__body / set-actionbar）
    复用自 Settings.css，本文件仅保留 SSH 业务特有的视觉规则。
+   顶部标题区不在这里：由 ui/surface.tsx 的 PageHeader 负责，Settings.css 不再给它样式。
    变量统一使用 var(--trae-*)
    ============================================================ */
 
@@ -32,12 +33,12 @@
 .ssh-server-row__name {
   font-size: var(--trae-body-sm-strong-font-size);
   font-weight: var(--trae-body-sm-strong-font-weight);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 .ssh-server-row__ip {
   font-family: var(--trae-font-family-mono);
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   margin-top: 1px;
 }
 .ssh-server-row__type {
@@ -50,7 +51,7 @@
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-4);
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
 }
 .ssh-server-row__type svg {
   color: var(--trae-icon-secondary);
@@ -97,12 +98,12 @@
 .ssh-key-row__name {
   font-size: var(--trae-body-sm-strong-font-size);
   font-weight: var(--trae-body-sm-strong-font-weight);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-family: var(--trae-font-family-mono);
 }
 .ssh-key-row__meta {
   font-size: var(--trae-body-xs-font-size);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   margin-top: 1px;
 }
 
@@ -124,7 +125,7 @@
   align-items: center;
   gap: 6px;
   font-size: var(--trae-body-sm-font-size);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   background: var(--trae-status-success-surface-l1);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-4);
@@ -148,7 +149,7 @@
   background: var(--trae-bg-base-tertiary);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-family: var(--trae-font-family-mono);
   font-size: var(--trae-code-editor-font-size);
   font-weight: var(--trae-font-weight-code);
@@ -162,7 +163,7 @@
   background: var(--trae-bg-base-tertiary);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-family: var(--trae-font-family-mono);
   font-size: var(--trae-code-editor-font-size);
   font-weight: var(--trae-font-weight-code);
@@ -176,7 +177,7 @@
   background: var(--trae-bg-base-default);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-6);
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   font-family: var(--trae-font-family-mono);
   font-size: var(--trae-code-terminal-font-size);
 }
@@ -203,38 +204,38 @@
   padding-bottom: 12px;
 }
 .ssh-modal .ant-modal-title {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-family: var(--trae-font-family-default);
   font-size: var(--trae-heading-xs-font-size);
   font-weight: var(--trae-font-weight-strong);
 }
 .ssh-modal .ant-modal-close {
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
 }
 .ssh-modal .ant-modal-close:hover {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 .ssh-modal .ant-modal-body {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 .ssh-modal .ant-modal-footer {
   border-top: 1px solid var(--trae-border-neutral-l1);
   padding-top: 12px;
 }
 .ssh-modal .ant-form-item-label > label {
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-size: var(--trae-body-sm-strong-font-size);
   font-weight: var(--trae-body-sm-strong-font-weight);
 }
 .ssh-modal .ant-form-item-label > label .ant-form-item-required::before {
-  color: var(--trae-status-error-default);
+  color: var(--status-error-text);
 }
 .ssh-modal .ant-input,
 .ssh-modal .ant-input-affix-wrapper,
 .ssh-modal .ant-input-password {
   background: var(--trae-bg-base-tertiary);
   border-color: var(--trae-border-neutral-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   border-radius: var(--trae-radius-6);
 }
 .ssh-modal .ant-input:hover,
@@ -249,16 +250,16 @@
 }
 .ssh-modal .ant-input::placeholder,
 .ssh-modal .ant-input-affix-wrapper ::placeholder {
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
 }
 .ssh-modal .ant-select-selector {
   background: var(--trae-bg-base-tertiary) !important;
   border-color: var(--trae-border-neutral-l2) !important;
-  color: var(--trae-text-default) !important;
+  color: var(--text-primary) !important;
   border-radius: var(--trae-radius-6) !important;
 }
 .ssh-modal .ant-select-arrow {
-  color: var(--trae-text-tertiary);
+  color: var(--text-muted);
 }
 .ssh-modal .ant-select:hover .ant-select-selector {
   border-color: var(--trae-border-neutral-l3) !important;
@@ -270,16 +271,16 @@
 .ssh-modal .ant-btn-default {
   background: transparent;
   border-color: var(--trae-border-neutral-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 .ssh-modal .ant-btn-default:hover {
   background: var(--trae-bg-overlay-l1);
   border-color: var(--trae-border-neutral-l3);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 .ssh-modal .ant-btn-primary {
-  background: var(--trae-bg-brand);
-  border-color: var(--trae-bg-brand);
+  background: var(--accent-solid);
+  border-color: var(--accent-text);
   color: var(--trae-text-onbrand);
 }
 .ssh-modal .ant-btn-primary:hover {
@@ -295,7 +296,7 @@
   border-bottom: none;
 }
 .ssh-modal .ant-collapse-header {
-  color: var(--trae-text-secondary) !important;
+  color: var(--text-tertiary) !important;
   font-size: var(--trae-body-sm-font-size);
   padding: 8px 0 !important;
 }
@@ -317,7 +318,7 @@
 }
 .ssh-keepalive-label span {
   font-size: 13px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
 }
 
 /* ===== 生成密钥 Modal 表单（紧凑垂直布局） ===== */

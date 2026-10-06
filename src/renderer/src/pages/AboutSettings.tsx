@@ -11,7 +11,7 @@
  * 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater。
  */
 import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
-import { RefreshCw, ArrowRight, Loader2, FileText, Download } from 'lucide-react'
+import { RefreshCw, ArrowRight, Loader2, FileText, Download, Info } from 'lucide-react'
 import {
   APP_VERSION, APP_BUILD_BADGE, APP_BUILD_TIME, APP_INSTALL_PATH,
   LINK_URLS, LINK_CARDS, FOOTER_LINKS,
@@ -26,6 +26,7 @@ import {
   type CapabilityStatus,
 } from '@shared/capabilities'
 import { Chip } from '@/ui'
+import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import './Settings.css'
 
 /** 就绪度状态 → Chip 色调（待开发用描边而非彩色，避免和"降级"看起来一样严重） */
@@ -234,15 +235,16 @@ export function AboutSettings() {
   }
 
   return (
-    <div className="set-ab-page">
+    <div className="set-subpage">
+      <SettingsPageHeader icon={Info} title="关于" desc="版本、更新与运行环境" />
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {/* 返回入口由 SettingsLayout 的左栏常驻导航承担，页面内不再自绘返回条 */}
-
-      {/* ===== Hero ===== */}
+      <div className="set-ab-page">
       <div className="set-ab-hero">
         {/* Logo */}
         <div className="set-ab-hero__logo">
           {/* TDSF Logo — 圆角立方体 + 终端光标，替代设计稿 logo.svg */}
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ color: 'var(--trae-bg-brand)' }}>
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ color: 'var(--accent-text)' }}>
             <path d="M14 12h20a4 4 0 014 4v16a4 4 0 01-4 4H14a4 4 0 01-4-4V16a4 4 0 014-4z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
             <path d="M10 18l8-6M10 18l8 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M24 26h10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
@@ -298,7 +300,7 @@ export function AboutSettings() {
             <span
               role="status"
               aria-live="polite"
-              style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-status-success-default)' }}
+              style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--status-success-text)' }}
             >
               {feedback}
             </span>
@@ -317,7 +319,7 @@ export function AboutSettings() {
               border: '1px solid var(--trae-border-brand, var(--trae-border-neutral-l1))',
               background: 'var(--trae-bg-brand-popup, var(--trae-bg-base-tertiary))',
               fontSize: 'var(--trae-body-sm-font-size)',
-              color: 'var(--trae-text-default)',
+              color: 'var(--text-primary)',
               textAlign: 'left',
             }}
           >
@@ -325,13 +327,13 @@ export function AboutSettings() {
               <span className={BADGE_CLASS.brand} style={{ flexShrink: 0 }}>
                 {updateInfo.latestVersion}
               </span>
-              <span style={{ color: 'var(--trae-text-secondary)', fontSize: 'var(--trae-body-xs-font-size)' }}>
+              <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--trae-body-xs-font-size)' }}>
                 发布于 {new Date(updateInfo.publishedAt).toLocaleDateString('zh-CN')}
               </span>
             </div>
             <div
               style={{
-                color: 'var(--trae-text-secondary)',
+                color: 'var(--text-tertiary)',
                 fontSize: 'var(--trae-body-xs-font-size)',
                 maxHeight: '120px',
                 overflowY: 'auto',
@@ -366,7 +368,7 @@ export function AboutSettings() {
               border: '1px solid var(--trae-status-error-default)',
               background: 'var(--trae-status-error-surface-l1, var(--trae-bg-base-tertiary))',
               fontSize: 'var(--trae-body-xs-font-size)',
-              color: 'var(--trae-status-error-default)',
+              color: 'var(--status-error-text)',
               textAlign: 'left',
             }}
           >
@@ -383,7 +385,7 @@ export function AboutSettings() {
         {(appInfoLoading || appInfoError) && (
           <div className="set-ab-sysinfo__row">
             <span className="set-ab-sysinfo__key">应用信息</span>
-            <span className="set-ab-sysinfo__val" style={{ color: 'var(--trae-text-tertiary)' }}>
+            <span className="set-ab-sysinfo__val" style={{ color: 'var(--text-muted)' }}>
               {appInfoLoading && (
                 <>
                   <Loader2 className="mr-1 inline size-3 animate-spin" />
@@ -462,7 +464,7 @@ export function AboutSettings() {
               <Chip tone={CHIP_TONE[cap.status]} className="mb-1">
                 {CAPABILITY_STATUS_LABELS[cap.status]}
               </Chip>
-              <span style={{ display: 'block', color: 'var(--trae-text-tertiary)', fontSize: 11 }}>
+              <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11 }}>
                 {cap.note}
               </span>
             </span>
@@ -481,7 +483,7 @@ export function AboutSettings() {
           {FOOTER_LINKS.map((link, idx) => (
             <Fragment key={link.label}>
               {idx > 0 && (
-                <span style={{ color: 'var(--trae-text-tertiary)', fontSize: 'var(--trae-body-xs-font-size)' }}>·</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 'var(--trae-body-xs-font-size)' }}>·</span>
               )}
               <button
                 type="button"
@@ -493,6 +495,8 @@ export function AboutSettings() {
             </Fragment>
           ))}
         </div>
+      </div>
+      </div>
       </div>
     </div>
   )

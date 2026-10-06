@@ -37,14 +37,6 @@ type Density = 'compact' | 'standard' | 'comfortable'
 /** 主题 id 与配色都在 src/shared/code-themes.ts，这里不再抄一份 */
 type CodeTheme = CodeThemeId
 
-
-
-const UI_FONTS = [
-  { value: 'SF Pro Text', label: 'SF Pro Text' },
-  { value: 'Microsoft YaHei', label: 'Microsoft YaHei' },
-  { value: 'PingFang SC', label: 'PingFang SC' },
-]
-
 const CODE_FONTS = [
   { value: 'JetBrains Mono', label: 'JetBrains Mono' },
   { value: 'Fira Code', label: 'Fira Code' },
@@ -93,7 +85,6 @@ const DENSITIES: { value: Density; name: string; desc: string }[] = [
 export function AppearanceSettings() {
   // v2.7：全部设置项来自 appearance-store（改动即时生效 + 自动持久化）
   const themeMode = useAppearanceStore((s) => s.themeMode)
-  const uiFont = useAppearanceStore((s) => s.uiFont)
   const codeFont = useAppearanceStore((s) => s.codeFont)
   const fontSize = useAppearanceStore((s) => s.fontSize)
   const lineHeight = useAppearanceStore((s) => s.lineHeight)
@@ -103,7 +94,6 @@ export function AppearanceSettings() {
   const resetAppearance = useAppearanceStore((s) => s.resetAppearance)
 
   const setThemeMode = (v: ThemeMode) => setAppearance('themeMode', v)
-  const setUiFont = (v: string) => setAppearance('uiFont', v)
   const setCodeFont = (v: string) => setAppearance('codeFont', v)
   const setFontSize = (v: number) => setAppearance('fontSize', v)
   const setLineHeight = (v: number) => setAppearance('lineHeight', v)
@@ -111,14 +101,14 @@ export function AppearanceSettings() {
   const setCodeTheme = (v: CodeTheme) => setAppearance('codeTheme', v)
 
   return (
-    <div>
+    <div className="set-subpage">
       <SettingsPageHeader
         icon={SlidersHorizontal as LucideIcon}
         title="外观"
         desc="主题、颜色与字体偏好"
       />
 
-      <div className="set-panel-content">
+      <div className="set-subpage__body">
         {/* Card 1: 主题模式（带视觉预览的 radio 卡片） */}
         <SettingsCard icon={Moon} title="主题模式" tag="theme.mode">
           <div className="set-theme-grid">
@@ -144,7 +134,7 @@ export function AppearanceSettings() {
                     </div>
                   ) : (
                     <div className="flex flex-1 items-center justify-center">
-                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--trae-text-secondary)' }}>Auto</span>
+                      <span style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--text-tertiary)' }}>Auto</span>
                     </div>
                   )}
                   </div>
@@ -173,20 +163,8 @@ export function AppearanceSettings() {
 
         {/* Card 3: 字体设置 */}
         <SettingsCard icon={Type} title="字体设置" tag="typography">
-          <SettingsRow
-            label="界面字体"
-            desc="UI 界面使用的字体族"
-            control={
-              <div className="w-[180px]">
-                <Select value={uiFont} onValueChange={setUiFont}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {UI_FONTS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-            }
-          />
+          {/* 界面字体不提供选择：字体族由 ui-tokens 的 --ui-family-ui 单源，
+              可选界面字体会把首族换成未安装的 SF Pro Text，实测一屏三套族 */}
           <SettingsRow
             label="代码字体"
             desc="代码编辑器与终端使用的等宽字体"

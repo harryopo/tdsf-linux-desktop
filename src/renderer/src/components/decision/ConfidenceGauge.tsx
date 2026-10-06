@@ -57,8 +57,8 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
   return (
     <div className="flex w-full min-w-[280px] max-w-[400px] flex-none flex-col items-center gap-4 rounded-[var(--trae-radius-10)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
       <div className="flex items-center gap-1.5 self-start">
-        <Activity className="h-3.5 w-3.5 text-[var(--trae-text-secondary)]" />
-        <span className="text-micro font-medium uppercase tracking-[0.08em] text-[var(--trae-text-secondary)]">
+        <Activity className="h-3.5 w-3.5 text-ink-dim" />
+        <span className="text-micro font-medium uppercase tracking-[0.08em] text-ink-dim">
           置信度仪表
         </span>
       </div>
@@ -108,13 +108,13 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
         </svg>
         <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1">
           <span
-            className="font-mono font-bold leading-none tabular-nums text-[var(--trae-text-brand)]"
+            className="font-mono font-bold leading-none tabular-nums text-(--accent-text)"
             style={{ fontSize: '40px' }}
           >
             {value.toFixed(2)}
           </span>
-          <span className="text-caption text-[var(--trae-text-tertiary)]">置信度</span>
-          <span className="mt-1 inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-[var(--trae-status-success-default)]">
+          <span className="text-caption text-ink-mute">置信度</span>
+          <span className="mt-1 inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-(--status-success-text)">
             {confidenceLabel}
           </span>
         </div>
@@ -124,11 +124,11 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
         {weights.map((w) => (
           <div key={w.label} className="flex items-center gap-1.5">
             <span
-              className="h-2 w-2 rounded-sm bg-[var(--trae-bg-brand)]"
+              className="h-2 w-2 rounded-sm bg-accent-solid"
               style={{ opacity: w.opacity }}
             />
-            <span className="text-micro text-[var(--trae-text-secondary)]">{w.label}</span>
-            <span className="ml-auto font-mono text-micro tabular-nums text-[var(--trae-text-default)]">
+            <span className="text-micro text-ink-dim">{w.label}</span>
+            <span className="ml-auto font-mono text-micro tabular-nums text-ink">
               {w.val.toFixed(2)}
             </span>
           </div>

@@ -35,7 +35,7 @@
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -79,7 +79,7 @@
 .ai-msg-user-bubble {
   /* v2.5 对齐设计稿：深蓝 popup 底 + 默认文字（原亮蓝底白字过重） */
   background: var(--trae-bg-brand-popup);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   padding: 8px 12px;
   border-radius: 6px 2px 6px 6px;
   font-size: 12px;
@@ -90,8 +90,8 @@
 }
 
 .ai-msg-time {
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -112,26 +112,26 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   transition: background 0.12s ease, color 0.12s ease;
   user-select: none;
 }
 
 .ai-tool-row:hover {
   background: var(--trae-bg-overlay-l2);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .ai-tool-row svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
 }
 
 .ai-step-duration {
   margin-left: auto;
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -148,7 +148,7 @@
   gap: 3px;
   height: 24px;
   padding: 0 8px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   font-weight: 500;
   border-radius: 4px;
   cursor: pointer;
@@ -157,13 +157,13 @@
 }
 
 .ai-action-btn svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
 .ai-action-btn-ghost {
   background: transparent;
-  color: var(--trae-text-secondary);
+  color: var(--text-tertiary);
   border: 1px solid var(--trae-border-neutral-l2);
 }
 
@@ -190,7 +190,7 @@
 .ai-progress-title {
   font-size: 11px;
   font-weight: 600;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 .ai-progress-badge {
@@ -201,8 +201,8 @@
   padding: 0 6px;
   background: var(--trae-bg-brand-popup);
   border-radius: 9999px;
-  font-size: 9px;
-  color: var(--trae-text-brand);
+  font-size: var(--ui-font-micro);
+  color: var(--accent-text);
   font-weight: 500;
 }
 
@@ -210,7 +210,7 @@
   width: 5px;
   height: 5px;
   border-radius: 9999px;
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
   display: inline-block;
   animation: ai-pulse 1.5s infinite;
 }
@@ -219,7 +219,7 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
 }
 
 .ai-progress-step {
@@ -229,8 +229,8 @@
 }
 
 .ai-progress-step svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
 }
 
@@ -238,7 +238,7 @@
   width: 8px;
   height: 8px;
   border-radius: 9999px;
-  background: var(--trae-bg-brand);
+  background: var(--accent-solid);
   display: inline-block;
   flex-shrink: 0;
 }
@@ -268,13 +268,13 @@
   height: 14px;
   padding: 0 4px;
   border-radius: 4px;
-  font-size: 9px;
+  font-size: var(--ui-font-micro);
   flex-shrink: 0;
 }
 
 .ai-badge-alert {
   background: var(--trae-status-alert-surface-l1);
-  color: var(--trae-status-alert-default);
+  color: var(--status-error-text);
 }
 
 .ai-chip {
@@ -285,8 +285,8 @@
   background: transparent;
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: 4px;
-  font-size: 10px;
-  color: var(--trae-text-secondary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-tertiary);
   cursor: pointer;
 }
 
@@ -297,14 +297,14 @@
   gap: 4px;
   margin-top: 6px;
   padding: 4px 6px;
-  font-size: 10px;
-  color: var(--trae-text-tertiary);
+  font-size: var(--ui-font-micro);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .ai-token-row svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
 .ai-composer {
@@ -341,10 +341,10 @@
   border: none;
   outline: none;
   background: transparent;
-  color: var(--trae-text-default);
+  color: var(--text-primary);
   font-size: 11px;
   line-height: 1.5;
-  font-family: 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  font-family: var(--ui-family-ui);
   overflow-y: auto;
 }
 
@@ -416,7 +416,7 @@
   .ai-tool-body { transition: none; }
   .ai-chev { transition: none; }
   .ai-token-pop { animation: none; }
-  .shimmer-text { animation: none; -webkit-text-fill-color: var(--trae-text-secondary); }
+  .shimmer-text { animation: none; -webkit-text-fill-color: var(--text-tertiary); }
   .mini-bar-fill { transition: none; }
 }
 

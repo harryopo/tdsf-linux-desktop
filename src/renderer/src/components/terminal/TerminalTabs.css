@@ -40,7 +40,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  font-family: var(--ui-family-code);
   font-size: 11px;
   color: var(--trae-code-text, #e0e3ee);
 }
@@ -54,7 +54,7 @@
   border-radius: 4px;
   background: transparent;
   color: var(--trae-text-tertiary, var(--trae-text-tertiary));
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   cursor: pointer;
 }
 .term-pending-cmd-close:hover {
@@ -130,7 +130,7 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   border-radius: 50%;
-  font-size: 10px;
+  font-size: var(--ui-font-micro);
   transition: all var(--trae-duration-fast);
   flex-shrink: 0;
 }

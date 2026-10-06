@@ -1,6 +1,15 @@
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './button'
 export { Field, TextInput, TextArea } from './field'
-export { Panel, PanelHeader, Divider, Chip, StatusDot, Collapse } from './surface'
+export {
+  Panel,
+  PanelHeader,
+  PageHeader,
+  Divider,
+  Chip,
+  StatusDot,
+  Spinner,
+  Collapse,
+} from './surface'
 export {
   TooltipProvider,
   Tooltip,

@@ -22,8 +22,8 @@ const PausePanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?:
         )}
         <span className="ml-auto ai-step-duration">{pause.pausedFor}</span>
       </div>
-      <div className="mb-2 text-sm leading-[1.5] text-[var(--trae-text-tertiary)]">{pause.description}</div>
-      <div className="mb-2 text-sm leading-[1.5] text-[var(--trae-text-tertiary)]">
+      <div className="mb-2 text-sm leading-[1.5] text-ink-mute">{pause.description}</div>
+      <div className="mb-2 text-sm leading-[1.5] text-ink-mute">
         如需继续，请在输入框重新发送消息（当前不支持原地恢复）。
       </div>
       <div className="ai-action-group">
@@ -31,7 +31,7 @@ const PausePanel: FC<{ panel: AIToolPanel; onAction?: (action: string, payload?:
           type="button"
           onClick={() => onAction?.('terminateTask')}
           className="ai-action-btn ai-action-btn-ghost btn-press"
-          style={{ borderColor: 'var(--trae-status-error-default)', color: 'var(--trae-status-error-default)' }}
+          style={{ borderColor: 'var(--status-error-text)', color: 'var(--status-error-text)' }}
         >
           <X />
           终止任务

@@ -67,17 +67,17 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
         })
       }}
     >
-      <svg width="10" height="10" viewBox="0 0 36 36" className="shrink-0">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="var(--trae-bg-overlay-l3)" strokeWidth="3" />
+      <svg width="12" height="12" viewBox="0 0 36 36" className="shrink-0">
+        <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-secondary)" strokeWidth="3" />
         <circle
           cx="18" cy="18" r="15" fill="none"
-          stroke="var(--trae-bg-brand)" strokeWidth="3"
+          stroke="var(--accent-solid)" strokeWidth="3"
           strokeDasharray="94.2"
           strokeDashoffset={94.2 * (1 - ctxUsedPct / 100)}
           transform="rotate(-90 18 18)" strokeLinecap="round"
         />
       </svg>
-      <span className="text-caption font-medium tabular-nums text-[var(--trae-text-secondary)]">
+      <span className="text-caption font-medium tabular-nums text-ink-dim">
         {ctxUsedPct}%
       </span>
 
@@ -88,7 +88,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           onClick={(e) => e.stopPropagation()}
         >
           <div className="min-w-[180px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] p-2.5 shadow-xl">
-          <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-[var(--trae-text-tertiary)]">
+          <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-ink-mute">
             上下文使用率
           </div>
           <div className="flex items-center gap-2">
@@ -106,10 +106,10 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
               </text>
             </svg>
             <div>
-              <div className="text-caption font-semibold text-[var(--trae-text-default)]">
+              <div className="text-caption font-semibold text-ink">
                 {ctxUsedTokens} / {ctxTotalTokens}
               </div>
-              <div className="text-caption text-[var(--trae-text-tertiary)]">tokens used</div>
+              <div className="text-caption text-ink-mute">tokens used</div>
             </div>
           </div>
           <button
@@ -131,7 +131,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
                 void toast.info('当前对话较短，无需压缩')
               }
             }}
-            className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-caption font-medium text-[var(--trae-text-brand)] transition-colors hover:brightness-110"
+            className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-caption font-medium text-(--accent-text) transition-colors hover:brightness-110"
           >
             压缩上下文
           </button>

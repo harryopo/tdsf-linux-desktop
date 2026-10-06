@@ -39,8 +39,8 @@
   width: 100vw;
   overflow: hidden;
   background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
-  font-family: 'SF Pro Text', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--ui-family-ui);
   font-size: 11px;
   line-height: 1.5;
   animation: wb-main-layout-fade-in var(--trae-duration-normal, 200ms) var(--trae-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
@@ -70,7 +70,7 @@
   width: 100vw;
   overflow: hidden;
   background: var(--trae-bg-base-default);
-  color: var(--trae-text-default);
+  color: var(--text-primary);
 }
 
 /* ===== 路由切换入场动画 =====
