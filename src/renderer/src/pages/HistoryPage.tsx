@@ -7,8 +7,8 @@
  *       + 决策时间线 6 卡片 + 分页栏（共 247 条 / 1·2·3·…·25）
  *       页头 full-bleed 直挂页面根，正文在 min-h-0 flex-1 overflow-y-auto 容器里滚动。
  *
- * 数据：静态示例数据 1:1 来自设计稿，无 IPC / 无 mock 随机数据。
- * 筛选搜索为客户端真实过滤（useMemo 作用于 6 条静态记录）。
+ * 数据：只渲染 historyList IPC 取回的真实决策记录；取不到（非 Electron / 拉空）就是空态，不补示例。
+ * 筛选与搜索是客户端真实过滤（useMemo 作用于已取回的记录）。
  *
  * data-dom-id：back-workbench / filter-status / search-history / goto-history-detail-{id}
  * 无障碍：button type="button" + aria-label/aria-pressed；button 原生支持 Enter/Space 键盘激活。
