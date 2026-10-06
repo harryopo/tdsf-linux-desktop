@@ -22,6 +22,8 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { assertCommandAllowed } from '../../core/command-gate'
+import { AuditRepo } from '../db/audit-repo'
+import { DatabaseManager } from '../db/database'
 import type {
   SshConfig,
   CommandResult,
@@ -78,6 +80,33 @@ const RECONNECT_MAX_TOTAL_MS = 30_000
  *
  * 管理所有 SSH 会话的生命周期，对外提供 connect/disconnect/exec/shell 等方法。
  */
+/**
+ * SSH 连接事件写审计（开没开关由 AuditRepo 按 risk.auditSshConn 判）
+ *
+ * 只记主机 / 用户 / 会话号：口令、私钥路径、错误原文里可能带的敏感信息不进审计表。
+ */
+function auditSsh(
+  action: string,
+  config: SshConfig,
+  sessionId: string,
+  ok: boolean,
+  error?: string,
+): void {
+  new AuditRepo(DatabaseManager.getInstance()).log({
+    category: 'ssh_conn',
+    action,
+    userId: config.username,
+    sessionId,
+    details: {
+      host: config.host,
+      port: config.port,
+      ok,
+      // 失败原因截断，避免把对端回显的一整段 banner 写进库
+      ...(error ? { error: error.slice(0, 200) } : {}),
+    },
+  })
+}
+
 export class SshConnectionManager {
   /** 单例实例 */
   private static instance: SshConnectionManager | null = null
@@ -212,6 +241,16 @@ export class SshConnectionManager {
     assertCommandAllowed(command)
     entry.lastUsedAt = Date.now()
     const startTime = Date.now()
+    // 审计是旁路：记不上（开关关了 / 库降级）也不影响命令本身
+    const auditExec = (action: string, code: number | null): void => {
+      new AuditRepo(DatabaseManager.getInstance()).log({
+        category: 'cmd_exec',
+        action,
+        command,
+        exitCode: code,
+        sessionId,
+      })
+    }
 
     return new Promise<CommandResult>((resolve, reject) => {
       let stdout = ''
@@ -223,6 +262,7 @@ export class SshConnectionManager {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        auditExec('SSH 执行失败', null)
         // 单条命令失败不修改连接状态，保持会话可用
         reject(err)
       }
@@ -230,6 +270,7 @@ export class SshConnectionManager {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        auditExec('SSH 执行完成', exitCode)
         resolve({ exitCode, stdout, stderr, duration: Date.now() - startTime })
       }
       const timer = setTimeout(
@@ -466,11 +507,13 @@ export class SshConnectionManager {
         entry.state = 'connected'
         entry.lastUsedAt = Date.now()
         this.startKeepAlive(entry)
+        auditSsh('SSH 连接建立', config, entry.sessionId, true)
         resolve()
       }
       const onError = (err: Error) => {
         clearTimeout(timer)
         entry.state = 'error'
+        auditSsh('SSH 连接失败', config, entry.sessionId, false, err.message)
         reject(err)
       }
       const targetOpts = this.buildConnectOptions(config, entry.sessionId)

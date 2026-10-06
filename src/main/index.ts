@@ -22,6 +22,7 @@ import { LangfuseService } from './services/observability/langfuse'
 import { ConfigStore } from './services/storage/config-store'
 import { McpServerService } from './services/mcp/server'
 import { DatabaseManager, resolveDbPath } from './services/db/database'
+import { AuditRepo } from './services/db/audit-repo'
 import { loadTutorialSeeds } from './services/tutorial/seed-loader'
 import { loadKnowledgeSeeds } from './services/db/knowledge-seeds'
 // P-4 恢复方案 A：主进程启动时预热 sessionKeyMap 缓存（恢复主进程重启前活跃的沙箱 key）
@@ -107,6 +108,14 @@ app.whenReady().then(() => {
     logger.info('KB', '知识库种子加载完成', { kbSeedCount })
   } catch (err) {
     logger.warn('KB', '知识库种子加载失败', { error: redactSecrets((err as Error).message) })
+  }
+
+  // 0.0a 审计日志按保留期清理（risk.auditRetention，脏值/缺省回 180 天）
+  try {
+    const pruned = new AuditRepo(db).pruneExpired()
+    if (pruned > 0) logger.info('DB', '审计日志按保留期清理', { pruned })
+  } catch (err) {
+    logger.warn('DB', '审计日志清理失败', { error: redactSecrets((err as Error).message) })
   }
 
   // 0.0 初始化可观测性服务（Langfuse），未配置 Key 时静默降级

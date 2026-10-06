@@ -16,6 +16,8 @@
 
 import { EventEmitter } from 'events'
 import { ConfigStore } from '../services/storage/config-store'
+import { AuditRepo } from '../services/db/audit-repo'
+import { DatabaseManager } from '../services/db/database'
 import type { AgentStep, AgentWorkflowState, DecisionCard, Evidence } from '../../shared/models'
 import { assessRisk } from './risk-engine'
 import { generateDecisionCard } from './decision-engine'
@@ -300,6 +302,20 @@ export class AgentWorkflow extends EventEmitter {
       // Step 5: 人工确认（暂停等待）
       const approved = await this.runStep('confirm', async () => {
         return this.waitForConfirmation()
+      })
+
+      // 审计 AI 决策的确认结果（开没开由 AuditRepo 按 risk.auditAiDecision 判）。
+      // 记不上不影响流程：审计是旁路，不是执行链的一环。
+      new AuditRepo(DatabaseManager.getInstance()).log({
+        category: 'ai_decision',
+        action: approved ? '人工确认通过' : '人工拒绝或确认超时',
+        command: fixCommand,
+        sessionId: params.connId,
+        details: {
+          problem,
+          hypothesis,
+          confidence: this.state.decisionCard?.confidence,
+        },
       })
 
       if (!approved) {

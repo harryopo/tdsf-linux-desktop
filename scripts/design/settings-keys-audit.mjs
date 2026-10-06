@@ -65,6 +65,11 @@ const WIRED = {
   sshDefaults: 'stores/settings-store.ts 回填，pages/SshSettings.tsx 建连时取用',
   sshTimeout: 'stores/settings-store.ts 回填，pages/SshSettings.tsx 建连时取用',
   'ssh.allowPasswordAuth': "pages/SshSettings.tsx 换算成 sshDefaults.authType（'password'/'privateKey'）",
+  // 审计四开关 + 保留期：services/db/audit-repo.ts 按类别决定是否落 audit_logs
+  'risk.auditCmdExec': 'services/db/audit-repo.ts（connection-manager.exec 完成/失败时写）',
+  'risk.auditAiDecision': 'services/db/audit-repo.ts（agent-workflow 确认步写）',
+  'risk.auditSshConn': 'services/db/audit-repo.ts（SSH 连接建立/失败写）',
+  'risk.auditRetention': 'services/db/audit-repo.ts pruneExpired，主进程启动时按天数清理',
   // 决策与校准：主进程按键取值
   'decision.weights': 'src/main/ipc/credibility.ts',
   'decision.decisionTimeout': 'src/main/core/agent-workflow.ts resolveConfirmTimeoutMs（确认超时自动拒绝）',
@@ -84,11 +89,7 @@ const FAKE = {
   'risk.autoBlock': '未接：拦截由 command-gate 决定，关掉此开关也照样拦',
   'risk.desensitize': '未接：日志脱敏没有读这个键',
   'risk.permissionMode': '未接：claude-sdk-provider 写死 bypassPermissions',
-  'risk.auditCmdExec': '未接：审计日志无条件记录',
-  'risk.auditFileMod': '未接：同上',
-  'risk.auditAiDecision': '未接：同上',
-  'risk.auditSshConn': '未接：同上',
-  'risk.auditRetention': '未接：只读展示项，值写死 180',
+  'risk.auditFileMod': '未接：远程文件改动还没有统一写入口（SFTP 传输在渲染层发起）',
   'risk.recordingRetention': '未接：没有操作录像功能',
   'risk.rules': '未接：真正生效的规则在 src/main/core/command-rules.json',
   // 决策控制页：本轮已删掉 4 条（置信度阈值/文件大小/批量数/回滚时长），剩这条要接进执行链
@@ -98,7 +99,7 @@ const FAKE = {
 }
 
 /** 假设置上限：等于 2026-10-06 实测值，只能往下调 */
-const FAKE_CAP = 13
+const FAKE_CAP = 9
 
 /** 递归收集 .ts/.tsx（跳过 .d.ts） */
 function sourceFiles(dir, acc = []) {
