@@ -87,14 +87,14 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 74,
-    why: '2026-10-06 实测 74。旧令牌是"每页自己定字号颜色"的载体，退一个少一个',
+    cap: 72,
+    why: '2026-10-06 关于页与模型页重做后实测 74→72。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 155,
-    why: '2026-10-06 实测 155。内联视觉属性绕开令牌，主题切换和统一改样式都抓不到它',
+    cap: 138,
+    why: '2026-10-06 两页重做后实测 155→138。内联视觉属性绕开令牌，主题切换抓不到它',
   },
   {
     name: '还 import antd 的渲染层文件数',
