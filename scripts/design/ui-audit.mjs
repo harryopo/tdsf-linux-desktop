@@ -107,6 +107,7 @@ const MEASURE = `(async () => {
 
   const type = {};
   const families = new Set();
+  const familySample = {};
   const low = [];
   const clipped = [];
   for (const el of document.querySelectorAll('h1,h2,h3,h4,h5,p,span,button,a,label,td,th,div,code,li')) {
@@ -119,7 +120,12 @@ const MEASURE = `(async () => {
     const key = px(cs.fontSize) + 'px/' + cs.fontWeight + '/' + (cs.fontFamily || '').split(',')[0].replace(/["']/g, '');
     type[key] = (type[key] || 0) + 1;
     // 字体族只统计我们自己的节点：antd 注入的 -apple-system 栈在退出清单上，不按我们的刻度判
-    if (!el.closest('[class*="ant-"]')) families.add((cs.fontFamily || '').split(',')[0].replace(/["']/g, ''));
+    if (!el.closest('[class*="ant-"]')) {
+      const fam = (cs.fontFamily || '').split(',')[0].replace(/["']/g, '')
+      families.add(fam)
+      // 记下每套族第一个出现在哪个节点上，否则"第三套族"报出来没法定位
+      if (!familySample[fam]) familySample[fam] = ((el.className || '').toString().slice(0, 34) || el.tagName) + ' · ' + txt.slice(0, 10)
+    }
 
     const fg = lum(cs.color);
     if (fg) {
@@ -154,6 +160,8 @@ const MEASURE = `(async () => {
     if (r.width < 2) continue;
     // antd 自带图标（.anticon 一族）在退出清单上，不按"我们的图标刻度"判它
     if (s.closest('.anticon, .ant-modal-close, .ant-select-suffix, .ant-picker-suffix')) continue;
+    // radix Tooltip 的箭头是个 10x5 的填充 svg，属于浮层 chrome 不是图标
+    if (/fill-(raised|canvas|panel|sunken)/.test(s.getAttribute('class') || '')) continue;
     const k = px(r.width) + 'x' + px(r.height);
     icons[k] = (icons[k] || 0) + 1;
     if (r.width <= 48 && !ICON_TIER.test(k)) {
@@ -233,11 +241,25 @@ const MEASURE = `(async () => {
     });
   }
 
+  // ===== 底部显示不全：外壳最后一行（状态栏）必须整条落在视口内 =====
+  const shell = document.querySelector('.wb-status-bar, [class*="status-bar"], [class*="statusbar"]');
+  const sr = shell ? shell.getBoundingClientRect() : null;
+  const rootEl = document.getElementById('root');
+  const bottomFit = {
+    hasStatusBar: !!shell,
+    statusBottom: sr ? Math.round(sr.bottom) : null,
+    statusClipped: sr ? sr.bottom > innerHeight + 0.5 : null,
+    docOverflowY: Math.max(0, document.documentElement.scrollHeight - innerHeight),
+    rootH: rootEl ? Math.round(rootEl.getBoundingClientRect().height) : null,
+  };
+
   return {
     viewport: [innerWidth, innerHeight],
     typeScales: Object.fromEntries(Object.entries(type).sort((a, b) => b[1] - a[1]).slice(0, 24)),
     distinctTypeCombos: Object.keys(type).length,
     families: [...families],
+    familySample,
+    bottomFit,
     lowContrast: low.sort((a, b) => a.contrast - b.contrast).slice(0, 20),
     lowContrastCount: low.length,
     clipped,
@@ -277,7 +299,25 @@ try {
   })
   await cdp(ws, 'Runtime.enable')
   await cdp(ws, 'Page.enable')
-  await cdp(ws, 'Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false })
+  // 0) 真实窗口装不装得下：必须在改模拟视口之前量，这里读到的才是用户屏幕上真实的窗口高度
+  await sleep(2500)
+  report.windowFit = await evalIn(ws, `(() => {
+    const bar = document.querySelector('.wb-status-bar, [class*="status-bar"], [class*="statusbar"]');
+    const r = bar ? bar.getBoundingClientRect() : null;
+    return { inner: [innerWidth, innerHeight], screen: [screen.width, screen.height],
+      avail: [screen.availWidth, screen.availHeight],
+      statusBar: r ? { bottom: Math.round(r.bottom), h: Math.round(r.height) } : null,
+      fits: r ? r.bottom <= innerHeight + 0.5 : null };
+  })()`)
+  console.log('真实窗口：' + JSON.stringify(report.windowFit))
+  // 视口可覆盖：UI_AUDIT_W=1920 UI_AUDIT_H=1080 复现"全屏后底部显示不全"
+  const vp = [Number(process.env.UI_AUDIT_W || 1440), Number(process.env.UI_AUDIT_H || 900)]
+  if (!vp.every((n) => Number.isFinite(n) && n >= 600)) {
+    console.error(`UI_AUDIT_W / UI_AUDIT_H 必须是 600 以上的数字，收到 ${JSON.stringify([process.env.UI_AUDIT_W, process.env.UI_AUDIT_H])}`)
+    app.kill()
+    process.exit(2)
+  }
+  await cdp(ws, 'Emulation.setDeviceMetricsOverride', { width: vp[0], height: vp[1], deviceScaleFactor: 1, mobile: false })
 
   // 1) 启动页：进度条还在走的时候截一张，走完了再截一张
   await sleep(1200)
@@ -355,7 +395,13 @@ try {
       const offIcon = (s.offTierIcons || []).map((o) => `${o.size}「${o.at || o.cls}」`)
       if (offIcon.length) bad.push(`${at}: 图标尺寸不在刻度内 — ${offIcon.join(', ')}`)
       const fams = s.families || []
-      if (fams.length > 2) bad.push(`${at}: 字体族 ${fams.length} 套 — ${fams.join(', ')}`)
+      if (fams.length > 2) {
+        const sample = s.familySample || {}
+        bad.push(`${at}: 字体族 ${fams.length} 套 — ${fams.map((fm) => `${fm}(${sample[fm] || '?'})`).join('，')}`)
+      }
+      if (s.bottomFit?.statusClipped) {
+        bad.push(`${at}: 底部状态栏被裁掉（bottom ${s.bottomFit.statusBottom} > 视口高 ${s.viewport[1]}，root 高 ${s.bottomFit.rootH}）`)
+      }
       const tiny = Object.keys(s.typeScales).filter((k) => parseFloat(k) < 11)
       if (tiny.length) bad.push(`${at}: 出现低于 11px 的字号 — ${tiny.join(', ')}`)
     }
@@ -376,6 +422,9 @@ try {
       }
     }
     console.log('\n=== 门禁 ===')
+    if (report.windowFit && report.windowFit.fits === false) {
+      bad.push(`真实窗口底部被裁：状态栏底边 ${report.windowFit.statusBar.bottom} > 视口高 ${report.windowFit.inner[1]}（屏幕 ${report.windowFit.screen}，可用 ${report.windowFit.avail}）`)
+    }
     console.log('页面左上角标题对照（字号/字重/位置应当一致）：')
     for (const s of pages) {
       const h = s.header

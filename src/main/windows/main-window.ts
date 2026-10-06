@@ -12,7 +12,7 @@
  * - prod: 加载打包后的 renderer/index.html
  */
 
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, screen, shell } from 'electron'
 import * as path from 'node:path'
 
 /** 主窗口单例引用（避免被垃圾回收） */
@@ -80,26 +80,28 @@ function applyCsp(win: BrowserWindow, origin: string | undefined): void {
 /**
  * 创建主窗口
  *
- * 创建一个 1280x800 的窗口，加载渲染进程入口页面。
+ * 尺寸取"工作区"（屏幕扣掉任务栏），最大 1600×1000，居中显示。
  * 开发模式下打开 DevTools 便于调试。
  *
  * @returns 主窗口实例
  */
 export function createMainWindow(): BrowserWindow {
-  // 创建浏览器窗口（v1.0：调大尺寸 + 支持全屏，适配 IDE 风格设计稿）
+  // 尺寸不能按屏幕物理分辨率写死：BrowserWindow 的 width/height 是**外框**，
+  // 之前 1920×1080 在 1080p 屏上被标题栏 + 任务栏顶掉约 70px，底部状态栏显示不全
+  const { workArea } = screen.getPrimaryDisplay()
   mainWindow = new BrowserWindow({
-    width: 1920,
-    height: 1080,
-    minWidth: 1440,
-    minHeight: 768,
+    width: Math.min(1600, workArea.width),
+    height: Math.min(1000, workArea.height),
+    minWidth: 1280,
+    minHeight: 720,
+    center: true,
     show: false, // 等渲染进程 ready-to-show 后再显示，避免白屏
     title: 'TDSF-Linux Desktop',
-    // 与渲染层 --trae-bg-base-default (#1a1b1d) 对齐，避免白屏闪烁
-    backgroundColor: '#1a1b1d',
+    // 与渲染层画布底色对齐，避免白屏闪烁
+    backgroundColor: '#1e1e1e',
     // 允许用户全屏（设计稿是 IDE 风格，全屏后体验更好）
     simpleFullscreen: true,
     fullscreenable: true,
-    // 启用原生 Windows 最大化按钮
     maximizable: true,
     webPreferences: {
       // 安全配置

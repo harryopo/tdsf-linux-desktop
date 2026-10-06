@@ -449,8 +449,14 @@ const Composer: FC<ComposerProps> = ({
             {/* 模型选择：radix Menu 接管开合、焦点与 Esc，不再手写 outside-click */}
             <Menu>
               <MenuTrigger asChild>
-                <Button size="sm" variant="ghost" className="max-w-[220px] whitespace-nowrap">
-                  <span className="truncate">{providerLabel}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title={providerLabel}
+                  // 固定宽度而非 max-w：按钮基类带 shrink-0，给上限也照样撑，会把标签压到发送钮底下
+                  className="w-[132px] shrink-0 px-2"
+                >
+                  <span className="min-w-0 flex-1 truncate">{providerLabel}</span>
                   <ChevronDown className="size-3 shrink-0" />
                 </Button>
               </MenuTrigger>
