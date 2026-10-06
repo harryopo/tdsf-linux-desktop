@@ -1,22 +1,25 @@
 /**
- * AboutSettings — 关于（居中布局，嵌套在 SettingsLayout 内）
- * 路由：/settings/about | 设计稿：settings-about.html
+ * AboutSettings — 关于（版本与更新 / 运行环境 / 功能就绪度 / 资源）
+ * 路由：/settings/about
  *
- * spec DEC-4 要求 9 个设置子页面统一左导航，本组件嵌套在 SettingsLayout 内：
- * 删除独立 ab-topbar，保留 Hero + Divider + SysInfo + Links grid + Footer。
- * 视觉：var(--trae-*) token；无障碍：button type + aria-label。
- * 常量 / 类型 / 探测函数：见 about-settings.constants.ts
+ * 与其它设置子页同一套卡片语言（SettingsCard + SettingsRow），不做居中营销版式：
+ * 原来那版把 logo、标题、三个 badge、按钮、9 行键值表竖成一条 560px 居中长栏，
+ * 版本号在 Hero 和表格里各写一遍，还挂着不存在的官网与占位问卷链接。
  *
- * v2.2 P1 修复 #24：检查更新功能接入真实 IPC（app:check-update / app:download-update）
- * 简化方案：HTTP GET GitHub Releases API + shell.openExternal，不引入 electron-updater。
+ * 检查更新走真实 IPC（app:check-update / app:download-update）：
+ * 主进程 GET GitHub Releases 比对 semver；"下载更新"= 打开 Release 页，不引 electron-updater。
+ * 常量与探测函数见 about-settings.constants.ts。
  */
-import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
-import { RefreshCw, ArrowRight, Loader2, FileText, Download, Info } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Download, ExternalLink, Info, ListChecks, MonitorPlay, RefreshCw, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 import {
-  APP_VERSION, APP_BUILD_BADGE, APP_BUILD_TIME, APP_INSTALL_PATH,
-  LINK_URLS, LINK_CARDS, FOOTER_LINKS,
-  detectRuntimeEnv, detectOsName,
-  type SysInfoItem, type LinkCard, type FooterLink,
+  APP_VERSION,
+  LINK_URLS,
+  LINK_CARDS,
+  NOT_AVAILABLE,
+  detectRuntimeEnv,
+  detectOsName,
 } from './about-settings.constants'
 import type { AppUpdateInfo, AppInfo } from '../types/electron'
 import {
@@ -25,37 +28,27 @@ import {
   capabilityCounts,
   type CapabilityStatus,
 } from '@shared/capabilities'
-import { Chip } from '@/ui'
-import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
+import { Button, Chip, PageHeader, Spinner } from '@/ui'
+import { SettingsCard } from '@/components/settings/SettingsCard'
+import { SettingsRow } from '@/components/settings/SettingsRow'
 import './Settings.css'
 
-/** 就绪度状态 → Chip 色调（待开发用描边而非彩色，避免和"降级"看起来一样严重） */
+/** 就绪度状态 → Chip 色调（待开发用描边，避免看起来和"降级"一样严重） */
 const CHIP_TONE: Record<CapabilityStatus, 'success' | 'warning' | 'outline'> = {
   live: 'success',
   degraded: 'warning',
   pending: 'outline',
 }
 
-interface BadgeConfig {
-  label: string
-  variant: 'brand' | 'neutral'
-}
-
-const BADGE_CLASS: Record<BadgeConfig['variant'], string> = {
-  brand: 'set-ab-badge set-ab-badge--brand',
-  neutral: 'set-ab-badge set-ab-badge--neutral',
+/** 路径与版本这类值：等宽、超长截断，不许撑破行 */
+function Value({ children }: { children: ReactNode }) {
+  return <span className="max-w-[420px] truncate font-mono text-caption text-ink-dim">{children}</span>
 }
 
 export function AboutSettings() {
-  const [feedback, setFeedback] = useState<string | null>(null)
-  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [isChecking, setIsChecking] = useState(false)
-  const checkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // v2.2 P1 修复 #24：检查更新真实 IPC 返回结果
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null)
   const [updateError, setUpdateError] = useState<string | null>(null)
-  const [isDownloading, setIsDownloading] = useState(false)
-  // T.8：真实应用信息（从主进程 app:get-info 加载）
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [appInfoLoading, setAppInfoLoading] = useState(false)
   const [appInfoError, setAppInfoError] = useState<string | null>(null)
@@ -63,91 +56,46 @@ export function AboutSettings() {
   /** 功能就绪度汇总：数字来自共享表，页面不自己数 */
   const counts = useMemo(() => capabilityCounts(), [])
 
-  const displayVersion = appInfo?.version ?? APP_VERSION
-  const displayBuildTime = appInfo?.buildTime
-    ? new Date(appInfo.buildTime).toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : APP_BUILD_TIME
-  const displayBuildBadge = appInfo?.buildBadge ?? APP_BUILD_BADGE
-  const displayInstallPath = appInfo?.installPath ?? APP_INSTALL_PATH
-
-  /** Hero Badge 配置（3 个：版本 + stable + 构建标识），优先用 app:get-info 真实值 */
-  const heroBadges = useMemo<BadgeConfig[]>(() => {
-    return [
-      { label: displayVersion, variant: 'brand' },
-      { label: 'stable', variant: 'neutral' },
-      { label: displayBuildBadge, variant: 'neutral' },
-    ]
-  }, [displayVersion, displayBuildBadge])
-
-  const sysInfo = useMemo<SysInfoItem[]>(() => {
-    return [
-      { key: '版本', value: `${displayVersion} (stable)` },
-      { key: '构建时间', value: displayBuildTime },
-      { key: '更新通道', value: 'Stable' },
-      { key: '运行环境', value: detectRuntimeEnv() },
-      { key: '操作系统', value: detectOsName() },
-      { key: '安装路径', value: displayInstallPath },
-      { key: '官网', value: 'tdsf.dev', isLink: true },
-      { key: '项目仓库', value: 'github.com/harryopo/tdsf-linux-desktop', isLink: true },
-    ]
-  }, [displayVersion, displayBuildTime, displayInstallPath])
-
   useEffect(() => {
-    // T.8：挂载时加载真实应用信息（非 Electron 环境安全降级）
+    let cancelled = false
     setAppInfoLoading(true)
     setAppInfoError(null)
     if (typeof window === 'undefined' || !window.electronAPI?.appGetInfo) {
       setAppInfoLoading(false)
-      return () => {
-        if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current)
-        if (checkingTimerRef.current != null) clearTimeout(checkingTimerRef.current)
-      }
+      setAppInfoError(NOT_AVAILABLE)
+      return
     }
     window.electronAPI
       .appGetInfo()
       .then((info) => {
-        setAppInfo(info)
+        if (cancelled) return
+        if (info) setAppInfo(info)
+        else setAppInfoError(NOT_AVAILABLE)
       })
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : String(err)
-        setAppInfoError(message)
-        // IPC 失败时使用本地常量兜底，不阻塞页面
+      .catch((err: unknown) => {
+        if (!cancelled) setAppInfoError(err instanceof Error ? err.message : String(err))
       })
       .finally(() => {
-        setAppInfoLoading(false)
+        if (!cancelled) setAppInfoLoading(false)
       })
-
     return () => {
-      if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current)
-      if (checkingTimerRef.current != null) clearTimeout(checkingTimerRef.current)
+      cancelled = true
     }
   }, [])
 
-  const showFeedback = (msg: string) => {
-    setFeedback(msg)
-    if (feedbackTimerRef.current != null) clearTimeout(feedbackTimerRef.current)
-    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 2500)
-  }
+  const version = appInfo?.version ?? `v${APP_VERSION}`
+  const buildTime = appInfo?.buildTime
+    ? new Date(appInfo.buildTime).toLocaleString('zh-CN', { hour12: false })
+    : NOT_AVAILABLE
+  const buildBadge = appInfo?.buildBadge ?? '—'
 
-  /**
-   * 检查更新：调用主进程 app:check-update IPC
-   *
-   * v2.2 P1 修复 #24：真实实现（替代原 WIP 本地反馈）。
-   *
-   * 主进程 HTTP GET GitHub Releases API（10 秒超时），比对 semver 版本号：
-   * - 有更新：setUpdateInfo(info) 显示新版本号 + 更新日志 + 立即下载按钮
-   * - 无更新：showFeedback 提示已是最新版本
-   * - 失败：setUpdateError(error) 显示错误信息（已脱敏）
-   *
-   * 简化方案：不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子），
-   * "下载更新"通过 shell.openExternal 打开浏览器到 Release 页面。
-   */
+  /** 检查结果说人话：有没有新版、何时发布、失败原因是什么 */
+  const updateSummary = updateError
+    ? `检查失败：${updateError}`
+    : updateInfo
+      ? `发现新版本 ${updateInfo.latestVersion}（${updateInfo.publishedAt.slice(0, 10)} 发布）`
+      : '尚未检查。更新来源是 GitHub Releases 上标记为 stable 的版本。'
+
   const handleCheckUpdate = async () => {
     if (isChecking) return
     setIsChecking(true)
@@ -158,345 +106,118 @@ export function AboutSettings() {
         throw new Error('当前环境不支持检查更新')
       }
       const result = await window.electronAPI.appCheckUpdate()
-      if (result.hasUpdate) {
-        // 有新版本：保存更新信息，UI 展示新版本号 + 立即下载按钮
-        setUpdateInfo(result)
-      } else if ('error' in result) {
-        // 检查失败（已脱敏）：显示错误信息
-        setUpdateError(result.error)
-        showFeedback(`检查更新失败：${result.error}`)
-      } else {
-        // 无新版本
-        showFeedback(`当前已是最新版本 (v${APP_VERSION})`)
-      }
+      if (result.hasUpdate) setUpdateInfo(result)
+      else if ('error' in result) setUpdateError(result.error)
+      else toast.success(`已是最新版本 ${version}`)
     } catch (err) {
-      // IPC 调用本身失败（极端情况：主进程未注册 / preload 未暴露）
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      setUpdateError(errorMsg)
-      showFeedback(`检查更新失败：${errorMsg}`)
+      setUpdateError(err instanceof Error ? err.message : String(err))
     } finally {
       setIsChecking(false)
     }
   }
 
-  /**
-   * 立即下载：调用主进程 app:download-update IPC
-   *
-   * 主进程 shell.openExternal 打开浏览器到 Release 页面，
-   * 让用户手动下载 .exe/.dmg/.AppImage 安装包。
-   */
+  /** "下载更新"打开 Release 页，由用户手动下载安装包 */
   const handleDownloadUpdate = async () => {
-    if (isDownloading) return
-    setIsDownloading(true)
-    try {
-      if (typeof window === 'undefined' || !window.electronAPI?.appDownloadUpdate) {
-        showFeedback('当前环境不支持下载更新')
-        setIsDownloading(false)
-        return
-      }
-      const releaseUrl = updateInfo?.releaseUrl
-      const ok = await window.electronAPI.appDownloadUpdate(releaseUrl)
-      if (!ok) {
-        showFeedback('打开下载页面失败，请稍后重试')
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err)
-      showFeedback(`打开下载页面失败：${errorMsg}`)
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  const handleViewChangelog = () => {
-    window.open(LINK_URLS.changelog, '_blank', 'noopener,noreferrer')
-  }
-
-  const handleLinkCardClick = (card: LinkCard) => {
-    window.open(card.url, '_blank', 'noopener,noreferrer')
-  }
-
-  const handleFooterLinkClick = (link: FooterLink) => {
-    if (link.url) {
-      window.open(link.url, '_blank', 'noopener,noreferrer')
+    if (typeof window === 'undefined' || !window.electronAPI?.appDownloadUpdate) {
+      toast.error('当前环境不支持打开下载页')
       return
     }
-    // 致谢：本地反馈，无外部链接
-    showFeedback('感谢开源社区与火山引擎赛事支持')
+    const ok = await window.electronAPI.appDownloadUpdate(updateInfo?.releaseUrl ?? LINK_URLS.releases)
+    if (!ok) toast.error('打开下载页面失败，请稍后重试')
   }
 
-  const handleSysInfoLinkClick = (item: SysInfoItem) => {
-    if (item.key === '官网') {
-      window.open(LINK_URLS.home, '_blank', 'noopener,noreferrer')
-      return
-    }
-    if (item.key === '项目仓库') {
-      window.open(LINK_URLS.github, '_blank', 'noopener,noreferrer')
-    }
-  }
+  const openLink = (url: string) => window.open(url, '_blank', 'noopener,noreferrer')
 
   return (
     <div className="set-subpage">
-      <SettingsPageHeader icon={Info} title="关于" desc="版本、更新与运行环境" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-      {/* 返回入口由 SettingsLayout 的左栏常驻导航承担，页面内不再自绘返回条 */}
-      <div className="set-ab-page">
-      <div className="set-ab-hero">
-        {/* Logo */}
-        <div className="set-ab-hero__logo">
-          {/* TDSF Logo — 圆角立方体 + 终端光标，替代设计稿 logo.svg */}
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ color: 'var(--accent-text)' }}>
-            <path d="M14 12h20a4 4 0 014 4v16a4 4 0 01-4 4H14a4 4 0 01-4-4V16a4 4 0 014-4z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
-            <path d="M10 18l8-6M10 18l8 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M24 26h10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            <circle cx="20" cy="26" r="2" fill="currentColor" />
-          </svg>
-        </div>
-
-        {/* 名称 */}
-        <div className="set-ab-hero__name">
-          TDSF Linux 运维教学一体平台
-        </div>
-
-        {/* 描述 */}
-        <div className="set-ab-hero__desc">
-          面向 Linux 运维教学的 IDE + AI 一体化平台，集成 SSH 管理、可信决策、知识沉淀与实时监控
-        </div>
-
-        {/* Badges：3 个（版本 + stable + 构建标识） */}
-        <div className="set-ab-hero__badges">
-          {heroBadges.map((badge) => (
-            <span
-              key={badge.label}
-              className={BADGE_CLASS[badge.variant]}
-            >
-              {badge.label}
-            </span>
-          ))}
-        </div>
-
-        {/* 操作按钮 */}
-        <div className="set-ab-hero__actions">
-          <button
-            type="button"
-            onClick={handleCheckUpdate}
-            disabled={isChecking}
-            aria-label="检查更新"
-            className="set-btn-primary btn-press"
-            style={isChecking ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
-          >
-            {isChecking ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            {isChecking ? '检查中...' : '检查更新'}
-          </button>
-          <button
-            type="button"
-            onClick={handleViewChangelog}
-            aria-label="更新日志"
-            className="set-btn-secondary btn-press"
-          >
-            <FileText className="size-3.5" />
-            更新日志
-          </button>
-          {feedback && (
-            <span
-              role="status"
-              aria-live="polite"
-              style={{ fontSize: 'var(--trae-body-xs-font-size)', color: 'var(--status-success-text)' }}
-            >
-              {feedback}
-            </span>
-          )}
-        </div>
-
-        {/* v2.2 P1 修复 #24：检查更新结果展示（有新版本时显示版本号 + 更新日志 + 立即下载按钮） */}
-        {updateInfo && (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              marginTop: 'var(--trae-spacer-12, 12px)',
-              padding: 'var(--trae-spacer-12, 12px) var(--trae-spacer-16, 16px)',
-              borderRadius: 'var(--trae-radius-6, 8px)',
-              border: '1px solid var(--trae-border-brand, var(--trae-border-neutral-l1))',
-              background: 'var(--trae-bg-brand-popup, var(--trae-bg-base-tertiary))',
-              fontSize: 'var(--trae-body-sm-font-size)',
-              color: 'var(--text-primary)',
-              textAlign: 'left',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--trae-spacer-8, 8px)', marginBottom: 'var(--trae-spacer-4, 4px)' }}>
-              <span className={BADGE_CLASS.brand} style={{ flexShrink: 0 }}>
-                {updateInfo.latestVersion}
-              </span>
-              <span style={{ color: 'var(--text-tertiary)', fontSize: 'var(--trae-body-xs-font-size)' }}>
-                发布于 {new Date(updateInfo.publishedAt).toLocaleDateString('zh-CN')}
-              </span>
-            </div>
-            <div
-              style={{
-                color: 'var(--text-tertiary)',
-                fontSize: 'var(--trae-body-xs-font-size)',
-                maxHeight: '120px',
-                overflowY: 'auto',
-                whiteSpace: 'pre-wrap',
-                marginBottom: 'var(--trae-spacer-8, 8px)',
-              }}
-            >
+      <PageHeader icon={Info} title="关于" subtitle="版本、更新与运行环境" />
+      <div className="set-subpage__body">
+        <SettingsCard icon={RefreshCw} title="版本与更新" hideTag noHeadBorder>
+          <SettingsRow label="当前版本" desc="随安装包分发" control={<Value>{version} · {buildBadge}</Value>} />
+          <SettingsRow
+            label="构建时间"
+            desc={appInfoError ?? '由主进程在启动时提供'}
+            control={<Value>{buildTime}</Value>}
+          />
+          <SettingsRow label="更新通道" desc="只比对 stable 标签的 Release" control={<Chip tone="neutral">Stable</Chip>} />
+          <SettingsRow
+            label="检查结果"
+            desc={updateSummary}
+            control={
+              <div className="flex items-center gap-2">
+                {updateInfo ? (
+                  <Button variant="solid" size="md" onClick={handleDownloadUpdate}>
+                    <Download className="size-3.5" />
+                    下载 {updateInfo.latestVersion}
+                  </Button>
+                ) : null}
+                <Button variant="outline" size="md" disabled={isChecking} onClick={handleCheckUpdate}>
+                  {isChecking ? '检查中…' : '检查更新'}
+                </Button>
+                <Button variant="ghost" size="md" onClick={() => openLink(LINK_URLS.changelog)}>
+                  更新日志
+                </Button>
+              </div>
+            }
+          />
+          {updateInfo?.releaseNotes ? (
+            <p className="mt-1 max-h-36 overflow-y-auto whitespace-pre-wrap rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-dim">
               {updateInfo.releaseNotes}
+            </p>
+          ) : null}
+        </SettingsCard>
+
+        <SettingsCard icon={MonitorPlay} title="运行环境" hideTag noHeadBorder>
+          {appInfoLoading ? (
+            <div className="py-3">
+              <Spinner label="读取应用信息…" />
             </div>
-            <button
-              type="button"
-              onClick={handleDownloadUpdate}
-              disabled={isDownloading}
-              aria-label="立即下载"
-              className="set-btn-primary btn-press"
-              style={isDownloading ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
-            >
-              {isDownloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-              {isDownloading ? '打开中...' : '立即下载'}
-            </button>
-          </div>
-        )}
+          ) : (
+            <>
+              <SettingsRow label="运行时" desc="Electron 与内核版本" control={<Value>{detectRuntimeEnv()}</Value>} />
+              <SettingsRow label="操作系统" desc="当前系统平台" control={<Value>{detectOsName()}</Value>} />
+              <SettingsRow label="数据目录" desc="配置、知识库与本地数据库存放处" control={<Value>{appInfo?.dataPath ?? NOT_AVAILABLE}</Value>} />
+              <SettingsRow label="日志目录" desc="排查问题先看这里" control={<Value>{appInfo?.logPath ?? NOT_AVAILABLE}</Value>} />
+              <SettingsRow label="程序路径" desc="安装包所在目录" isLast control={<Value>{appInfo?.installPath ?? NOT_AVAILABLE}</Value>} />
+            </>
+          )}
+        </SettingsCard>
 
-        {/* 检查更新失败时显示错误信息（已脱敏） */}
-        {updateError && !updateInfo && (
-          <div
-            role="alert"
-            style={{
-              marginTop: 'var(--trae-spacer-12, 12px)',
-              padding: 'var(--trae-spacer-8, 8px) var(--trae-spacer-12, 12px)',
-              borderRadius: 'var(--trae-radius-6, 8px)',
-              border: '1px solid var(--trae-status-error-default)',
-              background: 'var(--trae-status-error-surface-l1, var(--trae-bg-base-tertiary))',
-              fontSize: 'var(--trae-body-xs-font-size)',
-              color: 'var(--status-error-text)',
-              textAlign: 'left',
-            }}
-          >
-            {updateError}
-          </div>
-        )}
-      </div>
-
-      {/* ===== Divider ===== */}
-      <div className="set-ab-divider" />
-
-      {/* ===== System info ===== */}
-      <div className="set-ab-sysinfo">
-        {(appInfoLoading || appInfoError) && (
-          <div className="set-ab-sysinfo__row">
-            <span className="set-ab-sysinfo__key">应用信息</span>
-            <span className="set-ab-sysinfo__val" style={{ color: 'var(--text-muted)' }}>
-              {appInfoLoading && (
-                <>
-                  <Loader2 className="mr-1 inline size-3 animate-spin" />
-                  正在从主进程加载真实应用信息…
-                </>
-              )}
-              {!appInfoLoading && appInfoError && (
-                <>加载真实应用信息失败（{appInfoError}），当前显示兜底值</>
-              )}
-            </span>
-          </div>
-        )}
-        {sysInfo.map((item) => (
-          <div key={item.key} className="set-ab-sysinfo__row">
-            <span className="set-ab-sysinfo__key">
-              {item.key}
-            </span>
-            {item.isLink ? (
-              <button
-                type="button"
-                onClick={() => handleSysInfoLinkClick(item)}
-                className="set-ab-sysinfo__val set-ab-sysinfo__val--link"
-              >
-                {item.value}
-              </button>
-            ) : (
-              <span className="set-ab-sysinfo__val">
-                {item.value}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* ===== Links grid ===== */}
-      <div className="set-ab-links">
-        {LINK_CARDS.map((card) => {
-          const Icon = card.icon
-          return (
-            <button
-              key={card.id}
-              type="button"
-              onClick={() => handleLinkCardClick(card)}
-              aria-label={card.title}
-              className="set-ab-link-card btn-press"
-            >
-              <div className="set-ab-link-card__icon">
-                <Icon className="size-4" />
-              </div>
-              <div className="set-ab-link-card__body">
-                <div className="set-ab-link-card__title">
-                  {card.title}
-                </div>
-                <div className="set-ab-link-card__desc">
-                  {card.desc}
-                </div>
-              </div>
-              <ArrowRight className="size-3.5 set-ab-link-card__arrow" />
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ===== 功能就绪度（读 src/shared/capabilities.ts，页面不自写状态文案）===== */}
-      <div className="set-ab-sysinfo">
-        <div className="set-ab-sysinfo__row">
-          <span className="set-ab-sysinfo__key">功能就绪度</span>
-          <span className="set-ab-sysinfo__val">
+        <SettingsCard icon={ListChecks} title="功能就绪度" hideTag noHeadBorder>
+          <p className="pb-1 text-caption text-ink-mute">
             {counts.live} 项已接通 · {counts.degraded} 项降级运行 · {counts.pending} 项待开发
-          </span>
-        </div>
-        {CAPABILITIES.map((cap) => (
-          <div key={cap.id} className="set-ab-sysinfo__row" style={{ alignItems: 'flex-start' }}>
-            <span className="set-ab-sysinfo__key">{cap.label}</span>
-            <span className="set-ab-sysinfo__val">
-              <Chip tone={CHIP_TONE[cap.status]} className="mb-1">
-                {CAPABILITY_STATUS_LABELS[cap.status]}
-              </Chip>
-              <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11 }}>
-                {cap.note}
-              </span>
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* ===== Footer ===== */}
-      <div className="set-ab-footer">
-        <div className="set-ab-footer__text">
-          Copyright © 2026 TDSF Team
-          <br />
-          REDACTED · REDACTED
-        </div>
-        <div className="set-ab-footer__links">
-          {FOOTER_LINKS.map((link, idx) => (
-            <Fragment key={link.label}>
-              {idx > 0 && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 'var(--trae-body-xs-font-size)' }}>·</span>
-              )}
-              <button
-                type="button"
-                onClick={() => handleFooterLinkClick(link)}
-                className="set-ab-footer__link"
-              >
-                {link.label}
-              </button>
-            </Fragment>
+          </p>
+          {CAPABILITIES.map((cap, i) => (
+            <SettingsRow
+              key={cap.id}
+              label={cap.label}
+              desc={cap.note}
+              isLast={i === CAPABILITIES.length - 1}
+              control={<Chip tone={CHIP_TONE[cap.status]}>{CAPABILITY_STATUS_LABELS[cap.status]}</Chip>}
+            />
           ))}
-        </div>
-      </div>
-      </div>
+        </SettingsCard>
+
+        <SettingsCard icon={Sparkles} title="资源" hideTag noHeadBorder>
+          {LINK_CARDS.map((card, i) => (
+            <SettingsRow
+              key={card.id}
+              label={card.title}
+              desc={card.desc}
+              isLast={i === LINK_CARDS.length - 1}
+              control={
+                <Button variant="ghost" size="md" onClick={() => openLink(card.url)}>
+                  <ExternalLink className="size-3.5" />
+                  打开
+                </Button>
+              }
+            />
+          ))}
+        </SettingsCard>
+
+        <p className="px-1 pb-2 text-caption text-ink-mute">
+          Copyright © 2026 TDSF Team
+        </p>
       </div>
     </div>
   )
