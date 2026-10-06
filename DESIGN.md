@@ -56,8 +56,18 @@
 ## 3. Spacing / Radius / Elevation
 
 - 间距 4px 步进：`--ui-space-1..8` = 2/4/6/8/12/16/20/24。图标与文字之间 6px，chip 之间 8px。
-- 圆角按苹果美学放宽（用户 2026-10-05 要求"圆角多一些"）：行内 6 / 控件 10 / 卡片与菜单 14 /
-  面板与弹窗 18 / 气泡 22 / pill 999。
+- 圆角按苹果美学放宽（用户 2026-10-05 要求"圆角多一些"）。**这张表就是刻度**，
+  由 `scripts/design/design-contract.mjs` 对回 ui-tokens.css，改数值必须两处一起改：
+
+| 令牌 | 值 | 用在哪 |
+|---|---|---|
+| `--ui-radius-inline` | 6px | 行内 code、kbd、小徽标 |
+| `--ui-radius-control` | 10px | 按钮、输入框、图标钮、chip、菜单项 |
+| `--ui-radius-card` | 14px | 卡片、面板内区块、下拉菜单容器 |
+| `--ui-radius-panel` | 18px | 弹窗、抽屉、composer |
+| `--ui-radius-bubble` | 22px | 消息气泡、超大容器 |
+| `--ui-radius-pill` | 999px | 只有真·胶囊（状态点、进度药丸） |
+
 - **嵌套圆角（concentricity）**：内层圆角 = 外层圆角 − 内缩距离。算出来 ≤0 就用直角，
   不要把大圆角往小容器里塞（告警弹窗底栏的通栏按钮就是直角 + 1px 分隔线）。
 - 阴影三档 `--shadow-sm/md/lg`（0 1px 2px / 0 8px 24px / 0 24px 56px，透明度 .30/.36/.48），
@@ -131,7 +141,53 @@
 查页面自写 `<h1>`、查 `text-[Npx]`；`tests/unit/css-comment-balance.test.ts` 查注释提前闭合；
 `scripts/design/count-important.mjs <上限>` 查活跃 `!important` 总量。
 
-## 9. 苹果美学的依据（2026-10-06 调研）
+## 9. 新建或改一个页面：照这个配方
+
+1. 页面根：`<main className="flex h-full w-full flex-col bg-canvas">`（根不滚动）。
+2. 第一个子节点必须是 `<PageHeader icon title subtitle actions />`（通栏，见 §5）。
+3. 正文：`<div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-4">…</div>`。
+4. 文字只用 `text-micro/caption/sm/md/body/composer/title/head/display` 这些档；
+   颜色只用 `ink / ink-dim / ink-mute / line / bg-* / accent-* / status-*` 语义类。
+   **不写内联 `style={{ color/fontSize }}`**（§12 的刻度会涨）。
+5. 弹层只用 `Dialog`+`DialogContent`（`panel` 带表单、`alert` 做确认）；
+   高危确认只用 `confirmDialog()`；菜单用 `Menu`/`ContextMenu`；
+   悬浮提示用 `Tooltip`（`content` 传空即不渲染）；轻提示用 `sonner` 的 `toast`。
+6. 三态必须齐：空态（`Empty`，给下一步动作）、加载（`Spinner` 或骨架）、错误（说清怎么办）。
+7. 数字与列表只来自 IPC。没有链路就显示"—"并说明为什么，**不许造示例数据**。
+8. 提交前自己跑三件事：`node scripts/design/design-contract.mjs`、
+   `pnpm build && node scripts/design/ui-audit.mjs --gate`、`pnpm test`。
+
+## 10. 界面文案准则（"过时字眼"就靠这几条拦）
+
+- 词必须对得上界面上真存在的东西：分区名、按钮名、菜单项名。写了"左侧那格"就必须有那一格。
+- 不写没实现的能力。开关/按钮要么真改状态，要么整行删掉（历史上"AI 检索"假开关、
+  "强调色"设置项都是这么来的）。
+- 状态用统一说法：进行中"××中…"、完成"就绪"、失败"没连上/没配好 + 下一步"。
+  进度文案只来自后端 stage 事件，前端不许自己编节奏。
+- 不出现内部黑话：阶段号、Task 编号、设计稿文件名、`v2.x` 版本号、"P1 修复"这类
+  只对我们有意义的词，一律不进界面文字。
+- 模型名/供应商名从数据里取，不写死在组件里；没配 Key 就说"未配置 API Key"并给入口。
+- 破坏性操作：说清后果 + 是否可撤销（"此操作不可撤销"），不吓唬也不含糊。
+
+## 11. 禁止清单（都有闸，不靠自觉）
+
+| 禁止 | 由谁拦 |
+|---|---|
+| 页面自写 `<h1>`/标题栏 | `design-contract.mjs` + `ui-tokens.test.ts` + `ui-audit --gate` 第 8 条 |
+| `text-[Npx]` 绕过字阶 | `ui-tokens.test.ts` |
+| 内联 `style` 写 color/fontSize/background | `design-contract.mjs` 刻度（只降不升） |
+| 新增引用旧 `--trae-*` 令牌 | `design-contract.mjs` 刻度（只降不升） |
+| 再引 antd 的 Modal/message/Notification | `exit-antd-*.test.ts` + `design-contract.mjs` 刻度 |
+| 界面文字里出现 emoji | `verify-no-emoji-on-screen.mjs` |
+| 示例/假数据字面量 | `no-fabricated-data` 闸 |
+| 新增 `!important` | `count-important.mjs <上限>` |
+| 死 CSS 类名 | `dead-css-classes.cjs` |
+| 文档与令牌数字漂移 | `design-contract.mjs`（含负向对照测试） |
+
+**收紧刻度的规矩**：每退一批债，把 `design-contract.mjs` 里对应 `cap` 改小并写上日期；
+只许降不许升。升上限必须在评审里说清为什么。
+
+## 12. 苹果美学的依据（2026-10-06 调研）
 
 Apple 官方不发 agent skill，采纳的是社区对 HIG 的量化转述。**先查授权载体再搬**：
 以下 4 个仓库是 MIT/Apache，其余（Ksanbal、OPN48、tzzs、ykswang、d-date、doppe7gangar）

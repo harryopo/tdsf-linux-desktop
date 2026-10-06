@@ -33,20 +33,27 @@ Electron 43 + React 18 + TypeScript strict + Antd 5 + Tailwind 4 + Zustand 4 + s
 - 禁止隐式 any（必须显式标注）
 - 边界 any 必须配 `// @ts-expect-error` 注释说明原因
 
+## 界面规范：唯一权威是 `DESIGN.md`
+- 动前端（`src/renderer/**`）前先读 `DESIGN.md`；它与代码不一致时，以 `DESIGN.md` 为准并改代码。
+  数值刻度（字阶 / 圆角 / 间距 / 图标尺寸 / 外壳尺寸）只在 `styles/ui-tokens.css` 定义一次。
+- 四条不可协商：
+  1. 页面标题只用 `<PageHeader>`，不许自写 `<h1>`（字号忽大忽小的根因）；
+  2. 文字用 `text-*` 档、颜色用语义类，**不写内联 `style={{ color/fontSize }}`**；
+  3. 弹层/确认/菜单/提示只用 `src/renderer/src/ui/` 里的原语，不再引 antd 同类件；
+  4. 界面文案不许出现没实现的能力和内部黑话（见 `DESIGN.md` §10）。
+- 旧 `--trae-*` 令牌是待清债务：只许减少，新代码一律用 `--ui-*`（`design-contract.mjs` 盯刻度）。
+
 ## 质量门禁（三绿硬 + 两绿软）
 - **三绿硬门禁**（必须全过才能合并）：
   - `pnpm typecheck:node` → exit 0
   - `pnpm typecheck:web` → exit 0
   - `pnpm lint` → 0 errors（warnings 允许）
 - **两绿软门禁**（尽量过，不过要在 PR 说明原因）：
-  - `pnpm test` → 全量通过（可降级为只跑改动模块）
+  - `pnpm test` → 全量通过（含 `design-contract` 与 `ui-tokens` 两把设计闸）
   - `pnpm build:win` → 成功生成 .exe（缺 SDK 时允许 SKIP，发布前必须 CI 跑通）
-
-## CSS 约定
-- **Demo 阶段允许硬编码颜色**，v1.1 统一 token 化
-- 推荐：所有颜色使用 `var(--trae-*)` 引用
-- 主色：低饱和靛蓝 `#4f46e5`（亮）/ `#818cf8`（暗）
-- 卡片 hover 仅允许一种变化：阴影；禁止同时变 border + 位移 + scale
+- **改界面额外两把**（`pnpm build` 之后跑）：
+  - `node scripts/design/design-contract.mjs` → 文档与令牌不漂移、债务刻度未回涨
+  - `node scripts/design/ui-audit.mjs --gate` → 真机量：标题统一 / 对比度 / 遮挡 / 图标刻度 / 底部不裁
 
 ## Git 约定
 - commit: `type(scope): description`（feat/fix/docs/refactor/test/chore）

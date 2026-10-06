@@ -2,6 +2,8 @@
 
 > 更新日期：2026-10-04（文档归位 + 基线重测；模块状态与协作规则仍为 2026-07-25 评估）
 > 编码规范见 `CODING.md`（v1.1 核心）
+> **界面规范唯一权威是 `DESIGN.md`**：动 `src/renderer/**` 前先读它，改完跑
+> `node scripts/design/design-contract.mjs` 与 `node scripts/design/ui-audit.mjs --gate`
 > AI 入口指引见 `CLAUDE.md`（v1.1，6 条核心红线 + 三绿硬门禁）
 > 当前状态见 `docs/handoff/HANDOVER-2026-10-04.md`（实测门禁：三绿通过，test 1 条失败）
 > 旧版归档：`docs/archive/CLAUDE-v2.5.md` · `docs/archive/AGENTS-v8.7.md`

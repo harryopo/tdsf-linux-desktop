@@ -42,6 +42,17 @@ pnpm test             # vitest run（可降级为只跑改动模块）
 pnpm build:win        # 缺 SDK 时允许 SKIP，但发布前必须在 windows-latest CI 跑通
 ```
 
+## 改界面额外两把（动 `src/renderer/**` 必过）
+
+界面规范**唯一权威是 `DESIGN.md`**（刻度在 `styles/ui-tokens.css` 定义一次）。四条不可协商：
+标题只用 `<PageHeader>`；不写内联 `style={{ color/fontSize }}`；弹层/菜单/提示只用
+`src/renderer/src/ui/` 原语；文案不许出现没实现的能力。细则见 `DESIGN.md` §9-§11。
+
+```bash
+pnpm build && node scripts/design/design-contract.mjs        # 文档与令牌不漂移 + 债务只降不升
+node scripts/design/ui-audit.mjs --gate                      # 真机量：标题统一/对比度/遮挡/图标/底部
+```
+
 ## 开发命令
 
 ```bash
