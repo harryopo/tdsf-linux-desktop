@@ -28,6 +28,7 @@ import { LlmClient } from '../services/llm/client'
 import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
+import { readApproval } from '../core/security/approval'
 import type { Evidence } from '@shared/models'
 
 /** Agent 步骤推送通道名 */
@@ -261,16 +262,20 @@ export function registerAgentHandlers(mainWindow: BrowserWindow): void {
    * 返回：boolean（确认是否成功传递）
    *
    * 工作流在 confirm 步骤暂停等待，此方法恢复执行。
+   *
+   * 批准位走 readApproval：IPC 传进来的东西运行时不受 TS 约束，
+   * 直接把声明为 boolean 的实参交给 workflow.confirm() 就是按 JS 真值判，
+   * 字符串 "false" 会被判成批准。
    */
   ipcMain.handle(
     'agent:confirm',
-    async (_event, sessionId: string, approved: boolean) => {
+    async (_event, sessionId: string, approvedRaw: unknown) => {
       const workflow = activeWorkflows.get(sessionId)
       if (!workflow) {
         throw new Error(`会话 ${sessionId} 无活跃工作流`)
       }
       try {
-        workflow.confirm(approved)
+        workflow.confirm(readApproval(approvedRaw))
         return true
       } catch (err) {
         throw new Error(`确认失败: ${(err as Error).message}`)
