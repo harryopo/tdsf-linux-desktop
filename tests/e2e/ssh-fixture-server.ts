@@ -16,6 +16,7 @@
 import { Server, utils } from 'ssh2'
 import type { Channel, Connection } from 'ssh2'
 import crypto from 'node:crypto'
+import net from 'node:net'
 
 export const FIXTURE_USER = 'fixture-' + 'user'
 export const FIXTURE_PASSWORD = 'fixture-' + 'passw0rd'
@@ -90,6 +91,38 @@ export function startSshFixture(): Promise<FixtureHandle> {
         }
         ctx.reject(['password'])
       })
+
+      // 跳板机转发：客户端 forwardOut() 开的是 direct-tcpip 通道，服务端对应的事件叫 'tcpip'
+      // （'tcp connection' 是客户端侧的事件名，别混）。阶段 A 的 A2 判据要构造"两跳"，
+      // 没有这一段就只能演单跳，跳板机那跳有没有校验主机密钥根本测不出来。
+      client.on(
+        'tcpip',
+        (
+          accept: () => Channel,
+          reject: () => void,
+          info: { destIP: string; destPort: number },
+        ) => {
+          let chan: Channel
+          try {
+            chan = accept()
+          } catch (err) {
+            reject()
+            return
+          }
+          const sock = net.connect(info.destPort, info.destIP)
+          sock.on('error', () => {
+            try {
+              chan.close()
+            } catch {
+              /* 通道已经没了 */
+            }
+          })
+          chan.on('error', () => sock.destroy())
+          chan.on('close', () => sock.destroy())
+          sock.pipe(chan)
+          chan.pipe(sock)
+        },
+      )
 
       client.on('ready', () => {
         client.on('session', (accept: () => Channel) => {

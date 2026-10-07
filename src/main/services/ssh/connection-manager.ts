@@ -815,7 +815,8 @@ export class SshConnectionManager {
       }
     }
 
-    // Phase L：主机密钥校验（仅目标主机，跳板机暂不启用）
+    // Phase L：主机密钥校验。目标主机与跳板机**都**走这里（调用方各传一次 sessionId），
+    // 少校验任一跳，MITM 就能落在没被验的那一跳上。回归锁见 tests/unit/ssh-jump-host-key.test.ts。
     // 默认开启：未显式写 false 即校验，避免旧配置静默跳过指纹确认
     if (config.strictHostKeyCheck !== false && sessionId && this.hostKeyConfirmHandler) {
       opts.hostVerifier = createHostVerifier({
