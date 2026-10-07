@@ -139,13 +139,24 @@ function runStaleLeak(mode: 'before' | 'after'): number {
   return leaks
 }
 
-/** 一个 chunk 载荷跨 IPC 的字节数 */
-function chunkFrameBytes(): number {
-  return JSON.stringify({
-    correlationId: 'c-0123456789abcdef',
-    delta: '字',
-    kind: 'text',
-  }).length
+/**
+ * 每帧跨 IPC 的字节数，两条都量出来：
+ *   delta 帧    现状：一帧只带这一小段增量
+ *   全量快照帧  反事实基线：一帧把整份 200 条消息列表都带上
+ * 要证明的是「传输层本来就只发 delta」这句结论，而不是把它当口号写在这里。
+ * 注意：改前（v2.5）坏的是每 token 一次全量 setState，不是每 token 发一次全量 IPC，
+ * 所以第二行是拿来对照的假设值，不是历史实测值。
+ */
+function frameBytes(): { delta: number; snapshot: number } {
+  const list = makeSession(200)
+  return {
+    delta: JSON.stringify({
+      correlationId: 'c-0123456789abcdef',
+      delta: '字',
+      kind: 'text',
+    }).length,
+    snapshot: JSON.stringify(list).length
+  }
 }
 
 const SECONDS = 10
@@ -158,7 +169,17 @@ console.log(
   SECONDS
 )
 console.log('')
-console.log('每帧跨 IPC 字节数 = %d 字节（三档相同：传输层本来就只发 delta，不是全量快照）', chunkFrameBytes())
+const frames = frameBytes()
+const fps = w45.setStates / SECONDS
+console.log('每帧跨 IPC 字节数')
+console.log('  delta 帧（现状）    ' + frames.delta + ' 字节/帧')
+console.log('  全量快照帧（假设）  ' + frames.snapshot + ' 字节/帧  ← 若每帧都带整份列表')
+console.log(
+  '  按 ' + fps + ' 帧/秒算：现状 ' +
+    ((frames.delta * fps) / 1024).toFixed(1) + ' KB/s，假设 ' +
+    ((frames.snapshot * fps) / 1048576).toFixed(1) + ' MB/s —— 单帧差 ' +
+    Math.round(frames.snapshot / frames.delta) + ' 倍'
+)
 console.log('')
 console.log('合并窗口        每秒 setState 次数    每次写入反向扫描元素数')
 for (const [label, r] of [
