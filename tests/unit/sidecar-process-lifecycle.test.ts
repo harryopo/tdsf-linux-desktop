@@ -16,12 +16,32 @@ import path from 'node:path'
 
 /** 进程是否还活着：signal 0 只探存在性，不发真信号（与 sidecar-manager 同一招） */
 function alive(pid: number): boolean {
+  // pid<=0 必须先挡掉：Windows 上 process.kill(0,0) 不抛错（它发给整个进程组），
+  // 于是"读到一个空 PID"会被判成"进程还活着"——2026-10-07 全量跑就是这么假红过一次的
+  if (!Number.isInteger(pid) || pid <= 0) return false
   try {
     process.kill(pid, 0)
     return true
   } catch {
     return false
   }
+}
+
+/**
+ * 读子进程自己写下的 PID。
+ * 只判"文件存在"是不够的：python 用 open(...,'w') 先截断再写，截断与写入之间读到的就是空串，
+ * Number('') === 0，正是上面那个假红的来源。这里要求必须是数字，否则返回 null 让 waitFor 继续等。
+ */
+function readChildPid(dir: string): string | null {
+  const txt = (() => {
+    try {
+      return fs.readFileSync(path.join(dir, 'child.pid'), 'utf8')
+    } catch {
+      return ''
+    }
+  })()
+  const m = txt.match(/\d+/)
+  return m ? m[0] : null
 }
 
 function findPython(): string | null {
@@ -90,9 +110,8 @@ describe('SidecarManager 进程生命周期（D3）', () => {
 
     void mgr.start().catch(() => undefined)
 
-    const pidFile = path.join(workDir, 'child.pid')
-    const pid = Number(await waitFor(() => (fs.existsSync(pidFile) ? fs.readFileSync(pidFile, 'utf8') : null)))
-    expect(Number.isFinite(pid), `子进程应写下自己的 PID，实际读到=${pid}`).toBe(true)
+    const pid = Number(await waitFor(() => readChildPid(workDir)))
+    expect(pid, `子进程应写下自己的正 PID，实际读到=${pid}`).toBeGreaterThan(0)
     expect(alive(pid), `PID ${pid} 应活着`).toBe(true)
 
     await mgr.stop()
@@ -123,8 +142,8 @@ describe('SidecarManager 进程生命周期（D3）', () => {
         startupTimeoutMs: 1500,
       })
       void mgr.start().catch(() => undefined)
-      const pidFile = path.join(workDir, 'child.pid')
-      const pid = Number(await waitFor(() => (fs.existsSync(pidFile) ? fs.readFileSync(pidFile, 'utf8') : null)))
+      const pid = Number(await waitFor(() => readChildPid(workDir)))
+      expect(pid, `第 ${round + 1} 轮应拿到正 PID，实际读到=${pid}`).toBeGreaterThan(0)
       pids.push(pid)
       await mgr.stop()
       await waitFor(() => (alive(pid) ? false : true), 8000)

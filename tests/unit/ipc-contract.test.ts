@@ -1,174 +1,97 @@
 /**
- * IPC 四步同步不变量测试（D1：类型化消息契约的地基）
+ * 契约闸：src/shared/ipc-contract.ts 是跨进程通道的事实源
  *
- * 计划原本要求"用 zod 判别联合替掉 electron.d.ts 2221 行 + 拆分 3902 行 preload"。
- * 先量了一下现状：247 个通道里，主进程 0 处未引用、preload 只有 1 处未引用（且是
- * 僵尸栈留下的），也就是说四步同步其实没漂。这种情况下做 6000 行的机械重写
- * 换不来任何行为变化，反而会在阶段 F 要动外壳之前先制造一次不可评审的大 diff。
+ * 立这条的理由很具体：给对话加 terminalContext 那一次，同时改了 4 个文件
+ * （preload 实现、preload 声明、渲染层 electron.d.ts、主进程 handler），
+ * 少改一处就是运行时 undefined。这类"手写签名互为副本"的洞只有闸能拦，
+ * 靠约定一定会烂。
  *
- * 但这条闸一立起来就抓到了三类真问题（本轮已修）：
- * - 14 个推送通道名只写在代码里，中央表 `ipc-channels.ts` 根本没有
- *   （mcp:state-changed、claude-sdk:chunk/done/error、deploy:log/stepUpdate/done、
- *    tutorial:crawlProgress/crawlDone、sandbox:approval-request、paor:approval-request、
- *    agent:tool-event、agent:paor:iteration、task:permission-approval-request）
- * - `MCP_EXTERNAL` 组把 `mcp:external-*` 4 个通道重复声明了一遍
- * - `IpcChannelMap` 契约表里的 `kb:recentViews` 拼错（真实通道是 `kb:recent-views`）
- *
- * 所以 D1 这一轮交付的是"让四步同步变成机器可查"——漂移才是真正的失效模式，
- * 而它此前只靠人自觉。通道名打错、常量重复定义、直写字面量绕过中央表、
- * 契约表写了一个不存在的通道，现在都会在 pnpm test 里红。
- *
- * 用静态引用检查而不是真去 registerAllIpcHandlers()：后者要把 ssh/mcp/claude-sdk
- * 一整串原生模块拖进测试环境，慢且脆；引用检查抓的正是"写了没人用/用了没声明"。
+ * 刻度只降不升：未纳入契约的 invoke 位点数量往下钉，新增通道不登记契约就红。
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { IPC_CONTRACT, assertContractArgs, contractFor } from '@main/../shared/ipc-contract'
+import { renderContractFile } from '../../scripts/ipc/render-contract'
 
 const ROOT = path.resolve(__dirname, '../..')
-const CHANNELS_FILE = path.join(ROOT, 'src/shared/ipc-channels.ts')
-const PRELOAD_FILE = path.join(ROOT, 'src/preload/index.ts')
-const MODELS_FILE = path.join(ROOT, 'src/shared/models.ts')
-const MAIN_DIR = path.join(ROOT, 'src/main')
+const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
-/** GROUP.KEY → channel 字符串 */
-function loadChannels(): Map<string, string> {
-  const src = fs.readFileSync(CHANNELS_FILE, 'utf8')
-  const map = new Map<string, string>()
-  const groupRe = /export const ([A-Z_]+) = \{([\s\S]*?)\n\} as const/g
-  let g: RegExpExecArray | null
-  while ((g = groupRe.exec(src))) {
-    const keyRe = /([A-Z_0-9]+)\s*:\s*'([^']+)'/g
-    let k: RegExpExecArray | null
-    while ((k = keyRe.exec(g[2]))) map.set(`${g[1]}.${k[1]}`, k[2])
-  }
-  return map
-}
+const PRELOAD = read('src/preload/index.ts')
+const GENERATED = read('src/renderer/src/types/generated/ipc-contract.ts')
+const TYPES = read('src/renderer/src/types/electron.d.ts')
 
-function walkTs(dir: string, acc: string[] = []): string[] {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name)
-    if (entry.isDirectory()) walkTs(p, acc)
-    else if (/\.ts$/.test(entry.name)) acc.push(p)
-  }
-  return acc
-}
+/** 未纳入契约的 invoke 位点上限（只降不升）。2026-10-07 建闸时实测 220 */
+const UNCONTRACTED_CAP = 220
 
-const channels = loadChannels()
-const channelValues = new Set(channels.values())
-const preloadSrc = fs.readFileSync(PRELOAD_FILE, 'utf8')
-const mainFiles = walkTs(MAIN_DIR)
-const mainSrc = mainFiles.map((f) => fs.readFileSync(f, 'utf8')).join('\n')
-
-const rel = (file: string): string => path.relative(ROOT, file).replace(/\\/g, '/')
-
-/**
- * 主进程注册了、但渲染层拿不到的通道
- *
- * 每条都要写理由。加新条目等于承认"这里有个够不着的能力"，
- * 所以宁可显式记账，也不要让测试变绿得无声无息。
- */
-const PRELOAD_UNREACHABLE: Record<string, string> = {
-  'AGENT.CANCEL':
-    'v0.8 AgentWorkflow 的取消通道。渲染层的取消走 AGENT.CHAT_CANCEL + CLAUDE_SDK.CANCEL。' +
-    '僵尸栈是否整体删除由用户拍板（见 AGENTS.md 降级保留原则），本轮不动',
-}
-
-/** 注释行跳过：文件头注释里罗列通道名是本项目的写法，不算引用 */
-function codeLines(src: string): string[] {
-  return src
-    .split(/\r?\n/)
-    .map((line) => ({ line, t: line.trim() }))
-    .filter(({ t }) => !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*'))
-    .map(({ line }) => line)
-}
-
-describe('IPC 通道声明与引用', () => {
-  it('通道总数与预期量级一致（防止解析器静默漏读一整组）', () => {
-    expect(channels.size).toBeGreaterThan(200)
+describe('ipc 契约本体', () => {
+  it('通道名全部来自 ipc-channels 常量表，没有手写字符串', () => {
+    const table = read('src/shared/ipc-channels.ts')
+    const known = new Set([...table.matchAll(/:\s*'([^']+)'/g)].map((m) => m[1]))
+    const bogus = IPC_CONTRACT.filter((c) => !known.has(c.channel)).map((c) => `${c.api} → ${c.channel}`)
+    expect(bogus, `契约里这些通道在常量表里找不到：\n${bogus.join('\n')}`).toEqual([])
   })
 
-  it('同一个通道字符串不在两个组里重复定义', () => {
-    const byValue = new Map<string, string[]>()
-    for (const [ref, value] of channels) {
-      byValue.set(value, [...(byValue.get(value) ?? []), ref])
-    }
-    const dups = [...byValue.entries()].filter(([, refs]) => refs.length > 1)
-    expect(dups.map(([v, refs]) => `${v} ← ${refs.join(' | ')}`)).toEqual([])
+  it('方法名不重复，判别联合的两支都非空', () => {
+    const apis = IPC_CONTRACT.map((c) => c.api)
+    expect(new Set(apis).size, 'api 名有重复').toBe(apis.length)
+    expect(IPC_CONTRACT.some((c) => c.kind === 'invoke'), '应有 invoke 支').toBe(true)
+    expect(IPC_CONTRACT.some((c) => c.kind === 'event'), '应有 event 支').toBe(true)
   })
 
-  it('每个通道都在主进程被引用', () => {
-    const orphans = [...channels]
-      .filter(([ref, value]) => !mainSrc.includes(ref) && !mainSrc.includes(`'${value}'`))
-      .map(([ref, value]) => `${ref}=${value}`)
-    expect(orphans).toEqual([])
-  })
-
-  it('每个通道都能在 preload 里找到，除非记在例外表里', () => {
-    const missing = [...channels]
-      .filter(([ref, value]) => !preloadSrc.includes(ref) && !preloadSrc.includes(`'${value}'`))
-      .map(([ref]) => ref)
-    expect(missing.sort()).toEqual(Object.keys(PRELOAD_UNREACHABLE).sort())
-  })
-
-  it('例外表里的通道确实够不着（防止例外表变成过期账）', () => {
-    for (const ref of Object.keys(PRELOAD_UNREACHABLE)) {
-      const value = channels.get(ref)
-      expect(value, `例外表写了不存在的通道 ${ref}`).toBeTruthy()
-      const reachable = preloadSrc.includes(ref) || preloadSrc.includes(`'${value as string}'`)
-      expect(reachable, `${ref} 已经能到达了，请把它从例外表里删掉`).toBe(false)
-    }
+  it('生成物与契约一致（改了契约没 pnpm ipc:gen 就红）', () => {
+    expect(GENERATED, 'types/generated/ipc-contract.ts 与契约不一致，跑 pnpm ipc:gen').toBe(renderContractFile())
   })
 })
 
-describe('IPC 调用上下文不许直写通道字面量', () => {
-  // 只按调用上下文匹配：按形状匹配会把 'node:fs'、'qwen3:32b' 误当通道名（实测噪声 114 条）。
-  // 局限：不处理代码行尾的注释；那种位置写通道名的情况实测为 0，不值得上 tokenizer。
-  const CALL_CONTEXTS = [
-    /ipcMain\.(?:handle|on|once|removeAllListeners)\(\s*'([^']+)'/g,
-    /ipcRenderer\.(?:invoke|send|sendSync|on|once|addListener|removeListener)\(\s*'([^']+)'/g,
-    /webContents\.send\(\s*'([^']+)'/g,
-    /createListener\(\s*'([^']+)'/g,
-  ]
-
-  function literalsIn(src: string): string[] {
-    const out: string[] = []
-    for (const line of codeLines(src)) {
-      for (const re of CALL_CONTEXTS) {
-        re.lastIndex = 0
-        for (const m of line.matchAll(re)) out.push(m[1])
-      }
-    }
-    return out
-  }
-
-  it('主进程与 preload 的通道名都来自中央表', () => {
-    const offenders: string[] = []
-    for (const file of [...mainFiles, PRELOAD_FILE]) {
-      for (const value of literalsIn(fs.readFileSync(file, 'utf8'))) {
-        offenders.push(`${rel(file)} → ${value}`)
-      }
-    }
-    expect(offenders).toEqual([])
+describe('入参校验真的在挡（负向对照）', () => {
+  it('少传/多传参数都抛，不是静默放过', () => {
+    expect(() => assertContractArgs('agentChat', [[{ role: 'user', content: 'hi' }], undefined, undefined, undefined])).not.toThrow()
+    expect(() => assertContractArgs('agentChat', [])).toThrow(/第 1 个参数/)
+    expect(() =>
+      assertContractArgs('agentChat', [[{ role: 'user', content: 'hi' }], 'p', 'standard', 's', 't', '多出来的第六个'])
+    ).toThrow(/契约只声明/)
   })
 
-  it('匹配器自身有效（防止正则退化让这条闸永久绿）', () => {
-    const sample = "  ipcMain.handle('probe:channel', () => {})\n"
-    expect(literalsIn(sample)).toEqual(['probe:channel'])
-    // 注释里的通道名不该被算进来
-    expect(literalsIn("  // ipcMain.handle('probe:channel', () => {})\n")).toEqual([])
+  it('类型用错当场抛，错误里带通道参数名', () => {
+    expect(() => assertContractArgs('providerGet', [42])).toThrow(/providerGet 第 1 个参数 id/)
+    expect(() => assertContractArgs('providerSave', [{ id: 'x' }])).toThrow(/第 1 个参数 config/)
+    expect(() => assertContractArgs('providerSave', [{ id: 'x', name: 'n', type: 'deepseek', model: 'm' }])).not.toThrow()
+  })
+
+  it('未纳入契约的通道直接放行（存量还在逐步搬，闸不拦旧账）', () => {
+    expect(() => assertContractArgs('someLegacyThing', ['whatever'])).not.toThrow()
   })
 })
 
-describe('IpcChannelMap 契约表不许写不存在的通道', () => {
-  it('表里每个键都是已声明的通道', () => {
-    const src = fs.readFileSync(MODELS_FILE, 'utf8')
-    const start = src.indexOf('export interface IpcChannelMap')
-    expect(start).toBeGreaterThan(-1)
-    const body = src.slice(start, src.indexOf('\n}', start))
-    const keys = [...body.matchAll(/^\s{2}'([^']+)':/gm)].map((m) => m[1])
-    expect(keys.length).toBeGreaterThan(0)
-    const unknown = keys.filter((k) => !channelValues.has(k))
-    expect(unknown, `契约表里有 ${unknown.length} 个通道不存在于 ipc-channels.ts`).toEqual([])
+describe('契约确实被用起来（不是写了摆着）', () => {
+  it('preload 走封装调用，校验点落在最近一层', () => {
+    expect(PRELOAD).toContain("from '../shared/ipc-contract'")
+    const checked = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length - 1
+    const direct = (PRELOAD.match(/assertContractArgs\(/g) ?? []).length
+    expect(checked, 'preload 里走契约封装的调用数').toBeGreaterThanOrEqual(IPC_CONTRACT.filter((c) => c.kind === 'invoke').length - 1)
+    expect(direct, 'preload 里直接校验的调用数（多参数位点）').toBeGreaterThanOrEqual(1)
+  })
+
+  it('渲染层类型来自生成物，且不再手写已契约的方法', () => {
+    expect(TYPES).toContain('extends ContractedInvokeApi, ContractedEventApi')
+    for (const c of IPC_CONTRACT) {
+      const handWritten = new RegExp(`^\\s{2}${c.api}\\(`, 'm').test(TYPES)
+      expect(handWritten, `${c.api} 又回到 electron.d.ts 手写了，签名应在契约里改`).toBe(false)
+    }
+  })
+
+  it('未纳入契约的 invoke 位点只降不升（当前上限 220）', () => {
+    const all = (PRELOAD.match(/ipcRenderer\.invoke\(/g) ?? []).length
+    const contracted = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length - 1
+    const uncovered = all - contracted
+    expect(
+      uncovered,
+      `还有 ${uncovered} 个 ipcRenderer.invoke 位点没进契约（上限 ${UNCONTRACTED_CAP}）。新通道请一并登记 src/shared/ipc-contract.ts`
+    ).toBeLessThanOrEqual(UNCONTRACTED_CAP)
+  })
+
+  it('contractFor 查得到每个方法（防 api 名打错）', () => {
+    for (const c of IPC_CONTRACT) expect(contractFor(c.api), c.api).toBe(c)
   })
 })

@@ -67,8 +67,10 @@ describe('跨进程接线（源码级，防止写了函数没人调）', () => {
 
   it('preload 把它作为第 6 个实参转发到 agent:chat', () => {
     const src = read('src/preload/index.ts')
+    // 空白用 \s* 而非写死一个空格：既要容忍 ipcRenderer.invoke( 这种紧贴写法，也要容忍拆成多行；
+    // 但实参顺序一位都不许错——这条锁的是"terminalContext 落在 sshSessionId 之后、共 6 位"。
     expect(src).toMatch(
-      /invoke\(AGENT\.CHAT, messages, providerId, strength, undefined, sshSessionId, terminalContext\)/
+      /invoke\(\s*AGENT\.CHAT,\s*messages,\s*providerId,\s*strength,\s*undefined,\s*sshSessionId,\s*terminalContext\s*,?\s*\)/
     )
   })
 

@@ -20,6 +20,7 @@
  */
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { assertContractArgs } from '../shared/ipc-contract'
 import {
   SSH,
   SFTP,
@@ -241,6 +242,21 @@ import type { PaorIterationEvent } from '@shared/paor-types'
  *   - rrfScore：RRF 融合分（越大越相关，最终排序依据）
  *   - source：标记该条目由哪一路召回（fts / vec / both）
  */
+
+/**
+ * 走契约的 invoke：先按 src/shared/ipc-contract.ts 校验入参，再转发。
+ * 校验放在最近的一层——传歪了这里就抛，不必等主进程 handler 里某个 undefined 炸开再回头猜。
+ * 返回值不做强校验：真实返回被一条过紧的 schema 拦死，那是拿契约砸功能。
+ */
+function invokeChecked<T>(
+  api: string,
+  channel: string,
+  ...args: unknown[]
+): Promise<T> {
+  assertContractArgs(api, args)
+  return ipcRenderer.invoke(channel, ...args) as Promise<T>
+}
+
 interface HybridSearchResult {
   /** 知识条目 ID（对应 knowledge_entries.id） */
   id: string
@@ -878,10 +894,20 @@ const agentRuntime = {
     strength?: ThinkingStrength | 'auto',
     sshSessionId?: string,
     terminalContext?: string,
-  ): Promise<string> =>
+  ): Promise<string> => {
+    assertContractArgs('agentChat', [messages, providerId, strength, sshSessionId, terminalContext])
     // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）；
     // 第 6 参为终端命令块摘要（主进程脱敏后注入 system prompt）
-    ipcRenderer.invoke(AGENT.CHAT, messages, providerId, strength, undefined, sshSessionId, terminalContext),
+    return ipcRenderer.invoke(
+      AGENT.CHAT,
+      messages,
+      providerId,
+      strength,
+      undefined,
+      sshSessionId,
+      terminalContext,
+    )
+  },
 
   /**
    * 取消进行中的 chat 请求
@@ -894,7 +920,7 @@ const agentRuntime = {
    * @returns 是否成功取消（false 表示请求已结束或不存在）
    */
   cancel: (sessionIdOrCorrelationId: string): Promise<boolean> =>
-    ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionIdOrCorrelationId),
+    invokeChecked<boolean>('agentChatCancel', AGENT.CHAT_CANCEL, sessionIdOrCorrelationId),
 
   /**
    * PAOR 自动循环（Plan→Act→Observe→Reflect 多步自主编排）
@@ -909,7 +935,7 @@ const agentRuntime = {
    * @returns PAOR 循环完整结果（含可审计的迭代轨迹）
    */
   paor: (task: string, sshSessionId: string, maxIterations?: number): Promise<unknown> =>
-    ipcRenderer.invoke(AGENT.PAOR, task, sshSessionId, maxIterations),
+    invokeChecked<unknown>('agentPaor', AGENT.PAOR, task, sshSessionId, maxIterations),
 
   /**
    * 响应 PAOR 审批请求（v0.9.5 新增）
@@ -1084,23 +1110,23 @@ const fsUpload = {
 const provider = {
   /** 列出所有 Provider 配置（不含 apiKey） */
   list: (onlyEnabled?: boolean): Promise<PersistedProviderConfig[]> =>
-    ipcRenderer.invoke(PROVIDER.LIST, onlyEnabled),
+    invokeChecked<PersistedProviderConfig[]>('providerList', PROVIDER.LIST, onlyEnabled),
 
   /** 获取指定 Provider 配置（不含 apiKey） */
   get: (id: string): Promise<PersistedProviderConfig | null> =>
-    ipcRenderer.invoke(PROVIDER.GET, id),
+    invokeChecked<PersistedProviderConfig | null>('providerGet', PROVIDER.GET, id),
 
   /** 保存 / 更新 Provider 配置（apiKey 自动走 SecureStore 加密） */
   save: (config: ProviderConfig): Promise<boolean> =>
-    ipcRenderer.invoke(PROVIDER.SAVE, config),
+    invokeChecked<boolean>('providerSave', PROVIDER.SAVE, config),
 
   /** 设置默认 Provider ID */
   setDefault: (id: string): Promise<boolean> =>
-    ipcRenderer.invoke(PROVIDER.SET_DEFAULT, id),
+    invokeChecked<boolean>('providerSetDefault', PROVIDER.SET_DEFAULT, id),
 
   /** 获取默认 Provider ID（P0 修复：渲染层不再盲写 providers[0]） */
   getDefault: (): Promise<string> =>
-    ipcRenderer.invoke(PROVIDER.GET_DEFAULT),
+    invokeChecked<string>('providerGetDefault', PROVIDER.GET_DEFAULT),
 }
 
 /**

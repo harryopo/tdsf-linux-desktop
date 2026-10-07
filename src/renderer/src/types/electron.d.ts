@@ -6,6 +6,7 @@
  *
  * 事件监听方法（onXxx）用于接收主进程推送的实时数据。
  */
+import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-contract'
 import type {
   SshConfig,
   CommandResult,
@@ -78,16 +79,10 @@ import type {
 } from '@shared/crawler-types'
 
 // P0-3：PAOR 自动循环共享类型（agent:paor + agent:paor:iteration + paor:approve）
-import type {
-  PaorIterationEvent,
-  PaorLoopResult,
-} from '@shared/paor-types'
+import type { PaorIterationEvent } from '@shared/paor-types'
 
 // v0.9 Agent Runtime 共享类型（Provider 抽象 + Token 统计 + Supervisor chat 载荷）
 import type {
-  ProviderConfig,
-  PersistedProviderConfig,
-  ThinkingStrength,
   TokenStats,
   TokenUsageRecord,
   AgentChunkPayload,
@@ -620,7 +615,9 @@ export interface InlineCompletionItem {
 }
 
 /** electronAPI 接口定义 */
-export interface ElectronAPI {
+// ContractedInvokeApi / ContractedEventApi 由 src/shared/ipc-contract.ts 生成：
+// 已纳入契约的通道签名以那里为准，其余方法仍在这里手写，逐步搬过去（刻度见 tests/unit/ipc-contract.test.ts）
+export interface ElectronAPI extends ContractedInvokeApi, ContractedEventApi {
   // ===== SSH 相关 =====
   /** 建立 SSH 连接，返回 sessionId */
   sshConnect(config: SshConfig): Promise<string>
@@ -873,40 +870,8 @@ export interface ElectronAPI {
   agentCancel(sessionId: string): Promise<{ agentChat: boolean; claudeSdk: boolean }>
 
   // ===== v0.9 Agent Runtime（Supervisor chat + Provider + Token） =====
-  /**
-   * 启动 Supervisor 流式 chat
-   *
-   * 异步执行，立即返回 correlationId。
-   * 通过 onAgentChunk / onAgentDone / onAgentError 监听后续事件。
-   *
-   * @param messages 对话消息列表（P-3：与主进程 agent-runtime.ts 入参类型统一为 ChatMessage[]）
-   * @param providerId Provider ID（可选，不传用默认）
-   * @param strength 思考强度（fast / standard / deep，可选）
-   * @returns correlationId（用于监听事件 + 取消请求）
-   */
-  agentChat(
-    messages: ChatMessage[],
-    providerId?: string,
-    strength?: ThinkingStrength | 'auto',
-    /** 活跃 SSH sessionId；传入后 Supervisor 启用 ssh_readonly 工具 */
-    sshSessionId?: string,
-    /** 终端命令块摘要（block-model.toAiContext 的产物），主进程脱敏后注入 system prompt */
-    terminalContext?: string,
-  ): Promise<string>
-  /** 取消进行中的 Supervisor chat 请求 */
-  agentChatCancel(correlationId: string): Promise<boolean>
-  /**
-   * PAOR 自动循环（Plan→Act→Observe→Reflect 多步自主编排，方案书 §3.2）
-   *
-   * 对多步运维任务自动规划并逐步执行，高危命令自动拦截。
-   * 每轮迭代通过 agent:paor:iteration 事件实时推送。
-   *
-   * @param task 运维任务描述
-   * @param sshSessionId SSH 会话 ID
-   * @param maxIterations 最大迭代次数（默认 5）
-   * @returns PAOR 循环完整结果（含可审计的迭代轨迹）
-   */
-  agentPaor(task: string, sshSessionId: string, maxIterations?: number): Promise<PaorLoopResult>
+  // agentChat / agentChatCancel / agentPaor 与 provider*、onAgent* 的签名
+  // 来自 types/generated/ipc-contract.ts（改通道参数请改 src/shared/ipc-contract.ts 后跑 pnpm ipc:gen）
   /**
    * 响应 PAOR 审批请求（v0.9.5 新增）
    *
@@ -1004,16 +969,6 @@ export interface ElectronAPI {
   fsUploadImage(): Promise<ImageUploadResult | ImageUploadError>
 
   // ===== v0.9 Provider 管理 =====
-  /** 列出所有 Provider 配置（不含 apiKey） */
-  providerList(onlyEnabled?: boolean): Promise<PersistedProviderConfig[]>
-  /** 获取指定 Provider 配置（不含 apiKey） */
-  providerGet(id: string): Promise<PersistedProviderConfig | null>
-  /** 保存 / 更新 Provider 配置（apiKey 自动走 SecureStore 加密） */
-  providerSave(config: ProviderConfig): Promise<boolean>
-  /** 设置默认 Provider ID */
-  providerSetDefault(id: string): Promise<boolean>
-  /** 获取默认 Provider ID（P0 修复：渲染层不再盲写 providers[0]） */
-  providerGetDefault(): Promise<string>
 
   // ===== v0.9 Token 统计 =====
   /** 获取 token 统计聚合（当日/当周/当月/总 + 按 Subagent/Provider 分布） */
@@ -1585,12 +1540,6 @@ export interface ElectronAPI {
   }>
   /** 重连外部 MCP 服务器 */
   mcpExternalReconnect(serverId: string): Promise<boolean>
-  /** v0.9 监听 Supervisor 流式 token 块推送 */
-  onAgentChunk(callback: (payload: AgentChunkPayload) => void): () => void
-  /** v0.9 监听 Supervisor chat 完成信号（含完整结果） */
-  onAgentDone(callback: (payload: AgentDonePayload) => void): () => void
-  /** v0.9 监听 Supervisor chat 错误信号 */
-  onAgentError(callback: (payload: AgentErrorPayload) => void): () => void
   /** v2.4 监听 Supervisor 工具调用事件（真实工具执行可视化） */
   onAgentToolEvent(callback: (payload: AgentToolEventPayload) => void): () => void
   // v0.9 Claude Agent SDK 流式事件（独立于 Supervisor，避免通道混用）

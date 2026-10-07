@@ -22,6 +22,8 @@
     "test:e2e:visual": "playwright test tests/e2e/visual.spec.ts",
     "test:e2e:wiring": "playwright test tests/e2e/wiring-verification.spec.ts",
     "audit:ipc": "tsx scripts/audit-ipc-contract.ts",
+    "ipc:gen": "tsx scripts/ipc/gen-contract.ts",
+    "ipc:check": "tsx scripts/ipc/gen-contract.ts --check",
     "deadcode": "knip --no-exit-code",
     "deadcode:strict": "knip",
     "build:win": "pnpm build && electron-builder --win",
