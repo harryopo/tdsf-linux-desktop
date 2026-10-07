@@ -83,7 +83,7 @@ export const CAPABILITIES: CapabilityRow[] = [
     id: 'terminal-blocks',
     label: '终端命令块（OSC 133 / 633）',
     status: 'pending',
-    note: '消费端与块模型测试都已就位，缺的是产生这些转义序列的 shell 集成，因此当前命令块为 0。',
+    note: '消费端已实测可用：对端 shell 发出 OSC 133/633 时会切成命令块并计入状态栏。缺的是产端——我们没有给远端装 shell 集成，所以连普通服务器时命令块仍是 0。',
   },
   {
     id: 'monitor-history',

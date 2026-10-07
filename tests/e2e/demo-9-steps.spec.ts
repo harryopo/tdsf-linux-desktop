@@ -21,13 +21,22 @@
  *
  * 降级策略：
  *   - 若 out/main/index.js 不存在（未 build），整个 suite skip
- *   - SSH/AI 真实环境依赖的测试单独 skip（保留 stub）
+ *   - S1/S2 用仓库内的本地 fixture SSH 靶机（tests/e2e/ssh-fixture-server.ts），
+ *     不需要外部机器；S3（AI 对话）仍需 API key，无 key 时 skip
  *
  * 注意：Electron 测试必须串行（workers=1），实例间状态独立
  */
 import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'node:path'
+import os from 'node:os'
 import fs from 'node:fs'
+import { startSshFixture } from './ssh-fixture-server'
+import {
+  bindSessionToStore,
+  connectToFixture,
+  installHostKeyRecorder,
+  readHostKeyPrompts,
+} from './ssh-fixture-helpers'
 
 /** Electron 主进程入口（需先 pnpm build） */
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
@@ -327,15 +336,102 @@ test.describe('Demo 9 步主路径', () => {
     await app.close()
   })
 
-  // 真实环境依赖的测试保留 stub，CI 中标记 skip
-  test.skip('Step S1: SSH 连接（需真实凭据）', async () => {
-    // TODO: 实现 SSH 连接测试
-    // 需要 SSH 测试服务器凭据，通过环境变量传入：
-    //   TDSF_TEST_SSH_HOST / TDSF_TEST_SSH_USER / TDSF_TEST_SSH_PASS
+  /**
+   * S1/S2：SSH 连接与终端交互。
+   * 对端是仓库内的本地 fixture（tests/e2e/ssh-fixture-server.ts），不是真 Linux——
+   * 它证明的是【我们这侧的链路】：ssh2 客户端握手 → 主机密钥三态 → 交互式 shell →
+   * OSC 133/633 → 块模型 → 状态栏读数。真内网 VM 仍由 ssh-live-verification.spec.ts 覆盖。
+   */
+  testOrSkip('Step S1: SSH 连接（本地 fixture 靶机 + 主机密钥首次确认）', async () => {
+    test.setTimeout(120_000)
+    const fixture = await startSshFixture()
+    const knownHosts = path.join(os.tmpdir(), `tdsf-demo-known_hosts-s1-${process.pid}.txt`)
+    fs.writeFileSync(knownHosts, '', 'utf8')
+
+    try {
+      const { app, window } = await launchApp()
+      await installHostKeyRecorder(window, 'accept-and-save')
+
+      const conn = await connectToFixture(window, { port: fixture.port, id: 'demo-fixture', knownHostsPath: knownHosts })
+      expect(conn.error, `SSH 连接失败：${conn.error ?? ''}`).toBeUndefined()
+      expect(conn.sessionId, '应拿到 sessionId').toBeTruthy()
+
+      // 首次连接必须问，且问的是"陌生主机"；应答后指纹落进 known_hosts
+      expect(await readHostKeyPrompts(window), '首次连接应弹一次 unknown-host').toEqual(['unknown-host'])
+      const recorded = fs.readFileSync(knownHosts, 'utf8')
+      expect(recorded, 'known_hosts 应记下 [127.0.0.1]:port').toContain(`[127.0.0.1]:${fixture.port}`)
+
+      // exec 通道拿到的必须是真回显（fixture 的 uname 带 Linux）
+      const exec = await window.evaluate(
+        async (sid) => {
+          const w = window as unknown as {
+            electronAPI: { sshExec: (s: string, c: string) => Promise<{ stdout: string; exitCode: number }> }
+          }
+          return w.electronAPI.sshExec(sid, 'uname -a')
+        },
+        conn.sessionId as string,
+      )
+      expect(exec.exitCode, 'uname 退出码应为 0').toBe(0)
+      expect(exec.stdout, 'uname 输出必须来自对端').toContain('Linux')
+
+      await window.screenshot({ path: path.join(SCREENSHOT_DIR, '10-ssh-connected.png') })
+      await app.close()
+    } finally {
+      await fixture.close()
+      fs.unlinkSync(knownHosts)
+    }
   })
 
-  test.skip('Step S2: 终端交互（依赖 SSH 连接）', async () => {
-    // TODO: 实现终端命令执行测试
+  testOrSkip('Step S2: 终端交互（敲命令 → OSC 133/633 → 状态栏命令块）', async () => {
+    test.setTimeout(120_000)
+    const fixture = await startSshFixture()
+    const knownHosts = path.join(os.tmpdir(), `tdsf-demo-known_hosts-s2-${process.pid}.txt`)
+    fs.writeFileSync(knownHosts, '', 'utf8')
+
+    try {
+      const { app, window } = await launchApp()
+      await installHostKeyRecorder(window, 'accept-and-save')
+      const conn = await connectToFixture(window, { port: fixture.port, id: 'demo-fixture-s2', knownHostsPath: knownHosts })
+      const sessionId = conn.sessionId as string
+      expect(sessionId, `SSH 连接失败：${conn.error ?? ''}`).toBeTruthy()
+
+      // 先把会话挂到 store 再进工作台，TerminalView 挂上后才有人旁听 OSC
+      await bindSessionToStore(window, 'demo-fixture-s2', sessionId)
+      await window.evaluate(() => {
+        window.location.hash = '#/workbench'
+      })
+      await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
+
+      const started = await window.evaluate(
+        (sid) => (window as unknown as { electronAPI: { sshShellStart: (s: string) => Promise<boolean> } })
+          .electronAPI.sshShellStart(sid),
+        sessionId,
+      )
+      expect(started, 'sshShellStart 应成功').toBe(true)
+
+      const statusbar = window.locator('.wb-statusbar')
+      await expect
+        .poll(async () => statusbar.innerText(), { message: 'shell 开场应带出至少 1 个命令块', timeout: 20000 })
+        .toMatch(/[1-9]\d* 命令块/)
+
+      await window.evaluate(
+        ({ sid, data }) => {
+          const w = window as unknown as { electronAPI: { sshShellWrite: (s: string, d: string) => Promise<boolean> } }
+          return w.electronAPI.sshShellWrite(sid, data)
+        },
+        { sid: sessionId, data: 'uptime\r' },
+      )
+
+      await expect
+        .poll(async () => statusbar.innerText(), { message: '敲命令后命令块计数应增加', timeout: 20000 })
+        .toMatch(/[2-9]\d* 命令块/)
+
+      await window.screenshot({ path: path.join(SCREENSHOT_DIR, '11-terminal-blocks.png') })
+      await app.close()
+    } finally {
+      await fixture.close()
+      fs.unlinkSync(knownHosts)
+    }
   })
 
   test.skip('Step S3: AI 助手对话（依赖 API key）', async () => {

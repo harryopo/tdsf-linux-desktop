@@ -162,6 +162,12 @@
 11. 按钮真伪普查（`tests/e2e/button-truth-census.spec.ts`，需先 `pnpm build`）：
     逐页真点每个可见按钮，`none`（按了没反应）与 `unclickable`（点不下去）都必须 0，
     且真点出反应的按钮 ≥40 —— 最后这条是量具自证，防止循环空转造成假绿。
+12. Demo 主路径 11 步（`tests/e2e/demo-9-steps.spec.ts`）：9 步走界面，S1/S2 连的是仓库内的
+    本地 fixture SSH 靶机（`tests/e2e/ssh-fixture-server.ts`），把「主机密钥首次确认 →
+    写进 known_hosts → 再连不再问 → 换密钥报 host-key-changed → 交互式 shell →
+    OSC 133/633 成块 → 状态栏读数」整条链路钉住。fixture 不是真 Linux，真机仍由
+    `ssh-live-verification.spec.ts` 负责；两者的 known_hosts 都写到系统临时目录，
+    不许碰用户真实的 `~/.ssh/known_hosts`。
 
 静态侧的配套闸（`pnpm test`）：`tests/unit/ui-tokens.test.ts` 查字阶/圆角/间距刻度、
 查页面自写 `<h1>`、查 `text-[Npx]`；`tests/unit/css-comment-balance.test.ts` 查注释提前闭合；
