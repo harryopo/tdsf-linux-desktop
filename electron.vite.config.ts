@@ -29,7 +29,10 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    // 故意不挂 externalizeDepsPlugin：sandbox:true 的 preload 里只有 electron 可 require，
+    // 其余依赖一旦被 external 出去，运行时 require 直接抛，preload 整段不执行 ⇒
+    // window.electronAPI 变 undefined，渲染层拿到的是一地 undefined（2026-10-07 就是被 zod 这样打穿的）。
+    // main 进程在 Node 里跑，external 没问题；preload 必须全打进包。
     resolve: {
       alias: {
         '@shared': resolve('src/shared')

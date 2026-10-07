@@ -10,6 +10,8 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  // 各 spec 靠 "out/ 在不在" 决定 skip，没 build 就整批静默跳过还报绿；这道前置闸把它变成硬失败
+  globalSetup: './tests/e2e/global-setup.ts',
   fullyParallel: false, // Electron 必须串行
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
