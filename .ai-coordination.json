@@ -2,22 +2,27 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-07T17:30:16.502Z",
+  "lastUpdated": "2026-10-07T17:41:17.786Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
       "startedAt": "2026-10-07T16:43:09.526Z",
-      "lastActiveAt": "2026-10-07T17:30:00.288Z",
+      "lastActiveAt": "2026-10-07T17:41:17.786Z",
       "task": "D1 按域拆分",
       "claimedFiles": [
         {
           "path": "src/preload/index.ts",
           "task": "D1 按域拆分",
           "claimedAt": "2026-10-07T16:43:09.526Z"
+        },
+        {
+          "path": "AGENTS.md",
+          "task": "顶部状态行去数字化",
+          "claimedAt": "2026-10-07T17:41:17.786Z"
         }
       ],
-      "expiresAt": "2026-10-07T19:30:00.288Z"
+      "expiresAt": "2026-10-07T19:41:17.786Z"
     }
   },
   "history": [
@@ -6082,6 +6087,27 @@
       "file": "scripts/bench-stream-sync.ts",
       "task": "C-判据补强",
       "timestamp": "2026-10-07T17:30:16.502Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "AGENTS.md",
+      "task": "门禁状态过期陈述",
+      "timestamp": "2026-10-07T17:40:10.464Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "门禁状态过期陈述",
+      "timestamp": "2026-10-07T17:40:58.809Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "AGENTS.md",
+      "task": "顶部状态行去数字化",
+      "timestamp": "2026-10-07T17:41:17.786Z"
     }
   ],
   "coordinationAudit": {

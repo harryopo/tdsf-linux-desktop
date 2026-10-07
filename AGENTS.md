@@ -5,7 +5,7 @@
 > **界面规范唯一权威是 `DESIGN.md`**：动 `src/renderer/**` 前先读它，改完跑
 > `node scripts/design/design-contract.mjs` 与 `node scripts/design/ui-audit.mjs --gate`
 > AI 入口指引见 `CLAUDE.md`（v1.1，6 条核心红线 + 三绿硬门禁）
-> 当前状态见 `docs/handoff/HANDOVER-2026-10-04.md`（实测门禁：三绿通过，test 1 条失败）
+> 当前状态见 `docs/handoff/HANDOVER-2026-10-04.md`（门禁实测退出码与判据复核结论只写在那份里，本文件不抄数字）
 > 旧版归档：`docs/archive/CLAUDE-v2.5.md` · `docs/archive/AGENTS-v8.7.md`
 > 前期调研文档索引：`docs/archive/README.md`
 > 比赛（截止 2026-07-30）已交付 v1.0.0，原冲刺计划失效；现行开发目标待你（用户）指定
