@@ -55,6 +55,13 @@ export interface HealthResponse {
   version: string
   adapters: AdaptersStatus
   uptime_seconds: number
+  /**
+   * 侧车的空闲退出请求（D3）：true 只代表"它想退、正在等宿主批准"。
+   * 缺字段说明跑的是旧版侧车，按"没有请求"处理，绝不能当成批准。
+   */
+  idle_shutdown_request?: boolean
+  /** 侧车已连续空闲多少秒（不算宿主的存活轮询） */
+  idle_seconds?: number
 }
 
 /**
@@ -198,6 +205,11 @@ export class SidecarManager extends EventEmitter {
   private readonly stderrRing: string[] = []
   /** 主动停止标记：区分"用户关的应用"与"进程自己崩了" */
   private stopping = false
+  /**
+   * 宿主这边正在等业务结果的业务请求数。
+   * 空闲退出批准的依据之一：用户还等着结果时不能放侧车走。
+   */
+  private businessInFlight = 0
   /** 排队中的重启定时器，stop() 必须掐掉它 */
   private restartTimer: NodeJS.Timeout | null = null
 
@@ -439,7 +451,11 @@ export class SidecarManager extends EventEmitter {
     }
     this.healthCheckTimer = setInterval(async () => {
       try {
-        await this.health()
+        const h = await this.health()
+        // 侧车提出"我空闲了，能退吗"—— 由宿主决定，侧车自己不会退
+        if (h.idle_shutdown_request === true) {
+          await this.answerIdleShutdownRequest(h.idle_seconds ?? 0)
+        }
         if (this.status === 'degraded') {
           this.status = 'ready'
           this.emit('status', this.status)
@@ -468,6 +484,49 @@ export class SidecarManager extends EventEmitter {
     return (await resp.json()) as HealthResponse
   }
 
+  /** 业务请求统一走这里：顺带记住在途数，空闲退出批准要用它判断 */
+  private async businessFetch(path: string, init: RequestInit): Promise<Response> {
+    this.businessInFlight += 1
+    try {
+      return await fetch(`http://${this.config.host}:${this.config.port}${path}`, init)
+    } finally {
+      this.businessInFlight -= 1
+    }
+  }
+
+  /**
+   * 答复侧车的空闲退出请求（D3 的 idle_shutdown_request）
+   *
+   * 批准前先把 stopping 立起来：否则进程一没，重启预算把它当崩溃，
+   * 30 秒窗口内立刻再拉一个起来 —— 侧车"想省资源"反而变成拉锯。
+   * 有在途业务请求就拒绝：用户还等着结果，不能放承载结果的进程走。
+   */
+  async answerIdleShutdownRequest(idleSeconds: number): Promise<'approve' | 'refuse'> {
+    const approve = this.businessInFlight === 0
+    const resp = await this.businessFetch('/host/idle-shutdown-consent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approve }),
+      signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS),
+    })
+    if (!resp.ok) {
+      logger.warn(`[SidecarManager] 空闲退出答复失败：HTTP ${resp.status}`)
+      return 'refuse'
+    }
+    const verdict = (await resp.json()) as { ok?: boolean; exiting?: boolean }
+    if (approve && verdict.exiting === true) {
+      this.stopping = true
+      logger.info(
+        `[SidecarManager] 已批准 ${this.config.id} 空闲退出（连续空闲 ${Math.round(idleSeconds)} 秒），` +
+          '按有意停止处理，不触发自动重启'
+      )
+      this.forwardLog(`[SidecarManager] ${this.config.id} 空闲退出获宿主批准`, false)
+      return 'approve'
+    }
+    logger.info(`[SidecarManager] ${this.config.id} 空闲退出请求已拒绝（在途业务 ${this.businessInFlight}）`)
+    return 'refuse'
+  }
+
   /**
    * 端到端 Pipeline（核心：日志 → Drain3 → OpenDerisk）
    * v1.5 新增：支持 llmConfig 透传，启用 LLM 增强诊断
@@ -489,7 +548,7 @@ export class SidecarManager extends EventEmitter {
       }
       logger.info(`[SidecarManager] Pipeline 启用 LLM 增强（model=${llmConfig.model}）`)
     }
-    const resp = await fetch(`http://${this.config.host}:${this.config.port}/pipeline/run`, {
+    const resp = await this.businessFetch('/pipeline/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -506,7 +565,7 @@ export class SidecarManager extends EventEmitter {
    * 仅 Drain3 解析
    */
   async parseLogs(logLines: string[], maxClusters: number = 50): Promise<PipelineResponse['parse']> {
-    const resp = await fetch(`http://${this.config.host}:${this.config.port}/drain3/parse`, {
+    const resp = await this.businessFetch('/drain3/parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ log_lines: logLines, max_clusters: maxClusters }),
@@ -520,7 +579,7 @@ export class SidecarManager extends EventEmitter {
    * 仅 OpenDerisk 诊断
    */
   async diagnose(templates: PipelineResponse['parse']['templates'], serviceName: string = 'unknown') {
-    const resp = await fetch(`http://${this.config.host}:${this.config.port}/sre/diagnose`, {
+    const resp = await this.businessFetch('/sre/diagnose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ log_templates: templates, service_name: serviceName }),
@@ -593,6 +652,11 @@ export class SidecarManager extends EventEmitter {
     restartsInWindow: number
     /** stderr 尾部若干行，崩溃现场靠它定位 */
     stderrTail: string[]
+    /**
+     * 是否已把这次退出标成"有意停止"。
+     * 暴露它是因为"批准空闲退出后不许被自动重启拉起"这条只能靠它判红。
+     */
+    intentionalStop: boolean
   } {
     const now = Date.now()
     return {
@@ -601,6 +665,7 @@ export class SidecarManager extends EventEmitter {
       restartCount: this.restartCount,
       restartsInWindow: this.restartTimes.filter((t) => now - t < RESTART_BUDGET_WINDOW_MS).length,
       stderrTail: this.getStderrTail(),
+      intentionalStop: this.stopping,
     }
   }
 

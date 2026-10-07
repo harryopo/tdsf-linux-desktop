@@ -13,13 +13,59 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any
 import uvicorn
+import asyncio
 import logging
+import os
 import sys
 import time
 
 from drain3_adapter import Drain3Adapter
 from open_derisk_adapter import OpenDeriskAdapter
 from e2b_adapter import get_e2b_adapter
+
+# ============================================================
+# 空闲退出握手（D3：idle_shutdown_request 先征求宿主同意再退）
+#
+# 立场：侧车**永不自己消失**。空闲到点了它只把"我想退"写进 /health，
+# 真退要等宿主 POST /host/idle-shutdown-consent 批准 —— 否则宿主那边的
+# 重启预算会把这看成异常退出，立刻再拉一个起来，两边对着拉锯。
+#
+# /health 不算活动：宿主的存活轮询每几秒就来一次，把它算成活动的话
+# 侧车永远不会空闲，这个功能就成了摆设。
+# ============================================================
+IDLE_SHUTDOWN_AFTER_S = float(os.environ.get('TDSF_SIDECAR_IDLE_SHUTDOWN_S', '900'))
+IDLE_CHECK_INTERVAL_S = float(os.environ.get('TDSF_SIDECAR_IDLE_CHECK_S', '5'))
+
+_last_activity = time.monotonic()
+_inflight = 0
+_shutdown_requested = False
+
+
+def _mark_activity() -> None:
+    global _last_activity
+    _last_activity = time.monotonic()
+
+
+async def _idle_watch() -> None:
+    global _shutdown_requested
+    while True:
+        await asyncio.sleep(IDLE_CHECK_INTERVAL_S)
+        if _shutdown_requested or _inflight > 0:
+            continue
+        if time.monotonic() - _last_activity >= IDLE_SHUTDOWN_AFTER_S:
+            _shutdown_requested = True
+            logger.info(
+                f'[sidecar] 空闲 {int(IDLE_SHUTDOWN_AFTER_S)} 秒，向宿主提出退出请求（等宿主批准，不自己退）'
+            )
+
+
+async def _lifespan(_app: FastAPI):
+    task = asyncio.create_task(_idle_watch())
+    try:
+        yield
+    finally:
+        task.cancel()
+
 
 # ============================================================
 # 日志配置
@@ -38,7 +84,25 @@ app = FastAPI(
     title="TDSF Sidecar-A",
     description="SRE 诊断 + 日志解析 + E2B 沙箱（v1.5）",
     version="1.5.0",
+    lifespan=_lifespan,
 )
+
+
+@app.middleware('http')
+async def track_activity(request, call_next):
+    """把真实工作请求算作活动；/health 是宿主的存活轮询，不算活动"""
+    global _inflight
+    is_health = request.url.path == '/health'
+    if not is_health:
+        _inflight += 1
+        _mark_activity()
+    try:
+        response = await call_next(request)
+    finally:
+        if not is_health:
+            _inflight -= 1
+            _mark_activity()
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,6 +130,9 @@ class HealthResponse(BaseModel):
     version: str
     adapters: dict
     uptime_seconds: float
+    # 空闲退出握手：为 true 表示"侧车想退，正等宿主批准"（它自己不会退）
+    idle_shutdown_request: bool = False
+    idle_seconds: float = 0.0
 
 
 class LogParseRequest(BaseModel):
@@ -170,7 +237,37 @@ async def health():
             "e2b": {"ready": True, "mode": "placeholder-v1.5", "note": "v1.5 占位，v1.6 集成真实 E2B SDK"},
         },
         uptime_seconds=time.time() - START_TIME,
+        idle_shutdown_request=_shutdown_requested,
+        idle_seconds=max(0.0, time.monotonic() - _last_activity),
     )
+
+
+class IdleConsentRequest(BaseModel):
+    approve: bool
+
+
+class IdleConsentResponse(BaseModel):
+    ok: bool
+    exiting: bool
+
+
+@app.post('/host/idle-shutdown-consent', response_model=IdleConsentResponse)
+async def idle_shutdown_consent(req: IdleConsentRequest):
+    """宿主对空闲退出请求的答复：批准才退（由本端主动结束进程），拒绝就重新计时继续服务"""
+    global _shutdown_requested
+    if not _shutdown_requested:
+        # 没有请求就被答复：可能是宿主重发或乱序。不因此退出——无声退出正是这个握手要防的事
+        return IdleConsentResponse(ok=False, exiting=False)
+    if not req.approve:
+        _shutdown_requested = False
+        _mark_activity()
+        logger.info('[sidecar] 宿主拒绝本次空闲退出，继续服务并重新计时')
+        return IdleConsentResponse(ok=True, exiting=False)
+    _shutdown_requested = False
+    logger.info('[sidecar] 宿主已批准空闲退出，5 秒后结束进程（先让本次响应发出去）')
+    loop = asyncio.get_running_loop()
+    loop.call_later(5.0, lambda: os._exit(0))
+    return IdleConsentResponse(ok=True, exiting=True)
 
 
 # ============================================================
