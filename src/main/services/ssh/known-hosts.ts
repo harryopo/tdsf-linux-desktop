@@ -151,11 +151,11 @@ async function ensureKnownHostsFile(filePath: string): Promise<void> {
  */
 function getKnownHostCandidates(host: string, port: number): string[] {
   const normalized = normalizeHost(host)
-  const candidates: string[] = [normalized]
-  if (port !== 22) {
-    candidates.push(`[${normalized}]:${port}`)
-  }
-  return candidates
+  // 两种端口分开算，别把裸主机名塞进非 22 端口的候选里：
+  // 混在一起的后果是"给 host:2222 学一条密钥"会连带删掉 host:22 那条可信记录
+  // （replaceKnownHost 先删后加，删的范围就是这里），校验时也会拿 22 端口的记录去套别的端口。
+  // OpenSSH 自己就是分开写的：22 端口写裸名，别的端口写 [host]:port。
+  return port === 22 ? [normalized, `[${normalized}]:22`] : [`[${normalized}]:${port}`]
 }
 
 /**
