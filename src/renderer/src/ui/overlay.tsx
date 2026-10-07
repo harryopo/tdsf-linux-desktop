@@ -334,7 +334,7 @@ export function ContextMenu({
                 key={it.key}
                 disabled={it.disabled}
                 onSelect={it.onSelect}
-                className={cn(it.danger && 'text-error data-[highlighted]:bg-error/10')}
+                className={cn(it.danger && 'text-error-text data-[highlighted]:bg-error/10')}
               >
                 {it.icon}
                 <span className="min-w-0 truncate">{it.label}</span>

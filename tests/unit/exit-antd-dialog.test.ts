@@ -48,16 +48,14 @@ const MIGRATED = [
   'src/renderer/src/pages/DecisionSettings.tsx',
   'src/renderer/src/components/monitor/AlertDrawer.tsx',
   'src/renderer/src/components/logs/AiLogAnalysisPanel.tsx',
+  'src/renderer/src/components/layout/ConnectDialog.tsx',
 ]
 
 /** 仍带 antd Form 的弹窗：换完一个就从这里删一个 */
-const PENDING_FORM = [
-  'src/renderer/src/components/layout/ConnectDialog.tsx',
-  'src/renderer/src/pages/SshSettings.tsx',
-]
+const PENDING_FORM = ['src/renderer/src/pages/SshSettings.tsx']
 
-/** 还 import antd 的渲染层文件数闸门：2026-10-07 第 5 批（AI 日志分析面板）后实测 4→3，只许降不许升 */
-const CAP_ANTD_FILES = 3
+/** 还 import antd 的渲染层文件数闸门：2026-10-07 第 6 批（连接对话框）后实测 3→2，只许降不许升 */
+const CAP_ANTD_FILES = 2
 
 describe('对话框已统一到自研 Dialog', () => {
   it('扫到了源码文件（不是空跑）', () => {

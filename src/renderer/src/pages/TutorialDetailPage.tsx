@@ -1029,7 +1029,7 @@ export function TutorialDetailPage() {
                     <span
                       className={
                         'font-semibold ' +
-                        (sandboxResult.exitCode === 0 ? 'text-success' : 'text-warning')
+                        (sandboxResult.exitCode === 0 ? 'text-success-text' : 'text-warning-text')
                       }
                     >
                       {sandboxResult.exitCode}
@@ -1046,7 +1046,7 @@ export function TutorialDetailPage() {
                   {sandboxResult.stderr && (
                     <div>
                       <div className="mb-1 text-caption text-ink-dim">stderr：</div>
-                      <pre className="m-0 max-h-37.5 overflow-auto whitespace-pre-wrap break-words rounded-(--ui-radius-control) bg-sunken p-2.5 font-mono text-sm text-warning">
+                      <pre className="m-0 max-h-37.5 overflow-auto whitespace-pre-wrap break-words rounded-(--ui-radius-control) bg-sunken p-2.5 font-mono text-sm text-warning-text">
                         {sandboxResult.stderr}
                       </pre>
                     </div>

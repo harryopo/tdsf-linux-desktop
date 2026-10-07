@@ -382,9 +382,9 @@ try {
   })()`)
   await shot(ws, '13b-settings-risk-rules')
 
-  // 3) 弹层实测：antd Modal（添加服务器表单）/ 自研确认框 / 右键菜单
-  //    2026-10-06 换目标：风险控制页的可编辑规则表已删（假设置），
-  //    这里改从 SSH 设置页取——那页的添加服务器是仅存的 antd 表单弹窗之一，删除服务器走自研 confirmDialog。
+  // 3) 弹层实测：自研表单弹窗（添加服务器）/ 自研确认框 / 右键菜单
+  //    2026-10-07 换目标：可编辑规则表随假设置删了，添加服务器也从 antd Modal 换成自研 Dialog，
+  //    这里量的就是"页面 + 浮层"叠在一起时的对比度与遮挡。
   await evalIn(ws, `location.hash = '#/settings/ssh'`)
   await sleep(1600)
   await evalIn(ws, `(async () => {
@@ -392,9 +392,10 @@ try {
     if (add) add.click();
     await new Promise((x) => setTimeout(x, 900));
   })()`)
-  report.modalAntd = await evalIn(ws, MEASURE)
-  await shot(ws, '14-modal-antd-connect')
-  await evalIn(ws, `(() => { const c = document.querySelector('.ant-modal-close, .ant-modal button'); if (c) c.click(); })()`)
+  report.formDialog = await evalIn(ws, MEASURE)
+  report.formDialogOpen = await evalIn(ws, `!!document.querySelector('[role="dialog"]')`)
+  await shot(ws, '14-modal-form-connect')
+  await evalIn(ws, `(() => { const c = document.querySelector('[role="dialog"] [aria-label="关闭"], .ant-modal-close'); if (c) c.click(); })()`)
   await sleep(600)
 
   await evalIn(ws, `(async () => {
@@ -430,7 +431,9 @@ try {
     const exemptNotes = []
     const pages = [report.boot.measure, ...report.screens].filter(Boolean)
     // 弹层那几条是在"页面 + 浮层"整体上量的，组合数/字体族会把页面本身重复计入，只查对比度与遮挡
-    const layers = [report.modalAntd, report.confirmDialog, report.contextMenu].filter(Boolean)
+    const layers = [report.formDialog, report.confirmDialog, report.contextMenu].filter(Boolean)
+    // 浮层没弹起来的话，上面三条量的就是页面本身——那等于没测，必须报错
+    if (!report.formDialogOpen) bad.push('添加服务器弹窗没弹起来（探针点了但没开），浮层量测无效')
     for (const s of [...pages, ...layers]) {
       const at = s.route || 'boot/弹层'
       if (s.lowContrastCount) bad.push(`${at}: ${s.lowContrastCount} 处文字达不到 WCAG AA（最低 ${s.lowContrast[0]?.contrast}:1 — "${s.lowContrast[0]?.text}"）`)

@@ -24,6 +24,9 @@
 - 灰字配彩色底、彩色字配半透明同色相底，是 chip/banner 的唯一两种合法组合。
 - 状态色文字必须比状态色本身更亮（例：错误底 `--status-error-soft` 上的字要 ≥`#ff8a80` 一档），
   实测过：`--status-error` 直接当 10px 文字用只有 2.16:1。
+  2026-10-07 起有静态闸：`tests/unit/ui-tokens.test.ts` 扫到裸 `text-error/warning/success/info`
+  落在文字上即红（同一行带 `size-N` 的算图标，按图形 3:1 豁免）。这条是连接对话框的必填星号
+  被真机审计量出 3.74:1 之后补的。
 
 ## 2. Typography
 

@@ -3,20 +3,21 @@
  *
  * 职责：
  * - 表单：名称 / 主机 / 端口 / 用户名 / 认证方式
- * - 认证方式切换：密码 / 密钥文件
+ * - 认证方式切换：密码 / 密钥文件（两选一用 Segmented，不必点开下拉才知道有几种）
  * - 密钥文件：文件路径输入 + 口令输入
  * - 高级选项：跳板机配置（可折叠）
- * - 连接测试按钮
+ * - 测试连接：真的走 ssh:connect + ssh:disconnect，不猜结果
  *
- * 苹果极简风格表单设计：
- * - 大量留白
- * - 细线条输入框
- * - 分组清晰
+ * 2026-10-07：从 antd Modal+Form+Input+Select+Collapse 换成 ui 层原语
+ * （Dialog / Field / TextInput / Segmented / Collapse）+ 本地表单状态。
+ * 校验规则一条没减：名称、主机、用户名必填，端口必须是 1–65535 的整数。
+ * 宽度从 480px 收到 DESIGN.md §5 的表单档 520px。
  */
-import { useState, useEffect, useCallback } from 'react'
-import { Modal, Input, Form, Select, Button, Collapse } from 'antd'
+import { useEffect, useState } from 'react'
+import { FolderOpen, Plug, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { FolderOpenOutlined, ApiOutlined } from '@ant-design/icons'
+import { Button, Collapse, Dialog, DialogContent, Field, IconButton, Segmented, TextInput } from '@/ui'
+import { Checkbox } from '@/components/trae/Checkbox'
 import type { SshConfig } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import '../../pages/SshSettings.css'
@@ -33,274 +34,410 @@ interface ConnectDialogProps {
   onCancel: () => void
 }
 
+/** 表单态：端口用字符串承接输入，提交时才校验并转成数字 */
+interface FormState {
+  name: string
+  host: string
+  port: string
+  username: string
+  authType: 'password' | 'privateKey'
+  password: string
+  privateKeyPath: string
+  passphrase: string
+  jumpHostEnabled: boolean
+  jumpHostHost: string
+  jumpHostPort: string
+  jumpHostUsername: string
+  jumpHostPassword: string
+  keepAlive: boolean
+}
+
+const BLANK: FormState = {
+  name: '',
+  host: '',
+  port: '22',
+  username: 'root',
+  authType: 'password',
+  password: '',
+  privateKeyPath: '',
+  passphrase: '',
+  jumpHostEnabled: false,
+  jumpHostHost: '',
+  jumpHostPort: '22',
+  jumpHostUsername: '',
+  jumpHostPassword: '',
+  keepAlive: false,
+}
+
 /** 生成唯一 ID */
 const generateId = (): string => `server_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
+/** 已有配置 -> 表单态（编辑模式回填） */
+function toForm(server: SshConfig | null): FormState {
+  if (!server) return BLANK
+  return {
+    ...BLANK,
+    name: server.name ?? '',
+    host: server.host ?? '',
+    port: String(server.port ?? 22),
+    username: server.username ?? 'root',
+    authType: server.authType === 'privateKey' ? 'privateKey' : 'password',
+    password: server.password ?? '',
+    privateKeyPath: server.privateKeyPath ?? '',
+    passphrase: server.passphrase ?? '',
+    jumpHostEnabled: !!server.jumpHost,
+    jumpHostHost: server.jumpHost?.host ?? '',
+    jumpHostPort: String(server.jumpHost?.port ?? 22),
+    jumpHostUsername: server.jumpHost?.username ?? '',
+    jumpHostPassword: server.jumpHost?.password ?? '',
+    keepAlive: server.keepAlive ?? false,
+  }
+}
+
+/** 校验：返回字段 -> 错误文案，空对象表示通过 */
+function validate(f: FormState): Partial<Record<keyof FormState, string>> {
+  const errors: Partial<Record<keyof FormState, string>> = {}
+  if (!f.name.trim()) errors.name = '请输入服务器名称'
+  if (!f.host.trim()) errors.host = '请输入主机地址'
+  if (!f.username.trim()) errors.username = '请输入用户名'
+  const port = Number(f.port)
+  if (!f.port.trim()) errors.port = '请输入端口'
+  else if (!Number.isInteger(port) || port < 1 || port > 65535) errors.port = '端口得是 1–65535 的整数'
+  if (f.jumpHostEnabled) {
+    if (!f.jumpHostHost.trim()) errors.jumpHostHost = '填了跳板机就要写地址'
+    if (!f.jumpHostUsername.trim()) errors.jumpHostUsername = '填了跳板机就要写用户名'
+    const jp = Number(f.jumpHostPort)
+    if (!Number.isInteger(jp) || jp < 1 || jp > 65535) errors.jumpHostPort = '跳板机端口得是 1–65535 的整数'
+  }
+  return errors
+}
+
+/** 表单态 -> 提交给主进程的配置（只在校验通过后调用） */
+function toConfig(f: FormState, id: string): SshConfig {
+  const config: SshConfig = {
+    id,
+    name: f.name.trim(),
+    host: f.host.trim(),
+    port: Number(f.port),
+    username: f.username.trim(),
+    authType: f.authType,
+  }
+  if (f.authType === 'password') config.password = f.password
+  else {
+    config.privateKeyPath = f.privateKeyPath.trim()
+    if (f.passphrase) config.passphrase = f.passphrase
+  }
+  if (f.jumpHostEnabled) {
+    config.jumpHost = {
+      host: f.jumpHostHost.trim(),
+      port: Number(f.jumpHostPort),
+      username: f.jumpHostUsername.trim(),
+      authType: 'password',
+      password: f.jumpHostPassword,
+    }
+  }
+  if (f.keepAlive) config.keepAlive = true
+  return config
+}
+
 /** ConnectDialog SSH 连接对话框 */
 const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onCancel }) => {
-  const [form] = Form.useForm()
+  const [form, setForm] = useState<FormState>(() => toForm(server))
+  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
   const [testing, setTesting] = useState(false)
+  const [showSecret, setShowSecret] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  /** 表单初始值 */
-  const initialValues: Partial<SshConfig> = server ?? {
-    name: '',
-    host: '',
-    port: 22,
-    username: 'root',
-    authType: 'password',
-    password: '',
-    privateKeyPath: '',
-    passphrase: '',
-  }
-
-  /** 对话框打开时重置表单；关闭时清理测试状态 */
+  // 每次打开都按当前 server 回填，避免上一次编辑的残留
   useEffect(() => {
     if (open) {
-      form.resetFields()
-      form.setFieldsValue(initialValues)
+      setForm(toForm(server))
+      setErrors({})
+      setShowSecret(false)
     } else {
       setTesting(false)
     }
-  }, [open, server, initialValues, form])
+  }, [open, server])
 
-  /** 认证方式切换 */
-  const authType = Form.useWatch('authType', form)
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }))
 
-  /** 选择密钥文件（通过 Electron 文件选择对话框） */
-  const handleSelectKeyFile = useCallback(async () => {
-    // 通过主进程的文件选择对话框选择密钥文件
-    // 这里使用简化的方式，实际可扩展 IPC 通道
-    const currentPath = form.getFieldValue('privateKeyPath') as string
+  /** 校验并给出配置；不通过时把错误写到字段上 */
+  const collect = (): SshConfig | null => {
+    const found = validate(form)
+    setErrors(found)
+    if (Object.keys(found).length > 0) return null
+    return toConfig(form, server?.id ?? generateId())
+  }
+
+  /** 选择密钥文件（浏览器文件选择器，Electron 下 file.path 是绝对路径） */
+  const handleSelectKeyFile = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.pem,.key,.id_rsa,.id_ed25519,*'
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
-        // Electron 环境下 file.path 包含完整路径
         const filePath = (file as File & { path: string }).path || file.name
-        form.setFieldValue('privateKeyPath', filePath)
+        set('privateKeyPath', filePath)
       }
     }
-    // 如果已有路径，暂不处理预填充
-    void currentPath
     input.click()
-  }, [form])
+  }
 
-  /** 连接测试 */
-  const handleTest = useCallback(async () => {
+  /** 连接测试：真的连一次再断开，成功失败都以主进程返回为准 */
+  const handleTest = async () => {
+    const config = collect()
+    if (!config) return
+    if (!isElectronAPIAvailable()) {
+      toast.error('electronAPI 不可用，无法测试连接')
+      return
+    }
+    setTesting(true)
     try {
-      const values = await form.validateFields()
-      if (!isElectronAPIAvailable()) {
-        toast.error('electronAPI 不可用，无法测试连接')
-        return
-      }
-      setTesting(true)
-      const config: SshConfig = {
-        id: server?.id ?? generateId(),
-        ...values,
-      }
       const sessionId = await window.electronAPI.sshConnect(config)
       await window.electronAPI.sshDisconnect(sessionId)
       toast.success('连接测试成功')
-    } catch (error) {
-      if (error && typeof error === 'object' && 'errorFields' in error) {
-        console.warn('[ConnectDialog] 表单校验失败', error)
-      } else if (error instanceof Error && error.message) {
-        toast.error(`连接测试失败: ${error.message}`)
-      } else {
-        console.warn('[ConnectDialog] 测试连接失败', error)
-        toast.error('连接测试失败')
-      }
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? `连接测试失败: ${err.message}` : '连接测试失败')
     } finally {
       setTesting(false)
     }
-  }, [form, server])
+  }
 
-  /** 保存（提交表单） */
-  const handleOk = useCallback(async () => {
-    try {
-      const values = await form.validateFields()
-      const config: SshConfig = {
-        id: server?.id ?? generateId(),
-        ...values,
-      }
-      onSave(config)
-    } catch (err) {
-      if (err && typeof err === 'object' && 'errorFields' in err) {
-        console.warn('[ConnectDialog] 表单校验失败', err)
-      } else {
-        console.warn('[ConnectDialog] 保存失败', err)
-        toast.error('保存失败，请检查表单')
-      }
-    }
-  }, [form, server, onSave])
+  const handleSave = () => {
+    const config = collect()
+    if (config) onSave(config)
+  }
+
+  const errorKeys = Object.keys(errors).filter((k) => errors[k as keyof FormState])
 
   return (
-    <Modal
-      title={server ? '编辑服务器' : '新建连接'}
-      open={open}
-      onOk={handleOk}
-      onCancel={onCancel}
-      okText="保存"
-      cancelText="取消"
-      width={480}
-      destroyOnClose
-      maskClosable={!testing}
-      footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Button
-            icon={<ApiOutlined />}
-            onClick={handleTest}
-            loading={testing}
-          >
-            测试连接
-          </Button>
-          <div>
-            <Button onClick={onCancel} style={{ marginRight: 8 }}>
+    <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent
+        title={server ? '编辑服务器' : '新建连接'}
+        description="填好后可以先测试连接，再保存到服务器列表。"
+        className="w-[min(520px,92vw)]"
+        closeOnOverlayClick={!testing}
+        footer={
+          <>
+            <Button variant="outline" disabled={testing} onClick={handleTest} className="mr-auto">
+              {testing ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : <Plug aria-hidden className="size-3.5" />}
+              测试连接
+            </Button>
+            <Button variant="outline" onClick={onCancel}>
               取消
             </Button>
-            <Button type="primary" onClick={handleOk}>
+            <Button variant="solid" onClick={handleSave}>
               保存
             </Button>
-          </div>
-        </div>
-      }
-    >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={initialValues}
-        requiredMark={false}
-      >
-        {/* ===== 基本信息 ===== */}
-        <Form.Item
-          name="name"
-          label="名称"
-          rules={[{ required: true, message: '请输入服务器名称' }]}
-        >
-          <Input placeholder="如：生产服务器-01" />
-        </Form.Item>
-
-        <Form.Item
-          name="host"
-          label="主机地址"
-          rules={[{ required: true, message: '请输入主机地址' }]}
-        >
-          <Input placeholder="如：192.168.1.100 或 example.com" />
-        </Form.Item>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Form.Item
-            name="port"
-            label="端口"
-            rules={[{ required: true, message: '请输入端口' }]}
-            style={{ width: 120 }}
-          >
-            <Input type="number" min={1} max={65535} />
-          </Form.Item>
-
-          <Form.Item
-            name="username"
-            label="用户名"
-            rules={[{ required: true, message: '请输入用户名' }]}
-            style={{ flex: 1 }}
-          >
-            <Input placeholder="如：root" />
-          </Form.Item>
-        </div>
-
-        {/* ===== 认证方式 ===== */}
-        <Form.Item
-          name="authType"
-          label="认证方式"
-          rules={[{ required: true }]}
-        >
-          <Select
-            options={[
-              { value: 'password', label: '密码认证' },
-              { value: 'privateKey', label: '密钥文件认证' },
-            ]}
-          />
-        </Form.Item>
-
-        {/* 密码认证表单 */}
-        {authType === 'password' && (
-          <Form.Item name="password" label="密码">
-            <Input.Password placeholder="输入登录密码" />
-          </Form.Item>
-        )}
-
-        {/* 密钥文件认证表单 */}
-        {authType === 'privateKey' && (
-          <>
-            <Form.Item name="privateKeyPath" label="密钥文件路径">
-              <Input
-                placeholder="如：~/.ssh/id_rsa"
-                suffix={
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<FolderOpenOutlined />}
-                    onClick={handleSelectKeyFile}
-                  />
-                }
-              />
-            </Form.Item>
-            <Form.Item name="passphrase" label="密钥口令（可选）">
-              <Input.Password placeholder="如果密钥有口令则输入" />
-            </Form.Item>
           </>
-        )}
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Field label="名称" required hint={errors.name}>
+            {(id) => (
+              <TextInput
+                id={id}
+                value={form.name}
+                invalid={!!errors.name}
+                placeholder="如：生产服务器-01"
+                onChange={(e) => set('name', e.target.value)}
+              />
+            )}
+          </Field>
 
-        {/* ===== 高级选项：跳板机 ===== */}
-        <Collapse
-          ghost
-          items={[
-            {
-              key: 'advanced',
-              label: '高级选项',
-              children: (
-                <>
-                  <Form.Item name={['jumpHost', 'host']} label="跳板机地址">
-                    <Input placeholder="跳板机主机地址（可选）" />
-                  </Form.Item>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <Form.Item
-                      name={['jumpHost', 'port']}
-                      label="跳板机端口"
-                      style={{ width: 120 }}
-                    >
-                      <Input type="number" min={1} max={65535} placeholder="22" />
-                    </Form.Item>
-                    <Form.Item
-                      name={['jumpHost', 'username']}
-                      label="跳板机用户名"
-                      style={{ flex: 1 }}
-                    >
-                      <Input placeholder="跳板机用户名" />
-                    </Form.Item>
+          <Field label="主机地址" required hint={errors.host}>
+            {(id) => (
+              <TextInput
+                id={id}
+                value={form.host}
+                invalid={!!errors.host}
+                placeholder="如：192.168.1.100 或 example.com"
+                onChange={(e) => set('host', e.target.value)}
+              />
+            )}
+          </Field>
+
+          <div className="flex gap-3">
+            <Field label="端口" required hint={errors.port} className="w-[120px]">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={65535}
+                  value={form.port}
+                  invalid={!!errors.port}
+                  onChange={(e) => set('port', e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="用户名" required hint={errors.username} className="min-w-0 flex-1">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  value={form.username}
+                  invalid={!!errors.username}
+                  placeholder="如：root"
+                  onChange={(e) => set('username', e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+
+          <Field label="认证方式">
+            {() => (
+              <Segmented
+                ariaLabel="认证方式"
+                value={form.authType}
+                onValueChange={(v) => set('authType', v)}
+                items={[
+                  { value: 'password', label: '密码认证' },
+                  { value: 'privateKey', label: '密钥文件认证' },
+                ]}
+              />
+            )}
+          </Field>
+
+          {form.authType === 'password' ? (
+            <Field label="密码">
+              {(id) => (
+                <div className="flex items-center gap-1.5">
+                  <TextInput
+                    id={id}
+                    type={showSecret ? 'text' : 'password'}
+                    value={form.password}
+                    placeholder="输入登录密码"
+                    autoComplete="off"
+                    onChange={(e) => set('password', e.target.value)}
+                  />
+                  <IconButton label={showSecret ? '隐藏密码' : '显示密码'} onClick={() => setShowSecret((v) => !v)}>
+                    {showSecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </IconButton>
+                </div>
+              )}
+            </Field>
+          ) : (
+            <>
+              <Field label="密钥文件路径">
+                {(id) => (
+                  <div className="flex items-center gap-1.5">
+                    <TextInput
+                      id={id}
+                      value={form.privateKeyPath}
+                      placeholder="如：~/.ssh/id_rsa"
+                      onChange={(e) => set('privateKeyPath', e.target.value)}
+                    />
+                    <IconButton label="选择密钥文件" onClick={handleSelectKeyFile}>
+                      <FolderOpen className="size-4" />
+                    </IconButton>
                   </div>
-                  <Form.Item name={['jumpHost', 'password']} label="跳板机密码">
-                    <Input.Password placeholder="跳板机登录密码" />
-                  </Form.Item>
-                </>
-              ),
-            },
-          ]}
-        />
+                )}
+              </Field>
+              <Field label="密钥口令（可选）">
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    type={showSecret ? 'text' : 'password'}
+                    value={form.passphrase}
+                    placeholder="如果密钥有口令则输入"
+                    autoComplete="off"
+                    onChange={(e) => set('passphrase', e.target.value)}
+                  />
+                )}
+              </Field>
+            </>
+          )}
 
-        {/* 保持连接选项 */}
-        <Form.Item name="keepAlive" valuePropName="checked">
-          <label className="ssh-keepalive-label">
-            <input type="checkbox" />
-            <span>
-              保持连接（心跳保活）
-            </span>
+          <div className="rounded-(--ui-radius-control) border border-line">
+            <button
+              type="button"
+              aria-expanded={advancedOpen}
+              onClick={() => setAdvancedOpen((v) => !v)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-md text-ink-dim hover:bg-hover"
+            >
+              高级选项（跳板机）
+              <span className="ml-auto text-caption text-ink-mute">{advancedOpen ? '收起' : '展开'}</span>
+            </button>
+            <Collapse open={advancedOpen}>
+              <div className="flex flex-col gap-3 border-t border-line px-3 py-3">
+                <label className="flex items-center gap-2 text-md text-ink-dim">
+                  <Checkbox
+                    checked={form.jumpHostEnabled}
+                    onCheckedChange={(v) => set('jumpHostEnabled', v === true)}
+                  />
+                  通过跳板机连接
+                </label>
+                {form.jumpHostEnabled ? (
+                  <>
+                    <Field label="跳板机地址" required hint={errors.jumpHostHost}>
+                      {(id) => (
+                        <TextInput
+                          id={id}
+                          value={form.jumpHostHost}
+                          invalid={!!errors.jumpHostHost}
+                          placeholder="跳板机主机地址"
+                          onChange={(e) => set('jumpHostHost', e.target.value)}
+                        />
+                      )}
+                    </Field>
+                    <div className="flex gap-3">
+                      <Field label="跳板机端口" hint={errors.jumpHostPort} className="w-[120px]">
+                        {(id) => (
+                          <TextInput
+                            id={id}
+                            type="number"
+                            min={1}
+                            max={65535}
+                            value={form.jumpHostPort}
+                            invalid={!!errors.jumpHostPort}
+                            onChange={(e) => set('jumpHostPort', e.target.value)}
+                          />
+                        )}
+                      </Field>
+                      <Field label="跳板机用户名" required hint={errors.jumpHostUsername} className="min-w-0 flex-1">
+                        {(id) => (
+                          <TextInput
+                            id={id}
+                            value={form.jumpHostUsername}
+                            invalid={!!errors.jumpHostUsername}
+                            onChange={(e) => set('jumpHostUsername', e.target.value)}
+                          />
+                        )}
+                      </Field>
+                    </div>
+                    <Field label="跳板机密码">
+                      {(id) => (
+                        <TextInput
+                          id={id}
+                          type={showSecret ? 'text' : 'password'}
+                          value={form.jumpHostPassword}
+                          autoComplete="off"
+                          onChange={(e) => set('jumpHostPassword', e.target.value)}
+                        />
+                      )}
+                    </Field>
+                  </>
+                ) : null}
+              </div>
+            </Collapse>
+          </div>
+
+          <label className="flex items-center gap-2 text-md text-ink-dim">
+            <Checkbox checked={form.keepAlive} onCheckedChange={(v) => set('keepAlive', v === true)} />
+            保持连接（心跳保活）
           </label>
-        </Form.Item>
-      </Form>
-    </Modal>
+
+          {errorKeys.length > 0 ? (
+            <p role="alert" className="text-caption text-(--status-error-text)">
+              还有 {errorKeys.length} 项要改：{errors[errorKeys[0] as keyof FormState]}
+            </p>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

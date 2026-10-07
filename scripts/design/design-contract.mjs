@@ -99,8 +99,8 @@ const RATCHETS = [
   {
     name: '还 import antd 的渲染层文件数',
     now: countFiles("from 'antd'", '*.tsx'),
-    cap: 3,
-    why: '2026-10-07 第 5 批退出 AiLogAnalysisPanel 后实测 4→3（剩 ConnectDialog/SshSettings/main.tsx）。与 exit-antd-dialog.test.ts 同口径',
+    cap: 2,
+    why: '2026-10-07 第 6 批退出 ConnectDialog（Modal+Form+Select 换自研）后实测 3→2（剩 SshSettings 与 main.tsx 的 ConfigProvider）。与 exit-antd-dialog.test.ts 同口径',
   },
 ]
 

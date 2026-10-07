@@ -34,7 +34,7 @@ export function Field({
     <div className={cn('flex flex-col gap-1', className)}>
       <label htmlFor={id} className="flex items-center gap-1 text-caption font-medium text-ink-dim">
         {label}
-        {required ? <span aria-hidden className="text-error">*</span> : null}
+        {required ? <span aria-hidden className="text-error-text">*</span> : null}
       </label>
       {children(id)}
       {hint ? <span className="text-caption text-ink-mute">{hint}</span> : null}

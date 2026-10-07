@@ -73,7 +73,7 @@ const MessageList: FC<MessageListProps> = ({
             <LiveMessageRow key={msg.id} message={msg} onNavigate={onMessageNavigate} onToolAction={onToolAction} activeSessionId={activeSessionId} />
           ))}
           {lastError && !isStreaming && (
-            <div className="flex items-start gap-2 rounded-(--ui-radius-card) border border-error/40 bg-error/10 px-3 py-2 text-sm text-error">
+            <div className="flex items-start gap-2 rounded-(--ui-radius-card) border border-error/40 bg-error/10 px-3 py-2 text-sm text-error-text">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               <span>{lastError}</span>
             </div>

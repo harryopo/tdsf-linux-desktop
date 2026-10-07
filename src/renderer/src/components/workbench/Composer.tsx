@@ -479,7 +479,7 @@ const Composer: FC<ComposerProps> = ({
                       <span className="text-md text-ink">
                         {p.name || p.id}
                         {p.hasApiKey === false ? (
-                          <span className="ml-1 text-micro text-warning">(未配置 Key)</span>
+                          <span className="ml-1 text-micro text-warning-text">(未配置 Key)</span>
                         ) : null}
                       </span>
                       <span className="text-caption text-ink-mute">{p.model}</span>

@@ -146,7 +146,7 @@ const HostKeyPromptDialog: FC = () => {
             <div
               className={
                 'rounded-(--ui-radius-control) px-3 py-2 text-caption ' +
-                (isWarning ? 'bg-error/10 text-error' : 'bg-hover text-ink-dim')
+                (isWarning ? 'bg-error/10 text-error-text' : 'bg-hover text-ink-dim')
               }
             >
               {isWarning
