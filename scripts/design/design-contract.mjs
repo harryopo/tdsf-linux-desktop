@@ -93,14 +93,14 @@ const RATCHETS = [
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 127,
-    why: '2026-10-07 告警抽屉重写去掉一叠内联色值，实测 130→127。内联视觉属性绕开令牌，主题切换抓不到它',
+    cap: 126,
+    why: '2026-10-07 AI 日志分析面板重写去掉内联样式，实测 127→126。内联视觉属性绕开令牌，主题切换抓不到它',
   },
   {
     name: '还 import antd 的渲染层文件数',
     now: countFiles("from 'antd'", '*.tsx'),
-    cap: 4,
-    why: '2026-10-07 第 4 批退出 AlertDrawer 后实测 5→4（剩 ConnectDialog/SshSettings/AiLogAnalysisPanel/main.tsx）。与 exit-antd-dialog.test.ts 同口径',
+    cap: 3,
+    why: '2026-10-07 第 5 批退出 AiLogAnalysisPanel 后实测 4→3（剩 ConnectDialog/SshSettings/main.tsx）。与 exit-antd-dialog.test.ts 同口径',
   },
 ]
 

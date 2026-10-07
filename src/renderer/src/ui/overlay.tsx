@@ -160,6 +160,8 @@ export const Sheet = RadixDialog.Root
 export function SheetContent({
   title,
   badge,
+  actions,
+  width = 420,
   children,
   footer,
   className,
@@ -167,16 +169,22 @@ export function SheetContent({
   title: ReactNode
   /** 标题前的级别/状态标记 */
   badge?: ReactNode
+  /** 标题行右侧的动作区（在关闭按钮左边） */
+  actions?: ReactNode
+  /** DESIGN.md §5 的三档宽度，不给任意值：抽屉宽度一乱，两栏对不齐就看得出来 */
+  width?: 420 | 520 | 680
   children?: ReactNode
   footer?: ReactNode
   className?: string
 }) {
+  const widthClass = { 420: 'w-[min(420px,92vw)]', 520: 'w-[min(520px,92vw)]', 680: 'w-[min(680px,92vw)]' }[width]
   return (
     <RadixDialog.Portal>
       <RadixDialog.Overlay className="fixed inset-0 z-(--ui-z-modal) bg-black/50 backdrop-blur-[2px]" />
       <RadixDialog.Content
         className={cn(
-          'fixed right-0 top-0 z-(--ui-z-modal) flex h-full w-[min(420px,92vw)] flex-col',
+          'fixed right-0 top-0 z-(--ui-z-modal) flex h-full flex-col',
+          widthClass,
           'rounded-l-(--ui-radius-panel) bg-raised shadow-(--shadow-lg) focus:outline-none',
           className
         )}
@@ -188,6 +196,7 @@ export function SheetContent({
               {title}
             </RadixDialog.Title>
           </div>
+          {actions}
           <RadixDialog.Close asChild>
             <IconButton label="关闭" size="sm">
               <X className="size-4" />

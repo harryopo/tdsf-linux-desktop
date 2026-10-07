@@ -9,6 +9,7 @@ export {
   type ChipProps,
   StatusDot,
   Spinner,
+  Notice,
   Collapse,
 } from './surface'
 export {

@@ -2,39 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-07T05:18:13.923Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-07T05:18:13.923Z",
-      "lastActiveAt": "2026-10-07T05:18:13.923Z",
-      "task": "退出 antd 第 4 批：Sheet 抽屉",
-      "claimedFiles": [
-        {
-          "path": "src/renderer/src/ui/overlay.tsx",
-          "task": "退出 antd 第 4 批：Sheet 抽屉",
-          "claimedAt": "2026-10-07T05:18:13.923Z"
-        },
-        {
-          "path": "src/renderer/src/ui/index.ts",
-          "task": "退出 antd 第 4 批：Sheet 抽屉",
-          "claimedAt": "2026-10-07T05:18:13.923Z"
-        },
-        {
-          "path": "src/renderer/src/components/monitor/AlertDrawer.tsx",
-          "task": "退出 antd 第 4 批：Sheet 抽屉",
-          "claimedAt": "2026-10-07T05:18:13.923Z"
-        },
-        {
-          "path": "src/renderer/src/pages/MonitorPage.css",
-          "task": "退出 antd 第 4 批：Sheet 抽屉",
-          "claimedAt": "2026-10-07T05:18:13.923Z"
-        }
-      ],
-      "expiresAt": "2026-10-07T07:18:13.923Z"
-    }
-  },
+  "lastUpdated": "2026-10-07T05:32:15.556Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -5782,6 +5751,34 @@
       "file": "src/renderer/src/pages/MonitorPage.css",
       "task": "退出 antd 第 4 批：Sheet 抽屉",
       "timestamp": "2026-10-07T05:18:13.923Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/ui/overlay.tsx",
+      "task": "退出 antd 第 4 批：Sheet 抽屉",
+      "timestamp": "2026-10-07T05:32:15.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/ui/index.ts",
+      "task": "退出 antd 第 4 批：Sheet 抽屉",
+      "timestamp": "2026-10-07T05:32:15.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/monitor/AlertDrawer.tsx",
+      "task": "退出 antd 第 4 批：Sheet 抽屉",
+      "timestamp": "2026-10-07T05:32:15.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/MonitorPage.css",
+      "task": "退出 antd 第 4 批：Sheet 抽屉",
+      "timestamp": "2026-10-07T05:32:15.556Z"
     }
   ],
   "coordinationAudit": {

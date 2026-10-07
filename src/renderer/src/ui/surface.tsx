@@ -1,5 +1,5 @@
 /**
- * 面与原语：页头、面板、面板头、分隔、chip、状态点、折叠区
+ * 面与原语：页头、面板、面板头、分隔、chip、状态点、折叠区、提示条
  *
  * 页头尺寸对齐 Apple HIG 的 Headline（17pt Semibold）与 8pt 栅格；图标走
  * "强调色淡底圆角方块"而不是裸图标，这样六个模块的左上角看起来是同一套东西。
@@ -9,7 +9,7 @@
  */
 import { type HTMLAttributes, type ReactNode } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Loader2, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Info, Loader2, type LucideIcon } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 
 /** 一个可停靠的面板（终端格、AI 格、文件树格的最外层） */
@@ -194,6 +194,52 @@ export function Spinner({ label, className }: { label?: string; className?: stri
       style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
     >
       <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
+/**
+ * 提示条：区域内需要一直看得见的一次性说明（信息 / 警告 / 错误）。
+ *
+ * 分工：要用户当场做选择的用 Dialog 或 confirmDialog()，一闪而过的用 sonner toast，
+ * "有个情况但你不必现在动手"才用 Notice。配色只取 --notice-* / --status-* 令牌
+ * （浅色主题按对比度校准过），组件里不出现色值字面量。
+ */
+export function Notice({
+  tone = 'info',
+  title,
+  children,
+  action,
+  className,
+}: {
+  tone?: 'info' | 'warning' | 'error'
+  title?: ReactNode
+  children?: ReactNode
+  action?: ReactNode
+  className?: string
+}) {
+  const toneClass = {
+    info: 'border-(--notice-info-border) bg-(--notice-info-bg) text-(--status-info-text)',
+    warning: 'border-(--notice-warning-border) bg-(--notice-warning-bg) text-(--notice-warning-text)',
+    error: 'border-error/30 bg-error/10 text-(--status-error-text)',
+  }[tone]
+  const Icon: LucideIcon = tone === 'info' ? Info : AlertTriangle
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-2.5 rounded-(--ui-radius-control) border px-3 py-2.5',
+        toneClass,
+        className
+      )}
+    >
+      <Icon aria-hidden className="mt-px size-3.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        {title ? <p className="text-md font-medium">{title}</p> : null}
+        {children ? (
+          <div className="mt-0.5 text-caption leading-relaxed whitespace-pre-wrap">{children}</div>
+        ) : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   )
 }
