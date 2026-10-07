@@ -199,10 +199,11 @@
 | `text-[Npx]` 绕过字阶 | `ui-tokens.test.ts` |
 | 内联 `style` 写 color/fontSize/background | `design-contract.mjs` 刻度（只降不升） |
 | 新增引用旧 `--trae-*` 令牌 | `design-contract.mjs` 刻度（只降不升） |
-| 再引 antd 的 Modal/message/Notification | `exit-antd-*.test.ts` + `design-contract.mjs` 刻度 |
+| 再引 antd（含 `@ant-design/icons`） | `exit-antd-dialog.test.ts`：渲染层引 antd 的文件数上限已是 **0**，图标也只许 lucide |
+| 裸状态色（`text-error` 等）当文字用 | `ui-tokens.test.ts`（图标行按 `size-N` 豁免，图形只要求 3:1） |
 | 界面文字里出现 emoji | `verify-no-emoji-on-screen.mjs` |
 | 示例/假数据字面量 | `no-fabricated-data` 闸 |
-| 新增 `!important` | `count-important.mjs <上限>` |
+| 新增 `!important` | `count-important.mjs <上限>` + `important-budget.test.ts`（2026-10-07 antd 退出后实测 33） |
 | 死 CSS 类名 | `dead-css-classes.cjs` |
 | 文档与令牌数字漂移 | `design-contract.mjs`（含负向对照测试） |
 

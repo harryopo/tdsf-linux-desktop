@@ -99,8 +99,8 @@ const RATCHETS = [
   {
     name: '还 import antd 的渲染层文件数',
     now: countFiles("from 'antd'", '*.tsx'),
-    cap: 2,
-    why: '2026-10-07 第 6 批退出 ConnectDialog（Modal+Form+Select 换自研）后实测 3→2（剩 SshSettings 与 main.tsx 的 ConfigProvider）。与 exit-antd-dialog.test.ts 同口径',
+    cap: 0,
+    why: '2026-10-07 第 7 批退出 SshSettings 表单弹窗与 main.tsx 的 ConfigProvider，实测 2→0：渲染层已经一行 antd 都不引。再出现就是引回旧依赖',
   },
 ]
 

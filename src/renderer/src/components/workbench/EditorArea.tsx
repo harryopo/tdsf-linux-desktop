@@ -31,7 +31,7 @@ import { useTranslateStore } from '@/stores/translate-store'
 // v2.6 修复：AI 命令预测回显条此前只渲染在从未被挂载的 TerminalTabs（死文件）里，
 // setPendingCommand 写的 store 没有消费者 —— 搜到真实终端面板这里渲染
 import { useTerminalStore } from '@/stores/terminal-store'
-import { ThunderboltOutlined, CloseOutlined } from '@ant-design/icons'
+import { Zap } from 'lucide-react'
 import '../terminal/TerminalTabs.css'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { OpenFileRequest } from './FileTree'
@@ -139,7 +139,7 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
         {/* v2.6：AI 命令预测回显条 —— AI/决策页注入命令时立即可见，对应终端内真实回显 */}
         {pendingCommand && (
           <div className="term-pending-cmd">
-            <ThunderboltOutlined className="term-pending-cmd-icon" />
+            <Zap aria-hidden className="term-pending-cmd-icon size-3" />
             <span className="term-pending-cmd-label">AI 已注入命令</span>
             <code className="term-pending-cmd-text" title={pendingCommand.command}>
               {pendingCommand.command.split('\n')[0]}
@@ -151,7 +151,7 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
               aria-label="关闭回显提示"
               onClick={() => setPendingCommand(null)}
             >
-              <CloseOutlined />
+              <X aria-hidden className="size-3" />
             </button>
           </div>
         )}

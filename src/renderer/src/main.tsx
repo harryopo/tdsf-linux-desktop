@@ -18,14 +18,11 @@
  * - AntD 5 与 Tailwind v4 共存：通过 @layer + important 调整优先级
  * - 中文语言包 zhCN
  */
-// React 19 移除了 ReactDOM.render 等旧 API，antd 5 的静态方法（message.* / notification.* / Modal.confirm）
-// 全靠官方补丁才能工作。本轮已把 message.* 换成 sonner toast、Modal.confirm 换成 confirmDialog()，
-// 全仓静态方法调用为 0；补丁暂时留着，等声明式 Modal/Drawer 也退出 antd 再一并摘掉。
-import '@ant-design/v5-patch-for-react-19'
+// antd 已整体退出渲染层（2026-10-07）：React 19 的 ReactDOM.render 补丁、
+// ConfigProvider 主题注入、zhCN 语言包一并摘掉。主题只走 ui-tokens.css 的
+// data-theme 一套机制，不再有"第二套 token 源"。
 import React, { useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ConfigProvider, theme as antdTheme } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import App from './App'
 import { useThemeStore } from './stores/theme-store'
 // v2.7 外观设置真实落地：字号/行高/字体/密度/主题模式的应用点
@@ -33,8 +30,6 @@ import { useAppearanceStore, CODE_FONT_STACKS } from './stores/appearance-store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 // P0 修复：Agent 流式事件全局订阅（与 AIPanel 挂载解耦，防止流式中收起面板丢事件）
 import { initAgentStreamSubscription } from './stores/agent-stream-subscription'
-// v2.3 P3-B3: Antd 主题 token 从独立常量文件 import，消除 main.tsx 28 处硬编码颜色（B2 红线）
-import { traeAntdDarkToken, traeAntdLightToken, traeAntdComponentsConfig } from './styles/antd-tokens'
 import './styles/tailwind.css'
 import './styles/global.css'
 
@@ -159,16 +154,10 @@ const Root: React.FC = () => {
     return undefined
   }, [themeMode])
 
-  /** 当前主题的算法和 token（从 styles/antd-tokens.ts 引用，消除硬编码颜色） */
-  const algorithm = theme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm
-  const token = theme === 'dark' ? traeAntdDarkToken : traeAntdLightToken
-
   return (
-    <ConfigProvider locale={zhCN} theme={{ algorithm, token, components: traeAntdComponentsConfig }}>
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>
-    </ConfigProvider>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   )
 }
 

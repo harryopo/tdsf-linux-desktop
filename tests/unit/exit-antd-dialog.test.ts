@@ -49,13 +49,16 @@ const MIGRATED = [
   'src/renderer/src/components/monitor/AlertDrawer.tsx',
   'src/renderer/src/components/logs/AiLogAnalysisPanel.tsx',
   'src/renderer/src/components/layout/ConnectDialog.tsx',
+  'src/renderer/src/pages/SshSettings.tsx',
+  'src/renderer/src/main.tsx',
+  'src/renderer/src/components/workbench/EditorArea.tsx',
 ]
 
-/** 仍带 antd Form 的弹窗：换完一个就从这里删一个 */
-const PENDING_FORM = ['src/renderer/src/pages/SshSettings.tsx']
+/** 仍带 antd Form 的弹窗：2026-10-07 全部换完，这张表清空，再出现就是引回旧依赖 */
+const PENDING_FORM: string[] = []
 
-/** 还 import antd 的渲染层文件数闸门：2026-10-07 第 6 批（连接对话框）后实测 3→2，只许降不许升 */
-const CAP_ANTD_FILES = 2
+/** 还 import antd 的渲染层文件数闸门：2026-10-07 第 7 批后实测 0，只许是 0 */
+const CAP_ANTD_FILES = 0
 
 describe('对话框已统一到自研 Dialog', () => {
   it('扫到了源码文件（不是空跑）', () => {
@@ -83,8 +86,12 @@ describe('对话框已统一到自研 Dialog', () => {
     ).toBeLessThanOrEqual(CAP_ANTD_FILES)
   })
 
-  it('脱离 antd 的文件不会残留 antd 专有 props', () => {
-    const ANTD_PROPS = /maskClosable|okButtonProps|cancelButtonProps|destroyOnClose|confirmLoading|keyboard=\{false\}/g
+  it('@ant-design/icons 也不再被渲染层引用', () => {
+    const users = files.filter((rel) => /@ant-design\/icons/.test(read(rel)))
+    expect(users, `图标已统一用 lucide，这些文件又引回 antd 图标：\n${users.join('\n')}`).toEqual([])
+  })
+
+  it('脱离 antd 的文件不会残留 antd 专有 props', () => {    const ANTD_PROPS = /maskClosable|okButtonProps|cancelButtonProps|destroyOnClose|confirmLoading|keyboard=\{false\}/g
     const hits = antdFree()
       .map((rel) => ({ rel, n: (read(rel).match(ANTD_PROPS) ?? []).length }))
       .filter((x) => x.n > 0)

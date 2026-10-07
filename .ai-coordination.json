@@ -2,52 +2,27 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-07T06:02:49.089Z",
+  "lastUpdated": "2026-10-07T06:21:02.629Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-07T05:48:51.329Z",
-      "lastActiveAt": "2026-10-07T06:02:49.089Z",
-      "task": "退出 antd 最后一批：连接对话框",
+      "startedAt": "2026-10-07T06:19:10.672Z",
+      "lastActiveAt": "2026-10-07T06:21:02.629Z",
+      "task": "退出 antd：移除依赖",
       "claimedFiles": [
         {
-          "path": "src/renderer/src/components/layout/ConnectDialog.tsx",
-          "task": "退出 antd 最后一批：连接对话框",
-          "claimedAt": "2026-10-07T05:48:51.329Z"
+          "path": "package.json",
+          "task": "退出 antd：移除依赖",
+          "claimedAt": "2026-10-07T06:19:10.672Z"
         },
         {
-          "path": "src/renderer/src/components/ssh/HostKeyPromptDialog.tsx",
-          "task": "状态色文字档横扫：可见文字改用 *-text",
-          "claimedAt": "2026-10-07T06:02:49.089Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/Composer.tsx",
-          "task": "状态色文字档横扫：可见文字改用 *-text",
-          "claimedAt": "2026-10-07T06:02:49.089Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/MessageList.tsx",
-          "task": "状态色文字档横扫：可见文字改用 *-text",
-          "claimedAt": "2026-10-07T06:02:49.089Z"
-        },
-        {
-          "path": "src/renderer/src/dock/permission-bar.tsx",
-          "task": "状态色文字档横扫：可见文字改用 *-text",
-          "claimedAt": "2026-10-07T06:02:49.089Z"
-        },
-        {
-          "path": "src/renderer/src/pages/TutorialDetailPage.tsx",
-          "task": "状态色文字档横扫：可见文字改用 *-text",
-          "claimedAt": "2026-10-07T06:02:49.089Z"
-        },
-        {
-          "path": "tests/unit/ui-tokens.test.ts",
-          "task": "状态色文字档横扫：可见文字改用 *-text",
-          "claimedAt": "2026-10-07T06:02:49.089Z"
+          "path": "src/renderer/src/pages/SshSettings.css",
+          "task": "删 antd 死样式",
+          "claimedAt": "2026-10-07T06:21:02.629Z"
         }
       ],
-      "expiresAt": "2026-10-07T08:02:49.089Z"
+      "expiresAt": "2026-10-07T08:21:02.629Z"
     }
   },
   "history": [
@@ -5874,6 +5849,69 @@
       "file": "tests/unit/ui-tokens.test.ts",
       "task": "状态色文字档横扫：可见文字改用 *-text",
       "timestamp": "2026-10-07T06:02:49.089Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/layout/ConnectDialog.tsx",
+      "task": "退出 antd 最后一批：连接对话框",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/ssh/HostKeyPromptDialog.tsx",
+      "task": "状态色文字档横扫：可见文字改用 *-text",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/Composer.tsx",
+      "task": "状态色文字档横扫：可见文字改用 *-text",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/MessageList.tsx",
+      "task": "状态色文字档横扫：可见文字改用 *-text",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/dock/permission-bar.tsx",
+      "task": "状态色文字档横扫：可见文字改用 *-text",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/TutorialDetailPage.tsx",
+      "task": "状态色文字档横扫：可见文字改用 *-text",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/ui-tokens.test.ts",
+      "task": "状态色文字档横扫：可见文字改用 *-text",
+      "timestamp": "2026-10-07T06:08:37.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "退出 antd：移除依赖",
+      "timestamp": "2026-10-07T06:19:10.672Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SshSettings.css",
+      "task": "删 antd 死样式",
+      "timestamp": "2026-10-07T06:21:02.629Z"
     }
   ],
   "coordinationAudit": {

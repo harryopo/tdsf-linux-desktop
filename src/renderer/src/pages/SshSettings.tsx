@@ -16,9 +16,9 @@
  * IPC 不可用：Card 内显示 Empty 组件（spec REMOVED 要求）
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Modal, Form, Input as AntdInput, Select } from 'antd'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { confirmDialog } from '@/ui'
+import { Button, Dialog, DialogContent, Field, Segmented, TextInput, confirmDialog } from '@/ui'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
@@ -33,6 +33,26 @@ import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { SshConfig, SshKeyPair, GenerateKeyPairRequest } from '@shared/models'
 import './SshSettings.css'
+
+/** 生成密钥弹窗的表单态（2026-10-07 从 antd Form 换成本地状态，规则一条没减） */
+interface GenFormState {
+  type: 'ed25519' | 'rsa'
+  name: string
+  passphrase: string
+  comment: string
+}
+
+const BLANK_GEN_FORM: GenFormState = { type: 'ed25519', name: '', passphrase: '', comment: '' }
+
+/** 密钥名称只允许文件安全的字符——生成出来的就是 ~/.ssh/<name>，带斜杠或空格会把密钥写到别处 */
+const KEY_NAME_PATTERN = /^[a-zA-Z0-9_\-]+$/
+
+function validateGenForm(f: GenFormState): Partial<Record<keyof GenFormState, string>> {
+  const errors: Partial<Record<keyof GenFormState, string>> = {}
+  if (!f.name.trim()) errors.name = '请输入密钥名称'
+  else if (!KEY_NAME_PATTERN.test(f.name.trim())) errors.name = '仅允许字母、数字、下划线、连字符'
+  return errors
+}
 
 export function SshSettings() {
   const servers = useServerStore((s) => s.servers)
@@ -64,7 +84,8 @@ export function SshSettings() {
   const [keyPairs, setKeyPairs] = useState<SshKeyPair[]>([])
   const [genModalOpen, setGenModalOpen] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
-  const [genForm] = Form.useForm<GenerateKeyPairRequest>()
+  const [genForm, setGenForm] = useState<GenFormState>(BLANK_GEN_FORM)
+  const [genErrors, setGenErrors] = useState<Partial<Record<keyof GenFormState, string>>>({})
 
   // Card 3: 连接默认设置（真 settings store）
   const [defaultPort, setDefaultPort] = useState(sshDefaults.port ?? 22)
@@ -340,20 +361,23 @@ export function SshSettings() {
   }, [refreshKeys])
 
   const handleOpenGenModal = useCallback(() => {
-    genForm.resetFields()
+    setGenForm(BLANK_GEN_FORM)
+    setGenErrors({})
     setGenModalOpen(true)
-  }, [genForm])
+  }, [])
 
   const handleGenKeySubmit = useCallback(async () => {
+    const found = validateGenForm(genForm)
+    setGenErrors(found)
+    if (Object.keys(found).length > 0) return
+    setGenLoading(true)
     try {
-      const values = await genForm.validateFields()
-      setGenLoading(true)
       const res = await window.electronAPI.sshGenerateKeypair({
-        type: values.type,
-        name: values.name,
-        passphrase: values.passphrase || undefined,
-        comment: values.comment || undefined,
-      })
+        type: genForm.type,
+        name: genForm.name.trim(),
+        passphrase: genForm.passphrase || undefined,
+        comment: genForm.comment || undefined,
+      } satisfies GenerateKeyPairRequest)
       if (res.success && res.keyPair) {
         toast.success(`密钥 ${res.keyPair.name} 已生成`)
         setGenModalOpen(false)
@@ -362,13 +386,7 @@ export function SshSettings() {
         toast.error(`生成失败: ${res.error || '未知错误'}`)
       }
     } catch (err) {
-      // antd Form.validateFields reject 时返回 errorFields 对象，不关闭弹窗
-      if (err && typeof err === 'object' && 'errorFields' in err) {
-        return
-      }
-      toast.error(
-        `生成失败: ${err instanceof Error ? err.message : String(err)}`,
-      )
+      toast.error(`生成失败: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setGenLoading(false)
     }
@@ -377,8 +395,9 @@ export function SshSettings() {
   const handleGenModalCancel = useCallback(() => {
     setGenModalOpen(false)
     setGenLoading(false)
-    genForm.resetFields()
-  }, [genForm])
+    setGenForm(BLANK_GEN_FORM)
+    setGenErrors({})
+  }, [])
 
   /** 按名称排序的服务器列表 */
   const sortedServers = useMemo(
@@ -458,57 +477,73 @@ export function SshSettings() {
         }}
       />
 
-      {/* M.4：生成 SSH 密钥对 Modal（Form + sshGenerateKeypair） */}
-      <Modal
-        title="生成 SSH 密钥"
-        open={genModalOpen}
-        onCancel={handleGenModalCancel}
-        confirmLoading={genLoading}
-        okText="生成"
-        cancelText="取消"
-        destroyOnClose
-        maskClosable={!genLoading}
-        onOk={() => void handleGenKeySubmit()}
-      >
-        <Form
-          form={genForm}
-          layout="vertical"
-          initialValues={{ type: 'ed25519' }}
-          className="ssh-gen-form"
+      {/* M.4：生成 SSH 密钥对（自研 Dialog + 本地表单 → sshGenerateKeypair） */}
+      <Dialog open={genModalOpen} onOpenChange={(next) => !next && handleGenModalCancel()}>
+        <DialogContent
+          title="生成 SSH 密钥"
+          description="密钥会写到 ~/.ssh/ 下，公钥可直接复制到服务器。"
+          className="w-[min(520px,92vw)]"
+          closeOnOverlayClick={!genLoading}
+          footer={
+            <>
+              <Button variant="outline" onClick={handleGenModalCancel}>
+                取消
+              </Button>
+              <Button variant="solid" disabled={genLoading} onClick={() => void handleGenKeySubmit()}>
+                {genLoading ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : null}
+                生成
+              </Button>
+            </>
+          }
         >
-          <Form.Item
-            name="type"
-            label="密钥类型"
-            rules={[{ required: true, message: '请选择密钥类型' }]}
-          >
-            <Select
-              options={[
-                { value: 'ed25519', label: 'ED25519（推荐，更安全更快）' },
-                { value: 'rsa', label: 'RSA 4096（兼容性最好）' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            name="name"
-            label="密钥名称"
-            rules={[
-              { required: true, message: '请输入密钥名称' },
-              {
-                pattern: /^[a-zA-Z0-9_\-]+$/,
-                message: '仅允许字母、数字、下划线、连字符',
-              },
-            ]}
-          >
-            <AntdInput placeholder="例如 id_ed25519" />
-          </Form.Item>
-          <Form.Item name="passphrase" label="口令（可选）">
-            <AntdInput.Password placeholder="留空表示无口令" />
-          </Form.Item>
-          <Form.Item name="comment" label="注释（可选）">
-            <AntdInput placeholder="例如 user@host" />
-          </Form.Item>
-        </Form>
-      </Modal>
+          <div className="flex flex-col gap-3">
+            <Field label="密钥类型">
+              {() => (
+                <Segmented
+                  ariaLabel="密钥类型"
+                  value={genForm.type}
+                  onValueChange={(v) => setGenForm((p) => ({ ...p, type: v }))}
+                  items={[
+                    { value: 'ed25519', label: 'ED25519（推荐，更安全更快）' },
+                    { value: 'rsa', label: 'RSA 4096（兼容性最好）' },
+                  ]}
+                />
+              )}
+            </Field>
+            <Field label="密钥名称" required hint={genErrors.name}>
+              {(id) => (
+                <TextInput
+                  id={id}
+                  value={genForm.name}
+                  invalid={!!genErrors.name}
+                  placeholder="例如 id_ed25519"
+                  onChange={(e) => setGenForm((p) => ({ ...p, name: e.target.value }))}
+                />
+              )}
+            </Field>
+            <Field label="口令（可选）" hint="留空表示无口令">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  type="password"
+                  value={genForm.passphrase}
+                  autoComplete="off"
+                  onChange={(e) => setGenForm((p) => ({ ...p, passphrase: e.target.value }))}
+                />
+              )}
+            </Field>
+            <Field label="注释（可选）" hint="例如 user@host">
+              {(id) => (
+                <TextInput
+                  id={id}
+                  value={genForm.comment}
+                  onChange={(e) => setGenForm((p) => ({ ...p, comment: e.target.value }))}
+                />
+              )}
+            </Field>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
