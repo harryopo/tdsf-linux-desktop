@@ -83,7 +83,7 @@ export const CAPABILITIES: CapabilityRow[] = [
     id: 'terminal-blocks',
     label: '终端命令块（OSC 133 / 633）',
     status: 'pending',
-    note: '消费端已实测可用：对端 shell 发出 OSC 133/633 时会切成命令块，既计入状态栏，也会脱敏后注入 AI 的 system prompt。缺的是产端——我们没有给远端装 shell 集成，所以连普通服务器时命令块仍是 0。',
+    note: '消费端已实测可用：对端 shell 发出 OSC 133/633 时会切成命令块，既计入状态栏，也会脱敏后注入 AI 的 system prompt，并落一条只记条数的审计。缺的是产端——我们没有给远端装 shell 集成，所以连普通服务器时命令块仍是 0。',
   },
   {
     id: 'monitor-history',

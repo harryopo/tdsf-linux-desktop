@@ -22,7 +22,27 @@ import { startSshFixture } from './ssh-fixture-server'
 import type { FixtureHandle } from './ssh-fixture-server'
 import { startAiFixture } from './ai-fixture-server'
 import type { AiFixtureHandle } from './ai-fixture-server'
-import { bindSessionToStore, connectToFixture, launchApp } from './ssh-fixture-helpers'
+import { bindSessionToStore, connectToFixture, e2eProfileDir, launchApp } from './ssh-fixture-helpers'
+import BetterSqlite3 from 'better-sqlite3'
+
+/**
+ * 数一下审计表里"AI 对话附带终端命令块"有几条。
+ * 直接读 e2e 档位里的 SQLite——这是"审计消费"唯一的客观证据，
+ * 应用必须先关掉（WAL 只有最后一个连接退出时才保证 checkpoint 落主文件）。
+ */
+function auditBlockRowCount(): number {
+  const file = path.join(e2eProfileDir(), 'tdsf.db')
+  if (!fs.existsSync(file)) return 0
+  const db = new BetterSqlite3(file, { readonly: true })
+  try {
+    const row = db
+      .prepare('SELECT COUNT(*) AS n FROM audit_logs WHERE action = ?')
+      .get('ai_decision:AI 对话附带终端命令块') as { n: number }
+    return row.n
+  } finally {
+    db.close()
+  }
+}
 
 const BUILD_READY = fs.existsSync(path.join(__dirname, '../../out/main/index.js'))
 if (!BUILD_READY) console.log('[terminal-context] 跳过：缺 out/main/index.js，先 pnpm build')
@@ -228,6 +248,9 @@ test.describe('终端命令块进 AI 请求体', () => {
 
     await configureFixtureModel(page, ai.baseURL)
 
+    // 审计基线要在【发送之前】取：审计行是在请求发出去之前就写进库的，
+    // 事后再数会把这条自己刚写的算进基线。
+    const auditBefore = auditBlockRowCount()
     const body = await sendAndGetBody(page, '刚才那条命令跑得怎么样？')
     // 打印模型实际收到的那段（截 240 字），红了也好比对是"没送到"还是"送到了但内容不对"
     const at = body.indexOf(MARKER)
@@ -238,6 +261,8 @@ test.describe('终端命令块进 AI 请求体', () => {
     expect(body).toContain('输出正文未附')
 
     await app.close()
+    // 审计消费端也要实测：这次对话确实往审计表落了一条（只记条数，命令原文不进表）
+    expect(auditBlockRowCount(), '带命令块的对话应落一条审计').toBe(auditBefore + 1)
   })
 
   testOrSkip('没跑过命令时不注入（对照，防无条件塞 prompt）', async () => {
@@ -251,10 +276,12 @@ test.describe('终端命令块进 AI 请求体', () => {
 
     await configureFixtureModel(page, ai.baseURL)
 
+    const auditBefore = auditBlockRowCount()
     const body = await sendAndGetBody(page, '这台机器上刚才执行了什么？')
     expect(body, '没有命令块时不该出现注入标识').not.toContain(MARKER)
     expect(body).toContain('这台机器上刚才执行了什么')
 
     await app.close()
+    expect(auditBlockRowCount(), '没带命令块就不该记这条审计').toBe(auditBefore)
   })
 })

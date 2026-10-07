@@ -398,15 +398,15 @@
   },
   {
     "page": "教程",
-    "label": "开始学习",
+    "label": "复习",
     "verdict": "route",
     "detail": "#/tutorial → #/tutorial/tut-selinux-basics"
   },
   {
     "page": "教程",
-    "label": "复习",
+    "label": "开始学习",
     "verdict": "route",
-    "detail": "#/tutorial → #/tutorial/tut-selinux-basics"
+    "detail": "#/tutorial → #/tutorial/tut-wordpress-ubuntu"
   },
   {
     "page": "教程",
@@ -448,7 +448,7 @@
     "page": "日志分析",
     "label": "INFO",
     "verdict": "dom",
-    "detail": "mutations=24"
+    "detail": "mutations=26"
   },
   {
     "page": "日志分析",
@@ -499,7 +499,7 @@
     "page": "设置-通用",
     "label": "清除缓存",
     "verdict": "dom",
-    "detail": "mutations=8"
+    "detail": "mutations=4"
   },
   {
     "page": "设置-通用",

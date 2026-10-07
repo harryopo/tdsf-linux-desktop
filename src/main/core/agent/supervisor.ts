@@ -71,7 +71,8 @@ import { createLanguageModel, getDefaultParams } from './providers/provider-fact
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
 import { getProviderCapabilities } from './providers/provider-capabilities'
 import { redactSecrets } from './providers/redact'
-import { buildTerminalContextBlock } from './terminal-context'
+import { buildTerminalContextBlock, recordTerminalContextAudit } from './terminal-context'
+import { AuditRepo } from '../../services/db/audit-repo'
 import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeeded } from './context'
 import { createAllSubagents } from './subagents'
@@ -1033,6 +1034,18 @@ class SupervisorAgent {
       const terminalInjection = buildTerminalContextBlock(terminalContext)
       if (terminalInjection) {
         this.log.info('chat 注入终端命令块', { correlationId, chars: terminalInjection.length })
+        // 计划的另一半：块还要能被审计追认。只记条数与字符数，命令原文不进审计表。
+        const audit = recordTerminalContextAudit(new AuditRepo(db), {
+          raw: terminalContext,
+          correlationId,
+          sessionId: sshSessionId,
+        })
+        if (!audit.written) {
+          this.log.info('终端命令块审计未落库（开关关闭或库不可用，不影响对话）', {
+            correlationId,
+            blocks: audit.blocks,
+          })
+        }
       }
       const systemPrompt =
         '你是 Linux 运维与教学助手，回答用中文。' +

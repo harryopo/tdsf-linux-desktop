@@ -10,7 +10,13 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { buildTerminalContextBlock, TERMINAL_CONTEXT_CAP } from '@main/core/agent/terminal-context'
+import {
+  buildTerminalContextBlock,
+  recordTerminalContextAudit,
+  TERMINAL_CONTEXT_CAP,
+} from '@main/core/agent/terminal-context'
+import { AuditRepo } from '../../src/main/services/db/audit-repo'
+import { DatabaseManager } from '../../src/main/services/db/database'
 
 const ROOT = path.resolve(__dirname, '../..')
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -75,8 +81,53 @@ describe('跨进程接线（源码级，防止写了函数没人调）', () => {
 
   it('Supervisor 把注入块拼进 system prompt（不是算了就丢）', () => {
     const src = read('src/main/core/agent/supervisor.ts')
-    expect(src).toContain("import { buildTerminalContextBlock } from './terminal-context'")
+    expect(src).toContain("from './terminal-context'")
     expect(src).toContain('const terminalInjection = buildTerminalContextBlock(terminalContext)')
     expect(src).toMatch(/\+\s*terminalInjection\b/)
+  })
+
+  it('Supervisor 同时把这条塞给审计（计划要求的是"AI 上下文与审计"两头）', () => {
+    const src = read('src/main/core/agent/supervisor.ts')
+    expect(src).toContain('recordTerminalContextAudit(new AuditRepo(db)')
+  })
+})
+
+describe('recordTerminalContextAudit（审计消费端）', () => {
+  function freshRepo(): AuditRepo {
+    DatabaseManager.resetInstance()
+    return new AuditRepo(DatabaseManager.getInstance(':memory:'))
+  }
+
+  it('带命令块时落一条审计，记条数但不记命令原文', () => {
+    const repo = freshRepo()
+    const r = recordTerminalContextAudit(repo, {
+      raw: '$ systemctl status nginx [exit=3]\n$ journalctl -u nginx [ok]\n$ mysql -u root password=SuperSecret123 [ok]',
+      correlationId: 'chat_test_1',
+      sessionId: 'ssh-1',
+    })
+    expect(r.blocks).toBe(3)
+    expect(r.written, '库可用且开关默认开，应落库').toBe(true)
+
+    const rows = repo.list(10)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].action).toBe('ai_decision:AI 对话附带终端命令块')
+    expect(rows[0].command, '命令原文不进审计表').toBeNull()
+    const details = JSON.parse(rows[0].details ?? '{}') as { blocks: number; correlationId: string }
+    expect(details.blocks).toBe(3)
+    expect(rows[0].details).not.toContain('SuperSecret123')
+    expect(details.correlationId).toBe('chat_test_1')
+  })
+
+  it('没有命令块就什么都不记（别在审计表里刷空行）', () => {
+    const repo = freshRepo()
+    expect(recordTerminalContextAudit(repo, { raw: '', correlationId: 'chat_test_2' })).toEqual({
+      blocks: 0,
+      written: false,
+    })
+    expect(recordTerminalContextAudit(repo, { correlationId: 'chat_test_3' })).toEqual({
+      blocks: 0,
+      written: false,
+    })
+    expect(repo.list(10)).toHaveLength(0)
   })
 })
