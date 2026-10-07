@@ -9,14 +9,13 @@
  */
 import { test, expect, _electron as electron } from '@playwright/test'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
+import { e2eProfileDir } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const testOrSkip = fs.existsSync(MAIN_ENTRY) ? test : test.skip
 
 /** 与 e2e 其它 spec 一样隔离 userData，别把测试痕迹写进共享配置 */
-const E2E_USER_DATA_DIR = path.join(os.tmpdir(), 'tdsf-e2e-profile')
 
 /** 全站路由（hash），覆盖外壳的每个一级页面 */
 const ROUTES = [
@@ -32,7 +31,7 @@ const ROUTES = [
 
 async function launch() {
   const app = await electron.launch({
-    args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const page = await app.firstWindow()

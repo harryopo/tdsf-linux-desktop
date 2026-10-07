@@ -21,6 +21,8 @@ export interface AiFixtureHandle {
   baseURL: string
   /** 服务端收到过的请求数（含 SDK 可能发的预检） */
   requestCount(): number
+  /** 最后一次收到的请求体原文：用来断言 system prompt 里真带了什么（比如终端命令块） */
+  lastBody(): string
   close(): Promise<void>
 }
 
@@ -41,6 +43,7 @@ function chunkBody(delta: string | null, done = false): string {
 
 export function startAiFixture(): Promise<AiFixtureHandle> {
   let requests = 0
+  let lastBody = ''
 
   const server = http.createServer((req, res) => {
     requests += 1
@@ -50,6 +53,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
       // 不解析具体路径：不同 provider 类型对 baseURL 与 /v1 的拼接规则不一样，
       // 这里只要收到 messages 就按 OpenAI 的 SSE 格式回，避免测试绑死实现细节
       const raw = Buffer.concat(body).toString('utf8')
+      lastBody = raw
       if (!raw.includes('messages')) {
         res.writeHead(400, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: { message: 'fixture 只服务 chat/completions' } }))
@@ -82,6 +86,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
       resolve({
         baseURL: `http://127.0.0.1:${addr.port}/v1`,
         requestCount: () => requests,
+        lastBody: () => lastBody,
         close: () =>
           new Promise<void>((done) => {
             server.closeAllConnections?.()

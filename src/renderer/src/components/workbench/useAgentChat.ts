@@ -14,6 +14,7 @@ import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useAgentStore, type AgentMessage, type CompressResult } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
+import { useTerminalStore } from '@/stores/terminal-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type {
   PersistedProviderConfig,
@@ -232,11 +233,16 @@ export function useAgentChat(): UseAgentChatResult {
             ? history
             : [{ role: 'user' as const, content: raw }]
 
+        // 终端命令块随请求带去主进程（阶段 F 的消费端）。用 getState() 而不是 hook 订阅：
+        // 发送是一次性动作，不该因此让对话面板重渲染。空串传 undefined，主进程侧就不注入。
+        const terminalContext = useTerminalStore.getState().commandBlocks?.context ?? ''
+
         const correlationId = await window.electronAPI.agentChat(
           payload,
           selectedProviderId ?? undefined,
           thinkingStrength,
           activeSessionId ?? undefined,
+          terminalContext || undefined,
         )
 
         useAgentStore.setState((state) => {

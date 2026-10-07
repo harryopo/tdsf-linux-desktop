@@ -81,3 +81,6 @@ scripts/dict-import/.cache/
 # desktop 仓库自己的第二个 worktree（分支 feat/translate-v1.5.0），
 # 历史在主仓库对象库里，但绝不能被外层工作树 add 进去
 /tdsf-translate-v140/
+
+# 视觉基线是【本机字体的尺子】，跨机器会误报，所以不入库（理由见 tests/e2e/visual.spec.ts 文件头）
+tests/e2e/visual.spec.ts-snapshots/

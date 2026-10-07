@@ -33,13 +33,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import { startSshFixture } from './ssh-fixture-server'
 import { startAiFixture } from './ai-fixture-server'
-import {
-  bindSessionToStore,
-  connectToFixture,
-  installHostKeyRecorder,
-  readHostKeyPrompts,
-  E2E_USER_DATA_DIR,
-} from './ssh-fixture-helpers'
+import { e2eProfileDir, bindSessionToStore, connectToFixture, installHostKeyRecorder, readHostKeyPrompts } from './ssh-fixture-helpers'
 
 /** Electron 主进程入口（需先 pnpm build） */
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
@@ -54,7 +48,7 @@ fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 async function launchApp() {
   const app = await electron.launch({
     // 隔离 userData：S3 会 providerSave，不隔离就把测试用的假模型写进共享的 Electron 配置
-    args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: {
       ...process.env,
       // 测试模式：禁用真实 SSH/API key 依赖

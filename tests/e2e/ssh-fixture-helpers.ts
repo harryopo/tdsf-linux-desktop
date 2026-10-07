@@ -4,7 +4,7 @@
  * 单独一个文件的原因：ssh-fixture-server.ts 也要被 vitest（node 环境）自环测试导入，
  * 把依赖 @playwright/test 的 Page helper 混进去会把 Playwright 拖进单元测试里。
  */
-import { _electron as electron } from '@playwright/test'
+import { _electron as electron, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -19,16 +19,27 @@ export interface FixtureConnResult {
 }
 
 /**
- * e2e 专用 userData（临时目录）。
+ * e2e 专用 userData（临时目录），**每个 spec 一个**。
  * 不指定的话，未打包的 Electron 会把配置写进 %APPDATA%\Electron，
  * 测试留下的 provider / 会话痕迹会跟用户真实实例混在一起（虽然真实产品在
  * %APPDATA%\tdsf-linux-desktop，但共用 profiles 依然难以复现）。
+ * 共用同一个临时档位同样有问题：一个 spec 存的假 Provider 会被别的 spec 读到——
+ * 实测 ai-chat-live 因此以为"有 Key"不再跳过、visual 的像素基线因模型名变了而误红。
  */
-export const E2E_USER_DATA_DIR = path.join(os.tmpdir(), 'tdsf-e2e-profile')
+export function e2eProfileDir(): string {
+  let tag = 'shared'
+  try {
+    const info = test.info()
+    if (info?.file) tag = path.basename(info.file, '.spec.ts')
+  } catch {
+    // 不在 Playwright 测试上下文里调用（例如被别的测试框架导入），退回共享名
+  }
+  return path.join(os.tmpdir(), `tdsf-e2e-profile-${tag}`)
+}
 
 export async function launchApp(): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
-    args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const page = await app.firstWindow()

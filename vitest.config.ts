@@ -48,6 +48,15 @@ export default defineConfig({
      */
     environment: 'node',
     /**
+     * 单条测试预算 20s（vitest 默认 5s 不够）。
+     * 判据不是"怕慢"而是实测：2026-10-07 全量跑 133 个文件时，
+     * tests/services/vercel-ai-service.test.ts 里那条 `await import('.../tools/registry')`
+     * 超了 5s 报 timed out，而单跑该文件 7 条全过 —— 冷启动动态 import 的图编译被并行负载挤爆了。
+     * 同类写法散布在 10 个测试文件里，所以按类调预算，而不是给那一条单独加 timeout。
+     * 挂死的用例照样会在 20s 后失败，这条不放松对真 hang 的检测。
+     */
+    testTimeout: 20_000,
+    /**
      * setupFiles：每个测试文件执行前的全局初始化
      * 包含 jest-dom 扩展 + matchMedia / ResizeObserver polyfill + cleanup
      * 注：jsdom-only polyfill 在 node 环境下不生效但也无副作用

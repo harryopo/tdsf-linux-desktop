@@ -208,9 +208,10 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // agent:chat — 启动 Supervisor 流式 chat
   // ------------------------------------------------------------------
-  // 参数：(messages, providerId?, strength?, agentSessionId?, sshSessionId?)
+  // 参数：(messages, providerId?, strength?, agentSessionId?, sshSessionId?, terminalContext?)
   //   - agentSessionId：会话注册表 id（可选，主进程可自动生成）
   //   - sshSessionId：SshConnectionManager 会话 id（可选，传入则启用只读 SSH 工具）
+  //   - terminalContext：终端命令块摘要（可选，脱敏后注入 system prompt）
   // 返回：correlationId
   ipcMain.handle(
     'agent:chat',
@@ -221,6 +222,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       strength?: ThinkingStrength | 'auto',
       sessionId?: string,
       sshSessionId?: string,
+      terminalContext?: string,
     ): Promise<string> => {
       const supervisor = getSupervisor()
       const correlationId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -238,6 +240,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         correlationId,
         sessionId: resolvedSessionId,
         sshSessionId: sshSessionId ?? null,
+        terminalBlockChars: terminalContext?.length ?? 0,
         providerId,
         strength,
         messageCount: messages?.length ?? 0,
@@ -252,6 +255,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           strength,
           correlationId,
           sshSessionId,
+          terminalContext,
           // v2.9 写命令 HITL 审批：复用 PAOR 审批通道（paor:approval-request 卡片），
           // ssh_write 工具 execute 内 await 此回调，用户批准才真执行；60 秒超时自动拒绝
           approveWriteCommand: async (command, level, description): Promise<boolean> => {

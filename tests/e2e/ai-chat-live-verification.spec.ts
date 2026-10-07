@@ -41,10 +41,57 @@ const testOrSkip = canRun ? test : test.skip
 const SHOT_DIR = path.join(__dirname, 'screenshots-ai')
 fs.mkdirSync(SHOT_DIR, { recursive: true })
 
+/**
+ * 用 1 个 token 探一次服务端认不认这把 Key。
+ * 只回状态与错误类别，不把 Key 或响应原文带进测试报告。
+ */
+async function probeKey(cred: {
+  baseURL: string
+  model: string
+  apiKey: string
+}): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const res = await fetch(`${cred.baseURL.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${cred.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: cred.model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 1,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (res.ok) return { ok: true, detail: `HTTP ${res.status}` }
+    let kind = ''
+    try {
+      const j = (await res.json()) as { error?: { code?: string; type?: string } }
+      kind = j.error?.code || j.error?.type || ''
+    } catch {
+      // 响应不是 JSON 就没有类别可报，状态码本身够用
+    }
+    return { ok: false, detail: `HTTP ${res.status}${kind ? ` ${kind}` : ''}，模型名 ${cred.model}` }
+  } catch (err) {
+    return {
+      ok: false,
+      detail: `请求都没发出去（${err instanceof Error ? err.name : 'unknown'}），多半是不通网或地址不对`,
+    }
+  }
+}
+
 testOrSkip('AI 对话真实流式：发送极短消息，真实回复必须流式上屏', async () => {
+  // 先探一把 Key 到底通不通：文件里有 apiKey 不等于这把 Key 有效。
+  // 服务端拒了（401/403）或网络不通，那是环境缺东西，不该演成"产品流式层坏了"；
+  // 200 才继续跑真正的断言。（与 ssh-live 那边的 TCP 可达性探针同一思路）
+  const probe = await probeKey(CRED!)
+  test.skip(!probe.ok, `缺一条能用的模型 Key：${probe.detail}`)
+
   test.setTimeout(120_000)
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const window = await app.firstWindow()

@@ -37,6 +37,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElementHandle, Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import { e2eProfileDir } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -177,7 +178,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   test.setTimeout(840_000)
 
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const window = await app.firstWindow()

@@ -890,6 +890,8 @@ export interface ElectronAPI {
     strength?: ThinkingStrength | 'auto',
     /** 活跃 SSH sessionId；传入后 Supervisor 启用 ssh_readonly 工具 */
     sshSessionId?: string,
+    /** 终端命令块摘要（block-model.toAiContext 的产物），主进程脱敏后注入 system prompt */
+    terminalContext?: string,
   ): Promise<string>
   /** 取消进行中的 Supervisor chat 请求 */
   agentChatCancel(correlationId: string): Promise<boolean>

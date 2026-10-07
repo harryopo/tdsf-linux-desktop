@@ -268,9 +268,21 @@
   },
   {
     "page": "知识库",
+    "label": "查看详情：SELinux 基础与故障排查",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-selinux-basics"
+  },
+  {
+    "page": "知识库",
     "label": "查看详情：systemd 服务管理完全指南",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/tut-systemd-services"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Ubuntu 配置静态 IP（Netplan）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-netplan-static-ip"
   },
   {
     "page": "知识库",
@@ -316,6 +328,12 @@
   },
   {
     "page": "知识库",
+    "label": "查看详情：systemd 服务启动失败的标准排查路径",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-systemd-failed"
+  },
+  {
+    "page": "知识库",
     "label": "查看详情：SSH 连不上（Connection refused / timed out）排查",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/kb-seed-ssh-refused"
@@ -340,6 +358,12 @@
   },
   {
     "page": "知识库",
+    "label": "查看详情：系统负载高（load average 飙升）快速定位",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-high-load"
+  },
+  {
+    "page": "知识库",
     "label": "查看详情：journalctl 高效查日志（按服务/时间/等级过滤）",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/kb-seed-journal-log"
@@ -358,30 +382,6 @@
   },
   {
     "page": "知识库",
-    "label": "查看详情：SELinux 基础与故障排查",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-selinux-basics"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：Ubuntu 配置静态 IP（Netplan）",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-netplan-static-ip"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：systemd 服务启动失败的标准排查路径",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-systemd-failed"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：系统负载高（load average 飙升）快速定位",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-high-load"
-  },
-  {
-    "page": "知识库",
     "label": "贡献知识",
     "verdict": "dialog"
   },
@@ -395,6 +395,12 @@
     "page": "教程",
     "label": "搜索",
     "verdict": "disabled"
+  },
+  {
+    "page": "教程",
+    "label": "开始学习",
+    "verdict": "route",
+    "detail": "#/tutorial → #/tutorial/tut-selinux-basics"
   },
   {
     "page": "教程",
@@ -442,7 +448,7 @@
     "page": "日志分析",
     "label": "INFO",
     "verdict": "dom",
-    "detail": "mutations=26"
+    "detail": "mutations=24"
   },
   {
     "page": "日志分析",

@@ -10,14 +10,13 @@
 import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
-import os from 'node:os'
+import { e2eProfileDir } from './ssh-fixture-helpers'
 
 const OUT_DIR = path.join(__dirname, 'screenshots-acceptance')
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const testOrSkip = fs.existsSync(MAIN_ENTRY) ? test : test.skip
 
 /** e2e 专用 userData，别把测试痕迹写进共享配置 */
-const E2E_USER_DATA_DIR = path.join(os.tmpdir(), 'tdsf-e2e-profile')
 
 /** 落盘图片的最小字节数：再小就是白屏/半屏 */
 const MIN_BYTES = 20_000
@@ -72,7 +71,7 @@ test.describe('TDSF 验收截图', () => {
     test.setTimeout(300_000)
     fs.mkdirSync(OUT_DIR, { recursive: true })
     const app = await electron.launch({
-      args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
+      args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
       env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
       timeout: 90_000,
     })

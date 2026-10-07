@@ -19,7 +19,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
-import { tcpReachable } from './ssh-fixture-helpers'
+import { e2eProfileDir, tcpReachable } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -67,7 +67,7 @@ const testOrSkip = canRun ? test : test.skip
 
 async function launch() {
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const window = await app.firstWindow()

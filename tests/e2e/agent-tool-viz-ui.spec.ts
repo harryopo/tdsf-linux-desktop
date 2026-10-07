@@ -14,7 +14,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
-import { tcpReachable } from './ssh-fixture-helpers'
+import { e2eProfileDir, tcpReachable } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -46,7 +46,7 @@ testOrSkip('UI 发送诊断消息 → 真实 ssh_readonly 调用 → 执行卡�
   test.skip(!up, `靶机 ${SSH?.host}:${SSH?.port} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
   test.setTimeout(180_000)
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const window: Page = await app.firstWindow()

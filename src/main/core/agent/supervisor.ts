@@ -71,6 +71,7 @@ import { createLanguageModel, getDefaultParams } from './providers/provider-fact
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
 import { getProviderCapabilities } from './providers/provider-capabilities'
 import { redactSecrets } from './providers/redact'
+import { buildTerminalContextBlock } from './terminal-context'
 import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeeded } from './context'
 import { createAllSubagents } from './subagents'
@@ -143,6 +144,12 @@ export interface ChatParams {
    * 此处必须是 SshConnectionManager 的 sessionId。
    */
   sshSessionId?: string
+  /**
+   * 终端命令块摘要（阶段 F 补上的消费端）。
+   * 渲染进程把 block-model.toAiContext() 的结果随请求带来，主进程脱敏后注入 system prompt，
+   * 模型因此看得见【刚才跑过哪些命令、各自退出码】。空或不传则完全不注入。
+   */
+  terminalContext?: string
   /**
    * 写命令 HITL 审批回调（v2.9 新增）。
    * ssh_write 工具执行前调用；未注入时写命令一律拒绝（安全默认）。
@@ -396,6 +403,7 @@ class SupervisorAgent {
       onToolEvent,
       correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       sshSessionId,
+      terminalContext,
       approveWriteCommand,
     } = params
 
@@ -1020,8 +1028,18 @@ class SupervisorAgent {
           error: err instanceof Error ? err.message : String(err),
         })
       }
+      // v2.8 之后一直缺的那半截：块收集器产出的 toAiContext() 此前只被状态栏的悬浮提示消费，
+      // 模型一个字都没收到。用户刚跑完 df -h 再问「磁盘为什么满」，看不见那条命令就只能猜。
+      const terminalInjection = buildTerminalContextBlock(terminalContext)
+      if (terminalInjection) {
+        this.log.info('chat 注入终端命令块', { correlationId, chars: terminalInjection.length })
+      }
       const systemPrompt =
-        '你是 Linux 运维与教学助手，回答用中文。' + toolRoute.promptHints + skillInjection + memoryInjection
+        '你是 Linux 运维与教学助手，回答用中文。' +
+        toolRoute.promptHints +
+        skillInjection +
+        memoryInjection +
+        terminalInjection
       const result = streamText({
         model: modelInstance.model,
         ...(systemPrompt ? { system: systemPrompt } : {}),

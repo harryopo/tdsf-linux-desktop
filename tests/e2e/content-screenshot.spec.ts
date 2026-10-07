@@ -11,6 +11,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import { e2eProfileDir } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -29,7 +30,7 @@ async function gotoRoute(window: Page, hash: string, ready: string) {
 testOrSkip('逐页截图 + 知识库真实内容断言', async () => {
   test.setTimeout(180_000)
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const window = await app.firstWindow()

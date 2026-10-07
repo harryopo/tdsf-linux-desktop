@@ -16,6 +16,7 @@
 import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import { e2eProfileDir } from './ssh-fixture-helpers'
 
 /** Electron 主进程入口（需先 pnpm build） */
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
@@ -27,7 +28,7 @@ const testOrSkip = BUILD_READY ? test : test.skip
 /** 启动 Electron 应用并返回首窗口 */
 async function launchApp() {
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: {
       ...process.env,
       NODE_ENV: 'test',

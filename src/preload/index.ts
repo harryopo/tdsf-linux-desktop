@@ -877,9 +877,11 @@ const agentRuntime = {
     providerId?: string,
     strength?: ThinkingStrength | 'auto',
     sshSessionId?: string,
+    terminalContext?: string,
   ): Promise<string> =>
-    // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）
-    ipcRenderer.invoke(AGENT.CHAT, messages, providerId, strength, undefined, sshSessionId),
+    // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）；
+    // 第 6 参为终端命令块摘要（主进程脱敏后注入 system prompt）
+    ipcRenderer.invoke(AGENT.CHAT, messages, providerId, strength, undefined, sshSessionId, terminalContext),
 
   /**
    * 取消进行中的 chat 请求
