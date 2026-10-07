@@ -3,176 +3,126 @@
  *
  * 路由：/settings/risk
  *
- * 设计稿：settings-risk.html（1:1 复刻）
- * - Card 1: 安全防护等级（3 级单选卡片 + 自动拦截 + 脱敏 + 录像保留）
- * - Card 2: 命令风险评级规则表（6 条规则 + 编辑/删除按钮 + 新增规则按钮）
- * - Card 3: 审计日志（4 个开关 + 保留天数，共 5 行）
- * - ActionBar: 保存 / 恢复默认
+ * 这个页面只剩两块真东西：
+ * - 命令风险评级规则：只读，数据来自 risk:rules（主进程 command-rules.json 的快照）
+ * - 审计日志：4 个开关 + 保留天数，由 services/db/audit-repo.ts 真正消费
  *
- * 已移除的假设置（全仓零消费者，遵循 DESIGN.md §10「界面不写未实现的能力」）：
- * 审计日志存储路径（risk.auditPath）与整张「应急响应」Card
- * （risk.emergencyHotkey / risk.autoRollback / risk.rollbackTimeout /
- *  risk.emergencyContact / risk.autoNotify）。
- *
- * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
- * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
- * （规则操作反馈为瞬时 UI 状态，不持久化。）
+ * 删掉的假设置（全仓零消费者，遵循 DESIGN.md §10「界面不写未实现的能力」）：
+ * - 安全防护等级（risk.protectionLevel）、自动拦截（risk.autoBlock）、
+ *   脱敏（risk.desensitize）、录像保留（risk.recordingRetention）：
+ *   拦截与脱敏都由主进程固定执行，拨动开关不改任何行为。
+ * - 三态权限模式（risk.permissionMode）：审批由规则的 requiresConfirm 决定，
+ *   不是用户可设的档位；把它接上等于在界面上放一个「跳过所有审批」的开关。
+ * - risk.rules 的可编辑表格：页面自己存一份规则、增删改都落库，但判定走的是
+ *   随包分发的 command-rules.json，用户改的那张表谁也不读。能随手删掉
+ *   rm -rf / 拦截项的"设置"不是安全特性，所以这张表改成只读真值。
+ * - 更早删掉的：审计存储路径（risk.auditPath）与整张「应急响应」Card。
  */
-import { useState, useEffect, useRef } from 'react'
-import {
-  Shield,
-  AlertTriangle,
-  ScrollText,
-  Edit3,
-  Trash2,
-  Plus,
-} from 'lucide-react'
-import { confirmDialog } from '@/ui'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertTriangle, Loader2, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
+import type { RiskRuleView, RiskRulesSnapshot } from '@shared/ipc-channels'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
-import { RiskRuleModal } from '@/components/settings/RiskRuleModal'
-import {
-  type RiskRule,
-  INITIAL_RULES,
-  LEVEL_LABEL,
-  ACTION_LABEL,
-  LEVEL_TAG_CLASS,
-  ACTION_TAG_CLASS,
-} from '@/components/settings/risk-types'
 import { Switch } from '@/components/trae/Switch'
 import { cn } from '@/components/trae/utils'
 import './Settings.css'
 
-type ProtectionLevel = 'standard' | 'strict' | 'extreme'
-
-interface ProtectionOption {
-  value: ProtectionLevel
-  label: string
-  desc: string
+/** 引擎的 5 档级别 -> 界面标签与样式（样式沿用设计稿的 set-risk-tag--*） */
+const LEVEL_VIEW: Record<RiskRuleView['level'], { label: string; className: string }> = {
+  safe: { label: '安全', className: 'set-risk-tag--none' },
+  low: { label: '低', className: 'set-risk-tag--low' },
+  medium: { label: '中', className: 'set-risk-tag--medium' },
+  high: { label: '高', className: 'set-risk-tag--high' },
+  block: { label: '拒绝', className: 'set-risk-tag--critical' },
 }
 
-const PROTECTION_LEVELS: ProtectionOption[] = [
-  { value: 'standard', label: '标准', desc: '基础命令校验，快速执行' },
-  { value: 'strict', label: '严格', desc: '命令校验+人工审批，平衡安全与效率' },
-  { value: 'extreme', label: '极限', desc: '全量审计+双人审批+沙箱预演' },
-]
-
-/**
- * v2.0 Phase C Task C.6：三态权限模式（与主进程 risk-engine.ts PermissionMode 同构）
- *
- * - 'always'：所有命令都需要人工审批（HC-6 默认，最严格）
- * - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 需审批（兼顾效率与安全）
- * - 'never'：所有命令自动执行，不弹审批（仅用于演示/沙箱，生产禁用）
- */
-type PermissionMode = 'always' | 'auto' | 'never'
-
-interface PermissionOption {
-  value: PermissionMode
-  label: string
-  desc: string
-  badge: string
+/** 一条规则的处置结论：拒绝 > 需确认 > 放行，与 command-gate 的判定口径一致 */
+function verdictOf(rule: RiskRuleView): string {
+  if (rule.level === 'block') return '直接拒绝'
+  if (rule.requiresConfirm) return '需人工确认'
+  return '放行'
 }
 
-const PERMISSION_MODES: PermissionOption[] = [
-  { value: 'always', label: '全部审批', desc: '所有命令都需人工确认后才执行', badge: '最严' },
-  { value: 'auto', label: '智能自动', desc: 'SAFE/LOW 自动放行，MEDIUM 及以上需审批', badge: '推荐' },
-  { value: 'never', label: '自动放行', desc: '所有命令自动执行，无审批弹窗（仅沙箱）', badge: '危险' },
-]
+/** 命令名单展示：超过 5 个收成「rm dd mkfs … +3」，避免一行撑爆表格 */
+function commandsLabel(commands: readonly string[]): string {
+  const shown = commands.slice(0, 5).join(' ')
+  return commands.length > 5 ? `${shown} +${commands.length - 5}` : shown || '—'
+}
 
-/** 只读数值展示框（对应设计稿 set-num） */
-function ReadOnlyNum({ value }: { value: number | string }) {
+function RulesTable({ rules }: { rules: readonly RiskRuleView[] }) {
   return (
-    <div className="set-num">
-      {value}
-    </div>
+    <table className="set-table">
+      <thead>
+        <tr>
+          <th style={{ width: '26%' }}>命中命令</th>
+          <th style={{ width: '12%' }}>级别</th>
+          <th style={{ width: '16%' }}>处置</th>
+          <th style={{ width: '46%' }}>为什么要管</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rules.map((rule) => {
+          const level = LEVEL_VIEW[rule.level]
+          return (
+            <tr key={rule.id}>
+              <td className="col-cmd">
+                {commandsLabel(rule.commands)}
+                {rule.subcommands?.length ? (
+                  <span className="ml-1 text-ink-mute">
+                    {`(${rule.subcommands.join(' ')})`}
+                  </span>
+                ) : null}
+              </td>
+              <td>
+                <span className={cn('set-risk-tag', level.className)}>{level.label}</span>
+              </td>
+              <td>
+                <span className="set-action-tag">{verdictOf(rule)}</span>
+              </td>
+              <td className="text-caption text-ink-dim">{rule.reason}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
 export function RiskSettings() {
-  // Card 1: 安全防护等级
-  const [protectionLevel, setProtectionLevel] = usePersistentState<ProtectionLevel>('risk.protectionLevel', 'strict')
-  const [autoBlock, setAutoBlock] = usePersistentState('risk.autoBlock', true)
-  const [desensitize, setDesensitize] = usePersistentState('risk.desensitize', true)
-  // recordingRetention 为只读展示项，无对应 setter
-  const [recordingRetention] = usePersistentState('risk.recordingRetention', 90)
+  // 只读规则快照：idle 区分"还没取到"与"取到了但是空的"
+  const [rulesState, setRulesState] = useState<
+    { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: RiskRulesSnapshot }
+  >({ status: 'loading' })
+  // 进页面即拉一次；失败后「重新读取」把 fetchKey +1 触发同一 effect 重跑
+  const [fetchKey, setFetchKey] = useState(0)
 
-  // Card 1.5: v2.0 Phase C Task C.6 三态权限模式（与主进程 risk-engine.ts PermissionMode 对应）
-  // 默认 'always'（HC-6 强制审批），用户可在设置中切换为 'auto' 提升效率
-  const [permissionMode, setPermissionMode] = usePersistentState<PermissionMode>('risk.permissionMode', 'always')
-
-  // Card 2: 风险规则
-  const [rules, setRules] = usePersistentState<RiskRule[]>('risk.rules', INITIAL_RULES)
-  const [ruleFeedback, setRuleFeedback] = useState<string | null>(null)
-  const ruleFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // 规则编辑弹窗状态：editingRule=null 表示新增模式，否则为编辑模式
-  const [editingRule, setEditingRule] = useState<RiskRule | null>(null)
-  const [isRuleModalOpen, setIsRuleModalOpen] = useState(false)
-
-  // 清理反馈定时器
   useEffect(() => {
+    let cancelled = false
+    if (!window.electronAPI) {
+      setRulesState({ status: 'error', message: '当前环境拿不到主进程规则（非 Electron 运行时）' })
+      return
+    }
+    setRulesState({ status: 'loading' })
+    window.electronAPI
+      .riskGetRules()
+      .then((data) => {
+        if (!cancelled) setRulesState({ status: 'ready', data })
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setRulesState({ status: 'error', message: (err as Error).message })
+      })
     return () => {
-      if (ruleFeedbackTimerRef.current != null) clearTimeout(ruleFeedbackTimerRef.current)
+      cancelled = true
     }
-  }, [])
+  }, [fetchKey])
 
-  // 显示规则操作反馈（2s 后自动消失）
-  const showRuleFeedback = (msg: string) => {
-    setRuleFeedback(msg)
-    if (ruleFeedbackTimerRef.current != null) clearTimeout(ruleFeedbackTimerRef.current)
-    ruleFeedbackTimerRef.current = setTimeout(() => setRuleFeedback(null), 2000)
-  }
+  const retry = useCallback(() => setFetchKey((k) => k + 1), [])
 
-  // 编辑规则：设置 editingRule 并打开 Modal
-  const handleEditRule = (rule: RiskRule) => {
-    setEditingRule(rule)
-    setIsRuleModalOpen(true)
-  }
-
-  // 删除规则（P1-2 7.2：添加二次确认，与 SSH 删除服务器/密钥行为一致）
-  const handleDeleteRule = async (ruleId: string) => {
-    const target = rules.find((r) => r.id === ruleId)
-    if (!target) return
-    const ok = await confirmDialog({
-      title: '确认删除规则',
-      description: `确定要删除规则"${target.pattern}"吗？此操作不可撤销。`,
-      okText: '删除',
-      danger: true,
-    })
-    if (!ok) return
-    setRules((prev) => prev.filter((r) => r.id !== ruleId))
-    showRuleFeedback(`已删除规则：${target.pattern}`)
-  }
-
-  // 新增规则：editingRule=null 表示新增模式，打开 Modal
-  const handleAddRule = () => {
-    setEditingRule(null)
-    setIsRuleModalOpen(true)
-  }
-
-  // 保存规则（Modal onSave 回调）：editingRule=null 时新增，否则替换 id 匹配的规则
-  const handleSaveRule = (newRule: RiskRule) => {
-    if (editingRule === null) {
-      setRules((prev) => [...prev, newRule])
-    } else {
-      setRules((prev) => prev.map((r) => (r.id === newRule.id ? newRule : r)))
-    }
-    setIsRuleModalOpen(false)
-    setEditingRule(null)
-    showRuleFeedback(`已保存规则：${newRule.pattern}`)
-  }
-
-  // 取消编辑：关闭 Modal 并清空 editingRule 避免状态泄漏
-  const handleCancelEdit = () => {
-    setIsRuleModalOpen(false)
-    setEditingRule(null)
-  }
-
-  // Card 3: 审计日志
+  // 审计日志：4 个开关 + 保留天数，全部由 services/db/audit-repo.ts 消费
   const [auditCmdExec, setAuditCmdExec] = usePersistentState('risk.auditCmdExec', true)
   const [auditFileMod, setAuditFileMod] = usePersistentState('risk.auditFileMod', true)
   const [auditAiDecision, setAuditAiDecision] = usePersistentState('risk.auditAiDecision', true)
@@ -185,184 +135,52 @@ export function RiskSettings() {
       <SettingsPageHeader {...settingsHeader('/settings/risk')} />
 
       <div className="set-subpage__body">
-        {/* Card 1: 安全防护等级 */}
-        <SettingsCard icon={Shield} title="安全防护等级" tag="protection.level">
-          {/* 3 级单选卡片（带左侧 2px 蓝条 + radio dot） */}
-          <div className="set-radiogroup">
-            {PROTECTION_LEVELS.map((opt) => {
-              const selected = protectionLevel === opt.value
-              return (
-                <label
-                  key={opt.value}
-                  className={cn('set-radio-card btn-press', selected && 'is-checked')}
-                >
-                  <input
-                    type="radio"
-                    name="protection-level"
-                    checked={selected}
-                    onChange={() => setProtectionLevel(opt.value)}
-                  />
-                  <div className="set-radio-card__head">
-                    <span className="set-radio-card__title">{opt.label}</span>
-                    <span className="set-radio-card__dot" />
-                  </div>
-                  <span className="set-radio-card__desc">
-                    {opt.desc}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-
-          <SettingsRow
-            label="自动拦截危险命令"
-            desc="命中风险规则时自动阻断执行"
-            control={<Switch checked={autoBlock} onCheckedChange={setAutoBlock} />}
-          />
-          <SettingsRow
-            label="敏感文件自动脱敏"
-            desc=".env / .ssh / *_key 发送前自动 redact"
-            control={<Switch checked={desensitize} onCheckedChange={setDesensitize} />}
-          />
-          <SettingsRow
-            label="操作录像保留天数"
-            desc="终端操作录像的保留周期"
-            control={<ReadOnlyNum value={recordingRetention} />}
-            isLast
-          />
-        </SettingsCard>
-
-        {/* Card 1.5: v2.0 Phase C Task C.6 命令审批模式（三态权限） */}
-        <SettingsCard icon={Shield} title="命令审批模式" tag={PERMISSION_MODES.find((m) => m.value === permissionMode)?.label ?? '全部审批'}>
+        {/* Card 1: 拦截规则（只读真值） */}
+        <SettingsCard
+          icon={ShieldCheck}
+          title="命令风险评级规则"
+          tag={
+            rulesState.status === 'ready'
+              ? `v${rulesState.data.version} · ${rulesState.data.rules.length} 条`
+              : '引擎规则'
+          }
+        >
           <p className="pb-2 pt-1 text-caption leading-[16px] text-ink-dim">
-            控制运维 Agent 执行命令时是否需要人工审批。建议生产环境使用「全部审批」或「智能自动」。
+            下面是主进程真正在用的那份规则：命中「拒绝」的命令一律不执行，标「需人工确认」的先弹审批。
+            规则随应用分发、界面上只读——能在设置里随手删掉 rm -rf 拦截项的「安全设置」不是安全设置。
           </p>
-          <div className="set-radiogroup">
-            {PERMISSION_MODES.map((opt) => {
-              const selected = permissionMode === opt.value
-              const isDanger = opt.value === 'never'
-              return (
-                <label
-                  key={opt.value}
-                  className={cn(
-                    'set-radio-card btn-press',
-                    selected && (isDanger ? 'is-checked is-danger' : 'is-checked'),
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="permission-mode"
-                    checked={selected}
-                    onChange={() => setPermissionMode(opt.value)}
-                  />
-                  <div className="set-radio-card__head">
-                    <span
-                      className={cn(
-                        'set-radio-card__title',
-                        selected && isDanger && 'text-(--status-error-text)',
-                      )}
-                    >
-                      {opt.label}
-                    </span>
-                    <span
-                      className={cn(
-                        'inline-flex h-4 items-center justify-center rounded-[var(--trae-radius-4)] px-1.5 text-micro font-medium',
-                        opt.value === 'never'
-                          ? 'bg-error/10 text-(--status-error-text)'
-                          : opt.value === 'auto'
-                            ? 'bg-accent-solid/15 text-(--accent-text)'
-                            : 'bg-hover text-ink-dim'
-                      )}
-                    >
-                      {opt.badge}
-                    </span>
-                  </div>
-                  <span className="set-radio-card__desc">
-                    {opt.desc}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-          {permissionMode === 'never' && (
-            <div className="mb-1 mt-0.5 rounded-(--ui-radius-control) border border-error/30 bg-error/10 px-3 py-2 text-caption text-(--status-error-text)">
-              风险：自动放行模式——所有命令将跳过审批直接执行，仅建议在隔离的演示/沙箱环境使用。
+
+          {rulesState.status === 'loading' ? (
+            <div className="flex items-center gap-2 py-6 text-caption text-ink-mute">
+              <Loader2 className="size-3.5 animate-spin" />
+              正在读取引擎规则…
             </div>
+          ) : rulesState.status === 'error' ? (
+            <div className="flex items-center justify-between gap-3 rounded-(--ui-radius-control) border border-error/30 bg-error/10 px-3 py-2">
+              <span className="text-caption text-(--status-error-text)">
+                规则读取失败：{rulesState.message}
+              </span>
+              <button
+                type="button"
+                onClick={retry}
+                aria-label="重新读取规则"
+                className="set-btn-ghost btn-press shrink-0"
+              >
+                <RefreshCw className="di-12" />
+                重新读取
+              </button>
+            </div>
+          ) : rulesState.data.rules.length === 0 ? (
+            <div className="flex items-center gap-2 py-6 text-caption text-ink-mute">
+              <AlertTriangle className="di-14" />
+              规则表是空的，所有命令都会直接执行。这通常是安装损坏，请重新安装。
+            </div>
+          ) : (
+            <RulesTable rules={rulesState.data.rules} />
           )}
         </SettingsCard>
 
-        {/* Card 2: 命令风险评级规则表 */}
-        <SettingsCard icon={AlertTriangle} title="命令风险评级规则" tag={`${rules.length} rules`}>
-          <table className="set-table">
-            <thead>
-              <tr>
-                <th style={{ width: '34%' }}>命令模式</th>
-                <th style={{ width: '18%' }}>风险等级</th>
-                <th style={{ width: '18%' }}>动作</th>
-                <th className="col-actions" style={{ width: '30%' }}>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.map((rule) => (
-                <tr key={rule.id}>
-                  <td className="col-cmd">{rule.pattern}</td>
-                  <td>
-                    {rule.level === 'custom' ? (
-                      <span className={ACTION_TAG_CLASS}>{LEVEL_LABEL[rule.level]}</span>
-                    ) : (
-                      <span className={cn('set-risk-tag', LEVEL_TAG_CLASS[rule.level])}>
-                        {LEVEL_LABEL[rule.level]}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={ACTION_TAG_CLASS}>{ACTION_LABEL[rule.action]}</span>
-                  </td>
-                  <td className="col-actions">
-                    <button
-                      type="button"
-                      onClick={() => handleEditRule(rule)}
-                      aria-label={`编辑规则 ${rule.pattern}`}
-                      className="set-btn-ghost btn-press"
-                    >
-                      <Edit3 className="di-12" />
-                      编辑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteRule(rule.id)}
-                      aria-label={`删除规则 ${rule.pattern}`}
-                      className="set-btn-danger btn-press"
-                    >
-                      <Trash2 className="di-12" />
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* 新增规则按钮 + 反馈 */}
-          <div className="flex items-center gap-3 pt-3">
-            <button
-              type="button"
-              onClick={handleAddRule}
-              aria-label="新增规则"
-              className="set-btn-primary btn-press"
-            >
-              <Plus className="di-14" />
-              新增规则
-            </button>
-            {ruleFeedback && (
-              <span className="text-micro text-(--status-success-text)">
-                {ruleFeedback}
-              </span>
-            )}
-          </div>
-        </SettingsCard>
-
-        {/* Card 3: 审计日志（5 行） */}
+        {/* Card 2: 审计日志（4 开关 + 保留天数） */}
         <SettingsCard icon={ScrollText} title="审计日志" tag="audit.log">
           <SettingsRow
             label="记录所有命令执行"
@@ -371,7 +189,7 @@ export function RiskSettings() {
           />
           <SettingsRow
             label="记录文件修改"
-            desc="追踪写入、删除、权限变更等操作"
+            desc="追踪上传、删除、改名、改权限、写文件、建目录"
             control={<Switch checked={auditFileMod} onCheckedChange={setAuditFileMod} />}
           />
           <SettingsRow
@@ -392,23 +210,9 @@ export function RiskSettings() {
           />
         </SettingsCard>
 
-        {/* 规则编辑弹窗（新增/编辑模式共用） */}
-        <RiskRuleModal
-          open={isRuleModalOpen}
-          editingRule={editingRule}
-          onSave={handleSaveRule}
-          onCancel={handleCancelEdit}
-        />
-
         <SettingsActionBar
           onReset={() => {
-            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
-            // 注意：recordingRetention / auditRetention 为只读展示项（无 setter），不参与重置
-            setProtectionLevel('strict')
-            setAutoBlock(true)
-            setDesensitize(true)
-            setPermissionMode('always')
-            setRules(INITIAL_RULES)
+            // 只重置本页面真正存在的开关；auditRetention 为只读展示项（无 setter）不参与
             setAuditCmdExec(true)
             setAuditFileMod(true)
             setAuditAiDecision(true)
@@ -418,4 +222,9 @@ export function RiskSettings() {
       </div>
     </div>
   )
+}
+
+/** 只读数值展示框（对应设计稿 set-num） */
+function ReadOnlyNum({ value }: { value: number | string }) {
+  return <div className="set-num">{value}</div>
 }

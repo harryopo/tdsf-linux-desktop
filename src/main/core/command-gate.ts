@@ -303,6 +303,9 @@ export const COMMAND_RULES_SNAPSHOT = {
   blockDetectors: RULES.denyBaseline.blockDetectors,
   rules: RULES.argvRules.map((r) => ({
     id: r.id,
+    // 命令名给解析后的真实名单：数据文件里 '@readonlyCommands' 这种引用直接显示给用户看不懂
+    commands: resolveCommands(r.commands),
+    subcommands: r.subcommands,
     level: r.level,
     reason: r.reason,
     requiresConfirm: r.requiresConfirm,

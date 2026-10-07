@@ -16,7 +16,8 @@
  */
 
 import { ipcMain } from 'electron'
-import { RISK } from '@shared/ipc-channels'
+import { RISK, type RiskRulesSnapshot } from '@shared/ipc-channels'
+import { COMMAND_RULES_SNAPSHOT } from '../core/command-gate'
 import { assessCommandRisk } from './sandbox-approval'
 import type { CommandRiskLevel } from './sandbox-approval'
 import { logger } from '../services/log/logger'
@@ -43,4 +44,25 @@ export function registerRiskHandlers(): void {
       return result
     },
   )
+
+  /**
+   * risk:rules — 把真正生效的拦截规则表给设置页展示
+   *
+   * 为什么要有这条：风险控制页原来自己维护一张可增删的"规则表"（risk.rules），
+   * 但判定走的是主进程 command-rules.json，用户改的那张表谁也不读。
+   * 现在页面显示的就是引擎实际用的那份，规则本身仍是随包分发的数据文件，
+   * 不在界面上开放编辑——能随手删掉 rm -rf / 拦截项的"设置"不是安全特性。
+   */
+  ipcMain.handle(RISK.RULES, async (): Promise<RiskRulesSnapshot> => {
+    const snapshot = COMMAND_RULES_SNAPSHOT
+    logger.debug('IPC.RISK', 'risk:rules 读取完成', {
+      version: snapshot.version,
+      ruleCount: snapshot.rules.length,
+    })
+    return {
+      version: snapshot.version,
+      blockDetectors: snapshot.blockDetectors,
+      rules: snapshot.rules,
+    }
+  })
 }

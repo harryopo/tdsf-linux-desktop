@@ -354,21 +354,40 @@ try {
     report.screens.push({ route: r.hash, png: file, ...m })
   }
 
-  // 2) 弹层实测：确认框 / 右键菜单 / 悬浮提示 / 添加规则（antd Modal）
+  // 2) 风险控制页功能实测：只读规则表真的把引擎规则画出来了（不是空表、不是错误态）
   await evalIn(ws, `location.hash = '#/settings/risk'`)
+  await sleep(1800)
+  report.riskRules = await evalIn(ws, `(() => {
+    const rows = [...document.querySelectorAll('.set-table tbody tr')];
+    const text = document.querySelector('.set-subpage')?.innerText || '';
+    return {
+      rowCount: rows.length,
+      firstRow: rows[0] ? rows[0].innerText.replace(/\\s+/g, ' ').trim() : null,
+      hasError: text.includes('规则读取失败'),
+      hasInternalRef: text.includes('@'),
+      addRuleButton: [...document.querySelectorAll('button')].some((b) => (b.textContent || '').includes('新增规则')),
+    };
+  })()`)
+  await shot(ws, '13b-settings-risk-rules')
+
+  // 3) 弹层实测：antd Modal（添加服务器表单）/ 自研确认框 / 右键菜单
+  //    2026-10-06 换目标：风险控制页的可编辑规则表已删（假设置），
+  //    这里改从 SSH 设置页取——那页的添加服务器是仅存的 antd 表单弹窗之一，删除服务器走自研 confirmDialog。
+  await evalIn(ws, `location.hash = '#/settings/ssh'`)
   await sleep(1600)
   await evalIn(ws, `(async () => {
-    const add = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('新增'));
+    const add = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('添加服务器'));
     if (add) add.click();
     await new Promise((x) => setTimeout(x, 900));
   })()`)
   report.modalAntd = await evalIn(ws, MEASURE)
-  await shot(ws, '13-modal-antd-add-rule')
+  await shot(ws, '14-modal-antd-connect')
   await evalIn(ws, `(() => { const c = document.querySelector('.ant-modal-close, .ant-modal button'); if (c) c.click(); })()`)
   await sleep(600)
 
   await evalIn(ws, `(async () => {
-    const del = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('删除'));
+    const del = [...document.querySelectorAll('button')].find((b) =>
+      (b.textContent||'').includes('删除') || (b.getAttribute('aria-label')||'').startsWith('删除'));
     if (del) del.click();
     await new Promise((x) => setTimeout(x, 900));
   })()`)
@@ -428,6 +447,15 @@ try {
     for (const s of layers) {
       const offIcon = (s.offTierIcons || []).map((o) => `${o.size}「${o.at || o.cls}」`)
       if (offIcon.length) bad.push(`弹层: 图标尺寸不在刻度内 — ${offIcon.join(', ')}`)
+    }
+    // 风险控制页：只读规则表必须是引擎真值（空表/错误态/内部引用名/可编辑按钮都算缺陷）
+    const rr = report.riskRules
+    if (!rr) bad.push('风险控制页规则表没测到（探针没跑成，别当成通过）')
+    else {
+      if (rr.hasError) bad.push('风险控制页规则读取失败，显示的是错误态而不是引擎真值')
+      if (rr.rowCount < 7) bad.push(`风险控制页只画出 ${rr.rowCount} 条规则（主进程快照实测 7 条）`)
+      if (rr.hasInternalRef) bad.push(`风险控制页漏出了内部引用名（@名单）：${rr.firstRow}`)
+      if (rr.addRuleButton) bad.push('风险控制页又出现「新增规则」按钮——拦截规则不该在界面上可编辑')
     }
     // 模块页左上角必须是同一个 PageHeader，且是 --ui-font-head（20px）+ semibold
     const SHELL_ROUTES = ['#/workbench'] // 外壳页的左上角是标题栏，不是模块标题

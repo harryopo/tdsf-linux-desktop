@@ -1117,7 +1117,30 @@ export const TASK = {
 export const RISK = {
   /** 检查命令风险等级（invoke: 渲染 → 主，桥接 assessCommandRisk） */
   CHECK: 'risk:check',
+  /** 读取真正生效的拦截规则表（invoke: 渲染 → 主，桥接 COMMAND_RULES_SNAPSHOT） */
+  RULES: 'risk:rules',
 } as const
+
+/** risk:rules 的单条规则视图（与主进程 COMMAND_RULES_SNAPSHOT.rules 同形） */
+export interface RiskRuleView {
+  id: string
+  /** 命中的命令名（数据文件里的 '@名单' 引用已展开成真实命令列表） */
+  commands: readonly string[]
+  /** null = 只看 argv0；数组 = 参数里还要命中其中之一 */
+  subcommands: readonly string[] | null
+  level: 'safe' | 'low' | 'medium' | 'high' | 'block'
+  reason: string
+  requiresConfirm: boolean
+  audit: boolean
+  irreversible: boolean
+}
+
+/** risk:rules 的返回载荷 */
+export interface RiskRulesSnapshot {
+  version: number
+  blockDetectors: readonly string[]
+  rules: readonly RiskRuleView[]
+}
 
 /**
  * 告警 IPC 通道常量（M3 新增：告警确认）

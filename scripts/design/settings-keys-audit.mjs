@@ -68,6 +68,7 @@ const WIRED = {
   'ssh.allowPasswordAuth': "pages/SshSettings.tsx 换算成 sshDefaults.authType（'password'/'privateKey'）",
   // 审计四开关 + 保留期：services/db/audit-repo.ts 按类别决定是否落 audit_logs
   'risk.auditCmdExec': 'services/db/audit-repo.ts（connection-manager.exec 完成/失败时写）',
+  'risk.auditFileMod': 'services/db/audit-repo.ts（ipc/ssh.ts 的上传/删除/改名/改权限/写文件/建目录 6 个入口写）',
   'risk.auditAiDecision': 'services/db/audit-repo.ts（agent-workflow 确认步写）',
   'risk.auditSshConn': 'services/db/audit-repo.ts（SSH 连接建立/失败写）',
   'risk.auditRetention': 'services/db/audit-repo.ts pruneExpired，主进程启动时按天数清理',
@@ -83,20 +84,16 @@ const WIRED = {
 /**
  * 已知没接上的设置键（欠账登记，不是许可）。
  * 每一条要么接上消费者、要么把控件删掉；数量只许降不许升（见 FAKE_CAP）。
+ *
+ * 2026-10-06 清空：风险控制页剩下的 6 个假开关（protectionLevel / autoBlock /
+ * desensitize / permissionMode / recordingRetention / rules）连同控件一起删了，
+ * 拦截规则改为只读显示主进程真正在用的那份（risk:rules），
+ * 「记录文件修改」接上了 ipc/ssh.ts 的 6 个 SFTP 写入口。
  */
-const FAKE = {
-  // 风险控制页：整页宣称的策略都没进主进程
-  'risk.protectionLevel': '未接：主进程 command-gate 不看这个等级',
-  'risk.autoBlock': '未接：拦截由 command-gate 决定，关掉此开关也照样拦',
-  'risk.desensitize': '未接：日志脱敏没有读这个键',
-  'risk.permissionMode': '未接：claude-sdk-provider 写死 bypassPermissions',
-  'risk.auditFileMod': '未接：远程文件改动还没有统一写入口（SFTP 传输在渲染层发起）',
-  'risk.recordingRetention': '未接：没有操作录像功能',
-  'risk.rules': '未接：真正生效的规则在 src/main/core/command-rules.json',
-}
+const FAKE = {}
 
-/** 假设置上限：等于 2026-10-06 实测值，只能往下调 */
-const FAKE_CAP = 7
+/** 假设置上限：0 = 界面上每一个设置都必须有消费者，多一个都过不去 */
+const FAKE_CAP = 0
 
 /** 递归收集 .ts/.tsx（跳过 .d.ts） */
 function sourceFiles(dir, acc = []) {

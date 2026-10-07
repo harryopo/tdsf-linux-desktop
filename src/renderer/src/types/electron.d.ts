@@ -49,6 +49,10 @@ import type {
   SftpProgressEvent,
 } from '@shared/models'
 
+// 拦截规则只读快照（risk:rules）——与主进程 COMMAND_RULES_SNAPSHOT 同形，
+// 类型定义只有一份，在 src/shared/ipc-channels.ts
+import type { RiskRulesSnapshot } from '@shared/ipc-channels'
+
 // 部署助手类型（来自共享层 @shared/deploy-types）
 import type {
   DeployTemplate as DeployTemplateModel,
@@ -1438,6 +1442,17 @@ export interface ElectronAPI {
    */
   riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
 
+  // ===== 拦截规则只读快照（risk:rules）=====
+  /**
+   * 读取主进程真正在用的命令拦截规则（桥接 COMMAND_RULES_SNAPSHOT）
+   *
+   * 通道：risk:rules
+   * 用途：风险控制页显示引擎实际生效的那份规则，命令名已展开、不含内部引用。
+   *      规则本身随包分发，界面上不可编辑——能在设置里删掉 rm -rf 拦截项的
+   *      "安全设置"不是安全设置。
+   */
+  riskGetRules(): Promise<RiskRulesSnapshot>
+
   // ===== M3 Task 2 新增：告警确认（alert:ack） =====
   /**
    * 确认告警（标记已处理），主进程内存 Map 记录 ack 状态
@@ -2099,6 +2114,8 @@ export interface ElectronAPI {
   credibilityExportAudit(decisionId: string, format: string): Promise<string>
   /** 检查命令风险等级（M2 Task 2，桥接 assessCommandRisk） */
   riskCheck(command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }>
+  /** 读取主进程真正生效的拦截规则表（risk:rules，只读） */
+  riskGetRules(): Promise<RiskRulesSnapshot>
   /** 确认告警（M3 Task 2，主进程内存 Map 记录 ack 状态） */
   alertAck(alertId: string): Promise<boolean>
 

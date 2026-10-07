@@ -62,6 +62,7 @@ import {
   PAOR,
   // M2 Task 2 新增：命令风险评估 IPC（risk:check）
   RISK,
+  type RiskRulesSnapshot,
   // M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
   ALERT,
   // M5 Task 3 新增：启动加载阶段推送 IPC（boot:loading-stage，主进程向渲染层推送加载进度）
@@ -2641,6 +2642,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 桥接 assessCommandRisk（AST 优先 + 正则降级），空命令返回 low（不抛错）
   riskCheck: (command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }> =>
     ipcRenderer.invoke(RISK.CHECK, command),
+
+  // ===== 拦截规则表只读快照（risk:rules）=====
+  // 设置页「命令风险评级规则」显示的就是主进程真正在用的那份数据，
+  // 不再是页面自己维护、没人读的 risk.rules
+  riskGetRules: (): Promise<RiskRulesSnapshot> => ipcRenderer.invoke(RISK.RULES),
 
   // ===== M3 Task 2 新增：告警确认扁平化（alert:ack） =====
   // 通道与主进程 ipc/alert.ts 一一对应；UI 调用方式：

@@ -2,62 +2,27 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-06T04:04:12.774Z",
+  "lastUpdated": "2026-10-07T04:45:27.575Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-06T02:22:09.905Z",
-      "lastActiveAt": "2026-10-06T04:04:12.774Z",
-      "task": "apple-aesthetic-unify",
+      "startedAt": "2026-10-07T04:45:27.575Z",
+      "lastActiveAt": "2026-10-07T04:45:27.575Z",
+      "task": "risk:rules 通道入库",
       "claimedFiles": [
         {
-          "path": "src/renderer/src/ui/surface.tsx",
-          "task": "apple-aesthetic-unify",
-          "claimedAt": "2026-10-06T02:22:09.905Z"
+          "path": "src/preload/index.ts",
+          "task": "risk:rules 通道入库",
+          "claimedAt": "2026-10-07T04:45:27.575Z"
         },
         {
-          "path": "src/renderer/src/ui/index.ts",
-          "task": "apple-aesthetic-unify",
-          "claimedAt": "2026-10-06T02:22:11.559Z"
-        },
-        {
-          "path": "src/renderer/src/ui/confirm.tsx",
-          "task": "apple-aesthetic-unify",
-          "claimedAt": "2026-10-06T02:22:13.171Z"
-        },
-        {
-          "path": "src/renderer/src/styles/ui-tokens.css",
-          "task": "apple-aesthetic-unify",
-          "claimedAt": "2026-10-06T02:22:14.771Z"
-        },
-        {
-          "path": "tests/unit/ui-tokens.test.ts",
-          "task": "apple-aesthetic-unify",
-          "claimedAt": "2026-10-06T02:22:16.402Z"
-        },
-        {
-          "path": "DESIGN.md",
-          "task": "apple-aesthetic-unify",
-          "claimedAt": "2026-10-06T02:22:20.386Z"
-        },
-        {
-          "path": "AGENTS.md",
-          "task": "design-contract-wire",
-          "claimedAt": "2026-10-06T04:04:08.191Z"
-        },
-        {
-          "path": "CLAUDE.md",
-          "task": "design-contract-wire",
-          "claimedAt": "2026-10-06T04:04:10.502Z"
-        },
-        {
-          "path": "CODING.md",
-          "task": "design-contract-wire",
-          "claimedAt": "2026-10-06T04:04:12.774Z"
+          "path": "src/shared/ipc-channels.ts",
+          "task": "risk:rules 通道入库",
+          "claimedAt": "2026-10-07T04:45:27.575Z"
         }
       ],
-      "expiresAt": "2026-10-06T06:04:12.774Z"
+      "expiresAt": "2026-10-07T06:45:27.575Z"
     }
   },
   "history": [
@@ -5443,6 +5408,230 @@
       "file": "CODING.md",
       "task": "design-contract-wire",
       "timestamp": "2026-10-06T04:04:12.774Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-06T08:38:01.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-06T08:38:01.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.d.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-06T08:38:01.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-06T08:38:01.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/RiskSettings.tsx",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-06T09:29:48.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/GeneralSettings.tsx",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-06T09:29:48.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/ssh.ts",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-06T09:29:48.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/design/settings-keys-audit.mjs",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-06T09:29:48.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/RiskRuleModal.tsx",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-06T09:29:48.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/settings/risk-types.ts",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-06T09:29:48.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/Settings.css",
+      "task": "risk页只读规则表：死CSS清理",
+      "timestamp": "2026-10-06T10:16:12.611Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/exit-antd-dialog.test.ts",
+      "task": "risk页只读规则表：死CSS清理",
+      "timestamp": "2026-10-06T10:16:12.611Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/GeneralSettings.tsx",
+      "task": "risk页只读规则表：死CSS清理",
+      "timestamp": "2026-10-06T10:16:12.611Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.d.ts",
+      "task": "risk:rules 声明",
+      "timestamp": "2026-10-06T10:30:30.618Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/design/design-contract.mjs",
+      "task": "收紧闸门读数",
+      "timestamp": "2026-10-06T10:49:21.698Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "收紧闸门读数",
+      "timestamp": "2026-10-06T10:49:21.698Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.d.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "guard-rules-readonly",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/RiskSettings.tsx",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/GeneralSettings.tsx",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/ssh.ts",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/design/settings-keys-audit.mjs",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/RiskRuleModal.tsx",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/settings/risk-types.ts",
+      "task": "risk页规则改只读+auditFileMod接线",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/Settings.css",
+      "task": "risk页只读规则表：死CSS清理",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/exit-antd-dialog.test.ts",
+      "task": "risk页只读规则表：死CSS清理",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/design/design-contract.mjs",
+      "task": "收紧闸门读数",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "收紧闸门读数",
+      "timestamp": "2026-10-07T04:44:15.792Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "risk:rules 通道入库",
+      "timestamp": "2026-10-07T04:45:27.575Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "risk:rules 通道入库",
+      "timestamp": "2026-10-07T04:45:27.575Z"
     }
   ],
   "coordinationAudit": {

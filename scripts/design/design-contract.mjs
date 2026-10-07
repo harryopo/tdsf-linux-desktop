@@ -87,8 +87,8 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 71,
-    why: '2026-10-06 设置区标题改走 settings-sections 单源后实测 72→71。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 70,
+    why: '2026-10-06 风险控制页假设置删除后实测 71→70（那页的权限卡自带 --trae-radius-4）。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
@@ -99,8 +99,8 @@ const RATCHETS = [
   {
     name: '还 import antd 的渲染层文件数',
     now: countFiles("from 'antd'", '*.tsx'),
-    cap: 11,
-    why: '2026-10-06 实测 11（Spin 已退出 3 个页面）。与 exit-antd-dialog.test.ts 同口径',
+    cap: 10,
+    why: '2026-10-06 规则编辑弹窗随假设置一起删掉后实测 11→10。与 exit-antd-dialog.test.ts 同口径',
   },
 ]
 

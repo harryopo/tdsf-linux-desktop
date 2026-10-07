@@ -46,12 +46,11 @@ const MIGRATED = [
 /** 仍带 antd Form 的弹窗：换完一个就从这里删一个 */
 const PENDING_FORM = [
   'src/renderer/src/components/layout/ConnectDialog.tsx',
-  'src/renderer/src/components/settings/RiskRuleModal.tsx',
   'src/renderer/src/pages/SshSettings.tsx',
 ]
 
-/** 还 import antd 的渲染层文件数闸门：2026-10-06 实测 11（Spin 退出 3 个页面），只许降不许升 */
-const CAP_ANTD_FILES = 11
+/** 还 import antd 的渲染层文件数闸门：2026-10-06 实测 10（规则编辑弹窗随假设置一起删了），只许降不许升 */
+const CAP_ANTD_FILES = 10
 
 describe('对话框已统一到自研 Dialog', () => {
   it('扫到了源码文件（不是空跑）', () => {

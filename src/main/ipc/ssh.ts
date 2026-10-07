@@ -31,6 +31,7 @@ import { redactSecrets } from '../core/agent/providers/redact'
 import { evaluateCommand } from '../core/command-gate'
 import { recordToolCall } from './model-stats'
 import { DatabaseManager } from '../services/db/database'
+import { AuditRepo } from '../services/db/audit-repo'
 import type {
   SshConfig,
   SshHostKeyPromptEvent,
@@ -337,6 +338,21 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
   // SFTP 文件管理
   // ------------------------------------------------------------------
 
+  /**
+   * 远程文件改动写审计（风险页「记录文件修改」= risk.auditFileMod 的唯一消费者）
+   *
+   * 只记动作 + 路径 + 会话号：文件内容不进审计表，路径按 redactSecrets 过一遍
+   * （用户可能把口令写进文件名的极端情况）。审计是旁路，记不上不影响文件操作。
+   */
+  const auditFileMod = (action: string, sessionId: string, target: string): void => {
+    new AuditRepo(DatabaseManager.getInstance()).log({
+      category: 'file_mod',
+      action,
+      sessionId,
+      command: redactSecrets(target),
+    })
+  }
+
   /** sftp:list — 列出远程目录 */
   ipcMain.handle(
     SFTP.LIST,
@@ -362,7 +378,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       transferId?: string
     ) => {
       try {
-        return await sftpManager.upload(
+        const result = await sftpManager.upload(
           sessionId,
           localPath,
           remotePath,
@@ -378,6 +394,8 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
             })
           }
         )
+        auditFileMod('SFTP 上传覆盖', sessionId, `${localPath} -> ${remotePath}`)
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 上传失败', { sessionId, error: safeMsg })
@@ -426,7 +444,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     SFTP.DELETE,
     async (_event, sessionId: string, remotePath: string) => {
       try {
-        return await sftpManager.delete(sessionId, remotePath)
+        const result = await sftpManager.delete(sessionId, remotePath)
+        auditFileMod('SFTP 删除', sessionId, remotePath)
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 删除失败', { sessionId, error: safeMsg })
@@ -445,7 +465,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       newPath: string
     ) => {
       try {
-        return await sftpManager.rename(sessionId, oldPath, newPath)
+        const result = await sftpManager.rename(sessionId, oldPath, newPath)
+        auditFileMod('SFTP 重命名', sessionId, `${oldPath} -> ${newPath}`)
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 重命名失败', { sessionId, error: safeMsg })
@@ -459,7 +481,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     SFTP.CHMOD,
     async (_event, sessionId: string, remotePath: string, mode: number) => {
       try {
-        return await sftpManager.chmod(sessionId, remotePath, mode)
+        const result = await sftpManager.chmod(sessionId, remotePath, mode)
+        auditFileMod('SFTP 改权限', sessionId, `chmod ${mode.toString(8)} ${remotePath}`)
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP chmod 失败', { sessionId, error: safeMsg })
@@ -496,7 +520,10 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       content: string
     ) => {
       try {
-        return await sftpManager.writeFile(sessionId, remotePath, content)
+        const result = await sftpManager.writeFile(sessionId, remotePath, content)
+        // 只记路径和字节数：文件内容可能带口令、密钥，不进审计表
+        auditFileMod('SFTP 写文件', sessionId, `${remotePath} (${content.length} 字节)`)
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 写入文件失败', { sessionId, error: safeMsg })
@@ -524,7 +551,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     SFTP.MKDIR,
     async (_event, sessionId: string, remotePath: string) => {
       try {
-        return await sftpManager.mkdir(sessionId, remotePath)
+        const result = await sftpManager.mkdir(sessionId, remotePath)
+        auditFileMod('SFTP 建目录', sessionId, remotePath)
+        return result
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP mkdir 失败', { sessionId, error: safeMsg })
