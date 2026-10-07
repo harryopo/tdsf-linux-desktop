@@ -123,11 +123,9 @@ const chip = cva(
   }
 )
 
-export function Chip({
-  className,
-  tone,
-  ...props
-}: HTMLAttributes<HTMLSpanElement> & VariantProps<typeof chip>) {
+export type ChipProps = HTMLAttributes<HTMLSpanElement> & VariantProps<typeof chip>
+
+export function Chip({ className, tone, ...props }: ChipProps) {
   return <span className={cn(chip({ tone }), className)} {...props} />
 }
 

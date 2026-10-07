@@ -148,6 +148,63 @@ export function DialogContent({
   )
 }
 
+/**
+ * 侧滑抽屉：看一条长内容的浮层（告警详情、检查结果）。
+ *
+ * 行为与 DialogContent 同源（radix 负责焦点陷阱 / Esc / aria-modal / portal），
+ * 差别只在版式：贴右边、上下通高、左侧圆角，宽度用 DESIGN.md §5 的 420px 档。
+ * 以前这块是 antd Drawer，样式靠内联色值拼，浅色主题下会带出一块深色底。
+ */
+export const Sheet = RadixDialog.Root
+
+export function SheetContent({
+  title,
+  badge,
+  children,
+  footer,
+  className,
+}: {
+  title: ReactNode
+  /** 标题前的级别/状态标记 */
+  badge?: ReactNode
+  children?: ReactNode
+  footer?: ReactNode
+  className?: string
+}) {
+  return (
+    <RadixDialog.Portal>
+      <RadixDialog.Overlay className="fixed inset-0 z-(--ui-z-modal) bg-black/50 backdrop-blur-[2px]" />
+      <RadixDialog.Content
+        className={cn(
+          'fixed right-0 top-0 z-(--ui-z-modal) flex h-full w-[min(420px,92vw)] flex-col',
+          'rounded-l-(--ui-radius-panel) bg-raised shadow-(--shadow-lg) focus:outline-none',
+          className
+        )}
+      >
+        <div className="flex shrink-0 items-start gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            {badge ? <div className="mb-1.5 flex items-center gap-2">{badge}</div> : null}
+            <RadixDialog.Title className="text-head font-semibold break-words text-ink-strong">
+              {title}
+            </RadixDialog.Title>
+          </div>
+          <RadixDialog.Close asChild>
+            <IconButton label="关闭" size="sm">
+              <X className="size-4" />
+            </IconButton>
+          </RadixDialog.Close>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto border-t border-line">{children}</div>
+        {footer ? (
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-4 py-3">
+            {footer}
+          </div>
+        ) : null}
+      </RadixDialog.Content>
+    </RadixDialog.Portal>
+  )
+}
+
 export const Menu = RadixMenu.Root
 export const MenuTrigger = RadixMenu.Trigger
 

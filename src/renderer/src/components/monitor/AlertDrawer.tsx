@@ -3,120 +3,72 @@
  *
  * 设计稿：spec §B SubTask 2.4.6
  *
- * 决策依据（DEC-3）：monitor 页告警列表点击后弹出右侧 Drawer 展示详情，
+ * 决策依据（DEC-3）：monitor 页告警列表点击后弹出右侧抽屉展示详情，
  * 不新建 alert-detail.html，避免死链、避免增加页面数量。
  *
- * 内容：
- * - 顶部：告警级别 Tag + 标题 + 关闭按钮
- * - 详情字段：时间 / 来源 / 服务器 / 状态
- * - 影响评估（一段文字）
- * - 处置建议（3 步编号列表）
+ * 内容：级别标记 + 标题、详情字段（时间/服务器/来源）、影响评估、处置建议，
+ * 底部「标记已处理」走 alert:ack IPC（主进程不可用时禁用并说明为什么）。
  *
- * 安全：
- * - role="dialog" + aria-modal="true"（AntD Drawer 内部 RcDrawer 默认提供）
- * - ESC 关闭（AntD Drawer 自带）
- * - 焦点管理（AntD Drawer 自动 focus）
+ * 抽屉本体是 ui 层的 Sheet（radix Dialog 包的一层），焦点陷阱 / Esc / aria-modal
+ * 都由 radix 提供。2026-10-07 从 antd Drawer 换过来，顺带去掉那叠内联色值：
+ * 抽屉底色原先写死深色变量，切浅色主题时会带出一块黑底。
  *
  * Spec: build-runnable-tdsf-from-design · Task 2.4 · SubTask 2.4.6
  */
-import { useState } from 'react'
-import { Drawer, Tag } from 'antd'
-import { Tooltip } from '@/ui'
+import { useState, type ReactNode } from 'react'
+import { Button, Chip, Sheet, SheetContent, StatusDot, Tooltip, type ChipProps } from '@/ui'
 import type { AlertRecord, RiskLevel } from './monitor-model'
 
-/** 风险级别 → Tag 颜色 + 中文标签 */
-function riskTagProps(level: RiskLevel): { color: string; bg: string; label: string } {
-  switch (level) {
-    case 'critical':
-      return {
-        color: 'var(--status-error-text)',
-        bg: 'var(--trae-status-error-surface-l1)',
-        label: 'critical',
-      }
-    case 'high':
-      return {
-        color: 'var(--status-warning-text)',
-        bg: 'var(--trae-status-warning-surface-l1)',
-        label: 'high',
-      }
-    case 'medium':
-      return {
-        color: 'var(--status-error-text)',
-        bg: 'var(--trae-status-alert-surface-l1)',
-        label: 'medium',
-      }
-    case 'low':
-      return {
-        color: 'var(--trae-accent-cyan)',
-        bg: 'rgba(4, 203, 229, 0.16)',
-        label: 'low',
-      }
-  }
+/** 风险级别 -> 中文标签 + Chip 色调（与风险控制页的级别说法保持一致） */
+const RISK_VIEW: Record<RiskLevel, { label: string; tone: ChipProps['tone'] }> = {
+  critical: { label: '严重', tone: 'error' },
+  high: { label: '高', tone: 'warning' },
+  medium: { label: '中', tone: 'accent' },
+  low: { label: '低', tone: 'neutral' },
 }
 
-/** 状态 → 颜色 */
-function statusColor(status: AlertRecord['status']): string {
-  switch (status) {
-    case '未处理':
-      return 'var(--trae-status-error-default)'
-    case '处理中':
-      return 'var(--trae-status-warning-default)'
-    case '已处理':
-      return 'var(--trae-status-success-default)'
-  }
+/** 告警状态 -> 状态点：进行中是旋转环，让色盲用户也分得清「在跑」和「跑完」 */
+const STATUS_VIEW: Record<AlertRecord['status'], 'error' | 'pending' | 'success'> = {
+  未处理: 'error',
+  处理中: 'pending',
+  已处理: 'success',
 }
 
-/** 详情字段行 */
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-start gap-2 py-1.5">
-      <span className="mon-drawer-detail-label">{label}</span>
-      <span className="mon-drawer-detail-value">{value}</span>
+    <div className="flex items-start gap-3 py-1.5">
+      <span className="w-14 shrink-0 text-caption text-ink-mute">{label}</span>
+      <span className="min-w-0 flex-1 break-all text-md text-ink">{value}</span>
     </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="border-b border-line px-4 py-3">
+      <h3 className="text-caption font-medium text-ink-mute">{title}</h3>
+      <div className="mt-1.5 text-md leading-relaxed text-ink-dim">{children}</div>
+    </section>
   )
 }
 
 export interface AlertDrawerProps {
   /** 是否打开 */
   open: boolean
-  /** 告警记录（null 时关闭） */
+  /** 告警记录（null 时不渲染抽屉） */
   alert: AlertRecord | null
   /** 关闭回调 */
   onClose: () => void
 }
 
-/**
- * 告警详情抽屉
- *
- * - 从右侧滑入，宽度 420px
- * - 显示告警级别、标题、详情字段、影响范围、处置建议
- * - 底部"标记已处理"按钮：调用 alert:ack IPC（主进程内存 Map 记录），降级时 disabled
- */
 export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
   // M3 Task 2：标记已处理状态（alert:ack IPC 调用中 / 错误信息）
-  // hooks 必须在条件 return 之前调用（React hooks 规则）
   const [acking, setAcking] = useState(false)
   const [ackError, setAckError] = useState<string | null>(null)
 
-  if (!alert) {
-    return (
-      <Drawer
-        open={false}
-        onClose={onClose}
-        width={420}
-        placement="right"
-        title={null}
-        styles={{
-          header: { display: 'none' },
-          body: { padding: 0 },
-        }}
-      >
-        <div />
-      </Drawer>
-    )
-  }
+  if (!alert) return null
 
-  const risk = riskTagProps(alert.level)
+  const risk = RISK_VIEW[alert.level]
 
   /**
    * 生成稳定 alertId：基于告警字段组合（AlertRecord 无 id 字段，由渲染层生成）
@@ -126,26 +78,19 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
    */
   const alertId = `${alert.time}|${alert.server}|${alert.desc.slice(0, 30)}`
 
-  /**
-   * electronAPI 可用性检查（降级判断）
-   *
-   * 旧版 preload 未暴露 alertAck 时，按钮 disabled + tooltip 提示
-   */
+  /** 旧版 preload 未暴露 alertAck 时：按钮禁用，并把「为什么不能点」说给用户看 */
   const ackAvailable =
     typeof window !== 'undefined' &&
     typeof window.electronAPI?.alertAck === 'function'
 
-  /** 标记已处理：调用 alert:ack IPC，成功后关闭 Drawer */
+  /** 标记已处理：调用 alert:ack IPC，成功后关闭抽屉 */
   const handleAck = async () => {
     setAcking(true)
     setAckError(null)
     try {
       const ok = await window.electronAPI.alertAck(alertId)
-      if (ok) {
-        onClose()
-      } else {
-        setAckError('确认失败：告警 ID 无效')
-      }
+      if (ok) onClose()
+      else setAckError('确认失败：告警 ID 无效')
     } catch (err) {
       setAckError(err instanceof Error ? err.message : '确认告警失败')
     } finally {
@@ -154,159 +99,70 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
   }
 
   return (
-    <Drawer
-      open={open}
-      onClose={onClose}
-      width={420}
-      placement="right"
-      title={null}
-      closable={false}
-      styles={{
-        header: { display: 'none' },
-        body: { padding: 0, background: 'var(--trae-bg-base-secondary)' },
-        mask: { background: 'rgba(0, 0, 0, 0.4)' },
-        content: {
-          background: 'var(--trae-bg-base-secondary)',
-          borderLeft: '1px solid var(--trae-border-neutral-l1)',
-        },
-      }}
-    >
-      <div className="flex flex-col h-full">
-        {/* 顶部：级别 Tag + 标题 + 关闭按钮 */}
-        <div
-          className="flex items-start justify-between gap-3 p-4 border-b"
-          style={{ borderColor: 'var(--trae-border-neutral-l1)' }}
-        >
-          <div className="flex flex-col gap-2 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Tag
-                color={risk.bg}
-                style={{
-                  color: risk.color,
-                  background: risk.bg,
-                  border: 'none',
-                  fontSize: 11,
-                  padding: '1px 6px',
-                  lineHeight: '16px',
-                  margin: 0,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                {risk.label}
-              </Tag>
-              <span
-                className="mon-alert-time whitespace-nowrap"
-                style={{ color: statusColor(alert.status) }}
-              >
-                ● {alert.status}
+    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
+      <SheetContent
+        title={alert.desc}
+        badge={
+          <>
+            <Chip tone={risk.tone}>{risk.label}</Chip>
+            <span className="inline-flex items-center gap-1.5 text-caption text-ink-dim">
+              <StatusDot status={STATUS_VIEW[alert.status]} />
+              {alert.status}
+            </span>
+          </>
+        }
+        footer={
+          <>
+            {ackError ? (
+              <span className="mr-auto text-caption text-(--status-error-text)" role="alert">
+                {ackError}
               </span>
-            </div>
-            <h2 className="mon-drawer-title">
-              {alert.desc}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="mon-drawer-close-btn"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path
-                d="M2 2L12 12M12 2L2 12"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+            ) : null}
+            <Tooltip content={ackAvailable ? '' : '主进程 IPC 不可用'}>
+              {/* 禁用按钮不派发 hover，提示得挂在包一层的 span 上才看得到 */}
+              <span>
+                <Button variant="solid" disabled={!ackAvailable || acking} onClick={handleAck}>
+                  {acking ? '处理中…' : '标记已处理'}
+                </Button>
+              </span>
+            </Tooltip>
+            <Button variant="outline" onClick={onClose}>
+              关闭
+            </Button>
+          </>
+        }
+      >
+        <div className="px-4 py-3">
+          <DetailRow
+            label="时间"
+            value={<span className="font-mono tabular-nums">{alert.time}</span>}
+          />
+          <DetailRow label="服务器" value={<span className="font-mono">{alert.server}</span>} />
+          {alert.source ? (
+            <DetailRow
+              label="来源"
+              value={<span className="font-mono text-caption">{alert.source}</span>}
+            />
+          ) : null}
         </div>
 
-        {/* 详情字段 */}
-        <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--trae-border-neutral-l1)' }}>
-          <DetailRow label="时间" value={<span className="font-mono tabular-nums" style={{ fontFamily: 'var(--trae-font-family-mono)' }}>{alert.time}</span>} />
-          <DetailRow label="服务器" value={alert.server} />
-          {alert.source && <DetailRow label="来源" value={<span className="font-mono" style={{ fontFamily: 'var(--trae-font-family-mono)', fontSize: 11 }}>{alert.source}</span>} />}
-        </div>
+        {alert.impact ? <Section title="影响评估">{alert.impact}</Section> : null}
 
-        {/* 影响评估 */}
-        {alert.impact && (
-          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--trae-border-neutral-l1)' }}>
-            <h3 className="mon-drawer-section-title mb-2">
-              影响评估
-            </h3>
-            <p className="mon-drawer-section-text">
-              {alert.impact}
-            </p>
-          </div>
-        )}
-
-        {/* 处置建议 */}
-        {alert.suggestions && alert.suggestions.length > 0 && (
-          <div className="px-4 py-3 flex-1 overflow-y-auto">
-            <h3 className="mon-drawer-section-title mb-2">
-              处置建议
-            </h3>
+        {alert.suggestions?.length ? (
+          <Section title="处置建议">
             <ol className="flex flex-col gap-2.5">
               {alert.suggestions.map((suggestion, idx) => (
                 <li key={idx} className="flex items-start gap-2.5">
-                  <span className="mon-drawer-step-num">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-hover text-caption font-medium text-ink-dim">
                     {idx + 1}
                   </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="mon-drawer-step-text">
-                      {suggestion}
-                    </p>
-                  </div>
+                  <span className="min-w-0 flex-1">{suggestion}</span>
                 </li>
               ))}
             </ol>
-          </div>
-        )}
-
-        {/* 底部操作栏 */}
-        <div
-          className="flex items-center justify-end gap-2 p-3 border-t"
-          style={{ borderColor: 'var(--trae-border-neutral-l1)' }}
-        >
-          {ackError && (
-            <span
-              className="mon-drawer-ack-error mr-auto"
-              style={{ color: 'var(--status-error-text)' }}
-              role="alert"
-            >
-              {ackError}
-            </span>
-          )}
-          <Tooltip content={ackAvailable ? '' : '主进程 IPC 不可用'}>
-            <span>
-              <button
-                type="button"
-                onClick={handleAck}
-                disabled={!ackAvailable || acking}
-                className="mon-drawer-footer-btn mon-drawer-ack-btn"
-                style={{
-                  background: ackAvailable ? 'var(--trae-bg-brand)' : 'var(--trae-bg-overlay-l2)',
-                  color: ackAvailable ? 'var(--trae-text-onbrand)' : 'var(--trae-text-tertiary)',
-                  border: '1px solid var(--trae-border-neutral-l1)',
-                  cursor: ackAvailable && !acking ? 'pointer' : 'not-allowed',
-                  opacity: acking ? 0.6 : 1,
-                }}
-              >
-                {acking ? '处理中...' : '标记已处理'}
-              </button>
-            </span>
-          </Tooltip>
-          <button
-            type="button"
-            onClick={onClose}
-            className="mon-drawer-footer-btn"
-          >
-            关闭
-          </button>
-        </div>
-      </div>
-    </Drawer>
+          </Section>
+        ) : null}
+      </SheetContent>
+    </Sheet>
   )
 }

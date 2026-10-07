@@ -87,20 +87,20 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 68,
-    why: '2026-10-07 退出 antd 第 3 批后实测 70→68（错误页/提示条不再引 --trae-*）。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 67,
+    why: '2026-10-07 告警抽屉换成自研 Sheet 后实测 68→67（抽屉不再引 --trae-* 色值）。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 130,
-    why: '2026-10-07 退出 antd 第 3 批时顺手清掉错误页与提示条的内联视觉属性，实测 138→130。内联视觉属性绕开令牌，主题切换抓不到它',
+    cap: 127,
+    why: '2026-10-07 告警抽屉重写去掉一叠内联色值，实测 130→127。内联视觉属性绕开令牌，主题切换抓不到它',
   },
   {
     name: '还 import antd 的渲染层文件数',
     now: countFiles("from 'antd'", '*.tsx'),
-    cap: 5,
-    why: '2026-10-07 第 3 批退出 5 个文件（ErrorBoundary/FileChangeNotice/LogToolbar/CourseList/DecisionSettings），实测 10→5。与 exit-antd-dialog.test.ts 同口径',
+    cap: 4,
+    why: '2026-10-07 第 4 批退出 AlertDrawer 后实测 5→4（剩 ConnectDialog/SshSettings/AiLogAnalysisPanel/main.tsx）。与 exit-antd-dialog.test.ts 同口径',
   },
 ]
 

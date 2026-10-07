@@ -104,6 +104,9 @@
   标题 17px，正文 14–15px，按钮 14px；按钮文字与边框之间至少 8px 留白（贴边算缺陷）。
   按钮顺序：取消在左，主操作在右；破坏性操作主按钮用 `danger`，且默认焦点落在"取消"。
 - 高危二次确认一律走 `confirmDialog()`，不用 `Modal.confirm`（静态方法依赖 React 19 补丁）。
+- 侧滑抽屉用 `Sheet` + `SheetContent`（`ui/overlay.tsx`，radix Dialog 包的右侧版式，宽 420px 档）；
+  不许再引 antd `Drawer`。标签用 `Chip`（`tone` 只有 neutral/accent/success/warning/error/outline 六档），
+  状态用 `StatusDot`（进行中是旋转环，不只靠颜色）。
 - 右键菜单走 `ContextMenu`，悬浮提示走 `Tooltip`（`content` 为空即不渲染气泡）。
 - 禁用按钮上挂提示时，外包一层 `span`，否则 hover 不触发、"为什么不能点"反而看不到。
 
