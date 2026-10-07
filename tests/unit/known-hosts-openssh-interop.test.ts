@@ -11,17 +11,8 @@
  *   pnpm test tests/unit/known-hosts-openssh-interop.test.ts
  * 没给这两个变量就整份跳过（并写明原因），不算通过也不算失败。
  *
- * 真靶子怎么来（零安装：Ubuntu-24.04 自带 /usr/sbin/sshd，普通用户就能起在非特权端口）：
- *   wsl -d Ubuntu-24.04 -- bash -lc '
- *     mkdir -p /tmp/e2e-sshd
- *     ssh-keygen -q -t ed25519 -N "" -f /tmp/e2e-sshd/host_ed25519
- *     printf "Port 2222\nHostKey /tmp/e2e-sshd/host_ed25519\nPidFile /tmp/e2e-sshd/pid\n\
- *     PermitRootLogin no\nPasswordAuthentication no\nPubkeyAuthentication yes\nUsePAM no\nStrictModes no\n" \
- *       > /tmp/e2e-sshd/config
- *     /usr/sbin/sshd -f /tmp/e2e-sshd/config'
- *   # Windows 侧的可达地址 = wsl -d Ubuntu-24.04 -- hostname -I 的第一个值（NAT 模式不是 localhost）
- *   # 用完收掉：wsl -d Ubuntu-24.04 -- kill "$(cat /tmp/e2e-sshd/pid)"
- *
+ * 真靶子怎么来：约定与起停步骤写在 `tests/e2e/real-sshd-fixture.ts` 文件头
+ * （本机 WSL 的 Ubuntu-24.04 自带 /usr/sbin/sshd，普通用户起在非特权端口即可，零安装、不动账号）。
  * 这份跑的是语义对账，不需要登录成功，所以不配口令、不动账号、不留密钥。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'

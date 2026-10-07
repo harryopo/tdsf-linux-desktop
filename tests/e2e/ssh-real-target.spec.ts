@@ -12,7 +12,6 @@
  * 没给环境变量或靶子连不上 → 整份 skip 并写明原因；skip 不等于通过。
  */
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -24,22 +23,16 @@ import {
   readHostKeyPrompts,
   tcpReachable,
 } from './ssh-fixture-helpers'
+import { opensshLookup, parseTarget, readClientKey, toWslPath } from './real-sshd-fixture'
 
-const HOST = (process.env.TDSF_REAL_SSHD_HOST ?? '').trim()
-const PORT = Number(process.env.TDSF_REAL_SSHD_PORT ?? '0')
-const USER = (process.env.TDSF_REAL_SSHD_USER ?? '').trim()
 const DISTRO = (process.env.TDSF_REAL_SSHD_WSL ?? 'Ubuntu-24.04').trim()
-const WSL_KEY = '/tmp/e2e-sshd/client'
 
-/** 参数不全就是没配靶子；端口必须是数字，避免把脏值拼进外部命令 */
-const CONFIGURED =
-  HOST !== '' &&
-  USER !== '' &&
-  /^[A-Za-z0-9._-]+$/.test(HOST) &&
-  /^\d{1,5}$/.test(String(process.env.TDSF_REAL_SSHD_PORT ?? '')) &&
-  Number.isInteger(PORT) &&
-  PORT > 0 &&
-  PORT < 65536
+/** 参数不全或端口不是纯数字 = 没配靶子（这些值会进外部命令的参数位） */
+const TARGET = parseTarget(process.env.TDSF_REAL_SSHD_HOST, process.env.TDSF_REAL_SSHD_PORT)
+const HOST = TARGET?.host ?? ''
+const PORT = TARGET?.port ?? 0
+const USER = (process.env.TDSF_REAL_SSHD_USER ?? '').trim()
+const CONFIGURED = TARGET !== null && USER !== ''
 
 const READY = FIXTURE_READY && CONFIGURED
 const testOrSkip = READY ? test : test.skip
@@ -61,15 +54,6 @@ let privateKeyPath = ''
  */
 let targetUp = false
 let targetWhy = ''
-
-/** 从 WSL 取一次性私钥（只读那份临时文件，不碰账号目录） */
-function readKeyFromWsl(): string {
-  const out = execFileSync('wsl.exe', ['-d', DISTRO, '--', 'cat', WSL_KEY], {
-    encoding: 'utf8',
-    maxBuffer: 1 << 20,
-  })
-  return out.replace(/\r/g, '')
-}
 
 /** 直连基线：同一条命令在真机上到底回什么，用来证明界面里的输出不是本地生成的 */
 function groundTruth(cmd: string): Promise<string> {
@@ -94,25 +78,6 @@ function groundTruth(cmd: string): Promise<string> {
       })
       .connect({ host: HOST, port: PORT, username: USER, privateKey: fs.readFileSync(privateKeyPath) })
   })
-}
-
-/** Windows 路径 → WSL 挂载路径（C:\a\b → /mnt/c/a/b），让 OpenSSH 能读我们写的文件 */
-function toWslPath(winPath: string): string {
-  const m = /^([A-Za-z]):[\\/](.*)$/.exec(winPath)
-  if (!m) return winPath
-  return `/mnt/${m[1].toLowerCase()}/${m[2].replace(/\\/g, '/')}`
-}
-
-/** 用 OpenSSH 自己的读取器确认某条主机记录在不在 */
-function opensshHasHost(pattern: string, wslFilePath: string): string {
-  return execFileSync('wsl.exe', ['-d', DISTRO, '--', 'ssh-keygen', '-F', pattern, '-f', wslFilePath], {
-    encoding: 'utf8',
-  })
-    .replace(/\0/g, '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#'))
-    .join('\n')
 }
 
 async function disconnect(page: import('@playwright/test').Page, sid: string): Promise<void> {
@@ -157,7 +122,7 @@ test.describe('应用 × 真 OpenSSH 靶机（A2 真机那一半）', () => {
     // 环境不到位就 skip（带原因），不许演成"产品坏了"的红：
     // 取密钥要先经过 wsl，发行版没起时它抛错 —— 那也是环境缺，不是缺陷。
     try {
-      fs.writeFileSync(privateKeyPath, readKeyFromWsl(), { mode: 0o600 })
+      fs.writeFileSync(privateKeyPath, readClientKey(DISTRO), { mode: 0o600 })
       if (!(await tcpReachable(HOST, PORT))) {
         targetWhy = `靶机 ${HOST}:${PORT} TCP 连不上（sshd 没起）`
         return
@@ -195,7 +160,7 @@ test.describe('应用 × 真 OpenSSH 靶机（A2 真机那一半）', () => {
       const written = fs.readFileSync(knownHostsPath, 'utf8')
       expect(written, `known_hosts 里没有这条：${written}`).toContain(`[${HOST}]:${PORT}`)
       expect(
-        opensshHasHost(`[${HOST}]:${PORT}`, toWslPath(knownHostsPath)),
+        opensshLookup(`[${HOST}]:${PORT}`, toWslPath(knownHostsPath), DISTRO),
         'OpenSSH 读不回我们写的行'
       ).toContain(`[${HOST}]:${PORT}`)
 
