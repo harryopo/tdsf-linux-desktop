@@ -79,3 +79,60 @@ describe('OSC handler 必须 return false', () => {
     expect(agents).toContain('registerOscHandler')
   })
 })
+
+/**
+ * 「读屏只能读 term.buffer.active」这条也得有闸。
+ *
+ * AGENTS.md 把这句话写成规矩，但一直没有断言 —— 和"五个审批入口都走严格判定"同一个形状：
+ * 规矩只在散文里，违反的人谁都不会报。xterm 的 buffer 有两个（normal / alternate），
+ * 全屏程序（vim/top）切到 alternate 时读 normal 会拿到一屏旧内容；
+ * 而 .xterm 的 innerText 在 WebGL/canvas 渲染器下恒空，静默失效更糟。
+ */
+describe('读屏只能走 term.buffer.active', () => {
+  /**
+   * src 下所有"从 xterm 终端对象取 buffer"的出现处
+   *
+   * 必须限定宿主：`messageSync.ts` 里也有 `.buffer`（增量合并用的 Map），
+   * 不加限定第一版就把这种同名写法误报成违规（判据量错了东西，比没有判据更糟）。
+   */
+  function bufferReads(): { file: string; line: number; after: string }[] {
+    const out: { file: string; line: number; after: string }[] = []
+    for (const f of tsFiles(path.join(ROOT, 'src'))) {
+      const lines = fs.readFileSync(f, 'utf8').split(/\r?\n/)
+      lines.forEach((ln, i) => {
+        for (const m of ln.matchAll(/(?<=\b(?:term|terminal|xterm))\.buffer\b/g)) {
+          out.push({
+            file: path.relative(ROOT, f).replace(/\\/g, '/'),
+            line: i + 1,
+            after: ln.slice(m.index),
+          })
+        }
+      })
+    }
+    return out
+  }
+
+  const reads = bufferReads()
+
+  it('至少有一个读屏点（闸不能只对空气生效）', () => {
+    expect(reads.length, 'src 下没有任何从终端对象取 buffer 的写法，说明终端读屏没接线').toBeGreaterThan(0)
+  })
+
+  it('每一处 .buffer 都紧跟 .active', () => {
+    const bad = reads
+      .filter((r) => !/^\.buffer\.active\b/.test(r.after))
+      .map((r) => `${r.file}:${r.line} -> ${r.after.trim().slice(0, 60)}`)
+    expect(bad, `绕过 buffer.active 的读屏写法：\n${bad.join('\n')}`).toEqual([])
+  })
+
+  it('不许用 DOM 的 innerText 读终端屏幕（WebGL 渲染器下恒空）', () => {
+    const bad: string[] = []
+    for (const f of tsFiles(path.join(ROOT, 'src/renderer/src/terminal'))) {
+      const text = fs.readFileSync(f, 'utf8')
+      if (/xterm['"]?\)?\.innerText|\.xterm\.innerText/.test(text)) {
+        bad.push(path.relative(ROOT, f).replace(/\\/g, '/'))
+      }
+    }
+    expect(bad, `从 DOM 读终端内容：\n${bad.join('\n')}`).toEqual([])
+  })
+})
