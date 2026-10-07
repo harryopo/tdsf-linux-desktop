@@ -7,6 +7,7 @@
 import { _electron as electron } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { FIXTURE_PASSWORD, FIXTURE_USER } from './ssh-fixture-server'
 
@@ -17,9 +18,17 @@ export interface FixtureConnResult {
   error?: string
 }
 
+/**
+ * e2e 专用 userData（临时目录）。
+ * 不指定的话，未打包的 Electron 会把配置写进 %APPDATA%\Electron，
+ * 测试留下的 provider / 会话痕迹会跟用户真实实例混在一起（虽然真实产品在
+ * %APPDATA%\tdsf-linux-desktop，但共用 profiles 依然难以复现）。
+ */
+export const E2E_USER_DATA_DIR = path.join(os.tmpdir(), 'tdsf-e2e-profile')
+
 export async function launchApp(): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
   const page = await app.firstWindow()

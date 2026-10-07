@@ -22,7 +22,8 @@
  * 降级策略：
  *   - 若 out/main/index.js 不存在（未 build），整个 suite skip
  *   - S1/S2 用仓库内的本地 fixture SSH 靶机（tests/e2e/ssh-fixture-server.ts），
- *     不需要外部机器；S3（AI 对话）仍需 API key，无 key 时 skip
+ *     S3 用本地假模型服务（tests/e2e/ai-fixture-server.ts），都不需要外部机器与 API Key；
+ *     真机与真模型仍分别由 ssh-live-verification / ai-chat-live-verification 覆盖
  *
  * 注意：Electron 测试必须串行（workers=1），实例间状态独立
  */
@@ -31,11 +32,13 @@ import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 import { startSshFixture } from './ssh-fixture-server'
+import { startAiFixture } from './ai-fixture-server'
 import {
   bindSessionToStore,
   connectToFixture,
   installHostKeyRecorder,
   readHostKeyPrompts,
+  E2E_USER_DATA_DIR,
 } from './ssh-fixture-helpers'
 
 /** Electron 主进程入口（需先 pnpm build） */
@@ -50,7 +53,8 @@ fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 /** 启动 Electron 应用并返回首窗口 */
 async function launchApp() {
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    // 隔离 userData：S3 会 providerSave，不隔离就把测试用的假模型写进共享的 Electron 配置
+    args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
     env: {
       ...process.env,
       // 测试模式：禁用真实 SSH/API key 依赖
@@ -434,8 +438,106 @@ test.describe('Demo 9 步主路径', () => {
     }
   })
 
-  test.skip('Step S3: AI 助手对话（依赖 API key）', async () => {
-    // TODO: 实现 AI 对话测试
-    // 需要 TDSF_TEST_AI_API_KEY 环境变量
+  /**
+   * S3：AI 助手对话。对端是仓库内的本地假模型服务（tests/e2e/ai-fixture-server.ts），
+   * 它按 OpenAI 的 SSE 格式分多个 chunk 回，因此这条证的是【流式管道真的在流】：
+   * providerSave → agentChat → agent:chunk × N → agent:done → 文本按增量拼接上屏。
+   * 模型的回答是写死的，真实模型质量仍由 ai-chat-live-verification.spec.ts（要 Key）负责。
+   */
+  testOrSkip('Step S3: AI 助手对话（本地假模型服务，流式增量必须分多条到达）', async () => {
+    test.setTimeout(120_000)
+    const ai = await startAiFixture()
+    const { app, window } = await launchApp()
+
+    const saved = await window.evaluate(
+      async (cfg) => {
+        const w = window as unknown as {
+          electronAPI: {
+            providerSave: (c: unknown) => Promise<boolean>
+            providerSetDefault: (id: string) => Promise<boolean>
+          }
+        }
+        const ok = await w.electronAPI.providerSave({
+          id: cfg.providerId,
+          name: 'Fixture 模型',
+          type: 'openai-compatible',
+          baseURL: cfg.baseURL,
+          model: cfg.model,
+          // 假 Key，只为过 SDK 的鉴权字段检查；不会外发
+          apiKey: cfg.apiKey,
+          defaultParams: { temperature: 0, maxTokens: 64 },
+          builtin: false,
+          enabled: true,
+          roles: ['chat'],
+        })
+        const setOk = await w.electronAPI.providerSetDefault(cfg.providerId)
+        return { ok, setOk }
+      },
+      { providerId: 'fixture-model', baseURL: ai.baseURL, model: 'fixture-model', apiKey: 'fixture-' + 'key' },
+    )
+    expect(saved.ok, 'providerSave 应成功').toBe(true)
+    expect(saved.setOk, 'providerSetDefault 应成功').toBe(true)
+
+    const chat = await window.evaluate(async (prompt) => {
+      const w = window as unknown as {
+        electronAPI: {
+          agentChat: (msgs: unknown[], providerId?: string) => Promise<string>
+          onAgentChunk: (cb: (p: { delta?: string }) => void) => () => void
+          onAgentDone: (cb: (p: unknown) => void) => () => void
+          onAgentError: (cb: (p: { message?: string }) => void) => () => void
+        }
+      }
+      const api = w.electronAPI
+      let text = ''
+      let deltas = 0
+      let done = false
+      let error = ''
+
+      const finished = new Promise<void>((resolve) => {
+        const offs: Array<() => void> = []
+        const finish = () => {
+          offs.forEach((o) => o())
+          resolve()
+        }
+        offs.push(api.onAgentChunk((p) => {
+          if (p.delta) {
+            text += p.delta
+            deltas += 1
+          }
+        }))
+        offs.push(api.onAgentDone(() => {
+          done = true
+          finish()
+        }))
+        offs.push(api.onAgentError((p) => {
+          error = p.message ?? 'unknown error'
+          finish()
+        }))
+        setTimeout(finish, 60_000)
+      })
+
+      const correlationId = await api.agentChat([{ role: 'user', content: prompt }])
+      await finished
+      return { correlationId, text, deltas, done, error }
+    }, '1+1=?')
+
+    expect(chat.error, `AI 调用出错：${chat.error}`).toBe('')
+    console.log('[S3] 增量条数 =', chat.deltas, ' 拼接文本 =', JSON.stringify(chat.text))
+    expect(chat.done, '应收到 agent:done').toBe(true)
+    expect(chat.text, '拼接后的回复应含答案 2').toContain('2')
+    // 关键：必须是多条增量拼出来的，一次性甩回不叫流式
+    expect(chat.deltas, '流式增量应至少到达 2 次').toBeGreaterThanOrEqual(2)
+    expect(ai.requestCount(), '假模型服务应至少收到 1 次请求').toBeGreaterThanOrEqual(1)
+
+    // 消息要真上屏（工作台 AI 面板里能看到这条回答）
+    await window.evaluate(() => {
+      window.location.hash = '#/workbench'
+    })
+    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    await window.waitForTimeout(1200)
+    await window.screenshot({ path: path.join(SCREENSHOT_DIR, '12-ai-streaming.png') })
+
+    await app.close()
+    await ai.close()
   })
 })
