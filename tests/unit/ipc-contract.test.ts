@@ -13,11 +13,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { IPC_CONTRACT, assertContractArgs, contractFor } from '@main/../shared/ipc-contract'
 import { renderContractFile } from '../../scripts/ipc/render-contract'
+import { preloadAll, preloadWiring } from './preload-sources'
 
 const ROOT = path.resolve(__dirname, '../..')
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
-const PRELOAD = read('src/preload/index.ts')
+const PRELOAD = preloadWiring(ROOT)
+const PRELOAD_ALL = preloadAll(ROOT)
 const GENERATED = read('src/renderer/src/types/generated/ipc-contract.ts')
 const TYPES = read('src/renderer/src/types/electron.d.ts')
 
@@ -66,8 +68,10 @@ describe('入参校验真的在挡（负向对照）', () => {
 
 describe('契约确实被用起来（不是写了摆着）', () => {
   it('preload 走封装调用，校验点落在最近一层', () => {
-    expect(PRELOAD).toContain("from '../shared/ipc-contract'")
-    const checked = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length - 1
+    // 拆域后"引契约"这件事落在 preload/ipc-util.ts，所以查整棵 preload 树而不是单个文件
+    expect(PRELOAD_ALL).toContain("from '../shared/ipc-contract'")
+    // 拆域后 invokeChecked 的定义在 ipc-util.ts（不在这段文本里），所以这里不能再"减掉一处定义"
+    const checked = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length
     const direct = (PRELOAD.match(/assertContractArgs\(/g) ?? []).length
     expect(checked, 'preload 里走契约封装的调用数').toBeGreaterThanOrEqual(IPC_CONTRACT.filter((c) => c.kind === 'invoke').length - 1)
     expect(direct, 'preload 里直接校验的调用数（多参数位点）').toBeGreaterThanOrEqual(1)
@@ -83,7 +87,7 @@ describe('契约确实被用起来（不是写了摆着）', () => {
 
   it('未纳入契约的 invoke 位点只降不升（当前上限 220）', () => {
     const all = (PRELOAD.match(/ipcRenderer\.invoke\(/g) ?? []).length
-    const contracted = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length - 1
+    const contracted = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length
     const uncovered = all - contracted
     expect(
       uncovered,

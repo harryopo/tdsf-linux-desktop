@@ -17,6 +17,7 @@ import {
 } from '@main/core/agent/terminal-context'
 import { AuditRepo } from '../../src/main/services/db/audit-repo'
 import { DatabaseManager } from '../../src/main/services/db/database'
+import { preloadWiring } from './preload-sources'
 
 const ROOT = path.resolve(__dirname, '../..')
 const read = (rel: string): string => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -66,7 +67,8 @@ describe('跨进程接线（源码级，防止写了函数没人调）', () => {
   })
 
   it('preload 把它作为第 6 个实参转发到 agent:chat', () => {
-    const src = read('src/preload/index.ts')
+    // 域拆分后 agentChat 在 preload/domains/agent.ts，读整棵 preload 树才对齐这条链路
+    const src = preloadWiring(ROOT)
     // 空白用 \s* 而非写死一个空格：既要容忍 ipcRenderer.invoke( 这种紧贴写法，也要容忍拆成多行；
     // 但实参顺序一位都不许错——这条锁的是"terminalContext 落在 sshSessionId 之后、共 6 位"。
     expect(src).toMatch(

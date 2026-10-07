@@ -1,0 +1,123 @@
+/** agent 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
+import type { ChatMessage } from '@shared/models'
+import type { CustomAgentConfig, SubagentReloadRequest, SubagentReloadResponse, ThinkingStrength } from '@shared/agent-types'
+import { AGENT, PAOR, SUBAGENT } from '@shared/ipc-channels'
+import { assertContractArgs } from '../../shared/ipc-contract'
+import { ipcRenderer } from 'electron'
+import { invokeChecked } from '../ipc-util'
+
+/**
+ * v0.9 Agent Runtime invoke 调用（Supervisor chat + 取消请求）
+ */
+const agentRuntime = {
+  /**
+   * 启动 Supervisor 流式 chat
+   *
+   * 异步执行，立即返回 correlationId。
+   * 渲染进程通过 onAgentChunk/onAgentDone/onAgentError 监听后续事件。
+   *
+   * v0.9.4 新增：流式事件载荷携带 sessionId（可选，未传时主进程自动生成）
+   *
+   * @param messages 对话消息列表
+   * @param providerId Provider ID（可选，不传用默认）
+   * @param strength 思考强度（fast/standard/deep，可选）
+   * @returns correlationId（用于监听事件 + 取消请求）
+   */
+  chat: (
+    messages: ChatMessage[],
+    providerId?: string,
+    strength?: ThinkingStrength | 'auto',
+    sshSessionId?: string,
+    terminalContext?: string,
+  ): Promise<string> => {
+    assertContractArgs('agentChat', [messages, providerId, strength, sshSessionId, terminalContext])
+    // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）；
+    // 第 6 参为终端命令块摘要（主进程脱敏后注入 system prompt）
+    return ipcRenderer.invoke(
+      AGENT.CHAT,
+      messages,
+      providerId,
+      strength,
+      undefined,
+      sshSessionId,
+      terminalContext,
+    )
+  },
+
+  /**
+   * 取消进行中的 chat 请求
+   *
+   * v0.9.4 改造：主进程 handler 已兼容 sessionId 与 correlationId 两种 ID
+   * （先按 sessionId 查找 session-registry，回退到 correlationId）。
+   * 调用方可传入任一种 ID，均可成功取消。
+   *
+   * @param sessionIdOrCorrelationId 会话 ID 或关联 ID
+   * @returns 是否成功取消（false 表示请求已结束或不存在）
+   */
+  cancel: (sessionIdOrCorrelationId: string): Promise<boolean> =>
+    invokeChecked<boolean>('agentChatCancel', AGENT.CHAT_CANCEL, sessionIdOrCorrelationId),
+
+  /**
+   * PAOR 自动循环（Plan→Act→Observe→Reflect 多步自主编排）
+   *
+   * 方案书 v0.9 §3.2：对多步运维任务自动规划并逐步执行，
+   * 每轮迭代通过 agent:paor:iteration 事件实时推送到渲染进程。
+   * 高危命令自动拦截（安全默认策略）。
+   *
+   * @param task 运维任务描述
+   * @param sshSessionId SSH 会话 ID
+   * @param maxIterations 最大迭代次数（默认 5）
+   * @returns PAOR 循环完整结果（含可审计的迭代轨迹）
+   */
+  paor: (task: string, sshSessionId: string, maxIterations?: number): Promise<unknown> =>
+    invokeChecked<unknown>('agentPaor', AGENT.PAOR, task, sshSessionId, maxIterations),
+
+  /**
+   * 响应 PAOR 审批请求（v0.9.5 新增）
+   *
+   * 主进程推送 paor:approval-request 事件后，
+   * 渲染进程弹窗让用户确认，通过本函数回传审批结果。
+   *
+   * @param callId 审批调用 ID（来自 paor:approval-request 事件载荷）
+   * @param approved 是否批准执行
+   */
+  approve: (callId: string, approved: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(PAOR.APPROVE, callId, approved),
+}
+
+/**
+ * v0.9.5 P0 - 组 4：Subagent 自定义 Agent 加载器 invoke 调用
+ *
+ * 通道与主进程 ipc/subagent.ts 一一对应：
+ * - subagent:list   → list（加载所有自定义 agent 配置，从 .tdsf/agent/ 目录）
+ * - subagent:reload → reload（重新加载指定 agent 或全部重载）
+ *
+ * 使用场景：
+ * - UI 自定义 agent 列表展示（如下拉框 / 卡片列表）
+ * - 用户编辑 .tdsf/agent/*.md 后调用 reload 热重载 agent 配置
+ *
+ * 设计要点：
+ * - subagent:list 不接收参数（始终从默认目录 .tdsf/agent/ 加载）
+ * - subagent:reload 入参 filePath 可选（不传则全部重载）
+ * - CustomAgentConfig 接口已迁移到 @shared/agent-types.ts（SSOT）
+ */
+const subagent = {
+  /**
+   * 加载所有自定义 agent 配置
+   *
+   * @returns CustomAgentConfig[]（目录不存在返回空数组，不抛错）
+   */
+  list: (): Promise<CustomAgentConfig[]> =>
+    ipcRenderer.invoke(SUBAGENT.LIST),
+
+  /**
+   * 重新加载指定 agent 或全部重载
+   *
+   * @param request { filePath?: string }（不传则重载整个 .tdsf/agent/ 目录）
+   * @returns { success, reloaded, failed }（即使部分失败也返回 success=true）
+   */
+  reload: (request?: SubagentReloadRequest): Promise<SubagentReloadResponse> =>
+    ipcRenderer.invoke(SUBAGENT.RELOAD, request),
+}
+
+export { agentRuntime, subagent }

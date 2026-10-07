@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { preloadWiring } from './preload-sources'
 import {
   STREAM_EVENT_RULES,
   ruleOf,
@@ -32,7 +33,8 @@ function loadChannelMap(): Record<string, string> {
 
 /** 从 preload 反解渲染进程真正订阅的通道 */
 function loadPreloadListeners(): string[] {
-  const src = fs.readFileSync(path.join(ROOT, 'src/preload/index.ts'), 'utf8')
+  // 拆域后监听位点分散在 index.ts 与 domains/*.ts，只读 index.ts 会漏（见 tests/unit/preload-sources.ts）
+  const src = preloadWiring(ROOT)
   const refs = new Set<string>()
   for (const m of src.matchAll(/createListener\(\s*([A-Z_]+\.[A-Z_0-9]+)/g)) refs.add(m[1])
   for (const m of src.matchAll(/ipcRenderer\.on\(\s*([A-Z_]+\.[A-Z_0-9]+)/g)) refs.add(m[1])

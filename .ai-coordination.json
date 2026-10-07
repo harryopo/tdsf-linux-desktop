@@ -2,37 +2,22 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-07T13:31:11.727Z",
+  "lastUpdated": "2026-10-07T16:43:09.526Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-07T13:10:00.701Z",
-      "lastActiveAt": "2026-10-07T13:31:11.727Z",
-      "task": "D1 契约收尾",
+      "startedAt": "2026-10-07T16:43:09.526Z",
+      "lastActiveAt": "2026-10-07T16:43:09.526Z",
+      "task": "D1 按域拆分",
       "claimedFiles": [
         {
-          "path": "package.json",
-          "task": "D1 契约收尾",
-          "claimedAt": "2026-10-07T13:31:11.727Z"
-        },
-        {
-          "path": "src/renderer/src/types/electron.d.ts",
-          "task": "D1 契约收尾",
-          "claimedAt": "2026-10-07T13:10:00.701Z"
-        },
-        {
-          "path": "tests/unit/terminal-context-injection.test.ts",
-          "task": "D1 契约收尾",
-          "claimedAt": "2026-10-07T13:10:00.701Z"
-        },
-        {
           "path": "src/preload/index.ts",
-          "task": "D1 契约单源",
-          "claimedAt": "2026-10-07T13:31:11.727Z"
+          "task": "D1 按域拆分",
+          "claimedAt": "2026-10-07T16:43:09.526Z"
         }
       ],
-      "expiresAt": "2026-10-07T15:31:11.727Z"
+      "expiresAt": "2026-10-07T18:43:09.526Z"
     }
   },
   "history": [
@@ -6034,6 +6019,55 @@
       "file": "src/preload/index.ts",
       "task": "D1 契约单源",
       "timestamp": "2026-10-07T13:31:11.727Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "package.json",
+      "task": "D1 契约收尾",
+      "timestamp": "2026-10-07T13:32:08.675Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "D1 契约收尾",
+      "timestamp": "2026-10-07T13:32:08.675Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/terminal-context-injection.test.ts",
+      "task": "D1 契约收尾",
+      "timestamp": "2026-10-07T13:32:08.675Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "D1 契约单源",
+      "timestamp": "2026-10-07T13:32:08.675Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "D1 去 cast，类型由实现派生",
+      "timestamp": "2026-10-07T14:27:32.632Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "D1 去 cast，类型由实现派生",
+      "timestamp": "2026-10-07T15:06:37.143Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "D1 按域拆分",
+      "timestamp": "2026-10-07T16:43:09.526Z"
     }
   ],
   "coordinationAudit": {
