@@ -57,21 +57,25 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   testOrSkip('T1: P0/P1 修复的 preload 方法运行时存在且 invoke 可达', async () => {
     const { app, window } = await launchApp()
 
-    // 1a. 方法存在性（曾经 electron.d.ts 声明了但运行时 undefined —— 类型撒谎断链）
-    const missing = await window.evaluate(() => {
-      const api = (window as unknown as { electronAPI: Record<string, unknown> }).electronAPI
-      const required = [
-        // P1-1：mcp 系 7 方法（曾定义未暴露）
-        'mcpGetState', 'mcpReset', 'onMcpStateChanged',
-        'mcpExternalStatus', 'mcpExternalTools', 'mcpExternalCall', 'mcpExternalReconnect',
-        // P0-3：新增默认 Provider 查询
-        'providerGetDefault',
-        // Agent 主链路
-        'agentChat', 'onAgentChunk', 'onAgentDone', 'onAgentError',
-      ]
-      return required.filter((m) => typeof api?.[m] !== 'function')
+    // 1a. 方法存在性：拿静态快照闸那份名单（264 条）逐个真验，不再抽查 12 条。
+    //     2026-10-07 那次 zod 被 external 进 sandbox 的 preload，整个桥挂掉、window.electronAPI 是 undefined；
+    //     抽查式的写法只要挂掉的不是被抽的那几条就照样绿 —— 快照与运行时对上才是证据。
+    const snapshot = fs
+      .readFileSync(path.join(__dirname, '../../tests/unit/__fixtures__/preload-api-surface.txt'), 'utf8')
+      .trim()
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const runtime = await window.evaluate(() => {
+      const api = (window as unknown as { electronAPI?: Record<string, unknown> }).electronAPI
+      if (!api) return []
+      return Object.keys(api).filter((k) => typeof api[k] === 'function')
     })
-    expect(missing, `以下方法在 window.electronAPI 上不存在：${missing.join(', ')}`).toEqual([])
+    const missing = snapshot.filter((n) => !runtime.includes(n))
+    const extra = runtime.filter((n) => !snapshot.includes(n))
+    expect(missing, `快照里有、运行时没挂上（前 20 条）：${missing.slice(0, 20).join(', ')}`).toEqual([])
+    expect(extra, `运行时挂上了、快照没登记（前 20 条）：${extra.slice(0, 20).join(', ')}`).toEqual([])
+    expect(runtime.length, `运行时方法数应与快照一致（${snapshot.length}）`).toBe(snapshot.length)
 
     // 1b. invoke 真实可达（曾经 preload 定义了但 main 没注册 → invoke reject）
     const results = await window.evaluate(async () => {
