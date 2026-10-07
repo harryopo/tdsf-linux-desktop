@@ -78,7 +78,10 @@ describe('契约确实被用起来（不是写了摆着）', () => {
   })
 
   it('渲染层类型来自生成物，且不再手写已契约的方法', () => {
-    expect(TYPES).toContain('extends ContractedInvokeApi, ContractedEventApi')
+    // extends 列表里现在还带着从实现派生的 PreloadElectronAPI，所以按"列表含这两个生成物接口"判
+    expect(TYPES).toMatch(
+      /export interface ElectronAPI extends [^{]*ContractedInvokeApi[^{]*ContractedEventApi/
+    )
     for (const c of IPC_CONTRACT) {
       const handWritten = new RegExp(`^\\s{2}${c.api}\\(`, 'm').test(TYPES)
       expect(handWritten, `${c.api} 又回到 electron.d.ts 手写了，签名应在契约里改`).toBe(false)

@@ -7,6 +7,7 @@
  * 事件监听方法（onXxx）用于接收主进程推送的实时数据。
  */
 import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-contract'
+import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
 import type {
   SshConfig,
   CommandResult,
@@ -617,7 +618,7 @@ export interface InlineCompletionItem {
 /** electronAPI 接口定义 */
 // ContractedInvokeApi / ContractedEventApi 由 src/shared/ipc-contract.ts 生成：
 // 已纳入契约的通道签名以那里为准，其余方法仍在这里手写，逐步搬过去（刻度见 tests/unit/ipc-contract.test.ts）
-export interface ElectronAPI extends ContractedInvokeApi, ContractedEventApi {
+export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, ContractedEventApi {
   // ===== SSH 相关 =====
   /** 建立 SSH 连接，返回 sessionId */
   sshConnect(config: SshConfig): Promise<string>

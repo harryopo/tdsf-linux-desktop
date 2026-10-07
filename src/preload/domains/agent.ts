@@ -1,5 +1,6 @@
 /** agent 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { ChatMessage } from '@shared/models'
+import type { PaorLoopResult } from '@shared/paor-types'
 import type { CustomAgentConfig, SubagentReloadRequest, SubagentReloadResponse, ThinkingStrength } from '@shared/agent-types'
 import { AGENT, PAOR, SUBAGENT } from '@shared/ipc-channels'
 import { assertContractArgs } from '../../shared/ipc-contract'
@@ -69,8 +70,8 @@ const agentRuntime = {
    * @param maxIterations 最大迭代次数（默认 5）
    * @returns PAOR 循环完整结果（含可审计的迭代轨迹）
    */
-  paor: (task: string, sshSessionId: string, maxIterations?: number): Promise<unknown> =>
-    invokeChecked<unknown>('agentPaor', AGENT.PAOR, task, sshSessionId, maxIterations),
+  paor: (task: string, sshSessionId: string, maxIterations?: number): Promise<PaorLoopResult> =>
+    invokeChecked<PaorLoopResult>('agentPaor', AGENT.PAOR, task, sshSessionId, maxIterations),
 
   /**
    * 响应 PAOR 审批请求（v0.9.5 新增）

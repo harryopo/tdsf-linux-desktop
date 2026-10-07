@@ -14,8 +14,8 @@
  *   1) 快照：A 的名字集合必须等于 tests/unit/__fixtures__/preload-api-surface.txt。
  *      这条是后面按域拆分的护栏——搬漏一个方法、名字打错、多挂一个，都在这儿红。
  *   2) 派生不许回退：类型必须还是 typeof 实现，且不许再用 as unknown as 把不一致糊掉。
- *   3) 无幻影 + 欠账只减不增：C 不许声明 A 没有的方法；A 有而 C 没声明的登记在下面这份名单里，
- *      加名字就红，补齐了会打印"可以从名单删掉"但不挡你。
+ *   3) 无幻影：C 不许声明 A 没有的方法；
+ *      C 现在 extends 从实现派生的那份，所以"运行时真有、类型里查不到"这类账结构上再也欠不出来了。
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
@@ -24,38 +24,6 @@ import { readSurface } from '../../scripts/ipc/api-surface'
 
 const ROOT = path.resolve(__dirname, '../..')
 const SNAPSHOT = path.join(ROOT, 'tests/unit/__fixtures__/preload-api-surface.txt')
-
-/** A 有、C（渲染层类型）没声明 —— 2026-10-07 实测登记 */
-const UNDECLARED_IN_RENDERER = [
-  'diagnosticsClear',
-  'diagnosticsGetFindings',
-  'diagnosticsGetLogs',
-  'diagnosticsGetReport',
-  'diagnosticsGetStats',
-  'diagnosticsIngestTest',
-  'diagnosticsSetEnabled',
-  'onDiagnosticsLogBatch',
-  'onSchedulerStatusChange',
-  'promptfooListTests',
-  'promptfooRunEval',
-  'promptfooRunRedTeam',
-  'schedulerList',
-  'schedulerToggle',
-  'schedulerTrigger',
-  'tutorialCheckpoints',
-  'tutorialCleanupOrphans',
-  'tutorialDiskInfo',
-  'tutorialResetCheckpoint',
-]
-
-function checkRatchet(current: string[], recorded: string[], label: string): void {
-  const grown = current.filter((n) => !recorded.includes(n))
-  expect(grown, `${label} 变多了：${grown.join(', ')}。新暴露的方法必须同时补类型声明`).toEqual([])
-  const paidOff = recorded.filter((n) => !current.includes(n))
-  if (paidOff.length) {
-    console.log(`[api-surface] ${label} 已补齐 ${paidOff.length} 条，可从名单删除：${paidOff.join(', ')}`)
-  }
-}
 
 describe('electronAPI 名字表面', () => {
   const surface = readSurface(ROOT)
@@ -74,9 +42,12 @@ describe('electronAPI 名字表面', () => {
     expect(phantom, `electron.d.ts 声明了 ${phantom.length} 个没挂上的方法：${phantom.join(', ')}`).toEqual([])
   })
 
-  it('两份类型副本的欠账只减不增', () => {
-    const undeclared = exposed.filter((n) => !surface.rendererType.has(n))
-    checkRatchet(undeclared, UNDECLARED_IN_RENDERER, '渲染层未声明')
+  it('渲染层类型继承 preload 派生类型（这份副本不可能再落后）', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/renderer/src/types/electron.d.ts'), 'utf8')
+    expect(src, '渲染层 ElectronAPI 必须 extends 从实现派生的 PreloadElectronAPI').toContain(
+      'export interface ElectronAPI extends PreloadElectronAPI'
+    )
+    expect(src).toContain("import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'")
   })
 
   it('preload 的类型由实现派生，且没有 as unknown as 强转兜住漂移', () => {

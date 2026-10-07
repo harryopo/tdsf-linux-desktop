@@ -24,20 +24,10 @@
  */
 import { useEffect, useState } from 'react'
 import { Clock, CheckCircle2, XCircle, Zap } from 'lucide-react'
-import type { SchedulerTaskId, SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
+import type { SchedulerTaskId, SchedulerTaskStatus } from '@shared/scheduler-types'
 import { SettingsCard } from './SettingsCard'
 import { Switch } from '@/components/trae/Switch'
 import { Button } from '@/components/trae/Button'
-
-/** 调度器 API 局部类型（ElectronAPI 接口尚未补全 scheduler 字段，本地隔离） */
-interface SchedulerAPI {
-  schedulerList: () => Promise<SchedulerTaskStatus[]>
-  schedulerToggle: (id: string, enabled: boolean) => Promise<SchedulerTaskStatus | null>
-  schedulerTrigger: (id: string) => Promise<TaskResult>
-  onSchedulerStatusChange: (
-    callback: (status: SchedulerTaskStatus) => void,
-  ) => () => void
-}
 
 /** 任务元数据：受控枚举 + 中文名 + cron + cron 描述 */
 const SCHEDULER_TASKS_META: ReadonlyArray<{
@@ -96,11 +86,14 @@ function getStatusStyle(state: TaskState): { bg: string; color: string; label: s
   }
 }
 
-/** 安全获取 scheduler API：不可用时返回 undefined */
-function getSchedulerAPI(): SchedulerAPI | undefined {
+/**
+ * 安全获取 scheduler API：不可用时返回 undefined（浏览器环境 / preload 没加载时整块降级）。
+ * 这里原来另抄了一份 SchedulerAPI 局部接口，理由是"ElectronAPI 还没补 scheduler 字段"——
+ * 现在渲染层类型继承 preload 的派生类型，那份副本已无必要，运行时探测留着就够。
+ */
+function getSchedulerAPI() {
   if (typeof window === 'undefined') return undefined
-  const w = window as unknown as { electronAPI?: Partial<SchedulerAPI> }
-  const api = w.electronAPI
+  const api = window.electronAPI
   if (!api) return undefined
   if (
     typeof api.schedulerList !== 'function' ||
@@ -110,7 +103,7 @@ function getSchedulerAPI(): SchedulerAPI | undefined {
   ) {
     return undefined
   }
-  return api as SchedulerAPI
+  return api
 }
 
 /** epoch ms → 'zh-CN' 字符串（hour12: false，例：2026-07-21 09:00:00） */
