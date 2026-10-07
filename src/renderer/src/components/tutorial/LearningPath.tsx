@@ -1,13 +1,13 @@
 /**
  * LearningPath — 推荐学习路径 section（横向时间线）
  *
- * 1:1 对齐设计稿 tutorial.html §6：单条横向 5 节点时间线，
+ * 1:1 对齐设计稿 tutorial.html §6：每条路径一张横向时间线卡，
  *   含进度头（trending-up 图标 + 路线名 + "2/5 已完成" + 进度条）
- *   与 5 个节点（步骤圆圈 + 名称 + 描述）。
- * 路径数据由父组件 TutorialPage 通过 props 传入（真实推荐或 fallback）。
- * 组件取 paths[0] 渲染单条时间线；空数组时返回 null。
+ *   与步骤节点（步骤圆圈 + 名称 + 描述）。
+ * 路径数据由父组件 TutorialPage 通过 props 传入（真实推荐）；空数组时返回 null。
+ * 设计稿上的「查看全部」按钮已删：这里没有第二个视图可去，且全部路径本就平铺展示。
  */
-import { Sparkles, ChevronRight, TrendingUp, Check } from 'lucide-react'
+import { Sparkles, TrendingUp, Check } from 'lucide-react'
 import type { LearningPath as LearningPathItem } from './types'
 
 interface LearningPathProps {
@@ -15,25 +15,26 @@ interface LearningPathProps {
 }
 
 export function LearningPath({ paths }: LearningPathProps) {
-  const path = paths[0]
-  if (!path) return null
+  if (paths.length === 0) return null
 
   return (
     <section className="tut-section tut-section--paths" aria-label="推荐学习路径">
       <div className="tut-section-title-row">
         <Sparkles size={18} style={{ color: 'var(--trae-icon-brand)' }} />
         <h2 className="tut-section-title">推荐学习路径</h2>
-        <button
-          type="button"
-          className="tut-paths-viewall tut-btn-press"
-          aria-label="查看全部学习路径"
-        >
-          查看全部
-          <ChevronRight size={12} style={{ color: 'var(--accent-text)' }} />
-        </button>
       </div>
 
-      <div className="tut-path-timeline-card">
+      {paths.map((path) => (
+        <PathCard key={path.id} path={path} />
+      ))}
+    </section>
+  )
+}
+
+/** 单条路径的时间线卡片 */
+function PathCard({ path }: { path: LearningPathItem }) {
+  return (
+    <div className="tut-path-timeline-card">
         {/* Progress header: trending-up icon + title + "2/5 已完成" + progress bar */}
         <div className="tut-path-progress-header">
           <div className="tut-path-progress-title">
@@ -113,7 +114,6 @@ export function LearningPath({ paths }: LearningPathProps) {
             )
           })}
         </div>
-      </div>
-    </section>
+    </div>
   )
 }

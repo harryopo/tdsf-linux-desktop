@@ -2,7 +2,8 @@
   {
     "page": "工作台",
     "label": "工作台",
-    "verdict": "none"
+    "verdict": "dom",
+    "detail": "mutations=3"
   },
   {
     "page": "工作台",
@@ -49,18 +50,57 @@
   {
     "page": "工作台",
     "label": "切换 / 连接服务器",
-    "verdict": "dom",
-    "detail": "mutations=2"
-  },
-  {
-    "page": "工作台",
-    "label": "E2E测试机\n192.0.2.10:22",
-    "verdict": "toast"
+    "verdict": "focus",
+    "detail": "焦点交给 INPUT.flex-1"
   },
   {
     "page": "工作台",
     "label": "添加新连接",
     "verdict": "dialog"
+  },
+  {
+    "page": "工作台",
+    "label": "搜索 (Cmd+K)",
+    "verdict": "dialog"
+  },
+  {
+    "page": "工作台",
+    "label": "AI面板",
+    "verdict": "already-active",
+    "detail": "aria-pressed"
+  },
+  {
+    "page": "工作台",
+    "label": "终端面板",
+    "verdict": "already-active",
+    "detail": "aria-pressed"
+  },
+  {
+    "page": "工作台",
+    "label": "新建目录",
+    "verdict": "disabled"
+  },
+  {
+    "page": "工作台",
+    "label": "删除路径",
+    "verdict": "disabled"
+  },
+  {
+    "page": "工作台",
+    "label": "刷新",
+    "verdict": "disabled"
+  },
+  {
+    "page": "工作台",
+    "label": "折叠资源管理器",
+    "verdict": "dom",
+    "detail": "mutations=8"
+  },
+  {
+    "page": "工作台",
+    "label": "展开资源管理器",
+    "verdict": "dom",
+    "detail": "mutations=21"
   },
   {
     "page": "工作台",
@@ -71,83 +111,44 @@
   {
     "page": "工作台",
     "label": "终端",
-    "verdict": "none"
+    "verdict": "already-active",
+    "detail": "aria-selected"
   },
   {
     "page": "工作台",
     "label": "隐藏命令翻译注释",
     "verdict": "dom",
-    "detail": "mutations=3"
+    "detail": "mutations=5"
+  },
+  {
+    "page": "工作台",
+    "label": "显示命令翻译注释",
+    "verdict": "dom",
+    "detail": "mutations=5"
   },
   {
     "page": "工作台",
     "label": "收起 AI 面板",
     "verdict": "dom",
-    "detail": "mutations=2"
-  },
-  {
-    "page": "工作台",
-    "label": "0 Errors",
-    "verdict": "none"
-  },
-  {
-    "page": "工作台",
-    "label": "AI · DeepSeek V4",
-    "verdict": "none"
-  },
-  {
-    "page": "工作台",
-    "label": "光标位置（编辑器集成后自动更新）",
-    "verdict": "none"
-  },
-  {
-    "page": "工作台",
-    "label": "文件编码",
-    "verdict": "none"
-  },
-  {
-    "page": "工作台",
-    "label": "当前文件",
-    "verdict": "none"
-  },
-  {
-    "page": "工作台",
-    "label": "P99 延迟（监控接入后自动更新）",
-    "verdict": "none"
-  },
-  {
-    "page": "工作台",
-    "label": "恢复默认",
-    "verdict": "skipped"
-  },
-  {
-    "page": "工作台",
-    "label": "取 消",
-    "verdict": "dom",
-    "detail": "mutations=18"
-  },
-  {
-    "page": "工作台",
-    "label": "删 除",
-    "verdict": "toast"
+    "detail": "mutations=12"
   },
   {
     "page": "实时监控",
     "label": "1H",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=7"
   },
   {
     "page": "实时监控",
     "label": "6H",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=7"
   },
   {
     "page": "实时监控",
     "label": "24H",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=7"
   },
   {
     "page": "实时监控",
@@ -164,7 +165,13 @@
     "page": "实时监控",
     "label": "筛选未处理",
     "verdict": "dom",
-    "detail": "mutations=2"
+    "detail": "mutations=5"
+  },
+  {
+    "page": "实时监控",
+    "label": "取消筛选未处理",
+    "verdict": "dom",
+    "detail": "mutations=5"
   },
   {
     "page": "实时监控",
@@ -185,7 +192,8 @@
   {
     "page": "决策历史",
     "label": "第 1 页",
-    "verdict": "none"
+    "verdict": "already-active",
+    "detail": "aria-pressed"
   },
   {
     "page": "决策历史",
@@ -195,49 +203,182 @@
   {
     "page": "知识库",
     "label": "全部",
-    "verdict": "none"
+    "verdict": "already-active",
+    "detail": "aria-pressed"
   },
   {
     "page": "知识库",
     "label": "nginx",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=28"
   },
   {
     "page": "知识库",
     "label": "mysql",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=9"
   },
   {
     "page": "知识库",
     "label": "docker",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=9"
   },
   {
     "page": "知识库",
     "label": "network",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=9"
   },
   {
     "page": "知识库",
     "label": "security",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=13"
   },
   {
     "page": "知识库",
     "label": "shell",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=14"
   },
   {
     "page": "知识库",
     "label": "systemd",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=21"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：RHEL 9 系统更新与基础配置",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-rhel9-system-update"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Ubuntu 22.04 LTS 服务器初始化",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-ubuntu2204-init"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：CentOS / RHEL 防火墙配置（firewalld）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-firewalld-rhel"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：systemd 服务管理完全指南",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-systemd-services"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：在 CentOS / RHEL 上部署 LAMP",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-lamp-centos"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：在 Ubuntu 22.04 上安装 WordPress",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-wordpress-ubuntu"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Nginx 反向代理配置",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-nginx-reverse-proxy"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Docker 容器化入门",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-docker-basics"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Nginx 502 Bad Gateway 排查与修复",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-nginx-502"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：磁盘空间写满应急处理（df 100%）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-disk-full"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：进程被 OOM Killer 杀掉的定位与缓解",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-oom-killer"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：SSH 连不上（Connection refused / timed out）排查",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-ssh-refused"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：端口被占用（Address already in use）处理",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-port-conflict"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：磁盘还有空间却报 No space left（inode 耗尽）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-inode-full"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：MySQL Too many connections 的排查与治理",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-mysql-connections"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：journalctl 高效查日志（按服务/时间/等级过滤）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-journal-log"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：firewalld 开放端口/服务的标准操作",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-firewalld-port"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Docker 占盘治理（镜像/容器日志清理）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-docker-disk"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：SELinux 基础与故障排查",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-selinux-basics"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Ubuntu 配置静态 IP（Netplan）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-netplan-static-ip"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：systemd 服务启动失败的标准排查路径",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-systemd-failed"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：系统负载高（load average 飙升）快速定位",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-high-load"
   },
   {
     "page": "知识库",
@@ -252,9 +393,8 @@
   },
   {
     "page": "教程",
-    "label": "搜 索",
-    "verdict": "dom",
-    "detail": "mutations=5"
+    "label": "搜索",
+    "verdict": "disabled"
   },
   {
     "page": "教程",
@@ -264,73 +404,63 @@
   },
   {
     "page": "教程",
-    "label": "开始学习",
-    "verdict": "route",
-    "detail": "#/tutorial → #/tutorial/tut-wordpress-ubuntu"
-  },
-  {
-    "page": "教程",
     "label": "全部(10)",
-    "verdict": "none"
+    "verdict": "already-active",
+    "detail": "aria-pressed"
   },
   {
     "page": "教程",
     "label": "Linux 基础(4)",
     "verdict": "dom",
-    "detail": "mutations=16"
+    "detail": "mutations=18"
   },
   {
     "page": "教程",
     "label": "网络运维(4)",
     "verdict": "dom",
-    "detail": "mutations=6"
+    "detail": "mutations=8"
   },
   {
     "page": "教程",
     "label": "故障排查(0)",
     "verdict": "dom",
-    "detail": "mutations=6"
+    "detail": "mutations=8"
   },
   {
     "page": "教程",
     "label": "安全加固(2)",
     "verdict": "dom",
-    "detail": "mutations=8"
+    "detail": "mutations=10"
   },
   {
     "page": "教程",
     "label": "自动化脚本(0)",
     "verdict": "dom",
-    "detail": "mutations=8"
-  },
-  {
-    "page": "教程",
-    "label": "查看全部学习路径",
-    "verdict": "none"
+    "detail": "mutations=10"
   },
   {
     "page": "日志分析",
     "label": "INFO",
     "verdict": "dom",
-    "detail": "mutations=34"
+    "detail": "mutations=26"
   },
   {
     "page": "日志分析",
     "label": "WARN",
     "verdict": "dom",
-    "detail": "mutations=52"
+    "detail": "mutations=51"
   },
   {
     "page": "日志分析",
     "label": "ERROR",
     "verdict": "dom",
-    "detail": "mutations=11"
+    "detail": "mutations=7"
   },
   {
     "page": "日志分析",
     "label": "DEBUG",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=5"
   },
   {
     "page": "日志分析",
@@ -340,13 +470,8 @@
   {
     "page": "日志分析",
     "label": "自动滚动",
-    "verdict": "dom",
-    "detail": "mutations=7"
-  },
-  {
-    "page": "日志分析",
-    "label": "刷新",
-    "verdict": "toast"
+    "verdict": "already-active",
+    "detail": "data-state=checked"
   },
   {
     "page": "日志分析",
@@ -360,105 +485,51 @@
   },
   {
     "page": "设置-通用",
-    "label": "返回设置",
-    "verdict": "route",
-    "detail": "#/settings/general → #/settings"
-  },
-  {
-    "page": "设置-通用",
-    "label": "简体中文",
-    "verdict": "dom",
-    "detail": "mutations=43"
-  },
-  {
-    "page": "设置-通用",
-    "label": "Asia/Shanghai (UTC+8)",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-通用",
-    "label": "YYYY-MM-DD",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-通用",
-    "label": "1,234.56 (中文/英文)",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-通用",
-    "label": "(无标识图标按钮)",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-通用",
     "label": "导出数据",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "dom",
+    "detail": "mutations=4"
   },
   {
     "page": "设置-通用",
     "label": "清除缓存",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-通用",
-    "label": "右下角",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "dom",
+    "detail": "mutations=8"
   },
   {
     "page": "设置-通用",
     "label": "每日健康巡检 启用开关",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "already-active",
+    "detail": "data-state=checked"
   },
   {
     "page": "设置-通用",
     "label": "立即触发 每日健康巡检",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "dom",
+    "detail": "mutations=21"
   },
   {
     "page": "设置-通用",
     "label": "每日决策归档 启用开关",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "already-active",
+    "detail": "data-state=checked"
   },
   {
     "page": "设置-通用",
     "label": "立即触发 每日决策归档",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "dom",
+    "detail": "mutations=18"
   },
   {
     "page": "设置-通用",
     "label": "运维周报 启用开关",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
+    "verdict": "already-active",
+    "detail": "data-state=checked"
   },
   {
     "page": "设置-通用",
     "label": "立即触发 运维周报",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-通用",
-    "label": "保存设置",
-    "verdict": "unclickable",
-    "detail": "点击超时/被遮挡"
-  },
-  {
-    "page": "设置-模型",
-    "label": "保存配置",
     "verdict": "dom",
-    "detail": "mutations=1"
+    "detail": "mutations=17"
   },
   {
     "page": "设置-模型",
@@ -467,15 +538,57 @@
   },
   {
     "page": "设置-模型",
+    "label": "保守 0.1",
+    "verdict": "dom",
+    "detail": "mutations=26"
+  },
+  {
+    "page": "设置-模型",
+    "label": "平衡 0.3",
+    "verdict": "dom",
+    "detail": "mutations=26"
+  },
+  {
+    "page": "设置-模型",
+    "label": "创新 0.7",
+    "verdict": "dom",
+    "detail": "mutations=26"
+  },
+  {
+    "page": "设置-模型",
+    "label": "自动",
+    "verdict": "already-active",
+    "detail": "aria-selected"
+  },
+  {
+    "page": "设置-模型",
+    "label": "快速",
+    "verdict": "dom",
+    "detail": "mutations=25"
+  },
+  {
+    "page": "设置-模型",
+    "label": "标准",
+    "verdict": "dom",
+    "detail": "mutations=26"
+  },
+  {
+    "page": "设置-模型",
+    "label": "深度",
+    "verdict": "dom",
+    "detail": "mutations=26"
+  },
+  {
+    "page": "设置-模型",
     "label": "显示/隐藏API Key",
     "verdict": "dom",
-    "detail": "mutations=3"
+    "detail": "mutations=22"
   },
   {
     "page": "设置-模型",
     "label": "测试连接",
     "verdict": "dom",
-    "detail": "mutations=14"
+    "detail": "mutations=54"
   },
   {
     "page": "设置-模型",
@@ -487,7 +600,7 @@
     "page": "设置-模型",
     "label": "周",
     "verdict": "dom",
-    "detail": "mutations=7"
+    "detail": "mutations=6"
   },
   {
     "page": "设置-模型",
@@ -499,36 +612,41 @@
     "page": "设置-模型",
     "label": "切换状态筛选",
     "verdict": "dom",
-    "detail": "mutations=3"
+    "detail": "mutations=23"
   },
   {
     "page": "设置-模型",
     "label": "第 2 页",
     "verdict": "dom",
-    "detail": "mutations=3"
+    "detail": "mutations=23"
   },
   {
     "page": "设置-模型",
     "label": "第 3 页",
     "verdict": "dom",
-    "detail": "mutations=2"
+    "detail": "mutations=22"
   },
   {
     "page": "设置-模型",
     "label": "第 13 页",
     "verdict": "dom",
-    "detail": "mutations=3"
+    "detail": "mutations=23"
+  },
+  {
+    "page": "设置-模型",
+    "label": "恢复默认",
+    "verdict": "skipped"
   },
   {
     "page": "设置-模型",
     "label": "导出统计",
     "verdict": "dom",
-    "detail": "mutations=2"
+    "detail": "mutations=42"
   },
   {
     "page": "设置-模型",
     "label": "保存所有配置",
     "verdict": "dom",
-    "detail": "mutations=1"
+    "detail": "mutations=41"
   }
 ]

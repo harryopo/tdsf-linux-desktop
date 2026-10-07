@@ -93,8 +93,8 @@ const RATCHETS = [
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 126,
-    why: '2026-10-07 AI 日志分析面板重写去掉内联样式，实测 127→126。内联视觉属性绕开令牌，主题切换抓不到它',
+    cap: 125,
+    why: '2026-10-07 学习路径删掉「查看全部」死按钮，其内联 ChevronRight 颜色随之消失，实测 126→125。内联视觉属性绕开令牌，主题切换抓不到它',
   },
   {
     name: '还 import antd 的渲染层文件数',

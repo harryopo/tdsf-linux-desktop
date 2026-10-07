@@ -114,6 +114,13 @@
   状态用 `StatusDot`（进行中是旋转环，不只靠颜色）。
 - 右键菜单走 `ContextMenu`，悬浮提示走 `Tooltip`（`content` 为空即不渲染气泡）。
 - 禁用按钮上挂提示时，外包一层 `span`，否则 hover 不触发、"为什么不能点"反而看不到。
+- 只读读数不是按钮。状态栏的 SSH/AI/光标/编码/命令块计数这类不会响应点击的格子写 `<span>`，
+  写 `<button>` 等于让读屏报出一个按不动的控件、让用户白点一次。反过来，能点的切换钮
+  要把当前态标出来（`aria-pressed` + `is-active`）：已经停在终端 tab 时再点"终端面板"
+  本就不该有变化，没有按下态就只能被当成假按钮。
+- 没有目的地就不放按钮。"查看全部"之类指向不存在视图的按钮直接删（2026-10-07 删掉
+  教程页的学习路径按钮，改为把全部路径平铺出来）。输入框为空时的动作钮改成 `disabled`，
+  不要按下去静默 return。
 
 ## 6. Motion
 
@@ -204,6 +211,7 @@
 | 界面文字里出现 emoji | `verify-no-emoji-on-screen.mjs` |
 | 示例/假数据字面量 | `no-fabricated-data` 闸 |
 | 新增 `!important` | `count-important.mjs <上限>` + `important-budget.test.ts`（2026-10-07 antd 退出后实测 33） |
+| 按了没反应的 `<button>` | `no-dead-button.test.ts`（静态，0 容忍）+ `button-truth-census.spec.ts`（真机逐个点，`none` 必须为 0） |
 | 死 CSS 类名 | `dead-css-classes.cjs` |
 | 文档与令牌数字漂移 | `design-contract.mjs`（含负向对照测试） |
 

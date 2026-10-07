@@ -167,6 +167,9 @@ const CommandPalette: FC<CommandPaletteProps> = ({ visible, onClose }) => {
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="命令面板"
         className="flex w-[560px] max-w-[92vw] flex-col overflow-hidden rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

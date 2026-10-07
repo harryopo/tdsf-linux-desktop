@@ -42,6 +42,8 @@ export interface WorkbenchTitlebarProps {
   aiPanelVisible?: boolean
   /** 终端面板按钮回调（切换到终端 tab） */
   onToggleTerminal?: () => void
+  /** 当前是否已停在终端 tab（按钮据此显示按下态，重复点击无变化才不算假按钮） */
+  terminalActive?: boolean
   /** P1-3：全部保存按钮回调（一键保存所有未保存文件） */
   onSaveAll?: () => void
   /** P1-3：是否存在未保存文件（用于按钮高亮提示） */
@@ -52,6 +54,7 @@ export function WorkbenchTitlebar({
   onToggleAI,
   aiPanelVisible = true,
   onToggleTerminal,
+  terminalActive = false,
   onSaveAll,
   hasUnsavedFiles = false,
 }: WorkbenchTitlebarProps) {
@@ -371,7 +374,12 @@ export function WorkbenchTitlebar({
           >
             <PanelRight className="size-4" />
           </IconButton>
-          <IconButton title="终端面板" onClick={onToggleTerminal}>
+          <IconButton
+            title="终端面板"
+            onClick={onToggleTerminal}
+            active={terminalActive}
+            domId="btn-toggle-terminal"
+          >
             <SquareTerminal className="size-4" />
           </IconButton>
           <IconButton title="设置" onClick={() => navigate('/settings')} domId="nav-settings-top">
@@ -411,6 +419,7 @@ function IconButton({
       type="button"
       title={title}
       aria-label={title}
+      aria-pressed={active}
       onClick={onClick}
       data-dom-id={domId}
       className={cn(

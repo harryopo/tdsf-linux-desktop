@@ -96,9 +96,14 @@ export function StatusBar() {
       aria-label="状态栏"
     >
       <div className="wb-statusbar-group">
-        <StatusItem onClick={focusActiveTerminal} title="聚焦终端">
+        {/* 没有会话时这里根本没挂 xterm，「聚焦终端」点了只会什么也不发生，
+            所以无会话时降级成只读读数，不再写成一个能点的按钮（原名写死 'main' 也是假数据） */}
+        <StatusItem
+          onClick={activeSessionId ? focusActiveTerminal : undefined}
+          title={activeSessionId ? '聚焦终端' : '还没打开终端'}
+        >
           <Terminal className="size-3" />
-          <span>main</span>
+          <span>{activeSessionId ? activeServer?.name ?? '终端' : '无终端'}</span>
         </StatusItem>
 
         <StatusItem color={sshColor}>
@@ -176,17 +181,26 @@ interface StatusItemProps {
   title?: string
 }
 
+/**
+ * 状态栏项。
+ *
+ * 只有传了 onClick 才是按钮——其余格子是只读读数（SSH 状态、光标位置、
+ * 命令块计数等）。把它们写成 <button> 会让读屏报出一个按了没反应的控件，
+ * 也让按钮普查把它们误判成死按钮。
+ */
 function StatusItem({ children, color, onClick, title }: StatusItemProps) {
+  const cls = 'wb-status-item' + (onClick ? ' wb-status-item--action' : '')
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} title={title} className={cls} style={color ? { color } : undefined}>
+        {children}
+      </button>
+    )
+  }
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className="wb-status-item"
-      style={color ? { color } : undefined}
-    >
+    <span title={title} className={cls} style={color ? { color } : undefined}>
       {children}
-    </button>
+    </span>
   )
 }
 

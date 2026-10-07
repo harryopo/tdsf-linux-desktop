@@ -449,7 +449,7 @@ const EditorArea: FC<EditorAreaProps> = ({
 
   return (
     <div className="term-editor-area">
-      <div className="term-tab-bar">
+      <div className="term-tab-bar" role="tablist" aria-label="编辑器标签">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const isTerm = tab.id === 'tab-terminal'
@@ -467,6 +467,8 @@ const EditorArea: FC<EditorAreaProps> = ({
               <button
                 type="button"
                 className="term-tab-btn"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => onTabChange(tab.id)}
               >
                 {isTerm ? (

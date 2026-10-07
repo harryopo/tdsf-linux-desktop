@@ -403,31 +403,15 @@
 }
 
 /* ===== 推荐学习路径（横向时间线，1:1 对齐设计稿 tutorial.html §6）===== */
-.tut-paths-viewall {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--trae-body-sm-font-size);
-  color: var(--accent-text);
-  text-decoration: none;
-  padding: 4px 8px;
-  border-radius: var(--trae-radius-4);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: background .15s ease;
-}
-.tut-paths-viewall:hover {
-  background: var(--trae-bg-overlay-l2);
-}
-
 /* 时间线卡片容器 */
 .tut-path-timeline-card {
   background: var(--trae-bg-base-secondary);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-8);
   padding: 16px;
+}
+.tut-path-timeline-card + .tut-path-timeline-card {
+  margin-top: 12px;
 }
 
 /* 进度头：trending-up 图标 + 路线名 + "2/5 已完成" + 进度条 */

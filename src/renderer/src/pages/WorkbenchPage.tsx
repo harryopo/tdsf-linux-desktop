@@ -299,6 +299,7 @@ export const WorkbenchPage: FC = () => {
         aiPanelVisible={aiPanelVisible}
         onToggleAI={() => setAiPanelVisible((v) => !v)}
         onToggleTerminal={() => setActiveTabId('tab-terminal')}
+        terminalActive={activeTabId === 'tab-terminal'}
         onSaveAll={() => void handleSaveAll()}
         hasUnsavedFiles={fileTabs.some((t) => t.dirty)}
       />

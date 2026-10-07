@@ -528,7 +528,6 @@
   padding: 0 6px;
   border-radius: 4px;
   color: var(--text-tertiary);
-  cursor: pointer;
   background: transparent;
   border: none;
   font-family: inherit;
@@ -536,7 +535,12 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.wb-status-item:hover {
+/* 只有真的能点的状态格才显示手型与按压反馈；只读读数装了 hover 会诱导用户去点 */
+.wb-status-item--action {
+  cursor: pointer;
+}
+
+.wb-status-item--action:hover {
   background: var(--trae-bg-overlay-l2);
   color: var(--text-primary);
 }

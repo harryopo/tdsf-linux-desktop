@@ -105,7 +105,7 @@ function mapEntryToItem(entry: KnowledgeEntry): KnowledgeItem {
   }
 }
 
-// ==================== 静态示例数据（1:1 来自设计稿 knowledge.html，仅非 Electron 环境使用） ====================
+// ==================== 分类筛选标签（只有标签是写死的，条目一律来自 IPC） ====================
 
 const CATEGORIES: { id: KnowledgeCategory; label: string }[] = [
   { id: 'all', label: '全部' },

@@ -45,7 +45,13 @@ export function TutorialHeader({
               className="w-[280px] pl-8"
             />
           </span>
-          <Button variant="solid" size="lg" disabled={searching} onClick={onSearch}>
+          {/* 空检索词时按下只会「什么都不发生」，所以直接禁用而不是假装能搜 */}
+          <Button
+            variant="solid"
+            size="lg"
+            disabled={searching || searchQuery.trim() === ''}
+            onClick={onSearch}
+          >
             {searching ? '搜索中…' : '搜索'}
           </Button>
         </>
