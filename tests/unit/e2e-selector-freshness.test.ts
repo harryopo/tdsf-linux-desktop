@@ -6,9 +6,8 @@
  * antd 已经整体退出渲染层，这些选择器永远取不到元素；而 serial 模式下只要前面一条红，
  * 后面的用例全被标成"未运行"，看上去是"跳过"，其实是死代码在装覆盖。
  * 两份 legacy spec 已删（其中仍有效的一条搬到 shell-stability.spec.ts），
- * 这条静态闸把"还在点 antd"的量钉成只降不升的刻度（当前 11），
- * 让同样的腐化下次被当场拦住，而不是等 6 分钟的 e2e 才发现。
- * 注：这是刻度闸不是 0 容忍闸，清零后才会改成 0。
+ * 剩下的 11 处在 2026-10-07 清零，于是这条闸升级为 0 容忍：
+ * 只要再出现一处改版前选择器就当场拦住，而不是等 6 分钟的 e2e 才发现。
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
@@ -54,15 +53,10 @@ describe('e2e 选择器时效性', () => {
     PATTERN.lastIndex = 0
   })
 
-  it('改版前选择器的存量只许降不许升（当前上限 11）', () => {
-    // 上限 11 = 2026-10-07 实测：acceptance-screenshots(5) + ui-v2-aesthetic(5) + wiring-verification(1)。
-    // 这三份还在点 antd 的 tab/modal，serial 模式下一条红后面全被标"未运行"，
-    // 看着像跳过其实是死代码在装覆盖。清空一份就把这个数字改小，清零后改成 0 容忍。
-    expect(hits.length, `antd 时代选择器还剩 ${hits.length} 处（上限 11）：\n${hits.join('\n')}`).toBeLessThanOrEqual(11)
-  })
-
-  it('清零进度可追踪：命中清单必须打出来给人看', () => {
-    // 不做 0 容忍之前，至少保证每次跑都把这些列出来，不让它悄悄存在
-    expect(Array.isArray(hits)).toBe(true)
+  it('没有 spec 还在点 antd 时代的选择器（0 容忍）', () => {
+    // 2026-10-07 清零的三份：acceptance-screenshots 改成按路由断言页标题并真落盘；
+    // ui-v2-aesthetic 整份删除（同类检查由 verify-theme.mjs 与 ui-audit.mjs 覆盖）；
+    // wiring-verification 换成现钩子 #ai-composer-input / .ai-tool-search。
+    expect(hits, '改版前选择器 = 死代码，须换成现钩子或删除该断言：\n' + hits.join('\n')).toEqual([])
   })
 })

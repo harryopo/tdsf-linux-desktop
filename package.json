@@ -19,7 +19,7 @@
     "test:e2e": "pnpm build && playwright test",
     "test:e2e:fast": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:visual": "playwright test --grep visual",
+    "test:e2e:visual": "playwright test tests/e2e/visual.spec.ts",
     "test:e2e:wiring": "playwright test tests/e2e/wiring-verification.spec.ts",
     "audit:ipc": "tsx scripts/audit-ipc-contract.ts",
     "deadcode": "knip --no-exit-code",

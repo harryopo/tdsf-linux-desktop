@@ -19,6 +19,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import { tcpReachable } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -119,6 +120,9 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
   test.describe.configure({ mode: 'serial' })
 
   testOrSkip('L1: 连接真机 + 执行真实命令，输出必须是真实回显', async () => {
+    // 靶机没开时报红没有意义：环境不在与产品坏了要分开说
+    const up = await tcpReachable(SSH_HOST, SSH_PORT)
+    test.skip(!up, `靶机 ${SSH_HOST}:${SSH_PORT} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
     test.setTimeout(120_000)
     const { app, window } = await launch()
 
@@ -155,6 +159,8 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
   })
 
   testOrSkip('L2: 启动监控 + 系统信息回流，监控页展示真实数据', async () => {
+    const up = await tcpReachable(SSH_HOST, SSH_PORT)
+    test.skip(!up, `靶机 ${SSH_HOST}:${SSH_PORT} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
     test.setTimeout(120_000)
     const { app, window } = await launch()
 

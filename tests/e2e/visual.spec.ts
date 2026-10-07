@@ -1,243 +1,102 @@
 /**
- * 视觉对比测试 — §5.3 严格版
+ * visual.spec.ts —— 界面视觉基线对比（本机尺子，不进 CI）
  *
- * 依据：TDSF高质量做大方案-终稿.md §5.3
- * 目标：实际渲染 vs 设计稿基线，确保 UI 改动不破坏视觉一致性
+ * 与 acceptance-screenshots 的分工：那份只「拍下来给人看」，这一份「和历史基线比像素」，
+ * 用来拦住改了样式自己没发现的情况。
  *
- * 工作机制：
- *   1. 首次运行：`pnpm test:e2e:visual --update-snapshots` 生成基线
- *      基线存放在 tests/e2e/visual.spec.ts-snapshots/ 目录
- *   2. 后续运行：`pnpm test:e2e:visual` 与基线对比，差异 > 阈值 fail
+ * 基线不入库（.gitignore 已忽略 visual.spec.ts-snapshots/）：截图带了操作系统字体渲染，
+ * 换台机器就会误报。所以基线是本机生成的尺子，不是仓库资产。
+ * 一条基线都没有时整份跳过并打印生成命令，不让首次检出的人收到一排红；
+ * 只缺某一页的基线则那一条会红，意思就是"这页要重新生成基线"。
  *
- * 阈值说明：
- *   - maxDiffPixelRatio: 0.1（允许 10% 像素差异，宽容字体抗锯齿/亚像素渲染差异）
- *   - 阈值可按页面调整（复杂页面如工作台可放宽到 0.15）
+ * 启动页（boot）与系统日志页不在这里比：前者是一帧 shader 动画，同页两次截图就不一致；
+ * 后者显示的是真实日志，每跑一次就多几条，像素尺子量它必然抖（实测 2288 像素差）。
+ * 日志页的内容正确性由 shell-stability 的 logStats/logRead 负责，画面由 acceptance 截图负责。
  *
- * 设计稿基线（参考）：
- *   - 原始设计稿：docs/audit-screenshots/design-*.png（21 个页面）
- *   - 之前的实际截图：docs/audit-screenshots/app-*.png
- *   - 手写 CSS 属性对比：docs/FRONTEND-VISUAL-COMPARISON.md
- *
- * 注意：
- *   - toHaveScreenshot 的第一个参数是相对快照目录的路径
- *   - 快照目录默认：<spec-file>-snapshots/
- *   - Electron 窗口大小固定 1440x900（设计稿 1920x1080 缩放）
+ * 用法：
+ *   pnpm build
+ *   pnpm test:e2e:visual --update-snapshots   # 生成/更新本机基线
+ *   pnpm test:e2e:visual                       # 与基线对比
  */
-import { test, expect, _electron as electron } from '@playwright/test'
-import path from 'node:path'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import fs from 'node:fs'
+import path from 'node:path'
+import { launchApp } from './ssh-fixture-helpers'
 
-/** Electron 主进程入口 */
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
+const SNAP_DIR = path.join(__dirname, 'visual.spec.ts-snapshots')
 
-/** 是否已 build */
-const BUILD_READY = fs.existsSync(MAIN_ENTRY)
+/** 与设计稿画布一致，保证不同页面的截图可比 */
+const VIEWPORT = { width: 1440, height: 900 }
 
-/** 固定窗口大小（视觉对比基线一致性） */
-const VIEWPORT_WIDTH = 1440
-const VIEWPORT_HEIGHT = 900
-
-/** 跳过未 build 的测试 */
-const testOrSkip = BUILD_READY ? test : test.skip
-
-/** 启动 Electron 并设置固定 viewport */
-async function launchAppWithViewport() {
-  const app = await electron.launch({
-    args: [MAIN_ENTRY],
-    env: {
-      ...process.env,
-      NODE_ENV: 'test',
-      TDSF_E2E: '1',
-    },
-  })
-  const window = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
-  // 固定 viewport 确保截图基线一致
-  await window.setViewportSize({ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT })
-  return { app, window }
+interface Shot {
+  /** 基线文件名主干，也是快照里的标识 */
+  key: string
+  /** 路由 */
+  hash: string
+  /** 这条路由就绪的钩子（必须是源码里存在的类名或 data-dom-id） */
+  wait: string
 }
 
-test.describe('视觉对比 — 实际渲染 vs 基线', () => {
-  testOrSkip('视觉: BootPage 启动加载页', async () => {
-    const { app, window } = await launchAppWithViewport()
+const SHOTS: Shot[] = [
+  { key: 'workbench', hash: '#/workbench', wait: '.wb-main-layout' },
+  { key: 'tutorial', hash: '#/tutorial', wait: '.tut-page' },
+  { key: 'decision', hash: '#/decision', wait: '[data-dom-id="page-title"]' },
+  { key: 'history', hash: '#/history', wait: '.hist-page' },
+  { key: 'monitor', hash: '#/monitor', wait: '[data-dom-id="page-title"]' },
+  { key: 'knowledge', hash: '#/knowledge', wait: '.kb-page' },
+  { key: 'settings', hash: '#/settings/general', wait: '.set-page' },
+]
 
-    await window.waitForSelector('main[data-viewport-mode="app-shell"]', { timeout: 30000 })
-    // 等待 shader 动画稳定（取进度条中段）
-    await window.waitForTimeout(2000)
+function hasBaseline(key: string): boolean {
+  if (!fs.existsSync(SNAP_DIR)) return false
+  return fs.readdirSync(SNAP_DIR).some((f) => f.startsWith(`${key}-electron-`) && f.endsWith('.png'))
+}
 
-    await expect(window).toHaveScreenshot('boot.png', {
-      maxDiffPixelRatio: 0.15, // shader 动画帧差异，放宽到 15%
-    })
+const BUILD_READY = fs.existsSync(MAIN_ENTRY)
+const ANY_BASELINE = SHOTS.some((s) => hasBaseline(s.key))
 
-    await app.close()
+const SKIP_REASON = !BUILD_READY
+  ? '缺 out/main/index.js：视觉基线跑的是构建产物，先 pnpm build'
+  : !ANY_BASELINE
+    ? '本机还没有基线：先跑 pnpm test:e2e:visual --update-snapshots 生成，再跑本条做对比'
+    : ''
+
+// 跳过原因要出现在终端里：只在 HTML 报告里写原因，跑全量 e2e 的人只会看到一排 skipped 而不知道为什么。
+if (SKIP_REASON) console.log(`[visual] 跳过：${SKIP_REASON}`)
+
+test.describe('视觉基线对比', () => {
+  test.skip(!!SKIP_REASON, SKIP_REASON)
+
+  let app: ElectronApplication
+  let page: Page
+
+  test.beforeAll(async () => {
+    const launched = await launchApp()
+    app = launched.app
+    page = launched.page
+    await page.setViewportSize(VIEWPORT)
   })
 
-  testOrSkip('视觉: 工作台主页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.waitForTimeout(1000) // 等 page-enter 动画完成
-
-    await expect(window).toHaveScreenshot('workbench.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
+  test.afterAll(async () => {
+    await app?.close()
   })
 
-  testOrSkip('视觉: 教程页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
+  for (const shot of SHOTS) {
+    test(`视觉 ${shot.key}`, async () => {
+      await page.evaluate((hash) => {
+        window.location.hash = hash
+      }, shot.hash)
+      await page.waitForSelector(shot.wait, { timeout: 20000 })
+      // 等 page-enter 动画走完，否则截到淡入中途
+      await page.waitForTimeout(1200)
+      await expect(page).toHaveScreenshot(`${shot.key}.png`, {
+        // 不设宽容比。2026-10-07 实测：这些页面彼此整体只差 3%~9%（外壳占大头，路由区很小），
+        // 原来写的 0.1 等于把闸调成摆设——互换两页基线照样报绿。
+        // 光标与动画会制造无意义抖动，所以按像素对齐把它们关掉。
+        caret: 'hide',
+        animations: 'disabled'
+      })
     })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-tutorial"]').click()
-    await window.waitForSelector('.tut-page', { timeout: 15000 })
-    await window.waitForTimeout(1000)
-
-    await expect(window).toHaveScreenshot('tutorial.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
-
-  testOrSkip('视觉: 决策页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-decision"]').click()
-    await window.waitForTimeout(1500)
-
-    await expect(window).toHaveScreenshot('decision.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
-
-  testOrSkip('视觉: 历史页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-history"]').click()
-    await window.waitForSelector('.hist-page', { timeout: 15000 })
-    await window.waitForTimeout(1000)
-
-    await expect(window).toHaveScreenshot('history.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
-
-  testOrSkip('视觉: 监控页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-monitor"]').click()
-    await window.waitForSelector('.mon-main', { timeout: 15000 })
-    await window.waitForTimeout(1500)
-
-    await expect(window).toHaveScreenshot('monitor.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
-
-  testOrSkip('视觉: 知识库页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-knowledge"]').click()
-    await window.waitForSelector('.kb-page', { timeout: 15000 })
-    await window.waitForTimeout(1000)
-
-    await expect(window).toHaveScreenshot('knowledge.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
-
-  testOrSkip('视觉: 系统日志页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-logs"]').click()
-    await window.waitForSelector('.log-main', { timeout: 15000 })
-    await window.waitForTimeout(1000)
-
-    await expect(window).toHaveScreenshot('logs.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
-
-  testOrSkip('视觉: 设置页', async () => {
-    const { app, window } = await launchAppWithViewport()
-
-    await window.evaluate(() => {
-      window.location.hash = '#/workbench'
-    })
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await window.locator('[data-dom-id="nav-settings"]').click()
-    await window.waitForSelector('.set-page', { timeout: 15000 })
-    await window.waitForTimeout(1000)
-
-    await expect(window).toHaveScreenshot('settings.png', {
-      maxDiffPixelRatio: 0.1,
-    })
-
-    await app.close()
-  })
+  }
 })
-
-/**
- * 使用指南：
- *
- * 1. 首次生成基线（必须）：
- *    ```bash
- *    pnpm test:e2e:visual --update-snapshots
- *    ```
- *    会在 tests/e2e/visual.spec.ts-snapshots/ 目录生成基线 PNG
- *
- * 2. 后续验证（CI / 本地回归）：
- *    ```bash
- *    pnpm test:e2e:visual
- *    ```
- *    差异 > 阈值的页面会 fail，差异图保存到 test-results/
- *
- * 3. 设计稿参考：
- *    - 原始设计稿：docs/audit-screenshots/design-*.png
- *    - 当前实际：docs/audit-screenshots/app-*.png
- *    - 手写 CSS 属性对比：docs/FRONTEND-VISUAL-COMPARISON.md
- *
- * 4. 更新基线（UI 改动后）：
- *    ```bash
- *    pnpm test:e2e:visual --update-snapshots
- *    git add tests/e2e/visual.spec.ts-snapshots/
- *    git commit -m "test: update visual baseline after UI change"
- *    ```
- */

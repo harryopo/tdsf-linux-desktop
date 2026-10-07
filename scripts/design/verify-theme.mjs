@@ -85,26 +85,31 @@ const SET = (theme) => `document.documentElement.dataset.theme = ${JSON.stringif
 const PROBE = (theme) => `(() => {
   // 主题已由 SET 切好；这里只测量
   void document.documentElement.offsetWidth;
-  const lum = (c) => {
-    const m = String(c).match(/[\\d.]+/g);
+  // "深灰残留"的准确定义：**不透明**的深色底 —— 那才是没跟着主题翻面的硬编码颜色。
+  // 带 alpha 的着色（chip / tint / color-mix 出来的 oklab(...)）不参与判定：
+  // 它们叠在浅色画布上必然偏亮，而且旧的解析法会把 oklab(0.56 0.048 0.11 / 0.15)
+  // 当成 sRGB 的三个小数值 → 误判成近黑深灰，浅色主题明明干净却报红（2026-10-07 踩到）。
+  // 有彩色（主色按钮、状态 chip）同样不算残留。
+  const channels = (c) => {
+    const s = String(c);
+    if (!/^rgba?\\(/.test(s)) return null; // oklab / lab / color(...) 一类不解析：判不了就别猜
+    const m = s.match(/[\\d.]+/g);
     if (!m || m.length < 3) return null;
-    if (m.length > 3 && Number(m[3]) === 0) return null;
+    const a = m.length > 3 ? Number(m[3]) : 1;
+    if (a < 1) return null; // 半透明着色叠在画布上，判它"深色底"没有意义
+    return [+m[0], +m[1], +m[2]];
+  };
+  const lum = (c) => {
+    const ch = channels(c);
+    if (!ch) return null;
     const f = (v) => { v = v / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-    return 0.2126 * f(+m[0]) + 0.7152 * f(+m[1]) + 0.0722 * f(+m[2]);
+    return 0.2126 * f(ch[0]) + 0.7152 * f(ch[1]) + 0.0722 * f(ch[2]);
   };
   const visible = (el) => {
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return false;
     const r = el.getBoundingClientRect();
     return r.width >= 24 && r.height >= 12;
-  };
-  // "深灰残留"的准确定义：低饱和 + 暗。主色按钮（蓝）、状态 chip（半透明黄）
-  // 本来就是有彩色，不该被算成没翻面。
-  const channels = (c) => {
-    const m = String(c).match(/[\\d.]+/g);
-    if (!m || m.length < 3) return null;
-    if (m.length > 3 && Number(m[3]) === 0) return null;
-    return [+m[0], +m[1], +m[2]];
   };
   const isDarkGrey = (c) => {
     const ch = channels(c);

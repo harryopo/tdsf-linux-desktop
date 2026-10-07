@@ -118,3 +118,24 @@ export async function bindSessionToStore(page: Page, serverId: string, sessionId
 }
 
 export const FIXTURE_READY = fs.existsSync(MAIN_ENTRY)
+
+/**
+ * TCP 可达性探针（3 秒）。
+ *
+ * 为什么需要：靶机没开的时候，"连真机"那几条 spec 会报 ETIMEDOUT 变成红，
+ * 而红是"环境不在"不是"产品坏了"——混在一起就没人再信这套红了。
+ * 用它把这两种情况分开：连不上 → skip 并把原因打出来；连得上 → 失败才算数。
+ */
+export async function tcpReachable(host: string, port: number, timeoutMs = 3000): Promise<boolean> {
+  const net = await import('node:net')
+  return new Promise((resolve) => {
+    const sock = net.createConnection({ host, port, timeout: timeoutMs })
+    const done = (ok: boolean) => {
+      sock.destroy()
+      resolve(ok)
+    }
+    sock.on('connect', () => done(true))
+    sock.on('timeout', () => done(false))
+    sock.on('error', () => done(false))
+  })
+}

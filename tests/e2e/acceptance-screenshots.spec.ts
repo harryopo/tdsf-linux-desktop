@@ -1,134 +1,117 @@
-// 临时验收脚本 - 用 Playwright _electron 启动应用并截屏关键页面
+/**
+ * acceptance-screenshots.spec.ts —— 验收截图（每一步都必须真的发生）
+ *
+ * 旧版是 12 步全靠 `if (await isVisible())` 软兜底：改版后 antd 的 tab 与
+ * `.server-list-add-btn`、`textarea[placeholder*="描述问题"]` 早就不存在，
+ * 8 步静默跳过却仍然 "1 passed"，并且往仓库里留着几张再也不会更新的旧图。
+ * 现在改成：按路由逐屏截，每屏断言①停在该路由 ②页面标题非空 ③图片真的落盘且不小得可疑。
+ * 任何一步做不到就是红，不再"截图完成"打印了却什么也没写。
+ */
 import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 
 const OUT_DIR = path.join(__dirname, 'screenshots-acceptance')
-if (!fs.existsSync(OUT_DIR)) {
-  fs.mkdirSync(OUT_DIR, { recursive: true })
+const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
+const testOrSkip = fs.existsSync(MAIN_ENTRY) ? test : test.skip
+
+/** e2e 专用 userData，别把测试痕迹写进共享配置 */
+const E2E_USER_DATA_DIR = path.join(os.tmpdir(), 'tdsf-e2e-profile')
+
+/** 落盘图片的最小字节数：再小就是白屏/半屏 */
+const MIN_BYTES = 20_000
+
+interface Shot {
+  file: string
+  route: string
+  /** 该屏的页面标题（外壳工作区没有 PageHeader，用 .wb-main-layout 代替） */
+  title?: string
+}
+
+const SHOTS: Shot[] = [
+  { file: '01-home-terminal.png', route: '#/workbench' },
+  { file: '02-home-monitor.png', route: '#/monitor', title: '实时监控' },
+  { file: '03-settings-general.png', route: '#/settings/general', title: '通用' },
+  { file: '04-settings-model.png', route: '#/settings/model', title: '模型配置' },
+  { file: '05-settings-appearance.png', route: '#/settings/appearance', title: '外观' },
+  { file: '06-settings-risk.png', route: '#/settings/risk', title: '风险控制' },
+  { file: '07-history.png', route: '#/history' },
+  { file: '08-knowledge.png', route: '#/knowledge' },
+  { file: '09-tutorial.png', route: '#/tutorial', title: '运维教程' },
+  { file: '10-logs.png', route: '#/logs' },
+  { file: '11-decision.png', route: '#/decision' },
+  { file: '12-settings-ssh.png', route: '#/settings/ssh', title: 'SSH 连接' },
+]
+
+async function shoot(page: import('@playwright/test').Page, s: Shot): Promise<string> {
+  await page.evaluate((h) => {
+    window.location.hash = h
+  }, s.route)
+  await page.waitForTimeout(900)
+
+  if (s.route === '#/workbench') {
+    await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
+  } else {
+    await page.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    const got = (await page.locator('[data-dom-id="page-title"]').textContent())?.trim() ?? ''
+    if (s.title) {
+      expect(got, `${s.route} 的页头标题应为「${s.title}」，实测「${got}」`).toBe(s.title)
+    } else {
+      expect(got.length, `${s.route} 页头标题不该为空（说明没真渲染出来）`).toBeGreaterThan(0)
+    }
+  }
+
+  const file = path.join(OUT_DIR, s.file)
+  await page.screenshot({ path: file, fullPage: true })
+  return file
 }
 
 test.describe('TDSF 验收截图', () => {
-  test('所有关键页面截图', async () => {
-    test.setTimeout(300000)
-    const appPath = path.join(__dirname, '..', '..', 'out', 'main', 'index.js')
+  testOrSkip('逐屏截图：停对页面、标题非空、图片真的落盘', async () => {
+    test.setTimeout(300_000)
+    fs.mkdirSync(OUT_DIR, { recursive: true })
     const app = await electron.launch({
-      args: [appPath],
-      env: { ...process.env, NODE_ENV: 'development' },
-      timeout: 90000
+      args: [MAIN_ENTRY, `--user-data-dir=${E2E_USER_DATA_DIR}`],
+      env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
+      timeout: 90_000,
     })
-    const page = await app.firstWindow({ timeout: 60000 })
-    await page.waitForLoadState('domcontentloaded', { timeout: 30000 })
-    await page.waitForTimeout(4000)
+    const page = await app.firstWindow({ timeout: 60_000 })
+    await page.waitForLoadState('domcontentloaded', { timeout: 30_000 })
+    await page.waitForTimeout(3000)
 
-    // 1. 主页（工作台）
-    await page.screenshot({ path: path.join(OUT_DIR, '01-home-terminal.png'), fullPage: true })
-    console.log('[1] 工作台截图完成')
-
-    // 2. 切换到监控 Tab
-    const monitorTab = page.locator('text=监控').first()
-    if (await monitorTab.isVisible().catch(() => false)) {
-      await monitorTab.click()
-      await page.waitForTimeout(2000)
-      await page.screenshot({ path: path.join(OUT_DIR, '02-home-monitor.png'), fullPage: true })
-      console.log('[2] 监控视图截图完成')
+    const written: string[] = []
+    for (const s of SHOTS) {
+      const file = await shoot(page, s)
+      const size = fs.statSync(file).size
+      expect(size, `${s.file} 只写了 ${size} 字节，不是一屏真实渲染`).toBeGreaterThan(MIN_BYTES)
+      written.push(s.file)
     }
+    console.log('[验收截图] 落盘', written.length, '张：', written.join(', '))
 
-    // 3. 设置页
-    await page.evaluate(() => { window.location.hash = '#/settings' })
-    await page.waitForTimeout(1500)
-    await page.screenshot({ path: path.join(OUT_DIR, '03-settings-appearance.png'), fullPage: true })
-    console.log('[3] 设置-外观截图完成')
+    // 浮层两屏：SSH 页的"添加服务器"弹窗、工作台的 AI 输入框
+    await page.evaluate(() => {
+      window.location.hash = '#/settings/ssh'
+    })
+    await page.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    await page.locator('button:has-text("添加服务器")').first().click()
+    await page.waitForSelector('[role="dialog"]', { timeout: 5000 })
+    const dialogFile = path.join(OUT_DIR, '13-server-add-dialog.png')
+    await page.screenshot({ path: dialogFile, fullPage: true })
+    expect(fs.statSync(dialogFile).size, '添加服务器弹窗截图没落盘').toBeGreaterThan(MIN_BYTES)
+    await page.keyboard.press('Escape')
 
-    // 4. LLM 配置
-    const llmTab = page.locator('.ant-tabs-tab').filter({ hasText: 'LLM 配置' })
-    if (await llmTab.first().isVisible().catch(() => false)) {
-      await llmTab.first().click()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: path.join(OUT_DIR, '04-settings-llm.png'), fullPage: true })
-      console.log('[4] LLM 配置截图完成')
-    }
-
-    // 5. 暗黑模式
-    const darkBtn = page.locator('button').filter({ hasText: '暗黑' })
-    if (await darkBtn.first().isVisible().catch(() => false)) {
-      await darkBtn.first().click()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: path.join(OUT_DIR, '05-settings-dark.png'), fullPage: true })
-      console.log('[5] 暗黑模式截图完成')
-    }
-
-    // 6. 风险规则
-    const riskTab = page.locator('.ant-tabs-tab').filter({ hasText: '风险规则' })
-    if (await riskTab.first().isVisible().catch(() => false)) {
-      await riskTab.first().click()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: path.join(OUT_DIR, '06-settings-risk.png'), fullPage: true })
-      console.log('[6] 风险规则截图完成')
-    }
-
-    // 7. 历史决策
-    await page.evaluate(() => { window.location.hash = '#/history' })
-    await page.waitForTimeout(1500)
-    await page.screenshot({ path: path.join(OUT_DIR, '07-history.png'), fullPage: true })
-    console.log('[7] 历史决策截图完成')
-
-    // 8. 知识库
-    await page.evaluate(() => { window.location.hash = '#/knowledge' })
-    await page.waitForTimeout(1500)
-    await page.screenshot({ path: path.join(OUT_DIR, '08-knowledge-command.png'), fullPage: true })
-    console.log('[8] 知识库截图完成')
-
-    // 9. 知识库 - 故障案例 Tab
-    const incidentTab = page.locator('.ant-tabs-tab').filter({ hasText: '故障案例' })
-    if (await incidentTab.first().isVisible().catch(() => false)) {
-      await incidentTab.first().click()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: path.join(OUT_DIR, '09-knowledge-incident.png'), fullPage: true })
-      console.log('[9] 知识库-故障案例截图完成')
-    }
-
-    // 10. 知识库 - 添加弹窗
-    const addBtn = page.locator('button').filter({ hasText: '添加' }).first()
-    if (await addBtn.isVisible().catch(() => false)) {
-      await addBtn.click()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: path.join(OUT_DIR, '10-knowledge-add-modal.png'), fullPage: true })
-      console.log('[10] 知识库添加弹窗截图完成')
-      // 关闭弹窗
-      const cancelBtn = page.locator('.ant-modal-footer button').filter({ hasText: '取消' })
-      if (await cancelBtn.first().isVisible().catch(() => false)) {
-        await cancelBtn.first().click()
-        await page.waitForTimeout(500)
-      }
-    }
-
-    // 11. 新建服务器弹窗
-    await page.evaluate(() => { window.location.hash = '#/' })
-    await page.waitForTimeout(1500)
-    const addServerBtn = page.locator('.server-list-add-btn')
-    if (await addServerBtn.isVisible().catch(() => false)) {
-      await addServerBtn.click()
-      await page.waitForTimeout(800)
-      await page.screenshot({ path: path.join(OUT_DIR, '11-server-add-dialog.png'), fullPage: true })
-      console.log('[11] 新建服务器截图完成')
-      const cancelServerBtn = page.locator('.ant-modal-footer button').filter({ hasText: '取消' })
-      if (await cancelServerBtn.first().isVisible().catch(() => false)) {
-        await cancelServerBtn.first().click()
-        await page.waitForTimeout(500)
-      }
-    }
-
-    // 12. AI 助手输入框
-    const aiInput = page.locator('textarea[placeholder*="描述问题"]')
-    if (await aiInput.first().isVisible().catch(() => false)) {
-      await aiInput.first().fill('检查系统状态')
-      await page.waitForTimeout(500)
-      await page.screenshot({ path: path.join(OUT_DIR, '12-ai-input.png'), fullPage: true })
-      console.log('[12] AI 输入框截图完成')
-    }
+    await page.evaluate(() => {
+      window.location.hash = '#/workbench'
+    })
+    await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    const composer = page.locator('#ai-composer-input')
+    await composer.waitFor({ state: 'visible', timeout: 10_000 })
+    await composer.fill('检查系统状态')
+    const aiFile = path.join(OUT_DIR, '14-ai-input.png')
+    await page.screenshot({ path: aiFile, fullPage: true })
+    expect(fs.statSync(aiFile).size, 'AI 输入框截图没落盘').toBeGreaterThan(MIN_BYTES)
 
     await app.close()
-    console.log('所有验收截图已保存到:', OUT_DIR)
   })
 })

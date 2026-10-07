@@ -196,6 +196,9 @@
    欠账清单 `FAKE` 上限已是 **0**（2026-10-06 清零：35 个键全部有消费者），再加一个"拨了没反应"的开关直接红。
 10. 提交前自己跑三件事：`node scripts/design/design-contract.mjs`、
    `pnpm build && node scripts/design/ui-audit.mjs --gate`、`pnpm test`。
+11. 改完样式再看一眼视觉基线：`pnpm test:e2e:visual`（本机尺子，零宽容，基线不入库）。
+    这条确实拦得住东西：实测互换两页基线就红。有意改版就带 `--update-snapshots` 重新生成，
+    别把宽容比调大——这些页面彼此整体只差 3%~9%，阈值超过 0.03 就等于没有闸。
 
 ## 10. 界面文案准则（"过时字眼"就靠这几条拦）
 
@@ -225,7 +228,7 @@
 | 界面文字里出现 emoji | `verify-no-emoji-on-screen.mjs` |
 | 示例/假数据字面量 | `no-fabricated-data` 闸 |
 | 新增 `!important` | `count-important.mjs <上限>` + `important-budget.test.ts`（2026-10-07 antd 退出后实测 33） |
-| e2e 里点 antd 时代的选择器 | `e2e-selector-freshness.test.ts` 刻度（2026-10-07 实测剩 11 处，只降不升；改版前选择器已成死代码，serial 模式下会把后面的用例悄悄标成未运行） |
+| e2e 里点 antd 时代的选择器 | `e2e-selector-freshness.test.ts`（2026-10-07 清零后升级为 **0 容忍**：改版前选择器取不到元素，serial 模式下会把后面的用例悄悄标成"未运行"，等于死代码装覆盖） |
 | 按了没反应的 `<button>` | `no-dead-button.test.ts`（静态，0 容忍）+ `button-truth-census.spec.ts`（真机逐个点，`none` 必须为 0） |
 | 死 CSS 类名 | `dead-css-classes.cjs` |
 | 文档与令牌数字漂移 | `design-contract.mjs`（含负向对照测试） |

@@ -167,23 +167,22 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
     // AIPanel 默认展开；不在则点标题栏 AI 按钮
-    const composer = window.locator('.ai-composer-textarea')
+    const composer = window.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
       await window.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
     }
 
-    await composer.fill('E2E 发送验证')
+    const sent = `E2E 发送验证 ${Date.now()}`
+    await composer.fill(sent)
     await composer.press('Enter')
 
-    // 必须出现可见反馈之一（3 秒内）：
-    // a) antd message 提示（未配置 API Key 前置拦截）
-    // b) 消息列表新增用户消息（已配 Key 时走真实发送）
-    const feedback = window
-      .locator('.ant-message-notice, .ai-msg-user, [class*="ai-message"]')
-      .first()
-    await expect(feedback, '发送后 3 秒内必须有可见反馈（提示或消息上屏），静默=死按钮').toBeVisible({
-      timeout: 3000,
+    // 必须出现可见反馈之一（5 秒内）：
+    // a) sonner 提示（未配置 API Key 等前置拦截；旧版这里等的是 antd message，antd 已退场）
+    // b) 消息列表里出现刚发出去的那句话（已配 Key 时走真实发送）
+    const feedback = window.locator(`[data-sonner-toast], :text("${sent}")`)
+    await expect(feedback.first(), '发送后 5 秒内必须有可见反馈（提示或消息上屏），静默=死按钮').toBeVisible({
+      timeout: 5000,
     })
 
     await app.close()
@@ -196,12 +195,13 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     const { app, window } = await launchApp()
 
     // 4a. MonitorPage：无硬编码假服务器、无 DEV 假告警
+    //     （旧版等的 .mon-main 随阶段 F 改版消失了，改成全站统一的 page-title 钩子）
     await gotoRoute(window, '#/monitor')
-    await window.waitForSelector('.mon-main', { timeout: 15000 })
-    const monText = (await window.locator('.mon-main').innerText()) ?? ''
+    await window.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    const monText = (await window.locator('main').first().innerText()) ?? ''
     expect(monText, 'MonitorPage 不得出现硬编码假服务器').not.toContain('prod-web-01')
     expect(monText, 'MonitorPage 不得出现 DEV 假告警').not.toContain('磁盘使用率92%')
-    expect(monText, '未连接时应诚实显示').toContain('未连接服务器')
+    expect(monText, '未连接时应诚实显示').toContain('未连接')
 
     // 4b. KnowledgePage：假"AI检索"开关已删除
     await gotoRoute(window, '#/knowledge')
@@ -237,7 +237,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
     // 打开 AI 面板（默认展开；未展开则点标题栏 AI 按钮）
-    const composer = window.locator('.ai-composer-textarea')
+    const composer = window.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
       await window.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
@@ -321,7 +321,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     await gotoRoute(window, '#/workbench')
     await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-    const composer = window.locator('.ai-composer-textarea')
+    const composer = window.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
       await window.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
@@ -366,15 +366,20 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       })
     })
 
-    // kb_search 卡片：中文名「知识库检索」+ query + summary
-    const kbCard = window.locator('.ai-tool-exec', { hasText: '知识库检索' }).first()
-    await expect(kbCard, 'kb_search 卡片应上屏并显示中文名').toBeVisible({ timeout: 5000 })
+    // kb_search 折叠行（v2.8：检索类走 Panel C 式折叠行，中文名 + 命中数徽标；
+    // 旧断言等的是 .ai-tool-exec + 「知识库检索」，改版后类名与文案都变了）
+    const kbCard = window.locator('.ai-tool-search', { hasText: '检索知识库' }).first()
+    await expect(kbCard, 'kb_search 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
+    await expect(kbCard, '应显示命中数而不是裸工具名').toContainText('1 条匹配')
+    await expect(kbCard, '界面上不许出现裸的工具 id').not.toContainText('kb_search')
+    await kbCard.locator('button').first().click() // 展开
     await expect(kbCard).toContainText('nginx 502')
     await expect(kbCard).toContainText('Nginx 502 排查')
 
-    // tutorial_search 卡片：中文名「教程检索」+ query + summary
-    const tutCard = window.locator('.ai-tool-exec', { hasText: '教程检索' }).first()
-    await expect(tutCard, 'tutorial_search 卡片应上屏并显示中文名').toBeVisible({ timeout: 5000 })
+    // tutorial_search 同理
+    const tutCard = window.locator('.ai-tool-search', { hasText: '检索教程' }).first()
+    await expect(tutCard, 'tutorial_search 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
+    await tutCard.locator('button').first().click()
     await expect(tutCard).toContainText('systemd 服务')
     await expect(tutCard).toContainText('systemd 入门')
 
@@ -395,7 +400,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     await gotoRoute(window, '#/workbench')
     await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-    const composer = window.locator('.ai-composer-textarea')
+    const composer = window.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
       await window.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
@@ -427,8 +432,10 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       })
     })
 
-    const skillCard = window.locator('.ai-tool-exec', { hasText: '技能匹配' }).first()
-    await expect(skillCard, 'skill_match 卡片应上屏并显示中文名').toBeVisible({ timeout: 5000 })
+    const skillCard = window.locator('.ai-tool-search', { hasText: '匹配技能' }).first()
+    await expect(skillCard, 'skill_match 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
+    await expect(skillCard, '界面上不许出现裸工具名').not.toContainText('skill_match')
+    await skillCard.locator('button').first().click() // 展开折叠行
     await expect(skillCard).toContainText('diagnose-oom-killer')
     await expect(skillCard).toContainText('skill-assisted')
 
