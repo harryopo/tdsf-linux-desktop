@@ -40,12 +40,13 @@ function topLevelNames(body: string): Set<string> {
 }
 
 export function exposedApiNames(preloadSource: string): Set<string> {
-  const start = preloadSource.indexOf("exposeInMainWorld('electronAPI'")
-  if (start < 0) throw new Error('没找到 exposeInMainWorld(\'electronAPI\'，抽取器要跟着改')
-  const open = preloadSource.indexOf('{', start)
-  const close = matchBrace(preloadSource, open)
+  // 暴露对象现在是具名 const（类型要由它派生，见 preloadTypeDerivesFromImpl）
+  const open = preloadSource.search(/^const electronApi = \{$/m)
+  if (open < 0) throw new Error("没找到 'const electronApi = {'，抽取器要跟着改")
+  const braceAt = preloadSource.indexOf('{', open)
+  const close = matchBrace(preloadSource, braceAt)
   if (close < 0) throw new Error('暴露对象括号没配对')
-  return topLevelNames(preloadSource.slice(open + 1, close))
+  return topLevelNames(preloadSource.slice(braceAt + 1, close))
 }
 
 function namedBlockNames(source: string, declRe: RegExp, label: string): Set<string> {
@@ -57,9 +58,30 @@ function namedBlockNames(source: string, declRe: RegExp, label: string): Set<str
   return topLevelNames(source.slice(open + 1, close))
 }
 
-/** preload 末尾那份派生类型（用 typeof 引用实现，天然与实现对齐） */
-export function preloadTypeNames(preloadSource: string): Set<string> {
-  return namedBlockNames(preloadSource, /^export type ElectronAPI = \{/m, 'export type ElectronAPI')
+/**
+ * preload 那份类型必须由实现派生（export type ElectronAPI = typeof electronApi）。
+ * 一旦有人改回手写表、或给暴露对象加 as unknown as 强转，这里就该红——
+ * 因为那正是"两份名字表可以悄悄漂移"的起点（2026-10-07 之前漂到 39 条）。
+ */
+export function preloadTypeDerivesFromImpl(preloadSource: string): {
+  ok: boolean
+  why: string
+} {
+  if (!/^const electronApi = \{$/m.test(preloadSource)) {
+    return { ok: false, why: '暴露对象不再是具名 const electronApi（改回内联字面量就没法派生类型）' }
+  }
+  if (!/^export type ElectronAPI = typeof electronApi$/m.test(preloadSource)) {
+    return { ok: false, why: 'export type ElectronAPI 不是 typeof electronApi，等于又手写了一份' }
+  }
+  // 只在代码里查，注释里提那句不算（注释是我自己写的，别把自己写的禁令当成违规）
+  const codeOnly = preloadSource
+    .split(/\r?\n/)
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join('\n')
+  if (codeOnly.includes('as unknown as ElectronAPI')) {
+    return { ok: false, why: '又出现了 as unknown as ElectronAPI 强转，TS 将不再检查实现与类型是否一致' }
+  }
+  return { ok: true, why: '' }
 }
 
 /** 渲染层吃的那份类型声明（interface 正文 + extends 来的生成物） */
@@ -79,16 +101,16 @@ export function rendererTypeNames(dtsSource: string, generatedSource: string): S
 
 export function readSurface(root: string): {
   exposed: Set<string>
-  preloadType: Set<string>
   rendererType: Set<string>
+  derived: { ok: boolean; why: string }
 } {
   const preload = fs.readFileSync(path.join(root, 'src/preload/index.ts'), 'utf8')
   const dts = fs.readFileSync(path.join(root, 'src/renderer/src/types/electron.d.ts'), 'utf8')
   const gen = fs.readFileSync(path.join(root, 'src/renderer/src/types/generated/ipc-contract.ts'), 'utf8')
   return {
     exposed: exposedApiNames(preload),
-    preloadType: preloadTypeNames(preload),
     rendererType: rendererTypeNames(dts, gen),
+    derived: preloadTypeDerivesFromImpl(preload),
   }
 }
 
