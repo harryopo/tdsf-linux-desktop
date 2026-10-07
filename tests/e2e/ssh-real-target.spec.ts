@@ -208,4 +208,61 @@ test.describe('应用 × 真 OpenSSH 靶机（A2 真机那一半）', () => {
       await app.close()
     }
   })
+
+  testOrSkip('A1 的另一半：人类终端打字仍走裸 shell，真机回显必须上屏', async () => {
+    test.skip(!targetUp, targetWhy || '靶子未就绪')
+    const knownHostsPath = path.join(dir, 'known_hosts_human')
+    fs.writeFileSync(knownHostsPath, '', 'utf8')
+    const { app, page } = await launchApp()
+    try {
+      await installHostKeyRecorder(page, 'accept-and-save')
+      const r = await connectApp(page, knownHostsPath)
+      expect(r.sessionId, `连不上真机，人类终端无从测起：${r.error ?? ''}`).toBeTruthy()
+      const sid = r.sessionId as string
+
+      // 先挂上原始流：红了能一眼分清是"对端没发"还是"发了但没显示"
+      await page.evaluate(() => {
+        const w = window as unknown as {
+          __termLog?: string
+          electronAPI: { onTerminalData: (cb: (sid: string, data: string) => void) => () => void }
+        }
+        w.__termLog = ''
+        w.electronAPI.onTerminalData((_s, d) => {
+          w.__termLog = (w.__termLog ?? '') + d
+        })
+      })
+
+      const started = await page.evaluate(
+        (id) =>
+          (window as unknown as { electronAPI: { sshShellStart: (s: string) => Promise<boolean> } })
+            .electronAPI.sshShellStart(id),
+        sid
+      )
+      expect(started, 'sshShellStart 失败 ⇒ 人类终端根本没开起来').toBe(true)
+
+      const MARK = 'tdsf-human-alive'
+      const wrote = await page.evaluate(
+        (args) =>
+          (window as unknown as {
+            electronAPI: { sshShellWrite: (s: string, d: string) => Promise<boolean> }
+          }).electronAPI.sshShellWrite(args.sid, args.data),
+        { sid, data: `echo ${MARK}\r` }
+      )
+      expect(wrote, 'sshShellWrite 写不进去 ⇒ 把 AI 挪走时把人类路径一起弄断了').toBe(true)
+
+      // 真 pty 会先回显敲的那行、再把 echo 的输出打一遍 ⇒ 同一标记至少出现两次
+      const rawText = (): Promise<string> =>
+        page.evaluate(() => (window as unknown as { __termLog?: string }).__termLog ?? '')
+      await expect
+        .poll(async () => (await rawText()).split(MARK).length - 1, {
+          message: `真机回显没回到渲染进程，原始流=${JSON.stringify(await rawText())}`,
+          timeout: 20000,
+        })
+        .toBeGreaterThanOrEqual(2)
+
+      await disconnect(page, sid)
+    } finally {
+      await app.close()
+    }
+  })
 })
