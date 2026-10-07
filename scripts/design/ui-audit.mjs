@@ -10,8 +10,9 @@
  * - 对话框/弹层的实际宽高与内部字号 → 弹窗比例问题
  * 同时把每个界面截成 PNG，落在 docs/assets/ui-audit-<date>/。
  *
- * 用法：先 pnpm build，再 node scripts/design/ui-audit.mjs
- * 退出码恒为 0（这是取证，不是门禁）；数据打印到 stdout。
+ * 用法：先 pnpm build，再 node scripts/design/ui-audit.mjs [--gate] [--no-shots]
+ * --no-shots 只量不出图（窗口被最小化时截图会挂住，量测本身不受影响）。
+ * 退出码：--gate 不达标 1；取证中途异常 1（没跑完不算通过）；其余 0。数据打印到 stdout。
  */
 import { spawn } from 'node:child_process'
 import * as fs from 'node:fs'
@@ -19,6 +20,7 @@ import * as path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const PORT = 9235
+const NO_SHOTS = process.argv.includes('--no-shots')
 const OUT_DIR = path.join(ROOT, 'docs', 'assets', 'ui-audit-20261005')
 const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -77,7 +79,14 @@ async function evalIn(ws, expression) {
 }
 
 async function shot(ws, name) {
-  const { data } = await cdp(ws, 'Page.captureScreenshot', { format: 'png' })
+  // --no-shots：只跑量测不出图。窗口被最小化时 captureScreenshot 会永久不返回，
+  // 而门禁要的是逐元素计算样式，不需要 PNG——别让取证卡在像素上。
+  if (NO_SHOTS) return null
+  // 窗口被最小化时 Page.captureScreenshot 会永久不返回：宁可 20 秒报错，也不要挂着让人以为还在跑
+  const guard = new Promise((_, rej) =>
+    setTimeout(() => rej(new Error(`截图 ${name} 超时 20s：窗口可能被最小化或遮挡，请把 TDSF 窗口置于前台后重跑`)), 20000)
+  )
+  const { data } = await Promise.race([cdp(ws, 'Page.captureScreenshot', { format: 'png' }), guard])
   fs.writeFileSync(path.join(OUT_DIR, name + '.png'), Buffer.from(data, 'base64'))
   return name + '.png'
 }
@@ -306,6 +315,8 @@ const ROUTES = [
 ]
 
 const report = { screens: [] }
+/** 取证没跑完就不能报成功：以前 finally 里无条件 process.exit(0)，截图一挂照样绿，等于给坏掉的量具开绿灯 */
+let auditFailed = false
 try {
   const target = await findTarget()
   const ws = new WebSocket(target.webSocketDebuggerUrl)
@@ -315,6 +326,7 @@ try {
   })
   await cdp(ws, 'Runtime.enable')
   await cdp(ws, 'Page.enable')
+  await cdp(ws, 'Page.bringToFront')
   // 0) 真实窗口装不装得下：必须在改模拟视口之前量，这里读到的才是用户屏幕上真实的窗口高度
   await sleep(2500)
   report.windowFit = await evalIn(ws, `(() => {
@@ -487,8 +499,9 @@ try {
     for (const n of exemptNotes) console.log('  对比度豁免：' + n)
   }
 } catch (err) {
+  auditFailed = true
   console.error('取证脚本异常：' + (err && err.stack ? err.stack : err))
 } finally {
   app.kill()
-  process.exit(0)
+  process.exit(auditFailed ? 1 : 0)
 }

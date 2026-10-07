@@ -14,9 +14,9 @@
  * - 搜索结果不启用分页，确保用户能直接看到全部匹配结果。
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Clock, UserCircle } from 'lucide-react'
-import { SearchOutlined } from '@ant-design/icons'
-import { Spin, Empty, Button } from 'antd'
+import { Clock, UserCircle, Search } from 'lucide-react'
+import { Button, Spinner } from '@/ui'
+import { Empty } from '@/components/trae/Empty'
 import type { Course, SearchResultItem } from './types'
 import { levelBadgeClassName, UI_CATEGORIES, TUTORIAL_TO_UI_CATEGORY } from './types'
 
@@ -68,20 +68,17 @@ export function CourseList({
         // searchResults !== null 表示用户已发起搜索（含空结果），渲染替代原课程列表
         <div className="tut-search-results">
           <div className="tut-section-title-row" style={{ marginBottom: 12 }}>
-            <SearchOutlined size={18} style={{ color: 'var(--trae-icon-brand)' }} />
+            <Search className="size-4 text-(--accent-text)" />
             <h3
               className="tut-section-title"
               style={{ fontSize: 'var(--trae-body-md-font-size)' }}
             >
               搜索结果（{searchResults.length}）
             </h3>
-            {searching && <Spin size="small" />}
+            {searching && <Spinner />}
           </div>
           {searchResults.length === 0 ? (
-            <Empty
-              description="未找到相关教程"
-              style={{ padding: '40px 0', color: 'var(--text-muted)' }}
-            />
+            <Empty description="未找到相关教程" className="py-10" />
           ) : (
             <div className="tut-courses-grid">
               {searchResults.map((item) => (
@@ -145,7 +142,7 @@ export function CourseList({
         </div>
       ) : loading ? (
         <div className="tut-empty" style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-          <Spin size="small" tip="加载教程中…" />
+          <Spinner label="加载教程中…" />
         </div>
       ) : (
         // ====== 正常课程列表 ======
@@ -201,15 +198,7 @@ export function CourseList({
           </div>
           {hasMore && (
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
-              <Button
-                type="default"
-                onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
-                style={{
-                  borderRadius: 'var(--trae-radius-6)',
-                  borderColor: 'var(--trae-border-neutral-l2)',
-                  color: 'var(--text-tertiary)',
-                }}
-              >
+              <Button variant="outline" size="lg" onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}>
                 加载更多（{visibleItems.length}/{filteredCourses.length}）
               </Button>
             </div>

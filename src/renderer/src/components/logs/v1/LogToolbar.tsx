@@ -17,7 +17,7 @@
  *   - 刷新 / 导出 按钮（onClick 回调）
  */
 import { Search, RefreshCw, Download, Sparkles } from 'lucide-react'
-import { Switch } from 'antd'
+import { Switch } from '@/components/trae/Switch'
 import { Tooltip } from '@/ui'
 import {
   type LogLevel,
@@ -109,9 +109,8 @@ export function LogToolbar({
         <div className="log-autoscroll-label flex items-center">
           <span className="log-autoscroll-text">自动滚动</span>
           <Switch
-            size="small"
             checked={autoScroll}
-            onChange={onAutoScrollChange}
+            onCheckedChange={onAutoScrollChange}
             aria-label="自动滚动"
           />
         </div>

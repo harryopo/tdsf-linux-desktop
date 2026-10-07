@@ -87,20 +87,20 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 70,
-    why: '2026-10-06 风险控制页假设置删除后实测 71→70（那页的权限卡自带 --trae-radius-4）。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 68,
+    why: '2026-10-07 退出 antd 第 3 批后实测 70→68（错误页/提示条不再引 --trae-*）。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 138,
-    why: '2026-10-06 两页重做后实测 155→138。内联视觉属性绕开令牌，主题切换抓不到它',
+    cap: 130,
+    why: '2026-10-07 退出 antd 第 3 批时顺手清掉错误页与提示条的内联视觉属性，实测 138→130。内联视觉属性绕开令牌，主题切换抓不到它',
   },
   {
     name: '还 import antd 的渲染层文件数',
     now: countFiles("from 'antd'", '*.tsx'),
-    cap: 10,
-    why: '2026-10-06 规则编辑弹窗随假设置一起删掉后实测 11→10。与 exit-antd-dialog.test.ts 同口径',
+    cap: 5,
+    why: '2026-10-07 第 3 批退出 5 个文件（ErrorBoundary/FileChangeNotice/LogToolbar/CourseList/DecisionSettings），实测 10→5。与 exit-antd-dialog.test.ts 同口径',
   },
 ]
 

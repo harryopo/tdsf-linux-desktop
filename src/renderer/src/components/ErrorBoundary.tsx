@@ -6,9 +6,8 @@
  * 同时将完整错误栈输出到控制台，便于调试。
  */
 import React from 'react'
-import { Result, Button, Typography } from 'antd'
-
-const { Paragraph, Text } = Typography
+import { AlertTriangle } from 'lucide-react'
+import { Button } from '@/ui'
 
 interface Props {
   children: React.ReactNode
@@ -54,50 +53,52 @@ export class ErrorBoundary extends React.Component<Props, State> {
       const stackLines = componentStack.split('\n').filter(Boolean).slice(0, 5).join('\n')
 
       return (
-        <div style={{ padding: 40, maxWidth: 700, margin: '0 auto' }}>
-          <Result
-            status="error"
-            title="页面加载出错"
-            subTitle={errorMsg}
-            extra={[
-              <Button
-                key="reload"
-                type="primary"
-                onClick={() => window.location.reload()}
-              >
-                重新加载
-              </Button>,
-              <Button
-                key="dismiss"
-                onClick={() => this.setState({ hasError: false, error: undefined, errorInfo: undefined })}
-              >
-                忽略并继续
-              </Button>,
-            ]}
-          />
-          <div style={{ marginTop: 16, background: 'var(--trae-bg-overlay-l2, #1f1f1f)', color: 'var(--trae-text-default, #d1d3db)', padding: 12, borderRadius: 8, maxHeight: 200, overflow: 'auto' }}>
-            <Paragraph>
-              <Text strong>错误信息：</Text>
-            </Paragraph>
-            <Paragraph>
-              <Text code style={{ fontSize: 12, wordBreak: 'break-all' }}>{errorMsg}</Text>
-            </Paragraph>
-            {stackLines && (
-              <>
-                <Paragraph>
-                  <Text strong>组件调用栈：</Text>
-                </Paragraph>
-                <pre style={{ fontSize: 11, margin: 0, whiteSpace: 'pre-wrap' }}>{stackLines}</pre>
-              </>
-            )}
-            {errorStack && (
-              <>
-                <Paragraph style={{ marginTop: 8 }}>
-                  <Text strong>JS 调用栈：</Text>
-                </Paragraph>
-                <pre style={{ fontSize: 11, margin: 0, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto' }}>{errorStack.split('\n').slice(0, 8).join('\n')}</pre>
-              </>
-            )}
+        <div className="flex min-h-full w-full items-start justify-center overflow-y-auto bg-canvas p-8">
+          <div className="w-full max-w-[720px]">
+            <div className="flex items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-(--ui-radius-control) bg-error/10 text-(--status-error-text)">
+                <AlertTriangle className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-body font-semibold text-ink">页面加载出错</h2>
+                <p className="mt-1 break-all text-md text-ink-dim">{errorMsg}</p>
+                <div className="mt-4 flex gap-2">
+                  <Button variant="solid" size="lg" onClick={() => window.location.reload()}>
+                    重新加载
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => this.setState({ hasError: false, error: undefined, errorInfo: undefined })}
+                  >
+                    忽略并继续
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-(--ui-radius-card) border border-line bg-panel p-4">
+              <p className="text-md font-medium text-ink">错误信息</p>
+              <pre className="mt-1 max-h-[200px] overflow-auto break-all whitespace-pre-wrap font-mono text-caption text-ink-dim">
+                {errorMsg}
+              </pre>
+              {stackLines ? (
+                <>
+                  <p className="mt-3 text-md font-medium text-ink">组件调用栈</p>
+                  <pre className="mt-1 max-h-[150px] overflow-auto whitespace-pre-wrap font-mono text-caption text-ink-dim">
+                    {stackLines}
+                  </pre>
+                </>
+              ) : null}
+              {errorStack ? (
+                <>
+                  <p className="mt-3 text-md font-medium text-ink">JS 调用栈</p>
+                  <pre className="mt-1 max-h-[150px] overflow-auto whitespace-pre-wrap font-mono text-caption text-ink-dim">
+                    {errorStack.split('\n').slice(0, 8).join('\n')}
+                  </pre>
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
       )

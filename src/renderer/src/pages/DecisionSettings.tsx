@@ -24,8 +24,8 @@
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
 import { type ReactNode, useState } from 'react'
-import { GitBranch, Layers, Shield } from 'lucide-react'
-import { Button } from 'antd'
+import { GitBranch, Layers, Loader2, Shield } from 'lucide-react'
+import { Button } from '@/ui'
 import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
@@ -275,16 +275,13 @@ export function DecisionSettings() {
               {totalWeight}
             </span>
           </div>
-          <div style={{ marginTop: 16 }}>
-            <Button
-              type="primary"
-              loading={testing}
-              onClick={handleTestAssess}
-            >
+          <div className="mt-4">
+            <Button variant="solid" size="lg" disabled={testing} onClick={handleTestAssess}>
+              {testing ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : null}
               测试当前权重对决策的影响
             </Button>
             {testResult && (
-              <div style={{ marginTop: 12, padding: 12, background: 'var(--trae-bg-overlay-l2)', borderRadius: 6 }}>
+              <div className="mt-3 rounded-(--ui-radius-control) bg-sunken p-3">
                 <div>综合可信度: {(testResult.confidence * 100).toFixed(1)}%</div>
                 <div>融合规则: {testResult.ruleUsed}</div>
                 <div>冲突程度: {(testResult.conflictLevel * 100).toFixed(1)}%</div>
