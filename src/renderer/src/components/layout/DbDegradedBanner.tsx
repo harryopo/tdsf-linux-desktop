@@ -7,7 +7,7 @@
  *
  * 显示规则：
  * - status 为 null（非 Electron 环境 / 查询失败）→ 不显示。宁可不提醒，也不误报"数据没保存"。
- * - available=false → 红色"数据不会持久化"
+ * - available=false → 红色「数据库不可用，本次会话的记录不会被保存」+ 具体原因
  * - available=true 但迁移未到位 → 黄色"结构迁移未完成"
  * - available=true 且迁移到位 → 不显示
  * - 关闭后本次会话不再显示（重启会重新提醒）
