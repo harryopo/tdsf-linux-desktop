@@ -225,6 +225,7 @@
 | 界面文字里出现 emoji | `verify-no-emoji-on-screen.mjs` |
 | 示例/假数据字面量 | `no-fabricated-data` 闸 |
 | 新增 `!important` | `count-important.mjs <上限>` + `important-budget.test.ts`（2026-10-07 antd 退出后实测 33） |
+| e2e 里点 antd 时代的选择器 | `e2e-selector-freshness.test.ts` 刻度（2026-10-07 实测剩 11 处，只降不升；改版前选择器已成死代码，serial 模式下会把后面的用例悄悄标成未运行） |
 | 按了没反应的 `<button>` | `no-dead-button.test.ts`（静态，0 容忍）+ `button-truth-census.spec.ts`（真机逐个点，`none` 必须为 0） |
 | 死 CSS 类名 | `dead-css-classes.cjs` |
 | 文档与令牌数字漂移 | `design-contract.mjs`（含负向对照测试） |
