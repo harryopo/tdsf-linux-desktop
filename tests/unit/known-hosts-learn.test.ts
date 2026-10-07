@@ -7,19 +7,15 @@
  * 校验按行扫描时先命中的是哪一把取决于写入顺序 —— 换密钥的告警就这样被旧行短路掉。
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { utils } from 'ssh2'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { checkKnownHosts, replaceKnownHost } from '../../src/main/services/ssh/known-hosts'
+import { generateHostKey } from '../e2e/ssh-fixture-server'
 
 /** 造一把一次性主机密钥，返回 ssh 线格式公钥 blob（checkKnownHosts 收的就是这个） */
 function hostKeyBlob(): Buffer {
-  const pair = utils.generateKeyPairSync('ed25519')
-  const priv = Array.isArray(pair.private) ? (pair.private[0] as unknown as Buffer) : pair.private
-  const pub = utils.parseKey(priv as unknown as Buffer)
-  const meta = Array.isArray(pub) ? pub[0] : pub
-  return (meta as unknown as { getPublicSSH(): Buffer }).getPublicSSH()
+  return generateHostKey().publicBlob
 }
 
 let file = ''
