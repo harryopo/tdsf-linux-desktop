@@ -11,6 +11,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 最小权限：这里每个 job 都只读仓库。build-win 那步把 GITHUB_TOKEN 交给 electron-builder，
+# 只为从公开 release 下载 Electron 二进制；不写 permissions 时它会拿到仓库默认作用域（通常是写）。
+permissions:
+  contents: read
+
 jobs:
   # ===== Node 类型检查 =====
   typecheck-node:
