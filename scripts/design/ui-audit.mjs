@@ -268,8 +268,21 @@ const MEASURE = `(async () => {
     rootH: rootEl ? Math.round(rootEl.getBoundingClientRect().height) : null,
   };
 
+  // ===== 自动化钩子在同一屏里必须唯一 =====
+  // data-dom-id 是 E2E 与审计取元素的唯一稳定入口。同一屏出现两次重名，
+  // 自动化就不知道点哪个（2026-10-07 nav-decision 被左侧导航与设置导航同时占用，
+  // Demo 9 步的 Step 5 与 Step 9 一起报 strict mode violation）。
+  // 跨页复用同一个钩子名不算冲突，所以只能在渲染后的屏幕上判，静态扫判不出来。
+  const hookSeen = new Map();
+  for (const el of document.querySelectorAll('[data-dom-id]')) {
+    const k = el.getAttribute('data-dom-id');
+    hookSeen.set(k, (hookSeen.get(k) || 0) + 1);
+  }
+  const dupHooks = [...hookSeen.entries()].filter(([, n]) => n > 1).map(([k, n]) => k + '×' + n);
+
   return {
     viewport: [innerWidth, innerHeight],
+    dupHooks,
     typeScales: Object.fromEntries(Object.entries(type).sort((a, b) => b[1] - a[1]).slice(0, 24)),
     distinctTypeCombos: Object.keys(type).length,
     families: [...families],
@@ -441,6 +454,8 @@ try {
         exemptNotes.push(`${at}: ${s.exemptContrastCount} 处对比度未判（${s.exemptContrastReasons.join('、')}）`)
       }
       for (const c of s.clipped) bad.push(`${at}: 文字被藏起来且无省略号 — "${c.text}" (${c.cls}) ${c.over}`)
+      if (!s.dupHooks) bad.push(`${at}: 重名钩子探针没跑成（没测到不等于通过）`)
+      else if (s.dupHooks.length) bad.push(`${at}: 同屏重名自动化钩子 — ${s.dupHooks.join('、')}（E2E 与审计会点到错元素）`)
     }
     for (const s of pages) {
       const at = s.route || 'boot'

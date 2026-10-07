@@ -68,8 +68,10 @@ test.describe('Demo 9 步主路径', () => {
     // BootPage 根元素：data-viewport-mode="app-shell"
     await window.waitForSelector('main[data-viewport-mode="app-shell"]', { timeout: 30000 })
 
-    // 验证标题 TDSF LINUX 可见
-    const title = await window.locator('.boot-title').textContent()
+    // 验证标题 TDSF LINUX 可见（启动页改版后标题是裸 <h1>，旧类名 .boot-title 已不存在）
+    const title = await window
+      .locator('main[data-viewport-mode="app-shell"] h1')
+      .textContent()
     expect(title?.trim()).toBe('TDSF LINUX')
 
     // 截图作为基线
@@ -245,8 +247,11 @@ test.describe('Demo 9 步主路径', () => {
 
     await window.locator('[data-dom-id="nav-monitor"]').click()
 
-    // 等待监控页根元素 .mon-main 加载
-    await window.waitForSelector('.mon-main', { timeout: 15000 })
+    // 监控页在阶段 F 改版后根元素改成通用 <main>，旧类名 .mon-main 已不存在；
+    // 改用全站统一钩子 page-title，并核对标题文字确实是监控页
+    await window.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    const monTitle = await window.locator('[data-dom-id="page-title"]').textContent()
+    expect(monTitle?.trim()).toBe('实时监控')
 
     const hash = await window.evaluate(() => window.location.hash)
     expect(hash).toContain('/monitor')
@@ -304,7 +309,9 @@ test.describe('Demo 9 步主路径', () => {
     await expect(navItems).toHaveCount(10)
 
     // 验证关键设置导航的 data-dom-id
-    const expectedDomIds = ['nav-general', 'nav-ssh', 'nav-model-config', 'nav-alerts', 'nav-appearance', 'nav-about', 'nav-calibration', 'nav-terminal', 'nav-risk', 'nav-decision']
+    // 决策控制这项叫 nav-settings-decision 而不是 nav-decision：后者是左侧导航
+    // 去 /decision 的钩子，两个页面共用一个钩子会让自动化点错地方
+    const expectedDomIds = ['nav-general', 'nav-ssh', 'nav-model-config', 'nav-alerts', 'nav-appearance', 'nav-about', 'nav-calibration', 'nav-terminal', 'nav-risk', 'nav-settings-decision']
     for (const domId of expectedDomIds) {
       const link = window.locator(`[data-dom-id="${domId}"]`)
       await expect(link).toBeVisible()

@@ -449,7 +449,26 @@ const EditorArea: FC<EditorAreaProps> = ({
 
   return (
     <div className="term-editor-area">
-      <div className="term-tab-bar" role="tablist" aria-label="编辑器标签">
+      <div
+        className="term-tab-bar"
+        role="tablist"
+        aria-label="编辑器标签"
+        onKeyDown={(e) => {
+          // 既然对外声明了 tablist，方向键就得真的能换标签（只用鼠标点不算能用）
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          const order = tabs.map((t) => t.id)
+          const at = order.indexOf(activeTabId)
+          if (at < 0 || order.length < 2) return
+          const step = e.key === 'ArrowRight' ? 1 : order.length - 1
+          const next = order[(at + step) % order.length]
+          e.preventDefault()
+          onTabChange(next)
+          // 焦点跟着走，否则键盘用户按完方向键，光标还停在旧标签上
+          requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>(`[data-tab-id="${next}"]`)?.focus()
+          })
+        }}
+      >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const isTerm = tab.id === 'tab-terminal'
@@ -469,6 +488,7 @@ const EditorArea: FC<EditorAreaProps> = ({
                 className="term-tab-btn"
                 role="tab"
                 aria-selected={isActive}
+                data-tab-id={tab.id}
                 onClick={() => onTabChange(tab.id)}
               >
                 {isTerm ? (

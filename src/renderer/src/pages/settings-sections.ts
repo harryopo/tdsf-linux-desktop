@@ -36,7 +36,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { to: '/settings/ssh', label: 'SSH 连接', desc: '远程服务器连接与密钥管理', icon: KeySquare, domId: 'nav-ssh' },
   { to: '/settings/terminal', label: '终端设置', desc: 'Shell 环境与终端行为配置', icon: Terminal, domId: 'nav-terminal' },
   { to: '/settings/risk', label: '风险控制', desc: '高危命令拦截与操作审计', icon: ShieldAlert, domId: 'nav-risk' },
-  { to: '/settings/decision', label: '决策控制', desc: 'AI 决策阈值与审批策略', icon: ShieldCheck, domId: 'nav-decision' },
+  { to: '/settings/decision', label: '决策控制', desc: 'AI 决策阈值与审批策略', icon: ShieldCheck, domId: 'nav-settings-decision' },
   { to: '/settings/alerts', label: '告警阈值', desc: 'CPU / 内存 / 磁盘告警阈值', icon: Bell, domId: 'nav-alerts' },
   { to: '/settings/about', label: '关于', desc: '版本、更新与运行环境', icon: Info, domId: 'nav-about' },
 ]

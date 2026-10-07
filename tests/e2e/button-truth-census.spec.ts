@@ -48,7 +48,7 @@ const REPORT_PATH = path.join(__dirname, 'button-census-report.json')
 /** 普查页面清单（hash 路由 + 就绪选择器） */
 const PAGES: Array<{ name: string; hash: string; ready: string }> = [
   { name: '工作台', hash: '#/workbench', ready: '.wb-main-layout' },
-  { name: '实时监控', hash: '#/monitor', ready: '.mon-main' },
+  { name: '实时监控', hash: '#/monitor', ready: '[data-dom-id="page-title"]' },
   { name: '决策历史', hash: '#/history', ready: 'main, .hist-page' },
   { name: '知识库', hash: '#/knowledge', ready: '.kb-page' },
   { name: '决策中心', hash: '#/decision', ready: 'main, body' },
@@ -158,15 +158,19 @@ async function closeOverlays(window: Page): Promise<void> {
   await window.waitForTimeout(150)
 }
 
-/** 进入指定页面并注入观察器 */
-async function gotoPage(window: Page, hash: string, ready: string): Promise<void> {
+/** 进入指定页面并注入观察器；返回就绪选择器是否真的命中（白屏不许当"已普查"） */
+async function gotoPage(window: Page, hash: string, ready: string): Promise<boolean> {
   await window.evaluate((h) => {
     window.location.hash = h
   }, hash)
-  await window.waitForSelector(ready.split(',')[0].trim(), { timeout: 15000 }).catch(() => {})
+  const ok = await window
+    .waitForSelector(ready.split(',')[0].trim(), { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false)
   // 等页面首屏请求/动画稳定，降低 DOM 噪声误判
   await window.waitForTimeout(600)
   await injectObserver(window)
+  return ok
 }
 
 testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async () => {
@@ -185,7 +189,10 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   const seenGlobal = new Set<string>()
 
   for (const pageDef of PAGES) {
-    await gotoPage(window, pageDef.hash, pageDef.ready)
+    const ready = await gotoPage(window, pageDef.hash, pageDef.ready)
+    expect(ready, `${pageDef.name} 就绪选择器 ${pageDef.ready} 未命中（白屏或选择器已过期）`).toBe(
+      true,
+    )
 
     // 一轮只点一个按钮，点完重新取句柄列表。这里踩过两个相反的坑：
     //   locator.nth(i) 每次动作都重新解析——检查 disabled 的是 A，点下去可能已是 B；
