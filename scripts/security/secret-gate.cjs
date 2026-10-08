@@ -10,6 +10,11 @@
  * 故意不检测裸 32/40 位十六进制串——那会命中 packageManager 的 sha512、
  * 文档里的 commit 哈希和测试快照，误报一多，守卫就会被关掉。
  *
+ * 边界（别把它当万能闸）：本闸【不检测内网地址】。计划 §A5 的"硬编码内网 IP 收敛"
+ * 原判据写的就是本闸 --all 命中 0，而这里一条 IP 规则都没有，所以那条判据恒真
+ * （2026-10-08 复核发现）。拓扑值由 scripts/security/topology-gate.cjs 按值锚定，
+ * 历史里的凭据值由 scripts/security/history-env-scan.cjs 把关。
+ *
  * 用法：
  *   node scripts/security/secret-gate.cjs          扫本次暂存内容（pre-commit 用）
  *   node scripts/security/secret-gate.cjs --all    扫全部已跟踪文件（自查/CI 用）
