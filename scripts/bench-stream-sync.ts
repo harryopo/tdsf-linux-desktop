@@ -11,7 +11,13 @@
  *   合并 45ms     现状
  *   合并 16ms     计划原案写的数，这里量它到底买了什么
  */
-import { acceptsStream, createDeltaCoalescer, type CoalescerTimers } from '../src/renderer/src/lib/messageSync'
+import {
+  acceptsStream,
+  createDeltaCoalescer,
+  lastIndexWhere,
+  replaceAt,
+  type CoalescerTimers,
+} from '../src/renderer/src/lib/messageSync'
 
 type Msg = {
   id: string
@@ -77,20 +83,20 @@ function runTokenStream(windowMs: number): { setStates: number; visitsPerWrite: 
   let totalVisits = 0
 
   const writeOne = (delta: string): void => {
-    let idx = -1
+    // 扫描与写入都必须走产品里那两个函数：
+    // 自己在本脚本里另写一遍循环，量的就是脚本自己，产品改坏了这里也不会动（2026-10-08 实测到这条）。
+    // 判据也按产品口径写"角色 + 关联 ID"：只判角色的话，正向扫也能在第 2 个元素撞上，
+    // 这一列就没有判别力了（实测反向=1 步、正向=2 步，看不出退化）。
     let visits = 0
-    for (let i = list.length - 1; i >= 0; i--) {
+    const idx = lastIndexWhere(list, (m) => {
       visits++
-      if (list[i].role === 'assistant') {
-        idx = i
-        break
-      }
-    }
+      return m.role === 'assistant' && m.correlationId === active
+    })
     totalVisits += visits
     if (idx < 0) return
     if (!acceptsStream(active, active)) return
-    const next = list.slice()
-    next[idx] = { ...next[idx], content: next[idx].content + delta }
+    const next = replaceAt(list, idx, { ...list[idx], content: list[idx].content + delta })
+    if (next === null) return
     list = next
     setStates++
   }
@@ -181,7 +187,7 @@ console.log(
     Math.round(frames.snapshot / frames.delta) + ' 倍'
 )
 console.log('')
-console.log('合并窗口        每秒 setState 次数    每次写入反向扫描元素数')
+console.log('合并窗口        每秒 setState 次数    定位在流那条要扫几个元素（产品 lastIndexWhere）')
 for (const [label, r] of [
   ['无合并（v2.5 前）', noCoalesce],
   ['45ms（现状）', w45],
