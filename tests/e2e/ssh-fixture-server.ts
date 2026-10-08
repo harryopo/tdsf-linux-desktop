@@ -41,33 +41,32 @@ export interface FixtureHandle {
 /**
  * 生成一次性 ed25519 主机密钥，返回私钥与 ssh 线格式公钥 blob。
  *
- * 为什么要挨个试候选：ssh2 的 generateKeyPairSync 把 private 返回成数组时，
- * 哪一位是它自己的 parseKey 认得出的那份并不可靠——2026-10-07 实测约 1/3 概率取到解析不出
- * KeyInfo 的那份，于是 getPublicSSH 是 undefined，用到它的测试与 fixture 随机红。
- * 全都不行才抛，并把试过的原因带出来（不静默退回某个默认值）。
+ * 为什么不走 utils.parseKey：那条路要先把私钥解析回 KeyInfo 再取 getPublicSSH，
+ * 2026-10-07~10-08 实测在并行跑测试时随机失败（约 1/3 拿不到 getPublicSSH），
+ * 单跑又总是过——一条随机红的夹具等于没有夹具。
+ * generateKeyPairSync 本来就把公钥作为 `ssh-ed25519 <base64> ...` 一行返回，
+ * 反 base64 即线格式 blob；2026-10-08 实测 40/40 与 parseKey 路线逐字相同。
+ * 形状不对就抛，不静默退回某个默认值。
  */
 export function generateHostKey(): { private: Buffer; publicBlob: Buffer } {
   const pair = utils.generateKeyPairSync('ed25519')
-  const privs = Array.isArray(pair.private) ? pair.private : [pair.private]
+  const toBuf = (v: string | Buffer | Array<string | Buffer>): Buffer[] =>
+    (Array.isArray(v) ? v : [v]).map((x) => Buffer.from(x as string | Buffer))
+  const privs = toBuf(pair.private)
+  const publics = toBuf(pair.public)
   const tried: string[] = []
-  for (const candidate of privs) {
-    const buf = Buffer.from(candidate as unknown as Uint8Array)
-    const parsed = utils.parseKey(buf as unknown as Buffer)
-    const keys = Array.isArray(parsed) ? parsed : [parsed]
-    for (const k of keys) {
-      const holder = k as unknown as { getPublicSSH?: () => Buffer }
-      if (typeof holder.getPublicSSH !== 'function') {
-        tried.push('parseKey 的结果里没有 getPublicSSH')
-        continue
-      }
-      try {
-        return { private: buf, publicBlob: holder.getPublicSSH() }
-      } catch (e) {
-        tried.push((e as Error).message)
-      }
+  for (let i = 0; i < Math.max(privs.length, publics.length); i++) {
+    const line = (publics[i] ?? publics[0]).toString('utf8').trim()
+    const [type, b64] = line.split(/\s+/)
+    const publicBlob = Buffer.from(b64 ?? '', 'base64')
+    // 线格式：4 字节长度 + "ssh-ed25519" + 4 字节长度 + 32 字节密钥 = 51 字节
+    if (type !== 'ssh-ed25519' || publicBlob.length !== 51 || publicBlob.toString('utf8', 4, 15) !== 'ssh-ed25519') {
+      tried.push(`第 ${i} 项公钥行不成 blob（${JSON.stringify(line.slice(0, 24))}）`)
+      continue
     }
+    return { private: privs[i] ?? privs[0], publicBlob }
   }
-  throw new Error('ssh2 生成的 ed25519 密钥取不出公钥 blob，试过的原因：' + tried.join('；'))
+  throw new Error('ssh2 没给出可用的 ssh-ed25519 公钥行，试过的原因：' + tried.join('；'))
 }
 
 /** 生成一次性 ed25519 主机密钥（只在内存里，不落盘） */
