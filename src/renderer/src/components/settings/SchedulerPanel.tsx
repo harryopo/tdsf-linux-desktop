@@ -200,7 +200,11 @@ export function SchedulerPanel() {
 
   return (
     <SettingsCard icon={Clock} title="定时任务" tag="scheduler">
-      <div className="flex flex-col gap-2 pt-1">
+      {/* data-dom-id="scheduler-task-list" 是给视觉基线定位遮罩用的：卡里 .tabular-nums
+          那几串时间由 cron + 此刻算出来，跨过午夜必变，像素尺子量它必然抖（实测红 6 像素）。
+          锚点挂在列表上而不是每个时间上，因为同屏三张任务卡，逐个挂会撞 ui-audit 的"同屏重名钩子"。
+          见 tests/e2e/visual.spec.ts */}
+      <div className="flex flex-col gap-2 pt-1" data-dom-id="scheduler-task-list">
         {SCHEDULER_TASKS_META.map((meta, idx) => {
           const task = tasks.find((t) => t.id === meta.id)
           const enabled = task?.enabled ?? false

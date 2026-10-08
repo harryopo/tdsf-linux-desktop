@@ -18,7 +18,7 @@
  *   pnpm test:e2e:visual --update-snapshots   # 生成/更新本机基线
  *   pnpm test:e2e:visual                       # 与基线对比
  */
-import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { launchApp } from './ssh-fixture-helpers'
@@ -36,6 +36,12 @@ interface Shot {
   hash: string
   /** 这条路由就绪的钩子（必须是源码里存在的类名或 data-dom-id） */
   wait: string
+  /**
+   * 页面上"由当前时刻算出来"的文本，比对时遮掉。
+   * 不加宽容比：整体容差会把真回归一起放过（见下面 toHaveScreenshot 的注释），
+   * 而按元素遮罩只吃掉这一小块。锚点丢了会直接红，不会退化成"明天又红在日期上"。
+   */
+  volatile?: string[]
 }
 
 const SHOTS: Shot[] = [
@@ -45,7 +51,12 @@ const SHOTS: Shot[] = [
   { key: 'history', hash: '#/history', wait: '.hist-page' },
   { key: 'monitor', hash: '#/monitor', wait: '[data-dom-id="page-title"]' },
   { key: 'knowledge', hash: '#/knowledge', wait: '.kb-page' },
-  { key: 'settings', hash: '#/settings/general', wait: '.set-page' },
+  {
+    key: 'settings',
+    hash: '#/settings/general',
+    wait: '.set-page',
+    volatile: ['[data-dom-id="scheduler-task-list"] .tabular-nums'],
+  },
 ]
 
 function hasBaseline(key: string): boolean {
@@ -90,12 +101,20 @@ test.describe('视觉基线对比', () => {
       await page.waitForSelector(shot.wait, { timeout: 20000 })
       // 等 page-enter 动画走完，否则截到淡入中途
       await page.waitForTimeout(1200)
+      const masks: Locator[] = []
+      for (const anchor of shot.volatile ?? []) {
+        if ((await page.locator(anchor).count()) === 0) {
+          throw new Error(`视觉遮罩锚点不见了：${anchor} —— 元素被改名/删掉就会退化成"隔天红在日期上"`)
+        }
+        masks.push(page.locator(anchor))
+      }
       await expect(page).toHaveScreenshot(`${shot.key}.png`, {
         // 不设宽容比。2026-10-07 实测：这些页面彼此整体只差 3%~9%（外壳占大头，路由区很小），
         // 原来写的 0.1 等于把闸调成摆设——互换两页基线照样报绿。
         // 光标与动画会制造无意义抖动，所以按像素对齐把它们关掉。
         caret: 'hide',
-        animations: 'disabled'
+        animations: 'disabled',
+        mask: masks
       })
     })
   }
