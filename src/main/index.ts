@@ -194,11 +194,37 @@ function handleActivate(): void {
 /**
  * 应用退出前清理
  *
- * 同步清理资源，避免进程被强制终止时丢失数据或留下僵尸连接：
- * - 断开所有 SSH 会话
- * - 停止所有监控定时器
+ * 为什么要先拦住退出：Electron **不等** async 的 before-quit 监听器——监听器一返回，
+ * 退出流程就继续走，进程在下一个 tick 结束。实测（2026-10-08 独立探针）：
+ * handler 里写了 `await` 的 1.5 秒清理，日志只留下 HANDLER_START，主进程 'exit' 就跟着打出来了，
+ * 后续每一步（MCP 停、Langfuse 落盘、sidecar 关、循环工程解绑）一行都没跑到。
+ * 也就是说上一轮"把 cleanupSidecar 接进 before-quit"其实等于没接：接上了调用，调用被掐在半路。
+ *
+ * 标准写法：第一次 before-quit 先 preventDefault，清理真正 await 完再 app.quit() 第二次放行。
+ * 总时长设上限：某个清理卡住时宁可带着警告退出，也不把应用钉死在屏幕上关不掉。
  */
-async function handleBeforeQuit(): Promise<void> {
+const QUIT_CLEANUP_CAP_MS = 8000
+let quitCleanupState: 'running' | 'done' | null = null
+
+async function handleBeforeQuit(event: Electron.Event): Promise<void> {
+  if (quitCleanupState === 'done') return // 第二次进来：清理做完了，放行
+  event.preventDefault() // 第一次进来：拦住，等清理
+  if (quitCleanupState === 'running') return // 清理还在跑，别重复启动
+  quitCleanupState = 'running'
+
+  const startedAt = Date.now()
+  const cap = new Promise<'超时'>((resolve) => setTimeout(() => resolve('超时'), QUIT_CLEANUP_CAP_MS))
+  const outcome = await Promise.race([
+    runQuitCleanup().then(() => '完成' as const),
+    cap,
+  ])
+  quitCleanupState = 'done'
+  logger.info('APP', '退出清理收尾', { outcome, ms: Date.now() - startedAt })
+  app.quit()
+}
+
+/** 逐项清理：任何一项失败都不许拖垮其余项，也不许让退出卡死 */
+async function runQuitCleanup(): Promise<void> {
   try {
     // 停止所有监控（避免定时器在退出时报错）
     await stopAllMonitoring()

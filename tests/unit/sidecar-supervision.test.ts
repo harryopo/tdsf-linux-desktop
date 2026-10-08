@@ -75,6 +75,19 @@ describe('退出清理接线（S15）', () => {
     expect(ipcIndex).not.toContain('__cleanupSidecar')
     expect(ipcIndex).not.toContain('__cleanupLoopEngineering')
   })
+
+  it('before-quit 必须先拦住退出，清理跑完才放行', () => {
+    // Electron 不等 async 监听器：只 await 不 preventDefault 的话，清理停在第一个 await 上，
+    // 源码看着接好了，运行时一行没跑（行为判据在 tests/e2e/app-quit-cleanup.spec.ts，这里钉结构）
+    const body = mainIndex.slice(
+      mainIndex.indexOf('async function handleBeforeQuit'),
+      mainIndex.indexOf('async function runQuitCleanup')
+    )
+    expect(body.length, '没找到 handleBeforeQuit → runQuitCleanup 这段').toBeGreaterThan(20)
+    expect(body).toContain('event.preventDefault()')
+    expect(body).toContain('app.quit()')
+    expect(body).toContain('QUIT_CLEANUP_CAP_MS')
+  })
 })
 
 describe('状态形状与 stderr 环形缓冲', () => {
