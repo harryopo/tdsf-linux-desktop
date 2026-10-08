@@ -60,7 +60,10 @@ describe('topology-gate —— A5 判据的证伪', () => {
   })
 
   it('阳性对照反过来：不存在的串必须让对照失败（防"对照恒过"）', () => {
-    const { rc, out } = run(['--control', 'zz-不存在的串-9x7'])
+    // 这个串必须运行时生成：第一版把它写成字面量，而本文件自己就在闸的扫描面里（tracked 的 .ts），
+    // 于是"不存在的串"命中 1 处、对照恒过——被检对象里写着判据原文，等于自己给自己作证。
+    const absent = 'zz-' + Math.random().toString(36).slice(2, 12)
+    const { rc, out } = run(['--control', absent])
     expect(rc, out).toBe(1)
     expect(out).toContain('扫描器本身失效')
   })
