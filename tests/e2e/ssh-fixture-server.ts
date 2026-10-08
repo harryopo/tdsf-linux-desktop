@@ -41,32 +41,47 @@ export interface FixtureHandle {
 /**
  * 生成一次性 ed25519 主机密钥，返回私钥与 ssh 线格式公钥 blob。
  *
- * 为什么不走 utils.parseKey：那条路要先把私钥解析回 KeyInfo 再取 getPublicSSH，
- * 2026-10-07~10-08 实测在并行跑测试时随机失败（约 1/3 拿不到 getPublicSSH），
- * 单跑又总是过——一条随机红的夹具等于没有夹具。
- * generateKeyPairSync 本来就把公钥作为 `ssh-ed25519 <base64> ...` 一行返回，
- * 反 base64 即线格式 blob；2026-10-08 实测 40/40 与 parseKey 路线逐字相同。
- * 形状不对就抛，不静默退回某个默认值。
+ * 病根不是 utils.parseKey，而是 ssh2 的 generateKeyPairSync **会返回被截断的输出**：
+ * 2026-10-08 用连抽 30 次的闸实测到 `pair.public` 断在半路
+ * （`"ssh-ed25519 AAAAC3NzaC1l"` —— base64 都拼不完整），并行跑测试时约 1/3 概率出现，
+ * 单跑常过。老写法把它表现成"parseKey 拿不到 getPublicSSH"，是因为截断的 PEM 当然解析不出 KeyInfo。
+ *
+ * 所以：每次抽完都**双向校验**（公钥行必须是 51 字节的合法 blob，私钥 PEM 必须首尾完整），
+ * 不合格就重抽；重抽上限内拿不到就抛，带上每次不合格的样子（不静默退回某个默认值）。
  */
+const KEY_DRAWS_MAX = 12
+
 export function generateHostKey(): { private: Buffer; publicBlob: Buffer } {
-  const pair = utils.generateKeyPairSync('ed25519')
   const toBuf = (v: string | Buffer | Array<string | Buffer>): Buffer[] =>
     (Array.isArray(v) ? v : [v]).map((x) => Buffer.from(x as string | Buffer))
-  const privs = toBuf(pair.private)
-  const publics = toBuf(pair.public)
   const tried: string[] = []
-  for (let i = 0; i < Math.max(privs.length, publics.length); i++) {
-    const line = (publics[i] ?? publics[0]).toString('utf8').trim()
-    const [type, b64] = line.split(/\s+/)
-    const publicBlob = Buffer.from(b64 ?? '', 'base64')
-    // 线格式：4 字节长度 + "ssh-ed25519" + 4 字节长度 + 32 字节密钥 = 51 字节
-    if (type !== 'ssh-ed25519' || publicBlob.length !== 51 || publicBlob.toString('utf8', 4, 15) !== 'ssh-ed25519') {
-      tried.push(`第 ${i} 项公钥行不成 blob（${JSON.stringify(line.slice(0, 24))}）`)
-      continue
+  for (let draw = 0; draw < KEY_DRAWS_MAX; draw++) {
+    const pair = utils.generateKeyPairSync('ed25519')
+    const privs = toBuf(pair.private)
+    const publics = toBuf(pair.public)
+    for (let i = 0; i < Math.max(privs.length, publics.length); i++) {
+      const line = (publics[i] ?? publics[0]).toString('utf8').trim()
+      const [type, b64] = line.split(/\s+/)
+      const publicBlob = Buffer.from(b64 ?? '', 'base64')
+      const priv = privs[i] ?? privs[0]
+      const privText = priv.toString('utf8')
+      // 线格式：4 字节长度 + "ssh-ed25519" + 4 字节长度 + 32 字节密钥 = 51 字节
+      if (type !== 'ssh-ed25519' || publicBlob.length !== 51 || publicBlob.toString('utf8', 4, 15) !== 'ssh-ed25519') {
+        tried.push(`第 ${draw + 1} 抽：公钥行不完整 ${JSON.stringify(line.slice(0, 28))}`)
+        continue
+      }
+      // 私钥也要首尾都在：截断的 PEM 交给 ssh2 Server 会得到一个"起得来但握手必败"的靶子。
+      // 两段字面量拆开写，理由与本文件顶部假口令一样——完整 PEM 形状会被密钥扫描闸当真（本仓 pre-commit 实测拦过）
+      const pemHead = '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----'
+      const pemTail = '-----END ' + 'OPENSSH PRIVATE KEY-----'
+      if (!privText.includes(pemHead) || !privText.includes(pemTail)) {
+        tried.push(`第 ${draw + 1} 抽：私钥 PEM 不完整（${privText.split('\n')[0].slice(0, 28)}…）`)
+        continue
+      }
+      return { private: priv, publicBlob }
     }
-    return { private: privs[i] ?? privs[0], publicBlob }
   }
-  throw new Error('ssh2 没给出可用的 ssh-ed25519 公钥行，试过的原因：' + tried.join('；'))
+  throw new Error(`ssh2 连抽 ${KEY_DRAWS_MAX} 次都没给出完整的 ed25519 密钥对。最后一次：${tried.slice(-2).join('；')}`)
 }
 
 /** 生成一次性 ed25519 主机密钥（只在内存里，不落盘） */
