@@ -116,7 +116,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "@vitest/coverage-v8": "2.0.0",
     "electron": "43.1.1",
-    "electron-builder": "^24.13.0",
+    "electron-builder": "^26.17.0",
     "electron-playwright-helpers": "^2.1.0",
     "electron-vite": "^2.3.0",
     "esbuild": "^0.28.1",
