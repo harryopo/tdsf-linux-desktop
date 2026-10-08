@@ -304,6 +304,37 @@ const MEASURE = `(async () => {
   };
 })()`
 
+/**
+ * 导航后等页面"定下来"，而不是干等固定毫秒
+ *
+ * 实测坑（2026-10-08）：并跑完整单测后紧接着跑审计，机器正忙，sleep(1600) 时 #/logs 还没渲染完，
+ * 探针把外壳状态栏的 "TDSF<主机>·root" 当成左上角标题，报出"没有 PageHeader"的假红灯；
+ * 反过来半渲染的页面元素更少，也可能量成"组合数达标"的假绿。
+ * 判据：路由已切过去，且连续两次取到的 DOM 规模与文本长度都不再变，才算稳定。
+ * 超时就如实记 settled=false，由门禁报"探针没跑成"——没测到不等于通过。
+ */
+async function settle(ws, hash, capMs = 9000) {
+  await evalIn(ws, `location.hash = ${JSON.stringify(hash)}`)
+  const started = Date.now()
+  let prev = null
+  let same = 0
+  while (Date.now() - started < capMs) {
+    await sleep(200)
+    const snap = await evalIn(
+      ws,
+      `(() => JSON.stringify([location.hash, document.querySelectorAll('*').length, (document.body.innerText || '').length]))()`
+    )
+    if (snap === prev && JSON.parse(snap)[0] === hash) {
+      same += 1
+      if (same >= 2) return { settled: true, waitedMs: Date.now() - started }
+    } else {
+      same = 0
+    }
+    prev = snap
+  }
+  return { settled: false, waitedMs: Date.now() - started }
+}
+
 const ROUTES = [
   { hash: '#/workbench', name: '01-workbench' },
   { hash: '#/knowledge', name: '02-knowledge' },
@@ -372,17 +403,17 @@ try {
   await sleep(2500)
 
   for (const r of ROUTES) {
-    await evalIn(ws, `location.hash = ${JSON.stringify(r.hash)}`)
-    await sleep(1600)
+    const st = await settle(ws, r.hash)
     const file = await shot(ws, r.name)
     const m = await evalIn(ws, MEASURE)
-    report.screens.push({ route: r.hash, png: file, ...m })
+    report.screens.push({ route: r.hash, png: file, settled: st.settled, waitedMs: st.waitedMs, ...m })
   }
 
   // 2) 风险控制页功能实测：只读规则表真的把引擎规则画出来了（不是空表、不是错误态）
-  await evalIn(ws, `location.hash = '#/settings/risk'`)
-  await sleep(1800)
-  report.riskRules = await evalIn(ws, `(() => {
+  const stRisk = await settle(ws, '#/settings/risk')
+  report.riskRules = {
+    settled: stRisk.settled,
+    ...(await evalIn(ws, `(() => {
     const rows = [...document.querySelectorAll('.set-table tbody tr')];
     const text = document.querySelector('.set-subpage')?.innerText || '';
     return {
@@ -392,14 +423,14 @@ try {
       hasInternalRef: text.includes('@'),
       addRuleButton: [...document.querySelectorAll('button')].some((b) => (b.textContent || '').includes('新增规则')),
     };
-  })()`)
+  })()`)),
+  }
   await shot(ws, '13b-settings-risk-rules')
 
   // 3) 弹层实测：自研表单弹窗（添加服务器）/ 自研确认框 / 右键菜单
   //    2026-10-07 换目标：可编辑规则表随假设置删了，添加服务器也从 antd Modal 换成自研 Dialog，
   //    这里量的就是"页面 + 浮层"叠在一起时的对比度与遮挡。
-  await evalIn(ws, `location.hash = '#/settings/ssh'`)
-  await sleep(1600)
+  await settle(ws, '#/settings/ssh')
   await evalIn(ws, `(async () => {
     const add = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('添加服务器'));
     if (add) add.click();
@@ -422,8 +453,7 @@ try {
   await evalIn(ws, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
   await sleep(500)
 
-  await evalIn(ws, `location.hash = '#/workbench'`)
-  await sleep(1800)
+  await settle(ws, '#/workbench')
   await evalIn(ws, `(async () => {
     const t = document.querySelector('.wb-filetree-empty') || document.querySelector('.wb-filetree-scroll > *');
     if (!t) return;
@@ -447,6 +477,15 @@ try {
     const layers = [report.formDialog, report.confirmDialog, report.contextMenu].filter(Boolean)
     // 浮层没弹起来的话，上面三条量的就是页面本身——那等于没测，必须报错
     if (!report.formDialogOpen) bad.push('添加服务器弹窗没弹起来（探针点了但没开），浮层量测无效')
+    // 探针没等页面定下来就取数，读数一律作废：半渲染的页面既能造假红（漏 PageHeader）也能造假绿（元素更少、组合数更低）
+    for (const s of report.screens) {
+      if (s.settled === false) {
+        bad.push(`${s.route}: 页面 ${s.waitedMs}ms 内没稳定（探针读数作废，先减机器负载再重跑）`)
+      }
+    }
+    if (report.riskRules && report.riskRules.settled === false) {
+      bad.push('#/settings/risk: 页面没稳定就量规则表（探针读数作废）')
+    }
     for (const s of [...pages, ...layers]) {
       const at = s.route || 'boot/弹层'
       if (s.lowContrastCount) bad.push(`${at}: ${s.lowContrastCount} 处文字达不到 WCAG AA（最低 ${s.lowContrast[0]?.contrast}:1 — "${s.lowContrast[0]?.text}"）`)
