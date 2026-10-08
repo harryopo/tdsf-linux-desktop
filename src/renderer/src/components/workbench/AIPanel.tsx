@@ -228,8 +228,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
    *
    * Wire-2（2026-07-22）：真实 IPC 接线
    * - copyCommand: 复制命令到剪贴板
-   * - runInTerminal / execute / rollback / rollbackExec: 写入终端 Shell（sshShellWrite），
-   *   命令与回显在终端可见；写入前先发 Ctrl+U 清理半截输入，并登记预测回显（v2.5）
+   * - runInTerminal / execute / rollback / rollbackExec: 走 sshRunAuthored（A1：整条代写命令
+   *   必须在主进程过风险闸，block 级直接拒），命令与回显在终端全程可见；
+   *   写入前先发 Ctrl+U 清理半截输入，并登记预测回显（v2.5）
    * - pauseExec / terminateTask: 调用 agentChatCancel(currentCorrelationId) 取消流
    * - resumeExec: 当前 IPC 不支持恢复，提示用户重新发送
    * - sandbox: v2.5 已全量移除沙箱功能，存量 block 数据的沙箱动作降级为提示

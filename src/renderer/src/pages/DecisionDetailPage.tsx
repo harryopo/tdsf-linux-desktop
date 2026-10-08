@@ -51,7 +51,7 @@ import {
 } from '@/utils/decision-mappers'
 import type { DecisionCard } from '@shared/models'
 import type { ConfidenceAssessment } from '@shared/agent-types'
-// v2.6：重新执行接真实终端（与 AIPanel 同路径：预检 + 预测回显 + sshShellWrite）
+// v2.6：重新执行接真实终端（与 AIPanel 同路径：预检 + 预测回显 + sshRunAuthored 过主进程风险闸）
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'

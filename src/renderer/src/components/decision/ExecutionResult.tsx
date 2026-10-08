@@ -9,7 +9,7 @@
  *
  * 交互（v2.6 已真实接线）：
  * - approval 模式：采纳执行/修改/拒绝回调（活跃工作流 loopConfirm）
- * - readonly 模式：状态徽章 + 重新在终端执行（sshShellWrite 真实发送）
+ * - readonly 模式：状态徽章 + 重新在终端执行（onRerun 回调，页面侧走 sshRunAuthored 过风险闸）
  * - 复制命令：navigator.clipboard 真实写入
  */
 import { useState } from 'react'
