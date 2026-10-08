@@ -16,11 +16,33 @@
 import { useAgentStore } from './agent-store'
 import { useMonitorStore } from './monitor-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import { createDeltaCoalescer, DEFAULT_COALESCE_WINDOW_MS } from '@/lib/messageSync'
+import {
+  DEFAULT_COALESCE_WINDOW_MS,
+  createDeltaCoalescer,
+  ruleOf,
+  type StreamEventName,
+} from '@/lib/messageSync'
 import type { AgentWorkflowState } from '@shared/models'
 
 /** 幂等守卫：整个渲染进程生命周期只绑定一次 */
 let subscribed = false
+
+/**
+ * 这个通道要不要进合并窗口 —— 判据取自分类表，不在这里各写各的
+ *
+ * 只有 DELTA 且表里允许合并的才缓冲：LATEST_ONLY 的 payload 是"整份最新值"，
+ * 拼起来会得到一份缝合过的假数据；SNAPSHOT/CRITICAL 同理。
+ */
+function shouldCoalesce(channel: StreamEventName): boolean {
+  const rule = ruleOf(channel)
+  return rule.class === 'DELTA' && rule.coalescable
+}
+
+/** 关键/重置边界事件到达前，必须先把待合并的缓冲吐干净，否则尾部丢在半路 */
+function mustFlushBefore(channel: StreamEventName): boolean {
+  const cls = ruleOf(channel).class
+  return cls === 'CRITICAL' || cls === 'RESET_BOUNDARY'
+}
 
 // ============================================================================
 // 流式 chunk 合并写入
@@ -73,21 +95,25 @@ export function initAgentStreamSubscription(): void {
   }
 
   window.electronAPI.onAgentChunk((payload) => {
-    // 不每 token 写 store：进合并缓冲，到点一次吐（会话归属由 appendToken 那侧把关）
-    chunkCoalescer.push(
-      `${payload.kind === 'reasoning' ? 'reasoning' : 'text'}:${payload.correlationId}`,
-      payload.delta
-    )
+    // 走不走合并窗口由分类表决定（会话归属由 appendToken 那侧把关）
+    if (shouldCoalesce('agent:chunk')) {
+      chunkCoalescer.push(
+        `${payload.kind === 'reasoning' ? 'reasoning' : 'text'}:${payload.correlationId}`,
+        payload.delta
+      )
+      return
+    }
+    useAgentStore.getState().appendToken(payload)
   })
 
   window.electronAPI.onAgentDone((payload) => {
-    flushPendingChunks() // 先落盘尾部 token，再 finalize
+    if (mustFlushBefore('agent:done')) flushPendingChunks() // 先落盘尾部 token，再 finalize
     useAgentStore.getState().finalizeMessage(payload)
     refreshStats()
   })
 
   window.electronAPI.onAgentError((payload) => {
-    flushPendingChunks()
+    if (mustFlushBefore('agent:error')) flushPendingChunks()
     useAgentStore.getState().markError(payload)
     refreshStats()
   })

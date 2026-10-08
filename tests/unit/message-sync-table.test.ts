@@ -4,6 +4,11 @@
  * 这张表的价值在于"它是真的"，所以最重要的一个用例是拿 preload 的实际监听点
  * 反解出通道清单来对表 —— 表里多一条（写了个不存在的通道）或者少一条
  * （新加推送没归类）都必须红，否则表会跟代码脱节，比没有更坏。
+ *
+ * 两类证人分工（2026-10-08 补齐）：
+ *   - 覆盖面对表：从 preload 源码反解真实监听点，不从表 itself 取基准；
+ *   - 类别冻结表：人审快照，拦"悄悄把某条改类"（这类改动不改覆盖、只改处置）；
+ *   - 行为侧的另一半在 tests/unit/stream-table-drives-behavior.test.ts（表驱动订阅层的合并与冲刷）。
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
@@ -91,5 +96,64 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
     expect(fallback.class).toBe('CRITICAL')
     expect(fallback.ownership).toBe(true)
     expect(fallback.coalescable).toBe(false)
+  })
+
+  // 下面这张期望表是**人审快照**，不从 STREAM_EVENT_RULES 取基准。
+  // 为什么必须另立证人：上面的用例查的是"覆盖对不对、类别合不合法、CRITICAL 不许合并"，
+  // 而把某一条从 DELTA 改成 DISPOSABLE（丢掉事件）或 SNAPSHOT（每 token 全量重发）都照样全绿 ——
+  // 和 D4 那轮"用数据核对由数据算出的行为"是同一个病。2026-10-08 实测：
+  // 把 agent:chunk 改成 LATEST_ONLY 时，只有新加的订阅行为测试会红（覆盖 agent:chunk/done/error 三条），
+  // 其余 39 条只能靠这张表拦。改表必须先改这张表，就是逼一次人审。
+  it('每条通道的类别等于人审冻结值（数量与内容都不许漂）', () => {
+    const EXPECTED_CLASS: Record<string, string> = {
+      'agent:chunk': 'DELTA',
+      'agent:done': 'CRITICAL',
+      'agent:error': 'CRITICAL',
+      'agent:step': 'LATEST_ONLY',
+      'agent:tool-event': 'SNAPSHOT',
+      'agent:paor:iteration': 'SNAPSHOT',
+      'boot:loading-stage': 'LIFECYCLE',
+      'claude-sdk:chunk': 'DELTA',
+      'claude-sdk:done': 'CRITICAL',
+      'claude-sdk:error': 'CRITICAL',
+      'deploy:done': 'CRITICAL',
+      'deploy:log': 'SNAPSHOT',
+      'deploy:stepUpdate': 'LATEST_ONLY',
+      'diagnostics:log-batch': 'DISPOSABLE',
+      'file:changed': 'SNAPSHOT',
+      'llm:chunk': 'DELTA',
+      'llm:done': 'CRITICAL',
+      'llm:error': 'CRITICAL',
+      'llm:token': 'DISPOSABLE',
+      'llm:tool-approval': 'CRITICAL',
+      'llm:tool-progress': 'SNAPSHOT_TAIL',
+      'loop:blocked': 'CRITICAL',
+      'loop:decision': 'CRITICAL',
+      'loop:done': 'CRITICAL',
+      'loop:error': 'CRITICAL',
+      'loop:llm-done': 'LIFECYCLE',
+      'loop:llm-start': 'LIFECYCLE',
+      'loop:step': 'LATEST_ONLY',
+      'mcp:state-changed': 'LATEST_ONLY',
+      'monitor:data': 'SNAPSHOT',
+      'monitor:systemInfo': 'LATEST_ONLY',
+      'paor:approval-request': 'CRITICAL',
+      'sandbox:approval-request': 'CRITICAL',
+      'scheduler:status': 'LATEST_ONLY',
+      'sftp:progress': 'LATEST_ONLY',
+      'ssh:host-key-prompt': 'CRITICAL',
+      'ssh:state-changed': 'LATEST_ONLY',
+      'task:permission-approval-request': 'CRITICAL',
+      'terminal:data': 'DELTA',
+      'tutorial:backfill-progress': 'LATEST_ONLY',
+      'tutorial:crawlDone': 'CRITICAL',
+      'tutorial:crawlProgress': 'LATEST_ONLY',
+    }
+    const tabled = Object.keys(STREAM_EVENT_RULES)
+    // 两张名单必须一样长：表里加了新通道却不进期望表 = 新通道没人审过
+    expect(tabled.slice().sort()).toEqual(Object.keys(EXPECTED_CLASS).sort())
+    for (const [channel, cls] of Object.entries(EXPECTED_CLASS)) {
+      expect(STREAM_EVENT_RULES[channel as StreamEventName].class, `${channel} 的类别被改过`).toBe(cls)
+    }
   })
 })
