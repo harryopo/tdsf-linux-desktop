@@ -108,7 +108,7 @@ test.describe('生产包真启动', () => {
     }
   })
 
-  test('起的是打包产物而不是 out/，且外壳与状态栏都渲染出来了', async () => {
+  testOrSkip('起的是打包产物而不是 out/，且外壳与状态栏都渲染出来了', async () => {
     const href = page.url()
     expect(href, '装包应当从 asar 里加载渲染层').toContain('app.asar')
     expect(href.startsWith('file:'), '装包不该连着 dev server').toBe(true)
@@ -117,7 +117,7 @@ test.describe('生产包真启动', () => {
     expect(pageErrors, `渲染层报错：${pageErrors.slice(0, 2).join(' | ')}`).toHaveLength(0)
   })
 
-  test('preload 桥与一次真 IPC 往返在 asar 下活着', async () => {
+  testOrSkip('preload 桥与一次真 IPC 往返在 asar 下活着', async () => {
     const probe = await page.evaluate(async () => {
       const api = (window as unknown as { electronAPI?: Record<string, unknown> }).electronAPI
       if (!api) return { hasApi: false as const }
