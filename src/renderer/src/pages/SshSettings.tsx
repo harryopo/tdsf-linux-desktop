@@ -9,7 +9,8 @@
  * - SecurityCard：安全设置（密码认证/Root/严格主机密钥/Known Hosts）
  *
  * H1：通过 SettingsLayout 共享 9 项左导航（nav-ssh 激活）
- * H3：密码字段脱敏（ConnectDialog 用 antd Input.Password；服务器行只显示「密码」「密钥」标签；
+ * H3：密码字段脱敏（口令只在 ConnectDialog 的 ui 层 Input 里输入，antd 已于 2026-10-07 退出渲染层；
+ *     服务器行只显示「密码」「密钥」标签；
  *     Card 4「允许密码认证」默认 off；password 永不在本页直接渲染）
  *
  * 数据：useServerStore + useSettingsStore（真 IPC，无 mock）
@@ -466,7 +467,7 @@ export function SshSettings() {
         />
       </div>
 
-      {/* ===== SSH 连接对话框（密码字段使用 antd Input.Password，H3 修复） ===== */}
+      {/* ===== SSH 连接对话框（H3 脱敏：口令只在这个弹窗里输入，服务器行只显示「密码」「密钥」标签） ===== */}
       <ConnectDialog
         open={dialogOpen}
         server={editing}

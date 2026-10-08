@@ -79,13 +79,10 @@ if (import.meta.env.DEV || (typeof navigator !== 'undefined' && navigator.webdri
 }
 
 /**
- * AntD 主题 token 与组件配置说明
+ * 主题色值的单一数据源在 styles/ui-tokens.css（CSS 变量），渲染层不再维护 JS 侧的 antd token 表
  *
- * v2.3 P3-B3 修复问题 #57：
- * - 原 28 处硬编码颜色（traeDarkToken / traeLightToken / componentsConfig）
- *   已全部迁移到 styles/antd-tokens.ts，消除 B2 CSS 变量红线违规
- * - 此处直接引用导入的 traeAntdDarkToken / traeAntdLightToken / traeAntdComponentsConfig
- * - 颜色值的单一数据源为 styles/antd-tokens.ts
+ * 历史：v2.3 那批硬编码颜色曾集中到 styles/antd-tokens.ts；antd 于 2026-10-07 整体退出渲染层，
+ * 该文件已删除，色值改由令牌层提供（design-contract 里 antd 文件数上限为 0）。
  */
 
 /** 根组件 - 包含主题响应逻辑 */
