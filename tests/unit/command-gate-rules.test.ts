@@ -2,13 +2,15 @@
  * 命令闸与规则数据的一致性测试（D4：规则数据化）
  *
  * 判据来源：计划 §D4 "规则文件与 gate 行为一致性测试"。
- * 这里盯的是四件事：
+ * 这里盯的是五件事：
  *   1. 数据里声明的结构性拦截器与代码里实现的必须一一对上；
  *   2. deny 底线不许被数据调低（改数据把 rm 判成 safe 要当场红）；
  *   3. 每条数据规则真的作用到判定结果上（列了却没生效的规则等于假安全感）；
  *   4. 级别不许被悄悄改动 —— 前三条都是"实际判定 vs 数据声明"，而判定就是从这份数据算出来的，
  *      自己跟自己对照抓不到"整条降级"（实测把 service-stop 改成 low 时全绿），
- *      所以另加一张人审期望表 + 标记位自洽不变量当独立证人。
+ *      所以另加一张人审期望表 + 标记位自洽不变量当独立证人；
+ *   5. 只读名单不许被悄悄扩 —— 同一个坑：往 readonlyCommands 塞 systemctl，
+ *      判定会变 low 而"只读名单判 low"照样绿。冻结名单 + 与风险规则/关机名单互斥。
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
@@ -19,6 +21,8 @@ const RULES_PATH = path.resolve(__dirname, '../../src/main/core/command-rules.js
 const rules = JSON.parse(fs.readFileSync(RULES_PATH, 'utf8')) as {
   version: number
   readonlyCommands: string[]
+  powerCommands?: string[]
+  shellLaunchers?: string[]
   argvRules: Array<{
     id: string
     commands: string[] | string
@@ -120,6 +124,38 @@ describe('数据规则真的作用到判定上', () => {
     for (const cmd of ['df', 'free', 'journalctl', 'lsof']) {
       expect(evaluateCommand(`${cmd} -h`).level).toBe('low')
     }
+  })
+})
+
+/**
+ * 只读名单的人审冻结值（与上面的 EXPECTED_LEVEL 同一个理由）。
+ *
+ * "只读名单判 low"这类断言是拿名单算判定、再拿判定对名单，自己跟自己一致：
+ * 往 readonlyCommands 里塞一个 systemctl，判定会变成 low，而两条现有断言照样全绿。
+ * 冻结成这张表之后，加一个名字必须同时改这里 —— 等于逼一次人审。
+ */
+const EXPECTED_READONLY = [
+  'cat', 'less', 'more', 'head', 'tail', 'grep', 'egrep', 'fgrep', 'find', 'fd', 'ls', 'll',
+  'ps', 'top', 'htop', 'free', 'df', 'du', 'uptime', 'whoami', 'id', 'hostname', 'uname',
+  'which', 'whereis', 'stat', 'file', 'wc', 'sort', 'uniq', 'date', 'env', 'printenv',
+  'ip', 'ifconfig', 'ss', 'netstat', 'lsof', 'journalctl',
+]
+
+describe('只读名单不许被悄悄扩（同一类独立证人）', () => {
+  it('readonlyCommands 与冻结名单完全一致（多一个少一个都要红）', () => {
+    expect([...rules.readonlyCommands].sort(), '只读名单被改动过，请人审后再更新期望').toEqual(
+      [...EXPECTED_READONLY].sort()
+    )
+  })
+
+  it('只读名单与风险规则覆盖的命令互不相交', () => {
+    const risky = new Set(rules.argvRules.filter((r) => r.id !== 'readonly').flatMap((r) => commandsOf(r)))
+    const clash = rules.readonlyCommands.filter((c) => risky.has(c))
+    expect(clash, `这些命令既在只读名单里又有风险规则：${clash.join(',')}`).toEqual([])
+    const power = new Set<string>(rules.powerCommands ?? [])
+    const launchers = new Set<string>(rules.shellLaunchers ?? [])
+    const bad = rules.readonlyCommands.filter((c) => power.has(c) || launchers.has(c))
+    expect(bad, `关机/起 shell 的命令不许算只读：${bad.join(',')}`).toEqual([])
   })
 })
 
