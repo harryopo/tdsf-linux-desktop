@@ -109,6 +109,10 @@ async function readActiveState(btn: ElementHandle<HTMLButtonElement>): Promise<s
       const b = el as HTMLElement
       if (b.getAttribute('aria-pressed') === 'true') return 'aria-pressed'
       if (b.getAttribute('aria-selected') === 'true') return 'aria-selected'
+      // 导航项的"已经在这页"用的是 aria-current="page"（activity-rail / NavLink 都这么标）。
+      // 不认它，就会把"点当前页的入口"当成该有反应的按钮——再点本就不该有任何变化。
+      const cur = b.getAttribute('aria-current')
+      if (cur === 'page' || cur === 'true' || cur === 'location') return `aria-current=${cur}`
       const ds = b.getAttribute('data-state')
       if (ds === 'active' || ds === 'on' || ds === 'checked') return `data-state=${ds}`
       return null

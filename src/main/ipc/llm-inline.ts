@@ -11,11 +11,12 @@
  * - llm:diff-preview             invoke  渲染 → 主：预览 diff（unified diff 格式）
  *
  * 设计依据：v2.0 Phase B · Task B.5
- * 安全：apply-diff 仅写入本地文件系统；远程文件由渲染层通过 sftp:writeFile 处理
+ * 安全：apply-diff 的写入目的地受 path confinement 约束（只允许受管目录或对话框授权过的文件）；
+ *       远程文件由渲染层通过 sftp:writeFile 处理
  */
 import { ipcMain } from 'electron'
 import { writeFile } from 'node:fs/promises'
-import { isAbsolute, resolve } from 'node:path'
+import { assertWithinConfinement } from '../services/security/path-confinement'
 import { LLM_INLINE } from '@shared/ipc-channels'
 import { getInlineCompletionService, type InlineCompletionRequest, type InlineCompletionItem } from '../services/llm/inline-completion-service'
 import { logger } from '../services/log/logger'
@@ -163,7 +164,8 @@ export function registerLlmInlineHandlers(): void {
   // ------------------------------------------------------------------
   // llm:apply-diff — 应用 diff（写入新内容到本地文件）
   // ------------------------------------------------------------------
-  // 安全：仅写入本地文件系统；远程文件由渲染层通过 sftp:writeFile 处理
+  // 安全：写入目的地受 confinement 约束（userData 子树或对话框授权过的文件）；
+  //       远程文件由渲染层通过 sftp:writeFile 处理
   ipcMain.handle(
     LLM_INLINE.APPLY_DIFF,
     async (
@@ -172,11 +174,14 @@ export function registerLlmInlineHandlers(): void {
     ): Promise<{ success: boolean; error?: string }> => {
       try {
         const { filePath, newContent } = payload
-        if (!filePath || !isAbsolute(filePath)) {
-          return { success: false, error: 'filePath 必须为绝对路径（远程文件请走 sftp:writeFile）' }
+        // 写入目的地由 confinement 决定：受管目录（userData）之内，
+        // 或主进程对话框选中的文件。渲染层自己拼一个绝对路径写不进来。
+        let safePath: string
+        try {
+          safePath = assertWithinConfinement(filePath, 'write')
+        } catch (err) {
+          return { success: false, error: (err as Error).message }
         }
-        // 规范化路径，防止相对路径注入
-        const safePath = resolve(filePath)
         await writeFile(safePath, newContent, 'utf8')
         logger.info('IPC.LLM_INLINE', 'apply-diff 写入成功', { filePath: safePath, bytes: newContent.length })
         return { success: true }

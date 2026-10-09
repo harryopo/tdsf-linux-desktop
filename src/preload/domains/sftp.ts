@@ -1,5 +1,5 @@
 /** sftp 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { SftpEntry } from '@shared/models'
+import type { SftpEntry, SftpTransferResult } from '@shared/models'
 import { FILE_WATCH, SFTP, SFTP_SEARCH } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import type { SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from '../types'
@@ -12,23 +12,19 @@ const sftp = {
   list: (sessionId: string, remotePath: string): Promise<SftpEntry[]> =>
     ipcRenderer.invoke(SFTP.LIST, sessionId, remotePath),
 
-  /** 上传文件（支持 transferId 进度关联） */
-  upload: (
-    sessionId: string,
-    localPath: string,
-    remotePath: string,
-    transferId?: string
-  ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.UPLOAD, sessionId, localPath, remotePath, transferId),
+  /**
+   * 上传文件（支持 transferId 进度关联）
+   *
+   * 没有 localPath 参数：要传哪个本地文件由主进程弹文件选择框决定，
+   * 渲染层只说目标远程目录。暴露面少一个"渲染层可填的本地绝对路径"，
+   * "读 ~/.ssh/id_rsa 送去远端"这类组合就没有可拼的原料。
+   */
+  upload: (sessionId: string, remotePath: string, transferId?: string): Promise<SftpTransferResult> =>
+    ipcRenderer.invoke(SFTP.UPLOAD, sessionId, remotePath, transferId),
 
-  /** 下载文件（支持 transferId 进度关联） */
-  download: (
-    sessionId: string,
-    remotePath: string,
-    localPath: string,
-    transferId?: string
-  ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.DOWNLOAD, sessionId, remotePath, localPath, transferId),
+  /** 下载文件（支持 transferId 进度关联）；保存位置由主进程的另存为对话框决定 */
+  download: (sessionId: string, remotePath: string, transferId?: string): Promise<SftpTransferResult> =>
+    ipcRenderer.invoke(SFTP.DOWNLOAD, sessionId, remotePath, transferId),
 
   /** 删除文件/目录 */
   delete: (sessionId: string, remotePath: string): Promise<boolean> =>

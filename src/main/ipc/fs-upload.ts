@@ -15,12 +15,13 @@
  * - catch 块错误信息经 redactSecrets 脱敏（A3 红线）
  * - 不写入磁盘，不修改文件，仅读取
  */
-import { ipcMain, dialog } from 'electron'
+import { ipcMain } from 'electron'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { FS } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
+import { pickExistingFiles } from '../services/security/dialog-paths'
 
 /**
  * 图片上传结果（成功时返回）
@@ -106,10 +107,9 @@ export function registerFsIpcHandlers(): void {
    */
   ipcMain.handle(FS.UPLOAD_IMAGE, async (): Promise<ImageUploadResult | ImageUploadError> => {
     try {
-      // 1. 弹出文件选择对话框
-      const result = await dialog.showOpenDialog({
+      // 1. 弹出文件选择对话框（走 confinement 的唯一入口，选中的路径自动记入授权集）
+      const picked = await pickExistingFiles({
         title: '选择图片',
-        properties: ['openFile'],
         filters: [
           {
             name: '图片',
@@ -119,11 +119,11 @@ export function registerFsIpcHandlers(): void {
       })
 
       // 2. 用户取消选择
-      if (result.canceled || result.filePaths.length === 0) {
+      if (picked.length === 0) {
         return { success: false, error: '用户取消选择' }
       }
 
-      const filePath = result.filePaths[0]
+      const filePath = picked[0]
       const ext = path.extname(filePath).toLowerCase()
 
       // 3. 校验扩展名（防御性，dialog 已过滤但二次校验）

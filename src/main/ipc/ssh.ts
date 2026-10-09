@@ -33,7 +33,9 @@ import { evaluateCommand } from '../core/command-gate'
 import { recordToolCall } from './model-stats'
 import { DatabaseManager } from '../services/db/database'
 import { AuditRepo } from '../services/db/audit-repo'
+import { pickExistingFiles, pickSavePath } from '../services/security/dialog-paths'
 import type {
+  SftpTransferResult,
   SshConfig,
   SshHostKeyPromptEvent,
   SshHostKeyResponseAction,
@@ -73,6 +75,17 @@ const sshExecSchema = z.object({
 
 /** 终端数据推送通道名（引用共享常量，保持与 preload 一致） */
 const TERMINAL_DATA_CHANNEL = TERMINAL.DATA
+
+/**
+ * 远程路径拼接（SFTP 侧是 POSIX 语义，不能用 node:path.join —— 在 Windows 上会拼出反斜杠）
+ *
+ * @param dir 远程目录（可带或不带尾斜杠）
+ * @param name 文件名
+ */
+export function joinRemotePath(dir: string, name: string): string {
+  const base = dir.replace(/\/+$/, '')
+  return `${base}/${name}`
+}
 
 /**
  * Phase L：主机密钥确认弹窗 pending request 表
@@ -412,35 +425,47 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
-  /** sftp:upload — 上传文件（支持 transferId + 进度推送） */
+  /**
+   * sftp:upload — 上传本地文件到远程路径（支持 transferId + 进度推送）
+   *
+   * 本地路径由主进程弹对话框确定，渲染层只决定"传到远程哪里"。
+   * 原实现直接收渲染层给的 localPath 去 fastPut，等于开了条
+   * "读任意本地文件（`~/.ssh/id_rsa`、凭据密文）→ 发往远端"的通道（S3 / P0-4）。
+   */
   ipcMain.handle(
     SFTP.UPLOAD,
     async (
       _event,
       sessionId: string,
-      localPath: string,
       remotePath: string,
       transferId?: string
-    ) => {
+    ): Promise<SftpTransferResult> => {
+      const [picked] = await pickExistingFiles({
+        title: '选择要上传的文件',
+        parent: mainWindow,
+      })
+      if (!picked) return { success: false, canceled: true }
+      // 渲染层给的是目标目录，落在远端的文件名取本地文件名的 basename
+      const remoteFile = joinRemotePath(remotePath, path.basename(picked))
       try {
         const result = await sftpManager.upload(
           sessionId,
-          localPath,
-          remotePath,
+          picked,
+          remoteFile,
           (transferred, total) => {
             if (!transferId || mainWindow.isDestroyed()) return
             mainWindow.webContents.send(SFTP.PROGRESS, {
               transferId,
               type: 'upload',
-              remotePath,
-              localPath,
+              remotePath: remoteFile,
+              localPath: picked,
               transferred,
               total,
             })
           }
         )
-        auditFileMod('SFTP 上传覆盖', sessionId, `${localPath} -> ${remotePath}`)
-        return result
+        auditFileMod('SFTP 上传覆盖', sessionId, `${picked} -> ${remoteFile}`)
+        return { success: result, canceled: false, localPath: picked }
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 上传失败', { sessionId, error: safeMsg })
@@ -449,18 +474,29 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
-  /** sftp:download — 下载文件（支持 transferId + 进度推送） */
+  /**
+   * sftp:download — 下载远程文件（支持 transferId + 进度推送）
+   *
+   * 与 upload 同理：保存位置由主进程的"另存为"对话框决定，
+   * 不接受渲染层拼出来的本地路径（旧 UI 用 `window.prompt` 让用户手打
+   * `D:\\downloads\\x`，既难用又把这个字符串当权威）。
+   */
   ipcMain.handle(
     SFTP.DOWNLOAD,
     async (
       _event,
       sessionId: string,
       remotePath: string,
-      localPath: string,
       transferId?: string
-    ) => {
+    ): Promise<SftpTransferResult> => {
+      const localPath = await pickSavePath({
+        title: '保存到本地',
+        defaultPath: path.basename(remotePath),
+        parent: mainWindow,
+      })
+      if (!localPath) return { success: false, canceled: true }
       try {
-        return await sftpManager.download(
+        const result = await sftpManager.download(
           sessionId,
           remotePath,
           localPath,
@@ -476,6 +512,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
             })
           }
         )
+        return { success: result, canceled: false, localPath }
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
         logger.error('SSH', 'SFTP 下载失败', { sessionId, error: safeMsg })

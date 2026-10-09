@@ -24,6 +24,7 @@ import {
   writeMdFile,
   defaultPdfFileName
 } from '../services/profiler/pdf-exporter'
+import { assertWithinConfinement } from '../services/security/path-confinement'
 import type { ProfilerRunResponse } from '../services/profiler/types'
 
 /**
@@ -72,7 +73,7 @@ export function registerProfilerIpcHandlers(): void {
    * profiler:exportMd — 将 md 文本写入文件
    *
    * @param md Markdown 文本
-   * @param outputPath 目标文件绝对路径
+   * @param outputPath 目标文件绝对路径（必须落在受管目录或对话框授权范围内）
    * @returns 写入结果（filePath / size）
    */
   ipcMain.handle(
@@ -82,10 +83,8 @@ export function registerProfilerIpcHandlers(): void {
         if (!md || typeof md !== 'string') {
           throw new Error('md 内容无效')
         }
-        if (!outputPath || typeof outputPath !== 'string') {
-          throw new Error('输出路径无效')
-        }
-        return await writeMdFile(md, outputPath)
+        const safePath = assertWithinConfinement(outputPath, 'write')
+        return await writeMdFile(md, safePath)
       } catch (err) {
         throw new Error(`导出 md 失败: ${(err as Error).message}`)
       }
@@ -96,14 +95,15 @@ export function registerProfilerIpcHandlers(): void {
    * profiler:exportPdf — 将 md 文本渲染为 PDF 并写入文件
    *
    * @param md Markdown 文本
-   * @param outputPath 目标文件绝对路径
+   * @param outputPath 目标文件绝对路径（同 exportMd，受 confinement 约束）
    * @returns 写入结果（filePath / size）
    */
   ipcMain.handle(
     'profiler:exportPdf',
     async (_event, md: string, outputPath: string): Promise<{ filePath: string; size: number }> => {
       try {
-        return await exportMarkdownToPdf(md, outputPath)
+        const safePath = assertWithinConfinement(outputPath, 'write')
+        return await exportMarkdownToPdf(md, safePath)
       } catch (err) {
         throw new Error(`导出 PDF 失败: ${(err as Error).message}`)
       }

@@ -13,6 +13,7 @@
  * 如需完整能力后续可升级 react-markdown。
  */
 import { Fragment, type JSX, type ReactNode } from 'react'
+import { safeMarkdownHref } from './markdown-links'
 
 /** 行内解析：**粗** / *斜* / `码` / [文本](url)，返回 React 节点数组 */
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
@@ -42,11 +43,22 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       // [文本](url)
       const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token)
       if (linkMatch) {
-        nodes.push(
-          <a key={key} href={linkMatch[2]} target="_blank" rel="noreferrer" className="md-link">
-            {linkMatch[1]}
-          </a>,
-        )
+        const href = safeMarkdownHref(linkMatch[2])
+        if (href) {
+          nodes.push(
+            <a key={key} href={href} target="_blank" rel="noreferrer" className="md-link">
+              {linkMatch[1]}
+            </a>,
+          )
+        } else {
+          // 协议不在白名单（javascript: / file: / 自定义协议）：只留字面文本，
+          // 不给它任何可点击的语义。链接文本来自模型与知识库，不能当可信输入。
+          nodes.push(
+            <span key={key} className="md-link-disabled">
+              {linkMatch[1]}
+            </span>,
+          )
+        }
       } else {
         nodes.push(token)
       }

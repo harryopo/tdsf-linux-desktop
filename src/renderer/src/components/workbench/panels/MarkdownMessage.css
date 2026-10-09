@@ -159,6 +159,12 @@
 .md-body .md-link:hover {
   opacity: 0.85;
 }
+/* 协议不在白名单的链接：降级成文本，不给任何可点击暗示 */
+.md-body .md-link-disabled {
+  color: var(--text-secondary);
+  text-decoration: none;
+  word-break: break-all;
+}
 
 /* ===== Agent 工具执行卡片（v2.4； v2.5 对齐设计稿 Panel F 命令卡；v2.8 终端风精修） ===== */
 .ai-tool-exec {

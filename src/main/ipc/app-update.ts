@@ -22,6 +22,7 @@ import { join } from 'path'
 import { APP } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
+import { assertSafeExternalUrl } from '../services/security/url-policy'
 
 /**
  * GitHub 仓库标识（与 about-settings.constants.ts LINK_URLS.github 对齐）
@@ -42,6 +43,14 @@ const GITHUB_LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/r
  * GitHub Releases 页面 URL（用于"前往下载"按钮打开浏览器）
  */
 const GITHUB_RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases`
+
+/**
+ * 允许交给系统浏览器打开的更新链接主机（精确匹配，子域要显式列出）
+ *
+ * Release 页面与附件下载都落在 github.com；api.github.com 只可能出现在
+ * check-update 返回的链接字段里，一并放行以免误伤。
+ */
+const UPDATE_LINK_ALLOW_HOSTS = ['github.com', 'api.github.com']
 
 /**
  * 应用更新信息（返回给渲染进程）
@@ -216,11 +225,21 @@ export function registerAppUpdateHandlers(): void {
    * 参数：
    * - 无参数：打开 Releases 列表页面
    * - releaseUrl：指定 Release URL（来自 check-update 返回值），直接打开该版本
+   *
+   * 安全：这条通道本质是"渲染层 → 系统 shell"的桥，`shell.openExternal` 收到
+   * `file://` 或自定义协议（如 `wt-cli://`）时不是"打开网页"而是"启动本地程序"。
+   * 所以协议与主机都要过白名单，不在名单里就拒（同仓 window-open 已有同样防线，
+   * 不能让它在这条通道上被旁路）。
    */
   ipcMain.handle(
     APP.DOWNLOAD_UPDATE,
     async (_event, releaseUrl?: string): Promise<boolean> => {
       const url = releaseUrl || GITHUB_RELEASES_PAGE
+      const policy = assertSafeExternalUrl(url, UPDATE_LINK_ALLOW_HOSTS)
+      if (!policy.ok) {
+        logger.warn('APP_UPDATE', '更新链接被拒', { reason: policy.reason })
+        throw new Error(`更新链接不被允许: ${policy.reason ?? '未知原因'}`)
+      }
       try {
         logger.info('APP_UPDATE', '打开下载页面', { url })
         await shell.openExternal(url)

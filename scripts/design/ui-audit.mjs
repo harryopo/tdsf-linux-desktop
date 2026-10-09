@@ -363,6 +363,40 @@ const MEASURE = `(async () => {
   }
   const dupHooks = [...hookSeen.entries()].filter(([, n]) => n > 1).map(([k, n]) => k + '×' + n);
 
+  // ===== 链接协议普查（S3 / P1-11）=====
+  // 界面里能点的东西只该有两种：跳本页（文档自己的协议）或跳网页（http/https）。
+  // javascript: / data: / 自定义协议出现在 href 上就是"点击即执行本地程序"，
+  // 而这类地址的来源包括模型回复与知识库条目——那是别人写的字，不是我们的输入。
+  const classifyHref = (raw) => {
+    try {
+      const u = new URL(raw, location.href);
+      if (u.protocol === 'http:' || u.protocol === 'https:') return null;
+      if (u.protocol === location.protocol && u.origin === location.origin) return null;
+      return u.protocol;
+    } catch {
+      return 'unparsable';
+    }
+  };
+  const badLinks = [];
+  for (const el of document.querySelectorAll('a[href], area[href]')) {
+    const proto = classifyHref(el.getAttribute('href'));
+    if (proto) {
+      badLinks.push({ proto, text: (el.textContent || '').trim().slice(0, 24), href: (el.getAttribute('href') || '').slice(0, 48) });
+    }
+  }
+  // 量具自证：不挂进文档的假链接必须被判坏。判不出来就说明普查本身是坏的，
+  // 而"0 条坏链接"就只是量具没工作。
+  const canaryNode = document.createElement('a');
+  canaryNode.setAttribute('href', 'javascript:alert(1)');
+  const canaryCaught = classifyHref(canaryNode.getAttribute('href')) === 'javascript:';
+
+  const links = {
+    total: document.querySelectorAll('a[href], area[href]').length,
+    badCount: badLinks.length,
+    bad: badLinks.slice(0, 8),
+    canaryCaught,
+  };
+
   return {
     viewport: [innerWidth, innerHeight],
     dupHooks,
@@ -391,6 +425,7 @@ const MEASURE = `(async () => {
     crampedButtonCount: cramped.length,
     medianButtonGapX: pads.length ? pads.sort((a, b) => a - b)[Math.floor(pads.length / 2)] : null,
     layers,
+    links,
   };
 })()`
 
@@ -585,6 +620,14 @@ try {
       for (const c of s.clipped) bad.push(`${at}: 文字被藏起来且无省略号 — "${c.text}" (${c.cls}) ${c.over}`)
       if (!s.dupHooks) bad.push(`${at}: 重名钩子探针没跑成（没测到不等于通过）`)
       else if (s.dupHooks.length) bad.push(`${at}: 同屏重名自动化钩子 — ${s.dupHooks.join('、')}（E2E 与审计会点到错元素）`)
+      // 链接协议普查（S3）：坏协议 href 一律红；canary 没被抓到说明普查本身坏了，
+      // 那种情况下"0 条坏链接"是量具失效的假绿，不是通过
+      if (s.links) {
+        if (!s.links.canaryCaught) bad.push(`${at}: 链接普查量具失效（注入的 javascript: 假链接没被判出来），本屏 ${s.links.total} 条链接的读数作废`)
+        for (const l of s.links.bad) bad.push(`${at}: 界面里有 ${l.proto} 协议的可点链接 — "${l.text}" href=${l.href}`)
+      } else if (s.route) {
+        bad.push(`${at}: 链接普查没跑成（没拿到 links 字段，0 条不等于通过）`)
+      }
     }
     for (const s of pages) {
       const at = s.route || 'boot'

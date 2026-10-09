@@ -767,35 +767,35 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   /** 列出远程目录内容 */
   sftpList(sessionId: string, remotePath: string): Promise<import('@shared/models').SftpEntry[]>
   /**
-   * 上传本地文件到远程（v0.9.7 新增 transferId 参数用于进度推送）
+   * 上传文件到远程路径
+   *
+   * 没有"本地路径"参数：主进程会弹系统文件选择框，用户选中的文件才上传。
+   * 渲染层从前能传任意绝对路径，等于把"读本地任意文件并发往远端"做成了一次函数调用。
    *
    * @param sessionId SSH 会话 ID
-   * @param localPath 本地文件路径
    * @param remotePath 远程目标路径
    * @param transferId 传输任务 ID（可选，传入后主进程通过 sftp:progress 推送进度）
-   * @returns 是否成功
    */
   sftpUpload(
     sessionId: string,
-    localPath: string,
     remotePath: string,
     transferId?: string,
-  ): Promise<boolean>
+  ): Promise<import('@shared/models').SftpTransferResult>
   /**
-   * 下载远程文件到本地（v0.9.7 新增 transferId 参数用于进度推送）
+   * 下载远程文件
+   *
+   * 保存位置由主进程的"另存为"对话框确定，返回值里带最终路径（展示用）。
+   * 用户在对话框里取消不算失败：`canceled: true`。
    *
    * @param sessionId SSH 会话 ID
    * @param remotePath 远程文件路径
-   * @param localPath 本地目标路径
    * @param transferId 传输任务 ID（可选，传入后主进程通过 sftp:progress 推送进度）
-   * @returns 是否成功
    */
   sftpDownload(
     sessionId: string,
     remotePath: string,
-    localPath: string,
     transferId?: string,
-  ): Promise<boolean>
+  ): Promise<import('@shared/models').SftpTransferResult>
   /** 删除远程文件/目录 */
   sftpDelete(sessionId: string, remotePath: string): Promise<boolean>
   /** 重命名远程文件/目录 */

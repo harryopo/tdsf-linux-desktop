@@ -2,8 +2,8 @@
   {
     "page": "工作台",
     "label": "工作台",
-    "verdict": "dom",
-    "detail": "mutations=3"
+    "verdict": "already-active",
+    "detail": "aria-current=page"
   },
   {
     "page": "工作台",
@@ -100,7 +100,7 @@
     "page": "工作台",
     "label": "展开资源管理器",
     "verdict": "dom",
-    "detail": "mutations=21"
+    "detail": "mutations=15"
   },
   {
     "page": "工作台",
@@ -130,7 +130,7 @@
     "page": "工作台",
     "label": "收起 AI 面板",
     "verdict": "dom",
-    "detail": "mutations=12"
+    "detail": "mutations=9"
   },
   {
     "page": "实时监控",
@@ -256,21 +256,9 @@
   },
   {
     "page": "知识库",
-    "label": "查看详情：Ubuntu 22.04 LTS 服务器初始化",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-ubuntu2204-init"
-  },
-  {
-    "page": "知识库",
     "label": "查看详情：CentOS / RHEL 防火墙配置（firewalld）",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/tut-firewalld-rhel"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：SELinux 基础与故障排查",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-selinux-basics"
   },
   {
     "page": "知识库",
@@ -280,21 +268,9 @@
   },
   {
     "page": "知识库",
-    "label": "查看详情：Ubuntu 配置静态 IP（Netplan）",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-netplan-static-ip"
-  },
-  {
-    "page": "知识库",
     "label": "查看详情：在 CentOS / RHEL 上部署 LAMP",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/tut-lamp-centos"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：在 Ubuntu 22.04 上安装 WordPress",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-wordpress-ubuntu"
   },
   {
     "page": "知识库",
@@ -304,21 +280,9 @@
   },
   {
     "page": "知识库",
-    "label": "查看详情：Docker 容器化入门",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/tut-docker-basics"
-  },
-  {
-    "page": "知识库",
     "label": "查看详情：Nginx 502 Bad Gateway 排查与修复",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/kb-seed-nginx-502"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：磁盘空间写满应急处理（df 100%）",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-disk-full"
   },
   {
     "page": "知识库",
@@ -328,39 +292,9 @@
   },
   {
     "page": "知识库",
-    "label": "查看详情：systemd 服务启动失败的标准排查路径",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-systemd-failed"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：SSH 连不上（Connection refused / timed out）排查",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-ssh-refused"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：端口被占用（Address already in use）处理",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-port-conflict"
-  },
-  {
-    "page": "知识库",
     "label": "查看详情：磁盘还有空间却报 No space left（inode 耗尽）",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/kb-seed-inode-full"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：MySQL Too many connections 的排查与治理",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-mysql-connections"
-  },
-  {
-    "page": "知识库",
-    "label": "查看详情：系统负载高（load average 飙升）快速定位",
-    "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-high-load"
   },
   {
     "page": "知识库",
@@ -370,15 +304,81 @@
   },
   {
     "page": "知识库",
-    "label": "查看详情：firewalld 开放端口/服务的标准操作",
+    "label": "查看详情：Ubuntu 22.04 LTS 服务器初始化",
     "verdict": "route",
-    "detail": "#/knowledge → #/knowledge/kb-seed-firewalld-port"
+    "detail": "#/knowledge → #/knowledge/tut-ubuntu2204-init"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：SELinux 基础与故障排查",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-selinux-basics"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Ubuntu 配置静态 IP（Netplan）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-netplan-static-ip"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：Docker 容器化入门",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-docker-basics"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：systemd 服务启动失败的标准排查路径",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-systemd-failed"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：MySQL Too many connections 的排查与治理",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-mysql-connections"
   },
   {
     "page": "知识库",
     "label": "查看详情：Docker 占盘治理（镜像/容器日志清理）",
     "verdict": "route",
     "detail": "#/knowledge → #/knowledge/kb-seed-docker-disk"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：在 Ubuntu 22.04 上安装 WordPress",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/tut-wordpress-ubuntu"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：磁盘空间写满应急处理（df 100%）",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-disk-full"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：SSH 连不上（Connection refused / timed out）排查",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-ssh-refused"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：系统负载高（load average 飙升）快速定位",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-high-load"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：firewalld 开放端口/服务的标准操作",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-firewalld-port"
+  },
+  {
+    "page": "知识库",
+    "label": "查看详情：端口被占用（Address already in use）处理",
+    "verdict": "route",
+    "detail": "#/knowledge → #/knowledge/kb-seed-port-conflict"
   },
   {
     "page": "知识库",
@@ -401,12 +401,6 @@
     "label": "复习",
     "verdict": "route",
     "detail": "#/tutorial → #/tutorial/tut-selinux-basics"
-  },
-  {
-    "page": "教程",
-    "label": "开始学习",
-    "verdict": "route",
-    "detail": "#/tutorial → #/tutorial/tut-wordpress-ubuntu"
   },
   {
     "page": "教程",
@@ -499,7 +493,7 @@
     "page": "设置-通用",
     "label": "清除缓存",
     "verdict": "dom",
-    "detail": "mutations=4"
+    "detail": "mutations=2"
   },
   {
     "page": "设置-通用",
@@ -511,7 +505,7 @@
     "page": "设置-通用",
     "label": "立即触发 每日健康巡检",
     "verdict": "dom",
-    "detail": "mutations=21"
+    "detail": "mutations=17"
   },
   {
     "page": "设置-通用",
@@ -523,7 +517,7 @@
     "page": "设置-通用",
     "label": "立即触发 每日决策归档",
     "verdict": "dom",
-    "detail": "mutations=18"
+    "detail": "mutations=17"
   },
   {
     "page": "设置-通用",
@@ -535,7 +529,7 @@
     "page": "设置-通用",
     "label": "立即触发 运维周报",
     "verdict": "dom",
-    "detail": "mutations=17"
+    "detail": "mutations=31"
   },
   {
     "page": "设置-模型",
@@ -653,6 +647,6 @@
     "page": "设置-模型",
     "label": "保存所有配置",
     "verdict": "dom",
-    "detail": "mutations=41"
+    "detail": "mutations=61"
   }
 ]

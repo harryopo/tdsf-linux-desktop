@@ -165,10 +165,6 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
   const [renameTarget, setRenameTarget] = useState<TreeNode | null>(null)
   /** 传输任务队列 */
   const [transfers, setTransfers] = useState<TransferTask[]>([])
-  /** 上传用隐藏 input */
-  const uploadInputRef = useRef<HTMLInputElement | null>(null)
-  /** 上传目标目录路径 */
-  const uploadTargetDirRef = useRef<string>('/')
   /** react-arborist Tree ref（用于通过 id 获取 NodeApi，触发手动 toggle） */
   const treeRef = useRef<TreeApi<TreeNode> | null>(null)
 
@@ -257,7 +253,15 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
         }
         return prev.map((t) =>
           t.transferId === event.transferId
-            ? { ...t, transferred: event.transferred, total: event.total }
+            ? {
+                ...t,
+                // 路径以主进程事件为准：上传的本地文件与最终远程文件名都是主进程定的，
+                // 这里入队时只能放目标目录占位
+                remotePath: event.remotePath,
+                localPath: event.localPath,
+                transferred: event.transferred,
+                total: event.total,
+              }
             : t,
         )
       })
@@ -443,41 +447,82 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
         return
       }
 
-      // upload：触发隐藏 input
+      // upload：本地选哪个文件由主进程弹的系统选择框决定，这里只给远程目标目录
       if (action === 'upload') {
         const targetDir = node?.isDirectory ? node.path : rootPath
-        uploadTargetDirRef.current = targetDir
-        uploadInputRef.current?.click()
+        const transferId = nextTransferId()
+        setTransfers((prev) => [
+          ...prev,
+          {
+            transferId,
+            type: 'upload',
+            remotePath: targetDir,
+            localPath: '',
+            transferred: 0,
+            total: 0,
+            status: 'running',
+          },
+        ])
+        try {
+          const res = await api.sftpUpload(sessionId, targetDir, transferId)
+          if (res.canceled) {
+            // 用户在系统选择框里取消：不是失败，把这条占位摘掉
+            setTransfers((prev) => prev.filter((t) => t.transferId !== transferId))
+            return
+          }
+          setTransfers((prev) =>
+            prev.map((t) =>
+              t.transferId === transferId
+                ? { ...t, status: res.success ? 'done' : 'error', localPath: res.localPath ?? t.localPath }
+                : t,
+            ),
+          )
+          if (res.success) {
+            toast.success(`上传完成: ${res.localPath ?? ''} → ${targetDir}`)
+            await loadRoot()
+          } else {
+            toast.error(res.error ?? '上传失败')
+          }
+        } catch (err) {
+          setTransfers((prev) =>
+            prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
+          )
+          toast.error(`上传失败: ${err instanceof Error ? err.message : String(err)}`)
+        }
         return
       }
 
-      // download：调用 sftpDownload（带 transferId + 进度）
+      // download：保存位置由主进程的"另存为"对话框决定（旧版是 window.prompt 手敲路径）
       if (action === 'download') {
         if (!node) return
-        const localPath = window.prompt(
-          `保存到本地路径（Windows 路径）`,
-          `D:\\downloads\\${node.name}`,
-        )
-        if (!localPath?.trim()) return
         const transferId = nextTransferId()
+        setTransfers((prev) => [
+          ...prev,
+          {
+            transferId,
+            type: 'download',
+            remotePath: node.path,
+            localPath: '',
+            transferred: 0,
+            total: 0,
+            status: 'running',
+          },
+        ])
         try {
-          setTransfers((prev) => [
-            ...prev,
-            {
-              transferId,
-              type: 'download',
-              remotePath: node.path,
-              localPath: localPath.trim(),
-              transferred: 0,
-              total: 0,
-              status: 'running',
-            },
-          ])
-          await api.sftpDownload(sessionId, node.path, localPath.trim(), transferId)
+          const res = await api.sftpDownload(sessionId, node.path, transferId)
+          if (res.canceled) {
+            setTransfers((prev) => prev.filter((t) => t.transferId !== transferId))
+            return
+          }
           setTransfers((prev) =>
-            prev.map((t) => (t.transferId === transferId ? { ...t, status: 'done' } : t)),
+            prev.map((t) =>
+              t.transferId === transferId
+                ? { ...t, status: res.success ? 'done' : 'error', localPath: res.localPath ?? t.localPath }
+                : t,
+            ),
           )
-          toast.success(`下载完成: ${localPath}`)
+          if (res.success) toast.success(`下载完成: ${res.localPath ?? ''}`)
+          else toast.error(res.error ?? '下载失败')
         } catch (err) {
           setTransfers((prev) =>
             prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
@@ -488,54 +533,6 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
       }
     },
     [sessionId, connected, rootPath, loadRoot, nextTransferId],
-  )
-
-  /** 处理隐藏 input 选择文件后上传（带 transferId + 进度） */
-  const handleUploadFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file || !sessionId) return
-      const api = window.electronAPI
-      if (!api?.sftpUpload) {
-        toast.error('sftpUpload 不可用')
-        return
-      }
-      const remotePath = joinPath(uploadTargetDirRef.current, file.name)
-      const transferId = nextTransferId()
-      try {
-        setTransfers((prev) => [
-          ...prev,
-          {
-            transferId,
-            type: 'upload',
-            remotePath,
-            localPath: (file as File & { path?: string }).path ?? file.name,
-            transferred: 0,
-            total: file.size,
-            status: 'running',
-          },
-        ])
-        const localPath = (file as File & { path?: string }).path ?? ''
-        if (!localPath) {
-          toast.error('无法获取本地文件路径')
-          return
-        }
-        await api.sftpUpload(sessionId, localPath, remotePath, transferId)
-        setTransfers((prev) =>
-          prev.map((t) => (t.transferId === transferId ? { ...t, status: 'done' } : t)),
-        )
-        toast.success(`上传完成: ${remotePath}`)
-        await loadRoot()
-      } catch (err) {
-        setTransfers((prev) =>
-          prev.map((t) => (t.transferId === transferId ? { ...t, status: 'error' } : t)),
-        )
-        toast.error(`上传失败: ${err instanceof Error ? err.message : String(err)}`)
-      } finally {
-        if (uploadInputRef.current) uploadInputRef.current.value = ''
-      }
-    },
-    [sessionId, loadRoot, nextTransferId],
   )
 
   /** 处理 chmod 确认 */
@@ -807,14 +804,6 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
             </div>
           </div>
         )}
-
-        {/* 隐藏文件上传 input */}
-        <input
-          ref={uploadInputRef}
-          type="file"
-          style={{ display: 'none' }}
-          onChange={(e) => void handleUploadFile(e)}
-        />
 
         {/* Chmod 对话框 */}
         <ChmodDialog

@@ -14,6 +14,8 @@
 
 import { app, BrowserWindow, Menu, screen, shell } from 'electron'
 import * as path from 'node:path'
+import { checkNavigation } from '../services/security/navigation-policy'
+import { isSafeWebUrl } from '../services/security/url-policy'
 
 /** 主窗口单例引用（避免被垃圾回收） */
 let mainWindow: BrowserWindow | null = null
@@ -121,9 +123,9 @@ export function createMainWindow(): BrowserWindow {
   })
 
   // 拦截外部链接，用系统默认浏览器打开（而非在应用内打开新窗口）
-  // 只放行 http/https：file:// 与自定义协议可被交给外部处理器执行本地程序
+  // 只放行 http/https 且不带内嵌凭据：file:// 与自定义协议交给 shell 就是启动本地程序
   mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-    if (/^https?:\/\//i.test(targetUrl)) {
+    if (isSafeWebUrl(targetUrl)) {
       shell.openExternal(targetUrl)
     }
     return { action: 'deny' }
@@ -150,18 +152,18 @@ export function createMainWindow(): BrowserWindow {
     }
   })
 
-  // 阻止应用内导航到其它 origin（dev 的同源 HMR 仍可，跨端口/跨协议一律拒）
-  // 旧实现只比 hostname 是不是 localhost，等于放行本机任意 HTTP 服务
+  // 阻止应用内导航到其它目的地（dev 的同源 HMR 仍可，跨端口/跨协议一律拒）
+  //
+  // 为什么不再是"比 origin"：打包态文档是 `file://`，而 `new URL('file://…').origin`
+  // 就是字符串 'null'，两个 null 相等 → 任意本地 HTML 都算同源（旧实现的真实行为）。
+  // 现在按协议分别判定，见 services/security/navigation-policy.ts。
   mainWindow.webContents.on('will-navigate', (event, navigateUrl) => {
-    const originOf = (u: string): string => {
-      try {
-        return new URL(u).origin
-      } catch {
-        return ''
-      }
-    }
-    const current = mainWindow?.webContents.getURL() ?? ''
-    if (originOf(navigateUrl) !== originOf(current)) {
+    const verdict = checkNavigation(
+      navigateUrl,
+      mainWindow?.webContents.getURL() ?? '',
+      getAppPathSafe(),
+    )
+    if (!verdict.ok) {
       event.preventDefault()
     }
   })
@@ -198,6 +200,20 @@ export function getMainWindow(): BrowserWindow | null {
  */
 export function destroyMainWindow(): void {
   mainWindow = null
+}
+
+/**
+ * `app.getAppPath()` 的安全取值
+ *
+ * app 未 ready 或被提前销毁时它会抛；导航判定的立场是"拿不到应用根就一律拒"，
+ * 所以这里把异常折成 undefined，让策略层去做它该做的保守判断，而不是让窗口崩。
+ */
+function getAppPathSafe(): string | undefined {
+  try {
+    return app.getAppPath()
+  } catch {
+    return undefined
+  }
 }
 
 /**

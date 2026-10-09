@@ -26,6 +26,7 @@
 import { ipcMain, app } from 'electron'
 import * as path from 'node:path'
 import { loadCustomAgents, loadCustomAgent } from '../core/agent/subagents/agent-loader'
+import { assertWithinConfinement } from '../services/security/path-confinement'
 import type {
   CustomAgentConfig,
   SubagentReloadRequest,
@@ -123,8 +124,20 @@ export function registerSubagentHandlers(): void {
         const failed: Array<{ filePath: string; error: string }> = []
 
         if (request && typeof request.filePath === 'string' && request.filePath.length > 0) {
-          // 单文件重载
-          const filePath = request.filePath
+          // 单文件重载：只读 `.tdsf/agent/` 目录内的文件。
+          // 渲染层递什么路径就读什么，等于把"任意本地文件按 agent 配置解析"开了口子。
+          let filePath: string
+          try {
+            filePath = assertWithinConfinement(request.filePath, 'read', {
+              roots: [getDefaultAgentsDir()],
+            })
+          } catch (err) {
+            failed.push({
+              filePath: request.filePath,
+              error: `只允许重载 agent 目录内的文件：${(err as Error)?.message ?? '路径不合法'}`,
+            })
+            return { success: false, reloaded, failed }
+          }
           logger.info('IPC.SUBAGENT', `subagent:reload 单文件`, { filePath })
 
           try {

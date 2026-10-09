@@ -467,26 +467,31 @@ describe('[组 4] subagent:* IPC 通道', () => {
       description: 'Linux 运维专家',
       tools: ['search'],
       systemPrompt: '你是 Linux 运维专家',
-      sourceFile: '/tmp/agent.md',
+      sourceFile: '/tmp/test-app-path/.tdsf/agent/linux-expert.md',
     }
     vi.mocked(loadCustomAgent).mockResolvedValue(mockConfig)
 
-    const request: SubagentReloadRequest = { filePath: '/tmp/agent.md' }
+    // S3 之后单文件重载只认 agent 目录内的路径（mock 的 app.getAppPath() 是 /tmp/test-app-path），
+    // 返回值是规范化后的绝对路径，所以按尾名断言，别按输入原串
+    const request: SubagentReloadRequest = {
+      filePath: '/tmp/test-app-path/.tdsf/agent/linux-expert.md',
+    }
     const result: SubagentReloadResponse = await handlers['subagent:reload'](
       mockEvent,
       request
     )
 
+    expect(result.failed).toEqual([])
     expect(result.success).toBe(true)
-    expect(result.reloaded).toContain('/tmp/agent.md')
-    expect(result.failed).toHaveLength(0)
+    expect(result.reloaded).toHaveLength(1)
+    expect(result.reloaded[0].replace(/\\/g, '/')).toMatch(/\/\.tdsf\/agent\/linux-expert\.md$/)
     expect(vi.mocked(loadCustomAgent)).toHaveBeenCalledTimes(1)
   })
 
   it('4.5 subagent:reload 单文件解析失败（loadCustomAgent 返回 null）→ failed 列表非空', async () => {
     vi.mocked(loadCustomAgent).mockResolvedValue(null)
 
-    const request: SubagentReloadRequest = { filePath: '/tmp/bad-agent.md' }
+    const request: SubagentReloadRequest = { filePath: '/tmp/test-app-path/.tdsf/agent/bad-agent.md' }
     const result: SubagentReloadResponse = await handlers['subagent:reload'](
       mockEvent,
       request
@@ -495,8 +500,20 @@ describe('[组 4] subagent:* IPC 通道', () => {
     expect(result.success).toBe(true) // 流程完成仍返回 true
     expect(result.reloaded).toHaveLength(0)
     expect(result.failed).toHaveLength(1)
-    expect(result.failed[0].filePath).toBe('/tmp/bad-agent.md')
+    expect(result.failed[0].filePath.replace(/\\/g, '/')).toMatch(/\/\.tdsf\/agent\/bad-agent\.md$/)
     expect(result.failed[0].error).toContain('解析失败')
+  })
+
+  it('4.7 subagent:reload agent 目录外的路径必须被拒，且不去读文件（S3 判据）', async () => {
+    vi.mocked(loadCustomAgent).mockClear()
+    const request: SubagentReloadRequest = { filePath: '/tmp/elsewhere/agent.md' }
+    const result: SubagentReloadResponse = await handlers['subagent:reload'](mockEvent, request)
+
+    expect(result.success).toBe(false)
+    expect(result.reloaded).toHaveLength(0)
+    expect(result.failed).toHaveLength(1)
+    expect(result.failed[0].error).toContain('agent 目录')
+    expect(vi.mocked(loadCustomAgent)).not.toHaveBeenCalled()
   })
 
   it('4.6 subagent:reload 全部重载（无 filePath）+ 目录不存在 → success=false', async () => {

@@ -45,6 +45,20 @@ export function assertSafeApiBaseUrl(raw: unknown): UrlPolicy {
 }
 
 /**
+ * 一般网页链接（交给系统浏览器的任意主机）：协议限 http/https、不许内嵌凭据。
+ *
+ * 与 `assertSafeExternalUrl` 的区别：那条要求主机在白名单内，用于"我们自己要打开的东西"；
+ * 这条用于"用户/模型点了个外链"，主机没法预先枚举，但协议必须管住——
+ * `file://` 与自定义协议在 Windows 上是"启动本地程序"，不是"打开网页"。
+ */
+export function isSafeWebUrl(raw: unknown): boolean {
+  const u = parse(raw)
+  if (!u) return false
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+  return !u.username && !u.password
+}
+
+/**
  * 可交给系统打开的外部地址：默认只允许 https 且主机在白名单里。
  *
  * @param allowHosts 允许的主机名（小写、精确匹配；子域要显式列出）

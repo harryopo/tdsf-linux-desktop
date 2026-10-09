@@ -665,8 +665,8 @@ export interface IpcChannelMap {
   'ssh:shell:write': { args: [string, string]; return: boolean }
   'ssh:shell:resize': { args: [string, number, number]; return: boolean }
   'sftp:list': { args: [string, string]; return: SftpEntry[] }
-  'sftp:upload': { args: [string, string, string]; return: boolean }
-  'sftp:download': { args: [string, string, string]; return: boolean }
+  'sftp:upload': { args: [string, string, string?]; return: SftpTransferResult }
+  'sftp:download': { args: [string, string, string?]; return: SftpTransferResult }
   'sftp:delete': { args: [string, string]; return: boolean }
   'sftp:rename': { args: [string, string, string]; return: boolean }
   'sftp:chmod': { args: [string, string, number]; return: boolean }
@@ -845,6 +845,24 @@ export interface SftpProgressEvent {
   transferred: number
   /** 总字节（可能为 0，表示未知） */
   total: number
+}
+
+/**
+ * SFTP 上传/下载结果（sftp:upload / sftp:download 返回）
+ *
+ * 为什么没有 localPath 入参却有它：本地路径由主进程弹对话框决定，渲染层不再传，
+ * 于是"把 `~/.ssh/id_rsa` 传去攻击者机器"这条路在契约上就不存在了。
+ * 返回值里带上选中的路径，只用于界面展示。
+ */
+export interface SftpTransferResult {
+  /** 传输是否完成 */
+  success: boolean
+  /** 用户在对话框里取消（不是错误，UI 不要把队列项标成失败） */
+  canceled: boolean
+  /** 主进程对话框确定下来的本地路径（展示用） */
+  localPath?: string
+  /** 失败原因（已脱敏） */
+  error?: string
 }
 
 // ============================================================================
