@@ -19,9 +19,9 @@
   ],
 
   "prefixSkips": {
-    "_comment": "取真正的命令名时要跳过的包装器：前缀命令与 VAR= 赋值",
-    "commands": ["sudo", "nohup", "time", "nice", "env", "xargs"],
-    "valueFlags": ["-u", "--user", "-n"]
+    "_comment": "取真正的命令名时要跳过的包装器：前缀命令与 VAR= 赋值。doas/command/exec/setsid 是 2026-10-09 绕过面审查补的——旧名单只有 sudo/nohup/time/nice/env/xargs，`doas rm -rf /` 与 `command rm -rf /` 因此被判成 safe。",
+    "commands": ["sudo", "nohup", "time", "nice", "env", "xargs", "doas", "command", "exec", "setsid", "stdbuf"],
+    "valueFlags": ["-u", "--user", "-n", "-g", "--group", "-t", "--type"]
   },
 
   "argvRules": [
@@ -113,7 +113,10 @@
       "rmRfProtectedTarget",
       "deviceDestruction",
       "powerOff",
-      "rootPermissionOpen"
+      "rootPermissionOpen",
+      "shellPayloadExecution",
+      "protectedPathOverwrite",
+      "findDeleteProtected"
     ]
   }
 }

