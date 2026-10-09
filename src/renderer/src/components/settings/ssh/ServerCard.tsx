@@ -27,7 +27,7 @@ import {
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { Empty } from '@/components/trae/Empty'
 import { cn } from '@/components/trae/utils'
-import type { SshConfig } from '@shared/models'
+import type { ServerListItem } from '@shared/models'
 
 /** 服务器连接状态 → 状态点颜色 + 中文标签（aria 用） */
 type ServerStatus = 'online' | 'connecting' | 'warning' | 'error' | 'offline'
@@ -60,8 +60,8 @@ const STATUS_LABEL: Record<ServerStatus, string> = {
 }
 
 export interface ServerCardProps {
-  /** 按名称排序后的服务器列表 */
-  servers: SshConfig[]
+  /** 按名称排序后的服务器列表（ServerListItem：不含凭据，只有 hasCredential） */
+  servers: ServerListItem[]
   /** 服务器连接状态映射（id → 'connected' | 'connecting' | 'error' | ...） */
   connectionStates: Record<string, string>
   /** 当前 busy 的服务器 ID（连接/断开中），用于禁用按钮 + 显示 Loader2 */
@@ -70,16 +70,16 @@ export interface ServerCardProps {
   feedback: string | null
   /** Electron IPC 是否可用 */
   ipcAvailable: boolean
-  /** 连接服务器 */
-  onConnect: (server: SshConfig) => void
+  /** 连接服务器（组件内按 ServerListItem 走，凭据不进渲染层） */
+  onConnect: (server: ServerListItem) => void
   /** 断开服务器 */
-  onDisconnect: (server: SshConfig) => void
+  onDisconnect: (server: ServerListItem) => void
   /** 编辑服务器（打开 ConnectDialog，server 为已存在配置） */
-  onEdit: (server: SshConfig) => void
+  onEdit: (server: ServerListItem) => void
   /** 添加服务器（打开 ConnectDialog，server 为 null） */
   onAdd: () => void
   /** 删除服务器（已包含 confirmDialog 流程） */
-  onDelete: (server: SshConfig) => void
+  onDelete: (server: ServerListItem) => void
 }
 
 export function ServerCard(props: ServerCardProps) {

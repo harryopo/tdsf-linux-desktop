@@ -22,10 +22,17 @@ export interface ApiTestSectionProps {
   endpoint: string
   /** 修改 Endpoint 回调 */
   onEndpointChange: (value: string) => void
-  /** API Key */
+  /** API Key（只承载用户这一屏输入的内容，主进程存过的 Key 不会回填进来） */
   apiKey: string
   /** 修改 API Key 回调 */
   onApiKeyChange: (value: string) => void
+  /**
+   * 主进程是否已存有 API Key（storage:hasApiKey 的布尔量，P0-3）
+   *
+   * true 时输入框提示改成"已保存（留空则不修改）"：
+   * 留空 = 保持不动，不是清空；界面上永远看不到那串 Key。
+   */
+  hasSavedKey: boolean
   /** 是否显示 API Key 明文 */
   showApiKey: boolean
   /** 切换 API Key 显示/隐藏 */
@@ -52,6 +59,7 @@ export function ApiTestSection(props: ApiTestSectionProps) {
     onEndpointChange,
     apiKey,
     onApiKeyChange,
+    hasSavedKey,
     showApiKey,
     onToggleShowApiKey,
     onTestConnection,
@@ -97,6 +105,9 @@ export function ApiTestSection(props: ApiTestSectionProps) {
               value={apiKey}
               onChange={(e) => onApiKeyChange(e.target.value)}
               aria-label="API Key"
+              // 已存过 Key 就把框明示成"留空不改"；没存过时保持原样（空框 + 下面那段原提示）。
+              // Key 原文永不回填进输入框：storage:getApiKey 通道已删（2026-10-09 P0-3）。
+              placeholder={hasSavedKey ? '已保存（留空则不修改）' : undefined}
               className="set-api-key-input"
             />
             <button
@@ -108,15 +119,24 @@ export function ApiTestSection(props: ApiTestSectionProps) {
               {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
-          {!apiKey && (
-            <p
-              role="status"
-              className="mt-2 rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-mute"
-            >
-              还没填 API Key，大模型连不上。到你所选服务商的控制台创建一个 Key 粘进来，
-              再点下面的「测试连接」验证；填好前 AI 助手、命令分析与日志诊断都不可用。
-            </p>
-          )}
+          {!apiKey &&
+            (hasSavedKey ? (
+              <p
+                role="status"
+                className="mt-2 rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-mute"
+              >
+                API Key 已经加密存在本机（主进程持有，界面上不显示这串字符）。
+                留空 = 不改；要换 Key 就粘贴新的进去，再点底部「保存所有配置」。
+              </p>
+            ) : (
+              <p
+                role="status"
+                className="mt-2 rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-mute"
+              >
+                还没填 API Key，大模型连不上。到你所选服务商的控制台创建一个 Key 粘进来，
+                再点下面的「测试连接」验证；填好前 AI 助手、命令分析与日志诊断都不可用。
+              </p>
+            ))}
         </div>
       </div>
 

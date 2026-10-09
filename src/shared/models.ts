@@ -33,8 +33,7 @@ export interface SshConfig {
   /** 私钥口令（可选） */
   passphrase?: string
   /** 跳板机配置（可选） */
-  jumpHost?: Omit<SshConfig, 'id' | 'name' | 'jumpHost'>
-  /** 是否保持连接（启用心跳保活） */
+  jumpHost?: Omit<SshConfig, 'id' | 'name' | 'jumpHost'>  /** 是否保持连接（启用心跳保活） */
   keepAlive?: boolean
   /** 心跳保活间隔（秒），不传时后端默认 30s */
   keepAliveIntervalSec?: number
@@ -49,6 +48,24 @@ export interface SshConfig {
    * 不传时默认使用 `~/.ssh/known_hosts`（主进程解析为 app.getPath('home')/.ssh/known_hosts）
    */
   knownHostsPath?: string
+}
+
+/**
+ * 服务器列表项：渲染层能看到的形状。
+ *
+ * 凭据（口令 / 私钥内容 / 私钥口令）永不跨进程边界 —— 2026-10-09 安全审查 P0-3：
+ * 原先 `server:list` 把 safeStorage 解密后的明文一并返回，渲染层一次 XSS 或被投毒依赖
+ * 就能一句调用捞走全部主机凭据，"加密存储"只剩防落盘的作用。
+ * 连接改走 `ssh:connectById`，由主进程自己取用凭据。
+ */
+export type ServerListItem = Omit<
+  SshConfig,
+  'password' | 'privateKey' | 'passphrase' | 'jumpHost'
+> & {
+  /** 跳板机同样只给非敏感字段 */
+  jumpHost?: Omit<SshConfig, 'id' | 'name' | 'jumpHost' | 'password' | 'privateKey' | 'passphrase'>
+  /** 主进程是否存有该服务器的凭据；UI 据此显示"已保存（留空则不修改）" */
+  hasCredential: boolean
 }
 
 // ============================================================================

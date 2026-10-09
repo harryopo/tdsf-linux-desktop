@@ -1,6 +1,6 @@
 /** system 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { DbStatus } from '@shared/db-types'
-import type { ProfilerRunResponse, SshConfig, SystemInfo } from '@shared/models'
+import type { ProfilerRunResponse, ServerListItem, SshConfig, SystemInfo } from '@shared/models'
 import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
 import type { SystemPingResponse } from '@shared/agent-types'
 import { AGENT, APP, CLAUDE_SDK, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE, SYSTEM } from '@shared/ipc-channels'
@@ -32,9 +32,14 @@ const storage = {
   saveApiKey: (provider: string, key: string): Promise<boolean> =>
     ipcRenderer.invoke(STORAGE.SAVE_API_KEY, provider, key),
 
-  /** 读取并解密 API Key */
-  getApiKey: (provider: string): Promise<string | null> =>
-    ipcRenderer.invoke(STORAGE.GET_API_KEY, provider),
+  /**
+   * 是否存有该 provider 的 API Key
+   *
+   * 取代原 `getApiKey`：那条通道把解密后的 key 原文递给渲染层，
+   * 设置页只需要知道"存过没有"来显示占位提示（2026-10-09 安全审查 P0-3）。
+   */
+  hasApiKey: (provider: string): Promise<boolean> =>
+    ipcRenderer.invoke(STORAGE.HAS_API_KEY, provider),
 
   /** 删除 API Key */
   deleteApiKey: (provider: string): Promise<boolean> =>
@@ -49,17 +54,21 @@ const config = {
   get: (key: string): Promise<unknown> =>
     ipcRenderer.invoke(CONFIG.GET, key),
 
-  /** 写入配置 */
+  /** 写入配置（只允许非权限性键；llmConfig/sshServers 等会被主进程拒） */
   set: (key: string, value: unknown): Promise<boolean> =>
     ipcRenderer.invoke(CONFIG.SET, key, value),
+
+  /** 保存 LLM 配置（主进程校验 baseUrl，不合规整条拒写） */
+  saveLlm: (config: unknown): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(CONFIG.SAVE_LLM, config),
 }
 
 /**
  * 服务器列表管理 invoke 调用
  */
 const server = {
-  /** 加载服务器列表（敏感信息从 safeStorage 解密） */
-  list: (): Promise<SshConfig[]> =>
+  /** 加载服务器列表（**不含凭据**，只有 hasCredential 标记；连接走 sshConnectById） */
+  list: (): Promise<ServerListItem[]> =>
     ipcRenderer.invoke(SERVER.LIST),
 
   /** 保存服务器列表（敏感信息加密存储） */

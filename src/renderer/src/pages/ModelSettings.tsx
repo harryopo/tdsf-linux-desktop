@@ -54,7 +54,10 @@ interface ConversationRow {
 }
 
 export function ModelSettings() {
-  const { llmConfig, setLlmConfig, loadSettings, saveSettings } = useSettingsStore()
+  // hasLlmApiKey：主进程"存没存过 Key"的布尔量（storage:hasApiKey）。
+  // 界面只拿它决定提示文案，Key 原文不再跨 IPC 回来（2026-10-09 安全审查 P0-3，
+  // 原 storage:getApiKey 通道已删）。
+  const { llmConfig, hasLlmApiKey, setLlmConfig, loadSettings, saveSettings } = useSettingsStore()
 
   // Provider 列表 + 当前默认 Provider ID
   // P0 修复：本页同步目标从“盲写 providers[0] 并强制设默认”改为“写当前默认 Provider”，
@@ -75,6 +78,8 @@ export function ModelSettings() {
 
   // Section 3: API 接入
   const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com')
+  // apiKey 这一份只代表"用户此刻在框里打的东西"：主进程存过的 Key 不会再下发（P0-3），
+  // 界面用 hasLlmApiKey 这个布尔量显示"已保存（留空则不修改）"，永远不回填原文。
   const [apiKey, setApiKey] = useState(llmConfig.apiKey || '')
   const [showApiKey, setShowApiKey] = useState(false)
 
@@ -150,13 +155,16 @@ export function ModelSettings() {
   }, [])
 
   // 同步 settings store 到本地状态
+  //
+  // 注意这里**不**同步 apiKey：store 里的 llmConfig.apiKey 只可能是用户这一屏刚打进去的
+  // （loadSettings 从主进程拿到的是空串，P0-3 之后也没有读 Key 的通道），
+  // 拿它回填输入框等于把"不回填已存 Key"这条规矩又写回来了。
   useEffect(() => {
     if (llmConfig.baseUrl) setEndpoint(llmConfig.baseUrl)
     if (llmConfig.model) setSelectedModel(llmConfig.model)
     if (llmConfig.temperature !== undefined) setTemperature(llmConfig.temperature)
     if (llmConfig.maxTokens !== undefined) setMaxToken(llmConfig.maxTokens)
     if (llmConfig.timeout !== undefined) setRequestTimeout(llmConfig.timeout / 1000)
-    if (llmConfig.apiKey) setApiKey(llmConfig.apiKey)
   }, [llmConfig])
 
   // 清理定时器
@@ -305,6 +313,26 @@ export function ModelSettings() {
       return
     }
 
+    // P0-3（2026-10-09）：主进程存过的 Key 不再回到渲染层，"测试连接"发出去的就是框里这一份。
+    // 框为空 + 主进程存有 Key 时，发空 Key 只会换回一句 [NO_API_KEY]，那是一条假失败
+    // （Key 明明配得好好的）。所以这里直接停下，把原因说清楚，不拿假错误糊弄用户。
+    if (!apiKey.trim() && hasLlmApiKey) {
+      setTestResult('error')
+      setLastTestTime(timestamp())
+      setTestLogs((prev) => [
+        ...prev,
+        {
+          time: timestamp(),
+          text:
+            'API Key 输入框是空的：已保存的 Key 不会再回到界面。要测连接请临时把 Key 粘贴进来' +
+            '（不点「保存所有配置」就不会改动主进程存好的那份）。',
+          tone: 'error',
+        },
+      ])
+      setIsTesting(false)
+      return
+    }
+
     const startedAt = performance.now()
     try {
       const result = await window.electronAPI.llmTest({
@@ -438,7 +466,9 @@ export function ModelSettings() {
         maxToken,
         thinkingLevel,
         requestTimeout,
-        hasApiKey: apiKey.length > 0,
+        // 布尔量口径以主进程为准：存过 Key（hasLlmApiKey）或这一屏刚填了 Key，都算"有 Key"。
+        // 导出的统计文件里从来不写 Key 原文，只写这个"有没有"。
+        hasApiKey: hasLlmApiKey || apiKey.trim().length > 0,
       },
       budget: {
         monthlyBudget,
@@ -522,6 +552,7 @@ export function ModelSettings() {
           onEndpointChange={setEndpoint}
           apiKey={apiKey}
           onApiKeyChange={setApiKey}
+          hasSavedKey={hasLlmApiKey}
           showApiKey={showApiKey}
           onToggleShowApiKey={() => setShowApiKey((v) => !v)}
           onTestConnection={handleTestConnection}

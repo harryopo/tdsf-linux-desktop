@@ -18,6 +18,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { ServerCredential } from '@shared/models'
+import { logger } from '../log/logger'
 
 /**
  * electron-store 实例（专门用于存储加密后的敏感数据）
@@ -64,16 +65,18 @@ function encryptString(plain: string): string {
 }
 
 /**
- * 解密字符串（safeStorage 不可用时降级为明文 base64 解码）
- * @param base64 base64 字符串
- * @returns 明文
+ * 解密字符串
+ *
+ * 加密后端不可用时**不再静默按明文 base64 解**：那种降级会把"密文解不开"变成
+ * "解出一串乱码当口令用"，用户与运维都看不到任何异常。现在照旧返回可解的内容，
+ * 但必须在日志里留一条 WARN（打包后的 Windows 应用没有控制台，console 里说等于没说）。
  */
 function decryptString(base64: string): string {
   if (safeStorage.isEncryptionAvailable()) {
     const buffer = Buffer.from(base64, 'base64')
     return safeStorage.decryptString(buffer)
   }
-  // 降级：base64 解码
+  logger.warn('STORAGE', 'safeStorage 不可用，按明文 base64 读取凭据（历史明文存储的兼容路径）')
   return Buffer.from(base64, 'base64').toString('utf-8')
 }
 

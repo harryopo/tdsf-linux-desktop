@@ -12,22 +12,30 @@
  * （Dialog / Field / TextInput / Segmented / Collapse）+ 本地表单状态。
  * 校验规则一条没减：名称、主机、用户名必填，端口必须是 1–65535 的整数。
  * 宽度从 480px 收到 DESIGN.md §5 的表单档 520px。
+ *
+ * 2026-10-09 安全审查 P0-3：编辑已保存的服务器时**不再回填凭据**。
+ * 主进程下发的 ServerListItem 里根本没有 password/privateKey/passphrase 这三键，
+ * 输入框一律从空白开始；留空 = 沿用主进程存好的那份凭据（界面用 hasCredential 提示"已保存"）。
+ * 因此"测试连接"也分两条路：已保存的走 sshConnectById（只交 ID），新建的走 sshConnect。
  */
 import { useEffect, useState } from 'react'
 import { FolderOpen, Plug, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Collapse, Dialog, DialogContent, Field, IconButton, Segmented, TextInput } from '@/ui'
 import { Checkbox } from '@/components/trae/Checkbox'
-import type { SshConfig } from '@shared/models'
+import type { ServerListItem, SshConfig } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import '../../pages/SshSettings.css'
+
+/** 已存凭据的输入框统一提示：留空不代表清空，主进程那份原样保留 */
+const KEPT_HINT = '已保存（留空则不修改）'
 
 /** ConnectDialog 组件 Props */
 interface ConnectDialogProps {
   /** 对话框是否打开 */
   open: boolean
-  /** 编辑模式时的服务器配置（null 表示新建模式） */
-  server: SshConfig | null
+  /** 编辑模式时的服务器（null 表示新建模式）。类型是 ServerListItem：不含任何凭据 */
+  server: ServerListItem | null
   /** 保存回调 */
   onSave: (config: SshConfig) => void
   /** 取消回调 */
@@ -72,8 +80,14 @@ const BLANK: FormState = {
 /** 生成唯一 ID */
 const generateId = (): string => `server_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-/** 已有配置 -> 表单态（编辑模式回填） */
-function toForm(server: SshConfig | null): FormState {
+/**
+ * 已有配置 -> 表单态（编辑模式回填）
+ *
+ * 只回填非敏感字段：ServerListItem 里没有 password/privateKey/passphrase，
+ * 三个凭据框永远从空白开始，用户填了就当作"这次要用的新凭据"，留空就沿用主进程存的那份。
+ * 这样界面上任何时刻都不存在别人能读走的口令。
+ */
+function toForm(server: ServerListItem | null): FormState {
   if (!server) return BLANK
   return {
     ...BLANK,
@@ -82,14 +96,14 @@ function toForm(server: SshConfig | null): FormState {
     port: String(server.port ?? 22),
     username: server.username ?? 'root',
     authType: server.authType === 'privateKey' ? 'privateKey' : 'password',
-    password: server.password ?? '',
+    password: '',
     privateKeyPath: server.privateKeyPath ?? '',
-    passphrase: server.passphrase ?? '',
+    passphrase: '',
     jumpHostEnabled: !!server.jumpHost,
     jumpHostHost: server.jumpHost?.host ?? '',
     jumpHostPort: String(server.jumpHost?.port ?? 22),
     jumpHostUsername: server.jumpHost?.username ?? '',
-    jumpHostPassword: server.jumpHost?.password ?? '',
+    jumpHostPassword: '',
     keepAlive: server.keepAlive ?? false,
   }
 }
@@ -185,7 +199,18 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
     input.click()
   }
 
-  /** 连接测试：真的连一次再断开，成功失败都以主进程返回为准 */
+  /**
+   * 连接测试：真的连一次再断开，成功失败都以主进程返回为准
+   *
+   * 两条路（2026-10-09 P0-3）：
+   * - 编辑已保存的服务器（server 非 null，有 ID）→ sshConnectById(server.id, 一次性口令)。
+   *   渲染层没有它的凭据，只能交 ID 让主进程自己去 SecureStore 取；
+   *   用户这一秒在框里重输的口令作为一次性参数带过去（只用于本次连接，界面不回显、不落盘）。
+   *   代价要说清楚：这条路测的是主进程里**已保存的那份**配置，
+   *   刚改的主机/端口/用户名要先保存才会生效，所以编辑态在表单下方给了提示。
+   * - 新建连接（server 为 null）→ sshConnect(config)。config 里的凭据是用户现填的，
+   *   本来就属于这一次操作，直接交出去不算越界。
+   */
   const handleTest = async () => {
     const config = collect()
     if (!config) return
@@ -195,7 +220,10 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
     }
     setTesting(true)
     try {
-      const sessionId = await window.electronAPI.sshConnect(config)
+      const oneTimePassword = config.password || undefined
+      const sessionId = server
+        ? await window.electronAPI.sshConnectById(server.id, oneTimePassword)
+        : await window.electronAPI.sshConnect(config)
       await window.electronAPI.sshDisconnect(sessionId)
       toast.success('连接测试成功')
     } catch (err) {
@@ -216,7 +244,11 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
       <DialogContent
         title={server ? '编辑服务器' : '新建连接'}
-        description="填好后可以先测试连接，再保存到服务器列表。"
+        description={
+          server
+            ? '凭据不在本机界面上回显：留空表示沿用已保存的那份，填了才覆盖。「测试连接」连的是已保存的配置，改了主机/端口请先保存再测。'
+            : '填好后可以先测试连接，再保存到服务器列表。'
+        }
         className="w-[min(520px,92vw)]"
         closeOnOverlayClick={!testing}
         footer={
@@ -309,7 +341,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
                     id={id}
                     type={showSecret ? 'text' : 'password'}
                     value={form.password}
-                    placeholder="输入登录密码"
+                    placeholder={server?.hasCredential ? KEPT_HINT : '输入登录密码'}
                     autoComplete="off"
                     onChange={(e) => set('password', e.target.value)}
                   />
@@ -342,7 +374,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
                     id={id}
                     type={showSecret ? 'text' : 'password'}
                     value={form.passphrase}
-                    placeholder="如果密钥有口令则输入"
+                    placeholder={server?.hasCredential ? KEPT_HINT : '如果密钥有口令则输入'}
                     autoComplete="off"
                     onChange={(e) => set('passphrase', e.target.value)}
                   />
@@ -414,6 +446,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
                           id={id}
                           type={showSecret ? 'text' : 'password'}
                           value={form.jumpHostPassword}
+                          placeholder={server?.hasCredential ? KEPT_HINT : '跳板机登录密码'}
                           autoComplete="off"
                           onChange={(e) => set('jumpHostPassword', e.target.value)}
                         />

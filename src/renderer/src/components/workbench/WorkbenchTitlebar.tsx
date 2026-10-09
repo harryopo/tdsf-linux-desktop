@@ -12,8 +12,8 @@
  * - 设计稿无红黄绿窗口控制点,已移除
  *
  * - 服务器列表 / 切换来自 useServerStore
- * - 新建连接：ConnectDialog → 保存配置 → sshConnect + shellStart
- * - 已有服务器：菜单内一键连接
+ * - 新建连接：ConnectDialog → 保存配置 → sshConnect（凭据是用户现填的）+ shellStart
+ * - 已有服务器：菜单内一键连接 → sshConnectById(id)，只交 ID，凭据不过渲染层（P0-3）
  */
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import {
@@ -36,6 +36,18 @@ import { isElectronAPIAvailable } from '@/utils/electron-api'
 import ConnectDialog from '@/components/layout/ConnectDialog'
 import CommandPalette from '@/components/workbench/CommandPalette'
 import type { SshConfig } from '@shared/models'
+
+/**
+ * 连接目标：openSession 只用得上这三项（id 去向主进程换会话，name/host 只用于提示文案）
+ *
+ * 故意不写成 SshConfig —— ServerListItem（列表里的已保存服务器）和对话框现填的
+ * 表单都能套进来，而"传整份配置给主进程"这件事只在新建那一条路上才需要。
+ */
+interface ConnectTarget {
+  id: string
+  name: string
+  host: string
+}
 
 export interface WorkbenchTitlebarProps {
   onToggleAI?: () => void
@@ -124,32 +136,38 @@ export function WorkbenchTitlebar({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const connectServer = useCallback(
-    async (server: SshConfig) => {
+  /**
+   * 建立会话并接好 shell / 监控 —— 两条连接路径共用的收尾
+   *
+   * @param target 连接目标：id 用于状态登记，name/host 只用于提示文案
+   * @param obtain 真正去主进程换 sessionId 的那一步（两条路只差在这里传什么）
+   */
+  const openSession = useCallback(
+    async (target: ConnectTarget, obtain: () => Promise<string>): Promise<void> => {
       if (!isElectronAPIAvailable()) {
         toast.error('请在 Electron 桌面端运行')
         return
       }
       // 已有会话直接切换
-      const existing = sessionMap[server.id]
-      if (existing && connectionStates[server.id] === 'connected') {
+      const existing = sessionMap[target.id]
+      if (existing && connectionStates[target.id] === 'connected') {
         setActiveSession(existing)
         setMenuOpen(false)
         return
       }
 
-      setConnectingId(server.id)
-      setConnectionState(server.id, 'connecting')
+      setConnectingId(target.id)
+      setConnectionState(target.id, 'connecting')
       try {
-        const sessionId = await window.electronAPI.sshConnect(server)
+        const sessionId = await obtain()
         try {
           await window.electronAPI.sshShellStart(sessionId)
         } catch (shellErr) {
           console.warn('[WorkbenchTitlebar] shell start failed', shellErr)
           toast.warning('Shell 启动失败，终端可能不可用')
         }
-        setConnectionState(server.id, 'connected')
-        setSessionMapping(server.id, sessionId)
+        setConnectionState(target.id, 'connected')
+        setSessionMapping(target.id, sessionId)
         setActiveSession(sessionId)
         try {
           await window.electronAPI.monitorStart(sessionId, 3)
@@ -157,9 +175,9 @@ export function WorkbenchTitlebar({
           console.warn('[WorkbenchTitlebar] monitorStart failed:', err)
         }
         setMenuOpen(false)
-        toast.success(`已连接 ${server.name || server.host}`)
+        toast.success(`已连接 ${target.name || target.host}`)
       } catch (err) {
-        setConnectionState(server.id, 'error')
+        setConnectionState(target.id, 'error')
         toast.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         setConnectingId(null)
@@ -174,15 +192,47 @@ export function WorkbenchTitlebar({
     ],
   )
 
+  /**
+   * 连接已保存的服务器：只交 ID（2026-10-09 安全审查 P0-3）
+   *
+   * server:list 现在下发的是 ServerListItem，里面根本没有凭据三键，
+   * 口令/私钥由主进程自己从 SecureStore 取。oneTimePassword 是用户此刻在
+   * 对话框里当场重输的那一份（可选），只用于这一次连接，界面不回显。
+   */
+  const connectServer = useCallback(
+    (server: ConnectTarget, oneTimePassword?: string): Promise<void> =>
+      openSession(server, () =>
+        window.electronAPI.sshConnectById(server.id, oneTimePassword),
+      ),
+    [openSession],
+  )
+
+  /**
+   * 连接刚在对话框里填好的新服务器
+   *
+   * 这份凭据是用户现填的、只属于这一次操作，所以直接走 sshConnect 交出去；
+   * 一旦保存成功，之后的重连就只认 ID（见 connectServer）。
+   */
+  const connectFreshConfig = useCallback(
+    (config: SshConfig): Promise<void> =>
+      openSession(config, () => window.electronAPI.sshConnect(config)),
+    [openSession],
+  )
+
   const handleDialogSave = useCallback(
     async (config: SshConfig) => {
       const exists = servers.some((s) => s.id === config.id)
-      if (exists) await updateServer(config.id, config)
-      else await addServer(config)
+      if (exists) {
+        await updateServer(config.id, config)
+        // 已在列表里 = 已保存的服务器：重连只交 ID，外加用户这次真的重打了的口令
+        await connectServer(config, config.password || undefined)
+      } else {
+        await addServer(config)
+        await connectFreshConfig(config)
+      }
       setDialogOpen(false)
-      await connectServer(config)
     },
-    [servers, addServer, updateServer, connectServer],
+    [servers, addServer, updateServer, connectServer, connectFreshConfig],
   )
 
   return (

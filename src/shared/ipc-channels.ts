@@ -160,6 +160,13 @@ export const LLM_INLINE = {
 export const SSH = {
   /** 建立 SSH 连接（invoke: 渲染 → 主） */
   CONNECT: 'ssh:connect',
+  /**
+   * 按已保存的服务器 ID 连接（invoke: 渲染 → 主）
+   *
+   * 与 CONNECT 的区别只有一个但很关键：渲染层只交 ID（外加可选的一次性口令），
+   * 存好的密码/私钥由主进程自己从 SecureStore 取，永不跨进程边界。
+   */
+  CONNECT_BY_ID: 'ssh:connectById',
   /** 断开 SSH 连接（invoke: 渲染 → 主） */
   DISCONNECT: 'ssh:disconnect',
   /** 执行一次性 SSH 命令（invoke: 渲染 → 主，非交互式） */
@@ -336,7 +343,8 @@ export const STORAGE = {
   /** 加密保存 API Key（invoke: 渲染 → 主） */
   SAVE_API_KEY: 'storage:saveApiKey',
   /** 读取加密存储的 API Key（invoke: 渲染 → 主） */
-  GET_API_KEY: 'storage:getApiKey',
+  /** 是否存有该 provider 的 API Key（只回布尔，不回原文；替代原 GET_API_KEY） */
+  HAS_API_KEY: 'storage:hasApiKey',
   /** 删除加密存储的 API Key（invoke: 渲染 → 主） */
   DELETE_API_KEY: 'storage:deleteApiKey',
 } as const
@@ -351,8 +359,13 @@ export const STORAGE = {
 export const CONFIG = {
   /** 读取配置项（invoke: 渲染 → 主） */
   GET: 'config:get',
-  /** 写入配置项（invoke: 渲染 → 主） */
+  /** 写入配置项（invoke: 渲染 → 主）——只接受非权限性键，见 ipc/storage.ts */
   SET: 'config:set',
+  /**
+   * 保存 LLM 配置（invoke: 渲染 → 主）
+   * 专用通道：主进程校验 baseUrl 后才落盘，避免"渲染层写 baseUrl + 主进程带真 Key"
+   */
+  SAVE_LLM: 'config:saveLlm',
 } as const
 
 /**

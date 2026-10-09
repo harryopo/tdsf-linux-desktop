@@ -7,26 +7,29 @@
  * - 记录每个服务器的连接状态
  * - **双重持久化**：localStorage 缓存 + 主进程 ConfigStore 权威存储
  *
- * 持久化策略（v0.7.0+）：
+ * 持久化策略（v0.7.0+，2026-10-09 P0-3 收口）：
  * - localStorage（zustand persist）：非敏感字段的快速 cache（脱敏，无密码）
- * - 主进程 electron-store + SecureStore：权威持久化（含敏感信息加密存储）
- * - 同步流程：任何变更 → 立即 IPC serverSave（传完整对象含密码）→ 主进程分离存储
- * - 加载流程：启动时以主进程为权威数据源（含密码），覆盖 localStorage 缓存
+ * - 主进程 electron-store + SecureStore：权威持久化（敏感信息加密存储）
+ * - 同步流程：任何变更 → IPC serverSave；凭据只可能是用户此刻在表单里现填的那一份
+ * - 加载流程：启动时 serverList() 拿 **ServerListItem**（无凭据 + hasCredential 布尔），
+ *   主进程里那份解密后的凭据永不跨进程边界
  *
- * 敏感信息（密码/私钥）：
- * - 不持久化到 localStorage（partialize 脱敏）
- * - 由主进程 safeStorage 加密存储（ConfigStore.saveServerList 分离存储逻辑）
- * - syncToMain 传完整对象给主进程，不在渲染层脱敏（否则主进程收不到密码）
+ * 敏感信息（密码/私钥/口令）在本 Store 的规矩：
+ * - 状态里不存在这三键（类型 ServerListItem 从根上不给）——要连已保存的服务器请走
+ *   `window.electronAPI.sshConnectById(id, 一次性口令)`，主进程自己去 SecureStore 取
+ * - 只有 addServer / updateServer 的入参可以短暂携带用户当场输入的凭据，
+ *   用途仅限"把它交给主进程存好"，落进 state 前一律经 toListItem 剥掉
+ * - 因此 addServer 的入参是 SshConfig（新建表单原样），state 里存的是 ServerListItem
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { SshConfig, SshConnectionState } from '@shared/models'
+import type { ServerListItem, SshConfig, SshConnectionState } from '@shared/models'
 import { isElectronAPIAvailable } from '../utils/electron-api'
 
 /** 服务器 Store 状态接口 */
 interface ServerState {
-  /** 服务器配置列表 */
-  servers: SshConfig[]
+  /** 服务器列表（渲染层形状：凭据三键不存在，只有 hasCredential） */
+  servers: ServerListItem[]
   /** 当前活跃的 SSH 会话 ID */
   activeSessionId: string | null
   /** 服务器连接状态映射：serverId → 连接状态 */
@@ -37,14 +40,14 @@ interface ServerState {
   _hydrated: boolean
 
   // ===== Actions =====
-  /** 添加服务器配置 */
+  /** 添加服务器配置（入参是新建表单的原样，可能带用户当场输入的凭据） */
   addServer: (server: SshConfig) => Promise<void>
   /** 移除服务器配置 */
   removeServer: (serverId: string) => Promise<void>
-  /** 更新服务器配置 */
+  /** 更新服务器配置（partial 里的凭据同样是用户当场重输的，落 state 前剥掉） */
   updateServer: (serverId: string, partial: Partial<SshConfig>) => Promise<void>
   /** 批量替换服务器列表 */
-  setServers: (servers: SshConfig[]) => Promise<void>
+  setServers: (servers: ServerListItem[]) => Promise<void>
   /** 设置当前活跃会话 */
   setActiveSession: (sessionId: string | null) => void
   /** 更新服务器连接状态 */
@@ -58,15 +61,47 @@ interface ServerState {
 }
 
 /**
- * 同步到主进程（传完整 server 对象，含敏感信息）
+ * 收敛成渲染层能持有的形状：剥掉 password / privateKey / passphrase，换成 hasCredential。
  *
- * 注意：不在此处脱敏。主进程的 saveServerList 会自行分离存储：
+ * 与主进程 ConfigStore.loadServerListPublic() 同一口径（连 jumpHost 一起剥），
+ * 保证"本地算出来的形状"和"主进程下发的形状"一致，UI 只认 hasCredential 一个来源。
+ *
+ * @param server 任意来源的配置（可以是刚填完的表单，也可以是已有列表项）
+ * @param hasCredential 主进程是否存有这台机器的凭据；由调用方按场景决定，
+ *                      不从 server 上反推——本地这一份带的凭据只是用户当场填的，
+ *                      不代表主进程里存过什么。
+ */
+function toListItem(server: SshConfig, hasCredential: boolean): ServerListItem {
+  const { password, privateKey, passphrase, jumpHost, ...rest } = server
+  void password
+  void privateKey
+  void passphrase
+  const item: ServerListItem = { ...rest, hasCredential }
+  if (jumpHost) {
+    const { password: jhPassword, privateKey: jhKey, passphrase: jhPassphrase, ...jhRest } = jumpHost
+    void jhPassword
+    void jhKey
+    void jhPassphrase
+    item.jumpHost = jhRest
+  }
+  return item
+}
+
+/** 这份配置是否自带凭据（只用于推导 hasCredential，不读取原文、不外传） */
+function providesCredential(server: Partial<SshConfig>): boolean {
+  return Boolean(server.password || server.privateKey || server.passphrase)
+}
+
+/**
+ * 同步到主进程
+ *
+ * 出站列表 = 主进程里存的那些（本来就没有凭据）+ 用户此刻在表单里现填的凭据。
+ * 主进程 saveServerList 自行分离存储：
  * - 非敏感字段（host/port/username 等）→ electron-store（明文 JSON）
  * - 敏感字段（password/privateKey/passphrase）→ SecureStore（safeStorage 加密）
+ * 且只在凭据非空时写入，所以列表里"没有凭据"的老条目不会被空值覆盖掉已存的那份。
  *
- * IPC 通道是进程内通信，password 不经过网络，安全风险可控。
- * 若在此处脱敏，主进程将永远收不到敏感信息，SecureStore 不会被写入，
- * 重启后密码丢失。
+ * 加载方向反过来：主进程不再下发凭据，渲染层要连接只交 ID（sshConnectById）。
  *
  * 即使失败也不阻塞 UI（localStorage 已经持久化非敏感字段）。
  */
@@ -99,10 +134,13 @@ export const useServerStore = create<ServerState>()(
 
       // 添加服务器配置
       addServer: async (server) => {
-        const newServers = [...get().servers, server]
-        set({ servers: newServers })
+        const current = get().servers
+        // 出站那份保留用户当场填的凭据（主进程负责加密存好）
+        const outgoing = [...current, server]
+        // 进 state 的那份必须脱敏：界面上任何组件都读不到 password/privateKey/passphrase
+        set({ servers: [...current, toListItem(server, providesCredential(server))] })
         // 异步同步到主进程（不阻塞 UI）
-        const ok = await syncToMain(newServers)
+        const ok = await syncToMain(outgoing)
         if (!ok && isElectronAPIAvailable()) {
           console.warn(`[ServerStore] 服务器「${server.name}」未持久化到主进程`)
         }
@@ -134,14 +172,17 @@ export const useServerStore = create<ServerState>()(
 
       // 更新服务器配置
       updateServer: async (serverId, partial) => {
-        const newServers = get().servers.map((s) =>
-          s.id === serverId ? { ...s, ...partial } : s
+        // 出站：partial 可能带用户当场重输的凭据，原样交给主进程（主进程只在非空时覆盖存的那份）
+        const outgoing = get().servers.map((s) => (s.id === serverId ? { ...s, ...partial } : s))
+        // 进 state：脱敏。hasCredential = "主进程本来就存有" 或 "这次带来了新的"，任一为真即真
+        const newServers = outgoing.map((s) =>
+          s.id === serverId ? toListItem(s, s.hasCredential || providesCredential(partial)) : s,
         )
         set({ servers: newServers })
-        await syncToMain(newServers)
+        await syncToMain(outgoing)
       },
 
-      // 批量替换服务器列表
+      // 批量替换服务器列表（入参已是渲染层形状，不带凭据）
       setServers: async (newServers) => {
         set({ servers: newServers })
         await syncToMain(newServers)
@@ -179,10 +220,12 @@ export const useServerStore = create<ServerState>()(
        * 从主进程加载服务器列表（应用启动时调用一次）
        *
        * 策略：主进程权威 + localStorage 缓存非敏感字段
-       * - 密码/privateKey/passphrase 只从主进程获取（localStorage 脱敏，不含敏感信息）
-       * - 主进程有数据：始终以主进程为准（含密码），覆盖 localStorage 缓存
+       * - 凭据（password/privateKey/passphrase）根本不在返回形状里（2026-10-09 P0-3）：
+       *   server:list 只下发 ServerListItem（非敏感字段 + hasCredential），
+       *   要连接已保存的服务器请走 sshConnectById(id)，主进程自己从 SecureStore 取凭据。
+       * - 主进程有数据：以主进程为准，覆盖 localStorage 缓存
        * - 主进程无数据但 localStorage 有：可能是旧版本迁移或主进程数据丢失，
-       *   用 localStorage 回写主进程（注意：此时密码可能缺失，需用户重新输入）
+       *   用 localStorage 回写主进程（此时必然无凭据，用户要重新输一次口令）
        */
       hydrateFromMain: async () => {
         if (!isElectronAPIAvailable()) {
@@ -200,12 +243,12 @@ export const useServerStore = create<ServerState>()(
           console.log(`[ServerStore] 主进程返回 ${mainServers.length} 个，localStorage 有 ${localServers.length} 个`)
 
           if (mainServers.length > 0) {
-            // 主进程权威：使用主进程完整数据（含密码），覆盖 localStorage 缓存
-            console.log('[ServerStore] 使用主进程数据（含密码）作为权威数据源')
+            // 主进程权威：直接用主进程下发的形状（本来就不含凭据），覆盖 localStorage 缓存
+            console.log('[ServerStore] 使用主进程数据作为权威数据源（不含凭据，hasCredential 标记已带）')
             set({ servers: mainServers, _hydrated: true })
           } else if (localServers.length > 0) {
-            // 主进程为空但 localStorage 有：可能是旧版本迁移，回写主进程
-            console.log('[ServerStore] 主进程为空，使用 localStorage 数据回写主进程')
+            // 主进程为空但 localStorage 有：可能是旧版本迁移，回写主进程（此时必然无凭据）
+            console.log('[ServerStore] 主进程为空，使用 localStorage 数据回写主进程（凭据需用户重输）')
             set({ _hydrated: true })
             await syncToMain(localServers)
           } else {
@@ -221,16 +264,11 @@ export const useServerStore = create<ServerState>()(
     {
       // 持久化到 localStorage 的 key
       name: 'tdsf-server-store',
-      // 只持久化 servers 配置，连接状态和会话映射不持久化
+      // 只持久化 servers 配置，连接状态和会话映射不持久化。
+      // 再走一遍 toListItem 做兜底脱敏：state 里本来就没有凭据三键，
+      // 但旧版本写过的缓存 / 将来有人改类型都不能让口令落到磁盘上（localStorage 是明文）。
       partialize: (state) => ({
-        servers: state.servers.map((s) => {
-          // 脱敏：localStorage 不保存密码/私钥/口令
-          const { password, privateKey, passphrase, ...rest } = s
-          void password
-          void privateKey
-          void passphrase
-          return rest
-        }),
+        servers: state.servers.map((s) => toListItem(s, s.hasCredential)),
       }),
     }
   )

@@ -32,7 +32,7 @@ import { useServerStore } from '@/stores/server-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { usePersistentState } from '@/hooks/usePersistentState'
-import type { SshConfig, SshKeyPair, GenerateKeyPairRequest } from '@shared/models'
+import type { ServerListItem, SshConfig, SshKeyPair, GenerateKeyPairRequest } from '@shared/models'
 import './SshSettings.css'
 
 /** 生成密钥弹窗的表单态（2026-10-07 从 antd Form 换成本地状态，规则一条没减） */
@@ -76,7 +76,8 @@ export function SshSettings() {
   const saveSettings = useSettingsStore((s) => s.saveSettings)
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<SshConfig | null>(null)
+  // 编辑目标是 ServerListItem：里面没有凭据，对话框因此永远从空白开始（P0-3）
+  const [editing, setEditing] = useState<ServerListItem | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
 
@@ -145,8 +146,14 @@ export function SshSettings() {
     void refreshKeys()
   }, [refreshKeys])
 
-  const connectOne = useCallback(
-    async (server: SshConfig) => {
+  /**
+   * 建立会话并接上交互式 shell —— 两条连接路径共用的收尾
+   *
+   * @param server 连接目标：id 用于状态登记，name/host 只用于提示文案
+   * @param obtain 真正去主进程换 sessionId 的那一步（两条路只差在这里传什么）
+   */
+  const openSession = useCallback(
+    async (server: { id: string; name: string; host: string }, obtain: () => Promise<string>) => {
       if (!isElectronAPIAvailable()) {
         toast.error('请在 Electron 桌面端运行')
         return
@@ -160,17 +167,7 @@ export function SshSettings() {
       setBusyId(server.id)
       setConnectionState(server.id, 'connecting')
       try {
-        // K.3：合并 keepAlive 配置到 SshConfig（滑块值 > 0 才启用心跳）
-        // Phase L：合并 strictHostKeyCheck / knownHostsPath 到 SshConfig，
-        //          主进程 buildConnectOptions 会据此注入 hostVerifier
-        const mergedConfig: SshConfig = {
-          ...server,
-          keepAlive: keepAliveIntervalSec > 0,
-          keepAliveIntervalSec,
-          strictHostKeyCheck,
-          knownHostsPath,
-        }
-        const sessionId = await window.electronAPI.sshConnect(mergedConfig)
+        const sessionId = await obtain()
         try {
           await window.electronAPI.sshShellStart(sessionId)
         } catch (e) {
@@ -196,14 +193,42 @@ export function SshSettings() {
       setConnectionState,
       setSessionMapping,
       showFb,
-      keepAliveIntervalSec,
-      strictHostKeyCheck,
-      knownHostsPath,
     ],
   )
 
+  /**
+   * 连接"已保存的服务器"：只交 ID（2026-10-09 安全审查 P0-3）
+   *
+   * 这里拿到的是 ServerListItem —— 凭据三键在主进程下发时就不存在了，
+   * 口令/私钥由主进程自己从 SecureStore 取，永不跨进程边界。
+   *
+   * 顺带说明一处行为差别：原先这里会把 Card 3 的心跳滑块、Card 4 的
+   * strictHostKeyCheck / knownHostsPath 合并进连接配置，connectById 没有口子带这三项，
+   * 于是它们变成"只影响新保存的记录，不再逐次覆盖连接"。安全上不会放松：
+   * 主进程 connection-manager 判定的是 `strictHostKeyCheck !== false`，
+   * 记录里没写这个字段时校验照旧开启，只是 Card 4 那个"关掉校验"的开关不再对
+   * 已保存服务器生效（要恢复应由主进程在 connect-by-id 里兜底读 sshDefaults）。
+   */
+  const connectOne = useCallback(
+    (server: ServerListItem): Promise<void> =>
+      openSession(server, () => window.electronAPI.sshConnectById(server.id)),
+    [openSession],
+  )
+
+  /**
+   * 连接"刚在对话框里填好的新服务器"：走 sshConnect
+   *
+   * 这份凭据是用户此刻现填的、只属于这一次操作，直接交出去不算越界；
+   * 保存成功之后，这台机器以后的重连只认 ID（见 connectOne）。
+   */
+  const connectFresh = useCallback(
+    (config: SshConfig): Promise<void> =>
+      openSession(config, () => window.electronAPI.sshConnect(config)),
+    [openSession],
+  )
+
   const disconnectOne = useCallback(
-    async (server: SshConfig) => {
+    async (server: ServerListItem) => {
       const sid = sessionMap[server.id]
       if (!sid) {
         setConnectionState(server.id, 'disconnected')
@@ -238,15 +263,26 @@ export function SshSettings() {
 
   const handleSaveDialog = useCallback(
     async (config: SshConfig) => {
-      const exists = servers.some((s) => s.id === config.id)
-      if (exists) await updateServer(config.id, config)
-      else await addServer(config)
-      setDialogOpen(false)
-      setEditing(null)
-      showFb(exists ? '服务器已更新' : '服务器已添加')
-      await connectOne(config)
+      // 列表里已有同一个 id = 已保存的服务器；对话框现填的凭据先交给主进程存好，
+      // 之后这次连接仍然只报 ID（updateServer 是 await 的，主进程那份记录已经更新）。
+      const existing = servers.find((s) => s.id === config.id)
+      if (existing) {
+        await updateServer(config.id, config)
+        setDialogOpen(false)
+        setEditing(null)
+        showFb('服务器已更新')
+        // 用刚存进去的 name/host 做提示文案，连接本身只认 id
+        await connectOne({ ...existing, name: config.name, host: config.host })
+      } else {
+        await addServer(config)
+        setDialogOpen(false)
+        setEditing(null)
+        showFb('服务器已添加')
+        // 新建那一条：凭据是用户此刻在表单里现填的，直接 sshConnect
+        await connectFresh(config)
+      }
     },
-    [servers, addServer, updateServer, connectOne, showFb],
+    [servers, addServer, updateServer, connectOne, connectFresh, showFb],
   )
 
   const handleSaveDefaults = useCallback(async () => {
@@ -290,7 +326,7 @@ export function SshSettings() {
 
   // ===== ServerCard 事件回调（从原内联 JSX 抽取） =====
 
-  const handleEditServer = useCallback((s: SshConfig) => {
+  const handleEditServer = useCallback((s: ServerListItem) => {
     setEditing(s)
     setDialogOpen(true)
   }, [])
@@ -301,7 +337,7 @@ export function SshSettings() {
   }, [])
 
   const handleDeleteServer = useCallback(
-    async (s: SshConfig) => {
+    async (s: ServerListItem) => {
       const ok = await confirmDialog({
         title: '删除服务器',
         description: `确定要删除服务器「${s.name || s.host}」吗？此操作不可撤销。`,

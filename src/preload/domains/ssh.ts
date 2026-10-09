@@ -15,6 +15,13 @@ const ssh = {
   connect: (config: SshConfig): Promise<string> =>
     ipcRenderer.invoke(SSH.CONNECT, config),
 
+  /**
+   * 按已保存的服务器 ID 连接（凭据留在主进程，渲染层只交 ID）
+   * @param oneTimePassword 用户此刻手输的一次性口令；不传就用主进程存好的凭据
+   */
+  connectById: (serverId: string, oneTimePassword?: string): Promise<string> =>
+    ipcRenderer.invoke(SSH.CONNECT_BY_ID, serverId, oneTimePassword),
+
   /** 断开 SSH 连接 */
   disconnect: (sessionId: string): Promise<boolean> =>
     ipcRenderer.invoke(SSH.DISCONNECT, sessionId),

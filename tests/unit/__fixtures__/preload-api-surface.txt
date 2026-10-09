@@ -25,6 +25,7 @@ claudeSdkCancel
 claudeSdkGenerate
 claudeSdkStream
 configGet
+configSaveLlm
 configSet
 credibilityAddCalibrationSample
 credibilityAssess
@@ -213,6 +214,7 @@ sidecarStop
 sidecarStopOne
 sidecarToolCall
 sshConnect
+sshConnectById
 sshDeleteKeyring
 sshDisconnect
 sshExec
@@ -225,7 +227,7 @@ sshShellStart
 sshShellWrite
 sshUploadKeypair
 storageDeleteApiKey
-storageGetApiKey
+storageHasApiKey
 storageSaveApiKey
 subagentList
 subagentReload

@@ -15,7 +15,7 @@
 
 import Store from 'electron-store'
 import { randomUUID } from 'crypto'
-import type { SshConfig, LlmConfig, ExternalMcpServer } from '@shared/models'
+import type { SshConfig, LlmConfig, ExternalMcpServer, ServerListItem } from '@shared/models'
 import { SecureStore } from './secure-store'
 
 /** Langfuse 配置 */
@@ -77,6 +77,14 @@ const store = new Store<ConfigSchema>({
  * - getLlmConfig(): 获取 LLM 配置
  * - saveLlmConfig(config): 保存 LLM 配置
  */
+/**
+ * 剥掉一台服务器配置里的凭据（**含跳板机那一层**）
+ *
+ * 实现挪到 server-credentials.ts（纯函数、可在无 Electron 环境里直接测），
+ * 这里只留一个转发，避免同一件事有两份。
+ */
+import { stripServerCredentials, toServerListItem, carriesCredential } from './server-credentials'
+
 export class ConfigStore {
   /**
    * 读取配置
@@ -334,19 +342,8 @@ export class ConfigStore {
    */
   public static saveServerList(servers: SshConfig[]): boolean {
     try {
-      // 非敏感信息存入 electron-store
-      const sanitized = servers.map((s) => {
-        const {
-          password,
-          privateKey,
-          passphrase,
-          ...rest
-        } = s
-        void password
-        void privateKey
-        void passphrase
-        return rest
-      })
+      // 非敏感信息存入 electron-store（含跳板机那一层，见 stripServerCredentials）
+      const sanitized = servers.map(stripServerCredentials)
       store.set('sshServers', sanitized)
 
       // 敏感信息存入 SecureStore 加密
@@ -374,6 +371,16 @@ export class ConfigStore {
    *
    * @returns 完整的 SSH 服务器列表（含解密后的敏感信息）
    */
+  /**
+   * 加载服务器列表 —— **给渲染层的安全形状**
+   *
+   * 与 loadServerList() 的唯一区别：不带凭据，只带 hasCredential。
+   * 渲染层需要连接时走 ssh:connectById，由主进程自己取用凭据。
+   */
+  public static loadServerListPublic(): ServerListItem[] {
+    return ConfigStore.loadServerList().map((s) => toServerListItem(s, carriesCredential(s)))
+  }
+
   public static loadServerList(): SshConfig[] {
     try {
       const servers = store.get('sshServers', []) as SshConfig[]
@@ -409,18 +416,7 @@ export class ConfigStore {
    */
   public static exportServerList(): string {
     const servers = store.get('sshServers', []) as SshConfig[]
-    const list = (Array.isArray(servers) ? servers : []).map((s) => {
-      const {
-        password,
-        privateKey,
-        passphrase,
-        ...rest
-      } = s
-      void password
-      void privateKey
-      void passphrase
-      return rest
-    })
+    const list = (Array.isArray(servers) ? servers : []).map(stripServerCredentials)
     return JSON.stringify(list, null, 2)
   }
 

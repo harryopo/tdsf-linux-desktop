@@ -25,6 +25,7 @@ import { spawn } from 'node:child_process'
 import { z } from 'zod'
 import { SSH, SFTP, TERMINAL } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
+import { ConfigStore } from '../services/storage/config-store'
 import { ElectermSftpManager } from '../services/ssh/electerm-sftp'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
@@ -191,6 +192,50 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       throw new Error(`SSH 连接失败: ${safeMsg}`)
     }
   })
+
+  /**
+   * ssh:connectById — 按已保存的服务器 ID 连接
+   *
+   * 与 ssh:connect 的分工：新建连接（用户当场填表）走 connect；
+   * **已保存的服务器**一律走这条 —— 凭据由主进程自己从 SecureStore 取，
+   * 渲染层拿不到也传不了（server:list 已经不含凭据）。
+   *
+   * @param oneTimePassword 用户此刻重输的一次性口令；不传就用存好的
+   */
+  ipcMain.handle(
+    SSH.CONNECT_BY_ID,
+    async (_event, serverId: string, oneTimePassword?: string): Promise<string> => {
+      if (typeof serverId !== 'string' || !serverId.trim()) {
+        throw new Error('connectById 需要服务器 ID')
+      }
+      const stored = ConfigStore.loadServerList().find((s: SshConfig) => s.id === serverId)
+      if (!stored) {
+        throw new Error(`找不到已保存的服务器: ${serverId}`)
+      }
+      // 逐次覆盖项沿用设置页的默认值（原 SshSettings 合并语义，别在迁移时丢掉）
+      const defaults = ConfigStore.get('sshDefaults') as Partial<SshConfig> | undefined
+      const config: SshConfig = {
+        ...defaults,
+        ...stored,
+        ...(oneTimePassword ? { password: oneTimePassword, authType: 'password' as const } : {}),
+      }
+      logger.info('SSH', '按 ID 连接已保存的服务器', {
+        serverId,
+        host: config.host,
+        port: config.port,
+        username: config.username,
+        authType: config.authType,
+        withOneTimePassword: Boolean(oneTimePassword),
+      })
+      try {
+        return await sshManager.connect(config)
+      } catch (err) {
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '按 ID 连接失败', { serverId, error: safeMsg })
+        throw new Error(`SSH 连接失败: ${safeMsg}`)
+      }
+    },
+  )
 
   /** ssh:disconnect — 断开会话 */
   ipcMain.handle(SSH.DISCONNECT, async (_event, sessionId: string) => {

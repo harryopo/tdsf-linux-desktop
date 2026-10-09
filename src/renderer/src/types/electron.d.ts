@@ -10,6 +10,7 @@ import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-co
 import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
 import type {
   SshConfig,
+  ServerListItem,
   CommandResult,
   SystemInfo,
   MonitorData,
@@ -620,8 +621,24 @@ export interface InlineCompletionItem {
 // 已纳入契约的通道签名以那里为准，其余方法仍在这里手写，逐步搬过去（刻度见 tests/unit/ipc-contract.test.ts）
 export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, ContractedEventApi {
   // ===== SSH 相关 =====
-  /** 建立 SSH 连接，返回 sessionId */
+  /**
+   * 建立 SSH 连接，返回 sessionId
+   *
+   * 只用于**新建连接**：config 里的凭据是用户此刻在表单里现填的那一份。
+   * 已保存的服务器一律走 sshConnectById —— 渲染层不再持有存好的口令/私钥。
+   */
   sshConnect(config: SshConfig): Promise<string>
+  /**
+   * 按已保存的服务器 ID 连接，返回 sessionId（通道 ssh:connectById）
+   *
+   * 2026-10-09 安全审查 P0-3：`server:list` 不再下发解密后的凭据，
+   * 存好的密码/私钥由主进程自己从 SecureStore 取，永不跨进程边界。
+   *
+   * @param serverId 服务器 ID（来自 ServerListItem.id）
+   * @param password 用户此刻手输的一次性口令（可选）。留空表示"用主进程存好的凭据"；
+   *                 传进来的口令只用于这一次连接，渲染层不会把它显示到任何地方。
+   */
+  sshConnectById(serverId: string, password?: string): Promise<string>
   /** 断开 SSH 连接 */
   sshDisconnect(sessionId: string): Promise<boolean>
   /** 执行 SSH 命令 */
@@ -1186,8 +1203,13 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   // ===== 安全存储 =====
   /** 保存 API Key（加密存储） */
   storageSaveApiKey(key: string, value: string): Promise<boolean>
-  /** 获取 API Key */
-  storageGetApiKey(key: string): Promise<string | null>
+  /**
+   * 是否存有该 provider 的 API Key（通道 storage:hasApiKey，只回布尔）
+   *
+   * 2026-10-09 安全审查 P0-3：取代 storageGetApiKey（该通道已删）。
+   * 渲染层只用来决定设置页输入框的提示文案，Key 原文一行都不给界面。
+   */
+  storageHasApiKey(provider: string): Promise<boolean>
   /** 删除 API Key */
   storageDeleteApiKey(key: string): Promise<boolean>
 
@@ -1473,9 +1495,15 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   deployGetStatus(planId: string): Promise<{ status: string; currentIndex: number; total: number } | null>
 
   // ===== 服务器列表管理（v0.7.0 双重持久化） =====
-  /** 加载服务器列表（敏感信息从 safeStorage 解密） */
-  serverList(): Promise<SshConfig[]>
-  /** 保存服务器列表（敏感信息加密存储） */
+  /**
+   * 加载服务器列表 —— **不含任何凭据**（通道 server:list）
+   *
+   * 2026-10-09 安全审查 P0-3：以前这条 IPC 把 safeStorage 解密后的口令/私钥原文整批交给界面，
+   * 现在只回 ServerListItem（password/privateKey/passphrase 三键不存在，另有 hasCredential）。
+   * 要连已保存的服务器请走 sshConnectById(id)。
+   */
+  serverList(): Promise<ServerListItem[]>
+  /** 保存服务器列表（敏感信息加密存储；渲染层只可能带有用户当场输入的凭据） */
   serverSave(servers: SshConfig[]): Promise<boolean>
   /** 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
   serverExport(): Promise<string>

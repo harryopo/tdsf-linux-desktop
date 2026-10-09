@@ -38,6 +38,7 @@ import { on } from './domains/events'
 const electronApi = {
   // ===== SSH 扁平化 =====
   sshConnect: ssh.connect,
+  sshConnectById: ssh.connectById,
   sshDisconnect: ssh.disconnect,
   sshExec: ssh.exec,
   sshShellStart: ssh.shell.start,
@@ -82,12 +83,13 @@ const electronApi = {
 
   // ===== 安全存储扁平化 =====
   storageSaveApiKey: storage.saveApiKey,
-  storageGetApiKey: storage.getApiKey,
+  storageHasApiKey: storage.hasApiKey,
   storageDeleteApiKey: storage.deleteApiKey,
 
   // ===== 配置存储扁平化 =====
   configGet: config.get,
   configSet: config.set,
+  configSaveLlm: config.saveLlm,
 
   // ===== LLM 扁平化 =====
   llmChat: llm.chat,
