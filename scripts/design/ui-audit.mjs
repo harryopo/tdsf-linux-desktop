@@ -25,6 +25,29 @@ const OUT_DIR = path.join(ROOT, 'docs', 'assets', 'ui-audit-20261005')
 const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/**
+ * 字阶档位清单从 tailwind.css 反查，不在本脚本里再抄一份。
+ *
+ * 原来这里手写 7 行"档位 → --ui-font-* 变量"映射表：新增的 --text-title / --text-splash
+ * 不在表里，漂移检测对它们完全不设防（同一天 cn() 那边也漏了这两档）。
+ *
+ * 值一律取自 @theme 里 `--text-<档>: var(--ui-font-<名>)` 右侧那个变量。
+ * 为什么不直接读 --text-<档>：实测打包产物里 Tailwind 把 micro/caption/body/composer/head/display
+ * 六档编成了 `.text-x{font-size:var(--ui-font-x)}`，`:root` 上根本没有 --text-x 这个属性，
+ * 读它只会得到空串（第一版这么写过，闸当场把 10 档里的 6 档报成"解析不出"）。
+ */
+const THEME_TIERS = [
+  ...[
+    ...fs
+      .readFileSync(path.join(ROOT, 'src/renderer/src/styles/tailwind.css'), 'utf8')
+      .matchAll(/^[ \t]*--text-([a-z0-9]+):\s*var\((--ui-[a-z0-9-]+)\)/gm)
+  ].map((m) => [`text-${m[1]}`, m[2]]),
+]
+if (THEME_TIERS.length < 8) {
+  console.error(`字阶档位取数失败：从 tailwind.css 只扫出 ${THEME_TIERS.length} 档（应有 10 档左右）`)
+  process.exit(1)
+}
+
 fs.mkdirSync(OUT_DIR, { recursive: true })
 
 if (!fs.existsSync(path.join(ROOT, 'out', 'main', 'index.js'))) {
@@ -189,6 +212,66 @@ const MEASURE = `(async () => {
     }
   }
 
+  // ===== 字阶保真：带 text-<档位> 类的元素，实际字号必须等于该档令牌 =====
+  // 抓的是"类还在、但被别处 CSS 规则压掉"这一类静默失效（如 .wb-shell .wb-aipanel textarea{font-size:11px}）。
+  // 量不到另一种失效：类被 tailwind-merge 整个丢掉（元素上根本没这个类，扫不到）——
+  // 那一路由 tests/unit/cn-font-size-merge.test.ts 守（摘掉登记当场红，验过）。
+  const rootCs = getComputedStyle(document.documentElement);
+  const TIER_PX = {};
+  for (const [cls, varName] of ${JSON.stringify(THEME_TIERS)}) {
+    const n = parseFloat(rootCs.getPropertyValue(varName));
+    TIER_PX[cls] = Number.isFinite(n) ? n : null;
+  }
+  // 档位解析不出数值 = 量具坏了，不能当成"没有漂移"
+  const unresolvedTiers = Object.entries(TIER_PX).filter(([, v]) => v === null).map(([k]) => k);
+  const tierDrift = [];
+  for (const el of document.querySelectorAll('*')) {
+    const cls = typeof el.className === 'string' ? el.className : '';
+    if (!cls) continue;
+    const tier = Object.keys(TIER_PX).find((t) => new RegExp('(^|\\s)' + t + '(\\s|$)').test(cls));
+    if (!tier || TIER_PX[tier] === null) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const got = parseFloat(cs.fontSize);
+    if (Math.abs(got - TIER_PX[tier]) > 0.6) {
+      tierDrift.push({
+        tier,
+        want: TIER_PX[tier],
+        got,
+        text: (el.textContent || '').trim().slice(0, 18),
+        cls: cls.slice(0, 44),
+      });
+    }
+  }
+
+  // ===== 工作台三栏第一条栏必须同高（用户 2026-10-08 指出右栏差 8px 没对齐）=====
+  // 取不到就记 null：null 由门禁报"探针没跑成"，不许当成"没量到所以对齐了"
+  const panelHeads = {};
+  for (const [key, sel] of [
+    ['filetree', '.wb-filetree-header'],
+    ['termTabs', '.term-tab-bar'],
+    ['aiPanel', '.ai-panel-header'],
+  ]) {
+    const el = document.querySelector(sel);
+    panelHeads[key] = el ? Math.round(el.getBoundingClientRect().height) : null;
+  }
+  // 三条一样高还不够：三栏一起跑偏也得报。判据是令牌本身，不是"彼此相等"。
+  const panelHeaderToken = parseFloat(rootCs.getPropertyValue('--ui-size-panel-header'));
+  const composerMinToken = parseFloat(rootCs.getPropertyValue('--ui-size-composer-min'));
+
+  // ===== AI 输入区：至少三行、快捷提示词那一排不许换成两行（用户 2026-10-08 指出"很挤"）=====
+  const composer = (() => {
+    const ta = document.querySelector('#ai-composer-input');
+    if (!ta) return null;
+    const bar = ta.parentElement ? ta.parentElement.firstElementChild : null;
+    return {
+      inputH: Math.round(ta.getBoundingClientRect().height),
+      minH: getComputedStyle(ta).minHeight,
+      cls: (ta.getAttribute('class') || '').slice(0, 240),
+      chipBarH: bar ? Math.round(bar.getBoundingClientRect().height) : null,
+    };
+  })();
+
   // ===== 页面左上角标题：必须是同一个 PageHeader（钩子 data-dom-id="page-title"）=====
   let header = null;
   {
@@ -297,6 +380,13 @@ const MEASURE = `(async () => {
     offTierIcons: offTierIcons.slice(0, 6),
     header,
     hasPageHeader,
+    panelHeads,
+    panelHeaderToken: Number.isFinite(panelHeaderToken) ? panelHeaderToken : null,
+    composerMinToken: Number.isFinite(composerMinToken) ? composerMinToken : null,
+    tierUnresolved: unresolvedTiers,
+    composer,
+    tierDriftCount: tierDrift.length,
+    tierDrift: tierDrift.slice(0, 8),
     crampedButtons: cramped.slice(0, 10),
     crampedButtonCount: cramped.length,
     medianButtonGapX: pads.length ? pads.sort((a, b) => a - b)[Math.floor(pads.length / 2)] : null,
@@ -512,11 +602,55 @@ try {
       }
       const tiny = Object.keys(s.typeScales).filter((k) => parseFloat(k) < 11)
       if (tiny.length) bad.push(`${at}: 出现低于 11px 的字号 — ${tiny.join(', ')}`)
+      if (s.tierDriftCount) {
+        const sample = s.tierDrift.map((d) => `${d.tier} 应 ${d.want}px 实为 ${d.got}px「${d.text}」`).slice(0, 3)
+        bad.push(`${at}: ${s.tierDriftCount} 处字阶类被别的 CSS 压掉了（类在、字号却不是令牌值）— ${sample.join('；')}`)
+      }
+      // 量具自证：某一档的 --text-* 读不出数值，那一档的漂移检测就等于没做
+      if (s.tierUnresolved?.length) {
+        bad.push(`${at}: 这些字阶档在 :root 上解析不出 px（${s.tierUnresolved.join('、')}），漂移检测对它们不设防`)
+      }
     }
     for (const s of layers) {
       const offIcon = (s.offTierIcons || []).map((o) => `${o.size}「${o.at || o.cls}」`)
       if (offIcon.length) bad.push(`弹层: 图标尺寸不在刻度内 — ${offIcon.join(', ')}`)
     }
+    // 工作台三栏第一条栏同高（DESIGN.md §5；量不到算探针没跑成，不算通过）
+    const wb = report.screens.find((s) => s.route === '#/workbench')
+    if (!wb || !wb.panelHeads) bad.push('#/workbench: 三栏顶栏没量到（探针没跑成，别当成已对齐）')
+    else {
+      const ph = wb.panelHeads
+      const missing = Object.entries(ph).filter(([, v]) => v === null).map(([k]) => k)
+      if (missing.length) bad.push(`#/workbench: 这几栏的第一条栏不在界面上（${missing.join('、')}），对齐无从判断`)
+      else {
+        const want = wb.panelHeaderToken
+        if (!want) bad.push('#/workbench: 读不到 --ui-size-panel-header，判据无从成立（令牌断链）')
+        else {
+          const off = Object.entries(ph).filter(([, v]) => v !== want)
+          if (off.length) {
+            bad.push(
+              `#/workbench: 这几栏顶栏不等于令牌 --ui-size-panel-header ${want}px — ${off.map(([k, v]) => `${k}=${v}px`).join(' ')}`
+            )
+          }
+        }
+      }
+      // AI 输入区：至少三行（判据取令牌值本身，不在脚本里另写一个数），快捷提示词那一排只许一行
+      if (!wb.composer) bad.push('#/workbench: AI 输入框没量到（探针没跑成，别当成不挤）')
+      else {
+        const minWant = wb.composerMinToken
+        if (!minWant) bad.push('#/workbench: 读不到 --ui-size-composer-min，输入区高度判据断链')
+        else if (wb.composer.inputH < minWant) {
+          bad.push(`#/workbench: AI 输入框只有 ${wb.composer.inputH}px（应 ≥ 令牌 --ui-size-composer-min ${minWant}px）`)
+        }
+        if (wb.composer.chipBarH === null) bad.push('#/workbench: 快捷提示词那一排没量到（探针没跑成）')
+        else if (wb.composer.chipBarH > 56) {
+          bad.push(
+            `#/workbench: 快捷提示词那一排换成 ${wb.composer.chipBarH}px 高（换成两行了，挤掉输入区；应单行 + 横向滚动）`
+          )
+        }
+      }
+    }
+
     // 风险控制页：只读规则表必须是引擎真值（空表/错误态/内部引用名/可编辑按钮都算缺陷）
     const rr = report.riskRules
     if (!rr) bad.push('风险控制页规则表没测到（探针没跑成，别当成通过）')

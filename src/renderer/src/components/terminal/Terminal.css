@@ -8,7 +8,7 @@
 
 .term-tab-bar {
   display: flex;
-  height: 40px;
+  height: var(--ui-size-panel-header);
   flex-shrink: 0;
   align-items: stretch;
   border-bottom: 1px solid var(--trae-border-neutral-l1);
@@ -18,7 +18,9 @@
 .term-tab-item {
   position: relative;
   display: flex;
-  height: 40px;
+  /* 跟随父条高度：这里再写一次 --ui-size-panel-header 的话，
+     父条的 1px 下边框会让内容盒只有 39px，标签页溢出 1px 盖住分隔线 */
+  height: 100%;
   align-items: center;
   gap: 8px;
   padding: 0 14px;

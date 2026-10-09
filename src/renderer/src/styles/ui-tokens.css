@@ -200,8 +200,11 @@
   --ui-size-rail: 64px; /* IDE 外壳活动栏（原 38px 太小：图标 18px、无文字标签） */
   --ui-size-rail-item: 52px;
   --ui-size-page-header: 56px; /* PageHeader 唯一高度，八个模块左上角对齐靠它 */
-  --ui-size-titlebar: 44px;
-  --ui-size-statusbar: 26px;
+  --ui-size-panel-header: 40px; /* 工作台三栏（资源管理器 / 终端标签 / AI 面板）第一条栏共用高度，三栏顶边靠它对齐 */
+  /* 外壳两条横带：这两个值此前只写在令牌里、界面上另有硬编码（40 / 24），
+     等于令牌是假的单源。现在按界面上的真值定，Workbench.css 改成引用令牌。 */
+  --ui-size-titlebar: 40px;
+  --ui-size-statusbar: 24px;
 
   /* 动效：微反馈 150ms / 状态切换 200ms / 入场 300ms */
   --ui-dur-fast: 150ms;
@@ -221,6 +224,7 @@
 
   /* 折叠预算：内容超高就走内滚，不撑破外壳 */
   --ui-collapse-max-composer: 240px;
+  --ui-size-composer-min: 88px; /* 输入框至少三行：空态也只给一行高的话，写长指令时整块在跳 */
   --ui-collapse-max-output: 150px;
   --ui-collapse-max-popover: 200px;
   --ui-collapse-max-command: 300px;

@@ -307,45 +307,18 @@
   height: 12px;
 }
 
-.ai-composer {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 10px;
-  background: var(--trae-bg-overlay-l1);
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: 8px;
-  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
+/* AI 面板第一栏：与左栏资源管理器、中栏终端标签条同高，三栏顶边才对得齐 */
+.ai-panel-header {
+  height: var(--ui-size-panel-header);
 }
 
-.ai-composer:focus-within {
-  border-color: var(--trae-border-brand);
-  box-shadow: 0 0 0 2px rgba(56, 123, 255, 0.15);
-}
-
-/* v2.5 修复：豁免全局 focus-visible 蓝框/蓝影（global.css *:focus-visible 与
-   Settings.css 泄漏规则）—— 输入态反馈由外层 .ai-composer:focus-within 承担，
-   内层 textarea 不应再叠一层突兀的蓝色矩形 */
-.ai-composer-textarea:focus,
-.ai-composer-textarea:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-.ai-composer-textarea {
-  width: 100%;
-  min-height: 20px;
-  max-height: 120px;
-  resize: none;
-  border: none;
+/* 输入态反馈由外层卡片（Composer.tsx 的 focus-within 工具类）承担，
+   这里只豁免全局 `*:focus-visible` 那圈蓝框——不再用 !important。
+   下面原来那 40 行 .ai-composer / .ai-composer-textarea 是改版前的死类（全仓无引用），
+   里面还压着 font-size:11px、max-height:120px，删掉后输入区改由令牌与工具类控制。 */
+.wb-aipanel textarea:focus-visible {
   outline: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 11px;
-  line-height: 1.5;
-  font-family: var(--ui-family-ui);
-  overflow-y: auto;
+  box-shadow: none;
 }
 
 /* ===== 动画 ===== */

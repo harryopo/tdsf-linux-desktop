@@ -95,6 +95,17 @@
   正文另起一个 `min-h-0 flex-1 overflow-y-auto` 的滚动容器。
   页面**不许自写 `<h1>`**（`tests/unit/ui-tokens.test.ts` 有静态闸；启动页字标是唯一例外）。
   自动化取标题用稳定钩子 `[data-dom-id="page-title"]`，不要再按页面各自的类名取。
+- **工作台三栏的第一条栏同高：`--ui-size-panel-header`（40px）**——左栏资源管理器头、中栏终端标签条、
+  右栏 AI 面板头都取这一个令牌。三栏顶边对齐只靠它；任何一栏自己写死 32px/44px 就会错开
+  （2026-10-08 用户指出右栏 `h-8` 与另两栏差 8px）。
+- **AI 输入框至少三行**：`--ui-size-composer-min`（88px，16px 字号三行）是空态下限，往上长到 `--ui-collapse-max-composer`（240px）为止。
+  快捷提示词那一排**不换行**（单行 + 横向滚动）：它一排挤成两行时，输入区就被压成一行高。
+- **外壳上下两条横带也走令牌**：`--ui-size-titlebar`（40px）与 `--ui-size-statusbar`（24px）。
+  这两个值曾只在令牌文件里写着 44/26，界面上另有硬编码，等于假单源（2026-10-09 核对后按界面真值定）。
+- **新增字阶档位要改两处**：`tailwind.css` 的 `@theme` 定义 + `components/trae/utils.ts` 的 `FONT_SIZE_TIERS` 登记。
+  漏第二处时 `cn('text-title text-ink')` 会把字号当颜色类吞掉，界面静默退回继承字号，源码看着完全正常
+  （`tests/unit/cn-font-size-merge.test.ts` 按效果断言，档位集合直接从 CSS 反查）。
+
 - 加载用骨架，不用内容区中央转圈（首屏与列表）；按钮内加载允许用 spinner + 文案改"提交中…"。
   区域级"转圈 + 一句话"统一用 `Spinner`，不引 antd `Spin`。
 - 空态必须教用户下一步（给按钮或一句话），不许只写"暂无数据"。

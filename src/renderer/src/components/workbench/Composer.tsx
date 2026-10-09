@@ -95,12 +95,18 @@ const Composer: FC<ComposerProps> = ({
   const ctxUsedTokens = tokenStats.today >= 1000 ? `${(tokenStats.today / 1000).toFixed(1)}K` : String(tokenStats.today)
   const ctxTotalTokens = '200K'
 
-  /** textarea auto-resize */
+  /**
+   * textarea auto-resize
+   *
+   * 上限与 --ui-collapse-max-composer 对齐（原来 JS 卡在 120px，比 CSS 的 240px 先撞顶，
+   * 于是"最大高度"这个令牌其实是假的）；下限交给 CSS 的 min-height（三行），
+   * 这里只负责"内容多了往上长"。
+   */
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`
   }, [input])
 
   // v2.6 修复断链：消费 injectedAtCommand —— 编辑器/终端「发送到 AI」浮层与
@@ -303,8 +309,9 @@ const Composer: FC<ComposerProps> = ({
           'hover:border-accent focus-within:border-accent focus-within:shadow-[0_0_0_1px_var(--accent)]'
         )}
       >
-        {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词 */}
-        <div className="flex flex-wrap items-center gap-1 border-b border-line px-2 py-1.5">
+        {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词
+            单行 + 横向滚动：这一排在 560px 面板里换行会把输入区挤成一行高（用户 2026-10-08 指出） */}
+        <div className="flex flex-nowrap items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5">
           <Button
             size="sm"
             variant={paor.isRunning ? 'selected' : 'ghost'}
@@ -344,7 +351,7 @@ const Composer: FC<ComposerProps> = ({
         <textarea
           id="ai-composer-input"
           ref={textareaRef}
-          rows={1}
+          rows={3}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onPaste={handlePaste}
@@ -357,7 +364,7 @@ const Composer: FC<ComposerProps> = ({
           placeholder="您正在与 Agent 聊天，输入 / 获取更多能力（Enter 发送，Shift+Enter 换行）"
           className={cn(
             'w-full resize-none bg-transparent px-3 py-2 text-composer leading-normal text-ink',
-            'max-h-(--ui-collapse-max-composer) overflow-y-auto outline-none',
+            'min-h-(--ui-size-composer-min) max-h-(--ui-collapse-max-composer) overflow-y-auto outline-none',
             'placeholder:text-ink-placeholder'
           )}
         />

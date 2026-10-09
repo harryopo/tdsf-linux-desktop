@@ -32,7 +32,7 @@ const AIPanelHeader: FC<AIPanelHeaderProps> = ({
       : { tone: 'neutral' as const, text: '就绪' }
 
   return (
-    <header className="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-line bg-panel px-2">
+    <header className="ai-panel-header flex shrink-0 items-center justify-between gap-2 border-b border-line bg-panel px-2">
       <div className="flex min-w-0 items-center gap-2">
         <Sparkles className="size-3.5 shrink-0 text-accent-ink" aria-hidden />
         <span className="truncate text-md font-semibold text-ink-strong">AI 运维助手</span>
