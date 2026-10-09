@@ -71,9 +71,16 @@ export class FileWatcherAdapter {
   private static instance: FileWatcherAdapter | null = null
   private watches: Map<string, WatchEntry> = new Map()
   private sshManager: SshConnectionManager
+  /** 取消会话关闭订阅（实例被丢弃时摘掉，别在单例上叠监听器） */
+  private offSessionClosed: () => void
 
   private constructor() {
     this.sshManager = SshConnectionManager.getInstance()
+    // 监听权属于会话：会话一断，这一路的轮询定时器/长连接就该收，
+    // 而不是等应用退出。stopAll() 只在退出时跑，断一次就漏一把 5 秒定时器。
+    this.offSessionClosed = this.sshManager.onSessionClosed((sessionId) => {
+      void this.stopForSession(sessionId)
+    })
   }
 
   public static getInstance(): FileWatcherAdapter {
@@ -81,6 +88,34 @@ export class FileWatcherAdapter {
       FileWatcherAdapter.instance = new FileWatcherAdapter()
     }
     return FileWatcherAdapter.instance
+  }
+
+  /** 当前活跃的监听（判据要看真实状态） */
+  public activeWatches(): Array<{ watchId: string; sessionId: string; path: string }> {
+    return Array.from(this.watches.values()).map((e) => ({
+      watchId: e.watchId,
+      sessionId: e.sessionId,
+      path: e.path,
+    }))
+  }
+
+  /**
+   * 停掉某个会话名下的全部监听
+   *
+   * @returns 实际停掉的数量
+   */
+  public stopForSession(sessionId: string): number {
+    const owned = Array.from(this.watches.values())
+      .filter((e) => e.sessionId === sessionId)
+      .map((e) => e.watchId)
+    for (const watchId of owned) this.stop(watchId)
+    return owned.length
+  }
+
+  /** 摘掉订阅并清空监听（实例真正不再使用时调用） */
+  public dispose(): void {
+    this.offSessionClosed()
+    this.stopAll()
   }
 
   /** 开始监听远程路径，返回 watchId */

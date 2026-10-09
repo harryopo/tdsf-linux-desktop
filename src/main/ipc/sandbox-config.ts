@@ -116,6 +116,27 @@ export function getRunner(): OpenHandsRunner {
 }
 
 /**
+ * 退出时收掉 OpenHands 容器（只在应用真的碰过沙箱时才动作）
+ *
+ * 容器是 `docker compose up -d` 起的后台进程：应用退出时不管它，
+ * 它就留在机器上一直占着端口和内存，用户下一次开是"起不来/端口被占"，
+ * 而不是"我上次关掉的容器"。
+ *
+ * @returns 一句话结论，供退出日志与判据读（没创建过 / 没在跑 / 已停止 / 停失败）
+ */
+export async function stopCachedRunner(): Promise<string> {
+  if (!cachedRunner) return '未创建沙箱实例，跳过'
+  try {
+    if (!(await cachedRunner.isRunning())) return '容器未在运行，无需停止'
+    await cachedRunner.stop()
+    return '容器已停止'
+  } catch (err) {
+    // 停不掉不能把退出流程卡死：这一步的失败由退出闸门记成"该步失败"，整体继续
+    throw new Error(`停止 OpenHands 容器失败：${(err as Error).message}`)
+  }
+}
+
+/**
  * 获取（惰性初始化）OpenHandsClient 单例
  */
 export function getClient(): OpenHandsClient {

@@ -25,7 +25,24 @@
 
 import { EventEmitter } from 'node:events'
 import { SshConnectionManager } from './connection-manager'
-import type { MonitorData, SystemInfo } from '@shared/models'
+import type { SessionClosedListener } from './connection-manager'
+import type { CommandResult, MonitorData, SystemInfo } from '@shared/models'
+
+/**
+ * 采集器依赖的 SSH 出口
+ *
+ * 只声明真用到的两件事：执行命令、订阅"会话没了"。
+ * 后者是这张网的关键——监控定时器属于会话，会话死了它就该停，
+ * 不该等应用退出或指望渲染层记得点"停止监控"。
+ */
+export interface SshCollectSource {
+  exec(
+    sessionId: string,
+    command: string,
+    onData?: (chunk: string, source: 'stdout' | 'stderr') => void,
+  ): Promise<CommandResult>
+  onSessionClosed(listener: SessionClosedListener): () => void
+}
 
 /** 监控数据事件名（实时指标推送） */
 export const MONITOR_DATA_EVENT = 'monitor:data'
@@ -58,17 +75,35 @@ const MIN_INTERVAL_MS = 1000
  * 支持多会话同时监控，每会话独立定时器。
  */
 export class SystemMonitor extends EventEmitter {
-  /** SSH 连接管理器实例 */
-  private readonly sshManager: SshConnectionManager
+  /** SSH 采集出口 */
+  private readonly sshManager: SshCollectSource
   /** 监控状态表：sessionId → MonitorState */
   private states: Map<string, MonitorState> = new Map()
+  /** 取消"会话关闭"订阅的函数（实例被丢弃时调用，别把监听器留在单例上） */
+  private readonly offSessionClosed: () => void
 
   /**
-   * @param sshManager SSH 连接管理器（默认使用单例）
+   * @param sshManager SSH 采集出口（默认使用 SshConnectionManager 单例）
    */
-  public constructor(sshManager?: SshConnectionManager) {
+  public constructor(sshManager?: SshCollectSource) {
     super()
     this.sshManager = sshManager ?? SshConnectionManager.getInstance()
+    // 会话没了就停这一路的定时器：断连入口有四处以上，逐个补 stop 迟早漏一个，
+    // 于是订阅点只有一个——所有权在会话上，不在页面上，也不在退出流程上。
+    this.offSessionClosed = this.sshManager.onSessionClosed((sessionId) => {
+      void this.stopMonitoring(sessionId)
+    })
+  }
+
+  /** 正在监控的会话（判据与诊断都要能看见真实状态，不能只看"没报错"） */
+  public monitoredSessions(): string[] {
+    return Array.from(this.states.keys())
+  }
+
+  /** 释放：停掉全部监控并摘掉订阅 */
+  public async dispose(): Promise<void> {
+    this.offSessionClosed()
+    await this.stopAll()
   }
 
   // ------------------------------------------------------------------

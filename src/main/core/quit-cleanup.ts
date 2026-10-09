@@ -17,6 +17,8 @@
  * 所以每步有独立超时、整体有硬上限，且任何异常路径最后都把状态置为 done（try/finally）。
  */
 
+import { callWithTimeout } from './with-timeout'
+
 /** 一步清理：name 会进日志，timeoutMs 缺省用引擎默认值 */
 export interface QuitStep {
   name: string
@@ -37,6 +39,10 @@ export interface QuitServices {
   disconnectSsh: () => unknown
   disconnectExternalMcp: () => unknown
   stopMcpServer: () => unknown
+  /** 摘掉 MCP 生命周期那把 1 秒轮询（不摘的话退出后事件循环还有活干） */
+  disposeMcpLifecycle: () => unknown
+  /** 停掉应用自己起的 OpenHands 容器（后台进程，不管它就留在机器上） */
+  stopOpenHands: () => unknown
   shutdownLangfuse: () => unknown
   cleanupScheduler: () => unknown
   cleanupSidecar: () => unknown
@@ -55,11 +61,15 @@ export interface QuitServices {
 export function buildQuitSteps(svc: QuitServices): QuitStep[] {
   return [
     { name: '关闭 sidecar', run: svc.cleanupSidecar, timeoutMs: 4000 },
+    // 容器和 sidecar 一样是"应用起的后台进程"，排在最前面：
+    // 一旦后面的 SSH 收尾吃光整体预算，留在那儿的就是关不掉的孤儿容器
+    { name: '停止 OpenHands 容器', run: svc.stopOpenHands, timeoutMs: 8000 },
     { name: '断开外部 MCP 客户端', run: svc.disconnectExternalMcp },
     { name: '停止文件监听', run: svc.stopFileWatchers },
     { name: '停止监控', run: svc.stopMonitoring },
     { name: '断开 SSH', run: svc.disconnectSsh },
     { name: '停止 MCP Server', run: svc.stopMcpServer },
+    { name: '摘除 MCP 生命周期轮询', run: svc.disposeMcpLifecycle },
     { name: '关闭 Langfuse（trace 落盘）', run: svc.shutdownLangfuse },
     { name: '清理调度器', run: svc.cleanupScheduler },
     { name: '解绑循环工程监听', run: svc.cleanupLoopEngineering },
@@ -88,34 +98,23 @@ export interface QuitCleanup {
   state: () => 'running' | 'done' | null
 }
 
-/** 带超时的 await：超时不抛错，只报"这一步花到了上限" */
+/**
+ * 带超时的 await：超时不抛错，只报"这一步花到了上限"
+ *
+ * 实现是共享的 `callWithTimeout`（退出流程与调度器共用一份）。
+ * 之前这里自己写了一份，调度器那边又写第二份的倾向已经出现——同一件事两处实现，
+ * 迟早一处记得清定时器、另一处忘记（残留 setTimeout 会钉住事件循环，退出反而更慢）。
+ */
 async function runWithTimeout(
   step: QuitStep,
   timeoutMs: number
 ): Promise<{ ok: boolean; ms: number; timedOut: boolean; error?: string }> {
-  const t0 = Date.now()
-  let timer: NodeJS.Timeout | undefined
-  const budget = new Promise<'超时'>((resolve) => {
-    timer = setTimeout(() => resolve('超时'), timeoutMs)
-  })
-  try {
-    const raced = await Promise.race([
-      Promise.resolve()
-        .then(() => step.run())
-        .then(() => '完成' as const),
-      budget,
-    ])
-    return { ok: raced === '完成', ms: Date.now() - t0, timedOut: raced === '超时' }
-  } catch (err) {
-    return {
-      ok: false,
-      ms: Date.now() - t0,
-      timedOut: false,
-      error: err instanceof Error ? err.message : String(err),
-    }
-  } finally {
-    // 必须清掉：残留定时器会把事件循环钉活，反而拖慢退出
-    if (timer) clearTimeout(timer)
+  const outcome = await callWithTimeout(step.run, timeoutMs)
+  return {
+    ok: outcome.ok,
+    ms: outcome.ms,
+    timedOut: outcome.timedOut,
+    ...(outcome.error ? { error: outcome.error } : {}),
   }
 }
 

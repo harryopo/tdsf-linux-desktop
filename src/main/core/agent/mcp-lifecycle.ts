@@ -108,9 +108,32 @@ export class McpLifecycleManager {
   /** 状态变更监听器 */
   private listeners: Set<McpStateListener> = new Set()
 
+  /** backoff 到期检查的定时器句柄（不存句柄就等于结构上永不退出） */
+  private backoffTimer: NodeJS.Timeout | null = null
+
   private constructor() {
     // 启动时检查 backoff 是否到期
-    setInterval(() => this.checkBackoffExpiry(), 1000)
+    this.backoffTimer = setInterval(() => this.checkBackoffExpiry(), 1000)
+  }
+
+  /**
+   * 释放：停掉每秒的 backoff 轮询并摘掉监听器
+   *
+   * 没有这一步时，这个 1 秒定时器会让进程在退出阶段一直有活干
+   * （单测里表现为事件循环被钉住；实际退出时也是白等一秒又一秒）。
+   * 幂等：重复调用只清一次。
+   */
+  dispose(): void {
+    if (this.backoffTimer) {
+      clearInterval(this.backoffTimer)
+      this.backoffTimer = null
+    }
+    this.listeners.clear()
+  }
+
+  /** 供判据读取：轮询定时器是否还挂着 */
+  isPolling(): boolean {
+    return this.backoffTimer !== null
   }
 
   static getInstance(): McpLifecycleManager {

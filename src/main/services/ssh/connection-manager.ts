@@ -25,6 +25,7 @@ import { assertCommandAllowed } from '../../core/command-gate'
 import { ConfigStore } from '../storage/config-store'
 import { AuditRepo } from '../db/audit-repo'
 import { DatabaseManager } from '../db/database'
+import { logger } from '../log/logger'
 import type {
   SshConfig,
   CommandResult,
@@ -34,6 +35,15 @@ import type {
   SshHostKeyResponseAction,
 } from '@shared/models'
 import { createHostVerifier } from './known-hosts'
+import { SessionQueue } from './session-queue'
+
+/**
+ * 单个串行操作的预算（毫秒）
+ *
+ * 连接本身有 30s 超时，断开/重连是本地动作，30s 足够；
+ * 有预算的意义是"卡死的一步不能把这个会话永久钉住"。
+ */
+const LOCK_OP_TIMEOUT_MS = 30_000
 
 /** 单个 SSH 会话的内部条目 */
 interface SessionEntry {
@@ -55,11 +65,29 @@ interface SessionEntry {
   shellCallbacks: Array<(data: string) => void>
   /** keepAlive 心跳定时器句柄 */
   keepAliveTimer: NodeJS.Timeout | null
-  /** 连接锁：非空表示有正在进行的连接/断开操作 */
-  pendingOp: Promise<unknown> | null
   /** 标记是否正在重连（防止重连期间重复触发心跳失败处理） */
   reconnecting: boolean
+  /**
+   * 本轮连接是否已经通知过"会话关闭"
+   *
+   * 远端 close 与本地 disconnect 会先后到（ssh2 的 close 事件在 client.end() 后也会来），
+   * 重复通知虽不致命，但会让"清理时打印一行日志"变成噪音；连接成功后复位，
+   * 于是重连成功的那一轮又能正常报一次。
+   */
+  closeNotified: boolean
 }
+
+/** 会话关闭的原因（回收资源时如实带出，便于日志定位是谁先动的） */
+export type SessionCloseReason = 'disconnect' | 'remote-close' | 'reconnect-failed'
+
+/**
+ * 会话关闭订阅者
+ *
+ * 会话级资源（监控定时器、文件监听、告警去抖、主机名缓存）的所有者在这里回收自己，
+ * 而不是等应用退出或指望渲染层记得点"停止"。断连入口有四处以上，
+ * 逐个补 stop 迟早漏一个——那正是这轮改之前每断一次就泄漏一个永久定时器的原因。
+ */
+export type SessionClosedListener = (sessionId: string, reason: SessionCloseReason) => void
 
 /** 默认连接超时（毫秒） */
 const DEFAULT_CONNECT_TIMEOUT_MS = 30_000
@@ -140,6 +168,20 @@ export class SshConnectionManager {
   private stateChangeCallbacks: Array<(event: SshStateEvent) => void> = []
 
   /**
+   * 会话关闭订阅者（会话级资源的所有者在这里回收）
+   *
+   * 与 stateChangeCallbacks 的区别：状态事件是给界面看的（可丢、可迟到），
+   * 关闭事件是给资源用的（漏一次就是一把永久空转的定时器）。
+   */
+  private sessionClosedListeners: SessionClosedListener[] = []
+
+  /** 会话操作串行队列（取代原先那把会被别人清零的 pendingOp 锁） */
+  private readonly queue = new SessionQueue({
+    opTimeoutMs: LOCK_OP_TIMEOUT_MS,
+    onEvent: (key, message) => logger.warn('SSH', `会话 ${key} 队列：${message}`),
+  })
+
+  /**
    * 主机密钥确认回调（Phase L）
    *
    * IPC 层通过 setHostKeyConfirmHandler 注册，当 hostVerifier 检测到
@@ -203,8 +245,8 @@ export class SshConnectionManager {
       shell: null,
       shellCallbacks: [],
       keepAliveTimer: null,
-      pendingOp: null,
       reconnecting: false,
+      closeNotified: false,
     }
     // 提前占位，避免后续操作找不到会话
     this.sessions.set(sessionId, entry)
@@ -471,6 +513,47 @@ export class SshConnectionManager {
   }
 
   /**
+   * 订阅"某会话已关闭"
+   *
+   * 用法：持有会话级资源的模块（监控、文件监听、告警缓存）在自己的实例化处订阅一次，
+   * 回调里按 sessionId 清干净。返回的取消函数供实例销毁时使用。
+   */
+  public onSessionClosed(listener: SessionClosedListener): () => void {
+    this.sessionClosedListeners.push(listener)
+    return () => {
+      const idx = this.sessionClosedListeners.indexOf(listener)
+      if (idx >= 0) {
+        this.sessionClosedListeners.splice(idx, 1)
+      }
+    }
+  }
+
+  /**
+   * 通知所有订阅者：这个会话没了
+   *
+   * 每个监听器单独 try/catch：一个清理逻辑抛错不能把后面的邻居一起带走，
+   * 更不能让"关闭会话"这件事本身失败（旧实现里这类异常会直接冒到 IPC 层）。
+   */
+  private notifySessionClosed(sessionId: string, reason: SessionCloseReason): void {
+    const entry = this.sessions.get(sessionId)
+    if (entry) {
+      if (entry.closeNotified) return
+      entry.closeNotified = true
+    }
+    for (const listener of [...this.sessionClosedListeners]) {
+      try {
+        listener(sessionId, reason)
+      } catch (err) {
+        logger.error('SSH', '会话关闭监听器抛错', {
+          sessionId,
+          reason,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+  }
+
+  /**
    * 获取会话连接状态
    * @param sessionId 会话 ID
    * @returns 连接状态（会话不存在返回 'disconnected'）
@@ -530,6 +613,8 @@ export class SshConnectionManager {
         clearTimeout(timer)
         entry.state = 'connected'
         entry.lastUsedAt = Date.now()
+        // 新一轮连接：允许它再报一次"会话关闭"（上一轮已经报过了）
+        entry.closeNotified = false
         this.startKeepAlive(entry)
         auditSsh('SSH 连接建立', config, entry.sessionId, true)
         resolve()
@@ -600,6 +685,10 @@ export class SshConnectionManager {
         if (entry.client === client) {
           entry.state = 'disconnected'
           entry.shell = null
+          // 远端断链（网络掉、服务器重启、被踢）也是一次"会话没了"：
+          // 监控与文件监听必须在这里收手，否则它们的定时器会朝着死连接一直 exec，
+          // 抛出的错被空 catch 吞掉，界面上还留着最后一帧指标当"实时数据"。
+          this.notifySessionClosed(entry.sessionId, 'remote-close')
           break
         }
       }
@@ -626,6 +715,9 @@ export class SshConnectionManager {
     }
     entry.state = 'disconnected'
     this.sessions.delete(sessionId)
+    // 会话表里没了这条，队列也一并丢掉：还排在后面的操作会立刻拿到"会话不存在"
+    this.queue.forget(sessionId)
+    this.notifySessionClosed(sessionId, 'disconnect')
   }
 
   /**
@@ -721,6 +813,10 @@ export class SshConnectionManager {
       reason: `重连 ${RECONNECT_MAX_ATTEMPTS} 次均失败（${reason}）`,
       attemptCount: RECONNECT_MAX_ATTEMPTS,
     })
+    // 这是最后一条"这个会话还能用"的指望：通知资源所有者收手。
+    // 不通知的话，监控/文件监听的定时器会朝着一个死连接一直 exec，
+    // 抛出的错被空 catch 吞掉，界面上还留着最后一帧"实时"指标。
+    this.notifySessionClosed(entry.sessionId, 'reconnect-failed')
   }
 
   /**
@@ -873,24 +969,16 @@ export class SshConnectionManager {
   /**
    * 连接锁：确保对同一会话的连接/断开操作串行
    *
-   * 把待执行操作挂在前一个 pendingOp 之后。即使前一个操作失败，
-   * 后续操作仍会执行。
+   * 实现搬给 SessionQueue。旧写法在这里干这件事：
+   *   entry.pendingOp = next.then(() => { entry.pendingOp = null })
+   * 而前一个操作的 wrapper 收尾时清掉的是**别人**刚登记的队尾，
+   * 于是第三个操作立刻并发跑（实测最大并发 2，串行化名存实亡）。
+   * 现在队尾只由自己那一步负责，并且每步带预算，卡死的操作不会把这个会话钉住。
    */
   private runWithLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
-    const entry = this.sessions.get(sessionId)
-    if (!entry) {
+    if (!this.sessions.has(sessionId)) {
       return Promise.reject(new Error(`会话不存在: ${sessionId}`))
     }
-    const prev = entry.pendingOp ?? Promise.resolve()
-    const next = prev.then(() => fn(), () => fn())
-    entry.pendingOp = next.then(
-      () => {
-        entry.pendingOp = null
-      },
-      () => {
-        entry.pendingOp = null
-      }
-    )
-    return next
+    return this.queue.run(sessionId, fn, LOCK_OP_TIMEOUT_MS)
   }
 }

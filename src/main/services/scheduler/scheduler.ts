@@ -26,6 +26,15 @@
 import { EventEmitter } from 'node:events'
 import { getNextRun } from './cron-parser'
 import { logger } from '../../core/logger'
+import { callWithTimeout } from '../../core/with-timeout'
+
+/**
+ * 单个任务 handler 的执行预算（毫秒）
+ *
+ * 每日巡检/归档这类任务本来就在分钟级，给 10 分钟足够宽；
+ * 真正的意义是"必须有上限"——没有上限时一个卡住的 handler 会永久占住这个任务。
+ */
+const TASK_HANDLER_TIMEOUT_MS = 10 * 60 * 1000
 import type {
   SchedulerTask,
   SchedulerTaskId,
@@ -314,66 +323,102 @@ export class Scheduler extends EventEmitter {
     const taskId = entry.task.id
     entry.running = true
 
-    // 1. 推送 task-start 事件
-    const startPayload: SchedulerTaskStartPayload = { id: taskId, startedAt }
-    this.emit('task-start', startPayload)
-    logger.info(`[Scheduler] 任务开始: ${taskId}`)
-
-    // 2. 执行 handler（异常兜底）
-    let result: TaskResult
+    // 复位放在 finally：旧写法把 `running = false` 写在最后一行，
+    // 中间任何一步抛错（包括 emit 时某个监听器抛错）都会把它永久留在 true，
+    // 于是 tick 里的 `if (entry.running) continue` 从此每次都跳过这个任务，
+    // 而且一条 task-error 日志都没有——任务静默死亡。
     try {
-      const raw = await entry.task.handler()
-      // handler 返回的 durationMs 可能不准（含 await 调度延迟），用实际耗时覆盖
-      result = { ...raw, durationMs: Date.now() - startedAt }
-    } catch (e) {
-      const err = e as Error
-      result = {
-        success: false,
-        summary: `任务异常: ${err.message}`,
-        error: err.message,
-        durationMs: Date.now() - startedAt,
-      }
-    }
+      // 1. 推送 task-start 事件（监听器抛错不能拖垮任务本身）
+      this.safeEmit('task-start', { id: taskId, startedAt } as SchedulerTaskStartPayload)
+      logger.info(`[Scheduler] 任务开始: ${taskId}`)
 
-    // 3. 更新运行时状态
-    entry.lastRunAt = startedAt
-    entry.lastResult = result
-
-    // 4. 重算 nextRunAt（cron 表达式变更或闰年导致失效时降级为 null）
-    if (entry.task.enabled) {
-      try {
-        const tz = entry.task.timezone || this.timezone
-        const next = getNextRun(entry.task.cron, new Date(), tz)
-        entry.nextRunAt = next.getTime()
-      } catch (e) {
+      // 2. 执行 handler：带预算 + 异常兜底
+      //    旧写法只 catch 不超时，一个卡在 await 上的 handler 会永久占住这个任务
+      const outcome = await callWithTimeout(
+        () => entry.task.handler(),
+        TASK_HANDLER_TIMEOUT_MS
+      )
+      let result: TaskResult
+      if (outcome.timedOut) {
+        result = {
+          success: false,
+          summary: `任务超时（预算 ${TASK_HANDLER_TIMEOUT_MS}ms）`,
+          // 带上"任务超时"前缀：原始那串只说"超过 X ms 未完成"，落到 task-error 事件里没人知道是谁
+          error: `任务超时：${outcome.error ?? `超过 ${TASK_HANDLER_TIMEOUT_MS}ms 未完成`}`,
+          durationMs: Date.now() - startedAt,
+        }
         logger.error(
-          `[Scheduler] 任务 ${taskId} cron 重算失败: ${(e as Error).message}`
+          `[Scheduler] 任务超时: ${taskId} — 预算 ${TASK_HANDLER_TIMEOUT_MS}ms 用尽，本轮放弃`
         )
+      } else if (outcome.ok) {
+        // handler 返回的 durationMs 可能不准（含 await 调度延迟），用实际耗时覆盖
+        result = { ...(outcome.value as TaskResult), durationMs: Date.now() - startedAt }
+      } else {
+        result = {
+          success: false,
+          summary: `任务异常: ${outcome.error}`,
+          error: outcome.error ?? '未知异常',
+          durationMs: Date.now() - startedAt,
+        }
+      }
+
+      // 3. 更新运行时状态
+      entry.lastRunAt = startedAt
+      entry.lastResult = result
+
+      // 4. 重算 nextRunAt（cron 表达式变更或闰年导致失效时降级为 null）
+      if (entry.task.enabled) {
+        try {
+          const tz = entry.task.timezone || this.timezone
+          const next = getNextRun(entry.task.cron, new Date(), tz)
+          entry.nextRunAt = next.getTime()
+        } catch (e) {
+          logger.error(
+            `[Scheduler] 任务 ${taskId} cron 重算失败: ${(e as Error).message}`
+          )
+          entry.nextRunAt = null
+        }
+      } else {
         entry.nextRunAt = null
       }
-    } else {
-      entry.nextRunAt = null
-    }
 
-    // 5. 推送 task-done / task-error 事件
-    if (result.success) {
-      const donePayload: SchedulerTaskDonePayload = { id: taskId, result }
-      this.emit('task-done', donePayload)
-      logger.info(
-        `[Scheduler] 任务完成: ${taskId} (${result.durationMs}ms) - ${result.summary}`
-      )
-    } else {
-      const errPayload: SchedulerTaskErrorPayload = {
-        id: taskId,
-        error: result.error || result.summary,
-        result,
+      // 5. 推送 task-done / task-error 事件
+      if (result.success) {
+        this.safeEmit('task-done', { id: taskId, result } as SchedulerTaskDonePayload)
+        logger.info(
+          `[Scheduler] 任务完成: ${taskId} (${result.durationMs}ms) - ${result.summary}`
+        )
+      } else {
+        this.safeEmit('task-error', {
+          id: taskId,
+          error: result.error || result.summary,
+          result,
+        } as SchedulerTaskErrorPayload)
+        logger.error(`[Scheduler] 任务失败: ${taskId} - ${result.error || result.summary}`)
       }
-      this.emit('task-error', errPayload)
-      logger.error(`[Scheduler] 任务失败: ${taskId} - ${errPayload.error}`)
-    }
 
-    entry.running = false
-    return result
+      return result
+    } finally {
+      entry.running = false
+    }
+  }
+
+  /**
+   * 广播事件，且不让监听器的异常回流到调度主流程
+   *
+   * EventEmitter 的 emit 是同步的：任一监听器抛错，就会从 emit 现场抛回 runTask，
+   * 旧实现因此会跳过最后的 running 复位（任务永久卡死）。监听器异常在这里单独记日志。
+   */
+  private safeEmit(event: string, payload: unknown): void {
+    for (const listener of this.listeners(event)) {
+      try {
+        (listener as (p: unknown) => void)(payload)
+      } catch (e) {
+        logger.error(
+          `[Scheduler] 事件监听器抛错（不影响任务）: ${event} - ${(e as Error).message}`
+        )
+      }
+    }
   }
 }
 

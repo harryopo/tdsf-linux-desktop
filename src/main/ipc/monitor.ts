@@ -16,6 +16,7 @@
 import { ipcMain, BrowserWindow, Notification } from 'electron'
 import { MONITOR } from '@shared/ipc-channels'
 import { SystemMonitor } from '../services/ssh/monitor'
+import { SshConnectionManager } from '../services/ssh/connection-manager'
 import type { MonitorData, SystemInfo } from '@shared/models'
 // v2.9 告警自动检测：阀值评估纯函数 + 去抖
 import {
@@ -38,9 +39,41 @@ const MONITOR_ALERT_CHANNEL = 'monitor:alert'
 /** SystemMonitor 单例（整个应用共享一个实例） */
 let monitorInstance: SystemMonitor | null = null
 
-/** 告警去抖状态（dedupeKey → 上次通知时间）；主机名缓存供通知标题用 */
+/** 告警去抖状态（`sessionId:metric:level` → 上次通知时间）；主机名缓存供通知标题用 */
 const alertLastFired = new Map<string, number>()
 const sessionHostnames = new Map<string, string>()
+
+/**
+ * 告警去抖判定（按会话分别去抖）
+ *
+ * 键里必须带 sessionId：原来只有 `metric:level`，于是 A 机报了 CPU 告警之后 5 分钟内，
+ * B 机同样的告警会被 A 机的冷却窗静默吞掉——用户看到的是"只有一台报警"，
+ * 而事实是两台都超阈值。
+ *
+ * @returns true=该通知；false=同一会话的同一指标还在冷却窗内
+ */
+export function shouldFireAlert(sessionId: string, dedupeKey: string, now: number): boolean {
+  return shouldNotify(`${sessionId}:${dedupeKey}`, now, alertLastFired)
+}
+
+/** 摘掉某个会话名下的告警去抖记录与主机名
+ *
+ * 去抖键原本只有 `metric:level`，两台机器同时高 CPU 时第二台的告警会被第一台的
+ * 冷却窗静默吞掉；键里带上 sessionId 之后，按会话剪枝也才有意义（否则这张表只随
+ * 指标数量增长，看不出泄漏，实际却会把新会话的告警吃掉）。
+ */
+export function pruneSessionAlertState(sessionId: string): void {
+  sessionHostnames.delete(sessionId)
+  const prefix = `${sessionId}:`
+  for (const key of Array.from(alertLastFired.keys())) {
+    if (key.startsWith(prefix)) alertLastFired.delete(key)
+  }
+}
+
+/** 供判据读取：当前有多少条告警去抖记录、哪些会话留有主机名 */
+export function alertStateSnapshot(): { dedupeEntries: number; hostnameSessions: string[] } {
+  return { dedupeEntries: alertLastFired.size, hostnameSessions: [...sessionHostnames.keys()] }
+}
 
 /** 读取告警阀值配置（设置页 monitor.threshold.*，缺省回退默认值） */
 function readThresholds(): AlertThresholds {
@@ -64,6 +97,11 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
   // 全局单例：所有监控会话共享一个 SystemMonitor
   if (!monitorInstance) {
     monitorInstance = new SystemMonitor()
+    // 会话关掉时清掉 IPC 层自己那两份状态（监控定时器由 SystemMonitor 自己回收）。
+    // 订阅放在实例创建处，只挂一次；断连入口再多也不会漏。
+    SshConnectionManager.getInstance().onSessionClosed((sessionId) => {
+      pruneSessionAlertState(sessionId)
+    })
   }
   const monitor = monitorInstance
 
@@ -80,7 +118,8 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
       const alerts = evaluateAlerts(data, thresholds, hostname)
       const now = Date.now()
       for (const alert of alerts) {
-        if (!shouldNotify(alert.dedupeKey, now, alertLastFired)) continue
+        // 去抖按会话分别计（见上面 pruneSessionAlertState 的说明）
+        if (!shouldFireAlert(sessionId, alert.dedupeKey, now)) continue
         // 系统通知（支持时才弹）
         if (Notification.isSupported()) {
           new Notification({ title: alert.title, body: alert.body }).show()

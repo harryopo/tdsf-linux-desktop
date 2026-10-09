@@ -245,10 +245,3 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * 默认 Runner 实例（使用内置 docker-compose.yml）
- *
- * 注意：在生产环境下，compose 文件会被打包到 resourcesPath，
- *      需在 main/index.ts 启动时根据 process.resourcesPath 重建实例。
- */
-export const defaultOpenHandsRunner = new OpenHandsRunner()

@@ -34,6 +34,9 @@ import { initScheduler, cleanupScheduler } from './ipc/scheduler'
 // D3：退出时清理 sidecar 与循环工程（以前只挂 global 从未被调用）
 import { cleanupSidecar } from './ipc/sidecar'
 import { cleanupLoopEngineering } from './ipc/loop-engineering'
+// S4：MCP 生命周期的 1 秒轮询、应用自己起的 OpenHands 容器，退出时都要有人收
+import { McpLifecycleManager } from './core/agent/mcp-lifecycle'
+import { stopCachedRunner } from './ipc/sandbox-config'
 // R0：启动阶段推送。此前只有 ipc-ready 被推过，done 从来没人发，
 //     渲染层的"就绪"完全依赖动画节拍，窗口被遮挡时就卡死在启动页。
 import { pushBootLoadingStage } from './ipc/boot'
@@ -236,6 +239,12 @@ const quitCleanup = createQuitCleanup({
       stopMonitoring: () => stopAllMonitoring(),
       disconnectSsh: () => SshConnectionManager.getInstance().disconnectAll(),
       stopMcpServer: () => McpServerService.getInstance().stop(),
+      // MCP 生命周期管理器自己挂着 1 秒的 backoff 轮询定时器，以前没人停它：
+      // 退出之后事件循环上还有活干，等于白等（它的 dispose 就是为这一步加的）
+      disposeMcpLifecycle: () => McpLifecycleManager.getInstance().dispose(),
+      // OpenHands 容器是 `docker compose up -d` 起的后台进程，
+      // 退出时不管它就留在机器上占端口，用户下次遇到的是"起不来"而不是"我关掉了"
+      stopOpenHands: () => stopCachedRunner(),
       shutdownLangfuse: () => LangfuseService.getInstance().shutdown(),
       cleanupScheduler: () => cleanupScheduler(),
       cleanupLoopEngineering: () => cleanupLoopEngineering(),
