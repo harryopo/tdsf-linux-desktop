@@ -95,6 +95,12 @@ test.describe('视觉基线对比', () => {
 
   for (const shot of SHOTS) {
     test(`视觉 ${shot.key}`, async () => {
+      // 逐条查基线，不能只看"本机至少有一条"：少的那一条会被 Playwright 顺手生成并当场判绿，
+      // 而基线目录在 .gitignore 第 86 行里，别的机器上根本没有对照物。
+      if (!hasBaseline(shot.key)) {
+        console.log(`[visual] 跳过 ${shot.key}：本机没有这条基线（基线未入库，生成用 --update-snapshots）`)
+        test.skip(true, `本机没有 ${shot.key} 的基线，没有可比对象`)
+      }
       await page.evaluate((hash) => {
         window.location.hash = hash
       }, shot.hash)

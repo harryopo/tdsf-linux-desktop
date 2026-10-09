@@ -23,7 +23,9 @@ async function gotoRoute(window: Page, hash: string, ready: string) {
   await window.evaluate((h) => {
     window.location.hash = h
   }, hash)
-  await window.waitForSelector(ready, { timeout: 15000 }).catch(() => {})
+  // 原先这里挂了 .catch(() => {})：等待失败也当没事，于是"页面选择器写错了"
+  // 会被静默吞掉，截图照样生成、用例照样绿 —— 测了等于没测。改成真失败。
+  await window.waitForSelector(ready, { timeout: 15000 })
   await window.waitForTimeout(1500)
 }
 
@@ -56,7 +58,7 @@ testOrSkip('逐页截图 + 知识库真实内容断言', async () => {
   await gotoRoute(window, '#/workbench', '.wb-main-layout')
   await window.screenshot({ path: path.join(SHOT_DIR, 'workbench.png'), fullPage: true })
 
-  await gotoRoute(window, '#/monitor', '.mon-main')
+  await gotoRoute(window, '#/monitor', '[data-dom-id="page-title"]')
   await window.screenshot({ path: path.join(SHOT_DIR, 'monitor.png'), fullPage: true })
 
   await gotoRoute(window, '#/tutorial', 'main, body')

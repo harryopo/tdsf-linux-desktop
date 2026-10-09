@@ -15,6 +15,7 @@ import type { Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
 import { e2eProfileDir, tcpReachable } from './ssh-fixture-helpers'
+import { probeKey } from './provider-probe'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -44,6 +45,9 @@ fs.mkdirSync(SHOT_DIR, { recursive: true })
 testOrSkip('UI 发送诊断消息 → 真实 ssh_readonly 调用 → 执行卡片在对话里渲染', async () => {
   const up = await tcpReachable(SSH?.host ?? '', SSH?.port ?? 22)
   test.skip(!up, `靶机 ${SSH?.host}:${SSH?.port} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
+  // 同上：先探 Key 通不通，不通就带原因跳过（别把环境缺东西演成产品坏了）
+  const probe = await probeKey(AI!)
+  test.skip(!probe.ok, `缺一条能用的模型 Key：${probe.detail}`)
   test.setTimeout(180_000)
   const app = await electron.launch({
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
@@ -132,7 +136,7 @@ testOrSkip('UI 发送诊断消息 → 真实 ssh_readonly 调用 → 执行卡�
     window.location.hash = '#/workbench'
   })
   await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-  const composer = window.locator('.ai-composer-textarea')
+  const composer = window.locator('#ai-composer-input')
   if (!(await composer.isVisible().catch(() => false))) {
     await window.locator('[data-dom-id="btn-toggle-ai"]').click()
     await composer.waitFor({ state: 'visible', timeout: 5000 })

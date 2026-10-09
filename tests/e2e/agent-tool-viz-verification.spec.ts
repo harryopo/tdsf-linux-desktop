@@ -14,6 +14,7 @@ import type { Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
 import { e2eProfileDir, tcpReachable } from './ssh-fixture-helpers'
+import { probeKey } from './provider-probe'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -43,6 +44,10 @@ fs.mkdirSync(SHOT_DIR, { recursive: true })
 testOrSkip('Agent 真实调用 ssh_readonly → agent:tool-event 回流 + 可视化', async () => {
   const up = await tcpReachable(SSH?.host ?? '', SSH?.port ?? 22)
   test.skip(!up, `靶机 ${SSH?.host}:${SSH?.port} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
+  // 文件里有 apiKey ≠ 这把 key 能用。先探一次，401/不通就带原因跳过，
+  // 别把"环境缺东西"演成"产品流式层坏了"（2026-10-09 实测：这把 key 被 DeepSeek 拒 401，本条却开跑并红了）
+  const probe = await probeKey(AI!)
+  test.skip(!probe.ok, `缺一条能用的模型 Key：${probe.detail}`)
   test.setTimeout(180_000)
   const app = await electron.launch({
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],

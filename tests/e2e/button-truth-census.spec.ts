@@ -257,8 +257,15 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
         continue
       }
 
-      await window.waitForTimeout(500)
-      const after = await snapshot(window)
+      // 看出反应为止，最多再等 2.5 秒。固定 500ms 窗口在并行跑（同机 6 个 Electron 实例抢 CPU）下
+      // 会把"慢半拍的真反应"报成假按钮：全量跑一次报出 16 个点不下去，单跑同样的按钮 0 个。
+      // 判据本身没放松——真没反应的按钮等满 2.5 秒照样是 none。
+      let after = await snapshot(window)
+      for (let waited = 0; waited < 2500; waited += 150) {
+        if (after.hash !== before.hash || after.mut > before.mut) break
+        await window.waitForTimeout(150)
+        after = await snapshot(window)
+      }
 
       // 焦点信号只认"焦点被交给了别的元素"。点任何按钮都会把焦点落在这个按钮自身上，
       // 若按 before/after 的焦点差异来判，每个死按钮都会被判成有反应——门禁就废了。

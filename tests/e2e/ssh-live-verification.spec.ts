@@ -215,15 +215,20 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     await window.waitForTimeout(5000)
 
     // 进监控页截图（此时应有真实数据，而非"未连接服务器"占位）
+    // 旧版这里等 .mon-main —— 阶段 F 改版后监控页根元素改成通用 <main>，
+    // 那个类名界面根本不会渲染出来，用例是在等一个不存在的元素（死选择器）。
+    // 改用全站统一钩子 page-title，并核对标题确实是监控页。
     await window.evaluate(() => {
       window.location.hash = '#/monitor'
     })
-    await window.waitForSelector('.mon-main', { timeout: 15000 })
+    await window.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    const monTitle = await window.locator('[data-dom-id="page-title"]').textContent()
+    expect(monTitle?.trim(), '当前页应是实时监控').toBe('实时监控')
     await window.waitForTimeout(3000)
     await window.screenshot({ path: path.join(SHOT_DIR, 'monitor-live.png'), fullPage: true })
 
     // 断言监控页确实认到了会话（不再显示"未连接服务器"占位）
-    const monText = await window.locator('.mon-main').innerText()
+    const monText = await window.locator('main').first().innerText()
     expect(monText, '监控页不应再显示未连接占位').not.toContain('未连接 SSH 服务器')
 
     await app.close()

@@ -19,22 +19,13 @@
 import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import { loadAiCred, probeKey } from './provider-probe'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
 
-/** 读取 AI 凭据（不写死进代码） */
-function loadAiCred(): { providerId: string; model: string; baseURL: string; apiKey: string } | null {
-  const f = path.join(__dirname, '.ai-credentials.local.json')
-  if (!fs.existsSync(f)) return null
-  try {
-    return JSON.parse(fs.readFileSync(f, 'utf-8'))
-  } catch {
-    return null
-  }
-}
-
-const CRED = loadAiCred()
+/** 凭据读取与 Key 探针都在 provider-probe.ts（三条要真模型的 spec 共用，别再各写一份） */
+const CRED = loadAiCred(__dirname)
 const canRun = BUILD_READY && !!CRED?.apiKey
 const testOrSkip = canRun ? test : test.skip
 
@@ -42,45 +33,8 @@ const SHOT_DIR = path.join(__dirname, 'screenshots-ai')
 fs.mkdirSync(SHOT_DIR, { recursive: true })
 
 /**
- * 用 1 个 token 探一次服务端认不认这把 Key。
- * 只回状态与错误类别，不把 Key 或响应原文带进测试报告。
+ * ai-chat-live 的真实链路验证（Key 探针见 provider-probe.ts）
  */
-async function probeKey(cred: {
-  baseURL: string
-  model: string
-  apiKey: string
-}): Promise<{ ok: boolean; detail: string }> {
-  try {
-    const res = await fetch(`${cred.baseURL.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${cred.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: cred.model,
-        messages: [{ role: 'user', content: 'hi' }],
-        max_tokens: 1,
-        stream: false,
-      }),
-      signal: AbortSignal.timeout(20_000),
-    })
-    if (res.ok) return { ok: true, detail: `HTTP ${res.status}` }
-    let kind = ''
-    try {
-      const j = (await res.json()) as { error?: { code?: string; type?: string } }
-      kind = j.error?.code || j.error?.type || ''
-    } catch {
-      // 响应不是 JSON 就没有类别可报，状态码本身够用
-    }
-    return { ok: false, detail: `HTTP ${res.status}${kind ? ` ${kind}` : ''}，模型名 ${cred.model}` }
-  } catch (err) {
-    return {
-      ok: false,
-      detail: `请求都没发出去（${err instanceof Error ? err.name : 'unknown'}），多半是不通网或地址不对`,
-    }
-  }
-}
 
 testOrSkip('AI 对话真实流式：发送极短消息，真实回复必须流式上屏', async () => {
   // 先探一把 Key 到底通不通：文件里有 apiKey 不等于这把 Key 有效。

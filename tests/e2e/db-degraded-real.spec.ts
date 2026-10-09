@@ -10,8 +10,10 @@
  * 而库路径就是 `<userData>/tdsf.db`。把那个位置提前建成一个**目录**，
  * sqlite 以读写方式打开目录必然失败（SQLITE_CANTOPEN）——不用改代码、不用装补丁、不动 node_modules。
  *
- * 顺带把主进程日志从第一行就接住（stdio pipe）：降级必须在主进程里留下痕迹，
- * 只在界面弹个红条而主进程一声不响，运维查不到原因。
+ * 主进程留没留话，判据读**日志文件**（`<userData>/logs/app-*.log`）：
+ * stdout 只能靠 launch 之后挂 listener，早于 listener 的头几行会丢（并行跑时实测丢过，
+ * 而恰恰是启动阶段那几条最关键）。这一档目录是本轮新建的（上面刚 rm 过），所以文件里的内容
+ * 就是这一轮的，不需要再做增量基线。
  */
 import { test, expect, _electron as electron } from '@playwright/test'
 import fs from 'node:fs'
@@ -23,13 +25,24 @@ const BANNER = '.db-degraded-banner'
 
 const testOrSkip = FIXTURE_READY ? test : test.skip
 
-/** 等主进程日志里出现某个片段（超时返回 false，由调用方决定判红还是打印） */
-async function waitLog(lines: string[], needle: RegExp, timeoutMs = 8000): Promise<string | null> {
+/**
+ * 等主进程**日志文件**里出现某个片段（超时返回 null，由调用方决定判红还是打印）。
+ * stdout 那份仍在收，但只当补充线索：早于 listener 的头几行会丢，而降级那几条恰恰在启动头几行里。
+ */
+async function waitLogFile(logsDir: string, needle: RegExp, timeoutMs = 15000): Promise<string | null> {
   const until = Date.now() + timeoutMs
   while (Date.now() < until) {
-    const hit = lines.find((l) => needle.test(l))
-    if (hit) return hit
-    await new Promise((r) => setTimeout(r, 100))
+    if (fs.existsSync(logsDir)) {
+      for (const f of fs.readdirSync(logsDir)) {
+        if (!/^app-.*\.log$/.test(f)) continue
+        const hit = fs
+          .readFileSync(path.join(logsDir, f), 'utf8')
+          .split(/\r?\n/)
+          .find((l) => needle.test(l))
+        if (hit) return hit
+      }
+    }
+    await new Promise((r) => setTimeout(r, 200))
   }
   return null
 }
@@ -42,11 +55,13 @@ testOrSkip('真应用：数据库打不开时必须出横幅、主进程必须�
   fs.mkdirSync(path.join(profile, 'tdsf.db'), { recursive: true })
 
   const logLines: string[] = []
+  const logsDir = path.join(profile, 'logs')
   const app = await electron.launch({
     args: [MAIN_ENTRY, `--user-data-dir=${profile}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
     stdio: 'pipe',
   })
+  // 收着但不当判据：不接走的话管道写满会把子进程写日志堵住
   app.process().stdout?.setEncoding('utf8')
   app.process().stdout?.on('data', (chunk: string) => {
     for (const l of chunk.split(/\r?\n/)) if (l.trim()) logLines.push(l)
@@ -94,9 +109,15 @@ testOrSkip('真应用：数据库打不开时必须出横幅、主进程必须�
     await expect(page.locator('.wb-main-layout')).toBeVisible()
     await expect(page.locator('.wb-aipanel, .term-editor-area, .wb-filetree').first()).toBeVisible()
 
-    // 主进程必须留话（运维只看到红条查不到原因是不够的）
-    const logHit = await waitLog(logLines, /Database unavailable|数据不会持久化|内存 Map 回退/)
-    expect(logHit, `主进程日志里没有降级痕迹。抓到的行数=${logLines.length}`).toBeTruthy()
+    // 主进程必须留话（运维只看到红条查不到原因是不够的）。
+    // 判据取日志文件：打包后的 Windows 应用根本没有控制台，只写 console.warn 的那一版
+    // 在真机上是"一声不响"，这条也正是本轮改 noteDegraded 的原因。
+    const logHit = await waitLogFile(logsDir, /Database unavailable|数据不会持久化|内存 Map 回退/)
+    expect(
+      logHit,
+      `主进程日志文件里没有降级痕迹（${logsDir}）。stdout 抓到 ${logLines.length} 行，` +
+        '但 stdout 只作旁证：早于 listener 的头几行会丢'
+    ).toBeTruthy()
     console.log('[A4 真机] 主进程降级日志：', (logHit ?? '').slice(0, 200))
   } finally {
     await app.close()

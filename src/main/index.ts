@@ -36,6 +36,7 @@ import { cleanupLoopEngineering } from './ipc/loop-engineering'
 //     渲染层的"就绪"完全依赖动画节拍，窗口被遮挡时就卡死在启动页。
 import { pushBootLoadingStage } from './ipc/boot'
 import { initLogger, logger } from './services/log/logger'
+import { buildQuitSteps, createQuitCleanup } from './core/quit-cleanup'
 import { redactSecrets } from './services/security/redact'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
@@ -155,10 +156,16 @@ app.whenReady().then(() => {
 
   // 4. macOS 激活时重建窗口
   app.on('activate', handleActivate)
-
-  // 5. 应用退出前清理资源
-  app.on('before-quit', handleBeforeQuit)
 })
+
+/**
+ * 退出闸门注册在**模块作用域**，不在 app.whenReady().then() 里面。
+ *
+ * 原来它挂在 whenReady 链的最后一句：MCP 启动、registerAllIpcHandlers、initScheduler
+ * 任何一句抛错，这一行就永远执行不到——退出时零清理，而且日志里连"没注册"的痕迹都没有。
+ * before-quit 的监听器在 ready 之前注册完全合法，注册动作本身不依赖任何服务就绪。
+ */
+app.on('before-quit', handleBeforeQuit)
 
 /**
  * 窗口全部关闭事件处理
@@ -192,84 +199,37 @@ function handleActivate(): void {
 }
 
 /**
- * 应用退出前清理
+ * 退出清理的预算（闸门语义与步骤顺序见 core/quit-cleanup.ts）
  *
- * 为什么要先拦住退出：Electron **不等** async 的 before-quit 监听器——监听器一返回，
- * 退出流程就继续走，进程在下一个 tick 结束。实测（2026-10-08 独立探针）：
- * handler 里写了 `await` 的 1.5 秒清理，日志只留下 HANDLER_START，主进程 'exit' 就跟着打出来了，
- * 后续每一步（MCP 停、Langfuse 落盘、sidecar 关、循环工程解绑）一行都没跑到。
- * 也就是说上一轮"把 cleanupSidecar 接进 before-quit"其实等于没接：接上了调用，调用被掐在半路。
- *
- * 标准写法：第一次 before-quit 先 preventDefault，清理真正 await 完再 app.quit() 第二次放行。
- * 总时长设上限：某个清理卡住时宁可带着警告退出，也不把应用钉死在屏幕上关不掉。
+ * 15 秒不是拍的：上一版设 8 秒，在并行 e2e（6 个 Electron 实例同跑）下被顶穿过，
+ * 收尾记成 outcome=超时、行为测试随之变红——不是产品坏了，是预算太紧。
+ * 单步另有 2.5 秒默认上限：一个挂住的清理不再能吃光整体预算，把后面的 sidecar 饿死。
  */
-const QUIT_CLEANUP_CAP_MS = 8000
-let quitCleanupState: 'running' | 'done' | null = null
+const QUIT_CLEANUP_CAP_MS = 15000
+/** 单步默认超时：挂住的那一步不吃光整体预算（sidecar 自己排到 4 秒） */
+const QUIT_STEP_TIMEOUT_MS = 2500
 
-async function handleBeforeQuit(event: Electron.Event): Promise<void> {
-  if (quitCleanupState === 'done') return // 第二次进来：清理做完了，放行
-  event.preventDefault() // 第一次进来：拦住，等清理
-  if (quitCleanupState === 'running') return // 清理还在跑，别重复启动
-  quitCleanupState = 'running'
+const quitCleanup = createQuitCleanup({
+  capMs: QUIT_CLEANUP_CAP_MS,
+  stepTimeoutMs: QUIT_STEP_TIMEOUT_MS,
+  tailWaitMs: 150,
+  log: logger,
+  flush: () => logger.flush(),
+  quit: () => app.quit(),
+  steps: () =>
+    buildQuitSteps({
+      // 子进程留在机器上的代价最大，排在最前（顺序理由见 quit-cleanup.ts）
+      cleanupSidecar: () => cleanupSidecar(),
+      stopMonitoring: () => stopAllMonitoring(),
+      disconnectSsh: () => SshConnectionManager.getInstance().disconnectAll(),
+      stopMcpServer: () => McpServerService.getInstance().stop(),
+      shutdownLangfuse: () => LangfuseService.getInstance().shutdown(),
+      cleanupScheduler: () => cleanupScheduler(),
+      cleanupLoopEngineering: () => cleanupLoopEngineering(),
+      releaseMainWindow: () => destroyMainWindow(),
+    }),
+})
 
-  const startedAt = Date.now()
-  const cap = new Promise<'超时'>((resolve) => setTimeout(() => resolve('超时'), QUIT_CLEANUP_CAP_MS))
-  const outcome = await Promise.race([
-    runQuitCleanup().then(() => '完成' as const),
-    cap,
-  ])
-  quitCleanupState = 'done'
-  logger.info('APP', '退出清理收尾', { outcome, ms: Date.now() - startedAt })
-  app.quit()
-}
-
-/** 逐项清理：任何一项失败都不许拖垮其余项，也不许让退出卡死 */
-async function runQuitCleanup(): Promise<void> {
-  try {
-    // 停止所有监控（避免定时器在退出时报错）
-    await stopAllMonitoring()
-  } catch {
-    // 忽略清理异常
-  }
-  try {
-    // 断开所有 SSH 连接
-    await SshConnectionManager.getInstance().disconnectAll()
-  } catch {
-    // 忽略清理异常
-  }
-  try {
-    // 停止 MCP Server
-    await McpServerService.getInstance().stop()
-  } catch {
-    // 忽略清理异常
-  }
-  try {
-    // 关闭 Langfuse 客户端（确保 trace 落盘）
-    await LangfuseService.getInstance().shutdown()
-  } catch {
-    // 忽略清理异常
-  }
-  try {
-    // Phase 6 Task 6.5：清理调度器（停止轮询 + 清空任务 + 移除监听）
-    cleanupScheduler()
-  } catch {
-    // 忽略清理异常
-  }
-  try {
-    // D3：关掉 Python sidecar。以前 cleanupSidecar 只挂到 global 上没人调，
-    // 应用退出后 sidecar 进程留在机器上。
-    await cleanupSidecar()
-  } catch (err) {
-    logger.warn('APP', 'sidecar 清理失败', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-  try {
-    // D3：清理循环工程的事件监听
-    cleanupLoopEngineering()
-  } catch {
-    // 忽略清理异常
-  }
-  // 清理主窗口引用
-  destroyMainWindow()
+function handleBeforeQuit(event: Electron.Event): Promise<void> {
+  return quitCleanup.onBeforeQuit(event)
 }

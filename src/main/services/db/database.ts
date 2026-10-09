@@ -27,7 +27,28 @@
 import type { Database as BetterSqlite3Database, Statement } from 'better-sqlite3'
 import * as path from 'node:path'
 import type { DbStatus } from '@shared/db-types'
+import { logger } from '../log/logger'
 import { applyMigrations, readSchemaVersion, TARGET_SCHEMA_VERSION } from './schema-migrations'
+
+/**
+ * 降级/失败痕迹的唯一出口：既进控制台（开发时看），也进**日志文件**（现场看）。
+ *
+ * 这里原先全部是裸 `console.warn`。打包后的 Windows 应用没有控制台，那些"降级了、迁移中断了、
+ * 检索失败退到 LIKE 了"一行都落不下来——A4 承诺的"降级可见化"只在开发态成立。
+ * 2026-10-09 e2e 抓到的正是这个：横幅出现了，主进程日志里却查不到痕迹。
+ */
+function noteDegraded(msg: string, ...rest: unknown[]): void {
+  console.warn('[DatabaseManager]', msg, ...rest)
+  const detail = rest
+    .map((r) => (r instanceof Error ? r.message : typeof r === 'string' ? r : ''))
+    .filter(Boolean)
+    .join(' ')
+  try {
+    logger.warn('DB', detail ? `${msg} ${detail}` : msg)
+  } catch {
+    // logger 还没初始化（极少数早于 initLogger 的路径）：保住控制台那一份，别把启动带崩
+  }
+}
 
 /** Database 类型别名（避免与类名冲突） */
 export type DbConnection = BetterSqlite3Database
@@ -50,7 +71,7 @@ function loadBetterSqlite3(): NativeLoadResult {
     return { mod: require('better-sqlite3'), error: null }
   } catch (err) {
     const msg = (err as Error)?.message ?? String(err)
-    console.warn('[DatabaseManager] better-sqlite3 加载失败，使用内存 Map 回退方案：', msg)
+    noteDegraded('better-sqlite3 加载失败，使用内存 Map 回退方案：', msg)
     return { mod: null, error: msg }
   }
 }
@@ -103,7 +124,7 @@ export class DatabaseManager {
       this.dbAvailable = false
       this.vectorEnabled = false
       this.degradedReason = `原生模块 better-sqlite3 未能加载（Electron ABI 不匹配？）：${loadError ?? '未知原因'}`
-      console.warn('[DatabaseManager] 使用内存 Map 回退方案，数据不会持久化')
+      noteDegraded('使用内存 Map 回退方案，数据不会持久化')
       return
     }
 
@@ -116,7 +137,7 @@ export class DatabaseManager {
       this.vectorEnabled = false
       this.db = null
       this.degradedReason = `数据库文件未能打开：${(err as Error)?.message ?? String(err)}`
-      console.warn('[DatabaseManager] 数据库打开失败，使用内存 Map 回退方案：', err)
+      noteDegraded('数据库打开失败，使用内存 Map 回退方案：', err)
       return
     }
 
@@ -335,7 +356,7 @@ export class DatabaseManager {
     } catch (err) {
       // 扩展加载失败，降级到关键词搜索（打印错误便于诊断，生产环境可忽略）
       const msg = (err as Error)?.message ?? String(err)
-      console.warn('[DatabaseManager] sqlite-vec 扩展加载失败，降级到关键词搜索：', msg)
+      noteDegraded('sqlite-vec 扩展加载失败，降级到关键词搜索：', msg)
       return false
     }
   }
@@ -558,7 +579,7 @@ export class DatabaseManager {
       })
     } catch (err) {
       // 注册失败时降级（不抛异常）
-      console.warn('[DatabaseManager] 注册 json_to_vec_f32 失败：', err)
+      noteDegraded('注册 json_to_vec_f32 失败：', err)
     }
   }
 
@@ -573,7 +594,7 @@ export class DatabaseManager {
     const result = applyMigrations(this.db)
     if (result.error) {
       this.migrationError = result.error
-      console.warn(`[DatabaseManager] schema 迁移中断（user_version=${result.to}）：`, result.error)
+      noteDegraded(`schema 迁移中断（user_version=${result.to}）：`, result.error)
     } else if (result.applied.length > 0) {
       console.log(`[DatabaseManager] schema 迁移完成：v${result.from} → v${result.to}`)
     }
@@ -640,7 +661,7 @@ export class DatabaseManager {
       `)
     } catch (err) {
       // FTS5 初始化失败时降级（不抛异常，保证数据库核心功能可用）
-      console.warn('[DatabaseManager] FTS5 初始化失败，降级到关键词搜索：', err)
+      noteDegraded('FTS5 初始化失败，降级到关键词搜索：', err)
     }
   }
 
@@ -697,7 +718,7 @@ export class DatabaseManager {
         END;
       `)
     } catch (err) {
-      console.warn('[DatabaseManager] decision FTS5 初始化失败，降级到 LIKE 搜索：', err)
+      noteDegraded('decision FTS5 初始化失败，降级到 LIKE 搜索：', err)
     }
   }
 
@@ -767,7 +788,7 @@ export class DatabaseManager {
       `)
     } catch (err) {
       // vec0 初始化失败时降级（不抛异常）
-      console.warn('[DatabaseManager] vec0 初始化失败，降级到关键词搜索：', err)
+      noteDegraded('vec0 初始化失败，降级到关键词搜索：', err)
     }
   }
 
@@ -832,7 +853,7 @@ export class DatabaseManager {
       }
     } catch (err) {
       // 回填失败不影响主流程
-      console.warn('[DatabaseManager] 回填 FTS/vec0 失败：', err)
+      noteDegraded('回填 FTS/vec0 失败：', err)
     }
   }
 
@@ -888,7 +909,7 @@ export class DatabaseManager {
       return rows as { id: string; score: number; title: string; problem: string }[]
     } catch (err) {
       // FTS5 查询失败 → 降级返回空数组
-      console.warn('[DatabaseManager] FTS5 检索失败：', err)
+      noteDegraded('FTS5 检索失败：', err)
       return []
     }
   }
@@ -925,7 +946,7 @@ export class DatabaseManager {
         .all(query, limit)
       return rows as { id: string; score: number; problem: string; hypothesis: string; fixCommand: string }[]
     } catch (err) {
-      console.warn('[DatabaseManager] decision FTS5 检索失败：', err)
+      noteDegraded('decision FTS5 检索失败：', err)
       return []
     }
   }
@@ -982,7 +1003,7 @@ export class DatabaseManager {
       return rows as { id: string; distance: number }[]
     } catch (err) {
       // vec0 查询失败 → 降级返回空数组
-      console.warn('[DatabaseManager] vec0 检索失败：', err)
+      noteDegraded('vec0 检索失败：', err)
       return []
     }
   }

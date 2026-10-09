@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import ts from 'typescript'
 import {
   RESTART_BUDGET_MAX,
   RESTART_BUDGET_WINDOW_MS,
@@ -65,28 +66,48 @@ describe('退出清理接线（S15）', () => {
   const mainIndex = fs.readFileSync(path.join(ROOT, 'src/main/index.ts'), 'utf8')
   const ipcIndex = fs.readFileSync(path.join(ROOT, 'src/main/ipc/index.ts'), 'utf8')
 
-  it('handleBeforeQuit 里真的 await cleanupSidecar()', () => {
-    const body = mainIndex.slice(mainIndex.indexOf('function handleBeforeQuit'))
-    expect(body).toContain('await cleanupSidecar()')
-    expect(body).toContain('cleanupLoopEngineering()')
+  /** 找出模块顶层（不在任何回调里）的 app.on('<event>') 注册 */
+  function topLevelAppOn(source: string): string[] {
+    const sf = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+    const found: string[] = []
+    for (const stmt of sf.statements) {
+      if (!ts.isExpressionStatement(stmt)) continue
+      const expr = stmt.expression
+      if (!ts.isCallExpression(expr)) continue
+      const callee = expr.expression
+      if (
+        ts.isPropertyAccessExpression(callee) &&
+        callee.expression.getText(sf) === 'app' &&
+        callee.name.getText(sf) === 'on'
+      ) {
+        const arg = expr.arguments[0]
+        if (arg && ts.isStringLiteral(arg)) found.push(arg.text)
+      }
+    }
+    return found
+  }
+
+  it('清理走可注入引擎，sidecar 作为服务被接进去', () => {
+    // 上一版这条断言写的是 toContain('await cleanupSidecar()')：改结构就假红，
+    // 而它本来也证明不了运行时行为。真正的行为判据在 tests/unit/quit-cleanup.test.ts。
+    expect(mainIndex).toContain('createQuitCleanup')
+    expect(mainIndex).toMatch(/cleanupSidecar: \(\) => cleanupSidecar\(\)/)
+    expect(mainIndex).not.toMatch(/runQuitCleanup\s*\(/)
+  })
+
+  it('before-quit 注册在模块顶层，不在 whenReady 回调里', () => {
+    // 藏在 whenReady().then() 最后一句时：前面任何初始化抛错，闸门根本没装上，
+    // 退出零清理且日志无痕。同文件里的 activate 正是那种写法，拿来当阴性对照。
+    const tops = topLevelAppOn(mainIndex)
+    expect(tops).toContain('before-quit')
+    expect(tops, 'activate 需要 app 就绪，本来就该在 whenReady 里——扫不到它才说明这个取数是真的分层').not.toContain(
+      'activate'
+    )
   })
 
   it('不再用 global 中转清理函数（那条路从来没人调用）', () => {
     expect(ipcIndex).not.toContain('__cleanupSidecar')
     expect(ipcIndex).not.toContain('__cleanupLoopEngineering')
-  })
-
-  it('before-quit 必须先拦住退出，清理跑完才放行', () => {
-    // Electron 不等 async 监听器：只 await 不 preventDefault 的话，清理停在第一个 await 上，
-    // 源码看着接好了，运行时一行没跑（行为判据在 tests/e2e/app-quit-cleanup.spec.ts，这里钉结构）
-    const body = mainIndex.slice(
-      mainIndex.indexOf('async function handleBeforeQuit'),
-      mainIndex.indexOf('async function runQuitCleanup')
-    )
-    expect(body.length, '没找到 handleBeforeQuit → runQuitCleanup 这段').toBeGreaterThan(20)
-    expect(body).toContain('event.preventDefault()')
-    expect(body).toContain('app.quit()')
-    expect(body).toContain('QUIT_CLEANUP_CAP_MS')
   })
 })
 
