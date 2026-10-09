@@ -386,7 +386,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
 
   return (
     <div className="wb-aipanel relative flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-line bg-canvas">
-      {/* ===== 停靠格头部 32px ===== */}
+      {/* ===== 停靠格头部（高度取 --ui-size-panel-header，与另两栏同高） ===== */}
       <AIPanelHeader
         onClose={onClose}
         isStreaming={isStreaming}

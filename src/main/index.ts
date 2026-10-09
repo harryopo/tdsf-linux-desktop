@@ -18,6 +18,8 @@ import { createMainWindow, destroyMainWindow } from './windows/main-window'
 import { registerAllIpcHandlers } from './ipc'
 import { SshConnectionManager } from './services/ssh/connection-manager'
 import { stopAllMonitoring } from './ipc/monitor'
+import { FileWatcherAdapter } from './services/ssh/file-watcher'
+import { McpGateway } from './core/agent/mcp-gateway'
 import { LangfuseService } from './services/observability/langfuse'
 import { ConfigStore } from './services/storage/config-store'
 import { McpServerService } from './services/mcp/server'
@@ -220,6 +222,12 @@ const quitCleanup = createQuitCleanup({
     buildQuitSteps({
       // 子进程留在机器上的代价最大，排在最前（顺序理由见 quit-cleanup.ts）
       cleanupSidecar: () => cleanupSidecar(),
+      // 外部 MCP 服务器是 stdio 子进程：以前 McpServerService.stop() 只关服务端，
+      // 客户端那批子进程没人断（disconnectAllExternalServers 零调用者）
+      disconnectExternalMcp: () => McpGateway.getInstance().disconnectAllExternalServers(),
+      // 文件监听骑在 SSH 会话上（inotify 流 / 轮询定时器），必须在断连之前停
+      // ——它自己的注释就写着"应用退出时调用"，但一直没人调
+      stopFileWatchers: () => FileWatcherAdapter.getInstance().stopAll(),
       stopMonitoring: () => stopAllMonitoring(),
       disconnectSsh: () => SshConnectionManager.getInstance().disconnectAll(),
       stopMcpServer: () => McpServerService.getInstance().stop(),

@@ -30,10 +30,12 @@ export interface QuitLog {
   warn(category: string, msg: string, meta?: Record<string, unknown>): void
 }
 
-/** 七类需要收尾的资源，由 index.ts 提供真实实现（这里不 import 服务，保证可单测） */
+/** 需要收尾的资源，由 index.ts 提供真实实现（这里不 import 服务，保证可单测） */
 export interface QuitServices {
   stopMonitoring: () => unknown
+  stopFileWatchers: () => unknown
   disconnectSsh: () => unknown
+  disconnectExternalMcp: () => unknown
   stopMcpServer: () => unknown
   shutdownLangfuse: () => unknown
   cleanupScheduler: () => unknown
@@ -43,16 +45,18 @@ export interface QuitServices {
 }
 
 /**
- * 步骤顺序即风险顺序：sidecar 排第一。
- *
- * 上一版把它排在第 6，而"断开 SSH"在真实连接下可能占满整体上限（SSH 的 stop 排在连接锁队列尾部，
- * 断开时前面的重连没结束就得等）。上限一旦被 SSH 吃光，cleanupSidecar 一行都不执行，
- * 于是 D3 最初要修的孤儿进程 bug 又回来了。排在最前 + 每步独立超时，才是真的接上。
+ * 步骤顺序即风险顺序，两条规矩：
+ * 1. **子进程最先关**（sidecar、外部 MCP 客户端都是真进程）。上一版 sidecar 排在第 6，
+ *    而"断开 SSH"在真实连接下可能占满整体上限（SSH 的 stop 排在连接锁队列尾部），
+ *    上限一旦被吃光后面的清理一行都不执行，D3 最初要修的孤儿进程 bug 就回来了。
+ * 2. **骑在 SSH 上的东西先停**（文件监听是各条 SSH 会话上的 inotify 流 / 轮询定时器），
+ *    连接先断了再去 end 流只会拿不到结果。
  */
 export function buildQuitSteps(svc: QuitServices): QuitStep[] {
   return [
-    // 子进程留在机器上的代价最大（下次启动端口被占、内存白占），所以第一个关
     { name: '关闭 sidecar', run: svc.cleanupSidecar, timeoutMs: 4000 },
+    { name: '断开外部 MCP 客户端', run: svc.disconnectExternalMcp },
+    { name: '停止文件监听', run: svc.stopFileWatchers },
     { name: '停止监控', run: svc.stopMonitoring },
     { name: '断开 SSH', run: svc.disconnectSsh },
     { name: '停止 MCP Server', run: svc.stopMcpServer },

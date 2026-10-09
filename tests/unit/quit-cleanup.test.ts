@@ -30,6 +30,8 @@ function fakeServices(order: string[], delayMs = 0): QuitServices {
     new Promise<void>((resolve) => setTimeout(() => (order.push(name), resolve()), delayMs))
   return {
     cleanupSidecar: mk('sidecar'),
+    disconnectExternalMcp: mk('mcp-clients'),
+    stopFileWatchers: mk('watchers'),
     stopMonitoring: mk('monitor'),
     disconnectSsh: mk('ssh'),
     stopMcpServer: mk('mcp'),
@@ -71,10 +73,14 @@ describe('退出清理闸门（行为）', () => {
     expect(cleanup.state()).toBe('done')
   })
 
-  it('sidecar 排在 SSH 之前：SSH 卡住也不能把 sidecar 清理饿死', () => {
+  it('步骤顺序：子进程最先关，骑在 SSH 上的先停', () => {
     const names = buildQuitSteps(fakeServices([])).map((s) => s.name)
-    expect(names.indexOf('关闭 sidecar')).toBeLessThan(names.indexOf('断开 SSH'))
-    expect(names).toHaveLength(8)
+    expect(names).toHaveLength(10)
+    const at = (n: string) => names.indexOf(n)
+    // 上一版 sidecar 排第 6：SSH 一吃光整体上限它就饿死，孤儿进程 bug 原地复活
+    expect(at('关闭 sidecar'), 'sidecar 必须排第一').toBe(0)
+    expect(at('断开外部 MCP 客户端')).toBeLessThan(at('停止 MCP Server'))
+    expect(at('停止文件监听'), '文件监听的 inotify 流/轮询定时器挂在 SSH 会话上').toBeLessThan(at('断开 SSH'))
   })
 
   it('某一步永不返回：按单步超时放过，后面的步骤照跑', async () => {
