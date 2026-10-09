@@ -15,6 +15,8 @@
 import { randomUUID } from 'node:crypto'
 import type { DatabaseManager } from './database'
 import { ConfigStore } from '../storage/config-store'
+// 审计本身写失败时必须留痕：裸 console.warn 在打包后的 Windows 里等于什么都没发生
+import { logger } from '../log/logger'
 
 /** 审计类别，与设置页四个开关一一对应 */
 export type AuditCategory = 'cmd_exec' | 'file_mod' | 'ai_decision' | 'ssh_conn'
@@ -101,7 +103,7 @@ export class AuditRepo {
         )
       return true
     } catch (err) {
-      console.warn('[AuditRepo] 写审计日志失败（业务继续）：', (err as Error).message)
+      logger.warn('DB', '写审计日志失败（业务继续）', { error: (err as Error).message })
       return false
     }
   }
@@ -118,7 +120,7 @@ export class AuditRepo {
         .all(limit) as AuditRow[]
       return rows
     } catch (err) {
-      console.warn('[AuditRepo] 读审计日志失败：', (err as Error).message)
+      logger.warn('DB', '读审计日志失败', { error: (err as Error).message })
       return []
     }
   }
@@ -136,7 +138,7 @@ export class AuditRepo {
         .run(now - days * 24 * 60 * 60 * 1000)
       return Number(info.changes ?? 0)
     } catch (err) {
-      console.warn('[AuditRepo] 清理审计日志失败：', (err as Error).message)
+      logger.warn('DB', '清理审计日志失败', { error: (err as Error).message })
       return 0
     }
   }

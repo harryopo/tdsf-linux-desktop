@@ -200,9 +200,10 @@ export function SchedulerPanel() {
 
   return (
     <SettingsCard icon={Clock} title="定时任务" tag="scheduler">
-      {/* data-dom-id="scheduler-task-list" 是给视觉基线定位遮罩用的：卡里 .tabular-nums
-          那几串时间由 cron + 此刻算出来，跨过午夜必变，像素尺子量它必然抖（实测红 6 像素）。
-          锚点挂在列表上而不是每个时间上，因为同屏三张任务卡，逐个挂会撞 ui-audit 的"同屏重名钩子"。
+      {/* data-dom-id="scheduler-task-list" 是给视觉基线定位遮罩用的：卡里那几串时间由 cron + 此刻
+          算出来，跨过午夜必变，像素尺子量它必然抖。锚点挂在列表上而不是每个时间上，
+          因为同屏三张任务卡，逐个挂会撞 ui-audit 的"同屏重名钩子"。
+          遮罩本身锚在 .scheduler-time-cell（见下面行 2 的注释），不锚在 .tabular-nums 文字上。
           见 tests/e2e/visual.spec.ts */}
       <div className="flex flex-col gap-2 pt-1" data-dom-id="scheduler-task-list">
         {SCHEDULER_TASKS_META.map((meta, idx) => {
@@ -265,9 +266,12 @@ export function SchedulerPanel() {
                 />
               </div>
 
-              {/* 行 2：上次执行 + 下次执行 */}
+              {/* 行 2：上次执行 + 下次执行
+                  scheduler-time-cell 是给视觉基线遮罩用的锚点：必须锚在网格里固定宽度的这一格，
+                  不能锚在里面那串文字上——文字宽度随日期位数变（个位/十位日），遮罩跟着文字盒子走
+                  就会漏出几个像素（2026-10-09 实测漏 60 像素，隔一天就红）。 */}
               <div className="mt-2 grid grid-cols-2 gap-2 text-micro">
-                <div className="flex items-center gap-1 text-ink-dim">
+                <div className="scheduler-time-cell flex items-center gap-1 text-ink-dim">
                   <span className="text-ink-mute">上次:</span>
                   <span className="tabular-nums">{formatTime(task?.lastRunAt ?? null)}</span>
                   {lastResult != null &&
@@ -277,7 +281,7 @@ export function SchedulerPanel() {
                       <XCircle className="size-3 text-(--status-error-text)" />
                     ))}
                 </div>
-                <div className="flex items-center gap-1 text-ink-dim">
+                <div className="scheduler-time-cell flex items-center gap-1 text-ink-dim">
                   <span className="text-ink-mute">下次:</span>
                   <span className="tabular-nums">{formatTime(task?.nextRunAt ?? null)}</span>
                 </div>

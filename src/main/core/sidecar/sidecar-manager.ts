@@ -15,9 +15,13 @@
 import { spawn, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
-import { logger } from '../logger'
+// S5：core/logger 只写 console，侧车（Python）的 stderr 是最需要留档的东西，
+// 打包后的 Windows 里没有控制台，必须落到日志文件
+import { logger as appLogger } from '../../services/log/logger'
 import { getDiagnosticsService } from '../../services/diagnostics/diagnostics-service'
 import type { LogEvent, LogLevel, LogSource } from '../../services/diagnostics/types'
+
+const logger = appLogger.child('SIDECAR')
 
 /**
  * Sidecar 状态

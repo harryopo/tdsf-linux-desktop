@@ -55,7 +55,7 @@ const SHOTS: Shot[] = [
     key: 'settings',
     hash: '#/settings/general',
     wait: '.set-page',
-    volatile: ['[data-dom-id="scheduler-task-list"] .tabular-nums'],
+    volatile: ['[data-dom-id="scheduler-task-list"] .scheduler-time-cell'],
   },
 ]
 

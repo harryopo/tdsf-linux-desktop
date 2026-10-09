@@ -23,12 +23,124 @@
 
 import type { DatabaseManager } from './database'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
+// 导入部分失败必须留痕，否则界面上只剩一个"成功导入 N 条"
+import { logger } from '../log/logger'
 
 /** Jaccard 相似度去重阈值 */
 const DEDUP_THRESHOLD = 0.6
 
 /** 默认搜索结果数量 */
 const DEFAULT_SEARCH_LIMIT = 10
+
+/**
+ * 一次搜索最多取多少候选行
+ *
+ * 评分在 JS 侧做（中文子串匹配，见 search 的 v2.6 注释），所以不能把 SQL 的 LIMIT
+ * 写成用户要的 limit——那会让排名靠后的条目根本没进候选。这里给的是一个上限：
+ * 按 useCount 降序取这么多，超出部分不参与本次排名。原来是无上限整表进内存。
+ */
+const MAX_SEARCH_CANDIDATES = 2000
+
+/**
+ * 去重用的候选池：一次导入按 type 各读一遍，不再每条都做整表 SELECT *
+ *
+ * 为什么不走 FTS5 候选：knowledge_fts 用的是 unicode61 分词，它不切中文，
+ * "磁盘满了怎么办" 是一个整词，拿 "磁盘" 去 MATCH 什么都查不到——
+ * 用 FTS 做去重候选会让中文条目静默不再合并（合并失效比慢更糟）。
+ */
+class DedupePool {
+  /** type → 该类型下的条目列表 */
+  private readonly lists = new Map<string, KnowledgeEntry[]>()
+  /** type → 关键词 → 命中该关键词的条目 */
+  private readonly postings = new Map<string, Map<string, KnowledgeEntry[]>>()
+  /** 已经加载过的 type（读库只做一次） */
+  private readonly loaded = new Set<string>()
+
+  /**
+   * @param db 只用到 prepare().all()，与仓储同一个连接
+   * @param hydrate 行→条目的反序列化（沿用仓储那一份，不另写一套 JSON 解析口径）
+   */
+  constructor(
+    private readonly db: DatabaseManager,
+    private readonly hydrate: (row: KnowledgeRow) => KnowledgeEntry
+  ) {}
+
+  /** 与 entry 共享至少一个关键词的同类型条目（真相似度在这批候选里算） */
+  candidatesFor(entry: KnowledgeEntry): KnowledgeEntry[] {
+    this.ensureLoaded(entry.type)
+    const index = this.postings.get(entry.type)
+    if (!index) return []
+    const out: KnowledgeEntry[] = []
+    const seen = new Set<string>()
+    for (const keyword of entry.keywords) {
+      for (const hit of index.get(keyword) ?? []) {
+        if (seen.has(hit.id)) continue
+        seen.add(hit.id)
+        out.push(hit)
+      }
+    }
+    return out
+  }
+
+  /** 新写入的条目要进池，否则同批次内的重复条目查不到彼此（旧写法每次重读整表，看得见） */
+  track(entry: KnowledgeEntry): void {
+    this.ensureLoaded(entry.type)
+    const list = this.lists.get(entry.type)!
+    list.push(entry)
+    const index = this.postings.get(entry.type)!
+    for (const keyword of entry.keywords) {
+      const bucket = index.get(keyword)
+      if (bucket) bucket.push(entry)
+      else index.set(keyword, [entry])
+    }
+  }
+
+  /** 合并后原条目的关键词变了，整池重建该 type（合并是少数路径，重建代价只在命中时发生） */
+  replace(entry: KnowledgeEntry): void {
+    this.ensureLoaded(entry.type)
+    const list = this.lists.get(entry.type)!
+    const idx = list.findIndex((e) => e.id === entry.id)
+    if (idx >= 0) list[idx] = entry
+    else list.push(entry)
+    const index = new Map<string, KnowledgeEntry[]>()
+    for (const item of list) {
+      for (const keyword of item.keywords) {
+        const bucket = index.get(keyword)
+        if (bucket) bucket.push(item)
+        else index.set(keyword, [item])
+      }
+    }
+    this.postings.set(entry.type, index)
+  }
+
+  private ensureLoaded(type: KnowledgeType): void {
+    if (this.loaded.has(type)) return
+    this.loaded.add(type)
+    // idx_kb_type 在这里派上用场：按类型取候选，取一次用完整批导入
+    const rows = this.db
+      .prepare(`SELECT * FROM knowledge_entries WHERE type = ?`)
+      .all(type) as KnowledgeRow[]
+    const list: KnowledgeEntry[] = []
+    const index = new Map<string, KnowledgeEntry[]>()
+    for (const row of rows) {
+      let entry: KnowledgeEntry
+      try {
+        entry = this.hydrate(row)
+      } catch {
+        // 一行脏数据不该让整批导入看不见候选（宁可少合并，不可整批当新条目重复插进去）
+        continue
+      }
+      list.push(entry)
+      for (const keyword of entry.keywords) {
+        const bucket = index.get(keyword)
+        if (bucket) bucket.push(entry)
+        else index.set(keyword, [entry])
+      }
+    }
+    this.lists.set(type, list)
+    this.postings.set(type, index)
+  }
+}
 
 /**
  * 知识库仓储
@@ -65,10 +177,16 @@ export class KnowledgeRepository {
   search(query: string, type?: KnowledgeType, limit: number = DEFAULT_SEARCH_LIMIT): KnowledgeEntry[] {
     const queryKeywords = this.tokenize(query)
 
-    // 查询所有候选条目（按 type 过滤）
+    // 候选从库里取，但取多少是有上限的（原来无上限整表进内存，库一大每次搜索都搬全表）
     const rows = type
-      ? this.db.prepare('SELECT * FROM knowledge_entries WHERE type = ?').all(type)
-      : this.db.prepare('SELECT * FROM knowledge_entries').all()
+      ? this.db
+          .prepare(
+            `SELECT * FROM knowledge_entries WHERE type = ? ORDER BY useCount DESC LIMIT ?`
+          )
+          .all(type, MAX_SEARCH_CANDIDATES)
+      : this.db
+          .prepare(`SELECT * FROM knowledge_entries ORDER BY useCount DESC LIMIT ?`)
+          .all(MAX_SEARCH_CANDIDATES)
 
     // 空查询 = 浏览全部：按 useCount 降序返回前 limit 条（不做相似度过滤）
     if (queryKeywords.length === 0) {
@@ -238,35 +356,62 @@ export class KnowledgeRepository {
    * 自动去重：对相似度 > 0.6 的条目合并（保留使用次数更高的版本）。
    * 使用事务保证原子性，任一条目失败不影响其他条目。
    *
+   * 返回的是**真的写进库的条数**：add()/update() 内部 catch 后返回 false，
+   * 原来这里不看返回值也照样 successCount++，于是整批一条都没写进去时，
+   * UI 仍然显示"成功导入 N 条"——那句假数字的唯一来源就是这个返回值。
+   *
    * @param entries 知识条目数组
-   * @returns 成功导入的数量
+   * @returns 实际成功写入（新增或合并）的条数
    */
   importEntries(entries: KnowledgeEntry[]): number {
-    let successCount = 0
     const raw = this.db.getRawConnection()
     if (!raw) {
       // 数据库不可用时返回 0
       return 0
     }
+    // 候选池按 type 各读一次，取代原来"每条导入都整表 SELECT *"（M 条导入 = M 次全表扫）
+    const pool = new DedupePool(this.db, (row) => this.deserialize(row))
+    let successCount = 0
+    let mergedCount = 0
+    let failedCount = 0
     const transaction = raw.transaction(() => {
       for (const entry of entries) {
         try {
-          // 检查是否已存在相似条目
-          const existing = this.findSimilarEntry(entry)
+          // 检查是否已存在相似条目（同批次内先前的条目也算候选，与旧实现一致）
+          const existing = this.findSimilarEntry(entry, pool)
           if (existing) {
             // 合并：保留使用次数和成功率更高的版本
             const merged = this.mergeEntries(existing, entry)
-            this.update(merged.id, merged)
+            if (!this.update(merged.id, merged)) {
+              failedCount++
+              continue
+            }
+            pool.replace(merged)
+            mergedCount++
           } else {
-            this.add(entry)
+            if (!this.add(entry)) {
+              failedCount++
+              continue
+            }
+            pool.track(entry)
           }
           successCount++
         } catch {
           // 单条失败跳过，继续处理下一条
+          failedCount++
         }
       }
     })
     transaction()
+    if (failedCount > 0) {
+      // 失败要留痕：只回一个数字的话，用户看到"导入成功"，库里却静默少了几条
+      logger.warn('DB', '知识库批量导入未全部成功', {
+        total: entries.length,
+        success: successCount,
+        merged: mergedCount,
+        failed: failedCount,
+      })
+    }
     return successCount
   }
 
@@ -405,20 +550,28 @@ export class KnowledgeRepository {
 
   /**
    * 查找与给定条目相似度 > 0.6 的已有条目
+   *
+   * 候选来自 DedupePool（按 type 各读一次 + 关键词倒排），不再每条导入都整表 SELECT *；
+   * 相似度只在共享了至少一个关键词的候选上算——Jaccard 要 > 0.6 必然有公共关键词，
+   * 所以这一步不改变结果，只把"每条一次全表扫"变成"每批一次全表扫"。
+   * 命中多条时取最相似的那条（旧实现取第一个命中的，顺序由 SQLite 返回顺序决定）。
+   *
    * @param entry 待比较的条目
+   * @param pool 本批导入共用的候选池
    * @returns 相似的已有条目，无则返回 null
    */
-  private findSimilarEntry(entry: KnowledgeEntry): KnowledgeEntry | null {
-    const candidates = this.exportAll(entry.type)
+  private findSimilarEntry(entry: KnowledgeEntry, pool: DedupePool): KnowledgeEntry | null {
     const entrySet = new Set(entry.keywords)
-    for (const candidate of candidates) {
-      const candidateSet = new Set(candidate.keywords)
-      const sim = jaccardSimilarity(entrySet, candidateSet)
-      if (sim > DEDUP_THRESHOLD) {
-        return candidate
+    let best: KnowledgeEntry | null = null
+    let bestSim = DEDUP_THRESHOLD
+    for (const candidate of pool.candidatesFor(entry)) {
+      const sim = jaccardSimilarity(entrySet, new Set(candidate.keywords))
+      if (sim > bestSim) {
+        bestSim = sim
+        best = candidate
       }
     }
-    return null
+    return best
   }
 
   /**

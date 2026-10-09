@@ -25,8 +25,12 @@
 
 import { EventEmitter } from 'node:events'
 import { getNextRun } from './cron-parser'
-import { logger } from '../../core/logger'
+// S5：原来用的是 core/logger（只写 console、不落盘）。打包后的 Windows 没有控制台，
+// 调度器的降级与失败就只能出现在界面上，日志文件里一行都查不到，所以并进主 logger。
+import { logger as appLogger } from '../log/logger'
 import { callWithTimeout } from '../../core/with-timeout'
+
+const logger = appLogger.child('SCHEDULER')
 
 /**
  * 单个任务 handler 的执行预算（毫秒）

@@ -39,8 +39,11 @@ import type {
   DiagnosticReport,
   LogPushEvent,
 } from './types'
-import { logger } from '../../core/logger'
+// S5：core/logger 只写 console，诊断模块自己就是"现场查得到"的那条路，必须落盘
+import { logger as appLogger } from '../log/logger'
 import { DIAGNOSTICS } from '@shared/ipc-channels'
+
+const logger = appLogger.child('DIAGNOSTICS')
 
 /** 默认缓冲区大小（保留最近 1000 条日志） */
 const DEFAULT_BUFFER_SIZE = 1000

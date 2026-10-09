@@ -29,6 +29,7 @@
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { redactSecrets } from '../../core/agent/providers/redact'
 
 // ============================================================================
 // 类型定义
@@ -110,6 +111,36 @@ const MAX_BUFFER_SIZE = 1000
 /** 日志保留天数 */
 const LOG_RETENTION_DAYS = 7
 
+/** meta 里脱敏要走多深（再深就是给循环对象开洞） */
+const REDACT_MAX_DEPTH = 6
+
+/** 键名本身就是凭据时，值换成这个标记（值可能是一串没有任何可识别形态的随机数） */
+const SECRET_VALUE_MASK = '[REDACTED-BY-KEY]'
+
+/** 凭据键名（规范化后比对：去掉下划线/连字符/空格并转小写） */
+const SECRET_KEY_EXACT = new Set([
+  'apikey', 'token', 'accesstoken', 'refreshtoken', 'idtoken', 'bearertoken',
+  'authtoken', 'clientsecret', 'secretkey', 'secret', 'password', 'passwd',
+  'passphrase', 'privatekey', 'credential', 'credentials', 'authorization',
+  'cookie', 'accesskey', 'keydata', 'keycontent',
+])
+
+/** 前缀匹配的那几族：passwordHint / secretValue / privateKeyPem / credentialsFile 这类派生名 */
+const SECRET_KEY_PREFIXES = ['apikey', 'password', 'passwd', 'passphrase', 'privatekey', 'secret', 'credential']
+
+/**
+ * 这个键名算不算凭据
+ *
+ * 只做整名 + 前缀匹配，不做包含匹配：LLM 日志里的 maxTokens / tokenCount / promptTokens
+ * 都是正当的运行参数，按包含会把它们一起吞掉——那是把「查不到泄露」换成「查不到现场」。
+ * 这些键的值仍然照常按值形态脱敏。
+ */
+function isSecretKeyName(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[_\-\s]/g, '')
+  if (SECRET_KEY_EXACT.has(normalized)) return true
+  return SECRET_KEY_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
+
 // ============================================================================
 // Logger 类
 // ============================================================================
@@ -131,6 +162,8 @@ export class Logger {
   private memoryBuffer: LogEntry[] = []
   private minLevel: LogLevel = 'INFO'
   private initialized = false
+  /** 本进程累计被脱敏掉的敏感值个数（只增不减；判据用它证明"闸真的在动"） */
+  private redactedHits = 0
 
   /**
    * 初始化日志器
@@ -223,8 +256,10 @@ export class Logger {
       ts: new Date().toISOString(),
       level,
       category,
-      message,
-      meta,
+      // 脱敏收口在这一处：以前靠 485 个调用点各自记得引 redactSecrets（实际只有 16 个文件引了），
+      // 于是 sandbox 的 commandPreview、渲染层上报的 log、任何新加的调用点都会把原文写进磁盘。
+      message: this.redactText(message),
+      meta: meta === undefined ? undefined : (this.redactValue(meta, 0, new WeakSet()) as Record<string, unknown>),
       correlationId,
       source: source ?? 'main',
       date: this.todayLocal(),
@@ -324,6 +359,13 @@ export class Logger {
   }
 
   /**
+   * 累计脱敏命中数（"闸有没有真的动"的观测口，判据与现场排查都用它）
+   */
+  getRedactionCount(): number {
+    return this.redactedHits
+  }
+
+  /**
    * 异步刷新所有待写入的日志
    */
   async flush(): Promise<void> {
@@ -333,6 +375,52 @@ export class Logger {
   // ----------------------------------------------------------------
   // 私有方法
   // ----------------------------------------------------------------
+
+  /** 一条文本的脱敏（message 与 meta 里每个字符串值都走这里） */
+  private redactText(text: string): string {
+    if (typeof text !== 'string' || text.length === 0) return text
+    const { text: safe, stats } = redactSecrets(text, { returnStats: true })
+    if (stats.total > 0) this.redactedHits += stats.total
+    return safe
+  }
+
+  /**
+   * meta 的脱敏：按类别做全，不能只盖住 message 那一条
+   *
+   * 三条线都要有：
+   * - 值形态（sk-…、password=…、C:\.ssh\id_rsa、连接串口令）→ 交给 redactSecrets；
+   * - 键名（{ apiKey: '一串没有形态的随机值' }）→ 光看值认不出来，按键名整块遮掉；
+   * - 数组与非普通对象：数组必须真的走下去（早先按原型判"是不是普通对象"把数组漏掉了），
+   *   Date / Error / Buffer / 类实例则原样交给 JSON.stringify，与改动前一致，
+   *   免得为了脱敏把日志里原有的信息改掉。
+   */
+  private redactValue(value: unknown, depth: number, seen: WeakSet<object>, underSecretKey = false): unknown {
+    if (typeof value === 'string') {
+      if (underSecretKey) {
+        this.redactedHits++
+        return SECRET_VALUE_MASK
+      }
+      return this.redactText(value)
+    }
+    if (value === null || typeof value !== 'object') return value
+    if (depth >= REDACT_MAX_DEPTH) return '[已截断：超出脱敏深度]'
+    if (seen.has(value)) return '[已截断：循环引用]'
+    seen.add(value)
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactValue(item, depth + 1, seen, underSecretKey))
+    }
+    const proto = Object.getPrototypeOf(value)
+    if (proto !== Object.prototype && proto !== null) return value
+    const out: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      const secret = underSecretKey || isSecretKeyName(key)
+      if (secret && (typeof item === 'string' || typeof item === 'number')) this.redactedHits++
+      out[key] = secret && (typeof item === 'string' || typeof item === 'number')
+        ? SECRET_VALUE_MASK
+        : this.redactValue(item, depth + 1, seen, secret)
+    }
+    return out
+  }
 
   /** 判断是否应记录 */
   private shouldLog(level: LogLevel): boolean {

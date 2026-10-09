@@ -646,6 +646,17 @@ export interface ConfidenceAssessment {
 }
 
 /**
+ * 界面上那个置信度数字的来路
+ *
+ * - fused：D-S/PCR5 融合算出来的结论
+ * - self-reported：模型在回复里自己报的数，没做过融合
+ *
+ * 这两个数曾经在同一个位置显示、长得一模一样（评估失败时页面拿自报数去填融合公式的坑，
+ * 还配上了 m(A)=Σ… 的公式排版），而用户是照它做决策的。数字必须带着来路一起走。
+ */
+export type ConfidenceProvenance = 'fused' | 'self-reported'
+
+/**
  * DAG 节点类型
  */
 export type DagNodeType = 'source' | 'fusion' | 'result'

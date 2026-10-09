@@ -50,7 +50,7 @@ import {
   buildCredibilityInputs,
 } from '@/utils/decision-mappers'
 import type { DecisionCard } from '@shared/models'
-import type { ConfidenceAssessment } from '@shared/agent-types'
+import type { ConfidenceAssessment, ConfidenceProvenance } from '@shared/agent-types'
 // v2.6：重新执行接真实终端（与 AIPanel 同路径：预检 + 预测回显 + sshRunAuthored 过主进程风险闸）
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
@@ -413,18 +413,20 @@ export function DecisionDetailPage() {
 
   // ===== 数据映射 =====
   const riskMeta = riskLevelMeta(card.risk.level)
-  const evidenceSources = buildEvidenceSources(card.evidences, credibility?.confidence ?? card.confidence)
+  // 六源里那一根"模型"轴只能是模型自报的数；以前这里塞的是融合结果，标签却写着"模型"
+  const evidenceSources = buildEvidenceSources(card.evidences, card.confidence)
   const timelineSteps = buildTimelineSteps(card)
   const riskGates = buildRiskGates(card)
   const dangerCommands = buildDangerCommands(card)
   const commandSegments = parseCommandSegments(card.fixCommand)
   const workflowSteps = buildWorkflowSteps(card)
 
-  // 置信度：优先使用 credibilityAssess 结果，其次原始 credibility，最后 card.confidence
-  const rawCredibility = credibility?.confidence ?? card.confidence
-  const displayConfidence = rawCredibility
-  const conflictK = credibility?.conflictLevel ?? 0
-  const fusedValue = credibility?.confidence ?? card.confidence
+  // 置信度：有融合结论就用结论（来源标 fused），否则只有模型自报（来源标 self-reported）
+  const displayConfidence = credibility?.confidence ?? card.confidence
+  const confidenceProvenance: ConfidenceProvenance = credibility ? 'fused' : 'self-reported'
+  // 没有评估就是没有：不许拿模型自报数去顶 m(A) 与 K 的坑（顶上去就等于编了一个融合结论）
+  const fusedValue = credibility?.confidence ?? null
+  const conflictK = credibility?.conflictLevel ?? null
 
   // 时间格式化
   const timestamp = new Date(card.timestamp)
@@ -524,7 +526,11 @@ export function DecisionDetailPage() {
       {/* ===== Section 2: 置信度仪表 + 命令决策终端 ===== */}
       <section className="flex flex-wrap items-stretch gap-6 px-8 pb-4">
         <div className="flex min-w-[300px] flex-[0_0_38%] flex-col gap-3">
-          <ConfidenceGauge value={displayConfidence} sources={evidenceSources} />
+          <ConfidenceGauge
+            value={displayConfidence}
+            provenance={confidenceProvenance}
+            sources={evidenceSources}
+          />
         </div>
         <ExecutionResult
           decisionId={card.id}
@@ -561,12 +567,16 @@ export function DecisionDetailPage() {
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4 text-(--accent-text)" />
               <span className="text-title font-semibold text-ink">六源证据融合</span>
-              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
-                D-S 证据理论
-              </span>
+              {credibility && (
+                <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
+                  D-S 证据理论
+                </span>
+              )}
             </div>
             <span className="text-micro text-ink-mute">
-              Dempster-Shafer · {credibility ? `规则: ${credibility.ruleUsed}` : '透明可追溯'}
+              {credibility
+                ? `Dempster-Shafer · 规则: ${credibility.ruleUsed}`
+                : '未执行融合评估 · 下方仅为各来源自报权重'}
             </span>
           </div>
 

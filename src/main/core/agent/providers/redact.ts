@@ -17,8 +17,11 @@
  * ```
  *
  * 方案书依据：v0.9 §10 Hard Constraint 6（敏感文件默认 redact）
+ *
+ * 这个模块是纯函数，不许回调 logger：logger 自己要用它对每条日志做收口脱敏（见
+ * services/log/logger.ts 的 log()），这里再打日志就是无限递归。
+ * 命中统计通过 { returnStats: true } 由调用方取用。
  */
-import { logger } from '../../../services/log/logger'
 
 /**
  * 脱敏规则（按优先级从高到低）
@@ -72,6 +75,50 @@ const REDACT_RULES: Array<{ pattern: RegExp; replacement: string; name: string }
     pattern: /\b(secret|secret_key|aws_secret_access_key)(\s*[=:]\s*)['"]?[A-Za-z0-9/+=]{40}['"]?/gi,
     replacement: '$1$2[REDACTED]',
     name: 'aws-secret',
+  },
+  // 13. Windows 形态的敏感路径（样本实测原规则只认 POSIX 斜杠，盘符/UNC/%USERPROFILE% 三种起头全 MISS）
+  //     C:\Users\x\.ssh\id_rsa、\\host\share\server.pem、%USERPROFILE%\.tdsf\secure-storage.json
+  //     分隔符写成 \\{1,2}：日志里既可能是原生路径，也可能是 JSON.stringify 之后成对的反斜杠
+  {
+    pattern:
+      /(?:[A-Za-z]:\\{1,2}|\\\\{1,2}[^\\'"$\s]+\\{1,2}|%USERPROFILE%\\{1,2})(?:[^\\'"$\s]+\\{1,2})*(?:\.env|\.ssh(?:\\{1,2}|\/)[^\\'"$\s]+|id_rsa|id_dsa|id_ecdsa|id_ed25519|secure-storage\.json|\.netrc|\.pgpass|credentials|[^\\'"$\s]*\.pem|[^\\'"$\s]*\.key)(?=$|[\s"',;:)\]}\\])/g,
+    replacement: '[REDACTED-SENSITIVE-PATH]',
+    name: 'windows-sensitive-path',
+  },
+  // 14. 连接串里内联的账号密码：postgres://admin:S3cr3t@10.0.0.5/db（原来整条 MISS）
+  {
+    pattern: /([a-z][a-z0-9+.-]{1,15}):\/\/([^\s/@:]+):([^\s/@]+)@/gi,
+    replacement: '$1://$2:[REDACTED]@',
+    name: 'url-credentials',
+  },
+  // 15. Authorization 头（Basic/Digest/Token 都是原来 Bearer 单条规则漏掉的）
+  {
+    pattern: /\b(Authorization)(\s*[:=]\s*)(Basic|Digest|Bearer|Token)\s+[^\s"']{4,}/gi,
+    replacement: '$1$2$3 [REDACTED]',
+    name: 'authorization-header',
+  },
+  // 16. sshpass -p'pw' / sshpass -pQq（明文口令直接写在命令里，commandPreview 会整条进日志）
+  {
+    pattern: /\b(sshpass\s+(?:-p\s?|--password[= ]))(?:'[^']*'|"[^"]*"|[^\s'"]{1,})/gi,
+    replacement: '$1[REDACTED]',
+    name: 'sshpass-inline',
+  },
+  // 17. 键名形态补全：token/secret/passphrase/private_key/access_token/client_secret/credential(s)
+  //     （原来只有 api_key 与 password 两族，`token=xxx` 与 `passphrase: xxx` 直接落盘）
+  //     裸 token 也算：后面必须紧跟 = 或 :，所以 token_count / tokens / tokenizer 都不会被误伤
+  {
+    pattern:
+      /\b((?:access|refresh|client|api|secret|session|auth|bearer|csrf|xsrf)[_-]?(?:key|token|secret)|passphrase|private[_-]?key|credentials?|auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|secret[_-]?key|token|jwt)(\s*[=:]\s*)['"]?[^\s'"]{4,}['"]?/gi,
+    replacement: '$1$2[REDACTED]',
+    name: 'sensitive-key-assign',
+  },
+  // 18. 厂商前缀型 token（GitHub/GitLab/Slack/npm）——这类没有键名，只能按前缀认
+  //     没有做"高熵兜底"：随机串规则和 UUID、sha512、base64 正常日志同形，
+  //     加上去等于把"现场查不到"换成"现场看不懂"，不划算。
+  {
+    pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{15,}|xox[abprs]-[A-Za-z0-9-]{10,}|npm_[A-Za-z0-9]{36})\b/g,
+    replacement: '[REDACTED-VENDOR-TOKEN]',
+    name: 'vendor-token-prefix',
   },
 ]
 
@@ -128,41 +175,36 @@ export function redactSecrets(
     }
   }
 
-  // 命中时记录审计日志（仅统计，不记录原文）
-  if (stats.total > 0) {
-    logger.info('AGENT.REDACT', `已脱敏 ${stats.total} 处敏感信息`, { hits: stats.hits })
-  }
-
+  // 命中统计不再自己打日志：logger.log() 现在正用这个函数做收口脱敏，
+  // 在这里写日志等于自我递归。要观测命中数请用 { returnStats: true }。
   return options?.returnStats ? { text, stats } : text
 }
 
 /**
  * 判断文本是否包含敏感文件路径（用于 UI 提示用户）
  *
- * 仅做路径模式匹配，不修改文本。
+ * 仅做路径模式匹配，不修改文本。按规则名取，不按数组下标取——
+ * 下标会在下次加规则时静默变成"检查了另一条规则"。
  */
 export function containsSensitivePath(input: string): boolean {
-  const pattern = REDACT_RULES[1].pattern
-  pattern.lastIndex = 0
-  return pattern.test(input)
+  const rules = REDACT_RULES.filter(
+    (r) => r.name === 'sensitive-file-path' || r.name === 'windows-sensitive-path'
+  )
+  return rules.some((rule) => {
+    rule.pattern.lastIndex = 0
+    return rule.pattern.test(input)
+  })
 }
 
 /**
- * 获取脱敏规则列表（UI 调试用，便于展示已启用的规则）
+ * 获取脱敏规则列表（UI 调试与判据用）
+ *
+ * 从 REDACT_RULES 现取，不另立一份手工清单：上一版就是那份清单，
+ * 规则加到 18 条时它还写着 12 条，等于对外报一个假的能力数字。
  */
 export function listRedactRules(): Array<{ name: string; description: string }> {
-  return [
-    { name: 'pem-private-key', description: 'PEM 私钥块（-----BEGIN PRIVATE KEY-----）' },
-    { name: 'sensitive-file-path', description: '敏感文件路径（.env / .ssh / id_rsa / *.pem）' },
-    { name: 'openai-key', description: 'OpenAI API Key（sk-）' },
-    { name: 'anthropic-key', description: 'Anthropic API Key（sk-ant-）' },
-    { name: 'bearer-token', description: 'Bearer Token' },
-    { name: 'volc-akid', description: '火山方舟 AccessKey（AKID）' },
-    { name: 'aliyun-ak', description: '阿里云 AccessKey（LTAI）' },
-    { name: 'google-api-key', description: 'Google API Key（AIza）' },
-    { name: 'api-key-assign', description: 'api_key= 赋值语句' },
-    { name: 'password-assign', description: 'password= 赋值语句' },
-    { name: 'aws-access-key', description: 'AWS AccessKey（AKIA）' },
-    { name: 'aws-secret', description: 'AWS SecretKey 赋值语句' },
-  ]
+  return REDACT_RULES.map((rule) => ({
+    name: rule.name,
+    description: rule.pattern.source,
+  }))
 }

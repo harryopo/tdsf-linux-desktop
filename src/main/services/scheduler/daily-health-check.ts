@@ -17,7 +17,10 @@ import type { SshConfig, CommandResult } from '@shared/models'
 import type { SchedulerTask, TaskResult } from '@shared/scheduler-types'
 import { SshConnectionManager } from '../ssh/connection-manager'
 import { analyzeByRules } from '../../core/rule-engine'
-import { logger } from '../../core/logger'
+// S5：core/logger 只写 console，打包后没人看得见；改用主 logger 落盘
+import { logger as appLogger } from '../log/logger'
+
+const logger = appLogger.child('SCHEDULER.HEALTH')
 
 // ============================================================================
 // 公共类型定义

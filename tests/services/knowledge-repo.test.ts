@@ -13,7 +13,7 @@
  * 使用内存数据结构存储，避免加载原生模块。
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { KnowledgeRepository, jaccardSimilarity } from '../../src/main/services/db/knowledge-repo'
 import type { KnowledgeEntry } from '../../src/shared/models'
 import type { DatabaseManager } from '../../src/main/services/db/database'
@@ -31,6 +31,12 @@ class MockDatabase {
   private tables: Map<string, Record<string, unknown>[]> = new Map()
   /** 向量搜索是否可用 */
   private vectorEnabled: boolean = false
+  /** 让 INSERT 抛错（判据要用：写不进去时 importEntries 必须报 0，而不是报 N） */
+  insertThrows = false
+  /** 第几次 INSERT 抛错（从 1 开始；用来测"部分失败只数真的写进去的那几条"） */
+  failInsertAt: number | null = null
+  /** 已经试过多少次 INSERT */
+  insertAttempts = 0
 
   /**
    * 模拟 prepare(sql).all(...params) / get(...params) / run(...params)
@@ -130,6 +136,9 @@ class MockDatabase {
 
     // INSERT
     if (/^INSERT/i.test(sql)) {
+      this.insertAttempts++
+      if (this.insertThrows) throw new Error('disk is full（模拟写入失败）')
+      if (this.failInsertAt === this.insertAttempts) throw new Error(`模拟第 ${this.insertAttempts} 次写入失败`)
       // 判断是 INSERT OR REPLACE
       const isReplace = /INSERT\s+OR\s+REPLACE/i.test(sql)
       const row = params[0] as Record<string, unknown>
@@ -519,5 +528,73 @@ describe('jaccardSimilarity — Jaccard 相似度算法', () => {
     expect(jaccardSimilarity(new Set(), new Set(['a']))).toBe(0)
     expect(jaccardSimilarity(new Set(['a']), new Set())).toBe(0)
     expect(jaccardSimilarity(new Set(), new Set())).toBe(0)
+  })
+})
+
+// ────────── S5 判据：真计数 + 候选不整表扫（2026-10-09 安全审查 P1-8）──────────
+
+describe('KnowledgeRepository — 导入真计数与去重候选', () => {
+  it('INSERT 抛错时 importEntries 返回 0（这个返回值就是 UI 那句「成功导入 N 条」）', () => {
+    const mock = new MockDatabase()
+    mock.insertThrows = true
+    const r = new KnowledgeRepository(mock as unknown as DatabaseManager)
+    const entries = [makeEntry({ id: 'f-1' }), makeEntry({ id: 'f-2' }), makeEntry({ id: 'f-3' })]
+    expect(r.importEntries(entries), '一条都没写进去却报 3 就是假数字').toBe(0)
+    expect(r.getById('f-1')).toBeNull()
+  })
+
+  it('部分失败只数真的写进去的那几条', () => {
+    const mock = new MockDatabase()
+    mock.failInsertAt = 2
+    const r = new KnowledgeRepository(mock as unknown as DatabaseManager)
+    const count = r.importEntries([
+      makeEntry({ id: 'p-1', keywords: ['alpha'] }),
+      makeEntry({ id: 'p-2', keywords: ['beta'] }),
+      makeEntry({ id: 'p-3', keywords: ['gamma'] }),
+    ])
+    expect(count, '三条里写进去两条，就只能报两条').toBe(2)
+    expect(r.getById('p-1')).not.toBeNull()
+    expect(r.getById('p-2'), '失败那条不该出现在库里却被算进成功数').toBeNull()
+    expect(r.getById('p-3')).not.toBeNull()
+  })
+
+  it('去重候选按批读一次，不再每条导入做整表扫', () => {
+    const mock = new MockDatabase()
+    const r = new KnowledgeRepository(mock as unknown as DatabaseManager)
+    const spy = vi.spyOn(mock, 'prepare')
+    const entries = Array.from({ length: 200 }, (_, i) =>
+      makeEntry({ id: `bulk-${i}`, keywords: [`k${i}`, `alt${i}`, `x${i}`, `y${i}`, `z${i}`] })
+    )
+    const count = r.importEntries(entries)
+    expect(count, '200 条互不相同，应全部写入').toBe(200)
+    const calls = spy.mock.calls.length
+    // 旧写法：每条一次 exportAll（整表 SELECT *）+ 一次 INSERT ≈ 400+ 次
+    expect(calls, `prepare 次数应随条目数线性，实测 ${calls}`).toBeLessThanOrEqual(entries.length + 2)
+    expect(calls, '但插入确实发生了').toBeGreaterThanOrEqual(entries.length)
+    spy.mockRestore()
+  })
+
+  it('同批次里的相似条目也会被合并（候选池要跟着写入同步）', () => {
+    const r = new KnowledgeRepository(createMockDb())
+    const a = makeEntry({ id: 'same-1', keywords: ['磁盘', 'disk', '空间', 'space', 'df'] })
+    const b = makeEntry({ id: 'same-2', keywords: ['磁盘', 'disk', '空间', 'space', 'full'] })
+    const count = r.importEntries([a, b])
+    expect(count).toBe(2)
+    expect(r.getById('same-2'), '第二条应并进第一条，不单独成条').toBeNull()
+    const kept = r.getById('same-1')
+    expect(kept).not.toBeNull()
+    expect(kept!.useCount).toBe(a.useCount + b.useCount)
+  })
+
+  it('search 的候选读取带上限（不再整表进内存）', () => {
+    const mock = new MockDatabase()
+    const spy = vi.spyOn(mock, 'prepare')
+    const r = new KnowledgeRepository(mock as unknown as DatabaseManager)
+    r.add(makeEntry({ id: 's-1', keywords: ['磁盘', 'disk'] }))
+    const hits = r.search('磁盘')
+    expect(hits.map((e) => e.id)).toContain('s-1')
+    const selectSql = spy.mock.calls.map((c) => String(c[0])).find((sql) => /SELECT/i.test(sql)) ?? ''
+    expect(selectSql, '候选查询必须带 LIMIT').toMatch(/LIMIT \?/i)
+    spy.mockRestore()
   })
 })

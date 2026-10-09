@@ -16,12 +16,18 @@
  */
 import { Activity } from 'lucide-react'
 import type { EvidenceSource } from '@/components/decision/EvidenceRadar'
+import type { ConfidenceProvenance } from '@shared/agent-types'
 
 interface ConfidenceGaugeProps {
   /** 综合置信度 [0, 1] */
   value: number
   /** 6 源证据权重数据（不足 6 个时使用默认权重） */
   sources: EvidenceSource[]
+  /**
+   * 这个数字是怎么来的：融合算出来的，还是模型自报的。
+   * 必填——以前两者在同一个位置显示且无从分辨，而用户照它做决策。
+   */
+  provenance: ConfidenceProvenance
 }
 
 /**
@@ -30,7 +36,7 @@ interface ConfidenceGaugeProps {
  * - 当 sources.length >= 6 时，按 sources 渲染 6 段弧
  * - 否则使用默认 6 源权重（基础分/指标采集/历史匹配/知识库/人工校验/模型置信）
  */
-export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
+export function ConfidenceGauge({ value, sources, provenance }: ConfidenceGaugeProps) {
   const weights = sources.length >= 6
     ? sources.map(s => ({ label: s.label, val: s.weight, opacity: Math.max(0.4, s.weight) }))
     : [
@@ -53,6 +59,8 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
   ]
 
   const confidenceLabel = value >= 0.8 ? '高可信' : value >= 0.6 ? '中可信' : '低可信'
+  // 数字的来路要写在脸上：融合结论和模型自报的数以前共用一个"置信度"标签，无从分辨
+  const provenanceLabel = provenance === 'fused' ? 'D-S 融合结果' : '模型自报'
 
   return (
     <div className="flex w-full min-w-[280px] max-w-[400px] flex-none flex-col items-center gap-4 rounded-[var(--trae-radius-10)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
@@ -60,6 +68,12 @@ export function ConfidenceGauge({ value, sources }: ConfidenceGaugeProps) {
         <Activity className="h-3.5 w-3.5 text-ink-dim" />
         <span className="text-micro font-medium uppercase tracking-[0.08em] text-ink-dim">
           置信度仪表
+        </span>
+        <span
+          data-provenance={provenance}
+          className="ml-1 inline-flex h-4 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] px-1.5 text-micro text-ink-dim"
+        >
+          {provenanceLabel}
         </span>
       </div>
       <div className="relative h-[220px] w-[220px]">

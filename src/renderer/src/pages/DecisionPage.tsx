@@ -389,7 +389,7 @@ export function DecisionPage() {
           <>
             {/* 区域2：置信度仪表 + 命令决策终端 */}
             <section className="flex flex-wrap items-stretch gap-6 px-8 pb-4">
-              <ConfidenceGauge value={decisionCard.confidence} sources={buildEvidenceSources(decisionCard.evidences, decisionCard.confidence)} />
+              <ConfidenceGauge value={decisionCard.confidence} provenance="self-reported" sources={buildEvidenceSources(decisionCard.evidences, decisionCard.confidence)} />
               <CommandTerminal
                 card={decisionCard}
                 waiting={waitingForConfirmation}
