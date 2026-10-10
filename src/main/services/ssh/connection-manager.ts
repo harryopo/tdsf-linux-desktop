@@ -45,6 +45,28 @@ import { SessionQueue } from './session-queue'
  */
 const LOCK_OP_TIMEOUT_MS = 30_000
 
+/**
+ * 单条交互式 Shell 通道
+ *
+ * 为什么不再是"一条连接一个 shell"：IDE 用法就是同一台主机开好几个终端
+ * （一个跑服务、一个看日志）。原先 `SessionEntry.shell` 是单数，第二次开终端
+ * 只会拿到同一个通道，界面无法增删。
+ *
+ * callbacks 用 Set 而不是数组：同一通道被重复订阅时数组会叠加，
+ * 一份输出就被推 N 次（2026-10-10 的终端字符翻倍缺陷就是这么来的；
+ * Set 让"同一个函数挂两次"在结构上不可能）。
+ */
+interface ShellEntry {
+  /** 通道 ID（IPC 与渲染层拿它当终端身份） */
+  id: string
+  /** 所属 SSH 会话 */
+  sessionId: string
+  /** ssh2 的 pty 通道 */
+  channel: ClientChannel
+  /** 输出订阅者 */
+  callbacks: Set<(data: string) => void>
+}
+
 /** 单个 SSH 会话的内部条目 */
 interface SessionEntry {
   /** ssh2 客户端实例 */
@@ -59,10 +81,8 @@ interface SessionEntry {
   createdAt: number
   /** 最后活动时间戳（毫秒） */
   lastUsedAt: number
-  /** 交互式 Shell 通道（startShell 后存在） */
-  shell: ClientChannel | null
-  /** Shell 数据回调列表 */
-  shellCallbacks: Array<(data: string) => void>
+  /** 交互式 Shell 通道表：shellId → 通道与它的订阅者（一条连接可以开多个） */
+  shells: Map<string, ShellEntry>
   /** keepAlive 心跳定时器句柄 */
   keepAliveTimer: NodeJS.Timeout | null
   /** 标记是否正在重连（防止重连期间重复触发心跳失败处理） */
@@ -242,8 +262,7 @@ export class SshConnectionManager {
       state: 'connecting',
       createdAt: Date.now(),
       lastUsedAt: Date.now(),
-      shell: null,
-      shellCallbacks: [],
+      shells: new Map<string, ShellEntry>(),
       keepAliveTimer: null,
       reconnecting: false,
       closeNotified: false,
@@ -389,86 +408,151 @@ export class SshConnectionManager {
   // ------------------------------------------------------------------
 
   /**
-   * 启动交互式 Shell
+   * 打开一条新的交互式 Shell
    *
-   * 使用 pty（伪终端）开启 Shell，支持 vim/top/htop 等全屏交互程序。
-   * Shell 数据通过 onShellData 注册的回调推送。
+   * 走 ssh2 的 pty 通道，因此支持 vim/top/htop 等全屏程序；一条连接可以开多条
+   * （IDE 用法：一个终端跑服务、另一个看日志）。
    *
    * @param sessionId 会话 ID
-   * @returns 是否成功启动（已存在 Shell 视为成功）
+   * @param size 初始尺寸（省略时 80x24，与 xterm 默认一致）
+   * @returns 新建通道的 shellId（渲染层拿它当终端身份，而不是 sessionId）
    */
-  public async startShell(sessionId: string): Promise<boolean> {
+  public async startShell(
+    sessionId: string,
+    size?: { cols: number; rows: number }
+  ): Promise<string> {
     const entry = this.requireSession(sessionId)
     this.requireConnected(entry)
     entry.lastUsedAt = Date.now()
-    if (entry.shell) {
-      return true
-    }
-    return new Promise<boolean>((resolve, reject) => {
-      entry.client.shell(
-        { term: 'xterm-256color', cols: 80, rows: 24 },
-        (err, stream) => {
-          if (err) {
-            entry.state = 'error'
-            reject(err)
-            return
-          }
-          entry.shell = stream
-          // Shell 输出广播给所有注册的回调
-          stream.on('data', (chunk: Buffer) => {
-            const data = chunk.toString('utf8')
-            for (const cb of entry.shellCallbacks) {
-              try {
-                cb(data)
-              } catch {
-                // 单个回调异常不影响其他回调
-              }
-            }
-          })
-          stream.on('close', () => {
-            entry.shell = null
-          })
-          stream.on('error', () => {
-            entry.shell = null
-          })
-          resolve(true)
+    const cols = size?.cols ?? 80
+    const rows = size?.rows ?? 24
+    const shellId = randomUUID()
+
+    return new Promise<string>((resolve, reject) => {
+      entry.client.shell({ term: 'xterm-256color', cols, rows }, (err, stream) => {
+        if (err) {
+          entry.state = 'error'
+          reject(err)
+          return
         }
-      )
+        const shell: ShellEntry = { id: shellId, sessionId, channel: stream, callbacks: new Set() }
+        entry.shells.set(shellId, shell)
+        // 输出只广播给**这条通道**的订阅者：多终端互不串字靠的就是这一层隔离
+        stream.on('data', (chunk: Buffer) => {
+          const data = chunk.toString('utf8')
+          for (const cb of [...shell.callbacks]) {
+            try {
+              cb(data)
+            } catch {
+              // 单个回调异常不影响其他回调
+            }
+          }
+        })
+        // 通道自己结束（exit / 远端杀掉）也要从表里摘掉，否则关掉的标签还能被写入
+        stream.on('close', () => {
+          entry.shells.delete(shellId)
+        })
+        stream.on('error', () => {
+          entry.shells.delete(shellId)
+        })
+        resolve(shellId)
+      })
     })
   }
 
   /**
-   * 向 Shell 写入数据（模拟键盘输入）
+   * 按 shellId 找通道
+   *
+   * 这里扫会话而不是再建一张全局 shellId 表：两个索引迟早分叉，
+   * 而会话数与每条会话的终端数都是个位数。
+   */
+  private findShell(shellId: string): { session: SessionEntry; shell: ShellEntry } | null {
+    for (const session of this.sessions.values()) {
+      const shell = session.shells.get(shellId)
+      if (shell) return { session, shell }
+    }
+    return null
+  }
+
+  /** 拿不到通道就报错，错误里带上 shellId 方便界面上说清是哪个终端没了 */
+  private requireShell(shellId: string): { session: SessionEntry; shell: ShellEntry } {
+    const found = this.findShell(shellId)
+    if (!found) {
+      throw new Error(`终端已关闭（shellId: ${shellId}）`)
+    }
+    return found
+  }
+
+  /**
+   * 某条 shellId 现在是否还开着
+   *
+   * 存在的理由：IPC 层自己有一份 shellId → 退订函数 的登记，通道被远端杀掉时
+   * 只有这边会删表，那边不知道。给一个查询口让它能自己扫干净，
+   * 免得留一堆指向已销毁终端的闭包。
+   */
+  public isShellOpen(shellId: string): boolean {
+    return this.findShell(shellId) !== null
+  }
+
+  /**
+   * 列出某条会话当前打开的 shellId（渲染层重连后要恢复标签列表用）
    * @param sessionId 会话 ID
+   */
+  public listShells(sessionId: string): string[] {
+    const entry = this.sessions.get(sessionId)
+    if (!entry) return []
+    return [...entry.shells.keys()]
+  }
+
+  /**
+   * 关闭一条 Shell 通道（关标签，不断整条 SSH 连接）
+   * @param shellId 通道 ID
+   * @returns 是否真的关掉了一条（已经不在表里返回 false，调用方按幂等处理）
+   */
+  public closeShell(shellId: string): boolean {
+    const found = this.findShell(shellId)
+    if (!found) return false
+    found.session.shells.delete(shellId)
+    try {
+      found.shell.channel.end()
+    } catch {
+      // 忽略关闭异常
+    }
+    found.shell.callbacks.clear()
+    found.session.lastUsedAt = Date.now()
+    return true
+  }
+
+  /**
+   * 向指定 Shell 写入数据（模拟键盘输入）
+   * @param shellId 通道 ID
    * @param data 要写入的数据（按键或命令字符串）
    */
-  public async writeShell(sessionId: string, data: string): Promise<boolean> {
-    const entry = this.requireSession(sessionId)
-    if (!entry.shell) {
-      throw new Error(`会话 ${sessionId} 未启动 Shell`)
-    }
+  public async writeShell(shellId: string, data: string): Promise<boolean> {
+    const { session, shell } = this.requireShell(shellId)
+    session.lastUsedAt = Date.now()
     return new Promise<boolean>((resolve) => {
-      entry.shell!.write(data, 'utf8', (err) => resolve(!err))
+      shell.channel.write(data, 'utf8', (err) => resolve(!err))
     })
   }
 
   /**
    * 调整 Shell 终端窗口大小（响应前端 xterm.js resize 事件）
-   * @param sessionId 会话 ID
+   * @param shellId 通道 ID
    * @param cols 列数
    * @param rows 行数
    */
   public async resizeShell(
-    sessionId: string,
+    shellId: string,
     cols: number,
     rows: number
   ): Promise<boolean> {
-    const entry = this.requireSession(sessionId)
-    if (!entry.shell) {
+    const found = this.findShell(shellId)
+    if (!found) {
       return false
     }
     try {
-      entry.shell.setWindow(rows, cols, rows * 16, cols * 8)
+      found.shell.channel.setWindow(rows, cols, rows * 16, cols * 8)
       return true
     } catch {
       return false
@@ -476,26 +560,23 @@ export class SshConnectionManager {
   }
 
   /**
-   * 注册 Shell 数据回调
+   * 注册某条 Shell 的输出回调
    *
-   * 一个会话可注册多个回调，所有 Shell 输出会广播给所有回调。
    * 用于 IPC 层把数据转发到对应渲染进程。
    *
-   * @returns 取消注册函数。调用方**必须**持有它：这里没有去重，重复注册同一个
-   *          会话会让同一份输出被推多次（界面上就是字符翻倍），
+   * @returns 取消注册函数。调用方**必须**持有它：回调存的是 Set，同一个函数引用挂两次
+   *          不会翻倍，但**不退订就会一直往已销毁的窗口 send**，
    *          与 onStateChanged / onSessionClosed 保持同一个形状正是为了逼出退订。
    */
-  public onShellData(sessionId: string, callback: (data: string) => void): () => void {
-    const entry = this.sessions.get(sessionId)
-    if (!entry) {
-      throw new Error(`会话不存在: ${sessionId}`)
+  public onShellData(shellId: string, callback: (data: string) => void): () => void {
+    const found = this.findShell(shellId)
+    if (!found) {
+      throw new Error(`终端不存在或已关闭: ${shellId}`)
     }
-    entry.shellCallbacks.push(callback)
+    const { shell } = found
+    shell.callbacks.add(callback)
     return () => {
-      const idx = entry.shellCallbacks.indexOf(callback)
-      if (idx >= 0) {
-        entry.shellCallbacks.splice(idx, 1)
-      }
+      shell.callbacks.delete(callback)
     }
   }
 
@@ -694,7 +775,8 @@ export class SshConnectionManager {
       for (const entry of this.sessions.values()) {
         if (entry.client === client) {
           entry.state = 'disconnected'
-          entry.shell = null
+          // 通道随连接一起没了：整张表清空，别让渲染层还能往死通道里写
+          entry.shells.clear()
           // 远端断链（网络掉、服务器重启、被踢）也是一次"会话没了"：
           // 监控与文件监听必须在这里收手，否则它们的定时器会朝着死连接一直 exec，
           // 抛出的错被空 catch 吞掉，界面上还留着最后一帧指标当"实时数据"。
@@ -706,18 +788,18 @@ export class SshConnectionManager {
     client.connect(opts)
   }
 
-  /** 实际断开逻辑：停心跳、关 Shell、关 Client */
+  /** 实际断开逻辑：停心跳、关全部 Shell 通道、关 Client */
   private async doDisconnect(sessionId: string, entry: SessionEntry): Promise<void> {
     this.stopKeepAlive(entry)
-    if (entry.shell) {
+    for (const shell of entry.shells.values()) {
       try {
-        entry.shell.end()
+        shell.channel.end()
       } catch {
         // 忽略关闭异常
       }
-      entry.shell = null
+      shell.callbacks.clear()
     }
-    entry.shellCallbacks.length = 0
+    entry.shells.clear()
     try {
       entry.client.end()
     } catch {
@@ -815,7 +897,7 @@ export class SshConnectionManager {
     // 重连全部失败：标记最终断开
     entry.reconnecting = false
     entry.state = 'disconnected'
-    entry.shell = null
+    entry.shells.clear()
     this.notifyStateChanged({
       sessionId: entry.sessionId,
       serverId: entry.config.id,

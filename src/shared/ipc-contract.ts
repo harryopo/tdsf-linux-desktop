@@ -17,7 +17,7 @@
  * 测试会在内存里重算一遍并与盘上文件比对，漂了就红（同 design-contract 的路子）。
  */
 import { z } from 'zod'
-import { AGENT, PROVIDER } from './ipc-channels'
+import { AGENT, PROVIDER, SSH } from './ipc-channels'
 
 /** 一条入参：名字用来生成签名，schema 用来运行时校验，ts 用来生成签名里的类型 */
 export interface ContractArg {
@@ -109,6 +109,82 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     ],
     resultTs: 'PaorLoopResult',
     result: z.unknown(),
+  },
+  // ===== 交互式 Shell（2026-10-10 起身份是 shellId，不再是 sessionId）=====
+  // 六条都进契约、preload 全走 invokeChecked：这样"未纳入契约的 invoke 位点"刻度
+  // 不会因为新增通道往上走（该刻度只许降）。
+  // terminal:data 这条推送**故意不进契约**：它是位置参数 (shellId, data)，
+  // 而 event 支的 payload 是对象类型源，硬套会让生成的类型撒谎。
+  {
+    kind: 'invoke',
+    api: 'sshShellStart',
+    channel: SSH.SHELL_START,
+    doc: '新开一条交互式 Shell，返回 shellId（一条连接可开多个终端）',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      {
+        name: 'size',
+        ts: '{ cols: number; rows: number } | undefined',
+        schema: opt(z.object({ cols: z.number(), rows: z.number() })),
+      },
+    ],
+    resultTs: 'string',
+    result: str,
+  },
+  {
+    kind: 'invoke',
+    api: 'sshShellClose',
+    channel: SSH.SHELL_CLOSE,
+    doc: '关掉一条终端通道（不断整条 SSH 连接）',
+    args: [{ name: 'shellId', ts: 'string', schema: str }],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sshShellList',
+    channel: SSH.SHELL_LIST,
+    doc: '列出某条会话当前开着的 shellId（渲染层恢复标签用）',
+    args: [{ name: 'sessionId', ts: 'string', schema: str }],
+    resultTs: 'string[]',
+    result: arr(str),
+  },
+  {
+    kind: 'invoke',
+    api: 'sshShellWrite',
+    channel: SSH.SHELL_WRITE,
+    doc: '向指定终端写入键入数据（主进程不逐键判定，见通道注释）',
+    args: [
+      { name: 'shellId', ts: 'string', schema: str },
+      { name: 'data', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sshRunAuthored',
+    channel: SSH.SHELL_RUN_AUTHORED,
+    doc: '执行整条代写命令；主进程先过风险闸，block 级抛错',
+    args: [
+      { name: 'shellId', ts: 'string', schema: str },
+      { name: 'command', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sshShellResize',
+    channel: SSH.SHELL_RESIZE,
+    doc: '调整指定终端窗口尺寸',
+    args: [
+      { name: 'shellId', ts: 'string', schema: str },
+      { name: 'cols', ts: 'number', schema: z.number() },
+      { name: 'rows', ts: 'number', schema: z.number() },
+    ],
+    resultTs: 'boolean',
+    result: bool,
   },
   {
     kind: 'event',

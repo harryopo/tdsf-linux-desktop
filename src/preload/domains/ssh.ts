@@ -2,6 +2,7 @@
 import type { CommandResult, GenerateKeyPairRequest, GenerateKeyPairResponse, SshConfig, SshHostKeyResponseAction, SshKeyPair } from '@shared/models'
 import { SSH } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { invokeChecked } from '../ipc-util'
 
 // ============================================================================
 // invoke 通道封装（渲染 → 主，请求-响应）
@@ -30,23 +31,31 @@ const ssh = {
   exec: (sessionId: string, command: string): Promise<CommandResult> =>
     ipcRenderer.invoke(SSH.EXEC, sessionId, command),
 
-  /** 交互式 Shell 操作 */
+  /** 交互式 Shell 操作（身份是 shellId：一条连接可以开多个终端） */
   shell: {
-    /** 启动交互式 shell */
-    start: (sessionId: string): Promise<boolean> =>
-      ipcRenderer.invoke(SSH.SHELL_START, sessionId),
+    /** 新开一条交互式 Shell，返回 shellId */
+    start: (sessionId: string, size?: { cols: number; rows: number }): Promise<string> =>
+      invokeChecked<string>('sshShellStart', SSH.SHELL_START, sessionId, size),
+
+    /** 关闭一条终端通道（不断连接） */
+    close: (shellId: string): Promise<boolean> =>
+      invokeChecked<boolean>('sshShellClose', SSH.SHELL_CLOSE, shellId),
+
+    /** 列出某条会话当前开着的 shellId */
+    list: (sessionId: string): Promise<string[]> =>
+      invokeChecked<string[]>('sshShellList', SSH.SHELL_LIST, sessionId),
 
     /** 向 shell 写入数据（仅供用户键入，主进程不判定整条命令） */
-    write: (sessionId: string, data: string): Promise<boolean> =>
-      ipcRenderer.invoke(SSH.SHELL_WRITE, sessionId, data),
+    write: (shellId: string, data: string): Promise<boolean> =>
+      invokeChecked<boolean>('sshShellWrite', SSH.SHELL_WRITE, shellId, data),
 
     /** 执行整条代写命令（AI 建议 / 决策页重跑）：主进程先过风险闸 */
-    runAuthored: (sessionId: string, command: string): Promise<boolean> =>
-      ipcRenderer.invoke(SSH.SHELL_RUN_AUTHORED, sessionId, command),
+    runAuthored: (shellId: string, command: string): Promise<boolean> =>
+      invokeChecked<boolean>('sshRunAuthored', SSH.SHELL_RUN_AUTHORED, shellId, command),
 
     /** 调整 shell 终端窗口大小 */
-    resize: (sessionId: string, cols: number, rows: number): Promise<boolean> =>
-      ipcRenderer.invoke(SSH.SHELL_RESIZE, sessionId, cols, rows),
+    resize: (shellId: string, cols: number, rows: number): Promise<boolean> =>
+      invokeChecked<boolean>('sshShellResize', SSH.SHELL_RESIZE, shellId, cols, rows),
   },
 
   /**

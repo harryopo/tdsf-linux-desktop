@@ -18,6 +18,30 @@ export interface ContractedInvokeApi {
    * 通道 `agent:paor` */
   agentPaor(task: string, sshSessionId: string, maxIterations?: number): Promise<PaorLoopResult>
 
+  /** 新开一条交互式 Shell，返回 shellId（一条连接可开多个终端）
+   * 通道 `ssh:shell:start` */
+  sshShellStart(sessionId: string, size?: { cols: number; rows: number }): Promise<string>
+
+  /** 关掉一条终端通道（不断整条 SSH 连接）
+   * 通道 `ssh:shell:close` */
+  sshShellClose(shellId: string): Promise<boolean>
+
+  /** 列出某条会话当前开着的 shellId（渲染层恢复标签用）
+   * 通道 `ssh:shell:list` */
+  sshShellList(sessionId: string): Promise<string[]>
+
+  /** 向指定终端写入键入数据（主进程不逐键判定，见通道注释）
+   * 通道 `ssh:shell:write` */
+  sshShellWrite(shellId: string, data: string): Promise<boolean>
+
+  /** 执行整条代写命令；主进程先过风险闸，block 级抛错
+   * 通道 `ssh:shell:run-authored` */
+  sshRunAuthored(shellId: string, command: string): Promise<boolean>
+
+  /** 调整指定终端窗口尺寸
+   * 通道 `ssh:shell:resize` */
+  sshShellResize(shellId: string, cols: number, rows: number): Promise<boolean>
+
   /** 列出 Provider（不含 apiKey，附 hasApiKey）
    * 通道 `provider:list` */
   providerList(onlyEnabled?: boolean): Promise<PersistedProviderConfig[]>

@@ -23,7 +23,7 @@
  * - "全部保存"按钮一键保存所有未保存文件
  * - 文件 Tab 右键菜单（关闭/关闭其他/关闭所有/全部保存）
  */
-import { useCallback, useState, type FC } from 'react'
+import { useCallback, useEffect, useState, type FC } from 'react'
 import { toast } from 'sonner'
 import { Button, Dialog, DialogContent, confirmDialog } from '@/ui'
 import { PanelLeftOpen } from 'lucide-react'
@@ -32,6 +32,8 @@ import FileTree, { type OpenFileRequest } from '@/components/workbench/FileTree'
 import EditorArea, {
   createLoadingFileTab,
   fileTabId,
+  shellTabId,
+  isShellTab,
   type WorkbenchFileTab,
   type WorkbenchTabId,
 } from '@/components/workbench/EditorArea'
@@ -39,18 +41,73 @@ import AIPanel from '@/components/workbench/AIPanel'
 import { StatusBar } from '@/components/workbench/StatusBar'
 import { WorkbenchLayout } from '@/shell/workbench-layout'
 import { useServerStore } from '@/stores/server-store'
+import { useTerminalStore } from '@/stores/terminal-store'
+import { openShell, sessionTitle, syncShells } from '@/terminal/shell-launcher'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import '@/styles/workbench-density.css'
 import '@/components/workbench/Workbench.css'
 
 export const WorkbenchPage: FC = () => {
-  const [activeTabId, setActiveTabId] = useState<WorkbenchTabId>('tab-terminal')
+  /**
+   * 当前标签：null = 一个终端也没开、也没打开文件（显示空态）
+   *
+   * 以前初值是写死的 'tab-terminal'，隐含"终端永远只有一个格子"。
+   * 现在终端标签是 shell:<shellId>，开几个就有几个。
+   */
+  const [activeTabId, setActiveTabId] = useState<WorkbenchTabId | null>(null)
   const [activeFilePath, setActiveFilePath] = useState<string | undefined>()
   const [fileTabs, setFileTabs] = useState<WorkbenchFileTab[]>([])
   const [aiPanelVisible, setAiPanelVisible] = useState(true)
   // v2.11：资源管理器折叠态（与 AI 面板对齐，折叠后显一条细边栏可再展开）
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
   const activeSessionId = useServerStore((s) => s.activeSessionId)
+  const activeShellId = useTerminalStore((s) => s.activeShellId)
+
+  /** 关掉文件标签后回哪儿：有终端就回当前终端，一个都没有就是空态 */
+  const terminalFallbackTab = useCallback((): WorkbenchTabId | null => {
+    const id = useTerminalStore.getState().activeShellId
+    return id ? shellTabId(id) : null
+  }, [])
+
+  /**
+   * 主进程/启动器那边开出一个新终端时，工作台跟着切过去
+   *
+   * 只在"当前没标签或正看某个终端"时跟：用户正在看文件时不抢焦点，
+   * 否则在设置页点一下连接就把人从文件上拽走。
+   */
+  useEffect(() => {
+    if (!activeShellId) return
+    setActiveTabId((prev) => (prev === null || isShellTab(prev) ? shellTabId(activeShellId) : prev))
+  }, [activeShellId])
+
+  /**
+   * 进工作台 / 换会话时和主进程对一次终端表
+   *
+   * 标签的真值在主进程（它才有那些 ssh2 通道），界面这份只是投影。
+   * 页重载、别的窗口开的终端，都靠这一次对账补回来；主进程已关的则被摘掉。
+   */
+  useEffect(() => {
+    void syncShells().catch((err: unknown) => {
+      console.warn('[WorkbenchPage] 终端标签对账失败', err)
+    })
+  }, [activeSessionId])
+
+  /** 终端钮：有终端就聚焦，一个都没有就开一个（点了必须有反应） */
+  const focusOrOpenTerminal = useCallback(async () => {
+    const store = useTerminalStore.getState()
+    if (activeSessionId && store.activeShellId && store.shells.some((s) => s.shellId === store.activeShellId)) {
+      store.setActiveShell(store.activeShellId)
+      setActiveTabId(shellTabId(store.activeShellId))
+      return
+    }
+    if (!activeSessionId) {
+      setActiveTabId(null)
+      toast.info('还没连接服务器 —— 到 SSH 设置里连一台，再开终端')
+      return
+    }
+    const result = await openShell(activeSessionId, sessionTitle(activeSessionId))
+    if (!result.ok) toast.error(`开终端失败：${result.reason}`)
+  }, [activeSessionId])
 
   const handleOpenFile = useCallback((req: OpenFileRequest) => {
     const id = fileTabId(req.path)
@@ -125,7 +182,7 @@ export const WorkbenchPage: FC = () => {
       const directClose = () => {
         setFileTabs((prev) => prev.filter((t) => t.id !== tabId))
         if (activeTabId === tabId) {
-          setActiveTabId('tab-terminal')
+          setActiveTabId(terminalFallbackTab())
           setActiveFilePath(undefined)
         }
       }
@@ -146,7 +203,7 @@ export const WorkbenchPage: FC = () => {
     setPendingCloseTabId(null)
     setFileTabs((prev) => prev.filter((t) => t.id !== tabId))
     if (activeTabId === tabId) {
-      setActiveTabId('tab-terminal')
+      setActiveTabId(terminalFallbackTab())
       setActiveFilePath(undefined)
     }
   }, [pendingCloseTabId, activeTabId])
@@ -162,7 +219,7 @@ export const WorkbenchPage: FC = () => {
         setPendingCloseTabId(null)
         setFileTabs((prev) => prev.filter((t) => t.id !== tabId))
         if (activeTabId === tabId) {
-          setActiveTabId('tab-terminal')
+          setActiveTabId(terminalFallbackTab())
           setActiveFilePath(undefined)
         }
       }
@@ -245,7 +302,7 @@ export const WorkbenchPage: FC = () => {
       const doClose = () => {
         setFileTabs((prev) => prev.filter((t) => t.id === keepTabId))
         // 若当前激活 tab 被关闭（理论上 keepTabId 是激活的，但兜底）
-        if (activeTabId !== keepTabId && activeTabId !== 'tab-terminal') {
+        if (activeTabId !== keepTabId && activeTabId !== null && !isShellTab(activeTabId)) {
           setActiveTabId(keepTabId)
           setActiveFilePath(keepTabId.startsWith('file:') ? keepTabId.slice(5) : undefined)
         }
@@ -274,7 +331,7 @@ export const WorkbenchPage: FC = () => {
     const dirtyList = fileTabs.filter((t) => t.dirty && !t.loading && !t.error)
     const doClose = () => {
       setFileTabs([])
-      setActiveTabId('tab-terminal')
+      setActiveTabId(terminalFallbackTab())
       setActiveFilePath(undefined)
     }
     if (dirtyList.length === 0) {
@@ -298,8 +355,8 @@ export const WorkbenchPage: FC = () => {
       <WorkbenchTitlebar
         aiPanelVisible={aiPanelVisible}
         onToggleAI={() => setAiPanelVisible((v) => !v)}
-        onToggleTerminal={() => setActiveTabId('tab-terminal')}
-        terminalActive={activeTabId === 'tab-terminal'}
+        onToggleTerminal={() => void focusOrOpenTerminal()}
+        terminalActive={isShellTab(activeTabId)}
         onSaveAll={() => void handleSaveAll()}
         hasUnsavedFiles={fileTabs.some((t) => t.dirty)}
       />

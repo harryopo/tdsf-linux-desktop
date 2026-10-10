@@ -21,8 +21,8 @@ import './TerminalCompletionAddon.css'
 interface TerminalCompletionAddonProps {
   /** xterm.js Terminal 实例 */
   terminal: Terminal
-  /** SSH 会话 ID */
-  sessionId: string
+  /** 终端通道 ID（补全结果写进这一条终端，不是整条会话） */
+  shellId: string
 }
 
 /** 补全建议项（与 preload 暴露类型一致） */
@@ -39,7 +39,7 @@ interface CompletionSuggestion {
 
 const TerminalCompletionAddon: React.FC<TerminalCompletionAddonProps> = ({
   terminal,
-  sessionId,
+  shellId,
 }) => {
   const [suggestion, setSuggestion] = useState<CompletionSuggestion | null>(null)
   const [position, setPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
@@ -105,14 +105,14 @@ const TerminalCompletionAddon: React.FC<TerminalCompletionAddonProps> = ({
     const completion = suggestion.completion
     if (!completion) return
     try {
-      await window.electronAPI.sshShellWrite(sessionId, completion)
+      await window.electronAPI.sshShellWrite(shellId, completion)
       await window.electronAPI.terminalCompletionAccept(suggestion.command)
       inputRef.current += completion
       clearSuggestion()
     } catch (err) {
       console.error('[TerminalCompletionAddon] 接受建议失败:', err)
     }
-  }, [suggestion, terminal, sessionId, clearSuggestion])
+  }, [suggestion, terminal, shellId, clearSuggestion])
 
   useEffect(() => {
     mountedRef.current = true
@@ -192,7 +192,7 @@ const TerminalCompletionAddon: React.FC<TerminalCompletionAddonProps> = ({
       terminal.textarea?.removeEventListener('keydown', handleKeyDown)
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [terminal, sessionId, suggestion, acceptSuggestion, clearSuggestion, requestCompletion, updateOverlayPosition])
+  }, [terminal, shellId, suggestion, acceptSuggestion, clearSuggestion, requestCompletion, updateOverlayPosition])
 
   if (!suggestion) return null
 

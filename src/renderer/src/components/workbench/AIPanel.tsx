@@ -46,6 +46,7 @@ import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
 import Composer from './Composer'
 import { PermissionBar } from '@/dock/permission-bar'
+import { ensureShellForSession, sessionTitle } from '@/terminal/shell-launcher'
 
 /** AIPanel props */
 export interface AIPanelProps {
@@ -305,6 +306,13 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       toast.warning('当前环境不支持终端执行（非 Electron 环境）')
       return
     }
+    // 命令要投进**一个终端**（2026-10-10 起身份是 shellId）：这台主机一个终端都没开就
+    // 顺手开一个——用户点的是"在终端执行"，先让他去别处找新建终端按钮是把成本推回去。
+    const shell = await ensureShellForSession(activeSessionId, sessionTitle(activeSessionId))
+    if (!shell.ok) {
+      toast.error(`没能为这条命令开终端：${shell.reason}`)
+      return
+    }
 
     // v2.6 前置环境预检：发送到终端前先确认命令在服务器上存在（command -v），
     // 缺失时阻断并明确提示；预检自身失败 fail-open 照常发送。
@@ -328,7 +336,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       // 再发 Ctrl+U 清掉 shell 当前行可能的半截输入，避免命令拼接乱码
       useTerminalStore.getState().setPendingCommand({ command: payload, sentAt: Date.now() })
       // 走 run-authored 而不是裸 shell write：命令由 AI 起草，主进程要过风险闸
-      await api.sshRunAuthored(activeSessionId, payload)
+      await api.sshRunAuthored(shell.shellId, payload)
       toast.success('命令已发送到终端，请在终端查看回显')
 
       // v2.5 决策落库：用户批准执行 = 一次真实决策（AI 建议 → 人工批准 → 执行），

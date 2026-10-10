@@ -661,7 +661,9 @@ export interface IpcChannelMap {
   'ssh:connect': { args: [SshConfig]; return: string }
   'ssh:disconnect': { args: [string]; return: boolean }
   'ssh:exec': { args: [string, string]; return: CommandResult }
-  'ssh:shell:start': { args: [string]; return: boolean }
+  'ssh:shell:start': { args: [string, { cols: number; rows: number }?]; return: string }
+  'ssh:shell:close': { args: [string]; return: boolean }
+  'ssh:shell:list': { args: [string]; return: string[] }
   'ssh:shell:write': { args: [string, string]; return: boolean }
   'ssh:shell:resize': { args: [string, number, number]; return: boolean }
   'sftp:list': { args: [string, string]; return: SftpEntry[] }

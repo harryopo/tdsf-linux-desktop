@@ -18,13 +18,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { makeAlienKnownHostLine, startSshFixture } from './ssh-fixture-server'
 import type { FixtureHandle } from './ssh-fixture-server'
-import {
-  bindSessionToStore,
-  connectToFixture,
-  installHostKeyRecorder,
-  launchApp,
-  readHostKeyPrompts,
-} from './ssh-fixture-helpers'
+import { bindSessionToStore, connectToFixture, installHostKeyRecorder, installTerminalTap, launchApp, openShellViaIpc, readHostKeyPrompts, writeShellViaIpc } from './ssh-fixture-helpers'
 
 const testOrSkip = fs.existsSync(path.join(__dirname, '../../out/main/index.js')) ? test : test.skip
 
@@ -93,24 +87,10 @@ test.describe('本地 fixture SSH 靶机（S1 连接 + S2 命令块 + 主机密�
     await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
     // 旁听渲染进程收到的原始字节：红了能一眼分清是"对端没发"还是"发了但没成块"
-    await page.evaluate(() => {
-      const w = window as unknown as {
-        __termLog?: string
-        electronAPI: { onTerminalData: (cb: (sid: string, data: string) => void) => () => void }
-      }
-      w.__termLog = ''
-      w.electronAPI.onTerminalData((_sid, data) => {
-        w.__termLog = (w.__termLog ?? '') + data
-      })
-    })
+    const readTermLog = await installTerminalTap(page)
 
     // 开 shell（真实路径由标题栏在连接后调用，这里直连 IPC 复现同一步）
-    const started = await page.evaluate(
-      (sid) => (window as unknown as { electronAPI: { sshShellStart: (s: string) => Promise<boolean> } })
-        .electronAPI.sshShellStart(sid),
-      sessionId,
-    )
-    expect(started, 'sshShellStart 应成功').toBe(true)
+    const shellId = await openShellViaIpc(page, sessionId)
 
     // shell 一开场就吐一个完整命令块（fixture 里写死 echo tdsf-boot）
     const statusbar = page.locator('.wb-statusbar')
@@ -119,17 +99,10 @@ test.describe('本地 fixture SSH 靶机（S1 连接 + S2 命令块 + 主机密�
       .toMatch(/[1-9]\d* 命令块/)
 
     // 敲一条命令（走 sshShellWrite → 对端回显 → xterm 解析 → 块模型）
-    const wrote = await page.evaluate(
-      ({ sid, data }) => {
-        const w = window as unknown as { electronAPI: { sshShellWrite: (s: string, d: string) => Promise<boolean> } }
-        return w.electronAPI.sshShellWrite(sid, data)
-      },
-      { sid: sessionId, data: 'uptime\r' },
-    )
+    const wrote = await writeShellViaIpc(page, shellId, 'uptime\r')
     expect(wrote, 'sshShellWrite 应写入成功').toBe(true)
 
-    const rawSeen = async (): Promise<string> =>
-      page.evaluate(() => (window as unknown as { __termLog?: string }).__termLog ?? '')
+    const rawSeen = async (): Promise<string> => readTermLog()
 
     await expect
       .poll(async () => statusbar.innerText(), {

@@ -16,13 +16,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Client } from 'ssh2'
-import {
-  FIXTURE_READY,
-  installHostKeyRecorder,
-  launchApp,
-  readHostKeyPrompts,
-  tcpReachable,
-} from './ssh-fixture-helpers'
+import { FIXTURE_READY, installHostKeyRecorder, installTerminalTap, launchApp, openShellViaIpc, readHostKeyPrompts, tcpReachable, writeShellViaIpc } from './ssh-fixture-helpers'
 import { opensshLookup, parseTarget, readClientKey, toWslPath } from './real-sshd-fixture'
 
 const DISTRO = (process.env.TDSF_REAL_SSHD_WSL ?? 'Ubuntu-24.04').trim()
@@ -221,38 +215,16 @@ test.describe('应用 × 真 OpenSSH 靶机（A2 真机那一半）', () => {
       const sid = r.sessionId as string
 
       // 先挂上原始流：红了能一眼分清是"对端没发"还是"发了但没显示"
-      await page.evaluate(() => {
-        const w = window as unknown as {
-          __termLog?: string
-          electronAPI: { onTerminalData: (cb: (sid: string, data: string) => void) => () => void }
-        }
-        w.__termLog = ''
-        w.electronAPI.onTerminalData((_s, d) => {
-          w.__termLog = (w.__termLog ?? '') + d
-        })
-      })
+      const readTermLog = await installTerminalTap(page)
 
-      const started = await page.evaluate(
-        (id) =>
-          (window as unknown as { electronAPI: { sshShellStart: (s: string) => Promise<boolean> } })
-            .electronAPI.sshShellStart(id),
-        sid
-      )
-      expect(started, 'sshShellStart 失败 ⇒ 人类终端根本没开起来').toBe(true)
+      const shellId = await openShellViaIpc(page, sid)
 
       const MARK = 'tdsf-human-alive'
-      const wrote = await page.evaluate(
-        (args) =>
-          (window as unknown as {
-            electronAPI: { sshShellWrite: (s: string, d: string) => Promise<boolean> }
-          }).electronAPI.sshShellWrite(args.sid, args.data),
-        { sid, data: `echo ${MARK}\r` }
-      )
+      const wrote = await writeShellViaIpc(page, shellId, `echo ${MARK}\r`)
       expect(wrote, 'sshShellWrite 写不进去 ⇒ 把 AI 挪走时把人类路径一起弄断了').toBe(true)
 
       // 真 pty 会先回显敲的那行、再把 echo 的输出打一遍 ⇒ 同一标记至少出现两次
-      const rawText = (): Promise<string> =>
-        page.evaluate(() => (window as unknown as { __termLog?: string }).__termLog ?? '')
+      const rawText = (): Promise<string> => readTermLog()
       await expect
         .poll(async () => (await rawText()).split(MARK).length - 1, {
           message: `真机回显没回到渲染进程，原始流=${JSON.stringify(await rawText())}`,

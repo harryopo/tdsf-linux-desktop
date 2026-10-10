@@ -2,8 +2,34 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-10T04:24:01.482Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-10T04:27:00.322Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-10T04:26:57.351Z",
+      "lastActiveAt": "2026-10-10T04:27:00.322Z",
+      "task": "W2 shellId 契约",
+      "claimedFiles": [
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "W2 shellId 契约",
+          "claimedAt": "2026-10-10T04:26:57.351Z"
+        },
+        {
+          "path": "src/shared/models.ts",
+          "task": "W2 shellId 契约",
+          "claimedAt": "2026-10-10T04:26:58.838Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "W2 shellId 契约",
+          "claimedAt": "2026-10-10T04:27:00.322Z"
+        }
+      ],
+      "expiresAt": "2026-10-10T06:27:00.322Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -6318,6 +6344,27 @@
       "file": "src/shared/agent-types.ts",
       "task": "W1-baseurl-comment-truth",
       "timestamp": "2026-10-10T04:24:01.482Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "W2 shellId 契约",
+      "timestamp": "2026-10-10T04:26:57.351Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "W2 shellId 契约",
+      "timestamp": "2026-10-10T04:26:58.838Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "W2 shellId 契约",
+      "timestamp": "2026-10-10T04:27:00.322Z"
     }
   ],
   "coordinationAudit": {

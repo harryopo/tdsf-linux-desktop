@@ -22,7 +22,7 @@ import { startSshFixture } from './ssh-fixture-server'
 import type { FixtureHandle } from './ssh-fixture-server'
 import { startAiFixture } from './ai-fixture-server'
 import type { AiFixtureHandle } from './ai-fixture-server'
-import { bindSessionToStore, connectToFixture, e2eProfileDir, launchApp } from './ssh-fixture-helpers'
+import { bindSessionToStore, connectToFixture, e2eProfileDir, launchApp, openShellViaIpc } from './ssh-fixture-helpers'
 import BetterSqlite3 from 'better-sqlite3'
 
 /**
@@ -232,13 +232,7 @@ test.describe('终端命令块进 AI 请求体', () => {
     await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
     // 开交互式 shell：靶机一开场就吐一条完整命令块（echo tdsf-boot）
-    const started = await page.evaluate(
-      (sid) =>
-        (window as unknown as { electronAPI: { sshShellStart: (s: string) => Promise<boolean> } })
-          .electronAPI.sshShellStart(sid),
-      sessionId,
-    )
-    expect(started, 'sshShellStart 应成功').toBe(true)
+    const shellId = await openShellViaIpc(page, sessionId)
     await expect
       .poll(() => page.locator('.wb-statusbar').innerText(), {
         message: '状态栏应先出现至少 1 个命令块',

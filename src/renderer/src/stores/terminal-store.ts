@@ -2,29 +2,31 @@
  * 终端状态管理 Store（Zustand）
  *
  * 职责：
- * - 管理多标签终端的 Tab 列表
- * - 跟踪当前活跃的 Tab ID
- * - 提供 Tab 的增删改查操作
+ * - 管理本机这一窗口的终端列表（每条 = 主进程里一个 shell 通道）
+ * - 跟踪当前活跃的终端（AI 面板与决策页"投进终端"用的就是这个指针）
+ * - 命令块摘要与 AI 注入命令的预测回显（状态栏与回显条消费）
  *
- * 每个 Tab 对应一个 SSH 会话，包含 sessionId 和显示标题。
- * 终端实例本身由 TerminalView 组件管理生命周期，Store 只管理 Tab 元数据。
+ * 为什么不持久化：终端标签是"这一次会话里开着的通道"，重启后主进程里那些
+ * ssh2 通道早没了，存标签等于存一堆点不动的按钮。服务器配置与凭据由
+ * server-store / SecureStore 负责，那才是该活过重启的东西。
+ *
+ * 历史坑（2026-10-10 清掉）：这里曾有 addTab / removeTab / closeOtherTabs 三个动作
+ * 配一个 tabs 数组，全仓零调用，TerminalTabs.css 也只有样式没有组件——
+ * "看着像有多标签，其实一条连接只有一个终端"。现在 shellId 是真的：
+ * 主进程按 shellId 分发输出，这一份表就是它的界面投影。
  */
 import { create } from 'zustand'
 
-/** 终端 Tab 数据结构 */
-interface TerminalTab {
-  /** Tab 唯一标识 */
-  id: string
-  /** 关联的 SSH 会话 ID */
+/** 一个打开中的终端（对应主进程的一条 shell 通道） */
+export interface TerminalShell {
+  /** 主进程发的通道 ID（terminal:data 按它路由） */
+  shellId: string
+  /** 所属 SSH 会话 */
   sessionId: string
-  /** 关联的服务器 ID */
-  serverId: string
-  /** Tab 显示标题（通常为服务器名称） */
+  /** 标签上显示的名字（通常是主机名） */
   title: string
-  /** 是否已激活 */
-  active: boolean
-  /** 创建时间戳 */
-  createdAt: number
+  /** 打开时间戳（同主机多个终端按它编号显示"终端 2"） */
+  openedAt: number
 }
 
 /** AI 注入命令的预测回显记录（v2.5：终端顶部回显条） */
@@ -49,27 +51,30 @@ export interface CommandBlockSummary {
 
 /** 终端 Store 状态接口 */
 interface TerminalState {
-  /** Tab 列表 */
-  tabs: TerminalTab[]
-  /** 当前活跃 Tab ID */
-  activeTabId: string | null
-  /** 最近一条 AI 注入命令（预测回显条数据源，v2.5） */
-  pendingCommand: PendingCommand | null
+  /** 打开中的终端列表（打开顺序） */
+  shells: TerminalShell[]
+  /** 当前活跃终端；null = 一个都没开 */
+  activeShellId: string | null
 
   // ===== Actions =====
-  /** 添加新 Tab */
-  addTab: (tab: TerminalTab) => void
-  /** 移除 Tab */
-  removeTab: (tabId: string) => void
-  /** 设置活跃 Tab */
-  setActiveTab: (tabId: string) => void
-  /** 更新 Tab 标题 */
-  updateTabTitle: (tabId: string, title: string) => void
-  /** 关闭其他 Tab */
-  closeOtherTabs: (tabId: string) => void
-  /** 获取当前活跃 Tab */
-  getActiveTab: () => TerminalTab | null
-  /** 登记/清除 AI 注入命令（预测回显条，v2.5） */
+  /** 记录一条新开的终端并把它设为活跃 */
+  addShell: (shell: TerminalShell) => void
+  /** 移除一条终端（关标签 / 主进程报通道已关闭）；活跃指针跟着回退 */
+  removeShell: (shellId: string) => void
+  /** 设为活跃终端 */
+  setActiveShell: (shellId: string) => void
+  /** 改标签标题（连接拿到主机名后回填用） */
+  setShellTitle: (shellId: string, title: string) => void
+  /** 整条会话没了：把它名下所有终端一次摘掉（不能留点不动的死标签） */
+  dropSession: (sessionId: string) => void
+  /** 与主进程对账：以主进程给的 shellIds 为准增删这条会话的标签，不抢当前焦点 */
+  reconcileSession: (sessionId: string, shellIds: string[], title: string) => void
+  /** 该会话已开的终端数（"连接"按钮用它决定要不要再开一个） */
+  shellsOf: (sessionId: string) => TerminalShell[]
+
+  /** 最近一条 AI 注入命令（预测回显条数据源，v2.5） */
+  pendingCommand: PendingCommand | null
+  /** 登记/清除 AI 注入命令 */
   setPendingCommand: (cmd: PendingCommand | null) => void
   /** 命令块摘要（OSC 133/633 切块结果，状态栏与 AI 上下文消费） */
   commandBlocks: CommandBlockSummary | null
@@ -79,72 +84,83 @@ interface TerminalState {
 
 /** 终端 Store */
 export const useTerminalStore = create<TerminalState>()((set, get) => ({
-  tabs: [],
-  activeTabId: null,
-  pendingCommand: null,
+  shells: [],
+  activeShellId: null,
 
-  // 添加新 Tab
-  addTab: (tab) =>
+  addShell: (shell) =>
     set((state) => ({
-      // 新 Tab 设为活跃，其他 Tab 取消活跃
-      tabs: [...state.tabs.map((t) => ({ ...t, active: false })), tab],
-      activeTabId: tab.id,
+      shells: [...state.shells, shell],
+      activeShellId: shell.shellId,
     })),
 
-  // 移除 Tab
-  removeTab: (tabId) =>
+  removeShell: (shellId) =>
     set((state) => {
-      const newTabs = state.tabs.filter((t) => t.id !== tabId)
-      // 如果移除的是当前活跃 Tab，则激活最后一个 Tab
-      let newActiveTabId = state.activeTabId
-      if (state.activeTabId === tabId) {
-        newActiveTabId = newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null
-      }
+      const shells = state.shells.filter((s) => s.shellId !== shellId)
+      // 关掉的正是活跃终端时，回退到最后一条；一个不剩就是 null
+      const activeShellId =
+        state.activeShellId !== shellId
+          ? state.activeShellId
+          : (shells[shells.length - 1]?.shellId ?? null)
+      return { shells, activeShellId }
+    }),
+
+  setActiveShell: (shellId) => set({ activeShellId: shellId }),
+
+  setShellTitle: (shellId, title) =>
+    set((state) => ({
+      shells: state.shells.map((s) => (s.shellId === shellId ? { ...s, title } : s)),
+    })),
+
+  dropSession: (sessionId) =>
+    set((state) => {
+      const shells = state.shells.filter((s) => s.sessionId !== sessionId)
+      const stillThere = shells.some((s) => s.shellId === state.activeShellId)
       return {
-        tabs: newTabs.map((t, _idx) => ({
-          ...t,
-          active: t.id === newActiveTabId,
-        })),
-        activeTabId: newActiveTabId,
+        shells,
+        activeShellId: stillThere ? state.activeShellId : (shells[shells.length - 1]?.shellId ?? null),
       }
     }),
 
-  // 设置活跃 Tab
-  setActiveTab: (tabId) =>
-    set((state) => ({
-      tabs: state.tabs.map((t) => ({
-        ...t,
-        active: t.id === tabId,
-      })),
-      activeTabId: tabId,
-    })),
+  reconcileSession: (sessionId, shellIds, title) =>
+    set((state) => {
+      const wanted = new Set(shellIds)
+      const known = new Set(state.shells.map((s) => s.shellId))
+      const now = Date.now()
+      // 别的会话的标签原样留着；本会话的按主进程那份表增删
+      const kept = state.shells.filter((s) => s.sessionId !== sessionId || wanted.has(s.shellId))
+      const added: TerminalShell[] = shellIds
+        .filter((shellId) => !known.has(shellId))
+        .map((shellId) => ({ shellId, sessionId, title, openedAt: now }))
+      const shells = [...kept, ...added]
+      // 只在"原来的活跃终端没了"时才改指针：别的会话后台开了终端不该把人从当前标签上拽走
+      const stillThere = shells.some((s) => s.shellId === state.activeShellId)
+      return {
+        shells,
+        activeShellId: stillThere
+          ? state.activeShellId
+          : (shells[shells.length - 1]?.shellId ?? null),
+      }
+    }),
 
-  // 更新 Tab 标题
-  updateTabTitle: (tabId, title) =>
-    set((state) => ({
-      tabs: state.tabs.map((t) =>
-        t.id === tabId ? { ...t, title } : t
-      ),
-    })),
+  shellsOf: (sessionId) => get().shells.filter((s) => s.sessionId === sessionId),
 
-  // 关闭其他 Tab
-  closeOtherTabs: (tabId) =>
-    set((state) => ({
-      tabs: state.tabs
-        .filter((t) => t.id === tabId)
-        .map((t) => ({ ...t, active: true })),
-      activeTabId: tabId,
-    })),
-
-  // 获取当前活跃 Tab
-  getActiveTab: () => {
-    const state = get()
-    return state.tabs.find((t) => t.id === state.activeTabId) ?? null
-  },
-
-  // 登记/清除 AI 注入命令（预测回显条，v2.5）
+  pendingCommand: null,
   setPendingCommand: (cmd) => set({ pendingCommand: cmd }),
 
   commandBlocks: null,
   setCommandBlocks: (summary) => set({ commandBlocks: summary }),
 }))
+
+/**
+ * 标签显示名：同一台主机开第二个终端时补编号，
+ * 否则两个都叫"web-03"，用户分不清往哪个敲命令。
+ */
+export function shellTabLabel(shell: TerminalShell, all: TerminalShell[]): string {
+  const sameSession = all.filter((s) => s.sessionId === shell.sessionId)
+  if (sameSession.length <= 1) return shell.title
+  const index = sameSession
+    .slice()
+    .sort((a, b) => a.openedAt - b.openedAt)
+    .findIndex((s) => s.shellId === shell.shellId)
+  return `${shell.title} · ${index + 1}`
+}

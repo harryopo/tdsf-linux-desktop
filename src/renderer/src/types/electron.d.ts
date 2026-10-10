@@ -643,14 +643,11 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   sshDisconnect(sessionId: string): Promise<boolean>
   /** 执行 SSH 命令 */
   sshExec(sessionId: string, command: string): Promise<CommandResult>
-  /** 启动交互式 Shell */
-  sshShellStart(sessionId: string): Promise<boolean>
-  /** 向 Shell 写入数据 */
-  sshShellWrite(sessionId: string, data: string): Promise<boolean>
-  /** 执行整条代写命令（AI 建议 / 决策页重跑）；主进程先过风险闸，block 级抛错 */
-  sshRunAuthored(sessionId: string, command: string): Promise<boolean>
-  /** 调整 Shell 终端尺寸 */
-  sshShellResize(sessionId: string, cols: number, rows: number): Promise<boolean>
+  /**
+   * 交互式 Shell 的六个方法（start/close/list/write/runAuthored/resize）
+   * 签名由 src/shared/ipc-contract.ts 生成（ContractedInvokeApi），这里不再手写。
+   * 身份是 shellId 而不是 sessionId：一条连接现在可以开多个终端。
+   */
   /**
    * 响应主机密钥确认弹窗（Phase L）
    *
@@ -1514,7 +1511,7 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
 
   // ===== 事件监听（主进程 → 渲染进程） =====
   /** 监听终端数据推送，返回取消监听函数 */
-  onTerminalData(callback: (sessionId: string, data: string) => void): () => void
+  onTerminalData(callback: (shellId: string, data: string) => void): () => void
   /** 监听监控数据推送（实时指标），返回取消监听函数 */
   onMonitorData(callback: (sessionId: string, data: MonitorData) => void): () => void
   /** 监听系统信息推送（首次采集时推送一次），返回取消监听函数 */

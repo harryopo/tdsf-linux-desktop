@@ -29,6 +29,8 @@ import { KeyCard } from '@/components/settings/ssh/KeyCard'
 import { DefaultsCard } from '@/components/settings/ssh/DefaultsCard'
 import { SecurityCard } from '@/components/settings/ssh/SecurityCard'
 import { useServerStore } from '@/stores/server-store'
+import { useTerminalStore } from '@/stores/terminal-store'
+import { ensureShellForSession, shellTitleOf } from '@/terminal/shell-launcher'
 import { useSettingsStore } from '@/stores/settings-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -169,7 +171,12 @@ export function SshSettings() {
       try {
         const sessionId = await obtain()
         try {
-          await window.electronAPI.sshShellStart(sessionId)
+          // 连接成功后顺手开一个终端；已有终端就复用（不再叠一条转发）
+          const shell = await ensureShellForSession(
+            sessionId,
+            shellTitleOf(server.name ?? server.host),
+          )
+          if (!shell.ok) toast.warning(`终端没能打开：${shell.reason}`)
         } catch (e) {
           console.warn('[SshSettings] shell start', e)
           toast.warning('Shell 启动失败，终端可能不可用')
@@ -243,6 +250,9 @@ export function SshSettings() {
         if (activeSessionId === sid) setActiveSession(null)
         clearSessionMapping(server.id)
         setConnectionState(server.id, 'disconnected')
+        // 通道随连接一起没了：它名下的终端标签必须整批摘掉，
+        // 否则回到工作台看到的是一排点不动的死标签
+        useTerminalStore.getState().dropSession(sid)
         toast.success(`已断开 ${server.name || server.host}`)
         showFb(`已断开 ${server.name || server.host}`)
       } catch (err) {

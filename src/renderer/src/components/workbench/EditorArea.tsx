@@ -1,15 +1,24 @@
 /**
- * EditorArea — 标签栏 + 真终端 + 远程文件编辑
+ * EditorArea — 标签栏 + 多终端 + 远程文件编辑
  *
  * // @ai-session: ai-claude-20260720-wb3
  * // @ai-task: overnight-phase-B-editor-io
  *
- * - tab-terminal：TerminalView（有 session）或引导
+ * - shell:*：一条打开的终端通道（同一条 SSH 连接可以有多个），全部挂着只显活跃的那个
  * - file:*：sftpReadFile / sftpWriteFile
- * - 仍保留可选 demo 标签（无会话时示意）
+ * - 一个都没有时是空态 + 主行动按钮（不再是三行灰字把人停在原地）
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
-import { ContextMenu, type ContextMenuEntry } from '@/ui'
+import { useNavigate } from 'react-router-dom'
+import {
+  ContextMenu,
+  type ContextMenuEntry,
+  Button,
+  Menu,
+  MenuTrigger,
+  MenuContent,
+  MenuItem,
+} from '@/ui'
 import { toast } from 'sonner'
 import {
   Terminal as TerminalIcon,
@@ -18,6 +27,7 @@ import {
   Loader2,
   X,
   Languages,
+  Plus,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
@@ -30,7 +40,8 @@ import { useEditorStore } from '@/stores/editor-store'
 import { useTranslateStore } from '@/stores/translate-store'
 // v2.6 修复：AI 命令预测回显条此前只渲染在从未被挂载的 TerminalTabs（死文件）里，
 // setPendingCommand 写的 store 没有消费者 —— 搜到真实终端面板这里渲染
-import { useTerminalStore } from '@/stores/terminal-store'
+import { useTerminalStore, shellTabLabel } from '@/stores/terminal-store'
+import { closeShell, openShell, sessionTitle } from '@/terminal/shell-launcher'
 import { Zap } from 'lucide-react'
 import '../terminal/TerminalTabs.css'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -67,7 +78,32 @@ function detectLanguage(filePath: string): MonacoEditorLanguage {
   }
 }
 
-export type WorkbenchTabId = 'tab-terminal' | `file:${string}`
+/**
+ * 编辑器区的一个标签页身份
+ *
+ * shell:<shellId> —— 一条打开的终端（一条 SSH 连接可以有多个）
+ * file:<远程路径> —— 一个文件
+ *
+ * 以前这里是 `'tab-terminal'` 一个写死的哨兵：意味着"终端"永远只有一个格子，
+ * 主进程也只给一条连接开一个 shell。2026-10-10 起身份换成 shellId，
+ * 判断必须走 isShellTab()，不许再比较字面量。
+ */
+export type WorkbenchTabId = `shell:${string}` | `file:${string}`
+
+/** 终端标签 id */
+export function shellTabId(shellId: string): WorkbenchTabId {
+  return `shell:${shellId}`
+}
+
+/** 从标签 id 还原 shellId（不是终端标签或没有标签时返回 null） */
+export function shellIdOfTab(tabId: WorkbenchTabId | null): string | null {
+  return tabId && tabId.startsWith('shell:') ? tabId.slice('shell:'.length) : null
+}
+
+/** 是不是终端标签 */
+export function isShellTab(tabId: WorkbenchTabId | null): boolean {
+  return tabId !== null && tabId.startsWith('shell:')
+}
 
 export interface WorkbenchFileTab {
   id: WorkbenchTabId
@@ -81,7 +117,8 @@ export interface WorkbenchFileTab {
 }
 
 export interface EditorAreaProps {
-  activeTabId: WorkbenchTabId
+  /** 当前标签；null = 一个都没开（一个终端也没有、也没打开文件），显示空态 */
+  activeTabId: WorkbenchTabId | null
   onTabChange: (tabId: WorkbenchTabId) => void
   fileTabs: WorkbenchFileTab[]
   onCloseFile?: (tabId: WorkbenchTabId) => void
@@ -94,10 +131,18 @@ export interface EditorAreaProps {
   onFileSaved?: (tabId: WorkbenchTabId, content: string) => void
 }
 
-const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
-  sessionId,
-  visible,
-}) => {
+const TerminalPanel: FC<{
+  /** 当前 SSH 会话；null = 还没连上任何主机 */
+  sessionId: string | null
+  /** 本面板是否可见（非活跃标签时隐藏但保留滚动缓冲） */
+  visible: boolean
+  /** 点"新建终端"：由父层负责真正开一条通道并报告失败原因 */
+  onOpenShell: () => void
+}> = ({ sessionId, visible, onOpenShell }) => {
+  const navigate = useNavigate()
+  // 同一条连接上的多个终端：全部挂着，只把活跃的那个显示出来（保住各自的滚动缓冲）
+  const shells = useTerminalStore((s) => s.shells)
+  const activeShellId = useTerminalStore((s) => s.activeShellId)
   // v0.8.0 终端翻译开关状态（与 translate-store 联动，persist 持久化）
   const translateEnabled = useTranslateStore((s) => s.enabled)
   const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
@@ -110,7 +155,9 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
     return () => clearTimeout(timer)
   }, [pendingCommand, setPendingCommand])
 
-  if (sessionId) {
+  const sessionShells = sessionId ? shells.filter((s) => s.sessionId === sessionId) : []
+
+  if (sessionShells.length > 0) {
     return (
       <div className="term-panel" style={{ display: 'flex', flexDirection: 'column' }}>
         {/* v0.8.0 翻译开关工具栏 */}
@@ -157,22 +204,41 @@ const TerminalPanel: FC<{ sessionId: string | null; visible: boolean }> = ({
         )}
         {/* 终端视图：包裹层 flex:1 确保高度占满剩余空间（.terminal-view 为 height:100%） */}
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-          <TerminalView sessionId={sessionId} visible={visible} />
+          {sessionShells.map((shell) => (
+            <TerminalView
+              key={shell.shellId}
+              shellId={shell.shellId}
+              visible={visible && shell.shellId === activeShellId}
+            />
+          ))}
         </div>
         {/* v0.8.0 选词翻译浮层（createPortal 到 body，全局唯一实例） */}
         <SelectionPopover />
       </div>
     )
   }
+  // 空态必须给下一步（DESIGN.md §5）：以前这里只有三行灰字，人停在原地不知道点哪儿
   return (
     <div className="term-empty">
       <TerminalIcon />
       <div className="term-empty-text">
-        终端待连接
+        {sessionId ? '这条连接还没开终端' : '终端待连接'}
       </div>
       <div className="term-empty-hint">
-        请在左侧资源管理器连接服务器
+        {sessionId
+          ? '一个终端跑一个任务；并排看输出就再开一个'
+          : '先在左侧资源管理器或 SSH 设置里连接一台服务器'}
       </div>
+      {sessionId ? (
+        <Button variant="solid" size="sm" onClick={onOpenShell}>
+          <Plus aria-hidden className="size-3" />
+          新建终端
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => void navigate('#/settings/ssh')}>
+          去连接服务器
+        </Button>
+      )}
     </div>
   )
 }
@@ -241,6 +307,7 @@ const EditorArea: FC<EditorAreaProps> = ({
   onFileSaved,
 }) => {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
+  const navigate = useNavigate()
   const setActiveFilePath = useEditorStore((s) => s.setActiveFilePath)
   const setCursorPosition = useEditorStore((s) => s.setCursorPosition)
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -250,9 +317,43 @@ const EditorArea: FC<EditorAreaProps> = ({
   /** path → watchId 映射（null 表示 fileWatchStart 进行中）；用于 fileWatchStop */
   const watchIdMapRef = useRef<Map<string, string | null>>(new Map())
 
+  /** 本机这一窗口开着的终端（按会话过滤后才是标签） */
+  const shells = useTerminalStore((s) => s.shells)
+  const setActiveShell = useTerminalStore((s) => s.setActiveShell)
+
+  /** 当前会话名下的终端（别的会话有终端也不显示在这条标签栏上） */
+  const sessionShells = useMemo(
+    () => shells.filter((s) => s.sessionId === activeSessionId),
+    [shells, activeSessionId],
+  )
+
+  /**
+   * 新开一个终端
+   *
+   * 失败一定要 toast：以前这类"点了没动静"最难查——主进程抛的原因被渲染层吞了，
+   * 用户只看到标签少一个。
+   */
+  const handleOpenShell = useCallback(async () => {
+    if (!activeSessionId) return
+    const result = await openShell(activeSessionId, sessionTitle(activeSessionId))
+    if (!result.ok) {
+      toast.error(`开终端失败：${result.reason}`)
+      return
+    }
+    onTabChange(shellTabId(result.shellId))
+  }, [activeSessionId, onTabChange])
+
+  /** 关一个终端：只关这条通道，SSH 连接与其它终端不动 */
+  const handleCloseShell = useCallback((shellId: string) => {
+    void closeShell(shellId)
+  }, [])
+
   const tabs = useMemo(() => {
     const list: Array<{ id: WorkbenchTabId; label: string; dirty?: boolean }> = [
-      { id: 'tab-terminal', label: '终端' },
+      ...sessionShells.map((s) => ({
+        id: shellTabId(s.shellId),
+        label: shellTabLabel(s, sessionShells),
+      })),
       ...fileTabs.map((f) => ({
         id: f.id,
         label: f.dirty ? `${f.name} •` : f.name,
@@ -260,7 +361,7 @@ const EditorArea: FC<EditorAreaProps> = ({
       })),
     ]
     return list
-  }, [fileTabs])
+  }, [sessionShells, fileTabs])
 
   // 打开文件时若 content 空且 loading，触发读取
   useEffect(() => {
@@ -457,6 +558,7 @@ const EditorArea: FC<EditorAreaProps> = ({
           // 既然对外声明了 tablist，方向键就得真的能换标签（只用鼠标点不算能用）
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
           const order = tabs.map((t) => t.id)
+          if (activeTabId === null) return
           const at = order.indexOf(activeTabId)
           if (at < 0 || order.length < 2) return
           const step = e.key === 'ArrowRight' ? 1 : order.length - 1
@@ -471,7 +573,7 @@ const EditorArea: FC<EditorAreaProps> = ({
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
-          const isTerm = tab.id === 'tab-terminal'
+          const shellId = shellIdOfTab(tab.id)
           const tabInner = (
             <div
               key={tab.id}
@@ -489,32 +591,34 @@ const EditorArea: FC<EditorAreaProps> = ({
                 role="tab"
                 aria-selected={isActive}
                 data-tab-id={tab.id}
-                onClick={() => onTabChange(tab.id)}
+                onClick={() => {
+                  // 切到终端标签时同步 store 的活跃指针：AI 面板与决策页
+                  // 的"投进终端"读的是它，不同步就会把命令打进上一个终端里
+                  if (shellId) setActiveShell(shellId)
+                  onTabChange(tab.id)
+                }}
               >
-                {isTerm ? (
-                  <TerminalIcon />
-                ) : (
-                  <FileText />
-                )}
+                {shellId ? <TerminalIcon /> : <FileText />}
                 <span className="term-tab-label">{tab.label}</span>
               </button>
-              {!isTerm && (
-                <button
-                  type="button"
-                  title="关闭"
-                  className="term-tab-close"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onCloseFile?.(tab.id)
-                  }}
-                >
-                  <X />
-                </button>
-              )}
+              <button
+                type="button"
+                title={shellId ? '关闭终端' : '关闭'}
+                className="term-tab-close"
+                aria-label={shellId ? `关闭终端 ${tab.label}` : `关闭 ${tab.label}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (shellId) handleCloseShell(shellId)
+                  else onCloseFile?.(tab.id)
+                }}
+              >
+                <X />
+              </button>
             </div>
           )
-          // P1-4：文件 Tab 支持右键菜单（关闭 / 关闭其他 / 关闭所有）
-          if (!isTerm) {
+          // P1-4：文件 Tab 支持右键菜单（关闭 / 关闭其他 / 关闭所有）；
+          // 终端标签不放那套菜单——它的"关闭其他"语义会让人误关掉正在跑任务的终端
+          if (!shellId) {
             return (
               <ContextMenu key={tab.id} items={buildFileContextMenuItems(tab.id)}>
                 {tabInner}
@@ -523,8 +627,40 @@ const EditorArea: FC<EditorAreaProps> = ({
           }
           return tabInner
         })}
-        {/* P1 修复：移除两个 A 级死按钮"分屏（开发中）""更多（开发中）"——
-            纯装饰无 handler，对应能力落地后再恢复按钮 */}
+        {/*
+          新建终端：两个语义都给（用户明确要求）
+          - 同一条 SSH 连接上能真开两个终端（一个跑服务、一个看日志）
+          - 连一台新主机（去 SSH 设置，那儿是凭据与连接的唯一入口）
+          以前这里是两个 A 级死按钮（"分屏（开发中）""更多（开发中）"），纯装饰无 handler。
+          触发器叫"新建终端菜单"而不是"新建终端"：空态里已经有那个主行动按钮，
+          两个同名控件读屏里分不开（e2e 的 strict-mode 也是这么发现的）。
+        */}
+        <Menu>
+          <MenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="term-tab-new shrink-0"
+              title="新建终端菜单"
+              aria-label="新建终端菜单"
+              data-dom-id="workbench-new-terminal"
+            >
+              <Plus aria-hidden className="size-3.5" />
+            </Button>
+          </MenuTrigger>
+          <MenuContent align="start" className="min-w-[260px]">
+            <MenuItem
+              disabled={!activeSessionId}
+              title={activeSessionId ? undefined : '先连接一台服务器，才能在这台主机上再开一个终端'}
+              onSelect={() => void handleOpenShell()}
+            >
+              <span className="text-md text-ink">在这台主机再开一个终端</span>
+            </MenuItem>
+            <MenuItem onSelect={() => navigate('#/settings/ssh')}>
+              <span className="text-md text-ink">连接新主机</span>
+            </MenuItem>
+          </MenuContent>
+        </Menu>
       </div>
 
       {/* 远程文件外部变更提示 */}
@@ -563,10 +699,11 @@ const EditorArea: FC<EditorAreaProps> = ({
       )}
 
       <div className="term-content-area">
-        {activeTabId === 'tab-terminal' ? (
+        {activeTabId && isShellTab(activeTabId) ? (
           <TerminalPanel
             sessionId={activeSessionId}
-            visible={activeTabId === 'tab-terminal'}
+            visible
+            onOpenShell={() => void handleOpenShell()}
           />
         ) : activeFile ? (
           <FileEditorPanel
@@ -576,8 +713,29 @@ const EditorArea: FC<EditorAreaProps> = ({
             onSave={() => void handleSave()}
           />
         ) : (
+          // 空态给下一步（DESIGN.md §5）：光写"从左侧打开文件"等于把人说服在原地
           <div className="term-file-empty">
-            从左侧打开文件
+            <div>从左侧文件树打开远程文件，或开一个终端</div>
+            {activeSessionId ? (
+              <Button
+                size="sm"
+                variant="solid"
+                className="mt-2"
+                onClick={() => void handleOpenShell()}
+              >
+                <Plus aria-hidden className="size-3" />
+                新建终端
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                onClick={() => navigate('#/settings/ssh')}
+              >
+                去连接服务器
+              </Button>
+            )}
           </div>
         )}
       </div>

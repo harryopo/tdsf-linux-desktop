@@ -152,9 +152,11 @@ export const LLM_INLINE = {
  * - CONNECT       invoke  渲染 → 主：建立 SSH 连接
  * - DISCONNECT    invoke  渲染 → 主：断开 SSH 连接
  * - EXEC          invoke  渲染 → 主：执行一次性 SSH 命令
- * - SHELL_START   invoke  渲染 → 主：启动交互式 Shell
- * - SHELL_WRITE   invoke  渲染 → 主：向交互式 Shell 写入数据
- * - SHELL_RESIZE  invoke  渲染 → 主：调整 Shell 终端窗口大小
+ * - SHELL_START   invoke  渲染 → 主：新开一条交互式 Shell，返回 shellId
+ * - SHELL_CLOSE   invoke  渲染 → 主：关闭一条 Shell 通道（不断连接）
+ * - SHELL_LIST    invoke  渲染 → 主：列出某会话当前开着的 shellId
+ * - SHELL_WRITE   invoke  渲染 → 主：向指定 Shell 写入数据（首参 shellId）
+ * - SHELL_RESIZE  invoke  渲染 → 主：调整指定 Shell 终端窗口大小（首参 shellId）
  * - STATE_CHANGED push    主 → 渲染：心跳保活状态变更（重连/最终断开）
  */
 export const SSH = {
@@ -171,18 +173,22 @@ export const SSH = {
   DISCONNECT: 'ssh:disconnect',
   /** 执行一次性 SSH 命令（invoke: 渲染 → 主，非交互式） */
   EXEC: 'ssh:exec',
-  /** 启动交互式 Shell（invoke: 渲染 → 主） */
+  /** 启动交互式 Shell（invoke: 渲染 → 主）；返回新建通道的 shellId，一条连接可开多个终端 */
   SHELL_START: 'ssh:shell:start',
-  /** 向交互式 Shell 写入数据（invoke: 渲染 → 主）— 仅供用户键入，主进程不做命令判定 */
+  /** 关闭一条 Shell 通道（invoke: 渲染 → 主）；只关终端，不断整条 SSH 连接 */
+  SHELL_CLOSE: 'ssh:shell:close',
+  /** 列出某条会话当前开着的 shellId（invoke: 渲染 → 主），渲染层恢复标签用 */
+  SHELL_LIST: 'ssh:shell:list',
+  /** 向交互式 Shell 写入数据（invoke: 渲染 → 主）— 首参是 shellId；仅供用户键入，主进程不做命令判定 */
   SHELL_WRITE: 'ssh:shell:write',
   /**
    * 执行"他人代写"的整条命令（invoke: 渲染 → 主）— AI 建议 / 决策页重新执行
    *
-   * 与 SHELL_WRITE 分开是因为主进程无法逐键判定用户输入，但可以判定一整条命令：
-   * 本通道在写入前先过 core/command-gate，block 级直接拒绝。
+   * 首参是 shellId（投进哪个终端）。与 SHELL_WRITE 分开是因为主进程无法逐键判定用户输入，
+   * 但可以判定一整条命令：本通道在写入前先过 core/command-gate，block 级直接拒绝。
    */
   SHELL_RUN_AUTHORED: 'ssh:shell:run-authored',
-  /** 调整 Shell 终端窗口大小（invoke: 渲染 → 主） */
+  /** 调整 Shell 终端窗口大小（invoke: 渲染 → 主）— 首参是 shellId */
   SHELL_RESIZE: 'ssh:shell:resize',
   /** 心跳保活状态变更推送（push: 主 → 渲染），载荷 SshStateEvent */
   STATE_CHANGED: 'ssh:state-changed',
@@ -273,7 +279,7 @@ export const SFTP = {
  * - TERMINAL_DATA push 主 → 渲染：交互式 Shell 数据回传
  */
 export const TERMINAL = {
-  /** Shell 数据回传推送（push: 主 → 渲染） */
+  /** Shell 数据回传推送（push: 主 → 渲染，载荷 shellId + 原始字节串；渲染层按 shellId 投给对应终端） */
   DATA: 'terminal:data',
 } as const
 

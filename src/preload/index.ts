@@ -42,6 +42,8 @@ const electronApi = {
   sshDisconnect: ssh.disconnect,
   sshExec: ssh.exec,
   sshShellStart: ssh.shell.start,
+  sshShellClose: ssh.shell.close,
+  sshShellList: ssh.shell.list,
   sshShellWrite: ssh.shell.write,
   /** 执行整条代写命令（AI/决策页），主进程过风险闸 */
   sshRunAuthored: ssh.shell.runAuthored,

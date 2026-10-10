@@ -4,7 +4,7 @@
  * 职责：
  * - 初始化 xterm.js Terminal 实例
  * - 加载 Addon：FitAddon / WebLinksAddon / SearchAddon / WebglAddon（降级）
- * - 通过 window.electronAPI 监听 terminal:data 事件接收 SSH 输出
+ * - 通过 terminal-bus 订阅本终端（shellId）的 SSH 输出（IPC 总订阅在 App 启动时装好）
  * - 通过 window.electronAPI.sshShellWrite 发送用户输入
  * - 支持复制粘贴、字体缩放（Ctrl + / -）
  * - 黑色背景终端（与苹果极简 UI 形成对比）
@@ -29,6 +29,7 @@ import { useAppearanceStore, CODE_FONT_STACKS } from '../../stores/appearance-st
 import { useTerminalStore } from '../../stores/terminal-store'
 import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../terminal/block-model'
 import { attachBlockCollector } from '../../terminal/block-collector'
+import { subscribeShellData } from '../../terminal/terminal-bus'
 import { CODE_THEMES } from '@shared/code-themes'
 import { SelectionManager } from './selection-manager'
 import { formatTerminalClipboard } from './clipboard-format'
@@ -39,8 +40,8 @@ import './Terminal.css'
 
 /** TerminalView 组件 Props */
 interface TerminalViewProps {
-  /** SSH 会话 ID */
-  sessionId: string
+  /** 终端通道 ID（主进程按它分发输出；一条 SSH 连接可以有多个终端） */
+  shellId: string
   /** 终端是否可见（非活跃 Tab 时设为 false 可节省渲染资源） */
   visible: boolean
 }
@@ -52,7 +53,7 @@ const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 32
 
 /** TerminalView 终端视图 */
-const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
+const TerminalView: React.FC<TerminalViewProps> = ({ shellId, visible }) => {
   /** 终端容器 DOM 引用 */
   const containerRef = useRef<HTMLDivElement>(null)
   /** xterm.js Terminal 实例引用 */
@@ -215,27 +216,28 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       }
     })
 
-    // ===== 4. 用户输入 → 发送到 SSH Shell =====
+    // ===== 4. 用户输入 → 发送到这条通道对应的 Shell =====
     const inputDisposable = terminal.onData((data: string) => {
       if (!isElectronAPIAvailable()) return
-      window.electronAPI.sshShellWrite(sessionId, data).catch((error: unknown) => {
+      window.electronAPI.sshShellWrite(shellId, data).catch((error: unknown) => {
         console.error('[TerminalView] 发送输入失败:', error)
       })
     })
 
-    // ===== 5. 监听 terminal:data 事件（SSH 输出 → 终端） =====
-    let offTerminalData: (() => void) | null = null
-    if (isElectronAPIAvailable()) {
-      offTerminalData = window.electronAPI.onTerminalData((recvSessionId: string, data: string) => {
-        if (recvSessionId === sessionId && terminalRef.current) {
-          try {
-            terminalRef.current.write(data)
-          } catch {
-            // 终端可能已销毁
-          }
-        }
-      })
-    }
+    // ===== 5. 监听 Shell 输出 → 本终端（走 terminal-bus，不在这里直接订 IPC）=====
+    // 按 shellId 过滤，不是 sessionId：同一条连接开两个终端时，
+    // 按会话过滤会让两个终端都收到对方的输出（串字）。
+    // 为什么不在这里 onTerminalData：那几帧空窗（本 effect 还没跑）里的输出会丢，
+    // bus 在 App 启动时就装好总订阅并暂存无人订阅的输出，这里一挂上就补齐。
+    const offShellData = subscribeShellData(shellId, (data: string) => {
+      const term = terminalRef.current
+      if (!term) return
+      try {
+        term.write(data)
+      } catch {
+        // 终端可能已销毁
+      }
+    })
 
     // ===== 6. 尺寸变化 → fit + 通知主进程（防抖 150ms，避免高频触发） =====
     let resizeTimeout: ReturnType<typeof setTimeout> | null = null
@@ -249,7 +251,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
           // 通知主进程终端尺寸变化
           if (isElectronAPIAvailable()) {
             window.electronAPI
-              .sshShellResize(sessionId, terminal.cols, terminal.rows)
+              .sshShellResize(shellId, terminal.cols, terminal.rows)
               .catch(() => {
                 // 忽略 resize 错误
               })
@@ -334,10 +336,8 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       blockCollector.dispose()
       bellDisposable.dispose()
       setCommandBlocks(null)
-      // 取消 IPC 事件监听
-      if (offTerminalData) {
-        offTerminalData()
-      }
+      // 取消输出订阅（缓存与别的终端的订阅不受影响）
+      offShellData()
       inputDisposable.dispose()
       resizeObserver.disconnect()
       terminal.textarea?.removeEventListener('keydown', handleKeyDown)
@@ -360,7 +360,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [sessionId])
+  }, [shellId])
 
   // ===== v0.8.0 翻译选词监听（v2.6 拆为独立 effect） =====
   // 切换翻译开关只挂载/卸载 SelectionManager，不再重建终端实例
@@ -401,7 +401,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, visible }) => {
       {terminalReady && terminalRef.current && (
         <TerminalCompletionAddon
           terminal={terminalRef.current}
-          sessionId={sessionId}
+          shellId={shellId}
         />
       )}
     </div>

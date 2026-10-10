@@ -150,3 +150,63 @@ export async function tcpReachable(host: string, port: number, timeoutMs = 3000)
     sock.on('error', () => done(false))
   })
 }
+
+
+/**
+ * 在渲染进程里开一个终端，返回 shellId
+ *
+ * 2026-10-10 起 sshShellStart 的返回从 boolean 变成 shellId（一条连接可以开多个终端，
+ * 输出按 shellId 分发）。四个 spec 原先各抄一遍这段 page.evaluate，线格式一改就必然漏一处，
+ * 所以收成一个 helper。
+ */
+export async function openShellViaIpc(page: Page, sessionId: string): Promise<string> {
+  const got = await page.evaluate(
+    (sid) =>
+      (
+        window as unknown as {
+          electronAPI: { sshShellStart: (s: string) => Promise<unknown> }
+        }
+      ).electronAPI.sshShellStart(sid),
+    sessionId,
+  )
+  if (typeof got !== 'string' || !got) {
+    throw new Error(`sshShellStart 应返回 shellId 字符串，实际拿到 ${JSON.stringify(got)}`)
+  }
+  return got
+}
+
+/** 往指定终端写数据（第一个参数是 shellId，不是 sessionId） */
+export async function writeShellViaIpc(
+  page: Page,
+  shellId: string,
+  data: string,
+): Promise<boolean> {
+  return page.evaluate(
+    (args) =>
+      (
+        window as unknown as {
+          electronAPI: { sshShellWrite: (s: string, d: string) => Promise<boolean> }
+        }
+      ).electronAPI.sshShellWrite(args.shellId, args.data),
+    { shellId, data },
+  )
+}
+
+/**
+ * 挂上原始字节流旁听，返回"读累计收到的字节串"的函数
+ *
+ * 用途：终端类断言红了，先看这里 —— 能一眼分清是"对端根本没发"还是"发了但没切成块"。
+ */
+export async function installTerminalTap(page: Page): Promise<() => Promise<string>> {
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __termLog?: string
+      electronAPI: { onTerminalData: (cb: (shellId: string, data: string) => void) => () => void }
+    }
+    w.__termLog = ''
+    w.electronAPI.onTerminalData((_shellId, data) => {
+      w.__termLog = (w.__termLog ?? '') + data
+    })
+  })
+  return () => page.evaluate(() => (window as unknown as { __termLog?: string }).__termLog ?? '')
+}

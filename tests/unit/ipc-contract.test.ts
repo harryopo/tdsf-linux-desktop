@@ -23,8 +23,13 @@ const PRELOAD_ALL = preloadAll(ROOT)
 const GENERATED = read('src/renderer/src/types/generated/ipc-contract.ts')
 const TYPES = read('src/renderer/src/types/electron.d.ts')
 
-/** 未纳入契约的 invoke 位点上限（只降不升）。2026-10-07 建闸时实测 220 */
-const UNCONTRACTED_CAP = 220
+/**
+ * 未纳入契约的 invoke 位点上限（只降不升）。
+ * 2026-10-07 建闸时实测 220；2026-10-10 W2 把交互式 Shell 那 6 条通道
+ * （start/close/list/write/run-authored/resize）全部登记进契约并改走 invokeChecked，
+ * 实测降到 200 —— 新通道一律进契约是这波的硬要求，别再拿余量去接新东西。
+ */
+const UNCONTRACTED_CAP = 200
 
 describe('ipc 契约本体', () => {
   it('通道名全部来自 ipc-channels 常量表，没有手写字符串', () => {
@@ -88,7 +93,7 @@ describe('契约确实被用起来（不是写了摆着）', () => {
     }
   })
 
-  it('未纳入契约的 invoke 位点只降不升（当前上限 220）', () => {
+  it(`未纳入契约的 invoke 位点只降不升（当前上限 ${UNCONTRACTED_CAP}）`, () => {
     const all = (PRELOAD.match(/ipcRenderer\.invoke\(/g) ?? []).length
     const contracted = (PRELOAD.match(/invokeChecked[<(]/g) ?? []).length
     const uncovered = all - contracted

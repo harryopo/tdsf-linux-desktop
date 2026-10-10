@@ -19,8 +19,8 @@ import { createListener } from '../ipc-util'
  *   }, [])
  */
 const on = {
-  /** 监听终端 Shell 数据推送 */
-  terminalData: (callback: (sessionId: string, data: string) => void): (() => void) => {
+  /** 监听终端 Shell 数据推送（shellId 定位是哪个终端，2026-10-10 起不再按 sessionId） */
+  terminalData: (callback: (shellId: string, data: string) => void): (() => void) => {
     return createListener(TERMINAL.DATA, callback)
   },
 

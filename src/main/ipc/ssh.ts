@@ -129,28 +129,35 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
   const disposers: Array<() => void> = []
 
   /**
-   * 每个会话的 Shell 输出转发回调（按 sessionId 去重）
+   * 每条 Shell 通道的输出转发登记：shellId → 退订函数
    *
-   * 为什么要在这一层去重：connection-manager 的 onShellData 是"追加一个回调"，
-   * 而 startShell 在已有 shell 时直接返回 true —— 于是第二次 ssh:shell:start
-   * 会给同一个 stream 再挂一份转发，界面上表现为字符翻倍。渲染层确实有两条
-   * 会重复触发的入口（WorkbenchTitlebar 与 SshSettings 的"连接服务器"）。
+   * 为什么按 shellId 而不是 sessionId：一条连接现在可以开多个终端（IDE 用法），
+   * 每个终端是一份独立的 ssh2 通道，输出必须只回给自己的那个 xterm。
+   * 按会话登记会退化成"一条连接只有一个终端"——正是这次要修的形态。
    *
-   * 会话关闭时必须把这份登记删掉：断连后 shell 通道连同它的回调已被清空，
-   * 不删的话重连回来的那次 start 会被去重逻辑跳过，新 shell 就没有转发了。
-   *
-   * 已知边界（做第二窗口时必须改掉）：这里按 sessionId 去重，等于"一个会话只有一份转发"。
-   * 多窗口下第二个窗口 attach 同一个会话会拿不到输出——那时这份登记要按
-   * (窗口, 会话) 二元组存，转发目标取发起 start 的那个 webContents。
+   * 通道被远端杀掉时只有 connection-manager 会删它自己那份表，
+   * 所以每次开新终端前先 pruneShellPushes() 把已关闭的登记摘掉，
+   * 否则会攒一堆指向死终端的闭包。
    */
-  const shellPushBySession = new Map<string, () => void>()
-  disposers.push(
-    sshManager.onSessionClosed((sessionId) => {
-      const off = shellPushBySession.get(sessionId)
-      if (off) {
-        shellPushBySession.delete(sessionId)
+  const shellPushes = new Map<string, () => void>()
+
+  /** 摘掉已关闭通道的转发登记 */
+  function pruneShellPushes(): void {
+    for (const [shellId, off] of [...shellPushes.entries()]) {
+      if (sshManager.isShellOpen(shellId)) continue
+      shellPushes.delete(shellId)
+      try {
         off()
+      } catch {
+        // 退订失败不影响其它终端
       }
+    }
+  }
+
+  disposers.push(
+    sshManager.onSessionClosed(() => {
+      // 整条会话没了：它名下的通道此时都已关闭，一次清扫即可
+      pruneShellPushes()
     }),
   )
 
@@ -345,42 +352,60 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
   // 交互式 Shell
   // ------------------------------------------------------------------
 
-  /** ssh:shell:start — 启动交互式 shell，并注册数据推送回调 */
-  ipcMain.handle(SSH.SHELL_START, async (_event, sessionId: string) => {
-    try {
-      const ok = await sshManager.startShell(sessionId)
-      if (!ok) {
-        return false
-      }
-      // 同一会话只挂一份转发（去重理由见文件顶部 shellPushBySession 的注释）
-      if (!shellPushBySession.has(sessionId)) {
-        shellPushBySession.set(
-          sessionId,
-          sshManager.onShellData(sessionId, (data: string) => {
+  /** ssh:shell:start — 新开一条交互式 Shell，返回 shellId（一条连接可开多个终端） */
+  ipcMain.handle(
+    SSH.SHELL_START,
+    async (_event, sessionId: string, size?: { cols: number; rows: number }) => {
+      try {
+        pruneShellPushes()
+        const shellId = await sshManager.startShell(sessionId, size)
+        // 每条通道只在这一处挂一次转发；重复调用等于真开一个新终端，不会再叠到同一条上
+        shellPushes.set(
+          shellId,
+          sshManager.onShellData(shellId, (data: string) => {
             // 窗口可能已关闭或正在销毁，需防御性检查
             if (!mainWindow.isDestroyed()) {
-              mainWindow.webContents.send(TERMINAL_DATA_CHANNEL, sessionId, data)
+              mainWindow.webContents.send(TERMINAL_DATA_CHANNEL, shellId, data)
             }
           }),
         )
-      }
-      return true
-    } catch (err) {
-      const safeMsg = redactSecrets((err as Error).message)
-      logger.error('SSH', '启动 Shell 失败', { sessionId, error: safeMsg })
-      throw new Error(`启动 Shell 失败: ${safeMsg}`)
-    }
-  })
-
-  /** ssh:shell:write — 向 shell 写入数据 */
-  ipcMain.handle(
-    SSH.SHELL_WRITE,
-    async (_event, sessionId: string, data: string) => {
-      try {
-        return await sshManager.writeShell(sessionId, data)
+        return shellId
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
-        logger.error('SSH', '写入 Shell 失败', { sessionId, error: safeMsg })
+        logger.error('SSH', '启动 Shell 失败', { sessionId, error: safeMsg })
+        throw new Error(`启动 Shell 失败: ${safeMsg}`)
+      }
+    },
+  )
+
+  /** ssh:shell:close — 关掉一条终端（只关通道，不断整条 SSH 连接） */
+  ipcMain.handle(SSH.SHELL_CLOSE, async (_event, shellId: string) => {
+    const off = shellPushes.get(shellId)
+    if (off) {
+      shellPushes.delete(shellId)
+      try {
+        off()
+      } catch {
+        // 退订失败不挡关闭
+      }
+    }
+    return sshManager.closeShell(shellId)
+  })
+
+  /** ssh:shell:list — 列出某条会话当前开着的终端（渲染层恢复标签用） */
+  ipcMain.handle(SSH.SHELL_LIST, async (_event, sessionId: string) => {
+    return sshManager.listShells(sessionId)
+  })
+
+  /** ssh:shell:write — 向指定终端写入按键数据（仅供用户键入，主进程不判定，见通道注释） */
+  ipcMain.handle(
+    SSH.SHELL_WRITE,
+    async (_event, shellId: string, data: string) => {
+      try {
+        return await sshManager.writeShell(shellId, data)
+      } catch (err) {
+        const safeMsg = redactSecrets((err as Error).message)
+        logger.error('SSH', '写入 Shell 失败', { shellId, error: safeMsg })
         throw new Error(`写入 Shell 失败: ${safeMsg}`)
       }
     }
@@ -394,11 +419,11 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
    */
   ipcMain.handle(
     SSH.SHELL_RUN_AUTHORED,
-    async (_event, sessionId: string, command: string) => {
+    async (_event, shellId: string, command: string) => {
       const verdict = evaluateCommand(command)
       if (verdict.level === 'block') {
         logger.warn('SSH', '代写命令被风险闸拒绝', {
-          sessionId,
+          shellId,
           command: redactSecrets(command),
           reason: verdict.reason,
         })
@@ -407,24 +432,24 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       const payload = command.endsWith('\n') ? command : `${command}\n`
       // \x15 = Ctrl+U，清掉 shell 当前行可能的半截输入，避免拼接乱码
       try {
-        return await sshManager.writeShell(sessionId, `\x15${payload}`)
+        return await sshManager.writeShell(shellId, `\x15${payload}`)
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
-        logger.error('SSH', '执行代写命令失败', { sessionId, error: safeMsg })
+        logger.error('SSH', '执行代写命令失败', { shellId, error: safeMsg })
         throw new Error(`执行失败: ${safeMsg}`)
       }
     }
   )
 
-  /** ssh:shell:resize — 调整 shell 终端窗口大小 */
+  /** ssh:shell:resize — 调整指定终端的窗口大小 */
   ipcMain.handle(
     SSH.SHELL_RESIZE,
-    async (_event, sessionId: string, cols: number, rows: number) => {
+    async (_event, shellId: string, cols: number, rows: number) => {
       try {
-        return await sshManager.resizeShell(sessionId, cols, rows)
+        return await sshManager.resizeShell(shellId, cols, rows)
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
-        logger.error('SSH', '调整 Shell 大小失败', { sessionId, error: safeMsg })
+        logger.error('SSH', '调整 Shell 大小失败', { shellId, error: safeMsg })
         throw new Error(`调整 Shell 大小失败: ${safeMsg}`)
       }
     }
@@ -1061,15 +1086,15 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       }
     }
     disposers.length = 0
-    // 先退订再清登记：只 clear 的话那些转发回调还挂在会话的 shellCallbacks 里，
+    // 先退订再清登记：只 clear 的话那些转发回调还挂在通道的 callbacks 里，
     // 断掉的是"谁来摘"而不是"还在不在推"——窗口都没了还在往外 send。
-    for (const off of shellPushBySession.values()) {
+    for (const off of shellPushes.values()) {
       try {
         off()
       } catch {
         // 同上
       }
     }
-    shellPushBySession.clear()
+    shellPushes.clear()
   }
 }

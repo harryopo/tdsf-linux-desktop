@@ -54,6 +54,7 @@ import type { ConfidenceAssessment, ConfidenceProvenance } from '@shared/agent-t
 // v2.6：重新执行接真实终端（与 AIPanel 同路径：预检 + 预测回显 + sshRunAuthored 过主进程风险闸）
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
+import { ensureShellForSession, sessionTitle } from '@/terminal/shell-launcher'
 import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'
 
 // 工具函数 / ConfidenceGauge / LoadingState / ErrorState 已抽离到：
@@ -350,6 +351,13 @@ export function DecisionDetailPage() {
     }
     setRerunning(true)
     try {
+      // 身份是 shellId（2026-10-10 起）：这台主机没开终端就顺手开一个，
+      // 否则用户点了"重新执行"只会看到一个让他去别处找按钮的提示
+      const shell = await ensureShellForSession(activeSessionId, sessionTitle(activeSessionId))
+      if (!shell.ok) {
+        toast.error(`没能为这条命令开终端：${shell.reason}`)
+        return
+      }
       // 前置环境预检（缺命令阻断；预检自身失败 fail-open）
       const names = extractCommandNames(card.fixCommand)
       if (names.length > 0 && api.sshExec) {
@@ -366,7 +374,7 @@ export function DecisionDetailPage() {
       }
       useTerminalStore.getState().setPendingCommand({ command: card.fixCommand, sentAt: Date.now() })
       // 代写命令（历史上由 AI 起草）→ 走 run-authored，由主进程过风险闸
-      await api.sshRunAuthored(activeSessionId, card.fixCommand)
+      await api.sshRunAuthored(shell.shellId, card.fixCommand)
       toast.success('命令已发送到终端，请到工作台终端查看回显')
     } catch (err) {
       useTerminalStore.getState().setPendingCommand(null)

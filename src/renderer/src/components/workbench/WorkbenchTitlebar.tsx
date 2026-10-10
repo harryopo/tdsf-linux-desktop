@@ -31,6 +31,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useServerStore } from '@/stores/server-store'
+import { ensureShellForSession, shellTitleOf } from '@/terminal/shell-launcher'
 import { cn } from '@/components/trae/utils'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import ConnectDialog from '@/components/layout/ConnectDialog'
@@ -161,7 +162,13 @@ export function WorkbenchTitlebar({
       try {
         const sessionId = await obtain()
         try {
-          await window.electronAPI.sshShellStart(sessionId)
+          // 连接成功后顺手开一个终端；这台主机已经有终端就复用，不再叠一个
+          // （以前这里每条连接都直接 sshShellStart，两次点击就等于两条转发回调）
+          const shell = await ensureShellForSession(
+            sessionId,
+            shellTitleOf(target.name ?? target.host),
+          )
+          if (!shell.ok) toast.warning(`终端没能打开：${shell.reason}`)
         } catch (shellErr) {
           console.warn('[WorkbenchTitlebar] shell start failed', shellErr)
           toast.warning('Shell 启动失败，终端可能不可用')

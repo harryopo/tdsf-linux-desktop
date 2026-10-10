@@ -33,7 +33,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import { startSshFixture } from './ssh-fixture-server'
 import { startAiFixture } from './ai-fixture-server'
-import { e2eProfileDir, bindSessionToStore, connectToFixture, installHostKeyRecorder, readHostKeyPrompts } from './ssh-fixture-helpers'
+import { bindSessionToStore, connectToFixture, e2eProfileDir, installHostKeyRecorder, openShellViaIpc, readHostKeyPrompts, writeShellViaIpc } from './ssh-fixture-helpers'
 
 /** Electron 主进程入口（需先 pnpm build） */
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
@@ -400,25 +400,14 @@ test.describe('Demo 9 步主路径', () => {
       })
       await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-      const started = await window.evaluate(
-        (sid) => (window as unknown as { electronAPI: { sshShellStart: (s: string) => Promise<boolean> } })
-          .electronAPI.sshShellStart(sid),
-        sessionId,
-      )
-      expect(started, 'sshShellStart 应成功').toBe(true)
+      const shellId = await openShellViaIpc(window, sessionId)
 
       const statusbar = window.locator('.wb-statusbar')
       await expect
         .poll(async () => statusbar.innerText(), { message: 'shell 开场应带出至少 1 个命令块', timeout: 20000 })
         .toMatch(/[1-9]\d* 命令块/)
 
-      await window.evaluate(
-        ({ sid, data }) => {
-          const w = window as unknown as { electronAPI: { sshShellWrite: (s: string, d: string) => Promise<boolean> } }
-          return w.electronAPI.sshShellWrite(sid, data)
-        },
-        { sid: sessionId, data: 'uptime\r' },
-      )
+      await writeShellViaIpc(window, shellId, 'uptime\r')
 
       await expect
         .poll(async () => statusbar.innerText(), { message: '敲命令后命令块计数应增加', timeout: 20000 })
