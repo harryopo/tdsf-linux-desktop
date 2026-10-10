@@ -10,6 +10,7 @@ import { Button, Chip, Divider, IconButton, Menu, MenuContent, MenuItem, MenuSep
 import { useAgentStore } from '@/stores/agent-store'
 // v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
 import { useEditorStore } from '@/stores/editor-store'
+import { useAIStore } from '@/stores/ai-store'
 // v2.3.7 修复：MOCK_COMPOSER_CHIPS → QUICK_PROMPT_TEMPLATES（mock-data.ts v2.3.6 已重命名）
 // 之前的 import 指向不存在的导出 → Composer 模块加载失败 → AIPanel 整个组件崩 → "Agent 调用失败"
 import { QUICK_PROMPT_TEMPLATES } from './mock-data'
@@ -70,6 +71,11 @@ const Composer: FC<ComposerProps> = ({
 }) => {
   const navigate = useNavigate()
   const [input, setInput] = useState('')
+  // 划词翻译「发送到 AI」的落点：v0.8.0 只写了 store，消费者在界面重写时丢了，
+  // 于是那个按钮点了等于没反应。这里补回落点：灌进输入框并聚焦，不自动发送。
+  const prefillMessage = useAIStore((s) => s.prefillMessage)
+  const prefillAt = useAIStore((s) => s.prefillAt)
+  const clearPrefillMessage = useAIStore((s) => s.setPrefillMessage)
   const [activeChip, setActiveChip] = useState<string | null>(null)
   // v2.2 P1 修复 #22：图片附件列表（基础版，不引入图片压缩库）
   const [attachments, setAttachments] = useState<ImageAttachment[]>([])
@@ -119,6 +125,20 @@ const Composer: FC<ComposerProps> = ({
     clearInjectedAtCommand()
     textareaRef.current?.focus()
   }, [injectedAtCommand, clearInjectedAtCommand])
+
+  // 终端划词翻译的「发送到 AI / 问 AI」：填进输入框并聚焦，不自动发送
+  // （同上一条一样，是"store 只写不读"那类断链，判据见 tests/e2e/terminal-translate.spec.ts）
+  useEffect(() => {
+    if (!prefillMessage) return
+    setInput((prev) =>
+      prev.trim() ? `${prev.trim()}\n\n${prefillMessage}` : prefillMessage,
+    )
+    clearPrefillMessage(null)
+    const el = textareaRef.current
+    el?.focus()
+    if (el) el.setSelectionRange(el.value.length, el.value.length)
+    // prefillAt 让"同一段文字连着发两次"也能各自生效
+  }, [prefillMessage, prefillAt, clearPrefillMessage])
 
   /** 处理发送/停止 — 主路径 agent:chat */
   const handleSendToggle = () => {

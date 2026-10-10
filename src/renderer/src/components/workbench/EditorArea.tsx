@@ -146,9 +146,6 @@ const TerminalPanel: FC<{
   // 同一条连接上的多个终端：全部挂着，只把活跃的那个显示出来（保住各自的滚动缓冲）
   const shells = useTerminalStore((s) => s.shells)
   const activeShellId = useTerminalStore((s) => s.activeShellId)
-  // v0.8.0 终端翻译开关状态（与 translate-store 联动，persist 持久化）
-  const translateEnabled = useTranslateStore((s) => s.enabled)
-  const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
   // v2.6：AI 注入命令预测回显条（从死文件 TerminalTabs 迁入真实挂载点，12s 自动消隐）
   const pendingCommand = useTerminalStore((s) => s.pendingCommand)
   const setPendingCommand = useTerminalStore((s) => s.setPendingCommand)
@@ -164,29 +161,6 @@ const TerminalPanel: FC<{
   if (sessionShells.length > 0) {
     return (
       <div className="term-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-        {/* v0.8.0 翻译开关工具栏 */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            padding: '4px 8px',
-            flexShrink: 0,
-            borderBottom: '1px solid var(--trae-border-neutral-l1)',
-          }}
-        >
-          <button
-            type="button"
-            className={`term-translate-toggle ${translateEnabled ? 'term-translate-toggle-active' : ''}`}
-            onClick={toggleTranslate}
-            aria-label="切换翻译功能"
-            title={translateEnabled ? '关闭终端翻译' : '开启终端翻译（鼠标滑动选词触发）'}
-          >
-            <Languages />
-            <span className="term-translate-text">
-              {translateEnabled ? '翻译 ON' : '翻译 OFF'}
-            </span>
-          </button>
-        </div>
         {/* v2.6：AI 命令预测回显条 —— AI/决策页注入命令时立即可见，对应终端内真实回显 */}
         {pendingCommand && (
           <div className="term-pending-cmd">
@@ -337,6 +311,9 @@ const EditorArea: FC<EditorAreaProps> = ({
   /** 本机这一窗口开着的终端（按会话过滤后才是标签） */
   const shells = useTerminalStore((s) => s.shells)
   const setActiveShell = useTerminalStore((s) => s.setActiveShell)
+  // 划词翻译开关（translate-store 持久化，默认关）
+  const translateEnabled = useTranslateStore((s) => s.enabled)
+  const toggleTranslate = useTranslateStore((s) => s.toggleEnabled)
 
   /** 这一屏的终端标签：本机终端永远在，远端只显示当前会话的 */
   const sessionShells = useMemo(
@@ -705,6 +682,31 @@ const EditorArea: FC<EditorAreaProps> = ({
             </MenuItem>
           </MenuContent>
         </Menu>
+
+        {/*
+          划词翻译开关：放标签条右上角。
+          原来它挂在终端正文上方一条自己造的工具栏里（占一行、还带个悬空的描边框），
+          而它管的却是整块终端——开关和它控制的东西隔了一行，看着就像个贴歪的贴纸。
+        */}
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn(
+            'term-tab-tool shrink-0',
+            translateEnabled && 'term-tab-tool-active',
+          )}
+          onClick={toggleTranslate}
+          aria-pressed={translateEnabled}
+          title={
+            translateEnabled
+              ? '划词翻译已开：双击或拖动选中终端文字看释义'
+              : '划词翻译已关：点开后可双击/拖动选中终端文字看释义'
+          }
+          aria-label="划词翻译"
+          data-dom-id="term-toggle-translate"
+        >
+          <Languages aria-hidden className="size-3.5" />
+        </Button>
       </div>
 
       {/* 远程文件外部变更提示 */}

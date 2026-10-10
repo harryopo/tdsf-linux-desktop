@@ -59,3 +59,10 @@
   background: rgba(255, 255, 255, 0.08);
   color: var(--trae-text-default, var(--trae-text-default));
 }
+
+/* 标签条右上角的工具钮（划词翻译开关）：只补"按下"这一态，
+   尺寸与 hover 由 Button 的 ghost/sm 提供，避免第二套按钮样式 */
+.term-tab-tool-active {
+  background: var(--bg-active);
+  color: var(--accent-text);
+}

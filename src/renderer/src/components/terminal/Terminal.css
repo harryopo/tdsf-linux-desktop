@@ -372,37 +372,6 @@
   flex-shrink: 0;
 }
 
-.term-translate-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: transparent;
-  border: 1px solid var(--trae-border-neutral-l2);
-  border-radius: var(--trae-radius-4);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.term-translate-toggle:hover {
-  background: var(--trae-bg-overlay-l1);
-  color: var(--text-primary);
-}
-
-.term-translate-toggle-active {
-  background: rgba(90, 200, 250, 0.12);
-  border-color: rgba(90, 200, 250, 0.4);
-  color: #5ac8fa;
-}
-
-.term-translate-text {
-  font-weight: var(--trae-font-weight-medium);
-  letter-spacing: 0.3px;
-}
-
 .term-tabs-content {
   flex: 1;
   min-height: 0;

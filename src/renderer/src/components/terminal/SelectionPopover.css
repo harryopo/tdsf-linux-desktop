@@ -1,23 +1,24 @@
 /**
- * SelectionPopover 浮层样式 - v0.8.0
+ * SelectionPopover 取词浮层样式
  *
- * 风格：暗色系 + 慢动画（与项目整体一致）
- * 不使用 emoji（按用户要求），使用文本字符和颜色
+ * 颜色/圆角/字阶全部走 ui-tokens（浅色主题靠令牌翻转，不写第二套十六进制）。
+ * 结构：上半是释义本体（划完词第一眼要看到答案），下半是一排动作。
  */
 
 .sel-popover {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  background: rgba(35, 35, 38, 0.96);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: sel-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+  max-width: 420px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--ui-radius-card);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
   font-family: var(--ui-family-ui);
+  animation: sel-fade-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes sel-fade-in {
@@ -25,90 +26,146 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ===== 释义本体 ===== */
+
+.sel-gloss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.sel-word {
+  padding: 1px 6px;
+  border-radius: var(--ui-radius-inline);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-sm);
+  word-break: break-all;
+}
+
+.sel-pos {
+  color: var(--text-muted);
+  font-size: var(--ui-font-micro);
+  font-style: italic;
+}
+
+.sel-zh {
+  flex: 1 1 100%;
+  color: var(--text-primary);
+  font-size: var(--ui-font-md);
+  line-height: 1.5;
+}
+
+.sel-miss {
+  color: var(--text-muted);
+  font-size: var(--ui-font-sm);
+}
+
+/* ===== 动作排 ===== */
+
+.sel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-primary);
+}
+
 .sel-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 4px 8px;
   background: transparent;
   border: none;
-  border-radius: 6px;
-  color: #e8e8e8;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 200ms ease, color 200ms ease;
+  border-radius: var(--ui-radius-inline);
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: var(--ui-font-caption);
   white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--ui-dur-fast) ease, color var(--ui-dur-fast) ease;
 }
+
 .sel-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
+
 .sel-btn.active {
-  background: rgba(90, 200, 250, 0.18);
-  color: #5ac8fa;
+  background: var(--bg-active);
+  color: var(--accent-text);
 }
+
 .sel-btn-label {
   font-weight: 500;
 }
+
 .sel-btn-icon {
-  font-size: 14px;
+  font-size: var(--ui-font-md);
   line-height: 1;
-  color: #86868b;
-}
-.sel-btn-close {
-  padding: 6px 8px;
-  color: #86868b;
-}
-.sel-btn-close:hover {
-  color: #ff6b35;
-}
-.sel-kbd {
-  margin-left: 2px;
-  padding: 1px 5px;
-  font-size: var(--ui-font-micro);
-  color: #86868b;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
-  font-family: inherit;
+  color: var(--text-muted);
 }
 
-/* ===== 翻译结果面板 ===== */
+.sel-btn-close {
+  margin-left: auto;
+  padding: 4px 7px;
+}
+
+.sel-btn-close:hover {
+  color: var(--status-error-text);
+}
+
+.sel-kbd {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--ui-font-micro);
+}
+
+/* ===== 详解面板（例句 / 语法 / 说明 / 分词） ===== */
 
 .trans-panel {
   min-width: 280px;
   max-width: 480px;
-  padding: 14px 16px;
-  background: rgba(30, 30, 32, 0.98);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  color: #e8e8e8;
-  font-size: 13px;
-  animation: sel-fade-in 220ms ease;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--ui-radius-card);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
   font-family: var(--ui-family-ui);
+  font-size: var(--ui-font-sm);
+  animation: sel-fade-in 180ms ease;
 }
 
 .trans-header {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-primary);
 }
+
 .trans-word {
+  color: var(--accent-text);
   font-family: var(--ui-family-code);
-  color: #5ac8fa;
-  font-size: 14px;
+  font-size: var(--ui-font-md);
   font-weight: 500;
   word-break: break-all;
 }
+
 .trans-pos {
-  color: #86868b;
-  font-size: 11px;
+  color: var(--text-muted);
+  font-size: var(--ui-font-micro);
   font-style: italic;
 }
+
 .trans-close {
   margin-left: auto;
   width: 22px;
@@ -116,137 +173,151 @@
   padding: 0;
   background: transparent;
   border: none;
-  color: #86868b;
-  font-size: 14px;
+  border-radius: var(--ui-radius-inline);
+  color: var(--text-muted);
+  font-size: var(--ui-font-md);
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 200ms ease, color 200ms ease;
+  transition: background var(--ui-dur-fast) ease, color var(--ui-dur-fast) ease;
 }
+
 .trans-close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ff6b35;
+  background: var(--bg-hover);
+  color: var(--status-error-text);
 }
 
 .trans-zh {
-  font-size: 15px;
-  color: #ffffff;
-  margin-bottom: 10px;
+  color: var(--text-primary);
+  font-size: var(--ui-font-body);
   line-height: 1.5;
+  margin-bottom: 8px;
 }
 
-/* 分词翻译 */
+/* 分词翻译（路径这类多段内容） */
 .trans-segments {
-  margin-top: 10px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border-radius: var(--ui-radius-inline);
 }
+
 .trans-seg-title {
-  font-size: 11px;
-  color: #86868b;
-  margin-bottom: 6px;
-  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: var(--ui-font-micro);
+  letter-spacing: 0.4px;
 }
+
 .trans-seg-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 0;
-  font-size: 12px;
-}
-.trans-seg-word {
-  font-family: var(--ui-family-code);
-  color: #5ac8fa;
-  background: rgba(90, 200, 250, 0.08);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 11px;
-}
-.trans-seg-arrow {
-  color: #86868b;
-  font-size: 11px;
-}
-.trans-seg-zh {
-  color: #c0c0c0;
+  padding: 2px 0;
+  font-size: var(--ui-font-caption);
 }
 
-/* 例句 */
-.trans-example {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: rgba(90, 200, 250, 0.06);
-  border-left: 2px solid #5ac8fa;
-  font-size: 12px;
-  color: #c0c0c0;
-  border-radius: 0 4px 4px 0;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-.trans-example-label {
-  flex-shrink: 0;
-  padding: 1px 5px;
-  background: rgba(90, 200, 250, 0.15);
-  color: #5ac8fa;
-  font-size: var(--ui-font-micro);
+.trans-seg-word {
+  padding: 0 5px;
   border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--accent-text);
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-micro);
+}
+
+.trans-seg-arrow {
+  color: var(--text-muted);
+  font-size: var(--ui-font-micro);
+}
+
+.trans-seg-zh {
+  color: var(--text-tertiary);
+}
+
+/* 例句 / 语法 / 详细：同一套"标签 + 内容"的左边线块 */
+.trans-example,
+.trans-syntax,
+.trans-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-left: 2px solid var(--accent-text);
+  border-radius: 0 var(--ui-radius-inline) var(--ui-radius-inline) 0;
+  background: var(--code-inline-bg);
+  color: var(--text-tertiary);
+  font-size: var(--ui-font-caption);
+}
+
+.trans-example-label,
+.trans-syntax-label,
+.trans-detail-label {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--accent-text);
+  font-size: var(--ui-font-micro);
   font-weight: 500;
 }
-.trans-example code {
+
+.trans-example code,
+.trans-syntax code {
   font-family: var(--ui-family-code);
   word-break: break-all;
 }
 
+.trans-detail-text {
+  line-height: 1.6;
+}
+
 /* 关联课程 */
 .trans-course {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background: rgba(48, 209, 88, 0.06);
-  border-left: 2px solid #30d158;
-  font-size: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
-  transition: background 200ms ease;
-}
-.trans-course:hover {
-  background: rgba(48, 209, 88, 0.12);
-}
-.trans-course-label {
-  flex-shrink: 0;
-  padding: 1px 5px;
-  background: rgba(48, 209, 88, 0.15);
-  color: #30d158;
-  font-size: var(--ui-font-micro);
-  border-radius: 3px;
-  font-weight: 500;
-}
-.trans-course-title {
-  color: #c0c0c0;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-left: 2px solid var(--status-success-text);
+  border-radius: 0 var(--ui-radius-inline) var(--ui-radius-inline) 0;
+  background: var(--diff-added-bg);
+  color: var(--text-tertiary);
+  font-size: var(--ui-font-caption);
 }
 
-/* 无翻译 */
+.trans-course-label {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--status-success-text);
+  font-size: var(--ui-font-micro);
+  font-weight: 500;
+}
+
+/* 词典未命中 */
 .trans-empty {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #86868b;
-  font-size: 12px;
-  padding: 4px 0;
+  padding: 2px 0;
+  color: var(--text-muted);
+  font-size: var(--ui-font-caption);
 }
+
 .trans-ask-ai {
   margin-left: auto;
-  padding: 5px 10px;
-  background: rgba(175, 82, 222, 0.15);
-  border: 1px solid rgba(175, 82, 222, 0.3);
-  border-radius: 4px;
-  color: #c779ff;
-  font-size: 11px;
+  padding: 4px 10px;
+  background: var(--accent-solid);
+  border: none;
+  border-radius: var(--ui-radius-inline);
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: var(--ui-font-micro);
   cursor: pointer;
-  transition: background 200ms ease;
+  transition: background var(--ui-dur-fast) ease;
 }
+
 .trans-ask-ai:hover {
-  background: rgba(175, 82, 222, 0.25);
+  background: var(--accent-solid-hover);
 }

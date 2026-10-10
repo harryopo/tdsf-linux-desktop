@@ -27,14 +27,21 @@ import { usePersistentState } from '../../hooks/usePersistentState'
 import { getCourseHint } from '../../utils/course-matcher'
 import './SelectionPopover.css'
 
-/** 浮层位置偏移（距离鼠标） */
+/**
+ * 浮层位置偏移（相对鼠标）
+ *
+ * 纵向偏移按整张卡片的高度算：卡片现在是「释义在上、动作在下」两块，
+ * 只抬 44px 会把自己压在选中的那行字上，用户看不见自己划了什么。
+ */
 const POPOVER_OFFSET_X = 8
-const POPOVER_OFFSET_Y = -44  // 浮在选区上方
+const POPOVER_OFFSET_Y = -118
 const PANEL_OFFSET_Y = 8      // 翻译面板在选区下方
 
 /** 浮层尺寸估算（用于防越界） */
 const POPOVER_MIN_WIDTH = 280
 const PANEL_MIN_WIDTH = 320
+/** 详解面板的高度估算值：只用来决定"翻到选区上方还是下方"，不需要精确 */
+const PANEL_ESTIMATED_HEIGHT = 260
 
 /** 关闭按钮字符（无 emoji，按用户要求） */
 const CLOSE_ICON = '×'
@@ -57,19 +64,6 @@ const SelectionPopover: React.FC = () => {
   }, [selection])
 
   // ESC 键关闭浮层（绑定到 window，仅在有选区时监听）
-  useEffect(() => {
-    if (!selection) return
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        clear()
-        setPanelOpen(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selection, clear])
-
   /**
    * 翻译结果（memo 化，依赖 selection.text）
    */
@@ -151,6 +145,37 @@ const SelectionPopover: React.FC = () => {
     setPanelOpen(v => !v)
   }, [])
 
+  /**
+   * 键盘通路：Esc 关，Ctrl+Shift+T 展开详解，Ctrl+Shift+A 送给 AI
+   *
+   * 浮层上的快捷键提示必须真的能用——以前这两个键只印在按钮上、没有任何实现，
+   * 属于"写着但没做"的那类假 affordance。
+   */
+  useEffect(() => {
+    if (!selection) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        clear()
+        setPanelOpen(false)
+        return
+      }
+      if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
+        const key = e.key.toLowerCase()
+        if (key === 'a') {
+          e.preventDefault()
+          handleSendToAI()
+        } else if (key === 't') {
+          e.preventDefault()
+          setPanelOpen((v) => !v)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // handleSendToAI 依赖 selection/result，选区变化时要换绑
+  }, [selection, clear, handleSendToAI])
+
   // ===== 位置计算（避免浮层超出视口） =====
   const popoverStyle = useMemo<React.CSSProperties | null>(() => {
     if (!selection) return null
@@ -164,52 +189,101 @@ const SelectionPopover: React.FC = () => {
 
   const panelStyle = useMemo<React.CSSProperties | null>(() => {
     if (!selection) return null
+    // 纵向也要夹：以前只算横向，靠屏幕下沿选中一行命令时详解面板会直接掉到窗口外，
+    // 用户看到的是"点了详解没反应"。放不下就翻到选区上方。
+    const below = selection.screenY + PANEL_OFFSET_Y
+    const top =
+      below + PANEL_ESTIMATED_HEIGHT > window.innerHeight - 8
+        ? Math.max(8, selection.screenY - PANEL_ESTIMATED_HEIGHT - PANEL_OFFSET_Y)
+        : below
     return {
       position: 'fixed',
       left: clamp(selection.screenX + POPOVER_OFFSET_X, 8, window.innerWidth - PANEL_MIN_WIDTH),
-      top: selection.screenY + PANEL_OFFSET_Y,
+      top,
       zIndex: 9998,
     }
   }, [selection])
+
+  /** 有没有"详解"可看：只有释义时不必再多一步 */
+  const hasDetail = useMemo(() => {
+    const entry = result?.primary?.entry
+    if (!result?.matched || !entry) return false
+    return Boolean(entry.example || entry.syntax || entry.detail) || result.segments.length > 1
+  }, [result])
 
   // 无选区则不渲染
   if (!selection || !popoverStyle) return null
 
   return createPortal(
     <>
-      {/* 操作浮层（按钮组） */}
+      {/*
+        取词浮层：释义直接给出来，不再"点一下翻译才看得到"。
+        以前这里只有四个按钮（发送到 AI / 翻译 / 复制 / ×），用户划完词还得再点一次
+        才知道词典里有没有——教学工具最不该把答案藏在第二步。
+      */}
       <div className="sel-popover" style={popoverStyle}>
-        <button
-          className="sel-btn sel-btn-ai"
-          onClick={handleSendToAI}
-          title="将选中文本发送给 AI 助手"
-        >
-          <span className="sel-btn-label">发送到 AI</span>
-          <kbd className="sel-kbd">Ctrl+Shift+A</kbd>
-        </button>
-        <button
-          className={`sel-btn sel-btn-trans ${panelOpen ? 'active' : ''}`}
-          onClick={togglePanel}
-          title="查询本地词典翻译"
-        >
-          <span className="sel-btn-label">翻译</span>
-          <kbd className="sel-kbd">Ctrl+Shift+T</kbd>
-        </button>
-        <button
-          className="sel-btn sel-btn-copy"
-          onClick={handleCopy}
-          title="复制到剪贴板"
-        >
-          <span className="sel-btn-label">复制</span>
-        </button>
-        <button
-          className="sel-btn sel-btn-close"
-          onClick={handleClose}
-          title="关闭"
-          aria-label="关闭浮层"
-        >
-          <span className="sel-btn-icon">{CLOSE_ICON}</span>
-        </button>
+        <div className="sel-gloss">
+          <code className="sel-word">{selection.text}</code>
+          {result?.matched ? (
+            <>
+              {result.primary?.entry.pos && (
+                <span className="sel-pos">{result.primary.entry.pos}</span>
+              )}
+              <span className="sel-zh">{result.primary?.entry.zh}</span>
+            </>
+          ) : (
+            <span className="sel-miss">词典未收录</span>
+          )}
+        </div>
+        <div className="sel-actions">
+          {hasDetail && (
+            <button
+              type="button"
+              className={`sel-btn sel-btn-trans ${panelOpen ? 'active' : ''}`}
+              onClick={togglePanel}
+              title="展开例句/语法/详细说明"
+            >
+              <span className="sel-btn-label">详解</span>
+              <kbd className="sel-kbd">Ctrl+Shift+T</kbd>
+            </button>
+          )}
+          {!result?.matched && (
+            <button
+              type="button"
+              className="sel-btn sel-btn-trans"
+              onClick={handleAskAI}
+              title="让 AI 用中文解释这段内容"
+            >
+              <span className="sel-btn-label">问 AI</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="sel-btn sel-btn-copy"
+            onClick={handleCopy}
+            title="复制到剪贴板"
+          >
+            <span className="sel-btn-label">复制</span>
+          </button>
+          <button
+            type="button"
+            className="sel-btn sel-btn-ai"
+            onClick={handleSendToAI}
+            title="把选中文本交给 AI 助手（带上词典参考）"
+          >
+            <span className="sel-btn-label">发送到 AI</span>
+            <kbd className="sel-kbd">Ctrl+Shift+A</kbd>
+          </button>
+          <button
+            type="button"
+            className="sel-btn sel-btn-close"
+            onClick={handleClose}
+            title="关闭"
+            aria-label="关闭浮层"
+          >
+            <span className="sel-btn-icon" aria-hidden>{CLOSE_ICON}</span>
+          </button>
+        </div>
       </div>
 
       {/* 翻译结果面板 */}
