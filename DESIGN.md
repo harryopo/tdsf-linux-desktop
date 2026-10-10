@@ -44,8 +44,8 @@
 | `--ui-font-sm` | 13px | 说明、摘要、thinking 正文 |
 | `--ui-font-md` | 14px | 控件文字、列表项、表格 |
 | `--ui-font-body` | 15px | 全应用唯一正文档（消息流、markdown） |
-| `--ui-font-composer` | 16px | 输入区 |
-| `--ui-font-title` | 17px | 弹窗标题、页内小节标题 |
+| `--ui-font-composer` | 14px | 输入区 |
+| `--ui-font-title` | 17px | 表单弹窗标题、页内小节标题（确认框用 14px，见 §弹窗） |
 | `--ui-font-head` | 20px | 模块页头标题（`PageHeader` 专用） |
 | `--ui-font-display` | 30px | KPI 大数字 |
 | `--ui-font-splash` | 44px | 启动页字标 |
@@ -98,7 +98,7 @@
 - **工作台三栏的第一条栏同高：`--ui-size-panel-header`（40px）**——左栏资源管理器头、中栏终端标签条、
   右栏 AI 面板头都取这一个令牌。三栏顶边对齐只靠它；任何一栏自己写死 32px/44px 就会错开
   （2026-10-08 用户指出右栏 `h-8` 与另两栏差 8px）。
-- **AI 输入框至少三行**：`--ui-size-composer-min`（88px，16px 字号三行）是空态下限，往上长到 `--ui-collapse-max-composer`（240px）为止。
+- **AI 输入框至少三行**：`--ui-size-composer-min`（80px，14px 字号三行）是空态下限，往上长到 `--ui-collapse-max-composer`（240px）为止。
   快捷提示词那一排**不换行**（单行 + 横向滚动）：它一排挤成两行时，输入区就被压成一行高。
 - **外壳上下两条横带也走令牌**：`--ui-size-titlebar`（40px）与 `--ui-size-statusbar`（24px）。
   这两个值曾只在令牌文件里写着 44/26，界面上另有硬编码，等于假单源（2026-10-09 核对后按界面真值定）。
@@ -112,10 +112,13 @@
 - 弹窗：`Dialog` + `DialogContent`（radix 包一层），统一底色 `--bg-elevated`、圆角 18px、无边框、靠阴影分层。
   两种 `variant`：
   - `panel`（默认，带表单/详情）：头部左对齐 + 右上关闭钮，底部右对齐动作条。
-    宽度按内容分三档：**确认/提示 420px、表单 520px、详情 680px**，均 `min(Npx, 92vw)`。
-  - `alert`（确认/告警）：居中标题 + 居中描述，底栏通栏等宽按钮（12px 高、直角、1px 分隔线），
+    宽度按内容分三档：**确认 380px、表单 520px、详情 680px**，均 `min(Npx, 92vw)`。
+  - `alert`（确认/告警）：居中标题 + 居中描述，底栏通栏等宽按钮（40px 高、直角、1px 分隔线），
     照 macOS 告警的样子；`confirmDialog()` 走这一档。
-  标题 17px，正文 14–15px，按钮 14px；按钮文字与边框之间至少 8px 留白（贴边算缺陷）。
+    2026-10-10 用户指出"整体太大"后收小：标题 14px 加粗、描述 13px、内边距 `px-6 pt-6 pb-5`、
+    按钮 48px→40px、宽度 420px→380px。一句确认话撑不起 17px 的弹窗标题档。
+  `panel` 标题 17px、正文 14–15px；`alert` 标题 14px、正文 13px；按钮文字 14px；
+  按钮文字与边框之间至少 8px 留白（贴边算缺陷）。
   按钮顺序：取消在左，主操作在右；破坏性操作主按钮用 `danger`，且默认焦点落在"取消"。
 - 高危二次确认一律走 `confirmDialog()`，不用 `Modal.confirm`（静态方法依赖 React 19 补丁）。
 - 区域内的常驻说明用 `Notice`（`tone` 只有 info/warning/error 三档，配色取 `--notice-*` / `--status-*`）；

@@ -94,14 +94,19 @@ export function DialogContent({
         )}
       >
         {alert ? (
-          <div className="flex flex-col items-center gap-1.5 px-7 pt-7 pb-6 text-center">
+          /*
+            告警框按 IDE 密度收小（2026-10-10 用户指出"整体太大"）：
+            标题用控件档 14px 加粗（17px 的弹窗档是给表单弹窗的，一句确认话撑不起那么大），
+            正文 13px，内边距收一档，按钮 40px（48px 的通栏按钮在 420px 宽的框里像两块砖）。
+          */
+          <div className="flex flex-col items-center gap-1 px-6 pt-6 pb-5 text-center">
             <div className="flex items-center justify-center gap-2">
-              <RadixDialog.Title className="text-title font-semibold text-ink-strong">
+              <RadixDialog.Title className="text-md font-semibold text-ink-strong">
                 {title}
               </RadixDialog.Title>
             </div>
             {description ? (
-              <RadixDialog.Description className="max-w-[46ch] text-md leading-relaxed text-ink-dim">
+              <RadixDialog.Description className="max-w-[46ch] text-sm leading-relaxed text-ink-dim">
                 {description}
               </RadixDialog.Description>
             ) : null}
@@ -136,7 +141,7 @@ export function DialogContent({
             className={cn(
               alert
                 ? // 苹果式告警：按钮通栏等宽、贴住面板底边，靠 1px 分隔线而不是圆角分家
-                  'grid grid-flow-col auto-cols-fr gap-px bg-line [&>button]:h-12 [&>button]:w-full [&>button]:rounded-none'
+                  'grid grid-flow-col auto-cols-fr gap-px bg-line [&>button]:h-10 [&>button]:w-full [&>button]:rounded-none'
                 : 'flex items-center justify-end gap-3 border-t border-line px-6 py-4'
             )}
           >

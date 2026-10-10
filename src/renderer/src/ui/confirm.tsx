@@ -70,7 +70,7 @@ export function ConfirmHost() {
           variant="alert"
           title={opts.title}
           description={opts.description}
-          className="w-[min(420px,92vw)]"
+          className="w-[min(380px,92vw)]"
           footer={
             <>
               <Button

@@ -36,7 +36,7 @@ function Empty({ icon: Icon, title, description, action, className, ...props }: 
         </div>
       )}
       {title && (
-        <div className="text-composer font-medium text-ink">{title}</div>
+        <div className="text-body font-medium text-ink">{title}</div>
       )}
       {description && (
         <div className="max-w-sm text-sm text-ink-dim">{description}</div>

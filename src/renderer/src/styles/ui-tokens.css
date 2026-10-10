@@ -169,7 +169,7 @@
   --ui-font-sm: 13px; /* 摘要、说明、thinking 正文 */
   --ui-font-md: 14px; /* 控件文字、列表项、表格 */
   --ui-font-body: 15px; /* 消息正文与 markdown（全应用唯一正文档） */
-  --ui-font-composer: 16px; /* 输入区 */
+  --ui-font-composer: 14px; /* 输入区（2026-10-10 由 16px 调小：比聊天正文 15px 还大，输入框在抢内容的话） */
   --ui-font-title: 17px; /* 弹窗标题 */
   --ui-font-head: 20px; /* 页面级标题 */
   --ui-font-display: 30px; /* KPI 大数字（line-height 38px 随档位一起给） */
@@ -224,7 +224,7 @@
 
   /* 折叠预算：内容超高就走内滚，不撑破外壳 */
   --ui-collapse-max-composer: 240px;
-  --ui-size-composer-min: 88px; /* 输入框至少三行：空态也只给一行高的话，写长指令时整块在跳 */
+  --ui-size-composer-min: 80px; /* 输入框至少三行（14px × 1.5 × 3 + 上下内边距）：空态只给一行高时，写长指令整块在跳 */
   --ui-collapse-max-output: 150px;
   --ui-collapse-max-popover: 200px;
   --ui-collapse-max-command: 300px;
