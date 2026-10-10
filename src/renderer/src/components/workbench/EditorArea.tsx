@@ -652,13 +652,15 @@ const EditorArea: FC<EditorAreaProps> = ({
           以前这里是两个 A 级死按钮（"分屏（开发中）""更多（开发中）"），纯装饰无 handler。
           触发器叫"新建终端菜单"而不是"新建终端"：空态里已经有那个主行动按钮，
           两个同名控件读屏里分不开（e2e 的 strict-mode 也是这么发现的）。
+          ml-auto 把 "+ / 划词翻译" 这一对推到最右：左边那一排是标签本身，
+          工具钮跟在标签后面看着像第三个标签。
         */}
         <Menu>
           <MenuTrigger asChild>
             <Button
               size="sm"
               variant="ghost"
-              className="term-tab-new shrink-0"
+              className="term-tab-new ml-auto shrink-0"
               title="新建终端菜单"
               aria-label="新建终端菜单"
               data-dom-id="workbench-new-terminal"
