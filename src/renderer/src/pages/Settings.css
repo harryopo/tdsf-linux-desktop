@@ -95,7 +95,10 @@
 
 /* 子页骨架：标题栏贴住所属列的左上角（顶到 0、不留内距），正文自己滚动并自带留白 */
 .set-subpage { display: flex; flex-direction: column; height: 100%; min-width: 0; }
-.set-subpage__body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+/* scroll-padding-bottom：给 sticky 底部操作栏留出净空。
+   不写这一条，滚动定位会把目标行停在视口最底下——正好压在操作栏下面，
+   用户和自动化都点不到（按钮普查实测：设置-模型「显示/隐藏API Key」点不下去）。 */
+.set-subpage__body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; scroll-padding-bottom: 72px; display: flex; flex-direction: column; gap: 16px; }
 
 /* ===== Card ===== */
 .set-card {
