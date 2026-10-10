@@ -17,6 +17,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import * as CHANNELS from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
+import { registerAppWindowHandlers } from './app-window'
 import { registerLocalTerminalHandlers } from './local-terminal'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
@@ -174,7 +175,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 这几个模块会在长生命周期事件源上挂转发回调，返回卸载函数交给 ipcDisposers
   ipcDisposers.push(registerSshIpcHandlers(mainWindow))
   // 本机终端同样在 PTY 事件源上挂转发（输出 + 退出），必须可撤销
-  ipcDisposers.push(registerLocalTerminalHandlers(mainWindow))
+  ipcDisposers.push(registerLocalTerminalHandlers())
   ipcDisposers.push(registerMonitorIpcHandlers(mainWindow))
   registerStorageIpcHandlers()
   registerLlmHandlers(mainWindow)
@@ -335,5 +336,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 现在这三条由 main/index.ts 的启动序列真实推送，并额外提供 boot:get-state 供拉取
   // （主进程跑得快于渲染层挂载时，推送会丢，拉取补得上）。
   registerBootHandlers()
+  // W4：再开一个应用窗口（只有这一个动作，不给关别人、枚举的能力）
+  registerAppWindowHandlers()
   pushBootLoadingStage('ipc-ready', BrowserWindow.getAllWindows())
 }

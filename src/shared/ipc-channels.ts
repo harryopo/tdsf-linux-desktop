@@ -284,6 +284,20 @@ export const TERMINAL = {
 } as const
 
 /**
+ * 应用窗口（W4）IPC 通道常量
+ *
+ * 通道列表：
+ * - OPEN_SECONDARY  invoke  渲染 → 主：再开一个应用窗口，返回窗口总数
+ *
+ * 只给"开一个"这一个动作，不给"关别人的窗口""枚举窗口"这类能力：
+ * 渲染层能关掉另一个窗口里的东西，等于把另一个窗口的状态交出去了。
+ */
+export const WINDOW = {
+  /** 再开一个应用窗口（invoke: 渲染 → 主，返回当前窗口数） */
+  OPEN_SECONDARY: 'window:open-secondary',
+} as const
+
+/**
  * 本机终端（W3）IPC 通道常量
  *
  * 通道列表：

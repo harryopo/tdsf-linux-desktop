@@ -666,6 +666,8 @@ export interface IpcChannelMap {
   'ssh:shell:list': { args: [string]; return: string[] }
   'ssh:shell:write': { args: [string, string]; return: boolean }
   'ssh:shell:resize': { args: [string, number, number]; return: boolean }
+  // 应用窗口（W4）
+  'window:open-secondary': { args: []; return: number }
   // 本机终端（W3）：身份同样是 shellId，输出复用 terminal:data
   'local-tty:status': {
     args: []

@@ -25,6 +25,7 @@ import { spawn } from 'node:child_process'
 import { z } from 'zod'
 import { SSH, SFTP, TERMINAL } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
+import { broadcastToWindows } from '../windows/main-window'
 import { ConfigStore } from '../services/storage/config-store'
 import { ElectermSftpManager } from '../services/ssh/electerm-sftp'
 import { logger } from '../services/log/logger'
@@ -362,11 +363,10 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
         // 每条通道只在这一处挂一次转发；重复调用等于真开一个新终端，不会再叠到同一条上
         shellPushes.set(
           shellId,
+          // 广播给所有窗口：终端属于会话，不属于"哪个窗口把它开出来的"
+          // （第二窗口靠渲染层的对账把同一条 shell 显示出来，两边看到的是同一个 shell）
           sshManager.onShellData(shellId, (data: string) => {
-            // 窗口可能已关闭或正在销毁，需防御性检查
-            if (!mainWindow.isDestroyed()) {
-              mainWindow.webContents.send(TERMINAL_DATA_CHANNEL, shellId, data)
-            }
+            broadcastToWindows(TERMINAL_DATA_CHANNEL, shellId, data)
           }),
         )
         return shellId

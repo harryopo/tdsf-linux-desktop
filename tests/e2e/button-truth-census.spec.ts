@@ -59,9 +59,15 @@ const PAGES: Array<{ name: string; hash: string; ready: string }> = [
   { name: '设置-模型', hash: '#/settings/model', ready: '.set-page, main' },
 ]
 
-/** 不点击的按钮（窗口控制 + 破坏性操作），只记录 skipped */
+/**
+ * 不点击的按钮（窗口控制 + 破坏性操作），只记录 skipped
+ *
+ * "新建窗口"也归进来：它开的是操作系统级的另一个窗口，本普查只看当前页面，
+ * 点了既判不出反应，又会让后面几十个按钮因焦点与负载变化误报"点不下去"（实测会飘）。
+ * 它的真实行为由 tests/e2e/second-window.spec.ts 判（两个窗口共用同一张终端表）。
+ */
 const SKIP_PATTERN =
-  /最小化|最大化|关闭|还原|退出|删除|清空|重置|恢复默认|断开|终止|停止|卸载|Close|Minimize|Maximize|Quit/i
+  /最小化|最大化|关闭|还原|退出|新建窗口|删除|清空|重置|恢复默认|断开|终止|停止|卸载|Close|Minimize|Maximize|Quit/i
 
 /** 每页最多普查的按钮数（防止列表类页面爆炸）；也是一页允许的最大轮次 */
 const MAX_BUTTONS_PER_PAGE = 40
@@ -249,15 +255,23 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       await window.waitForTimeout(120) // 静置，clear 噪声
       const before = await snapshot(window)
 
-      const clicked = await btn
+      // 点不下去先清现场再重试一次：全量跑时同机负载会把 Playwright 的可操作性等待
+      // 顶过 2 秒（实测单跑 0 个、全量跑 9 个"点不下去"，且都是同一批按钮）。
+      // 判据没放松——真有遮罩的按钮清完还是点不下去，第二次照样记 unclickable。
+      let clicked = await btn
         .click({ timeout: 2000 })
         .then(() => true)
         .catch(() => false)
       if (!clicked) {
-        results.push({ page: pageDef.name, label, verdict: 'unclickable', detail: '点击超时/被遮挡' })
-        // 点不下去多半是上一层还开着（命令面板这类没写 role 的遮罩），
-        // 不清现场的话后面几十个按钮会连着报同一个假故障
         await closeOverlays(window)
+        await window.waitForTimeout(200)
+        clicked = await btn
+          .click({ timeout: 2000 })
+          .then(() => true)
+          .catch(() => false)
+      }
+      if (!clicked) {
+        results.push({ page: pageDef.name, label, verdict: 'unclickable', detail: '清现场后仍点不下去' })
         continue
       }
 

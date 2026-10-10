@@ -17,7 +17,7 @@
  * 测试会在内存里重算一遍并与盘上文件比对，漂了就红（同 design-contract 的路子）。
  */
 import { z } from 'zod'
-import { AGENT, LOCAL_TTY, PROVIDER, SSH } from './ipc-channels'
+import { AGENT, LOCAL_TTY, PROVIDER, SSH, WINDOW } from './ipc-channels'
 
 /** 一条入参：名字用来生成签名，schema 用来运行时校验，ts 用来生成签名里的类型 */
 export interface ContractArg {
@@ -185,6 +185,15 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     ],
     resultTs: 'boolean',
     result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'windowOpenSecondary',
+    channel: WINDOW.OPEN_SECONDARY,
+    doc: '再开一个应用窗口，返回当前窗口数',
+    args: [],
+    resultTs: 'number',
+    result: z.number(),
   },
   // 本机终端（W3）。输出仍走 terminal:data（不在此处，理由见上面那段注释）；
   // local-tty:exit 的载荷是一个裸 shellId，不是对象，所以它和 terminal:data 一样

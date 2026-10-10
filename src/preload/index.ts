@@ -6,11 +6,11 @@ import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from
 import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanModel, DeployResult as DeployResultModel, DeployStepResult as DeployStepResultModel, DeployTemplate as DeployTemplateModel } from '@shared/deploy-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MODEL_STATS, PROMPTFOO, RISK, SIDECAR, TUTORIAL } from '@shared/ipc-channels'
+import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MODEL_STATS, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
-import { createListener } from './ipc-util'
+import { createListener, invokeChecked } from './ipc-util'
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
@@ -41,6 +41,8 @@ const electronApi = {
   sshConnectById: ssh.connectById,
   sshDisconnect: ssh.disconnect,
   sshExec: ssh.exec,
+  windowOpenSecondary: (): Promise<number> =>
+    invokeChecked('windowOpenSecondary', WINDOW.OPEN_SECONDARY),
   sshShellStart: ssh.shell.start,
   sshShellClose: ssh.shell.close,
   sshShellList: ssh.shell.list,

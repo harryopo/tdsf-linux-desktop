@@ -2,67 +2,37 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-10T05:53:24.316Z",
+  "lastUpdated": "2026-10-10T08:08:58.544Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-10T05:39:04.514Z",
-      "lastActiveAt": "2026-10-10T05:53:24.316Z",
-      "task": "W3 本机终端 node-pty",
+      "startedAt": "2026-10-10T08:08:58.197Z",
+      "lastActiveAt": "2026-10-10T08:08:58.544Z",
+      "task": "W4 第二个窗口",
       "claimedFiles": [
         {
-          "path": "package.json",
-          "task": "W3 本机终端 node-pty",
-          "claimedAt": "2026-10-10T05:39:04.514Z"
-        },
-        {
-          "path": "pnpm-workspace.yaml",
-          "task": "W3 本机终端 node-pty",
-          "claimedAt": "2026-10-10T05:39:04.514Z"
-        },
-        {
           "path": "src/shared/ipc-channels.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:49:57.772Z"
+          "task": "W4 第二个窗口",
+          "claimedAt": "2026-10-10T08:08:58.197Z"
         },
         {
           "path": "src/shared/models.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:49:57.892Z"
-        },
-        {
-          "path": "src/shared/ipc-contract.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:49:57.986Z"
+          "task": "W4 第二个窗口",
+          "claimedAt": "2026-10-10T08:08:58.318Z"
         },
         {
           "path": "src/preload/index.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:49:58.079Z"
+          "task": "W4 第二个窗口",
+          "claimedAt": "2026-10-10T08:08:58.427Z"
         },
         {
           "path": "src/main/ipc/index.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:53:23.978Z"
-        },
-        {
-          "path": "src/main/index.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:53:24.081Z"
-        },
-        {
-          "path": "src/preload/domains/ssh.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:53:24.195Z"
-        },
-        {
-          "path": "src/preload/domains/events.ts",
-          "task": "W3 本机终端",
-          "claimedAt": "2026-10-10T05:53:24.316Z"
+          "task": "W4 第二个窗口",
+          "claimedAt": "2026-10-10T08:08:58.544Z"
         }
       ],
-      "expiresAt": "2026-10-10T07:53:24.316Z"
+      "expiresAt": "2026-10-10T10:08:58.544Z"
     }
   },
   "history": [
@@ -6491,6 +6461,34 @@
       "file": "src/preload/domains/events.ts",
       "task": "W3 本机终端",
       "timestamp": "2026-10-10T05:53:24.316Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "W4 第二个窗口",
+      "timestamp": "2026-10-10T08:08:58.197Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "W4 第二个窗口",
+      "timestamp": "2026-10-10T08:08:58.318Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "W4 第二个窗口",
+      "timestamp": "2026-10-10T08:08:58.427Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "W4 第二个窗口",
+      "timestamp": "2026-10-10T08:08:58.544Z"
     }
   ],
   "coordinationAudit": {

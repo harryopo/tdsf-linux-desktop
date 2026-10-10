@@ -42,6 +42,10 @@ export interface ContractedInvokeApi {
    * 通道 `ssh:shell:resize` */
   sshShellResize(shellId: string, cols: number, rows: number): Promise<boolean>
 
+  /** 再开一个应用窗口，返回当前窗口数
+   * 通道 `window:open-secondary` */
+  windowOpenSecondary(): Promise<number>
+
   /** 本机终端是否可用（node-pty 装没装上、用的是哪个 Shell）
    * 通道 `local-tty:status` */
   localTtyStatus(): Promise<{ available: boolean; reason: string | null; shellPath: string | null }>

@@ -17,8 +17,14 @@ import * as path from 'node:path'
 import { checkNavigation } from '../services/security/navigation-policy'
 import { isSafeWebUrl } from '../services/security/url-policy'
 
-/** 主窗口单例引用（避免被垃圾回收） */
+/** 主窗口单例引用（很多推送与对话框仍以它为目标；第二窗口靠 broadcastToWindows 覆盖） */
 let mainWindow: BrowserWindow | null = null
+
+/** 所有活着的应用窗口（含主窗口），按创建顺序 */
+const appWindows: BrowserWindow[] = []
+
+/** 第二及以后窗口的错位量：完全重叠会让人以为没开出来 */
+const CASCADE_OFFSET = 36
 
 /**
  * CSP 指令（渲染层不访问任何远程 API：LLM/SSH/爬虫全在主进程）
@@ -88,15 +94,65 @@ function applyCsp(win: BrowserWindow, origin: string | undefined): void {
  * @returns 主窗口实例
  */
 export function createMainWindow(): BrowserWindow {
+  const win = buildAppWindow({})
+  mainWindow = win
+  appWindows.push(win)
+  win.on('closed', () => {
+    const at = appWindows.indexOf(win)
+    if (at >= 0) appWindows.splice(at, 1)
+    if (mainWindow === win) mainWindow = appWindows[0] ?? null
+  })
+  return win
+}
+
+/**
+ * 再开一个应用窗口（W4）
+ *
+ * 为什么值得单独开：终端是"一条连接一个屏"的东西，边看远端日志边改文件、
+ * 或者两台机器并排敲，一个窗口放不下。第二窗口和主窗口是同一份渲染层、
+ * 同一套 preload，终端标签靠 W2 那条对账自动出现，不需要另设同步协议。
+ */
+export function createSecondaryWindow(): BrowserWindow {
+  const anchor = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
+  const anchorBounds = anchor?.getBounds()
+  const win = buildAppWindow({
+    x: anchorBounds ? anchorBounds.x + CASCADE_OFFSET : undefined,
+    y: anchorBounds ? anchorBounds.y + CASCADE_OFFSET : undefined,
+    center: !anchorBounds,
+  })
+  appWindows.push(win)
+  win.on('closed', () => {
+    const at = appWindows.indexOf(win)
+    if (at >= 0) appWindows.splice(at, 1)
+  })
+  return win
+}
+
+/** 当前活着的窗口（推送要发给每一个，不是只发给主窗口） */
+export function getAppWindows(): BrowserWindow[] {
+  return appWindows.filter((w) => !w.isDestroyed())
+}
+
+/** 向所有窗口广播一条事件（终端输出这类"每个窗口都该看到"的推送） */
+export function broadcastToWindows(channel: string, ...args: unknown[]): void {
+  for (const win of getAppWindows()) {
+    if (win.webContents.isDestroyed()) continue
+    win.webContents.send(channel, ...args)
+  }
+}
+
+function buildAppWindow(pos: { x?: number; y?: number; center?: boolean }): BrowserWindow {
   // 尺寸不能按屏幕物理分辨率写死：BrowserWindow 的 width/height 是**外框**，
   // 之前 1920×1080 在 1080p 屏上被标题栏 + 任务栏顶掉约 70px，底部状态栏显示不全
   const { workArea } = screen.getPrimaryDisplay()
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: Math.min(1600, workArea.width),
     height: Math.min(1000, workArea.height),
     minWidth: 1280,
     minHeight: 720,
-    center: true,
+    x: pos.x,
+    y: pos.y,
+    center: pos.center ?? true,
     show: false, // 等渲染进程 ready-to-show 后再显示，避免白屏
     title: 'TDSF-Linux Desktop',
     // 与渲染层画布底色对齐，避免白屏闪烁
@@ -118,13 +174,13 @@ export function createMainWindow(): BrowserWindow {
   })
 
   // 渲染进程就绪后再显示窗口，避免初始白屏
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
+  win.once('ready-to-show', () => {
+    if (!win.isDestroyed()) win.show()
   })
 
   // 拦截外部链接，用系统默认浏览器打开（而非在应用内打开新窗口）
   // 只放行 http/https 且不带内嵌凭据：file:// 与自定义协议交给 shell 就是启动本地程序
-  mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+  win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     if (isSafeWebUrl(targetUrl)) {
       shell.openExternal(targetUrl)
     }
@@ -134,7 +190,7 @@ export function createMainWindow(): BrowserWindow {
   // v2.6 修复：右键上下文菜单（Electron 默认无右键菜单，用户在输入框右键无法粘贴）
   // - 可编辑区：剪切/复制/粘贴/全选（按 editFlags 置灰）
   // - 非编辑区有选中文本：复制
-  mainWindow.webContents.on('context-menu', (_event, params) => {
+  win.webContents.on('context-menu', (_event, params) => {
     const template: Electron.MenuItemConstructorOptions[] = []
     if (params.isEditable) {
       template.push(
@@ -157,10 +213,10 @@ export function createMainWindow(): BrowserWindow {
   // 为什么不再是"比 origin"：打包态文档是 `file://`，而 `new URL('file://…').origin`
   // 就是字符串 'null'，两个 null 相等 → 任意本地 HTML 都算同源（旧实现的真实行为）。
   // 现在按协议分别判定，见 services/security/navigation-policy.ts。
-  mainWindow.webContents.on('will-navigate', (event, navigateUrl) => {
+  win.webContents.on('will-navigate', (event, navigateUrl) => {
     const verdict = checkNavigation(
       navigateUrl,
-      mainWindow?.webContents.getURL() ?? '',
+      win.webContents.getURL(),
       getAppPathSafe(),
     )
     if (!verdict.ok) {
@@ -169,22 +225,22 @@ export function createMainWindow(): BrowserWindow {
   })
 
   // 注入 CSP（必须在加载页面前挂好，否则首个文档拿不到策略）
-  applyCsp(mainWindow, devServerOrigin())
+  applyCsp(win, devServerOrigin())
 
   // 根据环境加载入口页面
-  loadEntry(mainWindow)
+  loadEntry(win)
 
   // 监听渲染进程无响应（hang），打印日志用于排查
-  mainWindow.webContents.on('unresponsive', () => {
+  win.webContents.on('unresponsive', () => {
     console.error('[Main] 渲染进程无响应')
   })
 
   // 监听渲染进程崩溃/退出
-  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+  win.webContents.on('render-process-gone', (_event, details) => {
     console.error('[Main] 渲染进程退出:', details)
   })
 
-  return mainWindow
+  return win
 }
 
 /**

@@ -41,6 +41,14 @@ vi.mock('electron', () => ({
   },
 }))
 
+// W4 起终端输出是广播（broadcastToWindows），不再只发给注册时那一个窗口：
+// 这里把它记成一格 target='broadcast'，下面的"每条通道只推一次"照旧可判。
+vi.mock('@main/windows/main-window', () => ({
+  broadcastToWindows: (channel: string, ...args: unknown[]) => {
+    box.sends.push({ target: 'broadcast', channel, args })
+  },
+}))
+
 vi.mock('electron-store', () => {
   const store = new Map<string, unknown>()
   return {
@@ -131,6 +139,7 @@ describe('shellId 是终端身份', () => {
     const win = {
       isDestroyed: () => false,
       webContents: {
+        // 非广播通道（对话框等）仍按窗口记账
         send: (channel: string, ...args: unknown[]) => {
           box.sends.push({ target, channel, args })
         },
@@ -182,10 +191,10 @@ describe('shellId 是终端身份', () => {
     expect(streamB.listenerCount('data')).toBe(1)
 
     streamA.emit('data', Buffer.from('AAA'))
-    expect(terminalSends('winA').map((s) => s.args)).toEqual([[a, 'AAA']])
+    expect(terminalSends('broadcast').map((s) => s.args)).toEqual([[a, 'AAA']])
 
     streamB.emit('data', Buffer.from('BBB'))
-    expect(terminalSends('winA').map((s) => s.args)).toEqual([
+    expect(terminalSends('broadcast').map((s) => s.args)).toEqual([
       [a, 'AAA'],
       [b, 'BBB'],
     ])
@@ -208,7 +217,7 @@ describe('shellId 是终端身份', () => {
     expect(await callHandler('ssh:shell:close', a)).toBe(true)
     expect(streamA.listenerCount('data'), '通道对象上的监听留着也没人广播了').toBeLessThanOrEqual(1)
     streamB.emit('data', Buffer.from('still-alive'))
-    expect(terminalSends('winA').some((s) => s.args[1] === 'still-alive')).toBe(true)
+    expect(terminalSends('broadcast').some((s) => s.args[1] === 'still-alive')).toBe(true)
 
     // 关掉之后再往它写：必须是清楚的错误而不是静默丢弃
     await expect(callHandler('ssh:shell:write', a, 'whoami\n')).rejects.toThrow(/终端/)
@@ -229,23 +238,25 @@ describe('shellId 是终端身份', () => {
     const dispose = await registerOnce('winA')
     const a = await startShell('s1')
     lastStream.emit('data', Buffer.from('one'))
-    expect(terminalSends('winA')).toHaveLength(1)
+    expect(terminalSends('broadcast')).toHaveLength(1)
 
     dispose()
     lastStream.emit('data', Buffer.from('two'))
-    expect(terminalSends('winA'), '卸载后还在推说明订阅没摘干净').toHaveLength(1)
+    expect(terminalSends('broadcast'), '卸载后还在推说明订阅没摘干净').toHaveLength(1)
 
     await registerOnce('winB')
     const c = await startShell('s1')
     lastStream.emit('data', Buffer.from('three'))
-    const got = terminalSends('winB')
-    expect(got.map((s) => s.args)).toEqual([[c, 'three']])
+    expect(terminalSends('broadcast').map((s) => s.args)).toEqual([
+      [a, 'one'],
+      [c, 'three'],
+    ])
   })
 
   it('注入自证：没 start 就一个监听都没有、一次 send 都没有', async () => {
     const entry = injectSession('s1')
     await registerOnce('winA')
     expect(entry.shells.size, '不该凭空有通道').toBe(0)
-    expect(terminalSends('winA')).toHaveLength(0)
+    expect(terminalSends('broadcast')).toHaveLength(0)
   })
 })

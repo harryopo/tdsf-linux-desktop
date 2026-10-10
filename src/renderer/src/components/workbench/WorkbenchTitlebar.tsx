@@ -27,6 +27,7 @@ import {
   SquareTerminal,
   Shield,
   Save,
+  AppWindow,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -242,6 +243,21 @@ export function WorkbenchTitlebar({
     [servers, addServer, updateServer, connectServer, connectFreshConfig],
   )
 
+  /** W4：再开一个应用窗口（并排看两台机器，或一边跑日志一边改文件） */
+  const handleNewWindow = useCallback(async () => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.windowOpenSecondary) {
+      toast.warning('当前环境不支持多窗口（非 Electron 环境）')
+      return
+    }
+    try {
+      const count = await window.electronAPI.windowOpenSecondary()
+      // 新窗口在另一个窗口里，当前窗口不给句话就等于"点了没反应"（按钮普查会红）
+      toast.success(`已新建窗口，当前共 ${count} 个窗口`)
+    } catch (err) {
+      toast.error(`新建窗口失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [])
+
   return (
     <>
       <header
@@ -419,6 +435,10 @@ export function WorkbenchTitlebar({
               <Save className="size-4" />
             </button>
           )}
+          {/* W4：第二个窗口。开完不需要提示——新窗口自己会出现在屏幕上 */}
+          <IconButton title="新建窗口" domId="btn-new-window" onClick={() => void handleNewWindow()}>
+            <AppWindow className="size-4" />
+          </IconButton>
           {/* 搜索按钮(设计稿 workbench-ai.html 第 2376-2378 行 / workbench-disconnected.html 第 286-288 行) */}
           <IconButton title="搜索 (Cmd+K)" onClick={() => setSearchOpen(true)}>
             <Search className="size-4" />

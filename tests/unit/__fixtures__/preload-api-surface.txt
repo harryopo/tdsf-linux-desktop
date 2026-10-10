@@ -274,3 +274,4 @@ tutorialSeedReload
 tutorialSeedVersion
 tutorialStats
 tutorialUpdateProgress
+windowOpenSecondary

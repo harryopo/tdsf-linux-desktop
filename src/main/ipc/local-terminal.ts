@@ -12,26 +12,23 @@
  * 输出复用 terminal:data 通道（载荷首参 shellId），退出用 local-tty:exit 通知，
  * 渲染层据此摘掉标签，避免出现"进程已经没了但标签还在"的死终端。
  */
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain } from 'electron'
 import { LOCAL_TTY, TERMINAL } from '@shared/ipc-channels'
 import { localPtyManager, type PtySize } from '../services/terminal/local-pty'
+import { broadcastToWindows } from '../windows/main-window'
 import { evaluateCommand } from '../core/command-gate'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
 
-/** 窗口可能已关闭或正在销毁，推送前统一过一遍 */
-function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
-  if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
-  mainWindow.webContents.send(channel, ...args)
-}
-
 /**
  * 注册本机终端通道
+ *
+ * 输出与退出都广播给所有窗口（终端属于这条通道，不属于哪个窗口把它开出来的）。
  *
  * @returns 撤销函数：退订输出转发与退出通知（重复注册前必须先调用，
  *          否则同一份 PTY 输出会被推两遍 —— W0 修过的那类缺陷）
  */
-export function registerLocalTerminalHandlers(mainWindow: BrowserWindow): () => void {
+export function registerLocalTerminalHandlers(): () => void {
   /** shellId → 输出转发的退订函数 */
   const pushes = new Map<string, () => void>()
 
@@ -42,7 +39,7 @@ export function registerLocalTerminalHandlers(mainWindow: BrowserWindow): () => 
       pushes.set(
         shellId,
         localPtyManager.onShellData(shellId, (data) => {
-          safeSend(mainWindow, TERMINAL.DATA, shellId, data)
+          broadcastToWindows(TERMINAL.DATA, shellId, data)
         }),
       )
     } catch {
@@ -128,7 +125,7 @@ export function registerLocalTerminalHandlers(mainWindow: BrowserWindow): () => 
         // 同上
       }
     }
-    safeSend(mainWindow, LOCAL_TTY.EXIT, shellId)
+    broadcastToWindows(LOCAL_TTY.EXIT, shellId)
   })
 
   return () => {
