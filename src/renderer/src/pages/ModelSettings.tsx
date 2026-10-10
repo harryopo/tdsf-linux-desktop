@@ -67,7 +67,7 @@ export function ModelSettings() {
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
 
   // Section 2: 模型配置
-  const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-v4-flash')
+  const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-flash')
   const [temperature, setTemperature] = useState(llmConfig.temperature ?? 0.3)
   // 思考强度只有一个真值：agent-store 的 thinkingStrength（Composer 与主进程都读它）。
   // 原来这里另存一份 model.thinkingLevel，全仓零消费者，改了也不影响实际调用。
@@ -77,7 +77,7 @@ export function ModelSettings() {
   const [requestTimeout, setRequestTimeout] = useState((llmConfig.timeout ?? 30000) / 1000)
 
   // Section 3: API 接入
-  const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com')
+  const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com/v1')
   // apiKey 这一份只代表"用户此刻在框里打的东西"：主进程存过的 Key 不会再下发（P0-3），
   // 界面用 hasLlmApiKey 这个布尔量显示"已保存（留空则不修改）"，永远不回填原文。
   const [apiKey, setApiKey] = useState(llmConfig.apiKey || '')

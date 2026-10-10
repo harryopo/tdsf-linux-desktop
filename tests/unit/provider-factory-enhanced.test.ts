@@ -571,13 +571,14 @@ describe('任务 3：ModelRole 8 类角色', () => {
   })
 
   describe('3.2 模板 roles 字段完整性', () => {
-    it('PROVIDER_TEMPLATES 应有 13 个模板', async () => {
+    it('PROVIDER_TEMPLATES 应有 17 个模板', async () => {
       const { PROVIDER_TEMPLATES } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
-      // 13 个模板：3 DeepSeek + 2 通义 + 1 豆包 + 1 Claude Bedrock
-      // + 2 Claude SDK + 1 Gemini + 2 Ollama + 1 OpenAI 兼容
-      expect(PROVIDER_TEMPLATES).toHaveLength(13)
+      // 17 个模板：2 DeepSeek + 2 通义 + 2 豆包 + 2 Kimi + 2 GLM + 2 Gemini
+      // + 1 Claude Bedrock + 2 Claude SDK + 1 Ollama + 1 OpenAI 兼容自定义
+      // id 集合与 roles 期望表逐条对账在 tests/unit/provider-template-invariants.test.ts
+      expect(PROVIDER_TEMPLATES).toHaveLength(17)
     })
 
     it('deepseek-v4 → roles: [chat, summarize]', async () => {
@@ -588,20 +589,13 @@ describe('任务 3：ModelRole 8 类角色', () => {
       expect(t?.roles).toEqual(['chat', 'summarize'])
     })
 
-    it('deepseek-coder-v3 → roles: [edit, apply]', async () => {
+    it('deepseek-reasoner → roles: [preview, edit, apply]', async () => {
       const { findTemplate } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
-      const t = findTemplate('deepseek-coder-v3')
-      expect(t?.roles).toEqual(['edit', 'apply'])
-    })
-
-    it('deepseek-reasoner → roles: [preview]', async () => {
-      const { findTemplate } = await import(
-        '../../src/main/core/agent/providers/provider-templates'
-      )
+      // V4 Pro 一档同时承担预览与编辑/应用：原先单列的 deepseek-coder-v3 是同一个模型的第二条
       const t = findTemplate('deepseek-reasoner')
-      expect(t?.roles).toEqual(['preview'])
+      expect(t?.roles).toEqual(['preview', 'edit', 'apply'])
     })
 
     it('qwen-max → roles: [chat]', async () => {
@@ -612,12 +606,13 @@ describe('任务 3：ModelRole 8 类角色', () => {
       expect(t?.roles).toEqual(['chat'])
     })
 
-    it('qwen-thinking → roles: [preview]', async () => {
+    it('qwen-thinking → roles: [preview, summarize]', async () => {
       const { findTemplate } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
+      // 该槽位现在是通义 3.8 Flash（id 沿用是为了不让用户重填 API Key）
       const t = findTemplate('qwen-thinking')
-      expect(t?.roles).toEqual(['preview'])
+      expect(t?.roles).toEqual(['preview', 'summarize'])
     })
 
     it('volcengine-doubao → roles: [chat]', async () => {
@@ -668,12 +663,14 @@ describe('任务 3：ModelRole 8 类角色', () => {
       expect(t?.roles).toEqual(['chat', 'autocomplete'])
     })
 
-    it('ollama-llama33 → roles: [chat]', async () => {
+    it('被精简掉的两个旧槽位确实不再存在', async () => {
       const { findTemplate } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
-      const t = findTemplate('ollama-llama33')
-      expect(t?.roles).toEqual(['chat'])
+      // deepseek-coder-v3：与主模型同一个 id 的第二条，合并进 deepseek-reasoner
+      // ollama-llama33：本地 tag 取决于用户实际 pull 了什么，第二档是假选择
+      expect(findTemplate('deepseek-coder-v3')).toBeUndefined()
+      expect(findTemplate('ollama-llama33')).toBeUndefined()
     })
 
     it('openai-compatible-custom → 不设置 roles（用户自定义）', async () => {

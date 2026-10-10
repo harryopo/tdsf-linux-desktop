@@ -32,7 +32,8 @@
  * - google：Google Gemini 直连（@ai-sdk/google createGoogleGenerativeAI）
  * - volcengine-ark：火山方舟（OpenAI 兼容，但单独标识以便统计与默认 baseURL）
  * - ollama：本地 Ollama（OpenAI 兼容，默认 http://localhost:11434/v1）
- * - deepseek：DeepSeek（OpenAI 兼容，默认 https://api.deepseek.com；@ai-sdk/openai 会自动追加 /v1）
+ * - deepseek：DeepSeek（OpenAI 兼容，baseURL 必须自带版本段 https://api.deepseek.com/v1；
+ *   @ai-sdk/openai 不补 /v1，缺了会打在 https://api.deepseek.com/chat/completions 上）
  * - qwen：通义千问 / DashScope（OpenAI 兼容，默认 https://dashscope.aliyuncs.com/compatible-mode/v1）
  * - claude-sdk：Claude Agent SDK（@anthropic-ai/claude-agent-sdk query() 异步生成器，agent loop 模式）
  *
@@ -182,7 +183,8 @@ export interface ProviderConfig {
   name: string
   /** Provider 类型（决定创建逻辑） */
   type: ProviderType
-  /** API Base URL（如 'https://api.deepseek.com'，@ai-sdk/openai 会自动追加 /v1） */
+  /** API Base URL（ai-sdk 风格，**须已含版本段**，如 'https://api.deepseek.com/v1'；
+   *  @ai-sdk/openai 只在末尾接 /chat/completions，不会替我们补 /v1） */
   baseURL: string
   /** API Key（运行时由 SecureStore 回填，不进持久化） */
   apiKey?: string

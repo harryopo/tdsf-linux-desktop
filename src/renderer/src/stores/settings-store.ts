@@ -23,18 +23,21 @@ import { isElectronAPIAvailable } from '../utils/electron-api'
 /**
  * 默认 LLM 配置
  *
- * v2.3.4 修复：与 ModelSettings 默认值对齐（DeepSeek V4 Flash）
+ * v2.3.4 修复：与 ModelSettings 默认值对齐（DeepSeek Flash 档）
  * - 之前默认火山方舟，但用户多数未配置火山 key → 导致连接失败被误判为大模型不可用
- * - DeepSeek V4 Flash 是国内可用 + 256K 上下文 + 价格亲民，对个人/教学用户最友好
+ * - DeepSeek Flash 档是国内可用 + 长上下文 + 价格亲民，对个人/教学用户最友好
  * - 用户可在设置中切换为其他 Provider（Provider 列表是真实可用的）
+ * - 2026-10-10：默认 model 从已下线的 deepseek-v4-flash 改成 deepseek-flash，
+ *   baseUrl 补上 /v1 —— @ai-sdk/openai 不会替我们补版本段，缺了就打在不存在的路径上
+ *   （判据见 tests/unit/provider-baseurl-join.test.ts，它拿真 SDK 组一次 URL）
  *
  * 注意：endpoint/model/温度等是基线默认值，ModelSettings 加载时会用 Provider 列表的
  * 默认值再次覆盖，确保与 Provider 模板同步。
  */
 const DEFAULT_LLM_CONFIG: LlmConfig = {
-  baseUrl: 'https://api.deepseek.com',
+  baseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',
-  model: 'deepseek-v4-flash',
+  model: 'deepseek-flash',
   temperature: 0.3,
   maxTokens: 4096,
   timeout: 60000,

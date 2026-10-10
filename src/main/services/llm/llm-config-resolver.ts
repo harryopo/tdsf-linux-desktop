@@ -48,8 +48,12 @@ const EMPTY_CONFIG: LlmConfig = {
 
 /**
  * Provider 的 baseURL 归一化为 OpenAI SDK 需要的形式。
- * Provider 体系存的是 ai-sdk 风格（如 https://api.deepseek.com，自动追加 /v1），
- * 而 OpenAI SDK 直接拼 /chat/completions，缺 /v1 时需补上。
+ *
+ * 补 /v1 这件事**是本函数在做，不是 ai-sdk 在做**：@ai-sdk/openai 把 baseURL 当已含
+ * 版本号根使用（默认值就写成 https://api.openai.com/v1，路径直接接 /chat/completions），
+ * 不会替我们补。所以 provider-factory 那条路要求模板自带版本段
+ * （由 assertTemplateInvariants 钉，证据见 tests/unit/provider-baseurl-join.test.ts）。
+ * 这里保留兜底是因为旧落盘的 Provider 数据可能还没有 /v1，已含版本段的原样返回，幂等。
  */
 function normalizeBaseUrl(baseURL: string): string {
   const trimmed = baseURL.replace(/\/+$/, '')

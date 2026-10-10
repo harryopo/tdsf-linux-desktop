@@ -34,10 +34,17 @@ const SECURE_KEY_PREFIX = 'provider:'
  * 初始化 Provider 列表
  *
  * 在首次启动时将预置模板写入持久化存储（仅一次）。
- * 后续启动时合并预置模板与用户自定义：
- * - 预置模板新增（新版本升级）→ 自动追加
- * - 用户自定义 → 保留
- * - 用户禁用预置模板 → 保留 enabled=false 状态
+ * 后续启动时按 id 双向对账：
+ * - 预置模板新增（版本升级）→ 自动追加
+ * - 用户自定义（builtin 非 true）→ 原样保留，绝不删
+ * - 用户禁用过预置模板 → 保留 enabled=false 状态
+ * - **预置模板在本版本被移除 → 一并删掉**（2026-10-10 补）
+ *
+ * 为什么要删而不是留着：只追加不删的话，"精简清单"对老用户永远不生效——
+ * 2026-10-10 复核时确认旧实现只有一句 `filter((t) => !existingIds.has(t.id))`，
+ * 删条目等于只删了"以后不再新增"。删的时候两件事必须跟着做：
+ * 它的 apiKey 从 SecureStore 一起清掉（留着一把指向不存在 Provider 的密钥是纯债），
+ * 默认指针若正指着它要回退（否则 getProviderWithApiKey 拿到 null，AI 直接不可用）。
  */
 function initializeProviders(): void {
   const existing = loadFromStore()
@@ -47,14 +54,44 @@ function initializeProviders(): void {
     logger.info('AGENT.PROVIDER', `首次初始化 Provider 列表，已写入 ${PROVIDER_TEMPLATES.length} 个预置模板`)
     return
   }
-  // 后续启动：合并预置模板（自动追加新增的）与用户配置
+
+  const templateIds = new Set(PROVIDER_TEMPLATES.map((t) => t.id))
   const existingIds = new Set(existing.map((p) => p.id))
-  const newTemplates = PROVIDER_TEMPLATES.filter((t) => !existingIds.has(t.id))
-  if (newTemplates.length > 0) {
-    const merged = [...existing, ...newTemplates]
-    saveToStore(merged)
-    logger.info('AGENT.PROVIDER', `检测到新版本追加 ${newTemplates.length} 个预置模板`, {
-      newIds: newTemplates.map((t) => t.id),
+  const additions = PROVIDER_TEMPLATES.filter((t) => !existingIds.has(t.id))
+  // 只删 builtin === true 的：字段缺失（老版本写的数据）一律当用户自建处理
+  const removed = existing.filter((p) => p.builtin === true && !templateIds.has(p.id))
+
+  if (additions.length === 0 && removed.length === 0) {
+    return
+  }
+
+  const removedIds = new Set(removed.map((p) => p.id))
+  const merged = [...existing.filter((p) => !removedIds.has(p.id)), ...additions]
+  saveToStore(merged)
+
+  for (const p of removed) {
+    SecureStore.deleteApiKey(`${SECURE_KEY_PREFIX}${p.id}`)
+  }
+
+  // 默认指针悬空回退：优先回到 DEFAULT_PROVIDER_ID，它也被删了就退回列表首条
+  const survivingIds = new Set(merged.map((p) => p.id))
+  if (!survivingIds.has(getDefaultProviderId())) {
+    const fallback = survivingIds.has(DEFAULT_PROVIDER_ID)
+      ? DEFAULT_PROVIDER_ID
+      : (merged[0]?.id ?? '')
+    if (fallback) {
+      setDefaultProviderId(fallback)
+    }
+  }
+
+  if (removed.length > 0) {
+    logger.info('AGENT.PROVIDER', `按本版本模板表移除 ${removed.length} 个内置 Provider`, {
+      removedIds: removed.map((p) => p.id),
+    })
+  }
+  if (additions.length > 0) {
+    logger.info('AGENT.PROVIDER', `检测到新版本追加 ${additions.length} 个预置模板`, {
+      newIds: additions.map((t) => t.id),
     })
   }
 }
