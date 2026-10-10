@@ -18,6 +18,7 @@
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { exposedApiNames } from './ipc/api-surface'
 
 const ROOT = path.resolve(__dirname, '..')
 const SRC = path.join(ROOT, 'src')
@@ -108,6 +109,10 @@ function resolveChannelArg(arg: string, constants: Map<string, string>): string 
   if (literal) return literal[1]
   const constRef = /^(\w+\.\w+)$/.exec(trimmed)
   if (constRef) return constants.get(constRef[1]) ?? null
+  // 带命名空间别名的写法：CHANNELS.SYSTEM.PING —— 前缀只是 import 的别名，
+  // 按后两段查常量表（不认它就会把真实存在的 handler 报成"主进程未注册"）
+  const namespaced = /^\w+\.(\w+\.\w+)$/.exec(trimmed)
+  if (namespaced) return constants.get(namespaced[1]) ?? null
   const ident = /^(\w+)$/.exec(trimmed)
   if (ident) return identMap.get(ident[1]) ?? null
   return null // 动态拼接的通道（如模板字符串），无法静态解析，跳过
@@ -140,10 +145,15 @@ function collectMainHandled(constants: Map<string, string>): ChannelHit[] {
 /** main 进程：webContents.send / safeSend 推送的事件通道 */
 function collectMainSent(constants: Map<string, string>): ChannelHit[] {
   const hits: ChannelHit[] = []
-  // webContents.send(CH / safeSend(win, CH / safeSend(mainWindow, CH
+  // 推送点的四种写法，逐个显式列出（不是"任何调用里出现大写常量都算"——
+  // 那样 ipcMain.handle(SSH.X) 也会被当成推送源，把真的没源的通道洗白成盲区）：
+  //   webContents.send(CH / safeSend(窗口表达式, CH / broadcastToWindows(CH（W4 多窗口）
+  //   pushToRenderer(CH（调度器那类走统一转发函数的）
   const res = [
     /webContents\.send\(\s*([^,)]+)/g,
-    /safeSend\(\s*\w+\s*,\s*([^,)]+)/g,
+    /safeSend\(\s*[\w.]+\s*,\s*([^,)]+)/g,
+    /broadcastToWindows\(\s*([^,)]+)/g,
+    /pushToRenderer\(\s*([^,)]+)/g,
   ]
   for (const file of collectFiles(path.join(SRC, 'main'))) {
     const text = read(file)
@@ -162,11 +172,21 @@ function collectMainSent(constants: Map<string, string>): ChannelHit[] {
 /** preload：ipcRenderer.invoke 的通道 */
 function collectPreloadInvoked(constants: Map<string, string>): ChannelHit[] {
   const hits: ChannelHit[] = []
+  // 两条写法都要认：裸 ipcRenderer.invoke(CH)，和走契约校验的 invokeChecked('apiName', CH)。
+  // 只认前者的话，D1 之后所有换成 invokeChecked 的通道都会被判成"主进程注册但 preload 没用"，
+  // 而渲染层调用又会被判"未暴露"——整把闸变成 100 多条假红（2026-10-10 实测）。
   const re = /ipcRenderer\.(?:invoke|send)\(\s*([^,)]+)/g
+  // 泛型形式也要认：invokeChecked<string>('sshShellStart', SSH.SHELL_START, ...)
+  const checkedRe = /invokeChecked(?:<[^>]*>)?\(\s*['"][\w]+['"]\s*,\s*([^,)]+)/g
   for (const file of collectFiles(path.join(SRC, 'preload'))) {
     const text = read(file)
     let m: RegExpExecArray | null
     while ((m = re.exec(text)) !== null) {
+      const ch = resolveChannelArg(m[1], constants)
+      if (ch) hits.push({ channel: ch, file: rel(file) })
+    }
+    checkedRe.lastIndex = 0
+    while ((m = checkedRe.exec(text)) !== null) {
       const ch = resolveChannelArg(m[1], constants)
       if (ch) hits.push({ channel: ch, file: rel(file) })
     }
@@ -189,8 +209,26 @@ function collectPreloadListened(constants: Map<string, string>): ChannelHit[] {
   return hits
 }
 
-/** preload：contextBridge.exposeInMainWorld('electronAPI', {...}) 暴露的扁平方法名 */
+/**
+ * preload 实际暴露的扁平方法名
+ *
+ * 解析交给 scripts/ipc/api-surface.ts —— 那才是名字表面的唯一事实（快照闸用它）。
+ * 本脚本此前自己按"两空格缩进的 key 行"数一遍：拆域后 electronApi 里全是
+ * `sshShellStart: ssh.shell.start` 这种引用，且暴露调用与对象字面量不再相邻，
+ * 数出来的集合是错的，于是 126 条"方法未暴露"全是假红。
+ */
 function collectExposedMethods(): Set<string> {
+  const file = path.join(SRC, 'preload', 'index.ts')
+  const text = read(file)
+  const names = exposedApiNames(text)
+  if (names.size === 0) {
+    console.error('未解析出 preload 暴露面（api-surface 的锚点漂了）')
+    process.exit(2)
+  }
+  return names
+}
+
+function obsoleteExposedParser(): Set<string> {
   const file = path.join(SRC, 'preload', 'index.ts')
   const text = read(file)
   const startIdx = text.indexOf("contextBridge.exposeInMainWorld('electronAPI'")
