@@ -96,12 +96,26 @@ test.describe('同一条连接开两个终端', () => {
           () => (window as unknown as { __byShell?: Record<string, string> }).__byShell ?? {},
         )
 
+      /**
+       * 标签条当前的 shellId，按 DOM 顺序。
+       *
+       * 判据一律拿这个当身份基准，不用"第几个收到数据的 shellId"：对账把裸 IPC
+       * 那条终端捞回来时是追加到数组尾部的，于是"位置 1 的标签"和"后开的那条通道"
+       * 可以不是同一个 shell。之前这行混用过，红了看起来像"关错终端"，其实是测试
+       * 把两个概念当一个用。
+       */
+      const tabShellIds = async (): Promise<string[]> =>
+        (await page.$$eval('.term-tab-item [data-tab-id]', (els) =>
+          els.map((e) => e.getAttribute('data-tab-id') ?? ''),
+        )).map((id) => (id.startsWith('shell:') ? id.slice('shell:'.length) : id))
+
       const first = await openShellViaIpc(page, sessionId)
       // ↑ 故意走裸 IPC 而不是界面：模拟"这终端不是本窗口点开的"（另一个窗口开的、
       // 页面重载前就存在的）。标签必须自己被对账捞出来，捞不出来就是缺陷。
       // 第二个走真实用户路径：标签条上的 + → "在这台主机再开一个终端"
       await page.click('[data-dom-id="workbench-new-terminal"]')
-      await page.getByText('在这台主机再开一个终端').click()
+      // 按 menuitem 角色点：同一句文案在空态里还有一个同名按钮，getByText 会撞成两个
+      await page.getByRole('menuitem', { name: '在这台主机再开一个终端' }).click()
 
       await expect(page.locator('.term-tab-item'), { timeout: 15000 }).toHaveCount(2)
       // 同主机第二个标签必须带编号：两个都叫同一个名字，用户分不清往哪敲
@@ -112,24 +126,26 @@ test.describe('同一条连接开两个终端', () => {
         .poll(
           async () => {
             const bag = await readBag()
-            const second = Object.keys(bag).find((id) => id !== first) ?? ''
-            return !!second && (bag[first] ?? '').includes('tdsf-boot') && bag[second].includes('tdsf-boot')
+            return (
+              (bag[first] ?? '').includes('tdsf-boot') &&
+              (await tabShellIds()).every((id) => (bag[id] ?? '').includes('tdsf-boot'))
+            )
           },
           { message: '两条通道都该收到自己的开场输出', timeout: 20000 },
         )
         .toBe(true)
 
-      const shellIdsOf = async (): Promise<{ first: string; second: string }> => {
-        const bag = await readBag()
-        return {
-          first,
-          second: Object.keys(bag).find((id) => id !== first) ?? '',
-        }
-      }
-      const { second } = await shellIdsOf()
+      const [keepId, closeId] = await tabShellIds()
+      expect(new Set([keepId, closeId]).size, '两个标签必须是两条不同通道').toBe(2)
+      expect([keepId, closeId], '标签里的 shellId 该包含裸 IPC 开的那条').toContain(first)
 
-      // 往"当前终端"（第二个）敲一条带标记的命令 —— 只有它能收到
+      // 往"当前终端"（活跃标签）敲一条带标记的命令 —— 只有它能收到
       const MARK = 'tdsf-multi-tab-mark'
+      const activeId = (
+        await page.$eval('.term-tab-item-active [data-tab-id]', (el) =>
+          (el.getAttribute('data-tab-id') ?? '').replace(/^shell:/, ''),
+        )
+      ).trim()
       await page.click('.terminal-view.visible')
       await page.keyboard.type(`echo ${MARK}\r`)
 
@@ -142,15 +158,42 @@ test.describe('同一条连接开两个终端', () => {
               .map(([id]) => id)
           },
           {
-            message: `标记只该出现在一个终端里，实际记账=${JSON.stringify(await readBag())}`,
+            message: `标记只该出现在活跃终端里，实际记账=${JSON.stringify(await readBag())}`,
             timeout: 20000,
           },
         )
-        .toEqual([second])
+        .toEqual([activeId])
 
-      // 关掉第二个标签：第一个必须继续收流
+      // 关掉位置 1 那个标签：留下的那条必须还活着、还在收，被关的那条必须真关掉
       await page.locator('.term-tab-item').nth(1).locator('.term-tab-close').click()
       await expect(page.locator('.term-tab-item')).toHaveCount(1)
+      const remaining = await tabShellIds()
+      expect(remaining, '留下的标签必须是没被点关的那条通道').toEqual([keepId])
+      /** 主进程侧还开着的 shellId：标签关掉了通道有没有真关掉，只有它能证明 */
+      const listMainShells = async (): Promise<string[]> =>
+        (
+          await page.evaluate(
+            (sid) =>
+              (
+                window as unknown as {
+                  electronAPI: { sshShellList: (id: string) => Promise<string[]> }
+                }
+              ).electronAPI.sshShellList(sid),
+            sessionId,
+          )
+        ).sort()
+
+      await expect
+        .poll(
+          async () => await listMainShells(),
+          {
+            message: `关掉 ${closeId} 后主进程只剩 ${keepId}，实际还在=${JSON.stringify(
+              await listMainShells(),
+            )}`,
+            timeout: 15000,
+          },
+        )
+        .toEqual([keepId])
 
       await page.click('.terminal-view.visible')
       await page.keyboard.type('uptime\r')
@@ -158,7 +201,7 @@ test.describe('同一条连接开两个终端', () => {
         .poll(
           async () => {
             const bag = await readBag()
-            return (bag[first] ?? '').includes('fixture 输出：uptime')
+            return (bag[keepId] ?? '').includes('fixture 输出：uptime')
           },
           { message: '关掉一个终端后，剩下的那个必须还在收', timeout: 20000 },
         )

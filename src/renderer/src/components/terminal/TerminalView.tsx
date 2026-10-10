@@ -14,7 +14,7 @@
  * - useEffect 中初始化（DOM 就绪后）
  * - 组件卸载时 dispose 终端实例
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -86,6 +86,32 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
   const appearanceCodeTheme = useAppearanceStore((s) => s.codeTheme)
   const appearanceCodeFont = useAppearanceStore((s) => s.codeFont)
 
+  /**
+   * 重算终端行列，并把新尺寸回报主进程。
+   *
+   * 字号或字体一变，格子的像素尺寸就变：不重算行列，xterm 会把容器一路撑高
+   * （实测 Ctrl+ 四次后容器 712→920px，底边落到视口外 184px，状态栏整个被顶没）；
+   * 而 PTY 侧仍按旧尺寸换行，远端输出的行会对不齐。所以 fit 之后必须报一次尺寸。
+   */
+  const refit = useCallback(() => {
+    const terminal = terminalRef.current
+    if (!terminal) return
+    try {
+      fitRef.current?.fit()
+    } catch {
+      return // 容器可能已卸载
+    }
+    if (!isElectronAPIAvailable()) return
+    const api = window.electronAPI
+    const report =
+      kind === 'local'
+        ? api.localTtyResize?.(shellId, terminal.cols, terminal.rows)
+        : api.sshShellResize(shellId, terminal.cols, terminal.rows)
+    report?.catch(() => {
+      // 终端正在关闭时尺寸回报会失败，不影响界面
+    })
+  }, [shellId, kind])
+
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
@@ -95,8 +121,8 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     }
     const stack = CODE_FONT_STACKS[appearanceCodeFont]
     if (stack) terminal.options.fontFamily = stack
-    fitRef.current?.fit()
-  }, [appearanceCodeTheme, appearanceCodeFont])
+    refit()
+  }, [appearanceCodeTheme, appearanceCodeFont, refit])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -250,42 +276,31 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
       if (resizeTimeout) return
       resizeTimeout = setTimeout(() => {
         resizeTimeout = null
-        if (!terminalRef.current) return
-        try {
-          fitAddon.fit()
-          // 通知主进程终端尺寸变化
-          if (isElectronAPIAvailable()) {
-            const api = window.electronAPI
-            const size =
-              kind === 'local'
-                ? api.localTtyResize?.(shellId, terminal.cols, terminal.rows)
-                : api.sshShellResize(shellId, terminal.cols, terminal.rows)
-            size?.catch(() => {
-              // 忽略 resize 错误
-            })
-          }
-        } catch {
-          // 容器可能已卸载
-        }
+        refit()
       }, 150)
     })
     resizeObserver.observe(containerRef.current)
 
     // ===== 7. 字体缩放快捷键（Ctrl + / - / 0） =====
+    // 改完字号必须等 xterm 量出新格子尺寸再 refit（下一帧），否则行列数不变、
+    // 终端按旧行数继续把容器撑高，底部行与状态栏一起掉到视口外。
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl + +/- 缩放字体
       if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
         e.preventDefault()
         fontSizeRef.current = Math.min(fontSizeRef.current + 1, MAX_FONT_SIZE)
         terminal.options.fontSize = fontSizeRef.current
+        requestAnimationFrame(refit)
       } else if (e.ctrlKey && e.key === '-') {
         e.preventDefault()
         fontSizeRef.current = Math.max(fontSizeRef.current - 1, MIN_FONT_SIZE)
         terminal.options.fontSize = fontSizeRef.current
+        requestAnimationFrame(refit)
       } else if (e.ctrlKey && e.key === '0') {
         e.preventDefault()
         fontSizeRef.current = DEFAULT_FONT_SIZE
         terminal.options.fontSize = DEFAULT_FONT_SIZE
+        requestAnimationFrame(refit)
       } else if (e.ctrlKey && e.key === 'f') {
         // Ctrl+F 触发终端搜索栏
         e.preventDefault()
@@ -368,7 +383,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [shellId, kind])
+  }, [shellId, kind, refit])
 
   // ===== v0.8.0 翻译选词监听（v2.6 拆为独立 effect） =====
   // 切换翻译开关只挂载/卸载 SelectionManager，不再重建终端实例

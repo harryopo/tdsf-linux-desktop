@@ -16,6 +16,7 @@ import { app, BrowserWindow, Menu, screen, shell } from 'electron'
 import * as path from 'node:path'
 import { checkNavigation } from '../services/security/navigation-policy'
 import { isSafeWebUrl } from '../services/security/url-policy'
+import { fitRectToWorkArea } from './window-fit'
 
 /** 主窗口单例引用（很多推送与对话框仍以它为目标；第二窗口靠 broadcastToWindows 覆盖） */
 let mainWindow: BrowserWindow | null = null
@@ -145,11 +146,14 @@ function buildAppWindow(pos: { x?: number; y?: number; center?: boolean }): Brow
   // 尺寸不能按屏幕物理分辨率写死：BrowserWindow 的 width/height 是**外框**，
   // 之前 1920×1080 在 1080p 屏上被标题栏 + 任务栏顶掉约 70px，底部状态栏显示不全
   const { workArea } = screen.getPrimaryDisplay()
+  // 最小尺寸也不能硬钉：小屏（如 1366×768 扣掉任务栏）上 720 的下限会让收口失效
+  const minW = Math.min(1280, workArea.width)
+  const minH = Math.min(720, workArea.height)
   const win = new BrowserWindow({
     width: Math.min(1600, workArea.width),
     height: Math.min(1000, workArea.height),
-    minWidth: 1280,
-    minHeight: 720,
+    minWidth: minW,
+    minHeight: minH,
     x: pos.x,
     y: pos.y,
     center: pos.center ?? true,
@@ -172,6 +176,16 @@ function buildAppWindow(pos: { x?: number; y?: number; center?: boolean }): Brow
       spellcheck: false,
     },
   })
+
+  // 整框收进工作区：外框尺寸按工作区给足时，系统标题栏会把窗口底边压到任务栏下面；
+  // 级联出的第二窗口再右下移 36px，实测状态栏与 AI 输入框下沿被推到屏幕外。
+  const bounds = win.getBounds()
+  win.setBounds(
+    fitRectToWorkArea(screen.getDisplayMatching(bounds).workArea, bounds, {
+      width: minW,
+      height: minH,
+    }),
+  )
 
   // 渲染进程就绪后再显示窗口，避免初始白屏
   win.once('ready-to-show', () => {

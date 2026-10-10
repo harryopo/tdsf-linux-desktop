@@ -89,4 +89,59 @@ test.describe('两个窗口共用同一张终端表', () => {
       await app.close()
     }
   })
+
+  /**
+   * 窗口几何：级联出来的第二窗口必须整框落在工作区内。
+   *
+   * 用户报"放大后下面的内容就看不见了"，实测真因之一在这里：BrowserWindow 的
+   * width/height 是外框（含系统标题栏与边框，175% 缩放下 14×63px），原先按
+   * "外框 = 工作区尺寸"开窗口，再右下错开 36px，第二窗口内容底边超工作区 32px,
+   * 正好把 24px 状态栏和 AI 输入框下沿推到屏幕外——那部分像素在显示器上根本不存在，
+   * 所以渲染层的截图判据看不见，只能从主进程量窗口边界。
+   */
+  testOrSkip('第二窗口内容区不越出显示工作区', async () => {
+    test.setTimeout(120_000)
+    const { app, page: winA } = await launchApp()
+    try {
+      await winA.evaluate(() => {
+        window.location.hash = '#/workbench'
+      })
+      await winA.waitForSelector('.wb-main-layout', { timeout: 20000 })
+
+      const [winB] = await Promise.all([
+        app.waitForEvent('window'),
+        winA.evaluate(() =>
+          (window as unknown as { electronAPI: { windowOpenSecondary: () => Promise<number> } })
+            .electronAPI.windowOpenSecondary(),
+        ),
+      ])
+      await winB.waitForSelector('body', { timeout: 30000 })
+      await winB.evaluate(() => {
+        window.location.hash = '#/workbench'
+      })
+      await winB.waitForSelector('.wb-main-layout', { timeout: 30000 })
+
+      const geo = await app.evaluate(({ screen, BrowserWindow }) => {
+        const wa = screen.getDisplayMatching(
+          BrowserWindow.getAllWindows()[0].getBounds(),
+        ).workArea
+        return {
+          workArea: wa,
+          contents: BrowserWindow.getAllWindows().map((w) => w.getContentBounds()),
+        }
+      })
+      for (const c of geo.contents) {
+        expect(c.y + c.height, '窗口内容底边越出工作区，状态栏在屏幕外').toBeLessThanOrEqual(
+          geo.workArea.y + geo.workArea.height,
+        )
+        expect(c.x + c.width).toBeLessThanOrEqual(geo.workArea.x + geo.workArea.width)
+      }
+      // 收口不能把第二窗口贴回原位——完全重叠会让人以为按钮没生效
+      // （getAllWindows 的顺序不保证是创建顺序，所以只比"两个原点是否重合"）
+      const [p, q] = geo.contents
+      expect(p.x === q.x && p.y === q.y, '级联窗口完全重叠，看起来像没开出来').toBe(false)
+    } finally {
+      await app.close()
+    }
+  })
 })

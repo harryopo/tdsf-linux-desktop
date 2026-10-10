@@ -13,7 +13,7 @@ import { useMemo } from 'react'
 import { useServerStore } from '@/stores/server-store'
 import { useAgentStore } from '@/stores/agent-store'
 import { useEditorStore } from '@/stores/editor-store'
-import { useTerminalStore } from '@/stores/terminal-store'
+import { useTerminalStore, visibleShells } from '@/stores/terminal-store'
 
 /** StatusBar 工作台底部状态栏 */
 export function StatusBar() {
@@ -27,6 +27,8 @@ export function StatusBar() {
   const providers = useAgentStore((s) => s.providers)
   const tokenStats = useAgentStore((s) => s.tokenStats)
   const commandBlocks = useTerminalStore((s) => s.commandBlocks)
+  const shells = useTerminalStore((s) => s.shells)
+  const activeShellId = useTerminalStore((s) => s.activeShellId)
 
   const activeServer = useMemo(() => {
     if (activeSessionId) {
@@ -90,20 +92,25 @@ export function StatusBar() {
   // 保留 tokenStats 引用以备未来在状态栏扩展（如本次会话消耗）
   void tokenStats
 
+  // 这一格原先只看 activeSessionId：本机终端（不挂 SSH 会话）开着也报"无终端"。
+  // 改成与标签栏同一份投影（visibleShells），活跃终端是谁就写谁，不再分本机/远端两套口径。
+  const activeShell =
+    visibleShells(shells, activeSessionId).find((sh) => sh.shellId === activeShellId) ?? null
+
   return (
     <footer
       className="wb-statusbar"
       aria-label="状态栏"
     >
       <div className="wb-statusbar-group">
-        {/* 没有会话时这里根本没挂 xterm，「聚焦终端」点了只会什么也不发生，
-            所以无会话时降级成只读读数，不再写成一个能点的按钮（原名写死 'main' 也是假数据） */}
+        {/* 没有终端时这里根本没挂 xterm，「聚焦终端」点了只会什么也不发生，
+            所以无终端时降级成只读读数，不再写成一个能点的按钮 */}
         <StatusItem
-          onClick={activeSessionId ? focusActiveTerminal : undefined}
-          title={activeSessionId ? '聚焦终端' : '还没打开终端'}
+          onClick={activeShell ? focusActiveTerminal : undefined}
+          title={activeShell ? '聚焦终端' : '还没打开终端'}
         >
           <Terminal className="size-3" />
-          <span>{activeSessionId ? activeServer?.name ?? '终端' : '无终端'}</span>
+          <span>{activeShell?.title || '无终端'}</span>
         </StatusItem>
 
         <StatusItem color={sshColor}>

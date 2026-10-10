@@ -75,7 +75,9 @@
 
 /* ===== 路由切换入场动画 =====
    从 styles/design-tokens.css 迁入（E2 令牌单源：那份文件只剩别名与死样式）。
-   名字与 global.css 的 fadeInUp 各自独立，不共用 keyframes。 */
+   名字与 global.css 的 fadeInUp 各自独立，不共用 keyframes。
+   只做透明度、不做位移：这个容器是 100vh 满屏页，translateY(12px) 会把整页
+   往下推，动画那 220ms 里底部 24px 状态栏正好在视口外（"放大后下面看不见"的瞬时同款）。 */
 .page-enter {
   animation: page-enter-fade 0.22s ease-out both;
 }
@@ -83,11 +85,9 @@
 @keyframes page-enter-fade {
   from {
     opacity: 0;
-    transform: translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

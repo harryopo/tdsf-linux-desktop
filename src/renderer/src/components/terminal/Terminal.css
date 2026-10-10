@@ -1,6 +1,10 @@
 .term-editor-area {
   display: flex;
   min-width: 0;
+  /* flex 项的 min-height 默认是 auto：终端内容一长就把这一环撑到父容器之外
+     （实测 Ctrl+ 四次后 .term-editor-area 741→960px，底边越过状态栏画到视口外）。
+     钉成 0，父容器的高度才是这一环的高度来源。 */
+  min-height: 0;
   flex: 1;
   flex-direction: column;
   background: var(--trae-bg-base-default);
