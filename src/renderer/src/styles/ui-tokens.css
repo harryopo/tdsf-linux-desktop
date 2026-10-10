@@ -161,6 +161,11 @@
   /* 字体栈 */
   --ui-family-ui: 'Inter', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
   --ui-family-code: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  /* 混排族：英文/数字走代码字体，中文仍走界面字体。
+     逐字形回退是按列表顺序找"有这个字形的字体"，所以中文族必须排在 mono 之后——
+     直接把 font-mono 用在含中文的文案上，中文会被 monospace 兜到一个系统单角字体上，
+     那就是用户说的"字体不统一"。 */
+  --ui-family-code-cjk: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Microsoft YaHei', system-ui, sans-serif;
 
   /* 字号档位（2026-10-05 按用户选定的 Trae 中等密度重排；旧 cc-gui 13.5 正文档偏密）
      硬底线 11px：10px 档在真机量出 4.18:1 的低对比文字最多，整档取消。 */
