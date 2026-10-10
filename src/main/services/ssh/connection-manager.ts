@@ -480,13 +480,23 @@ export class SshConnectionManager {
    *
    * 一个会话可注册多个回调，所有 Shell 输出会广播给所有回调。
    * 用于 IPC 层把数据转发到对应渲染进程。
+   *
+   * @returns 取消注册函数。调用方**必须**持有它：这里没有去重，重复注册同一个
+   *          会话会让同一份输出被推多次（界面上就是字符翻倍），
+   *          与 onStateChanged / onSessionClosed 保持同一个形状正是为了逼出退订。
    */
-  public onShellData(sessionId: string, callback: (data: string) => void): void {
+  public onShellData(sessionId: string, callback: (data: string) => void): () => void {
     const entry = this.sessions.get(sessionId)
     if (!entry) {
       throw new Error(`会话不存在: ${sessionId}`)
     }
     entry.shellCallbacks.push(callback)
+    return () => {
+      const idx = entry.shellCallbacks.indexOf(callback)
+      if (idx >= 0) {
+        entry.shellCallbacks.splice(idx, 1)
+      }
+    }
   }
 
   // ------------------------------------------------------------------

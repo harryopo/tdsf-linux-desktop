@@ -117,23 +117,56 @@ const HOST_KEY_PROMPT_TIMEOUT_MS = 5 * 60 * 1000
  * 注册 SSH/SFTP 相关 IPC handlers
  *
  * @param mainWindow 主窗口实例，用于推送 Shell 数据到渲染进程
+ * @returns 卸载函数：摘掉本模块挂在长生命周期事件源上的订阅。
+ *          ipc/index.ts 在重复注册前必须调它，否则 state-changed / shell 数据
+ *          这些回调会成倍叠加（同一份输出被推 N 次）。
  */
-export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
+export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
   const sshManager = SshConnectionManager.getInstance()
   const sftpManager = new ElectermSftpManager(sshManager)
+
+  /** 挂在事件源上的订阅，注册函数返回时统一摘除 */
+  const disposers: Array<() => void> = []
+
+  /**
+   * 每个会话的 Shell 输出转发回调（按 sessionId 去重）
+   *
+   * 为什么要在这一层去重：connection-manager 的 onShellData 是"追加一个回调"，
+   * 而 startShell 在已有 shell 时直接返回 true —— 于是第二次 ssh:shell:start
+   * 会给同一个 stream 再挂一份转发，界面上表现为字符翻倍。渲染层确实有两条
+   * 会重复触发的入口（WorkbenchTitlebar 与 SshSettings 的"连接服务器"）。
+   *
+   * 会话关闭时必须把这份登记删掉：断连后 shell 通道连同它的回调已被清空，
+   * 不删的话重连回来的那次 start 会被去重逻辑跳过，新 shell 就没有转发了。
+   *
+   * 已知边界（做第二窗口时必须改掉）：这里按 sessionId 去重，等于"一个会话只有一份转发"。
+   * 多窗口下第二个窗口 attach 同一个会话会拿不到输出——那时这份登记要按
+   * (窗口, 会话) 二元组存，转发目标取发起 start 的那个 webContents。
+   */
+  const shellPushBySession = new Map<string, () => void>()
+  disposers.push(
+    sshManager.onSessionClosed((sessionId) => {
+      const off = shellPushBySession.get(sessionId)
+      if (off) {
+        shellPushBySession.delete(sessionId)
+        off()
+      }
+    }),
+  )
 
   // ------------------------------------------------------------------
   // SSH 心跳保活状态变更推送（K.2）
   // ------------------------------------------------------------------
   // 心跳失败 → 自动重连 → 最终断开时，SshConnectionManager 通过
   // onStateChanged 回调推送 SshStateEvent，这里转发到渲染进程。
-  // 返回值 unsink 用于卸载（应用退出时由 disconnectAll 兜底）。
-  sshManager.onStateChanged((event) => {
-    // 窗口可能已关闭或正在销毁，需防御性检查
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(SSH.STATE_CHANGED, event)
-    }
-  })
+  disposers.push(
+    sshManager.onStateChanged((event) => {
+      // 窗口可能已关闭或正在销毁，需防御性检查
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(SSH.STATE_CHANGED, event)
+      }
+    }),
+  )
 
   // ------------------------------------------------------------------
   // Phase L：主机密钥校验弹窗（known_hosts）
@@ -319,13 +352,18 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       if (!ok) {
         return false
       }
-      // 注册 Shell 数据回调，推送到渲染进程
-      sshManager.onShellData(sessionId, (data: string) => {
-        // 窗口可能已关闭或正在销毁，需防御性检查
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(TERMINAL_DATA_CHANNEL, sessionId, data)
-        }
-      })
+      // 同一会话只挂一份转发（去重理由见文件顶部 shellPushBySession 的注释）
+      if (!shellPushBySession.has(sessionId)) {
+        shellPushBySession.set(
+          sessionId,
+          sshManager.onShellData(sessionId, (data: string) => {
+            // 窗口可能已关闭或正在销毁，需防御性检查
+            if (!mainWindow.isDestroyed()) {
+              mainWindow.webContents.send(TERMINAL_DATA_CHANNEL, sessionId, data)
+            }
+          }),
+        )
+      }
       return true
     } catch (err) {
       const safeMsg = redactSecrets((err as Error).message)
@@ -1013,4 +1051,25 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): void {
       }
     },
   )
+
+  return () => {
+    for (const dispose of disposers.reverse()) {
+      try {
+        dispose()
+      } catch {
+        // 一个订阅摘不掉不能把后面的邻居一起带走
+      }
+    }
+    disposers.length = 0
+    // 先退订再清登记：只 clear 的话那些转发回调还挂在会话的 shellCallbacks 里，
+    // 断掉的是"谁来摘"而不是"还在不在推"——窗口都没了还在往外 send。
+    for (const off of shellPushBySession.values()) {
+      try {
+        off()
+      } catch {
+        // 同上
+      }
+    }
+    shellPushBySession.clear()
+  }
 }

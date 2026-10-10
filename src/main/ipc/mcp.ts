@@ -29,8 +29,9 @@ const MCP_STATE_CHANNEL = MCP.STATE_CHANGED
  * 同时订阅 McpGateway 的状态变更，推送到渲染层。
  *
  * @param mainWindow 主窗口实例
+ * @returns 卸载函数：摘掉 lifecycle 订阅（重复注册会让状态变更被推多次）
  */
-export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
+export function registerMcpStateHandlers(mainWindow: BrowserWindow): () => void {
   const gateway = McpGateway.getInstance()
 
   // ------------------------------------------------------------------
@@ -52,7 +53,7 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // 订阅状态变更 → 推送到渲染层
   // ------------------------------------------------------------------
-  gateway.subscribeLifecycle((state, ctx) => {
+  const unsubscribeLifecycle = gateway.subscribeLifecycle((state, ctx) => {
     if (!mainWindow.isDestroyed()) {
       // McpStateContext 序列化为普通对象（避免类型问题）
       mainWindow.webContents.send(MCP_STATE_CHANNEL, { ...ctx })
@@ -102,4 +103,6 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): void {
     await gateway.reconnectExternalServer(serverId)
     return true
   })
+
+  return unsubscribeLifecycle
 }

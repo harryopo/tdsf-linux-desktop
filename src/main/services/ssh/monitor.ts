@@ -254,11 +254,15 @@ export class SystemMonitor extends EventEmitter {
    * IPC 层用此回调把数据转发到渲染进程。
    *
    * @param callback 回调函数
+   * @returns 取消注册函数（IPC 层重复注册时先用它摘掉旧回调，否则同一份数据会被推多次）
    */
   public onMonitorData(
     callback: (sessionId: string, data: MonitorData) => void
-  ): void {
+  ): () => void {
     this.on(MONITOR_DATA_EVENT, callback)
+    return () => {
+      this.off(MONITOR_DATA_EVENT, callback)
+    }
   }
 
   /**
@@ -268,11 +272,15 @@ export class SystemMonitor extends EventEmitter {
    * IPC 层用此回调把系统信息转发到渲染进程，避免渲染进程额外 invoke 请求。
    *
    * @param callback 回调函数
+   * @returns 取消注册函数（理由同 onMonitorData）
    */
   public onSystemInfo(
     callback: (sessionId: string, info: SystemInfo) => void
-  ): void {
+  ): () => void {
     this.on(MONITOR_SYSTEM_INFO_EVENT, callback)
+    return () => {
+      this.off(MONITOR_SYSTEM_INFO_EVENT, callback)
+    }
   }
 
   /** 停止所有监控（应用退出时调用） */

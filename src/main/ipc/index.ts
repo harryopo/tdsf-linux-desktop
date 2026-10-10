@@ -105,6 +105,18 @@ import { pushBootLoadingStage, registerBootHandlers } from './boot'
 import type { DatabaseManager } from '../services/db/database'
 
 /**
+ * 挂在长生命周期事件源上的订阅的卸载函数
+ *
+ * ipcMain.handle 重复注册会抛错，所以本函数原先靠"先 removeHandler 再重注册"来实现
+ * macOS dock 恢复路径。但还有一类东西 removeHandler 管不到：直接 on() 到
+ * SshConnectionManager / SystemMonitor / McpGateway / 子 agent EventEmitter 上的回调。
+ * 它们会在每一次重注册时再多挂一份，于是同一份数据被推 N 次
+ * （终端里就是字符翻倍、监控页就是曲线重影）。
+ * 所以：重注册前先把上一轮的订阅摘干净。
+ */
+let ipcDisposers: Array<() => void> = []
+
+/**
  * 注册所有 IPC handlers
  *
  * 在 app.whenReady() 后、创建主窗口后调用。
@@ -132,6 +144,16 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
     /* 同上 */
   }
 
+  // 事件源订阅的卸载（理由见 ipcDisposers 的注释）：逆序摘，与注册顺序对称
+  for (const dispose of ipcDisposers.reverse()) {
+    try {
+      dispose()
+    } catch {
+      // 一个订阅摘不掉不能把后面的邻居一起带走
+    }
+  }
+  ipcDisposers = []
+
   // v0.9.4 新增：system:ping 心跳保活通道
   //
   // 设计说明：
@@ -148,8 +170,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
     }
   })
 
-  registerSshIpcHandlers(mainWindow)
-  registerMonitorIpcHandlers(mainWindow)
+  // 这四个模块会在长生命周期事件源上挂转发回调，返回卸载函数交给 ipcDisposers
+  ipcDisposers.push(registerSshIpcHandlers(mainWindow))
+  ipcDisposers.push(registerMonitorIpcHandlers(mainWindow))
   registerStorageIpcHandlers()
   registerLlmHandlers(mainWindow)
   // v2.0 Phase B：内联补全 + Diff 应用 IPC（llm:inline-completion / cancel / apply-diff / diff-preview）
@@ -227,7 +250,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
 
   // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
   // 暴露 mcp:get-state / mcp:reset / mcp:state-changed
-  registerMcpStateHandlers(mainWindow)
+  ipcDisposers.push(registerMcpStateHandlers(mainWindow))
 
   // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
   // 暴露 sidecar:start / stop / status / health / pipeline
@@ -249,7 +272,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 暴露 loop:start / loop:confirm / loop:cancel
   // 推送通道：loop:llm-start / loop:llm-done / loop:step / loop:decision / loop:done / loop:error
   // 实现"假设计 → 可演示真 IDE"完整一轮：LLM 推理 → 7 步 HITL → 决策卡片 → SSH 执行 → 验证
-  registerLoopEngineeringHandlers(mainWindow)
+  ipcDisposers.push(registerLoopEngineeringHandlers(mainWindow))
 
   // Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
   // 通道：scheduler:list / toggle / trigger + 推送 scheduler:status

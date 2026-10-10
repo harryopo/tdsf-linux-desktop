@@ -85,53 +85,38 @@ function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]
  * 注册循环工程 IPC handlers
  *
  * @param mainWindow 主窗口实例，用于推送事件到渲染进程
+ * @returns 卸载函数：摘掉子 agent 上的 7 个事件转发监听
+ *          （EventEmitter 的 on 会叠加，重复注册等于每个事件多推一份）
  */
-export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void {
+export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): () => void {
   const subagent = getLoopEngineeringSubagent()
 
   // ─── 订阅子 agent 事件 → 推送到渲染进程 ─────────────────────────
+  //
+  // 一份名单同时驱动订阅、转发与退出日志（以前是七个 on 块外加一份手抄的
+  // pushChannels，两处各改各的迟早分叉）。
+  //
+  // 通道常量必须原样出现在 safeSend 的第二个参数位：scripts/audit-ipc-contract.ts
+  // 的"事件有源"检查按文本认这条路（`safeSend(\w+, CH`），换成循环变量会让这六条
+  // 通道被报成暗通道——2026-10-10 实测红过一轮，所以形状钉在这里不许再动。
+  const pushes: ReadonlyArray<{
+    event: LoopEngineeringEvent['type']
+    forward: (evt: LoopEngineeringEvent) => void
+  }> = [
+    { event: 'loop:llm-start', forward: (evt) => safeSend(mainWindow, LOOP_LLM_START_CHANNEL, evt) },
+    { event: 'loop:llm-done', forward: (evt) => safeSend(mainWindow, LOOP_LLM_DONE_CHANNEL, evt) },
+    { event: 'loop:step', forward: (evt) => safeSend(mainWindow, LOOP_STEP_CHANNEL, evt) },
+    { event: 'loop:decision', forward: (evt) => safeSend(mainWindow, LOOP_DECISION_CHANNEL, evt) },
+    { event: 'loop:done', forward: (evt) => safeSend(mainWindow, LOOP_DONE_CHANNEL, evt) },
+    { event: 'loop:error', forward: (evt) => safeSend(mainWindow, LOOP_ERROR_CHANNEL, evt) },
+    { event: 'loop:blocked', forward: (evt) => safeSend(mainWindow, LOOP_BLOCKED_CHANNEL, evt) },
+  ]
 
-  subagent.events.on('loop:llm-start', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:llm-start') {
-      safeSend(mainWindow, LOOP_LLM_START_CHANNEL, evt)
-    }
-  })
-
-  subagent.events.on('loop:llm-done', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:llm-done') {
-      safeSend(mainWindow, LOOP_LLM_DONE_CHANNEL, evt)
-    }
-  })
-
-  subagent.events.on('loop:step', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:step') {
-      safeSend(mainWindow, LOOP_STEP_CHANNEL, evt)
-    }
-  })
-
-  subagent.events.on('loop:decision', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:decision') {
-      safeSend(mainWindow, LOOP_DECISION_CHANNEL, evt)
-    }
-  })
-
-  subagent.events.on('loop:done', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:done') {
-      safeSend(mainWindow, LOOP_DONE_CHANNEL, evt)
-    }
-  })
-
-  subagent.events.on('loop:error', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:error') {
-      safeSend(mainWindow, LOOP_ERROR_CHANNEL, evt)
-    }
-  })
-
-  subagent.events.on('loop:blocked', (evt: LoopEngineeringEvent) => {
-    if (evt.type === 'loop:blocked') {
-      safeSend(mainWindow, LOOP_BLOCKED_CHANNEL, evt)
-    }
-  })
+  const offs: Array<() => void> = []
+  for (const { event, forward } of pushes) {
+    subagent.events.on(event, forward)
+    offs.push(() => subagent.events.off(event, forward))
+  }
 
   // ─── loop:start — 启动循环工程 ───────────────────────────────────
 
@@ -272,16 +257,19 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): void
 
   logger.info('IPC.LOOP', `循环工程 IPC handlers 已注册`, {
     invokeChannels: [LOOP.START, LOOP.CONFIRM, LOOP.CANCEL],
-    pushChannels: [
-      LOOP_LLM_START_CHANNEL,
-      LOOP_LLM_DONE_CHANNEL,
-      LOOP_STEP_CHANNEL,
-      LOOP_DECISION_CHANNEL,
-      LOOP_DONE_CHANNEL,
-      LOOP_ERROR_CHANNEL,
-      LOOP_BLOCKED_CHANNEL,
-    ],
+    pushChannels: pushes.map(({ event }) => event),
   })
+
+  return () => {
+    for (const off of offs.reverse()) {
+      try {
+        off()
+      } catch {
+        // 一个监听摘不掉不能把后面的邻居一起带走
+      }
+    }
+    offs.length = 0
+  }
 }
 
 /**

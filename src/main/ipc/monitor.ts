@@ -33,9 +33,6 @@ const MONITOR_DATA_CHANNEL = 'monitor:data'
 /** 系统信息推送通道名（首次采集时推送） */
 const MONITOR_SYSTEM_INFO_CHANNEL = 'monitor:systemInfo'
 
-/** v2.9 告警事件推送通道名（后台检测到超阀时推送） */
-const MONITOR_ALERT_CHANNEL = 'monitor:alert'
-
 /** SystemMonitor 单例（整个应用共享一个实例） */
 let monitorInstance: SystemMonitor | null = null
 
@@ -92,13 +89,19 @@ function readThresholds(): AlertThresholds {
  * 注册监控相关 IPC handlers
  *
  * @param mainWindow 主窗口实例，用于推送监控数据到渲染进程
+ * @returns 卸载函数：摘掉挂在 SystemMonitor 上的转发回调。
+ *          那两个回调是 EventEmitter 的 on，重复注册会成倍叠加，
+ *          同一份采集数据就被推 N 次。
  */
-export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
+export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): () => void {
+  const disposers: Array<() => void> = []
+
   // 全局单例：所有监控会话共享一个 SystemMonitor
   if (!monitorInstance) {
     monitorInstance = new SystemMonitor()
     // 会话关掉时清掉 IPC 层自己那两份状态（监控定时器由 SystemMonitor 自己回收）。
-    // 订阅放在实例创建处，只挂一次；断连入口再多也不会漏。
+    // 订阅放在实例创建处、且**不进 disposers**：它跟着单例的寿命，
+    // 而单例在整个应用生命周期里只建一次，摘掉它就不会再挂回来。
     SshConnectionManager.getInstance().onSessionClosed((sessionId) => {
       pruneSessionAlertState(sessionId)
     })
@@ -106,42 +109,46 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
   const monitor = monitorInstance
 
   // 注册监控数据回调：每次采集到新数据时推送到渲染进程 + v2.9 后台告警检测
-  monitor.onMonitorData((sessionId: string, data: MonitorData) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(MONITOR_DATA_CHANNEL, sessionId, data)
-    }
-    // v2.9 后台告警：不依赖监控页是否打开，每次采集都判定阀值，
-    // 超阀且过了去抖冷却期 → 弹系统通知 + 推送 monitor:alert 事件供渲染层展示
-    try {
-      const thresholds = readThresholds()
-      const hostname = sessionHostnames.get(sessionId) ?? '服务器'
-      const alerts = evaluateAlerts(data, thresholds, hostname)
-      const now = Date.now()
-      for (const alert of alerts) {
-        // 去抖按会话分别计（见上面 pruneSessionAlertState 的说明）
-        if (!shouldFireAlert(sessionId, alert.dedupeKey, now)) continue
-        // 系统通知（支持时才弹）
-        if (Notification.isSupported()) {
-          new Notification({ title: alert.title, body: alert.body }).show()
-        }
-        // 推送给渲染层（日志页/监控页可展示）
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(MONITOR_ALERT_CHANNEL, sessionId, alert)
-        }
+  disposers.push(
+    monitor.onMonitorData((sessionId: string, data: MonitorData) => {
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(MONITOR_DATA_CHANNEL, sessionId, data)
       }
-    } catch {
-      // 告警检测失败绝不影响正常监控数据推送
-    }
-  })
+      // v2.9 后台告警：不依赖监控页是否打开，每次采集都判定阀值，
+      // 超阀且过了去抖冷却期 → 弹系统通知。
+      // 这里以前还额外 push 一条 monitor:alert，但全仓没有任何接收方：
+      // preload 没有 listener、渲染层没有订阅、消息分类表里也没有它，
+      // 而告警列表本来就是渲染层拿 monitor:data 自己算的（AlertTable）。
+      // 一条没人接的推送只会让 IPC 契约审计长期挂着 WARN，所以删掉发信、保留系统通知。
+      try {
+        const thresholds = readThresholds()
+        const hostname = sessionHostnames.get(sessionId) ?? '服务器'
+        const alerts = evaluateAlerts(data, thresholds, hostname)
+        const now = Date.now()
+        for (const alert of alerts) {
+          // 去抖按会话分别计（见上面 pruneSessionAlertState 的说明）
+          if (!shouldFireAlert(sessionId, alert.dedupeKey, now)) continue
+          // 系统通知（支持时才弹）
+          if (Notification.isSupported()) {
+            new Notification({ title: alert.title, body: alert.body }).show()
+          }
+        }
+      } catch {
+        // 告警检测失败绝不影响正常监控数据推送
+      }
+    }),
+  )
 
   // 注册系统信息回调：首次采集到系统静态信息时推送到渲染进程
   // 这样渲染进程无需额外 invoke 请求，被动接收即可
-  monitor.onSystemInfo((sessionId: string, info: SystemInfo) => {
-    sessionHostnames.set(sessionId, info.hostname || '服务器')
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(MONITOR_SYSTEM_INFO_CHANNEL, sessionId, info)
-    }
-  })
+  disposers.push(
+    monitor.onSystemInfo((sessionId: string, info: SystemInfo) => {
+      sessionHostnames.set(sessionId, info.hostname || '服务器')
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(MONITOR_SYSTEM_INFO_CHANNEL, sessionId, info)
+      }
+    }),
+  )
 
   // ------------------------------------------------------------------
   // IPC handlers
@@ -179,6 +186,17 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): void {
       }
     }
   )
+
+  return () => {
+    for (const dispose of disposers.reverse()) {
+      try {
+        dispose()
+      } catch {
+        // 一个订阅摘不掉不能把后面的邻居一起带走
+      }
+    }
+    disposers.length = 0
+  }
 }
 
 /**
