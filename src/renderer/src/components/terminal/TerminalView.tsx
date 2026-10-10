@@ -30,6 +30,7 @@ import { useTerminalStore } from '../../stores/terminal-store'
 import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../terminal/block-model'
 import { attachBlockCollector } from '../../terminal/block-collector'
 import { subscribeShellData } from '../../terminal/terminal-bus'
+import type { ShellKind } from '../../stores/terminal-store'
 import { CODE_THEMES } from '@shared/code-themes'
 import { SelectionManager } from './selection-manager'
 import { formatTerminalClipboard } from './clipboard-format'
@@ -42,6 +43,8 @@ import './Terminal.css'
 interface TerminalViewProps {
   /** 终端通道 ID（主进程按它分发输出；一条 SSH 连接可以有多个终端） */
   shellId: string
+  /** 这条终端跑在本机还是 SSH 远端：键入与 resize 要走各自的通道 */
+  kind: ShellKind
   /** 终端是否可见（非活跃 Tab 时设为 false 可节省渲染资源） */
   visible: boolean
 }
@@ -53,7 +56,7 @@ const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 32
 
 /** TerminalView 终端视图 */
-const TerminalView: React.FC<TerminalViewProps> = ({ shellId, visible }) => {
+const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) => {
   /** 终端容器 DOM 引用 */
   const containerRef = useRef<HTMLDivElement>(null)
   /** xterm.js Terminal 实例引用 */
@@ -216,10 +219,12 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, visible }) => {
       }
     })
 
-    // ===== 4. 用户输入 → 发送到这条通道对应的 Shell =====
+    // ===== 4. 用户输入 → 发送到这条通道对应的 Shell（本机 / 远端各自的通道）=====
     const inputDisposable = terminal.onData((data: string) => {
       if (!isElectronAPIAvailable()) return
-      window.electronAPI.sshShellWrite(shellId, data).catch((error: unknown) => {
+      const api = window.electronAPI
+      const write = kind === 'local' ? api.localTtyWrite?.(shellId, data) : api.sshShellWrite(shellId, data)
+      write?.catch((error: unknown) => {
         console.error('[TerminalView] 发送输入失败:', error)
       })
     })
@@ -250,11 +255,14 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, visible }) => {
           fitAddon.fit()
           // 通知主进程终端尺寸变化
           if (isElectronAPIAvailable()) {
-            window.electronAPI
-              .sshShellResize(shellId, terminal.cols, terminal.rows)
-              .catch(() => {
-                // 忽略 resize 错误
-              })
+            const api = window.electronAPI
+            const size =
+              kind === 'local'
+                ? api.localTtyResize?.(shellId, terminal.cols, terminal.rows)
+                : api.sshShellResize(shellId, terminal.cols, terminal.rows)
+            size?.catch(() => {
+              // 忽略 resize 错误
+            })
           }
         } catch {
           // 容器可能已卸载
@@ -360,7 +368,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, visible }) => {
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [shellId])
+  }, [shellId, kind])
 
   // ===== v0.8.0 翻译选词监听（v2.6 拆为独立 effect） =====
   // 切换翻译开关只挂载/卸载 SelectionManager，不再重建终端实例
@@ -402,6 +410,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, visible }) => {
         <TerminalCompletionAddon
           terminal={terminalRef.current}
           shellId={shellId}
+          kind={kind}
         />
       )}
     </div>

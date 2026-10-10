@@ -167,8 +167,10 @@ test.describe('同一条连接开两个终端', () => {
       // 关掉最后一个 → 空态必须给主行动按钮，不许只留一行灰字
       await page.locator('.term-tab-item').nth(0).locator('.term-tab-close').click()
       await expect(page.locator('.term-tab-item')).toHaveCount(0)
-      // exact：标签条上的 + 是"新建终端菜单"，子串匹配会把它的名字也算进来
-      await expect(page.getByRole('button', { name: '新建终端', exact: true })).toBeVisible()
+      // 连着服务器时空态的主行动是"在这台主机开一个终端"（W3 起本机终端是另一个按钮）
+      await expect(
+        page.getByRole('button', { name: '在这台主机开一个终端', exact: true }),
+      ).toBeVisible()
     } finally {
       await app.close()
     }

@@ -17,13 +17,18 @@
  */
 import { create } from 'zustand'
 
+/** 终端跑在哪里：本机 PTY（W3）还是 SSH 远端 */
+export type ShellKind = 'local' | 'ssh'
+
 /** 一个打开中的终端（对应主进程的一条 shell 通道） */
 export interface TerminalShell {
-  /** 主进程发的通道 ID（terminal:data 按它路由） */
+  /** 主进程发的通道 ID（terminal:data 按它路由，本机与远端共用这套身份） */
   shellId: string
-  /** 所属 SSH 会话 */
-  sessionId: string
-  /** 标签上显示的名字（通常是主机名） */
+  /** 本机终端还是远端终端：决定写入与"代写命令"走哪条通道 */
+  kind: ShellKind
+  /** 远端终端所属 SSH 会话；本机终端为 null */
+  sessionId: string | null
+  /** 标签上显示的名字（通常是主机名，本机终端是 shell 名） */
   title: string
   /** 打开时间戳（同主机多个终端按它编号显示"终端 2"） */
   openedAt: number
@@ -67,8 +72,16 @@ interface TerminalState {
   setShellTitle: (shellId: string, title: string) => void
   /** 整条会话没了：把它名下所有终端一次摘掉（不能留点不动的死标签） */
   dropSession: (sessionId: string) => void
-  /** 与主进程对账：以主进程给的 shellIds 为准增删这条会话的标签，不抢当前焦点 */
-  reconcileSession: (sessionId: string, shellIds: string[], title: string) => void
+  /** 与主进程对账：以主进程给的 shellIds 为准增删这一组标签，不抢当前焦点
+   *
+   * kind='ssh' 时 sessionId 是那条 SSH 会话；kind='local' 时传 null（本机终端不分会话）。
+   */
+  reconcileSession: (
+    sessionId: string | null,
+    shellIds: string[],
+    title: string,
+    kind: ShellKind,
+  ) => void
   /** 该会话已开的终端数（"连接"按钮用它决定要不要再开一个） */
   shellsOf: (sessionId: string) => TerminalShell[]
 
@@ -121,7 +134,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
       }
     }),
 
-  reconcileSession: (sessionId, shellIds, title) =>
+  reconcileSession: (sessionId, shellIds, title, kind) =>
     set((state) => {
       const wanted = new Set(shellIds)
       const known = new Set(state.shells.map((s) => s.shellId))
@@ -130,7 +143,7 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
       const kept = state.shells.filter((s) => s.sessionId !== sessionId || wanted.has(s.shellId))
       const added: TerminalShell[] = shellIds
         .filter((shellId) => !known.has(shellId))
-        .map((shellId) => ({ shellId, sessionId, title, openedAt: now }))
+        .map((shellId) => ({ shellId, kind, sessionId, title, openedAt: now }))
       const shells = [...kept, ...added]
       // 只在"原来的活跃终端没了"时才改指针：别的会话后台开了终端不该把人从当前标签上拽走
       const stillThere = shells.some((s) => s.shellId === state.activeShellId)
@@ -150,6 +163,16 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
   commandBlocks: null,
   setCommandBlocks: (summary) => set({ commandBlocks: summary }),
 }))
+
+/**
+ * 这一屏该显示哪些终端标签
+ *
+ * 本机终端（kind='local'）永远在：它不属于任何 SSH 会话，连上服务器之后
+ * 把本机的终端从标签条上抹掉是莫名其妙的事。远端终端按当前会话过滤。
+ */
+export function visibleShells(shells: TerminalShell[], activeSessionId: string | null): TerminalShell[] {
+  return shells.filter((s) => s.kind === 'local' || s.sessionId === activeSessionId)
+}
 
 /**
  * 标签显示名：同一台主机开第二个终端时补编号，

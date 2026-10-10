@@ -1,8 +1,12 @@
 /**
  * A1 不变量：裸 shell write 只能是"人手敲的"
  *
- * `ssh:shell:write` 在主进程不做命令判定（逐键输入无法当整条命令评估），
- * 因此任何"命令由模型/决策记录起草"的路径都必须走 `ssh:shell:run-authored`（过风险闸）。
+ * `ssh:shell:write` 与 `local-tty:write` 在主进程都不做命令判定（逐键输入无法当整条命令
+ * 评估），因此任何"命令由模型/决策记录起草"的路径都必须走对应的 run-authored
+ * （`ssh:shell:run-authored` / `local-tty:run-authored`，过风险闸）。
+ * 本机终端是 W3 新加的通道——只盯 sshShellWrite 等于给绕过留了一扇门，
+ * 所以这里按同一套规则扫两条通道，而不是给本机终端另写一份。
+ *
  * 这个测试读源码而不是跑起来，因为违规方式是"以后有人新增一处调用"。
  *
  * 为什么走 AST 而不是匹配 `sshShellWrite(` 字符串（计划 §A1 判据原话是"读 AST/引用表，不数字符串"）：
@@ -18,9 +22,12 @@ import ts from 'typescript'
 
 /** 以仓库根为基准（vitest 的 cwd 就是仓库根），避开 Windows 下 URL→路径的盘符坑 */
 const RENDERER = join(process.cwd(), 'src', 'renderer', 'src')
-const TARGET = 'sshShellWrite'
-/** 另一个名字，A1 之后 AI 路径唯一该用的那个 */
-const AUTHORED = 'sshRunAuthored'
+/** 两条"人手敲的"裸写通道：远端与本机，规则一模一样 */
+const RAW_WRITE_TARGETS = ['sshShellWrite', 'localTtyWrite']
+/** 两条"代写命令"通道：都必须过主进程的风险闸 */
+const AUTHORED_TARGETS = ['sshRunAuthored', 'localTtyRunAuthored']
+/** 唯一允许直接碰 run-authored 的文件：终端启动器（界面只该调 resolveShellForCommand / runAuthoredInShell） */
+const AUTHORED_OWNER = 'terminal/shell-launcher.ts'
 
 /** 允许调用裸 write 的文件：只有这两处是用户手势直接驱动 */
 const ALLOWED_RAW_WRITE = new Set([
@@ -40,22 +47,26 @@ function collectSources(dir: string, out: string[] = []): string[] {
 type UseKind = 'call' | 'escape'
 type Use = { line: number; kind: UseKind }
 
-/** 这个表达式是不是"取到了裸 write"（含别名与下标写法） */
-function isTargetExpr(node: ts.Node, aliases: Set<string>): boolean {
-  if (ts.isPropertyAccessExpression(node)) return node.name.text === TARGET
+/** 这个表达式是不是"取到了这条裸 write"（含别名与下标写法） */
+function isTargetExpr(node: ts.Node, target: string, aliases: Set<string>): boolean {
+  if (ts.isPropertyAccessExpression(node)) return node.name.text === target
   if (ts.isElementAccessExpression(node)) {
     const arg = node.argumentExpression
-    return ts.isStringLiteral(arg) && arg.text === TARGET
+    return ts.isStringLiteral(arg) && arg.text === target
   }
   if (ts.isIdentifier(node)) return aliases.has(node.text)
   return false
 }
 
 /** 解构改名：`const { sshShellWrite: w } = api` 里的 w */
-function aliasFromBindingElement(el: ts.BindingElement, aliases: Set<string>): string | null {
+function aliasFromBindingElement(
+  el: ts.BindingElement,
+  target: string,
+  aliases: Set<string>,
+): string | null {
   const propName = el.propertyName ?? el.name
   if (!ts.isIdentifier(propName)) return null
-  if (propName.text !== TARGET && !aliases.has(propName.text)) return null
+  if (propName.text !== target && !aliases.has(propName.text)) return null
   return ts.isIdentifier(el.name) ? el.name.text : null
 }
 
@@ -85,7 +96,7 @@ function isProbePosition(node: ts.Node): boolean {
   return false
 }
 
-function analyze(fileName: string, src: string): Use[] {
+function analyze(fileName: string, src: string, target: string): Use[] {
   const sf = ts.createSourceFile(fileName, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const aliases = new Set<string>()
 
@@ -102,7 +113,7 @@ function analyze(fileName: string, src: string): Use[] {
       const init = d.initializer
       if (!init) continue
       // const w = api.sshShellWrite / const w2 = w（别名链）
-      if (ts.isIdentifier(d.name) && isTargetExpr(init, aliases) && !aliases.has(d.name.text)) {
+      if (ts.isIdentifier(d.name) && isTargetExpr(init, target, aliases) && !aliases.has(d.name.text)) {
         aliases.add(d.name.text)
         grew = true
       }
@@ -110,7 +121,7 @@ function analyze(fileName: string, src: string): Use[] {
       if (ts.isObjectBindingPattern(d.name)) {
         for (const el of d.name.elements) {
           if (!ts.isBindingElement(el)) continue
-          const alias = aliasFromBindingElement(el, aliases)
+          const alias = aliasFromBindingElement(el, target, aliases)
           if (alias && !aliases.has(alias)) {
             aliases.add(alias)
             grew = true
@@ -124,7 +135,7 @@ function analyze(fileName: string, src: string): Use[] {
   const line = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1
   function visit(node: ts.Node): void {
     const parent = node.parent
-    const isRef = isTargetExpr(node, aliases)
+    const isRef = isTargetExpr(node, target, aliases)
     if (isRef && parent && !isProbePosition(node)) {
       // `api.sshShellWrite` 里的 .name 只是属性名，不算一次引用（整个属性访问才是）
       const isPropName = ts.isPropertyAccessExpression(parent) && parent.name === node
@@ -139,32 +150,45 @@ function analyze(fileName: string, src: string): Use[] {
   return uses
 }
 
-function scanAll(): Array<{ rel: string; uses: Use[] }> {
+/** 扫全部渲染层源码，返回"引用了这条裸 write"的文件 → 引用点 */
+function scanAll(target: string): Array<{ rel: string; uses: Use[] }> {
   const out: Array<{ rel: string; uses: Use[] }> = []
   for (const f of collectSources(RENDERER)) {
     const rel = f.slice(RENDERER.length + 1).replace(/\\/g, '/')
     if (rel.includes('.test.')) continue
-    const uses = analyze(f, readFileSync(f, 'utf8'))
+    const uses = analyze(f, readFileSync(f, 'utf8'), target)
     if (uses.length > 0) out.push({ rel, uses })
   }
   return out
 }
 
-describe('sshShellWrite 调用面（A1，AST 引用追踪）', () => {
-  it('渲染层只有用户手势路径引用裸 write，其余一律违规', () => {
-    const offenders = scanAll()
-      .filter((x) => !ALLOWED_RAW_WRITE.has(x.rel))
-      .map((x) => `${x.rel}:${x.uses.map((u) => `${u.line}(${u.kind})`).join(',')}`)
-    expect(offenders, `AI 起草的路径不许碰裸 write：${offenders.join(' | ')}`).toEqual([])
-  })
+/** 某个文件里对 target 的真实调用次数（AST，不是字符串） */
+function callCount(rel: string, target: string): number {
+  const full = join(RENDERER, rel)
+  return analyze(full, readFileSync(full, 'utf8'), target).filter((u) => u.kind === 'call').length
+}
 
-  it('白名单不为空，且里面每个文件真的在引用（清单过期就要收紧）', () => {
+describe('裸 write 调用面（A1，AST 引用追踪，远端与本机两条通道同规则）', () => {
+  for (const target of RAW_WRITE_TARGETS) {
+    it(`${target}：渲染层只有用户手势路径引用裸 write，其余一律违规`, () => {
+      const offenders = scanAll(target)
+        .filter((x) => !ALLOWED_RAW_WRITE.has(x.rel))
+        .map((x) => `${x.rel}:${x.uses.map((u) => `${u.line}(${u.kind})`).join(',')}`)
+      expect(offenders, `AI 起草的路径不许碰裸 write：${offenders.join(' | ')}`).toEqual([])
+    })
+  }
+
+  it('白名单按整个裸 write 面成立：引用任一通道的文件集合必须正好等于白名单', () => {
     expect(ALLOWED_RAW_WRITE.size).toBeGreaterThan(0)
-    const users = new Map(scanAll().map((x) => [x.rel, x.uses]))
+    const users = new Set<string>()
+    for (const target of RAW_WRITE_TARGETS) for (const x of scanAll(target)) users.add(x.rel)
+    expect([...users].sort(), '白名单过期（多了要收紧，少了说明有人在裸写）').toEqual(
+      [...ALLOWED_RAW_WRITE].sort(),
+    )
+    // 注入自证：白名单里每个文件必须真的在调用，不是只把函数取了一下
     for (const allowed of ALLOWED_RAW_WRITE) {
-      const uses = users.get(allowed)
-      expect(uses, `${allowed} 已不再引用 sshShellWrite，请同步收紧白名单`).toBeDefined()
-      expect(uses!.some((u) => u.kind === 'call'), `${allowed} 应当是直接调用`).toBe(true)
+      const calls = RAW_WRITE_TARGETS.reduce((n, t) => n + callCount(allowed, t), 0)
+      expect(calls, `${allowed} 应当真的在调用裸 write`).toBeGreaterThan(0)
     }
   })
 
@@ -179,7 +203,7 @@ describe('sshShellWrite 调用面（A1，AST 引用追踪）', () => {
       '  return',
       '}',
     ].join('\n')
-    const kinds = analyze('probe.tsx', src).map((u) => `${u.line}:${u.kind}`)
+    const kinds = analyze('probe.tsx', src, 'sshShellWrite').map((u) => `${u.line}:${u.kind}`)
     // 别名调用 / 直接调用 / 下标调用 + 把函数取出来那一次 escape
     expect(kinds.length).toBeGreaterThanOrEqual(4)
     expect(kinds).toContain('3:call')
@@ -189,15 +213,39 @@ describe('sshShellWrite 调用面（A1，AST 引用追踪）', () => {
     expect(kinds.filter((k) => k.startsWith('6:'))).toEqual([])
   })
 
-  it('AI 面板确实改用 run-authored（AST 级：必须是真调用）', () => {
-    const src = readFileSync(join(RENDERER, 'components/workbench/AIPanel.tsx'), 'utf8')
-    const sf = ts.createSourceFile('AIPanel.tsx', src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-    let called = 0
-    function visit(node: ts.Node): void {
-      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === AUTHORED) called++
-      node.forEachChild(visit)
+  it('阴性对照：本机通道的别名写法同样被抓（防"只扫了 ssh 那条"的假绿）', () => {
+    const src = [
+      'const api = window.electronAPI',
+      'const w = api.localTtyWrite',
+      'w("rm -rf /")',
+      'if (!api?.localTtyWrite) return',
+    ].join('\n')
+    const kinds = analyze('probe.tsx', src, 'localTtyWrite').map((u) => `${u.line}:${u.kind}`)
+    expect(kinds).toContain('3:call')
+    expect(kinds.filter((k) => k.startsWith('4:'))).toEqual([])
+  })
+})
+
+describe('代写命令只有一个出口（W3 收口）', () => {
+  it('除 shell-launcher 外，任何文件不许直接调 run-authored', () => {
+    const offenders: string[] = []
+    for (const f of collectSources(RENDERER)) {
+      const rel = f.slice(RENDERER.length + 1).replace(/\\/g, '/')
+      if (rel.includes('.test.') || rel === AUTHORED_OWNER) continue
+      for (const target of AUTHORED_TARGETS) {
+        const uses = analyze(f, readFileSync(f, 'utf8'), target).filter((u) => u.kind === 'call')
+        if (uses.length > 0) offenders.push(`${rel}:${uses.map((u) => u.line).join(',')}(${target})`)
+      }
     }
-    visit(sf)
-    expect(called, `AIPanel 里 ${AUTHORED} 的真实调用数`).toBeGreaterThan(0)
+    expect(
+      offenders,
+      `界面必须走 runAuthoredInShell，别绕过本机/远端分流：${offenders.join(' | ')}`,
+    ).toEqual([])
+  })
+
+  it('shell-launcher 两条 run-authored 都真的调了（少一条就是本机或远端断了）', () => {
+    for (const target of AUTHORED_TARGETS) {
+      expect(callCount(AUTHORED_OWNER, target), `必须调用 ${target}`).toBeGreaterThan(0)
+    }
   })
 })

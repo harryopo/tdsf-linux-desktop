@@ -284,6 +284,45 @@ export const TERMINAL = {
 } as const
 
 /**
+ * 本机终端（W3）IPC 通道常量
+ *
+ * 通道列表：
+ * - STATUS        invoke  渲染 → 主：node-pty 是否可用 + 用的是哪个 Shell
+ * - START         invoke  渲染 → 主：开一条本机终端，返回 shellId
+ * - LIST          invoke  渲染 → 主：当前开着的本机终端 shellId
+ * - WRITE         invoke  渲染 → 主：写入按键（不判定，理由同 ssh:shell:write）
+ * - RESIZE        invoke  渲染 → 主：调整窗口大小
+ * - CLOSE         invoke  渲染 → 主：关掉这条终端（连带杀它的子进程树）
+ * - RUN_AUTHORED  invoke  渲染 → 主：执行整条代写命令，先过 core/command-gate
+ * - EXIT          push    主 → 渲染：本机终端进程退出，渲染层据此摘标签
+ *
+ * 输出复用 terminal:data（载荷第一个字段就是 shellId，本机与远端同一套分发），
+ * 不另开一条数据通道——两条数据通道意味着渲染层要维护两份订阅与两段缓存。
+ */
+export const LOCAL_TTY = {
+  /** 可用性（invoke: 渲染 → 主，返回 { available, reason, shellPath }） */
+  STATUS: 'local-tty:status',
+  /** 开一条本机终端（invoke: 渲染 → 主，返回 shellId） */
+  START: 'local-tty:start',
+  /** 列出开着的本机终端（invoke: 渲染 → 主，返回 string[]） */
+  LIST: 'local-tty:list',
+  /** 写入按键数据（invoke: 渲染 → 主）— 仅供用户键入，主进程不做命令判定 */
+  WRITE: 'local-tty:write',
+  /** 调整窗口大小（invoke: 渲染 → 主） */
+  RESIZE: 'local-tty:resize',
+  /** 关闭一条本机终端（invoke: 渲染 → 主） */
+  CLOSE: 'local-tty:close',
+  /**
+   * 执行"他人代写"的整条命令（invoke: 渲染 → 主）— AI 建议 / 决策页重新执行
+   *
+   * 与 WRITE 分开：逐键输入没法当整条命令评估，但整条可以，本通道先过风险闸。
+   */
+  RUN_AUTHORED: 'local-tty:run-authored',
+  /** 进程退出推送（push: 主 → 渲染，载荷 shellId） */
+  EXIT: 'local-tty:exit',
+} as const
+
+/**
  * 终端智能补全 IPC 通道常量（v0.9.7 P3 M1 新增：零 Token 本地补全）
  *
  * 通道列表：

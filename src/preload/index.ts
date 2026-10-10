@@ -15,7 +15,7 @@ import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
 import { attention, credibility, expectation, mode, taskPermission } from './domains/cognition'
-import { atCommands, sandbox, terminalCompletion } from './domains/terminal'
+import { atCommands, localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { claudeSdk, llm, llmInline, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
 import { on } from './domains/events'
@@ -74,6 +74,13 @@ const electronApi = {
   sftpMkdir: sftp.mkdir,
 
   // ===== 终端智能补全扁平化（v0.9.7 P3 M1） =====
+  localTtyStatus: localTty.status,
+  localTtyStart: localTty.start,
+  localTtyList: localTty.list,
+  localTtyWrite: localTty.write,
+  localTtyResize: localTty.resize,
+  localTtyClose: localTty.close,
+  localTtyRunAuthored: localTty.runAuthored,
   terminalCompletionComplete: terminalCompletion.complete,
   terminalCompletionAccept: terminalCompletion.accept,
   terminalCompletionImport: terminalCompletion.import,
@@ -109,6 +116,7 @@ const electronApi = {
 
   // ===== 事件监听扁平化 =====
   onTerminalData: on.terminalData,
+  onLocalTtyExit: on.localTtyExit,
   /** 监听 SSH 心跳保活状态变更（K.2） */
   onSshStateChanged: on.sshStateChanged,
   /** 监听主机密钥确认弹窗推送（Phase L） */

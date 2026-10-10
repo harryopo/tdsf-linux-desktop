@@ -27,6 +27,7 @@ import {
   Loader2,
   X,
   Languages,
+  Monitor,
   Plus,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
@@ -40,8 +41,8 @@ import { useEditorStore } from '@/stores/editor-store'
 import { useTranslateStore } from '@/stores/translate-store'
 // v2.6 修复：AI 命令预测回显条此前只渲染在从未被挂载的 TerminalTabs（死文件）里，
 // setPendingCommand 写的 store 没有消费者 —— 搜到真实终端面板这里渲染
-import { useTerminalStore, shellTabLabel } from '@/stores/terminal-store'
-import { closeShell, openShell, sessionTitle } from '@/terminal/shell-launcher'
+import { useTerminalStore, shellTabLabel, visibleShells } from '@/stores/terminal-store'
+import { closeShell, openLocalShell, openShell, sessionTitle } from '@/terminal/shell-launcher'
 import { Zap } from 'lucide-react'
 import '../terminal/TerminalTabs.css'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -138,7 +139,9 @@ const TerminalPanel: FC<{
   visible: boolean
   /** 点"新建终端"：由父层负责真正开一条通道并报告失败原因 */
   onOpenShell: () => void
-}> = ({ sessionId, visible, onOpenShell }) => {
+  /** 点"开一个本机终端"：同样由父层报告失败原因 */
+  onOpenLocalShell: () => void
+}> = ({ sessionId, visible, onOpenShell, onOpenLocalShell }) => {
   const navigate = useNavigate()
   // 同一条连接上的多个终端：全部挂着，只把活跃的那个显示出来（保住各自的滚动缓冲）
   const shells = useTerminalStore((s) => s.shells)
@@ -155,7 +158,8 @@ const TerminalPanel: FC<{
     return () => clearTimeout(timer)
   }, [pendingCommand, setPendingCommand])
 
-  const sessionShells = sessionId ? shells.filter((s) => s.sessionId === sessionId) : []
+  // 本机终端不受会话影响，永远在这一屏里（见 visibleShells 的说明）
+  const sessionShells = visibleShells(shells, sessionId)
 
   if (sessionShells.length > 0) {
     return (
@@ -208,6 +212,7 @@ const TerminalPanel: FC<{
             <TerminalView
               key={shell.shellId}
               shellId={shell.shellId}
+              kind={shell.kind}
               visible={visible && shell.shellId === activeShellId}
             />
           ))}
@@ -227,18 +232,30 @@ const TerminalPanel: FC<{
       <div className="term-empty-hint">
         {sessionId
           ? '一个终端跑一个任务；并排看输出就再开一个'
-          : '先在左侧资源管理器或 SSH 设置里连接一台服务器'}
+          : '本机终端不用连服务器就能练命令；要管远程机器再去 SSH 设置连一台'}
       </div>
-      {sessionId ? (
-        <Button variant="solid" size="sm" onClick={onOpenShell}>
-          <Plus aria-hidden className="size-3" />
-          新建终端
-        </Button>
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => void navigate('#/settings/ssh')}>
-          去连接服务器
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {sessionId ? (
+          <Button variant="solid" size="sm" onClick={onOpenShell}>
+            <Plus aria-hidden className="size-3" />
+            在这台主机开一个终端
+          </Button>
+        ) : (
+          <Button variant="solid" size="sm" onClick={onOpenLocalShell}>
+            <Plus aria-hidden className="size-3" />
+            开一个本机终端
+          </Button>
+        )}
+        {sessionId ? (
+          <Button variant="outline" size="sm" onClick={onOpenLocalShell}>
+            开一个本机终端
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => void navigate('#/settings/ssh')}>
+            去连接服务器
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
@@ -321,9 +338,9 @@ const EditorArea: FC<EditorAreaProps> = ({
   const shells = useTerminalStore((s) => s.shells)
   const setActiveShell = useTerminalStore((s) => s.setActiveShell)
 
-  /** 当前会话名下的终端（别的会话有终端也不显示在这条标签栏上） */
+  /** 这一屏的终端标签：本机终端永远在，远端只显示当前会话的 */
   const sessionShells = useMemo(
-    () => shells.filter((s) => s.sessionId === activeSessionId),
+    () => visibleShells(shells, activeSessionId),
     [shells, activeSessionId],
   )
 
@@ -333,6 +350,16 @@ const EditorArea: FC<EditorAreaProps> = ({
    * 失败一定要 toast：以前这类"点了没动静"最难查——主进程抛的原因被渲染层吞了，
    * 用户只看到标签少一个。
    */
+  /** 开一条本机终端（不连 SSH 也能敲命令；不可用时把原因显示出来） */
+  const handleOpenLocalShell = useCallback(async () => {
+    const result = await openLocalShell()
+    if (!result.ok) {
+      toast.error(`本机终端开不出来：${result.reason}`)
+      return
+    }
+    onTabChange(shellTabId(result.shellId))
+  }, [onTabChange])
+
   const handleOpenShell = useCallback(async () => {
     if (!activeSessionId) return
     const result = await openShell(activeSessionId, sessionTitle(activeSessionId))
@@ -349,14 +376,22 @@ const EditorArea: FC<EditorAreaProps> = ({
   }, [])
 
   const tabs = useMemo(() => {
-    const list: Array<{ id: WorkbenchTabId; label: string; dirty?: boolean }> = [
+    const list: Array<{
+      id: WorkbenchTabId
+      label: string
+      /** local / ssh 决定标签图标，file 是文件 */
+      kind: 'local' | 'ssh' | 'file'
+      dirty?: boolean
+    }> = [
       ...sessionShells.map((s) => ({
         id: shellTabId(s.shellId),
         label: shellTabLabel(s, sessionShells),
+        kind: s.kind,
       })),
       ...fileTabs.map((f) => ({
         id: f.id,
         label: f.dirty ? `${f.name} •` : f.name,
+        kind: 'file' as const,
         dirty: f.dirty,
       })),
     ]
@@ -598,7 +633,13 @@ const EditorArea: FC<EditorAreaProps> = ({
                   onTabChange(tab.id)
                 }}
               >
-                {shellId ? <TerminalIcon /> : <FileText />}
+                {tab.kind === 'local' ? (
+                  <Monitor aria-hidden />
+                ) : tab.kind === 'ssh' ? (
+                  <TerminalIcon aria-hidden />
+                ) : (
+                  <FileText aria-hidden />
+                )}
                 <span className="term-tab-label">{tab.label}</span>
               </button>
               <button
@@ -656,6 +697,9 @@ const EditorArea: FC<EditorAreaProps> = ({
             >
               <span className="text-md text-ink">在这台主机再开一个终端</span>
             </MenuItem>
+            <MenuItem onSelect={() => void handleOpenLocalShell()}>
+              <span className="text-md text-ink">开一个本机终端</span>
+            </MenuItem>
             <MenuItem onSelect={() => navigate('#/settings/ssh')}>
               <span className="text-md text-ink">连接新主机</span>
             </MenuItem>
@@ -704,6 +748,7 @@ const EditorArea: FC<EditorAreaProps> = ({
             sessionId={activeSessionId}
             visible
             onOpenShell={() => void handleOpenShell()}
+            onOpenLocalShell={() => void handleOpenLocalShell()}
           />
         ) : activeFile ? (
           <FileEditorPanel
@@ -716,26 +761,29 @@ const EditorArea: FC<EditorAreaProps> = ({
           // 空态给下一步（DESIGN.md §5）：光写"从左侧打开文件"等于把人说服在原地
           <div className="term-file-empty">
             <div>从左侧文件树打开远程文件，或开一个终端</div>
-            {activeSessionId ? (
-              <Button
-                size="sm"
-                variant="solid"
-                className="mt-2"
-                onClick={() => void handleOpenShell()}
-              >
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+              <Button size="sm" variant="solid" onClick={() => void handleOpenLocalShell()}>
                 <Plus aria-hidden className="size-3" />
-                新建终端
+                开一个本机终端
               </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-2"
-                onClick={() => navigate('#/settings/ssh')}
-              >
-                去连接服务器
-              </Button>
-            )}
+              {activeSessionId ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void handleOpenShell()}
+                >
+                  在这台主机再开一个终端
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate('#/settings/ssh')}
+                >
+                  去连接服务器
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -3,7 +3,7 @@ import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolE
 import type { AgentWorkflowState, ExternalMcpServerStatus, LlmError, LlmStreamChunk, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
-import { AGENT, CLAUDE_SDK, FILE_WATCH, LLM, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TASK, TERMINAL } from '@shared/ipc-channels'
+import { AGENT, CLAUDE_SDK, FILE_WATCH, LOCAL_TTY, LLM, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TASK, TERMINAL } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import type { FileChangedPayload, PaorApprovalRequest, SandboxApprovalRequest, TaskPermissionApprovalRequest } from '../types'
 import { createListener } from '../ipc-util'
@@ -22,6 +22,16 @@ const on = {
   /** 监听终端 Shell 数据推送（shellId 定位是哪个终端，2026-10-10 起不再按 sessionId） */
   terminalData: (callback: (shellId: string, data: string) => void): (() => void) => {
     return createListener(TERMINAL.DATA, callback)
+  },
+
+  /**
+   * 监听本机终端进程退出（载荷是退出的那条 shellId）
+   *
+   * 输出复用 terminal:data，退出单独一条：远端终端没有"进程退出"这种推送可依赖，
+   * 而本机终端用户天天敲 exit，标签必须跟着走。
+   */
+  localTtyExit: (callback: (shellId: string) => void): (() => void) => {
+    return createListener(LOCAL_TTY.EXIT, callback)
   },
 
   /** 监听 SSH 心跳保活状态变更（K.2：心跳失败/重连/最终断开时推送） */

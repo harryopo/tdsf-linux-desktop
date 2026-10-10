@@ -269,6 +269,9 @@
 .term-file-empty {
   display: flex;
   flex: 1;
+  /* 说明文字在上、行动按钮在下：横排时两句会挤在一起贴住（视觉基线里能看到） */
+  flex-direction: column;
+  gap: 10px;
   align-items: center;
   justify-content: center;
   font-size: 13px;

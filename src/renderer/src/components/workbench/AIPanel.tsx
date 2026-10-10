@@ -46,7 +46,7 @@ import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
 import Composer from './Composer'
 import { PermissionBar } from '@/dock/permission-bar'
-import { ensureShellForSession, sessionTitle } from '@/terminal/shell-launcher'
+import { resolveShellForCommand, runAuthoredInShell } from '@/terminal/shell-launcher'
 
 /** AIPanel props */
 export interface AIPanelProps {
@@ -229,7 +229,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
    *
    * Wire-2（2026-07-22）：真实 IPC 接线
    * - copyCommand: 复制命令到剪贴板
-   * - runInTerminal / execute / rollback / rollbackExec: 走 sshRunAuthored（A1：整条代写命令
+   * - runInTerminal / execute / rollback / rollbackExec: 走 run-authored（A1：整条代写命令
    *   必须在主进程过风险闸，block 级直接拒），命令与回显在终端全程可见；
    *   写入前先发 Ctrl+U 清理半截输入，并登记预测回显（v2.5）
    * - pauseExec / terminateTask: 调用 agentChatCancel(currentCorrelationId) 取消流
@@ -298,28 +298,23 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     // 4.2 SSH 命令执行：runInTerminal / execute / rollback / rollbackExec
     // v2.5 改造：从后台 sshExec（只弹 toast，用户看不到输出）改为写入终端 Shell，
     // 命令与回显直接出现在终端里，用户全程可见、可中断（Ctrl+C）。
-    if (!activeSessionId) {
-      toast.warning('该功能需要连接 SSH 服务器后使用')
+    // 命令投进"该去的那个终端"：当前活跃终端（本机或远端都算）→ 当前会话上顺手开一个
+    // → 没连服务器就开一条本机终端。用户点的是"在终端执行"，先让他去找按钮、
+    // 或者因为"没连 SSH"就拒绝本机命令，都是把成本推回去。
+    const target = await resolveShellForCommand(activeSessionId)
+    if (!target.ok) {
+      toast.error(`没能为这条命令准备终端：${target.reason}`)
       return
     }
-    if (!api?.sshRunAuthored) {
-      toast.warning('当前环境不支持终端执行（非 Electron 环境）')
-      return
-    }
-    // 命令要投进**一个终端**（2026-10-10 起身份是 shellId）：这台主机一个终端都没开就
-    // 顺手开一个——用户点的是"在终端执行"，先让他去别处找新建终端按钮是把成本推回去。
-    const shell = await ensureShellForSession(activeSessionId, sessionTitle(activeSessionId))
-    if (!shell.ok) {
-      toast.error(`没能为这条命令开终端：${shell.reason}`)
-      return
-    }
+    const shell = target.shell
 
     // v2.6 前置环境预检：发送到终端前先确认命令在服务器上存在（command -v），
     // 缺失时阻断并明确提示；预检自身失败 fail-open 照常发送。
+    // 只对远端终端做：本机终端要查的就是本机，用户自己机器上有没有这条命令不该由这里断。
     const preflightNames = extractCommandNames(payload)
-    if (preflightNames.length > 0 && api.sshExec) {
+    if (shell.kind === 'ssh' && preflightNames.length > 0 && api.sshExec && shell.sessionId) {
       try {
-        const pre = await api.sshExec(activeSessionId, buildMissingCheckScript(preflightNames))
+        const pre = await api.sshExec(shell.sessionId, buildMissingCheckScript(preflightNames))
         const missing = parseMissingOutput(pre.stdout)
         if (missing.length > 0) {
           toast.error(`前置检查未通过：服务器缺少命令 ${missing.join('、')}，已取消发送（可先安装对应软件包）`)
@@ -336,7 +331,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       // 再发 Ctrl+U 清掉 shell 当前行可能的半截输入，避免命令拼接乱码
       useTerminalStore.getState().setPendingCommand({ command: payload, sentAt: Date.now() })
       // 走 run-authored 而不是裸 shell write：命令由 AI 起草，主进程要过风险闸
-      await api.sshRunAuthored(shell.shellId, payload)
+      await runAuthoredInShell(shell, payload)
       toast.success('命令已发送到终端，请在终端查看回显')
 
       // v2.5 决策落库：用户批准执行 = 一次真实决策（AI 建议 → 人工批准 → 执行），

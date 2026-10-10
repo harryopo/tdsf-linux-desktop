@@ -1,8 +1,9 @@
 /** terminal 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { AtCommand, AtCommandParseResult, AtCommandSource, AtCommandType } from '@shared/at-command-types'
 import type { TerminalCompletionSuggestion } from '@shared/agent-types'
-import { AT_COMMANDS, SANDBOX, TERMINAL_COMPLETION } from '@shared/ipc-channels'
+import { AT_COMMANDS, LOCAL_TTY, SANDBOX, TERMINAL_COMPLETION } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { invokeChecked } from '../ipc-util'
 import type { AtCommandInfo, DockerInfo, SandboxCommandResult, SandboxErrorResponse, SandboxHealthStatus, SandboxInfo, SandboxPage } from '../types'
 
 /**
@@ -183,4 +184,41 @@ const terminalCompletion = {
     ipcRenderer.invoke(TERMINAL_COMPLETION.IMPORT, commands, directory),
 }
 
-export { sandbox, atCommands, terminalCompletion }
+/**
+ * 本机终端（W3）invoke 调用
+ *
+ * 六条都走 invokeChecked：参数与返回值由 src/shared/ipc-contract.ts 单源生成，
+ * 界面拿到的类型和主进程真实返回的是同一份表。
+ * 身份同样是 shellId（与远端终端共用 terminal:data 那条输出通道），
+ * 所以渲染层的分发、暂存、对账逻辑不用写第二遍。
+ */
+const localTty = {
+  /** 可用性（node-pty 没装上的平台会给出原因，界面据此提示而不是静默失败） */
+  status: (): Promise<{ available: boolean; reason: string | null; shellPath: string | null }> =>
+    invokeChecked('localTtyStatus', LOCAL_TTY.STATUS),
+
+  /** 开一条本机终端，返回 shellId */
+  start: (size?: { cols: number; rows: number }): Promise<string> =>
+    invokeChecked('localTtyStart', LOCAL_TTY.START, size),
+
+  /** 列出开着的本机终端（标签对账用） */
+  list: (): Promise<string[]> => invokeChecked('localTtyList', LOCAL_TTY.LIST),
+
+  /** 写入键入数据（仅供用户敲键盘，主进程不逐键判定） */
+  write: (shellId: string, data: string): Promise<boolean> =>
+    invokeChecked('localTtyWrite', LOCAL_TTY.WRITE, shellId, data),
+
+  /** 调整窗口尺寸 */
+  resize: (shellId: string, cols: number, rows: number): Promise<boolean> =>
+    invokeChecked('localTtyResize', LOCAL_TTY.RESIZE, shellId, cols, rows),
+
+  /** 关闭一条本机终端 */
+  close: (shellId: string): Promise<boolean> =>
+    invokeChecked('localTtyClose', LOCAL_TTY.CLOSE, shellId),
+
+  /** 执行整条代写命令（AI 建议 / 决策页重跑）：主进程先过风险闸 */
+  runAuthored: (shellId: string, command: string): Promise<boolean> =>
+    invokeChecked('localTtyRunAuthored', LOCAL_TTY.RUN_AUTHORED, shellId, command),
+}
+
+export { sandbox, atCommands, terminalCompletion, localTty }

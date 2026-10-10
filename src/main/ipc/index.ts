@@ -17,6 +17,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import * as CHANNELS from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
+import { registerLocalTerminalHandlers } from './local-terminal'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
 import { registerLlmHandlers } from './llm'
@@ -170,8 +171,10 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
     }
   })
 
-  // 这四个模块会在长生命周期事件源上挂转发回调，返回卸载函数交给 ipcDisposers
+  // 这几个模块会在长生命周期事件源上挂转发回调，返回卸载函数交给 ipcDisposers
   ipcDisposers.push(registerSshIpcHandlers(mainWindow))
+  // 本机终端同样在 PTY 事件源上挂转发（输出 + 退出），必须可撤销
+  ipcDisposers.push(registerLocalTerminalHandlers(mainWindow))
   ipcDisposers.push(registerMonitorIpcHandlers(mainWindow))
   registerStorageIpcHandlers()
   registerLlmHandlers(mainWindow)

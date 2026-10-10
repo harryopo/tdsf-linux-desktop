@@ -86,6 +86,13 @@ llmInlineCompletionCancel
 llmTest
 llmToolApprove
 llmValidate
+localTtyClose
+localTtyList
+localTtyResize
+localTtyRunAuthored
+localTtyStart
+localTtyStatus
+localTtyWrite
 logClearBuffer
 logFlush
 logRead
@@ -133,6 +140,7 @@ onLlmError
 onLlmToken
 onLlmToolApproval
 onLlmToolProgress
+onLocalTtyExit
 onLoopBlocked
 onLoopDecision
 onLoopDone

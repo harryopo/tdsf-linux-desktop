@@ -42,7 +42,7 @@ import { StatusBar } from '@/components/workbench/StatusBar'
 import { WorkbenchLayout } from '@/shell/workbench-layout'
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
-import { openShell, sessionTitle, syncShells } from '@/terminal/shell-launcher'
+import { openLocalShell, openShell, sessionTitle, syncShells } from '@/terminal/shell-launcher'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import '@/styles/workbench-density.css'
 import '@/components/workbench/Workbench.css'
@@ -95,14 +95,17 @@ export const WorkbenchPage: FC = () => {
   /** 终端钮：有终端就聚焦，一个都没有就开一个（点了必须有反应） */
   const focusOrOpenTerminal = useCallback(async () => {
     const store = useTerminalStore.getState()
-    if (activeSessionId && store.activeShellId && store.shells.some((s) => s.shellId === store.activeShellId)) {
+    // 活跃终端不分本机与远端：只要主进程那边还认，就聚焦它
+    if (store.activeShellId && store.shells.some((s) => s.shellId === store.activeShellId)) {
       store.setActiveShell(store.activeShellId)
       setActiveTabId(shellTabId(store.activeShellId))
       return
     }
     if (!activeSessionId) {
-      setActiveTabId(null)
-      toast.info('还没连接服务器 —— 到 SSH 设置里连一台，再开终端')
+      // 没连服务器也能用：本机终端就是为这一步准备的（点了必须有反应，
+      // 而不是把人支到设置页去）
+      const local = await openLocalShell()
+      if (!local.ok) toast.error(`开不出终端：${local.reason}`)
       return
     }
     const result = await openShell(activeSessionId, sessionTitle(activeSessionId))

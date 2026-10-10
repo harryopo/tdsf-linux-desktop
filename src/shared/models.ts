@@ -666,6 +666,17 @@ export interface IpcChannelMap {
   'ssh:shell:list': { args: [string]; return: string[] }
   'ssh:shell:write': { args: [string, string]; return: boolean }
   'ssh:shell:resize': { args: [string, number, number]; return: boolean }
+  // 本机终端（W3）：身份同样是 shellId，输出复用 terminal:data
+  'local-tty:status': {
+    args: []
+    return: { available: boolean; reason: string | null; shellPath: string | null }
+  }
+  'local-tty:start': { args: [{ cols: number; rows: number }?]; return: string }
+  'local-tty:list': { args: []; return: string[] }
+  'local-tty:write': { args: [string, string]; return: boolean }
+  'local-tty:resize': { args: [string, number, number]; return: boolean }
+  'local-tty:close': { args: [string]; return: boolean }
+  'local-tty:run-authored': { args: [string, string]; return: boolean }
   'sftp:list': { args: [string, string]; return: SftpEntry[] }
   'sftp:upload': { args: [string, string, string?]; return: SftpTransferResult }
   'sftp:download': { args: [string, string, string?]; return: SftpTransferResult }

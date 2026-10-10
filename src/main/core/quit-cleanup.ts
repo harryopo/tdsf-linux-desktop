@@ -43,6 +43,8 @@ export interface QuitServices {
   disposeMcpLifecycle: () => unknown
   /** 停掉应用自己起的 OpenHands 容器（后台进程，不管它就留在机器上） */
   stopOpenHands: () => unknown
+  /** 关掉还开着的本机终端（node-pty 起的是真 shell 进程，不管它就留在机器上） */
+  closeLocalPty: () => unknown
   shutdownLangfuse: () => unknown
   cleanupScheduler: () => unknown
   cleanupSidecar: () => unknown
@@ -64,6 +66,8 @@ export function buildQuitSteps(svc: QuitServices): QuitStep[] {
     // 容器和 sidecar 一样是"应用起的后台进程"，排在最前面：
     // 一旦后面的 SSH 收尾吃光整体预算，留在那儿的就是关不掉的孤儿容器
     { name: '停止 OpenHands 容器', run: svc.stopOpenHands, timeoutMs: 8000 },
+    // 本机终端也是应用起的真进程（Windows 上还要连它的子进程树一起端掉）
+    { name: '关闭本机终端', run: svc.closeLocalPty },
     { name: '断开外部 MCP 客户端', run: svc.disconnectExternalMcp },
     { name: '停止文件监听', run: svc.stopFileWatchers },
     { name: '停止监控', run: svc.stopMonitoring },

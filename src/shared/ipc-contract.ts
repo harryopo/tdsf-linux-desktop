@@ -17,7 +17,7 @@
  * 测试会在内存里重算一遍并与盘上文件比对，漂了就红（同 design-contract 的路子）。
  */
 import { z } from 'zod'
-import { AGENT, PROVIDER, SSH } from './ipc-channels'
+import { AGENT, LOCAL_TTY, PROVIDER, SSH } from './ipc-channels'
 
 /** 一条入参：名字用来生成签名，schema 用来运行时校验，ts 用来生成签名里的类型 */
 export interface ContractArg {
@@ -182,6 +182,92 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
       { name: 'shellId', ts: 'string', schema: str },
       { name: 'cols', ts: 'number', schema: z.number() },
       { name: 'rows', ts: 'number', schema: z.number() },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  // 本机终端（W3）。输出仍走 terminal:data（不在此处，理由见上面那段注释）；
+  // local-tty:exit 的载荷是一个裸 shellId，不是对象，所以它和 terminal:data 一样
+  // 留在契约外——契约的 event 支要求对象载荷，硬套会让生成出来的类型撒谎。
+  {
+    kind: 'invoke',
+    api: 'localTtyStatus',
+    channel: LOCAL_TTY.STATUS,
+    doc: '本机终端是否可用（node-pty 装没装上、用的是哪个 Shell）',
+    args: [],
+    resultTs: '{ available: boolean; reason: string | null; shellPath: string | null }',
+    result: z.object({
+      available: z.boolean(),
+      reason: z.nullable(z.string()),
+      shellPath: z.nullable(z.string()),
+    }),
+  },
+  {
+    kind: 'invoke',
+    api: 'localTtyStart',
+    channel: LOCAL_TTY.START,
+    doc: '开一条本机终端，返回 shellId；不可用时抛错并带原因',
+    args: [
+      {
+        name: 'size',
+        ts: '{ cols: number; rows: number } | undefined',
+        schema: opt(z.object({ cols: z.number(), rows: z.number() })),
+      },
+    ],
+    resultTs: 'string',
+    result: str,
+  },
+  {
+    kind: 'invoke',
+    api: 'localTtyList',
+    channel: LOCAL_TTY.LIST,
+    doc: '列出当前开着的本机终端 shellId（标签对账用）',
+    args: [],
+    resultTs: 'string[]',
+    result: arr(str),
+  },
+  {
+    kind: 'invoke',
+    api: 'localTtyWrite',
+    channel: LOCAL_TTY.WRITE,
+    doc: '向本机终端写入键入数据（主进程不逐键判定，见通道注释）',
+    args: [
+      { name: 'shellId', ts: 'string', schema: str },
+      { name: 'data', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'localTtyResize',
+    channel: LOCAL_TTY.RESIZE,
+    doc: '调整本机终端窗口尺寸',
+    args: [
+      { name: 'shellId', ts: 'string', schema: str },
+      { name: 'cols', ts: 'number', schema: z.number() },
+      { name: 'rows', ts: 'number', schema: z.number() },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'localTtyClose',
+    channel: LOCAL_TTY.CLOSE,
+    doc: '关闭一条本机终端（连带杀掉它的子进程树）',
+    args: [{ name: 'shellId', ts: 'string', schema: str }],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'localTtyRunAuthored',
+    channel: LOCAL_TTY.RUN_AUTHORED,
+    doc: '在本机终端执行整条代写命令；主进程先过风险闸，block 级抛错',
+    args: [
+      { name: 'shellId', ts: 'string', schema: str },
+      { name: 'command', ts: 'string', schema: str },
     ],
     resultTs: 'boolean',
     result: bool,

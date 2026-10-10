@@ -34,6 +34,7 @@ import { initScheduler, cleanupScheduler } from './ipc/scheduler'
 // D3：退出时清理 sidecar 与循环工程（以前只挂 global 从未被调用）
 import { cleanupSidecar } from './ipc/sidecar'
 import { cleanupLoopEngineering } from './ipc/loop-engineering'
+import { localPtyManager } from './services/terminal/local-pty'
 // S4：MCP 生命周期的 1 秒轮询、应用自己起的 OpenHands 容器，退出时都要有人收
 import { McpLifecycleManager } from './core/agent/mcp-lifecycle'
 import { stopCachedRunner } from './ipc/sandbox-config'
@@ -245,6 +246,8 @@ const quitCleanup = createQuitCleanup({
       // OpenHands 容器是 `docker compose up -d` 起的后台进程，
       // 退出时不管它就留在机器上占端口，用户下次遇到的是"起不来"而不是"我关掉了"
       stopOpenHands: () => stopCachedRunner(),
+      // 还开着的本机终端：不关的话退出后 shell 连同它跑着的命令留在机器上
+      closeLocalPty: () => localPtyManager.closeAll(),
       shutdownLangfuse: () => LangfuseService.getInstance().shutdown(),
       cleanupScheduler: () => cleanupScheduler(),
       cleanupLoopEngineering: () => cleanupLoopEngineering(),

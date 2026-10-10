@@ -4,6 +4,9 @@ allowBuilds:
   electron: true
   electron-winstaller: false
   esbuild: true
+  # 本机终端的 PTY 是原生模块：install 脚本先取预编译产物，取不到才 node-gyp 现编。
+  # 不放开这个开关，pnpm 会静默跳过构建，运行时才报找不到 pty.node。
+  node-pty: true
   protobufjs: true
   sharp: true
   ssh2: true
@@ -16,6 +19,7 @@ onlyBuiltDependencies:
   - cpu-features
   - electron
   - esbuild
+  - node-pty
   - protobufjs
   - sharp
   - tree-sitter-bash

@@ -52,6 +52,7 @@ export type StreamEventName =
   | 'llm:token'
   | 'llm:tool-approval'
   | 'llm:tool-progress'
+  | 'local-tty:exit'
   | 'loop:blocked'
   | 'loop:decision'
   | 'loop:done'
@@ -197,6 +198,12 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '工具调用三段进度；渲染层走的是 agent:tool-event 那条，此通道未订阅',
+  },
+  'local-tty:exit': {
+    class: 'LIFECYCLE',
+    ownership: false,
+    coalescable: false,
+    note: '本机终端进程退出：一条=一条通道，合并会把另一条终端的关闭事件吞掉',
   },
   'loop:blocked': {
     class: 'CRITICAL',

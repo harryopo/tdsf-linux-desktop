@@ -42,6 +42,34 @@ export interface ContractedInvokeApi {
    * 通道 `ssh:shell:resize` */
   sshShellResize(shellId: string, cols: number, rows: number): Promise<boolean>
 
+  /** 本机终端是否可用（node-pty 装没装上、用的是哪个 Shell）
+   * 通道 `local-tty:status` */
+  localTtyStatus(): Promise<{ available: boolean; reason: string | null; shellPath: string | null }>
+
+  /** 开一条本机终端，返回 shellId；不可用时抛错并带原因
+   * 通道 `local-tty:start` */
+  localTtyStart(size?: { cols: number; rows: number }): Promise<string>
+
+  /** 列出当前开着的本机终端 shellId（标签对账用）
+   * 通道 `local-tty:list` */
+  localTtyList(): Promise<string[]>
+
+  /** 向本机终端写入键入数据（主进程不逐键判定，见通道注释）
+   * 通道 `local-tty:write` */
+  localTtyWrite(shellId: string, data: string): Promise<boolean>
+
+  /** 调整本机终端窗口尺寸
+   * 通道 `local-tty:resize` */
+  localTtyResize(shellId: string, cols: number, rows: number): Promise<boolean>
+
+  /** 关闭一条本机终端（连带杀掉它的子进程树）
+   * 通道 `local-tty:close` */
+  localTtyClose(shellId: string): Promise<boolean>
+
+  /** 在本机终端执行整条代写命令；主进程先过风险闸，block 级抛错
+   * 通道 `local-tty:run-authored` */
+  localTtyRunAuthored(shellId: string, command: string): Promise<boolean>
+
   /** 列出 Provider（不含 apiKey，附 hasApiKey）
    * 通道 `provider:list` */
   providerList(onlyEnabled?: boolean): Promise<PersistedProviderConfig[]>

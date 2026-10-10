@@ -24,7 +24,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['better-sqlite3', 'ssh2', '@photostructure/sqlite-vec', /scripts\/promptfoo\/.*/]
+        external: ['better-sqlite3', 'ssh2', 'node-pty', '@photostructure/sqlite-vec', /scripts\/promptfoo\/.*/]
       }
     }
   },

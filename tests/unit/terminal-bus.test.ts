@@ -62,20 +62,22 @@ afterEach(() => {
 describe('terminal-bus', () => {
   it('没人订阅时先暂存，视图挂上一次性补写（开终端那几帧的输出不丢）', async () => {
     const bus = await loadBus()
+    const { useTerminalStore } = await import('@/stores/terminal-store')
+    // 场景就是真实的那个：标签已经建好（store 认识这条 shellId），
+    // 但 TerminalView 还没挂上，此刻到的输出必须攒着
+    useTerminalStore.getState().addShell({
+      kind: 'ssh',
+      shellId: 'known-later',
+      sessionId: 's1',
+      title: 'A',
+      openedAt: 1,
+    })
     bus.installTerminalBus()
 
     api.push('known-later', '第一段 ')
     api.push('known-later', '第二段')
 
     const got: string[] = []
-    // 用 store 里已存在的终端，避免这里顺带触发对账（对账另有用例）
-    const { useTerminalStore } = await import('@/stores/terminal-store')
-    useTerminalStore.getState().addShell({
-      shellId: 'known-later',
-      sessionId: 's1',
-      title: 'A',
-      openedAt: 1,
-    })
     bus.subscribeShellData('known-later', (d) => got.push(d))
     expect(got.join(''), '补写必须把两段都还给视图').toBe('第一段 第二段')
   })
@@ -84,7 +86,7 @@ describe('terminal-bus', () => {
     const bus = await loadBus()
     bus.installTerminalBus()
     const { useTerminalStore } = await import('@/stores/terminal-store')
-    useTerminalStore.getState().addShell({ shellId: 'live', sessionId: 's1', title: 'A', openedAt: 1 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'live', sessionId: 's1', title: 'A', openedAt: 1 })
 
     const got: string[] = []
     const off = bus.subscribeShellData('live', (d) => got.push(d))
@@ -104,7 +106,7 @@ describe('terminal-bus', () => {
 
     // 注入自证：假靶子推一条，视图只该收到一次，不是三次
     const { useTerminalStore } = await import('@/stores/terminal-store')
-    useTerminalStore.getState().addShell({ shellId: 'x', sessionId: 's1', title: 'A', openedAt: 1 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'x', sessionId: 's1', title: 'A', openedAt: 1 })
     let hits = 0
     bus.subscribeShellData('x', () => {
       hits += 1
@@ -116,7 +118,7 @@ describe('terminal-bus', () => {
   it('查无此终端才去对账，而且一批输出只问一次', async () => {
     const bus = await loadBus()
     const { useTerminalStore } = await import('@/stores/terminal-store')
-    useTerminalStore.getState().addShell({ shellId: 'real', sessionId: 's1', title: 'A', openedAt: 1 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'real', sessionId: 's1', title: 'A', openedAt: 1 })
     vi.useFakeTimers()
     bus.installTerminalBus()
 
@@ -136,7 +138,7 @@ describe('terminal-bus', () => {
     const bus = await loadBus()
     bus.installTerminalBus()
     const { useTerminalStore } = await import('@/stores/terminal-store')
-    useTerminalStore.getState().addShell({ shellId: 'big', sessionId: 's1', title: 'A', openedAt: 1 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'big', sessionId: 's1', title: 'A', openedAt: 1 })
 
     const chunk = 'x'.repeat(20_000)
     const total = 60

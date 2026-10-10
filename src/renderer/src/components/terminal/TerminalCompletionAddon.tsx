@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Terminal } from '@xterm/xterm'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
+import type { ShellKind } from '../../stores/terminal-store'
 import './TerminalCompletionAddon.css'
 
 /** 组件 Props */
@@ -23,6 +24,8 @@ interface TerminalCompletionAddonProps {
   terminal: Terminal
   /** 终端通道 ID（补全结果写进这一条终端，不是整条会话） */
   shellId: string
+  /** 本机 / 远端：补全文本要写回各自的通道 */
+  kind: ShellKind
 }
 
 /** 补全建议项（与 preload 暴露类型一致） */
@@ -40,6 +43,7 @@ interface CompletionSuggestion {
 const TerminalCompletionAddon: React.FC<TerminalCompletionAddonProps> = ({
   terminal,
   shellId,
+  kind,
 }) => {
   const [suggestion, setSuggestion] = useState<CompletionSuggestion | null>(null)
   const [position, setPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
@@ -105,14 +109,16 @@ const TerminalCompletionAddon: React.FC<TerminalCompletionAddonProps> = ({
     const completion = suggestion.completion
     if (!completion) return
     try {
-      await window.electronAPI.sshShellWrite(shellId, completion)
+      const api = window.electronAPI
+      if (kind === 'local') await api.localTtyWrite?.(shellId, completion)
+      else await api.sshShellWrite(shellId, completion)
       await window.electronAPI.terminalCompletionAccept(suggestion.command)
       inputRef.current += completion
       clearSuggestion()
     } catch (err) {
       console.error('[TerminalCompletionAddon] 接受建议失败:', err)
     }
-  }, [suggestion, terminal, shellId, clearSuggestion])
+  }, [suggestion, terminal, shellId, kind, clearSuggestion])
 
   useEffect(() => {
     mountedRef.current = true

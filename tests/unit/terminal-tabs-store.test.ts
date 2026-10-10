@@ -6,10 +6,22 @@
  * 另外钉住"会话断了标签必须消失"——留着点不动的死标签比少一个标签更糟。
  */
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useTerminalStore, shellTabLabel, type TerminalShell } from '@/stores/terminal-store'
+import {
+  useTerminalStore,
+  shellTabLabel,
+  visibleShells,
+  type ShellKind,
+  type TerminalShell,
+} from '@/stores/terminal-store'
 
-function shell(shellId: string, sessionId: string, title: string, openedAt: number): TerminalShell {
-  return { shellId, sessionId, title, openedAt }
+function shell(
+  shellId: string,
+  sessionId: string | null,
+  title: string,
+  openedAt: number,
+  kind: ShellKind = 'ssh',
+): TerminalShell {
+  return { shellId, kind, sessionId, title, openedAt }
 }
 
 function state() {
@@ -85,6 +97,22 @@ describe('终端标签表', () => {
     state().addShell(shell('b1', 's2', 'B', 2))
     expect(state().shellsOf('s1').map((s) => s.shellId)).toEqual(['a1'])
     expect(state().shellsOf('没有')).toEqual([])
+  })
+
+  it('本机终端不受会话影响：连上服务器后本机标签还在', () => {
+    state().addShell(shell('local1', null, '本机 · pwsh', 1, 'local'))
+    state().addShell(shell('r1', 's1', 'web-03', 2))
+
+    expect(visibleShells(state().shells, 's1').map((s) => s.shellId)).toEqual(['local1', 'r1'])
+    expect(visibleShells(state().shells, 's2').map((s) => s.shellId)).toEqual(['local1'])
+    expect(visibleShells(state().shells, null).map((s) => s.shellId)).toEqual(['local1'])
+  })
+
+  it('断开某条会话不会带走本机终端', () => {
+    state().addShell(shell('local1', null, '本机 · pwsh', 1, 'local'))
+    state().addShell(shell('r1', 's1', 'web-03', 2))
+    state().dropSession('s1')
+    expect(state().shells.map((s) => s.shellId)).toEqual(['local1'])
   })
 
   it('标题可以回填（连接时还不知道主机名的场景）', () => {

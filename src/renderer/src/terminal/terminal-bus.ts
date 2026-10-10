@@ -94,6 +94,13 @@ export function installTerminalBus(): void {
   api.onTerminalData((shellId: string, data: string) => {
     dispatch(shellId, data)
   })
+  // 本机终端进程退出（用户敲了 exit）：标签必须跟着走，缓存也要丢掉，
+  // 否则同一个 shellId 万一走到下一条终端上会补写出上一辈的内容。
+  api.onLocalTtyExit?.((shellId: string) => {
+    buffered.delete(shellId)
+    bufferedChars.delete(shellId)
+    useTerminalStore.getState().removeShell(shellId)
+  })
 }
 
 /**

@@ -127,6 +127,7 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'llm:token': 'DISPOSABLE',
       'llm:tool-approval': 'CRITICAL',
       'llm:tool-progress': 'SNAPSHOT_TAIL',
+      'local-tty:exit': 'LIFECYCLE',
       'loop:blocked': 'CRITICAL',
       'loop:decision': 'CRITICAL',
       'loop:done': 'CRITICAL',

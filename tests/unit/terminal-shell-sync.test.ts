@@ -45,7 +45,7 @@ afterEach(() => {
 describe('syncShells', () => {
   it('主进程多出来的补进界面、已经不认的摘掉，标题用服务器名', async () => {
     setApi({ s1: ['a', 'b'] })
-    useTerminalStore.getState().addShell({ shellId: 'stale', sessionId: 's1', title: 'web-03', openedAt: 1 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'stale', sessionId: 's1', title: 'web-03', openedAt: 1 })
     useTerminalStore.getState().setActiveShell('stale')
 
     await syncShells()
@@ -68,8 +68,8 @@ describe('syncShells', () => {
       activeSessionId: 's1',
     })
     setApi({ s1: 'throw', s2: ['keep'] })
-    useTerminalStore.getState().addShell({ shellId: 'keep', sessionId: 's2', title: 'db-01', openedAt: 1 })
-    useTerminalStore.getState().addShell({ shellId: 'gone', sessionId: 's1', title: 'web-03', openedAt: 2 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'keep', sessionId: 's2', title: 'db-01', openedAt: 1 })
+    useTerminalStore.getState().addShell({ kind: 'ssh', shellId: 'gone', sessionId: 's1', title: 'web-03', openedAt: 2 })
     useTerminalStore.getState().setActiveShell('keep')
 
     await syncShells()

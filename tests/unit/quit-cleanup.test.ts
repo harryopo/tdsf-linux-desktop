@@ -37,6 +37,7 @@ function fakeServices(order: string[], delayMs = 0): QuitServices {
     stopMcpServer: mk('mcp'),
     disposeMcpLifecycle: mk('mcp-lifecycle'),
     stopOpenHands: mk('openhands'),
+    closeLocalPty: mk('local-pty'),
     shutdownLangfuse: mk('langfuse'),
     cleanupScheduler: mk('scheduler'),
     cleanupLoopEngineering: mk('loop'),
@@ -77,7 +78,7 @@ describe('退出清理闸门（行为）', () => {
 
   it('步骤顺序：子进程最先关，骑在 SSH 上的先停', () => {
     const names = buildQuitSteps(fakeServices([])).map((s) => s.name)
-    expect(names).toHaveLength(12)
+    expect(names).toHaveLength(13)
     const at = (n: string) => names.indexOf(n)
     // 上一版 sidecar 排第 6：SSH 一吃光整体上限它就饿死，孤儿进程 bug 原地复活
     expect(at('关闭 sidecar'), 'sidecar 必须排第一').toBe(0)
@@ -86,6 +87,9 @@ describe('退出清理闸门（行为）', () => {
     // OpenHands 容器同样是留在机器上的后台进程，不能排到预算之后
     expect(at('停止 OpenHands 容器'), '容器必须在断 SSH 之前停').toBeLessThan(at('断开 SSH'))
     expect(at('停止 OpenHands 容器'), '容器紧跟 sidecar（同为外部进程）').toBeLessThanOrEqual(2)
+    // 本机终端也是留在机器上的真进程（shell + 它的子进程），不能排到预算之后
+    expect(at('关闭本机终端'), '本机终端必须在断 SSH 之前关').toBeLessThan(at('断开 SSH'))
+    expect(at('关闭本机终端'), '本机终端紧跟前两个外部进程').toBeLessThanOrEqual(3)
     // 生命周期那把 1 秒轮询必须在 MCP Server 关掉之后摘（还在用的时候摘会漏日志）
     expect(at('摘除 MCP 生命周期轮询')).toBeGreaterThan(at('停止 MCP Server'))
   })
