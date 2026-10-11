@@ -9,8 +9,12 @@
  * 用法：node scripts/design/design-contract.mjs          # 人看
  *      node scripts/design/design-contract.mjs --json   # 机器读
  * 解析不到某个声明 = 直接失败，不许"没找到就当通过"。
+ *
+ * 为什么债务刻度用 Node 原生遍历而不是 execSync('grep ... | wc -l')：
+ * 外部 grep 不在 Windows 默认 PATH 里（只有装了 Git for Bash 的机器碰巧能跑），
+ * 一旦缺席这条闸就抛异常、--json 输出为空，测试那边 JSON.parse('') 退化成 {}，
+ * 整道门禁变成"看不见地在跑"。顺带消掉把正则拼进 shell 命令的注入面。
  */
-import { execSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
@@ -63,24 +67,46 @@ const badText = [...TAILWIND.matchAll(/--text-([a-z-]+?)(--line-height)?:\s*([^;
 if (badText.length) problems.push(`tailwind.css 有 ${badText.length} 个 --text-* 档没回落到 ui 令牌`)
 
 // ===== 5. 债务刻度（只许降不许升；每退一批把上限改小并写日期） =====
-function countFiles(pattern, include, where = 'src/renderer/src') {
+/** 递归收集目录下的文件绝对路径；目录不存在就抛，不许"扫不到就当 0" */
+function walkFiles(dir) {
+  let entries
   try {
-    const out = execSync(`grep -rl --include=${include} -- "${pattern}" ${where}`, { encoding: 'utf8' })
-    return out.trim() ? out.trim().split(/\r?\n/).length : 0
-  } catch (e) {
-    // grep 没命中返回 1，是真·零；其它错误必须冒出来，不能当成 0
-    if (e.status === 1) return 0
-    throw e
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    throw new Error(`债务刻度找不到扫描目录：${dir}`)
   }
+  const out = []
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue
+      out.push(...walkFiles(path.join(dir, e.name)))
+    } else {
+      out.push(path.join(dir, e.name))
+    }
+  }
+  return out
 }
-function countLines(pattern, include, where = 'src/renderer/src') {
-  try {
-    const out = execSync(`grep -rE --include=${include} -- "${pattern}" ${where} | wc -l`, { encoding: 'utf8' })
-    return parseInt(out.trim(), 10)
-  } catch (e) {
-    if (e.status === 1) return 0
-    throw e
+/** include 形如 '*.tsx'，取扩展名；命中的文件内容缓存后复用 */
+function scanFiles(include, where) {
+  const ext = include.replace(/^\*/, '')
+  const base = path.join(ROOT, where)
+  return walkFiles(base)
+    .filter((f) => f.endsWith(ext))
+    .map((f) => ({ file: f, text: fs.readFileSync(f, 'utf8') }))
+}
+/** 等价于 grep -rl PATTERN --include=INCLUDE WHERE：命中过的文件个数 */
+function countFiles(pattern, include = '*.tsx', where = 'src/renderer/src') {
+  const rx = new RegExp(pattern)
+  return scanFiles(include, where).filter((s) => rx.test(s.text)).length
+}
+/** 等价于 grep -rE PATTERN --include=INCLUDE WHERE | wc -l：按行计数，一行只算一次 */
+function countLines(pattern, include = '*.tsx', where = 'src/renderer/src') {
+  const rx = new RegExp(pattern)
+  let lines = 0
+  for (const s of scanFiles(include, where)) {
+    for (const line of s.text.split(/\r?\n/)) if (rx.test(line)) lines += 1
   }
+  return lines
 }
 
 const RATCHETS = [
