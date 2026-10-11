@@ -1005,3 +1005,71 @@ export class LineGate {
     return this.inAltScreen
   }
 }
+
+// ---------------------------------------------------------------------------
+// 工具调用（AI / MCP / SDK）的同一个闸
+// ---------------------------------------------------------------------------
+
+/**
+ * SDK/MCP 工具的入参形状单源：哪个键是待执行命令、哪个键是写入目标路径。
+ *
+ * 键名取自 `src/main/core/agent/claude-sdk/claude-sdk-tools.ts` 里各工具的 Zod shape
+ * （`ssh_exec` 的 `command`、`sftp_write_file` 的 `path`），不是猜的。
+ * 加新工具必须同时在这里登记 —— 没登记的工具按 fail-closed 拒绝。
+ */
+const TOOL_CALL_SHAPES: Record<string, { commandKey?: string; writePathKey?: string }> = {
+  ssh_exec: { commandKey: 'command' },
+  sftp_write_file: { writePathKey: 'path' },
+  sftp_read_file: {},
+  sftp_list: {},
+}
+
+export interface ToolCallVerdict {
+  allow: boolean
+  level: CommandRiskLevel
+  reason: string
+}
+
+/** MCP 全限定名 `mcp__<server>__<tool>` 取末段；不是这个形状就原样返回 */
+function bareToolName(name: string): string {
+  const idx = name.lastIndexOf('__')
+  return idx >= 0 ? name.slice(idx + 2) : name
+}
+
+/**
+ * 评估一次工具调用能不能放行（P0-4 的落点：把 Claude SDK 的 canUseTool 接回同一个闸）
+ *
+ * 之前 SDK 侧写死 `permissionMode: 'bypassPermissions'`，等于把唯一在跑的权限系统关掉。
+ * 原注释的理由是"内置 Bash/Edit 不可用，所以 bypass 安全"——那句前提是假的：
+ * bypass 模式下 SDK **内建**的 Bash/Write 会直接在用户这台机器上执行，
+ * 而 MCP 的 ssh_exec 更是绕过一切判定直落远端。现在两条都判：
+ * 命令类复用 evaluateCommand（与终端键入、AI 代写同一套判据），
+ * 写入类按受保护路径判，登记表里没有的工具一律拒绝。
+ */
+export function assessToolCall(toolName: string, input: Record<string, unknown>): ToolCallVerdict {
+  const name = bareToolName(toolName)
+  const shape = TOOL_CALL_SHAPES[name]
+  if (!shape) {
+    return { allow: false, level: 'block', reason: `未登记的工具，按 fail-closed 拒绝：${toolName}` }
+  }
+
+  if (shape.commandKey) {
+    const command = input[shape.commandKey]
+    if (typeof command === 'string' && command.trim()) {
+      const verdict = evaluateCommand(command)
+      if (verdict.level === 'block') {
+        return { allow: false, level: 'block', reason: `高危命令已被拦截：${verdict.reason}` }
+      }
+      return { allow: true, level: verdict.level, reason: verdict.reason }
+    }
+  }
+
+  if (shape.writePathKey) {
+    const target = input[shape.writePathKey]
+    if (typeof target === 'string' && isProtectedWriteTarget(target)) {
+      return { allow: false, level: 'block', reason: `要写入系统关键路径：${normTarget(target)}` }
+    }
+  }
+
+  return { allow: true, level: 'safe', reason: '未命中风险规则' }
+}

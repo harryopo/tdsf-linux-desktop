@@ -39,6 +39,7 @@ import type { ProviderConfig, ThinkingStrength } from '../providers/types'
 import type { ChatResult, CompactionLevel, ClaudeSdkChatParams } from '@shared/agent-types'
 import { redactSecrets } from '../providers/redact'
 import { logger } from '../../../services/log/logger'
+import { assessToolCall } from '../../command-gate'
 import { createLinuxOpsMcpServer, TDSF_LINUX_OPS_SERVER_NAME } from './claude-sdk-tools'
 import {
   convertClaudeResultToChatResult,
@@ -105,6 +106,27 @@ function strengthToSdkOptions(
         thinking: { type: 'adaptive' },
       }
   }
+}
+
+/**
+ * SDK 权限策略（P0-4）
+ *
+ * 默认 **不** 跳过权限。唯一的逃生阀是环境变量 `TDSF_ALLOW_SKIP_PERMISSIONS=1`，
+ * 供离线演示 / CI 使用；一旦生效会打一条 warn 日志，让"AI 跳过了审批"在日志里可见。
+ *
+ * 为什么必须默认关：写死 `permissionMode: 'bypassPermissions'` 的旧注释称
+ * "内置 Bash/Edit 不可用，bypass 安全"。那句前提是假的 —— bypass 模式下 SDK 内建的
+ * Bash/Write 会直接在用户这台机器上执行，MCP 的 ssh_exec 更是绕过一切判定直落远端。
+ * 现在内建工具由 `tools: []` 真正关掉（见 buildOptions），命令类调用由 canUseTool
+ * 接回 core/command-gate 的同一个闸。
+ */
+export const SKIP_PERMISSIONS_ENV = 'TDSF_ALLOW_SKIP_PERMISSIONS'
+
+export function resolveSdkPermissionPolicy(
+  env: Record<string, string | undefined> = process.env
+): { bypass: boolean; mode: PermissionMode } {
+  const bypass = env[SKIP_PERMISSIONS_ENV] === '1'
+  return { bypass, mode: bypass ? 'bypassPermissions' : 'default' }
 }
 
 /**
@@ -186,11 +208,37 @@ export class ClaudeSdkProvider {
       env.ANTHROPIC_BASE_URL = this.config.baseURL
     }
 
+    const policy = resolveSdkPermissionPolicy()
+    if (policy.bypass) {
+      // 逃生阀生效时必须在日志里留痕：否则"AI 跳过了审批"这件事没人知道
+      this.log.warn(
+        `${SKIP_PERMISSIONS_ENV}=1：本次 SDK 调用跳过权限判定，内建工具仍关闭但 canUseTool 不再拦截`
+      )
+    }
+
     const options: Options = {
       model: this.config.model,
       systemPrompt: params.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
-      permissionMode: 'bypassPermissions' as PermissionMode, // 桌面应用场景：模型通过 MCP 工具操作，内置 Bash/Edit 不可用，bypass 安全
-      allowDangerouslySkipPermissions: true, // 配合 bypassPermissions（SDK 强制要求）
+      permissionMode: policy.mode,
+      // allowDangerouslySkipPermissions 由 SDK 强制与 bypassPermissions 成对出现，
+      // 所以只在逃生阀打开时才带上。值取自 policy 而不是写死 true ——
+      // 源码里留一个字面量 true 就等于留了一个"复制粘贴就能绕过审批"的模板
+      // （tests/unit/claude-sdk-permission-gate.test.ts 用 AST 认这个形状）。
+      ...(policy.bypass ? { allowDangerouslySkipPermissions: policy.bypass } : {}),
+      // 内建工具一律不给：`tools: []` 是 SDK 官方的"禁用全部内建工具"写法。
+      // 这一步让系统提示里那句"只能用 MCP 工具"从愿望变成事实。
+      tools: [],
+      // 工具调用回到与终端、AI 代写同一个闸（core/command-gate）
+      canUseTool: policy.bypass
+        ? undefined
+        : async (toolName, input) => {
+            const verdict = assessToolCall(toolName, input)
+            if (!verdict.allow) {
+              this.log.warn(`工具调用被风险闸拒绝：${toolName}`, { reason: verdict.reason })
+              return { behavior: 'deny', message: verdict.reason }
+            }
+            return { behavior: 'allow' }
+          },
       abortController: undefined, // 在 generate/stream 中注入
       cwd: params.cwd ?? process.cwd(),
       mcpServers,
