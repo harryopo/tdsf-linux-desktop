@@ -2,12 +2,27 @@
  * TerminalView 终端样式
  */
 
-/* 终端容器 - 与 xterm 主题同色（#0f1011），v2.5 加大内边距提升呼吸感 */
+/*
+ * 终端外壳：呼吸感（14/16/10）留在这一层，**不要留进 .terminal-view**。
+ *
+ * FitAddon 是按 open() 传进去的那个元素（= .terminal-view）的高算行列的，
+ * 而 xterm 真正的绘制盒是它内部的 .xterm。留白放在 .terminal-view 上（padding 或 inset）时，
+ * 算行数用的框比看得见的框高一个留白：实测放大窗口后按 555 算出 22 行、可视区只有 531，
+ * 最后一行垂到容器外 10~13px —— 就是用户说的"放大后下面看不见"。
+ * 判据：tests/e2e/terminal-fit-resize.spec.ts（把 padding 放回去它就红）。
+ */
+.term-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 14px 16px 10px;
+}
+
+/* 终端容器 - 与 xterm 主题同色（#0f1011）；尺寸必须与可视区严格等大，不留任何内边距 */
 .terminal-view {
   width: 100%;
   height: 100%;
   background: var(--trae-terminal-block-bg);
-  padding: 14px 16px 10px;
   overflow: hidden;
 }
 

@@ -201,8 +201,8 @@ const TerminalPanel: FC<{
             </button>
           </div>
         )}
-        {/* 终端视图：包裹层 flex:1 确保高度占满剩余空间（.terminal-view 为 height:100%） */}
-        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        {/* 终端视图：留白在 .term-host 这一层，.terminal-view 必须与可视区等大（见 TerminalView.css 注释） */}
+        <div className="term-host">
           {sessionShells.map((shell) => (
             <TerminalView
               key={shell.shellId}
