@@ -107,20 +107,30 @@ function errMessage(err: unknown): string {
  * 而 ssh2 的 Channel 上没有这几个方法——缺一个就整条请求报错，界面只看到一个 502。
  * setTimeout 给的是**真**定时器：只是把空闲超时接回 destroy，不然预览会永远挂着。
  */
-function asHttpSocket<T extends Duplex>(stream: T): T {
-  const s = stream as T & Record<string, unknown>
-  if (typeof s.setNoDelay !== 'function') s.setNoDelay = () => s
-  if (typeof s.setKeepAlive !== 'function') s.setKeepAlive = () => s
-  if (typeof s.ref !== 'function') s.ref = () => s
-  if (typeof s.unref !== 'function') s.unref = () => s
-  if (typeof s.setTimeout !== 'function') {
-    s.setTimeout = (ms: number) => {
-      const timer = setTimeout(() => s.destroy?.(new Error(`隧道空闲超时（${ms}ms）`)), ms)
+/** Node 的 http 客户端会在这五个方法上各调一次，ssh2 的 Channel 一个都没有 */
+interface HttpSocketExtras {
+  setNoDelay: () => unknown
+  setKeepAlive: () => unknown
+  ref: () => unknown
+  unref: () => unknown
+  setTimeout: (ms: number, cb?: () => void) => unknown
+}
+
+function asHttpSocket<T extends Duplex>(stream: T): T & HttpSocketExtras {
+  const target = stream as T & Partial<HttpSocketExtras>
+  const self = target as T & HttpSocketExtras
+  if (typeof target.setNoDelay !== 'function') target.setNoDelay = () => self
+  if (typeof target.setKeepAlive !== 'function') target.setKeepAlive = () => self
+  if (typeof target.ref !== 'function') target.ref = () => self
+  if (typeof target.unref !== 'function') target.unref = () => self
+  if (typeof target.setTimeout !== 'function') {
+    target.setTimeout = (ms: number) => {
+      const timer = setTimeout(() => self.destroy?.(new Error(`隧道空闲超时（${ms}ms）`)), ms)
       timer.unref?.()
-      return s
+      return self
     }
   }
-  return s
+  return self
 }
 
 /**
