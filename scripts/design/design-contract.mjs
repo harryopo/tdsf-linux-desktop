@@ -87,14 +87,14 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 67,
-    why: '2026-10-07 告警抽屉换成自研 Sheet 后实测 68→67（抽屉不再引 --trae-* 色值）。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 66,
+    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 125,
-    why: '2026-10-07 学习路径删掉「查看全部」死按钮，其内联 ChevronRight 颜色随之消失，实测 126→125。内联视觉属性绕开令牌，主题切换抓不到它',
+    cap: 113,
+    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）。剩下的多是运行时算出来的颜色，那些本来就得内联',
   },
   {
     name: '还 import antd 的渲染层文件数',

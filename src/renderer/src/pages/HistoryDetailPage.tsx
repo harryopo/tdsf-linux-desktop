@@ -278,7 +278,7 @@ export function HistoryDetailPage() {
       <div className="hist-detail-content">
         {/* Card 1: 决策摘要 */}
         <section className="hist-card">
-          <SectionHead icon={<ScrollText className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="决策摘要" />
+          <SectionHead icon={<ScrollText className="shrink-0 size-4 text-ink" />} title="决策摘要" />
           <SummaryRow label="问题">{card.problem}</SummaryRow>
           <SummaryRow label="根因">{card.hypothesis}</SummaryRow>
           <SummaryRow label="决策">{card.fixDescription}</SummaryRow>
@@ -313,7 +313,7 @@ export function HistoryDetailPage() {
         {/* Card 2: 证据溯源链 */}
         <section className="hist-card">
           <SectionHead
-            icon={<ScrollText className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />}
+            icon={<ScrollText className="shrink-0 size-4 text-ink" />}
             title="证据溯源链"
             right={
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -367,7 +367,7 @@ export function HistoryDetailPage() {
         {/* Card 3: 执行结果（DecisionCard 无 before/after 指标对比数据） */}
         <section className="hist-card">
           <SectionHead
-            icon={<Activity className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />}
+            icon={<Activity className="shrink-0 size-4 text-ink" />}
             title="执行结果"
             right={
               <span className="hist-result-success" style={{ color: executionHeadline.color }}>
@@ -419,7 +419,7 @@ export function HistoryDetailPage() {
 
         {/* Card 4: 知识库更新（DecisionCard 无 knowledgeId，展示决策已归档） */}
         <section className="hist-card">
-          <SectionHead icon={<Book className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="知识库更新" />
+          <SectionHead icon={<Book className="shrink-0 size-4 text-ink" />} title="知识库更新" />
           <div className="hist-kb-row">
             <div className="hist-kb-left">
               <CheckCircle2 className="shrink-0" style={{ width: 16, height: 16, color: 'var(--status-success-text)' }} />
@@ -441,7 +441,7 @@ export function HistoryDetailPage() {
 
         {/* Card 5: 操作日志（使用 buildAuditRows） */}
         <section className="hist-card">
-          <SectionHead icon={<List className="shrink-0" style={{ width: 16, height: 16, color: 'var(--trae-icon-default)' }} />} title="操作日志" />
+          <SectionHead icon={<List className="shrink-0 size-4 text-ink" />} title="操作日志" />
           <div className="hist-timeline">
             {auditRows.map((row, idx) => {
               const iconName = pickAuditIcon(row.operator, row.result)

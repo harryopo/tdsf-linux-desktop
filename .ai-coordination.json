@@ -2,39 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-11T01:50:49.047Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-11T01:50:49.047Z",
-      "lastActiveAt": "2026-10-11T01:50:49.047Z",
-      "task": "W5 预览：句柄协议 + 端口转发 + 面板",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "W5 预览：句柄协议 + 端口转发 + 面板",
-          "claimedAt": "2026-10-11T01:50:49.047Z"
-        },
-        {
-          "path": "src/shared/models.ts",
-          "task": "W5 预览：句柄协议 + 端口转发 + 面板",
-          "claimedAt": "2026-10-11T01:50:49.047Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "W5 预览：句柄协议 + 端口转发 + 面板",
-          "claimedAt": "2026-10-11T01:50:49.047Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "W5 预览：句柄协议 + 端口转发 + 面板",
-          "claimedAt": "2026-10-11T01:50:49.047Z"
-        }
-      ],
-      "expiresAt": "2026-10-11T03:50:49.047Z"
-    }
-  },
+  "lastUpdated": "2026-10-11T01:52:22.637Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -6580,6 +6549,34 @@
       "file": "src/main/ipc/index.ts",
       "task": "W5 预览：句柄协议 + 端口转发 + 面板",
       "timestamp": "2026-10-11T01:50:49.047Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "W5 预览：句柄协议 + 端口转发 + 面板",
+      "timestamp": "2026-10-11T01:52:22.637Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "W5 预览：句柄协议 + 端口转发 + 面板",
+      "timestamp": "2026-10-11T01:52:22.637Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "W5 预览：句柄协议 + 端口转发 + 面板",
+      "timestamp": "2026-10-11T01:52:22.637Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "W5 预览：句柄协议 + 端口转发 + 面板",
+      "timestamp": "2026-10-11T01:52:22.637Z"
     }
   ],
   "coordinationAudit": {

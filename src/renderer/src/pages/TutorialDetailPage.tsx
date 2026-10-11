@@ -761,7 +761,7 @@ export function TutorialDetailPage() {
                   <div className="tut-progress-node">
                     {status === 'completed' && (
                       <div className="tut-progress-indicator tut-progress-indicator--completed">
-                        <Check size={12} style={{ color: 'var(--trae-special-white)' }} />
+                        <Check size={12} className="text-primary-foreground" />
                       </div>
                     )}
                     {status === 'in-progress' && (
@@ -847,16 +847,16 @@ export function TutorialDetailPage() {
               {/* 按钮组 */}
               <div className="tut-btn-group">
                 <button type="button" data-dom-id="btn-prev-chapter" aria-label="上一章" onClick={handlePrev} disabled={isFirst} className="tut-chapter-btn tut-chapter-btn--prev tut-btn-press">
-                  <ArrowLeft size={14} style={{ color: 'currentColor' }} />
+                  <ArrowLeft size={14} />
                   上一章
                 </button>
                 <button type="button" data-dom-id="btn-complete-chapter" aria-label="标记完成" onClick={handleComplete} className="tut-chapter-btn tut-chapter-btn--complete tut-btn-press">
-                  <Check size={14} style={{ color: 'var(--trae-special-white)' }} />
+                  <Check size={14} className="text-primary-foreground" />
                   标记完成
                 </button>
                 <button type="button" data-dom-id="btn-next-chapter" aria-label="下一章" onClick={handleNext} disabled={isLast} className="tut-chapter-btn tut-chapter-btn--next tut-btn-press">
                   下一章
-                  <ArrowRight size={14} style={{ color: 'currentColor' }} />
+                  <ArrowRight size={14} />
                 </button>
               </div>
             </article>
@@ -875,7 +875,7 @@ export function TutorialDetailPage() {
               </pre>
               <div className="tut-practice-btn-row">
                 <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} disabled={sandboxRunning} className="tut-practice-btn tut-btn-press">
-                  <Terminal size={14} style={{ color: 'currentColor' }} />
+                  <Terminal size={14} />
                   {sandboxRunning ? '沙箱执行中...' : '打开沙箱练习'}
                 </button>
               </div>
@@ -1006,7 +1006,7 @@ export function TutorialDetailPage() {
           {/* 右：继续学习按钮 */}
           <button type="button" data-dom-id="btn-continue-learning" aria-label="继续学习" onClick={handleContinueLearning} className="tut-footer-continue-btn tut-btn-press">
             继续学习
-            <ArrowRight size={14} style={{ color: 'var(--trae-special-white)' }} />
+            <ArrowRight size={14} className="text-primary-foreground" />
           </button>
         </div>
       </footer>

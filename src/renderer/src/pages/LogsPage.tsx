@@ -484,7 +484,7 @@ export function LogsPage() {
           aria-label="导出 CSV"
           className="log-status-right flex shrink-0 cursor-pointer items-center transition-colors"
         >
-          <Download size={12} className="shrink-0" style={{ color: 'currentColor' }} />
+          <Download size={12} className="shrink-0" />
           <span className="log-status-text">导出CSV</span>
         </button>
       </footer>

@@ -13,7 +13,7 @@
  * 那些不是用户意图，存下去会把用户真正拖出来的值覆盖掉。
  * 双击分隔条 = 恢复默认布局（同时清掉存的宽度，否则刷新又回到拖歪的那份）。
  */
-import { type ReactNode, useCallback, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { Group, Panel, Separator, useGroupRef, type Layout } from 'react-resizable-panels'
 import { cn } from '@/components/trae/utils'
 import {
