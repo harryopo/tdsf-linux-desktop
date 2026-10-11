@@ -154,6 +154,28 @@ textarea,
   background: transparent;
 }
 
+/* 横向溢出轨道（rail）：被裁的那一端淡出，让人看出"后面还有"。
+   6px 的滚动条在 28px 高的一排 chip 底下几乎看不见，用户两次把它读成"界面画坏了"
+   （2026-10-08 / 2026-10-11）。状态由 hooks/useRailOverflow.ts 写在 data 属性上，
+   ui-audit.mjs 拿同一组属性当判据。 */
+[data-rail-overflow='right'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent calc(100% - 4px));
+}
+
+[data-rail-overflow='left'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent calc(100% - 4px));
+}
+
+[data-rail-overflow='both'] {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 4px,
+    #000 calc(100% - 28px),
+    transparent calc(100% - 4px)
+  );
+}
+
 /* ==========================================================================
    3. 焦点环 / 选中态 / 关键帧动画
    ========================================================================== */

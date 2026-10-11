@@ -10,6 +10,7 @@ import { type ReactNode } from 'react'
 import * as RadixTabs from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { useRailOverflow } from '@/hooks/useRailOverflow'
 
 export interface SegmentedItem<T extends string> {
   value: T
@@ -84,8 +85,10 @@ export function SessionTabs({
   onClose?: (id: string) => void
   className?: string
 }) {
+  const railRef = useRailOverflow<HTMLDivElement>()
   return (
     <div
+      ref={railRef}
       role="tablist"
       aria-label="会话"
       className={cn('flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-line bg-panel', className)}

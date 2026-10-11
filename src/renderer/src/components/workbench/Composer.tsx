@@ -6,6 +6,7 @@ import {
   Image as ImageIcon, Info, Loader2, Sparkles, Square, X, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
+import { useRailOverflow } from '@/hooks/useRailOverflow'
 import { Button, Chip, Divider, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/ui'
 import { useAgentStore } from '@/stores/agent-store'
 // v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
@@ -81,6 +82,7 @@ const Composer: FC<ComposerProps> = ({
   const [attachments, setAttachments] = useState<ImageAttachment[]>([])
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const promptRailRef = useRailOverflow<HTMLDivElement>()
 
   // v2.5 深度思考开关；v2.10 改三态：auto（自动路由）→ deep（强制深度）→ standard（强制标准）
   const thinkingStrength = useAgentStore((s) => s.thinkingStrength)
@@ -330,8 +332,12 @@ const Composer: FC<ComposerProps> = ({
         )}
       >
         {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词
-            单行 + 横向滚动：这一排在 560px 面板里换行会把输入区挤成一行高（用户 2026-10-08 指出） */}
-        <div className="flex flex-nowrap items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5">
+            单行 + 横向滚动：这一排在 560px 面板里换行会把输入区挤成一行高（用户 2026-10-08 指出）
+            滚动轨道要带溢出淡出（useRailOverflow），被硬切一半会被读成界面画坏了（2026-10-11） */}
+        <div
+          ref={promptRailRef}
+          className="flex flex-nowrap items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5"
+        >
           <Button
             size="sm"
             variant={paor.isRunning ? 'selected' : 'ghost'}
