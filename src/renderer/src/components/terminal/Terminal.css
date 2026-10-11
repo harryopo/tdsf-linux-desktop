@@ -265,6 +265,36 @@
   height: 14px;
 }
 
+/* 只读查看开关（W5）：描边样式，刻意与"保存"那颗实心钮长得不一样——
+   两颗一样的钮会让人以为点哪个都能保存 */
+.term-readonly-btn {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: var(--trae-radius-4);
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l2);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.term-readonly-btn:hover {
+  background: var(--trae-bg-overlay-l2);
+}
+
+.term-readonly-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.term-readonly-btn.is-active {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+}
+
 .term-file-editor-body {
   min-height: 0;
   flex: 1;

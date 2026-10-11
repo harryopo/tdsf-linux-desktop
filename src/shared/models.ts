@@ -652,6 +652,29 @@ export interface TutorialProgress {
 }
 
 // ============================================================================
+// 预览（W5）
+// ============================================================================
+
+/**
+ * 预览目标：远端的一个文件，或远端机器回环上的一个端口。
+ *
+ * 端口只允许 127.0.0.1 一侧——预览的是"那台机器上跑着的服务"，
+ * 不是拿用户的 SSH 凭据去扫内网。
+ */
+export type PreviewTarget =
+  | { kind: 'file'; sessionId: string; path: string }
+  | { kind: 'port'; sessionId: string; port: number }
+
+/** 铸好的预览句柄：url 直接给 iframe 用，token 是之后每个子资源请求的唯一凭证 */
+export interface PreviewHandleInfo {
+  token: string
+  url: string
+  kind: PreviewTarget['kind']
+  /** 入口文件绝对路径（端口预览为 null）；标签标题与 Markdown 判定都读它 */
+  entryPath: string | null
+}
+
+// ============================================================================
 // IPC 通道类型映射
 // ============================================================================
 
@@ -668,6 +691,10 @@ export interface IpcChannelMap {
   'ssh:shell:resize': { args: [string, number, number]; return: boolean }
   // 应用窗口（W4）
   'window:open-secondary': { args: []; return: number }
+  // 预览（W5）：句柄由主进程铸，渲染层拿不到笼子外的路径与端口
+  'preview:open': { args: [PreviewTarget]; return: PreviewHandleInfo }
+  'preview:close': { args: [string]; return: boolean }
+  'preview:readText': { args: [string]; return: string }
   // 本机终端（W3）：身份同样是 shellId，输出复用 terminal:data
   'local-tty:status': {
     args: []

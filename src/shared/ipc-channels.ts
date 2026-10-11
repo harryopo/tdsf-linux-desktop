@@ -298,6 +298,23 @@ export const WINDOW = {
 } as const
 
 /**
+ * 预览（W5）IPC 通道常量
+ *
+ * 通道列表：
+ * - OPEN      invoke  渲染 → 主：为一个远端目标铸一个预览句柄，返回 token 与 iframe 用的 URL
+ * - CLOSE     invoke  渲染 → 主：作废一个句柄（关掉预览标签时调）
+ * - READ_TEXT invoke  渲染 → 主：读句柄入口文件的文本（Markdown 在渲染层安全渲染，不进 iframe）
+ *
+ * 这里没有"给我一个任意路径的字节"这种通道：预览的子资源一律走
+ * tdsf-preview: 协议 + 铸句柄时定死的笼子，见 src/main/services/preview/preview-handles.ts。
+ */
+export const PREVIEW = {
+  OPEN: 'preview:open',
+  CLOSE: 'preview:close',
+  READ_TEXT: 'preview:readText',
+} as const
+
+/**
  * 本机终端（W3）IPC 通道常量
  *
  * 通道列表：

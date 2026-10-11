@@ -16,6 +16,7 @@ import { app, BrowserWindow, Menu, screen, shell } from 'electron'
 import * as path from 'node:path'
 import { checkNavigation } from '../services/security/navigation-policy'
 import { isSafeWebUrl } from '../services/security/url-policy'
+import { PREVIEW_SCHEME } from '../services/preview/preview-protocol'
 import { fitRectToWorkArea } from './window-fit'
 
 /** 主窗口单例引用（很多推送与对话框仍以它为目标；第二窗口靠 broadcastToWindows 覆盖） */
@@ -42,7 +43,9 @@ const CSP_DIRECTIVES: string[] = [
   "connect-src 'self' ws: wss:",
   "worker-src 'self' blob:",
   "object-src 'none'",
-  "frame-src 'none'",
+  // 预览（W5）：只放行自家 tdsf-preview: 协议，http/https/file 一律不许进 frame。
+  // 被嵌进去的那一页自己另有一套收紧到同源的 CSP，见 preview-protocol.ts。
+  `frame-src ${PREVIEW_SCHEME}:`,
   "base-uri 'self'",
   "form-action 'none'",
 ]
@@ -77,6 +80,12 @@ function buildCsp(origin: string | undefined): string {
 function applyCsp(win: BrowserWindow, origin: string | undefined): void {
   const policy = buildCsp(origin)
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    // 预览响应带的是它自己那套 CSP（preview-protocol.ts）。这里再盖一条应用策略，
+    // 等于把第三方页面的内联脚本与样式一起打死——预览会变成一片白，比不预览更糟。
+    if (details.url.startsWith(`${PREVIEW_SCHEME}://`)) {
+      callback({ responseHeaders: details.responseHeaders })
+      return
+    }
     callback({
       responseHeaders: {
         ...details.responseHeaders,

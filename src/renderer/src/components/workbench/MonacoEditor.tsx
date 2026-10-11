@@ -44,6 +44,13 @@ export interface MonacoEditorProps {
   onSave?: () => void
   /** 文件路径（用于语言自动识别，可选） */
   path?: string
+  /**
+   * 只读查看（W5）。
+   *
+   * 两个属性都要给：readOnly 只锁编辑，domReadOnly 才把底层 textarea 也关掉——
+   * 少了后者，读屏与部分输入法仍能改文档内容。
+   */
+  readOnly?: boolean
 }
 
 /** 注册 shell 语言配置（仅注册一次） */
@@ -88,6 +95,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   onMount,
   onSave,
   path,
+  readOnly = false,
 }) => {
   const setCursorPosition = useEditorStore((s) => s.setCursorPosition)
   const setSelection = useEditorStore((s) => s.setSelection)
@@ -171,6 +179,8 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
         renderWhitespace: 'selection',
         roundedSelection: false,
         scrollbar: { vertical: 'auto', horizontal: 'auto' },
+        readOnly,
+        domReadOnly: readOnly,
       }}
     />
   )

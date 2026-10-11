@@ -170,6 +170,9 @@ profilerRun
 promptfooListTests
 promptfooRunEval
 promptfooRunRedTeam
+previewClose
+previewOpen
+previewReadText
 providerCapabilities
 providerCapabilitiesAll
 providerGet

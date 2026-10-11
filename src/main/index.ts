@@ -46,6 +46,8 @@ import { buildQuitSteps, createQuitCleanup } from './core/quit-cleanup'
 import { redactSecrets } from './services/security/redact'
 // S3：路径 confinement 的受管根（渲染层传来的绝对路径只有落在这里才可用）
 import { configurePathConfinement } from './services/security/path-confinement'
+import { installPreviewProtocol, registerPreviewScheme } from './services/preview/preview-protocol'
+import { getPreviewTransport } from './services/preview/preview-service'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
 
@@ -74,6 +76,10 @@ crashReporter.start({
   submitURL: '',
   uploadToServer: false,
 })
+
+// W5：预览协议必须在 app ready 之前登记为特权 scheme（Electron 的硬要求，
+// ready 之后再登记不生效），处理器等到 whenReady 里再装。
+registerPreviewScheme()
 
 /**
  * 应用启动入口
@@ -146,6 +152,7 @@ app.whenReady().then(() => {
   })
 
   // 1. 创建主窗口
+  installPreviewProtocol(getPreviewTransport())
   const mainWindow: BrowserWindow = createMainWindow()
 
   // 2. 注册所有 IPC handlers（需要 mainWindow 用于事件推送 + db 用于教程/知识库）

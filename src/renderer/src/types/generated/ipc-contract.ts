@@ -1,7 +1,7 @@
 // 生成物，别手改：来源 src/shared/ipc-contract.ts，重生成 pnpm ipc:gen
 // 改了契约没重生成 → tests/unit/ipc-contract.test.ts 会红
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
-import type { ChatMessage } from '@shared/models'
+import type { ChatMessage, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 
 /** 已纳入契约的 invoke 通道：electronAPI 上这些方法的签名以这里为准 */
@@ -45,6 +45,18 @@ export interface ContractedInvokeApi {
   /** 再开一个应用窗口，返回当前窗口数
    * 通道 `window:open-secondary` */
   windowOpenSecondary(): Promise<number>
+
+  /** 为一个远端目标铸预览句柄，返回 token 与 iframe 用的 URL
+   * 通道 `preview:open` */
+  previewOpen(target: PreviewTarget): Promise<PreviewHandleInfo>
+
+  /** 作废一个预览句柄（关掉预览标签时调）
+   * 通道 `preview:close` */
+  previewClose(token: string): Promise<boolean>
+
+  /** 读句柄入口文件的文本（Markdown 在渲染层安全渲染，不进 iframe）
+   * 通道 `preview:readText` */
+  previewReadText(token: string): Promise<string>
 
   /** 本机终端是否可用（node-pty 装没装上、用的是哪个 Shell）
    * 通道 `local-tty:status` */

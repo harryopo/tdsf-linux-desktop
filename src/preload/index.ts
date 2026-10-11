@@ -1,12 +1,12 @@
 
 
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
-import type { ChatMessage, DecisionCard } from '@shared/models'
+import type { ChatMessage, DecisionCard, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanModel, DeployResult as DeployResultModel, DeployStepResult as DeployStepResultModel, DeployTemplate as DeployTemplateModel } from '@shared/deploy-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MODEL_STATS, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -43,6 +43,15 @@ const electronApi = {
   sshExec: ssh.exec,
   windowOpenSecondary: (): Promise<number> =>
     invokeChecked('windowOpenSecondary', WINDOW.OPEN_SECONDARY),
+  // ===== 预览（W5）=====
+  // 只有"铸/废/读入口文本"三个动作。子资源不走这里：iframe 带着 token 直接找
+  // tdsf-preview: 协议，笼子在主进程判，渲染层拼不出笼子外的路径与端口。
+  previewOpen: (target: PreviewTarget): Promise<PreviewHandleInfo> =>
+    invokeChecked('previewOpen', PREVIEW.OPEN, target),
+  previewClose: (token: string): Promise<boolean> =>
+    invokeChecked('previewClose', PREVIEW.CLOSE, token),
+  previewReadText: (token: string): Promise<string> =>
+    invokeChecked('previewReadText', PREVIEW.READ_TEXT, token),
   sshShellStart: ssh.shell.start,
   sshShellClose: ssh.shell.close,
   sshShellList: ssh.shell.list,

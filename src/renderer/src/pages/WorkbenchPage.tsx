@@ -397,6 +397,11 @@ export const WorkbenchPage: FC = () => {
                 onCloseOthers={handleCloseOthers}
                 onCloseAll={handleCloseAll}
                 onFileContentChange={handleFileContentChange}
+                onFileReadOnlyChange={(tabId, readOnly) =>
+                  setFileTabs((tabs) =>
+                    tabs.map((t) => (t.id === tabId ? { ...t, readOnly } : t)),
+                  )
+                }
                 onFileLoaded={handleFileLoaded}
                 onFileSaved={handleFileSaved}
               />

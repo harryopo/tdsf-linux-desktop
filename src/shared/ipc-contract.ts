@@ -17,7 +17,7 @@
  * 测试会在内存里重算一遍并与盘上文件比对，漂了就红（同 design-contract 的路子）。
  */
 import { z } from 'zod'
-import { AGENT, LOCAL_TTY, PROVIDER, SSH, WINDOW } from './ipc-channels'
+import { AGENT, LOCAL_TTY, PREVIEW, PROVIDER, SSH, WINDOW } from './ipc-channels'
 
 /** 一条入参：名字用来生成签名，schema 用来运行时校验，ts 用来生成签名里的类型 */
 export interface ContractArg {
@@ -71,6 +71,12 @@ const thinkingStrength = z.enum(['fast', 'standard', 'deep', 'auto'])
 const providerConfig = z
   .object({ id: str, name: str, type: str, model: str })
   .passthrough()
+
+/** 预览目标（W5）：两种目标各自校验，端口必须落在 1..65535 */
+const previewTarget = z.union([
+  z.object({ kind: z.literal('file'), sessionId: str, path: z.string().startsWith('/') }),
+  z.object({ kind: z.literal('port'), sessionId: str, port: z.number().int().min(1).max(65535) }),
+])
 
 export const IPC_CONTRACT: readonly ChannelContract[] = [
   {
@@ -194,6 +200,40 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     args: [],
     resultTs: 'number',
     result: z.number(),
+  },
+  // 预览（W5）。子资源一律由 tdsf-preview: 协议按句柄取，不经这里——
+  // 所以这张表上没有"给我一个任意路径的字节"那种通道。
+  {
+    kind: 'invoke',
+    api: 'previewOpen',
+    channel: PREVIEW.OPEN,
+    doc: '为一个远端目标铸预览句柄，返回 token 与 iframe 用的 URL',
+    args: [{ name: 'target', ts: 'PreviewTarget', schema: previewTarget }],
+    resultTs: 'PreviewHandleInfo',
+    result: z.object({
+      token: str,
+      url: str,
+      kind: z.enum(['file', 'port']),
+      entryPath: z.nullable(str),
+    }),
+  },
+  {
+    kind: 'invoke',
+    api: 'previewClose',
+    channel: PREVIEW.CLOSE,
+    doc: '作废一个预览句柄（关掉预览标签时调）',
+    args: [{ name: 'token', ts: 'string', schema: str }],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'previewReadText',
+    channel: PREVIEW.READ_TEXT,
+    doc: '读句柄入口文件的文本（Markdown 在渲染层安全渲染，不进 iframe）',
+    args: [{ name: 'token', ts: 'string', schema: str }],
+    resultTs: 'string',
+    result: str,
   },
   // 本机终端（W3）。输出仍走 terminal:data（不在此处，理由见上面那段注释）；
   // local-tty:exit 的载荷是一个裸 shellId，不是对象，所以它和 terminal:data 一样
@@ -355,6 +395,8 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
 /** 生成文件要 import 的类型来自哪儿 */
 export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   ChatMessage: '@shared/models',
+  PreviewTarget: '@shared/models',
+  PreviewHandleInfo: '@shared/models',
   ThinkingStrength: '@shared/agent-types',
   PersistedProviderConfig: '@shared/agent-types',
   ProviderConfig: '@shared/agent-types',

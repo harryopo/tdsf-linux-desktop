@@ -29,6 +29,10 @@ import {
   Languages,
   Monitor,
   Plus,
+  Globe,
+  Eye,
+  Lock,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
@@ -36,6 +40,16 @@ import SelectionPopover from '@/components/terminal/SelectionPopover'
 import '../terminal/Terminal.css'
 import MonacoEditor, { type MonacoEditorLanguage } from './MonacoEditor'
 import FileChangeNotice from './FileChangeNotice'
+import { PreviewPane } from './PreviewPane'
+import { PreviewPortDialog } from './PreviewPortDialog'
+import {
+  isPreviewableFile,
+  previewTabId,
+  previewTitle,
+  tokenOfPreviewTab,
+  usePreviewStore,
+} from '@/stores/preview-store'
+import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { useServerStore } from '@/stores/server-store'
 import { useEditorStore } from '@/stores/editor-store'
 import { useTranslateStore } from '@/stores/translate-store'
@@ -45,7 +59,6 @@ import { useTerminalStore, shellTabLabel, visibleShells } from '@/stores/termina
 import { closeShell, openLocalShell, openShell, sessionTitle } from '@/terminal/shell-launcher'
 import { Zap } from 'lucide-react'
 import '../terminal/TerminalTabs.css'
-import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { OpenFileRequest } from './FileTree'
 import type { FileChangedPayload } from '@preload/index'
 
@@ -84,12 +97,13 @@ function detectLanguage(filePath: string): MonacoEditorLanguage {
  *
  * shell:<shellId> —— 一条打开的终端（一条 SSH 连接可以有多个）
  * file:<远程路径> —— 一个文件
+ * preview:<token> —— 一个预览句柄（远端端口或远端 HTML/Markdown 文件，见 W5）
  *
  * 以前这里是 `'tab-terminal'` 一个写死的哨兵：意味着"终端"永远只有一个格子，
  * 主进程也只给一条连接开一个 shell。2026-10-10 起身份换成 shellId，
  * 判断必须走 isShellTab()，不许再比较字面量。
  */
-export type WorkbenchTabId = `shell:${string}` | `file:${string}`
+export type WorkbenchTabId = `shell:${string}` | `file:${string}` | `preview:${string}`
 
 /** 终端标签 id */
 export function shellTabId(shellId: string): WorkbenchTabId {
@@ -115,6 +129,8 @@ export interface WorkbenchFileTab {
   loading: boolean
   error?: string
   dirty: boolean
+  /** 只读查看（W5）：锁的是编辑，不丢内容 */
+  readOnly?: boolean
 }
 
 export interface EditorAreaProps {
@@ -128,6 +144,8 @@ export interface EditorAreaProps {
   /** P1-4：关闭所有文件 Tab（终端 tab 不在内，始终保留） */
   onCloseAll?: () => void
   onFileContentChange?: (tabId: WorkbenchTabId, content: string) => void
+  /** 只读查看开关（W5）：tab 状态在父层，这里只发意图 */
+  onFileReadOnlyChange?: (tabId: WorkbenchTabId, readOnly: boolean) => void
   onFileLoaded?: (tabId: WorkbenchTabId, content: string, error?: string) => void
   onFileSaved?: (tabId: WorkbenchTabId, content: string) => void
 }
@@ -239,7 +257,8 @@ const FileEditorPanel: FC<{
   onChange: (content: string) => void
   onSave: () => void
   saving: boolean
-}> = ({ tab, onChange, onSave, saving }) => {
+  onToggleReadOnly: (readOnly: boolean) => void
+}> = ({ tab, onChange, onSave, saving, onToggleReadOnly }) => {
   if (tab.loading) {
     return (
       <div className="term-file-loading">
@@ -265,8 +284,23 @@ const FileEditorPanel: FC<{
         </span>
         <button
           type="button"
+          className={cn('term-readonly-btn', tab.readOnly && 'is-active')}
+          aria-pressed={tab.readOnly}
+          title={
+            tab.readOnly
+              ? '只读查看中：点一下解除锁定后才能改'
+              : '改成只读查看（防误改，不是放弃已改的内容）'
+          }
+          onClick={() => onToggleReadOnly?.(!tab.readOnly)}
+        >
+          {tab.readOnly ? <Lock aria-hidden className="size-3" /> : <Pencil aria-hidden className="size-3" />}
+          {tab.readOnly ? '只读' : '可写'}
+        </button>
+        <button
+          type="button"
           onClick={onSave}
-          disabled={!tab.dirty || saving}
+          disabled={!tab.dirty || saving || tab.readOnly}
+          title={tab.readOnly ? '只读查看中，先解除只读再保存' : '保存回远端'}
           className="term-save-btn"
         >
           {saving ? <Loader2 className="term-spin" /> : <Save />}
@@ -278,6 +312,7 @@ const FileEditorPanel: FC<{
           value={tab.content}
           language={detectLanguage(tab.path)}
           path={tab.path}
+          readOnly={tab.readOnly}
           onChange={onChange}
           onSave={onSave}
         />
@@ -294,6 +329,7 @@ const EditorArea: FC<EditorAreaProps> = ({
   onCloseOthers,
   onCloseAll,
   onFileContentChange,
+  onFileReadOnlyChange,
   onFileLoaded,
   onFileSaved,
 }) => {
@@ -352,12 +388,18 @@ const EditorArea: FC<EditorAreaProps> = ({
     void closeShell(shellId)
   }, [])
 
+  /** 预览标签（W5）：与终端标签同一取向——标签只是投影，能读什么由主进程的句柄表说了算 */
+  const previews = usePreviewStore((s) => s.previews)
+  const addPreview = usePreviewStore((s) => s.add)
+  const removePreview = usePreviewStore((s) => s.remove)
+  const [portDialogOpen, setPortDialogOpen] = useState(false)
+
   const tabs = useMemo(() => {
     const list: Array<{
       id: WorkbenchTabId
       label: string
-      /** local / ssh 决定标签图标，file 是文件 */
-      kind: 'local' | 'ssh' | 'file'
+      /** local / ssh 决定终端标签图标，file 是文件，preview 是预览 */
+      kind: 'local' | 'ssh' | 'file' | 'preview'
       dirty?: boolean
     }> = [
       ...sessionShells.map((s) => ({
@@ -371,9 +413,14 @@ const EditorArea: FC<EditorAreaProps> = ({
         kind: 'file' as const,
         dirty: f.dirty,
       })),
+      ...previews.map((p) => ({
+        id: previewTabId(p.token),
+        label: p.title,
+        kind: 'preview' as const,
+      })),
     ]
     return list
-  }, [sessionShells, fileTabs])
+  }, [sessionShells, fileTabs, previews])
 
   // 打开文件时若 content 空且 loading，触发读取
   useEffect(() => {
@@ -401,6 +448,54 @@ const EditorArea: FC<EditorAreaProps> = ({
   const activeFile = fileTabs.find((f) => f.id === activeTabId)
   /** 当前激活文件的远程路径（终端 tab 或无激活文件时为 null） */
   const activeFilePath = activeFile?.path ?? null
+  /** 当前激活的预览标签（不是预览标签时 null） */
+  const activePreviewToken = tokenOfPreviewTab(activeTabId)
+  const activePreview = activePreviewToken
+    ? (previews.find((p) => p.token === activePreviewToken) ?? null)
+    : null
+
+  /**
+   * 预览当前这个文件（HTML / Markdown）
+   *
+   * 句柄由主进程铸：它顺手验了目标真的存在、真的是文件。
+   * 失败一定要 toast——"点了没动静"最难查。
+   */
+  const handlePreviewFile = useCallback(async () => {
+    if (!activeSessionId || !activeFilePath) return
+    if (!isElectronAPIAvailable() || !window.electronAPI?.previewOpen) {
+      toast.error('当前环境不支持预览（非 Electron 运行时）')
+      return
+    }
+    const target = { kind: 'file', sessionId: activeSessionId, path: activeFilePath } as const
+    try {
+      const info = await window.electronAPI.previewOpen(target)
+      addPreview({ ...info, target, title: previewTitle(target) })
+      onTabChange(previewTabId(info.token))
+    } catch (err) {
+      toast.error(`开不了预览：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [activeSessionId, activeFilePath, addPreview, onTabChange])
+
+  /** 关一个预览标签：作废句柄 + 把活跃标签交给还活着的邻居（不然停在原地空转） */
+  const handleClosePreview = useCallback(
+    (token: string) => {
+      void window.electronAPI?.previewClose?.(token)
+      removePreview(token)
+      if (tokenOfPreviewTab(activeTabId) !== token) return
+      const rest = usePreviewStore.getState().previews
+      if (rest.length) {
+        onTabChange(previewTabId(rest[rest.length - 1].token))
+      } else if (fileTabs.length) {
+        onTabChange(fileTabs[fileTabs.length - 1].id)
+      } else {
+        const shell = activeSessionId
+          ? sessionShells.find((s) => s.kind === 'ssh')
+          : sessionShells[0]
+        if (shell) onTabChange(shellTabId(shell.shellId))
+      }
+    },
+    [activeTabId, removePreview, fileTabs, sessionShells, activeSessionId, onTabChange],
+  )
 
   // 切换 Tab 时同步 editor-store 的 activeFilePath（供 StatusBar 显示）
   // 终端 tab 或无激活文件时清空光标位置
@@ -586,6 +681,7 @@ const EditorArea: FC<EditorAreaProps> = ({
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId
           const shellId = shellIdOfTab(tab.id)
+          const previewToken = tokenOfPreviewTab(tab.id)
           const tabInner = (
             <div
               key={tab.id}
@@ -614,6 +710,8 @@ const EditorArea: FC<EditorAreaProps> = ({
                   <Monitor aria-hidden />
                 ) : tab.kind === 'ssh' ? (
                   <TerminalIcon aria-hidden />
+                ) : tab.kind === 'preview' ? (
+                  <Globe aria-hidden />
                 ) : (
                   <FileText aria-hidden />
                 )}
@@ -621,12 +719,19 @@ const EditorArea: FC<EditorAreaProps> = ({
               </button>
               <button
                 type="button"
-                title={shellId ? '关闭终端' : '关闭'}
+                title={shellId ? '关闭终端' : previewToken ? '关闭预览' : '关闭'}
                 className="term-tab-close"
-                aria-label={shellId ? `关闭终端 ${tab.label}` : `关闭 ${tab.label}`}
+                aria-label={
+                  shellId
+                    ? `关闭终端 ${tab.label}`
+                    : previewToken
+                      ? `关闭预览 ${tab.label}`
+                      : `关闭 ${tab.label}`
+                }
                 onClick={(e) => {
                   e.stopPropagation()
                   if (shellId) handleCloseShell(shellId)
+                  else if (previewToken) handleClosePreview(previewToken)
                   else onCloseFile?.(tab.id)
                 }}
               >
@@ -635,8 +740,9 @@ const EditorArea: FC<EditorAreaProps> = ({
             </div>
           )
           // P1-4：文件 Tab 支持右键菜单（关闭 / 关闭其他 / 关闭所有）；
-          // 终端标签不放那套菜单——它的"关闭其他"语义会让人误关掉正在跑任务的终端
-          if (!shellId) {
+          // 终端标签不放那套菜单——它的"关闭其他"语义会让人误关掉正在跑任务的终端；
+          // 预览标签同理不放（"关闭其他文件"对它没有意义，会被当成"关掉我的预览"）
+          if (!shellId && !previewToken) {
             return (
               <ContextMenu key={tab.id} items={buildFileContextMenuItems(tab.id)}>
                 {tabInner}
@@ -709,6 +815,41 @@ const EditorArea: FC<EditorAreaProps> = ({
         >
           <Languages aria-hidden className="size-3.5" />
         </Button>
+
+        {/*
+          预览（W5）两个入口，都在这一排工具钮里：
+          - 当前文件是 HTML/Markdown 才出现"预览这个文件"（不对着 txt 许诺预览）
+          - "预览这台主机上的端口"只要有会话就可点，弹窗里只问端口、不问主机
+        */}
+        {activeFile && isPreviewableFile(activeFile.path) ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="term-tab-tool shrink-0"
+            onClick={() => void handlePreviewFile()}
+            title={`预览 ${activeFile.name}`}
+            aria-label="预览当前文件"
+            data-dom-id="term-preview-file"
+          >
+            <Eye aria-hidden className="size-3.5" />
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="term-tab-tool shrink-0"
+          disabled={!activeSessionId}
+          onClick={() => setPortDialogOpen(true)}
+          title={
+            activeSessionId
+              ? '预览这台主机上某个端口跑着的网页'
+              : '先连接一台服务器，才能预览它上面的端口'
+          }
+          aria-label="预览这台主机上的端口"
+          data-dom-id="term-preview-port"
+        >
+          <Globe aria-hidden className="size-3.5" />
+        </Button>
       </div>
 
       {/* 远程文件外部变更提示 */}
@@ -754,10 +895,13 @@ const EditorArea: FC<EditorAreaProps> = ({
             onOpenShell={() => void handleOpenShell()}
             onOpenLocalShell={() => void handleOpenLocalShell()}
           />
+        ) : activePreview ? (
+          <PreviewPane tab={activePreview} />
         ) : activeFile ? (
           <FileEditorPanel
             tab={activeFile}
             saving={savingId === activeFile.id}
+            onToggleReadOnly={(v) => onFileReadOnlyChange?.(activeFile.id, v)}
             onChange={(c) => onFileContentChange?.(activeFile.id, c)}
             onSave={() => void handleSave()}
           />
@@ -791,6 +935,19 @@ const EditorArea: FC<EditorAreaProps> = ({
           </div>
         )}
       </div>
+
+      {/* 端口预览弹窗（W5）：只问端口，主机固定在当前会话那台机器的回环上 */}
+      {activeSessionId ? (
+        <PreviewPortDialog
+          open={portDialogOpen}
+          onOpenChange={setPortDialogOpen}
+          sessionId={activeSessionId}
+          onOpened={(info, target) => {
+            addPreview({ ...info, target, title: previewTitle(target) })
+            onTabChange(previewTabId(info.token))
+          }}
+        />
+      ) : null}
     </div>
   )
 }

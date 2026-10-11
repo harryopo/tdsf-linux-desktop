@@ -222,6 +222,17 @@ export class ElectermSftpClient {
 
   /** 读取远程文件为字符串 */
   async readFile(remotePath: string, maxSize: number = 10 * 1024 * 1024): Promise<string> {
+    const buf = await this.readFileBuffer(remotePath, maxSize)
+    return buf.toString('utf-8')
+  }
+
+  /**
+   * 读取远程文件的原始字节（W5 预览用）
+   *
+   * readFile 只能回 utf-8 字符串，而预览一页 HTML 还要连带它引用的图片/字体，
+   * 那些二进制过一遍字符串就毁了。校验口径与 readFile 是同一条，只是最后不转码。
+   */
+  async readFileBuffer(remotePath: string, maxSize: number = 10 * 1024 * 1024): Promise<Buffer> {
     const sftp = this.requireSftp()
     const stat = await this.statInternal(sftp, remotePath)
     if (!stat) throw new Error(`远程文件不存在: ${remotePath}`)
@@ -235,7 +246,7 @@ export class ElectermSftpClient {
         ).toFixed(0)} MB 限制`
       )
     }
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = []
       const stream = sftp.createReadStream(remotePath, {
         highWaterMark: 64 * 1024,
@@ -249,7 +260,7 @@ export class ElectermSftpClient {
         reject(new Error(`读取远程文件失败 '${remotePath}': ${err.message}`))
       })
       stream.on('close', () => {
-        resolve(Buffer.concat(chunks).toString('utf-8'))
+        resolve(Buffer.concat(chunks))
       })
     })
   }
@@ -431,6 +442,12 @@ export class ElectermSftpManager {
   async readFile(sessionId: string, remotePath: string, maxSize?: number): Promise<string> {
     const client = await this.getClient(sessionId)
     return client.readFile(remotePath, maxSize)
+  }
+
+  /** 读原始字节（W5 预览的子资源：图片/字体不能过 utf-8） */
+  async readFileBuffer(sessionId: string, remotePath: string, maxSize?: number): Promise<Buffer> {
+    const client = await this.getClient(sessionId)
+    return client.readFileBuffer(remotePath, maxSize)
   }
 
   async writeFile(sessionId: string, remotePath: string, content: string): Promise<boolean> {

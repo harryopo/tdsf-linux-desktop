@@ -18,6 +18,7 @@ import * as CHANNELS from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
 import { registerAppWindowHandlers } from './app-window'
+import { registerPreviewHandlers } from './preview'
 import { registerLocalTerminalHandlers } from './local-terminal'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
@@ -338,5 +339,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerBootHandlers()
   // W4：再开一个应用窗口（只有这一个动作，不给关别人、枚举的能力）
   registerAppWindowHandlers()
+  // W5：预览句柄（铸/废/读文本）。子资源走 tdsf-preview: 协议，不在 IPC 上
+  registerPreviewHandlers()
   pushBootLoadingStage('ipc-ready', BrowserWindow.getAllWindows())
 }
