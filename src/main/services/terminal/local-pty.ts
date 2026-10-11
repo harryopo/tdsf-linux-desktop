@@ -125,7 +125,12 @@ export interface LocalPtyDeps {
 const defaultDeps: LocalPtyDeps = {
   loadPty: () => loadNodePty(),
   killProcessTree: (pid) => {
-    spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true })
+    // spawnSync 会占住主进程事件循环，必须带 timeout：taskkill 卡住时
+    // 整个应用（不只是这一个终端）都会冻住（P1-9）
+    spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], {
+      windowsHide: true,
+      timeout: 5_000,
+    })
   },
 }
 

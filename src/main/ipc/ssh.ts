@@ -21,7 +21,7 @@ import { ipcMain, BrowserWindow, dialog } from 'electron'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { spawn } from 'node:child_process'
+import { runCommand, HEAVY_TIMEOUT_MS } from '../services/exec/run-command'
 import { z } from 'zod'
 import { SSH, SFTP, TERMINAL } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
@@ -898,27 +898,13 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
         fs.chmodSync(privateKeyPath, 0o600)
 
         // 4. derive 公钥（ssh-keygen -y -f <privateKey>）
-        const publicKeyContent = await new Promise<string>((resolve, reject) => {
-          const proc = spawn('ssh-keygen', ['-y', '-f', privateKeyPath])
-          let stdout = ''
-          let stderr = ''
-          proc.stdout.on('data', (data: Buffer) => {
-            stdout += data.toString()
-          })
-          proc.stderr.on('data', (data: Buffer) => {
-            stderr += data.toString()
-          })
-          proc.on('close', (code: number | null) => {
-            if (code === 0) {
-              resolve(stdout.trim())
-            } else {
-              reject(new Error(`ssh-keygen derive 公钥失败 (exit ${code}): ${stderr}`))
-            }
-          })
-          proc.on('error', (err: Error) => {
-            reject(new Error(`ssh-keygen 启动失败: ${err.message}`))
-          })
+        //    走 runCommand 而不是裸 spawn：私钥带口令时 ssh-keygen 会停下来等输入，
+        //    没有终端可答就是永久 pending（P1-9 实测的那条路径）
+        const derived = await runCommand('ssh-keygen', ['-y', '-f', privateKeyPath], {
+          label: 'ssh-keygen derive 公钥',
+          timeoutMs: HEAVY_TIMEOUT_MS,
         })
+        const publicKeyContent = derived.stdout.trim()
 
         // 写入公钥文件 + chmod 644
         fs.writeFileSync(publicKeyPath, publicKeyContent + '\n', { mode: 0o644 })
@@ -986,23 +972,11 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
           args.splice(2, 0, '-b', '4096')
         }
 
-        // 执行 ssh-keygen
-        await new Promise<void>((resolve, reject) => {
-          const proc = spawn('ssh-keygen', args)
-          let stderr = ''
-          proc.stderr.on('data', (data: Buffer) => {
-            stderr += data.toString()
-          })
-          proc.on('close', (code: number | null) => {
-            if (code === 0) {
-              resolve()
-            } else {
-              reject(new Error(`ssh-keygen 退出码 ${code}: ${stderr}`))
-            }
-          })
-          proc.on('error', (err: Error) => {
-            reject(new Error(`ssh-keygen 启动失败: ${err.message}`))
-          })
+        // 执行 ssh-keygen（走统一入口：目标文件已存在时它会问"是否覆盖 (y/n)?"，
+        // 裸 spawn 会永远等这个输入；runCommand 把 stdin 关成 ignore，问不出来的就报错）
+        await runCommand('ssh-keygen', args, {
+          label: 'ssh-keygen 生成密钥',
+          timeoutMs: HEAVY_TIMEOUT_MS,
         })
 
         // 设置权限：私钥 600，公钥 644
