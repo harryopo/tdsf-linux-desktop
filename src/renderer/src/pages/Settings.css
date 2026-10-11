@@ -625,6 +625,9 @@
   flex-direction: column;
   gap: 6px;
   padding: 14px;
+  /* <button> 的 UA 默认是 text-align:center，不显式写左对齐，
+     卡片说明就会居中，和同页的主题卡/代码卡（都写了左对齐）不是一套语言 */
+  text-align: left;
   background: var(--trae-bg-base-tertiary);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: var(--trae-radius-8);
