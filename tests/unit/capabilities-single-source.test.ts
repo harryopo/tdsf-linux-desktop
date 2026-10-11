@@ -25,6 +25,10 @@ function walk(dir: string, acc: string[] = []): string[] {
   if (!fs.existsSync(abs)) return acc
   for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
     const p = path.join(dir, e.name)
+    // 别的测试会临时往 src/main 里写一个 canary 再删掉来证明静态闸有牙。
+    // 普查在"列目录"和"读文件"之间没有原子性，撞上那个窗口就是随机 ENOENT（实测红过一次），
+    // 所以这里显式跳过测试脚手架——它本来也不是产品源码。
+    if (/__[\w-]*canary__\.(ts|tsx)$/.test(e.name)) continue
     if (e.isDirectory()) walk(p, acc)
     else if (/\.(ts|tsx)$/.test(e.name)) acc.push(p.split(path.sep).join('/'))
   }
