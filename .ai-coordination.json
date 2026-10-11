@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-11T05:53:01.955Z",
+  "lastUpdated": "2026-10-11T06:12:00.461Z",
   "sessions": {},
   "history": [
     {
@@ -6801,6 +6801,104 @@
       "file": "src/main/core/agent/providers/claude-sdk-provider.ts",
       "task": "p0-4-approval",
       "timestamp": "2026-10-11T05:53:01.955Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T05:56:07.677Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T05:56:09.714Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/history.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T05:56:11.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/utils/chat-decision.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T05:56:13.976Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T05:56:16.040Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T05:56:18.102Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:11:27.903Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/history.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/utils/chat-decision.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "p0-5-decision-trust",
+      "timestamp": "2026-10-11T06:12:00.461Z"
     }
   ],
   "coordinationAudit": {
