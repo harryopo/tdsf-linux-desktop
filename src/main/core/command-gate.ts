@@ -168,6 +168,36 @@ const EXECUTORS = new Set([
 ])
 
 /**
+ * 「哪个参数的值是待执行代码」单源表：argv0 → 旗标列表。
+ *
+ * 两个下游共用，避免各写一份而漂移：
+ * - collectorQuotedBodies 取引号体送递归判级
+ * - OPAQUE_INTERPRETERS（下面）判"内层不是 shell，shell 规则判不了"
+ * 旗标按各语言的真实习惯给：shell 家族 -c/-lc，python -c，perl/ruby -e，
+ * node -e，php -r。（旧实现用三元表达式凑，于是 perl 顺带认了 -c/-lc。）
+ */
+const INTERPRETER_BODY_FLAGS: Map<string, string[]> = new Map([
+  ...RULES.shellLaunchers.map((s): [string, string[]] => [s, ['-c', '-lc']]),
+  ['python', ['-c']],
+  ['python2', ['-c']],
+  ['python3', ['-c']],
+  ['perl', ['-e']],
+  ['ruby', ['-e']],
+  ['node', ['-e']],
+  ['nodejs', ['-e']],
+  ['php', ['-r']],
+])
+
+/**
+ * 内层不是 shell 脚本语言的执行体。shell 家族递归进去还能用 shell 规则判，
+ * Python/Perl/Ruby/Node/PHP 的内层语义 shell 规则判不了 —— 判不了 ≠ 安全。
+ * 从上面那张表推导，不再手抄第二份名单。
+ */
+const OPAQUE_INTERPRETERS = new Set(
+  [...INTERPRETER_BODY_FLAGS.keys()].filter((argv0) => !RULES.shellLaunchers.includes(argv0))
+)
+
+/**
  * 写目的地命中即 block 的前缀。
  *
  * 只用于"写"的位置（重定向目标、tee 参数、truncate 参数、dd of=），
@@ -191,6 +221,18 @@ const PROTECTED_WRITE_PREFIXES = [
 
 /** find 的子句关键字：找起点路径时要跳过它们，否则 `-name foo` 的 foo 会被当成起点 */
 const FIND_CLAUSES = ['-type', '-name', '-iname', '-path', '-mtime', '-atime', '-size', '-user', '-group', '-exec', '-execdir', '-ok', '-and', '-or', '-not']
+
+/**
+ * find 里"会对文件动手"的旗标 —— 不是查询，是动作。
+ *
+ * 单独立一份表而不是往 FIND_CLAUSES 里加：那份表的用途是"跳过"，
+ * 混在一起只会让起点路径解析跟着变。find 在白名单里，命中这里就必须升出去，
+ * 否则 `find / -exec rm -rf {} +` 会被 checkSoftRisk 判成「只读查询命令」。
+ */
+const FIND_KILL_FLAGS = new Set(['-delete', '-exec', '-execdir', '-ok', '-okdir'])
+
+/** -exec 动作体的结束符：`{}` 之后跟 `+` 或 `;`（`;` 通常已被 scan() 当分隔符切掉） */
+const FIND_EXEC_TERMINATORS = new Set(['+', ';'])
 
 // ---------------------------------------------------------------------------
 // 解析层：先分词（引号感知），再切段
@@ -507,6 +549,42 @@ function isWorldWritableMode(mode: string): boolean {
   return /[augo]*\+=[w]|,w|o\+w/.test(m)
 }
 
+/**
+ * 权限类操作（chmod/chown）视为"系统区"的目录。
+ *
+ * 刻意不含 /home：放开自己家目录里某个文件的权限是 Linux 初学者的日常操作，
+ * 误伤代价大于收益；/etc、/usr 这类目录才是"改了就出事"。
+ * 与 PROTECTED_TARGETS 的包含关系由 tests/unit/command-gate-p01.test.ts 钉住，
+ * 两份名单不许各漂各的。
+ */
+const SYSTEM_DIRS = new Set(['/etc', '/usr', '/var', '/boot', '/root', '/bin', '/sbin', '/lib', '/lib64'])
+
+/** 这些文件改权限/属主本身就危险，不看目录层级 */
+const SENSITIVE_FILES = new Set([
+  '/etc/passwd',
+  '/etc/shadow',
+  '/etc/sudoers',
+  '/etc/fstab',
+  '/etc/hosts',
+  '/etc/ssh/sshd_config',
+  '/etc/crontab',
+])
+
+/**
+ * 权限类操作的目标是否敏感
+ *
+ * 旧实现只做**精确目录**匹配，于是 `chmod 777 /etc/passwd` 漏判（/etc/passwd ≠ /etc）。
+ * 现在分三层：根本身 → 系统目录本身 → 系统目录下的任意路径（前缀），再加关键文件清单。
+ */
+function isSensitivePermTarget(n: string): boolean {
+  if (/^\/(\*?)$/.test(n)) return true
+  if (SYSTEM_DIRS.has(n) || SENSITIVE_FILES.has(n)) return true
+  for (const dir of SYSTEM_DIRS) {
+    if (n.startsWith(`${dir}/`)) return true
+  }
+  return false
+}
+
 /** chmod 777 / 或 chown -R 指向根级目录（blockDetectors: rootPermissionOpen） */
 function checkPerms(toks: Token[], argv0: string): string | null {
   if (argv0 !== 'chmod' && argv0 !== 'chown') return null
@@ -515,11 +593,14 @@ function checkPerms(toks: Token[], argv0: string): string | null {
   const pathTarget = targets.find((t) => normTarget(t).startsWith('/'))
   if (!pathTarget) return null
   const n = normTarget(pathTarget)
-  const rootish = /^\/(\*?)$/.test(n) || ['/etc', '/usr', '/var', '/boot', '/root', '/bin', '/sbin', '/lib'].includes(n)
-  if (!rootish) return null
+  if (!isSensitivePermTarget(n)) return null
   if (argv0 === 'chmod') {
     const modes = targets.filter((t) => /^[0-7]{3,4}$/.test(t) || /[+w-]/.test(t))
-    if (modes.some(isWorldWritableMode)) return '将根级目录权限放开为全局可写'
+    if (modes.some(isWorldWritableMode)) {
+      return n === '/' || SYSTEM_DIRS.has(n)
+        ? '将根级目录权限放开为全局可写'
+        : `将系统关键路径 ${n} 的权限放开为全局可写`
+    }
   }
   if (
     argv0 === 'chown' &&
@@ -545,17 +626,55 @@ function checkProtectedWrite(toks: Token[], argv0: string, seg: Segment): string
   return null
 }
 
-/** find -delete（blockDetectors: findDeleteProtected） */
+/** find 起点是否落在"不许批量动手"的区域 */
+function isProtectedStart(n: string): boolean {
+  return n === '/' || PROTECTED_TARGETS.has(n) || n.startsWith('/etc') || n.startsWith('/var')
+}
+
+/**
+ * 取出 find 里每个 kill 旗标（-exec/-execdir/-ok/-okdir）后面那段待执行 argv。
+ *
+ * 切分基于 scan() 已经产出的 token（引号剥过、值合过），不再重新解析字符串，
+ * 所以 `-exec sh -c 'x' {} ;` 这种带动作体里带引号的也能正确切成 `sh -c x`。
+ */
+function findExecBodies(seg: Segment, argv0: string): string[] {
+  if (argv0 !== 'find') return []
+  const values = seg.toks.map((t) => t.value)
+  const bodies: string[] = []
+  for (let i = 0; i < values.length; i++) {
+    if (!FIND_KILL_FLAGS.has(values[i]) || values[i] === '-delete') continue
+    let end = values.length
+    for (let j = i + 1; j < values.length; j++) {
+      if (values[j] === '{}' || FIND_EXEC_TERMINATORS.has(values[j])) {
+        end = j
+        break
+      }
+    }
+    const body = values.slice(i + 1, end).join(' ').trim()
+    if (body) bodies.push(body)
+    i = end
+  }
+  return bodies
+}
+
+/** find -delete / find -exec 从系统目录批量动手（blockDetectors: findDeleteProtected） */
 function checkFindDelete(toks: Token[], argv0: string): string | null {
   if (argv0 !== 'find') return null
   const values = toks.map((t) => t.value)
-  if (!values.includes('-delete')) return null
-  // 起点路径取第一个非旗标参数；slice(1) 是为了不把命令名自己当成路径
+  // 起点路径取第一个非旗标、非 find 子句的参数；slice(1) 是为了不把命令名自己当成路径
   const start = values.slice(1).find((t) => !t.startsWith('-') && !FIND_CLAUSES.includes(t))
   const n = normTarget(start ?? '.')
-  return n === '/' || PROTECTED_TARGETS.has(n) || n.startsWith('/etc') || n.startsWith('/var')
-    ? 'find -delete 从根级/系统目录批量删除'
-    : null
+
+  if (values.includes('-delete')) {
+    return isProtectedStart(n) ? 'find -delete 从根级/系统目录批量删除' : null
+  }
+  // -exec/-execdir/-ok/-okdir：起点是系统目录就直接拦；起点是别处，
+  // 危险与否由动作体自己决定（findExecBodies 会把它送进递归判级）
+  const flag = values.find((t) => FIND_KILL_FLAGS.has(t))
+  if (flag && flag !== '-delete' && isProtectedStart(n)) {
+    return `find ${flag} 在根级/系统目录 ${n} 上执行任意命令`
+  }
+  return null
 }
 
 /**
@@ -580,13 +699,13 @@ function checkSoftRisk(
   return null
 }
 
-/** 解释器 -c/-lc 的引号体：那才是要执行的命令，必须递归评级 */
+/** 解释器 -c/-e 的引号体：那才是要执行的命令，必须递归评级 */
 function collectorQuotedBodies(seg: Segment, argv0: string): string[] {
-  const values = seg.toks.map((t) => t.value)
-  const flagIsBody = argv0 === 'python' || argv0 === 'python2' || argv0 === 'python3' ? ['-c'] : ['-c', '-lc']
-  if (argv0 === 'perl' || argv0 === 'ruby') flagIsBody.push('-e')
   if (!EXECUTORS.has(argv0)) return []
-  if (!values.some((t) => flagIsBody.includes(t))) return []
+  const flags = INTERPRETER_BODY_FLAGS.get(argv0)
+  if (!flags) return []
+  const values = seg.toks.map((t) => t.value)
+  if (!values.some((t) => flags.includes(t))) return []
   return seg.toks.filter((t) => t.quoted && t.value.trim().length >= 4).map((t) => t.value)
 }
 
@@ -601,6 +720,7 @@ export function evaluateCommand(command: string, depth = 0): CommandVerdict {
   if (!command || !command.trim()) return safe
 
   let worst: CommandVerdict = safe
+  let opaqueSegText = ''
   const raise = (v: CommandVerdict): void => {
     if (LEVEL_RANK[v.level] > LEVEL_RANK[worst.level]) worst = v
   }
@@ -637,11 +757,27 @@ export function evaluateCommand(command: string, depth = 0): CommandVerdict {
 
     if (depth < 2) {
       for (const body of collectorQuotedBodies(seg, argv0)) raise(evaluateCommand(body, depth + 1))
+      // find -exec 的动作体同理：不递归进去，`find /tmp -exec rm -rf / {} +` 里的 rm 没人看见
+      for (const body of findExecBodies(seg, argv0)) raise(evaluateCommand(body, depth + 1))
+      // 记下"内层是不透明解释器"，供循环结束后兜底
+      if (OPAQUE_INTERPRETERS.has(argv0) && collectorQuotedBodies(seg, argv0).length > 0) {
+        opaqueSegText ||= seg.text
+      }
     }
   }
 
   if (depth < 2) {
     for (const body of embedded) raise(evaluateCommand(body, depth + 1))
+  }
+
+  // 递归判过了，但 shell 规则判不了 Python/Perl/Ruby/Node/PHP 的内层语义。
+  // "判不了"被静默留在 safe 是最坏的结果——用户看到的是"这命令没风险"。
+  if (depth < 2 && opaqueSegText && worst.level === 'safe') {
+    worst = {
+      level: 'medium',
+      reason: '解释器 -c/-e 的内嵌代码无法用 shell 规则判定风险，需人工确认',
+      matched: opaqueSegText.slice(0, 120),
+    }
   }
 
   return worst
