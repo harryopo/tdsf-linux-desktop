@@ -16,7 +16,9 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { HISTORY } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
-import type { DecisionCard } from '@shared/models'
+import { generateDecisionCard, validateDecision } from '../core/decision-engine'
+import { logger } from '../services/log/logger'
+import type { HistorySaveIntent } from '@shared/models'
 /**
  * 获取决策历史仓储实例
  * @returns DecisionRepository 实例
@@ -74,13 +76,42 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
 
   /**
-   * 参数：(card: DecisionCard)
-   * 返回：boolean
+   * 参数：(intent: HistorySaveIntent)
+   * 返回：boolean（false = 入参不合法或校验未过，渲染层据此丢弃本地副本）
    *
-   * 如果 ID 已存在则覆盖更新（INSERT OR REPLACE）。
+   * P0-5：卡片由主进程构造，risk / confidence / id / timestamp 都不接收渲染层的值。
+   * 如果 ID 已存在则覆盖更新（INSERT OR REPLACE）—— 但 id 是主进程生成的，
+   * 渲染层无法指定。
    */
-  ipcMain.handle(HISTORY.SAVE, async (_event, card: DecisionCard) => {
+  ipcMain.handle(HISTORY.SAVE, async (_event, intent: HistorySaveIntent) => {
     try {
+      if (!intent || typeof intent.command !== 'string' || !intent.command.trim()) return false
+
+      // 1. 主进程构造：风险由 risk-engine 评、置信度由证据链按同一算法算、
+      //    id 与时间戳在这里生成
+      const card = generateDecisionCard(
+        intent.problem ?? '',
+        intent.hypothesis ?? '',
+        intent.evidences ?? [],
+        intent.command,
+        intent.fixDescription
+      )
+      card.status = intent.executed ? 'executed' : 'pending'
+      card.timestamp = Date.now()
+      if (intent.sessionId) card.sessionId = intent.sessionId
+      if (intent.serverId) card.serverId = intent.serverId
+      if (typeof intent.durationMs === 'number') card.durationMs = intent.durationMs
+
+      // 2. 落库前校验（此前 handler 是 repo.save(card) 一行，零校验）
+      const check = validateDecision(card)
+      if (!check.valid) {
+        logger.warn('History', '拒绝保存不合法的决策卡片', {
+          id: card.id,
+          issues: check.issues,
+        })
+        return false
+      }
+
       const repo = getDecisionRepo()
       return repo.save(card)
     } catch (err) {

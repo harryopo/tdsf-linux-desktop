@@ -628,7 +628,12 @@ export const KNOWLEDGE = {
 export const HISTORY = {
   /** 查询决策卡片（invoke: 渲染 → 主） */
   GET: 'history:get',
-  /** 保存决策卡片（invoke: 渲染 → 主） */
+  /**
+   * 保存决策记录（invoke: 渲染 → 主）
+   *
+   * 入参是 HistorySaveIntent 而不是 DecisionCard：风险等级、置信度、id、时间戳
+   * 由主进程判定后生成，渲染层只交代事实（P0-5）。
+   */
   SAVE: 'history:save',
   /** 查询决策历史列表（invoke: 渲染 → 主） */
   LIST: 'history:list',

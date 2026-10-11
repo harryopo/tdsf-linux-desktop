@@ -1,7 +1,7 @@
 
 
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
-import type { ChatMessage, DecisionCard, PreviewHandleInfo, PreviewTarget } from '@shared/models'
+import type { ChatMessage, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanModel, DeployResult as DeployResultModel, DeployStepResult as DeployStepResultModel, DeployTemplate as DeployTemplateModel } from '@shared/deploy-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
@@ -372,8 +372,10 @@ const electronApi = {
   historyGet: (id: string): Promise<unknown> =>
     ipcRenderer.invoke(HISTORY.GET, id),
   // P-8 修复：补充暴露 history:save 通道（主进程已注册，但 preload 此前未暴露）
-  historySave: (card: DecisionCard): Promise<boolean> =>
-    ipcRenderer.invoke(HISTORY.SAVE, card),
+  // P0-5：入参从完整 DecisionCard 改成 HistorySaveIntent —— 风险/置信度/状态由主进程判定，
+  // 渲染层只描述"发生了什么"。
+  historySave: (intent: HistorySaveIntent): Promise<boolean> =>
+    ipcRenderer.invoke(HISTORY.SAVE, intent),
   historyStats: (): Promise<unknown> =>
     ipcRenderer.invoke(HISTORY.STATS),
 

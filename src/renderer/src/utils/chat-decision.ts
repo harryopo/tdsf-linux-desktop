@@ -14,7 +14,7 @@
  * - monitor_get     → source='metric'
  */
 import type { AgentMessage, AgentToolCall } from '@/stores/agent-store'
-import type { DecisionCard, Evidence, RiskAssessment } from '@shared/models'
+import type { HistorySaveIntent, Evidence } from '@shared/models'
 
 /** 检索类输出是否为"无结果"（kb/tutorial 的 summary 以"未"开头） */
 function isEmptySearchOutput(output: string | undefined): boolean {
@@ -77,28 +77,7 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
     })
 }
 
-/** riskCheck IPC 的三级结果 → RiskAssessment（models.ts 五级模型） */
-export function riskCheckToAssessment(
-  risk: 'low' | 'medium' | 'high',
-  reasons: string[],
-): RiskAssessment {
-  const map = {
-    low: { level: 'LOW' as const, score: 20, requireConfirmation: false },
-    medium: { level: 'MEDIUM' as const, score: 55, requireConfirmation: true },
-    high: { level: 'HIGH' as const, score: 85, requireConfirmation: true },
-  }
-  const m = map[risk]
-  return {
-    level: m.level,
-    score: m.score,
-    matchedRules: reasons,
-    description: reasons.length > 0 ? reasons.join('；') : '未命中风险规则',
-    requireConfirmation: m.requireConfirmation,
-    blocked: false,
-  }
-}
-
-/** 构建聊天执行决策记录的入参 */
+/** 构建 history:save 落库意图的入参 */
 export interface ChatDecisionParams {
   /** 被执行的命令 */
   command: string
@@ -106,37 +85,27 @@ export interface ChatDecisionParams {
   userMessage: AgentMessage | null
   /** 命令所属的 assistant 消息（根因假设 + 证据来源） */
   assistantMessage: AgentMessage | null
-  /** 风险评估（riskCheck 映射结果） */
-  risk: RiskAssessment
-  /** 可信度（有评估结果用评估值；否则用证据均值兜底） */
-  confidence?: number
   /** SSH 会话 ID */
   sessionId?: string | null
 }
 
 /**
  * 用户在聊天里点击"在终端执行"= 一次真实决策（AI 建议 → 人工批准 → 执行）。
- * 构建可经 history:save 落库的 DecisionCard 记录。
+ * 构建交给 history:save 的**意图**。
+ *
+ * P0-5：这里刻意不再产出 risk / confidence / id / timestamp / status ——
+ * 那些是"这条记录该怎么被判断"，必须由主进程基于自己的判据生成。
+ * 渲染层只交代事实：命令是什么、上下文是什么、证据从哪来、用户确实批准执行了。
  */
-export function buildChatDecisionCard(params: ChatDecisionParams): DecisionCard {
-  const { command, userMessage, assistantMessage, risk, confidence, sessionId } = params
-  const evidences = toolEventsToEvidences(assistantMessage?.toolEvents)
-  // 置信度：评估值 > 证据均值 > 中性 0.5
-  const evidenceAvg =
-    evidences.length > 0
-      ? evidences.reduce((acc, e) => acc + e.confidence, 0) / evidences.length
-      : 0.5
+export function buildHistorySaveIntent(params: ChatDecisionParams): HistorySaveIntent {
+  const { command, userMessage, assistantMessage, sessionId } = params
   return {
-    id: `dec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    command,
     problem: (userMessage?.content ?? '（无用户问题上下文）').slice(0, 300),
     hypothesis: (assistantMessage?.content ?? '（无 AI 分析上下文）').slice(0, 300),
-    evidences,
-    confidence: confidence ?? evidenceAvg,
-    risk,
-    fixCommand: command,
+    evidences: toolEventsToEvidences(assistantMessage?.toolEvents),
+    executed: true,
     fixDescription: 'AI 对话中用户批准并发送到终端执行',
-    status: 'executed',
-    timestamp: Date.now(),
     sessionId: sessionId ?? undefined,
   }
 }

@@ -25,6 +25,7 @@ import type {
   KnowledgeEntry,
   KnowledgeType,
   DecisionCard,
+  HistorySaveIntent,
   KbViewHistoryEntry,
   HistoryStats,
   TutorialStats,
@@ -1254,7 +1255,7 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   /** 获取单个决策详情 */
   historyGet(id: string): Promise<DecisionCard | null>
   /** 保存决策记录 */
-  historySave(card: DecisionCard): Promise<boolean>
+  historySave(intent: HistorySaveIntent): Promise<boolean>
   /** 决策统计聚合（成功率/平均耗时等） */
   historyStats(): Promise<HistoryStats>
 

@@ -3,15 +3,11 @@
  *
  * 覆盖范围：
  * 1. toolEventsToEvidences：各工具类型映射 + 未完成调用过滤 + 无结果检索降权
- * 2. riskCheckToAssessment：三级 → 五级模型映射
- * 3. buildChatDecisionCard：完整决策卡构建（status=executed、置信度兜底）
+ * 2. buildHistorySaveIntent：只交事实的落库意图（P0-5 之后渲染层不再产出
+ *    risk / confidence / id / timestamp —— 那些由主进程判）
  */
 import { describe, it, expect } from 'vitest'
-import {
-  toolEventsToEvidences,
-  riskCheckToAssessment,
-  buildChatDecisionCard,
-} from '../../src/renderer/src/utils/chat-decision'
+import { toolEventsToEvidences, buildHistorySaveIntent } from '../../src/renderer/src/utils/chat-decision'
 import type { AgentMessage, AgentToolCall } from '../../src/renderer/src/stores/agent-store'
 
 /** 构造工具调用记录 */
@@ -58,21 +54,7 @@ describe('toolEventsToEvidences', () => {
   })
 })
 
-describe('riskCheckToAssessment', () => {
-  it('low → LOW 不需确认；high → HIGH 需确认，规则透传', () => {
-    const low = riskCheckToAssessment('low', [])
-    expect(low.level).toBe('LOW')
-    expect(low.requireConfirmation).toBe(false)
-    expect(low.description).toBe('未命中风险规则')
-
-    const high = riskCheckToAssessment('high', ['rm 递归删除'])
-    expect(high.level).toBe('HIGH')
-    expect(high.requireConfirmation).toBe(true)
-    expect(high.matchedRules).toEqual(['rm 递归删除'])
-  })
-})
-
-describe('buildChatDecisionCard', () => {
+describe('buildHistorySaveIntent', () => {
   const user: AgentMessage = { id: 'u1', role: 'user', content: '查一下磁盘', timestamp: 1 }
   const assistant: AgentMessage = {
     id: 'a1',
@@ -82,33 +64,38 @@ describe('buildChatDecisionCard', () => {
     toolEvents: [makeEvent()],
   }
 
-  it('构建完整决策卡：executed 状态 + 真实上下文 + 证据链', () => {
-    const card = buildChatDecisionCard({
+  it('只交事实：命令 + 上下文 + 证据 + 已执行，不含风险/置信度/时间戳', () => {
+    const intent = buildHistorySaveIntent({
       command: 'journalctl --vacuum-size=200M',
       userMessage: user,
       assistantMessage: assistant,
-      risk: riskCheckToAssessment('medium', ['清理日志']),
       sessionId: 'sess-1',
     })
-    expect(card.status).toBe('executed')
-    expect(card.problem).toBe('查一下磁盘')
-    expect(card.hypothesis).toContain('磁盘 45%')
-    expect(card.fixCommand).toBe('journalctl --vacuum-size=200M')
-    expect(card.evidences).toHaveLength(1)
-    expect(card.sessionId).toBe('sess-1')
-    // 置信度兜底：无评估值时用证据均值（单条 ssh 成功 = 0.9）
-    expect(card.confidence).toBeCloseTo(0.9)
+    expect(intent.command).toBe('journalctl --vacuum-size=200M')
+    expect(intent.problem).toBe('查一下磁盘')
+    expect(intent.hypothesis).toContain('磁盘 45%')
+    expect(intent.evidences).toHaveLength(1)
+    expect(intent.executed).toBe(true)
+    expect(intent.sessionId).toBe('sess-1')
   })
 
-  it('无上下文消息时使用占位文案且不抛错', () => {
-    const card = buildChatDecisionCard({
+  it('P0-5 的结构保证：意图里根本没有 risk / confidence / id / timestamp 这些字段', () => {
+    const intent = buildHistorySaveIntent({
       command: 'uptime',
-      userMessage: null,
-      assistantMessage: null,
-      risk: riskCheckToAssessment('low', []),
+      userMessage: user,
+      assistantMessage: assistant,
     })
-    expect(card.problem).toContain('无用户问题上下文')
-    expect(card.evidences).toHaveLength(0)
-    expect(card.confidence).toBe(0.5)
+    expect(Object.keys(intent).sort()).toEqual(
+      ['command', 'evidences', 'executed', 'fixDescription', 'hypothesis', 'problem', 'sessionId'].sort(),
+    )
+    // 渲染层想改也改不动：这些键不在类型上，落库值由主进程计算
+    // （主进程侧的实测判据在 tests/unit/ipc-history-decision-gate.test.ts）
+  })
+
+  it('无上下文消息时用占位文案且不抛错', () => {
+    const intent = buildHistorySaveIntent({ command: 'uptime', userMessage: null, assistantMessage: null })
+    expect(intent.problem).toContain('无用户问题上下文')
+    expect(intent.evidences).toHaveLength(0)
+    expect(intent.sessionId).toBeUndefined()
   })
 })

@@ -59,8 +59,6 @@ const DEFENSES: DefenseWiring[] = [
     symbol: 'validateDecision',
     mustBeCalledFrom: 'src/main/ipc',
     definitionFiles: ['src/main/core/decision-engine.ts'],
-    // P0-5：决策卡在渲染层构造后直接落库，校验函数存在但没人调。
-    knownUnwiredReason: 'P0-5 待修：决策卡落库前没调用 validateDecision',
   },
 ]
 

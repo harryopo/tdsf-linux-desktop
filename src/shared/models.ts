@@ -468,6 +468,39 @@ export interface DecisionCard {
   durationMs?: number
 }
 
+/**
+ * 落库一条决策记录的「意图」—— 只描述发生了什么，不描述"该怎么记"
+ *
+ * 为什么不让渲染层直接传 DecisionCard（P0-5）：DecisionCard 是审计凭证，
+ * 它的 risk / confidence / status / id / timestamp 必须由主进程基于自己的判据生成
+ * （risk-engine 评风险、confidence 模块按证据链算置信度）。
+ * 渲染层有 bug、有被污染的上游数据、万一残留的 XSS，都能直接改写落库的事实；
+ * 而"可信决策"正是本产品的第三个卖点。
+ *
+ * 仍然由渲染层提供的是**内容**（问题、假设、证据文本）—— 那些来自聊天上下文，
+ * 主进程没有别的来源；但每条证据的 sourcePrior 与 confidence 会被主进程重算。
+ */
+export interface HistorySaveIntent {
+  /** 已执行的修复命令 */
+  command: string
+  /** 问题描述（来自最近一条用户消息） */
+  problem: string
+  /** 根因假设（来自 AI 分析那条消息） */
+  hypothesis: string
+  /** 证据链（先验与置信度由主进程按同一套算法重算） */
+  evidences: Evidence[]
+  /** 事实声明：用户已批准并把命令发到终端 */
+  executed: boolean
+  /** 修复说明（可选，不传由主进程按命令生成） */
+  fixDescription?: string
+  /** 关联的 SSH 会话 ID */
+  sessionId?: string
+  /** 目标服务器 ID */
+  serverId?: string
+  /** 执行耗时（ms） */
+  durationMs?: number
+}
+
 // ============================================================================
 // Agent 工作流类型
 // ============================================================================

@@ -39,7 +39,7 @@ import { useAgentStore } from '@/stores/agent-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 // v2.6 命令前置环境预检（与主进程 ssh_readonly 共用的纯函数）
 import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'
-import { buildChatDecisionCard, riskCheckToAssessment } from '@/utils/chat-decision'
+import { buildHistorySaveIntent } from '@/utils/chat-decision'
 import type { PaorApprovalRequest } from '@/types/electron'
 import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
@@ -346,8 +346,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
 
   /** v2.5：把“用户批准执行的命令”作为决策记录落库（history:save）
    *
-   * 上下文取自 agent-store：最后一条用户消息（问题）+ 最后一条 assistant 消息
-   * （根因假设 + 真实工具轨迹→证据链）；风险等级走真实 riskCheck IPC。
+   * P0-5：这里只交**意图**（命令 + 上下文 + 证据来源 + "用户确实批准执行了"）。
+   * 风险等级、置信度、id、时间戳都由主进程判定后写入，
+   * 所以渲染层不再有 riskCheck 往返，也无法把风险改低。
    */
   const recordChatDecision = async (command: string): Promise<void> => {
     const api = window.electronAPI
@@ -357,25 +358,14 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       const lastUser = [...msgs].reverse().find((m) => m.role === 'user') ?? null
       const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.isError) ?? null
 
-      // 风险评估：真实 riskCheck IPC（AST 优先 + 正则降级）；不可用时保守记 MEDIUM
-      let risk = riskCheckToAssessment('medium', ['riskCheck 不可用，保守记中风险'])
-      if (api.riskCheck) {
-        try {
-          const r = await api.riskCheck(command)
-          risk = riskCheckToAssessment(r.risk, r.reasons)
-        } catch {
-          // 保留保守默认
-        }
-      }
-
-      const card = buildChatDecisionCard({
-        command,
-        userMessage: lastUser,
-        assistantMessage: lastAssistant,
-        risk,
-        sessionId: activeSessionId,
-      })
-      await api.historySave(card)
+      await api.historySave(
+        buildHistorySaveIntent({
+          command,
+          userMessage: lastUser,
+          assistantMessage: lastAssistant,
+          sessionId: activeSessionId,
+        })
+      )
     } catch (err) {
       // 落库失败不影响命令执行主流程，仅记日志
       console.error('[AIPanel] 决策历史落库失败:', err)
