@@ -321,6 +321,12 @@
   margin-top: 4px;
   border-top: 1px solid var(--trae-border-neutral-l1);
 }
+/* 与模型页同一规矩：按钮标签从 CJK 中间断字比宽一点窄一点都难看 */
+.set-actionbar .set-btn-primary,
+.set-actionbar .set-btn-secondary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 
 .set-btn-primary {
   display: inline-flex;
@@ -1529,22 +1535,35 @@
 
 /* ActionBar footer */
 .set-model-actionbar {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
+  /* 曾经是 position: sticky + 负 margin 通栏贴底，浮在表单上盖住输入行；
+     现在它是 .set-subpage（flex column）的最后一个子节点，
+     表单在自己的滚动区里滚，这一条永远占着底部那一行，盖不到任何东西。 */
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  /* 通栏贴底：负 margin 抵掉 .set-subpage__body 的 20px 内边距。
-     之前是透明渐变浮层，按钮直接压在 API Key 输入行上看不清 */
-  margin: 8px -20px -20px;
+  flex-shrink: 0;
   padding: 12px 20px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-primary);
 }
+/* 按钮文字不许被挤成两行（窄窗口实测「恢复默/认」这样从 CJK 中间断字） */
+.set-model-actionbar .set-btn-primary,
+.set-model-actionbar .set-btn-secondary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/*
+ * 反馈文本：导出会把完整落盘路径打出来（一百多字符），不截断就会顶穿这一条栏。
+ * min-width:0 是必须的——flex 项默认 min-width:auto，不给它 0 它就永远不收缩。
+ * 全路径不丢：写在 title 里，悬停可看，也可从提示行的文件名读。
+ */
 .set-model-actionbar__feedback {
   font-size: var(--ui-font-micro);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .set-model-actionbar__feedback--success { color: var(--status-success-text); }
 .set-model-actionbar__feedback--error { color: var(--status-error-text); }

@@ -421,7 +421,12 @@ const Composer: FC<ComposerProps> = ({
 
         {/* 底部工具条：左簇动作与模型，右簇发送/停止（比容器深一档，形成底座带） */}
         <div className="flex items-center justify-between gap-2 bg-sunken px-1.5 py-1">
-          <div className="flex min-w-0 flex-1 items-center gap-1">
+          {/*
+            flex-wrap：这一排左簇有 @/#/图片/上下文/思考强度/模型 六个控件，
+            窄窗口（实测 1120px 带 AI 面板）放不下。原先靠把模型 chip 压到看不清来"塞进去"，
+            结果是箭头探出按钮 3px。宁可让它换一行，也不要裁切或压瘪。
+          */}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 gap-y-1">
             <Tooltip content="@提及">
               <IconButton label="@提及" size="sm" onClick={() => insertPrefix('@')}>
                 <AtSign className="size-3.5" />
@@ -480,8 +485,12 @@ const Composer: FC<ComposerProps> = ({
                   size="sm"
                   variant="ghost"
                   title={providerLabel}
-                  // 固定宽度而非 max-w：按钮基类带 shrink-0，给上限也照样撑，会把标签压到发送钮底下
-                  className="w-[132px] shrink-0 px-2"
+                  // 132px 是上限不是死宽：基类的 shrink-0 会让它在窄窗口里把整排顶出容器
+                  // （实测 1120px 宽时溢出 111px，模型名压到发送钮底下）。
+                  // 放开收缩，长名字由内层 truncate 收尾。
+                  // gap-1/px-1.5：基类的 gap-2 + px-2 让"内边距+箭头"就占掉 36px，
+                  // 收缩后仍要裁掉箭头 7px（用户会看到半个箭头）。这里把固定开销压到 28px。
+                  className="w-[132px] max-w-[132px] min-w-0 shrink gap-1 px-1.5"
                 >
                   <span className="min-w-0 flex-1 truncate">{providerLabel}</span>
                   <ChevronDown className="size-3 shrink-0" />

@@ -59,6 +59,7 @@ export function ModelActionBar(props: ModelActionBarProps) {
       </button>
       {saveFeedback && (
         <span
+          title={saveFeedback}
           className={
             'set-model-actionbar__feedback ' +
             (saveFeedback === '配置已保存'
@@ -70,7 +71,10 @@ export function ModelActionBar(props: ModelActionBarProps) {
         </span>
       )}
       {exportFeedback && (
-        <span className="set-model-actionbar__feedback set-model-actionbar__feedback--success">
+        <span
+          className="set-model-actionbar__feedback set-model-actionbar__feedback--success"
+          title={exportFeedback}
+        >
           {exportFeedback}
         </span>
       )}

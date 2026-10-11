@@ -145,7 +145,12 @@ describe('静态判据：源码里不许硬编码 bypass', () => {
   })
 
   it('量具自证：真赋值要抓到，注释里的同字样不该误报', () => {
-    const fake = path.join(ROOT, 'src/main/__permission-canary__.ts')
+    const MAIN = path.join(ROOT, 'src/main')
+    const fake = path.join(MAIN, '__permission-canary__.ts')
+    // 建完再删会把 src/main 这个**目录**的 mtime 顶到当下，
+    // 而 tests/e2e/global-setup.ts 的新鲜度门按目录递归取最新 mtime ——
+    // 于是下一次 e2e 会误报"out/ 比 src/ 旧，跑的是改版前的包"。用完原样还回去。
+    const before = fs.statSync(MAIN).mtimeMs
     fs.writeFileSync(
       fake,
       [
@@ -157,13 +162,15 @@ describe('静态判据：源码里不许硬编码 bypass', () => {
       'utf8'
     )
     try {
-      const hits = scan(path.join(ROOT, 'src/main'))
+      const hits = scan(MAIN)
       const canaryHits = hits.filter((h) => h.includes('__permission-canary__'))
       expect(canaryHits.length, '注入的真赋值没被抓到 = 这条闸是摆设').toBe(2)
       // 注释里出现同样的字面量，整仓计数仍为 2（说明判据只认代码不认散文）
       expect(hits.length, '注释里的字面量被误判成违规：\n' + hits.join('\n')).toBe(2)
     } finally {
       fs.rmSync(fake, { force: true })
+      fs.utimesSync(MAIN, new Date(), new Date(before))
+      expect(Math.abs(fs.statSync(MAIN).mtimeMs - before), '目录 mtime 没还原，会误报 e2e 构建门').toBeLessThan(2000)
     }
   })
 })

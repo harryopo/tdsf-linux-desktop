@@ -19,6 +19,17 @@
   background: var(--trae-bg-base-default);
 }
 
+/*
+ * 标签条右上角的工具钮：父条是 align-items: stretch，标签项靠拉伸吃满 40px 画下边框；
+ * 但 Button 自带固定高（24px），拉伸对它无效，于是整排贴在条子顶上 ——
+ * 实测图标中心比这一排内容的中线高 8px，标签文字在正中、工具钮浮在上面一截。
+ * 单独把它们钉回垂直居中。
+ */
+.term-tab-new,
+.term-tab-tool {
+  align-self: center;
+}
+
 .term-tab-item {
   position: relative;
   display: flex;

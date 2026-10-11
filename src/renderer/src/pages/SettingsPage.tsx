@@ -41,7 +41,8 @@ export function SettingsPage() {
                       aria-hidden
                       className="flex size-8 shrink-0 items-center justify-center rounded-(--ui-radius-control) bg-accent/12 text-accent-ink"
                     >
-                      <Icon className="size-4" strokeWidth={1.8} />
+                      {/* 描边跟全站图标一致用 lucide 默认 2（原来单写 1.8，和同排图标粗细不一） */}
+                      <Icon className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-md font-medium text-ink">

@@ -48,6 +48,13 @@ if (THEME_TIERS.length < 8) {
   process.exit(1)
 }
 
+/**
+ * 一排图标的中心线偏差上限（px）。
+ * 亚像素缩放会带来 0.x px 的抖动，超过 1px 就是肉眼看得见的不齐
+ * ——用户 2026-10-11 指出的终端标签条那一排，实测偏 8px。
+ */
+const ICON_MAX_OFF_Y = 1
+
 fs.mkdirSync(OUT_DIR, { recursive: true })
 
 if (!fs.existsSync(path.join(ROOT, 'out', 'main', 'index.js'))) {
@@ -486,8 +493,294 @@ const MEASURE = `(async () => {
     }
   }
 
+  /*
+   * ===== 几何细账（用户 2026-10-11 指出："图标不在一个水平线上、线粗细不一致、导出栏超界"）=====
+   * 前面量的是"有没有被裁掉"，这一节量的是三件截图才看得见、但可以用数判的事：
+   *   1. 同一排图标是否共线、描边是否一致
+   *   2. 按钮标签有没有被折成两行（CJK 会中间断字）
+   *   3. 内容有没有溢出容器 / 被吸底操作条盖住
+   * 每一项都带"量具自证"，取不到数就报 null 让门禁红，不许当成"没量到所以没问题"。
+   */
+
+  /** 四条几何判据的量具自证结果；任何一条 false 都由门禁报"量具失效、本屏读数作废" */
+  const geoCanary = { spill: false, covered: false, align: false, stroke: false };
+  // --- 1. 一排图标：找"含 ≥2 个 svg 的 flex/grid 容器"，取最内层那一圈 ---
+  /*
+   * 先注入两条假缺陷（图标浮起 8px + 描边 1.8 混在 2 里），让下面的正常扫描去抓它们。
+   * 抓不到就说明这两条判据没牙 —— 那"0 处不齐"是量具失效，不是界面干净。
+   * 用真容器真 svg，走的是与产品元素完全同一条代码路径，不是另写一套判定。
+   */
+  const alignCanary = document.createElement('div');
+  alignCanary.setAttribute('aria-label', '__geo_align_canary__');
+  alignCanary.style.cssText = 'display:flex;align-items:center;height:40px;position:fixed;left:-9999px;top:0;opacity:0';
+  alignCanary.innerHTML =
+    '<span style="font-size:12px">参照文字</span>' +
+    '<button style="display:inline-flex;align-items:center;height:24px"><svg width="16" height="16" stroke-width="2"></svg></button>' +
+    '<button style="display:inline-flex;align-items:center;height:24px;margin-top:8px"><svg width="16" height="16" stroke-width="1.8"></svg></button>';
+  document.documentElement.append(alignCanary);
+  const iconRows = [];
+  {
+    const boxes = [];
+    for (const el of document.querySelectorAll('*')) {
+      const cs = getComputedStyle(el);
+      if (cs.display !== 'flex' && cs.display !== 'inline-flex' && cs.display !== 'grid') continue
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue
+      const svgs = [...el.querySelectorAll('svg')].filter((s) => {
+        const r = s.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) return false;
+        // 整只图标要在视口内：半滚出去的图标量到的中心线不是用户看到的那条线
+        if (r.top < 0 || r.bottom > innerHeight) return false;
+        // 宿主必须是"控件"尺寸。closest() 会一路往上找到面板（实测找到一个 900px 的祖先，
+        // 它里面那只隐藏 svg 的 stroke 是 1px，把整排的读数都污染了）
+        const host = s.closest('button,[aria-label],[title]');
+        if (host) {
+          const hr = host.getBoundingClientRect();
+          if (hr.height > 64) return false;
+        }
+        return true;
+      });
+      if (svgs.length < 2 || svgs.length > 10) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 24 || r.height < 12 || r.height > 90) continue;
+      // 只留最内层：外层容器会包含同一批 svg，重复报一遍同一个偏差
+      if (boxes.some((b) => b.el.contains(el))) continue;
+      while (boxes.length && el.contains(boxes[boxes.length - 1].el)) boxes.pop();
+      boxes.push({ el, svgs, r });
+    }
+    for (const { el, svgs } of boxes) {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const contentTop = r.top + parseFloat(cs.paddingTop || 0);
+      const contentH = r.height - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0);
+      if (contentH < 8) continue;
+      /*
+       * 用户报的是"同一排里某个图标浮起来了"，所以判据要在**同一视觉行内**比中心线：
+       * 先按中心 y 排序，相邻差 <10px 归一行，再量每行内部的最大偏离。
+       * 三种参照系都实测过：
+       *  - 容器边框盒中心：把 .set-row--last 那种故意收窄下边距的行报成偏 5px（假阳）；
+       *  - 同排子元素中位中心：工具钮自己占满中位数，真偏 8px 量不到（假阴）；
+       *  - 容器内容盒中心：窄屏下工具条换行以后，把"两行"误判成"一排不齐"（假阳）。
+       */
+      const centers = svgs
+        .map((s) => {
+          const sr = s.getBoundingClientRect();
+          return { s, c: sr.top + sr.height / 2, sr };
+        })
+        .sort((a, b) => a.c - b.c);
+      const lines = [];
+      for (const item of centers) {
+        const last = lines[lines.length - 1];
+        if (last && item.c - last[last.length - 1].c < 10) last.push(item);
+        else lines.push([item]);
+      }
+      let worst = 0;
+      let worstAt = '';
+      const strokes = new Set();
+      const detail = [];
+      for (const line of lines) {
+        const mean = line.reduce((a, x) => a + x.c, 0) / line.length;
+        /*
+         * 判据 A：同一视觉行内，图标彼此的中心线偏离。
+         * 抓的是"某个图标浮起来/沉下去"（描边、行高、对齐方式不一致都会落到这里）。
+         */
+        for (const { s, sr } of line) {
+          const d = Math.abs(sr.top + sr.height / 2 - mean);
+          const host = s.closest('button,[aria-label],[title]');
+          if (d > worst) {
+            worst = d;
+            worstAt = ((host && (host.getAttribute('aria-label') || host.getAttribute('title'))) || (el.getAttribute('aria-label') || '') || (el.className || '').toString().slice(0, 30)).trim();
+          }
+          if (d > ${ICON_MAX_OFF_Y} && host) {
+            const hr = host.getBoundingClientRect();
+            detail.push({
+              at: (host.getAttribute('aria-label') || host.getAttribute('title') || '').slice(0, 16),
+              offY: Math.round((sr.top + sr.height / 2 - mean) * 10) / 10,
+              btn: Math.round(hr.height) + '@' + Math.round(hr.top - r.top),
+              self: getComputedStyle(host).alignSelf,
+            });
+          }
+        }
+        /*
+         * 判据 B：这一行图标的中心 vs 同一容器里"纯文字子元素"的中心。
+         * 抓的是判据 A 看不见的那一类：整组工具钮一起浮在条子上沿
+         * （终端标签条实测：4 个钮中心 12，标签文字中心 20，差 8px —— 钮彼此是齐的，
+         * 只有跟文字比才看得出来）。
+         * 只在容器里确实有"带文字、不带图标"的直接子元素时才判，否则没有参照物。
+         */
+        const textKids = [...el.children].filter((k) => {
+          if (k.querySelector('svg')) return false;
+          const txt = (k.textContent || '').trim();
+          if (!txt || txt.length > 40) return false;
+          const kr = k.getBoundingClientRect();
+          return kr.width > 12 && kr.height > 6 && kr.top >= r.top - 1 && kr.bottom <= r.bottom + 1;
+        });
+        if (!textKids.length) continue;
+        const textCenter =
+          textKids.reduce((a, k) => {
+            const kr = k.getBoundingClientRect();
+            return a + (kr.top + kr.height / 2);
+          }, 0) / textKids.length;
+        const d2 = Math.abs(mean - textCenter);
+        if (d2 > worst) {
+          worst = d2;
+          worstAt = ((el.getAttribute('aria-label') || '') || (el.className || '').toString().slice(0, 30)).trim();
+        }
+      }
+      for (const s of svgs) strokes.add(s.getAttribute('stroke-width') || getComputedStyle(s).strokeWidth || '2');
+      iconRows.push({
+        at: worstAt.slice(0, 30),
+        n: svgs.length,
+        h: Math.round(r.height),
+        // 亚像素抖动 0.6px 以内算共线（transform/缩放会带来这种量级的误差）
+        maxOffY: Math.round(worst * 10) / 10,
+        strokes: [...strokes],
+        detail: worst > ${ICON_MAX_OFF_Y} || strokes.size > 1 ? detail.slice(0, 6) : undefined,
+      });
+    }
+    iconRows.sort((a, b) => b.maxOffY - a.maxOffY || b.strokes.length - a.strokes.length);
+    // 假缺陷必须被上面的扫描抓到；抓到之后**从产品读数里摘掉**——
+    // 它是量具的一部分，不是界面缺陷（第一版忘了摘，每屏都假红一条"canary 不齐"）
+    const canaryIdx = iconRows.findIndex((row) => row.at.includes('__geo_align_canary__'));
+    const canaryRow = canaryIdx >= 0 ? iconRows.splice(canaryIdx, 1)[0] : undefined;
+    geoCanary.align = !!canaryRow && canaryRow.maxOffY > ${ICON_MAX_OFF_Y};
+    geoCanary.stroke = !!canaryRow && canaryRow.strokes.length > 1;
+    alignCanary.remove();
+  }
+  // 描边刻度的唯一来源：lucide 默认 2，我们若整体改成别的值必须一致
+  const strokeToken = rootCs.getPropertyValue('--ui-icon-stroke').trim() || '2';
+
+  // --- 2. 标签折行：文字实际高度超过 1.6 倍行高就是换行了 ---
+  const wrapped = [];
+  for (const el of document.querySelectorAll('button,a,label,.tab,[class*="btn"]')) {
+    const txt = (el.textContent || '').trim();
+    if (!txt || txt.length > 24) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || cs.whiteSpace === 'nowrap') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) continue;
+    // 图标在上、文字在下的竖排按钮是故意的两层，不是折行
+    if (cs.flexDirection === 'column') continue;
+    // 只量直接文本节点：把 svg 的高度算进来会让"图标+标签"的按钮全部假阳
+    let textH = 0;
+    for (const n of el.childNodes) {
+      if (n.nodeType !== 3 || !n.nodeValue.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      textH = Math.max(textH, range.getBoundingClientRect().height);
+    }
+    if (!textH) continue;
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
+    if (textH > lh * 1.6) {
+      wrapped.push({ text: txt.slice(0, 16), lines: Math.round(textH / lh), h: Math.round(r.height), cls: (el.className || '').toString().slice(0, 34) });
+    }
+  }
+
+  // --- 3a. 溢出容器：子元素右缘越过父容器内容区（没 overflow:hidden 的"超界"前面量不到）---
+  const spill = [];
+  /** 被父级 overflow 裁掉的探出子元素：用户看不见，所以不算缺陷，但必须留痕 */
+  const clippedKids = [];
+  for (const el of document.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    if (cs.overflowX === 'auto' || cs.overflowX === 'scroll') continue; // 横向滚动是故意的
+    const r = el.getBoundingClientRect();
+    if (r.width < 20) continue;
+    for (const kid of el.children) {
+      const kr = kid.getBoundingClientRect();
+      if (kr.width < 4 || kr.height < 4) continue;
+      const over = kr.right - (r.right - parseFloat(cs.paddingRight || 0));
+      if (over > 2) {
+        /*
+         * 父级自己会裁剪（overflow hidden/clip）时，用户看不见探出去的那一截 —— 那是故意的
+         * 截断，不是超界。但这条豁免不能变成盲区：单独计数并打印，
+         * 让"我靠裁剪糊过去"这件事在报告里留痕（实测模型 chip 就是这种情况）。
+         */
+        const clips = cs.overflowX === 'hidden' || cs.overflowX === 'clip' || cs.overflow === 'hidden';
+        const row = {
+          // 类名前缀 34 字经常认不出是哪个控件（实测撞过一次），给到 60 字并附上可访问名
+          parent: (el.className || '').toString().slice(0, 60),
+          parentAt: (el.getAttribute('aria-label') || el.getAttribute('title') || el.parentElement?.getAttribute('aria-label') || '').slice(0, 24),
+          child: ((kid.textContent || '').trim().slice(0, 22) || kid.tagName),
+          childAt: (kid.getAttribute('aria-label') || kid.getAttribute('title') || '').slice(0, 20),
+          over: Math.round(over),
+        };
+        if (clips) clippedKids.push({ ...row, by: cs.overflowX });
+        else spill.push(row);
+      }
+    }
+    if (spill.length > 8) break;
+  }
+
+  // --- 3b. 吸底操作条盖住内容：拿 elementFromPoint 问"这一点上谁在最上面" ---
+  const covered = [];
+  {
+    const bars = [...document.querySelectorAll('*')].filter((el) => {
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'sticky' && cs.position !== 'fixed') return false;
+      const r = el.getBoundingClientRect();
+      // 贴着视口底部的一条横栏才算操作条
+      return r.height > 20 && r.height < 200 && r.width > innerWidth * 0.4 && innerHeight - r.bottom < 4;
+    });
+    for (const bar of bars) {
+      for (const el of document.querySelectorAll('input,textarea,select,button,label,a')) {
+        if (bar.contains(el) || el.contains(bar)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) continue;
+        const cx = Math.round(r.left + Math.min(r.width, 60) / 2);
+        const cy = Math.round(r.top + r.height / 2);
+        if (cy < 0 || cy > innerHeight) continue;
+        const top = document.elementFromPoint(cx, cy);
+        if (top && (top === bar || bar.contains(top))) {
+          covered.push({
+            bar: (bar.className || '').toString().slice(0, 30),
+            hidden: ((el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || el.tagName) || '').trim().slice(0, 22),
+          });
+        }
+      }
+    }
+  }
+  // 量具自证：临时造一个"盖住按钮的吸底条"，上面两条必须抓到
+  try {
+    const probeBtn = document.createElement('button');
+    probeBtn.type = 'button';
+    probeBtn.setAttribute('aria-label', '__geo_canary__');
+    probeBtn.textContent = 'canary';
+    const probeBar = document.createElement('div');
+    probeBar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;height:80px;background:#000;z-index:2147483647';
+    probeBtn.style.cssText = 'position:fixed;left:40px;bottom:20px;width:120px;height:28px';
+    document.body.append(probeBtn, probeBar);
+    const rr = probeBtn.getBoundingClientRect();
+    const hit = document.elementFromPoint(Math.round(rr.left + 20), Math.round(rr.top + rr.height / 2));
+    geoCanary.covered = !!(hit && probeBar.contains(hit));
+    const wide = document.createElement('div');
+    wide.style.cssText = 'position:fixed;left:10px;width:60px;overflow:visible';
+    const wideKid = document.createElement('span');
+    wideKid.style.cssText = 'display:block;width:200px';
+    wide.append(wideKid);
+    document.body.append(wide);
+    geoCanary.spill = wideKid.getBoundingClientRect().right - wide.getBoundingClientRect().right > 2;
+    probeBtn.remove();
+    probeBar.remove();
+    wide.remove();
+  } catch {
+    /* 造不了探针就留 false，由门禁报"量具失效" */
+  }
+
   return {
     viewport: [innerWidth, innerHeight],
+    iconRows: iconRows.slice(0, 6),
+    iconRowWorstOffY: iconRows.length ? iconRows[0].maxOffY : null,
+    iconRowsMixedStroke: iconRows.filter((r) => r.strokes.length > 1).length,
+    strokeToken,
+    wrapped,
+    wrappedCount: wrapped.length,
+    spill,
+    spillCount: spill.length,
+    clippedKids: clippedKids.slice(0, 4),
+    clippedKidCount: clippedKids.length,
+    covered,
+    coveredCount: covered.length,
+    geoCanary,
     overlayType,
     overlayTiers: overlayType ? new Set(Object.keys(overlayType).map((k) => k.split('px/')[0] + 'px')).size : 0,
     dupHooks,
@@ -627,6 +920,55 @@ try {
     report.cjk.push(await cjkFontAudit(ws, r.hash))
   }
 
+  /*
+   * 窄屏第二遍（用户 2026-10-11："这个导出栏做的不是很好，超界了你之前测试都没截图看到"）
+   *
+   * 宽屏 1440 下动作条永远不挤，按钮不折行、路径不溢出 —— 那些只在窗口变窄时出现，
+   * 而按钮普查恰好用的是小窗口。所以这一遍专门量窄屏，并且**先点一次"导出统计"**
+   * 把那条上百字符的落盘路径渲染出来（不点就没有那个状态，等于没测）。
+   */
+  const NARROW = [Number(process.env.UI_AUDIT_NARROW_W || 1120), Number(process.env.UI_AUDIT_NARROW_H || 680)]
+  if (!NARROW.every((n) => Number.isFinite(n) && n >= 600)) {
+    console.error(`UI_AUDIT_NARROW_W / _H 必须是 600 以上的数字，收到 ${JSON.stringify(NARROW)}`)
+    app.kill()
+    process.exit(2)
+  }
+  await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: NARROW[0],
+    height: NARROW[1],
+    deviceScaleFactor: 1,
+    mobile: false,
+  })
+  for (const [hash, name, prep] of [
+    ['#/workbench', 'n-01-workbench-narrow', null],
+    ['#/settings/model', 'n-02-settings-model-narrow', 'export'],
+  ]) {
+    const st = await settle(ws, hash)
+    if (prep === 'export') {
+      // 点"导出统计"让长反馈文本真的出现在栏里；没有这个按钮就如实记下，不静默跳过
+      report.narrowExportClicked = await evalIn(ws, `(async () => {
+        const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('导出统计'));
+        if (b) { b.click(); await new Promise((r) => setTimeout(r, 900)); }
+        return !!b;
+      })()`)
+    }
+    const file = await shot(ws, name)
+    const m = await evalIn(ws, MEASURE)
+    report.screens.push({
+      route: `${hash}@${NARROW[0]}×${NARROW[1]}`,
+      png: file,
+      settled: st.settled,
+      waitedMs: st.waitedMs,
+      ...m,
+    })
+  }
+  await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: vp[0],
+    height: vp[1],
+    deviceScaleFactor: 1,
+    mobile: false,
+  })
+
   // 2) 风险控制页功能实测：只读规则表真的把引擎规则画出来了（不是空表、不是错误态）
   const stRisk = await settle(ws, '#/settings/risk')
   report.riskRules = {
@@ -693,6 +1035,8 @@ try {
     const MAX_COMBOS = 12 // 单屏 (字号/字重/字体族) 组合数上限；实测最松的一屏是 10
     const bad = []
     const exemptNotes = []
+    /** 几何类"不算缺陷但要留痕"的说明（例如被 overflow 裁掉的探出） */
+    const geoNotes = []
     const pages = [report.boot.measure, ...report.screens].filter(Boolean)
     // 弹层那几条是在"页面 + 浮层"整体上量的，组合数/字体族会把页面本身重复计入，只查对比度与遮挡
     const layers = [report.formDialog, report.confirmDialog, report.contextMenu].filter(Boolean)
@@ -772,6 +1116,45 @@ try {
       if (s.tierUnresolved?.length) {
         bad.push(`${at}: 这些字阶档在 :root 上解析不出 px（${s.tierUnresolved.join('、')}），漂移检测对它们不设防`)
       }
+      // ===== 几何细账（用户 2026-10-11："图标不在一条线、线粗细不一致、导出栏超界"）=====
+      // 先判量具再判读数：探针没跑成的话 0 条不算干净
+      if (!s.geoCanary) bad.push(`${at}: 几何探针没跑成（0 条不等于通过）`)
+      else {
+        if (!s.geoCanary.covered) bad.push(`${at}: 遮挡探针失效（造的假吸底条没被抓到），covered 读数作废`)
+        if (!s.geoCanary.spill) bad.push(`${at}: 溢出探针失效（造的假超界子元素没被抓到），spill 读数作废`)
+        if (!s.geoCanary.align) bad.push(`${at}: 共线探针失效（造的"图标浮起 8px"没被抓到），iconRowWorstOffY 读数作废`)
+        if (!s.geoCanary.stroke) bad.push(`${at}: 描边探针失效（造的 1.8/2 混排没被抓到），mixedStroke 读数作废`)
+      }
+      if (s.iconRowWorstOffY === null || s.iconRowWorstOffY === undefined) {
+        // 只有确实没有成排图标的屏才允许 null（外壳/启动页），其余屏取不到就是没量到
+        if ((s.iconSizes && Object.keys(s.iconSizes).length > 2) && at === '#/workbench')
+          bad.push(`${at}: 成排图标没量到（有 svg 却没识别出容器），共线判据等于没跑`)
+      } else if (s.iconRowWorstOffY > ICON_MAX_OFF_Y) {
+        const worst = (s.iconRows || [])[0]
+        bad.push(`${at}: 一排图标不在同一水平线 — 最大偏移 ${s.iconRowWorstOffY}px（上限 ${ICON_MAX_OFF_Y}）「${worst?.at}」${worst?.n} 个图标`)
+      }
+      if (s.iconRowsMixedStroke) {
+        const rows = (s.iconRows || []).filter((r) => r.strokes.length > 1)
+        bad.push(`${at}: ${s.iconRowsMixedStroke} 排图标描边粗细不一致 — ${rows.map((r) => `「${r.at}」${r.strokes.join('/')}`).join('；')}（--ui-icon-stroke=${s.strokeToken}）`)
+      }
+      for (const w of s.wrapped || []) {
+        bad.push(`${at}: 按钮/标签文字被折成 ${w.lines} 行 — 「${w.text}」(${w.cls}, 高 ${w.h}px)`)
+      }
+      for (const p of s.spill || []) {
+        bad.push(`${at}: 内容溢出容器右缘 ${p.over}px — 「${p.child}」${p.childAt ? `(${p.childAt})` : ''} 在 .${p.parent}${p.parentAt ? ` 「${p.parentAt}」` : ''}`)
+      }
+      for (const c of s.covered || []) {
+        bad.push(`${at}: 吸底条 .${c.bar} 盖住了「${c.hidden}」（看得见点不着）`)
+      }
+      // 靠 overflow 裁掉的探出不算缺陷，但要报出来：哪天发现"界面少了一截"，
+      // 这里就是线索（不静默吞掉，否则豁免会变成盲区）
+      if (s.clippedKidCount) {
+        geoNotes.push(
+          `${at}: ${s.clippedKidCount} 处内容探出容器但被 overflow 裁掉 — ${(s.clippedKids || [])
+            .map((c) => `「${c.childAt || c.child}」超出 ${c.over}px（父 ${c.by}）`)
+            .join('；')}`,
+        )
+      }
     }
     for (const s of layers) {
       const offIcon = (s.offTierIcons || []).map((o) => `${o.size}「${o.at || o.cls}」`)
@@ -827,7 +1210,10 @@ try {
     const HEAD_SIG = '20px/600'
     for (const s of pages) {
       const at = s.route
-      if (!at || SHELL_ROUTES.includes(at)) continue
+      // 路由后面可能带 @宽×高（窄屏第二遍），豁免要按基础路由判，
+      // 否则同一个外壳页在宽屏豁免、窄屏就假红一条"没有 PageHeader"
+      const baseRoute = String(at || '').split('@')[0]
+      if (!at || SHELL_ROUTES.includes(baseRoute)) continue
       if (!s.hasPageHeader) {
         bad.push(`${at}: 左上角没有 PageHeader（标题 ${s.header ? `${s.header.size}px/${s.header.weight}「${s.header.text}」` : '缺失'}，模块之间不一致）`)
       } else if (`${s.header.size}px/${s.header.weight}` !== HEAD_SIG) {
@@ -843,6 +1229,7 @@ try {
       const h = s.header
       console.log('  ' + String(s.route || 'boot').padEnd(20), h ? `${h.size}px/${h.weight} @${h.x},${h.y}  ${JSON.stringify(h.text)}` : '（没找到页级标题）')
     }
+    for (const n of geoNotes) console.log('  几何留痕：' + n)
     if (bad.length) {
       console.error('FAIL：\n' + bad.join('\n'))
       app.kill()

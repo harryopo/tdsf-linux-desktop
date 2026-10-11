@@ -589,16 +589,21 @@ export function ModelSettings() {
           budgetAlerts={budgetAlerts}
           usedAmount={usedAmount}
         />
-
-        {/* ActionBar: 恢复默认 / 导出统计 / 保存所有配置（设计稿：sticky 底部操作栏） */}
-        <ModelActionBar
-          onResetDefaults={handleResetDefaults}
-          onExportStats={handleExportStats}
-          onSaveAll={handleSaveAll}
-          saveFeedback={saveFeedback}
-          exportFeedback={exportFeedback}
-        />
       </div>
+
+      {/*
+        ActionBar 是滚动区的兄弟节点，不在 .set-subpage__body 里面。
+        原来它是 body 内的一条 sticky 栏，会浮在表单上——实测"API Endpoint"那一行
+        被压在栏下面看不见也点不着（用户 2026-10-11 的截图）。
+        放在外面同样常驻底部，但内容有自己的滚动区，永远不会被盖住。
+      */}
+      <ModelActionBar
+        onResetDefaults={handleResetDefaults}
+        onExportStats={handleExportStats}
+        onSaveAll={handleSaveAll}
+        saveFeedback={saveFeedback}
+        exportFeedback={exportFeedback}
+      />
     </div>
   )
 }

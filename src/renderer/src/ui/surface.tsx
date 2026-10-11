@@ -80,7 +80,9 @@ export function PageHeader({
           aria-hidden
           className="flex size-9 shrink-0 items-center justify-center rounded-(--ui-radius-control) bg-accent/12 text-accent-ink"
         >
-          <Icon className="size-5" strokeWidth={1.8} />
+          {/* 描边一律用 lucide 默认 2：这里曾单独写 strokeWidth={1.8}，
+              于是页头"标题图标"和同一排右侧的操作图标粗细不一样（用户 2026-10-11 指出） */}
+          <Icon className="size-5" />
         </span>
       )}
       <div className="min-w-0 flex-1">
