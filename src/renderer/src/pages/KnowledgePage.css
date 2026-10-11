@@ -101,7 +101,7 @@
   color: var(--text-tertiary);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-4);
-  font-size: var(--trae-body-xs-font-size);
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -242,7 +242,7 @@
   gap: 4px;
   margin-left: auto;
   color: var(--accent-text);
-  font-size: var(--trae-body-xs-font-size);
+  font-size: var(--ui-font-caption);
   background: transparent;
   border: none;
   padding: 0;
@@ -331,7 +331,7 @@
 .kb-recent-title {
   flex: 1;
   min-width: 0;
-  font-size: var(--trae-body-sm-font-size);
+  font-size: var(--ui-font-caption);
   line-height: var(--trae-body-sm-line-height);
   color: var(--text-primary);
   overflow: hidden;
@@ -434,7 +434,7 @@
   border: 1px solid var(--trae-border-brand);
   border-radius: var(--trae-radius-6);
   color: var(--accent-text);
-  font-size: var(--trae-body-sm-font-size);
+  font-size: var(--ui-font-caption);
   font-weight: var(--trae-font-weight-medium);
   cursor: pointer;
   flex-shrink: 0;
@@ -821,7 +821,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: var(--ui-font-micro);
+  font-size: var(--ui-font-caption);
   color: var(--text-muted);
   cursor: pointer;
   background: transparent;

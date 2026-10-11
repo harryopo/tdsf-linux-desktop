@@ -3,9 +3,11 @@
  *
  * 2026-10-06 按用户"左侧 IDE 的 UI 太小了"重做：
  * 原来 38px 宽、18px 图标、无文字，选中态只有一根 2px 亮条——看不清也认不出。
- * 现在按 Apple 侧栏语言：52×52 的圆角块（radius 12）承载 22px 图标 + 11px 标签，
+ * 现在按 Apple 侧栏语言：52×52 的圆角块（radius 12）承载 22px 图标 + 12px 标签，
  * 选中态用整块圆角底色（macOS 侧栏选中就是圆角矩形，不是一根线），
  * 图标与文字同时提亮，鼠标悬停再给一次底色。
+ * 标签字档 2026-10-11 由 11px（micro）提到 12px（caption）：micro 按 DESIGN.md
+ * 只用于注释性文字，导航标签是控件标签，不该借注释档省钱。
  *
  * 保留 wb-activity-rail / wb-nav-btn 这两个类名当钩子：
  * 真机验证脚本 scripts/design/verify-theme.mjs 与 E2E 按它们取节点。
@@ -131,7 +133,7 @@ function RailButton({
         )}
       >
         <Icon className="size-(--ui-size-glyph)" strokeWidth={active ? 2 : 1.7} />
-        <span className="text-micro leading-none">{item.label}</span>
+        <span className="text-caption leading-none">{item.label}</span>
       </button>
     </Tooltip>
   )

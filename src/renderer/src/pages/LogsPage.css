@@ -57,7 +57,7 @@
   height: 32px;
   padding: 0 var(--trae-spacer-12) 0 32px;
   font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-body-sm-font-size);
+  font-size: var(--ui-font-caption);
   color: var(--text-primary);
   background: var(--trae-bg-base-default);
   border: 1px solid var(--trae-border-neutral-l2);
@@ -78,7 +78,7 @@
 .log-level-btn {
   height: 26px;
   padding: 0 var(--trae-spacer-12);
-  font-size: var(--trae-body-xs-font-size);
+  font-size: var(--ui-font-caption);
   font-weight: var(--trae-font-weight-default);
   color: var(--text-tertiary);
   background: transparent;
@@ -106,7 +106,7 @@
   height: 28px;
   padding: 0 var(--trae-spacer-12);
   gap: 6px;
-  font-size: var(--trae-body-xs-font-size);
+  font-size: var(--ui-font-caption);
   font-weight: var(--trae-font-weight-medium);
   color: var(--accent-text);
   background: var(--trae-bg-brand-popup);
@@ -400,7 +400,7 @@
   background: var(--trae-bg-base-secondary);
   border-top: 1px solid var(--trae-border-neutral-l1);
   font-family: var(--trae-font-family-mono);
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }

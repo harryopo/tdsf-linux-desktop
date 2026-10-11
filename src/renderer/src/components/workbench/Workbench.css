@@ -129,7 +129,7 @@
   color: var(--text-primary);
   border: 1px solid var(--trae-border-neutral-l2);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--ui-font-caption);
   cursor: pointer;
   transition: background 0.12s ease;
 }
@@ -641,7 +641,7 @@
   color: var(--trae-text-onbrand);
   border: none;
   border-radius: 4px;
-  font-size: var(--ui-font-micro);
+  font-size: var(--ui-font-caption);
   font-weight: 500;
   cursor: pointer;
   transition: background 120ms ease-out, transform 80ms ease-out;

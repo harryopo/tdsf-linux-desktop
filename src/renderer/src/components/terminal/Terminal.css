@@ -465,7 +465,7 @@
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--trae-radius-6);
   color: var(--text-primary);
-  font-size: var(--trae-body-sm-font-size);
+  /* 同上：字号交给组件自己的 text-md，未分层 CSS 不要再压工具类 */
 }
 
 .term-settings-select:hover {
@@ -494,7 +494,8 @@
   border-radius: var(--trae-radius-6);
   color: var(--text-primary);
   font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-body-sm-font-size);
+  /* 这里不再写 font-size：未分层的项目 CSS 会压过 Tailwind 的 @layer utilities，
+     原来这行把组件自己声明的 text-md（14px）悄悄改成 11px（ui-audit tinyControls 抓到） */
   font-weight: var(--trae-font-weight-medium);
   font-variant-numeric: tabular-nums;
   justify-content: center;

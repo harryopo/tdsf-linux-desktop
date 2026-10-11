@@ -41,7 +41,10 @@
   background: var(--trae-bg-base-default);
   color: var(--text-primary);
   font-family: var(--ui-family-ui);
-  font-size: 11px;
+  /* 基线取注释以上那一档（12px），不是微档：这一层是"谁不显式设字号就继承它"的根，
+     写成 11px 会让一排排按钮/标签/输入默默落到注释档（ui-audit 的 tinyControls 实测抓到 40 类）。
+     确实要当旁注的地方各自显式写 text-micro，不靠继承。 */
+  font-size: var(--ui-font-caption);
   line-height: 1.5;
   animation: wb-main-layout-fade-in var(--trae-duration-normal, 200ms) var(--trae-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
 }

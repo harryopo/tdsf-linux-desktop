@@ -236,8 +236,7 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索告警..."
-              className="bg-transparent border-none outline-none text-ink w-[100px]"
-              style={{ fontSize: 'var(--trae-body-xs-font-size)' }}
+              className="bg-transparent border-none outline-none text-ink text-caption w-[100px]"
             />
           </div>
         </div>
