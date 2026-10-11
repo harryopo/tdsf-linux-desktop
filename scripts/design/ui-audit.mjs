@@ -503,7 +503,7 @@ const MEASURE = `(async () => {
    */
 
   /** 四条几何判据的量具自证结果；任何一条 false 都由门禁报"量具失效、本屏读数作废" */
-  const geoCanary = { spill: false, covered: false, align: false, stroke: false };
+  const geoCanary = { spill: false, covered: false, align: false, stroke: false, rail: false, tiny: false, wrap: false };
   // --- 1. 一排图标：找"含 ≥2 个 svg 的 flex/grid 容器"，取最内层那一圈 ---
   /*
    * 先注入两条假缺陷（图标浮起 8px + 描边 1.8 混在 2 里），让下面的正常扫描去抓它们。
@@ -650,10 +650,30 @@ const MEASURE = `(async () => {
   const strokeToken = rootCs.getPropertyValue('--ui-icon-stroke').trim() || '2';
 
   // --- 2. 标签折行：文字实际高度超过 1.6 倍行高就是换行了 ---
+  // 假缺陷先注入：一个 40px 宽、装 4 个汉字的短标签，必须被判成折行
+  const wrapCanary = document.createElement('button');
+  wrapCanary.type = 'button';
+  wrapCanary.className = '__geo_wrap_canary__';
+  wrapCanary.style.cssText = 'position:fixed;left:-9999px;top:0;width:40px';
+  const wrapCanaryBox = document.createElement('div');
+  const wrapCanaryLabel = document.createElement('div');
+  wrapCanaryLabel.className = '__geo_wrap_canary__';
+  wrapCanaryLabel.textContent = '故障诊断';
+  wrapCanaryBox.append(wrapCanaryLabel);
+  wrapCanary.append(wrapCanaryBox);
+  document.body.append(wrapCanary);
+  /*
+   * 竖排按钮（图标在上、文字在下的 flex-col）外层不算折行，是故意的两层；
+   * 但标签住在它的子层里，只量外层会漏掉"侧栏标签被挤成两行"整类（实测漏过一次），
+   * 所以 button>span / button>div>div 也拉进来量 —— 容器里只装文字，range 高度就是文字高度。
+   */
   const wrapped = [];
-  for (const el of document.querySelectorAll('button,a,label,.tab,[class*="btn"]')) {
+  for (const el of document.querySelectorAll('button,a,label,.tab,[class*="btn"],button>span,a>span,button>div>div,a>div>div')) {
     const txt = (el.textContent || '').trim();
     if (!txt || txt.length > 24) continue;
+    // 控件里那层"标题+说明"的容器：短标签（≤10 字）不许断行，长说明允许两行
+    const inner = el.matches('button > div > div, a > div > div, button>span, a>span');
+    if (inner && txt.length > 10) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || cs.whiteSpace === 'nowrap') continue;
     const r = el.getBoundingClientRect();
@@ -673,6 +693,12 @@ const MEASURE = `(async () => {
     if (textH > lh * 1.6) {
       wrapped.push({ text: txt.slice(0, 16), lines: Math.round(textH / lh), h: Math.round(r.height), cls: (el.className || '').toString().slice(0, 34) });
     }
+  }
+  {
+    const ci = wrapped.findIndex((w) => w.cls.includes('__geo_wrap_canary__'));
+    const crow = ci >= 0 ? wrapped.splice(ci, 1)[0] : undefined;
+    geoCanary.wrap = !!crow && crow.lines >= 2;
+    wrapCanary.remove();
   }
 
   // --- 3a. 溢出容器：子元素右缘越过父容器内容区（没 overflow:hidden 的"超界"前面量不到）---
@@ -739,6 +765,117 @@ const MEASURE = `(async () => {
       }
     }
   }
+  // --- 4. 横向可滚的"轨道"必须让人看出来能滚（用户 2026-10-08/10-11 两次提"chip 滚动可发现性"）---
+  // 契约：确实被裁到的 overflow-x 容器要带 data-rail，并用 data-rail-overflow 说明还有哪边能滚。
+  // 没标 = 用户看见的是"巡…"这种被硬切一半的样子，以为界面画坏了。
+  // 先注入两条假缺陷（未标注的溢出轨道 + 10px 的按钮），下面的扫描必须抓到它们
+  const railCanary = document.createElement('div');
+  railCanary.className = '__geo_rail_canary__';
+  railCanary.style.cssText = 'position:fixed;left:-9999px;top:0;width:80px;height:24px;overflow-x:auto;white-space:nowrap';
+  const railKid = document.createElement('span');
+  railKid.style.cssText = 'display:inline-block;width:400px';
+  railCanary.append(railKid);
+  const tinyCanary = document.createElement('button');
+  tinyCanary.type = 'button';
+  tinyCanary.className = '__geo_tiny_canary__';
+  tinyCanary.style.cssText = 'position:fixed;left:2px;top:2px;font-size:10px';
+  tinyCanary.textContent = 'canary';
+  document.body.append(railCanary, tinyCanary);
+
+  const rails = [];
+  for (const el of document.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    if (cs.overflowX !== 'auto' && cs.overflowX !== 'scroll') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 8) continue;
+    if (el.scrollWidth - el.clientWidth <= 4) continue; // 没溢出，不需要 affordance
+    const canScrollRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    const expect =
+      el.scrollLeft > 4 && canScrollRight ? 'both' : canScrollRight ? 'right' : 'left';
+    let cutChild = null;
+    for (const k of el.children) {
+      const kr = k.getBoundingClientRect();
+      if (kr.width > 2 && kr.right > r.right + 2) {
+        cutChild = ((k.textContent || '').trim().slice(0, 12) || k.tagName);
+        break;
+      }
+    }
+    rails.push({
+      cls: (el.className || '').toString().slice(0, 52),
+      marked: el.hasAttribute('data-rail'),
+      state: el.getAttribute('data-rail-overflow') || '',
+      expect,
+      hasMoreRight: canScrollRight,
+      cutChild,
+    });
+  }
+  const railCanaryIdx = rails.findIndex((x) => x.cls.includes('__geo_rail_canary__'));
+  const railCanaryRow = railCanaryIdx >= 0 ? rails.splice(railCanaryIdx, 1)[0] : undefined;
+
+  // --- 5. 控件不许用注释档：11px 的用途是"状态点旁注、进度百分比"，不是按钮/标签/输入 ---
+  /*
+   * 量的是"这个控件真正显示出来的标签字号"，不是控件元素自己的 getComputedStyle。
+   * 三个原因（都实测踩过）：
+   *   - 外壳根 .wb-main-layout / .wb-shell 把基线写成 11px，谁不显式设字号就继承它 ——
+   *     纯图标按钮根本没文字也会被算进来（假阳）；
+   *   - "标签 span 是 12px、只是按钮自己是继承的 11px"，按元素算同样假阳；
+   *   - 复合控件（排行号 + 标题 + 浏览量的一行）里，序号和浏览量本来就是注释性文字，
+   *     按"第一个文字"会抓到序号而不是标签。所以取**控件内所有可见文字里最大的那一档**当标签：
+   *     控件的名字是它自己最显眼的那段字，剩下的都是旁注。
+   * 输入框/下拉框没有文字子节点，取 placeholder / 当前值按自己的字号算。
+   */
+  const tinyControls = [];
+  const primaryLabel = (el) => {
+    let best = null;
+    const walk = (cur) => {
+      for (const n of cur.childNodes) {
+        if (n.nodeType === 1) { walk(n); continue; }
+        if (n.nodeType !== 3 || !n.nodeValue.trim()) continue;
+        const ncs = getComputedStyle(cur);
+        if (ncs.visibility === 'hidden' || ncs.display === 'none') continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        const box = range.getBoundingClientRect();
+        if (box.width < 2 || box.height < 2) continue; // 画都没画出来（0 宽/被折叠）
+        const size = parseFloat(ncs.fontSize);
+        if (!best || size > best.size) best = { size, text: n.nodeValue.trim() };
+      }
+    };
+    walk(el);
+    return best;
+  };
+  for (const el of document.querySelectorAll('button,a,input,textarea,select,label,[role="tab"],[role="button"],[role="menuitem"]')) {
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    let info = primaryLabel(el);
+    if (!info && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
+      const ph = (el.getAttribute('placeholder') || el.value || '').trim();
+      if (ph) info = { size: parseFloat(cs.fontSize), text: ph };
+    }
+    if (!info) continue; // 纯图标控件：没有文字可判
+    if (info.size >= 12) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) continue;
+    tinyControls.push({ text: info.text.slice(0, 16), size: info.size, cls: (el.className || '').toString().slice(0, 64) });
+  }
+  const tinyCanaryIdx = tinyControls.findIndex((x) => x.cls.includes('__geo_tiny_canary__'));
+  const tinyCanaryRow = tinyCanaryIdx >= 0 ? tinyControls.splice(tinyCanaryIdx, 1)[0] : undefined;
+  geoCanary.rail = !!railCanaryRow && railCanaryRow.hasMoreRight && !railCanaryRow.marked;
+  geoCanary.tiny = !!tinyCanaryRow && tinyCanaryRow.size < 12;
+  railCanary.remove();
+  tinyCanary.remove();
+
+  // 同一类控件在同一屏会重复出现（侧栏 8 个钮就是 8 条），按 档+类名 归并成"种类"，
+  // 否则 slice(0,8) 会被第一族刷满，后面几族根本看不见（实测被 nav-btn 挡住过一次）
+  const tinyKindMap = new Map();
+  for (const t of tinyControls) {
+    const key = t.size + '|' + t.cls;
+    const g = tinyKindMap.get(key);
+    if (g) g.n += 1;
+    else tinyKindMap.set(key, { ...t, n: 1 });
+  }
+  const tinyKinds = [...tinyKindMap.values()].sort((a, b) => b.n - a.n).slice(0, 10);
+
   // 量具自证：临时造一个"盖住按钮的吸底条"，上面两条必须抓到
   try {
     const probeBtn = document.createElement('button');
@@ -780,6 +917,12 @@ const MEASURE = `(async () => {
     clippedKidCount: clippedKids.length,
     covered,
     coveredCount: covered.length,
+    rails: rails.slice(0, 6),
+    railCount: rails.length,
+    railMissingMark: rails.filter((x) => x.hasMoreRight && !x.marked).length,
+    railBadState: rails.filter((x) => x.marked && x.state !== x.expect).length,
+    tinyControls: tinyKinds,
+    tinyControlCount: tinyControls.length,
     geoCanary,
     overlayType,
     overlayTiers: overlayType ? new Set(Object.keys(overlayType).map((k) => k.split('px/')[0] + 'px')).size : 0,
@@ -921,46 +1064,65 @@ try {
   }
 
   /*
-   * 窄屏第二遍（用户 2026-10-11："这个导出栏做的不是很好，超界了你之前测试都没截图看到"）
+   * 额外视口两遍（用户 2026-10-11："这个导出栏做的不是很好，超界了你之前测试都没截图看到"）
    *
-   * 宽屏 1440 下动作条永远不挤，按钮不折行、路径不溢出 —— 那些只在窗口变窄时出现，
-   * 而按钮普查恰好用的是小窗口。所以这一遍专门量窄屏，并且**先点一次"导出统计"**
-   * 把那条上百字符的落盘路径渲染出来（不点就没有那个状态，等于没测）。
+   * 宽屏 1440×900 下动作条永远不挤：按钮不折行、路径不溢出，那些只在窗口变窄时出现；
+   * 反过来 AI 面板输入区被压扁只在窗口变矮时出现。两遍各管一头，
+   * 窄屏那遍还要**先点一次"导出统计"**把那条上百字符的落盘路径渲染出来
+   * （不点就没有那个状态，等于没测）。
    */
-  const NARROW = [Number(process.env.UI_AUDIT_NARROW_W || 1120), Number(process.env.UI_AUDIT_NARROW_H || 680)]
-  if (!NARROW.every((n) => Number.isFinite(n) && n >= 600)) {
-    console.error(`UI_AUDIT_NARROW_W / _H 必须是 600 以上的数字，收到 ${JSON.stringify(NARROW)}`)
-    app.kill()
-    process.exit(2)
-  }
-  await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
-    width: NARROW[0],
-    height: NARROW[1],
-    deviceScaleFactor: 1,
-    mobile: false,
-  })
-  for (const [hash, name, prep] of [
-    ['#/workbench', 'n-01-workbench-narrow', null],
-    ['#/settings/model', 'n-02-settings-model-narrow', 'export'],
-  ]) {
-    const st = await settle(ws, hash)
-    if (prep === 'export') {
-      // 点"导出统计"让长反馈文本真的出现在栏里；没有这个按钮就如实记下，不静默跳过
-      report.narrowExportClicked = await evalIn(ws, `(async () => {
-        const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('导出统计'));
-        if (b) { b.click(); await new Promise((r) => setTimeout(r, 900)); }
-        return !!b;
-      })()`)
+  const EXTRA_VIEWS = [
+    {
+      tag: '窄',
+      size: [Number(process.env.UI_AUDIT_NARROW_W || 1120), Number(process.env.UI_AUDIT_NARROW_H || 680)],
+      routes: [
+        ['#/workbench', 'n-01-workbench-narrow'],
+        ['#/settings/model', 'n-02-settings-model-narrow'],
+      ],
+      clickExport: true,
+    },
+    {
+      tag: '矮',
+      size: [Number(process.env.UI_AUDIT_SHORT_W || 1440), Number(process.env.UI_AUDIT_SHORT_H || 700)],
+      routes: [
+        ['#/workbench', 's-01-workbench-short'],
+        ['#/settings/model', 's-02-settings-model-short'],
+      ],
+      clickExport: false,
+    },
+  ]
+  for (const view of EXTRA_VIEWS) {
+    if (!view.size.every((n) => Number.isFinite(n) && n >= 600)) {
+      console.error(`${view.tag}屏视口宽高必须是 600 以上的数字，收到 ${JSON.stringify(view.size)}`)
+      app.kill()
+      process.exit(2)
     }
-    const file = await shot(ws, name)
-    const m = await evalIn(ws, MEASURE)
-    report.screens.push({
-      route: `${hash}@${NARROW[0]}×${NARROW[1]}`,
-      png: file,
-      settled: st.settled,
-      waitedMs: st.waitedMs,
-      ...m,
+    await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: view.size[0],
+      height: view.size[1],
+      deviceScaleFactor: 1,
+      mobile: false,
     })
+    for (const [hash, name] of view.routes) {
+      const st = await settle(ws, hash)
+      if (view.clickExport) {
+        // 点"导出统计"让长反馈文本真的出现在栏里；没有这个按钮就如实记下，不静默跳过
+        report.narrowExportClicked = await evalIn(ws, `(async () => {
+          const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('导出统计'));
+          if (b) { b.click(); await new Promise((r) => setTimeout(r, 900)); }
+          return !!b;
+        })()`)
+      }
+      const file = await shot(ws, name)
+      const m = await evalIn(ws, MEASURE)
+      report.screens.push({
+        route: `${hash}@${view.size[0]}×${view.size[1]}`,
+        png: file,
+        settled: st.settled,
+        waitedMs: st.waitedMs,
+        ...m,
+      })
+    }
   }
   await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
     width: vp[0],
@@ -1124,6 +1286,9 @@ try {
         if (!s.geoCanary.spill) bad.push(`${at}: 溢出探针失效（造的假超界子元素没被抓到），spill 读数作废`)
         if (!s.geoCanary.align) bad.push(`${at}: 共线探针失效（造的"图标浮起 8px"没被抓到），iconRowWorstOffY 读数作废`)
         if (!s.geoCanary.stroke) bad.push(`${at}: 描边探针失效（造的 1.8/2 混排没被抓到），mixedStroke 读数作废`)
+        if (!s.geoCanary.rail) bad.push(`${at}: 轨道探针失效（造的"被裁却没标注的横向滚动容器"没被抓到），rails 读数作废`)
+        if (!s.geoCanary.tiny) bad.push(`${at}: 微档探针失效（造的 10px 按钮没被抓到），tinyControls 读数作废`)
+        if (!s.geoCanary.wrap) bad.push(`${at}: 折行探针失效（造的"40px 宽装 4 个汉字"没被抓到），wrapped 读数作废`)
       }
       if (s.iconRowWorstOffY === null || s.iconRowWorstOffY === undefined) {
         // 只有确实没有成排图标的屏才允许 null（外壳/启动页），其余屏取不到就是没量到
@@ -1145,6 +1310,25 @@ try {
       }
       for (const c of s.covered || []) {
         bad.push(`${at}: 吸底条 .${c.bar} 盖住了「${c.hidden}」（看得见点不着）`)
+      }
+      // 横向滚动轨道：被裁却没提示 = 用户读到"界面画坏了"（DESIGN.md §8 第 16 条）
+      for (const rl of s.rails || []) {
+        if (rl.hasMoreRight && !rl.marked)
+          bad.push(
+            `${at}: 横向轨道被裁到「${rl.cutChild}」却没有可滚动提示（缺 data-rail/淡出）— .${rl.cls}`,
+          )
+        else if (rl.marked && rl.state !== rl.expect)
+          bad.push(
+            `${at}: 横向轨道的溢出状态写错 — .${rl.cls} 标成 ${rl.state || '(空)'}，实际是 ${rl.expect}（淡出会画错边）`,
+          )
+      }
+      // 注释档（--ui-font-micro 11px）只给旁注用；按钮/标签/输入借它就是字阶漂移
+      if (s.tinyControlCount) {
+        bad.push(
+          `${at}: ${s.tinyControlCount} 个控件用了注释档字号（<12px）— ${(s.tinyControls || [])
+            .map((t) => `「${t.text}」${t.size}px×${t.n}`)
+            .join('，')}`,
+        )
       }
       // 靠 overflow 裁掉的探出不算缺陷，但要报出来：哪天发现"界面少了一截"，
       // 这里就是线索（不静默吞掉，否则豁免会变成盲区）
@@ -1179,20 +1363,28 @@ try {
           }
         }
       }
-      // AI 输入区：至少三行（判据取令牌值本身，不在脚本里另写一个数），快捷提示词那一排只许一行
-      if (!wb.composer) bad.push('#/workbench: AI 输入框没量到（探针没跑成，别当成不挤）')
-      else {
-        const minWant = wb.composerMinToken
-        if (!minWant) bad.push('#/workbench: 读不到 --ui-size-composer-min，输入区高度判据断链')
-        else if (wb.composer.inputH < minWant) {
-          bad.push(`#/workbench: AI 输入框只有 ${wb.composer.inputH}px（应 ≥ 令牌 --ui-size-composer-min ${minWant}px）`)
-        }
-        if (wb.composer.chipBarH === null) bad.push('#/workbench: 快捷提示词那一排没量到（探针没跑成）')
-        else if (wb.composer.chipBarH > 56) {
-          bad.push(
-            `#/workbench: 快捷提示词那一排换成 ${wb.composer.chipBarH}px 高（换成两行了，挤掉输入区；应单行 + 横向滚动）`
-          )
-        }
+    }
+
+    /*
+     * AI 输入区：至少三行（判据取令牌值本身，不在脚本里另写一个数），快捷提示词那一排只许一行。
+     * 窄/矮两遍的工作台屏也在这儿判 —— "面板被压扁"就是矮窗口才出现的症状（任务 #43）。
+     */
+    for (const s of pages.filter((x) => (x.route || '').startsWith('#/workbench'))) {
+      const at = s.route
+      if (!s.composer) {
+        bad.push(`${at}: AI 输入框没量到（探针没跑成，别当成不挤）`)
+        continue
+      }
+      const minWant = s.composerMinToken
+      if (!minWant) bad.push(`${at}: 读不到 --ui-size-composer-min，输入区高度判据断链`)
+      else if (s.composer.inputH < minWant) {
+        bad.push(`${at}: AI 输入框只有 ${s.composer.inputH}px（应 ≥ 令牌 --ui-size-composer-min ${minWant}px）`)
+      }
+      if (s.composer.chipBarH === null) bad.push(`${at}: 快捷提示词那一排没量到（探针没跑成）`)
+      else if (s.composer.chipBarH > 56) {
+        bad.push(
+          `${at}: 快捷提示词那一排换成 ${s.composer.chipBarH}px 高（换成两行了，挤掉输入区；应单行 + 横向滚动）`
+        )
       }
     }
 

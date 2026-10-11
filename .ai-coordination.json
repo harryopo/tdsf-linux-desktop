@@ -2,8 +2,109 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-11T06:12:00.461Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-11T08:47:29.521Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-11T08:12:08.860Z",
+      "lastActiveAt": "2026-10-11T08:47:29.521Z",
+      "task": "ui-polish-rail",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/hooks/useRailOverflow.ts",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:08.860Z"
+        },
+        {
+          "path": "scripts/design/ui-audit.mjs",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:11.209Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/Composer.tsx",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:13.519Z"
+        },
+        {
+          "path": "src/renderer/src/ui/tabs.tsx",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:23.583Z"
+        },
+        {
+          "path": "src/renderer/src/shell/activity-rail.tsx",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:26.143Z"
+        },
+        {
+          "path": "src/renderer/src/styles/global.css",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:28.303Z"
+        },
+        {
+          "path": "tests/unit/rail-overflow.test.ts",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:12:30.391Z"
+        },
+        {
+          "path": "src/renderer/src/components/layout/MainLayout.css",
+          "task": "ui-polish-rail",
+          "claimedAt": "2026-10-11T08:17:29.308Z"
+        },
+        {
+          "path": "src/renderer/src/pages/Settings.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:24:04.944Z"
+        },
+        {
+          "path": "src/renderer/src/pages/KnowledgePage.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:24:06.467Z"
+        },
+        {
+          "path": "src/renderer/src/pages/TutorialPage.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:24:07.999Z"
+        },
+        {
+          "path": "src/renderer/src/pages/LogsPage.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:24:09.552Z"
+        },
+        {
+          "path": "src/renderer/src/pages/MonitorPage.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:24:11.071Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/Workbench.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:24:12.584Z"
+        },
+        {
+          "path": "DESIGN.md",
+          "task": "ui-polish-doc",
+          "claimedAt": "2026-10-11T08:24:29.733Z"
+        },
+        {
+          "path": "src/renderer/src/components/monitor/AlertTable.tsx",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:30:35.098Z"
+        },
+        {
+          "path": "src/renderer/src/components/terminal/Terminal.css",
+          "task": "ui-polish-type",
+          "claimedAt": "2026-10-11T08:36:55.987Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/MessageList.tsx",
+          "task": "ui-polish-narrow",
+          "claimedAt": "2026-10-11T08:47:29.521Z"
+        }
+      ],
+      "expiresAt": "2026-10-11T10:47:29.521Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -6899,6 +7000,132 @@
       "file": "src/shared/ipc-channels.ts",
       "task": "p0-5-decision-trust",
       "timestamp": "2026-10-11T06:12:00.461Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/hooks/useRailOverflow.ts",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:08.860Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/design/ui-audit.mjs",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:11.209Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/Composer.tsx",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:13.519Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/ui/tabs.tsx",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:23.583Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/shell/activity-rail.tsx",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:26.143Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/styles/global.css",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:28.303Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/rail-overflow.test.ts",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:12:30.391Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/layout/MainLayout.css",
+      "task": "ui-polish-rail",
+      "timestamp": "2026-10-11T08:17:29.308Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/Settings.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:24:04.944Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/KnowledgePage.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:24:06.467Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialPage.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:24:07.999Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/LogsPage.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:24:09.552Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/MonitorPage.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:24:11.071Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/Workbench.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:24:12.584Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "DESIGN.md",
+      "task": "ui-polish-doc",
+      "timestamp": "2026-10-11T08:24:29.733Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/monitor/AlertTable.tsx",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:30:35.098Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/terminal/Terminal.css",
+      "task": "ui-polish-type",
+      "timestamp": "2026-10-11T08:36:55.987Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/MessageList.tsx",
+      "task": "ui-polish-narrow",
+      "timestamp": "2026-10-11T08:47:29.521Z"
     }
   ],
   "coordinationAudit": {
