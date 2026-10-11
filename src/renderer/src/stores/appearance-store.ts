@@ -33,12 +33,16 @@ export const APPEARANCE_DEFAULTS = {
   codeTheme: 'one-dark' as CodeTheme,
 }
 
-/** 代码字体选项 → 实际 font-family 栈 */
+/**
+ * 代码字体选项 → 实际 font-family 栈。
+ * 每条都在 monospace 之前放一个中文黑体族：Windows 的中文等宽默认字族是宋体，
+ * 只写 `..., monospace` 的栈一旦混进中文就会掉成衬线（用户 2026-10-11 指出的"看到宋体"）。
+ */
 export const CODE_FONT_STACKS: Record<string, string> = {
-  'JetBrains Mono': "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-  'Cascadia Code': "'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace",
-  'Fira Code': "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
-  Consolas: "Consolas, 'JetBrains Mono', 'Cascadia Code', monospace",
+  'JetBrains Mono': "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Microsoft YaHei', monospace",
+  'Cascadia Code': "'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'Microsoft YaHei', monospace",
+  'Fira Code': "'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, 'Microsoft YaHei', monospace",
+  Consolas: "Consolas, 'JetBrains Mono', 'Cascadia Code', 'Microsoft YaHei', monospace",
 }
 
 interface AppearanceState {

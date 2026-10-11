@@ -101,6 +101,73 @@ async function evalIn(ws, expression) {
   return r.result.value
 }
 
+/** 衬线字族的名字形状（SimHei 是黑体，不在这里） */
+const SERIF_FONT = /(simsun|宋体|nsimsun|serif|times|kaiti|stsong|fangsong)/i
+
+/**
+ * 真实用到的字族普查（用户 2026-10-11 指出界面里看到宋体）
+ *
+ * 为什么不能只看 computed font-family：那只是"声明的那一串"，中文最终落在哪个字族上
+ * 是浏览器逐字形回退的结果——声明 `..., monospace` 的栈，中文在 Windows 上会掉进宋体，
+ * 而 computed style 里完全看不出来。CSS.getPlatformFontsForNode 给的是**实际用的字族与字形数**。
+ *
+ * 自带阳性对照：另挂一个显式写 SimSun 的探针节点，量不到它就算量具坏了（同链接普查那条规矩）。
+ */
+async function cjkFontAudit(ws, label) {
+  await cdp(ws, 'DOM.enable')
+  await cdp(ws, 'CSS.enable')
+  const marked = await evalIn(ws, `(() => {
+    const CJK = /[\\u3400-\\u4dbf\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef]/;
+    document.querySelectorAll('[data-cjk-probe]').forEach((e) => e.removeAttribute('data-cjk-probe'));
+    let n = 0;
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.hasAttribute('data-audit-canary')) continue;
+      const own = [...el.childNodes].filter((x) => x.nodeType === 3).map((x) => x.nodeValue).join('');
+      if (!CJK.test(own)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      el.setAttribute('data-cjk-probe', String(n++));
+    }
+    const canary = document.createElement('span');
+    canary.id = 'audit-cjk-canary';
+    canary.setAttribute('data-audit-canary', '1');
+    canary.style.cssText = 'position:fixed;left:2px;top:2px;z-index:-1;font-size:12px;color:#000;opacity:0.02;font-family:"SimSun", serif;';
+    canary.textContent = '宋体探针';
+    document.body.appendChild(canary);
+    return n;
+  })()`)
+  const { root } = await cdp(ws, 'DOM.getDocument', { depth: -1 })
+  const fontsOf = async (selector) => {
+    const { nodeIds } = await cdp(ws, 'DOM.querySelectorAll', { nodeId: root.nodeId, selector })
+    const out = []
+    for (const nodeId of nodeIds.slice(0, 500)) {
+      try {
+        const r = await cdp(ws, 'CSS.getPlatformFontsForNode', { nodeId })
+        out.push(...(r.fonts || []))
+      } catch {
+        /* React 中途重绘会把这个节点换掉，跳过这一个（探针还在，不影响判据） */
+      }
+    }
+    return out
+  }
+  const used = await fontsOf('[data-cjk-probe]')
+  const canaryFonts = await fontsOf('#audit-cjk-canary')
+  await evalIn(ws, `(() => { const c = document.getElementById('audit-cjk-canary'); if (c) c.remove(); })()`)
+  const tally = new Map()
+  for (const f of used) {
+    if (!SERIF_FONT.test(f.familyName || '')) continue
+    tally.set(f.familyName, (tally.get(f.familyName) || 0) + (f.glyphCount || 1))
+  }
+  return {
+    label,
+    marked,
+    canaryCaught: canaryFonts.some((f) => SERIF_FONT.test(f.familyName || '')),
+    serif: [...tally.entries()]
+      .map(([family, glyphs]) => ({ family, glyphs }))
+      .sort((a, b) => b.glyphs - a.glyphs),
+  }
+}
+
 async function shot(ws, name) {
   // --no-shots：只跑量测不出图。窗口被最小化时 captureScreenshot 会永久不返回，
   // 而门禁要的是逐元素计算样式，不需要 PNG——别让取证卡在像素上。
@@ -397,8 +464,32 @@ const MEASURE = `(async () => {
     canaryCaught,
   };
 
+  /*
+   * 浮层（弹窗 / 菜单）单独量一次层级（#62 用户提的"各部分、各卡片字号统一性与层级性"）。
+   * 整屏组合数里混着背景页的标题与状态栏，拿它管浮层等于管不到；
+   * 浮层要的是"标题 / 说明 / 标签 / 控件 / 提示"就那么几档，
+   * 所以只取浮层里面的直接文字节点。
+   */
+  const dlg = document.querySelector('[role="dialog"], [role="menu"]');
+  let overlayType = null;
+  if (dlg) {
+    overlayType = {};
+    for (const el of dlg.querySelectorAll('*')) {
+      const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.nodeValue).join('').trim();
+      if (!own) continue;
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const k = cs.fontSize + '/' + cs.fontWeight;
+      overlayType[k] = (overlayType[k] || 0) + 1;
+    }
+  }
+
   return {
     viewport: [innerWidth, innerHeight],
+    overlayType,
+    overlayTiers: overlayType ? new Set(Object.keys(overlayType).map((k) => k.split('px/')[0] + 'px')).size : 0,
     dupHooks,
     typeScales: Object.fromEntries(Object.entries(type).sort((a, b) => b[1] - a[1]).slice(0, 24)),
     distinctTypeCombos: Object.keys(type).length,
@@ -527,11 +618,13 @@ try {
   await evalIn(ws, `(() => { const e = document.querySelector('button[data-dom-id="boot-enter"]'); if (e) e.click(); })()`)
   await sleep(2500)
 
+  report.cjk = []
   for (const r of ROUTES) {
     const st = await settle(ws, r.hash)
     const file = await shot(ws, r.name)
     const m = await evalIn(ws, MEASURE)
     report.screens.push({ route: r.hash, png: file, settled: st.settled, waitedMs: st.waitedMs, ...m })
+    report.cjk.push(await cjkFontAudit(ws, r.hash))
   }
 
   // 2) 风险控制页功能实测：只读规则表真的把引擎规则画出来了（不是空表、不是错误态）
@@ -562,6 +655,7 @@ try {
     await new Promise((x) => setTimeout(x, 900));
   })()`)
   report.formDialog = await evalIn(ws, MEASURE)
+  report.cjk.push(await cjkFontAudit(ws, '#/settings/ssh 添加服务器弹窗'))
   report.formDialogOpen = await evalIn(ws, `!!document.querySelector('[role="dialog"]')`)
   await shot(ws, '14-modal-form-connect')
   await evalIn(ws, `(() => { const c = document.querySelector('[role="dialog"] [aria-label="关闭"], .ant-modal-close'); if (c) c.click(); })()`)
@@ -574,6 +668,7 @@ try {
     await new Promise((x) => setTimeout(x, 900));
   })()`)
   report.confirmDialog = await evalIn(ws, MEASURE)
+  report.cjk.push(await cjkFontAudit(ws, '确认框弹窗'))
   await shot(ws, '14-dialog-confirm')
   await evalIn(ws, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`)
   await sleep(500)
@@ -587,6 +682,7 @@ try {
     await new Promise((x) => setTimeout(x, 800));
   })()`)
   report.contextMenu = await evalIn(ws, MEASURE)
+  report.cjk.push(await cjkFontAudit(ws, '右键菜单'))
   await shot(ws, '15-menu-context')
 
   console.log(JSON.stringify(report, null, 2))
@@ -628,6 +724,29 @@ try {
       } else if (s.route) {
         bad.push(`${at}: 链接普查没跑成（没拿到 links 字段，0 条不等于通过）`)
       }
+    }
+    // 真实字族（#62）：中文不许实际落在衬线字族上（用户看到的宋体），
+    // 且每屏都必须抓到显式 SimSun 探针——探针没抓到就是量具坏了，"0 处衬线"是假绿。
+    if (!(report.cjk || []).length) bad.push('字族普查整批没跑（0 屏不等于通过）')
+    for (const c of report.cjk || []) {
+      if (!c.canaryCaught)
+        bad.push(`${c.label}: 字族普查量具失效（显式 SimSun 探针没被抓到），本屏 ${c.marked} 个中文节点的读数作废`)
+      for (const s of c.serif)
+        bad.push(`${c.label}: 中文实际落在衬线字族 ${s.family}（${s.glyphs} 个字形）——代码栈要在 monospace 前补中文黑体族`)
+    }
+    // 浮层层级（#62）：弹窗/菜单自己那一层有几档字号要数得过来；
+    // 整屏组合数混着背景页，管不到浮层，所以这条单独判。
+    const OVERLAY_TIERS = 4
+    const overlays = [
+      ['添加服务器弹窗', report.formDialog],
+      ['确认框弹窗', report.confirmDialog],
+      ['右键菜单', report.contextMenu],
+    ].filter(([, s]) => s && s.overlayType)
+    if (overlays.length < 2)
+      bad.push(`浮层字号普查只量到 ${overlays.length} 个浮层（应 ≥2），这条判据现在等于没跑`)
+    for (const [name, s] of overlays) {
+      if (s.overlayTiers > OVERLAY_TIERS)
+        bad.push(`${name}: 浮层内出现 ${s.overlayTiers} 档字号（上限 ${OVERLAY_TIERS}）— ${Object.keys(s.overlayType).join('、')}`)
     }
     for (const s of pages) {
       const at = s.route || 'boot'

@@ -90,8 +90,8 @@ export function DialogContent({
           'fixed left-1/2 top-1/2 z-(--ui-z-modal) w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2',
           'overflow-hidden rounded-(--ui-radius-panel) bg-raised shadow-(--shadow-lg)',
           // 弹窗里英文/数字走代码字体（ED25519、id_ed25519、~/.ssh/、user@host 这些
-          // 本来就是"标识符"），中文仍走界面字体——见 --ui-family-code-cjk 的注释
-          'font-code-cjk',
+          // 本来就是"标识符"），中文由 --ui-family-code 里的雅黑兜住，不会掉进宋体
+          'font-mono',
           'focus:outline-none',
           className
         )}

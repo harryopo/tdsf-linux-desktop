@@ -91,8 +91,6 @@
 
   --font-sans: var(--ui-family-ui);
   --font-mono: var(--ui-family-code);
-  /* font-code-cjk：中英混排时英文走代码字体、中文保持界面字体（弹窗用这一档） */
-  --font-code-cjk: var(--ui-family-code-cjk);
 
   /* 字号档位（Tailwind v4 的 --text-* 命名空间生成 text-body / text-caption 这类工具类，
      带 --text-*--line-height 配对，避免"字号换了行高没换"） */

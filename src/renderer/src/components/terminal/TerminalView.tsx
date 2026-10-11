@@ -132,7 +132,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
       // 配色来自 src/shared/code-themes.ts（与外观设置页同一份表），
       // 初值取用户当前主题，避免"先画默认色、下一帧再改"的闪色
       theme: { ...CODE_THEMES[useAppearanceStore.getState().codeTheme].terminal },
-      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace",
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Microsoft YaHei', monospace",
       fontSize: fontSizeRef.current,
       lineHeight: 1.45,
       cursorBlink: true,

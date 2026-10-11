@@ -169,7 +169,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       onMount={handleMount}
       options={{
         fontSize: 13,
-        fontFamily: "'JetBrains Mono', 'Cascadia Code', monospace",
+        fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Microsoft YaHei', monospace",
         fontLigatures: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,

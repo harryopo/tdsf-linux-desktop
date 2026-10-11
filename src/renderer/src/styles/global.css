@@ -273,5 +273,5 @@ html[data-density='comfortable'] {
 code,
 pre,
 kbd {
-  font-family: var(--app-code-font, var(--trae-font-family-mono, 'JetBrains Mono', Consolas, monospace));
+  font-family: var(--app-code-font, var(--trae-font-family-mono, 'JetBrains Mono', Consolas, 'Microsoft YaHei', monospace));
 }

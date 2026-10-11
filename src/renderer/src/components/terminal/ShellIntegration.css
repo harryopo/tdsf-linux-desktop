@@ -97,13 +97,13 @@
   color: var(--text-tertiary);
 }
 
-/* 中英混排：英文与符号走代码字体族，中文回落到界面字体（与弹窗里其他代码块同一条规矩） */
+/* 中英混排：英文与符号走代码字体族，中文由代码栈里的雅黑兜住（不写第二份栈） */
 .term-si-code {
   max-height: 120px;
   margin: 0;
   padding: var(--ui-space-2);
   overflow: auto;
-  font-family: var(--ui-family-code-cjk);
+  font-family: var(--ui-family-code);
   font-size: var(--ui-font-micro);
   line-height: var(--ui-lh-snug);
   white-space: pre;

@@ -119,7 +119,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
           outline: 'none',
           color: 'var(--text-primary)',
           fontSize: 12,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "'JetBrains Mono', 'Microsoft YaHei', monospace",
         }}
       />
       {matchIndex > 0 && (
@@ -129,7 +129,7 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
             color: 'var(--text-muted)',
             minWidth: 28,
             textAlign: 'center',
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "'JetBrains Mono', 'Microsoft YaHei', monospace",
           }}
         >
           {matchIndex}

@@ -1099,7 +1099,7 @@
 .set-api-logs__body {
   margin: 0;
   white-space: pre-wrap;
-  font-family: var(--trae-font-family-mono, JetBrains Mono, monospace);
+  font-family: var(--trae-font-family-mono, 'JetBrains Mono', 'Microsoft YaHei', monospace);
   font-size: 12px;
   line-height: 18px;
   color: var(--text-tertiary);
