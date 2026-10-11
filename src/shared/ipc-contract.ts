@@ -159,7 +159,7 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     kind: 'invoke',
     api: 'sshShellWrite',
     channel: SSH.SHELL_WRITE,
-    doc: '向指定终端写入键入数据（主进程不逐键判定，见通道注释）',
+    doc: '向指定终端写入键入数据（主进程行缓冲到回车时过风险闸，block 时返回 false）',
     args: [
       { name: 'shellId', ts: 'string', schema: str },
       { name: 'data', ts: 'string', schema: str },
@@ -318,7 +318,7 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     kind: 'invoke',
     api: 'localTtyWrite',
     channel: LOCAL_TTY.WRITE,
-    doc: '向本机终端写入键入数据（主进程不逐键判定，见通道注释）',
+    doc: '向本机终端写入键入数据（主进程行缓冲到回车时过风险闸，block 时返回 false）',
     args: [
       { name: 'shellId', ts: 'string', schema: str },
       { name: 'data', ts: 'string', schema: str },

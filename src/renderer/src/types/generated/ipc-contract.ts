@@ -30,7 +30,7 @@ export interface ContractedInvokeApi {
    * 通道 `ssh:shell:list` */
   sshShellList(sessionId: string): Promise<string[]>
 
-  /** 向指定终端写入键入数据（主进程不逐键判定，见通道注释）
+  /** 向指定终端写入键入数据（主进程行缓冲到回车时过风险闸，block 时返回 false）
    * 通道 `ssh:shell:write` */
   sshShellWrite(shellId: string, data: string): Promise<boolean>
 
@@ -82,7 +82,7 @@ export interface ContractedInvokeApi {
    * 通道 `local-tty:list` */
   localTtyList(): Promise<string[]>
 
-  /** 向本机终端写入键入数据（主进程不逐键判定，见通道注释）
+  /** 向本机终端写入键入数据（主进程行缓冲到回车时过风险闸，block 时返回 false）
    * 通道 `local-tty:write` */
   localTtyWrite(shellId: string, data: string): Promise<boolean>
 

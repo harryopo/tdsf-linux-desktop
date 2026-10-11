@@ -863,3 +863,145 @@ export const COMMAND_RULES_SNAPSHOT = {
     irreversible: r.irreversible,
   })),
 } as const
+
+// ---------------------------------------------------------------------------
+// PTY 逐键写入的风险闸（P0-2）
+// ---------------------------------------------------------------------------
+
+/** 输入流里的控制序列：判定前一律抹掉，不进缓冲区 */
+const INPUT_ESCAPE_SEQUENCE = /\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[O()#][0-9;?A-Za-z]?)/g
+
+/**
+ * 除 `\t` `\n` `\r` 以外的 C0 控制字符与 DEL：一律不进缓冲。
+ *
+ * 这不是洁癖，是绕过面 —— 留着 `\x15`（Ctrl-U）的话，用户清行再重打一遍命令，
+ * 缓冲里就是 `\x15rm -rf /`，argv0 变成 `\x15rm`，所有按命令名匹配的探测器全部落空，
+ * 命令照样被 shell 执行。
+ */
+const CONTROL_JUNK = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g
+
+/** 备用屏（全屏程序）进/出：vim / less / nano / htop 这一类直接接管终端的程序 */
+const ALT_SCREEN_ON = /\x1b\[\?(?:1049|1047|47)h/
+const ALT_SCREEN_OFF = /\x1b\[\?(?:1049|1047|1048|47)l/
+
+export interface LineGateVerdict {
+  /** 是否放行写入 PTY */
+  allow: boolean
+  /**
+   * block 时的提示文案。**只能走输出通道**（terminal:data）渲染到屏幕上：
+   * 它是回显给用户看的，不是给用户敲的。写进 PTY stdin 等于把提示里的文本
+   * 连 `\r\n` 一起交给 shell 执行。
+   */
+  notice?: string
+  /** block 时的判定原因，供审计日志 */
+  reason?: string
+  /** 被拦下的那一行（已截断，供审计日志） */
+  line?: string
+}
+
+/**
+ * 拦下一条命令后往 PTY **stdin** 发的字节：Ctrl-C（弃掉当前输入行）。
+ *
+ * 为什么必须发：键入阶段的字符是逐个放行的，shell 的行缓冲里已经躺着 `rm -rf /`。
+ * 我们只是没把 `\r` 转过去，命令还没执行，但用户再按一次回车就会执行 —— 那比不拦更糟。
+ *
+ * 为什么是 `\x03` 而不是 `\x15`（Ctrl-U）：Ctrl-U 是 readline 的行首丢弃，
+ * bash/zsh 认，cmd.exe 与不带 PSReadLine 的 PowerShell 不认（实测拦完之后再敲 echo
+ * 会和残留的 `rm -rf /` 拼成一行执行）。Ctrl-C 在三边都是"放弃当前这一行"。
+ * 拦的这一刻用户必然停在提示符上（判定发生在回车时），不会有前台程序被误中断。
+ *
+ * 拦截提示**不能**走 stdin（那会被 shell 当成输入、里面的换行会真的执行），
+ * 必须走输出通道渲染到屏幕上，见 `LineGateVerdict.notice` 的用法注释。
+ */
+export const PTY_ABANDON_LINE = '\x03'
+
+/**
+ * PTY 逐键写入的风险闸 —— 行缓冲模式
+ *
+ * 为什么不在逐字符阶段判：键入是逐字符到达的，"rm"→"rm "→"rm -"每敲一个字母判一次
+ * 会灾难性误拦。`\r` 在 PTY 语义里就是 accept-line，是唯一"命令完整了"的时刻。
+ *
+ * 覆盖范围（按通道能看见什么来写，不吹）：
+ * - 手工键入：输入流经此，回车时整行判 —— 覆盖
+ * - 粘贴多行：一次 write 里带多个行分隔符，逐行判 —— 覆盖
+ * - ↑ 历史回溯：**不覆盖**。readline 把历史命令写到输出侧回显，输入通道只收到
+ *   `\x1b[A`，命令文本根本不经过这里。要拦这一类得让 shell 集成在 preexec 里报
+ *   OSC 633;E，但那时命令已经在执行路上，只能记审计不能阻止。
+ *
+ * 全屏程序（vim/less/nano/htop）期间暂停判定：否则在 vim 插入模式里打一行
+ * "rm -rf /" 会被当成 shell 命令拦下，并把提示写进文件内容里。备用屏状态从
+ * **输出流**观察（`observeOutput`），因为进出全屏是程序写给终端的指令。
+ */
+export class LineGate {
+  private buffer = ''
+  private inAltScreen = false
+
+  /** 喂入 PTY 输出流：只用于跟踪备用屏，不做任何拦截 */
+  observeOutput(data: string): void {
+    if (ALT_SCREEN_ON.test(data)) this.inAltScreen = true
+    if (ALT_SCREEN_OFF.test(data)) {
+      this.inAltScreen = false
+      this.buffer = ''
+    }
+  }
+
+  feed(data: string): LineGateVerdict {
+    // 全屏程序里：不判、不清累计，原样放行
+    if (this.inAltScreen) return { allow: true }
+
+    // Ctrl-C（中断当前输入）与 Ctrl-D（EOF）：清缓冲后放行，交给 shell 自己处理
+    if (/[\x03\x04]/.test(data)) {
+      this.buffer = ''
+      return { allow: true }
+    }
+    // Ctrl-U / Ctrl-W：清行 / 回退一个词 —— 同步把缓冲缩回去，否则会拿已删掉的字符判
+    if (data.includes('\x15')) this.buffer = ''
+    if (data.includes('\x17')) this.buffer = this.buffer.replace(/\S*\s*$/, '')
+    // 退格
+    const backspaces = (data.match(/\x7f|\x08/g) ?? []).length
+    if (backspaces > 0) this.buffer = this.buffer.slice(0, Math.max(0, this.buffer.length - backspaces))
+
+    const clean = data.replace(INPUT_ESCAPE_SEQUENCE, '').replace(CONTROL_JUNK, '')
+    if (!clean) return { allow: true }
+    this.buffer += clean
+
+    // 还没回车：整段都是未完成的行，放行
+    const sepIdx = Math.max(this.buffer.lastIndexOf('\r'), this.buffer.lastIndexOf('\n'))
+    if (sepIdx === -1) return { allow: true }
+
+    const completed = this.buffer.slice(0, sepIdx)
+    // 分隔符之后是"下一行的开头"，继续留着
+    this.buffer = this.buffer.slice(sepIdx + 1)
+
+    for (const line of completed.split(/\r\n|\r|\n/)) {
+      const text = line.trim()
+      if (!text) continue
+      const verdict = evaluateCommand(text)
+      if (verdict.level === 'block') {
+        // 整段写入都不转发，缓冲区也不能留残余，否则下一次按键会拿旧行重复判
+        this.buffer = ''
+        return {
+          allow: false,
+          reason: verdict.reason,
+          line: text.slice(0, 120),
+          notice:
+            '\r\n\x1b[31m⛔ 已拦截高危命令\x1b[0m\r\n' +
+            `   命令：${text.slice(0, 120)}\r\n` +
+            `   原因：${verdict.reason}\r\n` +
+            '   该命令没有执行，可以直接继续输入\r\n\r\n',
+        }
+      }
+    }
+    return { allow: true }
+  }
+
+  /** 会话关闭/切换、或代写路径清了行时调用 */
+  reset(): void {
+    this.buffer = ''
+  }
+
+  /** 当前是否在备用屏（判据与调试用） */
+  get paused(): boolean {
+    return this.inAltScreen
+  }
+}

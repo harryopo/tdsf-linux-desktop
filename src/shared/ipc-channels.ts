@@ -179,13 +179,20 @@ export const SSH = {
   SHELL_CLOSE: 'ssh:shell:close',
   /** 列出某条会话当前开着的 shellId（invoke: 渲染 → 主），渲染层恢复标签用 */
   SHELL_LIST: 'ssh:shell:list',
-  /** 向交互式 Shell 写入数据（invoke: 渲染 → 主）— 首参是 shellId；仅供用户键入，主进程不做命令判定 */
+  /**
+   * 向交互式 Shell 写入数据（invoke: 渲染 → 主）— 首参是 shellId
+   *
+   * 主进程用 LineGate 行缓冲：键入阶段不判，攒到 `\r`（PTY 里就是 accept-line）
+   * 时整行过一次 command-gate；block 级不转发该段数据，改为回显拦截提示并返回 false。
+   * 全屏程序（vim/less 等，靠输出侧的备用屏指令识别）期间暂停判定。
+   */
   SHELL_WRITE: 'ssh:shell:write',
   /**
    * 执行"他人代写"的整条命令（invoke: 渲染 → 主）— AI 建议 / 决策页重新执行
    *
-   * 首参是 shellId（投进哪个终端）。与 SHELL_WRITE 分开是因为主进程无法逐键判定用户输入，
-   * 但可以判定一整条命令：本通道在写入前先过 core/command-gate，block 级直接拒绝。
+   * 首参是 shellId（投进哪个终端）。与 SHELL_WRITE 的分工：本通道拿到的是完整一条命令，
+   * 可以整条判定并在 block 时直接抛错；SHELL_WRITE 只能等用户敲回车。
+   * 两条都过 command-gate，没有哪条是"无闸"路径。
    */
   SHELL_RUN_AUTHORED: 'ssh:shell:run-authored',
   /** 调整 Shell 终端窗口大小（invoke: 渲染 → 主）— 首参是 shellId */

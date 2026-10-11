@@ -3,8 +3,9 @@
  *
  * 注册 local-tty:* 一组通道，桥接渲染进程与 services/terminal/local-pty。
  *
- * 两条规矩与远端终端完全一致：
- * - WRITE 只送按键，不判定（逐键输入无法当整条命令评估，见通道注释）；
+ * 三条规矩与远端终端完全一致：
+ * - WRITE 走 LineGate：逐键输入不在逐字符阶段判，攒到 `\r`（PTY 里就是 accept-line）
+ *   再整行判一次；全屏程序（vim/less 等）期间暂停判定（P0-2）；
  * - RUN_AUTHORED 是"别人代写的整条命令"（AI 建议 / 决策页重跑），
  *   必须先过 core/command-gate，block 级直接拒绝。本机命令同样要过闸——
  *   用户明确要求过这一点。
@@ -16,7 +17,7 @@ import { ipcMain } from 'electron'
 import { LOCAL_TTY, TERMINAL } from '@shared/ipc-channels'
 import { localPtyManager, type PtySize } from '../services/terminal/local-pty'
 import { broadcastToWindows } from '../windows/main-window'
-import { evaluateCommand } from '../core/command-gate'
+import { evaluateCommand, LineGate, PTY_ABANDON_LINE } from '../core/command-gate'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
 
@@ -31,14 +32,31 @@ import { redactSecrets } from '../core/agent/providers/redact'
 export function registerLocalTerminalHandlers(): () => void {
   /** shellId → 输出转发的退订函数 */
   const pushes = new Map<string, () => void>()
+  /** shellId → 逐键写入的行缓冲闸（P0-2）。会话关闭时必须 delete，否则 Map 泄漏 */
+  const lineGates = new Map<string, LineGate>()
+
+  /** 取这条终端的闸，没有就建一个 */
+  function gateOf(shellId: string): LineGate {
+    let gate = lineGates.get(shellId)
+    if (!gate) {
+      gate = new LineGate()
+      lineGates.set(shellId, gate)
+    }
+    return gate
+  }
 
   /** 给一条终端挂上"输出 → 渲染层"的转发（幂等：已挂过的跳过） */
   function attachPush(shellId: string): void {
     if (pushes.has(shellId)) return
+    // 闸必须在挂转发之前就存在：备用屏指令（vim/less 进出）通常比用户第一次
+    // 按键先到，那时闸还不存在就等于这条指令被丢了
+    gateOf(shellId)
     try {
       pushes.set(
         shellId,
         localPtyManager.onShellData(shellId, (data) => {
+          // 备用屏指令是程序写给终端的，只能从输出侧观察 —— vim/less 期间要靠它暂停判定
+          lineGates.get(shellId)?.observeOutput(data)
           broadcastToWindows(TERMINAL.DATA, shellId, data)
         }),
       )
@@ -60,6 +78,23 @@ export function registerLocalTerminalHandlers(): () => void {
 
   ipcMain.handle(LOCAL_TTY.WRITE, (_event, shellId: string, data: string) => {
     try {
+      const verdict = gateOf(shellId).feed(data)
+      if (!verdict.allow) {
+        logger.warn('LocalTerminal', '用户输入被风险闸拦截', {
+          shellId,
+          line: redactSecrets(verdict.line ?? ''),
+          reason: redactSecrets(verdict.reason ?? ''),
+        })
+        // 两件事，方向不同，弄反了就是执行：
+        // 1) stdin 发 Ctrl-C 弃掉 shell 行缓冲里已经躺着的这条命令（不放这一下，
+        //    用户再按一次回车就真的执行了 —— 比不拦更糟）
+        // 2) 提示走**输出**通道渲染到屏幕上。写进 stdin 等于把提示文本交给 shell
+        localPtyManager.writeShell(shellId, PTY_ABANDON_LINE)
+        broadcastToWindows(TERMINAL.DATA, shellId, verdict.notice ?? '')
+        // 返回 false 而不是 throw：连接是好的，这是"按设计拒绝"，
+        // 渲染层 onData 回调不读返回值，throw 反而会伪装成发送失败。
+        return false
+      }
       localPtyManager.writeShell(shellId, data)
       return true
     } catch (err) {
@@ -81,6 +116,7 @@ export function registerLocalTerminalHandlers(): () => void {
   })
 
   ipcMain.handle(LOCAL_TTY.CLOSE, (_event, shellId: string) => {
+    lineGates.delete(shellId)
     const off = pushes.get(shellId)
     if (off) {
       pushes.delete(shellId)
@@ -105,7 +141,10 @@ export function registerLocalTerminalHandlers(): () => void {
     }
     const payload = command.endsWith('\n') ? command : `${command}\n`
     try {
-      // \x15 = Ctrl+U：清掉当前行可能的半截输入，避免和命令拼在一起
+      // \x15 = Ctrl+U：清掉当前行可能的半截输入，避免和命令拼在一起。
+      // 行缓冲闸也必须同步清 —— 它镜像的就是 readline 当前行，不清会把
+      // 用户敲了一半的输入和这条代写命令拼成一行去判。
+      lineGates.get(shellId)?.reset()
       localPtyManager.writeShell(shellId, `\x15${payload}`)
       return true
     } catch (err) {
@@ -116,6 +155,8 @@ export function registerLocalTerminalHandlers(): () => void {
   })
 
   const offExit = localPtyManager.onShellExit((shellId) => {
+    // shell 自己退出（exit / 崩溃）时也要摘闸，否则 Map 里留着这条 shellId
+    lineGates.delete(shellId)
     const off = pushes.get(shellId)
     if (off) {
       pushes.delete(shellId)
@@ -137,6 +178,7 @@ export function registerLocalTerminalHandlers(): () => void {
       }
     }
     pushes.clear()
+    lineGates.clear()
     offExit()
   }
 }

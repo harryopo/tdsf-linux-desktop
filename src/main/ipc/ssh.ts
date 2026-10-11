@@ -30,7 +30,7 @@ import { ConfigStore } from '../services/storage/config-store'
 import { ElectermSftpManager } from '../services/ssh/electerm-sftp'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
-import { evaluateCommand } from '../core/command-gate'
+import { evaluateCommand, LineGate, PTY_ABANDON_LINE } from '../core/command-gate'
 import { recordToolCall } from './model-stats'
 import { DatabaseManager } from '../services/db/database'
 import { AuditRepo } from '../services/db/audit-repo'
@@ -141,12 +141,31 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
    * 否则会攒一堆指向死终端的闭包。
    */
   const shellPushes = new Map<string, () => void>()
+  /**
+   * shellId → 逐键写入的行缓冲闸（P0-2）。
+   *
+   * 用户自己敲/粘贴的命令此前完全不过闸（`ssh:shell:write` 注释写着"仅供用户键入，
+   * 主进程不判定"）。三个前提在实际使用中不成立：粘贴多行是常态、历史回体会执行旧命令、
+   * 任何将来走 writeShell 的自动路径都绕闸。
+   */
+  const lineGates = new Map<string, LineGate>()
+
+  /** 取这条终端的闸，没有就建一个 */
+  function gateOf(shellId: string): LineGate {
+    let gate = lineGates.get(shellId)
+    if (!gate) {
+      gate = new LineGate()
+      lineGates.set(shellId, gate)
+    }
+    return gate
+  }
 
   /** 摘掉已关闭通道的转发登记 */
   function pruneShellPushes(): void {
     for (const [shellId, off] of [...shellPushes.entries()]) {
       if (sshManager.isShellOpen(shellId)) continue
       shellPushes.delete(shellId)
+      lineGates.delete(shellId)
       try {
         off()
       } catch {
@@ -360,12 +379,16 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       try {
         pruneShellPushes()
         const shellId = await sshManager.startShell(sessionId, size)
+        // 闸必须在挂转发之前就建好：备用屏指令（vim/less 进出）通常比第一次按键先到
+        gateOf(shellId)
         // 每条通道只在这一处挂一次转发；重复调用等于真开一个新终端，不会再叠到同一条上
         shellPushes.set(
           shellId,
           // 广播给所有窗口：终端属于会话，不属于"哪个窗口把它开出来的"
           // （第二窗口靠渲染层的对账把同一条 shell 显示出来，两边看到的是同一个 shell）
           sshManager.onShellData(shellId, (data: string) => {
+            // 备用屏指令（vim/less 进出）由程序写给终端，只能从输出侧观察
+            lineGates.get(shellId)?.observeOutput(data)
             broadcastToWindows(TERMINAL_DATA_CHANNEL, shellId, data)
           }),
         )
@@ -380,6 +403,7 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
 
   /** ssh:shell:close — 关掉一条终端（只关通道，不断整条 SSH 连接） */
   ipcMain.handle(SSH.SHELL_CLOSE, async (_event, shellId: string) => {
+    lineGates.delete(shellId)
     const off = shellPushes.get(shellId)
     if (off) {
       shellPushes.delete(shellId)
@@ -397,11 +421,33 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
     return sshManager.listShells(sessionId)
   })
 
-  /** ssh:shell:write — 向指定终端写入按键数据（仅供用户键入，主进程不判定，见通道注释） */
+  /**
+   * ssh:shell:write — 向指定终端写入按键数据，逐键攒到回车时整行过风险闸（P0-2）
+   *
+   * 旧注释写的是"仅供用户键入，主进程不判定"。不判定的三个前提在实际使用中都不成立：
+   * 粘贴多行脚本是常态、↑ 历史回体会执行旧命令、任何将来走 writeShell 的自动路径都绕闸。
+   * 逐字符判会灾难性误拦，所以用 LineGate 在 `\r`（PTY 里就是 accept-line）时整行判一次。
+   * 返回 false 而不是 throw：连接是好的，这是"按设计拒绝"，渲染层 onData 不读返回值。
+   */
   ipcMain.handle(
     SSH.SHELL_WRITE,
     async (_event, shellId: string, data: string) => {
       try {
+        const verdict = gateOf(shellId).feed(data)
+        if (!verdict.allow) {
+          logger.warn('SSH', '用户输入被风险闸拦截', {
+            shellId,
+            line: redactSecrets(verdict.line ?? ''),
+            reason: redactSecrets(verdict.reason ?? ''),
+          })
+          // 键入阶段的字符是逐个放行的，远端 shell 的行缓冲里已经躺着这条命令：
+          // 1) stdin 发 Ctrl-C 弃掉它（不放这一下，再按一次回车就真执行了）
+          // 2) 提示走**输出**通道回显，写进 stdin 等于把提示文本交给 shell
+          await sshManager.writeShell(shellId, PTY_ABANDON_LINE)
+          broadcastToWindows(TERMINAL_DATA_CHANNEL, shellId, verdict.notice ?? '')
+          // 返回 false 而不是 throw：连接是好的，这是"按设计拒绝"
+          return false
+        }
         return await sshManager.writeShell(shellId, data)
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
@@ -432,6 +478,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       const payload = command.endsWith('\n') ? command : `${command}\n`
       // \x15 = Ctrl+U，清掉 shell 当前行可能的半截输入，避免拼接乱码
       try {
+        // 行缓冲闸镜像的就是 readline 当前行：这里清了行，缓冲也必须清，
+        // 否则用户敲了一半的输入会和这条代写命令拼成一行去判
+        lineGates.get(shellId)?.reset()
         return await sshManager.writeShell(shellId, `\x15${payload}`)
       } catch (err) {
         const safeMsg = redactSecrets((err as Error).message)
@@ -1096,5 +1145,6 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       }
     }
     shellPushes.clear()
+    lineGates.clear()
   }
 }
