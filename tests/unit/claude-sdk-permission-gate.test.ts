@@ -9,6 +9,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import ts from 'typescript'
+import { listSourceFiles, readSourceFile } from '../helpers/source-scan'
 import { describe, expect, it } from 'vitest'
 import { assessToolCall } from '../../src/main/core/command-gate'
 import {
@@ -106,7 +107,7 @@ describe('静态判据：源码里不许硬编码 bypass', () => {
   //   permissionMode: 'bypassPermissions' / allowDangerouslySkipPermissions: true
   // 注释里讨论这个写法不算违规 —— 阴性对照同时钉住这两点。
   function findHardcodedBypass(file: string): string[] {
-    const src = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.ES2022, true)
+    const src = ts.createSourceFile(file, readSourceFile(file), ts.ScriptTarget.ES2022, true)
     const found: string[] = []
     const walk = (node: ts.Node): void => {
       if (ts.isPropertyAssignment(node)) {
@@ -126,16 +127,9 @@ describe('静态判据：源码里不许硬编码 bypass', () => {
   }
 
   function scan(dir: string): string[] {
+    // 取数口只有一份（跳过测试探针、node_modules、点开头目录）：见 tests/helpers/source-scan.ts
     const hits: string[] = []
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, e.name)
-      if (e.isDirectory()) {
-        if (e.name === 'node_modules' || e.name.startsWith('.')) continue
-        hits.push(...scan(full))
-        continue
-      }
-      if (/\.tsx?$/.test(e.name)) hits.push(...findHardcodedBypass(full))
-    }
+    for (const f of listSourceFiles(dir)) hits.push(...findHardcodedBypass(f))
     return hits
   }
 
@@ -145,12 +139,13 @@ describe('静态判据：源码里不许硬编码 bypass', () => {
   })
 
   it('量具自证：真赋值要抓到，注释里的同字样不该误报', () => {
+    // 探针写在 src 外面：普查 src 的测试有十几个，都是"先列目录再读文件"，
+    // 把临时 .ts 塞进 src/main 会让它们随机撞 ENOENT（实测红过：能力普查、
+    // 死防线登记、风险规则通道各一次）。分类器是同一个，自证强度不打折。
+    const DIR = path.join(ROOT, 'tests/fixtures/static-gates')
     const MAIN = path.join(ROOT, 'src/main')
-    const fake = path.join(MAIN, '__permission-canary__.ts')
-    // 建完再删会把 src/main 这个**目录**的 mtime 顶到当下，
-    // 而 tests/e2e/global-setup.ts 的新鲜度门按目录递归取最新 mtime ——
-    // 于是下一次 e2e 会误报"out/ 比 src/ 旧，跑的是改版前的包"。用完原样还回去。
-    const before = fs.statSync(MAIN).mtimeMs
+    const fake = path.join(DIR, '__permission-canary__.ts')
+    fs.mkdirSync(DIR, { recursive: true })
     fs.writeFileSync(
       fake,
       [
@@ -162,15 +157,13 @@ describe('静态判据：源码里不许硬编码 bypass', () => {
       'utf8'
     )
     try {
-      const hits = scan(MAIN)
+      const hits = [...scan(MAIN), ...scan(DIR)]
       const canaryHits = hits.filter((h) => h.includes('__permission-canary__'))
       expect(canaryHits.length, '注入的真赋值没被抓到 = 这条闸是摆设').toBe(2)
       // 注释里出现同样的字面量，整仓计数仍为 2（说明判据只认代码不认散文）
       expect(hits.length, '注释里的字面量被误判成违规：\n' + hits.join('\n')).toBe(2)
     } finally {
       fs.rmSync(fake, { force: true })
-      fs.utimesSync(MAIN, new Date(), new Date(before))
-      expect(Math.abs(fs.statSync(MAIN).mtimeMs - before), '目录 mtime 没还原，会误报 e2e 构建门').toBeLessThan(2000)
     }
   })
 })

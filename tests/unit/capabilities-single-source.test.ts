@@ -8,10 +8,11 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { listSourceFiles, readSourceFile } from '../helpers/source-scan'
 import { CAPABILITIES, CAPABILITY_STATUS_LABELS, capabilityCounts } from '@shared/capabilities'
 
 const ROOT = path.resolve(__dirname, '../..')
-const READ = (rel: string) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const READ = (rel: string) => readSourceFile(path.join(ROOT, rel))
 
 /** 只扫代码文本，注释里提到被禁的名字不算接通 */
 function codeOf(rel: string): string {
@@ -22,15 +23,9 @@ function codeOf(rel: string): string {
 
 function walk(dir: string, acc: string[] = []): string[] {
   const abs = path.join(ROOT, dir)
-  if (!fs.existsSync(abs)) return acc
-  for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
-    const p = path.join(dir, e.name)
-    // 别的测试会临时往 src/main 里写一个 canary 再删掉来证明静态闸有牙。
-    // 普查在"列目录"和"读文件"之间没有原子性，撞上那个窗口就是随机 ENOENT（实测红过一次），
-    // 所以这里显式跳过测试脚手架——它本来也不是产品源码。
-    if (/__[\w-]*canary__\.(ts|tsx)$/.test(e.name)) continue
-    if (e.isDirectory()) walk(p, acc)
-    else if (/\.(ts|tsx)$/.test(e.name)) acc.push(p.split(path.sep).join('/'))
+  // 取数口只有一份：跳过测试探针文件的规则写在 tests/helpers/source-scan.ts
+  for (const f of listSourceFiles(abs)) {
+    acc.push(path.relative(ROOT, f).split(path.sep).join('/'))
   }
   return acc
 }
