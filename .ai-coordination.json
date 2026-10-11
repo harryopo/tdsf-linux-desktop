@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-11T03:27:42.018Z",
+  "lastUpdated": "2026-10-11T04:49:35.533Z",
   "sessions": {},
   "history": [
     {
@@ -6633,6 +6633,48 @@
       "file": "src/main/ipc/index.ts",
       "task": "w61-shell-integration",
       "timestamp": "2026-10-11T03:27:42.018Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/index.ts",
+      "task": "p0-crash-guard",
+      "timestamp": "2026-10-11T04:47:13.577Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/crash-guard.ts",
+      "task": "p0-crash-guard",
+      "timestamp": "2026-10-11T04:47:16.210Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/crash-guard.test.ts",
+      "task": "p0-crash-guard",
+      "timestamp": "2026-10-11T04:47:18.857Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/index.ts",
+      "task": "p0-crash-guard",
+      "timestamp": "2026-10-11T04:49:35.533Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/crash-guard.ts",
+      "task": "p0-crash-guard",
+      "timestamp": "2026-10-11T04:49:35.533Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/crash-guard.test.ts",
+      "task": "p0-crash-guard",
+      "timestamp": "2026-10-11T04:49:35.533Z"
     }
   ],
   "coordinationAudit": {
