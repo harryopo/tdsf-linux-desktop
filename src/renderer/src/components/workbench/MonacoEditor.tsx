@@ -13,6 +13,8 @@
  * 方案书依据：v2.0 Phase A · Task A.2 / A.6
  */
 import { useCallback } from 'react'
+// 必须在 <Editor> 之前完成：把 Monaco 从 CDN 换成本地 bundle（见该文件注释）
+import '@/lib/monaco-setup'
 import Editor, { type OnMount, type OnChange } from '@monaco-editor/react'
 import type { editor, languages } from 'monaco-editor'
 import { useEditorStore } from '@/stores/editor-store'
