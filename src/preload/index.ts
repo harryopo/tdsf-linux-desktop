@@ -56,6 +56,12 @@ const electronApi = {
   sshShellClose: ssh.shell.close,
   sshShellList: ssh.shell.list,
   sshShellWrite: ssh.shell.write,
+  // ===== 远端 Shell 集成（#61）=====
+  // 逐台确认：界面先看 status 带回来的两份原文，用户点头才调 install。
+  // 这里只交 sessionId，写入路径与内容由主进程定死。
+  sshShellIntegrationStatus: ssh.shellIntegration.status,
+  sshShellIntegrationInstall: ssh.shellIntegration.install,
+  sshShellIntegrationUninstall: ssh.shellIntegration.uninstall,
   /** 执行整条代写命令（AI/决策页），主进程过风险闸 */
   sshRunAuthored: ssh.shell.runAuthored,
   sshShellResize: ssh.shell.resize,

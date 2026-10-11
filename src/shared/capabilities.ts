@@ -82,8 +82,8 @@ export const CAPABILITIES: CapabilityRow[] = [
   {
     id: 'terminal-blocks',
     label: '终端命令块（OSC 133 / 633）',
-    status: 'pending',
-    note: '消费端已实测可用：对端 shell 发出 OSC 133/633 时会切成命令块，既计入状态栏，也会脱敏后注入 AI 的 system prompt，并落一条只记条数的审计。缺的是产端——我们没有给远端装 shell 集成，所以连普通服务器时命令块仍是 0。',
+    status: 'degraded',
+    note: '消费端（block-collector + block-model）实测会切块并计入状态栏与 AI 上下文。生产端在 src/main/services/ssh/shell-integration.ts：逐台确认后把钩子写进那台机器的 rc，只对新开的终端生效。还缺的一半是本机终端——node-pty 那条没装同类钩子，所以本机终端的命令块仍是 0。',
   },
   {
     id: 'monitor-history',

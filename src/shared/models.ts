@@ -675,6 +675,45 @@ export interface PreviewHandleInfo {
 }
 
 // ============================================================================
+// 远端 Shell 集成（#61）
+// ============================================================================
+
+/** 那台机器的登录 shell 能装哪种集成；fish/sh 等归 other */
+export type RemoteShellKind = 'bash' | 'zsh' | 'other'
+
+/**
+ * 一台服务器的集成状态，同时把"将要写入的两处原文"带回来。
+ *
+ * 确认框要逐字展示 snippetText 与 rcBlockText——逐台确认的前提是
+ * 用户看得见那台机器上会被写成什么样，而不是信一句"会装个钩子"。
+ */
+export interface ShellIntegrationStatus {
+  /** 登录 shell 路径（探测回显里拿到的原文） */
+  shellPath: string
+  kind: RemoteShellKind
+  /** rc 的家目录相对名；kind=other 时为 null */
+  rcFile: string | null
+  /** 集成脚本的家目录相对名 */
+  snippetFile: string
+  /** rc 里有标记块且脚本文件在 */
+  installed: boolean
+  /** rc 有块但脚本不见了（多半被手工删了），重装即可 */
+  snippetMissing: boolean
+  /** 将要（或已经）写入的集成脚本正文 */
+  snippetText: string
+  /** 将要（或已经）追加到 rc 的那个标记块 */
+  rcBlockText: string
+  /** 状态或风险的人话说明，界面直接显示 */
+  message: string
+}
+
+/** 安装/卸载的结果：失败必须带原因，界面不许静默 */
+export interface ShellIntegrationResult {
+  ok: boolean
+  message: string
+}
+
+// ============================================================================
 // IPC 通道类型映射
 // ============================================================================
 
@@ -695,6 +734,10 @@ export interface IpcChannelMap {
   'preview:open': { args: [PreviewTarget]; return: PreviewHandleInfo }
   'preview:close': { args: [string]; return: boolean }
   'preview:readText': { args: [string]; return: string }
+  // 远端 Shell 集成（#61）：入参只有 sessionId，写入路径由主进程定死
+  'ssh:shell-integration:status': { args: [string]; return: ShellIntegrationStatus }
+  'ssh:shell-integration:install': { args: [string]; return: ShellIntegrationResult }
+  'ssh:shell-integration:uninstall': { args: [string]; return: ShellIntegrationResult }
   // 本机终端（W3）：身份同样是 shellId，输出复用 terminal:data
   'local-tty:status': {
     args: []

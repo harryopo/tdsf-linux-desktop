@@ -19,6 +19,7 @@ import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-typ
 import { registerSshIpcHandlers } from './ssh'
 import { registerAppWindowHandlers } from './app-window'
 import { registerPreviewHandlers } from './preview'
+import { registerShellIntegrationHandlers } from './shell-integration'
 import { registerLocalTerminalHandlers } from './local-terminal'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
@@ -341,5 +342,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerAppWindowHandlers()
   // W5：预览句柄（铸/废/读文本）。子资源走 tdsf-preview: 协议，不在 IPC 上
   registerPreviewHandlers()
+  // #61：远端 shell 集成（状态/装/卸），逐台确认在界面上，路径由主进程定死
+  registerShellIntegrationHandlers()
   pushBootLoadingStage('ipc-ready', BrowserWindow.getAllWindows())
 }

@@ -1,6 +1,6 @@
 /** ssh 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { CommandResult, GenerateKeyPairRequest, GenerateKeyPairResponse, SshConfig, SshHostKeyResponseAction, SshKeyPair } from '@shared/models'
-import { SSH } from '@shared/ipc-channels'
+import type { CommandResult, GenerateKeyPairRequest, GenerateKeyPairResponse, ShellIntegrationResult, ShellIntegrationStatus, SshConfig, SshHostKeyResponseAction, SshKeyPair } from '@shared/models'
+import { SHELL_INTEGRATION, SSH } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
 
@@ -56,6 +56,32 @@ const ssh = {
     /** 调整 shell 终端窗口大小 */
     resize: (shellId: string, cols: number, rows: number): Promise<boolean> =>
       invokeChecked<boolean>('sshShellResize', SSH.SHELL_RESIZE, shellId, cols, rows),
+  },
+
+  /**
+   * 远端 Shell 集成（#61）：装/卸那台机器上的 OSC 133/633 钩子。
+   * 三条都只交 sessionId——写哪个文件、写什么内容由主进程定死，
+   * status 带回来的 snippetText / rcBlockText 就是界面要逐字给用户看的那两份原文。
+   */
+  shellIntegration: {
+    status: (sessionId: string): Promise<ShellIntegrationStatus> =>
+      invokeChecked<ShellIntegrationStatus>(
+        'sshShellIntegrationStatus',
+        SHELL_INTEGRATION.STATUS,
+        sessionId,
+      ),
+    install: (sessionId: string): Promise<ShellIntegrationResult> =>
+      invokeChecked<ShellIntegrationResult>(
+        'sshShellIntegrationInstall',
+        SHELL_INTEGRATION.INSTALL,
+        sessionId,
+      ),
+    uninstall: (sessionId: string): Promise<ShellIntegrationResult> =>
+      invokeChecked<ShellIntegrationResult>(
+        'sshShellIntegrationUninstall',
+        SHELL_INTEGRATION.UNINSTALL,
+        sessionId,
+      ),
   },
 
   /**

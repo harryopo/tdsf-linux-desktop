@@ -57,6 +57,7 @@ import { useTranslateStore } from '@/stores/translate-store'
 // setPendingCommand 写的 store 没有消费者 —— 搜到真实终端面板这里渲染
 import { useTerminalStore, shellTabLabel, visibleShells } from '@/stores/terminal-store'
 import { closeShell, openLocalShell, openShell, sessionTitle } from '@/terminal/shell-launcher'
+import { ShellIntegrationBar, ShellIntegrationButton } from '@/components/terminal/ShellIntegration'
 import { Zap } from 'lucide-react'
 import '../terminal/TerminalTabs.css'
 import type { OpenFileRequest } from './FileTree'
@@ -179,6 +180,8 @@ const TerminalPanel: FC<{
   if (sessionShells.length > 0) {
     return (
       <div className="term-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* #61：命令块集成提示条——只有"这台还没装、而且装得了"才出现，装好即消失 */}
+        <ShellIntegrationBar sessionId={sessionId} hostTitle={sessionTitle(sessionId ?? '')} />
         {/* v2.6：AI 命令预测回显条 —— AI/决策页注入命令时立即可见，对应终端内真实回显 */}
         {pendingCommand && (
           <div className="term-pending-cmd">
@@ -850,6 +853,11 @@ const EditorArea: FC<EditorAreaProps> = ({
         >
           <Globe aria-hidden className="size-3.5" />
         </Button>
+        {/* #61：命令块集成的常驻入口（提示条装完就消失，卸载只能从这颗钮进） */}
+        <ShellIntegrationButton
+          sessionId={activeSessionId ?? ''}
+          hostTitle={sessionTitle(activeSessionId ?? '')}
+        />
       </div>
 
       {/* 远程文件外部变更提示 */}

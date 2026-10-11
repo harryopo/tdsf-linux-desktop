@@ -315,6 +315,23 @@ export const PREVIEW = {
 } as const
 
 /**
+ * 远端 Shell 集成（#61）IPC 通道常量
+ *
+ * 通道列表（三条都是 invoke：渲染 → 主，入参只有一个 sessionId）：
+ * - STATUS     问这台机器现在的状态，连带把将要写入的两处原文带回来给界面逐字展示
+ * - INSTALL    用户确认之后才调：写 ~/.tdsf-shell-integration.sh + rc 里加一个标记块
+ * - UNINSTALL  把标记块从 rc 里剥掉，删掉集成脚本
+ *
+ * 故意没有"给所有会话都装上"的通道：装到谁的机器上是逐台的决定，
+ * 而且写入路径全在主进程里定死，渲染层连文件名都传不进来。
+ */
+export const SHELL_INTEGRATION = {
+  STATUS: 'ssh:shell-integration:status',
+  INSTALL: 'ssh:shell-integration:install',
+  UNINSTALL: 'ssh:shell-integration:uninstall',
+} as const
+
+/**
  * 本机终端（W3）IPC 通道常量
  *
  * 通道列表：

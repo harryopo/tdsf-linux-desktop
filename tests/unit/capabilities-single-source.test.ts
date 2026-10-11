@@ -71,12 +71,20 @@ describe('能力就绪度表', () => {
     expect(hits, `这些文件出现了 Langfuse 入口，请把表改成已接通：\n${hits.join('\n')}`).toEqual([])
   })
 
-  it('terminal-blocks 仍是待开发：主进程与 preload 都不发 OSC 133/633', () => {
-    const hits = [...walk('src/main'), ...walk('src/preload')].filter((f) => {
+  it('terminal-blocks：表状态必须跟着发送端的真实情况走', () => {
+    const producers = [...walk('src/main'), ...walk('src/preload')].filter((f) => {
       const t = codeOf(f)
-      return t.includes('\\u001b]133') || t.includes(']133;') || t.includes(']633;')
+      // 集成片段里发序列的形状是 printf '\033]%s;%s'，只查 "]133;" 会漏（那是拼出来的）
+      return /\\033\]/.test(t) && t.includes('133') && t.includes('633')
     })
-    expect(hits, `出现了 OSC 133/633 发送端，请把表改成已接通：\n${hits.join('\n')}`).toEqual([])
+    // 量具自证：发送端文件改名/搬走时这里先红，而不是静默扫到 0 个然后放过表
+    expect(
+      producers,
+      'OSC 发送端检测失效：src/main/services/ssh/shell-integration.ts 应该被认出来'
+    ).toContain('src/main/services/ssh/shell-integration.ts')
+    const row = CAPABILITIES.find((c) => c.id === 'terminal-blocks')
+    expect(['live', 'degraded'], '已有 OSC 发送端，表里不许再写 pending').toContain(row?.status)
+    expect(row?.note, '表里要点名发送端文件，否则它被搬走就查不到来源').toContain('shell-integration')
   })
 
   it('mcp-tools 仍是待开发：服务默认关，需要环境变量显式打开', () => {

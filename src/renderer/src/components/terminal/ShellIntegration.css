@@ -1,0 +1,136 @@
+/**
+ * 命令块集成的样式（#61）
+ *
+ * 提示条与 AI 注入回显条（.term-pending-cmd）是同一类东西：终端正文上方一条不参与
+ * 水平 flex 的窄行，所以 flex-shrink:0 + 内容决定高度，别给固定 height——
+ * 那行的高度会被 FitAddon 算进终端行列，写死会让终端少一行。
+ * 配色全走语义令牌，浅色主题自动跟随，不写死色值。
+ */
+
+.term-si-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  flex-shrink: 0;
+  padding: var(--ui-space-1) var(--ui-space-3);
+  font-size: var(--ui-font-caption);
+  line-height: var(--ui-lh-snug);
+  color: var(--text-primary);
+  background: var(--notice-info-bg);
+  border-bottom: 1px solid var(--notice-info-border);
+}
+
+.term-si-bar-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.term-si-bar-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.term-si-bar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-inline);
+  cursor: pointer;
+}
+
+.term-si-bar-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+/* ===== 弹窗里的两处原文与状态事实 ===== */
+
+.term-si-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ui-space-2);
+  margin: 0 0 var(--ui-space-3);
+}
+
+.term-si-facts > div {
+  min-width: 0;
+  padding: var(--ui-space-2);
+  background: var(--bg-tertiary);
+  border-radius: var(--ui-radius-inline);
+}
+
+.term-si-facts dt {
+  font-size: var(--ui-font-micro);
+  color: var(--text-tertiary);
+}
+
+.term-si-facts dd {
+  margin: 2px 0 0;
+  font-size: var(--ui-font-caption);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.term-si-note {
+  margin: 0 0 var(--ui-space-3);
+  font-size: var(--ui-font-caption);
+  line-height: var(--ui-lh-normal);
+  color: var(--text-secondary);
+}
+
+.term-si-section {
+  margin-bottom: var(--ui-space-3);
+}
+
+.term-si-section-title {
+  margin: 0 0 var(--ui-space-1);
+  font-size: var(--ui-font-micro);
+  font-weight: var(--ui-weight-semibold);
+  color: var(--text-tertiary);
+}
+
+/* 中英混排：英文与符号走代码字体族，中文回落到界面字体（与弹窗里其他代码块同一条规矩） */
+.term-si-code {
+  max-height: 120px;
+  margin: 0;
+  padding: var(--ui-space-2);
+  overflow: auto;
+  font-family: var(--ui-family-code-cjk);
+  font-size: var(--ui-font-micro);
+  line-height: var(--ui-lh-snug);
+  white-space: pre;
+  color: var(--text-primary);
+  background: var(--code-block-bg);
+  border: 1px solid var(--code-block-border);
+  border-radius: var(--ui-radius-inline);
+}
+
+.term-si-code-tall {
+  max-height: 220px;
+}
+
+.term-si-error {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-3);
+  padding: var(--ui-space-2);
+  font-size: var(--ui-font-caption);
+  color: var(--status-error-text);
+  background: var(--status-error-soft);
+  border-radius: var(--ui-radius-inline);
+}
+
+.term-si-error-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

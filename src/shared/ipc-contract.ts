@@ -17,7 +17,7 @@
  * 测试会在内存里重算一遍并与盘上文件比对，漂了就红（同 design-contract 的路子）。
  */
 import { z } from 'zod'
-import { AGENT, LOCAL_TTY, PREVIEW, PROVIDER, SSH, WINDOW } from './ipc-channels'
+import { AGENT, LOCAL_TTY, PREVIEW, PROVIDER, SHELL_INTEGRATION, SSH, WINDOW } from './ipc-channels'
 
 /** 一条入参：名字用来生成签名，schema 用来运行时校验，ts 用来生成签名里的类型 */
 export interface ContractArg {
@@ -235,6 +235,45 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     resultTs: 'string',
     result: str,
   },
+  // 远端 Shell 集成（#61）。入参一律只有 sessionId：
+  // 写哪个文件、写什么内容由主进程定死，状态里带回来的原文就是界面要展示的那份。
+  {
+    kind: 'invoke',
+    api: 'sshShellIntegrationStatus',
+    channel: SHELL_INTEGRATION.STATUS,
+    doc: '问这台服务器的 shell 集成状态，并带回将要写入的两处原文',
+    args: [{ name: 'sessionId', ts: 'string', schema: str }],
+    resultTs: 'ShellIntegrationStatus',
+    result: z.object({
+      shellPath: str,
+      kind: z.enum(['bash', 'zsh', 'other']),
+      rcFile: z.nullable(str),
+      snippetFile: str,
+      installed: z.boolean(),
+      snippetMissing: z.boolean(),
+      snippetText: str,
+      rcBlockText: str,
+      message: str,
+    }),
+  },
+  {
+    kind: 'invoke',
+    api: 'sshShellIntegrationInstall',
+    channel: SHELL_INTEGRATION.INSTALL,
+    doc: '用户逐台确认之后才调：写入集成脚本并在 rc 里加标记块',
+    args: [{ name: 'sessionId', ts: 'string', schema: str }],
+    resultTs: 'ShellIntegrationResult',
+    result: z.object({ ok: z.boolean(), message: str }),
+  },
+  {
+    kind: 'invoke',
+    api: 'sshShellIntegrationUninstall',
+    channel: SHELL_INTEGRATION.UNINSTALL,
+    doc: '从 rc 里剥掉标记块并删掉集成脚本',
+    args: [{ name: 'sessionId', ts: 'string', schema: str }],
+    resultTs: 'ShellIntegrationResult',
+    result: z.object({ ok: z.boolean(), message: str }),
+  },
   // 本机终端（W3）。输出仍走 terminal:data（不在此处，理由见上面那段注释）；
   // local-tty:exit 的载荷是一个裸 shellId，不是对象，所以它和 terminal:data 一样
   // 留在契约外——契约的 event 支要求对象载荷，硬套会让生成出来的类型撒谎。
@@ -397,6 +436,8 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   ChatMessage: '@shared/models',
   PreviewTarget: '@shared/models',
   PreviewHandleInfo: '@shared/models',
+  ShellIntegrationStatus: '@shared/models',
+  ShellIntegrationResult: '@shared/models',
   ThinkingStrength: '@shared/agent-types',
   PersistedProviderConfig: '@shared/agent-types',
   ProviderConfig: '@shared/agent-types',

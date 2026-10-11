@@ -234,6 +234,9 @@ sshListKeypairs
 sshRespondHostKey
 sshRunAuthored
 sshShellClose
+sshShellIntegrationInstall
+sshShellIntegrationStatus
+sshShellIntegrationUninstall
 sshShellList
 sshShellResize
 sshShellStart
