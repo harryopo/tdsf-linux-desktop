@@ -115,7 +115,7 @@ const MessageList: FC<MessageListProps> = ({
           {/* 能力网格（v2.6：真按钮 —— 点击把对应提示词填入输入框并聚焦）
               auto-fit 而不是写死 grid-cols-2：AI 停靠格拖窄后两列各剩 120px，
               「故障诊断」会被从中间断成两行（窄屏审计截图实测到） */}
-          <div className="mt-6 grid w-full max-w-[460px] grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3">
+          <div className="mt-6 grid w-full max-w-[460px] grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
             {([
               { icon: <Search className="size-4" />, title: '故障诊断', desc: '快速定位系统异常', prompt: '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。' },
               { icon: <Terminal className="size-4" />, title: '命令推荐', desc: '安全执行运维命令', prompt: '我想完成一项运维操作，请推荐安全的命令并说明风险：' },
