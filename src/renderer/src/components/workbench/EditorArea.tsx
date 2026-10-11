@@ -610,14 +610,17 @@ const EditorArea: FC<EditorAreaProps> = ({
 
   // 会话切换 / 组件卸载时停止所有监听
   useEffect(() => {
+    // 先把 Map 本身取下来：cleanup 跑的时候 ref.current 可能已经指向别处，
+    // 直接读 ref 会让"该停的监听没停"（exhaustive-deps 报的就是这个）
+    const watching = watchIdMapRef.current
     return () => {
       if (!isElectronAPIAvailable() || !window.electronAPI.fileWatchStop) return
-      for (const [, watchId] of watchIdMapRef.current) {
+      for (const [, watchId] of watching) {
         if (watchId) {
           void window.electronAPI.fileWatchStop(watchId).catch(() => {})
         }
       }
-      watchIdMapRef.current.clear()
+      watching.clear()
     }
   }, [activeSessionId])
 

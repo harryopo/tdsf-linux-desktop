@@ -109,7 +109,11 @@ export function TutorialPage() {
         if (cancelled) return
 
         // 应用 IPC 学习进度（仅在 IPC 返回非空数组时覆盖，避免空数组清掉 localStorage）
-        const visitedIds = new Set<string>(_visitedIds)
+        // 读持久化值而不是 state 快照：这个 effect 只在挂载时跑一次，
+        // 把 _visitedIds 列进依赖会让"每次标记已读"都重拉一遍教程列表
+        const visitedIds = new Set<string>(
+          _localStorageAvailable ? loadVisitedTutorialIds() : [],
+        )
         if (Array.isArray(progressList) && progressList.length > 0) {
           const ipcIds = new Set<string>(
             (progressList as TutorialProgress[]).map((p) => p.tutorialId),
@@ -183,7 +187,8 @@ export function TutorialPage() {
 
     void load()
     return () => { cancelled = true }
-  }, [])
+    // _localStorageAvailable 是 useMemo(…, []) 出来的稳定值：列进来仍只跑一次
+  }, [_localStorageAvailable])
 
   const handleOpenCourse = (id: string) => {
     _markVisited(id)

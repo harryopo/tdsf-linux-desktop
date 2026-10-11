@@ -196,7 +196,7 @@ export const WorkbenchPage: FC = () => {
       // 已修改未保存 → 弹三选项确认 Modal
       setPendingCloseTabId(tabId)
     },
-    [activeTabId, fileTabs],
+    [activeTabId, fileTabs, terminalFallbackTab],
   )
 
   /** 关闭确认 Modal 内部：直接关闭 Tab（不保存） */
@@ -209,7 +209,7 @@ export const WorkbenchPage: FC = () => {
       setActiveTabId(terminalFallbackTab())
       setActiveFilePath(undefined)
     }
-  }, [pendingCloseTabId, activeTabId])
+  }, [pendingCloseTabId, activeTabId, terminalFallbackTab])
 
   /** 关闭确认 Modal 内部：保存并关闭 */
   const closePendingWithSave = useCallback(async () => {
@@ -230,7 +230,7 @@ export const WorkbenchPage: FC = () => {
     } finally {
       setClosing(false)
     }
-  }, [pendingCloseTab, saveFile, activeTabId])
+  }, [pendingCloseTab, saveFile, activeTabId, terminalFallbackTab])
 
   /**
    * 全部保存（P1-3：一键保存所有未保存文件，绑定到 WorkbenchTitlebar 的"全部保存"按钮）
@@ -348,7 +348,7 @@ export const WorkbenchPage: FC = () => {
       danger: true,
     })
     if (ok) doClose()
-  }, [fileTabs])
+  }, [fileTabs, terminalFallbackTab])
 
   return (
     <div

@@ -332,7 +332,16 @@ export function SshSettings() {
     setAllowPasswordAuth(false)
     setStrictHostKeyCheck(true)
     setKnownHostsPath('~/.ssh/known_hosts')
-  }, [setSshDefaults])
+    // 这一组都是 store 的 setter（身份稳定），列全只为让判据真的成立
+  }, [
+    setDefaultPort,
+    setDefaultUser,
+    setConnectTimeoutSec,
+    setSshDefaults,
+    setAllowPasswordAuth,
+    setStrictHostKeyCheck,
+    setKnownHostsPath,
+  ])
 
   // ===== ServerCard 事件回调（从原内联 JSX 抽取） =====
 

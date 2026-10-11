@@ -135,7 +135,9 @@ export function ModelSettings() {
         // 如果有默认 provider，使用它的配置预填表单
         const defaultProvider =
           list.find((p) => p.id === resolvedDefaultId) ?? (list.length > 0 ? list[0] : null)
-        if (defaultProvider && !llmConfig.baseUrl) {
+        // 只在"用户还没配过 endpoint"时预填 —— 取当下的 store 真值，
+        // 不把 llmConfig.baseUrl 列进依赖：否则用户在输入框里敲一个字符就会重拉 Provider 列表
+        if (defaultProvider && !useSettingsStore.getState().llmConfig.baseUrl) {
           setEndpoint(defaultProvider.baseURL)
           setSelectedModel(defaultProvider.model)
           if (defaultProvider.defaultParams?.temperature !== undefined) {
@@ -152,7 +154,8 @@ export function ModelSettings() {
 
     loadProviders()
     loadSettings()
-  }, [])
+    // loadSettings 是 store 的 action，身份稳定
+  }, [loadSettings])
 
   // 同步 settings store 到本地状态
   //

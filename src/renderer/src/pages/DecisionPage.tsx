@@ -226,7 +226,9 @@ export function DecisionPage() {
         }
       }
     }
-  }, [])
+    // loadHistory / showFeedback 都是 useCallback(…, [])，身份稳定：
+    // 列进来不会让订阅重跑，但不列就是拿闭包里的旧值
+  }, [loadHistory, showFeedback])
 
   // ===== 决策审批回调 =====
 

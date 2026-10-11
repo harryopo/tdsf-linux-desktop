@@ -13,7 +13,7 @@
  * 那些不是用户意图，存下去会把用户真正拖出来的值覆盖掉。
  * 双击分隔条 = 恢复默认布局（同时清掉存的宽度，否则刷新又回到拖歪的那份）。
  */
-import { type ReactNode, useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Group, Panel, Separator, useGroupRef, type Layout } from 'react-resizable-panels'
 import { cn } from '@/components/trae/utils'
 import {
@@ -74,7 +74,12 @@ export function WorkbenchLayout({
   className,
 }: WorkbenchLayoutProps) {
   const groupRef = useGroupRef()
-  const open: PanelOpenState = { tree: treeOpen, ai: Boolean(ai) && aiOpen }
+  // 必须 memo：percentLayout 的 useCallback 依赖它，每次渲染新建对象等于让缓存失效。
+  // 原来 deps 写的是 [treeOpen, ai, aiOpen] 来绕开对象身份 —— exhaustive-deps 判的就是这种"看着对、其实没钉住"
+  const open = useMemo<PanelOpenState>(
+    () => ({ tree: treeOpen, ai: Boolean(ai) && aiOpen }),
+    [treeOpen, ai, aiOpen],
+  )
 
   /**
    * 默认布局（按百分比）。
@@ -97,8 +102,8 @@ export function WorkbenchLayout({
       if (open.ai) layout['wb-ai'] = (widths.ai / total) * 100
       return layout
     },
-    // open 每次渲染都是新对象，按两个布尔值依赖即可
-    [treeOpen, ai, aiOpen],
+    // open 已经 memo 过，直接依赖它
+    [open],
   )
 
   // 只在挂载时定一次：拖拽过程中重读会把用户刚拖出来的值冲掉

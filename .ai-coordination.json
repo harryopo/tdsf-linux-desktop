@@ -2,8 +2,69 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-11T09:31:14.503Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-11T17:07:20.958Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-11T16:49:54.980Z",
+      "lastActiveAt": "2026-10-11T17:07:20.958Z",
+      "task": "p17-hooks",
+      "claimedFiles": [
+        {
+          "path": "eslint.config.cjs",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T16:49:54.980Z"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:05:57.755Z"
+        },
+        {
+          "path": "src/renderer/src/components/tutorial/CourseList.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:05:59.571Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/EditorArea.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:06:01.388Z"
+        },
+        {
+          "path": "src/renderer/src/pages/DecisionPage.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:06:03.241Z"
+        },
+        {
+          "path": "src/renderer/src/pages/ModelSettings.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:06:05.165Z"
+        },
+        {
+          "path": "src/renderer/src/pages/SshSettings.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:06:06.944Z"
+        },
+        {
+          "path": "src/renderer/src/pages/TutorialPage.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:06:08.750Z"
+        },
+        {
+          "path": "src/renderer/src/pages/WorkbenchPage.tsx",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:06:10.774Z"
+        },
+        {
+          "path": "package.json",
+          "task": "p17-hooks",
+          "claimedAt": "2026-10-11T17:07:20.958Z"
+        }
+      ],
+      "expiresAt": "2026-10-11T19:07:20.958Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -7151,6 +7212,160 @@
       "file": "src/renderer/src/components/workbench/MessageList.tsx",
       "task": "ui-polish-narrow",
       "timestamp": "2026-10-11T09:31:14.503Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/lib/monaco-setup.ts",
+      "task": "p14-monaco",
+      "timestamp": "2026-10-11T11:15:53.428Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/MonacoEditor.tsx",
+      "task": "p14-monaco",
+      "timestamp": "2026-10-11T11:15:55.495Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/monaco.spec.ts",
+      "task": "p14-monaco",
+      "timestamp": "2026-10-11T11:15:57.567Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/capabilities-single-source.test.ts",
+      "task": "test-race",
+      "timestamp": "2026-10-11T12:05:04.409Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/exec/run-command.ts",
+      "task": "p19-exec",
+      "timestamp": "2026-10-11T12:29:02.859Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/ssh.ts",
+      "task": "p19-exec",
+      "timestamp": "2026-10-11T12:29:04.369Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/terminal/local-pty.ts",
+      "task": "p19-exec",
+      "timestamp": "2026-10-11T12:29:05.936Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/run-command.test.ts",
+      "task": "p19-exec",
+      "timestamp": "2026-10-11T12:29:07.507Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/helpers/source-scan.ts",
+      "task": "canary-race",
+      "timestamp": "2026-10-11T13:04:17.438Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/claude-sdk-permission-gate.test.ts",
+      "task": "canary-race",
+      "timestamp": "2026-10-11T13:04:19.119Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/fixtures/static-gates",
+      "task": "p19-exec",
+      "timestamp": "2026-10-11T13:05:18.494Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T13:05:59.325Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "eslint.config.cjs",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T16:49:54.980Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "pnpm-lock.yaml",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:05:57.755Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/tutorial/CourseList.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:05:59.571Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/EditorArea.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:06:01.388Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionPage.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:06:03.241Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/ModelSettings.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:06:05.165Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/SshSettings.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:06:06.944Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/TutorialPage.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:06:08.750Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:06:10.774Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "p17-hooks",
+      "timestamp": "2026-10-11T17:07:20.958Z"
     }
   ],
   "coordinationAudit": {

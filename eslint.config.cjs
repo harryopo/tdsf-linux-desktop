@@ -61,9 +61,11 @@ module.exports = [
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
-      // react-hooks 4.6 与 ESLint 9 不兼容（context.getSource 缺失），暂关闭
-      'react-hooks/rules-of-hooks': 'off',
-      'react-hooks/exhaustive-deps': 'off',
+      // P1-7：插件从 4.6 升到 5.2.0（4.6 与 ESLint 9 不兼容，context.getSource 缺失才被迫关着），
+      // 两条都开成 error。开闸前实测：rules-of-hooks 0 处、exhaustive-deps 11 处，
+      // 11 处逐个真修（补依赖 / 稳定身份 / 改成读当下值），没有一处用 eslint-disable 糊过去。
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-unused-vars': 'off',

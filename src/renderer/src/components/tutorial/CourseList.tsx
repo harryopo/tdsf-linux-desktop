@@ -53,10 +53,12 @@ export function CourseList({
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
   }, [filteredCourses])
-  // 进入/退出搜索模式时重置分页
+  // 进入/退出搜索模式时重置分页（表达式要先落成变量：依赖数组里写三元/比较式
+  // 是 exhaustive-deps 判不了的盲区，规则会整条跳过）
+  const inSearchMode = searchResults !== null
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [searchResults !== null])
+  }, [inSearchMode])
 
   return (
     <section
