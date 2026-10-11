@@ -46,6 +46,7 @@ import { buildQuitSteps, createQuitCleanup } from './core/quit-cleanup'
 import { redactSecrets } from './services/security/redact'
 // S3：路径 confinement 的受管根（渲染层传来的绝对路径只有落在这里才可用）
 import { configurePathConfinement } from './services/security/path-confinement'
+import { installCrashGuard } from './core/crash-guard'
 import { installPreviewProtocol, registerPreviewScheme } from './services/preview/preview-protocol'
 import { getPreviewTransport } from './services/preview/preview-service'
 // v0.9.4 IPC 协议版本号（主进程启动时输出日志，便于诊断版本不匹配问题）
@@ -53,6 +54,9 @@ import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
 
 // 0. -1 最早初始化日志（其他模块才能用 logger）
 initLogger(app.getPath('userData'))
+// P0-3：崩溃兜底必须紧跟 logger 装上——在那之前的异步异常也没人接，
+// 而它自己一旦坏了就只能退回 console，所以顺序是"logger → 兜底 → 其余一切"。
+installCrashGuard()
 // S3：受管根 = userData。写日志/导报告/落配置都往这里走；
 // 渲染层传来的绝对路径只有落在它下面（或被主进程对话框授权过）才被接受。
 configurePathConfinement(() => [app.getPath('userData')])
