@@ -239,13 +239,40 @@ export function getProviderWithApiKey(id: string): ProviderConfig | null {
  * @param config 完整 Provider 配置（含可选 apiKey）
  * @returns 是否成功
  */
+/**
+ * 运行时派生字段不许进存储（#89）
+ *
+ * provider:list 现在恒带两样算出来的东西：hasApiKey（查 SecureStore）与
+ * capabilities（按类型查能力表）。而 ModelSettings 的"同步到默认 Provider"是
+ * providerSave({...target, ...}) 整条回写，不剥掉就会把默认表冻进存储 ——
+ * 以后能力表更新（比如把某模型窗口从 64K 提到 128K）对老用户永久失效，
+ * 界面上那个上下文徽章也跟着一直按旧分母算。
+ * 只保留用户真写过的覆盖。
+ */
+function stripDerivedFields(p: PersistedProviderConfig): PersistedProviderConfig {
+  const { hasApiKey: _hasApiKey, capabilities, ...rest } = p as PersistedProviderConfig & {
+    hasApiKey?: boolean
+  }
+  const def = PROVIDER_CAPABILITIES[p.type]
+  const isOverride =
+    !!capabilities &&
+    !!def &&
+    (capabilities.streaming !== def.streaming ||
+      capabilities.toolCall !== def.toolCall ||
+      capabilities.vision !== def.vision ||
+      capabilities.contextWindow !== def.contextWindow ||
+      capabilities.logprobs !== def.logprobs)
+  return isOverride ? { ...rest, capabilities } : rest
+}
+
 export function saveProvider(config: ProviderConfig): boolean {
   try {
     const providers = loadFromStore()
     const idx = providers.findIndex((p) => p.id === config.id)
 
-    // 处理 apiKey：非空时单独存 SecureStore
-    const { apiKey, ...persisted } = config
+    // 处理 apiKey：非空时单独存 SecureStore；派生字段（hasApiKey / 与默认表相同的能力声明）不落存储
+    const { apiKey, ...rest } = config
+    const persisted = stripDerivedFields(rest) as PersistedProviderConfig
     if (apiKey) {
       SecureStore.saveApiKey(`${SECURE_KEY_PREFIX}${config.id}`, apiKey)
     }

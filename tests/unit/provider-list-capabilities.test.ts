@@ -135,3 +135,42 @@ describe('listProviders 带出真实窗口', () => {
     }
   })
 })
+
+describe("存储里只留真覆盖（#89 的回归防线）", () => {
+  // provider:list 现在恒带解析后的 capabilities，而 ModelSettings 的同步是
+  // providerSave({...target, ...}) 整条回写。不在写入口剥掉与默认表相同的那份，
+  // 能力表就会被冻进存储，以后改默认表对老用户永久失效。
+  const ollama = {
+    id: 'p-ollama', name: '本地 Ollama', type: 'ollama',
+    baseURL: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:7b', enabled: true,
+  }
+
+  it('与默认表相同的能力声明不入库', async () => {
+    const { listProviders, saveProvider } = await registry()
+    seedProvider(ollama)
+    const resolved = listProviders(false)[0]
+    saveProvider(resolved as never)
+    const stored = (box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>)[0]
+    expect(stored.capabilities, '整条回写把默认能力冻进了存储').toBeUndefined()
+  })
+
+  it('用户真改过的窗口大小要入库', async () => {
+    const { listProviders, saveProvider } = await registry()
+    seedProvider(ollama)
+    const resolved = listProviders(false)[0]
+    saveProvider({
+      ...(resolved as object),
+      capabilities: { ...resolved.capabilities!, contextWindow: 131_072 },
+    } as never)
+    const stored = (box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>)[0]
+    expect((stored.capabilities as { contextWindow: number }).contextWindow).toBe(131_072)
+  })
+
+  it('往返幂等：list 出来的对象直接存回去，存储内容不变', async () => {
+    const { listProviders, saveProvider } = await registry()
+    seedProvider(ollama)
+    const before = JSON.stringify(box.store.get(PROVIDERS_KEY))
+    saveProvider(listProviders(false)[0] as never)
+    expect(JSON.stringify(box.store.get(PROVIDERS_KEY)), saveProvider.name).toBe(before)
+  })
+})
