@@ -33,8 +33,8 @@ const MONITOR_DATA_CHANNEL = 'monitor:data'
 /** 系统信息推送通道名（首次采集时推送） */
 const MONITOR_SYSTEM_INFO_CHANNEL = 'monitor:systemInfo'
 
-/** SystemMonitor 单例（整个应用共享一个实例） */
-let monitorInstance: SystemMonitor | null = null
+/** 告警去抖状态的清理订阅是否已挂上（跟着 SystemMonitor 单例的寿命，只挂一次） */
+let alertPruneInstalled = false
 
 /** 告警去抖状态（`sessionId:metric:level` → 上次通知时间）；主机名缓存供通知标题用 */
 const alertLastFired = new Map<string, number>()
@@ -96,17 +96,18 @@ function readThresholds(): AlertThresholds {
 export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): () => void {
   const disposers: Array<() => void> = []
 
-  // 全局单例：所有监控会话共享一个 SystemMonitor
-  if (!monitorInstance) {
-    monitorInstance = new SystemMonitor()
+  // 全局单例：所有监控会话共享一个 SystemMonitor，AI 的 monitor_get 读的也是这一份缓存
+  // （采集与解析因此只可能有一处实现，不会再各报各的数）
+  const monitor = SystemMonitor.getInstance()
+  if (!alertPruneInstalled) {
+    alertPruneInstalled = true
     // 会话关掉时清掉 IPC 层自己那两份状态（监控定时器由 SystemMonitor 自己回收）。
-    // 订阅放在实例创建处、且**不进 disposers**：它跟着单例的寿命，
+    // 订阅只挂一次、且**不进 disposers**：它跟着单例的寿命，
     // 而单例在整个应用生命周期里只建一次，摘掉它就不会再挂回来。
     SshConnectionManager.getInstance().onSessionClosed((sessionId) => {
       pruneSessionAlertState(sessionId)
     })
   }
-  const monitor = monitorInstance
 
   // 注册监控数据回调：每次采集到新数据时推送到渲染进程 + v2.9 后台告警检测
   disposers.push(
@@ -203,7 +204,8 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): () => voi
  * 停止所有监控（应用退出时调用）
  */
 export async function stopAllMonitoring(): Promise<void> {
-  if (monitorInstance) {
-    await monitorInstance.stopAll()
+  const monitor = SystemMonitor.peek()
+  if (monitor) {
+    await monitor.stopAll()
   }
 }

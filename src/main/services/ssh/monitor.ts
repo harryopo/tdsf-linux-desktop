@@ -50,6 +50,14 @@ export const MONITOR_DATA_EVENT = 'monitor:data'
 /** 系统信息事件名（静态信息推送，首次采集时触发） */
 export const MONITOR_SYSTEM_INFO_EVENT = 'monitor:systemInfo'
 
+/**
+ * execBatch 用的分段分隔符
+ *
+ * 导出给判据拼"假但形状正确"的响应，别让测试抄一份字面量——分隔符一改，
+ * 抄的那份就变成在测一个不存在的东西。
+ */
+export const MONITOR_SEGMENT_SEP = '__TDSF_MON_SEP_9f3c2b__'
+
 /** 单个会话的监控状态 */
 interface MonitorState {
   /** 定时器句柄 */
@@ -75,10 +83,15 @@ const MIN_INTERVAL_MS = 1000
  * 支持多会话同时监控，每会话独立定时器。
  */
 export class SystemMonitor extends EventEmitter {
+  /** 全应用共用那一份（采集缓存只有共享才谈得上"AI 读到界面正在看的数据"） */
+  private static instance: SystemMonitor | null = null
+
   /** SSH 采集出口 */
   private readonly sshManager: SshCollectSource
   /** 监控状态表：sessionId → MonitorState */
   private states: Map<string, MonitorState> = new Map()
+  /** 最近一次采集样本：sessionId → { data, at }（界面轮询与 AI 按需采集共用） */
+  private readonly samples: Map<string, { data: MonitorData; at: number }> = new Map()
   /** 取消"会话关闭"订阅的函数（实例被丢弃时调用，别把监听器留在单例上） */
   private readonly offSessionClosed: () => void
 
@@ -93,6 +106,24 @@ export class SystemMonitor extends EventEmitter {
     this.offSessionClosed = this.sshManager.onSessionClosed((sessionId) => {
       void this.stopMonitoring(sessionId)
     })
+  }
+
+  /**
+   * 取全应用共用的那一份采集器
+   *
+   * @param source 首次创建时可注入采集出口（判据用假 SSH 源跑真解析）；
+   *               实例已存在时该参数被忽略——否则会出现"两份缓存、两种答案"。
+   */
+  public static getInstance(source?: SshCollectSource): SystemMonitor {
+    if (!SystemMonitor.instance) {
+      SystemMonitor.instance = new SystemMonitor(source)
+    }
+    return SystemMonitor.instance
+  }
+
+  /** 单例是否已经建过（退出清理走这个，免得在退出路上凭空建一份） */
+  public static peek(): SystemMonitor | null {
+    return SystemMonitor.instance
   }
 
   /** 正在监控的会话（判据与诊断都要能看见真实状态，不能只看"没报错"） */
@@ -321,6 +352,19 @@ export class SystemMonitor extends EventEmitter {
         })
     }
 
+    const data = await this.sample(sessionId, state)
+    this.remember(sessionId, data)
+    // 触发事件
+    this.emit(MONITOR_DATA_EVENT, sessionId, data)
+  }
+
+  /**
+   * 采集一轮实时指标：单条 exec（单 channel）→ 解析 → 算网络速率
+   *
+   * 网络速率要跟前一次快照作差，所以速率只在**周期性**采集时才有意义；
+   * 按需采集（AI 工具）用的是另起的一份基线，网络两路返回 0。
+   */
+  private async sample(sessionId: string, state: MonitorState): Promise<MonitorData> {
     const currentTimestamp = Date.now()
 
     // v2.4 修复：合并为单条 exec（单 channel），避免每周期并发 7 channel
@@ -350,7 +394,7 @@ export class SystemMonitor extends EventEmitter {
       currentTimestamp
     )
 
-    const data: MonitorData = {
+    return {
       timestamp: currentTimestamp,
       cpuUsage,
       memoryUsage,
@@ -361,9 +405,47 @@ export class SystemMonitor extends EventEmitter {
       uptime: uptimeSeconds,
       processCount,
     }
+  }
 
-    // 触发事件
-    this.emit(MONITOR_DATA_EVENT, sessionId, data)
+  /**
+   * 按需采集一次（AI 的 monitor_get 工具走这条路）
+   *
+   * 与界面轮询共用同一份采集与解析实现：一次调用只开**一个** SSH channel。
+   * 旧版在这里并发 7 条 exec（每条一个 channel），叠加界面轮询与交互 shell
+   * 就会撞满 OpenSSH 默认 MaxSessions=10，表现为 "Channel open failure"、指标全 0。
+   *
+   * @param sessionId SSH 会话 ID
+   * @returns 本轮 MonitorData（网络两路为 0，因为没有可比的前一次快照）
+   */
+  public async collectOnce(sessionId: string): Promise<MonitorData> {
+    const state: MonitorState = {
+      timer: null as unknown as NodeJS.Timeout,
+      interval: 0,
+      lastNetRx: 0,
+      lastNetTx: 0,
+      lastTimestamp: 0,
+      systemInfoCollected: true,
+    }
+    const data = await this.sample(sessionId, state)
+    this.remember(sessionId, data)
+    return data
+  }
+
+  /**
+   * 最近一次采集结果与它距今的毫秒数；没采过返回 null
+   *
+   * 界面轮询与 AI 按需采集都会写这份缓存，所以 AI 问"现在负载多少"时
+   * 优先读缓存，读不到才去开 channel。
+   */
+  public latestSample(sessionId: string): { data: MonitorData; ageMs: number } | null {
+    const hit = this.samples.get(sessionId)
+    if (!hit) return null
+    return { data: hit.data, ageMs: Date.now() - hit.at }
+  }
+
+  /** 记下这份样本（缓存写入的唯一入口，两条采集路径共用） */
+  private remember(sessionId: string, data: MonitorData): void {
+    this.samples.set(sessionId, { data, at: data.timestamp })
   }
 
   /**
@@ -403,7 +485,7 @@ export class SystemMonitor extends EventEmitter {
    */
   private async execBatch(sessionId: string, commands: string[]): Promise<string[]> {
     if (commands.length === 0) return []
-    const SEP = '__TDSF_MON_SEP_9f3c2b__'
+    const SEP = MONITOR_SEGMENT_SEP
     const combined = commands.join(` ; echo '${SEP}' ; `)
     let stdout = ''
     try {
