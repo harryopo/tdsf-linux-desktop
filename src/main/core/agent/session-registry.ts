@@ -3,13 +3,12 @@
  *
  * 职责：
  * - 集中维护 sessionId → 会话元数据（含 AbortController）的 Map
- * - 支持 abort signal（中断长时运行 IPC 调用，如 agent:chat / claude-sdk:stream）
+ * - 支持 abort signal（中断长时运行 IPC 调用，如 agent:chat）
  * - 支持 TTL 自动清理（30 分钟过期，避免内存泄漏）
  * - 提供 list() 诊断接口（用于排查卡死的会话）
  *
  * 使用方：
  * - src/main/ipc/agent-runtime.ts：agent:chat 注册会话，agent:chat:cancel 查找并 abort
- * - src/main/ipc/claude-sdk.ts：claude-sdk:stream / generate 注册，claude-sdk:cancel 查找并 abort
  * - src/main/ipc/sandbox.ts：sandbox:execute 注册（用于追踪 + 取消 pending 审批）
  *
  * 设计要点：
@@ -44,7 +43,7 @@ interface SessionRecord {
   correlationId: string
   /** 会话类型（标识来源 IPC 通道） */
   kind: SessionKind
-  /** Provider ID（agent:chat / claude-sdk:* 通道用） */
+  /** Provider ID（agent:chat 通道用） */
   providerId?: string
   /** 模型名 */
   model?: string

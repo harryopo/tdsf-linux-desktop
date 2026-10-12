@@ -16,7 +16,7 @@ import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
 import { attention, credibility, expectation, mode, taskPermission } from './domains/cognition'
 import { atCommands, localTty, sandbox, terminalCompletion } from './domains/terminal'
-import { claudeSdk, llm, llmInline, provider, providerInfo, token, tokenCostStats } from './domains/llm'
+import { llm, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
 import { on } from './domains/events'
 
@@ -159,9 +159,6 @@ const electronApi = {
   onAgentToolEvent: on.agentToolEvent,
 
   // v0.9 Claude Agent SDK 流式事件（独立于 Supervisor，避免通道混用）
-  onClaudeSdkChunk: on.claudeSdkChunk,
-  onClaudeSdkDone: on.claudeSdkDone,
-  onClaudeSdkError: on.claudeSdkError,
 
   // v0.9 沙箱命令审批请求事件（P-2：HC-6 强制审批，主进程推送审批请求）
   onSandboxApprovalRequest: on.sandboxApprovalRequest,
@@ -203,7 +200,7 @@ const electronApi = {
   agentPaor: agentRuntime.paor,
   // v0.9.5 新增：响应 PAOR 审批请求（与 onPaorApprovalRequest 配合使用）
   paorApprove: agentRuntime.approve,
-  // v0.9.4 新增：通过 sessionId 统一取消 agent:chat / claude-sdk 两类会话
+  // v0.9.4 新增：通过 sessionId 统一取消 agent:chat 会话
   // 与 agentChatCancel 并存（向后兼容）：旧调用方继续用 agentChatCancel(correlationId)，
   // 新调用方推荐用 agentCancel(sessionId) 同时取消多类会话
   agentCancel: system.cancel,
@@ -233,23 +230,6 @@ const electronApi = {
   tokenReset: token.reset,
   // P-5 新增：token 使用明细记录（Token 监控面板展示明细列表 + 分布图表）
   tokenRecords: token.records,
-
-  // ===== v0.9 Claude Agent SDK 扁平化（generate / stream / cancel） =====
-  // 使用场景：Provider 选择器中选 claude-sdk 类型时走本通道，其他类型走 agentChat
-  claudeSdkGenerate: claudeSdk.generate,
-  claudeSdkStream: claudeSdk.stream,
-  claudeSdkCancel: claudeSdk.cancel,
-
-  // ===== v2.0 Phase B 扁平化：内联补全 + Diff 应用 =====
-  // 通道与主进程 ipc/llm-inline.ts 一一对应；UI 调用方式：
-  //   const items = await window.electronAPI.llmInlineCompletion(req)
-  //   await window.electronAPI.llmInlineCompletionCancel()
-  //   const r = await window.electronAPI.llmApplyDiff({ filePath, newContent })
-  //   const { diff } = await window.electronAPI.llmDiffPreview({ filePath, originalContent, modifiedContent })
-  llmInlineCompletion: llmInline.inlineCompletion,
-  llmInlineCompletionCancel: llmInline.inlineCompletionCancel,
-  llmApplyDiff: llmInline.applyDiff,
-  llmDiffPreview: llmInline.diffPreview,
 
   // ===== v0.9 OpenHands 沙箱集成扁平化 =====
   // 通道与主进程 ipc/sandbox.ts 一一对应；UI 调用方式：

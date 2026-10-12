@@ -430,7 +430,7 @@ function readRuntimeResource(uri: string, key: string): McpResourceContent {
 /**
  * 读取当前 SSH 会话资源
  *
- * 数据源：SessionRegistry.list()（仅主进程内部可读，含 agent:chat / claude-sdk:stream / sandbox:execute 等）
+ * 数据源：SessionRegistry.list()（仅主进程内部可读，含 agent:chat / sandbox:execute 等）
  */
 function readSessionsResource(uri: string): McpResourceContent {
   try {

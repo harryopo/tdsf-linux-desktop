@@ -593,13 +593,13 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(result.contextWindow).toBe(64_000)
   })
 
-  it('5.5 provider:capabilities-all 返回所有 ProviderType 的能力声明（8 个类型）', async () => {
+  it('5.5 provider:capabilities-all 返回所有 ProviderType 的能力声明（7 个类型）', async () => {
     const result: ProviderCapabilitiesAllResponse =
       await handlers['provider:capabilities-all'](mockEvent)
 
     expect(result).toBeDefined()
     const types = Object.keys(result)
-    expect(types).toHaveLength(8)
+    expect(types).toHaveLength(7)
     expect(types).toContain('anthropic')
     expect(types).toContain('google')
     expect(types).toContain('openai-compatible')
@@ -607,7 +607,6 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(types).toContain('qwen')
     expect(types).toContain('volcengine-ark')
     expect(types).toContain('ollama')
-    expect(types).toContain('claude-sdk')
   })
 
   it('5.6 provider:capabilities-all 返回深拷贝（不污染内部 PROVIDER_CAPABILITIES 表）', async () => {
@@ -642,7 +641,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     )
 
     expect(result).toBeDefined()
-    expect(Object.keys(result)).toHaveLength(8)
+    expect(Object.keys(result)).toHaveLength(7)
     expect(result['ollama'].inputCostPer1M).toBe(0.0) // ollama 是本地推理，0 成本
 
     // 深拷贝验证：修改返回值不应影响内部表

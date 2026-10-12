@@ -38,9 +38,6 @@ export type StreamEventName =
   | 'agent:step'
   | 'agent:tool-event'
   | 'boot:loading-stage'
-  | 'claude-sdk:chunk'
-  | 'claude-sdk:done'
-  | 'claude-sdk:error'
   | 'diagnostics:log-batch'
   | 'deploy:done'
   | 'deploy:log'
@@ -308,24 +305,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '同一通道既推迭代轮次也推任务拆解计划，后者是整块内容，覆盖式合并会丢计划卡',
-  },
-  'claude-sdk:chunk': {
-    class: 'DELTA',
-    ownership: false,
-    coalescable: true,
-    note: 'Claude SDK 通道的 token 块，语义同 agent:chunk；渲染层目前未订阅，故无从做会话过滤',
-  },
-  'claude-sdk:done': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '收尾事件，丢了消息停在 streaming；渲染层目前未订阅',
-  },
-  'claude-sdk:error': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '错误不丢；渲染层目前未订阅',
   },
   'deploy:log': {
     class: 'SNAPSHOT',

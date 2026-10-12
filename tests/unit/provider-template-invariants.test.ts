@@ -34,8 +34,6 @@ const EXPECTED_IDS = [
   'gemini-pro',
   'gemini-flash',
   'claude-sonnet-4',
-  'claude-sonnet-4-5',
-  'claude-opus-4-1',
   'ollama-qwen3',
   'openai-compatible-custom',
 ]
@@ -60,8 +58,6 @@ const EXPECTED_ROLES: Record<string, string[] | null> = {
   'gemini-pro': ['chat', 'summarize'],
   'gemini-flash': ['preview'],
   'claude-sonnet-4': ['chat', 'edit'],
-  'claude-sonnet-4-5': ['chat', 'edit'],
-  'claude-opus-4-1': ['edit', 'apply'],
   'ollama-qwen3': ['chat', 'autocomplete'],
   'openai-compatible-custom': null,
 }
@@ -71,7 +67,7 @@ describe('模型清单结构判据', () => {
     const ids = PROVIDER_TEMPLATES.map((t) => t.id)
     expect([...ids].sort()).toEqual([...EXPECTED_IDS].sort())
     expect(new Set(ids).size, '有重复 id').toBe(ids.length)
-    expect(ids.length).toBe(17)
+    expect(ids.length).toBe(15)
   })
 
   it.each(Object.entries(EXPECTED_ROLES))('%s 的 roles 是 %j', (id, roles) => {
@@ -87,7 +83,7 @@ describe('模型清单结构判据', () => {
     const vendorKey = (t: ProviderConfig): string => {
       if (t.id === 'openai-compatible-custom') return '__custom__'
       const vendor = t.id.split('-')[0]
-      return t.type === 'claude-sdk' ? `${vendor}+sdk` : vendor
+      return vendor
     }
     const perVendor = new Map<string, string[]>()
     for (const t of PROVIDER_TEMPLATES) {

@@ -12,7 +12,6 @@
  * - SessionId branded type + generateSessionId 工厂函数
  * - SessionEntry / SystemPingResponse 接口
  * - AgentChunkPayload / AgentDonePayload / AgentErrorPayload 增加可选 sessionId
- * - ClaudeSdkChatParams 增加可选 sessionId
  *
  * 设计原则：
  * - 不依赖 main 进程的任何模块（确保 preload/renderer 可安全导入）
@@ -35,13 +34,7 @@
  * - deepseek：DeepSeek（OpenAI 兼容，baseURL 必须自带版本段 https://api.deepseek.com/v1；
  *   @ai-sdk/openai 不补 /v1，缺了会打在 https://api.deepseek.com/chat/completions 上）
  * - qwen：通义千问 / DashScope（OpenAI 兼容，默认 https://dashscope.aliyuncs.com/compatible-mode/v1）
- * - claude-sdk：Claude Agent SDK（@anthropic-ai/claude-agent-sdk query() 异步生成器，agent loop 模式）
  *
- * v0.9 新增 'claude-sdk'：
- * - 与 'anthropic' 区分：'anthropic' 走 @ai-sdk/anthropic 的 LanguageModelV2 单次调用契约；
- *   'claude-sdk' 走 Claude Agent SDK 的 query() agent loop（多轮工具调用 + 反思）。
- * - 不通过 provider-factory.createLanguageModel 创建，而是由 IPC handler 直接实例化 ClaudeSdkProvider。
- * - 调用方通过 `claude-sdk:generate` / `claude-sdk:stream` IPC 通道使用。
  */
 export type ProviderType =
   | 'openai-compatible'
@@ -51,7 +44,6 @@ export type ProviderType =
   | 'ollama'
   | 'deepseek'
   | 'qwen'
-  | 'claude-sdk'
 
 /**
  * 思考强度三档（方案书 §6）
@@ -139,7 +131,6 @@ export interface ProviderCapabilities {
    * - ollama：支持（`logprobs: true`）
    * - anthropic：不支持（Anthropic 协议无 logprobs 字段）
    * - google：不支持（Gemini 协议无 token-level logprobs）
-   * - claude-sdk：不支持（Agent SDK 不暴露 per-step logprobs）
    */
   logprobs: boolean
 }
@@ -414,7 +405,7 @@ export interface AgentChunkPayload {
    * - 'reasoning'：思考链增量（DeepSeek reasoning_content），前端折叠展示
    */
   kind?: 'text' | 'reasoning'
-  /** 会话 ID（v0.9.4 新增，可选；主进程在 agent:chat / claude-sdk:stream 启动时回传） */
+  /** 会话 ID（v0.9.4 新增，可选；主进程在 agent:chat 启动时回传） */
   sessionId?: string
 }
 
@@ -464,53 +455,6 @@ export interface AgentErrorPayload {
     | 'UNKNOWN'
     | 'CANCELLED'
   /** 会话 ID（v0.9.4 新增，可选） */
-  sessionId?: string
-}
-
-// ============================================================================
-// v0.9 Claude Agent SDK 集成类型
-//
-// 方案书依据：v0.9 §3 决策 5（Claude 集成方式 B：@anthropic-ai/claude-agent-sdk）
-// 设计文档：d:\ai\linux教学一体\idea-to-dev-output\26-方案书-v0.9修订版-质量优先实施.md
-//
-// 设计原则：
-// - ClaudeSdkProvider 不实现 LanguageModelV2 契约（agent loop 不能降级为单次 doGenerate）
-// - 通过专属 IPC 通道 claude-sdk:generate / claude-sdk:stream 调用
-// - 类型放在 shared 层，确保 main / preload / renderer 三端共用
-// ============================================================================
-
-/**
- * Claude SDK 流式 chat 调用参数（与 SupervisorAgent.chat 风格对齐）
- *
- * 与 ModelMessage[] 不同：
- * - SupervisorAgent.chat 接收 messages 数组（多轮对话历史）
- * - ClaudeSdkProvider 接收单个 prompt 字符串（SDK 内部维护对话历史）
- *
- * 与 IPC 通道的关系：
- * - claude-sdk:generate — 同步聚合调用，返回 ChatResult
- * - claude-sdk:stream   — 异步流式调用，返回 correlationId
- *                        通过 onClaudeSdkChunk / onClaudeSdkDone / onClaudeSdkError 监听后续事件
- * - claude-sdk:cancel   — 取消进行中的请求
- */
-export interface ClaudeSdkChatParams {
-  /** 用户提示文本（会先经 redactSecrets 脱敏，HC-2） */
-  prompt: string
-  /** 思考强度（影响 maxTurns + thinking 配置） */
-  strength?: ThinkingStrength
-  /** 系统提示（可选，覆盖默认 Linux 运维助手 prompt） */
-  systemPrompt?: string
-  /** 当前工作目录（默认 process.cwd()，Linux 运维场景一般不需要） */
-  cwd?: string
-  /** 是否启用流式增量消息（默认 true，stream() 时启用） */
-  includePartialMessages?: boolean
-  /** 关联 ID（用于日志追踪 + 取消请求，可选，未传自动生成） */
-  correlationId?: string
-  /**
-   * 会话 ID（v0.9.4 新增，可选）
-   *
-   * 用于关联请求与响应、支持 abort signal。
-   * 未提供时主进程自动生成并通过响应回传。
-   */
   sessionId?: string
 }
 
@@ -751,11 +695,9 @@ export type SessionId = string & { readonly __brand: 'SessionId' }
  * 会话类型（标识会话来源 IPC 通道）
  *
  * - agent:chat          — Supervisor 流式 chat
- * - claude-sdk:stream   — Claude SDK 流式调用
- * - claude-sdk:generate — Claude SDK 同步聚合调用
  * - sandbox:execute     — 沙箱命令执行
  */
-export type SessionKind = 'agent:chat' | 'claude-sdk:stream' | 'claude-sdk:generate' | 'sandbox:execute'
+export type SessionKind = 'agent:chat' | 'sandbox:execute'
 
 /**
  * 会话注册表条目（可序列化视图，用于诊断 / 查询 / 日志）
@@ -770,7 +712,7 @@ export interface SessionEntry {
   correlationId: string
   /** 会话类型（标识来源 IPC 通道） */
   kind: SessionKind
-  /** Provider ID（agent:chat / claude-sdk:* 通道用） */
+  /** Provider ID（agent:chat 通道用） */
   providerId?: string
   /** 模型名 */
   model?: string

@@ -20,6 +20,7 @@ import { ConfigStore } from '../../../services/storage/config-store'
 import { SecureStore } from '../../../services/storage/secure-store'
 import { logger } from '../../../services/log/logger'
 import { PROVIDER_TEMPLATES } from './provider-templates'
+import { PROVIDER_CAPABILITIES } from './provider-capabilities'
 import type { ProviderConfig, PersistedProviderConfig, ModelRole } from './types'
 import { DEFAULT_PROVIDER_ID } from './types'
 
@@ -98,14 +99,21 @@ function initializeProviders(): void {
 
 /**
  * 从持久化存储加载 Provider 列表
+ *
+ * 两道过滤，顺序不能反：
+ * 1. 结构校验：字段不齐的条目丢掉（防存储损坏）。
+ * 2. 类型校验：type 不在 PROVIDER_CAPABILITIES 表里的丢掉并留话。
+ *    这一条是给"退役的 Provider 类型"用的：本版本撤掉了 claude-sdk（Claude Agent SDK
+ *    非开源、只认 Anthropic 模型），但用户机器上可能还存着那条配置。留着它的后果是
+ *    聊天时 createLanguageModel 走到 default 分支抛"不支持的 Provider 类型"，
+ *    用户只看到一次失败；现在改成加载时摘掉，并在日志里说清摘了谁。
  */
 function loadFromStore(): PersistedProviderConfig[] {
   const raw = ConfigStore.get(STORE_KEY_PROVIDERS)
   if (!Array.isArray(raw)) {
     return []
   }
-  // 类型校验：仅保留符合结构的条目（防止存储损坏导致运行时错误）
-  return raw.filter(
+  const shaped = raw.filter(
     (item): item is PersistedProviderConfig =>
       typeof item === 'object' &&
       item !== null &&
@@ -113,8 +121,18 @@ function loadFromStore(): PersistedProviderConfig[] {
       typeof item.name === 'string' &&
       typeof item.type === 'string' &&
       typeof item.baseURL === 'string' &&
-      typeof item.model === 'string'
+      typeof item.model === 'string',
   )
+  const liveTypes = new Set(Object.keys(PROVIDER_CAPABILITIES))
+  const retired = shaped.filter((p) => !liveTypes.has(p.type))
+  if (retired.length > 0) {
+    logger.warn(
+      'AGENT.PROVIDER',
+      `移除 ${retired.length} 条已退役的 Provider 类型，请在设置里重选模型`,
+      { retired: retired.map((p) => ({ id: p.id, type: p.type })) },
+    )
+  }
+  return shaped.filter((p) => liveTypes.has(p.type))
 }
 
 /**

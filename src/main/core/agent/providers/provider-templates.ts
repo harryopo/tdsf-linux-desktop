@@ -200,8 +200,7 @@ export const PROVIDER_TEMPLATES: ProviderConfig[] = [
   // 这条**默认禁用**，不是省事，是它跑不通：@ai-sdk/anthropic 发的是 Bearer token，
   // 默认 baseURL 是 https://api.anthropic.com/v1（dist/index.js:4104），而 Bedrock 的
   // model 端点是 /model/<arn>/invoke… 且要求 SigV4 签名。填了 Key 也是 403/404。
-  // 保留条目只为不丢历史配置；真要走 Bedrock 得换签名客户端，与 claude-agent-sdk 的
-  // 许可决定一起做（见 docs/reports/待拍板三项处置方案-2026-10-09.md）。
+  // 保留条目只为不丢历史配置；真要走 Bedrock 得换签名客户端（SigV4），本仓不做。
   {
     id: 'claude-sonnet-4',
     name: 'Claude Sonnet 4.5 (Bedrock · 暂不可用)',
@@ -212,37 +211,6 @@ export const PROVIDER_TEMPLATES: ProviderConfig[] = [
     builtin: true,
     enabled: false,
     roles: ['chat', 'edit'],
-  },
-
-  // ===== Claude Agent SDK（走 @anthropic-ai/claude-agent-sdk query() agent loop）=====
-  // 与 'anthropic' 类型的区别：
-  // - 'anthropic' 走 @ai-sdk/anthropic 的 LanguageModel 单次调用契约（streamText/doGenerate）
-  // - 'claude-sdk' 走 Agent SDK 的 query() 异步生成器（多轮工具调用 + 反思）
-  // - 不通过 provider-factory.createLanguageModel 创建，由 IPC handler 直接实例化 ClaudeSdkProvider
-  // - 调用方通过 `claude-sdk:generate` / `claude-sdk:stream` IPC 通道使用
-  // baseURL 留空：SDK 默认走 https://api.anthropic.com（可用 ANTHROPIC_BASE_URL 覆盖）
-  // 模型 id 来自二手时间线（Sonnet 5 于 2026-06-30、Opus 5.5 于 2026-09-22），未实测调用。
-  {
-    id: 'claude-sonnet-4-5',
-    name: 'Claude Sonnet 5 (Agent SDK)',
-    type: 'claude-sdk',
-    baseURL: '',
-    model: 'claude-sonnet-5',
-    defaultParams: { temperature: 0.7, maxTokens: 4096 },
-    builtin: true,
-    enabled: true,
-    roles: ['chat', 'edit'],
-  },
-  {
-    id: 'claude-opus-4-1',
-    name: 'Claude Opus 5.5 (Agent SDK)',
-    type: 'claude-sdk',
-    baseURL: '',
-    model: 'claude-opus-5-5',
-    defaultParams: { temperature: 0.7, maxTokens: 4096 },
-    builtin: true,
-    enabled: true,
-    roles: ['edit', 'apply'],
   },
 
   // ===== Ollama（本地离线，隐私场景）=====

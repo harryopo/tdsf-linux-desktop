@@ -3,7 +3,7 @@ import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolE
 import type { AgentWorkflowState, ExternalMcpServerStatus, LlmError, LlmStreamChunk, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
-import { AGENT, CLAUDE_SDK, FILE_WATCH, LOCAL_TTY, LLM, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TASK, TERMINAL } from '@shared/ipc-channels'
+import { AGENT, FILE_WATCH, LOCAL_TTY, LLM, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TASK, TERMINAL } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import type { FileChangedPayload, PaorApprovalRequest, SandboxApprovalRequest, TaskPermissionApprovalRequest } from '../types'
 import { createListener } from '../ipc-util'
@@ -152,20 +152,6 @@ const on = {
   /** 监听 Supervisor 工具调用事件（v2.4：真实工具执行可视化） */
   agentToolEvent: (callback: (payload: AgentToolEventPayload) => void): (() => void) => {
     return createListener(AGENT.TOOL_EVENT, callback)
-  },
-
-  // v0.9 Claude Agent SDK 流式事件（独立于 agent:chunk/done/error，避免通道混用）
-  /** 监听 Claude SDK 流式 token 块推送 */
-  claudeSdkChunk: (callback: (payload: AgentChunkPayload) => void): (() => void) => {
-    return createListener(CLAUDE_SDK.CHUNK, callback)
-  },
-  /** 监听 Claude SDK 完成信号（含完整 ChatResult） */
-  claudeSdkDone: (callback: (payload: AgentDonePayload) => void): (() => void) => {
-    return createListener(CLAUDE_SDK.DONE, callback)
-  },
-  /** 监听 Claude SDK 错误信号 */
-  claudeSdkError: (callback: (payload: AgentErrorPayload) => void): (() => void) => {
-    return createListener(CLAUDE_SDK.ERROR, callback)
   },
 
   /**

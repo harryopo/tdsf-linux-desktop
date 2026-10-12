@@ -29,7 +29,6 @@ import type { ProviderCapabilities, ProviderType, PersistedProviderConfig } from
  * - qwen：通义千问 Max 支持 streaming/toolCall/vision（qwen-vl），上下文 256K
  * - volcengine-ark：火山方舟豆包支持 streaming/toolCall，无 vision，上下文 32K
  * - ollama：本地推理支持 streaming，toolCall 视模型而定（保守默认 false），无 vision，上下文 8K
- * - claude-sdk：Claude Agent SDK 等同 anthropic，支持 streaming/toolCall/vision，上下文 200K
  *
  * 注意：contextWindow=0 表示未知，调用方应做防御性处理。
  */
@@ -82,13 +81,6 @@ export const PROVIDER_CAPABILITIES: Record<ProviderType, ProviderCapabilities> =
     vision: false,
     contextWindow: 8_000,
     logprobs: true,
-  },
-  'claude-sdk': {
-    streaming: true,
-    toolCall: true,
-    vision: true,
-    contextWindow: 200_000,
-    logprobs: false,
   },
 }
 

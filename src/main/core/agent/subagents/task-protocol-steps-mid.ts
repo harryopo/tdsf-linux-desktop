@@ -7,7 +7,7 @@
  * - step 6: select-provider（D.2，解析 providerId → getProviderWithApiKey → createLanguageModel）
  * - step 7: select-mode（D.2，解析 mode → getCurrentMode → MODE_CONFIGS[mode]）
  * - step 8: build-prompt（D.2，systemPrompt + attentionContext + compactIfNeeded）
- * - step 9: invoke-subagent（D.3，claude-sdk 走 ClaudeSdkProvider.generate，其他走 streamText）
+ * - step 9: invoke-subagent（D.3，streamText 消费 textStream）
  * - step 10: stream-output（D.3，提取 chatResult.text 到 ctx.output）
  */
 import { streamText, type ModelMessage } from 'ai'
@@ -25,7 +25,6 @@ import {
 import { createLanguageModel, getDefaultParams } from '../providers/provider-factory'
 import { MODE_CONFIGS, isValidMode, getCurrentMode } from '../modes/mode-registry'
 import { compactIfNeeded } from '../context'
-import { ClaudeSdkProvider } from '../claude-sdk/claude-sdk-provider'
 import { log, extractStringField, readInputField } from './task-protocol-helpers'
 
 // ============================================================================
@@ -42,7 +41,7 @@ import { log, extractStringField, readInputField } from './task-protocol-helpers
  * 1. 优先从 ctx.input 解析 providerId（如果 input 是对象且有 providerId）
  * 2. 否则用 getDefaultProviderId()
  * 3. 调用 getProviderWithApiKey(id) 获取配置
- * 4. 如果 type !== 'claude-sdk'，调用 createLanguageModel 创建 modelInstance
+ * 4. 调用 createLanguageModel 创建 modelInstance
  * 5. 写入 ctx.providerConfig / ctx.providerType / ctx.modelInstance
  */
 export async function stepSelectProvider(ctx: TaskProtocolContext): Promise<StepResult> {
@@ -72,19 +71,17 @@ export async function stepSelectProvider(ctx: TaskProtocolContext): Promise<Step
       }
     }
 
-    // 4. 根据 type 分支：claude-sdk 不创建 LanguageModel（用 ClaudeSdkProvider）
+    // 4. 创建 LanguageModel（所有类型同一条路径）
     const providerType: ProviderType = config.type
-    let modelInstance: ProviderModelInstance | undefined
-    if (providerType !== 'claude-sdk') {
-      try {
-        modelInstance = createLanguageModel(config)
-      } catch (err) {
-        return {
-          step: 'select-provider',
-          success: false,
-          error: `创建 LanguageModel 失败：${err instanceof Error ? err.message : String(err)}`,
-          durationMs: Date.now() - start,
-        }
+    let modelInstance: ProviderModelInstance
+    try {
+      modelInstance = createLanguageModel(config)
+    } catch (err) {
+      return {
+        step: 'select-provider',
+        success: false,
+        error: `创建 LanguageModel 失败：${err instanceof Error ? err.message : String(err)}`,
+        durationMs: Date.now() - start,
       }
     }
 
@@ -283,8 +280,7 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
  * 1. 校验前置步骤产出（providerConfig / messages）
  * 2. 创建 AbortController
  * 3. 根据 providerType 分支：
- *    - claude-sdk: 用 ClaudeSdkProvider.generate()
- *    - 其他: 用 streamText + 消费 textStream
+ *    用 streamText + 消费 textStream
  * 4. 写入 ctx.chatResult / ctx.abortController
  */
 export async function stepInvokeSubagent(ctx: TaskProtocolContext): Promise<StepResult> {
@@ -314,15 +310,8 @@ export async function stepInvokeSubagent(ctx: TaskProtocolContext): Promise<Step
     const correlationId = ctx.correlationId ?? `task_${ctx.taskId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     ctx.correlationId = correlationId
 
-    // 3. 根据 ProviderType 分支调用
-    let chatResult: ChatResult
-    if (ctx.providerType === 'claude-sdk') {
-      // Claude SDK 路径：用 ClaudeSdkProvider.generate()
-      chatResult = await invokeWithClaudeSdk(ctx, correlationId)
-    } else {
-      // 普通路径：用 streamText 消费 textStream
-      chatResult = await invokeWithStreamText(ctx, abortController, start)
-    }
+    // 3. 调用模型（全仓唯一一条 @ai-sdk 路径）
+    const chatResult: ChatResult = await invokeWithStreamText(ctx, abortController, start)
 
     ctx.chatResult = chatResult
 
@@ -361,32 +350,7 @@ export async function stepInvokeSubagent(ctx: TaskProtocolContext): Promise<Step
 }
 
 /**
- * Claude SDK 调用路径（claude-sdk 类型 Provider）
- *
- * ClaudeSdkProvider 封装 @anthropic-ai/claude-agent-sdk 的 agent loop，
- * 接收单个 prompt 字符串，返回 ChatResult。
- */
-async function invokeWithClaudeSdk(ctx: TaskProtocolContext, correlationId: string): Promise<ChatResult> {
-  if (!ctx.providerConfig) {
-    throw new Error('providerConfig 缺失')
-  }
-  const provider = new ClaudeSdkProvider(ctx.providerConfig)
-  // Claude SDK 接收单个 prompt 字符串，从 messages 提取 user 内容
-  const userPrompt = ctx.messages
-    ?.filter((m) => m.role === 'user')
-    .map((m) => (typeof m.content === 'string' ? m.content : ''))
-    .join('\n') ?? ''
-
-  return await provider.generate({
-    prompt: userPrompt,
-    systemPrompt: ctx.systemPrompt,
-    strength: ctx.strength ?? 'standard',
-    correlationId,
-  })
-}
-
-/**
- * streamText 调用路径（非 claude-sdk 类型 Provider）
+ * streamText 调用路径
  *
  * 使用 Vercel AI SDK v7 的 streamText + 消费 textStream，
  * 等待 result.usage / result.finishReason Promise 完成。

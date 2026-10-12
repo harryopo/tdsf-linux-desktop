@@ -111,8 +111,8 @@ describe('内置模板 prune', () => {
     expect(box.deleted).toContain('provider:ollama-llama33')
     expect(box.secrets.has('provider:ollama-llama33')).toBe(false)
 
-    // 新表的 17 条应全部就位（prune 与追加在同一次对账里完成）
-    expect(ids.length).toBe(18)
+    // 新表的 15 条应全部就位（prune 与追加在同一次对账里完成）
+    expect(ids.length).toBe(16)
   })
 
   it('默认指针指向被删条目时回退到真实存在的 id', async () => {

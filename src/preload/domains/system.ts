@@ -3,7 +3,7 @@ import type { DbStatus } from '@shared/db-types'
 import type { ProfilerRunResponse, ServerListItem, SshConfig, SystemInfo } from '@shared/models'
 import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
 import type { SystemPingResponse } from '@shared/agent-types'
-import { AGENT, APP, CLAUDE_SDK, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE, SYSTEM } from '@shared/ipc-channels'
+import { AGENT, APP, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE, SYSTEM } from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
 import { ipcRenderer } from 'electron'
 
@@ -117,7 +117,7 @@ const profiler = {
  * 设计原则：
  * - getProtocolVersion 同步返回常量（无需 IPC 调用，从 @shared 直接 import）
  * - systemPing 异步调用 system:ping IPC，用于心跳保活
- * - agentCancel 通过 sessionId 统一取消 agent:chat / claude-sdk 两类会话
+ * - agentCancel 通过 sessionId 统一取消 agent:chat 会话
  *   （主进程 handler 已通过 session-registry 集中管理 AbortController）
  */
 const system = {
@@ -144,22 +144,18 @@ const system = {
   /**
    * 通过 sessionId 统一取消进行中的会话（v0.9.4 新增）
    *
-   * 同时调用 agent:chat:cancel 与 claude-sdk:cancel 两个 IPC 通道，
    * 主进程 handler 已兼容 sessionId 与 correlationId，会按 sessionId 查找
    * session-registry 中的 AbortController 并触发 abort。
    *
    * 使用场景：
-   * - 用户点击"停止"按钮时，调用本方法可同时取消 agent:chat / claude-sdk 流式请求
+   * - 用户点击"停止"按钮时取消 agent:chat 的流式请求
    * - 不需要区分会话类型（sessionId 是统一的）
    *
-   * @param sessionId 会话 ID（agent:chat / claude-sdk:stream 启动时回传）
-   * @returns 各通道取消结果（true 表示该通道存在且成功取消）
+   * @param sessionId 会话 ID（agent:chat 启动时回传）
+   * @returns 是否取消成功（false 表示该会话已结束或不存在）
    */
-  cancel: (sessionId: string): Promise<{ agentChat: boolean; claudeSdk: boolean }> =>
-    Promise.all([
-      ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionId),
-      ipcRenderer.invoke(CLAUDE_SDK.CANCEL, sessionId),
-    ]).then(([agentChat, claudeSdk]) => ({ agentChat, claudeSdk })),
+  cancel: (sessionId: string): Promise<boolean> =>
+    ipcRenderer.invoke(AGENT.CHAT_CANCEL, sessionId),
 }
 
 /**

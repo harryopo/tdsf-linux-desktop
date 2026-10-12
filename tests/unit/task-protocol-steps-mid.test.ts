@@ -5,7 +5,7 @@
  * - step 6: select-provider（解析 providerId + createLanguageModel）
  * - step 7: select-mode（input.mode / getCurrentMode / MODE_CONFIGS）
  * - step 8: build-prompt（systemPrompt + userPrompt + compactIfNeeded）
- * - step 9: invoke-subagent（claude-sdk / streamText 两条路径）
+ * - step 9: invoke-subagent（streamText 一条路径）
  * - step 10: stream-output（提取 chatResult.text + cancelled 标记）
  *
  * Mock 策略：
@@ -14,7 +14,6 @@
  * - provider-registry / provider-factory（避免触发 electron-store）
  * - mode-registry（提供可控 MODE_CONFIGS）
  * - context.compactIfNeeded（直接返回 messages 透传）
- * - ClaudeSdkProvider（避免 SDK 依赖）
  * - task-protocol-helpers（保留纯函数实现）
  *
  * 设计依据：v2.0 Phase D（task-protocol-steps-mid.ts §6-10）
@@ -125,15 +124,7 @@ vi.mock('../../src/main/core/agent/context', () => ({
 }))
 
 // ============================================================================
-// Mock：ClaudeSdkProvider（避免 SDK 依赖）
 // ============================================================================
-const mockClaudeSdkGenerate = vi.hoisted(() => vi.fn())
-vi.mock('../../src/main/core/agent/claude-sdk/claude-sdk-provider', () => ({
-  ClaudeSdkProvider: class {
-    constructor(_config: unknown) {}
-    generate = (...args: unknown[]) => mockClaudeSdkGenerate(...args)
-  },
-}))
 
 // ============================================================================
 // Mock：ai 模块 streamText（避免真实网络调用）
@@ -233,7 +224,7 @@ describe('[task-protocol-step-6] select-provider', () => {
     vi.clearAllMocks()
   })
 
-  it('6.1 成功路径：使用默认 providerId 且 type 非 claude-sdk → 创建 modelInstance', async () => {
+  it('6.1 成功路径：使用默认 providerId → 创建 modelInstance', async () => {
     const config = makeProviderConfig({ type: 'deepseek' })
     mockGetProviderWithApiKey.mockReturnValue(config)
     mockCreateLanguageModel.mockReturnValue({
@@ -289,18 +280,6 @@ describe('[task-protocol-step-6] select-provider', () => {
     expect(ctx.providerConfig).toBeUndefined()
   })
 
-  it('6.4 边界：type=claude-sdk 时不创建 modelInstance（走 ClaudeSdkProvider 路径）', async () => {
-    const config = makeProviderConfig({ type: 'claude-sdk', model: 'claude-sonnet-4' })
-    mockGetProviderWithApiKey.mockReturnValue(config)
-
-    const ctx = makeCtx()
-    const result = await stepSelectProvider(ctx)
-
-    expect(result.success).toBe(true)
-    expect(ctx.providerType).toBe('claude-sdk')
-    expect(ctx.modelInstance).toBeUndefined()
-    expect(mockCreateLanguageModel).not.toHaveBeenCalled()
-  })
 
   it('6.5 失败路径：createLanguageModel 抛错 → success=false 且错误信息含创建失败', async () => {
     const config = makeProviderConfig({ type: 'ollama' })
@@ -444,42 +423,7 @@ describe('[task-protocol-step-9] invoke-subagent', () => {
     vi.clearAllMocks()
   })
 
-  it('9.1 成功路径：claude-sdk 路径 → 调用 ClaudeSdkProvider.generate', async () => {
-    const config = makeProviderConfig({ type: 'claude-sdk', model: 'claude-sonnet-4' })
-    const ctx = makeCtx({
-      input: 'hi',
-      providerConfig: config,
-      providerType: 'claude-sdk',
-      systemPrompt: 'sys',
-      messages: [
-        { role: 'system', content: 'sys' },
-        { role: 'user', content: 'hi' },
-      ],
-    })
-
-    const chatResult = makeChatResult({
-      text: 'claude-sdk output',
-      providerId: config.id,
-      model: 'claude-sonnet-4',
-    })
-    mockClaudeSdkGenerate.mockResolvedValue(chatResult)
-
-    const result = await stepInvokeSubagent(ctx)
-
-    expect(result.success).toBe(true)
-    expect(result.step).toBe('invoke-subagent')
-    expect(ctx.chatResult).toBe(chatResult)
-    expect(ctx.abortController).toBeInstanceOf(AbortController)
-    expect(ctx.correlationId).toContain(ctx.taskId)
-    expect(mockClaudeSdkGenerate).toHaveBeenCalledTimes(1)
-    expect(result.output).toMatchObject({
-      invoked: true,
-      providerId: config.id,
-      model: 'claude-sonnet-4',
-    })
-  })
-
-  it('9.2 成功路径：非 claude-sdk 路径 → 调用 streamText 消费 textStream', async () => {
+  it('9.2 成功路径：调用 streamText 消费 textStream', async () => {
     const config = makeProviderConfig({ type: 'deepseek' })
     const ctx = makeCtx({
       input: 'hi',
@@ -530,7 +474,6 @@ describe('[task-protocol-step-9] invoke-subagent', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Provider')
-    expect(mockClaudeSdkGenerate).not.toHaveBeenCalled()
     expect(mockStreamText).not.toHaveBeenCalled()
   })
 

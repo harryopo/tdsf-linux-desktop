@@ -124,28 +124,6 @@ export const LLM = {
 } as const
 
 /**
- * v2.0 Phase B 新增：内联补全 + Diff 应用 IPC 通道常量
- *
- * 通道列表：
- * - INLINE_COMPLETION       invoke  渲染 → 主：请求光标位置补全
- * - INLINE_COMPLETION_CANCEL invoke  渲染 → 主：取消进行中的补全请求
- * - APPLY_DIFF              invoke  渲染 → 主：应用 diff 到文件（写入新内容）
- * - DIFF_PREVIEW            invoke  渲染 → 主：预览 diff（unified diff 格式）
- *
- * 设计依据：v2.0 Phase B · Task B.5（IPC 4 步同步铁律）
- */
-export const LLM_INLINE = {
-  /** 请求光标位置补全（invoke: 渲染 → 主） */
-  INLINE_COMPLETION: 'llm:inline-completion',
-  /** 取消进行中的补全请求（invoke: 渲染 → 主） */
-  INLINE_COMPLETION_CANCEL: 'llm:inline-completion:cancel',
-  /** 应用 diff 到文件（invoke: 渲染 → 主，写入新内容到磁盘） */
-  APPLY_DIFF: 'llm:apply-diff',
-  /** 预览 diff（invoke: 渲染 → 主，返回 unified diff 字符串） */
-  DIFF_PREVIEW: 'llm:diff-preview',
-} as const
-
-/**
  * SSH IPC 通道常量
  *
  * 通道列表：
@@ -1002,32 +980,6 @@ export const PAOR = {
   APPROVE: 'paor:approve',
   /** 高危命令/步骤审批卡推送（push: 主 → 渲染，见 paor-types.ts） */
   APPROVAL_REQUEST: 'paor:approval-request',
-} as const
-
-/**
- * Claude Agent SDK IPC 通道常量
- *
- * 通道列表：
- * - GENERATE invoke  渲染 → 主：同步聚合对话（返回 ChatResult）
- * - STREAM   invoke  渲染 → 主：异步流式对话（立即返回 correlationId）
- * - CANCEL   invoke  渲染 → 主：取消进行中的流式请求
- * - CHUNK    push   主 → 渲染：流式 token 块
- * - DONE     push   主 → 渲染：流式完成信号
- * - ERROR    push   主 → 渲染：流式错误信号
- */
-export const CLAUDE_SDK = {
-  /** 同步聚合对话（invoke: 渲染 → 主，返回 ChatResult） */
-  GENERATE: 'claude-sdk:generate',
-  /** 异步流式对话（invoke: 渲染 → 主，立即返回 correlationId） */
-  STREAM: 'claude-sdk:stream',
-  /** 取消进行中的流式请求（invoke: 渲染 → 主） */
-  CANCEL: 'claude-sdk:cancel',
-  /** 流式 token 块推送（push: 主 → 渲染） */
-  CHUNK: 'claude-sdk:chunk',
-  /** 流式完成信号推送（push: 主 → 渲染） */
-  DONE: 'claude-sdk:done',
-  /** 流式错误信号推送（push: 主 → 渲染） */
-  ERROR: 'claude-sdk:error',
 } as const
 
 /**

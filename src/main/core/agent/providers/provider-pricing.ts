@@ -32,7 +32,6 @@ import type {
  * - qwen：通义千问 Max $1.6/1M input + $6.4/1M output
  * - volcengine-ark：豆包 Pro $0.8/1M input + $2/1M output
  * - ollama：本地推理，0 成本（仅电费）
- * - claude-sdk：等同 anthropic，$3/1M input + $15/1M output
  *
  * 注意：定价可能随厂商调整而变化，建议每季度 review 一次。
  * 用户可通过 ProviderConfig.pricing 显式覆盖（如代理服务有折扣）。
@@ -71,11 +70,6 @@ export const PROVIDER_PRICING: Record<ProviderType, ModelPricing> = {
   ollama: {
     inputCostPer1M: 0.0,
     outputCostPer1M: 0.0,
-    currency: 'USD',
-  },
-  'claude-sdk': {
-    inputCostPer1M: 3.0,
-    outputCostPer1M: 15.0,
     currency: 'USD',
   },
 }

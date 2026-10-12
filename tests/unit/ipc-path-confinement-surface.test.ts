@@ -39,13 +39,11 @@ const LOCAL_DEST_CHANNELS: Record<string, Defense> = {
   'SSH.DELETE_KEYPAIR': 'filename-check',
   "'profiler:exportMd'": 'confinement',
   "'profiler:exportPdf'": 'confinement',
-  'LLM_INLINE.APPLY_DIFF': 'confinement',
   "'subagent:reload'": 'confinement',
   'APP.DOWNLOAD_UPDATE': 'external-url',
   'APP.EXPORT_MODEL_STATS': 'fixed-path',
   'SFTP.WRITE_FILE': 'remote-only',
   'SFTP.MKDIR': 'remote-only',
-  'LLM_INLINE.DIFF_PREVIEW': 'no-fs',
 }
 
 const DIALOG_FNS = ['pickExistingFiles', 'pickSavePath']

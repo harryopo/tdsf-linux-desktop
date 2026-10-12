@@ -21,9 +21,6 @@ attentionTrackFiles
 attentionTrackKeywords
 bootGetState
 budgetAlerts
-claudeSdkCancel
-claudeSdkGenerate
-claudeSdkStream
 configGet
 configSaveLlm
 configSet
@@ -76,13 +73,9 @@ kbSearch
 kbUpdate
 kbView
 llmAnalyze
-llmApplyDiff
 llmChat
 llmChatWithContext
 llmChatWithTools
-llmDiffPreview
-llmInlineCompletion
-llmInlineCompletionCancel
 llmTest
 llmToolApprove
 llmValidate
@@ -126,9 +119,6 @@ onAgentPaorIteration
 onAgentStep
 onAgentToolEvent
 onBootLoadingStage
-onClaudeSdkChunk
-onClaudeSdkDone
-onClaudeSdkError
 onDeployDone
 onDeployLog
 onDeployStepUpdate

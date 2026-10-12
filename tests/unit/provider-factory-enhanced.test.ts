@@ -19,11 +19,11 @@
  *    - fallback：无匹配角色时返回默认 Provider
  *    - 模板完整性：12 个模板均有 roles（除 openai-compatible-custom）
  * 4. 任务 4：capability 声明（PROVIDER_CAPABILITIES + getProviderCapabilities）
- *    - 默认值：8 个 ProviderType 均有默认能力
+ *    - 默认值：7 个 ProviderType 均有默认能力
  *    - 用户覆盖：config.capabilities 优先于默认表
  *    - 深拷贝：修改返回值不影响原对象
  * 5. 任务 5：cost 透明化（PROVIDER_PRICING + getProviderPricing + calculateCost）
- *    - 默认定价：8 个 ProviderType 均有定价
+ *    - 默认定价：7 个 ProviderType 均有定价
  *    - 用户覆盖：config.pricing 优先于默认表
  *    - 成本计算：公式正确，四舍五入到 6 位小数
  *    - 边界情况：0 token / 负 token / 0 定价
@@ -420,13 +420,13 @@ describe('任务 2：createLanguageModelWithFallback（fallback 链）', () => {
     )
 
     // 主模型用不存在的 type 触发失败 → fallback 到 ollama
-    // 但 type 是同一个，只能通过 model 名称切换。这里通过 claude-sdk 类型测试：
-    // claude-sdk 会被 createLanguageModel 拦截抛错
+    // 但 type 是同一个，只能通过 model 名称切换。这里用缺 Key 制造必然失败：
+    // openai-compatible 缺 apiKey 时 createLanguageModel 抛错
     const config = makeProviderConfig({
-      type: 'claude-sdk', // createLanguageModel 会抛错
-      baseURL: '',
-      apiKey: 'test-key',
-      model: 'claude-sonnet-4-5',
+      type: 'openai-compatible', // 缺 Key，createLanguageModel 必抛错
+      baseURL: 'https://api.example.com/v1',
+      apiKey: undefined,
+      model: 'm-main',
       selectedModels: [], // 空 fallback，主模型也失败 → 应抛错
     })
 
@@ -441,15 +441,15 @@ describe('任务 2：createLanguageModelWithFallback（fallback 链）', () => {
     )
 
     const config = makeProviderConfig({
-      type: 'claude-sdk', // createLanguageModel 会抛错
-      baseURL: '',
-      apiKey: 'test-key',
-      model: 'claude-sonnet-4-5',
-      selectedModels: ['claude-opus-4-1', 'claude-haiku-4-5'],
+      type: 'openai-compatible', // 缺 Key，createLanguageModel 必抛错
+      baseURL: 'https://api.example.com/v1',
+      apiKey: undefined,
+      model: 'm-main',
+      selectedModels: ['m-2', 'm-3'],
     })
 
     await expect(createLanguageModelWithFallback(config)).rejects.toThrow(
-      /所有模型均不可用：\[claude-sonnet-4-5, claude-opus-4-1, claude-haiku-4-5\]/
+      /所有模型均不可用：\[m-main, m-2, m-3\]/
     )
   })
 
@@ -459,11 +459,11 @@ describe('任务 2：createLanguageModelWithFallback（fallback 链）', () => {
     )
 
     const config = makeProviderConfig({
-      type: 'claude-sdk',
-      baseURL: '',
-      apiKey: 'test-key',
-      model: 'claude-sonnet-4-5',
-      selectedModels: ['claude-opus-4-1'],
+      type: 'openai-compatible',
+      baseURL: 'https://api.example.com/v1',
+      apiKey: undefined,
+      model: 'm-main',
+      selectedModels: ['m-2'],
     })
 
     await expect(createLanguageModelWithFallback(config)).rejects.toThrow(
@@ -476,7 +476,7 @@ describe('任务 2：createLanguageModelWithFallback（fallback 链）', () => {
       '../../src/main/core/agent/providers/provider-factory'
     )
 
-    // 主模型 claude-sdk 会抛错，但 selectedModels 中也用 claude-sdk → 全失败
+    // 主模型缺 Key 会抛错，selectedModels 同样缺 Key → 全失败
     // 改用 ollama 类型测试 fallback 成功：
     // - 主模型 model 为空 → createLanguageModel 抛错
     // - selectedModels 中有有效模型 → 成功
@@ -571,14 +571,14 @@ describe('任务 3：ModelRole 8 类角色', () => {
   })
 
   describe('3.2 模板 roles 字段完整性', () => {
-    it('PROVIDER_TEMPLATES 应有 17 个模板', async () => {
+    it('PROVIDER_TEMPLATES 应有 15 个模板', async () => {
       const { PROVIDER_TEMPLATES } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
-      // 17 个模板：2 DeepSeek + 2 通义 + 2 豆包 + 2 Kimi + 2 GLM + 2 Gemini
-      // + 1 Claude Bedrock + 2 Claude SDK + 1 Ollama + 1 OpenAI 兼容自定义
+      // 15 个模板：2 DeepSeek + 2 通义 + 2 豆包 + 2 Kimi + 2 GLM + 2 Gemini
+      // + 1 Claude Bedrock + 1 Ollama + 1 OpenAI 兼容自定义（2 条 Claude SDK 随 SDK 退役）
       // id 集合与 roles 期望表逐条对账在 tests/unit/provider-template-invariants.test.ts
-      expect(PROVIDER_TEMPLATES).toHaveLength(17)
+      expect(PROVIDER_TEMPLATES).toHaveLength(15)
     })
 
     it('deepseek-v4 → roles: [chat, summarize]', async () => {
@@ -631,21 +631,7 @@ describe('任务 3：ModelRole 8 类角色', () => {
       expect(t?.roles).toEqual(['chat', 'edit'])
     })
 
-    it('claude-sonnet-4-5 (claude-sdk) → roles: [chat, edit]', async () => {
-      const { findTemplate } = await import(
-        '../../src/main/core/agent/providers/provider-templates'
-      )
-      const t = findTemplate('claude-sonnet-4-5')
-      expect(t?.roles).toEqual(['chat', 'edit'])
-    })
 
-    it('claude-opus-4-1 (claude-sdk) → roles: [edit, apply]', async () => {
-      const { findTemplate } = await import(
-        '../../src/main/core/agent/providers/provider-templates'
-      )
-      const t = findTemplate('claude-opus-4-1')
-      expect(t?.roles).toEqual(['edit', 'apply'])
-    })
 
     it('gemini-pro → roles: [chat, summarize]', async () => {
       const { findTemplate } = await import(
@@ -886,7 +872,7 @@ describe('任务 3：ModelRole 8 类角色', () => {
 
 describe('任务 4：Provider 能力声明', () => {
   describe('4.1 PROVIDER_CAPABILITIES 默认值完整性', () => {
-    it('4.1.1 应包含 8 个 ProviderType 的默认能力', async () => {
+    it('4.1.1 应包含 7 个 ProviderType 的默认能力', async () => {
       const { PROVIDER_CAPABILITIES } = await import(
         '../../src/main/core/agent/providers/provider-capabilities'
       )
@@ -898,7 +884,6 @@ describe('任务 4：Provider 能力声明', () => {
         'qwen',
         'volcengine-ark',
         'ollama',
-        'claude-sdk',
       ]
       for (const t of expectedTypes) {
         expect(PROVIDER_CAPABILITIES).toHaveProperty(t)
@@ -952,12 +937,6 @@ describe('任务 4：Provider 能力声明', () => {
       expect(PROVIDER_CAPABILITIES.ollama.contextWindow).toBe(8_000)
     })
 
-    it('4.1.6 claude-sdk 默认能力等同 anthropic', async () => {
-      const { PROVIDER_CAPABILITIES } = await import(
-        '../../src/main/core/agent/providers/provider-capabilities'
-      )
-      expect(PROVIDER_CAPABILITIES['claude-sdk']).toEqual(PROVIDER_CAPABILITIES.anthropic)
-    })
   })
 
   describe('4.2 getProviderCapabilities 优先级', () => {
@@ -1033,7 +1012,7 @@ describe('任务 4：Provider 能力声明', () => {
 
 describe('任务 5：Provider 成本定价与计算', () => {
   describe('5.1 PROVIDER_PRICING 默认定价完整性', () => {
-    it('5.1.1 应包含 8 个 ProviderType 的默认定价', async () => {
+    it('5.1.1 应包含 7 个 ProviderType 的默认定价', async () => {
       const { PROVIDER_PRICING } = await import(
         '../../src/main/core/agent/providers/provider-pricing'
       )
@@ -1045,7 +1024,6 @@ describe('任务 5：Provider 成本定价与计算', () => {
         'qwen',
         'volcengine-ark',
         'ollama',
-        'claude-sdk',
       ]
       for (const t of expectedTypes) {
         expect(PROVIDER_PRICING).toHaveProperty(t)
@@ -1083,12 +1061,6 @@ describe('任务 5：Provider 成本定价与计算', () => {
       expect(PROVIDER_PRICING.ollama.outputCostPer1M).toBe(0.0)
     })
 
-    it('5.1.5 claude-sdk 定价等同 anthropic', async () => {
-      const { PROVIDER_PRICING } = await import(
-        '../../src/main/core/agent/providers/provider-pricing'
-      )
-      expect(PROVIDER_PRICING['claude-sdk']).toEqual(PROVIDER_PRICING.anthropic)
-    })
 
     it('5.1.6 所有默认定价的 currency 应为 USD', async () => {
       const { PROVIDER_PRICING } = await import(

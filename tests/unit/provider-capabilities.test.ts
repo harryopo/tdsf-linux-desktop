@@ -8,12 +8,12 @@
  * 否则降级到 thinking-block / text-fallback。
  *
  * 测试目标：
- * - 8 个 ProviderType 默认能力字段全（streaming / toolCall / vision / contextWindow / logprobs）
+ * - 7 个 ProviderType 默认能力字段全（streaming / toolCall / vision / contextWindow / logprobs）
  * - getProviderCapabilities 优先用户自定义
  * - 用户未设置 capabilities 时返回默认表
  * - 返回值是深拷贝（避免污染原对象）
- * - Claude / Google / claude-sdk 不支持 logprobs（兑底到 text-fallback）
- * - 5/8 OpenAI 兼容 provider 支持 logprobs
+ * - Claude / Google 不支持 logprobs（兑底到 text-fallback）
+ * - 5/7 OpenAI 兼容 provider 支持 logprobs
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -38,10 +38,9 @@ describe('provider-capabilities — 默认表完整性（v0.9.7 P3 M1 加 logpro
     'qwen',
     'volcengine-ark',
     'ollama',
-    'claude-sdk',
   ]
 
-  it('8 个 ProviderType 全部注册到默认表', () => {
+  it('7 个 ProviderType 全部注册到默认表', () => {
     for (const t of allTypes) {
       expect(PROVIDER_CAPABILITIES[t]).toBeDefined()
     }
@@ -67,9 +66,9 @@ describe('provider-capabilities — 默认表完整性（v0.9.7 P3 M1 加 logpro
 })
 
 // ============================================================================
-// v0.9.7 P3 M1 新增：logprobs 能力分级（5/8 支持）
+// v0.9.7 P3 M1 新增：logprobs 能力分级（5/7 支持）
 // ============================================================================
-describe('provider-capabilities — logprobs 能力分级（5/8 支持）', () => {
+describe('provider-capabilities — logprobs 能力分级（5/7 支持）', () => {
   it('支持 logprobs：openai-compatible / deepseek / qwen / volcengine-ark / ollama', () => {
     const supported: ProviderType[] = [
       'openai-compatible',
@@ -83,8 +82,8 @@ describe('provider-capabilities — logprobs 能力分级（5/8 支持）', () =
     }
   })
 
-  it('不支持 logprobs：anthropic / claude-sdk / google（兑底到 text-fallback）', () => {
-    const unsupported: ProviderType[] = ['anthropic', 'claude-sdk', 'google']
+  it('不支持 logprobs：anthropic / google（兑底到 text-fallback）', () => {
+    const unsupported: ProviderType[] = ['anthropic', 'google']
     for (const t of unsupported) {
       expect(PROVIDER_CAPABILITIES[t].logprobs).toBe(false)
     }
@@ -182,10 +181,6 @@ describe('provider-capabilities — 业务场景：可信度模块 logprobs 选�
     // traceCollector 仅 accumulateFinalText（fallback 路径）
   })
 
-  it('Claude Agent SDK（claude-sdk）→ 关闭 logprobs，走 fallback', () => {
-    const caps = getProviderCapabilities(baseConfig('claude-sdk'))
-    expect(caps.logprobs).toBe(false)
-  })
 
   it('Google Gemini（google）→ 关闭 logprobs，走 fallback', () => {
     const caps = getProviderCapabilities(baseConfig('google'))

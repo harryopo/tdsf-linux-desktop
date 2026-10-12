@@ -25,8 +25,6 @@ import { registerLocalTerminalHandlers } from './local-terminal'
 import { registerMonitorIpcHandlers } from './monitor'
 import { registerStorageIpcHandlers } from './storage'
 import { registerLlmHandlers } from './llm'
-// v2.0 Phase B 新增：内联补全 + Diff 应用 IPC（llm:inline-completion / cancel / apply-diff / diff-preview）
-import { registerLlmInlineHandlers } from './llm-inline'
 import { registerKnowledgeHandlers } from './knowledge'
 import { registerHistoryHandlers } from './history'
 import { registerAgentHandlers } from './agent'
@@ -45,7 +43,6 @@ import { registerRiskHandlers } from './risk'
 import { registerAlertHandlers } from './alert'
 import { registerSandboxIpcHandlers } from './sandbox'
 import { registerAtCommandHandlers } from './at-commands'
-import { registerClaudeSdkHandlers } from './claude-sdk'
 // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
 // - 组 1：token:cost-stats（成本透明）
 // - 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
@@ -186,8 +183,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   ipcDisposers.push(registerMonitorIpcHandlers(mainWindow))
   registerStorageIpcHandlers()
   registerLlmHandlers(mainWindow)
-  // v2.0 Phase B：内联补全 + Diff 应用 IPC（llm:inline-completion / cancel / apply-diff / diff-preview）
-  registerLlmInlineHandlers()
   registerKnowledgeHandlers(mainWindow)
   registerHistoryHandlers(mainWindow)
   registerAgentHandlers(mainWindow)
@@ -228,9 +223,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v0.9 新增：@命令 8 类完整实现 IPC（log/cmd/file/metric/decision/kb/skill/server）
   // 通道：at:list / at:resolve / at:parse
   registerAtCommandHandlers()
-  // v0.9 新增：Claude Agent SDK IPC（claude-sdk:generate / stream / cancel）
-  // 修复 P-1 阻塞问题：ClaudeSdkProvider 此前未通过 IPC 暴露，渲染进程无法调用
-  registerClaudeSdkHandlers(mainWindow)
 
   // ====================================================================
   // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）

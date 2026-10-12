@@ -29,8 +29,8 @@
  * 设计依据：
  * - v0.9.6 P1 §ECE 校准器（CalibrationTuner）
  * - v0.9.7 P3 M1 引入 PROVIDER_CAPABILITIES.logprobs 字段
- * - 5/8 provider 支持 logprobs（openai-compatible / deepseek / qwen / volcengine-ark / ollama）
- * - 3/8 provider 不支持 logprobs（anthropic / google / claude-sdk）
+ * - 5/7 provider 支持 logprobs（openai-compatible / deepseek / qwen / volcengine-ark / ollama）
+ * - 2/7 provider 不支持 logprobs（anthropic / google）
  *   → 走 thinking-block / text-fallback 兑底（详见 v0.9.7 P3 M1 方案书）
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -81,7 +81,6 @@ const PROVIDER_META: ProviderMeta[] = [
   { type: 'ollama', label: 'Ollama（本地）', desc: '本地推理（默认 http://localhost:11434/v1）', family: 'openai-compatible', logprobs: true },
   { type: 'anthropic', label: 'Anthropic Claude', desc: '@ai-sdk/anthropic 直连', family: 'anthropic-protocol', logprobs: false },
   { type: 'google', label: 'Google Gemini', desc: '@ai-sdk/google 直连', family: 'google-protocol', logprobs: false },
-  { type: 'claude-sdk', label: 'Claude Agent SDK', desc: '@anthropic-ai/claude-agent-sdk（agent loop）', family: 'agent-sdk', logprobs: false },
 ]
 
 /** 加载状态（per-provider） */

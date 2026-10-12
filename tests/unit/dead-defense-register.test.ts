@@ -37,6 +37,11 @@ const DEFENSES: DefenseWiring[] = [
     symbol: 'assessToolCall',
     mustBeCalledFrom: 'src/main/core/agent',
     definitionFiles: ['src/main/core/command-gate.ts'],
+    // 2026-10-12：它唯一的调用方是 Claude Agent SDK 的工具适配层，那条 SDK 已退役（非开源、只认 Anthropic 模型）。
+    // 命令执行没露口子：SshConnectionManager.exec 出口上的 assertCommandAllowed 仍然拦每一条。
+    // 接回去的位置是 MCP server 的 handleToolCall；前提是把 TOOL_CALL_SHAPES 补成工具清单的镜像 ——
+    // 现在只登记 4 个形状，直接接会把其余 25 个工具按 fail-closed 全挡掉。
+    knownUnwiredReason: 'MCP 派发口尚未接入：工具形状表只登记了 4 个，直接接会误拒其余工具',
   },
   {
     symbol: 'waitForSandboxApproval',

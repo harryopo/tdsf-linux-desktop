@@ -212,7 +212,7 @@ export interface TaskProtocolContext {
   providerConfig?: ProviderConfig
   /** Provider 类型（step 6 产出，便于 step 9 分支调用） */
   providerType?: ProviderType
-  /** LanguageModel 实例（step 6 产出，仅当 providerType !== 'claude-sdk' 时存在） */
+  /** LanguageModel 实例（step 6 产出） */
   modelInstance?: ProviderModelInstance
 
   /** 选定的 mode（step 7 产出，默认 chat） */

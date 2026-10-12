@@ -2,7 +2,7 @@
  * Langfuse 流式 trace 集成（D.5）
  *
  * 职责：
- * - 提供流式 LLM 调用的 trace 装饰器，包装 ClaudeSdkProvider.stream() 和 Supervisor.chat()
+ * - 提供流式 LLM 调用的 trace 装饰器，包装 Supervisor.chat()
  * - 支持两种流式模式：
  *   1. AsyncIterable 模式（withStreamTrace）：包装返回 AsyncIterable 的函数（spec 要求接口）
  *   2. 回调模式（withCallbackStreamTrace）：包装基于 onToken/onDone/onError 的 Promise<void> 方法
@@ -23,7 +23,7 @@ import { LangfuseService, type SpanHandle, type TraceHandle, type LangfuseLevel 
 export interface StreamTraceContext {
   /** 会话 ID（关联到 SSH 会话或 correlationId） */
   sessionId: string
-  /** 工作流名（'claude-sdk-stream' | 'supervisor-chat' | 'subagent-invoke' | 'hitl-step'） */
+  /** 工作流名（'supervisor-chat' | 'subagent-invoke' | 'hitl-step'） */
   workflowName: string
   /** 用户问题（用于 trace input） */
   userQuery?: string
@@ -117,7 +117,7 @@ export async function* withStreamTrace<T>(
 /**
  * 回调式流包装器：包装基于 onToken/onDone/onError 回调的流方法
  *
- * 适用于 ClaudeSdkProvider.stream() 和 Supervisor.chat()，
+ * 适用于 Supervisor.chat()，
  * 这两个方法返回 Promise<void>，通过回调推送流式数据。
  *
  * 行为：

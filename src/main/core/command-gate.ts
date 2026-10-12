@@ -1158,7 +1158,7 @@ export class LineGate {
 /**
  * SDK/MCP 工具的入参形状单源：哪个键是待执行命令、哪个键是写入目标路径。
  *
- * 键名取自 `src/main/core/agent/claude-sdk/claude-sdk-tools.ts` 里各工具的 Zod shape
+ * 键名取自各工具注册时的 Zod shape（原本抄一遍会漂，现由判据盯着）
  * （`ssh_exec` 的 `command`、`sftp_write_file` 的 `path`），不是猜的。
  * 加新工具必须同时在这里登记 —— 没登记的工具按 fail-closed 拒绝。
  */

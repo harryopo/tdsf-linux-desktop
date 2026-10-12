@@ -42,9 +42,6 @@ import type {
 // v0.9 Agent Runtime 共享类型（Provider 抽象 + Token 统计 + Supervisor chat 载荷）
 
 
-// v0.9 Claude Agent SDK 共享类型（claude-sdk:generate / stream / cancel + ChatResult）
-
-
 // v0.9.4 IPC 协议优化（sessionId + abort signal + protocolVersion + ping/pong）
 
 
@@ -491,41 +488,6 @@ export interface RecommendPathOptions {
   preferredCategory?: string
   /** 最大步骤数（默认 8） */
   maxSteps?: number
-}
-
-// ============================================================================
-// v2.0 Phase B 新增：内联补全 + Diff 应用类型声明
-// ============================================================================
-
-/** 内联补全请求参数（与主进程 InlineCompletionRequest 一致） */
-export interface InlineCompletionRequest {
-  /** 文件路径（用于语言识别 + LLM 上下文） */
-  filePath: string
-  /** 语言标识（shell / python / json 等） */
-  language: string
-  /** 完整文件内容 */
-  content: string
-  /** 光标行号（1-based） */
-  cursorLineNumber: number
-  /** 光标列号（1-based） */
-  cursorColumn: number
-  /** 光标前上下文（默认前 50 行） */
-  contextBefore?: string
-  /** 光标后上下文（默认后 50 行） */
-  contextAfter?: string
-}
-
-/** 单条补全项（与 Monaco InlineCompletion item 结构兼容） */
-export interface InlineCompletionItem {
-  /** 待插入的补全文本 */
-  insertText: string
-  /** 插入范围（光标位置的零长度插入点） */
-  range: {
-    startLineNumber: number
-    startColumn: number
-    endLineNumber: number
-    endColumn: number
-  }
 }
 
 /** electronAPI 接口定义 */

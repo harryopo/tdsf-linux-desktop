@@ -308,32 +308,6 @@ export interface AtCommandInfo {
 }
 
 // ============================================================================
-// v2.0 Phase B 新增：内联补全 + Diff 应用类型（内联定义，与主进程结构一致）
-// ============================================================================
-
-/** 内联补全请求参数（与主进程 InlineCompletionRequest 一致） */
-export interface InlineCompletionRequest {
-  filePath: string
-  language: string
-  content: string
-  cursorLineNumber: number
-  cursorColumn: number
-  contextBefore?: string
-  contextAfter?: string
-}
-
-/** 单条补全项（与 Monaco InlineCompletion item 结构兼容） */
-export interface InlineCompletionItem {
-  insertText: string
-  range: {
-    startLineNumber: number
-    startColumn: number
-    endLineNumber: number
-    endColumn: number
-  }
-}
-
-// ============================================================================
 // v2.0 Phase C 新增：SFTP 文件搜索 + grep + 文件监听（QuickFileSearch / GlobalSearch / FileWatcher UI）
 // ============================================================================
 

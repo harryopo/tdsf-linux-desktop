@@ -1,9 +1,8 @@
 /** llm 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { ChatMessage, EnvironmentContext, LlmConfig, LlmValidationResult } from '@shared/models'
-import type { ChatResult, ClaudeSdkChatParams, CostStats, PersistedProviderConfig, ProviderCapabilitiesAllResponse, ProviderCapabilitiesRequest, ProviderCapabilitiesResponse, ProviderConfig, ProviderPricingAllResponse, ProviderPricingRequest, ProviderPricingResponse, TokenStats, TokenUsageRecord } from '@shared/agent-types'
-import { CLAUDE_SDK, LLM, LLM_INLINE, PROVIDER, TOKEN } from '@shared/ipc-channels'
+import type { CostStats, PersistedProviderConfig, ProviderCapabilitiesAllResponse, ProviderCapabilitiesRequest, ProviderCapabilitiesResponse, ProviderConfig, ProviderPricingAllResponse, ProviderPricingRequest, ProviderPricingResponse, TokenStats, TokenUsageRecord } from '@shared/agent-types'
+import { LLM, PROVIDER, TOKEN } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
-import type { InlineCompletionItem, InlineCompletionRequest } from '../types'
 import { invokeChecked } from '../ipc-util'
 
 /**
@@ -76,112 +75,6 @@ const token = {
    */
   records: (limit?: number): Promise<TokenUsageRecord[]> =>
     ipcRenderer.invoke(TOKEN.RECORDS, limit),
-}
-
-/**
- * v0.9 Claude Agent SDK invoke 调用（独立于 agentRuntime）
- *
- * 通道与主进程 ipc/claude-sdk.ts 一一对应：
- * - claude-sdk:generate → generate（同步聚合，返回 ChatResult）
- * - claude-sdk:stream   → stream（异步流式，立即返回 correlationId）
- * - claude-sdk:cancel   → cancel（取消进行中的请求）
- *
- * 流式事件监听（通过 on 命名空间）：
- * - onClaudeSdkChunk  → claude-sdk:chunk（流式 token 块）
- * - onClaudeSdkDone   → claude-sdk:done（完成信号，含 ChatResult）
- * - onClaudeSdkError  → claude-sdk:error（错误信号）
- *
- * 使用场景：
- * - 用户在 Provider 选择器中选 claude-sdk 类型（如 claude-sonnet-4-5 / claude-opus-4-1）
- * - 直接走 Claude Agent SDK 的 agent loop（多轮工具调用 + 反思）
- * - 与 SupervisorAgent.agentChat 互斥（一个 chat 会话只用一个通道）
- */
-const claudeSdk = {
-  /**
-   * 同步聚合调用（返回完整 ChatResult，不流式推送 token）
-   *
-   * 适用场景：批量分析、定时任务、不需要流式 UI 的后台调用
-   *
-   * @param providerId Provider ID（必须是 type='claude-sdk' 的 Provider）
-   * @param params chat 调用参数（prompt / strength / systemPrompt 等）
-   * @returns 完整 ChatResult
-   */
-  generate: (providerId: string, params: ClaudeSdkChatParams): Promise<ChatResult> =>
-    ipcRenderer.invoke(CLAUDE_SDK.GENERATE, providerId, params),
-
-  /**
-   * 异步流式调用（立即返回 correlationId，后续通过事件推送 token/done/error）
-   *
-   * 适用场景：交互式对话（ChatPanel）
-   *
-   * @param providerId Provider ID（必须是 type='claude-sdk' 的 Provider）
-   * @param params chat 调用参数（prompt / strength / systemPrompt 等）
-   * @returns correlationId（用于监听 claude-sdk:chunk/done/error + 取消请求）
-   */
-  stream: (providerId: string, params: ClaudeSdkChatParams): Promise<string> =>
-    ipcRenderer.invoke(CLAUDE_SDK.STREAM, providerId, params),
-
-  /**
-   * 取消进行中的请求
-   *
-   * @param correlationId 关联 ID（stream 调用返回）
-   * @returns 是否成功取消（false 表示请求已结束或不存在）
-   */
-  cancel: (correlationId: string): Promise<boolean> =>
-    ipcRenderer.invoke(CLAUDE_SDK.CANCEL, correlationId),
-}
-
-/**
- * v2.0 Phase B 内联补全 + Diff 应用 invoke 调用
- *
- * 通道与主进程 ipc/llm-inline.ts 一一对应：
- * - llm:inline-completion         → inlineCompletion（请求光标位置补全）
- * - llm:inline-completion:cancel  → inlineCompletionCancel（取消进行中的补全）
- * - llm:apply-diff                → applyDiff（应用 diff，写入新内容到本地文件）
- * - llm:diff-preview              → diffPreview（预览 diff，返回 unified diff 字符串）
- */
-const llmInline = {
-  /**
-   * 请求光标位置补全
-   *
-   * @param req 补全请求（文件路径 + 语言 + 内容 + 光标位置 + 上下文）
-   * @returns 补全项列表（空数组表示无补全 / 超时 / 被限流）
-   */
-  inlineCompletion: (req: InlineCompletionRequest): Promise<InlineCompletionItem[]> =>
-    ipcRenderer.invoke(LLM_INLINE.INLINE_COMPLETION, req),
-
-  /**
-   * 取消所有进行中的补全请求
-   */
-  inlineCompletionCancel: (): Promise<void> =>
-    ipcRenderer.invoke(LLM_INLINE.INLINE_COMPLETION_CANCEL),
-
-  /**
-   * 应用 diff 到本地文件（写入新内容）
-   *
-   * 注意：仅处理本地文件系统；远程文件请走 sftp:writeFile。
-   *
-   * @param payload { filePath: 绝对路径, newContent: 新内容 }
-   * @returns { success, error? }
-   */
-  applyDiff: (payload: {
-    filePath: string
-    newContent: string
-  }): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke(LLM_INLINE.APPLY_DIFF, payload),
-
-  /**
-   * 预览 diff（unified diff 格式）
-   *
-   * @param payload { filePath, originalContent, modifiedContent }
-   * @returns { diff: string }（unified diff，无变更返回空字符串）
-   */
-  diffPreview: (payload: {
-    filePath: string
-    originalContent: string
-    modifiedContent: string
-  }): Promise<{ diff: string }> =>
-    ipcRenderer.invoke(LLM_INLINE.DIFF_PREVIEW, payload),
 }
 
 // ============================================================================
@@ -272,4 +165,4 @@ const providerInfo = {
     ipcRenderer.invoke(PROVIDER.PRICING_ALL),
 }
 
-export { llm, provider, token, claudeSdk, llmInline, tokenCostStats, providerInfo }
+export { llm, provider, token, tokenCostStats, providerInfo }

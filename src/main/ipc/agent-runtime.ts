@@ -62,8 +62,6 @@ import { ConfigStore } from '../services/storage/config-store'
 import { alertTokenBudgetExceeded } from '../services/llm/budget-alerter'
 // v0.9.4 新增：session-registry 集中维护 sessionId → AbortController Map，支持 abort signal + TTL 清理
 import { getSessionRegistry } from '../core/agent/session-registry'
-// v2.4 Phase D1：Provider 配置保存时清理 ClaudeSdkProvider 缓存，避免旧实例被复用
-import { clearClaudeSdkProviderCache } from './claude-sdk'
 // D2：审批判定唯一权威 —— 只有字面 true 算批准
 import { readApproval } from '../core/security/approval'
 
@@ -425,11 +423,6 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
     'provider:save',
     async (_event, config: ProviderConfig): Promise<boolean> => {
       const ok = saveProvider(config)
-      // v2.4 Phase D1：保存成功后清理 ClaudeSdkProvider 缓存，
-      // 确保下次 claude-sdk:generate / claude-sdk:stream 基于最新配置重新构造实例
-      if (ok) {
-        clearClaudeSdkProviderCache()
-      }
       logger.info('IPC.PROVIDER', `provider:save`, {
         id: config.id,
         name: config.name,

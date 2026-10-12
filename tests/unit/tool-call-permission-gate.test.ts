@@ -1,10 +1,13 @@
 /**
- * Claude SDK 权限闸（P0-4 + P1-5 的验收判据）
+ * 工具调用权限闸（P0-4 + P1-5 的验收判据）
  *
  * 两件事分开钉：
- * 1. `assessToolCall` 的行为 —— SDK 的 canUseTool 接的是 core/command-gate 同一个闸，
+ * 1. `assessToolCall` 的行为 —— 工具调用接的是 core/command-gate 同一个闸，
  *    所以终端里拦得住的，工具调用也拦得住（判据只有一条来源）
  * 2. 源码里不许再出现硬编码的 bypass —— 静态断言 + 阴性对照（量具能被证伪才算在跑）
+ *
+ * 2026-10-12 更名：原来这个文件还钉 Claude SDK 的 permissionMode 逃生阀，
+ * 那条 SDK 已退役（非开源、只认 Anthropic 模型），剩下的两面都跟 SDK 无关。
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -12,10 +15,6 @@ import ts from 'typescript'
 import { listSourceFiles, readSourceFile } from '../helpers/source-scan'
 import { describe, expect, it } from 'vitest'
 import { assessToolCall } from '../../src/main/core/command-gate'
-import {
-  resolveSdkPermissionPolicy,
-  SKIP_PERMISSIONS_ENV,
-} from '../../src/main/core/agent/claude-sdk/claude-sdk-provider'
 
 const ROOT = path.resolve(__dirname, '../..')
 
@@ -83,23 +82,6 @@ describe('assessToolCall · 工具调用回到同一个闸', () => {
   })
 })
 
-describe('resolveSdkPermissionPolicy · 逃生阀默认关', () => {
-  it('默认是 default 模式，不是 bypass', () => {
-    expect(resolveSdkPermissionPolicy({})).toEqual({ bypass: false, mode: 'default' })
-  })
-
-  it('只有显式 =1 才跳过', () => {
-    expect(resolveSdkPermissionPolicy({ [SKIP_PERMISSIONS_ENV]: '1' }).mode).toBe(
-      'bypassPermissions'
-    )
-    // 横扫同类写法：'true' / '0' / 空串都不该被当成开启
-    for (const v of ['true', '0', '', 'yes', '2']) {
-      expect(resolveSdkPermissionPolicy({ [SKIP_PERMISSIONS_ENV]: v }).bypass, JSON.stringify(v)).toBe(
-        false
-      )
-    }
-  })
-})
 
 describe('静态判据：源码里不许硬编码 bypass', () => {
   // 用 AST 而不是文本匹配：正则会把注释里的字面量也算成违规（写第一版时就被自己

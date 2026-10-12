@@ -13,7 +13,7 @@
  *   6. select-provider       — 选择 Provider（优先用 input.providerId，否则用默认）
  *   7. select-mode           — 选择 Mode（chat/ask/plan/code/debug，默认 chat）
  *   8. build-prompt          — 构建 prompt（system + user + attention + compaction）
- *   9. invoke-subagent       — 调用 Subagent（streamText / ClaudeSdkProvider.generate）
+ *   9. invoke-subagent       — 调用 Subagent（streamText）
  *  10. stream-output         — 流式输出（提取 chatResult.text 到 ctx.output）
  *  11. collect-usage         — 收集 token usage（inputTokens / outputTokens / cost）
  *  12. validate-output       — 校验输出（非空 + finishReason 非 error）

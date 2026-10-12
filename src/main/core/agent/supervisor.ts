@@ -82,7 +82,7 @@ import type { ChatResult, RequestedThinkingStrength } from '@shared/agent-types'
 import { logger } from '../../services/log/logger'
 import { SshConnectionManager } from '../../services/ssh/connection-manager'
 import { preflightCheck } from '../../services/ssh/command-preflight'
-// v2.9 sftp_read 工具：复用 SftpManager 读远程文件内容（与 claude-sdk-tools 同模式）
+// v2.9 sftp_read 工具：复用 SftpManager 读远程文件内容
 import { SftpManager } from '../../services/ssh/sftp'
 import { createCotTraceCollector } from './credibility/mass-functions/cot-trace-collector'
 import { assessRisk } from '../risk-engine'
@@ -518,7 +518,7 @@ class SupervisorAgent {
     // v0.9.7 P3 M1：logprobs 直采支持
     // 检查 provider 是否支持 logprobs（OpenAI 协议：deepseek/qwen/volcengine-ark/ollama/openai-compatible）
     // - 支持：透传 providerOptions.openai.logprobs + top_logprobs，fullStream 捕获 providerMetadata
-    // - 不支持：保持现有 text-fallback 路径（Claude/google/claude-sdk）
+    // - 不支持：保持现有 text-fallback 路径（Claude/google）
     const caps = getProviderCapabilities(modelInstance.config)
     const enableLogprobs = caps.logprobs === true
 

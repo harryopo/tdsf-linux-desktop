@@ -56,11 +56,17 @@ describe('能力就绪度表', () => {
 
   // ===== 逐条证据复查：这几条断言变红 = 链路接通了，记得把表改成 live =====
 
-  it('claude-sdk 仍是待开发：渲染层没有任何调用点', () => {
-    const callers = walk('src/renderer/src').filter(
-      (f) => !f.endsWith('types/electron.d.ts') && codeOf(f).includes('claudeSdk'),
-    )
-    expect(callers, `Claude SDK 已被这些渲染层文件调用，请把表改成已接通：\n${callers.join('\n')}`).toEqual([])
+  it('claude-agent-sdk 已退役：全仓源码不许再出现引用', () => {
+    // 2026-10-12 决策：只留 Vercel AI SDK 一条 agent 路径。这条不是形式检查——
+    // 该 SDK 非开源、只认 Anthropic 模型，而且镜像源缺 win32-x64 的二进制包，
+    // 装回来会让 pnpm install 半途失败，所以引用一律不许回来。
+    const hits = [
+      ...walk('src/main'),
+      ...walk('src/preload'),
+      ...walk('src/renderer/src'),
+      ...walk('src/shared'),
+    ].filter((f) => /claude-agent-sdk|claudeSdk|ClaudeSdk|claude-sdk:/.test(codeOf(f)))
+    expect(hits, `已退役的 Claude Agent SDK 又被引用：\n${hits.join('\n')}`).toEqual([])
   })
 
   it('trace-langfuse 仍是待开发：渲染层与 preload 都没有入口', () => {

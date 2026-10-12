@@ -7,13 +7,11 @@
  * - openai-compatible / deepseek / qwen / volcengine-ark / ollama → 用 @ai-sdk/openai createOpenAI（OpenAI 兼容协议）
  * - anthropic → 用 @ai-sdk/anthropic createAnthropic（Claude 原生协议）
  * - google → 用 @ai-sdk/google createGoogleGenerativeAI（Gemini 原生协议）
- * - claude-sdk → 不创建 LanguageModel，抛错引导改用 ClaudeSdkProvider（agent loop 模式）
  *
  * 设计要点：
  * - 所有网络请求必须有日志（Hard Constraint 5）
  * - API Key 缺失时抛出明确错误（不静默降级到 mock）
  * - baseURL 为空时使用 @ai-sdk/* 各自的默认值（仅 anthropic/google 有默认）
- * - claude-sdk 类型不通过此工厂创建（agent loop 与 LanguageModelV2 单次调用契约不兼容）
  *
  * 方案书依据：v0.9 §3 决策 1（Mastra + AI SDK 7 组合）+ 调研文档 §8（Claude Agent SDK 集成）
  */
@@ -113,26 +111,15 @@ function createOpenAiCompatFetch(deepseekThinking: 'enabled' | 'disabled' | fals
  * 统一用 createOpenAI 创建。
  *
  * 特殊处理：
- * - `claude-sdk` 类型抛错（agent loop 不适配 LanguageModelV2 单次调用契约），
- *   调用方应改用 `ClaudeSdkProvider` + `claude-sdk:generate` / `claude-sdk:stream` IPC。
  *
  * @param config Provider 配置（必须含 apiKey）
  * @returns LanguageModel 实例 + 元信息
- * @throws Error 如果 apiKey 缺失、baseURL 无效，或 type='claude-sdk'
+ * @throws Error 如果 apiKey 缺失或 baseURL 无效
  */
 export function createLanguageModel(
   config: ProviderConfig,
   opts?: { deepThinking?: boolean },
 ): ProviderModelInstance {
-  // claude-sdk 走独立路径，不通过此工厂创建 LanguageModel
-  if (config.type === 'claude-sdk') {
-    throw new Error(
-      `Provider "${config.name}" (${config.id}) 类型为 'claude-sdk'，` +
-        '不通过 createLanguageModel 创建（agent loop 与 LanguageModelV2 单次调用契约不兼容）。' +
-        '请改用 ClaudeSdkProvider + claude-sdk:generate / claude-sdk:stream IPC 通道。'
-    )
-  }
-
   if (!config.apiKey && config.type !== 'ollama') {
     // Ollama 本地无需 apiKey
     throw new Error(
@@ -182,7 +169,7 @@ export function createLanguageModel(
 /**
  * 内部分发：根据 type 调用对应的 @ai-sdk/* 工厂
  *
- * 注意：`claude-sdk` 类型已在 createLanguageModel 入口处提前抛错拦截，
+ * 注意：所有 ProviderType 都在这里创建 LanguageModel，没有旁路。
  * 不会进入此 switch。default 分支的类型穷尽性检查仍会覆盖它。
  *
  * @param config Provider 配置
@@ -243,13 +230,6 @@ function buildModel(config: ProviderConfig, deepThinking = false): LanguageModel
             middleware: extractReasoningMiddleware({ tagName: 'think' }),
           })
         : deepseekModel
-    }
-    case 'claude-sdk': {
-      // 已在 createLanguageModel 入口处拦截，理论不会到达；防御性抛错
-      throw new Error(
-        `Provider "${config.name}" (${config.id}) 类型为 'claude-sdk'，` +
-          '请改用 ClaudeSdkProvider + claude-sdk:generate / claude-sdk:stream IPC 通道。'
-      )
     }
     default: {
       // 类型穷尽性检查（编译器保证所有 case 已处理）
@@ -312,7 +292,6 @@ interface FallbackFailure {
  * 4. 全部失败时抛出聚合错误：`所有模型均不可用：[tried1, tried2, ...]`
  *
  * 注意事项：
- * - claude-sdk 类型不通过此函数创建（由入口处的 createLanguageModel 抛错拦截）
  * - 主模型和 selectedModels 中的模型共用同一 Provider（同 baseURL/apiKey）
  *   仅模型名不同，因此 fallback 不切换 Provider，只切换模型
  * - 失败原因通常是：模型不存在 / 模型暂时不可用 / 限流

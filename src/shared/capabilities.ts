@@ -74,12 +74,6 @@ export const CAPABILITIES: CapabilityRow[] = [
     note: '30 个工具已注册，但服务默认不启动（需 MCP_SERVER_ENABLED=true）；应用内聊天用的是另外 7 个内联工具。',
   },
   {
-    id: 'claude-sdk',
-    label: 'Claude Agent SDK 通道',
-    status: 'pending',
-    note: 'IPC 与 preload 已暴露 generate/stream/cancel，渲染层没有任何调用点。',
-  },
-  {
     id: 'terminal-blocks',
     label: '终端命令块（OSC 133 / 633）',
     status: 'degraded',
