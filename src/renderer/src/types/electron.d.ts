@@ -10,15 +10,6 @@ import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-co
 import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
 import type {
   Evidence,
-  KnowledgeEntry,
-  KnowledgeType,
-  DecisionCard,
-  KbViewHistoryEntry,
-  HistoryStats,
-  TutorialStats,
-  ToolCallStat,
-  BudgetAlert,
-  TutorialProgress,
 } from '@shared/models'
 
 // 拦截规则只读快照（risk:rules）——与主进程 COMMAND_RULES_SNAPSHOT 同形，
@@ -602,82 +593,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   configGet<T = unknown>(key: string): Promise<T>
 
   // ===== 知识库 =====
-  /** 搜索知识库 */
-  kbSearch(query: string, type?: KnowledgeType, limit?: number): Promise<KnowledgeEntry[]>
-  /** 添加知识条目 */
-  kbAdd(entry: KnowledgeEntry): Promise<boolean>
-  /** 更新知识条目 */
-  kbUpdate(id: string, partial: Partial<KnowledgeEntry>): Promise<boolean>
-  /** 按 id 查询单条知识条目（未找到返回 null） */
-  kbGet(id: string): Promise<KnowledgeEntry | null>
-  /** 热门知识（按 useCount 降序） */
-  kbHot(limit?: number): Promise<KnowledgeEntry[]>
-  /** 最近浏览记录 */
-  kbRecentViews(limit?: number): Promise<KbViewHistoryEntry[]>
-
-  // ===== 决策历史 =====
-  /** 获取决策历史列表 */
-  historyList(offset?: number, limit?: number): Promise<DecisionCard[]>
-  /** 获取单个决策详情 */
-  historyGet(id: string): Promise<DecisionCard | null>
-  /** 决策统计聚合（成功率/平均耗时等） */
-  historyStats(): Promise<HistoryStats>
-
-  // ===== 知识库教程 =====
-  /** 列出教程（可选按分类过滤） */
-  tutorialList(category?: TutorialCategory): Promise<TutorialEntry[]>
-  /** 按 ID 获取单篇 */
-  tutorialGet(id: string): Promise<TutorialEntry | null>
-
-  // ===== v0.9.6 Sprint 7 任务 E：混合检索 + embedding 回填 + 检索状态 =====
-  // 通道与主进程 ipc/tutorial.ts 一一对应：
-  // - tutorial:hybrid-search       → tutorialHybridSearch（FTS5 BM25 + vec0 KNN + RRF 融合）
-  // - tutorial:backfill-embeddings → tutorialBackfillEmbeddings（回填缺失 embedding）
-  // - tutorial:search-status       → tutorialSearchStatus（检索能力快照）
-  //
-  // 与现有 tutorialSearch 的区别：
-  // - tutorialSearch（旧）：Jaccard 关键词搜索，返回 TutorialEntry[]
-  // - tutorialHybridSearch（新）：FTS5 + 向量 KNN + RRF 融合，返回 HybridSearchResult[]
-  //   含 rrfScore/ftsScore/vecDistance/source 等调试字段，便于 UI 高亮展示
-  /**
-   * 混合检索（FTS5 BM25 + vec0 KNN + RRF 融合）
-   *
-   * @param query 用户查询字符串
-   * @param options.type 知识类型过滤（默认 'tutorial'）
-   * @param options.limit 返回数量上限（默认 10）
-   * @param options.useVector 是否启用向量检索（默认 true）
-   * @returns HybridSearchResult[]（按 rrfScore 降序）
-   */
-  tutorialHybridSearch(
-    query: string,
-    options?: TutorialHybridSearchOptions
-  ): Promise<TutorialHybridSearchResult[]>
-  /** 教程统计（总课程/总浏览/总课时/分类数） */
-  tutorialStats(): Promise<TutorialStats>
-  /** 教程学习进度列表（跨设备同步，按 updatedAt 倒序） */
-  tutorialProgress(): Promise<TutorialProgress[]>
-
-  // ===== v2.3.2 模型统计 + 预算告警 =====
-  /** 工具调用统计（按工具名聚合 count + percent，表为空时返回空数组） */
-  modelToolCalls(): Promise<ToolCallStat[]>
-  /** 预算告警历史（最近 N 条，默认 20） */
-  budgetAlerts(limit?: number): Promise<BudgetAlert[]>
-
-  /** R0：拉取最近一次加载阶段（未推送过时为 null） */
-  bootGetState(): Promise<{
-    stage: 'ipc-ready' | 'sqlite-init' | 'kb-indexed' | 'done'
-    progress: number
-    message: string
-  } | null>
-
-  /** BootPage 加载阶段推送订阅（M5 Task 3） */
-  onBootLoadingStage(
-    callback: (stage: {
-      stage: 'ipc-ready' | 'sqlite-init' | 'kb-indexed' | 'done'
-      progress: number
-      message: string
-    }) => void,
-  ): () => void
 
   // ===== 日志系统（v0.7.0）=====
   /** 读取日志条目（按条件过滤） */

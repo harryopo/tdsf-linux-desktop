@@ -2,6 +2,18 @@
 
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
 import type { ChatMessage, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
+// #79 第二批：这些返回类型以 shared/models 为单源写在实现侧，渲染层不再手写第二份。
+import type {
+  BudgetAlert,
+  DecisionCard,
+  HistoryStats,
+  KbViewHistoryEntry,
+  KnowledgeEntry,
+  KnowledgeType,
+  ToolCallStat,
+  TutorialProgress,
+  TutorialStats,
+} from '@shared/models'
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanModel, DeployResult as DeployResultModel, DeployStepResult as DeployStepResultModel, DeployTemplate as DeployTemplateModel } from '@shared/deploy-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
@@ -311,32 +323,36 @@ const electronApi = {
     const handler = (_event: IpcRendererEvent, payload: unknown) =>
       callback(payload as { stage: string; progress: number; message: string })
     ipcRenderer.on(BOOT.LOADING_STAGE, handler)
-    return () => ipcRenderer.off(BOOT.LOADING_STAGE, handler)
+    // 必须显式返回 void：ipcRenderer.off() 自己回 IpcRenderer，直接箭头返回会让这个
+    // "退订函数"带返回值，React 拿它当 effect cleanup 用时类型不合法（BootPage 就是这么用的）
+    return () => {
+      ipcRenderer.off(BOOT.LOADING_STAGE, handler)
+    }
   },
   // R0：拉取最近一次加载阶段。主进程 init 可能早于本页挂载，纯靠上面那条推送会错过 done
   bootGetState: (): Promise<{ stage: string; progress: number; message: string } | null> =>
     ipcRenderer.invoke(BOOT.GET_STATE),
 
   // ===== 知识库扁平化 =====
-  kbSearch: (query: string, type: string, limit: number): Promise<unknown[]> =>
+  kbSearch: (query: string, type?: KnowledgeType, limit?: number): Promise<KnowledgeEntry[]> =>
     ipcRenderer.invoke(KNOWLEDGE.SEARCH, query, type, limit),
-  kbAdd: (entry: unknown): Promise<boolean> =>
+  kbAdd: (entry: KnowledgeEntry): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.ADD, entry),
-  kbUpdate: (id: string, entry: unknown): Promise<boolean> =>
+  kbUpdate: (id: string, entry: Partial<KnowledgeEntry>): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.UPDATE, id, entry),
   kbDelete: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.DELETE, id),
   kbExport: (type: string): Promise<string> =>
     ipcRenderer.invoke(KNOWLEDGE.EXPORT, type),
-  kbGet: (id: string): Promise<unknown> =>
+  kbGet: (id: string): Promise<KnowledgeEntry | null> =>
     ipcRenderer.invoke(KNOWLEDGE.GET, id),
   kbImport: (data: string): Promise<number> =>
     ipcRenderer.invoke(KNOWLEDGE.IMPORT, data),
   kbView: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.VIEW, id),
-  kbHot: (limit?: number): Promise<unknown[]> =>
+  kbHot: (limit?: number): Promise<KnowledgeEntry[]> =>
     ipcRenderer.invoke(KNOWLEDGE.HOT, limit),
-  kbRecentViews: (limit?: number): Promise<unknown[]> =>
+  kbRecentViews: (limit?: number): Promise<KbViewHistoryEntry[]> =>
     ipcRenderer.invoke(KNOWLEDGE.RECENT_VIEWS, limit),
 
   // ===== v2.8 Agent 长期记忆扁平化 =====
@@ -351,16 +367,16 @@ const electronApi = {
     ipcRenderer.invoke(MEMORY.AUDIT, limit),
 
   // ===== 历史决策扁平化 =====
-  historyList: (offset: number, limit: number): Promise<unknown[]> =>
+  historyList: (offset?: number, limit?: number): Promise<DecisionCard[]> =>
     ipcRenderer.invoke(HISTORY.LIST, offset, limit),
-  historyGet: (id: string): Promise<unknown> =>
+  historyGet: (id: string): Promise<DecisionCard | null> =>
     ipcRenderer.invoke(HISTORY.GET, id),
   // P-8 修复：补充暴露 history:save 通道（主进程已注册，但 preload 此前未暴露）
   // P0-5：入参从完整 DecisionCard 改成 HistorySaveIntent —— 风险/置信度/状态由主进程判定，
   // 渲染层只描述"发生了什么"。
   historySave: (intent: HistorySaveIntent): Promise<boolean> =>
     ipcRenderer.invoke(HISTORY.SAVE, intent),
-  historyStats: (): Promise<unknown> =>
+  historyStats: (): Promise<HistoryStats> =>
     ipcRenderer.invoke(HISTORY.STATS),
 
   // ===== 系统架构感知扁平化 =====
@@ -543,12 +559,12 @@ const electronApi = {
    */
   tutorialRecommendPath: (options?: RecommendPathOptions): Promise<TutorialPath[]> =>
     ipcRenderer.invoke(TUTORIAL.RECOMMEND_PATH, options),
-  tutorialStats: (): Promise<unknown> =>
+  tutorialStats: (): Promise<TutorialStats> =>
     ipcRenderer.invoke(TUTORIAL.STATS),
   // v2.3.2 新增：教程学习进度跨设备同步（替代 localStorage 过渡方案）
   //   const progress = await window.electronAPI.tutorialProgress()
   //   await window.electronAPI.tutorialUpdateProgress('nginx-tuning', 'visited', 50)
-  tutorialProgress: (): Promise<unknown[]> =>
+  tutorialProgress: (): Promise<TutorialProgress[]> =>
     ipcRenderer.invoke(TUTORIAL.PROGRESS),
   tutorialUpdateProgress: (
     tutorialId: string,
@@ -561,9 +577,9 @@ const electronApi = {
   // 通道与主进程 ipc/model-stats.ts 一一对应；UI 调用方式：
   //   const stats = await window.electronAPI.modelToolCalls()
   //   const alerts = await window.electronAPI.budgetAlerts(20)
-  modelToolCalls: (): Promise<unknown[]> =>
+  modelToolCalls: (): Promise<ToolCallStat[]> =>
     ipcRenderer.invoke(MODEL_STATS.TOOL_CALLS),
-  budgetAlerts: (limit?: number): Promise<unknown[]> =>
+  budgetAlerts: (limit?: number): Promise<BudgetAlert[]> =>
     ipcRenderer.invoke(BUDGET.ALERTS, limit),
 
   // ===== Web 部署助手扁平化 =====

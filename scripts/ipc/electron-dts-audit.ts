@@ -31,10 +31,12 @@ const REL = path.relative(ROOT, DTS).split(path.sep).join('/')
 /**
  * divergent 的现存数量刻度：只许降不许升。
  * 2026-10-12 建闸时 69；删掉 182 个纯冗余成员并把 13 处重复声明折叠后降到 49。
- * 剩下的 49 条是"preload 里签名写松了（unknown/any/内联对象）或参数名不一致"，
- * 每条都要把类型搬到 src/shared 再让 preload 标上，收敛一批就把这个数往下改一次。
+ * 同日 #79 第一批（删 7 条撒谎的手写声明）降到 42；第二批把 kb/history/tutorial/
+ * model-stats/budget 的返回类型搬到 preload 标上、再删掉渲染层那 15 条覆盖，降到 24。
+ * 剩下的 24 条集中在 sidecar / loop 事件 / 审计报告 / boot 阶段联合类型 与参数名不一致，
+ * 收敛一批就把这个数往下改一次（只许降不许升）。
  */
-const DIVERGENT_CAP = 49
+const DIVERGENT_CAP = 24
 
 const argv = process.argv.slice(2)
 const MODE = argv.includes('--prune')
