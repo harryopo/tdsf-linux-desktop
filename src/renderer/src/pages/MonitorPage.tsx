@@ -44,7 +44,7 @@ import {
   type AlertRecord,
 } from '@/components/monitor/monitor-model'
 import { useMonitorStore } from '@/stores/monitor-store'
-import { useServerStore } from '@/stores/server-store'
+import { useServerStore, MONITOR_INTERVAL_MS } from '@/stores/server-store'
 // v2.7：告警阈值消费设置页 monitor.threshold.* 配置（不再硬编码 85）
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { MonitorData } from '@shared/models'
@@ -172,24 +172,33 @@ export function MonitorPage() {
     if (monitorData.length > 0) setLoading(false)
   }, [monitorData.length])
 
-  // 连接后启动监控 + 获取系统信息
+  // 会话换了就取一次静态信息；实时指标的采集由 setActiveSession 统一拉起
+  // （见 server-store 的 MONITOR_INTERVAL_MS，本页不再自己传间隔）。
   // P0 修复：卸载时不再 monitorStop —— 让监控在后台持续采集，数据持续进 store，
   // 用户来回切页面不再中断采集（此前离开监控页即 stop，回来又是空白）。
+  // 依赖只留 activeSessionId：原来把 monitorData.length 也放进依赖，
+  // 于是每来一批指标就重发一次"取静态信息"的 SSH 批量命令。
   useEffect(() => {
     if (!activeSessionId || !isElectronAPIAvailable()) return
-    if (monitorData.length === 0) setLoading(true)
-    window.electronAPI.monitorStart(activeSessionId, 5000)
-    window.electronAPI.monitorGetSystemInfo(activeSessionId).then((info) => {
-      if (info) {
-        useMonitorStore.getState().setSystemInfo(activeSessionId, info)
-        setServerLabel(`${info.hostname} · ${info.os}`)
-      }
-    }).catch(() => { /* ignore */ })
+    const hasHistory =
+      useMonitorStore.getState().getMonitorData(activeSessionId).length > 0
+    if (!hasHistory) setLoading(true)
+    window.electronAPI
+      .monitorGetSystemInfo(activeSessionId)
+      .then((info) => {
+        if (info) {
+          useMonitorStore.getState().setSystemInfo(activeSessionId, info)
+          setServerLabel(`${info.hostname} · ${info.os}`)
+        }
+      })
+      .catch(() => {
+        /* 静态信息取不到不影响实时指标继续走 */
+      })
     const timer = setTimeout(() => setLoading(false), 3000)
     return () => {
       clearTimeout(timer)
     }
-  }, [activeSessionId, monitorData.length])
+  }, [activeSessionId])
 
   // 无活跃会话时立即清除 loading，直接展示空态（不再回退假数据）
   useEffect(() => {
@@ -289,7 +298,8 @@ export function MonitorPage() {
   const handleRefresh = useCallback(() => {
     if (!activeSessionId || !isElectronAPIAvailable()) return
     setRefreshing(true)
-    window.electronAPI.monitorStart(activeSessionId, 5000)
+    // 刷新时顺手确保采集在跑（同会话重复启动是幂等的），间隔用全局唯一口径
+    window.electronAPI.monitorStart(activeSessionId, MONITOR_INTERVAL_MS)
     window.electronAPI.monitorGetSystemInfo(activeSessionId).then((info) => {
       if (info) useMonitorStore.getState().setSystemInfo(activeSessionId, info)
     }).catch(() => {}).finally(() => {

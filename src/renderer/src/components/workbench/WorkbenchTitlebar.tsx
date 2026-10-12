@@ -177,11 +177,8 @@ export function WorkbenchTitlebar({
         setConnectionState(target.id, 'connected')
         setSessionMapping(target.id, sessionId)
         setActiveSession(sessionId)
-        try {
-          await window.electronAPI.monitorStart(sessionId, 3)
-        } catch (err) {
-          console.warn('[WorkbenchTitlebar] monitorStart failed:', err)
-        }
+        // 监控由 setActiveSession 统一拉起（见 server-store 的 MONITOR_INTERVAL_MS），
+        // 这里不再自己传间隔——原来那句传的是 `3`，而参数单位在 v2.4 已改成毫秒。
         setMenuOpen(false)
         toast.success(`已连接 ${target.name || target.host}`)
       } catch (err) {

@@ -93,6 +93,28 @@ function providesCredential(server: Partial<SshConfig>): boolean {
 }
 
 /**
+ * 监控采集间隔（毫秒）—— 全应用唯一口径
+ *
+ * 原先三处各传各的：工作台标题栏传 `monitorStart(sessionId, 3)`（v2.4 起这个参数按毫秒算，
+ * 3 被主进程下限夹成 1000，本意其实是 3 秒），监控页传 5000，设置页的连接路径根本没启动。
+ * 于是"从哪条路连上的"决定了指标走不走 —— 用户看到的"进程监控失败/首页永远离线"就是这条。
+ */
+export const MONITOR_INTERVAL_MS = 3000
+
+/**
+ * 让主进程开始采集这台主机的指标
+ *
+ * 只在"会话被激活"这一个时点触发，主进程侧是幂等的（同会话重复启动直接返回 true）。
+ * 起不来不外抛：指标缺失由各界面自己的"无数据"形态负责显示，
+ * 在这里抛错只会把连接流程打断。
+ */
+function ensureMonitoring(sessionId: string): void {
+  const api = typeof window === 'undefined' ? undefined : window.electronAPI
+  if (!api?.monitorStart) return
+  api.monitorStart(sessionId, MONITOR_INTERVAL_MS).catch(() => {})
+}
+
+/**
  * 同步到主进程
  *
  * 出站列表 = 主进程里存的那些（本来就没有凭据）+ 用户此刻在表单里现填的凭据。
@@ -188,8 +210,11 @@ export const useServerStore = create<ServerState>()(
         await syncToMain(newServers)
       },
 
-      // 设置当前活跃会话
-      setActiveSession: (sessionId) => set({ activeSessionId: sessionId }),
+      // 设置当前活跃会话：顺带确保这台主机的监控在采集（见 MONITOR_INTERVAL_MS 注释）
+      setActiveSession: (sessionId) => {
+        set({ activeSessionId: sessionId })
+        if (sessionId) ensureMonitoring(sessionId)
+      },
 
       // 更新服务器连接状态
       setConnectionState: (serverId, connectionState) =>
