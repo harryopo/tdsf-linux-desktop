@@ -17,6 +17,7 @@ import {
 } from '@main/core/agent/terminal-context'
 import { AuditRepo } from '../../src/main/services/db/audit-repo'
 import { DatabaseManager } from '../../src/main/services/db/database'
+import { contractFor } from '@shared/ipc-contract'
 import { preloadWiring } from './preload-sources'
 
 const ROOT = path.resolve(__dirname, '../..')
@@ -66,14 +67,22 @@ describe('跨进程接线（源码级，防止写了函数没人调）', () => {
     expect(src).toContain('terminalContext || undefined')
   })
 
-  it('preload 把它作为第 6 个实参转发到 agent:chat', () => {
-    // 域拆分后 agentChat 在 preload/domains/agent.ts，读整棵 preload 树才对齐这条链路
+  it('preload 转发给 agent:chat 的实参逐位等于契约声明（terminalContext 在最后一位）', () => {
+    // 域拆分后 agentChat 在 preload/domains/agent.ts，读整棵 preload 树才对齐这条链路。
+    // 这一条原先把"6 个实参、第 4 位是占位 undefined"写死在正则里，而契约声明的是 5 位 ——
+    // 于是它把线上真实形状钉成了一份和契约表不一致的"标准答案"（P1-3 装主进程入参闸时撞红）。
+    // 现在改成拿契约当基准：实参名逐位对得上才算接线对。
     const src = preloadWiring(ROOT)
-    // 空白用 \s* 而非写死一个空格：既要容忍 ipcRenderer.invoke( 这种紧贴写法，也要容忍拆成多行；
-    // 但实参顺序一位都不许错——这条锁的是"terminalContext 落在 sshSessionId 之后、共 6 位"。
-    expect(src).toMatch(
-      /invoke\(\s*AGENT\.CHAT,\s*messages,\s*providerId,\s*strength,\s*undefined,\s*sshSessionId,\s*terminalContext\s*,?\s*\)/
-    )
+    const m = /invoke\(\s*AGENT\.CHAT,\s*([^)]*?)\s*,?\s*\)/.exec(src)
+    expect(m, 'preload 里没有向 agent:chat 转发实参的调用').toBeTruthy()
+    const forwarded = (m?.[1] ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const c = contractFor('agentChat')
+    if (c?.kind !== 'invoke') throw new Error('契约表里 agentChat 不是 invoke，这条判据失去基准')
+    expect(forwarded, '转发顺序或位数与契约声明不一致').toEqual(c.args.map((a) => a.name))
+    expect(forwarded[forwarded.length - 1]).toBe('terminalContext')
   })
 
   it('主进程 handler 收下并转给 Supervisor', () => {

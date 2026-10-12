@@ -24,6 +24,7 @@ import * as os from 'node:os'
 import { runCommand, HEAVY_TIMEOUT_MS } from '../services/exec/run-command'
 import { z } from 'zod'
 import { SSH, SFTP, TERMINAL } from '@shared/ipc-channels'
+import { IpcError } from '@shared/ipc-errors'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
 import { broadcastToWindows } from '../windows/main-window'
 import { ConfigStore } from '../services/storage/config-store'
@@ -332,7 +333,12 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
           .map((i) => `${i.path.join('.')}: ${i.message}`)
           .join('; ')
         logger.warn('SSH', 'exec 入参校验失败', { issues })
-        throw new Error(`SSH exec 参数无效: ${issues}`)
+        // 走信封而不是裸 Error：这条的语义就是"入参不合契约"，P1-2 之后有对应的码
+        throw new IpcError(
+          'E_INVALID_INPUT',
+          'SSH 命令参数不合法（会话 ID 或命令本身超出允许范围）',
+          issues
+        )
       }
       const { sessionId: safeSessionId, command: safeCommand } = parsed.data
 

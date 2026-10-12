@@ -32,14 +32,14 @@ const agentRuntime = {
     terminalContext?: string,
   ): Promise<string> => {
     assertContractArgs('agentChat', [messages, providerId, strength, sshSessionId, terminalContext])
-    // 第 4 参 agentSession 留空由主进程生成；第 5 参为 SSH session（启用只读工具）；
-    // 第 6 参为终端命令块摘要（主进程脱敏后注入 system prompt）
+    // 参数顺序与 src/shared/ipc-contract.ts 的 agentChat 声明逐位对齐：
+    // 曾经在这里插一个占位 undefined 去顶主进程那个没人传的 sessionId 形参，
+    // 于是线上跑 6 个位置、契约写 5 个，主进程侧按契约校验会把对话整条拒掉（P1-3 对账查出）。
     return ipcRenderer.invoke(
       AGENT.CHAT,
       messages,
       providerId,
       strength,
-      undefined,
       sshSessionId,
       terminalContext,
     )

@@ -2,18 +2,21 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { encodeIpcError, GENERIC_INTERNAL_TEXT, isIpcError, IpcError } from '@shared/ipc-errors'
 import { redactSecrets } from '../core/agent/providers/redact'
 import { logger } from '../services/log/logger'
+import { assertContractArgsAtBoundary } from './contract-guard'
 
 /**
- * ipcMain.handle 的错误边界（P1-2）
+ * ipcMain.handle 的边界（P1-2 错误收口 + P1-3 入参契约）
  *
  * 为什么打补丁而不是逐个包 handler：注册点散在 20 多个域文件里共 239 个 `ipcMain.handle`，
  * 逐个包要改 239 处，而且下一个新加的 handler 一定会忘记包 —— 那正是"`src/main/ipc/*.ts`
  * 里 152 处各写各的 throw"这件事的成因。边界装在注册函数本身上，新 handler 自动被覆盖。
  *
- * 装了之后：
- *   1. 内部原文（主机端口、绝对路径、SQL 片段）留在主进程日志，跨边界只送安全的那一句；
- *   2. 没显式抛 IpcError 的折成 E_INTERNAL，原话保留但统一过 redactSecrets 收口；
- *   3. 渲染层拿到的是以 ` [E_CODE]` 结尾的定形字符串，preload 负责还原成结构化错误。
+ * 装了之后，进出两个方向各有一件事：
+ *   1. 进：入参按 `src/shared/ipc-contract.ts` 那张表判形状（contract-guard.ts），
+ *      不合契约就 E_INVALID_INPUT 挡在 handler 之前 —— 契约不再靠调用方自觉；
+ *   2. 出：内部原文（主机端口、绝对路径、SQL 片段）留在主进程日志，跨边界只送安全的那一句；
+ *      没显式抛 IpcError 的折成 E_INTERNAL，原话保留但统一过 redactSecrets 收口；
+ *      渲染层拿到的是以 ` [E_CODE]` 结尾的定形字符串，preload 负责还原成干净的一句话。
  */
 
 type Listener = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
@@ -31,6 +34,9 @@ export function installIpcErrorBoundary(opts: { exposeDetail: boolean }): void {
     original(channel, (event, ...args) => {
       let r: unknown
       try {
+        // 入参先按契约表判（P1-3）：装在边界里，是因为这里是唯一必经之路 ——
+        // preload 那层的 assertContractArgs 会被 214 处直接 invoke 绕过去。
+        assertContractArgsAtBoundary(channel, args)
         // 参数必须原样展开转发：这里少写一个展开号，239 个注册点的第二个形参
         // 就全部收到「长度为 1 的数组」，而 TS 看不出来（listener 已被断言成通用签名）。
         r = listener(event, ...args)

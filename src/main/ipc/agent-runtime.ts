@@ -208,10 +208,11 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // agent:chat — 启动 Supervisor 流式 chat
   // ------------------------------------------------------------------
-  // 参数：(messages, providerId?, strength?, agentSessionId?, sshSessionId?, terminalContext?)
-  //   - agentSessionId：会话注册表 id（可选，主进程可自动生成）
+  // 参数：(messages, providerId?, strength?, sshSessionId?, terminalContext?)
+  //   —— 这五位与 src/shared/ipc-contract.ts 的 agentChat 逐位一致，主进程边界按它校验入参。
   //   - sshSessionId：SshConnectionManager 会话 id（可选，传入则启用只读 SSH 工具）
   //   - terminalContext：终端命令块摘要（可选，脱敏后注入 system prompt）
+  // 会话注册表 id 一律由主进程生成（原来那个占位形参没有任何调用方传值，已删）。
   // 返回：correlationId
   ipcMain.handle(
     'agent:chat',
@@ -220,17 +221,15 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       messages: ChatMessage[],
       providerId?: string,
       strength?: ThinkingStrength | 'auto',
-      sessionId?: string,
       sshSessionId?: string,
       terminalContext?: string,
     ): Promise<string> => {
       const supervisor = getSupervisor()
       const correlationId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-      // v0.9.4：注册到 session-registry（如未提供 sessionId，registry 自动生成）
+      // v0.9.4：注册到 session-registry（sessionId 由 registry 生成，取消时按它查）
       const registry = getSessionRegistry()
       const resolvedSessionId = registry.register({
-        sessionId,
         correlationId,
         kind: 'agent:chat',
         providerId,
