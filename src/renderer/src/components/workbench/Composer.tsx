@@ -90,10 +90,9 @@ const Composer: FC<ComposerProps> = ({
   const deepThinking = thinkingStrength === 'deep'
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId) ?? null
+  // providers 来自 store，进 store 前已按"能不能真用"过滤，所以标签上不必再标未配置
   const providerLabel = selectedProvider
-    ? `${selectedProvider.name || selectedProvider.model || selectedProvider.id}${
-        selectedProvider.hasApiKey === false ? ' (未配置Key)' : ''
-      }`
+    ? selectedProvider.name || selectedProvider.model || selectedProvider.id
     : providers.length === 0
       ? '未配置模型'
       : '选择模型'
@@ -505,25 +504,18 @@ const Composer: FC<ComposerProps> = ({
               <MenuContent className="min-w-[240px]">
                 {providers.length === 0 ? (
                   <div className="px-2 py-1.5 text-caption text-ink-mute">
-                    暂无 Provider，请到设置 → 模型配置添加
+                    没有可用的模型，请到设置 → 模型配置填 API Key
                   </div>
                 ) : (
                   providers.map((p) => (
+                    // 列表来源已按"能不能真用"过滤（见 provider-choice），
+                    // 所以这里不再画灰色不可点项——那正是用户说的"弹出来一堆没配置的"
                     <MenuItem
                       key={p.id}
-                      disabled={p.hasApiKey === false}
                       onSelect={() => setSelectedProviderId(p.id)}
                       className="flex flex-col items-start gap-0.5"
-                      title={
-                        p.hasApiKey === false ? '未配置 API Key，请到设置 → 模型中配置' : undefined
-                      }
                     >
-                      <span className="text-md text-ink">
-                        {p.name || p.id}
-                        {p.hasApiKey === false ? (
-                          <span className="ml-1 text-micro text-warning-text">(未配置 Key)</span>
-                        ) : null}
-                      </span>
+                      <span className="text-md text-ink">{p.name || p.id}</span>
                       <span className="text-caption text-ink-mute">{p.model}</span>
                     </MenuItem>
                   ))

@@ -16,6 +16,7 @@ import { useAgentStore, type AgentMessage, type CompressResult } from '@/stores/
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { resolveSelectedProvider, usableProviders } from './provider-choice'
 import type {
   PersistedProviderConfig,
   ThinkingStrength,
@@ -116,12 +117,23 @@ export function useAgentChat(): UseAgentChatResult {
     void (async () => {
       try {
         if (window.electronAPI.providerList) {
-          const list = await window.electronAPI.providerList(true)
-          setProviders(list)
-          const current = useAgentStore.getState().selectedProviderId
-          if (list.length > 0 && !current) {
-            setSelectedProviderId(list[0].id)
-          }
+          const [all, defaultId] = await Promise.all([
+            window.electronAPI.providerList(true),
+            window.electronAPI.providerGetDefault
+              ? window.electronAPI.providerGetDefault().catch(() => '')
+              : Promise.resolve(''),
+          ])
+          // 选择器只列"真能用"的模型；剩下两条规则（当前选择优先、其次用户设的默认）
+          // 都在 provider-choice 里，判据见 tests/unit/provider-choice.test.ts
+          const usable = usableProviders(all)
+          setProviders(usable)
+          setSelectedProviderId(
+            resolveSelectedProvider({
+              providers: usable,
+              current: useAgentStore.getState().selectedProviderId,
+              defaultId,
+            }),
+          )
         }
       } catch (err) {
         console.error('[useAgentChat] 加载 Provider 失败:', err)
