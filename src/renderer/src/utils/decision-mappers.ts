@@ -403,7 +403,7 @@ export function buildWorkflowSteps(card: DecisionCard): Array<{ label: string; s
  *
  * 注：与 utils/evidence-to-input.ts 中的 buildCredibilityInputs(ctx: DecisionContext)
  * 是不同实现。本函数面向 DecisionCard 直接映射（DecisionDetailPage 专用简化版），
- * evidence-to-input.ts 中的版本面向更通用的 6 源构造（含 cotEntropyTrajectory 等）。
+ * evidence-to-input.ts 中的版本面向更通用的证据源构造（含 cotEntropyTrajectory 等）。
  */
 export function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceInput[] {
   const inputs: CredibilityEvidenceInput[] = []
@@ -414,10 +414,15 @@ export function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceI
   const hasCmd = card.evidences.some(e => e.source === 'command')
   const hasMetric = card.evidences.some(e => e.source === 'metric')
 
+  // #82 契约对账：字段名以主进程 createMassFunctionFromInput 的必填项为准。
+  // 此前这里塞的是 confidence / approved，主进程要 verbalizedConfidence(number) /
+  // hasAnnotations(boolean)，于是 credibility:assess 每次必抛，
+  // DecisionDetailPage 的 catch 把它吞成"这张卡没有可信度分析"——用户永远看不到 D-S 结果。
   if (hasLog) {
     const logEvs = card.evidences.filter(e => e.source === 'log')
     const avgDrain = logEvs.reduce((s, e) => s + e.drainMatch, 0) / logEvs.length
-    inputs.push({ sourceId: 'log', fields: { drainMatch: avgDrain, count: logEvs.length } })
+    const avgPrior = logEvs.reduce((s, e) => s + e.sourcePrior, 0) / logEvs.length
+    inputs.push({ sourceId: 'log', fields: { drainMatch: avgDrain, sourcePrior: avgPrior } })
   }
   if (hasKb) {
     const kbEvs = card.evidences.filter(e => e.source === 'knowledge')
@@ -425,15 +430,19 @@ export function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceI
     inputs.push({ sourceId: 'kb', fields: { topScore: avgConf, hasResults: true } })
   }
   if (hasCmd || hasMetric) {
-    inputs.push({ sourceId: 'ai-param', fields: { confidence: card.confidence } })
+    // verbalizedConfidence = 这条决策自己声明的置信度（由证据链加权算出，不是模型自评）；
+    // S3 的语义就是"决策方的置信陈述"，取真实存在的 card.confidence，不填常数。
+    inputs.push({ sourceId: 'ai-param', fields: { verbalizedConfidence: card.confidence } })
   }
   if (card.risk.requireConfirmation) {
-    inputs.push({ sourceId: 'human', fields: { approved: card.status === 'approved' || card.status === 'executed' || card.status === 'verified' ? 1 : 0 } })
+    // 人工这一路只有"批了没批"这一个真实信号，agreement（标注者一致性）没测到就不带
+    const approved = card.status === 'approved' || card.status === 'executed' || card.status === 'verified'
+    inputs.push({ sourceId: 'human', fields: { hasAnnotations: true, positiveRate: approved ? 1 : 0 } })
   }
 
-  // 至少提供一个输入
+  // 主进程对空列表直接抛"至少需要一个证据源"，所以留一条兜底输入
   if (inputs.length === 0) {
-    inputs.push({ sourceId: 'ai-param', fields: { confidence: card.confidence } })
+    inputs.push({ sourceId: 'ai-param', fields: { verbalizedConfidence: card.confidence } })
   }
 
   return inputs

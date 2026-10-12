@@ -87,15 +87,21 @@ describe('ChatCredibility — 聊天内可信度分析', () => {
     expect(assessMock).not.toHaveBeenCalled()
   })
 
-  it('2. 完成态调用 credibilityAssess（6 源输入）并渲染折叠行', async () => {
+  it('2. 完成态调用 credibilityAssess，且只送有真实数据的证据源', async () => {
     render(<ChatCredibility message={makeMessage()} />)
 
     await waitFor(() => {
       expect(screen.getByText('可信度分析')).toBeInTheDocument()
     })
-    // 6 源输入被构建
     expect(assessMock).toHaveBeenCalledTimes(1)
-    expect(assessMock.mock.calls[0][0]).toHaveLength(6)
+    const inputs = assessMock.mock.calls[0][0] as Array<{ sourceId: string }>
+    const ids = inputs.map((i) => i.sourceId)
+    // #82：这条夹具的证据来自 ssh_readonly（source='command'），
+    // 所以"日志证据"和"AI 自评"都没有真实数据 —— 旧实现会补 0.5/0.7 凑满 6 源，
+    // 那些常数会进 mass 函数变成 committed belief，界面百分比就成了编的。
+    expect(ids).not.toContain('log')
+    expect(ids).not.toContain('ai-param')
+    expect(ids).toEqual(['kb', 'human', 'history'])
     // 折叠行徽章：80% + 规则名 D-S
     expect(screen.getByText(/80% · D-S/)).toBeInTheDocument()
     expect(screen.getByText('1 项证据')).toBeInTheDocument()

@@ -543,7 +543,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
       </div>
       {renderStepProgress()}
       {renderToolEvents()}
-      {/* v2.5：完成态且有真实工具轨迹时，展示 6 源 D-S/PCR5 可信度分析折叠块 */}
+      {/* v2.5：完成态且有真实工具轨迹时，展示 D-S/PCR5 可信度分析折叠块 */}
       {!message.isStreaming && !message.isError && (
         <ChatCredibility message={message} />
       )}

@@ -1,15 +1,15 @@
 /**
  * ChatCredibility — 聊天消息内的可信度分析折叠块（v2.5）
  *
- * 背景：6 源 D-S/PCR5 可信度评估（credibility:assess IPC）与 ConfidenceBreakdown
+ * 背景：D-S/PCR5 可信度评估（credibility:assess IPC）与 ConfidenceBreakdown
  * 组件早已存在，但主对话链路从未接线，用户看不到任何可信度分析。
  *
  * 职责：
  * - assistant 消息完成且带真实工具执行轨迹（toolEvents）时挂载
- * - 把 toolEvents → Evidence[]（chat-decision.ts）→ buildCredibilityInputs 6 源输入
+ * - 把 toolEvents → Evidence[]（chat-decision.ts）→ buildCredibilityInputs 证据源输入
+ *   （#82 起只送有真实数据的源，不再用常数凑满 6 源）
  * - 调 credibilityAssess IPC 获取 Bel/Pl/confidence/conflictLevel
  * - 折叠行展示综合可信度徽章，展开渲染完整 ConfidenceBreakdown
- * - 评估结果经 onAssessed 回传（AIPanel 落库决策时复用同一 confidence）
  *
  * 降级：非 Electron / IPC 失败 → 整块不渲染（不显示假数据）
  */
@@ -26,8 +26,6 @@ import type { ConfidenceAssessment } from '@shared/agent-types'
 interface ChatCredibilityProps {
   /** 已完成的 assistant 消息（需带 toolEvents） */
   message: AgentMessage
-  /** 评估完成回调（决策落库复用同一 confidence） */
-  onAssessed?: (assessment: ConfidenceAssessment) => void
 }
 
 /** 可信度分档配色 */
@@ -37,7 +35,7 @@ function confidenceTone(confidence: number): string {
   return 'var(--trae-status-error-default)'
 }
 
-const ChatCredibility: FC<ChatCredibilityProps> = ({ message, onAssessed }) => {
+const ChatCredibility: FC<ChatCredibilityProps> = ({ message }) => {
   const [assessment, setAssessment] = useState<ConfidenceAssessment | null>(null)
   const [expanded, setExpanded] = useState(false)
   /** 指纹去重：同一批证据只评估一次（流式结束后 toolEvents 不再变化） */
@@ -56,7 +54,10 @@ const ChatCredibility: FC<ChatCredibilityProps> = ({ message, onAssessed }) => {
     const ctx = {
       cardId: message.id,
       evidences,
-      llmVerbalized: 0.7,
+      // #82：不再传 llmVerbalized: 0.7 —— 主对话从没向模型要过自评，
+      // 那个常数会进 S3 mass 函数变成一份"AI 说 70% 可信"的假信念。
+      // 真实的 verbalized 信号（模型自评 / logprob / 多次采样一致性）目前都采不到，
+      // 所以聊天路径只融合真实证据；CoT 熵轨迹仍由下方 cotAnalysis 单独展示。
       cotEntropyTrajectory: message.cotEntropyTrajectory,
     }
     const fp = fingerprint(ctx)
@@ -69,7 +70,6 @@ const ChatCredibility: FC<ChatCredibilityProps> = ({ message, onAssessed }) => {
       .then((result) => {
         if (cancelled) return
         setAssessment(result)
-        onAssessed?.(result)
       })
       .catch((err) => {
         // 评估失败不显示假数据，仅记录日志
@@ -78,7 +78,7 @@ const ChatCredibility: FC<ChatCredibilityProps> = ({ message, onAssessed }) => {
     return () => {
       cancelled = true
     }
-  }, [message.id, message.isStreaming, message.isError, message.cotEntropyTrajectory, evidences, onAssessed])
+  }, [message.id, message.isStreaming, message.isError, message.cotEntropyTrajectory, evidences])
 
   // CoT 轨迹分析（可选，有轨迹才渲染）
   const cotAnalysis = useMemo(() => {
