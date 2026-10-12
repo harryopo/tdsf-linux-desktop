@@ -277,7 +277,10 @@ export function CalibrationSettings() {
       if (!window.electronAPI) return
       updateCardState(providerKey, { loading: 'computing', errorMessage: null })
       try {
-        const ece = await window.electronAPI.credibilityComputeEce(providerKey, 200)
+        // 第二参是分桶数（默认 10），不是抽样条数。
+        // 这里原先传 200，等于把 ECE 切成 200 个桶去算——样本本来只有几十条，
+        // 每桶 0~1 条时置信度差全被摊平，算出来的百分比没有意义。
+        const ece = await window.electronAPI.credibilityComputeEce(providerKey)
         updateCardState(providerKey, { loading: 'idle', lastEce: ece, errorMessage: null })
         showTopMessage(
           'success',

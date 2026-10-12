@@ -1,5 +1,5 @@
 /** llm 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { ChatMessage, EnvironmentContext, LlmConfig, LlmValidationResult } from '@shared/models'
+import type { ChatMessage, EnvironmentContext, LlmConfig, LlmTestResult, LlmValidationResult } from '@shared/models'
 import type { CostStats, PersistedProviderConfig, ProviderCapabilitiesAllResponse, ProviderCapabilitiesRequest, ProviderCapabilitiesResponse, ProviderConfig, ProviderPricingAllResponse, ProviderPricingRequest, ProviderPricingResponse, TokenStats, TokenUsageRecord } from '@shared/agent-types'
 import { LLM, PROVIDER, TOKEN } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
@@ -13,8 +13,14 @@ const llm = {
   chat: (messages: ChatMessage[]): Promise<string> =>
     ipcRenderer.invoke(LLM.CHAT, messages),
 
-  /** 测试连接 */
-  test: (config: LlmConfig): Promise<boolean> =>
+  /**
+   * 测试连接
+   *
+   * 返回 LlmTestResult 而不是 boolean：主进程 v2.3.4 起就返回
+   * { ok, latency, error?, code? }（见 src/main/ipc/llm.ts 的 LLM.TEST handler），
+   * 这里当时漏改，UI 读 result.ok / result.latency 全靠渲染层手写声明兜着。
+   */
+  test: (config: LlmConfig): Promise<LlmTestResult> =>
     ipcRenderer.invoke(LLM.TEST, config),
 
   /** 分析问题（内置降级，返回 JSON 字符串） */

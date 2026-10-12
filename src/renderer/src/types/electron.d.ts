@@ -9,8 +9,6 @@
 import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-contract'
 import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
 import type {
-  LlmConfig,
-  LlmTestResult,
   Evidence,
   KnowledgeEntry,
   KnowledgeType,
@@ -51,8 +49,6 @@ import type { AtCommandType } from '@shared/at-command-types'
 // A4 新增：数据库状态（db:status，SQLite 降级可见化）
 
 
-// v0.9 可信度算法共享类型（D-S + PCR5 + 6 源证据 + DAG 可视化）
-import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 
 // v0.9.5 P0 新增：5 组缺失 IPC 通道共享类型（成本透明 / 模式切换 / 注意力 / Subagent / Provider 信息）
 
@@ -509,10 +505,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
    * 测试 LLM 连接
    * v2.3.4 改造：返回详细诊断信息，便于 UI 定位失败原因
    * - ok=true: 连接成功
-   * - ok=false: 失败，error 字段含具体原因（401/404/网络/超时等），code 用于分类
-   * - latency: 总是返回（毫秒）
-   */
-  llmTest(config: LlmConfig): Promise<LlmTestResult>
   /** LLM 分析（结合证据） */
   llmAnalyze(question: string, evidences: Evidence[]): Promise<string>
 
@@ -562,13 +554,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   sandboxStart(): Promise<{ success: true } | SandboxErrorResponse>
 
   // ===== v0.9 可信度算法（D-S + PCR5 + 6 源证据 + DAG 可视化） =====
-  /**
-   * 评估给定证据集的可信度
-   *
-   * @param inputs 证据源输入列表（1-6 个，每项含 sourceId + fields）
-   * @returns ConfidenceAssessment（含 Bel/Pl/confidence/conflictLevel/fusionSteps）
-   */
-  credibilityAssess(inputs: CredibilityEvidenceInput[]): Promise<ConfidenceAssessment>
 
   // ========================================================================
   // v0.9.6 P2：审计报告（4 个新通道）
@@ -611,10 +596,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   credibilityFormatAuditReport(input: unknown, format: 'json' | 'markdown' | 'html'): Promise<string>
 
   // ===== 安全存储 =====
-  /** 保存 API Key（加密存储） */
-  storageSaveApiKey(key: string, value: string): Promise<boolean>
-  /** 删除 API Key */
-  storageDeleteApiKey(key: string): Promise<boolean>
 
   // ===== 配置存储 =====
   /** 获取配置项 */
@@ -629,10 +610,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   kbUpdate(id: string, partial: Partial<KnowledgeEntry>): Promise<boolean>
   /** 按 id 查询单条知识条目（未找到返回 null） */
   kbGet(id: string): Promise<KnowledgeEntry | null>
-  /** 批量导入知识 */
-  kbImport(entries: KnowledgeEntry[]): Promise<number>
-  /** 导出知识库 */
-  kbExport(type?: KnowledgeType): Promise<KnowledgeEntry[]>
   /** 热门知识（按 useCount 降序） */
   kbHot(limit?: number): Promise<KnowledgeEntry[]>
   /** 最近浏览记录 */
@@ -880,11 +857,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
       error: string
     }) => void,
   ): () => void
-  /** 计算指定 Provider 的当前 ECE（不修改 T，sampleSize 可选用于抽样评估） */
-  credibilityComputeEce(
-    providerId: import('@main/core/agent/credibility/calibration/types').ProviderId,
-    sampleSize?: number,
-  ): Promise<import('@main/core/agent/credibility/calibration/types').EceResult>
 }
 
 /** 扩展 Window 接口，声明 electronAPI 全局变量 */
