@@ -4,8 +4,8 @@ import type { CompressResult } from '@/stores/agent-store'
 
 /** ContextBadge props */
 export interface ContextBadgeProps {
-  /** 上下文使用率（0-100） */
-  ctxUsedPct: number
+  /** 上下文使用率（0-100）；null = 该模型没声明窗口，界面显示"未知"而不是演一个百分比 */
+  ctxUsedPct: number | null
   /** 已用 tokens 文本（如 "12.3K"） */
   ctxUsedTokens: string
   /** 总 tokens 文本（如 "200K"） */
@@ -23,6 +23,10 @@ export interface ContextBadgeProps {
  *   导致面板卸载、按钮点不到 —— 改用 padding 桥接间隙 + 延时关闭 + 点击徽章可固定
  */
 const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTotalTokens, onCompress }) => {
+  // 环形填充比例：未知时画空环。转成 0 只影响几何，文本仍由 pctLabel 说"未知"，
+  // 不会把"不知道"演成 0%（那会诱导用户继续往上下文里灌水）
+  const ringPct = ctxUsedPct ?? 0
+  const pctLabel = ctxUsedPct === null ? '未知' : `${ctxUsedPct}%`
   const [ctxTooltipVisible, setCtxTooltipVisible] = useState(false)
   /** 点击徽章固定 tooltip，不随 mouseleave 关闭 */
   const [pinned, setPinned] = useState(false)
@@ -73,12 +77,12 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           cx="18" cy="18" r="15" fill="none"
           stroke="var(--accent-solid)" strokeWidth="3"
           strokeDasharray="94.2"
-          strokeDashoffset={94.2 * (1 - ctxUsedPct / 100)}
+          strokeDashoffset={94.2 * (1 - ringPct / 100)}
           transform="rotate(-90 18 18)" strokeLinecap="round"
         />
       </svg>
       <span className="text-caption font-medium tabular-nums text-ink-dim">
-        {ctxUsedPct}%
+        {pctLabel}
       </span>
 
       {/* Hover tooltip：外层 pb-1.5 把原 6px 悬空间隙变成可悬停的 padding 桥，消除点击死区 */}
@@ -98,11 +102,11 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
                 cx="18" cy="18" r="15" fill="none"
                 stroke="var(--trae-bg-brand)" strokeWidth="3"
                 strokeDasharray="94.2"
-                strokeDashoffset={94.2 * (1 - ctxUsedPct / 100)}
+                strokeDashoffset={94.2 * (1 - ringPct / 100)}
                 transform="rotate(-90 18 18)" strokeLinecap="round"
               />
               <text x="18" y="22" textAnchor="middle" fontSize="9" fill="var(--trae-text-default)" fontWeight="600">
-                {ctxUsedPct}%
+                {pctLabel === '未知' ? '?' : pctLabel}
               </text>
             </svg>
             <div>

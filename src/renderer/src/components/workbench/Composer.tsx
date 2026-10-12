@@ -9,6 +9,7 @@ import { cn } from '@/components/trae/utils'
 import { useRailOverflow } from '@/hooks/useRailOverflow'
 import { Button, Chip, Divider, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/ui'
 import { useAgentStore } from '@/stores/agent-store'
+import { resolveContextUsage } from './context-usage'
 // v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
 import { useEditorStore } from '@/stores/editor-store'
 import { useAIStore } from '@/stores/ai-store'
@@ -18,7 +19,7 @@ import { QUICK_PROMPT_TEMPLATES } from './mock-data'
 import { useLoopEngineering } from './useLoopEngineering'
 import type { UsePaorLoopResult } from './usePaorLoop'
 import ContextBadge from './ContextBadge'
-import type { PersistedProviderConfig, TokenStats } from '@shared/agent-types'
+import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ImageUploadResult } from '@/types/electron'
 
 /**
@@ -48,7 +49,6 @@ export interface ComposerProps {
   providers: PersistedProviderConfig[]
   selectedProviderId: string | null
   setSelectedProviderId: (id: string) => void
-  tokenStats: TokenStats
   send: (text: string) => Promise<void>
   cancel: () => Promise<void>
   /** 压缩上下文回调（T.7） */
@@ -65,7 +65,6 @@ const Composer: FC<ComposerProps> = ({
   providers,
   selectedProviderId,
   setSelectedProviderId,
-  tokenStats,
   send,
   cancel,
   onCompressContext,
@@ -97,10 +96,23 @@ const Composer: FC<ComposerProps> = ({
       ? '未配置模型'
       : '选择模型'
 
-  /** 上下文窗口用量（从今日 token 估算，模型窗口按 200K 计） */
-  const ctxUsedPct = Math.min(100, Math.round((tokenStats.today / 200_000) * 100))
-  const ctxUsedTokens = tokenStats.today >= 1000 ? `${(tokenStats.today / 1000).toFixed(1)}K` : String(tokenStats.today)
-  const ctxTotalTokens = '200K'
+  /**
+   * 上下文用量（#89）：分子是上一轮请求真实占用的 prompt tokens，
+   * 分母是选中模型声明的窗口（provider:list 把 capabilities 带出来）。
+   * 旧实现拿"今日累计 token"除以写死的 200K —— 累计量跨天只涨不回落，窗口也不随模型变，
+   * 那个百分比跟"当前对话还能装多少"没关系，却正在被当成压缩时机的依据。
+   */
+  const lastPromptTokens = useAgentStore((s) => {
+    for (let i = s.messages.length - 1; i >= 0; i--) {
+      const m = s.messages[i]
+      if (m.role === 'assistant' && m.usage) return m.usage.inputTokens
+    }
+    return 0
+  })
+  const contextUsage = resolveContextUsage({
+    usedTokens: lastPromptTokens,
+    windowTokens: selectedProvider?.capabilities?.contextWindow ?? 0,
+  })
 
   /**
    * textarea auto-resize
@@ -455,9 +467,9 @@ const Composer: FC<ComposerProps> = ({
             <Divider vertical />
 
             <ContextBadge
-              ctxUsedPct={ctxUsedPct}
-              ctxUsedTokens={ctxUsedTokens}
-              ctxTotalTokens={ctxTotalTokens}
+              ctxUsedPct={contextUsage.pct}
+              ctxUsedTokens={contextUsage.usedLabel}
+              ctxTotalTokens={contextUsage.totalLabel}
               onCompress={onCompressContext}
             />
 

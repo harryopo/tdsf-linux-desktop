@@ -20,7 +20,7 @@ import { ConfigStore } from '../../../services/storage/config-store'
 import { SecureStore } from '../../../services/storage/secure-store'
 import { logger } from '../../../services/log/logger'
 import { PROVIDER_TEMPLATES } from './provider-templates'
-import { PROVIDER_CAPABILITIES } from './provider-capabilities'
+import { PROVIDER_CAPABILITIES, getProviderCapabilities } from './provider-capabilities'
 import type { ProviderConfig, PersistedProviderConfig, ModelRole } from './types'
 import { DEFAULT_PROVIDER_ID } from './types'
 
@@ -189,8 +189,14 @@ export function listProviders(onlyEnabled = false): PersistedProviderConfigWithK
     return listProviders(onlyEnabled)
   }
   const baseList = onlyEnabled ? providers.filter((p) => p.enabled !== false) : providers
-  // 附加 hasApiKey 标识
-  return baseList.map((p) => ({ ...p, hasApiKey: hasProviderApiKey(p.id) }))
+  // 附加 hasApiKey 标识 + 解析后的能力声明
+  // #89：capabilities 在这里按单源表补全带出去，渲染层的上下文徽章才有真实窗口分母，
+  // 不必把 PROVIDER_CAPABILITIES 手抄一份到渲染层（手抄迟早和默认表分叉）。
+  return baseList.map((p) => ({
+    ...p,
+    hasApiKey: hasProviderApiKey(p.id),
+    capabilities: getProviderCapabilities(p),
+  }))
 }
 
 /**

@@ -26,7 +26,7 @@
  * 数据：
  * - 实时：useAgentChat / useAgentStore
  * - 可选示例：mock-data.ts MOCK_CHAT_MESSAGES（showDemo）
- * - chips：快捷运维提示词；token 预算条接 tokenStats
+ * - chips：快捷运维提示词；上下文徽章按选中模型的真实窗口算（#89）
  */
 import { useState, useRef, useEffect, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -73,7 +73,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     providers,
     selectedProviderId,
     setSelectedProviderId,
-    tokenStats,
     send,
     cancel,
     clear,
@@ -421,7 +420,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         providers={providers}
         selectedProviderId={selectedProviderId}
         setSelectedProviderId={setSelectedProviderId}
-        tokenStats={tokenStats}
         send={send}
         cancel={cancel}
         onCompressContext={compressContext}
