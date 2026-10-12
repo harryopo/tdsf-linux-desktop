@@ -21,6 +21,7 @@ const RULES_PATH = path.resolve(__dirname, '../../src/main/core/command-rules.js
 const rules = JSON.parse(fs.readFileSync(RULES_PATH, 'utf8')) as {
   version: number
   readonlyCommands: string[]
+  readonlyExtraCommands: string[]
   powerCommands?: string[]
   shellLaunchers?: string[]
   argvRules: Array<{
@@ -136,9 +137,27 @@ describe('数据规则真的作用到判定上', () => {
  */
 const EXPECTED_READONLY = [
   'cat', 'less', 'more', 'head', 'tail', 'grep', 'egrep', 'fgrep', 'find', 'fd', 'ls', 'll',
-  'ps', 'top', 'htop', 'free', 'df', 'du', 'uptime', 'whoami', 'id', 'hostname', 'uname',
+  'ps', 'top', 'free', 'df', 'du', 'uptime', 'whoami', 'id', 'hostname', 'uname',
   'which', 'whereis', 'stat', 'file', 'wc', 'sort', 'uniq', 'date', 'env', 'printenv',
   'ip', 'ifconfig', 'ss', 'netstat', 'lsof', 'journalctl',
+  // htop 2026-10-12 移出：它是全屏交互程序，非 tty 下不返回可读结果（会把 AI 的采集挂住）
+]
+
+/**
+ * 只读工具的扩展名单（2026-10-12 加）同样冻结。
+ *
+ * 这张表不进 readonlyCommands 是因为后者同时被 argvRules 用来判 low，动它就动了通用闸；
+ * 但它一样决定 AI 的 ssh_readonly 能跑什么，所以也必须改这里才算数 ——
+ * 每条都靠 readonlyGuards 的子命令/旗标护栏收紧，不是靠命令名。
+ */
+const EXPECTED_READONLY_EXTRA = [
+  'systemctl', 'nginx', 'visudo', 'docker', 'podman', 'kubectl', 'git',
+  'apt', 'apt-get', 'dpkg', 'yum', 'pip', 'pip3', 'npm', 'pnpm', 'yarn',
+  'lsblk', 'lscpu', 'lsmem', 'lsmod', 'lspci', 'lsusb', 'dmesg', 'sysctl',
+  'vmstat', 'iostat', 'mpstat', 'nvidia-smi', 'fdisk', 'blkid',
+  'ping', 'ping6', 'traceroute', 'tracepath', 'dig', 'nslookup', 'host', 'curl',
+  'cut', 'tr', 'diff', 'cmp', 'pwd', 'realpath', 'readlink', 'basename', 'dirname',
+  'openssl',
 ]
 
 describe('只读名单不许被悄悄扩（同一类独立证人）', () => {
@@ -146,6 +165,17 @@ describe('只读名单不许被悄悄扩（同一类独立证人）', () => {
     expect([...rules.readonlyCommands].sort(), '只读名单被改动过，请人审后再更新期望').toEqual(
       [...EXPECTED_READONLY].sort()
     )
+  })
+
+  it('readonlyExtraCommands 与冻结名单完全一致', () => {
+    expect([...rules.readonlyExtraCommands].sort(), '只读扩展名单被改动过，请人审后再更新期望').toEqual(
+      [...EXPECTED_READONLY_EXTRA].sort()
+    )
+  })
+
+  it('两张只读名单不许重叠（重叠等于同一个名字被两处各管一次）', () => {
+    const both = rules.readonlyCommands.filter((c) => rules.readonlyExtraCommands.includes(c))
+    expect(both, `两处都列了：${both.join(',')}`).toEqual([])
   })
 
   it('只读名单与风险规则覆盖的命令互不相交', () => {

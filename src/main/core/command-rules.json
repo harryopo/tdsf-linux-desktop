@@ -13,9 +13,92 @@
 
   "readonlyCommands": [
     "cat", "less", "more", "head", "tail", "grep", "egrep", "fgrep", "find", "fd",
-    "ls", "ll", "ps", "top", "htop", "free", "df", "du", "uptime", "whoami", "id",
+    "ls", "ll", "ps", "top", "free", "df", "du", "uptime", "whoami", "id",
     "hostname", "uname", "which", "whereis", "stat", "file", "wc", "sort", "uniq",
     "date", "env", "printenv", "ip", "ifconfig", "ss", "netstat", "lsof", "journalctl"
+  ],
+
+  "_readonlyExtraCommands_comment": [
+    "AI 只读工具（ssh_readonly）额外允许的诊断命令。刻意不并进 readonlyCommands：",
+    "那份名单同时被 argvRules 用来把命令判成 low，动它就动了通用风险闸的口径。",
+    "这一份只进只读判定，而且必须配 readonlyGuards 的护栏一起用 ——",
+    "systemctl stop、docker rm、git checkout 这类同名不同事的写法靠护栏拦，不靠命令名。",
+    "htop 已从 readonlyCommands 移出：它是全屏交互程序，非 tty 下给不出可读结果。"
+  ],
+  "readonlyExtraCommands": [
+    "systemctl", "nginx", "visudo", "docker", "podman", "kubectl", "git",
+    "apt", "apt-get", "dpkg", "yum", "pip", "pip3", "npm", "pnpm", "yarn",
+    "lsblk", "lscpu", "lsmem", "lsmod", "lspci", "lsusb", "dmesg", "sysctl",
+    "vmstat", "iostat", "mpstat", "nvidia-smi", "fdisk", "blkid",
+    "ping", "ping6", "traceroute", "tracepath", "dig", "nslookup", "host", "curl",
+    "cut", "tr", "diff", "cmp", "pwd", "realpath", "readlink", "basename", "dirname",
+    "openssl"
+  ],
+
+  "_readonlyGuards_comment": [
+    "只读判定的护栏。旗标匹配：长旗标按 = 前的名字比，并认 --前缀-后缀（--vacuum 命中 --vacuum-size）；",
+    "短旗标按整串或簇内字母比（-bn1 视为含 -b）。",
+    "subcommands = 第一个非旗标参数必须在表里；requireFlags = 至少命中其中一个；",
+    "noPositional = 不许有非旗标参数；positionalPrefix = 位置参数只能以该前缀开头；",
+    "verbPositionals = 这条命令的位置参数是动词，逐个查 readonlyDenyVerbs；",
+    "denyAssign = 位置参数里不许有 var=value 赋值形式。"
+  ],
+  "readonlyGuards": {
+    "subcommands": {
+      "systemctl": ["status", "is-active", "is-enabled", "is-failed", "show", "cat", "get-default", "is-system-running", "list-units", "list-unit-files", "list-dependencies", "list-timers", "list-sockets", "list-jobs"],
+      "docker": ["ps", "images", "inspect", "logs", "port", "top", "version", "info", "history"],
+      "podman": ["ps", "images", "inspect", "logs", "version", "info"],
+      "kubectl": ["get", "describe", "logs", "explain", "version", "top", "diff"],
+      "git": ["status", "log", "diff", "show", "blame", "ls-files", "ls-remote", "rev-parse", "rev-list", "reflog", "shortlog"],
+      "apt": ["list", "policy", "show", "search", "depends", "rdepends"],
+      "apt-get": ["list", "policy", "show", "search", "depends"],
+      "yum": ["list", "info", "search", "repolist", "repoinfo"],
+      "pip": ["list", "show", "freeze", "check"],
+      "pip3": ["list", "show", "freeze", "check"],
+      "npm": ["ls", "outdated", "view", "ping", "whoami"],
+      "pnpm": ["ls", "outdated", "view"],
+      "yarn": ["list", "info", "why"],
+      "openssl": ["x509", "dgst", "md5", "sha1", "sha256", "sha512", "rand", "version", "ciphers", "errs"]
+    },
+    "denyFlags": {
+      "find": ["-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprintf", "-fls", "-files0-from"],
+      "sort": ["-o"],
+      "curl": ["-o", "-O", "-T", "-d", "-F", "--output", "--remote-name", "--upload-file", "--data", "--form", "--config"],
+      "journalctl": ["--rotate", "--flush", "--sync", "--seal", "--vacuum", "--relinquish-var", "--setup-keys"],
+      "date": ["-s", "--set", "-f", "--file"],
+      "dmesg": ["-C", "--clear", "-W", "--write-clear", "-w", "--follow"],
+      "sysctl": ["-w", "--write"],
+      "nginx": ["-s"],
+      "docker": ["-H", "--host"],
+      "systemctl": ["-H", "--host", "--image", "--root", "--machine"]
+    },
+    "requireFlags": {
+      "top": ["-b"],
+      "fdisk": ["-l"],
+      "dpkg": ["-l", "-L", "--list", "--status", "--contents"],
+      "ping": ["-c"],
+      "ping6": ["-c"],
+      "nginx": ["-t"],
+      "visudo": ["-c"]
+    },
+    "noPositional": ["hostname", "whoami", "pwd", "lscpu", "lsmem", "nvidia-smi", "uptime"],
+    "positionalPrefix": { "date": "+" },
+    "verbPositionals": ["ip"],
+    "denyAssign": ["date", "sysctl"]
+  },
+
+  "_readonlyDenyVerbs_comment": [
+    "非旗标参数里出现这些词就当写入/变更意图拦掉（整词匹配，不看子串）。",
+    "只读判定逐段判：管道里任何一段命中即整条不是只读。"
+  ],
+  "readonlyDenyVerbs": [
+    "add", "append", "apply", "attach", "build", "change", "checkout", "commit", "copy",
+    "cp", "create", "delete", "deploy", "destroy", "detach", "drop", "export", "flush",
+    "format", "halt", "import", "init", "install", "kill", "load", "login", "logout",
+    "mkdir", "mkfs", "mount", "mv", "patch", "pause", "prune", "publish", "pull", "push",
+    "reboot", "remove", "rename", "replace", "restart", "restore", "rm", "rmdir", "run",
+    "save", "scale", "set", "shutdown", "start", "stop", "swapoff", "uninstall", "unlink",
+    "unmask", "unpack", "unpause", "upgrade", "up", "write", "down"
   ],
 
   "prefixSkips": {

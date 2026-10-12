@@ -552,12 +552,18 @@ class SupervisorAgent {
           ? {
               ssh_readonly: tool({
                 description:
-                  '在已连接的 Linux 主机上执行【只读】诊断命令（如 df/free/ps/journalctl/nginx -t）。禁止写操作。',
+                  '在已连接的 Linux 主机上执行【只读】诊断命令。可以用管道和 2>/dev/null' +
+                  '（如 `ps aux | head -20`、`ls -la /etc 2>/dev/null`）。' +
+                  '不许任何写操作：改文件、装包、启停服务、改配置一律不要写在这里。',
                 inputSchema: z.object({
                   command: z
                     .string()
                     .min(1)
-                    .describe('只读 shell 命令，例如: df -h; free -m; systemctl status nginx --no-pager'),
+                    .describe(
+                      '只读 shell 命令，例如: df -h、free -m、systemctl status nginx --no-pager、' +
+                        'journalctl -u sshd -n 50 --no-pager、top -bn1 | head -20。' +
+                        '注意：top 要带 -b、ping 要带 -c、fdisk 只能 -l、nginx 只能 -t，否则会挂住或改状态。',
+                    ),
                 }),
                 execute: async (
                   { command }: { command: string },
