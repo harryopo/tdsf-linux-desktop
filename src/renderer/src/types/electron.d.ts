@@ -9,144 +9,55 @@
 import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-contract'
 import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
 import type {
-  SshConfig,
-  ServerListItem,
-  CommandResult,
-  SystemInfo,
-  MonitorData,
-  ChatMessage,
   LlmConfig,
-  LlmValidationResult,
   LlmTestResult,
-  EnvironmentContext,
-  LlmStreamChunk,
-  LlmError,
   Evidence,
   KnowledgeEntry,
   KnowledgeType,
   DecisionCard,
-  HistorySaveIntent,
   KbViewHistoryEntry,
   HistoryStats,
   TutorialStats,
-  // v2.3.2 新增：模型统计 + 预算告警类型
   ToolCallStat,
   BudgetAlert,
-  // v2.3.2 新增：教程学习进度类型（跨设备同步）
   TutorialProgress,
-  AgentWorkflowState,
-  ProfilerRunResponse,
-  // v0.9.5 P0 新增：MCP 5 阶段状态机
-  McpStateContext,
-  // v0.9.6 新增：外部 MCP Server 状态
-  ExternalMcpServerStatus,
-  // K.2 心跳保活状态变更事件载荷
-  SshStateEvent,
-  // Phase L 主机密钥校验弹窗事件载荷
-  SshHostKeyPromptEvent,
-  SshHostKeyResponseAction,
-  // Phase M SSH 密钥管理共享类型
-  SshKeyPair,
-  GenerateKeyPairRequest,
-  GenerateKeyPairResponse,
-  // SFTP 进度推送事件载荷（onSftpProgress 回调参数）
-  SftpProgressEvent,
 } from '@shared/models'
 
 // 拦截规则只读快照（risk:rules）——与主进程 COMMAND_RULES_SNAPSHOT 同形，
 // 类型定义只有一份，在 src/shared/ipc-channels.ts
-import type { RiskRulesSnapshot } from '@shared/ipc-channels'
+
 
 // 部署助手类型（来自共享层 @shared/deploy-types）
-import type {
-  DeployTemplate as DeployTemplateModel,
-  DeployPlan as DeployPlanModel,
-  DeployResult as DeployResultModel,
-  DeployStepResult as DeployStepResultModel,
-  DeployLogEvent as DeployLogEventModel,
-} from '@shared/deploy-types'
+
 
 // LLM Tool Calling 类型（v0.5.0）
-import type {
-  ToolCallProgress,
-  ToolApprovalRequest,
-  ToolApprovalResponse,
-} from '@shared/llm-tool-types'
+
 
 // 教程爬虫类型（v0.6.0）
-import type {
-  TutorialSourceSpec,
-  CrawlProgress,
-  CrawlResult,
-  CrawlStatus
-} from '@shared/crawler-types'
+
 
 // P0-3：PAOR 自动循环共享类型（agent:paor + agent:paor:iteration + paor:approve）
-import type { PaorIterationEvent } from '@shared/paor-types'
+
 
 // v0.9 Agent Runtime 共享类型（Provider 抽象 + Token 统计 + Supervisor chat 载荷）
-import type {
-  TokenStats,
-  TokenUsageRecord,
-  AgentChunkPayload,
-  AgentDonePayload,
-  AgentErrorPayload,
-  AgentToolEventPayload,
-} from '@shared/agent-types'
+
 
 // v0.9 Claude Agent SDK 共享类型（claude-sdk:generate / stream / cancel + ChatResult）
-import type {
-  ChatResult,
-  ClaudeSdkChatParams,
-} from '@shared/agent-types'
+
 
 // v0.9.4 IPC 协议优化（sessionId + abort signal + protocolVersion + ping/pong）
-import type {
-  SystemPingResponse,
-} from '@shared/agent-types'
+
 
 // v0.9 @命令共享类型（8 类 @命令：log/cmd/file/metric/decision/kb/skill/server）
-import type {
-  AtCommand,
-  AtCommandParseResult,
-  AtCommandSource,
-  AtCommandType,
-} from '@shared/at-command-types'
+import type { AtCommandType } from '@shared/at-command-types'
 
 // A4 新增：数据库状态（db:status，SQLite 降级可见化）
-import type { DbStatus } from '@shared/db-types'
+
 
 // v0.9 可信度算法共享类型（D-S + PCR5 + 6 源证据 + DAG 可视化）
-import type {
-  CredibilityEvidenceInput,
-  ConfidenceAssessment,
-  DagData,
-} from '@shared/agent-types'
+import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 
 // v0.9.5 P0 新增：5 组缺失 IPC 通道共享类型（成本透明 / 模式切换 / 注意力 / Subagent / Provider 信息）
-import type {
-  CostStats,
-  ModeListResponse,
-  ModeSetDefaultRequest,
-  ModeSetDefaultResponse,
-  ModeCurrentResponse,
-  AttentionFocus,
-  CustomAgentConfig,
-  SubagentReloadRequest,
-  SubagentReloadResponse,
-  ProviderCapabilitiesRequest,
-  ProviderCapabilitiesResponse,
-  ProviderCapabilitiesAllResponse,
-  ProviderPricingRequest,
-  ProviderPricingResponse,
-  ProviderPricingAllResponse,
-  // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控共享类型
-  CommandExpectation,
-  ExpectationCheckResult,
-  ExpectationViolation,
-  // v0.9.7 P3 M1 新增：终端智能补全建议项
-  TerminalCompletionSuggestion,
-} from '@shared/agent-types'
 
 // ============================================================================
 // v0.9 OpenHands 沙箱集成类型声明（独立于 ElectronAPI interface）
