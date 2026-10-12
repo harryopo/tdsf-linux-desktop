@@ -10,7 +10,7 @@ import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, 
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
-import { createListener, invokeChecked } from './ipc-util'
+import { createListener, invokeChecked, installIpcErrorUnwrap } from './ipc-util'
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
@@ -19,6 +19,10 @@ import { atCommands, localTty, sandbox, terminalCompletion } from './domains/ter
 import { claudeSdk, llm, llmInline, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
 import { on } from './domains/events'
+
+// P1-2：解包必须装在第一次 invoke 之前。放在 import 之后的第一条语句 —— 上面那些
+// import 只定义闭包、不发 IPC，所以这里装完再没有任何调用点能绕过它。
+installIpcErrorUnwrap()
 
 // ============================================================================
 // 暴露到渲染进程（扁平化 API，与渲染进程调用方式一致）

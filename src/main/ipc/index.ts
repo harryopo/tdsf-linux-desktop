@@ -13,7 +13,8 @@
  *   渲染进程可定期调用 systemPing() 检测主进程是否响应
  */
 
-import { ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain, BrowserWindow } from 'electron'
+import { installIpcErrorBoundary } from './error-boundary'
 import * as CHANNELS from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
@@ -129,6 +130,10 @@ let ipcDisposers: Array<() => void> = []
  * @param db 数据库管理器（教程 IPC 依赖）
  */
 export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseManager): void {
+  // P1-2：错误边界必须早于任何 handler 注册，否则先注册的那批不受覆盖。
+  // 详情只在未打包态外送 —— 装好的包不给渲染层看内部原文。
+  installIpcErrorBoundary({ exposeDetail: !app.isPackaged })
+
   // 幂等前置：重复 ipcMain.handle 同一通道会抛错（macOS dock 恢复路径会二次调用本函数）。
   // 先按共享通道表摘掉旧 handler，再照常注册——保留"新窗口拿到新引用"的原有语义。
   for (const group of Object.values(CHANNELS)) {
