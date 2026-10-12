@@ -460,8 +460,33 @@ function normTarget(raw: string): string {
   return s
 }
 
+/**
+ * 「丢弃 / 回显」目的地：写这些地方等于没写进任何持久数据。
+ *
+ * `2>/dev/null` 是查错时的标准写法（本仓 196 处），旧实现按 `/dev/` 前缀一刀切，
+ * 于是 `ls -la 2>/dev/null` 这种最日常的命令也被判成"覆写块设备"——用户反馈的
+ * "很多命令不让运行"就是这里。
+ *
+ * 只按**精确名**放行（外加 `/dev/fd/<数字>`），绝不前缀匹配：
+ * `/dev/nulls`、`/dev/null/../sda` 落不进集合，仍由设备检测拦住。
+ * /dev/stdout、/dev/stderr、/dev/fd/N、/dev/tty 都是本进程自己的描述符，
+ * 写它们等价于打印到屏幕上。
+ */
+const DISCARD_TARGETS = new Set(['/dev/null', '/dev/stdin', '/dev/stdout', '/dev/stderr', '/dev/tty'])
+
+/** 传入**已归一化**的路径 */
+function isDiscardPath(n: string): boolean {
+  return DISCARD_TARGETS.has(n) || /^\/dev\/fd\/\d+$/.test(n)
+}
+
+/** 传入**已归一化**的路径：是否覆写真设备（丢弃位不算） */
+function isDeviceWritePath(n: string): boolean {
+  return n.startsWith('/dev/') && !isDiscardPath(n)
+}
+
 function isProtectedWriteTarget(raw: string): boolean {
   const t = normTarget(raw)
+  if (isDiscardPath(t)) return false
   if (t === '/' || t === '/*') return true
   return PROTECTED_WRITE_PREFIXES.some((p) => t === p || t.startsWith(`${p}/`) || t === `${p}/*`)
 }
@@ -513,13 +538,10 @@ function checkRm(toks: Token[], argv0: string): string | null {
 function checkDeviceDestruction(toks: Token[], argv0: string, seg: Segment): string | null {
   if (argv0 === 'mkfs' || /^mkfs\./.test(argv0) || argv0 === 'mkswap') return '格式化磁盘/分区'
   const values = toks.map((t) => t.value)
-  if (argv0 === 'dd' && values.some((t) => /^of=\/dev\//.test(normTarget(t.replace(/^of=/, '')) ? t : t))) {
+  if (argv0 === 'dd' && values.some((t) => /^of=/.test(t) && isDeviceWritePath(normTarget(t.slice(3))))) {
     return 'dd 写入块设备'
   }
-  if (argv0 === 'dd' && values.some((t) => /^of=/.test(t) && normTarget(t.slice(3)).startsWith('/dev/'))) {
-    return 'dd 写入块设备'
-  }
-  if (seg.writes.some((w) => normTarget(w).startsWith('/dev/'))) return '重定向覆写块设备'
+  if (seg.writes.some((w) => isDeviceWritePath(normTarget(w)))) return '重定向覆写块设备'
   return null
 }
 
