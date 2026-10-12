@@ -31,8 +31,6 @@ import type {
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
-  AgentMode,
-  ModeInfo,
 } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
 import { acceptsStream, lastIndexWhere, ownsStream, replaceAt } from '@/lib/messageSync'
@@ -216,10 +214,6 @@ interface AgentState {
   sessionCostBaseline: number | null
   /** 最近一次错误（来自 AgentErrorPayload） */
   lastError: string | null
-  /** 当前 Agent 模式（v0.9.5 P0：Mode 五模式切换，默认 'chat'） */
-  currentMode: AgentMode
-  /** 所有可用 mode 配置（v0.9.5 P0：从 IPC mode:list 加载，不含 systemPrompt） */
-  modeList: ModeInfo[]
 
   // ===== Actions =====
   /** 添加消息 */
@@ -284,10 +278,6 @@ interface AgentState {
    * 让"本次会话"从 0 重新累计。
    */
   resetSessionCostBaseline: () => void
-  /** 设置当前 Agent mode（v0.9.5 P0） */
-  setCurrentMode: (mode: AgentMode) => void
-  /** 设置 mode 列表（v0.9.5 P0） */
-  setModeList: (list: ModeInfo[]) => void
   /** 重置整个 Agent 状态 */
   resetAgentState: () => void
 }
@@ -307,8 +297,6 @@ export const useAgentStore = create<AgentState>()((set) => ({
   costStats: DEFAULT_COST_STATS,
   sessionCostBaseline: null,
   lastError: null,
-  currentMode: 'chat',
-  modeList: [],
 
   // ===== Actions =====
 
@@ -580,11 +568,6 @@ export const useAgentStore = create<AgentState>()((set) => ({
     })),
 
   // 设置当前 Agent mode（v0.9.5 P0）
-  setCurrentMode: (mode) => set({ currentMode: mode }),
-
-  // 设置 mode 列表（v0.9.5 P0）
-  setModeList: (list) => set({ modeList: list }),
-
   // 重置整个 Agent 状态
   resetAgentState: () =>
     set({
@@ -592,7 +575,6 @@ export const useAgentStore = create<AgentState>()((set) => ({
       isStreaming: false,
       currentCorrelationId: null,
       lastError: null,
-      // currentMode 不重置（用户的 mode 偏好跨会话保持）
-      // thinkingStrength / selectedProviderId / providers / tokenStats / modeList 不重置
+      // thinkingStrength / selectedProviderId / providers / tokenStats 不重置
     }),
 }))
