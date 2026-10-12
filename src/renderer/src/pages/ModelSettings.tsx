@@ -28,6 +28,10 @@ import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
 import { ModelConfigSection } from '@/components/settings/model/ModelConfigSection'
+import {
+  validateContextWindow,
+  withContextWindow,
+} from '@/components/settings/model/provider-capability-override'
 import { ApiTestSection } from '@/components/settings/model/ApiTestSection'
 import { TokenStatsSection } from '@/components/settings/model/TokenStatsSection'
 import { ToolCallSection } from '@/components/settings/model/ToolCallSection'
@@ -75,6 +79,10 @@ export function ModelSettings() {
   const setThinkingLevel = useAgentStore((s) => s.setThinkingStrength)
   const [maxToken, setMaxToken] = useState(llmConfig.maxTokens ?? 4096)
   const [requestTimeout, setRequestTimeout] = useState((llmConfig.timeout ?? 30000) / 1000)
+  // #91：上下文窗口（token）。0 = 该模型没声明窗口，面板按"未知"处理。
+  // 初值来自 provider:list 带出的真实能力声明，不在这里另抄一份能力表。
+  const [contextWindow, setContextWindow] = useState(0)
+  const ctxWindowSeeded = useRef(false)
 
   // Section 3: API 接入
   const [endpoint, setEndpoint] = useState(llmConfig.baseUrl || 'https://api.deepseek.com/v1')
@@ -263,6 +271,14 @@ export function ModelSettings() {
   // P0 修复：把当前表单配置同步到“当前默认 Provider”（而非盲写 providers[0]）。
   // 仅当默认 Provider 不存在（存储异常）时才回退到 providers[0] 并补设默认，
   // 不再无条件 providerSetDefault 覆盖用户在 AIPanel 的选择。
+  // providers 到位后灌一次生效窗口；只灌第一次，免得覆盖用户正在输入的值
+  useEffect(() => {
+    if (ctxWindowSeeded.current || providers.length === 0) return
+    const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
+    setContextWindow(target.capabilities?.contextWindow ?? 0)
+    ctxWindowSeeded.current = true
+  }, [providers, defaultProviderId])
+
   const syncToDefaultProvider = async (): Promise<void> => {
     if (!isElectronAPIAvailable() || providers.length === 0) return
     const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
@@ -276,6 +292,8 @@ export function ModelSettings() {
         temperature,
         maxTokens: maxToken,
       },
+      // 用户填了才覆盖；填 0（未知）时原样带回，交给主进程按类型默认表解析
+      capabilities: withContextWindow(target, contextWindow),
     })
     // 仅在默认 Provider 失效回退时才补设默认，保持存储一致性
     if (target.id !== defaultProviderId) {
@@ -409,6 +427,15 @@ export function ModelSettings() {
 
   // 保存所有配置
   const handleSaveAll = async () => {
+    // #91：窗口只接受"0（未知）"或不小于 1024 的整数；
+    // 0~1023 之间的值会让徽章分母失真（比一轮真实请求还小），宁可直接拒绝也不静默收下。
+    const ctxWindowError = validateContextWindow(contextWindow)
+    if (ctxWindowError) {
+      setSaveFeedback(ctxWindowError)
+      if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
+      saveFeedbackTimerRef.current = setTimeout(() => setSaveFeedback(null), 3000)
+      return
+    }
     try {
       // 先更新本地 store
       setLlmConfig({
@@ -547,6 +574,8 @@ export function ModelSettings() {
           onMaxTokenChange={setMaxToken}
           requestTimeout={requestTimeout}
           onRequestTimeoutChange={setRequestTimeout}
+          contextWindow={contextWindow}
+          onContextWindowChange={setContextWindow}
         />
 
         {/* Section 3: API 接入与测试 */}

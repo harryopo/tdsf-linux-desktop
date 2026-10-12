@@ -5,8 +5,8 @@
  * 不再自带 set-model-* 那套私有样式。
  *
  * 两处修正：
- * - 上下文窗口原来是本页可编辑、但全仓零消费者的假设置。真实值由主进程按
- *   Provider 能力表（provider-capabilities.ts）给出，所以这里删掉输入框。
+ * - 上下文窗口：v2.11 因为"全仓零消费者"删过输入框；#89 建好消费链路（AI 面板徽章按
+ *   Provider 能力表算分母）后 #91 放回来，改它确实会改变面板上那个百分比。
  * - 思考强度以前给的是"低/中/高"三档，运行时用的是 auto/fast/standard/deep，
  *   用户选的"中"对应不到任何真实档位；现在直接用运行时那四档的词。
  */
@@ -36,6 +36,13 @@ export interface ModelConfigSectionProps {
   /** 请求超时（秒） */
   requestTimeout: number
   onRequestTimeoutChange: (value: number) => void
+  /**
+   * 上下文窗口（token）：0 表示该模型没声明窗口。
+   * #91 放回来的前提——它现在有真实消费者（AI 面板的上下文徽章按这个数算分母），
+   * 不再是一改就丢进黑洞的假设置。
+   */
+  contextWindow: number
+  onContextWindowChange: (value: number) => void
 }
 
 export function ModelConfigSection(props: ModelConfigSectionProps) {
@@ -50,6 +57,8 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
     onMaxTokenChange,
     requestTimeout,
     onRequestTimeoutChange,
+    contextWindow,
+    onContextWindowChange,
   } = props
 
   const [draft, setDraft] = useState('')
@@ -167,7 +176,6 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
       <SettingsRow
         label="请求超时"
         desc="超过这个秒数就判定本次调用失败"
-        isLast
         control={
           <div className="flex items-center gap-2">
             <TextInput
@@ -180,6 +188,31 @@ export function ModelConfigSection(props: ModelConfigSectionProps) {
               onChange={(e) => onRequestTimeoutChange(Number(e.target.value))}
             />
             <span className="text-caption text-ink-mute">秒</span>
+          </div>
+        }
+      />
+
+      <SettingsRow
+        label="上下文窗口"
+        desc={
+          contextWindow > 0
+            ? '工作台 AI 面板那个百分比就按这个数算。填了等于把这个值固定住：以后内置能力表更新，这条也不会跟着变'
+            : '这个模型没声明窗口，所以面板里显示"未知"、也不算百分比。自部署端点或代理可以在这里填真实值'
+        }
+        isLast
+        control={
+          <div className="flex items-center gap-2">
+            <TextInput
+              aria-label="上下文窗口 token 数"
+              type="number"
+              min={1024}
+              step={1024}
+              value={contextWindow > 0 ? contextWindow : ''}
+              placeholder="未知"
+              className="w-[140px] text-right font-mono tabular-nums"
+              onChange={(e) => onContextWindowChange(Number(e.target.value))}
+            />
+            <span className="text-caption text-ink-mute">tokens</span>
           </div>
         }
       />
