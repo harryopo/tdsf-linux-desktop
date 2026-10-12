@@ -1,12 +1,14 @@
 /**
  * deepseek-reasoning-transform 单测（v2.11 修复"深度思考看不到"）
  *
- * 锁死 reasoning_content → <think>…</think> 包裹逻辑：
- * @ai-sdk/openai 不读 reasoning_content, 故 fetch 层先包 <think>, 中间件再提取回 reasoning。
- * 若本转换回归, 所有 deep 对话的思考展示都会失效。
+ * 锁死 reasoning_content → <REASONING_TAG>…</REASONING_TAG> 包裹逻辑：
+ * @ai-sdk/openai 不读 reasoning_content, 故 fetch 层先包罕见标签, 中间件再提取回 reasoning。
+ * 标签名从实现里 import 常量用，不在此重抄一份（#90：改名要一处改完）。
+ * 若本转换回归, 所有开了思考的对话展示都会失效。
  */
 import { describe, it, expect } from 'vitest'
 import {
+  REASONING_TAG,
   createReasoningTagState,
   rewriteReasoningChunk,
   rewriteSseLine,
@@ -18,34 +20,34 @@ function chunk(delta: Record<string, unknown>) {
 }
 
 describe('rewriteReasoningChunk', () => {
-  it('首个 reasoning_content 增量前置 <think> 并移入 content', () => {
+  it('首个 reasoning_content 增量前置推理标签并移入 content', () => {
     const s = createReasoningTagState()
     const r = rewriteReasoningChunk(chunk({ reasoning_content: '先看内存' }), s) as ReturnType<typeof chunk>
-    expect(r.choices[0].delta).toEqual({ content: '<think>先看内存' })
+    expect(r.choices[0].delta).toEqual({ content: `<${REASONING_TAG}>先看内存` })
     expect(s.open).toBe(true)
   })
 
-  it('后续 reasoning 增量不再加 <think>', () => {
+  it('后续 reasoning 增量不再加开标签', () => {
     const s = createReasoningTagState()
     rewriteReasoningChunk(chunk({ reasoning_content: 'A' }), s)
     const r = rewriteReasoningChunk(chunk({ reasoning_content: 'B' }), s) as ReturnType<typeof chunk>
     expect(r.choices[0].delta).toEqual({ content: 'B' })
   })
 
-  it('推理结束后首个正文 content 前置 </think> 闭合', () => {
+  it('推理结束后首个正文 content 前置闭标签', () => {
     const s = createReasoningTagState()
     rewriteReasoningChunk(chunk({ reasoning_content: '思考' }), s)
     const r = rewriteReasoningChunk(chunk({ content: '答案' }), s) as ReturnType<typeof chunk>
-    expect(r.choices[0].delta.content).toBe('</think>答案')
+    expect(r.choices[0].delta.content).toBe(`</${REASONING_TAG}>答案`)
     expect(s.closed).toBe(true)
     expect(s.open).toBe(false)
   })
 
-  it('结束帧（空 delta）也闭合未关的 <think>', () => {
+  it('结束帧（空 delta）也闭合未关的标签', () => {
     const s = createReasoningTagState()
     rewriteReasoningChunk(chunk({ reasoning_content: '仅思考无正文' }), s)
     const r = rewriteReasoningChunk(chunk({}), s) as ReturnType<typeof chunk>
-    expect(r.choices[0].delta.content).toBe('</think>')
+    expect(r.choices[0].delta.content).toBe(`</${REASONING_TAG}>`)
     expect(s.closed).toBe(true)
   })
 
@@ -73,10 +75,10 @@ describe('rewriteReasoningChunk', () => {
 })
 
 describe('rewriteSseLine', () => {
-  it('data 行的 reasoning_content 被改写为 <think> content', () => {
+  it('data 行的 reasoning_content 被改写进 content 并带标签', () => {
     const s = createReasoningTagState()
     const out = rewriteSseLine('data: {"choices":[{"delta":{"reasoning_content":"想一下"}}]}', s)
-    expect(out).toContain('<think>想一下')
+    expect(out).toContain(`<${REASONING_TAG}>想一下`)
     expect(out).not.toContain('reasoning_content')
     expect(out.startsWith('data: ')).toBe(true)
   })
@@ -100,7 +102,7 @@ describe('rewriteSseLine', () => {
     const s = createReasoningTagState()
     const l1 = rewriteSseLine('data: {"choices":[{"delta":{"reasoning_content":"分析"}}]}', s)
     const l2 = rewriteSseLine('data: {"choices":[{"delta":{"content":"结论"}}]}', s)
-    expect(l1).toContain('<think>分析')
-    expect(l2).toContain('</think>结论')
+    expect(l1).toContain(`<${REASONING_TAG}>分析`)
+    expect(l2).toContain(`</${REASONING_TAG}>结论`)
   })
 })

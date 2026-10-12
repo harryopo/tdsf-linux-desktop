@@ -20,9 +20,13 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { wrapLanguageModel, extractReasoningMiddleware } from 'ai'
 import type { LanguageModel } from 'ai'
-import type { ProviderConfig, ProviderModelInstance, PersistedProviderConfig } from './types'
+import type { ProviderConfig, ProviderModelInstance, ProviderType, PersistedProviderConfig } from './types'
 import { logger } from '../../../services/log/logger'
-import { createReasoningTagState, rewriteSseLine } from './deepseek-reasoning-transform'
+import {
+  createReasoningTagState,
+  rewriteSseLine,
+  REASONING_TAG,
+} from './deepseek-reasoning-transform'
 
 /**
  * DeepSeek thinking 开启时，把 SSE 响应流里的 reasoning_content 改写成 <think>…</think> 包裹的 content，
@@ -49,13 +53,39 @@ function wrapDeepseekReasoningStream(body: ReadableStream<Uint8Array>): Readable
   return body.pipeThrough(transform)
 }
 
-function createOpenAiCompatFetch(deepseekThinking: 'enabled' | 'disabled' | false): typeof fetch {
+/**
+ * 哪些 Provider 走 OpenAI 兼容协议、可能把思维链放在非标准的 reasoning_content 字段里。
+ *
+ * @ai-sdk/openai 2.x 只读 delta.content，reasoning_content 会被整段丢掉 ——
+ * 此前只有 deepseek+deep 档做了改写，Qwen / 豆包 / Kimi / 自部署 vLLM 这些同样发
+ * reasoning_content 的端点，用户开了思考强度也看不到"深度思考"块（#90）。
+ * anthropic / google 走各自 SDK，思维链本来就是标准 reasoning 分片，不需要这套。
+ */
+export function reasoningExtractionTag(type: ProviderType): string | null {
+  const compat =
+    type === 'deepseek' ||
+    type === 'openai-compatible' ||
+    type === 'qwen' ||
+    type === 'volcengine-ark' ||
+    type === 'ollama'
+  return compat ? REASONING_TAG : null
+}
+
+interface CompatFetchOptions {
+  /** 仅 DeepSeek：按 deep 强度注入 thinking 开关；其它端为 false（不碰请求体） */
+  deepseekThinking: 'enabled' | 'disabled' | false
+  /** 是否改写响应流把 reasoning_content 捞回来（只在流里真有该字段时才动） */
+  surfaceReasoning: boolean
+}
+
+function createOpenAiCompatFetch(opts: CompatFetchOptions): typeof fetch {
+  const deepseekThinking = opts.deepseekThinking
   return async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
 /*
  *  自定义 fetch 职责：
  *  1.【所有兼容端】developer→system 角色修正（DeepSeek/Qwen/Volcengine/Ollama 只认 system）；
  *  2.【仅 DeepSeek】按 deep 强度注入 thinking enabled/disabled（关时正文直出）；
- *  3.【仅 deep】改写响应流，把 reasoning_content 包成 <think> 供中间件提取。
+ *  3.【兼容端】把 reasoning_content 包成罕见标签供中间件提取（#90：不再只限 deepseek+deep）。
  */
     // 仅处理带 JSON body 的 POST（chat/completions）；其余请求原样放行
     if (init?.body && typeof init.body === 'string') {
@@ -91,8 +121,9 @@ function createOpenAiCompatFetch(deepseekThinking: 'enabled' | 'disabled' | fals
       }
     }
     const res = await fetch(input, init)
-    // v2.11：deep 档改写响应流，把 reasoning_content 包成 <think> 供中间件提取（仅 deep，控制爆炸半径）
-    if (deepseekThinking === 'enabled' && res.body && res.ok) {
+    // 改写只在流里真出现 reasoning_content 时才动内容（rewriteReasoningChunk 按字段判定），
+    // 所以对所有兼容端开都是空操作级的安全；真正有代价的是下面那层中间件，见 REASONING_TAG 注释。
+    if ((opts.deepseekThinking === 'enabled' || opts.surfaceReasoning) && res.body && res.ok) {
       return new Response(wrapDeepseekReasoningStream(res.body), {
         status: res.status,
         statusText: res.statusText,
@@ -202,11 +233,20 @@ function buildModel(config: ProviderConfig, deepThinking = false): LanguageModel
         apiKey: config.apiKey || 'ollama', // Ollama 默认无需 key，但 SDK 要求非空
         baseURL: config.baseURL,
         // developer→system 角色修正（不注入 deepseek thinking）
-        fetch: createOpenAiCompatFetch(false),
+        fetch: createOpenAiCompatFetch({ deepseekThinking: false, surfaceReasoning: true }),
       })
       // 必须用 .chat()：@ai-sdk/openai v2 的 openai(model) 默认走 Responses API（/responses），
       // 而国产兼容端只实现了 /chat/completions，走 Responses 会导致端点不存在/空输出。
-      return openai.chat(config.model)
+      const compatModel = openai.chat(config.model)
+      // #90：这些端的思维链在非标准的 reasoning_content 字段里，fetch 层已把它包成
+      // REASONING_TAG；这里必须套提取中间件，否则标签会以字面文本留在答案里（比不显示更糟）。
+      const compatTag = reasoningExtractionTag(config.type)
+      return compatTag
+        ? wrapLanguageModel({
+            model: compatModel,
+            middleware: extractReasoningMiddleware({ tagName: compatTag }),
+          })
+        : compatModel
     }
     case 'deepseek': {
       // DeepSeek V4 Flash/Pro 默认开启思考模式，正文在 content、思维链在 reasoning_content。
@@ -219,15 +259,19 @@ function buildModel(config: ProviderConfig, deepThinking = false): LanguageModel
         baseURL: config.baseURL,
         // v2.11：deep 强度 → 开启思考（thinking enabled + reasoning_effort high）；
         // 其余强度 → 关闭思考（正文直出）。此前恒为 disabled 导致 deep 失效。
-        fetch: createOpenAiCompatFetch(deepThinking ? 'enabled' : 'disabled'),
+        fetch: createOpenAiCompatFetch({
+          deepseekThinking: deepThinking ? 'enabled' : 'disabled',
+          surfaceReasoning: true,
+        }),
       })
       const deepseekModel = openai.chat(config.model)
       // v2.11 deep 档：用 extractReasoningMiddleware 把 fetch 层包的 <think> 段提取回 reasoning 分片
       //（@ai-sdk/openai 不读 DeepSeek 的 reasoning_content，故先包 <think> 再提取）。standard/fast 不包裹、不包中间件。
-      return deepThinking
+      const deepTag = reasoningExtractionTag(config.type)
+      return deepThinking && deepTag
         ? wrapLanguageModel({
             model: deepseekModel,
-            middleware: extractReasoningMiddleware({ tagName: 'think' }),
+            middleware: extractReasoningMiddleware({ tagName: deepTag }),
           })
         : deepseekModel
     }
