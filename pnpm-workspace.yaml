@@ -33,3 +33,54 @@ overrides:
   # npm 的扁平布局会侥幸命中 hoisted 的 v5，所以这个坑只在 pnpm 下出现。
   # 只作用于 app-builder-lib，不动 electron 自身的 @electron/get（否则 electron 会重装二进制）。
   'app-builder-lib>@electron/get': ^5.0.0
+  # 下面这批是传递依赖的安全补丁钉版（2026-10-12，由 pnpm audit 的 findings.paths 生成）。
+  # 每条都要求「与当前装的同一主版本、0.x 还要求同小版本」，跨大版本的补丁一律不钉 ——
+  # 父包按自己的范围用包，强扭会拿功能换分数。
+  # pnpm 自己给的提示：这几个不改 override 就只会停在旧版（manifest 里别处也要求同一包）。
+  "vite@>=5.0.0 <6.0.0-0": "5.4.21"
+  "tar@>=6.0.2 <7.0.0-0": "6.2.1"
+  "tar@>=6.1.2 <7.0.0-0": "6.2.1"
+  # 第二轮：这些是第一批钉完之后 audit 又报出来的同族补丁（同主版本、已发布）。
+  # braces@3.0.4 与 sprintf-js@1.1.4 官方还没发版（npm 上分别只到 3.0.3 / 1.1.3），钉不了。
+  "@xenova/transformers>sharp": "0.32.6"
+  "monaco-editor>dompurify": "3.4.16"
+  "@ai-sdk/provider-utils>nanoid": "3.3.18"
+  "@babel/helper-compilation-targets>browserslist": "4.28.7"
+  "@electron/get>undici": "7.29.1"
+  "@electron/rebuild>got": "11.8.5"
+  "@eslint/eslintrc>js-yaml": "4.3.2"
+  "@hono/node-server>hono": "4.13.7"
+  "@modelcontextprotocol/sdk>@hono/node-server": "1.19.15"
+  "@modelcontextprotocol/sdk>hono": "4.13.7"
+  "@tailwindcss/node>source-map-js": "1.2.2"
+  "@tailwindcss/postcss>postcss": "8.5.23"
+  "ajv>fast-uri": "3.1.8"
+  "app-builder-lib>ejs": "3.1.10"
+  "app-builder-lib>js-yaml": "4.3.2"
+  "body-parser>qs": "6.16.0"
+  "browserslist>baseline-browser-mapping": "2.11.0"
+  "builder-util>js-yaml": "4.3.2"
+  "cacheable-request>http-cache-semantics": "4.3.0"
+  "cheerio>undici": "7.29.1"
+  "dmg-builder>js-yaml": "4.3.2"
+  "express-rate-limit>ip-address": "10.7.1"
+  "express>proxy-addr": "2.0.8"
+  "express>qs": "6.16.0"
+  "gray-matter>js-yaml": "3.15.2"
+  "knip>smol-toml": "1.9.0"
+  "magicast>source-map-js": "1.2.2"
+  "make-fetch-happen>http-cache-semantics": "4.3.0"
+  # 同一父包下并存多个大版本的子包，必须把子包大版本写进键里：
+  # 只写 minimatch>brace-expansion 会把 v5 的 API 塞给 minimatch@3（它要 ^1），
+  # 实测后果是 eslint 直接崩在 Minimatch.braceExpand（expand is not a function）。
+  "minimatch>brace-expansion@1": "1.1.17"
+  "minimatch>brace-expansion@2": "2.1.3"
+  "minimatch>brace-expansion@5": "5.0.12"
+  "openai>qs": "6.16.0"
+  "plist>@xmldom/xmldom": "0.9.12"
+  "postcss>nanoid": "3.3.18"
+  "postcss>source-map-js": "1.2.2"
+  "rc>ini": "1.3.6"
+  "socks>ip-address": "10.7.1"
+  "tiny-async-pool>semver": "5.7.2"
+  "vite>postcss": "8.5.23"

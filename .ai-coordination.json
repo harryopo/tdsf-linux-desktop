@@ -2,32 +2,22 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-12T01:07:48.812Z",
+  "lastUpdated": "2026-10-12T03:26:37.993Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-12T00:40:01.842Z",
-      "lastActiveAt": "2026-10-12T01:07:48.812Z",
-      "task": "P1-2 IPC 统一错误包装",
+      "startedAt": "2026-10-12T03:26:37.993Z",
+      "lastActiveAt": "2026-10-12T03:26:37.993Z",
+      "task": "依赖安全收敛",
       "claimedFiles": [
         {
-          "path": "src/preload/index.ts",
-          "task": "P1-2 IPC 统一错误包装",
-          "claimedAt": "2026-10-12T00:40:01.842Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "P1-2 IPC 统一错误包装",
-          "claimedAt": "2026-10-12T00:40:03.994Z"
-        },
-        {
           "path": "package.json",
-          "task": "P1-8 types:audit 常驻闸",
-          "claimedAt": "2026-10-12T01:07:48.812Z"
+          "task": "依赖安全收敛",
+          "claimedAt": "2026-10-12T03:26:37.993Z"
         }
       ],
-      "expiresAt": "2026-10-12T03:07:48.812Z"
+      "expiresAt": "2026-10-12T05:26:37.993Z"
     }
   },
   "history": [
@@ -7366,6 +7356,13 @@
       "file": "package.json",
       "task": "P1-8 types:audit 常驻闸",
       "timestamp": "2026-10-12T01:07:48.812Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "依赖安全收敛",
+      "timestamp": "2026-10-12T03:26:37.993Z"
     }
   ],
   "coordinationAudit": {
