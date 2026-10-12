@@ -136,6 +136,23 @@ export interface AgentToolCall {
 }
 
 /**
+ * 工具事件该落在哪条 assistant 消息上（#86）
+ *
+ * 优先"正在流的那条"；对不上就按 correlationId 认领自己那条 ——
+ * 工具结果常常晚于 agent:done 到达，那时消息已收尾，只认 isStreaming 会把终态丢掉，
+ * 界面上那张命令卡就永远停在"运行中"。
+ * 两边都对不上返回 -1（丢弃）：不凭空造消息，也不写进另一轮的回答。
+ */
+function findToolEventTarget(messages: readonly AgentMessage[], correlationId?: string): number {
+  const streaming = lastIndexWhere(messages, (m) => m.role === 'assistant' && m.isStreaming === true)
+  if (streaming >= 0 && ownsStream(messages[streaming].correlationId, correlationId)) return streaming
+  if (correlationId) {
+    return lastIndexWhere(messages, (m) => m.role === 'assistant' && m.correlationId === correlationId)
+  }
+  return streaming
+}
+
+/**
  * 默认 Token 统计（初始化时用）
  */
 const DEFAULT_TOKEN_STATS: TokenStats = {
@@ -216,12 +233,14 @@ interface AgentState {
   /** 更新当前流式消息的 stepState */
   updateStepState: (stepState: AgentWorkflowState) => void
   /**
-   * 追加/更新工具调用事件到当前流式 assistant 消息（v2.4）
+   * 追加/更新工具调用事件（v2.4）
    *
    * call 阶段：新增一条 AgentToolCall；output 阶段（v2.6）：按 toolCallId 累积流式输出；
    * result 阶段：按 toolCallId 找到并补全 done/ok/output。
+   * correlationId（#86）：认领这是哪一轮回答的工具事件；没带则退回"正在流的那条"。
    */
   appendToolEvent: (evt: {
+    correlationId?: string
     toolCallId: string
     phase: 'call' | 'output' | 'result'
     toolName: string
@@ -403,74 +422,74 @@ export const useAgentStore = create<AgentState>()((set) => ({
       return { messages: next }
     }),
 
-  // 追加/更新工具调用事件到当前流式 assistant 消息（v2.4）
+  // 追加/更新工具调用事件（v2.4；#86：按 correlationId 认领消息，迟到的终态不再丢）
   appendToolEvent: (evt) =>
     set((state) => {
-      const next = [...state.messages]
-      for (let i = next.length - 1; i >= 0; i--) {
-        const msg = next[i]
-        if (msg.role === 'assistant' && msg.isStreaming) {
-          const events = [...(msg.toolEvents ?? [])]
-          if (evt.phase === 'call') {
-            // 新增一条调用（若同 toolCallId 已存在则补 anchorOffset，避免重复）
-            const existIdx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
-            if (existIdx < 0) {
-              events.push({
-                toolCallId: evt.toolCallId,
-                toolName: evt.toolName,
-                input: evt.input,
-                done: false,
-                // v2.8：记录此刻正文长度作为穿插锚点（工具卡渲染在流式文本的真实发生位置）
-                anchorOffset: msg.content.length,
-              })
-            } else if (events[existIdx].anchorOffset === undefined) {
-              events[existIdx] = { ...events[existIdx], anchorOffset: msg.content.length, input: evt.input ?? events[existIdx].input }
-            }
-          } else if (evt.phase === 'output') {
-            // v2.6 流式中间输出：按 toolCallId 累积到 output（上限 12000 字符，与主进程推送上限一致）；
-            // 找不到时新增一条未完成记录（output 事件可能早于 fullStream 的 call 分片到达）
-            const idx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
-            const chunk = evt.output ?? ''
-            if (idx >= 0) {
-              const prev = events[idx].output ?? ''
-              if (prev.length < 12000) {
-                events[idx] = { ...events[idx], output: (prev + chunk).slice(0, 12000) }
-              }
-            } else {
-              events.push({
-                toolCallId: evt.toolCallId,
-                toolName: evt.toolName,
-                done: false,
-                output: chunk.slice(0, 12000),
-                anchorOffset: msg.content.length,
-              })
-            }
-          } else {
-            // result：按 toolCallId 回填；找不到则新增一条已完成记录。
-            // v2.6：若已有流式累积输出且执行成功，保留累积内容（比 result 摘要更完整）；
-            // 失败时用 result 的错误信息覆盖。
-            const idx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
-            if (idx >= 0) {
-              const streamed = events[idx].output
-              const finalOutput =
-                evt.ok !== false && streamed ? streamed : (evt.output ?? streamed)
-              events[idx] = { ...events[idx], done: true, ok: evt.ok, output: finalOutput }
-            } else {
-              events.push({
-                toolCallId: evt.toolCallId,
-                toolName: evt.toolName,
-                done: true,
-                ok: evt.ok,
-                output: evt.output,
-                anchorOffset: msg.content.length,
-              })
-            }
+      const idx = findToolEventTarget(state.messages, evt.correlationId)
+      if (idx < 0) return state
+      const msg = state.messages[idx]
+      const events = [...(msg.toolEvents ?? [])]
+      if (evt.phase === 'call') {
+        const existIdx = events.findIndex((e) => e.toolCallId === evt.toolCallId)
+        if (existIdx < 0) {
+          events.push({
+            toolCallId: evt.toolCallId,
+            toolName: evt.toolName,
+            input: evt.input,
+            done: false,
+            // v2.8：记录此刻正文长度作为穿插锚点（工具卡渲染在流式文本的真实发生位置）
+            anchorOffset: msg.content.length,
+          })
+        } else {
+          // output 早于 call 到达时记录已建好：call 仍要把入参补上（查询/命令文本），锚点缺才补
+          events[existIdx] = {
+            ...events[existIdx],
+            input: evt.input ?? events[existIdx].input,
+            anchorOffset: events[existIdx].anchorOffset ?? msg.content.length,
           }
-          next[i] = { ...msg, toolEvents: events }
-          break
+        }
+      } else if (evt.phase === 'output') {
+        // v2.6 流式中间输出：按 toolCallId 累积到 output（上限 12000 字符，与主进程推送上限一致）；
+        // 找不到时新增一条未完成记录（output 事件可能早于 fullStream 的 call 分片到达）
+        const idx2 = events.findIndex((e) => e.toolCallId === evt.toolCallId)
+        const chunk = evt.output ?? ''
+        if (idx2 >= 0) {
+          const prev = events[idx2].output ?? ''
+          if (prev.length < 12000) {
+            events[idx2] = { ...events[idx2], output: (prev + chunk).slice(0, 12000) }
+          }
+        } else {
+          events.push({
+            toolCallId: evt.toolCallId,
+            toolName: evt.toolName,
+            done: false,
+            output: chunk.slice(0, 12000),
+            anchorOffset: msg.content.length,
+          })
+        }
+      } else {
+        // result：按 toolCallId 回填；找不到则新增一条已完成记录。
+        // v2.6：若已有流式累积输出且执行成功，保留累积内容（比 result 摘要更完整）；
+        // 失败时用 result 的错误信息覆盖。
+        const idx2 = events.findIndex((e) => e.toolCallId === evt.toolCallId)
+        if (idx2 >= 0) {
+          const streamed = events[idx2].output
+          const finalOutput =
+            evt.ok !== false && streamed ? streamed : (evt.output ?? streamed)
+          events[idx2] = { ...events[idx2], done: true, ok: evt.ok, output: finalOutput }
+        } else {
+          events.push({
+            toolCallId: evt.toolCallId,
+            toolName: evt.toolName,
+            done: true,
+            ok: evt.ok,
+            output: evt.output,
+            anchorOffset: msg.content.length,
+          })
         }
       }
-      return { messages: next }
+      const next = replaceAt(state.messages, idx, { ...msg, toolEvents: events })
+      return next ? { messages: next } : state
     }),
 
   // 清空所有消息

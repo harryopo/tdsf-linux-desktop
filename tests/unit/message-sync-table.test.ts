@@ -87,8 +87,10 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
     const owned = Object.keys(STREAM_EVENT_RULES).filter(
       (c) => STREAM_EVENT_RULES[c as StreamEventName].ownership
     )
-    // agent:step / llm:* 的 payload 不带 correlationId，标了就是骗人
-    expect(owned.sort()).toEqual(['agent:chunk', 'agent:done', 'agent:error'])
+    // agent:step / llm:* 的 payload 不带 correlationId，标了就是骗人。
+    // agent:tool-event 是 #86 才补上的：主进程每条都带 correlationId，
+    // store 侧真按它认领消息（tests/unit/agent-store-tool-events.test.ts 钉住行为）。
+    expect(owned.sort()).toEqual(['agent:chunk', 'agent:done', 'agent:error', 'agent:tool-event'])
   })
 
   it('未归类通道按最严格处置（要认会话、不许合并）', () => {

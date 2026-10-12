@@ -123,9 +123,15 @@ export function initAgentStreamSubscription(): void {
     useAgentStore.getState().updateStepState(state)
   })
 
-  // v2.4：Agent 工具调用事件（真实执行可视化）—— 写入当前流式消息的 toolEvents
+  // v2.4：Agent 工具调用事件（真实执行可视化）—— 写入它所属那条 assistant 消息
   window.electronAPI.onAgentToolEvent?.((payload) => {
+    // 工具卡按 anchorOffset 插进正文，锚点量的是"此刻已写入的正文长度"。
+    // 合并窗口里还压着上一个 45ms 的 token 时锚点会偏短，卡片就抢到已经生成的文字前面
+    // （界面上表现为"运行"比"思考/正文"先冒出来）。先把在途 chunk 冲干净再落卡。
+    flushPendingChunks()
     useAgentStore.getState().appendToolEvent({
+      // 透传 correlationId：done 之后才到的 result 靠它认领自己那条，否则终态被丢、卡片永远"运行中"
+      correlationId: payload.correlationId,
       toolCallId: payload.toolCallId,
       phase: payload.phase,
       toolName: payload.toolName,

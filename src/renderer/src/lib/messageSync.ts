@@ -5,8 +5,9 @@
  *   1. 事件分类表：把主进程推过来的每一类事件按"能不能丢、要不要认会话"归类，
  *      这张表是包内私有的，并被测试逐条钉住。以前 42 个推送点各写各的 if，
  *      没人说得清哪个能丢、哪个丢了就丢答案。
- *   2. 会话归属判定：流式事件必须属于"当前正在流的那一条"才允许落地。
- *      切会话/新建消息/清空之后，旧流在途的 chunk/step/tool 事件直接丢弃。
+ *   2. 会话归属判定：流式事件必须属于"当前正在流的那一条"才允许落地（工具事件按轮次认领，见下）。
+ *      chunk 认当前正在流的那一条；工具事件还认它自己那一轮——done 之后迟到的 result
+ *      要写回已经收尾的那条（#86），但切会话后旧流在途的事件不再写进新回答。
  *   3. 增量合并 + 尾部就地更新：token 按时间窗合并成一次写入；
  *      写的时候用记住的下标直接改，不再从数组尾巴反向扫一遍。
  *
@@ -296,9 +297,11 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
   //    所以阶段 C 那次"对表"根本没扫到它们。中央表补齐后对表才露出缺口。
   'agent:tool-event': {
     class: 'SNAPSHOT',
-    ownership: false,
+    ownership: true,
     coalescable: false,
-    note: '一次工具调用的阶段事件（call/output/result 靠 toolCallId 配对），合并会丢阶段',
+    note: '一次工具调用的阶段事件（call/output/result 靠 toolCallId 配对），合并会丢阶段；' +
+      '#86 起按 correlationId 归属到"它自己那一轮"的回答（done 之后迟到的 result 也要落，' +
+      '没人认领才丢），落地前先冲刷在途 chunk，锚点才对得上正文',
   },
   'agent:paor:iteration': {
     class: 'SNAPSHOT',
