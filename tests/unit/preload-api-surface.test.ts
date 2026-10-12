@@ -16,6 +16,10 @@
  *   2) 派生不许回退：类型必须还是 typeof 实现，且不许再用 as unknown as 把不一致糊掉。
  *   3) 无幻影：C 不许声明 A 没有的方法；
  *      C 现在 extends 从实现派生的那份，所以"运行时真有、类型里查不到"这类账结构上再也欠不出来了。
+ *
+ * P1-8（2026-10-12）在此之上加了**签名级**对账：`pnpm types:audit` 用 TypeChecker 逐位比
+ * C 的本体成员与实现派生的类型，冗余声明（完全同型）、幻影、重复声明三种都判红，
+ * 剩下的"同名字不同型"按只降不升的刻度盯着。本文件继续管名字层，两者不重叠。
  */
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
@@ -60,6 +64,12 @@ describe('electronAPI 名字表面', () => {
     for (const probe of ['sshConnect', 'agentChat', 'providerGetDefault', 'configGet', 'diagnosticsGetLogs']) {
       expect(surface.exposed.has(probe), `抽取器没抓到 ${probe}`).toBe(true)
     }
-    expect(surface.rendererType.has('sshConnect'), '渲染层类型抽取没抓到 sshConnect').toBe(true)
+    // 手写表在 P1-8 之后只剩"与实现签名不一致"的那批成员（2026-10-12 实测 49 条，
+    // 其余 182 条与实现完全同型，已由 scripts/ipc/electron-dts-audit.ts --prune 删掉）。
+    // 所以这里不能点名某个具体方法 —— 它可能已经变成"由实现派生"的那一侧；
+    // 这条要判的是抽取器仍然看得见本体成员，不是静默扫到 0 行。
+    expect(surface.rendererType.size, 'electron.d.ts 成员抽取数为 0，抽取器被改版打穿了').toBeGreaterThan(
+      0
+    )
   })
 })

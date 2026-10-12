@@ -22,6 +22,7 @@
     "test:e2e:visual": "playwright test tests/e2e/visual.spec.ts",
     "test:e2e:wiring": "playwright test tests/e2e/wiring-verification.spec.ts",
     "audit:ipc": "tsx scripts/audit-ipc-contract.ts",
+    "types:audit": "tsx scripts/ipc/electron-dts-audit.ts --gate",
     "security:topology": "node scripts/security/topology-gate.cjs",
     "ipc:gen": "tsx scripts/ipc/gen-contract.ts",
     "ipc:check": "tsx scripts/ipc/gen-contract.ts --check",

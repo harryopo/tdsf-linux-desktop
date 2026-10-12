@@ -143,6 +143,32 @@ jobs:
       - name: IPC contract audit
         run: pnpm audit:ipc
 
+  # ===== 渲染层 API 类型单源对账（P1-8） =====
+  # electron.d.ts 已经 extends 由 preload 实现派生的类型，本体只剩"与实现不一致"的那批成员。
+  # 这道闸用 TypeChecker 逐位比签名，判三件事不许复发：与实现完全同型的冗余声明、
+  # 实现里根本没有的幻影成员（调到就是 undefined）、同名重复声明。
+  # 另有一条 divergent 刻度（只许降）盯着剩下的真偏差。
+  types-audit:
+    name: Renderer Types Single Source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: electron.d.ts vs preload audit
+        run: pnpm types:audit
+
   # ===== 端到端接线验证（真实 Electron + 行为断言） =====
   # 验证 preload 契约运行时可达 / Agent 事件回流 / 发送按钮有反馈 / 假 UI 不复活。
   # Windows runner 可直接跑有头 Electron，无需 xvfb。
