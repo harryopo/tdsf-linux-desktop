@@ -26,6 +26,9 @@ import { assertSafeExternalUrl } from '../services/security/url-policy'
 import { sidecarEngineHealth } from '../core/sidecar/sidecar-manager'
 import { astAnalysisHealth } from '../core/risk-engine-ast'
 import { drain3BridgeHealth } from '../services/log/drain3-bridge'
+import { DatabaseManager } from '../services/db/database'
+import { describeGrowth } from '../services/db/growth-report'
+import type { DbGrowth } from '@shared/db-types'
 
 /**
  * GitHub 仓库标识（与 about-settings.constants.ts LINK_URLS.github 对齐）
@@ -157,6 +160,11 @@ export interface AppInfo {
     ast: EngineHealth
     templates: EngineHealth
   }
+  /**
+   * 只增类表的体积台账（#94）。界面上只显示、不清理——
+   * 用户定的是"日志留着方便排查"，所以这里给的是读数，不是删除入口。
+   */
+  dataGrowth: DbGrowth
 }
 
 /** 一项能力的实测健康度：不行的时候必须带上"为什么不行" */
@@ -320,6 +328,7 @@ export function registerAppUpdateHandlers(): void {
         ast: await astAnalysisHealth(),
         templates: drain3BridgeHealth(),
       },
+      dataGrowth: describeGrowth(DatabaseManager.getInstance()),
     }
   })
 

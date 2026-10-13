@@ -113,9 +113,13 @@ export class DatabaseManager {
   /** 内存回退存储（dbAvailable=false 时使用） */
   private readonly memoryStore: Map<string, string>
 
+  /** 打开时用的路径（':memory:' 表示无文件）；体积台账要 stat 它 */
+  private readonly filePath: string
+
   /** 私有构造，强制单例 */
   private constructor(dbPath: string) {
     this.memoryStore = new Map()
+    this.filePath = dbPath
 
     const { mod: BetterSqlite3, error: loadError } = loadBetterSqlite3()
     if (!BetterSqlite3) {
@@ -270,6 +274,14 @@ export class DatabaseManager {
    */
   getRawConnection(): DbConnection | null {
     return this.db
+  }
+
+  /**
+   * 打开时传入的路径（':memory:' = 没有落盘文件）
+   * @internal 只给体积台账 stat 用，别拿它拼 SQL
+   */
+  getFilePath(): string {
+    return this.filePath
   }
 
   // ────────── 内部方法 ──────────

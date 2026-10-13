@@ -11,7 +11,7 @@
  * 常量与探测函数见 about-settings.constants.ts。
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Download, ExternalLink, ListChecks, MonitorPlay, RefreshCw, Sparkles } from 'lucide-react'
+import { Database, Download, ExternalLink, ListChecks, MonitorPlay, RefreshCw, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   APP_VERSION,
@@ -20,6 +20,8 @@ import {
   NOT_AVAILABLE,
   detectRuntimeEnv,
   detectOsName,
+  formatBytes,
+  describeGrowthRow,
 } from './about-settings.constants'
 import type { AppUpdateInfo, AppInfo } from '../types/electron'
 import {
@@ -242,6 +244,38 @@ export function AboutSettings() {
               />
             )
           })}
+        </SettingsCard>
+
+        {/*
+          * #94：这五张表只往里写，界面上从来不说长到什么程度。这里只给读数——
+          * 不做"一键清理"。删不删是取舍，不该藏在设置页一个角落里由按钮替用户决定。
+          */}
+        <SettingsCard icon={Database} title="本地数据体积" hideTag noHeadBorder>
+          {appInfoLoading ? (
+            <div className="py-3">
+              <Spinner label="读取本地数据体积…" />
+            </div>
+          ) : (
+            <>
+              <p className="pb-1 text-caption text-ink-mute">
+                {appInfo
+                  ? `库文件 ${formatBytes(appInfo.dataGrowth.fileBytes)} · 以下记录都不会自动删除（操作审计除外）`
+                  : NOT_AVAILABLE}
+              </p>
+              {(appInfo?.dataGrowth.tables ?? []).map((row, i, arr) => {
+                const view = describeGrowthRow(row)
+                return (
+                  <SettingsRow
+                    key={row.table}
+                    label={row.label}
+                    desc={view.desc}
+                    isLast={i === arr.length - 1}
+                    control={view.ok ? <Value>{view.value}</Value> : <Chip tone="warning">{view.value}</Chip>}
+                  />
+                )
+              })}
+            </>
+          )}
         </SettingsCard>
 
         <SettingsCard icon={Sparkles} title="资源" hideTag noHeadBorder>

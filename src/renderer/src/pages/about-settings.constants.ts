@@ -6,6 +6,7 @@
  * 一个 PLACEHOLDER 问卷地址和一个不存在的官网域名，界面上看起来都是真的）。
  */
 import { FileText, Scale, MessageCircle, Tag, type LucideIcon } from 'lucide-react'
+import type { DbTableGrowth } from '@shared/db-types'
 
 export interface InfoRow {
   key: string
@@ -72,4 +73,53 @@ export function detectOsName(): string {
   }
   if (ua.includes('Linux')) return `Linux (${navigator.platform || 'unknown'})`
   return navigator.platform || 'unknown'
+}
+
+/**
+ * #94 只增表体积台账的显示口径。
+ *
+ * 关键约定：rows=null（读不到）绝不能显示成 "0 条"。
+ * 空表是真·0 条，读失败是故障，两者在界面上必须长得不一样。
+ */
+export interface GrowthRowView {
+  /** 右侧的值：条数 / "读不到" */
+  value: string
+  /** 下方说明：保留策略 + 最早一条 + 失败原因 */
+  desc: string
+  /** 读数是否可信（false 时右侧打警告色） */
+  ok: boolean
+}
+
+/** 字节 → 人类可读；null = 内存库或 stat 失败 */
+export function formatBytes(bytes: number | null): string {
+  if (bytes === null || !Number.isFinite(bytes)) return '未知'
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB']
+  let value = bytes / 1024
+  let i = 0
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024
+    i += 1
+  }
+  return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[i]}`
+}
+
+/** 时间戳 → 本地短日期；null 返回空串（调用方决定要不要拼这句） */
+export function formatDay(ts: number | null): string {
+  if (ts === null || !Number.isFinite(ts)) return ''
+  return new Date(ts).toLocaleDateString('zh-CN')
+}
+
+/** 一张表的读数 → 界面两行文案 */
+export function describeGrowthRow(t: DbTableGrowth): GrowthRowView {
+  const keep = t.retentionDays === null ? '不会自动清理' : `保留 ${t.retentionDays} 天`
+  if (t.rows === null) {
+    return { value: '读不到', desc: `${keep} · 读取失败：${t.error ?? '未知原因'}`, ok: false }
+  }
+  const first = formatDay(t.oldestAt)
+  return {
+    value: `${t.rows} 条`,
+    desc: first ? `${keep} · 最早一条 ${first}` : `${keep} · 目前是空的`,
+    ok: true,
+  }
 }

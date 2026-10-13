@@ -27,3 +27,37 @@ export interface DbStatus {
   /** schemaVersion 落后于 targetSchemaVersion（迁移中途失败） */
   migrationPending: boolean
 }
+
+/**
+ * 一张只增类表的体积读数（#94）
+ *
+ * rows/oldestAt/newestAt 为 null 的两种情况要分开看：
+ * error 非空 = 这张表读失败了；error 为空 = 表是空的。
+ * 界面不许把"读失败"显示成"0 条"——那是把故障演成清白。
+ */
+export interface DbTableGrowth {
+  /** SQL 里的表名，同时是判据的键 */
+  table: string
+  /** 界面上的中文名 */
+  label: string
+  /** 行数；读取失败时为 null */
+  rows: number | null
+  /** 最早一条的时间戳（毫秒）；空表或失败为 null */
+  oldestAt: number | null
+  /** 最新一条的时间戳（毫秒）；空表或失败为 null */
+  newestAt: number | null
+  /** 自动保留天数；null = 不删，永久累积 */
+  retentionDays: number | null
+  /** 这张表单独的读取失败原因；成功为 null */
+  error: string | null
+}
+
+/** 本地数据的体积台账（只显示，界面上不提供清理入口） */
+export interface DbGrowth {
+  /** 库文件字节数；内存库或 stat 失败为 null */
+  fileBytes: number | null
+  /** 库文件绝对路径；内存库为 ':memory:' */
+  filePath: string
+  /** 逐表读数，顺序即展示顺序 */
+  tables: DbTableGrowth[]
+}
