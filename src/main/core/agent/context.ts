@@ -50,18 +50,101 @@ export const COMPACTION_THRESHOLDS = {
 export type SummarizeFn = (text: string) => Promise<string>
 
 /**
+ * 按"生效上下文窗口"收紧阈值
+ *
+ * 这五层以前只有一把绝对尺子（50K/100K/112.5K/135K，按 150K 窗口设计）。
+ * 后果是本地小窗口模型（Ollama 常见 8K、Kimi 32K）永远轮不到压缩，
+ * 请求直接被上游拒成 400 —— 用户看到的就是"AI 突然不能用了"。
+ * 现在按窗口比例再压一道：窗口比 150K 大就维持原绝对上限（只更严不更松），
+ * 比它小就按比例提前触发。
+ *
+ * @param windowTokens Provider 报的上下文窗口（0/缺省 = 未知，按原绝对阈值）
+ */
+export interface CompactionThresholds {
+  /** L1：单条消息截断阈值 */
+  singleMessage: number
+  /** L2：滑动窗口触发线 */
+  sessionSoft: number
+  /** L3：激进滑动窗口触发线 */
+  sessionHard: number
+  /** L4：摘要压缩触发线 */
+  critical: number
+  /** L5：语义去重触发线 */
+  dedup: number
+  /** L4 摘要后保留的最近消息 tokens */
+  keepRecentTokens: number
+  /** L5 Jaccard 相似度阈值（与窗口无关） */
+  similarity: number
+  /** 本次判定用的窗口口径（0 = 未知，走绝对阈值） */
+  windowTokens: number
+}
+
+/** 窗口比例（对应原来按 150K 设计的那把绝对尺子） */
+const WINDOW_RATIOS = {
+  singleMessage: 0.3,
+  sessionSoft: 0.34,
+  sessionHard: 0.67,
+  critical: 0.75,
+  dedup: 0.9,
+  keepRecentTokens: 0.2,
+} as const
+
+export function resolveCompactionThresholds(windowTokens?: number): CompactionThresholds {
+  const w = Number.isFinite(windowTokens) ? Math.trunc(windowTokens ?? 0) : 0
+  // 未知窗口（capabilities 里 0 表示未知）→ 维持旧行为，不因为"不知道"就乱压缩
+  if (w <= 0) {
+    return {
+      singleMessage: COMPACTION_THRESHOLDS.L1_SINGLE_MESSAGE,
+      sessionSoft: COMPACTION_THRESHOLDS.L2_SESSION_SOFT,
+      sessionHard: COMPACTION_THRESHOLDS.L3_SESSION_HARD,
+      critical: COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L4_TRIGGER_RATIO,
+      dedup: COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L5_TRIGGER_RATIO,
+      keepRecentTokens: COMPACTION_THRESHOLDS.L4_KEEP_RECENT_TOKENS,
+      similarity: COMPACTION_THRESHOLDS.L5_SIMILARITY_THRESHOLD,
+      windowTokens: 0,
+    }
+  }
+  const cap = (ratio: number, absolute: number): number =>
+    Math.max(1, Math.min(absolute, Math.floor(w * ratio)))
+  return {
+    singleMessage: cap(WINDOW_RATIOS.singleMessage, COMPACTION_THRESHOLDS.L1_SINGLE_MESSAGE),
+    sessionSoft: cap(WINDOW_RATIOS.sessionSoft, COMPACTION_THRESHOLDS.L2_SESSION_SOFT),
+    sessionHard: cap(WINDOW_RATIOS.sessionHard, COMPACTION_THRESHOLDS.L3_SESSION_HARD),
+    critical: cap(WINDOW_RATIOS.critical, COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L4_TRIGGER_RATIO),
+    dedup: cap(WINDOW_RATIOS.dedup, COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L5_TRIGGER_RATIO),
+    keepRecentTokens: cap(WINDOW_RATIOS.keepRecentTokens, COMPACTION_THRESHOLDS.L4_KEEP_RECENT_TOKENS),
+    similarity: COMPACTION_THRESHOLDS.L5_SIMILARITY_THRESHOLD,
+    windowTokens: w,
+  }
+}
+
+/**
  * 估算字符串的 token 数（粗略估算）
  *
  * 经验值：英文约 4 字符/token，中文约 1.5 字符/token。
- * 取折中值 3 字符/token（保守估算，避免低估触发 compaction）。
- *
- * @param text 文本
- * @returns 估算 token 数
+ * 非中文按 3 字符/token（比 4 保守，宁可早一点压缩）；
+ * 中日韩字符按 2 字符/token —— 原来不分语种一律除 3，
+ * 对中文是**低估近一倍**，等于中文对话总是压晚了才触发。
  */
 export function estimateTokens(text: string): number {
   if (!text) return 0
-  // 中文字符按 1.5 个字符/token，英文按 4 个字符/token，加权后取 3
-  return Math.ceil(text.length / 3)
+  let cjk = 0
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    // 常用汉字、假名、谚文与全角标点；代理对算一个
+    if (
+      (code >= 0x3000 && code <= 0x30ff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xff00 && code <= 0xffef)
+    ) {
+      cjk++
+    }
+  }
+  const other = text.length - cjk
+  return Math.ceil(cjk / 2 + other / 3)
 }
 
 /**
@@ -108,174 +191,120 @@ export interface CompactionResult {
 /**
  * 检查并执行 compaction（L1-L5 完整版）
  *
- * 当前版本实现：
- * - L1：对超过 4K tokens 的单条消息，截断保留前 2K + 后 1K（中间用 [...省略...] 占位）
- * - L2：会话 > 50K → 仅保留最近 30K tokens 的消息（滑动窗口）
- * - L3：会话 > 100K → 仅保留最近 50K tokens，并触发"重要节点抽取"日志（占位）
- * - L4：会话 > 75% max → 摘要压缩（降级模式：首尾提取；LLM 版见 compactIfNeededAsync）
- * - L5：会话 > 90% max → 语义去重（Jaccard 相似度 > 0.7 的连续消息仅保留最新）
+ * - L1：单条消息超阈值 → 截断保留头尾（中间用 [...省略...] 占位）
+ * - L2：会话超软阈值 → 滑动窗口保留最近一段
+ * - L3：会话超硬阈值 → 更激进的滑动窗口 + 重要节点抽取占位
+ * - L4：会话 > 75% 窗口 → 摘要压缩（同步降级：首尾提取；异步版走 LLM 摘要）
+ * - L5：会话 > 90% 窗口 → 语义去重（Jaccard 相似度，纯算法无 API 开销）
  *
  * @param messages 当前消息列表
- * @returns Compaction 决策结果
+ * @param contextWindowTokens 该 Provider 的生效上下文窗口；0/缺省 = 未知，按原绝对阈值
  */
-export function compactIfNeeded(messages: ModelMessage[]): CompactionResult {
+export function compactIfNeeded(
+  messages: ModelMessage[],
+  contextWindowTokens?: number,
+): CompactionResult {
+  const thresholds = resolveCompactionThresholds(contextWindowTokens)
   const beforeTokens = estimateMessageTokens(messages)
-  let result: ModelMessage[] = messages
   let level: CompactionResult['level'] = 'none'
   let truncatedCount = 0
 
   // L1：单条消息超阈值 → 截断
-  result = result.map((m) => {
-    if (typeof m.content === 'string' && estimateTokens(m.content) > COMPACTION_THRESHOLDS.L1_SINGLE_MESSAGE) {
-      const content = m.content
-      // 保留前 2K tokens（约 6K 字符）+ 后 1K tokens（约 3K 字符）
-      const head = content.slice(0, 6_000)
-      const tail = content.slice(-3_000)
-      truncatedCount++
-      return {
-        ...m,
-        content: `${head}\n\n[...省略约 ${estimateTokens(content) - 3_000} tokens 内容（L1 compaction 触发）...]\n\n${tail}`,
-      } as ModelMessage
-    }
-    return m
-  })
-  if (truncatedCount > 0) {
+  const [afterL1, l1Truncated] = applySingleMessageTruncation(messages, thresholds)
+  truncatedCount += l1Truncated
+  if (l1Truncated > 0) {
     level = 'L1'
-    logger.info('AGENT.CONTEXT', `L1 compaction 触发：截断了 ${truncatedCount} 条消息`, {
+    logger.info('AGENT.CONTEXT', `L1 compaction 触发：截断了 ${l1Truncated} 条消息`, {
       beforeTokens,
+      windowTokens: thresholds.windowTokens,
     })
   }
 
-  // L2：会话总 tokens 超阈值 → 滑动窗口（保留最近 30K tokens）
+  // L2 / L3：会话总 tokens 超阈值 → 滑动窗口
+  const { messages: afterWindows, triggered: windowLevel } = applySessionWindows(afterL1, thresholds)
+  if (windowLevel !== 'none' && level === 'none') level = windowLevel
+  let result = afterWindows
   let afterTokens = estimateMessageTokens(result)
-  if (afterTokens > COMPACTION_THRESHOLDS.L2_SESSION_SOFT) {
-    result = applySlidingWindow(result, 30_000)
-    afterTokens = estimateMessageTokens(result)
-    level = level === 'none' ? 'L2' : level
-    logger.info('AGENT.CONTEXT', `L2 compaction 触发：滑动窗口保留最近 30K tokens`, {
-      beforeTokens,
-      afterTokens,
-    })
-  }
 
-  // L3：会话总 tokens 超阈值 → 更激进的滑动窗口（保留最近 50K）+ 重要节点抽取占位
-  if (afterTokens > COMPACTION_THRESHOLDS.L3_SESSION_HARD) {
-    result = applySlidingWindow(result, 50_000)
-    afterTokens = estimateMessageTokens(result)
-    level = level === 'none' ? 'L3' : level
-    logger.warn('AGENT.CONTEXT', `L3 compaction 触发：会话已超 100K tokens，滑动窗口压缩`, {
-      beforeTokens,
-      afterTokens,
-    })
-  }
-
-  // L4：会话 > 75% max → 摘要压缩（同步降级模式：首尾提取）
-  const l4Trigger = COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L4_TRIGGER_RATIO
-  if (afterTokens > l4Trigger) {
-    const before4 = result.length
-    result = applySummaryCompaction(result, COMPACTION_THRESHOLDS.L4_KEEP_RECENT_TOKENS)
+  // L4：摘要压缩（同步降级模式：首尾提取）
+  if (afterTokens > thresholds.critical) {
+    const before = result.length
+    result = applySummaryCompaction(result, thresholds.keepRecentTokens)
     afterTokens = estimateMessageTokens(result)
     level = 'L4'
-    truncatedCount += before4 - result.length
-    logger.warn('AGENT.CONTEXT', `L4 compaction 触发：摘要压缩（降级模式），${before4} → ${result.length} 条`, {
+    truncatedCount += before - result.length
+    logger.warn('AGENT.CONTEXT', `L4 compaction 触发：摘要压缩（降级模式），${before} → ${result.length} 条`, {
       beforeTokens,
       afterTokens,
+      windowTokens: thresholds.windowTokens,
     })
   }
 
-  // L5：会话 > 90% max → 语义去重（Jaccard 相似度，纯算法）
-  const l5Trigger = COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L5_TRIGGER_RATIO
-  if (afterTokens > l5Trigger) {
-    const before5 = result.length
-    result = applySemanticDedup(result)
+  // L5：语义去重（Jaccard 相似度，纯算法）
+  if (afterTokens > thresholds.dedup) {
+    const before = result.length
+    result = applySemanticDedup(result, thresholds.similarity)
     afterTokens = estimateMessageTokens(result)
     level = 'L5'
-    truncatedCount += before5 - result.length
-    logger.warn('AGENT.CONTEXT', `L5 compaction 触发：语义去重，${before5} → ${result.length} 条`, {
+    truncatedCount += before - result.length
+    logger.warn('AGENT.CONTEXT', `L5 compaction 触发：语义去重，${before} → ${result.length} 条`, {
       beforeTokens,
       afterTokens,
     })
   }
 
-  return {
-    messages: result,
-    level,
-    beforeTokens,
-    afterTokens,
-    truncatedCount,
-  }
+  return { messages: result, level, beforeTokens, afterTokens, truncatedCount }
 }
 
 /**
  * 异步版 compaction（L4 使用 LLM 生成摘要）
  *
- * 与 compactIfNeeded 逻辑一致，但 L4 层调用注入的 summarizer 生成高质量摘要。
- * 若 summarizer 未提供或调用失败，自动降级到首尾提取。
+ * 与 compactIfNeeded 同一把阈值（共用 applySingleMessageTruncation / applySessionWindows），
+ * 只有 L4 换成注入的 summarizer；未提供或调用失败时降级到首尾提取。
  *
  * @param messages 当前消息列表
  * @param summarizer 可选的 LLM 摘要函数
- * @returns Compaction 决策结果
+ * @param contextWindowTokens 该 Provider 的生效上下文窗口
  */
 export async function compactIfNeededAsync(
   messages: ModelMessage[],
   summarizer?: SummarizeFn,
+  contextWindowTokens?: number,
 ): Promise<CompactionResult> {
+  const thresholds = resolveCompactionThresholds(contextWindowTokens)
   const beforeTokens = estimateMessageTokens(messages)
-  let result: ModelMessage[] = messages
   let level: CompactionResult['level'] = 'none'
   let truncatedCount = 0
 
-  // L1-L3：与同步版一致
-  result = result.map((m) => {
-    if (typeof m.content === 'string' && estimateTokens(m.content) > COMPACTION_THRESHOLDS.L1_SINGLE_MESSAGE) {
-      const content = m.content
-      const head = content.slice(0, 6_000)
-      const tail = content.slice(-3_000)
-      truncatedCount++
-      return {
-        ...m,
-        content: `${head}\n\n[...省略约 ${estimateTokens(content) - 3_000} tokens 内容（L1 compaction 触发）...]\n\n${tail}`,
-      } as ModelMessage
-    }
-    return m
-  })
-  if (truncatedCount > 0) level = 'L1'
+  const [afterL1, l1Truncated] = applySingleMessageTruncation(messages, thresholds)
+  truncatedCount += l1Truncated
+  if (l1Truncated > 0) level = 'L1'
 
+  const { messages: afterWindows, triggered: windowLevel } = applySessionWindows(afterL1, thresholds)
+  if (windowLevel !== 'none' && level === 'none') level = windowLevel
+  let result = afterWindows
   let afterTokens = estimateMessageTokens(result)
-  if (afterTokens > COMPACTION_THRESHOLDS.L2_SESSION_SOFT) {
-    result = applySlidingWindow(result, 30_000)
-    afterTokens = estimateMessageTokens(result)
-    if (level === 'none') level = 'L2'
-  }
-  if (afterTokens > COMPACTION_THRESHOLDS.L3_SESSION_HARD) {
-    result = applySlidingWindow(result, 50_000)
-    afterTokens = estimateMessageTokens(result)
-    if (level === 'none') level = 'L3'
-  }
 
-  // L4：摘要压缩（LLM 版，含降级）
-  const l4Trigger = COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L4_TRIGGER_RATIO
-  if (afterTokens > l4Trigger) {
-    const before4 = result.length
-    result = await applySummaryCompactionAsync(result, COMPACTION_THRESHOLDS.L4_KEEP_RECENT_TOKENS, summarizer)
+  if (afterTokens > thresholds.critical) {
+    const before = result.length
+    result = await applySummaryCompactionAsync(result, thresholds.keepRecentTokens, summarizer)
     afterTokens = estimateMessageTokens(result)
     level = 'L4'
-    truncatedCount += before4 - result.length
-    logger.warn('AGENT.CONTEXT', `L4 compaction 触发（async）：${before4} → ${result.length} 条`, {
+    truncatedCount += before - result.length
+    logger.warn('AGENT.CONTEXT', `L4 compaction 触发（async）：${before} → ${result.length} 条`, {
       beforeTokens,
       afterTokens,
+      windowTokens: thresholds.windowTokens,
     })
   }
 
-  // L5：语义去重
-  const l5Trigger = COMPACTION_THRESHOLDS.L4_SESSION_CRITICAL * COMPACTION_THRESHOLDS.L5_TRIGGER_RATIO
-  if (afterTokens > l5Trigger) {
-    const before5 = result.length
-    result = applySemanticDedup(result)
+  if (afterTokens > thresholds.dedup) {
+    const before = result.length
+    result = applySemanticDedup(result, thresholds.similarity)
     afterTokens = estimateMessageTokens(result)
     level = 'L5'
-    truncatedCount += before5 - result.length
-    logger.warn('AGENT.CONTEXT', `L5 compaction 触发（async）：${before5} → ${result.length} 条`, {
+    truncatedCount += before - result.length
+    logger.warn('AGENT.CONTEXT', `L5 compaction 触发（async）：${before} → ${result.length} 条`, {
       beforeTokens,
       afterTokens,
     })
@@ -285,6 +314,73 @@ export async function compactIfNeededAsync(
 }
 
 // ─── 内部工具函数 ────────────────────────────────────────────────────────────
+
+/**
+ * L1：把超阈值的单条消息截成"头 + 省略提示 + 尾"
+ *
+ * 头尾长度按阈值等比缩放（默认窗口 4K tokens 时正好是原来的 6000 / 3000 字符）。
+ * 不缩放的话小窗口模型会出现"阈值 2400 tokens、却照抄 6000 字符头"—— 截了等于没截。
+ *
+ * @returns [处理后的消息, 被截断的条数]
+ */
+function applySingleMessageTruncation(
+  messages: ModelMessage[],
+  thresholds: CompactionThresholds,
+): [ModelMessage[], number] {
+  const headChars = Math.round(thresholds.singleMessage * 1.5)
+  const tailChars = Math.round(thresholds.singleMessage * 0.75)
+  let truncated = 0
+  const result = messages.map((m) => {
+    if (typeof m.content !== 'string' || estimateTokens(m.content) <= thresholds.singleMessage) {
+      return m
+    }
+    const content = m.content
+    const head = content.slice(0, headChars)
+    const tail = content.slice(-tailChars)
+    const dropped = Math.max(0, estimateTokens(content) - estimateTokens(head) - estimateTokens(tail))
+    truncated++
+    return {
+      ...m,
+      content: `${head}\n\n[...省略约 ${dropped} tokens 内容（L1 compaction 触发）...]\n\n${tail}`,
+    } as ModelMessage
+  })
+  return [result, truncated]
+}
+
+/**
+ * L2 / L3：两级滑动窗口
+ *
+ * 两级都留"最近一段"，但保留量不同：软阈值留 20% 窗口，硬阈值只留 10%。
+ */
+function applySessionWindows(
+  messages: ModelMessage[],
+  thresholds: CompactionThresholds,
+): { messages: ModelMessage[]; triggered: 'none' | 'L2' | 'L3' } {
+  let result = messages
+  let triggered: 'none' | 'L2' | 'L3' = 'none'
+  const windowKeep = (ratioOfWindow: number, absolute: number): number =>
+    thresholds.windowTokens > 0
+      ? Math.max(1, Math.min(absolute, Math.floor(thresholds.windowTokens * ratioOfWindow)))
+      : absolute
+
+  if (estimateMessageTokens(result) > thresholds.sessionSoft) {
+    result = applySlidingWindow(result, windowKeep(0.2, 30_000))
+    triggered = 'L2'
+    logger.info('AGENT.CONTEXT', `L2 compaction 触发：滑动窗口压缩`, {
+      afterTokens: estimateMessageTokens(result),
+      windowTokens: thresholds.windowTokens,
+    })
+  }
+  if (estimateMessageTokens(result) > thresholds.sessionHard) {
+    result = applySlidingWindow(result, windowKeep(0.1, 50_000))
+    if (triggered === 'none') triggered = 'L3'
+    logger.warn('AGENT.CONTEXT', `L3 compaction 触发：会话超硬阈值，激进滑动窗口压缩`, {
+      afterTokens: estimateMessageTokens(result),
+      windowTokens: thresholds.windowTokens,
+    })
+  }
+  return { messages: result, triggered }
+}
 
 /**
  * 滑动窗口：保留最近 maxTokens tokens 的消息
@@ -417,7 +513,7 @@ async function applySummaryCompactionAsync(
  *
  * @param messages 消息列表
  */
-function applySemanticDedup(messages: ModelMessage[]): ModelMessage[] {
+function applySemanticDedup(messages: ModelMessage[], similarity: number): ModelMessage[] {
   if (messages.length <= 2) return messages
 
   const result: ModelMessage[] = []
@@ -432,7 +528,7 @@ function applySemanticDedup(messages: ModelMessage[]): ModelMessage[] {
     const next = messages[i + 1]
     if (next && next.role !== 'system') {
       const sim = jaccardSimilarity(extractText(msg), extractText(next))
-      if (sim > COMPACTION_THRESHOLDS.L5_SIMILARITY_THRESHOLD) {
+      if (sim > similarity) {
         // 跳过当前（较旧的），保留下一条（较新的）
         continue
       }

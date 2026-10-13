@@ -299,8 +299,11 @@ export const DEFAULT_PROVIDER_ID = 'deepseek-v4'
 
 /**
  * Compaction 触发层级
+ *
+ * L5 = 语义去重（context.ts 里真实存在的一层）。以前这张表只到 L4，
+ * 于是 supervisor 只能把 L5 硬报成 L4 —— 把"去重"说成"摘要压缩"。
  */
-export type CompactionLevel = 'none' | 'L1' | 'L2' | 'L3' | 'L4'
+export type CompactionLevel = 'none' | 'L1' | 'L2' | 'L3' | 'L4' | 'L5'
 
 /**
  * Supervisor chat 调用结果

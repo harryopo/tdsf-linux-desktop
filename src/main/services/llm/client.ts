@@ -21,6 +21,7 @@
 
 import OpenAI from 'openai'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { logger } from '../log/logger'
 import type {
   ChatMessage,
   Evidence,
@@ -214,6 +215,8 @@ export class LlmClient {
     }
     const fullMessages = this.injectSystemPrompt(messages)
     const startTime = Date.now()
+    // 这一轮有没有把字推给过界面 —— 推过就不许再重试（见 chatWithRetry）
+    let pushed = false
 
     return this.chatWithRetry(async () => {
       const controller = new AbortController()
@@ -235,17 +238,22 @@ export class LlmClient {
           const token = chunk.choices[0]?.delta?.content ?? ''
           if (token) {
             fullText += token
+            pushed = true
             onToken(token)
           }
         }
         this.logRequest('chatStream', startTime, undefined)
         return fullText
       } catch (err) {
-        // 流中断：若已收到部分文本且可重试，抛出让上层重试
-        if (fullText && this.isRetryableError(err)) {
-          throw err
+        const msg = (err as Error).message
+        // 已经推过字就不再重发：重发的是整段，用户会在同一个气泡里看到
+        // "半句 + 完整重来一遍"。这条错误文案也说明白了为什么不重试。
+        if (fullText) {
+          throw new Error(`LLM 流式调用中断（已输出 ${fullText.length} 字，不重发）: ${msg}`)
         }
-        throw new Error(`LLM 流式调用失败: ${(err as Error).message}`)
+        // 包装文案沿用旧格式（chatWithRetry 靠 message 里的 network/fetch failed/5xx
+        // 判可重试，所以包装不能把原因丢掉）；推没推字由 chatWithRetry 的 retryAllowed 把关
+        throw new Error(`LLM 流式调用失败: ${msg}`)
       } finally {
         clearTimeout(timer)
         // 确保 abort 信号被清理
@@ -253,7 +261,7 @@ export class LlmClient {
           controller.abort()
         }
       }
-    })
+    }, () => !pushed)
   }
 
   /**
@@ -324,7 +332,10 @@ export class LlmClient {
   /**
    * 封装重试逻辑（指数退避 1s→2s→4s，最多 3 次，仅对可重试错误重试）
    */
-  private async chatWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  private async chatWithRetry<T>(
+    fn: () => Promise<T>,
+    retryAllowed?: () => boolean
+  ): Promise<T> {
     let lastError: Error | null = null
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -334,17 +345,19 @@ export class LlmClient {
         return result
       } catch (err) {
         lastError = err as Error
-        // 最后一次尝试或不可重试的错误 → 直接抛出
-        if (attempt === MAX_RETRIES || !this.isRetryableError(err)) {
+        // 流式已经推出去过内容时不许再重试：重发的是整段，用户会在同一个气泡里
+        // 看到"半句 + 完整重来一遍"。宁可带着已收到的部分报错。
+        const mayRetry = retryAllowed ? retryAllowed() : true
+        // 最后一次尝试、不可重试的错误、或本轮已推过字 → 直接抛出
+        if (attempt === MAX_RETRIES || !this.isRetryableError(err) || !mayRetry) {
           // v2.4 Phase B：连续失败告警（累计 3 次触发 error 级告警）
           alertLlmFailure('chatWithRetry', lastError.message)
           throw lastError
         }
         const delay = RETRY_BASE_DELAY * Math.pow(2, attempt)
-        console.log(
-          `[LLM] 第 ${attempt + 1} 次重试，${delay}ms 后重试...`,
-          `错误: ${(err as Error).message}`
-        )
+        logger.warn('LLM', `第 ${attempt + 1} 次重试，${delay}ms 后重试`, {
+          error: (err as Error).message,
+        })
         await this.sleep(delay)
       }
     }
@@ -390,11 +403,11 @@ export class LlmClient {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  /** 请求日志（方法名/耗时/token数，输出到 console.log） */
+  /** 请求日志（方法名/耗时/token数，落到主进程日志文件；打包后没有控制台） */
   private logRequest(method: string, startTime: number, totalTokens?: number): void {
     const duration = Date.now() - startTime
     const tokenInfo = totalTokens !== undefined ? `, tokens=${totalTokens}` : ''
-    console.log(`[LLM] ${method} 耗时=${duration}ms${tokenInfo} model=${this.config.model}`)
+    logger.debug('LLM', `${method} 耗时=${duration}ms${tokenInfo}`, { model: this.config.model })
     // v2.4 Phase B：响应慢告警（>5000ms），让 ModelSettings 告警历史显示真实记录
     alertLlmSlowResponse(method, duration)
   }

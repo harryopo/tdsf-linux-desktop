@@ -451,8 +451,10 @@ class SupervisorAgent {
       return m
     })
 
-    // 3. compaction（5 层阈值）
-    const compaction = compactIfNeeded(redactedMessages)
+    // 3. compaction（5 层阈值；窗口用这台 Provider 的生效值，用户覆盖过的也算）
+    //    以前只有一把 150K 的绝对尺子：Ollama 8K 这类小窗口模型永远轮不到压缩，
+    //    请求被上游直接拒成 400，用户看到的是"AI 突然不能用了"。
+    const compaction = compactIfNeeded(redactedMessages, config.capabilities?.contextWindow)
     if (compaction.level !== 'none') {
       this.log.info('chat 触发 compaction', {
         correlationId,
@@ -1275,7 +1277,7 @@ class SupervisorAgent {
         model: modelInstance.resolvedModel,
         strength,
         durationMs,
-        compactionLevel: compaction.level === 'L5' ? 'L4' : compaction.level,
+        compactionLevel: compaction.level,
         cotEntropyTrajectory,
       }
 
@@ -1338,7 +1340,7 @@ class SupervisorAgent {
           model: modelInstance.resolvedModel,
           strength,
           durationMs: Date.now() - startTime,
-          compactionLevel: compaction.level === 'L5' ? 'L4' : compaction.level,
+          compactionLevel: compaction.level,
         })
       } else {
         // v2.3.8 增强：把诊断信息全部写日志，方便用户/开发者从主进程日志定位根因

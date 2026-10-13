@@ -232,8 +232,8 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
       { role: 'user', content: redactSecrets(userPrompt) },
     ]
 
-    // 5. compaction（5 层阈值，避免超长 context）
-    const compaction = compactIfNeeded(messages)
+    // 5. compaction（阈值按这台 Provider 的生效窗口收，小窗口模型不再一路不压缩直到 400）
+    const compaction = compactIfNeeded(messages, ctx.providerConfig?.capabilities?.contextWindow)
 
     // 6. 写入 ctx
     ctx.systemPrompt = systemPrompt
