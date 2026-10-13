@@ -129,7 +129,10 @@ export class MemoryRepository {
   upsert(op: MemoryUpsert, sourceSession?: string): string {
     const reject = validateMemoryText(op.text)
     if (reject) {
-      this.audit('validate', 'skip', `${reject}: ${op.text.slice(0, 60)}`)
+      // 原文一个字都不落审计表：reject==='secret' 时这条记忆正是因为带了凭据才被拦，
+      // 而 memory_audit.detail 是永久行、还会被 auditLog() 原样回给界面 ——
+      // 等于"拦住了写进 memories，却抄了一份写进另一张表"。
+      this.audit('validate', 'skip', `${reject}(len=${op.text.trim().length})`)
       return reject
     }
     if (!MEMORY_TYPES.includes(op.type)) {

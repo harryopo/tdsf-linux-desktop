@@ -19,6 +19,7 @@
 import { ConfigStore } from '../../../services/storage/config-store'
 import { SecureStore } from '../../../services/storage/secure-store'
 import { logger } from '../../../services/log/logger'
+import { assertSafeApiBaseUrl } from '../../../services/security/url-policy'
 import { PROVIDER_TEMPLATES } from './provider-templates'
 import { PROVIDER_CAPABILITIES, getProviderCapabilities } from './provider-capabilities'
 import type { ProviderConfig, PersistedProviderConfig, ModelRole } from './types'
@@ -267,6 +268,21 @@ function stripDerivedFields(p: PersistedProviderConfig): PersistedProviderConfig
 
 export function saveProvider(config: ProviderConfig): boolean {
   try {
+    // baseURL 是"真 API Key 要发到哪里"的那个值，而渲染层能写它。
+    // 老只在这条路的其中一边（config:saveLlm）做策略，provider:save 直接落库，
+    // resolveLlmConfig 又会把 SecureStore 里的真 key 拼回来 —— 等于改一次 baseURL
+    // 就把用户的 live key 寄到任意主机。策略收在写入口，两条路共用一道闸。
+    if (config.baseURL) {
+      const policy = assertSafeApiBaseUrl(config.baseURL)
+      if (!policy.ok) {
+        logger.warn('AGENT.PROVIDER', 'Provider baseURL 被策略拒绝，整条不写', {
+          id: config.id,
+          reason: policy.reason,
+        })
+        return false
+      }
+    }
+
     const providers = loadFromStore()
     const idx = providers.findIndex((p) => p.id === config.id)
 

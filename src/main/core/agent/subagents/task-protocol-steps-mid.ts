@@ -23,6 +23,7 @@ import {
   ensureProvidersInitialized,
 } from '../providers/provider-registry'
 import { createLanguageModel, getDefaultParams } from '../providers/provider-factory'
+import { redactSecrets } from '../providers/redact'
 import { MODE_CONFIGS, isValidMode, getCurrentMode } from '../modes/mode-registry'
 import { compactIfNeeded } from '../context'
 import { log, extractStringField, readInputField } from './task-protocol-helpers'
@@ -223,9 +224,12 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
     }
 
     // 4. 构建 messages
+    //    chat 那条路逐条过 redactSecrets（HC-6），Task/subagent 这条路以前直接把
+    //    用户输入和终端上下文原文发给 Provider —— 用户在终端里敲过的口令会跟着走。
+    //    这里脱敏的只是"发给模型看的内容"，执行用的参数由模型的 tool 调用另出。
     const messages: ModelMessage[] = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
+      { role: 'system', content: redactSecrets(systemPrompt) },
+      { role: 'user', content: redactSecrets(userPrompt) },
     ]
 
     // 5. compaction（5 层阈值，避免超长 context）

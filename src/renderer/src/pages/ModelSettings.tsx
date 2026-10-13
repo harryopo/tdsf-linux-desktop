@@ -282,7 +282,7 @@ export function ModelSettings() {
   const syncToDefaultProvider = async (): Promise<void> => {
     if (!isElectronAPIAvailable() || providers.length === 0) return
     const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
-    await window.electronAPI.providerSave({
+    const ok = await window.electronAPI.providerSave({
       ...target,
       baseURL: endpoint,
       model: selectedModel,
@@ -295,6 +295,11 @@ export function ModelSettings() {
       // 用户填了才覆盖；填 0（未知）时原样带回，交给主进程按类型默认表解析
       capabilities: withContextWindow(target, contextWindow),
     })
+    // 主进程对 baseURL 有安全策略（https，或本机 http 回环）。被拒时这里必须炸出去，
+    // 不然界面会照样写一句"已自动保存"，而真值根本没落库、AI 对话还在用旧地址。
+    if (!ok) {
+      throw new Error('API 地址未通过安全策略（需要 https，或本机回环的 http）')
+    }
     // 仅在默认 Provider 失效回退时才补设默认，保持存储一致性
     if (target.id !== defaultProviderId) {
       await window.electronAPI.providerSetDefault(target.id)
@@ -390,7 +395,13 @@ export function ModelSettings() {
             console.error('[ModelSettings] 测试通过后自动保存 Provider 失败:', saveErr)
             setTestLogs((prev) => [
               ...prev,
-              { time: timestamp(), text: '自动保存 Provider 失败，请手动点击"保存所有配置"', tone: 'error' },
+              {
+                time: timestamp(),
+                // 直接说主进程给的原因：以前这里固定写"请手动点击保存所有配置"，
+                // 而手动保存走的是同一条策略，用户照做只会再失败一次。
+                text: `自动保存 Provider 失败：${saveErr instanceof Error ? saveErr.message : String(saveErr)}`,
+                tone: 'error',
+              },
             ])
           }
         }
@@ -459,7 +470,8 @@ export function ModelSettings() {
         setSaveFeedback(null)
       }, 3000)
     } catch (err) {
-      setSaveFeedback('保存失败')
+      // 把主进程拒绝的原因带到界面上：只说"保存失败"用户不知道该改哪一格
+      setSaveFeedback(`保存失败：${err instanceof Error ? err.message : String(err)}`)
       console.error('[ModelSettings] 保存配置失败:', err)
       if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
       saveFeedbackTimerRef.current = setTimeout(() => {

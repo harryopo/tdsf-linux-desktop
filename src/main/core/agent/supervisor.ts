@@ -1299,11 +1299,16 @@ class SupervisorAgent {
 
       // v2.8：对话完成后 fire-and-forget 自动记忆提取（节流 5 分钟；
       // 失败/超时只记日志，绝不影响主对话）
+      //
+      // 这里必须用 redactedMessages 而不是原 messages：主回答发出去之前已经
+      // 逐条脱敏过，用户在对话里粘的私钥/口令就在这条链上被挡住；记忆提取是
+      // 第二次把同一批内容发给同一个 Provider，带原文等于把那道闸绕过一遍。
+      // fullText 同理——模型有时会把上下文里的凭据原句复述回来。
       void extractMemories(
         new MemoryRepository(db),
         (sys, user, max) => this.callLlm(sys, user, max),
-        messages,
-        fullText,
+        redactedMessages,
+        redactSecrets(fullText),
         correlationId,
       ).catch(() => { /* fire-and-forget */ })
         .then(() => {

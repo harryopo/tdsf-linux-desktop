@@ -174,3 +174,64 @@ describe("存储里只留真覆盖（#89 的回归防线）", () => {
     expect(JSON.stringify(box.store.get(PROVIDERS_KEY)), saveProvider.name).toBe(before)
   })
 })
+
+describe('provider:save 的 baseURL 策略（2026-10-13 后端审查 P0）', () => {
+  // baseURL 决定"SecureStore 里的真 key 寄到哪个主机"，而渲染层能写它。
+  // 老只在本机回环这一侧被 config:saveLlm 校验过一次，provider:save 直接落库。
+  const base = {
+    id: 'p-deepseek',
+    name: 'DeepSeek',
+    type: 'deepseek',
+    model: 'deepseek-chat',
+    enabled: true,
+  }
+
+  it('明文 http 指向远端 → 整条拒写，且口令/密钥一个字节都不落', async () => {
+    const { saveProvider } = await registry()
+    seedProvider({ ...base, baseURL: 'https://api.deepseek.com/v1' })
+    const before = JSON.stringify(box.store.get(PROVIDERS_KEY))
+
+    const ok = saveProvider({
+      ...base,
+      baseURL: 'http://attacker.example.com/v1',
+      // 拆成相邻字面量：完整的 sk-… 形状会被 GitHub 密钥扫描当真并给仓库所有者发信，
+      // 事后删掉警报也不会自动关
+      apiKey: ['sk-', 'should-not-be-persisted'].join(''),
+    } as never)
+
+    expect(ok).toBe(false)
+    expect(JSON.stringify(box.store.get(PROVIDERS_KEY)), '地址被拒却把旧记录改掉了').toBe(before)
+    expect([...box.secrets.keys()], '拒写发生在 SecureStore 之前，key 不该已经存进去').toEqual([])
+  })
+
+  it('https 正常地址照样保存（负向对照：这道闸不是一律拒绝）', async () => {
+    const { saveProvider } = await registry()
+    seedProvider({ ...base, baseURL: 'https://api.deepseek.com/v1' })
+
+    expect(saveProvider({ ...base, baseURL: 'https://api.deepseek.com/v1' } as never)).toBe(true)
+    const stored = (box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>)[0]
+    expect(stored.baseURL).toBe('https://api.deepseek.com/v1')
+  })
+
+  it('本机 ollama 的明文 http 仍然放行（挡住远端不能顺手挡住本地）', async () => {
+    const { saveProvider } = await registry()
+    seedProvider({ ...base, id: 'p-ollama', type: 'ollama', baseURL: 'http://127.0.0.1:11434/v1' })
+    expect(
+      saveProvider({ ...base, id: 'p-ollama', type: 'ollama', baseURL: 'http://localhost:11434/v1' } as never)
+    ).toBe(true)
+  })
+
+  it('URL 里内嵌账号口令 → 拒', async () => {
+    const { saveProvider } = await registry()
+    seedProvider({ ...base, baseURL: 'https://api.deepseek.com/v1' })
+    expect(saveProvider({ ...base, baseURL: 'https://evil:***@api.deepseek.com/v1' } as never)).toBe(false)
+  })
+
+  it('file:// 之类的非 http 协议 → 拒（白名单口径，不是黑名单补洞）', async () => {
+    const { saveProvider } = await registry()
+    seedProvider({ ...base, baseURL: 'https://api.deepseek.com/v1' })
+    const before = JSON.stringify(box.store.get(PROVIDERS_KEY))
+    expect(saveProvider({ ...base, baseURL: 'file:///C:/windows/system32/calc.exe' } as never)).toBe(false)
+    expect(JSON.stringify(box.store.get(PROVIDERS_KEY))).toBe(before)
+  })
+})

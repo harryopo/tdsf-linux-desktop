@@ -143,8 +143,10 @@ async function cjkFontAudit(ws, label) {
     document.body.appendChild(canary);
     return n;
   })()`)
-  const { root } = await cdp(ws, 'DOM.getDocument', { depth: -1 })
   const fontsOf = async (selector) => {
+    // 每次都重取 document：React 中途重绘会把上一次快照里的节点整体换掉，
+    // 拿旧 root 去 querySelectorAll 会读到空列表 —— 那不是"探针没抓到"，是量具自己过期了。
+    const { root } = await cdp(ws, 'DOM.getDocument', { depth: -1 })
     const { nodeIds } = await cdp(ws, 'DOM.querySelectorAll', { nodeId: root.nodeId, selector })
     const out = []
     for (const nodeId of nodeIds.slice(0, 500)) {
@@ -158,7 +160,13 @@ async function cjkFontAudit(ws, label) {
     return out
   }
   const used = await fontsOf('[data-cjk-probe]')
-  const canaryFonts = await fontsOf('#audit-cjk-canary')
+  // 有界重试：首屏字体还没光栅化完时，那一次可能什么都量不到。读数不该因为量具
+  // 抖一下就作废，更不该因此放过真坏了的量具 —— 三次都抓不到显式 SimSun 才报"量具失效"。
+  let canaryFonts = await fontsOf('#audit-cjk-canary')
+  for (let attempt = 0; attempt < 2 && canaryFonts.length === 0; attempt++) {
+    await new Promise((r) => setTimeout(r, 250))
+    canaryFonts = await fontsOf('#audit-cjk-canary')
+  }
   await evalIn(ws, `(() => { const c = document.getElementById('audit-cjk-canary'); if (c) c.remove(); })()`)
   const tally = new Map()
   for (const f of used) {

@@ -130,24 +130,8 @@ class SessionRegistry {
   }
 
   /**
-   * 通过 sessionId 获取 AbortController（用于传递给 streamText / SDK 调用）
-   *
-   * @param sessionId 会话 ID
-   * @returns AbortController 或 undefined（会话不存在）
-   */
-  getAbortController(sessionId: string): AbortController | undefined {
-    const record = this.sessions.get(sessionId as SessionId)
-    if (!record) {
-      return undefined
-    }
-    record.lastActiveAt = Date.now()
-    return record.abortController
-  }
-
-  /**
    * 通过 sessionId 取消会话（调用 AbortController.abort()）
    *
-   * @param sessionId 会话 ID
    * @returns 是否成功取消（false 表示会话不存在或已结束）
    */
   abort(sessionId: string): boolean {
