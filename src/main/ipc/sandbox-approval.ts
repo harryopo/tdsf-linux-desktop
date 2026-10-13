@@ -16,6 +16,8 @@ import { logger } from '../services/log/logger'
 import { SANDBOX } from '@shared/ipc-channels'
 // AST 危险命令识别（tree-sitter-bash，覆盖 6 类绕过，AST 失败时降级到正则）
 import { assessWithAst } from '../core/risk-engine-ast'
+// 权威风险引擎：AST 不可用时的兜底判定也走这一份规则（不再手抄第二份）
+import { assessRisk } from '../core/risk-engine'
 // P1-8 修复：回滚命令动态生成（18 条规则 + 不可逆黑名单 + 路径解析）
 import { generateRollbackCommand } from '../services/security/rollback-generator'
 
@@ -99,7 +101,7 @@ export interface SandboxApprovalRequest {
  *
  * 改造（v0.9 自检后追加）：
  * - 优先使用 AST 解析（tree-sitter-bash），覆盖 6 类绕过
- * - AST 解析失败时降级到正则方案（assessCommandRiskRegex）
+ * - AST 解析失败时降级到权威风险引擎 assessRisk（assessCommandRiskFallback）
  * - 调研依据：docs/调研-Bash命令解析库选型-危险命令识别.md
  *
  * - high：高危命令（rm -rf / chmod 777 / iptables / dd / mkfs / fork bomb / shutdown 等）
@@ -114,46 +116,31 @@ export async function assessCommandRisk(
   if (astResult) {
     return { risk: astResult.risk, reasons: astResult.reasons }
   }
-  // AST 失败 → 降级到正则
-  return assessCommandRiskRegex(command)
+  // AST 失败 → 交给权威风险引擎（同一份规则，不再另立一张表）
+  return assessCommandRiskFallback(command)
 }
 
 /**
  * 正则兜底方案（原 assessCommandRisk 实现，AST 失败时调用）
  */
-export function assessCommandRiskRegex(
+/**
+ * AST 不可用时的兜底：复用权威风险引擎 risk-engine.assessRisk，只做等级映射。
+ *
+ * 这里原来是一份**手抄的第二套规则表**（18 条正则），和 risk-engine 那份各自演化。
+ * 实测同一批命令两边判定不一致，而且不一致的方向是审批卡更松：
+ *   `rm -rf /var/log` → risk-engine HIGH，本表 low
+ *   `useradd -m hacker` → 本表 medium，risk-engine LOW
+ * 用户正是在这一秒决定"要不要放行"，卡片把高危标成低风险等于帮着放行。
+ * 规则从此只有一份，两边不可能再分叉；等级词表不同就在此处映射。
+ */
+export function assessCommandRiskFallback(
   command: string
 ): { risk: CommandRiskLevel; reasons: string[] } {
-  const reasons: string[] = []
-  // 高危：rm -rf 根目录 / chmod 777 / iptables / dd / mkfs / fork bomb / shutdown
-  if (/\brm\s+-rf\b/i.test(command) && /(^|\s|["'`])\/($|\s|\*|["'`])/.test(command)) {
-    reasons.push('rm -rf 根目录递归删除')
-  }
-  if (/chmod\s+777/i.test(command)) reasons.push('chmod 777 全权限开放')
-  if (/\biptables\b/i.test(command)) reasons.push('iptables 防火墙规则修改')
-  if (/\bdd\s+if=/i.test(command)) reasons.push('dd 磁盘镜像写入')
-  if (/mkfs/i.test(command)) reasons.push('mkfs 文件系统格式化')
-  if (/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;:/.test(command)) reasons.push('fork bomb')
-  if (/\b(shutdown|reboot|halt|poweroff)\b/i.test(command)) reasons.push('关机/重启命令')
-  if (/>\s*\/dev\/sd[a-z]/i.test(command)) reasons.push('直接写入磁盘设备')
-  if (/\bkillall\b/i.test(command)) reasons.push('killall 批量终止进程')
-  if (reasons.length > 0) return { risk: 'high', reasons }
-
-  // 中危：包管理 / 用户管理 / 服务管理 / 网络 / sudo
-  if (/\b(yum|apt|dnf|pip|npm|pnpm)\s+(install|remove|upgrade|purge)\b/i.test(command)) {
-    reasons.push('包管理操作')
-  }
-  if (/\buser(add|del|mod)\b/i.test(command)) reasons.push('用户管理')
-  if (/\bgroup(add|del|mod)\b/i.test(command)) reasons.push('用户组管理')
-  if (/\bsystemctl\s+(start|stop|restart|enable|disable)\b/i.test(command)) reasons.push('服务管理')
-  if (/\bservice\s+\w+\s+(start|stop|restart)/i.test(command)) reasons.push('SysV 服务管理')
-  if (/\bsudo\b/i.test(command)) reasons.push('sudo 提权')
-  if (/>\s*\/etc\//i.test(command)) reasons.push('修改 /etc 系统配置')
-  if (/\bcrontab\b/i.test(command)) reasons.push('定时任务修改')
-  if (/\b(passwd|chpasswd)\b/i.test(command)) reasons.push('密码修改')
-  if (reasons.length > 0) return { risk: 'medium', reasons }
-
-  return { risk: 'low', reasons: [] }
+  const a = assessRisk(command)
+  const risk: CommandRiskLevel =
+    a.level === 'HIGH' || a.level === 'CRITICAL' ? 'high' : a.level === 'MEDIUM' ? 'medium' : 'low'
+  const reasons = a.matchedRules.length > 0 ? [...a.matchedRules] : a.description ? [a.description] : []
+  return { risk, reasons }
 }
 
 /**

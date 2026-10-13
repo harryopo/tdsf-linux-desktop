@@ -101,7 +101,12 @@ const MEDIUM_PATTERNS: RiskPattern[] = [
   { pattern: /\bcp\s+.*-\w*f\w*/, description: '强制复制覆盖文件' },
   { pattern: /\bmv\s+\S+\s+\S+/, description: '移动/重命名文件（可能覆盖）' },
   { pattern: /\bsudo\b/, description: '使用 sudo 提权' },
-  { pattern: /[|&]?\s*>\s*[^>&|]/, description: '输出重定向（覆写文件）' },
+  // 重定向目标分两类：写临时目录 / 丢弃到 /dev/null 是日常操作（教程与脚本里满地都是），
+  // 每次都弹"覆写文件"等于训练用户一路点确认；其余目标（系统路径、任意文件）仍按中危。
+  {
+    pattern: /[|&]?\s*>\s*(?!\/dev\/|\/tmp\/|\/var\/tmp\/)[^\s>&|]/,
+    description: '输出重定向（覆写文件）',
+  },
   { pattern: /\bsed\s+.*-i\b/, description: 'sed 原地编辑文件' },
   { pattern: /\b(apt|apt-get|yum|dnf)\s+.*(install|remove|purge)\b/, description: '包管理操作' },
   { pattern: /\bmount\b/, description: '挂载文件系统' },
