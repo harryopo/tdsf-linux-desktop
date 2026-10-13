@@ -24,6 +24,8 @@
     "audit:ipc": "tsx scripts/audit-ipc-contract.ts",
     "types:audit": "tsx scripts/ipc/electron-dts-audit.ts --gate",
     "security:topology": "node scripts/security/topology-gate.cjs",
+    "security:history": "node scripts/security/history-env-scan.cjs",
+    "security:secrets": "node scripts/security/secret-gate.cjs --all",
     "ipc:gen": "tsx scripts/ipc/gen-contract.ts",
     "ipc:check": "tsx scripts/ipc/gen-contract.ts --check",
     "deadcode": "knip --no-exit-code",

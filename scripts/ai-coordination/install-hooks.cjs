@@ -33,6 +33,41 @@ const SECRET_BLOCK = [
   SEC_END,
 ].join('\n');
 
+/**
+ * 内网拓扑值闸（0.4s）：按【值】核对 .env.local 里的 HOST 地址没被抄进代码。
+ *
+ * 为什么要挂进 hook：这道闸原本只有手敲 `npm run security:topology` 才跑，
+ * 而 2026-10-13 那次我自己把真机 IP 写进提交的测试里，它一声没吭——有判据没执行体
+ * 的闸只对"记得跑的人"负责。--no-values-ok 是给新克隆留的活路：没有 .env.local
+ * 就没有可锚定的值，闸大声跳过（结论 SKIPPED），而不是把全仓库钉成常亮红灯。
+ */
+const TOPO_BEGIN = '# BEGIN topology gate (内网拓扑值按值锚定)';
+const TOPO_END = '# END topology gate';
+const TOPOLOGY_BLOCK = [
+  TOPO_BEGIN,
+  'repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"',
+  'node "$repo_root/scripts/security/topology-gate.cjs" --no-values-ok || exit 1',
+  TOPO_END,
+].join('\n');
+
+/**
+ * pre-push：推出去之前按真值核一遍 git 历史（12s 级，放在 push 不放 commit）。
+ *
+ * 分工：secret-gate 管【形态】（厂商前缀/PEM/赋值），history-env-scan 管【值】
+ * （.env.local 的口令 + .secrets-anchor.local.json 里申报的额外密钥），
+ * topology-gate 管【当前代码】里的内网地址。三道闸互不覆盖，缺一个就有一类沉默通过。
+ */
+const PUSH_BEGIN = '# BEGIN pre-push security gates (形态闸 + 历史值闸 + 拓扑闸)';
+const PUSH_END = '# END pre-push security gates';
+const PUSH_BLOCK = [
+  PUSH_BEGIN,
+  'repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"',
+  'node "$repo_root/scripts/security/secret-gate.cjs" --all || exit 1',
+  'node "$repo_root/scripts/security/history-env-scan.cjs" || exit 1',
+  'node "$repo_root/scripts/security/topology-gate.cjs" --no-values-ok || exit 1',
+  PUSH_END,
+].join('\n');
+
 // ---------- 1. 定位 hooks 目录（兼容 worktree / 自定义 git-dir） ----------
 let hooksDir;
 try {
@@ -71,12 +106,23 @@ function mergeBlock(text, beginPrefix, block) {
 
 content = mergeBlock(content, '# BEGIN ai-coordination guard', BLOCK);
 content = mergeBlock(content, '# BEGIN secret gate', SECRET_BLOCK);
+content = mergeBlock(content, '# BEGIN topology gate', TOPOLOGY_BLOCK);
+
+/** pre-push 是独立文件：没有历史块时从空串起（mergeBlock 会补 shebang） */
+const pushFile = path.join(hooksDir, 'pre-push');
+let pushContent = fs.existsSync(pushFile) ? fs.readFileSync(pushFile, 'utf8') : '';
+pushContent = mergeBlock(pushContent, '# BEGIN pre-push security gates', PUSH_BLOCK);
+
+function writeHook(file, body, label) {
+  fs.writeFileSync(file, body, { encoding: 'utf8' });
+  fs.chmodSync(file, 0o755);
+  console.log(`[install-hooks] ✅ ${label} 已安装: ${file}`);
+}
 
 try {
-  fs.writeFileSync(hookFile, content, { encoding: 'utf8' });
-  fs.chmodSync(hookFile, 0o755);
-  console.log(`[install-hooks] ✅ pre-commit 高共享文件守卫已安装: ${hookFile}`);
+  writeHook(hookFile, content, 'pre-commit（高共享文件守卫 + 形态闸 + 拓扑闸）');
+  writeHook(pushFile, pushContent, 'pre-push（形态闸全量 + 历史值闸 + 拓扑闸）');
 } catch (e) {
-  console.log(`[install-hooks] ⚠️  写入 pre-commit 失败（${e.message}），可手动运行 pnpm ai:install-hooks`);
+  console.log(`[install-hooks] ⚠️  写入 hook 失败（${e.message}），可手动运行 pnpm ai:install-hooks`);
   process.exit(0);
 }

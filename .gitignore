@@ -24,6 +24,8 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+# 申报给 history-env-scan 的额外密钥（模型 API 口令等）：只在本机存在，闸按值核历史
+.secrets-anchor.local.json
 
 # E2E 本地凭据（SSH 密码 / API Key 等，绝不提交）+ 临时测试产物
 **/.ssh-credentials.local.json

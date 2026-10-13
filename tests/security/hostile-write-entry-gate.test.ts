@@ -138,7 +138,8 @@ describe('A 组｜Provider baseURL 写入口（决定真 Key 寄到哪里）', (
     // 用户自建的网关/内网 TLS 端点是合法用法，这里不做主机白名单；
     // 一旦有人改成"任何 https 都放行到公网也无所谓"，下面的用例不会变红，
     // 但这一条会把"我们放过了什么"记在明面上，而不是让人以为全挡住了。
-    expect(assertSafeApiBaseUrl('https://192.168.45.200:8443/v1').ok).toBe(true)
+    // 地址用 RFC1918 的通用示例段，不许换成任何真实主机的地址（topology-gate 会红）。
+    expect(assertSafeApiBaseUrl('https://10.0.0.1:8443/v1').ok).toBe(true)
   })
 })
 

@@ -15,9 +15,11 @@
  *   node scripts/security/topology-gate.cjs                  用仓库根的 .env.local
  *   node scripts/security/topology-gate.cjs --values <路径>   指定值来源（测试与 CI 用）
  *   node scripts/security/topology-gate.cjs --control <串>    阳性对照：该串必须命中，否则闸是死的
+ *   node scripts/security/topology-gate.cjs --no-values-ok    无值时大声跳过（pre-commit 用，见 install-hooks.cjs）
  *
  * 参数名不能叫 --env-file：那是 node 自己的内置开关，会被 node 先吃掉（实测 rc=9，根本进不到本脚本）。
- * 无值文件 / 无锚定值 / 未知参数 / git 异常 → 一律 exit 1（fail-closed，不静默放行）。
+ * 未知参数 / git 异常 → 一律 exit 1（fail-closed，不静默放行）。
+ * 无值文件与无锚定值默认也 exit 1；只有 --no-values-ok 才降级为"跳过"，且结论写 SKIPPED 不写 CLEAN。
  * 报告只出现文件、行号、键名和掩码后的值，绝不打印真值。
  */
 'use strict'
@@ -88,7 +90,7 @@ function mask(value) {
  * （2026-10-04 那次把 --tracked 拼成 --traked，脚本照样跑完并打印 PASS，就是这种默认分支留下的放行证）
  */
 function parseArgs(argv) {
-  const out = { values: null, control: null }
+  const out = { values: null, control: null, noValuesOk: false }
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]
     if (a === '--values' || a === '--control') {
@@ -97,8 +99,10 @@ function parseArgs(argv) {
       if (a === '--values') out.values = val
       else out.control = val
       i += 1
+    } else if (a === '--no-values-ok') {
+      out.noValuesOk = true
     } else if (a.startsWith('-')) {
-      fail('未知参数：' + a + '（只支持 --values <路径> 与 --control <串>）')
+      fail('未知参数：' + a + '（只支持 --values <路径>、--control <串> 与 --no-values-ok）')
     } else {
       fail('不接受位置参数：' + a)
     }
@@ -117,8 +121,20 @@ function runGit(args) {
   return r.stdout
 }
 
-function loadAnchors(envPath) {
+/**
+ * 读锚定值。返回 null 表示"这台机器没有可锚定的真值"，只在 opts.noValuesOk 时发生。
+ *
+ * 为什么留这个口子：本闸按【值】比对，值来自开发者自己的 .env.local（不入库）。
+ * 新克隆没有这个文件，此时默认红等于给全仓库发一张永久红灯——而红到没人跑的闸就是没有闸。
+ * 所以 hook 传 --no-values-ok：没值就大声跳过，但结论只能写 SKIPPED，不许写 CLEAN。
+ * 有值的时候这个开关不改变任何判定（缺值 ≠ 值不存在于代码里）。
+ */
+function loadAnchors(envPath, noValuesOk) {
   if (!fs.existsSync(envPath)) {
+    if (noValuesOk) {
+      console.log('[topology-gate] 跳过：值来源 ' + envPath + ' 不存在，本机没有可锚定的内网地址')
+      return null
+    }
     fail('缺少值来源 ' + envPath + ' —— 没有真值就无法核对，拒绝放行（fail-closed）')
   }
   const anchors = []
@@ -132,6 +148,10 @@ function loadAnchors(envPath) {
     anchors.push({ key, val })
   }
   if (!anchors.length) {
+    if (noValuesOk) {
+      console.log('[topology-gate] 跳过：' + envPath + ' 里没有可锚定的 HOST 值（键名规则 ' + HOST_KEY + '，长度 ≥7，非占位）')
+      return null
+    }
     fail(envPath + ' 里没有可锚定的 HOST 值（键名规则 ' + HOST_KEY + '，长度 ≥7，非占位）')
   }
   return anchors
@@ -190,8 +210,13 @@ if (require.main === module) {
   }
 
   const anchors = loadAnchors(
-    opts.values ? path.resolve(opts.values) : path.join(repo, '.env.local')
+    opts.values ? path.resolve(opts.values) : path.join(repo, '.env.local'),
+    opts.noValuesOk
   )
+  if (anchors === null) {
+    console.log('结论: SKIPPED —— 本机无锚定值，本闸这次没有核对任何东西')
+    process.exit(0)
+  }
   console.log('[topology-gate] 代码文件 ' + items.length + ' 个，锚定值 ' + anchors.length + ' 个')
 
   const bad = []

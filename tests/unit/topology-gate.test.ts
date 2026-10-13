@@ -98,6 +98,39 @@ describe('topology-gate —— A5 判据的证伪', () => {
     expect(out).toContain('没有可锚定的 HOST 值')
   })
 
+  // ---- --no-values-ok：给 pre-commit 留的活路，只允许影响"没值"这一种情况 ----
+
+  it('--no-values-ok 遇到没有值文件：跳过，但结论只能写 SKIPPED 不许写 CLEAN', () => {
+    const { rc, out } = run(['--values', path.join(tmpRoot, 'nope.env'), '--no-values-ok'])
+    expect(rc, out).toBe(0)
+    expect(out).toContain('跳过')
+    expect(out).toContain('SKIPPED')
+    expect(out).not.toContain('CLEAN')
+  })
+
+  it('--no-values-ok 遇到有文件但无可锚定值：同样大声跳过', () => {
+    const vf = valuesFile('weak2.env', 'TDSF_SSH_HOST=changeme-host\n')
+    const { rc, out } = run(['--values', vf, '--no-values-ok'])
+    expect(rc, out).toBe(0)
+    expect(out).toContain('SKIPPED')
+    expect(out).not.toContain('CLEAN')
+  })
+
+  it('--no-values-ok 不得削弱真核对：有锚定值且它就在代码里，照样红', () => {
+    const vf = valuesFile('hit2.env', `TDSF_TARGET_HOST=${IN_CODE}\n`)
+    const { rc, out } = run(['--values', vf, '--no-values-ok'])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('硬编码在被跟踪代码里')
+    expect(out).not.toContain('SKIPPED')
+  })
+
+  it('未知参数仍被白名单挡下（新开关写进了提示里）', () => {
+    const { rc, out } = run(['--no-values-okk'])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('未知参数')
+    expect(out).toContain('--no-values-ok')
+  })
+
   it('真实 .env.local：锚定值 ≥1 且代码 CLEAN；同时 docs 里确实还有这个地址', () => {
     const envPath = path.join(process.cwd(), '.env.local')
     if (!fs.existsSync(envPath)) {
