@@ -24,6 +24,20 @@ import type { KnowledgeType } from '@shared/models'
 import type { McpToolResult } from './registry'
 
 /**
+ * legacy 独有工具清单（v5/v2 注册表未覆盖的那 4 个）。
+ *
+ * server.ts 的 listRegisteredTools 用这一份，不再手抄一遍——派发口靠它判断
+ * "这个名字到底存不存在"，抄漏一项就会把真被拦下的调用误报成"未知工具"。
+ * 与下面 switch 的 case 分支一致性由 tests/unit/mcp-tool-call-gate.test.ts 现取源码比对。
+ */
+export const LEGACY_TOOLS: ReadonlyArray<{ name: string; description: string }> = [
+  { name: 'ssh_diagnose', description: '使用 TDSF Agent 诊断服务器故障（7 步 HITL 工作流）' },
+  { name: 'knowledge_query', description: '查询历史故障案例知识库' },
+  { name: 'risk_check', description: '评估 Linux 命令的风险等级' },
+  { name: 'history_search', description: '搜索历史决策卡片（按问题/假设/修复命令）' },
+]
+
+/**
  * 处理 legacy 工具调用
  *
  * @param name 工具名（ssh_diagnose / knowledge_query / risk_check / history_search）

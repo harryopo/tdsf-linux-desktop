@@ -1162,11 +1162,52 @@ export class LineGate {
  * （`ssh_exec` 的 `command`、`sftp_write_file` 的 `path`），不是猜的。
  * 加新工具必须同时在这里登记 —— 没登记的工具按 fail-closed 拒绝。
  */
+/**
+ * MCP 派发口每个工具的形状：命令在哪个参数、写入路径在哪个参数。
+ *
+ * 这张表必须覆盖所有会被 handleToolCall 收到的名字 —— 没登记的工具一律
+ * fail-closed 拒绝（见 assessToolCall）。此前它只有 4 条，而 ssh_exec / sftp_* 之外
+ * 的真实工具名（ssh_execute / sandbox_execute / ssh_file_write …）都不在里面，
+ * 所以这道闸当时接上就等于把 MCP 全量拒死；#88 按真实清单补齐后才接。
+ * 覆盖性由 tests/unit/mcp-tool-call-gate.test.ts 钉住：它从各域 registry 现取名字。
+ */
 const TOOL_CALL_SHAPES: Record<string, { commandKey?: string; writePathKey?: string }> = {
+  // ── 命令类：参数里就是原始 shell 命令，复用与终端键入/AI 代写同一套判据 ──
   ssh_exec: { commandKey: 'command' },
+  ssh_execute: { commandKey: 'command' },
+  sandbox_execute: { commandKey: 'command' },
+  // ── 写入类：按受保护路径判 ──
   sftp_write_file: { writePathKey: 'path' },
+  ssh_file_write: { writePathKey: 'remotePath' },
+  // ── 只读/无原始命令语义：登记即放行，真正的命令由各自 service 组装后过 exec 闸 ──
   sftp_read_file: {},
   sftp_list: {},
+  ssh_file_read: {},
+  ssh_file_list: {},
+  ssh_file_stat: {},
+  ssh_diagnose: {},
+  log_tail: {},
+  log_search: {},
+  log_analyze: {},
+  monitor_process_list: {},
+  monitor_disk_usage: {},
+  monitor_network_stats: {},
+  monitor_get_data: {},
+  kb_search: {},
+  kb_add: {},
+  kb_update: {},
+  kb_list: {},
+  knowledge_query: {},
+  tutorial_search: {},
+  credibility_assess: {},
+  decision_history: {},
+  history_search: {},
+  risk_check: {},
+  profiler_run: {},
+  deploy_list_templates: {},
+  // 沙箱生命周期：容器由 OpenHands 侧管，破坏性动作有自己的审批通道（sandbox:approval-request）
+  sandbox_create: {},
+  sandbox_destroy: {},
 }
 
 export interface ToolCallVerdict {

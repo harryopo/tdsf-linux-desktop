@@ -22,8 +22,14 @@ import { executeMonitorGet, monitorGetArgsSchema } from '../../llm/tools/monitor
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import type { ToolCallResult } from '@shared/llm-tool-types'
 
-/** MCP 工具调用结果格式（@modelcontextprotocol/sdk 标准） */
-export interface McpToolResult {
+/**
+ * MCP 工具调用结果格式（@modelcontextprotocol/sdk 标准）
+ *
+ * 写成 type 而不是 interface：SDK 的 tools/call 处理器要求返回值能隐式匹配
+ * `{ [x: string]: unknown }`，而 interface 拿不到隐式索引签名——用 interface 时
+ * 这个类型会在 server.ts 的 setRequestHandler 处报 TS2345。
+ */
+export type McpToolResult = {
   content: Array<{ type: 'text'; text: string }>
   isError?: boolean
 }

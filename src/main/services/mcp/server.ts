@@ -22,14 +22,16 @@ import {
   GetPromptRequestSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { DatabaseManager } from '../db/database'
-import { createMcpTools, type McpToolRegistration } from './tools/registry'
+import { createMcpTools, type McpToolRegistration, type McpToolResult } from './tools/registry'
 import { createSshMcpTools } from './tools/registry-ssh'
 import { createMonitorMcpTools } from './tools/registry-monitor'
 import { createLogMcpTools } from './tools/registry-log'
 import { createKnowledgeMcpTools } from './tools/registry-knowledge'
 import { createCredibilityMcpTools } from './tools/registry-credibility'
 import { createSandboxMcpTools } from './tools/registry-sandbox'
-import { handleLegacyToolCall } from './tools/legacy-handlers'
+import { handleLegacyToolCall, LEGACY_TOOLS } from './tools/legacy-handlers'
+import { assessToolCall } from '../../core/command-gate'
+import { logger } from '../log/logger'
 import { MCP_RESOURCES, readResource } from './resources'
 import { MCP_PROMPTS, getPrompt } from './prompts'
 import type { McpPromptMessage } from './prompts'
@@ -361,7 +363,7 @@ export class McpServerService {
   async invokeTool(
     name: string,
     args: Record<string, unknown>
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+  ): Promise<McpToolResult> {
     return this.handleToolCall(name, args)
   }
 
@@ -399,12 +401,7 @@ export class McpServerService {
    */
   listRegisteredTools(): Array<{ name: string; description: string }> {
     // ssh_exec 由 v5 注册表统一提供，legacy 列表不再重复列举
-    const legacyTools = [
-      { name: 'ssh_diagnose', description: '使用 TDSF Agent 诊断服务器故障（7 步 HITL 工作流）' },
-      { name: 'knowledge_query', description: '查询历史故障案例知识库' },
-      { name: 'risk_check', description: '评估 Linux 命令的风险等级' },
-      { name: 'history_search', description: '搜索历史决策卡片（按问题/假设/修复命令）' },
-    ]
+    const legacyTools = [...LEGACY_TOOLS]
     const v5Tools = createMcpTools(DatabaseManager.getInstance() ?? null)
     const v5Meta = v5Tools.map((t) => ({
       name: t.meta.name,
@@ -424,8 +421,29 @@ export class McpServerService {
   private async handleToolCall(
     name: string,
     args: Record<string, unknown>
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+  ): Promise<McpToolResult> {
     try {
+      // #88：派发口也过这道闸。此前没接是因为形状表只登记了 4 个名字，真实工具
+      // （ssh_execute / sandbox_execute / ssh_file_write …）不在表里，接上等于把
+      // 整个 MCP 服务拒死；表按真实清单补齐后才接（覆盖性见 mcp-tool-call-gate 测试）。
+      const gate = assessToolCall(name, args)
+      if (!gate.allow) {
+        // 拦不拦跟注册表无关——未登记的名字一律不会执行到这里之后。查注册表只是为了
+        // 分开两种文案：名字根本不存在时报"未知工具"（调用方拼错要能自我纠正），
+        // 确实存在却被高危规则拦下才报拦截，两者不能混成一条。
+        if (!this.listRegisteredTools().some((t) => t.name === name)) {
+          return await handleLegacyToolCall(name, args)
+        }
+        logger.warn('MCP', '工具调用被命令闸拒绝', {
+          tool: name,
+          level: gate.level,
+          reason: gate.reason,
+        })
+        return {
+          content: [{ type: 'text', text: `高危操作已被拦截：${gate.reason}` }],
+          isError: true,
+        }
+      }
       // ── v0.5.0 注册表工具优先分发（单一来源，与 LLM Tool Calling 共用业务逻辑）──
       // 修复：此前 handleToolCall 只分发 5 个 legacy 工具，导致注册表中的
       // tutorial_search / deploy_list_templates / profiler_run / monitor_get_data
@@ -459,7 +477,9 @@ export class McpServerService {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       return {
-        content: [{ type: 'text', text: `工具调用失败: ${msg}` }]
+        content: [{ type: 'text', text: `工具调用失败: ${msg}` }],
+        // 抛异常与闸拦截都是失败，不能只靠文案让调用方误判成功
+        isError: true
       }
     }
   }
