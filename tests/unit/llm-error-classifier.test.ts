@@ -103,6 +103,21 @@ describe('分类：结构化信号优先', () => {
     expect(r.retryable).toBe(true)
   })
 
+  it('OpenAI SDK 把真原因藏在 cause 里：只看顶层会报 UNKNOWN', () => {
+    const wrapped = Object.assign(new Error('Connection error.'), {
+      name: 'Error',
+      cause: Object.assign(
+        new Error('request to http://127.0.0.1:9/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:9'),
+        { code: 'ECONNREFUSED', name: 'FetchError' }
+      ),
+    })
+    const r = classifyLlmError(wrapped)
+    expect(r.code).toBe('NETWORK')
+    expect(r.retryable).toBe(true)
+    // 正向对照：顶层那句单独拿出来确实什么线索都没有，说明是 cause 挖掘在起作用
+    expect(classifyLlmError(new Error('Connection error.')).code).toBe('UNKNOWN')
+  })
+
   it('"No API key provided" 报未配置，而不是"Key 无效或已过期"', () => {
     expect(classifyLlmError(apiError({ message: 'No API key provided', status: 401 })).code).toBe(
       'NO_API_KEY'

@@ -9,11 +9,14 @@
  * 用户看到的是"AI 突然不能用了"，而文案把排查方向指错了地方。
  *
  * 口径（顺序即优先级，越具体的信号越先）：
- *   1) provider 给机器读的错误码（data.code / responseBody.error.code / type）
+ *   1) provider 给机器读的错误码（data.code / responseBody.error.code / type / cause.code）
  *   2) 人读文本里的语义短语（一律用足够长的片段或带词边界）
  *   3) 结构化 HTTP 状态（err.status / err.statusCode）
  *   4) 文本里的三位数状态（\b404\b，词边界让 9404 不再命中）
  *   5) 兜底 UNKNOWN
+ *
+ * cause 链必须挖：OpenAI SDK 把连不上表现为 message="Connection error."，
+ * 真信号在 cause.code=ECONNREFUSED。只看顶层会把最常见的断网报成 UNKNOWN。
  *
  * 原始消息进 payload 与日志之前先过 redactSecrets：调用点那句"错误信息已脱敏"
  * 此前只是注释，没有执行体。
@@ -167,6 +170,7 @@ interface ErrShape {
   code?: unknown
   type?: unknown
   responseBody?: unknown
+  cause?: unknown
   data?: {
     code?: unknown
     type?: unknown
@@ -175,9 +179,12 @@ interface ErrShape {
   }
 }
 
-function readStrings(err: unknown): { message: string; status?: number; apiSignals: string[] } {
+/** cause 链最多走三层：OpenAI SDK 把真原因藏在 cause 里，再深就是循环引用风险 */
+const MAX_CAUSE_DEPTH = 3
+
+function readStrings(err: unknown): { detail: string; status?: number; apiSignals: string[] } {
   const e = (err ?? {}) as ErrShape & Error
-  const message = typeof e.message === 'string' && e.message ? e.message : String(err ?? '未知错误')
+  const topMessage = typeof e.message === 'string' && e.message ? e.message : String(err ?? '未知错误')
 
   const rawStatus = e.status ?? e.statusCode
   const status = typeof rawStatus === 'number' && Number.isFinite(rawStatus) ? rawStatus : undefined
@@ -203,24 +210,40 @@ function readStrings(err: unknown): { message: string; status?: number; apiSigna
       signals.push(e.responseBody.slice(0, MAX_DETAIL_CHARS))
     }
   }
-  return { message, status, apiSignals: signals }
+
+  // cause 链：OpenAI SDK 的连不上表现为 message="Connection error."，
+  // 真信号在 cause.code=ECONNREFUSED 里。只看顶层会把网络故障报成 UNKNOWN。
+  const texts = [topMessage]
+  let cursor: unknown = e.cause
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && cursor && typeof cursor === 'object'; depth++) {
+    const c = cursor as ErrShape
+    if (typeof c.message === 'string' && c.message) texts.push(c.message)
+    for (const v of [c.code, c.type]) if (typeof v === 'string') signals.push(v)
+    cursor = c.cause
+  }
+
+  // 去重后拼起来：cause 的 message 常常就是顶层 message 的展开
+  const detail = [...new Set(texts)].join(' · ')
+  return { detail, status, apiSignals: signals }
 }
 
-/** 文本里出现的三位 HTTP 状态（词边界：9404 不算 404） */
-function statusInText(text: string): number | undefined {
-  const m = /\b([1-5]\d{2})\b/.exec(text)
-  return m ? Number(m[1]) : undefined
+/**
+ * 文本里出现的三位 HTTP 状态候选（词边界：9404 不算 404，127.0.0.1 的 127 会被列进来
+ * 但没有任何规则认领它，所以由调用方逐个试到第一个认得的为止）
+ */
+function statusInText(text: string): number[] {
+  return [...text.matchAll(/\b([1-5]\d{2})\b/g)].map((m) => Number(m[1]))
 }
 
 /**
  * 分类一个 provider 调用错误
  *
- * @param err 原始错误（AI SDK 的 APICallError 会带 status / data / responseBody）
+ * @param err 原始错误（AI SDK 的 APICallError 会带 status / data / responseBody / cause）
  * @param fallbackLabel 兜底文案前缀（各调用点历史上写的不一样，保留各自说法）
  */
 export function classifyLlmError(err: unknown, fallbackLabel = LABEL.UNKNOWN): ClassifiedLlmError {
-  const { message, status, apiSignals } = readStrings(err)
-  const hay = `${message} ${apiSignals.join(' ')}`
+  const { detail, status, apiSignals } = readStrings(err)
+  const hay = `${detail} ${apiSignals.join(' ')}`
   const signals = apiSignals.map((s) => s.toLowerCase())
 
   // 1+2) 机器码与语义文本：这一层必须在 HTTP 状态之前，否则 400 包住 context_length_exceeded
@@ -233,14 +256,19 @@ export function classifyLlmError(err: unknown, fallbackLabel = LABEL.UNKNOWN): C
   if (!hit && status !== undefined) hit = RULES.find((r) => r.statuses?.includes(status))
   // 4) 文本里的状态数字（最后兜底，词边界已经排掉 9404 那一类）
   if (!hit) {
-    const textStatus = statusInText(message)
-    if (textStatus !== undefined) hit = RULES.find((r) => r.statuses?.includes(textStatus))
+    for (const s of statusInText(detail)) {
+      const candidate = RULES.find((r) => r.statuses?.includes(s))
+      if (candidate) {
+        hit = candidate
+        break
+      }
+    }
   }
 
   const code: LlmErrorCode = hit?.code ?? 'UNKNOWN'
   const label = code === 'UNKNOWN' ? fallbackLabel : LABEL[code]
-  const detail = redactSecrets(message).slice(0, MAX_DETAIL_CHARS)
-  return { code, message: `${label}（${detail}）`, retryable: RETRYABLE.has(code) }
+  const redacted = redactSecrets(detail).slice(0, MAX_DETAIL_CHARS)
+  return { code, message: `${label}（${redacted}）`, retryable: RETRYABLE.has(code) }
 }
 
 /** 规则表里的码集合（判据用它反查"新增码有没有漏文案或漏重试口径"） */
