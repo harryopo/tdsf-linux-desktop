@@ -192,16 +192,6 @@ export interface ProviderConfig {
   /** 是否启用（false 表示用户禁用，不出现在选择器中） */
   enabled?: boolean
   /**
-   * 备用模型链（v0.9.4 批次 2 - 任务 2，借鉴 ContinueDev selectedModels）
-   *
-   * 主模型（config.model）调用失败时按序尝试，提供容错能力。
-   * 例如：主用 deepseek-chat，失败降级到 deepseek-coder，再降级到 qwen-max。
-   *
-   * 注意：fallback 链目前只在 main 进程内部使用（createLanguageModelWithFallback），
-   * 不暴露 IPC 通道；UI 集成留给 v0.9.4 后续批次或 v0.9.5。
-   */
-  selectedModels?: string[]
-  /**
    * 该 Provider 适配的模型角色（v0.9.4 批次 2 - 任务 3）
    *
    * 用于角色映射查找：主进程通过 getProviderByRole(role) 查找 roles 数组
