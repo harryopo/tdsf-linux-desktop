@@ -215,4 +215,21 @@ describe('连接层：断链上报 / 错误监听常驻 / 中文不被切断', (
     stream.emit('data', Buffer.from('ls /etc\n', 'utf8'))
     expect(chunks).toEqual(['ls /etc\n'])
   })
+
+  it('5. 主动断开也要推一条 disconnected（真靶子实测：以前只有意外断链才推）', async () => {
+    // 实测场景：点"测试连接"连上就断，本窗口之外没有任何事件到达，
+    // 另一个窗口的连接徽标一直停在"已连接"。
+    const seen: Array<{ sessionId: string; state: string }> = []
+    mgr.onStateChanged((e) => seen.push({ sessionId: e.sessionId, state: e.state }))
+
+    const entry = inject('s-user-close')
+    wire(entry)
+    await mgr.disconnect('s-user-close')
+
+    const pushed = seen.find((s) => s.sessionId === 's-user-close')
+    expect(pushed, '主动断开没推状态，别的窗口就以为还连着').toBeTruthy()
+    expect(pushed!.state).toBe('disconnected')
+    expect(sessions.has('s-user-close'), '会话条目该一并清掉').toBe(false)
+    expect(entry.state).toBe('disconnected')
+  })
 })

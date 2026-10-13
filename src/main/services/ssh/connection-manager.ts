@@ -918,6 +918,17 @@ export class SshConnectionManager {
     this.sessions.delete(sessionId)
     // 会话表里没了这条，队列也一并丢掉：还排在后面的操作会立刻拿到"会话不存在"
     this.queue.forget(sessionId)
+    // 主动断开也要把状态推出去。以前只有意外断链（close/error）才推，
+    // 于是"测试连接"连上就断、或在另一个窗口里断开，本窗口的徽标一直停在"已连接"：
+    // 渲染层的连接状态只认 ssh:state-changed 这一条通道，SshSettings 里那句本地
+    // setConnectionState 只救得了发起操作的那个窗口。
+    this.notifyStateChanged({
+      sessionId,
+      serverId: entry.config.id,
+      state: 'disconnected',
+      reason: '已主动断开',
+      attemptCount: 0,
+    })
     this.notifySessionClosed(sessionId, 'disconnect')
   }
 
