@@ -355,6 +355,8 @@ export class SshConnectionManager {
       let stdout = ''
       let stderr = ''
       let exitCode = -1
+      // 是否收到过 exit-status：决定 close 是"命令跑完了"还是"通道半路没了"
+      let sawExit = false
       let settled = false
 
       const fail = (err: Error) => {
@@ -409,9 +411,20 @@ export class SshConnectionManager {
             }
           })
           stream.on('exit', (code: number | null) => {
+            sawExit = true
             exitCode = code ?? 0
           })
-          stream.on('close', ok)
+          stream.on('close', () => {
+            // 真靶子实测（openEuler 20.03 / ssh2）：命令跑一半连接被 destroy/end 时，
+            // 通道只会来 close、不会来 exit-status。原来这里一律走成功，
+            // 于是"没确认完成"被报成"执行完成（退出码 -1）"——AI 接着往下做后续操作，
+            // 用户看到的就是"它说成功了，但机器上什么都没发生"。
+            if (!sawExit) {
+              fail(new Error(`连接中断，命令未确认完成（没收到退出码）: ${command}`))
+              return
+            }
+            ok()
+          })
           stream.on('error', fail)
         })
       } catch (err) {
