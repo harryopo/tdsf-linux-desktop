@@ -20,12 +20,18 @@ const GATE = path.join('scripts', 'security', 'history-env-scan.cjs')
 /** 历史里必然存在的串（approval 相关代码与文档都含它），当阳性对照与"该红"的申报值 */
 const IN_HISTORY = 'readAp' + 'proval'
 
+/**
+ * "历史里没有"的那个值必须运行时生成：第一版写的是字面量占位串，
+ * 结果本文件一提交进历史，闸就如实报命中——被检对象里写着判据原文，等于自己给自己作证。
+ */
+const NOT_IN_HISTORY = 'zz-' + Math.random().toString(36).slice(2, 12) + '-' + Date.now().toString(36)
+
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tdsf-history-env-scan-'))
 
 /** 值来源：键名与值都按运行时拼接，源码里不留 `KEY=value` 形态（否则形态闸会把自己的测试当凭据拦下） */
 function valuesFile(name: string): string {
   const p = path.join(tmpRoot, name)
-  fs.writeFileSync(p, 'TDSF_SSH_' + 'PASSWORD' + '=' + 'placeholder-value-1234\n', 'utf8')
+  fs.writeFileSync(p, 'TDSF_SSH_' + 'PASSWORD' + '=' + NOT_IN_HISTORY + '\n', 'utf8')
   return p
 }
 

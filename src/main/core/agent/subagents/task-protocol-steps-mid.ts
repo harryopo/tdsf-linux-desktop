@@ -234,6 +234,11 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
 
     // 5. compaction（阈值按这台 Provider 的生效窗口收，小窗口模型不再一路不压缩直到 400）
     const compaction = compactIfNeeded(messages, ctx.providerConfig?.capabilities?.contextWindow)
+    // step 9 要把这个等级如实写进 ChatResult.compactionLevel。
+    // 之前 step 9 硬编码 'none'：子代理这一路永远不告诉 UI/日志压过没压，
+    // 而 chat 那条路（supervisor）报的是真值——同一个字段两条路口径不同，
+    // 看板上"从未压缩"就是假的。
+    ctx.compactionLevel = compaction.level
 
     // 6. 写入 ctx
     ctx.systemPrompt = systemPrompt
@@ -383,30 +388,83 @@ async function invokeWithStreamText(
   })
 
   // 等待流完成
+  //
+  // 取消（用户点停止 / step 13 释放 AbortController）时，SDK 会让 textStream 迭代器
+  // 直接抛错，而 result.usage / result.finishReason 也可能 reject。原实现把这三处
+  // 都摊给上层 catch：于是"取消"在日志与步骤结果里长得跟"模型调用失败"一模一样，
+  // 已经吐出来的那半段字也一起丢了。这里分三步如实收口：
+  //   1. 迭代器抛错且信号已 abort ⇒ 记下中断，保留已收到的 fullText
+  //   2. usage / finishReason 用 settle() 兜住 reject 与"永不落定"（2s 上限）
+  //   3. 结论写 finishReason='cancelled'，让 step 10/12 走"部分输出"而不是报错
   let fullText = ''
-  for await (const chunk of result.textStream) {
-    if (chunk) {
-      fullText += chunk
-    }
-    if (abortController.signal.aborted) {
-      break
-    }
+  for await (const chunk of settleStream(result.textStream, abortController.signal)) {
+    // 先判停止再收字：abort 之后才到达的分片用户从没看到过，计进去等于把
+    // "停在第 30 字"报成"停在第 45 字"。旧顺序是 append→check，正好多收一片。
+    if (abortController.signal.aborted) break
+    if (chunk) fullText += chunk
   }
 
-  const usage = await result.usage
-  const finishReason = await result.finishReason
+  const aborted = abortController.signal.aborted
+  const usage = await settle(
+    (async () => result.usage)(),
+    'usage'
+  )
+  const rawFinish = await settle((async () => result.finishReason)(), 'finishReason')
   const inputTokens = usage?.inputTokens ?? 0
   const outputTokens = usage?.outputTokens ?? 0
 
   return {
     text: fullText,
     usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
-    finishReason: finishReason ?? 'unknown',
+    finishReason: aborted ? 'cancelled' : (rawFinish ?? 'unknown'),
     providerId: ctx.providerConfig.id,
     model: ctx.modelInstance.resolvedModel,
     strength,
     durationMs: Date.now() - startTime,
-    compactionLevel: 'none',
+    compactionLevel: ctx.compactionLevel ?? 'none',
+  }
+}
+
+/**
+ * 消费 textStream，遇 abort 干净收尾；非取消的抛错照常往上抛（由 step 9 记为失败）。
+ *
+ * 做成 async generator 是为了让"边收边判 abort"这段逻辑只有一份。
+ */
+async function* settleStream(
+  stream: AsyncIterable<string>,
+  signal: AbortSignal
+): AsyncGenerator<string> {
+  try {
+    for await (const chunk of stream) {
+      yield chunk
+      if (signal.aborted) return
+    }
+  } catch (err) {
+    if (!signal.aborted) throw err
+    log.debug('streamText 流在取消时抛错，按已取消处理', { message: String(err) })
+  }
+}
+
+/**
+ * 兜住"会 reject 或永不落定"的 SDK Promise。
+ *
+ * 上限 2s：AI SDK 在 abort 之后不保证 usage/finishReason 一定 settle，
+ * 没有这个上限就是取消一次、子代理永久挂在 step 9。
+ */
+async function settle<T>(p: Promise<T>, what: string): Promise<T | undefined> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      p.catch((err: unknown) => {
+        log.debug(`streamText ${what} 未取到（按已取消/未知处理）`, { message: String(err) })
+        return undefined
+      }),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), 2_000)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 

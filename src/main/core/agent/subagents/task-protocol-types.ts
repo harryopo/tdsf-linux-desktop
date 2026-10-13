@@ -21,6 +21,7 @@ import type {
   AgentMode,
   ModeConfig,
   AttentionFocus,
+  CompactionLevel,
 } from '@shared/agent-types'
 import type { BrowserWindow } from 'electron'
 import type { Subagent, SubagentRegistry } from './base'
@@ -226,6 +227,8 @@ export interface TaskProtocolContext {
   userPrompt?: string
   /** 消息列表（step 8 产出，含 system + user） */
   messages?: ModelMessage[]
+  /** step 8 实际触发的 compaction 层级（step 9 如实写进 ChatResult，不再硬编码 'none'） */
+  compactionLevel?: CompactionLevel
 
   /** LLM 调用结果（step 9 产出） */
   chatResult?: ChatResult

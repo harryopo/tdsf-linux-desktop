@@ -113,10 +113,13 @@ vi.mock('../../src/main/core/agent/modes/mode-registry', () => ({
 // ============================================================================
 // Mock：context.compactIfNeeded（直接透传 messages）
 // ============================================================================
+// 可注入的 compaction 层级：默认 'none'，个别用例改成 'L2' 验证它一路传到 ChatResult
+const mockCompaction = vi.hoisted(() => ({ level: 'none' }))
+
 vi.mock('../../src/main/core/agent/context', () => ({
   compactIfNeeded: (messages: unknown[]) => ({
     messages,
-    level: 'none' as const,
+    level: mockCompaction.level,
     beforeTokens: 100,
     afterTokens: 100,
     truncatedCount: 0,
@@ -521,6 +524,114 @@ describe('[task-protocol-step-9] invoke-subagent', () => {
     }
     // deep 翻倍：2048 * 2 = 4096
     expect(streamTextArgs.maxOutputTokens).toBe(4096)
+  })
+
+  /** step 9 用的最小可调用 ctx（Provider + modelInstance + messages 齐备） */
+  function invokeCtx(extra: Partial<TaskProtocolContext> = {}): TaskProtocolContext {
+    const config = makeProviderConfig({ type: 'deepseek' })
+    return makeCtx({
+      providerConfig: config,
+      providerType: 'deepseek',
+      messages: [{ role: 'user', content: 'hi' }],
+      modelInstance: {
+        model: { id: 'mock' } as never,
+        config: { ...config, apiKey: undefined },
+        resolvedModel: 'deepseek-chat',
+      },
+      ...extra,
+    })
+  }
+
+  it('9.6 取消：流中途点停止 → finishReason=cancelled，已吐出的半段字必须留着', async () => {
+    const ctx = invokeCtx()
+    mockStreamText.mockImplementation(() => ({
+      textStream: (async function* () {
+        yield '已经生成的前半段 '
+        // 用户在流中途点了"停止"：step 9 自己建的 AbortController 挂在 ctx 上
+        ctx.abortController?.abort()
+        yield '这段不该出现'
+      })(),
+      // 取消时 SDK 常把这两个 Promise 直接 reject（原实现让它们冒到上层 catch，
+      // 于是"取消"在步骤结果里长得跟"模型调用失败"一样）
+      usage: Promise.reject(new Error('aborted during stream')),
+      finishReason: Promise.reject(new Error('aborted during stream')),
+    }))
+
+    const result = await stepInvokeSubagent(ctx)
+
+    expect(result.success, '取消不是失败').toBe(true)
+    expect(ctx.chatResult?.text).toBe('已经生成的前半段 ')
+    expect(ctx.chatResult?.finishReason).toBe('cancelled')
+    expect(ctx.chatResult?.usage).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0 })
+
+    // 下游 step 10 必须据此标"部分输出"，而不是把这一轮当成功完整回答
+    const out = await stepStreamOutput(ctx)
+    expect(out.success).toBe(true)
+    expect(out.output).toMatchObject({ isCancelled: true, finishReason: 'cancelled' })
+  })
+
+  it('9.7 usage/finishReason 永不落定：兜底超时后收尾，不许把 step 9 挂死', async () => {
+    // 用真定时器：兜底就是 2 秒的 setTimeout，假定时器下它压根不会被注册进被推进的那批，
+    // 测出来的"通过"是量具在配合演出，不是实现有牙。
+    const ctx = invokeCtx()
+    mockStreamText.mockImplementation(() => ({
+      textStream: (async function* () {
+        yield 'done'
+      })(),
+      usage: new Promise(() => undefined),
+      finishReason: new Promise(() => undefined),
+    }))
+
+    const result = await stepInvokeSubagent(ctx)
+
+    expect(result.success).toBe(true)
+    expect(ctx.chatResult?.text).toBe('done')
+    expect(ctx.chatResult?.finishReason).toBe('unknown')
+  }, 15_000)
+
+  it('9.8 反向对照：非取消的流错误必须照旧冒出来（兜底不许把真故障演成"已取消"）', async () => {
+    const ctx = invokeCtx()
+    mockStreamText.mockImplementation(() => ({
+      textStream: (async function* () {
+        yield '半句'
+        throw new Error('fetch failed: upstream 502')
+      })(),
+      usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
+      finishReason: Promise.resolve('error'),
+    }))
+
+    const result = await stepInvokeSubagent(ctx)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('502')
+    expect(ctx.chatResult).toBeUndefined()
+  })
+
+  it('9.9 compactionLevel 一路带进 ChatResult（不再硬编码 none）', async () => {
+    mockCompaction.level = 'L2'
+    try {
+      const ctx = invokeCtx({
+        modeConfig: { id: 'chat', name: 'chat', systemPrompt: 'sys' } as never,
+        mode: 'chat',
+        systemPrompt: 'sys',
+      })
+      const built = await stepBuildPrompt(ctx)
+      expect(built.success).toBe(true)
+      expect(ctx.compactionLevel).toBe('L2')
+
+      mockStreamText.mockImplementation(() => ({
+        textStream: (async function* () {
+          yield 'x'
+        })(),
+        usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+        finishReason: Promise.resolve('stop'),
+      }))
+      const invoked = await stepInvokeSubagent(ctx)
+      expect(invoked.success).toBe(true)
+      expect(ctx.chatResult?.compactionLevel).toBe('L2')
+    } finally {
+      mockCompaction.level = 'none'
+    }
   })
 })
 
