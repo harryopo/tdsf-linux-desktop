@@ -4,14 +4,16 @@
  * 职责：
  * - 管理 Agent 作为 MCP Client 到外部 MCP Server 的连接（如 Claude Code、Cursor 的工具）
  * - 使用 @modelcontextprotocol/sdk 的 Client + StdioClientTransport
- * - 配置驱动：从 ConfigStore 读取外部服务器列表
- * - 连接池管理：按需连接，自动重连，超时控制
+ * - 配置驱动：启动时由 main/index.ts 把 ConfigStore.getMcpConfig().externalServers 注册进来
+ *   （没有这一步时这张表永远是空的，mcp:external-* 只会回 []）
+ * - 连接池管理：按需连接，超时控制
  *
  * 方案书依据：v0.9 §3.1（MCP 双向网关）— Agent 也可以调用外部 MCP Server
  *
  * 架构：
  * ```
- * Agent → McpGateway.callExternalTool()
+ * 渲染层 mcpExternalCall() → IPC 'mcp:external-call'
+ *       → McpGateway.callExternalTool()（这里上报生命周期状态）
  *       → McpClientManager.callTool(serverId, toolName, args)
  *       → Client.callTool() via StdioClientTransport
  *       → 外部 MCP Server（Claude Code / Cursor / 自定义）
@@ -20,6 +22,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { logger } from '../../services/log/logger'
+import type { McpToolResult } from './tools/registry'
 import type {
   ExternalMcpServer,
   ExternalMcpConnectionState,
@@ -114,18 +117,22 @@ export class McpClientManager {
    * 2. 若未连接，自动建立连接
    * 3. 调用 Client.callTool()
    * 4. 返回结果
+   *
+   * 失败一律带 isError:true。以前这几条失败路只把错误写进 text、不带标记，
+   * 于是 gateway 那句 success: true 会把"未注册/连不上"一路报成调用成功。
    */
   async callTool(
     serverId: string,
     toolName: string,
     args: Record<string, unknown>
-  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+  ): Promise<McpToolResult> {
     const ctx = this.servers.get(serverId)
     if (!ctx) {
       return {
         content: [
           { type: 'text', text: `外部 MCP Server "${serverId}" 未注册` },
         ],
+        isError: true,
       }
     }
 
@@ -134,6 +141,7 @@ export class McpClientManager {
         content: [
           { type: 'text', text: `外部 MCP Server "${ctx.config.name}" 已禁用` },
         ],
+        isError: true,
       }
     }
 
@@ -150,6 +158,7 @@ export class McpClientManager {
             text: `无法连接到外部 MCP Server "${ctx.config.name}": ${ctx.error || '未知错误'}`,
           },
         ],
+        isError: true,
       }
     }
 
@@ -193,6 +202,7 @@ export class McpClientManager {
             text: `外部工具 "${toolName}" 调用失败: ${reason}`,
           },
         ],
+        isError: true,
       }
     }
   }
@@ -316,6 +326,7 @@ export class McpClientManager {
 
     ctx.state = 'connecting'
     ctx.error = undefined
+    let timer: NodeJS.Timeout | undefined
 
     try {
       if (ctx.config.transport !== 'stdio') {
@@ -362,16 +373,18 @@ export class McpClientManager {
         }
       )
 
-      // 连接（带超时）
-      await Promise.race([
-        ctx.client.connect(ctx.transport),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`连接超时 (${timeoutMs}ms)`)),
-            timeoutMs
-          )
-        ),
-      ])
+      // 连接（带超时）。定时器必须在 race 结束后立刻拆掉：不拆的话这条 30s 的
+      // 定时器会让事件循环一直有活干，而放弃连接的那条 Promise 之后仍可能成——
+      // SDK 在 connect() 第一行就把 transport 挂上了，所以靠 client.close() 才能
+      // 把已经拉起的 stdio 子进程带走（Protocol.close → transport.close → kill）。
+      const timeout = new Promise<never>((_, rejectFn) => {
+        timer = setTimeout(() => rejectFn(new Error(`连接超时 (${timeoutMs}ms)`)), timeoutMs)
+      })
+      try {
+        await Promise.race([ctx.client.connect(ctx.transport), timeout])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
 
       ctx.state = 'connected'
       ctx.lastConnectedAt = Date.now()
@@ -398,8 +411,18 @@ export class McpClientManager {
       const reason = err instanceof Error ? err.message : String(err)
       ctx.state = 'error'
       ctx.error = reason
+
+      // 超时放弃时 connect() 那条 Promise 还挂着，SDK 早把 transport 绑在 client 上，
+      // 它后来真能连上并把 stdio 子进程留在后台。不等它：先尽力 close，
+      // 让 Protocol.close → transport.close 把可能已经拉起的子进程带走。
+      const abandoned = ctx.client
       ctx.client = null
       ctx.transport = null
+      if (abandoned) {
+        void Promise.resolve(abandoned.close()).catch(() => {
+          /* 关不上就留给进程退出时收拾，这里已经没有更多信息可用 */
+        })
+      }
 
       logger.error('MCP.CLIENT', `连接外部服务器失败: ${ctx.config.name}`, {
         reason,

@@ -2,19 +2,17 @@
  * MCP 网关（MCP Gateway）
  *
  * 职责：
- * - 双向桥接 Agent 与 MCP（Model Context Protocol）
- * - 复用 v0.7 已有的 src/main/services/mcp/server.ts（暴露 TDSF 能力给外部 MCP Client）
- * - 新增：Agent 也可以作为 MCP Client 调用外部 MCP Server（如 Claude Code、Cursor 的工具）
+ * - Agent 作为 MCP Client 调用外部 MCP Server（如 Claude Code、Cursor 的工具）
+ * - 复用 v0.7 已有的 src/main/services/mcp/server.ts（把 TDSF 能力暴露给外部 MCP Client）
+ * - 把外部调用的成败上报给 McpLifecycleManager，'mcp:get-state' 才有真值可读
  *
  * 当前版本（v0.9.5）：
  * - 集成 McpLifecycleManager 5 阶段状态机（借鉴 claw-code §3.3）
- * - 状态变更通过 IPC 'mcp:state' 推送给渲染层
- * - 在 backoff/failed 状态下直接拒绝调用，避免雪崩
+ * - 状态变更通过 IPC 'mcp:state-changed' 推送给渲染层
  *
  * 方案书依据：v0.9 §3.1（MCP 双向网关）+ §11.1（mcp-gateway.ts）+ v0.9.5 §13 状态机
  */
 import { logger } from '../../services/log/logger'
-import { McpServerService } from '../../services/mcp/server'
 import { McpClientManager } from '../../services/mcp/client-manager'
 import {
   McpLifecycleManager,
@@ -25,18 +23,6 @@ import type {
   ExternalMcpServer,
   ExternalMcpServerStatus,
 } from '@shared/models'
-
-/**
- * MCP 工具调用请求（与 Agent Subagent 集成用）
- */
-export interface McpToolCallRequest {
-  /** 工具名（如 'ssh_exec' / 'knowledge_query'） */
-  toolName: string
-  /** 工具参数 */
-  args: Record<string, unknown>
-  /** 关联的会话 ID */
-  sessionId?: string
-}
 
 /**
  * MCP 工具调用结果
@@ -73,13 +59,6 @@ export class McpGateway {
   }
 
   /**
-   * 检查 MCP Server 是否在运行
-   */
-  isServerRunning(): boolean {
-    return McpServerService.getInstance().isRunning()
-  }
-
-  /**
    * 获取当前 MCP 生命周期状态（渲染层展示用）
    */
   getLifecycleState(): McpStateContext {
@@ -102,103 +81,12 @@ export class McpGateway {
     return McpLifecycleManager.getInstance().subscribe(listener)
   }
 
-  /**
-   * 调用本地 MCP 工具
-   *
-   * v0.9.5 集成状态机：
-   * - backoff/failed 状态下直接返回 blocked=true
-   * - 调用结束后报告成功/失败
-   */
-  async callLocalTool(request: McpToolCallRequest): Promise<McpToolCallResult> {
-    const lifecycle = McpLifecycleManager.getInstance().getState()
-
-    // 状态机闸门：backoff/failed 状态直接拒绝
-    if (lifecycle.state === 'backoff') {
-      logger.warn('AGENT.MCP', `MCP 在 backoff 冷却中，拒绝调用`, {
-        toolName: request.toolName,
-        remainingSec: lifecycle.backoffRemainingSec,
-      })
-      return {
-        success: false,
-        content: [
-          {
-            type: 'text',
-            text: `MCP 正在冷却中（剩余 ${lifecycle.backoffRemainingSec}s），请稍候重试`,
-          },
-        ],
-        error: 'MCP_BACKOFF',
-        blocked: true,
-      }
-    }
-
-    if (lifecycle.state === 'failed') {
-      logger.error('AGENT.MCP', `MCP 已 failed 状态，调用被拒`, {
-        toolName: request.toolName,
-      })
-      return {
-        success: false,
-        content: [
-          {
-            type: 'text',
-            text: 'MCP 连接失败，请在 UI 中点击"重置"恢复',
-          },
-        ],
-        error: 'MCP_FAILED',
-        blocked: true,
-      }
-    }
-
-    logger.info('AGENT.MCP', `MCP 工具调用`, {
-      toolName: request.toolName,
-      sessionId: request.sessionId,
-      state: lifecycle.state,
-    })
-
-    // 实际调用逻辑：通过 McpServerService.invokeTool() 委托
-    try {
-      const result = await McpServerService.getInstance().invokeTool(
-        request.toolName,
-        request.args
-      )
-
-      // 上报成功
-      McpLifecycleManager.getInstance().reportSuccess()
-
-      return {
-        success: true,
-        content: result.content,
-      }
-    } catch (err) {
-      // 上报失败
-      const reason = err instanceof Error ? err.message : String(err)
-      McpLifecycleManager.getInstance().reportFailure(reason)
-
-      return {
-        success: false,
-        content: [
-          {
-            type: 'text',
-            text: `MCP 工具 "${request.toolName}" 调用失败：${reason}`,
-          },
-        ],
-        error: reason,
-      }
-    }
-  }
-
-  /**
-   * 列出本地可用 MCP 工具（动态获取）
-   *
-   * 从 McpServerService 获取所有已注册工具（旧版 + v0.5.0），
-   * 不再硬编码工具列表。
-   */
-  async listLocalTools(): Promise<Array<{ name: string; description: string }>> {
-    logger.info('AGENT.MCP', `列出本地 MCP 工具`)
-    return McpServerService.getInstance().listRegisteredTools()
-  }
-
   // ==================================================================
-  // 外部 MCP Server（Client 侧）— 双向网关的另一半
+  // 外部 MCP Server（Client 侧）
+  //
+  // 本地那半边（Agent 直接调 TDSF 自己的 MCP 工具）不在这里：那条路是
+  // McpServerService.invokeTool() / handleToolCall()，命令闸就装在派发口上（#88），
+  // 网关曾经包了一层 callLocalTool() 但全仓零调用方，已删。
   // ==================================================================
 
   /**
@@ -206,6 +94,13 @@ export class McpGateway {
    *
    * Agent 作为 MCP Client，调用外部 MCP Server（如 Claude Code、Cursor）的工具。
    * 委托给 McpClientManager 处理连接管理和实际调用。
+   *
+   * 成败都会上报给 McpLifecycleManager —— 这是这张状态机唯一的真生产者，
+   * 没有它 'mcp:get-state' 只会一直回报初始的 connected（等于没测）。
+   *
+   * 这里刻意**不**按 backoff/failed 拦截调用：一台外部服务器抽风会把冷却期
+   * 套到所有 MCP 调用上，而唯一能结束冷却的"重置"按钮至今没有界面入口。
+   * 状态先只用于观测，要 enforce 得先把重置做出来。
    */
   async callExternalTool(
     serverId: string,
@@ -221,12 +116,25 @@ export class McpGateway {
 
     try {
       const result = await clientManager.callTool(serverId, toolName, args)
+      // clientManager 把"未注册/已禁用/连不上/调用抛错"都做成带 isError 的正常返回，
+      // 不看这个标记就会一路把它们报成 success:true。
+      if (result.isError) {
+        const reason = result.content[0]?.text ?? '外部工具调用失败'
+        McpLifecycleManager.getInstance().reportFailure(reason)
+        return {
+          success: false,
+          content: result.content,
+          error: reason,
+        }
+      }
+      McpLifecycleManager.getInstance().reportSuccess()
       return {
         success: true,
         content: result.content,
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
+      McpLifecycleManager.getInstance().reportFailure(reason)
       logger.error('AGENT.MCP', `外部工具调用异常`, {
         serverId,
         toolName,

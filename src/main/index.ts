@@ -155,6 +155,11 @@ app.whenReady().then(() => {
     })
   })
 
+  // 0.1a 外部 MCP Server：把配置里登记的服务器交给 Client 侧
+  //      没有这一步，mcpConfig.externalServers 就是"字段声明了、没人读"，
+  //      mcp:external-status/tools/call 三条通道永远只会回空表。
+  McpGateway.getInstance().registerExternalServers(mcpConfig.externalServers ?? [])
+
   // 1. 创建主窗口
   installPreviewProtocol(getPreviewTransport())
   const mainWindow: BrowserWindow = createMainWindow()

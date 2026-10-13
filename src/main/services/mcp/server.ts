@@ -32,6 +32,8 @@ import { createSandboxMcpTools } from './tools/registry-sandbox'
 import { handleLegacyToolCall, LEGACY_TOOLS } from './tools/legacy-handlers'
 import { assessToolCall } from '../../core/command-gate'
 import { logger } from '../log/logger'
+import { redactSecrets } from '../../core/agent/providers/redact'
+import { McpLifecycleManager } from '../../core/agent/mcp-lifecycle'
 import { MCP_RESOURCES, readResource } from './resources'
 import { MCP_PROMPTS, getPrompt } from './prompts'
 import type { McpPromptMessage } from './prompts'
@@ -131,12 +133,12 @@ export class McpServerService {
    */
   async start(): Promise<void> {
     if (!this.config.enabled) {
-      console.log('[MCP] 未启用（设置 MCP_SERVER_ENABLED=true 启用）')
+      logger.info('MCP', '未启用（设置 MCP_SERVER_ENABLED=true 可启用）')
       return
     }
 
     if (this.running) {
-      console.log('[MCP] 已在运行中')
+      logger.info('MCP', '已在运行中，跳过重复启动')
       return
     }
 
@@ -236,9 +238,13 @@ export class McpServerService {
       const transport = new StdioServerTransport()
       await this.server.connect(transport)
       this.running = true
-      console.log(`[MCP] Server 已启动（端口 ${this.config.port} 仅显示，stdio 通信）`)
+      logger.info('MCP', `Server 已启动（stdio 通信；配置里的端口 ${this.config.port} 只用于展示）`)
     } catch (err) {
-      console.error('[MCP] 启动失败:', err)
+      // 这里以前只 console.error：打包后的 Windows 应用没有控制台，
+      // MCP 起不来这件事就一点痕迹都不留（index.ts 的 .catch 也等不到，因为不抛）。
+      const reason = err instanceof Error ? err.message : String(err)
+      logger.error('MCP', '启动失败', { error: redactSecrets(reason) })
+      McpLifecycleManager.getInstance().reportFailure(`MCP Server 启动失败：${reason}`)
       this.server = null
       this.running = false
     }
@@ -345,7 +351,7 @@ export class McpServerService {
     }
     this.server = null
     this.running = false
-    console.log('[MCP] Server 已停止')
+    logger.info('MCP', 'Server 已停止')
   }
 
   /**
@@ -356,9 +362,10 @@ export class McpServerService {
   }
 
   /**
-   * 公开工具调用入口（供 McpGateway 内部调用）
+   * 进程内调用入口（不是给 McpGateway 用的——那半边已经删了）
    *
-   * 委托给 handleToolCall()，无需 MCP Client 连接即可调用。
+   * 外部 MCP Client 走 stdio 的 tools/call → handleToolCall()；这里给主进程内部
+   * 与判据（tests/services/mcp-dispatch.test.ts）用同一条派发口，两边共用命令闸。
    */
   async invokeTool(
     name: string,
