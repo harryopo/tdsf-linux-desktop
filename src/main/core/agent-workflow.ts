@@ -25,6 +25,7 @@ import { verifyAllEvidences, type ToolCallRecord } from './grounding'
 import { getDrain3Bridge, type LogTemplate } from '../services/log/drain3-bridge'
 import { shouldResample, resampleAndVote } from './sampling'
 import { calculateEvidenceConfidence } from './confidence'
+import { logger } from '../services/log/logger'
 import type { TraceHandle } from '../services/observability/langfuse'
 import { startHitlTrace, startHitlStepTrace } from '../services/observability/langfuse-trace'
 
@@ -496,7 +497,7 @@ export class AgentWorkflow extends EventEmitter {
       // 超时自动拒绝（fail-closed：超时是拒绝，不是放行）
       this.confirmTimeout = setTimeout(() => {
         if (this.confirmResolve) {
-          console.log(`[AgentWorkflow] 确认超时（${timeoutMs / 1000}秒），自动拒绝`)
+          logger.warn('AGENT.WORKFLOW', `确认超时（${timeoutMs / 1000}秒），自动拒绝`)
           this.confirmResolve(false)
           this.confirmResolve = null
         }
@@ -579,7 +580,9 @@ export class AgentWorkflow extends EventEmitter {
       if (logLines.length === 0) return []
       return await bridge.extractTemplates(logLines)
     } catch (err) {
-      console.warn('[AgentWorkflow] Drain3 模板提取降级:', err instanceof Error ? err.message : err)
+      logger.warn('AGENT.WORKFLOW', 'Drain3 模板提取降级', {
+        error: err instanceof Error ? err.message : String(err),
+      })
       return []
     }
   }
@@ -717,15 +720,20 @@ export class AgentWorkflow extends EventEmitter {
           const kept = verified.filter((e) => e.verified)
           verified = [...kept, ...retryVerified]
           rejected = verified.filter((e) => !e.verified)
-          console.log(`[AgentWorkflow] Ground-Check 重采: 补充 ${retryVerified.length} 条证据`)
+          logger.info('AGENT.WORKFLOW', `Ground-Check 重采：补充 ${retryVerified.length} 条证据`)
         }
       } catch (err) {
-        console.warn('[AgentWorkflow] Ground-Check 重采失败（不影响主流程）:', err instanceof Error ? err.message : err)
+        logger.warn('AGENT.WORKFLOW', 'Ground-Check 重采失败（不影响主流程）', {
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     }
 
     if (rejected.length > 0) {
-      console.log(`[AgentWorkflow] Ground-Check: ${rejected.length}/${verified.length} 条证据未通过溯源，标记为"仅供参考"`)
+      logger.warn(
+        'AGENT.WORKFLOW',
+        `Ground-Check：${rejected.length}/${verified.length} 条证据未通过溯源，标记为"仅供参考"`
+      )
     }
 
     this.state.groundCheck = {
@@ -772,11 +780,13 @@ export class AgentWorkflow extends EventEmitter {
             }
           }
           const voted = resampleAndVote(samples)
-          console.log(`[AgentWorkflow] Self-Consistency: ${samples.length} 次采样，多数票假设已选定`)
+          logger.info('AGENT.WORKFLOW', `Self-Consistency：${samples.length} 次采样，多数票假设已选定`)
           return voted || first.hypothesis
         }
       } catch (err) {
-        console.warn('[AgentWorkflow] llmReasoner 降级:', err instanceof Error ? err.message : err)
+        logger.warn('AGENT.WORKFLOW', 'llmReasoner 降级', {
+        error: err instanceof Error ? err.message : String(err),
+      })
       }
     }
 

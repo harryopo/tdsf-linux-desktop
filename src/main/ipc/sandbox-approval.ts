@@ -312,34 +312,49 @@ export function safeSend(mainWindow: BrowserWindow, channel: string, ...args: un
  * @param sessionId 会话 ID（v0.9.4 新增，可选，附带在审批请求上回传给渲染进程）
  * @returns 是否批准
  */
-export function waitForSandboxApproval(
+/**
+ * 等待用户审批（推送 sandbox:approval-request 事件，等待 sandbox:approve invoke）
+ *
+ * @param mainWindow 主窗口实例
+ * @param callId 审批调用 ID（与 pendingSandboxApprovals Map 中的 key 对应）
+ * @param sandboxId 沙箱 ID
+ * @param command 待执行的命令
+ * @param sessionId 会话 ID（v0.9.4 新增，可选，附带在审批请求上回传给渲染进程）
+ * @returns 是否批准
+ * @throws 风险评估本身失败时抛出（调用方 sandbox:execute 已按"拒绝执行"处理）
+ */
+export async function waitForSandboxApproval(
   mainWindow: BrowserWindow,
   callId: string,
   sandboxId: string,
   command: string,
   sessionId?: string
 ): Promise<boolean> {
-  return new Promise<boolean>(async (resolve, reject) => {
-    // assessCommandRisk 改为 async（AST 解析），在 Promise 内 await
-    const { risk, reasons } = await assessCommandRisk(command)
-    // v0.9.3 §11 改进点 4 P2-C：推导副作用 / 回滚命令 / 更安全替代方案
-    const sideEffects = deriveSideEffects(command, risk, reasons)
-    const rollbackCommand = deriveRollbackCommand(command, risk)
-    const saferAlternative = deriveSaferAlternative(command, risk)
-    const request: SandboxApprovalRequest = {
-      callId,
-      sandboxId,
-      command,
-      risk,
-      reasons,
-      timestamp: Date.now(),
-      sessionId,
-      sideEffects,
-      rollbackCommand,
-      saferAlternative,
-    }
-    safeSend(mainWindow, SANDBOX_APPROVAL_CHANNEL, request)
+  // assessCommandRisk 是 async（AST 解析）。原先写在 `new Promise(async …)` 的执行体里，
+  // 而 async 执行体抛错只会让它自己那个 Promise 落空——构造出来的外层 Promise
+  // 既不 resolve 也不 reject，超时器又排在 await 后面根本没装上：
+  // 一次 AST 失败 = 这条命令的审批框永远不出现，AI 请求原地挂死。
+  // 改成"先算完再进 Promise"，异常走正常抛出，由调用方按拒绝处理（fail-closed）。
+  const { risk, reasons } = await assessCommandRisk(command)
+  // v0.9.3 §11 改进点 4 P2-C：推导副作用 / 回滚命令 / 更安全替代方案
+  const sideEffects = deriveSideEffects(command, risk, reasons)
+  const rollbackCommand = deriveRollbackCommand(command, risk)
+  const saferAlternative = deriveSaferAlternative(command, risk)
+  const request: SandboxApprovalRequest = {
+    callId,
+    sandboxId,
+    command,
+    risk,
+    reasons,
+    timestamp: Date.now(),
+    sessionId,
+    sideEffects,
+    rollbackCommand,
+    saferAlternative,
+  }
+  safeSend(mainWindow, SANDBOX_APPROVAL_CHANNEL, request)
 
+  return new Promise<boolean>((resolve, reject) => {
     const timeout = setTimeout(() => {
       pendingSandboxApprovals.delete(callId)
       reject(new Error('用户审批超时（30秒），自动拒绝'))

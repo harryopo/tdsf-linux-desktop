@@ -22,8 +22,12 @@ const BARE_CONSOLE = /console\.(?:warn|error)\(/g
  */
 const CONSOLE_WRITERS = ['services/log/logger.ts', 'services/log/drain3-bridge.ts']
 
-/** 上限：本轮实测值冻结在此，之后只能调低 */
-const CAP = 54
+/**
+ * 上限：本轮实测值冻结在此，之后只能调低。
+ * 54 → 50（2026-10-13）：agent-workflow.ts 里 4 处 console.warn 并进主 logger
+ * （确认超时、Drain3 降级、Ground-Check 重采失败、llmReasoner 降级——打包态全是无痕失败）。
+ */
+const CAP = 50
 
 function walkTs(dir: string): string[] {
   const out: string[] = []
