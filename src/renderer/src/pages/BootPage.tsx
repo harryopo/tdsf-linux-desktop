@@ -18,8 +18,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Loader2, Server } from 'lucide-react'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { useServerStore } from '@/stores/server-store'
+import { useServerConnect } from '@/hooks/useServerConnect'
 
 /** 全屏四边形顶点（兼容 Three r15x+ / WebGL2） */
 const VERTEX_SHADER = /* glsl */ `
@@ -71,6 +73,11 @@ export function BootPage() {
   const [webglFailed, setWebglFailed] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const loaded = bootDone && minElapsed
+  const servers = useServerStore((s) => s.servers)
+  /** 连接走与工作台顶栏同一份实现；连上（或切到已有会话）就直接进工作台 */
+  const { connectingId, connectSavedServer } = useServerConnect({
+    onConnected: () => navigate('/workbench', { replace: true }),
+  })
 
   // 监听主进程加载阶段；订阅前先补拉一次（主进程 init 常常早于本页挂载，
   // done 推过来时没有订阅者就会永久停在"正在启动…"）。
@@ -285,6 +292,67 @@ export function BootPage() {
             <span className="shrink-0 tabular-nums text-ink-strong">{progress}%</span>
           </div>
         </div>
+
+        {/*
+          * 已保存服务器的快速连接：以前启动页对"上一台机器"一无所知，
+          * 每次进来都要先点进工作台、再在顶栏菜单里挑一台。数据在 App 挂载时
+          * 就从主进程 hydrate 好了，这里只做选择与发起，连接本身走 useServerConnect
+          * （与顶栏同一份实现）。启动没走完不摆出来——那时点了也是报错。
+          */
+        loaded && isElectronAPIAvailable() ? (
+          <section
+            className="pointer-events-auto flex w-[340px] max-w-[86vw] flex-col gap-2 rounded-(--ui-radius-card) border border-line-strong bg-sunken p-3"
+            aria-label="已保存的服务器"
+          >
+            <h2 className="text-md font-semibold text-ink-strong">已保存的服务器</h2>
+            {servers.length === 0 ? (
+              <p className="text-caption text-ink-dim">
+                还没有保存过服务器。进入工作台后可以在「SSH 连接」里添加一台。
+              </p>
+            ) : (
+              <>
+                <ul className="flex flex-col gap-1">
+                  {servers.slice(0, 5).map((srv) => {
+                    const busy = connectingId === srv.id
+                    return (
+                      <li key={srv.id}>
+                        <button
+                          type="button"
+                          data-dom-id="boot-quick-connect"
+                          aria-label={`连接 ${srv.name || srv.host}`}
+                          disabled={connectingId !== null}
+                          onClick={() => void connectSavedServer(srv)}
+                          className={
+                            'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left ' +
+                            'transition-colors duration-[var(--ui-dur-fast)] ' +
+                            (connectingId !== null && !busy
+                              ? 'cursor-default'
+                              : 'hover:bg-hover')
+                          }
+                        >
+                          {busy ? (
+                            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <Server className="size-3.5 shrink-0 text-ink-mute" aria-hidden="true" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate text-md text-ink-strong">
+                            {srv.name || srv.host}
+                          </span>
+                          <span className="shrink-0 font-mono text-caption text-ink-mute">
+                            {srv.username}@{srv.host}
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p className="text-caption text-ink-mute">
+                  点一下直接连上并进工作台；一台机器最多列一次，已连过的会切过去。
+                </p>
+              </>
+            )}
+          </section>
+        ) : null}
       </div>
     </main>
   )

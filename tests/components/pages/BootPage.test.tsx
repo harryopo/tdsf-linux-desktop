@@ -6,6 +6,8 @@
  * 2. prefers-reduced-motion 时直接 loaded=true（跳过 3s 进度动画）
  * 3. loaded=false 时按钮 disabled（初始态不可点击）
  * 4. loaded=true 时点击跳转 /workbench（mock useNavigate）
+ * 5-8. 已保存服务器的快速连接入口（#85）：列得出来、点了真按 ID 发起、
+ *        会话映射落到 store、没有 electronAPI 时整块不出现
  *
  * 关键决策：
  * - 用 jsdom 环境（文件头指令）— React 组件需要 DOM
@@ -13,6 +15,8 @@
  *   这恰好测试了 P1-1 / P1-2 的 webglFailed 降级路径
  * - mock react-router-dom 的 useNavigate：验证跳转调用
  * - mock window.matchMedia：分别测试 reducedMotion=true / false 两种路径
+ * - electron-api 与 shell-launcher 走可控替身：快速连接那条路要断言的是
+ *   "只交 ID 给主进程 + 会话映射登记好了"，不是真去连 SSH
  *
  * 调研依据：Task-2.1 P1-5 单元测试要求
  */
@@ -34,6 +38,38 @@ vi.mock('react-router-dom', async () => {
 })
 
 import { BootPage } from '@renderer/pages/BootPage'
+import { useServerStore } from '@renderer/stores/server-store'
+import type { ServerListItem } from '@shared/models'
+
+// ============================================================================
+// 可控替身：electron-api 的可用性与 shell 启动
+// ============================================================================
+const apiFlag = vi.hoisted(() => ({ available: false }))
+const shellMocks = vi.hoisted(() => ({
+  connectById: vi.fn<(id: string, otp?: string) => Promise<string>>(),
+  ensureShell: vi.fn(),
+}))
+
+vi.mock('@renderer/utils/electron-api', () => ({
+  isElectronAPIAvailable: () => apiFlag.available,
+}))
+vi.mock('@renderer/terminal/shell-launcher', () => ({
+  ensureShellForSession: (sessionId: string) => shellMocks.ensureShell(sessionId),
+  shellTitleOf: (label: string) => label,
+}))
+
+function savedServer(over: Partial<ServerListItem> = {}): ServerListItem {
+  return {
+    id: 'srv-1',
+    name: 'web01',
+    host: '10.0.0.8',
+    port: 22,
+    username: 'root',
+    authType: 'password',
+    hasCredential: true,
+    ...over,
+  } as ServerListItem
+}
 
 // ============================================================================
 // 工具：matchMedia mock 工厂
@@ -71,6 +107,12 @@ describe('BootPage — WebGL 降级与可访问性', () => {
     // 静默 BootPage 在 jsdom 下 WebGL 失败的预期 error 日志（避免测试输出噪声）
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockNavigate.mockClear()
+    // 默认按"非 Electron 环境"跑（前 6 条测的是启动页本身）
+    apiFlag.available = false
+    shellMocks.connectById.mockReset()
+    shellMocks.ensureShell.mockReset()
+    shellMocks.ensureShell.mockResolvedValue({ ok: true })
+    useServerStore.setState({ servers: [], sessionMap: {}, connectionStates: {}, activeSessionId: null })
   })
 
   afterEach(() => {
@@ -174,5 +216,48 @@ describe('BootPage — WebGL 降级与可访问性', () => {
 
     const button = screen.getByRole('button', { name: /进入工作台/ })
     expect(button).toHaveAttribute('data-dom-id', 'boot-enter')
+  })
+
+  // ===== #85：已保存服务器的快速连接入口 =====
+
+  it('7. Electron 环境下按 ID 发起连接，会话映射登记好后直接进工作台', async () => {
+    apiFlag.available = true
+    window.electronAPI = {
+      sshConnectById: shellMocks.connectById,
+    } as unknown as typeof window.electronAPI
+    shellMocks.connectById.mockResolvedValue('sess-9')
+    useServerStore.setState({ servers: [savedServer()] })
+
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation(
+        createMatchMedia({ '(prefers-reduced-motion: reduce)': true })
+      ),
+    })
+    render(<BootPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '连接 web01' }))
+
+    // 只交 ID：口令/私钥不过渲染层（安全审查 P0-3）
+    await waitFor(() => expect(shellMocks.connectById).toHaveBeenCalledWith('srv-1', undefined))
+    expect(useServerStore.getState().sessionMap['srv-1']).toBe('sess-9')
+    expect(useServerStore.getState().activeSessionId).toBe('sess-9')
+    expect(mockNavigate).toHaveBeenCalledWith('/workbench', { replace: true })
+  })
+
+  it('8. 没有 electronAPI 时整块不出现（列出假入口等于骗人点）', async () => {
+    apiFlag.available = false
+    useServerStore.setState({ servers: [savedServer()] })
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation(
+        createMatchMedia({ '(prefers-reduced-motion: reduce)': true })
+      ),
+    })
+
+    render(<BootPage />)
+    await screen.findByRole('button', { name: /进入工作台/ })
+
+    expect(screen.queryByRole('button', { name: '连接 web01' })).toBeNull()
   })
 })
