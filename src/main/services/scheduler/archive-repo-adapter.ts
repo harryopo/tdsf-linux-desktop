@@ -10,7 +10,7 @@
  *   - KnowledgeEntry 无 source / relatedDecisionId 字段 → 编码到 tags 中
  *     - source:auto-archive → 标签 `source:auto-archive`
  *     - relatedDecisionId   → 标签 `decision:{id}`
- *   - runInTransaction → better-sqlite3 transaction；内存回退模式下直接执行 fn
+ *   - runBatch → 逐条顺序执行（**不承诺原子性**，理由见方法注释）
  *
  * P0-1 修复：让 createDailyDecisionArchiveTaskWithRepos 能直接复用现有仓储。
  */
@@ -109,7 +109,9 @@ export class ArchiveKnowledgeRepositoryAdapter implements ArchiveKnowledgeReposi
     relatedDecisionId: string
   ): Promise<ArchivedKnowledgeEntry | null> {
     const tag = `${DECISION_TAG_PREFIX}${relatedDecisionId}`
-    const entry = this.repo.exportAll().find((e) => e.tags.includes(tag))
+    // 按标签在 SQL 侧精确取一条；原来是 exportAll() 整表读进内存再 filter，
+    // 而归档每处理一条决策就要查一次（N 条决策 = N 次全表扫）。
+    const entry = this.repo.findByTag(tag)[0]
     return entry ? this.mapEntryToArchived(entry) : null
   }
 
@@ -122,12 +124,12 @@ export class ArchiveKnowledgeRepositoryAdapter implements ArchiveKnowledgeReposi
   }
 
   async count(): Promise<number> {
-    return this.repo.exportAll().length
+    return this.repo.countAll()
   }
 
   async countBySource(source: string): Promise<number> {
     const tag = `${SOURCE_TAG_PREFIX}${source}`
-    return this.repo.exportAll().filter((e) => e.tags.includes(tag)).length
+    return this.repo.countByTag(tag)
   }
 
   async incrementAiContribution(): Promise<void> {
@@ -135,20 +137,20 @@ export class ArchiveKnowledgeRepositoryAdapter implements ArchiveKnowledgeReposi
     // 保留方法签名以兼容归档接口。
   }
 
-  async runInTransaction<T>(fn: () => Promise<T>): Promise<T> {
-    const raw = this.db.getRawConnection()
-    if (!raw) {
-      // 内存回退模式：无事务语义，直接执行
-      return await fn()
-    }
-    // better-sqlite3 transaction 是同步的，fn 内部含 await，用 Promise 包裹
-    const tx = raw.transaction(() => {
-      // transaction 只保证 fn 执行期间在同一条连接上；fn 本身是 async，
-      // 但 better-sqlite3 同步 transaction 会阻塞到 fn 返回的 Promise 被消费完。
-      // 这里先返回标记，外层再 await fn。
-      return 'tx-ready'
-    })
-    tx()
+  /**
+   * 逐条顺序执行一批归档写入。
+   *
+   * 这里**不提供原子性**，也曾经提供不了却写着"事务"：旧实现是
+   * `raw.transaction(() => 'tx-ready')` 之后再 `await fn()`——better-sqlite3 的事务是同步的，
+   * 那个空事务在 fn 开始前就 COMMIT 了，fn 里的写入全程在事务外，注释却写着
+   * "同步 transaction 会阻塞到 fn 返回的 Promise 被消费完"（假的）。
+   * 一个假装有的事务比没有更糟：出问题时人会以为已经回滚。
+   *
+   * 为什么可以不做成事务：归档按 relatedDecisionId 幂等（已归档的跳过），
+   * 中途失败留下的部分结果由下一次运行自然续上；而真事务要么要求 fn 同步
+   * （端口是 async 的），要么让共享连接跨 await 开着事务、把别人夹进来的写入一起回滚。
+   */
+  async runBatch<T>(fn: () => Promise<T>): Promise<T> {
     return await fn()
   }
 

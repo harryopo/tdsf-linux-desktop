@@ -166,15 +166,16 @@ export interface ArchiveKnowledgeRepository {
   incrementAiContribution(): Promise<void>
 
   /**
-   * 在事务中执行操作（保证原子性）
+   * 顺序执行一批归档写入
    *
-   * 真实实现使用 better-sqlite3 transaction；
-   * mock 实现可直接执行 fn（无事务语义，但保证接口一致）。
+   * 不承诺原子性：better-sqlite3 的事务是同步的，而这个端口是 async 的，
+   * 跨 await 开事务会把别人夹进来的写入一起回滚。批次靠 relatedDecisionId
+   * 幂等（已归档的跳过）支持"中途失败、下次续跑"。
    *
-   * @param fn 事务内操作
+   * @param fn 批次内的操作
    * @returns 操作返回值
    */
-  runInTransaction<T>(fn: () => Promise<T>): Promise<T>
+  runBatch<T>(fn: () => Promise<T>): Promise<T>
 }
 
 /**
@@ -361,8 +362,8 @@ export async function runDailyDecisionArchive(
       }
     }
 
-    // 2. 事务包裹归档过程（保证原子性）
-    const archiveResult = await knowledgeRepo.runInTransaction(async () => {
+    // 2. 顺序执行归档批次（不原子；幂等检查保证中断后下次能续上）
+    const archiveResult = await knowledgeRepo.runBatch(async () => {
       let archivedCount = 0
       let skippedCount = 0
       const archivedIds: string[] = []
@@ -450,7 +451,7 @@ export async function runDailyDecisionArchive(
  * 注：DecisionRepository / KnowledgeRepository 已存在（src/main/services/db/），
  *     但其接口（save/getById/list/search）与归档场景的抽象接口
  *     （querySuccessfulDecisions / findByRelatedDecisionId / countBySource /
- *     runInTransaction）不匹配。Phase 7 需补齐适配器，将归档接口适配到现有仓储。
+ *     runBatch）不匹配。适配器已补齐（archive-repo-adapter.ts）。
  *
  * @returns SchedulerTask 定义（cron = `0 18 * * *`，timezone = Asia/Shanghai）
  */

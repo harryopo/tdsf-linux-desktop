@@ -37,6 +37,7 @@ import {
 } from '../services/scheduler/archive-repo-adapter'
 import { DecisionRepository } from '../services/db/decision-repo'
 import { KnowledgeRepository } from '../services/db/knowledge-repo'
+import { ConfigStore } from '../services/storage/config-store'
 import type { DatabaseManager } from '../services/db/database'
 import { SCHEDULER } from '@shared/ipc-channels'
 import type {
@@ -117,6 +118,55 @@ function findTaskStatus(taskId: SchedulerTaskId): SchedulerTaskStatus | null {
  *
  * 必须在 app.whenReady() 后调用（由 registerAllIpcHandlers 调用）。
  */
+/**
+ * 用户启停意图的持久化（`schedulerTaskEnabled`）
+ *
+ * 为什么必须有：Scheduler.toggle 只改内存里的 task.enabled，重启后 initScheduler
+ * 又按任务定义里的 `enabled: true` 重新注册。于是界面上关掉"每日 09:00 巡检"，
+ * 用户以为关了，第二天它照跑——这是假 affordance，而且是会真的动数据的那种
+ * （归档任务会把不该归档的窗口归档掉）。
+ *
+ * 只存"与默认值不同"的意图，键固定是三个任务 id 的量级，不会长。
+ */
+const SCHEDULER_ENABLED_KEY = 'schedulerTaskEnabled'
+
+/** 读回灌用的启停意图；结构不对就当作没有（不给陈旧数据开后门） */
+function readEnabledOverrides(): Record<string, boolean> {
+  const raw = ConfigStore.get(SCHEDULER_ENABLED_KEY)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, boolean> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'boolean') out[k] = v
+  }
+  return out
+}
+
+/** 写一条启停意图（抛错由调用方处理：没存进去就不许报成功） */
+function writeEnabledOverride(taskId: string, enabled: boolean): void {
+  const cur = readEnabledOverrides()
+  cur[taskId] = enabled
+  ConfigStore.set(SCHEDULER_ENABLED_KEY, cur)
+}
+
+/**
+ * 把持久化的启停意图回灌进调度器（initScheduler 在 register 之后、start 之前调用）。
+ *
+ * 单独导出是为了能被判据直接驱动：真实链路里这一步决定
+ * "用户关掉的定时任务，重启后到底还跑不跑"。
+ */
+export function restorePersistedToggles(scheduler: Scheduler): void {
+  for (const [taskId, enabled] of Object.entries(readEnabledOverrides())) {
+    if (!isValidTaskId(taskId)) continue
+    try {
+      scheduler.toggle(taskId, enabled)
+      logger.info('IPC.SCHEDULER', '已回灌定时任务启停状态', { taskId, enabled })
+    } catch {
+      // 任务改名/下线留下的陈旧记录：忽略，不影响本次启动
+      logger.warn('IPC.SCHEDULER', '启停记录对应的任务不存在，忽略', { taskId })
+    }
+  }
+}
+
 export function registerSchedulerIpcHandlers(): void {
   // ─── scheduler:list → 查询所有任务状态 ───────────────────────────
   ipcMain.handle(SCHEDULER.LIST, async (): Promise<SchedulerTaskStatus[]> => {
@@ -146,6 +196,15 @@ export function registerSchedulerIpcHandlers(): void {
       try {
         const scheduler = Scheduler.getInstance()
         scheduler.toggle(taskId, enabled)
+        // 内存改完必须落盘：只改内存的话，界面上"已禁用"到下次重启就失效，
+        // 而定时任务（归档/周报）会照跑不误。存不进去就不报成功，并把内存改回去，
+        // 让界面显示的与重启后真实发生的是一致的。
+        try {
+          writeEnabledOverride(taskId, enabled)
+        } catch (persistErr) {
+          scheduler.toggle(taskId, !enabled)
+          throw persistErr
+        }
         const status = findTaskStatus(taskId)
         if (!status) {
           logger.warn('IPC.SCHEDULER', `toggle 后未找到任务: ${taskId}`)
@@ -289,6 +348,9 @@ export function initScheduler(db: DatabaseManager): void {
       new KnowledgeWeeklyRepositoryAdapter(db)
     )
   )
+
+  // 1.5 回灌用户上次保存的启停意图（任务定义里的 enabled 是默认值，不是用户意志）
+  restorePersistedToggles(scheduler)
 
   // 2. 设置事件转发（task-start/done/error → scheduler:status push）
   setupSchedulerStatusPush()

@@ -428,6 +428,54 @@ export class KnowledgeRepository {
   }
 
   /**
+   * 按标签取条目（归档幂等检查用）
+   *
+   * 为什么单独有这个方法：归档每处理一条决策都要查"这条决策是否已归档过"，
+   * 之前走的是 exportAll() 再 JS filter —— N 条决策 = N 次全表读 + N 次整行反序列化，
+   * 库越大越慢，而它要的只是"命中一个标签的第一条"。
+   *
+   * tags 列存的是 JSON 数组文本（["a","b"]），所以匹配带引号的完整值
+   * `"tag"` 就等价于"这个标签在不在数组里"，不会误命中前缀（decision:1 不会中 decision:12）。
+   * LIKE 的 % 与 _ 按字面量转义（id 里带下划线很常见）。
+   *
+   * @param tag 完整标签
+   * @param limit 最多返回几条（幂等检查只取第一条）
+   */
+  findByTag(tag: string, limit: number = 1): KnowledgeEntry[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM knowledge_entries WHERE tags LIKE ? ESCAPE '\\' ORDER BY updatedAt DESC LIMIT ?`
+      )
+      .all(`%${tagLikeNeedle(tag)}%`, limit) as KnowledgeRow[]
+    return rows.map((r) => this.deserialize(r))
+  }
+
+  /**
+   * 全库条数（归档算贡献率的分母用）
+   *
+   * 原来调用方写的是 exportAll().length —— 为了一个数字把整表读出来再逐行反序列化。
+   */
+  countAll(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM knowledge_entries').get() as
+      | { n: number }
+      | undefined
+    return row?.n ?? 0
+  }
+
+  /**
+   * 按标签数条目（归档算"AI 贡献了多少条"用）
+   *
+   * 与 findByTag 同一个匹配口径，但只回计数：
+   * 原来是 exportAll() 把整表读进内存再 filter，还要给每行做反序列化。
+   */
+  countByTag(tag: string): number {
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS n FROM knowledge_entries WHERE tags LIKE ? ESCAPE '\\'`)
+      .get(`%${tagLikeNeedle(tag)}%`) as { n: number } | undefined
+    return row?.n ?? 0
+  }
+
+  /**
    * 使用次数 +1
    * @param id 条目 ID
    */
@@ -669,6 +717,18 @@ export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   }
   const union = a.size + b.size - intersection
   return union === 0 ? 0 : intersection / union
+}
+
+/**
+ * tags 列（JSON 数组文本）里精确匹配一个标签所需的 LIKE 片段
+ *
+ * 单源在这里，findByTag 与 countByTag 共用，避免两处口径分叉：
+ * - JSON.stringify 把标签变成带引号的 `"tag"`，于是匹配的是整个数组元素，
+ *   `decision:1` 不会误命中 `decision:12`；
+ * - 再转义 LIKE 自己的 % 与 _（id 里带下划线很常见，不转义就成了通配符）。
+ */
+export function tagLikeNeedle(tag: string): string {
+  return JSON.stringify(tag).replace(/%/g, '\\%').replace(/_/g, '\\_')
 }
 
 /**

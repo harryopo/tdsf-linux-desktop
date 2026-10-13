@@ -59,7 +59,7 @@ function createMockKnowledgeRepo(): ArchiveKnowledgeRepository & {
       entries.filter((e) => e.source === source).length
     ),
     incrementAiContribution: vi.fn(async () => {}),
-    runInTransaction: vi.fn(async (fn) => fn()),
+    runBatch: vi.fn(async (fn) => fn()),
   }
 }
 
