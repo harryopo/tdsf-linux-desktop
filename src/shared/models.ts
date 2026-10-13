@@ -3,6 +3,8 @@
  * 主进程、Preload、渲染进程三端共享的类型定义
  */
 
+import type { LlmErrorCode } from './agent-types'
+
 // ============================================================================
 // SSH 相关类型
 // ============================================================================
@@ -286,8 +288,8 @@ export interface LlmStreamChunk {
 
 /** LLM 错误信息 */
 export interface LlmError {
-  /** 错误码（如 'NETWORK'、'TIMEOUT'、'AUTH'、'RATE_LIMIT'、'UNKNOWN'） */
-  code: string
+  /** 错误码（取值单源在 agent-types 的 LlmErrorCode，不在这里再抄一份） */
+  code: LlmErrorCode
   /** 用户可读的错误信息（不包含 stack trace） */
   message: string
   /** 是否可重试 */

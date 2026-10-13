@@ -25,6 +25,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
 import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
+import { classifyLlmError } from '../core/agent/providers/llm-error'
 import type {
   ChatMessage,
   Evidence,
@@ -45,46 +46,15 @@ const LLM_DONE_CHANNEL = 'llm:done'
 const LLM_ERROR_CHANNEL = 'llm:error'
 
 /**
- * 错误码映射：根据错误信息判断错误类型
+ * 错误码映射：单源在 providers/llm-error.ts（#101）
  *
- * v2.3.4 改进：把原始 message 也拼到最终 message 后面，便于 UI 调试
- * - 例如 "API Key 无效或已过期（401 Unauthorized）" 让用户知道是 key 错
- * @param err 错误对象
- * @returns LlmError（不包含 stack trace）
+ * 这里原来手抄了一份 7 个分支的判定，与 agent-runtime.ts、llm-tools.ts 各一份共三份。
+ * 三份都靠裸子串判 HTTP 状态（'9404 tokens' 命中 '404'），已合并成一份并改成
+ * 先看 provider 机器码与结构化 status、最后才看文本里的三位数。
+ * 兜底前缀保留本调用点原有的"LLM 调用失败"说法。
  */
 function toLlmError(err: unknown): LlmError {
-  const rawMsg = (err as Error).message ?? '未知错误'
-  const lowerMsg = rawMsg.toLowerCase()
-  // 认证错误
-  if (lowerMsg.includes('401') || lowerMsg.includes('unauthorized') ||
-      lowerMsg.includes('invalid api key')) {
-    return { code: 'AUTH', message: `API Key 无效或已过期（${rawMsg}）`, retryable: false }
-  }
-  // 模型不存在
-  if (lowerMsg.includes('404') || lowerMsg.includes('model not found') ||
-      lowerMsg.includes('does not exist')) {
-    return { code: 'MODEL_NOT_FOUND', message: `模型不存在或 endpoint 错误（${rawMsg}）`, retryable: false }
-  }
-  // 限流
-  if (lowerMsg.includes('429') || lowerMsg.includes('rate limit')) {
-    return { code: 'RATE_LIMIT', message: `请求过于频繁，请稍后重试（${rawMsg}）`, retryable: true }
-  }
-  // 超时
-  if (lowerMsg.includes('timeout') || lowerMsg.includes('aborted')) {
-    return { code: 'TIMEOUT', message: `请求超时（${rawMsg}）`, retryable: true }
-  }
-  // 网络错误
-  if (lowerMsg.includes('network') || lowerMsg.includes('fetch failed') ||
-      lowerMsg.includes('econnreset') || lowerMsg.includes('etimedout') ||
-      lowerMsg.includes('enotfound') || lowerMsg.includes('econnrefused')) {
-    return { code: 'NETWORK', message: `网络连接异常（${rawMsg}）`, retryable: true }
-  }
-  // 5xx 服务端错误
-  if (/\b5\d{2}\b/.test(lowerMsg) || lowerMsg.includes('server error')) {
-    return { code: 'SERVER', message: `服务器内部错误（${rawMsg}）`, retryable: true }
-  }
-  // 兜底
-  return { code: 'UNKNOWN', message: `LLM 调用失败（${rawMsg}）`, retryable: false }
+  return classifyLlmError(err, 'LLM 调用失败')
 }
 
 /**

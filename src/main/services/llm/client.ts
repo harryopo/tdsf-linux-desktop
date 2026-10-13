@@ -30,6 +30,7 @@ import type {
   EnvironmentContext,
 } from '@shared/models'
 import { analyzeByRules } from '@main/core/rule-engine'
+import { classifyLlmError } from '@main/core/agent/providers/llm-error'
 import { SYSTEM_PROMPT, buildAnalysisPrompt, buildEnvironmentContextPrompt } from './prompt-templates'
 import {
   alertLlmSlowResponse,
@@ -366,36 +367,13 @@ export class LlmClient {
 
   /**
    * 判断错误是否可重试
-   * 可重试：网络错误/超时/5xx/429限流；不可重试：401/400/404
+   *
+   * 口径单源在 providers/llm-error.ts 的 RETRYABLE 表（#101）。
+   * 这里原本自己抄了一份子串判定，和分类那三份一起分叉：它把 "requested 9429 tokens"
+   * 里的 9429 当成限流，于是一个必然再失败的请求要白等三次指数退避。
    */
   private isRetryableError(err: unknown): boolean {
-    const msg = (err as Error).message?.toLowerCase() ?? ''
-    // 网络错误
-    if (msg.includes('network') || msg.includes('fetch failed') ||
-        msg.includes('econnreset') || msg.includes('etimedout') ||
-        msg.includes('socket hang up')) {
-      return true
-    }
-    // 超时 / 中断
-    if (msg.includes('timeout') || msg.includes('aborted') ||
-        msg.includes('abort')) {
-      return true
-    }
-    // 5xx 服务端错误
-    if (/\b5\d{2}\b/.test(msg) || msg.includes('server error') ||
-        msg.includes('internal error') || msg.includes('bad gateway')) {
-      return true
-    }
-    // 429 限流
-    if (msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')) {
-      return true
-    }
-    // OpenAI SDK 的 APIError 通过 status 属性判断
-    const status = (err as { status?: number }).status
-    if (status !== undefined && (status === 429 || status >= 500)) {
-      return true
-    }
-    return false
+    return classifyLlmError(err).retryable
   }
 
   /** 延迟工具函数 */

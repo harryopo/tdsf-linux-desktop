@@ -31,6 +31,7 @@ import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
 import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { ToolRegistry } from '../services/llm/tools/registry'
+import { classifyLlmError } from '../core/agent/providers/llm-error'
 // D2：审批判定唯一权威 —— 只有字面 true 算批准
 import { readApproval } from '../core/security/approval'
 import { generateText, isStepCount } from 'ai'
@@ -76,27 +77,13 @@ function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]
 }
 
 /**
- * 错误码映射
+ * 错误码映射：单源在 providers/llm-error.ts（#101）
+ *
+ * 这一份原本只有 6 个分支，而且把原始消息整条丢掉（用户只看到"请求超时"四个字，
+ * 无从判断是哪一步）。合并后统一带上脱敏截断过的原始信息。
  */
 function toLlmError(err: unknown): LlmError {
-  const msg = (err as Error).message ?? '未知错误'
-  const lower = msg.toLowerCase()
-  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid api key')) {
-    return { code: 'AUTH', message: 'API Key 无效', retryable: false }
-  }
-  if (lower.includes('429') || lower.includes('rate limit')) {
-    return { code: 'RATE_LIMIT', message: '请求过于频繁', retryable: true }
-  }
-  if (lower.includes('timeout') || lower.includes('aborted')) {
-    return { code: 'TIMEOUT', message: '请求超时', retryable: true }
-  }
-  if (lower.includes('network') || lower.includes('fetch failed')) {
-    return { code: 'NETWORK', message: '网络连接异常', retryable: true }
-  }
-  if (/\b5\d{2}\b/.test(lower)) {
-    return { code: 'SERVER', message: '服务器内部错误', retryable: true }
-  }
-  return { code: 'UNKNOWN', message: 'LLM 调用失败', retryable: false }
+  return classifyLlmError(err, 'LLM 调用失败')
 }
 
 /**

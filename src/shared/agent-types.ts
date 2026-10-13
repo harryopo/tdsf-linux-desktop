@@ -421,32 +421,43 @@ export interface AgentDonePayload {
  *
  * v0.9.4 新增 sessionId（可选，向后兼容）
  */
+/**
+ * Provider 调用错误的分类码（#101 单源）
+ *
+ * 唯一一份，供三处消费：agent:chat 的错误推送、llm:* 的 LlmError、
+ * 以及分类器本身（src/main/core/agent/providers/llm-error.ts）。
+ * 以前每个调用点各自手抄一份码表，分叉的方向是"少判一类"。
+ *
+ * - QUOTA_EXHAUSTED：额度用尽。和 RATE_LIMIT 必须分开——对"再试一次"没用的事
+ *   说"请稍后重试"是错的建议。
+ * - CONTENT_POLICY：服务端安全策略拒绝，不是我们的请求写错了。
+ */
+export type LlmErrorCode =
+  | 'AUTH'
+  | 'PAYMENT_REQUIRED'
+  | 'PERMISSION'
+  | 'MODEL_NOT_FOUND'
+  | 'BAD_REQUEST'
+  | 'CONTEXT_OVERFLOW'
+  | 'VALIDATION'
+  | 'RATE_LIMIT'
+  | 'QUOTA_EXHAUSTED'
+  | 'CONTENT_POLICY'
+  | 'TIMEOUT'
+  | 'NETWORK'
+  | 'SERVER'
+  | 'PARSE'
+  | 'NO_API_KEY'
+  | 'UNKNOWN'
+  | 'CANCELLED'
+
 export interface AgentErrorPayload {
   /** 关联 ID */
   correlationId: string
-  /** 错误信息（不含 stack trace） */
+  /** 错误信息（不含 stack trace；原始消息已脱敏并截断） */
   message: string
-  /** 错误码
-   * v2.3.8 扩充：补齐 402/403/404/400/422/parser/missing key 等细粒度错误码，
-   * 与 src/main/ipc/agent-runtime.ts 的 toAgentError 保持一致。
-   * 旧 code（AUTH/RATE_LIMIT/TIMEOUT/NETWORK/SERVER/UNKNOWN/CANCELLED）向后兼容。
-   */
-  code:
-    | 'AUTH'
-    | 'PAYMENT_REQUIRED'
-    | 'PERMISSION'
-    | 'MODEL_NOT_FOUND'
-    | 'BAD_REQUEST'
-    | 'CONTEXT_OVERFLOW'
-    | 'VALIDATION'
-    | 'RATE_LIMIT'
-    | 'TIMEOUT'
-    | 'NETWORK'
-    | 'SERVER'
-    | 'PARSE'
-    | 'NO_API_KEY'
-    | 'UNKNOWN'
-    | 'CANCELLED'
+  /** 错误码，取值见 LlmErrorCode */
+  code: LlmErrorCode
   /** 会话 ID（v0.9.4 新增，可选） */
   sessionId?: string
 }
