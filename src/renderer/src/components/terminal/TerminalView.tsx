@@ -14,7 +14,7 @@
  * - useEffect 中初始化（DOM 就绪后）
  * - 组件卸载时 dispose 终端实例
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -414,7 +414,18 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     <div
       ref={containerRef}
       className={`terminal-view ${visible ? 'visible' : 'hidden'}`}
-      style={{ position: 'relative' }}
+      /*
+       * 终端底色只有一个来源：当前代码主题的 terminal.background（xterm 用的就是它）。
+       * 容器与 .xterm-viewport 过去写死 --code-block-bg(#1e1e1e)，而 one-dark 的画布是
+       * #282c34，于是同一块终端里出现两种深灰——把主题底色作为 CSS 变量交出去，
+       * CSS 侧只消费这一个值。
+       */
+      style={
+        {
+          position: 'relative',
+          '--terminal-bg': CODE_THEMES[appearanceCodeTheme]?.terminal.background,
+        } as CSSProperties
+      }
     >
       <TerminalSearchBar
         open={searchOpen}

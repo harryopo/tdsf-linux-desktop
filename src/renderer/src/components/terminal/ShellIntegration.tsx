@@ -92,7 +92,7 @@ function useShellIntegration(sessionId: string, enabled: boolean): IntegrationSt
     async (action: 'install' | 'uninstall') => {
       const api = window.electronAPI
       if (!api?.sshShellIntegrationInstall || !api.sshShellIntegrationUninstall) {
-        toast.error('当前环境不支持远端 shell 集成')
+        toast.error('需要在桌面端里才能开启命令记录')
         return
       }
       setBusy(true)
@@ -160,8 +160,8 @@ export function ShellIntegrationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title={`命令块集成 · ${hostTitle}`}
-        description="让这台主机的终端把「命令 / 输出 / 退出码」切成块，AI 才读得到上一条命令发生了什么。"
+        title={`命令记录 · ${hostTitle}`}
+        description="让终端把每条命令的输出单独记下来，AI 才能回答「刚才那条命令发生了什么」。"
         footer={
           <>
             <Button variant="outline" size="md" onClick={() => onOpenChange(false)}>
@@ -175,7 +175,7 @@ export function ShellIntegrationDialog({
                 disabled={busy || !status?.rcFile}
                 onClick={() => void uninstall()}
               >
-                移除集成
+                移除命令记录
               </Button>
             ) : (
               <Button
@@ -237,8 +237,8 @@ export function ShellIntegrationDialog({
                   <pre className="term-si-code term-si-code-tall">{status.snippetText}</pre>
                 </section>
                 <p className="term-si-note">
-                  只对新开的终端生效。bash 会占用一个 DEBUG 钩子：这台机器若自己装了同类钩子
-                  （starship、bash-preexec 之类）会被接管，移除后新开终端就恢复原样。
+                  只对新开的终端生效。开启后会在这台主机的 bash 启动文件末尾追加一小段脚本；
+                  如果这台机器自己也装过同类工具（例如 starship），两者可能冲突；移除后新开的终端恢复原样。
                 </p>
               </>
             )}
@@ -276,7 +276,7 @@ export function ShellIntegrationBar({ sessionId, hostTitle }: BarProps) {
     <div className="term-si-bar" data-dom-id="si-bar">
       <Blocks aria-hidden className="term-si-bar-icon size-3" />
       <span className="term-si-bar-text">
-        {hostTitle}：这台主机的终端还没启用命令块集成，AI 读不到「上一条命令」的输出
+        {hostTitle}：这台主机还没开启命令记录，AI 读不到「上一条命令」的输出
       </span>
       <Button variant="outline" size="sm" data-dom-id="si-enable" onClick={() => setOpen(true)}>
         怎么启用
@@ -326,8 +326,8 @@ export function ShellIntegrationButton({ sessionId, hostTitle }: ButtonProps) {
         aria-pressed={status?.installed === true}
         disabled={!sessionId}
         data-dom-id="si-toolbar"
-        title={`命令块集成：${line}`}
-        aria-label={`命令块集成：${line}`}
+        title={`命令记录：${line}`}
+        aria-label={`命令记录：${line}`}
         onClick={() => setOpen(true)}
       >
         <Blocks aria-hidden className="size-3.5" />

@@ -82,7 +82,7 @@
   color: var(--text-primary);
   padding: 8px 12px;
   border-radius: 6px 2px 6px 6px;
-  font-size: 12px;
+  font-size: var(--ui-font-body);
   line-height: 1.6;
   max-width: 100%;
   word-break: break-word;
@@ -111,7 +111,7 @@
   padding: 0 8px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--ui-font-md);
   color: var(--text-tertiary);
   transition: background 0.12s ease, color 0.12s ease;
   user-select: none;
@@ -188,7 +188,7 @@
 }
 
 .ai-progress-title {
-  font-size: 11px;
+  font-size: var(--ui-font-md);
   font-weight: 600;
   color: var(--text-primary);
 }

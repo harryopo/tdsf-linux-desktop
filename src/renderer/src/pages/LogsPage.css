@@ -216,7 +216,7 @@
 .log-source-label {
   flex: 1;
   min-width: 0;
-  font-size: var(--trae-body-sm-font-size);
+  font-size: var(--ui-font-md);
   font-weight: var(--trae-font-weight-default);
   overflow: hidden;
   text-overflow: ellipsis;

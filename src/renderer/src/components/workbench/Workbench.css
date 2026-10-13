@@ -72,7 +72,9 @@
   background: var(--trae-bg-base-default);
   color: var(--text-primary);
   font-family: var(--ui-family-ui);
-  font-size: 11px;
+  /* 外壳基线走控件档 14px：以前这里是 11px，任何没显式设字号的控件（终端标签、可点行）
+     都继承到注释档 —— DESIGN.md §8 第 16 条点名的根因 */
+  font-size: var(--ui-font-md);
   line-height: 1.5;
 }
 
@@ -87,6 +89,10 @@
   height: var(--ui-size-statusbar);
   font-size: var(--ui-font-micro);
 }
+/* 状态条里可点的那几格（当前终端、连接状态）是控件，不占注释档 —— DESIGN.md §8.16 */
+.wb-shell .wb-statusbar .wb-status-item--action {
+  font-size: var(--ui-font-caption);
+}
 .wb-shell button:not(:disabled) {
   min-height: auto;
 }
@@ -95,10 +101,10 @@
    三层选择器把工具类赢走，输入区被压成 11px 一行——2026-10-08 用户指出"很挤"的真因。
    同一条规则下面的 .ai-send-btn 是死类（全仓无引用），一起删掉。 */
 .wb-shell .wb-filetree {
-  font-size: 11px;
+  font-size: var(--ui-font-md);
 }
 .wb-shell .wb-aipanel {
-  font-size: 11px;
+  font-size: var(--ui-font-body);
 }
 
 /* ===== Titlebar (令牌 --ui-size-titlebar) ===== */
@@ -347,7 +353,7 @@
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--ui-font-md);
   user-select: none;
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -387,7 +393,7 @@
 .wb-ft-label {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11px;
+  font-size: var(--ui-font-md);
   flex: 1;
   min-width: 0;
 }

@@ -780,7 +780,13 @@ const MEASURE = `(async () => {
   tinyCanary.className = '__geo_tiny_canary__';
   tinyCanary.style.cssText = 'position:fixed;left:2px;top:2px;font-size:10px';
   tinyCanary.textContent = 'canary';
-  document.body.append(railCanary, tinyCanary);
+  // 第二条探针：可点的"行"（div + cursor:pointer，比如文件树节点行）。
+  // 这一类没有 button/a/role 标记，只靠选择器列不全 —— 探针专门盯这条路径有没有生效。
+  const rowCanary = document.createElement('div');
+  rowCanary.className = '__geo_tiny_row_canary__';
+  rowCanary.style.cssText = 'position:fixed;left:2px;top:20px;font-size:11px;cursor:pointer';
+  rowCanary.textContent = 'canary row';
+  document.body.append(railCanary, tinyCanary, rowCanary);
 
   const rails = [];
   for (const el of document.querySelectorAll('*')) {
@@ -844,9 +850,31 @@ const MEASURE = `(async () => {
     walk(el);
     return best;
   };
-  for (const el of document.querySelectorAll('button,a,input,textarea,select,label,[role="tab"],[role="button"],[role="menuitem"]')) {
+  /*
+   * 候选集 = 显式控件 + 任何 cursor:pointer 的元素。后者管的是文件树节点行、可点卡片
+   * 这一类"行"：既不是 button/a，也没有 role，只按选择器列会整个漏掉（实测 11px 的
+   * .ft-row 就这样躲过了闸）。primaryLabel 取子树里最大那一档字，所以包着 14px 标签的
+   * pointer 容器不会被误判，只有整行都停在注释档的才报。
+   */
+  const CONTROL_SELECTOR =
+    'button,a,input,textarea,select,label,[role="tab"],[role="button"],[role="menuitem"]';
+  /*
+   * cursor:pointer 会往下继承，所以卡片里每个内层 span 都是"pointer 元素"。
+   * 只判最外层那一格可点区域：父级本身可点或父级就是控件时跳过子节点，
+   * 否则一段 11px 的次级说明会被当成控件标签（实测误报 41 条）。
+   */
+  const pointerHost = (el) => {
+    const p = el.parentElement;
+    if (!p) return true;
+    const pcs = getComputedStyle(p);
+    if (pcs.cursor === 'pointer' || p.matches(CONTROL_SELECTOR)) return false;
+    return true;
+  };
+  for (const el of document.querySelectorAll('*')) {
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    const explicit = el.matches(CONTROL_SELECTOR);
+    if (!explicit && !(cs.cursor === 'pointer' && pointerHost(el))) continue;
     let info = primaryLabel(el);
     if (!info && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) {
       const ph = (el.getAttribute('placeholder') || el.value || '').trim();
@@ -860,10 +888,15 @@ const MEASURE = `(async () => {
   }
   const tinyCanaryIdx = tinyControls.findIndex((x) => x.cls.includes('__geo_tiny_canary__'));
   const tinyCanaryRow = tinyCanaryIdx >= 0 ? tinyControls.splice(tinyCanaryIdx, 1)[0] : undefined;
+  const rowCanaryIdx = tinyControls.findIndex((x) => x.cls.includes('__geo_tiny_row_canary__'));
+  const rowCanaryHit = rowCanaryIdx >= 0 ? tinyControls.splice(rowCanaryIdx, 1)[0] : undefined;
   geoCanary.rail = !!railCanaryRow && railCanaryRow.hasMoreRight && !railCanaryRow.marked;
   geoCanary.tiny = !!tinyCanaryRow && tinyCanaryRow.size < 12;
+  // 探针是 11px 的 pointer div：抓不到就说明 pointer 那条候选路径没生效
+  geoCanary.tinyRow = !!rowCanaryHit && rowCanaryHit.size < 12;
   railCanary.remove();
   tinyCanary.remove();
+  rowCanary.remove();
 
   // 同一类控件在同一屏会重复出现（侧栏 8 个钮就是 8 条），按 档+类名 归并成"种类"，
   // 否则 slice(0,8) 会被第一族刷满，后面几族根本看不见（实测被 nav-btn 挡住过一次）
@@ -875,6 +908,45 @@ const MEASURE = `(async () => {
     else tinyKindMap.set(key, { ...t, n: 1 });
   }
   const tinyKinds = [...tinyKindMap.values()].sort((a, b) => b.n - a.n).slice(0, 10);
+
+  /*
+   * --- 6. 终端底色只能有一个来源（用户 2026-10-12 指出的"终端双色"）---
+   * 画布底色来自 xterm 主题（CODE_THEMES[].terminal.background），容器与滚动条底色来自 CSS。
+   * 两边以前各写各的（#1e1e1e vs one-dark 的 #282c34），同一块终端里就出现两种深灰。
+   * 现在 TerminalView 把主题底色以 --terminal-bg 交到容器上，这里比对落到元素上的实际背景。
+   */
+  const toRgb = (c) => {
+    const s = String(c).trim();
+    const hex6 = /^#([0-9a-f]{6})$/i.exec(s);
+    if (hex6) {
+      const n = parseInt(hex6[1], 16);
+      return 'rgb(' + ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255) + ')';
+    }
+    const hex3 = /^#([0-9a-f]{3})$/i.exec(s);
+    if (hex3) {
+      const p = hex3[1].split('').map((h) => parseInt(h + h, 16));
+      return 'rgb(' + p[0] + ', ' + p[1] + ', ' + p[2] + ')';
+    }
+    return s;
+  };
+  const termEls = [...document.querySelectorAll('.terminal-view')];
+  const termTone = {
+    total: termEls.length,
+    noVar: termEls.filter((el) => !getComputedStyle(el).getPropertyValue('--terminal-bg').trim()).length,
+    mismatch: termEls
+      .map((el) => {
+        const cs = getComputedStyle(el);
+        const want = toRgb(cs.getPropertyValue('--terminal-bg'));
+        if (!want) return null;
+        const vp = el.querySelector('.xterm-viewport');
+        const surfaces = [toRgb(cs.backgroundColor)];
+        if (vp) surfaces.push(toRgb(getComputedStyle(vp).backgroundColor));
+        const off = surfaces.find((v) => v && v !== want);
+        return off ? { want, got: off } : null;
+      })
+      .filter(Boolean)
+      .slice(0, 3),
+  };
 
   // 量具自证：临时造一个"盖住按钮的吸底条"，上面两条必须抓到
   try {
@@ -896,6 +968,17 @@ const MEASURE = `(async () => {
     wide.append(wideKid);
     document.body.append(wide);
     geoCanary.spill = wideKid.getBoundingClientRect().right - wide.getBoundingClientRect().right > 2;
+    // 终端底色探针：造一个"声明了主题底色、容器却刷成另一个色"的假终端，必须判出不一致
+    const tv = document.createElement('div');
+    tv.className = 'terminal-view';
+    tv.style.cssText =
+      'position:fixed;left:2px;top:60px;width:60px;height:20px;--terminal-bg:#ff0000;background:#00ff00';
+    document.body.append(tv);
+    const tcs = getComputedStyle(tv);
+    geoCanary.termTone =
+      toRgb(tcs.getPropertyValue('--terminal-bg')) === 'rgb(255, 0, 0)' &&
+      tcs.backgroundColor === 'rgb(0, 255, 0)';
+    tv.remove();
     probeBtn.remove();
     probeBar.remove();
     wide.remove();
@@ -923,6 +1006,7 @@ const MEASURE = `(async () => {
     railBadState: rails.filter((x) => x.marked && x.state !== x.expect).length,
     tinyControls: tinyKinds,
     tinyControlCount: tinyControls.length,
+    termTone,
     geoCanary,
     overlayType,
     overlayTiers: overlayType ? new Set(Object.keys(overlayType).map((k) => k.split('px/')[0] + 'px')).size : 0,
@@ -1057,6 +1141,42 @@ try {
   report.cjk = []
   for (const r of ROUTES) {
     const st = await settle(ws, r.hash)
+    /*
+     * 工作台那屏先真的开一条本机终端：终端底色一致性只有在屏上有 xterm 实例时才量得到，
+     * 而本机终端不需要连任何服务器。开不出来就如实记下（不静默跳过），门禁会报"本轮未测"。
+     */
+    if (r.hash === '#/workbench') {
+      report.termOpened = await evalIn(ws, `(async () => {
+        if (document.querySelector('.terminal-view')) return 'already';
+        const fire = (el) => ['pointerdown', 'pointerup', 'click'].forEach((t) =>
+          el.dispatchEvent(t.startsWith('pointer')
+            ? new PointerEvent(t, { bubbles: true, cancelable: true })
+            : new MouseEvent(t, { bubbles: true, cancelable: true })),
+        );
+        // 空态里就有一颗直达按钮；没有空态才去开"新建终端菜单"（Radix 要真事件序列才弹）
+        const direct = [...document.querySelectorAll('button')].find((x) =>
+          (x.textContent || '').includes('开一个本机终端'),
+        );
+        if (direct) fire(direct);
+        else {
+          const btn = document.querySelector('button[data-dom-id="workbench-new-terminal"]');
+          if (!btn) return 'no-button';
+          fire(btn);
+          await new Promise((res) => setTimeout(res, 500));
+          const item = [...document.querySelectorAll('[role="menuitem"]')].find((x) =>
+            (x.textContent || '').includes('开一个本机终端'),
+          );
+          if (!item) return 'no-menuitem';
+          fire(item);
+        }
+        for (let i = 0; i < 40; i++) {
+          await new Promise((res) => setTimeout(res, 250));
+          if (document.querySelector('.terminal-view')) return 'opened';
+        }
+        return 'timeout';
+      })()`)
+      console.log('本机终端探针：' + report.termOpened)
+    }
     const file = await shot(ws, r.name)
     const m = await evalIn(ws, MEASURE)
     report.screens.push({ route: r.hash, png: file, settled: st.settled, waitedMs: st.waitedMs, ...m })
@@ -1288,7 +1408,22 @@ try {
         if (!s.geoCanary.stroke) bad.push(`${at}: 描边探针失效（造的 1.8/2 混排没被抓到），mixedStroke 读数作废`)
         if (!s.geoCanary.rail) bad.push(`${at}: 轨道探针失效（造的"被裁却没标注的横向滚动容器"没被抓到），rails 读数作废`)
         if (!s.geoCanary.tiny) bad.push(`${at}: 微档探针失效（造的 10px 按钮没被抓到），tinyControls 读数作废`)
+        if (!s.geoCanary.tinyRow) bad.push(`${at}: 可点行探针失效（造的 11px cursor:pointer 行没被抓到），文件树/列表那一类控件不在闸的覆盖内`)
         if (!s.geoCanary.wrap) bad.push(`${at}: 折行探针失效（造的"40px 宽装 4 个汉字"没被抓到），wrapped 读数作废`)
+        if (!s.geoCanary.termTone) bad.push(`${at}: 终端底色探针失效（造的"主题色≠容器色"假终端没被抓到），termTone 读数作废`)
+      }
+      // 终端双色（画布一个色、容器另一个色）只有在屏上真有终端时才能量到
+      if (s.termTone && s.termTone.total) {
+        if (s.termTone.noVar)
+          bad.push(`${at}: ${s.termTone.noVar} 个终端容器没带 --terminal-bg（底色又回到 CSS 与 xterm 各写各的）`)
+        if (s.termTone.mismatch.length)
+          bad.push(
+            `${at}: 终端容器底色与主题底色不一致 — ${s.termTone.mismatch
+              .map((m) => `应为 ${m.want}，实为 ${m.got}`)
+              .join('；')}`,
+          )
+      } else if (String(at).startsWith('#/workbench')) {
+        geoNotes.push(`${at}: 屏上没有终端实例（未连接/终端未打开），底色一致性本轮未测`)
       }
       if (s.iconRowWorstOffY === null || s.iconRowWorstOffY === undefined) {
         // 只有确实没有成排图标的屏才允许 null（外壳/启动页），其余屏取不到就是没量到
@@ -1326,7 +1461,7 @@ try {
       if (s.tinyControlCount) {
         bad.push(
           `${at}: ${s.tinyControlCount} 个控件用了注释档字号（<12px）— ${(s.tinyControls || [])
-            .map((t) => `「${t.text}」${t.size}px×${t.n}`)
+            .map((t) => `「${t.text}」${t.size}px×${t.n} ${t.cls}`)
             .join('，')}`,
         )
       }
