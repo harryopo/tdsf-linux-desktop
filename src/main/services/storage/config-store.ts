@@ -72,8 +72,6 @@ const store = new Store<ConfigSchema>({
  * 提供：
  * - get(key): 读取任意配置
  * - set(key, value): 写入任意配置
- * - getSshServers(): 获取 SSH 服务器列表
- * - saveSshServers(servers): 保存 SSH 服务器列表
  * - getLlmConfig(): 获取 LLM 配置
  * - saveLlmConfig(config): 保存 LLM 配置
  */
@@ -127,45 +125,6 @@ export class ConfigStore {
   // ------------------------------------------------------------------
   // 业务封装方法
   // ------------------------------------------------------------------
-
-  /**
-   * 获取 SSH 服务器列表
-   *
-   * 列表中的 SshConfig 不应包含明文密码/私钥。
-   * 真正连接时由调用方从 SecureStore 或运行时输入获取凭据。
-   *
-   * @returns SSH 服务器列表
-   */
-  public static getSshServers(): SshConfig[] {
-    const servers = store.get('sshServers', []) as SshConfig[]
-    return Array.isArray(servers) ? servers : []
-  }
-
-  /**
-   * 保存 SSH 服务器列表
-   *
-   * 保存前应脱敏（移除 password/privateKey 字段），
-   * 仅保留连接基本信息（host/port/username/authType 等）。
-   *
-   * @param servers SSH 服务器列表
-   * @returns 是否成功
-   */
-  public static saveSshServers(servers: SshConfig[]): boolean {
-    try {
-      // 脱敏：移除明文密码和私钥内容（仅保留路径）
-      const sanitized = servers.map((s) => {
-        const { password, privateKey, ...rest } = s
-        // 故意不保存 password 和 privateKey，避免明文落盘
-        void password
-        void privateKey
-        return rest
-      })
-      store.set('sshServers', sanitized)
-      return true
-    } catch {
-      return false
-    }
-  }
 
   /**
    * 获取 LLM 配置

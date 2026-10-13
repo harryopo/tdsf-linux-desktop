@@ -10,6 +10,8 @@
  * 每一组都配"这个应该被拒"与"这个不该被误伤"两向，否则闸会红到没人跑、整体作废。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 
 const box = vi.hoisted(() => ({
   store: new Map<string, unknown>(),
@@ -170,5 +172,43 @@ describe('B 组｜发往模型前的脱敏（红act 覆盖形态表）', () => {
   it('正对照：普通运维文本一个字都不该被涂掉', () => {
     const plain = 'systemctl restart nginx 之后 80 端口恢复，配置文件在 /etc/nginx/nginx.conf'
     expect(redactSecrets(plain)).toBe(plain)
+  })
+})
+
+describe('C 组｜落盘脱敏只允许一份实现', () => {
+  /**
+   * 缺陷原型（2026-10-13 删掉的死方法 saveSshServers）：
+   * 它自己写了一遍 `const { password, privateKey, ...rest } = s`，
+   * 于是 passphrase 留在 rest 里被明文写进 config.json —— 而唯一那份
+   * stripServerCredentials 的清单是三件套。两份规则表迟早分叉，分叉的方向
+   * 一定是"少删一个"。所以这条闸盯的是结构：src/main 里除 server-credentials.ts
+   * 之外，不许再出现按凭据名逐个摘除的写法。
+   */
+  const CRED_DESTRUCTURE = /const\s*\{\s*password\s*,\s*privateKey/
+  const ALLOWED = ['services/storage/server-credentials.ts']
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name)
+      if (statSync(full).isDirectory()) walk(full, out)
+      else if (name.endsWith('.ts')) out.push(full)
+    }
+    return out
+  }
+
+  it('阳性对照：闸扫得到那类写法（扫不到就是闸是死的）', () => {
+    const bad = 'const { passwo' + 'rd, privateKey, ...rest } = s'
+    expect(CRED_DESTRUCTURE.test(bad)).toBe(true)
+  })
+
+  it('除白名单外，src/main 里没有第二份凭据摘除实现', () => {
+    const root = join(__dirname, '../../src/main')
+    const offenders: string[] = []
+    for (const file of walk(root)) {
+      const rel = relative(join(process.cwd(), 'src', 'main'), file).split(sep).join('/')
+      if (ALLOWED.includes(rel)) continue
+      if (CRED_DESTRUCTURE.test(readFileSync(file, 'utf8'))) offenders.push(rel)
+    }
+    expect(offenders, '又多了一份脱敏清单，它一定会漏掉某个凭据字段：' + offenders.join(', ')).toEqual([])
   })
 })
