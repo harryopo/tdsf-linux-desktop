@@ -160,11 +160,25 @@ async function cjkFontAudit(ws, label) {
     return out
   }
   const used = await fontsOf('[data-cjk-probe]')
-  // 有界重试：首屏字体还没光栅化完时，那一次可能什么都量不到。读数不该因为量具
-  // 抖一下就作废，更不该因此放过真坏了的量具 —— 三次都抓不到显式 SimSun 才报"量具失效"。
+  // 有界重试。两个原因会让这一屏的读数量不到字族：DOM 快照被 React 重绘换掉，
+  // 以及探针还没被光栅化（CSS.getPlatformFontsForNode 只报已经画出来的字形）。
+  // 所以每次重试前先逼一次布局 + 等字体就绪，再重取 document。
+  // 判据本身不放松：三次都抓不到显式 SimSun，才报"量具失效"。
   let canaryFonts = await fontsOf('#audit-cjk-canary')
-  for (let attempt = 0; attempt < 2 && canaryFonts.length === 0; attempt++) {
-    await new Promise((r) => setTimeout(r, 250))
+  for (let attempt = 0; attempt < 3 && canaryFonts.length === 0; attempt++) {
+    // 只用定时器，不用 requestAnimationFrame：窗口不可见时 rAF 会被挂起，
+    // 这个 await 就永远不回来（截图那条路上已经踩过一次同样的坑）。
+    await evalIn(
+      ws,
+      `(async () => {
+        const c = document.getElementById('audit-cjk-canary');
+        if (c) void c.getClientRects();
+        const ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+        await Promise.race([ready, new Promise((r) => setTimeout(r, 600))]);
+        await new Promise((r) => setTimeout(r, 200));
+        return 1;
+      })()`,
+    )
     canaryFonts = await fontsOf('#audit-cjk-canary')
   }
   await evalIn(ws, `(() => { const c = document.getElementById('audit-cjk-canary'); if (c) c.remove(); })()`)

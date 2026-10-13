@@ -435,6 +435,11 @@ export class SidecarManager extends EventEmitter {
         logger.info(`[SidecarManager] ${this.config.id} 启动过程中被停止，按停止处理`)
         return
       }
+      // 启动超时/失败 ≠ 进程没了：waitForReady 到点时那个 Python 往往还在跑，
+      // 端口也还被它占着。不收的话下一次 start() 新起的进程 health 探到旧孤儿就报"就绪"，
+      // 而退出时 stop() 只认 this.process 那一条 —— 孤儿一直留在后台。
+      this.stopping = false
+      await this.stop()
       this.status = 'crashed'
       this.lastError = err instanceof Error ? err.message : String(err)
       this.emit('status', this.status)

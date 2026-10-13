@@ -21,6 +21,7 @@ import type { ConnectConfig } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { StringDecoder } from 'node:string_decoder'
 import { assertCommandAllowed } from '../../core/command-gate'
 import { ConfigStore } from '../storage/config-store'
 import { AuditRepo } from '../db/audit-repo'
@@ -269,7 +270,20 @@ export class SshConnectionManager {
     }
     // 提前占位，避免后续操作找不到会话
     this.sessions.set(sessionId, entry)
-    await this.runWithLock(sessionId, () => this.doConnect(entry, config))
+    try {
+      await this.runWithLock(sessionId, () => this.doConnect(entry, config))
+    } catch (err) {
+      // 连不上就把这条占位清掉：留着的话 sessions 里会堆一串 state='error' 的死 entry，
+      // 除了 disconnectAll（只在退出时跑）没有任何调用方能回收它们。
+      this.stopKeepAlive(entry)
+      try {
+        entry.client.destroy()
+      } catch {
+        /* destroy 只是尽力而为，回收以移除 entry 为准 */
+      }
+      this.sessions.delete(sessionId)
+      throw err
+    }
     return sessionId
   }
 
@@ -369,8 +383,11 @@ export class SshConnectionManager {
             fail(err)
             return
           }
+          // 同 shell 通道：stdout / stderr 各自一个解码器，跨包的中文不被切成乱码
+          const outDecoder = new StringDecoder('utf8')
+          const errDecoder = new StringDecoder('utf8')
           stream.on('data', (chunk: Buffer) => {
-            const text = chunk.toString('utf8')
+            const text = outDecoder.write(chunk)
             stdout += text
             if (onData) {
               try {
@@ -381,7 +398,7 @@ export class SshConnectionManager {
             }
           })
           stream.stderr.on('data', (chunk: Buffer) => {
-            const text = chunk.toString('utf8')
+            const text = errDecoder.write(chunk)
             stderr += text
             if (onData) {
               try {
@@ -437,9 +454,13 @@ export class SshConnectionManager {
         }
         const shell: ShellEntry = { id: shellId, sessionId, channel: stream, callbacks: new Set() }
         entry.shells.set(shellId, shell)
+        // 每条通道一个解码器：chunk.toString('utf8') 逐包转换，跨包被切断的多字节字符
+        // （中文输出最常见的切法）会变成一个 U+FFFD —— journalctl、中文文件名首当其冲。
+        const decoder = new StringDecoder('utf8')
         // 输出只广播给**这条通道**的订阅者：多终端互不串字靠的就是这一层隔离
         stream.on('data', (chunk: Buffer) => {
-          const data = chunk.toString('utf8')
+          const data = decoder.write(chunk)
+          if (!data) return
           for (const cb of [...shell.callbacks]) {
             try {
               cb(data)
@@ -697,11 +718,44 @@ export class SshConnectionManager {
    */
   private doConnect(entry: SessionEntry, config: SshConfig): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // 这一轮用的 client 要就地定住：重连会换 entry.client，迟到的回调必须能
+      // 认出"我不是当前这一条"（见 onReady 的 stale 判定）
+      const client = entry.client
+      let settled = false
       const timer = setTimeout(() => {
+        if (settled) return
+        settled = true
+        // 只 reject 不收尾的话：监听器还挂着，慢链路那一头的 ready 之后照样会跑，
+        // 于是同一条主机留下两条活 SSH 会话，而第一条的 sessionId 从没交给渲染层，
+        // 界面上没有任何东西能断开它。
+        client.removeAllListeners('ready')
+        client.removeAllListeners('error')
+        try {
+          client.destroy()
+        } catch {
+          /* 超时收尾尽力而为，主要目标是别留第二条连接 */
+        }
+        entry.state = 'error'
         reject(new Error(`SSH 连接超时（${DEFAULT_CONNECT_TIMEOUT_MS}ms）: ${config.host}`))
       }, DEFAULT_CONNECT_TIMEOUT_MS)
+      /** 这条回调是不是还属于当前这一条会话（会话已断开或被新一轮重连换掉 client 时不算） */
+      const isCurrent = (): boolean =>
+        this.sessions.get(entry.sessionId) === entry && entry.client === client
       const onReady = () => {
         clearTimeout(timer)
+        if (settled || !isCurrent()) {
+          // 迟到的 ready：期间用户已断开或重连已换人，接管它会把 state 改回
+          // connected 并给一条不在会话表里的连接新起心跳定时器（永无人回收）。
+          if (!isCurrent()) {
+            try {
+              client.destroy()
+            } catch {
+              /* 已经没人管这条连接了，destroy 尽力而为 */
+            }
+          }
+          return
+        }
+        settled = true
         entry.state = 'connected'
         entry.lastUsedAt = Date.now()
         // 新一轮连接：允许它再报一次"会话关闭"（上一轮已经报过了）
@@ -712,6 +766,8 @@ export class SshConnectionManager {
       }
       const onError = (err: Error) => {
         clearTimeout(timer)
+        if (settled) return
+        settled = true
         entry.state = 'error'
         auditSsh('SSH 连接失败', config, entry.sessionId, false, err.message)
         reject(err)
@@ -751,6 +807,13 @@ export class SshConnectionManager {
           )
         })
         jumpClient.on('error', (err) => {
+          // 跳板机这条腿也要收：转发失败/目标认证失败时只 end 了目标那一侧的话，
+          // 每试一次就留一条打开着的跳板机会话在远端计数里。
+          try {
+            jumpClient.end()
+          } catch {
+            /* 收尾尽力而为，主进程不因这条腿的关闭异常受影响 */
+          }
           onError(new Error(`跳板机连接失败: ${err.message}`))
         })
         jumpClient.connect(jumpOpts)
@@ -768,21 +831,54 @@ export class SshConnectionManager {
     onReady: () => void,
     onError: (err: Error) => void
   ): void {
+    /** 这个 client 现在归哪条会话（重连会换 client，所以每次事件都要现查） */
+    const owner = (): SessionEntry | undefined => {
+      for (const e of this.sessions.values()) {
+        if (e.client === client) return e
+      }
+      return undefined
+    }
     client.once('ready', onReady)
     client.once('error', onError)
+    // 握手之后的链路故障也走 error 事件。这里原来只有 once('error')：握手期那次
+    // 已经把它消耗掉了，链路中途的 socket error 就没有监听者 —— Node 会把它抛成
+    // 主进程未捕获异常。所以再挂一个常驻监听：还在连接阶段就交给 onError，
+    // 已经连上了就按"这一条会话没了"处理。
+    client.on('error', (err: Error) => {
+      const entry = owner()
+      if (!entry || entry.state !== 'connected') return
+      entry.state = 'error'
+      // 事件里的 state 只有 reconnecting/disconnected 两档（渲染层按这两档画状态），
+      // 链路中途出错对用户就是"这条会话没了"，所以报 disconnected + 原因写清楚。
+      this.notifyStateChanged({
+        sessionId: entry.sessionId,
+        serverId: entry.config.id,
+        state: 'disconnected',
+        reason: `连接异常：${err.message}`,
+        attemptCount: 0,
+      })
+      this.notifySessionClosed(entry.sessionId, 'remote-close')
+    })
     // close 事件在连接断开时触发，更新状态
     client.on('close', () => {
-      for (const entry of this.sessions.values()) {
-        if (entry.client === client) {
-          entry.state = 'disconnected'
-          // 通道随连接一起没了：整张表清空，别让渲染层还能往死通道里写
-          entry.shells.clear()
-          // 远端断链（网络掉、服务器重启、被踢）也是一次"会话没了"：
-          // 监控与文件监听必须在这里收手，否则它们的定时器会朝着死连接一直 exec，
-          // 抛出的错被空 catch 吞掉，界面上还留着最后一帧指标当"实时数据"。
-          this.notifySessionClosed(entry.sessionId, 'remote-close')
-          break
-        }
+      const entry = owner()
+      if (entry) {
+        entry.state = 'disconnected'
+        // 通道随连接一起没了：整张表清空，别让渲染层还能往死通道里写
+        entry.shells.clear()
+        // 远端断链也要把状态推出去：渲染层的连接状态只认 ssh:state-changed，
+        // 不推的话服务器重启/拔网线之后界面还显示"已连接"，用户继续往死通道里敲。
+        this.notifyStateChanged({
+          sessionId: entry.sessionId,
+          serverId: entry.config.id,
+          state: 'disconnected',
+          reason: '远端关闭了连接',
+          attemptCount: 0,
+        })
+        // 远端断链（网络掉、服务器重启、被踢）也是一次"会话没了"：
+        // 监控与文件监听必须在这里收手，否则它们的定时器会朝着死连接一直 exec，
+        // 抛出的错被空 catch 吞掉，界面上还留着最后一帧指标当"实时数据"。
+        this.notifySessionClosed(entry.sessionId, 'remote-close')
       }
     })
     client.connect(opts)
