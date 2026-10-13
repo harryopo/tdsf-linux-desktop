@@ -13,6 +13,16 @@
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
+/**
+ * URL 长度上限（字符）
+ *
+ * WHATWG 的 URL 解析器能吃下十万字符并且照样"解析成功"，只判协议等于给配置里
+ * 塞一条 megabyte 级的值开了门。2048 是各家服务器对请求行的通用保守上限；
+ * 超过它的值只有两种来源：用户贴错，或者渲染层已经被攻破 ——
+ * 两种都不该原样落库、再拼进带着真 Key 的请求。
+ */
+const MAX_URL_LENGTH = 2048
+
 export interface UrlPolicy {
   ok: boolean
   reason?: string
@@ -20,8 +30,14 @@ export interface UrlPolicy {
 
 function parse(raw: unknown): URL | null {
   if (typeof raw !== 'string' || !raw.trim()) return null
+  const trimmed = raw.trim()
+  if (trimmed.length > MAX_URL_LENGTH) return null
+  // 控制字符（含 CR/LF/NUL/空格）：URL 本身解析得动，但换行带进请求行就是
+  // 请求头注入/走私，所以直接判非法，不做"顺手编码掉"。空格同理——合法 URL 里
+  // 它必须是 %20，裸着出现说明这条值不是用户正常填的。
+  if (/[\x00-\x20\x7f]/.test(trimmed)) return null
   try {
-    return new URL(raw.trim())
+    return new URL(trimmed)
   } catch {
     return null
   }

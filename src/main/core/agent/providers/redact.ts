@@ -120,6 +120,22 @@ const REDACT_RULES: Array<{ pattern: RegExp; replacement: string; name: string }
     replacement: '[REDACTED-VENDOR-TOKEN]',
     name: 'vendor-token-prefix',
   },
+  // 19. 没有 END 行的私钥块（粘贴被截断 / 只贴了半截）
+  //     规则 1 要求成对闭合，所以"-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnZ..."
+  //     这种最常见的泄露形态原来一个字都不涂。放在闭合规则之后，剩下的就是残缺块。
+  {
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*$/g,
+    replacement: '-----BEGIN [REDACTED PRIVATE KEY]-----',
+    name: 'pem-private-key-unterminated',
+  },
+  // 20. 中文标签：「密码是XXX」「口令为：XXX」「密钥：XXX」
+  //     英文那几条靠 [=:：] 分隔，中文里"是/为"当连接动词时没有分隔符，整条 MISS。
+  //     取值到空白或中文标点为止，不会把后半句话一起吞掉。
+  {
+    pattern: /(密码|口令|私钥|密钥|令牌|凭据|访问密钥)(是|为|[:：=])(\s*)[^\s，。；;、'""]{4,}/g,
+    replacement: '$1$2$3[REDACTED]',
+    name: 'cjk-secret-label',
+  },
 ]
 
 /**

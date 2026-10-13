@@ -127,7 +127,9 @@ describe('脱敏规则覆盖 Windows 形态', () => {
     const names = rules.map((r) => r.name)
     expect(new Set(names).size, '规则名不能重复').toBe(names.length)
     // 数字要人工复核后才会变：加规则时这条会红，逼着补 fixture 而不是静默漂移
-    expect(names.length).toBe(18)
+    // 20 = 18 + pem-private-key-unterminated（半截私钥块）+ cjk-secret-label（「密码是XXX」），
+    // 两条的样本在 tests/security/hostile-write-entry-gate.test.ts 的 B 组
+    expect(names.length).toBe(20)
     for (const need of [
       'windows-sensitive-path',
       'url-credentials',
@@ -135,6 +137,8 @@ describe('脱敏规则覆盖 Windows 形态', () => {
       'sshpass-inline',
       'sensitive-key-assign',
       'vendor-token-prefix',
+      'pem-private-key-unterminated',
+      'cjk-secret-label',
     ]) {
       expect(names, `缺少规则 ${need}`).toContain(need)
     }
