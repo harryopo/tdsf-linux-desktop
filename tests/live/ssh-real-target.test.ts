@@ -207,6 +207,42 @@ describe.skipIf(!LIVE)('真靶子：SSH 连接层', () => {
     expect(seen, '界面拿不到断链就会一直显示"已连接"').toContain('disconnected')
   })
 
+  it('SFTP 列远程目录（只读，走真 sftp 通道）', async () => {
+    const { SftpManager } = await import('../../src/main/services/ssh/sftp')
+    const sftp = new SftpManager(mgr)
+    const entries = await sftp.list(sessionId, '/etc')
+    const names = entries.map((e) => e.name)
+    expect(names, '列不出 /etc ⇒ sftp 通道没通').toContain('passwd')
+    expect(names).toContain('os-release')
+  })
+
+  it('被服务端踢掉时，界面收得到状态变化（真 socket，不是 emit 假事件）', async () => {
+    // 用第二条连接把第一条的会话进程杀掉：这是"拔网线/服务端踢人"的等价物。
+    // 只杀本测试自己起的会话，不碰靶子上别人的。
+    // 取 $PPID 而不是 $$：exec 的 shell 跑完就退出，杀它等于杀一个已经不存在的进程；
+    // 它的父进程才是服务这条连接的 sshd，杀掉它 socket 才真的断。
+    const victim = await mgr.exec(sessionId, 'echo $PPID')
+    const pid = victim.stdout.trim().split(/\s+/).pop()
+    expect(pid, `没拿到 sshd 会话进程号（stdout=${JSON.stringify(victim.stdout)}）`).toMatch(/^[0-9]+$/)
+
+    const killer = await mgr.connect(baseConfig({ id: 'live-killer' }))
+    const seen: string[] = []
+    const off = mgr.onStateChanged((e) => {
+      if (e.sessionId === sessionId) seen.push(e.state)
+    })
+    const killed = await mgr.exec(killer, `kill -9 ${pid}`)
+    expect(killed.exitCode, '没杀掉自己的会话进程，这条判据无从判定').toBe(0)
+
+    // 等 FIN/close 到达（真网络，给 5 秒轮询窗口）
+    const deadline = Date.now() + 5000
+    while (Date.now() < deadline && !seen.some((s) => s !== 'connected')) {
+      await new Promise((r) => setTimeout(r, 200))
+    }
+    off()
+    await mgr.disconnect(killer)
+    expect(seen, '被踢掉后界面还显示"已连接"').toContain('disconnected')
+  }, 30_000)
+
   /**
    * 跳板机要真两跳才验得动。
    *
