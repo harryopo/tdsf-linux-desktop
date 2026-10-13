@@ -10,6 +10,7 @@
  */
 
 import type { BrowserWindow } from 'electron'
+import { broadcastToWindows } from '../windows/main-window'
 import type { SandboxInfo } from '../services/sandbox/types'
 import { logger } from '../services/log/logger'
 import { SANDBOX } from '@shared/ipc-channels'
@@ -294,9 +295,11 @@ function deriveSaferAlternative(
  * 安全推送事件到渲染进程（窗口已销毁时跳过）
  */
 export function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, ...args)
-  }
+  // 审批/进度类通道必须让每个应用窗口都收到：W4 起副窗口同样是工作区，
+  // 只发注册时那一个窗口的话，在副窗口里点"执行"就永远等不到批复，30 秒后自动拒绝。
+  // 保留 mainWindow 形参是为了不动这 6 个文件里的 40 多个调用点（清理它属于另一次重构）。
+  void mainWindow
+  broadcastToWindows(channel, ...args)
 }
 
 /**

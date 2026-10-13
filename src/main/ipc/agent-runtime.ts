@@ -27,6 +27,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { broadcastToWindows } from '../windows/main-window'
 import type { ModelMessage } from 'ai'
 import { AGENT, PAOR, TOKEN } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
@@ -100,9 +101,10 @@ const pendingPaorApprovals = new Map<
  * 安全推送事件到渲染进程（窗口已销毁时跳过）
  */
 function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, ...args)
-  }
+  // 流式 token 与审批推送要让每个应用窗口都收到：只发主窗口的话，
+  // 在副窗口（W4）里发的对话一个字都看不到，批准弹窗也不会出现。
+  void mainWindow
+  broadcastToWindows(channel, ...args)
 }
 
 /**

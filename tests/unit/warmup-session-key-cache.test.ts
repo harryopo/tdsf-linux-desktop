@@ -70,6 +70,15 @@ vi.mock('electron', () => ({
   BrowserWindow: vi.fn(),
 }))
 
+// 2026-10-13 后端审查：审批推送改成了"发给所有应用窗口"（broadcastToWindows），
+// 不再只发给注册 IPC 时那一个窗口。这里把广播转接到同一份 webContents.send 录制器，
+// 下面的"从新增推送里找 sandbox:approval-request"才仍然看得见。
+vi.mock('../../src/main/windows/main-window', () => ({
+  broadcastToWindows: (channel: string, ...args: unknown[]) => {
+    mocks.mockWebContentsSend(channel, ...args)
+  },
+}))
+
 // Mock OpenHandsClient：避免真实网络请求
 vi.mock('../../src/main/services/sandbox/openhands-client', () => ({
   OpenHandsClient: vi.fn().mockImplementation(() => ({

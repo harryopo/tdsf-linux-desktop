@@ -25,6 +25,7 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { broadcastToWindows } from '../windows/main-window'
 import { randomUUID } from 'crypto'
 import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
@@ -69,9 +70,9 @@ const APPROVAL_TIMEOUT_MS = 30_000
  * 安全推送事件
  */
 function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
-  if (!mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, ...args)
-  }
+  // 工具进度与审批请求要让每个应用窗口都收到（见 sandbox-approval 的同名注释）
+  void mainWindow
+  broadcastToWindows(channel, ...args)
 }
 
 /**

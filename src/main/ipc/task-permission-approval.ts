@@ -26,6 +26,7 @@
  */
 
 import { ipcMain, type BrowserWindow } from 'electron'
+import { broadcastToWindows } from '../windows/main-window'
 import { logger } from '../services/log/logger'
 import { TASK } from '@shared/ipc-channels'
 // D2：审批判定唯一权威 —— 只有字面 true 算批准
@@ -128,16 +129,16 @@ export function waitForTaskPermissionApproval(
   request: TaskPermissionApprovalRequest
 ): Promise<TaskPermissionDecision> {
   return new Promise<TaskPermissionDecision>((resolve, reject) => {
-    // 推送审批请求到渲染进程
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(TASK_PERMISSION_APPROVAL_CHANNEL, request)
-      logger.info('IPC.TASK_PERMISSION', `推送 Subagent 审批请求`, {
-        callId: request.callId,
-        taskId: request.taskId,
-        subagentName: request.subagentName,
-        mode: request.mode,
-      })
-    }
+    // 推送审批请求：广播给所有应用窗口。以前只发给注册时那一个窗口，且窗口没了就
+    // 什么都不发、静静等满 30 秒 —— 在副窗口里点执行就等于必然拒绝。
+    void mainWindow
+    broadcastToWindows(TASK_PERMISSION_APPROVAL_CHANNEL, request)
+    logger.info('IPC.TASK_PERMISSION', `推送 Subagent 审批请求`, {
+      callId: request.callId,
+      taskId: request.taskId,
+      subagentName: request.subagentName,
+      mode: request.mode,
+    })
 
     // 30 秒超时自动拒绝
     const timeout = setTimeout(() => {

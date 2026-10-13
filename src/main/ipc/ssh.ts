@@ -189,10 +189,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
   // onStateChanged 回调推送 SshStateEvent，这里转发到渲染进程。
   disposers.push(
     sshManager.onStateChanged((event) => {
-      // 窗口可能已关闭或正在销毁，需防御性检查
-      if (!mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(SSH.STATE_CHANGED, event)
-      }
+      // 发给所有应用窗口（不是注册时那一个）：W4 起副窗口同样是工作区，
+      // 只发主窗口的话副窗口里的终端还显示"已连接"，用户继续往死通道里敲。
+      broadcastToWindows(SSH.STATE_CHANGED, event)
     }),
   )
 
@@ -212,15 +211,15 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
 
         pendingHostKeyRequests.set(prompt.requestId, { resolve, reject, timer })
 
-        // 推送到渲染进程弹窗
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(SSH.HOST_KEY_PROMPT, prompt)
-        } else {
-          // 窗口已销毁，直接拒绝
+        // 推送到渲染进程弹窗：广播给所有窗口。副窗口里点连接时，
+        // 只发主窗口的话这个对话框永远弹不出来，连接会白等满 5 分钟再自动拒绝。
+        if (BrowserWindow.getAllWindows().length === 0) {
           clearTimeout(timer)
           pendingHostKeyRequests.delete(prompt.requestId)
-          reject(new Error('主窗口已关闭，无法显示主机密钥确认弹窗'))
+          reject(new Error('没有可用的应用窗口，无法显示主机密钥确认弹窗'))
+          return
         }
+        broadcastToWindows(SSH.HOST_KEY_PROMPT, prompt)
       })
     },
   )
