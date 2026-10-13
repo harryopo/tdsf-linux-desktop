@@ -111,20 +111,10 @@ export interface DockerInfo {
  *
  * 字段与 main/ipc/app-update.ts AppInfo 完全对齐。
  */
-export interface AppInfo {
-  /** 应用版本号（含 v 前缀，如 'v1.0.0'） */
-  version: string
-  /** 应用安装/资源路径 */
-  installPath: string
-  /** 构建时间（ISO 8601 字符串） */
-  buildTime: string
-  /** 构建时间展示文本（Build YYYY.MM.DD） */
-  buildBadge: string
-  /** 应用数据目录（app.getPath('userData')） */
-  dataPath: string
-  /** 应用日志目录（userData/logs） */
-  logPath: string
-}
+// AppInfo 只在主进程声明一份（含 #77 加的 packaged / engineHealth 两个实测字段）。
+// 这里只转发类型：以前渲染层抄过一份，主进程加字段时这边静默漂开，
+// 直到 AboutSettings 用到新字段才报错。
+export type { AppInfo } from '../../../main/ipc/app-update'
 
 /**
  * 应用更新信息（检查成功时返回）

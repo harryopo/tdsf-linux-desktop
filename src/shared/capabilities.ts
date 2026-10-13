@@ -89,7 +89,7 @@ export const CAPABILITIES: CapabilityRow[] = [
     id: 'sidecar',
     label: 'Python 侧车分析',
     status: 'degraded',
-    note: '按需启动并在失败时给出可操作提示；未启动时日志分析回退到本地正则模板。',
+    note: '按需启动并在失败时给出可操作提示；未启动时日志分析回退到本地正则模板。本机到底有没有装上引擎，看「关于」页的「本机分析引擎（实测）」——那一栏是现场量的，这一行是承诺。',
   },
   {
     id: 'decision-export',

@@ -23,6 +23,9 @@ import { APP } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
 import { assertSafeExternalUrl } from '../services/security/url-policy'
+import { sidecarEngineHealth } from '../core/sidecar/sidecar-manager'
+import { astAnalysisHealth } from '../core/risk-engine-ast'
+import { drain3BridgeHealth } from '../services/log/drain3-bridge'
 
 /**
  * GitHub 仓库标识（与 about-settings.constants.ts LINK_URLS.github 对齐）
@@ -143,6 +146,23 @@ export interface AppInfo {
   dataPath: string
   /** 应用日志目录（userData/logs） */
   logPath: string
+  /** 是否跑在安装包里（app.isPackaged）：决定"要自己装环境"这类提示该不该出现 */
+  packaged: boolean
+  /**
+   * 三项最容易在发布包里"静默降级"的能力，这里是实测结果而不是表里的承诺：
+   * Python 分析引擎 / AST 命令解析 / Drain3 日志模板挖掘。
+   */
+  engineHealth: {
+    sidecar: EngineHealth
+    ast: EngineHealth
+    templates: EngineHealth
+  }
+}
+
+/** 一项能力的实测健康度：不行的时候必须带上"为什么不行" */
+export interface EngineHealth {
+  ok: boolean
+  reason: string
 }
 
 /** 注册应用更新 IPC handlers（无需 mainWindow） */
@@ -263,7 +283,7 @@ export function registerAppUpdateHandlers(): void {
    * - dataPath：app.getPath('userData')（应用数据目录）
    * - logPath：userData/logs（应用日志目录）
    */
-  ipcMain.handle(APP.GET_INFO, (): AppInfo => {
+  ipcMain.handle(APP.GET_INFO, async (): Promise<AppInfo> => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { app } = require('electron')
     const version = getCurrentVersion()
@@ -294,6 +314,12 @@ export function registerAppUpdateHandlers(): void {
       buildBadge,
       dataPath,
       logPath,
+      packaged: Boolean(app.isPackaged),
+      engineHealth: {
+        sidecar: sidecarEngineHealth(),
+        ast: await astAnalysisHealth(),
+        templates: drain3BridgeHealth(),
+      },
     }
   })
 

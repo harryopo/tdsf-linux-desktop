@@ -3,6 +3,7 @@ import type { DbStatus } from '@shared/db-types'
 import type { ProfilerRunResponse, ServerListItem, SshConfig, SystemInfo } from '@shared/models'
 import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
 import type { SystemPingResponse } from '@shared/agent-types'
+import type { AppInfo } from '../../main/ipc/app-update'
 import { AGENT, APP, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE, SYSTEM } from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
 import { ipcRenderer } from 'electron'
@@ -213,10 +214,10 @@ const appUpdate = {
   /**
    * 获取应用真实信息（T.8：版本/安装路径/构建时间）
    *
-   * 返回 AppInfo，AboutSettings 用其替换设计稿示例值。
+   * 返回 AppInfo，AboutSettings 用其替换设计稿示例值。类型只在主进程声明一份，
+   * 这里 import type 而不是重抄字段——#77 加了两个实测字段后，重抄的那份就会漏。
    */
-  getInfo: (): Promise<{ version: string; installPath: string; buildTime: string; buildBadge: string }> =>
-    ipcRenderer.invoke(APP.GET_INFO),
+  getInfo: (): Promise<AppInfo> => ipcRenderer.invoke(APP.GET_INFO),
 
   /**
    * 导出模型配置与统计（v2.3 活功能转换）

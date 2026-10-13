@@ -41,6 +41,11 @@ export interface Drain3Config {
   maxChildren?: number
 }
 
+/** 只提示一次：降级发生在每次日志分析的热路径上，刷屏会淹没真正的告警 */
+let fallbackWarned = false
+/** start() 是否被调用过：用来如实回答「模板挖掘到底在不在跑」 */
+let everStarted = false
+
 /** Drain3 桥接服务 */
 export class Drain3Bridge {
   private readonly config: Required<Drain3Config>
@@ -60,6 +65,11 @@ export class Drain3Bridge {
     }
   }
 
+  /** Python 桥进程当前是否在跑 */
+  isRunning(): boolean {
+    return this.process !== null
+  }
+
   /**
    * 启动 Python 进程
    */
@@ -67,6 +77,7 @@ export class Drain3Bridge {
     if (this.process) {
       return
     }
+    everStarted = true
 
     if (!existsSync(this.config.scriptPath)) {
       throw new Error(`Drain3 脚本不存在: ${this.config.scriptPath}（可选功能，不影响主流程）`)
@@ -145,7 +156,15 @@ export class Drain3Bridge {
    */
   async extractTemplates(logLines: string[]): Promise<LogTemplate[]> {
     if (!this.process) {
-      // 未启动则降级到本地正则
+      // 未启动则降级到本地正则。这条以前一声不响（开发环境也一样），
+      // 于是「模板挖掘」到底有没有在跑没人知道；现在留一次 WARN。
+      if (!fallbackWarned) {
+        fallbackWarned = true
+        console.warn(
+          '[Drain3] Python 桥未启动，模板抽取退回内置正则规则（本条只提示一次；'
+            + ` 脚本路径 ${this.config.scriptPath}）`
+        )
+      }
       return this.fallbackToRegex(logLines)
     }
 
@@ -208,6 +227,23 @@ export class Drain3Bridge {
 
 /** Drain3 单例（懒加载） */
 let drain3Instance: Drain3Bridge | null = null
+
+/**
+ * 日志模板挖掘这一路的实测健康度（关于页用）。
+ *
+ * 现状如实说：唯一的调用方 agent-workflow 从来没 start() 过这个桥，
+ * 所以模板抽取一直是内置正则 —— 不是发布包才降级，是从来就没接上。
+ */
+export function drain3BridgeHealth(): { ok: boolean; reason: string } {
+  const script = join(__dirname, 'drain3_bridge.py')
+  if (!existsSync(script)) {
+    return { ok: false, reason: 'Drain3 脚本未随包发布，日志模板一直由内置正则归纳' }
+  }
+  if (!everStarted) {
+    return { ok: false, reason: 'Drain3 桥没有被启动过（调用方只用了内置正则），日志模板由正则归纳' }
+  }
+  return { ok: Boolean(drain3Instance?.isRunning()), reason: 'Drain3 桥在跑，日志模板由 Drain3 归纳' }
+}
 
 export function getDrain3Bridge(): Drain3Bridge {
   if (!drain3Instance) {

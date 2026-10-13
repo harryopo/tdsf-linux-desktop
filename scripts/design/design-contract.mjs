@@ -119,8 +119,8 @@ const RATCHETS = [
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 113,
-    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）。剩下的多是运行时算出来的颜色，那些本来就得内联',
+    cap: 112,
+    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）；2026-10-13 重新量到 112，把上限收到实测值（之前空着 1 格余量，等于给新增放行）。剩下的多是运行时算出来的颜色，那些本来就得内联',
   },
   {
     name: '还 import antd 的渲染层文件数',

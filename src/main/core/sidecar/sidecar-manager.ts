@@ -15,6 +15,7 @@
 import { spawn, ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import path from 'node:path'
+import { existsSync } from 'node:fs'
 // S5：core/logger 只写 console，侧车（Python）的 stderr 是最需要留档的东西，
 // 打包后的 Windows 里没有控制台，必须落到日志文件
 import { logger as appLogger } from '../../services/log/logger'
@@ -121,6 +122,24 @@ export interface ToolCallResponse {
 const _SHARED_VENV = process.platform === 'win32'
   ? path.join(process.cwd(), '.venv-sidecar-a', 'Scripts', 'python.exe')
   : path.join(process.cwd(), '.venv-sidecar-a', 'bin', 'python')
+
+/**
+ * Python 分析引擎在本机的可用性（关于页用它替掉「看起来已接通」的死文案）
+ *
+ * 只看文件在不在：引擎没随安装包发布时，spawn 会直接 ENOENT，
+ * 用户看到的是一个转圈的按钮和一个没人读的日志文件，而不是这句话。
+ */
+export function sidecarEngineHealth(
+  cfg: Pick<SidecarConfig, 'pythonPath' | 'workingDir' | 'entry'> = SIDECAR_CONFIGS.sre
+): { ok: boolean; reason: string } {
+  if (!existsSync(cfg.pythonPath)) {
+    return { ok: false, reason: `分析引擎不在本机（找不到 ${cfg.pythonPath}），日志分析走内置规则` }
+  }
+  if (!existsSync(path.join(cfg.workingDir, cfg.entry))) {
+    return { ok: false, reason: `分析引擎入口缺失（${cfg.workingDir}/${cfg.entry}），日志分析走内置规则` }
+  }
+  return { ok: true, reason: `分析引擎就绪（${cfg.pythonPath}）` }
+}
 
 export const SIDECAR_CONFIGS: Record<string, SidecarConfig> = {
   sre: {

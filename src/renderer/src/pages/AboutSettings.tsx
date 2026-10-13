@@ -42,8 +42,17 @@ const CHIP_TONE: Record<CapabilityStatus, 'success' | 'warning' | 'outline'> = {
   pending: 'outline',
 }
 
-/** 路径与版本这类值：等宽、超长截断，不许撑破行 */
-function Value({ children }: { children: ReactNode }) {
+/**
+ * 实测三行的骨架：状态与原因都由主进程现场给出，页面只写"取不到数时说什么"。
+ * 顺序即展示顺序，别在页面里再判一次"该不该显示"——那会把实测又变回承诺。
+ */
+const ENGINE_HEALTH_ROWS = [
+  { key: 'sidecar', label: 'Python 分析引擎', fallback: '还没取到实测结果' },
+  { key: 'ast', label: '命令 AST 解析', fallback: '还没取到实测结果' },
+  { key: 'templates', label: '日志模板挖掘（Drain3）', fallback: '还没取到实测结果' },
+] as const
+
+/** 路径与版本这类值：等宽、超长截断，不许撑破行 */function Value({ children }: { children: ReactNode }) {
   return <span className="max-w-[420px] truncate font-mono text-caption text-ink-dim">{children}</span>
 }
 
@@ -198,6 +207,41 @@ export function AboutSettings() {
               control={<Chip tone={CHIP_TONE[cap.status]}>{CAPABILITY_STATUS_LABELS[cap.status]}</Chip>}
             />
           ))}
+        </SettingsCard>
+
+        {/*
+          * 上面那张表是承诺，这一张是实测：Python 分析引擎、AST 命令解析、Drain3 模板挖掘
+          * 三项最容易在装好的包里悄悄退回简化路径（缺文件、缺依赖、桥没启动），
+          * 而界面上什么都不会说。状态由主进程现场量出来（app:get-info）。
+          */}
+        <SettingsCard icon={MonitorPlay} title="本机分析引擎（实测）" hideTag noHeadBorder>
+          <p className="pb-1 text-caption text-ink-mute">
+            {appInfo
+              ? appInfo.packaged
+                ? '来自安装包：缺组件时相关功能会走内置简化路径'
+                : '开发环境：可以自行搭建缺失的分析环境'
+              : '正在向主进程取数'}
+          </p>
+          {ENGINE_HEALTH_ROWS.map((row, i) => {
+            const fact = appInfo?.engineHealth[row.key]
+            return (
+              <SettingsRow
+                key={row.key}
+                label={row.label}
+                desc={fact ? fact.reason : row.fallback}
+                isLast={i === ENGINE_HEALTH_ROWS.length - 1}
+                control={
+                  !fact ? (
+                    <Chip tone="outline">未测到</Chip>
+                  ) : fact.ok ? (
+                    <Chip tone="success">已启用</Chip>
+                  ) : (
+                    <Chip tone="warning">简化路径</Chip>
+                  )
+                }
+              />
+            )
+          })}
         </SettingsCard>
 
         <SettingsCard icon={Sparkles} title="资源" hideTag noHeadBorder>

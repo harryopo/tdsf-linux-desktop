@@ -37,6 +37,7 @@
 
 import { Parser, Language } from 'web-tree-sitter'
 import * as path from 'node:path'
+import { existsSync } from 'node:fs'
 import { logger } from '../services/log/logger'
 
 // 规则与类型（from risk-engine-rules）
@@ -75,6 +76,22 @@ const LOG_TAG = 'RISK.AST'
 const FALLBACK_LOG_PREFIX = '[risk-engine-ast]'
 
 /**
+ * tree-sitter-bash.wasm 可能落在的几处（打包后 resources/、asar.unpacked 里的
+ * node_modules、开发态 node_modules）。按存在性试，不靠环境变量猜生产/开发。
+ */
+export function astWasmCandidates(): string[] {
+  const out: string[] = []
+  if (process.resourcesPath) out.push(path.join(process.resourcesPath, 'tree-sitter-bash.wasm'))
+  try {
+    // __dirname 在编译后是 out/main/core，require.resolve 会回到项目根的 node_modules
+    out.push(require.resolve('tree-sitter-bash/tree-sitter-bash.wasm'))
+  } catch {
+    /* 依赖解析不到就少一个候选，交给后面的存在性判定如实报错 */
+  }
+  return out
+}
+
+/**
  * 获取 tree-sitter Parser 单例（懒加载 WASM）
  *
  * 加载策略：
@@ -92,15 +109,14 @@ async function getParser(): Promise<Parser | null> {
     await Parser.init()
     const parser = new Parser()
 
-    // 解析 WASM 文件路径
-    let wasmPath: string
-    if (process.env.NODE_ENV === 'production' && process.resourcesPath) {
-      // 生产环境：electron-builder 把 wasm 文件打包到 resources/
-      wasmPath = path.join(process.resourcesPath, 'tree-sitter-bash.wasm')
-    } else {
-      // 开发环境：从 node_modules 加载
-      // __dirname 在编译后为 out/main/core，需要回退到项目根 node_modules
-      wasmPath = require.resolve('tree-sitter-bash/tree-sitter-bash.wasm')
+    // 解析 WASM 文件路径：按存在性挑，不再拿 NODE_ENV 猜。
+    // 生产分支以前写死 process.resourcesPath/tree-sitter-bash.wasm，可这个文件实际是随
+    // asar.unpacked 的 node_modules 发布的；用户环境里只要有一个 NODE_ENV=production，
+    // 就会走错分支，把命令风险判定静默降级成正则，界面上什么都不会说。
+    const candidates = astWasmCandidates()
+    const wasmPath = candidates.find((p) => existsSync(p))
+    if (!wasmPath) {
+      throw new Error(`找不到 tree-sitter-bash.wasm（找过 ${candidates.length} 处：${candidates.join(' | ') || '无候选'}）`)
     }
 
     const bashLanguage = await Language.load(wasmPath)
@@ -425,6 +441,18 @@ export async function assessWithAst(command: string): Promise<RiskAssessmentResu
 /**
  * 重置 Parser 实例（测试用）
  */
+/**
+ * AST 这一路的实测健康度（关于页拿它替掉「看起来已接通」的死文案）
+ *
+ * 会真把解析器拉起来一次：它本来就要在首次风险判定时加载，这里只是把
+ * 「到底加载得到吗」这个问题从猜测变成量测。
+ */
+export async function astAnalysisHealth(): Promise<{ ok: boolean; reason: string }> {
+  const parser = await getParser()
+  if (parser && languageLoaded) return { ok: true, reason: '命令风险走 tree-sitter bash 语法解析' }
+  return { ok: false, reason: `${initError?.message ?? '解析器未就绪'}；风险判定退回正则` }
+}
+
 export function resetAstParser(): void {
   parserInstance = null
   languageLoaded = false
