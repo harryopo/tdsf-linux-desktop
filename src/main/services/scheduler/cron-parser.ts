@@ -59,7 +59,7 @@ const FIELD_RANGES: Record<CronField, { min: number; max: number }> = {
   'hour': { min: 0, max: 23 },
   'day-of-month': { min: 1, max: 31 },
   'month': { min: 1, max: 12 },
-  'day-of-week': { min: 0, max: 6 },
+  'day-of-week': { min: 0, max: 7 },
 }
 
 /**
@@ -153,6 +153,13 @@ export function parseCronField(field: CronField, raw: string): Set<number> {
 
   if (result.size === 0) {
     throw new CronParseError(`字段 "${field}" 解析后无有效值`, field, raw)
+  }
+  // vixie/POSIX cron 里 7 也是星期日（"0 9 * * 7" 是最常见的写法之一）。
+  // 之前范围卡在 0-6，7 直接抛错 → 调度器把 nextRunAt 置 null，任务永远不跑，
+  // 而界面上看起来是"已注册"。这里按标准把 7 归一到 0。
+  if (field === 'day-of-week' && result.has(7)) {
+    result.delete(7)
+    result.add(0)
   }
   return result
 }
@@ -278,20 +285,32 @@ const WEEKDAY_FORMAT_MAP: Record<string, number> = {
  * @param date UTC 时间戳
  * @param timezone IANA 时区（如 `Asia/Shanghai`）
  */
+/**
+ * 每个时区一份 Intl.DateTimeFormat（getNextRun 会按分钟反复调用这里）
+ *
+ * 以前每次调用都新建：一条稀有 cron（如 `0 0 29 2 *`）会把 366 天逐分钟扫一遍，
+ * 也就是 52 万次新建 formatter，同步跑在主进程上 —— 整个应用冻住几十秒。
+ */
+const fieldFormatters = new Map<string, Intl.DateTimeFormat>()
+
 function extractFields(
   date: Date,
   timezone: string
 ): { minute: number; hour: number; dayOfMonth: number; month: number; dayOfWeek: number } {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    weekday: 'short',
-  })
+  let fmt = fieldFormatters.get(timezone)
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      weekday: 'short',
+    })
+    fieldFormatters.set(timezone, fmt)
+  }
   const parts = fmt.formatToParts(date)
   const map: Record<string, string> = {}
   for (const p of parts) {

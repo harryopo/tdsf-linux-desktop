@@ -41,7 +41,7 @@ interface ServerState {
 
   // ===== Actions =====
   /** 添加服务器配置（入参是新建表单的原样，可能带用户当场输入的凭据） */
-  addServer: (server: SshConfig) => Promise<void>
+  addServer: (server: SshConfig) => Promise<boolean>
   /** 移除服务器配置 */
   removeServer: (serverId: string) => Promise<void>
   /** 更新服务器配置（partial 里的凭据同样是用户当场重输的，落 state 前剥掉） */
@@ -166,6 +166,9 @@ export const useServerStore = create<ServerState>()(
         if (!ok && isElectronAPIAvailable()) {
           console.warn(`[ServerStore] 服务器「${server.name}」未持久化到主进程`)
         }
+        // 把成败带回给调用方：新建这条带着用户当场填的口令，
+        // 主进程存不进加密存储时页面要能说出"下次连接要重输"，而不是"已添加"。
+        return ok
       },
 
       // 移除服务器配置

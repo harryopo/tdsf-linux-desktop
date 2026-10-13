@@ -347,6 +347,7 @@ export class ConfigStore {
       store.set('sshServers', sanitized)
 
       // 敏感信息存入 SecureStore 加密
+      const failed: string[] = []
       for (const s of servers) {
         const cred = {
           password: s.password,
@@ -355,8 +356,18 @@ export class ConfigStore {
         }
         // 仅在存在敏感信息时保存（避免写入空凭证）
         if (cred.password || cred.privateKey || cred.passphrase) {
-          SecureStore.saveServerCredential(s.id, cred)
+          // saveServerCredential 会返回成败（safeStorage 不可用时是 false）。
+          // 以前这里不接返回值：口令没存进去照样回"保存成功"，
+          // 用户下次连接被要求重输，还以为是应用忘了。
+          if (!SecureStore.saveServerCredential(s.id, cred)) {
+            failed.push(s.name || s.host || s.id)
+          }
         }
+      }
+      if (failed.length > 0) {
+        // 调用方（server:save → server-store）拿到的就是 false：
+        // 非敏感列表已经落库了，但口令没落进加密存储，界面上不能报"保存成功"。
+        return false
       }
       return true
     } catch {

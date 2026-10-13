@@ -284,10 +284,16 @@ export function SshSettings() {
         // 用刚存进去的 name/host 做提示文案，连接本身只认 id
         await connectOne({ ...existing, name: config.name, host: config.host })
       } else {
-        await addServer(config)
+        const saved = await addServer(config)
         setDialogOpen(false)
         setEditing(null)
-        showFb('服务器已添加')
+        // 主进程的加密存储不可用时（safeStorage 关着）列表存得下、口令存不下：
+        // 这时不能说"已添加"，否则用户下次连接被要求重输还以为是应用忘了
+        showFb(
+          saved
+            ? '服务器已添加'
+            : '服务器已加进列表，但这次没能加密保存口令 —— 下次连接需要重输',
+        )
         // 新建那一条：凭据是用户此刻在表单里现填的，直接 sshConnect
         await connectFresh(config)
       }
