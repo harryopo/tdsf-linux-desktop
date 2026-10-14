@@ -280,3 +280,14 @@ export function classifiedErrorCodes(): LlmErrorCode[] {
 export function labeledErrorCodes(): string[] {
   return Object.keys(LABEL)
 }
+
+/**
+ * 只要那一句话，不要原始细节。
+ *
+ * 给"会被存进凭证类产物"的场合用（决策卡、历史记录）：真机实测到上游把
+ * "Your api key: ****7eea is invalid (request_id: …)" 回显在错误里，
+ * 整条塞进假设文本就等于让口令痕迹落进 SQLite。分类名足够让人知道下一步干什么。
+ */
+export function llmErrorLabel(err: unknown): string {
+  return LABEL[classifyLlmError(err).code]
+}

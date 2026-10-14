@@ -356,7 +356,7 @@ describe('LlmClient — LLM 客户端', () => {
 
   // ────────── analyze 降级标注 ──────────
 
-  it('analyze: LLM 调用失败时降级到规则引擎并标注错误信息', async () => {
+  it('analyze: LLM 调用失败时降级到规则引擎，且只标分类名不带上游原文', async () => {
     mockCreate.mockRejectedValueOnce(new Error('Network error'))
 
     const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
@@ -365,8 +365,11 @@ describe('LlmClient — LLM 客户端', () => {
 
     // 应回降到规则引擎
     expect(result.hypothesis).toContain('内存')
-    // 应标注 LLM 调用失败
-    expect(result.hypothesis).toContain('LLM 调用失败')
+    // 应标注降级，并给出分类名（措辞于 #102 改过：原来直接把 err.message 整条拼进来）
+    expect(result.hypothesis).toContain('已降级到内置规则')
+    expect(result.hypothesis).toContain('网络连接异常')
+    // 关键约束：降级说明里不许带上游原文——真机实测厂商会回显口令尾串与 request_id
+    expect(result.hypothesis).not.toContain('Network error')
     // 置信度应被降低（<=0.3）
     expect(result.confidence).toBeLessThanOrEqual(0.3)
   })

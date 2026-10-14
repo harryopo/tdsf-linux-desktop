@@ -29,6 +29,7 @@ import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
 import { readApproval } from '../core/security/approval'
+import { getSourcePrior } from '../core/confidence'
 import type { Evidence } from '@shared/models'
 
 /** Agent 步骤推送通道名 */
@@ -108,13 +109,16 @@ class LlmEvidenceCollector implements EvidenceCollector {
       const analysis = await this.llmClient.analyze(problem, evidences)
       // P2-4: 保存 LLM 分析结果供工作流使用
       this.llmAnalysis = analysis
+      // analyze() 自己会降级到规则引擎，所以出处照它说的算：
+      // 没配口令时这条其实是内置规则给的，标成"LLM 分析"就是给凭证掺假。
+      const byLlm = analysis.provenance === 'llm'
       evidences.push({
-        id: `ev_llm_${now}`,
+        id: `${byLlm ? 'ev_llm' : 'ev_rules'}_${now}`,
         source: 'knowledge',
-        sourceDetail: 'LLM 分析',
+        sourceDetail: byLlm ? 'LLM 分析' : '内置规则分析（这台机器没走模型）',
         content: `根因假设: ${analysis.hypothesis}\n建议命令: ${analysis.fixCommand}`,
         drainMatch: analysis.confidence,
-        sourcePrior: 0.7,
+        sourcePrior: getSourcePrior('knowledge'),
         confidence: analysis.confidence,
         timestamp: now,
         verified: false

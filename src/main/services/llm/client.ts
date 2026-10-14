@@ -30,7 +30,7 @@ import type {
   EnvironmentContext,
 } from '@shared/models'
 import { analyzeByRules } from '@main/core/rule-engine'
-import { classifyLlmError } from '@main/core/agent/providers/llm-error'
+import { classifyLlmError, llmErrorLabel } from '@main/core/agent/providers/llm-error'
 import { SYSTEM_PROMPT, buildAnalysisPrompt, buildEnvironmentContextPrompt } from './prompt-templates'
 import {
   alertLlmSlowResponse,
@@ -46,6 +46,13 @@ export interface AnalysisResult {
   fixCommand: string
   /** 置信度 [0, 1] */
   confidence: number
+  /**
+   * 这条结论到底是谁给的：模型答的，还是规则引擎兜底的。
+   *
+   * 必须带：证据链过去一律写成"LLM 分析"，而没配口令时 analyze() 走的是 rule-engine
+   * —— 界面上"AI 给的"其实是内置规则给的，这是凭证级错误（决策卡是本产品的第三个卖点）。
+   */
+  provenance: 'llm' | 'rules'
 }
 
 /** 最大重试次数 */
@@ -318,11 +325,13 @@ export class LlmClient {
     } catch (err) {
       // v2.4 Phase B：连续失败告警（累计 3 次触发 error 级告警）
       alertLlmFailure('analyze', (err as Error).message)
-      // 调用失败 → 降级到规则引擎，并在假设中标注错误信息
+      // 调用失败 → 降级到规则引擎。假设文本里只放分类名，不放上游原文：
+      // 真机实测到厂商把 "Your api key: ****7eea is invalid (request_id: …)" 回显在错误里，
+      // 而这条假设会被写进决策卡落库——口令痕迹不许进凭证类产物。
       const ruleResult = this.fallbackToRules(problem, evidences)
       return {
         ...ruleResult,
-        hypothesis: `${ruleResult.hypothesis}（注：LLM 调用失败，已降级到规则引擎。错误: ${(err as Error).message}）`,
+        hypothesis: `${ruleResult.hypothesis}（注：模型不可用，已降级到内置规则；原因：${llmErrorLabel(err)}）`,
         confidence: Math.min(ruleResult.confidence, 0.3)
       }
     }
@@ -446,7 +455,7 @@ export class LlmClient {
         return null
       }
       const confidence = Math.min(1, Math.max(0, obj.confidence))
-      return { hypothesis: obj.hypothesis, fixCommand: obj.fixCommand, confidence }
+      return { hypothesis: obj.hypothesis, fixCommand: obj.fixCommand, confidence, provenance: 'llm' }
     } catch {
       return null
     }
@@ -473,13 +482,15 @@ export class LlmClient {
       return {
         hypothesis: ruleResult.hypothesis,
         fixCommand: ruleResult.fixCommand,
-        confidence: ruleResult.confidence
+        confidence: ruleResult.confidence,
+        provenance: 'rules'
       }
     }
     return {
       hypothesis: 'LLM 不可用且无匹配故障规则，建议人工诊断',
       fixCommand: 'echo "LLM_UNAVAILABLE"',
-      confidence: 0.2
+      confidence: 0.2,
+      provenance: 'rules'
     }
   }
 }

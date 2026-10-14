@@ -39,6 +39,7 @@ import { ProcessTable } from '@/components/monitor/ProcessTable'
 import { EmptyMonitorState } from '@/components/monitor/EmptyMonitorState'
 import {
   timeRanges,
+  computeKpiStats,
   type TimeRange,
   type KpiStat,
   type AlertRecord,
@@ -47,7 +48,6 @@ import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore, MONITOR_INTERVAL_MS } from '@/stores/server-store'
 // v2.7：告警阈值消费设置页 monitor.threshold.* 配置（不再硬编码 85）
 import { usePersistentState } from '@/hooks/usePersistentState'
-import type { MonitorData } from '@shared/models'
 // M3 Task 2：时间范围切换切片工具（KPI 数据源按 range 过滤）
 import { sliceMonitorData } from '@/utils/monitor-time-range'
 import './MonitorPage.css'
@@ -92,59 +92,6 @@ function isElectronAPIAvailable(): boolean {
   return typeof window !== 'undefined' && !!window.electronAPI
 }
 
-/** 从 MonitorData 历史计算 KPI 统计 */
-function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
-  if (data.length === 0) return null
-  const latest = data[data.length - 1]
-  const prev = data.length > 1 ? data[data.length - 2] : latest
-  const cpuSpark = data.slice(-20).map((d) => d.cpuUsage)
-  const memSpark = data.slice(-20).map((d) => d.memoryUsage)
-  const diskSpark = data.slice(-20).map((d) => d.diskUsage)
-  const netSpark = data.slice(-20).map((d) => d.networkIn + d.networkOut)
-
-  return [
-    {
-      label: 'CPU',
-      value: Math.round(latest.cpuUsage),
-      unit: '%',
-      sub: `${latest.loadAverage?.toFixed(2) ?? '--'} load`,
-      delta: Math.round(latest.cpuUsage - prev.cpuUsage),
-      trend: latest.cpuUsage >= prev.cpuUsage ? 'up' : 'down',
-      ringColor: 'var(--accent-text)',
-      sparkline: cpuSpark,
-    },
-    {
-      label: '内存',
-      value: Math.round(latest.memoryUsage),
-      unit: '%',
-      sub: `${latest.processCount ?? '--'} 进程`,
-      delta: Math.round(latest.memoryUsage - prev.memoryUsage),
-      trend: latest.memoryUsage >= prev.memoryUsage ? 'up' : 'down',
-      ringColor: 'var(--accent-text)',
-      sparkline: memSpark,
-    },
-    {
-      label: '磁盘',
-      value: Math.round(latest.diskUsage),
-      unit: '%',
-      sub: `uptime ${Math.floor(latest.uptime / 3600)}h`,
-      delta: Math.round(latest.diskUsage - prev.diskUsage),
-      trend: latest.diskUsage >= prev.diskUsage ? 'up' : 'down',
-      ringColor: 'var(--status-warning-text)',
-      sparkline: diskSpark,
-    },
-    {
-      label: '网络 I/O',
-      value: Math.round(latest.networkIn + latest.networkOut),
-      unit: 'KB/s',
-      sub: `↓${Math.round(latest.networkIn)} ↑${Math.round(latest.networkOut)}`,
-      delta: Math.round((latest.networkIn + latest.networkOut) - (prev.networkIn + prev.networkOut)),
-      trend: (latest.networkIn + latest.networkOut) >= (prev.networkIn + prev.networkOut) ? 'up' : 'down',
-      ringColor: 'var(--accent-text)',
-      sparkline: netSpark,
-    },
-  ]
-}
 
 /**
  * MonitorPage 主组件

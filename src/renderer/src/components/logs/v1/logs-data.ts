@@ -62,7 +62,7 @@ export interface LevelStat {
 
 // ==================== 日志源白名单 ====================
 
-/** 日志源列表（9 项 = 5 主类 + 4 服务器系统日志路径）；条数一律由页面按真实读取结果填 */
+/** 日志源列表（10 项 = 5 主类 + 5 服务器系统日志路径）；条数一律由页面按真实读取结果填 */
 export const LOG_SOURCES: LogSourceItem[] = [
   // 主类（5 项：系统/应用/安全/AI决策/告警，与设计稿 1:1）
   { id: 'system', label: '系统日志', group: 'main', icon: Terminal },
@@ -70,12 +70,32 @@ export const LOG_SOURCES: LogSourceItem[] = [
   { id: 'security', label: '安全日志', group: 'main', icon: Shield },
   { id: 'ai-decision', label: 'AI决策日志', group: 'main', icon: Sparkles },
   { id: 'alert', label: '告警日志', group: 'main', icon: AlertTriangle },
-  // 服务器系统日志（4 项）
+  // 服务器系统日志（5 项）：两套主流发行版的认证日志文件名不同，只列一个
+  // 就等于在另一半机器上摆一个永远读不出东西的入口（2026-10-14 真机实测：
+  // openEuler 上 /var/log/syslog 与 /var/log/auth.log 都不存在，而 /var/log/secure 有 5816 行）
   { id: 'messages', label: '/var/log/messages', group: 'system', icon: FileText },
   { id: 'syslog', label: '/var/log/syslog', group: 'system', icon: FileText },
   { id: 'auth', label: '/var/log/auth.log', group: 'system', icon: Lock },
+  { id: 'secure', label: '/var/log/secure', group: 'system', icon: Lock },
   { id: 'nginx-error', label: '/var/log/nginx/error.log', group: 'system', icon: FileText, alert: true },
 ]
+
+/**
+ * 文件不存在时该说什么：点名发行版差异，而不是"不存在或为空"这种两头都盖的说法。
+ *
+ * 教学工具的用户不知道 syslog 是 Debian 系的叫法，看到"不存在"只会以为连错了机器。
+ */
+const MISSING_HINT: Record<string, string> = {
+  '/var/log/messages': 'RHEL / CentOS / openEuler 系才有；Debian / Ubuntu 请看 /var/log/syslog',
+  '/var/log/syslog': 'Debian / Ubuntu 系才有；RHEL / CentOS / openEuler 请看 /var/log/messages',
+  '/var/log/auth.log': 'Debian / Ubuntu 系的认证日志；RHEL / CentOS / openEuler 请看 /var/log/secure',
+  '/var/log/secure': 'RHEL / CentOS / openEuler 系的认证日志；Debian / Ubuntu 请看 /var/log/auth.log',
+  '/var/log/nginx/error.log': '这台机器上没装 nginx，或 nginx 还没写过错误日志',
+}
+
+export function missingLogFileHint(path: string): string {
+  return MISSING_HINT[path] ?? '这台机器上没有这个文件'
+}
 
 /** 默认激活的日志源 */
 export const DEFAULT_LOG_SOURCE_ID = 'system'

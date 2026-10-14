@@ -196,20 +196,22 @@ export function KpiCard({ stat }: { stat: KpiStat }) {
         <div className="mon-kpi-value">
           {stat.sub}
         </div>
-        {/* 趋势 */}
-        <div className="mon-kpi-trend">
-          {stat.trend === 'up' ? (
-            <TrendingUp className="h-3 w-3" style={{ color: trendColor }} />
-          ) : (
-            <TrendingDown className="h-3 w-3" style={{ color: trendColor }} />
-          )}
-          <span className="mon-kpi-trend-delta" style={{ color: trendColor }}>
-            {stat.trend === 'up' ? '+' : ''}
-            {stat.delta}
-            {stat.unit === '%' ? '%' : ` ${stat.unit}`}
-          </span>
-          <span className="mon-kpi-trend-text">较昨日</span>
-        </div>
+        {/* 趋势：没有可信差值就整行不出现（原来无论差多少都画一个箭头 + "较昨日"） */}
+        {stat.trend !== null && stat.delta !== null && (
+          <div className="mon-kpi-trend">
+            {stat.trend === 'up' ? (
+              <TrendingUp className="h-3 w-3" style={{ color: trendColor }} />
+            ) : (
+              <TrendingDown className="h-3 w-3" style={{ color: trendColor }} />
+            )}
+            <span className="mon-kpi-trend-delta" style={{ color: trendColor }}>
+              {stat.trend === 'up' ? '+' : ''}
+              {stat.delta}
+              {stat.unit === '%' ? '%' : ` ${stat.unit}`}
+            </span>
+            <span className="mon-kpi-trend-text">较上次采样</span>
+          </div>
+        )}
       </div>
     </div>
   )

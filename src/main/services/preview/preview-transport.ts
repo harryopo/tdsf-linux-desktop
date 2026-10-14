@@ -192,6 +192,23 @@ export function forwardHttpRequest(
   }
 }
 
+/**
+ * 隧道被拒时说人话。
+ *
+ * "Channel open failure: open failed" 是 ssh2 的原文，用户读不出下一步该干什么。
+ * 真机实测到两种成因，报错文本不一样：
+ *   - 服务端关了端口转发（sshd_config 里 AllowTcpForwarding no）→ 直接拒开 channel
+ *   - 远端那个端口没人监听 → 也是 open failed（服务端代连失败）
+ * 所以两种都提，让人按顺序排，而不是只猜一种。
+ */
+function tunnelFailureHint(port: number, reason: string): string {
+  return (
+    `隧道打不开 127.0.0.1:${port}：${reason}。` +
+    '两种可能：① 这台服务器关着端口转发（sshd_config 里 AllowTcpForwarding no）；' +
+    `② 远端 127.0.0.1:${port} 上没有程序在监听。`
+  )
+}
+
 /** 真环境用的开隧道函数：只允许打到远端机器的回环，端口由句柄定死 */
 export function openForwardOut(getClient: (sessionId: string) => Client) {
   return (sessionId: string, port: number): Promise<Duplex> =>
@@ -205,7 +222,7 @@ export function openForwardOut(getClient: (sessionId: string) => Client) {
       }
       client.forwardOut('127.0.0.1', 0, '127.0.0.1', port, (err, stream) => {
         if (err) {
-          reject(new Error(`隧道打不开 127.0.0.1:${port}：${errMessage(err)}`))
+          reject(new Error(tunnelFailureHint(port, errMessage(err))))
           return
         }
         resolve(stream as unknown as Duplex)

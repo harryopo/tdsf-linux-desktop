@@ -139,3 +139,53 @@ describe('preview transport', () => {
     expect(deps.httpViaForward).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * openForwardOut 的报错文案（#102 真机验收）
+ *
+ * 靶子上实测到的原文是 "(SSH) Channel open failure: open failed"，
+ * 用户读不出下一步该干什么。真机同时量到两种成因（服务端关了 AllowTcpForwarding、
+ * 对端端口没人监听），所以文案必须两条都提。
+ */
+describe('端口转发的报错', () => {
+  function clientThatRefuses(message: string) {
+    return {
+      forwardOut(
+        _src: string,
+        _sport: number,
+        _dst: string,
+        _dport: number,
+        cb: (err: Error | undefined, stream?: unknown) => void
+      ) {
+        cb(new Error(message))
+      },
+    }
+  }
+
+  it('隧道被拒时点名两种成因，而不是把 ssh2 原文甩给用户', async () => {
+    const { openForwardOut } = await import('@main/services/preview/preview-transport')
+    const open = openForwardOut(() => clientThatRefuses('(SSH) Channel open failure: open failed') as never)
+    await expect(open('s1', 8099)).rejects.toThrow(/AllowTcpForwarding/)
+    await expect(open('s1', 8099)).rejects.toThrow(/127\.0\.0\.1:8099 上没有程序在监听/)
+    // 原始原因不能被丢掉：排查时它是唯一的线索
+    await expect(open('s1', 8099)).rejects.toThrow(/Channel open failure/)
+  })
+
+  it('正向对照：隧道能开时直接把流交出去（报错分支不是唯一分支）', async () => {
+    const { openForwardOut } = await import('@main/services/preview/preview-transport')
+    const fakeStream = { id: 'stream' }
+    const open = openForwardOut(
+      () =>
+        ({
+          forwardOut: (
+            _s: string,
+            _p: number,
+            _d: string,
+            _dp: number,
+            cb: (err: Error | null, stream?: unknown) => void
+          ) => cb(null, fakeStream),
+        }) as never
+    )
+    await expect(open('s1', 8099)).resolves.toBe(fakeStream)
+  })
+})

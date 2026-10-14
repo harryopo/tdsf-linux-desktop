@@ -37,6 +37,7 @@ import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 // v2.3.7 修复：移除 sample* mock 数据导入，统一显示 EmptyMonitorState
 import type { TimeRange } from './monitor-model'
+import { spanLabel } from './monitor-model'
 import { EmptyMonitorState } from './EmptyMonitorState'
 // M3 Task 2：时间范围切换切片工具（Chart 数据源按 range 过滤）
 import { sliceMonitorData } from '../../utils/monitor-time-range'
@@ -132,7 +133,7 @@ export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
   // 无实时数据时显示 Empty 状态（v2.3.7：彻底移除 sample data fallback）
   if (recent.length === 0) {
     return (
-      <ChartCard title="CPU使用率(24h)">
+      <ChartCard title={`CPU使用率${spanLabel(recent)}`}>
         <EmptyMonitorState
           title="暂无CPU监控数据"
           description="连接服务器后将显示实时CPU使用率曲线"
@@ -149,8 +150,8 @@ export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
   const latest = data[data.length - 1].cpu
 
   return (
-    <ChartCard
-      title="CPU使用率(24h)"
+    <ChartCard
+      title={`CPU使用率${spanLabel(recent)}`}
       axis={axisFrom(recent)}
       rightHint={<span className="mon-chart-value">{Math.round(latest)}%</span>}
     >
@@ -205,7 +206,7 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   // 无实时数据时显示 Empty 状态
   if (recent.length === 0) {
     return (
-      <ChartCard title="内存使用(24h)" legend={<span />}>
+      <ChartCard title={`内存使用${spanLabel(recent)}`} legend={<span />}>
         <EmptyMonitorState
           title="暂无内存监控数据"
           description="连接服务器后将显示实时内存使用曲线"
@@ -223,8 +224,8 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   }))
 
   return (
-    <ChartCard
-      title="内存使用(24h)"
+    <ChartCard
+      title={`内存使用${spanLabel(recent)}`}
       axis={axisFrom(recent)}
       legend={
         <div className="mon-chart-legend flex items-center gap-2 shrink-0">
@@ -305,7 +306,7 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
   // 无实时数据时显示 Empty 状态
   if (recent.length === 0) {
     return (
-      <ChartCard title="磁盘IO(24h)" rightHint={<span className="mon-chart-hint">MB/s</span>}>
+      <ChartCard title={`磁盘IO${spanLabel(recent)}`} rightHint={<span className="mon-chart-hint">MB/s</span>}>
         <EmptyMonitorState
           title="暂无磁盘IO数据"
           description="连接服务器后将显示实时磁盘IO柱状图"
@@ -321,8 +322,8 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
   }))
 
   return (
-    <ChartCard
-      title="磁盘IO(24h)"
+    <ChartCard
+      title={`磁盘IO${spanLabel(recent)}`}
       axis={axisFrom(recent)}
       rightHint={
         <span className="mon-chart-hint">MB/s</span>
@@ -370,7 +371,7 @@ export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
   // 无实时数据时显示 Empty 状态
   if (recent.length === 0) {
     return (
-      <ChartCard title="网络流量(24h)" legend={<span />}>
+      <ChartCard title={`网络流量${spanLabel(recent)}`} legend={<span />}>
         <EmptyMonitorState
           title="暂无网络流量数据"
           description="连接服务器后将显示实时网络流量曲线"
@@ -391,8 +392,8 @@ export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
   }))
 
   return (
-    <ChartCard
-      title="网络流量(24h)"
+    <ChartCard
+      title={`网络流量${spanLabel(recent)}`}
       axis={axisFrom(recent)}
       legend={
         <div className="mon-chart-legend flex items-center gap-2 shrink-0">

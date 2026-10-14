@@ -37,6 +37,7 @@ import {
   DEFAULT_LOG_SOURCE_ID,
   ipcLogEntriesToLogEntries,
   mapLogStats,
+  missingLogFileHint,
 } from '@/components/logs/v1/logs-data'
 import './LogsPage.css'
 // v2.6：服务器 /var/log 真实读取需要活跃 SSH 会话
@@ -285,14 +286,20 @@ export function LogsPage() {
         api.sshExec(activeSessionId, `wc -l < ${path} 2>/dev/null`),
       ])
       const lineCount = parseInt(wcRes.stdout.trim(), 10)
+      // 读不到行数分两种：文件不存在（wc 退出码非 0）与文件是空的。
+      // 原来两种都算"0"、都提示"不存在或为空"，把发行版差异说成了设备故障。
+      const missing = wcRes.exitCode !== 0
       setRemoteCounts((prev) => ({
         ...prev,
-        [source.id]: Number.isFinite(lineCount) ? String(lineCount) : '0',
+        [source.id]: missing ? '—' : String(Number.isFinite(lineCount) ? lineCount : 0),
       }))
       const lines = tailRes.stdout.split('\n').filter((l) => l.trim().length > 0)
-      if (lines.length === 0) {
+      if (missing) {
         setRemoteEntries([])
-        toast.info(`${path} 在服务器上不存在或为空`)
+        toast.info(`${path} 在这台机器上不存在 —— ${missingLogFileHint(path)}`)
+      } else if (lines.length === 0) {
+        setRemoteEntries([])
+        toast.info(`${path} 存在，但一行内容都没有`)
       } else {
         setRemoteEntries(lines.map((l, i) => remoteLineToLogEntry(l, i, source.label)))
         toast.success(`已读取 ${path} 最近 ${lines.length} 行（真实服务器文件）`)

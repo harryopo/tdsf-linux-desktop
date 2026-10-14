@@ -57,6 +57,16 @@ import type { ChatMessage } from '../../../../shared/models'
 import { getDiagnosticsService } from '../../../services/diagnostics/diagnostics-service'
 import type { LogSource, LogLevel } from '../../../services/diagnostics/types'
 import type { ThinkingStrength } from '../providers/types'
+import { getSourcePrior } from '../../confidence'
+import { analyzeByRules } from '../../rule-engine'
+import { classifyLlmError } from '../providers/llm-error'
+
+/**
+ * 什么都没匹配上时至少跑一轮系统体检。
+ * 只留一份：模型解析失败和模型不可用两条降级路都要用它，抄两遍迟早一条过期。
+ */
+const HEALTH_CHECK_COMMAND =
+  "echo '=== 系统健康检查 ===' && uname -a && echo '--- CPU/负载 ---' && uptime && echo '--- 内存 ---' && free -h && echo '--- 磁盘 ---' && df -h"
 
 // ============================================================================
 // 类型定义
@@ -90,6 +100,17 @@ export interface LlmHypothesis {
   fixCommand: string
   /** LLM 自评置信度 [0, 1] */
   confidence: number
+  /**
+   * 这条假设真正的出处。
+   *
+   * 为什么必须带：阶段 1 过去只有"模型成功"一条路，模型没配口令时整条 loop 直接
+   * 报错（真机实测：界面上甩出原文 "No output generated. Check the stream for errors."），
+   * 于是"可信决策"这个卖点在没有 API 的机器上完全不可用。现在降级到内置规则，
+   * 但界面上必须能看出这条假设是规则引擎给的而不是模型给的。
+   */
+  source: 'llm' | 'rules'
+  /** 降级原因（已分类的人话）；source='rules' 时必填 */
+  degradedReason?: string
 }
 
 /**
@@ -170,23 +191,30 @@ class LlmEvidenceCollector implements EvidenceCollector {
     // 尝试用 LLM 分析问题，生成额外的诊断证据
     try {
       const analysis = await this.llmClient.analyze(problem, evidences)
+      // analyze() 自己会降级到规则引擎，所以"证据是谁给的"必须照它说的算，
+      // 不能一律写成"LLM 分析"——没配口令的那台机器上，这条其实是内置规则。
+      const byLlm = analysis.provenance === 'llm'
       this.llmAnalysis = {
         hypothesis: analysis.hypothesis,
         fixCommand: analysis.fixCommand,
         confidence: analysis.confidence,
+        source: byLlm ? 'llm' : 'rules',
       }
       evidences.push({
-        id: `ev_llm_${now}`,
+        id: `${byLlm ? 'ev_llm' : 'ev_rules'}_${now}`,
         source: 'knowledge',
-        sourceDetail: 'LLM 分析',
+        sourceDetail: byLlm ? 'LLM 分析' : '内置规则分析（这台机器没走模型）',
         content: `根因假设: ${analysis.hypothesis}\n建议命令: ${analysis.fixCommand}`,
         drainMatch: analysis.confidence,
-        sourcePrior: 0.7,
+        sourcePrior: getSourcePrior('knowledge'),
         confidence: analysis.confidence,
         timestamp: now,
         verified: false,
       })
-      this.logForwarder?.('INFO', `[LlmEvidenceCollector] LLM 分析完成：${analysis.hypothesis}`)
+      this.logForwarder?.(
+        'INFO',
+        `[LlmEvidenceCollector] ${byLlm ? 'LLM' : '规则引擎'}分析完成：${analysis.hypothesis}`
+      )
     } catch (err) {
       // LLM 分析失败不影响主流程
       this.logForwarder?.(
@@ -486,22 +514,42 @@ export class LoopEngineeringSubagent extends BaseSubagent {
 
     // 收集完整 LLM 响应
     let fullText = ''
-    await new Promise<void>((resolve, reject) => {
-      void supervisor.chat({
-        messages: [
-          { role: 'system', content: systemPrompt } as ModelMessage,
-          userMessage as ModelMessage,
-        ],
-        providerId: input.providerId,
-        strength: input.strength ?? 'standard',
-        correlationId: `${correlationId}_llm`,
-        onToken: (delta) => {
-          fullText += delta
-        },
-        onDone: () => resolve(),
-        onError: (err) => reject(err),
+    try {
+      await new Promise<void>((resolve, reject) => {
+        void supervisor.chat({
+          messages: [
+            { role: 'system', content: systemPrompt } as ModelMessage,
+            userMessage as ModelMessage,
+          ],
+          providerId: input.providerId,
+          strength: input.strength ?? 'standard',
+          correlationId: `${correlationId}_llm`,
+          onToken: (delta) => {
+            fullText += delta
+          },
+          onDone: () => resolve(),
+          onError: (err) => reject(err),
+        })
       })
-    })
+    } catch (err) {
+      // 模型不可用 ≠ 这条链该断。真机实测：原来这里把原文
+      // "No output generated. Check the stream for errors." 一路甩到界面上，
+      // 于是没配口令的机器完全用不了"可信决策"。改成走内置规则出假设，
+      // 并把出处标成 rules，界面上就不许再写成 AI 给的。
+      const c = classifyLlmError(err, '模型调用失败')
+      this.forwardLog('agent', 'WARN', `[LoopEngineering] 阶段 1 降级到内置规则：${c.message}`)
+      const ruleResult = analyzeByRules(input.problem, '')
+      const base = ruleResult?.hypothesis ?? '未匹配到内置故障规则，先做一轮系统体检再判断'
+      return {
+        // 出处直接写进假设文本：证据链上的 sourceDetail 界面上根本不显示，
+        // 而"根因"那一行是用户唯一看得到这句话的地方。
+        hypothesis: `${base}（这条由内置规则给出，未走模型：${c.message}）`,
+        fixCommand: ruleResult?.fixCommand ?? HEALTH_CHECK_COMMAND,
+        confidence: ruleResult?.confidence ?? 0.25,
+        source: 'rules',
+        degradedReason: c.message,
+      }
+    }
 
     // 解析 JSON（容错：尝试提取 JSON 片段）
     const hypothesis = this.parseLlmHypothesis(fullText)
@@ -513,10 +561,11 @@ export class LoopEngineeringSubagent extends BaseSubagent {
    */
   private parseLlmHypothesis(text: string): LlmHypothesis {
     const fallback: LlmHypothesis = {
-      hypothesis: 'LLM 输出解析失败，使用默认诊断命令',
-      fixCommand:
-        "echo '=== 系统健康检查 ===' && uname -a && echo '--- CPU/负载 ---' && uptime && echo '--- 内存 ---' && free -h && echo '--- 磁盘 ---' && df -h",
+      hypothesis: '模型返回的内容解析不成约定的 JSON，改用默认诊断命令',
+      fixCommand: HEALTH_CHECK_COMMAND,
       confidence: 0.3,
+      source: 'rules',
+      degradedReason: '模型输出不是约定的 JSON',
     }
 
     if (!text || text.trim().length === 0) {
@@ -535,6 +584,7 @@ export class LoopEngineeringSubagent extends BaseSubagent {
           hypothesis: parsed.hypothesis,
           fixCommand: parsed.fixCommand,
           confidence: Math.max(0, Math.min(1, parsed.confidence)),
+          source: 'llm',
         }
       }
     } catch {
@@ -555,6 +605,7 @@ export class LoopEngineeringSubagent extends BaseSubagent {
             hypothesis: parsed.hypothesis,
             fixCommand: parsed.fixCommand,
             confidence: Math.max(0, Math.min(1, parsed.confidence)),
+            source: 'llm',
           }
         }
       } catch {
@@ -576,6 +627,7 @@ export class LoopEngineeringSubagent extends BaseSubagent {
             hypothesis: parsed.hypothesis,
             fixCommand: parsed.fixCommand,
             confidence: Math.max(0, Math.min(1, parsed.confidence)),
+            source: 'llm',
           }
         }
       } catch {
