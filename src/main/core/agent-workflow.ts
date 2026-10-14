@@ -178,6 +178,54 @@ export function resolveConfirmTimeoutMs(raw: unknown): number {
  * // 或
  * workflow.confirm(false) // 拒绝执行
  */
+/**
+ * 用 Drain3 模板匹配度增强证据置信度（方案书 §4.1）
+ *
+ * 两条口径（#103）：
+ *   - 日志类证据：匹配度 = 与模板比出来的数（1.0 精确 / 0.7 结构同 / 0.3 没匹配上），
+ *     再走 confidence = 0.7×匹配 + 0.3×先验；
+ *   - 其余（命令、指标…）：这一维**不存在**，drainMatch 原样保留（通常是 null），
+ *     由 calculateEvidenceConfidence 按"只认来源先验"算。以前这里给非日志证据补 0.8
+ *     当"默认高匹配"，等于让一个编造的常数占掉公式 70% 的权重。
+ *
+ * 导出成模块级纯函数：判据要能直接跑这段真代码，而不是隔着私有方法猜。
+ */
+export function enrichEvidencesWithDrain(evidences: Evidence[], templates: LogTemplate[]): Evidence[] {
+  return evidences.map((evidence) => {
+    const drainMatch =
+      evidence.source === 'log'
+        ? computeDrainMatchScore(evidence.content, templates)
+        : evidence.drainMatch
+    return calculateEvidenceConfidence({ ...evidence, drainMatch })
+  })
+}
+
+/**
+ * 计算证据内容与 Drain3 模板的匹配度
+ *
+ * @param content - 证据内容
+ * @param templates - Drain3 提取的模板列表
+ * @returns 匹配度 [0, 1]
+ */
+export function computeDrainMatchScore(content: string, templates: LogTemplate[]): number {
+  if (templates.length === 0 || !content) return 0.3
+
+  // 将证据内容模板化（与 Drain3 相同的归一化规则）
+  const normalized = content
+    .replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '<*>')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<*>')
+    .replace(/\b\d+\b/g, '<*>')
+
+  for (const t of templates) {
+    // 精确匹配已知模板
+    if (t.template === content || t.template === normalized) return 1.0
+    // 结构匹配：模板化后与已知模板相同（参数不同）
+    if (normalized.includes(t.template) || t.template.includes(normalized.slice(0, 40))) return 0.7
+  }
+  // 无匹配：新型日志，标记待补充模板
+  return 0.3
+}
+
 export class AgentWorkflow extends EventEmitter {
   private state: AgentWorkflowState
   private confirmResolve: ((approved: boolean) => void) | null = null
@@ -270,7 +318,7 @@ export class AgentWorkflow extends EventEmitter {
           evidences = await evidenceCollector.collect(problem, envInfo)
 
           // §4.1：用 Drain3 模板匹配度重算每条证据的置信度
-          evidences = this.enrichEvidencesWithDrain(evidences, templates)
+          evidences = enrichEvidencesWithDrain(evidences, templates)
 
           // §4.2：Ground-Check — 验证证据确实来自真实工具调用
           evidences = await this.runGroundCheck(evidences, toolCallLog, problem, envInfo, evidenceCollector)
@@ -633,55 +681,6 @@ export class AgentWorkflow extends EventEmitter {
     matches.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
 
     return matches
-  }
-
-  /**
-   * 用 Drain3 模板匹配度增强证据置信度（方案书 §4.1）
-   *
-   * 匹配度评分规则：
-   *   - 证据内容精确匹配已知模板 → 1.0
-   *   - 结构匹配（模板化后相同）但参数不同 → 0.7
-   *   - 无匹配（新型日志）→ 0.3，标记"待补充模板"
-   *
-   * 之后重算置信度：日志类走 confidence = 0.7×drainMatch + 0.3×sourcePrior；
-   * 没有模板维度那一类（drainMatch=null，命令/指标）只认 sourcePrior。
-   */
-  private enrichEvidencesWithDrain(evidences: Evidence[], templates: LogTemplate[]): Evidence[] {
-    return evidences.map((evidence) => {
-      // 只有日志类证据能算"像不像某个模板"。命令/指标输出是结构化事实，没有这一维 ⇒ 保持 null，
-      // 由 calculateEvidenceConfidence 走"只认来源先验"那条口径。
-      // （原来这里给非日志证据补 0.8 当"默认高匹配"，等于让一个编造的常数占掉公式 70% 的权重。）
-      const drainMatch =
-        evidence.source === 'log' ? this.computeDrainMatchScore(evidence.content, templates) : evidence.drainMatch
-      // 用统一公式重算置信度
-      return calculateEvidenceConfidence({ ...evidence, drainMatch })
-    })
-  }
-
-  /**
-   * 计算证据内容与 Drain3 模板的匹配度
-   *
-   * @param content - 证据内容
-   * @param templates - Drain3 提取的模板列表
-   * @returns 匹配度 [0, 1]
-   */
-  private computeDrainMatchScore(content: string, templates: LogTemplate[]): number {
-    if (templates.length === 0 || !content) return 0.3
-
-    // 将证据内容模板化（与 Drain3 相同的归一化规则）
-    const normalized = content
-      .replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, '<*>')
-      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<*>')
-      .replace(/\b\d+\b/g, '<*>')
-
-    for (const t of templates) {
-      // 精确匹配已知模板
-      if (t.template === content || t.template === normalized) return 1.0
-      // 结构匹配：模板化后与已知模板相同（参数不同）
-      if (normalized.includes(t.template) || t.template.includes(normalized.slice(0, 40))) return 0.7
-    }
-    // 无匹配：新型日志，标记待补充模板
-    return 0.3
   }
 
   /**

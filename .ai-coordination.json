@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-13T16:33:31.437Z",
+  "lastUpdated": "2026-10-14T08:44:26.653Z",
   "sessions": {},
   "history": [
     {
@@ -7529,6 +7529,20 @@
       "file": "src/shared/models.ts",
       "task": "llm-error-single-source",
       "timestamp": "2026-10-13T16:33:31.437Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "103-drainMatch-fabricated-constant",
+      "timestamp": "2026-10-14T08:17:03.109Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "103-drainMatch-fabricated-constant",
+      "timestamp": "2026-10-14T08:44:26.653Z"
     }
   ],
   "coordinationAudit": {

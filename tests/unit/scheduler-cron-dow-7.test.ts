@@ -9,7 +9,7 @@
  * 调度器的 cron 解析器此前没有任何单测覆盖（grep tests/ = 0 命中），
  * 所以这里顺带钉住三条基础行为，作为后续改动的地板。
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { getNextRun, parseCron, parseCronField } from '../../src/main/services/scheduler/cron-parser'
 
 const TZ = 'Asia/Shanghai'
@@ -59,16 +59,44 @@ describe('cron 的 day-of-week 字段', () => {
     expect(next.getTime()).toBeGreaterThan(from.getTime())
   })
 
-  it('6. 永远匹配不上的表达式：扫满 366 天有界返回，不卡住主进程', () => {
+  it('6. 永远匹配不上的表达式：扫满 366 天有界返回，且 formatter 只按小时区建一次', () => {
     // 2 月 30 日不存在 → 一定要把 366 天×1440 分钟全扫一遍才报错。
-    // 这条判据盯的是"扫一遍"这件事的耗时：老实现每个候选分钟都新建一个
-    // Intl.DateTimeFormat（52 万次），同步跑在主进程上会冻结几十秒；
-    // 按时区缓存 formatter 之后应当是秒级。
+    // 老实现每个候选分钟都新建一个 Intl.DateTimeFormat（52 万次），同步跑在主进程上会冻结几十秒。
+    //
+    // 判据量的是**机制**（建了几个 formatter、真扫了多少分钟），不是墙钟耗时：
+    // 原来这里写 <5000ms，单跑 1.9 秒通过，但在全量并行那一轮被调度噪声顶红过一次
+    // ——性能界限当判据在共享机器上不可反证，只会造假红。墙钟只留一条很松的兜底。
     const from = new Date('2026-03-01T00:00:00+08:00')
+    const Real = Intl.DateTimeFormat
+    let constructed = 0
+    const Counting = new Proxy(Real, {
+      construct(target, args) {
+        constructed += 1
+        return new target(...(args as [never, Intl.DateTimeFormatOptions]))
+      },
+    })
+    const intlDesc = Object.getOwnPropertyDescriptor(globalThis, 'Intl') as PropertyDescriptor
+    const partsSpy = vi.spyOn(Real.prototype, 'formatToParts')
     const started = Date.now()
-    expect(() => getNextRun('0 0 30 2 *', from, TZ)).toThrow(/无匹配/)
-    const cost = Date.now() - started
-    expect(cost, `扫满 366 天用了 ${cost}ms，时区级 formatter 缓存没生效`).toBeLessThan(5000)
+    let cost = 0
+    let partsCalls = 0
+    try {
+      Object.defineProperty(globalThis, 'Intl', {
+        ...intlDesc,
+        value: { ...Intl, DateTimeFormat: Counting },
+        writable: true,
+        configurable: true,
+      })
+      expect(() => getNextRun('0 0 30 2 *', from, TZ)).toThrow(/无匹配/)
+    } finally {
+      partsCalls = partsSpy.mock.calls.length
+      partsSpy.mockRestore()
+      Object.defineProperty(globalThis, 'Intl', intlDesc)
+      cost = Date.now() - started
+    }
+    expect(constructed, '按时区缓存之后，一条 cron 至多建一个 formatter').toBeLessThanOrEqual(1)
+    expect(partsCalls, '没扫满 366 天就是判据自己坏了（366×1440 ≈ 52.7 万）').toBeGreaterThan(500_000)
+    expect(cost, `扫满 366 天用了 ${cost}ms，这条只是"别冻住主进程"的松兜底`).toBeLessThan(20_000)
   })
 
   it('7. parseCron 与 parseCronField 对同一条表达式给出的星期集合一致', () => {
