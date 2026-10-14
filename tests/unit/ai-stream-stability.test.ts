@@ -12,6 +12,7 @@
  * 不联网、不需要真 Key。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ModelMessage } from 'ai'
 
 vi.mock('electron', () => ({
   app: { getPath: () => '/tmp/tdsf-ai-stability', isReady: () => true },
@@ -49,12 +50,14 @@ import type { ChatMessage } from '../../src/shared/models'
 const messages = [{ role: 'user', content: '讲个故事' }] as ChatMessage[]
 
 /** 造一条纯中文长文本（每条约 n 个汉字） */
-function cjkMessages(count: number, charsPerMessage: number) {
+// 返回类型按 compactIfNeeded 的真实入参给（ModelMessage[]）：
+// 原先结尾一个 as never，样本形状对不对、字段有没有改名，类型层一概说不上话。
+function cjkMessages(count: number, charsPerMessage: number): ModelMessage[] {
   const body = '肯'.repeat(charsPerMessage)
-  return Array.from({ length: count }, (_, i) => ({
-    role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
+  return Array.from({ length: count }, (_, i): ModelMessage => ({
+    role: i % 2 === 0 ? 'user' : 'assistant',
     content: `${body} 第${i}轮`,
-  })) as never
+  }))
 }
 
 describe('压缩阈值跟着生效窗口走', () => {
@@ -93,14 +96,14 @@ describe('压缩阈值跟着生效窗口走', () => {
   it('5. 6K tokens 的中文长对话：8K 窗口必须压缩，未知窗口维持原样', () => {
     // 40 条 × 每条约 150 汉字 ≈ 3.1K tokens：在旧 50K 阈值之下，但在 8K 窗口的软阈值之上
     const msgs = cjkMessages(40, 150)
-    expect(estimateTokens(msgs[0].content as string) * msgs.length,
+    expect(estimateTokens(String(msgs[0]?.content ?? '')) * msgs.length,
       '样本总量要跨过 8K 窗口的软阈值，否则第 5 条是空跑').toBeGreaterThan(2_720)
 
-    const withWindow = compactIfNeeded(msgs as never, 8_000)
+    const withWindow = compactIfNeeded(msgs, 8_000)
     expect(withWindow.level, '小窗口模型不该一路不压缩直到被上游 400').not.toBe('none')
     expect(withWindow.afterTokens).toBeLessThan(withWindow.beforeTokens)
 
-    const legacy = compactIfNeeded(msgs as never)
+    const legacy = compactIfNeeded(msgs)
     expect(legacy.level, '没报窗口时行为要等于改动前（不误伤大窗口用户）').toBe('none')
   })
 })

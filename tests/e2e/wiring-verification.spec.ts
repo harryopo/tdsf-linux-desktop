@@ -41,11 +41,16 @@ async function launchApp() {
 }
 
 /** 跳过 BootPage 直接进入指定 hash 路由 */
-async function gotoRoute(window: Awaited<ReturnType<typeof launchApp>>['window'], hash: string) {
-  await window.evaluate((h) => {
+async function gotoRoute(
+  // 形别再叫 window：它会把回调里的浏览器全局遮掉（#107 第一族），
+  // 类型也从 launchApp 的真实返回取，别再指向已经不存在的 'window' 键。
+  page: Awaited<ReturnType<typeof launchApp>>['mainWin'],
+  hash: string,
+) {
+  await page.evaluate((h: string) => {
     window.location.hash = h
   }, hash)
-  await window.waitForTimeout(800)
+  await page.waitForTimeout(800)
 }
 
 test.describe('接线真通验证（P0/P1 修复回归）', () => {

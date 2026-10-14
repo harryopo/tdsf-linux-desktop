@@ -146,8 +146,10 @@ describe('A 组｜Provider baseURL 写入口（决定真 Key 寄到哪里）', (
 })
 
 describe('B 组｜发往模型前的脱敏（红act 覆盖形态表）', () => {
-  /** 每一种形态：原文 + 敏感值片段（断言它不出现在结果里） */
-  const FORMS: Array<[string, string]> = [
+  /** 每一种形态：标签 + 原文 + 敏感值片段（断言它不出现在结果里） */
+  // 原来是 Array<[string, string]> 配三元素的数据，靠结尾一个 as never 把报错按住——
+  // 于是循环里解出来的 secret 在类型上根本不存在，脱敏漏了一整行也不会红。
+  const FORMS: Array<[string, string, string]> = [
     ['key=value', `password=${['Sup3r', 'Secret'].join('')}`, 'Sup3rSecret'],
     ['冒号写法', `passwd: ${['abc123', 'XYZ'].join('')}`, 'abc123XYZ'],
     ['Bearer 令牌', `Authorization: Bearer ${['tok_', 'abcdefghijklmnop'].join('')}`, 'tok_abcdefghijklmnop'],
@@ -159,7 +161,7 @@ describe('B 组｜发往模型前的脱敏（红act 覆盖形态表）', () => {
     // 也会让 GitHub 密钥扫描误报
     ['私钥头（只贴了半截）', [PEM_BEGIN, 'b3BlbnZlcnNpb24AAAAg'].join('\n'), 'b3BlbnZlcnNpb24AAAAg'],
     ['中文标签', `密码是${['Qw', 'erty1234'].join('')}`, 'Qwerty1234'],
-  ] as never
+  ]
 
   for (const [label, raw, secret] of FORMS) {
     it(`脱敏：${label}`, () => {

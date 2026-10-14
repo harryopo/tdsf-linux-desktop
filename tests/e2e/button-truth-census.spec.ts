@@ -91,8 +91,11 @@ interface ButtonResult {
 }
 
 /** 按钮身份（aria-label > title > data-dom-id > 文本）；节点已脱离文档返回 null */
+// 形参用 ElementHandle<Node>：locator('button:visible').elementHandles() 给出的就是
+// Node 型句柄，声明成 HTMLButtonElement 会在赋值处对不上（选择器已经保证是 button，
+// 页面内那一句 as HTMLButtonElement 才是真收窄的地方）。
 async function readLabel(
-  btn: ElementHandle<HTMLButtonElement>,
+  btn: ElementHandle<Node>,
 ): Promise<string | null> {
   return btn
     .evaluate((el) => {
@@ -109,7 +112,7 @@ async function readLabel(
 }
 
 /** 按钮当前是否处于"已经按下"的状态（这类钮再点本就不该有反应） */
-async function readActiveState(btn: ElementHandle<HTMLButtonElement>): Promise<string | null> {
+async function readActiveState(btn: ElementHandle<Node>): Promise<string | null> {
   return btn
     .evaluate((el) => {
       const b = el as HTMLElement
@@ -127,8 +130,8 @@ async function readActiveState(btn: ElementHandle<HTMLButtonElement>): Promise<s
 }
 
 /** 注入 DOM 变化观察器（每次进页面后调用） */
-async function injectObserver(window: Page): Promise<void> {
-  await window.evaluate(() => {
+async function injectObserver(page: Page): Promise<void> {
+  await page.evaluate(() => {
     const w = window as unknown as { __censusMut?: number; __censusObs?: MutationObserver }
     w.__censusObs?.disconnect()
     w.__censusMut = 0
@@ -142,9 +145,9 @@ async function injectObserver(window: Page): Promise<void> {
 
 /** 读取当前观测快照 */
 async function snapshot(
-  window: Page,
+  page: Page,
 ): Promise<{ hash: string; mut: number; toast: number; dialog: number; focus: string }> {
-  return window.evaluate(() => {
+  return page.evaluate(() => {
     const w = window as unknown as { __censusMut?: number }
     // 焦点变化不会有 DOM 变更，"聚焦终端"这类按钮只动焦点——不采这一路就会被当死按钮
     const a = document.activeElement
@@ -162,25 +165,26 @@ async function snapshot(
 }
 
 /** 关闭点击可能打开的弹层（Escape ×2 + 点击遮罩外区域） */
-async function closeOverlays(window: Page): Promise<void> {
-  await window.keyboard.press('Escape').catch(() => {})
-  await window.waitForTimeout(150)
-  await window.keyboard.press('Escape').catch(() => {})
-  await window.waitForTimeout(150)
+async function closeOverlays(page: Page): Promise<void> {
+  await page.keyboard.press('Escape').catch(() => {})
+  await page.waitForTimeout(150)
+  await page.keyboard.press('Escape').catch(() => {})
+  await page.waitForTimeout(150)
 }
 
 /** 进入指定页面并注入观察器；返回就绪选择器是否真的命中（白屏不许当"已普查"） */
-async function gotoPage(window: Page, hash: string, ready: string): Promise<boolean> {
-  await window.evaluate((h) => {
+async function gotoPage(page: Page, hash: string, ready: string): Promise<boolean> {
+  // 回调里的 window 是浏览器全局，不是这里的 Page —— 形参别再叫 window 才会遮蔽它（#107 第一族的尾巴）
+  await page.evaluate((h) => {
     window.location.hash = h
   }, hash)
-  const ok = await window
+  const ok = await page
     .waitForSelector(ready.split(',')[0].trim(), { timeout: 15000 })
     .then(() => true)
     .catch(() => false)
   // 等页面首屏请求/动画稳定，降低 DOM 噪声误判
-  await window.waitForTimeout(600)
-  await injectObserver(window)
+  await page.waitForTimeout(600)
+  await injectObserver(page)
   return ok
 }
 
@@ -214,7 +218,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
 
     while (rounds++ < MAX_BUTTONS_PER_PAGE) {
       const handles = await mainWin.locator('button:visible').elementHandles()
-      let btn: ElementHandle<HTMLButtonElement> | null = null
+      let btn: ElementHandle<Node> | null = null
       let label = ''
       for (const h of handles) {
         const id = await readLabel(h)

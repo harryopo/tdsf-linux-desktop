@@ -55,10 +55,18 @@ const TSCONFIG = 'tsconfig.tests.json'
  * catch(e) unknown 与报告缺键、pdf-exporter 的 printToPDF 形参、ui-tokens 的
  * split().pop()——都改成"一处收窄 + 说清为什么"。
  * 顺带抓到一次自伤：process.emit 摘下来直接调会丢 this，EventEmitter 读不到 _events，
- * 是那条用例把它红的（改 .call(process, ...)）。→ **51 条 / 34 个文件**。
+ * 是那条用例把它红的（改 .call(process, ...)）。→ 51 条 / 34 个文件；
+ * 第七族是"类型与数据不一致时有人用 as never 把话按住"，这类最贵：
+ * hostile-write-entry-gate 的形态表声明成 Array<[string, string]> 却每行三个元素，
+ * 结尾一个 as never ⇒ 循环里解出来的 secret 在类型上不存在，脱敏漏一整行也不会红；
+ * ai-stream-stability 的消息夹具 as never ⇒ compactIfNeeded 的入参形状对不对没人知道；
+ * risk-detector 断言 r.id === undefined，而 RiskItem 根本没有 id ⇒ 恒真，筛选项等于没筛；
+ * task-protocol 的 mock 表把 stepCleanup/stepReturnResult 写了两遍（后写覆盖前写）；
+ * button-truth-census / content-screenshot / wiring-verification 的辅助函数形参还叫 window，
+ * 把 #107 第一族的尾巴收掉。→ **38 条 / 27 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 51
+const CAP = 38
 
 const argv = process.argv.slice(2)
 let top = 6

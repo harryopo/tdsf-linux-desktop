@@ -196,7 +196,9 @@ describe('RiskDetector - 规则检测', () => {
   it('R01: whoami=ops 不触发 root 风险', () => {
     const items = [makeItem('users', 'whoami; id', 'ops\nuid=1000(ops)')]
     const risks = detectRisks({ items })
-    expect(risks.find((r) => r.id === undefined && r.title.includes('root'))).toBeUndefined()
+    // RiskItem 没有 id 字段（services/profiler/types.ts:74），原先那句 r.id === undefined 恒真，
+    // 筛选项等于没筛；按标题筛，判定的强度不降。
+    expect(risks.find((r) => r.title.includes('root'))).toBeUndefined()
   })
 
   it('R02: 内存 < 100MB 触发 high 等级', () => {

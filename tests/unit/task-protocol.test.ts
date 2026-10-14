@@ -123,8 +123,8 @@ vi.mock('../../src/main/core/agent/subagents/task-protocol-steps', () => {
     stepStreamOutput: mockedSteps.fns['stream-output'],
     stepCollectUsage: mockedSteps.fns['collect-usage'],
     stepValidateOutput: mockedSteps.fns['validate-output'],
-    stepCleanup: mockedSteps.stepCleanup,
-    stepReturnResult: mockedSteps.stepReturnResult,
+    // stepCleanup / stepReturnResult 在上面已经给过一次（同一个 mockedSteps 引用），
+    // 重复键是后写覆盖前写——留着等于给下一个改这个表的人埋坑。
   }
 })
 

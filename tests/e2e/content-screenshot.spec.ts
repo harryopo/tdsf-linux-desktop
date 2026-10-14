@@ -19,14 +19,15 @@ const testOrSkip = BUILD_READY ? test : test.skip
 const SHOT_DIR = path.join(__dirname, 'screenshots-content')
 fs.mkdirSync(SHOT_DIR, { recursive: true })
 
-async function gotoRoute(window: Page, hash: string, ready: string) {
-  await window.evaluate((h) => {
+async function gotoRoute(page: Page, hash: string, ready: string) {
+  // 回调里的 window 是浏览器全局；形参叫 window 会把它遮掉（#107 第一族的尾巴）
+  await page.evaluate((h: string) => {
     window.location.hash = h
   }, hash)
   // 原先这里挂了 .catch(() => {})：等待失败也当没事，于是"页面选择器写错了"
   // 会被静默吞掉，截图照样生成、用例照样绿 —— 测了等于没测。改成真失败。
-  await window.waitForSelector(ready, { timeout: 15000 })
-  await window.waitForTimeout(1500)
+  await page.waitForSelector(ready, { timeout: 15000 })
+  await page.waitForTimeout(1500)
 }
 
 testOrSkip('逐页截图 + 知识库真实内容断言', async () => {
