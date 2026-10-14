@@ -83,6 +83,31 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+  # ===== tests/ 类型硬零闸（#107 清零后由它守着）=====
+  typecheck-tests:
+    name: TypeScript (tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # tsconfig.node/web 的 include 都不含 tests/，npm run lint 只扫 src，
+      # 所以测试从来没有被类型检查过——2026-10-14 把存量 200 条按族削到 0，
+      # 这一条就是让它不再长回来的执行体（CAP=0，注入一条必红）。
+      - name: Type check (tests)
+        run: pnpm types:tests
+
   # ===== 单元测试 =====
   test:
     name: Vitest
