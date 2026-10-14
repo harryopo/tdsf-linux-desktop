@@ -63,7 +63,11 @@ export function buildAnalysisPrompt(problem: string, evidences: Evidence[]): str
         return `[证据 ${idx + 1}]
 - 来源: ${ev.source} (${ev.sourceDetail})
 - 内容: ${ev.content}
-- 模板匹配度: ${(ev.drainMatch * 100).toFixed(0)}%
+- 模板匹配度: ${
+  ev.drainMatch === null
+    ? '不适用（这类证据没有模板维度，可信度只按来源先验算）'
+    : `${(ev.drainMatch * 100).toFixed(0)}%`
+}
 - 来源可信度: ${(ev.sourcePrior * 100).toFixed(0)}%
 - 综合置信度: ${(ev.confidence * 100).toFixed(0)}%
 - 已验证: ${ev.verified ? '是' : '否'}`

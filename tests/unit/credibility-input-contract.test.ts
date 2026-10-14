@@ -145,6 +145,44 @@ describe('不许把常数当证据喂给融合', () => {
     expect(log!.fields.sourcePrior).toBeCloseTo(0.6, 5)
   })
 
+  it('#103：均值只按"真有模板匹配度"的那几条算，null 不许当成 0 计进分母', () => {
+    const inputs = buildChatInputs(
+      chatCtx({
+        evidences: [
+          evidence({ source: 'log', drainMatch: 0.8, sourcePrior: 0.6 }),
+          evidence({ source: 'log', drainMatch: null, sourcePrior: 0.6 }),
+        ],
+      })
+    )
+    const log = inputs.find((i) => i.sourceId === 'log')
+    expect(log).toBeDefined()
+    expect(
+      log!.fields.drainMatch,
+      '把 null 当 0 求平均会把 0.8 拉成 0.4 —— 那是量具自己造的偏差，不是证据变弱'
+    ).toBeCloseTo(0.8, 5)
+  })
+
+  it('#103：决策卡路径同样不拿 null 凑分母；一条测量值都没有就不送这个源', () => {
+    const mixed = buildCardInputs(
+      card({
+        evidences: [
+          evidence({ id: 'a', source: 'log', drainMatch: 0.6, sourcePrior: 0.6 }),
+          evidence({ id: 'b', source: 'log', drainMatch: null, sourcePrior: 0.6 }),
+        ],
+      }) as never
+    )
+    const log = mixed.find((i) => i.sourceId === 'log')
+    expect(log!.fields.drainMatch).toBeCloseTo(0.6, 5)
+
+    const none = buildCardInputs(
+      card({ evidences: [evidence({ id: 'c', source: 'log', drainMatch: null })] }) as never
+    )
+    expect(
+      none.find((i) => i.sourceId === 'log'),
+      '这一维一个都没有，就别凭空造一个 log 源喂进融合'
+    ).toBeUndefined()
+  })
+
   it('调用方给了真实自评分才送 ai-param，且不补没测到的 logprob/consistency', () => {
     const inputs = buildChatInputs(chatCtx({ llmVerbalized: 0.42 }))
     const ai = inputs.find((i) => i.sourceId === 'ai-param')

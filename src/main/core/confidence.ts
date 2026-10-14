@@ -1,7 +1,10 @@
 /**
  * 置信度计算模块
  *
- * 核心公式：confidence = 0.7 × drainMatch + 0.3 × sourcePrior
+ * 两条口径（同一条证据只走其中一条，见 calculateEvidenceConfidence）：
+ *   - 有模板匹配度：confidence = 0.7 × drainMatch + 0.3 × sourcePrior
+ *   - drainMatch = null（命令/指标这类结构化事实没有"像不像模板"这一维）：confidence = sourcePrior
+ * 第二行不是"少算一维就更不确定"，而是"那一维不存在就别编一个数填进去"。
  *
  * 来源先验可信度表：
  *   - log:       0.6（日志来源，可能截断或缺失上下文）
@@ -52,18 +55,38 @@ export function calculateConfidence(drainMatch: number, sourcePrior: number): nu
 
 /**
  * 为证据计算置信度并返回带置信度的证据副本
- * 会自动根据证据来源填充 sourcePrior，并重算 confidence
+ *
+ * 两条口径，取决于"模板匹配"这一维存不存在：
+ *   - 有匹配度（日志类）：confidence = 0.7 × drainMatch + 0.3 × sourcePrior
+ *   - 没有这一维（drainMatch = null，命令/指标这类结构化事实）：confidence = sourcePrior
+ *
+ * 为什么第二行不是"补个默认匹配度"：补出来的那个数（以前是写死的 0.8）会占掉公式里 70% 的权重，
+ * 于是界面上那条置信度大部分来自一个没人测过的常数。宁可少一维，不要假一维。
+ *
  * @param evidence - 原始证据（confidence 字段会被重算）
  * @returns 带有计算后置信度的新证据对象
  */
 export function calculateEvidenceConfidence(evidence: Evidence): Evidence {
   const prior = getSourcePrior(evidence.source)
-  const confidence = calculateConfidence(evidence.drainMatch, prior)
+  const confidence =
+    evidence.drainMatch === null ? clamp(prior) : calculateConfidence(evidence.drainMatch, prior)
   return {
     ...evidence,
     sourcePrior: prior,
     confidence
   }
+}
+
+/** 这条证据的置信度是按哪条口径算出来的（判据与界面文案都用它，别各处自己拼一套说法） */
+export type ConfidenceBasis = 'template-match' | 'source-prior'
+
+export function getConfidenceBasis(evidence: Evidence): ConfidenceBasis {
+  return evidence.drainMatch === null ? 'source-prior' : 'template-match'
+}
+
+export const CONFIDENCE_BASIS_TEXT: Record<ConfidenceBasis, string> = {
+  'template-match': '按日志模板匹配度算',
+  'source-prior': '这类证据没有模板维度，按来源先验算'
 }
 
 /**

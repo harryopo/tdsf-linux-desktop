@@ -8,10 +8,10 @@
  *
  * 映射规则（全部来自真实 toolEvents，不造假数据）：
  * - ssh_readonly    → source='command'：真实命令输出，先验可信度高
- * - kb_search       → source='knowledge'：检索命中与否决定置信度
- * - tutorial_search → source='knowledge'
- * - skill_match     → source='knowledge'
  * - monitor_get     → source='metric'
+ * - kb_search / tutorial_search / skill_match → source='knowledge'：检索命中与否决定置信度
+ * 命令与指标这两类**没有"日志模板匹配度"这一维**，drainMatch 一律留 null（#103）：
+ * 那一维不存在就别编一个数填进去，它占着公式里 0.7 的权重。
  */
 import type { AgentMessage, AgentToolCall } from '@/stores/agent-store'
 import type { HistorySaveIntent, Evidence } from '@shared/models'
@@ -21,6 +21,13 @@ function isEmptySearchOutput(output: string | undefined): boolean {
   if (!output) return true
   return /^未/.test(output.trim())
 }
+
+/**
+ * 工具调用没拿到结果时给的那一档置信度。
+ * 这是**策略位**（"这次根本没读到东西"的固定折扣），不是测量值——
+ * 和 #103 拆掉的那种"编一个模板匹配度填进公式"是两回事，别混用。
+ */
+const UNVERIFIED_FLOOR = 0.3
 
 /**
  * 把消息的真实工具执行轨迹转为 Evidence[]（供 6 源可信度评估 / 决策落库）
@@ -40,10 +47,13 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
           source: 'command' as const,
           sourceDetail: e.input ?? 'ssh_readonly',
           content: (e.output ?? '').slice(0, 500),
-          // 真实命令输出：模板匹配度不适用取中性；来源先验高（真机回显）
-          drainMatch: 0.5,
+          // 命令输出没有"像不像日志模板"这一维 ⇒ drainMatch 取 null。
+          // 原来这里写 0.5 当"中性"：那个数没人测过，却占掉公式里 0.7 那一维。
+          // 渲染层拿不到主进程那个纯函数（跨进程），所以先验/置信度按同一条口径写死在这里，
+          // 一致性由 tests/unit/chat-decision-evidence-shape.test.ts 对账主进程那张先验表。
+          drainMatch: null,
           sourcePrior: 0.9,
-          confidence: ok ? 0.9 : 0.3,
+          confidence: ok ? 0.9 : UNVERIFIED_FLOOR,
           timestamp: now,
           verified: ok,
         }
@@ -54,9 +64,11 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
           source: 'metric' as const,
           sourceDetail: 'monitor_get',
           content: (e.output ?? '').slice(0, 500),
-          drainMatch: 0.5,
-          sourcePrior: 0.85,
-          confidence: ok ? 0.85 : 0.3,
+          // 指标读数同样没有模板维度。顺带修一处口径分叉：这里原先写 sourcePrior 0.85，
+          // 而主进程先验表里 metric 是 0.8，两份数各说各话。
+          drainMatch: null,
+          sourcePrior: 0.8,
+          confidence: ok ? 0.8 : UNVERIFIED_FLOOR,
           timestamp: now,
           verified: ok,
         }
@@ -68,6 +80,8 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
         source: 'knowledge' as const,
         sourceDetail: `${e.toolName}: ${e.input ?? ''}`.slice(0, 120),
         content: (e.output ?? '').slice(0, 500),
+        // 这一档保留数值但说清它是什么：不是"日志模板匹配度"，而是"这次检索有没有回东西"
+        // 的两个档位，跟着一条真实观测变（命中 / 空返回），不是没人测过的常数。
         drainMatch: hasHits ? 0.8 : 0.2,
         sourcePrior: 0.75,
         confidence: hasHits ? 0.8 : 0.3,

@@ -71,16 +71,22 @@ function clamp01(v: number): number {
 
 /**
  * 从证据列表中过滤并取均值（NaN 安全）
+ *
+ * 只把"真有这个数"的条目计进分母：`drainMatch` 现在允许 null（命令/指标类没有模板维度），
+ * 按 0 计入等于凭空把该源的可信度拉低——那是量具自己造的偏差，不是证据弱。
+ * 一条都没有时返回 0，由调用方决定送不送这个源。
  */
 function avgByField(
   evidences: Evidence[],
   predicate: (e: Evidence) => boolean,
   field: keyof Evidence
 ): number {
-  const matched = evidences.filter(predicate)
-  if (matched.length === 0) return 0
-  const sum = matched.reduce((acc, e) => acc + (Number(e[field]) || 0), 0)
-  return sum / matched.length
+  const values = evidences
+    .filter(predicate)
+    .map((e) => e[field])
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  if (values.length === 0) return 0
+  return values.reduce((acc, v) => acc + v, 0) / values.length
 }
 
 /**

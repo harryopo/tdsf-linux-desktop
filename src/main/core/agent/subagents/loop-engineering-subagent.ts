@@ -57,7 +57,7 @@ import type { ChatMessage } from '../../../../shared/models'
 import { getDiagnosticsService } from '../../../services/diagnostics/diagnostics-service'
 import type { LogSource, LogLevel } from '../../../services/diagnostics/types'
 import type { ThinkingStrength } from '../providers/types'
-import { getSourcePrior } from '../../confidence'
+import { calculateEvidenceConfidence, getSourcePrior } from '../../confidence'
 import { analyzeByRules } from '../../rule-engine'
 import { classifyLlmError } from '../providers/llm-error'
 
@@ -174,18 +174,22 @@ class LlmEvidenceCollector implements EvidenceCollector {
     const now = Date.now()
 
     // 将环境信息转化为证据条目
+    // 命令输出没有"模板匹配"这一维 ⇒ drainMatch 留 null，先验与置信度交给
+    // calculateEvidenceConfidence 现算（原来这里写死 0.8/0.9，等于让一个常数占掉公式 70% 的权重）。
     for (const [cmd, output] of Object.entries(envInfo)) {
-      evidences.push({
-        id: `ev_${now}_${Math.random().toString(36).slice(2, 8)}`,
-        source: 'command',
-        sourceDetail: cmd,
-        content: output,
-        drainMatch: 0.8,
-        sourcePrior: 0.9,
-        confidence: 0.8,
-        timestamp: now,
-        verified: true,
-      })
+      evidences.push(
+        calculateEvidenceConfidence({
+          id: `ev_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          source: 'command',
+          sourceDetail: cmd,
+          content: output,
+          drainMatch: null,
+          sourcePrior: 0,
+          confidence: 0,
+          timestamp: now,
+          verified: true,
+        })
+      )
     }
 
     // 尝试用 LLM 分析问题，生成额外的诊断证据

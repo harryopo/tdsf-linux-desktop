@@ -29,7 +29,7 @@ import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
 import { readApproval } from '../core/security/approval'
-import { getSourcePrior } from '../core/confidence'
+import { calculateEvidenceConfidence, getSourcePrior } from '../core/confidence'
 import type { Evidence } from '@shared/models'
 
 /** Agent 步骤推送通道名 */
@@ -90,18 +90,23 @@ class LlmEvidenceCollector implements EvidenceCollector {
     const now = Date.now()
 
     // 将环境信息转化为证据条目
+    // 命令输出没有"模板匹配"这一维 ⇒ drainMatch 留 null；sourcePrior/confidence 一律由
+    // calculateEvidenceConfidence 现算，别在这里再抄一份数字（以前写死 0.8/0.9，
+    // 于是那条置信度七成来自一个没人测过的常数）。
     for (const [cmd, output] of Object.entries(envInfo)) {
-      evidences.push({
-        id: `ev_${now}_${Math.random().toString(36).slice(2, 8)}`,
-        source: 'command',
-        sourceDetail: cmd,
-        content: output,
-        drainMatch: 0.8,
-        sourcePrior: 0.9,
-        confidence: 0.8,
-        timestamp: now,
-        verified: true
-      })
+      evidences.push(
+        calculateEvidenceConfidence({
+          id: `ev_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          source: 'command',
+          sourceDetail: cmd,
+          content: output,
+          drainMatch: null,
+          sourcePrior: 0,
+          confidence: 0,
+          timestamp: now,
+          verified: true
+        })
+      )
     }
 
     // 尝试用 LLM 分析问题，生成额外的诊断证据

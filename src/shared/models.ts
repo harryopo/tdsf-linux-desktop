@@ -384,8 +384,15 @@ export interface Evidence {
   sourceDetail: string
   /** 证据内容 */
   content: string
-  /** Drain3 模板匹配度 [0, 1] */
-  drainMatch: number
+  /**
+   * Drain3 模板匹配度 [0, 1]；**null = 这条证据没有"模板匹配"这个维度**
+   *
+   * 只有日志类证据能被拿去和 Drain3 模板比。命令输出、指标读数本身就是结构化事实，
+   * 没有"像不像某个模板"可言——以前这里填 0.8（写死的默认值），等于把一个编造的数字
+   * 混进 `0.7×匹配 + 0.3×先验` 的公式里，界面上那条置信度看不出它是假的。
+   * 现在按 null 走：没有的那一维不补数，置信度只认来源先验（见 core/confidence.ts）。
+   */
+  drainMatch: number | null
   /** 来源先验可信度 [0, 1] */
   sourcePrior: number
   /** 置信度 [0, 1]（计算得出） */

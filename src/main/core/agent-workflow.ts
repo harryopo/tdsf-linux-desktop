@@ -643,14 +643,16 @@ export class AgentWorkflow extends EventEmitter {
    *   - 结构匹配（模板化后相同）但参数不同 → 0.7
    *   - 无匹配（新型日志）→ 0.3，标记"待补充模板"
    *
-   * 之后用公式 confidence = 0.7×drainMatch + 0.3×sourcePrior 重算置信度。
+   * 之后重算置信度：日志类走 confidence = 0.7×drainMatch + 0.3×sourcePrior；
+   * 没有模板维度那一类（drainMatch=null，命令/指标）只认 sourcePrior。
    */
   private enrichEvidencesWithDrain(evidences: Evidence[], templates: LogTemplate[]): Evidence[] {
     return evidences.map((evidence) => {
-      // 仅对日志类证据计算 Drain3 匹配度；命令/指标输出本身就是结构化数据
-      const drainMatch = evidence.source === 'log'
-        ? this.computeDrainMatchScore(evidence.content, templates)
-        : evidence.drainMatch > 0 ? evidence.drainMatch : 0.8 // 非日志证据默认高匹配
+      // 只有日志类证据能算"像不像某个模板"。命令/指标输出是结构化事实，没有这一维 ⇒ 保持 null，
+      // 由 calculateEvidenceConfidence 走"只认来源先验"那条口径。
+      // （原来这里给非日志证据补 0.8 当"默认高匹配"，等于让一个编造的常数占掉公式 70% 的权重。）
+      const drainMatch =
+        evidence.source === 'log' ? this.computeDrainMatchScore(evidence.content, templates) : evidence.drainMatch
       // 用统一公式重算置信度
       return calculateEvidenceConfidence({ ...evidence, drainMatch })
     })

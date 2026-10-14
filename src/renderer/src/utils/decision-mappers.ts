@@ -419,10 +419,16 @@ export function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceI
   // hasAnnotations(boolean)，于是 credibility:assess 每次必抛，
   // DecisionDetailPage 的 catch 把它吞成"这张卡没有可信度分析"——用户永远看不到 D-S 结果。
   if (hasLog) {
-    const logEvs = card.evidences.filter(e => e.source === 'log')
-    const avgDrain = logEvs.reduce((s, e) => s + e.drainMatch, 0) / logEvs.length
-    const avgPrior = logEvs.reduce((s, e) => s + e.sourcePrior, 0) / logEvs.length
-    inputs.push({ sourceId: 'log', fields: { drainMatch: avgDrain, sourcePrior: avgPrior } })
+    // 只按"真有模板匹配度"的那几条求均值：这一维不存在时 drainMatch 是 null，
+    // 当成 0 计进均值等于凭空把日志源的可信度拉低。一条都没有就不送这个源（不编数）。
+    const scored = card.evidences.filter(
+      (e): e is typeof e & { drainMatch: number } => e.source === 'log' && e.drainMatch !== null
+    )
+    if (scored.length > 0) {
+      const avgDrain = scored.reduce((s, e) => s + e.drainMatch, 0) / scored.length
+      const avgPrior = scored.reduce((s, e) => s + e.sourcePrior, 0) / scored.length
+      inputs.push({ sourceId: 'log', fields: { drainMatch: avgDrain, sourcePrior: avgPrior } })
+    }
   }
   if (hasKb) {
     const kbEvs = card.evidences.filter(e => e.source === 'knowledge')
