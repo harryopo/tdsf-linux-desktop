@@ -48,10 +48,17 @@ const TSCONFIG = 'tsconfig.tests.json'
  * null，null 参与 > 比较会被强转成 0，判据静默空过；ai-chat-live 用了没 import 的
  * e2eProfileDir，一旦有真 Key 开跑就是 ReferenceError；
  * 另一类是越界枚举值（mode: 'deep' 不在 AgentMode 里）。都按真实类型收窄或补齐，
- * 不靠 ! 和 as → **78 条 / 39 个文件**。
+ * 不靠 ! 和 as → 78 条 / 39 个文件；
+ * 第六族继续清"mock/夹具的签名"：crash-guard 把 exit spy 存进
+ * ReturnType<typeof vi.spyOn>（退化成 unknown 参数，七个用例赋值全对不上）、
+ * db-native 的 Module._load（Node 真钩子，@types/node 没声明）、design-contract 的
+ * catch(e) unknown 与报告缺键、pdf-exporter 的 printToPDF 形参、ui-tokens 的
+ * split().pop()——都改成"一处收窄 + 说清为什么"。
+ * 顺带抓到一次自伤：process.emit 摘下来直接调会丢 this，EventEmitter 读不到 _events，
+ * 是那条用例把它红的（改 .call(process, ...)）。→ **51 条 / 34 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 78
+const CAP = 51
 
 const argv = process.argv.slice(2)
 let top = 6

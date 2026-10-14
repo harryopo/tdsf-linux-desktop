@@ -7,7 +7,7 @@
  *
  * 另外三条是这个兜底自己的规矩：只弹一次、Promise 拒绝不弹窗、卸载要摘干净监听。
  */
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, type MockInstance } from 'vitest'
 
 vi.mock('electron', () => ({
   dialog: { showErrorBox: vi.fn() },
@@ -24,12 +24,18 @@ function emitException(err: Error): void {
 }
 
 function emitRejection(reason: unknown): void {
-  process.emit('unhandledRejection', reason as never)
+  // Node 的 process.emit 重载按事件名收窄，unknown 的 reason 对不上任何一条签名。
+  // 只在签名上 cast，并且用 .call(process, ...) 保住 this——把方法摘出来直接调，
+  // EventEmitter 读不到自己的 _events，这条用例会在伪造事件那一步炸掉（实测踩过）。
+  const emit = process.emit as (event: string, ...args: unknown[]) => boolean
+  emit.call(process, 'unhandledRejection', reason)
 }
 
 describe('主进程崩溃兜底', () => {
   let handle: CrashGuardHandle | null = null
-  let exitSpy: ReturnType<typeof vi.spyOn>
+  // 类型跟着真签名走：写成 ReturnType<typeof vi.spyOn> 会退化成 unknown 参数，
+  // 七个用例里赋进去的 exit spy 全都对不上。
+  let exitSpy: MockInstance<typeof process.exit>
 
   afterEach(() => {
     handle?.dispose()

@@ -19,20 +19,35 @@ function runContract(env?: NodeJS.ProcessEnv) {
   try {
     const out = execFileSync(process.execPath, [SCRIPT, '--json'], { cwd: ROOT, encoding: 'utf8', env })
     return { code: 0, json: parseJson(out, 'stdout'), raw: out }
-  } catch (e) {
+  } catch (err) {
     // 闸崩掉时 stdout 往往不是 JSON（旧实现里 grep 不在 PATH 就是这样）。
     // 直接把原始输出放进断言消息，别用 '{}' 兜底把真因盖成 "problems undefined"。
+    // execFileSync 非零退出抛的是带 stdout/status/stderr 的 NodeError，但声明是 unknown，
+    // 这里给一个最小形状（三处取值共用这一次收窄）。
+    const e = err as { stdout?: string; stderr?: string; status?: number }
     const out = e.stdout || ''
     return { code: e.status ?? 1, json: parseJson(out, 'stdout'), raw: out, stderr: e.stderr || '' }
   }
 }
 
-function parseJson(out: string, label: string): { problems?: string[]; notes?: string[] } {
+interface ContractReport {
+  problems: string[]
+  notes: string[]
+}
+
+function parseJson(out: string, label: string): ContractReport {
+  let parsed: unknown
   try {
-    return JSON.parse(out)
+    parsed = JSON.parse(out)
   } catch {
     throw new Error(`设计闸的 --json 输出不是 JSON（${label} 前 400 字）：\n${out.slice(0, 400)}`)
   }
+  // 缺键=闸坏了，宁可在这里红，也不要让后面的 .length 拿到 undefined
+  const { problems, notes } = parsed as { problems?: unknown; notes?: unknown }
+  if (!Array.isArray(problems) || !Array.isArray(notes)) {
+    throw new Error(`闸没返回 problems/notes 数组，输出：\n${out.slice(0, 400)}`)
+  }
+  return { problems: problems as string[], notes: notes as string[] }
 }
 
 describe('设计契约（DESIGN.md 与代码同源）', () => {

@@ -13,9 +13,14 @@ import { describe, it, expect, afterAll, afterEach } from 'vitest'
 import Module from 'node:module'
 import { DatabaseManager } from '../../src/main/services/db/database'
 
-const origLoad = Module._load as (request: string, parent: unknown, isMain: boolean) => unknown
+type LoadFn = (request: string, parent: unknown, isMain: boolean) => unknown
+// Module._load 是真存在的 CJS require 钩子，但 @types/node 没声明它。
+// 集中在这一处给一个最小形状（带一次 cast），比在三处各写 as any 好查。
+const loader = Module as unknown as { _load: LoadFn }
+
+const origLoad = loader._load
 let armed = false
-Module._load = function patched(this: unknown, request: string, parent: unknown, isMain: boolean): unknown {
+loader._load = function patched(this: unknown, request: string, parent: unknown, isMain: boolean): unknown {
   if (armed && request === 'better-sqlite3') {
     throw new Error('NODE_MODULE_VERSION 125 vs 137（测试打桩：模拟 ABI 不匹配）')
   }
@@ -23,7 +28,7 @@ Module._load = function patched(this: unknown, request: string, parent: unknown,
 }
 
 afterAll(() => {
-  Module._load = origLoad
+  loader._load = origLoad
 })
 afterEach(() => {
   armed = false

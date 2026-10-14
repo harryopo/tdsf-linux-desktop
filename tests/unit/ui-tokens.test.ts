@@ -16,6 +16,9 @@ const ROOT = path.resolve(__dirname, '../..')
 const TOKENS_FILE = path.join(ROOT, 'src/renderer/src/styles/ui-tokens.css')
 const src = fs.readFileSync(TOKENS_FILE, 'utf8')
 
+/** 相对仓库根、正斜杠的报告用路径（写成 split().pop() 的话 TS 说可能是 undefined） */
+const rel = (p: string): string => p.slice(ROOT.length).replace(/\\/g, '/')
+
 /** 去掉注释，避免把注释里的示例值当成声明 */
 const code = src.replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -217,7 +220,7 @@ describe('字阶单源（阶段 E6）', () => {
   it('组件里不许再出现绕过字阶的 text-[Npx]', () => {
     const hits = tsxFiles(RENDERER)
       .filter((f) => /text-\[[0-9.]+px\]/.test(fs.readFileSync(f, 'utf8')))
-      .map((f) => f.split(ROOT).pop().replace(/\\/g, '/'))
+      .map(rel)
     expect(hits.length, `这些文件还在写死字号：\n${hits.join('\n')}`).toBe(0)
   })
 
@@ -235,7 +238,7 @@ describe('字阶单源（阶段 E6）', () => {
         if (!RAW.test(line)) return
         // 图标那一行必带 size-N（图形按 3:1 判），只有文字行才要求 *-text
         if (/\bsize-\d/.test(line)) return
-        hits.push(`${f.split(ROOT).pop().replace(/\\/g, '/')}:${i + 1}  ${line.trim().slice(0, 90)}`)
+        hits.push(`${rel(f)}:${i + 1}  ${line.trim().slice(0, 90)}`)
       })
     }
     expect(hits, `这些可见文字用的裸状态色达不到 AA：\n${hits.join('\n')}`).toEqual([])
@@ -244,7 +247,7 @@ describe('字阶单源（阶段 E6）', () => {
   it('页面不许自写标题栏：h1 只能出自 ui/PageHeader（BootPage 的字标除外）', () => {    const hits = tsxFiles(path.join(RENDERER, 'pages'))
       .filter((f) => !f.endsWith('BootPage.tsx'))
       .filter((f) => /<h1[\s>]/.test(fs.readFileSync(f, 'utf8')))
-      .map((f) => f.split(ROOT).pop().replace(/\\/g, '/'))
+      .map(rel)
     expect(
       hits.length,
       `这些页面还在自写 <h1>，改用 <PageHeader>：\n${hits.join('\n')}`

@@ -9,10 +9,18 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// printToPDF 的入参形状：mock 里声明出来，calls[0][0] 才是有类型的对象，
+// 下面 opts.pageSize / opts.margins 这些断言才真的对着"产品传了什么参数"检查。
+type PdfPrintOptions = {
+  pageSize?: string
+  printBackground?: boolean
+  margins?: { top: number; bottom: number; left: number; right: number }
+}
+
 // 用 vi.hoisted 让 mock 在 import 之前生效
 const { mockLoadURL, mockPrintToPDF, mockDestroy, mockIsDestroyed } = vi.hoisted(() => ({
-  mockLoadURL: vi.fn(async () => undefined),
-  mockPrintToPDF: vi.fn(async () => Buffer.from('PDF-BINARY-CONTENT')),
+  mockLoadURL: vi.fn(async (_url: string) => undefined),
+  mockPrintToPDF: vi.fn(async (_opts: PdfPrintOptions) => Buffer.from('PDF-BINARY-CONTENT')),
   mockDestroy: vi.fn(),
   mockIsDestroyed: vi.fn(() => false)
 }))
