@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import ConnectDialog from '@/components/layout/ConnectDialog'
-import type { SshConfig } from '@shared/models'
+import type { ServerListItem, SshConfig } from '@shared/models'
 
 function open(props: Partial<React.ComponentProps<typeof ConnectDialog>> = {}) {
   const onSave = vi.fn()
@@ -102,14 +102,17 @@ describe('ConnectDialog', () => {
   })
 
   it('编辑模式回填并沿用原 id；勾了跳板机才带 jumpHost', () => {
-    const server: SshConfig = {
+    // 夹具按契约类型造：ServerListItem 有意 Omit 掉 password/privateKey/passphrase
+    // （凭据不进渲染层，见 shared/models.ts:63），原先这里塞 password: 'old'
+    // 测的是产品根本拿不到的形状；本用例也没断言口令回填。
+    const server: ServerListItem = {
       id: 'server_existing',
       name: '老机器',
       host: '10.0.0.1',
       port: 2222,
       username: 'ops',
       authType: 'password',
-      password: 'old',
+      hasCredential: true,
     }
     const { onSave } = open({ server })
     expect((field('端口')).value).toBe('2222')

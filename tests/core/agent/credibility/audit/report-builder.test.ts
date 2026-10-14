@@ -51,6 +51,9 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
       decisionId: 'card-001',
       decisionTitle: 'Nginx 502 故障排查',
       decisionTime: 1700000000000,
+      // 必填：formatters.ts:188 把它直接印进报告表格，
+      // 少一个字段就是"决策时间 | undefined"（IPC 侧由 credibility.ts:644 现算）
+      decisionTimeIso: new Date(1700000000000).toISOString(),
       provider: 'DeepSeek',
       modelVersion: 'deepseek-chat',
       deployer: '运维团队',
@@ -251,6 +254,7 @@ describe('audit/report-builder — 报告构建', () => {
         decisionId: 'card-min',
         decisionTitle: 'Minimal',
         decisionTime: 1700000000000,
+        decisionTimeIso: new Date(1700000000000).toISOString(),
         provider: 'Claude',
         modelVersion: 'claude-sonnet-4',
         deployer: 'dev',

@@ -8,9 +8,12 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
-function Boom() {
+// 标成 ReactNode：函数只 throw 时推断出的返回类型是 never，
+// React 19 的类型不接受 never 当 JSX 组件返回（TS2786），标出来就好。
+function Boom(): ReactNode {
   throw new Error('渲染炸了')
 }
 

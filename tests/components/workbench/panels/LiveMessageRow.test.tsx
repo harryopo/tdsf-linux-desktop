@@ -196,6 +196,10 @@ describe('LiveMessageRow — assistant 消息', () => {
             },
             waitingForConfirmation: false,
             decisionCard: null,
+            // 这两个是 AgentWorkflowState 的必填项（useLoopEngineering.ts:60），
+            // 少一个就不是"真的造出一条运行中的工作流"
+            error: null,
+            timestamp: 1700000000000,
           },
         })}
         onNavigate={onNavigate}

@@ -7,10 +7,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { ModelConfigSection } from '@renderer/components/settings/model/ModelConfigSection'
+import { ModelConfigSection, type ModelConfigSectionProps } from '@renderer/components/settings/model/ModelConfigSection'
 
-function renderSection(overrides: Record<string, unknown> = {}) {
-  const props = {
+// 原先是 Record<string, unknown> 再 {...(props as never)} 摊进 JSX：
+// 组件的 props 换名或加必填项，这份夹具不会红，测试照旧画出一截界面而已。
+function renderSection(overrides: Partial<ModelConfigSectionProps> = {}) {
+  const props: ModelConfigSectionProps = {
     selectedModel: 'deepseek-chat',
     onSelectModel: vi.fn(),
     temperature: 0.3,
@@ -25,7 +27,7 @@ function renderSection(overrides: Record<string, unknown> = {}) {
     onContextWindowChange: vi.fn(),
     ...overrides,
   }
-  render(<ModelConfigSection {...(props as never)} />)
+  render(<ModelConfigSection {...props} />)
   return props
 }
 

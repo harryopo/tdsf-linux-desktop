@@ -71,7 +71,9 @@ describe('ContextMenu', () => {
 
 function TipHost({ content }: { content: string }) {
   return (
-    <TooltipProvider delayDuration={0}>
+    // TooltipProvider 不接 delayDuration（overlay.tsx:16 只收 children，内部固定 400ms），
+    // 原先写在这儿的这个 prop 一直被忽略——留着它就是"配置了但其实没配"。
+    <TooltipProvider>
       <Tooltip content={content}>
         <button type="button">分析</button>
       </Tooltip>

@@ -63,10 +63,16 @@ const TSCONFIG = 'tsconfig.tests.json'
  * risk-detector 断言 r.id === undefined，而 RiskItem 根本没有 id ⇒ 恒真，筛选项等于没筛；
  * task-protocol 的 mock 表把 stepCleanup/stepReturnResult 写了两遍（后写覆盖前写）；
  * button-truth-census / content-screenshot / wiring-verification 的辅助函数形参还叫 window，
- * 把 #107 第一族的尾巴收掉。→ **38 条 / 27 个文件**。
+ * 把 #107 第一族的尾巴收掉。→ 38 条 / 27 个文件；
+ * 第八族是组件夹具跟不上 props 类型：ModelConfigSection 的 props 靠 as never 摊开、
+ * ConnectDialog 的夹具还给 server 带 password（ServerListItem 有意 Omit 掉凭据）、
+ * TooltipProvider 被写了一个它根本不接的 delayDuration（写了等于没写）、
+ * LiveMessageRow 的 stepState 少两个必填项、审计夹具少 decisionTimeIso
+ * ——那一项会被直接印进报告表格，缺了就是"决策时间 | undefined"。
+ * → **30 条 / 21 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 38
+const CAP = 30
 
 const argv = process.argv.slice(2)
 let top = 6
