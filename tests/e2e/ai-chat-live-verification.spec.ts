@@ -48,11 +48,11 @@ testOrSkip('AI 对话真实流式：发送极短消息，真实回复必须流�
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
-  const window = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
+  const mainWin = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
 
   // 1. 把真实 Key 存进内置 deepseek-v4 Provider 并设为默认（走真实 IPC）
-  const saved = await window.evaluate(async (cred) => {
+  const saved = await mainWin.evaluate(async (cred) => {
     const api = (window as unknown as {
       electronAPI: {
         providerSave: (c: unknown) => Promise<boolean>
@@ -79,7 +79,7 @@ testOrSkip('AI 对话真实流式：发送极短消息，真实回复必须流�
   expect(saved.setOk, 'providerSetDefault 应成功').toBe(true)
 
   // 2. 发送 1 条极短消息，收集流式 chunk（只调 1 次 API）
-  const result = await window.evaluate(async () => {
+  const result = await mainWin.evaluate(async () => {
     const api = (window as unknown as {
       electronAPI: {
         agentChat: (msgs: unknown[], providerId?: string) => Promise<string>
@@ -132,12 +132,12 @@ testOrSkip('AI 对话真实流式：发送极短消息，真实回复必须流�
   expect(result.streamedText, '真实回复应包含答案 2').toContain('2')
 
   // 3. 进工作台看消息是否真实上屏，截图留证
-  await window.evaluate(() => {
+  await mainWin.evaluate(() => {
     window.location.hash = '#/workbench'
   })
-  await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-  await window.waitForTimeout(1500)
-  await window.screenshot({ path: path.join(SHOT_DIR, 'ai-chat-live.png'), fullPage: true })
+  await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
+  await mainWin.waitForTimeout(1500)
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'ai-chat-live.png'), fullPage: true })
 
   await app.close()
 })

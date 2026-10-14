@@ -53,11 +53,11 @@ testOrSkip('UI 发送诊断消息 → 真实 ssh_readonly 调用 → 执行卡�
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
-  const window: Page = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
+  const mainWin: Page = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
 
   // 1. 配置 Provider + 连 SSH + 写 server-store（复刻真实用户"连接成功"后的完整状态）
-  const sessionId = await window.evaluate(
+  const sessionId = await mainWin.evaluate(
     async ({ ai, ssh }) => {
       const api = (window as unknown as {
         electronAPI: {
@@ -132,13 +132,13 @@ testOrSkip('UI 发送诊断消息 → 真实 ssh_readonly 调用 → 执行卡�
   expect(sessionId, 'SSH 应连接成功').toBeTruthy()
 
   // 2. 进工作台，打开 AI 面板
-  await window.evaluate(() => {
+  await mainWin.evaluate(() => {
     window.location.hash = '#/workbench'
   })
-  await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-  const composer = window.locator('#ai-composer-input')
+  await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
+  const composer = mainWin.locator('#ai-composer-input')
   if (!(await composer.isVisible().catch(() => false))) {
-    await window.locator('[data-dom-id="btn-toggle-ai"]').click()
+    await mainWin.locator('[data-dom-id="btn-toggle-ai"]').click()
     await composer.waitFor({ state: 'visible', timeout: 5000 })
   }
 
@@ -147,17 +147,17 @@ testOrSkip('UI 发送诊断消息 → 真实 ssh_readonly 调用 → 执行卡�
   await composer.press('Enter')
 
   // 发送后应立即出现用户消息（确认 send 真的触发，未被 Provider 守卫拦截）
-  await expect(window.locator('.ai-msg-user').first(), '用户消息应上屏（send 已触发）').toBeVisible({
+  await expect(mainWin.locator('.ai-msg-user').first(), '用户消息应上屏（send 已触发）').toBeVisible({
     timeout: 5000,
   })
 
   // 4. 等真实工具执行卡片出现（真 LLM + SSH 往返，给足时间）
-  const card = window.locator('.ai-tool-exec', { hasText: '只读诊断命令' }).first()
+  const card = mainWin.locator('.ai-tool-exec', { hasText: '只读诊断命令' }).first()
   await expect(card, '真实对话里应渲染 ssh_readonly 执行卡片').toBeVisible({ timeout: 120_000 })
   await expect(card).toContainText('df')
 
   // 5. 截图留证（工具卡片真实出现在对话流中）
-  await window.screenshot({ path: path.join(SHOT_DIR, 'tool-card-in-conversation.png'), fullPage: true })
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'tool-card-in-conversation.png'), fullPage: true })
 
   await app.close()
 })

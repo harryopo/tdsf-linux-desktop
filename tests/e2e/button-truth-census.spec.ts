@@ -191,8 +191,8 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
-  const window = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
+  const mainWin = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
 
   const results: ButtonResult[] = []
   // 全局去重：侧边导航/标题栏等公共按钮在每页都出现，只普查一次，
@@ -200,7 +200,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   const seenGlobal = new Set<string>()
 
   for (const pageDef of PAGES) {
-    const ready = await gotoPage(window, pageDef.hash, pageDef.ready)
+    const ready = await gotoPage(mainWin, pageDef.hash, pageDef.ready)
     expect(ready, `${pageDef.name} 就绪选择器 ${pageDef.ready} 未命中（白屏或选择器已过期）`).toBe(
       true,
     )
@@ -213,7 +213,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
     let rounds = 0
 
     while (rounds++ < MAX_BUTTONS_PER_PAGE) {
-      const handles = await window.locator('button:visible').elementHandles()
+      const handles = await mainWin.locator('button:visible').elementHandles()
       let btn: ElementHandle<HTMLButtonElement> | null = null
       let label = ''
       for (const h of handles) {
@@ -252,8 +252,8 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       }
 
       // ==== 点击前快照 → 点击 → 500ms → 点击后快照 ====
-      await window.waitForTimeout(120) // 静置，clear 噪声
-      const before = await snapshot(window)
+      await mainWin.waitForTimeout(120) // 静置，clear 噪声
+      const before = await snapshot(mainWin)
 
       // 点不下去先清现场再重试一次：全量跑时同机负载会把 Playwright 的可操作性等待
       // 顶过 2 秒（实测单跑 0 个、全量跑 9 个"点不下去"，且都是同一批按钮）。
@@ -263,8 +263,8 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
         .then(() => true)
         .catch(() => false)
       if (!clicked) {
-        await closeOverlays(window)
-        await window.waitForTimeout(200)
+        await closeOverlays(mainWin)
+        await mainWin.waitForTimeout(200)
         clicked = await btn
           .click({ timeout: 2000 })
           .then(() => true)
@@ -278,11 +278,11 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       // 看出反应为止，最多再等 2.5 秒。固定 500ms 窗口在并行跑（同机 6 个 Electron 实例抢 CPU）下
       // 会把"慢半拍的真反应"报成假按钮：全量跑一次报出 16 个点不下去，单跑同样的按钮 0 个。
       // 判据本身没放松——真没反应的按钮等满 2.5 秒照样是 none。
-      let after = await snapshot(window)
+      let after = await snapshot(mainWin)
       for (let waited = 0; waited < 2500; waited += 150) {
         if (after.hash !== before.hash || after.mut > before.mut) break
-        await window.waitForTimeout(150)
-        after = await snapshot(window)
+        await mainWin.waitForTimeout(150)
+        after = await snapshot(mainWin)
       }
 
       // 焦点信号只认"焦点被交给了别的元素"。点任何按钮都会把焦点落在这个按钮自身上，
@@ -318,9 +318,9 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
 
       // 清理现场：每个按钮都从干净页面测起，否则上一个按钮留下的遮罩会连锁误报；
       // 若路由跳走则回到普查页面
-      await closeOverlays(window)
+      await closeOverlays(mainWin)
       if (after.hash !== before.hash) {
-        await gotoPage(window, pageDef.hash, pageDef.ready)
+        await gotoPage(mainWin, pageDef.hash, pageDef.ready)
       }
     }
 

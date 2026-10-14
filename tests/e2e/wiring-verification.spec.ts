@@ -35,9 +35,9 @@ async function launchApp() {
       TDSF_E2E: '1',
     },
   })
-  const window = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
-  return { app, window }
+  const mainWin = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
+  return { app, mainWin }
 }
 
 /** 跳过 BootPage 直接进入指定 hash 路由 */
@@ -55,7 +55,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // T1. preload 契约运行时抽查
   // ==========================================================
   testOrSkip('T1: P0/P1 修复的 preload 方法运行时存在且 invoke 可达', async () => {
-    const { app, window } = await launchApp()
+    const { app, mainWin } = await launchApp()
 
     // 1a. 方法存在性：拿静态快照闸那份名单（264 条）逐个真验，不再抽查 12 条。
     //     2026-10-07 那次 zod 被 external 进 sandbox 的 preload，整个桥挂掉、window.electronAPI 是 undefined；
@@ -66,7 +66,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean)
-    const runtime = await window.evaluate(() => {
+    const runtime = await mainWin.evaluate(() => {
       const api = (window as unknown as { electronAPI?: Record<string, unknown> }).electronAPI
       if (!api) return []
       return Object.keys(api).filter((k) => typeof api[k] === 'function')
@@ -78,7 +78,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     expect(runtime.length, `运行时方法数应与快照一致（${snapshot.length}）`).toBe(snapshot.length)
 
     // 1b. invoke 真实可达（曾经 preload 定义了但 main 没注册 → invoke reject）
-    const results = await window.evaluate(async () => {
+    const results = await mainWin.evaluate(async () => {
       const api = (window as unknown as {
         electronAPI: {
           mcpGetState: () => Promise<unknown>
@@ -118,9 +118,9 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // T2. Agent 全链路事件回流（无 API Key 场景）
   // ==========================================================
   testOrSkip('T2: agentChat 发出后事件必须回流（无 Key 时 error 也必须回来）', async () => {
-    const { app, window } = await launchApp()
+    const { app, mainWin } = await launchApp()
 
-    const result = await window.evaluate(async () => {
+    const result = await mainWin.evaluate(async () => {
       const api = (window as unknown as {
         electronAPI: {
           agentChat: (msgs: unknown[]) => Promise<string>
@@ -167,14 +167,14 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // T3. AIPanel 发送按钮有真实响应（错误必须上屏）
   // ==========================================================
   testOrSkip('T3: 工作台发送消息必有可见反馈（无 Key 时提示上屏，不许静默）', async () => {
-    const { app, window } = await launchApp()
-    await gotoRoute(window, '#/workbench')
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    const { app, mainWin } = await launchApp()
+    await gotoRoute(mainWin, '#/workbench')
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
     // AIPanel 默认展开；不在则点标题栏 AI 按钮
-    const composer = window.locator('#ai-composer-input')
+    const composer = mainWin.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
-      await window.locator('[data-dom-id="btn-toggle-ai"]').click()
+      await mainWin.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
     }
 
@@ -185,7 +185,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     // 必须出现可见反馈之一（5 秒内）：
     // a) sonner 提示（未配置 API Key 等前置拦截；旧版这里等的是 antd message，antd 已退场）
     // b) 消息列表里出现刚发出去的那句话（已配 Key 时走真实发送）
-    const feedback = window.locator(`[data-sonner-toast], :text("${sent}")`)
+    const feedback = mainWin.locator(`[data-sonner-toast], :text("${sent}")`)
     await expect(feedback.first(), '发送后 5 秒内必须有可见反馈（提示或消息上屏），静默=死按钮').toBeVisible({
       timeout: 5000,
     })
@@ -197,33 +197,33 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // T4. 假 UI 回归断言（已删除的假内容不得复活）
   // ==========================================================
   testOrSkip('T4: 假服务器/假告警/假AI检索/死按钮 不得复活', async () => {
-    const { app, window } = await launchApp()
+    const { app, mainWin } = await launchApp()
 
     // 4a. MonitorPage：无硬编码假服务器、无 DEV 假告警
     //     （旧版等的 .mon-main 随阶段 F 改版消失了，改成全站统一的 page-title 钩子）
-    await gotoRoute(window, '#/monitor')
-    await window.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
-    const monText = (await window.locator('main').first().innerText()) ?? ''
+    await gotoRoute(mainWin, '#/monitor')
+    await mainWin.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    const monText = (await mainWin.locator('main').first().innerText()) ?? ''
     expect(monText, 'MonitorPage 不得出现硬编码假服务器').not.toContain('prod-web-01')
     expect(monText, 'MonitorPage 不得出现 DEV 假告警').not.toContain('磁盘使用率92%')
     expect(monText, '未连接时应诚实显示').toContain('未连接')
 
     // 4b. KnowledgePage：假"AI检索"开关已删除
-    await gotoRoute(window, '#/knowledge')
-    await window.waitForSelector('.kb-page', { timeout: 15000 })
+    await gotoRoute(mainWin, '#/knowledge')
+    await mainWin.waitForSelector('.kb-page', { timeout: 15000 })
     await expect(
-      window.locator('button[aria-label="AI检索"]'),
+      mainWin.locator('button[aria-label="AI检索"]'),
       '假"AI检索"开关不得复活（kbSearch 不支持语义检索）',
     ).toHaveCount(0)
     // 假统计"已收录 1,247 条"不得在 Electron 环境出现
-    const kbText = (await window.locator('.kb-page').innerText()) ?? ''
+    const kbText = (await mainWin.locator('.kb-page').innerText()) ?? ''
     expect(kbText, '假统计数据不得出现').not.toContain('1,247')
 
     // 4c. Workbench EditorArea：两个 A 级死按钮已删除
-    await gotoRoute(window, '#/workbench')
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-    await expect(window.locator('button[title="分屏（开发中）"]')).toHaveCount(0)
-    await expect(window.locator('button[title="更多（开发中）"]')).toHaveCount(0)
+    await gotoRoute(mainWin, '#/workbench')
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    await expect(mainWin.locator('button[title="分屏（开发中）"]')).toHaveCount(0)
+    await expect(mainWin.locator('button[title="更多（开发中）"]')).toHaveCount(0)
 
     await app.close()
   })
@@ -237,21 +237,21 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // 验证 main → preload(createListener) → 全局订阅 → agent-store.appendToolEvent
   // → LiveMessageRow 执行卡片 的完整链路真通（无需真实 API Key / SSH 服务器）。
   testOrSkip('T5: agent:tool-event 真实回流 → 执行卡片上屏（工具执行可视化）', async () => {
-    const { app, window } = await launchApp()
-    await gotoRoute(window, '#/workbench')
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    const { app, mainWin } = await launchApp()
+    await gotoRoute(mainWin, '#/workbench')
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
     // 打开 AI 面板（默认展开；未展开则点标题栏 AI 按钮）
-    const composer = window.locator('#ai-composer-input')
+    const composer = mainWin.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
-      await window.locator('[data-dom-id="btn-toggle-ai"]').click()
+      await mainWin.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
     }
 
     // 1) 注入一条“流式中”assistant 消息（复刻 useAgentChat 发送后创建的占位）。
     //    appendToolEvent 仅把事件挂到 isStreaming 的 assistant 消息上，故必须先有它。
     //    __tdsfStores 仅在 DEV / navigator.webdriver（Playwright）下挂载，见 main.tsx。
-    const injected = await window.evaluate(() => {
+    const injected = await mainWin.evaluate(() => {
       const stores = (window as unknown as {
         __tdsfStores?: {
           agent: { getState: () => { addMessage: (m: Record<string, unknown>) => void } }
@@ -282,7 +282,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     })
 
     // call 阶段：执行卡片必须上屏，含中文工具名 + 命令 + “执行中”状态
-    const card = window.locator('.ai-tool-exec').first()
+    const card = mainWin.locator('.ai-tool-exec').first()
     await expect(card, 'call 事件后执行卡片必须上屏（否则 main→UI 链路断）').toBeVisible({
       timeout: 5000,
     })
@@ -308,7 +308,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     await expect(card, 'done 后不应再显示“执行中”').not.toContainText('执行中')
 
     // 截图存档（P1 工具执行可视化的可见证据）
-    await window.screenshot({
+    await mainWin.screenshot({
       path: path.join(__dirname, '../../test-results/p1-tool-exec-card.png'),
     })
 
@@ -322,18 +322,18 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // 可视化。本用例验证这两个工具名在前端正确映射为中文卡片标题，且 query/summary
   // 正确渲染（toolDisplayName + 执行卡片复用，无需真实 API Key / DB）。
   testOrSkip('T6: kb_search / tutorial_search 执行卡片复用可视化（P2 知识检索）', async () => {
-    const { app, window } = await launchApp()
-    await gotoRoute(window, '#/workbench')
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    const { app, mainWin } = await launchApp()
+    await gotoRoute(mainWin, '#/workbench')
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-    const composer = window.locator('#ai-composer-input')
+    const composer = mainWin.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
-      await window.locator('[data-dom-id="btn-toggle-ai"]').click()
+      await mainWin.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
     }
 
     // 注入流式 assistant 占位（tool-event 挂载目标）
-    await window.evaluate(() => {
+    await mainWin.evaluate(() => {
       const stores = (window as unknown as {
         __tdsfStores?: {
           agent: { getState: () => { addMessage: (m: Record<string, unknown>) => void } }
@@ -373,7 +373,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
 
     // kb_search 折叠行（v2.8：检索类走 Panel C 式折叠行，中文名 + 命中数徽标；
     // 旧断言等的是 .ai-tool-exec + 「知识库检索」，改版后类名与文案都变了）
-    const kbCard = window.locator('.ai-tool-search', { hasText: '检索知识库' }).first()
+    const kbCard = mainWin.locator('.ai-tool-search', { hasText: '检索知识库' }).first()
     await expect(kbCard, 'kb_search 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
     await expect(kbCard, '应显示命中数而不是裸工具名').toContainText('1 条匹配')
     await expect(kbCard, '界面上不许出现裸的工具 id').not.toContainText('kb_search')
@@ -382,13 +382,13 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     await expect(kbCard).toContainText('Nginx 502 排查')
 
     // tutorial_search 同理
-    const tutCard = window.locator('.ai-tool-search', { hasText: '检索教程' }).first()
+    const tutCard = mainWin.locator('.ai-tool-search', { hasText: '检索教程' }).first()
     await expect(tutCard, 'tutorial_search 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
     await tutCard.locator('button').first().click()
     await expect(tutCard).toContainText('systemd 服务')
     await expect(tutCard).toContainText('systemd 入门')
 
-    await window.screenshot({
+    await mainWin.screenshot({
       path: path.join(__dirname, '../../test-results/p2-kb-tutorial-cards.png'),
     })
 
@@ -401,17 +401,17 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
   // P3：SkillRouter 命中内置运维手册时，supervisor 经 onToolEvent 推送 skill_match 事件。
   // 本用例验证 skill_match 在前端映射为「技能匹配」卡片，命中 skill 名 + 决策摘要正确渲染。
   testOrSkip('T7: skill_match 执行卡片可视化（P3 技能匹配）', async () => {
-    const { app, window } = await launchApp()
-    await gotoRoute(window, '#/workbench')
-    await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    const { app, mainWin } = await launchApp()
+    await gotoRoute(mainWin, '#/workbench')
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-    const composer = window.locator('#ai-composer-input')
+    const composer = mainWin.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
-      await window.locator('[data-dom-id="btn-toggle-ai"]').click()
+      await mainWin.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 5000 })
     }
 
-    await window.evaluate(() => {
+    await mainWin.evaluate(() => {
       const stores = (window as unknown as {
         __tdsfStores?: { agent: { getState: () => { addMessage: (m: Record<string, unknown>) => void } } }
       }).__tdsfStores
@@ -437,14 +437,14 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       })
     })
 
-    const skillCard = window.locator('.ai-tool-search', { hasText: '匹配技能' }).first()
+    const skillCard = mainWin.locator('.ai-tool-search', { hasText: '匹配技能' }).first()
     await expect(skillCard, 'skill_match 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
     await expect(skillCard, '界面上不许出现裸工具名').not.toContainText('skill_match')
     await skillCard.locator('button').first().click() // 展开折叠行
     await expect(skillCard).toContainText('diagnose-oom-killer')
     await expect(skillCard).toContainText('skill-assisted')
 
-    await window.screenshot({
+    await mainWin.screenshot({
       path: path.join(__dirname, '../../test-results/p3-skill-match-card.png'),
     })
 

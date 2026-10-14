@@ -25,10 +25,13 @@ const path = require('node:path')
 const REPO = path.resolve(__dirname, '../..')
 const TSCONFIG = 'tsconfig.tests.json'
 /**
- * 存量上限（只算 tests/ 里的）。2026-10-14 立闸时实测 200 条，涉及 70 个文件。
+ * 存量上限（只算 tests/ 里的）。
+ * 2026-10-14 立闸时 200 条 / 70 个文件；
+ * 同日削掉"Page 变量名叫 window 遮蔽了 evaluate 回调里的浏览器全局"这一族（TS2551 24 条清零）
+ * 之后是 **181 条 / 68 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 200
+const CAP = 181
 
 const argv = process.argv.slice(2)
 let top = 6

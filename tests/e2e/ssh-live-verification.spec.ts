@@ -70,9 +70,9 @@ async function launch() {
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
-  const window = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
-  return { app, window }
+  const mainWin = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
+  return { app, mainWin }
 }
 
 /**
@@ -124,9 +124,9 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     const up = await tcpReachable(SSH_HOST, SSH_PORT)
     test.skip(!up, `靶机 ${SSH_HOST}:${SSH_PORT} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
     test.setTimeout(120_000)
-    const { app, window } = await launch()
+    const { app, mainWin } = await launch()
 
-    const conn = await connectSsh(window, {
+    const conn = await connectSsh(mainWin, {
       host: SSH_HOST,
       port: SSH_PORT,
       username: SSH_USER,
@@ -136,7 +136,7 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     expect(conn.sessionId, '应返回 sessionId').toBeTruthy()
 
     // 执行 3 条真实命令，断言输出包含真实系统特征（不是 mock）
-    const exec = await window.evaluate(async (sid) => {
+    const exec = await mainWin.evaluate(async (sid) => {
       const api = (window as unknown as {
         electronAPI: { sshExec: (s: string, c: string) => Promise<{ stdout: string; exitCode: number }> }
       }).electronAPI
@@ -162,9 +162,9 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     const up = await tcpReachable(SSH_HOST, SSH_PORT)
     test.skip(!up, `靶机 ${SSH_HOST}:${SSH_PORT} TCP 连不上（机器没开或不在同一网），这条要有真机才能跑`)
     test.setTimeout(120_000)
-    const { app, window } = await launch()
+    const { app, mainWin } = await launch()
 
-    const conn = await connectSsh(window, {
+    const conn = await connectSsh(mainWin, {
       host: SSH_HOST,
       port: SSH_PORT,
       username: SSH_USER,
@@ -176,7 +176,7 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     // 复刻真实用户路径：SSH 连接成功后，ServerList 会写入 server-store 的
     // connectionState + sessionMapping + activeSession，监控页据此认会话。
     // 测试环境 store 已挂到 window.__tdsfStores（见 main.tsx）。
-    await window.evaluate((sid) => {
+    await mainWin.evaluate((sid) => {
       const stores = (window as unknown as {
         __tdsfStores?: {
           server: { getState: () => {
@@ -195,7 +195,7 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     }, sessionId)
 
     // 拉真实系统信息 + 启动监控，等待若干采样
-    const info = await window.evaluate(async (sid) => {
+    const info = await mainWin.evaluate(async (sid) => {
       const api = (window as unknown as {
         electronAPI: {
           monitorGetSystemInfo: (s: string) => Promise<{ hostname: string; os: string } | null>
@@ -212,23 +212,23 @@ test.describe('真实 SSH 连接链路验证（连真机）', () => {
     expect(info!.hostname.length, 'hostname 非空').toBeGreaterThan(0)
 
     // 等 2 个采样周期让监控数据回流
-    await window.waitForTimeout(5000)
+    await mainWin.waitForTimeout(5000)
 
     // 进监控页截图（此时应有真实数据，而非"未连接服务器"占位）
     // 旧版这里等 .mon-main —— 阶段 F 改版后监控页根元素改成通用 <main>，
     // 那个类名界面根本不会渲染出来，用例是在等一个不存在的元素（死选择器）。
     // 改用全站统一钩子 page-title，并核对标题确实是监控页。
-    await window.evaluate(() => {
+    await mainWin.evaluate(() => {
       window.location.hash = '#/monitor'
     })
-    await window.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
-    const monTitle = await window.locator('[data-dom-id="page-title"]').textContent()
+    await mainWin.waitForSelector('[data-dom-id="page-title"]', { timeout: 15000 })
+    const monTitle = await mainWin.locator('[data-dom-id="page-title"]').textContent()
     expect(monTitle?.trim(), '当前页应是实时监控').toBe('实时监控')
-    await window.waitForTimeout(3000)
-    await window.screenshot({ path: path.join(SHOT_DIR, 'monitor-live.png'), fullPage: true })
+    await mainWin.waitForTimeout(3000)
+    await mainWin.screenshot({ path: path.join(SHOT_DIR, 'monitor-live.png'), fullPage: true })
 
     // 断言监控页确实认到了会话（不再显示"未连接服务器"占位）
-    const monText = await window.locator('main').first().innerText()
+    const monText = await mainWin.locator('main').first().innerText()
     expect(monText, '监控页不应再显示未连接占位').not.toContain('未连接 SSH 服务器')
 
     await app.close()

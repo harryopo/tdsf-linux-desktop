@@ -35,37 +35,37 @@ testOrSkip('逐页截图 + 知识库真实内容断言', async () => {
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
-  const window = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
+  const mainWin = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
 
   // ===== 知识库：修复后应显示内置教程种子（非空白） =====
-  await gotoRoute(window, '#/knowledge', '.kb-page')
-  await window.screenshot({ path: path.join(SHOT_DIR, 'knowledge.png'), fullPage: true })
+  await gotoRoute(mainWin, '#/knowledge', '.kb-page')
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'knowledge.png'), fullPage: true })
 
-  const kbCards = await window.locator('.kb-card').count()
+  const kbCards = await mainWin.locator('.kb-card').count()
   console.log(`[知识库] 卡片数量 = ${kbCards}`)
   // 修复空查询 bug 后，内置 10 篇教程种子应被 kbSearch('') 返回并渲染
   expect(kbCards, '知识库应显示真实条目（修复空查询后不再空白）').toBeGreaterThan(0)
 
   // 断言不是"未找到"空态
-  const emptyVisible = await window
+  const emptyVisible = await mainWin
     .locator('text=未找到匹配的知识条目')
     .isVisible()
     .catch(() => false)
   expect(emptyVisible, '知识库不应显示空态').toBe(false)
 
   // ===== 其余关键页截图（人工核查是否占位） =====
-  await gotoRoute(window, '#/workbench', '.wb-main-layout')
-  await window.screenshot({ path: path.join(SHOT_DIR, 'workbench.png'), fullPage: true })
+  await gotoRoute(mainWin, '#/workbench', '.wb-main-layout')
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'workbench.png'), fullPage: true })
 
-  await gotoRoute(window, '#/monitor', '[data-dom-id="page-title"]')
-  await window.screenshot({ path: path.join(SHOT_DIR, 'monitor.png'), fullPage: true })
+  await gotoRoute(mainWin, '#/monitor', '[data-dom-id="page-title"]')
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'monitor.png'), fullPage: true })
 
-  await gotoRoute(window, '#/tutorial', 'main, body')
-  await window.screenshot({ path: path.join(SHOT_DIR, 'tutorial.png'), fullPage: true })
+  await gotoRoute(mainWin, '#/tutorial', 'main, body')
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'tutorial.png'), fullPage: true })
 
-  await gotoRoute(window, '#/settings/model', '.set-page, main')
-  await window.screenshot({ path: path.join(SHOT_DIR, 'settings-model.png'), fullPage: true })
+  await gotoRoute(mainWin, '#/settings/model', '.set-page, main')
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'settings-model.png'), fullPage: true })
 
   console.log('截图已保存到: ' + SHOT_DIR)
   await app.close()

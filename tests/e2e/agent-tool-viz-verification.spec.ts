@@ -53,11 +53,11 @@ testOrSkip('Agent 真实调用 ssh_readonly → agent:tool-event 回流 + 可视
     args: [MAIN_ENTRY, `--user-data-dir=${e2eProfileDir()}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
   })
-  const window: Page = await app.firstWindow()
-  await window.waitForSelector('body', { timeout: 30000 })
+  const mainWin: Page = await app.firstWindow()
+  await mainWin.waitForSelector('body', { timeout: 30000 })
 
   // 1. 配置 DeepSeek Provider + SSH 连接
-  const setup = await window.evaluate(
+  const setup = await mainWin.evaluate(
     async ({ ai, ssh }) => {
       const api = (window as unknown as {
         electronAPI: {
@@ -106,7 +106,7 @@ testOrSkip('Agent 真实调用 ssh_readonly → agent:tool-event 回流 + 可视
   expect(setup.sshSessionId, 'SSH 应连接成功').toBeTruthy()
 
   // 2. 发一条明确要求执行只读诊断命令的消息，收集 agent:tool-event
-  const result = await window.evaluate(async (sshSessionId) => {
+  const result = await mainWin.evaluate(async (sshSessionId) => {
     const api = (window as unknown as {
       electronAPI: {
         agentChat: (msgs: unknown[], providerId?: string, strength?: string, sshSessionId?: string) => Promise<string>
@@ -157,10 +157,10 @@ testOrSkip('Agent 真实调用 ssh_readonly → agent:tool-event 回流 + 可视
   expect(callEvt?.toolName, '工具名应为 ssh_readonly').toBe('ssh_readonly')
 
   // 3. 截图工作台，留证工具执行卡片
-  await window.evaluate(() => { window.location.hash = '#/workbench' })
-  await window.waitForSelector('.wb-main-layout', { timeout: 15000 })
-  await window.waitForTimeout(2000)
-  await window.screenshot({ path: path.join(SHOT_DIR, 'tool-exec-card.png'), fullPage: true })
+  await mainWin.evaluate(() => { window.location.hash = '#/workbench' })
+  await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
+  await mainWin.waitForTimeout(2000)
+  await mainWin.screenshot({ path: path.join(SHOT_DIR, 'tool-exec-card.png'), fullPage: true })
 
   await app.close()
 })
