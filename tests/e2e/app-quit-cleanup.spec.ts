@@ -58,6 +58,9 @@ function readAppended(logsDir: string, file: string, fromBytes: number): string 
 
 test.describe('退出清理收尾', () => {
   test('真关一次应用：这次新写的日志里有收尾行、主进程自己退出', async () => {
+    // 默认 30 秒装不下这条的预算（等 body 30s + 等启动页 40s + 读日志 25s + 等退出事件 10s），
+    // 机器忙时会先撞 Playwright 的超时，看不到本条自己写的原因
+    test.setTimeout(120_000)
     const profile = e2eProfileDir()
     const logsDir = path.join(profile, 'logs')
     const before = snapshotLogSizes(logsDir)
@@ -65,7 +68,7 @@ test.describe('退出清理收尾', () => {
     const app = await electron.launch({
       args: [MAIN_ENTRY, `--user-data-dir=${profile}`],
       env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
-      })
+    })
     const proc = app.process()
 
     let exited: number | null = null
@@ -95,6 +98,15 @@ test.describe('退出清理收尾', () => {
         .join('\n')
       if (appended.includes('退出清理收尾')) break
       await new Promise((r) => setTimeout(r, 200))
+    }
+
+    // 收尾行落盘之后，进程真正 exit 还要几毫秒到几百毫秒；exit 事件是异步派发的。
+    // 原先一 break 就读 exited，把"事件还没到"当成"没退出"——2026-10-14 全量并行实测红过一次，
+    // 而那份日志的最后一行就是「退出清理收尾 outcome=完成」：产品退了，是测法抢跑。
+    // 这里只补等待窗口，两条判据一条没减（真挂住时 10 秒后照旧红）。
+    const quitDeadline = Date.now() + 10_000
+    while (exited === null && Date.now() < quitDeadline) {
+      await new Promise((r) => setTimeout(r, 100))
     }
 
     expect(exited, '主进程应正常退出（没被 SIGKILL）').not.toBeNull()
