@@ -14,9 +14,15 @@ import { assertContractArgsAtBoundary } from './contract-guard'
  * 装了之后，进出两个方向各有一件事：
  *   1. 进：入参按 `src/shared/ipc-contract.ts` 那张表判形状（contract-guard.ts），
  *      不合契约就 E_INVALID_INPUT 挡在 handler 之前 —— 契约不再靠调用方自觉；
- *   2. 出：内部原文（主机端口、绝对路径、SQL 片段）留在主进程日志，跨边界只送安全的那一句；
- *      没显式抛 IpcError 的折成 E_INTERNAL，原话保留但统一过 redactSecrets 收口；
- *      渲染层拿到的是以 ` [E_CODE]` 结尾的定形字符串，preload 负责还原成干净的一句话。
+ *   2. 出：两条通道都收口。
+ *      2a. 抛错：内部原文（主机端口、绝对路径、SQL 片段）留在主进程日志，跨边界只送安全的那一句；
+ *          没显式抛 IpcError 的折成 E_INTERNAL，原话保留但统一过 redactSecrets 收口；
+ *          渲染层拿到的是以 ` [E_CODE]` 结尾的定形字符串，preload 负责还原成干净的一句话。
+ *      2b. 把失败当数据返回（实测 39 处 `success: false` + 32 处 `ok: false`）：渲染层要按
+ *          `code` 分支、也要能显示那句人话，改成抛错会破坏界面，所以这类返回体是**合法的**。
+ *          但它们绕过了 2a —— `error: toErrorString(err)` 这种写法把底层原文直接塞进**已 resolve 的值**里，
+ *          而 `redactSecrets` 原先只装在 reject 路径上。边界在返回处补同一道脱敏，
+ *          于是"每条返回体各自决定要不要拼内部信息"这件事不再由 71 个返回点各写一遍。
  */
 
 type Listener = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
@@ -43,10 +49,13 @@ export function installIpcErrorBoundary(opts: { exposeDetail: boolean }): void {
       } catch (err) {
         throw finalize(err, channel, opts.exposeDetail)
       }
-      if (!(r instanceof Promise)) return r
-      return r.catch((err: unknown) => {
-        throw finalize(err, channel, opts.exposeDetail)
-      })
+      if (!(r instanceof Promise)) return guardDataError(r, channel)
+      return r.then(
+        (value) => guardDataError(value, channel),
+        (err: unknown) => {
+          throw finalize(err, channel, opts.exposeDetail)
+        }
+      )
     })
   }
 
@@ -101,8 +110,93 @@ function deduped(detail: string | undefined, text: string): string {
   return redacted.trim() === text ? '' : redacted
 }
 
-/** 压平成一行、脱敏、限长；空串退回通用话术，避免界面上出现一句空白错误 */
+/** 压平成一行、脱敏、限长（不补通用话术）——抛错路径与 data 型错误共用同一个变换 */
+function flattenForWire(raw: string): string {
+  return redactSecrets(raw).replace(/\s+/g, ' ').trim().slice(0, USER_TEXT_MAX)
+}
+
+/** 空串退回通用话术，避免界面上出现一句空白错误 */
 export function safeUserText(raw: string): string {
-  const oneLine = redactSecrets(raw).replace(/\s+/g, ' ').trim().slice(0, USER_TEXT_MAX)
-  return oneLine || GENERIC_INTERNAL_TEXT
+  return flattenForWire(raw) || GENERIC_INTERNAL_TEXT
+}
+
+/**
+ * 「把失败当数据返回」的返回体（出方向 2b）
+ *
+ * 为什么不是把它们改成抛错：渲染层要按 `code` 分支（ModelSettings 读 `result.code` 拼提示前缀）、
+ * 有些拒绝是"按设计不执行"而不是"出故障"（审批被拒、用户取消选择），抛错会让界面把它显示成崩了。
+ * 所以契约是：**这类返回体合法，但信封里的诊断文本必须和抛错路径过同一道脱敏**。
+ *
+ * 收口装在边界而不是逐个改 71 个返回点，理由与 2a 相同：下一个 handler 一定会忘记脱敏。
+ */
+const DATA_ERROR_TEXT_KEYS = new Set(['error', 'message', 'summary'])
+/** 只认普通对象：Date/Map/Set/TypedArray 用 Object.entries 复制会掉内容 */
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+  const proto = Object.getPrototypeOf(v)
+  return proto === Object.prototype || proto === null
+}
+
+/** 顶层带 `success: false` 或 `ok: false` 的普通对象就是失败信封（两种写法实测都有） */
+export function isDataErrorEnvelope(v: unknown): v is Record<string, unknown> {
+  return isPlainRecord(v) && (v.success === false || v.ok === false)
+}
+
+/**
+ * 递归改写失败信封里的字符串。
+ *
+ * 两个强度：登记过的诊断字段（`error`/`message`/`summary`）走与抛错路径完全相同的变换
+ * （脱敏 + 压平 + 限长 300）；**没登记的键只要带出密钥形状也一律涂掉**，并在日志里点名那个键 ——
+ * 这样"以后有人新加一个 `{success:false, detail: 原文}`"不会变成一条没人发现的漏网通道。
+ *
+ * 没改到任何字段时**返回原引用**（多数 handler 自己已经脱敏，等于零复制）；
+ * 改到时逐层新建容器而不是就地写 —— `tutorial:crawlStart` 会把服务内部的 history
+ * 数组直接放进失败信封返回，就地改写等于把别人的状态涂了。
+ */
+function redactTextFields(node: unknown, at: string, touched: string[]): unknown {
+  if (Array.isArray(node)) {
+    let changed = false
+    const out = node.map((item, i) => {
+      const next = redactTextFields(item, `${at}[${i}]`, touched)
+      if (next !== item) changed = true
+      return next
+    })
+    return changed ? out : node
+  }
+  if (!isPlainRecord(node)) return node
+  let changed = false
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(node)) {
+    if (typeof value === 'string') {
+      const registered = DATA_ERROR_TEXT_KEYS.has(key)
+      const safe = registered ? flattenForWire(value) : redactSecrets(value)
+      out[key] = safe
+      if (safe !== value) {
+        changed = true
+        touched.push(registered ? `${at}.${key}` : `${at}.${key}(未登记为诊断字段)`)
+      }
+      continue
+    }
+    const next = redactTextFields(value, `${at}.${key}`, touched)
+    out[key] = next
+    if (next !== value) changed = true
+  }
+  return changed ? out : node
+}
+
+/**
+ * 只动失败信封。成功返回的业务数据一个字都不改：日志正文、文件预览、命令输出是用户点名要看的
+ * 字节，按密钥形状涂掉等于把功能做坏（真要防的是"凭据进日志"，那是 redactSecrets 在 logger 收口处的事）。
+ */
+export function guardDataError<T>(value: T, channel: string): T {
+  if (!isDataErrorEnvelope(value)) return value
+  const touched: string[] = []
+  const next = redactTextFields(value, '', touched)
+  if (touched.length === 0) return value
+  logger.warn(
+    'IPC',
+    `handler 把未脱敏的内部原文当数据外送，已在边界兜掉 ${touched.length} 处`,
+    { channel, paths: touched.join('、') }
+  )
+  return next as T
 }

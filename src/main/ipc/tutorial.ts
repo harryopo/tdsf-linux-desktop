@@ -45,21 +45,43 @@ import {
 import { PathRecommender, type RecommendPathOptions, type TutorialPath } from '../services/tutorial/path-recommender'
 
 /**
+ * 爬虫服务：整个进程一只（与 `EmbeddingBackfillService.getInstance()` 同构）
+ *
+ * 原来这只服务是在 `registerTutorialIpcHandlers` 里 new 的，而该函数会被调**两次**：
+ * `src/main/index.ts` 的 `handleActivate()`（macOS dock 点击且窗口数为 0）会再走一遍
+ * `registerAllIpcHandlers`。第二次注册换新实例的后果不是"多占了一点内存"：
+ * - 正在跑的那次抓取成了孤儿——进度继续推给已销毁的旧窗口，新界面什么都看不到；
+ * - `tutorial:crawlStatus` 报 idle、`tutorial:crawlCancel` 取消不到任何东西（对着新实例说话）；
+ * - 服务内部的"已有任务在跑"闸门是**实例级**字段，拦不住第二只并发开跑。
+ *
+ * 所以：窗口引用可以换（新窗口要收到进度），实例不许换。
+ * `boundWindow` 每次注册重新绑定，构造时传进去的是读它的函数而不是它本身。
+ */
+let crawlerSingleton: TutorialCrawlerService | null = null
+let boundWindow: BrowserWindow | null = null
+
+function liveWindow(): BrowserWindow | null {
+  return boundWindow && !boundWindow.isDestroyed() ? boundWindow : null
+}
+
+function ensureCrawlerService(db: DatabaseManager): TutorialCrawlerService {
+  crawlerSingleton ??= new TutorialCrawlerService(db, liveWindow)
+  return crawlerSingleton
+}
+
+/**
  * 注册教程相关 IPC handlers
  *
  * @param db 数据库管理器
- * @param mainWindow 主窗口（用于爬虫进度事件推送，可选）
+ * @param mainWindow 主窗口（用于爬虫进度事件推送，可选）——二次调用时会把推送目标换绑到新窗口
  */
 export function registerTutorialIpcHandlers(
   db: DatabaseManager,
   mainWindow?: BrowserWindow | null
 ): void {
   const repo = new TutorialRepository(db)
-  // 爬虫服务（单例，每个窗口独立）
-  const crawlerService = new TutorialCrawlerService(
-    db,
-    () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
-  )
+  boundWindow = mainWindow ?? null
+  const crawlerService = ensureCrawlerService(db)
 
   /** tutorial:list — 列出教程 */
   ipcMain.handle(
