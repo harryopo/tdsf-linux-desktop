@@ -11,11 +11,9 @@
  *   d:\ai\linux教学一体\idea-to-dev-output\29-源码分析-KiloCode-多模式Subagent.md §4.3
  */
 import type { ModelMessage } from 'ai'
-import type { LanguageModel } from 'ai'
 import type {
   ProviderConfig,
   ProviderType,
-  PersistedProviderConfig,
   ThinkingStrength,
   ChatResult,
   AgentMode,
@@ -35,16 +33,13 @@ export type {
 } from './base'
 
 /**
- * Re-export Provider 模型实例类型（main 内部使用，含 LanguageModel 运行时类型）
+ * Provider 模型实例类型：唯一权威在 ../providers/types，这里只转出，不抄第二份。
+ * （原先是一份逐字段相同的副本，两处一起改才不会漂移；转出后 provider-factory
+ * 造出来的实例和 TaskProtocolContext 收下的就是同一个类型，不再靠结构相同巧合兼容。）
  */
-export interface ProviderModelInstance {
-  /** LanguageModel 实例（@ai-sdk/* 创建） */
-  model: LanguageModel
-  /** 来源 Provider 配置（脱敏后，不含 apiKey） */
-  config: PersistedProviderConfig
-  /** 实际使用的模型名（可能被用户覆盖） */
-  resolvedModel: string
-}
+import type { ProviderModelInstance } from '../providers/types'
+
+export type { ProviderModelInstance }
 
 /**
  * Subagent 调度 14 步流程（借鉴 Kilo Code task 工具）
