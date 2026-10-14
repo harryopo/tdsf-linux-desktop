@@ -16,6 +16,10 @@
  */
 import { dialog } from 'electron'
 import { logger } from '../services/log/logger'
+// 崩溃弹窗是第三个出口：err.message 里可能带整条命令（connection-manager 的超时文案
+// 就是 `命令执行超时(...): ${command}`，命令原文可以是 `mysql -uroot -p...`）。
+// 日志与 IPC 信封都装了脱敏，弹到用户屏幕上的这一份不能是漏网的。
+import { redactSecrets } from '../services/security/redact'
 
 export type CrashSource = 'uncaughtException' | 'unhandledRejection'
 
@@ -73,7 +77,7 @@ export function installCrashGuard(deps: Partial<CrashGuardDeps> = {}): CrashGuar
         '程序遇到一个内部错误',
         '刚才的操作没有完成，程序没有退出，但这次操作的结果不可信。\n' +
           'SSH 连接可能已中断，重新连接后可以继续。\n\n' +
-          `错误：${err.message}`
+          `错误：${redactSecrets(err.message)}`
       )
     }
   }

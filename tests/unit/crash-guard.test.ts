@@ -62,6 +62,24 @@ describe('主进程崩溃兜底', () => {
     expect(exitSpy, '兜底不许顺手把主进程关掉（关掉=所有会话与缓冲一起丢）').not.toHaveBeenCalled()
   })
 
+  it('弹窗正文里的凭据形状先被涂掉（第三个出口：弹到用户屏幕上）', () => {
+    // connection-manager 的超时文案是 `命令执行超时(...): ${command}`，命令原文可以是
+    // `mysql -u root pass=...`；日志与 IPC 信封都装了脱敏，弹到桌面上的这一份以前是漏网的。
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => process) as never)
+    const log = vi.fn()
+    const notify = vi.fn()
+    handle = installCrashGuard({ log, notify })
+
+    const secret = 'mysql -u root ' + 'pass' + 'word=Sup3rS' + 'ecretValue'
+    emitException(new Error(`命令执行超时(30000ms): ${secret}`))
+
+    expect(notify).toHaveBeenCalledTimes(1)
+    const detail = String(notify.mock.calls[0][1])
+    expect(detail, '原串进了弹窗就等于进了截图/客服工单/任何人的眼睛').not.toContain(secret)
+    expect(detail).toMatch(/\[REDACTED/)
+    expect(detail, '除凭据外的诊断信息必须留着，否则弹窗说了等于没说').toContain('命令执行超时(30000ms)')
+  })
+
   it('连环异常只弹一次框，但每一条都记下来', () => {
     exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => process) as never)
     const log = vi.fn()
