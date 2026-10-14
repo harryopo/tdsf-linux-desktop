@@ -17,10 +17,30 @@ import type { SFTPWrapper, Stats } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SshConnectionManager } from './connection-manager'
+import { isProtectedWriteDestination } from '../../core/command-gate'
 import type { SftpEntry } from '@shared/models'
 
 /** SFTP 操作的默认读写缓冲区大小（字节） */
 const SFTP_BUFFER_SIZE = 64 * 1024
+
+/**
+ * 远端改写类操作的目的地闸。
+ *
+ * 病根（2026-10-15 全维度审查 P0）：系统关键路径的保护只长在**命令文本**上
+ * （`isProtectedWriteTarget` 被 shell 重定向检测与 MCP 形状表调用），
+ * 而 SFTP 这族平行入口把渲染层传来的 `remotePath` 直接喂给 createWriteStream/unlink——
+ * 于是 `echo x > /etc/passwd` 走 shell 会被拦，编辑器保存 /etc/passwd 却一路放行；
+ * 本产品连接默认还是 root（`ServerForm` 的用户名初值），放行就等于真覆写系统文件。
+ * 命令与文件是同一件事的两个出口，闸必须只有一张口。
+ */
+function assertRemoteWriteAllowed(op: string, remotePath: string): void {
+  if (isProtectedWriteDestination(remotePath)) {
+    throw new Error(
+      `${op}被拒绝：${remotePath} 属于系统关键路径（/etc、/usr、/var/log、/root、/dev 等）。` +
+        '这类文件不在文件面板/编辑器/AI 写文件里直接改——请在终端里自己执行，那会过高危命令闸并给你解释原因。'
+    )
+  }
+}
 
 /**
  * SFTP 文件管理器
@@ -97,6 +117,7 @@ export class SftpManager {
     if (!fs.existsSync(localPath)) {
       throw new Error(`本地文件不存在: ${localPath}`)
     }
+    assertRemoteWriteAllowed('上传', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
       const stat = fs.statSync(localPath)
@@ -177,6 +198,7 @@ export class SftpManager {
    * @returns 是否成功
    */
   public async delete(sessionId: string, remotePath: string): Promise<boolean> {
+    assertRemoteWriteAllowed('删除', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
       // 先 stat 判断类型
@@ -215,6 +237,8 @@ export class SftpManager {
     oldPath: string,
     newPath: string
   ): Promise<boolean> {
+    assertRemoteWriteAllowed('重命名', oldPath)
+    assertRemoteWriteAllowed('重命名目标', newPath)
     const sftp = await this.openSftp(sessionId)
     try {
       return await new Promise<boolean>((resolve, reject) => {
@@ -242,6 +266,7 @@ export class SftpManager {
     remotePath: string,
     mode: number
   ): Promise<boolean> {
+    assertRemoteWriteAllowed('改权限', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
       return await new Promise<boolean>((resolve, reject) => {
@@ -264,6 +289,7 @@ export class SftpManager {
    * @param remotePath 远程目录路径
    */
   public async mkdir(sessionId: string, remotePath: string): Promise<boolean> {
+    assertRemoteWriteAllowed('建目录', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
       return await new Promise<boolean>((resolve, reject) => {
@@ -373,6 +399,7 @@ export class SftpManager {
     remotePath: string,
     content: string
   ): Promise<boolean> {
+    assertRemoteWriteAllowed('写入', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
       return await new Promise<boolean>((resolve, reject) => {

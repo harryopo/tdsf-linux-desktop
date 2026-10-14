@@ -25,6 +25,7 @@
  * block 级在 assertCommandAllowed() 里无条件拒绝，不接受"已批准"绕过。
  */
 
+import { posix as posixPath } from 'node:path'
 import rulesJson from './command-rules.json'
 
 /** 风险等级：block=禁止执行，high/medium=执行但标注并需审批卡点，low=只读查询，safe=未识别 */
@@ -500,6 +501,22 @@ function isProtectedWriteTarget(raw: string): boolean {
   if (isDiscardPath(t)) return false
   if (t === '/' || t === '/*') return true
   return PROTECTED_WRITE_PREFIXES.some((p) => t === p || t.startsWith(`${p}/`) || t === `${p}/*`)
+}
+
+/**
+ * 写目的地的对外判定（shell 重定向与 SFTP 写共用这一张口）。
+ *
+ * 折叠 `..` 是必须的：normTarget 只并斜杠、不解析 `..`，于是 `/home/u/../etc/passwd`
+ * 落在所有前缀之外——同一条防线被一个相对段绕过去。绝对路径按 POSIX 语义折叠后再判；
+ * 相对路径里出现 `..` 一律按可疑处理，因为写的那一刻的 cwd 只有远端自己知道，
+ * 折叠成一个"看起来安全"的相对结果再放行等于拿未知当许可。
+ */
+export function isProtectedWriteDestination(raw: string): boolean {
+  const t = normTarget(raw)
+  if (t.startsWith('/')) return isProtectedWriteTarget(posixPath.normalize(t))
+  // 相对路径里出现 ..：按"从根算起"的最坏解释折叠后再判
+  if (/(^|\/)\.\.(\/|$)/.test(t)) return isProtectedWriteTarget(posixPath.normalize(`/${t}`))
+  return false
 }
 
 /** 取真正的命令名：剥 sudo/doas/command/env VAR= 等包装器 */
