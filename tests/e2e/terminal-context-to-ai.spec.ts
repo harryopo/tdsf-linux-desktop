@@ -234,10 +234,32 @@ test.describe('终端命令块进 AI 请求体', () => {
     // 开交互式 shell：靶机一开场就吐一条完整命令块（echo tdsf-boot）
     const shellId = await openShellViaIpc(page, sessionId)
     await expect
-      .poll(() => page.locator('.wb-statusbar').innerText(), {
-        message: '状态栏应先出现至少 1 个命令块',
-        timeout: 20000,
-      })
+      .poll(
+        async () => {
+          const bar = await page.locator('.wb-statusbar').innerText()
+          if (/[1-9]\d* 命令块/.test(bar)) return bar
+          // 红了要靠这两行数字分辨是谁掉链子（这条判据实测会间歇红，见任务 #105）：
+          // 主进程列得出 shell 而状态栏写"无终端" ⇒ 对账（terminal-bus → sshShellList）没把标签补出来；
+          // 主进程也列不出 ⇒ shell 开出来就死了，问题在连接侧不在界面。
+          const listed = await page.evaluate(async (sid) => {
+            const api = (
+              window as unknown as {
+                electronAPI: { sshShellList?: (s: string) => Promise<string[]> }
+              }
+            ).electronAPI
+            try {
+              return JSON.stringify((await api.sshShellList?.(sid)) ?? 'preload 没暴露 sshShellList')
+            } catch (err) {
+              return `查询失败：${(err as Error).message}`
+            }
+          }, sessionId)
+          return `${bar}\n主进程 shell 列表=${listed}（本次开的=${shellId}）`
+        },
+        {
+          message: '状态栏应先出现至少 1 个命令块（红时附带主进程侧 shell 列表）',
+          timeout: 20000,
+        }
+      )
       .toMatch(/[1-9]\d* 命令块/)
 
     await configureFixtureModel(page, ai.baseURL)
