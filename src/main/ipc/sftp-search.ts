@@ -117,7 +117,9 @@ export function registerSftpSearchIpcHandlers(): void {
         return { files }
       } catch (err) {
         // 失败返回空数组，UI 显示"无结果"，不抛错打断用户
-        return { files: [], error: (err as Error).message }
+        // ok:false 是必须的：错误信封的守卫只认 success/ok 标记（error-boundary.ts:141），
+        // 不带标记时这里的原始错误串会绕过出边界脱敏直接进渲染层
+        return { ok: false, files: [], error: (err as Error).message }
       }
     }
   )
@@ -183,7 +185,7 @@ export function registerSftpSearchIpcHandlers(): void {
         }
         return { results }
       } catch (err) {
-        return { results: [], error: (err as Error).message }
+        return { ok: false, results: [], error: (err as Error).message }
       }
     }
   )

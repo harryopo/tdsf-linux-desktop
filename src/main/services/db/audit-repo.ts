@@ -17,6 +17,8 @@ import type { DatabaseManager } from './database'
 import { ConfigStore } from '../storage/config-store'
 // 审计本身写失败时必须留痕：裸 console.warn 在打包后的 Windows 里等于什么都没发生
 import { logger } from '../log/logger'
+// 唯一的脱敏实现住在 services/security（providers/redact 那份是它的再导出，避免两处规则表）
+import { redactSecrets } from '../security/redact'
 
 /** 审计类别，与设置页四个开关一一对应 */
 export type AuditCategory = 'cmd_exec' | 'file_mod' | 'ai_decision' | 'ssh_conn'
@@ -94,12 +96,16 @@ export class AuditRepo {
           randomUUID(),
           Date.now(),
           `${input.category}:${input.action}`,
-          input.command ?? null,
+          // 审计表是"用户回头读自己历史"的地方，里面存的命令原文可以是
+          // `mysql -u root password=...`。此前只有 file_mod 那一格手工脱敏
+          // （ipc/ssh.ts:527），cmd_exec / ai_decision 两格走的是原文——同一张表两种口径。
+          // 收口挪到写库这一处：四个类别与以后新增的类别都受管，不靠调用点自觉。
+          input.command === undefined ? null : redactSecrets(input.command),
           input.exitCode ?? null,
           input.userId ?? null,
           input.sessionId ?? null,
           input.riskLevel ?? null,
-          input.details ? JSON.stringify(input.details) : null,
+          input.details ? redactSecrets(JSON.stringify(input.details)) : null,
         )
       return true
     } catch (err) {

@@ -45,6 +45,27 @@ describe('AuditRepo', () => {
     expect(rows[0].sessionId).toBe('sess-1')
   })
 
+  it('命令原文里的凭据形状不落进审计表（收口在写库这一处）', () => {
+    // 假凭据拆成相邻字面量，避免任何扫描器把测试当真凭据报警
+    const secret = 'mysql -u root ' + 'pass' + 'word=Sup3rS' + 'ecretValue'
+    expect(
+      repo.log({
+        category: 'cmd_exec',
+        action: 'SSH 执行完成',
+        command: secret,
+        details: { commandPreview: secret, host: 'lab-node' },
+      }),
+    ).toBe(true)
+
+    const row = repo.list(10)[0]
+    expect(row.command, 'cmd_exec 以前存原文：风险控制页、审计报告导出、界面截图都会把它带出去').not.toContain(secret)
+    expect(row.command).toMatch(/\[REDACTED/)
+    const dumped = JSON.stringify(row.details)
+    expect(dumped, 'details 列也一样，它同样是人类要回头读的文本').not.toContain(secret)
+    // 正向对照：结构化字段没被顺手毁掉（上一条用例证明普通命令原样可读回）
+    expect(dumped).toContain('lab-node')
+  })
+
   it('库不可用时返回 false，不抛异常（审计不能挡住业务）', () => {
     DatabaseManager.resetInstance()
     const db = DatabaseManager.getInstance(':memory:')
