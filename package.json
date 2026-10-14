@@ -23,6 +23,7 @@
     "test:e2e:wiring": "playwright test tests/e2e/wiring-verification.spec.ts",
     "audit:ipc": "tsx scripts/audit-ipc-contract.ts",
     "types:audit": "tsx scripts/ipc/electron-dts-audit.ts --gate",
+    "types:tests": "node scripts/quality/tests-typecheck.cjs",
     "security:topology": "node scripts/security/topology-gate.cjs",
     "security:history": "node scripts/security/history-env-scan.cjs",
     "security:secrets": "node scripts/security/secret-gate.cjs --all",

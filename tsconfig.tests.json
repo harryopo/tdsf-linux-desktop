@@ -1,0 +1,15 @@
+{
+  // tests/ 的类型检查配置（唯一被 tsconfig.node / tsconfig.web 都漏掉的那一片）。
+  // 继承 web：它带着全套路径别名（@renderer/@shared/@preload/@main）与 DOM + vitest 全局类型，
+  // 测试两边都要引，用 node 那份会有一堆解析不到的假错（实测 @renderer/* 直接报 TS2307）。
+  // src/**/*.d.ts 必须一起进来：它们是环境声明（如 turndown-plugin-gfm 的手写 d.ts），
+  // 不带上就会冒出一批"模块没有类型声明"的假错——那是量具坏，不是测试坏。
+  // 上限与只降不升的规矩写在 scripts/quality/tests-typecheck.cjs 里。
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "types": ["node", "vite/client", "vitest/globals"]
+  },
+  "include": ["tests/**/*.ts", "tests/**/*.tsx", "src/**/*.d.ts"]
+}
