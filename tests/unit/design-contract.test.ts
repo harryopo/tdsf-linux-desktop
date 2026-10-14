@@ -10,10 +10,18 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeAll } from 'vitest'
 
 const ROOT = path.resolve(__dirname, '../..')
 const SCRIPT = path.join(ROOT, 'scripts/design/design-contract.mjs')
+const DOC = path.join(ROOT, 'DESIGN.md')
+/**
+ * 下面"改错文档数字"那条判据要临时改这份**被跟踪的**文档，所以动笔前先落一份字节备份。
+ * 2026-10-14 实测踩过：一次全量跑把 12px 留在了 DESIGN.md 上就再没还原，
+ * 于是后面每一条判据都读到改坏的文档——一条判据把整份文档毒了，红的三条全是它的影子。
+ * 备份让下一次开跑能自愈，并且把"上一轮被中途杀掉"这件事说出口，而不是留下无痕的红。
+ */
+const DOC_BAK = `${DOC}.tdsf-test-bak`
 
 function runContract(env?: NodeJS.ProcessEnv) {
   try {
@@ -51,6 +59,17 @@ function parseJson(out: string, label: string): ContractReport {
 }
 
 describe('设计契约（DESIGN.md 与代码同源）', () => {
+  beforeAll(() => {
+    if (!fs.existsSync(DOC_BAK)) return
+    const bak = fs.readFileSync(DOC_BAK)
+    fs.writeFileSync(DOC, bak)
+    fs.rmSync(DOC_BAK, { force: true })
+    throw new Error(
+      '上一轮跑把 DESIGN.md 留在了被改坏的状态（备份文件还在）—— 本轮已从字节备份还原。\n' +
+        '这说明那次是在"改坏文档"和"还原"之间被中途杀掉的（worker 超时 / CI 取消 / 断电）。',
+    )
+  })
+
   it('当前全部条款成立', () => {
     const r = runContract()
     expect(Array.isArray(r.json.problems), `闸没返回 problems 数组，输出：\n${r.raw.slice(0, 400)}`).toBe(true)
@@ -66,17 +85,27 @@ describe('设计契约（DESIGN.md 与代码同源）', () => {
   })
 
   it('把文档数字改错，闸必须报漂移（证明它真的在比对）', () => {
-    const file = path.join(ROOT, 'DESIGN.md')
-    const original = fs.readFileSync(file, 'utf8')
-    const broken = original.replace('`--ui-font-micro` | 11px', '`--ui-font-micro` | 12px')
-    expect(broken, '测试夹具没改到东西：DESIGN.md 的字阶表格式变了').not.toBe(original)
-    fs.writeFileSync(file, broken, 'utf8')
+    const original = fs.readFileSync(DOC) // 按字节存，还原时不经过任何重编码
+    const text = original.toString('utf8')
+    const broken = text.replace('`--ui-font-micro` | 11px', '`--ui-font-micro` | 12px')
+    expect(
+      broken,
+      '夹具没改到东西：DESIGN.md 的字阶表里找不到「`--ui-font-micro` | 11px」。' +
+        '两种可能：表格写法变了（判据要跟着改），或上一轮中途被杀、盘上这格已经是 12px。',
+    ).not.toBe(text)
+    // 顺序是判据的一部分：先落备份再动文档，两者之间被杀掉才留得下还原的凭据
+    fs.writeFileSync(DOC_BAK, original)
+    fs.writeFileSync(DOC, broken, 'utf8')
     try {
       const r = runContract()
       expect(r.code, '改错文档数字后闸仍然放行 = 这条闸是摆设').not.toBe(0)
       expect(r.json.problems.join('\n')).toMatch(/--ui-font-micro：DESIGN\.md 写 12px/)
     } finally {
-      fs.writeFileSync(file, original, 'utf8')
+      fs.writeFileSync(DOC, original)
+      if (!fs.readFileSync(DOC).equals(original)) {
+        throw new Error('DESIGN.md 没还原成动笔前的字节 —— 后面的判据会读被改坏的文档并连环报红')
+      }
+      fs.rmSync(DOC_BAK, { force: true })
     }
   })
 

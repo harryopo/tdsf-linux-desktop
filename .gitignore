@@ -86,3 +86,7 @@ scripts/dict-import/.cache/
 
 # 视觉基线是【本机字体的尺子】，跨机器会误报，所以不入库（理由见 tests/e2e/visual.spec.ts 文件头）
 tests/e2e/visual.spec.ts-snapshots/
+
+# design-contract 的"改错文档数字"判据临时改 DESIGN.md 时落的字节备份（正常跑完即删；
+# 留着就说明那一轮在改动与还原之间被中途杀掉过，下一轮开跑会还原并当场报红）
+/DESIGN.md.tdsf-test-bak
