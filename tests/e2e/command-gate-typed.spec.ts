@@ -34,7 +34,9 @@ async function openLocalTerminal(page: import('@playwright/test').Page): Promise
   })
   await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
   await page.getByRole('button', { name: '开一个本机终端', exact: true }).click()
-  await expect(page.locator('.term-tab-item'), { timeout: 15000 }).toHaveCount(1)
+  // timeout 要挂在匹配器上：expect(locator, {timeout}) 的第二个参数只认 message，
+  // 写在那里的 timeout 会被静默丢掉（等于一直用默认 5 秒，标签慢一点出来就假红）。
+  await expect(page.locator('.term-tab-item')).toHaveCount(1, { timeout: 15000 })
   await page.click('.terminal-view.visible')
 }
 

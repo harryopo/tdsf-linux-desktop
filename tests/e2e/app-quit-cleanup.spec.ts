@@ -65,8 +65,7 @@ test.describe('退出清理收尾', () => {
     const app = await electron.launch({
       args: [MAIN_ENTRY, `--user-data-dir=${profile}`],
       env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
-      stdio: 'pipe',
-    })
+      })
     const proc = app.process()
 
     let exited: number | null = null

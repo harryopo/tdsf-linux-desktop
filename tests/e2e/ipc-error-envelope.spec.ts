@@ -49,7 +49,6 @@ testOrSkip('真应用：handler 抛错到渲染层只剩那句人话，全貌留
   const app = await electron.launch({
     args: [MAIN_ENTRY, `--user-data-dir=${profile}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
-    stdio: 'pipe',
   })
 
   try {

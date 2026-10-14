@@ -39,7 +39,7 @@ test.describe('本机终端：不连服务器也能敲命令', () => {
       // 空态里的主行动按钮（没连服务器时它就是"开一个本机终端"）
       await page.getByRole('button', { name: '开一个本机终端', exact: true }).click()
 
-      await expect(page.locator('.term-tab-item'), { timeout: 15000 }).toHaveCount(1)
+      await expect(page.locator('.term-tab-item')).toHaveCount(1, { timeout: 15000 })
       // 标签必须说清这是本机的哪个 shell，只写"终端"分不清本机还是远端
       await expect(page.locator('.term-tab-item').first()).toContainText('本机')
 

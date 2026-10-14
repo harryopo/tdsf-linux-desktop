@@ -117,7 +117,7 @@ test.describe('同一条连接开两个终端', () => {
       // 按 menuitem 角色点：同一句文案在空态里还有一个同名按钮，getByText 会撞成两个
       await page.getByRole('menuitem', { name: '在这台主机再开一个终端' }).click()
 
-      await expect(page.locator('.term-tab-item'), { timeout: 15000 }).toHaveCount(2)
+      await expect(page.locator('.term-tab-item')).toHaveCount(2, { timeout: 15000 })
       // 同主机第二个标签必须带编号：两个都叫同一个名字，用户分不清往哪敲
       await expect(page.locator('.term-tab-item').nth(1)).toContainText('2')
 

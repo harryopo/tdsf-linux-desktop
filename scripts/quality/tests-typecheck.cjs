@@ -30,10 +30,14 @@ const TSCONFIG = 'tsconfig.tests.json'
  * 同日削掉"Page 变量名叫 window 遮蔽了 evaluate 回调里的浏览器全局"这一族（TS2551 24 条清零）→ 181；
  * 再削掉 16 个组件测试里冗余的 `import type {} from '@testing-library/jest-dom'`
  * （jest-dom v6 那份是全局声明不是模块，import 它必报 TS2306；matcher 的类型本来就由
- * tests/test-setup.ts 的 `import '@testing-library/jest-dom/vitest'` 全局带进来）→ **165 条 / 55 个文件**。
+ * tests/test-setup.ts 的 `import '@testing-library/jest-dom/vitest'` 全局带进来）→ 165；
+ * 第三族是**量具自己坏了**：`expect(locator, { timeout })` 的第二个参数只认 message，
+ * 5 处 e2e 把 timeout 写在那里 ⇒ 等待一直用默认 5 秒，写它的人以为给的是 15/20 秒；
+ * 另有 3 处 `_electron.launch({ stdio: 'pipe' })` 这个选项 Playwright 不认（管道本来就接走了）。
+ * 两类都换成真生效的写法 → **158 条 / 49 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 165
+const CAP = 158
 
 const argv = process.argv.slice(2)
 let top = 6

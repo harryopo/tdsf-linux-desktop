@@ -59,7 +59,6 @@ testOrSkip('真应用：数据库打不开时必须出横幅、主进程必须�
   const app = await electron.launch({
     args: [MAIN_ENTRY, `--user-data-dir=${profile}`],
     env: { ...process.env, NODE_ENV: 'test', TDSF_E2E: '1' },
-    stdio: 'pipe',
   })
   // 收着但不当判据：不接走的话管道写满会把子进程写日志堵住
   app.process().stdout?.setEncoding('utf8')

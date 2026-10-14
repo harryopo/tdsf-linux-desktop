@@ -30,7 +30,7 @@ test.describe('两个窗口共用同一张终端表', () => {
       const tapA = await installTerminalTap(winA)
 
       await winA.getByRole('button', { name: '开一个本机终端', exact: true }).click()
-      await expect(winA.locator('.term-tab-item'), { timeout: 15000 }).toHaveCount(1)
+      await expect(winA.locator('.term-tab-item')).toHaveCount(1, { timeout: 15000 })
 
       // 开第二个窗口，并让它也进工作台
       const [winB] = await Promise.all([
@@ -48,10 +48,12 @@ test.describe('两个窗口共用同一张终端表', () => {
       const tapB = await installTerminalTap(winB)
 
       // 判据 1：窗口二没人点过"新建终端"，标签必须靠对账自己出现
-      await expect(winB.locator('.term-tab-item'), {
+      // timeout 挂在匹配器上才生效：expect(locator, {timeout}) 的第二参数只认 message，
+      // 写在那里等于一直用默认 5 秒——这条跨窗口对账恰恰是最慢的一条（假红的经典形状）。
+      await expect(winB.locator('.term-tab-item')).toHaveCount(1, {
         timeout: 20000,
         message: '窗口二没显示窗口一开着的终端——投影断了',
-      }).toHaveCount(1)
+      })
       await expect(winB.locator('.term-tab-item').first()).toContainText('本机')
 
       // 判据 2：在窗口二里敲，两个窗口都该收到同一个 shell 的回显
