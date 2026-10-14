@@ -219,8 +219,9 @@ async function executeWithAutoApprove(
 // ============================================================================
 
 describe('warmup-session-key-cache — P1-2 集成测试', () => {
+  // 类型直接取模块自己的签名（strictFunctionTypes 下 (BrowserWindow)=>void 不能赋给 (unknown)=>void）
   let warmupSessionKeyCache: () => Promise<void>
-  let registerSandboxIpcHandlers: (mainWindow: unknown) => void
+  let registerSandboxIpcHandlers: (typeof import('../../src/main/ipc/sandbox'))['registerSandboxIpcHandlers']
 
   beforeEach(async () => {
     // 清空所有 mock 调用记录
@@ -241,7 +242,12 @@ describe('warmup-session-key-cache — P1-2 集成测试', () => {
     registerSandboxIpcHandlers = sandboxModule.registerSandboxIpcHandlers
 
     // 注册 IPC handlers（捕获 sandbox:create / sandbox:execute / sandbox:delete / sandbox:approve）
-    registerSandboxIpcHandlers(mockBrowserWindow)
+    // 真 BrowserWindow 在单测里造不出来：sandbox 只用到 isDestroyed 与 webContents.send，
+    // 替身就按这两个字段造，进真签名时在这里显式转一次
+    // （原先把签名手抄成 (mainWindow: unknown) => void，等于绕过了这个检查点）。
+    registerSandboxIpcHandlers(
+      mockBrowserWindow as unknown as Parameters<typeof registerSandboxIpcHandlers>[0],
+    )
   })
 
   // ----------------------------------------------------------------------

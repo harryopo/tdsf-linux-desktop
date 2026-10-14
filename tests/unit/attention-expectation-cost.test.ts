@@ -89,8 +89,11 @@ import {
   recordTokenUsage,
   resetTokenStats,
   getCostStats,
-  type CostStats,
 } from '../../src/main/core/agent/providers/token-stats'
+
+// CostStats 是 token-stats 的内部声明，模块没把它 export 出去（只 export 了 getCostStats）。
+// 从函数返回类型派生，比要求产品为一个测试开放类型更省事，也不会再次跑偏。
+type CostStats = ReturnType<typeof getCostStats>
 
 // ============================================================================
 // 工具函数：构造 TokenUsageRecord

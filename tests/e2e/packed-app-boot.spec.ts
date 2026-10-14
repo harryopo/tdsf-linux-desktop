@@ -90,7 +90,10 @@ test.describe('生产包真启动', () => {
     } catch (e) {
       throw await dieWithContext('进入工作台外壳', e)
     }
-  }, 150_000)
+    // 钩子级的 timeout 参数实测不生效（上面注释记的就是这件事），本份的类型检查也不认
+    // 这个两参写法（它匹配到 (title, body) 那条重载）。真正兜时间的是上面每步自己的
+    // 10s/8s/6s 上限，所以把这个死参数去掉不改变行为。
+  })
 
   test.afterAll(async () => {
     // 不用 app.close()：装包进程收尾时会留下子进程让 close 挂住，按 PID 收更可靠

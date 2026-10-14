@@ -186,7 +186,10 @@ describe.skipIf(!LIVE)('真靶子：SSH 连接层', () => {
 
   it('resizeShell 真发窗口尺寸且不报错', async () => {
     const shell = await mgr.startShell(sessionId, { cols: 80, rows: 24 })
-    await expect(mgr.resizeShell(shell, { cols: 120, rows: 40 })).resolves.toBeDefined()
+    // 真签名是 resizeShell(shellId, cols, rows) → Promise<boolean>（connection-manager.ts:579）。
+    // 原先传的是 (shell, {cols,rows})：这条只有接了真靶机才会跑，所以 arity 错了也没人撞见；
+    // 断言也从 toBeDefined() 收紧成 toBe(true)——false 表示通道没找到，那是失败不是"有定义"
+    await expect(mgr.resizeShell(shell, 120, 40)).resolves.toBe(true)
     mgr.closeShell(shell)
   })
 

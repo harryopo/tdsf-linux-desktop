@@ -29,6 +29,28 @@ import {
   executeWeeklyOpsReport,
 } from '../../../src/main/services/scheduler/weekly-ops-report'
 
+/**
+ * 周报 details 的真实形状（weekly-ops-report.ts:386-391 就是这么造的）。
+ * 通用任务契约把 details 定成 Record<string, unknown>（shared/scheduler-types.ts:40），
+ * 消费方必须自己收窄——不收窄，下面几条断言比的是 unknown，
+ * 周报改了字段名测试不会红，只会安静地拿 undefined 去比。
+ */
+type WeeklyReportDetails = {
+  weekLabel: string
+  filePath: string
+  queryErrors: Array<{ repo: string; error: string }>
+  decisionStats: { total: number }
+  knowledgeStats: { newEntries: number }
+}
+
+function reportDetails(result: Awaited<ReturnType<typeof executeWeeklyOpsReport>>): WeeklyReportDetails {
+  const d = result.details as Partial<WeeklyReportDetails> | undefined
+  if (!d || !Array.isArray(d.queryErrors) || !d.decisionStats || !d.knowledgeStats) {
+    throw new Error(`周报 details 少了预期字段，实际只有：${Object.keys(d ?? {}).join(', ')}`)
+  }
+  return d as WeeklyReportDetails
+}
+
 // ────────── Mock Repository / FS 工厂 ──────────
 
 function createMockDecisionRepo(stats?: ReturnType<typeof makeDecisionStats>): DecisionWeeklyRepository {
@@ -225,9 +247,10 @@ describe('executeWeeklyOpsReport', () => {
     })
 
     expect(result.success).toBe(true)
-    expect(result.details?.queryErrors).toHaveLength(1)
-    expect(result.details?.queryErrors[0].repo).toBe('decision')
-    expect(result.details?.decisionStats.total).toBe(0)
+    const d = reportDetails(result)
+    expect(d.queryErrors).toHaveLength(1)
+    expect(d.queryErrors[0]?.repo).toBe('decision')
+    expect(d.decisionStats.total).toBe(0)
   })
 
   it('知识仓储查询失败时不中断周报生成', async () => {
@@ -246,9 +269,10 @@ describe('executeWeeklyOpsReport', () => {
     })
 
     expect(result.success).toBe(true)
-    expect(result.details?.queryErrors).toHaveLength(1)
-    expect(result.details?.queryErrors[0].repo).toBe('knowledge')
-    expect(result.details?.knowledgeStats.newEntries).toBe(0)
+    const d = reportDetails(result)
+    expect(d.queryErrors).toHaveLength(1)
+    expect(d.queryErrors[0]?.repo).toBe('knowledge')
+    expect(d.knowledgeStats.newEntries).toBe(0)
   })
 
   it('文件写入失败返回 success=false', async () => {

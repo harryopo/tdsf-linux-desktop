@@ -77,8 +77,8 @@ function twoHopExec(cmd: string): Promise<string> {
                   return
                 }
                 let out = ''
-                s2.on('data', (d) => (out += d.toString()))
-                s2.stderr.on('data', (d) => (out += d.toString()))
+                s2.on('data', (d: Buffer) => (out += d.toString()))
+                s2.stderr.on('data', (d: Buffer) => (out += d.toString()))
                 s2.on('close', () => {
                   target.end()
                   jump.end()

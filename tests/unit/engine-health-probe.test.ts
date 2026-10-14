@@ -18,11 +18,17 @@ import { drain3BridgeHealth } from '../../src/main/services/log/drain3-bridge'
 
 describe('tree-sitter wasm 路径解析', () => {
   it('资源目录里没有 wasm 时也给出 node_modules 候选（不再因为"像生产"就只认一条路径）', () => {
-    const savedResources = process.resourcesPath
+    const savedResources = Object.getOwnPropertyDescriptor(process, 'resourcesPath')
     const savedEnv = process.env.NODE_ENV
     // 模拟打包环境：resourcesPath 存在，但那个位置根本没有 wasm（本仓的 wasm 实际随
     // asar.unpacked 的 node_modules 发布）。旧实现到这里就直接失败并静默退回正则。
-    process.resourcesPath = path.join(os.tmpdir(), 'tdsf-no-such-resources')
+    // process.resourcesPath 在 Node 类型里是只读属性，直接赋值过不了检查——
+    // 用 defineProperty 改，收尾按原描述符装回去，运行期效果一样但不再靠运气。
+    Object.defineProperty(process, 'resourcesPath', {
+      value: path.join(os.tmpdir(), 'tdsf-no-such-resources'),
+      configurable: true,
+      writable: true,
+    })
     process.env.NODE_ENV = 'production'
     try {
       const candidates = astWasmCandidates()
@@ -30,8 +36,11 @@ describe('tree-sitter wasm 路径解析', () => {
       const found = candidates.filter((p) => fs.existsSync(p))
       expect(found.length, `一个候选都不存在：${candidates.join(' | ')}`).toBeGreaterThan(0)
     } finally {
-      if (savedResources === undefined) delete process.resourcesPath
-      else process.resourcesPath = savedResources
+      if (savedResources) {
+        Object.defineProperty(process, 'resourcesPath', savedResources)
+      } else {
+        delete (process as unknown as { resourcesPath?: string }).resourcesPath
+      }
       if (savedEnv === undefined) delete process.env.NODE_ENV
       else process.env.NODE_ENV = savedEnv
     }

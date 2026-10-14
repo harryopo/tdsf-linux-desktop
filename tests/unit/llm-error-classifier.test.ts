@@ -23,7 +23,9 @@ function apiError(init: {
   status?: number
   data?: unknown
   responseBody?: string
-}): Error & Record<string, unknown> {
+  // 原先声明成 Error & Record<string, unknown>：Object.assign 造不出索引签名，
+  // 于是这条"真形状"的构造函数自己过不了类型检查。按实际有的字段声明。
+}): Error & { name: string; status?: number; data?: unknown; responseBody?: string } {
   return Object.assign(new Error(init.message), {
     ...(init.status !== undefined ? { status: init.status } : {}),
     ...(init.data !== undefined ? { data: init.data } : {}),

@@ -439,14 +439,17 @@ describe('LlmClient — LLM 客户端', () => {
       )
       // 立即附加 catch handler 防止 unhandled rejection 警告
       // （reject 发生在 advanceTimers 期间，若不立即 catch 会触发 Node 警告）
-      const caughtPromise = promise.catch((e: Error) => e)
+      const caughtPromise = promise.catch((e: unknown) => e)
 
       // 推进所有重试延迟（1s + 2s + 4s = 7s）及中断 timer
       await vi.advanceTimersByTimeAsync(10000)
       await vi.runAllTimersAsync()
 
       const thrown = await caughtPromise
-      expect(thrown).toBeInstanceOf(Error)
+      // 先确认真的是 Error 再读 message：断言强度不变，但不再假设"拒绝值一定是 Error"
+      if (!(thrown instanceof Error)) {
+        throw new Error(`流式失败应以 Error 抛出，实际拿到 ${typeof thrown}：${String(thrown)}`)
+      }
       expect(thrown.message).toContain('LLM 流式调用失败')
       // 初始 + 3 次重试 = 4 次
       expect(mockCreate).toHaveBeenCalledTimes(4)

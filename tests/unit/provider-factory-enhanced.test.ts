@@ -767,6 +767,9 @@ describe('任务 4：Provider 能力声明', () => {
         toolCall: false,
         vision: true,
         contextWindow: 999_999,
+        // ProviderCapabilities 里 logprobs 是必填（agent-types.ts:110，v0.9.7 P3 加的）：
+        // 它决定可信度模块走真实 token 熵还是走兜底，自定义能力不能不表态
+        logprobs: false,
       }
       const config = makePersistedConfig({
         type: 'deepseek',
@@ -785,6 +788,7 @@ describe('任务 4：Provider 能力声明', () => {
         toolCall: true,
         vision: false,
         contextWindow: 8_000,
+        logprobs: false,
       }
       const config = makePersistedConfig({
         type: 'ollama',

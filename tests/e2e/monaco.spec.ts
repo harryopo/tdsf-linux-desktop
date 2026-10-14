@@ -57,14 +57,31 @@ test.describe('Monaco 本地化：不靠 CDN 也配好编辑器与 worker', () =
 
       // 判据 1：本地化真的执行了（WorkbenchPage chunk 一加载就该装上）
       await expect
-        .poll(() => page.evaluate(() => typeof window.MonacoEnvironment?.getWorker), { timeout: 15000 })
+        .poll(
+          () =>
+            page.evaluate(() => {
+              // MonacoEnvironment 是产品运行时挂到 window 上的，没有全局声明；
+              // 在页面里就地收窄一次，别靠 any 飘过去
+              const env = (
+                window as unknown as { MonacoEnvironment?: { getWorker?: unknown } }
+              ).MonacoEnvironment
+              return typeof env?.getWorker
+            }),
+          { timeout: 15000 },
+        )
         .toBe('function')
 
       // 判据 1b：起一个 worker 要真起得来（file:// 下从 file: 直接 new Worker 会被 Chromium 拒，
       // 所以本地化必须把 worker 编成 blob: —— 这一步失败就是没内联）
       const workerErr = await page.evaluate(() => {
         try {
-          const w = window.MonacoEnvironment?.getWorker?.('1', 'shell')
+          const w = (
+            window as unknown as {
+              MonacoEnvironment?: {
+                getWorker?: (m: string, label: string) => { terminate: () => void }
+              }
+            }
+          ).MonacoEnvironment?.getWorker?.('1', 'shell')
           if (!w) return 'getWorker 没返回 Worker'
           w.terminate()
           return ''

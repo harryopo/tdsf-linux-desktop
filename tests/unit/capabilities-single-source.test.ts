@@ -9,7 +9,12 @@ import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { listSourceFiles, readSourceFile } from '../helpers/source-scan'
-import { CAPABILITIES, CAPABILITY_STATUS_LABELS, capabilityCounts } from '@shared/capabilities'
+import {
+  CAPABILITIES,
+  CAPABILITY_STATUS_LABELS,
+  capabilityCounts,
+  type CapabilityStatus,
+} from '@shared/capabilities'
 
 const ROOT = path.resolve(__dirname, '../..')
 const READ = (rel: string) => readSourceFile(path.join(ROOT, rel))
@@ -30,7 +35,10 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc
 }
 
-const VALID = ['live', 'degraded', 'pending']
+// 档位清单从单源派生：capabilityCounts() 返回的 Record<CapabilityStatus, number> 的键
+// 就是全部合法档位。原先手抄一份 ['live','degraded','pending']，
+// 产品加了第四档不会红，这条"单源"检查自己先变成两份真相。
+const VALID = Object.keys(capabilityCounts()) as CapabilityStatus[]
 
 describe('能力就绪度表', () => {
   it('表非空，id 唯一，状态合法，降级与待开发都写了原因', () => {
@@ -50,7 +58,7 @@ describe('能力就绪度表', () => {
     const counts = capabilityCounts()
     expect(counts.live + counts.degraded + counts.pending).toBe(CAPABILITIES.length)
     for (const s of VALID) {
-      expect(counts[s as (typeof VALID)[number]]).toBe(CAPABILITIES.filter((c) => c.status === s).length)
+      expect(counts[s]).toBe(CAPABILITIES.filter((c) => c.status === s).length)
     }
   })
 

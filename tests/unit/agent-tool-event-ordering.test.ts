@@ -43,7 +43,11 @@ async function mount() {
   return { listeners, store: useAgentStore }
 }
 
-function seed(store: Awaited<ReturnType<typeof mount>>['store'], overrides: Record<string, unknown> = {}) {
+// overrides 按 store 里消息的真实类型收：原先是 Record<string, unknown>，
+// 于是 isStreaming 传成什么都行、消息字段改名也不会红，结尾还得靠 as never 摊进去。
+type Msg = import('@renderer/stores/agent-store').AgentMessage
+
+function seed(store: Awaited<ReturnType<typeof mount>>['store'], overrides: Partial<Msg> = {}) {
   store.setState({
     messages: [
       {
@@ -55,7 +59,7 @@ function seed(store: Awaited<ReturnType<typeof mount>>['store'], overrides: Reco
         correlationId: 'c-1',
         ...overrides,
       },
-    ] as never,
+    ] satisfies Msg[],
     isStreaming: overrides.isStreaming ?? true,
     currentCorrelationId: 'c-1',
   })

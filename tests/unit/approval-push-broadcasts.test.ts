@@ -12,7 +12,14 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const box = vi.hoisted(() => ({ wins: [] as Array<Record<string, unknown>> }))
+// box.wins 里放的是广播端真正读到的那两个字段。原先写成 Record<string, unknown>，
+// 于是 win.isDestroyed 是 unknown、只能 as boolean，字段改名也不会红。
+// （本文件另有一个 FakeWin，那是 fakeWindow() 返回给断言用的把手，别混名）
+type WinLike = {
+  isDestroyed: () => boolean
+  webContents: { isDestroyed: () => boolean; send: (channel: string, ...args: unknown[]) => void }
+}
+const box = vi.hoisted(() => ({ wins: [] as Array<WinLike> }))
 
 vi.mock('electron', () => ({
   ipcMain: { handle: () => {}, removeHandler: () => {}, on: () => {} },
@@ -26,10 +33,9 @@ vi.mock('electron', () => ({
 vi.mock('../../src/main/windows/main-window', () => ({
   broadcastToWindows: (channel: string, ...args: unknown[]): void => {
     for (const win of box.wins) {
-      const wc = win.webContents as { isDestroyed: () => boolean; send: (c: string, ...a: unknown[]) => void }
-      if (win.isDestroyed() as boolean) continue
-      if (wc.isDestroyed()) continue
-      wc.send(channel, ...args)
+      if (win.isDestroyed()) continue
+      if (win.webContents.isDestroyed()) continue
+      win.webContents.send(channel, ...args)
     }
   },
 }))

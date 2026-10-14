@@ -62,8 +62,8 @@ function groundTruth(cmd: string): Promise<string> {
             return
           }
           let out = ''
-          stream.on('data', (d) => (out += d.toString()))
-          stream.stderr.on('data', (d) => (out += d.toString()))
+          stream.on('data', (d: Buffer) => (out += d.toString()))
+          stream.stderr.on('data', (d: Buffer) => (out += d.toString()))
           stream.on('close', () => {
             conn.end()
             resolve(out.trim())

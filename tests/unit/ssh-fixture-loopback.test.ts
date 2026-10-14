@@ -18,7 +18,9 @@ async function openShell(port: number): Promise<string> {
     let collected = ''
     conn
       .on('ready', () => {
-        conn.shell('xterm-256color', { rows: 24, cols: 80, term: 'xterm-256color' }, (err, stream) => {
+        // ssh2 的重载是 shell(windowOptions, cb)：原先把 'xterm-256color' 当第一个
+        // 位置参数传，类型不过（也说明那半句是多余的），终端类型本来就在 options.term 里
+        conn.shell({ rows: 24, cols: 80, term: 'xterm-256color' }, (err, stream) => {
           if (err) return reject(err)
           stream.on('data', (buf: Buffer) => {
             collected += buf.toString('utf8')

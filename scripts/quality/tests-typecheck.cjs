@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 /**
- * tests/ 的类型检查闸（只降不升的 ratchet）
+ * tests/ 的类型检查闸（现在是硬零闸，CAP=0）
  *
  * 为什么要有这道门：`tsconfig.node.json` 与 `tsconfig.web.json` 的 include 都不含 tests/，
  * `npm run lint` 只扫 src，`.git/hooks/pre-commit` 只跑密钥/拓扑/协作三闸——
  * 也就是说 2900 条测试**从来没有被类型检查过**。产品改了字段名，测试不会红，
  * 它会继续用旧形状构造对象、断言一个不存在的东西，然后绿着。
  *
- * 为什么不是一次性清零：实测存量 200 条，分布在 70 个文件，大头是
- * "把 Page 变量命名成 window，evaluate 回调里的 window.location 被解析成 Page 的属性"
- * 与"可能为空没兜住"两类。批量改 70 个测试文件的风险（改坏断言、静默弱化判据）
- * 大于收益，所以先把口子扎住：**存量记账，新增即红**，之后每轮往下削一点。
+ * 为什么立闸时不清零、后来又清零了：2026-10-14 立闸时实测存量 200 条 / 70 个文件，
+ * 一次性手改 70 个测试文件的风险（改坏断言、静默弱化判据）大于收益，所以先按
+ * **“存量记账，新增即红”**扎住口子，再分族往下削：每族一个提交、每族复跑全量 vitest
+ * 与被改到的 e2e 用例、并把 CAP 改成实测新数。削的过程本身就是找真隐患的过程
+ * （恒真断言、as never 蒙过的形状不匹配、mock 没形参导致二十多条断言从没被检查过），
+ * 这些是"一次性机械清零"拿不到的东西。CAP 轨迹记在下面的注释里。
  *
  * 用法：
  *   node scripts/quality/tests-typecheck.cjs              跑闸（超上限 exit 1）
@@ -74,10 +76,18 @@ const TSCONFIG = 'tsconfig.tests.json'
  * 于是带参调用一律过不了检查、只能各处 as never；假 manager 的 onShellData 写成无参、
  * registerLocalTerminalHandlers 早就不收窗口了还硬塞一个 fakeWindow、
  * node:sqlite 的构造函数被当类型用、AST 测试在类型位置引用只在值位置 import 进来的 ts。
- * → **23 条 / 16 个文件**。
- * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
+ * → 23 条 / 16 个文件；
+ * 第十族是"读结果的人没收窄"：通用任务契约把 details 定成 Record<string, unknown>，
+ * 周报那四条断言一直在比 unknown；能力档位表在测试里手抄了一份（本仓自己有单源表）；
+ * ProviderCapabilities 加了必填 logprobs 而两处夹具没跟；CostStats 模块没 export；
+ * 广播替身的窗口是 Record<string, unknown>、process.resourcesPath 当可写属性赋值、
+ * ssh2 的 shell() 多传一个位置参数、真靶机那条 resizeShell 少传一个参数还断言 toBeDefined()。
+ * → **0 条 / 0 个文件**。
+ *
+ * 现在是硬零闸：tests/ 里出现任何类型错误就红。要放宽只有一种正当理由——
+ * 那条错误本身是量具在骗人，那就修量具，不要把 CAP 抬回去。
  */
-const CAP = 23
+const CAP = 0
 
 const argv = process.argv.slice(2)
 let top = 6
