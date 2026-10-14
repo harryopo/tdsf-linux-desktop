@@ -19,7 +19,10 @@
  * 设计依据：v2.0 Phase D（task-protocol-steps-mid.ts §6-10）
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { TaskProtocolContext } from '../../src/main/core/agent/subagents/task-protocol-types'
+import type {
+  TaskProtocolContext,
+  ProviderModelInstance,
+} from '../../src/main/core/agent/subagents/task-protocol-types'
 import type { ProviderConfig, ModeConfig, ChatResult } from '../../src/shared/agent-types'
 
 // ============================================================================
@@ -204,6 +207,26 @@ function makeProviderConfig(overrides: Partial<ProviderConfig> = {}): ProviderCo
   }
 }
 
+/**
+ * 夹具要按真实工厂的返回值造：ProviderModelInstance 的 model 是 @ai-sdk 的 LanguageModel，
+ * config 是「脱敏后不含 apiKey」的 PersistedProviderConfig。
+ * 原来各处手写 `{ ...config, apiKey: undefined }`——那个键在类型里已被 Omit 掉，
+ * 写 undefined 既过不了类型检查，运行时也真留了一个名为 apiKey 的键。
+ * LanguageModel 的构造要真发请求才造得出，这里只在这一处留 cast，别的地方不再各写一份。
+ */
+function makeModelInstance(
+  config: ProviderConfig,
+  resolvedModel = 'deepseek-chat',
+): ProviderModelInstance {
+  const persisted = { ...config }
+  delete persisted.apiKey
+  return {
+    model: { modelId: resolvedModel } as never,
+    config: persisted,
+    resolvedModel,
+  }
+}
+
 function makeChatResult(overrides: Partial<ChatResult> = {}): ChatResult {
   return {
     text: '这是 LLM 返回的文本',
@@ -230,11 +253,7 @@ describe('[task-protocol-step-6] select-provider', () => {
   it('6.1 成功路径：使用默认 providerId → 创建 modelInstance', async () => {
     const config = makeProviderConfig({ type: 'deepseek' })
     mockGetProviderWithApiKey.mockReturnValue(config)
-    mockCreateLanguageModel.mockReturnValue({
-      model: 'mock-model',
-      config: { ...config, apiKey: undefined },
-      resolvedModel: 'deepseek-chat',
-    })
+    mockCreateLanguageModel.mockReturnValue(makeModelInstance(config))
 
     const ctx = makeCtx({ input: { prompt: 'hello' } })
     const result = await stepSelectProvider(ctx)
@@ -255,11 +274,7 @@ describe('[task-protocol-step-6] select-provider', () => {
   it('6.2 成功路径：input.providerId 指定 → 优先使用且 source=input', async () => {
     const config = makeProviderConfig({ id: 'custom-p1', type: 'qwen' })
     mockGetProviderWithApiKey.mockReturnValue(config)
-    mockCreateLanguageModel.mockReturnValue({
-      model: 'mock-qwen',
-      config: { ...config, apiKey: undefined },
-      resolvedModel: 'qwen-max',
-    })
+    mockCreateLanguageModel.mockReturnValue(makeModelInstance(config, 'qwen-max'))
 
     const ctx = makeCtx({ input: { providerId: 'custom-p1', prompt: 'hi' } })
     const result = await stepSelectProvider(ctx)
@@ -436,11 +451,7 @@ describe('[task-protocol-step-9] invoke-subagent', () => {
       messages: [
         { role: 'user', content: 'hi' },
       ],
-      modelInstance: {
-        model: { id: 'mock-model' } as never,
-        config: { ...config, apiKey: undefined },
-        resolvedModel: 'deepseek-chat',
-      },
+      modelInstance: makeModelInstance(config),
     })
 
     const fakeResult = {
@@ -500,11 +511,7 @@ describe('[task-protocol-step-9] invoke-subagent', () => {
       providerType: 'deepseek',
       strength: 'deep',
       messages: [{ role: 'user', content: 'hi' }],
-      modelInstance: {
-        model: { id: 'mock' } as never,
-        config: { ...config, apiKey: undefined },
-        resolvedModel: 'deepseek-chat',
-      },
+      modelInstance: makeModelInstance(config),
     })
 
     const fakeResult = {
@@ -533,11 +540,7 @@ describe('[task-protocol-step-9] invoke-subagent', () => {
       providerConfig: config,
       providerType: 'deepseek',
       messages: [{ role: 'user', content: 'hi' }],
-      modelInstance: {
-        model: { id: 'mock' } as never,
-        config: { ...config, apiKey: undefined },
-        resolvedModel: 'deepseek-chat',
-      },
+      modelInstance: makeModelInstance(config),
       ...extra,
     })
   }

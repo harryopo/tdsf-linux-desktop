@@ -31,8 +31,10 @@ const mocks = vi.hoisted(() => ({
     access: vi.fn(async () => {
       throw new Error('ENOENT')
     }),
-    appendFile: vi.fn(async () => undefined),
-    writeFile: vi.fn(async () => undefined),
+    // 形参要声明出来：不写的话 calls[0][1] 推断成 undefined，用例只能 as string 硬掰；
+    // 真产内容的位置（第 2 个参数）也从此被类型钉住，挪了参数测试会先红。
+    appendFile: vi.fn(async (_path: string, _data: string, _encoding: string) => undefined),
+    writeFile: vi.fn(async (_path: string, _data: string, _encoding: string) => undefined),
   },
   // KnowledgeRepository 实例 mock
   knowledgeRepo: {
@@ -195,7 +197,8 @@ describe('[P2-I task-sediment] sedimentTaskMemory', () => {
     // 验证 Markdown 写入
     expect(mocks.fs.mkdir).toHaveBeenCalledTimes(1)
     expect(mocks.fs.appendFile).toHaveBeenCalledTimes(1)
-    const mdContent = mocks.fs.appendFile.mock.calls[0][1] as string
+    // appendFile 的第 2 个参数才是正文；取不到就当空串，下面 toContain 会直接红，不会静默放过
+    const mdContent = mocks.fs.appendFile.mock.calls[0]?.[1] ?? ''
     expect(mdContent).toContain(result.sedimentId)
     expect(mdContent).toContain('coding')
     expect(mdContent).toContain('成功')
@@ -397,7 +400,7 @@ describe('[P2-I task-sediment] sedimentTaskMemory', () => {
     // access 抛 ENOENT → writeFile 写标题 → appendFile 追加
     expect(mocks.fs.writeFile).toHaveBeenCalledTimes(1)
     expect(mocks.fs.appendFile).toHaveBeenCalledTimes(1)
-    const header = mocks.fs.writeFile.mock.calls[0][1] as string
+    const header = mocks.fs.writeFile.mock.calls[0]?.[1] ?? ''
     expect(header).toContain('任务记忆沉淀')
     expect(header).toContain('自动生成')
   })

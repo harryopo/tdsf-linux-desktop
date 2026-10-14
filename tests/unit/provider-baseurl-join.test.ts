@@ -43,7 +43,6 @@ async function urlBuiltBy(baseURL: string): Promise<string> {
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
       maxOutputTokens: 1,
       temperature: 0,
-      mode: 'standard',
       abortSignal: new AbortController().signal,
       headers: {},
     })

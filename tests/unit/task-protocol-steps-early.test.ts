@@ -19,6 +19,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { TaskProtocolContext } from '../../src/main/core/agent/subagents/task-protocol-types'
 import type { Subagent, SubagentRegistry } from '../../src/main/core/agent/subagents/base'
+import type { AttentionFocus } from '@shared/agent-types'
 
 // ============================================================================
 // Mock：electron + electron-store（logger 间接依赖）
@@ -51,7 +52,8 @@ vi.mock('electron-store', () => {
 // Mock：AttentionTracker 单例（避免依赖真实状态）
 // ============================================================================
 const mockAttentionTracker = {
-  getCurrent: vi.fn(() => ({ since: Date.now() })),
+  // 标注真实返回类型：不标的话推断成 { since: number }，用例里喂 files/commands 会被类型挡下
+  getCurrent: vi.fn((): AttentionFocus => ({ since: Date.now() })),
   isEmpty: vi.fn(() => true),
 }
 

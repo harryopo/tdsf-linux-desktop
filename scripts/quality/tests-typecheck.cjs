@@ -34,10 +34,17 @@ const TSCONFIG = 'tsconfig.tests.json'
  * 第三族是**量具自己坏了**：`expect(locator, { timeout })` 的第二个参数只认 message，
  * 5 处 e2e 把 timeout 写在那里 ⇒ 等待一直用默认 5 秒，写它的人以为给的是 15/20 秒；
  * 另有 3 处 `_electron.launch({ stdio: 'pipe' })` 这个选项 Playwright 不认（管道本来就接走了）。
- * 两类都换成真生效的写法 → **158 条 / 49 个文件**。
+ * 两类都换成真生效的写法 → 158 条 / 49 个文件；
+ * 第四族是"夹具自己造了个产品没有的形状"（TS2353 / TS2352 共 11 条）：
+ * `modelInstance.config` 的类型是 PersistedProviderConfig，`apiKey` 这个键已被 Omit 掉，
+ * 测试却写 `{ ...config, apiKey: undefined }`——运行时真留了一个名为 apiKey 的键；
+ * `AttentionTracker.getCurrent` 的 mock 没标返回类型，推断成 `{ since }`，喂 files/commands 就撞；
+ * `fs.appendFile` 的 mock 没标形参，`calls[0][1]` 推断成 undefined，用例只能 `as string` 硬掰；
+ * provider-baseurl-join 还在按 AI SDK V1 的 `mode: 'standard'` 调 doGenerate。
+ * 四处都改成"按真实契约造"→ **146 条 / 44 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 158
+const CAP = 146
 
 const argv = process.argv.slice(2)
 let top = 6

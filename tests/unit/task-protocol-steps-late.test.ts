@@ -17,7 +17,11 @@
  * 设计依据：v2.0 Phase D（task-protocol-steps-late.ts §11-14）
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { TaskProtocolContext, StepResult } from '../../src/main/core/agent/subagents/task-protocol-types'
+import type {
+  TaskProtocolContext,
+  StepResult,
+  ProviderModelInstance,
+} from '../../src/main/core/agent/subagents/task-protocol-types'
 import type { ProviderConfig, ChatResult } from '../../src/shared/agent-types'
 
 // ============================================================================
@@ -136,6 +140,19 @@ function makeProviderConfig(overrides: Partial<ProviderConfig> = {}): ProviderCo
     enabled: true,
     ...overrides,
   }
+}
+
+/**
+ * 夹具按真实工厂返回值造：ProviderModelInstance.config 的类型是 PersistedProviderConfig，
+ * 里面根本没有 apiKey 这个键（脱敏在 provider-registry 就做了），所以要删而不是写 undefined。
+ */
+function makeModelInstance(
+  config: ProviderConfig,
+  resolvedModel = 'deepseek-chat',
+): ProviderModelInstance {
+  const persisted = { ...config }
+  delete persisted.apiKey
+  return { model: { modelId: resolvedModel } as never, config: persisted, resolvedModel }
 }
 
 function makeChatResult(overrides: Partial<ChatResult> = {}): ChatResult {
@@ -489,11 +506,7 @@ describe('[task-protocol-step-14] return-result', () => {
       output: '最终输出',
       usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150, cost: 0.001 },
       providerConfig: makeProviderConfig(),
-      modelInstance: {
-        model: { id: 'mock' } as never,
-        config: { ...makeProviderConfig(), apiKey: undefined },
-        resolvedModel: 'deepseek-chat',
-      },
+      modelInstance: makeModelInstance(makeProviderConfig()),
       mode: 'chat',
       subagentName: 'coding',
     })
