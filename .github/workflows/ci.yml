@@ -108,6 +108,13 @@ jobs:
       - name: Type check (tests)
         run: pnpm types:tests
 
+      # 门禁链自己（scripts 下的 .cjs/.mjs：密钥闸/拓扑闸/协作闸/设计闸/契约闸）不在
+      # lint 与两个 tsconfig 的任何口径里。2026-10-14 给 tests-typecheck 加注释时，
+      # 块注释里那段通配路径的"星号紧跟斜杠"提前关掉了注释、整个脚本变成语法错误——
+      # 那天是我正好跑了它才发现；没人跑的那几天，它是安静地不说话的。
+      - name: Syntax check (gate scripts)
+        run: node scripts/quality/scripts-syntax-check.cjs
+
   # ===== 单元测试 =====
   test:
     name: Vitest
