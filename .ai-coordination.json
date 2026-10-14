@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-14T09:44:31.571Z",
+  "lastUpdated": "2026-10-14T15:15:46.547Z",
   "sessions": {},
   "history": [
     {
@@ -7557,6 +7557,20 @@
       "file": "package.json",
       "task": "tests-typecheck-gate",
       "timestamp": "2026-10-14T09:44:31.571Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "CLAUDE.md",
+      "task": "gate-tests-typecheck",
+      "timestamp": "2026-10-14T15:11:59.350Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "CLAUDE.md",
+      "task": "gate-tests-typecheck",
+      "timestamp": "2026-10-14T15:15:46.547Z"
     }
   ],
   "coordinationAudit": {
