@@ -70,7 +70,7 @@ import {
 import { createLanguageModel, getDefaultParams } from './providers/provider-factory'
 import { getProviderWithApiKey, getDefaultProviderId, ensureProvidersInitialized } from './providers/provider-registry'
 import { getProviderCapabilities } from './providers/provider-capabilities'
-import { redactSecrets } from './providers/redact'
+import { redactSecrets, withToolResultRedaction } from './providers/redact'
 import { buildTerminalContextBlock, recordTerminalContextAudit } from './terminal-context'
 import { AuditRepo } from '../../services/db/audit-repo'
 import { recordTokenUsage } from './providers/token-stats'
@@ -912,11 +912,13 @@ class SupervisorAgent {
       // 7c. v2.6 意图路由：根据用户消息按需选择本轮挂载的工具子集（零 Token 本地匹配），
       // 并经 onToolEvent 推「工具装配」卡片可视化路由决策（复用 skill_match 卡片模式）。
       const toolRoute = routeChatTools(lastUserText, { ssh: Boolean(sshTools), db: true })
-      const tools = Object.fromEntries(
-        Object.entries(candidateTools).filter(([name]) =>
-          (toolRoute.mounted as string[]).includes(name),
-        ),
-      ) as typeof candidateTools
+      const tools = withToolResultRedaction(
+        Object.fromEntries(
+          Object.entries(candidateTools).filter(([name]) =>
+            (toolRoute.mounted as string[]).includes(name),
+          ),
+        ) as typeof candidateTools
+      )
       const hasTools = Object.keys(tools).length > 0
       {
         const mountedLabels = CHAT_TOOL_CATALOG

@@ -224,3 +224,40 @@ export function listRedactRules(): Array<{ name: string; description: string }> 
     description: rule.pattern.source,
   }))
 }
+
+/**
+ * 递归脱敏任意工具返回值（HC-6 的出边界收口）。
+ *
+ * 病根：redactSecrets 原先只装在用户消息与 sftp_read 两个点上，而工具结果才是凭据
+ * 最常见的载体（`cat ~/.my.cnf` / `env` / `ps aux` / 日志里的 token），三个命令类工具的
+ * stdout/stderr 原样进模型上下文。同一条文本能从多个出口离开边界，只装一个等于没装。
+ */
+export function redactToolValue(value: unknown): unknown {
+  if (typeof value === 'string') return redactSecrets(value)
+  if (Array.isArray(value)) return value.map(redactToolValue)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = redactToolValue(v)
+    return out
+  }
+  return value
+}
+
+/**
+ * 给一组工具定义的 execute 套上结果脱敏（浅拷贝，不改共享对象）。
+ *
+ * 收口放在 tools 的组装点而不是每个 execute 里：新增工具自动受管，
+ * 不再依赖"写工具的人记得自己脱敏"这条没人检查的约定。
+ */
+export function withToolResultRedaction<T extends object>(tools: T): T {
+  const wrapped: Record<string, unknown> = {}
+  for (const [name, def] of Object.entries(tools as Record<string, unknown>)) {
+    if (def && typeof def === 'object' && typeof (def as { execute?: unknown }).execute === 'function') {
+      const run = (def as { execute: (...args: unknown[]) => unknown }).execute
+      wrapped[name] = { ...def, execute: (...args: unknown[]) => redactToolValue(run(...args)) }
+    } else {
+      wrapped[name] = def
+    }
+  }
+  return wrapped as T
+}
