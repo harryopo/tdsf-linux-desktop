@@ -65,7 +65,11 @@ describe('主进程崩溃兜底', () => {
   it('弹窗正文里的凭据形状先被涂掉（第三个出口：弹到用户屏幕上）', () => {
     // connection-manager 的超时文案是 `命令执行超时(...): ${command}`，命令原文可以是
     // `mysql -u root pass=...`；日志与 IPC 信封都装了脱敏，弹到桌面上的这一份以前是漏网的。
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => process) as never)
+    // 这里不用 `as never` 骗过 process.exit 的返回类型：让替身真的抛，
+    // 万一有代码真去调退出，测试会指着这条消息说话，而不是静默把 runner 干掉。
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('测试里不许真的退出主进程')
+    })
     const log = vi.fn()
     const notify = vi.fn()
     handle = installCrashGuard({ log, notify })
