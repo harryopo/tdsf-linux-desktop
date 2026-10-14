@@ -12,7 +12,6 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 
 import { Dialog, DialogContent } from '@renderer/ui/overlay'
 import ChmodDialog from '@renderer/components/workbench/ChmodDialog'

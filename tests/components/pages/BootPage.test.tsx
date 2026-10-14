@@ -23,7 +23,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 
 // ============================================================================
 // Mock react-router-dom：拦截 useNavigate 验证跳转调用

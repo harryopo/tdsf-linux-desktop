@@ -18,7 +18,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 
 import LiveMessageRow from '@renderer/components/workbench/panels/LiveMessageRow'
 import type { AgentMessage } from '@renderer/stores/agent-store'

@@ -27,11 +27,13 @@ const TSCONFIG = 'tsconfig.tests.json'
 /**
  * 存量上限（只算 tests/ 里的）。
  * 2026-10-14 立闸时 200 条 / 70 个文件；
- * 同日削掉"Page 变量名叫 window 遮蔽了 evaluate 回调里的浏览器全局"这一族（TS2551 24 条清零）
- * 之后是 **181 条 / 68 个文件**。
+ * 同日削掉"Page 变量名叫 window 遮蔽了 evaluate 回调里的浏览器全局"这一族（TS2551 24 条清零）→ 181；
+ * 再削掉 16 个组件测试里冗余的 `import type {} from '@testing-library/jest-dom'`
+ * （jest-dom v6 那份是全局声明不是模块，import 它必报 TS2306；matcher 的类型本来就由
+ * tests/test-setup.ts 的 `import '@testing-library/jest-dom/vitest'` 全局带进来）→ **165 条 / 55 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 181
+const CAP = 165
 
 const argv = process.argv.slice(2)
 let top = 6

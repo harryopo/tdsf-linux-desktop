@@ -9,7 +9,6 @@
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 import { userEvent } from '@testing-library/user-event'
 
 import { ConfirmHost, confirmDialog } from '@renderer/ui/confirm'

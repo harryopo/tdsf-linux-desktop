@@ -18,7 +18,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type {} from '@testing-library/jest-dom'
 
 import {
   CpuAreaChart,

@@ -13,7 +13,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 
 import { DbDegradedBanner } from '@renderer/components/layout/DbDegradedBanner'
 import { useDbStatusStore } from '@renderer/stores/db-status-store'

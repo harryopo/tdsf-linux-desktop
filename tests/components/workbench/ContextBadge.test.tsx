@@ -8,7 +8,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 import ContextBadge from '@renderer/components/workbench/ContextBadge'
 
 describe('ContextBadge', () => {

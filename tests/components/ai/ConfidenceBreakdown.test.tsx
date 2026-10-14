@@ -18,7 +18,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 import ConfidenceBreakdown from '@renderer/components/ai/ConfidenceBreakdown'
 import { analyzeCotEntropyTrajectory } from '@shared/cot-trace-analyzer'
 import type { ConfidenceAssessment } from '@shared/agent-types'

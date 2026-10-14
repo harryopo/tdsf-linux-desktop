@@ -15,7 +15,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 
 import ChatCredibility from '@renderer/components/workbench/panels/ChatCredibility'
 import type { AgentMessage } from '@renderer/stores/agent-store'

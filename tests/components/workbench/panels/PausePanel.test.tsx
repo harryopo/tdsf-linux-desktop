@@ -12,7 +12,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type {} from '@testing-library/jest-dom'
 
 import PausePanel from '@renderer/components/workbench/panels/PausePanel'
 import type { AIToolPanel } from '@renderer/components/workbench/mock-data'

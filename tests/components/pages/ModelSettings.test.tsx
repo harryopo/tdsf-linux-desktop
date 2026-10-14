@@ -19,7 +19,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type {} from '@testing-library/jest-dom'
 
 import { ModelSettings } from '@renderer/pages/ModelSettings'
 import { SETTINGS_SECTIONS } from '@renderer/pages/settings-sections'
