@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd tdsf-linux-desktop && pnpm typecheck:node && pnpm typecheck:web && pnpm lint",
+            "command": "cd tdsf-linux-desktop && pnpm typecheck:node && pnpm typecheck:web && pnpm types:tests && pnpm lint",
             "timeout": 300
           }
         ]

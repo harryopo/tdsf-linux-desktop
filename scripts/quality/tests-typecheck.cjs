@@ -19,6 +19,18 @@
  *   node scripts/quality/tests-typecheck.cjs --top 12     多看几条错误明细
  *   node scripts/quality/tests-typecheck.cjs --json p     另存明细（p 必须在仓库外）
  * 未知参数一律 exit 2：默认分支是"读文件/写报告"，打错一个字母就等于悄悄放行。
+ *
+ * 三道自证（2026-10-14 独立审查点出来的自己的盲区，都是"门恒绿但没在管东西"那一类）：
+ *   1. 错误路径先归一化成仓库相对再分类；既不在 tests/ 也不在 src/ 的（scripts/、根配置
+ *      被 import 拖进 program 之类）一律 exit 2 —— 原先这类会被并进"顺带的 src 侧"糊过去，
+ *      而 src 侧那句明说"归 typecheck:node/web 管"，可那两个 config 里根本没有 scripts/。
+ *   2. 覆盖面自证：tests/ 磁盘上的 .ts/.tsx 必须全部出现在 tsc 的 --listFilesOnly 里。
+ *      少了就是 tsconfig 的 include 停止匹配某个子目录（改名、加 exclude 都会这样），
+ *      那时这道门会扫得越来越少、错误数越来越好看，最后变成对着一堆没人看的文件报 0。
+ *   3. `as never` 计数闸（AST，不是 grep）：#107 第七族那一类——类型与数据不一致时用
+ *      as never 把话按住——是最贵的写法，因为它同时骗过 typecheck 和读代码的人。
+ *      存量 76 处，只许降不许升。用 grep 会把我自己写的"原先是 as never"这类注释也算成
+ *      违规，所以走编译器 AST 数真正的类型断言节点。
  */
 const { spawnSync } = require('node:child_process')
 const fs = require('node:fs')
@@ -89,6 +101,9 @@ const TSCONFIG = 'tsconfig.tests.json'
  */
 const CAP = 0
 
+/** `as never` 存量上限：2026-10-14 实测 76 处（AST 计数）。同样只许降不许升。 */
+const AS_NEVER_CAP = 76
+
 const argv = process.argv.slice(2)
 let top = 6
 let jsonOut = null
@@ -127,11 +142,32 @@ const run = spawnSync(process.execPath, [tscBin, '-p', TSCONFIG, '--pretty', 'fa
 const out = `${run.stdout ?? ''}${run.stderr ?? ''}`
 
 const LINE = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/
+
+/**
+ * tsc 输出的路径口径不稳（项目文件多为相对 cwd，lib 与被链接进来的依赖是绝对路径，
+ * 换平台还有反斜杠）。归属判定必须先归一化成"仓库相对 + 正斜杠"，
+ * 否则同一份代码在 CI 上会把 tests/ 的错误认成"别处的"，门就变成了摆设。
+ * 返回 null 表示这个路径根本在仓库外。
+ */
+function relToRepo(p) {
+  const abs = path.isAbsolute(p) ? p : path.resolve(REPO, p)
+  const rel = path.relative(REPO, abs).split(path.sep).join('/')
+  return rel === '' || rel.startsWith('..') ? null : rel
+}
+
 const errors = []
 for (const line of out.split(/\r?\n/)) {
   const m = LINE.exec(line)
   if (!m) continue
-  errors.push({ file: m[1].replace(/\\/g, '/'), line: +m[2], col: +m[3], code: m[4], text: m[5] })
+  const rel = relToRepo(m[1])
+  errors.push({
+    file: rel ?? m[1].replace(/\\/g, '/'),
+    outsideRepo: rel === null,
+    line: +m[2],
+    col: +m[3],
+    code: m[4],
+    text: m[5],
+  })
 }
 
 /**
@@ -144,6 +180,93 @@ if (errors.length === 0 && run.status !== 0) {
   process.exit(2)
 }
 
+/**
+ * 只管 tests/ 那一片，但要认得出"哪片都不是"。
+ * src/ 是被测试顺着 import 拖进 program 的，那部分归 typecheck:node / typecheck:web 管
+ * （口径不同：src 侧有环境声明文件补着），这里只报个数当提醒，不计进上限。
+ * 两处都不在的（scripts/、根配置、仓库外路径）不能并进"顺带的 src 侧"糊过去——
+ * 那两个 config 的 include 里根本没有它们，一旦放行就等于这批错误没人记账，所以 exit 2。
+ */
+const inTests = errors.filter((e) => e.file.startsWith('tests/'))
+const inSrc = errors.filter((e) => !e.outsideRepo && !e.file.startsWith('tests/') && e.file.startsWith('src/'))
+const unknownScope = errors.filter((e) => e.outsideRepo || (!e.file.startsWith('tests/') && !e.file.startsWith('src/')))
+if (unknownScope.length > 0) {
+  console.error(
+    `[tests-typecheck] 出现了既不在 tests/ 也不在 src/ 的类型错误 ${unknownScope.length} 条 —— ` +
+      `这道门的账只管这两片，别把它当"顺带的 src 侧"过去。要么把那片纳入独立闸，要么收紧 program 口径。`
+  )
+  for (const e of unknownScope.slice(0, 10)) console.error(`    ${e.file}:${e.line} ${e.code} ${e.text}`)
+  process.exit(2)
+}
+const testsFiles = new Set(inTests.map((e) => e.file))
+
+/**
+ * 覆盖面自证：磁盘上 tests 目录里每个 .ts/.tsx 都必须在 tsc 真的读进去的那批文件里。
+ * 少一个说明 tsconfig.tests.json 的 include/exclude 停止匹配某个子目录了——
+ * 那时错误数只会越来越好看，最后这道门是对着一堆没人检查的文件报 0。
+ */
+function listTestFilesOnDisk(dir, acc) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) listTestFilesOnDisk(p, acc)
+    else if (/\.tsx?$/.test(e.name)) acc.push(relToRepo(p))
+  }
+  return acc
+}
+const diskTests = listTestFilesOnDisk(path.join(REPO, 'tests'), [])
+const filesRun = spawnSync(process.execPath, [tscBin, '-p', TSCONFIG, '--listFilesOnly'], {
+  cwd: REPO,
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+})
+if (filesRun.status !== 0) {
+  console.error('[tests-typecheck] tsc --listFilesOnly 失败，无法自证覆盖面（不是"通过"）')
+  console.error(`${filesRun.stdout ?? ''}${filesRun.stderr ?? ''}`.slice(0, 1500))
+  process.exit(2)
+}
+const scannedTests = new Set(
+  (filesRun.stdout ?? '')
+    .split(/\r?\n/)
+    .map((l) => relToRepo(l.trim()))
+    .filter((f) => f !== null && f.startsWith('tests/'))
+)
+const neverScanned = diskTests.filter((f) => !scannedTests.has(f))
+if (diskTests.length === 0 || scannedTests.size === 0 || neverScanned.length > 0) {
+  console.error(
+    `[tests-typecheck] 覆盖面坏了：磁盘 ${diskTests.length} 个测试文件，` +
+      `tsc 实际读进 ${scannedTests.size} 个，没被读到的 ${neverScanned.length} 个。空清单和漏读都不算通过。`
+  )
+  for (const f of neverScanned.slice(0, 15)) console.error(`    未受检：${f}`)
+  process.exit(2)
+}
+
+/**
+ * `as never` 计数（走 AST，不是 grep）：注释里写"原先是 as never"不该算违规，
+ * 真正的类型断言节点才算。这些位置在产品契约改了之后不会红，只会把新错误按住。
+ */
+let ts
+try {
+  ts = require('typescript')
+} catch {
+  console.error('[tests-typecheck] 拿不到本地 typescript，as never 计数无法执行（不是"计数为 0"）')
+  process.exit(2)
+}
+let asNever = 0
+const asNeverHits = []
+for (const rel of diskTests) {
+  const text = fs.readFileSync(path.join(REPO, rel), 'utf8')
+  const src = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true)
+  const visit = (node) => {
+    const isAssertion = ts.isAsExpression(node) || node.kind === ts.SyntaxKind.TypeAssertionExpression
+    if (isAssertion && node.type && node.type.kind === ts.SyntaxKind.NeverKeyword) {
+      asNever++
+      asNeverHits.push(`${rel}:${src.getLineAndCharacterOfPosition(node.getStart()).line + 1}`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(src)
+}
+
 const byCode = new Map()
 const byFile = new Map()
 for (const e of errors) {
@@ -152,24 +275,21 @@ for (const e of errors) {
 }
 const sorted = (m) => [...m.entries()].sort((a, b) => b[1] - a[1])
 
-/**
- * 只管 tests/ 那一片。测试会顺着 import 把 src 也拖进 program，
- * 那部分的错归 typecheck:node / typecheck:web 管（口径不同：src 侧有环境声明文件补着），
- * 这里只报个数当提醒，不计进上限——否则这道门会去管别人的账。
- */
-const inTests = errors.filter((e) => e.file.startsWith('tests/'))
-const inSrc = errors.length - inTests.length
-const verdict = inTests.length <= CAP
 console.log(
-  `[tests-typecheck] tests/ 类型错误 ${inTests.length} 条 / 上限 ${CAP} / 涉及 ${byFile.size} 个文件` +
-    `（tsc 退出码 ${run.status}${inSrc > 0 ? `；顺带带出 src 侧 ${inSrc} 条，归 typecheck:node/web 管` : ''}）`
+  `[tests-typecheck] tests/ 类型错误 ${inTests.length} 条 / 上限 ${CAP} / 涉及 ${testsFiles.size} 个文件` +
+    `（tsc 退出码 ${run.status}；受检 ${scannedTests.size}/${diskTests.length} 个测试文件` +
+    `${inSrc.length > 0 ? `；顺带带出 src 侧 ${inSrc.length} 条，归 typecheck:node/web 管` : ''}）`
 )
-console.log(`  错误码分布 top${top}: ${sorted(byCode).slice(0, top).map(([k, v]) => `${k}=${v}`).join(' ')}`)
+console.log(
+  `  as never（AST）${asNever} 处 / 上限 ${AS_NEVER_CAP}；错误码分布 top${top}: ` +
+    sorted(byCode).slice(0, top).map(([k, v]) => `${k}=${v}`).join(' ')
+)
 console.log(`  文件 top${top}: ${sorted(byFile).slice(0, top).map(([k, v]) => `${path.basename(k)}=${v}`).join(' ')}`)
-if (!verdict) {
+if (inTests.length > CAP) {
   console.log(`  tests/ 里的错误（前 20 条）：`)
   for (const e of inTests.slice(0, 20)) console.log(`    ${e.file}:${e.line}:${e.col} ${e.code} ${e.text}`)
 }
+if (asNever > AS_NEVER_CAP) console.log(`  新增的 as never：${asNeverHits.slice(AS_NEVER_CAP).join(' ')}`)
 
 if (jsonOut) {
   const abs = path.resolve(REPO, jsonOut)
@@ -180,16 +300,36 @@ if (jsonOut) {
   fs.mkdirSync(path.dirname(abs), { recursive: true })
   fs.writeFileSync(
     abs,
-    JSON.stringify({ cap: CAP, total: inTests.length, srcSideTotal: inSrc, errors: inTests }, null, 2),
+    JSON.stringify(
+      {
+        cap: CAP,
+        total: inTests.length,
+        srcSideTotal: inSrc.length,
+        asNeverCap: AS_NEVER_CAP,
+        asNever,
+        scannedTestFiles: scannedTests.size,
+        diskTestFiles: diskTests.length,
+        errors: inTests,
+      },
+      null,
+      2
+    ),
     'utf8'
   )
   console.log(`  明细已写到仓库外：${abs}`)
 }
 
-if (!verdict) {
+if (inTests.length > CAP) {
   console.error(
     `[tests-typecheck] FAIL：tests/ 比上限多 ${inTests.length - CAP} 条。要么改掉新增的那几条，` +
       `要么在文件头写清为什么存量必须涨（不许只改数字）。`
+  )
+  process.exit(1)
+}
+if (asNever > AS_NEVER_CAP) {
+  console.error(
+    `[tests-typecheck] FAIL：as never 比上限多 ${asNever - AS_NEVER_CAP} 处（${asNeverHits.slice(AS_NEVER_CAP).join(' ')}）。` +
+      `它把"夹具形状和产品契约不一致"这句话按住了——见本文件头第七族那一段。按真实类型收窄，别加新的一处。`
   )
   process.exit(1)
 }

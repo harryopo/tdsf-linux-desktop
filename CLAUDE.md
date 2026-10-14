@@ -27,13 +27,18 @@
 5. **XSS 防护**：渲染层 `dangerouslySetInnerHTML` 必须 `DOMPurify.sanitize()`
 6. **做事与打分分离**：声明"任务完成"前必须 dispatch 独立 verifier subagent，贴实际命令输出（不是总结）
 
-## 三绿硬门禁（必须全过才能合并）
+## 硬门禁（必须全过才能合并；历史文档里叫"三绿"，2026-10-14 起是四把）
 
 ```bash
 pnpm typecheck:node   # tsc --noEmit -p tsconfig.node.json
 pnpm typecheck:web    # tsc --noEmit -p tsconfig.web.json
+pnpm types:tests      # tests/ 硬零闸：类型错误 0 条 + as never 只降不升（详见脚本头）
 pnpm lint             # eslint src --ext .ts,.tsx（0 errors，warnings 允许）
 ```
+
+> `typecheck:node` 与 `typecheck:web` 的 include **都不含 `tests/`**，`pnpm lint` 只扫 `src`。
+> 所以 2900 条测试过去从来没被类型检查过——产品改了字段名，测试不会红，它会继续用旧形状
+> 构造对象、断言一个不存在的东西，然后绿着。`types:tests` 就是补这一片的（2026-10-14 立闸）。
 
 ## 两绿软门禁（尽量过，不过要在 PR 说明原因）
 
