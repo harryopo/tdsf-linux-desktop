@@ -20,6 +20,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { TaskProtocolContext } from '../../src/main/core/agent/subagents/task-protocol-types'
+import type { KnowledgeEntry } from '@shared/models'
 
 // ============================================================================
 // vi.hoisted：声明所有 mock 对象（确保 vi.mock factory 中可访问）
@@ -28,7 +29,9 @@ const mocks = vi.hoisted(() => ({
   // fs.promises mock
   fs: {
     mkdir: vi.fn(async () => undefined),
-    access: vi.fn(async () => {
+    // 显式 Promise<void>：只写 throw 的话返回类型推断成 never，用例里的
+    // mockResolvedValue(undefined) 就被类型挡下（真实 fs.access 成功时就是 resolve void）
+    access: vi.fn(async (_path: string): Promise<void> => {
       throw new Error('ENOENT')
     }),
     // 形参要声明出来：不写的话 calls[0][1] 推断成 undefined，用例只能 as string 硬掰；
@@ -38,7 +41,9 @@ const mocks = vi.hoisted(() => ({
   },
   // KnowledgeRepository 实例 mock
   knowledgeRepo: {
-    add: vi.fn(() => true),
+    // 形参标成真实的 KnowledgeEntry：不标的话 calls[0][0] 是空元组，
+    // 下面二十来条 entry.xxx 全都没被类型检查过，字段改名测试照样绿。
+    add: vi.fn((_entry: KnowledgeEntry) => true),
     getById: vi.fn((): unknown => null),
     update: vi.fn(() => true),
     delete: vi.fn(() => true),
@@ -351,7 +356,9 @@ describe('[P2-I task-sediment] sedimentTaskMemory', () => {
     const ctx = makeCtx({
       taskId: 'task-fields',
       subagentName: 'explore',
-      mode: 'deep',
+      // AgentMode 只有 chat/ask/plan/code/debug；原来写的 'deep' 是越界值，
+      // 类型闸报出来后换成真值，断言跟着改（'deep' 是 strength，不是 mode）
+      mode: 'debug',
       parentSessionId: 'parent-001',
     })
     await sedimentTaskMemory(ctx)
@@ -364,10 +371,10 @@ describe('[P2-I task-sediment] sedimentTaskMemory', () => {
     expect(entry.commands).toEqual(['systemctl restart nginx'])
     expect(entry.keywords.length).toBeGreaterThan(0)
     expect(entry.keywords).toContain('explore')
-    expect(entry.keywords).toContain('deep')
+    expect(entry.keywords).toContain('debug')
     expect(entry.tags).toContain('auto-sediment')
     expect(entry.tags).toContain('subagent:explore')
-    expect(entry.tags).toContain('mode:deep')
+    expect(entry.tags).toContain('mode:debug')
     expect(entry.tags).toContain('inherited')
     expect(entry.tags).toContain('success')
     expect(entry.successRate).toBe(1.0)

@@ -41,10 +41,17 @@ const TSCONFIG = 'tsconfig.tests.json'
  * `AttentionTracker.getCurrent` 的 mock 没标返回类型，推断成 `{ since }`，喂 files/commands 就撞；
  * `fs.appendFile` 的 mock 没标形参，`calls[0][1]` 推断成 undefined，用例只能 `as string` 硬掰；
  * provider-baseurl-join 还在按 AI SDK V1 的 `mode: 'standard'` 调 doGenerate。
- * 四处都改成"按真实契约造"→ **146 条 / 44 个文件**。
+ * 四处都改成"按真实契约造"→ 146 条 / 44 个文件；
+ * 第五族是 78 条"可能为空/unknown"，逐条看完分两类：
+ * 一类是真隐患——夹具的 mock 没声明形参，calls[0][0] 是空元组，二十多条 entry.xxx
+ * 从没被类型检查过（task-sediment 一个文件占 29 条）；e2e 的几何读数找不到节点时返回
+ * null，null 参与 > 比较会被强转成 0，判据静默空过；ai-chat-live 用了没 import 的
+ * e2eProfileDir，一旦有真 Key 开跑就是 ReferenceError；
+ * 另一类是越界枚举值（mode: 'deep' 不在 AgentMode 里）。都按真实类型收窄或补齐，
+ * 不靠 ! 和 as → **78 条 / 39 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 146
+const CAP = 78
 
 const argv = process.argv.slice(2)
 let top = 6

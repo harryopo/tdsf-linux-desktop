@@ -20,6 +20,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
 import { loadAiCred, probeKey } from './provider-probe'
+import { e2eProfileDir } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const BUILD_READY = fs.existsSync(MAIN_ENTRY)
@@ -37,10 +38,13 @@ fs.mkdirSync(SHOT_DIR, { recursive: true })
  */
 
 testOrSkip('AI 对话真实流式：发送极短消息，真实回复必须流式上屏', async () => {
+  // canRun 已经要求凭据在，但 TS 不知道；不收窄的话 evaluate 里的 cred 一路是 | null，
+  // 少一个字段就带着 undefined 去存 Provider。
+  if (!CRED) throw new Error('缺 tests/e2e/.ai-credentials.local.json')
   // 先探一把 Key 到底通不通：文件里有 apiKey 不等于这把 Key 有效。
   // 服务端拒了（401/403）或网络不通，那是环境缺东西，不该演成"产品流式层坏了"；
   // 200 才继续跑真正的断言。（与 ssh-live 那边的 TCP 可达性探针同一思路）
-  const probe = await probeKey(CRED!)
+  const probe = await probeKey(CRED)
   test.skip(!probe.ok, `缺一条能用的模型 Key：${probe.detail}`)
 
   test.setTimeout(120_000)
