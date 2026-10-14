@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { CommandResult, MonitorData } from '@shared/models'
+import type { Node as TsNode } from 'typescript'
 
 /** 假的 SSH 出口：记录 exec 调用，并允许测试手动广播"会话关闭" */
 const harness = vi.hoisted(() => {
@@ -179,7 +180,9 @@ describe('结构性兜底：关闭通知不能只挂在一个入口上', () => {
     // 收集"函数名 → 该函数里出现过的调用名"
     const callsByFn = new Map<string, Set<string>>()
     const stateWrites: string[] = []
-    const walk = (node: ts.Node, owner: string): void => {
+    // ts 的值是上面 await import 进来的，命名空间不会因此出现在类型位置，
+    // 所以节点类型单独用 type-only import（编译期擦除，不额外加载 typescript）
+    const walk = (node: TsNode, owner: string): void => {
       if (ts.isMethodDeclaration(node) || ts.isFunctionDeclaration(node)) {
         const name = node.name ? node.name.getText() : '(anon)'
         ts.forEachChild(node, (c) => walk(c, name))

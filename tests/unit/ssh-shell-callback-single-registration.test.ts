@@ -19,14 +19,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { EventEmitter } from 'node:events'
 
 const box = vi.hoisted(() => ({
-  handlers: {} as Record<string, (event: unknown, ...args: never[]) => unknown>,
+  // ...args: never[] 会让任何带参调用都过不了类型检查（handler 表本来收的就是 unknown）
+  handlers: {} as Record<string, (event: unknown, ...args: unknown[]) => unknown>,
   sends: [] as Array<{ target: string; channel: string; args: unknown[] }>,
 }))
 
 vi.mock('electron', () => ({
   ipcMain: {
     handle: (channel: string, handler: unknown) => {
-      box.handlers[channel] = handler as (event: unknown, ...args: never[]) => unknown
+      box.handlers[channel] = handler as (event: unknown, ...args: unknown[]) => unknown
     },
     removeHandler: () => {},
     on: () => {},

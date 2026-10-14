@@ -30,7 +30,9 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as unknow
   }
 }
 
-let sqlite: DatabaseSync
+// DatabaseSync 是从 node:sqlite 现取的值（构造函数），不是类型；
+// 要声明实例就用 InstanceType<typeof ...>（写成 DatabaseSync 是拿值当类型用）。
+let sqlite: InstanceType<typeof DatabaseSync>
 let repo: KnowledgeRepository
 
 beforeEach(() => {

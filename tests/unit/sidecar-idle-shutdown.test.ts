@@ -54,13 +54,15 @@ describe('侧车空闲退出握手', () => {
 
   it('有在途业务请求时拒绝，且不许标成有意停止', async () => {
     const bodies: string[] = []
-    let release: (() => void) | null = null
+    // 用数组收集 resolve：写成 let release = null 再在 fetch 替身里赋值，
+    // TS 的控制流看不见那次赋值，收尾调 release?.() 会报"这个表达式不可调用"
+    const resolvers: Array<() => void> = []
     vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: { body?: string }) => {
       const raw = String(init?.body ?? '')
       // 第一个调用是业务请求（挂住不放 ⇒ 制造在途），第二个是宿主的答复
       if (!raw.includes('approve')) {
         await new Promise<void>((r) => {
-          release = r
+          resolvers.push(r)
         })
         return json({ parse: { templates: [] } })
       }
@@ -73,7 +75,7 @@ describe('侧车空闲退出握手', () => {
     expect(await mgr.answerIdleShutdownRequest(900)).toBe('refuse')
     expect(JSON.parse(bodies[0]!), '有在途业务时不许批准').toEqual({ approve: false })
     expect(mgr.getStatus().intentionalStop, '拒绝时不许把侧车标成要停').toBe(false)
-    release?.()
+    for (const r of resolvers.splice(0)) r()
     await inFlight.catch(() => undefined)
   })
 

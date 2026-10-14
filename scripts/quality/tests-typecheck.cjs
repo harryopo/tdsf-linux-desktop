@@ -69,10 +69,15 @@ const TSCONFIG = 'tsconfig.tests.json'
  * TooltipProvider 被写了一个它根本不接的 delayDuration（写了等于没写）、
  * LiveMessageRow 的 stepState 少两个必填项、审计夹具少 decisionTimeIso
  * ——那一项会被直接印进报告表格，缺了就是"决策时间 | undefined"。
- * → **30 条 / 21 个文件**。
+ * → 30 条 / 21 个文件；
+ * 第九族是"测试替身的签名与真模块脱钩"：IPC handler 表把余参写成 ...args: never[]，
+ * 于是带参调用一律过不了检查、只能各处 as never；假 manager 的 onShellData 写成无参、
+ * registerLocalTerminalHandlers 早就不收窗口了还硬塞一个 fakeWindow、
+ * node:sqlite 的构造函数被当类型用、AST 测试在类型位置引用只在值位置 import 进来的 ts。
+ * → **23 条 / 16 个文件**。
  * 往下改要连着做两件事：改测试 + 把这里改成新数（别留旧数当"还有余量"）。
  */
-const CAP = 30
+const CAP = 23
 
 const argv = process.argv.slice(2)
 let top = 6

@@ -10,12 +10,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const handlers = new Map<string, (event: unknown, ...args: never[]) => unknown>()
+// handler 的表余参数写成 never[] 会让"带参调用"永远过不了类型检查，
+// 于是 call() 只能把每个实参 as never。表本身就该收 unknown[]（IPC 的入参在边界上都是 unknown）。
+const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>()
 
 vi.mock('electron', () => ({
   app: { getPath: () => require('node:os').tmpdir(), getName: () => 'tdsf-test', on: () => {} },
   ipcMain: {
-    handle: (channel: string, fn: (event: unknown, ...args: never[]) => unknown) => {
+    handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => {
       handlers.set(channel, fn)
     },
     removeHandler: (channel: string) => handlers.delete(channel),
@@ -43,8 +45,11 @@ const { writes, manager } = vi.hoisted(() => {
       writeShell: (shellId: string, data: string) => void writes.push([shellId, data]),
       resizeShell: () => {},
       closeShell: () => true,
-      onShellData: () => () => {},
-      onShellExit: () => () => {},
+      // 形参按 local-pty.ts:223 的真实签名给：写成无参的话，用例里
+      // spyOn(manager, 'onShellData').mockImplementation((_shellId, cb) => ...) 对不上，
+      // 而"产品到底拿什么参数订阅输出"这件事就没人管了。
+      onShellData: (_shellId: string, _cb: (data: string) => void) => () => {},
+      onShellExit: (_shellId: string, _cb: (code: number) => void) => () => {},
       closeAll: () => {},
     },
   }
@@ -70,22 +75,19 @@ import { LOCAL_TTY, TERMINAL } from '@shared/ipc-channels'
 import { registerLocalTerminalHandlers } from '@main/ipc/local-terminal'
 
 /** 一个"活着但什么都不做"的窗口替身 */
-const fakeWindow = {
-  isDestroyed: () => false,
-  webContents: { isDestroyed: () => false, send: () => {} },
-} as never
-
+// 已经用不上了：registerLocalTerminalHandlers() 从 W4 多窗口那轮起不再收窗口，
+// 输出改走 broadcastToWindows（本文件第 63 行替身的那条路）。
 function call<T = unknown>(channel: string, ...args: unknown[]): T {
   const fn = handlers.get(channel)
   if (!fn) throw new Error(`通道没注册：${channel}`)
-  return fn({} as never, ...(args as never[])) as T
+  return fn({}, ...args) as T
 }
 
 beforeEach(() => {
   handlers.clear()
   writes.length = 0
   broadcasts.calls.length = 0
-  registerLocalTerminalHandlers(fakeWindow)
+  registerLocalTerminalHandlers()
 })
 
 describe('local-tty:run-authored', () => {
