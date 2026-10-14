@@ -34,6 +34,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { isDecisionCard, type LoopStepState } from '@/pages/decision-loop-helpers'
+import type { DecisionCard } from '@shared/models'
 
 // ============================================================================
 // 类型定义
@@ -46,47 +48,12 @@ export interface LlmHypothesis {
   confidence: number
 }
 
-/** Agent 工作流步骤 */
-export type AgentStep =
-  | 'collect'
-  | 'analyze'
-  | 'reason'
-  | 'check'
-  | 'confirm'
-  | 'execute'
-  | 'verify'
-
-/** Agent 工作流状态 */
-export interface AgentWorkflowState {
-  currentStep: AgentStep
-  completedSteps: AgentStep[]
-  stepDetails: Record<AgentStep, string>
-  waitingForConfirmation: boolean
-  decisionCard: DecisionCard | null
-  error: string | null
-  timestamp: number
-}
-
-/** 决策卡片（精简版，避免与 @shared/models 冲突） */
-export interface DecisionCard {
-  id: string
-  problem: string
-  hypothesis: string
-  evidences: unknown[]
-  confidence: number
-  risk: {
-    level: string
-    score: number
-    description: string
-    requireConfirmation: boolean
-    blocked: boolean
-  }
-  fixCommand: string
-  fixDescription: string
-  rollbackCommand?: string
-  status: 'pending' | 'approved' | 'rejected' | 'executed' | 'verified' | 'failed'
-  timestamp: number
-}
+// AgentWorkflowState / DecisionCard 不在这里另立一份。
+// loop:* 事件的载荷类型与结构守卫由 @/pages/decision-loop-helpers 统一维护
+// （LoopStepState / isDecisionCard），卡片类型以 @shared/models 为准。
+// 这里原先有一份"精简版 DecisionCard"和一份本地 AgentWorkflowState，靠
+// `as unknown as` 与 `as DecisionCard` 把 IPC 那侧的 unknown 硬按成本地形状——
+// 产品改了字段名，这里不会红，只会读到 undefined。
 
 /** 循环工程阶段 */
 export type LoopPhase =
@@ -107,7 +74,7 @@ export interface UseLoopEngineeringResult {
   /** LLM 推理结果 */
   hypothesis: LlmHypothesis | null
   /** 当前工作流状态 */
-  workflowState: AgentWorkflowState | null
+  workflowState: LoopStepState | null
   /** 决策卡片（confirm 步骤触发） */
   decisionCard: DecisionCard | null
   /** 最终决策卡片（done 事件携带） */
@@ -141,7 +108,7 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
   const [phase, setPhase] = useState<LoopPhase>('idle')
   const [correlationId, setCorrelationId] = useState<string | null>(null)
   const [hypothesis, setHypothesis] = useState<LlmHypothesis | null>(null)
-  const [workflowState, setWorkflowState] = useState<AgentWorkflowState | null>(null)
+  const [workflowState, setWorkflowState] = useState<LoopStepState | null>(null)
   const [decisionCard, setDecisionCard] = useState<DecisionCard | null>(null)
   const [finalCard, setFinalCard] = useState<DecisionCard | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -169,7 +136,7 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
 
     const offStep = api.onLoopStep((payload) => {
       if (payload.correlationId !== correlationRef.current) return
-      setWorkflowState(payload.state as unknown as AgentWorkflowState)
+      setWorkflowState(payload.state)
       // 如果当前是 confirm 步骤且 waitingForConfirmation，标记为 awaiting
       if (payload.state.currentStep === 'confirm' && payload.state.waitingForConfirmation) {
         setPhase('awaiting')
@@ -181,13 +148,16 @@ export function useLoopEngineering(): UseLoopEngineeringResult {
 
     const offDecision = api.onLoopDecision((payload) => {
       if (payload.correlationId !== correlationRef.current) return
-      setDecisionCard(payload.decisionCard as DecisionCard)
+      // 结构守卫与 DecisionPage 同一条：卡片形状不对就留着上一张，不硬铸成 DecisionCard
+      if (isDecisionCard(payload.decisionCard)) setDecisionCard(payload.decisionCard)
       setPhase('awaiting')
     })
 
     const offDone = api.onLoopDone((payload) => {
       if (payload.correlationId !== correlationRef.current) return
-      setFinalCard((payload.decisionCard as DecisionCard) ?? null)
+      // 这一路的 decisionCard 在契约上就是 unknown | null，原先 `as DecisionCard` 直接按成卡片，
+      // 主进程少发一个字段也不会红 —— 现在按守卫收窄，不合格的当"没有最终卡片"
+      setFinalCard(isDecisionCard(payload.decisionCard) ? payload.decisionCard : null)
       setPhase('done')
     })
 
