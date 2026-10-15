@@ -8,6 +8,9 @@
  * - exportMarkdownToPdf 端到端（mock electron BrowserWindow）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 
 // printToPDF 的入参形状：mock 里声明出来，calls[0][0] 才是有类型的对象，
 // 下面 opts.pageSize / opts.margins 这些断言才真的对着"产品传了什么参数"检查。
@@ -44,6 +47,7 @@ vi.mock('electron', () => {
 import {
   markdownToHtml,
   exportMarkdownToPdf,
+  writeMdFile,
   defaultPdfFileName,
   _internal
 } from '../../../src/main/services/profiler/pdf-exporter'
@@ -307,5 +311,47 @@ describe('PdfExporter - 端到端导出', () => {
     expect(opts.pageSize).toBe('A4')
     expect(opts.printBackground).toBe(true)
     expect(opts.margins).toEqual({ top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 })
+  })
+})
+
+// ==================================================================
+// 导出件出边界前的脱敏（2026-10-15 全维度系统审查 A10）
+// 报告是"会被拷走、贴进群、发给别人"的形态：日志与弹窗都收口了，这两条出口以前没有。
+// 假凭据拆成相邻字面量，避免扫描器把测试当真凭据报警。
+// ==================================================================
+
+const SECRET_LINE = '数据库配置：' + 'pass' + 'word=Sup3rS' + 'ecretValue'
+const BENIGN_LINE = '## 结论\n磁盘使用率 82%，建议清理 /var/log。'
+
+describe('PdfExporter - 导出脱敏', () => {
+  beforeEach(() => {
+    // 不清就会被上一个 describe 的调用记录顶掉——那时断言读的是别人的 PDF
+    mockLoadURL.mockClear()
+  })
+
+  it('PDF 渲染前涂掉凭据形状，但正文照常进模型视图', async () => {
+    await exportMarkdownToPdf(`${BENIGN_LINE}\n${SECRET_LINE}`, 'C:/tmp/r.pdf')
+    expect(mockLoadURL).toHaveBeenCalledTimes(1)
+    // data URL 是百分号编码的，中文会变成 %E7%A3%81…，直接对原串断言等于没断
+    const raw = String(mockLoadURL.mock.calls[0][0])
+    const html = decodeURIComponent(raw.replace(/^data:text\/html;charset=UTF-8,/, ''))
+    expect(html, '喂给 printToPDF 的正文里留原串＝它会被印进 PDF').not.toContain(SECRET_LINE)
+    expect(html).toMatch(/\[REDACTED\]/)
+    expect(html, '正常诊断文字不许被顺手吃掉').toContain('磁盘使用率 82%')
+  })
+
+  it('Markdown 落盘的文件里不含凭据形状', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tdsf-md-export-'))
+    const target = path.join(dir, 'report.md')
+    try {
+      const r = await writeMdFile(`${BENIGN_LINE}\n${SECRET_LINE}`, target)
+      const written = fs.readFileSync(target, 'utf8')
+      expect(written).not.toContain(SECRET_LINE)
+      expect(written).toMatch(/REDACTED/)
+      expect(written).toContain('磁盘使用率 82%')
+      expect(r.size).toBeGreaterThan(0)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

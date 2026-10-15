@@ -35,6 +35,9 @@ import type {
   DagData,
 } from '@shared/agent-types'
 import { logger } from '../services/log/logger'
+// 导出目录来自渲染层，必须过本地路径闸（同 profiler:exportMd 的口径）：
+// 未收口前这三条通道能把报告写到任意可写路径、也能读任意目录（fs.readFile 直传）
+import { assertWithinConfinement } from '../services/security/path-confinement'
 import { ConfigStore } from '../services/storage/config-store'
 // 辅助函数从 credibility-helpers.ts 导入（保持主文件 ≤500 行）
 import {
@@ -458,7 +461,13 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
         const { exportAuditReport } = await import(
           '../core/agent/credibility/audit/exporter'
         )
-        const result = await exportAuditReport(input, options ?? {})
+        // 渲染层可以指定导出目录，但只能落在受管目录或它自己用对话框换来的授权内；
+        // 不给 outputDir 时走默认（userData 下），不过闸也不需要
+        const safeOptions =
+          options && options.outputDir
+            ? { ...options, outputDir: assertWithinConfinement(options.outputDir, 'write') }
+            : options
+        const result = await exportAuditReport(input, safeOptions ?? {})
         logger.info('IPC.CREDIBILITY', `credibility:export-audit-report 完成`, {
           reportId: result.reportId,
           fingerprint: result.fingerprint,
@@ -489,7 +498,10 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
         const { listAuditReports } = await import(
           '../core/agent/credibility/audit/exporter'
         )
-        return await listAuditReports(outputDir)
+        // 同 export 一条口径：列目录会 fs.readFile 该目录下每个 json，不给闸就是任意文件读
+        return await listAuditReports(
+          outputDir ? assertWithinConfinement(outputDir, 'read') : undefined
+        )
       } catch (err) {
         const msg = (err as Error)?.message ?? '列出审计报告失败'
         logger.error('IPC.CREDIBILITY', `credibility:list-audit-reports 失败: ${msg}`)

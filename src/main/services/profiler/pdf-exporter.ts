@@ -23,6 +23,17 @@
 import { BrowserWindow } from 'electron'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
+import { redactSecrets } from '../security/redact'
+
+/**
+ * 导出件（PDF / Markdown）落盘前的统一脱敏。
+ *
+ * 报告和诊断结论里会带命令原文与配置片段，而这两个文件是"会被拷走、贴进群、发给人看"的
+ * 形态——日志与弹窗都已收口，导出这条出口以前没人管。
+ */
+function redactExport(md: string): string {
+  return redactSecrets(md)
+}
 
 // ==================================================================
 // 最小 Markdown → HTML 转换器
@@ -464,7 +475,7 @@ export async function exportMarkdownToPdf(
   md: string,
   outputPath: string
 ): Promise<{ filePath: string; size: number }> {
-  const buffer = await markdownToPdfBuffer(md)
+  const buffer = await markdownToPdfBuffer(redactExport(md))
 
   // 确保目录存在
   const dir = path.dirname(outputPath)
@@ -491,8 +502,10 @@ export async function writeMdFile(
   if (!md || md.trim() === '') {
     throw new Error('Markdown 内容为空，无法写入')
   }
+  // 导出件是"拿给别人看的文件"：凭据形状在写盘前涂掉（与 PDF 同一个收口）
+  const safe = redactExport(md)
   // 确保 BOM 以让 Windows 记事本正确识别 UTF-8（可选）
-  const content = md.startsWith('\uFEFF') ? md : '\uFEFF' + md
+  const content = safe.startsWith('\uFEFF') ? safe : '\uFEFF' + safe
   const dir = path.dirname(outputPath)
   await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(outputPath, content, 'utf8')

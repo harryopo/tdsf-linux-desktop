@@ -11,10 +11,15 @@
  *   B 闸的位置：拒绝必须发生在**碰 SSH 之前**。只测判定函数测不到"忘了调"这一类缺陷。
  */
 import { describe, it, expect, vi } from 'vitest'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import type { Client } from 'ssh2'
+import * as ts from 'typescript'
 import { isProtectedWriteDestination } from '@main/core/command-gate'
 import { SftpManager } from '@main/services/ssh/sftp'
 import { SshConnectionManager } from '@main/services/ssh/connection-manager'
+
+const ROOT = path.resolve(__dirname, '../..')
 
 /** 触网哨兵：一旦被调用就说明闸放行到了 SSH 那一步 */
 const TOUCHED = 'SENTINEL_GETCLIENT_CALLED'
@@ -115,5 +120,58 @@ describe('SFTP 改写族在触网前过闸', () => {
     })
     const m = managerWith(spy)
     await expect(m.writeFile('s1', '/etc/hosts', '1 2 3')).rejects.toThrow(/终端里自己执行/)
+  })
+
+  /**
+   * 结构核对：闸必须长在"每一个会改写远端文件的方法"上。
+   *
+   * 三条行为判据能证明现有方法受管，但证明不了"新加一个 deleteDir 也记得装"。
+   * 所以这里从类声明里现量：凡入参带远端路径、函数体又出现远端写汇
+   * （createWriteStream / unlink / rename / chmod / mkdir / writeFile）的方法，
+   * 都必须调用 assertRemoteWriteAllowed；读类方法（list/stat/readFile/download）不误伤。
+   * 最后一个断言是分母：扫出来的受管方法少于 6 个，说明扫描本身坏了或被绕过，不许空过。
+   */
+  it('每个远端改写方法都挂着闸（含以后新增的）', () => {
+    const REMOTE_PATH_PARAM = /(remotePath|oldPath|newPath|destPath|targetPath)/
+    const REMOTE_WRITE_SINK = new Set([
+      'createWriteStream',
+      'unlink',
+      'rmdir',
+      'rename',
+      'chmod',
+      'mkdir',
+      'fastPut',
+    ])
+    const file = path.join(ROOT, 'src/main/services/ssh/sftp.ts')
+    const src = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+
+    const guarded: string[] = []
+    const unguarded: string[] = []
+    const visit = (node: ts.Node): void => {
+      if (ts.isMethodDeclaration(node) && ts.isIdentifier(node.name)) {
+        const name = node.name.text
+        const takesRemotePath = node.parameters.some((p) => REMOTE_PATH_PARAM.test(p.name.getText()))
+        let touchesWriteSink = false
+        let callsGuard = false
+        const walk = (n: ts.Node): void => {
+          if (ts.isCallExpression(n)) {
+            const callee = n.expression
+            const bare = ts.isPropertyAccessExpression(callee) ? callee.name.getText() : callee.getText()
+            if (REMOTE_WRITE_SINK.has(bare)) touchesWriteSink = true
+            if (bare === 'assertRemoteWriteAllowed') callsGuard = true
+          }
+          ts.forEachChild(n, walk)
+        }
+        if (node.body) walk(node.body)
+        if (takesRemotePath && touchesWriteSink) {
+          ;(callsGuard ? guarded : unguarded).push(name)
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(src)
+
+    expect(unguarded, `这些远端改写方法没挂闸：${unguarded.join(', ')}`).toEqual([])
+    expect(guarded.length, `只扫到 ${guarded.length} 个受管方法（<6），先怀疑扫描本身`).toBeGreaterThanOrEqual(6)
   })
 })

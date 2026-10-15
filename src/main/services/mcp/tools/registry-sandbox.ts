@@ -16,6 +16,9 @@
 import { OpenHandsClient, OpenHandsApiError } from '../../sandbox/openhands-client'
 import { defaultOpenHandsClient } from '../../sandbox/openhands-client'
 import { redactSecrets } from '../../../core/agent/providers/redact'
+// 与 IPC 侧同一个审批实现（依赖方向已有先例：services/llm/tools/registry.ts 也引 ipc/model-stats）
+import { waitForSandboxApproval } from '../../../ipc/sandbox-approval'
+import { BrowserWindow } from 'electron'
 import type { McpToolRegistration, McpToolResult } from './registry'
 import { toMcpErrorResult, toMcpTextResult } from './registry'
 
@@ -61,6 +64,35 @@ export function createSandboxMcpTools(
         if (!command) return toMcpErrorResult('参数 command 必填且为非空字符串')
 
         try {
+          // HC-6：沙箱命令必须过人工审批。IPC 的 sandbox:execute 一直是"先弹卡、批了才跑"，
+          // MCP 这条路以前只过 evaluateCommand 就直接执行——同一个动作两个入口只装了一道门，
+          // 外部 MCP 客户端（任何连上来的 agent）就是那条旁路。
+          // 没有窗口时按拒绝处理（fail-closed）：宁可执行不了，也不留"绕过人"的通道。
+          const hostWindow = BrowserWindow.getAllWindows()[0]
+          if (!hostWindow) {
+            return toMcpTextResult({
+              sandboxId,
+              success: false,
+              error: 'MCP sandbox_execute 需要应用在界面上弹审批卡，当前没有可用窗口，已拒绝执行',
+              errorCode: 'APPROVAL_UNAVAILABLE',
+            })
+          }
+          try {
+            await waitForSandboxApproval(
+              hostWindow,
+              `sbx-mcp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+              sandboxId,
+              command
+            )
+          } catch (approvalErr) {
+            return toMcpTextResult({
+              sandboxId,
+              success: false,
+              error: `命令未获批准：${(approvalErr as Error).message}`,
+              errorCode: 'APPROVAL_DENIED',
+            })
+          }
+
           const result = await client.executeCommand(sandboxId, command, sessionApiKey)
           // HC-6：redact secrets（默认重载返回纯 string）
           const safeStdout = redactSecrets(result.stdout, { returnStats: false }) as string
