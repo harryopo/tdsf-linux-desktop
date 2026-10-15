@@ -15,8 +15,10 @@
  * 退出码：--gate 不达标 1；取证中途异常 1（没跑完不算通过）；其余 0。数据打印到 stdout。
  */
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { pixelVerdict } from './pixel-verdict.mjs'
 
 const ROOT = path.resolve(import.meta.dirname, '../..')
 const PORT = 9235
@@ -197,7 +199,14 @@ async function cjkFontAudit(ws, label) {
   }
 }
 
-async function shot(ws, name) {
+/**
+ * 本轮真的写出过哪几张图（F5 判据的账本）。
+ * 只认这份账本、不扫 OUT_DIR：那个目录里躺着历史轮次的文件，
+ * 拿目录里的张数当下限等于让"上一轮跑了多少"决定这一轮过不过。
+ */
+const SHOT_LOG = []
+
+async function shot(ws, name, kind = 'other') {
   // --no-shots：只跑量测不出图。窗口被最小化时 captureScreenshot 会永久不返回，
   // 而门禁要的是逐元素计算样式，不需要 PNG——别让取证卡在像素上。
   if (NO_SHOTS) return null
@@ -206,7 +215,9 @@ async function shot(ws, name) {
     setTimeout(() => rej(new Error(`截图 ${name} 超时 20s：窗口可能被最小化或遮挡，请把 TDSF 窗口置于前台后重跑`)), 20000)
   )
   const { data } = await Promise.race([cdp(ws, 'Page.captureScreenshot', { format: 'png' }), guard])
-  fs.writeFileSync(path.join(OUT_DIR, name + '.png'), Buffer.from(data, 'base64'))
+  const buf = Buffer.from(data, 'base64')
+  fs.writeFileSync(path.join(OUT_DIR, name + '.png'), buf)
+  SHOT_LOG.push({ name: name + '.png', kind, bytes: buf.length, hash: createHash('sha256').update(buf).digest('hex') })
   return name + '.png'
 }
 
@@ -1199,7 +1210,7 @@ try {
       })()`)
       console.log('本机终端探针：' + report.termOpened)
     }
-    const file = await shot(ws, r.name)
+    const file = await shot(ws, r.name, 'page')
     const m = await evalIn(ws, MEASURE)
     report.screens.push({ route: r.hash, png: file, settled: st.settled, waitedMs: st.waitedMs, ...m })
     report.cjk.push(await cjkFontAudit(ws, r.hash))
@@ -1569,6 +1580,13 @@ try {
         bad.push(`${at}: 页头 ${s.header.size}px/${s.header.weight}，应为 ${HEAD_SIG}`)
       }
     }
+    /*
+     * 像素互不相同判据（F5）。逻辑本体在 scripts/design/pixel-verdict.mjs（纯函数，单测能注入假读数证伪），
+     * 这里只把本轮真的写出过的那批图交出去——不扫 OUT_DIR，那里躺着历史轮次的文件。
+     */
+    const px = pixelVerdict(SHOT_LOG, { noShots: NO_SHOTS })
+    bad.push(...px.bad)
+    geoNotes.push(...px.notes)
     console.log('\n=== 门禁 ===')
     if (report.windowFit && report.windowFit.fits === false) {
       bad.push(`真实窗口底部被裁：状态栏底边 ${report.windowFit.statusBar.bottom} > 视口高 ${report.windowFit.inner[1]}（屏幕 ${report.windowFit.screen}，可用 ${report.windowFit.avail}）`)

@@ -201,6 +201,103 @@ jobs:
       - name: electron.d.ts vs preload audit
         run: pnpm types:audit
 
+  # ===== 设计契约三件套（DESIGN.md ↔ 令牌 ↔ 设置键）=====
+  # 2026-10-15 全维度系统审查 E4：这三道本地都是绿的，但执行体是"有人手动跑了一下"。
+  # 于是"字阶漂移了""设置键又接了个假的"这类结论只对上次跑它的人负责。搬进 CI 后每轮必跑。
+  # 纯静态读文件，不需要构建产物，也不需要真窗口。
+  design-gate:
+    name: Design Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: DESIGN.md / tokens / settings-keys gate
+        run: pnpm design:gate
+
+  # ===== L0 契约生成物对账 =====
+  # ipc-channels 的生成物若与契约不一致，preload/渲染层就会拿到 undefined（断链的第一类成因）。
+  ipc-gen:
+    name: IPC Contract Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generated contract is up to date
+        run: pnpm ipc:check
+
+  # ===== 死码/断链上限（unresolved / unlisted / files / duplicates / binaries）=====
+  # 上限只许降；exports/types 两档故意不设上限（knip 看不见测试，本仓惯例是为单测才 export）。
+  # 判据本身在 tests/unit/deadcode-gate.test.ts，全部离线可复算。
+  deadcode-gate:
+    name: Dead Code Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Knip ratchet gate
+        run: pnpm deadcode:gate
+
+  # ===== 依赖漏洞（按公告号逐条认账）=====
+  # 判据不是"漏洞总数上限"：公告库每天变，红的是没改代码的人，最后只会教人绕闸。
+  # 这里只在"出现基线外的新 high/critical"时红；已知 42 条登记在 deps-audit-accepted.json，
+  # 处置（升级/替换）归任务 #117，需人工批准。镜像站没有 audit 端点，脚本内已固定官方 registry。
+  deps-audit:
+    name: Dependency Advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Advisory gate
+        run: pnpm audit:deps
+
   # ===== 端到端接线验证（真实 Electron + 行为断言） =====
   # 验证 preload 契约运行时可达 / Agent 事件回流 / 发送按钮有反馈 / 假 UI 不复活。
   # Windows runner 可直接跑有头 Electron，无需 xvfb。

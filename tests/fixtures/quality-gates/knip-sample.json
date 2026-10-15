@@ -1,0 +1,69 @@
+{
+  "issues": [
+    {
+      "file": "src/shared/at-command-types.ts",
+      "binaries": [],
+      "catalog": [],
+      "dependencies": [],
+      "devDependencies": [],
+      "duplicates": [],
+      "enumMembers": [],
+      "exports": [
+        {
+          "name": "AT_COMMAND_LABELS",
+          "line": 195,
+          "col": 14,
+          "pos": 4555
+        },
+        {
+          "name": "AT_COMMAND_ICONS",
+          "line": 211,
+          "col": 14,
+          "pos": 4828
+        },
+        {
+          "name": "AT_COMMAND_LIST",
+          "line": 227,
+          "col": 14,
+          "pos": 5213
+        }
+      ],
+      "files": [],
+      "namespaceMembers": [],
+      "optionalPeerDependencies": [],
+      "types": [
+        {
+          "name": "AtCommandPayload",
+          "line": 88,
+          "col": 13,
+          "pos": 2347
+        }
+      ],
+      "unlisted": [],
+      "unresolved": []
+    },
+    {
+      "file": "src/main/windows/main-window.ts",
+      "binaries": [],
+      "catalog": [],
+      "dependencies": [],
+      "devDependencies": [],
+      "duplicates": [],
+      "enumMembers": [],
+      "exports": [
+        {
+          "name": "getMainWindow",
+          "line": 273,
+          "col": 17,
+          "pos": 8190
+        }
+      ],
+      "files": [],
+      "namespaceMembers": [],
+      "optionalPeerDependencies": [],
+      "types": [],
+      "unlisted": [],
+      "unresolved": []
+    }
+  ]
+}

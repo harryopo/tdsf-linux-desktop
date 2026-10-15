@@ -1,0 +1,111 @@
+{
+  "advisories": {
+    "1102341": {
+      "findings": [
+        {
+          "version": "0.21.3",
+          "paths": [
+            ".>@vitejs/plugin-react>vite>esbuild",
+            ".>@vitest/coverage-v8>vitest>@vitest/mocker>vite>esbuild",
+            ".>@vitest/coverage-v8>vitest>vite>esbuild",
+            ".>@vitest/coverage-v8>vitest>vite-node>vite>esbuild",
+            ".>electron-vite>vite>esbuild",
+            ".>vite>esbuild",
+            ".>vitest>@vitest/mocker>vite>esbuild",
+            ".>vitest>vite>esbuild",
+            ".>vitest>vite-node>vite>esbuild"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "version": "0.21.5",
+          "paths": [
+            ".>electron-vite>esbuild"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        },
+        {
+          "version": "0.23.0",
+          "paths": [
+            ".>tsx>esbuild"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1102341,
+      "title": "esbuild enables any website to send any requests to the development server and read the response",
+      "module_name": "esbuild",
+      "vulnerable_versions": "<=0.24.2",
+      "patched_versions": ">=0.24.3",
+      "severity": "moderate",
+      "cwe": "CWE-346",
+      "github_advisory_id": "GHSA-67mh-4wv8-2f99",
+      "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99"
+    },
+    "1112659": {
+      "findings": [
+        {
+          "version": "6.2.1",
+          "paths": [
+            ".>@electron/rebuild>node-gyp>make-fetch-happen>cacache>tar",
+            ".>@electron/rebuild>node-gyp>tar",
+            ".>@electron/rebuild>tar"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1112659,
+      "title": "node-tar Vulnerable to Arbitrary File Creation/Overwrite via Hardlink Path Traversal",
+      "module_name": "tar",
+      "vulnerable_versions": "<7.5.7",
+      "patched_versions": ">=7.5.7",
+      "severity": "high",
+      "cwe": "CWE-22, CWE-59",
+      "github_advisory_id": "GHSA-34x7-hfp2-rc4v",
+      "url": "https://github.com/advisories/GHSA-34x7-hfp2-rc4v"
+    },
+    "1117571": {
+      "findings": [
+        {
+          "version": "6.11.6",
+          "paths": [
+            ".>@xenova/transformers>onnxruntime-web>onnx-proto>protobufjs"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1117571,
+      "title": "Arbitrary code execution in protobufjs",
+      "module_name": "protobufjs",
+      "vulnerable_versions": "<7.5.5",
+      "patched_versions": ">=7.5.5",
+      "severity": "critical",
+      "cwe": "CWE-94",
+      "github_advisory_id": "GHSA-xq3m-2v4x-88gg",
+      "url": "https://github.com/advisories/GHSA-xq3m-2v4x-88gg"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 17,
+      "high": 24,
+      "critical": 5
+    },
+    "dependencies": 431,
+    "devDependencies": 755,
+    "optionalDependencies": 206,
+    "totalDependencies": 1195
+  }
+}
