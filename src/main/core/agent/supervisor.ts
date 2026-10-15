@@ -59,6 +59,15 @@ import { APPROVAL_BUDGET_MS, isLlmTimeout, resolveLlmBudget } from './llm-budget
 import { ConfigStore } from '../../services/storage/config-store'
 import { resolveLlmConfig } from '../../services/llm/llm-config-resolver'
 import { routeChatTools, CHAT_TOOL_CATALOG } from './tools/chat-tool-router'
+import {
+  limitToolText,
+  limitToolTextOnly,
+  PROMPT_SNIPPET_CHAR_LIMIT,
+  TOOL_EVENT_PREVIEW_CHAR_LIMIT,
+  TOOL_INPUT_PREVIEW_CHAR_LIMIT,
+  TOOL_STDERR_CHAR_LIMIT,
+  TOOL_STDOUT_CHAR_LIMIT,
+} from './tools/output-limit'
 // v2.10 快慢思考自动路由：auto 档按复杂度解析为 standard/deep
 import { resolveThinkingStrength } from './thinking-router'
 // v2.11 PAOR 状态图编排：路由决策纯函数（可单测，默认行为与旧 switch 等价）
@@ -672,8 +681,8 @@ class SupervisorAgent {
                     return {
                       ok: r.exitCode === 0,
                       exitCode: r.exitCode,
-                      stdout: (r.stdout || '').slice(0, 12000),
-                      stderr: (r.stderr || '').slice(0, 4000),
+                      stdout: limitToolTextOnly(r.stdout, TOOL_STDOUT_CHAR_LIMIT, 'stdout'),
+                      stderr: limitToolTextOnly(r.stderr, TOOL_STDERR_CHAR_LIMIT, 'stderr'),
                       risk: risk.level,
                     }
                   } catch (e) {
@@ -747,8 +756,8 @@ class SupervisorAgent {
                     return {
                       ok: r.exitCode === 0,
                       exitCode: r.exitCode,
-                      stdout: (r.stdout || '').slice(0, 12000),
-                      stderr: (r.stderr || '').slice(0, 4000),
+                      stdout: limitToolTextOnly(r.stdout, TOOL_STDOUT_CHAR_LIMIT, 'stdout'),
+                      stderr: limitToolTextOnly(r.stderr, TOOL_STDERR_CHAR_LIMIT, 'stderr'),
                       approved: true,
                       risk: risk.level,
                     }
@@ -796,8 +805,8 @@ class SupervisorAgent {
                     return {
                       ok: normalEnd,
                       exitCode: r.exitCode,
-                      stdout: (r.stdout || '').slice(0, 12000),
-                      stderr: normalEnd ? '' : (r.stderr || '').slice(0, 2000),
+                      stdout: limitToolTextOnly(r.stdout, TOOL_STDOUT_CHAR_LIMIT, '日志输出'),
+                      stderr: normalEnd ? '' : limitToolTextOnly(r.stderr, 2_000, 'stderr'),
                       followedSeconds: dur,
                     }
                   } catch (e) {
@@ -822,12 +831,14 @@ class SupervisorAgent {
                     )
                     // HC-2：文件可能含密钥/凭证，强制脱敏后再给模型
                     const safe = redactSecrets(content)
+                    const limited = limitToolText(safe, TOOL_STDOUT_CHAR_LIMIT, '文件内容')
                     return {
                       ok: true,
                       path: remotePath,
                       size: content.length,
-                      content: safe.slice(0, 12000),
-                      truncated: safe.length > 12000,
+                      content: limited.text,
+                      truncated: limited.truncated,
+                      droppedChars: limited.droppedChars,
                     }
                   } catch (e) {
                     return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -1039,8 +1050,7 @@ class SupervisorAgent {
           const skillRoute = (await getSkillRouter()).route(lastUserText)
           if (skillRoute.decision !== 'ai-only' && skillRoute.matches.length > 0) {
             const top = skillRoute.matches[0].skill
-            const body =
-              top.content.length > 2000 ? top.content.slice(0, 2000) + '\n...(内容已截断)' : top.content
+            const body = limitToolTextOnly(top.content, PROMPT_SNIPPET_CHAR_LIMIT, '手册内容')
             skillInjection = `\n\n[已匹配运维手册「${top.name}」，请优先依据以下手册组织回答]\n${top.description}\n${body}`
             // 可视化：复用工具执行卡片（call + result 同步补全）
             const skillCallId = `skill_${correlationId}`
@@ -1252,7 +1262,7 @@ class SupervisorAgent {
             toolCallId: p.toolCallId ?? `tc_${Date.now()}`,
             phase: 'call',
             toolName: p.toolName ?? 'tool',
-            input: inputStr.slice(0, 2000),
+            input: limitToolTextOnly(inputStr, TOOL_INPUT_PREVIEW_CHAR_LIMIT, '入参'),
           })
           // 工具执行期不再特殊对待：SDK 的 toolMs 预算本来就覆盖这一段，
           // 而原来在这里"暂停看门狗"正是无界等待的来源
@@ -1286,7 +1296,7 @@ class SupervisorAgent {
             phase: 'result',
             toolName: p.toolName ?? 'tool',
             ok,
-            output: outStr.slice(0, 4000),
+            output: limitToolTextOnly(outStr, TOOL_EVENT_PREVIEW_CHAR_LIMIT, '输出'),
           })
           // v2.8：工具失败 → 错误教训快速沉淀（规则直写 correction，无 LLM 开销；
           // 风险拦截/只读拒绝等护栏正常工作不算教训，recordToolFailure 内部过滤）
@@ -1693,7 +1703,7 @@ class SupervisorAgent {
       const text = await this.callLlm(
         '你是 Linux 运维专家。简要分析以下命令执行结果，判断是否成功、有无异常。' +
           '只返回 JSON：{"status":"success|partial|failed","observations":["..."]}',
-        `命令：${actionResult.command}\n退出成功：${actionResult.success}\n输出：\n${output.slice(0, 2000)}`,
+        `命令：${actionResult.command}\n退出成功：${actionResult.success}\n输出：\n${limitToolTextOnly(output, PROMPT_SNIPPET_CHAR_LIMIT, '命令输出')}`,
         512
       )
       const parsed = this.parseObserveJson(text)
