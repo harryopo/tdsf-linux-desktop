@@ -340,6 +340,14 @@ export interface ChatResult {
     afterTokens: number
     /** 被截断/丢弃的消息条数 */
     truncatedCount: number
+    /**
+     * 被折叠进摘要的条数。
+     *
+     * 与 truncatedCount 的区别是要不要对用户说"丢了"：滑动窗口把旧消息移出列表时，
+     * 现在会把那一段压成一条摘要留下痕迹，所以这些条**内容还在**（以摘要形式），
+     * 界面该说"已把 N 条较早对话压成摘要"，而不是"剪掉 N 条"。
+     */
+    summarizedCount: number
   }
   /**
    * 本轮结束时对话真实占用的 tokens（末步 prompt + 末步 completion）

@@ -245,6 +245,7 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
       beforeTokens: compaction.beforeTokens,
       afterTokens: compaction.afterTokens,
       truncatedCount: compaction.truncatedCount,
+      summarizedCount: compaction.summarizedCount,
     }
 
     // 6. 写入 ctx

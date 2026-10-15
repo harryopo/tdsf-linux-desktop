@@ -55,6 +55,11 @@ export interface CompactionResult {
   afterTokens: number
   /** 被截断的消息数 */
   truncatedCount: number
+  /**
+   * 被折叠进摘要的条数（与 truncatedCount 不同：滑动窗口是"整条移出列表"，
+   * 移出≠留痕，这里记的是"这些条的内容以摘要形式还在"）
+   */
+  summarizedCount: number
 }
 
 /**
@@ -89,10 +94,12 @@ export function compactIfNeeded(
     })
   }
 
-  // L2 / L3：会话总 tokens 超阈值 → 滑动窗口
-  const { messages: afterWindows, triggered: windowLevel } = applySessionWindows(afterL1, thresholds)
+  // L2 / L3：会话总 tokens 超阈值 → 滑动窗口。被窗口甩出去的那段压成摘要，不直接蒸发。
+  const { messages: afterWindows, dropped, triggered: windowLevel } = applySessionWindows(afterL1, thresholds)
   if (windowLevel !== 'none' && level === 'none') level = windowLevel
-  let result = afterWindows
+  const [leadingSystem, restKept] = splitLeadingSystem(afterWindows)
+  let result = dropped.length > 0 ? withDigest(leadingSystem, digestDropped(dropped), restKept) : afterWindows
+  const summarizedCount = dropped.length
   let afterTokens = estimateMessageTokens(result)
 
   // L4：摘要压缩（同步降级模式：首尾提取）
@@ -122,7 +129,7 @@ export function compactIfNeeded(
     })
   }
 
-  return { messages: result, level, beforeTokens, afterTokens, truncatedCount }
+  return { messages: result, level, beforeTokens, afterTokens, truncatedCount, summarizedCount }
 }
 
 /**
@@ -149,9 +156,15 @@ export async function compactIfNeededAsync(
   truncatedCount += l1Truncated
   if (l1Truncated > 0) level = 'L1'
 
-  const { messages: afterWindows, triggered: windowLevel } = applySessionWindows(afterL1, thresholds)
+  const { messages: afterWindows, dropped, triggered: windowLevel } = applySessionWindows(afterL1, thresholds)
   if (windowLevel !== 'none' && level === 'none') level = windowLevel
-  let result = afterWindows
+  // 被窗口甩出去的段落在模型真摘要里留下痕迹；摘要不可用或失败时退回首尾提取
+  const [leadingSystem, restKept] = splitLeadingSystem(afterWindows)
+  let result =
+    dropped.length > 0
+      ? withDigest(leadingSystem, await digestDroppedAsync(dropped, summarizer), restKept)
+      : afterWindows
+  const summarizedCount = dropped.length
   let afterTokens = estimateMessageTokens(result)
 
   if (afterTokens > thresholds.critical) {
@@ -179,7 +192,7 @@ export async function compactIfNeededAsync(
     })
   }
 
-  return { messages: result, level, beforeTokens, afterTokens, truncatedCount }
+  return { messages: result, level, beforeTokens, afterTokens, truncatedCount, summarizedCount }
 }
 
 // ─── 内部工具函数 ────────────────────────────────────────────────────────────
@@ -224,8 +237,9 @@ function applySingleMessageTruncation(
 function applySessionWindows(
   messages: ModelMessage[],
   thresholds: CompactionThresholds,
-): { messages: ModelMessage[]; triggered: 'none' | 'L2' | 'L3' } {
+): { messages: ModelMessage[]; dropped: ModelMessage[]; triggered: 'none' | 'L2' | 'L3' } {
   let result = messages
+  let dropped: ModelMessage[] = []
   let triggered: 'none' | 'L2' | 'L3' = 'none'
   const windowKeep = (ratioOfWindow: number, absolute: number): number =>
     thresholds.windowTokens > 0
@@ -233,22 +247,97 @@ function applySessionWindows(
       : absolute
 
   if (estimateMessageTokens(result) > thresholds.sessionSoft) {
-    result = applySlidingWindow(result, windowKeep(0.2, 30_000))
+    const next = applySlidingWindow(result, windowKeep(0.2, 30_000))
+    dropped = dropped.concat(result.filter((m) => !next.includes(m)))
+    result = next
     triggered = 'L2'
     logger.info('AGENT.CONTEXT', `L2 compaction 触发：滑动窗口压缩`, {
       afterTokens: estimateMessageTokens(result),
+      droppedCount: dropped.length,
       windowTokens: thresholds.windowTokens,
     })
   }
   if (estimateMessageTokens(result) > thresholds.sessionHard) {
-    result = applySlidingWindow(result, windowKeep(0.1, 50_000))
+    const next = applySlidingWindow(result, windowKeep(0.1, 50_000))
+    dropped = dropped.concat(result.filter((m) => !next.includes(m)))
+    result = next
     if (triggered === 'none') triggered = 'L3'
     logger.warn('AGENT.CONTEXT', `L3 compaction 触发：会话超硬阈值，激进滑动窗口压缩`, {
       afterTokens: estimateMessageTokens(result),
+      droppedCount: dropped.length,
       windowTokens: thresholds.windowTokens,
     })
   }
-  return { messages: result, triggered }
+  return { messages: result, dropped, triggered }
+}
+
+/**
+ * 被滑动窗口丢掉的那一段，压成一条 system 摘要
+ *
+ * 为什么必须有这条：滑动窗口是"整条扔掉"，实测 200 条的对话一次就丢掉 199 条，
+ * 而界面上只写着"已压缩"。用户遇到的"AI 完全不记得刚才那条命令"就是这个洞——
+ * 丢掉的东西没有任何形式的残留，模型连"曾经讨论过什么"都看不到。
+ *
+ * 同步版做首尾提取（零成本、零延迟）；异步版优先让模型写真摘要。
+ */
+function digestDropped(dropped: ModelMessage[]): ModelMessage {
+  const firstText = extractText(dropped[0]).slice(0, 500)
+  const lastText = extractText(dropped[dropped.length - 1]).slice(0, 500)
+  return {
+    role: 'system',
+    content:
+      `[较早对话摘要 - ${dropped.length} 条已折叠]\n起始：${firstText}\n...\n最近：${lastText}`,
+  } as ModelMessage
+}
+
+/** 交给模型做摘要时的提示词（与同步降级用同一批素材，行为可对比） */
+function buildDigestPrompt(dropped: ModelMessage[]): string {
+  return (
+    '将以下对话历史压缩为一段简洁中文摘要，保留关键决策、执行过的命令和结果：\n\n' +
+    dropped
+      .map((m) => `[${m.role}] ${extractText(m)}`)
+      .join('\n')
+      .slice(0, 12_000)
+  )
+}
+
+/** 把摘要插在保留段之前（时间顺序不能倒过来） */
+function withDigest(head: ModelMessage[], digest: ModelMessage, kept: ModelMessage[]): ModelMessage[] {
+  return [...head, digest, ...kept]
+}
+
+/** 从列表里分离首条 system（它始终留在最前，不参与折叠） */
+function splitLeadingSystem(messages: ModelMessage[]): [ModelMessage[], ModelMessage[]] {
+  return messages[0]?.role === 'system' ? [[messages[0]], messages.slice(1)] : [[], messages]
+}
+
+/**
+ * 异步版折叠摘要：有 summarizer 就真摘要，没有/失败/返回空 都退回首尾提取
+ *
+ * 退路必须是"照样留痕"，不能是"这次不写摘要"——丢历史这件事本身不该因为摘要失败
+ * 而变成无声的。
+ */
+async function digestDroppedAsync(
+  dropped: ModelMessage[],
+  summarizer?: SummarizeFn,
+): Promise<ModelMessage> {
+  if (!summarizer) return digestDropped(dropped)
+  try {
+    const text = await summarizer(buildDigestPrompt(dropped))
+    if (text && text.trim()) {
+      return {
+        role: 'system',
+        content: `[较早对话摘要 - ${dropped.length} 条已折叠]\n${text.trim()}`,
+      } as ModelMessage
+    }
+    logger.warn('AGENT.CONTEXT', 'L2/L3 摘要返回空内容，降级到首尾提取', { droppedCount: dropped.length })
+  } catch (err) {
+    logger.warn('AGENT.CONTEXT', 'L2/L3 摘要调用失败，降级到首尾提取', {
+      droppedCount: dropped.length,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+  return digestDropped(dropped)
 }
 
 /**

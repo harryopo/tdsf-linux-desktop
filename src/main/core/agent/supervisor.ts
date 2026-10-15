@@ -77,7 +77,8 @@ import { redactSecrets, withToolResultRedaction } from './providers/redact'
 import { buildTerminalContextBlock, recordTerminalContextAudit } from './terminal-context'
 import { AuditRepo } from '../../services/db/audit-repo'
 import { recordTokenUsage } from './providers/token-stats'
-import { compactIfNeeded } from './context'
+import { compactIfNeededAsync, type SummarizeFn } from './context'
+import { makeRedactingSummarizer, SUMMARY_SYSTEM_PROMPT } from './summarizer'
 import { diffPrune, pruneStaleToolOutputs } from './tool-history'
 import { getSessionRegistry } from './session-registry'
 import { createAllSubagents } from './subagents'
@@ -462,7 +463,13 @@ class SupervisorAgent {
     // 3. compaction（5 层阈值；窗口用这台 Provider 的生效值，用户覆盖过的也算）
     //    以前只有一把 150K 的绝对尺子：Ollama 8K 这类小窗口模型永远轮不到压缩，
     //    请求被上游直接拒成 400，用户看到的是"AI 突然不能用了"。
-    const compaction = compactIfNeeded(redactedMessages, config.capabilities?.contextWindow)
+    //    L4 走异步那一条：把旧对话真交给模型总结。同步版只会取首尾各 500 字符，
+    //    中段整段蒸发——"AI 忘了半小时前那条命令"就是这么来的。
+    //    摘要失败时 compactIfNeededAsync 自己降级回首尾提取并记日志，不阻断对话。
+    const summarize: SummarizeFn = makeRedactingSummarizer((prompt) =>
+      this.callLlm(SUMMARY_SYSTEM_PROMPT, prompt, 800, resolvedProviderId)
+    )
+    const compaction = await compactIfNeededAsync(redactedMessages, summarize, config.capabilities?.contextWindow)
     if (compaction.level !== 'none') {
       this.log.info('chat 触发 compaction', {
         correlationId,
@@ -470,6 +477,7 @@ class SupervisorAgent {
         beforeTokens: compaction.beforeTokens,
         afterTokens: compaction.afterTokens,
         truncatedCount: compaction.truncatedCount,
+            summarizedCount: compaction.summarizedCount,
       })
     }
 
@@ -1350,6 +1358,7 @@ class SupervisorAgent {
           beforeTokens: compaction.beforeTokens,
           afterTokens: compaction.afterTokens,
           truncatedCount: compaction.truncatedCount,
+            summarizedCount: compaction.summarizedCount,
         },
         contextTokens,
         stepCount: steps.length,
@@ -1416,6 +1425,7 @@ class SupervisorAgent {
             beforeTokens: compaction.beforeTokens,
             afterTokens: compaction.afterTokens,
             truncatedCount: compaction.truncatedCount,
+            summarizedCount: compaction.summarizedCount,
           },
         })
       } else if (isLlmTimeout(error)) {
@@ -1526,10 +1536,17 @@ class SupervisorAgent {
    * @param systemPrompt 系统提示词
    * @param userPrompt 用户提示词
    * @param maxTokens 最大输出 token 数
+   * @param providerId 用哪个 Provider；缺省走默认。摘要这类附属调用必须跟着当前对话那台走，
+   *                   否则会出现"用户在跟 A 说话，却悄悄用 B 计费"
    */
-  private async callLlm(systemPrompt: string, userPrompt: string, maxTokens = 1024): Promise<string> {
+  private async callLlm(
+    systemPrompt: string,
+    userPrompt: string,
+    maxTokens = 1024,
+    providerId?: string
+  ): Promise<string> {
     this.ensureInitialized()
-    const config = getProviderWithApiKey(getDefaultProviderId())
+    const config = getProviderWithApiKey(providerId ?? getDefaultProviderId())
     if (!config) {
       this.log.warn('[PAOR] callLlm 跳过：无可用 Provider')
       return ''

@@ -96,24 +96,37 @@ describe('压缩过要说出来（compaction 不再静默丢历史）', () => {
     expect(buildCompactionNote(chatResult({ compactionLevel: 'none' }))).toBeNull()
   })
 
-  it('L2 带去向：层级、前后 tokens、剪掉几条都写出来', () => {
+  it('L2 带去向：层级、前后 tokens、折叠了几条都写出来', () => {
     const note = buildCompactionNote(
       chatResult({
         compactionLevel: 'L2',
-        compactionDetail: { beforeTokens: 61_000, afterTokens: 12_000, truncatedCount: 9 },
+        compactionDetail: {
+          beforeTokens: 61_000,
+          afterTokens: 12_000,
+          truncatedCount: 9,
+          summarizedCount: 9,
+        },
       }),
     )
     expect(note).toContain('L2')
     expect(note).toContain('61K')
     expect(note).toContain('12K')
     expect(note).toContain('9 条')
+    // 内容以摘要形式留着，说"剪掉 9 条"会把留下的东西报成丢了
+    expect(note).toContain('压成摘要')
+    expect(note).not.toContain('剪掉')
   })
 
-  it('一条都没剪时不提"剪掉"，只报压缩本身', () => {
+  it('没有摘要可留时（L1 只截断）不提"剪掉"，只报压缩本身', () => {
     const note = buildCompactionNote(
       chatResult({
         compactionLevel: 'L1',
-        compactionDetail: { beforeTokens: 5_000, afterTokens: 4_000, truncatedCount: 0 },
+        compactionDetail: {
+          beforeTokens: 5_000,
+          afterTokens: 4_000,
+          truncatedCount: 0,
+          summarizedCount: 0,
+        },
       }),
     )
     expect(note).not.toContain('剪掉')
@@ -131,7 +144,12 @@ describe('压缩过要说出来（compaction 不再静默丢历史）', () => {
       correlationId: 'c-1',
       result: chatResult({
         compactionLevel: 'L3',
-        compactionDetail: { beforeTokens: 120_000, afterTokens: 9_000, truncatedCount: 14 },
+        compactionDetail: {
+          beforeTokens: 120_000,
+          afterTokens: 9_000,
+          truncatedCount: 14,
+          summarizedCount: 14,
+        },
       }),
     })
     expect(store().messages[1].contextNote).toContain('L3')
