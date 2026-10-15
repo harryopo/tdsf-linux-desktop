@@ -14,6 +14,7 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { useServerStore } from '@/stores/server-store'
 import { ensureShellForSession, shellTitleOf } from '@/terminal/shell-launcher'
+import { connectFailureText } from '@/lib/connect-failure'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { SshConfig } from '@shared/models'
 
@@ -77,7 +78,8 @@ export function useServerConnect({ onConnected }: UseServerConnectOptions = {}) 
         toast.success(`已连接 ${target.name || target.host}`)
       } catch (err) {
         setConnectionState(target.id, 'error')
-        toast.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
+        // 分类后的话术 + 下一步（原文里塞着 ssh2 的英文，初学者读不出该改哪一格）
+        toast.error(connectFailureText(err instanceof Error ? err.message : String(err)))
       } finally {
         setConnectingId(null)
       }

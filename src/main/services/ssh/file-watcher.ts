@@ -183,7 +183,7 @@ export class FileWatcherAdapter {
     const safePath = `'${entry.path.replace(/'/g, `'\\''`)}'`
     const cmd = `inotifywait -m -r --format '%w%f %e' ${safePath} 2>/dev/null`
     // 这里绕过了 connection-manager.exec() 的出口闸（需要长连接流），故就地判一次
-    assertCommandAllowed(cmd)
+    assertCommandAllowed(cmd, '文件监听')
     try {
       client.exec(cmd, (err, stream) => {
         if (err) {

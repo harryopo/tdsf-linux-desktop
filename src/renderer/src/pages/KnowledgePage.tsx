@@ -45,7 +45,14 @@ interface KnowledgeItem {
   category: Exclude<KnowledgeCategory, 'all'>
   updatedAt: string
   views: string
-  matchScore: number
+  /**
+   * 这条知识的历史成功率（0-100），来自主进程的 successRate。
+   * 以前这个格子写的是"X% 匹配"，可它拿的是 successRate，跟用户输入的搜索词
+   * 一点关系都没有（检索是 title/summary 的子串匹配，没有打分）——假相关度。
+   */
+  successPct: number
+  /** 有没有真的评测过：useCount=0 时 successRate 是默认值，不能说成"成功率 0%" */
+  successMeasured: boolean
   /** 创建时间戳（ms），用于 AI 知识沉淀统计 */
   createdAt: number
   /** 更新时间戳（ms），用于最近浏览排序 */
@@ -81,7 +88,8 @@ function formatRelativeTime(ts: number): string {
  * 将真实 KnowledgeEntry 映射为页面展示用的 KnowledgeItem
  * - category：优先匹配 tags/keywords 中的 UI 分类，未命中则按 type 回退
  * - views：使用 useCount
- * - matchScore：使用 successRate 百分比（最高 99）
+ * - successPct：successRate 百分比（这条知识历史上真被用成过多少回）
+ * - successMeasured：useCount>0 才算评测过，否则界面上说"未评测"而不是编一个百分比
  */
 const UI_CATEGORIES: Exclude<KnowledgeCategory, 'all'>[] = ['nginx', 'mysql', 'docker', 'network', 'security', 'shell', 'systemd']
 
@@ -98,7 +106,8 @@ function mapEntryToItem(entry: KnowledgeEntry): KnowledgeItem {
     category,
     updatedAt: formatRelativeTime(entry.updatedAt),
     views: entry.useCount > 0 ? String(entry.useCount) : '0',
-    matchScore: Math.min(99, Math.round((entry.successRate ?? 0) * 100)),
+    successPct: Math.min(99, Math.round((entry.successRate ?? 0) * 100)),
+    successMeasured: entry.useCount > 0,
     createdAt: entry.createdAt,
     rawUpdatedAt: entry.updatedAt,
     tags: entry.tags ?? [],
@@ -467,7 +476,9 @@ export function KnowledgePage() {
                 <article key={item.id} className="kb-card">
                   <div className="kb-card__head">
                     <h3 className="kb-card__title">{item.title}</h3>
-                    <span className="kb-card__match">{item.matchScore}%匹配</span>
+                    <span className="kb-card__match">
+                      {item.successMeasured ? `成功率 ${item.successPct}%` : '未评测'}
+                    </span>
                   </div>
                   <p className="kb-card__summary">{item.summary}</p>
                   <div className="kb-card__meta">

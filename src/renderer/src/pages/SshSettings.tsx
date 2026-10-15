@@ -29,6 +29,7 @@ import { KeyCard } from '@/components/settings/ssh/KeyCard'
 import { DefaultsCard } from '@/components/settings/ssh/DefaultsCard'
 import { SecurityCard } from '@/components/settings/ssh/SecurityCard'
 import { useServerStore } from '@/stores/server-store'
+import { connectFailureText } from '@/lib/connect-failure'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { ensureShellForSession, shellTitleOf } from '@/terminal/shell-launcher'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -188,7 +189,9 @@ export function SshSettings() {
         showFb(`已连接 ${server.name || server.host}`)
       } catch (err) {
         setConnectionState(server.id, 'error')
-        toast.error(`连接失败: ${err instanceof Error ? err.message : String(err)}`)
+        const text = connectFailureText(err instanceof Error ? err.message : String(err))
+        toast.error(text)
+        showFb(text)
       } finally {
         setBusyId(null)
       }

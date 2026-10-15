@@ -335,7 +335,7 @@ export class SshConnectionManager {
     const entry = this.requireSession(sessionId)
     this.requireConnected(entry)
     // 风险闸落在这里而不是各 IPC 通道：AI 工具 / MCP / 部署 / 调度都走这个出口
-    assertCommandAllowed(command)
+    assertCommandAllowed(command, 'SSH 执行')
     entry.lastUsedAt = Date.now()
     const startTime = Date.now()
     // 单条命令超时走设置页 terminal.cmdTimeout（秒），脏值回 30 秒

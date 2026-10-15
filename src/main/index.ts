@@ -25,6 +25,7 @@ import { ConfigStore } from './services/storage/config-store'
 import { McpServerService } from './services/mcp/server'
 import { DatabaseManager, resolveDbPath } from './services/db/database'
 import { AuditRepo } from './services/db/audit-repo'
+import { installCommandBlockTrace } from './core/command-block-trace'
 import { loadTutorialSeeds } from './services/tutorial/seed-loader'
 import { loadKnowledgeSeeds } from './services/db/knowledge-seeds'
 // P-4 恢复方案 A：主进程启动时预热 sessionKeyMap 缓存（恢复主进程重启前活跃的沙箱 key）
@@ -116,6 +117,10 @@ app.whenReady().then(() => {
     })
   }
   pushBootLoadingStage('sqlite-init', BrowserWindow.getAllWindows())
+
+  // 0.0 拦截留痕接上审计表（审查 F1）：判定层不 import 数据库，注册在这里。
+  //     以前 block 只在屏幕上印一行 notice，关掉窗口就查不到"什么时候拦了什么"。
+  installCommandBlockTrace(new AuditRepo(db))
 
   // 0.0a 加载教程种子（v0.7.0 Sprint 5：保证 knowledge_entries 有 10 篇内置教程）
   //    如果数据库已有教程则跳过，避免覆盖

@@ -1001,9 +1001,60 @@ export function isStrictlyReadonly(command: string): ReadonlyVerdict {
  *
  * @throws CommandBlockedError
  */
-export function assertCommandAllowed(command: string): CommandVerdict {
+/**
+ * 拦截留痕的落点（2026-10-15 全维度系统审查 F1）
+ *
+ * 判定层不 import 数据库（分层与可单测），所以这里只留一个可注入的口：
+ * 主进程启动时由 `installCommandBlockTrace()` 注册真正的写入者。
+ *
+ * 为什么必须留痕：拦截发生在这里，而界面上的提示分别长在三个地方（终端 notice、
+ * 工具返回值、IPC 错误文案）。用户看到"被拦了"却查不到"什么时候拦了什么"，
+ * 这条防线对产品信任的伤害大于它的收益——初学者尤其需要"它拦对了"的可核对证据。
+ */
+export interface CommandBlockTrace {
+  /** 拦截来自哪条路：执行口 / 终端输入（留痕要能说出是谁拦的） */
+  source: string
+  command: string
+  reason: string
+  /** 命中的命令段（CommandVerdict.matched，已截断） */
+  matched?: string
+  riskLevel?: string
+}
+
+let blockTraceSink: ((t: CommandBlockTrace) => void) | null = null
+
+/** 注册留痕落点；传 null 撤掉（测试用） */
+export function setCommandBlockSink(sink: ((t: CommandBlockTrace) => void) | null): void {
+  blockTraceSink = sink
+}
+
+/**
+ * 记一笔拦截。留痕失败绝不能改变判定结果，也绝不能挡住拦截本身：
+ * 库降级时 AuditRepo 自己就是"记不上也照走"的设计，这里再兜一层 try。
+ */
+function emitBlockTrace(t: CommandBlockTrace): void {
+  if (!blockTraceSink) return
+  try {
+    blockTraceSink(t)
+  } catch {
+    /* 留痕坏了不该让高危命令变成放行 */
+  }
+}
+
+/**
+ * 执行口：block 级一律抛错。
+ * @param source 调用来源（进留痕，便于核对是哪条路拦下的）
+ */
+export function assertCommandAllowed(command: string, source = '执行口'): CommandVerdict {
   const verdict = evaluateCommand(command)
   if (verdict.level === 'block') {
+    emitBlockTrace({
+      source,
+      command,
+      reason: verdict.reason,
+      matched: verdict.matched,
+      riskLevel: verdict.level,
+    })
     throw new CommandBlockedError(verdict)
   }
   return verdict
@@ -1140,6 +1191,14 @@ export class LineGate {
       if (!text) continue
       const verdict = evaluateCommand(text)
       if (verdict.level === 'block') {
+        // 终端这一路的拦截以前只在屏幕上印一行 notice，关掉窗口就什么都没了
+        emitBlockTrace({
+          source: '终端输入',
+          command: text,
+          reason: verdict.reason,
+          matched: verdict.matched,
+          riskLevel: verdict.level,
+        })
         // 整段写入都不转发，缓冲区也不能留残余，否则下一次按键会拿旧行重复判
         this.buffer = ''
         return {
@@ -1253,6 +1312,12 @@ export function assessToolCall(toolName: string, input: Record<string, unknown>)
   const name = bareToolName(toolName)
   const shape = TOOL_CALL_SHAPES[name]
   if (!shape) {
+    emitBlockTrace({
+      source: 'AI 工具调用',
+      command: toolName,
+      reason: `未登记的工具，按 fail-closed 拒绝：${toolName}`,
+      riskLevel: 'block',
+    })
     return { allow: false, level: 'block', reason: `未登记的工具，按 fail-closed 拒绝：${toolName}` }
   }
 
@@ -1261,6 +1326,13 @@ export function assessToolCall(toolName: string, input: Record<string, unknown>)
     if (typeof command === 'string' && command.trim()) {
       const verdict = evaluateCommand(command)
       if (verdict.level === 'block') {
+        emitBlockTrace({
+          source: 'AI 工具调用',
+          command,
+          reason: `高危命令已被拦截：${verdict.reason}`,
+          matched: verdict.matched,
+          riskLevel: 'block',
+        })
         return { allow: false, level: 'block', reason: `高危命令已被拦截：${verdict.reason}` }
       }
       return { allow: true, level: verdict.level, reason: verdict.reason }
@@ -1270,6 +1342,12 @@ export function assessToolCall(toolName: string, input: Record<string, unknown>)
   if (shape.writePathKey) {
     const target = input[shape.writePathKey]
     if (typeof target === 'string' && isProtectedWriteTarget(target)) {
+      emitBlockTrace({
+        source: 'AI 工具调用',
+        command: `${toolName} → ${normTarget(target)}`,
+        reason: `要写入系统关键路径：${normTarget(target)}`,
+        riskLevel: 'block',
+      })
       return { allow: false, level: 'block', reason: `要写入系统关键路径：${normTarget(target)}` }
     }
   }
