@@ -31,6 +31,8 @@ import type {
 } from '@shared/models'
 import { analyzeByRules } from '@main/core/rule-engine'
 import { classifyLlmError, llmErrorLabel } from '@main/core/agent/providers/llm-error'
+import { recordTokenUsage } from '@main/core/agent/providers/token-stats'
+import { estimateTokens } from '@shared/context-budget'
 import { SYSTEM_PROMPT, buildAnalysisPrompt, buildEnvironmentContextPrompt } from './prompt-templates'
 import {
   alertLlmSlowResponse,
@@ -195,6 +197,14 @@ export class LlmClient {
         )
         const content = response.choices[0]?.message?.content ?? ''
         this.logRequest('chat', startTime, response.usage?.total_tokens)
+        this.recordLlmUsage({
+          method: 'chat',
+          promptText: fullMessages.map((m) => String(m.content ?? '')).join('\n'),
+          completionText: content,
+          usage: response.usage ?? undefined,
+          // chat() 不过 chatWithRetry，一次请求就是一次
+          attempts: 1,
+        })
         return content
       } finally {
         clearTimeout(timer)
@@ -225,8 +235,11 @@ export class LlmClient {
     const startTime = Date.now()
     // 这一轮有没有把字推给过界面 —— 推过就不许再重试（见 chatWithRetry）
     let pushed = false
+    // 重试是真发出去的请求，每一趟都在账单上；记不记次决定了面板数字偏多少
+    let attempts = 0
 
     return this.chatWithRetry(async () => {
+      attempts++
       const controller = new AbortController()
       const timeout = this.config.timeout > 0 ? this.config.timeout : DEFAULT_STREAM_TIMEOUT
       const timer = setTimeout(() => controller.abort(), timeout)
@@ -251,6 +264,14 @@ export class LlmClient {
           }
         }
         this.logRequest('chatStream', startTime, undefined)
+        // 流式没开 include_usage，提供方通常不回 token 数 → 记为估算（estimated）
+        this.recordLlmUsage({
+          method: 'chatStream',
+          promptText: fullMessages.map((m) => String(m.content ?? '')).join('\n'),
+          completionText: fullText,
+          usage: undefined,
+          attempts,
+        })
         return fullText
       } catch (err) {
         const msg = (err as Error).message
@@ -390,7 +411,38 @@ export class LlmClient {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  /** 请求日志（方法名/耗时/token数，落到主进程日志文件；打包后没有控制台） */
+  /**
+   * 请求日志（方法名/耗时/token数），并把这次调用计入 token 用量
+   *
+   * 以前这条只写日志：翻译、日志分析、PAOR 走的是这个客户端，一次都不记账，
+   * 用量面板上看不见它们花掉的 token——面板比真实账单低，低的还是全部。
+   * 提供方没回 usage 时（流式默认不回）按同一把尺估算，并标 estimated，
+   * 让"这是估的"跟着数据走，而不是到了面板上再猜。
+   */
+  private recordLlmUsage(opts: {
+    method: string
+    promptText: string
+    completionText: string
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    attempts: number
+  }): void {
+    const inputTokens = opts.usage?.prompt_tokens ?? estimateTokens(opts.promptText)
+    const outputTokens = opts.usage?.completion_tokens ?? estimateTokens(opts.completionText)
+    const estimated = opts.usage?.prompt_tokens === undefined || opts.usage?.completion_tokens === undefined
+    recordTokenUsage({
+      providerId: 'llm-settings',
+      model: this.config.model,
+      inputTokens,
+      outputTokens,
+      totalTokens: opts.usage?.total_tokens ?? inputTokens + outputTokens,
+      subagent: `llm-client:${opts.method}`,
+      strength: 'standard',
+      timestamp: Date.now(),
+      attempts: Math.max(1, opts.attempts),
+      estimated,
+    })
+  }
+
   private logRequest(method: string, startTime: number, totalTokens?: number): void {
     const duration = Date.now() - startTime
     const tokenInfo = totalTokens !== undefined ? `, tokens=${totalTokens}` : ''

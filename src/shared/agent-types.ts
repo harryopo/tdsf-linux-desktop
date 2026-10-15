@@ -253,13 +253,26 @@ export interface TokenUsageRecord {
   strength: ThinkingStrength
   /** 时间戳（ms） */
   timestamp: number
-  /**
-   * 本次调用成本（v0.9.4 批次 2 - 任务 5，可选）
+  /** 本次调用成本（v0.9.4 批次 2 - 任务 5，可选）
    *
    * 单位：USD（默认），由主进程根据 ProviderConfig.pricing 计算。
    * 未设置时表示未计算成本（旧记录或 pricing 缺失）。
    */
   cost?: number
+  /**
+   * 实际发出的请求次数（含重试），缺省视作 1
+   *
+   * 重试是要钱的：自研客户端最多 4 趟（1 + 3 次指数退避），
+   * 只记最后一次的 token 就等于把面板数字写成真实账单的四分之一。
+   */
+  attempts?: number
+  /**
+   * 这组数字是估算的还是提供方给的
+   *
+   * 流式响应默认不回 usage，OpenAI 兼容端也常常省掉这个字段。
+   * 估算必须标出来：宁可说"这是估的"，不要把估算当成账本上的真数。
+   */
+  estimated?: boolean
 }
 
 /**

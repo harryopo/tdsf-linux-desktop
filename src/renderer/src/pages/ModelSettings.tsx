@@ -207,21 +207,27 @@ export function ModelSettings() {
         }
 
         if (Array.isArray(records) && records.length > 0) {
-          const rows: ConversationRow[] = records.map((r) => ({
-            time: new Date(r.timestamp).toLocaleString('zh-CN', {
-              hour: '2-digit',
-              minute: '2-digit',
-              month: '2-digit',
-              day: '2-digit',
-            }),
-            input: r.subagent || 'direct',
-            model: r.model,
-            modelTagType: 'brand' as const,
-            inputTokens: r.inputTokens.toLocaleString('en-US'),
-            outputTokens: r.outputTokens.toLocaleString('en-US'),
-            status: '成功',
-            statusType: 'success' as const,
-          }))
+          const rows: ConversationRow[] = records.map((r) => {
+            // 估算与重试次数必须跟着数字走：提供方没回 usage 时这组数是估的，
+            // 而重试（最多 4 趟）每一趟都计费，只记最后一次会让面板比账单低一截
+            const attempts = r.attempts ?? 1
+            const est = r.estimated ? '（估）' : ''
+            return {
+              time: new Date(r.timestamp).toLocaleString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                month: '2-digit',
+                day: '2-digit',
+              }),
+              input: attempts > 1 ? `${r.subagent || 'direct'} · 共 ${attempts} 次请求` : r.subagent || 'direct',
+              model: r.model,
+              modelTagType: 'brand' as const,
+              inputTokens: `${r.inputTokens.toLocaleString('en-US')}${est}`,
+              outputTokens: `${r.outputTokens.toLocaleString('en-US')}${est}`,
+              status: '成功',
+              statusType: 'success' as const,
+            }
+          })
           setConversationRows(rows)
         } else {
           setConversationRows([])
