@@ -559,6 +559,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           </span>
         </div>
       )}
+      {message.contextNote && !message.isStreaming && (
+        <div className="ai-token-row pl-8 text-caption text-ink-mute">{message.contextNote}</div>
+      )}
       {renderActionButtons()}
     </div>
   )

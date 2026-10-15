@@ -321,13 +321,14 @@ export function useAgentChat(): UseAgentChatResult {
   }, [clearMessages])
 
   /**
-   * 压缩上下文（T.7）
-   *
-   * 非流式状态下触发 store.compressMessages，保留 system + 最近 N 条，
-   * 中间历史用本地摘要消息替换。
+   * 压缩上下文：留多少由"这台模型的窗口 × 主进程同一份比例"决定（见 agent-store）。
+   * 窗口从 store 里的 provider 配置现取，未知时按 0 传（走绝对阈值那把尺），不编一个窗口。
    */
   const compressContext = useCallback((): CompressResult => {
-    return compressMessages()
+    const { providers, selectedProviderId } = useAgentStore.getState()
+    const windowTokens =
+      providers.find((p) => p.id === selectedProviderId)?.capabilities?.contextWindow ?? 0
+    return compressMessages({ windowTokens })
   }, [compressMessages])
 
   /**

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FC } from 'react'
 import { toast } from 'sonner'
 import type { CompressResult } from '@/stores/agent-store'
+import { formatTokens } from './context-usage'
 
 /** ContextBadge props */
 export interface ContextBadgeProps {
@@ -129,7 +130,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
               const result = onCompress()
               if (result && result.compressed) {
                 void toast.success(
-                  `上下文已压缩：合并 ${result.droppedMessages} 条较早消息，约省 ${result.droppedChars} 字符`,
+                  `上下文已压缩：合并 ${result.droppedMessages} 条较早消息，约省 ${formatTokens(result.droppedTokens)} tokens`,
               )
               } else {
                 void toast.info('当前对话较短，无需压缩')

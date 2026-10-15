@@ -241,6 +241,11 @@ export async function stepBuildPrompt(ctx: TaskProtocolContext): Promise<StepRes
     // 而 chat 那条路（supervisor）报的是真值——同一个字段两条路口径不同，
     // 看板上"从未压缩"就是假的。
     ctx.compactionLevel = compaction.level
+    ctx.compactionDetail = {
+      beforeTokens: compaction.beforeTokens,
+      afterTokens: compaction.afterTokens,
+      truncatedCount: compaction.truncatedCount,
+    }
 
     // 6. 写入 ctx
     ctx.systemPrompt = systemPrompt
@@ -425,12 +430,16 @@ async function invokeWithStreamText(
   return {
     text: fullText,
     usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+    // 这一路挂不了工具（step 9 用 hasTools:false），单步的聚合与末步口径重合
+    contextTokens: inputTokens + outputTokens,
+    stepCount: 1,
     finishReason: aborted ? 'cancelled' : (rawFinish ?? 'unknown'),
     providerId: ctx.providerConfig.id,
     model: ctx.modelInstance.resolvedModel,
     strength,
     durationMs: Date.now() - startTime,
     compactionLevel: ctx.compactionLevel ?? 'none',
+    compactionDetail: ctx.compactionDetail,
   }
 }
 

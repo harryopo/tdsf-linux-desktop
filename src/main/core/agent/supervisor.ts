@@ -78,6 +78,7 @@ import { buildTerminalContextBlock, recordTerminalContextAudit } from './termina
 import { AuditRepo } from '../../services/db/audit-repo'
 import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeeded } from './context'
+import { diffPrune, pruneStaleToolOutputs } from './tool-history'
 import { getSessionRegistry } from './session-registry'
 import { createAllSubagents } from './subagents'
 import type { Subagent, SubagentName, SubagentTask, SubagentResult } from './subagents/base'
@@ -1128,6 +1129,21 @@ class SupervisorAgent {
           ? {
               tools,
               stopWhen: isStepCount(budget.stepCount),
+              /**
+               * 每一步开跑前剪掉旧的批量工具输出（长工具链不再靠运气不顶穿窗口）。
+               * 返回值会 carry forward 到后续步，所以剪一次就一直生效。
+               */
+              prepareStep: ({ messages: stepMessages }) => {
+                const pruned = pruneStaleToolOutputs(stepMessages)
+                const stats = diffPrune(stepMessages, pruned)
+                if (stats.removedMessages > 0) {
+                  this.log.info('工具链历史剪枝', {
+                    correlationId,
+                    ...stats,
+                  })
+                }
+                return { messages: pruned }
+              },
             }
           : {}),
       })
@@ -1279,6 +1295,8 @@ class SupervisorAgent {
       // 8. 获取 token 使用（v7：result.usage 是 Promise）
       const usage = await result.usage
       const finishReason = await result.finishReason
+      // 逐步明细：末步的 prompt 才是"这一轮真实占用"，各步之和是"这一轮烧掉多少"（计费）
+      const steps = await result.steps
 
       // v2.4 修复：正文为空但有 reasoning 时，用 reasoning 兑底并补发一次 onToken，
       // 避免 DeepSeek 思考模式下“连上 API 但运行不显示”。
@@ -1289,6 +1307,15 @@ class SupervisorAgent {
       const inputTokens = usage?.inputTokens ?? 0
       const outputTokens = usage?.outputTokens ?? 0
       const totalTokens = inputTokens + outputTokens
+      /*
+       * 徽章口径：取**末步**的 prompt + completion。
+       * 多步工具链里 result.usage 是各步之和（同一份上下文被重发 N 次），
+       * 拿它除以窗口百分比就成了虚高的假读数——12 步能把 4 万报成 40 万。
+       */
+      const lastStep = steps.length > 0 ? steps[steps.length - 1] : undefined
+      const contextTokens = lastStep
+        ? (lastStep.usage?.inputTokens ?? 0) + (lastStep.usage?.outputTokens ?? 0)
+        : totalTokens
 
       // 9. 记录 token 使用到统计服务
       recordTokenUsage({
@@ -1316,6 +1343,13 @@ class SupervisorAgent {
         strength,
         durationMs,
         compactionLevel: compaction.level,
+        compactionDetail: {
+          beforeTokens: compaction.beforeTokens,
+          afterTokens: compaction.afterTokens,
+          truncatedCount: compaction.truncatedCount,
+        },
+        contextTokens,
+        stepCount: steps.length,
         cotEntropyTrajectory,
       }
 
@@ -1325,6 +1359,8 @@ class SupervisorAgent {
         inputTokens,
         outputTokens,
         totalTokens,
+        contextTokens,
+        stepCount: steps.length,
         finishReason: chatResult.finishReason,
         textLength: fullText.length,
         // v0.9.6 P2 M5+：CoT trace 元数据
@@ -1373,6 +1409,11 @@ class SupervisorAgent {
           strength,
           durationMs: Date.now() - startTime,
           compactionLevel: compaction.level,
+          compactionDetail: {
+            beforeTokens: compaction.beforeTokens,
+            afterTokens: compaction.afterTokens,
+            truncatedCount: compaction.truncatedCount,
+          },
         })
       } else if (isLlmTimeout(error)) {
         // 预算到了（停滞 / 单步 / 工具 / 总时长任一项）：按错误上报，让前端解卡并给出下一步

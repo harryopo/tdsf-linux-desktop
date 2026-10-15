@@ -224,6 +224,8 @@ export interface TaskProtocolContext {
   messages?: ModelMessage[]
   /** step 8 实际触发的 compaction 层级（step 9 如实写进 ChatResult，不再硬编码 'none'） */
   compactionLevel?: CompactionLevel
+  /** step 8 的压缩去向（条数与前后 tokens），step 9 如实写进 ChatResult */
+  compactionDetail?: ChatResult['compactionDetail']
 
   /** LLM 调用结果（step 9 产出） */
   chatResult?: ChatResult

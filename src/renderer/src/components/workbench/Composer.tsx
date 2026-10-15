@@ -8,7 +8,7 @@ import {
 import { cn } from '@/components/trae/utils'
 import { useRailOverflow } from '@/hooks/useRailOverflow'
 import { Button, Chip, Divider, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/ui'
-import { useAgentStore } from '@/stores/agent-store'
+import { latestContextTokens, useAgentStore } from '@/stores/agent-store'
 import { resolveContextUsage } from './context-usage'
 // v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
 import { useEditorStore } from '@/stores/editor-store'
@@ -97,20 +97,14 @@ const Composer: FC<ComposerProps> = ({
       : '选择模型'
 
   /**
-   * 上下文用量（#89）：分子是上一轮请求真实占用的 prompt tokens，
+   * 上下文用量（#89 → 2026-10-15 Wave B）：分子是**末步真实占用**（latestContextTokens），
    * 分母是选中模型声明的窗口（provider:list 把 capabilities 带出来）。
    * 旧实现拿"今日累计 token"除以写死的 200K —— 累计量跨天只涨不回落，窗口也不随模型变，
    * 那个百分比跟"当前对话还能装多少"没关系，却正在被当成压缩时机的依据。
    */
-  const lastPromptTokens = useAgentStore((s) => {
-    for (let i = s.messages.length - 1; i >= 0; i--) {
-      const m = s.messages[i]
-      if (m.role === 'assistant' && m.usage) return m.usage.inputTokens
-    }
-    return 0
-  })
+  const lastContextTokens = useAgentStore((s) => latestContextTokens(s.messages))
   const contextUsage = resolveContextUsage({
-    usedTokens: lastPromptTokens,
+    usedTokens: lastContextTokens,
     windowTokens: selectedProvider?.capabilities?.contextWindow ?? 0,
   })
 

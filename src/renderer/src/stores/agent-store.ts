@@ -33,7 +33,9 @@ import type {
   AgentErrorPayload,
 } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
+import { estimateTokens, resolveCompactionThresholds } from '@shared/context-budget'
 import { acceptsStream, lastIndexWhere, ownsStream, replaceAt } from '@/lib/messageSync'
+import { buildCompactionNote, formatTokens } from '@/components/workbench/context-usage'
 
 /**
  * Agent 对话消息（扩展 ChatMessage，含元信息）
@@ -46,8 +48,8 @@ export interface CompressResult {
   compressed: boolean
   /** 被合并丢弃的消息条数 */
   droppedMessages: number
-  /** 被合并的字符总数（近似 token 节省量） */
-  droppedChars: number
+  /** 被合并的估算 tokens（与主进程同一把尺算出来的，不是字符数） */
+  droppedTokens: number
 }
 
 export interface AgentMessage {
@@ -75,6 +77,15 @@ export interface AgentMessage {
     outputTokens: number
     totalTokens: number
   }
+  /**
+   * 本轮结束时对话真实占用的 tokens（done 事件回填，徽章分子用这个）
+   *
+   * 与 usage.inputTokens 的区别：后者是各步之和（多步工具链把同一份上下文数了 N 遍），
+   * 只能用来计费；拿它除以窗口得到的百分比是虚高的假读数。
+   */
+  contextTokens?: number
+  /** 主进程本轮做了上下文压缩时的说明（不压缩则没有这一行） */
+  contextNote?: string
   /**
    * CoT 熵轨迹（v0.9.6 P2 M5+ 新增，可选）
    *
@@ -245,12 +256,14 @@ interface AgentState {
   /** 清空所有消息 */
   clearMessages: () => void
   /**
-   * 上下文压缩（T.7）
+   * 上下文压缩：保留 system 消息 + 最近一段（按主进程同一把尺的 tokens 预算），
+   * 中间历史合并为一条本地提要。
    *
-   * 简单策略：保留 system 消息 + 最近 N 条对话，中间历史用本地摘要消息替换，
-   * 避免长对话超出模型上下文窗口。仅在非流式状态下执行。
+   * 保留量以前固定"最近 6 条"——对 8K 窗口的本地模型太多、对 200K 的长文本模型太少，
+   * 而且与主进程的 L2/L3 阈值是两套互不相认的判据（同一件事的第四把尺）。
+   * 现在预算取自 shared/context-budget，压缩按钮与真实发出去的请求按同一口径决定留多少。
    */
-  compressMessages: (opts?: { keepRecent?: number }) => CompressResult
+  compressMessages: (opts?: { windowTokens?: number }) => CompressResult
   /** 设置流式输出状态 */
   setStreaming: (streaming: boolean) => void
   /** 设置当前 correlationId */
@@ -280,6 +293,23 @@ interface AgentState {
   resetSessionCostBaseline: () => void
   /** 重置整个 Agent 状态 */
   resetAgentState: () => void
+}
+
+/**
+ * 徽章分子：最近一条 assistant 消息的真实占用（末步口径）。
+ *
+ * 单独成一个函数是因为这里有一个容易写错的取舍：`usage.inputTokens` 是各步之和，
+ * 带工具的对话最多 12 步，同一份上下文被数了 12 遍——拿它当"窗口还剩多少"会虚高一个量级。
+ * 老消息（回填前产生的）没有 contextTokens，才退回 inputTokens。
+ */
+export function latestContextTokens(messages: AgentMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'assistant' && (m.contextTokens !== undefined || m.usage)) {
+      return m.contextTokens ?? m.usage?.inputTokens ?? 0
+    }
+  }
+  return 0
 }
 
 /**
@@ -360,6 +390,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
         providerId: payload.result.providerId,
         model: payload.result.model,
         usage: payload.result.usage,
+        contextTokens: payload.result.contextTokens,
+        contextNote: buildCompactionNote(payload.result) ?? undefined,
         cotEntropyTrajectory: cotTrajectory,
       })
       const closesCurrent = state.currentCorrelationId === payload.correlationId
@@ -489,26 +521,38 @@ export const useAgentStore = create<AgentState>()((set) => ({
       lastError: null,
     }),
 
-  // 上下文压缩（T.7）：保留 system 消息 + 最近 N 条，中间历史生成本地提要
-  // v2.11 诚实化：返回真实压缩结果（供 UI 准确反馈）。用闭包变量回传结果，
-  // 保留 set(updater) 的 state 强类型（本 store 未暴露 get）。这是本地截断（非 AI 语义摘要），快是设计使然。
+  // 上下文压缩：保留 system 消息 + 最近一段（预算按 shared 那把尺 + 这台模型的窗口算），
+  // 中间历史合并为一条本地提要。返回真实压缩结果供 UI 准确反馈。
+  // 注意这是本地截断（非 AI 语义摘要），快是设计使然；但留多少不再拍一个固定条数。
   compressMessages: (opts) => {
-    let result: CompressResult = { compressed: false, droppedMessages: 0, droppedChars: 0 }
+    let result: CompressResult = { compressed: false, droppedMessages: 0, droppedTokens: 0 }
     set((state) => {
       if (state.isStreaming || state.messages.length === 0) return state
 
-      const keepRecent = Math.max(2, opts?.keepRecent ?? 6)
+      // 与主进程 compactIfNeeded 用的是同一个函数、同一组比例
+      const budget = resolveCompactionThresholds(opts?.windowTokens ?? 0).keepRecentTokens
       const systemMessages = state.messages.filter((m) => m.role === 'system')
       const chatMessages = state.messages.filter((m) => m.role === 'user' || m.role === 'assistant')
 
-      // 消息数未超过阈值，无需压缩
-      if (chatMessages.length <= keepRecent) return state
+      // 从尾部往前累加，装进预算的那一段才保留；至少留 2 条，避免整段对话被自己压没
+      let used = 0
+      let splitIdx = chatMessages.length
+      for (let i = chatMessages.length - 1; i >= 0; i--) {
+        const t = estimateTokens(chatMessages[i].content ?? '')
+        if (used + t > budget && chatMessages.length - i > 2) break
+        used += t
+        splitIdx = i
+      }
 
-      const kept = chatMessages.slice(-keepRecent)
-      const dropped = chatMessages.slice(0, chatMessages.length - keepRecent)
+      const kept = chatMessages.slice(splitIdx)
+      const dropped = chatMessages.slice(0, splitIdx)
+
+      // 一条都没剪就没什么可报告的，列表原样返回
+      if (dropped.length === 0) return state
+
       const userCount = dropped.filter((m) => m.role === 'user').length
       const assistantCount = dropped.filter((m) => m.role === 'assistant').length
-      const droppedTokens = dropped.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
+      const droppedTokens = dropped.reduce((sum, m) => sum + estimateTokens(m.content ?? ''), 0)
 
       // 本地提要：提取被压缩段落的主题片段（启发式，非 AI 摘要）
       const snippets = dropped
@@ -519,7 +563,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
       const topicNote = snippets.length > 0 ? `涉及主题：${snippets.join('；')}。` : ''
       const summaryText =
         `[上下文已压缩（本地）] 已将较早的 ${userCount} 轮提问 / ${assistantCount} 条回复` +
-        `（约 ${droppedTokens} 字符）合并为提要，保留最近 ${kept.length} 条。${topicNote}`
+        `（约 ${formatTokens(droppedTokens)} tokens）合并为提要，保留最近 ${kept.length} 条。${topicNote}`
 
       const summaryMessage: AgentMessage = {
         id: `compress_${Date.now()}`,
@@ -528,7 +572,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
         timestamp: Date.now(),
       }
 
-      result = { compressed: true, droppedMessages: dropped.length, droppedChars: droppedTokens }
+      result = { compressed: true, droppedMessages: dropped.length, droppedTokens }
       return { messages: [...systemMessages, summaryMessage, ...kept] }
     })
     return result

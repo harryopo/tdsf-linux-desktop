@@ -327,6 +327,31 @@ export interface ChatResult {
   /** compaction 触发层级 */
   compactionLevel: CompactionLevel
   /**
+   * compaction 到底动了什么（2026-10-15 全维度审查 D4）
+   *
+   * 只有 compactionLevel 是不够的：L2/L3/L5 会**整条丢掉**历史消息，
+   * 而此前渲染层对这个等级零消费，于是"AI 忘了三分钟前说过的话"没有任何可看见的痕迹。
+   * 这里给出去向数据，界面才能在回答旁边写一句"本轮上下文已压缩，剪掉 N 条"。
+   */
+  compactionDetail?: {
+    /** 压缩前估算 tokens */
+    beforeTokens: number
+    /** 压缩后估算 tokens */
+    afterTokens: number
+    /** 被截断/丢弃的消息条数 */
+    truncatedCount: number
+  }
+  /**
+   * 本轮结束时对话真实占用的 tokens（末步 prompt + 末步 completion）
+   *
+   * 与 usage.inputTokens 的区别是这一轮的全部意义：`usage` 是**各步之和**（计费口径），
+   * 12 步工具链里同一个上下文被重发 12 次，于是它能把 4 万 tokens 的会话报成 40 万。
+   * 上下文徽章要回答的是"这个窗口还剩多少"，那只有末步口径是对的。
+   */
+  contextTokens?: number
+  /** 本次实际走的步数（无工具时为 1） */
+  stepCount?: number
+  /**
    * CoT 熵轨迹（v0.9.6 P2 M5+ 新增，可选）
    *
    * 每步 Shannon 熵 ∈ [0, 1]，由 `CotTraceCollector` 在流式过程中累积。

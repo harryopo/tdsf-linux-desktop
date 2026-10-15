@@ -49,3 +49,25 @@ export function resolveContextUsage(input: ContextUsageInput): ContextUsage {
     totalLabel: formatTokens(window),
   }
 }
+
+/**
+ * 主进程压缩后给用户的一句话（不压缩则返回 null，界面什么都不加）
+ *
+ * 为什么要有这条：L2/L3/L5 会整条丢掉较早的历史，而此前 `compactionLevel` 一路带回到
+ * 渲染层却零消费——于是"AI 忘了三分钟前说过的话"在界面上没有任何痕迹，用户只能猜。
+ * 现在把去向如实写出来（剪了几条、从多少 tokens 压到多少），至少这一下是可看见的。
+ */
+export function buildCompactionNote(result: {
+  compactionLevel?: string
+  compactionDetail?: { beforeTokens: number; afterTokens: number; truncatedCount: number }
+}): string | null {
+  const level = result.compactionLevel
+  if (!level || level === 'none') return null
+  const detail = result.compactionDetail
+  if (!detail) return `本轮上下文已压缩（${level}）`
+  const parts = [
+    `${formatTokens(detail.beforeTokens)} → ${formatTokens(detail.afterTokens)} tokens`,
+  ]
+  if (detail.truncatedCount > 0) parts.push(`剪掉 ${detail.truncatedCount} 条`)
+  return `本轮上下文已压缩（${level}：${parts.join('，')}）`
+}
