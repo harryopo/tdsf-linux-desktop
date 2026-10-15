@@ -49,6 +49,16 @@ export interface QuitServices {
   cleanupScheduler: () => unknown
   cleanupSidecar: () => unknown
   cleanupLoopEngineering: () => unknown
+  /** 关掉命令补全引擎（它自己持有一个历史索引库的句柄，注释写着"应用退出时关闭"却没人调过） */
+  disposeTerminalCompletion: () => unknown
+  /** 释放 Agent 会话注册表（GC 定时器 + 在跑的会话映射） */
+  disposeSessionRegistry: () => unknown
+  /**
+   * 关闭 SQLite 句柄。必须排在所有会写库的步骤之后（审计、调度器、凭据迁移都写它）。
+   * 不关的后果不是"泄漏一个 fd"这么简单：WAL 没 checkpoint，下次开机要先回放，
+   * 而回放前进程被系统杀掉就是真的丢数据。
+   */
+  closeDatabase: () => unknown
   releaseMainWindow: () => unknown
 }
 
@@ -77,6 +87,12 @@ export function buildQuitSteps(svc: QuitServices): QuitStep[] {
     { name: '关闭 Langfuse（trace 落盘）', run: svc.shutdownLangfuse },
     { name: '清理调度器', run: svc.cleanupScheduler },
     { name: '解绑循环工程监听', run: svc.cleanupLoopEngineering },
+    // 这三条是 2026-10-15 全维度审查补的：收尾函数**早就写好了**（其中两条的注释就写着
+    // "应用退出时关闭"），但退出表里没人列它们——"有 dispose"不等于"跑过 dispose"。
+    { name: '关闭命令补全引擎', run: svc.disposeTerminalCompletion },
+    { name: '释放 Agent 会话注册表', run: svc.disposeSessionRegistry },
+    // 关库放最后：上面每一条都可能还在写审计/配置，先关池子会把它们的收尾打成"库不可用"
+    { name: '关闭数据库句柄', run: svc.closeDatabase },
     { name: '释放主窗口引用', run: svc.releaseMainWindow },
   ]
 }

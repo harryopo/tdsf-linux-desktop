@@ -41,6 +41,9 @@ function fakeServices(order: string[], delayMs = 0): QuitServices {
     shutdownLangfuse: mk('langfuse'),
     cleanupScheduler: mk('scheduler'),
     cleanupLoopEngineering: mk('loop'),
+    disposeTerminalCompletion: mk('completion'),
+    disposeSessionRegistry: mk('session-registry'),
+    closeDatabase: mk('db-close'),
     releaseMainWindow: mk('window'),
   }
 }
@@ -78,7 +81,7 @@ describe('退出清理闸门（行为）', () => {
 
   it('步骤顺序：子进程最先关，骑在 SSH 上的先停', () => {
     const names = buildQuitSteps(fakeServices([])).map((s) => s.name)
-    expect(names).toHaveLength(13)
+    expect(names).toHaveLength(16)
     const at = (n: string) => names.indexOf(n)
     // 上一版 sidecar 排第 6：SSH 一吃光整体上限它就饿死，孤儿进程 bug 原地复活
     expect(at('关闭 sidecar'), 'sidecar 必须排第一').toBe(0)
@@ -92,6 +95,11 @@ describe('退出清理闸门（行为）', () => {
     expect(at('关闭本机终端'), '本机终端紧跟前两个外部进程').toBeLessThanOrEqual(3)
     // 生命周期那把 1 秒轮询必须在 MCP Server 关掉之后摘（还在用的时候摘会漏日志）
     expect(at('摘除 MCP 生命周期轮询')).toBeGreaterThan(at('停止 MCP Server'))
+    // 关库必须排在所有会写库的步骤之后：先关池子会把审计/调度/凭据的收尾打成"库不可用"
+    for (const writer of ['断开 SSH', '清理调度器', '解绑循环工程监听', '关闭 Langfuse（trace 落盘）']) {
+      expect(at('关闭数据库句柄'), `关库排在了会写库的「${writer}」前面`).toBeGreaterThan(at(writer))
+    }
+    expect(at('关闭数据库句柄'), '关库是最后一个资源步骤（窗口释放不算资源）').toBe(names.length - 2)
   })
 
   it('某一步永不返回：按单步超时放过，后面的步骤照跑', async () => {

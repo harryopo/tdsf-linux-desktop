@@ -458,10 +458,19 @@ export function ModelSettings() {
         timeout: requestTimeout * 1000,
       })
 
-      // 保存到主进程
-      await saveSettings()
+      // 保存到主进程：返回 null 才算真的写进去了。
+      // 以前这里无视返回值——safeStorage 不可用、baseUrl 被策略拒绝、config:set 回 false
+      // 三种情况都照样弹"配置已保存"，用户下次开机发现 Key 没了（2026-10-15 审查 P1）。
+      const saveError = await saveSettings()
+      if (saveError) {
+        setSaveFeedback(`保存失败：${saveError}`)
+        if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
+        saveFeedbackTimerRef.current = setTimeout(() => setSaveFeedback(null), 5000)
+        return
+      }
 
       // 同步一份到默认 Provider（P0 修复：不再盲写 providers[0] + 强制设默认）
+      // 主进程没接受就不往下推：否则推出去的是那份"没保存成功"的配置
       await syncToDefaultProvider()
 
       setSaveFeedback('配置已保存')

@@ -35,6 +35,9 @@ import { initScheduler, cleanupScheduler } from './ipc/scheduler'
 import { cleanupSidecar } from './ipc/sidecar'
 import { cleanupLoopEngineering } from './ipc/loop-engineering'
 import { localPtyManager } from './services/terminal/local-pty'
+// 退出收尾补的两条（2026-10-15 全维度审查）：两个 dispose 早就写好了，只是没进退出步骤表
+import { disposeTerminalCompletionEngine } from './ipc/terminal-completion'
+import { resetSessionRegistry } from './core/agent/session-registry'
 // S4：MCP 生命周期的 1 秒轮询、应用自己起的 OpenHands 容器，退出时都要有人收
 import { McpLifecycleManager } from './core/agent/mcp-lifecycle'
 import { stopCachedRunner } from './ipc/sandbox-config'
@@ -267,6 +270,12 @@ const quitCleanup = createQuitCleanup({
       shutdownLangfuse: () => LangfuseService.getInstance().shutdown(),
       cleanupScheduler: () => cleanupScheduler(),
       cleanupLoopEngineering: () => cleanupLoopEngineering(),
+      // 下面三条 2026-10-15 全维度审查补上：收尾函数一直存在（前两条的注释就写着
+      // "应用退出时关闭"），但退出步骤表里没有它们，于是等于从没跑过。
+      disposeTerminalCompletion: () => disposeTerminalCompletionEngine(),
+      disposeSessionRegistry: () => resetSessionRegistry(),
+      // 关库放最后：审计/调度/凭据那些步骤还可能在这时写库，先关池子会把它们打成"库不可用"
+      closeDatabase: () => DatabaseManager.getInstance().close(),
       releaseMainWindow: () => destroyMainWindow(),
     }),
 })

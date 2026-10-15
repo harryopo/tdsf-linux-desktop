@@ -69,8 +69,6 @@ interface SettingsState {
    * 不持久化：每次启动由 loadSettings 向主进程重新确认。
    */
   hasLlmApiKey: boolean
-  /** 主进程策略拒写 LLM 配置时的原因（界面上要看得见，不能静默保存失败） */
-  llmSaveError: string | null
   /** SSH 默认配置 */
   sshDefaults: Partial<SshConfig>
   /** SSH 连接超时（毫秒） */
@@ -85,8 +83,14 @@ interface SettingsState {
   setSshTimeout: (timeout: number) => void
   /** 从主进程加载设置 */
   loadSettings: () => Promise<void>
-  /** 保存设置到主进程 */
-  saveSettings: () => Promise<void>
+  /**
+   * 保存设置到主进程
+   *
+   * @returns null=全部写入被主进程接受；字符串=没存进去的原因（调用方必须据此改提示，
+   *   不能再无条件说"已保存"）。2026-10-15 全维度审查：这里以前把主进程的 false/信封丢掉，
+   *   于是 safeStorage 不可用（Linux 无 libsecret）时界面报"配置已保存"，用户下次开机发现 Key 没了。
+   */
+  saveSettings: () => Promise<string | null>
 }
 
 /** 设置 Store */
@@ -95,7 +99,6 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       llmConfig: DEFAULT_LLM_CONFIG,
       hasLlmApiKey: false,
-      llmSaveError: null,
       sshDefaults: DEFAULT_SSH_DEFAULTS,
       sshTimeout: 30000,
 
@@ -155,15 +158,17 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       // 保存设置到主进程
-      saveSettings: async () => {
+      saveSettings: async (): Promise<string | null> => {
         try {
           // preload 未加载时，仅使用 localStorage 持久化数据
           if (!isElectronAPIAvailable()) {
             console.warn('[SettingsStore] electronAPI 不可用，跳过保存到主进程')
-            return
+            return null
           }
           const { configSet, configSaveLlm, storageSaveApiKey } = window.electronAPI
           const { llmConfig, sshDefaults, sshTimeout } = get()
+          /** 每一条写回来的拒绝都要报给界面；只留第一条会把"部分没存"说成"全存了" */
+          const failures: string[] = []
 
           // v2.3.4 修复：API Key 存储 key 对齐到 'llm'（与主进程 llm.ts 读 key 一致）
           // - 之前用 'llm_api_key'，主进程 SecureStore.getApiKey('llm') 读不到
@@ -176,10 +181,16 @@ export const useSettingsStore = create<SettingsState>()(
           // 真要作废这个 Key 必须由显式动作去调 storage:deleteApiKey（当前 UI 还没有这个入口），
           // 不能拿"输入框留空"当删除指令。
           if (llmConfig.apiKey) {
-            await storageSaveApiKey('llm', llmConfig.apiKey)
-            // 主进程已经存好新 Key 了，界面提示随之翻成"已保存"。
-            // 这里只翻布尔量：写完不回读，llmConfig.apiKey 里留着的只是用户刚输入的那一份。
-            set({ hasLlmApiKey: true })
+            const keySaved = await storageSaveApiKey('llm', llmConfig.apiKey)
+            if (keySaved) {
+              // 主进程确认存好了，界面提示才翻成"已保存"。
+              // 这里只翻布尔量：写完不回读，llmConfig.apiKey 里留着的只是用户刚输入的那一份。
+              set({ hasLlmApiKey: true })
+            } else {
+              // 加密后端不可用时主进程是 return false 而不是抛错（Linux 没装 libsecret 就是这样），
+              // 以前这句被无视：界面说"配置已保存"，下次开机 Key 不在，用户以为是产品弄丢了。
+              failures.push('API Key 没有存进系统安全存储（加密后端不可用），其余设置虽已写入但模型仍连不上')
+            }
           }
 
           // 非敏感配置存入 config
@@ -189,19 +200,29 @@ export const useSettingsStore = create<SettingsState>()(
           // 真 Key 合并进同一个请求头 —— 一句 configSet('llmConfig',{baseUrl:'http://evil'})
           // 就等于把 Key 与全部对话外送。改走 config:saveLlm，baseUrl 不过策略就整条拒写。
           const safeLlmConfig = { ...llmConfig, apiKey: '' }
-          const [llmSaved] = await Promise.all([
+          const [llmSaved, defaultsSaved, timeoutSaved] = await Promise.all([
             configSaveLlm(safeLlmConfig),
             configSet('sshDefaults', sshDefaults),
             configSet('sshTimeout', sshTimeout),
           ])
           if (llmSaved && !llmSaved.ok) {
-            console.warn('[SettingsStore] LLM 配置被主进程策略拒绝:', llmSaved.error)
-            set({ llmSaveError: llmSaved.error ?? 'LLM 配置保存失败' })
-          } else {
-            set({ llmSaveError: null })
+            failures.push(llmSaved.error ?? 'LLM 配置被主进程策略拒绝')
           }
+          // config:set 回的是布尔量：拒写带权限的键、拒写非纯数据值都回 false。
+          // false 和"写失败"对界面是同一句话，否则用户只看到"已保存"却什么都没变
+          if (!defaultsSaved) failures.push('SSH 默认配置被主进程拒绝写入')
+          if (!timeoutSaved) failures.push('SSH 连接超时被主进程拒绝写入')
+
+          if (failures.length) {
+            console.warn('[SettingsStore] 保存未全部生效:', failures)
+            return failures.join('；')
+          }
+          return null
         } catch (error) {
+          // IPC 抛错（通道被拒/主进程异常）以前只落 console，界面照样报"已保存"
+          const msg = error instanceof Error ? error.message : String(error)
           console.error('保存设置失败:', error)
+          return `保存失败：${msg}`
         }
       },
     }),

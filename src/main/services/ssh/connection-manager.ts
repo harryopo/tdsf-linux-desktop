@@ -358,11 +358,42 @@ export class SshConnectionManager {
       // 是否收到过 exit-status：决定 close 是"命令跑完了"还是"通道半路没了"
       let sawExit = false
       let settled = false
+      /**
+       * 已经建出来的 exec 通道。
+       *
+       * 超时/失败必须由这里关掉：以前 fail() 只 clearTimeout + reject，通道一个字没碰，
+       * 于是"命令超时"之后远端那条进程继续跑、data 监听器继续往已经作废的闭包里攒字符串、
+       * close 事件还会再来一次。反复超时就是反复留通道（连接侧的通道数有限）。
+       */
+      let channel: ClientChannel | null = null
+
+      /** 摘掉监听器并关掉通道；半开的通道连 close 都可能抛，所以每一步都尽力而为 */
+      const dropChannel = (): void => {
+        const ch = channel
+        if (!ch) return
+        channel = null
+        try {
+          ch.removeAllListeners()
+          ch.stderr.removeAllListeners()
+        } catch {
+          /* 监听器摘不动也不能挡住关通道 */
+        }
+        try {
+          ch.close()
+        } catch {
+          try {
+            ch.destroy()
+          } catch {
+            /* 已经断了就没必要再收尾 */
+          }
+        }
+      }
 
       const fail = (err: Error) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        dropChannel()
         auditExec('SSH 执行失败', null)
         // 单条命令失败不修改连接状态，保持会话可用
         reject(err)
@@ -371,6 +402,8 @@ export class SshConnectionManager {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        // close 事件本身就是通道已经关掉的信号，这里只需要把引用放下
+        channel = null
         auditExec('SSH 执行完成', exitCode)
         resolve({ exitCode, stdout, stderr, duration: Date.now() - startTime })
       }
@@ -385,6 +418,13 @@ export class SshConnectionManager {
             fail(err)
             return
           }
+          if (settled) {
+            // 超时先到了才拿到通道：立刻关掉，别挂监听器（挂了就是永不回收的那一条）
+            channel = stream
+            dropChannel()
+            return
+          }
+          channel = stream
           // 同 shell 通道：stdout / stderr 各自一个解码器，跨包的中文不被切成乱码
           const outDecoder = new StringDecoder('utf8')
           const errDecoder = new StringDecoder('utf8')

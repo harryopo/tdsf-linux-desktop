@@ -24,6 +24,89 @@ import type { SftpEntry } from '@shared/models'
 const SFTP_BUFFER_SIZE = 64 * 1024
 
 /**
+ * 三步预算（毫秒）——2026-10-15 全维度系统审查 B 族
+ *
+ * 病根：ssh2 的这些调用全是回调式，连接半开（TCP 黑洞、NAT 掉了、对端不响应但 socket 没断）
+ * 时回调**永远不回来**。以前每个方法都是裸 Promise，于是渲染层那条 invoke 永久挂住：
+ * 界面显示"转圈"、文件面板点了没反应，而主进程既不报错也不超时——排查时什么都查不到。
+ * 有了预算，最坏情况变成"20 秒后拿到一句能读懂的超时"。
+ *
+ * 三个数分开：元数据一步就该回来（20s）；传输按"有没有进展"续期（60s 无进展才算挂）；
+ * 读写流同理（30s 无进展），并且到期时必须把流 destroy 掉，否则留半开的通道。
+ */
+const SFTP_META_BUDGET_MS = 20_000
+const SFTP_TRANSFER_BUDGET_MS = 60_000
+const SFTP_STREAM_BUDGET_MS = 30_000
+
+/**
+ * 把 ssh2 的回调/流式调用收进一个带预算的 Promise。
+ *
+ * 走这一个口子而不是每个方法各写一次 setTimeout：漏写的那一个不会报错，只会永远挂住，
+ * 而这正是本轮要修的缺陷本身。到期时调用 make() 返回的收尾函数（流类用它 destroy）。
+ *
+ * @param make 挂事件、发请求；收到结果就调 done，需要"有进展就续期"就调 touch；可返回收尾函数
+ * @param label 报错文案前缀（带上路径，用户才知道是哪个文件卡住）
+ * @param ms 预算
+ * @param idle true=每次 touch 续期（传输/流），false=从发起起算（元数据一步）
+ */
+function withinBudget<T>(
+  make: (done: (err: Error | null, value?: T) => void, touch: () => void) => (() => void) | void,
+  label: string,
+  ms: number,
+  idle = false
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    let timer: NodeJS.Timeout | undefined
+    const stop = (): void => {
+      if (timer) clearTimeout(timer)
+      timer = undefined
+    }
+    const arm = (): void => {
+      stop()
+      if (settled) return
+      timer = setTimeout(expire, ms)
+      // 一个已经没人等的计时器不该把主进程钉在退出流程上（退出收尾那族缺陷同款成因）
+      timer.unref()
+    }
+    const done = (err: Error | null, value?: T): void => {
+      if (settled) return
+      settled = true
+      stop()
+      if (err) reject(err)
+      else resolve(value as T)
+    }
+    function expire(): void {
+      if (settled) return
+      settled = true
+      stop()
+      try {
+        cleanup()
+      } catch {
+        /* 收尾失败不改变结论：这一步已经判死了 */
+      }
+      reject(
+        new Error(
+          `${label}超过 ${ms}ms 没有结果${idle ? '（期间没有任何进展）' : ''}——连接可能已经半开，请重连后再试`
+        )
+      )
+    }
+    let cleanup: () => void = () => {}
+    arm()
+    const returned = make(done, idle ? arm : () => {})
+    if (typeof returned === 'function') cleanup = returned
+    // make 里同步就 done 了的话，cleanup 赋值晚于 settle——所以再补一次
+    if (settled && typeof returned === 'function') {
+      try {
+        returned()
+      } catch {
+        /* 同上，已经定局，收尾只是别把资源留下 */
+      }
+    }
+  })
+}
+
+/**
  * 远端改写类操作的目的地闸。
  *
  * 病根（2026-10-15 全维度审查 P0）：系统关键路径的保护只长在**命令文本**上
@@ -75,23 +158,27 @@ export class SftpManager {
   public async list(sessionId: string, remotePath: string): Promise<SftpEntry[]> {
     const sftp = await this.openSftp(sessionId)
     try {
-      return await new Promise<SftpEntry[]>((resolve, reject) => {
-        sftp.readdir(remotePath, (err, list) => {
-          if (err) {
-            reject(new Error(`列出目录失败 '${remotePath}': ${err.message}`))
-            return
-          }
-          const entries = list.map((item) => this.toSftpEntry(item))
-          // 目录排前面，然后按名称排序
-          entries.sort((a, b) => {
-            if (a.isDirectory !== b.isDirectory) {
-              return a.isDirectory ? -1 : 1
+      return await withinBudget<SftpEntry[]>(
+        (done) => {
+          sftp.readdir(remotePath, (err, list) => {
+            if (err) {
+              done(new Error(`列出目录失败 '${remotePath}': ${err.message}`))
+              return
             }
-            return a.name.localeCompare(b.name)
+            const entries = list.map((item) => this.toSftpEntry(item))
+            // 目录排前面，然后按名称排序
+            entries.sort((a, b) => {
+              if (a.isDirectory !== b.isDirectory) {
+                return a.isDirectory ? -1 : 1
+              }
+              return a.name.localeCompare(b.name)
+            })
+            done(null, entries)
           })
-          resolve(entries)
-        })
-      })
+        },
+        `列出目录 '${remotePath}'`,
+        SFTP_META_BUDGET_MS
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -122,21 +209,27 @@ export class SftpManager {
     try {
       const stat = fs.statSync(localPath)
       const total = stat.size
-      return await new Promise<boolean>((resolve, reject) => {
-        sftp.fastPut(localPath, remotePath, {
-          concurrency: 64,
-          chunkSize: 32768,
-          step: (transferred) => {
-            onProgress?.(transferred, total)
-          },
-        }, (err) => {
-          if (err) {
-            reject(new Error(`上传失败 '${localPath}' → '${remotePath}': ${err.message}`))
-          } else {
-            resolve(true)
-          }
-        })
-      })
+      return await withinBudget<boolean>(
+        (done, touch) => {
+          sftp.fastPut(localPath, remotePath, {
+            concurrency: 64,
+            chunkSize: 32768,
+            step: (transferred) => {
+              onProgress?.(transferred, total)
+              touch()
+            },
+          }, (err) => {
+            if (err) {
+              done(new Error(`上传失败 '${localPath}' → '${remotePath}': ${err.message}`))
+            } else {
+              done(null, true)
+            }
+          })
+        },
+        `上传 '${localPath}' → '${remotePath}'`,
+        SFTP_TRANSFER_BUDGET_MS,
+        true
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -167,21 +260,27 @@ export class SftpManager {
     try {
       const stat = await this.statInternal(sftp, remotePath)
       const total = stat?.size ?? 0
-      return await new Promise<boolean>((resolve, reject) => {
-        sftp.fastGet(remotePath, localPath, {
-          concurrency: 64,
-          chunkSize: 32768,
-          step: (transferred) => {
-            onProgress?.(transferred, total)
-          },
-        }, (err) => {
-          if (err) {
-            reject(new Error(`下载失败 '${remotePath}' → '${localPath}': ${err.message}`))
-          } else {
-            resolve(true)
-          }
-        })
-      })
+      return await withinBudget<boolean>(
+        (done, touch) => {
+          sftp.fastGet(remotePath, localPath, {
+            concurrency: 64,
+            chunkSize: 32768,
+            step: (transferred) => {
+              onProgress?.(transferred, total)
+              touch()
+            },
+          }, (err) => {
+            if (err) {
+              done(new Error(`下载失败 '${remotePath}' → '${localPath}': ${err.message}`))
+            } else {
+              done(null, true)
+            }
+          })
+        },
+        `下载 '${remotePath}' → '${localPath}'`,
+        SFTP_TRANSFER_BUDGET_MS,
+        true
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -206,21 +305,25 @@ export class SftpManager {
       if (!stat) {
         throw new Error(`远程路径不存在: ${remotePath}`)
       }
-      return await new Promise<boolean>((resolve, reject) => {
-        // ssh2 的 Callback 类型是 (err: Error | null | undefined) => void
-        const callback = (err: Error | null | undefined) => {
-          if (err) {
-            reject(new Error(`删除失败 '${remotePath}': ${err.message}`))
-          } else {
-            resolve(true)
+      return await withinBudget<boolean>(
+        (done) => {
+          // ssh2 的 Callback 类型是 (err: Error | null | undefined) => void
+          const callback = (err: Error | null | undefined) => {
+            if (err) {
+              done(new Error(`删除失败 '${remotePath}': ${err.message}`))
+            } else {
+              done(null, true)
+            }
           }
-        }
-        if (stat.isDirectory) {
-          sftp.rmdir(remotePath, callback)
-        } else {
-          sftp.unlink(remotePath, callback)
-        }
-      })
+          if (stat.isDirectory) {
+            sftp.rmdir(remotePath, callback)
+          } else {
+            sftp.unlink(remotePath, callback)
+          }
+        },
+        `删除 '${remotePath}'`,
+        SFTP_META_BUDGET_MS
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -241,15 +344,19 @@ export class SftpManager {
     assertRemoteWriteAllowed('重命名目标', newPath)
     const sftp = await this.openSftp(sessionId)
     try {
-      return await new Promise<boolean>((resolve, reject) => {
-        sftp.rename(oldPath, newPath, (err) => {
-          if (err) {
-            reject(new Error(`重命名失败 '${oldPath}' → '${newPath}': ${err.message}`))
-          } else {
-            resolve(true)
-          }
-        })
-      })
+      return await withinBudget<boolean>(
+        (done) => {
+          sftp.rename(oldPath, newPath, (err) => {
+            if (err) {
+              done(new Error(`重命名失败 '${oldPath}' → '${newPath}': ${err.message}`))
+            } else {
+              done(null, true)
+            }
+          })
+        },
+        `重命名 '${oldPath}' → '${newPath}'`,
+        SFTP_META_BUDGET_MS
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -269,15 +376,19 @@ export class SftpManager {
     assertRemoteWriteAllowed('改权限', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
-      return await new Promise<boolean>((resolve, reject) => {
-        sftp.chmod(remotePath, mode, (err) => {
-          if (err) {
-            reject(new Error(`chmod 失败 '${remotePath}': ${err.message}`))
-          } else {
-            resolve(true)
-          }
-        })
-      })
+      return await withinBudget<boolean>(
+        (done) => {
+          sftp.chmod(remotePath, mode, (err) => {
+            if (err) {
+              done(new Error(`chmod 失败 '${remotePath}': ${err.message}`))
+            } else {
+              done(null, true)
+            }
+          })
+        },
+        `改权限 '${remotePath}'`,
+        SFTP_META_BUDGET_MS
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -292,15 +403,19 @@ export class SftpManager {
     assertRemoteWriteAllowed('建目录', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
-      return await new Promise<boolean>((resolve, reject) => {
-        sftp.mkdir(remotePath, (err) => {
-          if (err) {
-            reject(new Error(`创建目录失败 '${remotePath}': ${err.message}`))
-          } else {
-            resolve(true)
-          }
-        })
-      })
+      return await withinBudget<boolean>(
+        (done) => {
+          sftp.mkdir(remotePath, (err) => {
+            if (err) {
+              done(new Error(`创建目录失败 '${remotePath}': ${err.message}`))
+            } else {
+              done(null, true)
+            }
+          })
+        },
+        `创建目录 '${remotePath}'`,
+        SFTP_META_BUDGET_MS
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -360,25 +475,33 @@ export class SftpManager {
         )
       }
       // 流式读取到 Buffer，再转 utf-8 字符串
-      return await new Promise<string>((resolve, reject) => {
-        const chunks: Buffer[] = []
-        const readStream = sftp.createReadStream(remotePath, {
-          highWaterMark: SFTP_BUFFER_SIZE,
-          encoding: undefined, // 强制返回 Buffer
-        })
-        readStream.on('data', (chunk: Buffer | string) => {
-          // chunk 可能是 Buffer 或 string，统一转 Buffer
-          const buf =
-            typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer)
-          chunks.push(buf)
-        })
-        readStream.on('error', (err: Error) => {
-          reject(new Error(`读取远程文件失败 '${remotePath}': ${err.message}`))
-        })
-        readStream.on('close', () => {
-          resolve(Buffer.concat(chunks).toString('utf-8'))
-        })
-      })
+      return await withinBudget<string>(
+        (done, touch) => {
+          const chunks: Buffer[] = []
+          const readStream = sftp.createReadStream(remotePath, {
+            highWaterMark: SFTP_BUFFER_SIZE,
+            encoding: undefined, // 强制返回 Buffer
+          })
+          readStream.on('data', (chunk: Buffer | string) => {
+            touch()
+            // chunk 可能是 Buffer 或 string，统一转 Buffer
+            const buf =
+              typeof chunk === 'string' ? Buffer.from(chunk) : (chunk as Buffer)
+            chunks.push(buf)
+          })
+          readStream.on('error', (err: Error) => {
+            done(new Error(`读取远程文件失败 '${remotePath}': ${err.message}`))
+          })
+          readStream.on('close', () => {
+            done(null, Buffer.concat(chunks).toString('utf-8'))
+          })
+          // 到期收尾：半开的流不 destroy 就是一条不回来的通道 + 一个远端 fd
+          return () => readStream.destroy()
+        },
+        `读取远程文件 '${remotePath}'`,
+        SFTP_STREAM_BUDGET_MS,
+        true
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -402,19 +525,26 @@ export class SftpManager {
     assertRemoteWriteAllowed('写入', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
-      return await new Promise<boolean>((resolve, reject) => {
-        const writeStream = sftp.createWriteStream(remotePath, {
-          highWaterMark: SFTP_BUFFER_SIZE,
-        })
-        writeStream.on('error', (err: Error) => {
-          reject(new Error(`写入远程文件失败 '${remotePath}': ${err.message}`))
-        })
-        writeStream.on('close', () => {
-          resolve(true)
-        })
-        // 写入字符串并结束流（writeStream.end 会自动 flush）
-        writeStream.end(content, 'utf-8')
-      })
+      return await withinBudget<boolean>(
+        (done, touch) => {
+          const writeStream = sftp.createWriteStream(remotePath, {
+            highWaterMark: SFTP_BUFFER_SIZE,
+          })
+          writeStream.on('error', (err: Error) => {
+            done(new Error(`写入远程文件失败 '${remotePath}': ${err.message}`))
+          })
+          writeStream.on('close', () => {
+            done(null, true)
+          })
+          writeStream.on('finish', () => touch())
+          // 写入字符串并结束流（writeStream.end 会自动 flush）
+          writeStream.end(content, 'utf-8')
+          return () => writeStream.destroy()
+        },
+        `写入 '${remotePath}'`,
+        SFTP_STREAM_BUDGET_MS,
+        true
+      )
     } finally {
       this.closeSftp(sftp)
     }
@@ -430,17 +560,21 @@ export class SftpManager {
    */
   private openSftp(sessionId: string): Promise<SFTPWrapper> {
     const client = this.sshManager.getClient(sessionId)
-    return new Promise<SFTPWrapper>((resolve, reject) => {
-      client.sftp((err, sftp) => {
-        if (err) {
-          reject(new Error(`打开 SFTP 通道失败: ${err.message}`))
-        } else if (!sftp) {
-          reject(new Error('打开 SFTP 通道失败: 返回空对象'))
-        } else {
-          resolve(sftp)
-        }
-      })
-    })
+    return withinBudget<SFTPWrapper>(
+      (done) => {
+        client.sftp((err, sftp) => {
+          if (err) {
+            done(new Error(`打开 SFTP 通道失败: ${err.message}`))
+          } else if (!sftp) {
+            done(new Error('打开 SFTP 通道失败: 返回空对象'))
+          } else {
+            done(null, sftp)
+          }
+        })
+      },
+      '打开 SFTP 通道',
+      SFTP_META_BUDGET_MS
+    )
   }
 
   /** 关闭 SFTP 通道（忽略异常） */
@@ -456,26 +590,27 @@ export class SftpManager {
    * 内部 stat 实现（直接操作 SFTPWrapper，不重新打开通道）
    * @returns SftpEntry 或 null
    */
-  private statInternal(
-    sftp: SFTPWrapper,
-    remotePath: string
-  ): Promise<SftpEntry | null> {
-    return new Promise<SftpEntry | null>((resolve, reject) => {
-      sftp.stat(remotePath, (err, stats) => {
-        if (err) {
-          // 路径不存在时返回 null（不视为错误）
-          if (err.message.includes('No such file')) {
-            resolve(null)
+  private statInternal(sftp: SFTPWrapper, remotePath: string): Promise<SftpEntry | null> {
+    return withinBudget<SftpEntry | null>(
+      (done) => {
+        sftp.stat(remotePath, (err, stats) => {
+          if (err) {
+            // 路径不存在时返回 null（不视为错误）
+            if (err.message.includes('No such file')) {
+              done(null, null)
+              return
+            }
+            done(new Error(`stat 失败 '${remotePath}': ${err.message}`))
             return
           }
-          reject(new Error(`stat 失败 '${remotePath}': ${err.message}`))
-          return
-        }
-        // 把 Stats 转为 SftpEntry，name 取路径最后一段
-        const name = remotePath.split('/').filter(Boolean).pop() ?? remotePath
-        resolve(this.statsToSftpEntry(name, remotePath, stats))
-      })
-    })
+          // 把 Stats 转为 SftpEntry，name 取路径最后一段
+          const name = remotePath.split('/').filter(Boolean).pop() ?? remotePath
+          done(null, this.statsToSftpEntry(name, remotePath, stats))
+        })
+      },
+      `stat '${remotePath}'`,
+      SFTP_META_BUDGET_MS
+    )
   }
 
   /**

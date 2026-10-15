@@ -312,7 +312,13 @@ export function SshSettings() {
       knownHostsPath,
     })
     setSshTimeout(connectTimeoutSec * 1000)
-    await saveSettings()
+    // 主进程回 false / 抛错时 saveSettings 给出原因，界面不能再说"已保存"
+    const saveError = await saveSettings()
+    if (saveError) {
+      toast.error(`保存失败：${saveError}`)
+      showFb(`保存失败：${saveError}`)
+      return
+    }
     toast.success('SSH 默认配置已保存')
     showFb('默认配置已保存')
   }, [

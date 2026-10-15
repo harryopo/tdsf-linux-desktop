@@ -285,7 +285,9 @@ export const useServerStore = create<ServerState>()(
           }
         } catch (err) {
           console.error('[ServerStore] 从主进程加载失败:', err)
-          set({ _hydrated: true })
+          // 读失败不等于"服务器列表是空的"：这里以前也置 _hydrated=true，
+          // 于是这一次失败被永久认账——守卫再也不放行重读，界面上的空列表看起来就是事实。
+          // 保持未水合，下一个挂载点（App / SSH 设置页）会再读一次。
         }
       },
     }),
