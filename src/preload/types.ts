@@ -193,103 +193,21 @@ export interface SandboxErrorResponse {
 }
 
 /**
- * 沙箱命令危险度评级（与主进程 sandbox.ts CommandRiskLevel 对应）
+ * 审批载荷的唯一声明在 @shared/approval-types（#111）。
  *
- * - low：只读操作（ls / cat / grep / ps）
- * - medium：包管理 / 用户管理 / 服务管理 / sudo 提权
- * - high：高危命令（rm -rf / chmod 777 / iptables / dd / mkfs / fork bomb / shutdown）
+ * 这里只转发。以前 main / preload / renderer 各抄一份，preload 那份比 main 少了
+ * sessionId、sideEffects、rollbackCommand、saferAlternative 四个字段——主进程把这几样
+ * 算好了却没人能取，沙箱审批弹窗上因此只剩一条光命令。
  */
-export type SandboxCommandRiskLevel = 'low' | 'medium' | 'high'
-
-/**
- * 沙箱命令审批请求载荷（主进程推送 sandbox:approval-request 事件）
- *
- * P-2 HC-6 强制审批：sandbox:execute 调用时主进程会推送此事件，
- * 渲染进程弹窗显示命令 + 风险等级，用户通过 sandboxApprove(callId, approved) 响应。
- */
-export interface SandboxApprovalRequest {
-  /** 审批调用 ID（与 sandboxApprove 的 callId 参数对应） */
-  callId: string
-  /** 沙箱 ID */
-  sandboxId: string
-  /** 待执行的命令 */
-  command: string
-  /** 命令危险度评级 */
-  risk: SandboxCommandRiskLevel
-  /** 风险原因列表（high/medium 时非空，辅助 UI 展示） */
-  reasons: string[]
-  /** 推送时间戳（ms） */
-  timestamp: number
-}
-
-/**
- * PAOR 审批请求载荷（v0.9.5 新增）
- *
- * PAOR 循环中遇到 HIGH/CRITICAL 风险命令时主进程推送 paor:approval-request 事件，
- * 渲染进程弹窗显示命令 + 风险等级，用户通过 paorApprove(callId, approved) 响应。
- *
- * 注意：60 秒未响应主进程会自动拒绝。
- */
-export interface PaorApprovalRequest {
-  /** 审批调用 ID（与 paorApprove 的 callId 参数对应） */
-  callId: string
-  /** 待执行的命令 */
-  command: string
-  /** 风险等级（HIGH / CRITICAL） */
-  riskLevel: string
-  /** 风险描述 */
-  riskDescription: string
-  /** 当前步骤索引 */
-  stepIndex: number
-  /** 推送时间戳（ms） */
-  timestamp: number
-}
-
-/**
- * Task Protocol 审批请求载荷（v0.9.3 §11 遗留项 2 P2-H 新增）
- *
- * 主进程在 task-protocol step 2 check-permission 推送 task:permission-approval-request 事件，
- * 渲染进程弹窗显示 taskId / subagentName / inputSummary，用户通过 taskPermissionApprove(callId, decision) 响应。
- *
- * 三态权限审批（R12，参考 AgentScope Permission）：
- * - mode='always'：每次都询问用户（默认）
- * - mode='auto'：自动允许（不推送审批请求）
- * - mode='never'：自动拒绝（不推送审批请求）
- *
- * 注意：30 秒未响应主进程会自动拒绝。
- */
-export interface TaskPermissionApprovalRequest {
-  /** 审批调用 ID（与 taskPermissionApprove 的 callId 参数对应） */
-  callId: string
-  /** 任务 ID（来自 TaskProtocolContext.taskId） */
-  taskId: string
-  /** 目标 Subagent 名称 */
-  subagentName: string
-  /** 任务输入摘要（可选，前 200 字符） */
-  inputSummary?: string
-  /** 父会话 ID（可选） */
-  parentSessionId?: string
-  /** 关联 ID（可选，用于日志追踪） */
-  correlationId?: string
-  /** 时间戳（ms） */
-  timestamp: number
-  /** 权限模式（always/auto/never，告诉 UI 当前是哪种模式触发了询问） */
-  mode: 'always' | 'auto' | 'never'
-}
-
-/**
- * Task Protocol 审批决策（v0.9.3 §11 遗留项 2 P2-H 新增）
- *
- * 渲染进程通过 taskPermissionApprove(callId, decision) 响应审批请求。
- */
-export interface TaskPermissionDecision {
-  /** 是否批准 */
-  approved: boolean
-  /** 拒绝原因（approved=false 时填充，可选） */
-  rejectReason?: string
-  /** 是否记住决策（可选，默认 false；v1.6 实现持久化规则表） */
-  remember?: boolean
-}
+export type {
+  SandboxCommandRiskLevel,
+  SandboxApprovalRequest,
+  PaorApprovalOrigin,
+  PaorApprovalRequest,
+  TaskPermissionMode,
+  TaskPermissionApprovalRequest,
+  TaskPermissionDecision,
+} from '@shared/approval-types'
 
 // ============================================================================
 // v0.9 @命令元信息类型（与主进程 ipc/at-commands.ts 的 AtCommandInfo 对应）

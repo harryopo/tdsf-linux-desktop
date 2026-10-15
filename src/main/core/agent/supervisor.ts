@@ -292,8 +292,11 @@ export interface PaorLoopOptions {
    * 当 assessRisk 判定命令为 HIGH/CRITICAL 时调用。
    * 返回 true 表示人工批准执行，false 表示拒绝（该步骤标记为 riskBlocked）。
    * 不传时 HIGH/CRITICAL 命令自动跳过（安全默认）。
+   *
+   * stepIndex 是计划里真正的那一步：审批卡上要显示"第 N 步"就得由这里给真值，
+   * 以前调用方拿不到、agent-runtime 于是写死 0，界面永远显示"第 1 步"。
    */
-  approveRisk?: (command: string, level: string, description: string) => Promise<boolean>
+  approveRisk?: (command: string, level: string, description: string, stepIndex: number) => Promise<boolean>
   /** 每轮迭代回调（供 UI 实时展示进度） */
   onIteration?: (iteration: PaorIteration) => void
   /**
@@ -1786,7 +1789,7 @@ class SupervisorAgent {
         let approved = false
         if (!blockedByGate && options.approveRisk) {
           try {
-            approved = await options.approveRisk(command, risk.level, risk.description)
+            approved = await options.approveRisk(command, risk.level, risk.description, stepIndex)
           } catch {
             approved = false
           }

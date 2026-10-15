@@ -44,13 +44,20 @@ export const TASK_PERMISSION_APPROVE_INVOKE = TASK.PERMISSION_APPROVE
 export const TASK_PERMISSION_APPROVAL_TIMEOUT_MS = 30_000
 
 /**
- * 默认权限模式（R12 三态权限审批）
+ * 权限模式、审批请求与审批决策的唯一声明在 @shared/approval-types（#111）。
  *
- * - always：每次都询问用户（默认，最安全）
- * - auto：自动允许（适用于可信 subagent，如 builtin）
- * - never：自动拒绝（适用于黑名单 subagent）
+ * 这里只转发。原先 main / preload / renderer 各抄一份，没有东西对齐过它们。
+ * 模式语义：always 每次都问（默认，最安全）/ auto 自动允许 / never 自动拒绝。
  */
-export type TaskPermissionMode = 'always' | 'auto' | 'never'
+export type {
+  TaskPermissionMode,
+  TaskPermissionApprovalRequest,
+  TaskPermissionDecision,
+} from '@shared/approval-types'
+import type {
+  TaskPermissionApprovalRequest,
+  TaskPermissionDecision,
+} from '@shared/approval-types'
 
 /** 待审批的 Subagent 调用池（callId → Promise resolver） */
 export interface PendingTaskPermissionApproval {
@@ -62,49 +69,7 @@ export interface PendingTaskPermissionApproval {
 /** 待审批池（callId → PendingTaskPermissionApproval） */
 export const pendingTaskPermissionApprovals = new Map<string, PendingTaskPermissionApproval>()
 
-/**
- * 审批请求载荷（推送给渲染进程）
- */
-export interface TaskPermissionApprovalRequest {
-  /** 审批调用 ID（与 pendingTaskPermissionApprovals Map 中的 key 对应） */
-  callId: string
-  /** 任务 ID（来自 TaskProtocolContext.taskId） */
-  taskId: string
-  /** 目标 Subagent 名称（来自 TaskProtocolContext.subagentName） */
-  subagentName: string
-  /** 任务输入摘要（可选，便于用户理解 subagent 将要做什么） */
-  inputSummary?: string
-  /** 父会话 ID（可选，用于关联主对话） */
-  parentSessionId?: string
-  /** 关联 ID（可选，用于日志追踪） */
-  correlationId?: string
-  /** 时间戳（ms） */
-  timestamp: number
-  /** 默认权限模式提示（告诉 UI 当前是 always/auto/never 中的哪种触发了询问） */
-  mode: TaskPermissionMode
-}
 
-/**
- * 审批决策（渲染进程通过 task:permission-approve 返回）
- */
-export interface TaskPermissionDecision {
-  /** 是否批准 */
-  approved: boolean
-  /**
-   * 拒绝原因（approved=false 时填充，可选）
-   *
-   * 用于审计日志和 UI 展示。
-   */
-  rejectReason?: string
-  /**
-   * 是否记住决策（可选，默认 false）
-   *
-   * remember=true 时，主进程可将决策缓存到持久化规则表，
-   * 下次同类 subagent 调度时自动应用（避免重复询问）。
-   * 当前实现仅记录日志，持久化规则表留待 v1.6 实现。
-   */
-  remember?: boolean
-}
 
 // ============================================================================
 // 审批等待函数（step 2 调用）

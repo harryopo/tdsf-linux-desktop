@@ -55,46 +55,17 @@ export const SANDBOX_APPROVAL_CHANNEL = SANDBOX.APPROVAL_REQUEST
 /** 审批超时（30 秒，与 llm-tools.ts 保持一致） */
 export const SANDBOX_APPROVAL_TIMEOUT_MS = 30_000
 
-/** 命令危险度评级 */
-export type CommandRiskLevel = 'low' | 'medium' | 'high'
-
-/** 审批请求载荷（推送给渲染进程） */
-export interface SandboxApprovalRequest {
-  callId: string
-  sandboxId: string
-  command: string
-  risk: CommandRiskLevel
-  reasons: string[]
-  timestamp: number
-  /**
-   * 会话 ID（v0.9.4 新增，可选）
-   *
-   * 主进程在 sandbox:execute 调用时生成（或使用调用方传入的 sessionId），
-   * 通过审批请求推送回渲染进程，便于 UI 关联请求与响应、支持主动取消。
-   */
-  sessionId?: string
-  /**
-   * 可能的副作用（v0.9.3 §11 改进点 4 P2-C 新增，可选）
-   *
-   * 根据 risk 和 reasons 推导，告诉用户"执行后会发生什么"。
-   * 例如：['该命令将删除 /var/log 下的所有日志文件', '系统将无法回溯历史日志']
-   */
-  sideEffects?: string[]
-  /**
-   * 推荐的回滚命令（v0.9.3 §11 改进点 4 P2-C 新增，可选）
-   *
-   * 命令执行失败或结果不符合预期时，用户可执行的回滚命令。
-   * 例如：'git checkout . && git clean -fd'
-   */
-  rollbackCommand?: string
-  /**
-   * 建议的更安全替代方案（v0.9.3 §11 改进点 4 P2-C 新增，可选）
-   *
-   * 如果存在更安全的等价命令，给出建议。
-   * 例如：'建议使用 rm -rf /var/log/old/*.log 而非 rm -rf /var/log/*'
-   */
-  saferAlternative?: string
-}
+/**
+ * 命令危险度评级与审批载荷的唯一声明在 @shared/approval-types：
+ * 这里只转发，保持既有 `CommandRiskLevel` 调用点不变（历史上 main 与 preload 各写一份，
+ * preload 那份还少了四个字段，界面因此拿不到副作用与回滚方案）。
+ */
+export { type SandboxApprovalRequest } from '@shared/approval-types'
+export type { SandboxCommandRiskLevel as CommandRiskLevel } from '@shared/approval-types'
+import type {
+  SandboxApprovalRequest,
+  SandboxCommandRiskLevel as CommandRiskLevel,
+} from '@shared/approval-types'
 
 /**
  * 命令危险度识别（用于审批 UI 提示 + 审计日志）

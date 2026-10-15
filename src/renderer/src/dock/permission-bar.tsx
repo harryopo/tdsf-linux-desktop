@@ -122,7 +122,10 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
           <div className="flex min-w-0 items-center gap-2">
             <ShieldAlert className={cn('size-4 shrink-0', critical ? 'text-error' : 'text-warning')} />
             <h2 className="truncate text-title font-semibold text-ink-strong">
-              PAOR 请求批准 — 第 {current.stepIndex + 1} 步
+              {/* 对话里的写命令也走这条通道，标题不能一口咬定是 PAOR；
+                  stepIndex 只有 PAOR 那一路给得出真值，没有就不该显示"第 1 步" */}
+              {current.origin === 'chat' ? 'AI 请求执行写操作' : 'PAOR 请求批准'}
+              {current.stepIndex !== undefined ? ` — 第 ${current.stepIndex + 1} 步` : ''}
             </h2>
             <Chip tone={critical ? 'error' : 'warning'}>{current.riskLevel}</Chip>
           </div>

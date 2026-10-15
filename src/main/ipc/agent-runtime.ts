@@ -57,6 +57,7 @@ import type {
   AgentErrorPayload,
   AgentToolEventPayload,
 } from '@shared/agent-types'
+import type { PaorApprovalRequest } from '@shared/approval-types'
 import type { ChatMessage } from '@shared/models'
 import { logger } from '../services/log/logger'
 // v2.4 Phase B：预算告警检查（token 月成本超阈值时记录到 budget_alerts 表）
@@ -82,15 +83,7 @@ const PAOR_APPROVAL_REQUEST_CHANNEL = PAOR.APPROVAL_REQUEST
 /** PAOR 审批超时（毫秒）—— 60 秒内未响应自动拒绝 */
 const PAOR_APPROVAL_TIMEOUT_MS = 60_000
 
-/** PAOR 审批请求载荷（与渲染进程 PaorApprovalRequest 对应） */
-interface PaorApprovalRequest {
-  callId: string
-  command: string
-  riskLevel: string
-  riskDescription: string
-  stepIndex: number
-  timestamp: number
-}
+/** PAOR 审批请求载荷：唯一声明在 @shared/approval-types，这里只引用 */
 
 /** 待审批 PAOR 请求表：callId → { resolve, timeout } */
 const pendingPaorApprovals = new Map<
@@ -189,7 +182,9 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               command,
               riskLevel: level,
               riskDescription: description,
-              stepIndex: 0,
+              // 对话里 AI 调写工具没有"计划第几步"这回事；原来两处都写死 stepIndex: 0，
+              // 于是审批卡把这条例外也说成"PAOR 请求批准 — 第 1 步"，两个字段都是假的
+              origin: 'chat',
               timestamp: Date.now(),
             }
             logger.info('IPC.AGENT', 'ssh_write 推送审批请求', { callId, command, level })
@@ -474,14 +469,15 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
             safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, plan, planConfidence })
           },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
-          approveRisk: async (command, level, description): Promise<boolean> => {
+          approveRisk: async (command, level, description, stepIndex): Promise<boolean> => {
             const callId = `paor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
             const payload: PaorApprovalRequest = {
               callId,
               command,
               riskLevel: level,
               riskDescription: description,
-              stepIndex: 0,
+              origin: 'paor',
+              stepIndex,
               timestamp: Date.now(),
             }
             logger.info('IPC.PAOR', '推送审批请求', { callId, command, level })

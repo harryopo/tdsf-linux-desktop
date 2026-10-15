@@ -16,6 +16,7 @@ const req = (over: Partial<PaorApprovalRequest> = {}): PaorApprovalRequest => ({
   command: 'rm -rf /var/log',
   riskLevel: 'CRITICAL',
   riskDescription: '递归删除且覆盖系统日志目录',
+  origin: 'paor',
   stepIndex: 0,
   timestamp: Date.now(),
   ...over,
@@ -31,6 +32,19 @@ describe('PermissionBar', () => {
   it('没有待审批请求时什么都不渲染（不许留空壳）', () => {
     render(<PermissionBar requests={[]} onRespond={vi.fn()} />)
     expect(screen.queryByRole('region', { name: '命令审批' })).not.toBeInTheDocument()
+  })
+
+  it('PAOR 那一路显示真步骤号（第 3 步不是第 1 步）', () => {
+    setup([req({ origin: 'paor', stepIndex: 2 })])
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('PAOR 请求批准 — 第 3 步')
+  })
+
+  it('对话里的写命令不再被说成 PAOR，也不编一个步骤号', () => {
+    setup([req({ origin: 'chat', stepIndex: undefined })])
+    const heading = screen.getByRole('heading', { level: 2 })
+    expect(heading).toHaveTextContent('AI 请求执行写操作')
+    expect(heading.textContent).not.toContain('PAOR')
+    expect(heading.textContent).not.toMatch(/第 \d+ 步/)
   })
 
   it('默认选中"拒绝"，不是"批准"', () => {
