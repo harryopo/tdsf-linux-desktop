@@ -22,6 +22,7 @@ import { Button, PageHeader } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { buildSparklinePoints, baselineSparkline, type SparklineMetric } from '@/utils/history-sparkline'
+import { buildHistoryStats, deriveFromRecords } from '@/lib/history-stats'
 import type { DecisionCard, HistoryStats } from '@shared/models'
 
 type DecisionStatus = '成功' | '失败' | '已拦截' | '待处理'
@@ -202,37 +203,31 @@ export function HistoryPage() {
     return ['全部服务器', ...Array.from(set)]
   }, [records, historyStats])
 
-  // 统计数字：优先主进程聚合的 stats，其次由当前记录派生；两条都是真实来源，不写基线假值
+  // 统计数字：优先主进程聚合的 stats，其次由当前记录派生。
+  // 口径（含"分母为零就没有值"这条）在 lib/history-stats.ts，判据见 tests/unit/history-stats-empty.test.ts
   const stats = useMemo<StatItem[]>(() => {
     // records 为空时使用基线（不是空 SVG），保证视觉占位
     const sparkFor = (metric: SparklineMetric): string =>
       records.length === 0 ? baselineSparkline : buildSparklinePoints(records, metric)
 
-    if (historyStats) {
-      return [
-        { label: '总决策数', value: String(historyStats.total), color: 'var(--accent-text)', sparkline: sparkFor('count') },
-        { label: '成功率', value: `${(historyStats.successRate * 100).toFixed(1)}%`, color: 'var(--status-success-text)', sparkline: sparkFor('successRate') },
-        { label: '平均置信度', value: historyStats.avgConfidence.toFixed(2), color: 'var(--accent-text)', sparkline: sparkFor('avgConfidence') },
-        { label: '平均响应时间', value: `${Math.round(historyStats.avgDurationMs / 1000)}s`, color: 'var(--text-tertiary)', sparkline: sparkFor('avgDuration') },
-      ]
+    const src = historyStats
+      ? {
+          total: historyStats.total,
+          successRate: historyStats.successRate,
+          avgConfidence: historyStats.avgConfidence,
+          avgDurationSec: Math.round(historyStats.avgDurationMs / 1000),
+        }
+      : deriveFromRecords(records)
+    const metricOf: Record<string, SparklineMetric> = {
+      总决策数: 'count',
+      成功率: 'successRate',
+      平均置信度: 'avgConfidence',
+      平均响应时间: 'avgDuration',
     }
-    const total = records.length
-    const success = records.filter((r) => r.status === '成功').length
-    const successRate = total > 0 ? `${((success / total) * 100).toFixed(1)}%` : '0%'
-    const avgConfidence = total > 0
-      ? (records.reduce((sum, r) => sum + r.confidence, 0) / total).toFixed(2)
-      : '0.00'
-    // P1 修复：平均响应时间只统计有真实耗时的记录，无数据显示 —
-    const withDuration = records.filter((r) => r.durationSec != null)
-    const avgDuration = withDuration.length > 0
-      ? `${Math.round(withDuration.reduce((sum, r) => sum + (r.durationSec ?? 0), 0) / withDuration.length)}s`
-      : '—'
-    return [
-      { label: '总决策数', value: String(total), color: 'var(--accent-text)', sparkline: sparkFor('count') },
-      { label: '成功率', value: successRate, color: 'var(--status-success-text)', sparkline: sparkFor('successRate') },
-      { label: '平均置信度', value: avgConfidence, color: 'var(--accent-text)', sparkline: sparkFor('avgConfidence') },
-      { label: '平均响应时间', value: avgDuration, color: 'var(--text-tertiary)', sparkline: sparkFor('avgDuration') },
-    ]
+    return buildHistoryStats(src).map((c) => ({
+      ...c,
+      sparkline: sparkFor(metricOf[c.label] ?? 'count'),
+    }))
   }, [records, historyStats])
 
   const filteredRecords = useMemo(() => {
