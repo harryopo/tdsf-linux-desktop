@@ -45,6 +45,7 @@ import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
 import Composer from './Composer'
+import { compressFeedback } from './context-usage'
 import { PermissionBar } from '@/dock/permission-bar'
 import { resolveShellForCommand, runAuthoredInShell } from '@/terminal/shell-launcher'
 
@@ -77,6 +78,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     cancel,
     clear,
     compressContext,
+    retryLast,
   } = useAgentChat()
 
   /** 循环工程子 Agent —— PAOR 循环专用 */
@@ -409,6 +411,13 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         isStreaming={isStreaming}
         onToolAction={handleToolAction}
         onMessageNavigate={handleMessageNavigate}
+        onRetryMessage={() => void retryLast()}
+        onCompressContext={() => {
+          // 与徽章里那条同一份文案：报错行上的按钮点了也要有回应
+          const r = compressContext()
+          const text = compressFeedback(r)
+          void (r.compressed ? toast.success(text) : toast.info(text))
+        }}
       />
 
       {/* ===== Composer（chips + 输入框 + 工具栏） ===== */}

@@ -7,6 +7,7 @@ import type { AgentMessage } from '@/stores/agent-store'
 import type { AgentStep } from '@shared/models'
 import MarkdownMessage from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
+import { resolveErrorNextStep, type ErrorAction } from '../error-next-step'
 import './MarkdownMessage.css'
 
 /** 工具名 → 中文展示名（v2.4：真实工具执行可视化） */
@@ -179,6 +180,10 @@ interface LiveMessageRowProps {
   onToolAction?: (action: string, payload?: string) => void
   /** 活跃 SSH 会话 ID（执行命令需要） */
   activeSessionId?: string | null
+  /** 错误后的"重试"：重发本轮提问 */
+  onRetry?: () => void
+  /** 错误后的"压缩上下文" */
+  onCompress?: () => void
 }
 
 /**
@@ -186,7 +191,7 @@ interface LiveMessageRowProps {
  *
  * v3.2 命令检测：自动解析 agent 回复中的 bash 代码块，添加"执行"/"沙箱预演"按钮。
  */
-const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAction, activeSessionId }) => {
+const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAction, activeSessionId, onRetry, onCompress }) => {
   // v2.5 深度思考折叠态：null=跟随默认（流式中展开、完成后收起），用户点击后固定
   const [reasoningOpen, setReasoningOpen] = useState<boolean | null>(null)
   const reasoningExpanded = reasoningOpen ?? message.isStreaming === true
@@ -442,6 +447,43 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
   }
 
   /** 渲染底部 3 动作按钮（消息完成且非错误时显示） */
+  /**
+   * 报错之后给一条真能走的路（分类码在渲染层不再只当装饰）
+   *
+   * 只渲染"父组件真的传了对应回调"的动作：按钮点了没反应，比没有按钮更让人怀疑软件坏了。
+   */
+  const renderErrorNextStep = () => {
+    if (!message.isError) return null
+    const step = resolveErrorNextStep(message.errorCode)
+    if (!step) return null
+    const handlers: Record<ErrorAction, (() => void) | undefined> = {
+      settings: onNavigate ? () => onNavigate('/settings/model') : undefined,
+      retry: onRetry,
+      compress: onCompress,
+    }
+    const labels: Record<ErrorAction, string> = {
+      settings: '去设置 · 模型',
+      retry: '重试',
+      compress: '压缩上下文',
+    }
+    const actions = step.actions.filter((a) => handlers[a])
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-2 pl-8">
+        <span className="text-caption text-ink-dim">{step.hint}</span>
+        {actions.map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => handlers[a]?.()}
+            className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-transparent px-2 py-0.5 text-caption text-(--accent-text) transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l1)]"
+          >
+            {labels[a]}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   const renderActionButtons = () => {
     if (message.isStreaming || message.isError) return null
     if (!onNavigate) return null
@@ -562,6 +604,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
       {message.contextNote && !message.isStreaming && (
         <div className="ai-token-row pl-8 text-caption text-ink-mute">{message.contextNote}</div>
       )}
+      {renderErrorNextStep()}
       {renderActionButtons()}
     </div>
   )

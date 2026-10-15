@@ -57,6 +57,7 @@ const LABEL: Record<LlmErrorCode, string> = {
   SERVER: '服务器内部错误',
   PARSE: 'LLM 响应解析失败',
   NO_API_KEY: '未配置 API Key',
+  CONFIG: '模型配置不完整，请在设置 → 模型 中补全',
   UNKNOWN: '调用失败',
   CANCELLED: '已取消',
 }
@@ -95,7 +96,29 @@ const RULES: readonly Rule[] = [
   {
     code: 'NO_API_KEY',
     apiCodes: ['no_api_key_provided', 'missing_api_key'],
-    patterns: [/no api key/i, /missing api key/i, /api key (?:is )?(?:required|not set|missing|empty)/i, /未配置 ?api key/i],
+    patterns: [
+      /no api key/i,
+      /missing api key/i,
+      /api key (?:is )?(?:required|not set|missing|empty)/i,
+      // 中文有两种语序，我们自己的 client 抛的是后一种（"API Key 未配置"），
+      // 原来只写了"未配置 API Key"，于是自家那句落到 UNKNOWN：明明一步能修的事报成"调用失败"。
+      /未配置 ? ?api ?key/i,
+      /api ?key.{0,12}(?:未配置|缺少|未填|为空|没有)/i,
+      /(?:未配置|缺少).{0,12}api ?key/i,
+    ],
+  },
+  {
+    code: 'CONFIG',
+    // 缺 baseURL / 缺模型名 / 不认识的 Provider 类型 / Provider 不存在——共同点：
+    // 不是上游拒绝了我们，是本地这条链还没配全，下一步都在"设置 → 模型"里。
+    // 必须排在 NO_API_KEY 之后：`缺少 API Key，请在设置中配置` 两句都命中，要报更具体的那句。
+    patterns: [
+      /请在设置中配置/,
+      /不支持的 ?provider ?类型/i,
+      /缺少 ?base ?url/i,
+      /缺少模型名/,
+      /provider\s*"?\S+"?\s*不存在/i,
+    ],
   },
   {
     code: 'AUTH',

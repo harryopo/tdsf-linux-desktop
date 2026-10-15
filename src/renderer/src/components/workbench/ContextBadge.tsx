@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FC } from 'react'
 import { toast } from 'sonner'
 import type { CompressResult } from '@/stores/agent-store'
-import { formatTokens } from './context-usage'
+import { compressFeedback } from './context-usage'
 
 /** ContextBadge props */
 export interface ContextBadgeProps {
@@ -12,7 +12,7 @@ export interface ContextBadgeProps {
   /** 总 tokens 文本（如 "200K"） */
   ctxTotalTokens: string
   /** 压缩上下文回调（T.7）；返回真实压缩结果供准确反馈 */
-  onCompress?: () => CompressResult | void
+  onCompress?: () => CompressResult
 }
 
 /**
@@ -128,13 +128,8 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
               // v2.11 诚实化：按真实结果反馈（本地截断，瞬时完成），
               // 不再无条件声称“已压缩”（即使对话太短根本没压）
               const result = onCompress()
-              if (result && result.compressed) {
-                void toast.success(
-                  `上下文已压缩：合并 ${result.droppedMessages} 条较早消息，约省 ${formatTokens(result.droppedTokens)} tokens`,
-              )
-              } else {
-                void toast.info('当前对话较短，无需压缩')
-              }
+              const text = compressFeedback(result)
+              void (result?.compressed ? toast.success(text) : toast.info(text))
             }}
             className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-caption font-medium text-(--accent-text) transition-colors hover:brightness-110"
           >

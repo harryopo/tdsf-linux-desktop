@@ -8,7 +8,7 @@ import {
 import { cn } from '@/components/trae/utils'
 import { useRailOverflow } from '@/hooks/useRailOverflow'
 import { Button, Chip, Divider, IconButton, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/ui'
-import { latestContextTokens, useAgentStore } from '@/stores/agent-store'
+import { latestContextTokens, useAgentStore, type CompressResult } from '@/stores/agent-store'
 import { resolveContextUsage } from './context-usage'
 // v2.6 修复断链：editor-store.injectedAtCommand 此前只写不读（SelectionPopover 注入后无人消费）
 import { useEditorStore } from '@/stores/editor-store'
@@ -52,7 +52,7 @@ export interface ComposerProps {
   send: (text: string) => Promise<void>
   cancel: () => Promise<void>
   /** 压缩上下文回调（T.7） */
-  onCompressContext?: () => void
+  onCompressContext?: () => CompressResult
 }
 
 /** AIPanel 输入区域（Composer chips + 输入框 + 工具栏 + Provider 选择 + Send 按钮） */

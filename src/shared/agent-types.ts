@@ -457,24 +457,32 @@ export interface AgentDonePayload {
  *   说"请稍后重试"是错的建议。
  * - CONTENT_POLICY：服务端安全策略拒绝，不是我们的请求写错了。
  */
-export type LlmErrorCode =
-  | 'AUTH'
-  | 'PAYMENT_REQUIRED'
-  | 'PERMISSION'
-  | 'MODEL_NOT_FOUND'
-  | 'BAD_REQUEST'
-  | 'CONTEXT_OVERFLOW'
-  | 'VALIDATION'
-  | 'RATE_LIMIT'
-  | 'QUOTA_EXHAUSTED'
-  | 'CONTENT_POLICY'
-  | 'TIMEOUT'
-  | 'NETWORK'
-  | 'SERVER'
-  | 'PARSE'
-  | 'NO_API_KEY'
-  | 'UNKNOWN'
-  | 'CANCELLED'
+/**
+ * 错误码清单（单源）：union 由这张表推出来，判据也从这张表取数。
+ * 手写一份数组贴在测试里迟早与 union 分叉，那样"每个码都有下一步"就是句空话。
+ */
+export const LLM_ERROR_CODES = [
+  'AUTH',
+  'PAYMENT_REQUIRED',
+  'PERMISSION',
+  'MODEL_NOT_FOUND',
+  'BAD_REQUEST',
+  'CONTEXT_OVERFLOW',
+  'VALIDATION',
+  'RATE_LIMIT',
+  'QUOTA_EXHAUSTED',
+  'CONTENT_POLICY',
+  'TIMEOUT',
+  'NETWORK',
+  'SERVER',
+  'PARSE',
+  'NO_API_KEY',
+  'CONFIG',
+  'UNKNOWN',
+  'CANCELLED',
+] as const
+
+export type LlmErrorCode = (typeof LLM_ERROR_CODES)[number]
 
 export interface AgentErrorPayload {
   /** 关联 ID */

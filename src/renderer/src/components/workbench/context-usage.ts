@@ -51,6 +51,14 @@ export function resolveContextUsage(input: ContextUsageInput): ContextUsage {
 }
 
 /**
+ * 压缩之后给用户的那句反馈（徽章与报错行共用一份说法，别两处各写一遍）
+ */
+export function compressFeedback(result: { compressed: boolean; droppedMessages: number; droppedTokens: number } | undefined): string {
+  if (!result || !result.compressed) return '当前对话较短，无需压缩'
+  return `上下文已压缩：合并 ${result.droppedMessages} 条较早消息，约省 ${formatTokens(result.droppedTokens)} tokens`
+}
+
+/**
  * 主进程压缩后给用户的一句话（不压缩则返回 null，界面什么都不加）
  *
  * 为什么要有这条：L2/L3/L5 会整条丢掉较早的历史，而此前 `compactionLevel` 一路带回到

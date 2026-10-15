@@ -31,6 +31,7 @@ import type {
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
+  LlmErrorCode,
 } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
 import { estimateTokens, resolveCompactionThresholds } from '@shared/context-budget'
@@ -67,6 +68,8 @@ export interface AgentMessage {
   isStreaming?: boolean
   /** 是否出错（assistant 消息用，error 内容来自 AgentErrorPayload） */
   isError?: boolean
+  /** 错误分类码（来自 AgentErrorPayload.code）：决定那条错误下面给哪个"下一步"按钮 */
+  errorCode?: LlmErrorCode
   /** 触发的 Provider ID（assistant 消息用，用于展示） */
   providerId?: string
   /** 实际使用的模型名（assistant 消息用，done 事件回填） */
@@ -313,6 +316,18 @@ export function latestContextTokens(messages: AgentMessage[]): number {
 }
 
 /**
+ * 最近一条用户提问（错误行上的"重试"要重发的就是它）。
+ * 找不到返回 null——空对话里"重试"没有对象，界面也就不该出现这个按钮。
+ */
+export function latestUserQuestion(messages: AgentMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'user' && m.content.trim()) return m.content
+  }
+  return null
+}
+
+/**
  * Agent Store（zustand）
  */
 export const useAgentStore = create<AgentState>()((set) => ({
@@ -423,6 +438,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
         ...msg,
         isStreaming: false,
         isError: true,
+        // 分类码一起留下：界面按它给"下一步"按钮，光有一段中文错误用户只能重发试试
+        errorCode: payload.code,
         // 错误时追加错误信息到内容末尾（便于用户看到）
         content: msg.content ? `${msg.content}\n\n[错误] ${payload.message}` : `[错误] ${payload.message}`,
       })

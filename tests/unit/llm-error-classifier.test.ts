@@ -10,7 +10,8 @@
  */
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
+import * as ts from 'typescript'
 import { classifyLlmError, classifiedErrorCodes, labeledErrorCodes } from '../../src/main/core/agent/providers/llm-error'
 import { redactSecrets } from '../../src/main/core/agent/providers/redact'
 
@@ -195,5 +196,118 @@ describe('单源：手抄表不许再长回来', () => {
     expect(labels.length, '文案表比规则表还短 = 有码永远印不出来').toBeGreaterThan(
       new Set(classifiedErrorCodes()).size
     )
+  })
+})
+
+/**
+ * 自抛的中文错误必须被同一张表认得（2026-10-15 全维度审查 D5）
+ *
+ * 这张表是给"上游返回的英文错误"写的，而我们自己也抛中文：
+ * `LLM 不可用：API Key 未配置` 与规则 `/未配置 ?api key/i` 是同一句话的**反语序**，
+ * 于是它落到 UNKNOWN——界面上"调用失败"四个字，把明明一步就能修的事
+ * 变成用户对着黑盒猜。这条判据把"自己抛的每一句"钉进表里：
+ * 新增一处没配规则的自抛，测试先红，而不是等用户报"AI 又坏了"。
+ */
+describe('自抛错误不许落 UNKNOWN', () => {
+  const ROOT = resolve(__dirname, '../..')
+  const SCOPED = [
+    join('src', 'main', 'services', 'llm', 'client.ts'),
+    join('src', 'main', 'core', 'agent', 'supervisor.ts'),
+    join('src', 'main', 'core', 'agent', 'providers', 'provider-factory.ts'),
+  ]
+
+  /**
+   * 已知不该由这张表负责的自抛（每条都要写清为什么）。
+   * 判据是"这条错误会不会走到 classifyLlmError"，不是"文案像不像 LLM 错误"。
+   */
+  const EXEMPT: Array<{ file: string; text: string; why: string }> = [
+    {
+      file: 'client.ts',
+      text: 'LLM 调用失败：未知错误',
+      why: '重试三轮后一个原因都没拿到时的兜底——UNKNOWN 是这里的诚实答案，不是漏配规则',
+    },
+  ]
+
+  /** 从 AST 里取 new Error('...') / new Error(`...${x}...`) 的字面文案，插值处补占位符 */
+  function thrownLiterals(rel: string): Array<{ file: string; text: string; wrapped: boolean }> {
+    const src = readFileSync(join(ROOT, rel), 'utf8')
+    const file = ts.createSourceFile(rel, src, ts.ScriptTarget.Latest, true)
+    const out: Array<{ file: string; text: string; wrapped: boolean }> = []
+    const textOf = (n: ts.Node): { text: string; wrapped: boolean } | null => {
+      if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+        return { text: n.text, wrapped: false }
+      }
+      if (ts.isTemplateExpression(n)) {
+        let acc = n.head.text
+        for (const span of n.templateSpans) acc += `占位${span.literal.text}`
+        // 带插值 = 把原始错误拼进来当理由，运行时分类吃的是全文，不是这段前缀
+        return { text: acc, wrapped: true }
+      }
+      return null
+    }
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'Error' &&
+        node.arguments?.length
+      ) {
+        const t = textOf(node.arguments[0])
+        if (t) out.push({ file: basename(rel), ...t })
+      }
+      ts.forEachChild(node, walk)
+    }
+    walk(file)
+    return out
+  }
+
+  const all = SCOPED.flatMap((rel) => thrownLiterals(rel))
+
+  it('阳性对照：真的抽到了自抛文案（抽到 0 条就是量具坏了）', () => {
+    expect(all.length, `抽到 ${all.length} 条`).toBeGreaterThan(10)
+  })
+
+  it('每一条要么有归类、要么带插值转述原始错误、要么在豁免清单里写明原因', () => {
+    const offenders = all
+      .filter((t) => classifyLlmError(new Error(t.text)).code === 'UNKNOWN')
+      .filter((t) => !t.wrapped)
+      .filter((t) => !EXEMPT.some((e) => e.file === t.file && t.text.includes(e.text)))
+    expect(
+      offenders.map((o) => `${o.file}: ${o.text.slice(0, 60)}`),
+      '这些自抛的中文错误在界面上只会显示"调用失败"'
+    ).toEqual([])
+  })
+
+  it('正语序与反语序都要认得（这是本次回归的原点）', () => {
+    expect(classifyLlmError(new Error('LLM 不可用：API Key 未配置')).code).toBe('NO_API_KEY')
+    expect(classifyLlmError(new Error('未配置 API Key')).code).toBe('NO_API_KEY')
+    expect(
+      classifyLlmError(new Error('Provider "deepseek" (deepseek) 缺少 API Key，请在设置中配置')).code
+    ).toBe('NO_API_KEY')
+  })
+
+  it('配置类错误单独成码，不蹭"未配置 API Key"那句文案', () => {
+    for (const text of [
+      'Provider "ollama" (ollama) 缺少 baseURL，请在设置中配置',
+      'Provider "ollama" (ollama) 缺少模型名，请在设置中配置',
+      '不支持的 Provider 类型: 占位',
+      'Provider "占位" 不存在，请在设置中配置',
+    ]) {
+      const r = classifyLlmError(new Error(text))
+      expect(r.code, text).toBe('CONFIG')
+      expect(r.message, text).toContain('设置')
+    }
+  })
+
+  it('豁免清单不许留着已经不再需要的条目（防它变成新的盲区）', () => {
+    for (const e of EXEMPT) {
+      const matched = all.filter((t) => t.file === e.file && t.text.includes(e.text))
+      expect(matched.length, `豁免项「${e.file}: ${e.text}」现在没有对应自抛，请删掉`).toBeGreaterThan(0)
+      // 豁免的前提是"它确实不会被分类"——如果哪天规则覆盖了它，就该把它移出清单
+      const stillUnknown = matched.every(
+        (t) => classifyLlmError(new Error(t.text)).code === 'UNKNOWN'
+      )
+      expect(stillUnknown, `「${e.file}: ${e.text}」已被规则覆盖，不该再豁免`).toBe(true)
+    }
   })
 })

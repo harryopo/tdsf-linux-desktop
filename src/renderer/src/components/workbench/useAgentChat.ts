@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useAgentStore, type AgentMessage, type CompressResult } from '@/stores/agent-store'
+import { latestUserQuestion, useAgentStore, type AgentMessage, type CompressResult } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -77,6 +77,8 @@ export interface UseAgentChatResult {
   clear: () => void
   /** 压缩上下文（T.7）；返回真实压缩结果供 UI 准确反馈 */
   compressContext: () => CompressResult
+  /** 错误后的"重试"：重发最近一条用户提问 */
+  retryLast: () => Promise<void>
 }
 
 /**
@@ -321,6 +323,16 @@ export function useAgentChat(): UseAgentChatResult {
   }, [clearMessages])
 
   /**
+   * 错误后的"重试"：把最近一条用户提问原样再发一次。
+   * 提问会作为新一轮再进对话（用户看得见自己重问了什么），不做静默替换。
+   */
+  const retryLast = useCallback(async () => {
+    const question = latestUserQuestion(useAgentStore.getState().messages)
+    if (!question) return
+    await send(question)
+  }, [send])
+
+  /**
    * 压缩上下文：留多少由"这台模型的窗口 × 主进程同一份比例"决定（见 agent-store）。
    * 窗口从 store 里的 provider 配置现取，未知时按 0 传（走绝对阈值那把尺），不编一个窗口。
    */
@@ -366,5 +378,6 @@ export function useAgentChat(): UseAgentChatResult {
     cancel,
     clear,
     compressContext,
+    retryLast,
   }
 }

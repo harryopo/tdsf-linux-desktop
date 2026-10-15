@@ -41,6 +41,9 @@ export interface MessageListProps {
   isStreaming: boolean
   onToolAction: (action: string, payload?: string) => void
   onMessageNavigate: (path: string) => void
+  /** 报错后的下一步动作（按钮只有接到真回调才会出现在界面上） */
+  onRetryMessage: () => void
+  onCompressContext: () => void
 }
 
 /** AIPanel 消息滚动区 */
@@ -63,6 +66,8 @@ const MessageList: FC<MessageListProps> = ({
   isStreaming,
   onToolAction,
   onMessageNavigate,
+  onRetryMessage,
+  onCompressContext,
 }) => {
   return (
     <div className="ai-messages flex flex-col gap-6">
@@ -70,7 +75,15 @@ const MessageList: FC<MessageListProps> = ({
       {hasLiveConversation || paorPlan ? (
         <>
           {liveMessages.map((msg) => (
-            <LiveMessageRow key={msg.id} message={msg} onNavigate={onMessageNavigate} onToolAction={onToolAction} activeSessionId={activeSessionId} />
+            <LiveMessageRow
+              key={msg.id}
+              message={msg}
+              onNavigate={onMessageNavigate}
+              onToolAction={onToolAction}
+              activeSessionId={activeSessionId}
+              onRetry={onRetryMessage}
+              onCompress={onCompressContext}
+            />
           ))}
           {lastError && !isStreaming && (
             <div className="flex items-start gap-2 rounded-(--ui-radius-card) border border-error/40 bg-error/10 px-3 py-2 text-sm text-error-text">
