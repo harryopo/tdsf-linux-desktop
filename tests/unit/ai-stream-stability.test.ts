@@ -12,6 +12,8 @@
  * 不联网、不需要真 Key。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import type { ModelMessage } from 'ai'
 
 vi.mock('electron', () => ({
@@ -225,5 +227,33 @@ describe('告警与日志接线（不静默）', () => {
     await expect(client.chatStream(messages, () => {})).rejects.toThrow()
     expect(calls).toBeGreaterThan(1)
     expect(alerts.failure).toHaveBeenCalled()
+  })
+})
+/**
+ * 别再写 v7 已废弃的 fullStream 别名（2026-10-15）
+ *
+ * streamText 的 result.fullStream 在 ai@7 里标了 @deprecated，只因为还没删所以能跑。
+ * 现在唯一的真调用点是 result.stream；这条判据保证新代码不会又抄回旧名——
+ * 等到 SDK 真删掉别名时，全仓十几处注释里的词不会连带埋一个没跑到的调用点。
+ */
+describe('不再使用已废弃的 fullStream 别名', () => {
+  it('阳性对照：扫描器认得这个写法', () => {
+    expect(/\.fullStream\b/.test('for await (const p of result.fullStream) {}')).toBe(true)
+  })
+
+  it('src 下不许出现 .fullStream 取数（注释里提到都不行，防它被复制进新代码）', () => {
+    const root = join(process.cwd(), 'src')
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name)
+        if (statSync(full).isDirectory()) walk(full, out)
+        else if (/\.(ts|tsx)$/.test(name)) out.push(full)
+      }
+      return out
+    }
+    const hits = walk(root)
+      .filter((f) => /\.fullStream\b/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(process.cwd(), f))
+    expect(hits, '这些地方还在用废弃别名：' + hits.join(', ')).toEqual([])
   })
 })

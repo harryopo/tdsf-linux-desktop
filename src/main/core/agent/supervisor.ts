@@ -118,7 +118,7 @@ export interface ChatParams {
   /**
    * 思考链增量回调（v2.5 深度思考可视化）
    *
-   * DeepSeek 思考模式（strength='deep'）下 fullStream 产生 reasoning-delta 分片；
+   * DeepSeek 思考模式（strength='deep'）下 stream 产生 reasoning-delta 分片；
    * 此回调把思考内容透传给上层推送到前端，渲染为可折叠的“深度思考”块。
    */
   onReasoning?: (delta: string) => void
@@ -129,7 +129,7 @@ export interface ChatParams {
   /**
    * 工具事件回调（v2.4 新增，用于前端可视化真实工具调用）
    *
-   * 主对话 Agent 真实调用工具（如 ssh_readonly）时，fullStream 产生 tool-call/
+   * 主对话 Agent 真实调用工具（如 ssh_readonly）时，stream 产生 tool-call/
    * tool-result 分片；此回调把它们透传给上层推送到前端。phase 区分开始/结果。
    * v2.6：新增 phase='output' —— ssh_readonly 执行中的 stdout/stderr 块实时透传，
    * 前端得以流式展示命令输出（不再等命令结束才见结果）。
@@ -524,7 +524,7 @@ class SupervisorAgent {
     // v0.9.6 P2 M5+：CoT 熵轨迹收集器
     // v0.9.7 P3 M1 升级：若 provider 支持 logprobs，优先走真实 token entropy 路径
     // Vercel AI SDK v7 路径：streamText 不暴露 per-step content block，
-    // logprobs 通过 fullStream 的 providerMetadata 事件返回
+    // logprobs 通过 stream 的 providerMetadata 事件返回
     const traceCollector = createCotTraceCollector()
 
     // Phase J.3：DeepSeek 思考模式参数
@@ -539,7 +539,7 @@ class SupervisorAgent {
 
     // v0.9.7 P3 M1：logprobs 直采支持
     // 检查 provider 是否支持 logprobs（OpenAI 协议：deepseek/qwen/volcengine-ark/ollama/openai-compatible）
-    // - 支持：透传 providerOptions.openai.logprobs + top_logprobs，fullStream 捕获 providerMetadata
+    // - 支持：透传 providerOptions.openai.logprobs + top_logprobs，stream 捕获 providerMetadata
     // - 不支持：保持现有 text-fallback 路径（Claude/google）
     const caps = getProviderCapabilities(modelInstance.config)
     const enableLogprobs = caps.logprobs === true
@@ -633,7 +633,7 @@ class SupervisorAgent {
                       })
                     }
                     // v2.6 流式输出：每收到一块 stdout/stderr 立即经 onToolEvent 推到前端
-                    //（phase='output'，与 fullStream 的 call/result 共用 toolCallId 配对），
+                    //（phase='output'，与 stream 的 call/result 共用 toolCallId 配对），
                     // 总量超 12000 字符后停止推送（累积结果仍完整，result 阶段另行截断）
                     let streamedChars = 0
                     const r = await SshConnectionManager.getInstance().exec(
@@ -830,7 +830,7 @@ class SupervisorAgent {
           : undefined
 
       // 7b. 知识检索工具（只读，无副作用）：DatabaseManager 单例，db 可用即常驻，无需 SSH。
-      // 与 ssh_readonly 一样，其 tool-call/tool-result 会被下方 fullStream 捕获并经
+      // 与 ssh_readonly 一样，其 tool-call/tool-result 会被下方 stream 捕获并经
       // onToolEvent 推送到前端「执行卡片」，复用同一套可视化通道（v2.4 P2）。
       const db = DatabaseManager.getInstance()
       const candidateTools = {
@@ -1152,7 +1152,7 @@ class SupervisorAgent {
       })
 
       // 累积完整文本 + logprobs
-      // v0.9.7 P3 M1：遍历 fullStream 而非 textStream，以捕获 providerMetadata 事件
+      // v0.9.7 P3 M1：遍历 stream（v7 里 fullStream 是它的废弃别名）而非 textStream，以捕获 providerMetadata 事件
       // 论文依据：Zhao 2026 — 用 token-level answer-distribution entropy 而非 text entropy
       let fullText = ''
       // v2.4 修复：累积 reasoning 文本作为兵底 —— DeepSeek 思考模式下正文可能为空
@@ -1165,14 +1165,14 @@ class SupervisorAgent {
        * 已换成 streamText 的 timeout：同一个职责不该由我们手工维持"记得重置"——
        * 只要有一个分支忘了调（工具期 return），防线就出现洞，而那正是当时的症状。
        */
-      for await (const part of result.fullStream) {
+      for await (const part of result.stream) {
         const partType = (part as { type?: string }).type
         if (partType === 'error') {
           // 流式底层错误（如 4xx）：ai-sdk 否则会吞成 "No output generated"，这里记录真实原因便于排查
           const errPart = (part as { error?: unknown }).error
           const errStr =
             errPart instanceof Error ? `${errPart.name}: ${errPart.message}` : String(errPart)
-          this.log.error(`fullStream 底层错误：${errStr.slice(0, 800)}`, { correlationId })
+          this.log.error(`流内错误：${errStr.slice(0, 800)}`, { correlationId })
         }
         if (partType === 'text-delta') {
           // 文本增量：累积 + 回调 + trace fallback
