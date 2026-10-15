@@ -53,8 +53,15 @@ interface SessionRecord {
   lastActiveAt: number
   /** 是否已取消 */
   cancelled: boolean
-  /** AbortController（不可跨 IPC 序列化，仅主进程内部使用） */
-  abortController: AbortController
+  /**
+   * 真正连着管道的那把 AbortController。
+   *
+   * 由持有请求的一方（supervisor）在请求开始时 attach 进来。
+   * 这里曾经自己 new 一把并对外宣称"支持 abort signal"，但没有任何人读它的 signal——
+   * 于是 abort() 返回 true、日志写"已发出取消信号"，底层 HTTP 一个字节都没被打断。
+   * 现在改成可选：没 attach 就明确返回"取消未生效"，而不是把空转演成成功。
+   */
+  abortController?: AbortController
 }
 
 /**
@@ -111,7 +118,6 @@ class SessionRegistry {
       startedAt: now,
       lastActiveAt: now,
       cancelled: false,
-      abortController: new AbortController(),
     }
 
     this.sessions.set(sessionId, record)
@@ -130,9 +136,39 @@ class SessionRegistry {
   }
 
   /**
-   * 通过 sessionId 取消会话（调用 AbortController.abort()）
+   * 挂上真正连着管道的那把 controller（由持有请求的一方在开始时调用）。
    *
-   * @returns 是否成功取消（false 表示会话不存在或已结束）
+   * 没挂上的记录不是"取消不了"那么轻：它意味着注册表曾经对每一次 abort 都回答"已发出取消信号"，
+   * 而底层请求照常跑完。attach 之后 abort() 的成功回答才是可兑现的。
+   *
+   * @param sessionIdOrCorrelationId sessionId 或 correlationId
+   * @returns 是否挂到了已登记的会话上（false=找不到该会话，调用方需自行处理）
+   */
+  attachAbortController(sessionIdOrCorrelationId: string, controller: AbortController): boolean {
+    const record =
+      this.sessions.get(sessionIdOrCorrelationId as SessionId) ??
+      this.lookupByCorrelationId(sessionIdOrCorrelationId)
+    if (!record) {
+      this.log.warn('attachAbortController: 找不到对应会话，取消信号将无据可发', {
+        sessionIdOrCorrelationId,
+      })
+      return false
+    }
+    record.abortController = controller
+    return true
+  }
+
+  /** 按 sessionId 或 correlationId 找到记录本体（内部用） */
+  private lookupByCorrelationId(correlationId: string): SessionRecord | undefined {
+    const sessionId = this.correlationIndex.get(correlationId)
+    return sessionId ? this.sessions.get(sessionId as SessionId) : undefined
+  }
+
+  /**
+   * 通过 sessionId 取消会话（调用连着管道的 AbortController.abort()）
+   *
+   * @returns 是否成功取消。false 的三种情况：会话不存在、会话已结束、
+   *          **请求方还没把 controller 挂进来**（第三种以前会被误报成 true）
    */
   abort(sessionId: string): boolean {
     const record = this.sessions.get(sessionId as SessionId)
@@ -143,6 +179,15 @@ class SessionRegistry {
     if (record.cancelled) {
       this.log.debug('abort: 会话已被取消过，跳过', { sessionId })
       return true
+    }
+    if (!record.abortController) {
+      // 明确拒绝把"没接上管道"报成"已取消"
+      this.log.warn('abort: 该会话没有可中止的请求管道（请求方未 attach 或已结束）', {
+        sessionId,
+        correlationId: record.correlationId,
+        kind: record.kind,
+      })
+      return false
     }
     record.cancelled = true
     record.abortController.abort()

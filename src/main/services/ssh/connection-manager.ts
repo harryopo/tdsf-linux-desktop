@@ -324,6 +324,9 @@ export class SshConnectionManager {
    * @param command 要执行的 shell 命令
    * @param onData 可选流式回调（v2.6）：每收到一块 stdout/stderr 立即回调，
    *               用于前端实时展示；回调异常不影响命令执行与累积结果
+   * @param opts.signal 可选中止信号（AI 侧）：用户在面板上点"停止"时必须能掐掉正在跑的
+   *               远端命令。以前 exec 只认自己的超时，AI 的取消传不进来，
+   *               于是"停止"在工具执行期整段失效，最长要等满命令超时（可配到 600 秒）。
    * @returns 命令执行结果
    * @throws 会话不存在或未连接时 reject
    */
@@ -331,6 +334,7 @@ export class SshConnectionManager {
     sessionId: string,
     command: string,
     onData?: (chunk: string, source: 'stdout' | 'stderr') => void,
+    opts?: { signal?: AbortSignal },
   ): Promise<CommandResult> {
     const entry = this.requireSession(sessionId)
     this.requireConnected(entry)
@@ -389,10 +393,19 @@ export class SshConnectionManager {
         }
       }
 
+      /**
+       * 外部取消（AI 面板的"停止"）：与超时走同一条收口——拒错 + 关通道。
+       * 摘监听器的句柄先占位成空函数：exec 的回调有朝一日同步报错时，fail() 会在
+       * 监听器登记之前被调用，那时它必须仍然安全。
+       */
+      const signal = opts?.signal
+      let removeAbortListener: () => void = () => {}
+
       const fail = (err: Error) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        removeAbortListener()
         dropChannel()
         auditExec('SSH 执行失败', null)
         // 单条命令失败不修改连接状态，保持会话可用
@@ -402,6 +415,7 @@ export class SshConnectionManager {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        removeAbortListener()
         // close 事件本身就是通道已经关掉的信号，这里只需要把引用放下
         channel = null
         auditExec('SSH 执行完成', exitCode)
@@ -411,6 +425,17 @@ export class SshConnectionManager {
         () => fail(new Error(`命令执行超时（${execTimeoutMs}ms）: ${command}`)),
         execTimeoutMs
       )
+
+      // 已经 aborted 的信号不会再次触发事件，所以当场判一次
+      if (signal) {
+        if (signal.aborted) {
+          fail(new Error(`命令执行已被取消：${command}`))
+        } else {
+          const onAbort = (): void => fail(new Error(`命令执行已被取消：${command}`))
+          signal.addEventListener('abort', onAbort, { once: true })
+          removeAbortListener = () => signal.removeEventListener('abort', onAbort)
+        }
+      }
 
       try {
         entry.client.exec(command, (err, stream) => {

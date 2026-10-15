@@ -128,6 +128,40 @@ describe('exec 超时/失败必须关掉 ssh2 通道', () => {
     expect(nextStream.close, '命令已经自己退出，实现不该再补一刀 close').not.toHaveBeenCalled()
   })
 
+  it('AI 侧的 abortSignal 一到：拒错、关通道，不等命令超时', async () => {
+    inject('s-abort')
+    const ac = new AbortController()
+    const p = mgr.exec('s-abort', 'sleep 999', undefined, { signal: ac.signal })
+    await vi.advanceTimersByTimeAsync(0)
+    const assertion = expect(p).rejects.toThrow(/已被取消/)
+    ac.abort()
+    await assertion
+    expect(nextStream.close, '取消后不关通道就是留了一条还在跑的远端命令').toHaveBeenCalled()
+    expect(nextStream.listenerCount('data')).toBe(0)
+  })
+
+  it('已经是 aborted 的信号：当场拒错，不去等一个永不来的回调', async () => {
+    inject('s-already')
+    const ac = new AbortController()
+    ac.abort()
+    await expect(mgr.exec('s-already', 'uptime', undefined, { signal: ac.signal })).rejects.toThrow(/已被取消/)
+  })
+
+  it('命令正常跑完要摘掉 abort 监听器（不留悬挂引用）', async () => {
+    inject('s-clean')
+    const ac = new AbortController()
+    const p = mgr.exec('s-clean', 'uptime', undefined, { signal: ac.signal })
+    await vi.advanceTimersByTimeAsync(0)
+    nextStream.emit('exit', 0)
+    nextStream.emit('close')
+    await expect(p).resolves.toMatchObject({ exitCode: 0 })
+    // 结算之后再点"停止"：不许重复关通道，也不许把一个已完成的结果改判成取消
+    // （监听器没摘干净的话，这里就会踩出第二个 settle）
+    ac.abort()
+    await Promise.resolve()
+    expect(nextStream.close, '命令已经正常结束，取消不该再动它').not.toHaveBeenCalled()
+  })
+
   it('exec 回调在超时之后才回来：当场关掉，且不挂任何监听器', async () => {
     holdCallback = true
     inject('s-late')
