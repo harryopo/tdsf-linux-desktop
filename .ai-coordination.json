@@ -2,24 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-15T07:30:59.961Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-15T07:30:59.961Z",
-      "lastActiveAt": "2026-10-15T07:30:59.961Z",
-      "task": "AI稳定性Wave B：计量与压缩同源",
-      "claimedFiles": [
-        {
-          "path": "src/shared/agent-types.ts",
-          "task": "AI稳定性Wave B：计量与压缩同源",
-          "claimedAt": "2026-10-15T07:30:59.961Z"
-        }
-      ],
-      "expiresAt": "2026-10-15T09:30:59.961Z"
-    }
-  },
+  "lastUpdated": "2026-10-15T07:49:32.224Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -7636,6 +7620,13 @@
       "file": "src/shared/agent-types.ts",
       "task": "AI稳定性Wave B：计量与压缩同源",
       "timestamp": "2026-10-15T07:30:59.961Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/agent-types.ts",
+      "task": "AI稳定性Wave B：计量与压缩同源",
+      "timestamp": "2026-10-15T07:49:32.224Z"
     }
   ],
   "coordinationAudit": {
