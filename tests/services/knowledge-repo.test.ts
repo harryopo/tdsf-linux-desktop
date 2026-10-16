@@ -474,20 +474,21 @@ describe('KnowledgeRepository — 知识库仓储', () => {
     expect(entry!.useCount).toBe(6)
   })
 
-  it('updateSuccessRate: 成功率加权更新', () => {
+  // 2026-10-17：这两个用例原来打的是 repo.updateSuccessRate(id, bool)，那个方法已删——
+  // 它全仓没有调用方，而"加权更新"这件事真正的入口是用户答复走 update()（#134）。
+  // 期望值一字未改（0.9→0.91 / 0.9→0.81），只是换成从 update 进。
+  it('答复"有帮助"：成功率加权上升', () => {
     repo.add(makeEntry({ id: 'rate-1', successRate: 0.9 }))
 
-    // success=true: newRate = 0.9 * 0.9 + 1 * 0.1 = 0.91
-    repo.updateSuccessRate('rate-1', true)
+    repo.update('rate-1', { feedback: 'helpful' })
     const entry = repo.getById('rate-1')
     expect(entry!.successRate).toBeCloseTo(0.91, 2)
   })
 
-  it('updateSuccessRate: 失败时成功率下降', () => {
+  it('答复"没帮助"：成功率下降', () => {
     repo.add(makeEntry({ id: 'rate-2', successRate: 0.9 }))
 
-    // success=false: newRate = 0.9 * 0.9 + 0 * 0.1 = 0.81
-    repo.updateSuccessRate('rate-2', false)
+    repo.update('rate-2', { feedback: 'unhelpful' })
     const entry = repo.getById('rate-2')
     expect(entry!.successRate).toBeCloseTo(0.81, 2)
   })

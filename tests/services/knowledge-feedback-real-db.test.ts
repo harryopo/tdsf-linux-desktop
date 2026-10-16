@@ -128,14 +128,33 @@ describe('答复是成功率的生产者', () => {
   })
 })
 
-describe('生产者不许再变成孤儿', () => {
-  it('updateSuccessRate 在业务代码里有调用点（不是只有定义）', () => {
-    const src = readFileSync(
-      join(process.cwd(), 'src', 'main', 'services', 'db', 'knowledge-repo.ts'),
-      'utf8'
+describe('除答复以外的路径不许动这条账', () => {
+  it('没带 feedback 的更新不并票（比对 merged 与 existing 的写法会在这里出错）', () => {
+    repo.add(makeEntry({ successRate: 0.4 }))
+
+    repo.update('kb-feedback-1', { title: '改了标题', feedback: undefined })
+
+    expect(rawRow('kb-feedback-1').successRate).toBeCloseTo(0.4, 10)
+  })
+
+  it('导入一批不带答复的条目，不会把本机已记录的答复抹掉或把成功率往 0 拖', () => {
+    repo.add(makeEntry({ successRate: 0 }))
+    repo.update('kb-feedback-1', { feedback: 'helpful' })
+    const afterAnswer = rawRow('kb-feedback-1')
+
+    // 导入的同 id 条目 useCount 更高 → mergeEntries 以它为底本（底本不带 feedback）。
+    // 它自带的 successRate 取**较低**值：merge 的规则是 Math.max，
+    // 用高位数就没法分辨"变化是合并规则带来的"还是"没带答复被当成改成没答复"。
+    const n = repo.importEntries([
+      makeEntry({ useCount: 999, successRate: 0.01, feedback: undefined }),
+    ])
+
+    expect(n).toBeGreaterThan(0)
+    const row = rawRow('kb-feedback-1')
+    expect(row.feedback, '导一个知识包就把用户的答复清掉').toBe(afterAnswer.feedback)
+    expect(row.successRate, '把"没带答复"当成"改成没答复"，成功率会被拖向 0').toBe(
+      afterAnswer.successRate
     )
-    const calls = src.match(/this\.updateSuccessRate\(/g) ?? []
-    expect(calls.length, '答复链断了，成功率会重新变成没人写的死数').toBeGreaterThan(0)
   })
 
   it('KnowledgeEntry 的 feedback 是显式类型，不再是界面层的类型断言', () => {

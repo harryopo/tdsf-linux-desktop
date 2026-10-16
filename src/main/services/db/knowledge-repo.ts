@@ -313,8 +313,31 @@ export class KnowledgeRepository {
     const merged: KnowledgeEntry = {
       ...existing,
       ...partial,
+      // 没带答复就等于"这一列不动"。importEntries 合并时会把整条不带 feedback 的对象传进来，
+      // 让它覆盖过去＝导一个知识包就把用户在本机记下的答复清掉。
+      feedback: partial.feedback ?? existing.feedback,
       id: existing.id, // ID 不可变
       updatedAt: Date.now()
+    }
+    /*
+     * 用户这一票第一次成了 successRate 的生产者（#134）。
+     *
+     * 以前 updateSuccessRate() 全仓零调用：界面上的"有帮助/没帮助"按下去只改本地 useState，
+     * 详情页显示的成功率从来没人写。现在答复落列（schema v2），并把这一票按加权平均并进去。
+     *
+     * 三条口径都是被逼出来的：
+     * - 只看 partial 里**明确给了**的答复。比对 merged 与 existing 的话，
+     *   importEntries 走到这里时（它按 useCount 取较强者为底本）会把"没带答复"当成"改成了没答复"，
+     *   导一个知识包就把本机的成功率往 0 拖。
+     * - 与答复同一条 UPDATE 写出去，不分两次。分两次的中间裂开就留下"答复存了、票没并进"的行，
+     *   而这条链下一次同样的答复又不会补并（feedback 没变）。
+     * - 教程条目不参与：它这一列存的是"阅读时长/60"的存储层 hack（详情页为此专门不显示置信度），
+     *   再混进答复比例就得到一个既不是时长也不是成功率的数。
+     */
+    const newAnswer =
+      partial.feedback !== undefined && partial.feedback !== existing.feedback
+    if (newAnswer && merged.type !== 'tutorial') {
+      merged.successRate = blendSuccessRate(existing.successRate, partial.feedback === 'helpful')
     }
     try {
       const serialized = this.serialize(merged)
@@ -329,18 +352,6 @@ export class KnowledgeRepository {
            WHERE id=@id`
         )
         .run(serialized)
-      /*
-       * 用户这一票第一次成了 successRate 的生产者（#134）。
-       *
-       * 以前 updateSuccessRate() 全仓零调用：界面上的"有帮助/没帮助"按下去只改本地 useState，
-       * 详情页显示的成功率从来没人写。现在答复落列（schema v2），并把这一票按加权平均并进去。
-       *
-       * 教程条目不参与：它这一列存的是"阅读时长/60"的存储层 hack（详情页为此专门不显示置信度），
-       * 再混进答复比例就得到一个既不是时长也不是成功率的数。
-       */
-      if (merged.feedback !== existing.feedback && merged.type !== 'tutorial') {
-        this.updateSuccessRate(id, merged.feedback === 'helpful')
-      }
       return true
     } catch {
       return false
@@ -351,7 +362,8 @@ export class KnowledgeRepository {
    * 删除知识条目
    * @param id 条目 ID
    * @returns true 表示删除成功
-   */  delete(id: string): boolean {
+   */
+  delete(id: string): boolean {
     try {
       const result = this.db.prepare('DELETE FROM knowledge_entries WHERE id = ?').run(id)
       return result.changes > 0
@@ -506,28 +518,6 @@ export class KnowledgeRepository {
       this.db
         .prepare('UPDATE knowledge_entries SET useCount = useCount + 1 WHERE id = ?')
         .run(id)
-    } catch {
-      // 忽略错误
-    }
-  }
-
-  /**
-   * 更新成功率
-   *
-   * 基于增量更新：success=true 时成功率上升，false 时下降。
-   * 使用加权平均：newRate = oldRate * 0.9 + (success?1:0) * 0.1
-   *
-   * @param id 条目 ID
-   * @param success 本次使用是否成功
-   */
-  updateSuccessRate(id: string, success: boolean): void {
-    try {
-      const entry = this.getById(id)
-      if (!entry) return
-      const newRate = entry.successRate * 0.9 + (success ? 1 : 0) * 0.1
-      this.db
-        .prepare('UPDATE knowledge_entries SET successRate = ? WHERE id = ?')
-        .run(newRate, id)
     } catch {
       // 忽略错误
     }
@@ -724,6 +714,18 @@ export class KnowledgeRepository {
 }
 
 // ────────── 工具函数 ──────────
+
+/**
+ * 把一次答复并进成功率：newRate = old * 0.9 + (helpful ? 1 : 0) * 0.1
+ *
+ * 权重 0.1 意味着一票只挪 10%，要连续答"有帮助"十几次才逼近 1——
+ * 这是有意的：一条知识不该被一次点击定性。以前这个式子写在 updateSuccessRate() 里，
+ * 而它全仓零调用（界面上的答复按钮根本没接到它），现在由 update() 同一条 UPDATE 写出去。
+ */
+function blendSuccessRate(oldRate: number, helpful: boolean): number {
+  const old = Number.isFinite(oldRate) ? Math.min(1, Math.max(0, oldRate)) : 0
+  return old * 0.9 + (helpful ? 1 : 0) * 0.1
+}
 
 /**
  * Jaccard 相似度
