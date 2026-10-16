@@ -47,6 +47,15 @@ import { SessionQueue } from './session-queue'
 const LOCK_OP_TIMEOUT_MS = 30_000
 
 /**
+ * 没人订阅时一条通道最多攒多少字符（#105 的开场补发缓冲）
+ *
+ * 攒的目的是接住"比转发回调早到的开场输出"，不是当屏幕缓冲用：
+ * 渲染层自己有一份 512KB 的视图缓冲，这里只需要覆盖通道建立那一瞬，
+ * 超出就保尾弃头。
+ */
+const PRE_ROLL_CAP_CHARS = 64 * 1024
+
+/**
  * 单条交互式 Shell 通道
  *
  * 为什么不再是"一条连接一个 shell"：IDE 用法就是同一台主机开好几个终端
@@ -66,6 +75,16 @@ interface ShellEntry {
   channel: ClientChannel
   /** 输出订阅者 */
   callbacks: Set<(data: string) => void>
+  /**
+   * 第一个订阅者挂上之前收到的输出（#105）
+   *
+   * 转发回调是 `ssh:shell:start` 的 handler 在 await 之后才挂的，而服务端常把
+   * 开场 banner 和 channel-open 放进同一个包批：ssh2 在 shell 回调里同步 emit('data')，
+   * 那段字节比转发回调早到，直接吞掉。丢的不只是一行字——渲染层靠"收到不认识的
+   * shellId 的输出"去对账补标签，banner 没了标签就一直补不出来（别的窗口/裸 IPC 开的终端）。
+   * 所以没人听的时候先攒着，第一个订阅者挂上就补发。
+   */
+  preRoll: string[]
 }
 
 /** 单个 SSH 会话的内部条目 */
@@ -530,7 +549,13 @@ export class SshConnectionManager {
           reject(err)
           return
         }
-        const shell: ShellEntry = { id: shellId, sessionId, channel: stream, callbacks: new Set() }
+        const shell: ShellEntry = {
+          id: shellId,
+          sessionId,
+          channel: stream,
+          callbacks: new Set(),
+          preRoll: [],
+        }
         entry.shells.set(shellId, shell)
         // 每条通道一个解码器：chunk.toString('utf8') 逐包转换，跨包被切断的多字节字符
         // （中文输出最常见的切法）会变成一个 U+FFFD —— journalctl、中文文件名首当其冲。
@@ -539,6 +564,20 @@ export class SshConnectionManager {
         stream.on('data', (chunk: Buffer) => {
           const data = decoder.write(chunk)
           if (!data) return
+          if (shell.callbacks.size === 0) {
+            // 订阅者还没挂上（IPC 刚从 startShell 的 await 里回来）：先攒着，别吞
+            let piece = data
+            if (piece.length > PRE_ROLL_CAP_CHARS) {
+              // 单段就超上限：这不是"开场 banner"量级，保尾弃头
+              piece = piece.slice(piece.length - PRE_ROLL_CAP_CHARS)
+            }
+            shell.preRoll.push(piece)
+            let chars = shell.preRoll.reduce((s, d) => s + d.length, 0)
+            while (chars > PRE_ROLL_CAP_CHARS && shell.preRoll.length > 1) {
+              chars -= (shell.preRoll.shift() ?? '').length
+            }
+            return
+          }
           for (const cb of [...shell.callbacks]) {
             try {
               cb(data)
@@ -673,7 +712,20 @@ export class SshConnectionManager {
       throw new Error(`终端不存在或已关闭: ${shellId}`)
     }
     const { shell } = found
+    const isFirstSubscriber = shell.callbacks.size === 0
     shell.callbacks.add(callback)
+    // 第一个订阅者先补上它来晚了的开场输出（比转发回调早到的那段，见 preRoll 的注释）
+    if (isFirstSubscriber && shell.preRoll.length > 0) {
+      const backlog = shell.preRoll
+      shell.preRoll = []
+      for (const piece of backlog) {
+        try {
+          callback(piece)
+        } catch {
+          // 与正常广播路径一致：单个回调异常不吞掉后面那段
+        }
+      }
+    }
     return () => {
       shell.callbacks.delete(callback)
     }

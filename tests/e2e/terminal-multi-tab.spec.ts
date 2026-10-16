@@ -109,6 +109,25 @@ test.describe('同一条连接开两个终端', () => {
           els.map((e) => e.getAttribute('data-tab-id') ?? ''),
         )).map((id) => (id.startsWith('shell:') ? id.slice('shell:'.length) : id))
 
+      /**
+       * 红了先看现场：标签条上的 / 主进程那张表里的 / 收到过输出的，三份一比
+       * 就知道是"对账没把标签补出来"还是"补出来又被摘掉了"——这两种是不同缺陷，
+       * 光看 toHaveCount(1) 分不出来。
+       */
+      const snapshot = async (): Promise<{ dom: string[]; main: string[]; dataSeen: string[] }> => {
+        const dom = await tabShellIds()
+        const main = (await page.evaluate(
+          (sid) =>
+            (
+              window as unknown as {
+                electronAPI: { sshShellList: (s: string) => Promise<string[]> }
+              }
+            ).electronAPI.sshShellList(sid),
+          sessionId
+        )) as string[]
+        return { dom, main, dataSeen: Object.keys(await readBag()) }
+      }
+
       const first = await openShellViaIpc(page, sessionId)
       // ↑ 故意走裸 IPC 而不是界面：模拟"这终端不是本窗口点开的"（另一个窗口开的、
       // 页面重载前就存在的）。标签必须自己被对账捞出来，捞不出来就是缺陷。
@@ -117,7 +136,17 @@ test.describe('同一条连接开两个终端', () => {
       // 按 menuitem 角色点：同一句文案在空态里还有一个同名按钮，getByText 会撞成两个
       await page.getByRole('menuitem', { name: '在这台主机再开一个终端' }).click()
 
-      await expect(page.locator('.term-tab-item')).toHaveCount(2, { timeout: 15000 })
+      try {
+        await expect(page.locator('.term-tab-item')).toHaveCount(2, { timeout: 15000 })
+      } catch (err) {
+        const now = await snapshot()
+        // 再看一眼：一直只有一个 = 从没补出来；先有两个后来剩一个 = 被过期对账摘掉
+        await page.waitForTimeout(3000)
+        const later = await snapshot()
+        throw new Error(
+          `${(err as Error).message}\n现场（立即）：${JSON.stringify(now)}\n现场（+3s）：${JSON.stringify(later)}`
+        )
+      }
       // 同主机第二个标签必须带编号：两个都叫同一个名字，用户分不清往哪敲
       await expect(page.locator('.term-tab-item').nth(1)).toContainText('2')
 

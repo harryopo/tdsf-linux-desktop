@@ -260,4 +260,40 @@ describe('shellId 是终端身份', () => {
     expect(entry.shells.size, '不该凭空有通道').toBe(0)
     expect(terminalSends('broadcast')).toHaveLength(0)
   })
+
+  it('开场输出在 IPC 返回之前就到：先攒着，第一个订阅者挂上就补发（#105）', async () => {
+    // 真实形状：服务端在 channel-open 的同一个包批里就把 banner 吐了，
+    // ssh2 在 client.shell 回调里同步 emit('data')，此时 await 还没把控制权
+    // 交回 ssh:shell:start 的 handler，转发回调根本还没挂上。
+    // 丢了这段字节不只是少一行字：渲染层靠"收到不认识的 shellId 的输出"去对账补标签，
+    // 于是别的窗口/裸 IPC 开出来的终端一直不会有标签（实测 12 次里 3 次）。
+    const entry = injectSession('s1')
+    Object.assign(entry, {
+      client: {
+        shell: (_o: unknown, cb: (err: Error | null, stream: unknown) => void) => {
+          const stream = makeShellStream()
+          lastStream = stream
+          cb(null, stream)
+          stream.emit('data', Buffer.from('开场 banner'))
+        },
+        end: () => {},
+        exec: (_c: string, cb: (err: Error | null, stream: unknown) => void) => cb(null, makeShellStream()),
+      },
+    })
+    await registerOnce('winA')
+
+    const id = await startShell('s1')
+    expect(
+      terminalSends('broadcast').map((s) => s.args),
+      'IPC 返回前到的那段输出必须补发给第一个订阅者，不能吞'
+    ).toEqual([[id, '开场 banner']])
+
+    // 补发只补一次：之后的输出走正常广播
+    const stream = lastStream
+    stream.emit('data', Buffer.from('后来的'))
+    expect(terminalSends('broadcast').map((s) => s.args)).toEqual([
+      [id, '开场 banner'],
+      [id, '后来的'],
+    ])
+  })
 })
