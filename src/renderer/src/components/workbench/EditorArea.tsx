@@ -246,7 +246,7 @@ const TerminalPanel: FC<{
             开一个本机终端
           </Button>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => void navigate('#/settings/ssh')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/settings/ssh')}>
             去连接服务器
           </Button>
         )}
@@ -791,7 +791,7 @@ const EditorArea: FC<EditorAreaProps> = ({
             <MenuItem onSelect={() => void handleOpenLocalShell()}>
               <span className="text-md text-ink">开一个本机终端</span>
             </MenuItem>
-            <MenuItem onSelect={() => navigate('#/settings/ssh')}>
+            <MenuItem onSelect={() => navigate('/settings/ssh')}>
               <span className="text-md text-ink">连接新主机</span>
             </MenuItem>
           </MenuContent>
@@ -937,7 +937,7 @@ const EditorArea: FC<EditorAreaProps> = ({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => navigate('#/settings/ssh')}
+                  onClick={() => navigate('/settings/ssh')}
                 >
                   去连接服务器
                 </Button>
