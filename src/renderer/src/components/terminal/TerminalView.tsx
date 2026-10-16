@@ -122,6 +122,27 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     })
   }, [shellId, kind])
 
+  /**
+   * 从"被藏起来"回到屏幕上：重算行列 + 让整屏重画一遍
+   *
+   * 文件标签与终端共用同一格，切过去时这边是 display:none。那期间容器尺寸是 0，
+   * 而 xterm 的渲染器按行缓存"这几行我已经画过了"——回来时 fit 能把行列算对，
+   * 缓存却不会自己作废，于是屏幕上半截是隐藏前的旧内容、下半截空白
+   * （用户 2026-10-16："打开文件后再返回终端显示不全，像是刷新了一下"）。
+   * refresh(0, rows-1) 就是把整份行缓存作废，逼渲染器真重画一次。
+   * 放到下一帧：这一帧容器刚恢复显示，尺寸还没量到。
+   */
+  useEffect(() => {
+    if (!visible) return
+    if (!terminalRef.current) return
+    refit()
+    const raf = requestAnimationFrame(() => {
+      const terminal = terminalRef.current
+      if (terminal) terminal.refresh(0, Math.max(0, terminal.rows - 1))
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [visible, refit])
+
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return

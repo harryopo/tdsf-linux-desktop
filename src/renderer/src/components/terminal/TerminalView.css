@@ -44,19 +44,36 @@
   background-color: var(--terminal-bg, var(--trae-terminal-block-bg)) !important;
 }
 
-/* 终端滚动条（v2.4 修复：原 6px + 20% 白在黑底上几乎不可见，误以为“无法滚动”；加宽加亮） */
+/*
+ * 终端滚动条：平时不占视线，悬停或点进终端才显出滑块
+ *
+ * 用户 2026-10-16："滑动栏太丑了，不然就隐藏，鼠标点击终端即可滑动"。
+ * 滑块本身不隐藏轨道（10px 常驻），否则出现/消失会让正文左右跳一格。
+ * 滚轮滚动不需要滑块可见，也不需要焦点——xterm 的 viewport 自己接 wheel，
+ * 所以"隐藏滑块"不影响"划一下就能翻历史"。
+ *
+ * 颜色走 --scrollbar-thumb 那一对令牌：原来这里写死 rgba(255,255,255,.45)，
+ * 浅色模式下终端整片白、滑块也白，等于看不见（v2.4 那次"加宽加亮"只治了深色）。
+ */
 .terminal-view .xterm-viewport::-webkit-scrollbar {
-  width: 12px;
+  width: 10px;
 }
 
 .terminal-view .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.45);
-  border-radius: 6px;
+  background: transparent;
+  border-radius: 5px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
-.terminal-view .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.65);
+.terminal-view:hover .xterm-viewport::-webkit-scrollbar-thumb,
+.terminal-view:focus-within .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  background-clip: content-box;
+}
+
+.terminal-view:hover .xterm-viewport::-webkit-scrollbar-thumb:hover,
+.terminal-view:focus-within .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
   background-clip: content-box;
 }

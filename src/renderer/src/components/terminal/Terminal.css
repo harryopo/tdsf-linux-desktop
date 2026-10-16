@@ -231,18 +231,27 @@
   flex-direction: column;
 }
 
+/*
+ * 文件头一行：路径占满左侧余量，两颗钮并排靠在右
+ *
+ * 用户 2026-10-16："打开资源的时候显示可写和保存放到一块，太分散了"。
+ * 原来这里是 space-between 三件套——路径最左、可写居中、保存最右，
+ * 两个动作隔着一整行，看着不像一件事（改状态 → 保存）而像三个独立控件。
+ */
 .term-file-header {
   display: flex;
   height: 32px;
   flex-shrink: 0;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 0 12px;
   border-bottom: 1px solid var(--trae-border-neutral-l1);
   background: var(--trae-bg-base-secondary);
 }
 
 .term-file-path {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
