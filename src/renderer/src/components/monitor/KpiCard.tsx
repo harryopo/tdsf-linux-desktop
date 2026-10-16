@@ -15,7 +15,7 @@
  * Redesign: 1:1 对齐 monitor.html — 从 recharts RadialBarChart 回到原生 SVG circle
  */
 import { Cpu, Database, Globe, MemoryStick, TrendingDown, TrendingUp } from 'lucide-react'
-import type { KpiStat } from './monitor-model'
+import { miniLinePoints, type KpiStat } from './monitor-model'
 
 /** 图标按 label 映射（替代设计稿的 SVG mask） */
 function iconForLabel(label: string) {
@@ -107,38 +107,27 @@ function RingProgress({
 }
 
 /**
- * 网络迷你双向折线图 SVG（72×72）
+ * 网络迷你双向折线图（72×72）
  *
- * 1:1 对齐 monitor.html 第 740-750 行：
- * - 上行：品牌蓝实线（var(--trae-bg-brand)）
- * - 下行：灰色虚线（var(--trae-text-tertiary)）
- * - 中线：1px 灰色虚线（var(--trae-border-neutral-l1)）
- * - 上下行标签（mono 8px）
+ * 两条线来自最近若干拍的**真实**收发值（monitor-model 里算好的 netSeries），
+ * 共用同一个满刻度，所以收发比例是真的。两个标签也是当拍真实值。
+ *
+ * 这里原来整块是写死的：两条 path 的坐标、↑1.2 / ↓0.8 两个数，全是字符串。
+ * 数据其实一直有（旧的 sparkline 字段只写不读），画出来的却是一件没发生过的事。
+ * 采不到两个点时不画线——一条直线会让人以为网络一直这么稳。
  */
-function NetworkMiniChart() {
+function NetworkMiniChart({ series }: { series?: { in: number[]; out: number[] } }) {
+  const out = series?.out ?? []
+  const incoming = series?.in ?? []
+  const max = Math.max(0, ...out, ...incoming)
+  const upPoints = miniLinePoints(out, max, { x0: 8, x1: 64, baseY: 36, spanY: 28 })
+  const downPoints = miniLinePoints(incoming, max, { x0: 8, x1: 64, baseY: 36, spanY: -28 })
+  const lastOut = out.length > 0 ? out[out.length - 1] : null
+  const lastIn = incoming.length > 0 ? incoming[incoming.length - 1] : null
   return (
     <div className="mon-net-mini-wrap">
       <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true">
-        {/* 上行 (品牌蓝) */}
-        <path
-          d="M 8,52 L 18,48 L 28,50 L 38,42 L 48,44 L 58,36 L 64,38"
-          fill="none"
-          stroke="var(--trae-bg-brand)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* 下行 (灰) */}
-        <path
-          d="M 8,56 L 18,58 L 28,54 L 38,56 L 48,50 L 58,52 L 64,46"
-          fill="none"
-          stroke="var(--trae-text-tertiary)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="2,2"
-        />
-        {/* 中线 */}
+        {/* 中线：0 速率基准 */}
         <line
           x1="4"
           y1="36"
@@ -148,13 +137,39 @@ function NetworkMiniChart() {
           strokeWidth="1"
           strokeDasharray="1,3"
         />
-        {/* 标签 */}
-        <text x="6" y="14" className="mon-net-mini-label-up">
-          ↑1.2
-        </text>
-        <text x="6" y="68" className="mon-net-mini-label-down">
-          ↓0.8
-        </text>
+        {upPoints && (
+          /* 上行（发出） */
+          <path
+            d={`M ${upPoints}`}
+            fill="none"
+            stroke="var(--trae-bg-brand)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+        {downPoints && (
+          /* 下行（接收） */
+          <path
+            d={`M ${downPoints}`}
+            fill="none"
+            stroke="var(--trae-text-tertiary)"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="2,2"
+          />
+        )}
+        {lastOut !== null && (
+          <text x="6" y="14" className="mon-net-mini-label-up">
+            {`↑${Math.round(lastOut)}`}
+          </text>
+        )}
+        {lastIn !== null && (
+          <text x="6" y="68" className="mon-net-mini-label-down">
+            {`↓${Math.round(lastIn)}`}
+          </text>
+        )}
       </svg>
     </div>
   )
@@ -175,7 +190,7 @@ export function KpiCard({ stat }: { stat: KpiStat }) {
       className="mon-kpi-card mon-stat-card flex h-full items-center gap-3"
     >
       {/* 左侧：环形进度图 或 网络迷你折线 */}
-      {isNetwork ? <NetworkMiniChart /> : (
+      {isNetwork ? <NetworkMiniChart series={stat.netSeries} /> : (
         <RingProgress
           percent={stat.value}
           color={stat.ringColor}

@@ -5,14 +5,20 @@
  * // @ai-task: token-chart-real
  *
  * 数据：window.electronAPI.tokenStats() → today/week/month/total + byProvider
- * 图表：按总量生成示意折线（无明细历史时用累计值近似）
+ *
+ * 2026-10-16 去假（用户："假的UI都检查一下，做成真功能"）。这里原来有两块不是数据：
+ * - 那条"输入/输出趋势"折线：28 个点由 sin/cos 合成，输入只有累计标量。
+ *   文件头自己写着"示意折线"，可界面上没有任何地方说它是示意——
+ *   用户读到的就是一段真实发生过的用量曲线。现在换成今日/本周/本月三根真柱子。
+ * - 输入/输出拆分用 55/45 猜，再拿猜出来的两个数算"输入/输出比"当第三张卡。
+ *   底下记录其实存了 inputTokens/outputTokens，但 TokenStats 没往上带，
+ *   所以这一版先把猜的那三张卡撤掉；要恢复得先扩契约（见任务板 #132），
+ *   而不是继续用比例猜。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Star, Loader2 } from 'lucide-react'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { TokenStats } from '@shared/agent-types'
-
-type TimeRange = 'day' | 'week' | 'month'
 
 const EMPTY: TokenStats = {
   today: 0,
@@ -27,22 +33,7 @@ function fmt(n: number): string {
   return Math.round(n).toLocaleString('en-US')
 }
 
-/** 由标量生成平滑折线 points（viewBox 800×200） */
-function buildPolyline(total: number, seed: number): string {
-  const pts: string[] = []
-  const base = Math.max(total, 1)
-  for (let i = 0; i < 28; i++) {
-    const x = 40 + (i / 27) * 728
-    const wave = Math.sin(i * 0.45 + seed) * 0.15 + Math.cos(i * 0.2) * 0.08
-    const ratio = 0.25 + (i / 27) * 0.55 + wave
-    const y = 180 - Math.min(0.95, Math.max(0.05, ratio)) * (120 * Math.min(1, base / 50000))
-    pts.push(`${x.toFixed(1)},${y.toFixed(1)}`)
-  }
-  return pts.join(' ')
-}
-
 export function TokenUsageChart() {
-  const [timeRange, setTimeRange] = useState<TimeRange>('month')
   const [stats, setStats] = useState<TokenStats>(EMPTY)
   const [loading, setLoading] = useState(true)
 
@@ -70,37 +61,20 @@ export function TokenUsageChart() {
     }
   }, [])
 
-  const activeTotal =
-    timeRange === 'day' ? stats.today : timeRange === 'week' ? stats.week : stats.month
+  const windows = [
+    { label: '今日', value: stats.today },
+    { label: '本周', value: stats.week },
+    { label: '本月', value: stats.month },
+  ]
+  const maxWindow = Math.max(1, ...windows.map((w) => w.value))
 
-  // 无输入输出拆分时，用 55/45 近似
-  const inputTokens = Math.round(activeTotal * 0.55)
-  const outputTokens = Math.max(0, activeTotal - inputTokens)
-  const sum = inputTokens + outputTokens || 1
-  const inPct = Math.round((inputTokens / sum) * 100)
-  const outPct = 100 - inPct
-  const ratio = outputTokens > 0 ? (inputTokens / outputTokens).toFixed(2) : '—'
-
-  const providerRows = useMemo(() => {
-    const entries = Object.entries(stats.byProvider || {})
-    if (entries.length === 0) {
-      return [{ model: '（暂无调用）', tokens: '0', share: '—' }]
-    }
-    const total = entries.reduce((a, [, v]) => a + v, 0) || 1
-    return entries
-      .sort((a, b) => b[1] - a[1])
-      .map(([id, n]) => ({
-        model: id,
-        tokens: fmt(n),
-        share: `${Math.round((n / total) * 100)}%`,
-      }))
-  }, [stats.byProvider])
-
-  const lineIn = buildPolyline(inputTokens || stats.total, 0.2)
-  const lineOut = buildPolyline(outputTokens || stats.total * 0.4, 1.1)
-
-  const rangeLabel =
-    timeRange === 'day' ? '今日' : timeRange === 'week' ? '本周' : '本月'
+  const providerRows = Object.entries(stats.byProvider || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, n]) => ({
+      provider: id,
+      tokens: fmt(n),
+      share: stats.total > 0 ? `${Math.round((n / stats.total) * 100)}%` : '—',
+    }))
 
   if (loading) {
     return (
@@ -113,148 +87,36 @@ export function TokenUsageChart() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="inline-flex rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l2)] p-0.5">
-            {(['day', 'week', 'month'] as TimeRange[]).map((r) => {
-              const label = r === 'day' ? '日' : r === 'week' ? '周' : '月'
-              const active = timeRange === r
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setTimeRange(r)}
-                  className={
-                    'inline-flex h-8 items-center justify-center rounded-[var(--trae-radius-4)] px-3 text-sm font-medium transition-colors ' +
-                    (active
-                      ? 'bg-accent-solid text-[var(--trae-text-onbrand)]'
-                      : 'text-ink-dim hover:text-ink')
-                  }
-                >
-                  {label}
-                </button>
-              )
-            })}
+      {/* 三个真实时间窗口的用量对比：柱子长度按同一刻度，数字就是 tokenStats 的原始值 */}
+      <div className="flex flex-col gap-2.5">
+        {windows.map((w) => (
+          <div key={w.label} className="flex items-center gap-3">
+            <span className="w-10 shrink-0 text-sm text-ink-mute">{w.label}</span>
+            <div className="h-2 min-w-0 flex-1 rounded-full bg-[var(--trae-bg-overlay-l2)]">
+              <div
+                className="h-full rounded-full bg-accent-solid"
+                style={{ width: `${(w.value / maxWindow) * 100}%` }}
+              />
+            </div>
+            <span className="w-24 shrink-0 text-right font-mono text-md tabular-nums text-ink">
+              {fmt(w.value)}
+            </span>
           </div>
-          <span className="text-sm text-ink-mute">
-            {rangeLabel} · 累计 {fmt(stats.total)} tokens
-          </span>
-        </div>
+        ))}
       </div>
 
-      <div className="mb-4">
-        <div className="mb-2 flex items-center gap-4">
-          <span className="inline-flex items-center gap-1.5 text-sm text-ink-dim">
-            <span className="inline-block h-0.5 w-3 bg-accent-solid" />
-            输入（估）
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-sm text-ink-dim">
-            <span className="inline-block h-0.5 w-3 bg-[var(--trae-accent-cyan,#04CBE5)]" />
-            输出（估）
-          </span>
-        </div>
-        <svg
-          width="100%"
-          height="200"
-          viewBox="0 0 800 200"
-          preserveAspectRatio="none"
-          role="img"
-          aria-label="Token使用趋势"
-        >
-          <g stroke="var(--trae-bg-overlay-l2)" strokeWidth="1">
-            <line x1="0" y1="40" x2="800" y2="40" />
-            <line x1="0" y1="80" x2="800" y2="80" />
-            <line x1="0" y1="120" x2="800" y2="120" />
-            <line x1="0" y1="160" x2="800" y2="160" />
-          </g>
-          <polyline
-            points={lineIn}
-            fill="none"
-            stroke="var(--trae-bg-brand)"
-            strokeWidth="2"
-          />
-          <polyline
-            points={lineOut}
-            fill="none"
-            stroke="var(--trae-accent-cyan, #04CBE5)"
-            strokeWidth="2"
-            strokeDasharray="4 3"
-          />
-          <line
-            x1="40"
-            y1="180"
-            x2="780"
-            y2="180"
-            stroke="var(--trae-border-neutral-l1)"
-            strokeWidth="1"
-          />
-        </svg>
-      </div>
-
-      <div className="mb-3 grid grid-cols-1 gap-4 border-t border-[var(--trae-border-neutral-l1)] py-3 md:grid-cols-3">
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink-mute">
-            {rangeLabel}输入 Token（估）
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-head font-semibold tabular-nums text-ink">
-              {fmt(inputTokens)}
-            </span>
-            <span className="text-sm text-ink-dim">{inPct}%</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-[var(--trae-bg-overlay-l2)]">
-            <div
-              className="h-full rounded-full bg-accent-solid"
-              style={{ width: `${inPct}%` }}
-            />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink-mute">
-            {rangeLabel}输出 Token（估）
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-head font-semibold tabular-nums text-ink">
-              {fmt(outputTokens)}
-            </span>
-            <span className="text-sm text-ink-dim">{outPct}%</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-[var(--trae-bg-overlay-l2)]">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${outPct}%`,
-                backgroundColor: 'var(--trae-accent-cyan, #04CBE5)',
-              }}
-            />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-sm text-ink-mute">输入 / 输出比</span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-head font-semibold tabular-nums text-ink">
-              {ratio}
-            </span>
-            <span className="text-sm text-ink-dim">: 1</span>
-          </div>
-          <span className="text-sm text-ink-mute">
-            今日 {fmt(stats.today)} · 本周 {fmt(stats.week)}
-          </span>
-        </div>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-4 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l1)] p-3">
+      <div className="mt-4 mb-3 flex flex-wrap items-center gap-4 rounded-[var(--trae-radius-6)] bg-[var(--trae-bg-overlay-l1)] p-3">
         <span className="inline-flex items-center gap-1.5 text-sm text-ink-dim">
           <Star className="size-3.5" />
-          {rangeLabel}用量
+          历史累计
           <span className="font-mono font-semibold tabular-nums text-ink">
-            {fmt(activeTotal)}
+            {fmt(stats.total)}
           </span>
           tokens
         </span>
-        <span className="font-mono text-sm tabular-nums text-ink-mute">
-          历史累计 {fmt(stats.total)}
-        </span>
+        {stats.total === 0 && (
+          <span className="text-sm text-ink-mute">还没有一次调用被记到这里</span>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
@@ -278,22 +140,28 @@ export function TokenUsageChart() {
             </tr>
           </thead>
           <tbody>
-            {providerRows.map((row) => (
-              <tr
-                key={row.model}
-                className="border-b border-[var(--trae-border-neutral-l1)] last:border-0"
-              >
-                <td className="px-3 py-2 font-medium text-ink">
-                  {row.model}
-                </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
-                  {row.tokens}
-                </td>
-                <td className="px-3 py-2 text-right font-mono text-(--accent-text)">
-                  {row.share}
+            {providerRows.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-3 py-3 text-center text-sm text-ink-mute">
+                  暂无调用
                 </td>
               </tr>
-            ))}
+            ) : (
+              providerRows.map((row) => (
+                <tr
+                  key={row.provider}
+                  className="border-b border-[var(--trae-border-neutral-l1)] last:border-0"
+                >
+                  <td className="px-3 py-2 font-medium text-ink">{row.provider}</td>
+                  <td className="px-3 py-2 text-right font-mono tabular-nums text-ink">
+                    {row.tokens}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-(--accent-text)">
+                    {row.share}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

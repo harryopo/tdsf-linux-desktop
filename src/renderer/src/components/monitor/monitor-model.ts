@@ -56,8 +56,38 @@ export interface KpiStat {
   trend: 'up' | 'down' | null
   /** 趋势颜色（disk 用 amber 警告色 #F59E0B，其他用 #387BFF） */
   ringColor: string
-  /** 迷你折线数据点（保留兼容，新 KpiCard 不使用） */
-  sparkline: number[]
+  /**
+   * 网络卡的真实收发序列（最近若干拍）；只有网络这一张卡有
+   *
+   * 以前这里是一个叫 sparkline 的字段、四张卡都填、没人读——而卡片上那条
+   * 双向折线和 ↑1.2 / ↓0.8 两个标签是写死在 SVG 里的字符串。
+   * 现在换成收发两条独立序列，由 KpiCard 按真实值画（用户 2026-10-16："假的UI都检查一下，做成真功能"）。
+   */
+  netSeries?: { in: number[]; out: number[] }
+}
+
+/**
+ * 迷你折线的 SVG 点串：把一串真实采样映射到一条折线
+ *
+ * @param values 按时间正序的采样值
+ * @param max 两条线共用的满刻度（各自归一化会让收发看着"一样忙"，那是假比较）
+ * @param box baseY 是中线，spanY 带符号（正=往上线，负=往下线）
+ * @returns 少于 2 个点或没有正刻度时返回 null：一个点画不出趋势，宁可什么都不画
+ */
+export function miniLinePoints(
+  values: number[],
+  max: number,
+  box: { x0: number; x1: number; baseY: number; spanY: number },
+): string | null {
+  if (values.length < 2 || !(max > 0)) return null
+  const last = values.length - 1
+  return values
+    .map((v, i) => {
+      const x = box.x0 + ((box.x1 - box.x0) * i) / last
+      const y = box.baseY - (Math.max(0, v) / max) * box.spanY
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
 }
 
 /** 时间范围选项 */
@@ -151,7 +181,6 @@ export function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `${latest.loadAverage?.toFixed(2) ?? '--'} load`,
       ...trendOf(latest.cpuUsage, prev?.cpuUsage),
       ringColor: 'var(--accent-text)',
-      sparkline: data.slice(-20).map((d) => d.cpuUsage),
     },
     {
       label: '内存',
@@ -160,7 +189,6 @@ export function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `${latest.processCount ?? '--'} 进程`,
       ...trendOf(latest.memoryUsage, prev?.memoryUsage),
       ringColor: 'var(--accent-text)',
-      sparkline: data.slice(-20).map((d) => d.memoryUsage),
     },
     {
       label: '磁盘',
@@ -169,7 +197,6 @@ export function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       sub: `uptime ${Math.floor(latest.uptime / 3600)}h`,
       ...trendOf(latest.diskUsage, prev?.diskUsage),
       ringColor: 'var(--status-warning-text)',
-      sparkline: data.slice(-20).map((d) => d.diskUsage),
     },
     {
       label: '网络 I/O',
@@ -181,7 +208,10 @@ export function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
         prev ? prev.networkIn + prev.networkOut : undefined
       ),
       ringColor: 'var(--accent-text)',
-      sparkline: data.slice(-20).map((d) => d.networkIn + d.networkOut),
+      netSeries: {
+        in: data.slice(-20).map((d) => d.networkIn),
+        out: data.slice(-20).map((d) => d.networkOut),
+      },
     },
   ]
 }

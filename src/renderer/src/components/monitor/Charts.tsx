@@ -6,7 +6,7 @@
  * M3-1: 从纯 SVG 迁移到 recharts
  * - CpuAreaChart → AreaChart + Area（CPU 使用率 24h 面积图）
  * - MemoryLineChart → LineChart + Line（内存 24h 折线图，3 条 used/buffer/cache）
- * - DiskIoBarChart → BarChart + Bar（磁盘 IO 24h 柱状图）
+ * - DiskUsageBarChart → BarChart + Bar（磁盘使用率柱状图）
  * - NetworkFlowChart → LineChart + 双 Line（网络流量 24h 入站/出站）
  *
  * 视觉对齐：
@@ -219,8 +219,6 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   const data = recent.map((d) => ({
     time: formatTime(d.timestamp),
     used: Number(d.memoryUsage.toFixed(1)),
-    buffer: 0,
-    cache: 0,
   }))
 
   return (
@@ -233,14 +231,12 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
             <span className="mon-chart-dot" style={{ background: 'var(--accent-solid)' }} />
             used
           </span>
-          <span className="flex items-center gap-1">
-            <span className="mon-chart-dot" style={{ background: 'var(--trae-bg-brand-hover)' }} />
-            buffer
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="mon-chart-dot" style={{ background: 'var(--trae-brand-3)' }} />
-            cache
-          </span>
+          {/*
+            以前这里还列着 buffer / cache 两条图例、图上也画着那两条线，
+            而数据是写死的 0（MonitorData 只有 memoryUsage 一个内存字段，
+            既没有 buffers 也没有 cached）。两条贴底的虚线不是"内存很闲"，
+            是根本没有这一项测量。
+          */}
         </div>
       }
     >
@@ -273,32 +269,20 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
             isAnimationActive={false}
             dot={false}
           />
-          <Line
-            type="monotone"
-            dataKey="buffer"
-            stroke="var(--trae-bg-brand-hover)"
-            strokeWidth={1.5}
-            strokeDasharray="4 3"
-            isAnimationActive={false}
-            dot={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="cache"
-            stroke="var(--trae-brand-3)"
-            strokeWidth={1.5}
-            strokeDasharray="4 3"
-            isAnimationActive={false}
-            dot={false}
-          />
         </LineChart>
       </ResponsiveContainer>
     </ChartCard>
   )
 }
 
-/** 磁盘 IO 柱状图（24h） */
-export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
+/**
+ * 磁盘使用率柱状图
+ *
+ * 这里原来叫「磁盘IO」、单位写 MB/s，画的却是 diskUsage（一个百分比，Y 轴 domain 就是 0-100）：
+ * MonitorData 里根本没有 IO 速率字段。数据是真的，标题与单位是假的——按数据改标题，
+ * 不反过来给图表造数据。
+ */
+export function DiskUsageBarChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
   const sliced = sliceMonitorData(monitorData, range ?? '24H')
   const recent = sliced.slice(-24)
@@ -306,10 +290,13 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
   // 无实时数据时显示 Empty 状态
   if (recent.length === 0) {
     return (
-      <ChartCard title={`磁盘IO${spanLabel(recent)}`} rightHint={<span className="mon-chart-hint">MB/s</span>}>
+      <ChartCard
+        title={`磁盘使用率${spanLabel(recent)}`}
+        rightHint={<span className="mon-chart-hint">%</span>}
+      >
         <EmptyMonitorState
-          title="暂无磁盘IO数据"
-          description="连接服务器后将显示实时磁盘IO柱状图"
+          title="暂无磁盘数据"
+          description="连接服务器后将显示磁盘使用率柱状图"
           showAction={false}
         />
       </ChartCard>
@@ -318,15 +305,15 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
 
   const data = recent.map((d) => ({
     time: formatTime(d.timestamp),
-    io: Number(((d.diskUsage / 100) * 100).toFixed(1)),
+    used: Number(d.diskUsage.toFixed(1)),
   }))
 
   return (
     <ChartCard
-      title={`磁盘IO${spanLabel(recent)}`}
+      title={`磁盘使用率${spanLabel(recent)}`}
       axis={axisFrom(recent)}
       rightHint={
-        <span className="mon-chart-hint">MB/s</span>
+        <span className="mon-chart-hint">%</span>
       }
     >
       <ResponsiveContainer width="100%" height={CHART_H}>
@@ -351,7 +338,7 @@ export function DiskIoBarChart({ range }: { range?: TimeRange } = {}) {
             width={28}
           />
           <Bar
-            dataKey="io"
+            dataKey="used"
             fill="var(--trae-bg-brand)"
             radius={[2, 2, 0, 0]}
             isAnimationActive={false}

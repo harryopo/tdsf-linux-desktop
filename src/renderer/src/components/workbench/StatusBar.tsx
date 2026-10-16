@@ -137,9 +137,12 @@ export function StatusBar() {
             <span className="tabular-nums">{cursorColumn}</span>
           </span>
         </StatusItem>
-        <StatusItem title="文件编码">
-          <span>UTF-8</span>
-        </StatusItem>
+        {/*
+          这里原来常驻一格「文件编码 UTF-8」。全仓没有任何编码探测——读文件就是按 UTF-8
+          读、写就是按 UTF-8 写，那是一个固定行为，不是一项测量。
+          放在状态栏里会被读成"这个文件被识别为 UTF-8"（用户 2026-10-16：假的UI都检查一下）。
+          真要做编码识别（GBK 配置文件是真实场景）再放回来，届时要能显示探测结果并可切换。
+        */}
         <StatusItem title="当前文件">
           <Code className="size-3" />
           <span className="max-w-[120px] truncate">{fileName}</span>

@@ -29,7 +29,7 @@ import { IconButton, PageHeader } from '@/ui'
 import { KpiCard } from '@/components/monitor/KpiCard'
 import {
   CpuAreaChart,
-  DiskIoBarChart,
+  DiskUsageBarChart,
   MemoryLineChart,
   NetworkFlowChart,
 } from '@/components/monitor/Charts'
@@ -337,7 +337,7 @@ export function MonitorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-3">
         <CpuAreaChart range={range} />
         <MemoryLineChart range={range} />
-        <DiskIoBarChart range={range} />
+        <DiskUsageBarChart range={range} />
         <NetworkFlowChart range={range} />
       </div>
 

@@ -21,7 +21,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 import {
   CpuAreaChart,
-  DiskIoBarChart,
+  DiskUsageBarChart,
   MemoryLineChart,
   NetworkFlowChart,
 } from '@renderer/components/monitor/Charts'
@@ -94,7 +94,7 @@ describe('recharts 3 真渲染', () => {
   })
 
   it('3. 磁盘 IO 柱状图画出柱子', () => {
-    const { container } = renderChart(<DiskIoBarChart />)
+    const { container } = renderChart(<DiskUsageBarChart />)
     expect(container.querySelector('.recharts-surface')).not.toBeNull()
     expect(container.querySelector('.recharts-bar-rectangle')).not.toBeNull()
   })
