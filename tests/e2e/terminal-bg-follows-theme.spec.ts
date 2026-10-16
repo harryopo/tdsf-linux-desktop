@@ -6,11 +6,12 @@
  * 之后靠 setTheme 改的，浅色模式下界面整片白而中间一块黑，正是"表对线错"那种。
  * 所以这里真起应用、真开一个本机终端，量屏幕上算出来的颜色。
  *
- * 判据三条，缺一不可：
+ * 判据四条，缺一不可：
  *   1. 深色模式下，终端绘制层的底色 == 画布令牌 --bg-primary
  *   2. 切到浅色模式后，同一个活着的终端仍然 == 当时的画布令牌
  *   3. 两次读数必须不同（阳性对照：终端若根本没跟着改，前两条会同时"过"在
  *      同一个值上，是这条把它逼红）
+ *   4. 终端那一格（.term-panel）与绘制层同色——不然终端四周露出一圈别的深浅
  *
  * 明暗两档都由用例自己点设置页切，不靠系统默认值——系统偏浅时"深色下"这个说法
  * 当场就是假的。
@@ -35,6 +36,8 @@ interface BgReading {
   /** 真正绘制底色的那一层 */
   viewport: string
   screen: string
+  /** 终端那一格自己的底色（终端四周露出的那圈就是它） */
+  panel: string
 }
 
 /**
@@ -65,12 +68,14 @@ async function readBackgrounds(page: Page): Promise<BgReading> {
       xterm: pick('.xterm'),
       viewport: pick('.xterm-viewport'),
       screen: pick('.xterm-screen'),
+      panel: pick('.term-panel'),
     }
   }).then((r) => ({
     token: normalizeHex(r.token),
     xterm: normalizeHex(r.xterm),
     viewport: normalizeHex(r.viewport),
     screen: normalizeHex(r.screen),
+    panel: normalizeHex(r.panel),
   }))
 }
 
@@ -113,6 +118,13 @@ async function waitForTerminalBg(page: Page, modeName: string): Promise<BgReadin
     reading.viewport,
     `${modeName}下终端绘制层底色该等于画布令牌 ${reading.token}（现场 xterm=${reading.xterm} screen=${reading.screen}）`,
   ).toBe(reading.token)
+  // 第四条（2026-10-16 补）：终端那一格自己也得是同一个色。
+  // 前三条只量了"终端 vs 令牌"，量不到终端四周那圈容器——浅色档那圈是 #f6f8fa、
+  // 终端是 #ffffff，用户看到的"终端和两边的颜色有色差"正是这条缝，当时没有判据拦得住。
+  expect(
+    reading.panel,
+    `${modeName}下终端格底色与终端绘制层不一致，四周会露出一圈不同深浅的边（panel=${reading.panel}）`,
+  ).toBe(reading.viewport)
   return reading
 }
 

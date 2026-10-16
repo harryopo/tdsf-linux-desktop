@@ -148,11 +148,19 @@
   flex-direction: column;
 }
 
+/*
+ * 终端格子的底色 = 终端自己的底色
+ *
+ * 这两处原来吃 --trae-terminal-block-bg（= --code-block-bg）。深色档它恰好等于画布色
+ * 所以看不出问题，浅色档它是 #f6f8fa 而终端画布是 #ffffff（--bg-primary）——
+ * 于是终端四周露出一圈不同深浅的边，用户 2026-10-16 说的"终端和两边的颜色有色差"就是这条缝。
+ * 代码块那种"比正文更深的块"语义不该套在整格终端上，这里直接跟画布令牌。
+ */
 .term-panel {
   position: relative;
   min-height: 0;
   flex: 1;
-  background: var(--trae-terminal-block-bg);
+  background: var(--bg-primary);
 }
 
 .term-empty {
@@ -165,7 +173,8 @@
   gap: 12px;
   padding: 0 24px;
   text-align: center;
-  background: var(--trae-terminal-block-bg);
+  /* 与 .term-panel 同一条画布色（见上面那段注释）：空态和装着终端的那格不该两种深浅 */
+  background: var(--bg-primary);
 }
 
 .term-empty svg {
