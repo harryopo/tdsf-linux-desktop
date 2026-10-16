@@ -121,14 +121,22 @@ export const LOG_TERMINAL_BG = '#0F1011'
  * - ERROR → error（红）
  * - DEBUG → text-tertiary（灰）
  */
+/**
+ * 获取日志级别对应的文字色 token
+ *
+ * 一律取 `--status-*-text`（为"文字压在软背景上"调过的那一档），不取
+ * `--trae-status-*-default`（品牌原色）。原色压在 28% 的同色软底上，浅色模式下
+ * WARN 那枚 tag 实测 3.4:1，看不清；深色下侥幸过线只是因为原色本身偏亮。
+ * 令牌层专门为文字留了一档，用错那一档就是把自己暴露在明暗翻转上。
+ */
 export function getLevelColor(level: LogLevel): string {
   switch (level) {
     case 'INFO':
-      return 'var(--trae-status-primary-default)'
+      return 'var(--status-info-text)'
     case 'WARN':
-      return 'var(--trae-status-alert-default)'
+      return 'var(--status-warning-text)'
     case 'ERROR':
-      return 'var(--trae-status-error-default)'
+      return 'var(--status-error-text)'
     case 'DEBUG':
       return 'var(--trae-text-tertiary)'
   }

@@ -489,19 +489,29 @@
   font-weight: var(--trae-font-weight-medium);
   font-family: var(--trae-font-family-mono);
 }
+/*
+ * 三档风险徽章：底色与描边一律走状态表面令牌。
+ *
+ * 这里原来直接写死 #1F3324 / #332A1F / #331F1F 三块深色——浅色模式下整枚徽章是
+ * 一块深绿/深棕芯片，上面的文字却用的是随明暗翻转型的 --status-*-text（浅档是深字），
+ * 于是深字压深底，实测对比度 2.9:1，看不清。写死的色值不会跟着界面换，
+ * 这正是"表对线错"的那类毛病，只有真在浅色下量一遍才暴露。
+ *
+ * 中档原来还错拿了 --status-error-text（红）：中风险不是错误，用警告色。
+ */
 .set-risk-badge--low {
-  background: #1F3324;
-  border: 1px solid #2F5A3C;
+  background: var(--trae-status-success-surface-l1);
+  border: 1px solid var(--trae-status-success-surface-l2);
   color: var(--status-success-text);
 }
 .set-risk-badge--mid {
-  background: #332A1F;
-  border: 1px solid #5C4A2A;
-  color: var(--status-error-text);
+  background: var(--trae-status-alert-surface-l1);
+  border: 1px solid var(--trae-status-alert-surface-l2);
+  color: var(--status-warning-text);
 }
 .set-risk-badge--high {
-  background: #331F1F;
-  border: 1px solid #5C2A2A;
+  background: var(--trae-status-error-surface-l1);
+  border: 1px solid var(--trae-status-error-surface-l2);
   color: var(--status-error-text);
 }
 

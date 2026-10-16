@@ -28,6 +28,21 @@ const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.e
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
+ * 量哪一档明暗（默认深色 = 历史行为）。
+ *
+ * 这个开关存在的理由：整套判据（对比度 / 遮挡 / 字阶 / 中文落衬线）过去只在深色屏上
+ * 取过数——脚本里连 theme/light 一个字都没出现。浅色模式是真实可选项，2026-10-16
+ * 又把终端底色改成跟随界面明暗，浅色下"文字看不清"这种缺陷以前根本没被执行体看过。
+ *
+ * 浅色那遍的截图一律 light- 前缀：同一个名字直接覆盖等于把深色那遍的证据删了。
+ */
+const THEME = (process.env.UI_AUDIT_THEME || 'dark').toLowerCase()
+if (THEME !== 'dark' && THEME !== 'light') {
+  console.error(`UI_AUDIT_THEME 只认 dark / light，收到 ${JSON.stringify(process.env.UI_AUDIT_THEME)}`)
+  process.exit(2)
+}
+
+/**
  * 字阶档位清单从 tailwind.css 反查，不在本脚本里再抄一份。
  *
  * 原来这里手写 7 行"档位 → --ui-font-* 变量"映射表：新增的 --text-title / --text-splash
@@ -1104,9 +1119,39 @@ async function settle(ws, hash, capMs = 9000) {
   return { settled: false, waitedMs: Date.now() - started }
 }
 
+/**
+ * 走真实用户路径切明暗档：设置 → 外观 → 点那张卡片，然后等 <html data-theme> 真的翻过去。
+ *
+ * 不去写 localStorage / 直接 setTheme 的原因：那样量的是"我自己调的开关"，
+ * 不是"用户点那格有没有反应"。卡片点了不生效这类毛病只有真点才看得见。
+ * 翻不过去就返回 false，由门禁报"本轮未测"——浅色那遍没跑成不能算通过。
+ */
+async function applyTheme(ws, mode) {
+  const label = mode === 'light' ? '浅色模式' : '深色模式'
+  await settle(ws, '#/settings/appearance')
+  const clicked = await evalIn(
+    ws,
+    `(() => {
+      const card = [...document.querySelectorAll('button.set-theme-card')].find(
+        (b) => (b.textContent || '').includes(${JSON.stringify(label)}),
+      );
+      if (!card) return 'no-card';
+      card.click();
+      return 'clicked';
+    })()`
+  )
+  if (clicked !== 'clicked') return { ok: false, why: clicked }
+  const started = Date.now()
+  while (Date.now() - started < 8000) {
+    await sleep(150)
+    const now = await evalIn(ws, `document.documentElement.getAttribute('data-theme')`)
+    if (now === mode) return { ok: true, waitedMs: Date.now() - started }
+  }
+  return { ok: false, why: 'data-theme 没翻过去' }
+}
+
 const ROUTES = [
-  { hash: '#/workbench', name: '01-workbench' },
-  { hash: '#/knowledge', name: '02-knowledge' },
+  { hash: '#/workbench', name: '01-workbench' },  { hash: '#/knowledge', name: '02-knowledge' },
   { hash: '#/knowledge/nope', name: '03-knowledge-missing' },
   { hash: '#/tutorial', name: '04-tutorial' },
   { hash: '#/logs', name: '05-logs' },
@@ -1172,48 +1217,82 @@ try {
   await sleep(2500)
 
   report.cjk = []
-  for (const r of ROUTES) {
-    const st = await settle(ws, r.hash)
-    /*
-     * 工作台那屏先真的开一条本机终端：终端底色一致性只有在屏上有 xterm 实例时才量得到，
-     * 而本机终端不需要连任何服务器。开不出来就如实记下（不静默跳过），门禁会报"本轮未测"。
-     */
-    if (r.hash === '#/workbench') {
-      report.termOpened = await evalIn(ws, `(async () => {
-        if (document.querySelector('.terminal-view')) return 'already';
-        const fire = (el) => ['pointerdown', 'pointerup', 'click'].forEach((t) =>
-          el.dispatchEvent(t.startsWith('pointer')
-            ? new PointerEvent(t, { bubbles: true, cancelable: true })
-            : new MouseEvent(t, { bubbles: true, cancelable: true })),
-        );
-        // 空态里就有一颗直达按钮；没有空态才去开"新建终端菜单"（Radix 要真事件序列才弹）
-        const direct = [...document.querySelectorAll('button')].find((x) =>
-          (x.textContent || '').includes('开一个本机终端'),
-        );
-        if (direct) fire(direct);
-        else {
-          const btn = document.querySelector('button[data-dom-id="workbench-new-terminal"]');
-          if (!btn) return 'no-button';
-          fire(btn);
-          await new Promise((res) => setTimeout(res, 500));
-          const item = [...document.querySelectorAll('[role="menuitem"]')].find((x) =>
+  report.themePasses = {}
+  report.termOpened = {}
+  /**
+   * 一个明暗档跑一遍全界面量测（默认 dark + light 两遍）。
+   *
+   * 为什么要两遍：整套判据（对比度 / 遮挡 / 字阶 / 中文落衬线）过去只在深色下取过数，
+   * 脚本里连 theme/light 一个字都没出现。浅色是用户可选项，却从没被执行体看过。
+   * 2026-10-16 第一次量浅色就抓到两处：风险徽章三档底色写死深色 hex（浅字压深底 2.9:1）、
+   * 日志 WARN 标签拿品牌原色当文字色（浅档 3.4:1）——都在浅色下看不清，深色下全过。
+   *
+   * UI_AUDIT_THEME=dark|light 只跑单档（调试用）。浅色那遍截图带 light- 前缀，
+   * 不加前缀就是同名覆盖，等于把深色那遍的证据删了。
+   */
+  const sweepPass = async (mode) => {
+    const prefix = mode === 'light' ? 'light-' : ''
+    const applied = await applyTheme(ws, mode)
+    report.themePasses[mode] = applied
+    console.log(`明暗档：${mode} → ${JSON.stringify(applied)}`)
+    if (!applied.ok) {
+      auditFailed = true
+      console.error(`切到 ${mode} 没成功（${applied.why}），这一遍不产出读数`)
+      return
+    }
+    for (const r of ROUTES) {
+      const st = await settle(ws, r.hash)
+      /*
+       * 工作台那屏先真的开一条本机终端：终端底色一致性只有在屏上有 xterm 实例时才量得到，
+       * 而本机终端不需要连任何服务器。开不出来就如实记下（不静默跳过），门禁会报"本轮未测"。
+       */
+      if (r.hash === '#/workbench') {
+        report.termOpened[mode] = await evalIn(ws, `(async () => {
+          if (document.querySelector('.terminal-view')) return 'already';
+          const fire = (el) => ['pointerdown', 'pointerup', 'click'].forEach((t) =>
+            el.dispatchEvent(t.startsWith('pointer')
+              ? new PointerEvent(t, { bubbles: true, cancelable: true })
+              : new MouseEvent(t, { bubbles: true, cancelable: true })),
+          );
+          // 空态里就有一颗直达按钮；没有空态才去开"新建终端菜单"（Radix 要真事件序列才弹）
+          const direct = [...document.querySelectorAll('button')].find((x) =>
             (x.textContent || '').includes('开一个本机终端'),
           );
-          if (!item) return 'no-menuitem';
-          fire(item);
-        }
-        for (let i = 0; i < 40; i++) {
-          await new Promise((res) => setTimeout(res, 250));
-          if (document.querySelector('.terminal-view')) return 'opened';
-        }
-        return 'timeout';
-      })()`)
-      console.log('本机终端探针：' + report.termOpened)
+          if (direct) fire(direct);
+          else {
+            const btn = document.querySelector('button[data-dom-id="workbench-new-terminal"]');
+            if (!btn) return 'no-button';
+            fire(btn);
+            await new Promise((res) => setTimeout(res, 500));
+            const item = [...document.querySelectorAll('[role="menuitem"]')].find((x) =>
+              (x.textContent || '').includes('开一个本机终端'),
+            );
+            if (!item) return 'no-menuitem';
+            fire(item);
+          }
+          for (let i = 0; i < 40; i++) {
+            await new Promise((res) => setTimeout(res, 250));
+            if (document.querySelector('.terminal-view')) return 'opened';
+          }
+          return 'timeout';
+        })()`)
+        console.log(`本机终端探针（${mode}）：${report.termOpened[mode]}`)
+      }
+      const file = await shot(ws, prefix + r.name, 'page')
+      const m = await evalIn(ws, MEASURE)
+      // route 带上档位：浅色那遍报出来的缺陷如果写成 "#/logs"，读的人会以为是深色下的事
+      report.screens.push({
+        route: `${r.hash}@${mode}`,
+        png: file,
+        settled: st.settled,
+        waitedMs: st.waitedMs,
+        ...m,
+      })
+      report.cjk.push(await cjkFontAudit(ws, `${r.hash}@${mode}`))
     }
-    const file = await shot(ws, r.name, 'page')
-    const m = await evalIn(ws, MEASURE)
-    report.screens.push({ route: r.hash, png: file, settled: st.settled, waitedMs: st.waitedMs, ...m })
-    report.cjk.push(await cjkFontAudit(ws, r.hash))
+  }
+  for (const mode of process.env.UI_AUDIT_THEME ? [THEME] : ['dark', 'light']) {
+    await sweepPass(mode)
   }
 
   /*
@@ -1361,6 +1440,20 @@ try {
     for (const s of report.screens) {
       if (s.settled === false) {
         bad.push(`${s.route}: 页面 ${s.waitedMs}ms 内没稳定（探针读数作废，先减机器负载再重跑）`)
+      }
+    }
+    /*
+     * 明暗两档都必须真跑到：浅色那遍是 2026-10-16 才补上的维度，
+     * 少了它，"全部界面达标"这句话只对深色负责。单档调试（UI_AUDIT_THEME=…）
+     * 时如实报"另一档本轮未测"，不静默当成通过。
+     */
+    const passes = report.themePasses || {}
+    for (const m of ['dark', 'light']) {
+      if (!passes[m]) bad.push(`${m} 档整遍没跑（单档调试或切档失败），本报告的"达标"不覆盖这一档`)
+      else if (!passes[m].ok) bad.push(`${m} 档切档失败（${passes[m].why}），这一档没有读数`)
+      const t = (report.termOpened || {})[m]
+      if (passes[m]?.ok && t !== 'opened' && t !== 'already') {
+        bad.push(`${m} 档工作台没开出本机终端（${t}），终端底色那条判据本轮未测`)
       }
     }
     if (report.riskRules && report.riskRules.settled === false) {
@@ -1513,7 +1606,7 @@ try {
       if (offIcon.length) bad.push(`弹层: 图标尺寸不在刻度内 — ${offIcon.join(', ')}`)
     }
     // 工作台三栏第一条栏同高（DESIGN.md §5；量不到算探针没跑成，不算通过）
-    const wb = report.screens.find((s) => s.route === '#/workbench')
+    const wb = report.screens.find((s) => (s.route || '').startsWith('#/workbench'))
     if (!wb || !wb.panelHeads) bad.push('#/workbench: 三栏顶栏没量到（探针没跑成，别当成已对齐）')
     else {
       const ph = wb.panelHeads

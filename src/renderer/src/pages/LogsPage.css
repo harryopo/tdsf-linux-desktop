@@ -428,5 +428,7 @@
 
 .log-status-text-live {
   white-space: nowrap;
-  color: var(--trae-status-primary-default);
+  /* 文字用文字档令牌：品牌原色（--trae-status-primary-default）是给图形/描边用的，
+     压在浅色卡片上随时可能不到 4.5:1，这一档是随明暗调好的 */
+  color: var(--accent-text);
 }
