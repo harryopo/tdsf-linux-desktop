@@ -99,6 +99,17 @@ function initializeProviders(): void {
 }
 
 /**
+ * 同一批退役类型只说一次。
+ *
+ * loadFromStore 是读路径，一次会话里被调几十次是常态：2026-10-16 用户实测的日志里，
+ * 这条告警 11 分钟刷了 151 次（占当天新增日志的三分之二），把同时段真正的
+ * "chat 调用失败"埋掉了——日志吵不等于信息多，吵到看不见才是事故。
+ * 过滤本身照旧每次做（不动用户存的数据，只是不让它参与本轮对话），
+ * 但"请在设置里重选模型"这句话对用户只能说一次。
+ */
+let retiredTypeWarned = false
+
+/**
  * 从持久化存储加载 Provider 列表
  *
  * 两道过滤，顺序不能反：
@@ -108,6 +119,8 @@ function initializeProviders(): void {
  *    非开源、只认 Anthropic 模型），但用户机器上可能还存着那条配置。留着它的后果是
  *    聊天时 createLanguageModel 走到 default 分支抛"不支持的 Provider 类型"，
  *    用户只看到一次失败；现在改成加载时摘掉，并在日志里说清摘了谁。
+ *    摘是"读的时候不认它"，不写回存储——万一这行是新版程序写的（向后兼容），
+ *    老程序不该顺手删掉用户配置。
  */
 function loadFromStore(): PersistedProviderConfig[] {
   const raw = ConfigStore.get(STORE_KEY_PROVIDERS)
@@ -126,10 +139,11 @@ function loadFromStore(): PersistedProviderConfig[] {
   )
   const liveTypes = new Set(Object.keys(PROVIDER_CAPABILITIES))
   const retired = shaped.filter((p) => !liveTypes.has(p.type))
-  if (retired.length > 0) {
+  if (retired.length > 0 && !retiredTypeWarned) {
+    retiredTypeWarned = true
     logger.warn(
       'AGENT.PROVIDER',
-      `移除 ${retired.length} 条已退役的 Provider 类型，请在设置里重选模型`,
+      `本次会话忽略 ${retired.length} 条已退役的 Provider 类型，请在设置里重选模型`,
       { retired: retired.map((p) => ({ id: p.id, type: p.type })) },
     )
   }
