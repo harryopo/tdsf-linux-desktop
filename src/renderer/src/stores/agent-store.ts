@@ -34,6 +34,7 @@ import type {
   AgentToolEventPayload,
   LlmErrorCode,
 } from '@shared/agent-types'
+import { emptyTokenStats } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
 import { estimateTokens, resolveCompactionThresholds } from '@shared/context-budget'
 import { acceptsStream, lastIndexWhere, ownsStream, replaceAt } from '@/lib/messageSync'
@@ -182,16 +183,9 @@ function findToolEventTarget(messages: readonly AgentMessage[], correlationId?: 
 }
 
 /**
- * 默认 Token 统计（初始化时用）
+ * 默认 Token 统计（初始化时用；与 TokenUsageChart 的首屏空态同一份构造）
  */
-const DEFAULT_TOKEN_STATS: TokenStats = {
-  today: 0,
-  week: 0,
-  month: 0,
-  total: 0,
-  bySubagent: {},
-  byProvider: {},
-}
+const DEFAULT_TOKEN_STATS: TokenStats = emptyTokenStats()
 
 /**
  * 默认成本统计（v0.9.3 §11 改进点 26 P2-F 新增）

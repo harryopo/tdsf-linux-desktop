@@ -32,6 +32,7 @@ export type {
   PersistedProviderConfig,
   TokenUsageRecord,
   TokenStats,
+  TokenDirection,
   // v0.9.4 批次 2 新增类型（任务 2-5）
   ModelRole,
   ModelRoleMapping,

@@ -291,10 +291,63 @@ export interface TokenStats {
   month: number
   /** 总累计 token */
   total: number
+  /**
+   * 输入/输出拆分（#132），与上面四个总数同一批记录、同一套窗口起点
+   *
+   * 以前这里只有合计数，界面要说"输入多少、输出多少"就只能猜一个比例
+   * （旧版 TokenUsageChart 就是按 55/45 画出来的）。底层每条记录本来就存了
+   * inputTokens / outputTokens，所以拆分不需要新数据，只是聚合时没往上传。
+   *
+   * 判据钉的是每个窗口 input + output + unknown 必须等于该窗口总数：
+   * 两头不同源、或者有条记录被漏掉，都会当场对不上账。
+   */
+  split: {
+    today: TokenDirection
+    week: TokenDirection
+    month: TokenDirection
+    total: TokenDirection
+  }
   /** 按 Subagent 分布（subagent name → token count） */
   bySubagent: Record<string, number>
   /** 按 Provider 分布（provider id → token count） */
   byProvider: Record<string, number>
+}
+
+/**
+ * 一个时间窗里的 token 去向
+ *
+ * unknown 不是凑数：老记录是从 electron-store 恢复的，校验只要求
+ * totalTokens 与 timestamp 存在（见 providers/token-stats.ts 的 loadPersisted），
+ * 所以历史数据里可能压根没有方向字段。把它们算进 unknown 而不是悄悄丢掉，
+ * 用户才能看出"这一段时间里的用量有 N 个 token 没记方向"。
+ */
+export interface TokenDirection {
+  /** 提示词侧（口径与记录里的 inputTokens 一致） */
+  input: number
+  /** 模型生成侧 */
+  output: number
+  /** 这条记录没带方向字段，只能计入合计数 */
+  unknown: number
+}
+
+/**
+ * 空的 Token 统计（首屏在 IPC 返回之前显示的就是它）
+ *
+ * 界面侧有两处需要这个零对象（agent-store 的默认值、TokenUsageChart 的 EMPTY）。
+ * 各写一份的后果不是重复四行，而是加字段时一定会漏一处——
+ * 漏掉的那处带着 undefined.split 上界面，读到才崩。
+ */
+export function emptyTokenStats(): TokenStats {
+  const d = (): TokenDirection => ({ input: 0, output: 0, unknown: 0 })
+  return {
+    today: 0,
+    week: 0,
+    month: 0,
+    total: 0,
+    split: { today: d(), week: d(), month: d(), total: d() },
+    bySubagent: {},
+    byProvider: {},
+  }
 }
 
 /**

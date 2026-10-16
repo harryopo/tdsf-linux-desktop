@@ -19,7 +19,7 @@
  *
  * 方案书依据：v0.9 §5 Token 监控设计 + v0.9.4 §11 第 7 类（任务 6）
  */
-import type { TokenUsageRecord, TokenStats } from './types'
+import type { TokenUsageRecord, TokenStats, TokenDirection } from './types'
 // v0.9.5 P0 - 组 1：CostStats 已迁移到 @shared/agent-types（SSOT）
 import type { CostStats } from '@shared/agent-types'
 import { logger } from '../../../services/log/logger'
@@ -227,9 +227,29 @@ function getWindowStarts(): { todayStart: number; weekStart: number; monthStart:
 }
 
 /**
+ * 一条记录往一个窗口里累加：合计数照旧用 totalTokens，方向按 input/output 分
+ *
+ * 方向字段缺失（老记录从 store 恢复时只校验了 totalTokens 与 timestamp）时，
+ * 这一笔整条进 unknown，不悄悄丢掉——否则窗口的 input+output+unknown 就对不上合计数，
+ * 而"对不上"正是这张表唯一能自证的地方。
+ */
+function accumulate(dir: TokenDirection, r: TokenUsageRecord): void {
+  const input = r.inputTokens
+  const output = r.outputTokens
+  if (typeof input === 'number' && Number.isFinite(input) && typeof output === 'number' && Number.isFinite(output)) {
+    dir.input += input
+    dir.output += output
+  } else {
+    dir.unknown += r.totalTokens
+  }
+}
+
+const newDirection = (): TokenDirection => ({ input: 0, output: 0, unknown: 0 })
+
+/**
  * 获取聚合后的 token 统计
  *
- * @returns 当日/当周/当月/总 + 按 Subagent/Provider 分布
+ * @returns 当日/当周/当月/总 + 输入输出拆分 + 按 Subagent/Provider 分布
  */
 export function getTokenStats(): TokenStats {
   const { todayStart, weekStart, monthStart } = getWindowStarts()
@@ -238,18 +258,28 @@ export function getTokenStats(): TokenStats {
     week: 0,
     month: 0,
     total: 0,
+    split: {
+      today: newDirection(),
+      week: newDirection(),
+      month: newDirection(),
+      total: newDirection(),
+    },
     bySubagent: {},
     byProvider: {},
   }
 
   for (const r of usageRecords) {
     stats.total += r.totalTokens
+    accumulate(stats.split.total, r)
     if (r.timestamp >= monthStart) {
       stats.month += r.totalTokens
+      accumulate(stats.split.month, r)
       if (r.timestamp >= weekStart) {
         stats.week += r.totalTokens
+        accumulate(stats.split.week, r)
         if (r.timestamp >= todayStart) {
           stats.today += r.totalTokens
+          accumulate(stats.split.today, r)
         }
       }
     }
