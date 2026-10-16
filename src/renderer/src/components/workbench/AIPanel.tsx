@@ -44,6 +44,8 @@ import type { PaorApprovalRequest } from '@/types/electron'
 import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
+import { useStickToBottom } from './useStickToBottom'
+import { ArrowDown } from 'lucide-react'
 import Composer from './Composer'
 import { compressFeedback } from './context-usage'
 import { PermissionBar } from '@/dock/permission-bar'
@@ -194,37 +196,34 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     })
   }, [paor.error, addAgentMessage])
 
-  /**
-   * 实时消息滚动到底部
+  /*
+   * 流式跟底（状态机在 useStickToBottom.ts，那条文件里的判据能跑红）
    *
-   * v2.3.4 修复：原实现 messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-   *   默认 block:'start' 会把空 div 滚到 .ai-messages 视口顶部，导致最后一条消息正文
-   *   被推到视口外，用户感知为"输入后消息不见"。改为直接 scrollTo 到 .ai-messages
-   *   的 scrollHeight（= 滚到底），配合 .ai-messages 的 padding-bottom 留出 Composer 空间。
-   * v2.3.5 配合：AIPanel.css 已加 scroll-padding-bottom: 8px + padding-bottom: 16px，
-   *   scrollTo 末尾时 Composer 与最后一条消息有呼吸空间。
+   * v2.3.4：原来用 scrollIntoView 把空的收尾 div 滚到视口顶部，最后一条正文被推出去，
+   *   用户感知成"发完消息不见了"；改成直接贴 scrollHeight。
+   * v2.4：流式期间用即时贴底，不用 smooth——每个 token 重启一次平滑动画会互相打断，
+   *   观感是抖；只有收尾那一次用 smooth。
+   * v2.11：用户上滚读历史时不拽回；这一版把"不拽"变成有出口的——底下还在长时
+   *   亮一颗"回到底部"，否则屏幕看着不动，用户分不清是答完了还是被自己挡住了。
    */
-  useEffect(() => {
-    if (!hasLiveConversation && !hasLoopRunning) return
+  const getScrollContainer = useCallback((): HTMLElement | null => {
     const end = messagesEndRef.current
-    if (!end) return
-    // 找到 .ai-messages 滚动容器（closest 找到最近 .ai-messages 祖先）
-    const scrollContainer = (end.closest('.ai-messages') as HTMLElement | null) ?? end.parentElement
-    if (!scrollContainer) return
-    // v2.4 修复（流式滚动抽摞）：流式期间用 'auto'（即时置底），不要用 'smooth'。
-    // smooth 在每个 token 都重启一次平滑动画、互相打断 → 视觉抽摞；
-    // auto 每帧瞬时贴底，配合 rAF 批处理，观感反而顺滑。仅流式结束后用一次 smooth。
-    const behavior: ScrollBehavior = isStreaming ? 'auto' : 'smooth'
-    // v2.11 修复“输入框被顶不丝滑”：仅当用户已在底部附近才跟随置底。
-    // 若用户上滚阅读历史（距底 > 160px），尊重其位置、不强行拽回底部。
-    const distanceToBottom =
-      scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight
-    if (distanceToBottom > 160) return
-    const raf = requestAnimationFrame(() => {
-      scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior })
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [liveMessages, hasLiveConversation, isStreaming, hasLoopRunning, loop.phase, loop.workflowState, loop.decisionCard, loop.finalCard])
+    // closest 找最近的 .ai-messages 祖先（MessageList 外面还包了一层定位用的壳）
+    const box = end?.closest('.ai-messages') as HTMLElement | null
+    return box ?? end?.parentElement ?? null
+  }, [])
+
+  const lastMsg = liveMessages[liveMessages.length - 1]
+  // 内容变长的信号：正文 / 思考链 / 工具卡任一增长，或循环阶段推进
+  const followKey = `${liveMessages.length}:${lastMsg?.content?.length ?? 0}:${
+    lastMsg?.reasoning?.length ?? 0
+  }:${lastMsg?.toolEvents?.length ?? 0}:${loop.phase}`
+  const { hasNewBelow, scrollToBottom } = useStickToBottom(
+    getScrollContainer,
+    followKey,
+    !isStreaming,
+    hasLiveConversation || hasLoopRunning,
+  )
 
   /*
    * 往下穿到每一行 LiveMessageRow 的回调（recordChatDecision / handleToolAction /
@@ -419,8 +418,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         }}
       />
 
-      {/* ===== 消息滚动区 ===== */}
-      <MessageList
+      {/* ===== 消息滚动区（外面这层只给"回到底部"当定位参照，不参与滚动） ===== */}
+      <div className="ai-stream-area">
+        <MessageList
         providers={providers}
         navigate={navigate}
         hasLoopRunning={hasLoopRunning}
@@ -439,7 +439,24 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         onMessageNavigate={handleMessageNavigate}
         onRetryMessage={handleRetryMessage}
         onCompressContext={handleCompressFromError}
-      />
+        />
+        {/*
+          上滚读历史时底下还在长——给一个真的能回去的出口。
+          没有这颗按钮的话，屏幕看着不动，用户分不清"答完了"还是"被自己挡住了"。
+        */}
+        {hasNewBelow && (
+          <button
+            type="button"
+            className="ai-scroll-latest"
+            onClick={scrollToBottom}
+            aria-label="回到最新消息"
+            title="回到最新消息"
+          >
+            <ArrowDown className="size-3.5" />
+            <span>最新</span>
+          </button>
+        )}
+      </div>
 
       {/* ===== Composer（chips + 输入框 + 工具栏） ===== */}
       <Composer

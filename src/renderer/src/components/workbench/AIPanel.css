@@ -18,6 +18,48 @@
   scroll-padding-bottom: 8px;
 }
 
+/*
+ * 消息区外壳：只给"回到底部"那颗按钮当定位参照，自己不滚动。
+ * 有了它，按钮的位置跟 Composer 的高度无关——输入框长高时按钮不会被压到 Composer 底下。
+ */
+.ai-stream-area {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* 上滚读历史、底下还在长时才出现；点一下回到底部并消失 */
+.ai-scroll-latest {
+  position: absolute;
+  right: var(--ui-space-4);
+  bottom: var(--ui-space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  height: 26px;
+  padding: 0 var(--ui-space-3);
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-full);
+  background: var(--trae-bg-overlay-l2);
+  color: var(--text-secondary);
+  font-size: var(--ui-font-micro);
+  cursor: pointer;
+  animation: ai-fade-in var(--ui-dur-fast) var(--ui-ease-out) both;
+  transition:
+    color var(--ui-dur-fast) var(--ui-ease-out),
+    border-color var(--ui-dur-fast) var(--ui-ease-out);
+}
+.ai-scroll-latest:hover {
+  color: var(--accent-text);
+  border-color: var(--trae-border-brand);
+}
+.ai-scroll-latest:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+}
+
 /* ===== 消息容器 ===== */
 .ai-msg {
   margin-bottom: 12px;
@@ -409,6 +451,7 @@
   .ai-tool-body { transition: none; }
   .ai-chev { transition: none; }
   .ai-token-pop { animation: none; }
+  .ai-scroll-latest { animation: none; }
   /* .ai-shimmer-text 与工具卡入场的减弱动效在 MarkdownMessage.css 里就近管
      （那条类以前写的是 .shimmer-text，名字对不上等于这条没执行） */
   .mini-bar-fill { transition: none; }
