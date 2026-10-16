@@ -28,7 +28,8 @@ import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsSlider } from '@/components/settings/SettingsSlider'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/trae/Select'
-import { CODE_THEMES, CODE_THEME_IDS, type CodeThemeId } from '@shared/code-themes'
+import { CODE_THEMES, CODE_THEME_IDS, resolveCodeTheme, type CodeThemeId } from '@shared/code-themes'
+import { useThemeStore } from '@/stores/theme-store'
 import { THEME_MODE_PREVIEWS as THEME_MODES } from '@shared/theme-mode-previews'
 import { cn } from '@/components/trae/utils'
 import './Settings.css'
@@ -61,20 +62,28 @@ interface CodeThemeOption {
   }
 }
 
-const CODE_THEME_OPTIONS: CodeThemeOption[] = CODE_THEME_IDS.map((id) => ({
-  value: id,
-  name: CODE_THEMES[id].label,
-  // 预览底 = 终端真实背景：设置页看到的即是你得到的
-  previewBg: CODE_THEMES[id].terminal.background,
-  colors: {
-    base: CODE_THEMES[id].syntax.base,
-    kw: CODE_THEMES[id].syntax.keyword,
-    fn: CODE_THEMES[id].syntax.function,
-    str: CODE_THEMES[id].syntax.string,
-    com: CODE_THEMES[id].syntax.comment,
-    varC: CODE_THEMES[id].syntax.variable,
-  },
-}))
+/**
+ * 预览按当前界面明暗解析：「跟随界面」这一档在浅色下就是白底那副面孔，
+ * 设置页看到的仍然是用户会得到的那一格（预览底 = 终端真实背景）。
+ */
+function buildCodeThemeOptions(mode: 'light' | 'dark'): CodeThemeOption[] {
+  return CODE_THEME_IDS.map((id) => {
+    const theme = resolveCodeTheme(id, mode)
+    return {
+      value: id,
+      name: CODE_THEMES[id].label,
+      previewBg: theme.terminal.background,
+      colors: {
+        base: theme.syntax.base,
+        kw: theme.syntax.keyword,
+        fn: theme.syntax.function,
+        str: theme.syntax.string,
+        com: theme.syntax.comment,
+        varC: theme.syntax.variable,
+      },
+    }
+  })
+}
 
 
 const DENSITIES: { value: Density; name: string; desc: string }[] = [
@@ -93,6 +102,9 @@ export function AppearanceSettings() {
   const codeTheme = useAppearanceStore((s) => s.codeTheme)
   const setAppearance = useAppearanceStore((s) => s.setAppearance)
   const resetAppearance = useAppearanceStore((s) => s.resetAppearance)
+  /** 当前界面明暗：决定"跟随界面"那一格预览成深色还是浅色 */
+  const uiTheme = useThemeStore((s) => s.theme)
+  const codeThemeOptions = buildCodeThemeOptions(uiTheme)
 
   const setThemeMode = (v: ThemeMode) => setAppearance('themeMode', v)
   const setCodeFont = (v: string) => setAppearance('codeFont', v)
@@ -221,7 +233,7 @@ export function AppearanceSettings() {
         {/* Card 5: 代码高亮主题（4 个卡片网格 + 代码预览） */}
         <SettingsCard icon={Code2} title="代码高亮主题" tag="syntax.theme">
           <div className="set-code-grid">
-            {CODE_THEME_OPTIONS.map((opt) => {
+            {codeThemeOptions.map((opt) => {
               const selected = codeTheme === opt.value
               const c = opt.colors
               return (

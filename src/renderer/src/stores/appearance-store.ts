@@ -30,7 +30,13 @@ export const APPEARANCE_DEFAULTS = {
   fontSize: 14,
   lineHeight: 1.5,
   density: 'standard' as Density,
-  codeTheme: 'one-dark' as CodeTheme,
+  /**
+   * 默认代码主题＝"跟随界面"（2026-10-16）。
+   *
+   * 以前默认 one-dark，底色 #282c34，而外壳画布令牌是 #1e1e1e——终端于是永远是界面里
+   * 一块颜色不同的蓝灰矩形，用户第一眼就说"颜色不统一"。
+   */
+  codeTheme: 'tdsf' as CodeTheme,
 }
 
 /**
@@ -97,7 +103,21 @@ export const useAppearanceStore = create<AppearanceState>()(
         )
       },
     }),
-    { name: 'tdsf-appearance-store' },
+    {
+      name: 'tdsf-appearance-store',
+      /**
+       * v2：把"从没动过这个设置"的人从旧默认 one-dark 换到"跟随界面"。
+       *
+       * 判据只有"存下来的值恰好等于旧默认"这一条，所以故意选 One Dark 的人也会被换掉——
+       * 代价是在外观设置里点一下就能换回来；不换的话这次"终端颜色统一"对老用户等于没发生。
+       */
+      version: 2,
+      migrate: (persisted: unknown, from: number): AppearanceState => {
+        const saved = (persisted ?? {}) as Partial<AppearanceState>
+        if (from < 2 && saved.codeTheme === 'one-dark') saved.codeTheme = 'tdsf'
+        return { ...APPEARANCE_DEFAULTS, ...saved } as AppearanceState
+      },
+    },
   ),
 )
 

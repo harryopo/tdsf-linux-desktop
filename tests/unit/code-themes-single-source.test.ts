@@ -24,8 +24,15 @@ const ANSI_SLOTS = [
 const SYNTAX_ROLES = ['base', 'keyword', 'function', 'string', 'comment', 'variable'] as const
 
 describe('code-themes 单源', () => {
-  it('四个主题都在，且 id 与键一致', () => {
-    expect(CODE_THEME_IDS.sort()).toEqual(['github-dark', 'monokai', 'one-dark', 'solarized-dark'])
+  it('id 名单与表键一致：四个第三方主题 + 跟随界面的 tdsf，一个都不能少', () => {
+    // tdsf-light 是给"跟随界面"用的内部色板，不进用户名单（理由见 terminal-color-single-source.test.ts）
+    expect(CODE_THEME_IDS.slice().sort()).toEqual([
+      'github-dark',
+      'monokai',
+      'one-dark',
+      'solarized-dark',
+      'tdsf',
+    ])
     for (const id of CODE_THEME_IDS) expect(CODE_THEMES[id].id).toBe(id)
   })
 

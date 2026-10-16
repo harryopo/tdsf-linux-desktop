@@ -31,7 +31,8 @@ import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../
 import { attachBlockCollector } from '../../terminal/block-collector'
 import { subscribeShellData } from '../../terminal/terminal-bus'
 import type { ShellKind } from '../../stores/terminal-store'
-import { CODE_THEMES } from '@shared/code-themes'
+import { resolveCodeTheme, type CodeThemeId, type TerminalPalette } from '@shared/code-themes'
+import { useThemeStore } from '../../stores/theme-store'
 import { SelectionManager } from './selection-manager'
 import { formatTerminalClipboard } from './clipboard-format'
 import TerminalSearchBar from './TerminalSearchBar'
@@ -85,6 +86,15 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
    *（此前只在终端创建时读一次，设置页切了颜色看不到变化） */
   const appearanceCodeTheme = useAppearanceStore((s) => s.codeTheme)
   const appearanceCodeFont = useAppearanceStore((s) => s.codeFont)
+  /**
+   * 界面明暗（浅色主题下"跟随界面"要换成白底那副面孔）
+   */
+  const uiTheme = useThemeStore((s) => s.theme)
+  /** 用户点名的主题 + 当前明暗 → 真正该用的色板（终端与容器底只有这一个来源） */
+  const paletteFor = useCallback(
+    (id: CodeThemeId): TerminalPalette => resolveCodeTheme(id, uiTheme).terminal,
+    [uiTheme],
+  )
 
   /**
    * 重算终端行列，并把新尺寸回报主进程。
@@ -115,14 +125,12 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
-    const palette = CODE_THEMES[appearanceCodeTheme]?.terminal
-    if (palette) {
-      terminal.options.theme = { ...terminal.options.theme, ...palette }
-    }
+    const palette = paletteFor(appearanceCodeTheme)
+    terminal.options.theme = { ...terminal.options.theme, ...palette }
     const stack = CODE_FONT_STACKS[appearanceCodeFont]
     if (stack) terminal.options.fontFamily = stack
     refit()
-  }, [appearanceCodeTheme, appearanceCodeFont, refit])
+  }, [appearanceCodeTheme, appearanceCodeFont, paletteFor, refit])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -131,7 +139,10 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     const terminal = new Terminal({
       // 配色来自 src/shared/code-themes.ts（与外观设置页同一份表），
       // 初值取用户当前主题，避免"先画默认色、下一帧再改"的闪色
-      theme: { ...CODE_THEMES[useAppearanceStore.getState().codeTheme].terminal },
+      theme: {
+        ...resolveCodeTheme(useAppearanceStore.getState().codeTheme, useThemeStore.getState().theme)
+          .terminal,
+      },
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Microsoft YaHei', monospace",
       fontSize: fontSizeRef.current,
       lineHeight: 1.45,
@@ -149,11 +160,12 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
       try {
         const api = window.electronAPI
         const app = useAppearanceStore.getState()
-        // 代码高亮主题色板（外观设置）
-        const themePalette = CODE_THEMES[app.codeTheme]?.terminal
-        if (themePalette) {
-          terminal.options.theme = { ...terminal.options.theme, ...themePalette }
-        }
+        // 代码高亮主题色板（外观设置；"跟随界面"按当前明暗挑深浅那一副）
+        const themePalette = resolveCodeTheme(
+          app.codeTheme,
+          useThemeStore.getState().theme
+        ).terminal
+        terminal.options.theme = { ...terminal.options.theme, ...themePalette }
         // 代码字体（外观设置）
         const codeStack = CODE_FONT_STACKS[app.codeFont]
         if (codeStack) terminal.options.fontFamily = codeStack
@@ -418,12 +430,12 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
        * 终端底色只有一个来源：当前代码主题的 terminal.background（xterm 用的就是它）。
        * 容器与 .xterm-viewport 过去写死 --code-block-bg(#1e1e1e)，而 one-dark 的画布是
        * #282c34，于是同一块终端里出现两种深灰——把主题底色作为 CSS 变量交出去，
-       * CSS 侧只消费这一个值。
+       * CSS 侧只消费这一个值。默认主题现在是"跟随界面"，这一格与外壳画布同底。
        */
       style={
         {
           position: 'relative',
-          '--terminal-bg': CODE_THEMES[appearanceCodeTheme]?.terminal.background,
+          '--terminal-bg': paletteFor(appearanceCodeTheme).background,
         } as CSSProperties
       }
     >
