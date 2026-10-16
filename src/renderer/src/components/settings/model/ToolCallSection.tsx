@@ -27,6 +27,17 @@ export function ToolCallSection(props: ToolCallSectionProps) {
       noHeadBorder
       headMb="lg"
     >
+      {/*
+        口径要写在界面上（用户 2026-10-16："知识库调用记录是假的"）。
+        这张表数的是 tool_call_log，只有一类事情会被记：某次真实检索/执行发生了。
+        不写清楚，"终端命令执行 1"就会被读成"你今天只跑了一条命令"——
+        手敲回车走的是交互 shell，不经执行接口，本来就不在这一项里。
+      */}
+      <p className="mb-3 text-caption leading-relaxed text-ink-mute">
+        口径：程序与 AI 每次真实调用一项能力就记一笔（检索知识库、通过执行接口跑命令等）。
+        你在终端里手敲回车的命令走交互通道，不计入这里。
+      </p>
+
       {/* 功能调用排行（水平条形图） */}
       <div className="set-tool-stats">
         {toolCallStats.length === 0 ? (

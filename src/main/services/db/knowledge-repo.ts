@@ -23,6 +23,7 @@
 
 import type { DatabaseManager } from './database'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
+import { recordToolCall } from './tool-call-log'
 // 导入部分失败必须留痕，否则界面上只剩一个"成功导入 N 条"
 import { logger } from '../log/logger'
 
@@ -176,6 +177,16 @@ export class KnowledgeRepository {
    */
   search(query: string, type?: KnowledgeType, limit: number = DEFAULT_SEARCH_LIMIT): KnowledgeEntry[] {
     const queryKeywords = this.tokenize(query)
+
+    // 设置页「功能调用统计」的唯一记账点。为什么记在这里而不是 kb:search 的 IPC 里：
+    // 所有真检索都过这一层（AI 的 kb_search 工具、MCP 知识工具、各 subagent、命令面板、
+    // 记忆召回），而 IPC 只覆盖其中一条——结果就是"AI 查了不记、用户翻页面猛记"。
+    // 空查询=浏览全部（见上面的注释），那是列表加载不是检索，不记账。
+    // 边界要说准：knowledge-subagent / search-subagent 的 hybridSearch 那一腿走的是
+    // FTS5+向量，不经这里，因此不计入本项（那条路当前不在聊天主链路上）。
+    if (queryKeywords.length > 0) {
+      recordToolCall(this.db, '知识库检索')
+    }
 
     // 候选从库里取，但取多少是有上限的（原来无上限整表进内存，库一大每次搜索都搬全表）
     const rows = type

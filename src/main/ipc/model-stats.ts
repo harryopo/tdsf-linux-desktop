@@ -107,30 +107,9 @@ export function registerModelStatsHandlers(db: DatabaseManager): void {
 // 写入辅助函数（供主进程其他模块调用）
 // ============================================================================
 
-/**
- * 记录一次工具调用（供主进程其他模块调用）
- *
- * 使用场景：
- * - ssh:exec 执行时记录「终端命令执行」
- * - kb:search 执行时记录「知识库检索」
- * - 联网搜索执行时记录「联网搜索」
- * - Skill 调用执行时记录「Skill调用」
- * - 方法论应用执行时记录「方法论应用」
- *
- * @param db 数据库管理器
- * @param toolName 工具名称（与 ModelSettings 显示一致）
- */
-export function recordToolCall(db: DatabaseManager, toolName: string): void {
-  try {
-    if (!db.isAvailable()) return
-    db.prepare('INSERT INTO tool_call_log (toolName, timestamp) VALUES (?, ?)').run(
-      toolName,
-      Date.now()
-    )
-  } catch (err) {
-    logger.warn('IPC.MODEL_STATS', `recordToolCall 失败: ${(err as Error).message}`)
-  }
-}
+// 「工具调用留痕」的写入口已挪到 src/main/services/db/tool-call-log.ts。
+// 原因：记账点必须在所有检索都会经过的那一层（数据层），放在 IPC 旁边只有入口能记，
+// 于是 AI 真的检索知识库一条不记、用户翻一次页面反倒记一笔（用户 2026-10-16 实测）。
 
 /**
  * 记录一条预算告警（供主进程其他模块调用）

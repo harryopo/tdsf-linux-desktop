@@ -32,7 +32,7 @@ import { ElectermSftpManager } from '../services/ssh/electerm-sftp'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
 import { evaluateCommand, LineGate, PTY_ABANDON_LINE } from '../core/command-gate'
-import { recordToolCall } from './model-stats'
+import { recordToolCall } from '../services/db/tool-call-log'
 import { DatabaseManager } from '../services/db/database'
 import { AuditRepo } from '../services/db/audit-repo'
 import { pickExistingFiles, pickSavePath } from '../services/security/dialog-paths'
@@ -360,9 +360,10 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
 
       try {
         const result = await sshManager.exec(safeSessionId, safeCommand)
-        // v2.4 Phase A：记录用户直接通过终端执行命令的工具调用（区别于 LLM 工具调用）
-        // 工具名与 ModelSettings 显示一致，让"功能调用统计"反映真实使用频率
-        // recordToolCall 内部已 try/catch，db 不可用时静默返回
+        // 记一笔「终端命令执行」：这一笔只覆盖走执行接口的命令（AI 工具、MCP、外部调用）。
+        // 用户在终端里手敲回车的那条不经过这里（走的是交互 shell 通道），所以设置页
+        // 这一项不是"你今天敲了多少条命令"。以前这里的注释写成"用户直接通过终端执行"，
+        // 与真实口径相反，正是"知识库 214 / 终端 1"那种看着刺眼的比例的一个来源。
         recordToolCall(DatabaseManager.getInstance(), '终端命令执行')
         return result
       } catch (err) {

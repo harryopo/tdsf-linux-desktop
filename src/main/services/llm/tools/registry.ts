@@ -11,7 +11,7 @@ import type { ToolDefinition } from '@shared/llm-tool-types'
 import type { ToolCallMeta, ToolId } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import type { DatabaseManager } from '../../db/database'
-import { recordToolCall } from '../../../ipc/model-stats'
+import { recordToolCall } from '../../db/tool-call-log'
 
 import { sshExecTool, SSH_EXEC_META } from './ssh-exec'
 import { createTutorialSearchTool, TUTORIAL_SEARCH_META } from './tutorial-search'
