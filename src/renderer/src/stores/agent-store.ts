@@ -69,6 +69,16 @@ export interface AgentMessage {
   isStreaming?: boolean
   /** 是否出错（assistant 消息用，error 内容来自 AgentErrorPayload） */
   isError?: boolean
+  /**
+   * 错误原文（assistant 消息用）
+   *
+   * 以前是把 `[错误] xxx` 拼进 content 尾部。那样有三个后果：
+   * 1. 已经流出来的半截答案和错误混成一段，整块按错误样式渲染，答案跟着变红；
+   * 2. 同一条错误又被 lastError 那条横幅再显示一遍（用户 2026-10-16："agent失败的UI太丑了"）；
+   * 3. content 是发给模型的历史，掺进错误行等于每轮都把报错当上下文再喂一次。
+   * 现在错误单独放这里，content 只装真说过的话。
+   */
+  errorMessage?: string
   /** 错误分类码（来自 AgentErrorPayload.code）：决定那条错误下面给哪个"下一步"按钮 */
   errorCode?: LlmErrorCode
   /** 触发的 Provider ID（assistant 消息用，用于展示） */
@@ -444,8 +454,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
         isError: true,
         // 分类码一起留下：界面按它给"下一步"按钮，光有一段中文错误用户只能重发试试
         errorCode: payload.code,
-        // 错误时追加错误信息到内容末尾（便于用户看到）
-        content: msg.content ? `${msg.content}\n\n[错误] ${payload.message}` : `[错误] ${payload.message}`,
+        // 错误原文单独放，不再拼进 content（见 AgentMessage.errorMessage 的三条后果）
+        errorMessage: payload.message,
       })
       return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
     }),

@@ -1175,6 +1175,8 @@ class SupervisorAgent {
       let reasoningText = ''
       // v2.8：记录每个工具调用的入参（tool-result 失败时沉淀教训需要命令原文）
       const lastToolInputs = new Map<string, string>()
+      /** 流内出现过的第一个 error part（真实成因），见循环后那处判空抛出 */
+      let streamInnerError: unknown = null
       /*
        * 这里原来是一段自制空闲看门狗（每收到一个 part 重置，工具执行期暂停）。
        * 已换成 streamText 的 timeout：同一个职责不该由我们手工维持"记得重置"——
@@ -1187,6 +1189,7 @@ class SupervisorAgent {
           const errPart = (part as { error?: unknown }).error
           const errStr =
             errPart instanceof Error ? `${errPart.name}: ${errPart.message}` : String(errPart)
+          if (streamInnerError === null) streamInnerError = errPart ?? new Error(errStr)
           this.log.error(`流内错误：${errStr.slice(0, 800)}`, { correlationId })
         }
         if (partType === 'text-delta') {
@@ -1293,6 +1296,23 @@ class SupervisorAgent {
       }
 
       // 8. 获取 token 使用（v7：result.usage 是 Promise）
+      /*
+       * 流里见过错、且一个字都没产出 → 把**真实原因**抛出去，不要让它变成通用文案。
+       *
+       * ai-sdk 在这种情形下会把 result.usage / finishReason 这几个 promise 一起 reject 成
+       * "No output generated. Check the stream for errors."，而真实原因（Key 被判无效、
+       * 地址不通、上游 5xx）只在流内的 error part 里露过一次。后果有两头：
+       * 日志里有原因、界面上没有，用户看到的那句话既不是人话也分不了类
+       * （用户 2026-10-16 的截图正是这句英文原文）。
+       *
+       * 只在"没产出"时抛：流内 error 也可能是某个工具调用失败而模型自己绕过去了，
+       * 那种情况有正文，不该被这一下判成整轮失败。
+       */
+      if (streamInnerError !== null && !fullText && !reasoningText) {
+        throw streamInnerError instanceof Error
+          ? streamInnerError
+          : new Error(String(streamInnerError))
+      }
       const usage = await result.usage
       const finishReason = await result.finishReason
       // 逐步明细：末步的 prompt 才是"这一轮真实占用"，各步之和是"这一轮烧掉多少"（计费）

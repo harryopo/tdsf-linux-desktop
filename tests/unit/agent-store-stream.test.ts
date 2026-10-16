@@ -117,15 +117,18 @@ describe('finalizeMessage / markError 的认领规则', () => {
     expect(store().currentCorrelationId).toBe('c-2')
   })
 
-  it('error 把错误文本追加到它自己那条', () => {
+  it('error 单独记在 errorMessage，不污染已经流出来的正文', () => {
     seedStreaming()
     store().appendToken({ correlationId: 'c-1', delta: '写了一半' })
     store().markError({ correlationId: 'c-1', message: '网络断了' } as AgentErrorPayload)
     const msg = store().messages[1]
     expect(msg.isStreaming).toBe(false)
     expect(msg.isError).toBe(true)
-    expect(msg.content).toContain('写了一半')
-    expect(msg.content).toContain('[错误] 网络断了')
+    expect(msg.content).toBe('写了一半')
+    expect(msg.errorMessage).toBe('网络断了')
+    // 旧实现把 "[错误] …" 拼进 content：那块内容会被当错误整片渲染成红字，
+    // 还会作为历史再喂给模型一次。现在正文只装真说过的话。
+    expect(msg.content).not.toContain('[错误]')
     expect(store().lastError).toBe('网络断了')
   })
 })

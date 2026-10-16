@@ -1,5 +1,5 @@
 import { memo, useMemo, useState, type FC } from 'react'
-import { Check, ChevronRight, Clock, Loader2, Pause, Play, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Clock, Loader2, Pause, Play, Sparkles, X } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { AgentStep } from '@shared/models'
 import MarkdownMessage from './MarkdownMessage'
@@ -469,10 +469,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
    *
    * 只渲染"父组件真的传了对应回调"的动作：按钮点了没反应，比没有按钮更让人怀疑软件坏了。
    */
-  const renderErrorNextStep = () => {
+  const renderErrorCard = () => {
     if (!message.isError) return null
     const step = resolveErrorNextStep(message.errorCode)
-    if (!step) return null
     const handlers: Record<ErrorAction, (() => void) | undefined> = {
       settings: onNavigate ? () => onNavigate('/settings/model') : undefined,
       retry: onRetry,
@@ -483,20 +482,29 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
       retry: '重试',
       compress: '压缩上下文',
     }
-    const actions = step.actions.filter((a) => handlers[a])
+    const actions = step ? step.actions.filter((a) => handlers[a]) : []
+    const raw = message.errorMessage ?? ''
     return (
-      <div className="mt-2 flex flex-wrap items-center gap-2 pl-8">
-        <span className="text-caption text-ink-dim">{step.hint}</span>
-        {actions.map((a) => (
-          <button
-            key={a}
-            type="button"
-            onClick={() => handlers[a]?.()}
-            className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-transparent px-2 py-0.5 text-caption text-(--accent-text) transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l1)]"
-          >
-            {labels[a]}
-          </button>
-        ))}
+      <div className="ai-error-card">
+        <AlertTriangle className="ai-error-card__icon" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <div className="ai-error-card__title">{step?.hint ?? '这次回答没完成'}</div>
+          {raw !== '' && <div className="ai-error-card__raw">{raw}</div>}
+          {actions.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {actions.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => handlers[a]?.()}
+                  className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-transparent px-2 py-0.5 text-caption text-(--accent-text) transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l1)]"
+                >
+                  {labels[a]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     )
   }
@@ -562,11 +570,10 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         <div className="ai-card-wrap">
           {/* v2.11：深度思考块置于最终回答上方（对齐 Trae：先思考过程、后答案） */}
           {renderReasoning()}
-          {message.isError ? (
-            <div className="ai-card border-[var(--trae-status-error-surface-l2)] bg-[var(--trae-status-error-surface-l1)] text-(--status-error-text) whitespace-pre-wrap">
-              {message.content}
-            </div>
-          ) : segments.segs.length > 0 ? (
+          {/* 正文只装真说过的话；错误单独一张卡（见 renderErrorCard）。
+              上一版把 `[错误] …` 拼进 content 并整块按错误样式渲染，
+              已经流出来的半截答案会跟着一起变红。 */}
+          {segments.segs.length > 0 ? (
             /* v2.8 穿插渲染：正文分片与工具卡按真实发生顺序交错（命令在流式输出里，
                不再全部堆在消息尾部） */
             <div className="flex flex-col gap-1.5">
@@ -589,7 +596,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                 </div>
               )}
             </div>
-          ) : (
+          ) : message.isStreaming || message.content ? (
             <div className="ai-card">
               {/* 有思考链时不重复显示占位（下方“深度思考”块已有“思考中…”） */}
               {message.isStreaming && !message.reasoning ? '思考中…' : ''}
@@ -597,7 +604,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                 <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
               )}
             </div>
-          )}
+          ) : null}
+          {/* 失败态：一条错误只在这里说一次（流底部那条红色横幅由 MessageList 让位给这里） */}
+          {renderErrorCard()}
         </div>
       </div>
       {renderStepProgress()}
@@ -621,7 +630,6 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
       {message.contextNote && !message.isStreaming && (
         <div className="ai-token-row pl-8 text-caption text-ink-mute">{message.contextNote}</div>
       )}
-      {renderErrorNextStep()}
       {renderActionButtons()}
     </div>
   )

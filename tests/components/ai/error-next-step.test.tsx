@@ -28,7 +28,8 @@ function errorMsg(code: LlmErrorCode | undefined): AgentMessage {
   return {
     id: 'err-1',
     role: 'assistant',
-    content: '[错误] 上游拒绝了这个请求',
+    content: '',
+    errorMessage: '上游拒绝了这个请求',
     timestamp: 1,
     isError: true,
     ...(code ? { errorCode: code } : {}),
@@ -105,10 +106,26 @@ describe('报错行：按钮只在接得到回调时出现', () => {
     expect(onCompress).toHaveBeenCalledTimes(1)
   })
 
-  it('没带 code 的错误行保持原样（不加一行没依据的建议）', () => {
+  it('没带 code 的错误行只说"没完成"，不硬塞建议', () => {
     const { container } = renderRow(errorMsg(undefined), { onRetry: vi.fn() })
-    expect(container.textContent).toContain('[错误]')
+    expect(container.textContent).toContain('这次回答没完成')
+    // 原文还得在：它是排障线索，只是不再当主文案
+    expect(container.textContent).toContain('上游拒绝了这个请求')
     expect(screen.queryByRole('button', { name: '重试' })).toBeNull()
+  })
+
+  it('一条错误只画一遍，且不再往正文里拼 [错误] 前缀', () => {
+    // 用户 2026-10-16 的截图：同一条 "Agent 调用失败（No output generated…）"
+    // 上面出现在消息卡里、下面出现在流底部横幅里，两遍红字。
+    // 现在错误单独放 errorMessage，正文不掺假；横幅由 MessageList 让位。
+    const { container } = renderRow(errorMsg('UNKNOWN'), { onRetry: vi.fn() })
+    const text = container.textContent ?? ''
+    expect(text, '错误原文被重复渲染了').toMatch(/上游拒绝了这个请求/)
+    expect(
+      text.split('上游拒绝了这个请求').length - 1,
+      '同一条错误原文在界面上出现了不止一次',
+    ).toBe(1)
+    expect(text, '正文里不该再有 [错误] 这种拼进去的前缀').not.toContain('[错误]')
   })
 })
 

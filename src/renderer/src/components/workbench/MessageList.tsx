@@ -81,12 +81,19 @@ const MessageList: FC<MessageListProps> = ({
               onCompress={onCompressContext}
             />
           ))}
-          {lastError && !isStreaming && (
-            <div className="flex items-start gap-2 rounded-(--ui-radius-card) border border-error/40 bg-error/10 px-3 py-2 text-sm text-error-text">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-              <span>{lastError}</span>
-            </div>
-          )}
+          {/*
+            同一条错误只说一次。markError 做两件事：把错误挂到那条消息上（消息里自己画失败卡），
+            并记一份全局 lastError。两个出口都画，就是用户 2026-10-16 截图里上下两遍一样的红字。
+            所以这条横幅只兜"错误没落到任何一条消息上"的那种失败（一条消息都还没建起来就报错）。
+          */}
+          {lastError &&
+            !isStreaming &&
+            !liveMessages.some((m) => m.isError && m.errorMessage === lastError) && (
+              <div className="flex items-start gap-2 rounded-(--ui-radius-card) border border-error/40 bg-error/10 px-3 py-2 text-sm text-error-text">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>{lastError}</span>
+              </div>
+            )}
           {/* v2.11 任务拆解可视化：PAOR 计划步骤卡 */}
           {paorPlan && (
             <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />
