@@ -113,7 +113,7 @@ export function KnowledgeDetailSidebar({
             </div>
             <div className="kb-conf__info">
               <div className="kb-conf__label">综合置信度评分</div>
-              <div className="kb-conf__sources">基于真实使用成功率</div>
+              <div className="kb-conf__sources">按案例结果与读者答复（有帮助/没帮助）逐次累积</div>
             </div>
           </div>
         </div>

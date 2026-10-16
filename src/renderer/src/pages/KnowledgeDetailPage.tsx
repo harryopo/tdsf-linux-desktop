@@ -25,7 +25,7 @@
  *       全实色 hex 边框（背景 rgba 允许），shadow 用 var(--trae-shadow-card)
  * 无障碍：button type="button" + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -47,9 +47,14 @@ export function KnowledgeDetailPage() {
   const navigate = useNavigate()
 
   const [activeSection, setActiveSection] = useState<string>('sec-1')
-  const [feedback, setFeedback] = useState<'helpful' | 'unhelpful' | null>(null)
   /** 编辑按钮引用 —— Modal 关闭后焦点返回此按钮（无障碍） */
   const editButtonRef = useRef<HTMLButtonElement>(null)
+
+  /** 按 URL :id 取一次条目（反馈落库后要拿回库里那一份，界面显示的答复不是本地猜的） */
+  const fetchEntry = useCallback(async (): Promise<KnowledgeEntry | null> => {
+    if (typeof window === 'undefined' || !window.electronAPI?.kbGet) return null
+    return await window.electronAPI.kbGet(id ?? '')
+  }, [id])
 
   // ===== 真实数据状态（M4 Task 1：改用 kbGet(id) 精确查询，替代 kbExport 全量+find） =====
   const [realEntry, setRealEntry] = useState<KnowledgeEntry | null>(null)
@@ -77,7 +82,7 @@ export function KnowledgeDetailPage() {
         return
       }
       try {
-        const found = await window.electronAPI.kbGet(id ?? '')
+        const found = await fetchEntry()
         if (cancelled) return
         if (found) {
           setRealEntry(found)
@@ -95,9 +100,11 @@ export function KnowledgeDetailPage() {
     }
     loadRealEntry()
     return () => { cancelled = true }
-  }, [id])
+  }, [id, fetchEntry])
 
   // ===== 字段来源：只认真实条目，缺字段就留空，绝不用示例值补齐 =====
+  /** 用户答复读库里那一行，不用本地 state：重开页面还得看得见自己答过什么 */
+  const feedback = realEntry?.feedback ?? null
   const displayTitle = realEntry?.title ?? ''
   const displayProblem = realEntry?.problem ?? ''
   const displayRootCause = realEntry?.rootCause ?? ''
@@ -226,26 +233,23 @@ export function KnowledgeDetailPage() {
   }
 
   /**
-   * 反馈持久化（M4 Task 1：从仅本地 state 升级为 kbUpdate 持久化）
+   * 用户答复落库（#134：这第一次是 successRate 的生产者）
    *
-   * 调用 kbUpdate(id, { feedback }) 持久化用户反馈。
-   * 成功后更新本地 state；失败时降级为本地 state（不阻塞 UI）。
-   *
-   * 类型说明：KnowledgeEntry 无 feedback 字段（不改 @shared/models），
-   * 此处用类型断言将 feedback 字段附加到 Partial<KnowledgeEntry>。
-   * 注意：当前 KnowledgeRepository.serialize 不处理 feedback 字段（数据库表无对应列），
-   * kbUpdate 会返回 true 但 feedback 不会真正写入磁盘 —— 需后续 schema 迁移补齐。
-   * UI 行为正确（本地 state 立即响应），符合"持久化失败降级为本地 state"约束。
+   * 写完立刻重读一次条目：按钮亮起来、侧栏成功率变动，显示的都是库里那行的值。
+   * 以前这里只 setFeedback 本地 state，注释还写着"持久化失败降级为本地 state"——
+   * 真相是库里根本没有这一列，每次都"失败"，于是每次重开页面都像没答过。
    */
   const handleFeedback = async (value: 'helpful' | 'unhelpful') => {
-    // 乐观更新：立即反映本地 state
-    setFeedback(value)
     if (!realEntry) return
     try {
-      await window.electronAPI.kbUpdate(realEntry.id, { feedback: value } as Partial<KnowledgeEntry>)
+      const ok = await window.electronAPI.kbUpdate(realEntry.id, { feedback: value })
+      if (!ok) throw new Error('条目不存在或写入被拒')
+      const fresh = await fetchEntry()
+      if (fresh) setRealEntry(fresh)
+      toast.success(value === 'helpful' ? '已记录：这条有帮助' : '已记录：这条没帮助')
     } catch (err) {
-      // 降级：本地 state 已更新，仅记录错误（不阻塞 UI、不弹错误消息）
-      console.error('[KnowledgeDetailPage] 反馈持久化失败，降级为本地 state', err)
+      // 没写进去就说没写进去，不许让按钮亮起来当作已记录
+      toast.error(`反馈没保存：${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

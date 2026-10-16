@@ -71,6 +71,17 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 2,
+    description: 'knowledge_entries 补 feedback（用户"有没有帮助"的答复要落盘）',
+    up: (db) => {
+      // 界面上的反馈按钮自 v2.6 就在按，但库里没有这一列：kbUpdate 返回 true、
+      // 字段被 serialize 丢掉，重开页面就回到"没反馈过"，成功率也没有因此动过。
+      if (!hasColumn(db, 'knowledge_entries', 'feedback')) {
+        db.exec('ALTER TABLE knowledge_entries ADD COLUMN feedback TEXT')
+      }
+    },
+  },
 ]
 
 /** 迁移清单的最高版本；建库后 user_version 应当等于它 */

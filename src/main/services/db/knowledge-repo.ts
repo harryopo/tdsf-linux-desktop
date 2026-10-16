@@ -285,10 +285,10 @@ export class KnowledgeRepository {
         .prepare(
           `INSERT INTO knowledge_entries
            (id, type, title, problem, rootCause, commands, rollbackCommands,
-            verification, keywords, tags, successRate, useCount, embedding,
+            verification, keywords, tags, successRate, feedback, useCount, embedding,
             createdAt, updatedAt)
            VALUES (@id, @type, @title, @problem, @rootCause, @commands, @rollbackCommands,
-                   @verification, @keywords, @tags, @successRate, @useCount, @embedding,
+                   @verification, @keywords, @tags, @successRate, @feedback, @useCount, @embedding,
                    @createdAt, @updatedAt)`
         )
         .run(serialized)
@@ -324,11 +324,23 @@ export class KnowledgeRepository {
            SET type=@type, title=@title, problem=@problem, rootCause=@rootCause,
                commands=@commands, rollbackCommands=@rollbackCommands,
                verification=@verification, keywords=@keywords, tags=@tags,
-               successRate=@successRate, useCount=@useCount, embedding=@embedding,
+               successRate=@successRate, feedback=@feedback, useCount=@useCount, embedding=@embedding,
                updatedAt=@updatedAt
            WHERE id=@id`
         )
         .run(serialized)
+      /*
+       * 用户这一票第一次成了 successRate 的生产者（#134）。
+       *
+       * 以前 updateSuccessRate() 全仓零调用：界面上的"有帮助/没帮助"按下去只改本地 useState，
+       * 详情页显示的成功率从来没人写。现在答复落列（schema v2），并把这一票按加权平均并进去。
+       *
+       * 教程条目不参与：它这一列存的是"阅读时长/60"的存储层 hack（详情页为此专门不显示置信度），
+       * 再混进答复比例就得到一个既不是时长也不是成功率的数。
+       */
+      if (merged.feedback !== existing.feedback && merged.type !== 'tutorial') {
+        this.updateSuccessRate(id, merged.feedback === 'helpful')
+      }
       return true
     } catch {
       return false
@@ -339,8 +351,7 @@ export class KnowledgeRepository {
    * 删除知识条目
    * @param id 条目 ID
    * @returns true 表示删除成功
-   */
-  delete(id: string): boolean {
+   */  delete(id: string): boolean {
     try {
       const result = this.db.prepare('DELETE FROM knowledge_entries WHERE id = ?').run(id)
       return result.changes > 0
@@ -675,6 +686,7 @@ export class KnowledgeRepository {
       keywords: JSON.stringify(entry.keywords),
       tags: JSON.stringify(entry.tags),
       successRate: entry.successRate,
+      feedback: entry.feedback ?? null,
       useCount: entry.useCount,
       embedding: entry.embedding ? JSON.stringify(entry.embedding) : null,
       createdAt: entry.createdAt,
@@ -700,6 +712,9 @@ export class KnowledgeRepository {
       keywords: safeParseArray(row.keywords),
       tags: safeParseArray(row.tags),
       successRate: row.successRate,
+      // 库里这一列可能装着历史脏值（旧版本没有这列、或手工改过库），
+      // 只认两个答复值，别的按"没反馈过"处理，不让界面拿到一个显示不出来的字符串。
+      feedback: row.feedback === 'helpful' || row.feedback === 'unhelpful' ? row.feedback : undefined,
       useCount: row.useCount,
       embedding: row.embedding ? safeParseArray(row.embedding) as unknown as number[] : undefined,
       createdAt: row.createdAt,
@@ -769,6 +784,7 @@ interface KnowledgeRow {
   keywords: string
   tags: string
   successRate: number
+  feedback: string | null
   useCount: number
   embedding: string | null
   createdAt: number
@@ -788,6 +804,7 @@ interface SerializedKnowledgeRow {
   keywords: string
   tags: string
   successRate: number
+  feedback: string | null
   useCount: number
   embedding: string | null
   createdAt: number

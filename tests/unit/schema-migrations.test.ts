@@ -47,6 +47,24 @@ function createV0Database(db: Db): void {
       createdAt INTEGER NOT NULL,
       updatedAt INTEGER NOT NULL
     );
+    -- knowledge_entries 是最老的那张表，v0 库里必然存在；这里故意不带 feedback 列
+    CREATE TABLE knowledge_entries (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      problem TEXT NOT NULL,
+      rootCause TEXT,
+      commands TEXT NOT NULL,
+      rollbackCommands TEXT,
+      verification TEXT,
+      keywords TEXT NOT NULL,
+      tags TEXT NOT NULL,
+      successRate REAL NOT NULL DEFAULT 0,
+      useCount INTEGER NOT NULL DEFAULT 0,
+      embedding TEXT,
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    );
   `)
   writeSchemaVersion(db, 0)
 }
@@ -94,7 +112,23 @@ describe('applyMigrations — v0 老库补齐', () => {
     expect(hasColumn(db, 'decision_cards', 'serverId')).toBe(true)
     expect(hasColumn(db, 'decision_cards', 'durationMs')).toBe(true)
     expect(hasColumn(db, 'agent_memories', 'embedding')).toBe(true)
+    expect(hasColumn(db, 'knowledge_entries', 'feedback')).toBe(true)
     expect(readSchemaVersion(db)).toBe(TARGET_SCHEMA_VERSION)
+  })
+
+  it('补列之后老库里的答复能读写（反馈这条功能要靠这列活着）', () => {
+    createV0Database(db)
+    db.prepare(
+      `INSERT INTO knowledge_entries (id, type, title, problem, commands, keywords, tags, successRate, useCount, createdAt, updatedAt)
+       VALUES ('kb-1', 'incident_case', '磁盘满', 'df 打满', '[]', '[]', '[]', 0, 0, 1, 1)`
+    ).run()
+
+    applyMigrations(db)
+
+    db.prepare(`UPDATE knowledge_entries SET feedback = 'helpful' WHERE id = 'kb-1'`).run()
+    const row = db.prepare(`SELECT feedback, successRate FROM knowledge_entries WHERE id = 'kb-1'`)
+      .get() as { feedback: string | null; successRate: number }
+    expect(row.feedback).toBe('helpful')
   })
 
   it('补列不丢已有数据', () => {
@@ -133,6 +167,7 @@ describe('applyMigrations — 幂等', () => {
     db.exec(`
       CREATE TABLE decision_cards (id TEXT PRIMARY KEY, serverId TEXT, durationMs INTEGER);
       CREATE TABLE agent_memories (id TEXT PRIMARY KEY, embedding TEXT);
+      CREATE TABLE knowledge_entries (id TEXT PRIMARY KEY, feedback TEXT);
     `)
 
     const result = applyMigrations(db)
@@ -145,6 +180,7 @@ describe('applyMigrations — 幂等', () => {
     db.exec(`
       CREATE TABLE decision_cards (id TEXT PRIMARY KEY, serverId TEXT, durationMs INTEGER);
       CREATE TABLE agent_memories (id TEXT PRIMARY KEY, embedding TEXT);
+      CREATE TABLE knowledge_entries (id TEXT PRIMARY KEY, feedback TEXT);
     `)
     applyMigrations(db)
     writeSchemaVersion(db, TARGET_SCHEMA_VERSION + 10)

@@ -397,6 +397,7 @@ export class DatabaseManager {
         keywords TEXT NOT NULL,
         tags TEXT NOT NULL,
         successRate REAL NOT NULL DEFAULT 0,
+        feedback TEXT,
         useCount INTEGER NOT NULL DEFAULT 0,
         embedding TEXT,
         createdAt INTEGER NOT NULL,
