@@ -13,6 +13,7 @@ import {
   Activity, TrendingUp, Database, FileText, Fingerprint, Cpu, Zap,
 } from 'lucide-react'
 import type { EvidenceSource } from './EvidenceRadar'
+import { evidenceWeightPercent } from '@shared/credibility'
 
 interface PCR5ResultProps {
   /** 6 源证据数据 */
@@ -34,10 +35,13 @@ const SOURCE_ICONS = [
 ]
 
 /**
- * 进度条相对宽度（基于满刻度 0.30）。
+ * 进度条相对宽度：满刻度从 shared/credibility 取
+ *
+ * 原来这里除以写死的 0.3，而画同一份权重的雷达图早已改成 1.0——
+ * 同一个 0.6 在两张图上一个显示 60%、一个显示满格，两张图并排放着读数不可比。
  */
 function getBarWidth(weight: number): string {
-  return `${Math.min((weight / 0.3) * 100, 100)}%`
+  return `${evidenceWeightPercent(weight)}%`
 }
 
 /**

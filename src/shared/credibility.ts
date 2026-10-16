@@ -163,3 +163,20 @@ export function applySourcePrior(quality: number, prior: number): number {
   const p = Number.isFinite(prior) ? Math.min(1, Math.max(0, prior)) : 0
   return q * p
 }
+
+/**
+ * 证据权重的满刻度（0-1 的置信度，所以满刻度就是 1）
+ *
+ * 为什么要有这个单源：雷达图与 PCR5 权重条画的是**同一份** weight，
+ * 却各自写死过刻度——雷达图 2026-10 已改成 1.0（原 0.30 会让高置信源溢出封顶、
+ * 低权重源塌缩成点），PCR5 那六条横条到 2026-10-16 还除以 0.3。
+ * 于是同一个 0.6 在两张图上一个显示 60%、一个显示满格，读数不可比。
+ * 两张图都必须从这里取，别再各写一个数。
+ */
+export const EVIDENCE_WEIGHT_FULL_SCALE = 1
+
+/** 权重 → 百分比宽度（超过满刻度按 100% 截，负值/非数按 0） */
+export function evidenceWeightPercent(weight: number): number {
+  const w = Number.isFinite(weight) ? Math.max(0, weight) : 0
+  return Math.min((w / EVIDENCE_WEIGHT_FULL_SCALE) * 100, 100)
+}

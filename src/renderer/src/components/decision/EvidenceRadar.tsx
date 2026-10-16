@@ -10,6 +10,7 @@
  * 实现：纯 SVG 直接绘制（不引入 chart 库），含 radar-hex 入场动画。
  */
 import { useEffect, useState } from 'react'
+import { EVIDENCE_WEIGHT_FULL_SCALE } from '@shared/credibility'
 
 /** 六源证据权重数据 */
 export interface EvidenceSource {
@@ -59,9 +60,13 @@ const HEX_INNER = [
   { x: 69.79, y: 78.33 },
 ]
 
-/** 满刻度值（v2.6：权重是 0-1 的置信度，满刻度对齐 1.0；
- * 原 0.30 会让高置信源溢出封顶、低权重源塌缩成点） */
-const FULL_SCALE = 1
+/**
+ * 满刻度：与 PCR5 权重条共用 shared/credibility 里的那一个数。
+ *
+ * 两张图画的是同一份 weight，以前各写各的刻度（这里 1.0、那里 0.3），
+ * 同一个 0.6 一边显示 60%、一边显示满格，读数不可比。刻度必须单源。
+ */
+const FULL_SCALE = EVIDENCE_WEIGHT_FULL_SCALE
 
 /**
  * 根据权重计算数据点坐标（沿轴线性插值）。
