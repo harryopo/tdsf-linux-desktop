@@ -144,6 +144,9 @@ describe('LiveMessageRow — assistant 消息', () => {
               input: 'nginx 优化',
               done: true,
               ok: true,
+              // 真信封里检索工具自己带 count（见 supervisor 的 tool-result 分支），
+              // 界面显示的条数就是这个数，不是从 output 文本里数出来的
+              count: 2,
               output: '1. [KB-021] Nginx连接数优化指南\n2. [KB-088] P99延迟排查',
             },
           ],
@@ -152,17 +155,17 @@ describe('LiveMessageRow — assistant 消息', () => {
     )
     // 折叠行：中文名 + 条数徽章；不得出现终端 $ 提示符
     expect(screen.getByText('检索知识库')).toBeInTheDocument()
-    expect(screen.getByText('2 条匹配')).toBeInTheDocument()
+    expect(screen.getByText('2 条结果')).toBeInTheDocument()
     expect(screen.queryByText('$')).toBeNull()
     // 完成后默认收起：结果不可见
     expect(screen.queryByText(/KB-021/)).toBeNull()
     // 展开后可见查询与结果
     fireEvent.click(screen.getByRole('button', { name: /检索知识库/ }))
-    expect(screen.getByText(/查询: /)).toBeInTheDocument()
+    expect(screen.getByText(/查询/)).toBeInTheDocument()
     expect(screen.getByText(/KB-021/)).toBeInTheDocument()
   })
 
-  it('7.2 检索无结果时徽章显示“无结果”', () => {
+  it('7.2 工具报了 count:0 才说"无结果"', () => {
     render(
       <LiveMessageRow
         message={makeAssistant({
@@ -173,6 +176,7 @@ describe('LiveMessageRow — assistant 消息', () => {
               input: '磁盘',
               done: true,
               ok: true,
+              count: 0,
               output: '未在知识库找到与"磁盘"相关的条目',
             },
           ],
@@ -180,6 +184,53 @@ describe('LiveMessageRow — assistant 消息', () => {
       />
     )
     expect(screen.getByText('无结果')).toBeInTheDocument()
+  })
+
+  it('7.3 没有 count 的卡片只说"完成"，不再把非编号列表的输出判成"无结果"', () => {
+    // skill_match 的 output 是「决策 … | 原因 | 预计省 N token」一行散文。
+    // 旧实现用正则数 "1. 2." 行，数到 0 就报"无结果"——明明匹配到了手册。
+    render(
+      <LiveMessageRow
+        message={makeAssistant({
+          toolEvents: [
+            {
+              toolCallId: 'sk1',
+              toolName: 'skill_match',
+              input: 'Nginx 调优手册',
+              done: true,
+              ok: true,
+              output: '决策 ai-plus | 关键词命中 | 预计省 1200 token',
+            },
+          ],
+        })}
+      />
+    )
+    expect(screen.getByText('匹配技能')).toBeInTheDocument()
+    expect(screen.getByText('完成')).toBeInTheDocument()
+    expect(screen.queryByText('无结果'), '没发生过"无结果"这回事').toBeNull()
+  })
+
+  it('7.4 MCP 工具的 JSON 入参按代码排版，标签不写"查询"', () => {
+    render(
+      <LiveMessageRow
+        message={makeAssistant({
+          toolEvents: [
+            {
+              toolCallId: 'mcp1',
+              toolName: 'filesystem__read_file',
+              input: '{"path":"/etc/hosts","limit":10}',
+              done: true,
+              ok: true,
+              output: '127.0.0.1 localhost',
+            },
+          ],
+        })}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /filesystem · read_file/ }))
+    expect(screen.getByText('入参')).toBeInTheDocument()
+    expect(screen.queryByText(/查询/), 'MCP 不是检索，别写"查询"').toBeNull()
+    expect(screen.getByText('{"path":"/etc/hosts","limit":10}')).toBeInTheDocument()
   })
 
   it('8. stepState 渲染 7 步工作流标签；底部按钮触发 onNavigate', () => {

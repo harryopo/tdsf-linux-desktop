@@ -51,7 +51,8 @@
   .ai-term-cursor { animation: none; }
   .ai-fill-bar > div { animation: none; }
   .ai-token-pop { animation: none; }
-  .shimmer-text { animation: none; -webkit-text-fill-color: var(--trae-text-secondary, var(--trae-text-secondary)); }
+  /* 原先这里有一条 .shimmer-text 的减弱动效——那个类名早已并进 MarkdownMessage.css 的
+     .ai-shimmer-text，选择器对不上等于这条从没生效；减弱动效由那个类所在文件就近管 */
   .mini-bar-fill { transition: none; }
   .tk-pop { transition: none; }
 }

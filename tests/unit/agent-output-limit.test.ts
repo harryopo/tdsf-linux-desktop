@@ -89,18 +89,42 @@ describe('上限口径单源', () => {
     )
   })
 
-  it('六个出口全部改走带标记的截断（模型 3 个 + 文件 1 个 + 界面预览 2 个 + 提示词 1 个）', () => {
+  /**
+   * 出口对账按"哪个具名上限被用了几次"来量，不钉 `limitToolTextOnly(outStr, ...)` 这种
+   * 带局部变量名的原话——重构时改个变量名不该假红（真红的是某个出口不再走带标记的截断）。
+   * 少了哪一档、哪一档少了一个出口，这条照样红，并且当场说出是哪个上限。
+   */
+  it('每个具名上限都真的接在截断调用上（按调用点计数，不看变量名）', () => {
     const src = readFileSync('src/main/core/agent/supervisor.ts', 'utf8')
-    for (const needle of [
-      'limitToolTextOnly(r.stdout, TOOL_STDOUT_CHAR_LIMIT',
-      'limitToolTextOnly(r.stderr, TOOL_STDERR_CHAR_LIMIT',
-      'limitToolText(safe, TOOL_STDOUT_CHAR_LIMIT',
-      'limitToolTextOnly(outStr, TOOL_EVENT_PREVIEW_CHAR_LIMIT',
-      'limitToolTextOnly(inputStr, TOOL_INPUT_PREVIEW_CHAR_LIMIT',
-      'limitToolTextOnly(top.content, PROMPT_SNIPPET_CHAR_LIMIT',
-      'limitToolTextOnly(output, PROMPT_SNIPPET_CHAR_LIMIT',
-    ]) {
-      expect(src, `缺接线：${needle}`).toContain(needle)
+    const callSites = (limit: string): number =>
+      [...src.matchAll(new RegExp(`limitToolText(?:Only)?\\s*\\([^)]*\\b${limit}\\b`, 'g'))].length
+
+    const budgetSites = [
+      // 模型侧 3 处命令 stdout + 1 处文件读取
+      ['TOOL_STDOUT_CHAR_LIMIT', 4],
+      // 命令 stderr 两处（只读 / 写入通道各一）
+      ['TOOL_STDERR_CHAR_LIMIT', 2],
+      // 界面预览：入参 1 处 + 结果 1 处
+      ['TOOL_INPUT_PREVIEW_CHAR_LIMIT', 1],
+      ['TOOL_EVENT_PREVIEW_CHAR_LIMIT', 1],
+      // 进提示词的片段：技能手册 + 通用输出各 1 处
+      ['PROMPT_SNIPPET_CHAR_LIMIT', 2],
+    ] as const
+
+    for (const [limit, min] of budgetSites) {
+      expect(callSites(limit), `supervisor 里走 ${limit} 的截断调用点少于 ${min} 个`).toBeGreaterThanOrEqual(min)
     }
+  })
+
+  it('阳性对照：把上限从调用里摘掉，上面那条必须能抓到', () => {
+    // 这条不读文件，只证明那个正则真的会因为"调用不再带具名上限"而不计数
+    const stripped = 'const x = limitToolTextOnly(view.output, 4000, "输出")'
+    expect(/limitToolText(?:Only)?\s*\([^)]*\bTOOL_EVENT_PREVIEW_CHAR_LIMIT\b/.test(stripped)).toBe(false)
+    // 而正常写法必须计数（否则这条门是空的）
+    expect(
+      /limitToolText(?:Only)?\s*\([^)]*\bTOOL_EVENT_PREVIEW_CHAR_LIMIT\b/.test(
+        'limitToolTextOnly(view.output, TOOL_EVENT_PREVIEW_CHAR_LIMIT, 输出)',
+      ),
+    ).toBe(true)
   })
 })

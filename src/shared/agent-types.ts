@@ -424,6 +424,15 @@ export interface AgentToolEventPayload {
   ok?: boolean
   /** 输出（output 阶段为增量块；result 阶段为摘要，已截断） */
   output?: string
+  /**
+   * 结果条数（result 阶段，由工具自己报，不是界面从摘要文本里猜的）。
+   *
+   * 检索类工具（kb_search / tutorial_search / memory_recall）的返回体本来就带
+   * `count`，此前只把摘要文本推给前端、前端再用正则数 `1. 2. 3.` 行——
+   * 于是技能匹配、工具装配这类输出不是编号列表的卡片被判成"无结果"，
+   * 说的是界面上从没发生过的事。没有这个字段就只显示成/败，不显示数字。
+   */
+  count?: number
   /** 会话 ID（可选，与其它 agent 事件一致） */
   sessionId?: string
 }

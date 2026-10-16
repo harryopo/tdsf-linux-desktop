@@ -62,6 +62,22 @@ describe('appendToolEvent：call / output / result 配对', () => {
     expect(events[0].output).toBe('/dev/sda1 40G')
   })
 
+  it('工具自报的 count 一路带到卡片上（界面徽标的条数只认这个数）', () => {
+    useAgentStore.setState({
+      messages: [assistant({ content: '' })],
+      isStreaming: true,
+      currentCorrelationId: 'c-1',
+    })
+    store().appendToolEvent({ correlationId: 'c-1', toolCallId: 'tk', phase: 'call', toolName: 'kb_search', input: '内存' })
+    store().appendToolEvent({ correlationId: 'c-1', toolCallId: 'tk', phase: 'result', toolName: 'kb_search', ok: true, count: 3, output: '1. a\n2. b\n3. c' })
+    expect(byId('a1').toolEvents?.[0].count, 'count 丢了，卡片就只能显示"完成"').toBe(3)
+
+    // 没报 count 的工具（技能匹配/工具装配）保持 undefined，界面据此不显示数字
+    store().appendToolEvent({ correlationId: 'c-1', toolCallId: 'ts', phase: 'call', toolName: 'skill_match', input: '手册' })
+    store().appendToolEvent({ correlationId: 'c-1', toolCallId: 'ts', phase: 'result', toolName: 'skill_match', ok: true, output: '决策 ai-plus' })
+    expect(byId('a1').toolEvents?.[1].count).toBeUndefined()
+  })
+
   it('output 早于 call 到达时先建记录，call 补入参不重复建', () => {
     useAgentStore.setState({
       messages: [assistant({ content: '' })],

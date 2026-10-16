@@ -1,63 +1,56 @@
-import { memo, useMemo, useState, type FC, type JSX } from 'react'
-import {
-  Activity, BookOpen, Check, ChevronRight, Clock, Layers, Loader2, Pause, Play,
-  Search, Sparkles, Terminal as TerminalIcon, Wrench, X,
-} from 'lucide-react'
+import { memo, useMemo, useState, type FC } from 'react'
+import { Check, ChevronRight, Clock, Loader2, Pause, Play, Sparkles, X } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { AgentStep } from '@shared/models'
 import MarkdownMessage from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
+import {
+  TOOL_KIND_INPUT_LABELS,
+  TOOL_KIND_LABELS,
+  TOOL_KIND_RUNNING_LABELS,
+  identifyTool,
+  isCommandKind,
+  isStructuredInput,
+} from './tool-identity'
 import { resolveErrorNextStep, type ErrorAction } from '../error-next-step'
 import './MarkdownMessage.css'
 
-/** 工具名 → 中文展示名（v2.4：真实工具执行可视化） */
-function toolDisplayName(name: string): string {
-  const map: Record<string, string> = {
-    ssh_readonly: '只读诊断命令',
-    ssh_write: '写操作命令',
-    ssh_journal_follow: '实时日志追踪',
-    sftp_read: '读远程文件',
-    kb_search: '检索知识库',
-    tutorial_search: '检索教程',
-    memory_recall: '回忆长期记忆',
-    skill_match: '匹配技能',
-    monitor_get: '采集监控',
-    tool_route: '工具装配',
-    thinking_route: '思考强度',
-  }
-  return map[name] ?? name
-}
+/**
+ * 工具名 → 身份（图标 / 中文名 / 类别）的唯一入口在 ./tool-identity.ts。
+ * 这里以前自己抄了一份名字表、一个"命令类"集合和一个 switch 图标分支，
+ * 主进程每加一个工具就要在三处跟着改，漏一处界面上就是英文原名
+ * （`monitor_get` 那一条连名字都是错的，真名 monitor_get_data，从没命中过）。
+ */
 
-/** 命令类工具（渲染终端命令卡）；其余一律按检索类折叠行渲染（v2.5；v2.9 抩写命令/日志追踪） */
-const COMMAND_TOOLS = new Set(['ssh_readonly', 'ssh_write', 'ssh_journal_follow'])
-
-/** 检索类工具图标（设计稿 Panel B/C/D：brand 色小图标） */
-function searchToolIcon(name: string): JSX.Element {
-  const cls = 'size-3 text-(--accent-text)'
-  switch (name) {
-    case 'kb_search':
-      return <Layers className={cls} />
-    case 'tutorial_search':
-      return <BookOpen className={cls} />
-    case 'skill_match':
-      return <Wrench className={cls} />
-    case 'tool_route':
-      return <Wrench className={cls} />
-    case 'thinking_route':
-      return <Sparkles className={cls} />
-    case 'monitor_get':
-      return <Activity className={cls} />
-    case 'sftp_read':
-      return <BookOpen className={cls} />
-    default:
-      return <Search className={cls} />
-  }
-}
-
-/** 从检索输出中估算结果条数（summary 为 "1. [..] ..." 每行一条） */
-function countSearchResults(output: string | undefined): number {
-  if (!output) return 0
-  return output.split('\n').filter((l) => /^\s*\d+\.\s/.test(l)).length
+/**
+ * 复制到剪贴板的小按钮（命令输出 / 工具结果都用得上）。
+ *
+ * 环境拿不到剪贴板时（navigator.clipboard 不存在或被拒）干脆不画——
+ * 画一个点了没反应的按钮，比没有按钮更让人觉得软件坏了。
+ */
+const CopyChip: FC<{ text: string }> = ({ text }) => {
+  const [copied, setCopied] = useState(false)
+  const canCopy = typeof navigator !== 'undefined' && Boolean(navigator.clipboard?.writeText)
+  if (!canCopy) return null
+  return (
+    <button
+      type="button"
+      className="ai-tool-copy"
+      aria-label="复制到剪贴板"
+      onClick={() => {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          })
+          // 写失败就不动：不谎报"已复制"
+          .catch(() => setCopied(false))
+      }}
+    >
+      {copied ? '已复制' : '复制'}
+    </button>
+  )
 }
 
 /** Agent 工作流 7 步骤有序列表 */
@@ -314,8 +307,11 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
    * - 检索类（kb_search / tutorial_search 等）：设计稿 Panel C 式折叠行
    */
   const renderToolCard = (evt: NonNullable<AgentMessage['toolEvents']>[number]) => {
+    const identity = identifyTool(evt.toolName)
+    const KindIcon = identity.icon
+
     // 命令类 → 终端命令卡
-    if (COMMAND_TOOLS.has(evt.toolName)) {
+    if (isCommandKind(identity.kind)) {
       return (
         <div key={evt.toolCallId} className="ai-tool-exec">
           <div className="ai-tool-exec-head">
@@ -328,9 +324,10 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             ) : (
               <Loader2 className="size-3.5 animate-spin text-(--accent-text)" />
             )}
-            <TerminalIcon className="size-3.5 text-(--accent-text)" />
-            <span className="ai-tool-exec-name">{toolDisplayName(evt.toolName)}</span>
-            {!evt.done && <span className="ai-tool-exec-status">执行中…</span>}
+            <KindIcon className="size-3.5 text-(--accent-text)" />
+            <span className="ai-tool-exec-name">{identity.label}</span>
+            <span className="ai-tool-kind">{TOOL_KIND_LABELS[identity.kind]}</span>
+            {!evt.done && <span className="ai-tool-exec-status">{TOOL_KIND_RUNNING_LABELS[identity.kind]}</span>}
             {evt.done && (
               <span className={`ai-tool-exec-pill ${evt.ok ? 'is-ok' : 'is-fail'}`}>
                 {evt.ok ? '执行成功' : '执行失败'}
@@ -346,20 +343,26 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           {evt.output && (
             <pre className={`ai-tool-exec-output ${evt.done && !evt.ok ? 'is-error' : ''}`}>{evt.output}</pre>
           )}
+          {evt.output && <CopyChip text={evt.output} />}
         </div>
       )
     }
 
-    // 检索类 → 设计稿 Panel C 式折叠行（执行中展开，完成后默认收起）
+    // 其余类别 → 设计稿 Panel C 式折叠行（执行中展开，完成后默认收起）
     const expanded = toolOpenMap[evt.toolCallId] ?? !evt.done
-    const resultCount = evt.done && evt.ok ? countSearchResults(evt.output) : 0
+    // 条数只认工具自己报的那个（result.count）；没有就不显示数字。
+    // 以前在这里用正则数摘要文本的 "1. 2. 3." 行，于是技能匹配、工具装配
+    // 这些输出不是编号列表的卡片全被判成"无结果"——界面在说没发生过的事。
+    const knownCount = evt.done && evt.ok && typeof evt.count === 'number' ? evt.count : null
     const badge = !evt.done
-      ? '检索中…'
+      ? TOOL_KIND_RUNNING_LABELS[identity.kind]
       : !evt.ok
         ? '失败'
-        : resultCount > 0
-          ? `${resultCount} 条匹配`
-          : '无结果'
+        : knownCount === null
+          ? '完成'
+          : knownCount > 0
+            ? `${knownCount} 条结果`
+            : '无结果'
     return (
       <div key={evt.toolCallId} className="ai-tool-search">
         <button
@@ -369,15 +372,16 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             setToolOpenMap((m) => ({ ...m, [evt.toolCallId]: !expanded }))
           }
         >
-          {searchToolIcon(evt.toolName)}
-          <span className="text-ink">{toolDisplayName(evt.toolName)}</span>
+          <KindIcon className="size-3 text-(--accent-text)" />
+          <span className="ai-tool-name text-ink">{identity.label}</span>
+          <span className="ai-tool-kind">{TOOL_KIND_LABELS[identity.kind]}</span>
           <span
             className={`ai-tool-badge ${
               !evt.done
                 ? 'ai-tool-badge-brand'
                 : !evt.ok
                   ? 'ai-tool-badge-error'
-                  : resultCount > 0
+                  : knownCount !== null && knownCount > 0
                     ? 'ai-tool-badge-brand'
                     : ''
             }`}
@@ -392,13 +396,21 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         {expanded && (
           <div className="ai-tool-search-body">
             {evt.input && (
-              <div className="ai-tool-search-query">查询: “{evt.input}”</div>
+              <div className="ai-tool-search-query">
+                <span className="ai-tool-io-label">{TOOL_KIND_INPUT_LABELS[identity.kind]}</span>
+                {isStructuredInput(evt.input) ? (
+                  <code className="ai-tool-io-code">{evt.input}</code>
+                ) : (
+                  <span className="ai-tool-io-text">{evt.input}</span>
+                )}
+              </div>
             )}
             {evt.done && evt.output && (
               <div className={`ai-tool-search-output ${evt.ok ? '' : 'is-error'}`}>
                 {evt.output}
               </div>
             )}
+            {evt.done && evt.output && <CopyChip text={evt.output} />}
           </div>
         )}
       </div>

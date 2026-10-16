@@ -106,15 +106,38 @@
 .ai-tool-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-space-2);
   height: 28px;
-  padding: 0 8px;
-  border-radius: 6px;
+  padding: 0 var(--ui-space-3);
+  border-radius: var(--ui-radius-control);
   cursor: pointer;
   font-size: var(--ui-font-md);
   color: var(--text-tertiary);
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background var(--ui-dur-fast) var(--ui-ease-out),
+    color var(--ui-dur-fast) var(--ui-ease-out);
   user-select: none;
+}
+
+/* 类别小徽标（命令 / 知识库 / 技能 / MCP / 记忆 / 监控 / 装配）：
+   一眼分得清 agent 这一步到底做了什么，而不是所有调用都长成"检索" */
+.ai-tool-kind {
+  flex-shrink: 0;
+  padding: 1px var(--ui-space-2);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--ui-radius-inline);
+  font-size: var(--ui-font-micro);
+  line-height: var(--ui-lh-none);
+  color: var(--text-tertiary);
+}
+
+/* 工具名可以很长（MCP 是「server · tool」两段），窄面板里必须自己截断，
+   不然把右边的状态徽章和箭头顶出容器 */
+.ai-tool-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .ai-tool-row:hover {
@@ -342,9 +365,7 @@
   51%, 100% { opacity: 0; }
 }
 
-@keyframes ai-shimmer {
-  to { background-position: -200% 0; }
-}
+/* ai-shimmer 只在 MarkdownMessage.css 定义一份（见该文件 .ai-shimmer-text） */
 
 @keyframes fillBar {
   from { width: 0; }
@@ -356,21 +377,20 @@
 }
 
 .ai-msg {
-  animation: ai-fade-in 0.3s cubic-bezier(0.3, 0, 0, 1) both;
+  animation: ai-fade-in var(--ui-dur-slow) cubic-bezier(0.3, 0, 0, 1) both;
 }
 
 .ai-token-pop {
-  animation: token-pop 0.25s cubic-bezier(0.3, 0, 0, 1) both;
+  animation: token-pop var(--ui-dur-base) cubic-bezier(0.3, 0, 0, 1) both;
 }
 
-.shimmer-text {
-  background: linear-gradient(90deg, var(--trae-text-tertiary) 0%, var(--trae-text-default) 50%, var(--trae-text-tertiary) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: ai-shimmer 2s linear infinite;
-}
+/*
+ * 流光文字只有 MarkdownMessage.css 里的 .ai-shimmer-text 一份。
+ * 这里原来还有一条同名的 .shimmer-text + 一份方向相反的 @keyframes ai-shimmer
+ * （一个往 -200% 收、一个从 -200% 走到 +200%），谁后加载谁生效——
+ * 思考中的流光方向取决于 CSS 引入顺序，属于"看着像 bug 其实是量具在骗人"的那类。
+ * 无使用者的一条已删，keyframes 只留一处定义。
+ */
 
 /* ===== 按压反馈 ===== */
 .btn-press {
@@ -389,7 +409,8 @@
   .ai-tool-body { transition: none; }
   .ai-chev { transition: none; }
   .ai-token-pop { animation: none; }
-  .shimmer-text { animation: none; -webkit-text-fill-color: var(--text-tertiary); }
+  /* .ai-shimmer-text 与工具卡入场的减弱动效在 MarkdownMessage.css 里就近管
+     （那条类以前写的是 .shimmer-text，名字对不上等于这条没执行） */
   .mini-bar-fill { transition: none; }
 }
 

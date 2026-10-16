@@ -31,6 +31,7 @@ import type {
   AgentChunkPayload,
   AgentDonePayload,
   AgentErrorPayload,
+  AgentToolEventPayload,
   LlmErrorCode,
 } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
@@ -140,6 +141,12 @@ export interface AgentToolCall {
   /** 输出摘要 */
   output?: string
   /**
+   * 工具自己报的命中条数（result 阶段）。
+   * 界面徽标只在这个数存在时才显示数字；没有就只说成/败，
+   * 不再用正则去摘要文本里数编号行（那会把"输出不是编号列表"判成"无结果"）。
+   */
+  count?: number
+  /**
    * 文本锚点（v2.8）：call 事件到达时正文已流出的字符数。
    * LiveMessageRow 据此把工具卡穿插到流式输出的真实发生位置，
    * 而不是全部堆在消息尾部。
@@ -246,16 +253,13 @@ interface AgentState {
    * call 阶段：新增一条 AgentToolCall；output 阶段（v2.6）：按 toolCallId 累积流式输出；
    * result 阶段：按 toolCallId 找到并补全 done/ok/output。
    * correlationId（#86）：认领这是哪一轮回答的工具事件；没带则退回"正在流的那条"。
+   *
+   * 入参形状直接取 IPC 载荷类型（sessionId 这一路用不上），
+   * 这里以前手抄过一份字段清单——契约加 count 那次就是靠这个才发现两处会漏。
    */
-  appendToolEvent: (evt: {
-    correlationId?: string
-    toolCallId: string
-    phase: 'call' | 'output' | 'result'
-    toolName: string
-    input?: string
-    ok?: boolean
-    output?: string
-  }) => void
+  appendToolEvent: (
+    evt: Omit<AgentToolEventPayload, 'sessionId' | 'correlationId'> & { correlationId?: string },
+  ) => void
   /** 清空所有消息 */
   clearMessages: () => void
   /**
@@ -513,13 +517,20 @@ export const useAgentStore = create<AgentState>()((set) => ({
           const streamed = events[idx2].output
           const finalOutput =
             evt.ok !== false && streamed ? streamed : (evt.output ?? streamed)
-          events[idx2] = { ...events[idx2], done: true, ok: evt.ok, output: finalOutput }
+          events[idx2] = {
+            ...events[idx2],
+            done: true,
+            ok: evt.ok,
+            count: evt.count ?? events[idx2].count,
+            output: finalOutput,
+          }
         } else {
           events.push({
             toolCallId: evt.toolCallId,
             toolName: evt.toolName,
             done: true,
             ok: evt.ok,
+            count: evt.count,
             output: evt.output,
             anchorOffset: msg.content.length,
           })

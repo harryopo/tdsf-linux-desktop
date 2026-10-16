@@ -241,6 +241,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               toolName: evt.toolName,
               input: evt.input,
               ok: evt.ok,
+              count: evt.count,
               output: evt.output,
               sessionId: resolvedSessionId,
             }

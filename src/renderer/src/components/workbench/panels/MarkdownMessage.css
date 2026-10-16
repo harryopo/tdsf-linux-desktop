@@ -184,14 +184,20 @@
   border-bottom: 1px solid var(--trae-border-neutral-l1);
 }
 .ai-tool-exec-name {
-  font-size: 12px;
+  font-size: var(--ui-font-caption);
   font-weight: 600;
   color: var(--text-primary);
   font-family: var(--ui-family-code);
+  /* 工具名可能很长（MCP 是 server · tool 两段），头部还排着状态与胶囊，
+     不留这条就顶出卡片 */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .ai-tool-exec-status {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--ui-font-micro);
   color: var(--accent-text);
 }
 /* v2.8：头部状态胶囊（替代底部孤立的“执行成功”行，信息上提不占行） */
@@ -216,13 +222,13 @@
   border: 1px solid var(--trae-status-error-surface-l2, rgba(255, 59, 48, 0.3));
 }
 .ai-tool-exec-cmd {
-  padding: 9px 12px;
-  margin-bottom: 6px;
+  padding: var(--ui-space-4) var(--ui-space-5);
+  margin-bottom: var(--ui-space-2);
   background: var(--trae-terminal-block-bg, var(--trae-bg-code-block));
   border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
+  border-radius: var(--ui-radius-inline);
   font-family: var(--app-code-font, var(--ui-family-code));
-  font-size: 12px;
+  font-size: var(--ui-font-caption);
   line-height: 18px;
   color: var(--trae-code-text, #e0e3ee);
   word-break: break-all;
@@ -234,14 +240,14 @@
 }
 .ai-tool-exec-output {
   margin: 0;
-  padding: 10px 12px;
-  max-height: 260px;
+  padding: var(--ui-space-4) var(--ui-space-5);
+  max-height: var(--ui-collapse-max-command);
   overflow: auto;
   background: var(--trae-terminal-block-bg, var(--trae-bg-code-block));
   border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
+  border-radius: var(--ui-radius-inline);
   font-family: var(--app-code-font, var(--ui-family-code));
-  font-size: 12px;
+  font-size: var(--ui-font-caption);
   line-height: 18px;
   /* v2.8：输出用终端绿色系，与命令行区分，更有真终端感 */
   color: var(--color-terminal-text, #9ece9e);
@@ -278,15 +284,17 @@
   border: none;
 }
 .ai-reasoning-body {
-  margin-left: 6px;
-  padding: 6px 8px 6px 20px;
+  margin-left: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-2) var(--ui-space-5);
   border-left: 1px solid var(--trae-border-neutral-l1);
-  font-size: 11px;
-  line-height: 1.6;
+  /* 思考正文按 DESIGN.md 是 sm(13px) 档；原来写死 11px，
+     而 --ui-font-micro 的规矩是"只给注释性文字"，思考链是正文不是注脚 */
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-loose);
   color: var(--text-muted);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 260px;
+  max-height: var(--ui-collapse-max-output);
   overflow-y: auto;
 }
 
@@ -296,32 +304,73 @@
   border: none;
 }
 .ai-tool-search-body {
-  margin-left: 6px;
-  padding: 4px 8px 6px 20px;
+  margin-left: var(--ui-space-2);
+  padding: var(--ui-space-1) var(--ui-space-3) var(--ui-space-2) var(--ui-space-5);
   border-left: 1px solid var(--trae-border-neutral-l1);
 }
 .ai-tool-search-query {
-  margin-bottom: 4px;
+  margin-bottom: var(--ui-space-1);
   font-family: var(--ui-family-code);
   font-size: var(--ui-font-micro);
   color: var(--text-muted);
 }
-.ai-tool-search-output {
-  padding: 8px 10px;
+/* 入参一行的三段：标签 / 普通文本 / 结构化串（MCP 的 JSON 入参要按代码排） */
+.ai-tool-io-label {
+  margin-right: var(--ui-space-1);
+  color: var(--text-tertiary);
+}
+.ai-tool-io-text {
+  color: var(--text-muted);
+  word-break: break-all;
+}
+.ai-tool-io-code {
+  display: block;
+  margin-top: 2px;
+  padding: var(--ui-space-1) var(--ui-space-2);
   background: var(--trae-bg-overlay-l1);
   border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-4);
-  font-size: 11px;
-  line-height: 1.6;
+  border-radius: var(--ui-radius-inline);
+  color: var(--text-tertiary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.ai-tool-search-output {
+  padding: var(--ui-space-4) var(--ui-space-5);
+  background: var(--trae-bg-overlay-l1);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--ui-radius-inline);
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-loose);
   color: var(--text-tertiary);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 200px;
+  max-height: var(--ui-collapse-max-popover);
   overflow-y: auto;
 }
 .ai-tool-search-output.is-error {
   color: var(--status-error-text);
   border-color: var(--trae-status-error-surface-l2);
+}
+
+/* 复制小按钮：贴在输出块右下角，不抢正文的注意力 */
+.ai-tool-copy {
+  display: inline-block;
+  margin-top: var(--ui-space-1);
+  padding: 1px var(--ui-space-2);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--ui-radius-inline);
+  background: transparent;
+  font-size: var(--ui-font-micro);
+  line-height: var(--ui-lh-none);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color var(--ui-dur-fast) var(--ui-ease-out),
+    border-color var(--ui-dur-fast) var(--ui-ease-out);
+}
+.ai-tool-copy:hover {
+  color: var(--accent-text);
+  border-color: var(--trae-border-brand);
 }
 
 /* ===== 聊天内可信度分析折叠块（v2.5） ===== */
@@ -333,8 +382,8 @@
   border: none;
 }
 .ai-credibility-body {
-  margin-left: 6px;
-  padding: 6px 8px 6px 20px;
+  margin-left: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-2) var(--ui-space-5);
   border-left: 1px solid var(--trae-border-neutral-l1);
 }
 
@@ -372,4 +421,25 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: ai-shimmer 2s linear infinite;
+}
+
+/*
+ * 工具卡入场（流式过程中卡片是"长出来"的）。
+ * 只做淡入 + 2px 上移，不做高度动画：整条消息会因一张卡的出现而抖动，
+ * 而在长对话里抖动 = 用户读的那一行突然跑掉。
+ */
+@keyframes ai-tool-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ai-tool-exec,
+.ai-tool-search {
+  animation: ai-tool-in var(--ui-dur-base) cubic-bezier(0.3, 0, 0, 1) both;
+}
+
+/* 减弱动效：与上面两个类的定义同文件、同处就近管（写在别的文件里会因加载顺序失效） */
+@media (prefers-reduced-motion: reduce) {
+  .ai-tool-exec,
+  .ai-tool-search { animation: none; }
+  .ai-shimmer-text { animation: none; -webkit-text-fill-color: var(--text-tertiary); }
 }

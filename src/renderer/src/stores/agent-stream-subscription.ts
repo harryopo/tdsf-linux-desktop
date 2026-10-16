@@ -137,6 +137,7 @@ export function initAgentStreamSubscription(): void {
       toolName: payload.toolName,
       input: payload.input,
       ok: payload.ok,
+      count: payload.count,
       output: payload.output,
     })
   })

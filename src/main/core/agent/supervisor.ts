@@ -89,11 +89,12 @@ import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeededAsync, type SummarizeFn } from './context'
 import { makeRedactingSummarizer, SUMMARY_SYSTEM_PROMPT } from './summarizer'
 import { diffPrune, pruneStaleToolOutputs } from './tool-history'
+import { toToolResultView } from './tool-result-view'
 import { getSessionRegistry } from './session-registry'
 import { createAllSubagents } from './subagents'
 import type { Subagent, SubagentName, SubagentTask, SubagentResult } from './subagents/base'
 import type { ThinkingStrength } from './providers/types'
-import type { ChatResult, RequestedThinkingStrength } from '@shared/agent-types'
+import type { AgentToolEventPayload, ChatResult, RequestedThinkingStrength } from '@shared/agent-types'
 import { logger } from '../../services/log/logger'
 import { SshConnectionManager, resolveExecTimeoutMs } from '../../services/ssh/connection-manager'
 import { preflightCheck } from '../../services/ssh/command-preflight'
@@ -143,15 +144,11 @@ export interface ChatParams {
    * tool-result 分片；此回调把它们透传给上层推送到前端。phase 区分开始/结果。
    * v2.6：新增 phase='output' —— ssh_readonly 执行中的 stdout/stderr 块实时透传，
    * 前端得以流式展示命令输出（不再等命令结束才见结果）。
+   *
+   * 形状直接取线上载荷类型（去掉 agent-runtime 自己补的两个字段），
+   * 这里以前手抄过一份字段清单——契约加一个字段，这里就静默漏一个。
    */
-  onToolEvent?: (evt: {
-    toolCallId: string
-    phase: 'call' | 'output' | 'result'
-    toolName: string
-    input?: string
-    ok?: boolean
-    output?: string
-  }) => void
+  onToolEvent?: (evt: Omit<AgentToolEventPayload, 'correlationId' | 'sessionId'>) => void
   /** 关联 ID（用于日志追踪 + 取消请求） */
   correlationId?: string
   /**
@@ -1269,43 +1266,25 @@ class SupervisorAgent {
           // v2.8：缓存入参供失败教训沉淀使用
           if (p.toolCallId) lastToolInputs.set(p.toolCallId, inputStr.slice(0, 200))
         } else if (partType === 'tool-result') {
-          // v2.4：工具返回结果 → 推送 result 事件
+          // v2.4：工具返回结果 → 推送 result 事件（映射规则见 tool-result-view.ts，可单测）
           const p = part as { toolCallId?: string; toolName?: string; output?: unknown; result?: unknown }
-          const rawOut = p.output ?? p.result
-          let ok = true
-          let outStr = ''
-          if (rawOut && typeof rawOut === 'object') {
-            const obj = rawOut as Record<string, unknown>
-            if (typeof obj.ok === 'boolean') ok = obj.ok
-            if (typeof obj.error === 'string' && obj.error) {
-              ok = false
-              outStr = obj.error
-            } else if (typeof obj.stdout === 'string') {
-              outStr = obj.stdout || (typeof obj.stderr === 'string' ? obj.stderr : '')
-            } else if (typeof obj.summary === 'string') {
-              // kb_search / tutorial_search 等检索工具返回可读摘要
-              outStr = obj.summary
-            } else {
-              outStr = JSON.stringify(rawOut)
-            }
-          } else if (typeof rawOut === 'string') {
-            outStr = rawOut
-          }
+          const view = toToolResultView(p.output ?? p.result)
           onToolEvent?.({
             toolCallId: p.toolCallId ?? `tc_${Date.now()}`,
             phase: 'result',
             toolName: p.toolName ?? 'tool',
-            ok,
-            output: limitToolTextOnly(outStr, TOOL_EVENT_PREVIEW_CHAR_LIMIT, '输出'),
+            ok: view.ok,
+            count: view.count,
+            output: limitToolTextOnly(view.output, TOOL_EVENT_PREVIEW_CHAR_LIMIT, '输出'),
           })
           // v2.8：工具失败 → 错误教训快速沉淀（规则直写 correction，无 LLM 开销；
           // 风险拦截/只读拒绝等护栏正常工作不算教训，recordToolFailure 内部过滤）
-          if (!ok && p.toolName && p.toolName !== 'tool_route' && p.toolName !== 'skill_match') {
+          if (!view.ok && p.toolName && p.toolName !== 'tool_route' && p.toolName !== 'skill_match') {
             recordToolFailure(
               new MemoryRepository(db),
               p.toolName,
               lastToolInputs.get(p.toolCallId ?? '') ?? '',
-              outStr.slice(0, 300),
+              view.output.slice(0, 300),
               correlationId,
             )
           }
