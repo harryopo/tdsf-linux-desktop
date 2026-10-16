@@ -2,24 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-16T16:34:40.772Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-16T16:34:40.772Z",
-      "lastActiveAt": "2026-10-16T16:34:40.772Z",
-      "task": "token-split-io",
-      "claimedFiles": [
-        {
-          "path": "src/shared/agent-types.ts",
-          "task": "token-split-io",
-          "claimedAt": "2026-10-16T16:34:40.772Z"
-        }
-      ],
-      "expiresAt": "2026-10-16T18:34:40.772Z"
-    }
-  },
+  "lastUpdated": "2026-10-16T16:43:47.032Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -7741,6 +7725,13 @@
       "file": "src/shared/agent-types.ts",
       "task": "token-split-io",
       "timestamp": "2026-10-16T16:34:40.772Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/agent-types.ts",
+      "task": "token-split-io",
+      "timestamp": "2026-10-16T16:43:47.032Z"
     }
   ],
   "coordinationAudit": {
