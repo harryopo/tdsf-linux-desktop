@@ -20,6 +20,7 @@ import {
   identifyTool,
   isCommandKind,
   isStructuredInput,
+  showsKindBadge,
   type ToolKind,
 } from '@renderer/components/workbench/panels/tool-identity'
 
@@ -82,6 +83,15 @@ describe('tool-identity', () => {
     }
     // 入参标签不许全是"查询"：MCP 的入参、读文件的路径被叫成检索，是界面在替用户编动作
     expect(new Set(Object.values(TOOL_KIND_INPUT_LABELS)).size).toBeGreaterThanOrEqual(5)
+  })
+
+  it('类别徽标只给 MCP 与未登记的工具（其余类别中文名里已经写了）', () => {
+    expect(showsKindBadge(identifyTool('kb_search').kind), '"检索知识库"后面不必再挂"知识库"').toBe(false)
+    expect(showsKindBadge(identifyTool('tutorial_search').kind), '教程也不是"知识库"，别挂错牌子').toBe(false)
+    expect(showsKindBadge(identifyTool('deploy_list_templates').kind)).toBe(false)
+    expect(showsKindBadge(identifyTool('ssh_readonly').kind)).toBe(false)
+    expect(showsKindBadge(identifyTool('github__create_issue').kind), 'MCP 那串名字里看不出它是外部工具').toBe(true)
+    expect(showsKindBadge(identifyTool('brand_new_tool').kind), '没登记的工具更要标出来').toBe(true)
   })
 
   it('结构化入参认得出来（MCP 的 JSON 串要按代码排版）', () => {

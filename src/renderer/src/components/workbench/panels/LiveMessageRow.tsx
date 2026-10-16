@@ -11,6 +11,7 @@ import {
   identifyTool,
   isCommandKind,
   isStructuredInput,
+  showsKindBadge,
 } from './tool-identity'
 import { resolveErrorNextStep, type ErrorAction } from '../error-next-step'
 import './MarkdownMessage.css'
@@ -326,7 +327,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             )}
             <KindIcon className="size-3.5 text-(--accent-text)" />
             <span className="ai-tool-exec-name">{identity.label}</span>
-            <span className="ai-tool-kind">{TOOL_KIND_LABELS[identity.kind]}</span>
+            {showsKindBadge(identity.kind) && (
+              <span className="ai-tool-kind">{TOOL_KIND_LABELS[identity.kind]}</span>
+            )}
             {!evt.done && <span className="ai-tool-exec-status">{TOOL_KIND_RUNNING_LABELS[identity.kind]}</span>}
             {evt.done && (
               <span className={`ai-tool-exec-pill ${evt.ok ? 'is-ok' : 'is-fail'}`}>
@@ -374,7 +377,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         >
           <KindIcon className="size-3 text-(--accent-text)" />
           <span className="ai-tool-name text-ink">{identity.label}</span>
-          <span className="ai-tool-kind">{TOOL_KIND_LABELS[identity.kind]}</span>
+          {showsKindBadge(identity.kind) && (
+            <span className="ai-tool-kind">{TOOL_KIND_LABELS[identity.kind]}</span>
+          )}
           <span
             className={`ai-tool-badge ${
               !evt.done
@@ -397,7 +402,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           <div className="ai-tool-search-body">
             {evt.input && (
               <div className="ai-tool-search-query">
-                <span className="ai-tool-io-label">{TOOL_KIND_INPUT_LABELS[identity.kind]}</span>
+                <span className="ai-tool-io-label">{TOOL_KIND_INPUT_LABELS[identity.kind]}：</span>
                 {isStructuredInput(evt.input) ? (
                   <code className="ai-tool-io-code">{evt.input}</code>
                 ) : (

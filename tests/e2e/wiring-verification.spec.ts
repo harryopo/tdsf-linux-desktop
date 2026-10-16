@@ -362,7 +362,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       })
       win?.webContents.send('agent:tool-event', {
         correlationId: 'e2e_kb', toolCallId: 'kb_1', phase: 'result',
-        toolName: 'kb_search', ok: true,
+        toolName: 'kb_search', ok: true, count: 1,
         output: '1. [Nginx 502 排查] 上游进程挂了导致 502',
       })
       win?.webContents.send('agent:tool-event', {
@@ -371,7 +371,7 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       })
       win?.webContents.send('agent:tool-event', {
         correlationId: 'e2e_kb', toolCallId: 'tut_1', phase: 'result',
-        toolName: 'tutorial_search', ok: true,
+        toolName: 'tutorial_search', ok: true, count: 1,
         output: '1. [systemd 入门] 用 systemctl 管理服务',
       })
     })
@@ -380,7 +380,12 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     // 旧断言等的是 .ai-tool-exec + 「知识库检索」，改版后类名与文案都变了）
     const kbCard = mainWin.locator('.ai-tool-search', { hasText: '检索知识库' }).first()
     await expect(kbCard, 'kb_search 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
-    await expect(kbCard, '应显示命中数而不是裸工具名').toContainText('1 条匹配')
+    // 条数来自载荷里的 count（工具自己报的），界面不再从 output 文本数编号行
+    await expect(kbCard, '应显示命中数而不是裸工具名').toContainText('1 条结果')
+    await expect(
+      kbCard.locator('.ai-tool-kind'),
+      '展示名里已经写了"知识库"，不该再挂一块重复徽标',
+    ).toHaveCount(0)
     await expect(kbCard, '界面上不许出现裸的工具 id').not.toContainText('kb_search')
     await kbCard.locator('button').first().click() // 展开
     await expect(kbCard).toContainText('nginx 502')
@@ -445,12 +450,85 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
     const skillCard = mainWin.locator('.ai-tool-search', { hasText: '匹配技能' }).first()
     await expect(skillCard, 'skill_match 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
     await expect(skillCard, '界面上不许出现裸工具名').not.toContainText('skill_match')
+    // 技能匹配的输出是一行散文、没有条数可读：报"完成"即可。
+    // 旧版从前端的 output 文本里数编号行，数到 0 就写"无结果"——明明匹配到了手册，
+    // 界面在说一件没发生过的事。
+    await expect(skillCard, '没报条数的卡片不该编一个数字或"无结果"').toContainText('完成')
+    await expect(skillCard).not.toContainText('无结果')
     await skillCard.locator('button').first().click() // 展开折叠行
     await expect(skillCard).toContainText('diagnose-oom-killer')
     await expect(skillCard).toContainText('skill-assisted')
 
     await mainWin.screenshot({
       path: path.join(__dirname, '../../test-results/p3-skill-match-card.png'),
+    })
+
+    await app.close()
+  })
+
+  // ==========================================================
+  // T8. MCP 工具卡的身份与入参排版（外部服务器提供的工具）
+  // ==========================================================
+  // MCP 工具名带分隔符（server__tool），执行前界面只甩一长串英文原名，入参是
+  // JSON.stringify 出来的对象却顶着"查询："的标签——用户看不出这是在对系统动手，
+  // 还以为在查资料。本用例从主进程真发一次 MCP 调用，验这几条在真实界面上都成立。
+  testOrSkip('T8: MCP 工具显示成「server · tool」，JSON 入参按代码排版', async () => {
+    const { app, mainWin } = await launchApp()
+    await gotoRoute(mainWin, '#/workbench')
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
+
+    const composer = mainWin.locator('#ai-composer-input')
+    if (!(await composer.isVisible().catch(() => false))) {
+      await mainWin.locator('[data-dom-id="btn-toggle-ai"]').click()
+      await composer.waitFor({ state: 'visible', timeout: 5000 })
+    }
+
+    await mainWin.evaluate(() => {
+      const stores = (window as unknown as {
+        __tdsfStores?: { agent: { getState: () => { addMessage: (m: Record<string, unknown>) => void } } }
+      }).__tdsfStores
+      stores?.agent.getState().addMessage({
+        id: 'e2e_mcp_assistant',
+        role: 'assistant',
+        content: '正在通过 MCP 读取远程文件…',
+        timestamp: Date.now(),
+        isStreaming: true,
+      })
+    })
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      win?.webContents.send('agent:tool-event', {
+        correlationId: 'e2e_mcp', toolCallId: 'mcp_1', phase: 'call',
+        toolName: 'filesystem__read_file', input: '{"path":"/etc/hosts","limit":10}',
+      })
+    })
+
+    const mcpCard = mainWin.locator('.ai-tool-search', { hasText: 'filesystem · read_file' }).first()
+    await expect(mcpCard, 'MCP 卡应上屏并显示成 server · tool').toBeVisible({ timeout: 5000 })
+    // 进行中的说法按类别分：MCP 是"调用中"，不是所有非命令类都写"检索中"
+    await expect(mcpCard, 'MCP 调用不是检索').toContainText('调用中')
+    await expect(mcpCard).not.toContainText('检索中')
+    await expect(mcpCard.locator('.ai-tool-kind'), 'MCP 那串名字里看不出它是外部工具').toContainText('MCP')
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      win?.webContents.send('agent:tool-event', {
+        correlationId: 'e2e_mcp', toolCallId: 'mcp_1', phase: 'result',
+        toolName: 'filesystem__read_file', ok: true,
+        output: '127.0.0.1 localhost\n::1 localhost',
+      })
+    })
+    await mcpCard.locator('button').first().click() // 展开
+    await expect(mcpCard, '入参标签该是"入参"，不是"查询"').toContainText('入参')
+    await expect(mcpCard).not.toContainText('查询')
+    // JSON 串单独成块排版（塞进引号里就是一团读不懂的字）
+    await expect(mcpCard.locator('.ai-tool-io-code')).toContainText('"path":"/etc/hosts"')
+    // 复制按钮只在环境真能写剪贴板时才画；画出来了就得是真能点的
+    await expect(mcpCard.locator('.ai-tool-copy'), '输出块要有能用的复制入口').toHaveCount(1)
+
+    await mainWin.screenshot({
+      path: path.join(__dirname, '../../test-results/p4-mcp-card.png'),
     })
 
     await app.close()

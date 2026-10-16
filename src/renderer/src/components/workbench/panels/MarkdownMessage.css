@@ -354,8 +354,10 @@
 
 /* 复制小按钮：贴在输出块右下角，不抢正文的注意力 */
 .ai-tool-copy {
-  display: inline-block;
+  display: block;
+  width: fit-content;
   margin-top: var(--ui-space-1);
+  margin-left: auto;
   padding: 1px var(--ui-space-2);
   border: 1px solid var(--trae-border-neutral-l1);
   border-radius: var(--ui-radius-inline);

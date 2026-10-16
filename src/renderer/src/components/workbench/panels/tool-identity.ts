@@ -160,3 +160,15 @@ export function identifyTool(name: string | undefined): ToolIdentity {
 export function isCommandKind(kind: ToolKind): boolean {
   return kind === 'command'
 }
+
+/**
+ * 只有 MCP 与"没登记过"这两类需要挂类别徽标。
+ *
+ * 这两类的展示名说明不了它是什么（一长串 server__tool、或者就是模型调用的英文原名），
+ * 需要旁边那块小牌子兜底。其余类别的中文名里已经写了类别（检索知识库 / 匹配技能 /
+ * 只读诊断命令），再挂一块同义词就是重复；而按"名字里含不含类别词"去推又会误伤
+ * 「列出部署模板」这种不含词根的名字——所以直接按类别判定，不玩文字游戏。
+ */
+export function showsKindBadge(kind: ToolKind): boolean {
+  return kind === 'mcp' || kind === 'unknown'
+}

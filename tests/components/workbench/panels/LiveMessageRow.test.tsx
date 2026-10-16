@@ -228,7 +228,7 @@ describe('LiveMessageRow — assistant 消息', () => {
       />
     )
     fireEvent.click(screen.getByRole('button', { name: /filesystem · read_file/ }))
-    expect(screen.getByText('入参')).toBeInTheDocument()
+    expect(screen.getByText('入参：')).toBeInTheDocument()
     expect(screen.queryByText(/查询/), 'MCP 不是检索，别写"查询"').toBeNull()
     expect(screen.getByText('{"path":"/etc/hosts","limit":10}')).toBeInTheDocument()
   })
