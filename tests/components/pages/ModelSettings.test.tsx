@@ -49,7 +49,11 @@ describe('ModelSettings — 模型配置页冒烟', () => {
 
   it('2. API Key 为空时给出下一步指引，且不替用户选服务商', () => {
     renderPage()
-    expect(screen.getByText(/还没填 API Key/)).toBeInTheDocument()
+    const hint = screen.getByText(/还没填 Key/)
+    expect(hint).toBeInTheDocument()
+    // 指引必须真的说清两件事：去哪儿拿 Key、拿到之后点哪个按钮
+    expect(hint.textContent).toContain('服务商控制台')
+    expect(hint.textContent).toContain('测试连接')
     // 引导文案不再硬编码某家服务商的申请链接（旧版写死 platform.deepseek.com）
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })

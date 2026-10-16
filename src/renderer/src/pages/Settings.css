@@ -89,12 +89,32 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* 20px 沟槽从这一层给：子页整列是一张卡，卡与左栏导航卡片同一条起线 */
+  padding: 20px;
   /* 关于页（居中长内容）自己撑破时才在这里出滚动条；子页由正文容器承担滚动 */
   overflow-y: auto;
 }
 
-/* 子页骨架：标题栏贴住所属列的左上角（顶到 0、不留内距），正文自己滚动并自带留白 */
-.set-subpage { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+/*
+ * 子页外壳：一张圆角卡，页头 / 正文 / 底部动作栏三条都在卡里
+ *
+ * 用户 2026-10-16："模型页面的上下横条没有圆角，然后也与中间的内容不对齐，其它页面也有这样的问题"。
+ * 以前上下两条是通栏直角条，左边缘比正文卡片靠左 20px（页头自己带 px-5，正文另外有 20px 内距），
+ * 于是三条各说各话。改成整列一张卡：圆角只出现在最外圈，上下两条与正文共用同一条左右起线，
+ * 11 个子页一起生效（它们都挂 .set-subpage）。
+ */
+.set-subpage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--ui-radius-card);
+  /* 外壳用页面同色，不用面板色：卡片里的 .set-card 本身就是面板色，
+     外壳若也涂面板色，两层同色，卡片的层次就没了 */
+  background: var(--trae-bg-base-default);
+  overflow: hidden;
+}
 /* scroll-padding-bottom：给 sticky 底部操作栏留出净空。
    不写这一条，滚动定位会把目标行停在视口最底下——正好压在操作栏下面，
    用户和自动化都点不到（按钮普查实测：设置-模型「显示/隐藏API Key」点不下去）。 */
@@ -312,13 +332,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ===== Action Bar ===== */
+/* ===== Action Bar =====
+   左右各 20px：与正文同一条起线（正文 padding 20px）。以前它是 0 左右内距的通栏条，
+   按钮贴着卡片内壁、分隔线拉到边，用户说的"下横条与中间内容不对齐"就是这一条。 */
 .set-actionbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 0 0;
-  margin-top: 4px;
+  padding: 12px 20px;
   border-top: 1px solid var(--trae-border-neutral-l1);
 }
 /* 与模型页同一规矩：按钮标签从 CJK 中间断字比宽一点窄一点都难看 */
@@ -971,7 +992,13 @@
   font-weight: var(--trae-font-weight-medium);
   color: var(--text-tertiary);
 }
-.set-api-row__label-hint { color: var(--text-muted); }
+/* 表单行下方的一句说明：贴着控件列，不给底色（灰底大块会把一句话说得像报警） */
+.set-api-hint {
+  margin-top: 6px;
+  font-size: var(--ui-font-caption);
+  line-height: var(--trae-body-base-line-height);
+  color: var(--text-tertiary);
+}
 .set-api-input {
   height: 32px;
   width: 100%;
@@ -1091,8 +1118,6 @@
   font-family: var(--trae-font-family-mono);
   color: var(--text-primary);
 }
-.set-api-result__chart { margin-left: auto; }
-
 .set-api-logs {
   padding: 12px;
   border-radius: var(--trae-radius-6);

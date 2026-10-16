@@ -99,44 +99,39 @@ export function ApiTestSection(props: ApiTestSectionProps) {
           <label className="set-api-row__label">
             API Key
           </label>
-          <div className="set-api-key-row">
-            <input
-              type={showApiKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={(e) => onApiKeyChange(e.target.value)}
-              aria-label="API Key"
-              // 已存过 Key 就把框明示成"留空不改"；没存过时保持原样（空框 + 下面那段原提示）。
-              // Key 原文永不回填进输入框：storage:getApiKey 通道已删（2026-10-09 P0-3）。
-              placeholder={hasSavedKey ? '已保存（留空则不修改）' : undefined}
-              className="set-api-key-input"
-            />
-            <button
-              type="button"
-              onClick={onToggleShowApiKey}
-              aria-label="显示/隐藏API Key"
-              className="set-api-eye-btn btn-press"
-            >
-              {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
+          {/* 控件列：输入框和提示必须在同一个格子里。
+              原来提示是 .set-api-row 的第三个 grid 子项，两列网格把它挤到第二行第一列
+              （180px 宽的标签列）——一大段灰底说明竖着堵在"API Key"下面，
+              就是用户说的"注释太丑，而且布局有问题"。 */}
+          <div className="min-w-0">
+            <div className="set-api-key-row">
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => onApiKeyChange(e.target.value)}
+                aria-label="API Key"
+                // 已存过 Key 就把框明示成"留空不改"；没存过时保持原样（空框 + 下面那句提示）。
+                // Key 原文永不回填进输入框：storage:getApiKey 通道已删（2026-10-09 P0-3）。
+                placeholder={hasSavedKey ? '已保存（留空则不修改）' : undefined}
+                className="set-api-key-input"
+              />
+              <button
+                type="button"
+                onClick={onToggleShowApiKey}
+                aria-label="显示/隐藏API Key"
+                className="set-api-eye-btn btn-press"
+              >
+                {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+            {!apiKey && (
+              <p role="status" className="set-api-hint">
+                {hasSavedKey
+                  ? '已加密存在本机，界面上不显示这串字符。留空＝不改，粘贴新的即替换。'
+                  : '还没填 Key，大模型连不上。到服务商控制台建一个粘进来，再点下面「测试连接」。'}
+              </p>
+            )}
           </div>
-          {!apiKey &&
-            (hasSavedKey ? (
-              <p
-                role="status"
-                className="mt-2 rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-mute"
-              >
-                API Key 已经加密存在本机（主进程持有，界面上不显示这串字符）。
-                留空 = 不改；要换 Key 就粘贴新的进去，再点底部「保存所有配置」。
-              </p>
-            ) : (
-              <p
-                role="status"
-                className="mt-2 rounded-(--ui-radius-control) bg-sunken p-3 text-caption leading-relaxed text-ink-mute"
-              >
-                还没填 API Key，大模型连不上。到你所选服务商的控制台创建一个 Key 粘进来，
-                再点下面的「测试连接」验证；填好前 AI 助手、命令分析与日志诊断都不可用。
-              </p>
-            ))}
         </div>
       </div>
 
@@ -197,21 +192,11 @@ export function ApiTestSection(props: ApiTestSectionProps) {
                     {selectedModel}
                   </span>
                 </span>
-                <svg
-                  width="100"
-                  height="28"
-                  viewBox="0 0 100 28"
-                  className="set-api-result__chart"
-                  aria-hidden="true"
-                >
-                  <polyline
-                    points="0,18 20,14 40,16 60,10 80,12 100,8"
-                    fill="none"
-                    stroke="var(--trae-status-success-default)"
-                    strokeWidth="1.5"
-                  />
-                  <circle cx="100" cy="8" r="2" fill="var(--trae-status-success-default)" />
-                </svg>
+                {/*
+                  这里原来画了一条"响应时间趋势"折线，points 是写死的六个坐标。
+                  一次测试只有一个延迟数，没有任何历史序列可画——那条线每次都在讲
+                  一件没发生过的事（用户 2026-10-16："假的UI都检查一下"）。
+                */}
               </>
             )}
           </div>
