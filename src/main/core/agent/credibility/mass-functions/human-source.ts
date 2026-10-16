@@ -2,7 +2,7 @@
  * 人工证据 Mass 函数（Source S4）
  *
  * 来源：用户输入（人工决策标注 / 用户反馈 / Decision Card 标签）
- * 先验可信度：0.9（人工证据权重最高，但可能有标注者偏差）
+ * 展示名与先验的唯一来源：@shared/credibility（human → '人工证据' / 0.9）
  *
  * 设计依据（调研文档 §6.3.4）：
  * - 人工标注通常最可信，但需考虑标注者间一致性
@@ -10,8 +10,9 @@
  * - 无标注时返回完全无知 m(Θ) = 1
  * - 使用 Fleiss' κ 衡量标注者一致性
  *
- * Mass 函数设计：
- *   strength = 0.7 × positiveRate + 0.3 × agreement
+ * Mass 函数设计（#106 B：先验真的进计算）：
+ *   quality  = 0.7 × positiveRate + 0.3 × agreement
+ *   strength = quality × sourcePrior       （sourcePrior 默认 SOURCE_PRIORS.human）
  *   m({T})  = 0.85 × strength     （人工证据权重最高）
  *   m({¬T}) = 0.10 × (1 - strength)
  *   m(Θ)   = 1 - m({T}) - m({¬T})
@@ -24,15 +25,10 @@ import {
   createMassFunction,
   createVacuousMassFunction,
 } from '../ds-theory'
+import { FUSION_SOURCE_LABELS, SOURCE_PRIORS, applySourcePrior } from '@shared/credibility'
 
-/** 人工证据来源 ID */
-export const HUMAN_SOURCE_ID = 'human'
-
-/** 人工证据来源名称 */
-export const HUMAN_SOURCE_NAME = '人工证据'
-
-/** 人工证据来源先验可信度 */
-export const HUMAN_SOURCE_PRIOR = 0.9
+/** 本档源 ID */
+const SOURCE_ID = 'human' as const
 
 /**
  * 人工证据输入
@@ -44,18 +40,12 @@ export interface HumanEvidenceInput {
   positiveRate?: number
   /** 标注者间一致性（Fleiss' κ）[0, 1] */
   agreement?: number
+  /** 来源先验 [0, 1]（不提供则用 SOURCE_PRIORS.human） */
+  sourcePrior?: number
 }
 
 /**
  * 创建人工证据 Mass 函数
- *
- * 公式：
- *   无标注时：m(Θ) = 1（完全无知）
- *   有标注时：
- *     strength = 0.7 × positiveRate + 0.3 × agreement
- *     m({T})  = 0.85 × strength     （人工证据权重最高）
- *     m({¬T}) = 0.10 × (1 - strength)
- *     m(Θ)   = 1 - m({T}) - m({¬T})
  *
  * @param evidence - 人工证据输入
  * @returns 人工证据 Mass 函数
@@ -63,22 +53,26 @@ export interface HumanEvidenceInput {
 export function createHumanMassFunction(evidence: HumanEvidenceInput): MassFunction {
   // 无标注数据：完全无知
   if (!evidence.hasAnnotations) {
-    return createVacuousMassFunction(HUMAN_SOURCE_ID, HUMAN_SOURCE_NAME)
+    return createVacuousMassFunction(SOURCE_ID, FUSION_SOURCE_LABELS[SOURCE_ID])
   }
 
   const positiveRate = clamp01(evidence.positiveRate ?? 0.5)
   const agreement = clamp01(evidence.agreement ?? 0.5)
 
-  // 综合人工证据强度
-  const strength = 0.7 * positiveRate + 0.3 * agreement
+  // 标注自身给出的质量，再按"人工标注这个源本来值多少"折一道（标注者偏差）
+  const quality = 0.7 * positiveRate + 0.3 * agreement
+  const strength = applySourcePrior(
+    quality,
+    clamp01(evidence.sourcePrior ?? SOURCE_PRIORS[SOURCE_ID])
+  )
 
   const mT = 0.85 * strength
   const mNotT = 0.1 * (1 - strength)
   const mTheta = 1 - mT - mNotT
 
   return createMassFunction(
-    HUMAN_SOURCE_ID,
-    HUMAN_SOURCE_NAME,
+    SOURCE_ID,
+    FUSION_SOURCE_LABELS[SOURCE_ID],
     [
       { elements: new Set<string>([TRUSTED]), mass: mT },
       { elements: new Set<string>([UNTRUSTED]), mass: mNotT },

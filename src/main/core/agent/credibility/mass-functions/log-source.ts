@@ -2,7 +2,7 @@
  * 日志证据 Mass 函数（Source S1）
  *
  * 来源：日志分析（Drain3 模板匹配 + 来源先验）
- * 先验可信度：0.6（日志来源可能截断或缺失上下文）
+ * 先验可信度：见 @shared/credibility 的 SOURCE_PRIORS.log（0.6，日志来源可能截断或缺失上下文）
  *
  * 设计依据（调研文档 §6.3.1）：
  * - Drain3 匹配度高 → 强证据支持可信
@@ -14,6 +14,10 @@
  *   m({T})  = 0.8 × strength
  *   m({¬T}) = 0.1 × (1 - strength)
  *   m(Θ)   = 1 - m({T}) - m({¬T})
+ *
+ * #106 说明：这是唯一一档"先验以加法式进入定标"的源——其余各档走
+ * applySourcePrior（质量 × 先验）。这里不改成乘法是因为公式已经按
+ * 0.7/0.3 的权重定标过，再乘一次等于把同一个先验打两遍折。
  */
 
 import {
@@ -22,15 +26,10 @@ import {
   UNTRUSTED,
   createMassFunction,
 } from '../ds-theory'
+import { FUSION_SOURCE_LABELS, SOURCE_PRIORS } from '@shared/credibility'
 
-/** 日志证据来源 ID */
-export const LOG_SOURCE_ID = 'log'
-
-/** 日志证据来源名称 */
-export const LOG_SOURCE_NAME = '日志证据'
-
-/** 日志证据来源先验可信度 */
-export const LOG_SOURCE_PRIOR = 0.6
+/** 本档源 ID（id / 展示名 / 先验的唯一来源是 @shared/credibility） */
+const SOURCE_ID = 'log' as const
 
 /**
  * 日志证据输入
@@ -56,7 +55,7 @@ export interface LogEvidenceInput {
  */
 export function createLogMassFunction(evidence: LogEvidenceInput): MassFunction {
   const drainMatch = clamp01(evidence.drainMatch)
-  const sourcePrior = clamp01(evidence.sourcePrior ?? LOG_SOURCE_PRIOR)
+  const sourcePrior = clamp01(evidence.sourcePrior ?? SOURCE_PRIORS[SOURCE_ID])
 
   // 综合日志证据强度
   const strength = 0.7 * drainMatch + 0.3 * sourcePrior
@@ -67,8 +66,8 @@ export function createLogMassFunction(evidence: LogEvidenceInput): MassFunction 
   const mTheta = 1 - mT - mNotT
 
   return createMassFunction(
-    LOG_SOURCE_ID,
-    LOG_SOURCE_NAME,
+    SOURCE_ID,
+    FUSION_SOURCE_LABELS[SOURCE_ID],
     [
       { elements: new Set<string>([TRUSTED]), mass: mT },
       { elements: new Set<string>([UNTRUSTED]), mass: mNotT },

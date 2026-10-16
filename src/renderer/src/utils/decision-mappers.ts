@@ -410,7 +410,6 @@ export function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceI
 
   // 按来源类型聚合
   const hasLog = card.evidences.some(e => e.source === 'log')
-  const hasKb = card.evidences.some(e => e.source === 'knowledge')
   const hasCmd = card.evidences.some(e => e.source === 'command')
   const hasMetric = card.evidences.some(e => e.source === 'metric')
 
@@ -430,10 +429,32 @@ export function buildCredibilityInputs(card: DecisionCard): CredibilityEvidenceI
       inputs.push({ sourceId: 'log', fields: { drainMatch: avgDrain, sourcePrior: avgPrior } })
     }
   }
-  if (hasKb) {
-    const kbEvs = card.evidences.filter(e => e.source === 'knowledge')
-    const avgConf = kbEvs.reduce((s, e) => s + e.confidence, 0) / kbEvs.length
-    inputs.push({ sourceId: 'kb', fields: { topScore: avgConf, hasResults: true } })
+  const kbEvidences = card.evidences.filter(e => e.source === 'knowledge' && e.verified)
+  if (kbEvidences.length > 0) {
+    const scores = kbEvidences.map(e => e.confidence)
+    inputs.push({
+      sourceId: 'knowledge',
+      fields: {
+        hasResults: true,
+        topScore: Math.max(...scores),
+        avgScore: scores.reduce((s, v) => s + v, 0) / scores.length,
+      },
+    })
+  }
+  // #106 B：command / metric / config 是"系统直接给出的读数"，归 observation 档。
+  // 以前这几类要么被塞进 ai-param（当成模型自评），要么只剩 card.confidence 一份数，
+  // 于是最强的那类证据在融合里没有自己的身份。送的是真实观测到的 verified 比例。
+  const obsEvs = card.evidences.filter(
+    e => e.source === 'command' || e.source === 'metric' || e.source === 'config'
+  )
+  if (obsEvs.length > 0) {
+    inputs.push({
+      sourceId: 'observation',
+      fields: {
+        hasObservations: true,
+        successRate: obsEvs.filter(e => e.verified).length / obsEvs.length,
+      },
+    })
   }
   if (hasCmd || hasMetric) {
     // verbalizedConfidence = 这条决策自己声明的置信度（由证据链加权算出，不是模型自评）；

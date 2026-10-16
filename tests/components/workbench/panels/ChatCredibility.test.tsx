@@ -100,7 +100,10 @@ describe('ChatCredibility — 聊天内可信度分析', () => {
     // 那些常数会进 mass 函数变成 committed belief，界面百分比就成了编的。
     expect(ids).not.toContain('log')
     expect(ids).not.toContain('ai-param')
-    expect(ids).toEqual(['kb', 'human', 'history'])
+    // #106 B：命令证据不再冒充"历史案例"（旧口径把它的 confidence 改名成
+    // weightedSuccessRate 送进 history），也不再收到一个叫 'kb' 的空源位；
+    // 现在送的是它本来的身份 observation（直接观测）+ 一个真空的 human 占位。
+    expect(ids).toEqual(['observation', 'human'])
     // 折叠行徽章：80% + 规则名 D-S
     expect(screen.getByText(/80% · D-S/)).toBeInTheDocument()
     expect(screen.getByText('1 项证据')).toBeInTheDocument()

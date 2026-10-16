@@ -145,14 +145,15 @@ const DEFAULT_TEXTAREAS: Record<string, string> = Object.fromEntries(
 )
 
 /**
- * 测试评估用的模拟 6 源证据输入
+ * 测试评估用的模拟证据输入（覆盖全部 7 个融合源位）
  *
- * 用于在 DecisionSettings 页面验证当前 6 源权重对 credibilityAssess 决策可信度的影响。
+ * 用于在 DecisionSettings 页面验证当前权重对 credibilityAssess 决策可信度的影响。
  * 字段值取各 sourceId 的合法必填/可选字段（见 @shared/agent-types CredibilityEvidenceInput）。
  */
 const TEST_ASSESS_INPUTS: CredibilityEvidenceInput[] = [
   { sourceId: 'log', fields: { drainMatch: 0.85, sourcePrior: 0.6 } },
-  { sourceId: 'kb', fields: { hasResults: true, topScore: 0.8, avgScore: 0.6 } },
+  { sourceId: 'observation', fields: { hasObservations: true, successRate: 0.9 } },
+  { sourceId: 'knowledge', fields: { hasResults: true, topScore: 0.8, avgScore: 0.6 } },
   { sourceId: 'ai-param', fields: { verbalizedConfidence: 0.7 } },
   { sourceId: 'human', fields: { hasAnnotations: true, positiveRate: 0.9, agreement: 0.8 } },
   { sourceId: 'history', fields: { hasCases: true, weightedSuccessRate: 0.75 } },

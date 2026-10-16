@@ -14,7 +14,19 @@
  * 那一维不存在就别编一个数填进去，它占着公式里 0.7 的权重。
  */
 import type { AgentMessage, AgentToolCall } from '@/stores/agent-store'
-import type { HistorySaveIntent, Evidence } from '@shared/models'
+import type { HistorySaveIntent, Evidence, EvidenceSource } from '@shared/models'
+import { evidencePriorOf } from '@shared/credibility'
+
+/**
+ * 证据先验一律从 @shared/credibility 那张唯一表取
+ *
+ * #106 的原始毛病就是这里手抄过一份：知识类写 0.75，而表里是 0.5，
+ * 两份数各说各话，改一边没人知道。现在渲染层不持有先验数值，只查表。
+ * 取的是**类别级**先验（单条证据值多少），不是融合级（这一类源在融合里值多少）。
+ */
+function priorOf(category: EvidenceSource): number {
+  return evidencePriorOf(category)
+}
 
 /** 检索类输出是否为"无结果"（kb/tutorial 的 summary 以"未"开头） */
 function isEmptySearchOutput(output: string | undefined): boolean {
@@ -49,10 +61,8 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
           content: (e.output ?? '').slice(0, 500),
           // 命令输出没有"像不像日志模板"这一维 ⇒ drainMatch 取 null。
           // 原来这里写 0.5 当"中性"：那个数没人测过，却占掉公式里 0.7 那一维。
-          // 渲染层拿不到主进程那个纯函数（跨进程），所以先验/置信度按同一条口径写死在这里，
-          // 一致性由 tests/unit/chat-decision-evidence-shape.test.ts 对账主进程那张先验表。
           drainMatch: null,
-          sourcePrior: 0.9,
+          sourcePrior: priorOf('command'),
           confidence: ok ? 0.9 : UNVERIFIED_FLOOR,
           timestamp: now,
           verified: ok,
@@ -64,10 +74,10 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
           source: 'metric' as const,
           sourceDetail: 'monitor_get',
           content: (e.output ?? '').slice(0, 500),
-          // 指标读数同样没有模板维度。顺带修一处口径分叉：这里原先写 sourcePrior 0.85，
-          // 而主进程先验表里 metric 是 0.8，两份数各说各话。
+          // 指标读数同样没有模板维度。先验不再手抄（这里曾写死 0.85→0.8，
+          // 而融合表里 metric 是另一个数）：metric 与 command 同属观测档，查同一张表。
           drainMatch: null,
-          sourcePrior: 0.8,
+          sourcePrior: priorOf('metric'),
           confidence: ok ? 0.8 : UNVERIFIED_FLOOR,
           timestamp: now,
           verified: ok,
@@ -83,7 +93,7 @@ export function toolEventsToEvidences(events: AgentToolCall[] | undefined): Evid
         // 这一档保留数值但说清它是什么：不是"日志模板匹配度"，而是"这次检索有没有回东西"
         // 的两个档位，跟着一条真实观测变（命中 / 空返回），不是没人测过的常数。
         drainMatch: hasHits ? 0.8 : 0.2,
-        sourcePrior: 0.75,
+        sourcePrior: priorOf('knowledge'),
         confidence: hasHits ? 0.8 : 0.3,
         timestamp: now,
         verified: hasHits,

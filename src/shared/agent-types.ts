@@ -23,6 +23,8 @@
  *           + v0.9.4 §2 IPC 协议优化（sessionId / abort signal / protocolVersion / ping-pong）
  */
 
+import type { FusionSourceId } from './credibility'
+
 /**
  * Provider 类型枚举（区分不同厂商的创建逻辑）
  *
@@ -529,22 +531,21 @@ export interface AgentErrorPayload {
 // ============================================================================
 
 /**
- * 可信度证据来源 ID（6 源证据）
+ * 可信度证据来源 ID（7 源，唯一一套词表在 @shared/credibility）
  *
- * - log：日志证据（Drain3 模板匹配，先验 0.6）
- * - kb：知识库匹配（向量检索相似度，先验 0.5）
- * - ai-param：AI 参数证据（Verbalized Confidence + Logprobs，先验 0.7）
- * - human：人工证据（用户标注 / 反馈，先验 0.9）
- * - history：历史证据（历史决策案例，先验 0.75）
- * - best-practice：最佳实践证据（规则库匹配，先验 0.8）
+ * - log：日志证据（Drain3 模板匹配）
+ * - observation：直接观测证据（命令退出码 / 指标读数 / 配置读数）
+ * - knowledge：知识库匹配（向量检索相似度）
+ * - ai-param：AI 参数证据（Verbalized Confidence + Logprobs）
+ * - human：人工证据（用户标注 / 反馈）
+ * - history：历史证据（历史决策案例）
+ * - best-practice：最佳实践证据（规则库匹配）
+ *
+ * #106：原先这里是手抄的第二个名单（多一个 'kb'、少一个 'observation'），
+ * 与质量算法那份表各说各话。现在只是同一张表的类型别名，加源只改一处。
+ * 先验数值不在本文件重复声明，见 SOURCE_PRIORS。
  */
-export type CredibilitySourceId =
-  | 'log'
-  | 'kb'
-  | 'ai-param'
-  | 'human'
-  | 'history'
-  | 'best-practice'
+export type CredibilitySourceId = FusionSourceId
 
 /**
  * 可信度评估请求 - 单个证据源输入
@@ -552,17 +553,18 @@ export type CredibilitySourceId =
  * 渲染进程通过 IPC 传入证据源列表，每个证据源包含 sourceId 和对应的 fields。
  * fields 的具体字段取决于 sourceId（见各 mass function 的 Input 接口）。
  *
- * 字段约定：
+ * 字段约定（每一档都可带 sourcePrior?: number，不带则用 SOURCE_PRIORS 的默认值）：
  * - log: { drainMatch: number, sourcePrior?: number }
- * - kb: { hasResults: boolean, topScore?: number, avgScore?: number }
- * - ai-param: { verbalizedConfidence: number, logprobConfidence?: number, consistency?: number, cotEntropyTrajectory?: number[] }
+ * - observation: { hasObservations: boolean, successRate?: number, sourcePrior?: number }
+ * - knowledge: { hasResults: boolean, topScore?: number, avgScore?: number, sourcePrior?: number }
+ * - ai-param: { verbalizedConfidence: number, logprobConfidence?: number, consistency?: number, cotEntropyTrajectory?: number[], sourcePrior?: number }
  *   （v0.9.6 P2 M4：cotEntropyTrajectory 为可选，每步 Shannon 熵，详见 CotEntropyTrajectory；
  *    v0.9.6 P2 M5+ 修正：Electron IPC 的 structured clone 实际支持数组传输，
  *    因此 cotEntropyTrajectory 可以走 CredibilityEvidenceInput 通道，
  *    无需再"在主进程侧直接调用 createAiParamMassFunction"）
- * - human: { hasAnnotations: boolean, positiveRate?: number, agreement?: number }
- * - history: { hasCases: boolean, weightedSuccessRate?: number }
- * - best-practice: { hasMatches: boolean, positiveRate?: number, negativeRate?: number }
+ * - human: { hasAnnotations: boolean, positiveRate?: number, agreement?: number, sourcePrior?: number }
+ * - history: { hasCases: boolean, weightedSuccessRate?: number, sourcePrior?: number }
+ * - best-practice: { hasMatches: boolean, positiveRate?: number, negativeRate?: number, sourcePrior?: number }
  */
 export interface CredibilityEvidenceInput {
   /** 证据来源 ID */

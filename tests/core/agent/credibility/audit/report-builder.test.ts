@@ -62,7 +62,7 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
     },
     sourceEvidences: [
       {
-        sourceId: 'S1-log',
+        sourceId: 'log',
         sourceName: '日志证据',
         focalElements: { T: 0.7, '¬T': 0.3 },
         rawConfidence: 0.7,
@@ -74,7 +74,7 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         dataTimestamp: 1700000000000,
       },
       {
-        sourceId: 'S2-knowledge',
+        sourceId: 'knowledge',
         sourceName: '知识库',
         focalElements: { T: 0.8, '¬T': 0.2 },
         rawConfidence: 0.8,
@@ -86,7 +86,7 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         dataTimestamp: 1700000000000,
       },
       {
-        sourceId: 'S3-ai-param',
+        sourceId: 'ai-param',
         sourceName: 'AI 参数',
         focalElements: { T: 0.85, '¬T': 0.15 },
         rawConfidence: 0.85,
@@ -98,7 +98,7 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         dataTimestamp: 1700000000000,
       },
       {
-        sourceId: 'S4-human',
+        sourceId: 'human',
         sourceName: '人工证据',
         focalElements: { T: 0.9, '¬T': 0.1 },
         rawConfidence: 0.9,
@@ -110,7 +110,7 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         dataTimestamp: 1700000000000,
       },
       {
-        sourceId: 'S5-history',
+        sourceId: 'history',
         sourceName: '历史证据',
         focalElements: { T: 0.75, '¬T': 0.25 },
         rawConfidence: 0.75,
@@ -122,7 +122,7 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         dataTimestamp: 1700000000000,
       },
       {
-        sourceId: 'S6-best-practice',
+        sourceId: 'best-practice',
         sourceName: '最佳实践',
         focalElements: { T: 0.8, '¬T': 0.2 },
         rawConfidence: 0.8,
@@ -145,8 +145,8 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         {
           step: 1,
           ruleUsed: 'pcr5',
-          leftSourceId: 'S1-log',
-          rightSourceId: 'S2-knowledge',
+          leftSourceId: 'log',
+          rightSourceId: 'knowledge',
           conflict: 0.05,
           resultBelief: 0.65,
           resultPlausibility: 0.85,
@@ -154,8 +154,8 @@ function makeInput(overrides: Partial<AuditReportInput> = {}): AuditReportInput 
         {
           step: 2,
           ruleUsed: 'pcr5',
-          leftSourceId: 'S3-ai-param',
-          rightSourceId: 'S4-human',
+          leftSourceId: 'ai-param',
+          rightSourceId: 'human',
           conflict: 0.08,
           resultBelief: 0.78,
           resultPlausibility: 0.92,
@@ -783,8 +783,8 @@ describe('audit/report-builder — Zadeh 悖论场景', () => {
           {
             step: 1,
             ruleUsed: 'pcr5',
-            leftSourceId: 'S1-log',
-            rightSourceId: 'S2-knowledge',
+            leftSourceId: 'log',
+            rightSourceId: 'knowledge',
             conflict: 0.5,
             resultBelief: 0.495,    // PCR5 保留部分 mass
             resultPlausibility: 0.505,
@@ -915,8 +915,8 @@ describe('audit/report-builder — 指纹算法 v1.1 回归（嵌套字段变化
           {
             step: 1,
             ruleUsed: 'dempster',
-            leftSourceId: 'S1-log',
-            rightSourceId: 'S2-knowledge',
+            leftSourceId: 'log',
+            rightSourceId: 'knowledge',
             conflict: 0.05,
             resultBelief: 0.65,
             resultPlausibility: 0.85,
@@ -924,8 +924,8 @@ describe('audit/report-builder — 指纹算法 v1.1 回归（嵌套字段变化
           {
             step: 2,
             ruleUsed: 'dempster',
-            leftSourceId: 'S3-ai-param',
-            rightSourceId: 'S4-human',
+            leftSourceId: 'ai-param',
+            rightSourceId: 'human',
             conflict: 0.08,
             resultBelief: 0.78,
             resultPlausibility: 0.92,
@@ -933,8 +933,8 @@ describe('audit/report-builder — 指纹算法 v1.1 回归（嵌套字段变化
           {
             step: 3,    // 多了第 3 步
             ruleUsed: 'dempster',
-            leftSourceId: 'S5-history',
-            rightSourceId: 'S6-best-practice',
+            leftSourceId: 'history',
+            rightSourceId: 'best-practice',
             conflict: 0.03,
             resultBelief: 0.85,
             resultPlausibility: 0.95,

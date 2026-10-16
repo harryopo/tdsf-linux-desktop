@@ -12,11 +12,13 @@
 import type { MassFunction } from '../core/agent/credibility/ds-theory'
 import { applyDiscount } from '../core/agent/credibility/ds-theory'
 import { createLogMassFunction } from '../core/agent/credibility/mass-functions/log-source'
-import { createKbMassFunction } from '../core/agent/credibility/mass-functions/kb-source'
+import { createKnowledgeMassFunction } from '../core/agent/credibility/mass-functions/knowledge-source'
+import { createObservationMassFunction } from '../core/agent/credibility/mass-functions/observation-source'
 import { createAiParamMassFunction } from '../core/agent/credibility/mass-functions/ai-param-source'
 import { createHumanMassFunction } from '../core/agent/credibility/mass-functions/human-source'
 import { createHistoryMassFunction } from '../core/agent/credibility/mass-functions/history-source'
 import { createBestPracticeMassFunction } from '../core/agent/credibility/mass-functions/best-practice-source'
+import { normalizeFusionSourceId } from '@shared/credibility'
 import type {
   CredibilityEvidenceInput,
   SerializableMassFunction,
@@ -91,13 +93,19 @@ export function getOptionalNumberArray(
 /**
  * 根据 CredibilityEvidenceInput 创建对应的 Mass 函数
  *
- * 根据 sourceId 分发到对应的 mass function 工厂：
+ * sourceId 先过 normalizeFusionSourceId（旧的 'kb'、审计侧 'S2-knowledge' 等
+ * 历史写法归一到唯一一套 id），再按 id 分发到对应工厂：
  * - log → createLogMassFunction
- * - kb → createKbMassFunction
+ * - observation → createObservationMassFunction
+ * - knowledge → createKnowledgeMassFunction
  * - ai-param → createAiParamMassFunction
  * - human → createHumanMassFunction
  * - history → createHistoryMassFunction
  * - best-practice → createBestPracticeMassFunction
+ *
+ * 每一档都接收 sourcePrior（可选）：不传则工厂自己按 @shared/credibility 的
+ * SOURCE_PRIORS 取默认值。字段"存在但没人读"就是 #106 的原始缺陷，
+ * 现在先验一律由工厂消费。
  *
  * @param input - 证据源输入
  * @returns 对应的 Mass 函数
@@ -105,19 +113,28 @@ export function getOptionalNumberArray(
  */
 export function createMassFunctionFromInput(input: CredibilityEvidenceInput): MassFunction {
   const f = input.fields
+  const sourceId = normalizeFusionSourceId(input.sourceId)
 
-  switch (input.sourceId) {
+  switch (sourceId) {
     case 'log':
       return createLogMassFunction({
         drainMatch: getRequiredNumber(f, 'drainMatch'),
         sourcePrior: getOptionalNumber(f, 'sourcePrior'),
       })
 
-    case 'kb':
-      return createKbMassFunction({
+    case 'observation':
+      return createObservationMassFunction({
+        hasObservations: getRequiredBoolean(f, 'hasObservations'),
+        successRate: getOptionalNumber(f, 'successRate'),
+        sourcePrior: getOptionalNumber(f, 'sourcePrior'),
+      })
+
+    case 'knowledge':
+      return createKnowledgeMassFunction({
         hasResults: getRequiredBoolean(f, 'hasResults'),
         topScore: getOptionalNumber(f, 'topScore'),
         avgScore: getOptionalNumber(f, 'avgScore'),
+        sourcePrior: getOptionalNumber(f, 'sourcePrior'),
       })
 
     case 'ai-param':
@@ -125,6 +142,7 @@ export function createMassFunctionFromInput(input: CredibilityEvidenceInput): Ma
         verbalizedConfidence: getRequiredNumber(f, 'verbalizedConfidence'),
         logprobConfidence: getOptionalNumber(f, 'logprobConfidence'),
         consistency: getOptionalNumber(f, 'consistency'),
+        sourcePrior: getOptionalNumber(f, 'sourcePrior'),
         // v0.9.6 P2 M5+：透传 CoT 熵轨迹
         cotEntropyTrajectory: getOptionalNumberArray(f, 'cotEntropyTrajectory'),
       })
@@ -134,12 +152,14 @@ export function createMassFunctionFromInput(input: CredibilityEvidenceInput): Ma
         hasAnnotations: getRequiredBoolean(f, 'hasAnnotations'),
         positiveRate: getOptionalNumber(f, 'positiveRate'),
         agreement: getOptionalNumber(f, 'agreement'),
+        sourcePrior: getOptionalNumber(f, 'sourcePrior'),
       })
 
     case 'history':
       return createHistoryMassFunction({
         hasCases: getRequiredBoolean(f, 'hasCases'),
         weightedSuccessRate: getOptionalNumber(f, 'weightedSuccessRate'),
+        sourcePrior: getOptionalNumber(f, 'sourcePrior'),
       })
 
     case 'best-practice':
@@ -147,11 +167,12 @@ export function createMassFunctionFromInput(input: CredibilityEvidenceInput): Ma
         hasMatches: getRequiredBoolean(f, 'hasMatches'),
         positiveRate: getOptionalNumber(f, 'positiveRate'),
         negativeRate: getOptionalNumber(f, 'negativeRate'),
+        sourcePrior: getOptionalNumber(f, 'sourcePrior'),
       })
 
     default: {
       // 穷尽性检查（exhaustive check）
-      const exhaustive: never = input.sourceId
+      const exhaustive: never = sourceId
       throw new Error(`未知的证据来源 ID: ${String(exhaustive)}`)
     }
   }
@@ -200,26 +221,30 @@ export function createMassFunctionsFromInputs(inputs: CredibilityEvidenceInput[]
 // ============================================================================
 
 /**
- * 6 源证据的默认权重映射（业务侧 ID → 算法侧 sourceId）
+ * 各源权重映射（业务侧权重 key → 融合源 sourceId）
  *
- * 业务侧权重 key（ConfigStore decision.weights）：
- *   - system-metrics → log（系统指标来自日志）
- *   - knowledge-base → kb（知识库匹配）
- *   - ai-analysis → ai-param（AI 参数化分析）
- *   - human-input → human（人工标注）
- *   - history-match → history（历史案例匹配）
- *   - best-practice → best-practice（最佳实践）
+ * 业务侧权重 key 以唯一写入方 `DecisionSettings` 的 EVIDENCE_SOURCES 为准：
+ *   - system-metrics  → observation（命令/指标/配置读数）
+ *   - log-analysis    → log（日志模板匹配）
+ *   - knowledge-base  → knowledge（知识库检索）
+ *   - model-inference → ai-param（模型自评等参数证据）
+ *   - human-experience→ human（人工标注）
+ *   - history-match   → history（历史案例）
  *
- * 说明：如果 ConfigStore 的权重 key 与此映射不匹配，
- * 会降级到均值权重（保持向后兼容）。
+ * #106 修的洞：这张表原来写的是 'ai-analysis' / 'human-input' / 'best-practice'，
+ * 而界面只写 system-metrics / history-match / knowledge-base / log-analysis /
+ * human-experience / model-inference —— 六个滑条里有三个改了没人在读，
+ * 两个读的名字从来没人写过，剩下全靠"均值权重"兜底。
+ *
+ * 说明：仍留在映射表外的 key 会降级到均值权重（保持向后兼容）。
  */
 const WEIGHT_KEY_TO_SOURCE_ID: Record<string, string> = {
-  'system-metrics': 'log',
-  'knowledge-base': 'kb',
-  'ai-analysis': 'ai-param',
-  'human-input': 'human',
+  'system-metrics': 'observation',
+  'log-analysis': 'log',
+  'knowledge-base': 'knowledge',
+  'model-inference': 'ai-param',
+  'human-experience': 'human',
   'history-match': 'history',
-  'best-practice': 'best-practice',
 }
 
 /**

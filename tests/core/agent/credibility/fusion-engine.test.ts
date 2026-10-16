@@ -35,7 +35,7 @@ import {
   getFusionEngine
 } from '../../../../src/main/core/agent/credibility/fusion-engine'
 import { createLogMassFunction } from '../../../../src/main/core/agent/credibility/mass-functions/log-source'
-import { createKbMassFunction } from '../../../../src/main/core/agent/credibility/mass-functions/kb-source'
+import { createKnowledgeMassFunction } from '../../../../src/main/core/agent/credibility/mass-functions/knowledge-source'
 import { createAiParamMassFunction } from '../../../../src/main/core/agent/credibility/mass-functions/ai-param-source'
 import { createHumanMassFunction } from '../../../../src/main/core/agent/credibility/mass-functions/human-source'
 import { createHistoryMassFunction } from '../../../../src/main/core/agent/credibility/mass-functions/history-source'
@@ -53,7 +53,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       // 两个都偏向 T 的源
       const sources = [
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       ]
       const assessment = engine.fuseAndAssess(sources)
       expect(assessment.ruleUsed).toBe('dempster')
@@ -64,7 +64,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       const sources = [
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 }),
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 }),
         createHistoryMassFunction({ hasCases: true, weightedSuccessRate: 0.7 })
       ]
       const assessment = engine.fuseAndAssess(sources)
@@ -118,7 +118,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       const sources = [
         createLogMassFunction({ drainMatch: 0.9, sourcePrior: 0.6 }),         // S1
-        createKbMassFunction({ hasResults: true, topScore: 0.8, avgScore: 0.6 }), // S2
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.8, avgScore: 0.6 }), // S2
         createAiParamMassFunction({ verbalizedConfidence: 0.85 }),              // S3
         createHumanMassFunction({ hasAnnotations: true, positiveRate: 0.9, agreement: 0.85 }), // S4
         createHistoryMassFunction({ hasCases: true, weightedSuccessRate: 0.8 }), // S5
@@ -142,7 +142,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       const sources = [
         createLogMassFunction({ drainMatch: 0.9, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.8, avgScore: 0.6 }),
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.8, avgScore: 0.6 }),
         createAiParamMassFunction({ verbalizedConfidence: 0.85 }),
         createHumanMassFunction({ hasAnnotations: true, positiveRate: 0.9, agreement: 0.85 }),
         createHistoryMassFunction({ hasCases: true, weightedSuccessRate: 0.8 }),
@@ -210,7 +210,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       expect(engine).toBeDefined()
       const sources = [
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       ]
       const assessment = engine.fuseAndAssess(sources)
       expect(assessment.ruleUsed).toBe('dempster')
@@ -274,7 +274,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       const sources = [
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       ]
       engine.fuse(sources)
       const steps = engine.getLastFusionSteps()
@@ -286,7 +286,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       engine.fuse([
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       ])
       expect(engine.getLastRuleUsed()).toBe('dempster')
     })
@@ -295,7 +295,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       engine.fuse([
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       ])
       const steps = engine.getLastFusionSteps()
       steps.pop()
@@ -324,7 +324,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       // 第一对低冲突
       const m1 = createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 })
-      const m2 = createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+      const m2 = createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       // 第二对高冲突
       const m3 = createMassFunction('m3', 'm3', [
         { elements: T_SET, mass: 0.95 },
@@ -350,7 +350,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       const sources = [
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 })
       ]
       const assessment = engine.fuseAndAssess(sources)
       const step = assessment.fusionSteps[0]
@@ -389,7 +389,7 @@ describe('fusion-engine — 自适应 Dempster/PCR5 切换引擎', () => {
       const engine = new FusionEngine()
       const sources = [
         createLogMassFunction({ drainMatch: 0.7, sourcePrior: 0.6 }),
-        createKbMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 }),
+        createKnowledgeMassFunction({ hasResults: true, topScore: 0.6, avgScore: 0.55 }),
         createAiParamMassFunction({ verbalizedConfidence: 0.85 })
       ]
       const assessment = engine.fuseAndAssess(sources)

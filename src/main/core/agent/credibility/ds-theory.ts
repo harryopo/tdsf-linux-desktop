@@ -63,7 +63,7 @@ export const UNTRUSTED_SET: ReadonlySet<string> = new Set<string>([UNTRUSTED])
  * - 宽度=0 时退化为经典概率
  */
 export interface MassFunction {
-  /** 证据源 ID（如 'log'、'kb'、'ai-param'、'human'、'history'、'best-practice'） */
+  /** 证据源 ID（唯一一套词表见 @shared/credibility 的 FUSION_SOURCE_IDS） */
   sourceId: string
   /** 证据源显示名称（如 '日志证据'、'知识库匹配'） */
   sourceName: string

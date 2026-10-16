@@ -25,6 +25,8 @@
 // 法规 / 标准元数据
 // ============================================================================
 
+import type { FusionSourceId } from '@shared/credibility'
+
 /**
  * 输出格式
  */
@@ -130,8 +132,12 @@ export interface AuditDecisionContext {
  * 对应 EU AI Act Art.10（数据治理）+ Art.13(3)(b)(v)（受影响的个人或群体）
  */
 export interface AuditSourceEvidence {
-  /** 证据源 ID（S1-S6）*/
-  sourceId: 'S1-log' | 'S2-knowledge' | 'S3-ai-param' | 'S4-human' | 'S5-history' | 'S6-best-practice'
+  /**
+   * 证据源 ID（#106 B：与融合算法共用同一套 id，不再另起 S1-S6 那套名字）
+   *
+   * 'unspecified' 是给"这条证据没标来源"留的诚实档位——旧代码在这里按序号随机归类。
+   */
+  sourceId: FusionSourceId | 'unspecified'
   /** 证据源名称 */
   sourceName: string
   /** 焦元分布（key: 命题标识 / value: mass）*/

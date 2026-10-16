@@ -39,6 +39,12 @@ import { logger } from '../services/log/logger'
 // 未收口前这三条通道能把报告写到任意可写路径、也能读任意目录（fs.readFile 直传）
 import { assertWithinConfinement } from '../services/security/path-confinement'
 import { ConfigStore } from '../services/storage/config-store'
+import {
+  EVIDENCE_CATEGORY_TO_SOURCE,
+  FUSION_SOURCE_LABELS,
+  UNSPECIFIED_SOURCE_ID,
+  UNSPECIFIED_SOURCE_LABEL,
+} from '@shared/credibility'
 // 辅助函数从 credibility-helpers.ts 导入（保持主文件 ≤500 行）
 import {
   createMassFunctionsFromInputs,
@@ -63,56 +69,31 @@ import type {
 } from '../core/agent/credibility/calibration/types'
 
 // ============================================================================
-// v2.3.2 辅助：EvidenceSource → 6 源审计 ID 映射
+// v2.3.2 辅助：EvidenceSource → 融合源 ID 映射（唯一一张表在 @shared/credibility）
 // ============================================================================
 /**
- * EvidenceSource（业务侧 5 类）→ AuditSourceEvidence.sourceId（审计侧 6 类）映射
+ * 业务侧来源（@shared/models.EvidenceSource）→ 审计记录的融合源 ID
  *
- * 业务侧来源（@shared/models.EvidenceSource）：
- *   log / metric / command / config / knowledge
+ * 映射规则（#106 B 收敛后）：
+ *   - log       → log（日志模板匹配）
+ *   - metric    → observation（系统读数）
+ *   - command   → observation（命令真实执行后的退出码与输出）
+ *   - config    → observation（配置读数）
+ *   - knowledge → knowledge（知识库检索）
+ *   - 缺失/未知 → 'unspecified'（来源未标注）
  *
- * 审计侧 6 源 ID（EU AI Act Art.10 + 可信度算法 6 源融合）：
- *   S1-log / S2-knowledge / S3-ai-param / S4-human / S5-history / S6-best-practice
- *
- * 映射规则：
- *   - log       → S1-log（日志源直接对齐）
- *   - knowledge → S2-knowledge（知识库直接对齐）
- *   - metric    → S3-ai-param（指标作为 AI 参数化输入）
- *   - command   → S4-human（命令通常由人工触发）
- *   - config    → S6-best-practice（配置项参考最佳实践）
- *   - 缺失/未知 → 按 idx 兜底循环（含 S5-history）
- */
-const EVIDENCE_SOURCE_MAP: Record<EvidenceSource, AuditSourceEvidence['sourceId']> = {
-  log: 'S1-log',
-  knowledge: 'S2-knowledge',
-  metric: 'S3-ai-param',
-  command: 'S4-human',
-  config: 'S6-best-practice',
-}
-
-const FALLBACK_SOURCE_IDS: AuditSourceEvidence['sourceId'][] = [
-  'S1-log',
-  'S2-knowledge',
-  'S3-ai-param',
-  'S4-human',
-  'S5-history',
-  'S6-best-practice',
-]
-
-/**
- * 将业务侧 EvidenceSource 映射为审计侧 6 源 ID
- * @param source 业务侧证据来源（可能为 undefined）
- * @param idx 证据序号（兜底用）
- * @returns 6 源审计 ID
+ * 旧实现的两处假账在这里一并清掉：
+ *   1. metric → S3-ai-param、command → S4-human、config → S6-best-practice
+ *      是把"系统给的事实"改名成"模型自评/人工标注/最佳实践"，
+ *      审计报告于是宣称这些证据来自它们根本没来自的源。
+ *   2. 映射不到时按 `idx % 6` 随机塞进某个源——同一张卡重排证据顺序就会换一个源，
+ *      随机兜底造出来的信念比没有信念更糟。
  */
 function mapEvidenceToSourceId(
   source: EvidenceSource | undefined,
-  idx: number,
 ): AuditSourceEvidence['sourceId'] {
-  if (source && EVIDENCE_SOURCE_MAP[source]) {
-    return EVIDENCE_SOURCE_MAP[source]
-  }
-  return FALLBACK_SOURCE_IDS[idx % FALLBACK_SOURCE_IDS.length]
+  if (!source) return UNSPECIFIED_SOURCE_ID
+  return EVIDENCE_CATEGORY_TO_SOURCE[source] ?? UNSPECIFIED_SOURCE_ID
 }
 
 /**
@@ -670,18 +651,25 @@ function buildSimplifiedAuditInput(card: DecisionCard): import('../core/agent/cr
       domain: 'linux-ops',
       isHighRisk: highRisk,
     },
-    sourceEvidences: card.evidences.map((ev, idx) => ({
-      sourceId: mapEvidenceToSourceId(ev.source, idx),
-      sourceName: ev.source || `证据 ${idx + 1}`,
-      focalElements: { T: ev.confidence ?? 0.5, F: 1 - (ev.confidence ?? 0.5) },
-      rawConfidence: ev.confidence ?? 0.5,
-      calibratedConfidence: ev.confidence ?? 0.5,
-      calibrationTemperature: 1.0,
-      weight: 1 / Math.max(card.evidences.length, 1),
-      inputData: { content: ev.content, source: ev.source },
-      dataProvenance: ev.source || 'unknown',
-      dataTimestamp: decisionTime,
-    })),
+    sourceEvidences: card.evidences.map((ev) => {
+      const sourceId = mapEvidenceToSourceId(ev.source)
+      return {
+        sourceId,
+        // 展示名单取自融合源表；标不出来源的那条就照实说"来源未标注"
+        sourceName:
+          sourceId === UNSPECIFIED_SOURCE_ID
+            ? UNSPECIFIED_SOURCE_LABEL
+            : FUSION_SOURCE_LABELS[sourceId],
+        focalElements: { T: ev.confidence ?? 0.5, F: 1 - (ev.confidence ?? 0.5) },
+        rawConfidence: ev.confidence ?? 0.5,
+        calibratedConfidence: ev.confidence ?? 0.5,
+        calibrationTemperature: 1.0,
+        weight: 1 / Math.max(card.evidences.length, 1),
+        inputData: { content: ev.content, source: ev.source },
+        dataProvenance: ev.source || 'unknown',
+        dataTimestamp: decisionTime,
+      }
+    }),
     confidenceAssessment: {
       belief: card.confidence,
       plausibility: Math.min(card.confidence + 0.2, 1),
