@@ -253,19 +253,69 @@ try {
 }
 let asNever = 0
 const asNeverHits = []
-for (const rel of diskTests) {
-  const text = fs.readFileSync(path.join(REPO, rel), 'utf8')
+
+/** 数一段文本里的 `as never` 断言节点，返回 `文件:行号` 列表 */
+function asNeverPositions(rel, text) {
+  const out = []
   const src = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true)
   const visit = (node) => {
     const isAssertion = ts.isAsExpression(node) || node.kind === ts.SyntaxKind.TypeAssertionExpression
     if (isAssertion && node.type && node.type.kind === ts.SyntaxKind.NeverKeyword) {
-      asNever++
-      asNeverHits.push(`${rel}:${src.getLineAndCharacterOfPosition(node.getStart()).line + 1}`)
+      out.push(`${rel}:${src.getLineAndCharacterOfPosition(node.getStart()).line + 1}`)
     }
     ts.forEachChild(node, visit)
   }
   visit(src)
+  return out
 }
+
+for (const rel of diskTests) {
+  asNeverHits.push(...asNeverPositions(rel, fs.readFileSync(path.join(REPO, rel), 'utf8')))
+}
+asNever = asNeverHits.length
+
+/**
+ * 超限时报"新增的那一条在哪"——不能按遍历顺序取第 CAP+1 条：
+ * 那条取决于文件顺序，实测指错过别人的文件（本轮就指到了 terminal-shell-sync，
+ * 而多出来的一条其实在我新写的测试里）。改法和 HEAD 逐文件比计数。
+ *
+ * 只看 tests/ 下"相对 HEAD 有变化"的文件：改动过的用 git show 取 HEAD 版本重数，
+ * 未跟踪的新文件按 HEAD 计数 0。git 拿不到就直说拿不到，不猜一条出来。
+ */
+function locateGrownAsNever() {
+  const { execFileSync } = require('child_process')
+  const read = (args) => {
+    try {
+      return execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })
+    } catch {
+      return null
+    }
+  }
+  const tracked = read(['diff', '--name-only', 'HEAD', '--', 'tests'])
+  const untracked = read(['ls-files', '--others', '--exclude-standard', 'tests'])
+  if (tracked === null || untracked === null) return null
+  const untrackedSet = new Set(untracked.split('\n').filter(Boolean))
+  const candidates = new Set([...tracked.split('\n'), ...untracked].filter(Boolean))
+  const countNowByFile = new Map()
+  for (const hit of asNeverHits) {
+    const rel = hit.slice(0, hit.lastIndexOf(':'))
+    countNowByFile.set(rel, (countNowByFile.get(rel) ?? 0) + 1)
+  }
+  const grew = []
+  for (const rel of candidates) {
+    const now = countNowByFile.get(rel) ?? 0
+    if (now === 0) continue
+    let before = 0
+    if (!untrackedSet.has(rel)) {
+      const headText = read(['show', `HEAD:${rel}`])
+      if (headText === null) continue
+      before = asNeverPositions(rel, headText).length
+    }
+    if (now > before) grew.push(`${rel} +${now - before}`)
+  }
+  return grew
+}
+
 
 const byCode = new Map()
 const byFile = new Map()
@@ -289,7 +339,14 @@ if (inTests.length > CAP) {
   console.log(`  tests/ 里的错误（前 20 条）：`)
   for (const e of inTests.slice(0, 20)) console.log(`    ${e.file}:${e.line}:${e.col} ${e.code} ${e.text}`)
 }
-if (asNever > AS_NEVER_CAP) console.log(`  新增的 as never：${asNeverHits.slice(AS_NEVER_CAP).join(' ')}`)
+const grownAsNever = asNever > AS_NEVER_CAP ? locateGrownAsNever() : []
+const grownText =
+  grownAsNever === null
+    ? '定位不了（git 不可用），请按 git diff 自查本轮新写的 as never'
+    : grownAsNever.length > 0
+      ? grownAsNever.join(' ')
+      : '按文件比对没定位到增量（可能是同文件内挪了位置），请按 git diff 自查'
+if (asNever > AS_NEVER_CAP) console.log(`  比 HEAD 多出的 as never：${grownText}`)
 
 if (jsonOut) {
   const abs = path.resolve(REPO, jsonOut)
@@ -328,7 +385,7 @@ if (inTests.length > CAP) {
 }
 if (asNever > AS_NEVER_CAP) {
   console.error(
-    `[tests-typecheck] FAIL：as never 比上限多 ${asNever - AS_NEVER_CAP} 处（${asNeverHits.slice(AS_NEVER_CAP).join(' ')}）。` +
+    `[tests-typecheck] FAIL：as never 比上限多 ${asNever - AS_NEVER_CAP} 处（比 HEAD 多出来的：${grownText}）。` +
       `它把"夹具形状和产品契约不一致"这句话按住了——见本文件头第七族那一段。按真实类型收窄，别加新的一处。`
   )
   process.exit(1)
