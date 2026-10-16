@@ -208,10 +208,20 @@ export async function runAuthoredInShell(
  * ③ 输出先到、标签后建的竞态（terminal-bus 收到不认识的 shellId 时就来对账）。
  * 逐条会话调 sshShellList，把界面收敛成主进程的样子：多的补上、少的摘掉。
  */
+/**
+ * 对账轮次号
+ *
+ * syncShells 会被好几处同时叫到（页面挂载、终端总线收到不认识的 shellId、断开清理），
+ * 而 IPC 的响应顺序不等于出发顺序。谁最后落账，界面就是谁的形状。
+ */
+let syncIssued = 0
+let syncApplied = 0
+
 export async function syncShells(): Promise<void> {
   if (!isElectronAPIAvailable()) return
   const api = window.electronAPI
   if (!api?.sshShellList) return
+  const round = ++syncIssued
   const { sessionMap, activeSessionId } = useServerStore.getState()
   const sessionIds = new Set<string>(Object.values(sessionMap))
   if (activeSessionId) sessionIds.add(activeSessionId)
@@ -223,6 +233,10 @@ export async function syncShells(): Promise<void> {
       // 单条会话问不到就跳过：可能是刚刚断开的，它的标签由 dropSession 负责摘
       continue
     }
+    // 手里这份是过期快照（有更新的一轮已经落过账）就整轮作废：
+    // 拿"过去某一秒主进程有哪些通道"去删现在的标签，会让还活着的终端凭空消失
+    if (round < syncApplied) return
+    syncApplied = round
     useTerminalStore
       .getState()
       .reconcileSession(sessionId, shellIds, sessionTitle(sessionId), 'ssh')
@@ -232,6 +246,8 @@ export async function syncShells(): Promise<void> {
   if (api.localTtyList && api.localTtyStatus) {
     try {
       const [ids, status] = await Promise.all([api.localTtyList(), api.localTtyStatus()])
+      if (round < syncApplied) return
+      syncApplied = round
       useTerminalStore
         .getState()
         .reconcileSession(null, ids, localShellTitle(status), 'local')

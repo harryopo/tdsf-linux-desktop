@@ -94,4 +94,37 @@ describe('syncShells', () => {
     delete (window as unknown as { electronAPI?: unknown }).electronAPI
     await expect(syncShells()).resolves.toBeUndefined()
   })
+
+  it('并发对账：先出发的那份快照晚回来，不许把刚开出来的终端摘掉（#105）', async () => {
+    // 两次询问之间主进程多开了一条通道（用户在标签条点了 "+"）
+    const snapshots: string[][] = [['a'], ['a', 'b']]
+    const deferred: Array<{ resolve: (v: string[]) => void }> = []
+    let call = 0
+    ;(window as unknown as { electronAPI: unknown }).electronAPI = {
+      sshShellList: () => {
+        call += 1
+        return new Promise<string[]>((resolve) => deferred.push({ resolve }))
+      },
+    }
+
+    // 第一轮出发，此刻主进程那边只有 a
+    const firstSync = syncShells()
+    // 这期间界面把刚开出来的 b 记上了
+    useTerminalStore
+      .getState()
+      .addShell({ kind: 'ssh', shellId: 'b', sessionId: 's1', title: 'web-03', openedAt: 2 })
+    // 第二轮出发（终端总线收到不认识的 shellId 也会来对账），问到的表里有 b
+    const secondSync = syncShells()
+    expect(call, '两轮对账各问了主进程一次').toBe(2)
+
+    // 晚出发的先回来 —— IPC 不保证响应顺序
+    deferred[1].resolve(snapshots[1])
+    await secondSync
+    expect(shellIds()).toEqual(expect.arrayContaining(['a', 'b']))
+
+    // 早出发的后回来：它问的是过去那一秒的表，拿它删人就是"标签凭空消失、通道还活着"
+    deferred[0].resolve(snapshots[0])
+    await firstSync
+    expect(shellIds(), '过期快照把刚开出来的终端摘掉了').toContain('b')
+  })
 })
