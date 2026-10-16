@@ -203,6 +203,9 @@ export function useAgentChat(): UseAgentChatResult {
         providerId: selectedProviderId ?? undefined,
       })
       setStreaming(true)
+      // 开新一轮就把上一次的失败提示收掉。lastError 原先只在 clearMessages 时重置，
+      // 于是"上一次失败 + 这一次成功"会在流底部挂着一张过期的红横幅。
+      useAgentStore.setState({ lastError: null })
 
       if (!isElectronAPIAvailable() || !window.electronAPI.agentChat) {
         useAgentStore.setState((state) => {
@@ -211,7 +214,10 @@ export function useAgentChat(): UseAgentChatResult {
             if (next[i].id === assistantId) {
               next[i] = {
                 ...next[i],
-                content:
+                // 错误原文单独放 errorMessage，不掺进 content（掺进去有三个后果：
+                // 半截答案跟着变红、和底部横幅说两遍、下一轮当历史再喂给模型）。
+                // 见 agent-store.markError 与 LiveMessageRow.renderErrorCard。
+                errorMessage:
                   'electronAPI / agentChat 不可用。请在 Electron 桌面端运行，并确认 preload 已暴露 agentChat。',
                 isStreaming: false,
                 isError: true,
@@ -223,7 +229,9 @@ export function useAgentChat(): UseAgentChatResult {
             messages: next,
             isStreaming: false,
             currentCorrelationId: null,
-            lastError: 'agentChat unavailable',
+            // 不再另设 lastError：这条错误已经挂在那条消息上，卡片会说一遍；
+            // 再记一份全局就会在流底部出现第二遍（而且原先记的是英文内部串
+            // 'agentChat unavailable'，用户看到的横幅是一句开发黑话）。
           }
         })
         return
@@ -278,7 +286,9 @@ export function useAgentChat(): UseAgentChatResult {
             if (next[i].id === assistantId) {
               next[i] = {
                 ...next[i],
-                content: `请求失败: ${msg}`,
+                // 同上：错误原文进 errorMessage，content 只装真说过的话；
+                // 也不另设 lastError，避免底部横幅与卡片各说一遍
+                errorMessage: msg,
                 isStreaming: false,
                 isError: true,
               }
@@ -289,7 +299,6 @@ export function useAgentChat(): UseAgentChatResult {
             messages: next,
             isStreaming: false,
             currentCorrelationId: null,
-            lastError: msg,
           }
         })
       }

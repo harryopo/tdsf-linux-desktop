@@ -1297,26 +1297,26 @@ class SupervisorAgent {
 
       // 8. 获取 token 使用（v7：result.usage 是 Promise）
       /*
-       * 流里见过错、且一个字都没产出 → 把**真实原因**抛出去，不要让它变成通用文案。
+       * 顺序要说清：先把账拿完再决定要不要抛。
        *
-       * ai-sdk 在这种情形下会把 result.usage / finishReason 这几个 promise 一起 reject 成
+       * 流里见过错时，ai-sdk 会把 result.usage / finishReason / steps 一起 reject 成
        * "No output generated. Check the stream for errors."，而真实原因（Key 被判无效、
-       * 地址不通、上游 5xx）只在流内的 error part 里露过一次。后果有两头：
-       * 日志里有原因、界面上没有，用户看到的那句话既不是人话也分不了类
-       * （用户 2026-10-16 的截图正是这句英文原文）。
-       *
-       * 只在"没产出"时抛：流内 error 也可能是某个工具调用失败而模型自己绕过去了，
-       * 那种情况有正文，不该被这一下判成整轮失败。
+       * 地址不通、上游 5xx）只在流内的 error part 里露过一次——先抛后拿会让失败那一轮的
+       * token 消耗直接不入账，设置页只剩估算镜像可看（读数必须与真值同源）。
+       * 所以：能拿到就照常记账，拿不到才把真实原因换上去。
        */
-      if (streamInnerError !== null && !fullText && !reasoningText) {
-        throw streamInnerError instanceof Error
-          ? streamInnerError
-          : new Error(String(streamInnerError))
-      }
-      const usage = await result.usage
-      const finishReason = await result.finishReason
+      let usage: Awaited<typeof result.usage> | undefined
+      let finishReason: Awaited<typeof result.finishReason> | undefined
       // 逐步明细：末步的 prompt 才是"这一轮真实占用"，各步之和是"这一轮烧掉多少"（计费）
-      const steps = await result.steps
+      let steps: Awaited<typeof result.steps> = []
+      let statsReadError: unknown = null
+      try {
+        usage = await result.usage
+        finishReason = await result.finishReason
+        steps = await result.steps
+      } catch (err) {
+        statsReadError = err
+      }
 
       // v2.4 修复：正文为空但有 reasoning 时，用 reasoning 兑底并补发一次 onToken，
       // 避免 DeepSeek 思考模式下“连上 API 但运行不显示”。
@@ -1348,6 +1348,22 @@ class SupervisorAgent {
         strength,
         timestamp: Date.now(),
       })
+
+      /*
+       * 账记完了，再把失败说清楚（两条路都要走，缺一不可）：
+       * - 一个字都没产出而流里见过错 → 抛那个真实原因，让分类表认得它
+       *   （否则界面拿到的就是 ai-sdk 那句 "No output generated…"，落进"原因没被认出来"）
+       * - 连账都拿不到（statsReadError 非空）→ 也优先抛真实原因
+       * 有正文时一律不抛：流内 error 也可能是某个工具调用失败而模型自己绕过去了。
+       */
+      if (streamInnerError !== null && !fullText && !reasoningText) {
+        throw streamInnerError instanceof Error
+          ? streamInnerError
+          : new Error(String(streamInnerError))
+      }
+      if (statsReadError !== null) {
+        throw statsReadError instanceof Error ? statsReadError : new Error(String(statsReadError))
+      }
 
       // v0.9.6 P2 M5+：finalize trace collector，附加熵轨迹到 ChatResult
       const traceResult = traceCollector.finalize()

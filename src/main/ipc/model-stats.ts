@@ -6,7 +6,11 @@
  * - budget:alerts     — 预算告警历史（最近 N 条）
  *
  * 数据源：
- * - tool_call_log 表：由主进程其他模块在工具调用时写入（如 ssh:exec / kb:search / 联网搜索等）
+ * - tool_call_log 表：由能力真正执行的那一层写入（见 services/db/tool-call-log.ts）。
+ *   终端命令 = ipc/ssh.ts 与 LLM 工具 ssh_exec；知识库检索 = KnowledgeRepository.search
+ *   （所有真检索都过它，包括 AI 的 kb_search 工具与 MCP 知识工具）。
+ *   2026-10-16 起只统计 stats.toolCallCutoffAt 之后的行——旧行把"打开知识库页面"
+ *   也算成了一次检索，表里只有工具名与时间，已经分不出来，所以不删、只不起算。
  * - budget_alerts 表：由主进程在检测到超阈值时写入（如 token 日消耗 > 阈值 / API 响应 > 500ms）
  *
  * 设计原则：
@@ -21,6 +25,7 @@ import { ipcMain } from 'electron'
 import { MODEL_STATS, BUDGET } from '@shared/ipc-channels'
 import type { DatabaseManager } from '../services/db/database'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
+import { toolCallCutoffMs } from '../services/db/tool-call-log'
 import { logger } from '../services/log/logger'
 
 /**
@@ -43,10 +48,11 @@ export function registerModelStatsHandlers(db: DatabaseManager): void {
         .prepare(
           `SELECT toolName, COUNT(*) as cnt
            FROM tool_call_log
+           WHERE timestamp >= ?
            GROUP BY toolName
            ORDER BY cnt DESC`
         )
-        .all() as Array<{ toolName: string; cnt: number }>
+        .all(toolCallCutoffMs()) as Array<{ toolName: string; cnt: number }>
 
       if (rows.length === 0) {
         return []

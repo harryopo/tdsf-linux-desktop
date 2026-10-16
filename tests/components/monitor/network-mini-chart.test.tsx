@@ -76,8 +76,17 @@ describe('网络卡：折线与标签跟着数据变', () => {
       Array.from(container.querySelectorAll('.mon-net-mini-wrap svg text'))
         .map((t) => t.textContent ?? '')
         .join('|')
-    expect(textOf(quiet.container)).toBe('↑4|↓2')
-    expect(textOf(busy.container)).toBe('↑6|↓90')
+    expect(textOf(quiet.container)).toBe('↑4.0|↓2.0')
+    expect(textOf(busy.container)).toBe('↑6.0|↓90')
+  })
+
+  it('轻载速率保留一位小数（KB/s 常见 0.4，取整会显示成 0 而线明明非零）', () => {
+    const { container } = render(<KpiCard stat={netStat({ in: [0.2, 0.4], out: [1, 1.2] })} />)
+    const text = Array.from(container.querySelectorAll('.mon-net-mini-wrap svg text'))
+      .map((t) => t.textContent ?? '')
+      .join('|')
+    expect(text).toBe('↑1.2|↓0.4')
+    expect(text, '标签里出现 0 就是在把非零流量说成没有').not.toContain('↓0|')
   })
 
   it('采不到两个点时不画线，但也不留一句假读数', () => {

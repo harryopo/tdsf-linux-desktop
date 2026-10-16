@@ -148,7 +148,9 @@ export const sshExecTool: ToolDefinition = {
 /** ssh_exec 工具元数据（UI 展示 + 风险标签） */
 export const SSH_EXEC_META = {
   id: TOOL_IDS.SSH_EXEC,
-  label: 'SSH 命令执行',
+  // 与 ipc/ssh.ts 记的是同一项能力（跑一条远程命令），标签必须同字：
+  // 以前这里写「SSH 命令执行」、那边写「终端命令执行」，设置页的排行把一件事拆成两行
+  label: '终端命令执行',
   emoji: '🖥️',
   description: '在远程 Linux 服务器上执行命令并返回输出',
   risk: 'high' as ToolRiskLevel,

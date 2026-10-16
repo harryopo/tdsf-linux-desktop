@@ -124,6 +124,12 @@ function NetworkMiniChart({ series }: { series?: { in: number[]; out: number[] }
   const downPoints = miniLinePoints(incoming, max, { x0: 8, x1: 64, baseY: 36, spanY: -28 })
   const lastOut = out.length > 0 ? out[out.length - 1] : null
   const lastIn = incoming.length > 0 ? incoming[incoming.length - 1] : null
+  /*
+   * 速率是 KB/s、常见量级 0.4 / 1.2（主进程按两位小数产出）。
+   * 这里原来用 Math.round → 轻载时显示「↑1」「↓0」，而同一张图上线明显非零，
+   * 等于图说有话、数字说没事。小于 10 保留一位小数。
+   */
+  const fmtRate = (v: number): string => (v < 10 ? v.toFixed(1) : String(Math.round(v)))
   return (
     <div className="mon-net-mini-wrap">
       <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true">
@@ -162,12 +168,12 @@ function NetworkMiniChart({ series }: { series?: { in: number[]; out: number[] }
         )}
         {lastOut !== null && (
           <text x="6" y="14" className="mon-net-mini-label-up">
-            {`↑${Math.round(lastOut)}`}
+            {`↑${fmtRate(lastOut)}`}
           </text>
         )}
         {lastIn !== null && (
           <text x="6" y="68" className="mon-net-mini-label-down">
-            {`↓${Math.round(lastIn)}`}
+            {`↓${fmtRate(lastIn)}`}
           </text>
         )}
       </svg>

@@ -12,7 +12,27 @@
  * 反向依赖 IPC，所以把写入口挪到这里：IPC 层和数据层都从这儿记，方向是 服务层 → 服务层。
  */
 import type { DatabaseManager } from './database'
+import { ConfigStore } from '../storage/config-store'
 import { logger } from '../log/logger'
+
+/** 统计起算点存在 ConfigStore 里的键 */
+export const TOOL_CALL_CUTOFF_KEY = 'stats.toolCallCutoffAt'
+
+/**
+ * 「功能调用统计」的起算时间（含）
+ *
+ * 2026-10-16 之前这张表把"打开知识库页面"也算成一次「知识库检索」（用户实测：
+ * 那一栏显示 214 次、占 99%）。表里只有工具名与时间戳，旧行已经分不出真检索还是翻页，
+ * 所以不删数据、只把口径起算点定在这次修正之后：旧行留在库里，不再进统计。
+ * 第一次读到就落盘，之后固定不变（否则每次启动都会把"最近 N 分钟"演成真实历史）。
+ */
+export function toolCallCutoffMs(): number {
+  const stored = ConfigStore.get(TOOL_CALL_CUTOFF_KEY)
+  if (typeof stored === 'number' && Number.isFinite(stored)) return stored
+  const now = Date.now()
+  ConfigStore.set(TOOL_CALL_CUTOFF_KEY, now)
+  return now
+}
 
 /**
  * 记录一次工具调用

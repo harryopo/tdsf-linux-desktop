@@ -274,7 +274,12 @@ export function buildDangerCommands(card: DecisionCard): DangerCommand[] {
   const intercepted = card.risk.blocked === true || card.status === 'rejected'
 
   return card.risk.matchedRules.map((rule, idx) => ({
-    ruleId: rule.startsWith('R-') ? rule : `R-${String(idx + 1).padStart(3, '0')}`,
+    // ruleId 就是风险引擎命中的那条规则原文（当前实现里是中文说明，如"删除/格式化文件"）。
+    // 这里原来会在不以 'R-' 开头时按索引编一个 R-001/R-002 —— 而 command-rules.json 的 id
+    // 全是小写短名、matchedRules 装的又是中文说明，于是"R-00N"永远是凭空造的编号。
+    // 编号不再无中生有；React key 用 idx 兜住重复。
+    ruleId: rule,
+    ruleKey: `rule-${idx}-${rule}`,
     level: (card.risk.level === 'HIGH' || card.risk.level === 'CRITICAL' ? 'high' : 'mid') as 'high' | 'mid',
     threat: card.risk.description || `命中规则 ${rule}`,
     segments: parseListSegments(card.fixCommand),

@@ -24,8 +24,10 @@ type DangerLevel = 'high' | 'mid'
 
 /** 单条拦截命令 */
 export interface DangerCommand {
-  /** 规则 ID */
+  /** 命中的规则原文（风险引擎给的那句说明，不再编 R-00N 编号） */
   ruleId: string
+  /** React key（同一句规则可能被两条命令命中，不能直接拿 ruleId 当 key） */
+  ruleKey: string
   /** 命令分段（用于 5 色高亮渲染） */
   segments: CmdSegment[]
   /** 等级 */
@@ -242,14 +244,28 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
             <div className="h-px bg-[var(--trae-border-neutral-l1)]" />
 
             <div className="text-center">
-              <div className="font-mono text-caption tracking-[0.08em] text-ink-mute">RULE ENGINE</div>
+              <div className="font-mono text-caption tracking-[0.08em] text-ink-mute">
+                本卡命中的规则
+              </div>
               {/*
-                原来这里写死成 "R-001 ~ R-{命令条数}"：条数是命令数、编号是凭空range，
-                于是 3 条命令就显示"R-001 ~ R-003"，看着像规则库只有 3 条、
-                还像这三条正好是编号 1/2/3。改成列真实命中的规则号。
+                这里原来显示 "R-001 ~ R-{命令数}"：编号是凭空 range、条数是命令条数，
+                两样都不是规则库的事实（规则 id 全是小写短名，matchedRules 装的是中文说明）。
+                现在直接列风险引擎真的给出的那几句，一条一个标签。
               */}
-              <div className="mt-1 font-mono text-sm tabular-nums text-ink-dim">
-                {matchedRuleIds.length > 0 ? matchedRuleIds.join(' · ') : '本卡未命中规则'}
+              <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
+                {matchedRuleIds.length > 0 ? (
+                  matchedRuleIds.map((r) => (
+                    <span
+                      key={r}
+                      className="inline-flex max-w-[220px] items-center truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-1.5 py-px text-micro text-ink-dim"
+                      title={r}
+                    >
+                      {r}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-ink-mute">未命中已知规则</span>
+                )}
               </div>
             </div>
           </div>
@@ -269,7 +285,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {highCmds.map((cmd) => (
-                    <DangerCard key={cmd.ruleId} cmd={cmd} />
+                    <DangerCard key={cmd.ruleKey} cmd={cmd} />
                   ))}
                 </div>
               </div>
@@ -288,7 +304,7 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {midCmds.map((cmd) => (
-                    <DangerCard key={cmd.ruleId} cmd={cmd} />
+                    <DangerCard key={cmd.ruleKey} cmd={cmd} />
                   ))}
                 </div>
               </div>
@@ -303,12 +319,12 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
         <span className="flex items-center gap-2 text-micro text-ink-mute">
           <Shield className="h-3 w-3 text-ink-mute" />
           {/*
-            口径说准：这里的数字是"本卡命中了几条规则 / 列了几条命令"，
-            不是规则库规模（规则库在 风险控制 页按 risk:rules 真读真显示）。
-            原来写的是"{命令数} 条规则"，把两个东西当同一个报。
+            说准：一条命中规则对应这里一张命令卡（buildDangerCommands 是 1:1 映射），
+            所以"命中几条规则"与"列出几条命令"是同一个数，不该摆成两个指标让人以为有区别。
+            规则库本身的规模与明细在 风险控制 页按 risk:rules 真读真显示。
           */}
-          规则引擎 · 本卡命中 {matchedRuleIds.length} 条规则（列出 {commands.length} 条命令）
-          · 匹配后阻断执行并记录审计
+          规则引擎 · 本卡 {commands.length} 条命中（每条规则一张卡）
+          · 匹配后阻断执行并记录审计 · 规则库明细见「风险控制」页
         </span>
       </div>
 
