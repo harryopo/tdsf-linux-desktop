@@ -120,6 +120,8 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
   // v2.11 去假：按真实拦截状态统计，不再无条件声称“全部已拦截”
   const interceptedCount = commands.filter((c) => c.intercepted).length
   const allIntercepted = commands.length > 0 && interceptedCount === commands.length
+  /** 本卡真实命中的规则号（去重、按号排序）——不是"规则库有多少条" */
+  const matchedRuleIds = [...new Set(commands.map((c) => c.ruleId).filter((id) => id !== ''))].sort()
 
   if (closed) {
     return null
@@ -241,8 +243,13 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
 
             <div className="text-center">
               <div className="font-mono text-caption tracking-[0.08em] text-ink-mute">RULE ENGINE</div>
+              {/*
+                原来这里写死成 "R-001 ~ R-{命令条数}"：条数是命令数、编号是凭空range，
+                于是 3 条命令就显示"R-001 ~ R-003"，看着像规则库只有 3 条、
+                还像这三条正好是编号 1/2/3。改成列真实命中的规则号。
+              */}
               <div className="mt-1 font-mono text-sm tabular-nums text-ink-dim">
-                R-001 ~ R-{String(commands.length).padStart(3, '0')}
+                {matchedRuleIds.length > 0 ? matchedRuleIds.join(' · ') : '本卡未命中规则'}
               </div>
             </div>
           </div>
@@ -295,7 +302,13 @@ export function EvidenceList({ commands, defaultExpanded = true }: EvidenceListP
       <div className="mt-4 flex items-center justify-between border-t border-[var(--trae-border-neutral-l1)] pt-4">
         <span className="flex items-center gap-2 text-micro text-ink-mute">
           <Shield className="h-3 w-3 text-ink-mute" />
-          规则引擎 · {commands.length} 条规则 · 对应 L1 预拦截层 · 匹配后阻断执行并记录审计
+          {/*
+            口径说准：这里的数字是"本卡命中了几条规则 / 列了几条命令"，
+            不是规则库规模（规则库在 风险控制 页按 risk:rules 真读真显示）。
+            原来写的是"{命令数} 条规则"，把两个东西当同一个报。
+          */}
+          规则引擎 · 本卡命中 {matchedRuleIds.length} 条规则（列出 {commands.length} 条命令）
+          · 匹配后阻断执行并记录审计
         </span>
       </div>
 

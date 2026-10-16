@@ -1,12 +1,13 @@
 /**
- * ApprovalStateMachine — 9 态审批状态机（证据溯源链 + 四层风险控制）
+ * ApprovalStateMachine — 9 态审批状态机（证据溯源链 + 风险控制阶段门）
  *
- * 设计稿：decision-detail.html 区域4（7 步光路时间线）+ 区域5（L1-L4 阶段门流水线）
+ * 设计稿：decision-detail.html 区域4（7 步光路时间线）+ 区域5（阶段门流水线）
  *
  * 9 态定义（项目自定义状态机模型）：
  *   Step 1 数据采集 → Step 2 异常分析 → Step 3 推理归因 → Step 4 交叉校验
  *   → Step 5 人工确认（HITL 闸门）→ Step 6 执行变更 → Step 7 效果验证
- *   + L1 预拦截 / L2 沙箱预演 / L3 人工审批 / L4 审计回放（横跨前 7 步的 4 道门）
+ *   + 阶段门：L1 预拦截 / L2 人工审批 / L3 审计回放（v2.6 撤掉「沙箱预演」那道假门，
+ *     门数由 buildRiskGates 决定，标题与"已过 N/M"徽章都跟着实际门数走）
  *
  * 视觉状态：
  *   - completed: 实心蓝圆 + check 图标 + 实线连接
@@ -28,7 +29,6 @@ export interface TimelineStep {
   stepKey: 'collect' | 'analyze' | 'reason' | 'check' | 'confirm' | 'execute' | 'verify'
   title: string
   desc: string
-  weight: number
   status: StepStatus
   /** 步骤时间戳（可选，ISO 字符串截取前 19 位 yyyy-mm-dd HH:MM:SS） */
   timestamp?: string
@@ -219,13 +219,11 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
                             {step.timestamp}
                           </span>
                         )}
-                        <span
-                          className={`font-mono text-micro tabular-nums ${
-                            step.status === 'pending' ? 'text-ink-mute' : 'text-(--accent-text)'
-                          }`}
-                        >
-                          权重 {step.weight.toFixed(2)}
-                        </span>
+                        {/*
+                          这里原来每步都写"权重 0.20"——那个 0.2 是 mappers 里给 7 步
+                          一律填的常量，没有任何算法或人在算它。7 步各 0.2 加起来是 1.4，
+                          连"权重和为 1"这个最基本的说法都不成立。
+                        */}
                       </div>
                     </div>
                     <p
@@ -243,19 +241,26 @@ export function ApprovalStateMachine({ steps, gates }: ApprovalStateMachineProps
         )}
       </div>
 
-      {/* ===== 四层风险控制（阶段门流水线）===== */}
+      {/* ===== 风险控制阶段门流水线 ===== */}
       <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-title font-semibold text-ink">四层风险控制</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-2 text-micro font-medium text-(--status-success-text)">
-              全部启用
-            </span>
+            {/*
+              标题与徽章都改成按实际门数算（v2.6 撤掉「沙箱预演」那道门之后只剩 3 道，
+              标题却还写死"四层"，徽章写死"全部启用"——L3 审计回放还在 pending 时
+              界面上照样挂着绿色"全部启用"）。
+            */}
+            <span className="text-title font-semibold text-ink">{gates.length} 层风险控制</span>
+            {gates.length > 0 && (
+              <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2 text-micro font-medium text-ink-dim">
+                已过 {gates.filter((g) => g.status === 'completed').length}/{gates.length}
+              </span>
+            )}
           </div>
           <span className="text-micro text-ink-mute">阶段门流水线 · 层层把关</span>
         </div>
 
-        {/* 横向流水线 L1 → L2 → L3 → L4 */}
+        {/* 横向流水线：门数由数据决定（当前 L1 预拦截 → L2 人工审批 → L3 审计回放） */}
         <div className="flex flex-wrap items-stretch gap-2">
           {gates.map((gate, idx) => {
             const Icon = GATE_ICONS[gate.level]

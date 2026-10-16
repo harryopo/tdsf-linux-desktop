@@ -227,7 +227,6 @@ export function buildTimelineSteps(card: DecisionCard): TimelineStep[] {
     return {
       ...step,
       stepKey: stepKeys[idx],
-      weight: 0.2,
       status,
       timestamp,
     }

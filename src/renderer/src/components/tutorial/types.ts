@@ -29,7 +29,11 @@ export interface Course {
   level: CourseLevel
   category: Exclude<CourseCategory, 'all'>
   duration: string
-  learnerCount: string
+  /**
+   * 学习进度百分比 [0,100]：来自 tutorialProgress 表（主进程真写：进入详情页时 visited、
+   * 完成时 completed）。以前这里是常量 0，而页面明明已经把这张表拉下来了，
+   * 只取了 tutorialId 建"看过没有"的集合，把 progress 这个数丢掉了。
+   */
   progress: number
   completed?: boolean
   icon: LucideIcon
@@ -222,7 +226,12 @@ export function formatDuration(minutes: number): string {
 }
 
 /** 从真实 TutorialEntry 构建页面课程 */
-export function entryToCourse(entry: TutorialEntry): Course {
+/**
+ * 教程条目 → 课卡
+ *
+ * @param progress 该教程的真实进度（来自 tutorialProgress 表，缺记录=0）
+ */
+export function entryToCourse(entry: TutorialEntry, progress = 0): Course {
   return {
     id: entry.id,
     title: entry.title,
@@ -230,8 +239,9 @@ export function entryToCourse(entry: TutorialEntry): Course {
     level: mapDifficulty(entry.difficulty),
     category: TUTORIAL_TO_UI_CATEGORY[entry.category],
     duration: formatDuration(entry.readingTime),
-    learnerCount: '0 人',
-    progress: 0,
+    // learnerCount 这一项删了：单机应用没有"多少人在学"的任何生产者，
+    // 原来每张课卡都写死"0 人"，页头倒是诚实（"— 学习人次"）
+    progress,
     icon: pickIcon(entry.category),
   }
 }

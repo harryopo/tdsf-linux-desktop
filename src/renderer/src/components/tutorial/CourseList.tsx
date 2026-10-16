@@ -14,7 +14,7 @@
  * - 搜索结果不启用分页，确保用户能直接看到全部匹配结果。
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Clock, UserCircle, Search } from 'lucide-react'
+import { Clock, Search } from 'lucide-react'
 import { Button, Spinner } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import type { Course, SearchResultItem } from './types'
@@ -180,10 +180,7 @@ export function CourseList({
                       <Clock size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
                       {c.duration}
                     </span>
-                    <span className="tut-course-meta-item">
-                      <UserCircle size={12} style={{ color: 'var(--trae-icon-tertiary)' }} />
-                      {c.learnerCount}
-                    </span>
+                    {/* 学习人次那一项已删：没有任何生产者，每张卡都写死"0 人" */}
                   </div>
                   <div className="tut-progress-block">
                     <div className="tut-progress-row tut-progress-row--tight">

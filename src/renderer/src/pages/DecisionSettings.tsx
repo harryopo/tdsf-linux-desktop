@@ -4,15 +4,21 @@
  * 路由：/settings/decision
  *
  * 设计稿：settings-decision.html
- * - Card 1: 决策流程配置（3 个风险等级开关 + 决策超时秒数）
+ * - Card 1: 决策超时（唯一一条真接上的流程设置）
  * - Card 2: 证据源权重配置（6 源权重滑块 + 综合权重总和 summary + 权重影响测试）
- * - Card 3: 审批补充说明（草稿存本机）
- * - ActionBar: 保存 / 恢复默认
+ * - ActionBar: 恢复默认
  *
  * 已删掉的假设置（全仓零消费者，遵循 DESIGN.md §10）：
  * - 最低置信度阈值 decision.confidenceThreshold：工作流是 HITL，每一步 confirm 都要人点头，
  *   没有"高于某值就自动执行"这条路径；把它接上去等于给用户一个能关掉审批的开关
  * - 文件修改大小限制 / 批量操作数量上限 / 操作回滚保留时长：没有对应的执行与回滚机制
+ * - 三档"风险层级"开关（decision.tierStates）：写着"风险<30自动执行 / 30-70需确认 /
+ *   >70需双审"，但全仓只有这一页读它自己存的值——真实档位由风险引擎与审批流决定，
+ *   关不关这三个开关都一样（用户 2026-10-16："假的UI都检查一下"）
+ * - 「命令黑名单」「敏感目录保护」两个文本框（decision.textAreas）：写着"命中一律拒绝执行，
+ *   无论风险等级"，而命令闸读的是编译进来的规则表（src/main/core/risk-engine.ts 与
+ *   command-rules.json），从来不看这里。真要支持用户自定义黑名单，得连着命令闸一起做，
+ *   不是先放个框让用户以为写了就生效
  *
  * 决策超时 decision.decisionTimeout 本轮已真接上：
  * 主进程 agent-workflow.ts resolveConfirmTimeoutMs 读它，到点自动拒绝（fail-closed）。
@@ -23,8 +29,8 @@
  * 设置项通过 usePersistentState 接入主进程 IPC（configGet/configSet）持久化，
  * electronAPI 不可用时退化为内存默认值，UI 正常渲染。
  */
-import { type ReactNode, useState } from 'react'
-import { GitBranch, Layers, Loader2, Shield } from 'lucide-react'
+import { useState } from 'react'
+import { GitBranch, Layers, Loader2 } from 'lucide-react'
 import { Button } from '@/ui'
 import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -33,79 +39,15 @@ import { settingsHeader } from './settings-sections'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { SettingsRow } from '@/components/settings/SettingsRow'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
-import { Switch } from '@/components/trae/Switch'
 import { Input } from '@/components/trae/Input'
 import { Slider } from '@/components/trae/Slider'
 import './Settings.css'
-
-/**
- * RiskBadge — 风险等级徽章（设计稿 set-risk-badge--* 自定义样式）
- */
-type RiskTier = 'low' | 'mid' | 'high'
-
-const RISK_BADGE_CLASS: Record<RiskTier, string> = {
-  low: 'set-risk-badge set-risk-badge--low',
-  mid: 'set-risk-badge set-risk-badge--mid',
-  high: 'set-risk-badge set-risk-badge--high',
-}
-
-function RiskBadge({ tier, children }: { tier: RiskTier; children: ReactNode }) {
-  return (
-    <span className={RISK_BADGE_CLASS[tier]}>
-      {children}
-    </span>
-  )
-}
-
-interface RiskTierOption {
-  key: string
-  label: string
-  desc: string
-  tier: RiskTier
-  badgeText: string
-  defaultValue: boolean
-}
 
 interface EvidenceSource {
   id: string
   label: string
   defaultValue: number
 }
-
-interface TextAreaBlock {
-  id: string
-  label: string
-  hint: string
-  desc: string
-  defaultValue: string
-}
-
-const RISK_TIERS: RiskTierOption[] = [
-  {
-    key: 'auto-low',
-    label: '自动执行低风险命令',
-    desc: '风险等级低于 30 的命令自动执行，无需人工干预',
-    tier: 'low',
-    badgeText: '风险 < 30',
-    defaultValue: false,
-  },
-  {
-    key: 'confirm-mid',
-    label: '中风险需确认',
-    desc: '风险等级 30-70 的命令需人工确认后方可执行',
-    tier: 'mid',
-    badgeText: '风险 30-70',
-    defaultValue: true,
-  },
-  {
-    key: 'dual-high',
-    label: '高风险需双审',
-    desc: '风险等级高于 70 的命令需双人审批后方可执行',
-    tier: 'high',
-    badgeText: '风险 > 70',
-    defaultValue: true,
-  },
-]
 
 const EVIDENCE_SOURCES: EvidenceSource[] = [
   { id: 'system-metrics', label: '系统指标采集', defaultValue: 70 },
@@ -116,32 +58,9 @@ const EVIDENCE_SOURCES: EvidenceSource[] = [
   { id: 'model-inference', label: '模型推理', defaultValue: 40 },
 ]
 
-const TEXTAREA_BLOCKS: TextAreaBlock[] = [
-  {
-    id: 'blacklist',
-    label: '命令黑名单',
-    hint: '每行一条命令',
-    desc: '命中黑名单的命令一律拒绝执行，无论风险等级',
-    defaultValue: 'rm -rf /\nshutdown\nreboot\ninit 0',
-  },
-  {
-    id: 'sensitive-dirs',
-    label: '敏感目录保护',
-    hint: '每行一个路径',
-    desc: '以下目录禁止写入或删除操作',
-    defaultValue: '/etc\n/boot\n/sys\n/proc',
-  },
-]
-
-/** 各 record 类型设置项的默认值（与原 lazy useState 初始化保持一致） */
-const DEFAULT_TIER_STATES: Record<string, boolean> = Object.fromEntries(
-  RISK_TIERS.map((t) => [t.key, t.defaultValue]),
-)
+/** 证据源权重默认值 */
 const DEFAULT_WEIGHTS: Record<string, number> = Object.fromEntries(
   EVIDENCE_SOURCES.map((s) => [s.id, s.defaultValue]),
-)
-const DEFAULT_TEXTAREAS: Record<string, string> = Object.fromEntries(
-  TEXTAREA_BLOCKS.map((b) => [b.id, b.defaultValue]),
 )
 
 /**
@@ -162,10 +81,7 @@ const TEST_ASSESS_INPUTS: CredibilityEvidenceInput[] = [
 
 export function DecisionSettings() {
   // Card 1: 决策流程配置
-  const [tierStates, setTierStates] = usePersistentState<Record<string, boolean>>(
-    'decision.tierStates',
-    DEFAULT_TIER_STATES,
-  )
+  // Card 1: 决策超时（本页唯一一条真接上的流程设置——主进程 agent-workflow 读它）
   const [decisionTimeout, setDecisionTimeout] = usePersistentState('decision.decisionTimeout', 300)
 
   // Card 2: 证据源权重
@@ -174,12 +90,6 @@ export function DecisionSettings() {
     DEFAULT_WEIGHTS,
   )
   const totalWeight = EVIDENCE_SOURCES.reduce((sum, s) => sum + (weights[s.id] ?? 0), 0)
-
-  // Card 3: 审批补充说明（草稿保存在本机，重启后还在）
-  const [textAreas, setTextAreas] = usePersistentState<Record<string, string>>(
-    'decision.textAreas',
-    DEFAULT_TEXTAREAS,
-  )
 
   // Card 2 测试评估：调用 credibilityAssess 验证当前 6 源权重对决策可信度的影响
   const [testResult, setTestResult] = useState<ConfidenceAssessment | null>(null)
@@ -205,26 +115,12 @@ export function DecisionSettings() {
       <SettingsPageHeader {...settingsHeader('/settings/decision')} />
 
       <div className="set-subpage__body">
-        {/* Card 1: 决策流程配置 */}
-        <SettingsCard icon={GitBranch} title="决策流程配置" tag="decision.flow">
-          {RISK_TIERS.map((t) => (
-            <SettingsRow
-              key={t.key}
-              label={
-                <span className="inline-flex items-center gap-2">
-                  {t.label}
-                  <RiskBadge tier={t.tier}>{t.badgeText}</RiskBadge>
-                </span>
-              }
-              desc={t.desc}
-              control={
-                <Switch
-                  checked={tierStates[t.key] ?? false}
-                  onCheckedChange={(v) => setTierStates((prev) => ({ ...prev, [t.key]: v }))}
-                />
-              }
-            />
-          ))}
+        {/* Card 1: 决策超时
+            这里原来还有三档开关（自动执行低风险 / 中风险需确认 / 高风险需双审），
+            写着"风险<30自动执行"这类规则，但全仓只有这一页读它自己存的那份值——
+            真实的档位由风险引擎与审批流决定，三个开关关掉也不会有任何行为变化。
+            撤掉的理由与口径见文件头（DESIGN.md §10：不许留承诺了却没实现的控件）。 */}
+        <SettingsCard icon={GitBranch} title="决策超时" tag="decision.timeout">
           <SettingsRow
             label="决策超时秒数"
             desc="到点自动拒绝（不会自动放行）；可填 30–1800 秒，留空或越界按 300 秒"
@@ -298,46 +194,19 @@ export function DecisionSettings() {
           </div>
         </SettingsCard>
 
-        {/* Card 3: 风险控制策略 */}
-        <SettingsCard icon={Shield} title="审批补充说明" tag="decision.notes">
-          {TEXTAREA_BLOCKS.map((blk, idx) => (
-            <div
-              key={blk.id}
-              className={
-                'set-block ' +
-                (idx === TEXTAREA_BLOCKS.length - 1 ? 'set-block--last' : '')
-              }
-            >
-              <div className="set-block__head">
-                <div>
-                  <div className="set-block__label">
-                    {blk.label}
-                  </div>
-                  <div className="set-block__desc">
-                    {blk.desc}
-                  </div>
-                </div>
-                <span className="set-block__hint">
-                  {blk.hint}
-                </span>
-              </div>
-              <textarea
-                value={textAreas[blk.id] ?? ''}
-                onChange={(e) => setTextAreas((prev) => ({ ...prev, [blk.id]: e.target.value }))}
-                spellCheck={false}
-                className="set-textarea"
-              />
-            </div>
-          ))}
-        </SettingsCard>
+        {/*
+          Card 3「审批补充说明」（命令黑名单 / 敏感目录保护两个文本框）已撤：
+          它写着"命中黑名单的命令一律拒绝执行，无论风险等级"，而命令闸读的是
+          编译进来的规则表（src/main/core/risk-engine.ts + command-rules.json），
+          从来不看这里存的草稿。要支持用户自定义黑名单得连着命令闸一起做，
+          不是先放个框让人以为写了就生效。
+        */}
 
         <SettingsActionBar
           onReset={() => {
-            // P1-2 共性问题 A：恢复默认按钮重置所有 usePersistentState 字段
-            setTierStates(DEFAULT_TIER_STATES)
+            // 恢复默认只重置这一页真有的两个键（撤掉假控件后不再有别的持久字段）
             setDecisionTimeout(300)
             setWeights(DEFAULT_WEIGHTS)
-            setTextAreas(DEFAULT_TEXTAREAS)
           }}
         />
       </div>

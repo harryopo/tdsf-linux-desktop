@@ -123,7 +123,18 @@ export function TutorialPage() {
           if (_localStorageAvailable) saveVisitedTutorialIds(visitedIds)
         }
 
-        const mappedCourses = (entries ?? []).map(entryToCourse)
+        // 课卡进度接真：这张表本来就拉回来了，以前只取 tutorialId 建"看过没有"的集合，
+        // 把每行里真实的 progress 丢掉，于是课卡上的进度条恒为 0%
+        const progressById = new Map<string, number>()
+        if (Array.isArray(progressList)) {
+          for (const p of progressList as TutorialProgress[]) {
+            progressById.set(p.tutorialId, p.progress)
+          }
+        }
+
+        const mappedCourses = (entries ?? []).map((e) =>
+          entryToCourse(e, progressById.get(e.id) ?? 0),
+        )
         // v2.6 去假：Electron 下无论空否都接管（空库时展示空列表，
         // 不再让 DEFAULT_COURSES/FEATURED_COURSES 假课程带假学习人次静默常驻）
         setCourses(mappedCourses)

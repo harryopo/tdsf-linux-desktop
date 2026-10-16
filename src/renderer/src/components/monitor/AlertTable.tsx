@@ -85,7 +85,9 @@ function computeAlertsFromMonitorData(
       server: hostname,
       desc: `磁盘使用率过高：${latest.diskUsage.toFixed(1)}% 超过阈值 85%`,
       status: '未处理',
-      source: '/dev/sda1 · /var/log',
+      // 来源写采集这条告警真正依据的那条命令：原来这里写的是 '/dev/sda1 · /var/log'，
+      // 而 diskUsage 是 `df -h /` 算出来的一个百分比——既没读设备名也没看 /var/log。
+      source: 'df -h /（根分区）',
       impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
       suggestions: [
         '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
@@ -102,7 +104,8 @@ function computeAlertsFromMonitorData(
       server: hostname,
       desc: `CPU 使用率过高：${latest.cpuUsage.toFixed(1)}% 超过阈值 90%`,
       status: '未处理',
-      source: '/proc/loadavg',
+      // CPU 使用率来自 `top -bn1`（/proc/loadavg 是另一个字段 loadAverage，不是这条告警的依据）
+      source: 'top -bn1',
       impact: '响应延迟增加，可能引发雪崩',
       suggestions: [
         '定位高 CPU 进程：top -bn1 | head -20',

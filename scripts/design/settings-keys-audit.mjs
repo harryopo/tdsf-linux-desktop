@@ -76,9 +76,15 @@ const WIRED = {
   'decision.weights': 'src/main/ipc/credibility.ts',
   'decision.decisionTimeout': 'src/main/core/agent-workflow.ts resolveConfirmTimeoutMs（确认超时自动拒绝）',
   'calibration.minSamples': 'pages/CalibrationSettings.tsx 取出后当 IPC 入参 → tuneProvider → optimizeTemperature',
-  // 纯界面态：本页读回来恢复展开/草稿，行为确实变了
-  'decision.tierStates': 'pages/DecisionSettings.tsx 恢复风险层级展开状态',
-  'decision.textAreas': 'pages/DecisionSettings.tsx 恢复审批补充说明草稿',
+  /*
+   * 「纯界面态」这一类以前挂着两条，注释写着"行为确实变了"——那话是假的：
+   * - decision.tierStates 是三档"自动执行/需确认/需双审"开关，全仓只有声明页读回自己存的值，
+   *   命令闸与审批流从来不看它，拨与不拨行为一模一样；
+   * - decision.textAreas 是「命令黑名单 / 敏感目录保护」两个文本框，写着"命中一律拒绝执行"，
+   *   而规则表是编译进来的（src/main/core/risk-engine.ts + command-rules.json）。
+   * 登记成"已接上"等于闸亲口承认这类控件合法——所以两条连同控件一起在 2026-10-16 删掉，
+   * 而不是留在这儿当豁免。豁免名单里再出现"只有声明页读它自己"的键，就是这条闸自己失守。
+   */
 }
 
 /**
