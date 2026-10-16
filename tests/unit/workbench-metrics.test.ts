@@ -1,16 +1,20 @@
 /**
- * 三栏默认宽度判据（黄金分割 + 下限优先级）
+ * 三栏默认宽度判据（终端优先 + 下限优先级）
  *
- * 用户要求"默认布局是黄金分割比例，对标 VS Code / Trae"。这里钉三件事：
- *   1) 中间∶右栏 ≈ φ，而且**换窗口宽度仍然是 φ**（不是写死的像素）
+ * 2026-10-16 用户改口径："终端优先，默认终端最大化"。此前钉的是"中间∶右栏 = φ"，
+ * 那条已作废——右侧 AI 格改成按像素给默认宽，余量全给中间。这里钉四件事：
+ *   1) 宽屏下右栏就是那个默认像素宽（不随窗口变大而变胖），中间至少是它的 2 倍
  *   2) 三栏加起来等于容器宽度（含分隔条），不许凭空多出或少掉像素
- *   3) 挤到极限时主区下限优先于右栏下限——终端不能先没
+ *   3) 窄屏下右栏按占比收敛，但主区下限优先——终端不能先没
+ *   4) 关掉某一栏时余量重分，不会算出负数
  * 另有一条量具自检：sanitise 掉的必须是真脏值，合法值不许被顺手丢。
  */
 import { describe, it, expect } from 'vitest'
 import {
+  AI_DEFAULT_PX,
+  AI_MAX_SHARE,
+  AI_MIN,
   EDITOR_MIN,
-  GOLDEN_RATIO,
   SEPARATOR_PX,
   defaultWidths,
   sanitizeSavedLayout,
@@ -18,14 +22,23 @@ import {
 
 const BOTH = { tree: true, ai: true }
 
-function ratio(w: { editor: number; ai: number }): number {
-  return w.editor / w.ai
-}
-
 describe('defaultWidths', () => {
-  it.each([[1450], [1920], [2512], [1232]])('%ipx 宽时中间∶右栏 = φ', (width) => {
+  it.each([[1450], [1920], [2512]])('%ipx 宽时右栏按默认像素、中间吃满余量', (width) => {
     const w = defaultWidths(width, BOTH)
-    expect(ratio(w)).toBeCloseTo(GOLDEN_RATIO, 2)
+    expect(w.ai, '右侧停靠格不该随窗口变大一起撑宽').toBe(AI_DEFAULT_PX)
+    expect(w.editor, '终端优先：主区至少是右栏的两倍').toBeGreaterThanOrEqual(w.ai * 2)
+  })
+
+  it('窄屏（1232）右栏按占比收敛，主区仍守住下限', () => {
+    const w = defaultWidths(1232, BOTH)
+    const separators = 2 * SEPARATOR_PX
+    const available = 1232 - w.tree - separators
+    expect(w.ai, '右栏不许超过可用宽度的这个比例').toBeLessThanOrEqual(
+      Math.round(available * AI_MAX_SHARE),
+    )
+    expect(w.ai).toBeGreaterThanOrEqual(AI_MIN)
+    expect(w.editor).toBeGreaterThanOrEqual(EDITOR_MIN)
+    expect(w.editor / w.ai, '窄屏也要看得出终端是主角').toBeGreaterThanOrEqual(1.9)
   })
 
   it.each([[1450], [2512], [1232]])('%ipx 宽时像素守恒（含分隔条）', (width) => {
@@ -39,10 +52,10 @@ describe('defaultWidths', () => {
     expect(defaultWidths(2512, BOTH).tree).toBe(300)
   })
 
-  it('关掉文件树：余量重切，比例仍是 φ', () => {
+  it('关掉文件树：右栏仍是那个像素宽，余量给中间', () => {
     const w = defaultWidths(1450, { tree: false, ai: true })
     expect(w.tree).toBe(0)
-    expect(ratio(w)).toBeCloseTo(GOLDEN_RATIO, 2)
+    expect(w.ai).toBe(AI_DEFAULT_PX)
     expect(w.editor + w.ai + SEPARATOR_PX).toBe(1450)
   })
 

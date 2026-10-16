@@ -1,12 +1,12 @@
 /**
- * 工作台三栏布局（可拖拽 + 黄金分割默认 + 记住宽度）
+ * 工作台三栏布局（可拖拽 + 终端优先默认 + 记住宽度）
  *
  * 旧实现是三块写死的宽度：文件树 200px（Workbench.css）、AI 面板 560px
  * （AIPanel.tsx 的 Tailwind 类）、中间吃剩余。用户明确说「终端和 AI 框的大小方位全都可以改」，
  * 所以宽度改由这里统一管，子组件不再自报宽度。
  *
- * 默认宽度按黄金分割算（见 workbench-metrics.ts），窗口变大时两侧按像素保持、
- * 增量全给中间——这两条都是照 VS Code / Trae 的手感来的。
+ * 默认宽度见 workbench-metrics.ts（2026-10-16 起是"终端优先"：右栏按像素、余量全给中间）；
+ * 窗口变大时两侧按像素保持、增量全给中间——这条照 VS Code / Trae 的手感来的。
  *
  * 宽度存 localStorage：拖完重开应用又回到默认宽度等于没得改。
  * 只存 isUserInteraction 的变化——库在挂载、约束重算时也会回调，
@@ -85,8 +85,8 @@ export function WorkbenchLayout({
    * 默认布局（按百分比）。
    *
    * 库的 Layout 值是**比例**（onLayoutChanged 存回去的也是比例），所以这里显式归一，
-   * 不能把 workbench-metrics 算出来的像素值直接塞进去——那样恰好也凑得出黄金分割，
-   * 但那是巧合，改一处就悄悄歪。
+   * 不能把 workbench-metrics 算出来的像素值直接塞进去——那套像素算的是"该占多宽"，
+   * 这里要的是"占总宽的百分之几"，混用会让窗口一变就比例失真。
    */
   const percentLayout = useCallback(
     (): Layout => {
@@ -118,7 +118,7 @@ export function WorkbenchLayout({
     }
   }, [])
 
-  /** 双击分隔条：回到黄金分割默认，并清掉存过的宽度 */
+  /** 双击分隔条：回到终端优先的默认布局，并清掉存过的宽度 */
   const resetToDefault = useCallback(() => {
     try {
       window.localStorage.removeItem(LAYOUT_STORAGE_KEY)
