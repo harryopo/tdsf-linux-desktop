@@ -18,6 +18,7 @@
 import { useState, type ReactNode } from 'react'
 import { Button, Chip, Sheet, SheetContent, StatusDot, Tooltip, type ChipProps } from '@/ui'
 import type { AlertRecord, RiskLevel } from './monitor-model'
+import { useMonitorStore } from '../../stores/monitor-store'
 
 /** 风险级别 -> 中文标签 + Chip 色调（与风险控制页的级别说法保持一致） */
 const RISK_VIEW: Record<RiskLevel, { label: string; tone: ChipProps['tone'] }> = {
@@ -71,26 +72,36 @@ export function AlertDrawer({ open, alert, onClose }: AlertDrawerProps) {
   const risk = RISK_VIEW[alert.level]
 
   /**
-   * 生成稳定 alertId：基于告警字段组合（AlertRecord 无 id 字段，由渲染层生成）
+   * 告警身份直接用 record.id（`会话|种类`，由算出这条告警的那一处生成）
    *
-   * 主进程内存 Map 以此字符串为 key 记录 ack 状态。
-   * 同一告警（time + server + desc）始终生成相同 alertId，保证 ack 状态一致。
+   * 以前这里自己拼 `time|server|desc` 还注释成"稳定 alertId"——time 每秒都在变、
+   * desc 里带着百分比，于是每条新数据都是一个新键：主进程那张确认表只进不出，
+   * 而刚刚标记过"已处理"的那条，下一拍就因为对不上号而重新变成未处理。
    */
-  const alertId = `${alert.time}|${alert.server}|${alert.desc.slice(0, 30)}`
+  const alertId = alert.id
 
   /** 旧版 preload 未暴露 alertAck 时：按钮禁用，并把「为什么不能点」说给用户看 */
   const ackAvailable =
     typeof window !== 'undefined' &&
     typeof window.electronAPI?.alertAck === 'function'
 
-  /** 标记已处理：调用 alert:ack IPC，成功后关闭抽屉 */
+  /**
+   * 标记已处理：先让主进程记一笔（alert:ack），成功了才改本地状态。
+   *
+   * 顺序不能反——写没成却让列表亮成"已处理"，等于又一次把界面当账本。
+   * 改完本地状态后，告警列表那一行下一拍算出来就是"已处理"（AlertTable 读同一份 store）。
+   */
   const handleAck = async () => {
     setAcking(true)
     setAckError(null)
     try {
       const ok = await window.electronAPI.alertAck(alertId)
-      if (ok) onClose()
-      else setAckError('确认失败：告警 ID 无效')
+      if (!ok) {
+        setAckError('确认失败：告警 ID 无效')
+        return
+      }
+      useMonitorStore.getState().ackAlert(alertId)
+      onClose()
     } catch (err) {
       setAckError(err instanceof Error ? err.message : '确认告警失败')
     } finally {

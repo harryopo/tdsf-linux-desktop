@@ -13,8 +13,39 @@ export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
 /** 告警处理状态 */
 export type AlertStatus = '未处理' | '处理中' | '已处理'
 
+/**
+ * 一条持续违规的稳定身份：`会话|种类`。
+ *
+ * 种类只有 disk / cpu / memory 三种，指标恢复后再越线仍算同一种类，
+ * 所以这个键在一场会话里不会漂。以前告警没有键，抽屉自己按
+ * `time|server|desc` 拼一个"稳定 ID"，而 time 每秒都在变、desc 里带着百分比
+ * ——每来一条数据就是一个新键，主进程那张确认表于是只进不出。
+ */
+export type AlertKind = 'disk' | 'cpu' | 'memory'
+
+export function alertKey(sessionId: string, kind: AlertKind): string {
+  return `${sessionId}|${kind}`
+}
+
+/** 这条键属不属于某个会话（清理该会话的确认状态时按它判别） */
+export function alertKeyBelongsToSession(key: string, sessionId: string): boolean {
+  return key.startsWith(`${sessionId}|`)
+}
+
+/**
+ * 一条告警显示成什么状态：只有"确认过没有"这一个依据。
+ *
+ * 横幅（MonitorPage）与告警列表（AlertTable）两个生产者共用它，
+ * 否则会出现同一场会话里列表说已处理、横幅还照常红着。
+ */
+export function alertStatusOf(key: string, ackedKeys: ReadonlySet<string>): AlertStatus {
+  return ackedKeys.has(key) ? '已处理' : '未处理'
+}
+
 /** 单条告警记录 */
 export interface AlertRecord {
+  /** 稳定身份（见 alertKey）：已处理状态、抽屉的 ack 都以它为键 */
+  id: string
   /** 时间（HH:MM:SS） */
   time: string
   /** 风险级别 */

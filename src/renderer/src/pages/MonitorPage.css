@@ -137,6 +137,16 @@ table.mon-table td {
   color: var(--text-muted);
 }
 
+/* 已处理但仍超阈值的标记：告警不消失，但用户看得见自己认领过 */
+.mon-alert-acked {
+  padding: 1px 6px;
+  border-radius: var(--trae-radius-6);
+  font-size: var(--trae-body-xs-font-size);
+  white-space: nowrap;
+  background: var(--trae-status-warning-surface-l1);
+  color: var(--trae-status-warning-default);
+}
+
 /* ===== KPI 卡片 ===== */
 .mon-kpi-card {
   background: var(--trae-bg-base-secondary);

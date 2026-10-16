@@ -40,9 +40,13 @@ import { EmptyMonitorState } from '@/components/monitor/EmptyMonitorState'
 import {
   timeRanges,
   computeKpiStats,
+  alertKey,
+  alertStatusOf,
   type TimeRange,
   type KpiStat,
+  type AlertKind,
   type AlertRecord,
+  type AlertStatus,
 } from '@/components/monitor/monitor-model'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore, MONITOR_INTERVAL_MS } from '@/stores/server-store'
@@ -179,16 +183,24 @@ export function MonitorPage() {
   const [diskThreshold] = usePersistentState('monitor.threshold.disk', 85)
   const criticalAlert = useMemo<AlertRecord | null>(() => {
     const latest = monitorData[monitorData.length - 1]
-    if (!latest) return null
+    if (!latest || !activeSessionId) return null
     const server = systemInfo?.hostname ?? '当前服务器'
+    // 已处理状态读那一份 store：横幅与告警列表必须同一个口径，
+    // 不然用户在抽屉里标记完，横幅还照常红着（或反过来）。
+    const acked = useMonitorStore.getState().ackedAlerts
+    const statusOf = (kind: AlertKind): AlertStatus =>
+      alertStatusOf(alertKey(activeSessionId, kind), acked)
+
     if (latest.diskUsage > diskThreshold) {
       return {
+        id: alertKey(activeSessionId, 'disk'),
         time: '刚刚',
         level: 'critical',
         server,
         desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值${diskThreshold}%，建议清理 /var/log 旧日志`,
-        status: '未处理',
-        source: '/dev/sda1 · /var/log',
+        status: statusOf('disk'),
+        // 采集侧真实跑的是 df -h /（见 services/ssh/monitor.ts），设备名与 /var/log 都没读过
+        source: 'df -h /（根分区）',
         impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
         suggestions: [
           '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
@@ -199,12 +211,13 @@ export function MonitorPage() {
     }
     if (latest.cpuUsage > cpuThreshold) {
       return {
+        id: alertKey(activeSessionId, 'cpu'),
         time: '刚刚',
         level: 'critical',
         server,
         desc: `CPU 使用率${Math.round(latest.cpuUsage)}%超过阈值${cpuThreshold}%，建议排查高负载进程`,
-        status: '未处理',
-        source: 'CPU · 全部核心',
+        status: statusOf('cpu'),
+        source: 'top -bn1',
         impact: '持续高 CPU 可能导致服务响应变慢、请求超时甚至雪崩',
         suggestions: [
           '定位高 CPU 进程：top -o %CPU 或 ps aux --sort=-%cpu | head',
@@ -215,12 +228,14 @@ export function MonitorPage() {
     }
     if (latest.memoryUsage > memoryThreshold) {
       return {
+        id: alertKey(activeSessionId, 'memory'),
         time: '刚刚',
         level: 'critical',
         server,
         desc: `内存使用率${Math.round(latest.memoryUsage)}%超过阈值${memoryThreshold}%，存在 OOM 风险`,
-        status: '未处理',
-        source: '内存 · RSS/Cache',
+        status: statusOf('memory'),
+        // 采集侧用 free 取内存（不是 RSS/Cache 拆分，那条口径没有依据）
+        source: 'free',
         impact: '内存耗尽时内核 OOM Killer 会强杀进程，可能误杀数据库/关键服务',
         suggestions: [
           '定位内存大户：ps aux --sort=-%mem | head',
@@ -230,7 +245,7 @@ export function MonitorPage() {
       }
     }
     return null
-  }, [monitorData, systemInfo, cpuThreshold, memoryThreshold, diskThreshold])
+  }, [monitorData, systemInfo, activeSessionId, cpuThreshold, memoryThreshold, diskThreshold])
 
   // 打开 Drawer（接收指定告警）
   const openDrawer = useCallback((alert: AlertRecord) => {
@@ -292,6 +307,16 @@ export function MonitorPage() {
           <p className="mon-alert-desc flex-1 min-w-0">
             {criticalAlert.desc}
           </p>
+          {/* 标记过就写出来：横幅不因"已处理"而消失（指标还在超阈值），
+              但用户能看出这一条自己已经认领过，而不是又冒出来一遍。 */}
+          {criticalAlert.status === '已处理' && (
+            <span
+              className="mon-alert-acked shrink-0 whitespace-nowrap"
+              data-dom-id="alert-banner-acked"
+            >
+              已处理 · 仍在超阈值
+            </span>
+          )}
           <span className="mon-alert-time shrink-0 whitespace-nowrap">
             {criticalAlert.time}
           </span>

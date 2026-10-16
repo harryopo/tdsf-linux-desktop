@@ -24,6 +24,7 @@
 import { useState, useMemo } from 'react'
 import { Filter, Search } from 'lucide-react'
 import type { AlertRecord, AlertStatus, RiskLevel } from './monitor-model'
+import { alertKey, alertStatusOf } from './monitor-model'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 
@@ -65,26 +66,40 @@ function statusColor(status: AlertStatus): string {
   }
 }
 
-/** 从监控数据动态计算告警列表（实时路径，有活跃会话时使用） */
-function computeAlertsFromMonitorData(
+/**
+ * 从监控数据动态计算告警列表（实时路径，有活跃会话时使用）
+ *
+ * 导出给判据直接驱动（tests/components/monitor/alert-ack-state.test.ts）：
+ * "标记已处理到底改不改状态"这件事只有跑这个函数才能量到，界面层测的是它渲染的结果。
+ *
+ * 每条告警带 `alertKey(sessionId, kind)` 这个稳定身份：同一种类在一场会话里
+ * 一直是同一个键，所以"已处理"能跟着它，指标恢复后也能把它作废。
+ */
+export function computeAlertsFromMonitorData(
   sessionId: string,
   hostname: string
 ): AlertRecord[] {
   const monitorStore = useMonitorStore.getState()
   const history = monitorStore.getMonitorData(sessionId)
-  if (history.length === 0) return []
+  if (history.length === 0) {
+    monitorStore.pruneSessionAcks(sessionId, [])
+    return []
+  }
 
   const alerts: AlertRecord[] = []
   const latest = history[history.length - 1]
+  const acked = monitorStore.ackedAlerts
   const time = new Date(latest.timestamp).toLocaleTimeString('zh-CN', { hour12: false })
 
   if (latest.diskUsage > 85) {
+    const key = alertKey(sessionId, 'disk')
     alerts.push({
+      id: key,
       time,
       level: 'critical',
       server: hostname,
       desc: `磁盘使用率过高：${latest.diskUsage.toFixed(1)}% 超过阈值 85%`,
-      status: '未处理',
+      status: alertStatusOf(key, acked),
       // 来源写采集这条告警真正依据的那条命令：原来这里写的是 '/dev/sda1 · /var/log'，
       // 而 diskUsage 是 `df -h /` 算出来的一个百分比——既没读设备名也没看 /var/log。
       source: 'df -h /（根分区）',
@@ -98,12 +113,14 @@ function computeAlertsFromMonitorData(
   }
 
   if (latest.cpuUsage > 90) {
+    const key = alertKey(sessionId, 'cpu')
     alerts.push({
+      id: key,
       time,
       level: 'high',
       server: hostname,
       desc: `CPU 使用率过高：${latest.cpuUsage.toFixed(1)}% 超过阈值 90%`,
-      status: '未处理',
+      status: alertStatusOf(key, acked),
       // CPU 使用率来自 `top -bn1`（/proc/loadavg 是另一个字段 loadAverage，不是这条告警的依据）
       source: 'top -bn1',
       impact: '响应延迟增加，可能引发雪崩',
@@ -115,6 +132,8 @@ function computeAlertsFromMonitorData(
     })
   }
 
+  // 这一轮不再成立的确认一律作废：指标回落了＝这轮结束，下次再越线重新算未处理
+  monitorStore.pruneSessionAcks(sessionId, alerts.map((a) => a.id))
   return alerts
 }
 

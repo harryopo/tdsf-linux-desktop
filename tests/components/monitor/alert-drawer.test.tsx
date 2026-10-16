@@ -13,8 +13,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AlertDrawer } from '@/components/monitor/AlertDrawer'
 import { TooltipProvider } from '@/ui'
 import type { AlertRecord } from '@/components/monitor/monitor-model'
+import { useMonitorStore } from '@/stores/monitor-store'
 
 const ALERT: AlertRecord = {
+  // 稳定键由算告警的那一处生成（`会话|种类`），抽屉不再自己拼 time|server|desc
+  id: 'sess-1|cpu',
   time: '10:24:31',
   level: 'high',
   server: 'web-01',
@@ -37,6 +40,8 @@ function setElectron(alertAck: unknown) {
 
 afterEach(() => {
   delete (window as unknown as { electronAPI?: unknown }).electronAPI
+  // ack 状态存在 store 里，不清会让下一条用例读到上一条留下的"已处理"
+  useMonitorStore.getState().clearAllMonitorData()
 })
 
 describe('AlertDrawer', () => {
@@ -70,11 +75,14 @@ describe('AlertDrawer', () => {
     draw(<AlertDrawer open alert={ALERT} onClose={onClose} />)
     fireEvent.click(screen.getByRole('button', { name: '标记已处理' }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
-    // alertId 由 time|server|desc 前 30 字拼出，主进程按同一个 key 记 ack
-    expect(alertAck).toHaveBeenCalledWith('10:24:31|web-01|CPU 连续 5 分钟超过 90%')
+    // 键就是 record.id：主进程按同一个 key 记 ack，渲染层也按它显示已处理
+    expect(alertAck).toHaveBeenCalledWith('sess-1|cpu')
+    // 成功了才改本地状态（改完告警列表下一拍就会显示"已处理"）
+    expect(useMonitorStore.getState().ackedAlerts.has('sess-1|cpu')).toBe(true)
   })
 
-  it('ack 失败时留下错误说明，不静默关抽屉', async () => {
+  it('ack 失败时留下错误说明，不静默关抽屉，也不把本地状态改成已处理', async () => {
+    useMonitorStore.getState().clearAllMonitorData()
     setElectron(vi.fn().mockResolvedValue(false))
     const onClose = vi.fn()
     draw(<AlertDrawer open alert={ALERT} onClose={onClose} />)
@@ -83,5 +91,7 @@ describe('AlertDrawer', () => {
       expect(screen.getByRole('alert').textContent).toContain('确认失败')
     )
     expect(onClose).not.toHaveBeenCalled()
+    // 这一条是"写没成不许亮已处理"的那半：只关抽屉不记账不行，只记账不关抽屉也不行
+    expect(useMonitorStore.getState().ackedAlerts.has('sess-1|cpu')).toBe(false)
   })
 })
