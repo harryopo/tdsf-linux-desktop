@@ -46,8 +46,6 @@ interface ServerState {
   removeServer: (serverId: string) => Promise<void>
   /** 更新服务器配置（partial 里的凭据同样是用户当场重输的，落 state 前剥掉） */
   updateServer: (serverId: string, partial: Partial<SshConfig>) => Promise<void>
-  /** 批量替换服务器列表 */
-  setServers: (servers: ServerListItem[]) => Promise<void>
   /** 设置当前活跃会话 */
   setActiveSession: (sessionId: string | null) => void
   /** 更新服务器连接状态 */
@@ -205,12 +203,6 @@ export const useServerStore = create<ServerState>()(
         )
         set({ servers: newServers })
         await syncToMain(outgoing)
-      },
-
-      // 批量替换服务器列表（入参已是渲染层形状，不带凭据）
-      setServers: async (newServers) => {
-        set({ servers: newServers })
-        await syncToMain(newServers)
       },
 
       // 设置当前活跃会话：顺带确保这台主机的监控在采集（见 MONITOR_INTERVAL_MS 注释）

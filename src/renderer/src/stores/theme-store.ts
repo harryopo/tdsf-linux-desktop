@@ -23,8 +23,6 @@ interface ThemeState {
   initialized: boolean
 
   // ===== Actions =====
-  /** 切换主题 */
-  toggleTheme: () => void
   /** 设置指定主题 */
   setTheme: (theme: Theme) => void
   /** 初始化：若未选择过主题则跟随系统偏好 */
@@ -45,12 +43,6 @@ export const useThemeStore = create<ThemeState>()(
     (set, get) => ({
       theme: 'light',
       initialized: false,
-
-      // 切换主题
-      toggleTheme: () =>
-        set((state) => ({
-          theme: state.theme === 'light' ? 'dark' : 'light',
-        })),
 
       // 设置指定主题
       setTheme: (theme) => set({ theme }),

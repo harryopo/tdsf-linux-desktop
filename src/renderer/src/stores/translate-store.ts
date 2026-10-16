@@ -4,8 +4,10 @@
  * 职责：
  * - 管理翻译功能开关（enabled）
  * - 缓存当前选词信息（currentSelection）
- * - 控制翻译面板展开状态（panelOpen）
  * - 持久化用户偏好（默认关闭，避免干扰正常使用）
+ *
+ * 面板展开状态不在这里：划词气泡的展开由 SelectionPopover 自己的 useState 管，
+ * store 里那份 panelOpen / setPanelOpen 从来没有读者，2026-10-17 连同 setEnabled 一起删。
  *
  * 设计：
  * - 默认关闭，用户在 TerminalTabs 工具栏主动开启
@@ -31,14 +33,10 @@ interface TranslateState {
   enabled: boolean
   /** 当前选词信息 */
   currentSelection: TranslateSelection | null
-  /** 翻译面板是否展开 */
-  panelOpen: boolean
 
   // ===== Actions =====
-  setEnabled: (v: boolean) => void
   toggleEnabled: () => void
   setSelection: (sel: TranslateSelection | null) => void
-  setPanelOpen: (open: boolean) => void
   clear: () => void
 }
 
@@ -47,17 +45,13 @@ export const useTranslateStore = create<TranslateState>()(
     (set) => ({
       enabled: false,        // 默认关闭
       currentSelection: null,
-      panelOpen: false,
 
-      setEnabled: (v) => set({ enabled: v, currentSelection: null, panelOpen: false }),
       toggleEnabled: () => set((s) => ({
         enabled: !s.enabled,
         currentSelection: null,
-        panelOpen: false,
       })),
       setSelection: (sel) => set({ currentSelection: sel }),
-      setPanelOpen: (open) => set({ panelOpen: open }),
-      clear: () => set({ currentSelection: null, panelOpen: false }),
+      clear: () => set({ currentSelection: null }),
     }),
     {
       name: 'tdsf-translate',

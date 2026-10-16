@@ -9,10 +9,10 @@
  * - 持有 Provider 列表（从 IPC provider:list 加载）
  * - 持有 Token 统计聚合（从 IPC token:stats 加载）
  *
- * 与现有 useAIStore 的关系：
- * - useAIStore 管理 v0.8 旧 AgentWorkflow 的状态（decisionCard / workflowState / toolCalls）
- * - useAgentStore 管理 v0.9 Supervisor chat 的状态（AgentMessage / provider / tokenStats）
- * - 两者并存，ChatPanel 可根据场景选用（v0.9 优先用 agent-store）
+ * 与 ai-store 的关系：
+ * - ai-store 只剩终端→输入框的预填通道（prefillMessage / prefillAt / setPrefillMessage）
+ * - 对话消息、流式标志、Provider、Token 统计都在这里，v0.8 那套旧 AgentWorkflow 状态已删
+ * - 界面上的对话一律读这一份，别再找第二个 messages
  *
  * 流式输出流程：
  * 1. 用户发送消息 → 调用 agentChat IPC → 返回 correlationId
@@ -308,8 +308,6 @@ interface AgentState {
    * 让"本次会话"从 0 重新累计。
    */
   resetSessionCostBaseline: () => void
-  /** 重置整个 Agent 状态 */
-  resetAgentState: () => void
 }
 
 /**
@@ -648,15 +646,4 @@ export const useAgentStore = create<AgentState>()((set) => ({
     set((state) => ({
       sessionCostBaseline: state.costStats.totalCost,
     })),
-
-  // 设置当前 Agent mode（v0.9.5 P0）
-  // 重置整个 Agent 状态
-  resetAgentState: () =>
-    set({
-      messages: [],
-      isStreaming: false,
-      currentCorrelationId: null,
-      lastError: null,
-      // thinkingStrength / selectedProviderId / providers / tokenStats 不重置
-    }),
 }))

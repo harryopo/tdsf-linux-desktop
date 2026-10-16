@@ -36,14 +36,10 @@ interface MonitorState {
   addMonitorData: (sessionId: string, data: MonitorData) => void
   /** 设置系统信息 */
   setSystemInfo: (sessionId: string, info: SystemInfo) => void
-  /** 清除指定会话的监控数据 */
-  clearMonitorData: (sessionId: string) => void
   /** 清除所有监控数据 */
   clearAllMonitorData: () => void
   /** 获取指定会话的监控数据历史（无会话/无数据返回同一个稳定空数组） */
   getMonitorData: (sessionId?: string | null) => MonitorData[]
-  /** 获取指定会话的最新监控数据 */
-  getLatestMonitorData: (sessionId: string) => MonitorData | null
   /** 获取指定会话的系统信息 */
   getSystemInfo: (sessionId: string) => SystemInfo | null
 }
@@ -72,16 +68,6 @@ export const useMonitorStore = create<MonitorState>()((set, get) => ({
       return { systemInfo: newMap }
     }),
 
-  // 清除指定会话的监控数据
-  clearMonitorData: (sessionId) =>
-    set((state) => {
-      const newMonitorMap = new Map(state.monitorData)
-      const newSystemMap = new Map(state.systemInfo)
-      newMonitorMap.delete(sessionId)
-      newSystemMap.delete(sessionId)
-      return { monitorData: newMonitorMap, systemInfo: newSystemMap }
-    }),
-
   // 清除所有监控数据
   clearAllMonitorData: () =>
     set({ monitorData: new Map(), systemInfo: new Map() }),
@@ -90,14 +76,6 @@ export const useMonitorStore = create<MonitorState>()((set, get) => ({
   getMonitorData: (sessionId) => {
     if (!sessionId) return EMPTY_MONITOR_DATA
     return get().monitorData.get(sessionId) ?? EMPTY_MONITOR_DATA
-  },
-
-  // 获取指定会话的最新监控数据
-  getLatestMonitorData: (sessionId) => {
-    const state = get()
-    const history = state.monitorData.get(sessionId)
-    if (!history || history.length === 0) return null
-    return history[history.length - 1]
   },
 
   // 获取指定会话的系统信息
