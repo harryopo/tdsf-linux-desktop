@@ -11,7 +11,6 @@
  */
 import type { RefObject, FC } from 'react'
 import { Sparkles, AlertTriangle, Search, Terminal, FileText, TrendingUp } from 'lucide-react'
-import { useLoopEngineering } from './useLoopEngineering'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { PaorApprovalRequest } from '@/types/electron'
 import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
@@ -27,7 +26,6 @@ export interface MessageListProps {
   navigate: (path: string) => void
   hasLoopRunning: boolean
   activeSessionId: string | null
-  loop: ReturnType<typeof useLoopEngineering>
   paorApprovals: PaorApprovalRequest[]
   onPaorApprove: (callId: string, approved: boolean) => void
   /** v2.11 任务拆解可视化：PAOR 结构化计划 + 迭代轨迹 + 是否运行中 */
@@ -52,8 +50,6 @@ const MessageList: FC<MessageListProps> = ({
   navigate,
   hasLoopRunning,
   activeSessionId,
-  // v2.3.7 修复：loop 仍由 AIPanel 持有，MessageList 暂不需要（仅 hasLoopRunning 触发 workflow 分支）
-  loop: _loop,
   paorApprovals: _paorApprovals,
   onPaorApprove: _onPaorApprove,
   paorPlan,

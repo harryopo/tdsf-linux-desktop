@@ -28,7 +28,7 @@
  * - 可选示例：mock-data.ts MOCK_CHAT_MESSAGES（showDemo）
  * - chips：快捷运维提示词；上下文徽章按选中模型的真实窗口算（#89）
  */
-import { useState, useRef, useEffect, type FC } from 'react'
+import { useState, useRef, useEffect, useCallback, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAgentChat } from './useAgentChat'
@@ -226,6 +226,44 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     return () => cancelAnimationFrame(raf)
   }, [liveMessages, hasLiveConversation, isStreaming, hasLoopRunning, loop.phase, loop.workflowState, loop.decisionCard, loop.finalCard])
 
+  /*
+   * 往下穿到每一行 LiveMessageRow 的回调（recordChatDecision / handleToolAction /
+   * handleMessageNavigate / handleRetryMessage / handleCompressFromError）一律 useCallback。
+   * 只要有一次渲染现造一个新函数，memo 的浅比较就比不过，结果不是"这一行重画"，
+   * 而是"每来一个 token，整屏历史消息重渲染一遍"（每条里还有 markdown 在重解析）。
+   * 判据：tests/components/workbench/ai-panel-render-isolation.test.tsx
+   */
+  /** v2.5：把“用户批准执行的命令”作为决策记录落库（history:save）
+   *
+   * P0-5：这里只交**意图**（命令 + 上下文 + 证据来源 + "用户确实批准执行了"）。
+   * 风险等级、置信度、id、时间戳都由主进程判定后写入，
+   * 所以渲染层不再有 riskCheck 往返，也无法把风险改低。
+   *
+   * 声明位置在 handleToolAction 之前：它进了后者的依赖数组，
+   * useCallback 的依赖是在渲染时求值的，放后面会当场撞 TDZ。
+   */
+  const recordChatDecision = useCallback(async (command: string): Promise<void> => {
+    const api = window.electronAPI
+    if (!api?.historySave) return
+    try {
+      const msgs = useAgentStore.getState().messages
+      const lastUser = [...msgs].reverse().find((m) => m.role === 'user') ?? null
+      const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.isError) ?? null
+
+      await api.historySave(
+        buildHistorySaveIntent({
+          command,
+          userMessage: lastUser,
+          assistantMessage: lastAssistant,
+          sessionId: activeSessionId,
+        })
+      )
+    } catch (err) {
+      // 落库失败不影响命令执行主流程，仅记日志
+      console.error('[AIPanel] 决策历史落库失败:', err)
+    }
+  }, [activeSessionId])
+
   /** 处理工具面板操作（在终端运行/执行/回滚/停止/终止）
    *
    * Wire-2（2026-07-22）：真实 IPC 接线
@@ -239,7 +277,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
    *
    * 非 Electron 环境降级为提示消息，UI 不崩溃。
    */
-  const handleToolAction = async (action: string, payload?: string) => {
+  const handleToolAction = useCallback(async (action: string, payload?: string) => {
     // 1. 复制命令：直接写入剪贴板
     if (action === 'copyCommand') {
       if (payload) {
@@ -343,40 +381,29 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       const reason = err instanceof Error ? err.message : String(err)
       toast.error(`命令发送失败：${reason}`)
     }
-  }
-
-  /** v2.5：把“用户批准执行的命令”作为决策记录落库（history:save）
-   *
-   * P0-5：这里只交**意图**（命令 + 上下文 + 证据来源 + "用户确实批准执行了"）。
-   * 风险等级、置信度、id、时间戳都由主进程判定后写入，
-   * 所以渲染层不再有 riskCheck 往返，也无法把风险改低。
-   */
-  const recordChatDecision = async (command: string): Promise<void> => {
-    const api = window.electronAPI
-    if (!api?.historySave) return
-    try {
-      const msgs = useAgentStore.getState().messages
-      const lastUser = [...msgs].reverse().find((m) => m.role === 'user') ?? null
-      const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.isError) ?? null
-
-      await api.historySave(
-        buildHistorySaveIntent({
-          command,
-          userMessage: lastUser,
-          assistantMessage: lastAssistant,
-          sessionId: activeSessionId,
-        })
-      )
-    } catch (err) {
-      // 落库失败不影响命令执行主流程，仅记日志
-      console.error('[AIPanel] 决策历史落库失败:', err)
-    }
-  }
+  }, [currentCorrelationId, activeSessionId, cancel, recordChatDecision])
 
   /** 处理消息中的导航操作（查看监控/记录决策/更新知识库） */
-  const handleMessageNavigate = (path: string) => {
+  const handleMessageNavigate = useCallback((path: string) => {
     navigate(path)
-  }
+  }, [navigate])
+
+  /*
+   * 报错行上的两个动作。这两个回调要往下穿到每一行 LiveMessageRow，
+   * 所以必须稳定：以前这里和 handleToolAction 一样是每次渲染现造一个新函数，
+   * memo(LiveMessageRow) 的浅比较当场就比不过，于是**每来一个 token，
+   * 整屏历史消息全部重渲染一遍**（长对话里流式越说越卡就是这么来的）。
+   */
+  const handleRetryMessage = useCallback(() => {
+    void retryLast()
+  }, [retryLast])
+
+  const handleCompressFromError = useCallback(() => {
+    // 与徽章里那条同一份文案：报错行上的按钮点了也要有回应
+    const r = compressContext()
+    const text = compressFeedback(r)
+    void (r.compressed ? toast.success(text) : toast.info(text))
+  }, [compressContext])
 
   return (
     <div className="wb-aipanel relative flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-line bg-canvas">
@@ -398,7 +425,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         navigate={navigate}
         hasLoopRunning={hasLoopRunning}
         activeSessionId={activeSessionId}
-        loop={loop}
         paorApprovals={paorApprovals}
         onPaorApprove={handlePaorApprove}
         paorPlan={paor.plan}
@@ -411,13 +437,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         isStreaming={isStreaming}
         onToolAction={handleToolAction}
         onMessageNavigate={handleMessageNavigate}
-        onRetryMessage={() => void retryLast()}
-        onCompressContext={() => {
-          // 与徽章里那条同一份文案：报错行上的按钮点了也要有回应
-          const r = compressContext()
-          const text = compressFeedback(r)
-          void (r.compressed ? toast.success(text) : toast.info(text))
-        }}
+        onRetryMessage={handleRetryMessage}
+        onCompressContext={handleCompressFromError}
       />
 
       {/* ===== Composer（chips + 输入框 + 工具栏） ===== */}
