@@ -6,7 +6,7 @@
  *
  * 9 步规划：
  *   Step 1: 启动应用 + BootPage 加载
- *   Step 2: 点击 "进入工作台" 按钮进入工作台
+ *   Step 2: 加载完成后自动进入工作台（启动页无按钮）
  *   Step 3: 验证主界面元素（ActivityRail 8 个导航按钮）
  *   Step 4: 教程页加载（点击 nav-tutorial）
  *   Step 5: 决策页加载（点击 nav-decision）
@@ -89,26 +89,12 @@ test.describe('Demo 9 步主路径', () => {
     await app.close()
   })
 
-  testOrSkip('Step 2: 点击 "进入工作台" 进入工作台', async () => {
+  testOrSkip('Step 2: 加载完成后自动进入工作台（没人去点它）', async () => {
     const { app, mainWin } = await launchApp()
 
-    // 等待 BootPage 加载完成（boot-enter 按钮可点击）
-    const enterBtn = mainWin.locator('[data-dom-id="boot-enter"]')
-    await enterBtn.waitFor({ state: 'visible', timeout: 30000 })
-
-    // BootPage 进度条动画 3s，最多等 6s 让按钮 enable
-    await mainWin.waitForFunction(
-      () => {
-        const btn = document.querySelector('[data-dom-id="boot-enter"]') as HTMLButtonElement | null
-        return btn !== null && !btn.disabled
-      },
-      { timeout: 15000 },
-    )
-
-    await enterBtn.click()
-
-    // 等待跳转到 /workbench（HashRouter 改变 hash）
-    await mainWin.waitForSelector('.wb-main-layout', { timeout: 15000 })
+    // 启动页没有按钮可点了：主进程把 boot 推到 done、最短展示时长走完，自己跳去工作台。
+    // 所以这一步断的是"谁都不碰它也能到工作台"——手动点一下反而把这条测成假的。
+    await mainWin.waitForSelector('.wb-main-layout', { timeout: 30000 })
 
     // 验证 URL hash 包含 workbench
     const hash = await mainWin.evaluate(() => window.location.hash)

@@ -7,8 +7,9 @@
  * （electron-builder 24 读不懂 pnpm v9 锁文件，asar 里 58 个包全是直接依赖、零传递依赖）。
  * 这类缺陷只有"真把安装包里的程序起一次"才看得见，所以把它写成闸。
  *
- * 前置：`pnpm build:win`（产出 `release/win-unpacked/TDSF-Linux Desktop.exe`）。
- * 没打生产包 → 整份 skip 并写明跑法；skip 不等于通过。
+ * 前置：`pnpm build:win`（产出 `release/win-unpacked/TDSF-Linux Desktop.exe`），
+ * 且包不能比 `out/` 旧（旧包测不出当前代码，见下面 packageFreshness 的来历）。
+ * 没打生产包 / 包比构建旧 → 整份 skip 并写明跑法；skip 不等于通过。
  * 档位一律指到系统临时目录，不碰 %APPDATA% 里真用户的配置。
  */
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
@@ -17,13 +18,42 @@ import os from 'node:os'
 import path from 'node:path'
 
 const EXE = path.join(__dirname, '../../release/win-unpacked/TDSF-Linux Desktop.exe')
+const ASAR = path.join(__dirname, '../../release/win-unpacked/resources/app.asar')
+const BUILD_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const PACKAGED = fs.existsSync(EXE)
-const testOrSkip = PACKAGED ? test : test.skip
+
+/**
+ * 包必须不比 out/ 旧，否则这条测的不是当前代码。
+ *
+ * 为什么要有这一道：2026-10-17 把启动页改成"加载完自动进工作台"之后，这一条红在
+ * 一个 2026-10-08 打的包上（屏上正文还是「进入工作台 · 就绪 · 点击进入工作台 · 100%」）——
+ * 红得对，但红的是"包旧了"，不是"代码坏了"。不区分的话，下一个改界面的人会花时间去
+ * 查一个根本不存在的回归；而直接把这条改成宽容等待更是会把"装包真的起不来"一起放过。
+ * 所以：包旧 ⇒ 整份 skip 并打印两个时间与重打包命令。**skip 不等于通过。**
+ */
+function packageFreshness(): { fresh: boolean; detail: string } {
+  if (!PACKAGED) return { fresh: false, detail: '没有装包' }
+  const asarMs = fs.existsSync(ASAR) ? fs.statSync(ASAR).mtimeMs : 0
+  const buildMs = fs.existsSync(BUILD_ENTRY) ? fs.statSync(BUILD_ENTRY).mtimeMs : 0
+  const fmt = (ms: number): string => (ms ? new Date(ms).toISOString().slice(0, 16).replace('T', ' ') : '缺失')
+  return {
+    fresh: asarMs >= buildMs,
+    detail: `app.asar=${fmt(asarMs)} / out/main/index.js=${fmt(buildMs)}`,
+  }
+}
+
+const freshness = packageFreshness()
+const testOrSkip = PACKAGED && freshness.fresh ? test : test.skip
 
 if (!PACKAGED) {
   console.log(
     `[packed-app] 跳过：没有 ${path.relative(process.cwd(), EXE)} —— 先跑 pnpm build:win。` +
       '这条量的是"交付物本身能不能起"，out/ 上的 e2e 照不到它。'
+  )
+} else if (!freshness.fresh) {
+  console.log(
+    `[packed-app] 跳过：装包比当前构建旧（${freshness.detail}）—— 跑 pnpm build && pnpm build:win 重出包再看这条。` +
+      'skip 不等于通过：当前代码的交付物还没被起过一次。'
   )
 }
 
@@ -78,17 +108,12 @@ test.describe('生产包真启动', () => {
       throw await dieWithContext('开出第一个窗口', e)
     }
     page.on('pageerror', (err) => pageErrors.push(String(err && err.message)))
-    // 启动页那颗「进入工作台」要等主进程把 boot 推到 done 才渲染，读太早会误判成"界面是空的"
+    // 启动页只负责加载，加载完自动跳；所以"应用真的起来了"的唯一判据是工作台外壳出现。
+    // 上限给 25s：打包版冷启动要解 asar、开 SQLite、建知识库索引，几秒的上限在慢盘上会假红。
     try {
-      await page.waitForSelector('[data-dom-id="boot-enter"]', { timeout: 8000 })
+      await page.waitForSelector('.wb-main-layout', { timeout: 25000 })
     } catch (e) {
-      throw await dieWithContext('渲染出启动页', e)
-    }
-    await page.click('[data-dom-id="boot-enter"]')
-    try {
-      await page.waitForSelector('.wb-main-layout', { timeout: 6000 })
-    } catch (e) {
-      throw await dieWithContext('进入工作台外壳', e)
+      throw await dieWithContext('自动进入工作台外壳', e)
     }
     // 钩子级的 timeout 参数实测不生效（上面注释记的就是这件事），本份的类型检查也不认
     // 这个两参写法（它匹配到 (title, body) 那条重载）。真正兜时间的是上面每步自己的

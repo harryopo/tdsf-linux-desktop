@@ -1,27 +1,25 @@
 /**
- * BootPage — 启动加载页（Shader 流光背景 + 可读前景）
+ * BootPage — 启动加载页（Shader 流光背景 + 可读前景），加载完自动进工作台
  *
  * 路由：/ 与 /boot
  *
- * 2026-10-05 重做前景（用户选定：保留启动页，只修可读性）：
- * - 旧版文字直接压在 shader 光带上，"系统初始化中…"实测对比度 1.06:1，等于看不见；
- *   现在 shader 与文字之间固定加一层暗纱，文字永远落在 ≥#1e1e1e 的底上。
- * - 颜色全部走 ui 令牌单源，不再引用 --trae-* 旧层，也不再混用第二套字体族。
- * - 进度条给出真实阶段文案（主进程 IPC 推什么就显示什么）与百分比；
- *   旧版把阶段消息丢掉、写死"系统初始化中…"，用户不知道卡在哪。
- * - 按钮改成实底主操作色，去掉玻璃拟态 + 外发光 + 3.5s 才浮现的入场编排
- *   （那是营销 splash 的做法，工具软件不该让人等动画播完才看到能点的东西）。
+ * 2026-10-17 简化成"纯加载态"（用户要求）：删掉「进入工作台」按钮、进度条与
+ * 已保存服务器卡片，主进程把 boot 推到 done 且最短展示时长走完后自己跳去工作台。
+ * 理由：这一页的职责只是"别让人对着白屏猜"，它不该再承担选择——
+ * 选服务器在顶栏的下拉里、工作台空态里也有入口，启动页再摆一份就是三处同一个决定。
+ *
+ * 前景色不能用主题令牌：背景是本页自己画的暗纱（永远是深色），
+ * 而 text-ink-strong 在浅色主题下是近黑——写在暗纱上等于看不见
+ * （实测：浅色模式下标题就是黑压黑，用户截图里那块发白的卡片也是同一个原因，
+ * 卡片用的 bg-sunken 在浅色主题下是 #e8e8e8）。所以这里固定用 --text-on-accent（两套主题都是白）。
  *
  * 工程侧保留：webglcontextlost 降级、GPU 上下文显式释放、IPC 进度对接与补拉、
- * prefers-reduced-motion、3.5s 最小展示时长（避免一闪而过）。
+ * prefers-reduced-motion（关掉闪烁）、最短展示时长（避免一闪而过）。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
-import { ArrowRight, Loader2, Server } from 'lucide-react'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import { useServerStore } from '@/stores/server-store'
-import { useServerConnect } from '@/hooks/useServerConnect'
 
 /** 全屏四边形顶点（兼容 Three r15x+ / WebGL2） */
 const VERTEX_SHADER = /* glsl */ `
@@ -58,7 +56,7 @@ const FRAGMENT_SHADER = /* glsl */ `
 `
 
 /** 主进程没推消息时的兜底文案 */
-const DEFAULT_MESSAGE = '正在启动…'
+const DEFAULT_MESSAGE = '正在启动'
 /** 最短展示时长：够读完一行字，又不让人干等 */
 const MIN_VISIBLE_MS = 1200
 
@@ -66,32 +64,28 @@ const MIN_VISIBLE_MS = 1200
 export function BootPage() {
   const navigate = useNavigate()
   const canvasHostRef = useRef<HTMLDivElement>(null)
-  const [progress, setProgress] = useState(0)
   const [message, setMessage] = useState(DEFAULT_MESSAGE)
   const [bootDone, setBootDone] = useState(false)
   const [minElapsed, setMinElapsed] = useState(false)
   const [webglFailed, setWebglFailed] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
-  const loaded = bootDone && minElapsed
-  const servers = useServerStore((s) => s.servers)
-  /** 连接走与工作台顶栏同一份实现；连上（或切到已有会话）就直接进工作台 */
-  const { connectingId, connectSavedServer } = useServerConnect({
-    onConnected: () => navigate('/workbench', { replace: true }),
-  })
+  const ready = bootDone && minElapsed
 
   // 监听主进程加载阶段；订阅前先补拉一次（主进程 init 常常早于本页挂载，
-  // done 推过来时没有订阅者就会永久停在"正在启动…"）。
+  // done 推过来时没有订阅者就会永远停在"正在启动"，也就永远不会自动进工作台）。
   useEffect(() => {
     if (!isElectronAPIAvailable() || !window.electronAPI?.onBootLoadingStage) {
       setBootDone(true)
-      setMessage('就绪 · 点击进入工作台')
+      setMessage('准备就绪')
       return
     }
 
     const apply = (payload: { stage: string; progress: number; message: string }) => {
-      setProgress((prev) => Math.max(prev, payload.progress))
       if (payload.message) setMessage(payload.message)
-      if (payload.stage === 'done') setBootDone(true)
+      if (payload.stage === 'done') {
+        setBootDone(true)
+        setMessage('准备就绪')
+      }
     }
 
     const unsubscribe = window.electronAPI.onBootLoadingStage(apply)
@@ -185,7 +179,6 @@ export function BootPage() {
   // 最短展示时长用 setTimeout：窗口被遮挡时 RAF 停摆，数帧会永远走不完
   useEffect(() => {
     if (reducedMotion) {
-      setProgress(100)
       setMinElapsed(true)
       return
     }
@@ -193,26 +186,11 @@ export function BootPage() {
     return () => window.clearTimeout(t)
   }, [reducedMotion])
 
-  // 进度条：真实阶段为准，时间只做视觉补齐（阶段推得比 3s 快时不硬等）
+  // 加载完自己走，不等人来点：这一页没有别的用途
   useEffect(() => {
-    if (reducedMotion) return
-    const startAt = Date.now()
-    let rafId = 0
-    const tick = () => {
-      const t = Math.min((Date.now() - startAt) / 2000, 1)
-      const eased = 1 - Math.pow(1 - t, 3)
-      setProgress((prev) => Math.max(prev, Math.round(eased * 90)))
-      if (t >= 1) return
-      rafId = window.requestAnimationFrame(tick)
-    }
-    rafId = window.requestAnimationFrame(tick)
-    return () => window.cancelAnimationFrame(rafId)
-  }, [reducedMotion])
-
-  const handleEnter = useCallback(() => {
-    if (!loaded) return
+    if (!ready) return
     navigate('/workbench', { replace: true })
-  }, [loaded, navigate])
+  }, [ready, navigate])
 
   return (
     <main
@@ -245,114 +223,33 @@ export function BootPage() {
 
       <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-7">
         <h1
-          className="text-center text-splash font-semibold text-ink-strong"
+          className="text-center text-splash font-semibold text-(--text-on-accent)"
           style={{ letterSpacing: '0.18em', textIndent: '0.18em' }}
         >
           TDSF LINUX
         </h1>
 
-        <button
-          type="button"
-          data-dom-id="boot-enter"
-          aria-label="进入工作台"
-          disabled={!loaded}
-          onClick={handleEnter}
-          className={
-            'pointer-events-auto inline-flex h-10 items-center gap-2 rounded-(--ui-radius-card) px-6 ' +
-            'text-md font-medium transition-colors duration-[var(--ui-dur-fast)] ' +
-            (loaded
-              ? 'bg-accent-solid text-(--text-on-accent) hover:bg-accent-solid-hover active:bg-accent-solid-active'
-              : 'cursor-default border border-line-strong bg-sunken text-ink-mute')
-          }
-        >
-          <span>{loaded ? '进入工作台' : '准备中'}</span>
-          {loaded && <ArrowRight className="size-4" aria-hidden="true" />}
-        </button>
-
-        <div
-          className="flex w-[260px] max-w-[80vw] flex-col gap-2"
+        {/*
+          加载态一行：主进程推到哪一步就写哪一步，末尾一个闪烁的块状光标（终端的味道）。
+          prefers-reduced-motion 下不闪，文案照旧更新。
+          颜色固定用 --text-on-accent（两套主题都是白）：背景是本页自己画的暗纱，
+          跟主题走会在浅色模式下变成"黑压黑"。
+        */}
+        <p
+          data-dom-id="boot-loading"
           role="status"
           aria-live="polite"
+          className="flex items-center gap-1.5 font-mono text-caption opacity-70 text-(--text-on-accent)"
         >
-          <div
-            className="h-1 w-full overflow-hidden rounded-full bg-sunken ring-1 ring-line-strong"
-            role="progressbar"
-            aria-label="加载进度"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div
-              className="h-full rounded-full bg-accent-solid transition-[width] duration-[var(--ui-dur-base)] ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="flex items-baseline justify-between gap-3 text-caption">
-            <span className="text-ink-dim">{message}</span>
-            <span className="shrink-0 tabular-nums text-ink-strong">{progress}%</span>
-          </div>
-        </div>
-
-        {/*
-          * 已保存服务器的快速连接：以前启动页对"上一台机器"一无所知，
-          * 每次进来都要先点进工作台、再在顶栏菜单里挑一台。数据在 App 挂载时
-          * 就从主进程 hydrate 好了，这里只做选择与发起，连接本身走 useServerConnect
-          * （与顶栏同一份实现）。启动没走完不摆出来——那时点了也是报错。
-          */
-        loaded && isElectronAPIAvailable() ? (
-          <section
-            className="pointer-events-auto flex w-[340px] max-w-[86vw] flex-col gap-2 rounded-(--ui-radius-card) border border-line-strong bg-sunken p-3"
-            aria-label="已保存的服务器"
-          >
-            <h2 className="text-md font-semibold text-ink-strong">已保存的服务器</h2>
-            {servers.length === 0 ? (
-              <p className="text-caption text-ink-dim">
-                还没有保存过服务器。进入工作台后可以在「SSH 连接」里添加一台。
-              </p>
-            ) : (
-              <>
-                <ul className="flex flex-col gap-1">
-                  {servers.slice(0, 5).map((srv) => {
-                    const busy = connectingId === srv.id
-                    return (
-                      <li key={srv.id}>
-                        <button
-                          type="button"
-                          data-dom-id="boot-quick-connect"
-                          aria-label={`连接 ${srv.name || srv.host}`}
-                          disabled={connectingId !== null}
-                          onClick={() => void connectSavedServer(srv)}
-                          className={
-                            'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left ' +
-                            'transition-colors duration-[var(--ui-dur-fast)] ' +
-                            (connectingId !== null && !busy
-                              ? 'cursor-default'
-                              : 'hover:bg-hover')
-                          }
-                        >
-                          {busy ? (
-                            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
-                          ) : (
-                            <Server className="size-3.5 shrink-0 text-ink-mute" aria-hidden="true" />
-                          )}
-                          <span className="min-w-0 flex-1 truncate text-md text-ink-strong">
-                            {srv.name || srv.host}
-                          </span>
-                          <span className="shrink-0 font-mono text-caption text-ink-mute">
-                            {srv.username}@{srv.host}
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-                <p className="text-caption text-ink-mute">
-                  点一下直接连上并进工作台；一台机器最多列一次，已连过的会切过去。
-                </p>
-              </>
-            )}
-          </section>
-        ) : null}
+          <span>{message}</span>
+          <span
+            aria-hidden="true"
+            className={
+              'inline-block h-3.5 w-[7px] bg-(--text-on-accent) ' +
+              (reducedMotion ? '' : 'animate-pulse')
+            }
+          />
+        </p>
       </div>
     </main>
   )

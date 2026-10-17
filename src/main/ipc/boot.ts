@@ -28,12 +28,18 @@ export interface BootLoadingStage {
   message: string
 }
 
-/** 阶段 → 进度百分比映射（保留 3s 最小展示时长由渲染层控制） */
+/**
+ * 阶段 → 进度百分比映射（最短展示时长由渲染层控制）
+ *
+ * 文案末尾不带省略号：启动页在文字后面画了一个闪烁的块状光标来表示"还在进行"，
+ * 再叠一个"…"就是两种等待符号打架。done 也不再说"点击进入工作台"——
+ * 2026-10-17 起加载完自动进，界面上没有那个按钮了。
+ */
 const STAGE_PROGRESS: Record<BootStage, { progress: number; message: string }> = {
-  'ipc-ready': { progress: 30, message: '正在初始化 IPC 通道…' },
-  'sqlite-init': { progress: 60, message: '正在加载本地数据库…' },
-  'kb-indexed': { progress: 85, message: '正在索引知识库…' },
-  done: { progress: 100, message: '就绪 · 点击进入工作台' },
+  'ipc-ready': { progress: 30, message: '正在初始化 IPC 通道' },
+  'sqlite-init': { progress: 60, message: '正在加载本地数据库' },
+  'kb-indexed': { progress: 85, message: '正在索引知识库' },
+  done: { progress: 100, message: '准备就绪' },
 }
 
 /**

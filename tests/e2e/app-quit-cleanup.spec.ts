@@ -78,8 +78,9 @@ test.describe('退出清理收尾', () => {
 
     const page = await app.firstWindow()
     await page.waitForSelector('body', { timeout: 30000 })
-    // 等启动序列走完：boot 没结束就关掉，清单项基本是空的，测了等于没测
-    await page.waitForSelector('[data-dom-id="boot-enter"]', { timeout: 40000 })
+    // 等启动序列走完：boot 没结束就关掉，清单项基本是空的，测了等于没测。
+    // 启动页加载完自己跳，所以"走完了"的判据就是工作台外壳出现在屏上（不用也没法去点它）
+    await page.waitForSelector('.wb-main-layout', { timeout: 40000 })
 
     // 用主进程自己的 app.quit() 触发退出，不用 app.close()：
     // close() 是 Playwright 关窗口 + 断连，机器忙时它会先把进程掐掉，before-quit 根本没机会跑完

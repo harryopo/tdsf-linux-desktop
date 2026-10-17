@@ -47,12 +47,8 @@ test.describe('终端跟随窗口尺寸', () => {
     test.setTimeout(180_000)
     const { app, page } = await launchApp()
     try {
-      await page.waitForSelector('[data-dom-id="boot-enter"]', { timeout: 60000 })
-      await page.click('[data-dom-id="boot-enter"]').catch(() => {})
-      await page.evaluate(() => {
-        window.location.hash = '#/workbench'
-      })
-      await page.waitForSelector('.wb-main-layout', { timeout: 30000 })
+      // 启动页加载完自动进工作台，这里只需要等外壳出现（不再手动点/改 hash）
+      await page.waitForSelector('.wb-main-layout', { timeout: 60000 })
 
       // 窗口最小尺寸钉在 1280x720 时，小窗那一档根本进不去；判据要量的是"任意尺寸都自适应"，
       // 所以这里只把**测试实例**的下限放开，不改产品配置

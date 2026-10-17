@@ -80,17 +80,8 @@ testOrSkip('真应用：数据库打不开时必须出横幅、主进程必须�
     expect(status.degradedReason, '降级必须带原因，否则用户不知道怎么修').toBeTruthy()
 
     // 真机操作路径：启动页 → 工作台（横幅挂在全局布局里）
-    const enter = page.locator('[data-dom-id="boot-enter"]')
-    await enter.waitFor({ state: 'visible', timeout: 30000 })
-    await page.waitForFunction(
-      () => {
-        const b = document.querySelector('[data-dom-id="boot-enter"]') as HTMLButtonElement | null
-        return b !== null && !b.disabled
-      },
-      { timeout: 20000 }
-    )
-    await enter.click()
-    await page.waitForSelector('.wb-main-layout', { timeout: 20000 })
+    // 启动页加载完自己跳，所以"到了工作台"的判据就是外壳出现在屏上（没有按钮可点，也不该去点）
+    await page.waitForSelector('.wb-main-layout', { timeout: 40000 })
 
     // 判据核心：横幅真的在界面上，且把"后果 + 原因"都说清了
     // （计划原文写的是『数据不会持久化』这个意思；实现里的文案更具体，
@@ -139,17 +130,8 @@ testOrSkip('对照：库能正常打开时不许出现横幅（防"横幅常亮"
     // 阳性对照：正常库里 available 必须是 true，否则这条对照什么都没守住
     expect(status.available, `正常档位下主进程仍报不可用：${JSON.stringify(status)}`).toBe(true)
 
-    const enter = page.locator('[data-dom-id="boot-enter"]')
-    await enter.waitFor({ state: 'visible', timeout: 30000 })
-    await page.waitForFunction(
-      () => {
-        const b = document.querySelector('[data-dom-id="boot-enter"]') as HTMLButtonElement | null
-        return b !== null && !b.disabled
-      },
-      { timeout: 20000 }
-    )
-    await enter.click()
-    await page.waitForSelector('.wb-main-layout', { timeout: 20000 })
+    // 启动页加载完自己跳，所以"到了工作台"的判据就是外壳出现在屏上（没有按钮可点，也不该去点）
+    await page.waitForSelector('.wb-main-layout', { timeout: 40000 })
     await expect(page.locator(BANNER)).toHaveCount(0)
   } finally {
     await app.close()
