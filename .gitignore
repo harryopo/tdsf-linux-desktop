@@ -32,6 +32,11 @@ npm-debug.log*
 **/*-credentials.local.json
 .tmp-*.log
 .tmp-*.json
+# 探针与出包暂存的 scratch 目录。必须忽略：Tailwind v4 的内容源=「git 看得见的文件」，
+# 未忽略的 scratch 会被扫进产物——实测探针里写的 border-accent 字样，
+# 真的在 out/renderer 的 CSS 里生成了一条 .border-accent{border-color:var(--accent)} 死规则。
+/.tmp/
+/_release_tmp/
 
 # Legacy Python code (reference only)
 _legacy-python/__pycache__/
