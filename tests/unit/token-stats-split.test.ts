@@ -109,6 +109,44 @@ describe('拆分与合计数同源于同一批记录', () => {
     expect(s.total).toBe(500)
   })
 
+  it('provider 的 total 大于 input+output（推理/缓存只进合计）：差额进 unknown，账照样闭得上', () => {
+    // 这是真实形状：client.ts:437 用的是 usage.total_tokens，不是 input+output
+    recordTokenUsage(rec({ inputTokens: 600, outputTokens: 200, totalTokens: 1000 }))
+
+    const s = getTokenStats()
+    expect(s.split.total).toEqual({ input: 600, output: 200, unknown: 200 })
+    expect(s.split.total.input + s.split.total.output + s.split.total.unknown).toBe(s.total)
+    expect(s.total).toBe(1000)
+  })
+
+  it('provider 的 total 小于 input+output：按方向数算，不少算用户的账', () => {
+    recordTokenUsage(rec({ inputTokens: 80, outputTokens: 60, totalTokens: 100 }))
+
+    const s = getTokenStats()
+    expect(s.total).toBe(140)
+    expect(s.split.total).toEqual({ input: 80, output: 60, unknown: 0 })
+    expect(s.split.total.input + s.split.total.output + s.split.total.unknown).toBe(s.total)
+  })
+
+  it('负数方向字段不算方向（否则会把合计拉低），整条进 unknown', () => {
+    recordTokenUsage(rec({ inputTokens: -50, outputTokens: 50, totalTokens: 300 }))
+
+    const s = getTokenStats()
+    expect(s.split.total).toEqual({ input: 0, output: 0, unknown: 300 })
+    expect(s.total).toBe(300)
+  })
+
+  it('分布表与窗口合计用同一个数（byProvider/bySubagent 也不许和总数对不上）', () => {
+    recordTokenUsage(rec({ inputTokens: 600, outputTokens: 200, totalTokens: 1000 }))
+    recordTokenUsage(rec({ providerId: 'kimi', subagent: 'coding', inputTokens: 10, outputTokens: 5, totalTokens: 15 }))
+
+    const s = getTokenStats()
+    const sumProviders = Object.values(s.byProvider).reduce((a, b) => a + b, 0)
+    const sumSubagents = Object.values(s.bySubagent).reduce((a, b) => a + b, 0)
+    expect(sumProviders).toBe(s.total)
+    expect(sumSubagents).toBe(s.total)
+  })
+
   it('阴性对照：没有任何记录时四个窗口都是 0（判据不会把空库读出错）', () => {
     const s = getTokenStats()
     expect(s.total).toBe(0)

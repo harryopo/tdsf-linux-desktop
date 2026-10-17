@@ -303,9 +303,16 @@ export class KnowledgeRepository {
    *
    * @param id 条目 ID
    * @param partial 要更新的字段
+   * @param opts.fromUserAnswer 这次是不是"用户亲口答的"。只有这种调用才允许动 feedback 与
+   *        successRate。importEntries 合并走的也是这个方法，而导进来的包可能带着别人机器上记的
+   *        答复——不加这道闸门，导一个知识包就会覆盖本机用户的答复，并替她投出一张没投过的票。
    * @returns true 表示更新成功
    */
-  update(id: string, partial: Partial<KnowledgeEntry>): boolean {
+  update(
+    id: string,
+    partial: Partial<KnowledgeEntry>,
+    opts: { fromUserAnswer?: boolean } = {}
+  ): boolean {
     const existing = this.getById(id)
     if (!existing) {
       return false
@@ -313,30 +320,25 @@ export class KnowledgeRepository {
     const merged: KnowledgeEntry = {
       ...existing,
       ...partial,
-      // 没带答复就等于"这一列不动"。importEntries 合并时会把整条不带 feedback 的对象传进来，
-      // 让它覆盖过去＝导一个知识包就把用户在本机记下的答复清掉。
-      feedback: partial.feedback ?? existing.feedback,
+      // 不是用户答复的调用一律保留本机已有的答复（对方对象里没这个键、或带着外来的答复都算）
+      feedback: opts.fromUserAnswer ? (partial.feedback ?? existing.feedback) : existing.feedback,
       id: existing.id, // ID 不可变
       updatedAt: Date.now()
     }
     /*
-     * 用户这一票第一次成了 successRate 的生产者（#134）。
+     * 用户这一票第一次成了 successRate 的生产者（#134）：加权平均 old*0.9 + (helpful?1:0)*0.1，
+     * 与答复写在同一条 UPDATE 里。分两条写会留下"答复存了、票没并进"的裂口，
+     * 而这条链下一次给同样的答复并不补并（feedback 没变），裂口不会自愈。
      *
-     * 以前 updateSuccessRate() 全仓零调用：界面上的"有帮助/没帮助"按下去只改本地 useState，
-     * 详情页显示的成功率从来没人写。现在答复落列（schema v2），并把这一票按加权平均并进去。
-     *
-     * 三条口径都是被逼出来的：
-     * - 只看 partial 里**明确给了**的答复。比对 merged 与 existing 的话，
-     *   importEntries 走到这里时（它按 useCount 取较强者为底本）会把"没带答复"当成"改成了没答复"，
-     *   导一个知识包就把本机的成功率往 0 拖。
-     * - 与答复同一条 UPDATE 写出去，不分两次。分两次的中间裂开就留下"答复存了、票没并进"的行，
-     *   而这条链下一次同样的答复又不会补并（feedback 没变）。
-     * - 教程条目不参与：它这一列存的是"阅读时长/60"的存储层 hack（详情页为此专门不显示置信度），
-     *   再混进答复比例就得到一个既不是时长也不是成功率的数。
+     * 教程条目不参与：它这一列存的是"阅读时长/60"的存储层 hack（详情页为此专门不显示置信度），
+     * 再混进答复比例就得到一个既不是时长也不是成功率的数。
      */
-    const newAnswer =
-      partial.feedback !== undefined && partial.feedback !== existing.feedback
-    if (newAnswer && merged.type !== 'tutorial') {
+    if (
+      opts.fromUserAnswer &&
+      partial.feedback !== undefined &&
+      partial.feedback !== existing.feedback &&
+      merged.type !== 'tutorial'
+    ) {
       merged.successRate = blendSuccessRate(existing.successRate, partial.feedback === 'helpful')
     }
     try {
@@ -415,7 +417,10 @@ export class KnowledgeRepository {
           const existing = this.findSimilarEntry(entry, pool)
           if (existing) {
             // 合并：保留使用次数和成功率更高的版本
-            const merged = this.mergeEntries(existing, entry)
+            // 合并必须落在"库里那一行"的 id 上。mergeEntries 以 useCount 较高者为底本，
+            // 底本可能是导进来的那条（它的 id 库里根本没有）——照 merged.id 去 UPDATE
+            // 就是 getById 拿不到 → 静默算失败，本机那条旧条目原样留着，合并没发生。
+            const merged = { ...this.mergeEntries(existing, entry), id: existing.id }
             if (!this.update(merged.id, merged)) {
               failedCount++
               continue

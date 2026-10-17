@@ -23,8 +23,9 @@
  */
 import { useState, useMemo } from 'react'
 import { Filter, Search } from 'lucide-react'
-import type { AlertRecord, AlertStatus, RiskLevel } from './monitor-model'
-import { alertKey, alertStatusOf } from './monitor-model'
+import type { AlertRecord, AlertStatus, RiskLevel, AlertThresholds } from './monitor-model'
+import { deriveAlerts } from './monitor-model'
+import { useAlertThresholds } from '@/hooks/useAlertThresholds'
 import { useMonitorStore } from '../../stores/monitor-store'
 import { useServerStore } from '../../stores/server-store'
 
@@ -67,17 +68,18 @@ function statusColor(status: AlertStatus): string {
 }
 
 /**
- * 从监控数据动态计算告警列表（实时路径，有活跃会话时使用）
+ * 从监控数据算出当前成立的告警（列表与横幅共用 deriveAlerts）
  *
  * 导出给判据直接驱动（tests/components/monitor/alert-ack-state.test.ts）：
  * "标记已处理到底改不改状态"这件事只有跑这个函数才能量到，界面层测的是它渲染的结果。
  *
- * 每条告警带 `alertKey(sessionId, kind)` 这个稳定身份：同一种类在一场会话里
- * 一直是同一个键，所以"已处理"能跟着它，指标恢复后也能把它作废。
+ * prune 用的键集合必须来自 deriveAlerts 的产出。以前这里只认 disk/cpu 且阈值写死，
+ * 而横幅会产出 `会话|memory`，于是列表每一拍把横幅刚标记的那条确认删掉。
  */
 export function computeAlertsFromMonitorData(
   sessionId: string,
-  hostname: string
+  hostname: string,
+  thresholds: AlertThresholds
 ): AlertRecord[] {
   const monitorStore = useMonitorStore.getState()
   const history = monitorStore.getMonitorData(sessionId)
@@ -86,54 +88,19 @@ export function computeAlertsFromMonitorData(
     return []
   }
 
-  const alerts: AlertRecord[] = []
-  const latest = history[history.length - 1]
-  const acked = monitorStore.ackedAlerts
-  const time = new Date(latest.timestamp).toLocaleTimeString('zh-CN', { hour12: false })
-
-  if (latest.diskUsage > 85) {
-    const key = alertKey(sessionId, 'disk')
-    alerts.push({
-      id: key,
-      time,
-      level: 'critical',
-      server: hostname,
-      desc: `磁盘使用率过高：${latest.diskUsage.toFixed(1)}% 超过阈值 85%`,
-      status: alertStatusOf(key, acked),
-      // 来源写采集这条告警真正依据的那条命令：原来这里写的是 '/dev/sda1 · /var/log'，
-      // 而 diskUsage 是 `df -h /` 算出来的一个百分比——既没读设备名也没看 /var/log。
-      source: 'df -h /（根分区）',
-      impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
-      suggestions: [
-        '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
-        '归档并压缩：tar -czf /tmp/log-$(date +%F).tar.gz /var/log/*.log && rm /var/log/*.log',
-        '配置 logrotate 自动轮转：编辑 /etc/logrotate.d/nginx',
-      ],
-    })
-  }
-
-  if (latest.cpuUsage > 90) {
-    const key = alertKey(sessionId, 'cpu')
-    alerts.push({
-      id: key,
-      time,
-      level: 'high',
-      server: hostname,
-      desc: `CPU 使用率过高：${latest.cpuUsage.toFixed(1)}% 超过阈值 90%`,
-      status: alertStatusOf(key, acked),
-      // CPU 使用率来自 `top -bn1`（/proc/loadavg 是另一个字段 loadAverage，不是这条告警的依据）
-      source: 'top -bn1',
-      impact: '响应延迟增加，可能引发雪崩',
-      suggestions: [
-        '定位高 CPU 进程：top -bn1 | head -20',
-        '检查 nginx 配置：grep -r "limit_req" /etc/nginx/',
-        '考虑横向扩容：增加 Web 节点 + 负载均衡',
-      ],
-    })
-  }
+  const alerts = deriveAlerts({
+    sessionId,
+    hostname,
+    latest: history[history.length - 1],
+    thresholds,
+    acked: monitorStore.ackedAlerts,
+  })
 
   // 这一轮不再成立的确认一律作废：指标回落了＝这轮结束，下次再越线重新算未处理
-  monitorStore.pruneSessionAcks(sessionId, alerts.map((a) => a.id))
+  monitorStore.pruneSessionAcks(
+    sessionId,
+    alerts.map((a) => a.id)
+  )
   return alerts
 }
 
@@ -201,6 +168,7 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
   const systemInfo = useMonitorStore((s) =>
     activeSessionId ? s.systemInfo.get(activeSessionId) : undefined
   )
+  const thresholds = useAlertThresholds()
 
   // 数据策略（P1 修复：移除 DEV sampleAlerts fallback，假告警会被当真实告警）：
   // propAlerts > 实时计算 > 空列表（显示空态）
@@ -210,8 +178,8 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
       return []
     }
     const hostname = systemInfo?.hostname ?? '未知服务器'
-    return computeAlertsFromMonitorData(activeSessionId, hostname)
-  }, [propAlerts, activeSessionId, systemInfo])
+    return computeAlertsFromMonitorData(activeSessionId, hostname, thresholds)
+  }, [propAlerts, activeSessionId, systemInfo, thresholds])
 
   /** 筛选未处理告警 + 搜索关键词匹配 */
   const visibleAlerts = computedAlerts.filter((alert) => {

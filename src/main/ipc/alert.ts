@@ -31,9 +31,9 @@ import { logger } from '../services/log/logger'
  * key: alertId, value: true（已确认）
  * 主进程重启后重置（告警是瞬时状态，不持久化到磁盘）
  *
- * 上限：alertId 由渲染层按 `time|server|desc` 拼，每次触发都是新 key，
- * 不设上限就是一条一条只增不减地占内存。超出后按插入顺序淘汰最旧的
- * （Map 保持插入序），等价于"只记得最近这几百条确认过"。
+ * 上限：alertId 是渲染层生成的稳定键 `会话|种类`（见 renderer monitor-model 的 alertKey），
+ * 一场会话最多三个种类；但会话会一场接一场开，不设上限就是一条一条只增不减地占内存。
+ * 超出后按插入顺序淘汰最旧的（Map 保持插入序），等价于"只记得最近这几百条确认过"。
  */
 const ACK_CAP = 500
 const acknowledgedAlerts = new Map<string, boolean>()

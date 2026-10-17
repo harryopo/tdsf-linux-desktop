@@ -480,7 +480,7 @@ describe('KnowledgeRepository — 知识库仓储', () => {
   it('答复"有帮助"：成功率加权上升', () => {
     repo.add(makeEntry({ id: 'rate-1', successRate: 0.9 }))
 
-    repo.update('rate-1', { feedback: 'helpful' })
+    repo.update('rate-1', { feedback: 'helpful' }, { fromUserAnswer: true })
     const entry = repo.getById('rate-1')
     expect(entry!.successRate).toBeCloseTo(0.91, 2)
   })
@@ -488,7 +488,7 @@ describe('KnowledgeRepository — 知识库仓储', () => {
   it('答复"没帮助"：成功率下降', () => {
     repo.add(makeEntry({ id: 'rate-2', successRate: 0.9 }))
 
-    repo.update('rate-2', { feedback: 'unhelpful' })
+    repo.update('rate-2', { feedback: 'unhelpful' }, { fromUserAnswer: true })
     const entry = repo.getById('rate-2')
     expect(entry!.successRate).toBeCloseTo(0.81, 2)
   })

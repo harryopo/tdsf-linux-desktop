@@ -227,21 +227,38 @@ function getWindowStarts(): { todayStart: number; weekStart: number; monthStart:
 }
 
 /**
- * 一条记录往一个窗口里累加：合计数照旧用 totalTokens，方向按 input/output 分
+ * 一条记录并入一个窗口，返回这条记录给合计数贡献的数额
  *
- * 方向字段缺失（老记录从 store 恢复时只校验了 totalTokens 与 timestamp）时，
- * 这一笔整条进 unknown，不悄悄丢掉——否则窗口的 input+output+unknown 就对不上合计数，
- * 而"对不上"正是这张表唯一能自证的地方。
+ * 合计数与拆分不是各算各的，而是**由同一次累加产出**——这样
+ * "input + output + unknown = 合计"是构造上成立的，不是事后对账对出来的。
+ *
+ * 三种对不上的情况都有真实来源，各有各的去处：
+ * - 老记录没带方向（loadPersisted 只校验 totalTokens 与 timestamp）→ 整条进 unknown；
+ * - provider 报的 total 大于 input+output（推理/缓存 token 只进合计）→ 差额进 unknown，
+ *   不摊给任何一侧，那是"没归到方向里的量"而不是"输入或输出"；
+ * - provider 报的 total 小于 input+output → 合计数按方向数走，宁可多算不少算
+ *   （少算会让用户以为这一段时间没花钱）。
  */
-function accumulate(dir: TokenDirection, r: TokenUsageRecord): void {
+function accumulate(dir: TokenDirection, r: TokenUsageRecord): number {
   const input = r.inputTokens
   const output = r.outputTokens
-  if (typeof input === 'number' && Number.isFinite(input) && typeof output === 'number' && Number.isFinite(output)) {
-    dir.input += input
-    dir.output += output
-  } else {
+  const hasDirection =
+    typeof input === 'number' &&
+    Number.isFinite(input) &&
+    typeof output === 'number' &&
+    Number.isFinite(output) &&
+    input >= 0 &&
+    output >= 0
+
+  if (!hasDirection) {
     dir.unknown += r.totalTokens
+    return r.totalTokens
   }
+  dir.input += input
+  dir.output += output
+  const rest = r.totalTokens - (input + output)
+  if (rest > 0) dir.unknown += rest
+  return Math.max(r.totalTokens, input + output)
 }
 
 const newDirection = (): TokenDirection => ({ input: 0, output: 0, unknown: 0 })
@@ -269,22 +286,24 @@ export function getTokenStats(): TokenStats {
   }
 
   for (const r of usageRecords) {
-    stats.total += r.totalTokens
-    accumulate(stats.split.total, r)
+    // 一条记录只算一次贡献额，四个窗口与两份分布都用这同一个数：
+    // 合计数与拆分由此同源，窗口之间只会嵌套，不会出现"总数与拆分各算各的"
+    const contributed = accumulate(stats.split.total, r)
+    stats.total += contributed
     if (r.timestamp >= monthStart) {
-      stats.month += r.totalTokens
+      stats.month += contributed
       accumulate(stats.split.month, r)
       if (r.timestamp >= weekStart) {
-        stats.week += r.totalTokens
+        stats.week += contributed
         accumulate(stats.split.week, r)
         if (r.timestamp >= todayStart) {
-          stats.today += r.totalTokens
+          stats.today += contributed
           accumulate(stats.split.today, r)
         }
       }
     }
-    stats.bySubagent[r.subagent] = (stats.bySubagent[r.subagent] ?? 0) + r.totalTokens
-    stats.byProvider[r.providerId] = (stats.byProvider[r.providerId] ?? 0) + r.totalTokens
+    stats.bySubagent[r.subagent] = (stats.bySubagent[r.subagent] ?? 0) + contributed
+    stats.byProvider[r.providerId] = (stats.byProvider[r.providerId] ?? 0) + contributed
   }
 
   return stats

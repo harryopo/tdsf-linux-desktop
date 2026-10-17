@@ -42,6 +42,84 @@ export function alertStatusOf(key: string, ackedKeys: ReadonlySet<string>): Aler
   return ackedKeys.has(key) ? '已处理' : '未处理'
 }
 
+/** 告警阈值（来自设置页 monitor.threshold.*，默认与采集侧一致） */
+export interface AlertThresholds {
+  disk: number
+  cpu: number
+  memory: number
+}
+
+/**
+ * 从一条采样算出当前成立的告警（监控页唯一的告警生产者）
+ *
+ * 为什么必须有这一个函数：以前横幅（MonitorPage）和列表（AlertTable）各写一份判定，
+ * 两份都不一样——列表只认 disk/cpu 且阈值写死 85/90，横幅认 disk/cpu/memory 且读设置页阈值。
+ * 后果是"标记已处理"会被对面抹掉：横幅能点出 `会话|memory` 这条 ack，
+ * 列表下一拍按自己那份键集合 prune，刚标记的就又变回未处理；用户把阈值调成 70 也同理。
+ * 现在两侧都走这里，prune 用的也必须是这里产出的键。
+ *
+ * 顺序即优先级：磁盘 > CPU > 内存（横幅取第一条）。
+ */
+export function deriveAlerts(args: {
+  sessionId: string
+  hostname: string
+  latest: MonitorData
+  thresholds: AlertThresholds
+  acked: ReadonlySet<string>
+}): AlertRecord[] {
+  const { sessionId, hostname, latest, thresholds, acked } = args
+  const time = new Date(latest.timestamp).toLocaleTimeString('zh-CN', { hour12: false })
+  const alerts: AlertRecord[] = []
+  const push = (kind: AlertKind, level: RiskLevel, rest: Omit<AlertRecord, 'id' | 'time' | 'server' | 'level' | 'status'>): void => {
+    const id = alertKey(sessionId, kind)
+    alerts.push({ id, time, server: hostname, level, status: alertStatusOf(id, acked), ...rest })
+  }
+
+  if (latest.diskUsage > thresholds.disk) {
+    push('disk', 'critical', {
+      desc: `磁盘使用率过高：${latest.diskUsage.toFixed(1)}% 超过阈值 ${thresholds.disk}%`,
+      // 采集侧真实跑的是 df -h /（见 services/ssh/monitor.ts），设备名与 /var/log 都没读过
+      source: 'df -h /（根分区）',
+      impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
+      suggestions: [
+        '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
+        '归档并压缩：tar -czf /tmp/log-$(date +%F).tar.gz /var/log/*.log && rm /var/log/*.log',
+        '配置 logrotate 自动轮转：编辑 /etc/logrotate.d/nginx',
+      ],
+    })
+  }
+
+  if (latest.cpuUsage > thresholds.cpu) {
+    push('cpu', 'high', {
+      desc: `CPU 使用率过高：${latest.cpuUsage.toFixed(1)}% 超过阈值 ${thresholds.cpu}%`,
+      // CPU 使用率来自 top -bn1（/proc/loadavg 是另一个字段 loadAverage，不是这条告警的依据）
+      source: 'top -bn1',
+      impact: '响应延迟增加，可能引发雪崩',
+      suggestions: [
+        '定位高 CPU 进程：top -o %CPU 或 ps aux --sort=-%cpu | head',
+        '查看负载趋势：uptime（对比 CPU 核数）',
+        '必要时限流或扩容：systemctl 重启异常服务 / 增加实例',
+      ],
+    })
+  }
+
+  if (latest.memoryUsage > thresholds.memory) {
+    push('memory', 'high', {
+      desc: `内存使用率过高：${latest.memoryUsage.toFixed(1)}% 超过阈值 ${thresholds.memory}%`,
+      // 采集侧用 free 取内存总量与占用（不是 RSS/Cache 拆分，那条口径没有依据）
+      source: 'free',
+      impact: '内存耗尽时内核 OOM Killer 会强杀进程，可能误杀数据库/关键服务',
+      suggestions: [
+        '定位内存大户：ps aux --sort=-%mem | head',
+        '查看可回收缓存：free -m（buff/cache 可被回收）',
+        '检查 OOM 历史：dmesg | grep -i "out of memory"',
+      ],
+    })
+  }
+
+  return alerts
+}
+
 /** 单条告警记录 */
 export interface AlertRecord {
   /** 稳定身份（见 alertKey）：已处理状态、抽屉的 ack 都以它为键 */

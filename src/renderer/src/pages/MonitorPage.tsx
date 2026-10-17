@@ -40,18 +40,15 @@ import { EmptyMonitorState } from '@/components/monitor/EmptyMonitorState'
 import {
   timeRanges,
   computeKpiStats,
-  alertKey,
-  alertStatusOf,
+  deriveAlerts,
   type TimeRange,
   type KpiStat,
-  type AlertKind,
   type AlertRecord,
-  type AlertStatus,
 } from '@/components/monitor/monitor-model'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore, MONITOR_INTERVAL_MS } from '@/stores/server-store'
-// v2.7：告警阈值消费设置页 monitor.threshold.* 配置（不再硬编码 85）
-import { usePersistentState } from '@/hooks/usePersistentState'
+// 告警阈值与告警列表读同一个 hook（键名只在一处出现；两侧口径必须一致）
+import { useAlertThresholds } from '@/hooks/useAlertThresholds'
 // M3 Task 2：时间范围切换切片工具（KPI 数据源按 range 过滤）
 import { sliceMonitorData } from '@/utils/monitor-time-range'
 import './MonitorPage.css'
@@ -174,78 +171,26 @@ export function MonitorPage() {
     return computeKpiStats(sliced)
   }, [monitorData, range])
 
-  // 顶部 critical 告警横幅数据（nullable）：只基于真实监控数据生成
-  // P1 修复：移除 DEV 假告警"磁盘92%…2分钟前"fallback 与假主机名 'prod-web-01'
-  // v2.7：阈值不再硬编码 85 —— 消费设置页「告警阈值」monitor.threshold.* 配置，
-  // CPU/内存/磁盘三项均接入（磁盘优先展示，其次 CPU、内存）
-  const [cpuThreshold] = usePersistentState('monitor.threshold.cpu', 90)
-  const [memoryThreshold] = usePersistentState('monitor.threshold.memory', 90)
-  const [diskThreshold] = usePersistentState('monitor.threshold.disk', 85)
+  // 顶部告警横幅：与告警列表用同一个生产者 deriveAlerts、同一套阈值（useAlertThresholds）。
+  // 以前这里和列表各写一份判定：列表只认 disk/cpu 且把 85/90 写死，横幅认 disk/cpu/memory
+  // 且读设置页阈值。口径不一致时"这条告警此刻成不成立"有两个答案，
+  // 列表按自己那份键集合清理已处理状态，就会把横幅刚标记的那条抹掉。
+  const thresholds = useAlertThresholds()
+  const ackedAlerts = useMonitorStore((s) => s.ackedAlerts)
   const criticalAlert = useMemo<AlertRecord | null>(() => {
     const latest = monitorData[monitorData.length - 1]
     if (!latest || !activeSessionId) return null
-    const server = systemInfo?.hostname ?? '当前服务器'
-    // 已处理状态读那一份 store：横幅与告警列表必须同一个口径，
-    // 不然用户在抽屉里标记完，横幅还照常红着（或反过来）。
-    const acked = useMonitorStore.getState().ackedAlerts
-    const statusOf = (kind: AlertKind): AlertStatus =>
-      alertStatusOf(alertKey(activeSessionId, kind), acked)
-
-    if (latest.diskUsage > diskThreshold) {
-      return {
-        id: alertKey(activeSessionId, 'disk'),
-        time: '刚刚',
-        level: 'critical',
-        server,
-        desc: `磁盘使用率${Math.round(latest.diskUsage)}%超过阈值${diskThreshold}%，建议清理 /var/log 旧日志`,
-        status: statusOf('disk'),
-        // 采集侧真实跑的是 df -h /（见 services/ssh/monitor.ts），设备名与 /var/log 都没读过
-        source: 'df -h /（根分区）',
-        impact: '根分区空间不足可能导致日志写入失败、服务异常崩溃、数据库锁表',
-        suggestions: [
-          '清理 /var/log 旧日志：find /var/log -type f -name "*.log.*" -mtime +7 -delete',
-          '归档并压缩：tar -czf /tmp/log-$(date +%F).tar.gz /var/log/*.log && rm /var/log/*.log',
-          '配置 logrotate 自动轮转：编辑 /etc/logrotate.d/nginx',
-        ],
-      }
-    }
-    if (latest.cpuUsage > cpuThreshold) {
-      return {
-        id: alertKey(activeSessionId, 'cpu'),
-        time: '刚刚',
-        level: 'critical',
-        server,
-        desc: `CPU 使用率${Math.round(latest.cpuUsage)}%超过阈值${cpuThreshold}%，建议排查高负载进程`,
-        status: statusOf('cpu'),
-        source: 'top -bn1',
-        impact: '持续高 CPU 可能导致服务响应变慢、请求超时甚至雪崩',
-        suggestions: [
-          '定位高 CPU 进程：top -o %CPU 或 ps aux --sort=-%cpu | head',
-          '查看负载趋势：uptime（对比 CPU 核数）',
-          '必要时限流或扩容：systemctl 重启异常服务 / 增加实例',
-        ],
-      }
-    }
-    if (latest.memoryUsage > memoryThreshold) {
-      return {
-        id: alertKey(activeSessionId, 'memory'),
-        time: '刚刚',
-        level: 'critical',
-        server,
-        desc: `内存使用率${Math.round(latest.memoryUsage)}%超过阈值${memoryThreshold}%，存在 OOM 风险`,
-        status: statusOf('memory'),
-        // 采集侧用 free 取内存（不是 RSS/Cache 拆分，那条口径没有依据）
-        source: 'free',
-        impact: '内存耗尽时内核 OOM Killer 会强杀进程，可能误杀数据库/关键服务',
-        suggestions: [
-          '定位内存大户：ps aux --sort=-%mem | head',
-          '查看可回收缓存：free -m（buff/cache 可被回收）',
-          '检查 OOM 历史：dmesg | grep -i "out of memory"',
-        ],
-      }
-    }
-    return null
-  }, [monitorData, systemInfo, activeSessionId, cpuThreshold, memoryThreshold, diskThreshold])
+    // deriveAlerts 的顺序即优先级（磁盘 > CPU > 内存），横幅取第一条
+    return (
+      deriveAlerts({
+        sessionId: activeSessionId,
+        hostname: systemInfo?.hostname ?? '当前服务器',
+        latest,
+        thresholds,
+        acked: ackedAlerts,
+      })[0] ?? null
+    )
+  }, [monitorData, systemInfo, activeSessionId, thresholds, ackedAlerts])
 
   // 打开 Drawer（接收指定告警）
   const openDrawer = useCallback((alert: AlertRecord) => {

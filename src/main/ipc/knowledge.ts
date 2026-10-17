@@ -93,7 +93,10 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
     async (_event, id: string, partial: Partial<KnowledgeEntry>) => {
       try {
         const repo = getKnowledgeRepo()
-        return repo.update(id, partial)
+        // fromUserAnswer 只能由这个入口给，不能由载荷里"有没有 feedback"推断：
+        // importEntries 走的也是 repo.update，导进来的包可能带着别人机器上的答复。
+        // 用户在详情页点的这一路是唯一合法的答复来源。
+        return repo.update(id, partial, { fromUserAnswer: true })
       } catch (err) {
         throw new Error(`知识库更新失败: ${(err as Error).message}`)
       }

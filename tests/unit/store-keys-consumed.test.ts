@@ -175,9 +175,8 @@ function stateKeysOf(storeFile: string): string[] {
  * 属性访问的名字、解构绑定的名字、对象简写（= 读同名变量）。
  * `set({ foo: x })` 那种 PropertyAssignment 是写，不收。
  */
-function readPositions(file: string): Set<string> {
-  const text = FILE_TEXT.get(file) ?? ''
-  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true)
+function readNamesOf(fileName: string, text: string): Set<string> {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.ES2022, true)
   const names = new Set<string>()
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) {
@@ -191,6 +190,10 @@ function readPositions(file: string): Set<string> {
   }
   visit(sf)
   return names
+}
+
+function readPositions(file: string): Set<string> {
+  return readNamesOf(file, FILE_TEXT.get(file) ?? '')
 }
 
 describe('store 的每个键都有读者', () => {
@@ -245,19 +248,27 @@ describe('store 的每个键都有读者', () => {
     // 同一份代码，只是多了一处 `use.getState().foo` 的读位置
     const readOnly = writeOnly + '\nuse.getState().foo\n'
 
-    const readNames = (src: string): Set<string> => {
-      const sf = ts.createSourceFile('probe.ts', src, ts.ScriptTarget.ES2022, true)
-      const acc = new Set<string>()
-      const v = (n: ts.Node): void => {
-        if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.name)) acc.add(n.name.text)
-        ts.forEachChild(n, v)
-      }
-      v(sf)
-      return acc
-    }
+    // 走的就是判据自己那套收集器（readNamesOf），不是另写一份简化版
+    expect(readNamesOf('probe.ts', writeOnly).has('foo'), 'set({ foo }) 是写，不该产出读者').toBe(false)
+    expect(readNamesOf('probe.ts', readOnly).has('foo'), 's.foo 是读，必须被认成读者').toBe(true)
+  })
 
-    expect(readNames(writeOnly).has('foo'), 'set({ foo }) 是写，不该产出读者').toBe(false)
-    expect(readNames(readOnly).has('foo'), 's.foo 是读，必须被认成读者').toBe(true)
+  it('量具边界（已知偏松，写在这里防止被当成"已做完"）', () => {
+    /*
+     * 解构出来的名字就算读者，哪怕那个局部变量之后再没被用过。
+     * 所以 `const { deadKey } = useXStore()` 会让 deadKey 躲过这条闸——
+     * 判据是"宁漏报不误删"：误删一份业务状态比留一个死键贵得多。
+     * 要收紧就得加作用域分析（解构后有没有被引用），那是另一件事，别以为这条已经覆盖。
+     */
+    const destructuredButUnused = `
+      interface S { deadKey: number }
+      const use = create<S>()((set) => ({ deadKey: 1 }))
+      const { deadKey } = use()
+    `
+    expect(
+      readNamesOf('probe.ts', destructuredButUnused).has('deadKey'),
+      '这条断言是在登记盲区：哪天它变红了，说明有人收紧了判据（好事，但要回头改这段说明）'
+    ).toBe(true)
   })
 
   it('引入方解析得通（解不出引入方＝判据会误报成死键）', () => {
