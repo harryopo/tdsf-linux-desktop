@@ -13,7 +13,7 @@ const button = cva(
   'inline-flex shrink-0 items-center justify-center gap-2 rounded-(--ui-radius-control) ' +
     'font-medium text-ink transition-[background-color,color,border-color,opacity] ' +
     'duration-[var(--ui-dur-fast)] ease-out ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-canvas ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-solid focus-visible:ring-offset-1 focus-visible:ring-offset-canvas ' +
     'disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
@@ -50,7 +50,7 @@ const iconButton = cva(
   'inline-flex shrink-0 items-center justify-center rounded-(--ui-radius-control) ' +
     'text-ink-dim transition-[background-color,color] duration-[var(--ui-dur-fast)] ease-out ' +
     'hover:bg-hover hover:text-ink ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-solid ' +
     'disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {

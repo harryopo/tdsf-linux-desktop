@@ -13,7 +13,10 @@
  *   color: var(--trae-bg-brand)            → var(--accent-text)   ← 按钮底令牌被当字色用的 40 处
  *   color: var(--trae-status-X-default)    → var(--status-X-text) ← 状态纯色当字色不到 AA
  *   background: var(--trae-bg-brand)       → var(--accent-solid)
- *   border-color: var(--trae-bg-brand)     → var(--accent)
+ *   border-color: var(--trae-bg-brand)     → var(--trae-border-brand)
+ *     ↑ 这条原先映射到裸 var(--accent)，是 44 处"品牌描边画成灰"的成因：--accent 随后在
+ *       trae-tokens 的 shadcn 映射段被重定义成灰色悬停面。2026-10-17 改回品牌别名，
+ *       并由 design-contract.mjs 的第 7 条盯着——brand 语义的别名一律不许解到裸 --accent。
  *   font-size: 9px|10px                    → var(--ui-font-micro)（11px，AA 底线）
  *
  * 只动这两类确定性映射；11–14px 的既有字号不动（它们本来就落在新字阶的取值里，
@@ -40,7 +43,7 @@ const RULES = [
   [/color:\s*var\(--trae-status-warning-default\)/g, 'color: var(--status-warning-text)', '警告状态字色'],
   [/color:\s*var\(--trae-status-alert-default\)/g, 'color: var(--status-error-text)', '告警状态字色'],
   [/background(-color)?:\s*var\(--trae-bg-brand\)/g, 'background$1: var(--accent-solid)', '主按钮底'],
-  [/border-color:\s*var\(--trae-bg-brand\)/g, 'border-color: var(--accent)', '品牌描边'],
+  [/border-color:\s*var\(--trae-bg-brand\)/g, 'border-color: var(--trae-border-brand)', '品牌描边'],
   [/font-size:\s*(9|10)px/g, 'font-size: var(--ui-font-micro)', '低于 AA 底线的字号'],
 ]
 

@@ -51,7 +51,7 @@ export function Segmented<T extends string>({
               'transition-colors duration-[var(--ui-dur-fast)]',
               'hover:bg-hover hover:text-ink',
               'data-[state=active]:bg-active data-[state=active]:text-ink',
-              'focus-visible:ring-2 focus-visible:ring-accent',
+              'focus-visible:ring-2 focus-visible:ring-accent-solid',
               i === 0 ? 'rounded-l-(--ui-radius-control)' : '-ml-px',
               i === items.length - 1 && 'rounded-r-(--ui-radius-control)'
             )}

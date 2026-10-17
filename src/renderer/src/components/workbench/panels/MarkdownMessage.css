@@ -105,7 +105,9 @@
 .md-body .md-quote {
   margin: 8px 0;
   padding: 4px 12px;
-  border-left: 3px solid var(--trae-border-brand, var(--trae-bg-brand));
+  /* 引文整体是弱化档（正文 text-tertiary + 浅底），左侧条用比四周高一档的中性描边，
+     而不是品牌蓝：否则每条引用都会被蓝条喊出来，和它自己的灰字自相矛盾 */
+  border-left: 3px solid var(--trae-border-neutral-l2);
   background: var(--trae-bg-overlay-l1);
   color: var(--text-tertiary);
   border-radius: 0 var(--trae-radius-4) var(--trae-radius-4) 0;

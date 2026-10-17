@@ -333,7 +333,7 @@ const Composer: FC<ComposerProps> = ({
         className={cn(
           'flex flex-col overflow-hidden rounded-(--ui-radius-panel) border border-line-strong bg-panel',
           'transition-[border-color,box-shadow] duration-[var(--ui-dur-fast)]',
-          'hover:border-accent focus-within:border-accent focus-within:shadow-[0_0_0_1px_var(--accent)]'
+          'hover:border-accent-solid focus-within:border-accent-solid focus-within:shadow-[0_0_0_1px_var(--accent-solid)]'
         )}
       >
         {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词
@@ -544,7 +544,7 @@ const Composer: FC<ComposerProps> = ({
             className={cn(
               'flex size-7 shrink-0 items-center justify-center rounded-(--ui-radius-control)',
               'text-(--text-on-accent) transition-colors duration-[var(--ui-dur-fast)]',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-solid',
               'disabled:cursor-not-allowed disabled:opacity-50',
               isStreaming ? 'bg-error hover:bg-error/85' : 'bg-accent-solid hover:bg-accent-solid-hover'
             )}

@@ -113,14 +113,14 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 66,
-    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 64,
+    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66；2026-10-17 修品牌令牌劫持时现量 64，按现量收紧（留余量等于给新增放行）。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 112,
-    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）；2026-10-13 重新量到 112，把上限收到实测值（之前空着 1 格余量，等于给新增放行）。剩下的多是运行时算出来的颜色，那些本来就得内联',
+    cap: 109,
+    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）；2026-10-13 收到 112；2026-10-17 现量 109 再收到实测值。剩下的多是运行时算出来的颜色，那些本来就得内联',
   },
   {
     name: '还 import antd 的渲染层文件数',
@@ -142,6 +142,40 @@ const bespokeH1 = fs
   .filter((f) => f.endsWith('.tsx') && f !== 'BootPage.tsx')
   .filter((f) => /<h1[\s>]/.test(fs.readFileSync(path.join(pagesDir, f), 'utf8')))
 if (bespokeH1.length) problems.push(`这些页面还在自写 <h1>，必须改用 <PageHeader>：${bespokeH1.join(', ')}`)
+
+// ===== 7. 品牌语义的令牌与描边不许解到裸 --accent =====
+/** 注释里写的 var(--accent) 是文档口吻不是引用；只剥 /* *\/ 块注释并保留换行（行号要对得上）。
+ *  不剥 // 行注释：TSX 里的字符串常量（如带 // 的 URL）会跟着被吃掉，那会造成漏检。 */
+function stripBlockComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ''))
+}
+const BARE_ACCENT = /var\(--accent\)(?![-\w])/
+/** Tailwind 写法同样会画成灰：border/ring/outline-accent（-solid 结尾的是品牌档，允许）*/
+const GRAY_EDGE_CLASS = /(?:border|ring|outline)-accent(?![-\w])/
+const GRAY_SHADOW_CLASS = /shadow-\[[^\]]*var\(--accent\)/
+const brandHijack = []
+for (const include of ['*.css', '*.tsx', '*.ts']) {
+  for (const s of scanFiles(include, 'src/renderer/src')) {
+    stripBlockComments(s.text)
+      .split(/\r?\n/)
+      .forEach((line, i) => {
+        const isBrandAlias = /--[a-z0-9-]*brand[a-z0-9-]*\s*:/.test(line)
+        const isEdgeDecl = /(border|outline)[\w-]*\s*:/.test(line)
+        const hit =
+          (BARE_ACCENT.test(line) && (isBrandAlias || isEdgeDecl)) ||
+          GRAY_EDGE_CLASS.test(line) ||
+          GRAY_SHADOW_CLASS.test(line)
+        if (hit) brandHijack.push(`${path.relative(ROOT, s.file)}:${i + 1}  ${line.trim().slice(0, 120)}`)
+      })
+  }
+}
+if (brandHijack.length) {
+  problems.push(
+    `这些位置把裸 --accent 当品牌色用了（它在 shadcn 映射段是灰色悬停面，实测 #35373c，画出来等于没有状态）：\n` +
+      brandHijack.map((b) => `      ${b}`).join('\n') +
+      `\n    品牌描边用 --trae-border-brand / --accent-solid，品牌字色用 --accent-text。`,
+  )
+}
 
 const json = process.argv.includes('--json')
 if (json) {

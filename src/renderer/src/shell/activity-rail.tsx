@@ -126,7 +126,7 @@ function RailButton({
           'wb-nav-btn flex w-full flex-col items-center justify-center gap-1',
           'h-(--ui-size-rail-item) rounded-(--ui-radius-control)',
           'transition-colors duration-[var(--ui-dur-fast)]',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-solid',
           active
             ? 'bg-active text-ink-strong'
             : 'text-ink-mute hover:bg-hover hover:text-ink-strong'

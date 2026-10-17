@@ -22,7 +22,7 @@
 
 .term-si-bar-icon {
   flex-shrink: 0;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .term-si-bar-text {

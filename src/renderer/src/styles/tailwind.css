@@ -81,7 +81,7 @@
   --color-destructive-foreground: var(--text-on-accent);
   --color-border: var(--border-primary);
   --color-input: var(--border-secondary);
-  --color-ring: var(--accent);
+  --color-ring: var(--accent-solid);
 
   /* 尺度档位（cc-gui 事实标度：控件 4 / 卡片 6 / 面板 8 / 气泡 12） */
   --radius-sm: var(--ui-radius-control);

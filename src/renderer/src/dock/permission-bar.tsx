@@ -173,7 +173,6 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
                 }}
                 className={cn(
                   'gap-2',
-                  selected && 'ring-1 ring-accent',
                   choice.key === 'deny' && selected && 'text-error-text'
                 )}
               >

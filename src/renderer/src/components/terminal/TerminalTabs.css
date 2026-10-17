@@ -14,7 +14,7 @@
   gap: 8px;
   padding: 5px 12px;
   background: var(--trae-bg-brand-popup, var(--trae-bg-brand-popup));
-  border-bottom: 1px solid var(--trae-border-brand, var(--trae-border-brand));
+  border-bottom: 1px solid var(--trae-border-brand);
   flex-shrink: 0;
   animation: term-pending-in 0.2s ease-out;
 }

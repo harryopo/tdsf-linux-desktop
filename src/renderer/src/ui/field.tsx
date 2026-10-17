@@ -11,7 +11,7 @@ const controlClass = cn(
   'w-full rounded-(--ui-radius-control) border border-line-strong bg-sunken px-2 py-1.5',
   'text-md text-ink outline-none placeholder:text-ink-placeholder',
   'transition-[border-color,box-shadow] duration-[var(--ui-dur-fast)] ease-out',
-  'focus:border-accent focus:ring-2 focus:ring-accent/30',
+  'focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/30',
   'disabled:pointer-events-none disabled:opacity-50'
 )
 

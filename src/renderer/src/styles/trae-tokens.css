@@ -172,7 +172,9 @@
   --trae-text-brand-hover: var(--accent-text-hover);
   --trae-icon-brand: var(--accent-text);
   --trae-icon-brand-hover: var(--accent-text-hover);
-  --trae-border-brand: var(--accent);
+  /* 品牌描边只能是纯色蓝，不能是裸 --accent：那个名字在下面的 shadcn 映射段被重定义成灰色悬停面，
+     而 2026-10 那次一次性改名脚本正是把"品牌描边"指向了它，44 处悬停/焦点/选中边框因此画成灰。 */
+  --trae-border-brand: var(--accent-solid);
 
   /* 设计稿 §2.1.3 AntD 主色 alias（colorPrimary / colorPrimaryHover / 软背景 tag/badge） */
   --trae-color-primary: var(--accent-solid);
@@ -589,7 +591,7 @@
   --trae-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
   --trae-shadow-2: 0 2px 8px rgba(16, 24, 40, 0.1);
   --trae-shadow-3: 0 8px 24px rgba(16, 24, 40, 0.14);
-  --trae-glow-brand: 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent);
+  --trae-glow-brand: 0 0 24px color-mix(in srgb, var(--accent-solid) 25%, transparent);
   --trae-shadow-card: 0 1px 3px rgba(16, 24, 40, 0.08);
   --trae-shadow-hero: 0 4px 24px rgba(47, 110, 232, 0.12);
 
