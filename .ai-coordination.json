@@ -2,24 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-17T01:23:58.582Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-17T01:23:58.582Z",
-      "lastActiveAt": "2026-10-17T01:23:58.582Z",
-      "task": "feedback-comment-bounds",
-      "claimedFiles": [
-        {
-          "path": "src/shared/models.ts",
-          "task": "feedback-comment-bounds",
-          "claimedAt": "2026-10-17T01:23:58.582Z"
-        }
-      ],
-      "expiresAt": "2026-10-17T03:23:58.582Z"
-    }
-  },
+  "lastUpdated": "2026-10-17T01:25:52.171Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -7769,6 +7753,13 @@
       "file": "src/shared/models.ts",
       "task": "feedback-comment-bounds",
       "timestamp": "2026-10-17T01:23:58.582Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "feedback-comment-bounds",
+      "timestamp": "2026-10-17T01:25:52.171Z"
     }
   ],
   "coordinationAudit": {
