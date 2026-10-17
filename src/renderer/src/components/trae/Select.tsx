@@ -25,7 +25,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex h-[30px] w-full items-center justify-between gap-2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] px-3 py-1 text-md text-ink placeholder:text-ink-mute focus:outline-none focus:ring-1 focus:ring-[var(--trae-bg-brand)] disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
+      'flex h-[30px] w-full items-center justify-between gap-2 rounded-(--ui-radius-control) border border-line-strong bg-sunken px-3 py-1 text-md text-ink placeholder:text-ink-mute focus:outline-none focus:border-(--trae-border-brand) disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
       className,
     )}
     {...props}
@@ -74,7 +74,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-menu)] text-ink shadow-[0_4px_16px_rgba(0,0,0,0.4)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-(--ui-radius-card) border border-line-strong bg-[var(--trae-bg-menu)] p-1 text-ink shadow-(--shadow-md) data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
         className,
       )}
@@ -116,7 +116,7 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-default select-none items-center rounded-[var(--trae-radius-2)] py-1.5 pl-8 pr-2 text-md text-ink outline-none focus:bg-[var(--trae-bg-overlay-l2)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex w-full cursor-default select-none items-center rounded-(--ui-radius-control) py-1.5 pl-8 pr-2 text-md text-ink outline-none focus:bg-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
     )}
     {...props}

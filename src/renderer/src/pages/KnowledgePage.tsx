@@ -429,7 +429,7 @@ export function KnowledgePage() {
           {/* 搜索输入框（P1 修复：移除假"AI检索"开关 —— kbSearch 不支持语义检索，
               旧开关只翻转本地 state 不影响查询，属误导性假 UI） */}
           <div className="kb-search-row">
-            <div className="kb-search-wrapper">
+            <div className="kb-search-wrapper" data-field-shell>
               <Search size={16} className="shrink-0" style={{ color: 'var(--trae-icon-secondary)' }} />
               <input
                 ref={searchInputRef}

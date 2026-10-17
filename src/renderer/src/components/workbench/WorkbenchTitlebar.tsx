@@ -219,23 +219,26 @@ export function WorkbenchTitlebar({
           </button>
 
           {menuOpen && (
-            <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[320px] rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-              {/* 搜索栏 */}
-              <div className="flex items-center gap-1.5 border-b border-[var(--trae-border-neutral-l1)] px-3 py-3">
-                <div className="flex flex-1 items-center gap-2 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5">
+            <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[320px] overflow-hidden rounded-(--ui-radius-card) border border-line-strong bg-raised shadow-(--shadow-md)">
+              {/* 搜索栏：整块是"字段壳"，焦点由壳的描边表达，里面的 input 不再自己画方框环 */}
+              <div className="border-b border-line px-3 py-3">
+                <div
+                  data-field-shell
+                  className="flex items-center gap-2 rounded-(--ui-radius-control) border border-line-strong bg-sunken px-2.5 py-1.5"
+                >
                   <Search className="size-3.5 shrink-0 text-ink-mute" />
                   <input
                     type="text"
                     placeholder="搜索服务器..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-mute"
+                    className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-mute"
                     autoFocus
                   />
                 </div>
               </div>
               {/* 服务器列表 */}
-              <div className="max-h-[280px] overflow-y-auto py-1">
+              <div className="max-h-[280px] overflow-y-auto p-1">
                 {filteredServers.length === 0 ? (
                   <div className="px-3 py-6 text-center text-caption text-ink-mute">
                     {servers.length === 0 ? '暂无服务器，请新建连接' : '未找到匹配的服务器'}
@@ -251,7 +254,7 @@ export function WorkbenchTitlebar({
                         type="button"
                         disabled={busy}
                         className={cn(
-                          'flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)] disabled:opacity-60',
+                          'flex w-full items-center gap-2.5 rounded-(--ui-radius-control) px-3 py-2.5 text-left transition-colors hover:bg-hover disabled:opacity-60',
                           active && 'bg-hover',
                         )}
                         onClick={() => void connectSavedServer(srv)}
@@ -303,10 +306,10 @@ export function WorkbenchTitlebar({
                 )}
               </div>
               {/* 底部：添加新连接 */}
-              <div className="border-t border-[var(--trae-border-neutral-l1)] px-3 py-2.5">
+              <div className="border-t border-line px-3 py-2.5">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-1.5 rounded-[var(--trae-radius-4)] border border-dashed border-[var(--trae-border-neutral-l2)] py-2 text-sm text-ink-dim transition-colors hover:border-[var(--trae-bg-brand)] hover:text-(--accent-text) hover:bg-[var(--trae-bg-overlay-l1)]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-(--ui-radius-control) border border-dashed border-line-strong py-2 text-sm text-ink-dim transition-colors hover:border-(--trae-bg-brand) hover:bg-[var(--trae-bg-overlay-l1)] hover:text-(--accent-text)"
                   onClick={() => {
                     setMenuOpen(false)
                     setDialogOpen(true)

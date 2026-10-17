@@ -59,7 +59,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
 
   return (
     <span
-      className="relative inline-flex h-5 cursor-pointer items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-1.5"
+      className="relative inline-flex h-5 cursor-pointer items-center gap-1 rounded-(--ui-radius-inline) border border-line-strong bg-[var(--trae-bg-overlay-l2)] px-1.5"
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltipDelayed}
       onClick={() => {
@@ -92,7 +92,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
           className="absolute bottom-full left-1/2 z-50 -translate-x-1/2 pb-1.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="min-w-[180px] rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-base-tertiary)] p-2.5 shadow-xl">
+          <div className="min-w-[180px] overflow-hidden rounded-(--ui-radius-card) border border-line-strong bg-raised p-2.5 shadow-(--shadow-md)">
           <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-ink-mute">
             上下文使用率
           </div>
@@ -131,7 +131,7 @@ const ContextBadge: FC<ContextBadgeProps> = ({ ctxUsedPct, ctxUsedTokens, ctxTot
               const text = compressFeedback(result)
               void (result?.compressed ? toast.success(text) : toast.info(text))
             }}
-            className="btn-press mt-2 h-6 w-full rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] text-caption font-medium text-(--accent-text) transition-colors hover:brightness-110"
+            className="btn-press mt-2 h-6 w-full rounded-(--ui-radius-control) border border-(--trae-border-brand) bg-[var(--trae-bg-brand-popup)] text-caption font-medium text-(--accent-text) transition-colors hover:brightness-110"
           >
             压缩上下文
           </button>

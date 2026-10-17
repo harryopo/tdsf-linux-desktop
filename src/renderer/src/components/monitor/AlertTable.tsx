@@ -219,14 +219,17 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
             <Filter className="w-3 h-3" />
             <span>筛选</span>
           </button>
-          <div className="mon-btn-sm inline-flex items-center gap-1 px-2 bg-[var(--trae-bg-overlay-l1)] border border-[var(--trae-border-neutral-l1)] rounded-[var(--trae-radius-4)]">
+          <div
+            data-field-shell
+            className="mon-btn-sm inline-flex items-center gap-1 px-2 bg-[var(--trae-bg-overlay-l1)] border border-[var(--trae-border-neutral-l1)] rounded-(--ui-radius-control)"
+          >
             <Search className="w-3 h-3 text-ink-mute" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索告警..."
-              className="bg-transparent border-none outline-none text-ink text-caption w-[100px]"
+              className="w-[100px] border-none bg-transparent text-ink text-caption"
             />
           </div>
         </div>

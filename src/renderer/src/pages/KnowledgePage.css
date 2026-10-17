@@ -62,11 +62,11 @@
   padding: 0 12px;
   background: var(--trae-bg-base-tertiary);
   border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
+  border-radius: var(--ui-radius-control);
   min-width: 0;
 }
 .kb-search-wrapper:focus-within {
-  border-color: var(--trae-border-brand);
+  border-color: var(--trae-bg-brand);
   background: var(--trae-bg-overlay-l2);
 }
 

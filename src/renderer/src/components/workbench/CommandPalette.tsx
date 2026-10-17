@@ -173,8 +173,8 @@ const CommandPalette: FC<CommandPaletteProps> = ({ visible, onClose }) => {
         className="flex w-[560px] max-w-[92vw] flex-col overflow-hidden rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 搜索输入框 */}
-        <div className="flex items-center gap-2 border-b border-[var(--trae-border-neutral-l1)] px-4 py-3">
+        {/* 搜索输入框（这一行是字段壳：焦点交给下面那条分隔线变色，input 自己不画方框环） */}
+        <div data-field-shell className="flex items-center gap-2 border-b border-line px-4 py-3">
           <Search className="size-4 shrink-0 text-ink-mute" />
           <input
             ref={inputRef}
@@ -183,9 +183,9 @@ const CommandPalette: FC<CommandPaletteProps> = ({ visible, onClose }) => {
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="搜索知识库、历史决策..."
-            className="flex-1 bg-transparent text-composer text-ink outline-none placeholder:text-ink-mute"
+            className="flex-1 bg-transparent text-composer text-ink placeholder:text-ink-mute"
           />
-          <kbd className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-1.5 text-micro text-ink-mute">
+          <kbd className="inline-flex h-5 items-center rounded-(--ui-radius-inline) border border-line-strong bg-[var(--trae-bg-overlay-l2)] px-1.5 text-micro text-ink-mute">
             Esc
           </kbd>
         </div>

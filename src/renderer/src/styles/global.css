@@ -187,6 +187,20 @@ textarea,
   transition: box-shadow var(--trae-duration-fast) ease;
 }
 
+/* 字段壳（图标 + 输入框整块带边框圆角）：焦点由壳表达，里面的裸输入框不画环。
+   为什么必须显式管：文本框按规范永远命中 :focus-visible（哪怕只是 autoFocus 进来的），
+   环画在 input 上就是个方框，套在圆角壳里成了"打开就一条蓝边边"（用户 2026-10-17 指出的那处）。
+   描边用 --trae-bg-brand 而不是 --trae-border-brand：后者解到 var(--accent)，
+   而 --accent 在 trae-tokens 的 shadcn 映射段里被重定义成灰色悬停面（实测 #35373c），
+   拿它当焦点描边等于没有焦点态。 */
+[data-field-shell] :is(input, textarea):focus-visible {
+  box-shadow: none;
+}
+[data-field-shell]:focus-within {
+  border-color: var(--trae-bg-brand);
+  box-shadow: 0 0 0 3px var(--trae-status-primary-surface-l2);
+}
+
 /* 文本选中（主题色） */
 ::selection {
   background: var(--trae-status-primary-surface-l2);
