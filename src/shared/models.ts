@@ -602,7 +602,13 @@ export interface KnowledgeEntry {
    *
    * 以前只有界面在按、库里没有这一列：kbUpdate 返回 true 但字段被 serialize 丢掉，
    * 重开页面就回到"没反馈过"，successRate 也从没因此动过。现在落 knowledge_entries.feedback
-   * （schema v2），并由它驱动 successRate，成功率才第一次有了生产者。
+   * （schema v2），答复也会按加权平均并进 successRate，成功率才第一次有了生产者。
+   *
+   * 两条边界（写在类型上是因为只看这里就会误判）：
+   * - 只有 kb:update 带 fromUserAnswer 的调用能写它并并票；导入合并不覆盖本机答复、
+   *   也不替本机用户投票；
+   * - successRate 另有写入者：mergeEntries 在导入合并时按 Math.max 取较高值。
+   *   所以"这个数变了"不等于"有人答过"。
    */
   feedback?: KnowledgeFeedback
   /** 使用次数 */
