@@ -17,6 +17,7 @@ import type {
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanModel, DeployResult as DeployResultModel, DeployStepResult as DeployStepResultModel, DeployTemplate as DeployTemplateModel } from '@shared/deploy-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
+import type { BootLoadingStage } from '@shared/boot-types'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
 import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
@@ -313,15 +314,12 @@ const electronApi = {
     ipcRenderer.invoke(ALERT.ACK, alertId),
 
   // ===== M5 Task 3 新增：BootPage 加载阶段推送（boot:loading-stage） =====
-  // 通道与主进程 ipc/boot.ts 一一对应；UI 调用方式：
-  //   const unsubscribe = window.electronAPI.onBootLoadingStage((payload) => { ... })
-  // payload: { stage: 'ipc-ready'|'sqlite-init'|'kb-indexed'|'done', progress: 0-100, message: string }
+  // 通道与主进程 ipc/boot.ts 一一对应；载荷形状以 @shared/boot-types 为准。
+  // UI 调用方式：const unsubscribe = window.electronAPI.onBootLoadingStage((p) => { ... })
   // 返回 unsubscribe 函数，组件卸载时调用以避免内存泄漏
-  onBootLoadingStage: (
-    callback: (stage: { stage: string; progress: number; message: string }) => void,
-  ) => {
+  onBootLoadingStage: (callback: (stage: BootLoadingStage) => void) => {
     const handler = (_event: IpcRendererEvent, payload: unknown) =>
-      callback(payload as { stage: string; progress: number; message: string })
+      callback(payload as BootLoadingStage)
     ipcRenderer.on(BOOT.LOADING_STAGE, handler)
     // 必须显式返回 void：ipcRenderer.off() 自己回 IpcRenderer，直接箭头返回会让这个
     // "退订函数"带返回值，React 拿它当 effect cleanup 用时类型不合法（BootPage 就是这么用的）
@@ -330,8 +328,7 @@ const electronApi = {
     }
   },
   // R0：拉取最近一次加载阶段。主进程 init 可能早于本页挂载，纯靠上面那条推送会错过 done
-  bootGetState: (): Promise<{ stage: string; progress: number; message: string } | null> =>
-    ipcRenderer.invoke(BOOT.GET_STATE),
+  bootGetState: (): Promise<BootLoadingStage | null> => invokeChecked('bootGetState', BOOT.GET_STATE),
 
   // ===== 知识库扁平化 =====
   kbSearch: (query: string, type?: KnowledgeType, limit?: number): Promise<KnowledgeEntry[]> =>

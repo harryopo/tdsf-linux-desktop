@@ -28,8 +28,9 @@ const TYPES = read('src/renderer/src/types/electron.d.ts')
  * 2026-10-07 建闸时实测 220；2026-10-10 W2 把交互式 Shell 那 6 条通道
  * （start/close/list/write/run-authored/resize）全部登记进契约并改走 invokeChecked，
  * 实测降到 200 —— 新通道一律进契约是这波的硬要求，别再拿余量去接新东西。
+ * 2026-10-17 boot:get-state 登记进契约并改走 invokeChecked，实测降到 199。
  */
-const UNCONTRACTED_CAP = 200
+const UNCONTRACTED_CAP = 199
 
 describe('ipc 契约本体', () => {
   it('通道名全部来自 ipc-channels 常量表，没有手写字符串', () => {

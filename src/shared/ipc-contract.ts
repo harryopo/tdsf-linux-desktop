@@ -17,7 +17,16 @@
  * 测试会在内存里重算一遍并与盘上文件比对，漂了就红（同 design-contract 的路子）。
  */
 import { z } from 'zod'
-import { AGENT, LOCAL_TTY, PREVIEW, PROVIDER, SHELL_INTEGRATION, SSH, WINDOW } from './ipc-channels'
+import {
+  AGENT,
+  BOOT,
+  LOCAL_TTY,
+  PREVIEW,
+  PROVIDER,
+  SHELL_INTEGRATION,
+  SSH,
+  WINDOW,
+} from './ipc-channels'
 
 /** 一条入参：名字用来生成签名，schema 用来运行时校验，ts 用来生成签名里的类型 */
 export interface ContractArg {
@@ -429,6 +438,24 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     resultTs: 'string',
     result: str,
   },
+  // 启动加载页。两条一起登记：推送 + 补拉，缺一条就会有"界面永久停在加载页"那种竞态。
+  {
+    kind: 'event',
+    api: 'onBootLoadingStage',
+    channel: BOOT.LOADING_STAGE,
+    doc: '主进程走到某个启动阶段（渲染层据此显示一句人话，stage=done 即就绪）',
+    payloadName: 'BootLoadingStage',
+    payload: z.object({ stage: opt(str), message: opt(str) }).passthrough(),
+  },
+  {
+    kind: 'invoke',
+    api: 'bootGetState',
+    channel: BOOT.GET_STATE,
+    doc: '拉取最近一次启动阶段；主进程还没推过时为 null',
+    args: [],
+    resultTs: 'BootLoadingStage | null',
+    result: z.nullable(z.object({ stage: str, message: str })),
+  },
 ]
 
 /** 生成文件要 import 的类型来自哪儿 */
@@ -445,6 +472,7 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   AgentChunkPayload: '@shared/agent-types',
   AgentDonePayload: '@shared/agent-types',
   AgentErrorPayload: '@shared/agent-types',
+  BootLoadingStage: '@shared/boot-types',
 }
 
 export function contractFor(api: string): ChannelContract | undefined {

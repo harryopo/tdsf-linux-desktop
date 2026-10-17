@@ -44,7 +44,8 @@ describe('boot 阶段：push + pull 双通道', () => {
 
   it('推送会被记住，供晚到的订阅者拉取', () => {
     pushBootLoadingStage('done', [])
-    expect(getLatestBootStage()).toEqual({ stage: 'done', progress: 100, message: '准备就绪' })
+    // toEqual 认整个形状：载荷里长回一个没人读的字段（比如曾经的 progress）就会红
+    expect(getLatestBootStage()).toEqual({ stage: 'done', message: '准备就绪' })
   })
 
   it('记住的是最后一次，不是第一次', () => {

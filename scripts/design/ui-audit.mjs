@@ -1205,7 +1205,7 @@ try {
   }
   await cdp(ws, 'Emulation.setDeviceMetricsOverride', { width: vp[0], height: vp[1], deviceScaleFactor: 1, mobile: false })
 
-  // 1) 启动页：进度条还在走的时候截一张，走完了再截一张
+  // 1) 启动页：还在加载时截一张，最小展示时长走完后再截一张
   await sleep(1200)
   const bootEarly = await shot(ws, '00-boot-early')
   const bootMeasure = await evalIn(ws, MEASURE)
@@ -1213,7 +1213,11 @@ try {
   const bootLate = await shot(ws, '00-boot-late')
   report.boot = { early: bootEarly, late: bootLate, measure: bootMeasure }
 
-  await evalIn(ws, `(() => { const e = document.querySelector('button[data-dom-id="boot-enter"]'); if (e) e.click(); })()`)
+  // 加载页自己会跳工作台，没人再点按钮（2026-10-17 起那个按钮已删）；有界等外壳画出来，别睡固定秒
+  for (let i = 0; i < 20; i++) {
+    if (await evalIn(ws, `!!document.querySelector('.wb-main-layout')`)) break
+    await sleep(500)
+  }
   await sleep(2500)
 
   report.cjk = []

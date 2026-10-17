@@ -13,13 +13,14 @@
  * （实测：浅色模式下标题就是黑压黑，用户截图里那块发白的卡片也是同一个原因，
  * 卡片用的 bg-sunken 在浅色主题下是 #e8e8e8）。所以这里固定用 --text-on-accent（两套主题都是白）。
  *
- * 工程侧保留：webglcontextlost 降级、GPU 上下文显式释放、IPC 进度对接与补拉、
+ * 工程侧保留：webglcontextlost 降级、GPU 上下文显式释放、IPC 阶段对接与补拉、
  * prefers-reduced-motion（关掉闪烁）、最短展示时长（避免一闪而过）。
  */
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import type { BootLoadingStage } from '@shared/boot-types'
 
 /** 全屏四边形顶点（兼容 Three r15x+ / WebGL2） */
 const VERTEX_SHADER = /* glsl */ `
@@ -80,7 +81,7 @@ export function BootPage() {
       return
     }
 
-    const apply = (payload: { stage: string; progress: number; message: string }) => {
+    const apply = (payload: BootLoadingStage) => {
       if (payload.message) setMessage(payload.message)
       if (payload.stage === 'done') {
         setBootDone(true)

@@ -198,19 +198,12 @@ try {
   await cdp(ws, 'Runtime.enable')
   await cdp(ws, 'Page.enable')
 
-  // 启动页要点了"进入工作台"才进主界面。必须点那个 button 本身：
-  // 按文字找会先命中它的父级 div（pointer-events-none），click() 打在上面什么都不做。
+  // 启动页加载完自己跳工作台（2026-10-17 起界面上没有"进入工作台"按钮了，
+  // 原先这里点 button 节点本身——按文字找会命中 pointer-events-none 的父 div，click() 什么都不做）。
   let ready = false
   for (let i = 0; i < 40 && !ready; i++) {
     ready = await evalIn(ws, `!!document.querySelector('.wb-main-layout')`)
-    if (!ready) {
-      await evalIn(ws, `(() => {
-        const b = document.querySelector('button[data-dom-id="boot-enter"]');
-        if (b && !b.disabled) b.click();
-        return true
-      })()`)
-      await sleep(1000)
-    }
+    if (!ready) await sleep(1000)
   }
   if (!ready) {
     // 不静默失败：把页面到底停在哪儿、根节点里有什么、报了什么错打出来

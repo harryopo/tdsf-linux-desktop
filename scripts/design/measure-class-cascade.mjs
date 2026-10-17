@@ -98,7 +98,8 @@ try {
   })
   await cdp(ws, 'Runtime.enable')
   for (let i = 0; i < 30; i++) {
-    const ready = await evalIn(ws, `!!document.querySelector('.wb-main-layout, .boot-progress-label, #root')`)
+    // #root 从 HTML 里就存在，把它算进"就绪"等于没等；只认真正画出来的两屏之一
+    const ready = await evalIn(ws, `!!document.querySelector('.wb-main-layout, [data-dom-id="boot-loading"]')`)
     if (ready) break
     await sleep(1000)
   }

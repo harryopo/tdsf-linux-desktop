@@ -123,13 +123,13 @@ try {
   })
   await cdp(ws, 'Runtime.enable')
 
+  // 启动页加载完自己跳工作台，脚本不点任何东西（2026-10-17 起那个按钮已经删掉了）
   for (let i = 0; i < 30; i++) {
     const phase = await evalIn(ws, `(() => {
-      const enter = document.querySelector('button[data-dom-id="boot-enter"]');
-      return enter ? 'boot' : (document.querySelector('.wb-main-layout') ? 'workbench' : 'unrendered');
+      const loading = document.querySelector('[data-dom-id="boot-loading"]');
+      return loading ? 'boot' : (document.querySelector('.wb-main-layout') ? 'workbench' : 'unrendered');
     })()`)
     if (phase === 'workbench') break
-    if (phase === 'boot') await evalIn(ws, `document.querySelector('button[data-dom-id="boot-enter"]').click()`)
     await sleep(1000)
   }
 

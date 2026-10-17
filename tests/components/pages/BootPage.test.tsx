@@ -32,13 +32,15 @@ vi.mock('react-router-dom', async () => {
 })
 
 import { BootPage } from '@renderer/pages/BootPage'
+import type { BootLoadingStage } from '@shared/boot-types'
 
 const apiFlag = vi.hoisted(() => ({ available: false }))
 vi.mock('@renderer/utils/electron-api', () => ({
   isElectronAPIAvailable: () => apiFlag.available,
 }))
 
-type StagePayload = { stage: string; progress: number; message: string }
+// 载荷形状以 @shared/boot-types 为准，测试不另抄一份
+type StagePayload = BootLoadingStage
 /** 主进程推来的阶段由测试自己喂，才能断"没 done 就不跳" */
 let pushStage: ((p: StagePayload) => void) | null = null
 
@@ -121,11 +123,11 @@ describe('BootPage — 只负责加载，加载完自动进工作台', () => {
     render(<BootPage />)
     await waitFor(() => expect(pushStage).not.toBeNull())
 
-    pushStage!({ stage: 'sqlite-init', progress: 60, message: '正在加载本地数据库' })
+    pushStage!({ stage: 'sqlite-init', message: '正在加载本地数据库' })
     await waitFor(() => expect(screen.getByText('正在加载本地数据库')).toBeInTheDocument())
     expect(mockNavigate).not.toHaveBeenCalled()
 
-    pushStage!({ stage: 'done', progress: 100, message: '准备就绪' })
+    pushStage!({ stage: 'done', message: '准备就绪' })
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/workbench', { replace: true }))
   })
 
@@ -152,7 +154,7 @@ describe('BootPage — 只负责加载，加载完自动进工作台', () => {
 
     const { container } = render(<BootPage />)
     // done 之前抓：这时页面还在"加载态"，最容易被重新塞回控件
-    pushStage!({ stage: 'sqlite-init', progress: 60, message: '正在加载本地数据库' })
+    pushStage!({ stage: 'sqlite-init', message: '正在加载本地数据库' })
     await waitFor(() => expect(screen.getByText('正在加载本地数据库')).toBeInTheDocument())
 
     expect(container.querySelector('button')).toBeNull()
@@ -196,7 +198,7 @@ describe('BootPage — 只负责加载，加载完自动进工作台', () => {
 
       render(<BootPage />)
       await waitFor(() => expect(pushStage).not.toBeNull())
-      pushStage!({ stage: 'done', progress: 100, message: '准备就绪' })
+      pushStage!({ stage: 'done', message: '准备就绪' })
 
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/workbench', { replace: true }), {
         timeout: 5000,

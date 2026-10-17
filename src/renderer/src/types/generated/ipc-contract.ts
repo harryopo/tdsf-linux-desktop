@@ -1,6 +1,7 @@
 // 生成物，别手改：来源 src/shared/ipc-contract.ts，重生成 pnpm ipc:gen
 // 改了契约没重生成 → tests/unit/ipc-contract.test.ts 会红
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
+import type { BootLoadingStage } from '@shared/boot-types'
 import type { ChatMessage, PreviewHandleInfo, PreviewTarget, ShellIntegrationResult, ShellIntegrationStatus } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 
@@ -117,6 +118,10 @@ export interface ContractedInvokeApi {
   /** 读默认 Provider ID
    * 通道 `provider:get-default` */
   providerGetDefault(): Promise<string>
+
+  /** 拉取最近一次启动阶段；主进程还没推过时为 null
+   * 通道 `boot:get-state` */
+  bootGetState(): Promise<BootLoadingStage | null>
 }
 
 /** 已纳入契约的推送通道：订阅函数的负载类型以这里为准 */
@@ -132,4 +137,8 @@ export interface ContractedEventApi {
   /** 本轮失败
    * 通道 `agent:error` */
   onAgentError(callback: (payload: AgentErrorPayload) => void): () => void
+
+  /** 主进程走到某个启动阶段（渲染层据此显示一句人话，stage=done 即就绪）
+   * 通道 `boot:loading-stage` */
+  onBootLoadingStage(callback: (payload: BootLoadingStage) => void): () => void
 }

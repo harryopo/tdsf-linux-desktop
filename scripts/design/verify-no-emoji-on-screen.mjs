@@ -124,16 +124,13 @@ try {
   })
   await cdp(ws, 'Runtime.enable')
 
-  // 进工作台（和 verify-theme.mjs 同一个入口：按钮节点，不是父容器 div）
+  // 进工作台：启动页加载完自己跳，脚本不点任何东西（2026-10-17 起那个按钮已经删掉了）
   for (let i = 0; i < 30; i++) {
     const phase = await evalIn(ws, `(() => {
-      const enter = document.querySelector('button[data-dom-id="boot-enter"]');
-      return enter ? 'boot' : (document.querySelector('.wb-main-layout') ? 'workbench' : 'unrendered');
+      const loading = document.querySelector('[data-dom-id="boot-loading"]');
+      return loading ? 'boot' : (document.querySelector('.wb-main-layout') ? 'workbench' : 'unrendered');
     })()`)
     if (phase === 'workbench') break
-    if (phase === 'boot') {
-      await evalIn(ws, `document.querySelector('button[data-dom-id="boot-enter"]').click()`)
-    }
     await sleep(1000)
   }
 
