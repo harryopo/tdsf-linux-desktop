@@ -9,8 +9,12 @@
  *     dialog — 打开弹窗/抽屉（真交互按钮）
  *     toast  — sonner 提示上屏（有反馈，含"未配置/不支持"类诚实提示）
  *     focus  — 焦点换到别的元素（"聚焦终端"这类只挪光标的按钮，DOM 可以一点不动）
- *     dom    — 页面 DOM 发生变化（切换筛选/展开面板等真 UI 逻辑）
- *     none   — 无任何反应 → 假按钮/死按钮
+ *     dom    — 按钮**以外**的界面发生变化（切换筛选/展开面板等真 UI 逻辑）。
+ *              2026-10-17 收紧：点击前给当前按钮打 data-census-self 标记，观察器把
+ *              落在它自己子树里的变化单列。此前只数总变更数，于是"只把图标从 ↑ 换成 ↓、
+ *              tooltip 承诺的注释一个都没出现"的开关被判成活按钮（mutations=5 就算过了）——
+ *              AI 面板那个"命令翻译注释"箭头就是这么混过普查的，用户一眼看出点了没用。
+ *     none   — 无任何反应，或**只有按钮自身在变** → 假按钮/死按钮
  *   另有四类不算假按钮的合法态：disabled（禁用）、already-active（切换钮已处于
  *   选中态，再点本就不该有反应）、skipped（破坏性/窗口控制）、
  *   unreached（前面的按钮把界面换了，这一轮没轮到它）
@@ -132,29 +136,54 @@ async function readActiveState(btn: ElementHandle<Node>): Promise<string | null>
 /** 注入 DOM 变化观察器（每次进页面后调用） */
 async function injectObserver(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as { __censusMut?: number; __censusObs?: MutationObserver }
+    const w = window as unknown as {
+      __censusMut?: number
+      __censusMutOut?: number
+      __censusObs?: MutationObserver
+    }
     w.__censusObs?.disconnect()
     w.__censusMut = 0
+    w.__censusMutOut = 0
     const obs = new MutationObserver((records) => {
       w.__censusMut = (w.__censusMut ?? 0) + records.length
+      // 只落在按钮自己子树里的变化不算"界面有反应"：一个开关若只把自己的
+      // 图标从 ↑ 换成 ↓（tooltip 承诺的注释、面板、弹层一个都没出现），
+      // 按总数判就会把假按钮判成活按钮——2026-10-17 那个"命令翻译注释"箭头就是这么过关的。
+      for (const r of records) {
+        const node = r.target
+        const el = node.nodeType === 1 ? (node as Element) : node.parentElement
+        if (el && el.closest('[data-census-self]')) continue
+        w.__censusMutOut = (w.__censusMutOut ?? 0) + 1
+      }
     })
     obs.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true })
     w.__censusObs = obs
   })
 }
 
+/** 把"当前正在普查的这个按钮"标成 self，观察器据此把它的内部变化分出去 */
+async function markSelf(btn: ElementHandle<Node>, on: boolean): Promise<void> {
+  await btn
+    .evaluate((el, keep) => {
+      if (keep) (el as HTMLElement).setAttribute('data-census-self', '')
+      else (el as HTMLElement).removeAttribute('data-census-self')
+    }, on)
+    .catch(() => {})
+}
+
 /** 读取当前观测快照 */
 async function snapshot(
   page: Page,
-): Promise<{ hash: string; mut: number; toast: number; dialog: number; focus: string }> {
+): Promise<{ hash: string; mut: number; mutOut: number; toast: number; dialog: number; focus: string }> {
   return page.evaluate(() => {
-    const w = window as unknown as { __censusMut?: number }
+    const w = window as unknown as { __censusMut?: number; __censusMutOut?: number }
     // 焦点变化不会有 DOM 变更，"聚焦终端"这类按钮只动焦点——不采这一路就会被当死按钮
     const a = document.activeElement
     const focus = a ? `${a.tagName}.${(a.getAttribute('class') || '').split(/\s+/)[0] || ''}` : ''
     return {
       hash: window.location.hash,
       mut: w.__censusMut ?? 0,
+      mutOut: w.__censusMutOut ?? 0,
       focus,
       // sonner 的 toast 节点（antd message 已随 antd 一起退场，旧选择器恒为 0，
       // 会把"只弹提示"的按钮误判成假按钮）
@@ -257,6 +286,8 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
 
       // ==== 点击前快照 → 点击 → 500ms → 点击后快照 ====
       await mainWin.waitForTimeout(120) // 静置，clear 噪声
+      // 先把这个按钮标成"自己"：它内部换了图标、换了 tooltip，都不算界面回应
+      await markSelf(btn, true)
       const before = await snapshot(mainWin)
 
       // 点不下去先清现场再重试一次：全量跑时同机负载会把 Playwright 的可操作性等待
@@ -284,10 +315,11 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       // 判据本身没放松——真没反应的按钮等满 2.5 秒照样是 none。
       let after = await snapshot(mainWin)
       for (let waited = 0; waited < 2500; waited += 150) {
-        if (after.hash !== before.hash || after.mut > before.mut) break
+        if (after.hash !== before.hash || after.mutOut > before.mutOut) break
         await mainWin.waitForTimeout(150)
         after = await snapshot(mainWin)
       }
+      await markSelf(btn, false)
 
       // 焦点信号只认"焦点被交给了别的元素"。点任何按钮都会把焦点落在这个按钮自身上，
       // 若按 before/after 的焦点差异来判，每个死按钮都会被判成有反应——门禁就废了。
@@ -312,9 +344,13 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       } else if (focusMovedOffSelf) {
         verdict = 'focus'
         detail = `焦点交给 ${after.focus}`
-      } else if (after.mut > before.mut) {
+      } else if (after.mutOut > before.mutOut) {
         verdict = 'dom'
-        detail = `mutations=${after.mut - before.mut}`
+        detail = `mutations=${after.mutOut - before.mutOut}`
+      } else if (after.mut > before.mut) {
+        // 只有按钮自己在变（图标翻了个方向、tooltip 换了个字），界面别处一点反应都没有
+        verdict = 'none'
+        detail = `只有按钮自身在变（${after.mut - before.mut} 处），界面别处无反应`
       } else {
         verdict = 'none'
       }

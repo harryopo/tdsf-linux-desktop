@@ -65,7 +65,6 @@ export interface AIPanelProps {
  */
 const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const navigate = useNavigate()
-  const [showTranslation, setShowTranslation] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -420,8 +419,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         onClose={onClose}
         isStreaming={isStreaming}
         hasLiveConversation={hasLiveConversation}
-        showTranslation={showTranslation}
-        setShowTranslation={setShowTranslation}
         onClear={handleClear}
       />
 
