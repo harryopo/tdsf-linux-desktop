@@ -238,6 +238,9 @@ function getWindowStarts(): { todayStart: number; weekStart: number; monthStart:
  *   不摊给任何一侧，那是"没归到方向里的量"而不是"输入或输出"；
  * - provider 报的 total 小于 input+output → 合计数按方向数走，宁可多算不少算
  *   （少算会让用户以为这一段时间没花钱）。
+ *
+ * 另外单独记一份 estimated：提供方没回 usage 的那类记录是按字符估的（client.ts 标 estimated），
+ * 它是前面几个数的**子集**，只用于说"这些数里有多少不是实测"，不参与守恒式。
  */
 function accumulate(dir: TokenDirection, r: TokenUsageRecord): number {
   const input = r.inputTokens
@@ -250,18 +253,22 @@ function accumulate(dir: TokenDirection, r: TokenUsageRecord): number {
     input >= 0 &&
     output >= 0
 
+  let contributed: number
   if (!hasDirection) {
     dir.unknown += r.totalTokens
-    return r.totalTokens
+    contributed = r.totalTokens
+  } else {
+    dir.input += input
+    dir.output += output
+    const rest = r.totalTokens - (input + output)
+    if (rest > 0) dir.unknown += rest
+    contributed = Math.max(r.totalTokens, input + output)
   }
-  dir.input += input
-  dir.output += output
-  const rest = r.totalTokens - (input + output)
-  if (rest > 0) dir.unknown += rest
-  return Math.max(r.totalTokens, input + output)
+  if (r.estimated === true) dir.estimated += contributed
+  return contributed
 }
 
-const newDirection = (): TokenDirection => ({ input: 0, output: 0, unknown: 0 })
+const newDirection = (): TokenDirection => ({ input: 0, output: 0, unknown: 0, estimated: 0 })
 
 /**
  * 获取聚合后的 token 统计

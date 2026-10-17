@@ -328,6 +328,14 @@ export interface TokenDirection {
   output: number
   /** 这条记录没带方向字段，只能计入合计数 */
   unknown: number
+  /**
+   * 前三个数里"按字符估算"的那部分（#137）
+   *
+   * 它是**子集**，不参与 input + output + unknown = 合计 的守恒：
+   * 提供方没回 usage 时我们照估算记账（见 services/llm/client.ts 的 estimated 标记），
+   * 那些数与实测数混在一个合计里，用户有权知道"这个月有 N 个 token 其实是估的"。
+   */
+  estimated: number
 }
 
 /**
@@ -338,7 +346,7 @@ export interface TokenDirection {
  * 漏掉的那处带着 undefined.split 上界面，读到才崩。
  */
 export function emptyTokenStats(): TokenStats {
-  const d = (): TokenDirection => ({ input: 0, output: 0, unknown: 0 })
+  const d = (): TokenDirection => ({ input: 0, output: 0, unknown: 0, estimated: 0 })
   return {
     today: 0,
     week: 0,

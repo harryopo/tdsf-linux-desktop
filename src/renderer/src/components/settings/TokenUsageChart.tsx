@@ -115,6 +115,9 @@ export function TokenUsageChart() {
             <div className="pl-[52px] font-mono text-micro tabular-nums text-ink-dim">
               输入 {fmt(w.split.input)} · 输出 {fmt(w.split.output)}
               {w.split.unknown > 0 && ` · 未记方向 ${fmt(w.split.unknown)}`}
+              {/* 估算数是上面这些数的一部分（子集），所以只补一句说明，不参与求和 */}
+              {w.split.estimated > 0 &&
+                ` · 其中 ${fmt(w.split.estimated)} 个是估算的（提供方没回用量）`}
             </div>
           </div>
         ))}
@@ -133,6 +136,15 @@ export function TokenUsageChart() {
           <span className="inline-flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-[var(--trae-border-neutral-l2)]" />
             未记方向（早期记录没带这个字段）
+          </span>
+        )}
+        {stats.split.total.estimated > 0 && (
+          <span
+            className="inline-flex items-center gap-1.5"
+            data-dom-id="token-estimated-legend"
+          >
+            <span className="size-2 rounded-full border border-[var(--trae-border-neutral-l2)] bg-transparent" />
+            其中 {fmt(stats.split.total.estimated)} 个按字符估算，不是实测
           </span>
         )}
       </div>

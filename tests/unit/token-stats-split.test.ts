@@ -114,7 +114,7 @@ describe('拆分与合计数同源于同一批记录', () => {
     recordTokenUsage(rec({ inputTokens: 600, outputTokens: 200, totalTokens: 1000 }))
 
     const s = getTokenStats()
-    expect(s.split.total).toEqual({ input: 600, output: 200, unknown: 200 })
+    expect(s.split.total).toEqual({ input: 600, output: 200, unknown: 200, estimated: 0 })
     expect(s.split.total.input + s.split.total.output + s.split.total.unknown).toBe(s.total)
     expect(s.total).toBe(1000)
   })
@@ -124,7 +124,7 @@ describe('拆分与合计数同源于同一批记录', () => {
 
     const s = getTokenStats()
     expect(s.total).toBe(140)
-    expect(s.split.total).toEqual({ input: 80, output: 60, unknown: 0 })
+    expect(s.split.total).toEqual({ input: 80, output: 60, unknown: 0, estimated: 0 })
     expect(s.split.total.input + s.split.total.output + s.split.total.unknown).toBe(s.total)
   })
 
@@ -132,7 +132,7 @@ describe('拆分与合计数同源于同一批记录', () => {
     recordTokenUsage(rec({ inputTokens: -50, outputTokens: 50, totalTokens: 300 }))
 
     const s = getTokenStats()
-    expect(s.split.total).toEqual({ input: 0, output: 0, unknown: 300 })
+    expect(s.split.total).toEqual({ input: 0, output: 0, unknown: 300, estimated: 0 })
     expect(s.total).toBe(300)
   })
 
@@ -150,7 +150,63 @@ describe('拆分与合计数同源于同一批记录', () => {
   it('阴性对照：没有任何记录时四个窗口都是 0（判据不会把空库读出错）', () => {
     const s = getTokenStats()
     expect(s.total).toBe(0)
-    expect(s.split.total).toEqual({ input: 0, output: 0, unknown: 0 })
+    expect(s.split.total).toEqual({ input: 0, output: 0, unknown: 0, estimated: 0 })
+  })
+})
+
+describe('估算出来的量要单独说得出', () => {
+  /**
+   * 提供方没回 usage 时我们按字符估算记账（client.ts 带 estimated: true）。
+   * 以前这些数和实测数混在一个合计里，界面没法说"这个月有 N 个 token 其实是估的"。
+   * estimated 是前三个数的**子集**，所以它不许参与守恒式——否则等于凭空多出一块。
+   */
+  it('一条估算记录：贡献额整个进 estimated，守恒式不受影响', () => {
+    recordTokenUsage(rec({ inputTokens: 300, outputTokens: 100, totalTokens: 400, estimated: true }))
+
+    const s = getTokenStats()
+    expect(s.split.total.estimated).toBe(400)
+    expect(s.split.total.input + s.split.total.output + s.split.total.unknown).toBe(s.total)
+    expect(s.split.total.estimated).toBeLessThanOrEqual(s.total)
+  })
+
+  it('实测与估算混在一起时，只把估算那条算进去', () => {
+    recordTokenUsage(rec({ inputTokens: 100, outputTokens: 50, totalTokens: 150 }))
+    recordTokenUsage(rec({ inputTokens: 20, outputTokens: 10, totalTokens: 30, estimated: true }))
+
+    const s = getTokenStats()
+    expect(s.split.total.estimated).toBe(30)
+    expect(s.total).toBe(180)
+  })
+
+  it('窗口各算各的：本月外的估算记录只进 total，不进 today', () => {
+    recordTokenUsage(rec({ inputTokens: 10, outputTokens: 5, totalTokens: 15, estimated: true }))
+    recordTokenUsage(
+      rec({
+        inputTokens: 60,
+        outputTokens: 40,
+        totalTokens: 100,
+        estimated: true,
+        timestamp: NOW - 40 * DAY,
+      })
+    )
+
+    const s = getTokenStats()
+    expect(s.split.today.estimated).toBe(15)
+    expect(s.split.total.estimated).toBe(115)
+  })
+
+  it('没标 estimated 的记录一律按实测算（缺省不许被当成估算，否则说明会虚高）', () => {
+    recordTokenUsage(rec())
+    expect(getTokenStats().split.total.estimated).toBe(0)
+  })
+
+  it('界面要把"这是估的"说出来，不许只给一个合计数', () => {
+    const chart = readFileSync(
+      join(process.cwd(), 'src', 'renderer', 'src', 'components', 'settings', 'TokenUsageChart.tsx'),
+      'utf8'
+    )
+    expect(chart).toContain('split.estimated')
+    expect(chart, '只写"估算"不写"不是实测"，用户仍会把它当账').toMatch(/不是实测|估算的/)
   })
 })
 
