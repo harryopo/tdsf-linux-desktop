@@ -12,7 +12,7 @@
  * 不追求完整 CommonMark（不处理嵌套列表/HTML），够用且安全；
  * 如需完整能力后续可升级 react-markdown。
  */
-import { Fragment, type JSX, type ReactNode } from 'react'
+import { Fragment, useMemo, type JSX, type ReactNode } from 'react'
 import { safeMarkdownHref } from './markdown-links'
 
 /** 行内解析：**粗** / *斜* / `码` / [文本](url)，返回 React 节点数组 */
@@ -247,9 +247,15 @@ interface MarkdownMessageProps {
   className?: string
 }
 
-/** Markdown 消息渲染（产出 React 元素，无 innerHTML，安全） */
+/**
+ * Markdown 消息渲染（产出 React 元素，无 innerHTML，安全）
+ *
+ * 解析按 content 记忆化：流式回复每来一段就把整条消息的 segment 数组重建一遍，
+ * 其中早已定稿的那几段文本一个字节都没变，不记忆化就是把它们重解析一遍——纯浪费。
+ */
 export function MarkdownMessage({ content, className }: MarkdownMessageProps): JSX.Element {
-  return <div className={`md-body ${className ?? ''}`}>{renderMarkdown(content)}</div>
+  const blocks = useMemo(() => renderMarkdown(content), [content])
+  return <div className={`md-body ${className ?? ''}`}>{blocks}</div>
 }
 
 export default MarkdownMessage

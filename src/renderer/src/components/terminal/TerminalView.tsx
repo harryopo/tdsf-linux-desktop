@@ -23,7 +23,6 @@ import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import { useTranslateStore } from '../../stores/translate-store'
-import { useEditorStore } from '../../stores/editor-store'
 // v2.7：外观设置（代码主题/代码字体）的终端侧消费者
 import { useAppearanceStore, CODE_FONT_STACKS } from '../../stores/appearance-store'
 import { useTerminalStore } from '../../stores/terminal-store'
@@ -347,32 +346,20 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     // translateEnabled 放进本 effect 依赖，导致每次切换翻译开关都
     // dispose 重建整个终端（屏幕内容全部丢失）。
 
-    // ===== 7.6 v2.0 xterm 选中桥接 → editor-store.selection =====
-    // 选中终端文本时，写入 editor-store.selection（type='cmd'），触发 SelectionPopover 浮层
-    // 鼠标松开后 50ms 检查选中（避免拖拽过程中频繁触发）
+    // ===== 7.6 选中即复制（terminal.autoCopy）=====
+    // 鼠标松开后 50ms 再取选区（避免拖拽过程中反复写剪贴板）。
+    // 划选浮层不在这条链上：它读的是 translate-store.currentSelection（见 7.5 那个独立 effect）。
     let selectionDebounce: ReturnType<typeof setTimeout> | null = null
     const selectionDisposable = terminal.onSelectionChange(() => {
       if (selectionDebounce) clearTimeout(selectionDebounce)
       selectionDebounce = setTimeout(() => {
         if (!terminalRef.current) return
         const text = terminalRef.current.getSelection()
-        const { setSelection } = useEditorStore.getState()
-        if (text && text.trim().length > 0) {
-          setSelection({
-            text: text.trim(),
-            type: 'cmd',
-          })
-          // 选中即复制（terminal.autoCopy）：Linux 终端的老习惯，默认关
-          if (copyPrefsRef.current.autoCopy) {
-            const clipText = formatTerminalClipboard(text, copyPrefsRef.current)
-            void navigator.clipboard?.writeText(clipText).catch(() => {
-              // 剪贴板权限被拒时保持"只选中不复制"，不打断输入
-            })
-          }
-        } else {
-          // 选中清空时也清除 store（避免浮层残留）
-          setSelection(null)
-        }
+        if (!text || !text.trim() || !copyPrefsRef.current.autoCopy) return
+        const clipText = formatTerminalClipboard(text, copyPrefsRef.current)
+        void navigator.clipboard?.writeText(clipText).catch(() => {
+          // 剪贴板权限被拒时保持"只选中不复制"，不打断输入
+        })
       }, 50)
     })
 

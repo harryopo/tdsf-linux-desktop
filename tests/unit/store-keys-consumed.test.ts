@@ -7,16 +7,21 @@
  * 这条判据保证它不再长回来，并把其余 store 一起纳管。
  *
  * 判据口径（为什么这样算"有读者"）：
- * - 先按 import 说明符解出"谁引了这个 store"，只在引入方 + store 自己那份文件里找标识符，
- *   不按全仓名字匹配。同名键太多（messages / isStreaming / loaded / panelOpen），
- *   全仓匹配会把别人的引用算成它的读者＝假绿。
- * - 读位置只认 AST：属性访问 `s.foo`、解构绑定 `const { foo } =`、简写 `{ foo }`。
- *   注释和字符串里的名字不算读者（第一版用正则，把注释里的键名算成读者，一整批死键被判活）。
- * - store 自己 `set({ foo: ... })` 里的那次出现是**写**，不算读者。
+ * - 先按 import 说明符解出"谁引了这个 store"，只在引入方 + store 自己那份文件里找读位置，
+ *   不按全仓名字匹配。
+ * - **读位置必须挂在这份 store 上**：`useXStore((s) => s.k)` 的选择器形参、
+ *   `useXStore.getState().k`、`const m = useXStore.getState(); m.k` 这种一层别名、
+ *   `const state = () => useXStore.getState(); state().k` 这种无参助手、
+ *   以及 `const { k } = useXStore.getState()` 的解构绑定。
+ *   第一版只要求"这个文件里出现过 `x.k` 这个名字"，于是 `map.clear()` 替 preview-store 的
+ *   死键 `clear` 当了读者（EditorArea 里的 `watching.clear()` 就是它）——同名就算＝假绿。
+ *   2026-10-17 收紧成按对象判定后，一次量出 4 个真死键（editor-store.selection、
+ *   preview-store.clear、terminal-store.setShellTitle / shellsOf），已全部删掉。
+ * - store 自己 `set({ foo: ... })` 里的那次出现是**写**，不算读者；
+ *   注释和字符串里的名字也不算（第一版用正则，把注释里的键名算成读者，一整批死键被判活）。
  *
- * 这条判据偏松，不会冤枉活键：只要求"名字出现在读位置"，同名就算（`map.clear()` 会被算成
- * store 键 `clear` 的读者）。所以它报出来的死键要再用一次全仓 grep 复核才动手删；
- * 反过来"没报"不等于那个键真的有人用。做成"宁漏报不误删"是因为误删业务状态比留一个死键贵。
+ * 仍偏松的一处（下面"量具边界"那条把它钉成文字）：解构出来就算读者，
+ * 哪怕那个局部变量之后再没被引用。收紧它要加作用域分析，那是另一件事。
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
@@ -170,30 +175,173 @@ function stateKeysOf(storeFile: string): string[] {
   return [...keys]
 }
 
-/**
- * 一个文件把哪些标识符放在**读位置**上：
- * 属性访问的名字、解构绑定的名字、对象简写（= 读同名变量）。
- * `set({ foo: x })` 那种 PropertyAssignment 是写，不收。
- */
-function readNamesOf(fileName: string, text: string): Set<string> {
-  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.ES2022, true)
-  const names = new Set<string>()
+const unwrapParen = (e: ts.Expression): ts.Expression =>
+  ts.isParenthesizedExpression(e) ? unwrapParen(e.expression) : e
+
+/** 这个文件从 storeBase 那一条 import 里拿到了哪些本地标识符名（改名引入也算） */
+function importedNamesOf(file: string, storeBase: string): string[] {
+  const text = FILE_TEXT.get(file) ?? ''
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true)
+  const names: string[] = []
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteralLike(st.moduleSpecifier)) continue
+    if (resolveSpec(st.moduleSpecifier.text, file) !== storeBase) continue
+    const clause = st.importClause
+    if (!clause) continue
+    if (clause.name) names.push(clause.name.text)
+    const nb = clause.namedBindings
+    if (!nb) continue
+    if (ts.isNamedImports(nb)) for (const el of nb.elements) names.push(el.name.text)
+    else names.push(nb.name.text)
+  }
+  return names
+}
+
+/** store 自己那份文件里 `export const useXStore = create...` 的钩子名 */
+function ownHookNames(storeFile: string): string[] {
+  const text = FILE_TEXT.get(storeFile) ?? readFileSync(storeFile, 'utf8')
+  const sf = ts.createSourceFile(storeFile, text, ts.ScriptTarget.ES2022, true)
+  // create(fn) / create<S>()(fn)：外层调用的接收者递归剥到标识符，看到 create 就算
+  const createsStore = (node: ts.Expression): boolean => {
+    const e = unwrapParen(node)
+    if (!ts.isCallExpression(e)) return false
+    if (ts.isIdentifier(e.expression)) return e.expression.text === 'create'
+    return createsStore(e.expression)
+  }
+  const out: string[] = []
   const visit = (node: ts.Node): void => {
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) {
-      names.add(node.name.text)
-    } else if (ts.isShorthandPropertyAssignment(node) && ts.isIdentifier(node.name)) {
-      names.add(node.name.text)
-    } else if (ts.isBindingElement(node) && ts.isIdentifier(node.name)) {
-      names.add(node.name.text)
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && createsStore(node.initializer)) {
+      out.push(node.name.text)
     }
     ts.forEachChild(node, visit)
   }
   visit(sf)
-  return names
+  return out
 }
 
-function readPositions(file: string): Set<string> {
-  return readNamesOf(file, FILE_TEXT.get(file) ?? '')
+/**
+ * 一份文件里，**确实读到了这份 store 状态**的键名。
+ *
+ * 认这几种形状（都是仓里实际在用的写法）：
+ *   useX((s) => s.k)                      选择器形参
+ *   useX.getState().k                     直接读
+ *   const m = useX.getState(); m.k        一层别名
+ *   const { k } = useX.getState()         解构绑定
+ *   const st = () => useX.getState(); st().k   无参助手（测试里到处是这种）
+ *   useX((s) => { ... }) 块体同上
+ * 不认的：同名但接收者是别的对象（`map.clear()`、组件 prop `selection`）——
+ * 这正是 2026-10-17 收紧的动因：那种写法会把死键判成活键。
+ */
+function strictReadNamesOf(fileName: string, text: string, hookNames: string[]): Set<string> {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.ES2022, true)
+  const reads = new Set<string>()
+  const hooks = new Set(hookNames)
+  const aliases = new Set<string>()
+  const stateParams = new Set<string>()
+  const getters = new Set<string>()
+
+  const isStoreCall = (node: ts.Node): boolean => {
+    if (!ts.isCallExpression(node)) return false
+    const callee = node.expression
+    if (ts.isIdentifier(callee) && (hooks.has(callee.text) || getters.has(callee.text))) return true
+    if (
+      ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      hooks.has(callee.expression.text) &&
+      /^(get|getState|getInitialState)$/.test(callee.name.text)
+    )
+      return true
+    return false
+  }
+
+  const returnsStoreCall = (body: ts.ConciseBody | ts.Block | undefined): boolean => {
+    if (!body) return false
+    if (ts.isBlock(body))
+      return body.statements.some((s) => ts.isReturnStatement(s) && s.expression && isStoreCall(unwrapParen(s.expression)))
+    return isStoreCall(unwrapParen(body as ts.Expression))
+  }
+
+  // 第 0 遍先收"调一下就返回状态对象"的无参助手，否则第 1 遍认不出 st().k
+  const pass0 = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.name)) {
+      const init = unwrapParen(node.initializer)
+      if (
+        (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) &&
+        init.parameters.length === 0 &&
+        returnsStoreCall(init.body)
+      )
+        getters.add(node.name.text)
+    }
+    if (ts.isFunctionDeclaration(node) && node.name && node.parameters.length === 0 && returnsStoreCall(node.body)) {
+      getters.add(node.name.text)
+    }
+    ts.forEachChild(node, pass0)
+  }
+  pass0(sf)
+
+  const pass1 = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer && isStoreCall(unwrapParen(node.initializer))) {
+      if (ts.isIdentifier(node.name)) aliases.add(node.name.text)
+      if (ts.isObjectBindingPattern(node.name)) {
+        for (const el of node.name.elements) {
+          if (!ts.isIdentifier(el.name)) continue
+          const prop = el.propertyName
+          reads.add(prop && ts.isIdentifier(prop) ? prop.text : el.name.text)
+        }
+      }
+    }
+    if ((ts.isArrowFunction(node) || ts.isFunctionExpression(node)) && node.parameters.length) {
+      const parent = node.parent
+      if (parent && ts.isCallExpression(parent) && isStoreCall(parent)) {
+        const p = node.parameters[0]
+        if (ts.isIdentifier(p.name)) stateParams.add(p.name.text)
+        if (ts.isObjectBindingPattern(p.name)) {
+          for (const el of p.name.elements) if (ts.isIdentifier(el.name)) reads.add(el.name.text)
+        }
+      }
+    }
+    ts.forEachChild(node, pass1)
+  }
+  pass1(sf)
+
+  const pass2 = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name)) {
+      const recv = node.expression
+      if (ts.isIdentifier(recv) && (aliases.has(recv.text) || stateParams.has(recv.text))) reads.add(node.name.text)
+      else if (ts.isCallExpression(recv) && isStoreCall(recv)) reads.add(node.name.text)
+      else if (
+        ts.isPropertyAccessExpression(recv) &&
+        ts.isIdentifier(recv.expression) &&
+        (hooks.has(recv.expression.text) || aliases.has(recv.expression.text))
+      )
+        reads.add(node.name.text)
+    }
+    // store 自己文件里的 get().k（工厂第二个形参）也是真读
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.name) &&
+      ts.isCallExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === 'get' &&
+      node.expression.arguments.length === 0
+    )
+      reads.add(node.name.text)
+    ts.forEachChild(node, pass2)
+  }
+  pass2(sf)
+
+  return reads
+}
+
+function readsForStore(storeFile: string): Set<string> {
+  const base = norm(storeFile).replace(/\.ts$/, '')
+  const own = ownHookNames(storeFile)
+  const out = new Set<string>()
+  for (const f of [...importersOf(storeFile), storeFile]) {
+    const hooks = [...new Set([...importedNamesOf(f, base), ...own])]
+    for (const r of strictReadNamesOf(f, FILE_TEXT.get(f) ?? '', hooks)) out.add(r)
+  }
+  return out
 }
 
 describe('store 的每个键都有读者', () => {
@@ -225,10 +373,7 @@ describe('store 的每个键都有读者', () => {
   for (const storeFile of storeFiles) {
     const keys = stateKeysOf(storeFile)
     const importers = importersOf(storeFile)
-    const readers = new Set<string>()
-    for (const f of [...importers, storeFile]) {
-      for (const n of readPositions(f)) readers.add(n)
-    }
+    const readers = readsForStore(storeFile)
     const dead = keys.filter((k) => !readers.has(k))
     if (dead.length > 0) {
       offenders.push(norm(storeFile))
@@ -237,20 +382,37 @@ describe('store 的每个键都有读者', () => {
   }
 
   it('没有只写不读的键', () => {
-    expect(details, '以下 store 键没有任何读位置引用，删掉或接上消费者').toEqual([])
+    expect(details, '以下 store 键没有任何"挂在这份 store 上"的读位置，删掉或接上消费者').toEqual([])
   })
 
-  it('阳性对照：写位置不算读者、读位置才算（否则这条闸没有分辨力）', () => {
-    const writeOnly = `
+  it('阳性对照：写位置不算读者、各种真读形状都算（否则这条闸没有分辨力）', () => {
+    const base = `
       interface S { foo: number }
       const use = create<S>()((set) => ({ foo: 1, setFoo: (v: number) => set({ foo: v }) }))
     `
-    // 同一份代码，只是多了一处 `use.getState().foo` 的读位置
-    const readOnly = writeOnly + '\nuse.getState().foo\n'
+    // 走的就是判据自己那套收集器（strictReadNamesOf），不是另写一份简化版
+    const read = (extra: string): boolean => strictReadNamesOf('probe.ts', base + extra, ['use']).has('foo')
 
-    // 走的就是判据自己那套收集器（readNamesOf），不是另写一份简化版
-    expect(readNamesOf('probe.ts', writeOnly).has('foo'), 'set({ foo }) 是写，不该产出读者').toBe(false)
-    expect(readNamesOf('probe.ts', readOnly).has('foo'), 's.foo 是读，必须被认成读者').toBe(true)
+    expect(strictReadNamesOf('probe.ts', base, ['use']).has('foo'), 'set({ foo }) 是写，不该产出读者').toBe(false)
+    expect(read('\nuse.getState().foo\n'), 'useX.getState().foo 是读').toBe(true)
+    expect(read('\nuse((s) => s.foo)\n'), '选择器形参上的 s.foo 是读').toBe(true)
+    expect(read('\nuse((s) => { const n = s.foo; return n })\n'), '块体选择器里的 s.foo 是读').toBe(true)
+    expect(read('\nconst m = use.getState(); m.foo\n'), '一层别名 m.foo 是读').toBe(true)
+    expect(read('\nconst st = () => use.getState(); st().foo\n'), '无参助手 st().foo 是读').toBe(true)
+    expect(read('\nfunction st2() { return use.getState() }\nst2().foo\n'), 'function 形式的助手也是读').toBe(true)
+    expect(read('\nconst { foo } = use.getState()\n'), '解构绑定是读').toBe(true)
+  })
+
+  it('阴性对照：同名的别家属性不算读者（收紧的全部理由）', () => {
+    const decl = `
+      interface S { clear: () => void; selection: string }
+      const use = create<S>()((set) => ({ clear: () => set({}), selection: '' }))
+    `
+    // 这两种写法在 2026-10-17 之前会把死键判成活键：Map 自己的 clear、别家对象的同名字段
+    expect(strictReadNamesOf('a.ts', decl + '\nconst watching = new Map()\nwatching.clear()\n', ['use']).has('clear'), 'Map.clear() 不该替 store 的 clear 当读者').toBe(false)
+    expect(strictReadNamesOf('b.ts', decl + '\nconst props = { selection: "" }\nprops.selection\n', ['use']).has('selection'), '另一个对象上的 .selection 不该算读者').toBe(false)
+    // 而挂在真状态对象上的别名读，必须认
+    expect(strictReadNamesOf('c.ts', decl + '\nconst st = use.getState()\nst.selection\n', ['use']).has('selection'), 'const st = use.getState(); st.selection 是真读').toBe(true)
   })
 
   it('量具边界（已知偏松，写在这里防止被当成"已做完"）', () => {
@@ -266,7 +428,7 @@ describe('store 的每个键都有读者', () => {
       const { deadKey } = use()
     `
     expect(
-      readNamesOf('probe.ts', destructuredButUnused).has('deadKey'),
+      strictReadNamesOf('probe.ts', destructuredButUnused, ['use']).has('deadKey'),
       '这条断言是在登记盲区：哪天它变红了，说明有人收紧了判据（好事，但要回头改这段说明）'
     ).toBe(true)
   })

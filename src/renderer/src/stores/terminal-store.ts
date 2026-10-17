@@ -68,13 +68,13 @@ interface TerminalState {
   removeShell: (shellId: string) => void
   /** 设为活跃终端 */
   setActiveShell: (shellId: string) => void
-  /** 改标签标题（连接拿到主机名后回填用） */
-  setShellTitle: (shellId: string, title: string) => void
   /** 整条会话没了：把它名下所有终端一次摘掉（不能留点不动的死标签） */
   dropSession: (sessionId: string) => void
-  /** 与主进程对账：以主进程给的 shellIds 为准增删这一组标签，不抢当前焦点
+  /** 与主进程对账：以主进程给的 shellIds 为准增删这一组标签，并把标题回填到这一组上，不抢当前焦点
    *
    * kind='ssh' 时 sessionId 是那条 SSH 会话；kind='local' 时传 null（本机终端不分会话）。
+   * 标题每次对账都重刷：第一次对账时服务器档案可能还没水合完，
+   * sessionTitle() 只能给回退名，等它认出主机名时已存在的标签也得跟着改口。
    */
   reconcileSession: (
     sessionId: string | null,
@@ -82,8 +82,6 @@ interface TerminalState {
     title: string,
     kind: ShellKind,
   ) => void
-  /** 该会话已开的终端数（"连接"按钮用它决定要不要再开一个） */
-  shellsOf: (sessionId: string) => TerminalShell[]
 
   /** 最近一条 AI 注入命令（预测回显条数据源，v2.5） */
   pendingCommand: PendingCommand | null
@@ -96,7 +94,7 @@ interface TerminalState {
 }
 
 /** 终端 Store */
-export const useTerminalStore = create<TerminalState>()((set, get) => ({
+export const useTerminalStore = create<TerminalState>()((set) => ({
   shells: [],
   activeShellId: null,
 
@@ -119,11 +117,6 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
 
   setActiveShell: (shellId) => set({ activeShellId: shellId }),
 
-  setShellTitle: (shellId, title) =>
-    set((state) => ({
-      shells: state.shells.map((s) => (s.shellId === shellId ? { ...s, title } : s)),
-    })),
-
   dropSession: (sessionId) =>
     set((state) => {
       const shells = state.shells.filter((s) => s.sessionId !== sessionId)
@@ -139,8 +132,11 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
       const wanted = new Set(shellIds)
       const known = new Set(state.shells.map((s) => s.shellId))
       const now = Date.now()
-      // 别的会话的标签原样留着；本会话的按主进程那份表增删
-      const kept = state.shells.filter((s) => s.sessionId !== sessionId || wanted.has(s.shellId))
+      // 别的会话的标签原样留着；本会话的按主进程那份表增删，并把标题刷新一遍
+      // （只在真的变了时才换对象，没变的一律沿用原引用，免得标签行白白重渲染）
+      const kept = state.shells
+        .filter((s) => s.sessionId !== sessionId || wanted.has(s.shellId))
+        .map((s) => (s.sessionId === sessionId && s.title !== title ? { ...s, title } : s))
       const added: TerminalShell[] = shellIds
         .filter((shellId) => !known.has(shellId))
         .map((shellId) => ({ shellId, kind, sessionId, title, openedAt: now }))
@@ -154,8 +150,6 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
           : (shells[shells.length - 1]?.shellId ?? null),
       }
     }),
-
-  shellsOf: (sessionId) => get().shells.filter((s) => s.sessionId === sessionId),
 
   pendingCommand: null,
   setPendingCommand: (cmd) => set({ pendingCommand: cmd }),

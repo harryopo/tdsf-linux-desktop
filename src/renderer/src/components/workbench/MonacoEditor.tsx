@@ -100,8 +100,6 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   readOnly = false,
 }) => {
   const setCursorPosition = useEditorStore((s) => s.setCursorPosition)
-  const setSelection = useEditorStore((s) => s.setSelection)
-  const clearSelection = useEditorStore((s) => s.clearSelection)
 
   const handleChange: OnChange = useCallback(
     (newValue) => {
@@ -131,34 +129,12 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
         })
       })
 
-      // 选区变化实时上报到 editor-store（供 @命令划选注入，Phase B · Task B.4）
-      // 选区为空时清除；非空时写入 { text, type: 'code', filePath }
-      editorInstance.onDidChangeCursorSelection((e) => {
-        const sel = e.selection
-        const isEmpty =
-          sel.startLineNumber === sel.endLineNumber && sel.startColumn === sel.endColumn
-        if (isEmpty) {
-          clearSelection()
-          return
-        }
-        const selectedText = editorInstance.getModel()?.getValueInRange(sel) ?? ''
-        if (!selectedText) {
-          clearSelection()
-          return
-        }
-        setSelection({
-          text: selectedText,
-          type: 'code',
-          filePath: path,
-        })
-      })
-
       // 初始化光标位置为 1:1
       setCursorPosition({ lineNumber: 1, column: 1 })
 
       onMount?.(editorInstance, monaco)
     },
-    [onMount, onSave, setCursorPosition, setSelection, clearSelection, path],
+    [onMount, onSave, setCursorPosition],
   )
 
   return (

@@ -111,13 +111,22 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     })
   }, [])
 
-  /** 处理 PAOR 审批响应（批准/拒绝） */
-  const handlePaorApprove = async (callId: string, approved: boolean) => {
+  /** 处理 PAOR 审批响应（批准/拒绝）
+   *
+   * useCallback 是必需的，不是装饰：PermissionBar 挂在这个面板下，而面板每来一段流就重渲染，
+   * 不稳定的一行函数会让 PermissionBar 跟着一起重渲染（1d1e78b 收掉的那类放大器）。
+   */
+  const handlePaorApprove = useCallback(async (callId: string, approved: boolean) => {
     const api = window.electronAPI
     if (!api?.paorApprove) return
     await api.paorApprove(callId, approved)
     setPaorApprovals((prev) => prev.filter((r) => r.callId !== callId))
-  }
+  }, [])
+
+  /** 清空当前会话（面板头那个按钮）：理由同上，内联箭头会让头部每段流都重渲染 */
+  const handleClear = useCallback(() => {
+    clear()
+  }, [clear])
 
   /**
    * 监听 PAOR 迭代进度，写入消息列表（P1 修复）
@@ -413,9 +422,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         hasLiveConversation={hasLiveConversation}
         showTranslation={showTranslation}
         setShowTranslation={setShowTranslation}
-        onClear={() => {
-          clear()
-        }}
+        onClear={handleClear}
       />
 
       {/* ===== 消息滚动区（外面这层只给"回到底部"当定位参照，不参与滚动） ===== */}

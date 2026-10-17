@@ -92,13 +92,6 @@ describe('终端标签表', () => {
     expect(state().shells.map((s) => s.shellId)).toEqual(['a1', 'b1'])
   })
 
-  it('shellsOf 按会话取标签（"连接"按钮用它决定要不要再开一个）', () => {
-    state().addShell(shell('a1', 's1', 'A', 1))
-    state().addShell(shell('b1', 's2', 'B', 2))
-    expect(state().shellsOf('s1').map((s) => s.shellId)).toEqual(['a1'])
-    expect(state().shellsOf('没有')).toEqual([])
-  })
-
   it('本机终端不受会话影响：连上服务器后本机标签还在', () => {
     state().addShell(shell('local1', null, '本机 · pwsh', 1, 'local'))
     state().addShell(shell('r1', 's1', 'web-03', 2))
@@ -115,9 +108,19 @@ describe('终端标签表', () => {
     expect(state().shells.map((s) => s.shellId)).toEqual(['local1'])
   })
 
-  it('标题可以回填（连接时还不知道主机名的场景）', () => {
+  it('对账会把标题回填到已存在的标签（连接时还不知道主机名的场景）', () => {
+    // 生产链路是 shell-launcher 每轮对账调 reconcileSession(会话, 主进程给的 shellIds, sessionTitle())。
+    // 第一轮对账时服务器档案可能还没水合完，sessionTitle() 只能给回退名；
+    // 等它认出主机名，已经挂在屏上的那个标签也得跟着改口，不能一直叫"服务器"。
     state().addShell(shell('a', 's1', '服务器', 1))
-    state().setShellTitle('a', 'db-01')
-    expect(state().shells[0].title).toBe('db-01')
+    state().reconcileSession('s1', ['a'], 'db-01', 'ssh')
+    expect(state().shells.map((s) => [s.shellId, s.title])).toEqual([['a', 'db-01']])
+  })
+
+  it('标题没变时对账不换标签对象（每轮对账都不该把行重渲染一遍）', () => {
+    state().addShell(shell('a', 's1', 'db-01', 1))
+    const before = state().shells[0]
+    state().reconcileSession('s1', ['a'], 'db-01', 'ssh')
+    expect(state().shells[0]).toBe(before)
   })
 })

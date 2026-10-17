@@ -22,7 +22,6 @@ interface PreviewState {
   previews: PreviewTab[]
   add: (tab: PreviewTab) => void
   remove: (token: string) => void
-  clear: () => void
 }
 
 export const usePreviewStore = create<PreviewState>((set) => ({
@@ -38,7 +37,6 @@ export const usePreviewStore = create<PreviewState>((set) => ({
       return { previews: state.previews.map((p) => (p === same ? tab : p)) }
     }),
   remove: (token) => set((state) => ({ previews: state.previews.filter((p) => p.token !== token) })),
-  clear: () => set({ previews: [] }),
 }))
 
 /** 工作台标签 id 里预览那一族的前缀 */
