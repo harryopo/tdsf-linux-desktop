@@ -122,6 +122,42 @@ function runGit(args) {
 }
 
 /**
+ * 文档腿：内网地址在已入库 markdown 里的命中行数上限（只钉数量，不判"存在"）
+ *
+ * 为什么不是"0 容忍"：2026-10-04 用户已裁定 RFC1918 地址留在内部文档里可接受，
+ * 把那条裁定做成常亮红灯等于没有闸。但"允许留着"不等于"允许继续长"——
+ * 现量 11 行（6 份：archive 4 + competition 1 + handoff 1），多一行就红。
+ * 存量文档里再补一行也拦得住，因为它按行计数而不是按文件存在性。
+ */
+const DOCS_HIT_CAP = 11
+/** 扫描面：所有已入库 markdown（含根目录 README/AGENTS 与 docs/**），不含代码——代码那条腿已经管住了 */
+const DOCS_SPEC = ['--', '*.md', 'docs']
+
+/**
+ * 数一个锚定值在文档里命中多少行
+ *
+ * 走 git grep -c（按行、纯串匹配）而不是把 287 份文档读进 Node：这条闸挂在提交钩子上，每次都跑。
+ * 不带版本号＝扫工作树，所以"这次就要提交的新文档"当场算数，不会拖到下一次红。
+ */
+function countInDocs(repo, val) {
+  const r = spawnSync('git', ['grep', '-c', '-F', val, ...DOCS_SPEC], { cwd: repo, encoding: 'utf8' })
+  if (r.error) fail('git grep 启动失败：' + r.error.message)
+  // 1 = 没命中，这是合法结果不是错误；其它非 0 才是真失败
+  if (r.status !== 0 && r.status !== 1) {
+    fail('git grep 退出码 ' + r.status + '：' + String(r.stderr || '').slice(0, 200))
+  }
+  let lines = 0
+  let files = 0
+  for (const l of String(r.stdout || '').split(/\r?\n/)) {
+    const m = l.match(/^(.+?):(\d+)$/)
+    if (!m) continue
+    files++
+    lines += Number(m[2])
+  }
+  return { lines, files }
+}
+
+/**
  * 读锚定值。返回 null 表示"这台机器没有可锚定的真值"，只在 opts.noValuesOk 时发生。
  *
  * 为什么留这个口子：本闸按【值】比对，值来自开发者自己的 .env.local（不入库）。
@@ -183,10 +219,13 @@ module.exports = {
   loadAnchors,
   parseArgs,
   collectScanSet,
+  countInDocs,
   runGit,
   HOST_KEY,
   CODE_EXT_RE,
   EXCLUDE_RE,
+  DOCS_HIT_CAP,
+  DOCS_SPEC,
 }
 
 if (require.main === module) {
@@ -236,4 +275,30 @@ if (require.main === module) {
     process.exit(1)
   }
   console.log('结论: CLEAN —— 锚定的内网地址没有写进代码')
+
+  // 文档腿：代码干净之后再看文档。这条不判"存在"（那是 2026-10-04 已裁定的豁免），只钉数量。
+  const docSet = runGit(['ls-files', ...DOCS_SPEC])
+    .split(/\r?\n/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+  if (!docSet.length) fail('文档腿扫不到任何已入库 markdown，这条腿等于没有（扫描面参数改了？）')
+  let docLines = 0
+  for (const { val } of anchors) docLines += countInDocs(repo, val).lines
+  console.log(
+    '[topology-gate] 文档腿：' +
+      docSet.length +
+      ' 份已入库 markdown，锚定值命中 ' +
+      docLines +
+      ' 行（上限 ' +
+      DOCS_HIT_CAP +
+      '；存量按 2026-10-04 裁定豁免，多一行就红）'
+  )
+  if (docLines > DOCS_HIT_CAP) {
+    console.log(
+      '\n结论: 文档里的内网地址比裁定的存量多 ' +
+        (docLines - DOCS_HIT_CAP) +
+        ' 行 —— 要么把新加的那行改成占位/环境变量名，要么在评审里说明并抬高 DOCS_HIT_CAP'
+    )
+    process.exit(1)
+  }
 }

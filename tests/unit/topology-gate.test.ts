@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -163,5 +164,58 @@ describe('topology-gate —— A5 判据的证伪', () => {
     } else {
       expect(inDocs.stdout.trim().length, 'docs 里应仍能扫到该地址，否则排除面是空的').toBeGreaterThan(0)
     }
+  })
+})
+
+/**
+ * 文档腿（2026-10-17 加）：内网地址在已入库 markdown 里的数量闸
+ *
+ * 为什么不是 0 容忍：2026-10-04 已裁定"RFC1918 地址留在内部文档里可接受"，
+ * 把裁定做成常亮红灯等于没有闸。但"允许留着"不等于"允许继续长"，所以钉数量不钉存在。
+ * 现量 11 行 / 6 份文档（archive 4 + competition 1 + handoff 1）。
+ */
+describe('topology-gate 文档腿 —— 只钉数量，不判存在', () => {
+  const gate = createRequire(import.meta.url)(path.resolve(GATE)) as unknown as {
+    countInDocs(repo: string, val: string): { lines: number; files: number }
+    DOCS_HIT_CAP: number
+  }
+
+  /**
+   * 两个"文档里有、代码里没有"的串。
+   * 必须拆开拼接：本文件是 tracked 的 .ts，正落在闸的代码扫描面里，
+   * 写成整串就会被自己命中 ⇒ 文档腿还没跑，代码腿先红，两条腿分不开了。
+   */
+  const DOCS_A = 'HANDOVER-' + '2026-10-04'
+  const DOCS_B = 'DEPLOY_' + 'ARCHITECTURE'
+
+  it('扫描面非空、真抽得到东西；不存在的串命中 0（0 命中不等于腿是死的）', () => {
+    const repo = process.cwd()
+    const a = gate.countInDocs(repo, DOCS_A)
+    expect(a.files, '文档腿连一份 markdown 都没抽到，等于这条腿没接上').toBeGreaterThan(0)
+    expect(a.lines).toBeGreaterThan(0)
+    const absent = 'zz-' + Math.random().toString(36).slice(2, 12)
+    expect(gate.countInDocs(repo, absent).lines, '不存在的串必须 0 命中').toBe(0)
+  })
+
+  it('正好压在上限：代码 CLEAN、文档腿放行，并把命中数与上限一起打出来', () => {
+    const cap = gate.DOCS_HIT_CAP
+    expect(gate.countInDocs(process.cwd(), DOCS_A).lines).toBe(cap)
+    const vf = valuesFile('docs-at-cap.env', `TDSF_TARGET_HOST=${DOCS_A}\n`)
+    const { rc, out } = run(['--values', vf])
+    expect(rc, out).toBe(0)
+    expect(out, '报告要带扫描份数与命中行数，否则读数没出处').toContain(
+      `锚定值命中 ${cap} 行（上限 ${cap}`
+    )
+  })
+
+  it('合起来超上限：代码仍 CLEAN 但文档腿必须红（证明红的是这条新腿，不是老腿）', () => {
+    const vf = valuesFile('docs-over.env', `TDSF_TARGET_HOST=${DOCS_A}\nTDSF_TARGET_HOSTS=${DOCS_B}\n`)
+    const { rc, out } = run(['--values', vf])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('结论: CLEAN —— 锚定的内网地址没有写进代码')
+    expect(out).toContain('比裁定的存量多')
+    // 值原文不许出现在报告里（打码要递归到每层）
+    expect(out).not.toContain(DOCS_A)
+    expect(out).not.toContain(DOCS_B)
   })
 })
