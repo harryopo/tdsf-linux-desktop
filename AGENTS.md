@@ -1,14 +1,8 @@
-# TDSF-Linux Desktop - AI Agent 开发指南 v10.1
+# TDSF-Linux Desktop - AI Agent 开发指南
 
-> 更新日期：2026-10-04（文档归位 + 基线重测；模块状态与协作规则仍为 2026-07-25 评估）
-> 编码规范见 `CODING.md`（v1.1 核心）
-> **界面规范唯一权威是 `DESIGN.md`**：动 `src/renderer/**` 前先读它，改完跑
-> `node scripts/design/design-contract.mjs` 与 `node scripts/design/ui-audit.mjs --gate`
-> AI 入口指引见 `CLAUDE.md`（v1.1，6 条核心红线 + 三绿硬门禁）
-> 当前状态见 `docs/handoff/HANDOVER-2026-10-04.md`（门禁实测退出码与判据复核结论只写在那份里，本文件不抄数字）
-> 旧版归档：`docs/archive/CLAUDE-v2.5.md` · `docs/archive/AGENTS-v8.7.md`
-> 前期调研文档索引：`docs/archive/README.md`
-> 比赛（截止 2026-07-30）已交付 v1.0.0，原冲刺计划失效；现行开发目标待你（用户）指定
+> 编码规范见 `CODING.md`；界面规范唯一权威是 `DESIGN.md`（动 `src/renderer/**` 前先读它）；
+> AI 入口指引与核心红线见 `CLAUDE.md`。
+> **本文件不抄门禁数字**——每一轮的退出码只有当轮那次运行算数。
 
 ---
 
@@ -18,83 +12,48 @@
 
 > 帮助 Linux 初学者不怕命令行的桌面工具。
 
-> 详细的 6 条核心红线、三绿硬门禁、两绿软门禁、降级保留原则见 `CLAUDE.md`。
-> AI 协作模式的唯一权威是本文件 §文件所有权。
-
----
-
-## Agent 模块当前状态（2026-07-23 评估）
-
-| 模块 | 代码量 | 完成度 | 说明 |
-|------|--------|--------|------|
-| Task Protocol（14步） | ~1,920 行 | 95% | 全部真实逻辑，借鉴 Kilo Code |
-| MCP 工具（25个） | ~1,500 行 | 90% | 6 域覆盖，SSH 域最完整 |
-| Credibility（D-S+PCR5） | ~2,000 行 | 90% | 代码完整但生产降级为简单规则 |
-| Langfuse 追踪 | ~600 行 | 95% | 3 主干路径集成，无 Key 自动降级 |
-| Supervisor（PAOR） | ~1,146 行 | 95% | 流式 + 审批 + 循环编排 |
-| Claude SDK 集成 | ~1,000 行 | 90% | 双重包装 + 动态 import |
-| 前端 AI UI | ~5,000 行 | 85% | 25+ 组件，CoT 可视化待实现 |
-| IPC 暴露 | ~3,000 行 | 90% | 55+ 通道，90% 符合 4 步规范 |
-
-**Agent 整体：~16,000 行代码，核心逻辑完整可用。**
-
----
-
-## 比赛冲刺路线（已失效，仅存档）
-
-> 2026-07-30 比赛已过，v1.0.0 已交付。下面 Day 1-6 清单保留作历史参考，勿据此排期。
-> 原方案书现位于 `docs/reports/TDSF高质量做大方案-终稿.md` §14。
-
-### Day 1（2026-07-25）：基线建立
-- 治理工具：Knip + Playwright + Stop Hook + PreEdit Hook + CI
-- 基线验证：三绿 + deadcode + test:e2e + verifier subagent
-
-### Day 2（2026-07-26）：Demo 9 步主路径验收
-- 走通 Demo 9 步主路径 + 完整 E2E 测试
-- 修复 P0 阻塞 + 视觉对比设计稿
-
-### Day 3（2026-07-27）：打包 + 演示材料
-- windows-latest CI build:win + 本地安装测试
-- PPT 演示脚本 + 5 分钟录屏
-
-### Day 4（2026-07-28）：Bug 修复 + 质量加固
-- 修复 P1 严重问题 + 死占位 UI
-- deadcode 清理 + E2E 回归
-
-### Day 5（2026-07-29）：冻结 + 演示彩排
-- 全量回归测试（五绿全过）
-- 演示彩排 + git tag v1.0
-
-### Day 6（2026-07-30）：比赛日
-- 上午仅修紧急 Bug，下午演示
-
----
-
-## 降级策略（接口保留，待后续迭代）
-
-以下模块**保留代码和接口**，Demo 阶段走简化路径：
-
-| 模块 | Demo 策略 | 保留内容 | 后续计划 |
-|------|-----------|----------|----------|
-| D-S 证据理论 | 简单规则（高/中/低） | ds-theory.ts + pcr5.ts + fusion-engine.ts | v3.1 恢复完整融合 |
-| PCR5 融合 | 简单加权 | 同上 | v3.1 |
-| Langfuse | DEV 自动降级（无 Key 不启用） | langfuse.ts + langfuse-trace.ts | 按需开启 |
-| Claude SDK | 与 Vercel AI SDK 双通道可用 | claude-sdk-provider.ts + wrapper | 稳定后择一 |
-| ECE 校准 | 跳过 | 接口保留在 credibility/audit/types.ts | v3.2 |
-| EU AI Act 合规 | 跳过 | formatters.ts 接口保留 | v3.x 按需 |
-| CoT 熵轨迹 | 数据收集保留，可视化跳过 | cot-trace-collector.ts | v3.2 |
+详细的产品定位、目标用户与"不要做成什么"见 `PRODUCT.md`。
 
 ---
 
 ## 三进程架构
 
 ```
-主进程 (main/)     — Node.js：SSH2/LLM/SQLite/核心算法
-Preload (preload/) — contextBridge 安全桥接
-渲染进程 (renderer/) — React 18 + Ant Design 5，沙箱隔离
+主进程 (src/main/)      — Node.js：ssh2 / LLM / SQLite / 命令闸 / 可信度 / MCP / 技能
+预加载 (src/preload/)   — contextBridge 安全桥接，按域拆分，入参走 zod 契约
+渲染层 (src/renderer/)  — React 19 + Zustand 5，沙箱隔离，不用 Ant Design
+共享 (src/shared/)      — 跨进程类型与常量的单源（IPC 通道名、可信度表、boot 载荷）
 ```
 
-> Electron 安全三原则（contextIsolation:true / nodeIntegration:false / sandbox:true）见 `CLAUDE.md` 第 4 条核心红线。
+Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `sandbox:true`）
+是硬红线，见 `CLAUDE.md` 第 4 条。
+
+---
+
+## 关于"模块完成度表"
+
+本文件以前有一张 2026-07-23 拍的模块状态表（Task Protocol 95%、Claude SDK 90%、IPC 55+ 通道……）。
+**它已经不可信了，所以删掉而不是更新**：
+
+- 那种百分比没有测量方法，改一次代码它就过期，而且没人会去复核它；
+- 里面的"Claude SDK 集成"根本不存在（不是依赖，`src/main` 全仓搜不到）；
+- "14 步 Task Protocol"有代码有测试，但**生产链路零调用**——把这种写成 95% 完成度，
+  下一个接手的人会以为能直接用。
+
+要判断某个模块的真实状态，读它的代码和它的测试，别读任何汇总表。
+已知降级或没接上的能力，统一列在 `README.md` §已知边界。
+
+---
+
+## 降级策略（接口保留，待后续迭代）
+
+| 模块 | 当前策略 | 保留内容 | 恢复的前提 |
+|------|-----------|----------|------------|
+| D-S 证据理论 / PCR5 融合 | 生产走折扣后的简化融合 | `credibility/ds-theory.ts`、`pcr5.ts`、`fusion-engine.ts` + 测试 | 需要重新定标，不是打开开关 |
+| Langfuse 追踪 | 无 Key 自动关闭 | `langfuse.ts`、`langfuse-trace.ts` | 配 Key 即启用 |
+| Python 侧车（Drain3 日志模板） | 缺 venv 时整条链路降级并在界面显示原因 | `sidecar-a/` + 宿主监督与握手代码 | 重建 venv + 装依赖 |
+| CoT 熵轨迹可视化 | 数据收集在跑，可视化未做 | `cot-trace-collector.ts` | 前端接线 |
+| 14 步 Task Protocol | 有实现与测试，**生产未调用** | `core/agent/subagents/` | 先定它到底要不要上线 |
 
 ---
 
@@ -104,8 +63,8 @@ Preload (preload/) — contextBridge 安全桥接
 
 `term.parser.registerOscHandler(ident, cb)` 的分发规则是：同一 ident **后注册的先被调用**，
 回调返回 `true` 表示"我已处理，停止传播"——于是谁先 `return true`，后面的 handler
-和 xterm 内建处理就全收不到。这类 bug 只坏一半：主力项目 tdsf-terminal-agent-clone
-曾因此本地终端一条命令块都产不出来，SSH 侧因注册顺序不同而侥幸正常。
+和 xterm 内建处理就全收不到。这类 bug 只坏一半：本地终端一条命令块都产不出来，
+而 SSH 侧因注册顺序不同侥幸正常。
 
 我们的 handler 只旁听（命令块收集器读 OSC 133/633），不接管渲染，所以永远返回 false。
 判据：`tests/unit/xterm-osc-return-false.test.ts` 扫 src 下每个 `registerOscHandler`，
@@ -114,6 +73,8 @@ Preload (preload/) — contextBridge 安全桥接
 命令-输出块的切分逻辑在 `src/renderer/src/terminal/block-model.ts`（纯函数，可单测），
 xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`**，
 不要缓存行内容——滚动后行号会整体位移。
+
+---
 
 ## 审查 Agent
 
@@ -126,17 +87,17 @@ xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`
 ## 文件所有权
 
 > **本节是协作模式的唯一权威声明**：允许几个 AI 并行、工作流、禁并行清单、分支策略均以此处为准；
-> 其他文件（`CLAUDE.md`、Qoder 规则镜像等）只引用本节，不得另行定义。
+> 其他文件（`CLAUDE.md`、规则镜像等）只引用本节，不得另行定义。
 
-比赛冲刺阶段启用**有限多 AI 并行模式**。Git 是最终事实源，`.ai-coordination.json` 是中央登记簿。
-
-### 多 AI 并行工作流（v10.2 启用）
+### 多 AI 并行工作流
 
 1. **启动预检**：每个 AI 会话开始前运行 `pnpm ai:check`
 2. **声明所有权**：修改文件前 `pnpm ai:claim -f <file> -t <task>`
 3. **释放所有权**：修改完成后 `pnpm ai:release -f <file>` 或 `--all`
 4. **提交规范**：commit message 包含 sessionId，例如 `feat(xxx): [ai-20260725-001] ...`
-5. **高共享文件中央协调**：以下文件禁止并行修改，需由当前主导 AI 串行处理
+5. **claim 必须活到提交那一刻**：顺序只能是 claim → 改 → commit → release。
+   改完就 release 会被 pre-commit 钩子拦下。
+6. **高共享文件中央协调**：以下文件禁止并行修改，需由当前主导 AI 串行处理
    - `src/shared/ipc-channels.ts`
    - `src/shared/agent-types.ts`
    - `src/shared/models.ts`
@@ -153,20 +114,34 @@ xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`
 |---------|----------|----------|
 | 后端 AI | `src/main/`, `src/shared/`, Python sidecar | `src/renderer/src/components/`（除非修复类型错误） |
 | 前端 AI | `src/renderer/src/`, 设计稿还原 | `src/main/core/`, `src/main/services/ssh/` |
-| 质量 AI | `tests/`, E2E, 死代码审计 | 业务代码只读 |
+| 质量 AI | `tests/`, e2e, 死代码审计, 各类闸 | 业务代码只读 |
 
 ### 分支策略
 
-- `master`：单一可发布状态，仅合并已通过 4/5 绿的 PR/commit
-- `ai-coordination-staging-YYYYMMDD`：多 AI WIP 临时汇总分支
-- 每个 AI 在自己的 feature 分支工作，完成后先合并到 staging，再由主导 AI 合并到 master
+- `master`：单一可发布状态，只合并已过全部门禁的提交
+- 特性分支：正常工作区，完成后快进合并回 `master`
 
 ### 冲突处理
 
-- 发现冲突先 `git status`，不要覆盖他人修改
+- 发现冲突先 `git status`，不要覆盖他人的修改
 - 高共享文件冲突时，优先与相关 AI 协商，或统一由后端 AI 串行处理
 - 过期 claim 由任一 AI 在修改 `.ai-coordination.json` 时清理
 
 ---
 
-*v10.2 · 2026-07-25 · 比赛冲刺有限多 AI 模式启用*
+## 仓库卫生（公开仓的规矩）
+
+- **产物不入库**：`scripts/.cjs/`、`tests/e2e/screenshots*/`、`__pycache__/`、`.tmp/`、
+  `docs/assets/{theme-check,ui-audit-*,ui-baseline}/`。
+  `.gitignore` 已挡；**新克隆要注意：`.gitignore` 对已被跟踪的文件完全无效**，
+  发现"忽略规则写了但文件还在跟踪集里"要 `git rm --cached` 补一刀。
+- **内部文档不入库**：审查报告、交接文档、故障复盘、比赛材料一律本地保留、不提交。
+  本仓库公开在跑的文档见 `docs/INDEX.md`。
+- **凭据值永不进任何文本**：源码、测试夹具、注释、提交信息、日志都不行。
+  需要示例就拆成相邻字面量（避免触发 GitHub 密钥扫描的真警报邮件）。
+- **Tailwind v4 的内容源 = "git 看得见的文件"**：未跟踪又未忽略的目录会被扫进产物 CSS，
+  所以任何 scratch 目录**必须先加 .gitignore 再往里写东西**。
+
+---
+
+*v11 · 2026-10-18 · 删除过期模块状态表与失效冲刺计划，技术栈与门禁清单按现量重对*

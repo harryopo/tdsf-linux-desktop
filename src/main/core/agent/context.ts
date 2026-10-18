@@ -3,9 +3,9 @@
  *
  * 职责：
  * - 实现 5 层 compaction 阈值（借鉴 Claude Code 5 层 compaction pipeline）
- * - L1：单条消息 > 4K tokens → 摘要压缩（后续可接入 Mastra memory summarize）
+ * - L1：单条消息 > 4K tokens → 摘要压缩
  * - L2：会话 > 50K tokens → 滑动窗口 + 历史摘要
- * - L3：会话 > 100K tokens → 重要节点抽取 + Dexie 持久化
+ * - L3：会话 > 100K tokens → 重要节点抽取（持久化未接：Dexie 不是本项目依赖，这层目前只在内存里）
  * - L4：会话 > 75% max → 摘要压缩（LLM 生成摘要，降级为首尾提取）
  * - L5：会话 > 90% max → 语义去重（Jaccard 相似度，纯算法无 API 开销）
  *

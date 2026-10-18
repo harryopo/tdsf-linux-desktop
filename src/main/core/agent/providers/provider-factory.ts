@@ -13,7 +13,8 @@
  * - API Key 缺失时抛出明确错误（不静默降级到 mock）
  * - baseURL 为空时使用 @ai-sdk/* 各自的默认值（仅 anthropic/google 有默认）
  *
- * 方案书依据：v0.9 §3 决策 1（Mastra + AI SDK 7 组合）+ 调研文档 §8（Claude Agent SDK 集成）
+ * Provider 组合按现量是 @ai-sdk/* 三家（openai / anthropic / google）+ 兼容端点，
+ * 不是"Mastra + Claude Agent SDK"——那两个从来不是本项目的依赖（2026-10-18 核对）。
  */
 import { createOpenAI } from '@ai-sdk/openai'
 import { createAnthropic } from '@ai-sdk/anthropic'

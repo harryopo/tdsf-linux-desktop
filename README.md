@@ -98,7 +98,7 @@ pnpm dev
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3264 通过 / 19 跳过 | `npm test`（269 个测试文件） |
+| 单元与组件用例 | 3269 通过 / 19 跳过 | `npm test`（269 个测试文件） |
 | 端到端用例 | 57 通过 / 15 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 272 | `npm run audit:ipc`（232 请求-响应 + 40 事件推送） |
 | 已登记契约的通道 | 35 | `src/shared/ipc-contract.ts`（30 invoke + 5 event） |
@@ -169,7 +169,7 @@ and a full audit trail of what was allowed and why.
 Electron 43 · React 19 · Zustand 5 · ssh2 · xterm.js · Monaco · Vercel AI SDK · MCP · better-sqlite3 ·
 D-S evidence theory + PCR5 fusion · Vitest + Playwright.
 
-3260 unit/component tests and 57 end-to-end tests driving the real app window.
+3269 unit/component tests and 57 end-to-end tests driving the real app window.
 See [Quick start](#快速开始) and the [known boundaries](#已知边界说清楚不含糊).
 
 MIT licensed.
