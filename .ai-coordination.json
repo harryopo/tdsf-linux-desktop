@@ -2,29 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-18T12:56:56.919Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-18T12:55:39.178Z",
-      "lastActiveAt": "2026-10-18T12:56:56.919Z",
-      "task": "把 types:audit 补进硬门禁清单（这轮 CI 红就是它不在清单里没人跑）",
-      "claimedFiles": [
-        {
-          "path": "CLAUDE.md",
-          "task": "把 types:audit 补进硬门禁清单（这轮 CI 红就是它不在清单里没人跑）",
-          "claimedAt": "2026-10-18T12:55:39.178Z"
-        },
-        {
-          "path": "package.json",
-          "task": "加 native:check 脚本（新闸要有 npm script 才会被跑）",
-          "claimedAt": "2026-10-18T12:56:56.919Z"
-        }
-      ],
-      "expiresAt": "2026-10-18T14:56:56.919Z"
-    }
-  },
+  "lastUpdated": "2026-10-18T13:01:50.443Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -7865,6 +7844,20 @@
       "file": "package.json",
       "task": "加 native:check 脚本（新闸要有 npm script 才会被跑）",
       "timestamp": "2026-10-18T12:56:56.919Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "CLAUDE.md",
+      "task": "把 types:audit 补进硬门禁清单（这轮 CI 红就是它不在清单里没人跑）",
+      "timestamp": "2026-10-18T13:01:50.443Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "package.json",
+      "task": "加 native:check 脚本（新闸要有 npm script 才会被跑）",
+      "timestamp": "2026-10-18T13:01:50.443Z"
     }
   ],
   "coordinationAudit": {
