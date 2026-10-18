@@ -1,0 +1,23 @@
+# 行尾必须确定：Windows 的 `core.autocrlf=true`（GitHub 的 windows runner 默认就是它）
+# 会在检出时把 LF 换成 CRLF，于是——
+#   1. "与生成物逐字比对"的闸（ipc-contract.test.ts）在 Windows CI 上必红；
+#   2. Vite 转换 CRLF 形态的 .mjs 会抛 `SyntaxError: Invalid or unexpected token`，
+#      整个测试文件 7 条全挂（2026-10-18 CI 实测，本机怎么跑都是绿的）。
+# 仓库里 0 个跟踪文件的 blob 含 CR，也没有 .bat/.cmd，所以这条规则不会引起任何重排。
+* text=auto eol=lf
+
+# 二进制：别让换行转换碰它们
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.node binary
+*.dll binary
+*.exe binary
+*.zip binary
+*.bundle binary
+*.db binary
