@@ -181,12 +181,11 @@ describe('topology-gate 文档腿 —— 只钉数量，不判存在', () => {
   }
 
   /**
-   * 两个"文档里有、代码里没有"的串。
+   * 一个"文档里有、代码里没有"的串。
    * 必须拆开拼接：本文件是 tracked 的 .ts，正落在闸的代码扫描面里，
    * 写成整串就会被自己命中 ⇒ 文档腿还没跑，代码腿先红，两条腿分不开了。
    */
   const DOCS_A = 'HANDOVER-' + '2026-10-04'
-  const DOCS_B = 'DEPLOY_' + 'ARCHITECTURE'
 
   it('扫描面非空、真抽得到东西；不存在的串命中 0（0 命中不等于腿是死的）', () => {
     const repo = process.cwd()
@@ -197,10 +196,13 @@ describe('topology-gate 文档腿 —— 只钉数量，不判存在', () => {
     expect(gate.countInDocs(repo, absent).lines, '不存在的串必须 0 命中').toBe(0)
   })
 
-  it('正好压在上限：代码 CLEAN、文档腿放行，并把命中数与上限一起打出来', () => {
+  it('正好压在上限：文档腿命中数等于上限时放行，并把命中数与上限一起打出来', () => {
+    // 公开仓收口后上限降到 0（内部文档已不入库），所以"压线"就是"一个都没有"。
+    // 这里用随机串当锚定值：它在文档里必然 0 命中，正好等于上限，验的是"0 也算放行而不是必红"。
     const cap = gate.DOCS_HIT_CAP
-    expect(gate.countInDocs(process.cwd(), DOCS_A).lines).toBe(cap)
-    const vf = valuesFile('docs-at-cap.env', `TDSF_TARGET_HOST=${DOCS_A}\n`)
+    expect(cap, '上限被改过就要重看这条：它现在钉的是"公开文档里一个内网地址都不许有"').toBe(0)
+    const absent = 'zz-' + Math.random().toString(36).slice(2, 12)
+    const vf = valuesFile('docs-at-cap.env', `TDSF_TARGET_HOST=${absent}\n`)
     const { rc, out } = run(['--values', vf])
     expect(rc, out).toBe(0)
     expect(out, '报告要带扫描份数与命中行数，否则读数没出处').toContain(
@@ -208,14 +210,69 @@ describe('topology-gate 文档腿 —— 只钉数量，不判存在', () => {
     )
   })
 
-  it('合起来超上限：代码仍 CLEAN 但文档腿必须红（证明红的是这条新腿，不是老腿）', () => {
-    const vf = valuesFile('docs-over.env', `TDSF_TARGET_HOST=${DOCS_A}\nTDSF_TARGET_HOSTS=${DOCS_B}\n`)
+  it('超过上限：代码仍 CLEAN 但文档腿必须红（证明红的是这条腿，不是代码那条）', () => {
+    const vf = valuesFile('docs-over.env', `TDSF_TARGET_HOST=${DOCS_A}\n`)
     const { rc, out } = run(['--values', vf])
     expect(rc, out).toBe(1)
-    expect(out).toContain('结论: CLEAN —— 锚定的内网地址没有写进代码')
+    expect(out).toContain('结论: CLEAN —— 锚定的内网地址与它所在的 /24 都没有写进代码')
     expect(out).toContain('比裁定的存量多')
     // 值原文不许出现在报告里（打码要递归到每层）
     expect(out).not.toContain(DOCS_A)
-    expect(out).not.toContain(DOCS_B)
+  })
+})
+
+/**
+ * 网段腿（2026-10-18 加）：钉一个值只防得住那一个值
+ *
+ * 起因：闸原先只按精确值匹配，实验机同 /24 里的网关 .2 与广播 .255 一路留在代码里、闸照报 CLEAN。
+ * 泄露一个内网地址真正暴露的是"这张网长什么样"，所以改成按段判。
+ *
+ * 为什么全走纯函数不写端到端：真网段的任何地址写进这个 tracked 文件，就会被闸自己的网段腿命中，
+ * "该红的红"变成"永远的红"（同 2026-10-04 那次阴性样本写进 tracked 测试文件的教训）。
+ * 所以这里用合成网段 10.77.7.0/24，只验函数语义。
+ */
+describe('topology-gate 网段腿 —— 按 /24 判，不按单值判', () => {
+  const gate = createRequire(import.meta.url)(path.resolve(GATE)) as unknown as {
+    subnetPrefixes(values: string[]): string[]
+    scanContentsSubnet(
+      items: { file: string; content: string | null }[],
+      prefix: string
+    ): { file: string; line: number; lastOctet: string }[]
+    isPrivateIpv4(v: string): boolean
+  }
+
+  it('只有 RFC1918 地址才推网段；主机名与公网 IP 不推', () => {
+    // 全部用合成网段 10.77.7.x：本文件是 tracked 的，写实验机那个 /24 会被闸自己的网段腿命中，
+    // "该红的红"当场变成"永远的红"——这条不是我预防的，是网段腿第一次跑就把我抓红了之后改的。
+    expect(gate.subnetPrefixes(['10.77.7.1', 'vm-lab.internal', '8.8.8.8', '172.20.3.4', '太长了不是ip'])).toEqual([
+      '10.77.7.',
+      '172.20.3.'
+    ])
+    expect(gate.isPrivateIpv4('10.77.7.9')).toBe(true)
+    expect(gate.isPrivateIpv4('100.64.0.1')).toBe(false)
+  })
+
+  it('同段任意地址都要被抓到，并只报末段（不回报完整地址）', () => {
+    const items = [
+      { file: 'a.ts', content: 'const gw = "10.77.7.1"\nconst me = "10.77.7.99"\n' },
+      { file: 'b.ts', content: 'nothing here' },
+      // 另一个段不许误伤
+      { file: 'c.ts', content: 'const other = "10.77.8.1"' }
+    ]
+    const hits = gate.scanContentsSubnet(items, '10.77.7.')
+    expect(hits.map((h) => h.file + ':' + h.line)).toEqual(['a.ts:1', 'a.ts:2'])
+    expect(hits.map((h) => h.lastOctet)).toEqual(['1', '99'])
+  })
+
+  it('阴性对照：整段没有地址时 0 命中（防"这条腿恒红"和"腿是死的"两种 alike 假象）', () => {
+    expect(gate.scanContentsSubnet([{ file: 'a.ts', content: 'const x = 1' }], '10.77.7.')).toEqual([])
+  })
+
+  it('真实 .env.local 跑通时，报告必须声明网段腿覆盖了几段（覆盖 0 段要看得见，别静默）', () => {
+    const envPath = path.join(process.cwd(), '.env.local')
+    if (!fs.existsSync(envPath)) return
+    const { rc, out } = run([])
+    expect(rc, out).toBe(0)
+    expect(out).toMatch(/网段腿覆盖 [0-9]+ 段/)
   })
 })

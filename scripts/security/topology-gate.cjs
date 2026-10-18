@@ -80,6 +80,50 @@ function scanContents(items, needle) {
   return hits
 }
 
+const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+
+/** 这个值是不是 RFC1918 私网地址（只有它值得推出网段；公网 IP 当锚点时推网段没有意义） */
+function isPrivateIpv4(v) {
+  const m = IPV4_RE.exec(v)
+  if (!m) return false
+  const [a, b] = [Number(m[1]), Number(m[2])]
+  if (a === 10) return true
+  if (a === 192 && b === 168) return true
+  return a === 172 && b >= 16 && b <= 31
+}
+
+/**
+ * 从锚定值推出它所在的 /24 前缀（"192.168.45." 这种）。
+ *
+ * 为什么要推网段而不是只钉那一个值：闸原先只按精确值匹配，于是实验机同段的
+ * 网关 .2 与广播 .255 大摇大摆留在代码里，闸一路报 CLEAN——**钉一个值等于只防那一个值**。
+ * 泄露一个内网地址真正暴露的是"这张网长什么样"，所以按段判。
+ */
+function subnetPrefixes(values) {
+  const out = new Set()
+  for (const v of values) {
+    const m = IPV4_RE.exec(v)
+    if (!m || !isPrivateIpv4(v)) continue
+    out.add(m[1] + '.' + m[2] + '.' + m[3] + '.')
+  }
+  return [...out].sort()
+}
+
+/** 按 /24 前缀扫：命中"同段任意地址"，并把命中的到底是哪个地址的结构报出来（不报完整值） */
+function scanContentsSubnet(items, prefix) {
+  const re = new RegExp(prefix.replace(/\./g, '\\.') + '\\d{1,3}', 'g')
+  const hits = []
+  for (const it of items) {
+    if (typeof it.content !== 'string') continue
+    const lines = it.content.split(/\r?\n/)
+    for (let i = 0; i < lines.length; i += 1) {
+      const m = lines[i].match(re)
+      if (m) hits.push({ file: it.file, line: i + 1, lastOctet: m[0].slice(prefix.length) })
+    }
+  }
+  return hits
+}
+
 function mask(value) {
   if (value.length <= 8) return '****(len' + value.length + ')'
   return value.slice(0, 3) + '****' + value.slice(-2) + '(len' + value.length + ')'
@@ -122,14 +166,14 @@ function runGit(args) {
 }
 
 /**
- * 文档腿：内网地址在已入库 markdown 里的命中行数上限（只钉数量，不判"存在"）
+ * 文档腿：内网地址在已入库 markdown 里的命中行数上限
  *
- * 为什么不是"0 容忍"：2026-10-04 用户已裁定 RFC1918 地址留在内部文档里可接受，
- * 把那条裁定做成常亮红灯等于没有闸。但"允许留着"不等于"允许继续长"——
- * 现量 11 行（6 份：archive 4 + competition 1 + handoff 1），多一行就红。
- * 存量文档里再补一行也拦得住，因为它按行计数而不是按文件存在性。
+ * 2026-10-04 定的是 11（"RFC1918 留在内部文档可接受"），因为那时 docs/ 下 287 份内部文档都入库。
+ * 2026-10-18 仓库要公开，那批文档已取消跟踪（archive/competition/handoff/reports 等），
+ * 现量命中 **0 行** ⇒ 上限跟着降到 0：旧的豁免对象已经不在扫描面里，留着 11 就是
+ * 给"往公开文档里写内网地址"预留 11 行的空子（地板不随掏空重算，等于没闸）。
  */
-const DOCS_HIT_CAP = 11
+const DOCS_HIT_CAP = 0
 /** 扫描面：所有已入库 markdown（含根目录 README/AGENTS 与 docs/**），不含代码——代码那条腿已经管住了 */
 const DOCS_SPEC = ['--', '*.md', 'docs']
 
@@ -214,6 +258,9 @@ function collectScanSet(repoRoot) {
 module.exports = {
   scanText,
   scanContents,
+  scanContentsSubnet,
+  subnetPrefixes,
+  isPrivateIpv4,
   isAnchorable,
   mask,
   loadAnchors,
@@ -261,7 +308,19 @@ if (require.main === module) {
   const bad = []
   for (const { key, val } of anchors) {
     const found = scanContents(items, val)
-    if (found.length) bad.push({ key, val, found })
+    if (found.length) bad.push({ key, val, found, rule: '锚定值原样出现' })
+  }
+  // 同网段腿：钉一个值只防得住那一个值。实验机同 /24 里的网关/广播地址同样是拓扑信息。
+  const subnets = subnetPrefixes(anchors.map((a) => a.val))
+  for (const p of subnets) {
+    const found = scanContentsSubnet(items, p)
+    if (found.length)
+      bad.push({
+        key: '同网段 ' + mask(p.slice(0, -1) + '.x'),
+        val: p + '*',
+        found,
+        rule: '锚定值所在 /24 里的其它地址',
+      })
   }
   if (bad.length) {
     for (const b of bad) {
@@ -269,12 +328,14 @@ if (require.main === module) {
         .slice(0, 10)
         .map((h) => h.file + ':' + h.line)
         .join(', ')
-      console.log('  ✗ ' + b.key + ' = ' + mask(b.val) + ' 硬编码在被跟踪代码里：' + where)
+      console.log('  ✗ ' + b.key + ' 硬编码在被跟踪代码里（' + b.rule + '）：' + where)
     }
-    console.log('\n结论: ' + bad.length + ' 个内网拓扑值出现在代码中 —— 改回从环境变量/本地凭据文件读')
+    console.log('\n结论: ' + bad.length + ' 组内网拓扑值出现在代码中 —— 改回从环境变量/本地凭据文件读')
     process.exit(1)
   }
-  console.log('结论: CLEAN —— 锚定的内网地址没有写进代码')
+  console.log(
+    '结论: CLEAN —— 锚定的内网地址与它所在的 /24 都没有写进代码（网段腿覆盖 ' + subnets.length + ' 段）'
+  )
 
   // 文档腿：代码干净之后再看文档。这条不判"存在"（那是 2026-10-04 已裁定的豁免），只钉数量。
   const docSet = runGit(['ls-files', ...DOCS_SPEC])
@@ -291,7 +352,7 @@ if (require.main === module) {
       docLines +
       ' 行（上限 ' +
       DOCS_HIT_CAP +
-      '；存量按 2026-10-04 裁定豁免，多一行就红）'
+      ' 行；上限 0 = 公开仓不接受任何内网地址出现在已入库文档里，多一行就红）'
   )
   if (docLines > DOCS_HIT_CAP) {
     console.log(

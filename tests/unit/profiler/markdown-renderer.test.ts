@@ -286,7 +286,7 @@ Swap:         2.0Gi          0B       2.0Gi`)
     const result = makeResult([
       makeItem('network', 'ip addr show 2>/dev/null || ifconfig 2>/dev/null || echo "无网络工具"',
         '1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536\n    inet 127.0.0.1/8\n2: ens33: <BROADCAST> mtu 1500\n    inet 192.0.2.10/24'),
-      makeItem('network', 'ip route 2>/dev/null || route -n 2>/dev/null', 'default via 192.168.45.2 dev ens33'),
+      makeItem('network', 'ip route 2>/dev/null || route -n 2>/dev/null', 'default via 192.0.2.1 dev ens33'),
       makeItem('network', 'cat /etc/resolv.conf 2>/dev/null | head -5', 'nameserver 114.114.114.114'),
       makeItem('network', 'ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || echo "无端口查看工具"',
         'LISTEN 0 128 *:22 *:*\nLISTEN 0 128 *:82 *:*')
