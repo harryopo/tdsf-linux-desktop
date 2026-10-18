@@ -65,6 +65,8 @@ pnpm design:gate          # 设计契约 + 令牌 + 设置键
 node scripts/design/ui-audit.mjs --gate   # 真机量：标题/对比度/遮挡/图标/底部
                                           # 窗口不在前台时报 rc=3（环境红 ≠ 产品红），无人值守加 --no-shots
 pnpm ipc:check            # 契约生成物与代码不漂移
+pnpm types:audit          # 渲染层手写类型表 vs preload 实现（冗余/幻影/重复都会红）
+pnpm native:check         # 原生模块按 prebuild 加载，不需要 node-gyp 重编
 pnpm deadcode:gate        # Knip ratchet（只降不升）
 pnpm security:secrets     # 凭据形状闸（--all 扫跟踪集，--staged 由 pre-commit 跑）
 pnpm security:topology    # 内网拓扑值：按值 + 按 /24 网段
@@ -72,6 +74,13 @@ pnpm security:history     # 全历史按值回归（pre-push 也跑）
 pnpm doc:links            # 文档断链：相对链接必须落在跟踪集里
 pnpm promo:check          # 对外发布页的读数逐行对账
 ```
+
+> **这份清单要和 `.github/workflows/ci.yml` 的 job 对得上。** 2026-10-18 公开仓默认分支上挂了 7 个红 job，
+> 其中 `types:audit` 那条是真代码问题（冗余手写成员），但它当时不在任何一份"每轮都跑"的清单里，
+> 所以红了两周没人知道。一把闸不进名单，它就只对写它那天负责。
+> 反过来也一样：**本地绿不等于 CI 绿**——那 7 条里 4 条是量具在自己的机器上成立、换环境就失效
+> （`core.quotePath` 转义非 ASCII 路径 / 扫描面按文件系统而非跟踪集数 / 测试读仓库外的兄弟目录 /
+> 浅克隆没有历史）。判据要能在 CI 那台"什么都没有的机器"上跑，才算数。
 
 ## 改界面额外两把（动 `src/renderer/**` 必过）
 
