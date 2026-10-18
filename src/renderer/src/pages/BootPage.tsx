@@ -32,29 +32,50 @@ const VERTEX_SHADER = /* glsl */ `
 /**
  * 设计稿 boot.html 原版 fragment（r128 用 gl_FragColor）。
  * Three 0.185 默认 WebGL2 时仍可通过 glslVersion: GLSL1 跑通。
+ *
+ * 2026-10-18 收成单色相：原来 r/g/b 三条独立相位各积各的，屏幕上就是那道彩虹，
+ * 而 PRODUCT.md 把"营销落地页式的启动页、彩虹光带当背景"明列为反例。
+ * 现在三条相位收成一条亮度，色相由 brandColor 决定（取自 --accent-text，见下）。
  */
 const FRAGMENT_SHADER = /* glsl */ `
   precision highp float;
   uniform vec2 resolution;
   uniform float time;
+  uniform vec3 brandColor;
 
   void main(void) {
     vec2 uv = (gl_FragCoord.xy * 2.0 - resolution.xy) / min(resolution.x, resolution.y);
     float t = time * 0.05;
     float lineWidth = 0.002;
 
-    vec3 color = vec3(0.0);
+    float glow = 0.0;
     for (int j = 0; j < 3; j++) {
       for (int i = 0; i < 5; i++) {
         float rawPhase = fract(t - 0.01 * float(j) + float(i) * 0.01);
         float easedPhase = mix(rawPhase, rawPhase * rawPhase * (3.0 - 2.0 * rawPhase), 0.6);
-        color[j] += lineWidth * float(i * i) / abs(easedPhase * 5.0 - length(uv) + mod(uv.x + uv.y, 0.2));
+        glow += lineWidth * float(i * i) / abs(easedPhase * 5.0 - length(uv) + mod(uv.x + uv.y, 0.2));
       }
     }
 
-    gl_FragColor = vec4(color[0], color[1], color[2], 1.0);
+    // 指数收束：亮度单调升到 brandColor 为止，色相全程不变——
+    // 既不会冲到白芯，也不会像逐通道截断那样偏到青/橙上去。
+    vec3 color = brandColor * (1.0 - exp(-glow * 1.8));
+    gl_FragColor = vec4(color, 1.0);
   }
 `
+
+/**
+ * 从 CSS 令牌读品牌蓝，交给 shader 当色相。
+ * 读不到返回 null，shader 那边退回白：黑白蓝里"白"不算跑偏，彩虹才算。
+ * 这里不许出现颜色字面量——色值的唯一来源是 ui-tokens.css 的 --accent-text。
+ */
+export function brandColorFromToken(cssValue: string): [number, number, number] | null {
+  const m = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(cssValue.trim())
+  if (!m) return null
+  const hex = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1]
+  const n = parseInt(hex, 16)
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+}
 
 /** 主进程没推消息时的兜底文案 */
 const DEFAULT_MESSAGE = '正在启动'
@@ -111,7 +132,16 @@ export function BootPage() {
       const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
       const scene = new THREE.Scene()
       geometry = new THREE.PlaneGeometry(2, 2)
-      const uniforms = { time: { value: 1.0 }, resolution: { value: new THREE.Vector2(1, 1) } }
+      // 光带的色相不写死在代码里：读当前主题的 --accent-text，换主题/换令牌它就跟着走
+      const brand = brandColorFromToken(
+        getComputedStyle(document.documentElement).getPropertyValue('--accent-text')
+      )
+      const brandColor = brand ? new THREE.Color(brand[0], brand[1], brand[2]) : new THREE.Color(1, 1, 1)
+      const uniforms = {
+        time: { value: 1.0 },
+        resolution: { value: new THREE.Vector2(1, 1) },
+        brandColor: { value: brandColor },
+      }
       material = new THREE.ShaderMaterial({
         uniforms,
         vertexShader: VERTEX_SHADER,

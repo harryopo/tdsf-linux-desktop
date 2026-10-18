@@ -24,6 +24,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async () => {
@@ -31,7 +33,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-import { BootPage } from '@renderer/pages/BootPage'
+import { BootPage, brandColorFromToken } from '@renderer/pages/BootPage'
 import type { BootLoadingStage } from '@shared/boot-types'
 
 const apiFlag = vi.hoisted(() => ({ available: false }))
@@ -207,5 +209,33 @@ describe('BootPage — 只负责加载，加载完自动进工作台', () => {
       window.requestAnimationFrame = realRaf
       window.cancelAnimationFrame = realCancel
     }
+  })
+})
+
+describe('启动页光带的色相来自令牌（彩虹光带是 PRODUCT.md 明列的反例）', () => {
+  it('#rrggbb 解析成 0-1 三分量', () => {
+    expect(brandColorFromToken('#6aa9e8')).toEqual([0x6a / 255, 0xa9 / 255, 0xe8 / 255])
+  })
+
+  it('三位缩写展开成六位，两侧留白不影响解析', () => {
+    expect(brandColorFromToken(' #abc ')).toEqual([0xaa / 255, 0xbb / 255, 0xcc / 255])
+  })
+
+  it('读不到一律返回 null：宁可退回白，也不许在代码里藏一个色值兜底', () => {
+    for (const bad of ['', '   ', 'rgb(1, 2, 3)', '#12345', '#gghhii', 'undefined']) {
+      expect(brandColorFromToken(bad), `输入 ${JSON.stringify(bad)} 应当判为读不到`).toBeNull()
+    }
+  })
+
+  // 阳性对照：令牌真存在才算这条链路活着。它要是被改名或删掉，
+  // 上面那条"读不到退回白"会让光带一路白下去而测试照样全绿——那是假绿。
+  it('ui-tokens.css 里 --accent-text 确实定义着，且每一枚都解析得出来', () => {
+    const css = fs.readFileSync(
+      path.resolve(import.meta.dirname, '../../../src/renderer/src/styles/ui-tokens.css'),
+      'utf8'
+    )
+    const defs = [...css.matchAll(/--accent-text:\s*(#[0-9a-fA-F]{3,8})/g)].map((m) => m[1])
+    expect(defs.length, '深浅两套主题各应有一枚 --accent-text').toBeGreaterThanOrEqual(2)
+    for (const d of defs) expect(brandColorFromToken(d), `${d} 解析不出来`).not.toBeNull()
   })
 })
