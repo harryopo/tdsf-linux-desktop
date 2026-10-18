@@ -221,13 +221,40 @@ async function cjkFontAudit(ws, label) {
  */
 const SHOT_LOG = []
 
+/**
+ * 截图护栏时长。SHOT_TIMEOUT_MS=1 是用来证伪这条分支的：
+ * 没有可注入的超时，"窗口不在前台 → 退出码 3"这条路径永远只能等真最小化才能观察到，
+ * 而没被观察过的分支等于没写的分支（下一轮照样会把它当成产品红去查）。
+ */
+const SHOT_TIMEOUT_MS = (() => {
+  const raw = process.env.SHOT_TIMEOUT_MS
+  if (raw === undefined || raw === '') return 20000
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 1) {
+    console.error(`SHOT_TIMEOUT_MS="${raw}" 不是一个 ≥1 的毫秒数——拒绝拿猜出来的超时跑门禁`)
+    process.exit(2)
+  }
+  return n
+})()
+
 async function shot(ws, name, kind = 'other') {
   // --no-shots：只跑量测不出图。窗口被最小化时 captureScreenshot 会永久不返回，
   // 而门禁要的是逐元素计算样式，不需要 PNG——别让取证卡在像素上。
   if (NO_SHOTS) return null
-  // 窗口被最小化时 Page.captureScreenshot 会永久不返回：宁可 20 秒报错，也不要挂着让人以为还在跑
+  // 窗口被最小化时 Page.captureScreenshot 会永久不返回：宁可超时报错，也不要挂着让人以为还在跑
   const guard = new Promise((_, rej) =>
-    setTimeout(() => rej(new Error(`截图 ${name} 超时 20s：窗口可能被最小化或遮挡，请把 TDSF 窗口置于前台后重跑`)), 20000)
+    setTimeout(
+      () =>
+        rej(
+          Object.assign(
+            new Error(
+              `截图 ${name} 超时 ${SHOT_TIMEOUT_MS}ms：窗口可能被最小化或遮挡，请把 TDSF 窗口置于前台后重跑（无人值守跑法：--no-shots）`
+            ),
+            { code: 'WINDOW_NOT_FOREGROUND' }
+          )
+        ),
+      SHOT_TIMEOUT_MS
+    )
   )
   const { data } = await Promise.race([cdp(ws, 'Page.captureScreenshot', { format: 'png' }), guard])
   const buf = Buffer.from(data, 'base64')
@@ -1175,6 +1202,8 @@ const ROUTES = [
 const report = { screens: [] }
 /** 取证没跑完就不能报成功：以前 finally 里无条件 process.exit(0)，截图一挂照样绿，等于给坏掉的量具开绿灯 */
 let auditFailed = false
+/** 窗口不在前台导致截图挂死：本轮零判定，既不是绿也不是产品红，单独用退出码 3 说话 */
+let envBlocked = false
 try {
   const target = await findTarget()
   const ws = new WebSocket(target.webSocketDebuggerUrl)
@@ -1703,9 +1732,17 @@ try {
     for (const n of exemptNotes) console.log('  对比度豁免：' + n)
   }
 } catch (err) {
-  auditFailed = true
-  console.error('取证脚本异常：' + (err && err.stack ? err.stack : err))
+  if (err && err.code === 'WINDOW_NOT_FOREGROUND') {
+    // 环境红不等于产品红：这一轮一个界面判定都没产出。用 3 号退出码和"设计缺陷红"（1）分开，
+    // 免得下一个接手的人（或我下一轮）拿一次截图超时去查一个并不存在的界面缺陷。
+    envBlocked = true
+    console.error('BLOCKED（环境不具备，本轮未产出任何界面判定）：' + err.message)
+    console.error('本轮读数：无。既不是 PASS 也不是 FAIL——别记成设计缺陷，也别记成已通过。')
+  } else {
+    auditFailed = true
+    console.error('取证脚本异常：' + (err && err.stack ? err.stack : err))
+  }
 } finally {
   app.kill()
-  process.exit(auditFailed ? 1 : 0)
+  process.exit(envBlocked ? 3 : auditFailed ? 1 : 0)
 }
