@@ -98,7 +98,7 @@ pnpm dev
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3260 通过 / 19 跳过 | `npm test`（269 个测试文件） |
+| 单元与组件用例 | 3264 通过 / 19 跳过 | `npm test`（269 个测试文件） |
 | 端到端用例 | 57 通过 / 15 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 272 | `npm run audit:ipc`（232 请求-响应 + 40 事件推送） |
 | 已登记契约的通道 | 35 | `src/shared/ipc-contract.ts`（30 invoke + 5 event） |
