@@ -251,7 +251,8 @@ fix(terminal): prevent xterm.js memory leak on long sessions
 
 1. **关联 Issue**：在 PR 描述中使用 `Closes #123` 或 `Fixes #456`
 2. **填写模板**：完整填写 PR 模板所有必填项
-3. **五绿门禁**：CI 必须全绿才能合并
+3. **CI 全绿**：`.github/workflows/ci.yml` 的每个 job 都要过（类型、lint、单测三平台、e2e、
+   设计契约、契约生成、死代码、断链、依赖告警），本地清单见 `CLAUDE.md` §其余常驻闸
 4. **代码审查**：至少 1 名维护者 Approve
 5. **Squash Merge**：默认 Squash 合并，commit message 会规范化
 
@@ -265,9 +266,10 @@ fix(terminal): prevent xterm.js memory leak on long sessions
 
 ### 合并后
 
-- 自动触发 Release Please（每周一）发布 CHANGELOG
-- 自动部署到 GitHub Pages（介绍页）
-- 通知 Issue 作者（`Closes #xxx` 关联的 issue 自动关闭）
+- CI 的 `Build (Windows)` 任务会跑 `pnpm build:win`，安装包作为 **workflow artifact** 保留（不是 Release 附件）
+- `Closes #xxx` 关联的 issue 由 GitHub 自动关闭
+- CHANGELOG 手工维护，**没有 release 自动化**（不打 tag、不发 GitHub Release，也没有 Renovate/Release Please）
+- 介绍页在另一个仓库 `harryopo.github.io/tdsf-linux-desktop/`，改动要单独提交推送，本仓 CI 不管它
 
 ---
 
@@ -323,8 +325,7 @@ pnpm test:e2e
 ## 社区
 
 - **GitHub Issues**：Bug 报告 / 功能建议
-- **GitHub Discussions**：问答 / 想法交流（即将开放）
-- **飞书问卷**：产品反馈（链接在 软件 → 设置 → 关于 → 产品调研问卷）
+- **GitHub Discussions**：问答 / 想法交流 / 作品展示（模板在 `.github/DISCUSSION_TEMPLATE/`）
 
 ### 获取帮助
 
@@ -337,7 +338,7 @@ pnpm test:e2e
 ### 报告安全漏洞
 
 **请勿在公开 Issue 中报告安全漏洞**。
-邮件发送至 <harryopo@example.com>，我们会在 48 小时内响应。
+邮件发送至 `2239868923@qq.com`（主题前缀 `[SECURITY]`），详见 [SECURITY.md](SECURITY.md)。
 
 ---
 

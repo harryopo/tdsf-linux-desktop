@@ -131,8 +131,8 @@
 如果你有想法或建议：
 
 - 创建 [Feature Request Issue](https://github.com/harryopo/tdsf-linux-desktop/issues/new?template=feature_request.md)
-- 参与 [Discussions 讨论](https://github.com/harryopo/tdsf-linux-desktop/discussions)（即将开放）
-- 填写 [产品调研问卷](https://harryopo.github.io/tdsf-linux-desktop/)（嵌入式入口在 软件 → 设置 → 关于 → 产品调研问卷）
+- 参与 [Discussions 讨论](https://github.com/harryopo/tdsf-linux-desktop/discussions)（已开放：问答 / 想法 / 作品展示三个板块）
+- 或在软件内：设置 → 关于 → 「问题反馈」卡片直接跳到 Issue 模板
 
 ---
 

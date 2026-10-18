@@ -13,9 +13,8 @@
 
 请通过以下方式私下报告：
 
-- **Email**: harryopo (at) example.com
-- **主题前缀**: `[SECURITY] `
-- **PGP 公钥**: 待提供
+- **Email**：`2239868923@qq.com`（与提交历史里公开的作者邮箱同一个）
+- **主题前缀**：`[SECURITY] `
 
 我们承诺：
 

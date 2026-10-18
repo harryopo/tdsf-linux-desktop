@@ -1,6 +1,7 @@
 # Release Guide
 
-> 火山杯 2026 比赛期间发版流程
+> 本项目的发版方式。**全部手工，没有 release 自动化**（没有 Release Please / Renovate，
+> CI 也不会往 GitHub Release 上传任何东西）。
 > 从代码冻结到 GitHub Release 的完整步骤
 
 ---
@@ -8,7 +9,7 @@
 ## 0. 前置检查
 
 - [ ] 所有 PR 已合并到 master
-- [ ] 五绿门禁全绿
+- [ ] CI 全绿（本地要跑的闸见 `CLAUDE.md` §其余常驻闸）
 - [ ] CHANGELOG.md 已更新 `[Unreleased]` → `[1.x.x]`
 - [ ] package.json version 已 bump
 
@@ -82,7 +83,10 @@ git push upstream v1.x.x
 
 ## 4. 构建安装包
 
-CI 会自动构建 3 平台安装包并上传到 GitHub Release Draft。
+CI 只构建 **Windows** 一个平台（`.github/workflows/ci.yml` 的 `Build (Windows)` 任务），
+产物是 **workflow artifact**（`tdsf-linux-desktop-windows`，约 220 MB），**不会**自动变成 Release 附件——
+要发布得自己从 artifact 下载后传到 Release 页面。macOS / Linux 没有对应 workflow，
+只能在各自机器上手跑下面的命令。
 
 如果需要手动构建：
 
