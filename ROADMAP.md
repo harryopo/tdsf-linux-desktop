@@ -22,7 +22,13 @@
 - [x] 高危命令拦截（当时是 12 条黑名单 + 三态权限审批；**现已换成结构判定，见下**）
 - [x] SFTP 文件管理（react-arborist + Monaco Editor）
 - [x] 可信度评估（多源证据可视化）
-- [ ] ~~CoT-shape 熵轨迹分析~~ —— **当时没做完**：数据收集在跑，可视化至今未做
+- [x] CoT-shape 熵轨迹分析与可视化（基于 Zhao 2026 论文）
+      —— 2026-10-18 回代码核对：收集与画图**都在链路上**（`supervisor.ts:1369` 收尾时取轨迹 →
+      `ChatResult.cotEntropyTrajectory` → `agent-store.ts:405` 落到消息 →
+      `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117` 的 SVG 折线图）。
+      前提是那一轮真采到熵点（`collected = points.length > 0`，来源依次是 thinking-block /
+      分段文本 / logprobs），采不到就不画——不是"没做"。
+      （本条原先写着"可视化至今未做"，那是照抄 2026-07-25 的旧表没回代码核对，已纠正。）
 - [x] 教程词库 v1.2.0（2236 词条）
 - [x] 8 爬虫源教程聚合（鸟哥 / 阮一峰 / Linux 中国等）
 - [x] 中英对照翻译 + 课程联动

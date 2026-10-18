@@ -52,8 +52,11 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 | D-S 证据理论 / PCR5 融合 | 生产走折扣后的简化融合 | `credibility/ds-theory.ts`、`pcr5.ts`、`fusion-engine.ts` + 测试 | 需要重新定标，不是打开开关 |
 | Langfuse 追踪 | 无 Key 自动关闭 | `langfuse.ts`、`langfuse-trace.ts` | 配 Key 即启用 |
 | Python 侧车（Drain3 日志模板） | 缺 venv 时整条链路降级并在界面显示原因 | `sidecar-a/` + 宿主监督与握手代码 | 重建 venv + 装依赖 |
-| CoT 熵轨迹可视化 | 数据收集在跑，可视化未做 | `cot-trace-collector.ts` | 前端接线 |
 | 14 步 Task Protocol | 有实现与测试，**生产未调用** | `core/agent/subagents/` | 先定它到底要不要上线 |
+
+> CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1369` → `agent-store.ts:405`
+> → `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117`），只是那一轮没采到熵点时不画。
+> 旧版本这里写过"可视化未做/待前端接线"，是照抄 2026-07-25 的表没回代码核对——2026-10-18 纠正。
 
 ---
 
