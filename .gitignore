@@ -153,3 +153,7 @@ docs/assets/ui-baseline/
 
 # 探针目录整体不入库（里面是历次视觉审计报告，与 docs/reports 同一性质）
 scripts/browser-check/
+
+# 按钮普查报告：探针跑出来的产物，不该入库
+/tests/e2e/button-census-report.json
+/scripts/diag-deepseek-tools.cjs

@@ -129,11 +129,48 @@ const TABLE_ROWS = (m) => [
   ['结构性拦截器', m.rules.detectors],
 ]
 
+/**
+ * 用例数四个参数：给了就把那两行也纳入对账。
+ *
+ * 为什么原先不纳入：跑满套要几分钟，不该塞进一个秒级对账闸里。但"不纳入"的实际后果是
+ * 2026-10-18 一天内两次撞上"套件数字变了、页面没动"（3256→3260→3264），
+ * 全靠人记得回头改。所以改成**调用方把刚量到的数递进来**，闸负责比，不负责跑。
+ * fail-closed：要么四个都给，少一个就报错退出——半套数字比没有数字更危险，
+ * 它会让人以为那两行也对过账。
+ */
+function readoutCounts(argv) {
+  const keys = ['--unit-passed', '--unit-skipped', '--e2e-passed', '--e2e-skipped']
+  const got = keys.map((k) => {
+    const i = argv.indexOf(k)
+    return i < 0 ? null : argv[i + 1]
+  })
+  const present = got.filter((v) => v !== null)
+  if (!present.length) return null
+  if (present.length !== keys.length) {
+    const missing = keys.filter((k, i) => got[i] === null)
+    throw new Error(
+      '用例数四个参数要么全给要么都不给，缺：' + missing.join(' ') + '（半套数字会让人以为那两行也对过账）'
+    )
+  }
+  for (const [k, v] of keys.map((k, i) => [k, got[i]])) {
+    if (!/^[0-9]+$/.test(v)) throw new Error(k + ' 必须是非负整数，收到：' + v)
+  }
+  const [up, us, ep, es] = got.map(Number)
+  return { up, us, ep, es }
+}
+
 function main(argv) {
   const check = argv.includes('--check')
   const argAfter = argv[argv.indexOf('--check') + 1]
   const promoPath = check && argAfter && !argAfter.startsWith('-') ? path.resolve(argAfter) : DEFAULT_PROMO
   const m = measure()
+  let counts
+  try {
+    counts = readoutCounts(argv)
+  } catch (e) {
+    console.error('FAIL ' + e.message)
+    return 2
+  }
 
   if (!check) {
     console.log('对外读数（本轮实测）')
@@ -142,8 +179,8 @@ function main(argv) {
     console.log(`  源文件              ${m.srcFiles}  测法：git ls-files src 里 .ts/.tsx 计数`)
     console.log(`  规则词表项          ${m.rules.vocabulary}  分项：${JSON.stringify(m.rules.per)}`)
     console.log(`  结构性拦截器        ${m.rules.detectors}　argv 规则 ${m.rules.argvRules}　受保护根级路径 ${m.rules.protectedTargets}`)
-    console.log('  用例数不在这个脚本里算（要跑满套）：单元 `npm test`、端到端 `npx playwright test`，')
-    console.log('  抄页面数字时取各自终端汇总行的"passed / skipped"。')
+    console.log('  用例数不在这个脚本里算（要跑满套）。跑完把四个数递回来一起对账：')
+    console.log('    npm run promo:check -- --unit-passed N --unit-skipped M --e2e-passed P --e2e-skipped Q')
     return 0
   }
 
@@ -152,14 +189,26 @@ function main(argv) {
     return 1
   }
   const page = parsePromoReadouts(fs.readFileSync(promoPath, 'utf8'))
-  const bad = diffReadouts(page, TABLE_ROWS(m))
+  const rows = TABLE_ROWS(m)
+  if (counts) {
+    // 形状必须是 [标签, 数字]：parsePromoReadouts 从 .v 单元里取第一个数，
+    // 所以页面写 "3264 通过" 会被读成 3264。这里比的是那个数，不是整串文案。
+    rows.push(['单元与组件用例', counts.up])
+    rows.push(['端到端用例', counts.ep])
+  }
+  const bad = diffReadouts(page, rows)
   if (bad.length) {
     console.error(`FAIL 宣传页的读数与本轮实测对不上（${bad.length} 条）：`)
     for (const b of bad) console.error(`  ${b.label}：页面写 ${b.got}，实测 ${b.want}`)
     console.error('  改页面，别改这个脚本——除非你确认页面上的口径本来就该变。')
     return 1
   }
-  console.log(`PASS 宣传页 ${TABLE_ROWS(m).length} 条可对账读数与本轮实测一致（用例数两条由各自命令现场取证）`)
+  console.log(
+    `PASS 宣传页 ${rows.length} 条读数与本轮实测一致` +
+      (counts
+        ? '（含两条用例数，数字由调用方从刚跑完的套件递进来）'
+        : '（用例数两条未纳入：跑完套件加 --unit-passed/--unit-skipped/--e2e-passed/--e2e-skipped 再对一次）')
+  )
   return 0
 }
 

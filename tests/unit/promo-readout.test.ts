@@ -10,6 +10,7 @@
  *   4. 页面某个数字被改错 ⇒ 点名那一条，且只点名那一条。
  */
 import { describe, it, expect } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
@@ -121,5 +122,69 @@ describe('promo-readout：与宣传页对账', () => {
     const bad = diffReadouts(parsePromoReadouts(html), MEASURED)
     expect(bad.length).toBe(1)
     expect(String(bad[0].got)).toContain('页面里没有这一行')
+  })
+})
+
+/**
+ * 用例数四个参数（2026-10-18 加）
+ *
+ * 为什么加：复现器原先故意不对账两条用例数（跑满套要几分钟，不该塞进秒级闸），
+ * 结果是"委托给跑套件的人"——同一天两次撞上数字变了页面没动（3256→3260→3264）。
+ * 现在跑完套件把四个数递回来，那两行就真进对账。
+ * 关键是**半套数字比没有数字更危险**：只给两个的话，PASS 行会说"7 条都对上了"，
+ * 而其中一条其实没参数。所以缺一个就 rc=2 拒跑。
+ */
+describe('promo-readout 用例数参数 —— 要么全给要么都不给', () => {
+  const SCRIPT = path.join(REPO, 'scripts', 'quality', 'promo-readout.mjs')
+  const run = (args: string[]) => {
+    try {
+      const out = execFileSync(process.execPath, [SCRIPT, ...args], {
+        cwd: REPO,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      return { rc: 0, out }
+    } catch (e) {
+      const err = e as { status?: number; stdout?: string; stderr?: string }
+      return { rc: err.status ?? 1, out: (err.stdout || '') + (err.stderr || '') }
+    }
+  }
+  const ALL = ['--check', '--unit-passed', '3264', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15']
+
+  it('四个都给 ⇒ 那两行纳入对账，PASS 行要说清"含两条用例数"', () => {
+    const { rc, out } = run(ALL)
+    expect(rc, out).toBe(0)
+    expect(out).toContain('含两条用例数')
+    expect(out).toMatch(/宣传页 7 条读数/)
+  })
+
+  it('递一个错的用例数 ⇒ rc=1 且只点名那一条（不是整表红）', () => {
+    const { rc, out } = run(ALL.map((a) => (a === '3264' ? '3200' : a)))
+    expect(rc, out).toBe(1)
+    expect(out).toContain('对不上（1 条）')
+    expect(out).toContain('单元与组件用例')
+    expect(out).not.toContain('端到端用例：')
+  })
+
+  it('只给两个 ⇒ rc=2 拒跑，并点名缺哪几个（半套数字不许换到 PASS）', () => {
+    const { rc, out } = run(['--check', '--unit-passed', '3264', '--unit-skipped', '19'])
+    expect(rc, out).toBe(2)
+    expect(out).toContain('要么全给要么都不给')
+    expect(out).toContain('--e2e-passed')
+    expect(out).toContain('--e2e-skipped')
+    expect(out).not.toContain('PASS')
+  })
+
+  it('参数不是整数 ⇒ rc=2（不许 Number() 把 abc 变成 NaN 后悄悄比出一个"不相等"）', () => {
+    const { rc, out } = run(['--check', '--unit-passed', 'abc', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15'])
+    expect(rc, out).toBe(2)
+    expect(out).toContain('必须是非负整数')
+  })
+
+  it('一个都不给 ⇒ 仍然放行，但必须明说那两条没纳入（不许读成"全对上了"）', () => {
+    const { rc, out } = run(['--check'])
+    expect(rc, out).toBe(0)
+    expect(out).toContain('用例数两条未纳入')
+    expect(out).not.toContain('含两条用例数')
   })
 })
