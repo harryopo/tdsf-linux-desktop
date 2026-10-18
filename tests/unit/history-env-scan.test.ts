@@ -83,11 +83,13 @@ describe('history-env-scan —— 历史值闸的证伪', () => {
     expect(out).not.toContain(IN_HISTORY)
   })
 
-  it('没申报文件 ⇒ 可以放行，但必须大声说"API 口令没核"', () => {
+  it('没申报文件 ⇒ 可以放行，但必须把核对面说清楚（不许读成"密钥也核过了"）', () => {
     const { rc, out } = run(['--values', VALUES, '--anchor', NO_ANCHOR, '--max-revs', '30'])
     expect(rc, out).toBe(0)
     expect(out).toContain('未申报额外密钥')
-    expect(out).toContain('模型 API 口令未申报、未核对')
+    // 说清"模型 API 口令为什么不在面上"：它是结构上不在仓库（SecureStore 加密 + userData），
+    // 不是漏核。旧文案写成"未申报、未核对"，读起来像缺口，害下一轮又去查一遍。
+    expect(out).toContain('结构上不在')
     // 申报数为 0 时，核对键数那行必须把 env/申报 拆开写，别让人以为核过密钥
     expect(out).toMatch(/env 1 \+ 申报 0/)
   })

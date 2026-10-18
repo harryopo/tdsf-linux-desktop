@@ -17,7 +17,8 @@
  *   node scripts/security/history-env-scan.cjs --max-revs <N>   只扫最近 N 个提交树（结论会标注部分扫描）
  *
  * 无 .env.local / 无 git / 未知参数 / 申报文件解析不出值 → 一律 exit 1（fail-closed，不静默放行）。
- * 申报文件不存在是唯一允许的降级，且会打印"API 口令不在核对面内"。
+ * 申报文件不存在是唯一允许的降级，只打一条 ℹ️：模型 API 口令走 SecureStore（safeStorage 加密、
+ * 存在 userData 不在仓库），结构上提交不进来，所以它不属于"本闸漏了"，别为它去造申报文件。
  * 报告只出现文件路径与计数，绝不打印值本身。
  */
 'use strict'
@@ -142,9 +143,11 @@ if (fs.existsSync(anchorPath)) {
   console.log('申报密钥 ' + declared + ' 条纳入核对（来自 ' + path.basename(anchorPath) + '）')
 } else {
   console.log(
-    '⚠️ 未申报额外密钥（' +
+    'ℹ️ 未申报额外密钥（' +
       path.basename(anchorPath) +
-      ' 不存在）：模型 API 口令不在本闸核对面内。要纳入核对，把口令写进该文件（已在 .gitignore 里）'
+      ' 不存在）。模型 API 口令不需要申报：它走 SecureStore（safeStorage 加密，落在 ' +
+      '%APPDATA%/…/secure-storage.json，属 userData 不在仓库里），结构上就提交不进来。' +
+      '本闸的核对面 = .env.local 的值 + 你主动申报的额外值（比如贴在别处的第三方便钥）。'
   )
 }
 
@@ -221,5 +224,10 @@ if (bad) {
 }
 console.log('结论: CLEAN' + scopeNote + ' —— 已核对的 ' + values.length + ' 个凭据值都不在核过的历史里')
 if (!declaredAnchors) {
-  console.log('（覆盖面说明：本次只核对了 env 里的口令，模型 API 口令未申报、未核对）')
+  console.log(
+    '（覆盖面说明：本轮按值核了 env ' +
+      (values.length - declaredAnchors) +
+      ' 条 + 申报 0 条。模型 API 口令不在这张面上——它走 SecureStore（safeStorage 加密、存 userData），' +
+      '仓库里根本没有它，所以是"结构上不在"，不是"漏核了"）'
+  )
 }
