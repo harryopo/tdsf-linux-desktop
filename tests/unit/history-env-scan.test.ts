@@ -58,15 +58,18 @@ afterAll(() => {
 })
 
 describe('history-env-scan —— 历史值闸的证伪', () => {
+  // 这两条也必须显式喂 --values：闸默认从仓库根的 .env.local 取真值，CI 上没有那个文件，
+  // 它按 fail-closed 直接退出 1（"缺少 .env.local，拒绝放行"），根本走不到对照那一步。
+  // 本机永远绿、CI 永远红——2026-10-18 三条 CI 红里的一条就是这么来的。
   it('阳性对照：历史里确实存在的串必须扫得到（扫不到就是闸死了）', () => {
-    const { rc, out } = run(['--control', IN_HISTORY, '--max-revs', '30'])
+    const { rc, out } = run(['--values', VALUES, '--control', IN_HISTORY, '--max-revs', '30'])
     expect(rc, out).toBe(0)
     expect(out).toMatch(/命中 [1-9][0-9]* 处/)
   })
 
   it('对照反向：不存在的串必须让对照失败（防"对照恒过"）', () => {
     const absent = 'zz-' + Math.random().toString(36).slice(2, 12)
-    const { rc, out } = run(['--control', absent, '--max-revs', '30'])
+    const { rc, out } = run(['--values', VALUES, '--control', absent, '--max-revs', '30'])
     expect(rc, out).toBe(1)
     expect(out).toContain('扫描器本身失效')
   })

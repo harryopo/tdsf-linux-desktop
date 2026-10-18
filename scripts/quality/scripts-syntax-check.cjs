@@ -22,9 +22,12 @@ const REPO = path.resolve(__dirname, '../..')
 
 /**
  * 受检文件数下限（只许降不许升的反向判据：少了说明扫描面被什么挡住了）。
- * 2026-10-14 实测 72 个（scripts 下 67 + 仓库根 5）。
+ * 2026-10-18 从 72 改成 53，因为**这个数原先量的是我这台机器的工作树**：
+ * walk() 扫文件系统，把我那些未跟踪的 scratch 探针一起数进去（78 个），
+ * CI 只有跟踪集（53 个）⇒ 从立闸那天起 CI 就一直红，而本地一直绿。
+ * 现在扫描面改成从 `git ls-files` 取，本地与 CI 看到同一份名单，这个数才有意义。
  */
-const MIN_FILES = 72
+const MIN_FILES = 53
 
 const argv = process.argv.slice(2)
 if (argv.length > 0) {
@@ -40,25 +43,37 @@ try {
   process.exit(2)
 }
 
-function walk(dir, acc) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === 'node_modules' || e.name === '.git') continue
-    const p = path.join(dir, e.name)
-    if (e.isDirectory()) walk(p, acc)
-    else if (/\.(cjs|mjs)$/.test(e.name)) acc.push(p)
-  }
-  return acc
+/**
+ * 扫描面 = 跟踪集里的 .cjs/.mjs（scripts/ 下 + 仓库根）。
+ * 用 git 而不是走文件系统：CI 只有跟踪集，本地还有一堆未跟踪探针，
+ * 两边名单不同会让"数量下限"变成一台机器的私有读数。
+ */
+const { spawnSync } = require('node:child_process')
+const tracked = spawnSync('git', ['-c', 'core.quotePath=false', 'ls-files'], {
+  cwd: REPO,
+  encoding: 'utf8',
+})
+if (tracked.status !== 0) {
+  console.error('[scripts-syntax] git ls-files 失败：' + (tracked.stderr || '').trim())
+  process.exit(2)
 }
-
-const files = walk(path.join(REPO, 'scripts'), [])
-for (const e of fs.readdirSync(REPO, { withFileTypes: true })) {
-  if (e.isFile() && /\.(cjs|mjs)$/.test(e.name)) files.push(path.join(REPO, e.name))
-}
+const files = (tracked.stdout || '')
+  .split(/\r?\n/)
+  .filter(Boolean)
+  .filter((rel) => /\.(cjs|mjs)$/.test(rel))
+  .filter((rel) => rel.startsWith('scripts/') || !rel.includes('/'))
+  .map((rel) => path.join(REPO, rel))
+  .filter((abs) => {
+    if (fs.existsSync(abs)) return true
+    // 跟踪集里有、磁盘上没有 = 本地被删了还没提交。跳过就是放行，这里直接判闸坏。
+    console.error(`[scripts-syntax] 跟踪集里的 ${path.relative(REPO, abs)} 在磁盘上不存在`)
+    return false
+  })
 
 if (files.length < MIN_FILES) {
   console.error(
     `[scripts-syntax] 受检文件 ${files.length} 个 < 下限 ${MIN_FILES} —— 扫描面缩了。` +
-      `空清单或被什么目录规则挡住都不算通过，先查 walk 逻辑再谈结果。`
+      `空清单、git 取不到跟踪集、或有人把闸脚本删了都不算通过，先查那份名单再谈结果。`
   )
   process.exit(2)
 }

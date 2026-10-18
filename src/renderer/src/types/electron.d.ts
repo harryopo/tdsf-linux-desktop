@@ -411,15 +411,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
    * 使用场景：AboutSettings 页面"检查更新"按钮
    */
   appCheckUpdate(): Promise<AppUpdateInfo | AppUpdateError>
-  /**
-   * 获取应用真实信息（版本 / 安装路径 / 构建时间 / 构建标识）
-   *
-   * 通道：app:get-info
-   * 使用场景：AboutSettings 页面系统信息展示，替换设计稿示例占位值。
-   *
-   * @returns AppInfo（version 含 v 前缀，buildTime 为 ISO 8601 字符串，buildBadge 为 Build YYYY.MM.DD）
-   */
-  appGetInfo(): Promise<AppInfo>
 
   // ===== v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image） =====
   // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL

@@ -124,7 +124,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
+      # fetch-depth: 0 是必需的，不是保险：`tests/unit/history-env-scan.test.ts` 的两条
+      # 阳性对照要在**全历史**里找被抹掉的凭据串。actions/checkout 默认只取 1 个提交，
+      # 那时"历史里没有"会被闸如实报成"扫描器失效"⇒ 本地绿、CI 红。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -342,11 +347,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Rebuild native modules for Electron
-        # 只重编 better-sqlite3：ssh2 可选依赖 cpu-features 缺 VS 会红，无原生加速时 ssh2 自动回退纯 JS。
-        # 项目内 electron-rebuild@3.6 捆绑 node-gyp@9 无法识别 runner 上的新版 VS，
-        # 改用最新 @electron/rebuild（捆绑 node-gyp@11）；-w 不限制依赖树，必须用 --only。
-        run: npx --yes @electron/rebuild@4 -f --only better-sqlite3
+      - name: Check native modules load from prebuilds
+        # 这一步原先是 `npx @electron/rebuild -f --only better-sqlite3`，从立起那天就一直红：
+        # 它实际用的是项目里的 node-gyp@9，认不出 runner 镜像上的新版 VS
+        # （"Could not find any Visual Studio installation to use"）。
+        # 查下来根本不需要重编：better-sqlite3 v13 与 node-pty 1.1 都发 N-API 预编译，
+        # 同一颗 .node 在 Node 与 Electron 里都能加载（本机 e2e 就是走这条路过的）。
+        # 换成一条能失败的断言——哪天上游不发 prebuild 了，这里当场红并说明要恢复重编。
+        run: node scripts/quality/check-native-prebuild.cjs
 
       - name: Build app
         run: pnpm build

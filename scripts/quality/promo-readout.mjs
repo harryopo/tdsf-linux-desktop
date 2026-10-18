@@ -121,7 +121,8 @@ export function measure() {
   return { srcFiles, contract, rules, ipc }
 }
 
-const TABLE_ROWS = (m) => [
+/** 导出的唯一理由：测试要用同一份标签表造夹具页，抄一份标签就会和这里漂开 */
+export const TABLE_ROWS = (m) => [
   ['IPC 通道', m.ipc.total],
   ['已登记契约的通道', m.contract.total],
   ['TypeScript / TSX 源文件', m.srcFiles],

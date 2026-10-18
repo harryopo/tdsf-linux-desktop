@@ -43,7 +43,15 @@ if (!repo) {
 }
 
 function trackedFiles() {
-  const r = spawnSync('git', ['ls-files'], { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 })
+  // `-c core.quotePath=false` 不是可选的：git 默认把非 ASCII 路径转成八进制转义
+  // （"docs/…/\351\241\271…"），本机因为全局配了 quotePath=false 才看不出来。
+  // CI 没有这条全局配置 ⇒ 那份中文文件名的文档既进不了跟踪集、也读不到内容，
+  // 当场表现是"本地扫 41 份 0 断链、CI 扫 40 份报 1 处死链"。
+  const r = spawnSync(
+    'git',
+    ['-c', 'core.quotePath=false', 'ls-files'],
+    { cwd: repo, encoding: 'utf8', maxBuffer: 64 << 20 }
+  )
   if (r.status !== 0) {
     console.error('git ls-files 失败：' + (r.stderr || '').trim())
     process.exit(2)

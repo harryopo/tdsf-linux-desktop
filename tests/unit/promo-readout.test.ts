@@ -9,9 +9,10 @@
  *   3. 页面少了某一行 ⇒ 判"没比上"，不能因为"没取到所以没差异"而放行；
  *   4. 页面某个数字被改错 ⇒ 点名那一条，且只点名那一条。
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as os from 'node:os'
 import * as path from 'node:path'
 
 const MODULE_SPEC = '../../scripts/quality/promo-readout.mjs'
@@ -22,6 +23,8 @@ type Readouts = {
   parseIpcAudit: (text: string) => { request: number; event: number; total: number }
   parsePromoReadouts: (html: string) => Record<string, number | null>
   diffReadouts: (page: Record<string, number | null>, measured: Array<[string, number]>) => Array<{ label: string; got: unknown; want: number }>
+  measure: () => unknown
+  TABLE_ROWS: (m: unknown) => Array<[string, number]>
 }
 
 async function mod(): Promise<Readouts> {
@@ -149,17 +152,64 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
       return { rc: err.status ?? 1, out: (err.stdout || '') + (err.stderr || '') }
     }
   }
-  const ALL = ['--check', '--unit-passed', '3264', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15']
+
+  /**
+   * 夹具页写在系统临时目录，**不读仓库旁边那份 harryopo.github.io 检出**。
+   * 2026-10-18 CI 三条红就是踩在这里：默认路径指向仓库外的兄弟目录，
+   * 本机有那份检出所以绿，CI 上没有 ⇒ 闸报"宣传页不在"，测试把闸的失败读成断言失败。
+   * 五行基础读数取自 measure() 本身（不是手抄），所以源文件数这类会随提交变的数不会让本用例假红；
+   * 标签表用模块导出的 TABLE_ROWS，测试与脚本不可能漂开。
+   */
+  let tmpDir = ''
+  let baseRows: Array<[string, number]> = []
+  const COUNT_ROWS: Array<[string, number]> = [
+    ['单元与组件用例', 3264],
+    ['端到端用例', 57],
+  ]
+
+  beforeAll(async () => {
+    const m = await mod()
+    baseRows = m.TABLE_ROWS(m.measure())
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promo-fixture-'))
+  })
+  afterAll(() => {
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  /** 生成一张与真页同形的表；counts=false 时不写那两行用例数 */
+  function fixture(name: string, counts: boolean): string {
+    const rows = counts ? [...baseRows, ...COUNT_ROWS] : baseRows
+    const html =
+      '<table><tbody>' +
+      rows.map(([label, v]) => `<tr><td class="k">${label}</td><td class="v">${v} 通过</td></tr>`).join('\n') +
+      '</tbody></table>'
+    const p = path.join(tmpDir, name + '.html')
+    fs.writeFileSync(p, html, 'utf8')
+    return p
+  }
+
+  const COUNT_ARGS = ['--unit-passed', '3264', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15']
 
   it('四个都给 ⇒ 那两行纳入对账，PASS 行要说清"含两条用例数"', () => {
-    const { rc, out } = run(ALL)
+    const { rc, out } = run(['--check', fixture('all-four', true), ...COUNT_ARGS])
     expect(rc, out).toBe(0)
     expect(out).toContain('含两条用例数')
     expect(out).toMatch(/宣传页 7 条读数/)
   })
 
   it('递一个错的用例数 ⇒ rc=1 且只点名那一条（不是整表红）', () => {
-    const { rc, out } = run(ALL.map((a) => (a === '3264' ? '3200' : a)))
+    const { rc, out } = run([
+      '--check',
+      fixture('wrong-unit', true),
+      '--unit-passed',
+      '3200',
+      '--unit-skipped',
+      '19',
+      '--e2e-passed',
+      '57',
+      '--e2e-skipped',
+      '15',
+    ])
     expect(rc, out).toBe(1)
     expect(out).toContain('对不上（1 条）')
     expect(out).toContain('单元与组件用例')
@@ -176,15 +226,31 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   })
 
   it('参数不是整数 ⇒ rc=2（不许 Number() 把 abc 变成 NaN 后悄悄比出一个"不相等"）', () => {
-    const { rc, out } = run(['--check', '--unit-passed', 'abc', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15'])
+    const { rc, out } = run([
+      '--check',
+      '--unit-passed',
+      'abc',
+      '--unit-skipped',
+      '19',
+      '--e2e-passed',
+      '57',
+      '--e2e-skipped',
+      '15',
+    ])
     expect(rc, out).toBe(2)
     expect(out).toContain('必须是非负整数')
   })
 
   it('一个都不给 ⇒ 仍然放行，但必须明说那两条没纳入（不许读成"全对上了"）', () => {
-    const { rc, out } = run(['--check'])
+    const { rc, out } = run(['--check', fixture('no-counts', false)])
     expect(rc, out).toBe(0)
     expect(out).toContain('用例数两条未纳入')
     expect(out).not.toContain('含两条用例数')
+  })
+
+  it('页面确实不在 ⇒ 报"宣传页不在"并红，不许当成通过（找不到可比的东西就是失败）', () => {
+    const { rc, out } = run(['--check', path.join(tmpDir, 'does-not-exist.html')])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('宣传页不在')
   })
 })

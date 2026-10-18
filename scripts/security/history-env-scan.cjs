@@ -152,7 +152,9 @@ if (fs.existsSync(anchorPath)) {
 }
 
 function git(args) {
-  const r = spawnSync('git', args, { cwd: repo, encoding: 'utf8' })
+  // quotePath=false：CI / 别人的机器上没这条全局配置时，git 会把非 ASCII 路径转义成八进制，
+  // 报告里点名的文件路径就没法直接打开（本机看不出来）。
+  const r = spawnSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: repo, encoding: 'utf8' })
   if (r.error || r.status === undefined) {
     console.error('git ' + args[0] + ' 启动失败：' + (r.error ? r.error.message : ''))
     process.exit(1)

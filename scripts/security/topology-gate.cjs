@@ -160,7 +160,9 @@ function parseArgs(argv) {
 }
 
 function runGit(args) {
-  const r = spawnSync('git', args, { encoding: 'utf8' })
+  // quotePath=false：非 ASCII 路径默认会被 git 转义成八进制，CI 上跟踪集与 grep 输出
+  // 都会拿到转义名（本机全局配了 quotePath=false 所以看不见这个差）。
+  const r = spawnSync('git', ['-c', 'core.quotePath=false', ...args], { encoding: 'utf8' })
   if (r.error || r.status === undefined) {
     fail('git ' + args[0] + ' 启动失败：' + (r.error ? r.error.message : '未知'))
   }
@@ -189,7 +191,10 @@ const DOCS_SPEC = ['--', '*.md', 'docs']
  * 不带版本号＝扫工作树，所以"这次就要提交的新文档"当场算数，不会拖到下一次红。
  */
 function countInDocs(repo, val) {
-  const r = spawnSync('git', ['grep', '-c', '-F', val, ...DOCS_SPEC], { cwd: repo, encoding: 'utf8' })
+  const r = spawnSync('git', ['-c', 'core.quotePath=false', 'grep', '-c', '-F', val, ...DOCS_SPEC], {
+    cwd: repo,
+    encoding: 'utf8',
+  })
   if (r.error) fail('git grep 启动失败：' + r.error.message)
   // 1 = 没命中，这是合法结果不是错误；其它非 0 才是真失败
   if (r.status !== 0 && r.status !== 1) {

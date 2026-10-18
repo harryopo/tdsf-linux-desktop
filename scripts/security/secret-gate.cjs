@@ -78,8 +78,13 @@ const SKIP_PATH_RE =
   /(^|\/)(\.env\.example|pnpm-lock\.yaml|package-lock\.json|node_modules\/)|(^|\/)redact\.ts$|secret-gate\.cjs$/;
 
 function listFiles() {
+  // quotePath=false：git 默认把非 ASCII 路径转义成八进制，CI（没有本机那条全局配置）
+  // 拿到的就是 "docs/…/\351\241\271…"，这份文件既读不到内容也 `git show` 不出来 ⇒ 静默漏扫。
   const run = (args) =>
-    execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+    execFileSync('git', ['-c', 'core.quotePath=false', ...args], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
       .split(/\r?\n/)
       .filter(Boolean);
   if (mode === 'all') return run(['ls-files']);
