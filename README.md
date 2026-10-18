@@ -1,278 +1,175 @@
 # TDSF-Linux Desktop
 
-> **面向 Linux 运维的人机协同可信决策桌面助手** —— SSH 终端 + AI 辅助 + 高危命令拦截 + 日志分析
+> 连上服务器敢敲下一条命令 —— SSH 终端 + AI 辅助 + 高危命令拦截 + 决策可信度透明化的桌面工具。
 
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-orange.svg)](package.json)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.4+-3178c6.svg)](https://www.typescriptlang.org/)
-[![Electron](https://img.shields.io/badge/Electron-30-47848F.svg)](https://www.electronjs.org/)
-[![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![火山杯 2026](https://img.shields.io/badge/火%E5%B2%A9%E6%9D%AF-2026-ff6b35.svg)](#火山杯参赛作品)
+[![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Electron](https://img.shields.io/badge/Electron-43.5.1-47848F.svg)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-19.3-61dafb.svg)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178c6.svg)](https://www.typescriptlang.org/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[English](#english) | [简体中文](#简体中文)
+在线预览：<https://harryopo.github.io/tdsf-linux-desktop/>
 
 ---
 
-## 简体中文
+## 它解决什么
 
-### 项目简介
+Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不知道这条命令敲下去会怎样**。
+`rm -rf` 和 `df -h` 看起来一样长。
 
-TDSF-Linux Desktop 是一款 **面向 Linux 运维学习者与初学者的桌面工具**，通过 AI 辅助 + 高危命令拦截 + 可信度透明化的方式，让 Linux 终端不再是"高门槛"的代名词。
+这个工具在三个地方拦一道：
 
-**核心场景**：学生/新人连上服务器执行命令时，AI 在旁边实时解释、提醒、拦截高危操作，所有决策都附上论文支撑的可信度评估。
+1. **执行前**——命令先过风险闸，高危的直接挡下来，说清楚挡的是什么、会坏在哪、怎么回滚。
+2. **执行时**——AI 在旁边解释，但它的每句话都带一个可信度分数和分数怎么来的。
+3. **执行后**——所有决策进历史，能翻回去看当初为什么放行。
 
-### 界面预览
+## 界面
 
-> 📸 真实截图（含中文界面 + 暗色主题），未经任何美化
+![工作台：左终端右 AI 面板](docs/assets/shot-workbench.png)
 
-| 页面 | 预览 | 描述 |
-|------|------|------|
-| **主页 + SSH 终端** | ![Home](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/01-home-terminal.png) | 左侧 SSH 终端 + 右侧 AI 对话面板 |
-| **主页 + 监控** | ![Monitor](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/02-home-monitor.png) | 系统资源实时监控 |
-| **设置 → 外观** | ![Appearance](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/03-settings-appearance.png) | 主题/字体/暗色模式 |
-| **设置 → LLM** | ![LLM](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/04-settings-llm.png) | AI Provider 配置 |
-| **设置 → 高危命令** | ![Risk](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/06-settings-risk.png) | 黑名单 + 三态审批 |
-| **历史决策** | ![History](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/07-history.png) | 所有 AI 决策可追溯 |
-| **知识库** | ![Knowledge](https://raw.githubusercontent.com/harryopo/tdsf-linux-desktop/master/tests/e2e/screenshots-acceptance/08-knowledge-command.png) | 教程词库 + 事件沉淀 |
+*左：SSH 终端（命令-输出按块切分）；右：AI 面板，工具调用逐条成卡。*
 
-更多截图见 [tests/e2e/screenshots-acceptance/](tests/e2e/screenshots-acceptance/)
+![知识库](docs/assets/shot-knowledge.png)
 
-### 核心特性
+*命令知识库：词条 + 事件沉淀 + 每条的综合置信度。*
 
-#### 🔐 SSH 终端 + 高危命令拦截
-- 基于 `ssh2` 的完整 SSH 客户端 + `xterm.js` 终端模拟
-- 内置 **12 条高危命令黑名单**（`rm -rf /`、磁盘格式化、修改 `passwd` 等）
-- 三态权限审批：ALWAYS / AUTO / NEVER（参考 AgentScope Permission）
-- 每次拦截都给出建议的回滚方案
+暗色/浅色两套主题都是可用的（浅色由 `ui-audit` 逐元素量过对比度，不是"能看"）。
 
-#### 🤖 AI 辅助问答
-- 多 Provider 支持：Anthropic Claude / Google Gemini / OpenAI / 火山方舟
-- 14 步 Task Protocol 任务编排 + 25+ MCP 工具
-- Supervisor + 1-2 Subagent（标准）/ 8 Subagent 并行（深度）
-- **CoT-shape 可信度评估**（基于 Zhao 2026 论文）+ 熵轨迹 SVG 可视化
+## 功能
 
-#### 📊 可信度透明化（D-S 证据理论 + PCR5 融合）
-- 6 源证据权重可视化：规则匹配 / 知识库 / 历史 / CoT / LLM 自评 / 用户偏好
-- D-S + PCR5 冲突融合算法（论文支撑：Smarandache 2006）
-- 每个 AI 决策都展示 6 源证据权重 + 融合公式
+### 命令风险闸
 
-#### 📚 内置教程词库（v1.2.0）
-- **2236 词条**（v1.1.0 → v1.2.0 升级）
-- 数据源：jaywcjlove/linux-command（MIT）+ tldr-pages（CC BY 4.0）+ 人工标注
-- 8 爬虫源教程聚合（鸟哥 / 阮一峰 / Linux 中国等）
+不是关键字黑名单那种一查就绕过的东西。判定分三层：
 
-#### 🔌 IDE 工作台（SFTP 文件管理）
-- 基于 `react-arborist` 的文件树
-- Monaco Editor（VS Code 同源体验）
-- 双击编辑 + Ctrl+S 保存 + SFTP 同步
+| 层 | 数量 | 例子 |
+|---|---|---|
+| 结构性拦截器 | 8 | fork 炸弹、`rm -rf /`、`dd` 写块设备、重定向覆写磁盘、根级 `chmod/chown` |
+| argv 规则 | 7 | 按参数结构判，`find / -delete` 和 `find . -name x -delete` 不是一回事 |
+| 词表项 | 226 | 受保护根级路径 15、只读命令 38（+48 扩展）、拒绝动词 62、前缀跳过 3 |
 
-#### 🛡️ 安全合规
-- IPC 三原则：`contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`
-- 敏感数据 redact（.env / .ssh / *_key 发送前自动脱敏）
-- OpenTelemetry 集成（Langfuse 追踪，DEV 自动降级）
-- 所有网络请求 UI 可见（防 Grok Build 式静默上传）
+结构性那 8 条**故意不放进数据文件**——它们靠正则和参数结构判断，写成可配数据只会让人误以为能把级别往下调。
+判据的实测口径写在 [CODING.md](CODING.md) 与 `tests/unit/` 里那批命令闸用例。
 
-### 快速开始
+### AI 辅助
 
-#### 系统要求
-- Windows 10+ / macOS 12+ / Linux（Ubuntu 20.04+）
-- Node.js 20+
-- pnpm 9+（推荐） 或 npm 10+
+- 多 Provider：OpenAI / Anthropic Claude / Google Gemini / DeepSeek / 智谱 / Moonshot / Ollama 本地。
+- 流式：增量合并、思考链占位、迟到事件不丢、可中途停止（停止和失败分开报，不混成一个红条）。
+- 上下文窗口按各家真实上限算，超了如实截断并标注，不假装塞得下。
+- MCP 工具接入（`@modelcontextprotocol/sdk`），工具执行在前端逐条成卡。
+- 所有网络请求界面可见——不给"静默把终端内容传走"留口子。
 
-#### 安装
+### 决策可信度
+
+每个 AI 判断都拆成多源证据（规则匹配 / 知识库 / 历史成功率 / LLM 自评 / 观测数据 / 用户偏好），
+在雷达图上画出各源权重与融合结果。**分数低就明说分数低**，不包装成"仅供参考"。
+
+D-S 证据理论与 PCR5 冲突融合的完整实现在 `src/main/core/credibility/`，
+生产链路当前走的是折扣后的简化融合——这条边界写在下面的"已知边界"里，不藏。
+
+### 终端与文件
+
+- `ssh2` + `@xterm/xterm`；命令-输出块由 OSC 133/633 序列切分，切分逻辑是纯函数、可单测。
+- 远端 shell 集成逐台确认后写入，随时可撤（撤完 rc 文件字节回到原样）。
+- SFTP 文件树 + Monaco 编辑器，双击编辑、Ctrl+S 同步回远端。
+- 本机终端走 node-pty，落在 utilityProcess，不污染主进程。
+
+### 知识库
+
+2236 条（命令 1898 / 术语 65 / 选项 248 / 报错 25），
+来源 `jaywcjlove/linux-command`(MIT) 835 条 + `tldr-pages`(CC BY 4.0) 1481 条 + 人工标注 118 条。
+本机反馈会真的改变条目的成功率——不是只写不读的字段。
+
+## 快速开始
 
 ```bash
-# 1. 克隆仓库
 git clone https://github.com/harryopo/tdsf-linux-desktop.git
 cd tdsf-linux-desktop
-
-# 2. 安装依赖（推荐 pnpm）
 pnpm install
-
-# 3. 启动开发模式
 pnpm dev
 ```
 
-#### 构建打包
+需要 Node.js 20+、pnpm 9+。模型 API Key 在 设置 → 模型配置 里填，不填也能跑（AI 走可见的失败态，不白屏）。
 
-```bash
-# Windows 打包（生成 .exe 安装包）
-pnpm build:win
+打包：`pnpm build:win` / `build:mac` / `build:linux`（electron-builder 26）。
 
-# macOS 打包
-pnpm build:mac
+## 质量与验证
 
-# Linux 打包
-pnpm build:linux
-```
+页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
 
-#### 一键命令清单
+| 读数 | 值 | 怎么量的 |
+|---|---|---|
+| 单元与组件用例 | 3260 通过 / 19 跳过 | `npm test`（269 个测试文件） |
+| 端到端用例 | 57 通过 / 15 跳过 | `npx playwright test`（直驱真实应用窗口） |
+| IPC 通道 | 272 | `npm run audit:ipc`（232 请求-响应 + 40 事件推送） |
+| 已登记契约的通道 | 35 | `src/shared/ipc-contract.ts`（30 invoke + 5 event） |
+| TypeScript 源文件 | 508 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 
-| 命令 | 作用 |
-|------|------|
-| `pnpm dev` | 启动 Electron 开发模式（Vite HMR） |
-| `pnpm typecheck:node` | 主进程 TypeScript 类型检查 |
-| `pnpm typecheck:web` | 渲染进程 TypeScript 类型检查 |
-| `pnpm lint` | ESLint 检查 |
-| `pnpm test` | 单元测试（Vitest，1292+ 用例） |
-| `pnpm test:e2e` | E2E 测试（Playwright） |
-| `pnpm deadcode` | 死代码扫描（knip） |
-| `pnpm build:win` | Windows 打包（生成 .exe） |
-
-### 技术栈
-
-| 类别 | 选型 | 理由 |
-|------|------|------|
-| **桌面框架** | Electron 30 | 跨平台 + 生态成熟 |
-| **前端框架** | React 18 + TypeScript strict | 类型安全 + HMR |
-| **UI 库** | Ant Design 5 | 中文友好 + 组件全 |
-| **状态管理** | Zustand | 轻量 + 无 boilerplate |
-| **终端** | xterm.js + ssh2 | 业界标准 |
-| **代码编辑** | Monaco Editor | VS Code 同源 |
-| **AI SDK** | Vercel AI SDK + Anthropic SDK | 多 Provider 抽象 |
-| **MCP 协议** | @modelcontextprotocol/sdk | 工具调用标准化 |
-| **数据持久化** | Dexie（IndexedDB） | 离线事件流 |
-| **可观测性** | Langfuse（OpenTelemetry） | 决策可追踪 |
-| **可信度算法** | D-S 证据理论 + PCR5 融合 | 论文支撑 |
-| **测试** | Vitest + Playwright | 现代测试栈 |
-
-### 架构图
+门禁链（每一道都是能跑红的闸，不是提醒）：
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                  Electron 30 (Chromium + Node)         │
-├─────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │   主进程     │  │   Preload    │  │  渲染进程     │   │
-│  │  (main/)    │  │  (preload/)  │  │ (renderer/)  │   │
-│  │             │  │              │  │              │   │
-│  │ • SSH2      │  │ contextBridge│  │ • React 18   │   │
-│  │ • LLM       │  │ 安全桥接     │  │ • Antd 5     │   │
-│  │ • SQLite    │  │              │  │ • Zustand    │   │
-│  │ • Skills    │  │              │  │ • xterm.js   │   │
-│  │ • MCP       │  │              │  │ • Monaco     │   │
-│  │ • Credibility│ │              │  │              │   │
-│  └─────────────┘  └──────────────┘  └──────────────┘   │
-│         │                                  │           │
-│         │  IPC 4 步同步                     │           │
-│         │  (主→ipc→preload→types)          │           │
-└─────────┼──────────────────────────────────┼───────────┘
-          │                                  │
-          ▼                                  ▼
-   ┌─────────────┐                    ┌─────────────┐
-   │ Sidecar     │                    │  LLM        │
-   │ (Python)    │                    │  Provider   │
-   │ SRE/Analyst │                    │ Claude/GPT/ │
-   │ /Agent      │                    │ Gemini/Doubao│
-   └─────────────┘                    └─────────────┘
+lint · typecheck · tests 类型检查 · vitest · knip 死代码 ·
+design:gate · ui-audit · ipc:check · build · playwright
 ```
 
-### 项目结构
+安全侧常驻闸：`secret-gate`（凭据形状，扫跟踪集与暂存区）、
+`topology-gate`（内网拓扑值，按值 + 按 /24 网段）、`history-env-scan`（全历史按值回归，pre-push 跑）、
+`doc-links`（文档断链）。每条都配了阳性对照——报 0 命中之前先证明这把尺子扫得到东西。
+
+## 架构
+
+![三进程架构](docs/assets/architecture.svg)
 
 ```
-tdsf-linux-desktop/
-├── src/
-│   ├── main/                 # 主进程（Node.js）
-│   │   ├── core/
-│   │   │   ├── agent/        # Agent 核心（Task Protocol / Credibility）
-│   │   │   ├── knowledge/    # 知识库 + 词库
-│   │   │   └── llm/          # LLM Provider 抽象
-│   │   ├── ipc/              # IPC 4 步同步
-│   │   └── services/         # 业务服务（SSH / SFTP / Skills / MCP）
-│   ├── preload/              # contextBridge 安全桥接
-│   ├── renderer/             # 渲染进程（React 18）
-│   │   └── src/
-│   │       ├── components/   # UI 组件
-│   │       ├── pages/        # 页面（Workbench / Decision / History / Knowledge / Tutorial / Settings）
-│   │       ├── stores/       # Zustand 状态
-│   │       └── styles/       # CSS Token
-│   └── shared/               # 跨进程共享类型 + 算法
-├── tests/                    # Vitest + Playwright
-├── docs/                     # 设计文档 + 调研报告
-└── scripts/                  # 工具脚本（dict-import / hooks / handoff）
+主进程  src/main/       Node.js：ssh2 / LLM / SQLite / 风险闸 / 可信度 / MCP / 技能
+预加载  src/preload/    contextBridge 按域拆分，入参走 zod 契约判定
+渲染层  src/renderer/   React 19 + Zustand 5 + lucide，沙箱隔离
+共享    src/shared/     跨进程类型与算法的单源（IPC 通道名、可信度表、boot 载荷）
 ```
 
-### 路线图
+Electron 安全三原则全部为硬约束：`contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`，
+由 `design-contract` 与启动期断言钉住，不是靠自觉。
 
-- ✅ **v1.0** (2026-07-30)：比赛交付 — SSH + AI + 高危拦截 + 词库 + 可信度
-- 🚧 **v1.5** (Q4 2026)：Firecracker microVM 沙箱 + OpenTelemetry 全量
-- 📋 **v2.0** (2027 Q1)：code-server / Theia IDE 嵌入 + WASM 沙箱备选
-- 📋 **v3.0** (2027 Q2)：LoRA 微调 Shell 命令模型 + 多 Agent 协作
+凭据不进任何文本通道：SSH 口令与 API Key 走 `safeStorage`（Windows DPAPI）加密落盘，
+存在系统用户目录而不是仓库里；发往 LLM 的上下文按递归规则逐层打码。
 
-详细路线见 [ROADMAP.md](ROADMAP.md)。
+## 已知边界（说清楚，不含糊）
 
-### 贡献
+这些是**当前状态**，不是待办清单的修辞：
 
-欢迎贡献代码 / 文档 / Bug 报告 / 功能建议！
+- **D-S / PCR5 完整融合在生产链路降级为简化规则**。完整实现与测试都在，但线上走的是折扣后的先验融合。
+  恢复完整融合需要重新定标，不是打开一个开关。
+- **14 步 Task Protocol 与 LangGraph 编排有代码、有测试，但生产链路零调用**。
+  它们是早期交付的产物，删或接都还没定。
+- **Python 侧车（Drain3 日志模板挖掘）需要本机 venv**，缺依赖时整条日志聚类走降级，界面会显示降级原因。
+- **Langfuse 追踪没有 Key 时自动关闭**，不会静默上报。
+- **安装包不随仓库发布**；`pnpm build:win` 只在本机验证过 Windows。
+- 端到端有 15 条按环境跳过：需要真 Linux 靶机、真模型 Key 或第二台机器的用例。
 
-- 📖 阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解流程
-- 🐛 提交 Bug：[Issue Tracker](https://github.com/harryopo/tdsf-linux-desktop/issues/new?template=bug_report.md)
-- 💡 提出想法：[Feature Request](https://github.com/harryopo/tdsf-linux-desktop/issues/new?template=feature_request.md)
-- 💬 加入讨论：[GitHub Discussions](https://github.com/harryopo/tdsf-linux-desktop/discussions)
+## 贡献
 
-### 安全披露
+先看 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CODING.md](CODING.md)。
+改 `src/renderer/**` 之前必读 [DESIGN.md](DESIGN.md)（界面规范唯一权威）。
 
-发现安全漏洞？请阅读 [SECURITY.md](SECURITY.md) 私密披露，**不要**在 Issue 中公开。
+发现安全问题请走 [SECURITY.md](SECURITY.md) 私密披露，不要在 Issue 里公开。
 
-### 行为准则
+## 许可证
 
-本项目采用 [Contributor Covenant 2.1](CODE_OF_CONDUCT.md) 行为准则，参与即视为同意。
-
-### 许可证
-
-[MIT License](LICENSE) — 商业使用、修改、分发、私用均允许。
-
-### 致谢
-
-本项目站在开源巨人肩膀上，详见 [NOTICE.md](NOTICE.md) 中的第三方依赖致谢。
-
-### 火山杯参赛作品
-
-本项目参加 **2026 火山杯**比赛（截止 2026-07-30），作品主题：教育科技 — 让 Linux 运维学习门槛降到零。
+[MIT](LICENSE) · 第三方依赖致谢见 [NOTICE](NOTICE)
 
 ---
 
 ## English
 
-### Introduction
+TDSF-Linux Desktop is an Electron desktop tool that makes the first SSH session survivable:
+a three-layer command risk gate (8 structural detectors, 7 argv rules, 226 vocabulary entries),
+AI assistance whose every answer carries an explicit credibility score with the evidence behind it,
+and a full audit trail of what was allowed and why.
 
-TDSF-Linux Desktop is a **human-machine collaborative trusted-decision desktop assistant for Linux operations** — SSH terminal + AI assistance + high-risk command interception + log analysis.
+Electron 43 · React 19 · Zustand 5 · ssh2 · xterm.js · Monaco · Vercel AI SDK · MCP · better-sqlite3 ·
+D-S evidence theory + PCR5 fusion · Vitest + Playwright.
 
-**Core scenario**: When students/beginners connect to a server and execute commands, AI sits beside them to explain, warn, and intercept dangerous operations in real-time. Every AI decision is backed by paper-supported credibility assessment.
+3260 unit/component tests and 57 end-to-end tests driving the real app window.
+See [Quick start](#快速开始) and the [known boundaries](#已知边界说清楚不含糊).
 
-### Key Features
-
-- **SSH Terminal + High-Risk Command Interception** — `ssh2` + `xterm.js` + 12 blacklist rules + 3-state permission approval
-- **AI Assistant** — Multi-provider (Claude / Gemini / OpenAI / Doubao) + 14-step Task Protocol + 25+ MCP tools
-- **Credibility Transparency** — D-S evidence theory + PCR5 fusion + 6-source evidence weights visualization
-- **Built-in Tutorial Dictionary v1.2.0** — 2236 entries from jaywcjlove + tldr-pages + manual
-- **SFTP File Management** — `react-arborist` tree + Monaco Editor + sync
-- **Security & Compliance** — IPC 3 principles + sensitive data redaction + OpenTelemetry + visible network requests
-
-### Quick Start
-
-```bash
-git clone https://github.com/harryopo/tdsf-linux-desktop.git
-cd tdsf-linux-desktop
-pnpm install
-pnpm dev
-```
-
-### Tech Stack
-
-Electron 30 · React 18 · TypeScript strict · Antd 5 · Zustand · ssh2 · xterm.js · Vercel AI SDK · MCP · Dexie · Langfuse · D-S + PCR5 · Vitest · Playwright
-
-### License
-
-[MIT](LICENSE)
-
-### Volcano Cup 2026 Submission
-
-This project is submitted to **2026 Volcano Cup** (deadline 2026-07-30), theme: Educational Technology — Lower the Linux operations learning barrier to zero.
-
----
-
-⭐ If this project helps you, please **Star** it on GitHub!  
-👀 [Watch](https://github.com/harryopo/tdsf-linux-desktop/watchers) for updates.  
-🍴 [Fork](https://github.com/harryopo/tdsf-linux-desktop/forks) to start your own.
+MIT licensed.

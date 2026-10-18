@@ -35,6 +35,7 @@
     "deadcode:strict": "knip",
     "deadcode:gate": "node scripts/quality/deadcode-gate.cjs",
     "promo:check": "node scripts/quality/promo-readout.mjs --check",
+    "doc:links": "node scripts/quality/doc-links.cjs",
     "build:win": "pnpm build && electron-builder --win",
     "build:mac": "pnpm build && electron-builder --mac",
     "build:linux": "pnpm build && electron-builder --linux",

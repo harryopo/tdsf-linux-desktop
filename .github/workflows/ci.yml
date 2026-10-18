@@ -273,6 +273,28 @@ jobs:
       - name: Knip ratchet gate
         run: pnpm deadcode:gate
 
+  # ===== 文档断链 =====
+  # 为什么单独一道：仓库公开前搬走过一批内部文档，当场量出 62 处链接指向已不存在的文件
+  # （docs/INDEX.md 一份就 35 处）。这类断链不是写错，是"搬完没人回头对链接"——
+  # 每次调整文档归属都会重演，而公开仓的首页指着 404 是门面事故。所以钉成闸，不靠下次记得。
+  # 不需要装依赖：只读 git 跟踪集与磁盘上的 markdown。
+  doc-links:
+    name: Doc link integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 自检（量具自己是死的还是活的）
+        run: node scripts/quality/doc-links.cjs --self-test
+
+      - name: 扫全部已入库 markdown 的相对链接
+        run: node scripts/quality/doc-links.cjs
+
   # ===== 依赖漏洞（按公告号逐条认账）=====
   # 判据不是"漏洞总数上限"：公告库每天变，红的是没改代码的人，最后只会教人绕闸。
   # 这里只在"出现基线外的新 high/critical"时红；已知 42 条登记在 deps-audit-accepted.json，

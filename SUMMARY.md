@@ -398,28 +398,26 @@ grep -n "tutorialBackfillStart\|onTutorialBackfillProgress" src/renderer/src/typ
 
 > 完整索引见 [docs/INDEX.md](docs/INDEX.md)
 
-### 10.1 必读文档（5 份）
+### 10.1 必读文档
 
-1. [docs/INDEX.md](docs/INDEX.md) — 项目文档总索引
-2. [docs/handoff/AI_HANDOVER_PROMPT.md](docs/handoff/AI_HANDOVER_PROMPT.md) v2.0 — 接手 AI 第一条消息
-3. [docs/handoff/HANDOVER.md](docs/handoff/HANDOVER.md) — 统一入口
-4. [../TDSF高质量做大方案-终稿.md](../TDSF高质量做大方案-终稿.md) — 核心交付物
-5. [../官方建议与项目实际对比分析.md](../官方建议与项目实际对比分析.md) — 35 项 Gap 分析
+1. [docs/INDEX.md](docs/INDEX.md) — 在跑的文档全在这里
+2. [DESIGN.md](DESIGN.md) — 界面规范唯一权威
+3. [PRODUCT.md](PRODUCT.md) — 产品定位与反例清单
 
-### 10.2 项目规范（4 份）
+> 2026-10-18 仓库公开时收口：交接文档、内部审查报告、比赛方案与 Gap 分析已不入库，
+> 所以这里不再列它们。历史版本里如果有这些链接，那是断的。
 
-1. [CLAUDE.md](CLAUDE.md) — 子项目入口（建议替换为终稿 §1）
-2. [CODING.md](CODING.md) — 编码规范（建议按终稿 §2 调整）
-3. [AGENTS.md](AGENTS.md) — Agent 工作指南 v10.0
-4. [docs/技术栈教程注意事项-v1.0.md](docs/技术栈教程注意事项-v1.0.md) — 技术栈教程
+### 10.2 项目规范
 
-### 10.3 交接文档（10 份）
+1. [CLAUDE.md](CLAUDE.md) — AI 入口指引
+2. [CODING.md](CODING.md) — 编码规范
+3. [AGENTS.md](AGENTS.md) — Agent 工作指南与文件所有权
 
-详见 [docs/handoff/README.md](docs/handoff/README.md)
+### 10.3 贡献与发布
 
-### 10.4 最新调研报告（6 份）
-
-详见 [docs/INDEX.md §4](docs/INDEX.md)
+1. [CONTRIBUTING.md](CONTRIBUTING.md) — 流程与门禁
+2. [SECURITY.md](SECURITY.md) — 漏洞私密披露
+3. [RELEASE.md](RELEASE.md) — 发布流程
 
 ---
 

@@ -46,7 +46,11 @@ _legacy-python/.ruff_cache/
 
 # scripts/ 编译产物（tsx 跑出的 .cjs 不入库）
 scripts/.cjs/
-scripts/*.cjs
+# 这里曾经还写过一行 `scripts/*.cjs`，把 15 个【手写工具】一起吞了
+# （run-script.cjs 是 .ts→.cjs 的编译入口，被 run-verify-*.cjs 调用；它们一直靠"已跟踪"活着，
+# 一旦照 ignore 名单批量取消跟踪就把构建工具拆了）。scratch 改成按名字点：
+/scripts/test-split.cjs
+/scripts/test-split2.cjs
 
 # electron-vite 临时配置（dev 模式下动态生成）
 electron.vite.config.*.mjs
@@ -95,3 +99,57 @@ tests/e2e/visual.spec.ts-snapshots/
 # design-contract 的"改错文档数字"判据临时改 DESIGN.md 时落的字节备份（正常跑完即删；
 # 留着就说明那一轮在改动与还原之间被中途杀掉过，下一轮开跑会还原并当场报红）
 /DESIGN.md.tdsf-test-bak
+
+# ── 公开仓收口（2026-10-18）：内部向文档与本机产物不入库 ──────────────────
+# 理由：仓库要公开。这些是给自己人看的审查报告、交接文档、比赛材料与故障复盘，
+#       里面写着未做取舍、待拍板项与本实验室网段。本地全部保留（只取消跟踪，没删文件）。
+# 必须同时写规则：Tailwind v4 的内容源＝"git 看得见的文件"，
+# 未跟踪又未忽略的目录会被扫进产物 CSS（实测过一次 16KB 死规则，见 #143）。
+docs/archive/
+docs/audit-screenshots/
+docs/skill-research/
+docs/handoff/
+docs/reports/
+docs/competition/
+docs/technical/
+docs/v2.3-backend-fix-archive/
+docs/superpowers/
+docs/patches/
+.learnings/
+.codex-memory/
+/reports/
+
+# docs 根级的内部报告与过期规范（保留 INDEX.md 与公开向的教程）
+docs/AGENT-BOUNDARY.md
+docs/AGENT_MAIN_PATH.md
+docs/AI-Agent架构对照评估.md
+docs/FRONTEND-VISUAL-COMPARISON.md
+docs/TECH-STACK-REFERENCE-INDEX.md
+docs/UI设计规范-v2.0.md
+docs/VISUAL-OPTIMIZATION-REPORT.md
+docs/settings-form-interaction-audit.md
+docs/v2.3-ui-function-balance-plan.md
+docs/v2.5-loop-engineering-plan.md
+docs/visual-audit-report.html
+docs/技术栈教程注意事项-v1.0.md
+docs/guides/feishu-survey-guide.md
+
+# 探针截图与 Python 侧编译产物
+scripts/browser-check/
+__pycache__/
+*.pyc
+
+# 根级 scratch（上一轮审计就点名要摘的）
+/check-bytes.cjs
+/remove-sample.*
+/test-electron*.cjs
+/前端交付说明.md
+# 本机界面审计/主题核对的临时图（同名目录会被 Tailwind 扫进产物，必须忽略）
+docs/assets/theme-check/
+docs/assets/ui-audit-*/
+docs/assets/ui-baseline/
+# 未复核过的内部设计草稿：不公开也不留 status 噪音
+/docs/architecture/
+
+# 探针目录整体不入库（里面是历次视觉审计报告，与 docs/reports 同一性质）
+scripts/browser-check/

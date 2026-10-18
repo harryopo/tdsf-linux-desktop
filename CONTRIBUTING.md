@@ -118,7 +118,7 @@ tdsf-linux-desktop/
 └── package.json
 ```
 
-详细架构：[docs/technical/architecture.md](docs/technical/architecture.md)
+详细架构：[README 的架构一节](README.md#架构)（图在 [docs/assets/architecture.svg](docs/assets/architecture.svg)）
 
 ---
 
@@ -184,7 +184,7 @@ git push origin feat/add-firecracker-sandbox
 
 - 使用 CSS Modules 或 CSS-in-JS（**不**用内联 style，除非动态计算）
 - 颜色 / 间距 / 圆角使用 CSS 变量（`var(--trae-*)`）
-- 遵循 [docs/UI设计规范-v2.0.md](docs/UI设计规范-v2.0.md)
+- 遵循 [DESIGN.md](DESIGN.md)（界面规范唯一权威）
 
 ### 注释
 
@@ -330,7 +330,7 @@ pnpm test:e2e
 
 遇到问题？
 
-1. 先看 [README.md](README.md) 和 [docs/](docs/)
+1. 先看 [README.md](README.md) 和 [docs/INDEX.md](docs/INDEX.md)
 2. 搜索 [已有 Issue](https://github.com/harryopo/tdsf-linux-desktop/issues)
 3. 创建 [新 Issue](https://github.com/harryopo/tdsf-linux-desktop/issues/new/choose) 选择 Question 模板
 
