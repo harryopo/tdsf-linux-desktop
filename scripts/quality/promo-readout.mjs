@@ -7,7 +7,8 @@
  * 从此对外数字只有一个出口：这个脚本。改页面先跑它，别凭记忆填。
  *
  *   node scripts/quality/promo-readout.mjs                    打印全部读数与测法
- *   node scripts/quality/promo-readout.mjs --check [路径]     与宣传页对账，不一致就非零退出
+ *   node scripts/quality/promo-readout.mjs --check [路径]     与宣传页 + 架构图对账，不一致就非零退出
+ *   node scripts/quality/promo-readout.mjs --check-diagram    只与架构图对账（不跑 audit:ipc，单测走这条路）
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -109,16 +110,86 @@ export function diffReadouts(page, measured) {
   return out
 }
 
+/**
+ * provider-factory 的 switch 分支数就是"支持几类端点"。
+ * 数不到任何分支就报错——注册方式改了要同步这里，静默返回 0 比报错更坏。
+ */
+export function countProviderTypes(source) {
+  const kinds = new Set([...source.matchAll(/^\s*case '([a-z-]+)':/gm)].map((m) => m[1]))
+  if (kinds.size === 0) {
+    throw new Error("provider-factory 里没数到 case 分支——注册方式改了，这个计数要跟着改")
+  }
+  return kinds.size
+}
+
+/**
+ * 从 README 架构图里取抄走的读数。
+ * 图上每一个数都是对外承诺，抄的地方越多越会漂，所以和宣传页一样纳入对账。
+ * 取不到某一行就报错——"图改了措辞所以没比"必须算失败，不能算通过。
+ */
+export function parseSvgClaims(text) {
+  const grab = (re, label) => {
+    const m = text.match(re)
+    if (!m) throw new Error(`架构图里没找到「${label}」那行——图改了措辞就要同步这条对账，别让它静默漏比`)
+    return Number(m[1])
+  }
+  return {
+    请求通道: grab(/invoke 请求（(\d+) 条通道）/, 'invoke 请求'),
+    事件通道: grab(/事件推送（(\d+) 条通道）/, '事件推送'),
+    已登记契约的通道: grab(/(\d+) 条已登记 zod 契约/, '已登记 zod 契约'),
+    命令规则词表项: grab(/\+ (\d+) 词表/, '词表'),
+    结构性拦截器: grab(/(\d+) 结构 \+/, '结构性拦截'),
+    'argv 规则': grab(/\+ (\d+) argv/, 'argv 规则'),
+    'Provider 类型': grab(/(\d+) 类兼容端点/, '兼容端点'),
+  }
+}
+
+const ARCH_SVG = path.join(REPO, 'docs', 'assets', 'architecture.svg')
+
+/** 读仓库文件（含 git ls-files）就能定出来的事实，不跑 audit:ipc */
+export function readRepoFacts() {
+  const read = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8')
+  return {
+    srcFiles: countSourceFiles(git(['ls-files']).trim().split('\n').map((s) => s.replace(/\\/g, '/'))),
+    contract: countContract(read('src/shared/ipc-contract.ts')),
+    rules: countRuleVocabulary(JSON.parse(read('src/main/core/command-rules.json'))),
+    providers: countProviderTypes(read('src/main/core/agent/providers/provider-factory.ts')),
+  }
+}
+
+/**
+ * 架构图上那五个"读文件就能定"的数与仓库实测的对账。
+ * 单独成函数是为了让单测也能直接调它——图是提交进仓库的，比对就不该只在本地手动跑。
+ * 图上另外两个数（请求 / 事件通道）要跑 audit:ipc，只有 --check 全量模式比得到。
+ */
+export function diffDiagram(facts, svgText) {
+  const svg = parseSvgClaims(svgText)
+  const want = {
+    已登记契约的通道: facts.contract.total,
+    命令规则词表项: facts.rules.vocabulary,
+    结构性拦截器: facts.rules.detectors,
+    'argv 规则': facts.rules.argvRules,
+    'Provider 类型': facts.providers,
+  }
+  if (facts.ipc) {
+    want.请求通道 = facts.ipc.request
+    want.事件通道 = facts.ipc.event
+  }
+  const bad = []
+  for (const [label, v] of Object.entries(want)) {
+    if (svg[label] !== v) bad.push({ label, got: svg[label], want: v })
+  }
+  return { bad, checked: Object.keys(want).length, svg }
+}
+
 export function measure() {
-  const srcFiles = countSourceFiles(git(['ls-files']).trim().split('\n').map((s) => s.replace(/\\/g, '/')))
-  const contract = countContract(fs.readFileSync(path.join(REPO, 'src/shared/ipc-contract.ts'), 'utf8'))
-  const rules = countRuleVocabulary(JSON.parse(fs.readFileSync(path.join(REPO, 'src/main/core/command-rules.json'), 'utf8')))
+  const facts = readRepoFacts()
   // Windows 上 npm 是 .cmd 垫片，execFileSync 不带 shell 会 ENOENT（本机反复踩过的一条）。
   // 命令写成一整串、不传 args 数组：Node 24 对"shell:true + args"会发弃用告警。
   const ipc = parseIpcAudit(
     execFileSync('npm run audit:ipc', { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, shell: true })
   )
-  return { srcFiles, contract, rules, ipc }
+  return { ...facts, ipc }
 }
 
 /** 导出的唯一理由：测试要用同一份标签表造夹具页，抄一份标签就会和这里漂开 */
@@ -162,6 +233,25 @@ function readoutCounts(argv) {
 
 function main(argv) {
   const check = argv.includes('--check')
+  const diagramOnly = argv.includes('--check-diagram')
+  if (check && diagramOnly) {
+    console.error('FAIL --check 与 --check-diagram 只能选一个（前者要跑 audit:ipc，后者不跑）')
+    return 2
+  }
+  if (diagramOnly) {
+    const r = diffDiagram(readRepoFacts(), fs.readFileSync(ARCH_SVG, 'utf8'))
+    if (r.bad.length) {
+      console.error(`FAIL 架构图的读数与仓库实测对不上（${r.bad.length} 条）：`)
+      for (const b of r.bad) console.error(`  ${b.label}：图上 ${b.got}，实测 ${b.want}`)
+      console.error('  重新出图：python scripts/docs/arch-diagram.py（数字改在生成器里，别手改 SVG）')
+      return 1
+    }
+    console.log(
+      `PASS 架构图 ${r.checked} 个读数与仓库实测一致` +
+        '（请求 / 事件两条通道数要跑 audit:ipc，只有 --check 全量模式比得到）'
+    )
+    return 0
+  }
   const argAfter = argv[argv.indexOf('--check') + 1]
   const promoPath = check && argAfter && !argAfter.startsWith('-') ? path.resolve(argAfter) : DEFAULT_PROMO
   const m = measure()
@@ -180,6 +270,7 @@ function main(argv) {
     console.log(`  源文件              ${m.srcFiles}  测法：git ls-files src 里 .ts/.tsx 计数`)
     console.log(`  规则词表项          ${m.rules.vocabulary}  分项：${JSON.stringify(m.rules.per)}`)
     console.log(`  结构性拦截器        ${m.rules.detectors}　argv 规则 ${m.rules.argvRules}　受保护根级路径 ${m.rules.protectedTargets}`)
+    console.log(`  Provider 类型       ${m.providers}  测法：provider-factory 的 switch 分支数`)
     console.log('  用例数不在这个脚本里算（要跑满套）。跑完把四个数递回来一起对账：')
     console.log('    npm run promo:check -- --unit-passed N --unit-skipped M --e2e-passed P --e2e-skipped Q')
     return 0
@@ -198,18 +289,25 @@ function main(argv) {
     rows.push(['端到端用例', counts.ep])
   }
   const bad = diffReadouts(page, rows)
+  const dia = diffDiagram(m, fs.readFileSync(ARCH_SVG, 'utf8'))
   if (bad.length) {
     console.error(`FAIL 宣传页的读数与本轮实测对不上（${bad.length} 条）：`)
     for (const b of bad) console.error(`  ${b.label}：页面写 ${b.got}，实测 ${b.want}`)
     console.error('  改页面，别改这个脚本——除非你确认页面上的口径本来就该变。')
-    return 1
   }
+  if (dia.bad.length) {
+    console.error(`FAIL 架构图的读数与本轮实测对不上（${dia.bad.length} 条）：`)
+    for (const b of dia.bad) console.error(`  ${b.label}：图上 ${b.got}，实测 ${b.want}`)
+    console.error('  重新出图：python scripts/docs/arch-diagram.py（数字改在生成器里，别手改 SVG）')
+  }
+  if (bad.length || dia.bad.length) return 1
   console.log(
     `PASS 宣传页 ${rows.length} 条读数与本轮实测一致` +
       (counts
         ? '（含两条用例数，数字由调用方从刚跑完的套件递进来）'
         : '（用例数两条未纳入：跑完套件加 --unit-passed/--unit-skipped/--e2e-passed/--e2e-skipped 再对一次）')
   )
+  console.log(`PASS 架构图 ${dia.checked} 条读数与本轮实测一致（含请求 / 事件两条通道数）`)
   return 0
 }
 

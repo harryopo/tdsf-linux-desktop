@@ -25,6 +25,13 @@ type Readouts = {
   diffReadouts: (page: Record<string, number | null>, measured: Array<[string, number]>) => Array<{ label: string; got: unknown; want: number }>
   measure: () => unknown
   TABLE_ROWS: (m: unknown) => Array<[string, number]>
+  readRepoFacts: () => unknown
+  countProviderTypes: (source: string) => number
+  parseSvgClaims: (text: string) => Record<string, number>
+  diffDiagram: (
+    facts: unknown,
+    svgText: string
+  ) => { bad: Array<{ label: string; got: number; want: number }>; checked: number; svg: Record<string, number> }
 }
 
 async function mod(): Promise<Readouts> {
@@ -125,6 +132,73 @@ describe('promo-readout：与宣传页对账', () => {
     const bad = diffReadouts(parsePromoReadouts(html), MEASURED)
     expect(bad.length).toBe(1)
     expect(String(bad[0].got)).toContain('页面里没有这一行')
+  })
+})
+
+/**
+ * README 架构图上的读数（2026-10-19 纳入对账）
+ *
+ * 为什么也纳入：图是手抄同一批数字的第二个载体。宣传页那次教训（216 vs 226）说明
+ * "抄一份就漂一份"，多一个载体就多一份责任。图上七个数的来源是生成器
+ * （scripts/docs/arch-diagram.py），要改数改生成器再重出图，别直接改 SVG。
+ * 其中请求 / 事件两条要跑 audit:ipc，只有 --check 全量模式比得到；这里比另外五条。
+ */
+describe('promo-readout：与架构图对账', () => {
+  const ARCH_SVG = path.join(REPO, 'docs', 'assets', 'architecture.svg')
+  /** 与真图同形的最小夹具：七个数各占一行；传 null 表示"图上这一行没了" */
+  const SVG_LINES = {
+    请求: 'invoke 请求（232 条通道）',
+    事件: '事件推送（40 条通道）',
+    契约: '35 条已登记 zod 契约（其余未收口）',
+    闸: '8 结构 + 7 argv + 226 词表',
+    端点: '7 类兼容端点',
+  }
+  function fakeSvg(overrides: Partial<Record<keyof typeof SVG_LINES, string | null>> = {}): string {
+    const kept: Record<keyof typeof SVG_LINES, string | null> = { ...SVG_LINES, ...overrides }
+    return (Object.keys(kept) as Array<keyof typeof SVG_LINES>)
+      .map((k) => kept[k])
+      .filter((l): l is string => l !== null)
+      .join('\n')
+  }
+  const FACTS = {
+    contract: { total: 35 },
+    rules: { vocabulary: 226, detectors: 8, argvRules: 7 },
+    providers: 7,
+  }
+
+  it('七个数全取到 + 与实测一致时无差异（阳性对照：先证明解析器扫得中东西）', async () => {
+    const { diffDiagram } = await mod()
+    const r = diffDiagram(FACTS, fakeSvg())
+    expect(Object.keys(r.svg).length, '一行都没取到就是解析器坏了，不是"没有差异"').toBe(7)
+    expect(r.bad, JSON.stringify(r.bad)).toEqual([])
+    expect(r.checked).toBe(5)
+  })
+
+  it('图上某个数错一个 ⇒ 只点名那一条', async () => {
+    const { diffDiagram } = await mod()
+    const r = diffDiagram(FACTS, fakeSvg({ 闸: '8 结构 + 7 argv + 216 词表' }))
+    expect(r.bad.length).toBe(1)
+    expect(r.bad[0].label).toBe('命令规则词表项')
+    expect(r.bad[0].got).toBe(216)
+    expect(r.bad[0].want).toBe(226)
+  })
+
+  it('图上少一行 ⇒ 报错，不许因为"没取到所以没差异"而放行', async () => {
+    const { diffDiagram } = await mod()
+    expect(() => diffDiagram(FACTS, fakeSvg({ 闸: null }))).toThrow(/架构图里没找到/)
+  })
+
+  it('provider-factory 数不到 case 分支 ⇒ 报错，不静默返回 0', async () => {
+    const { countProviderTypes } = await mod()
+    expect(() => countProviderTypes('export function f(x){ return x }')).toThrow(/没数到 case 分支/)
+    expect(countProviderTypes("case 'a':\ncase 'b': {\ncase 'a':\n")).toBe(2)
+  })
+
+  it('仓库里那张真图与真文件对得上（这条就是常驻闸本体）', async () => {
+    const { diffDiagram, readRepoFacts } = await mod()
+    const r = diffDiagram(readRepoFacts(), fs.readFileSync(ARCH_SVG, 'utf8'))
+    expect(r.bad, '图上的数与仓库实测不一致：改 scripts/docs/arch-diagram.py 再重出图').toEqual([])
+    expect(r.checked).toBe(5)
   })
 })
 
