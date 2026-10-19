@@ -63,8 +63,9 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 每个 AI 判断都拆成多源证据（规则匹配 / 知识库 / 历史成功率 / LLM 自评 / 观测数据 / 用户偏好），
 在雷达图上画出各源权重与融合结果。**分数低就明说分数低**，不包装成"仅供参考"。
 
-D-S 证据理论与 PCR5 冲突融合的完整实现在 `src/main/core/credibility/`，
-生产链路当前走的是折扣后的简化融合——这条边界写在下面的"已知边界"里，不藏。
+各源先验先按 `decision.weights`（决策设置页可调）做一次 Shafer 折扣，再进 D-S 合成：
+两两冲突低于 0.3 走 Dempster，高于就换 PCR5 重分配。实现在 `src/main/core/agent/credibility/`，
+界面（`credibility:assess`）与 MCP 工具走的是同一条引擎，没有第二套简化算法。
 
 ### 终端与文件
 
@@ -118,7 +119,10 @@ design:gate · ui-audit · ipc:check · build · playwright
 
 ## 架构
 
-![三进程架构](docs/assets/architecture.svg)
+![TDSF-Linux Desktop 三进程架构：渲染层经预加载桥接调用主进程，主进程再连 SSH 服务器、LLM 端点、Python 侧车与 Langfuse](docs/assets/architecture.svg)
+
+图由 `scripts/docs/arch-diagram.py` 生成（`python scripts/docs/arch-diagram.py` 重出，别手改 SVG）。
+图上那几个数与仓库实测由 `promo-readout` 对账，漂了单测就红。
 
 ```
 主进程  src/main/       Node.js：ssh2 / LLM / SQLite / 风险闸 / 可信度 / MCP / 技能
@@ -137,8 +141,8 @@ Electron 安全三原则全部为硬约束：`contextIsolation: true` / `nodeInt
 
 这些是**当前状态**，不是待办清单的修辞：
 
-- **D-S / PCR5 完整融合在生产链路降级为简化规则**。完整实现与测试都在，但线上走的是折扣后的先验融合。
-  恢复完整融合需要重新定标，不是打开一个开关。
+- **可信度融合跑的是完整 D-S / PCR5，但各源先验是人工定标的**：折扣权重在决策设置里可调，
+  先验本身（每条证据给多高分）来自规则与经验值，不是从数据里学出来的。融合算法不会替先验兜底。
 - **14 步 Task Protocol 与 LangGraph 编排有代码、有测试，但生产链路零调用**。
   它们是早期交付的产物，删或接都还没定。
 - **Python 侧车（Drain3 日志模板挖掘）需要本机 venv**，缺依赖时整条日志聚类走降级，界面会显示降级原因。
