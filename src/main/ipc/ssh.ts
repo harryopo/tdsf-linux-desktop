@@ -466,7 +466,8 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
   /**
    * ssh:shell:run-authored — 执行整条"代写"命令（AI 建议 / 决策页重新执行）
    *
-   * 与 SHELL_WRITE 的区别就在这里：命令是完整一条，故可在主进程过风险闸。
+   * 与 SHELL_WRITE 的区别在判定时机：这里一次拿到整条命令，能在任何字节进 PTY 之前判掉；
+   * 那边是逐键进来，只能攒到回车整行判（见上方 LineGate），所以拒绝时还得发 Ctrl-C 弃行。
    * block 级一律拒绝并抛错，渲染层原样把原因显示给用户。
    */
   ipcMain.handle(
