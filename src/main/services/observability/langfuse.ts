@@ -7,7 +7,7 @@
  * - 失败自动降级：未配置 Langfuse Key 时静默跳过
  *
  * 调研依据：07-开源项目调研-AIOps-2025.md Top2
- * 价值：让评委现场点开 Langfuse Cloud 看 trace（评委爽点 4）
+ * 价值：trace 可在 Langfuse Cloud 回看，出问题能定位到单次调用
  */
 import { Langfuse, type LangfuseTraceClient } from 'langfuse'
 import { ConfigStore, type LangfuseConfig } from '../storage/config-store'

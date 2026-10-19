@@ -27,6 +27,7 @@
     "security:topology": "node scripts/security/topology-gate.cjs",
     "security:history": "node scripts/security/history-env-scan.cjs",
     "security:secrets": "node scripts/security/secret-gate.cjs --all",
+    "security:identity": "node scripts/security/identity-gate.cjs --self-test",
     "audit:deps": "node scripts/quality/deps-audit-gate.cjs",
     "design:gate": "node scripts/design/design-contract.mjs && node scripts/design/tokens-audit.cjs && node scripts/design/settings-keys-audit.mjs",
     "ipc:gen": "tsx scripts/ipc/gen-contract.ts",

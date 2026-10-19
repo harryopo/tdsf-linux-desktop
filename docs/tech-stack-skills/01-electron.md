@@ -1,7 +1,7 @@
 # 01 · Electron 核心栈 Skill 调研
 
 > **项目版本**：Electron 43.1.1 · electron-vite 2.3.0 · electron-builder 24.13.0
-> **核心定位**：AI 驱动的 Linux 运维桌面助手（2026 火山杯 Agent 创新大赛参赛项目）
+> **核心定位**：AI 驱动的 Linux 运维桌面助手（Linux 运维教学场景）
 > **最后更新**：2026-07-22
 
 ---

@@ -80,7 +80,7 @@ Electron 43 + React 18 + TypeScript strict + Antd 5 + Tailwind 4 + Zustand 4 + s
 3. 在 PR 中说明删除理由
 
 ## 多 AI 协作协议
-- 比赛阶段强制单 AI 模式
+- 冲刺阶段强制单 AI 模式
 - 若并行：git worktree 隔离 + 高共享文件禁止并行修改（preload/index.ts / main/ipc/index.ts / electron.d.ts）
 
 ## 性能基测（建议非强制）

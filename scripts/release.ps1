@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 # TDSF-Linux Desktop — GitHub Release v1.0 发版脚本
 #
-# 火山杯开源加分项：发版流程标准化
+# 发版流程标准化
 #
 # 使用方法：
 #   1. 确认 package.json 中 version = "1.0.0"

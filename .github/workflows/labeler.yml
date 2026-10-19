@@ -1,6 +1,6 @@
 # PR 自动 Label — 配合 .github/labeler.yml
 #
-# 火山杯开源加分项：
+# 开源协作基线：
 # - 自动按文件路径分类 PR
 # - 自动统计改动规模（S/M/L/XL）
 # - 与 dependabot.yml / codeql.yml 配合形成完整 CI/CD 安全网

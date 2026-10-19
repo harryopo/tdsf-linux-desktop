@@ -1,6 +1,6 @@
 # GitHub Issue / PR 自动 Label 配置
 #
-# 火山杯开源加分项：
+# 开源协作基线：
 # - 自动给 Issue 打上分类标签（bug / enhancement / question / docs）
 # - 自动按文件路径给 PR 打标签（renderer / main / tests / docs）
 # - 减少人工标注成本

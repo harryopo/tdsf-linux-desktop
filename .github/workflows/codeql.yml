@@ -1,6 +1,6 @@
 # CodeQL — GitHub 原生安全分析
 #
-# 火山杯开源加分项：
+# 开源协作基线：
 # - 自动扫描 TypeScript / JavaScript 代码安全漏洞
 # - 每周一扫描 + PR 触发
 # - 与安全策略联动（详见 SECURITY.md）

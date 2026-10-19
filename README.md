@@ -45,15 +45,19 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 |---|---|---|
 | 结构性拦截器 | 8 | fork 炸弹、`rm -rf /`、`dd` 写块设备、重定向覆写磁盘、根级 `chmod/chown` |
 | argv 规则 | 7 | 按参数结构判，`find / -delete` 和 `find . -name x -delete` 不是一回事 |
-| 词表项 | 226 | 受保护根级路径 15、只读命令 38（+48 扩展）、拒绝动词 62、前缀跳过 3 |
+| 命令规则词表项 | 226 | 受保护根级路径 15、只读命令 38（+48 扩展）、拒绝动词 62、前缀跳过 3 |
 
-结构性那 8 条**故意不放进数据文件**——它们靠正则和参数结构判断，写成可配数据只会让人误以为能把级别往下调。
+上表「数量」那一列的每个数都由 `npm run promo:check` 现场算并比对（分项由同一条命令打印），
+所以正文里不再重复写数——2026-10-19 那次就是 README 与宣传页各抄一份、同时过期没人发现。
+
+结构性拦截器**故意不放进数据文件**——它们靠正则和参数结构判断，写成可配数据只会让人误以为能把级别往下调。
 判据的实测口径写在 [CODING.md](CODING.md) 与 `tests/unit/` 里那批命令闸用例。
 
 ### AI 辅助
 
-- 多 Provider：按 `provider-factory.ts` 的分支算共 7 类——`anthropic` / `google` / `deepseek` / `qwen` /
-  `volcengine-ark` / `ollama` / `openai-compatible`。智谱、Moonshot 这类走 `openai-compatible` 模板，不是独立分支。
+- 多 Provider：类别数见下表「Provider 类型」（按 `provider-factory.ts` 的 switch 分支现数）——
+  `anthropic` / `google` / `deepseek` / `qwen` / `volcengine-ark` / `ollama` / `openai-compatible`。
+  智谱、Moonshot 这类走 `openai-compatible` 模板，不是独立分支。
 - 流式：增量合并、思考链占位、迟到事件不丢、可中途停止（停止和失败分开报，不混成一个红条）。
 - 上下文窗口按各家真实上限算，超了如实截断并标注，不假装塞得下。
 - MCP 工具接入（`@modelcontextprotocol/sdk`），工具执行在前端逐条成卡。
@@ -109,7 +113,8 @@ pnpm dev
 | 端到端用例 | 57 通过 / 15 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 272 | `npm run audit:ipc`（232 请求-响应 + 40 事件推送） |
 | 已登记契约的通道 | 35 | `src/shared/ipc-contract.ts`（30 invoke + 5 event） |
-| TypeScript 源文件 | 508 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| TypeScript / TSX 源文件 | 508 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| Provider 类型 | 7 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 
 门禁链（每一道都是能跑红的闸，不是提醒）：

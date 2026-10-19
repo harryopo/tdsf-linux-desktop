@@ -793,7 +793,7 @@ class MainWindow(QMainWindow):
             "<li>LLM 自由接入 — 支持任意 OpenAI 兼容 API</li>"
             "</ul>"
             "<p style='color: #86868b; margin-top: 16px; font-size: 12px;'>"
-            "2026 火山杯 Agent 创新大赛参赛项目"
+            "Linux 运维教学桌面工具"
             "</p>"
             "</div>",
         )

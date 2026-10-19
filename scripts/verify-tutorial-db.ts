@@ -51,24 +51,24 @@ function main(): void {
 
   // 2. source 统计
   const byKind = new Map<string, number>()
-  const localCount = { offlineDump: 0, shenzhen: 0, both: 0 }
+  const localCount = { offlineDump: 0, localLabel: 0, both: 0 }
   for (const t of all) {
     const kind = t.source?.kind ?? 'unknown'
     byKind.set(kind, (byKind.get(kind) ?? 0) + 1)
     const isOffline = kind === 'offline-dump'
-    const isShenzhen = (t.source?.name ?? '').includes('REDACTED')
-    if (isOffline && isShenzhen) localCount.both++
+    const isLocal = (t.source?.name ?? '').includes('本地教材')
+    if (isOffline && isLocal) localCount.both++
     else if (isOffline) localCount.offlineDump++
-    else if (isShenzhen) localCount.shenzhen++
+    else if (isLocal) localCount.localLabel++
   }
   console.log('\n[verify] source kind 分布:')
   for (const [kind, count] of byKind.entries()) {
     console.log(`  ${kind.padEnd(18)} ${String(count).padStart(5)}`)
   }
   console.log(`\n[verify] 本地教材统计:`)
-  console.log(`  offline-dump 且含"REDACTED": ${localCount.both}`)
-  console.log(`  仅 offline-dump:              ${localCount.offlineDump}`)
-  console.log(`  仅含"REDACTED":                ${localCount.shenzhen}`)
+  console.log(`  offline-dump 且来源名标"本地教材": ${localCount.both}`)
+  console.log(`  仅 offline-dump:                  ${localCount.offlineDump}`)
+  console.log(`  仅来源名标"本地教材":              ${localCount.localLabel}`)
 
   // 3. 可疑数据
   const suspicious = all.filter(

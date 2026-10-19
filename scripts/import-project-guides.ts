@@ -25,8 +25,8 @@ import type { TutorialEntry, TutorialCategory, TutorialDifficulty, LinuxDistro }
 /** 项目指导文档根目录（相对于项目根目录） */
 const GUIDES_DIR = join(process.cwd(), '..', 'knowledge', 'courses', '项目指导文档')
 
-/** 教材来源元数据 */
-const SOURCE_NAME = 'REDACTED Linux 教学项目'
+/** 教材来源元数据（来源名不含校名与专业：这个值会进教程库、也会显示在应用界面里） */
+const SOURCE_NAME = '本地教材 · Linux 教学项目'
 const SOURCE_LICENSE = 'Educational Use'
 const SOURCE_KIND: TutorialEntry['source']['kind'] = 'offline-dump'
 

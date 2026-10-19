@@ -7,7 +7,7 @@
  * - 通过 stdio JSON-RPC 与 Client 通信
  *
  * 调研依据：07-开源项目调研-AIAgent生态.md Top5（8.6分）
- * 价值：让 Claude Code/Cursor 调用 TDSF（评委爽点 5）
+ * 价值：让外部 Agent（Claude Code / Cursor 等）直接调用 TDSF 的能力
  *
  * ⚠️ 注意：本服务是可选的，仅在 MCP_SERVER_ENABLED=true 时启动
  */

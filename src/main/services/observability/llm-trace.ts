@@ -7,7 +7,7 @@
  * - 失败时降级：Langfuse 未启用时无副作用
  *
  * 调研依据：07-开源项目调研-AIOps-2025.md Top2
- * 价值：让评委现场点开 Langfuse Cloud 看 trace（评委爽点 4）
+ * 价值：trace 可在 Langfuse Cloud 回看，出问题能定位到单次调用
  *
  * 用法：
  * ```ts

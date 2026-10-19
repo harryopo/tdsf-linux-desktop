@@ -76,6 +76,10 @@ pnpm deadcode:gate        # CI   Knip ratchet（只降不升）
 pnpm security:secrets     # 本地(pre-commit) 凭据形状闸（--all 扫跟踪集，--staged 由钩子跑）
 pnpm security:topology    # 本地 内网拓扑值：按值 + 按 /24 网段
 pnpm security:history     # 本地(pre-push) 全历史按值回归
+pnpm security:identity    # 本地(pre-commit) 身份暴露闸：校名/专业/真实姓名/赛事字样
+                          #   通用规则写在脚本里（本身不含身份值）；具体身份值清单在
+                          #   scripts/security/identity-terms.local.json，那份只留本机、已 gitignore。
+                          #   带 --self-test：每条规则先用自己的样例串证明"闸有牙"才继续。
 pnpm doc:links            # CI   文档断链：相对链接必须落在跟踪集里
 pnpm promo:check          # 本地 对外发布页的读数逐行对账
 ```

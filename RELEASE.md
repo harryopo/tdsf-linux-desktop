@@ -175,7 +175,7 @@ gh release create v1.x.x \
 
 - [ ] 通知所有关注者（GitHub Watchers）
 - [ ] 更新介绍页（[harryopo.github.io/tdsf-linux-desktop](https://harryopo.github.io/tdsf-linux-desktop/)）
-- [ ] 在火山杯比赛群发战报
+- [ ] 在发布渠道同步版本说明
 - [ ] 关闭对应 milestone
 - [ ] 创建下一个 milestone（如 v1.x.x+1）
 

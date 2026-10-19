@@ -101,10 +101,14 @@ tests/e2e/visual.spec.ts-snapshots/
 /DESIGN.md.tdsf-test-bak
 
 # ── 公开仓收口（2026-10-18）：内部向文档与本机产物不入库 ──────────────────
-# 理由：仓库要公开。这些是给自己人看的审查报告、交接文档、比赛材料与故障复盘，
+# 理由：仓库要公开。这些是给自己人看的审查报告、交接文档、评审材料、演示文稿与故障复盘，
 #       里面写着未做取舍、待拍板项与本实验室网段。本地全部保留（只取消跟踪，没删文件）。
 # 必须同时写规则：Tailwind v4 的内容源＝"git 看得见的文件"，
 # 未跟踪又未忽略的目录会被扫进产物 CSS（实测过一次 16KB 死规则，见 #143）。
+
+# 身份闸的具体值清单（真实姓名／具体校名）：写进仓库就等于又公开一次，所以只留本机。
+# 闸在清单缺失时照跑通用规则并打印说明，不会静默变宽（见 scripts/security/identity-gate.cjs）。
+scripts/security/identity-terms.local.json
 docs/archive/
 docs/audit-screenshots/
 docs/skill-research/
@@ -158,3 +162,6 @@ scripts/browser-check/
 /tests/e2e/button-census-report.json
 /scripts/diag-deepseek-tools.cjs
 /SUMMARY.md
+
+# 引用文件里写着真实姓名与具体机构（非运行所需），只留本机
+/CITATION.cff

@@ -48,9 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-07-25
 
-### 🎉 火山杯 2026 比赛首发版本
+### 🎉 v1.0.0 首发版本（2026）
 
-这是 TDSF-Linux Desktop 的首个比赛交付版本，集成 v0.2 → v0.9 → v1.0 三个里程碑。
+这是 TDSF-Linux Desktop 的首个对外交付版本，集成 v0.2 → v0.9 → v1.0 三个里程碑。
 
 ### Added
 - **SSH 终端完整链路**（ssh2 + xterm.js）
@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 版本说明
 
-- **Major version (X.0.0)**：架构级变化（如 v1.0 = 比赛首发，v2.0 = 嵌入 IDE）
+- **Major version (X.0.0)**：架构级变化（如 v1.0 = 首个对外版本，v2.0 = 嵌入 IDE）
 - **Minor version (0.X.0)**：功能新增（每 2 周一个 minor）
 - **Patch version (0.0.X)**：Bug 修复（按需发布）
 

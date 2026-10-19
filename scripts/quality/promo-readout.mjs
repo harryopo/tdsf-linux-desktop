@@ -7,8 +7,12 @@
  * 从此对外数字只有一个出口：这个脚本。改页面先跑它，别凭记忆填。
  *
  *   node scripts/quality/promo-readout.mjs                    打印全部读数与测法
- *   node scripts/quality/promo-readout.mjs --check [路径]     与宣传页 + 架构图对账，不一致就非零退出
+ *   node scripts/quality/promo-readout.mjs --check [路径]     与宣传页 + README + 架构图对账，不一致就非零退出
  *   node scripts/quality/promo-readout.mjs --check-diagram    只与架构图对账（不跑 audit:ipc，单测走这条路）
+ *
+ * 为什么 README 也在对账面上（2026-10-19 加）：对外数字原先有三个载体，闸只管宣传页与架构图，
+ * README 那一份没人管——同一天就撞上"README 与宣传页的用例数同时过期"。抄本永远比正本先漂，
+ * 多一个载体就多一份责任。标签表只有一份（TABLE_ROWS），文档要抄就照它抄，抄漏或抄错都算失败。
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -111,6 +115,42 @@ export function diffReadouts(page, measured) {
 }
 
 /**
+ * 从 markdown 表格里按标签取读数，返回 `标签 -> 该标签在文档里每一处出现的数字`。
+ *
+ * 为什么按"每一处"而不是只取第一处：一份文档里同一个数常被抄两遍（读数表一次、正文一次），
+ * 只比第一处等于给第二处开了个不受管的出口——那正是这批数字漂开的老路。
+ * 取数口径与宣传页一致：值单元里第一个数。
+ */
+export function parseMdReadoutRows(text, labels) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const occ = {}
+  for (const label of labels) {
+    const re = new RegExp('^\\|\\s*' + esc(label) + '\\s*\\|\\s*([^|]*)\\|', 'gm')
+    occ[label] = [...text.matchAll(re)].map((h) => {
+      const digits = (h[1].match(/\d[\d,]*/) || [])[0]
+      return digits ? Number(digits.replace(/,/g, '')) : null
+    })
+  }
+  return occ
+}
+
+/** 文档读数（含同一标签的多处抄本）↔ 本轮实测 */
+export function diffMdReadouts(occ, measured) {
+  const out = []
+  for (const [label, want] of measured) {
+    const vals = occ[label] || []
+    if (!vals.length) {
+      out.push({ label, got: '(文档里没有这一行)', want })
+      continue
+    }
+    vals.forEach((got, i) => {
+      if (got !== want) out.push({ label: vals.length > 1 ? label + '（第 ' + (i + 1) + ' 处）' : label, got, want })
+    })
+  }
+  return out
+}
+
+/**
  * provider-factory 的 switch 分支数就是"支持几类端点"。
  * 数不到任何分支就报错——注册方式改了要同步这里，静默返回 0 比报错更坏。
  */
@@ -145,6 +185,7 @@ export function parseSvgClaims(text) {
 }
 
 const ARCH_SVG = path.join(REPO, 'docs', 'assets', 'architecture.svg')
+const README_MD = path.join(REPO, 'README.md')
 
 /** 读仓库文件（含 git ls-files）就能定出来的事实，不跑 audit:ipc */
 export function readRepoFacts() {
@@ -199,6 +240,17 @@ export const TABLE_ROWS = (m) => [
   ['TypeScript / TSX 源文件', m.srcFiles],
   ['命令规则词表项', m.rules.vocabulary],
   ['结构性拦截器', m.rules.detectors],
+]
+
+/**
+ * README 比宣传页多比两行：argv 规则数与 Provider 类型数。
+ * 这两项原先只在架构图上对账，而 README 的"判定分三层"表里也写着同样的数——
+ * 文档抄了、闸没管，就还是漂。为什么不塞进 TABLE_ROWS：那两行宣传页上没有，
+ * 加进去会让宣传页立刻报"没有这一行"，那是页面的问题不是数字的问题。
+ */
+export const MD_EXTRA_ROWS = (m) => [
+  ['argv 规则', m.rules.argvRules],
+  ['Provider 类型', m.providers],
 ]
 
 /**
@@ -280,6 +332,10 @@ function main(argv) {
     console.error(`FAIL 宣传页不在：${promoPath}\n     对账必须有页面可比；找不到文件就是失败，不是跳过。`)
     return 1
   }
+  if (!fs.existsSync(README_MD)) {
+    console.error(`FAIL README 不在：${README_MD}\n     同上，没有可比对象就是失败。`)
+    return 1
+  }
   const page = parsePromoReadouts(fs.readFileSync(promoPath, 'utf8'))
   const rows = TABLE_ROWS(m)
   if (counts) {
@@ -289,24 +345,33 @@ function main(argv) {
     rows.push(['端到端用例', counts.ep])
   }
   const bad = diffReadouts(page, rows)
+  const mdRows = rows.concat(MD_EXTRA_ROWS(m))
+  const mdOcc = parseMdReadoutRows(fs.readFileSync(README_MD, 'utf8'), mdRows.map(([l]) => l))
+  const mdBad = diffMdReadouts(mdOcc, mdRows)
   const dia = diffDiagram(m, fs.readFileSync(ARCH_SVG, 'utf8'))
   if (bad.length) {
     console.error(`FAIL 宣传页的读数与本轮实测对不上（${bad.length} 条）：`)
     for (const b of bad) console.error(`  ${b.label}：页面写 ${b.got}，实测 ${b.want}`)
     console.error('  改页面，别改这个脚本——除非你确认页面上的口径本来就该变。')
   }
+  if (mdBad.length) {
+    console.error(`FAIL README 的读数与本轮实测对不上（${mdBad.length} 条）：`)
+    for (const b of mdBad) console.error(`  ${b.label}：文档写 ${b.got}，实测 ${b.want}`)
+    console.error('  改文档那一行，标签照 TABLE_ROWS 抄；别在这里另起一套口径。')
+  }
   if (dia.bad.length) {
     console.error(`FAIL 架构图的读数与本轮实测对不上（${dia.bad.length} 条）：`)
     for (const b of dia.bad) console.error(`  ${b.label}：图上 ${b.got}，实测 ${b.want}`)
     console.error('  重新出图：python scripts/docs/arch-diagram.py（数字改在生成器里，别手改 SVG）')
   }
-  if (bad.length || dia.bad.length) return 1
+  if (bad.length || mdBad.length || dia.bad.length) return 1
   console.log(
     `PASS 宣传页 ${rows.length} 条读数与本轮实测一致` +
       (counts
         ? '（含两条用例数，数字由调用方从刚跑完的套件递进来）'
         : '（用例数两条未纳入：跑完套件加 --unit-passed/--unit-skipped/--e2e-passed/--e2e-skipped 再对一次）')
   )
+  console.log(`PASS README ${mdRows.length} 条读数与本轮实测一致（同一标签在文档里抄了多处，逐处比）`)
   console.log(`PASS 架构图 ${dia.checked} 条读数与本轮实测一致（含请求 / 事件两条通道数）`)
   return 0
 }

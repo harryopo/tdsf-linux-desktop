@@ -1,6 +1,6 @@
 # Dependabot 配置 — 自动依赖更新 + 安全扫描
 #
-# 火山杯开源加分项：
+# 开源协作基线：
 # - 每周一自动检查 npm 依赖更新（patch/minor 自动合并，major 需评审）
 # - GitHub Actions 依赖同步更新
 # - 启用安全警报分组

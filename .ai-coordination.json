@@ -2,8 +2,39 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-19T12:20:59.397Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-19T16:03:07.313Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-19T14:26:33.407Z",
+      "lastActiveAt": "2026-10-19T16:03:07.313Z",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "claimedFiles": [
+        {
+          "path": "package.json",
+          "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+          "claimedAt": "2026-10-19T16:03:07.313Z"
+        },
+        {
+          "path": "CLAUDE.md",
+          "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+          "claimedAt": "2026-10-19T16:03:07.313Z"
+        },
+        {
+          "path": ".gitignore",
+          "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+          "claimedAt": "2026-10-19T16:03:07.313Z"
+        },
+        {
+          "path": "AGENTS.md",
+          "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+          "claimedAt": "2026-10-19T16:03:07.313Z"
+        }
+      ],
+      "expiresAt": "2026-10-19T18:03:07.313Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -2417,7 +2448,7 @@
       "sessionId": "ai-kimi-20260725-backend",
       "action": "claim",
       "file": "docs/competition/generate-ppts.js",
-      "task": "比赛PPT生成脚本",
+      "task": "演示PPT生成脚本",
       "timestamp": "2026-07-25T07:16:25.286Z"
     },
     {
@@ -2452,7 +2483,7 @@
       "sessionId": "ai-kimi-20260725-backend",
       "action": "release",
       "file": "docs/competition/generate-ppts.js",
-      "task": "比赛PPT生成脚本",
+      "task": "演示PPT生成脚本",
       "timestamp": "2026-07-25T07:20:36.855Z"
     },
     {
@@ -7956,6 +7987,55 @@
       "file": "CLAUDE.md",
       "task": "docs-truth-sync-20261019",
       "timestamp": "2026-10-19T12:20:59.397Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T14:26:33.407Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "CLAUDE.md",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T14:26:33.407Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": ".gitignore",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T14:26:33.407Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T16:03:07.313Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "CLAUDE.md",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T16:03:07.313Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": ".gitignore",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T16:03:07.313Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "AGENTS.md",
+      "task": "对外知识面收口：身份字样中性化 + 常驻闸",
+      "timestamp": "2026-10-19T16:03:07.313Z"
     }
   ],
   "coordinationAudit": {
