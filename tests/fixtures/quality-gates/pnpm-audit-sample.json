@@ -93,6 +93,32 @@
       "cwe": "CWE-94",
       "github_advisory_id": "GHSA-xq3m-2v4x-88gg",
       "url": "https://github.com/advisories/GHSA-xq3m-2v4x-88gg"
+    },
+    "1240992": {
+      "findings": [
+        {
+          "version": "3.0.3",
+          "paths": [
+            ".>@typescript-eslint/eslint-plugin>@typescript-eslint/parser>@typescript-eslint/typescript-estree>globby>fast-glob>micromatch>braces",
+            ".>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/typescript-estree>globby>fast-glob>micromatch>braces",
+            ".>@typescript-eslint/eslint-plugin>@typescript-eslint/type-utils>@typescript-eslint/utils>@typescript-eslint/typescript-estree>globby>fast-glob>micromatch>braces",
+            ".>@typescript-eslint/eslint-plugin>@typescript-eslint/utils>@typescript-eslint/typescript-estree>globby>fast-glob>micromatch>braces",
+            ".>@typescript-eslint/parser>@typescript-eslint/typescript-estree>globby>fast-glob>micromatch>braces"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1240992,
+      "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+      "module_name": "braces",
+      "vulnerable_versions": "<=3.0.3",
+      "patched_versions": ">=3.0.4",
+      "severity": "high",
+      "cwe": "CWE-674",
+      "github_advisory_id": "GHSA-vfj7-8cjw-p6xm",
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
     }
   },
   "metadata": {
@@ -100,7 +126,7 @@
       "info": 0,
       "low": 0,
       "moderate": 17,
-      "high": 24,
+      "high": 25,
       "critical": 5
     },
     "dependencies": 431,
