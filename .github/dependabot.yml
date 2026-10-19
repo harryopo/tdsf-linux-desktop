@@ -34,7 +34,8 @@ updates:
     labels:
       - "dependencies"
       - "automated"
-    # 重要：排除 native 依赖（避免与 pnpm rebuild 冲突）
+    # 原生模块不让机器人碰：它们靠 N-API 预编译产物跑（pnpm native:check 钉着），
+    # 自动升一个版本可能就换成"这台机器没有预编译、要现编"的形状
     ignore:
       - dependency-name: "better-sqlite3"
       - dependency-name: "ssh2"

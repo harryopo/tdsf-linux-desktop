@@ -17,6 +17,7 @@
  * 设计依据：v2.0 Phase D（task-protocol.ts executeTaskProtocol）
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { Mock } from 'vitest'
 import type { StepResult, StepFunction } from '../../src/main/core/agent/subagents/task-protocol-types'
 
 // ============================================================================
@@ -69,9 +70,11 @@ const mockedSteps = vi.hoisted(() => {
     'return-result',
   ] as const
 
-  const fns: Record<string, ReturnType<typeof vi.fn>> = {}
+  // 替身按它顶替的真实类型来声明：vitest 4 起 vi.fn() 的默认类型是 Mock<Procedure | Constructable>，
+  // 不再能直接塞进 StepFunction（vitest 2 时代侥幸通过）
+  const fns: Record<string, Mock<StepFunction>> = {}
   for (const name of stepNames) {
-    fns[name] = vi.fn(async () => ({
+    fns[name] = vi.fn<StepFunction>(async () => ({
       step: name,
       success: true,
       output: { mocked: true, step: name },

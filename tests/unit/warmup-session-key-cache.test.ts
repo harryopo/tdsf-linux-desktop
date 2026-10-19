@@ -81,13 +81,15 @@ vi.mock('../../src/main/windows/main-window', () => ({
 
 // Mock OpenHandsClient：避免真实网络请求
 vi.mock('../../src/main/services/sandbox/openhands-client', () => ({
-  OpenHandsClient: vi.fn().mockImplementation(() => ({
-    searchSandboxes: mocks.mockSearchSandboxes,
-    createSandbox: mocks.mockCreateSandbox,
-    deleteSandbox: mocks.mockDeleteSandbox,
-    executeCommand: mocks.mockExecuteCommand,
-    healthCheck: mocks.mockHealthCheck,
-  })),
+  OpenHandsClient: vi.fn().mockImplementation(function () {
+    return {
+      searchSandboxes: mocks.mockSearchSandboxes,
+      createSandbox: mocks.mockCreateSandbox,
+      deleteSandbox: mocks.mockDeleteSandbox,
+      executeCommand: mocks.mockExecuteCommand,
+      healthCheck: mocks.mockHealthCheck,
+    }
+  }),
   // 保留 OpenHandsApiError 类（sandbox.ts 中用于 instanceof 判断）
   OpenHandsApiError: class OpenHandsApiError extends Error {
     readonly statusCode: number
@@ -110,10 +112,12 @@ vi.mock('../../src/main/services/storage/config-store', () => ({
 
 // Mock OpenHandsRunner：避免触发 Docker 命令
 vi.mock('../../src/main/services/sandbox/openhands-runner', () => ({
-  OpenHandsRunner: vi.fn().mockImplementation(() => ({
-    start: vi.fn(),
-    stop: vi.fn(),
-  })),
+  OpenHandsRunner: vi.fn().mockImplementation(function () {
+    return {
+      start: vi.fn(),
+      stop: vi.fn(),
+    }
+  }),
 }))
 
 // Mock Docker 检测：固定返回已就绪

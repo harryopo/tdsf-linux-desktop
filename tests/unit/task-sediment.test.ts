@@ -102,7 +102,10 @@ vi.mock('electron-store', () => {
 // Mock：KnowledgeRepository（构造函数返回 mock 实例）
 // ============================================================================
 vi.mock('../../src/main/services/db/knowledge-repo', () => ({
-  KnowledgeRepository: vi.fn(() => mocks.knowledgeRepo),
+  // 生产代码 `new` 它，所以替身必须是 function——vitest 4 起箭头实现不可构造
+  KnowledgeRepository: vi.fn(function () {
+    return mocks.knowledgeRepo
+  }),
 }))
 
 // ============================================================================

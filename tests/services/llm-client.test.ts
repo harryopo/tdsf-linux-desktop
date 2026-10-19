@@ -22,14 +22,16 @@ import type { LlmConfig, Evidence, EnvironmentContext } from '../../src/shared/m
  */
 const { mockCreate, MockOpenAI } = vi.hoisted(() => {
   const mockCreate = vi.fn()
-  const MockOpenAI = vi.fn().mockImplementation((config: unknown) => ({
-    config,
-    chat: {
-      completions: {
-        create: mockCreate
+  const MockOpenAI = vi.fn().mockImplementation(function (config: unknown) {
+    return {
+      config,
+      chat: {
+        completions: {
+          create: mockCreate
+        }
       }
     }
-  }))
+  })
   return { mockCreate, MockOpenAI }
 })
 

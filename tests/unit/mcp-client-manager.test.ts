@@ -26,16 +26,20 @@ const sdk = vi.hoisted(() => ({
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: vi.fn().mockImplementation(() => ({
-    connect: sdk.connect,
-    close: sdk.close,
-    listTools: sdk.listTools,
-    callTool: sdk.callTool,
-  })),
+  Client: vi.fn().mockImplementation(function () {
+    return {
+      connect: sdk.connect,
+      close: sdk.close,
+      listTools: sdk.listTools,
+      callTool: sdk.callTool,
+    }
+  }),
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
-  StdioClientTransport: vi.fn().mockImplementation(() => ({ close: sdk.transportClose })),
+  StdioClientTransport: vi.fn().mockImplementation(function () {
+    return { close: sdk.transportClose }
+  }),
 }))
 
 import { McpClientManager } from '../../src/main/services/mcp/client-manager'

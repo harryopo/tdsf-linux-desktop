@@ -107,7 +107,7 @@ pnpm lint:fix         # 自动修复
 pnpm test:watch       # 监听模式
 pnpm deadcode         # Knip（不报错，本地建议）
 pnpm build:win        # Windows 打包（electron-builder 26）
-pnpm rebuild          # 重编译原生模块（better-sqlite3, ssh2, sqlite-vec）
+pnpm native:check     # 原生模块（better-sqlite3 / node-pty）的 N-API 预编译真加载一遍
 ```
 
 ## AI 协作协议
