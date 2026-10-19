@@ -268,7 +268,8 @@ fix(terminal): prevent xterm.js memory leak on long sessions
 
 - CI 的 `Build (Windows)` 任务会跑 `pnpm build:win`，安装包作为 **workflow artifact** 保留（不是 Release 附件）
 - `Closes #xxx` 关联的 issue 由 GitHub 自动关闭
-- CHANGELOG 手工维护，**没有 release 自动化**（不打 tag、不发 GitHub Release，也没有 Renovate/Release Please）
+- CHANGELOG 手工维护，**没有 release 自动化**（不打 tag、不发 GitHub Release，也没有 Renovate / Release Please）；
+  依赖更新由 `.github/dependabot.yml` 每周一自动提 PR，这一条是有的
 - 介绍页在另一个仓库 `harryopo.github.io/tdsf-linux-desktop/`，改动要单独提交推送，本仓 CI 不管它
 
 ---
@@ -277,8 +278,8 @@ fix(terminal): prevent xterm.js memory leak on long sessions
 
 ### 单元测试
 
-- 公共函数 / Hooks / 工具类必须 100% 覆盖
-- 关键算法（D-S 融合、CoT 分析）覆盖率 ≥ 90%
+- 覆盖率会**报告**但**不卡门槛**：`vitest.config.ts` 里没有 `coverage.thresholds`，CI 只跑 `--coverage` 并上传 codecov。
+  所以"公共函数 100% / 关键算法 ≥90%"目前是**要求而不是闸**——写测试时按它自查，别以为 CI 会拦你
 - 测试文件位于 `tests/unit/` 或与源文件同目录 `*.test.ts`
 
 ```bash
@@ -291,7 +292,8 @@ pnpm test -- --coverage      # 覆盖率
 
 - 用户关键路径必须有 E2E 覆盖（登录 / SSH 连接 / 命令拦截 / AI 问答）
 - 截图存于 `tests/e2e/screenshots-*/`，用于回归对比
-- 跑 E2E 前必须启动 Sidecar
+- **不需要**先起 Python Sidecar：`pnpm test:e2e` 只做 `build && playwright test`，`playwright.config.ts` 里也没有 webServer。
+  只有涉及侧车行为的那几条 spec 会自己起进程（33 个 spec 里目前只有 `app-quit-cleanup.spec.ts` 提到 sidecar）
 
 ```bash
 pnpm test:e2e

@@ -41,7 +41,9 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
   下一个接手的人会以为能直接用。
 
 要判断某个模块的真实状态，读它的代码和它的测试，别读任何汇总表。
-已知降级或没接上的能力，统一列在 `README.md` §已知边界。
+已知降级或没接上的能力，统一列在 `README.md` §已知边界，
+逐条带 `file:line` 的完整版在 [docs/功能实景清单.md](docs/功能实景清单.md)（A 可用 / B 有条件 / C 断线）；
+往前要做什么在 [docs/长期优化目标.md](docs/长期优化目标.md)。
 
 ---
 
@@ -51,7 +53,7 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 |------|-----------|----------|------------|
 | Langfuse 追踪 | 无 Key 自动关闭 | `langfuse.ts`、`langfuse-trace.ts` | 配 Key 即启用 |
 | Python 侧车（Drain3 日志模板） | 缺 venv 时整条链路降级并在界面显示原因 | `sidecar-a/` + 宿主监督与握手代码 | 重建 venv + 装依赖 |
-| 14 步 Task Protocol | 有实现与测试，**生产未调用** | `core/agent/subagents/` | 先定它到底要不要上线 |
+| 14 步 Task Protocol | 有实现与测试，**生产未调用**（注意范围：只有 Task Protocol 这一条。同目录的 `loop-engineering-subagent` 与 `agent-loader` 由 `ipc/loop-engineering.ts`、`ipc/index.ts:55,69` 注册并在跑，别一起打成"死代码"） | `core/agent/subagents/task-protocol.ts`、`dispatcher.ts` | 先定它到底要不要上线（判决清单见 [docs/功能实景清单.md](docs/功能实景清单.md) §C 组） |
 
 > CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1369` → `agent-store.ts:405`
 > → `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117`），只是那一轮没采到熵点时不画。
@@ -152,4 +154,6 @@ xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`
 
 ---
 
-*v12 · 2026-10-19 · 降级表里那条 D-S/PCR5 是错的，已按代码改回；README 架构图换成生成器出图
+*v13 · 2026-10-19 · 新增两份讲真话的入口文档：docs/功能实景清单.md（能力按 A/B/C 三档判决，带 file:line）
+与 docs/长期优化目标.md（每条目标绑一处代码欠账）；Task Protocol 的降级范围收窄到它自己，
+CLAUDE.md 的门禁清单标清哪几把只在本地跑

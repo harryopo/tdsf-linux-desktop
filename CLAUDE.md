@@ -57,22 +57,27 @@ pnpm lint             # eslint src --ext .ts,.tsx（0 errors，warnings 允许�
 
 ## 其余常驻闸
 
+> 每条后面标了它**在哪跑**：`CI` = `.github/workflows/ci.yml` 里有对应步骤；
+> `本地` = 只有人或钩子跑（`pre-commit` / `pre-push` 也算钩子）。
+> **`本地` 不等于"有人记得跑"**——把哪几把挪进 CI 记在 [docs/长期优化目标.md](docs/长期优化目标.md) §二。
+
 ```bash
-pnpm test                 # vitest（单元 + 组件）
-pnpm test:e2e             # Playwright 直驱真实应用窗口
-pnpm build                # electron-vite 构建
-pnpm design:gate          # 设计契约 + 令牌 + 设置键
-node scripts/design/ui-audit.mjs --gate   # 真机量：标题/对比度/遮挡/图标/底部
-                                          # 窗口不在前台时报 rc=3（环境红 ≠ 产品红），无人值守加 --no-shots
-pnpm ipc:check            # 契约生成物与代码不漂移
-pnpm types:audit          # 渲染层手写类型表 vs preload 实现（冗余/幻影/重复都会红）
-pnpm native:check         # 原生模块按 prebuild 加载，不需要 node-gyp 重编
-pnpm deadcode:gate        # Knip ratchet（只降不升）
-pnpm security:secrets     # 凭据形状闸（--all 扫跟踪集，--staged 由 pre-commit 跑）
-pnpm security:topology    # 内网拓扑值：按值 + 按 /24 网段
-pnpm security:history     # 全历史按值回归（pre-push 也跑）
-pnpm doc:links            # 文档断链：相对链接必须落在跟踪集里
-pnpm promo:check          # 对外发布页的读数逐行对账
+pnpm test                 # CI   vitest（单元 + 组件）
+pnpm test:e2e             # 本地 Playwright 直驱真实应用窗口（CI 只跑 test:e2e:wiring 一个 spec）
+pnpm build                # CI   electron-vite 构建
+pnpm design:gate          # CI   设计契约 + 令牌 + 设置键
+node scripts/design/ui-audit.mjs --gate
+                          # 本地 真机量：标题/对比度/遮挡/图标/底部
+                          #       窗口不在前台时报 rc=3（环境红 ≠ 产品红），无人值守加 --no-shots
+pnpm ipc:check            # CI   契约生成物与代码不漂移
+pnpm types:audit          # CI   渲染层手写类型表 vs preload 实现（冗余/幻影/重复都会红）
+pnpm native:check         # 本地 原生模块按 prebuild 加载，不需要 node-gyp 重编
+pnpm deadcode:gate        # CI   Knip ratchet（只降不升）
+pnpm security:secrets     # 本地(pre-commit) 凭据形状闸（--all 扫跟踪集，--staged 由钩子跑）
+pnpm security:topology    # 本地 内网拓扑值：按值 + 按 /24 网段
+pnpm security:history     # 本地(pre-push) 全历史按值回归
+pnpm doc:links            # CI   文档断链：相对链接必须落在跟踪集里
+pnpm promo:check          # 本地 对外发布页的读数逐行对账
 ```
 
 > **这份清单要和 `.github/workflows/ci.yml` 的 job 对得上。** 2026-10-18 公开仓默认分支上挂了 7 个红 job，
@@ -134,8 +139,12 @@ pnpm native:check     # 原生模块（better-sqlite3 / node-pty）的 N-API 预
 
 ## 环境要求
 
-- Node 20+ / pnpm 9+ / Python 3.11+（仅 sidecar-a，缺 venv 时整条日志聚类走降级）
-- Windows 11 + VS Build Tools（编译原生模块）
+- **验证过的版本**：CI 跑 Node 22（`.github/workflows/ci.yml`），本机开发用 Node 24 + pnpm 11。
+  `package.json` **没有 `engines` 字段**，所以这三句是"我们用它测过"，不是"低于它就装不上"——
+  要变成硬门槛，就补 engines 并把 `package.json` 当高共享文件走 claim。
+- Python 3.11+ 仅 sidecar-a 需要；缺 venv 时整条日志聚类走降级（另见 `drain3-bridge.ts:235`：
+  模板抽取一直是内置正则，"Drain3 聚类"这条能力从来没真接过）。
+- Windows 11 + VS Build Tools（编译原生模块；正常情况下走 prebuild）
 
 ## 参考文档
 

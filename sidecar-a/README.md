@@ -10,15 +10,15 @@
 
 | 维度 | 数值 |
 |---|---|
-| 端口 | 7931（localhost 监听）|
-| 通信 | HTTP（FastAPI），不用 stdio JSON-RPC（开发快 3 倍）|
+| 端口 | **19000**（localhost 监听，见 `main.py:390` 与 `sidecar-manager.ts:152`；早先写的 7931 被 Windows 保留段占用，已弃用）|
+| 通信 | HTTP（FastAPI），不用 stdio JSON-RPC |
 | 依赖 | fastapi + uvicorn + drain3 + pydantic |
 | 体积 | ~10 MB（venv 内）|
 | 启动 | <1s（FastAPI）|
-| 集成 | 仅 SidecarManager 一个 TS 文件 |
+| 集成 | TS 侧不止 SidecarManager：另有 `src/main/ipc/sandbox*.ts` 与 `scripts/{test-sidecar-integration,verify-sidecar-cleanup}.ts` |
 | 打包 | v1.0 阶段不打包（直接 venv 运行）|
 
-## 二、3 个端点
+## 二、端点清单（`main.py` 里 `@app.get` / `@app.post` 共 9 个）
 
 | 端点 | 方法 | 作用 |
 |---|---|---|
@@ -78,9 +78,12 @@ curl -X POST http://127.0.0.1:7931/pipeline/run \
 - 76 个生产 SRE 案例训练
 
 **v1.0 简化版**（保留接口签名）：
-- 用 ROOT_CAUSE_RULES 规则匹配（7 类常见根因）
+- 用 ROOT_CAUSE_RULES 规则匹配（`open_derisk_adapter.py:39` 起，共 10 条根因规则）
 - 透明化推理链（reasoning 数组）
 - v1.5 升级到真实 OpenDerisk（保留 diagnose() 接口）
+
+> 上面"76 个生产 SRE 案例训练"这句在仓库里没有任何出处，2026-10-19 删；
+> 真要接 OpenDerisk 时再按它的公开材料重写。
 
 ## 六、Lessons
 

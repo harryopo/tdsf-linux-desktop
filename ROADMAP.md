@@ -30,9 +30,9 @@
       分段文本 / logprobs），采不到就不画——不是"没做"。
       （本条原先写着"可视化至今未做"，那是照抄 2026-07-25 的旧表没回代码核对，已纠正。）
 - [x] 教程词库 v1.2.0（2236 词条）
-- [x] 8 爬虫源教程聚合（鸟哥 / 阮一峰 / Linux 中国等）
+- [x] 教程源聚合（`tutorial-source-registry.ts` 现为 14 个源，不是当年写的 8 个）
 - [x] 中英对照翻译 + 课程联动
-- [x] 内置设置中心（5 大类 9 子页）
+- [x] 内置设置中心（`settings-sections.ts` 现为扁平 10 节，无「大类」分层）
 - [x] MIT 开源协议 + GitHub 开源仓库
 - [x] GitHub Pages 介绍页（[harryopo.github.io/tdsf-linux-desktop](https://harryopo.github.io/tdsf-linux-desktop/)）
 
@@ -40,7 +40,7 @@
 
 | 那条限制 | 现在 |
 |---|---|
-| Docker 沙箱（未来切 Firecracker microVM） | **两个都没有**。沙箱隔离执行至今未开始，只在设计稿里 |
+| Docker 沙箱（未来切 Firecracker microVM） | **Docker / OpenHands 链路已接并被教程页真调**（`ipc/sandbox.ts` + `services/sandbox/{docker-detector,openhands-runner}.ts`，消费点 `TutorialDetailPage.tsx:351-579`）；没做的只有 Firecracker |
 | 单语言（仅简体中文 UI） | 仍然仅简体中文 |
 | 仅支持本地 Sidecar（无远程 AI 网关） | 仍然如此 |
 
@@ -49,7 +49,7 @@
 - [x] 渲染层整层重做：退出 Ant Design，改自研原语 + lucide 图标 + 设计令牌单源
 - [x] React 19 / Zustand 5 / recharts 3 升级
 - [x] 终端优先外壳：三栏可拖 + 多终端标签 + 命令-输出块切分
-- [x] 本机终端（node-pty，走 utilityProcess）
+- [x] 本机终端（node-pty，在主进程 require；「走 utilityProcess」是后加的错话，2026-10-19 删）
 - [x] 第二个应用窗口 + 预览面板（端口转发）
 - [x] 远端 shell 集成（OSC 133/633，逐台确认后写入、可撤）
 - [x] 跨进程契约单源（zod 入参判定 + 类型生成 + 漂移即红）
@@ -129,6 +129,14 @@
 - ❌ 完整 Linux 桌面环境（VS Code Remote 已做得很好）
 - ❌ 通用聊天机器人（与本项目"运维可信决策"定位不符）
 - ❌ 商业云服务深度集成（保持中立开源）
+
+---
+
+## 长期优化目标
+
+这份文件只记「已经发生什么」；**往前要做什么、每条凭什么、什么时候算做完**，
+统一写在 [docs/长期优化目标.md](docs/长期优化目标.md)——那里每一条都绑一处代码里的欠账，
+不写没有执行体的排期。
 
 ---
 

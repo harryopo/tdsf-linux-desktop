@@ -5,7 +5,7 @@
 [![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-43.5.1-47848F.svg)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19.3-61dafb.svg)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178c6.svg)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6.svg)](https://www.typescriptlang.org/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 在线预览：<https://harryopo.github.io/tdsf-linux-desktop/>
@@ -52,7 +52,8 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 
 ### AI 辅助
 
-- 多 Provider：OpenAI / Anthropic Claude / Google Gemini / DeepSeek / 智谱 / Moonshot / Ollama 本地。
+- 多 Provider：按 `provider-factory.ts` 的分支算共 7 类——`anthropic` / `google` / `deepseek` / `qwen` /
+  `volcengine-ark` / `ollama` / `openai-compatible`。智谱、Moonshot 这类走 `openai-compatible` 模板，不是独立分支。
 - 流式：增量合并、思考链占位、迟到事件不丢、可中途停止（停止和失败分开报，不混成一个红条）。
 - 上下文窗口按各家真实上限算，超了如实截断并标注，不假装塞得下。
 - MCP 工具接入（`@modelcontextprotocol/sdk`），工具执行在前端逐条成卡。
@@ -60,8 +61,9 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 
 ### 决策可信度
 
-每个 AI 判断都拆成多源证据（规则匹配 / 知识库 / 历史成功率 / LLM 自评 / 观测数据 / 用户偏好），
-在雷达图上画出各源权重与融合结果。**分数低就明说分数低**，不包装成"仅供参考"。
+每个 AI 判断都拆成多源证据，在雷达图上画出各源权重与融合结果。融合源共 7 个，
+以 `src/shared/credibility.ts` 的 `FUSION_SOURCE_IDS` 为准：日志、观测、知识库、AI 参数、人工、历史、最佳实践。
+**分数低就明说分数低**，不包装成"仅供参考"。
 
 各源先验先按 `decision.weights`（决策设置页可调）做一次 Shafer 折扣，再进 D-S 合成：
 两两冲突低于 0.3 走 Dempster，高于就换 PCR5 重分配。实现在 `src/main/core/agent/credibility/`，
@@ -72,12 +74,13 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 - `ssh2` + `@xterm/xterm`；命令-输出块由 OSC 133/633 序列切分，切分逻辑是纯函数、可单测。
 - 远端 shell 集成逐台确认后写入，随时可撤（撤完 rc 文件字节回到原样）。
 - SFTP 文件树 + Monaco 编辑器，双击编辑、Ctrl+S 同步回远端。
-- 本机终端走 node-pty，落在 utilityProcess，不污染主进程。
+- 本机终端走 node-pty，在主进程 require（`services/terminal/local-pty.ts`），不额外起子进程。
 
 ### 知识库
 
-2236 条（命令 1898 / 术语 65 / 选项 248 / 报错 25），
-来源 `jaywcjlove/linux-command`(MIT) 835 条 + `tldr-pages`(CC BY 4.0) 1481 条 + 人工标注 118 条。
+2236 条（`src/renderer/src/assets/dict/linux-commands-zh.json` 的 entries 计数）。
+条目由三个来源合并而成（`jaywcjlove/linux-command` MIT、`tldr-pages` CC BY 4.0、人工标注），
+**但条目里没有保留来源字段**，所以分项数只能按导入批次记账，加起来不等于 2236。
 本机反馈会真的改变条目的成功率——不是只写不读的字段。
 
 ## 快速开始
@@ -89,18 +92,21 @@ pnpm install
 pnpm dev
 ```
 
-需要 Node.js 20+、pnpm 9+。模型 API Key 在 设置 → 模型配置 里填，不填也能跑（AI 走可见的失败态，不白屏）。
+需要 Node.js 与 pnpm：CI 在 **Node 22** 上跑（`.github/workflows/ci.yml`），本机开发用的是 Node 24 + pnpm 11。
+`package.json` **没有 `engines` 字段**，所以这些是"验证过的版本"，不是强制门槛。
+模型 API Key 在 设置 → 模型配置 里填，不填也能跑（AI 走可见的失败态，不白屏）。
 
 打包：`pnpm build:win` / `build:mac` / `build:linux`（electron-builder 26）。
 
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
+下表测量时间 **2026-10-19**（单元 15:49、端到端 20:04，UTC+8）。
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3270 通过 / 19 跳过 | `npm test`（271 个测试文件：269 通过 / 2 按环境跳过） |
-| 端到端用例 | 59 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
+| 单元与组件用例 | 3276 通过 / 19 跳过 | `npm test`（271 个测试文件：269 通过 / 2 按环境跳过） |
+| 端到端用例 | 57 通过 / 15 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 272 | `npm run audit:ipc`（232 请求-响应 + 40 事件推送） |
 | 已登记契约的通道 | 35 | `src/shared/ipc-contract.ts`（30 invoke + 5 event） |
 | TypeScript 源文件 | 508 | `git ls-files src` 里 `.ts/.tsx` 计数 |
@@ -110,8 +116,12 @@ pnpm dev
 
 ```
 lint · typecheck · tests 类型检查 · vitest · knip 死代码 ·
-design:gate · ui-audit · ipc:check · build · playwright
+design:gate · ui-audit --gate · ipc:check · build · playwright
 ```
+
+其中 `ui-audit --gate` 的真命令是 `node scripts/design/ui-audit.mjs --gate`（它不是 npm script）。
+另有几把闸只在本地跑、CI 里没有对应 job：`security:secrets` / `security:topology` / `security:history` /
+`promo:check`——这条口径写进 [CLAUDE.md](CLAUDE.md) 的门禁清单，别把"有这道闸"当成"CI 会拦"。
 
 安全侧常驻闸：`secret-gate`（凭据形状，扫跟踪集与暂存区）、
 `topology-gate`（内网拓扑值，按值 + 按 /24 网段）、`history-env-scan`（全历史按值回归，pre-push 跑）、
@@ -143,17 +153,21 @@ Electron 安全三原则全部为硬约束：`contextIsolation: true` / `nodeInt
 
 - **可信度融合跑的是完整 D-S / PCR5，但各源先验是人工定标的**：折扣权重在决策设置里可调，
   先验本身（每条证据给多高分）来自规则与经验值，不是从数据里学出来的。融合算法不会替先验兜底。
-- **14 步 Task Protocol 与 LangGraph 编排有代码、有测试，但生产链路零调用**。
-  它们是早期交付的产物，删或接都还没定。
+- **14 步 Task Protocol 有代码、有测试，但生产链路零调用**。它是早期交付的产物，删或接都还没定。
+  （原条目还写着"与 LangGraph 编排"——仓库里没有 LangGraph 依赖或代码，那句是抄来的，2026-10-19 删。）
+  还有哪些能力属于这种半态，逐条列在 [docs/功能实景清单.md §C 组](docs/功能实景清单.md)。
 - **Python 侧车（Drain3 日志模板挖掘）需要本机 venv**，缺依赖时整条日志聚类走降级，界面会显示降级原因。
+  另注：`drain3-bridge.ts:235` 自陈模板抽取一直是内置正则——所以这条链路的"日志聚类"从来不是真 Drain3。
 - **Langfuse 追踪没有 Key 时自动关闭**，不会静默上报。
 - **安装包不随仓库发布**；`pnpm build:win` 只在本机验证过 Windows。
-- 端到端有 13 条按环境跳过：需要真 Linux 靶机、真模型 Key 或第二台机器的用例。
+- 端到端有 15 条按环境跳过（2026-10-19 实测）：需要真 Linux 靶机、真模型 Key 或第二台机器的用例。
 
 ## 贡献
 
 先看 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CODING.md](CODING.md)。
 改 `src/renderer/**` 之前必读 [DESIGN.md](DESIGN.md)（界面规范唯一权威）。
+想知道"现在真有什么、什么还没接上"，看 [docs/功能实景清单.md](docs/功能实景清单.md)；
+想知道"接下来往哪走、每条凭什么"，看 [docs/长期优化目标.md](docs/长期优化目标.md)。
 
 发现安全问题请走 [SECURITY.md](SECURITY.md) 私密披露，不要在 Issue 里公开。
 
@@ -173,7 +187,9 @@ and a full audit trail of what was allowed and why.
 Electron 43 · React 19 · Zustand 5 · ssh2 · xterm.js · Monaco · Vercel AI SDK · MCP · better-sqlite3 ·
 D-S evidence theory + PCR5 fusion · Vitest + Playwright.
 
-3270 unit/component tests and 59 end-to-end tests driving the real app window.
-See [Quick start](#快速开始) and the [known boundaries](#已知边界说清楚不含糊).
+3276 unit/component tests and 57 end-to-end tests driving the real app window
+(19 and 15 respectively are environment-skipped; measured 2026-10-19).
+See [Quick start](#快速开始), the [known boundaries](#已知边界说清楚不含糊)
+and [docs/功能实景清单.md](docs/功能实景清单.md) for what is actually wired up.
 
 MIT licensed.
