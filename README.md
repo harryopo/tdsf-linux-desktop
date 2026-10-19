@@ -128,7 +128,7 @@ design:gate · ui-audit · ipc:check · build · playwright
 主进程  src/main/       Node.js：ssh2 / LLM / SQLite / 风险闸 / 可信度 / MCP / 技能
 预加载  src/preload/    contextBridge 按域拆分，入参走 zod 契约判定
 渲染层  src/renderer/   React 19 + Zustand 5 + lucide，沙箱隔离
-共享    src/shared/     跨进程类型与算法的单源（IPC 通道名、可信度表、boot 载荷）
+共享    src/shared/     跨进程类型与常量的单源（IPC 通道名、可信度表、boot 载荷）
 ```
 
 Electron 安全三原则全部为硬约束：`contextIsolation: true` / `nodeIntegration: false` / `sandbox: true`，
