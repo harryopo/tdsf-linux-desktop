@@ -340,7 +340,8 @@ pnpm test:e2e
 ### 报告安全漏洞
 
 **请勿在公开 Issue 中报告安全漏洞**。
-邮件发送至 `2239868923@qq.com`（主题前缀 `[SECURITY]`），详见 [SECURITY.md](SECURITY.md)。
+用 GitHub 的私密漏洞报告表单：[Report a vulnerability](https://github.com/harryopo/tdsf-linux-desktop/security/advisories/new)，
+详见 [SECURITY.md](SECURITY.md)。（这里原来写的是维护者本人的邮箱，2026-10-20 换掉，原因见 SECURITY.md。）
 
 ---
 
