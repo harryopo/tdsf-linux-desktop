@@ -66,6 +66,21 @@ function getTurndown(): TurndownService {
 }
 
 /**
+ * 绝对链接必须指向 learn.microsoft.com 的 https 页面。
+ * 比较 hostname 而不是前缀——`https://learn.microsoft.com.evil.com/` 能通过 startsWith。
+ */
+function sameDomainAbsoluteUrl(href: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(href)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'learn.microsoft.com') return null
+  return href
+}
+
+/**
  * 从 hub 页提取所有子页 URL
  */
 async function extractHubLinks(hubUrl: string, signal: AbortSignal): Promise<string[]> {
@@ -82,9 +97,9 @@ async function extractHubLinks(hubUrl: string, signal: AbortSignal): Promise<str
 
     let fullUrl: string
     if (href.startsWith('http')) {
-      // 仅保留同域
-      if (!href.startsWith(MS_LEARN_BASE)) return
-      fullUrl = href
+      const absolute = sameDomainAbsoluteUrl(href)
+      if (!absolute) return
+      fullUrl = absolute
     } else if (href.startsWith('/')) {
       fullUrl = MS_LEARN_BASE + href
     } else {
@@ -385,3 +400,6 @@ function estimateReadingTime(md: string): number {
   const enMin = en / 200
   return Math.max(1, Math.round(cjkMin + enMin))
 }
+
+/** 导出供测试使用 */
+export const _internal = { sameDomainAbsoluteUrl }

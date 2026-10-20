@@ -150,8 +150,14 @@ function wikitextToMd(wikitext: string): string {
   md = md.replace(/^#\s+/gm, '1. ')
   md = md.replace(/^:\s+/gm, '  ')
 
-  // 移除剩余的 HTML 标签
-  md = md.replace(/<\/?[a-zA-Z][^>]*>/g, '')
+  // 移除剩余的 HTML 标签。单次替换挡不住嵌套形状（`<scr<script>ipt>` 去掉内层后会拼出 `<script>`），
+  // 先迭代到稳定，再把残余的尖括号转义，确保不会拼出新的标签。
+  let beforeStrip: string
+  do {
+    beforeStrip = md
+    md = md.replace(/<\/?[a-zA-Z][^>]*>/g, '')
+  } while (md !== beforeStrip)
+  md = md.replace(/<(?=[a-zA-Z/])/g, '&lt;')
 
   return md.trim()
 }
@@ -343,3 +349,6 @@ export async function crawlDebianWiki(
     throw err
   }
 }
+
+/** 导出供测试使用 */
+export const _internal = { wikitextToMd }

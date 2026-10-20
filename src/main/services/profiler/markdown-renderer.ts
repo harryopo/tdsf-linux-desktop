@@ -118,9 +118,9 @@ function truncateOutput(text: string, maxLines = 30, maxLineLen = 200): string {
   return truncated.join('\n')
 }
 
-/** 转义 Markdown 表格中的 `|` 字符 */
+/** 转义 Markdown 表格中的 `|` 字符（反斜杠必须先转义，否则 `\|` 会变成 `\\|`，竖线仍会切单元格） */
 function escapeTableCell(text: string): string {
-  return text.replace(/\|/g, '\\|').replace(/\n/g, ' ')
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
 }
 
 /** 提取 uname -a 第一段（内核版本 + 主机名） */
@@ -684,6 +684,7 @@ export function renderProfilerMarkdown(
 export const _internal = {
   formatTime,
   truncateOutput,
+  escapeTableCell,
   parseOsRelease,
   parseUptime,
   parseTools,

@@ -52,6 +52,7 @@
  *
  * 详见决策树：docs/AGENT-BOUNDARY.md §决策树
  */
+import { randomUUID } from 'node:crypto'
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
 import { z } from 'zod'
 import { APPROVAL_BUDGET_MS, isLlmTimeout, resolveLlmBudget } from './llm-budget'
@@ -365,7 +366,7 @@ class SupervisorAgent {
    */
   async chat(params: ChatParams): Promise<void> {
     const correlationId =
-      params.correlationId ?? `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      params.correlationId ?? `req_${Date.now()}_${randomUUID().slice(0, 8)}`
 
     // 提取最后一条 user 消息文本作为 trace input（仅 string content，多模态跳过）
     let userQuery: string | undefined
@@ -417,7 +418,7 @@ class SupervisorAgent {
       onDone,
       onError,
       onToolEvent,
-      correlationId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      correlationId = `req_${Date.now()}_${randomUUID().slice(0, 8)}`,
       sshSessionId,
       terminalContext,
       approveWriteCommand,

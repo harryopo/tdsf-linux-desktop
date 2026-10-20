@@ -419,3 +419,16 @@ describe('MarkdownRenderer - 完整流程', () => {
     expect(md).toContain('**openEuler**')
   })
 })
+
+describe('MarkdownRenderer - 表格单元格转义', () => {
+  const { escapeTableCell } = _internal
+
+  it('竖线前先转义反斜杠，避免 \\| 被还原成切列', () => {
+    expect(escapeTableCell('a|b')).toBe('a\\|b')
+    expect(escapeTableCell('a\\|b')).toBe('a\\\\\\|b')
+  })
+
+  it('换行折成空格', () => {
+    expect(escapeTableCell('a\nb')).toBe('a b')
+  })
+})
