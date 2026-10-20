@@ -135,7 +135,7 @@ const REPO_PATHISH = /^(?:src|tests|scripts|docs|packages|\.claude|\.github)\//
 const GLOB_OR_TEMPLATE = /[*?{}]|(\.\.\.)/
 
 /**
- * @param {{trackedSet:Set<string>, trackedList:string[], isIgnored:(p:string)=>boolean}} ctx
+ * @param {{trackedSet:Set<string>, trackedList:string[], ignoredPrefixes:Set<string>}} ctx
  * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'external'|'skip', note:string}}
  */
 function classifyBarePath(span, ctx) {
@@ -146,7 +146,7 @@ function classifyBarePath(span, ctx) {
   if (!REPO_PATHISH.test(bare)) return { kind: 'skip', note: bare }
   if (GLOB_OR_TEMPLATE.test(bare)) return { kind: 'skip', note: bare }
   if (bare.endsWith('/')) {
-    return dirResolves(bare, ctx.trackedList, ctx.isIgnored)
+    return dirResolves(bare, ctx.trackedList, ctx.ignoredPrefixes)
       ? { kind: 'ok', note: bare }
       : { kind: 'ghostdir', note: bare }
   }
@@ -155,46 +155,65 @@ function classifyBarePath(span, ctx) {
   // 免得两条判据各存一份豁免、名单和实际用量脱钩。
   if (EXTERNAL_CODE_REFS.has(path.basename(bare))) return { kind: 'external', note: bare }
   // 没有扩展名又不在跟踪集里：当作目录引用问一次（`src/main` 这种漏写斜杠的写法）
-  if (!/\.[a-z0-9]+$/i.test(bare) && dirResolves(bare, ctx.trackedList, ctx.isIgnored))
+  if (!/\.[a-z0-9]+$/i.test(bare) && dirResolves(bare, ctx.trackedList, ctx.ignoredPrefixes))
     return { kind: 'ok', note: bare }
   return { kind: 'ghostfile', note: bare }
 }
 
 /**
- * 目录引用落不落得到现场 —— **只问 git，绝不问本机盘**。
- * 2026-10-20 两次实测才知道另外两条路都不行：
- * ① 第一版写 fs.existsSync：`docs/archive/`、`scripts/.cjs/` 这类"本机有、新克隆没有"的目录
- *    在我机器上全绿，推到 CI 红在三个作业上（判据依赖本机现场 = 假绿）。
- * ② 改用 git check-ignore 但**带尾斜杠**问：实测连 `src/`、`docs/` 都返回"已忽略"
- *    （命中的是 .gitignore 里一个空行），于是目录判据恒真、整条裸路径判据静默失效——
- *    这次是 --self-test 报"没抓不到不存在的目录"才露出来的。去掉尾斜杠问才正确。
- * 口径：跟踪集里有它底下的文件 → 在克隆里存在；被忽略规则命中 → 文档说的是"这东西别提交"，
- * 那也是正当引用（AGENTS.md §仓库卫生 就靠这类路径列产物名单）。两者都不成立才算幽灵。
+ * "这条目录规则真的写在已入库的 .gitignore 里吗" —— 自己解析，不用 git check-ignore。
+ * 2026-10-20 在一个新建 worktree 里实测：`git check-ignore -- scripts/.cjs` 在主工作树返回"已忽略"、
+ * 在新克隆返回"未忽略"。原因是带尾斜杠的规则（`scripts/.cjs/`）只匹配**目录**，
+ * 而那条路径在新克隆里根本不存在，git 无法判断它是目录 ⇒ 同一个问题在两台机器上两个答案。
+ * 换成直接读 .gitignore：判据与克隆状态无关，而且顺带验了文档那句"`gitignore` 已挡"到底有没有挡。
  *
- * @param {string} rel 目录路径（约定以 / 结尾）
- * @param {string[]} trackedList 跟踪集
- * @param {(p: string) => boolean} isIgnored 不带尾斜杠问 git
+ * 近似口径（写清楚，别当成完整的 gitignore 语义实现）：
+ * 只认"目录/文件路径型"规则，`!` 取反与 `|` 之类正则不解释；含 `*` 的规则取星号之前的前缀。
  */
-function dirResolves(rel, trackedList, isIgnored) {
-  const prefix = rel.endsWith('/') ? rel : rel + '/'
-  if (trackedList.some((f) => f.startsWith(prefix))) return true
-  // 忽略规则要用**不带尾斜杠**的形式问：实测带斜杠时连 `src/`、`docs/` 都返回"已忽略"
-  // （命中的是 .gitignore 里一个空行），那样这条判据会恒真、整块静默失效。
-  if (isIgnored(rel.replace(/\/+$/, ''))) return true
-  return false
+function loadIgnoredPrefixes(trackedList) {
+  const set = new Set()
+  for (const f of trackedList.filter((x) => /(^|\/)\.gitignore$/.test(x))) {
+    const base = f === '.gitignore' ? '' : f.slice(0, f.lastIndexOf('/') + 1)
+    let text
+    try {
+      text = fs.readFileSync(path.join(repo, f), 'utf8')
+    } catch {
+      continue
+    }
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim()
+      if (!line || line.startsWith('#') || line.startsWith('!')) continue
+      const star = line.indexOf('*')
+      let norm = star >= 0 ? line.slice(0, star) : line
+      norm = norm.replace(/^\/+/, '').replace(/\/+$/, '')
+      if (!norm) continue
+      set.add(base + norm)
+    }
+  }
+  return set
 }
 
-/** 逐个问 git 太慢，记忆化；只会在"跟踪集里一个文件都没有"的目录上触发，量很小 */
-function makeIgnoreProbe() {
-  const cache = new Map()
-  return function isIgnored(p) {
-    if (cache.has(p)) return cache.get(p)
-    const r = spawnSync('git', ['check-ignore', '--no-index', '-q', '--', p], { cwd: repo, encoding: 'utf8' })
-    // 0 = 命中忽略规则；1 = 未命中；其它 = git 自己报错，当成"未忽略"保守处理（宁可多报）
-    const v = r.status === 0
-    cache.set(p, v)
-    return v
+/**
+ * 目录引用落不落得到现场 —— **只问 git（跟踪集 + 入库的 .gitignore），绝不问本机盘**。
+ * 2026-10-20 三次实测才走通，每一版都有一种"看起来对"的错法：
+ * ① fs.existsSync：`docs/archive/`、`scripts/.cjs/` 这类"本机有、新克隆没有"的目录在我机器上全绿，
+ *    推到 CI 红在四个作业上（判据依赖本机现场 = 假绿）。
+ * ② git check-ignore **带尾斜杠**问：连 `src/`、`docs/` 都返回"已忽略"（命中的是 .gitignore 里一个空行），
+ *    于是判据恒真、整块静默失效——是 --self-test 报"没抓到不存在的目录"才露出来的。
+ * ③ git check-ignore 不带尾斜杠问：路径不存在时答"未忽略"，同一条规则在主工作树与新克隆两个答案，
+ *    本地绿、worktree 红——是照着克隆跑了一遍才发现的。
+ * 口径：跟踪集里有它底下的文件 → 克隆里存在；或者已入库 .gitignore 里真有这条规则 →
+ * 文档写它正是为了说"这东西别提交"（AGENTS.md §仓库卫生 的产物名单靠的就是这一类）。两者都不成立才算幽灵。
+ */
+function dirResolves(rel, trackedList, ignoredPrefixes) {
+  const bare = rel.replace(/\/+$/, '')
+  if (trackedList.some((f) => f.startsWith(bare + '/'))) return true
+  for (const p of ignoredPrefixes) {
+    const d = p.replace(/\/+$/, '')
+    if (!d) continue
+    if (d === bare || bare.startsWith(d + '/')) return true
   }
+  return false
 }
 
 /**
@@ -368,7 +387,7 @@ if (!tracked.size) {
   process.exit(2)
 }
 const sources = candidateSources(tracked)
-const CTX = { trackedSet: tracked, trackedList: [...tracked], isIgnored: makeIgnoreProbe() }
+const CTX = { trackedSet: tracked, trackedList: [...tracked], ignoredPrefixes: loadIgnoredPrefixes([...tracked]) }
 if (SELF_TEST) selfTest(tracked, sources, CTX)
 
 const docs = [...tracked].filter((f) => /\.md$/i.test(f))
@@ -441,7 +460,8 @@ if (!AS_JSON) {
   )
   console.log(
     '  口径提醒：行号只判"在不在正本行数范围内"，不判"那一行讲的是不是原话"；' +
-      '裸路径只判"在不在跟踪集/是不是真目录"，含 * ? {} ... 的示例与命令行的第一段之外的部分都不判；' +
+      '裸路径只问 git（跟踪集里有没有 / 已入库 .gitignore 里有没有这条规则），不问本机盘；' +
+      '含 * ? {} ... 的示例、命令行第一个词之外的部分、反引号外的正文都不判；' +
       '扫描面 = git 跟踪集里的 *.md，围栏代码块内的引用不判'
   )
 }
