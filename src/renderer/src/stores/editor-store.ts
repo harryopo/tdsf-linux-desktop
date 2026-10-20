@@ -59,4 +59,3 @@ export const useEditorStore = create<EditorStoreState>((set) => ({
   clearInjectedAtCommand: () => set({ injectedAtCommand: null }),
 }))
 
-export default useEditorStore

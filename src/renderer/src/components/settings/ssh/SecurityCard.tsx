@@ -80,4 +80,3 @@ export function SecurityCard(props: SecurityCardProps) {
   )
 }
 
-export default SecurityCard

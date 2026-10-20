@@ -117,11 +117,24 @@ describe('死码闸', () => {
     }
   })
 
-  it('重复导出超过上限 16 必须红（ratchet 只许降）', () => {
-    const ok = runGate(['--input', path.relative(ROOT, write('dup16.json', envelope({ duplicates: 16 }))), '--json'])
-    expect(ok.code, '16 条是建档时的现量，恰好在上限上，不该红').toBe(0)
-    const bad = runGate(['--input', path.relative(ROOT, write('dup17.json', envelope({ duplicates: 17 }))), '--json'])
-    expect(bad.code, '第 17 条 duplicates 没拦住').toBe(1)
+  it('duplicates 的刻度挪了，这两条判据要跟着挪（所以数从闸自己嘴里取，不手抄）', () => {
+    const probe = runGate(['--input', path.relative(ROOT, write('dup-probe.json', envelope({ duplicates: 0 }))), '--json'])
+    expect(probe.code, probe.stderr).toBe(0)
+    const cap = probe.json?.caps.duplicates
+    expect(typeof cap, '闸没把 duplicates 的上限报出来，判据就无从对齐').toBe('number')
+    // 恰好等于上限 ⇒ 放行；多一条 ⇒ 红。建档时是 16，2026-10-20 清零后是 0，两条断言都不用改
+    const atCap = runGate([
+      '--input',
+      path.relative(ROOT, write('dup-at-cap.json', envelope({ duplicates: cap }))),
+      '--json',
+    ])
+    expect(atCap.code, `${cap} 条正踩在上限上，不该红`).toBe(0)
+    const overCap = runGate([
+      '--input',
+      path.relative(ROOT, write('dup-over-cap.json', envelope({ duplicates: cap + 1 }))),
+      '--json',
+    ])
+    expect(overCap.code, `第 ${cap + 1} 条 duplicates 没拦住`).toBe(1)
   })
 
   it('exports/types 爆表不拦（反向对照：不许罚"为了测试而导出"）', () => {

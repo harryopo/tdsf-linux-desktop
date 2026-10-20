@@ -88,7 +88,7 @@ function buildMenuItems(
 }
 
 /** FileTreeContextMenu */
-export const FileTreeContextMenu: FC<FileTreeContextMenuProps> = ({
+const FileTreeContextMenu: FC<FileTreeContextMenuProps> = ({
   node,
   onAction,
   children,

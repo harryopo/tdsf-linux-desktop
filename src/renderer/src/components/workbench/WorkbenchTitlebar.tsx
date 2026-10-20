@@ -415,4 +415,3 @@ function IconButton({
   )
 }
 
-export default WorkbenchTitlebar

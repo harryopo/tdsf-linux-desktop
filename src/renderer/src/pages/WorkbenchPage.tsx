@@ -454,5 +454,3 @@ export const WorkbenchPage: FC = () => {
     </div>
   )
 }
-
-export default WorkbenchPage

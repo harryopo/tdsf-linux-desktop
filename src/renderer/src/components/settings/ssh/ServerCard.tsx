@@ -225,4 +225,3 @@ export function ServerCard(props: ServerCardProps) {
   )
 }
 
-export default ServerCard

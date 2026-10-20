@@ -214,4 +214,3 @@ function StatusItem({ children, color, onClick, title }: StatusItemProps) {
   )
 }
 
-export default StatusBar

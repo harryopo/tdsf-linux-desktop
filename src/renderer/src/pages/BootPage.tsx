@@ -286,4 +286,3 @@ export function BootPage() {
   )
 }
 
-export default BootPage

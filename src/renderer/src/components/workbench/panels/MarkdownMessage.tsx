@@ -258,4 +258,3 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps): J
   return <div className={`md-body ${className ?? ''}`}>{blocks}</div>
 }
 
-export default MarkdownMessage

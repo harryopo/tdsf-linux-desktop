@@ -191,4 +191,3 @@ export function usePaorLoop(): UsePaorLoopResult {
   }
 }
 
-export default usePaorLoop

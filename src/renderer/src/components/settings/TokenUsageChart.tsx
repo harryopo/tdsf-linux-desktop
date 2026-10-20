@@ -213,4 +213,3 @@ export function TokenUsageChart() {
   )
 }
 
-export default TokenUsageChart

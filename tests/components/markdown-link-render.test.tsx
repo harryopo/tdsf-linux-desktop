@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import MarkdownMessage from '@renderer/components/workbench/panels/MarkdownMessage'
+import { MarkdownMessage } from '@renderer/components/workbench/panels/MarkdownMessage'
 
 afterEach(cleanup)
 

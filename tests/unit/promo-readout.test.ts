@@ -28,9 +28,15 @@ type Readouts = {
     measured: Array<[string, number]>
   ) => Array<{ label: string; got: unknown; want: number }>
   diffReadouts: (page: Record<string, number | null>, measured: Array<[string, number]>) => Array<{ label: string; got: unknown; want: number }>
-  measure: () => unknown
-  TABLE_ROWS: (m: unknown) => Array<[string, number]>
-  MD_EXTRA_ROWS: (m: unknown) => Array<[string, number]>
+  /**
+   * measure() 的事实形状。写成 unknown 的话，测试里只要碰一下字段就是 TS18046
+   * （2026-10-20 加 --diagram 夹具时踩到，CI 的 TypeScript(tests) job 因此红）。
+   * 字段名与 scripts/quality/promo-readout.mjs 的 measure() 对齐；漂了会让图夹具
+   * 生成 "undefined" 那种行，第 205 行那条"真图对真文件"会当场报出来。
+   */
+  measure: () => Facts
+  TABLE_ROWS: (m: Facts) => Array<[string, number]>
+  MD_EXTRA_ROWS: (m: Facts) => Array<[string, number]>
   readRepoFacts: () => unknown
   countProviderTypes: (source: string) => number
   parseSvgClaims: (text: string) => Record<string, number>
@@ -38,6 +44,14 @@ type Readouts = {
     facts: unknown,
     svgText: string
   ) => { bad: Array<{ label: string; got: number; want: number }>; checked: number; svg: Record<string, number> }
+}
+
+type Facts = {
+  srcFiles: number
+  ipc: { request: number; event: number; total: number }
+  contract: { invoke: number; event: number; total: number }
+  rules: { vocabulary: number; detectors: number; argvRules: number }
+  providers: number
 }
 
 async function mod(): Promise<Readouts> {

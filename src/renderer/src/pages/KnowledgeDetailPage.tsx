@@ -38,7 +38,7 @@ import type { KnowledgeEntry } from '@shared/models'
 import { cn } from '@/components/trae/utils'
 import { Button, PageHeader, Spinner, TextArea, TextInput } from '@/ui'
 // v2.6：教程正文 markdown 渲染（复用工作台轻量安全渲染器，无 innerHTML）
-import MarkdownMessage from '@/components/workbench/panels/MarkdownMessage'
+import { MarkdownMessage } from '@/components/workbench/panels/MarkdownMessage'
 import './KnowledgePage.css'
 
 /** KnowledgeDetailPage — 知识详情页 */

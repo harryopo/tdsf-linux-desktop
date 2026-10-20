@@ -107,4 +107,3 @@ export function DefaultsCard(props: DefaultsCardProps) {
   )
 }
 
-export default DefaultsCard

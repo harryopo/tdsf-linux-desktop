@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-import MarkdownMessage from '@renderer/components/workbench/panels/MarkdownMessage'
+import { MarkdownMessage } from '@renderer/components/workbench/panels/MarkdownMessage'
 
 describe('MarkdownMessage — 块级语法', () => {
   it('1. 标题渲染为对应层级的 h 标签（md-h 类）', () => {

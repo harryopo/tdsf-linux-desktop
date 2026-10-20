@@ -2,7 +2,7 @@ import { memo, useMemo, useState, type FC } from 'react'
 import { AlertTriangle, Check, ChevronRight, Clock, Loader2, Pause, Play, Sparkles, X } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { AgentStep } from '@shared/models'
-import MarkdownMessage from './MarkdownMessage'
+import { MarkdownMessage } from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
 import {
   TOOL_KIND_INPUT_LABELS,

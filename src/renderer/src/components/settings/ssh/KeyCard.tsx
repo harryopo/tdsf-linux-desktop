@@ -112,4 +112,3 @@ export function KeyCard(props: KeyCardProps) {
   )
 }
 
-export default KeyCard

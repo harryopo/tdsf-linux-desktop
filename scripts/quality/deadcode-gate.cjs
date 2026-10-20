@@ -29,8 +29,14 @@ const path = require('node:path')
 
 const ROOT = path.resolve(__dirname, '../..')
 
-/** 四类上限（2026-10-15 实测：unresolved 0 / unlisted 0 / files 0 / duplicates 16 / binaries 0） */
-const CAPS = { unresolved: 0, unlisted: 0, files: 0, duplicates: 16, binaries: 0 }
+/**
+ * 四类上限（2026-10-15 实测：unresolved 0 / unlisted 0 / files 0 / duplicates 16 / binaries 0。
+ * duplicates 在 2026-10-20 清到 0：那 16 组全是"组件/ store 同时给具名与 default 两份出口"，
+ * 判据不是数文本，而是逐个数"谁在吃哪一份"（含 router 那种 `.then((m) => ({ default: m.X }))`
+ * 的动态 import——它吃的是**具名**，按"动态 import 就是吃 default"想当然会把路由改红）。
+ * 清零之后这一档就是硬零闸：再出现同文件双出口直接红。）
+ */
+const CAPS = { unresolved: 0, unlisted: 0, files: 0, duplicates: 0, binaries: 0 }
 /** 每档的中文说明，红了要能看懂是哪一类 */
 const MEANING = {
   unresolved: '引用了解析不到的模块（断链）',

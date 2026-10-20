@@ -54,4 +54,3 @@ export const DbDegradedBanner: FC = () => {
   )
 }
 
-export default DbDegradedBanner

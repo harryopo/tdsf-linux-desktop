@@ -618,5 +618,3 @@ export function SshSettings() {
     </div>
   )
 }
-
-export default SshSettings
