@@ -13,6 +13,7 @@
  *
  * 方案书依据：v0.9 §8（沙箱集成）+ §10（Hard Constraints）
  */
+import { randomUUID } from 'node:crypto'
 import { OpenHandsClient, OpenHandsApiError } from '../../sandbox/openhands-client'
 import { defaultOpenHandsClient } from '../../sandbox/openhands-client'
 import { redactSecrets } from '../../../core/agent/providers/redact'
@@ -80,7 +81,7 @@ export function createSandboxMcpTools(
           try {
             await waitForSandboxApproval(
               hostWindow,
-              `sbx-mcp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+              `sbx-mcp-${Date.now()}-${randomUUID().slice(0, 8)}`,
               sandboxId,
               command
             )

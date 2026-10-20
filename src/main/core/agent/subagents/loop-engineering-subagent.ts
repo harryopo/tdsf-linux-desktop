@@ -44,6 +44,7 @@
  *   - AGENT_MAIN_PATH.md（Supervisor.chat 主路径冻结）
  */
 
+import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import type { ModelMessage } from 'ai'
 import { BaseSubagent, type SubagentTask, type SubagentResult } from './base'
@@ -179,7 +180,7 @@ class LlmEvidenceCollector implements EvidenceCollector {
     for (const [cmd, output] of Object.entries(envInfo)) {
       evidences.push(
         calculateEvidenceConfidence({
-          id: `ev_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          id: `ev_${now}_${randomUUID().slice(0, 8)}`,
           source: 'command',
           sourceDetail: cmd,
           content: output,
@@ -266,7 +267,7 @@ export class LoopEngineeringSubagent extends BaseSubagent {
   protected async doExecute(task: SubagentTask): Promise<SubagentResult> {
     const input = task.input as LoopEngineeringInput
     const correlationId =
-      task.correlationId ?? input.correlationId ?? `loop_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      task.correlationId ?? input.correlationId ?? `loop_${Date.now()}_${randomUUID().slice(0, 8)}`
 
     // 参数校验
     if (!input?.problem || !input?.connId) {

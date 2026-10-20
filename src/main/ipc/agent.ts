@@ -19,6 +19,7 @@
  * - 工作流完成后自动从 Map 中移除
  */
 
+import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
 import { AGENT } from '@shared/ipc-channels'
 import { AgentWorkflow, WORKFLOW_EVENTS } from '../core/agent-workflow'
@@ -96,7 +97,7 @@ class LlmEvidenceCollector implements EvidenceCollector {
     for (const [cmd, output] of Object.entries(envInfo)) {
       evidences.push(
         calculateEvidenceConfidence({
-          id: `ev_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          id: `ev_${now}_${randomUUID().slice(0, 8)}`,
           source: 'command',
           sourceDetail: cmd,
           content: output,

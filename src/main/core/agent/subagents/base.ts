@@ -13,6 +13,7 @@
  *
  * 方案书依据：v0.9 §3.1（8 个特化 Subagent）+ §10 Hard Constraint 4（人工审批闸门）
  */
+import { randomUUID } from 'node:crypto'
 import { logger } from '../../../services/log/logger'
 import type { ThinkingStrength } from '../providers/types'
 
@@ -274,7 +275,7 @@ export function createSubagentTask(
   }
 ): SubagentTask {
   return {
-    id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `task_${Date.now()}_${randomUUID().slice(0, 8)}`,
     type,
     description,
     input,

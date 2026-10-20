@@ -30,6 +30,7 @@
  * - 配置与单例管理 → ./sandbox-config.ts
  */
 
+import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
 import { SANDBOX } from '@shared/ipc-channels'
 import { detectDockerDesktop, type DockerInfo } from '../services/sandbox/docker-detector'
@@ -283,7 +284,7 @@ export function registerSandboxIpcHandlers(mainWindow: BrowserWindow): void {
       // v0.9.4：注册到 session-registry（如未提供 sessionId，registry 自动生成）
       // 用于追踪 sandbox:execute 会话状态，支持后续通过 sessionId 取消（如审批 pending 时主动取消）
       const registry = getSessionRegistry()
-      const callId = `sbx-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+      const callId = `sbx-${Date.now()}-${randomUUID().slice(0, 8)}`
       const resolvedSessionId = registry.register({
         sessionId,
         correlationId: callId,

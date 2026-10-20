@@ -8,6 +8,7 @@
  * 供 UI 展示和人工审核。
  */
 
+import { randomUUID } from 'node:crypto'
 import type { DecisionCard, Evidence } from '../../shared/models'
 import { calculateEvidenceConfidence } from './confidence'
 import { assessRisk } from './risk-engine'
@@ -139,7 +140,7 @@ export function validateDecision(card: DecisionCard): { valid: boolean; issues: 
  * @returns 唯一 ID 字符串
  */
 function generateId(): string {
-  return `dc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  return `dc_${Date.now()}_${randomUUID().slice(0, 8)}`
 }
 
 /**

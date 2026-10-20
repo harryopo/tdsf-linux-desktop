@@ -26,6 +26,7 @@
  * 方案书依据：v0.9 §11.2（IPC 命名规范）+ §3（Provider 抽象）+ §5（Token 监控）
  */
 
+import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
 import { broadcastToWindows } from '../windows/main-window'
 import type { ModelMessage } from 'ai'
@@ -143,7 +144,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       terminalContext?: string,
     ): Promise<string> => {
       const supervisor = getSupervisor()
-      const correlationId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const correlationId = `chat_${Date.now()}_${randomUUID().slice(0, 8)}`
 
       // v0.9.4：注册到 session-registry（sessionId 由 registry 生成，取消时按它查）
       const registry = getSessionRegistry()
@@ -176,7 +177,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           // v2.9 写命令 HITL 审批：复用 PAOR 审批通道（paor:approval-request 卡片），
           // ssh_write 工具 execute 内 await 此回调，用户批准才真执行；60 秒超时自动拒绝
           approveWriteCommand: async (command, level, description): Promise<boolean> => {
-            const callId = `write_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+            const callId = `write_${Date.now()}_${randomUUID().slice(0, 8)}`
             const payload: PaorApprovalRequest = {
               callId,
               command,
@@ -471,7 +472,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
           approveRisk: async (command, level, description, stepIndex): Promise<boolean> => {
-            const callId = `paor_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+            const callId = `paor_${Date.now()}_${randomUUID().slice(0, 8)}`
             const payload: PaorApprovalRequest = {
               callId,
               command,

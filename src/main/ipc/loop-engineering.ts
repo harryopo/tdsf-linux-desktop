@@ -33,6 +33,7 @@
  *   - AGENT_MAIN_PATH.md（Supervisor.chat 主路径冻结，本通道复用）
  */
 
+import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
 import { LOOP } from '@shared/ipc-channels'
 import { logger } from '../services/log/logger'
@@ -152,7 +153,7 @@ export function registerLoopEngineeringHandlers(mainWindow: BrowserWindow): () =
       }
 
       // 生成 correlationId（用于追踪本次循环工程）
-      const correlationId = `loop_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const correlationId = `loop_${Date.now()}_${randomUUID().slice(0, 8)}`
 
       logger.info('IPC.LOOP', `loop:start 启动循环工程`, {
         correlationId,

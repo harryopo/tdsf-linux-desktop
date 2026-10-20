@@ -7,6 +7,7 @@
  * - 生成可执行的 DeployPlan（含插值后的步骤）
  */
 
+import { randomUUID } from 'node:crypto'
 import type { DeployTemplate, DeployStep, DeployPlan, DeployVariable } from './types'
 
 /** shell 单引号转义：' -> '\\'' */
@@ -125,7 +126,7 @@ export function buildPlan(
   targetHost: string
 ): DeployPlan {
   return {
-    id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `plan-${Date.now()}-${randomUUID().slice(0, 8)}`,
     templateId: template.id,
     templateName: template.name,
     targetHost,
