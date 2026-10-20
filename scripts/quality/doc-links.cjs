@@ -34,6 +34,11 @@
  *   - EXTERNAL_CODE_REFS 里的名字是指向第三方依赖的引用（node_modules 不在跟踪集，
  *     版本一变行号就漂，判它红没有意义），名单本身会被打印出来，不许悄悄加长；
  *     单测还断言"名单里每个名字必须真被用到过"——空豁免等于提前给将来同名的死引用发许可证。
+ *   - 裸路径：反引号里像仓库路径的东西（src/ tests/ scripts/ docs/ packages/ .claude/ .github/ 开头）
+ *     必须落得到现场。**判据一律问 git，不问本机盘**（2026-10-20 第一版用 fs.existsSync 判目录，
+ *     于是 `docs/archive/`、`scripts/.cjs/` 这种"被忽略、本机有、新克隆没有"的目录在我机器上全绿、
+ *     推到 CI 红在三个作业上）：目录 = "跟踪集里有它底下的文件" 或 "被 .gitignore 忽略"；
+ *     文件 = "在跟踪集里"。含 * ? {} ... 的示例、glob、模板与命令行的第二段之后都不判。
  *   - 围栏代码块（``` 与 ~~~）内的链接与行号引用都不判：那是示例，不是承诺。
  *   - 未知参数一律 exit 2（fail-closed，不许退到默认分支照样打印 PASS）。
  *
@@ -130,9 +135,10 @@ const REPO_PATHISH = /^(?:src|tests|scripts|docs|packages|\.claude|\.github)\//
 const GLOB_OR_TEMPLATE = /[*?{}]|(\.\.\.)/
 
 /**
- * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'skip', note:string}}
+ * @param {{trackedSet:Set<string>, trackedList:string[], isIgnored:(p:string)=>boolean}} ctx
+ * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'external'|'skip', note:string}}
  */
-function classifyBarePath(span, tracked) {
+function classifyBarePath(span, ctx) {
   const first = span.trim().split(/\s+/)[0]
   const bare = first.replace(/#.*$/, '')
   // 带行号的那种（`:210`、`:21,164-168`）由上面那条判据管；这里再判一遍会把路径本身报成不存在
@@ -140,17 +146,55 @@ function classifyBarePath(span, tracked) {
   if (!REPO_PATHISH.test(bare)) return { kind: 'skip', note: bare }
   if (GLOB_OR_TEMPLATE.test(bare)) return { kind: 'skip', note: bare }
   if (bare.endsWith('/')) {
-    const abs = path.join(repo, bare)
-    const isDir = fs.existsSync(abs) && fs.statSync(abs).isDirectory()
-    return isDir ? { kind: 'ok', note: bare } : { kind: 'ghostdir', note: bare }
+    return dirResolves(bare, ctx.trackedList, ctx.isIgnored)
+      ? { kind: 'ok', note: bare }
+      : { kind: 'ghostdir', note: bare }
   }
-  if (tracked.has(bare)) return { kind: 'ok', note: bare }
-  if (fs.existsSync(path.join(repo, bare)) && fs.statSync(path.join(repo, bare)).isDirectory())
-    return { kind: 'ok', note: bare }
-  // 同上行号判据：只有"自己树里没有这个文件"时豁免才生效，且并入同一类读数，
+  if (ctx.trackedSet.has(bare)) return { kind: 'ok', note: bare }
+  // 同上行号判据：只有"跟踪集里没有这个文件"时豁免才生效，且并入同一类读数，
   // 免得两条判据各存一份豁免、名单和实际用量脱钩。
   if (EXTERNAL_CODE_REFS.has(path.basename(bare))) return { kind: 'external', note: bare }
+  // 没有扩展名又不在跟踪集里：当作目录引用问一次（`src/main` 这种漏写斜杠的写法）
+  if (!/\.[a-z0-9]+$/i.test(bare) && dirResolves(bare, ctx.trackedList, ctx.isIgnored))
+    return { kind: 'ok', note: bare }
   return { kind: 'ghostfile', note: bare }
+}
+
+/**
+ * 目录引用落不落得到现场 —— **只问 git，绝不问本机盘**。
+ * 2026-10-20 两次实测才知道另外两条路都不行：
+ * ① 第一版写 fs.existsSync：`docs/archive/`、`scripts/.cjs/` 这类"本机有、新克隆没有"的目录
+ *    在我机器上全绿，推到 CI 红在三个作业上（判据依赖本机现场 = 假绿）。
+ * ② 改用 git check-ignore 但**带尾斜杠**问：实测连 `src/`、`docs/` 都返回"已忽略"
+ *    （命中的是 .gitignore 里一个空行），于是目录判据恒真、整条裸路径判据静默失效——
+ *    这次是 --self-test 报"没抓不到不存在的目录"才露出来的。去掉尾斜杠问才正确。
+ * 口径：跟踪集里有它底下的文件 → 在克隆里存在；被忽略规则命中 → 文档说的是"这东西别提交"，
+ * 那也是正当引用（AGENTS.md §仓库卫生 就靠这类路径列产物名单）。两者都不成立才算幽灵。
+ *
+ * @param {string} rel 目录路径（约定以 / 结尾）
+ * @param {string[]} trackedList 跟踪集
+ * @param {(p: string) => boolean} isIgnored 不带尾斜杠问 git
+ */
+function dirResolves(rel, trackedList, isIgnored) {
+  const prefix = rel.endsWith('/') ? rel : rel + '/'
+  if (trackedList.some((f) => f.startsWith(prefix))) return true
+  // 忽略规则要用**不带尾斜杠**的形式问：实测带斜杠时连 `src/`、`docs/` 都返回"已忽略"
+  // （命中的是 .gitignore 里一个空行），那样这条判据会恒真、整块静默失效。
+  if (isIgnored(rel.replace(/\/+$/, ''))) return true
+  return false
+}
+
+/** 逐个问 git 太慢，记忆化；只会在"跟踪集里一个文件都没有"的目录上触发，量很小 */
+function makeIgnoreProbe() {
+  const cache = new Map()
+  return function isIgnored(p) {
+    if (cache.has(p)) return cache.get(p)
+    const r = spawnSync('git', ['check-ignore', '--no-index', '-q', '--', p], { cwd: repo, encoding: 'utf8' })
+    // 0 = 命中忽略规则；1 = 未命中；其它 = git 自己报错，当成"未忽略"保守处理（宁可多报）
+    const v = r.status === 0
+    cache.set(p, v)
+    return v
+  }
 }
 
 /**
@@ -192,7 +236,7 @@ function classify(fromFile, rawTarget, tracked) {
 }
 
 /** 扫一份 markdown：跳过围栏代码块内的链接与行号引用 */
-function scanDoc(fromFile, text, tracked, sources) {
+function scanDoc(fromFile, text, tracked, sources, ctx) {
   const out = []
   const lines = text.split(/\r?\n/)
   let fence = null
@@ -217,7 +261,7 @@ function scanDoc(fromFile, text, tracked, sources) {
       }
     }
     for (const hit of line.matchAll(INLINE_CODE_RE)) {
-      const c = classifyBarePath(hit[1], tracked)
+      const c = classifyBarePath(hit[1], ctx)
       if (c.kind === 'ghostfile' || c.kind === 'ghostdir') {
         out.push({ file: fromFile, line: i + 1, kind: 'barepath:' + c.kind, target: c.note })
       } else if (c.kind === 'external') {
@@ -229,7 +273,7 @@ function scanDoc(fromFile, text, tracked, sources) {
 }
 
 /** 阳性对照：必断的链接 + 必死的行号 + 必越界的行号 + 不许误报的活引用，量具抓不到就说明它自己是死的 */
-function selfTest(tracked, sources) {
+function selfTest(tracked, sources, ctx) {
   const bad = [
     '[断到仓库里没跟踪的地方](docs/definitely-not-a-real-file-9f3c2a.md)',
     '[逃到仓库外面](../../outside-host-file.md)',
@@ -250,11 +294,15 @@ function selfTest(tracked, sources) {
     '示例与 glob 一律不判：`src/.../xxx.ts`、`src/main/**`、`docs/方案书-v{版本}-{模块名}.md`、`tests/unit/*-gate.test.ts`',
     '是命令不是坐标：`scripts/design/count-important.mjs <上限>` 只取第一段路径',
     '第三方也一样不判：裸路径写法 `src/utils/hub.js` 走同一条豁免',
+    // —— 目录判据必须只问 git（跟踪集 + 忽略规则），既不问本机盘也不带尾斜杠问 check-ignore ——
+    '有已入库文件的目录不许报：`src/main/ipc/`',
+    '被 gitignore 的产物目录不许报（文档写它正是为了说"这东西别提交"）：`scripts/.cjs/`',
+    '既没已入库文件、也没被忽略的目录必须报：`docs/probe-dir-not-ignored-9f4e/`',
     '```',
     '围栏里的 src/inside-fence-nope.ts:1 不判',
     '```',
   ].join('\n')
-  const hits = scanDoc('PROBE.md', bad, tracked, sources)
+  const hits = scanDoc('PROBE.md', bad, tracked, sources, ctx)
   const dead = hits.filter((h) => h.kind === 'dead').map((h) => h.target)
   const outside = hits.filter((h) => h.kind === 'outside').map((h) => h.target)
   const refMissing = hits.filter((h) => h.kind === 'coderef:missing').map((h) => h.target)
@@ -294,6 +342,13 @@ function selfTest(tracked, sources) {
     problems.push('裸路径写法的第三方豁免没生效（同一个依赖文件，写成 hub.js:391 免了、写成 src/utils/hub.js 却报红）')
   if (!refExternal.some((t) => t === 'src/utils/hub.js'))
     problems.push('裸路径的第三方引用没被计入豁免读数（说明它被当成 ok 静默放过了，名单与用量对不上）')
+  // 目录判据必须只读跟踪集。两个反例各守一头：
+  // 用 fs.existsSync 会让 docs/archive/ 这种"本机有、克隆没有"的目录蒙过闸（2026-10-20 CI 三个作业红）；
+  // 用 git check-ignore 判目录则恒真（尾斜杠连 src/ 都返回"已忽略"），整条裸路径判据静默失效。
+  if (ghostDir.some((t) => t === 'src/main/ipc/' || t === 'scripts/.cjs/'))
+    problems.push('把"里面有已入库文件"或"被 gitignore 的产物目录"报成了幽灵')
+  if (!ghostDir.some((t) => t === 'docs/probe-dir-not-ignored-9f4e/'))
+    problems.push('没抓到"既没已入库文件也没被忽略"的目录（判据又在问本机盘，或 check-ignore 带了尾斜杠变成恒真）')
   console.log(
     '[doc-links] 自检：抓到断链 ' + dead.length + ' 条、仓库外 ' + outside.length + ' 条、' +
       '死引用 ' + refMissing.length + ' 条、越界 ' + refBeyond.length + ' 条、' +
@@ -313,7 +368,8 @@ if (!tracked.size) {
   process.exit(2)
 }
 const sources = candidateSources(tracked)
-if (SELF_TEST) selfTest(tracked, sources)
+const CTX = { trackedSet: tracked, trackedList: [...tracked], isIgnored: makeIgnoreProbe() }
+if (SELF_TEST) selfTest(tracked, sources, CTX)
 
 const docs = [...tracked].filter((f) => /\.md$/i.test(f))
 if (!docs.length) {
@@ -329,7 +385,7 @@ for (const f of docs) {
   } catch {
     continue
   }
-  findings.push(...scanDoc(f, text, tracked, sources))
+  findings.push(...scanDoc(f, text, tracked, sources, CTX))
 }
 
 const dead = findings.filter((h) => h.kind === 'dead')
