@@ -105,12 +105,12 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-20 12:32**（单元与结构读数），端到端那一行仍是 **2026-10-19 20:04**（本轮没动 e2e）。
+下表测量时间 **2026-10-20 12:55**：单元与结构读数取 12:32 那轮，端到端 12:55 另跑一轮（本轮改过路由页的导出形状，必须重测）。
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
 | 单元与组件用例 | 3192 通过 / 19 跳过 | `npm test`（269 个测试文件：267 通过 / 2 按环境跳过） |
-| 端到端用例 | 57 通过 / 15 跳过 | `npx playwright test`（直驱真实应用窗口） |
+| 端到端用例 | 59 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 270 | `npm run audit:ipc`（231 请求-响应 + 39 事件推送） |
 | 已登记契约的通道 | 35 | `src/shared/ipc-contract.ts`（30 invoke + 5 event） |
 | TypeScript / TSX 源文件 | 499 | `git ls-files src` 里 `.ts/.tsx` 计数 |
@@ -170,7 +170,7 @@ Electron 安全三原则全部为硬约束：`contextIsolation: true` / `nodeInt
   另注：`drain3-bridge.ts:235` 自陈模板抽取一直是内置正则——所以这条链路的"日志聚类"从来不是真 Drain3。
 - **Langfuse 追踪没有 Key 时自动关闭**，不会静默上报。
 - **安装包不随仓库发布**；`pnpm build:win` 只在本机验证过 Windows。
-- 端到端有 15 条按环境跳过（2026-10-19 实测）：需要真 Linux 靶机、真模型 Key 或第二台机器的用例。
+- 端到端有 13 条按环境跳过（2026-10-20 实测）：需要真 Linux 靶机、真模型 Key 或第二台机器的用例。
 
 ## 贡献
 
@@ -197,9 +197,10 @@ and a full audit trail of what was allowed and why.
 Electron 43 · React 19 · Zustand 5 · ssh2 · xterm.js · Monaco · Vercel AI SDK · MCP · better-sqlite3 ·
 D-S evidence theory + PCR5 fusion · Vitest + Playwright.
 
-3276 unit/component tests and 57 end-to-end tests driving the real app window
-(19 and 15 respectively are environment-skipped; measured 2026-10-19).
+Every figure in the [quality table](#质量与验证) comes from the command named in that same row,
+and `npm run promo:check` re-diffs all of them against the repo — no outward number has any other source.
 See [Quick start](#快速开始), the [known boundaries](#已知边界说清楚不含糊)
 and [docs/功能实景清单.md](docs/功能实景清单.md) for what is actually wired up.
 
 MIT licensed.
+
