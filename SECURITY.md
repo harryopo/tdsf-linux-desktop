@@ -46,6 +46,23 @@
 - **IPC 参数校验** — 防止恶意输入
 - **默认不联网上报** — 遥测关闭；配置 Langfuse Key 后属于**显式**上报（无 Key 时整条追踪自动关闭，不会静默发送）
 
+## 威胁模型（按信任边界逐条，右边写"哪条命令在守"）
+
+这个应用同时握着三样别人想要的东西：SSH 私钥与主机口令、模型服务的 API Key、
+以及"能在那台服务器上执行命令"的能力。所以下面每一行都写明**守它的是哪道闸**，
+以及**闸管不到的地方**——只写有执行体的东西，不写"我们会注意"。
+
+| 边界 | 威胁 | 现在的防线（可当场复现） | 管不到的地方 |
+|---|---|---|---|
+| 渲染进程 ↔ 主进程 | 界面里任何一段被注入的脚本拿到 Node 能力 | `src/main/windows/main-window.ts:179-181` 三红线（`contextIsolation:true` / `nodeIntegration:false` / `sandbox:true`）；跨进程只经 `contextBridge` 白名单 | 渲染层能调到的每个 IPC 通道本身——见下一行 |
+| IPC 入参与返回 | 界面（或界面里的内容）用合法通道传畸形参数、或从错误信息里读内部路径 | 边界装在注册函数本身：`src/main/ipc/error-boundary.ts`（抛错与"把失败当数据返回"两条出口都过脱敏）+ `contract-guard.ts` 按 `src/shared/ipc-contract.ts` 判形状。判据 `npm run ipc:check`、`pnpm test` 里 `ipc-error-boundary` / `ipc-data-error-boundary` / `ipc-contract-*` | **契约只覆盖 30 / 231 条 invoke（约 13%）**；未登记的通道在边界上原样放行（一刀切拒绝等于把应用关掉）。扩面进度见 长期优化目标 §二 |
+| AI 输出的命令 → 真实执行 | 模型给出一条破坏性命令并被人顺手回车 | 单入口 `src/main/core/command-gate.ts` `evaluateCommand`；8 个结构探测器 + 226 条词表；四个出口都过闸（exec / 远程 PTY 逐行 LineGate / 本机 PTY / AI 与 MCP  authored 命令）。判据 `tests/unit/command-gate-*.test.ts`，含**误伤**回归 | 关键词与结构判据只证明"这类能识别"，不证明"识别不了的那类不会来"。所以界面把每一次拦截都留痕，人可以看自己拦住了什么 |
+| 远端主机身份 | 中间人换掉服务器密钥，把口令引到假机 | `src/main/services/ssh/known-hosts.ts`（跳板机同样校验，不豁免） | 还没有 `~/.ssh/config` 解析、没有 ssh-agent：私钥以明文进过内存（长期优化目标 §三 G2/G3） |
+| 密钥与内网拓扑不出库 | 凭据、内网地址被写进源码 / 测试夹具 / 提交信息 / 文档 | `security:secrets`（凭据形状，扫跟踪集与暂存区）、`security:topology`（内网值按值 + 按 /24 网段，含文档腿）、`security:history`（全历史按值回归，pre-push）、`security:identity`（身份暴露：校名/专业/真实姓名/赛事字样）。每把都带阳性对照——报 0 命中之前先证明这把尺子扫得到东西 | 这几把**只在本地与 pre-push 跑，CI 里没有对应 job**（`security:history` 依赖全历史，CI 是浅克隆；口径写在 CLAUDE.md） |
+| 远程下载的模型 | 镜像把 ONNX 权重换成被动过手脚的版本 | 目前**只有 512 维形状校验，没有字节哈希** | 这是 已知缺口（板上 #153）。哈希必须钉在仓库里而不是跟文件同源取，否则镜像可以同时改文件和哈希 |
+| 依赖与发布物 | 装进来的包被投毒 | `audit:deps` 与基线 `scripts/quality/deps-audit-accepted.json`（现存 1 条：`braces`，上游无修复版）；CI 里 `deps-audit` 是单个 job，原生依赖另有 `check-native-prebuild`，构建只有 Windows 一个平台 | 代码签名与发布物校验和属于人工发布环节，本文件不声称已具备 |
+| 数据外传 | "静默把终端内容传走" | 所有网络请求在界面可见；Langfuse 追踪**无 Key 即整条关闭**，有 Key 属于显式上报（`docs/功能实景清单.md` 记了这条链路的实际状态） | 用户自己填的模型 API Key 会把对话内容送到该端点——这是产品定义，不是缺陷，但界面不隐藏它 |
+
 ## 已知安全问题
 
 不是"暂无"。当前承认存在、尚未收口的项写在
