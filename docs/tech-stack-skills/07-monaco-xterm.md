@@ -459,6 +459,6 @@ class SshSessionManager {
 
 - [microsoft.github.io/monaco-editor](https://microsoft.github.io/monaco-editor/) — Monaco 官方
 - [xtermjs.org](https://xtermjs.org/) — xterm 官方
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\rules\bundle-dynamic-imports.md` — lazy load
+- `<本机技能目录>/vercel-react-best-practices\rules\bundle-dynamic-imports.md` — lazy load
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — IDE 规约
 - `d:\ai\linux教学一体\tdsf-linux-desktop\project_memory.md` — Monaco 硬约束

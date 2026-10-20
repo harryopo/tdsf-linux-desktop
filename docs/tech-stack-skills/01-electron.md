@@ -16,13 +16,13 @@
 | `electron-vite` 官方文档 | ⭐⭐推荐 | 官方 | "三进程构建" / "preload 配置" | 主/预/渲分离 |
 | `electron-auto-updater` | ⭐可选 | 社区 | "自动更新" | v1.0 暂不需要 |
 
-> **Skill 路径**：`c:\Users\Lenovo\.trae-cn\skills\electron-dev\SKILL.md`（已在本地）
+> **Skill 路径**：`<本机技能目录>/electron-dev\SKILL.md`（已在本地）
 
 ---
 
 ## 2. electron-dev Skill 12 大必看（精简版）
 
-来自 `c:\Users\Lenovo\.trae-cn\skills\electron-dev\SKILL.md` 完整内容，标注项目已踩/已用。
+来自 `<本机技能目录>/electron-dev\SKILL.md` 完整内容，标注项目已踩/已用。
 
 ### 2.1 Security Non-Negotiables（安全铁律）
 
@@ -185,7 +185,7 @@ linux:
 
 ## 6. electron Skill（E2E 自动化测试）
 
-> **路径**：`c:\Users\Lenovo\.trae-cn\skills\electron\SKILL.md`
+> **路径**：`<本机技能目录>/electron\SKILL.md`
 
 基于 agent-browser + Chrome DevTools Protocol（CDP）的 Electron 应用自动化：
 
@@ -237,18 +237,20 @@ agent-browser screenshot app.png
 
 ## 9. 推荐阅读顺序
 
-1. `c:\Users\Lenovo\.trae-cn\skills\electron-dev\SKILL.md`（12 大原则，5 分钟）
+1. `<本机技能目录>/electron-dev\SKILL.md`（12 大原则，5 分钟）
 2. [Electron 官方安全白皮书](https://www.electronjs.org/docs/latest/tutorial/security)（深读）
 3. [electron-vite 官方文档](https://electron-vite.org/)（项目用）
 4. [electron-builder 配置](https://www.electron.build/)（打包时查）
-5. 项目 `docs/方案书-v0.9.2-Agent架构设计深度调研.md`（架构选型背景）
+5. 本仓 `docs/功能实景清单.md`（能力现在到底通不通，带 file:line）与 `docs/assets/architecture.svg`（进程与通道读数）
+   —— 原来这一行指的是 `方案书-v0.9.2-Agent架构设计深度调研.md`，**那份文档没入库**（内部评审材料按仓库卫生规矩留本机），
+   写成一个仓库里找不到的路径会让人以为架构决定已经被记录在案。
 
 ---
 
 ## 10. 引用文档
 
-- `c:\Users\Lenovo\.trae-cn\skills\electron-dev\SKILL.md` — 必读
-- `c:\Users\Lenovo\.trae-cn\skills\electron\SKILL.md` — E2E 自动化
+- `<本机技能目录>/electron-dev\SKILL.md` — 必读
+- `<本机技能目录>/electron\SKILL.md` — E2E 自动化
 - `d:\ai\linux教学一体\tdsf-linux-desktop\DEV_SKILLS.md` v1.2 §7.2 — IPC 反模式
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 架构规约
 - `d:\ai\linux教学一体\tdsf-linux-desktop\docs\技术栈教程注意事项-v1.0.md` — 教程

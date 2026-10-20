@@ -16,15 +16,15 @@
 | `vercel-react-view-transitions` | ⭐可选 | Vercel 官方 | "页面切换动画" | View Transition API |
 
 > **Skill 路径**：
-> - `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\SKILL.md`（57 rules 文件）
-> - `c:\Users\Lenovo\.trae-cn\skills\react-expert\SKILL.md`（6 references）
-> - `c:\Users\Lenovo\.trae-cn\skills\vercel-composition-patterns\SKILL.md`（8 rules）
+> - `<本机技能目录>/vercel-react-best-practices\SKILL.md`（57 rules 文件）
+> - `<本机技能目录>/react-expert\SKILL.md`（6 references）
+> - `<本机技能目录>/vercel-composition-patterns\SKILL.md`（8 rules）
 
 ---
 
 ## 2. Vercel React 性能规则集（必装 · 65 条规则）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\SKILL.md`
+> **来源**：`<本机技能目录>/vercel-react-best-practices\SKILL.md`
 > **优先级**：按 Impact 排序
 
 ### 2.1 8 大类别（按优先级）
@@ -96,7 +96,7 @@
 
 ## 3. React Expert（react-expert Skill · 推荐）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\react-expert\SKILL.md` + 6 references
+> **来源**：`<本机技能目录>/react-expert\SKILL.md` + 6 references
 
 ### 3.1 6 大 Reference 索引
 
@@ -132,7 +132,7 @@
 
 ## 4. Composition Patterns（Vercel 组件设计模式）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\vercel-composition-patterns\SKILL.md`
+> **来源**：`<本机技能目录>/vercel-composition-patterns\SKILL.md`
 
 ### 4.1 4 大类别 · 8 条规则
 
@@ -214,7 +214,7 @@ interface ChatStore {
 
 ## 6. View Transition API（v1.5+ 评估）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\vercel-react-view-transitions\SKILL.md`
+> **来源**：`<本机技能目录>/vercel-react-view-transitions\SKILL.md`
 
 | Pattern | 用途 | 项目场景 |
 |---------|------|----------|
@@ -245,8 +245,8 @@ interface ChatStore {
 
 ## 8. 推荐阅读顺序
 
-1. `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\SKILL.md`（5 分钟概览）
-2. `c:\Users\Lenovo\.trae-cn\skills\vercel-composition-patterns\SKILL.md`（组件设计 5 分钟）
+1. `<本机技能目录>/vercel-react-best-practices\SKILL.md`（5 分钟概览）
+2. `<本机技能目录>/vercel-composition-patterns\SKILL.md`（组件设计 5 分钟）
 3. 按需读 `rules/` 下具体规则（每个 2 分钟）
 4. [React 官方](https://react.dev/) — useEffect / useState 深入
 
@@ -254,8 +254,8 @@ interface ChatStore {
 
 ## 9. 引用文档
 
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\` — 65 rules
-- `c:\Users\Lenovo\.trae-cn\skills\react-expert\` — 6 references
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-composition-patterns\` — 8 rules
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-react-view-transitions\` — 5 patterns
+- `<本机技能目录>/vercel-react-best-practices\` — 65 rules
+- `<本机技能目录>/react-expert\` — 6 references
+- `<本机技能目录>/vercel-composition-patterns\` — 8 rules
+- `<本机技能目录>/vercel-react-view-transitions\` — 5 patterns
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — React 编码规约

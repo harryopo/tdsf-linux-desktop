@@ -14,13 +14,13 @@
 | `typescript-advanced-types` | ⭐可选 | 社区 | "泛型" / "条件类型" / "模板字面量" | 高级类型体操 |
 
 > **Skill 路径**：
-> - `c:\Users\Lenovo\.trae-cn\skills\typescript\SKILL.md`（18 章，500+ 行）
+> - `<本机技能目录>/typescript\SKILL.md`（18 章，500+ 行）
 
 ---
 
 ## 2. TypeScript Style Guide（18 章速查）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\typescript\SKILL.md`
+> **来源**：`<本机技能目录>/typescript\SKILL.md`
 
 | # | 章节 | 关键规则 | 项目应用 |
 |---|------|---------|----------|
@@ -134,8 +134,8 @@ tsconfig.web.json      ← 渲染层
 | 跨边界 | 类型放哪 | 原因 |
 |--------|---------|------|
 | 主进程 ↔ 渲染层 | `src/shared/` | 两边 tsconfig 都 include |
-| React 组件私有类型 | `src/renderer/src/components/xxx/types.ts` | 仅渲染层用 |
-| 主进程服务内部 | `src/main/services/xxx/types.ts` | 仅主进程用 |
+| React 组件私有类型 | `src/renderer/src/components/tutorial/types.ts`（真实一例） | 仅渲染层用 |
+| 主进程服务内部 | `src/main/services/sandbox/types.ts`（真实一例） | 仅主进程用 |
 
 **反模式**：把 `deploy-types` 放 `src/main/services/deploy/types.ts` → 渲染层 `import type from '../../../main/...'` 触发 `TS2307: Cannot find module`。
 
@@ -156,11 +156,19 @@ declare global {
 export {}
 ```
 
-**4 步同步**（缺一步类型必崩）：
-1. `src/preload/api.ts` 定义 `ElectronAPI` interface
-2. `src/preload/index.ts` 暴露 `contextBridge.exposeInMainWorld('electronAPI', ...)`
-3. `src/preload/electron.d.ts` 声明 `window.electronAPI`
-4. `tsconfig.web.json` include `electron.d.ts`
+**跨进程类型的现行形状**（2026-10-20 回查；**缺一步类型必崩**这句仍然成立，但落点变了）：
+1. `src/preload/index.ts:1050` 用 `export type ElectronAPI = typeof electronApi` ——
+   **类型由实现派生**，不再手写一份 interface。
+   按域拆在 `src/preload/domains/`（agent / cognition / events / llm / sftp / ssh / system / terminal）。
+2. `src/preload/index.ts` 里 `contextBridge.exposeInMainWorld('electronAPI', ...)` 真的把那个对象挂出去。
+3. `src/renderer/src/types/electron.d.ts:374` 声明 `window.electronAPI`，
+   它是 `PreloadElectronAPI`（来自 preload 派生类型）+ 契约生成的 `ContractedInvokeApi` / `ContractedEventApi` 三者合并。
+4. `tsconfig.web.json` 把这些都 include 进来；生成物在 `src/renderer/src/types/generated/ipc-contract.ts`，
+   由 `npm run ipc:check` 在内存里重算并与盘上比对，漂了就红。
+
+> 这一节原来写的是 preload 目录下的 `api.ts` 定义 interface、preload 目录下的 `electron.d.ts` 声明全局——
+> **这两个文件都不存在**（前者从没有过，后者的 d.ts 现在在渲染层 types 目录）。
+> 按旧步骤去做会先花十分钟找一个不存在的文件，再手写一份 interface，正好撞上"第三真相源"那条要治的病。
 
 ---
 
@@ -223,7 +231,7 @@ onMount={(editor: editor.IStandaloneCodeEditor, monaco: typeof import('monaco-ed
 
 ## 6. 高级类型（typescript-advanced-types 可选）
 
-> **路径**：`c:\Users\Lenovo\.trae-cn\skills\typescript-advanced-types\`（如未装）
+> **路径**：`<本机技能目录>/typescript-advanced-types\`（如未装）
 
 | 类型 | 用途 | 项目应用 |
 |------|------|----------|
@@ -270,7 +278,7 @@ function isError(e: unknown): e is Error {
 
 ## 8. 推荐阅读顺序
 
-1. `c:\Users\Lenovo\.trae-cn\skills\typescript\SKILL.md` §1-2（原则 + 命名）
+1. `<本机技能目录>/typescript\SKILL.md` §1-2（原则 + 命名）
 2. 同文件 §3-9（类型 / 接口 / 类 / 模块）
 3. 项目 `tsconfig.node.json` / `tsconfig.web.json` 理解双配置
 4. [TypeScript 官方 HandBook](https://www.typescriptlang.org/docs/handbook/intro.html)（深读）
@@ -279,7 +287,7 @@ function isError(e: unknown): e is Error {
 
 ## 9. 引用文档
 
-- `c:\Users\Lenovo\.trae-cn\skills\typescript\SKILL.md` — 18 章规范
-- `c:\Users\Lenovo\.trae-cn\skills\typescript-advanced-types\`（如装） — 高级类型
+- `<本机技能目录>/typescript\SKILL.md` — 18 章规范
+- `<本机技能目录>/typescript-advanced-types\`（如装） — 高级类型
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — TS 规约
 - `d:\ai\linux教学一体\tdsf-linux-desktop\DEV_SKILLS.md` v1.2 §7.2 — TS 反模式

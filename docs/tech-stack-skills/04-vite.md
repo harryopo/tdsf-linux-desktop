@@ -131,7 +131,7 @@ rollupOptions: {
 
 ## 4. Bundle 优化（Vercel React 性能规则 · 5 条 CRITICAL）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\rules\bundle-*`
+> **来源**：`<本机技能目录>/vercel-react-best-practices\rules\bundle-*`
 
 ### 4.1 `bundle-barrel-imports`（最重要）
 
@@ -300,7 +300,7 @@ out/
 
 1. [electron-vite 官方文档](https://electron-vite.org/)（10 分钟）
 2. [Vite 官方文档 - 配置](https://cn.vitejs.dev/config/)（按需查）
-3. `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\rules\bundle-*` 5 条
+3. `<本机技能目录>/vercel-react-best-practices\rules\bundle-*` 5 条
 4. 项目 `electron.vite.config.ts` + `tsconfig.*.json` 实际配置
 
 ---
@@ -309,6 +309,6 @@ out/
 
 - [electron-vite.org](https://electron-vite.org/) — 官方文档
 - [vitejs.dev](https://cn.vitejs.dev/) — Vite 官方
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\SKILL.md` — Bundle 5 条
+- `<本机技能目录>/vercel-react-best-practices\SKILL.md` — Bundle 5 条
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 构建规约
 - `d:\ai\linux教学一体\tdsf-linux-desktop\electron.vite.config.ts` — 项目实际配置

@@ -32,9 +32,16 @@
  *     行号只判"还在不在范围内"，不判"那一行是不是原本说的那个东西"——后者要靠人，
  *     把这条写出来是为了别让它被当成比实际更强的闸。
  *   - EXTERNAL_CODE_REFS 里的名字是指向第三方依赖的引用（node_modules 不在跟踪集，
- *     版本一变行号就漂，判它红没有意义），名单本身会被打印出来，不许悄悄加长。
+ *     版本一变行号就漂，判它红没有意义），名单本身会被打印出来，不许悄悄加长；
+ *     单测还断言"名单里每个名字必须真被用到过"——空豁免等于提前给将来同名的死引用发许可证。
  *   - 围栏代码块（``` 与 ~~~）内的链接与行号引用都不判：那是示例，不是承诺。
  *   - 未知参数一律 exit 2（fail-closed，不许退到默认分支照样打印 PASS）。
+ *
+ * 这条闸**不覆盖**什么（写出来是为了别把 PASS 读成"文档全对"）：
+ *   - 不带仓库根前缀的裸文件名（`DEV_SKILLS.md`、`hub.js` 这种）不判 —— 太容易撞上第三方同名，误报会逼着人放宽它；
+ *   - 行号只判"在不在正本行数范围内"，不判"那一行讲的是不是原本想说的那件事"；
+ *   - 正文（反引号外）里写的路径不判；未跟踪的文档（docs/reports、docs/archive 等）整个不在扫描面里。
+ *   2026-10-20 现量：42 份已入库 md，行号引用 115 条、裸路径引用约 160 条，豁免 2 条，其余全部对得上现场。
  */
 'use strict'
 
@@ -95,7 +102,8 @@ const CODE_REF_RE = new RegExp(
 
 /**
  * 指向第三方依赖的引用（node_modules 不在跟踪集，版本一推行号就漂，判红没意义）。
- * 2026-10-20 现量：已入库文档里只有 1 条，出处是 docs/长期优化目标.md 引 @xenova/transformers 的缓存键实现。
+ * 既用于"路径:行号"也用于裸路径；名单会被打印出来，并且有单测断言"名单里的名字必须真被用到过"。
+ * 2026-10-20 现量：已入库文档里只有 hub.js（装的 @xenova/transformers 的下载缓存实现）。
  */
 const EXTERNAL_CODE_REFS = new Set(['hub.js'])
 
@@ -105,6 +113,44 @@ function lineCountOf(rel) {
     lineCountCache.set(rel, fs.readFileSync(path.join(repo, rel), 'utf8').split(/\r?\n/).length)
   }
   return lineCountCache.get(rel)
+}
+
+/**
+ * 第二种形状：**不带行号**的路径引用（`src/main/ipc/claude-sdk.ts` 这种）。
+ * 为什么也要判：2026-10-20 清 `.claude/agents/api.md` 那张幽灵表时，
+ * 那一行的"注册位置"写的就是这种形状——**只判 `:行号` 的话，这类幽灵一条都抓不到**。
+ * 口径（噪声都在排除项里，别指望它比实际更强）：
+ *   - 只看反引号里的内容，且必须像仓库路径（src/ tests/ scripts/ docs/ packages/ .claude/ .github/ 开头）；
+ *   - 目录（以 / 结尾或没有扩展名）判"是不是真的目录"；带扩展名判"在不在跟踪集里"；
+ *   - 排除 glob 与模板：含 `*`、`?`、`{}`、`...` 的一律不判（`src/.../xxx.ts` 是示例不是坐标）；
+ *   - 反引号里是一条命令（带空格）时只取第一个空白前的 token 当路径。
+ */
+const INLINE_CODE_RE = /`([^`\n]+)`/g
+const REPO_PATHISH = /^(?:src|tests|scripts|docs|packages|\.claude|\.github)\//
+const GLOB_OR_TEMPLATE = /[*?{}]|(\.\.\.)/
+
+/**
+ * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'skip', note:string}}
+ */
+function classifyBarePath(span, tracked) {
+  const first = span.trim().split(/\s+/)[0]
+  const bare = first.replace(/#.*$/, '')
+  // 带行号的那种（`:210`、`:21,164-168`）由上面那条判据管；这里再判一遍会把路径本身报成不存在
+  if (/:\d/.test(bare)) return { kind: 'skip', note: bare }
+  if (!REPO_PATHISH.test(bare)) return { kind: 'skip', note: bare }
+  if (GLOB_OR_TEMPLATE.test(bare)) return { kind: 'skip', note: bare }
+  if (bare.endsWith('/')) {
+    const abs = path.join(repo, bare)
+    const isDir = fs.existsSync(abs) && fs.statSync(abs).isDirectory()
+    return isDir ? { kind: 'ok', note: bare } : { kind: 'ghostdir', note: bare }
+  }
+  if (tracked.has(bare)) return { kind: 'ok', note: bare }
+  if (fs.existsSync(path.join(repo, bare)) && fs.statSync(path.join(repo, bare)).isDirectory())
+    return { kind: 'ok', note: bare }
+  // 同上行号判据：只有"自己树里没有这个文件"时豁免才生效，且并入同一类读数，
+  // 免得两条判据各存一份豁免、名单和实际用量脱钩。
+  if (EXTERNAL_CODE_REFS.has(path.basename(bare))) return { kind: 'external', note: bare }
+  return { kind: 'ghostfile', note: bare }
 }
 
 /**
@@ -170,6 +216,14 @@ function scanDoc(fromFile, text, tracked, sources) {
         out.push({ file: fromFile, line: i + 1, kind: 'coderef:' + c.kind, target: c.note })
       }
     }
+    for (const hit of line.matchAll(INLINE_CODE_RE)) {
+      const c = classifyBarePath(hit[1], tracked)
+      if (c.kind === 'ghostfile' || c.kind === 'ghostdir') {
+        out.push({ file: fromFile, line: i + 1, kind: 'barepath:' + c.kind, target: c.note })
+      } else if (c.kind === 'external') {
+        out.push({ file: fromFile, line: i + 1, kind: 'coderef:external', target: c.note })
+      }
+    }
   }
   return out
 }
@@ -189,6 +243,13 @@ function selfTest(tracked, sources) {
     '见 doc-links.cjs:999999 行号早越过正本末尾了',
     '见 scripts/quality/doc-links.cjs:3 这条是活的，不许报',
     '见 hub.js:391 是第三方依赖里的文件，本闸不判',
+    // —— 不带行号的裸路径三条：一条该抓、一条该抓目录、一条不许误报 ——
+    '注册位置写 `src/main/ipc/probe-file-that-does-not-exist-9c1f.ts` 就该点名（幽灵表行就是这么来的）',
+    '目录写 `src/main/ipc/probe-dir-7d2e/` 也要点名',
+    '活的目录 `scripts/quality/` 与活的 `src/shared/ipc-channels.ts` 都不许报',
+    '示例与 glob 一律不判：`src/.../xxx.ts`、`src/main/**`、`docs/方案书-v{版本}-{模块名}.md`、`tests/unit/*-gate.test.ts`',
+    '是命令不是坐标：`scripts/design/count-important.mjs <上限>` 只取第一段路径',
+    '第三方也一样不判：裸路径写法 `src/utils/hub.js` 走同一条豁免',
     '```',
     '围栏里的 src/inside-fence-nope.ts:1 不判',
     '```',
@@ -216,9 +277,27 @@ function selfTest(tracked, sources) {
     problems.push('第三方依赖豁免没生效（那说明它被当成死引用，或者豁免名单和判据脱了钩）')
   if (allRefHits.some((t) => t.includes('inside-fence-nope')))
     problems.push('围栏代码块里的示例引用被当成承诺判红了')
+  const ghostFile = hits.filter((h) => h.kind === 'barepath:ghostfile').map((h) => h.target)
+  const ghostDir = hits.filter((h) => h.kind === 'barepath:ghostdir').map((h) => h.target)
+  const bareAll = hits.filter((h) => h.kind.startsWith('barepath:')).map((h) => h.target)
+  if (!ghostFile.some((t) => t.includes('probe-file-that-does-not-exist-9c1f.ts')))
+    problems.push('没抓到"不存在的路径"（幽灵表行那一类，本闸的第二条判据等于是摆设）')
+  if (!ghostDir.some((t) => t.includes('probe-dir-7d2e/')))
+    problems.push('没抓到"不存在的目录"')
+  if (bareAll.some((t) => t === 'scripts/quality/' || t === 'src/shared/ipc-channels.ts'))
+    problems.push('把活的裸路径误报成幽灵')
+  if (bareAll.some((t) => t.includes('...') || t.includes('{') || t.includes('*')))
+    problems.push('把示例/glob/模板路径当成坐标判红了（排除项失效）')
+  if (bareAll.some((t) => t === 'scripts/design/count-important.mjs'))
+    problems.push('把一条真实存在的命令误报（取第一段 token 的口径失效）')
+  if (bareAll.some((t) => t === 'src/utils/hub.js'))
+    problems.push('裸路径写法的第三方豁免没生效（同一个依赖文件，写成 hub.js:391 免了、写成 src/utils/hub.js 却报红）')
+  if (!refExternal.some((t) => t === 'src/utils/hub.js'))
+    problems.push('裸路径的第三方引用没被计入豁免读数（说明它被当成 ok 静默放过了，名单与用量对不上）')
   console.log(
     '[doc-links] 自检：抓到断链 ' + dead.length + ' 条、仓库外 ' + outside.length + ' 条、' +
-      '死引用 ' + refMissing.length + ' 条、越界 ' + refBeyond.length + ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
+      '死引用 ' + refMissing.length + ' 条、越界 ' + refBeyond.length + ' 条、' +
+      '裸路径幽灵 ' + bareAll.length + ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
   )
   if (problems.length) {
     console.error('[doc-links] 量具失效：\n  - ' + problems.join('\n  - '))
@@ -259,7 +338,9 @@ const refMissing = findings.filter((h) => h.kind === 'coderef:missing')
 const refBeyond = findings.filter((h) => h.kind === 'coderef:beyond')
 const refAmbiguous = findings.filter((h) => h.kind === 'coderef:ambiguous')
 const refExternal = findings.filter((h) => h.kind === 'coderef:external')
-const blocking = [...dead, ...refMissing, ...refBeyond, ...refAmbiguous]
+const bareGhostFile = findings.filter((h) => h.kind === 'barepath:ghostfile')
+const bareGhostDir = findings.filter((h) => h.kind === 'barepath:ghostdir')
+const blocking = [...dead, ...refMissing, ...refBeyond, ...refAmbiguous, ...bareGhostFile, ...bareGhostDir]
 
 if (AS_JSON) {
   // 机器可读模式只打印 JSON：尾巴上挂一句"结论: PASS"会让调用方的 JSON.parse 当场炸
@@ -267,7 +348,17 @@ if (AS_JSON) {
   // 结论由退出码表达：0 = 干净，1 = 有问题，2 = 量具自己跑不起来。
   console.log(
     JSON.stringify(
-      { docs: docs.length, dead, outside, refMissing, refBeyond, refAmbiguous, refExternal },
+      {
+        docs: docs.length,
+        dead,
+        outside,
+        refMissing,
+        refBeyond,
+        refAmbiguous,
+        refExternal,
+        bareGhostFile,
+        bareGhostDir,
+      },
       null,
       2
     )
@@ -289,10 +380,12 @@ if (!AS_JSON) {
   console.log(
     '[doc-links] 扫了 ' + docs.length + ' 份已入库 markdown：断链 ' + dead.length + ' 处、指向仓库外 ' + outside.length +
       ' 处、代码引用（死 ' + refMissing.length + ' / 行号越界 ' + refBeyond.length + ' / 歧义 ' + refAmbiguous.length +
-      '），另有第三方引用豁免 ' + refExternal.length + ' 处'
+      '）、裸路径幽灵（文件 ' + bareGhostFile.length + ' / 目录 ' + bareGhostDir.length + '）' +
+      '，另有第三方引用豁免 ' + refExternal.length + ' 处'
   )
   console.log(
     '  口径提醒：行号只判"在不在正本行数范围内"，不判"那一行讲的是不是原话"；' +
+      '裸路径只判"在不在跟踪集/是不是真目录"，含 * ? {} ... 的示例与命令行的第一段之外的部分都不判；' +
       '扫描面 = git 跟踪集里的 *.md，围栏代码块内的引用不判'
   )
 }
@@ -301,8 +394,9 @@ if (blocking.length) {
   console.error(
     '\n结论: FAIL —— 断链 ' + dead.length + ' 处、代码引用文件已不存在 ' + refMissing.length +
       ' 处、行号越过正本末尾 ' + refBeyond.length + ' 处、写法歧义 ' + refAmbiguous.length +
+      ' 处、裸路径幽灵 ' + (bareGhostFile.length + bareGhostDir.length) +
       ' 处（访客点开就是 404，接手的人按图找不到东西）'
   )
   process.exit(1)
 }
-console.log('结论: PASS —— 全部已入库 markdown 的相对链接与代码行号引用都对得上现场')
+console.log('结论: PASS —— 全部已入库 markdown 的相对链接、代码行号引用与裸路径引用都对得上现场')

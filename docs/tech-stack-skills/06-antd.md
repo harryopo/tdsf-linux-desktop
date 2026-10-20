@@ -452,6 +452,6 @@ const settings = useSettingsStore()
 ## 15. 引用文档
 
 - [ant.design](https://ant.design/) — 官方文档
-- `c:\Users\Lenovo\.trae-cn\skills\shadcn\SKILL.md` — Form / Field 设计参考
+- `<本机技能目录>/shadcn\SKILL.md` — Form / Field 设计参考
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — Antd 规约
 - `d:\ai\linux教学一体\tdsf-linux-desktop\docs\UI设计规范-v2.0.md` — 设计稿

@@ -33,7 +33,7 @@ describe('doc-links 闸', () => {
     expect(r.rc, '--self-test 退出码非 0，说明这条闸自己坏了').toBe(0)
   })
 
-  it('真扫当前必须干净（断链 0 / 死引用 0 / 越界 0 / 歧义 0）', () => {
+  it('真扫当前必须干净（断链 0 / 死引用 0 / 越界 0 / 歧义 0 / 裸路径幽灵 0）', () => {
     const r = run(['--json'])
     expect(r.rc, '闸报红：\n' + r.out).toBe(0)
     const json = JSON.parse(r.out)
@@ -41,7 +41,19 @@ describe('doc-links 闸', () => {
     expect(json.refMissing, '文档里有指向不存在文件的行号引用').toEqual([])
     expect(json.refBeyond, '文档里的行号已经越过正本末尾（多半是删过代码没回头改文档）').toEqual([])
     expect(json.refAmbiguous, '有写法歧义的引用（同名候选多于一个，请补全路径）').toEqual([])
+    expect(json.bareGhostFile, '文档里引用了不存在的路径（幽灵表行那一类：文件/通道/preload 方法名都不存在）').toEqual([])
+    expect(json.bareGhostDir, '文档里引用了不存在的目录（单复数写错也是这一类）').toEqual([])
     expect(json.docs, '扫描面里一份 markdown 都没有，这条闸等于摆设').toBeGreaterThan(10)
+  })
+
+  it('豁免必须真的在用：src/utils/hub.js 这种依赖内部路径两种写法都走同一条豁免', () => {
+    const json = JSON.parse(run(['--json']).out) as {
+      refExternal: Array<{ target: string }>
+    }
+    const names = json.refExternal.map((h) => h.target.split(':')[0].split('/').pop())
+    expect(new Set(names).size, '豁免读数里出现名单外的名字：\n' + JSON.stringify(json.refExternal)).toBe(1)
+    // 同一个依赖文件被引用了两次（带行号 + 裸路径），说明两条判据共用一份名单没分叉
+    expect(json.refExternal.length, 'hub.js 的两种引用形状应当都被计入同一条豁免').toBeGreaterThanOrEqual(2)
   })
 
   it('每一条声明过的第三方豁免都必须真的在文档里被用到（不许留空豁免）', () => {

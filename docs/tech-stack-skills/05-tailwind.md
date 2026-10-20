@@ -15,14 +15,14 @@
 | `vercel-react-best-practices` | ⭐推荐 | Vercel | "CSS 性能" / "content-visibility" | rendering 10 条 |
 
 > **Skill 路径**：
-> - `c:\Users\Lenovo\.trae-cn\skills\tailwind-v4-shadcn\SKILL.md`
-> - `c:\Users\Lenovo\.trae-cn\skills\shadcn\SKILL.md`
+> - `<本机技能目录>/tailwind-v4-shadcn\SKILL.md`
+> - `<本机技能目录>/shadcn\SKILL.md`
 
 ---
 
 ## 2. Tailwind v4 4 步主题架构（MANDATORY）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\tailwind-v4-shadcn\SKILL.md`
+> **来源**：`<本机技能目录>/tailwind-v4-shadcn\SKILL.md`
 > **警告**：跳过步骤会破主题，必须**按序**完成 4 步。
 
 ### Step 1：根级 CSS 变量
@@ -124,7 +124,7 @@ rm tailwind.config.ts
 
 ## 4. shadcn Skill 5 大类规则（必装）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\shadcn\SKILL.md`
+> **来源**：`<本机技能目录>/shadcn\SKILL.md`
 
 ### 4.1 Styling & Tailwind（7 条）
 
@@ -241,7 +241,7 @@ export function Button({ className, variant, size, ...props }: ButtonProps) {
 ### 5.2 项目应用
 
 - 所有自定义组件用 CVA 模式
-- `cn()` 工具放 `src/renderer/src/utils/cn.ts`
+- `cn()` 工具放 `src/renderer/src/components/trae/utils.ts`
 
 ---
 
@@ -284,7 +284,7 @@ rm tailwind.config.ts
 
 ## 7. Vercel React 渲染性能（10 条）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\rules\rendering-*`
+> **来源**：`<本机技能目录>/vercel-react-best-practices\rules\rendering-*`
 
 | 规则 | 用途 |
 |------|------|
@@ -357,17 +357,19 @@ rm tailwind.config.ts
 
 ## 11. 推荐阅读顺序
 
-1. `c:\Users\Lenovo\.trae-cn\skills\tailwind-v4-shadcn\SKILL.md`（必读）
-2. `c:\Users\Lenovo\.trae-cn\skills\shadcn\SKILL.md`（必读）
+1. `<本机技能目录>/tailwind-v4-shadcn\SKILL.md`（必读）
+2. `<本机技能目录>/shadcn\SKILL.md`（必读）
 3. [Tailwind v4 官方升级指南](https://tailwindcss.com/docs/upgrade-guide)
-4. 项目 `src/renderer/src/index.css` 实际主题
+4. 项目本仓的样式入口：`src/renderer/src/styles/tailwind.css`（内部 `@import` 令牌文件）
+   与 `src/renderer/src/styles/global.css`；令牌本身在 `src/renderer/src/styles/trae-tokens.css` / `ui-tokens.css`
+   —— 原来这一行写的是渲染层 src 目录下的 `index.css`，那个文件不存在（样式入口在 styles/ 下，2026-10-20 核对）
 
 ---
 
 ## 12. 引用文档
 
-- `c:\Users\Lenovo\.trae-cn\skills\tailwind-v4-shadcn\SKILL.md` — 必读
-- `c:\Users\Lenovo\.trae-cn\skills\shadcn\SKILL.md` — 必读
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\SKILL.md` — 渲染性能
+- `<本机技能目录>/tailwind-v4-shadcn\SKILL.md` — 必读
+- `<本机技能目录>/shadcn\SKILL.md` — 必读
+- `<本机技能目录>/vercel-react-best-practices\SKILL.md` — 渲染性能
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 颜色系统约束
 - `d:\ai\linux教学一体\tdsf-linux-desktop\docs\UI设计规范-v2.0.md` — 设计稿色板

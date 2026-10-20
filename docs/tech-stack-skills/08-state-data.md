@@ -16,14 +16,14 @@
 | `vercel-react-best-practices` §async | ⭐推荐 | Vercel | "SWR" / "数据获取" | client-swr-dedup |
 
 > **Skill 路径**：
-> - `c:\Users\Lenovo\.trae-cn\skills\zustand-patterns\SKILL.md`（14 模块经验）
-> - `c:\Users\Lenovo\.trae-cn\skills\sqlite\SKILL.md`（9 大主题）
+> - `<本机技能目录>/zustand-patterns\SKILL.md`（14 模块经验）
+> - `<本机技能目录>/sqlite\SKILL.md`（9 大主题）
 
 ---
 
 ## 2. Zustand 模式（zustand-patterns Skill · 必装）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\zustand-patterns\SKILL.md`
+> **来源**：`<本机技能目录>/zustand-patterns\SKILL.md`
 > **项目价值**：14 个模块共用的生产级经验
 
 ### 2.1 Store 设计规范
@@ -209,7 +209,7 @@ test('send appends message', async () => {
 
 ## 3. SQLite Skill（9 大主题 · 必装）
 
-> **来源**：`c:\Users\Lenovo\.trae-cn\skills\sqlite\SKILL.md`
+> **来源**：`<本机技能目录>/sqlite\SKILL.md`
 
 ### 3.1 Concurrency（最大坑）
 
@@ -545,18 +545,18 @@ const results = db.prepare(`
 
 ## 12. 推荐阅读顺序
 
-1. `c:\Users\Lenovo\.trae-cn\skills\zustand-patterns\SKILL.md`（必读，14 模块经验）
-2. `c:\Users\Lenovo\.trae-cn\skills\sqlite\SKILL.md`（必读，9 主题）
+1. `<本机技能目录>/zustand-patterns\SKILL.md`（必读，14 模块经验）
+2. `<本机技能目录>/sqlite\SKILL.md`（必读，9 主题）
 3. [Zustand 官方](https://github.com/pmndrs/zustand)（按需查）
 4. [better-sqlite3 文档](https://github.com/WiseLibs/better-sqlite3)（按需查）
-5. 项目 `src/renderer/src/store/` 实际 store
+5. 项目 `src/renderer/src/stores/` 实际 store（目录名是复数 stores，2026-10-20 核对；原来这一行写的单数 store 不存在）
 
 ---
 
 ## 13. 引用文档
 
-- `c:\Users\Lenovo\.trae-cn\skills\zustand-patterns\SKILL.md` — 14 模块实战
-- `c:\Users\Lenovo\.trae-cn\skills\sqlite\SKILL.md` — 9 主题
-- `c:\Users\Lenovo\.trae-cn\skills\vercel-react-best-practices\SKILL.md` — 数据获取
+- `<本机技能目录>/zustand-patterns\SKILL.md` — 14 模块实战
+- `<本机技能目录>/sqlite\SKILL.md` — 9 主题
+- `<本机技能目录>/vercel-react-best-practices\SKILL.md` — 数据获取
 - `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 状态规约
 - `d:\ai\linux教学一体\tdsf-linux-desktop\DEV_SKILLS.md` v1.2 §7.2 — 反模式

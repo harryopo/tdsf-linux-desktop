@@ -58,7 +58,10 @@ color: blue
 2. 三重验证结果（typecheck:node / typecheck:web / build）
 3. 关键设计决策（决策 + 理由）
 4. 已知技术债 + 后续待办
-5. 归档补充（追加到 `docs/问答归档.md` 和 `project_memory.md`）
+5. 归档补充（写进本机的 reports 目录，**不入库**；仓库路径形式的归档文件本仓不存在也不该有）
+
+   原来这一行写的是"追加到 docs 下的 问答归档.md 和 project_memory.md"——两个文件在本仓都查不到，
+   而且 `AGENTS.md` §仓库卫生明确"内部文档不入库"。长期项目记忆的真实落点是宿主自己的记忆目录，不是仓库里的一份 md。
 
 ## 工作流程
 

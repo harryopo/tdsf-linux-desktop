@@ -2,7 +2,9 @@
 
 > 本目录是 **TDSF-Linux Desktop 项目核心技术栈** 的 Skill 调研汇总，回答"项目用 Electron + React + TS + Vite + Tailwind + Antd + Monaco + xterm 开发，有哪些 Skill 能帮我写得更好"。
 >
-> 与 `docs/SKILL-CATALOG-v1.0.md`（16 类约 100 个全项目 Skill）配套：本目录**只聚焦技术栈本身**，SKILL-CATALOG 关注全栈工作流。
+> **2026-10-20 更正**：这里原来写"与 `SKILL-CATALOG-v1.0.md`（16 类约 100 个全项目 Skill）配套"——
+> 那三份目录（SKILL-CATALOG / SKILL-INSTALL-GUIDE / TECH-STACK-REFERENCE-INDEX）**在本仓库里从来不存在**，
+> 是从别的项目抄过来的说法。按仓库卫生规矩，全项目 Skill 清单不属于本仓的公开文档，要查去查 Qoder 的技能目录本身。
 >
 > 更新日期：2026-07-22 · 适用版本：v1.0+
 
@@ -80,11 +82,14 @@ npx -y skills add shadcn
 
 | 文档 | 关注点 | 关系 |
 |------|--------|------|
-| `DEV_SKILLS.md` v1.2 | Skill 调用流程（何时调） | 调度规范 |
-| `docs/SKILL-CATALOG-v1.0.md` | 全项目 16 类 Skill 索引（有什么） | 全景索引 |
-| `docs/SKILL-INSTALL-GUIDE.md` | 一键安装脚本 | 工具 |
-| `docs/TECH-STACK-REFERENCE-INDEX.md` | 官方文档下载清单 | 文档 |
+| `AGENTS.md` | 架构、门禁与协作规矩 | 编码规范（本仓有） |
+| `CODING.md` | 编码细则 | 编码规范（本仓有） |
 | `docs/tech-stack-skills/`（本目录） | **技术栈本身的 Skill 调研** | **深度** |
+
+上表原来还列着 `DEV_SKILLS.md` v1.2、`SKILL-CATALOG-v1.0.md`、`SKILL-INSTALL-GUIDE.md`、
+`TECH-STACK-REFERENCE-INDEX.md` 四行——**这四份在本仓库里都不存在**（2026-10-20 逐条查过），
+是从别的项目的文档结构里整段抄过来的。删掉而不是"等补"：留着它们，下一个 AI 会去按名字找文件、
+找不到就自己造一份，等于这张表在指导重复劳动。
 
 ## 7. 质量保证
 
