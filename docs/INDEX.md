@@ -66,4 +66,6 @@
 
 ## 附属组件
 
-- [Python 侧车](../sidecar-a/README.md) — Drain3 日志模板挖掘，缺依赖时整条链路走可见降级
+- [Python 侧车](../sidecar-a/README.md) — 真装了 Drain3（`drain3==0.9.11`）与 OpenDerisk 的 sidecar；
+  但**应用这一侧目前不调用它**：Drain3 桥从未被启动，日志模板一直由内置正则归纳，降级原因在关于页可见。
+  别把这份 README 读成"日志聚类用的是 Drain3"。
