@@ -2,9 +2,9 @@
  * 审批判定的唯一权威（D2：审批 fail-closed）
  *
  * 为什么要有这个文件：
- *   渲染进程送进来的"批准"是一个跨进程边界的外部输入，此前五个审批入口
- *   （paor:approve / sandbox:approve / llm:tool-approve / loop:confirm /
- *   task:permission-approve）都把它当可信布尔直接用。JS 的真值判定会让
+ *   渲染进程送进来的"批准"是一个跨进程边界的外部输入，此前各处审批入口
+ *   （paor:approve / sandbox:approve / llm:tool-approve / loop:confirm / agent:confirm）
+ *   都把它当可信布尔直接用。JS 的真值判定会让
  *   "true"（字符串）、1、{} 这些畸形值全部变成"用户批准了"。
  *
  * 规则（不可放宽）：
@@ -21,7 +21,7 @@ export function isApprovedValue(value: unknown): boolean {
  * 从审批载荷里取批准位
  *
  * 兼容两种既有形状：裸布尔（paor/sandbox/loop）和带 approved 字段的对象
- * （llm:tool-approve / task:permission-approve）。
+ * （llm:tool-approve）。
  * 形状不认识就返回 false —— 宁可让用户重按一次，也不放行高危操作。
  */
 export function readApproval(raw: unknown): boolean {

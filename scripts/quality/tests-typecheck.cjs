@@ -101,8 +101,8 @@ const TSCONFIG = 'tsconfig.tests.json'
  */
 const CAP = 0
 
-/** `as never` 存量上限：2026-10-14 实测 76 处（AST 计数）。同样只许降不许升。 */
-const AS_NEVER_CAP = 76
+/** `as never` 存量上限：2026-10-20 实测 69 处（AST 计数，删掉 Task Protocol 那批测试后）。同样只许降不许升。 */
+const AS_NEVER_CAP = 69
 
 const argv = process.argv.slice(2)
 let top = 6

@@ -9,8 +9,10 @@
  *   node scripts/quality/promo-readout.mjs                    打印全部读数与测法
  *   node scripts/quality/promo-readout.mjs --check [路径]     与宣传页 + README + 架构图对账，不一致就非零退出
  *                                                          （README 那一面默认读仓库根那份，
- *                                                           单测用 --readme <夹具路径> 指到合成文档）
- *   node scripts/quality/promo-readout.mjs --check-diagram    只与架构图对账（不跑 audit:ipc，单测走这条路）
+ *                                                           单测用 --readme <夹具路径> 指到合成文档；
+ *                                                           图那一面同理用 --diagram <夹具路径>，
+ *                                                           不指就会绑上盘上那张真图）
+ *   node scripts/quality/promo-readout.mjs --check-diagram    只与架构图对账（不跑 audit:ipc，CI 的 security-static job 走这条路）
  *
  * 为什么 README 也在对账面上（2026-10-19 加）：对外数字原先有三个载体，闸只管宣传页与架构图，
  * README 那一份没人管——同一天就撞上"README 与宣传页的用例数同时过期"。抄本永远比正本先漂，
@@ -292,8 +294,16 @@ function main(argv) {
     console.error('FAIL --check 与 --check-diagram 只能选一个（前者要跑 audit:ipc，后者不跑）')
     return 2
   }
+  // 图那一面也必须能指到夹具：单测喂的是合成读数，硬读盘上那张真 SVG
+  // 会让"闸对不对"取决于"图这轮重出过没有"（2026-10-20 整删之后两条用例就是这么白的红）。
+  const diagramIdx = argv.indexOf('--diagram')
+  const diagramPath = diagramIdx >= 0 ? path.resolve(argv[diagramIdx + 1]) : ARCH_SVG
+  if (!fs.existsSync(diagramPath)) {
+    console.error(`FAIL 架构图不在：${diagramPath}\n     同上，没有可比对象就是失败。`)
+    return 1
+  }
   if (diagramOnly) {
-    const r = diffDiagram(readRepoFacts(), fs.readFileSync(ARCH_SVG, 'utf8'))
+    const r = diffDiagram(readRepoFacts(), fs.readFileSync(diagramPath, 'utf8'))
     if (r.bad.length) {
       console.error(`FAIL 架构图的读数与仓库实测对不上（${r.bad.length} 条）：`)
       for (const b of r.bad) console.error(`  ${b.label}：图上 ${b.got}，实测 ${b.want}`)
@@ -354,7 +364,7 @@ function main(argv) {
   const mdRows = rows.concat(MD_EXTRA_ROWS(m))
   const mdOcc = parseMdReadoutRows(fs.readFileSync(readmePath, 'utf8'), mdRows.map(([l]) => l))
   const mdBad = diffMdReadouts(mdOcc, mdRows)
-  const dia = diffDiagram(m, fs.readFileSync(ARCH_SVG, 'utf8'))
+  const dia = diffDiagram(m, fs.readFileSync(diagramPath, 'utf8'))
   if (bad.length) {
     console.error(`FAIL 宣传页的读数与本轮实测对不上（${bad.length} 条）：`)
     for (const b of bad) console.error(`  ${b.label}：页面写 ${b.got}，实测 ${b.want}`)

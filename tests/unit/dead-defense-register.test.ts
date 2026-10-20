@@ -45,18 +45,6 @@ const DEFENSES: DefenseWiring[] = [
     definitionFiles: ['src/main/ipc/sandbox-approval.ts'],
   },
   {
-    symbol: 'taskPermissionApprove',
-    mustBeCalledFrom: 'src/renderer/src',
-    definitionFiles: [
-      'src/preload/index.ts',
-      'src/preload/types.ts',
-      'src/preload/domains/events.ts',
-    ],
-    // 主进程侧 push 与 invoke handler 都在，缺的是渲染层那个弹窗：
-    // 现在没有任何组件订阅 onTaskPermissionApprovalRequest。
-    knownUnwiredReason: '审批 UI 未做：Task Protocol 的子代理审批没有渲染层订阅方',
-  },
-  {
     symbol: 'validateDecision',
     mustBeCalledFrom: 'src/main/ipc',
     definitionFiles: ['src/main/core/decision-engine.ts'],

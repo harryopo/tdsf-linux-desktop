@@ -4,11 +4,6 @@
  * 借鉴 Kilo Code 的 task 工具 14 步 subagent 调度协议 + MetaGPT SOP 范式：
  *   d:\ai\linux教学一体\idea-to-dev-output\29-源码分析-KiloCode-多模式Subagent.md §4.3 / §5
  *
- * 与 task-protocol.ts 的关系：
- * - task-protocol.ts 实现 Kilo Code 完整 14 步协议（步骤级精细控制，每步独立可测试）
- * - dispatcher.ts 是 8 步简化版（粗粒度阶段，便于 Supervisor 编排）
- * - 两者互补：粗粒度调度用 dispatcher，细粒度单 Subagent 执行用 task-protocol
- *
  * 8 步流程：
  *   1. ANALYZE   — 解析用户请求，确定任务类型（关键词匹配）
  *   2. PLAN      — 生成任务分解（哪些 Subagent 接活）

@@ -44,7 +44,7 @@ describe('readApproval — 裸布尔形状（paor / sandbox / loop 三个入口�
   })
 })
 
-describe('readApproval — 对象形状（llm:tool-approve / task:permission-approve）', () => {
+describe('readApproval — 对象形状（llm:tool-approve）', () => {
   it('approved 必须是字面 true', () => {
     expect(readApproval({ approved: true })).toBe(true)
   })

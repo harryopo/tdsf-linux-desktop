@@ -1161,20 +1161,6 @@ export const CREDIBILITY = {
 } as const
 
 /**
- * 任务权限审批 IPC 通道常量
- *
- * 通道列表：
- * - PERMISSION_APPROVAL_REQUEST push  主 → 渲染：Subagent 调度审批请求
- * - PERMISSION_APPROVE        invoke  渲染 → 主：任务权限审批响应
- */
-export const TASK = {
-  /** Subagent 调度审批请求（push: 主 → 渲染） */
-  PERMISSION_APPROVAL_REQUEST: 'task:permission-approval-request',
-  /** 任务权限审批响应（invoke: 渲染 → 主） */
-  PERMISSION_APPROVE: 'task:permission-approve',
-} as const
-
-/**
  * 风险评估 IPC 通道常量（M2 新增：命令风险检查）
  *
  * 通道列表：

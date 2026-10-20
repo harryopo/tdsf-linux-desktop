@@ -80,10 +80,6 @@ import { registerFileWatcherIpcHandlers } from './file-watcher'
 // 通道：expectation:check / expectation:format
 // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
 import { registerExpectationHandlers } from './expectation'
-// v0.9.3 §11 遗留项 2 P2-H 新增：Task Protocol step 2 check-permission 审批 IPC
-// 通道：task:permission-approve（渲染进程响应审批请求）
-// 让 Subagent 调度支持用户审批，从"默认允许"升级为"理解后批准"
-import { registerTaskPermissionHandlers } from './task-permission-approval'
 // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
 // 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面
 // 不引入 electron-updater（避免 publisher 配置 + GitHub Token 管理复杂度）
@@ -297,12 +293,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 通道：expectation:check / expectation:format
   // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警（ExpectedOutput 组件消费）
   registerExpectationHandlers()
-
-  // v0.9.3 §11 遗留项 2 P2-H 新增：Task Protocol step 2 check-permission 审批 IPC
-  // 通道：task:permission-approve（渲染进程响应审批请求）
-  // 让 Subagent 调度支持用户审批，从"默认允许"升级为"理解后批准"
-  // 消费方：TaskPermissionApprovalDialog.tsx
-  registerTaskPermissionHandlers()
 
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
   // 通道：app:check-update（HTTP GET GitHub Releases API 比对版本号）

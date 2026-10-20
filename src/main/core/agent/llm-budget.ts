@@ -128,10 +128,9 @@ export function isLlmTimeout(err: unknown, signal?: AbortSignal): boolean {
 export const APPROVAL_BUDGET_MS = {
   /** 主对话写命令 / PAOR 步骤审批：与"用户在看着屏幕"的场景匹配 */
   chatWrite: 60_000,
-  /** llm:tool-approval、sandbox 高危、子代理权限：这三处历史上都是 30 秒 */
+  /** llm:tool-approval 与 sandbox 高危：这两处历史上都是 30 秒 */
   toolCall: 30_000,
   sandboxCommand: 30_000,
-  taskPermission: 30_000,
   /** 子代理调度：整批任务的审批窗口，历史上比单点长一个量级（自动拒绝会打断长任务） */
   subagentBatch: 300_000,
 } as const

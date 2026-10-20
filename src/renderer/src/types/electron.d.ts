@@ -212,9 +212,6 @@ export type {
   SandboxApprovalRequest,
   PaorApprovalOrigin,
   PaorApprovalRequest,
-  TaskPermissionMode,
-  TaskPermissionApprovalRequest,
-  TaskPermissionDecision,
 } from '@shared/approval-types'
 
 // ============================================================================

@@ -4,9 +4,8 @@ import type { AuditFormat, AuditReportInput, ComplianceAuditReport } from '../..
 import type { AuditReportListItem, ExportOptions, ExportResult } from '../../main/core/agent/credibility/audit/exporter'
 import type { CalibrationSample, CalibrationState, EceResult, OptimizeTOptions, ProviderCalibration, ProviderId, TemperatureScalingResult } from '../../main/core/agent/credibility/calibration/types'
 import type { FuseAssessOptions } from '../../main/core/agent/credibility/fusion-engine'
-import { ATTENTION, CREDIBILITY, EXPECTATION, MODE, TASK } from '@shared/ipc-channels'
+import { ATTENTION, CREDIBILITY, EXPECTATION, MODE } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
-import type { TaskPermissionDecision } from '../types'
 
 /**
  * v0.9 可信度算法 invoke 调用（D-S 证据理论 + PCR5 冲突融合 + 6 源证据）
@@ -348,40 +347,4 @@ const expectation = {
     ipcRenderer.invoke(EXPECTATION.FORMAT, violations),
 }
 
-/**
- * v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批 IPC
- *
- * 通道与主进程 ipc/task-permission-approval.ts 一一对应：
- * - task:permission-approval-request（主 → 渲染推送，单向，通过 createListener 监听）
- * - task:permission-approve（渲染 → 主 invoke，响应审批请求）
- *
- * 使用场景：
- * - Subagent 调度时（task-protocol step 2），主进程推送审批请求到 UI
- * - UI 弹窗显示 taskId / subagentName / inputSummary，用户批准/拒绝
- * - 用户响应后，主进程通过 Promise resolve 返回决策，step 2 继续/中止
- *
- * 三态权限审批（R12）：
- * - mode='always'：每次都询问用户（默认，触发推送）
- * - mode='auto'：自动允许（不推送，step 2 直接通过）
- * - mode='never'：自动拒绝（不推送，step 2 直接失败）
- *
- * 设计要点：
- * - 30 秒未响应主进程自动拒绝（与 sandbox-approval 保持一致）
- * - remember=true 时主进程记录日志（持久化规则表留待 v1.6 实现）
- */
-const taskPermission = {
-  /**
-   * 响应审批请求
-   *
-   * @param callId 审批调用 ID（与推送的 TaskPermissionApprovalRequest.callId 对应）
-   * @param decision 审批决策（approved + rejectReason + remember）
-   * @returns void（主进程通过 Promise resolve 通知 waitForTaskPermissionApproval）
-   */
-  approve: (
-    callId: string,
-    decision: TaskPermissionDecision
-  ): Promise<void> =>
-    ipcRenderer.invoke(TASK.PERMISSION_APPROVE, callId, decision),
-}
-
-export { credibility, mode, attention, expectation, taskPermission }
+export { credibility, mode, attention, expectation }

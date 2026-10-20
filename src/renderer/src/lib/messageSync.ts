@@ -67,7 +67,6 @@ export type StreamEventName =
   | 'sftp:progress'
   | 'ssh:host-key-prompt'
   | 'ssh:state-changed'
-  | 'task:permission-approval-request'
   | 'terminal:data'
   | 'tutorial:backfill-progress'
   | 'tutorial:crawlDone'
@@ -344,12 +343,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '沙箱命令审批卡，同上，丢了命令永远挂着',
-  },
-  'task:permission-approval-request': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: 'Subagent 调度审批卡，丢了 30 秒后自动拒绝',
   },
   'tutorial:crawlProgress': {
     class: 'LATEST_ONLY',

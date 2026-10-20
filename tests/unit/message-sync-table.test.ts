@@ -143,7 +143,6 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'sftp:progress': 'LATEST_ONLY',
       'ssh:host-key-prompt': 'CRITICAL',
       'ssh:state-changed': 'LATEST_ONLY',
-      'task:permission-approval-request': 'CRITICAL',
       'terminal:data': 'DELTA',
       'tutorial:backfill-progress': 'LATEST_ONLY',
       'tutorial:crawlDone': 'CRITICAL',

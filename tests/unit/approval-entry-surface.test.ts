@@ -71,7 +71,6 @@ describe('每个审批入口都走严格判定（结构闸）', () => {
       'loop:confirm',
       'paor:approve',
       'sandbox:approve',
-      'task:permission-approve',
     ])
   })
 

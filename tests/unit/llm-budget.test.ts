@@ -68,7 +68,6 @@ describe('LLM 时间预算', () => {
     expect(APPROVAL_BUDGET_MS.chatWrite).toBe(60_000)
     expect(APPROVAL_BUDGET_MS.toolCall).toBe(30_000)
     expect(APPROVAL_BUDGET_MS.sandboxCommand).toBe(30_000)
-    expect(APPROVAL_BUDGET_MS.taskPermission).toBe(30_000)
     expect(APPROVAL_BUDGET_MS.subagentBatch).toBe(300_000)
   })
 

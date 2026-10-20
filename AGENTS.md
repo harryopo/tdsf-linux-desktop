@@ -38,7 +38,7 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 - 那种百分比没有测量方法，改一次代码它就过期，而且没人会去复核它；
 - 里面的"Claude SDK 集成"根本不存在（不是依赖，`src/main` 全仓搜不到）；
 - "14 步 Task Protocol"有代码有测试，但**生产链路零调用**——把这种写成 95% 完成度，
-  下一个接手的人会以为能直接用。
+  下一个接手的人会以为能直接用。（这条 2026-10-20 已经判掉：整删，见下面的降级表。）
 
 要判断某个模块的真实状态，读它的代码和它的测试，别读任何汇总表。
 已知降级或没接上的能力，统一列在 `README.md` §已知边界，
@@ -53,7 +53,12 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 |------|-----------|----------|------------|
 | Langfuse 追踪 | 无 Key 自动关闭 | `langfuse.ts`、`langfuse-trace.ts` | 配 Key 即启用 |
 | Python 侧车（Drain3 日志模板） | 缺 venv 时整条链路降级并在界面显示原因 | `sidecar-a/` + 宿主监督与握手代码 | 重建 venv + 装依赖 |
-| 14 步 Task Protocol | 有实现与测试，**生产未调用**（注意范围：只有 Task Protocol 这一条。同目录的 `loop-engineering-subagent` 与 `agent-loader` 由 `ipc/loop-engineering.ts`、`ipc/index.ts:55,69` 注册并在跑，别一起打成"死代码"） | `core/agent/subagents/task-protocol.ts`、`dispatcher.ts` | 先定它到底要不要上线（判决清单见 [docs/功能实景清单.md](docs/功能实景清单.md) §C 组） |
+
+> **14 步 Task Protocol 不在这张表里了**（2026-10-20 整删）：实现 7 个文件、`task-sediment`、
+> `ipc/task-permission-approval`、`TASK` 通道、preload 两把键与那批单测一起删，代码只留在 git 历史。
+> 别把同目录的东西一起打成"死代码"：`loop-engineering-subagent` 与 `agent-loader` 由
+> `ipc/loop-engineering.ts`、`ipc/index.ts` 注册并在跑；`subagents/dispatcher.ts` 的 8 步调度
+> 仍然只被 `subagents/index.ts` 转出、生产零调用（这条是它自己的账，另轮判）。
 
 > CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1369` → `agent-store.ts:405`
 > → `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117`），只是那一轮没采到熵点时不画。
@@ -154,6 +159,7 @@ xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`
 
 ---
 
-*v13 · 2026-10-19 · 新增两份讲真话的入口文档：docs/功能实景清单.md（能力按 A/B/C 三档判决，带 file:line）
-与 docs/长期优化目标.md（每条目标绑一处代码欠账）；Task Protocol 的降级范围收窄到它自己，
-CLAUDE.md 的门禁清单标清哪几把只在本地跑
+*v14 · 2026-10-20 · 14 步 Task Protocol 按判决整删（实现 + 专属测试 + `TASK` 通道 + preload 键 +
+审批类型一起走，代码只留在 git 历史）；降级表因此少一行，"别把在跑的东西一起打成死代码"改成表下的注。
+上一版（v13 · 2026-10-19）新增两份讲真话的入口文档：docs/功能实景清单.md（能力按 A/B/C 三档判决，带 file:line）
+与 docs/长期优化目标.md（每条目标绑一处代码欠账），并把门禁清单标清哪几把只在本地跑

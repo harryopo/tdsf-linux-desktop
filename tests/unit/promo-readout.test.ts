@@ -243,6 +243,9 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   let tmpDir = ''
   let baseRows: Array<[string, number]> = []
   let mdExtraRows: Array<[string, number]> = []
+  /** 图那一面的夹具路径（见 beforeAll 里的说明：不指到夹具就会绑上盘上那张真图） */
+  let diagramFixture = ''
+  let diagramFixtureBad = ''
   const COUNT_ROWS: Array<[string, number]> = [
     ['单元与组件用例', 3264],
     ['端到端用例', 57],
@@ -255,6 +258,27 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
     // README 那一面同样从模块取，不手抄标签
     mdExtraRows = m.MD_EXTRA_ROWS(measured)
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promo-fixture-'))
+    // 图夹具的数全部从 measure() 现取，理由与 fixtureMd 相同：手抄的数会让
+    // "闸对不对"取决于"图这轮重出过没有"。七个标签的形状照 parseSvgClaims 的正则。
+    const svgLines = [
+      `invoke 请求（${measured.ipc.request} 条通道）`,
+      `事件推送（${measured.ipc.event} 条通道）`,
+      `${measured.contract.total} 条已登记 zod 契约（其余未收口）`,
+      `${measured.rules.detectors} 结构 + ${measured.rules.argvRules} argv + ${measured.rules.vocabulary} 词表`,
+      `${measured.providers} 类兼容端点`,
+    ]
+    diagramFixture = path.join(tmpDir, 'diagram.svg')
+    fs.writeFileSync(diagramFixture, svgLines.join('\n') + '\n', 'utf8')
+    // 反证用：只把词表那一个数改成相邻的另一个数（形状必须仍然取得到，
+    // 否则报的是"图改了措辞"而不是"数对不上"，那条判据就考错了东西）
+    diagramFixtureBad = path.join(tmpDir, 'diagram-bad.svg')
+    fs.writeFileSync(
+      diagramFixtureBad,
+      svgLines
+        .map((l) => (l === svgLines[3] ? l.replace(String(measured.rules.vocabulary), String(measured.rules.vocabulary + 1)) : l))
+        .join('\n') + '\n',
+      'utf8'
+    )
   })
   afterAll(() => {
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true })
@@ -300,6 +324,8 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
       fixture('all-four', true),
       '--readme',
       fixtureMd('all-four', true),
+      '--diagram',
+      diagramFixture,
       ...COUNT_ARGS,
     ])
     expect(rc, out).toBe(0)
@@ -315,6 +341,8 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
       fixture('md-only-wrong', true),
       '--readme',
       fixtureMd('md-only-wrong', true, { 命令规则词表项: 216 }),
+      '--diagram',
+      diagramFixture,
       ...COUNT_ARGS,
     ])
     expect(rc, out).toBe(1)
@@ -330,6 +358,8 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
       // README 夹具跟着参数写 3200，于是只有页面那一条对不上——证明点名是逐面的
       '--readme',
       fixtureMd('wrong-unit', true, { 单元与组件用例: 3200 }),
+      '--diagram',
+      diagramFixture,
       '--unit-passed',
       '3200',
       '--unit-skipped',
@@ -371,10 +401,34 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   })
 
   it('一个都不给 ⇒ 仍然放行，但必须明说那两条没纳入（不许读成"全对上了"）', () => {
-    const { rc, out } = run(['--check', fixture('no-counts', false), '--readme', fixtureMd('no-counts', false)])
+    const { rc, out } = run([
+      '--check',
+      fixture('no-counts', false),
+      '--readme',
+      fixtureMd('no-counts', false),
+      '--diagram',
+      diagramFixture,
+    ])
     expect(rc, out).toBe(0)
     expect(out).toContain('用例数两条未纳入')
     expect(out).not.toContain('含两条用例数')
+  })
+
+  it('--diagram 指的夹具里词表数写错 ⇒ 只点名架构图那一条（证明这个开关真被读，不是摆设）', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('diagram-wrong', true),
+      '--readme',
+      fixtureMd('diagram-wrong', true),
+      '--diagram',
+      diagramFixtureBad,
+      ...COUNT_ARGS,
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('架构图的读数与本轮实测对不上（1 条）')
+    expect(out).toContain('命令规则词表项')
+    expect(out).not.toContain('宣传页的读数与本轮实测对不上')
+    expect(out).not.toContain('README 的读数与本轮实测对不上')
   })
 
   it('页面确实不在 ⇒ 报"宣传页不在"并红，不许当成通过（找不到可比的东西就是失败）', () => {

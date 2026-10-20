@@ -147,7 +147,6 @@ onSchedulerStatusChange
 onSftpProgress
 onSshHostKeyPrompt
 onSshStateChanged
-onTaskPermissionApprovalRequest
 onTerminalData
 onTutorialBackfillProgress
 onTutorialCrawlDone
@@ -238,7 +237,6 @@ storageSaveApiKey
 subagentList
 subagentReload
 systemPing
-taskPermissionApprove
 terminalCompletionAccept
 terminalCompletionComplete
 terminalCompletionImport

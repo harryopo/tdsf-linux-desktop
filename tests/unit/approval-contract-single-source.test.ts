@@ -27,9 +27,6 @@ const MANAGED = [
   'SandboxApprovalRequest',
   'PaorApprovalOrigin',
   'PaorApprovalRequest',
-  'TaskPermissionMode',
-  'TaskPermissionApprovalRequest',
-  'TaskPermissionDecision',
 ] as const
 
 function tsFiles(dir: string, out: string[] = []): string[] {
@@ -47,7 +44,7 @@ const ALL_FILES = tsFiles(join('src', 'main')).concat(tsFiles(join('src', 'prelo
  * 每个受管名字分别被哪些文件"声明"过（interface / type 别名算声明，
  * `export type { X } from ...` 只算转发，不算第二份）。
  *
- * 一趟解析收全部名字：逐名重扫会把 7 × 上千个文件各解析一遍，单条判据跑到 4.7 秒。
+ * 一趟解析收全部名字：逐名重扫会把「受管名 × 上千个文件」各解析一遍，单条判据跑到 4.7 秒。
  */
 function declarationsByName(): Map<string, string[]> {
   const map = new Map<string, string[]>()
@@ -102,7 +99,6 @@ describe('审批载荷只许有一处声明', () => {
       join('src', 'renderer', 'src', 'types', 'electron.d.ts'),
       join('src', 'main', 'ipc', 'agent-runtime.ts'),
       join('src', 'main', 'ipc', 'sandbox-approval.ts'),
-      join('src', 'main', 'ipc', 'task-permission-approval.ts'),
     ]) {
       expect(readFileSync(join(ROOT, f), 'utf8'), `${f} 没有引用 shared 的审批契约`).toContain(
         '@shared/approval-types'

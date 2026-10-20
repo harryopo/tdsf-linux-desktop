@@ -27,7 +27,7 @@ import { createListener, invokeChecked, installIpcErrorUnwrap } from './ipc-util
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
-import { attention, credibility, expectation, mode, taskPermission } from './domains/cognition'
+import { attention, credibility, expectation, mode } from './domains/cognition'
 import { atCommands, localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { llm, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
@@ -181,9 +181,6 @@ const electronApi = {
   // v0.9.5 PAOR 迭代进度事件（每轮 Plan→Act→Observe→Reflect 完成后推送）
   onAgentPaorIteration: on.agentPaorIteration,
 
-  // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批请求事件
-  // （Subagent 调度时主进程推送审批请求，用户响应后 step 2 继续/中止）
-  onTaskPermissionApprovalRequest: on.taskPermissionApprovalRequest,
 
   // ===== MCP 扁平化（P1 修复：此前仅在 on 对象内定义、未暴露，前端永远调不到，
   // 而 electron.d.ts 却声明了这些方法 —— 类型与运行时不一致的结构性断链） =====
@@ -680,9 +677,6 @@ const electronApi = {
   expectationCheck: expectation.check,
   expectationFormat: expectation.format,
 
-  // v0.9.3 §11 遗留项 2 P2-H：Task Protocol step 2 check-permission 审批（1 个）
-  // 用户通过本函数响应主进程推送的 task:permission-approval-request
-  taskPermissionApprove: taskPermission.approve,
 
   // 组 4：Subagent 自定义 Agent 加载器（2 个）
   subagentList: subagent.list,
