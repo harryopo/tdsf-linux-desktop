@@ -2,44 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-20T03:59:14.950Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-20T03:04:14.367Z",
-      "lastActiveAt": "2026-10-20T03:59:14.950Z",
-      "task": "task-protocol-removal",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "task-protocol-removal",
-          "claimedAt": "2026-10-20T03:59:14.533Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "task-protocol-removal",
-          "claimedAt": "2026-10-20T03:59:14.639Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "task-protocol-removal",
-          "claimedAt": "2026-10-20T03:59:14.743Z"
-        },
-        {
-          "path": "AGENTS.md",
-          "task": "task-protocol-removal",
-          "claimedAt": "2026-10-20T03:59:14.846Z"
-        },
-        {
-          "path": "package.json",
-          "task": "task-protocol-removal",
-          "claimedAt": "2026-10-20T03:59:14.950Z"
-        }
-      ],
-      "expiresAt": "2026-10-20T05:59:14.950Z"
-    }
-  },
+  "lastUpdated": "2026-10-20T03:59:47.357Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -8146,6 +8110,41 @@
       "file": "package.json",
       "task": "task-protocol-removal",
       "timestamp": "2026-10-20T03:59:14.950Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "task-protocol-removal",
+      "timestamp": "2026-10-20T03:59:47.357Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "task-protocol-removal",
+      "timestamp": "2026-10-20T03:59:47.357Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "task-protocol-removal",
+      "timestamp": "2026-10-20T03:59:47.357Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "task-protocol-removal",
+      "timestamp": "2026-10-20T03:59:47.357Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "package.json",
+      "task": "task-protocol-removal",
+      "timestamp": "2026-10-20T03:59:47.357Z"
     }
   ],
   "coordinationAudit": {
