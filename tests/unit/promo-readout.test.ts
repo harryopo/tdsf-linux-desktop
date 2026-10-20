@@ -260,6 +260,13 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   /** 图那一面的夹具路径（见 beforeAll 里的说明：不指到夹具就会绑上盘上那张真图） */
   let diagramFixture = ''
   let diagramFixtureBad = ''
+  /** 端到端产物夹具：不指过去，这条判据就取决于"这台机器这轮跑没跑过 playwright" */
+  let e2eArtifact = ''
+  let e2eArtifactStale = ''
+  let e2eArtifactFailed = ''
+  let e2eArtifactMissing = ''
+  /** 四个用例数参数（含产物指针）；beforeAll 里建好夹具才填得出路径，所以是 let */
+  let COUNT_ARGS: string[] = []
   const COUNT_ROWS: Array<[string, number]> = [
     ['单元与组件用例', 3264],
     ['端到端用例', 57],
@@ -293,6 +300,30 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
         .join('\n') + '\n',
       'utf8'
     )
+    // 端到端产物三种形状：刚跑的 / 改版前的 / 有失败的
+    const runFile = (name: string, status: string, failed: string[]) => {
+      const p = path.join(tmpDir, name)
+      fs.writeFileSync(p, JSON.stringify({ status, failedTests: failed }), 'utf8')
+      return p
+    }
+    e2eArtifact = runFile('last-run-passed.json', 'passed', [])
+    e2eArtifactFailed = runFile('last-run-failed.json', 'failed', ['shell-stability.spec.ts > 连上'])
+    e2eArtifactStale = runFile('last-run-stale.json', 'passed', [])
+    e2eArtifactMissing = path.join(tmpDir, 'no-such-last-run.json')
+    const old = new Date('2026-01-01T00:00:00Z')
+    fs.utimesSync(e2eArtifactStale, old, old)
+    COUNT_ARGS = [
+      '--unit-passed',
+      '3264',
+      '--unit-skipped',
+      '19',
+      '--e2e-passed',
+      '57',
+      '--e2e-skipped',
+      '15',
+      '--e2e-artifact',
+      e2eArtifact,
+    ]
   })
   afterAll(() => {
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true })
@@ -329,8 +360,6 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
     fs.writeFileSync(p, md, 'utf8')
     return p
   }
-
-  const COUNT_ARGS = ['--unit-passed', '3264', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15']
 
   it('四个都给 ⇒ 那两行纳入对账，PASS 行要说清"含两条用例数"', () => {
     const { rc, out } = run([
@@ -374,6 +403,8 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
       fixtureMd('wrong-unit', true, { 单元与组件用例: 3200 }),
       '--diagram',
       diagramFixture,
+      '--e2e-artifact',
+      e2eArtifact,
       '--unit-passed',
       '3200',
       '--unit-skipped',
@@ -443,6 +474,82 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
     expect(out).toContain('命令规则词表项')
     expect(out).not.toContain('宣传页的读数与本轮实测对不上')
     expect(out).not.toContain('README 的读数与本轮实测对不上')
+  })
+
+  /**
+   * 端到端那两条数的新鲜度凭据。
+   *
+   * 钉这一条的原因很具体：2026-10-20 我递的是昨天的 57/15，页面照它改对、三面全 PASS，
+   * 而真值是重跑后的 59/13。**一致的错数比不一致更危险**——它读起来像对过账。
+   */
+  it('产物比源码旧（改版前那一轮）⇒ 拒收，不许拿旧数对外发布', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('stale', true),
+      '--readme',
+      fixtureMd('stale', true),
+      '--diagram',
+      diagramFixture,
+      '--unit-passed',
+      '3264',
+      '--unit-skipped',
+      '19',
+      '--e2e-passed',
+      '57',
+      '--e2e-skipped',
+      '15',
+      '--e2e-artifact',
+      e2eArtifactStale,
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('端到端产物比源码旧')
+    expect(out).not.toContain('宣传页 7 条读数与本轮实测一致')
+  })
+
+  it('产物写着 failed ⇒ 同样拒收（有失败的套件不能当"57 通过"发出去）', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('failed-run', true),
+      '--readme',
+      fixtureMd('failed-run', true),
+      '--diagram',
+      diagramFixture,
+      '--unit-passed',
+      '3264',
+      '--unit-skipped',
+      '19',
+      '--e2e-passed',
+      '57',
+      '--e2e-skipped',
+      '15',
+      '--e2e-artifact',
+      e2eArtifactFailed,
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('端到端产物写的是 "failed"')
+  })
+
+  it('产物根本不在（从没跑过）⇒ 报"先跑 playwright test"，不算通过', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('no-run', true),
+      '--readme',
+      fixtureMd('no-run', true),
+      '--diagram',
+      diagramFixture,
+      '--unit-passed',
+      '3264',
+      '--unit-skipped',
+      '19',
+      '--e2e-passed',
+      '57',
+      '--e2e-skipped',
+      '15',
+      '--e2e-artifact',
+      e2eArtifactMissing,
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('端到端没有跑过的痕迹')
   })
 
   it('页面确实不在 ⇒ 报"宣传页不在"并红，不许当成通过（找不到可比的东西就是失败）', () => {

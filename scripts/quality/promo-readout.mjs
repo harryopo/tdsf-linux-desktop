@@ -287,6 +287,70 @@ function readoutCounts(argv) {
   return { up, us, ep, es }
 }
 
+/**
+ * 端到端那一轮"新不新"的基准时间。
+ *
+ * 口径要正好等于"会让这轮端到端作废的改动"：应用代码（src/）与端到端规格本身（tests/e2e/）。
+ * 不把整个 tests/ 算进来——第一次写这判据时我这么干了，结果 12:55 那轮真跑完后端去改了
+ * tests/unit 里这个闸自己的判据，它就把自己的产物判成"改版前的一轮"，cry wolf。
+ */
+function newestSourceMtime() {
+  const files = git(['ls-files'])
+    .trim()
+    .split('\n')
+    .map((s) => s.replace(/\\/g, '/'))
+    .filter((f) => f.startsWith('src/') || f.startsWith('tests/e2e/'))
+  let m = 0
+  for (const f of files) {
+    try {
+      m = Math.max(m, fs.statSync(path.join(REPO, f)).mtimeMs)
+    } catch {
+      /* 跟踪集里有盘上不在的文件（别人删了没提交）：跳过它，不影响取最大值 */
+    }
+  }
+  return m
+}
+
+/**
+ * 递进来的四个用例数必须是"刚跑完的那一轮"量的。
+ *
+ * 为什么补这一道：这个闸只比"页面上写的"与"调用方递进来的"，两者一致就 PASS——
+ * 2026-10-20 我递的是昨天的端到端数（57 通过 / 15 跳过），页面照它的值改对了，
+ * 于是三面全 PASS，而真值是重跑之后的 59 / 13。**一致的错数比不一致更危险**，
+ * 因为它会让人以为这条数也对过账。
+ * 判据用 Playwright 每次跑都会写的那份产物：文件必须在、必须是 passed、
+ * 且不能比源码与测试的最新改动旧（旧的=跑的是改版前的包）。
+ */
+export function assertE2eRunFresh(artifactPath) {
+  if (!fs.existsSync(artifactPath)) {
+    throw new Error(
+      `端到端没有跑过的痕迹（${path.relative(REPO, artifactPath)} 不在）。` +
+        '递进来的用例数就无从判新旧——先 `npx playwright test` 再来对账。'
+    )
+  }
+  const st = fs.statSync(artifactPath)
+  let run
+  try {
+    run = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
+  } catch (e) {
+    throw new Error(`端到端产物解析不了（${e.message}）：${path.relative(REPO, artifactPath)}`)
+  }
+  if (run.status !== 'passed') {
+    const n = Array.isArray(run.failedTests) ? run.failedTests.length : '?'
+    throw new Error(`端到端产物写的是 ${JSON.stringify(run.status)}（失败 ${n} 条），不能拿它的数对外发布`)
+  }
+  const src = newestSourceMtime()
+  if (st.mtimeMs < src) {
+    throw new Error(
+      `端到端产物比源码旧 ${((src - st.mtimeMs) / 60_000).toFixed(1)} 分钟` +
+        '（产物 ' +
+        new Date(st.mtimeMs).toISOString().slice(0, 16).replace('T', ' ') +
+        ' UTC，源码更新在后）——那是改版前那一轮的数，先重跑'
+    )
+  }
+  return st
+}
+
 function main(argv) {
   const check = argv.includes('--check')
   const diagramOnly = argv.includes('--check-diagram')
@@ -330,6 +394,19 @@ function main(argv) {
     console.error('FAIL ' + e.message)
     return 2
   }
+  // 递了用例数，就得同时交出"这数是刚跑的"凭据：Playwright 那份 run 产物必须新于源码。
+  // 单测用 --e2e-artifact 指到夹具（理由与 --readme / --diagram 同一条：不许绑盘上产物）。
+  let e2eStamp = null
+  if (counts) {
+    const artIdx = argv.indexOf('--e2e-artifact')
+    const artifactPath = artIdx >= 0 ? path.resolve(argv[artIdx + 1]) : path.join(REPO, 'test-results', '.last-run.json')
+    try {
+      e2eStamp = assertE2eRunFresh(artifactPath)
+    } catch (e) {
+      console.error('FAIL ' + e.message)
+      return 1
+    }
+  }
 
   if (!check) {
     console.log('对外读数（本轮实测）')
@@ -339,8 +416,11 @@ function main(argv) {
     console.log(`  规则词表项          ${m.rules.vocabulary}  分项：${JSON.stringify(m.rules.per)}`)
     console.log(`  结构性拦截器        ${m.rules.detectors}　argv 规则 ${m.rules.argvRules}　受保护根级路径 ${m.rules.protectedTargets}`)
     console.log(`  Provider 类型       ${m.providers}  测法：provider-factory 的 switch 分支数`)
-    console.log('  用例数不在这个脚本里算（要跑满套）。跑完把四个数递回来一起对账：')
-    console.log('    npm run promo:check -- --unit-passed N --unit-skipped M --e2e-passed P --e2e-skipped Q')
+    console.log('  用例数不在这个脚本里算（要跑满套）。跑完把四个数递回来一起对账，')
+    console.log('  并交出"这数是刚跑的"凭据——端到端产物默认读 test-results/.last-run.json，比源码旧就拒收：')
+    console.log(
+      '    npm run promo:check -- --unit-passed N --unit-skipped M --e2e-passed P --e2e-skipped Q [--e2e-artifact 路径]'
+    )
     return 0
   }
 
@@ -384,7 +464,10 @@ function main(argv) {
   console.log(
     `PASS 宣传页 ${rows.length} 条读数与本轮实测一致` +
       (counts
-        ? '（含两条用例数，数字由调用方从刚跑完的套件递进来）'
+        ? '（含两条用例数，数字由调用方从刚跑完的套件递进来；' +
+          '端到端那两条的新鲜度按 Playwright 产物判：' +
+          new Date(e2eStamp.mtimeMs).toISOString().slice(0, 16).replace('T', ' ') +
+          ' UTC）'
         : '（用例数两条未纳入：跑完套件加 --unit-passed/--unit-skipped/--e2e-passed/--e2e-skipped 再对一次）')
   )
   console.log(`PASS README ${mdRows.length} 条读数与本轮实测一致（同一标签在文档里抄了多处，逐处比）`)
