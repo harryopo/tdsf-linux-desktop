@@ -37,6 +37,8 @@ import {
   resetTokenStats,
   persist,
 } from '../../src/main/core/agent/providers/token-stats'
+import { ConfigStore } from '../../src/main/services/storage/config-store'
+import { logger } from '../../src/main/services/log/logger'
 import type { TokenUsageRecord } from '../../src/shared/agent-types'
 
 const NOW = Date.now()
@@ -223,6 +225,19 @@ describe('持久化真的写到 ConfigStore', () => {
 
     // 清掉本用例在原实例里留下的防抖定时器
     resetTokenStats()
+  })
+
+  it('ConfigStore 写失败时 persist 必须报失败，不能打"已持久化"', () => {
+    recordTokenUsage(rec())
+    const setSpy = vi.spyOn(ConfigStore, 'set').mockReturnValue(false)
+    const warnSpy = vi.spyOn(logger, 'warn')
+    try {
+      expect(persist()).toBe(false)
+      expect(warnSpy).toHaveBeenCalled()
+    } finally {
+      setSpy.mockRestore()
+      warnSpy.mockRestore()
+    }
   })
 })
 

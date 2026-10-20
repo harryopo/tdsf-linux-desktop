@@ -298,7 +298,7 @@ function renderSystemSection(items: ProfilerItem[]): string {
   lines.push('| 项 | 值 |')
   lines.push('|----|----|')
   if (hostname && uname) {
-    lines.push(`| 主机名 | \`${parseHostname(uname.stdout, hostname.stdout)}\` |`)
+    lines.push(`| 主机名 | \`${escapeTableCell(parseHostname(uname.stdout, hostname.stdout))}\` |`)
   }
   if (osRelease) {
     lines.push(`| 操作系统 | **${escapeTableCell(parseOsRelease(osRelease.stdout))}** |`)
@@ -309,7 +309,9 @@ function renderSystemSection(items: ProfilerItem[]): string {
   }
   if (uptime) {
     const { uptime: up, load } = parseUptime(uptime.stdout)
-    lines.push(`| 启动时间 | ${up}${load ? `（负载 ${load.trim()}）` : ''} |`)
+    lines.push(
+      `| 启动时间 | ${escapeTableCell(up)}${load ? `（负载 ${escapeTableCell(load.trim())}）` : ''} |`
+    )
   }
   if (date) {
     lines.push(`| 当前时间 | \`${escapeTableCell(date.stdout.trim())}\` |`)
@@ -480,7 +482,7 @@ function renderServicesSection(items: ProfilerItem[]): string {
       lines.push('|------|------|')
       for (const s of services.slice(0, 20)) {
         const [name, ...desc] = s.split(' — ')
-        lines.push(`| \`${name}\` | ${escapeTableCell(desc.join(' — '))} |`)
+        lines.push(`| \`${escapeTableCell(name)}\` | ${escapeTableCell(desc.join(' — '))} |`)
       }
     } else {
       lines.push('```')

@@ -13,6 +13,16 @@ export interface OptionalModule<T> {
 }
 
 export function optionalRequire<T>(specifier: string): OptionalModule<T> {
+  if (
+    !specifier ||
+    specifier.startsWith('.') ||
+    specifier.startsWith('/') ||
+    specifier.includes('\\') ||
+    specifier.includes('..')
+  ) {
+    // 相对/绝对路径会按本文件所在目录解析，打包后就是 out/main 的解析失败——直接抛，别伪装成"没装"
+    throw new Error(`optionalRequire 只接受包名，收到「${specifier}」；内部模块请用静态 import`)
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires -- 可选依赖只能运行时解析；静态 import 会在模块缺失/ABI 不符时让主进程起不来
     return { mod: require(specifier) as T, error: null }

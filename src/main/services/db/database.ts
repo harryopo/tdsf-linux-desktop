@@ -373,6 +373,10 @@ export class DatabaseManager {
         loaded.mod.install(db)
         return true
       }
+      noteDegraded(
+        'sqlite-vec 模块导出形状不支持（既无 load 也无 install），降级到关键词搜索：',
+        Object.keys(loaded.mod).join(', ')
+      )
       return false
     } catch (err) {
       // 扩展加载失败，降级到关键词搜索（打印错误便于诊断，生产环境可忽略）

@@ -431,4 +431,30 @@ describe('MarkdownRenderer - 表格单元格转义', () => {
   it('换行折成空格', () => {
     expect(escapeTableCell('a\nb')).toBe('a b')
   })
+
+  it('远端文本进表格前必须转义，不能在单元格里切列', () => {
+    const result = makeResult([
+      makeItem('system', 'uname -a', 'Linux evil|host 4.19.90'),
+      makeItem('system', 'hostname -f 2>/dev/null; hostname', 'evil|host\nevil|host'),
+      makeItem(
+        'system',
+        'uptime',
+        ' 13:30:01 up 57 | min,  1 user,  load average: 0.00, 0.01, 0.05'
+      ),
+      makeItem(
+        'system',
+        'systemctl list-units --type=service --state=running 2>/dev/null | head -30 || ps aux | head -30',
+        'UNIT LOAD ACTIVE SUB DESCRIPTION\nevil|svc.service loaded active running evil|desc'
+      )
+    ])
+    const md = renderProfilerMarkdown(result, [])
+    const hostRow = md.split('\n').find((l) => l.startsWith('| 主机名 |'))
+    expect(hostRow).toBeDefined()
+    expect(hostRow).toContain('evil\\|host')
+    expect(md).toContain('57 \\| min')
+    // 用行首锚定：转义生效后行里本来就不会再出现未转义的 evil|svc.service
+    const svcRow = md.split('\n').find((l) => l.startsWith('| `evil\\|svc.service`'))
+    expect(svcRow).toBeDefined()
+    expect(svcRow).toContain('evil\\|desc')
+  })
 })

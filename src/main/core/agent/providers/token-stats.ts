@@ -72,31 +72,48 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null
  * 写入格式：TokenUsageRecord[]（JSON 序列化由 electron-store 内部处理）
  * 超出 MAX_RECORDS 的旧记录已在 recordTokenUsage 中被 FIFO 丢弃，
  * 因此此处直接序列化整个数组。
+ *
+ * @returns 是否真的写入成功。失败时不清零待写计数，下一条记录会再次触发写盘。
  */
-export function persist(): void {
+export function persist(): boolean {
+  let ok = false
+  let reason = 'ConfigStore.set 返回 false'
   try {
-    ConfigStore.set(STORE_KEY, usageRecords)
-    recordsSinceLastPersist = 0
-    logger.debug('AGENT.TOKEN', 'token 统计已持久化', {
+    ok = ConfigStore.set(STORE_KEY, usageRecords)
+  } catch (err) {
+    reason = err instanceof Error ? err.message : String(err)
+  }
+  if (!ok) {
+    logger.warn('AGENT.TOKEN', 'token 统计持久化失败，记录仅保留在内存', {
+      reason,
       recordCount: usageRecords.length,
     })
-  } catch (err) {
-    logger.warn('AGENT.TOKEN', 'token 统计持久化失败', {
-      error: err instanceof Error ? err.message : String(err),
-    })
+    return false
   }
+  recordsSinceLastPersist = 0
+  logger.debug('AGENT.TOKEN', 'token 统计已持久化', {
+    recordCount: usageRecords.length,
+  })
+  return true
 }
 
 /**
  * 从 electron-store 加载已持久化的 token 记录到内存
  *
- * 在模块初始化时调用。如果存储中无数据或格式无效，静默跳过。
+ * 在模块初始化时调用。无持久化数据时跳过；格式异常时记 warn，
+ * 让"历史统计突然清零"有据可查，而不是静默丢。
  * 加载后重置防抖计数器。
  */
 export function loadPersisted(): void {
   try {
     const saved = ConfigStore.get(STORE_KEY)
-    if (Array.isArray(saved) && saved.length > 0) {
+    if (!Array.isArray(saved)) {
+      if (saved !== undefined) {
+        logger.warn('AGENT.TOKEN', '持久化的 token 记录不是数组，已忽略', {
+          received: typeof saved,
+        })
+      }
+    } else if (saved.length > 0) {
       // 校验基本字段（防止损坏数据）
       const valid = saved.filter(
         (r: unknown): r is TokenUsageRecord =>
@@ -105,6 +122,12 @@ export function loadPersisted(): void {
           typeof (r as TokenUsageRecord).totalTokens === 'number' &&
           typeof (r as TokenUsageRecord).timestamp === 'number'
       )
+      if (valid.length < saved.length) {
+        logger.warn('AGENT.TOKEN', '部分 token 记录字段不合法，已丢弃', {
+          stored: saved.length,
+          valid: valid.length,
+        })
+      }
       // 只保留最近 MAX_RECORDS 条
       const trimmed = valid.slice(-MAX_RECORDS)
       usageRecords.push(...trimmed)
@@ -315,8 +338,8 @@ export function resetTokenStats(): void {
   }
   recordsSinceLastPersist = 0
   // 立即持久化空状态，防止重启后恢复旧数据
-  persist()
-  logger.info('AGENT.TOKEN', 'token 统计已重置', { cleared: count })
+  const persisted = persist()
+  logger.info('AGENT.TOKEN', 'token 统计已重置', { cleared: count, persisted })
 }
 
 // ============================================================================
