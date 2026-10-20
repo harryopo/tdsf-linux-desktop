@@ -22,7 +22,7 @@
 
 ### 2.1 项目硬约束
 
-> **来源**：`project_memory.md`
+> **来源**：本仓依赖与 `MonacoEditor.tsx` 实测（2026-10-20；原文写的 `project_memory.md` 本仓没有）
 > - IDE 编辑器**必须用 `@monaco-editor/react`**，不用 CodeMirror（VS Code 同源体验）
 > - 远程路径作为唯一 ID（同时用于 Tree key 和 Tab key）
 
@@ -460,5 +460,4 @@ class SshSessionManager {
 - [microsoft.github.io/monaco-editor](https://microsoft.github.io/monaco-editor/) — Monaco 官方
 - [xtermjs.org](https://xtermjs.org/) — xterm 官方
 - `<本机技能目录>/vercel-react-best-practices\rules\bundle-dynamic-imports.md` — lazy load
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — IDE 规约
-- `d:\ai\linux教学一体\tdsf-linux-desktop\project_memory.md` — Monaco 硬约束
+- [AGENTS.md](../../AGENTS.md) — IDE 规约

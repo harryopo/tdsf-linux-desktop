@@ -31,7 +31,7 @@
 
 ```bash
 # 1. 创建 venv
-cd d:\ai\linux教学一体\tdsf-linux-desktop
+cd <仓库根>
 python -m venv .venv-sidecar-a
 
 # 2. 激活 venv

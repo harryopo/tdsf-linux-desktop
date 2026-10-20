@@ -289,5 +289,4 @@ function isError(e: unknown): e is Error {
 
 - `<本机技能目录>/typescript\SKILL.md` — 18 章规范
 - `<本机技能目录>/typescript-advanced-types\`（如装） — 高级类型
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — TS 规约
-- `d:\ai\linux教学一体\tdsf-linux-desktop\DEV_SKILLS.md` v1.2 §7.2 — TS 反模式
+- [AGENTS.md](../../AGENTS.md) — TS 规约

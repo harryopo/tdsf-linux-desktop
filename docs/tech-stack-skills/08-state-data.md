@@ -558,5 +558,4 @@ const results = db.prepare(`
 - `<本机技能目录>/zustand-patterns\SKILL.md` — 14 模块实战
 - `<本机技能目录>/sqlite\SKILL.md` — 9 主题
 - `<本机技能目录>/vercel-react-best-practices\SKILL.md` — 数据获取
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 状态规约
-- `d:\ai\linux教学一体\tdsf-linux-desktop\DEV_SKILLS.md` v1.2 §7.2 — 反模式
+- [AGENTS.md](../../AGENTS.md) — 状态规约

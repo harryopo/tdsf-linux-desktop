@@ -258,4 +258,4 @@ interface ChatStore {
 - `<本机技能目录>/react-expert\` — 6 references
 - `<本机技能目录>/vercel-composition-patterns\` — 8 rules
 - `<本机技能目录>/vercel-react-view-transitions\` — 5 patterns
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — React 编码规约
+- [AGENTS.md](../../AGENTS.md) — React 编码规约

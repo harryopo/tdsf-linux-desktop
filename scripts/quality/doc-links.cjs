@@ -39,11 +39,19 @@
  *     于是 `docs/archive/`、`scripts/.cjs/` 这种"被忽略、本机有、新克隆没有"的目录在我机器上全绿、
  *     推到 CI 红在三个作业上）：目录 = "跟踪集里有它底下的文件" 或 "被 .gitignore 忽略"；
  *     文件 = "在跟踪集里"。含 * ? {} ... 的示例、glob、模板与命令行的第二段之后都不判。
+ *   - 机器绝对路径：反引号里以盘符开头的 `d:\...` / `C:/...` 一律报（访客没有这块盘，同一个坐标在他机器上
+ *     永远打不开）。带省略号的示意写法（`C:\\Users\\…\\…`）不判——它本来就不是坐标。
+ *     2026-10-20 实测：`docs/tech-stack-skills/` 9 份的"引用文档"尾部还留着 16 处本机绝对路径，
+ *     其中 AGENTS.md v8.4 早过期、`DEV_SKILLS.md`/`project_memory.md`/`docs/UI设计规范-v2.0.md` 本仓没有；
+ *     全部换成本仓相对链接后上的这条判据。
  *   - 围栏代码块（``` 与 ~~~）内的链接与行号引用都不判：那是示例，不是承诺。
  *   - 未知参数一律 exit 2（fail-closed，不许退到默认分支照样打印 PASS）。
  *
  * 这条闸**不覆盖**什么（写出来是为了别把 PASS 读成"文档全对"）：
- *   - 不带仓库根前缀的裸文件名（`DEV_SKILLS.md`、`hub.js` 这种）不判 —— 太容易撞上第三方同名，误报会逼着人放宽它；
+ *   - 不带仓库根前缀的裸文件名（`DEV_SKILLS.md`、`hub.js` 这种）不判 —— 2026-10-20 实测 42 份已入库 md
+ *     里有 15 个这种名字不在跟踪集，逐条查全是示例（`PascalCase.tsx`、`tailwind.config.ts`）、
+ *     外部产物（`config.json`/`tokenizer.json` 在模型目录、`xterm.js` 是库名）与"这些文件不存在"的历史说明，
+ *     没有一条能用"存在性"抓成真缺陷；等出现第一种真幽灵再重新评估，别现在就把误报塞进来。
  *   - 行号只判"在不在正本行数范围内"，不判"那一行讲的是不是原本想说的那件事"；
  *   - 正文（反引号外）里写的路径不判；未跟踪的文档（docs/reports、docs/archive 等）整个不在扫描面里。
  *   2026-10-20 现量：42 份已入库 md，行号引用 115 条、裸路径引用约 160 条，豁免 2 条，其余全部对得上现场。
@@ -133,14 +141,21 @@ function lineCountOf(rel) {
 const INLINE_CODE_RE = /`([^`\n]+)`/g
 const REPO_PATHISH = /^(?:src|tests|scripts|docs|packages|\.claude|\.github)\//
 const GLOB_OR_TEMPLATE = /[*?{}]|(\.\.\.)/
+const DRIVE_PATH_RE = /^[A-Za-z]:[\\/]/
 
 /**
  * @param {{trackedSet:Set<string>, trackedList:string[], ignoredPrefixes:Set<string>}} ctx
- * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'external'|'skip', note:string}}
+ * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'abspath'|'external'|'skip', note:string}}
  */
 function classifyBarePath(span, ctx) {
   const first = span.trim().split(/\s+/)[0]
   const bare = first.replace(/#.*$/, '')
+  // 机器绝对路径：访客那台机器没有这块盘，写出来就是永远打不开的坐标。
+  // 带省略号的示意写法（`C:\Users\…`）不算坐标，不判。放在 `:行号` 之前：
+  // `d:\repo\a.ts:12` 既是绝对路径又带行号，两条判据都该由这一条抓住。
+  if (DRIVE_PATH_RE.test(bare)) {
+    return /…|\.\.\./.test(bare) ? { kind: 'skip', note: bare } : { kind: 'abspath', note: bare }
+  }
   // 带行号的那种（`:210`、`:21,164-168`）由上面那条判据管；这里再判一遍会把路径本身报成不存在
   if (/:\d/.test(bare)) return { kind: 'skip', note: bare }
   if (!REPO_PATHISH.test(bare)) return { kind: 'skip', note: bare }
@@ -281,7 +296,7 @@ function scanDoc(fromFile, text, tracked, sources, ctx) {
     }
     for (const hit of line.matchAll(INLINE_CODE_RE)) {
       const c = classifyBarePath(hit[1], ctx)
-      if (c.kind === 'ghostfile' || c.kind === 'ghostdir') {
+      if (c.kind === 'ghostfile' || c.kind === 'ghostdir' || c.kind === 'abspath') {
         out.push({ file: fromFile, line: i + 1, kind: 'barepath:' + c.kind, target: c.note })
       } else if (c.kind === 'external') {
         out.push({ file: fromFile, line: i + 1, kind: 'coderef:external', target: c.note })
@@ -317,6 +332,10 @@ function selfTest(tracked, sources, ctx) {
     '有已入库文件的目录不许报：`src/main/ipc/`',
     '被 gitignore 的产物目录不许报（文档写它正是为了说"这东西别提交"）：`scripts/.cjs/`',
     '既没已入库文件、也没被忽略的目录必须报：`docs/probe-dir-not-ignored-9f4e/`',
+    // —— 机器绝对路径：盘符开头的一律报，带省略号的示意写法不判 ——
+    '本机旧坐标 `d:\\repo\\probe-abspath-9c1f.ts` 要点名（访客那台机器没有这块盘）',
+    '带行号也一样要点名：`d:\\repo\\probe-abspath-9c1f.ts:12`',
+    '示意写法 `C:\\Users\\…\\…` 与 `D:/projects/.../x` 不判（它们本来就不是坐标）',
     '```',
     '围栏里的 src/inside-fence-nope.ts:1 不判',
     '```',
@@ -346,6 +365,7 @@ function selfTest(tracked, sources, ctx) {
     problems.push('围栏代码块里的示例引用被当成承诺判红了')
   const ghostFile = hits.filter((h) => h.kind === 'barepath:ghostfile').map((h) => h.target)
   const ghostDir = hits.filter((h) => h.kind === 'barepath:ghostdir').map((h) => h.target)
+  const abspath = hits.filter((h) => h.kind === 'barepath:abspath').map((h) => h.target)
   const bareAll = hits.filter((h) => h.kind.startsWith('barepath:')).map((h) => h.target)
   if (!ghostFile.some((t) => t.includes('probe-file-that-does-not-exist-9c1f.ts')))
     problems.push('没抓到"不存在的路径"（幽灵表行那一类，本闸的第二条判据等于是摆设）')
@@ -368,10 +388,15 @@ function selfTest(tracked, sources, ctx) {
     problems.push('把"里面有已入库文件"或"被 gitignore 的产物目录"报成了幽灵')
   if (!ghostDir.some((t) => t === 'docs/probe-dir-not-ignored-9f4e/'))
     problems.push('没抓到"既没已入库文件也没被忽略"的目录（判据又在问本机盘，或 check-ignore 带了尾斜杠变成恒真）')
+  if (!abspath.some((t) => t.includes('probe-abspath-9c1f.ts')))
+    problems.push('没抓到"机器绝对路径"（访客点开必然打不开，2026-10-20 的 16 处就是这么漏的）')
+  if (abspath.some((t) => t.includes('…') || t.includes('...')))
+    problems.push('把带省略号的示意写法当成了绝对路径坐标（它不是现场）')
   console.log(
     '[doc-links] 自检：抓到断链 ' + dead.length + ' 条、仓库外 ' + outside.length + ' 条、' +
       '死引用 ' + refMissing.length + ' 条、越界 ' + refBeyond.length + ' 条、' +
-      '裸路径幽灵 ' + bareAll.length + ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
+      '裸路径幽灵 ' + ghostFile.length + ' 条+目录 ' + ghostDir.length + ' 条、机器绝对路径 ' + abspath.length +
+      ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
   )
   if (problems.length) {
     console.error('[doc-links] 量具失效：\n  - ' + problems.join('\n  - '))
@@ -415,7 +440,16 @@ const refAmbiguous = findings.filter((h) => h.kind === 'coderef:ambiguous')
 const refExternal = findings.filter((h) => h.kind === 'coderef:external')
 const bareGhostFile = findings.filter((h) => h.kind === 'barepath:ghostfile')
 const bareGhostDir = findings.filter((h) => h.kind === 'barepath:ghostdir')
-const blocking = [...dead, ...refMissing, ...refBeyond, ...refAmbiguous, ...bareGhostFile, ...bareGhostDir]
+const bareAbspath = findings.filter((h) => h.kind === 'barepath:abspath')
+const blocking = [
+  ...dead,
+  ...refMissing,
+  ...refBeyond,
+  ...refAmbiguous,
+  ...bareGhostFile,
+  ...bareGhostDir,
+  ...bareAbspath,
+]
 
 if (AS_JSON) {
   // 机器可读模式只打印 JSON：尾巴上挂一句"结论: PASS"会让调用方的 JSON.parse 当场炸
@@ -433,6 +467,7 @@ if (AS_JSON) {
         refExternal,
         bareGhostFile,
         bareGhostDir,
+        bareAbspath,
       },
       null,
       2
@@ -455,13 +490,15 @@ if (!AS_JSON) {
   console.log(
     '[doc-links] 扫了 ' + docs.length + ' 份已入库 markdown：断链 ' + dead.length + ' 处、指向仓库外 ' + outside.length +
       ' 处、代码引用（死 ' + refMissing.length + ' / 行号越界 ' + refBeyond.length + ' / 歧义 ' + refAmbiguous.length +
-      '）、裸路径幽灵（文件 ' + bareGhostFile.length + ' / 目录 ' + bareGhostDir.length + '）' +
+      '）、裸路径幽灵（文件 ' + bareGhostFile.length + ' / 目录 ' + bareGhostDir.length +
+      '）、机器绝对路径 ' + bareAbspath.length +
       '，另有第三方引用豁免 ' + refExternal.length + ' 处'
   )
   console.log(
     '  口径提醒：行号只判"在不在正本行数范围内"，不判"那一行讲的是不是原话"；' +
       '裸路径只问 git（跟踪集里有没有 / 已入库 .gitignore 里有没有这条规则），不问本机盘；' +
       '含 * ? {} ... 的示例、命令行第一个词之外的部分、反引号外的正文都不判；' +
+      '盘符开头的机器绝对路径一律判（带省略号的示意写法除外）；' +
       '扫描面 = git 跟踪集里的 *.md，围栏代码块内的引用不判'
   )
 }
@@ -470,7 +507,7 @@ if (blocking.length) {
   console.error(
     '\n结论: FAIL —— 断链 ' + dead.length + ' 处、代码引用文件已不存在 ' + refMissing.length +
       ' 处、行号越过正本末尾 ' + refBeyond.length + ' 处、写法歧义 ' + refAmbiguous.length +
-      ' 处、裸路径幽灵 ' + (bareGhostFile.length + bareGhostDir.length) +
+      ' 处、裸路径幽灵 ' + (bareGhostFile.length + bareGhostDir.length) + ' 处、机器绝对路径 ' + bareAbspath.length +
       ' 处（访客点开就是 404，接手的人按图找不到东西）'
   )
   process.exit(1)

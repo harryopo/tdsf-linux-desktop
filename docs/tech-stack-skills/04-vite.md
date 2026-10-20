@@ -310,5 +310,5 @@ out/
 - [electron-vite.org](https://electron-vite.org/) — 官方文档
 - [vitejs.dev](https://cn.vitejs.dev/) — Vite 官方
 - `<本机技能目录>/vercel-react-best-practices\SKILL.md` — Bundle 5 条
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 构建规约
-- `d:\ai\linux教学一体\tdsf-linux-desktop\electron.vite.config.ts` — 项目实际配置
+- [AGENTS.md](../../AGENTS.md) — 构建规约
+- [electron.vite.config.ts](../../electron.vite.config.ts) — 项目实际配置

@@ -33,7 +33,7 @@ describe('doc-links 闸', () => {
     expect(r.rc, '--self-test 退出码非 0，说明这条闸自己坏了').toBe(0)
   })
 
-  it('真扫当前必须干净（断链 0 / 死引用 0 / 越界 0 / 歧义 0 / 裸路径幽灵 0）', () => {
+  it('真扫当前必须干净（断链 0 / 死引用 0 / 越界 0 / 歧义 0 / 裸路径幽灵 0 / 机器绝对路径 0）', () => {
     const r = run(['--json'])
     expect(r.rc, '闸报红：\n' + r.out).toBe(0)
     const json = JSON.parse(r.out)
@@ -43,6 +43,7 @@ describe('doc-links 闸', () => {
     expect(json.refAmbiguous, '有写法歧义的引用（同名候选多于一个，请补全路径）').toEqual([])
     expect(json.bareGhostFile, '文档里引用了不存在的路径（幽灵表行那一类：文件/通道/preload 方法名都不存在）').toEqual([])
     expect(json.bareGhostDir, '文档里引用了不存在的目录（单复数写错也是这一类）').toEqual([])
+    expect(json.bareAbspath, '文档里写了本机盘符开头的绝对路径（访客那台机器永远打不开）').toEqual([])
     expect(json.docs, '扫描面里一份 markdown 都没有，这条闸等于摆设').toBeGreaterThan(10)
   })
 

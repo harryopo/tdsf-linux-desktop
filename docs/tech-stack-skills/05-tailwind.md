@@ -87,7 +87,7 @@ rm tailwind.config.ts
 ## 3. 项目色板（v1.0 UI 设计稿）
 
 > **约束**：所有新组件必须用 `var(--color-*)` 变量，禁止硬编码 `#ffffff` / `#fafafa` / `#0071e3`。
-> **来源**：项目 `project_memory.md` 硬约束
+> **来源**：本仓早先的规约存档（原文照录；当时写的 `project_memory.md` 本仓没有，界面规范现行入口是 [DESIGN.md](../../DESIGN.md)）
 
 | 用途 | 亮色 | 暗色 |
 |------|------|------|
@@ -371,5 +371,5 @@ rm tailwind.config.ts
 - `<本机技能目录>/tailwind-v4-shadcn\SKILL.md` — 必读
 - `<本机技能目录>/shadcn\SKILL.md` — 必读
 - `<本机技能目录>/vercel-react-best-practices\SKILL.md` — 渲染性能
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 颜色系统约束
-- `d:\ai\linux教学一体\tdsf-linux-desktop\docs\UI设计规范-v2.0.md` — 设计稿色板
+- [AGENTS.md](../../AGENTS.md) — 颜色系统约束
+- [DESIGN.md](../../DESIGN.md) — 界面与色板规范

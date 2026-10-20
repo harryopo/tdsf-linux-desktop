@@ -40,7 +40,7 @@
 |------|----------|
 | `contextBridge.exposeInMainWorld()` 唯一安全桥 | ✅ |
 | 跨桥数据先 clone | ✅（contextBridge 默认行为） |
-| **最小化 API 表面**（不要 generic send/receive） | ✅ **扁平化所有 preload API**（参考 DEV_SKILLS v1.2 §7.2） |
+| **最小化 API 表面**（不要 generic send/receive） | ✅ **扁平化所有 preload API** |
 
 > **反模式**：嵌套结构如 `window.electronAPI.ssh.connect()` 会因函数未定义崩溃；正确做法是 `window.electronAPI.sshConnect()`。
 
@@ -74,7 +74,7 @@
 
 ## 3. 项目 IPC 4 步同步铁律（必备）
 
-> **来源**：项目 `DEV_SKILLS.md` v1.2 §7.2 + `AGENTS.md` v8.4
+> **来源**：本仓早先的规约存档（原文照录；`DEV_SKILLS.md` 本仓没有，现行入口见 [AGENTS.md](../../AGENTS.md)）
 
 新增任何 IPC 通道必须同步完成 4 步，缺一步必报错：
 
@@ -251,6 +251,4 @@ agent-browser screenshot app.png
 
 - `<本机技能目录>/electron-dev\SKILL.md` — 必读
 - `<本机技能目录>/electron\SKILL.md` — E2E 自动化
-- `d:\ai\linux教学一体\tdsf-linux-desktop\DEV_SKILLS.md` v1.2 §7.2 — IPC 反模式
-- `d:\ai\linux教学一体\tdsf-linux-desktop\AGENTS.md` v8.4 — 架构规约
-- `d:\ai\linux教学一体\tdsf-linux-desktop\docs\技术栈教程注意事项-v1.0.md` — 教程
+- [AGENTS.md](../../AGENTS.md) — 架构与协作规矩
