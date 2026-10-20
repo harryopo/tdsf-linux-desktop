@@ -22,6 +22,11 @@ on:
     # 改 cron 治不了它（这也是之前"修好了"的判断错在哪）。
     # 同时 matrix 里的 `typescript` 不是合法的 CodeQL 语言（JavaScript + TypeScript 由
     # `javascript-typescript` 一个分析器覆盖），解析修好后它也会让作业失败。两处一起改。
+    #
+    # 第一次跑通后还有两个平台提示（2026-10-20 实测）：
+    # ① `with.paths-ignore` 根本不是 init 的合法入参（只得到一条 warning，规则不生效），
+    #    排除面改用 .github/codeql/codeql-config.yml 里的 paths/paths-ignore；
+    # ② codeql-action v3 将在 2026-12 弃用，改用 v4。
     - cron: "0 22 * * 0"
 
 # 同 ci.yml 的并发控制
@@ -51,25 +56,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          # 不使用默认 queries，使用 security-and-quality 套件
-          queries: security-and-quality
-          # `with` 的值必须是标量：这里写成多行字符串，不能写成 YAML 列表
-          paths-ignore: |
-            docs/**
-            tests/**
-            **/*.test.ts
-            **/*.test.tsx
-            **/*.spec.ts
-            **/*.spec.tsx
-            **/__tests__/**
-            _legacy-python/**
-            scripts/**
-            sidecar-a/**
+          # 安全信号优先：security-extended 比默认多查安全类规则，但不带 quality 噪声
+          queries: security-extended
+          # 分析面（只扫 src）在配置文件里，`with` 不接受 paths-ignore
+          config-file: .github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"

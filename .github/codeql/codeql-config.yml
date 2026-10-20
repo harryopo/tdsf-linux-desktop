@@ -1,0 +1,15 @@
+# CodeQL 分析范围：只扫产品源码 src/。
+# 2026-10-20 第一次真正跑起来后实测 88 条结果：scripts 51、tests 25、src 12。
+# 测试夹具里的不安全临时文件 / 文件系统竞态 / 日志注入不是产品缺陷，
+# 放开只会把真信号埋掉。排除规则必须写在这里——`with.paths-ignore` 不是 init 的合法入参。
+name: "TDSF CodeQL"
+
+paths:
+  - src
+
+paths-ignore:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/__tests__/**"
