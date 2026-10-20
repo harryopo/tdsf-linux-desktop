@@ -16,7 +16,7 @@
  * - GitHub API 速率限制：未认证 60 次/小时/IP（个人使用足够）
  * - 不发送任何用户隐私信息到 GitHub（仅 GET 公开 Release）
  */
-import { ipcMain, shell } from 'electron'
+import { app, ipcMain, shell } from 'electron'
 import { existsSync, statSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { APP } from '@shared/ipc-channels'
@@ -126,9 +126,6 @@ function isNewerVersion(current: string, latest: string): boolean {
  * 统一加 v 前缀便于 UI 展示。
  */
 function getCurrentVersion(): string {
-  // 延迟导入避免循环依赖（app 在模块加载时可能未初始化）
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { app } = require('electron')
   const v = app.getVersion()
   return v.startsWith('v') ? v : `v${v}`
 }
@@ -292,8 +289,6 @@ export function registerAppUpdateHandlers(): void {
    * - logPath：userData/logs（应用日志目录）
    */
   ipcMain.handle(APP.GET_INFO, async (): Promise<AppInfo> => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { app } = require('electron')
     const version = getCurrentVersion()
     const installPath = app.getAppPath()
     const dataPath = app.getPath('userData')
@@ -344,8 +339,6 @@ export function registerAppUpdateHandlers(): void {
   ipcMain.handle(
     APP.EXPORT_MODEL_STATS,
     async (_event, stats: unknown): Promise<{ filePath: string; size: number }> => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { app } = require('electron')
       const dataPath = app.getPath('userData')
       const exportsDir = join(dataPath, 'exports')
       if (!existsSync(exportsDir)) {

@@ -35,6 +35,7 @@ import {
   getTokenStats,
   recordTokenUsage,
   resetTokenStats,
+  persist,
 } from '../../src/main/core/agent/providers/token-stats'
 import type { TokenUsageRecord } from '../../src/shared/agent-types'
 
@@ -207,6 +208,21 @@ describe('估算出来的量要单独说得出', () => {
     )
     expect(chart).toContain('split.estimated')
     expect(chart, '只写"估算"不写"不是实测"，用户仍会把它当账').toMatch(/不是实测|估算的/)
+  })
+})
+
+describe('持久化真的写到 ConfigStore', () => {
+  it('persist 写进去的记录，换一个模块实例能读回来', async () => {
+    recordTokenUsage(rec({ totalTokens: 777 }))
+    persist()
+
+    // 重新加载模块 = 模拟进程重启：模块初始化时的 loadPersisted 应把记录读回内存
+    vi.resetModules()
+    const fresh = await import('../../src/main/core/agent/providers/token-stats')
+    expect(fresh.getTokenStats().total).toBe(777)
+
+    // 清掉本用例在原实例里留下的防抖定时器
+    resetTokenStats()
   })
 })
 

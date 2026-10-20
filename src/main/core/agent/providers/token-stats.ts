@@ -10,7 +10,7 @@
  * - 使用 electron-store 持久化（key: 'tokenStats'），进程重启后恢复
  * - 防抖写入：每累计 10 条新记录或每 30 秒写入一次（取先到者）
  * - 保持内存性能：不在每次 record 时同步写磁盘
- * - 优雅降级：electron-store 不可用时（如测试环境）退回纯内存模式
+ * - 读写失败时（如存储文件损坏）保留内存副本，不阻塞主流程
  * - 设计为可替换的存储后端（未来接入 SQLite 按天归档）
  *
  * v0.9.4 批次 4 - 任务 6 新增：
@@ -23,6 +23,7 @@ import type { TokenUsageRecord, TokenStats, TokenDirection } from './types'
 // v0.9.5 P0 - 组 1：CostStats 已迁移到 @shared/agent-types（SSOT）
 import type { CostStats } from '@shared/agent-types'
 import { logger } from '../../../services/log/logger'
+import { ConfigStore } from '../../../services/storage/config-store'
 import { getProvider } from './provider-registry'
 import {
   getProviderPricing,
@@ -34,8 +35,8 @@ import {
 // 持久化层（electron-store）
 //
 // 使用 ConfigStore 的通用 get/set 方法读写 key 'tokenStats'。
-// 如果 ConfigStore 导入失败（测试环境 / electron 未初始化），
-// 则 gracefully degrade 为纯内存模式。
+// 这里必须是静态 import：动态 require 在打包产物 out/main/index.js 里
+// 按相对路径解析不到（sandbox-config.ts 踩过同一个坑），持久化会永远停在内存。
 // ============================================================================
 
 /** 持久化存储键名 */
@@ -46,23 +47,6 @@ const PERSIST_RECORD_THRESHOLD = 10
 
 /** 防抖阈值：距上次写入超过此毫秒数时触发写入 */
 const PERSIST_INTERVAL_MS = 30_000
-
-/** 标记 electron-store 是否可用（false = 纯内存降级模式） */
-let storeAvailable = false
-
-/** 尝试导入 ConfigStore（动态 require 以兼容测试环境） */
-let ConfigStoreRef: { get(key: string): unknown; set(key: string, value: unknown): boolean } | null =
-  null
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { ConfigStore } = require('../../../services/storage/config-store')
-  ConfigStoreRef = ConfigStore
-  storeAvailable = true
-} catch {
-  // electron-store 不可用（测试环境 / app 未 ready），降级为纯内存
-  storeAvailable = false
-}
 
 /**
  * 内存存储的 token 使用记录（最多保留 MAX_RECORDS 条，超出后 FIFO 丢弃）
@@ -90,11 +74,8 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null
  * 因此此处直接序列化整个数组。
  */
 export function persist(): void {
-  if (!storeAvailable || !ConfigStoreRef) {
-    return
-  }
   try {
-    ConfigStoreRef.set(STORE_KEY, usageRecords)
+    ConfigStore.set(STORE_KEY, usageRecords)
     recordsSinceLastPersist = 0
     logger.debug('AGENT.TOKEN', 'token 统计已持久化', {
       recordCount: usageRecords.length,
@@ -113,11 +94,8 @@ export function persist(): void {
  * 加载后重置防抖计数器。
  */
 export function loadPersisted(): void {
-  if (!storeAvailable || !ConfigStoreRef) {
-    return
-  }
   try {
-    const saved = ConfigStoreRef.get(STORE_KEY)
+    const saved = ConfigStore.get(STORE_KEY)
     if (Array.isArray(saved) && saved.length > 0) {
       // 校验基本字段（防止损坏数据）
       const valid = saved.filter(
@@ -150,9 +128,6 @@ export function loadPersisted(): void {
  * 2. 距上次写入超过 PERSIST_INTERVAL_MS（30 秒）
  */
 function schedulePersist(): void {
-  if (!storeAvailable) {
-    return
-  }
   recordsSinceLastPersist++
 
   // 条件 1：记录数达到阈值，立即写入

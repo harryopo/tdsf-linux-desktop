@@ -82,8 +82,8 @@ export type SshHostKeyType =
   | 'ecdsa-sha2-nistp384'
   | 'ecdsa-sha2-nistp521'
   | 'ssh-dss'
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  | (string & {})
+  // 已知算法保留字面量补全，同时允许 OpenSSH 以后新增的算法（Record<never, never> 即 `{}` 的合规写法）
+  | (string & Record<never, never>)
 
 /** SSH 主机密钥元信息 */
 export interface SshHostKeyMeta {

@@ -20,6 +20,7 @@ import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { logger } from '../log/logger'
 import { redactSecrets } from '../../core/agent/providers/redact'
+import { optionalRequire } from '../../core/optional-require'
 
 /** node-pty 的进程对象（只声明本项目用到的部分，避免把可选依赖的类型绑进编译） */
 interface PtyProcess {
@@ -68,14 +69,13 @@ let ptyCache: { mod: PtyModule | null; error: string | null } | undefined
 
 function loadNodePty(): { mod: PtyModule | null; error: string | null } {
   if (ptyCache) return ptyCache
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires -- 静态 import 会让 node-pty 缺失时整个主进程起不来
-    ptyCache = { mod: require('node-pty') as PtyModule, error: null }
-  } catch (err) {
-    const msg = (err as Error)?.message ?? String(err)
-    logger.error('LocalTerminal', 'node-pty 加载失败，本机终端不可用', { error: redactSecrets(msg) })
-    ptyCache = { mod: null, error: msg }
+  const loaded = optionalRequire<PtyModule>('node-pty')
+  if (!loaded.mod) {
+    logger.error('LocalTerminal', 'node-pty 加载失败，本机终端不可用', {
+      error: redactSecrets(loaded.error ?? ''),
+    })
   }
+  ptyCache = loaded
   return ptyCache
 }
 

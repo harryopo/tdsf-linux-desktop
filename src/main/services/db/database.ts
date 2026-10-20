@@ -28,6 +28,7 @@ import type { Database as BetterSqlite3Database, Statement } from 'better-sqlite
 import * as path from 'node:path'
 import type { DbStatus } from '@shared/db-types'
 import { logger } from '../log/logger'
+import { optionalRequire } from '../../core/optional-require'
 import { applyMigrations, readSchemaVersion, TARGET_SCHEMA_VERSION } from './schema-migrations'
 
 /**
@@ -59,6 +60,12 @@ interface NativeLoadResult {
   error: string | null
 }
 
+/** sqlite-vec 扩展导出的入口（不同版本二选一） */
+interface SqliteVecModule {
+  load?: (db: BetterSqlite3Database) => void
+  install?: (db: BetterSqlite3Database) => void
+}
+
 /**
  * 动态加载 better-sqlite3，失败时返回原因而不是静默吞掉
  *
@@ -67,13 +74,11 @@ interface NativeLoadResult {
  * 否则降级只存在于控制台里，用户无从知晓数据其实没有落盘。
  */
 function loadBetterSqlite3(): NativeLoadResult {
-  try {
-    return { mod: require('better-sqlite3'), error: null }
-  } catch (err) {
-    const msg = (err as Error)?.message ?? String(err)
-    noteDegraded('better-sqlite3 加载失败，使用内存 Map 回退方案：', msg)
-    return { mod: null, error: msg }
+  const loaded = optionalRequire<typeof import('better-sqlite3')>('better-sqlite3')
+  if (!loaded.mod) {
+    noteDegraded('better-sqlite3 加载失败，使用内存 Map 回退方案：', loaded.error)
   }
+  return loaded
 }
 
 /**
@@ -351,17 +356,21 @@ export class DatabaseManager {
     if (!this.dbAvailable || !this.db) {
       return false
     }
+    const db = this.db
+    const loaded = optionalRequire<SqliteVecModule>('@photostructure/sqlite-vec')
+    if (!loaded.mod) {
+      noteDegraded('sqlite-vec 扩展加载失败，降级到关键词搜索：', loaded.error)
+      return false
+    }
     try {
       // @photostructure/sqlite-vec 提供 loadExtension 函数
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const sqliteVec = require('@photostructure/sqlite-vec')
-      if (typeof sqliteVec.load === 'function') {
-        sqliteVec.load(this.db)
+      if (typeof loaded.mod.load === 'function') {
+        loaded.mod.load(db)
         return true
       }
       // 某些版本导出 install 而非 load
-      if (typeof sqliteVec.install === 'function') {
-        sqliteVec.install(this.db)
+      if (typeof loaded.mod.install === 'function') {
+        loaded.mod.install(db)
         return true
       }
       return false
