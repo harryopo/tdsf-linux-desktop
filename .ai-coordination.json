@@ -2,8 +2,24 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-19T16:05:01.853Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-20T01:08:27.790Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-20T01:08:27.790Z",
+      "lastActiveAt": "2026-10-20T01:08:27.790Z",
+      "task": "对外知识面收口：把本地闸接进 CI 并改口径",
+      "claimedFiles": [
+        {
+          "path": "CLAUDE.md",
+          "task": "对外知识面收口：把本地闸接进 CI 并改口径",
+          "claimedAt": "2026-10-20T01:08:27.790Z"
+        }
+      ],
+      "expiresAt": "2026-10-20T03:08:27.790Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -8033,6 +8049,13 @@
       "file": "AGENTS.md",
       "task": "对外知识面收口：身份字样中性化 + 常驻闸",
       "timestamp": "2026-10-19T16:05:01.853Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "CLAUDE.md",
+      "task": "对外知识面收口：把本地闸接进 CI 并改口径",
+      "timestamp": "2026-10-20T01:08:27.790Z"
     }
   ],
   "coordinationAudit": {

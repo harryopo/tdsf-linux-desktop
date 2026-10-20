@@ -121,12 +121,16 @@ pnpm dev
 
 ```
 lint · typecheck · tests 类型检查 · vitest · knip 死代码 ·
-design:gate · ui-audit --gate · ipc:check · build · playwright
+design:gate · ipc:check · build · playwright ·
+身份闸（含阳性对照）· 凭据形状闸 · 架构图读数对账
 ```
 
-其中 `ui-audit --gate` 的真命令是 `node scripts/design/ui-audit.mjs --gate`（它不是 npm script）。
-另有几把闸只在本地跑、CI 里没有对应 job：`security:secrets` / `security:topology` / `security:history` /
-`promo:check`——这条口径写进 [CLAUDE.md](CLAUDE.md) 的门禁清单，别把"有这道闸"当成"CI 会拦"。
+`ui-audit --gate` 的真命令是 `node scripts/design/ui-audit.mjs --gate`（它不是 npm script），要在那台真的开着窗口的机器上跑。
+仍有几把只在本地、CI 里没有对应 job，各自的原因不一样：`security:history`（CI 是浅克隆，没有历史可扫）、
+`security:topology`（锚定的内网值不进 CI）、`ui-audit --gate`（要真窗口）、`promo:check` 全量面（宣传页在仓库外的兄弟目录）。
+`security:identity` 两边都跑，但**CI 上只有通用形状规则**——具体身份值清单是本机文件，
+真实姓名那一层只有本机与提交钩子管得到。完整口径写进 [CLAUDE.md](CLAUDE.md) 的门禁清单，
+别把"有这道闸"当成"CI 会拦"。
 
 安全侧常驻闸：`secret-gate`（凭据形状，扫跟踪集与暂存区）、
 `topology-gate`（内网拓扑值，按值 + 按 /24 网段）、`history-env-scan`（全历史按值回归，pre-push 跑）、

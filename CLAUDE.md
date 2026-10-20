@@ -73,16 +73,25 @@ pnpm ipc:check            # CI   契约生成物与代码不漂移
 pnpm types:audit          # CI   渲染层手写类型表 vs preload 实现（冗余/幻影/重复都会红）
 pnpm native:check         # 本地 原生模块按 prebuild 加载，不需要 node-gyp 重编
 pnpm deadcode:gate        # CI   Knip ratchet（只降不升）
-pnpm security:secrets     # 本地(pre-commit) 凭据形状闸（--all 扫跟踪集，--staged 由钩子跑）
+pnpm security:secrets     # CI + 本地(pre-commit) 凭据形状闸（--all 扫跟踪集，--staged 由钩子跑）
 pnpm security:topology    # 本地 内网拓扑值：按值 + 按 /24 网段
-pnpm security:history     # 本地(pre-push) 全历史按值回归
-pnpm security:identity    # 本地(pre-commit) 身份暴露闸：校名/专业/真实姓名/赛事字样
+pnpm security:history     # 本地(pre-push) 全历史按值回归——**挪不进 CI**：CI 是浅克隆，没有历史可扫
+pnpm security:identity    # CI + 本地(pre-commit) 身份暴露闸：校名/专业/真实姓名/赛事字样
                           #   通用规则写在脚本里（本身不含身份值）；具体身份值清单在
                           #   scripts/security/identity-terms.local.json，那份只留本机、已 gitignore。
                           #   带 --self-test：每条规则先用自己的样例串证明"闸有牙"才继续。
+                          #   ⚠️ CI 上没有那份清单，只会跑 4 条通用规则并打印"覆盖变窄"——
+                          #   真实姓名那一层只有本机与 pre-commit 管得到，别把 CI 绿读成全覆盖。
 pnpm doc:links            # CI   文档断链：相对链接必须落在跟踪集里
-pnpm promo:check          # 本地 对外发布页的读数逐行对账
+pnpm promo:check          # 本地 宣传页 + README + 架构图读数逐行对账（宣传页在仓库外，CI 读不到）
+node scripts/quality/promo-readout.mjs --check-diagram
+                          # CI   只比架构图那一面（全部输入都在跟踪集里，CI 跑得动）
 ```
+
+> **2026-10-20 为什么把 `security:identity` 与 `security:secrets` 也塞进 CI**：那两把原先只挂在
+> `.git/hooks/pre-commit`，而 **hooks 不在版本控制里**——新克隆的机器一把都不跑，"有闸"只对这台工作副本成立。
+> CI 里新增 `security-static` job（零依赖脚本，不装 node_modules），跑身份闸（含阳性对照）、
+> 凭据形状闸与架构图读数对账。
 
 > **这份清单要和 `.github/workflows/ci.yml` 的 job 对得上。** 2026-10-18 公开仓默认分支上挂了 7 个红 job，
 > 其中 `types:audit` 那条是真代码问题（冗余手写成员），但它当时不在任何一份"每轮都跑"的清单里，

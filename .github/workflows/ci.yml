@@ -300,6 +300,34 @@ jobs:
       - name: 扫全部已入库 markdown 的相对链接
         run: node scripts/quality/doc-links.cjs
 
+  # ===== 身份与凭据的静态闸（零依赖脚本，不需要 pnpm install）=====
+  # 为什么必须在 CI 里再来一遍：这几把原先只挂在 .git/hooks/pre-commit，
+  # 而 hooks 不在版本控制里——新克隆的机器一把都不跑。本地闸只对这个工作副本负责，
+  # 对"别人克隆出来改一版"没有任何约束力，那正是把约定当机制的错法。
+  # 只放不依赖历史与本机的三把：security:history 要全历史（CI 是浅克隆），
+  # promo:check 全量面要读仓库外那份宣传页——那两把留在本地，口径写进 CLAUDE.md。
+  security-static:
+    name: Identity & credential gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # --self-test 先拿每条规则自己的样例串验"这把尺子有牙"，验过了才继续扫跟踪集；
+      # 所以一步就够——分成两步只会把 27 万行扫两遍。
+      - name: 身份闸（阳性对照 + 扫跟踪集）
+        run: node scripts/security/identity-gate.cjs --self-test
+
+      - name: 凭据形态闸（扫跟踪集）
+        run: node scripts/security/secret-gate.cjs --all
+
+      - name: 架构图读数与仓库实测对账
+        run: node scripts/quality/promo-readout.mjs --check-diagram
+
   # ===== 依赖漏洞（按公告号逐条认账）=====
   # 判据不是"漏洞总数上限"：公告库每天变，红的是没改代码的人，最后只会教人绕闸。
   # 这里只在"出现基线外的新 high/critical"时红；已知 42 条登记在 deps-audit-accepted.json，

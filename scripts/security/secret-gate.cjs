@@ -2,9 +2,13 @@
 /**
  * secret-gate.cjs — 提交前凭据闸（替代 GitHub Secret Scanning）
  *
- * 背景：本仓库是私人仓库，GitHub 的 Secret Scanning / push protection 需要付费
- * Advanced Security，实测 PATCH 返回 422「not available for this repository」，
- * 历史里那条 SSH root 口令因此从未被任何扫描器发现过。这里用零依赖本地闸补位。
+ * 背景：GitHub 的 Secret Scanning / push protection 在**私人仓库要付费** Advanced Security，
+ * 实测 PATCH 返回 422「not available for this repository」，历史里那条 SSH root 口令
+ * 因此从未被任何扫描器发现过。这里用零依赖本地闸补位。
+ * 2026-10-20 复核：仓库转公开后 GitHub 那套已可用（实测 `GET /repos/{owner}/{repo}/secret-scanning/alerts`
+ * 返回 200、0 条警报；个人公开仓默认就有，org 那个 `/security_and_analysis` 开关对本仓返回 404）。
+ * 本闸仍然留着，因为它和平台那道不一样：它扫的是**暂存区与整个跟踪集**（提交前就拦，而不是 push 时拦），
+ * 也不依赖平台侧功能哪天被关掉。它不回溯历史，历史那一段由 history-env-scan.cjs 按值把关。
  *
  * 取舍：只做"形态明确"的检测（PEM、已知厂商 token 前缀、带引号的口令赋值）。
  * 故意不检测裸 32/40 位十六进制串——那会命中 packageManager 的 sha512、
