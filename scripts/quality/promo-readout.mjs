@@ -8,6 +8,8 @@
  *
  *   node scripts/quality/promo-readout.mjs                    打印全部读数与测法
  *   node scripts/quality/promo-readout.mjs --check [路径]     与宣传页 + README + 架构图对账，不一致就非零退出
+ *                                                          （README 那一面默认读仓库根那份，
+ *                                                           单测用 --readme <夹具路径> 指到合成文档）
  *   node scripts/quality/promo-readout.mjs --check-diagram    只与架构图对账（不跑 audit:ipc，单测走这条路）
  *
  * 为什么 README 也在对账面上（2026-10-19 加）：对外数字原先有三个载体，闸只管宣传页与架构图，
@@ -306,6 +308,10 @@ function main(argv) {
   }
   const argAfter = argv[argv.indexOf('--check') + 1]
   const promoPath = check && argAfter && !argAfter.startsWith('-') ? path.resolve(argAfter) : DEFAULT_PROMO
+  // README 那一面也必须能指到夹具：单测喂的是合成用例数（3264），
+  // 硬读盘上那份真 README（3276）会让"闸对不对"变成"文档这轮改没改过"，测试与文档就绑死漂了。
+  const readmeIdx = argv.indexOf('--readme')
+  const readmePath = readmeIdx >= 0 ? path.resolve(argv[readmeIdx + 1]) : README_MD
   const m = measure()
   let counts
   try {
@@ -332,8 +338,8 @@ function main(argv) {
     console.error(`FAIL 宣传页不在：${promoPath}\n     对账必须有页面可比；找不到文件就是失败，不是跳过。`)
     return 1
   }
-  if (!fs.existsSync(README_MD)) {
-    console.error(`FAIL README 不在：${README_MD}\n     同上，没有可比对象就是失败。`)
+  if (!fs.existsSync(readmePath)) {
+    console.error(`FAIL README 不在：${readmePath}\n     同上，没有可比对象就是失败。`)
     return 1
   }
   const page = parsePromoReadouts(fs.readFileSync(promoPath, 'utf8'))
@@ -346,7 +352,7 @@ function main(argv) {
   }
   const bad = diffReadouts(page, rows)
   const mdRows = rows.concat(MD_EXTRA_ROWS(m))
-  const mdOcc = parseMdReadoutRows(fs.readFileSync(README_MD, 'utf8'), mdRows.map(([l]) => l))
+  const mdOcc = parseMdReadoutRows(fs.readFileSync(readmePath, 'utf8'), mdRows.map(([l]) => l))
   const mdBad = diffMdReadouts(mdOcc, mdRows)
   const dia = diffDiagram(m, fs.readFileSync(ARCH_SVG, 'utf8'))
   if (bad.length) {

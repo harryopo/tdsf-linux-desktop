@@ -22,9 +22,15 @@ type Readouts = {
   countContract: (source: string) => { invoke: number; event: number; total: number }
   parseIpcAudit: (text: string) => { request: number; event: number; total: number }
   parsePromoReadouts: (html: string) => Record<string, number | null>
+  parseMdReadoutRows: (text: string, labels: string[]) => Record<string, Array<number | null>>
+  diffMdReadouts: (
+    occ: Record<string, Array<number | null>>,
+    measured: Array<[string, number]>
+  ) => Array<{ label: string; got: unknown; want: number }>
   diffReadouts: (page: Record<string, number | null>, measured: Array<[string, number]>) => Array<{ label: string; got: unknown; want: number }>
   measure: () => unknown
   TABLE_ROWS: (m: unknown) => Array<[string, number]>
+  MD_EXTRA_ROWS: (m: unknown) => Array<[string, number]>
   readRepoFacts: () => unknown
   countProviderTypes: (source: string) => number
   parseSvgClaims: (text: string) => Record<string, number>
@@ -236,6 +242,7 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
    */
   let tmpDir = ''
   let baseRows: Array<[string, number]> = []
+  let mdExtraRows: Array<[string, number]> = []
   const COUNT_ROWS: Array<[string, number]> = [
     ['单元与组件用例', 3264],
     ['端到端用例', 57],
@@ -243,7 +250,10 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
 
   beforeAll(async () => {
     const m = await mod()
-    baseRows = m.TABLE_ROWS(m.measure())
+    const measured = m.measure()
+    baseRows = m.TABLE_ROWS(measured)
+    // README 那一面同样从模块取，不手抄标签
+    mdExtraRows = m.MD_EXTRA_ROWS(measured)
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promo-fixture-'))
   })
   afterAll(() => {
@@ -251,30 +261,75 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   })
 
   /** 生成一张与真页同形的表；counts=false 时不写那两行用例数 */
-  function fixture(name: string, counts: boolean): string {
+  function fixture(name: string, counts: boolean, overrides: Record<string, number> = {}): string {
     const rows = counts ? [...baseRows, ...COUNT_ROWS] : baseRows
     const html =
       '<table><tbody>' +
-      rows.map(([label, v]) => `<tr><td class="k">${label}</td><td class="v">${v} 通过</td></tr>`).join('\n') +
+      rows
+        .map(([label, v]) => `<tr><td class="k">${label}</td><td class="v">${overrides[label] ?? v} 通过</td></tr>`)
+        .join('\n') +
       '</tbody></table>'
     const p = path.join(tmpDir, name + '.html')
     fs.writeFileSync(p, html, 'utf8')
     return p
   }
 
+  /**
+   * 与真 README 同形的读数表夹具。
+   * 为什么必须可指：README 那一面对的是**本轮传进来的用例数**，硬读盘上那份会让
+   * "闸对不对"取决于"文档这轮改过没有"——CI 三条红就是这么来的（夹具喂 3264、真文档写着 3276）。
+   */
+  function fixtureMd(name: string, counts: boolean, overrides: Record<string, number> = {}): string {
+    const rows = [...baseRows, ...mdExtraRows, ...(counts ? COUNT_ROWS : [])]
+    const md =
+      [
+        '| 读数 | 值 | 怎么量的 |',
+        '|---|---|---|',
+        ...rows.map(([label, v]) => `| ${label} | ${overrides[label] ?? v} 通过 | 由 promo:check 现场算 |`),
+      ].join('\n') + '\n'
+    const p = path.join(tmpDir, name + '.md')
+    fs.writeFileSync(p, md, 'utf8')
+    return p
+  }
+
   const COUNT_ARGS = ['--unit-passed', '3264', '--unit-skipped', '19', '--e2e-passed', '57', '--e2e-skipped', '15']
 
   it('四个都给 ⇒ 那两行纳入对账，PASS 行要说清"含两条用例数"', () => {
-    const { rc, out } = run(['--check', fixture('all-four', true), ...COUNT_ARGS])
+    const { rc, out } = run([
+      '--check',
+      fixture('all-four', true),
+      '--readme',
+      fixtureMd('all-four', true),
+      ...COUNT_ARGS,
+    ])
     expect(rc, out).toBe(0)
     expect(out).toContain('含两条用例数')
     expect(out).toMatch(/宣传页 7 条读数/)
+    // README 那一面比宣传页多两行（argv 规则 / Provider 类型），给足参数时是 9 条
+    expect(out).toMatch(/README 9 条读数/)
+  })
+
+  it('README 与宣传页各抄一份时，比的是每一处：文档抄错只点名文档那一条', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('md-only-wrong', true),
+      '--readme',
+      fixtureMd('md-only-wrong', true, { 命令规则词表项: 216 }),
+      ...COUNT_ARGS,
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('README 的读数与本轮实测对不上（1 条）')
+    expect(out).toContain('命令规则词表项：文档写 216')
+    expect(out).not.toContain('宣传页的读数与本轮实测对不上')
   })
 
   it('递一个错的用例数 ⇒ rc=1 且只点名那一条（不是整表红）', () => {
     const { rc, out } = run([
       '--check',
       fixture('wrong-unit', true),
+      // README 夹具跟着参数写 3200，于是只有页面那一条对不上——证明点名是逐面的
+      '--readme',
+      fixtureMd('wrong-unit', true, { 单元与组件用例: 3200 }),
       '--unit-passed',
       '3200',
       '--unit-skipped',
@@ -316,15 +371,31 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   })
 
   it('一个都不给 ⇒ 仍然放行，但必须明说那两条没纳入（不许读成"全对上了"）', () => {
-    const { rc, out } = run(['--check', fixture('no-counts', false)])
+    const { rc, out } = run(['--check', fixture('no-counts', false), '--readme', fixtureMd('no-counts', false)])
     expect(rc, out).toBe(0)
     expect(out).toContain('用例数两条未纳入')
     expect(out).not.toContain('含两条用例数')
   })
 
   it('页面确实不在 ⇒ 报"宣传页不在"并红，不许当成通过（找不到可比的东西就是失败）', () => {
-    const { rc, out } = run(['--check', path.join(tmpDir, 'does-not-exist.html')])
+    const { rc, out } = run([
+      '--check',
+      path.join(tmpDir, 'does-not-exist.html'),
+      '--readme',
+      fixtureMd('absent-page', false),
+    ])
     expect(rc, out).toBe(1)
     expect(out).toContain('宣传页不在')
+  })
+
+  it('README 不在 ⇒ 同样报失败并红（没有可比对象就不是"通过"）', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('absent-readme', false),
+      '--readme',
+      path.join(tmpDir, 'no-such-readme.md'),
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('README 不在')
   })
 })
