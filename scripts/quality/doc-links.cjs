@@ -1,24 +1,39 @@
 #!/usr/bin/env node
 /**
- * doc-links.cjs — 文档内部链接完整性闸（断链就红）
+ * doc-links.cjs — 文档可信度闸（断链与过期的代码行号引用，两类都要红）
  *
  * 为什么现在要它：2026-10-18 仓库公开前把 174 份内部文档取消跟踪，
  * 当场量出 docs/INDEX.md 50 条引用里 47 条断、AGENTS.md 5 条全断、CLAUDE.md 4 条全断。
  * 这种断链不是写错的，是**搬完文档没人回头对链接**——每次搬目录都会重演一次，
  * 而公开仓的首页指着 47 个 404 是门面事故。所以钉成常驻闸，不靠下一次记得。
  *
+ * 第二道判据（2026-10-20 加）：文档里写的 `某文件.ts:行号` 是给人当现场用的，
+ * 搬一次目录、删一次代码它就悄悄变成"指向不存在的东西"。当天整删 Task Protocol 之后
+ * 实测抓到两处：`src/shared/approval-types.ts:117`（文件从 130 行缩到 82 行，
+ * 那条"记住决策是假的"的欠账还指着早已删掉的字段），
+ * 以及 `src/renderer/src/hooks/useAgentChat.ts:210`（文件搬到了 components/workbench/，行号反而还对）。
+ * 这类漂移不会让任何测试红，但它会让下一个接手的人按图索骥找不到东西——
+ * 而 AGENTS.md 明令"AI 开工必读这几份文档"，等于把错的坐标当事实下发。
+ *
  * 用法：
- *   node scripts/quality/doc-links.cjs                扫全部已入库 markdown，有断链 exit 1
- *   node scripts/quality/doc-links.cjs --self-test    阳性对照：注入一条必断的链接，必须被抓到
+ *   node scripts/quality/doc-links.cjs                扫全部已入库 markdown，有问题 exit 1
+ *   node scripts/quality/doc-links.cjs --self-test    阳性对照：注入必断的链接与必错的行号，必须被抓到
  *   node scripts/quality/doc-links.cjs --json         机器可读输出
  *
  * 判定口径（写死在这里，别猜）：
- *   - 只看真正的 markdown 链接 [文本](目标) 与图片 ![alt](目标)；
+ *   - 链接：只看真正的 markdown 链接 [文本](目标) 与图片 ![alt](目标)；
  *     行内代码里的路径不算（`docs/**` 这种 glob 和示例路径会制造大量假阳性）。
- *   - 跳过 http(s)/mailto/data/#锚点/以 / 开头的绝对路径。
- *   - 目标解析后必须落在仓库内且在 git 跟踪集里 —— 未跟踪 = 对访客不存在 = 断。
+ *   - 链接跳过 http(s)/mailto/data/#锚点/以 / 开头的绝对路径。
+ *   - 链接目标解析后必须落在仓库内且在 git 跟踪集里 —— 未跟踪 = 对访客不存在 = 断。
  *   - 指向仓库外（../../ 逃出去）单独一类报出来：本机看得到、访客永远看不到。
- *   - 围栏代码块（``` 与 ~~~）内的链接不判：那是示例，不是承诺。
+ *   - 代码行号引用：`任意路径.扩展名:数字`。路径按**后缀唯一匹配**落到跟踪集里的某个文件
+ *     （所以 `providers/llm-error.ts:267` 这种相对模块目录的写法也认），
+ *     落不到 = 引用已死，行号超过该文件总行数 = 引用过期，多个候选 = 写法太含糊、要求补全路径。
+ *     行号只判"还在不在范围内"，不判"那一行是不是原本说的那个东西"——后者要靠人，
+ *     把这条写出来是为了别让它被当成比实际更强的闸。
+ *   - EXTERNAL_CODE_REFS 里的名字是指向第三方依赖的引用（node_modules 不在跟踪集，
+ *     版本一变行号就漂，判它红没有意义），名单本身会被打印出来，不许悄悄加长。
+ *   - 围栏代码块（``` 与 ~~~）内的链接与行号引用都不判：那是示例，不是承诺。
  *   - 未知参数一律 exit 2（fail-closed，不许退到默认分支照样打印 PASS）。
  */
 'use strict'
@@ -59,7 +74,59 @@ function trackedFiles() {
   return new Set(r.stdout.split(/\r?\n/).filter(Boolean))
 }
 
+/**
+ * 被引用的扩展名只有一份名单，两处判据共用。
+ * 分开写迟早分叉：正则认了而 candidateSources 不收 ⇒ 活引用被报成死的。
+ */
+const CODE_EXT = 'ts|tsx|mts|cts|mjs|cjs|js|json|py|sh|css|sql'
+
+/** 跟踪集里"可能被人按行号引用"的源码文件（后缀唯一匹配就拿它当正本） */
+function candidateSources(tracked) {
+  return [...tracked].filter((f) => new RegExp('\\.(' + CODE_EXT + ')$', 'i').test(f))
+}
+
 const LINK_RE = /!?\[[^\]]*\]\(\s*<?([^<>()\s]+)>?(?:\s+["'][^"']*["'])?\s*\)/g
+
+/** 文档里的代码行号引用：路径.扩展名:行号（前面不吃字母数字/斜杠，避免把 URL 尾巴当路径） */
+const CODE_REF_RE = new RegExp(
+  '(?<![\\w/.-])([\\w./@-]+\\.(?:' + CODE_EXT + ')):(\\d+)',
+  'g'
+)
+
+/**
+ * 指向第三方依赖的引用（node_modules 不在跟踪集，版本一推行号就漂，判红没意义）。
+ * 2026-10-20 现量：已入库文档里只有 1 条，出处是 docs/长期优化目标.md 引 @xenova/transformers 的缓存键实现。
+ */
+const EXTERNAL_CODE_REFS = new Set(['hub.js'])
+
+const lineCountCache = new Map()
+function lineCountOf(rel) {
+  if (!lineCountCache.has(rel)) {
+    lineCountCache.set(rel, fs.readFileSync(path.join(repo, rel), 'utf8').split(/\r?\n/).length)
+  }
+  return lineCountCache.get(rel)
+}
+
+/**
+ * 一条 `路径:行号` 引用的归类
+ * @returns {{kind:'ok'|'missing'|'beyond'|'ambiguous'|'external', note:string}}
+ */
+function classifyCodeRef(rawPath, rawLine, sources) {
+  const name = rawPath.split('/').pop()
+  const line = Number(rawLine)
+  const suffix = '/' + rawPath
+  const hits = sources.filter((f) => f === rawPath || f.endsWith(suffix))
+  // 第三方豁免只在"自己树里根本没有这个文件"时才生效——
+  // 否则谁都能在 src 下建一个同名 hub.js，让闸对它永久失明。
+  if (hits.length === 0 && EXTERNAL_CODE_REFS.has(name)) return { kind: 'external', note: rawPath + ':' + line }
+  if (hits.length === 0) return { kind: 'missing', note: rawPath + ':' + line }
+  if (hits.length > 1) {
+    return { kind: 'ambiguous', note: rawPath + ':' + line + '（' + hits.join(' | ') + '）' }
+  }
+  const total = lineCountOf(hits[0])
+  if (line > total) return { kind: 'beyond', note: rawPath + ':' + line + '（正本只有 ' + total + ' 行）' }
+  return { kind: 'ok', note: rawPath }
+}
 
 /**
  * 一个链接目标的归类
@@ -78,8 +145,8 @@ function classify(fromFile, rawTarget, tracked) {
   return tracked.has(rel) ? { kind: 'ok', target: rel } : { kind: 'dead', target: rel }
 }
 
-/** 扫一份 markdown：跳过围栏代码块内的链接 */
-function scanDoc(fromFile, text, tracked) {
+/** 扫一份 markdown：跳过围栏代码块内的链接与行号引用 */
+function scanDoc(fromFile, text, tracked, sources) {
   const out = []
   const lines = text.split(/\r?\n/)
   let fence = null
@@ -97,13 +164,18 @@ function scanDoc(fromFile, text, tracked) {
       const c = classify(fromFile, hit[1], tracked)
       if (c.kind === 'dead' || c.kind === 'outside') out.push({ file: fromFile, line: i + 1, kind: c.kind, target: c.target })
     }
+    for (const hit of line.matchAll(CODE_REF_RE)) {
+      const c = classifyCodeRef(hit[1], hit[2], sources)
+      if (c.kind === 'missing' || c.kind === 'beyond' || c.kind === 'ambiguous' || c.kind === 'external') {
+        out.push({ file: fromFile, line: i + 1, kind: 'coderef:' + c.kind, target: c.note })
+      }
+    }
   }
   return out
 }
 
-/** 阳性对照：一把必断的链接，量具抓不到就说明它自己是死的 */
-function selfTest(tracked) {
-  const probe = 'PROBE.md'
+/** 阳性对照：必断的链接 + 必死的行号 + 必越界的行号 + 不许误报的活引用，量具抓不到就说明它自己是死的 */
+function selfTest(tracked, sources) {
   const bad = [
     '[断到仓库里没跟踪的地方](docs/definitely-not-a-real-file-9f3c2a.md)',
     '[逃到仓库外面](../../outside-host-file.md)',
@@ -112,17 +184,42 @@ function selfTest(tracked) {
     '```',
     '[围栏里的不判](docs/inside-fence-dead.md)',
     '```',
+    // —— 代码行号引用四条：两条该抓、一条该抓越界、一条不许误报 ——
+    '见 src/renderer/src/probe-file-that-does-not-exist-9c1f.ts:12 应该被点名',
+    '见 doc-links.cjs:999999 行号早越过正本末尾了',
+    '见 scripts/quality/doc-links.cjs:3 这条是活的，不许报',
+    '见 hub.js:391 是第三方依赖里的文件，本闸不判',
+    '```',
+    '围栏里的 src/inside-fence-nope.ts:1 不判',
+    '```',
   ].join('\n')
-  const hits = scanDoc(probe, bad, tracked)
+  const hits = scanDoc('PROBE.md', bad, tracked, sources)
   const dead = hits.filter((h) => h.kind === 'dead').map((h) => h.target)
   const outside = hits.filter((h) => h.kind === 'outside').map((h) => h.target)
+  const refMissing = hits.filter((h) => h.kind === 'coderef:missing').map((h) => h.target)
+  const refBeyond = hits.filter((h) => h.kind === 'coderef:beyond').map((h) => h.target)
+  const refExternal = hits.filter((h) => h.kind === 'coderef:external').map((h) => h.target)
+  const allRefHits = hits.filter((h) => h.kind.startsWith('coderef:')).map((h) => h.target)
   const problems = []
   if (!dead.includes('docs/definitely-not-a-real-file-9f3c2a.md')) problems.push('没抓到该抓的断链')
   if (!outside.length) problems.push('没抓到该抓的"指向仓库外"')
   if (dead.includes('README.md')) problems.push('把活链误报成断链')
   if (dead.some((d) => d.includes('no-glob-check') || d.includes('inside-fence') || d.includes('example.com')))
     problems.push('误判了不该判的东西（行内代码/围栏/外链/锚点）')
-  console.log('[doc-links] 自检：抓到断链 ' + dead.length + ' 条、仓库外 ' + outside.length + ' 条，误报 0 才算通过')
+  if (!refMissing.some((t) => t.includes('probe-file-that-does-not-exist-9c1f.ts')))
+    problems.push('没抓到"文件已经不存在"的行号引用（这条闸等于是摆设）')
+  if (!refBeyond.some((t) => t.startsWith('doc-links.cjs:999999')))
+    problems.push('没抓到"行号越过正本末尾"的引用（删过代码之后就是这种形状）')
+  if (allRefHits.some((t) => t.startsWith('scripts/quality/doc-links.cjs:3')))
+    problems.push('把活的行号引用误报成坏的')
+  if (!refExternal.some((t) => t.startsWith('hub.js:')))
+    problems.push('第三方依赖豁免没生效（那说明它被当成死引用，或者豁免名单和判据脱了钩）')
+  if (allRefHits.some((t) => t.includes('inside-fence-nope')))
+    problems.push('围栏代码块里的示例引用被当成承诺判红了')
+  console.log(
+    '[doc-links] 自检：抓到断链 ' + dead.length + ' 条、仓库外 ' + outside.length + ' 条、' +
+      '死引用 ' + refMissing.length + ' 条、越界 ' + refBeyond.length + ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
+  )
   if (problems.length) {
     console.error('[doc-links] 量具失效：\n  - ' + problems.join('\n  - '))
     process.exit(1)
@@ -136,7 +233,8 @@ if (!tracked.size) {
   console.error('[doc-links] git 跟踪集是空的，扫描无意义')
   process.exit(2)
 }
-if (SELF_TEST) selfTest(tracked)
+const sources = candidateSources(tracked)
+if (SELF_TEST) selfTest(tracked, sources)
 
 const docs = [...tracked].filter((f) => /\.md$/i.test(f))
 if (!docs.length) {
@@ -152,15 +250,33 @@ for (const f of docs) {
   } catch {
     continue
   }
-  findings.push(...scanDoc(f, text, tracked))
+  findings.push(...scanDoc(f, text, tracked, sources))
 }
 
 const dead = findings.filter((h) => h.kind === 'dead')
 const outside = findings.filter((h) => h.kind === 'outside')
+const refMissing = findings.filter((h) => h.kind === 'coderef:missing')
+const refBeyond = findings.filter((h) => h.kind === 'coderef:beyond')
+const refAmbiguous = findings.filter((h) => h.kind === 'coderef:ambiguous')
+const refExternal = findings.filter((h) => h.kind === 'coderef:external')
+const blocking = [...dead, ...refMissing, ...refBeyond, ...refAmbiguous]
 
 if (AS_JSON) {
-  console.log(JSON.stringify({ docs: docs.length, dead, outside }, null, 2))
-} else {
+  // 机器可读模式只打印 JSON：尾巴上挂一句"结论: PASS"会让调用方的 JSON.parse 当场炸
+  // （第一次给这条闸写单测时就是这样红的——红的是量具的输出格式，不是文档）。
+  // 结论由退出码表达：0 = 干净，1 = 有问题，2 = 量具自己跑不起来。
+  console.log(
+    JSON.stringify(
+      { docs: docs.length, dead, outside, refMissing, refBeyond, refAmbiguous, refExternal },
+      null,
+      2
+    )
+  )
+  if (blocking.length) process.exit(1)
+  process.exit(0)
+}
+
+if (!AS_JSON) {
   const byTarget = new Map()
   for (const h of findings) {
     const k = h.kind + ' ' + h.target
@@ -171,12 +287,22 @@ if (AS_JSON) {
     console.log('  ' + k + '   ← ' + where.slice(0, 4).join(', ') + (where.length > 4 ? ' 等 ' + where.length + ' 处' : ''))
   }
   console.log(
-    '[doc-links] 扫了 ' + docs.length + ' 份已入库 markdown：断链 ' + dead.length + ' 处、指向仓库外 ' + outside.length + ' 处'
+    '[doc-links] 扫了 ' + docs.length + ' 份已入库 markdown：断链 ' + dead.length + ' 处、指向仓库外 ' + outside.length +
+      ' 处、代码引用（死 ' + refMissing.length + ' / 行号越界 ' + refBeyond.length + ' / 歧义 ' + refAmbiguous.length +
+      '），另有第三方引用豁免 ' + refExternal.length + ' 处'
+  )
+  console.log(
+    '  口径提醒：行号只判"在不在正本行数范围内"，不判"那一行讲的是不是原话"；' +
+      '扫描面 = git 跟踪集里的 *.md，围栏代码块内的引用不判'
   )
 }
 
-if (dead.length) {
-  console.error('\n结论: FAIL —— 有 ' + dead.length + ' 处链接指向仓库里不存在或未跟踪的文件（访客点开就是 404）')
+if (blocking.length) {
+  console.error(
+    '\n结论: FAIL —— 断链 ' + dead.length + ' 处、代码引用文件已不存在 ' + refMissing.length +
+      ' 处、行号越过正本末尾 ' + refBeyond.length + ' 处、写法歧义 ' + refAmbiguous.length +
+      ' 处（访客点开就是 404，接手的人按图找不到东西）'
+  )
   process.exit(1)
 }
-console.log('结论: PASS —— 全部已入库 markdown 的相对链接都落在跟踪集里')
+console.log('结论: PASS —— 全部已入库 markdown 的相对链接与代码行号引用都对得上现场')

@@ -7,13 +7,15 @@
  * 见 approval-entry-surface.test.ts（按通道清单反查注册文件）。
  * 这条测试曾经配着一句"五个入口都走它"的注释而无人验证，第六个入口（agent:confirm）
  * 就是这么漏掉的，所以现在把那句话从注释挪进了可判红的断言里。
+ *
+ * 2026-10-20 这一份里原本还有两组用例（`isApprovedValue`、`readRemember`），跟着被测函数一起删了。
+ * 删的原因值得记住：**那两个函数只有测试在调，生产代码零调用者**，
+ * 而 `readRemember` 的注释写着"会被持久化成自动放行规则"——全仓没有任何界面或载荷带 remember 字段。
+ * 「动作有测试没生产」在死代码闸上是不报的（exports 档只打印不拦，为了不罚"为了测试而导出"），
+ * 所以这类东西只能靠读注释的人发现。判据见 docs/长期优化目标.md §五。
  */
 import { describe, it, expect } from 'vitest'
-import {
-  isApprovedValue,
-  readApproval,
-  readRemember,
-} from '../../src/main/core/security/approval'
+import { readApproval } from '../../src/main/core/security/approval'
 
 /** 一律算"拒绝"的畸形批准位 */
 const MUST_DENY: Array<[string, unknown]> = [
@@ -60,26 +62,5 @@ describe('readApproval — 对象形状（llm:tool-approve）', () => {
     expect(readApproval({ approve: true })).toBe(false) // 字段名写错也不能算批
     expect(readApproval(null)).toBe(false)
     expect(readApproval('"true"')).toBe(false) // 整段 JSON 字符串没 parse
-  })
-})
-
-describe('readRemember — 记住决策同样只认字面 true', () => {
-  it('remember 会被持久化成自动放行规则，宽松真值等于留永久后门', () => {
-    expect(readRemember({ remember: true })).toBe(true)
-    expect(readRemember({ remember: 'true' })).toBe(false)
-    expect(readRemember({ remember: 1 })).toBe(false)
-    expect(readRemember({})).toBe(false)
-    expect(readRemember(null)).toBe(false)
-    expect(readRemember(true)).toBe(false) // 裸布尔没有 remember 字段
-  })
-})
-
-describe('isApprovedValue', () => {
-  it('与 readApproval 对裸布尔的判定一致', () => {
-    expect(isApprovedValue(true)).toBe(true)
-    expect(isApprovedValue(false)).toBe(false)
-    for (const [label, raw] of MUST_DENY) {
-      expect(isApprovedValue(raw), label).toBe(false)
-    }
   })
 })

@@ -38,19 +38,35 @@ color: green
 - 敏感数据（如 session_api_key）不出主进程，用句柄模式（sessionKeyMap Map 缓存）
 - IPC 层强制审批：sandbox:execute 始终推送审批请求（不依赖 UI 自觉）
 - 所有 IPC 调用必须通过 logger 记录（HC-1 网络日志可见）
-- ClaudeSdkChatParams 类型分层：shared 层无回调 + 主进程 ClaudeSdkInternalChatParams 含回调
 - d.ts 中重复定义类型是 SSOT 违规，应统一从 @shared 导入 + 用别名保留旧名减少改动
 
-## IPC 通道清单（v0.9.0 已就绪）
+## IPC 通道清单（2026-10-20 逐行回查执行体）
 
-| 通道 | 注册位置 | preload 暴露 | 状态 |
-|------|---------|------------|------|
-| `claude-sdk:generate` / `stream` / `cancel` | src/main/ipc/claude-sdk.ts | claudeSdkGenerate/Stream/Cancel | ✅ |
-| `sandbox:approve` + `sandbox:approval-request` | src/main/ipc/sandbox.ts | sandboxApprove + onSandboxApprovalRequest | ✅ 主进程侧 / ⚠️ 渲染进程待接入 |
-| `token:records` | src/main/ipc/agent-runtime.ts | tokenRecords | ✅ / ⚠️ UI 待接入 |
-| `provider:set-default` | src/main/ipc/agent-runtime.ts | providerSetDefault | ✅ |
-| `credibility:assess` / `dag` | src/main/ipc/credibility.ts | credibilityAssess/Dag | ✅ |
-| `at:list` / `resolve` / `parse` | src/main/ipc/at-commands.ts | atList/Resolve/Parse | ✅ |
+这张表以前是 v0.9.0 的清单，里面有整行不存在的东西——**照着它实施就会去接一条没有对端的通道**。
+现在每行都当场 grep 过：注册文件存在、通道在 `src/shared/ipc-channels.ts` 里、preload 真的暴露那个方法名。
+
+| 通道 | 注册位置 | preload 暴露 | 界面那头 |
+|------|---------|------------|---------|
+| `sandbox:approve` + `sandbox:approval-request` | `src/main/ipc/sandbox.ts` | `sandboxApprove` + `onSandboxApprovalRequest` | ✅ 已接：`src/renderer/src/pages/TutorialDetailPage.tsx:438` 订阅、`:669` 回批准 |
+| `token:records` | `src/main/ipc/agent-runtime.ts` | `tokenRecords` | ✅ 已接：`components/settings/ModelKpiBar.tsx:12` 用它算对话次数，`ModelSettings.tsx` 加载明细 |
+| `provider:set-default` | `src/main/ipc/agent-runtime.ts` | `providerSetDefault` | ✅ 已接：`src/renderer/src/pages/ModelSettings.tsx` |
+| `credibility:assess` | `src/main/ipc/credibility.ts` | `credibilityAssess` | ✅ 已接：`components/workbench/panels/ChatCredibility.tsx:52`、`pages/DecisionDetailPage.tsx:162` |
+| `credibility:dag` | `src/main/ipc/credibility.ts` | `credibilityDag` | ⚠️ 渲染层 0 调用（2026-10-20 grep 实测），别当成已有图表 |
+| `at:list` / `at:resolve` / `at:parse` | `src/main/ipc/at-commands.ts` | `atList` / `atResolve` / `atParse` | ⚠️ 三个都在 `audit:ipc` 的"暴露但渲染层零调用"名单里（2026-10-20 现量 141 条中），主进程侧能用，界面没接 |
+
+**从这张表里删掉的行（不要再按它们实施，2026-10-20 实测）**：
+
+- `claude-sdk:generate` / `stream` / `cancel`——原来标着 ✅、"注册位置"那一格写的是主进程 ipc 目录下的
+  `claude-sdk.ts`，但那个文件不存在、`claude-sdk` 通道不存在、`claudeSdkGenerate/Stream/Cancel` 在 preload 里 0 命中。
+  本文件第 3 条自己就写着"没有 `claude-sdk` 分支"，这张表一直在和它打架。
+  （这一格故意不写成完整路径：本仓库有条闸会扫文档里引用的路径，把坏样本原样抄进正文就会自己报红。）
+- 同批删掉硬约束里那条「ClaudeSdkChatParams 类型分层：shared 层无回调 + 主进程 ClaudeSdkInternalChatParams 含回调」：
+  两个类型名在 `src` 下 0 命中。
+
+原表里 `sandbox:approve` 与 `token:records` 那两格写的"⚠️ 渲染进程待接入 / UI 待接入"也已作废——
+上表是接上了的读数。**⚠️ 标错了方向和 ✅ 标错了同样贵：前者让人重做已完成的事。**
+
+要加新 Provider：先改 `provider-factory.ts` 的 `case`，再回来改本文件第 3 条那份清单。
 
 ## 输出格式
 

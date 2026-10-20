@@ -8,14 +8,15 @@
  *   "true"（字符串）、1、{} 这些畸形值全部变成"用户批准了"。
  *
  * 规则（不可放宽）：
- *   只有字面量 true 算批准。其它一切 —— 字符串、数字、对象、undefined、null、
+ *   只有字面 true 算批准。其它一切 —— 字符串、数字、对象、undefined、null、
  *   缺字段 —— 一律算拒绝。超时和异常在各自的调用点同样落到拒绝。
+ *
+ * 这个文件以前还导出过 `isApprovedValue` 与 `readRemember`，2026-10-20 删了：
+ * 前者被 `readApproval` 完全覆盖且零调用者；后者读的是「记住这个决策」那一位，
+ * 而全仓没有任何界面、载荷或存储带 remember 字段——它只在注释里承诺了一件不存在的事
+ * （「会被持久化成自动放行规则」）。留着它，下一个接手的人会以为自动放行做了一半。
+ * 真要上这个功能，得连同规则表、界面入口和撤销入口一起设计，不是补一个读位的事。
  */
-
-/** 值是否恰好是布尔 true */
-export function isApprovedValue(value: unknown): boolean {
-  return value === true
-}
 
 /**
  * 从审批载荷里取批准位
@@ -30,15 +31,4 @@ export function readApproval(raw: unknown): boolean {
     return (raw as { approved: unknown }).approved === true
   }
   return false
-}
-
-/**
- * 取"记住这个决策"位
- *
- * 单独收紧是因为 remember=true 会被持久化成自动放行规则，
- * 拿一个宽松真值就等于把一次误传变成永久后门。
- */
-export function readRemember(raw: unknown): boolean {
-  if (raw === null || typeof raw !== 'object') return false
-  return (raw as { remember?: unknown }).remember === true
 }
