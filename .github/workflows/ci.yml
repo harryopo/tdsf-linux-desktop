@@ -16,6 +16,17 @@ concurrency:
 permissions:
   contents: read
 
+# 仓库根那份 .npmrc 是为国内开发机配的（registry 与 electron_mirror 都指向 npmmirror，
+# 见文件里的实测教训）。但**CI 不该跟着本机的镜像走**：GitHub runner 在境外，
+# 2026-10-20 那次 macos job 就是 `@electron/get` 从 npmmirror 取 mac 包失败，
+# install 没报错、electron 二进制却缺位，于是 9 条要 import electron 的测试红在
+# "Electron failed to install correctly"——那是环境红，不是产品红，而且换一次 runner 就可能不复现。
+# @electron/get 优先读 ELECTRON_MIRROR 环境变量，这里把它钉回官方 release 源；
+# registry 保持不动（lockfile 是按 registry 解析的，动它风险更大且与本问题无关）。
+env:
+  ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+  ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+
 jobs:
   # ===== Node 类型检查 =====
   typecheck-node:

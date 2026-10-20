@@ -383,14 +383,36 @@ function main(): void {
   }
 
   console.log('\n' + '='.repeat(72))
-  console.log(`结果：FAIL=${failCount} WARN=${warnCount} INFO(零调用方法)=${unused.length} INFO(暗通道)=${darkChannels.length}`)
+  console.log(`结果：FAIL=${failCount} WARN=${warnCount} INFO(零调用方法)=${unused.length}/${UNUSED_CAP} INFO(暗通道)=${darkChannels.length}`)
   console.log('='.repeat(72))
 
   if (failCount > 0) {
     console.error('\n❌ 存在 FAIL 级 IPC 断链，请修复后再提交')
     process.exit(1)
   }
+  if (unused.length > UNUSED_CAP) {
+    console.error(
+      `\n❌ 暴露但渲染层零调用的方法 ${unused.length} 个，超过刻度 ${UNUSED_CAP}（刻度只降不升）。`
+    )
+    console.error('  要么把这个键接到界面上（有真实调用点），要么整删（preload + 通道 + 类型 + 文案）。')
+    console.error('  新增一个"后端有、前端没人按"的键，就是 §一 要判掉的那种白做能力——它不该静默进来。')
+    console.error('  ' + unused.join(', '))
+    process.exit(1)
+  }
   console.log('\n✅ 无 FAIL 级断链')
 }
+
+/**
+ * 零调用面的刻度：只降不升。
+ *
+ * 为什么现在要有这条（2026-10-20）：这一项原先只是 INFO，不阻断——于是它从 128 涨到 143
+ * 的整段路上，报告每次都只是多打印一行，没有任何人会因此停下来。§一 的判决（逐个"接上或删"）
+ * 要一批批做，判决还没做完之前先把口子焊住：想新增一个没人用的键，`pnpm audit:ipc` 就红。
+ *
+ * 降刻度必须和删除同批提交（先降后删会让 CI 立刻红在中间状态上）。
+ * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
+ * 债的方向应该是零，不是"看着办"。
+ */
+const UNUSED_CAP = 143
 
 main()
