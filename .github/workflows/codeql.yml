@@ -14,20 +14,14 @@ on:
     branches: [master]
   schedule:
     # GitHub 的 cron 必须是 5 个字段（分 时 日 月 周）。
-    # 原来这里写的是 "22:00 SUN"——那不是合法 cron。0 22 * * 0 = 每周日 22:00 UTC = 北京时间每周一 06:00
-    # （错开 Dependabot 的 04:00）。
+    # 0 22 * * 0 = 每周日 22:00 UTC = 北京时间每周一 06:00（错开 Dependabot 的 04:00）。
     #
-    # **但改对 cron 并没有治好这个 workflow，别把下面这段当"已修"**（2026-10-20 实测）：
-    # 这笔修完之后又有 20+ 次推送，每次仍生成一个「0 个 job、直接 failure」的 run，
-    # 该 workflow 自 2026-07-25 建立以来 **100 次运行、成功 0 次**
-    # （取数：GET /repos/.../actions/workflows/320084997/runs?per_page=100，全部 conclusion=failure；
-    #  GET /repos/.../code-scanning/alerts 仍 404 no analysis found ⇒ CodeQL 从来没真跑过一次）。
-    # 本地能排除的原因：YAML 解析通过、无制表符缩进、顶层键不重复、cron 合法、
-    # 文件 70 行且结尾完整；仓库侧 Actions 开关是 allowed_actions=all、enabled=true。
-    # 剩下的可能（都在 GitHub 平台侧，本机看不到日志——失败 run 的日志接口直接返回 log not found）：
-    # 默认工作流权限是 read 而这里要 security-events:write、CodeQL 对该仓的授权状态、或 Actions 端的其他校验。
-    # ⇒ 需要仓库所有者在 Actions 页面看一次真实报错再定：修它，还是先停用它
-    #   （每次推送都给所有者发一封失败邮件，这个副作用是当下确定的、可避免的）。
+    # 为什么 2026-07-25 建立后 100 次运行 0 次成功（每次推送都生成一个「0 个 job、直接 failure」的 run）：
+    # 失败 run 的页面 HTML 里写着原话 "(Line: 66, Col: 13): A sequence was not expected"——
+    # init 的 `with.paths-ignore` 被写成了 YAML 列表，而 `with` 的值只能是标量，整个 workflow 在解析期就被拒。
+    # 改 cron 治不了它（这也是之前"修好了"的判断错在哪）。
+    # 同时 matrix 里的 `typescript` 不是合法的 CodeQL 语言（JavaScript + TypeScript 由
+    # `javascript-typescript` 一个分析器覆盖），解析修好后它也会让作业失败。两处一起改。
     - cron: "0 22 * * 0"
 
 # 同 ci.yml 的并发控制
@@ -47,7 +41,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["typescript", "javascript"]
+        # JavaScript + TypeScript 共用一个分析器；`typescript` 不是合法语言名
+        language: ["javascript-typescript"]
         # 排除 sidecar-a 的 Python（暂未启用 Python 分析）
         # 排除 docs/ 和 tests/ 下的 demo 代码
 
@@ -61,18 +56,18 @@ jobs:
           languages: ${{ matrix.language }}
           # 不使用默认 queries，使用 security-and-quality 套件
           queries: security-and-quality
-          # 排除不需要扫描的路径
-          paths-ignore:
-            - docs/**
-            - tests/**
-            - "**/*.test.ts"
-            - "**/*.test.tsx"
-            - "**/*.spec.ts"
-            - "**/*.spec.tsx"
-            - "**/__tests__/**"
-            - "_legacy-python/**"
-            - "scripts/**"
-            - "sidecar-a/**"
+          # `with` 的值必须是标量：这里写成多行字符串，不能写成 YAML 列表
+          paths-ignore: |
+            docs/**
+            tests/**
+            **/*.test.ts
+            **/*.test.tsx
+            **/*.spec.ts
+            **/*.spec.tsx
+            **/__tests__/**
+            _legacy-python/**
+            scripts/**
+            sidecar-a/**
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
