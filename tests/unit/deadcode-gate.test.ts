@@ -121,7 +121,9 @@ describe('死码闸', () => {
     const probe = runGate(['--input', path.relative(ROOT, write('dup-probe.json', envelope({ duplicates: 0 }))), '--json'])
     expect(probe.code, probe.stderr).toBe(0)
     const cap = probe.json?.caps.duplicates
-    expect(typeof cap, '闸没把 duplicates 的上限报出来，判据就无从对齐').toBe('number')
+    // 断言不收窄类型，所以这里用 if + throw：拿不到上限就当场失败，
+    // 而不是带着 undefined 去比，把"闸没报数"演成"刻度正常"
+    if (typeof cap !== 'number') throw new Error('闸的 --json 没报出 duplicates 的上限，判据无从对齐')
     // 恰好等于上限 ⇒ 放行；多一条 ⇒ 红。建档时是 16，2026-10-20 清零后是 0，两条断言都不用改
     const atCap = runGate([
       '--input',

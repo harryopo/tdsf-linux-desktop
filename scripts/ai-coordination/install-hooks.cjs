@@ -56,8 +56,14 @@ const TOPOLOGY_BLOCK = [
  * 分工：secret-gate 管【形态】（厂商前缀/PEM/赋值），history-env-scan 管【值】
  * （.env.local 的口令 + .secrets-anchor.local.json 里申报的额外密钥），
  * topology-gate 管【当前代码】里的内网地址。三道闸互不覆盖，缺一个就有一类沉默通过。
+ *
+ * 第四道是 tests/ 的类型闸（2026-10-20 加）：同一天两次把 master 的 CI 推红，
+ * 两次都是同一个形状——"跑过门 → 又改了测试文件 → 拿旧读数报全绿"。
+ * 单测本身（vitest）不看类型，所以那 9~12 条 TS18046/TS18048 只有这条门能抓，
+ * 而它当时只在 CI 上跑。放到 pre-push 就是让"改了没重跑"这件事在推之前自己拦下来。
+ * 代价：每次 push 多等 60~90 秒（tsc 扫 310 个测试文件）。
  */
-const PUSH_BEGIN = '# BEGIN pre-push security gates (形态闸 + 历史值闸 + 拓扑闸)';
+const PUSH_BEGIN = '# BEGIN pre-push security gates (形态闸 + 历史值闸 + 拓扑闸 + tests 类型闸)';
 const PUSH_END = '# END pre-push security gates';
 const PUSH_BLOCK = [
   PUSH_BEGIN,
@@ -65,6 +71,7 @@ const PUSH_BLOCK = [
   'node "$repo_root/scripts/security/secret-gate.cjs" --all || exit 1',
   'node "$repo_root/scripts/security/history-env-scan.cjs" || exit 1',
   'node "$repo_root/scripts/security/topology-gate.cjs" --no-values-ok || exit 1',
+  'node "$repo_root/scripts/quality/tests-typecheck.cjs" || exit 1',
   PUSH_END,
 ].join('\n');
 
@@ -121,7 +128,7 @@ function writeHook(file, body, label) {
 
 try {
   writeHook(hookFile, content, 'pre-commit（高共享文件守卫 + 形态闸 + 拓扑闸）');
-  writeHook(pushFile, pushContent, 'pre-push（形态闸全量 + 历史值闸 + 拓扑闸）');
+  writeHook(pushFile, pushContent, 'pre-push（形态闸全量 + 历史值闸 + 拓扑闸 + tests 类型闸）');
 } catch (e) {
   console.log(`[install-hooks] ⚠️  写入 hook 失败（${e.message}），可手动运行 pnpm ai:install-hooks`);
   process.exit(0);
