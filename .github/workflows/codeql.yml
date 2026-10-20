@@ -14,10 +14,20 @@ on:
     branches: [master]
   schedule:
     # GitHub 的 cron 必须是 5 个字段（分 时 日 月 周）。
-    # 原来这里写的是 "22:00 SUN"——不是合法 cron，整个 workflow 在解析阶段就被拒，
-    # 于是每次 push 都生成一个「0 个 job、直接 failure」的 run 并给仓库所有者发一封失败邮件，
-    # 而 CodeQL 一次也没真跑过（实测 API：/code-scanning/alerts 返回 404 no analysis found）。
-    # 0 22 * * 0 = 每周日 22:00 UTC = 北京时间每周一 06:00（错开 Dependabot 的 04:00）
+    # 原来这里写的是 "22:00 SUN"——那不是合法 cron。0 22 * * 0 = 每周日 22:00 UTC = 北京时间每周一 06:00
+    # （错开 Dependabot 的 04:00）。
+    #
+    # **但改对 cron 并没有治好这个 workflow，别把下面这段当"已修"**（2026-10-20 实测）：
+    # 这笔修完之后又有 20+ 次推送，每次仍生成一个「0 个 job、直接 failure」的 run，
+    # 该 workflow 自 2026-07-25 建立以来 **100 次运行、成功 0 次**
+    # （取数：GET /repos/.../actions/workflows/320084997/runs?per_page=100，全部 conclusion=failure；
+    #  GET /repos/.../code-scanning/alerts 仍 404 no analysis found ⇒ CodeQL 从来没真跑过一次）。
+    # 本地能排除的原因：YAML 解析通过、无制表符缩进、顶层键不重复、cron 合法、
+    # 文件 70 行且结尾完整；仓库侧 Actions 开关是 allowed_actions=all、enabled=true。
+    # 剩下的可能（都在 GitHub 平台侧，本机看不到日志——失败 run 的日志接口直接返回 log not found）：
+    # 默认工作流权限是 read 而这里要 security-events:write、CodeQL 对该仓的授权状态、或 Actions 端的其他校验。
+    # ⇒ 需要仓库所有者在 Actions 页面看一次真实报错再定：修它，还是先停用它
+    #   （每次推送都给所有者发一封失败邮件，这个副作用是当下确定的、可避免的）。
     - cron: "0 22 * * 0"
 
 # 同 ci.yml 的并发控制

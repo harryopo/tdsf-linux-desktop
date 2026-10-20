@@ -3,7 +3,8 @@
 # 开源协作基线：
 # - 自动按文件路径分类 PR
 # - 自动统计改动规模（S/M/L/XL）
-# - 与 dependabot.yml / codeql.yml 配合形成完整 CI/CD 安全网
+# - 与 dependabot.yml 配合补依赖面；ci.yml 是那把真在跑的闸
+#   （codeql.yml 目前从未成功运行过一次，别把它算进"安全网"——见该文件内的实测说明）
 
 name: "PR Labeler"
 
