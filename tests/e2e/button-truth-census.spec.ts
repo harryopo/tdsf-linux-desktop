@@ -193,6 +193,31 @@ async function snapshot(
   })
 }
 
+/**
+ * 点不下去/等不到反应时的现场读数——把"慢到没读到"与"这颗钮本来就没反应"分开。
+ * 2026-10-19 全量并行跑时 [教程] 自动化脚本(0) 只红 1/6 次、单跑 4 次全绿；
+ * 没有这几项就只能靠猜。读的是点击那一刻的状态，超时值本身不动。
+ */
+async function describeTarget(btn: ElementHandle<Node>): Promise<string> {
+  const facts = await btn
+    .evaluate((el) => {
+      const b = el as HTMLButtonElement
+      const r = b.getBoundingClientRect()
+      return {
+        disabled: b.disabled === true,
+        ariaHidden: b.closest('[aria-hidden="true"]') ? '祖先隐藏' : b.getAttribute('aria-hidden'),
+        box: Math.round(r.width) + 'x' + Math.round(r.height),
+        pointerEvents: getComputedStyle(b).pointerEvents,
+      }
+    })
+    .catch(() => null)
+  if (!facts) return '节点已脱离文档，读不到状态'
+  return (
+    `disabled=${facts.disabled}, aria-hidden=${facts.ariaHidden ?? '无'}, ` +
+    `box=${facts.box}, pointer-events=${facts.pointerEvents}`
+  )
+}
+
 /** 关闭点击可能打开的弹层（Escape ×2 + 点击遮罩外区域） */
 async function closeOverlays(page: Page): Promise<void> {
   await page.keyboard.press('Escape').catch(() => {})
@@ -293,6 +318,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       // 点不下去先清现场再重试一次：全量跑时同机负载会把 Playwright 的可操作性等待
       // 顶过 2 秒（实测单跑 0 个、全量跑 9 个"点不下去"，且都是同一批按钮）。
       // 判据没放松——真有遮罩的按钮清完还是点不下去，第二次照样记 unclickable。
+      const clickStartedAt = Date.now()
       let clicked = await btn
         .click({ timeout: 2000 })
         .then(() => true)
@@ -306,19 +332,30 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
           .catch(() => false)
       }
       if (!clicked) {
-        results.push({ page: pageDef.name, label, verdict: 'unclickable', detail: '清现场后仍点不下去' })
+        const elapsed = Date.now() - clickStartedAt
+        results.push({
+          page: pageDef.name,
+          label,
+          verdict: 'unclickable',
+          detail:
+            `清现场后仍点不下去（两次点击耗时 ${elapsed}ms，单次上限 2000ms；` +
+            `${await describeTarget(btn)}）`,
+        })
+        await markSelf(btn, false)
         continue
       }
 
       // 看出反应为止，最多再等 2.5 秒。固定 500ms 窗口在并行跑（同机 6 个 Electron 实例抢 CPU）下
       // 会把"慢半拍的真反应"报成假按钮：全量跑一次报出 16 个点不下去，单跑同样的按钮 0 个。
       // 判据本身没放松——真没反应的按钮等满 2.5 秒照样是 none。
+      const waitStartedAt = Date.now()
       let after = await snapshot(mainWin)
       for (let waited = 0; waited < 2500; waited += 150) {
         if (after.hash !== before.hash || after.mutOut > before.mutOut) break
         await mainWin.waitForTimeout(150)
         after = await snapshot(mainWin)
       }
+      const waitedMs = Date.now() - waitStartedAt
       await markSelf(btn, false)
 
       // 焦点信号只认"焦点被交给了别的元素"。点任何按钮都会把焦点落在这个按钮自身上，
@@ -350,9 +387,12 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       } else if (after.mut > before.mut) {
         // 只有按钮自己在变（图标翻了个方向、tooltip 换了个字），界面别处一点反应都没有
         verdict = 'none'
-        detail = `只有按钮自身在变（${after.mut - before.mut} 处），界面别处无反应`
+        detail =
+          `只有按钮自身在变（${after.mut - before.mut} 处），界面别处无反应；` +
+          `等满 ${waitedMs}ms（${await describeTarget(btn)}）`
       } else {
         verdict = 'none'
+        detail = `等待 ${waitedMs}ms 无任何反应（${await describeTarget(btn)}）`
       }
       results.push({ page: pageDef.name, label, verdict, detail })
 
@@ -418,15 +458,18 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
     }
   }
 
+  // 失败清单带上现场读数：只有按钮名的话，"慢半拍"和"本来就没反应"分不开
+  const describeRow = (r: ButtonResult) =>
+    `[${r.page}] ${r.label}${r.detail ? `（${r.detail}）` : ''}`
   const deadButtons = byVerdict('none')
   if (deadButtons.length > 0) {
     console.log('\n❌ 假按钮（点击后无任何可观察反应）：')
-    for (const r of deadButtons) console.log(`  - [${r.page}] ${r.label}`)
+    for (const r of deadButtons) console.log(`  - ${describeRow(r)}`)
   }
   const stuck = byVerdict('unclickable')
   if (stuck.length > 0) {
     console.log('\n❌ 点不下去（被遮挡/不稳定）：')
-    for (const r of stuck) console.log(`  - [${r.page}] ${r.label}`)
+    for (const r of stuck) console.log(`  - ${describeRow(r)}`)
   }
   const unreached = byVerdict('unreached')
   if (unreached.length > 0) {
@@ -440,7 +483,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   expect(reacted, `应有至少 40 个按钮被真点出反应（实测 ${reacted}）`).toBeGreaterThanOrEqual(40)
   expect(summary.total, '普查应至少覆盖 30 个按钮').toBeGreaterThan(30)
   // 硬门禁一：不许有按了没反应的按钮
-  expect(deadButtons.map((r) => `[${r.page}] ${r.label}`), '存在假按钮').toEqual([])
+  expect(deadButtons.map(describeRow), '存在假按钮').toEqual([])
   // 硬门禁二：不许有用户点不下去的按钮（disabled 与已按下态另计，不算点这里）
-  expect(stuck.map((r) => `[${r.page}] ${r.label}`), '存在点不下去的按钮').toEqual([])
+  expect(stuck.map(describeRow), '存在点不下去的按钮').toEqual([])
 })
