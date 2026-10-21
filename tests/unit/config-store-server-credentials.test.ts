@@ -17,11 +17,14 @@ const box = vi.hoisted(() => ({
   /** 下一次 saveServerCredential 返回什么 */
   credentialOk: true,
   savedIds: [] as string[],
+  /** 下一次读 sshServers 抛错（模拟配置文件损坏 / 磁盘读失败） */
+  failGet: false,
 }))
 
 vi.mock('electron-store', () => ({
   default: class {
     get(key: string, fallback?: unknown) {
+      if (box.failGet && key === 'sshServers') throw new Error('EACCES: 配置文件不可读')
       return box.store.has(key) ? box.store.get(key) : (fallback ?? undefined)
     }
     set(key: string, value: unknown) {
@@ -66,11 +69,29 @@ function server(id: string, overrides: Record<string, unknown> = {}): never {
   } as never
 }
 
+describe('服务器列表读失败不等于空列表', () => {
+  beforeEach(() => {
+    box.store.clear()
+    box.failGet = false
+  })
+
+  it('读抛错时 loadServerList 必须抛，不能返回 []（否则渲染层会拿缓存反写）', () => {
+    box.failGet = true
+    expect(() => ConfigStore.loadServerList()).toThrow(/读取服务器列表失败/)
+    expect(() => ConfigStore.loadServerListPublic()).toThrow(/读取服务器列表失败/)
+  })
+
+  it('真没有服务器时仍返回空数组（别把空当失败）', () => {
+    expect(ConfigStore.loadServerList()).toEqual([])
+  })
+})
+
 describe('saveServerList 的成败口径', () => {
   beforeEach(() => {
     box.store.clear()
     box.credentialOk = true
     box.savedIds = []
+    box.failGet = false
   })
 
   it('1. 加密存储可用 → 回 true，且每台口令都试着存了', () => {

@@ -23,6 +23,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { toast } from 'sonner'
 import type { ServerListItem, SshConfig, SshConnectionState } from '@shared/models'
 import { isElectronAPIAvailable } from '../utils/electron-api'
 
@@ -190,7 +191,10 @@ export const useServerStore = create<ServerState>()(
             console.error(`[ServerStore] 清除服务器 ${serverId} 凭据失败:`, err)
           }
         }
-        await syncToMain(newServers)
+        const saved = await syncToMain(newServers)
+        if (!saved) {
+          toast.error('删除未保存到磁盘，重启后这台服务器可能重新出现')
+        }
       },
 
       // 更新服务器配置
@@ -202,7 +206,10 @@ export const useServerStore = create<ServerState>()(
           s.id === serverId ? toListItem(s, s.hasCredential || providesCredential(partial)) : s,
         )
         set({ servers: newServers })
-        await syncToMain(outgoing)
+        const saved = await syncToMain(outgoing)
+        if (!saved) {
+          toast.error('修改未保存到磁盘，重启后可能恢复成旧配置')
+        }
       },
 
       // 设置当前活跃会话：顺带确保这台主机的监控在采集（见 MONITOR_INTERVAL_MS 注释）

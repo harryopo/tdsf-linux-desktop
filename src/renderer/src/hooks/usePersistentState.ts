@@ -25,6 +25,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react'
+import { writeConfig } from '@/lib/config-write'
 
 export function usePersistentState<T>(
   key: string,
@@ -66,11 +67,8 @@ export function usePersistentState<T>(
   // 值变化时写回主进程（跳过首次加载完成前的变化）
   useEffect(() => {
     if (!loadedRef.current) return
-    const api = window.electronAPI
-    if (!api) return
-    api.configSet(key, state).catch((err) => {
-      console.error(`[usePersistentState] 写入配置失败: ${key}`, err)
-    })
+    // 统一出口：configSet 回 false 也算失败（旧写法只挂 .catch，false 被静默吞掉）
+    writeConfig(key, state)
   }, [key, state])
 
   // 与 React setState 同型的 setter，保证可直接替换原有 setState 用法

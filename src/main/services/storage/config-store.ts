@@ -355,7 +355,9 @@ export class ConfigStore {
     try {
       const servers = store.get('sshServers', []) as SshConfig[]
       if (!Array.isArray(servers)) {
-        return []
+        // 读到了但形状不对：这是损坏，不是"没有服务器"。返回 [] 会让渲染层拿
+        // localStorage 缓存反写，把一个可恢复的读错误变成数据覆盖。
+        throw new Error('配置文件里的服务器列表不是数组')
       }
       // 从 SecureStore 解密敏感信息并合并
       return servers.map((s) => {
@@ -370,8 +372,11 @@ export class ConfigStore {
         }
         return s
       })
-    } catch {
-      return []
+    } catch (err) {
+      // 读失败必须抛：返回 [] 会被当成"用户没有任何服务器"，渲染层随即拿缓存反写，
+      // 于是一次瞬时读取失败变成永久数据覆盖（2026-10-21 审查 C2）。
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`读取服务器列表失败：${msg}`)
     }
   }
 

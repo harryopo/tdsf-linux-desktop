@@ -18,6 +18,7 @@
 import type { CodeThemeId } from '@shared/code-themes'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { writeConfig } from '@/lib/config-write'
 
 export type ThemeMode = 'dark' | 'light' | 'system'
 export type Density = 'compact' | 'standard' | 'comfortable'
@@ -77,15 +78,9 @@ const CONFIG_KEY_MAP: Record<keyof typeof APPEARANCE_DEFAULTS, string> = {
   codeTheme: 'appearance.codeTheme',
 }
 
-/** fire-and-forget 写回 electron-store（失败仅 warn，不阻塞 UI） */
+/** fire-and-forget 写回 electron-store（失败时会提示一次，不阻塞 UI） */
 function mirrorToConfig(key: keyof typeof APPEARANCE_DEFAULTS, value: unknown): void {
-  try {
-    window.electronAPI?.configSet?.(CONFIG_KEY_MAP[key], value)?.catch?.((err: unknown) => {
-      console.warn(`[AppearanceStore] configSet ${CONFIG_KEY_MAP[key]} 失败`, err)
-    })
-  } catch {
-    // 非 Electron 环境静默
-  }
+  writeConfig(CONFIG_KEY_MAP[key], value)
 }
 
 export const useAppearanceStore = create<AppearanceState>()(
