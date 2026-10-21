@@ -374,7 +374,7 @@ const electronApi = {
   historyStats: (): Promise<HistoryStats> =>
     ipcRenderer.invoke(HISTORY.STATS),
   historyBlocks: (limit?: number): Promise<BlockedCommandRecord[]> =>
-    ipcRenderer.invoke(HISTORY.BLOCKS, limit),
+    invokeChecked<BlockedCommandRecord[]>('historyBlocks', HISTORY.BLOCKS, limit),
 
   // ===== 系统架构感知扁平化 =====
   // 走 profiler 域对象（原来这里把四条通道又内联抄了一遍，而 const profiler 只有被删掉的手写类型在用）

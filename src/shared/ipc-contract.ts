@@ -20,9 +20,11 @@ import { z } from 'zod'
 import {
   AGENT,
   BOOT,
+  HISTORY,
   LOCAL_TTY,
   PREVIEW,
   PROVIDER,
+  SFTP,
   SHELL_INTEGRATION,
   SSH,
   WINDOW,
@@ -456,6 +458,105 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     resultTs: 'BootLoadingStage | null',
     result: z.nullable(z.object({ stage: str, message: str })),
   },
+  // ===== 契约扩面第一批（2026-10-21）：SSH 执行 + SFTP 改写 + 拦截记录 =====
+  // 这些通道此前只有 TS 签名：渲染层运行时传什么主进程都收。形状校验只挡类型/必填，
+  // 路径是否受保护、命令是否危险仍由 command-gate / remote-write-guard 各自判定。
+  {
+    kind: 'invoke',
+    api: 'sshConnectById',
+    channel: SSH.CONNECT_BY_ID,
+    doc: '按服务器 ID 连接；一次性口令只用于本次连接',
+    args: [
+      { name: 'serverId', ts: 'string', schema: str },
+      { name: 'oneTimePassword', ts: 'string | undefined', schema: opt(str) },
+    ],
+    resultTs: 'string',
+    result: str,
+  },
+  {
+    kind: 'invoke',
+    api: 'sshExec',
+    channel: SSH.EXEC,
+    doc: '在已连接会话上执行一条命令（主进程侧还有命令闸）',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'command', ts: 'string', schema: str },
+    ],
+    resultTs: 'CommandResult',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpWriteFile',
+    channel: SFTP.WRITE_FILE,
+    doc: '覆盖写入远程文件；系统关键路径由 remote-write-guard 拒绝',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+      { name: 'content', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpDelete',
+    channel: SFTP.DELETE,
+    doc: '删除远程文件/目录；系统关键路径由 remote-write-guard 拒绝',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpRename',
+    channel: SFTP.RENAME,
+    doc: '重命名远程文件/目录；源与目标都过 remote-write-guard',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'oldPath', ts: 'string', schema: str },
+      { name: 'newPath', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpChmod',
+    channel: SFTP.CHMOD,
+    doc: '修改远程文件权限；系统关键路径由 remote-write-guard 拒绝',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+      { name: 'mode', ts: 'number', schema: z.number().int().min(0).max(0o7777) },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpMkdir',
+    channel: SFTP.MKDIR,
+    doc: '创建远程目录；系统关键路径由 remote-write-guard 拒绝',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+    ],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'historyBlocks',
+    channel: HISTORY.BLOCKS,
+    doc: '高危命令拦截记录，按时间倒序，limit 缺省 200、上限 1000',
+    args: [{ name: 'limit', ts: 'number | undefined', schema: opt(z.number().int()) }],
+    resultTs: 'BlockedCommandRecord[]',
+    result: z.array(z.unknown()),
+  },
 ]
 
 /** 生成文件要 import 的类型来自哪儿 */
@@ -473,6 +574,8 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   AgentDonePayload: '@shared/agent-types',
   AgentErrorPayload: '@shared/agent-types',
   BootLoadingStage: '@shared/boot-types',
+  CommandResult: '@shared/models',
+  BlockedCommandRecord: '@shared/audit-types',
 }
 
 export function contractFor(api: string): ChannelContract | undefined {

@@ -1,8 +1,9 @@
 // 生成物，别手改：来源 src/shared/ipc-contract.ts，重生成 pnpm ipc:gen
 // 改了契约没重生成 → tests/unit/ipc-contract.test.ts 会红
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
+import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
-import type { ChatMessage, PreviewHandleInfo, PreviewTarget, ShellIntegrationResult, ShellIntegrationStatus } from '@shared/models'
+import type { ChatMessage, CommandResult, PreviewHandleInfo, PreviewTarget, ShellIntegrationResult, ShellIntegrationStatus } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 
 /** 已纳入契约的 invoke 通道：electronAPI 上这些方法的签名以这里为准 */
@@ -122,6 +123,38 @@ export interface ContractedInvokeApi {
   /** 拉取最近一次启动阶段；主进程还没推过时为 null
    * 通道 `boot:get-state` */
   bootGetState(): Promise<BootLoadingStage | null>
+
+  /** 按服务器 ID 连接；一次性口令只用于本次连接
+   * 通道 `ssh:connectById` */
+  sshConnectById(serverId: string, oneTimePassword?: string): Promise<string>
+
+  /** 在已连接会话上执行一条命令（主进程侧还有命令闸）
+   * 通道 `ssh:exec` */
+  sshExec(sessionId: string, command: string): Promise<CommandResult>
+
+  /** 覆盖写入远程文件；系统关键路径由 remote-write-guard 拒绝
+   * 通道 `sftp:writeFile` */
+  sftpWriteFile(sessionId: string, remotePath: string, content: string): Promise<boolean>
+
+  /** 删除远程文件/目录；系统关键路径由 remote-write-guard 拒绝
+   * 通道 `sftp:delete` */
+  sftpDelete(sessionId: string, remotePath: string): Promise<boolean>
+
+  /** 重命名远程文件/目录；源与目标都过 remote-write-guard
+   * 通道 `sftp:rename` */
+  sftpRename(sessionId: string, oldPath: string, newPath: string): Promise<boolean>
+
+  /** 修改远程文件权限；系统关键路径由 remote-write-guard 拒绝
+   * 通道 `sftp:chmod` */
+  sftpChmod(sessionId: string, remotePath: string, mode: number): Promise<boolean>
+
+  /** 创建远程目录；系统关键路径由 remote-write-guard 拒绝
+   * 通道 `sftp:mkdir` */
+  sftpMkdir(sessionId: string, remotePath: string): Promise<boolean>
+
+  /** 高危命令拦截记录，按时间倒序，limit 缺省 200、上限 1000
+   * 通道 `history:blocks` */
+  historyBlocks(limit?: number): Promise<BlockedCommandRecord[]>
 }
 
 /** 已纳入契约的推送通道：订阅函数的负载类型以这里为准 */

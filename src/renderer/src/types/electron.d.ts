@@ -373,17 +373,6 @@ export interface RecommendPathOptions {
 // 已纳入契约的通道签名以那里为准，其余方法仍在这里手写，逐步搬过去（刻度见 tests/unit/ipc-contract.test.ts）
 export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, ContractedEventApi {
   /**
-   * 按已保存的服务器 ID 连接，返回 sessionId（通道 ssh:connectById）
-   *
-   * 2026-10-09 安全审查 P0-3：`server:list` 不再下发解密后的凭据，
-   * 存好的密码/私钥由主进程自己从 SecureStore 取，永不跨进程边界。
-   *
-   * @param serverId 服务器 ID（来自 ServerListItem.id）
-   * @param password 用户此刻手输的一次性口令（可选）。留空表示"用主进程存好的凭据"；
-   *                 传进来的口令只用于这一次连接，渲染层不会把它显示到任何地方。
-   */
-  sshConnectById(serverId: string, password?: string): Promise<string>
-  /**
    * 测试 LLM 连接
    * v2.3.4 改造：返回详细诊断信息，便于 UI 定位失败原因
    * - ok=true: 连接成功

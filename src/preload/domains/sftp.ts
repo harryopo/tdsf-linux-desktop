@@ -2,6 +2,7 @@
 import type { SftpEntry, SftpTransferResult } from '@shared/models'
 import { FILE_WATCH, SFTP, SFTP_SEARCH } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
+import { invokeChecked } from '../ipc-util'
 import type { SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from '../types'
 
 /**
@@ -28,7 +29,7 @@ const sftp = {
 
   /** 删除文件/目录 */
   delete: (sessionId: string, remotePath: string): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.DELETE, sessionId, remotePath),
+    invokeChecked<boolean>('sftpDelete', SFTP.DELETE, sessionId, remotePath),
 
   /** 重命名 */
   rename: (
@@ -36,7 +37,7 @@ const sftp = {
     oldPath: string,
     newPath: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.RENAME, sessionId, oldPath, newPath),
+    invokeChecked<boolean>('sftpRename', SFTP.RENAME, sessionId, oldPath, newPath),
 
   /** 修改权限 */
   chmod: (
@@ -44,7 +45,7 @@ const sftp = {
     remotePath: string,
     mode: number
   ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.CHMOD, sessionId, remotePath, mode),
+    invokeChecked<boolean>('sftpChmod', SFTP.CHMOD, sessionId, remotePath, mode),
 
   /** 读取远程文件内容到字符串（v0.8 IDE 工作台，10MB 上限） */
   readFile: (sessionId: string, remotePath: string): Promise<string> =>
@@ -56,7 +57,7 @@ const sftp = {
     remotePath: string,
     content: string
   ): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.WRITE_FILE, sessionId, remotePath, content),
+    invokeChecked<boolean>('sftpWriteFile', SFTP.WRITE_FILE, sessionId, remotePath, content),
 
   /** 获取文件/目录元信息（返回 SftpEntry 或 null） */
   stat: (sessionId: string, remotePath: string): Promise<SftpEntry | null> =>
@@ -64,7 +65,7 @@ const sftp = {
 
   /** 创建远程目录 */
   mkdir: (sessionId: string, remotePath: string): Promise<boolean> =>
-    ipcRenderer.invoke(SFTP.MKDIR, sessionId, remotePath),
+    invokeChecked<boolean>('sftpMkdir', SFTP.MKDIR, sessionId, remotePath),
 }
 
 /**

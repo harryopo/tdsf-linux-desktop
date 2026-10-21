@@ -21,7 +21,7 @@ const ssh = {
    * @param oneTimePassword 用户此刻手输的一次性口令；不传就用主进程存好的凭据
    */
   connectById: (serverId: string, oneTimePassword?: string): Promise<string> =>
-    ipcRenderer.invoke(SSH.CONNECT_BY_ID, serverId, oneTimePassword),
+    invokeChecked<string>('sshConnectById', SSH.CONNECT_BY_ID, serverId, oneTimePassword),
 
   /** 断开 SSH 连接 */
   disconnect: (sessionId: string): Promise<boolean> =>
@@ -29,7 +29,7 @@ const ssh = {
 
   /** 执行 SSH 命令 */
   exec: (sessionId: string, command: string): Promise<CommandResult> =>
-    ipcRenderer.invoke(SSH.EXEC, sessionId, command),
+    invokeChecked<CommandResult>('sshExec', SSH.EXEC, sessionId, command),
 
   /** 交互式 Shell 操作（身份是 shellId：一条连接可以开多个终端） */
   shell: {
