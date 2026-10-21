@@ -14,6 +14,7 @@
 import { SshConnectionManager } from '../../ssh/connection-manager'
 import { SftpManager } from '../../ssh/sftp'
 import { executeSshExec } from '../../llm/tools/ssh-exec'
+import { evaluateCommand } from '../../../core/command-gate'
 import type { McpToolRegistration, McpToolResult } from './registry'
 import { toMcpErrorResult, toMcpTextResult } from './registry'
 
@@ -29,7 +30,7 @@ export function createSshMcpTools(): McpToolRegistration[] {
       meta: {
         name: 'ssh_execute',
         description:
-          '在指定 SSH session 上执行一条 Linux 命令。high 风险命令（rm/shutdown/reboot 等）需用户审批。返回 stdout/stderr/exitCode/风险等级。',
+          '在指定 SSH session 上执行一条 Linux 命令。block 级命令直接拒绝；high 风险命令（rm/shutdown/systemctl 等）在 MCP 通道没有审批窗口，会返回 APPROVAL_REQUIRED，请到应用内 AI 对话或终端执行。返回 stdout/stderr/exitCode/风险等级。',
         inputSchema: {
           type: 'object',
           properties: {
@@ -52,6 +53,23 @@ export function createSshMcpTools(): McpToolRegistration[] {
         }
         if (typeof command !== 'string' || !command) {
           return toMcpErrorResult('参数 command 必填且为非空字符串')
+        }
+        // MCP 是外部客户端入口，没有应用内审批卡可等。以前这里只靠 executeSshExec
+        // 拒 block，high 风险（rm/systemctl/改权限）直接执行，和工具描述里的
+        // "需用户审批"相反。现在 fail-closed：高风险一律拒绝，让调用方去有审批的入口。
+        const verdict = evaluateCommand(command)
+        if (verdict.level === 'block') {
+          return toMcpErrorResult(`高危命令被安全闸拒绝：${verdict.reason}（命中段：${verdict.matched}）`)
+        }
+        if (verdict.level === 'high') {
+          return toMcpTextResult({
+            success: false,
+            errorCode: 'APPROVAL_REQUIRED',
+            risk: 'high',
+            error:
+              `MCP 通道没有人工审批窗口，拒绝执行高风险命令：${verdict.reason}。` +
+              '请到应用内 AI 对话或终端里执行（那里会弹确认）。',
+          })
         }
         const result = await executeSshExec({ sessionId, command, timeoutMs })
         return toMcpTextResult(result)

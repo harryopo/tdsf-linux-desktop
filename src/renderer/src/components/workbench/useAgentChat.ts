@@ -12,7 +12,13 @@
  */
 import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
-import { latestUserQuestion, useAgentStore, type AgentMessage, type CompressResult } from '@/stores/agent-store'
+import {
+  historyForSession,
+  latestUserQuestion,
+  useAgentStore,
+  type AgentMessage,
+  type CompressResult,
+} from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -190,6 +196,7 @@ export function useAgentChat(): UseAgentChatResult {
         role: 'user',
         content: raw,
         timestamp: Date.now(),
+        sshSessionId: activeSessionId ?? undefined,
       }
       addMessage(userMessage)
 
@@ -201,6 +208,7 @@ export function useAgentChat(): UseAgentChatResult {
         timestamp: Date.now(),
         isStreaming: true,
         providerId: selectedProviderId ?? undefined,
+        sshSessionId: activeSessionId ?? undefined,
       })
       setStreaming(true)
       // 开新一轮就把上一次的失败提示收掉。lastError 原先只在 clearMessages 时重置，
@@ -238,13 +246,11 @@ export function useAgentChat(): UseAgentChatResult {
       }
 
       try {
-        const history = useAgentStore
-          .getState()
-          .messages.filter(
-            (m) =>
-              (m.role === 'user' || m.role === 'assistant') &&
-              !(m.role === 'assistant' && m.id === assistantId)
-          )
+        const history = historyForSession(
+          useAgentStore.getState().messages,
+          activeSessionId ?? undefined
+        )
+          .filter((m) => !(m.role === 'assistant' && m.id === assistantId))
           .map((m) => ({
             role: m.role as 'user' | 'assistant',
             content: m.content,

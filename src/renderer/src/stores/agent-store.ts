@@ -82,6 +82,13 @@ export interface AgentMessage {
   errorMessage?: string
   /** 错误分类码（来自 AgentErrorPayload.code）：决定那条错误下面给哪个"下一步"按钮 */
   errorCode?: LlmErrorCode
+  /**
+   * 这条消息属于哪个 SSH 会话（undefined = 本机/未连接）
+   *
+   * 对话历史必须按会话隔离：A 机聊过的内容不能作为上下文发给 B 机，
+   * 否则模型会拿着 A 的命令块去 B 上执行（2026-10-21 全维度审查 D2）。
+   */
+  sshSessionId?: string
   /** 触发的 Provider ID（assistant 消息用，用于展示） */
   providerId?: string
   /** 实际使用的模型名（assistant 消息用，done 事件回填） */
@@ -311,6 +318,24 @@ interface AgentState {
  * 带工具的对话最多 12 步，同一份上下文被数了 12 遍——拿它当"窗口还剩多少"会虚高一个量级。
  * 老消息（回填前产生的）没有 contextTokens，才退回 inputTokens。
  */
+/**
+ * 只取发给模型的对话历史，且只取当前 SSH 会话那部分。
+ *
+ * 不按会话过滤时，切到 B 机后历史里还带着 A 机的命令块，模型会拿着 A 的上下文
+ * 在 B 上执行（2026-10-21 全维度审查 D2）。旧消息没有 sshSessionId 字段，
+ * 对远程会话一律不发送——安全侧多排除一点，代价只是升级后第一轮少一点旧上下文。
+ */
+export function historyForSession(
+  messages: readonly AgentMessage[],
+  sshSessionId: string | undefined
+): AgentMessage[] {
+  return messages.filter(
+    (m) =>
+      (m.role === 'user' || m.role === 'assistant') &&
+      m.sshSessionId === sshSessionId
+  )
+}
+
 export function latestContextTokens(messages: AgentMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]

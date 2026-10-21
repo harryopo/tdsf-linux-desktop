@@ -30,6 +30,7 @@ import { useAppearanceStore, CODE_FONT_STACKS } from './stores/appearance-store'
 import { ErrorBoundary } from './components/ErrorBoundary'
 // P0 修复：Agent 流式事件全局订阅（与 AIPanel 挂载解耦，防止流式中收起面板丢事件）
 import { initAgentStreamSubscription } from './stores/agent-stream-subscription'
+import { initSshStateSubscription } from './stores/ssh-state-subscription'
 import { installTerminalBus } from './terminal/terminal-bus'
 import './styles/tailwind.css'
 import './styles/global.css'
@@ -60,6 +61,8 @@ window.addEventListener('unhandledrejection', (event) => {
 
 // Agent 流式事件在应用启动时绑定一次，组件卸载不解绑（幂等）
 initAgentStreamSubscription()
+// 断线/重连状态同上：不订阅的话状态栏会一直显示「SSH已连接」
+initSshStateSubscription()
 
 // 终端输出总线同上：terminal:data 全窗口只在这里订阅一次。
 // 必须早于任何"开终端"，否则开场那段输出（MOTD / 第一条回显）没人接。
