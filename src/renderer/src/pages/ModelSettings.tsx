@@ -22,6 +22,7 @@
  *                  （当时一并引入了三列 ModelSettingsHeader，随 F3 删除：返回口和底部保存都是重复件）
  */
 import { useState, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
@@ -61,7 +62,8 @@ export function ModelSettings() {
   // hasLlmApiKey：主进程"存没存过 Key"的布尔量（storage:hasApiKey）。
   // 界面只拿它决定提示文案，Key 原文不再跨 IPC 回来（2026-10-09 安全审查 P0-3，
   // 原 storage:getApiKey 通道已删）。
-  const { llmConfig, hasLlmApiKey, setLlmConfig, loadSettings, saveSettings } = useSettingsStore()
+  const { llmConfig, hasLlmApiKey, setLlmConfig, loadSettings, saveSettings, clearLlmApiKey } =
+    useSettingsStore()
 
   // Provider 列表 + 当前默认 Provider ID
   // P0 修复：本页同步目标从“盲写 providers[0] 并强制设默认”改为“写当前默认 Provider”，
@@ -316,6 +318,19 @@ export function ModelSettings() {
   // 测试连接：调用真实 llmTest IPC（llm:test 通道），测量往返延迟
   //
   // v2.3.4 改造：使用 LlmTestResult 而非 boolean，能拿到具体失败原因（401/404/网络/超时等）
+  const handleDeleteSavedKey = async () => {
+    if (!window.confirm('清除后模型会立刻失去 Key，需要重新填写。确定清除？')) return
+    const failure = await clearLlmApiKey()
+    if (failure) {
+      toast.error(failure)
+      return
+    }
+    setApiKey('')
+    setTestResult('idle')
+    setTestLogs([])
+    toast.success('已清除本机保存的 API Key')
+  }
+
   const handleTestConnection = async () => {
     if (isTesting) return
     setIsTesting(true)
@@ -612,6 +627,7 @@ export function ModelSettings() {
           apiKey={apiKey}
           onApiKeyChange={setApiKey}
           hasSavedKey={hasLlmApiKey}
+          onDeleteSavedKey={handleDeleteSavedKey}
           showApiKey={showApiKey}
           onToggleShowApiKey={() => setShowApiKey((v) => !v)}
           onTestConnection={handleTestConnection}

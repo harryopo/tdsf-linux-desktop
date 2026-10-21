@@ -17,7 +17,7 @@
 import './HistoryPage.css'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Clock, Cpu, Filter, Inbox, Search, Sparkles, UserCircle } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, Clock, Cpu, Filter, Inbox, Search, Sparkles, UserCircle } from 'lucide-react'
 import { Button, PageHeader } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -159,6 +159,10 @@ export function HistoryPage() {
   const [historyStats, setHistoryStats] = useState<HistoryStats | null>(null)
   /** 高危命令拦截记录：核心卖点「拦下了什么」必须能在界面上复盘 */
   const [blocked, setBlocked] = useState<BlockedCommandRecord[]>([])
+  /** 决策历史读取失败的原因；失败 ≠ 没有记录，界面必须分开说 */
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  /** 重试计数：作为 effect 依赖重新拉取 */
+  const [reloadKey, setReloadKey] = useState(0)
 
   // 挂载时拉取真实决策历史与统计数据
   useEffect(() => {
@@ -170,6 +174,7 @@ export function HistoryPage() {
     }
     let cancelled = false
 
+    setHistoryError(null)
     window.electronAPI
       .historyList(0, 1000)
       .then((cards) => {
@@ -184,8 +189,9 @@ export function HistoryPage() {
       .catch((err) => {
         if (cancelled) return
         console.warn('[HistoryPage] 拉取决策历史失败', err)
-        // 拉取失败就显示空状态并说明失败，不显示任何编造记录
+        // 失败与"没有记录"是两件事：清空列表但把原因交给空态区如实显示
         setRecords([])
+        setHistoryError(err instanceof Error ? err.message : String(err))
       })
       .finally(() => {
         // no-op：保留 finally 钩子便于后续接入加载态
@@ -223,7 +229,7 @@ export function HistoryPage() {
     }
 
     return () => { cancelled = true }
-  }, [])
+  }, [reloadKey])
 
   // 服务器列表优先使用 stats.servers；IPC 不可用或 total=0 时回退到 records 派生
   const servers = useMemo(() => {
@@ -370,24 +376,44 @@ export function HistoryPage() {
       <section className="hist-timeline-section">
         <div className="hist-timeline">
           {filteredRecords.length === 0 && (
-            <Empty
-              icon={Inbox}
-              title={
-                noLocalStore
-                  ? '浏览器预览环境读不到本机决策库'
-                  : records.length === 0
-                    ? '还没有决策记录'
-                    : '未匹配到任何决策记录'
-              }
-              description={
-                noLocalStore
-                  ? '在桌面应用里运行即可读取本机的决策历史；这里不展示示例数据。'
-                  : records.length === 0
-                    ? '与 AI 对话并执行命令后，每一次决策会记录在这里。'
-                    : '当前筛选条件下没有记录，请尝试调整时间范围、服务器或状态筛选。'
-              }
-              className="hist-timeline-empty"
-            />
+            historyError ? (
+              <Empty
+                icon={AlertCircle}
+                title="读取决策历史失败"
+                description={`本机决策库暂时读不出来：${historyError}`}
+                className="hist-timeline-empty"
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-dom-id="retry-history"
+                    aria-label="重新读取决策历史"
+                    onClick={() => setReloadKey((k) => k + 1)}
+                  >
+                    重试
+                  </Button>
+                }
+              />
+            ) : (
+              <Empty
+                icon={Inbox}
+                title={
+                  noLocalStore
+                    ? '浏览器预览环境读不到本机决策库'
+                    : records.length === 0
+                      ? '还没有决策记录'
+                      : '未匹配到任何决策记录'
+                }
+                description={
+                  noLocalStore
+                    ? '在桌面应用里运行即可读取本机的决策历史；这里不展示示例数据。'
+                    : records.length === 0
+                      ? '与 AI 对话并执行命令后，每一次决策会记录在这里。'
+                      : '当前筛选条件下没有记录，请尝试调整时间范围、服务器或状态筛选。'
+                }
+                className="hist-timeline-empty"
+              />
+            )
           )}
           {pagedRecords.map((record, idx) => {
             const isLast = idx === pagedRecords.length - 1

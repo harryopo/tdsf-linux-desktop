@@ -454,6 +454,8 @@ export const CONFIG = {
  * - SAVE        invoke  渲染 → 主：保存服务器配置
  * - EXPORT      invoke  渲染 → 主：导出服务器配置 JSON
  * - IMPORT      invoke  渲染 → 主：导入服务器配置 JSON
+ * - EXPORT_FILE invoke  渲染 → 主：弹保存框并写文件（不含凭据）
+ * - IMPORT_FILE invoke  渲染 → 主：弹打开框并导入（凭据留空）
  * - DELETE_CRED invoke  渲染 → 主：删除服务器凭据
  */
 export const SERVER = {
@@ -465,6 +467,10 @@ export const SERVER = {
   EXPORT: 'server:export',
   /** 导入服务器配置 JSON（invoke: 渲染 → 主） */
   IMPORT: 'server:import',
+  /** 导出服务器配置到用户选定的文件（invoke: 渲染 → 主，主进程弹保存框） */
+  EXPORT_FILE: 'server:export-file',
+  /** 从用户选定的文件导入服务器配置（invoke: 渲染 → 主，主进程弹打开框） */
+  IMPORT_FILE: 'server:import-file',
   /** 删除服务器凭据（invoke: 渲染 → 主） */
   DELETE_CRED: 'server:delete-cred',
 } as const

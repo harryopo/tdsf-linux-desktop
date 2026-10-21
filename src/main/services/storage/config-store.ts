@@ -82,6 +82,7 @@ const store = new Store<ConfigSchema>({
  * 这里只留一个转发，避免同一件事有两份。
  */
 import { stripServerCredentials, toServerListItem, carriesCredential } from './server-credentials'
+import { normalizeImportedServer } from './server-import'
 
 export class ConfigStore {
   /**
@@ -421,36 +422,21 @@ export class ConfigStore {
     const existingIds = new Set(existing.map((s) => s.id))
     const imported: SshConfig[] = []
     for (const item of parsed) {
-      const s = item as Partial<SshConfig>
-      // 基本字段校验
-      if (!s.host || !s.username) {
-        continue // 跳过无效条目
-      }
-      // 生成唯一 ID
       let newId = randomUUID()
       while (existingIds.has(newId)) {
         newId = randomUUID()
       }
+      const normalized = normalizeImportedServer(item, newId)
+      if (!normalized) continue
       existingIds.add(newId)
-      imported.push({
-        id: newId,
-        name: s.name ?? `${s.host}:${s.port ?? 22}`,
-        host: s.host,
-        port: s.port ?? 22,
-        username: s.username,
-        authType: s.authType ?? 'password',
-        privateKeyPath: s.privateKeyPath,
-        keepAlive: s.keepAlive,
-        // 敏感信息留空，需要用户重新输入
-        password: undefined,
-        privateKey: undefined,
-        passphrase: undefined,
-      })
+      imported.push(normalized)
     }
 
-    // 合并到现有列表并保存
+    // 合并到现有列表并保存；写盘失败要让界面知道，不能回"导入成功"
     const merged = [...existing, ...imported]
-    this.saveServerList(merged)
+    if (!this.saveServerList(merged)) {
+      throw new Error('导入内容已解析，但写入服务器列表失败')
+    }
     return imported
   }
 }

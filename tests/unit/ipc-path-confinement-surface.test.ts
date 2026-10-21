@@ -42,6 +42,9 @@ const LOCAL_DEST_CHANNELS: Record<string, Defense> = {
   "'subagent:reload'": 'confinement',
   'APP.DOWNLOAD_UPDATE': 'external-url',
   'APP.EXPORT_MODEL_STATS': 'fixed-path',
+  // 2026-10-21 服务器列表导入/导出：目的地与来源都由主进程弹框选，渲染层拿不到路径
+  'SERVER.EXPORT_FILE': 'dialog',
+  'SERVER.IMPORT_FILE': 'dialog',
   'SFTP.WRITE_FILE': 'remote-only',
   'SFTP.MKDIR': 'remote-only',
   // 2026-10-15 全维度审查 A7：这两条以前逃在扫描面外，只因入参叫 outputDir 而不叫 *Path。

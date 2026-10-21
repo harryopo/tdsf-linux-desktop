@@ -480,6 +480,52 @@ export function SshSettings() {
   )
 
   const ipcAvailable = isElectronAPIAvailable()
+  /** 导入/导出进行中：两个按钮一起禁用，避免并发弹两个文件框 */
+  const [transferBusy, setTransferBusy] = useState(false)
+
+  const handleExportServers = async () => {
+    if (!window.electronAPI?.serverExportFile) {
+      toast.error('当前环境不支持导出服务器列表')
+      return
+    }
+    setTransferBusy(true)
+    try {
+      const result = await window.electronAPI.serverExportFile()
+      if (result.canceled) return
+      if (!result.ok) {
+        toast.error(`导出失败：${result.error ?? '未知原因'}`)
+        return
+      }
+      toast.success(`已导出 ${servers.length} 台服务器（不含密码和私钥）`)
+    } catch (err) {
+      toast.error(`导出失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setTransferBusy(false)
+    }
+  }
+
+  const handleImportServers = async () => {
+    if (!window.electronAPI?.serverImportFile) {
+      toast.error('当前环境不支持导入服务器列表')
+      return
+    }
+    setTransferBusy(true)
+    try {
+      const result = await window.electronAPI.serverImportFile()
+      if (result.canceled) return
+      if (!result.ok) {
+        toast.error(`导入失败：${result.error ?? '未知原因'}`)
+        return
+      }
+      // 主进程已经落盘；强制重读一次，列表以主进程为准
+      await hydrateFromMain(true)
+      toast.success(`已导入 ${result.imported ?? 0} 台服务器；密码/私钥需要重新填写`)
+    } catch (err) {
+      toast.error(`导入失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setTransferBusy(false)
+    }
+  }
 
   return (
     <div className="set-subpage">
@@ -497,6 +543,9 @@ export function SshSettings() {
           onEdit={handleEditServer}
           onAdd={handleAddServer}
           onDelete={handleDeleteServer}
+          onExport={() => void handleExportServers()}
+          onImport={() => void handleImportServers()}
+          transferBusy={transferBusy}
         />
 
         <KeyCard

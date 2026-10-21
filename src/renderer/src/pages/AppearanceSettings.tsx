@@ -105,6 +105,10 @@ export function AppearanceSettings() {
   /** 当前界面明暗：决定"跟随界面"那一格预览成深色还是浅色 */
   const uiTheme = useThemeStore((s) => s.theme)
   const codeThemeOptions = buildCodeThemeOptions(uiTheme)
+  // tag 显示"当前选的是哪档"，不是内部配置键（theme.mode 这类词对用户没有意义）
+  const themeModeLabel = THEME_MODES.find((opt) => opt.value === themeMode)?.name ?? ''
+  const densityLabel = DENSITIES.find((opt) => opt.value === density)?.name ?? ''
+  const codeThemeLabel = CODE_THEMES[codeTheme].label
 
   const setThemeMode = (v: ThemeMode) => setAppearance('themeMode', v)
   const setCodeFont = (v: string) => setAppearance('codeFont', v)
@@ -119,7 +123,7 @@ export function AppearanceSettings() {
 
       <div className="set-subpage__body">
         {/* Card 1: 主题模式（带视觉预览的 radio 卡片） */}
-        <SettingsCard icon={Moon} title="主题模式" tag="theme.mode">
+        <SettingsCard icon={Moon} title="主题模式" tag={themeModeLabel}>
           <div className="set-theme-grid">
             {THEME_MODES.map((opt) => {
               const selected = themeMode === opt.value
@@ -202,7 +206,7 @@ export function AppearanceSettings() {
         </SettingsCard>
 
         {/* Card 4: 界面密度（radio 卡片） */}
-        <SettingsCard icon={LayoutGrid} title="界面密度" tag="ui.density">
+        <SettingsCard icon={LayoutGrid} title="界面密度" tag={densityLabel}>
           <div className="set-density-grid">
             {DENSITIES.map((opt) => {
               const selected = density === opt.value
@@ -231,7 +235,7 @@ export function AppearanceSettings() {
         </SettingsCard>
 
         {/* Card 5: 代码高亮主题（4 个卡片网格 + 代码预览） */}
-        <SettingsCard icon={Code2} title="代码高亮主题" tag="syntax.theme">
+        <SettingsCard icon={Code2} title="代码高亮主题" tag={codeThemeLabel}>
           <div className="set-code-grid">
             {codeThemeOptions.map((opt) => {
               const selected = codeTheme === opt.value

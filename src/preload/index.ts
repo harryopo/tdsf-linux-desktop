@@ -147,6 +147,8 @@ const electronApi = {
   serverSave: server.save,
   serverExport: server.export,
   serverImport: server.import,
+  serverExportFile: server.exportFile,
+  serverImportFile: server.importFile,
   serverDeleteCred: server.deleteCred,
 
   // ===== 事件监听扁平化 =====

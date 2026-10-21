@@ -56,7 +56,7 @@ interface ServerState {
   /** 清除会话映射 */
   clearSessionMapping: (serverId: string) => void
   /** 从主进程加载（应用启动时调用） */
-  hydrateFromMain: () => Promise<void>
+  hydrateFromMain: (force?: boolean) => Promise<void>
 }
 
 /**
@@ -254,12 +254,12 @@ export const useServerStore = create<ServerState>()(
        * - 主进程无数据但 localStorage 有：可能是旧版本迁移或主进程数据丢失，
        *   用 localStorage 回写主进程（此时必然无凭据，用户要重新输一次口令）
        */
-      hydrateFromMain: async () => {
+      hydrateFromMain: async (force = false) => {
         if (!isElectronAPIAvailable()) {
           console.warn('[ServerStore] electronAPI 不可用，跳过主进程加载')
           return
         }
-        if (get()._hydrated) {
+        if (get()._hydrated && !force) {
           console.log('[ServerStore] 已从主进程加载过，跳过')
           return
         }

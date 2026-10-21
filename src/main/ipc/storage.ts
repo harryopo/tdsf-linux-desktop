@@ -17,11 +17,13 @@
  */
 
 import { ipcMain } from 'electron'
+import { promises as fs } from 'node:fs'
 import { STORAGE, CONFIG, SERVER } from '@shared/ipc-channels'
 import { SecureStore } from '../services/storage/secure-store'
 import { ConfigStore } from '../services/storage/config-store'
 import { assertSafeApiBaseUrl } from '../services/security/url-policy'
 import { configKeyIsWritable, isPlainConfigValue } from '../services/storage/config-policy'
+import { pickExistingFiles, pickSavePath } from '../services/security/dialog-paths'
 import { logger } from '../services/log/logger'
 import type { LlmConfig, SshConfig } from '@shared/models'
 
@@ -132,6 +134,54 @@ export function registerStorageIpcHandlers(): void {
   /** server:delete-cred — 删除服务器凭证 */
   ipcMain.handle(SERVER.DELETE_CRED, async (_event, serverId: string) => {
     return SecureStore.deleteServerCredential(serverId)
+  })
+
+  /**
+   * server:export-file — 用户选保存位置，写一份不含凭据的服务器列表
+   *
+   * 导出内容由 ConfigStore.exportServerList() 统一剥凭据，渲染层拿不到路径也拿不到原文；
+   * 取消不是错误，回 canceled 让界面安静收场。
+   */
+  ipcMain.handle(SERVER.EXPORT_FILE, async () => {
+    try {
+      const target = await pickSavePath({
+        title: '导出服务器列表',
+        defaultPath: 'tdsf-servers.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (!target) return { ok: false, canceled: true }
+      await fs.writeFile(target, ConfigStore.exportServerList(), 'utf8')
+      return { ok: true, path: target }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      logger.warn('STORAGE', '导出服务器列表失败', { error })
+      return { ok: false, error }
+    }
+  })
+
+  /**
+   * server:import-file — 用户选文件，导入服务器列表（新 ID、凭据留空）
+   *
+   * 文件来自用户手选，内容仍按不可信输入处理：限制 2MB，交给 ConfigStore 做逐条校验。
+   */
+  ipcMain.handle(SERVER.IMPORT_FILE, async () => {
+    try {
+      const [source] = await pickExistingFiles({
+        title: '导入服务器列表',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (!source) return { ok: false, canceled: true }
+      const stat = await fs.stat(source)
+      if (stat.size > 2 * 1024 * 1024) {
+        return { ok: false, error: '文件超过 2MB，不像是服务器列表' }
+      }
+      const imported = ConfigStore.importServerList(await fs.readFile(source, 'utf8'))
+      return { ok: true, imported: imported.length }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      logger.warn('STORAGE', '导入服务器列表失败', { error })
+      return { ok: false, error }
+    }
   })
 }
 

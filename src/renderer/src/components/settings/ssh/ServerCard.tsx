@@ -23,6 +23,8 @@ import {
   Loader2,
   Lock,
   KeyRound,
+  Download,
+  Upload,
 } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { Empty } from '@/components/trae/Empty'
@@ -80,6 +82,12 @@ export interface ServerCardProps {
   onAdd: () => void
   /** 删除服务器（已包含 confirmDialog 流程） */
   onDelete: (server: ServerListItem) => void
+  /** 导出服务器列表到用户选定的 JSON 文件（不含凭据） */
+  onExport: () => void
+  /** 从用户选定的 JSON 文件导入服务器列表（凭据留空） */
+  onImport: () => void
+  /** 正在导入/导出（两钮同时禁用） */
+  transferBusy?: boolean
 }
 
 export function ServerCard(props: ServerCardProps) {
@@ -94,6 +102,9 @@ export function ServerCard(props: ServerCardProps) {
     onEdit,
     onAdd,
     onDelete,
+    onExport,
+    onImport,
+    transferBusy = false,
   } = props
 
   return (
@@ -102,6 +113,30 @@ export function ServerCard(props: ServerCardProps) {
       title="已连接服务器"
       tag={`${servers.length} servers`}
     >
+      {ipcAvailable && (
+        <div className="mb-2 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            data-dom-id="import-servers"
+            disabled={transferBusy}
+            onClick={onImport}
+            className="set-btn-ghost btn-press"
+          >
+            <Upload className="di-12" />
+            导入列表
+          </button>
+          <button
+            type="button"
+            data-dom-id="export-servers"
+            disabled={transferBusy}
+            onClick={onExport}
+            className="set-btn-ghost btn-press"
+          >
+            <Download className="di-12" />
+            导出列表
+          </button>
+        </div>
+      )}
       {!ipcAvailable ? (
         <Empty
           icon={Server}

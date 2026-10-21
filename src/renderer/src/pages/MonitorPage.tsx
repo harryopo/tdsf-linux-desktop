@@ -238,7 +238,14 @@ export function MonitorPage() {
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
       {/* 2. 顶部 critical 告警横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer）
           三态渲染：有告警 → 红色横幅；无告警 → 灰色占位 */}
-      {criticalAlert ? (
+      {!activeSessionId ? (
+        <div className="mon-alert mon-alert-normal flex items-center gap-2 mb-3">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 text-ink-mute" />
+          <p className="mon-alert-desc flex-1 min-w-0 text-ink-dim">
+            未连接服务器 · 连接后显示实时监控
+          </p>
+        </div>
+      ) : criticalAlert ? (
         <div
           role="alert"
           data-dom-id="goto-alert-detail"

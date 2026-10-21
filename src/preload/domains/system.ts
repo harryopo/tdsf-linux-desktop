@@ -85,6 +85,14 @@ const server = {
   import: (json: string): Promise<SshConfig[]> =>
     ipcRenderer.invoke(SERVER.IMPORT, json),
 
+  /** 弹保存框导出服务器列表（不含凭据；取消回 canceled） */
+  exportFile: (): Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }> =>
+    invokeChecked('serverExportFile', SERVER.EXPORT_FILE),
+
+  /** 弹打开框导入服务器列表（新 ID、凭据留空；取消回 canceled） */
+  importFile: (): Promise<{ ok: boolean; canceled?: boolean; imported?: number; error?: string }> =>
+    invokeChecked('serverImportFile', SERVER.IMPORT_FILE),
+
   /** 删除服务器凭证 */
   deleteCred: (serverId: string): Promise<boolean> =>
     ipcRenderer.invoke(SERVER.DELETE_CRED, serverId),

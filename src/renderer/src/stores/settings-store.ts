@@ -91,6 +91,12 @@ interface SettingsState {
    *   于是 safeStorage 不可用（Linux 无 libsecret）时界面报"配置已保存"，用户下次开机发现 Key 没了。
    */
   saveSettings: () => Promise<string | null>
+  /**
+   * 清除主进程已保存的 LLM Key（显式动作，不与"输入框留空"混为一谈）
+   *
+   * @returns null=已删除；字符串=没删成的原因
+   */
+  clearLlmApiKey: () => Promise<string | null>
 }
 
 /** 设置 Store */
@@ -223,6 +229,24 @@ export const useSettingsStore = create<SettingsState>()(
           const msg = error instanceof Error ? error.message : String(error)
           console.error('保存设置失败:', error)
           return `保存失败：${msg}`
+        }
+      },
+
+      clearLlmApiKey: async (): Promise<string | null> => {
+        if (!isElectronAPIAvailable() || !window.electronAPI?.storageDeleteApiKey) {
+          return '当前环境无法清除已保存的 Key'
+        }
+        try {
+          const deleted = await window.electronAPI.storageDeleteApiKey('llm')
+          if (!deleted) return '清除失败：主进程没有确认删除'
+          set((state) => ({
+            hasLlmApiKey: false,
+            llmConfig: { ...state.llmConfig, apiKey: '' },
+          }))
+          return null
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          return `清除失败：${msg}`
         }
       },
     }),

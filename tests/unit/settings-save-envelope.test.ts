@@ -18,6 +18,7 @@ interface ApiCalls {
   storageSaveApiKey: (provider: string, key: string) => Promise<boolean>
   configSet: (key: string, value: unknown) => Promise<boolean>
   configSaveLlm: (config: unknown) => Promise<{ ok: boolean; error?: string }>
+  storageDeleteApiKey: (provider: string) => Promise<boolean>
 }
 
 /**
@@ -30,6 +31,7 @@ function installApi(partial: Partial<ApiCalls>): void {
     storageSaveApiKey: async () => true,
     configSet: async () => true,
     configSaveLlm: async () => ({ ok: true }),
+    storageDeleteApiKey: async () => true,
     ...partial,
   }
   Object.defineProperty(globalThis, 'window', {
@@ -98,5 +100,36 @@ describe('saveSettings 如实回报主进程的拒绝', () => {
     installApi({ configSaveLlm: async () => { throw new Error('通道被拒绝') } })
     const err = await useSettingsStore.getState().saveSettings()
     expect(err).toMatch(/保存失败：通道被拒绝/)
+  })
+})
+
+describe('clearLlmApiKey 是显式删除，不与输入框留空混为一谈', () => {
+  it('主进程确认删除 → 布尔量翻回未存，Key 字段清空', async () => {
+    let deletedProvider = ''
+    installApi({
+      storageDeleteApiKey: async (provider) => {
+        deletedProvider = provider
+        return true
+      },
+    })
+    useSettingsStore.setState({ hasLlmApiKey: true })
+    useSettingsStore.getState().setLlmConfig({ apiKey: 'sk-test-123' })
+
+    const err = await useSettingsStore.getState().clearLlmApiKey()
+
+    expect(err).toBeNull()
+    expect(deletedProvider, '删的必须是主进程 llm.ts 实际读取的那条 llm').toBe('llm')
+    expect(useSettingsStore.getState().hasLlmApiKey).toBe(false)
+    expect(useSettingsStore.getState().llmConfig.apiKey).toBe('')
+  })
+
+  it('主进程回 false → 报原因且不改界面状态', async () => {
+    installApi({ storageDeleteApiKey: async () => false })
+    useSettingsStore.setState({ hasLlmApiKey: true })
+
+    const err = await useSettingsStore.getState().clearLlmApiKey()
+
+    expect(err).toMatch(/没有确认删除/)
+    expect(useSettingsStore.getState().hasLlmApiKey, '没删成不许把界面显示成未存').toBe(true)
   })
 })

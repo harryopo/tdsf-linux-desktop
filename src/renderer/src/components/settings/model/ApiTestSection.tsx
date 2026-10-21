@@ -33,6 +33,8 @@ export interface ApiTestSectionProps {
    * 留空 = 保持不动，不是清空；界面上永远看不到那串 Key。
    */
   hasSavedKey: boolean
+  /** 显式清除主进程已保存的 Key（需用户确认；与"输入框留空"是两件事） */
+  onDeleteSavedKey: () => void
   /** 是否显示 API Key 明文 */
   showApiKey: boolean
   /** 切换 API Key 显示/隐藏 */
@@ -60,6 +62,7 @@ export function ApiTestSection(props: ApiTestSectionProps) {
     apiKey,
     onApiKeyChange,
     hasSavedKey,
+    onDeleteSavedKey,
     showApiKey,
     onToggleShowApiKey,
     onTestConnection,
@@ -129,6 +132,16 @@ export function ApiTestSection(props: ApiTestSectionProps) {
                 {hasSavedKey
                   ? '已加密存在本机，界面上不显示这串字符。留空＝不改，粘贴新的即替换。'
                   : '还没填 Key，大模型连不上。到服务商控制台建一个粘进来，再点下面「测试连接」。'}
+                {hasSavedKey && (
+                  <button
+                    type="button"
+                    data-dom-id="delete-llm-key"
+                    onClick={onDeleteSavedKey}
+                    className="set-api-hint__action btn-press"
+                  >
+                    清除已保存的 Key
+                  </button>
+                )}
               </p>
             )}
           </div>

@@ -188,7 +188,9 @@ schedulerToggle
 schedulerTrigger
 serverDeleteCred
 serverExport
+serverExportFile
 serverImport
+serverImportFile
 serverList
 serverSave
 sftpChmod

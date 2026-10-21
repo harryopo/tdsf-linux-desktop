@@ -187,6 +187,14 @@ export interface ContractedInvokeApi {
   /** 对话框选择图片并返回 base64 data URL
    * 通道 `fs:upload-image` */
   fsUploadImage(): Promise<{ success: true; dataUrl: string; fileName: string; fileSize: number; mimeType: string } | { success: false; error: string }>
+
+  /** 弹保存框导出服务器列表（不含密码/私钥）
+   * 通道 `server:export-file` */
+  serverExportFile(): Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
+
+  /** 弹打开框导入服务器列表（新 ID，凭据留空）
+   * 通道 `server:import-file` */
+  serverImportFile(): Promise<{ ok: boolean; canceled?: boolean; imported?: number; error?: string }>
 }
 
 /** 已纳入契约的推送通道：订阅函数的负载类型以这里为准 */

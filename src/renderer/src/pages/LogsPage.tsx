@@ -11,10 +11,10 @@
  *   3. 两栏布局：
  *      - 左 180px LogSidebar：5 主类(系统/应用/安全/AI决策/告警) + 4 服务器系统日志路径
  *      - 右 LogViewer：终端风格（#0F1011）+ 浮动统计卡 + 15 行日志 + 闪烁光标
- *   4. Status bar (24px)：系统日志 · 1,247 条 + 最新 14:23:17 + 实时流 + 导出 CSV
+ *   4. Status bar (24px)：系统日志 · N 条 + 最新时间 + 实时流 + 导出 CSV
  *
  * 数据：
- *   - 初次进入展示设计稿 15 行示例数据（便于空库场景下仍有可视化）
+ *   - 空库不造假：没有日志就显示空态，状态栏写明"尚未加载"或"接口不可用"
  *   - 点击"刷新"调用 IPC log:read 拉取真实日志流，转换后注入 LogViewer
  *
  * 视觉：全部 var(--trae-*) token；终端背景 #0F1011（设计稿 --log-terminal-bg）
@@ -325,7 +325,7 @@ export function LogsPage() {
    *
    * 流程：
    *   1. 调用 logRead({limit: 10000}) 拉取全量真实日志
-   *   2. 拉取失败或为空时降级到当前 filteredEntries（设计稿示例数据）
+   *   2. 拉取失败或为空时导出当前筛选结果（仍是真实数据，不再混入示例）
    *   3. 用户在导出前选择格式（CSV 默认 / JSON）
    *   4. CSV：UTF-8 BOM + 字段转义 + CSV 注入防御
    *   5. JSON：结构化数组，含 timestamp/level/source/message 原始字段
@@ -343,7 +343,7 @@ export function LogsPage() {
           exportEntries = ipcLogEntriesToLogEntries(result as IpcLogEntry[])
           toast.info(`准备导出 ${exportEntries.length} 条真实日志`)
         } else {
-          toast.info('日志库为空，导出当前显示的示例数据')
+          toast.info(`日志库为空，导出当前筛选的 ${exportEntries.length} 条`)
         }
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err)

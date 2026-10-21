@@ -999,6 +999,15 @@
   line-height: var(--trae-body-base-line-height);
   color: var(--text-tertiary);
 }
+.set-api-hint__action {
+  margin-left: 8px;
+  color: var(--trae-text-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.set-api-hint__action:hover {
+  color: var(--trae-text-brand-hover);
+}
 .set-api-input {
   height: 32px;
   width: 100%;

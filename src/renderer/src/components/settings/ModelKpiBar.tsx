@@ -97,12 +97,13 @@ function buildKpis(
     },
     {
       label: '成功率',
-      value: successRate !== null ? (successRate * 100).toFixed(1) : '0.0',
-      unit: '%',
+      // 没有决策记录时显示“—”，不要用绿色 0.0%：那会被读成“系统在跑但全都失败”
+      value: successRate !== null ? (successRate * 100).toFixed(1) : '—',
+      unit: successRate !== null ? '%' : '',
       trend: successRate !== null ? `${(successRate * 100).toFixed(1)}%` : '—',
-      valueColor: 'var(--status-success-text)',
+      valueColor: successRate !== null ? 'var(--status-success-text)' : 'var(--text-muted)',
       points: '',
-      strokeColor: 'var(--status-success-text)',
+      strokeColor: successRate !== null ? 'var(--status-success-text)' : 'var(--text-muted)',
     },
   ]
 }

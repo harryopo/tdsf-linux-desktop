@@ -105,15 +105,15 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-20 14:13**：单元与结构读数出自 14:13 那轮，端到端 13:51 那轮（之后只改了文档与判据，应用代码没动，所以端到端不必重跑），UTC+8。
+下表测量时间 **2026-10-21 00:17**：单元与结构读数出自 00:17 那轮，端到端读数见下一行说明（本轮重跑后更新）。
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3197 通过 / 19 跳过 | `npm test`（270 个测试文件：268 通过 / 2 按环境跳过） |
+| 单元与组件用例 | 3285 通过 / 19 跳过 | `npm test`（286 个测试文件：284 通过 / 2 按环境跳过） |
 | 端到端用例 | 59 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
-| IPC 通道 | 270 | `npm run audit:ipc`（231 请求-响应 + 39 事件推送） |
-| 已登记契约的通道 | 51 | `src/shared/ipc-contract.ts`（46 invoke + 5 event） |
-| TypeScript / TSX 源文件 | 499 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| IPC 通道 | 273 | `npm run audit:ipc`（234 请求-响应 + 39 事件推送） |
+| 已登记契约的通道 | 53 | `src/shared/ipc-contract.ts`（48 invoke + 5 event） |
+| TypeScript / TSX 源文件 | 505 | `git ls-files src` 里 `.ts/.tsx` 计数 |
 | Provider 类型 | 7 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 
