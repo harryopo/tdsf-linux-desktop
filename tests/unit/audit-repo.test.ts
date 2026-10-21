@@ -86,6 +86,41 @@ describe('AuditRepo', () => {
   })
 })
 
+describe('拦截记录（历史页「被拦截的高危命令」）', () => {
+  let repo: AuditRepo
+  beforeEach(() => {
+    repo = freshRepo()
+  })
+
+  it('只取拦截行，并还原来源/原因/命中片段', () => {
+    repo.log({
+      category: 'cmd_exec',
+      action: '高危命令拦截（终端输入）',
+      command: 'rm -rf /',
+      exitCode: null,
+      riskLevel: 'block',
+      details: { reason: '递归强制删除根级/系统目录', matched: 'rm -rf /' },
+    })
+    // 普通执行记录不该混进来
+    repo.log({ category: 'cmd_exec', action: 'SSH 执行完成', command: 'df -h', exitCode: 0 })
+
+    const rows = repo.listBlocked(10)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].source).toBe('终端输入')
+    expect(rows[0].command).toBe('rm -rf /')
+    expect(rows[0].reason).toContain('递归强制删除')
+    expect(rows[0].matched).toBe('rm -rf /')
+    expect(rows[0].riskLevel).toBe('block')
+  })
+
+  it('库不可用时返回空数组，不抛（历史页不能因此打不开）', () => {
+    DatabaseManager.resetInstance()
+    const db = DatabaseManager.getInstance(':memory:')
+    db.close()
+    expect(new AuditRepo(db).listBlocked(10)).toEqual([])
+  })
+})
+
 describe('开关与保留期取值', () => {
   it('开关只有显式 false 才关（缺省全开，新用户默认有完整审计）', () => {
     expect(isAuditCategoryEnabled('cmd_exec', false)).toBe(false)

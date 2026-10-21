@@ -19,6 +19,7 @@ import { ConfigStore } from '../storage/config-store'
 import { logger } from '../log/logger'
 // 唯一的脱敏实现住在 services/security（providers/redact 那份是它的再导出，避免两处规则表）
 import { redactSecrets } from '../security/redact'
+import type { BlockedCommandRecord } from '@shared/audit-types'
 
 /** 审计类别，与设置页四个开关一一对应 */
 export type AuditCategory = 'cmd_exec' | 'file_mod' | 'ai_decision' | 'ssh_conn'
@@ -127,6 +128,47 @@ export class AuditRepo {
       return rows
     } catch (err) {
       logger.warn('DB', '读审计日志失败', { error: (err as Error).message })
+      return []
+    }
+  }
+
+  /**
+   * 高危命令拦截记录（历史页「拦截记录」区）
+   *
+   * 只取 action 以「高危命令拦截」开头的那批行：它们在写入时已经过 log() 的脱敏，
+   * 命令原文不会二次泄露。details 里存的是 reason/matched，解析失败就留空。
+   */
+  listBlocked(limit = 200): BlockedCommandRecord[] {
+    if (!this.db.isAvailable()) return []
+    try {
+      const rows = this.db
+        .prepare(
+          `SELECT id, timestamp, action, command, exitCode, userId, sessionId, riskLevel, details
+             FROM audit_logs
+            WHERE action LIKE 'cmd_exec:高危命令拦截%'
+            ORDER BY timestamp DESC LIMIT ?`,
+        )
+        .all(limit) as AuditRow[]
+      return rows.map((row) => {
+        let details: Record<string, unknown> = {}
+        try {
+          details = row.details ? (JSON.parse(row.details) as Record<string, unknown>) : {}
+        } catch {
+          // details 坏掉不影响这一条的展示：命令和原因至少还有一个
+        }
+        const source = /（(.+?)）/.exec(row.action)?.[1] ?? '未知来源'
+        return {
+          id: row.id,
+          timestamp: row.timestamp,
+          source,
+          command: row.command ?? '',
+          reason: String(details.reason ?? ''),
+          matched: String(details.matched ?? ''),
+          riskLevel: row.riskLevel ?? 'block',
+        }
+      })
+    } catch (err) {
+      logger.warn('DB', '读取拦截记录失败', { error: (err as Error).message })
       return []
     }
   }

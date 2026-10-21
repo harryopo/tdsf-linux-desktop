@@ -865,6 +865,66 @@ button[data-dom-id]:focus-visible {
   outline-offset: 2px;
 }
 
+/* 高危命令拦截记录：证明「拦下了什么」的最小可复盘区域 */
+.hist-blocked-section {
+  padding: 0 var(--trae-spacer-24) var(--trae-spacer-24);
+}
+
+.hist-blocked-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--trae-spacer-12);
+}
+
+.hist-blocked-title {
+  margin: 0;
+  font-size: var(--trae-body-base-font-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hist-blocked-count {
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--text-muted);
+}
+
+.hist-blocked-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--trae-spacer-8);
+}
+
+.hist-blocked-item {
+  padding: var(--trae-spacer-12);
+  background: var(--trae-bg-base-secondary);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-8);
+}
+
+.hist-blocked-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--trae-spacer-8);
+  margin-bottom: var(--trae-spacer-6);
+}
+
+.hist-blocked-source,
+.hist-blocked-time {
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--text-muted);
+}
+
+.hist-blocked-time {
+  margin-left: auto;
+}
+
+.hist-blocked-reason {
+  margin: var(--trae-spacer-6) 0 0;
+  font-size: var(--trae-body-sm-font-size);
+  color: var(--text-tertiary);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hist-btn-press {
     transition: none;

@@ -24,6 +24,7 @@ import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { buildSparklinePoints, baselineSparkline, type SparklineMetric } from '@/utils/history-sparkline'
 import { buildHistoryStats, deriveFromRecords } from '@/lib/history-stats'
 import type { DecisionCard, HistoryStats } from '@shared/models'
+import type { BlockedCommandRecord } from '@shared/audit-types'
 
 type DecisionStatus = '成功' | '失败' | '已拦截' | '待处理'
 type RiskLevel = '低风险' | '中风险' | '高风险'
@@ -123,6 +124,19 @@ function riskBadgeClass(risk: RiskLevel): string {
   return 'hist-tag hist-tag--danger'
 }
 
+/** 拦截记录的时间：同一天只显示时分，跨天带月日 */
+function formatBlockTime(ms: number): string {
+  const d = new Date(ms)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const today = new Date()
+  const sameDay =
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate()
+  return sameDay ? time : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`
+}
+
 // ===== 主组件 =====
 
 export function HistoryPage() {
@@ -143,6 +157,8 @@ export function HistoryPage() {
   /** 非 Electron 环境（无本地决策库）；用于把"没有数据"说成原因而不是留白 */
   const [noLocalStore, setNoLocalStore] = useState(false)
   const [historyStats, setHistoryStats] = useState<HistoryStats | null>(null)
+  /** 高危命令拦截记录：核心卖点「拦下了什么」必须能在界面上复盘 */
+  const [blocked, setBlocked] = useState<BlockedCommandRecord[]>([])
 
   // 挂载时拉取真实决策历史与统计数据
   useEffect(() => {
@@ -188,6 +204,21 @@ export function HistoryPage() {
         .catch((err) => {
           if (cancelled) return
           console.warn('[HistoryPage] 拉取历史统计失败', err)
+        })
+    }
+
+    // 拦截留痕：读不到就是没有（不补示例）；读到什么显示什么
+    if (window.electronAPI?.historyBlocks) {
+      window.electronAPI
+        .historyBlocks(200)
+        .then((rows) => {
+          if (cancelled) return
+          setBlocked(Array.isArray(rows) ? rows : [])
+        })
+        .catch((err) => {
+          if (cancelled) return
+          console.warn('[HistoryPage] 拉取拦截记录失败', err)
+          setBlocked([])
         })
     }
 
@@ -411,6 +442,32 @@ export function HistoryPage() {
           })}
         </div>
       </section>
+
+      {/* 4b. 高危命令拦截记录：产品最强的一次「救下」要能在这里复盘 */}
+      {blocked.length > 0 && (
+        <section className="hist-blocked-section" aria-labelledby="hist-blocked-heading">
+          <div className="hist-blocked-head">
+            <h2 id="hist-blocked-heading" className="hist-blocked-title">被拦截的高危命令</h2>
+            <span className="hist-blocked-count">共 {blocked.length} 条</span>
+          </div>
+          <div className="hist-blocked-list">
+            {blocked.slice(0, 20).map((item) => (
+              <div key={item.id} className="hist-blocked-item">
+                <div className="hist-blocked-meta">
+                  <span className="hist-tag hist-tag--danger">已拦截</span>
+                  <span className="hist-blocked-source">{item.source}</span>
+                  <span className="hist-blocked-time">{formatBlockTime(item.timestamp)}</span>
+                </div>
+                <code className="hist-decision-command is-danger">{item.command}</code>
+                <p className="hist-blocked-reason">
+                  {item.reason || '命中高危规则'}
+                  {item.matched ? `（命中：${item.matched}）` : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 5. 底部分页栏 */}
       <footer className="hist-footer">

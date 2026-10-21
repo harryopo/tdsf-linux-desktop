@@ -617,6 +617,8 @@ export const HISTORY = {
   LIST: 'history:list',
   /** 查询决策统计（invoke: 渲染 → 主） */
   STATS: 'history:stats',
+  /** 查询高危命令拦截记录（invoke: 渲染 → 主） */
+  BLOCKS: 'history:blocks',
 } as const
 
 /**

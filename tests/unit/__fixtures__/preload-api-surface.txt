@@ -58,6 +58,7 @@ fileWatchStart
 fileWatchStop
 fsUploadImage
 getProtocolVersion
+historyBlocks
 historyGet
 historyList
 historySave

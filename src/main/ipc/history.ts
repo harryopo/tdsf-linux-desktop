@@ -16,6 +16,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { HISTORY } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
+import { AuditRepo } from '../services/db/audit-repo'
 import { generateDecisionCard, validateDecision } from '../core/decision-engine'
 import { logger } from '../services/log/logger'
 import type { HistorySaveIntent } from '@shared/models'
@@ -133,6 +134,26 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
       return repo.getStats()
     } catch (err) {
       throw new Error(`获取决策统计失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // history:blocks — 高危命令拦截记录
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(limit?: number)
+   * 返回：BlockedCommandRecord[]（按时间倒序）
+   */
+  ipcMain.handle(HISTORY.BLOCKS, async (_event, limit?: number) => {
+    try {
+      const safeLimit =
+        typeof limit === 'number' && Number.isFinite(limit)
+          ? Math.min(Math.max(Math.trunc(limit), 1), 1000)
+          : 200
+      return new AuditRepo(DatabaseManager.getInstance()).listBlocked(safeLimit)
+    } catch (err) {
+      throw new Error(`获取拦截记录失败: ${(err as Error).message}`)
     }
   })
 }
