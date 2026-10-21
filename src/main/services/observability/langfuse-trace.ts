@@ -17,7 +17,16 @@
  * 方案书依据：R11 硬约束（OpenTelemetry 一统观测性，v1.0 集成 Langfuse）
  */
 import type { ChatResult } from '@shared/agent-types'
+import { redactSecrets, redactToolValue } from '../../core/agent/providers/redact'
 import { LangfuseService, type SpanHandle, type TraceHandle, type LangfuseLevel } from './langfuse'
+
+/**
+ * 外送前脱敏：Langfuse 是第三方云服务，用户问题与模型输出都可能带凭据
+ * （`cat ~/.my.cnf` 的正文、日志里的 token）。trace 可读性下降是值得的。
+ */
+function safeTraceText(text: string): string {
+  return redactSecrets(text, { returnStats: false }) as string
+}
 
 /** 流式 LLM 调用上下文 */
 export interface StreamTraceContext {
@@ -75,12 +84,12 @@ export async function* withStreamTrace<T>(
     trace = langfuse.startTrace({
       sessionId: ctx.sessionId,
       workflowName: ctx.workflowName,
-      userQuery: ctx.userQuery,
+      userQuery: ctx.userQuery ? safeTraceText(ctx.userQuery) : undefined,
       metadata: buildStreamMetadata(ctx),
     })
     span = trace.span({
       name: ctx.workflowName,
-      input: ctx.userQuery,
+      input: ctx.userQuery ? safeTraceText(ctx.userQuery) : undefined,
       metadata: ctx.metadata,
     })
   } catch {
@@ -95,7 +104,8 @@ export async function* withStreamTrace<T>(
       chunks.push(chunk)
       yield chunk
     }
-    const output = concatenateChunks(chunks)
+    const rawOutput = concatenateChunks(chunks)
+    const output = typeof rawOutput === 'string' ? safeTraceText(rawOutput) : redactToolValue(rawOutput)
     try {
       span.end(output, { level: 'DEFAULT' })
       trace.end({ level: 'DEFAULT' })
@@ -105,7 +115,8 @@ export async function* withStreamTrace<T>(
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
     try {
-      span.end({ error: error.message }, { level: 'ERROR', statusMessage: error.message })
+      const safeError = safeTraceText(error.message)
+      span.end({ error: safeError }, { level: 'ERROR', statusMessage: safeError })
       trace.end({ level: 'ERROR', statusMessage: error.message })
     } catch {
       // 静默吞掉 trace 错误
@@ -147,12 +158,12 @@ export async function withCallbackStreamTrace<TParams extends CallbackStreamPara
     trace = langfuse.startTrace({
       sessionId: ctx.sessionId,
       workflowName: ctx.workflowName,
-      userQuery: ctx.userQuery,
+      userQuery: ctx.userQuery ? safeTraceText(ctx.userQuery) : undefined,
       metadata: buildStreamMetadata(ctx),
     })
     span = trace.span({
       name: ctx.workflowName,
-      input: ctx.userQuery,
+      input: ctx.userQuery ? safeTraceText(ctx.userQuery) : undefined,
       metadata: ctx.metadata,
     })
   } catch {
@@ -211,7 +222,7 @@ export async function withCallbackStreamTrace<TParams extends CallbackStreamPara
     } else {
       try {
         // 优先用 doneResult.text，降级到 accumulated
-        const output = doneResult?.text ?? accumulated
+        const output = safeTraceText(doneResult?.text ?? accumulated)
         span.end(output, { level: 'DEFAULT' })
         trace.end({ level: 'DEFAULT' })
       } catch {
@@ -253,7 +264,7 @@ export function startHitlTrace(ctx: StreamTraceContext): TraceHandle | null {
     return langfuse.startTrace({
       sessionId: ctx.sessionId,
       workflowName: ctx.workflowName,
-      userQuery: ctx.userQuery,
+      userQuery: ctx.userQuery ? safeTraceText(ctx.userQuery) : undefined,
       metadata: buildStreamMetadata(ctx),
     })
   } catch {
@@ -301,7 +312,7 @@ export function startHitlStepTrace(
   try {
     const span = parentTrace.span({
       name: `hitl-${stepName}`,
-      input,
+      input: redactToolValue(input),
     })
     return {
       end(output, level = 'DEFAULT', statusMessage) {
@@ -309,7 +320,7 @@ export function startHitlStepTrace(
           const opts: { level?: LangfuseLevel; statusMessage?: string } = {}
           if (level) opts.level = level
           if (statusMessage) opts.statusMessage = statusMessage
-          span.end(output, opts)
+          span.end(redactToolValue(output), opts)
         } catch {
           // 静默吞掉
         }

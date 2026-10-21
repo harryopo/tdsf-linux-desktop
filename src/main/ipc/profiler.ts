@@ -25,6 +25,7 @@ import {
   defaultPdfFileName
 } from '../services/profiler/pdf-exporter'
 import { assertWithinConfinement } from '../services/security/path-confinement'
+import { redactSecrets } from '../core/agent/providers/redact'
 import type { ProfilerRunResponse } from '../services/profiler/types'
 
 /**
@@ -84,7 +85,9 @@ export function registerProfilerIpcHandlers(): void {
           throw new Error('md 内容无效')
         }
         const safePath = assertWithinConfinement(outputPath, 'write')
-        return await writeMdFile(md, safePath)
+        // 报告会带着远端命令输出（cat ~/.my.cnf、env、日志），导出前后都可能被分享；
+        // 在落盘这一道统一脱敏，而不是指望调用方自己记得先涂一遍。
+        return await writeMdFile(redactSecrets(md, { returnStats: false }) as string, safePath)
       } catch (err) {
         throw new Error(`导出 md 失败: ${(err as Error).message}`)
       }
@@ -103,7 +106,10 @@ export function registerProfilerIpcHandlers(): void {
     async (_event, md: string, outputPath: string): Promise<{ filePath: string; size: number }> => {
       try {
         const safePath = assertWithinConfinement(outputPath, 'write')
-        return await exportMarkdownToPdf(md, safePath)
+        return await exportMarkdownToPdf(
+          redactSecrets(md, { returnStats: false }) as string,
+          safePath
+        )
       } catch (err) {
         throw new Error(`导出 PDF 失败: ${(err as Error).message}`)
       }
