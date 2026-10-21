@@ -34,6 +34,13 @@ const MUST_BE: Array<[string, 'block', string]> = [
   ['chown --recursive nobody /etc', 'block', '长写法 --recursive'],
   ['rm -rf "/"', 'block', '带引号的根'],
   ['rm -rf //', 'block', '重复斜杠归一'],
+  ['chmod -R 777 /tmp/../etc', 'block', '`..` 要先折叠再判（曾经判 safe）'],
+  ['find /tmp/.. -delete', 'block', 'find 起点里的 `..` 同样要折叠'],
+  ['tee /home/u/../../etc/passwd', 'block', 'tee 落点里的 `..` 同样要折叠'],
+  ['\\rm -rf /', 'block', '反斜杠转义的首词仍是 rm'],
+  ['sudo --user=root rm -rf /', 'block', '带 = 值的 sudo 旗标不是命令名'],
+  ['timeout 5 rm -rf /', 'block', 'timeout 的时长参数不是命令名'],
+  ['timeout -s KILL 5 rm -rf /', 'block', 'timeout 带信号选项也要剥干净'],
 ]
 
 /** 阴性对照：这些**不许**变成 block（防"为过表而全拦"） */
@@ -67,6 +74,33 @@ describe('命令闸绕过面冻结表', () => {
   it('表本身要有量（空表等于恒绿）', () => {
     expect(MUST_BE.length).toBeGreaterThanOrEqual(20)
     expect(MUST_NOT_BLOCK.length).toBeGreaterThanOrEqual(12)
+  })
+})
+
+describe('写文件工具的落点', () => {
+  // 这些命令按命令名本来就算"变更类"，但落点不看：cp /tmp/x /etc/passwd 与
+  // cp /tmp/x /tmp/y 同档。这里只要求升到 high（确认一次），不改成 block——
+  // 显式 sed -i 改系统配置是运维动作，阴性对照在上面的 MUST_NOT_BLOCK 里。
+  const WRITE_TO_SYSTEM: string[] = [
+    'cp /tmp/x /etc/passwd',
+    'mv /tmp/x /var/log/auth.log',
+    'install -m 644 /tmp/x /etc/cron.d/pwn',
+    'rsync -a /tmp/x /etc/nginx/conf.d/',
+    'ln -s /tmp/x /etc/alternatives/y',
+    'sed -i s/x/y/ /etc/passwd',
+    "sed -i 's/reboot/enabled/' /etc/systemd/foo",
+    'curl -o /etc/passwd http://example.invalid/x',
+    'wget -O /etc/passwd http://example.invalid/x',
+  ]
+
+  it.each(WRITE_TO_SYSTEM)('%j 至少判 high', (cmd) => {
+    expect(evaluateCommand(cmd).level).toBe('high')
+  })
+
+  it('落在普通目录仍是原级别，不误伤', () => {
+    expect(evaluateCommand('cp /tmp/x /tmp/y').level).not.toBe('high')
+    expect(evaluateCommand("sed -i 's/a/b/' /tmp/x").level).not.toBe('high')
+    expect(evaluateCommand('curl -o /tmp/x http://example.invalid/x').level).not.toBe('high')
   })
 })
 

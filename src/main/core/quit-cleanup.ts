@@ -53,6 +53,8 @@ export interface QuitServices {
   disposeTerminalCompletion: () => unknown
   /** 释放 Agent 会话注册表（GC 定时器 + 在跑的会话映射） */
   disposeSessionRegistry: () => unknown
+  /** 把防抖里还没写入的 token 记录落盘（不调用的话退出前最后几条会丢） */
+  persistTokenStats: () => unknown
   /**
    * 关闭 SQLite 句柄。必须排在所有会写库的步骤之后（审计、调度器、凭据迁移都写它）。
    * 不关的后果不是"泄漏一个 fd"这么简单：WAL 没 checkpoint，下次开机要先回放，
@@ -91,6 +93,8 @@ export function buildQuitSteps(svc: QuitServices): QuitStep[] {
     // "应用退出时关闭"），但退出表里没人列它们——"有 dispose"不等于"跑过 dispose"。
     { name: '关闭命令补全引擎', run: svc.disposeTerminalCompletion },
     { name: '释放 Agent 会话注册表', run: svc.disposeSessionRegistry },
+    // token 统计是防抖写盘（2s），退出时最后几条还在定时器里；不主动 flush 就永远丢
+    { name: '落盘 token 统计', run: svc.persistTokenStats },
     // 关库放最后：上面每一条都可能还在写审计/配置，先关池子会把它们的收尾打成"库不可用"
     { name: '关闭数据库句柄', run: svc.closeDatabase },
     { name: '释放主窗口引用', run: svc.releaseMainWindow },

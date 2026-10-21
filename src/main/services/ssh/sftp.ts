@@ -17,7 +17,7 @@ import type { SFTPWrapper, Stats } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SshConnectionManager } from './connection-manager'
-import { isProtectedWriteDestination } from '../../core/command-gate'
+import { assertRemoteWriteAllowed } from './remote-write-guard'
 import type { SftpEntry } from '@shared/models'
 
 /** SFTP 操作的默认读写缓冲区大小（字节） */
@@ -104,25 +104,6 @@ function withinBudget<T>(
       }
     }
   })
-}
-
-/**
- * 远端改写类操作的目的地闸。
- *
- * 病根（2026-10-15 全维度审查 P0）：系统关键路径的保护只长在**命令文本**上
- * （`isProtectedWriteTarget` 被 shell 重定向检测与 MCP 形状表调用），
- * 而 SFTP 这族平行入口把渲染层传来的 `remotePath` 直接喂给 createWriteStream/unlink——
- * 于是 `echo x > /etc/passwd` 走 shell 会被拦，编辑器保存 /etc/passwd 却一路放行；
- * 本产品连接默认还是 root（`ServerForm` 的用户名初值），放行就等于真覆写系统文件。
- * 命令与文件是同一件事的两个出口，闸必须只有一张口。
- */
-function assertRemoteWriteAllowed(op: string, remotePath: string): void {
-  if (isProtectedWriteDestination(remotePath)) {
-    throw new Error(
-      `${op}被拒绝：${remotePath} 属于系统关键路径（/etc、/usr、/var/log、/root、/dev 等）。` +
-        '这类文件不在文件面板/编辑器/AI 写文件里直接改——请在终端里自己执行，那会过高危命令闸并给你解释原因。'
-    )
-  }
 }
 
 /**

@@ -17,6 +17,7 @@ import type { Client } from 'ssh2'
 import * as ts from 'typescript'
 import { isProtectedWriteDestination } from '@main/core/command-gate'
 import { SftpManager } from '@main/services/ssh/sftp'
+import { ElectermSftpManager } from '@main/services/ssh/electerm-sftp'
 import { SshConnectionManager } from '@main/services/ssh/connection-manager'
 
 const ROOT = path.resolve(__dirname, '../..')
@@ -173,5 +174,102 @@ describe('SFTP 改写族在触网前过闸', () => {
 
     expect(unguarded, `这些远端改写方法没挂闸：${unguarded.join(', ')}`).toEqual([])
     expect(guarded.length, `只扫到 ${guarded.length} 个受管方法（<6），先怀疑扫描本身`).toBeGreaterThanOrEqual(6)
+  })
+})
+
+describe('Electerm SFTP（UI 文件面板走的那套）同样过闸', () => {
+  function electermWith(
+    getClient: (sessionId: string) => Client,
+    exec: (sessionId: string, cmd: string) => Promise<{ exitCode: number; stdout: string; stderr: string }>
+  ): ElectermSftpManager {
+    const fake = Object.create(SshConnectionManager.prototype) as SshConnectionManager
+    fake.getClient = getClient
+    fake.exec = exec as SshConnectionManager['exec']
+    return new ElectermSftpManager(fake)
+  }
+
+  it('写/删/改名/改权限/建目录/上传/递归删/复制/移动 都拒系统路径，且不碰 SSH', async () => {
+    const spy = vi.fn(() => {
+      throw new Error(TOUCHED)
+    })
+    const execSpy = vi.fn(() => {
+      throw new Error(TOUCHED)
+    })
+    const m = electermWith(spy, execSpy)
+
+    await expectRefusedBeforeWire(() => m.writeFile('s1', '/etc/passwd', 'x'), spy)
+    await expectRefusedBeforeWire(() => m.delete('s1', '/root/.ssh/authorized_keys'), spy)
+    await expectRefusedBeforeWire(() => m.chmod('s1', '/etc/shadow', 0o777), spy)
+    await expectRefusedBeforeWire(() => m.mkdir('s1', '/usr/lib/x'), spy)
+    await expectRefusedBeforeWire(() => m.upload('s1', 'package.json', '/etc/hosts'), spy)
+    await expectRefusedBeforeWire(() => m.rename('s1', '/home/user/a.txt', '/etc/cron.d/evil'), spy)
+    await expectRefusedBeforeWire(() => m.rmrf('s1', '/var/log'), execSpy)
+    await expectRefusedBeforeWire(() => m.cp('s1', '/home/user/a', '/etc/b'), execSpy)
+    await expectRefusedBeforeWire(() => m.mv('s1', '/home/user/a', '/root/b'), execSpy)
+
+    expect(spy, '拒绝一次都不该碰 SSH 客户端').not.toHaveBeenCalled()
+    expect(execSpy, '拒绝一次都不该在远端跑命令').not.toHaveBeenCalled()
+  })
+
+  it('用户区写入照旧放行到 SSH（闸不是把整条通道关掉）', async () => {
+    const spy = vi.fn(() => {
+      throw new Error(TOUCHED)
+    })
+    const m = electermWith(spy, vi.fn())
+    await expect(m.writeFile('s1', '/home/user/app/x.py', 'print(1)')).rejects.toThrow(TOUCHED)
+    expect(spy, '合法路径必须走到开 SSH 那一步').toHaveBeenCalledTimes(1)
+  })
+
+  it('九个改写方法都调用同一个闸（结构核对，含以后新增的）', () => {
+    const WRITERS = new Set([
+      'upload',
+      'delete',
+      'rename',
+      'chmod',
+      'mkdir',
+      'writeFile',
+      'rmrf',
+      'cp',
+      'mv',
+    ])
+    const file = path.join(ROOT, 'src/main/services/ssh/electerm-sftp.ts')
+    const src = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+    const seen = new Set<string>()
+    const missing: string[] = []
+    // 文件里有两层：内层 ElectermSftpClient 管传输，外层 ElectermSftpManager 才是
+    // UI 入口。只扫外层，否则同名方法的第一次出现（内层、无闸）会污染读数。
+    let manager: ts.ClassDeclaration | undefined
+    const findManager = (node: ts.Node): void => {
+      if (
+        ts.isClassDeclaration(node) &&
+        node.name?.text === 'ElectermSftpManager'
+      ) {
+        manager = node
+      }
+      ts.forEachChild(node, findManager)
+    }
+    findManager(src)
+    expect(manager, '找不到 ElectermSftpManager 类').toBeDefined()
+    for (const member of manager?.members ?? []) {
+      if (!ts.isMethodDeclaration(member) || !ts.isIdentifier(member.name)) continue
+      const name = member.name.text
+      if (!WRITERS.has(name)) continue
+      seen.add(name)
+      let callsGuard = false
+      const walk = (n: ts.Node): void => {
+        if (
+          ts.isCallExpression(n) &&
+          ts.isIdentifier(n.expression) &&
+          n.expression.text === 'assertRemoteWriteAllowed'
+        ) {
+          callsGuard = true
+        }
+        ts.forEachChild(n, walk)
+      }
+      if (member.body) walk(member.body)
+      if (!callsGuard) missing.push(name)
+    }
+    expect(missing, `这些 Electerm 改写方法没挂闸：${missing.join(', ')}`).toEqual([])
+    expect(seen.size, `只扫到 ${seen.size}/9 个改写方法，先怀疑扫描本身`).toBe(9)
   })
 })

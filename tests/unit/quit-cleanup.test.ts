@@ -43,6 +43,7 @@ function fakeServices(order: string[], delayMs = 0): QuitServices {
     cleanupLoopEngineering: mk('loop'),
     disposeTerminalCompletion: mk('completion'),
     disposeSessionRegistry: mk('session-registry'),
+    persistTokenStats: mk('token-stats'),
     closeDatabase: mk('db-close'),
     releaseMainWindow: mk('window'),
   }
@@ -81,7 +82,7 @@ describe('退出清理闸门（行为）', () => {
 
   it('步骤顺序：子进程最先关，骑在 SSH 上的先停', () => {
     const names = buildQuitSteps(fakeServices([])).map((s) => s.name)
-    expect(names).toHaveLength(16)
+    expect(names).toHaveLength(17)
     const at = (n: string) => names.indexOf(n)
     // 上一版 sidecar 排第 6：SSH 一吃光整体上限它就饿死，孤儿进程 bug 原地复活
     expect(at('关闭 sidecar'), 'sidecar 必须排第一').toBe(0)
@@ -100,6 +101,10 @@ describe('退出清理闸门（行为）', () => {
       expect(at('关闭数据库句柄'), `关库排在了会写库的「${writer}」前面`).toBeGreaterThan(at(writer))
     }
     expect(at('关闭数据库句柄'), '关库是最后一个资源步骤（窗口释放不算资源）').toBe(names.length - 2)
+    // 防抖里的 token 记录必须在退出前落盘，且排在任何可能失败的收尾之前也不算晚——
+    // 这条只钉"存在且在关库前"，因为 token 统计走 electron-store，不依赖数据库
+    expect(at('落盘 token 统计'), 'token 统计没有退出落盘步骤').toBeGreaterThanOrEqual(0)
+    expect(at('落盘 token 统计')).toBeLessThan(at('关闭数据库句柄'))
   })
 
   it('某一步永不返回：按单步超时放过，后面的步骤照跑', async () => {

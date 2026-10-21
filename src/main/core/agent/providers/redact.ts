@@ -136,6 +136,36 @@ const REDACT_RULES: Array<{ pattern: RegExp; replacement: string; name: string }
     replacement: '$1$2$3[REDACTED]',
     name: 'cjk-secret-label',
   },
+  // 21. 命令行内联口令：`mysql -pXXX` / `redis-cli -a XXX` / `curl -u user:pass`
+  //     password= 那几条要求键名后跟 = 或 :，这几种是旗标 + 空格，整条 MISS。
+  {
+    pattern: /(\bmysql\b[^\n|;]*?\s-p)(?=[^\s'"])(?:'[^']*'|"[^"]*"|\S+)/gi,
+    replacement: '$1[REDACTED]',
+    name: 'mysql-inline-password',
+  },
+  {
+    pattern: /(\bredis-cli\b[^\n|;]*?\s-a\s+)(?:'[^']*'|"[^"]*"|\S+)/gi,
+    replacement: '$1[REDACTED]',
+    name: 'redis-cli-inline-password',
+  },
+  {
+    pattern: /(\bcurl\b[^\n|;]*?\s-u\s+)(?:'[^']*'|"[^"]*"|[^\s:]+:[^\s]+)/gi,
+    replacement: '$1[REDACTED]',
+    name: 'curl-inline-credentials',
+  },
+  // 22. `--password 值` 的分离写法（`--password=值` 已被规则 10 覆盖）
+  {
+    // `\b` 在 `--` 前面不成立（两边都是非单词字符），所以用"行首或分隔符"作锚
+    pattern: /(^|[\s;|&])(--password)(\s+)(?:'[^']*'|"[^"]*"|\S+)/gi,
+    replacement: '$1$2$3[REDACTED]',
+    name: 'password-flag',
+  },
+  // 23. 全大写环境变量口令：\b 在 PGPASSWORD 这种前缀后面不成立，规则 10 看不见
+  {
+    pattern: /\b(PGPASSWORD|MYSQL_PWD|REDISCLI_AUTH)(\s*=\s*)(?:'[^']*'|"[^"]*"|\S+)/g,
+    replacement: '$1$2[REDACTED]',
+    name: 'env-password',
+  },
 ]
 
 /**
@@ -254,7 +284,9 @@ export function withToolResultRedaction<T extends object>(tools: T): T {
   for (const [name, def] of Object.entries(tools as Record<string, unknown>)) {
     if (def && typeof def === 'object' && typeof (def as { execute?: unknown }).execute === 'function') {
       const run = (def as { execute: (...args: unknown[]) => unknown }).execute
-      wrapped[name] = { ...def, execute: (...args: unknown[]) => redactToolValue(run(...args)) }
+      // 必须 await：工具 execute 几乎都是 async，不等待时脱敏看到的是 Promise 对象，
+      // 枚举不出任何键 ⇒ 模型收到 {}（2026-10-20 实测）。
+      wrapped[name] = { ...def, execute: async (...args: unknown[]) => redactToolValue(await run(...args)) }
     } else {
       wrapped[name] = def
     }

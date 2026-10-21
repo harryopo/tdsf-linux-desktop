@@ -79,6 +79,18 @@ describe('LineGate · 控制键', () => {
     expect(g.feed('\r').allow).toBe(true)
   })
 
+  it('Ctrl-C 与后续文本同段到达时，后续文本仍要判（不能整段放行）', () => {
+    const g = new LineGate()
+    const r = g.feed('\x03rm -rf /\r')
+    expect(r.allow).toBe(false)
+    expect(r.line).toBe('rm -rf /')
+  })
+
+  it('Ctrl-D 同理：中断符之后的部分仍进判定', () => {
+    const g = new LineGate()
+    expect(g.feed('\x04rm -rf /\r').allow).toBe(false)
+  })
+
   it('Ctrl-U 清行', () => {
     const g = new LineGate()
     g.feed('rm -rf /')

@@ -506,7 +506,8 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
         const { loadAuditReport } = await import(
           '../core/agent/credibility/audit/exporter'
         )
-        return await loadAuditReport(filepath)
+        // 写/列出已经过 confinement，读这条路不能是任意文件读
+        return await loadAuditReport(assertWithinConfinement(filepath, 'read'))
       } catch (err) {
         const msg = (err as Error)?.message ?? '加载审计报告失败'
         logger.error('IPC.CREDIBILITY', `credibility:load-audit-report 失败: ${msg}`)

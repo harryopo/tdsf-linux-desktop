@@ -524,15 +524,13 @@ function baseCommand(toks: Token[]): string {
   const wrappers = new Set(RULES.prefixSkips.commands)
   const valueFlags = new Set(RULES.prefixSkips.valueFlags)
   let i = 0
+  // timeout 的语法是 `timeout [选项] 时长 命令`：时长既不是包装器也不是命令名
+  let skipDuration = false
   while (i < toks.length) {
     const t = toks[i].value
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t) || wrappers.has(t)) {
+      if (t === 'timeout') skipDuration = true
       i += 1
-      continue
-    }
-    // sudo -u root / sudo -- 这类"带值旗标"要连值一起跳
-    if (valueFlags.has(t)) {
-      i += 2
       continue
     }
     // `sudo --` 之后的参数才是真正的命令
@@ -540,9 +538,23 @@ function baseCommand(toks: Token[]): string {
       i += 1
       continue
     }
+    // 包装器自己的旗标：`sudo --user=root`、`nice -n 5` 里的旗标不是命令名。
+    // 旧实现只认精确的 `--user`，带 `=值` 的写法会被当成命令名，整个 rm 因此漏判。
+    if (t.startsWith('-')) {
+      const eq = t.indexOf('=')
+      const flag = eq === -1 ? t : t.slice(0, eq)
+      i += eq === -1 && valueFlags.has(flag) ? 2 : 1
+      continue
+    }
+    if (skipDuration && /^\d+(?:\.\d+)?[smhd]?$/.test(t)) {
+      skipDuration = false
+      i += 1
+      continue
+    }
     break
   }
-  const head = toks[i]?.value ?? ''
+  // 首词可能带反斜杠转义（`\rm`），剥掉再按路径取 basename
+  const head = (toks[i]?.value ?? '').replace(/^\\+/, '')
   return head.split('/').pop() ?? ''
 }
 
@@ -642,7 +654,8 @@ function checkPerms(toks: Token[], argv0: string): string | null {
   const targets = values.filter((t) => !t.startsWith('-'))
   const pathTarget = targets.find((t) => normTarget(t).startsWith('/'))
   if (!pathTarget) return null
-  const n = normTarget(pathTarget)
+  // 绝对路径先按 POSIX 折叠 `..`：`chmod -R 777 /tmp/../etc` 曾判 safe
+  const n = posixPath.normalize(normTarget(pathTarget))
   if (!isSensitivePermTarget(n)) return null
   if (argv0 === 'chmod') {
     const modes = targets.filter((t) => /^[0-7]{3,4}$/.test(t) || /[+w-]/.test(t))
@@ -664,14 +677,16 @@ function checkPerms(toks: Token[], argv0: string): string | null {
 /** 写目的地命中系统路径（blockDetectors: protectedPathOverwrite） */
 function checkProtectedWrite(toks: Token[], argv0: string, seg: Segment): string | null {
   const values = toks.map((t) => t.value)
-  if (seg.writes.some(isProtectedWriteTarget)) return '把内容写进系统关键路径'
+  // 用 Destination 版本（会折叠 `..`）：旧版直接喂 isProtectedWriteTarget，
+  // `tee /home/u/../../etc/passwd` 因此判 safe（2026-10-21 实测）。
+  if (seg.writes.some(isProtectedWriteDestination)) return '把内容写进系统关键路径'
   if (argv0 === 'tee') {
     const dest = values.filter((t) => !t.startsWith('-'))
-    if (dest.some(isProtectedWriteTarget)) return 'tee 写入系统关键路径'
+    if (dest.some(isProtectedWriteDestination)) return 'tee 写入系统关键路径'
   }
   if (argv0 === 'truncate') {
     const dest = values.filter((t) => !t.startsWith('-'))
-    if (dest.some(isProtectedWriteTarget)) return '清空系统日志/关键文件'
+    if (dest.some(isProtectedWriteDestination)) return '清空系统日志/关键文件'
   }
   return null
 }
@@ -713,7 +728,9 @@ function checkFindDelete(toks: Token[], argv0: string): string | null {
   const values = toks.map((t) => t.value)
   // 起点路径取第一个非旗标、非 find 子句的参数；slice(1) 是为了不把命令名自己当成路径
   const start = values.slice(1).find((t) => !t.startsWith('-') && !FIND_CLAUSES.includes(t))
-  const n = normTarget(start ?? '.')
+  // 绝对起点折叠 `..`：`find /tmp/.. -delete` 曾判 low（起点其实是 /）
+  const raw = normTarget(start ?? '.')
+  const n = raw.startsWith('/') ? posixPath.normalize(raw) : raw
 
   if (values.includes('-delete')) {
     return isProtectedStart(n) ? 'find -delete 从根级/系统目录批量删除' : null
@@ -745,6 +762,57 @@ function checkSoftRisk(
   for (const rule of RULES_BY_ARGV0.get(argv0) ?? []) {
     if (rule.subcommands && !rule.subcommands.some((sub) => values.includes(sub))) continue
     return { level: rule.level, reason: rule.reason, ruleId: rule.id }
+  }
+  return null
+}
+
+/**
+ * 写文件的工具（cp/mv/install/rsync/ln/sed -i/curl -o/wget -O）落点是否系统路径。
+ *
+ * 这些命令以前只按命令名判"变更类"（high），不看落点：`cp /tmp/x /etc/passwd`
+ * 与 `cp /tmp/x /tmp/y` 同档，而 `tee /etc/passwd` 是 block。同一件事两个口径。
+ * 这里不升级成 block：显式敲 `sed -i` 改系统配置是运维动作，确认一次即可
+ * （阴性对照 `sed -i 's/x/y/' /etc/systemd/foo` 仍不许 block）。
+ */
+function checkWriteUtility(
+  argv0: string,
+  toks: Token[]
+): { level: CommandRiskLevel; reason: string } | null {
+  const values = toks.map((t) => t.value)
+  const flagValues = (flags: string[]): string[] => {
+    const out: string[] = []
+    for (let i = 0; i < values.length; i++) {
+      const v = values[i]
+      const eq = flags.find((f) => v.startsWith(`${f}=`))
+      if (eq) out.push(v.slice(eq.length + 1))
+      else if (flags.includes(v) && i + 1 < values.length) out.push(values[++i])
+    }
+    return out
+  }
+  if (['cp', 'mv', 'install', 'rsync', 'ln'].includes(argv0)) {
+    let targets = flagValues(['-t', '--target-directory'])
+    if (targets.length === 0) {
+      const positional = values.slice(1).filter((t) => !t.startsWith('-'))
+      if (positional.length >= 2) targets = [positional[positional.length - 1]]
+    }
+    if (targets.some(isProtectedWriteDestination)) {
+      return { level: 'high', reason: `${argv0} 写入系统关键路径` }
+    }
+  }
+  if (argv0 === 'sed' && values.some((v) => /^-[a-zA-Z]*i/.test(v))) {
+    if (values.slice(1).some((v) => v.startsWith('/') && isProtectedWriteDestination(v))) {
+      return { level: 'high', reason: 'sed -i 原地修改系统关键文件' }
+    }
+  }
+  if (argv0 === 'curl') {
+    if (flagValues(['-o', '--output']).some(isProtectedWriteDestination)) {
+      return { level: 'high', reason: 'curl 下载并写入系统关键路径' }
+    }
+  }
+  if (argv0 === 'wget') {
+    if (flagValues(['-O', '--output-document']).some(isProtectedWriteDestination)) {
+      return { level: 'high', reason: 'wget 下载并写入系统关键路径' }
+    }
   }
   return null
 }
@@ -804,6 +872,8 @@ export function evaluateCommand(command: string, depth = 0): CommandVerdict {
     }
     const soft = checkSoftRisk(seg.toks, argv0)
     if (soft) raise({ level: soft.level, reason: soft.reason, matched: seg.text.slice(0, 120) })
+    const utilRisk = checkWriteUtility(argv0, seg.toks)
+    if (utilRisk) raise({ level: utilRisk.level, reason: utilRisk.reason, matched: seg.text.slice(0, 120) })
 
     if (depth < 2) {
       for (const body of collectorQuotedBodies(seg, argv0)) raise(evaluateCommand(body, depth + 1))
@@ -1162,10 +1232,13 @@ export class LineGate {
     // 全屏程序里：不判、不清累计，原样放行
     if (this.inAltScreen) return { allow: true }
 
-    // Ctrl-C（中断当前输入）与 Ctrl-D（EOF）：清缓冲后放行，交给 shell 自己处理
-    if (/[\x03\x04]/.test(data)) {
+    // Ctrl-C（中断当前输入）与 Ctrl-D（EOF）：清掉中断前的输入，但**中断后同一段里
+    // 还跟着的文本仍要判**。旧写法整段 return allow，于是粘贴 `\x03rm -rf /\r` 直接放行。
+    const interruptAt = Math.max(data.lastIndexOf('\x03'), data.lastIndexOf('\x04'))
+    if (interruptAt !== -1) {
       this.buffer = ''
-      return { allow: true }
+      data = data.slice(interruptAt + 1)
+      if (!data) return { allow: true }
     }
     // Ctrl-U / Ctrl-W：清行 / 回退一个词 —— 同步把缓冲缩回去，否则会拿已删掉的字符判
     if (data.includes('\x15')) this.buffer = ''

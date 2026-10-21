@@ -14,6 +14,7 @@ import type { Client, SFTPWrapper, Stats } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SshConnectionManager } from './connection-manager'
+import { assertRemoteWriteAllowed } from './remote-write-guard'
 import type { SftpEntry } from '@shared/models'
 
 /** 进度回调类型 */
@@ -395,6 +396,7 @@ export class ElectermSftpManager {
     remotePath: string,
     onProgress?: SftpProgressCallback
   ): Promise<boolean> {
+    assertRemoteWriteAllowed('上传', remotePath)
     const client = await this.getClient(sessionId)
     return client.upload(localPath, remotePath, onProgress)
   }
@@ -410,6 +412,7 @@ export class ElectermSftpManager {
   }
 
   async delete(sessionId: string, remotePath: string): Promise<boolean> {
+    assertRemoteWriteAllowed('删除', remotePath)
     const client = await this.getClient(sessionId)
     const stat = await client.stat(remotePath)
     if (!stat) throw new Error(`远程路径不存在: ${remotePath}`)
@@ -420,16 +423,20 @@ export class ElectermSftpManager {
   }
 
   async rename(sessionId: string, oldPath: string, newPath: string): Promise<boolean> {
+    assertRemoteWriteAllowed('重命名', oldPath)
+    assertRemoteWriteAllowed('重命名目标', newPath)
     const client = await this.getClient(sessionId)
     return client.rename(oldPath, newPath)
   }
 
   async chmod(sessionId: string, remotePath: string, mode: number): Promise<boolean> {
+    assertRemoteWriteAllowed('改权限', remotePath)
     const client = await this.getClient(sessionId)
     return client.chmod(remotePath, mode)
   }
 
   async mkdir(sessionId: string, remotePath: string): Promise<boolean> {
+    assertRemoteWriteAllowed('建目录', remotePath)
     const client = await this.getClient(sessionId)
     return client.mkdir(remotePath)
   }
@@ -451,6 +458,7 @@ export class ElectermSftpManager {
   }
 
   async writeFile(sessionId: string, remotePath: string, content: string): Promise<boolean> {
+    assertRemoteWriteAllowed('写入', remotePath)
     const client = await this.getClient(sessionId)
     return client.writeFile(remotePath, content)
   }
@@ -461,6 +469,7 @@ export class ElectermSftpManager {
 
   /** 递归删除目录（远端 rm -rf / PowerShell Remove-Item） */
   async rmrf(sessionId: string, remotePath: string): Promise<boolean> {
+    assertRemoteWriteAllowed('递归删除', remotePath)
     const cmd = `rm -rf ${this.escapePosixPath(remotePath)}`
     const result = await this.sshManager.exec(sessionId, cmd)
     if (result.exitCode !== 0) {
@@ -471,6 +480,7 @@ export class ElectermSftpManager {
 
   /** 远端 cp -r */
   async cp(sessionId: string, from: string, to: string): Promise<boolean> {
+    assertRemoteWriteAllowed('复制目标', to)
     const cmd = `cp -r ${this.escapePosixPath(from)} ${this.escapePosixPath(to)}`
     const result = await this.sshManager.exec(sessionId, cmd)
     if (result.exitCode !== 0) {
@@ -481,6 +491,7 @@ export class ElectermSftpManager {
 
   /** 远端 mv */
   async mv(sessionId: string, from: string, to: string): Promise<boolean> {
+    assertRemoteWriteAllowed('移动目标', to)
     const cmd = `mv ${this.escapePosixPath(from)} ${this.escapePosixPath(to)}`
     const result = await this.sshManager.exec(sessionId, cmd)
     if (result.exitCode !== 0) {

@@ -243,6 +243,9 @@ export function getProviderWithApiKey(id: string): ProviderConfig | null {
   return {
     ...base,
     apiKey,
+    // 运行时这份也要带能力表：supervisor 拿 config.capabilities?.contextWindow 决定何时压缩，
+    // 不补的话 8K 模型仍按 150K 绝对尺，请求先被上游拒成 400，而徽章显示的是真窗口。
+    capabilities: getProviderCapabilities(base),
   }
 }
 

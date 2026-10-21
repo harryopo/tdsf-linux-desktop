@@ -70,6 +70,20 @@ describe('withToolResultRedaction', () => {
     expect((rawExecute() as { stdout: string }).stdout).toContain(SECRET)
   })
 
+  it('async execute 也不会被当成空对象', async () => {
+    // 回归：包装层曾经同步调用 redactToolValue(Promise)，枚举不到键 ⇒ 模型收到 {}
+    const tools = {
+      ssh_readonly: { execute: async () => ({ ok: true, stdout: SECRET, stderr: '' }) },
+    }
+    const wrapped = withToolResultRedaction(tools)
+    const result = (await (wrapped.ssh_readonly as { execute: () => Promise<unknown> }).execute()) as {
+      ok: boolean
+      stdout: string
+    }
+    expect(result.ok).toBe(true)
+    expect(result.stdout).not.toContain(SECRET)
+  })
+
   it('没有 execute 的工具（纯描述）不炸、原样返回', () => {
     const tools = { kb_search: { description: '只声明不挂载' } }
     const wrapped = withToolResultRedaction(tools)

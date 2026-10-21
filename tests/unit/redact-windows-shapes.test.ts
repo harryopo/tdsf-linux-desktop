@@ -57,6 +57,31 @@ const HIT_CASES: HitCase[] = [
     mustVanish: ['TopSecret1'],
   },
   {
+    label: 'mysql 内联口令',
+    input: 'mysql -uroot -pS3cr3tPw -e "show databases"',
+    mustVanish: ['S3cr3tPw'],
+  },
+  {
+    label: 'redis-cli 内联口令',
+    input: 'redis-cli -h 10.0.0.5 -a S3cr3tPw ping',
+    mustVanish: ['S3cr3tPw'],
+  },
+  {
+    label: 'curl Basic 凭据',
+    input: 'curl -u admin:S3cr3tPw https://example.invalid',
+    mustVanish: ['S3cr3tPw'],
+  },
+  {
+    label: '--password 分离写法',
+    input: 'deploy --password S3cr3tPw --host example.invalid',
+    mustVanish: ['S3cr3tPw'],
+  },
+  {
+    label: 'PGPASSWORD 环境变量',
+    input: 'PGPASSWORD=S3cr3tPw psql -h db.example.invalid',
+    mustVanish: ['S3cr3tPw'],
+  },
+  {
     label: 'token 赋值（原来只有 api_key/password 两族）',
     input: '刷新失败 token=abcdefghij1234567890XYZ',
     mustVanish: ['abcdefghij1234567890XYZ'],
@@ -127,9 +152,9 @@ describe('脱敏规则覆盖 Windows 形态', () => {
     const names = rules.map((r) => r.name)
     expect(new Set(names).size, '规则名不能重复').toBe(names.length)
     // 数字要人工复核后才会变：加规则时这条会红，逼着补 fixture 而不是静默漂移
-    // 20 = 18 + pem-private-key-unterminated（半截私钥块）+ cjk-secret-label（「密码是XXX」），
-    // 两条的样本在 tests/security/hostile-write-entry-gate.test.ts 的 B 组
-    expect(names.length).toBe(20)
+    // 25 = 20 + 命令行内联口令五条（mysql/redis-cli/curl/--password/PGPASSWORD），
+    // 样本在下面的 HIT_CASES 里。加规则时这条会红，逼着补 fixture 而不是静默漂移。
+    expect(names.length).toBe(25)
     for (const need of [
       'windows-sensitive-path',
       'url-credentials',

@@ -126,6 +126,20 @@ describe('listProviders 带出真实窗口', () => {
     expect(listProviders(false)[0].capabilities?.contextWindow).toBe(64_000)
   })
 
+  it('运行时取 Provider 也带能力表（压缩按它算，不能只给渲染层用）', async () => {
+    seedProvider({
+      id: 'p-runtime',
+      name: '本地 Ollama',
+      type: 'ollama',
+      baseURL: 'http://127.0.0.1:11434/v1',
+      model: 'qwen2.5:7b',
+      enabled: true,
+    })
+    const { getProviderWithApiKey } = await registry()
+    const runtime = getProviderWithApiKey('p-runtime')
+    expect(runtime?.capabilities?.contextWindow, 'supervisor 读 config.capabilities，缺了会按 150K 绝对尺压缩').toBe(8_000)
+  })
+
   it('内置模板初始化后每条窗口都是正数（没有 0 占位）', async () => {
     const { listProviders } = await registry()
     const list = listProviders(false)
