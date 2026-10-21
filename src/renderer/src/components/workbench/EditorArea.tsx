@@ -132,6 +132,8 @@ export interface WorkbenchFileTab {
   dirty: boolean
   /** 只读查看（W5）：锁的是编辑，不丢内容 */
   readOnly?: boolean
+  /** 打开这个文件时所属的 SSH 会话；切机后保存必须按它回原机，不能写进当前机 */
+  sessionId?: string
 }
 
 export interface EditorAreaProps {
@@ -429,13 +431,15 @@ const EditorArea: FC<EditorAreaProps> = ({
   useEffect(() => {
     const tab = fileTabs.find((f) => f.id === activeTabId)
     if (!tab || !tab.loading) return
-    if (!activeSessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpReadFile) {
+    // 读哪台机由标签自己记着：切机后重挂不该拿当前会话去读旧标签的路径
+    const sessionId = tab.sessionId ?? activeSessionId
+    if (!sessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpReadFile) {
       onFileLoaded?.(tab.id, '', '无法读取：无会话或 sftpReadFile 不可用')
       return
     }
     let cancelled = false
     void window.electronAPI
-      .sftpReadFile(activeSessionId, tab.path)
+      .sftpReadFile(sessionId, tab.path)
       .then((text) => {
         if (!cancelled) onFileLoaded?.(tab.id, text)
       })

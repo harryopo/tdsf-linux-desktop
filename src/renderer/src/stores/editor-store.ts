@@ -15,6 +15,9 @@
  * 方案书依据：v2.0 Phase A · StatusBar 实时光标位置 + Phase B · @命令划选注入
  */
 import { create } from 'zustand'
+import type { WorkbenchFileTab, WorkbenchTabId } from '@/components/workbench/EditorArea'
+
+type Updater<T> = T | ((prev: T) => T)
 
 /** 光标位置（与 Monaco editor.IPosition 兼容） */
 export interface CursorPosition {
@@ -32,6 +35,17 @@ export interface EditorStoreState {
   activeFilePath: string | null
   /** 待注入 AIPanel 输入框的 @命令字符串；null 表示无待注入（Phase B · Task B.4） */
   injectedAtCommand: string | null
+  /**
+   * 打开的文件标签与当前标签
+   *
+   * 放在 store 里而不是 WorkbenchPage 的 useState：MainLayout 用
+   * `key={pathname}` 强制整页重挂（为了入场动画），切到设置页再回来，
+   * 组件内 state 全丢——未保存的编辑内容一起消失（2026-10-21 审查 E2）。
+   */
+  fileTabs: WorkbenchFileTab[]
+  activeTabId: WorkbenchTabId | null
+  setFileTabs: (updater: Updater<WorkbenchFileTab[]>) => void
+  setActiveTabId: (updater: Updater<WorkbenchTabId | null>) => void
   /** 设置光标位置（由 MonacoEditor onDidChangeCursorPosition 调用） */
   setCursorPosition: (pos: CursorPosition | null) => void
   /** 设置当前激活文件路径（由 EditorArea onTabChange 调用） */
@@ -40,6 +54,26 @@ export interface EditorStoreState {
   setInjectedAtCommand: (cmd: string | null) => void
   /** 清除待注入 @命令（AIPanel 消费后调用） */
   clearInjectedAtCommand: () => void
+}
+
+/**
+ * 这个标签该用哪个 SSH 会话读写：标签自己记的优先。
+ *
+ * 标签记了会话而当前会话不同，说明用户切到了另一台机。此时**不能**拿当前会话
+ * 去写同一个路径——那会把 A 机的文件内容写进 B 机（2026-10-21 审查时发现）。
+ */
+export function fileTabSessionId(
+  tab: Pick<WorkbenchFileTab, 'sessionId'>,
+  activeSessionId: string | null
+): string | null {
+  return tab.sessionId ?? activeSessionId
+}
+
+export function canSaveFileTab(
+  tab: Pick<WorkbenchFileTab, 'sessionId'>,
+  activeSessionId: string | null
+): boolean {
+  return !tab.sessionId || !activeSessionId || tab.sessionId === activeSessionId
 }
 
 /**
@@ -53,6 +87,16 @@ export const useEditorStore = create<EditorStoreState>((set) => ({
   cursorPosition: null,
   activeFilePath: null,
   injectedAtCommand: null,
+  fileTabs: [],
+  activeTabId: null,
+  setFileTabs: (updater) =>
+    set((s) => ({
+      fileTabs: typeof updater === 'function' ? updater(s.fileTabs) : updater,
+    })),
+  setActiveTabId: (updater) =>
+    set((s) => ({
+      activeTabId: typeof updater === 'function' ? updater(s.activeTabId) : updater,
+    })),
   setCursorPosition: (pos) => set({ cursorPosition: pos }),
   setActiveFilePath: (path) => set({ activeFilePath: path }),
   setInjectedAtCommand: (cmd) => set({ injectedAtCommand: cmd }),

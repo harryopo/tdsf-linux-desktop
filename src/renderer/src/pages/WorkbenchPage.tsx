@@ -41,6 +41,11 @@ import AIPanel from '@/components/workbench/AIPanel'
 import { StatusBar } from '@/components/workbench/StatusBar'
 import { WorkbenchLayout } from '@/shell/workbench-layout'
 import { useServerStore } from '@/stores/server-store'
+import {
+  canSaveFileTab,
+  fileTabSessionId,
+  useEditorStore,
+} from '@/stores/editor-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { openLocalShell, openShell, sessionTitle, syncShells } from '@/terminal/shell-launcher'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
@@ -54,9 +59,15 @@ export const WorkbenchPage: FC = () => {
    * 以前初值是写死的 'tab-terminal'，隐含"终端永远只有一个格子"。
    * 现在终端标签是 shell:<shellId>，开几个就有几个。
    */
-  const [activeTabId, setActiveTabId] = useState<WorkbenchTabId | null>(null)
-  const [activeFilePath, setActiveFilePath] = useState<string | undefined>()
-  const [fileTabs, setFileTabs] = useState<WorkbenchFileTab[]>([])
+  // 文件标签放 store：MainLayout 用 key={pathname} 强制整页重挂，
+  // 组件内 state 会在切设置页时丢掉未保存内容（2026-10-21 审查 E2）。
+  const activeTabId = useEditorStore((s) => s.activeTabId)
+  const setActiveTabId = useEditorStore((s) => s.setActiveTabId)
+  const fileTabs = useEditorStore((s) => s.fileTabs)
+  const setFileTabs = useEditorStore((s) => s.setFileTabs)
+  const [activeFilePath, setActiveFilePath] = useState<string | undefined>(() =>
+    activeTabId?.startsWith('file:') ? activeTabId.slice('file:'.length) : undefined
+  )
   const [aiPanelVisible, setAiPanelVisible] = useState(true)
   // v2.11：资源管理器折叠态（与 AI 面板对齐，折叠后显一条细边栏可再展开）
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
@@ -78,7 +89,7 @@ export const WorkbenchPage: FC = () => {
   useEffect(() => {
     if (!activeShellId) return
     setActiveTabId((prev) => (prev === null || isShellTab(prev) ? shellTabId(activeShellId) : prev))
-  }, [activeShellId])
+  }, [activeShellId, setActiveTabId])
 
   /**
    * 进工作台 / 换会话时和主进程对一次终端表
@@ -110,17 +121,18 @@ export const WorkbenchPage: FC = () => {
     }
     const result = await openShell(activeSessionId, sessionTitle(activeSessionId))
     if (!result.ok) toast.error(`开终端失败：${result.reason}`)
-  }, [activeSessionId])
+  }, [activeSessionId, setActiveTabId])
 
   const handleOpenFile = useCallback((req: OpenFileRequest) => {
     const id = fileTabId(req.path)
     setFileTabs((prev) => {
       if (prev.some((t) => t.id === id)) return prev
-      return [...prev, createLoadingFileTab(req)]
+      // 记下这台机：切到另一台后保存要按它回原机，不能写进当前机
+      return [...prev, { ...createLoadingFileTab(req), sessionId: activeSessionId ?? undefined }]
     })
     setActiveTabId(id)
     setActiveFilePath(req.path)
-  }, [])
+  }, [activeSessionId, setActiveTabId, setFileTabs])
 
   const handleTabChange = useCallback((tabId: WorkbenchTabId) => {
     setActiveTabId(tabId)
@@ -129,7 +141,7 @@ export const WorkbenchPage: FC = () => {
     } else {
       setActiveFilePath(undefined)
     }
-  }, [])
+  }, [setActiveTabId])
 
   /**
    * 保存单个文件到远程（P1-3：从 EditorArea 抽出共用保存逻辑，
@@ -137,12 +149,17 @@ export const WorkbenchPage: FC = () => {
    */
   const saveFile = useCallback(
     async (tab: WorkbenchFileTab): Promise<boolean> => {
-      if (!activeSessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) {
+      const sessionId = fileTabSessionId(tab, activeSessionId)
+      if (!sessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) {
         toast.error('无法保存：无 SSH 会话或 sftpWriteFile 不可用')
         return false
       }
+      if (!canSaveFileTab(tab, activeSessionId)) {
+        toast.error(`「${tab.name}」属于另一台服务器，先切回原服务器再保存`)
+        return false
+      }
       try {
-        await window.electronAPI.sftpWriteFile(activeSessionId, tab.path, tab.content)
+        await window.electronAPI.sftpWriteFile(sessionId, tab.path, tab.content)
         setFileTabs((prev) =>
           prev.map((t) =>
             t.id === tab.id
@@ -157,7 +174,7 @@ export const WorkbenchPage: FC = () => {
         return false
       }
     },
-    [activeSessionId],
+    [activeSessionId, setFileTabs],
   )
 
   /**
@@ -196,7 +213,7 @@ export const WorkbenchPage: FC = () => {
       // 已修改未保存 → 弹三选项确认 Modal
       setPendingCloseTabId(tabId)
     },
-    [activeTabId, fileTabs, terminalFallbackTab],
+    [activeTabId, fileTabs, terminalFallbackTab, setActiveTabId, setFileTabs],
   )
 
   /** 关闭确认 Modal 内部：直接关闭 Tab（不保存） */
@@ -209,7 +226,7 @@ export const WorkbenchPage: FC = () => {
       setActiveTabId(terminalFallbackTab())
       setActiveFilePath(undefined)
     }
-  }, [pendingCloseTabId, activeTabId, terminalFallbackTab])
+  }, [pendingCloseTabId, activeTabId, terminalFallbackTab, setActiveTabId, setFileTabs])
 
   /** 关闭确认 Modal 内部：保存并关闭 */
   const closePendingWithSave = useCallback(async () => {
@@ -230,7 +247,7 @@ export const WorkbenchPage: FC = () => {
     } finally {
       setClosing(false)
     }
-  }, [pendingCloseTab, saveFile, activeTabId, terminalFallbackTab])
+  }, [pendingCloseTab, saveFile, activeTabId, terminalFallbackTab, setActiveTabId, setFileTabs])
 
   /**
    * 全部保存（P1-3：一键保存所有未保存文件，绑定到 WorkbenchTitlebar 的"全部保存"按钮）
@@ -261,7 +278,7 @@ export const WorkbenchPage: FC = () => {
           : t,
       ),
     )
-  }, [])
+  }, [setFileTabs])
 
   const handleFileLoaded = useCallback(
     (tabId: WorkbenchTabId, content: string, error?: string) => {
@@ -280,7 +297,7 @@ export const WorkbenchPage: FC = () => {
         ),
       )
     },
-    [],
+    [setFileTabs],
   )
 
   const handleFileSaved = useCallback((tabId: WorkbenchTabId, content: string) => {
@@ -291,7 +308,7 @@ export const WorkbenchPage: FC = () => {
           : t,
       ),
     )
-  }, [])
+  }, [setFileTabs])
 
   /**
    * P1-4：关闭其他文件 Tab
@@ -322,7 +339,7 @@ export const WorkbenchPage: FC = () => {
       })
       if (ok) doClose()
     },
-    [fileTabs, activeTabId],
+    [fileTabs, activeTabId, setActiveTabId, setFileTabs],
   )
 
   /**
@@ -348,7 +365,7 @@ export const WorkbenchPage: FC = () => {
       danger: true,
     })
     if (ok) doClose()
-  }, [fileTabs, terminalFallbackTab])
+  }, [fileTabs, terminalFallbackTab, setActiveTabId, setFileTabs])
 
   return (
     <div

@@ -20,6 +20,55 @@ import type { SftpEntry } from '@shared/models'
 /** 进度回调类型 */
 export type SftpProgressCallback = (transferred: number, total: number) => void
 
+/**
+ * 预算（毫秒）：ssh2 的回调在半开连接上永远不回来，界面会一直转圈。
+ * 与 SftpManager 保持同一口径：元数据 20s、传输 60s 无进展、流 30s。
+ */
+const META_BUDGET_MS = 20_000
+const TRANSFER_IDLE_BUDGET_MS = 60_000
+
+function withBudget<T>(promise: Promise<T>, label: string, ms = META_BUDGET_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}超时（${Math.round(ms / 1000)} 秒无响应）`)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      }
+    )
+  })
+}
+
+/** 有进展就续期的预算：大文件传输不能用绝对时限，否则正常的长传输会被误杀 */
+function withIdleBudget<T>(
+  start: (touch: () => void) => Promise<T>,
+  label: string,
+  idleMs = TRANSFER_IDLE_BUDGET_MS
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let timer: NodeJS.Timeout | undefined
+    const touch = (): void => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => reject(new Error(`${label}超时（${Math.round(idleMs / 1000)} 秒无进展）`)), idleMs)
+    }
+    touch()
+    start(touch).then(
+      (value) => {
+        if (timer) clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        if (timer) clearTimeout(timer)
+        reject(err)
+      }
+    )
+  })
+}
+
 /** Electerm SFTP 客户端选项 */
 export interface ElectermSftpOptions {
   /** 并发数（fastPut/fastGet） */
@@ -354,7 +403,7 @@ export class ElectermSftpManager {
 
     const sshClient = this.sshManager.getClient(sessionId)
     client = new ElectermSftpClient(sshClient)
-    await client.init()
+    await withBudget(client.init(), '建立 SFTP 通道')
     this.clients.set(sessionId, client)
 
     // 会话断开后自动清理
@@ -387,7 +436,7 @@ export class ElectermSftpManager {
 
   async list(sessionId: string, remotePath: string): Promise<SftpEntry[]> {
     const client = await this.getClient(sessionId)
-    return client.list(remotePath)
+    return withBudget(client.list(remotePath), `列出目录 ${remotePath}`)
   }
 
   async upload(
@@ -398,7 +447,14 @@ export class ElectermSftpManager {
   ): Promise<boolean> {
     assertRemoteWriteAllowed('上传', remotePath)
     const client = await this.getClient(sessionId)
-    return client.upload(localPath, remotePath, onProgress)
+    return withIdleBudget(
+      (touch) =>
+        client.upload(localPath, remotePath, (transferred, total) => {
+          touch()
+          onProgress?.(transferred, total)
+        }),
+      `上传 ${remotePath}`
+    )
   }
 
   async download(
@@ -408,59 +464,71 @@ export class ElectermSftpManager {
     onProgress?: SftpProgressCallback
   ): Promise<boolean> {
     const client = await this.getClient(sessionId)
-    return client.download(remotePath, localPath, onProgress)
+    return withIdleBudget(
+      (touch) =>
+        client.download(remotePath, localPath, (transferred, total) => {
+          touch()
+          onProgress?.(transferred, total)
+        }),
+      `下载 ${remotePath}`
+    )
   }
 
   async delete(sessionId: string, remotePath: string): Promise<boolean> {
     assertRemoteWriteAllowed('删除', remotePath)
     const client = await this.getClient(sessionId)
-    const stat = await client.stat(remotePath)
-    if (!stat) throw new Error(`远程路径不存在: ${remotePath}`)
-    if (stat.isDirectory) {
-      return this.rmrf(sessionId, remotePath)
-    }
-    return client.unlink(remotePath)
+    return withBudget(
+      (async () => {
+        const stat = await client.stat(remotePath)
+        if (!stat) throw new Error(`远程路径不存在: ${remotePath}`)
+        if (stat.isDirectory) {
+          return this.rmrf(sessionId, remotePath)
+        }
+        return client.unlink(remotePath)
+      })(),
+      `删除 ${remotePath}`
+    )
   }
 
   async rename(sessionId: string, oldPath: string, newPath: string): Promise<boolean> {
     assertRemoteWriteAllowed('重命名', oldPath)
     assertRemoteWriteAllowed('重命名目标', newPath)
     const client = await this.getClient(sessionId)
-    return client.rename(oldPath, newPath)
+    return withBudget(client.rename(oldPath, newPath), `重命名 ${oldPath}`)
   }
 
   async chmod(sessionId: string, remotePath: string, mode: number): Promise<boolean> {
     assertRemoteWriteAllowed('改权限', remotePath)
     const client = await this.getClient(sessionId)
-    return client.chmod(remotePath, mode)
+    return withBudget(client.chmod(remotePath, mode), `改权限 ${remotePath}`)
   }
 
   async mkdir(sessionId: string, remotePath: string): Promise<boolean> {
     assertRemoteWriteAllowed('建目录', remotePath)
     const client = await this.getClient(sessionId)
-    return client.mkdir(remotePath)
+    return withBudget(client.mkdir(remotePath), `建目录 ${remotePath}`)
   }
 
   async stat(sessionId: string, remotePath: string): Promise<SftpEntry | null> {
     const client = await this.getClient(sessionId)
-    return client.stat(remotePath)
+    return withBudget(client.stat(remotePath), `读取属性 ${remotePath}`)
   }
 
   async readFile(sessionId: string, remotePath: string, maxSize?: number): Promise<string> {
     const client = await this.getClient(sessionId)
-    return client.readFile(remotePath, maxSize)
+    return withBudget(client.readFile(remotePath, maxSize), `读取文件 ${remotePath}`, 30_000)
   }
 
   /** 读原始字节（W5 预览的子资源：图片/字体不能过 utf-8） */
   async readFileBuffer(sessionId: string, remotePath: string, maxSize?: number): Promise<Buffer> {
     const client = await this.getClient(sessionId)
-    return client.readFileBuffer(remotePath, maxSize)
+    return withBudget(client.readFileBuffer(remotePath, maxSize), `读取文件 ${remotePath}`, 30_000)
   }
 
   async writeFile(sessionId: string, remotePath: string, content: string): Promise<boolean> {
     assertRemoteWriteAllowed('写入', remotePath)
     const client = await this.getClient(sessionId)
-    return client.writeFile(remotePath, content)
+    return withBudget(client.writeFile(remotePath, content), `写入文件 ${remotePath}`, 30_000)
   }
 
   // ------------------------------------------------------------------
