@@ -80,7 +80,7 @@
   <line x1="700" y1="288" x2="700" y2="244" stroke="#64748b" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ar-gray)"/>
   <text x="714" y="270" font-size="12" fill="#64748b">事件推送（39 条通道）</text>
   <line x1="430" y1="342" x2="430" y2="386" stroke="#0f6cbd" stroke-width="2" marker-end="url(#ar-blue)"/>
-  <text x="444" y="368" font-size="12" fill="#334155">43 条已登记 zod 契约（其余未收口）</text>
+  <text x="444" y="368" font-size="12" fill="#334155">51 条已登记 zod 契约（其余未收口）</text>
   <line x1="700" y1="386" x2="700" y2="342" stroke="#64748b" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ar-gray)"/>
   <rect x="108" y="672" width="231" height="60" rx="8" fill="#e8f4f2" stroke="#b5ddd7" stroke-width="1"/>
   <rect x="108" y="680" width="4" height="44" rx="2" fill="#0f766e"/>

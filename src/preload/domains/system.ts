@@ -7,6 +7,7 @@ import type { AppInfo } from '../../main/ipc/app-update'
 import { AGENT, APP, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE, SYSTEM } from '@shared/ipc-channels'
 import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
 import { ipcRenderer } from 'electron'
+import { invokeChecked } from '../ipc-util'
 
 /**
  * 服务器监控 invoke 调用
@@ -257,7 +258,7 @@ const fsUpload = {
         mimeType: string
       }
     | { success: false; error: string }
-  > => ipcRenderer.invoke(FS.UPLOAD_IMAGE),
+  > => invokeChecked('fsUploadImage', FS.UPLOAD_IMAGE),
 }
 
 // ============================================================================

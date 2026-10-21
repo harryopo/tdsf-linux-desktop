@@ -25,6 +25,33 @@ describe('新契约拒绝错误形状', () => {
     expect(() => assertContractArgs('sftpChmod', ['s1', '/tmp/a', 1.5])).toThrow()
   })
 
+  it('sftpList / sftpReadFile：sessionId 与 remotePath 都必填', () => {
+    expect(() => assertContractArgs('sftpList', ['s1', '/tmp'])).not.toThrow()
+    expect(() => assertContractArgs('sftpList', ['s1'])).toThrow()
+    expect(() => assertContractArgs('sftpReadFile', ['s1', '/tmp/a'])).not.toThrow()
+    expect(() => assertContractArgs('sftpReadFile', [null, '/tmp/a'])).toThrow()
+  })
+
+  it('sftpUpload：transferId 可省略，给了必须是字符串', () => {
+    expect(() => assertContractArgs('sftpUpload', ['s1', '/tmp', undefined])).not.toThrow()
+    expect(() => assertContractArgs('sftpUpload', ['s1', '/tmp', 't1'])).not.toThrow()
+    expect(() => assertContractArgs('sftpUpload', ['s1', '/tmp', 1])).toThrow()
+  })
+
+  it('sshGenerateKeypair：类型只认 ed25519 / rsa', () => {
+    expect(() =>
+      assertContractArgs('sshGenerateKeypair', [{ type: 'ed25519', name: 'id_x' }])
+    ).not.toThrow()
+    expect(() =>
+      assertContractArgs('sshGenerateKeypair', [{ type: 'dsa', name: 'id_x' }])
+    ).toThrow()
+  })
+
+  it('fsUploadImage：无入参', () => {
+    expect(() => assertContractArgs('fsUploadImage', [])).not.toThrow()
+    expect(() => assertContractArgs('fsUploadImage', ['x'])).toThrow()
+  })
+
   it('historyBlocks：limit 可省略，但给了就必须是整数', () => {
     expect(() => assertContractArgs('historyBlocks', [])).not.toThrow()
     expect(() => assertContractArgs('historyBlocks', [20])).not.toThrow()

@@ -398,20 +398,6 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
    */
   appCheckUpdate(): Promise<AppUpdateInfo | AppUpdateError>
 
-  // ===== v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image） =====
-  // AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
-  // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
-  /**
-   * 选择图片文件并返回 base64 data URL
-   *
-   * 主进程弹出文件选择对话框，用户选择图片后读取文件转 base64。
-   * - 成功：返回 ImageUploadResult（含 dataUrl / fileName / fileSize / mimeType）
-   * - 失败：返回 ImageUploadError（error 字段已脱敏）
-   * - 用户取消：返回 ImageUploadError（error='用户取消选择'）
-   *
-   * 使用场景：AIPanel 图片附件按钮
-   */
-  fsUploadImage(): Promise<ImageUploadResult | ImageUploadError>
   /** 启动 OpenHands App Server 容器（首次启动需拉镜像，可能数分钟） */
   sandboxStart(): Promise<{ success: true } | SandboxErrorResponse>
 

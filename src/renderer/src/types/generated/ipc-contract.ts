@@ -3,7 +3,7 @@
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
-import type { ChatMessage, CommandResult, PreviewHandleInfo, PreviewTarget, ShellIntegrationResult, ShellIntegrationStatus } from '@shared/models'
+import type { ChatMessage, CommandResult, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 
 /** 已纳入契约的 invoke 通道：electronAPI 上这些方法的签名以这里为准 */
@@ -155,6 +155,38 @@ export interface ContractedInvokeApi {
   /** 高危命令拦截记录，按时间倒序，limit 缺省 200、上限 1000
    * 通道 `history:blocks` */
   historyBlocks(limit?: number): Promise<BlockedCommandRecord[]>
+
+  /** 列出远程目录
+   * 通道 `sftp:list` */
+  sftpList(sessionId: string, remotePath: string): Promise<SftpEntry[]>
+
+  /** 上传本地文件到远程目录；本地路径由主进程对话框决定
+   * 通道 `sftp:upload` */
+  sftpUpload(sessionId: string, remotePath: string, transferId?: string): Promise<SftpTransferResult>
+
+  /** 下载远程文件；保存位置由主进程对话框决定
+   * 通道 `sftp:download` */
+  sftpDownload(sessionId: string, remotePath: string, transferId?: string): Promise<SftpTransferResult>
+
+  /** 读取远程文件内容（UTF-8 文本，10MB 上限）
+   * 通道 `sftp:readFile` */
+  sftpReadFile(sessionId: string, remotePath: string): Promise<string>
+
+  /** 获取远程文件/目录元信息
+   * 通道 `sftp:stat` */
+  sftpStat(sessionId: string, remotePath: string): Promise<SftpEntry | null>
+
+  /** 对话框选择私钥并复制到 ~/.ssh（chmod 600）
+   * 通道 `ssh:upload-keypair` */
+  sshUploadKeypair(): Promise<{ success: boolean; keyPair?: SshKeyPair; error?: string; canceled?: boolean }>
+
+  /** 生成 ed25519/rsa 密钥对
+   * 通道 `ssh:generate-keypair` */
+  sshGenerateKeypair(request: { type: "ed25519" | "rsa"; name: string; passphrase?: string; comment?: string }): Promise<GenerateKeyPairResponse>
+
+  /** 对话框选择图片并返回 base64 data URL
+   * 通道 `fs:upload-image` */
+  fsUploadImage(): Promise<{ success: true; dataUrl: string; fileName: string; fileSize: number; mimeType: string } | { success: false; error: string }>
 }
 
 /** 已纳入契约的推送通道：订阅函数的负载类型以这里为准 */

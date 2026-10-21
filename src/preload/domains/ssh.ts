@@ -144,7 +144,7 @@ const ssh = {
     keyPair?: SshKeyPair
     error?: string
     canceled?: boolean
-  }> => ipcRenderer.invoke(SSH.UPLOAD_KEYPAIR),
+  }> => invokeChecked('sshUploadKeypair', SSH.UPLOAD_KEYPAIR),
 
   /**
    * 生成 SSH 密钥对（Phase M）
@@ -158,7 +158,7 @@ const ssh = {
   generateKeypair: (
     request: GenerateKeyPairRequest,
   ): Promise<GenerateKeyPairResponse> =>
-    ipcRenderer.invoke(SSH.GENERATE_KEYPAIR, request),
+    invokeChecked<GenerateKeyPairResponse>('sshGenerateKeypair', SSH.GENERATE_KEYPAIR, request),
 
   /**
    * 列出 ~/.ssh/ 目录下所有密钥对（Phase M）

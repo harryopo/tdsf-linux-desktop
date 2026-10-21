@@ -11,7 +11,7 @@ import type { SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from '../type
 const sftp = {
   /** 列出远程目录 */
   list: (sessionId: string, remotePath: string): Promise<SftpEntry[]> =>
-    ipcRenderer.invoke(SFTP.LIST, sessionId, remotePath),
+    invokeChecked<SftpEntry[]>('sftpList', SFTP.LIST, sessionId, remotePath),
 
   /**
    * 上传文件（支持 transferId 进度关联）
@@ -21,11 +21,11 @@ const sftp = {
    * "读 ~/.ssh/id_rsa 送去远端"这类组合就没有可拼的原料。
    */
   upload: (sessionId: string, remotePath: string, transferId?: string): Promise<SftpTransferResult> =>
-    ipcRenderer.invoke(SFTP.UPLOAD, sessionId, remotePath, transferId),
+    invokeChecked<SftpTransferResult>('sftpUpload', SFTP.UPLOAD, sessionId, remotePath, transferId),
 
   /** 下载文件（支持 transferId 进度关联）；保存位置由主进程的另存为对话框决定 */
   download: (sessionId: string, remotePath: string, transferId?: string): Promise<SftpTransferResult> =>
-    ipcRenderer.invoke(SFTP.DOWNLOAD, sessionId, remotePath, transferId),
+    invokeChecked<SftpTransferResult>('sftpDownload', SFTP.DOWNLOAD, sessionId, remotePath, transferId),
 
   /** 删除文件/目录 */
   delete: (sessionId: string, remotePath: string): Promise<boolean> =>
@@ -49,7 +49,7 @@ const sftp = {
 
   /** 读取远程文件内容到字符串（v0.8 IDE 工作台，10MB 上限） */
   readFile: (sessionId: string, remotePath: string): Promise<string> =>
-    ipcRenderer.invoke(SFTP.READ_FILE, sessionId, remotePath),
+    invokeChecked<string>('sftpReadFile', SFTP.READ_FILE, sessionId, remotePath),
 
   /** 写入字符串到远程文件（v0.8 IDE 工作台，覆盖原文件） */
   writeFile: (
@@ -61,7 +61,7 @@ const sftp = {
 
   /** 获取文件/目录元信息（返回 SftpEntry 或 null） */
   stat: (sessionId: string, remotePath: string): Promise<SftpEntry | null> =>
-    ipcRenderer.invoke(SFTP.STAT, sessionId, remotePath),
+    invokeChecked<SftpEntry | null>('sftpStat', SFTP.STAT, sessionId, remotePath),
 
   /** 创建远程目录 */
   mkdir: (sessionId: string, remotePath: string): Promise<boolean> =>

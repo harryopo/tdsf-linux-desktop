@@ -20,6 +20,7 @@ import { z } from 'zod'
 import {
   AGENT,
   BOOT,
+  FS,
   HISTORY,
   LOCAL_TTY,
   PREVIEW,
@@ -557,6 +558,109 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     resultTs: 'BlockedCommandRecord[]',
     result: z.array(z.unknown()),
   },
+  // ===== 契约扩面第二批（2026-10-21）：SFTP 读取/传输 + 密钥对 + 图片上传 =====
+  {
+    kind: 'invoke',
+    api: 'sftpList',
+    channel: SFTP.LIST,
+    doc: '列出远程目录',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+    ],
+    resultTs: 'SftpEntry[]',
+    result: z.array(z.unknown()),
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpUpload',
+    channel: SFTP.UPLOAD,
+    doc: '上传本地文件到远程目录；本地路径由主进程对话框决定',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+      { name: 'transferId', ts: 'string | undefined', schema: opt(str) },
+    ],
+    resultTs: 'SftpTransferResult',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpDownload',
+    channel: SFTP.DOWNLOAD,
+    doc: '下载远程文件；保存位置由主进程对话框决定',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+      { name: 'transferId', ts: 'string | undefined', schema: opt(str) },
+    ],
+    resultTs: 'SftpTransferResult',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpReadFile',
+    channel: SFTP.READ_FILE,
+    doc: '读取远程文件内容（UTF-8 文本，10MB 上限）',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+    ],
+    resultTs: 'string',
+    result: str,
+  },
+  {
+    kind: 'invoke',
+    api: 'sftpStat',
+    channel: SFTP.STAT,
+    doc: '获取远程文件/目录元信息',
+    args: [
+      { name: 'sessionId', ts: 'string', schema: str },
+      { name: 'remotePath', ts: 'string', schema: str },
+    ],
+    resultTs: 'SftpEntry | null',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'sshUploadKeypair',
+    channel: SSH.UPLOAD_KEYPAIR,
+    doc: '对话框选择私钥并复制到 ~/.ssh（chmod 600）',
+    args: [],
+    resultTs: '{ success: boolean; keyPair?: SshKeyPair; error?: string; canceled?: boolean }',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'sshGenerateKeypair',
+    channel: SSH.GENERATE_KEYPAIR,
+    doc: '生成 ed25519/rsa 密钥对',
+    args: [
+      {
+        name: 'request',
+        ts: '{ type: "ed25519" | "rsa"; name: string; passphrase?: string; comment?: string }',
+        schema: z
+          .object({
+            type: z.enum(['ed25519', 'rsa']),
+            name: str,
+            passphrase: opt(str),
+            comment: opt(str),
+          })
+          .passthrough(),
+      },
+    ],
+    resultTs: 'GenerateKeyPairResponse',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'fsUploadImage',
+    channel: FS.UPLOAD_IMAGE,
+    doc: '对话框选择图片并返回 base64 data URL',
+    args: [],
+    resultTs: '{ success: true; dataUrl: string; fileName: string; fileSize: number; mimeType: string } | { success: false; error: string }',
+    result: z.unknown(),
+  },
 ]
 
 /** 生成文件要 import 的类型来自哪儿 */
@@ -576,6 +680,10 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   BootLoadingStage: '@shared/boot-types',
   CommandResult: '@shared/models',
   BlockedCommandRecord: '@shared/audit-types',
+  SftpEntry: '@shared/models',
+  SftpTransferResult: '@shared/models',
+  SshKeyPair: '@shared/models',
+  GenerateKeyPairResponse: '@shared/models',
 }
 
 export function contractFor(api: string): ChannelContract | undefined {
