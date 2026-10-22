@@ -616,6 +616,15 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         <ChatCredibility message={message} />
       )}
       {renderCommandButtons()}
+      {/*
+       * 被用户"停止"的回答要说在半截处停住了（调研 P0-2）。
+       * 以前这里什么都没有：内容停在半句、流动态关掉，与"模型说完了"长得一模一样。
+       */}
+      {message.cancelled && !message.isStreaming && (
+        <div className="ai-token-row pl-8 text-caption text-ink-mute" data-dom-id="message-cancelled">
+          已停止 · 上面是中断处的半截回答，模型没有说到完
+        </div>
+      )}
       {(message.usage || message.model) && !message.isStreaming && (
         <div className="ai-token-row ai-token-pop pl-8">
           <Clock className="size-3" />

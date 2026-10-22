@@ -68,6 +68,14 @@ export interface AgentMessage {
   correlationId?: string
   /** 是否正在流式输出（assistant 消息用） */
   isStreaming?: boolean
+  /**
+   * 这条是被用户"停止"打断的半截回答（done 事件带 finishReason='cancelled' 时置真）
+   *
+   * 没有它，界面上"我点了停止"与"模型说完了"是同一个样子：内容停在中途、流动态关掉、
+   * 其余什么都没有（2026-10-22 调研 P0-2）。用量那侧还有一句：取消时如果没拿到账，
+   * finalizeMessage 会把主进程补发的 0 撤成"未知"，因为 0 是一个事实陈述而它并不是事实。
+   */
+  cancelled?: boolean
   /** 是否出错（assistant 消息用，error 内容来自 AgentErrorPayload） */
   isError?: boolean
   /**
@@ -430,12 +438,27 @@ export const useAgentStore = create<AgentState>()((set) => ({
         payload.result.cotEntropyTrajectory && payload.result.cotEntropyTrajectory.length > 0
           ? payload.result.cotEntropyTrajectory
           : msg.cotEntropyTrajectory
+      const cancelled = payload.result.finishReason === 'cancelled'
+      /*
+       * 取消那一轮：主进程的用量拿不到时会补一串 0（它的类型不允许 undefined）。
+       * 一串 0 到这里已经分不出"真的一个 token 都没烧"与"没拿到账"，
+       * 而徽章要说的恰恰是后者——所以 cancelled 且全 0 时按"未知"处理，
+       * 真拿到部分用量（cancel 前流里已经回报过）则原样保留。
+       */
+      const rawUsage = payload.result.usage
+      const usageUnknownAfterCancel =
+        cancelled &&
+        !!rawUsage &&
+        rawUsage.inputTokens === 0 &&
+        rawUsage.outputTokens === 0 &&
+        rawUsage.totalTokens === 0
       const messages = replaceAt(state.messages, idx, {
         ...msg,
         isStreaming: false,
+        ...(cancelled ? { cancelled: true } : {}),
         providerId: payload.result.providerId,
         model: payload.result.model,
-        usage: payload.result.usage,
+        usage: usageUnknownAfterCancel ? undefined : payload.result.usage,
         contextTokens: payload.result.contextTokens,
         contextNote: buildCompactionNote(payload.result) ?? undefined,
         cotEntropyTrajectory: cotTrajectory,

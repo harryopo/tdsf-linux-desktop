@@ -59,6 +59,8 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
   `anthropic` / `google` / `deepseek` / `qwen` / `volcengine-ark` / `ollama` / `openai-compatible`。
   智谱、Moonshot 这类走 `openai-compatible` 模板，不是独立分支。
 - 流式：增量合并、思考链占位、迟到事件不丢、可中途停止（停止和失败分开报，不混成一个红条）。
+  停止的那一轮在消息底部标成「已停止」，已烧掉的 token 照常入账——只有一个字都没吐时才写「未拿到账」，
+  不拿 0 冒充零消耗。
 - 上下文窗口按各家真实上限算，超了如实截断并标注，不假装塞得下。
 - MCP 工具接入（`@modelcontextprotocol/sdk`），工具执行在前端逐条成卡。
 - 所有网络请求界面可见——不给"静默把终端内容传走"留口子。
@@ -105,15 +107,16 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-22 16:13**：单元与结构读数出自 16:08 那轮，端到端读数出自 16:13 那轮（含真机靶机）。
+下表测量时间 **2026-10-22 21:13**：单元与组件读数出自 21:13 那轮，端到端读数出自 21:11 那轮（含真机靶机），
+结构类读数（通道、契约、源文件、词表）由 `npm run promo:check` 在对账那一刻现场数。
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3331 通过 / 20 跳过 | `npm test`（292 个测试文件：290 通过 / 2 按环境跳过） |
+| 单元与组件用例 | 3348 通过 / 20 跳过 | `npm test`（295 个测试文件：293 通过 / 2 按环境跳过） |
 | 端到端用例 | 64 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 274 | `npm run audit:ipc`（235 请求-响应 + 39 事件推送） |
 | 已登记契约的通道 | 54 | `src/shared/ipc-contract.ts`（49 invoke + 5 event） |
-| TypeScript / TSX 源文件 | 512 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| TypeScript / TSX 源文件 | 513 | `git ls-files src` 里 `.ts/.tsx` 计数 |
 | Provider 类型 | 7 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 

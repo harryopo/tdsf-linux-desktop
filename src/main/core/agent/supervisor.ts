@@ -54,6 +54,13 @@
  */
 import { randomUUID } from 'node:crypto'
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
+import {
+  createUsageAccumulator,
+  observeStreamPart,
+  readStreamStats,
+  type StreamUsageAccumulator,
+  type UsageNumbers,
+} from './stream-stats'
 import { z } from 'zod'
 import { APPROVAL_BUDGET_MS, isLlmTimeout, resolveLlmBudget } from './llm-budget'
 import { ConfigStore } from '../../services/storage/config-store'
@@ -570,6 +577,12 @@ class SupervisorAgent {
       thinkingEnabled: enableDeepseekThinking,
       logprobsEnabled: enableLogprobs,
     })
+
+    /*
+     * 流内用量累加器。声明在 try **外面**：取消分支在 catch 里，
+     * 而它正需要这份账（放在 try 里面就够不着，那等于白攒）。
+     */
+    let usageAcc: StreamUsageAccumulator = createUsageAccumulator()
 
     try {
       // v2.6：提前提取最后一条用户消息（意图路由 + Skill 路由共用）
@@ -1178,11 +1191,16 @@ class SupervisorAgent {
       /** 流内出现过的第一个 error part（真实成因），见循环后那处判空抛出 */
       let streamInnerError: unknown = null
       /*
+       * 用量在这里顺手攒一份：中止（用户点"停止"）会让下面的 for await 当场抛，
+       * 那时 result.usage 这条路走不到，但已经跑完的步数是真烧了 token 的。
+       */
+      /*
        * 这里原来是一段自制空闲看门狗（每收到一个 part 重置，工具执行期暂停）。
        * 已换成 streamText 的 timeout：同一个职责不该由我们手工维持"记得重置"——
        * 只要有一个分支忘了调（工具期 return），防线就出现洞，而那正是当时的症状。
        */
       for await (const part of result.stream) {
+        usageAcc = observeStreamPart(part, usageAcc)
         const partType = (part as { type?: string }).type
         if (partType === 'error') {
           // 流式底层错误（如 4xx）：ai-sdk 否则会吞成 "No output generated"，这里记录真实原因便于排查
@@ -1309,13 +1327,17 @@ class SupervisorAgent {
       let finishReason: Awaited<typeof result.finishReason> | undefined
       // 逐步明细：末步的 prompt 才是"这一轮真实占用"，各步之和是"这一轮烧掉多少"（计费）
       let steps: Awaited<typeof result.steps> = []
-      let statsReadError: unknown = null
-      try {
-        usage = await result.usage
-        finishReason = await result.finishReason
-        steps = await result.steps
-      } catch (err) {
-        statsReadError = err
+      let statsReadErrors: unknown[] = []
+      {
+        const stats = await readStreamStats({
+          usage: result.usage,
+          finishReason: result.finishReason,
+          steps: result.steps,
+        })
+        usage = stats.usage
+        finishReason = stats.finishReason
+        steps = stats.steps ?? []
+        statsReadErrors = stats.readErrors
       }
 
       // v2.4 修复：正文为空但有 reasoning 时，用 reasoning 兑底并补发一次 onToken，
@@ -1353,7 +1375,7 @@ class SupervisorAgent {
        * 账记完了，再把失败说清楚（两条路都要走，缺一不可）：
        * - 一个字都没产出而流里见过错 → 抛那个真实原因，让分类表认得它
        *   （否则界面拿到的就是 ai-sdk 那句 "No output generated…"，落进"原因没被认出来"）
-       * - 连账都拿不到（statsReadError 非空）→ 也优先抛真实原因
+       * - 连账都拿不到（readErrors 非空）→ 也优先抛真实原因
        * 有正文时一律不抛：流内 error 也可能是某个工具调用失败而模型自己绕过去了。
        */
       if (streamInnerError !== null && !fullText && !reasoningText) {
@@ -1361,8 +1383,9 @@ class SupervisorAgent {
           ? streamInnerError
           : new Error(String(streamInnerError))
       }
-      if (statsReadError !== null) {
-        throw statsReadError instanceof Error ? statsReadError : new Error(String(statsReadError))
+      if (statsReadErrors.length > 0) {
+        const first = statsReadErrors[0]
+        throw first instanceof Error ? first : new Error(String(first))
       }
 
       // v0.9.6 P2 M5+：finalize trace collector，附加熵轨迹到 ChatResult
@@ -1436,16 +1459,48 @@ class SupervisorAgent {
       // 我们自己那个 AbortController 只有 cancelRequest() 会 abort，所以它一跳就是真取消；
       // SDK 的超时走它内部的合并信号，到我们这里只表现为 TimeoutError 形状的失败。
       if (abortController.signal.aborted) {
-        this.log.info('chat 调用已取消', { correlationId, durationMs: Date.now() - startTime })
+        /*
+         * 取消那一轮也要入账。以前这条分支直接 onDone 一串 0 就返回，recordTokenUsage
+         * 一次都不调（它在上面正常路径的 try 里，abort 从 for await 抛出来就走不到）——
+         * 于是"停止"用得越多，成本读数越偏低：账明明烧掉了，界面上只剩估算镜像可看。
+         * 用量取流里攒好的那份（usageAcc）；一个字都没吐就断时保持 0，
+         * 由渲染层把"cancelled + 全 0"翻成"未拿到账"，不假装是零消耗。
+         */
+        const cancelledUsage: UsageNumbers = usageAcc.total ?? {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+        }
+        if (usageAcc.total) {
+          recordTokenUsage({
+            providerId: resolvedProviderId,
+            model: modelInstance.resolvedModel,
+            inputTokens: usageAcc.total.inputTokens,
+            outputTokens: usageAcc.total.outputTokens,
+            totalTokens: usageAcc.total.totalTokens,
+            subagent: 'supervisor',
+            strength,
+            timestamp: Date.now(),
+          })
+        }
+        this.log.info('chat 调用已取消', {
+          correlationId,
+          durationMs: Date.now() - startTime,
+          streamedSteps: usageAcc.steps,
+          totalTokens: cancelledUsage.totalTokens,
+        })
         onDone?.({
           text: '',
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          usage: cancelledUsage,
           finishReason: 'cancelled',
           providerId: resolvedProviderId,
           model: modelInstance.resolvedModel,
           strength,
           durationMs: Date.now() - startTime,
           compactionLevel: compaction.level,
+          ...(usageAcc.lastStep
+            ? { contextTokens: usageAcc.lastStep.inputTokens + usageAcc.lastStep.outputTokens }
+            : {}),
           compactionDetail: {
             beforeTokens: compaction.beforeTokens,
             afterTokens: compaction.afterTokens,

@@ -315,3 +315,26 @@ describe('LiveMessageRow — assistant 消息', () => {
     expect(screen.getByText('正在分析磁盘使用率')).toBeInTheDocument()
   })
 })
+
+describe('LiveMessageRow — 被用户停止的回答（调研 P0-2）', () => {
+  it('cancelled 要上屏说明"这是半截"，并且不报一个假的 0 tokens', () => {
+    render(<LiveMessageRow message={makeAssistant({ content: '先看一眼 df -h，然后', cancelled: true, model: 'm1' })} />)
+    expect(screen.getByText(/^已停止/)).toBeInTheDocument()
+    expect(screen.queryByText(/tokens/)).not.toBeInTheDocument()
+  })
+
+  it('cancelled 且真拿到了部分用量：照常显示读数，不因为它被停就藏起来', () => {
+    render(
+      <LiveMessageRow
+        message={makeAssistant({
+          content: '先看一眼 df -h',
+          cancelled: true,
+          model: 'm1',
+          usage: { inputTokens: 900, outputTokens: 12, totalTokens: 912 },
+        })}
+      />
+    )
+    expect(screen.getByText(/^已停止/)).toBeInTheDocument()
+    expect(screen.getByText(/912 tokens/)).toBeInTheDocument()
+  })
+})
