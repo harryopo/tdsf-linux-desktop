@@ -20,6 +20,7 @@ import { app, ipcMain, shell } from 'electron'
 import { existsSync, statSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { APP } from '@shared/ipc-channels'
+import { GITHUB_LATEST_RELEASE_API, GITHUB_RELEASES_PAGE } from '@shared/repo-identity'
 import { logger } from '../services/log/logger'
 import { redactSecrets } from '../core/agent/providers/redact'
 import { assertSafeExternalUrl } from '../services/security/url-policy'
@@ -31,24 +32,13 @@ import { describeGrowth } from '../services/db/growth-report'
 import type { DbGrowth } from '@shared/db-types'
 
 /**
- * GitHub 仓库标识（与 about-settings.constants.ts LINK_URLS.github 对齐）
+ * 仓库标识与两个 URL 都在 `@shared/repo-identity`（单源）。
  *
- * 格式：owner/repo，用于构造 GitHub Releases API URL
+ * 这里以前自己写了一份 owner/repo 字面量，而那是全仓六处里唯一抄错的一份
+ * （其余都写本仓真实 owner），后果是"检查更新"每次点都 404，而 404 又被归进
+ * 通用失败文案，用户读不懂。2026-10-22 改掉；本文件里不许再出现第二个仓库名字面量
+ * （判据：tests/unit/repo-identity.test.ts）。
  */
-const GITHUB_REPO = 'tdsf-linux/tdsf-linux-desktop'
-
-/**
- * GitHub Releases API URL（latest release 端点）
- *
- * 返回最新的 Release 对象（含 tag_name / name / body / html_url / published_at）
- * 文档：https://docs.github.com/en/rest/releases/releases#get-the-latest-release
- */
-const GITHUB_LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
-
-/**
- * GitHub Releases 页面 URL（用于"前往下载"按钮打开浏览器）
- */
-const GITHUB_RELEASES_PAGE = `https://github.com/${GITHUB_REPO}/releases`
 
 /**
  * 允许交给系统浏览器打开的更新链接主机（精确匹配，子域要显式列出）
@@ -202,13 +192,22 @@ export function registerAppUpdateHandlers(): void {
       })
 
       if (!response.ok) {
-        const errorMsg = `GitHub API 响应错误: HTTP ${response.status}`
-        logger.warn('APP_UPDATE', errorMsg, { status: response.status })
+        // 三种非 2xx 要说不一样的话：404 不是"检查失败"，是这个仓库【还没有已发布的
+        // Release】（releases/latest 不认草稿）。把它混进通用失败文案，用户会反复重试
+        // 或以为是网络问题；2026-10-22 实测远端就只有一个草稿，点必 404。
+        const status = response.status
+        let reason: string
+        if (status === 404) {
+          reason = '还没有已发布的版本（仓库只发布了草稿或未发布），可到 Releases 页确认'
+        } else if (status === 403) {
+          reason = 'GitHub API 速率限制（每小时 60 次），请稍后重试'
+        } else {
+          reason = `GitHub API 响应错误: HTTP ${status}`
+        }
+        logger.warn('APP_UPDATE', `检查更新未取到 Release（HTTP ${status}）`, { status })
         return {
           hasUpdate: false,
-          error: response.status === 403
-            ? 'GitHub API 速率限制（每小时 60 次），请稍后重试'
-            : errorMsg,
+          error: reason,
         }
       }
 

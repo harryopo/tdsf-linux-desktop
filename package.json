@@ -5,6 +5,10 @@
   "main": "./out/main/index.js",
   "author": "TDSF",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harryopo/tdsf-linux-desktop.git"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

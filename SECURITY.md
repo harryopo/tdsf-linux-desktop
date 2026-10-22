@@ -39,7 +39,7 @@
 
 ## 安全最佳实践（用户侧）
 
-- ✅ 始终使用最新版（设置 → 关于 → 检查更新）
+- ✅ 保持版本更新：目前请从 [Releases](https://github.com/harryopo/tdsf-linux-desktop/releases) 下载安装包；应用内"检查更新"只查询已发布的 Release，不做自动更新
 - ✅ SSH 私钥使用 ED25519 或 RSA-4096
 - ✅ 启用三态权限审批（ALWAYS / AUTO / NEVER）
 - ✅ 不要在公共 WiFi 下管理生产服务器

@@ -7,6 +7,7 @@
  */
 import { FileText, Scale, MessageCircle, Tag, type LucideIcon } from 'lucide-react'
 import type { DbTableGrowth } from '@shared/db-types'
+import { GITHUB_REPO_URL } from '@shared/repo-identity'
 
 export interface InfoRow {
   key: string
@@ -31,7 +32,13 @@ export const APP_VERSION = '1.0.0'
 /** IPC 不可用时的显示值：说清为什么没有，而不是编一个 */
 export const NOT_AVAILABLE = '未获取到（非 Electron 运行环境）'
 
-const REPO = 'https://github.com/harryopo/tdsf-linux-desktop'
+/**
+ * 仓库地址取自单源 `@shared/repo-identity`。
+ *
+ * 以前这里和 `src/main/ipc/app-update.ts` 各写一份仓库名，两份还写得不一样
+ * （一份 harryopo、一份 tdsf-linux），于是"检查更新"去问了一个不存在的仓库。
+ */
+const REPO = GITHUB_REPO_URL
 
 export const LINK_URLS = {
   github: REPO,
