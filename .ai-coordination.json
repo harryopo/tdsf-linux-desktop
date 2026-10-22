@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-22T01:59:21.870Z",
+  "lastUpdated": "2026-10-22T04:53:01.230Z",
   "sessions": {},
   "history": [
     {
@@ -8327,6 +8327,104 @@
       "file": "src/preload/domains/ssh.ts",
       "task": "ssh-config-import",
       "timestamp": "2026-10-22T01:59:21.870Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/tutorial/embedding-model.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/tutorial/embedding-service.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/embedding-model-integrity.test.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/ssh-live-sftp.spec.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "README.md",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/功能实景清单.md",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/长期优化目标.md",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:52:30.556Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/tutorial/embedding-model.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/tutorial/embedding-service.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/embedding-model-integrity.test.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/ssh-live-sftp.spec.ts",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "README.md",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/功能实景清单.md",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/长期优化目标.md",
+      "task": "真机交互判据 + 模型下载双源兜底",
+      "timestamp": "2026-10-22T04:53:01.230Z"
     }
   ],
   "coordinationAudit": {
