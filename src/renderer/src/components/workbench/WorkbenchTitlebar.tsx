@@ -50,11 +50,18 @@ export interface WorkbenchTitlebarProps {
   onSaveAll?: () => void
   /** P1-3：是否存在未保存文件（用于按钮高亮提示） */
   hasUnsavedFiles?: boolean
+  /**
+   * #170：AI 面板里正在等人回答的审批条数。
+   * 面板可以收起，而请求不会丢（队列在全局 store）——收起期间总得有个地方说"里面有话等你答"，
+   * 否则用户看到的是一个不动的图标，和"没发生任何事"长得一模一样。
+   */
+  aiApprovalCount?: number
 }
 
 export function WorkbenchTitlebar({
   onToggleAI,
   aiPanelVisible = true,
+  aiApprovalCount = 0,
   onToggleTerminal,
   terminalActive = false,
   onSaveAll,
@@ -350,10 +357,15 @@ export function WorkbenchTitlebar({
             <Search className="size-4" />
           </IconButton>
           <IconButton
-            title="AI面板"
+            title={
+              aiApprovalCount > 0
+                ? `AI面板（${aiApprovalCount} 条命令等你批准）`
+                : 'AI面板'
+            }
             onClick={onToggleAI}
             active={aiPanelVisible}
             domId="btn-toggle-ai"
+            badge={aiApprovalCount}
           >
             <PanelRight className="size-4" />
           </IconButton>
@@ -389,6 +401,7 @@ function IconButton({
   onClick,
   active,
   domId,
+  badge,
 }: {
   children: React.ReactNode
   title: string
@@ -396,6 +409,8 @@ function IconButton({
   active?: boolean
   /** data-dom-id 标识（用于 E2E 测试 / 自动化接入） */
   domId?: string
+  /** 角标数字（>0 才画）。#170：AI 面板收起时审批请求不丢，靠这颗数字告诉用户"里面在等人回答" */
+  badge?: number
 }) {
   return (
     <button
@@ -405,12 +420,21 @@ function IconButton({
       aria-pressed={active}
       onClick={onClick}
       data-dom-id={domId}
+      data-badge={badge && badge > 0 ? String(badge) : undefined}
       className={cn(
         'wb-icon-btn',
         active && 'is-active',
       )}
     >
       {children}
+      {badge && badge > 0 ? (
+        <span
+          aria-hidden
+          className="flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-solid px-1 text-caption font-semibold text-[var(--trae-text-onbrand)]"
+        >
+          {badge}
+        </span>
+      ) : null}
     </button>
   )
 }

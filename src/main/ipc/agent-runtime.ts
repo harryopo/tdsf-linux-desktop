@@ -103,6 +103,43 @@ function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]
 }
 
 /**
+ * 推送一次高危审批，并挂起等待用户响应（对话里的 ssh_write 与 PAOR 循环共用一条）
+ *
+ * 为什么要收成函数：两处以前各写一遍"发事件 + 起 60 秒定时器 + 进挂起表"，
+ * 而超时那一路只 logger.warn 后 resolve(false)，**从不告诉渲染进程"这条已经作废"**。
+ * 界面于是留着一张还能点、但点了没反应的审批卡（#170）。现在把死线随载荷发出去，
+ * 界面按 expiresAt 自己下卡；用户真去点了过期 callId，paor:approve 也照旧返回 false。
+ */
+function requestPaorApproval(
+  mainWindow: BrowserWindow,
+  input: Omit<PaorApprovalRequest, 'expiresAt'>
+): Promise<boolean> {
+  const payload: PaorApprovalRequest = {
+    ...input,
+    expiresAt: Date.now() + PAOR_APPROVAL_TIMEOUT_MS,
+  }
+  logger.info('IPC.AGENT', '推送审批请求', {
+    callId: payload.callId,
+    origin: payload.origin,
+    command: payload.command,
+    level: payload.riskLevel,
+  })
+  safeSend(mainWindow, PAOR_APPROVAL_REQUEST_CHANNEL, payload)
+
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => {
+      pendingPaorApprovals.delete(payload.callId)
+      logger.warn('IPC.AGENT', '审批超时，自动拒绝', {
+        callId: payload.callId,
+        origin: payload.origin,
+      })
+      resolve(false)
+    }, PAOR_APPROVAL_TIMEOUT_MS)
+    pendingPaorApprovals.set(payload.callId, { resolve, timeout })
+  })
+}
+
+/**
  * 错误分类：唯一一份规则表在 providers/llm-error.ts（#101）
  *
  * 这里原来手抄了一份 15 个分支的判定，与 ipc/llm.ts、ipc/llm-tools.ts 各一份共三份，
@@ -176,10 +213,9 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           terminalContext,
           // v2.9 写命令 HITL 审批：复用 PAOR 审批通道（paor:approval-request 卡片），
           // ssh_write 工具 execute 内 await 此回调，用户批准才真执行；60 秒超时自动拒绝
-          approveWriteCommand: async (command, level, description): Promise<boolean> => {
-            const callId = `write_${Date.now()}_${randomUUID().slice(0, 8)}`
-            const payload: PaorApprovalRequest = {
-              callId,
+          approveWriteCommand: async (command, level, description): Promise<boolean> =>
+            requestPaorApproval(mainWindow, {
+              callId: `write_${Date.now()}_${randomUUID().slice(0, 8)}`,
               command,
               riskLevel: level,
               riskDescription: description,
@@ -187,18 +223,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               // 于是审批卡把这条例外也说成"PAOR 请求批准 — 第 1 步"，两个字段都是假的
               origin: 'chat',
               timestamp: Date.now(),
-            }
-            logger.info('IPC.AGENT', 'ssh_write 推送审批请求', { callId, command, level })
-            safeSend(mainWindow, PAOR_APPROVAL_REQUEST_CHANNEL, payload)
-            return new Promise<boolean>((resolve) => {
-              const timeout = setTimeout(() => {
-                pendingPaorApprovals.delete(callId)
-                logger.warn('IPC.AGENT', 'ssh_write 审批超时，自动拒绝', { callId })
-                resolve(false)
-              }, PAOR_APPROVAL_TIMEOUT_MS)
-              pendingPaorApprovals.set(callId, { resolve, timeout })
-            })
-          },
+            }),
           onToken: (delta) => {
             const payload: AgentChunkPayload = { correlationId, delta, sessionId: resolvedSessionId }
             safeSend(mainWindow, AGENT_CHUNK_CHANNEL, payload)
@@ -471,29 +496,16 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
             safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, plan, planConfidence })
           },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
-          approveRisk: async (command, level, description, stepIndex): Promise<boolean> => {
-            const callId = `paor_${Date.now()}_${randomUUID().slice(0, 8)}`
-            const payload: PaorApprovalRequest = {
-              callId,
+          approveRisk: async (command, level, description, stepIndex): Promise<boolean> =>
+            requestPaorApproval(mainWindow, {
+              callId: `paor_${Date.now()}_${randomUUID().slice(0, 8)}`,
               command,
               riskLevel: level,
               riskDescription: description,
               origin: 'paor',
               stepIndex,
               timestamp: Date.now(),
-            }
-            logger.info('IPC.PAOR', '推送审批请求', { callId, command, level })
-            safeSend(mainWindow, PAOR_APPROVAL_REQUEST_CHANNEL, payload)
-
-            return new Promise<boolean>((resolve) => {
-              const timeout = setTimeout(() => {
-                pendingPaorApprovals.delete(callId)
-                logger.warn('IPC.PAOR', '审批超时，自动拒绝', { callId })
-                resolve(false)
-              }, PAOR_APPROVAL_TIMEOUT_MS)
-              pendingPaorApprovals.set(callId, { resolve, timeout })
-            })
-          },
+            }),
         })
         logger.info('IPC.AGENT', 'agent:paor 完成', {
           status: result.status,

@@ -133,8 +133,6 @@ const listProps = (messages: AgentMessage[], unstable: boolean) => ({
   navigate: () => undefined,
   hasLoopRunning: false,
   activeSessionId: null,
-  paorApprovals: [],
-  onPaorApprove: () => undefined,
   paorPlan: null,
   paorIterations: [],
   paorRunning: false,

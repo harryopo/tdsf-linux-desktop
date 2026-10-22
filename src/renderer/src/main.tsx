@@ -77,11 +77,14 @@ if (import.meta.env.DEV || (typeof navigator !== 'undefined' && navigator.webdri
     import('./stores/server-store'),
     import('./stores/monitor-store'),
     import('./stores/agent-store'),
-  ]).then(([server, monitor, agent]) => {
+    import('./stores/approval-store'),
+  ]).then(([server, monitor, agent, approval]) => {
     ;(window as unknown as Record<string, unknown>).__tdsfStores = {
       server: server.useServerStore,
       monitor: monitor.useMonitorStore,
       agent: agent.useAgentStore,
+      // #170：审批队列的"面板收起也收得到"只能在真窗口里验（单测验的是订阅与队列本身）
+      approval: approval.useApprovalStore,
     }
   })
 }

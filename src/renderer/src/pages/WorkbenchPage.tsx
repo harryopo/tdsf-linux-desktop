@@ -23,7 +23,7 @@
  * - "全部保存"按钮一键保存所有未保存文件
  * - 文件 Tab 右键菜单（关闭/关闭其他/关闭所有/全部保存）
  */
-import { useCallback, useEffect, useState, type FC } from 'react'
+import { useCallback, useEffect, useRef, useState, type FC } from 'react'
 import { toast } from 'sonner'
 import { Button, Dialog, DialogContent, confirmDialog } from '@/ui'
 import { PanelLeftOpen } from 'lucide-react'
@@ -41,6 +41,7 @@ import AIPanel from '@/components/workbench/AIPanel'
 import { StatusBar } from '@/components/workbench/StatusBar'
 import { WorkbenchLayout } from '@/shell/workbench-layout'
 import { useServerStore } from '@/stores/server-store'
+import { countAwaiting, useApprovalStore } from '@/stores/approval-store'
 import {
   canSaveFileTab,
   fileTabSessionId,
@@ -73,6 +74,20 @@ export const WorkbenchPage: FC = () => {
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const activeShellId = useTerminalStore((s) => s.activeShellId)
+
+  /**
+   * #170：有审批进队时把 AI 面板带回来。
+   *
+   * 队列已经搬到全局 store，请求不会因面板收起而没人接；但如果面板一直关着，
+   * 用户还是看不见——等于"问了，没告诉任何人"。所以在"待答条数变大"的那一刻展开一次。
+   * 这是边沿触发（比较上一次的数量），不是常驻条件：否则用户主动收起会被反复顶开。
+   */
+  const awaitingApprovals = useApprovalStore((s) => countAwaiting(s.entries))
+  const previousAwaitingRef = useRef(awaitingApprovals)
+  useEffect(() => {
+    if (awaitingApprovals > previousAwaitingRef.current) setAiPanelVisible(true)
+    previousAwaitingRef.current = awaitingApprovals
+  }, [awaitingApprovals])
 
   /** 关掉文件标签后回哪儿：有终端就回当前终端，一个都没有就是空态 */
   const terminalFallbackTab = useCallback((): WorkbenchTabId | null => {
@@ -374,6 +389,7 @@ export const WorkbenchPage: FC = () => {
     >
       <WorkbenchTitlebar
         aiPanelVisible={aiPanelVisible}
+        aiApprovalCount={awaitingApprovals}
         onToggleAI={() => setAiPanelVisible((v) => !v)}
         onToggleTerminal={() => void focusOrOpenTerminal()}
         terminalActive={isShellTab(activeTabId)}

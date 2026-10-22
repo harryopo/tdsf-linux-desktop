@@ -15,6 +15,7 @@
  */
 import { useAgentStore } from './agent-store'
 import { useMonitorStore } from './monitor-store'
+import { useApprovalStore } from './approval-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import {
   DEFAULT_COALESCE_WINDOW_MS,
@@ -23,6 +24,7 @@ import {
   type StreamEventName,
 } from '@/lib/messageSync'
 import type { AgentWorkflowState } from '@shared/models'
+import type { PaorApprovalRequest } from '@shared/approval-types'
 
 /** 幂等守卫：整个渲染进程生命周期只绑定一次 */
 let subscribed = false
@@ -150,5 +152,12 @@ export function initAgentStreamSubscription(): void {
   })
   window.electronAPI.onMonitorSystemInfo?.((sessionId, info) => {
     useMonitorStore.getState().setSystemInfo(sessionId, info)
+  })
+
+  // #170：高危审批全局订阅（同一病灶——订阅曾写在条件渲染的 AIPanel 里）
+  // 面板收起时主进程照样推 paor:approval-request，没人接就 60 秒自动拒绝。
+  // 落到全局 store 之后，请求不随组件卸载丢失，界面回来还能看见并回答。
+  window.electronAPI.onPaorApprovalRequest?.((request: PaorApprovalRequest) => {
+    useApprovalStore.getState().receive(request)
   })
 }

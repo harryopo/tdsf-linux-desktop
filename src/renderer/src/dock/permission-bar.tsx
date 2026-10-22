@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
-import type { PaorApprovalRequest } from '@/types/electron'
+import type { ApprovalEntry } from '@/stores/approval-store'
 import { cn } from '@/components/trae/utils'
 import { Button, Chip } from '@/ui'
 
@@ -32,17 +32,25 @@ const CHOICES: { key: Choice; label: string; hint: string }[] = [
 ]
 
 export interface PermissionBarProps {
-  requests: PaorApprovalRequest[]
+  /**
+   * 全局审批队列（stores/approval-store）。
+   * 每条带着 expired 标记：主进程 60 秒到点会自动拒绝，而那张卡不能装作还能答。
+   */
+  entries: ApprovalEntry[]
   onRespond: (callId: string, approved: boolean) => void
+  /** 已经作废的那条，用户看完把它关掉（不是"撤销批准"，只是收起这条话） */
+  onDismiss: (callId: string) => void
 }
 
-export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) => {
+export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDismiss }) => {
   const [index, setIndex] = useState(0)
   const [showCommand, setShowCommand] = useState(true)
   const [submitted, setSubmitted] = useState<string | null>(null)
   const denyRef = useRef<HTMLButtonElement>(null)
 
-  const current = requests[0] ?? null
+  const head = entries[0] ?? null
+  const current = head?.request ?? null
+  const expired = head?.expired ?? false
   const selectedIndex = useMemo(() => {
     // 越界兜底回"拒绝"，不回"批准"
     return index >= 0 && index < CHOICES.length ? index : CHOICES.findIndex((c) => c.key === 'deny')
@@ -58,11 +66,13 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
 
   const respond = useCallback(
     (choice: Choice) => {
-      if (!current || submitted) return
+      // expired 之后这条在主进程已经作废（60 秒到点自动拒绝），按钮不许再发回答——
+      // 发出去也只会得到 paor:approve 的 false，用户却以为是自己批了。
+      if (!current || submitted || expired) return
       setSubmitted(current.callId)
       onRespond(current.callId, choice === 'allow')
     },
-    [current, submitted, onRespond]
+    [current, submitted, expired, onRespond]
   )
 
   useEffect(() => {
@@ -72,6 +82,15 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
       // 输入框里打字不该被当成审批快捷键
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return
       if (target?.isContentEditable) return
+
+      // 已作废的那条只剩一个动作：关掉它。快捷键不许再走批准/拒绝。
+      if (expired) {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          e.preventDefault()
+          onDismiss(current.callId)
+        }
+        return
+      }
 
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -97,7 +116,7 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current, respond, selectedIndex])
+  }, [current, expired, onDismiss, respond, selectedIndex])
 
   if (!current) return null
 
@@ -124,19 +143,25 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
             <h2 className="truncate text-title font-semibold text-ink-strong">
               {/* 对话里的写命令也走这条通道，标题不能一口咬定是 PAOR；
                   stepIndex 只有 PAOR 那一路给得出真值，没有就不该显示"第 1 步" */}
-              {current.origin === 'chat' ? 'AI 请求执行写操作' : 'PAOR 请求批准'}
-              {current.stepIndex !== undefined ? ` — 第 ${current.stepIndex + 1} 步` : ''}
+              {expired ? '这次审批已过期' : current.origin === 'chat' ? 'AI 请求执行写操作' : 'PAOR 请求批准'}
+              {!expired && current.stepIndex !== undefined ? ` — 第 ${current.stepIndex + 1} 步` : ''}
             </h2>
             <Chip tone={critical ? 'error' : 'warning'}>{current.riskLevel}</Chip>
           </div>
-          {requests.length > 1 ? (
+          {entries.length > 1 ? (
             <span className="shrink-0 text-caption text-ink-mute">
-              队列中还有 {requests.length - 1} 条待处理
+              队列中还有 {entries.length - 1} 条待处理
             </span>
           ) : null}
         </div>
 
-        <p className="mt-1 text-sm text-ink-dim">{current.riskDescription || '主进程风险闸判定为高危，需人工确认。'}</p>
+        <p className="mt-1 text-sm text-ink-dim">
+          {expired
+            ? // 主进程那侧不再认这个回答了；留着卡片是为了说清"AI 那一步为什么停住"，
+              // 而不是给用户一个点了没动静的按钮。
+              `这条在 ${new Date(current.expiresAt).toLocaleTimeString()} 到点，主进程已自动拒绝。AI 那一步按"未批准"继续。`
+            : current.riskDescription || '主进程风险闸判定为高危，需人工确认。'}
+        </p>
 
         <div className="mt-3 overflow-hidden rounded-(--ui-radius-panel) border border-line bg-sunken">
           <button
@@ -157,36 +182,51 @@ export const PermissionBar: FC<PermissionBarProps> = ({ requests, onRespond }) =
           ) : null}
         </div>
 
-        <div className="mt-3 flex items-center justify-end gap-2">
-          {CHOICES.map((choice, i) => {
-            const selected = i === selectedIndex
-            return (
-              <Button
-                key={choice.key}
-                variant={selected ? 'selected' : 'outline'}
-                size="md"
-                aria-pressed={selected}
-                disabled={submitted !== null}
-                onClick={() => {
-                  setIndex(i)
-                  respond(choice.key)
-                }}
-                className={cn(
-                  'gap-2',
-                  choice.key === 'deny' && selected && 'text-error-text'
-                )}
-              >
-                {choice.label}
-                <kbd className="rounded-(--ui-radius-control) bg-sunken px-2 py-0.5 text-caption font-normal text-ink-mute">
-                  {choice.hint}
-                </kbd>
-              </Button>
-            )
-          })}
-        </div>
+        {expired ? (
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => onDismiss(current.callId)}
+              data-dom-id="approval-dismiss"
+            >
+              知道了
+            </Button>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-end gap-2">
+            {CHOICES.map((choice, i) => {
+              const selected = i === selectedIndex
+              return (
+                <Button
+                  key={choice.key}
+                  variant={selected ? 'selected' : 'outline'}
+                  size="md"
+                  aria-pressed={selected}
+                  disabled={submitted !== null}
+                  onClick={() => {
+                    setIndex(i)
+                    respond(choice.key)
+                  }}
+                  className={cn(
+                    'gap-2',
+                    choice.key === 'deny' && selected && 'text-error-text'
+                  )}
+                >
+                  {choice.label}
+                  <kbd className="rounded-(--ui-radius-control) bg-sunken px-2 py-0.5 text-caption font-normal text-ink-mute">
+                    {choice.hint}
+                  </kbd>
+                </Button>
+              )
+            })}
+          </div>
+        )}
 
         <p className="mt-2 text-right text-caption text-ink-mute">
-          ↑ ↓ 切换 · Enter 执行选中 · Esc 拒绝
+          {expired
+            ? 'Esc 或 Enter 关掉这条'
+            : `↑ ↓ 切换 · Enter 执行选中 · Esc 拒绝 · ${new Date(current.expiresAt).toLocaleTimeString()} 前未答复将自动拒绝`}
         </p>
       </div>
     </section>

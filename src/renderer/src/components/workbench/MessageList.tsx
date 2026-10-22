@@ -12,7 +12,6 @@
 import type { RefObject, FC } from 'react'
 import { Sparkles, AlertTriangle, Search, Terminal, FileText, TrendingUp } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
-import type { PaorApprovalRequest } from '@/types/electron'
 import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import LiveMessageRow from './panels/LiveMessageRow'
@@ -26,8 +25,11 @@ export interface MessageListProps {
   navigate: (path: string) => void
   hasLoopRunning: boolean
   activeSessionId: string | null
-  paorApprovals: PaorApprovalRequest[]
-  onPaorApprove: (callId: string, approved: boolean) => void
+  /**
+   * 审批不在这里。#170 之前这两个键（paorApprovals / onPaorApprove）一路传进来
+   * 又被改名成 _ 前缀放着不用——审批卡只由 dock/permission-bar 画，
+   * 队列只住在 stores/approval-store。留着它们等于给下一个读代码的人留一条假通道。
+   */
   /** v2.11 任务拆解可视化：PAOR 结构化计划 + 迭代轨迹 + 是否运行中 */
   paorPlan: PaorPlanObject | null
   paorIterations: PaorIteration[]
@@ -50,8 +52,6 @@ const MessageList: FC<MessageListProps> = ({
   navigate,
   hasLoopRunning,
   activeSessionId,
-  paorApprovals: _paorApprovals,
-  onPaorApprove: _onPaorApprove,
   paorPlan,
   paorIterations,
   paorRunning,
