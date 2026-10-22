@@ -111,8 +111,16 @@ function loadBaseline() {
   }
   const doc = JSON.parse(fs.readFileSync(BASELINE, 'utf8'))
   const rows = doc['已接受']
-  if (!Array.isArray(rows) || rows.length === 0) {
-    throw new Error('基线文件里的「已接受」数组缺失或为空')
+  if (!Array.isArray(rows)) {
+    throw new Error('基线文件里的「已接受」不是数组——形状变了，先修量具')
+  }
+  if (rows.length === 0) {
+    // 空表可以合法（公告真修到 0），但必须留理由；否则和"有人把清单清空了"分辨不出来。
+    const why = typeof doc['_空基线理由'] === 'string' ? doc['_空基线理由'].trim() : ''
+    if (why.length < 20) {
+      throw new Error('基线为空但没写 _空基线理由：空表可能是真修完，也可能是清单被清过，先写清原因')
+    }
+    return new Set()
   }
   const keys = new Set()
   for (const r of rows) {

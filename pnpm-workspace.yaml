@@ -48,9 +48,11 @@ overrides:
   "@babel/helper-compilation-targets>browserslist": "4.28.7"
   "@electron/get>undici": "7.29.1"
   "@eslint/eslintrc>js-yaml": "4.3.2"
-  "@hono/node-server>hono": "4.13.7"
+  # GHSA-5r4p-p66f-jhc7：4.13.7 落在 >=4.12.4 <4.13.11 的受影响区间；MCP SDK 的
+  # HTTP 传输链带着它。两个父包各自声明，必须分别钉（只写 hono 不会覆盖嵌套解析）。
+  "@hono/node-server>hono": "4.13.13"
   "@modelcontextprotocol/sdk>@hono/node-server": "1.19.15"
-  "@modelcontextprotocol/sdk>hono": "4.13.7"
+  "@modelcontextprotocol/sdk>hono": "4.13.13"
   "@tailwindcss/node>source-map-js": "1.2.2"
   "@tailwindcss/postcss>postcss": "8.5.23"
   "ajv>fast-uri": "3.1.8"

@@ -178,7 +178,8 @@ describe('依赖漏洞闸', () => {
     expect(r.json.notes.join('\n'), '不红但必须看得见').toMatch(/GHSA-3333-4444-5555/)
   })
 
-  it('已登记的公告号扩散到别的包也算新红牌（键是 公告号:包名）', () => {
+  // 基线为空（公告已清零）时没有"已登记公告号"可扩散；这条判据的前提不存在，明确跳过而不是造一个假基线。
+  it.skipIf(baselineKeys().size === 0)('已登记的公告号扩散到别的包也算新红牌（键是 公告号:包名）', () => {
     // 用基线里真实存在的公告号（不是抄某一天的某一行）：同一号进了新包必须算新牌
     const id = [...baselineKeys()][0].split(':')[0]
     const p = writeEnvelope(
@@ -236,11 +237,21 @@ describe('依赖漏洞闸', () => {
     expect(r.stderr).toMatch(/不认识参数/)
   })
 
-  it('基线文件自己也要有形状（每行都得说清"先放着"的理由）', () => {
-    const doc = JSON.parse(fs.readFileSync(BASELINE, 'utf8')) as { 已接受: unknown[] }
+  it('基线文件自己也要有形状（每行都得说清"先放着"的理由；空表要写理由）', () => {
+    const doc = JSON.parse(fs.readFileSync(BASELINE, 'utf8')) as {
+      已接受: unknown[]
+      _空基线理由?: string
+    }
     expect(Array.isArray(doc.已接受)).toBe(true)
     const rows = doc.已接受 as Array<Record<string, string>>
-    expect(rows.length, '基线为空就不是"没有已知项"，而是清单被清过').toBeGreaterThanOrEqual(1)
+    if (rows.length === 0) {
+      // 空表只在"确实一条都不剩"时合法；必须留下理由，否则和"把清单清空"分辨不出来。
+      expect(
+        (doc._空基线理由 || '').trim().length,
+        '基线为空时必须写 _空基线理由，说明是修完后的 0 条，不是把清单清过'
+      ).toBeGreaterThanOrEqual(20)
+      return
+    }
     const keys = new Set(rows.map((r) => `${r.id}:${r.pkg}`))
     expect(keys.size, '基线有重复的 公告号:包名').toBe(rows.length)
     for (const r of rows) {
