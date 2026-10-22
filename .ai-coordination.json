@@ -2,124 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-22T17:09:09.020Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-22T16:35:39.596Z",
-      "lastActiveAt": "2026-10-22T17:09:09.020Z",
-      "task": "#174 决策审计链事件当场落库+写入时签名",
-      "claimedFiles": [
-        {
-          "path": "src/main/services/db/schema-migrations.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/main/services/db/database.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T16:35:39.596Z"
-        },
-        {
-          "path": "src/main/services/db/decision-audit.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/main/ipc/history.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/shared/models.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/shared/ipc-contract.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/preload/index.d.ts",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T16:35:39.596Z"
-        },
-        {
-          "path": "src/renderer/src/pages/DecisionDetailPage.tsx",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/renderer/src/pages/HistoryDetailPage.tsx",
-          "task": "#174 决策审计链事件当场落库+写入时签名",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/main/services/db/growth-report.ts",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/main/core/decision-engine.ts",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/renderer/src/types/generated/ipc-contract.ts",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/renderer/src/components/decision/ExecutionResult.tsx",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/renderer/src/pages/HistoryPage.css",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/renderer/src/pages/AboutSettings.tsx",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "src/renderer/src/utils/decision-mappers.ts",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "scripts/docs/arch-diagram.py",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "docs/assets/architecture.svg",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        },
-        {
-          "path": "tests/e2e/decision-audit-chain.spec.ts",
-          "task": "#174 决策审计链落库与界面读数",
-          "claimedAt": "2026-10-22T17:09:09.020Z"
-        }
-      ],
-      "expiresAt": "2026-10-22T19:09:09.020Z"
-    }
-  },
+  "lastUpdated": "2026-10-22T17:27:25.920Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9227,6 +9111,153 @@
       "file": "tests/e2e/decision-audit-chain.spec.ts",
       "task": "#174 决策审计链落库与界面读数",
       "timestamp": "2026-10-22T17:09:09.020Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/db/schema-migrations.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/db/database.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/db/decision-audit.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/history.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.d.ts",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/HistoryDetailPage.tsx",
+      "task": "#174 决策审计链事件当场落库+写入时签名",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/db/growth-report.ts",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/decision-engine.ts",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/types/generated/ipc-contract.ts",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/decision/ExecutionResult.tsx",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/HistoryPage.css",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/AboutSettings.tsx",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/utils/decision-mappers.ts",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/docs/arch-diagram.py",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/assets/architecture.svg",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/decision-audit-chain.spec.ts",
+      "task": "#174 决策审计链落库与界面读数",
+      "timestamp": "2026-10-22T17:27:25.920Z"
     }
   ],
   "coordinationAudit": {
