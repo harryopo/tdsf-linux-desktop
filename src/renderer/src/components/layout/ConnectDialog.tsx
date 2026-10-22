@@ -23,7 +23,7 @@ import { FolderOpen, Plug, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Collapse, Dialog, DialogContent, Field, IconButton, Segmented, TextInput } from '@/ui'
 import { Checkbox } from '@/components/trae/Checkbox'
-import type { ServerListItem, SshConfig } from '@shared/models'
+import type { ServerListItem, SshAuthType, SshConfig } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import '../../pages/SshSettings.css'
 
@@ -48,7 +48,7 @@ interface FormState {
   host: string
   port: string
   username: string
-  authType: 'password' | 'privateKey'
+  authType: SshAuthType
   password: string
   privateKeyPath: string
   passphrase: string
@@ -95,7 +95,7 @@ function toForm(server: ServerListItem | null): FormState {
     host: server.host ?? '',
     port: String(server.port ?? 22),
     username: server.username ?? 'root',
-    authType: server.authType === 'privateKey' ? 'privateKey' : 'password',
+    authType: server.authType,
     password: '',
     privateKeyPath: server.privateKeyPath ?? '',
     passphrase: '',
@@ -137,7 +137,7 @@ function toConfig(f: FormState, id: string): SshConfig {
     authType: f.authType,
   }
   if (f.authType === 'password') config.password = f.password
-  else {
+  else if (f.authType === 'privateKey') {
     config.privateKeyPath = f.privateKeyPath.trim()
     if (f.passphrase) config.passphrase = f.passphrase
   }
@@ -328,6 +328,7 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
                 items={[
                   { value: 'password', label: '密码认证' },
                   { value: 'privateKey', label: '密钥文件认证' },
+                  { value: 'agent', label: 'SSH Agent' },
                 ]}
               />
             )}
@@ -351,6 +352,11 @@ const ConnectDialog: React.FC<ConnectDialogProps> = ({ open, server, onSave, onC
                 </div>
               )}
             </Field>
+          ) : form.authType === 'agent' ? (
+            <p className="rounded-(--ui-radius-control) border border-line bg-sunken px-3 py-2 text-caption text-ink-dim">
+              使用系统 ssh-agent 里已加载的私钥，应用不保存任何密钥。
+              Linux/macOS 需要 SSH_AUTH_SOCK；Windows 需要启用 OpenSSH Authentication Agent 服务。
+            </p>
           ) : (
             <>
               <Field label="密钥文件路径">

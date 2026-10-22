@@ -55,6 +55,13 @@ describe('normalizeImportedServer', () => {
     expect(s?.authType).toBe('password')
   })
 
+  it('agent 认证合法，导入后仍然不携带任何凭据', () => {
+    const s = normalizeImportedServer({ host: 'h', username: 'u', authType: 'agent' }, 'id')
+    expect(s?.authType).toBe('agent')
+    expect(s?.password).toBeUndefined()
+    expect(s?.privateKey).toBeUndefined()
+  })
+
   it('缺 name 时用 host:port 兜底，name 过长按 100 字截断', () => {
     expect(normalizeImportedServer({ host: 'h', username: 'u' }, 'id')?.name).toBe('h:22')
     const long = 'x'.repeat(200)

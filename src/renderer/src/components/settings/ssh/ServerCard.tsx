@@ -154,6 +154,7 @@ export function ServerCard(props: ServerCardProps) {
           const st = statusOf(s.id, connectionStates)
           const busy = busyId === s.id
           const isKeyAuth = s.authType === 'privateKey'
+          const isAgentAuth = s.authType === 'agent'
           return (
             <div
               key={s.id}
@@ -175,12 +176,12 @@ export function ServerCard(props: ServerCardProps) {
                 </div>
               </div>
               <span className="ssh-server-row__type">
-                {isKeyAuth ? (
+                {isKeyAuth || isAgentAuth ? (
                   <KeyRound className="size-3" />
                 ) : (
                   <Lock className="size-3" />
                 )}
-                {isKeyAuth ? '密钥' : '密码'}
+                {isAgentAuth ? 'Agent' : isKeyAuth ? '密钥' : '密码'}
               </span>
               <div className="ssh-server-row__actions">
                 {/* 编辑按钮（设计稿 ds-btn-ghost） */}

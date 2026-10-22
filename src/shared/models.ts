@@ -10,7 +10,13 @@ import type { LlmErrorCode } from './agent-types'
 // ============================================================================
 
 /** SSH 认证方式 */
-export type SshAuthType = 'password' | 'privateKey'
+/**
+ * SSH 认证方式
+ *
+ * agent：用系统 ssh-agent 里已加载的私钥，应用本身不保存任何私钥。
+ * Unix 读 SSH_AUTH_SOCK，Windows 用 OpenSSH Authentication Agent 的命名管道。
+ */
+export type SshAuthType = 'password' | 'privateKey' | 'agent'
 
 /** SSH 连接配置 */
 export interface SshConfig {

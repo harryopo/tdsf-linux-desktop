@@ -36,6 +36,7 @@ import type {
   SshHostKeyResponseAction,
 } from '@shared/models'
 import { createHostVerifier } from './known-hosts'
+import { resolveSshAgentSocket, SSH_AGENT_MISSING_MESSAGE } from './agent-auth'
 import { SessionQueue } from './session-queue'
 
 /**
@@ -1220,6 +1221,10 @@ export class SshConnectionManager {
     }
     if (config.authType === 'password') {
       opts.password = config.password
+    } else if (config.authType === 'agent') {
+      const socket = resolveSshAgentSocket()
+      if (!socket) throw new Error(SSH_AGENT_MISSING_MESSAGE)
+      opts.agent = socket
     } else if (config.authType === 'privateKey') {
       if (config.privateKey) {
         opts.privateKey = config.privateKey
@@ -1277,6 +1282,8 @@ export class SshConnectionManager {
     ) {
       throw new Error('私钥认证需要提供 privateKey 或 privateKeyPath')
     }
+    // agent 不要求应用持有任何凭据；socket 找不到时报错发生在 buildConnectOptions，
+    // 那里能给出"怎么把 agent 起起来"的具体指引。
   }
 
   /** 获取会话条目（不存在抛错） */

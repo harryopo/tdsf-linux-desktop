@@ -67,6 +67,23 @@ describe('ConnectDialog', () => {
     expect(screen.getByText('端口得是 1–65535 的整数')).toBeTruthy()
   })
 
+  it('SSH Agent 认证：不出现密码/密钥输入，保存的配置里也不带凭据', () => {
+    const { onSave } = open()
+    fill('名称', 'web-agent')
+    fill('主机地址', '10.0.0.9')
+    pickTab('SSH Agent')
+    expect(screen.getByText(/应用不保存任何密钥/)).toBeTruthy()
+    expect(screen.queryByLabelText(/^密码/)).toBeNull()
+    expect(screen.queryByLabelText(/^密钥文件路径/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    const cfg = onSave.mock.calls[0][0] as SshConfig
+    expect(cfg.authType).toBe('agent')
+    expect(cfg.password).toBeUndefined()
+    expect(cfg.privateKeyPath).toBeUndefined()
+    expect(cfg.privateKey).toBeUndefined()
+  })
+
   it('填完基本项就保存出可用的配置（新建会分到 id）', () => {
     const { onSave } = open()
     fill('名称', 'web-01')

@@ -23,7 +23,8 @@ export function normalizeImportedServer(item: unknown, newId: string): SshConfig
     host: s.host.trim(),
     port,
     username: s.username.trim(),
-    authType: s.authType === 'privateKey' ? 'privateKey' : 'password',
+    authType:
+      s.authType === 'privateKey' || s.authType === 'agent' ? s.authType : 'password',
     privateKeyPath: typeof s.privateKeyPath === 'string' ? s.privateKeyPath : undefined,
     keepAlive: typeof s.keepAlive === 'boolean' ? s.keepAlive : undefined,
     // 敏感信息留空，需要用户重新输入
