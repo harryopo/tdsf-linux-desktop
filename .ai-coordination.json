@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-22T05:42:41.924Z",
+  "lastUpdated": "2026-10-22T06:15:55.201Z",
   "sessions": {},
   "history": [
     {
@@ -8565,6 +8565,20 @@
       "file": "README.md",
       "task": "安全欠账文档纠偏",
       "timestamp": "2026-10-22T05:42:41.924Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "pnpm-workspace.yaml",
+      "task": "安全欠账注释纠偏",
+      "timestamp": "2026-10-22T06:15:49.867Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "pnpm-workspace.yaml",
+      "task": "安全欠账注释纠偏",
+      "timestamp": "2026-10-22T06:15:55.201Z"
     }
   ],
   "coordinationAudit": {
