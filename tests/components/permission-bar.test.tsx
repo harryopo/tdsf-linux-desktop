@@ -59,6 +59,24 @@ describe('PermissionBar', () => {
     expect(heading.textContent).not.toMatch(/第 \d+ 步/)
   })
 
+  it('外部 MCP 工具调用要说它是外部工具，不是 PAOR 也不是"写操作"', () => {
+    setup([
+      entry({
+        origin: 'mcp',
+        stepIndex: undefined,
+        command: '外部 MCP「weather」 · 工具 get_forecast · 参数 {"city":"上海"}',
+        riskLevel: 'HIGH',
+        riskDescription: '第三方 MCP 服务器自行执行，主进程预判不了它做什么',
+      }),
+    ])
+    const heading = screen.getByRole('heading', { level: 2 })
+    expect(heading).toHaveTextContent('外部 MCP 工具')
+    expect(heading.textContent).not.toContain('PAOR')
+    expect(heading.textContent).not.toMatch(/第 \d+ 步/)
+    expect(screen.getByText(/get_forecast/)).toBeInTheDocument()
+    expect(screen.getByText('HIGH')).toBeInTheDocument()
+  })
+
   it('默认选中"拒绝"，不是"批准"', () => {
     setup()
     expect(screen.getByRole('button', { name: /拒绝/ })).toHaveAttribute('aria-pressed', 'true')

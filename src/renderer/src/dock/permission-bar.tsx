@@ -141,9 +141,16 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
           <div className="flex min-w-0 items-center gap-2">
             <ShieldAlert className={cn('size-4 shrink-0', critical ? 'text-error' : 'text-warning')} />
             <h2 className="truncate text-title font-semibold text-ink-strong">
-              {/* 对话里的写命令也走这条通道，标题不能一口咬定是 PAOR；
+              {/* 三条链路共用这张卡，标题必须按来源分开说：对话里的写命令不是 PAOR，
+                  外部 MCP 工具既不是 PAOR 也不是"写操作"（它可能只是读一眼天气）；
                   stepIndex 只有 PAOR 那一路给得出真值，没有就不该显示"第 1 步" */}
-              {expired ? '这次审批已过期' : current.origin === 'chat' ? 'AI 请求执行写操作' : 'PAOR 请求批准'}
+              {expired
+                ? '这次审批已过期'
+                : current.origin === 'mcp'
+                  ? '外部 MCP 工具请求执行'
+                  : current.origin === 'chat'
+                    ? 'AI 请求执行写操作'
+                    : 'PAOR 请求批准'}
               {!expired && current.stepIndex !== undefined ? ` — 第 ${current.stepIndex + 1} 步` : ''}
             </h2>
             <Chip tone={critical ? 'error' : 'warning'}>{current.riskLevel}</Chip>

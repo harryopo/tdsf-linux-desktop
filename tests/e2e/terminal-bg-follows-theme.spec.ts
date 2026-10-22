@@ -101,8 +101,10 @@ async function gotoHash(page: Page, hash: string): Promise<void> {
 /** 在外观设置页点明暗档位 */
 async function pickThemeMode(page: Page, name: string): Promise<void> {
   await gotoHash(page, '#/settings/appearance')
-  const card = page.getByText(name, { exact: true })
-  await expect(card, `外观设置里该有"${name}"这一格`).toBeVisible({ timeout: 15000 })
+  // 按角色 + 无障碍名认这一格，不按可见文本：当前档位那一格会额外挂一个同名标签，
+  // 用 getByText 在"已经是深色"的状态下会命中 2 个元素——判据就随上一次跑剩的主题变色。
+  const card = page.getByRole('button', { name: new RegExp(name) })
+  await expect(card, `外观设置里"${name}"这一格该有且只有一格`).toHaveCount(1, { timeout: 15000 })
   await card.click()
   await page.waitForTimeout(500)
 }

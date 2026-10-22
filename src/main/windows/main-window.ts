@@ -18,6 +18,7 @@ import { checkNavigation } from '../services/security/navigation-policy'
 import { isSafeWebUrl } from '../services/security/url-policy'
 import { PREVIEW_SCHEME } from '../services/preview/preview-protocol'
 import { fitRectToWorkArea } from './window-fit'
+import { APPROVAL_REQUEST_CHANNEL, type ApprovalTransport } from '../core/security/approval-request'
 
 /** 主窗口单例引用（很多推送与对话框仍以它为目标；第二窗口靠 broadcastToWindows 覆盖） */
 let mainWindow: BrowserWindow | null = null
@@ -148,6 +149,22 @@ export function broadcastToWindows(channel: string, ...args: unknown[]): void {
   for (const win of getAppWindows()) {
     if (win.webContents.isDestroyed()) continue
     win.webContents.send(channel, ...args)
+  }
+}
+
+/**
+ * 审批卡的发送面：广播给所有窗口，并且如实回答"现在有没有窗口"。
+ * 等待器（core/security/approval-request）靠后者决定要不要当场拒绝——
+ * 没窗口还说"问过你了"，就是 #170 那种"问了但没告诉任何人"。
+ */
+export function approvalTransport(): ApprovalTransport {
+  return {
+    hasTarget: () => getAppWindows().length > 0,
+    // 通道在这里写死，不接调用方传进来的那个变量：
+    // `audit:ipc` 认推送点认的是"broadcastToWindows(第一参数=通道常量)"，
+    // 传变量的话 `paor:approval-request` 会被判成"事件无源"（WARN，实测撞到过一次）。
+    // 少一个自由度的另一个好处：审批载荷不可能被发到别的通道上。
+    send: (_channel, payload) => broadcastToWindows(APPROVAL_REQUEST_CHANNEL, payload),
   }
 }
 

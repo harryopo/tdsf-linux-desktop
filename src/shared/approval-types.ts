@@ -50,10 +50,11 @@ export interface SandboxApprovalRequest {
  * 审批是从哪条链路发起的——同一个弹窗服务两条完全不同的路：
  * - 'paor'：PAOR 自动循环的某一步（有真实的步骤索引）
  * - 'chat'：对话里 AI 调 ssh_write 工具（没有"第几步"这回事）
+ * - 'mcp' ：界面直连外部 MCP 服务器（第三方程序）的工具，走 `mcp:external-call`
  * 以前两者都写死 `stepIndex: 0`，界面于是永远显示"第 1 步"，
  * 并把对话里的写命令也说成"PAOR 请求批准"。
  */
-export type PaorApprovalOrigin = 'paor' | 'chat'
+export type PaorApprovalOrigin = 'paor' | 'chat' | 'mcp'
 
 /**
  * 高危命令审批请求（paor:approval-request）

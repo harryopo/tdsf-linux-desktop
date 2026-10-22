@@ -97,13 +97,29 @@ describe('审批载荷只许有一处声明', () => {
     for (const f of [
       join('src', 'preload', 'types.ts'),
       join('src', 'renderer', 'src', 'types', 'electron.d.ts'),
-      join('src', 'main', 'ipc', 'agent-runtime.ts'),
+      join('src', 'main', 'core', 'security', 'approval-request.ts'),
       join('src', 'main', 'ipc', 'sandbox-approval.ts'),
     ]) {
       expect(readFileSync(join(ROOT, f), 'utf8'), `${f} 没有引用 shared 的审批契约`).toContain(
         '@shared/approval-types'
       )
     }
+  })
+
+  it('主进程只有一张审批等待表（谁要问用户都走 approval-request）', () => {
+    // 2026-10-22 #173：agent-runtime 不再自己拿着表——外部 MCP 调用也要问人，
+    // 两处各写一把 60 秒迟早漂。所以这条不变量从"这个文件 import shared"改成
+    // "这两个入口都 import 那唯一的等待器"，同时禁止再出现第二份超时常量。
+    for (const f of [
+      join('src', 'main', 'ipc', 'agent-runtime.ts'),
+      join('src', 'main', 'ipc', 'mcp.ts'),
+    ]) {
+      expect(readFileSync(join(ROOT, f), 'utf8'), `${f} 绕过了共享审批等待器`).toContain(
+        'core/security/approval-request'
+      )
+    }
+    const src = readFileSync(join(ROOT, 'src/main/ipc/agent-runtime.ts'), 'utf8')
+    expect(src, '60 秒只能在 approval-request 里写一次').not.toMatch(/60_000|60000/)
   })
 
   it('沙箱审批的四个字段在契约里（曾只写在主进程那份，preload 少了它们）', () => {

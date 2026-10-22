@@ -1101,8 +1101,11 @@ export function setCommandBlockSink(sink: ((t: CommandBlockTrace) => void) | nul
 /**
  * 记一笔拦截。留痕失败绝不能改变判定结果，也绝不能挡住拦截本身：
  * 库降级时 AuditRepo 自己就是"记不上也照走"的设计，这里再兜一层 try。
+ *
+ * 导出给闸外的拒绝口用（外部 MCP 工具被拒也得在同一条审计里看得见，
+ * 否则"拦了"这件事只有日志知道，设置页那条拦截记录是空的）。
  */
-function emitBlockTrace(t: CommandBlockTrace): void {
+export function emitBlockTrace(t: CommandBlockTrace): void {
   if (!blockTraceSink) return
   try {
     blockTraceSink(t)

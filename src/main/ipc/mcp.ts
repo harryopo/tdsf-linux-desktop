@@ -18,6 +18,10 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { MCP } from '@shared/ipc-channels'
 import { McpGateway } from '../core/agent/mcp-gateway'
+import { buildExternalCallApproval } from '../core/agent/mcp-approval'
+import { requestApproval } from '../core/security/approval-request'
+import { emitBlockTrace } from '../core/command-gate'
+import { approvalTransport } from '../windows/main-window'
 import { logger } from '../services/log/logger'
 
 /** 状态变更通道 */
@@ -82,6 +86,10 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): () => void 
   // ------------------------------------------------------------------
   // mcp:external-call — 调用外部工具
   // ------------------------------------------------------------------
+  // 每一次都要有人点头（#173 / 调研 P0-4）。
+  // 为什么不套 assessToolCall：那道闸按工具名查形状表、查不到就整条拒，
+  // 而第三方 MCP 的工具名不可枚举，接上去等于把所有外部工具拒死；
+  // 参数是不是 shell 命令也只有对面那个服务器知道。判不了就先问人。
   ipcMain.handle(
     MCP.EXTERNAL_CALL,
     async (
@@ -90,6 +98,24 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): () => void 
       toolName: string,
       args: Record<string, unknown>
     ) => {
+      const approvalInput = buildExternalCallApproval(serverId, toolName, args ?? {})
+      const approved = await requestApproval(approvalTransport(), approvalInput)
+      if (!approved) {
+        // 拒了要留在同一条拦截审计里：否则"拦下来了"这件事只有日志知道，
+        // 设置页那张拦截记录永远是空的，用户不知道自己替 AI 挡过什么
+        emitBlockTrace({
+          source: '外部 MCP 工具',
+          command: approvalInput.command,
+          reason: `用户未批准外部 MCP 工具调用：${serverId} · ${toolName}（含超时未响应）`,
+          riskLevel: 'block',
+        })
+        logger.warn('IPC.MCP', '外部工具调用未获批准', { serverId, toolName })
+        return {
+          success: false,
+          content: [{ type: 'text' as const, text: '这次外部 MCP 调用没有被批准（拒绝或超时）。' }],
+          error: 'not-approved',
+        }
+      }
       logger.info('IPC.MCP', `调用外部工具`, { serverId, toolName })
       return gateway.callExternalTool(serverId, toolName, args)
     }

@@ -28,9 +28,9 @@
 
 import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
-import { broadcastToWindows } from '../windows/main-window'
+import { approvalTransport, broadcastToWindows } from '../windows/main-window'
 import type { ModelMessage } from 'ai'
-import { AGENT, PAOR, TOKEN } from '@shared/ipc-channels'
+import { AGENT, TOKEN } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
@@ -58,7 +58,11 @@ import type {
   AgentErrorPayload,
   AgentToolEventPayload,
 } from '@shared/agent-types'
-import type { PaorApprovalRequest } from '@shared/approval-types'
+import {
+  APPROVAL_REQUEST_CHANNEL,
+  requestApproval,
+  settleApproval,
+} from '../core/security/approval-request'
 import type { ChatMessage } from '@shared/models'
 import { logger } from '../services/log/logger'
 // v2.4 Phase B：预算告警检查（token 月成本超阈值时记录到 budget_alerts 表）
@@ -78,20 +82,6 @@ const AGENT_ERROR_CHANNEL = AGENT.ERROR
 /** 工具调用事件推送通道名（v2.4：真实工具执行可视化） */
 const AGENT_TOOL_EVENT_CHANNEL = AGENT.TOOL_EVENT
 
-/** PAOR 审批请求推送通道名 */
-const PAOR_APPROVAL_REQUEST_CHANNEL = PAOR.APPROVAL_REQUEST
-
-/** PAOR 审批超时（毫秒）—— 60 秒内未响应自动拒绝 */
-const PAOR_APPROVAL_TIMEOUT_MS = 60_000
-
-/** PAOR 审批请求载荷：唯一声明在 @shared/approval-types，这里只引用 */
-
-/** 待审批 PAOR 请求表：callId → { resolve, timeout } */
-const pendingPaorApprovals = new Map<
-  string,
-  { resolve: (approved: boolean) => void; timeout: ReturnType<typeof setTimeout> }
->()
-
 /**
  * 安全推送事件到渲染进程（窗口已销毁时跳过）
  */
@@ -103,41 +93,10 @@ function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]
 }
 
 /**
- * 推送一次高危审批，并挂起等待用户响应（对话里的 ssh_write 与 PAOR 循环共用一条）
- *
- * 为什么要收成函数：两处以前各写一遍"发事件 + 起 60 秒定时器 + 进挂起表"，
- * 而超时那一路只 logger.warn 后 resolve(false)，**从不告诉渲染进程"这条已经作废"**。
- * 界面于是留着一张还能点、但点了没反应的审批卡（#170）。现在把死线随载荷发出去，
- * 界面按 expiresAt 自己下卡；用户真去点了过期 callId，paor:approve 也照旧返回 false。
+ * 推送一次高危审批：等待器住在 `core/security/approval-request.ts`（单源）。
+ * 这里只负责"要不要问"，超时、死线、挂起表都在那一份里——
+ * 外部 MCP 工具调用（`ipc/mcp.ts`）问的是同一把表，两处不许各写一把 60 秒。
  */
-function requestPaorApproval(
-  mainWindow: BrowserWindow,
-  input: Omit<PaorApprovalRequest, 'expiresAt'>
-): Promise<boolean> {
-  const payload: PaorApprovalRequest = {
-    ...input,
-    expiresAt: Date.now() + PAOR_APPROVAL_TIMEOUT_MS,
-  }
-  logger.info('IPC.AGENT', '推送审批请求', {
-    callId: payload.callId,
-    origin: payload.origin,
-    command: payload.command,
-    level: payload.riskLevel,
-  })
-  safeSend(mainWindow, PAOR_APPROVAL_REQUEST_CHANNEL, payload)
-
-  return new Promise<boolean>((resolve) => {
-    const timeout = setTimeout(() => {
-      pendingPaorApprovals.delete(payload.callId)
-      logger.warn('IPC.AGENT', '审批超时，自动拒绝', {
-        callId: payload.callId,
-        origin: payload.origin,
-      })
-      resolve(false)
-    }, PAOR_APPROVAL_TIMEOUT_MS)
-    pendingPaorApprovals.set(payload.callId, { resolve, timeout })
-  })
-}
 
 /**
  * 错误分类：唯一一份规则表在 providers/llm-error.ts（#101）
@@ -214,7 +173,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           // v2.9 写命令 HITL 审批：复用 PAOR 审批通道（paor:approval-request 卡片），
           // ssh_write 工具 execute 内 await 此回调，用户批准才真执行；60 秒超时自动拒绝
           approveWriteCommand: async (command, level, description): Promise<boolean> =>
-            requestPaorApproval(mainWindow, {
+            requestApproval(approvalTransport(), {
               callId: `write_${Date.now()}_${randomUUID().slice(0, 8)}`,
               command,
               riskLevel: level,
@@ -497,7 +456,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
           approveRisk: async (command, level, description, stepIndex): Promise<boolean> =>
-            requestPaorApproval(mainWindow, {
+            requestApproval(approvalTransport(), {
               callId: `paor_${Date.now()}_${randomUUID().slice(0, 8)}`,
               command,
               riskLevel: level,
@@ -538,15 +497,12 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           type: typeof approvedRaw,
         })
       }
-      const pending = pendingPaorApprovals.get(callId)
-      if (!pending) {
-        logger.warn('IPC.PAOR', 'paor:approve 收到未知 callId', { callId })
+      const handled = settleApproval(callId, approved)
+      if (!handled) {
+        // 表里没有 = 已超时或从来没见过这张卡。返回 false，让界面知道"这次点击没落到任何等待者上"
+        logger.warn('IPC.PAOR', 'paor:approve 收到未知 callId（多半已超时自动拒绝）', { callId })
         return false
       }
-      clearTimeout(pending.timeout)
-      pendingPaorApprovals.delete(callId)
-      pending.resolve(approved)
-      logger.info('IPC.PAOR', `paor:approve 用户${approved ? '批准' : '拒绝'}`, { callId })
       return true
     }
   )
@@ -571,7 +527,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       AGENT_DONE_CHANNEL,
       AGENT_ERROR_CHANNEL,
       AGENT.PAOR_ITERATION,
-      PAOR_APPROVAL_REQUEST_CHANNEL,
+      APPROVAL_REQUEST_CHANNEL,
     ],
     // v0.9.4 新增能力：sessionId + abort signal（向后兼容，旧调用方不受影响）
     v094Features: [
