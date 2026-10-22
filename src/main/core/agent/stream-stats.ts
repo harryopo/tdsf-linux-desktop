@@ -90,10 +90,12 @@ function asUsage(value: unknown): UsageNumbers | undefined {
 /**
  * 喂一个流事件进累加器，返回新累加器（无关事件原样返回同一个对象）。
  *
- * 为什么要在循环里攒而不是等 `result.usage`：中止时 `for await` 当场抛，
- * 拿账那段根本走不到，而 SDK 其实已经在流里把每步用量报过一次
- * （`finish-step.usage` / `finish.totalUsage`，见 node_modules/ai/dist/index.d.ts:3035-3050）。
- * 不攒的代价就是"token 真烧了、账上什么都没有"。
+ * 为什么要在循环里攒而不是只等 `result.usage`：中止时 `for await` 干净收尾（实测不抛），
+ * 但 `result.usage` / `finishReason` / `steps` 三个 promise 全部 reject
+ * （判据见 tests/unit/ai-sdk-abort-shape.test.ts），循环后那段拿账代码一条也拿不到。
+ * 而 SDK 在流里已经把每步用量报过一次（`finish-step.usage` / `finish.totalUsage`，
+ * 见 node_modules/ai/dist/index.d.ts:3035-3050），攒下来才能在
+ * "第 N 步失败/停止"这种形状里保住前 N-1 步的账。
  */
 export function observeStreamPart(
   part: unknown,
@@ -120,4 +122,25 @@ export function observeStreamPart(
     return { ...acc, aborted: true }
   }
   return acc
+}
+
+/**
+ * 这一轮到底该不该入账，以及按哪个数入。
+ *
+ * 三条规则，缺一不可：
+ * 1. SDK 回来的用量是正本（各步之和），有就用它；
+ * 2. 拿不到正本就用流里攒到的（第 N 步失败/停止时，前 N-1 步是真烧了 token 的）；
+ * 3. 两边都没有 → null。**这时候记 0 是写假账**：0 宣称"这一轮一个 token 没烧"，
+ *    而真值是"没拿到账"。中止那一轮绝大多数落在这一条——实测 abort 之前不会有任何
+ *    finish-step，所以取消的代价只能是"不入账 + 界面说不拿到账"，不是"照常入账"。
+ */
+export function planUsageRecord(input: {
+  /** SDK 的 usage（`LanguageModelUsage`，各项都可能是 undefined），原样递进来，由这里归一 */
+  sdkUsage?: unknown
+  accumulated: StreamUsageAccumulator
+}): UsageNumbers | null {
+  const sdk = asUsage(input.sdkUsage)
+  if (sdk && sdk.totalTokens > 0) return sdk
+  if (input.accumulated.total) return input.accumulated.total
+  return null
 }

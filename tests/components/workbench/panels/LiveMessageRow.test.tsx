@@ -337,4 +337,28 @@ describe('LiveMessageRow — 被用户停止的回答（调研 P0-2）', () => {
     expect(screen.getByText(/^已停止/)).toBeInTheDocument()
     expect(screen.getByText(/912 tokens/)).toBeInTheDocument()
   })
+
+  it('cancelled 又没拿到用量：要明说"没拿到实测用量"，不许留一个后头空着的 "m1 ·"', () => {
+    render(<LiveMessageRow message={makeAssistant({ content: '先看一眼 df -h，然后', cancelled: true, model: 'm1' })} />)
+    const row = document.querySelector('[data-dom-id="message-usage-row"]')
+    expect(row, '用量那一行要存在，并且说的是"没拿到"').not.toBeNull()
+    expect(row!.textContent).toContain('没拿到实测用量')
+    expect(row!.textContent, '分隔符后面空着＝这一行没说完话').not.toMatch(/·\s*$/)
+  })
+
+  it('正对照：正常跑完且有用量时，那一行只报读数，不出现"没拿到"', () => {
+    render(
+      <LiveMessageRow
+        message={makeAssistant({
+          content: '看完了',
+          model: 'm1',
+          usage: { inputTokens: 30, outputTokens: 7, totalTokens: 37 },
+        })}
+      />
+    )
+    const row = document.querySelector('[data-dom-id="message-usage-row"]')
+    expect(row).not.toBeNull()
+    expect(row!.textContent).toContain('37 tokens')
+    expect(row!.textContent).not.toContain('没拿到')
+  })
 })

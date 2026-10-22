@@ -626,13 +626,22 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         </div>
       )}
       {(message.usage || message.model) && !message.isStreaming && (
-        <div className="ai-token-row ai-token-pop pl-8">
+        <div
+          className="ai-token-row ai-token-pop pl-8"
+          data-dom-id="message-usage-row"
+        >
           <Clock className="size-3" />
           <span>
-            {message.model ? `${message.model} · ` : ''}
-            {message.usage
-              ? `${message.usage.totalTokens.toLocaleString()} tokens`
-              : ''}
+            {[
+              message.model,
+              // 拿不到实测用量就说没拿到（被停止的那一轮多数落在这一条），
+              // 既不写 0 也不留一个后头空着的分隔符。
+              message.usage
+                ? `${message.usage.totalTokens.toLocaleString()} tokens`
+                : '没拿到实测用量',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </span>
         </div>
       )}

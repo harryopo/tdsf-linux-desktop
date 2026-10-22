@@ -57,6 +57,7 @@ import { streamText, generateText, tool, isStepCount, type ModelMessage } from '
 import {
   createUsageAccumulator,
   observeStreamPart,
+  planUsageRecord,
   readStreamStats,
   type StreamUsageAccumulator,
   type UsageNumbers,
@@ -1191,8 +1192,10 @@ class SupervisorAgent {
       /** 流内出现过的第一个 error part（真实成因），见循环后那处判空抛出 */
       let streamInnerError: unknown = null
       /*
-       * 用量在这里顺手攒一份：中止（用户点"停止"）会让下面的 for await 当场抛，
-       * 那时 result.usage 这条路走不到，但已经跑完的步数是真烧了 token 的。
+       * 用量在这里顺手攒一份：中止时 for await 自己**不抛**（收到 abort part 后干净收尾），
+       * 抛的是 result.usage / finishReason / steps 那三个 promise，所以循环之后拿账那段
+       * 只能拿到一串 reject；已经跑完的步数只有流里这一份记录，实测判据见
+       * tests/unit/ai-sdk-abort-shape.test.ts。
        */
       /*
        * 这里原来是一段自制空闲看门狗（每收到一个 part 重置，工具执行期暂停）。
@@ -1346,9 +1349,17 @@ class SupervisorAgent {
         fullText = reasoningText
         onToken?.(reasoningText)
       }
-      const inputTokens = usage?.inputTokens ?? 0
-      const outputTokens = usage?.outputTokens ?? 0
-      const totalTokens = inputTokens + outputTokens
+      /*
+       * 入账的那个数由 planUsageRecord 决定，不在这里就地补 0。
+       * SDK 拿不到用量时（中止、或第 N 步就失败），流里多半已经攒到过前几步的用量；
+       * 两边都没有就说明"这一轮花了多少"是未知的——写 0 进去是条假账，
+       * 它宣称一个 token 没烧，而真值是没拿到账。设置页那一列宁可空着。
+       * 界面上那一枚徽章与账用同一个数（planned），否则同一轮会出现两个读数。
+       */
+      const planned = planUsageRecord({ sdkUsage: usage, accumulated: usageAcc })
+      const inputTokens = planned?.inputTokens ?? 0
+      const outputTokens = planned?.outputTokens ?? 0
+      const totalTokens = planned?.totalTokens ?? 0
       /*
        * 徽章口径：取**末步**的 prompt + completion。
        * 多步工具链里 result.usage 是各步之和（同一份上下文被重发 N 次），
@@ -1359,17 +1370,19 @@ class SupervisorAgent {
         ? (lastStep.usage?.inputTokens ?? 0) + (lastStep.usage?.outputTokens ?? 0)
         : totalTokens
 
-      // 9. 记录 token 使用到统计服务
-      recordTokenUsage({
-        providerId: resolvedProviderId,
-        model: modelInstance.resolvedModel,
-        inputTokens,
-        outputTokens,
-        totalTokens,
-        subagent: 'supervisor',
-        strength,
-        timestamp: Date.now(),
-      })
+      // 9. 记录 token 使用到统计服务（拿不到账就一条都不记，见上面 planUsageRecord 的理由）
+      if (planned) {
+        recordTokenUsage({
+          providerId: resolvedProviderId,
+          model: modelInstance.resolvedModel,
+          inputTokens: planned.inputTokens,
+          outputTokens: planned.outputTokens,
+          totalTokens: planned.totalTokens,
+          subagent: 'supervisor',
+          strength,
+          timestamp: Date.now(),
+        })
+      }
 
       /*
        * 账记完了，再把失败说清楚（两条路都要走，缺一不可）：
@@ -1460,24 +1473,28 @@ class SupervisorAgent {
       // SDK 的超时走它内部的合并信号，到我们这里只表现为 TimeoutError 形状的失败。
       if (abortController.signal.aborted) {
         /*
-         * 取消那一轮也要入账。以前这条分支直接 onDone 一串 0 就返回，recordTokenUsage
-         * 一次都不调（它在上面正常路径的 try 里，abort 从 for await 抛出来就走不到）——
-         * 于是"停止"用得越多，成本读数越偏低：账明明烧掉了，界面上只剩估算镜像可看。
-         * 用量取流里攒好的那份（usageAcc）；一个字都没吐就断时保持 0，
-         * 由渲染层把"cancelled + 全 0"翻成"未拿到账"，不假装是零消耗。
+         * 取消这一路怎么走到这里的（2026-10-22 拿 ai@7.0.29 实测，判据在
+         * tests/unit/ai-sdk-abort-shape.test.ts）：for await **不抛**，它收到一个 abort
+         * part 后干净收尾；reject 的是 result.usage / finishReason / steps 那三个 promise，
+         * 于是上面的 readStreamStats 攒下 readErrors、我们主动把它抛出来，才落到这条分支。
+         *
+         * 账能不能保住取决于流里有没有出现过 finish-step——实测"点停止"那一种通常没有，
+         * 所以取消轮多半不入账，回传一串 0 让渲染层翻成"未拿到账"（它只认 cancelled + 全 0）。
+         * 多步链路里第 N 步才被停止的少数情况能攒到前 N-1 步，那部分是真烧掉的，照常记。
          */
-        const cancelledUsage: UsageNumbers = usageAcc.total ?? {
+        const plannedCancel = planUsageRecord({ accumulated: usageAcc })
+        const cancelledUsage: UsageNumbers = plannedCancel ?? {
           inputTokens: 0,
           outputTokens: 0,
           totalTokens: 0,
         }
-        if (usageAcc.total) {
+        if (plannedCancel) {
           recordTokenUsage({
             providerId: resolvedProviderId,
             model: modelInstance.resolvedModel,
-            inputTokens: usageAcc.total.inputTokens,
-            outputTokens: usageAcc.total.outputTokens,
-            totalTokens: usageAcc.total.totalTokens,
+            inputTokens: plannedCancel.inputTokens,
+            outputTokens: plannedCancel.outputTokens,
+            totalTokens: plannedCancel.totalTokens,
             subagent: 'supervisor',
             strength,
             timestamp: Date.now(),
