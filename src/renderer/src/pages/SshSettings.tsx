@@ -25,6 +25,8 @@ import { settingsHeader } from './settings-sections'
 import { SettingsActionBar } from '@/components/settings/SettingsActionBar'
 import ConnectDialog from '@/components/layout/ConnectDialog'
 import { ServerCard } from '@/components/settings/ssh/ServerCard'
+import { SshConfigImportDialog } from '@/components/settings/ssh/SshConfigImportDialog'
+import type { SshConfigHost } from '@shared/ssh-config-types'
 import { KeyCard } from '@/components/settings/ssh/KeyCard'
 import { DefaultsCard } from '@/components/settings/ssh/DefaultsCard'
 import { SecurityCard } from '@/components/settings/ssh/SecurityCard'
@@ -482,6 +484,79 @@ export function SshSettings() {
   const ipcAvailable = isElectronAPIAvailable()
   /** 导入/导出进行中：两个按钮一起禁用，避免并发弹两个文件框 */
   const [transferBusy, setTransferBusy] = useState(false)
+  /** ~/.ssh/config 扫描结果与选择框 */
+  const [configImportOpen, setConfigImportOpen] = useState(false)
+  const [configHosts, setConfigHosts] = useState<SshConfigHost[]>([])
+  const [configWarnings, setConfigWarnings] = useState<string[]>([])
+  const [configPath, setConfigPath] = useState<string | undefined>(undefined)
+  const [configImporting, setConfigImporting] = useState(false)
+
+  const existingServerKeys = useMemo(
+    () => new Set(servers.map((s) => `${s.host}|${s.port}|${s.username}`)),
+    [servers],
+  )
+
+  const handleScanConfig = async () => {
+    if (!window.electronAPI?.sshListConfigHosts) {
+      toast.error('当前环境不支持读取 ~/.ssh/config')
+      return
+    }
+    setTransferBusy(true)
+    try {
+      const result = await window.electronAPI.sshListConfigHosts()
+      if (!result.ok) {
+        toast.error(`读取 ~/.ssh/config 失败：${result.error ?? '未知原因'}`)
+        return
+      }
+      setConfigHosts(result.hosts)
+      setConfigWarnings(result.warnings)
+      setConfigPath(result.path)
+      if (result.hosts.length === 0) {
+        toast.info(result.warnings[0] ?? '~/.ssh/config 里没有可导入的 Host')
+        return
+      }
+      setConfigImportOpen(true)
+    } catch (err) {
+      toast.error(`读取 ~/.ssh/config 失败：${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setTransferBusy(false)
+    }
+  }
+
+  const handleImportConfigHosts = async (selected: SshConfigHost[]) => {
+    setConfigImporting(true)
+    let added = 0
+    let passwordOnly = 0
+    try {
+      for (let i = 0; i < selected.length; i++) {
+        const h = selected[i]
+        if (!h.identityFile) passwordOnly++
+        const config: SshConfig = {
+          id: `server_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+          name: h.alias,
+          host: h.host,
+          port: h.port,
+          username: h.username,
+          authType: h.identityFile ? 'privateKey' : 'password',
+          privateKeyPath: h.identityFile,
+        }
+        const ok = await addServer(config)
+        if (ok) added++
+      }
+      if (added === 0) {
+        toast.error('没有导入成功：服务器列表写入失败')
+        return
+      }
+      toast.success(
+        passwordOnly > 0
+          ? `已导入 ${added} 台；其中 ${passwordOnly} 台使用密码认证，首次连接时需要输入密码`
+          : `已导入 ${added} 台服务器`,
+      )
+      setConfigImportOpen(false)
+    } finally {
+      setConfigImporting(false)
+    }
+  }
 
   const handleExportServers = async () => {
     if (!window.electronAPI?.serverExportFile) {
@@ -545,6 +620,7 @@ export function SshSettings() {
           onDelete={handleDeleteServer}
           onExport={() => void handleExportServers()}
           onImport={() => void handleImportServers()}
+          onImportConfig={() => void handleScanConfig()}
           transferBusy={transferBusy}
         />
 
@@ -594,6 +670,19 @@ export function SshSettings() {
         onCancel={() => {
           setDialogOpen(false)
           setEditing(null)
+        }}
+      />
+
+      <SshConfigImportDialog
+        open={configImportOpen}
+        configPath={configPath}
+        hosts={configHosts}
+        warnings={configWarnings}
+        existingKeys={existingServerKeys}
+        busy={configImporting}
+        onImport={(hostsToImport) => void handleImportConfigHosts(hostsToImport)}
+        onCancel={() => {
+          if (!configImporting) setConfigImportOpen(false)
         }}
       />
 

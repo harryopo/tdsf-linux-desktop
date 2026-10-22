@@ -94,6 +94,7 @@ const electronApi = {
   sshGenerateKeypair: ssh.generateKeypair,
   /** 列出 ~/.ssh/ 目录下所有密钥对 */
   sshListKeypairs: ssh.listKeypairs,
+  sshListConfigHosts: ssh.listConfigHosts,
 
   // ===== SFTP 扁平化 =====
   sftpList: sftp.list,

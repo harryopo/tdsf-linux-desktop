@@ -36,6 +36,8 @@ import { recordToolCall } from '../services/db/tool-call-log'
 import { DatabaseManager } from '../services/db/database'
 import { AuditRepo } from '../services/db/audit-repo'
 import { pickExistingFiles, pickSavePath } from '../services/security/dialog-paths'
+import { readSshConfigHosts } from '../services/ssh/ssh-config'
+import type { SshConfigScanResult } from '@shared/ssh-config-types'
 import type {
   SftpTransferResult,
   SshConfig,
@@ -1106,6 +1108,20 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       }
     },
   )
+
+  /**
+   * ssh:list-config-hosts — 读取 ~/.ssh/config 的 Host 列表（2026-10-22）
+   *
+   * 固定读用户主目录，不接受渲染层传路径；只回解析后的非敏感字段。
+   * 读失败不抛：界面要能区分"没有配置"与"配置读不出来"。
+   */
+  ipcMain.handle(SSH.LIST_CONFIG_HOSTS, async (): Promise<SshConfigScanResult> => {
+    const result = await readSshConfigHosts()
+    if (!result.ok) {
+      logger.warn('SSH', '读取 ~/.ssh/config 失败', { error: redactSecrets(result.error ?? '') })
+    }
+    return result
+  })
 
   return () => {
     for (const dispose of disposers.reverse()) {

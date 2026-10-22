@@ -1,5 +1,6 @@
 /** ssh 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { CommandResult, GenerateKeyPairRequest, GenerateKeyPairResponse, ShellIntegrationResult, ShellIntegrationStatus, SshConfig, SshHostKeyResponseAction, SshKeyPair } from '@shared/models'
+import type { SshConfigScanResult } from '@shared/ssh-config-types'
 import { SHELL_INTEGRATION, SSH } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
@@ -170,6 +171,10 @@ const ssh = {
    */
   listKeypairs: (): Promise<SshKeyPair[]> =>
     ipcRenderer.invoke(SSH.LIST_KEYPAIRS),
+
+  /** 读取 ~/.ssh/config 的 Host 列表（固定路径、只读、不含凭据） */
+  listConfigHosts: (): Promise<SshConfigScanResult> =>
+    invokeChecked<SshConfigScanResult>('sshListConfigHosts', SSH.LIST_CONFIG_HOSTS),
 }
 
 export { ssh }

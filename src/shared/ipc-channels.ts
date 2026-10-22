@@ -215,6 +215,12 @@ export const SSH = {
    * 返回 SshKeyPair[]。用于 Card 2 密钥列表展示。
    */
   LIST_KEYPAIRS: 'ssh:list-keypairs',
+  /**
+   * 读取 ~/.ssh/config 的 Host 列表（invoke: 渲染 → 主）
+   *
+   * 路径固定为用户主目录，不接受渲染层传路径；只回解析后的非敏感字段。
+   */
+  LIST_CONFIG_HOSTS: 'ssh:list-config-hosts',
 } as const
 
 /**

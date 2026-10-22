@@ -25,6 +25,7 @@ import {
   KeyRound,
   Download,
   Upload,
+  FileCode2,
 } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import { Empty } from '@/components/trae/Empty'
@@ -86,6 +87,8 @@ export interface ServerCardProps {
   onExport: () => void
   /** 从用户选定的 JSON 文件导入服务器列表（凭据留空） */
   onImport: () => void
+  /** 读取 ~/.ssh/config 的 Host 列表（只读，弹选择框） */
+  onImportConfig: () => void
   /** 正在导入/导出（两钮同时禁用） */
   transferBusy?: boolean
 }
@@ -104,6 +107,7 @@ export function ServerCard(props: ServerCardProps) {
     onDelete,
     onExport,
     onImport,
+    onImportConfig,
     transferBusy = false,
   } = props
 
@@ -114,7 +118,17 @@ export function ServerCard(props: ServerCardProps) {
       tag={`${servers.length} servers`}
     >
       {ipcAvailable && (
-        <div className="mb-2 flex items-center justify-end gap-2">
+        <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            data-dom-id="import-ssh-config"
+            disabled={transferBusy}
+            onClick={onImportConfig}
+            className="set-btn-ghost btn-press"
+          >
+            <FileCode2 className="di-12" />
+            导入 ssh config
+          </button>
           <button
             type="button"
             data-dom-id="import-servers"

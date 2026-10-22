@@ -5,6 +5,7 @@ import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
 import type { ChatMessage, CommandResult, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
+import type { SshConfigScanResult } from '@shared/ssh-config-types'
 
 /** 已纳入契约的 invoke 通道：electronAPI 上这些方法的签名以这里为准 */
 export interface ContractedInvokeApi {
@@ -183,6 +184,10 @@ export interface ContractedInvokeApi {
   /** 生成 ed25519/rsa 密钥对
    * 通道 `ssh:generate-keypair` */
   sshGenerateKeypair(request: { type: "ed25519" | "rsa"; name: string; passphrase?: string; comment?: string }): Promise<GenerateKeyPairResponse>
+
+  /** 读取 ~/.ssh/config 的 Host 列表（固定路径、只读、不含凭据）
+   * 通道 `ssh:list-config-hosts` */
+  sshListConfigHosts(): Promise<SshConfigScanResult>
 
   /** 对话框选择图片并返回 base64 data URL
    * 通道 `fs:upload-image` */
