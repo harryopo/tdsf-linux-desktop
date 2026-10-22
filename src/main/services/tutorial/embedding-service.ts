@@ -9,7 +9,8 @@
  * 技术方案：
  * - 使用 @xenova/transformers（Transformers.js）在 Node.js 端本地推理
  * - 通过 ONNX Runtime 加速，无需 Python 环境
- * - 模型首次调用时从 HuggingFace CDN 下载，之后从本地缓存加载
+ * - 模型首次调用时从 HuggingFace 镜像下载，逐文件做 SHA-256 校验后写入本地缓存；
+ *   之后从本地缓存加载，不再联网
  * - 国内网络环境通过 hf-mirror.com 镜像加速下载
  *
  * 关键约束：
@@ -20,6 +21,8 @@
 
 import { app } from 'electron'
 import { join } from 'path'
+import { BGE_SMALL_ZH_MODEL, ensureEmbeddingModel } from './embedding-model'
+import { logger } from '../log/logger'
 
 /**
  * Transformers.js 模块类型（动态加载）
@@ -43,8 +46,10 @@ type TransformersModule = {
   ) => Promise<unknown>
   env: {
     allowLocalModels: boolean
+    allowRemoteModels: boolean
     useBrowserCache: boolean
     remoteHost: string
+    localModelPath: string
     cacheDir?: string
   }
 }
@@ -56,7 +61,7 @@ let transformersModule: TransformersModule | null = null
  * BGE-small-zh-v1.5 模型 ID（Xenova 镜像版本）
  * Xenova 是 HuggingFace 上专门把 PyTorch 模型转成 ONNX 格式的作者
  */
-const MODEL_ID = 'Xenova/bge-small-zh-v1.5'
+const MODEL_ID = BGE_SMALL_ZH_MODEL.modelId
 
 /**
  * Embedding 维度
@@ -109,12 +114,18 @@ function loadTransformersModule(): Promise<TransformersModule> {
         const mod = await import('@xenova/transformers')
         const transformers = mod as unknown as TransformersModule
         // 配置 Transformers.js 运行环境
-        // - allowLocalModels = false：不读取本地模型文件（强制走 CDN 下载）
+        // - allowLocalModels = true：transformers 的守卫要求本地/远程至少开一个；
+        //   这里只用于读我们校验过的文件缓存，localModelPath 指向一个不存在的目录，
+        //   缓存未命中时直接报错，不会去读别的本地模型
+        // - allowRemoteModels = false：下载与校验只走 embedding-model.ts 那一条路，
+        //   transformers 自己不许再联网取未校验的字节
         // - useBrowserCache = false：Node 端没有浏览器缓存机制
-        // - remoteHost：HuggingFace 国内镜像（hf-mirror.com，官方推荐）
-        transformers.env.allowLocalModels = false
+        // - remoteHost：仅作为兜底常量，实际下载由 ensureEmbeddingModel 负责
+        transformers.env.allowLocalModels = true
+        transformers.env.allowRemoteModels = false
         transformers.env.useBrowserCache = false
         transformers.env.remoteHost = 'https://hf-mirror.com'
+        transformers.env.localModelPath = join(app.getPath('userData'), 'models', '__no-local-models__')
         transformersModule = transformers
         return transformers
       } catch (err) {
@@ -272,7 +283,18 @@ export class EmbeddingService {
 
       // 设置模型缓存目录到 Electron userData
       // 必须在 app ready 之后调用，否则 app.getPath 会抛错
-      transformers.env.cacheDir = join(app.getPath('userData'), 'models')
+      const cacheDir = join(app.getPath('userData'), 'models')
+      transformers.env.cacheDir = cacheDir
+
+      // 下载/校验唯一入口：文件缺失时由这里取一次，SHA-256 不对就拒绝写入。
+      // 校验通过后 pipeline 只从缓存读，allowRemoteModels=false 堵住旁路。
+      await ensureEmbeddingModel(cacheDir, {
+        onFile: (file, action) => {
+          logger.info('EMBEDDING', action === 'downloaded' ? '模型文件已下载并校验' : '模型文件校验通过', {
+            file: file.path,
+          })
+        },
+      })
 
       // 阶段 2：创建 feature-extraction pipeline
       // - task: 'feature-extraction' 表示提取特征向量（区别于 text-classification 等）
@@ -285,7 +307,7 @@ export class EmbeddingService {
       const msg = (err as Error)?.message ?? String(err)
       throw new EmbeddingServiceUnavailableError(
         `BGE embedding 模型加载失败（model=${MODEL_ID}）：${msg}。` +
-        `请检查网络（hf-mirror.com）或磁盘空间。`,
+        `模型文件在写入缓存前会做 SHA-256 校验，不一致会拒绝加载；请检查网络（hf-mirror.com）或磁盘空间。`,
         err
       )
     }
