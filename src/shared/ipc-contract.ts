@@ -559,6 +559,15 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     resultTs: 'BlockedCommandRecord[]',
     result: z.array(z.unknown()),
   },
+  {
+    kind: 'invoke',
+    api: 'historyAudit',
+    channel: HISTORY.AUDIT,
+    doc: '决策审计链：库里存的行 + 主进程重算的校验结论（渲染层不参与算哈希）',
+    args: [{ name: 'decisionId', ts: 'string', schema: str }],
+    resultTs: 'DecisionAuditView',
+    result: z.unknown(),
+  },
   // ===== 契约扩面第二批（2026-10-21）：SFTP 读取/传输 + 密钥对 + 图片上传 =====
   {
     kind: 'invoke',
@@ -707,6 +716,7 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   AgentErrorPayload: '@shared/agent-types',
   BootLoadingStage: '@shared/boot-types',
   CommandResult: '@shared/models',
+  DecisionAuditView: '@shared/models',
   BlockedCommandRecord: '@shared/audit-types',
   SftpEntry: '@shared/models',
   SftpTransferResult: '@shared/models',

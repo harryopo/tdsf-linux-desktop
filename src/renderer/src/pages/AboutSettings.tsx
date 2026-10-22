@@ -247,7 +247,7 @@ export function AboutSettings() {
         </SettingsCard>
 
         {/*
-          * #94：这五张表只往里写，界面上从来不说长到什么程度。这里只给读数——
+          * #94：这些只增表只往里写，界面上从来不说长到什么程度。这里只给读数——
           * 不做"一键清理"。删不删是取舍，不该藏在设置页一个角落里由按钮替用户决定。
           */}
         <SettingsCard icon={Database} title="本地数据体积" hideTag noHeadBorder>

@@ -1,11 +1,12 @@
 /**
- * ExecutionResult — 命令决策终端 + 法证审计日志
+ * ExecutionResult — 命令决策终端 + 审计日志
  *
  * 设计稿：decision-detail.html 区域2 右侧（命令决策终端）+ 区域6（审计日志）
  *
  * 包含两部分：
  * 1. 命令决策终端：三色点 + 决策 ID + 已校验 tag（按真实证据传入）+ 命令块 + 影响范围/回滚 + 操作区
- * 2. 决策审计日志：表格（时间戳/操作者/动作/真 SHA-256 链式哈希/结果）
+ * 2. 决策审计日志：表格（行号/时间戳/操作者/动作/SHA-256 摘要/结果），
+ *    行由主进程 `history:audit` 从本机 decision_audit 表读出，校验结论也算在主进程（任务 #174）
  *
  * 交互（v2.6 已真实接线）：
  * - approval 模式：采纳执行/修改/拒绝回调（活跃工作流 loopConfirm）
@@ -15,17 +16,37 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Terminal, Check, X, Edit3, Copy, CheckCheck, Play, CheckCircle2, Loader2,
+  Terminal, Check, X, Edit3, Copy, CheckCheck, Play, CheckCircle2, Loader2, ShieldAlert, ShieldCheck,
 } from 'lucide-react'
+import type { DecisionAuditResult } from '@shared/models'
 
-/** 审计日志行类型 */
+/**
+ * 审计日志行（形状 = 库里 decision_audit 那一行，见 @shared/models 的 DecisionAuditRow）
+ *
+ * 任务 #174：以前这一叠行是渲染层打开详情时按卡片字段现编的，哈希也是对现编的行算的；
+ * 那样只能算"时间线视图"，改库里的卡改不出来。现在这里只装库里读出来的那一份。
+ */
 export interface AuditRow {
+  /** 链上行号（库里自增，只增不改） */
+  seq: number
   timestamp: string
   operator: string
   action: string
+  /** 完整 64 位十六进制摘要：展示取前 8 后 6，悬停给全串 */
   hash: string
-  result: 'completed' | 'waiting' | 'pending' | 'passed'
+  /** 前驱摘要（第一行是创世块：由决策 ID 推出的那一串） */
+  prevHash: string
+  result: DecisionAuditResult
 }
+
+/**
+ * 审计链的状态（由页面按 history:audit 的返回算出来，组件不自己判）
+ * - ok：有行且主进程重算后对得上
+ * - broken：有行但某一行与链不符（brokenAtSeq 给出行号）
+ * - empty：库里没有这一条决策的任何审计行
+ * - unavailable：读不到（IPC 不可用或库处于降级模式）
+ */
+export type AuditChainStatus = 'ok' | 'broken' | 'empty' | 'unavailable'
 
 /** 命令分段（5 色高亮，与 EvidenceList 一致） */
 export interface CmdSegment {
@@ -48,8 +69,15 @@ interface ExecutionResultProps {
   rollback: string
   /** 是否已校验（v2.6：默认 false，由调用方按真实证据传入） */
   verified?: boolean
-  /** 审计日志行 */
+  /** 审计日志行（来自本机 decision_audit 表，主进程写入库的那一份） */
   auditRows: AuditRow[]
+  /**
+   * 这条链的校验结论，由页面按 `history:audit` 的返回算出来。
+   * 必填：组件不猜"完好"——没有结论就明说读不到，别让一行空表看着像校验通过。
+   */
+  auditStatus: AuditChainStatus
+  /** auditStatus='broken' 时断在哪一行（库里那个自增行号） */
+  auditBrokenAtSeq?: number | null
   /**
    * 模式（v2.6）：approval=活跃审批（采纳/修改/拒绝）；
    * readonly=历史回放（状态徽章 + 重新在终端执行）。默认 approval 保持兼容。
@@ -82,8 +110,8 @@ const CMD_COLORS: Record<CmdSegment['type'], string> = {
   text: 'text-ink',
 }
 
-/** 审计结果 tag 映射 */
-const RESULT_TAGS: Record<AuditRow['result'], { text: string; className: string }> = {
+/** 审计结果 tag 映射（档位与 @shared/models 的 DecisionAuditResult 一致，少一档就会在运行时读到 undefined） */
+const RESULT_TAGS: Record<DecisionAuditResult, { text: string; className: string }> = {
   completed: {
     text: '完成',
     className: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-(--status-success-text)',
@@ -100,6 +128,60 @@ const RESULT_TAGS: Record<AuditRow['result'], { text: string; className: string 
     text: '待触发',
     className: 'border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] text-ink-mute',
   },
+  failed: {
+    text: '失败',
+    className: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-(--status-error-text)',
+  },
+  blocked: {
+    text: '拦截',
+    className: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-(--status-error-text)',
+  },
+}
+
+/** 哈希展示：0x + 前 8 位 + … + 后 6 位（完整 64 位放 title，选中该行可复制） */
+function displayHash(hex: string): string {
+  if (hex.length <= 16) return hex
+  return `0x${hex.slice(0, 8)}…${hex.slice(-6)}`
+}
+
+/** 徽章只说量到的事：0 行绝不显示"校验通过" */
+const CHAIN_BADGE: Record<AuditChainStatus, { text: (n: number) => string; className: string; tone: 'ok' | 'bad' | 'mute' }> = {
+  ok: {
+    text: (n) => `链校验通过 · ${n} 行`,
+    className: 'border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] text-(--status-success-text)',
+    tone: 'ok',
+  },
+  broken: {
+    text: (n) => `链校验未通过 · ${n} 行`,
+    className: 'border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.12)] text-(--status-error-text)',
+    tone: 'bad',
+  },
+  empty: {
+    text: () => '这条记录没有审计链',
+    className: 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-ink-dim',
+    tone: 'mute',
+  },
+  unavailable: {
+    text: () => '审计链读不到',
+    className: 'border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l1)] text-ink-dim',
+    tone: 'mute',
+  },
+}
+
+/** 审计链状态徽章（决策详情与历史详情共用一处措辞，别两边各写一份） */
+export function AuditChainBadge({ status, rowCount }: { status: AuditChainStatus; rowCount: number }) {
+  const meta = CHAIN_BADGE[status]
+  const Icon = status === 'ok' ? ShieldCheck : ShieldAlert
+  return (
+    <span
+      className={`inline-flex h-5 items-center gap-1 rounded-[var(--trae-radius-4)] border px-2 text-micro font-medium ${meta.className}`}
+      data-dom-id="audit-chain-badge"
+      data-audit-status={status}
+    >
+      <Icon className="size-3" />
+      {meta.text(rowCount)}
+    </span>
+  )
 }
 
 /**
@@ -114,6 +196,8 @@ export function ExecutionResult({
   rollback,
   verified = false,
   auditRows,
+  auditStatus,
+  auditBrokenAtSeq = null,
   mode = 'approval',
   statusLabel,
   rerunning = false,
@@ -270,85 +354,146 @@ export function ExecutionResult({
         </div>
       </div>
 
-      {/* ===== 决策审计日志 ===== */}
-      <div className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6">
+      {/* ===== 决策审计日志（行与哈希都来自本机 decision_audit 表） ===== */}
+      <div
+        className="rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-6"
+        data-dom-id="audit-chain-section"
+        data-audit-status={auditStatus}
+      >
         {/* 标题栏 */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-2">
             <span className="text-title font-semibold text-ink">决策审计日志</span>
-            <span className="inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2 text-micro font-medium text-(--accent-text)">
-              链式校验
-            </span>
+            <AuditChainBadge status={auditStatus} rowCount={auditRows.length} />
           </div>
-          <span className="text-micro text-ink-mute">SHA-256 链式哈希 · 逐行可验证篪改</span>
+          <span className="text-micro text-ink-mute">
+            行、时间戳与 SHA-256 都由主进程在落库时写入 · 本机 SQLite 表 decision_audit
+          </span>
         </div>
 
-        {/* 表格 */}
-        <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
-          {/* 表头 */}
-          <div className="flex items-center gap-4 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-4 py-2">
-            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_160px]">
-              时间戳
+        {auditStatus === 'broken' && (
+          <p
+            className="mb-3 flex items-start gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-error-default)] bg-[rgba(246,90,90,0.08)] px-3 py-2 text-micro text-(--status-error-text)"
+            data-dom-id="audit-broken-note"
+          >
+            <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              第 {auditBrokenAtSeq} 行与它存下的哈希对不上：这条链在写入之后被改过，或者中间被删掉了一行。
+              下面照实列出库里现在的样子，断点之前的行仍可信，之后的都不该当证据用。
             </span>
-            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_100px]">
-              操作者
-            </span>
-            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-1 min-w-0">
-              动作
-            </span>
-            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_120px]">
-              哈希
-            </span>
-            <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_64px] text-right">
-              结果
-            </span>
-          </div>
+          </p>
+        )}
 
-          {/* 数据行 */}
-          {auditRows.map((row, idx) => {
-            const tag = RESULT_TAGS[row.result]
-            const isLast = idx === auditRows.length - 1
-            const isPending = row.result === 'pending'
-            return (
-              <div
-                key={`${row.timestamp}-${idx}`}
-                className={`audit-row flex items-center gap-4 px-4 py-2 transition-colors hover:bg-[var(--trae-bg-overlay-l1)] ${
-                  !isLast ? 'border-b border-[var(--trae-border-neutral-l1)]' : ''
-                }`}
-              >
-                <span
-                  className={`font-mono text-micro tabular-nums flex-[0_0_160px] ${
-                    isPending ? 'text-ink-mute' : 'text-ink-dim'
-                  }`}
+        {auditStatus === 'empty' && (
+          <p
+            className="mb-1 flex items-start gap-1.5 text-micro text-ink-dim"
+            data-dom-id="audit-empty-note"
+          >
+            <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-ink-mute" />
+            <span>
+              库里没有这条决策的审计行：它写于审计表（migration v3）启用之前，或那次落库时数据库处于降级模式。
+              卡片本身照样能看，但"当时发生了什么"这一步没有可核对的留痕——重新执行一次决策就会留下链。
+            </span>
+          </p>
+        )}
+
+        {auditStatus === 'unavailable' && (
+          <p
+            className="mb-1 flex items-start gap-1.5 text-micro text-ink-dim"
+            data-dom-id="audit-unavailable-note"
+          >
+            <ShieldAlert className="mt-0.5 size-3.5 shrink-0 text-ink-mute" />
+            <span>读不到审计链：IPC 桥接不可用或数据库处于降级模式（见设置页的数据库状态）。</span>
+          </p>
+        )}
+
+        {auditRows.length > 0 && (
+          /* 表格 */
+          <div className="overflow-hidden rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)]">
+            {/* 表头 */}
+            <div className="flex items-center gap-4 border-b border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-tertiary)] px-4 py-2">
+              <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_36px]">
+                链
+              </span>
+              <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_150px]">
+                时间戳
+              </span>
+              <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_100px]">
+                操作者
+              </span>
+              <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-1 min-w-0">
+                动作
+              </span>
+              <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_140px]">
+                SHA-256
+              </span>
+              <span className="font-mono text-micro font-medium uppercase tracking-[0.06em] text-ink-mute flex-[0_0_56px] text-right">
+                结果
+              </span>
+            </div>
+
+            {/* 数据行 */}
+            {auditRows.map((row, idx) => {
+              const tag = RESULT_TAGS[row.result]
+              const isLast = idx === auditRows.length - 1
+              const isPending = row.result === 'pending'
+              const isBroken = auditStatus === 'broken' && row.seq === auditBrokenAtSeq
+              return (
+                <div
+                  key={row.seq}
+                  data-dom-id="audit-row"
+                  data-audit-broken={isBroken ? 'true' : undefined}
+                  className={`audit-row flex items-center gap-4 px-4 py-2 transition-colors ${
+                    isBroken
+                      ? 'bg-[rgba(246,90,90,0.10)]'
+                      : 'hover:bg-[var(--trae-bg-overlay-l1)]'
+                  } ${!isLast ? 'border-b border-[var(--trae-border-neutral-l1)]' : ''}`}
                 >
-                  {row.timestamp}
-                </span>
-                <span
-                  className={`text-micro flex-[0_0_100px] ${
-                    isPending ? 'text-ink-mute' : 'text-ink-dim'
-                  }`}
-                >
-                  {row.operator}
-                </span>
-                <span
-                  className={`text-micro flex-1 min-w-0 ${
-                    isPending ? 'text-ink-mute' : 'text-ink'
-                  }`}
-                >
-                  {row.action}
-                </span>
-                <span className="font-mono text-caption flex-[0_0_120px] overflow-hidden overflow-ellipsis whitespace-nowrap text-ink-mute">
-                  {row.hash}
-                </span>
-                <span className="flex flex-[0_0_64px] justify-end">
-                  <span className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-1.5 text-micro font-medium ${tag.className}`}>
-                    {tag.text}
+                  <span
+                    className={`font-mono text-micro tabular-nums flex-[0_0_36px] ${
+                      isBroken ? 'text-(--status-error-text)' : 'text-ink-mute'
+                    }`}
+                    title={`第 ${row.seq} 行`}
+                  >
+                    #{row.seq}
                   </span>
-                </span>
-              </div>
-            )
-          })}
-        </div>
+                  <span
+                    className={`font-mono text-micro tabular-nums flex-[0_0_150px] ${
+                      isPending ? 'text-ink-mute' : 'text-ink-dim'
+                    }`}
+                  >
+                    {row.timestamp}
+                  </span>
+                  <span
+                    className={`text-micro flex-[0_0_100px] ${
+                      isPending ? 'text-ink-mute' : 'text-ink-dim'
+                    }`}
+                  >
+                    {row.operator}
+                  </span>
+                  <span
+                    className={`text-micro flex-1 min-w-0 ${
+                      isPending ? 'text-ink-mute' : 'text-ink'
+                    }`}
+                  >
+                    {row.action}
+                  </span>
+                  <span
+                    className="font-mono text-caption flex-[0_0_140px] overflow-hidden overflow-ellipsis whitespace-nowrap text-ink-mute"
+                    title={`本行 ${row.hash}\n前驱 ${row.prevHash}`}
+                  >
+                    {displayHash(row.hash)}
+                  </span>
+                  <span className="flex flex-[0_0_56px] justify-end">
+                    <span className={`inline-flex h-5 items-center rounded-[var(--trae-radius-4)] border px-1.5 text-micro font-medium ${tag.className}`}>
+                      {tag.text}
+                    </span>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

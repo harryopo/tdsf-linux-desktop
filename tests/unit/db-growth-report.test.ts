@@ -1,7 +1,7 @@
 /**
  * tests/unit/db-growth-report.test.ts — 只增表体积台账（#94）
  *
- * 存在理由：这五张表只写不读、也没人说过它们有多大。用户拍板"日志留着方便排查
+ * 存在理由：这些只增表只写不读、也没人说过它们有多大。用户拍板"日志留着方便排查
  * 问题"，所以交付的是读数而不是清理按钮。三条纪律在本文件里逐条可证伪：
  *   1) 读数是真的（往真库里插真行，断言条数与最早/最新时间）
  *   2) 读失败不许演成"0 条"（拆掉一张表再读，那一行必须 error 且 rows=null）
@@ -15,7 +15,7 @@ import { DatabaseManager } from '../../src/main/services/db/database'
 import { describeGrowth, growthTableNames } from '../../src/main/services/db/growth-report'
 import { describeGrowthRow, formatBytes } from '../../src/renderer/src/pages/about-settings.constants'
 
-/** 五张表的最小写入：列名按 database.ts 的建表语句，只填 NOT NULL 的那几个 */
+/** 只增表台账的最小写入：列名按建表语句，只填 NOT NULL 的那几个 */
 const SEEDS: Array<{ table: string; sql: string; args: unknown[] }> = [
   { table: 'audit_logs', sql: 'INSERT INTO audit_logs (id, timestamp, action) VALUES (?,?,?)', args: ['a-1', 1_700_000_000_000, 'cmd_exec:SSH 执行完成'] },
   { table: 'audit_logs', sql: 'INSERT INTO audit_logs (id, timestamp, action) VALUES (?,?,?)', args: ['a-2', 1_700_000_090_000, 'ssh_conn:SSH 连接建立'] },
@@ -23,6 +23,11 @@ const SEEDS: Array<{ table: string; sql: string; args: unknown[] }> = [
   { table: 'tool_call_log', sql: 'INSERT INTO tool_call_log (toolName, timestamp) VALUES (?,?)', args: ['ssh_exec', 1_700_000_020_000] },
   { table: 'budget_alerts', sql: 'INSERT INTO budget_alerts (level, text, timestamp) VALUES (?,?,?)', args: ['alert', 'token 日消耗超阈值', 1_700_000_030_000] },
   { table: 'memory_audit', sql: 'INSERT INTO memory_audit (ts, trigger, op, detail) VALUES (?,?,?,?)', args: [1_700_000_040_000, 'task_end', 'write', '沉淀一条环境事实'] },
+  {
+    table: 'decision_audit',
+    sql: 'INSERT INTO decision_audit (decisionId, timestamp, actor, action, result, prevHash, hash) VALUES (?,?,?,?,?,?,?)',
+    args: ['dc_seed', 1_700_000_050_000, 'Risk Engine', '风险评估 · LOW · 10 分', 'completed', 'f'.repeat(64), 'e'.repeat(64)],
+  },
 ]
 
 /** 时间列逐表不同，测试自己也要有一份，才能证明报上来的不是同一个数 */
@@ -32,6 +37,7 @@ const TIME_COLUMN: Record<string, string> = {
   tool_call_log: 'timestamp',
   budget_alerts: 'timestamp',
   memory_audit: 'ts',
+  decision_audit: 'timestamp',
 }
 
 function seed(db: DatabaseManager): void {
@@ -53,7 +59,7 @@ describe('体积台账：真实读数', () => {
     seed(db)
   })
 
-  it('五张表全在台账里，且顺序与登记一致', () => {
+  it('登记的表全在台账里，且顺序与登记一致', () => {
     const growth = describeGrowth(db, { auditRetentionDays: 180 })
     expect(growth.tables.map((t) => t.table)).toEqual(growthTableNames())
     expect(growthTableNames()).toEqual([
@@ -62,15 +68,16 @@ describe('体积台账：真实读数', () => {
       'tool_call_log',
       'budget_alerts',
       'memory_audit',
+      'decision_audit',
     ])
   })
 
-  it('条数与最早/最新时间逐表对得上（不是把同一个数抄了五遍）', () => {
+  it('条数与最早/最新时间逐表对得上（不是把同一个数抄了几遍）', () => {
     const growth = describeGrowth(db, { auditRetentionDays: 180 })
     expect(rowOf(growth, 'audit_logs').rows).toBe(2)
     expect(rowOf(growth, 'audit_logs').oldestAt).toBe(1_700_000_000_000)
     expect(rowOf(growth, 'audit_logs').newestAt).toBe(1_700_000_090_000)
-    for (const single of ['kb_view_history', 'tool_call_log', 'budget_alerts', 'memory_audit']) {
+    for (const single of ['kb_view_history', 'tool_call_log', 'budget_alerts', 'memory_audit', 'decision_audit']) {
       const row = rowOf(growth, single)
       expect(row.rows, `${single} 应当只有 1 条`).toBe(1)
       expect(row.oldestAt, `${single} 最早时间（列 ${TIME_COLUMN[single]}）`).toBeTypeOf('number')
@@ -134,7 +141,7 @@ describe('体积台账：读失败不许演成 0 条', () => {
     expect(describeGrowthRow(broken).ok).toBe(false)
   })
 
-  it('降级库（isAvailable=false）逐行报降级原因，而不是五张空表', () => {
+  it('降级库（isAvailable=false）逐行报降级原因，而不是几张空表', () => {
     let prepareCalls = 0
     const stub = {
       isAvailable: () => false,
@@ -148,7 +155,8 @@ describe('体积台账：读失败不许演成 0 条', () => {
 
     const growth = describeGrowth(stub, { auditRetentionDays: 180 })
     expect(growth.fileBytes).toBeNull()
-    expect(growth.tables).toHaveLength(5)
+    // 每张登记的表都要有一行——按登记表反查，不抄份数字进来当基线
+    expect(growth.tables).toHaveLength(growthTableNames().length)
     for (const row of growth.tables) {
       expect(row.rows, `${row.table} 不许显示 0`).toBeNull()
       expect(row.error).toBe('原生模块 better-sqlite3 未能加载')

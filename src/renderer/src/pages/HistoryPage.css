@@ -821,6 +821,11 @@
   border-bottom: none;
 }
 
+/* 任务 #174：审计链断在哪一行，那一行得看得出来（只有底色，不加边） */
+.hist-log-row.is-broken {
+  background: rgba(246, 90, 90, 0.08);
+}
+
 .hist-log-time {
   flex-shrink: 0;
   width: 64px;

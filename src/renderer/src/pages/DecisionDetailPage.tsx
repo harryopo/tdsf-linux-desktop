@@ -33,7 +33,7 @@ import { PCR5Result } from '@/components/decision/PCR5Result'
 import { ApprovalStateMachine } from '@/components/decision/ApprovalStateMachine'
 import { EvidenceList } from '@/components/decision/EvidenceList'
 import { ExecutionResult } from '@/components/decision/ExecutionResult'
-import type { AuditRow } from '@/components/decision/ExecutionResult'
+import type { AuditChainStatus, AuditRow } from '@/components/decision/ExecutionResult'
 import { Empty } from '@/components/trae/Empty'
 import { ConfidenceGauge } from '@/components/decision/ConfidenceGauge'
 import { LoadingState } from '@/components/decision/LoadingState'
@@ -45,7 +45,8 @@ import {
   buildTimelineSteps,
   buildRiskGates,
   buildDangerCommands,
-  buildAuditRows,
+  auditChainStatus,
+  toAuditRows,
   buildWorkflowSteps,
   buildCredibilityInputs,
 } from '@/utils/decision-mappers'
@@ -111,8 +112,10 @@ export function DecisionDetailPage() {
   const [modifyModalOpen, setModifyModalOpen] = useState(false)
   const [modifyCommand, setModifyCommand] = useState('')
   const [confirming, setConfirming] = useState(false)
-  /** v2.6：审计日志行（真 SHA-256 链，异步计算） */
+  /** 任务 #174：审计链的行 / 状态 / 断点行号，全部来自库里的 decision_audit */
   const [auditRows, setAuditRows] = useState<AuditRow[]>([])
+  const [auditStatus, setAuditStatus] = useState<AuditChainStatus>('unavailable')
+  const [auditBrokenAtSeq, setAuditBrokenAtSeq] = useState<number | null>(null)
   /** v2.6：重新执行需要活跃 SSH 会话 */
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const [rerunning, setRerunning] = useState(false)
@@ -185,18 +188,46 @@ export function DecisionDetailPage() {
     void loadData()
   }, [loadData])
 
-  // v2.6：卡片就绪后异步计算真 SHA-256 链式审计行
+  /**
+   * 任务 #174：审计链读库里那一份，不在渲染层现编事件、也不算哈希。
+   *
+   * 只按 card.id 走：批准后本地 status 会变，但库里的链在那一刻还没有新行，
+   * 跟着整个卡片对象重读只会多打一次 IPC。
+   */
+  const cardId = card?.id ?? null
   useEffect(() => {
-    if (!card) {
+    if (!cardId) {
       setAuditRows([])
+      setAuditStatus('unavailable')
+      setAuditBrokenAtSeq(null)
+      return
+    }
+    if (!window.electronAPI?.historyAudit) {
+      setAuditRows([])
+      setAuditStatus('unavailable')
+      setAuditBrokenAtSeq(null)
       return
     }
     let cancelled = false
-    void buildAuditRows(card).then((rows) => {
-      if (!cancelled) setAuditRows(rows)
-    })
-    return () => { cancelled = true }
-  }, [card])
+    window.electronAPI
+      .historyAudit(cardId)
+      .then((view) => {
+        if (cancelled) return
+        setAuditRows(toAuditRows(view.rows))
+        setAuditStatus(auditChainStatus(view))
+        setAuditBrokenAtSeq(view.brokenAtSeq)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        console.warn('[DecisionDetailPage] historyAudit failed:', err)
+        setAuditRows([])
+        setAuditStatus('unavailable')
+        setAuditBrokenAtSeq(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [cardId])
 
   /** 显示操作反馈 */
   const handleAction = (action: string) => {
@@ -541,6 +572,8 @@ export function DecisionDetailPage() {
           impact={card.risk.description || '目标服务'}
           rollback={card.rollbackCommand ?? 'N/A'}
           auditRows={auditRows}
+          auditStatus={auditStatus}
+          auditBrokenAtSeq={auditBrokenAtSeq}
           // v2.6：已执行/已拒绝/已验证的历史卡 → 只读态（审批按钮对历史卡无效），
           // 提供真实的「重新在终端执行」；仅 pending/approved（活跃工作流）保留审批按钮
           mode={card.status === 'pending' || card.status === 'approved' ? 'approval' : 'readonly'}

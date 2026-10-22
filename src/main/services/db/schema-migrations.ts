@@ -82,6 +82,28 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 3,
+    description: '建 decision_audit（决策审计链：事件当场落库、哈希写入时算好）',
+    up: (db) => {
+      // 详情页那句"逐行可验证篡改"以前是渲染层看时重建的，证明不了任何事（#174）。
+      // 审计要成立，事件必须在发生那一刻进来，且只进不改——所以这张表没有主键之外的
+      // 业务身份列，也不给任何 UPDATE/DELETE 的口子（仓储层不暴露，判据盯着）。
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS decision_audit (
+          seq INTEGER PRIMARY KEY AUTOINCREMENT,
+          decisionId TEXT NOT NULL,
+          timestamp INTEGER NOT NULL,
+          actor TEXT NOT NULL,
+          action TEXT NOT NULL,
+          result TEXT NOT NULL,
+          prevHash TEXT NOT NULL,
+          hash TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_decision_audit_card ON decision_audit(decisionId, seq);
+      `)
+    },
+  },
 ]
 
 /** 迁移清单的最高版本；建库后 user_version 应当等于它 */

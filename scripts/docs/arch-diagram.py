@@ -5,8 +5,8 @@
 # —— 公开仓里那张图就成了假话。有生成器才谈得上"重画一次"。
 #
 # 数字出处（不要手改图里的数，去改这些源，然后重跑本脚本）：
-#   IPC 274 = 235 请求-响应 + 39 事件推送   -> npm run audit:ipc
-#   已登记契约 54 条                          -> src/shared/ipc-contract.ts
+#   IPC 275 = 236 请求-响应 + 39 事件推送   -> npm run audit:ipc
+#   已登记契约 55 条                          -> src/shared/ipc-contract.ts
 #   命令闸 8 结构 + 7 argv + 226 词表         -> npm run promo:check
 #   Provider 7 类                             -> src/main/core/agent/providers/provider-factory.ts 的 switch
 #   可信度融合走 D-S / PCR5                    -> ChatCredibility.tsx:69 调 credibilityAssess
@@ -176,11 +176,11 @@ for i, (t, s, s2) in enumerate(main_boxes):
 # ---- IPC 走廊 ----
 # 走廊里两条竖线之间只有 430→700 这一段，左边那条说明文字不许越过右边的竖线
 A('  <line x1="430" y1="244" x2="430" y2="288" stroke="%s" stroke-width="2" marker-end="url(#ar-blue)"/>' % BLUE)
-txt(444, 270, "invoke 请求（235 条通道）", 12, BODY, avail=700 - 444 - 10)
+txt(444, 270, "invoke 请求（236 条通道）", 12, BODY, avail=700 - 444 - 10)
 A('  <line x1="700" y1="288" x2="700" y2="244" stroke="%s" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ar-gray)"/>' % MUTED)
 txt(714, 270, "事件推送（39 条通道）", 12, MUTED, avail=1110 - 714)
 A('  <line x1="430" y1="342" x2="430" y2="386" stroke="%s" stroke-width="2" marker-end="url(#ar-blue)"/>' % BLUE)
-txt(444, 368, "54 条已登记 zod 契约（其余未收口）", 12, BODY, avail=700 - 444 - 10)
+txt(444, 368, "55 条已登记 zod 契约（其余未收口）", 12, BODY, avail=700 - 444 - 10)
 A('  <line x1="700" y1="386" x2="700" y2="342" stroke="%s" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ar-gray)"/>' % MUTED)
 
 # ---- 外部服务 ----

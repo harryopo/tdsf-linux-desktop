@@ -516,6 +516,50 @@ export interface HistorySaveIntent {
   durationMs?: number
 }
 
+// ─────────── 决策审计链（任务 #174）───────────
+//
+// 这三张形状是跨进程的单一事实源：主进程的仓储（services/db/decision-audit.ts）与
+// 渲染层读到的行都从这里取类型。渲染层**不参与计算**——哈希在写入时就和行一起存进库了。
+
+/** 审计行结果（界面按这六档着色，不许出现表外的值） */
+export type DecisionAuditResult =
+  | 'passed'
+  | 'completed'
+  | 'waiting'
+  | 'pending'
+  | 'failed'
+  | 'blocked'
+
+/** 一条待写入的审计事件（时间戳 = 事件真实发生时刻，不是写库时刻） */
+export interface DecisionAuditEvent {
+  /** 谁做的：真实来源模块名，不是猜的 */
+  actor: string
+  /** 做了什么（人可读的一行） */
+  action: string
+  result: DecisionAuditResult
+  timestamp: number
+}
+
+/** 落库后的一行：链上位置 + 本行哈希 + 前驱哈希 */
+export interface DecisionAuditRow extends DecisionAuditEvent {
+  seq: number
+  decisionId: string
+  prevHash: string
+  hash: string
+}
+
+/** history:audit 的返回：行 + 主进程重算后的校验结论 */
+export interface DecisionAuditView {
+  rows: DecisionAuditRow[]
+  /** 链是否完好；0 行也算"完好"（没有可断的链 ≠ 断），界面按行数另行表态 */
+  intact: boolean
+  /** 第一个对不上的行号；完好时为 null */
+  brokenAtSeq: number | null
+  /** 断点处：应当是什么 / 实际存的是什么 */
+  expectedHash: string | null
+  storedHash: string | null
+}
+
 // ============================================================================
 // Agent 工作流类型
 // ============================================================================
@@ -871,7 +915,8 @@ export interface IpcChannelMap {
   // 决策历史
   'history:list': { args: [number?, number?]; return: DecisionCard[] }
   'history:get': { args: [string]; return: DecisionCard | null }
-  'history:save': { args: [DecisionCard]; return: boolean }
+  'history:save': { args: [HistorySaveIntent]; return: boolean }
+  'history:audit': { args: [string]; return: DecisionAuditView }
   'history:stats': { args: []; return: HistoryStats }
 
   // 模型统计（v2.3.2 新增）

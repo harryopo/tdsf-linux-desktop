@@ -12,7 +12,7 @@
  *   900px 内容宽度由 .hist-detail-content 控制在正文上，不再居中夹标题。
  *
  * 数据来源：window.electronAPI.historyGet(id) → DecisionCard
- * 复用工具：@/utils/decision-mappers（buildTimelineSteps / buildAuditRows）
+ * 复用工具：@/utils/decision-mappers（buildTimelineSteps / toAuditRows / auditChainStatus）
  * 复用组件：@/components/decision/LoadingState / ErrorState
  *
  * data-dom-id：back-workbench / back-history / goto-knowledge-detail
@@ -27,14 +27,15 @@ import {
   Clock, List, ScrollText, Shield, Sparkles, Terminal,
 } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { DecisionCard } from '@shared/models'
+import type { DecisionAuditResult, DecisionCard } from '@shared/models'
 import { Chip, PageHeader } from '@/ui'
 import { LoadingState } from '@/components/decision/LoadingState'
 import { ErrorState } from '@/components/decision/ErrorState'
 import {
-  buildTimelineSteps, buildAuditRows,
+  buildTimelineSteps, auditChainStatus, toAuditRows,
 } from '@/utils/decision-mappers'
-import type { AuditRow } from '@/components/decision/ExecutionResult'
+import { AuditChainBadge } from '@/components/decision/ExecutionResult'
+import type { AuditChainStatus, AuditRow } from '@/components/decision/ExecutionResult'
 
 // ==================== 样式常量 ====================
 
@@ -65,18 +66,21 @@ const STATUS_LABEL: Record<
   failed: { label: '执行失败', className: 'hist-tag hist-tag--danger', tone: 'error' },
 }
 
-/** 审计行结果 → 中文标签 */
-const AUDIT_RESULT_LABEL: Record<AuditRow['result'], string> = {
+/** 审计行结果 → 中文标签（档位与 @shared/models 的 DecisionAuditResult 一一对应） */
+const AUDIT_RESULT_LABEL: Record<DecisionAuditResult, string> = {
   completed: '已完成',
   waiting: '等待中',
   pending: '待触发',
   passed: '已通过',
+  failed: '执行失败',
+  blocked: '已拦截',
 }
 
 /** 审计行结果 → tag className */
-function auditResultTagClass(result: AuditRow['result']): string {
+function auditResultTagClass(result: DecisionAuditResult): string {
   if (result === 'completed' || result === 'passed') return 'hist-tag hist-tag--success'
-  if (result === 'waiting') return 'hist-tag hist-tag--warning'
+  if (result === 'waiting' || result === 'pending') return 'hist-tag hist-tag--warning'
+  if (result === 'failed' || result === 'blocked') return 'hist-tag hist-tag--danger'
   return 'hist-tag'
 }
 
@@ -104,7 +108,7 @@ function pickAuditIcon(operator: string, result: AuditRow['result']): AuditIconN
   return 'dot'
 }
 
-/** 从 buildAuditRows 产生的 timestamp（yyyy-mm-dd HH:MM:SS）提取 HH:MM:SS */
+/** 从审计行的 timestamp（yyyy-mm-dd HH:MM:SS）提取 HH:MM:SS */
 function extractTime(ts: string): string {
   return ts.length >= 19 ? ts.slice(11, 19) : ts
 }
@@ -175,20 +179,37 @@ export function HistoryDetailPage() {
   const [card, setCard] = useState<DecisionCard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  /** v2.6：审计日志行（真 SHA-256 链，异步计算） */
+  /** 任务 #174：审计链来自库里的 decision_audit，不在这里现编 */
   const [auditRows, setAuditRows] = useState<AuditRow[]>([])
+  const [auditStatus, setAuditStatus] = useState<AuditChainStatus>('unavailable')
+  const [auditBrokenAtSeq, setAuditBrokenAtSeq] = useState<number | null>(null)
 
+  const cardId = card?.id ?? null
   useEffect(() => {
-    if (!card) {
+    if (!cardId || !window.electronAPI?.historyAudit) {
       setAuditRows([])
+      setAuditStatus('unavailable')
+      setAuditBrokenAtSeq(null)
       return
     }
     let cancelled = false
-    void buildAuditRows(card).then((rows) => {
-      if (!cancelled) setAuditRows(rows)
-    })
+    window.electronAPI
+      .historyAudit(cardId)
+      .then((view) => {
+        if (cancelled) return
+        setAuditRows(toAuditRows(view.rows))
+        setAuditStatus(auditChainStatus(view))
+        setAuditBrokenAtSeq(view.brokenAtSeq)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        console.warn('[HistoryDetailPage] historyAudit failed:', err)
+        setAuditRows([])
+        setAuditStatus('unavailable')
+        setAuditBrokenAtSeq(null)
+      })
     return () => { cancelled = true }
-  }, [card])
+  }, [cardId])
 
   /** 加载决策数据 */
   const loadCard = useCallback(async () => {
@@ -439,32 +460,60 @@ export function HistoryDetailPage() {
           </div>
         </section>
 
-        {/* Card 5: 操作日志（使用 buildAuditRows） */}
-        <section className="hist-card">
-          <SectionHead icon={<List className="shrink-0 size-4 text-ink" />} title="操作日志" />
-          <div className="hist-timeline">
-            {auditRows.map((row, idx) => {
-              const iconName = pickAuditIcon(row.operator, row.result)
-              return (
-                <div key={idx} className="hist-log-row">
-                  <span className="hist-log-time">{extractTime(row.timestamp)}</span>
-                  <span className="hist-log-icon">
-                    <AuditLogIcon name={iconName} />
-                  </span>
-                  <span className="hist-log-desc">
-                    <span style={{ color: 'var(--text-tertiary)', marginRight: 6 }}>[{row.operator}]</span>
-                    {row.action}
-                    <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontFamily: 'var(--trae-font-family-mono)' }}>
-                      {row.hash}
+        {/* Card 5: 操作日志（行来自库里的 decision_audit） */}
+        <section className="hist-card" data-dom-id="audit-chain-section" data-audit-status={auditStatus}>
+          <SectionHead
+            icon={<List className="shrink-0 size-4 text-ink" />}
+            title="操作日志"
+            right={<AuditChainBadge status={auditStatus} rowCount={auditRows.length} />}
+          />
+          {auditRows.length === 0 ? (
+            <p className="font-mono text-micro text-ink-dim" data-dom-id="audit-empty-note">
+              {auditStatus === 'unavailable'
+                ? '读不到审计链：IPC 桥接不可用或数据库处于降级模式（见设置页的数据库状态）。'
+                : '库里没有这条决策的审计行：它写于审计表启用之前，或那次落库时数据库不可用。'}
+            </p>
+          ) : (
+            <div className="hist-timeline">
+              {auditRows.map((row) => {
+                const iconName = pickAuditIcon(row.operator, row.result)
+                const isBroken = auditStatus === 'broken' && row.seq === auditBrokenAtSeq
+                return (
+                  <div
+                    key={row.seq}
+                    className={`hist-log-row${isBroken ? ' is-broken' : ''}`}
+                    data-dom-id="audit-row"
+                    data-audit-broken={isBroken ? 'true' : undefined}
+                  >
+                    <span className="hist-log-time">{extractTime(row.timestamp)}</span>
+                    <span className="hist-log-icon">
+                      <AuditLogIcon name={iconName} />
                     </span>
-                    <span className={auditResultTagClass(row.result)} style={{ marginLeft: 8 }}>
-                      {AUDIT_RESULT_LABEL[row.result]}
+                    <span className="hist-log-desc">
+                      <span style={{ color: 'var(--text-tertiary)', marginRight: 6 }}>
+                        #{row.seq} [{row.operator}]
+                      </span>
+                      {row.action}
+                      <span
+                        style={{ marginLeft: 8, color: 'var(--text-muted)', fontFamily: 'var(--trae-font-family-mono)' }}
+                        title={`本行 ${row.hash}\n前驱 ${row.prevHash}`}
+                      >
+                        0x{row.hash.slice(0, 8)}…{row.hash.slice(-6)}
+                      </span>
+                      <span className={auditResultTagClass(row.result)} style={{ marginLeft: 8 }}>
+                        {AUDIT_RESULT_LABEL[row.result]}
+                      </span>
+                      {isBroken && (
+                        <span className="ml-2 text-micro text-(--status-error-text)">
+                          这一行与它存下的哈希对不上
+                        </span>
+                      )}
                     </span>
-                  </span>
-                </div>
-              )
-            })}
-          </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </section>
       </div>
       </div>

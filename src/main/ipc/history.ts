@@ -6,20 +6,24 @@
  * 通道列表（与 IpcChannelMap 对应）：
  * - history:list  — 分页列表（按时间倒序）
  * - history:get   — 获取详情
- * - history:save  — 保存决策卡片
+ * - history:save  — 保存决策卡片（并把审计链一并写进 decision_audit）
+ * - history:audit — 读取某条决策的审计链与校验结论
  *
  * 数据库依赖：
  *   所有操作通过 DatabaseManager 单例获取数据库连接。
+ *   审计仓储要的是原始 better-sqlite3 连接（事务尾插要用 transaction()），
+ *   拿不到就是库处于降级模式：卡片照旧返回，但要在日志里留下一句话。
  */
 
 import { ipcMain, BrowserWindow } from 'electron'
 import { HISTORY } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { DecisionRepository } from '../services/db/decision-repo'
+import { DecisionAuditRepository } from '../services/db/decision-audit'
 import { AuditRepo } from '../services/db/audit-repo'
-import { generateDecisionCard, validateDecision } from '../core/decision-engine'
+import { buildAuditEvents, generateDecisionCard, validateDecision } from '../core/decision-engine'
 import { logger } from '../services/log/logger'
-import type { HistorySaveIntent } from '@shared/models'
+import type { DecisionAuditView, DecisionCard, HistorySaveIntent } from '@shared/models'
 /**
  * 获取决策历史仓储实例
  * @returns DecisionRepository 实例
@@ -27,6 +31,37 @@ import type { HistorySaveIntent } from '@shared/models'
 function getDecisionRepo(): DecisionRepository {
   const db = DatabaseManager.getInstance()
   return new DecisionRepository(db)
+}
+
+/** 链还没有一行时的结论：完好但界面得按"没有行"表态，不能拿 intact 当"校验通过" */
+const EMPTY_AUDIT: DecisionAuditView = {
+  rows: [],
+  intact: true,
+  brokenAtSeq: null,
+  expectedHash: null,
+  storedHash: null,
+}
+
+/**
+ * 把审计链写进库（任务 #174）
+ *
+ * 只有尾插：卡片每次落库写一批事件，写坏了不许就地改——那是另一条链的事。
+ */
+function writeAuditTrail(card: DecisionCard): void {
+  const db = DatabaseManager.getInstance().getRawConnection()
+  if (!db) {
+    logger.warn('History', '数据库处于降级模式，本次决策的审计链没有写进库', { id: card.id })
+    return
+  }
+  try {
+    new DecisionAuditRepository(db).append(card.id, buildAuditEvents(card))
+  } catch (err) {
+    // 记账失败不该让用户的执行动作失败；界面那条"没有审计链"的空态会替这里说话
+    logger.warn('History', '决策审计链写入失败', {
+      id: card.id,
+      error: (err as Error).message,
+    })
+  }
 }
 
 /**
@@ -114,9 +149,32 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
       }
 
       const repo = getDecisionRepo()
-      return repo.save(card)
+      if (!repo.save(card)) return false
+      writeAuditTrail(card)
+      return true
     } catch (err) {
       throw new Error(`保存决策卡片失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // history:audit — 读取决策审计链
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(decisionId: string)
+   * 返回：DecisionAuditView（库里存的行 + 主进程重算后的校验结论）
+   *
+   * 渲染层不再自己拼事件、也不再自己算哈希：那样得到的只是打开时的视图，
+   * 改库里的卡改不出来（任务 #174）。这里给的是"存的那份"和它对不对得上。
+   */
+  ipcMain.handle(HISTORY.AUDIT, async (_event, decisionId: string) => {
+    try {
+      const db = DatabaseManager.getInstance().getRawConnection()
+      if (!db) return EMPTY_AUDIT
+      return new DecisionAuditRepository(db).verify(decisionId)
+    } catch (err) {
+      throw new Error(`获取决策审计链失败: ${(err as Error).message}`)
     }
   })
 

@@ -1,7 +1,7 @@
 
 
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
-import type { ChatMessage, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
+import type { ChatMessage, DecisionAuditView, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 // #79 第二批：这些返回类型以 shared/models 为单源写在实现侧，渲染层不再手写第二份。
 import type {
@@ -378,6 +378,9 @@ const electronApi = {
     ipcRenderer.invoke(HISTORY.STATS),
   historyBlocks: (limit?: number): Promise<BlockedCommandRecord[]> =>
     invokeChecked<BlockedCommandRecord[]>('historyBlocks', HISTORY.BLOCKS, limit),
+  // 任务 #174：审计链读的是库里那一份（含主进程重算的校验结论），渲染层不再自己算哈希
+  historyAudit: (decisionId: string): Promise<DecisionAuditView> =>
+    invokeChecked<DecisionAuditView>('historyAudit', HISTORY.AUDIT, decisionId),
 
   // ===== 系统架构感知扁平化 =====
   // 走 profiler 域对象（原来这里把四条通道又内联抄了一遍，而 const profiler 只有被删掉的手写类型在用）

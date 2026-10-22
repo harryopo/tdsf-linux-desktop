@@ -11,15 +11,15 @@
  * - TimelineStep / RiskGate from @/components/decision/ApprovalStateMachine
  * - EvidenceSource from @/components/decision/EvidenceRadar
  * - DangerCommand from @/components/decision/EvidenceList
- * - AuditRow from @/components/decision/ExecutionResult
+ * - AuditRow / AuditChainStatus from @/components/decision/ExecutionResult
  * - CredibilityEvidenceInput from @shared/agent-types
  */
-import type { DecisionCard, Evidence, RiskLevel } from '@shared/models'
+import type { DecisionAuditRow, DecisionAuditView, DecisionCard, Evidence, RiskLevel } from '@shared/models'
 import type { CredibilityEvidenceInput } from '@shared/agent-types'
 import type { TimelineStep, RiskGate } from '@/components/decision/ApprovalStateMachine'
 import type { EvidenceSource } from '@/components/decision/EvidenceRadar'
 import type { DangerCommand } from '@/components/decision/EvidenceList'
-import type { AuditRow } from '@/components/decision/ExecutionResult'
+import type { AuditChainStatus, AuditRow } from '@/components/decision/ExecutionResult'
 
 // ============================================================================
 // 命令分段类型
@@ -287,92 +287,36 @@ export function buildDangerCommands(card: DecisionCard): DangerCommand[] {
   }))
 }
 
-/** 计算字符串的 SHA-256 十六进制摘要（Web Crypto，渲染进程可用） */
-async function sha256Hex(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-/** 哈希展示格式：0x + 前 6 位 + … + 后 4 位 */
-function shortHash(hex: string): string {
-  return `0x${hex.slice(0, 6)}…${hex.slice(-4)}`
+/**
+ * 审计链行 → 表格行（任务 #174）
+ *
+ * 唯一职责是格式化：内容、哈希、时间全都来自库里 `decision_audit` 那一份，
+ * 由主进程 `history:audit` 交出来。这里**不再**按卡片字段现编事件、也不再算哈希——
+ * 以前那样得到的只是打开时的视图：改库里的卡改不出来，"逐行可验证篡改"就成了一句空话。
+ */
+export function toAuditRows(rows: DecisionAuditRow[]): AuditRow[] {
+  return rows.map((r) => ({
+    seq: r.seq,
+    timestamp: formatLocalTs(r.timestamp),
+    operator: r.actor,
+    action: r.action,
+    hash: r.hash,
+    prevHash: r.prevHash,
+    result: r.result,
+  }))
 }
 
 /**
- * 从 DecisionCard 构建审计日志行（v2.6 去假，async）
+ * history:audit 的返回 → 组件要的链状态
  *
- * - 只记录【真实发生】的事件：每项证据的采集（用证据自身真实 timestamp）、
- *   风险评估、人工批准/执行（用决策落库时刻）；不再编造 Monitor 告警/沙箱预演行。
- * - 哈希是真 SHA-256 链：hash_i = sha256(hash_{i-1} + timestamp + operator + action)，
- *   任意一行内容变动都会使后续整链哈希变化（可验证的链式完整性）。
+ * 关键判据：**0 行不能报"校验通过"**。库里没有这一条决策的行，可能是它写于审计表启用之前，
+ * 也可能是那次落库时数据库处于降级模式——两种都得让界面明说，而不是拿 intact=true 蒙过去
+ * （仓储里"没有可断的链"确实返回完好）。
  */
-export async function buildAuditRows(card: DecisionCard): Promise<AuditRow[]> {
-  /** 待哈希的事件行（真实事件 + 真实时间） */
-  const events: Array<Omit<AuditRow, 'hash'>> = []
-
-  // 1. 证据采集：每项证据一行，时间戳 = 证据真实产生时刻
-  for (const ev of [...card.evidences].sort((a, b) => a.timestamp - b.timestamp)) {
-    events.push({
-      timestamp: formatLocalTs(ev.timestamp),
-      operator: ev.source === 'command' ? 'SSH Executor' : ev.source === 'knowledge' ? 'Knowledge' : 'Collector',
-      action: `证据采集 · ${(ev.sourceDetail || ev.source).slice(0, 40)}`,
-      result: ev.verified ? 'passed' : 'completed',
-    })
-  }
-
-  // 2. 风险评估（落库时随卡一起写入，时间 = 决策时刻）
-  events.push({
-    timestamp: formatLocalTs(card.timestamp),
-    operator: 'Risk Engine',
-    action: `风险评估 · ${card.risk.level} · ${card.risk.description.slice(0, 30)}`,
-    result: 'completed',
-  })
-
-  // 3. 人工确认 + 执行（对话链路：批准即发送终端，同一时刻）
-  const executedLike = card.status === 'executed' || card.status === 'verified'
-  if (card.risk.requireConfirmation || executedLike) {
-    events.push({
-      timestamp: formatLocalTs(card.timestamp),
-      operator: 'Engineer',
-      action: executedLike || card.status === 'approved' ? '人工批准 · 确认执行' : '审批中 · 等待人工确认',
-      result: executedLike || card.status === 'approved' ? 'completed' : 'waiting',
-    })
-  }
-  if (executedLike) {
-    events.push({
-      timestamp: formatLocalTs(card.timestamp),
-      operator: 'Executor',
-      action: `发送终端执行 · ${card.fixCommand.slice(0, 40)}`,
-      result: 'completed',
-    })
-  } else if (card.status === 'rejected') {
-    events.push({
-      timestamp: formatLocalTs(card.timestamp),
-      operator: 'Engineer',
-      action: '已拒绝 · 命令未执行',
-      result: 'completed',
-    })
-  } else {
-    events.push({
-      timestamp: formatLocalTs(card.timestamp),
-      operator: '—',
-      action: '执行变更 · 待触发',
-      result: 'pending',
-    })
-  }
-
-  // 4. 真 SHA-256 链式哈希：创世块 = 决策 ID，逐行链接
-  const rows: AuditRow[] = []
-  let prevHash = await sha256Hex(card.id)
-  for (const evt of events) {
-    const lineHash = await sha256Hex(`${prevHash}|${evt.timestamp}|${evt.operator}|${evt.action}`)
-    rows.push({ ...evt, hash: shortHash(lineHash) })
-    prevHash = lineHash
-  }
-  return rows
+export function auditChainStatus(view: DecisionAuditView | null): AuditChainStatus {
+  if (!view) return 'unavailable'
+  if (view.rows.length === 0) return 'empty'
+  return view.intact ? 'ok' : 'broken'
 }
 
 /** 从 DecisionCard 构建 Agent 工作流进度 */

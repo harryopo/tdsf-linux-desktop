@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import type { DecisionCard, Evidence } from '../../shared/models'
+import type { DecisionAuditEvent, DecisionCard, Evidence, EvidenceSource } from '../../shared/models'
 import { calculateEvidenceConfidence } from './confidence'
 import { assessRisk } from './risk-engine'
 import { computeTrident, inferTridentSource } from './agent/trident-decision'
@@ -133,6 +133,96 @@ export function validateDecision(card: DecisionCard): { valid: boolean; issues: 
   }
 
   return { valid: issues.length === 0, issues }
+}
+
+/**
+ * 证据来源 → 审计行里的"谁做的"
+ *
+ * 名字来自卡片里那条证据自己的 source 字段（采集器写进去的），不是这里猜的。
+ * 表外的来源就照原样落，宁可写得不好看也不编一个像样的名字。
+ */
+const EVIDENCE_ACTOR: Record<EvidenceSource, string> = {
+  command: 'SSH Executor',
+  log: 'Log Collector',
+  metric: 'Monitor',
+  config: 'Config Reader',
+  knowledge: 'Knowledge Base',
+}
+
+/**
+ * 把一张决策卡拆成审计事件（任务 #174）
+ *
+ * 时间口径是关键：证据那几行用的是**证据自己的采集时刻**（可能是几分钟前），
+ * 风险评估与批准/执行那几行用的是**卡片落库这一刻**——因为它们在主进程就是这一刻发生的。
+ * 界面上"事件当场落库"指的是行里的时间戳来自事件本身，不是"每一行都在事件发生的当刻写入"；
+ * 唯一在写库之后才发生的事（人工确认之后的执行结果）等它自己那条链路补行。
+ *
+ * status 六个值都要有对应行：`history:save` 只写 pending / executed，
+ * 其余状态一旦出现（回滚、验证、拒绝）也必须留下话，而不是静默少一行。
+ */
+export function buildAuditEvents(card: DecisionCard): DecisionAuditEvent[] {
+  const events: DecisionAuditEvent[] = []
+
+  for (const ev of [...card.evidences].sort((a, b) => a.timestamp - b.timestamp)) {
+    events.push({
+      actor: EVIDENCE_ACTOR[ev.source] ?? String(ev.source),
+      action: `证据落定 · ${(ev.sourceDetail || ev.source).slice(0, 60)}`,
+      result: ev.verified ? 'passed' : 'completed',
+      timestamp: ev.timestamp,
+    })
+  }
+
+  events.push({
+    actor: 'Risk Engine',
+    action: `风险评估 · ${card.risk.level} · ${card.risk.score} 分`,
+    result: card.risk.blocked ? 'blocked' : 'completed',
+    timestamp: card.timestamp,
+  })
+
+  switch (card.status) {
+    case 'rejected':
+      events.push({
+        actor: 'Engineer',
+        action: '人工拒绝 · 命令未执行',
+        result: 'blocked',
+        timestamp: card.timestamp,
+      })
+      break
+    case 'pending':
+      events.push({
+        actor: 'Engineer',
+        action: card.risk.requireConfirmation ? '等待人工确认 · 命令未发出' : '待触发 · 命令未发出',
+        result: 'waiting',
+        timestamp: card.timestamp,
+      })
+      break
+    case 'approved':
+      events.push({
+        actor: 'Engineer',
+        action: '人工批准 · 命令尚未发出',
+        result: 'completed',
+        timestamp: card.timestamp,
+      })
+      break
+    case 'executed':
+    case 'verified':
+    case 'failed':
+      events.push({
+        actor: 'Engineer',
+        action: '人工批准 · 确认执行',
+        result: 'completed',
+        timestamp: card.timestamp,
+      })
+      events.push({
+        actor: 'Executor',
+        action: `发送终端 · ${card.fixCommand.slice(0, 60)}`,
+        result: card.status === 'failed' ? 'failed' : 'completed',
+        timestamp: card.timestamp,
+      })
+      break
+  }
+
+  return events
 }
 
 /**

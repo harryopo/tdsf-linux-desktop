@@ -3,7 +3,7 @@
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
-import type { ChatMessage, CommandResult, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
+import type { ChatMessage, CommandResult, DecisionAuditView, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 import type { SshConfigScanResult } from '@shared/ssh-config-types'
 
@@ -156,6 +156,10 @@ export interface ContractedInvokeApi {
   /** 高危命令拦截记录，按时间倒序，limit 缺省 200、上限 1000
    * 通道 `history:blocks` */
   historyBlocks(limit?: number): Promise<BlockedCommandRecord[]>
+
+  /** 决策审计链：库里存的行 + 主进程重算的校验结论（渲染层不参与算哈希）
+   * 通道 `history:audit` */
+  historyAudit(decisionId: string): Promise<DecisionAuditView>
 
   /** 列出远程目录
    * 通道 `sftp:list` */

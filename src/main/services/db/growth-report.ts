@@ -1,13 +1,16 @@
 /**
  * 只增类表的体积台账（#94：一条都不删，但要看得见在长多大）
  *
- * 背景：这五张表只往里写，界面上从来不说它们长到什么程度。用户拍板的是
+ * 背景：这些表只往里写，界面上从来不说它们长到什么程度。用户拍板的是
  * "日志留着方便排查问题"，所以这里只做读数，不做清理、也不提供清理按钮——
  * 有删除入口就等于把一个"要不要留着"的决定塞进了设置页的角落。
  *
  * 唯一有保留期的是 audit_logs：main/index.ts 每次启动调 AuditRepo.pruneExpired()，
  * 天数取 risk.auditRetention（脏值回 180）。这条读数因此必须一起报出来，
  * 否则"永久累积"这句话对审计表就是假的。
+ *
+ * decision_audit（#174 的决策审计链）也在这一本账上：它天生只尾插，
+ * 而"能不能删"恰恰是审计表最不该由界面随手决定的事，所以只报读数。
  *
  * 判据：tests/unit/db-growth-report.test.ts
  */
@@ -19,13 +22,13 @@ import type { DatabaseManager } from './database'
 import type { DbGrowth, DbTableGrowth } from '@shared/db-types'
 import { logger } from '../log/logger'
 
-/** 时间列名五张表各不相同（历史遗留），逐表登记，别让 SQL 去猜 */
+/** 时间列名逐表不同（历史遗留），逐表登记，别让 SQL 去猜 */
 interface GrowthTableSpec {
   table: string
   label: string
   /** 该表用于算"最早/最新"的整数时间列 */
   timeColumn: string
-  /** true = 有自动保留期，天数由 auditRetention 决定；其余四张永久累积 */
+  /** true = 有自动保留期，天数由 auditRetention 决定；其余各张永久累积 */
   hasRetention: boolean
 }
 
@@ -36,6 +39,7 @@ const GROWTH_TABLES: readonly GrowthTableSpec[] = [
   { table: 'tool_call_log', label: '工具调用记录', timeColumn: 'timestamp', hasRetention: false },
   { table: 'budget_alerts', label: '预算告警', timeColumn: 'timestamp', hasRetention: false },
   { table: 'memory_audit', label: '记忆沉淀审计', timeColumn: 'ts', hasRetention: false },
+  { table: 'decision_audit', label: '决策审计链', timeColumn: 'timestamp', hasRetention: false },
 ]
 
 /** describeGrowth 的可注入项：测试传死值，生产走 ConfigStore 实际配置 */
@@ -86,7 +90,7 @@ function describeOne(db: DatabaseManager, spec: GrowthTableSpec, retentionDays: 
 /**
  * 组装本地数据体积台账
  *
- * 库不可用时五张表都带同一条降级原因、行数为 null —— 界面不许把"读不到"
+ * 库不可用时每张表都带同一条降级原因、行数为 null —— 界面不许把"读不到"
  * 显示成"0 条"，那是把故障演成清白。
  */
 export function describeGrowth(db: DatabaseManager, deps: GrowthDeps = {}): DbGrowth {

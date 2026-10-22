@@ -31,7 +31,11 @@ vi.mock('electron', () => ({
 const { saved } = vi.hoisted(() => ({ saved: [] as Array<Record<string, unknown>> }))
 
 vi.mock('@main/services/db/database', () => ({
-  DatabaseManager: { getInstance: () => ({}) },
+  DatabaseManager: {
+    // 任务 #174 之后 save 还要拿原始连接写审计链；这里给 null = 降级模式，
+    // 判据只认"卡片记成什么"，审计链那一段由 decision-audit-save-wiring.test.ts 钉。
+    getInstance: () => ({ getRawConnection: () => null }),
+  },
 }))
 
 vi.mock('@main/services/db/decision-repo', () => ({

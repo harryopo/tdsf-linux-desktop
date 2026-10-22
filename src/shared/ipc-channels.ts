@@ -614,6 +614,7 @@ export const KNOWLEDGE = {
  * 通道列表：
  * - GET   invoke  渲染 → 主：查询决策卡片
  * - SAVE  invoke  渲染 → 主：保存决策卡片
+ * - AUDIT invoke  渲染 → 主：读取决策审计链（行 + 校验结论）
  */
 export const HISTORY = {
   /** 查询决策卡片（invoke: 渲染 → 主） */
@@ -625,6 +626,13 @@ export const HISTORY = {
    * 由主进程判定后生成，渲染层只交代事实（P0-5）。
    */
   SAVE: 'history:save',
+  /**
+   * 读取某条决策的审计链（invoke: 渲染 → 主）
+   *
+   * 返回库里存的行 + 主进程重算的校验结论。渲染层不再自己拼事件、也不再自己算哈希：
+   * 那样得到的只是"打开时的视图"，改库里的卡改不出来（任务 #174）。
+   */
+  AUDIT: 'history:audit',
   /** 查询决策历史列表（invoke: 渲染 → 主） */
   LIST: 'history:list',
   /** 查询决策统计（invoke: 渲染 → 主） */
