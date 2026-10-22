@@ -38,7 +38,8 @@ overrides:
   # 父包按自己的范围用包，强扭会拿功能换分数。
   # pnpm 自己给的提示：这几个不改 override 就只会停在旧版（manifest 里别处也要求同一包）。
   # 第二轮：这些是第一批钉完之后 audit 又报出来的同族补丁（同主版本、已发布）。
-  # braces@3.0.4 与 sprintf-js@1.1.4 官方还没发版（npm 上分别只到 3.0.3 / 1.1.3），钉不了。
+  # braces@3.0.4 与 sprintf-js@1.1.4 官方还没发版（npm 上分别只到 3.0.3 / 1.1.3）。
+  # braces 这条链已在 2026-10-22 随 @typescript-eslint v8 升级消失，不需要钉了；sprintf-js 仍无修复版。
   # sharp 三条 high 全在图片解码栈（libvips/libheif/librsvg），修复只在 0.35.x；0.32 这条线没有补丁版。
   # 本应用只跑文本向量（feature-extraction），sharp 走不到；但它是 @xenova/transformers 的硬依赖，
   # utils/image.js 顶层 static import，删不掉，所以跟着升到 0.35.5。判据：模型仍能解出 512 维向量。
