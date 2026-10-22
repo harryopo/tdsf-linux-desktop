@@ -3,10 +3,16 @@
  * install-hooks.cjs - ai-coordination git hook 自安装
  *
  * 由 package.json postinstall 自动调用（也可手动 pnpm ai:install-hooks），
- * 将高共享文件守卫（precommit-guard.cjs）以标记块形式合并进 .git/hooks/pre-commit：
+ * 把五道闸以标记块形式合并进 .git/hooks/pre-commit（claim 守卫 + 凭据形态 + 内网拓扑 +
+ * 身份暴露 + 目录卫生），并把四道较重的闸合并进 .git/hooks/pre-push：
  *   - 幂等：重复执行只会原位刷新 BEGIN/END 标记块
  *   - 保留 hook 中已有的其他内容（如机器本地的其他工具块）
  *   - 非 git 环境（CI tarball、无 .git）静默跳过，不阻断安装
+ *
+ * 【安装器必须与真机 hook 逐块对齐】：2026-10-22 实测这台机器的 pre-commit 里有 identity gate，
+ * 而安装器从没写过那块——本机看着"有防护"，新克隆/新 worktree 没有。所以加了 identity 与
+ * hygiene 两块，并在下面用 assertInstalledBlocks() 把"块数"钉住：以后谁手工往 hook 里加块，
+ * 忘了同步安装器，当场就能被发现。
  */
 'use strict';
 
@@ -75,6 +81,39 @@ const PUSH_BLOCK = [
   PUSH_END,
 ].join('\n');
 
+/**
+ * 身份暴露闸（2026-10-22 补进安装器）。
+ *
+ * 这块以前【只在这台机器的 .git/hooks/pre-commit 里】，安装器从没写过它——
+ * 也就是说换一台机器、或另开一个 worktree 接手，pre-commit 就没有这道闸，
+ * 而 CI 的 Identity gate 要到 push 之后才说话。"本机有闸"不等于"克隆有闸"。
+ */
+const IDENT_BEGIN = '# BEGIN identity gate (身份暴露：校名/专业/真实姓名/赛事字样，带阳性对照)';
+const IDENT_END = '# END identity gate';
+const IDENTITY_BLOCK = [
+  IDENT_BEGIN,
+  'repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"',
+  'node "$repo_root/scripts/security/identity-gate.cjs" --staged || exit 1',
+  IDENT_END,
+].join('\n');
+
+/**
+ * 目录卫生闸（2026-10-22 加）：拦「既没被跟踪、也没被忽略」的目录。
+ *
+ * 为什么挂在 commit 而不是 push：这类目录的两种伤害都发生在【本地】——
+ * Tailwind v4 按「git 看得见的文件」取内容源，未忽略的 scratch 会直接进产物 CSS；
+ * 而一次误手的 git add -A 会把 356MB 出包目录或 824MB venv 推进仓。
+ * 实测本机仓库根当天同时躺着 4×356MB 的 release-*（逐个名字忽略，换名就漏）和一个 venv。
+ */
+const HYGIENE_BEGIN = '# BEGIN scratch hygiene gate (未跟踪又未忽略的目录：Tailwind 会扫进产物)';
+const HYGIENE_END = '# END scratch hygiene gate';
+const HYGIENE_BLOCK = [
+  HYGIENE_BEGIN,
+  'repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"',
+  'node "$repo_root/scripts/quality/scratch-hygiene-gate.cjs" || exit 1',
+  HYGIENE_END,
+].join('\n');
+
 // ---------- 1. 定位 hooks 目录（兼容 worktree / 自定义 git-dir） ----------
 let hooksDir;
 try {
@@ -114,6 +153,8 @@ function mergeBlock(text, beginPrefix, block) {
 content = mergeBlock(content, '# BEGIN ai-coordination guard', BLOCK);
 content = mergeBlock(content, '# BEGIN secret gate', SECRET_BLOCK);
 content = mergeBlock(content, '# BEGIN topology gate', TOPOLOGY_BLOCK);
+content = mergeBlock(content, '# BEGIN identity gate', IDENTITY_BLOCK);
+content = mergeBlock(content, '# BEGIN scratch hygiene gate', HYGIENE_BLOCK);
 
 /** pre-push 是独立文件：没有历史块时从空串起（mergeBlock 会补 shebang） */
 const pushFile = path.join(hooksDir, 'pre-push');
@@ -127,9 +168,38 @@ function writeHook(file, body, label) {
 }
 
 try {
-  writeHook(hookFile, content, 'pre-commit（高共享文件守卫 + 形态闸 + 拓扑闸）');
+  writeHook(hookFile, content, 'pre-commit（高共享文件守卫 + 形态闸 + 拓扑闸 + 身份闸 + 卫生闸）');
   writeHook(pushFile, pushContent, 'pre-push（形态闸全量 + 历史值闸 + 拓扑闸 + tests 类型闸）');
 } catch (e) {
   console.log(`[install-hooks] ⚠️  写入 hook 失败（${e.message}），可手动运行 pnpm ai:install-hooks`);
   process.exit(0);
 }
+
+/**
+ * 写完之后按【盘上真值】复核：安装器声称的每个块，必须真的出现在 hook 文件里。
+ * 只打印"已安装"而不回读，等于让这句话只对写入调用负责——这次的 identity 漂移就是这么来的。
+ */
+const EXPECTED = [
+  { file: hookFile, label: 'pre-commit', blocks: [BEGIN, SEC_BEGIN, TOPO_BEGIN, IDENT_BEGIN, HYGIENE_BEGIN] },
+  { file: pushFile, label: 'pre-push', blocks: [PUSH_BEGIN] },
+];
+const missing = [];
+for (const { file, label, blocks } of EXPECTED) {
+  let body = '';
+  try {
+    body = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    missing.push(`${label}: 读不回（${e.message}）`);
+    continue;
+  }
+  for (const b of blocks) {
+    if (!body.includes(b)) missing.push(`${label}: 缺块 ${b}`);
+  }
+}
+if (missing.length > 0) {
+  console.error(`[install-hooks] ❌ 写后回读不一致：\n  ${missing.join('\n  ')}`);
+  process.exit(1);
+}
+console.log(
+  `[install-hooks] ✅ 回读核对通过：pre-commit ${EXPECTED[0].blocks.length} 块、pre-push 1 块都在盘上`,
+);

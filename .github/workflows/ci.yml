@@ -126,6 +126,14 @@ jobs:
       - name: Syntax check (gate scripts)
         run: node scripts/quality/scripts-syntax-check.cjs
 
+      # 目录卫生闸：拦「既没被跟踪、也没被忽略」的目录（Tailwind 按 git 可见文件取内容源，
+      # 一次 git add -A 又能把整坨产物推进仓）。先跑阳性对照，证明这道闸真的有牙。
+      - name: Scratch hygiene gate (self-test)
+        run: node scripts/quality/scratch-hygiene-gate.cjs --self-test
+
+      - name: Scratch hygiene gate
+        run: pnpm hygiene:gate
+
   # ===== 单元测试 =====
   test:
     name: Vitest

@@ -4,9 +4,10 @@ node_modules/
 # Build output
 out/
 dist/
-release/
-release-fresh/
-release-build/
+# 出包暂存目录一律按前缀忽略，不许再逐个名字加例外：
+# 实测有四个 `release-<事由>/`（各 356MB）因为只写了 `release-fresh/`、`release-build/`
+# 两个具体名字而落在「未跟踪也未忽略」之间，正下方 35 行写的 Tailwind 扫描风险同样适用它们。
+release*/
 
 # IDE
 .idea/
@@ -37,6 +38,12 @@ npm-debug.log*
 # 真的在 out/renderer 的 CSS 里生成了一条 .border-accent{border-color:var(--accent)} 死规则。
 /.tmp/
 /_release_tmp/
+# 本机 Python 侧车 venv（Drain3）：按【前缀】忽略，不要按 .venv-sidecar-a 这种具体名字逐条例外。
+# 2026-10-22 新闸 scratch-hygiene-gate 第一次跑就抓到它 824MB 躺在"未跟踪又未忽略"区。
+/.venv*/
+# 两条"量具自证"测试的探针落盘处（tests/unit/run-command.test.ts、tool-call-permission-gate.test.ts）：
+# 跑测试时 mkdir 并写 __*-canary__.ts，用完删文件、目录留着。它是产物不是夹具。
+/tests/fixtures/static-gates/
 
 # Legacy Python code (reference only)
 _legacy-python/__pycache__/
