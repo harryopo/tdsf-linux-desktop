@@ -8,7 +8,7 @@
  * - file:*：sftpReadFile / sftpWriteFile
  * - 一个都没有时是空态 + 主行动按钮（不再是三行灰字把人停在原地）
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ContextMenu,
@@ -38,7 +38,9 @@ import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
 import SelectionPopover from '@/components/terminal/SelectionPopover'
 import '../terminal/Terminal.css'
-import MonacoEditor, { type MonacoEditorLanguage } from './MonacoEditor'
+// Monaco（含 monaco-editor 本体与 worker 配置）只在真正打开文件时才需要。
+// 静态 import 会把它塞进工作台主 chunk（2026-10-22 实测 7.2MB），终端用户首屏白等。
+const MonacoEditor = lazy(() => import('./MonacoEditor'))
 import FileChangeNotice from './FileChangeNotice'
 import { PreviewPane } from './PreviewPane'
 import { PreviewPortDialog } from './PreviewPortDialog'
@@ -61,6 +63,7 @@ import { ShellIntegrationBar, ShellIntegrationButton } from '@/components/termin
 import { Zap } from 'lucide-react'
 import '../terminal/TerminalTabs.css'
 import type { OpenFileRequest } from './FileTree'
+import type { MonacoEditorLanguage } from './MonacoEditor'
 import type { FileChangedPayload } from '@preload/index'
 
 /**
@@ -313,14 +316,23 @@ const FileEditorPanel: FC<{
         </button>
       </div>
       <div className="term-file-editor-body">
-        <MonacoEditor
-          value={tab.content}
-          language={detectLanguage(tab.path)}
-          path={tab.path}
-          readOnly={tab.readOnly}
-          onChange={onChange}
-          onSave={onSave}
-        />
+        <Suspense
+          fallback={
+            <div className="term-file-loading">
+              <Loader2 className="term-spin" />
+              加载编辑器…
+            </div>
+          }
+        >
+          <MonacoEditor
+            value={tab.content}
+            language={detectLanguage(tab.path)}
+            path={tab.path}
+            readOnly={tab.readOnly}
+            onChange={onChange}
+            onSave={onSave}
+          />
+        </Suspense>
       </div>
     </div>
   )

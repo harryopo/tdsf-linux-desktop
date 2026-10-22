@@ -27,6 +27,17 @@ import { launchApp } from './ssh-fixture-helpers'
 const BUILD_READY = fs.existsSync(path.join(__dirname, '../../out/main/index.js'))
 const testOrSkip = BUILD_READY ? test : test.skip
 
+/**
+ * 2026-10-22 起 Monaco 是独立懒加载 chunk（首屏不再带 5.7MB）。
+ * 本判据改为：首屏不加载它 → 按需 import 该 chunk → worker 与 CSP 判据照旧成立。
+ */
+function monacoChunkName(): string {
+  const assets = path.join(__dirname, '../../out/renderer/assets')
+  const file = fs.readdirSync(assets).find((f) => /^MonacoEditor-.*\.js$/.test(f))
+  if (!file) throw new Error('out/renderer/assets 里没有 MonacoEditor-*.js，先 pnpm build')
+  return file
+}
+
 if (!BUILD_READY) {
   console.log('[monaco] 跳过：需要先 pnpm build（out/main/index.js 不存在）。')
 }
@@ -55,7 +66,20 @@ test.describe('Monaco 本地化：不靠 CDN 也配好编辑器与 worker', () =
       })
       await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
 
-      // 判据 1：本地化真的执行了（WorkbenchPage chunk 一加载就该装上）
+      // 判据 0：首屏不许带 Monaco（拆包的意义）
+      const loadedBefore = await page.evaluate(() =>
+        performance
+          .getEntriesByType('resource')
+          .some((e) => /MonacoEditor-.*\.js$/.test(e.name)),
+      )
+      expect(loadedBefore, '工作台首屏又把 Monaco 装回来了').toBe(false)
+
+      // 判据 1：按需加载 Monaco chunk 后，本地化真的装上
+      const chunk = monacoChunkName()
+      await page.evaluate(async (name) => {
+        const url = new URL(`./assets/${name}`, window.location.href).href
+        await import(/* @vite-ignore */ url)
+      }, chunk)
       await expect
         .poll(
           () =>
