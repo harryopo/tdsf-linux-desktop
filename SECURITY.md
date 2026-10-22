@@ -63,19 +63,21 @@
 | 边界 | 威胁 | 现在的防线（可当场复现） | 管不到的地方 |
 |---|---|---|---|
 | 渲染进程 ↔ 主进程 | 界面里任何一段被注入的脚本拿到 Node 能力 | `src/main/windows/main-window.ts:179-181` 三红线（`contextIsolation:true` / `nodeIntegration:false` / `sandbox:true`）；跨进程只经 `contextBridge` 白名单 | 渲染层能调到的每个 IPC 通道本身——见下一行 |
-| IPC 入参与返回 | 界面（或界面里的内容）用合法通道传畸形参数、或从错误信息里读内部路径 | 边界装在注册函数本身：`src/main/ipc/error-boundary.ts`（抛错与"把失败当数据返回"两条出口都过脱敏）+ `contract-guard.ts` 按 `src/shared/ipc-contract.ts` 判形状。判据 `npm run ipc:check`、`pnpm test` 里 `ipc-error-boundary` / `ipc-data-error-boundary` / `ipc-contract-*` | **契约只覆盖 30 / 231 条 invoke（约 13%）**；未登记的通道在边界上原样放行（一刀切拒绝等于把应用关掉）。扩面进度见 长期优化目标 §二 |
+| IPC 入参与返回 | 界面（或界面里的内容）用合法通道传畸形参数、或从错误信息里读内部路径 | 边界装在注册函数本身：`src/main/ipc/error-boundary.ts`（抛错与"把失败当数据返回"两条出口都过脱敏）+ `contract-guard.ts` 按 `src/shared/ipc-contract.ts` 判形状。判据 `npm run ipc:check`、`pnpm test` 里 `ipc-error-boundary` / `ipc-data-error-boundary` / `ipc-contract-*` | **契约覆盖 49 / 235 条 invoke（约 21%）**；未登记的通道在边界上原样放行（一刀切拒绝等于把应用关掉）。扩面进度见 长期优化目标 §二 |
 | AI 输出的命令 → 真实执行 | 模型给出一条破坏性命令并被人顺手回车 | 单入口 `src/main/core/command-gate.ts` `evaluateCommand`；8 个结构探测器 + 226 条词表；四个出口都过闸（exec / 远程 PTY 逐行 LineGate / 本机 PTY / AI 与 MCP  authored 命令）。判据 `tests/unit/command-gate-*.test.ts`，含**误伤**回归 | 关键词与结构判据只证明"这类能识别"，不证明"识别不了的那类不会来"。所以界面把每一次拦截都留痕，人可以看自己拦住了什么 |
-| 远端主机身份 | 中间人换掉服务器密钥，把口令引到假机 | `src/main/services/ssh/known-hosts.ts`（跳板机同样校验，不豁免） | 还没有 `~/.ssh/config` 解析、没有 ssh-agent：私钥以明文进过内存（长期优化目标 §三 G2/G3） |
+| 远端主机身份 | 中间人换掉服务器密钥，把口令引到假机 | `src/main/services/ssh/known-hosts.ts`（跳板机同样校验，不豁免）；首连必须由人确认，接受后写入 OpenSSH 兼容的 known_hosts；`services/ssh/agent-auth.ts` 支持系统 ssh-agent（应用只拿 socket，不落私钥） | 首次确认是一次人工判断：用户点"接受"就等于信任当前密钥；应用无法替他判断这台机器是不是被换过 |
 | 密钥与内网拓扑不出库 | 凭据、内网地址、身份字样被写进源码 / 测试夹具 / 提交信息 / 文档 | `security:secrets`（凭据形状，扫跟踪集与暂存区）、`security:topology`（内网值按值 + 按 /24 网段，含文档腿）、`security:history`（全历史按值回归，pre-push）、`security:identity`（身份暴露：校名/专业/真实姓名/赛事字样）。每把都带阳性对照——报 0 命中之前先证明这把尺子扫得到东西。GitHub 侧：本仓是个人公开仓，Secret Scanning 实测可用（警报列表返回 200、0 条） | 2026-10-20 起 `security:identity` 与 `security:secrets` 同时进 CI（新 job `security-static`）。**原因是：钩子在 `.git/hooks` 里，而 hooks 不入库——新克隆的机器一把都不跑**，"有闸"只对这台工作副本成立。仍在 CI 外的：`security:history`（浅克隆没有历史可扫）、`security:topology`（锚定值不入库）。且 CI 上的身份闸只跑通用形状规则：具体姓名/校名清单是本机文件，那一层只有本机与提交钩子管得到 |
-| 远程下载的模型 | 镜像把 ONNX 权重换成被动过手脚的版本 | 目前**只有 512 维形状校验，没有字节哈希** | 这是 已知缺口（板上 #153）。哈希必须钉在仓库里而不是跟文件同源取，否则镜像可以同时改文件和哈希 |
-| 依赖与发布物 | 装进来的包被投毒 | `audit:deps` 与基线 `scripts/quality/deps-audit-accepted.json`（现存 1 条：`braces`，上游无修复版）；CI 里 `deps-audit` 是单个 job，原生依赖另有 `check-native-prebuild`，构建只有 Windows 一个平台 | 代码签名与发布物校验和属于人工发布环节，本文件不声称已具备 |
+| 远程下载的模型 | 镜像把 ONNX 权重换成被动过手脚的版本 | `services/tutorial/embedding-model.ts` 先取字节、比对仓库里钉死的 SHA-256（6 个文件，含 24MB 量化 ONNX），通过后才写进 transformers 缓存；`allowRemoteModels=false`，未验证字节不进运行时。下载源按 hf-mirror → huggingface 依次尝试，任一源都要过同一张哈希表 | 24MB 权重没有打进安装包，首次使用必须联网取一次；下载失败时知识库降级为关键词检索（错误原因写日志与界面） |
+| 依赖与发布物 | 装进来的包被投毒 | `audit:deps` 强制走 npm 官方 registry（镜像站没有 audit 端点）；基线 `scripts/quality/deps-audit-accepted.json` 2026-10-22 实测 0 条未处置公告（空表必须写 `_空基线理由`，否则闸退出码 2）；CI 里 `deps-audit` 是单个 job，原生依赖另有 `check-native-prebuild`，构建只有 Windows 一个平台 | 代码签名与发布物校验和属于人工发布环节，本文件不声称已具备 |
 | 数据外传 | "静默把终端内容传走" | 所有网络请求在界面可见；Langfuse 追踪**无 Key 即整条关闭**，有 Key 属于显式上报（`docs/功能实景清单.md` 记了这条链路的实际状态） | 用户自己填的模型 API Key 会把对话内容送到该端点——这是产品定义，不是缺陷，但界面不隐藏它 |
 
 ## 已知安全问题
 
 不是"暂无"。当前承认存在、尚未收口的项写在
-[docs/长期优化目标.md §五 安全欠账](docs/长期优化目标.md)：远程下载的 ONNX 模型没有字节校验、
-审批的"记住决策"没有真持久化、`braces` 依赖公告上游无修复版、生产链路没有可复核的追踪面。
+[docs/长期优化目标.md §五 安全欠账](docs/长期优化目标.md)：归档仍接假仓储、Drain3 桥生产链路零启动、
+生产链路没有可复核的 OTel 追踪面。依赖公告在 2026-10-22 实测为 **0 条**：
+hono 钉到 4.13.13、Electron 升到 43.8.3、`@typescript-eslint` 升到 v8（`braces` 链随之消失）；
+`deps-audit-accepted.json` 因此是空表，并在 `_空基线理由` 里写明"修完后的 0 条，不是清空"。
 风险等级与为什么不先做，都在那一节里逐条给了出处。
 
 ## 致谢
