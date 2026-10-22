@@ -105,12 +105,14 @@ describe('SidecarManager 进程生命周期（D3）', () => {
       // 但我们要测的是"进程被收干净"，不是它能不能就绪
       port: 1,
       healthCheckIntervalMs: 500,
-      startupTimeoutMs: 1500,
+      // 只测"收得干净"，不测"起得快"：1.5s 在 Windows CI 冷启动 Python 时会把子进程
+      // 提前收掉，PID 还没写出来就超时（2026-10-22 CI 连续两次复现）。给足启动预算。
+      startupTimeoutMs: 20_000,
     })
 
     void mgr.start().catch(() => undefined)
 
-    const pid = Number(await waitFor(() => readChildPid(workDir)))
+    const pid = Number(await waitFor(() => readChildPid(workDir), 15_000))
     expect(pid, `子进程应写下自己的正 PID，实际读到=${pid}`).toBeGreaterThan(0)
     expect(alive(pid), `PID ${pid} 应活着`).toBe(true)
 
@@ -139,10 +141,10 @@ describe('SidecarManager 进程生命周期（D3）', () => {
         host: '127.0.0.1',
         port: 1,
         healthCheckIntervalMs: 500,
-        startupTimeoutMs: 1500,
+        startupTimeoutMs: 20_000,
       })
       void mgr.start().catch(() => undefined)
-      const pid = Number(await waitFor(() => readChildPid(workDir)))
+      const pid = Number(await waitFor(() => readChildPid(workDir), 15_000))
       expect(pid, `第 ${round + 1} 轮应拿到正 PID，实际读到=${pid}`).toBeGreaterThan(0)
       pids.push(pid)
       await mgr.stop()
@@ -151,5 +153,5 @@ describe('SidecarManager 进程生命周期（D3）', () => {
     expect(pids, '三轮应各起过一个进程').toHaveLength(3)
     const left = pids.filter(alive)
     expect(left, `三轮 stop 后仍活着的 PID：${left.join(', ')}`).toEqual([])
-  }, 40_000)
+  }, 90_000)
 })
