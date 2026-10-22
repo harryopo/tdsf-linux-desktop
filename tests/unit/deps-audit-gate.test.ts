@@ -219,6 +219,17 @@ describe('依赖漏洞闸', () => {
     expect(runGate(['--input', 'tests/fixtures/does-not-exist.json']).code).toBe(2)
   })
 
+  it('审计端点超时返回 error 信封 → 退出码 2，且说清是网络/端点而不是格式变了', () => {
+    const p = writeEnvelope(
+      { error: { code: 23, message: 'The operation was aborted due to timeout' } },
+      'audit-error.json'
+    )
+    const r = runGate(['--input', path.relative(ROOT, p)])
+    expect(r.code).toBe(2)
+    expect(r.stderr).toMatch(/错误信封/)
+    expect(r.stderr).toMatch(/timeout|超时|端点/)
+  })
+
   it('打错参数不静默放行（fail-closed）', () => {
     const r = runGate(['--check'])
     expect(r.code, '未知参数走到默认分支＝把打错的命令当成有效授权').toBe(2)

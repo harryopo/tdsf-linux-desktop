@@ -50,6 +50,12 @@ function parseEnvelope(rawText, source) {
     throw new Error(`${source} 的 JSON 解析失败：${e.message}`)
   }
   const { advisories, metadata } = parsed
+  if (parsed.error && typeof parsed.error === 'object') {
+    const msg = parsed.error.message || JSON.stringify(parsed.error)
+    throw new Error(
+      `${source} 返回错误信封：${msg}（审计端点或网络失败，不是"没有漏洞"；稍后重跑）`
+    )
+  }
   if (!advisories || typeof advisories !== 'object' || Array.isArray(advisories)) {
     throw new Error(`${source} 缺 advisories 映射（量具换了格式，判定要跟着改，不能当"没漏洞"）`)
   }
