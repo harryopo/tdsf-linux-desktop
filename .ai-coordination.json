@@ -2,49 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-22T14:25:38.717Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-22T14:25:38.717Z",
-      "lastActiveAt": "2026-10-22T14:25:38.717Z",
-      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-      "claimedFiles": [
-        {
-          "path": "src/shared/approval-types.ts",
-          "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-          "claimedAt": "2026-10-22T14:25:38.717Z"
-        },
-        {
-          "path": "src/main/ipc/agent-runtime.ts",
-          "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-          "claimedAt": "2026-10-22T14:25:38.717Z"
-        },
-        {
-          "path": "src/main/ipc/mcp.ts",
-          "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-          "claimedAt": "2026-10-22T14:25:38.717Z"
-        },
-        {
-          "path": "src/renderer/src/dock/permission-bar.tsx",
-          "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-          "claimedAt": "2026-10-22T14:25:38.717Z"
-        },
-        {
-          "path": "src/main/core/security/approval-request.ts",
-          "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-          "claimedAt": "2026-10-22T14:25:38.717Z"
-        },
-        {
-          "path": "src/main/core/command-gate.ts",
-          "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
-          "claimedAt": "2026-10-22T14:25:38.717Z"
-        }
-      ],
-      "expiresAt": "2026-10-22T16:25:38.717Z"
-    }
-  },
+  "lastUpdated": "2026-10-22T16:12:55.051Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -8900,6 +8859,48 @@
       "file": "src/main/core/command-gate.ts",
       "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
       "timestamp": "2026-10-22T14:25:38.717Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/approval-types.ts",
+      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
+      "timestamp": "2026-10-22T16:12:55.051Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
+      "timestamp": "2026-10-22T16:12:55.051Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/mcp.ts",
+      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
+      "timestamp": "2026-10-22T16:12:55.051Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/dock/permission-bar.tsx",
+      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
+      "timestamp": "2026-10-22T16:12:55.051Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/security/approval-request.ts",
+      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
+      "timestamp": "2026-10-22T16:12:55.051Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/command-gate.ts",
+      "task": "P0-4 外部 MCP 调用逐次人工审批（审批等待器抽单源）",
+      "timestamp": "2026-10-22T16:12:55.051Z"
     }
   ],
   "coordinationAudit": {
