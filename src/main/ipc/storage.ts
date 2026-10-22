@@ -22,7 +22,12 @@ import { STORAGE, CONFIG, SERVER } from '@shared/ipc-channels'
 import { SecureStore } from '../services/storage/secure-store'
 import { ConfigStore } from '../services/storage/config-store'
 import { assertSafeApiBaseUrl } from '../services/security/url-policy'
-import { configKeyIsWritable, isPlainConfigValue } from '../services/storage/config-policy'
+import {
+  configKeyIsReadable,
+  configKeyIsWritable,
+  isPlainConfigValue,
+  sanitizeConfigForRenderer,
+} from '../services/storage/config-policy'
 import { pickExistingFiles, pickSavePath } from '../services/security/dialog-paths'
 import { logger } from '../services/log/logger'
 import type { LlmConfig, SshConfig } from '@shared/models'
@@ -60,9 +65,19 @@ export function registerStorageIpcHandlers(): void {
   // 配置存储（JSON 配置）
   // ------------------------------------------------------------------
 
-  /** config:get — 读取配置 */
+  /**
+   * config:get — 读取配置
+   *
+   * 读也走白名单：mcpConfig（含 externalServers[].env）、agentProviders、
+   * sshServers、langfuseConfig 不属于界面设置，不允许经这条自由通道读。
+   * llmConfig 允许读，但 apiKey 字段在这里强制摘掉（历史明文残留也不回渲染层）。
+   */
   ipcMain.handle(CONFIG.GET, async (_event, key: string) => {
-    return ConfigStore.get(key)
+    if (!configKeyIsReadable(key)) {
+      logger.warn('IPC.STORAGE', 'config:get 拒绝了未登记的配置键', { key: String(key).slice(0, 60) })
+      return null
+    }
+    return sanitizeConfigForRenderer(key, ConfigStore.get(key))
   })
 
   /**

@@ -3,7 +3,7 @@
 > 连上服务器敢敲下一条命令 —— SSH 终端 + AI 辅助 + 高危命令拦截 + 决策可信度透明化的桌面工具。
 
 [![MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Electron](https://img.shields.io/badge/Electron-43.5.1-47848F.svg)](https://www.electronjs.org/)
+[![Electron](https://img.shields.io/badge/Electron-43.8.3-47848F.svg)](https://www.electronjs.org/)
 [![React](https://img.shields.io/badge/React-19.3-61dafb.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6.svg)](https://www.typescriptlang.org/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -105,12 +105,12 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-22 13:39**：单元与结构读数出自 13:34 那轮，端到端读数出自 13:39 那轮（含真机靶机）。
+下表测量时间 **2026-10-22 16:13**：单元与结构读数出自 16:08 那轮，端到端读数出自 16:13 那轮（含真机靶机）。
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3313 通过 / 20 跳过 | `npm test`（290 个测试文件：288 通过 / 2 按环境跳过） |
-| 端到端用例 | 62 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
+| 单元与组件用例 | 3316 通过 / 20 跳过 | `npm test`（290 个测试文件：288 通过 / 2 按环境跳过） |
+| 端到端用例 | 63 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
 | IPC 通道 | 274 | `npm run audit:ipc`（235 请求-响应 + 39 事件推送） |
 | 已登记契约的通道 | 54 | `src/shared/ipc-contract.ts`（49 invoke + 5 event） |
 | TypeScript / TSX 源文件 | 510 | `git ls-files src` 里 `.ts/.tsx` 计数 |

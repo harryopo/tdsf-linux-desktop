@@ -18,8 +18,11 @@ import {
 } from '../../src/main/services/storage/server-credentials'
 import {
   CONFIG_SET_DENIED_KEYS,
+  CONFIG_WRITABLE_KEYS,
+  configKeyIsReadable,
   configKeyIsWritable,
   isPlainConfigValue,
+  sanitizeConfigForRenderer,
 } from '../../src/main/services/storage/config-policy'
 import {
   assertSafeApiBaseUrl,
@@ -100,6 +103,41 @@ describe('config:set 键策略', () => {
     for (const k of ['terminal.stripNewline', 'monitor.threshold.cpu', 'sshTimeout', 'risk.auditCmdExec']) {
       expect(configKeyIsWritable(k), k).toBe(true)
     }
+    expect(CONFIG_WRITABLE_KEYS.size, '白名单不能是空表').toBeGreaterThan(20)
+  })
+
+  it('Provider / MCP 的真实存储键和点号子路径都不可写（2026-10-22 越权链）', () => {
+    for (const k of [
+      'agentProviders',
+      'agentDefaultProviderId',
+      'providers',
+      'defaultProviderId',
+      'mcpConfig',
+      'mcpConfig.externalServers',
+      'mcpConfig.externalServers.0.command',
+      'llmConfig.baseUrl',
+      'sshServers.0.password',
+      'agentProviders.0.baseURL',
+    ]) {
+      expect(configKeyIsWritable(k), `键 ${k} 能经自由通道写`).toBe(false)
+    }
+  })
+
+  it('原型链段与空段不可写（点号路径不能变成原型污染入口）', () => {
+    for (const k of ['terminal.__proto__.x', 'terminal.constructor.x', 'terminal..fontSize', '.terminal.fontSize']) {
+      expect(configKeyIsWritable(k), k).toBe(false)
+    }
+  })
+
+  it('config:get 只回用户设置；llmConfig 的 apiKey 必须摘掉', () => {
+    expect(configKeyIsReadable('terminal.fontSize')).toBe(true)
+    expect(configKeyIsReadable('llmConfig')).toBe(true)
+    for (const k of ['mcpConfig', 'mcpConfig.externalServers', 'agentProviders', 'sshServers', 'langfuseConfig']) {
+      expect(configKeyIsReadable(k), `键 ${k} 不该回渲染层`).toBe(false)
+    }
+    expect(
+      sanitizeConfigForRenderer('llmConfig', { baseUrl: 'https://api.example/v1', apiKey: 'sk-must-not-leak' })
+    ).toEqual({ baseUrl: 'https://api.example/v1' })
   })
 
   it('空键名不可写', () => {

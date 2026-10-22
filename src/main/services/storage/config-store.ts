@@ -157,9 +157,10 @@ export class ConfigStore {
    */
   public static saveLlmConfig(config: LlmConfig): boolean {
     try {
-      // API Key 单独存 SecureStore
-      if (config.apiKey) {
-        SecureStore.saveApiKey('llm', config.apiKey)
+      // API Key 单独存 SecureStore。saveApiKey 加密后端不可用时返回 false 而不是抛错；
+      // 以前这里无视返回值，界面会报"已保存"而下次开机 Key 不在。
+      if (config.apiKey && !SecureStore.saveApiKey('llm', config.apiKey)) {
+        return false
       }
       // 配置中清空 apiKey，仅保存非敏感字段
       const { apiKey, ...rest } = config
@@ -247,8 +248,8 @@ export class ConfigStore {
    */
   public static saveLangfuseConfig(config: LangfuseConfig): boolean {
     try {
-      if (config.secretKey) {
-        SecureStore.saveApiKey('langfuse', config.secretKey)
+      if (config.secretKey && !SecureStore.saveApiKey('langfuse', config.secretKey)) {
+        return false
       }
       store.set('langfuseConfig', {
         publicKey: config.publicKey,
