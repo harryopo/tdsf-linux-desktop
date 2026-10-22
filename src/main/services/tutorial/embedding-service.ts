@@ -307,7 +307,7 @@ export class EmbeddingService {
       const msg = (err as Error)?.message ?? String(err)
       throw new EmbeddingServiceUnavailableError(
         `BGE embedding 模型加载失败（model=${MODEL_ID}）：${msg}。` +
-        `模型文件在写入缓存前会做 SHA-256 校验，不一致会拒绝加载；请检查网络（hf-mirror.com）或磁盘空间。`,
+        `模型文件在写入缓存前会做 SHA-256 校验，不一致会拒绝加载；请检查网络（hf-mirror.com / huggingface.co）或磁盘空间。`,
         err
       )
     }

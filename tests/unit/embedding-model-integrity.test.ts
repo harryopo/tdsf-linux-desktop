@@ -13,6 +13,10 @@ import { ensureEmbeddingModel, type EmbeddingModelManifest } from '@main/service
 
 const GOOD_A = Buffer.from('config-bytes-stable')
 const GOOD_B = Buffer.from('weights-bytes-stable')
+const BYTES: Record<string, Buffer> = {
+  'config.json': GOOD_A,
+  'onnx/model_quantized.onnx': GOOD_B,
+}
 const sha = (b: Buffer): string => createHash('sha256').update(b).digest('hex')
 
 const MANIFEST: EmbeddingModelManifest = {
@@ -95,5 +99,53 @@ describe('ensureEmbeddingModel', () => {
     await expect(
       ensureEmbeddingModel(dir, { manifest: MANIFEST, fetchImpl: fetchImpl as unknown as typeof fetch })
     ).rejects.toThrow(/下载失败/)
+  })
+
+  it('首个源不可用时换下一个源，成功即止', async () => {
+    const asked: string[] = []
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const s = String(url)
+      asked.push(s)
+      if (s.startsWith('https://bad.invalid')) return new Response('boom', { status: 503 })
+      const key = [...Object.keys(BYTES)].find((k) => s.endsWith(k))
+      if (!key) return new Response('missing', { status: 404 })
+      return new Response(BYTES[key], { status: 200 })
+    })
+    await ensureEmbeddingModel(dir, {
+      manifest: MANIFEST,
+      baseUrls: ['https://bad.invalid', 'https://good.invalid'],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+    expect(await fs.readFile(join(dir, 'test/model/config.json'))).toEqual(GOOD_A)
+    expect(asked.filter((u) => u.startsWith('https://bad.invalid'))).toHaveLength(2)
+    expect(asked.filter((u) => u.startsWith('https://good.invalid'))).toHaveLength(2)
+  })
+
+  it('首个源字节哈希不对也会换源，坏字节不落盘', async () => {
+    const tampered = Buffer.alloc(GOOD_A.length, 0x7a)
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const s = String(url)
+      const key = [...Object.keys(BYTES)].find((k) => s.endsWith(k))
+      if (!key) return new Response('missing', { status: 404 })
+      const body = s.startsWith('https://bad.invalid') && key === 'config.json' ? tampered : BYTES[key]
+      return new Response(body, { status: 200 })
+    })
+    await ensureEmbeddingModel(dir, {
+      manifest: MANIFEST,
+      baseUrls: ['https://bad.invalid', 'https://good.invalid'],
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+    expect(await fs.readFile(join(dir, 'test/model/config.json'))).toEqual(GOOD_A)
+  })
+
+  it('所有源都失败：错误里逐个列出源，不谎报“没网”', async () => {
+    const fetchImpl = vi.fn(async () => new Response('boom', { status: 503 }))
+    await expect(
+      ensureEmbeddingModel(dir, {
+        manifest: MANIFEST,
+        baseUrls: ['https://a.invalid', 'https://b.invalid'],
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      })
+    ).rejects.toThrow(/a\.invalid[\s\S]*b\.invalid[\s\S]*下载失败|下载失败[\s\S]*a\.invalid[\s\S]*b\.invalid/)
   })
 })

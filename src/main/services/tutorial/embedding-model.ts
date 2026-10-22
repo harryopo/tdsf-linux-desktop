@@ -64,14 +64,26 @@ export const BGE_SMALL_ZH_MODEL: EmbeddingModelManifest = {
   ],
 }
 
-export const EMBEDDING_MODEL_BASE_URL = 'https://hf-mirror.com'
+/**
+ * 下载源按顺序尝试：镜像优先，官方兜底。
+ *
+ * 为什么要兜底：2026-10-22 实测本机 hf-mirror 连不上（curl 21s 超时），
+ * 官方源反而是通的；只有一条源时，首次使用会直接降级成"知识库不可用"。
+ */
+export const EMBEDDING_MODEL_BASE_URLS = [
+  'https://hf-mirror.com',
+  'https://huggingface.co',
+] as const
 
 /** 单文件上限：比清单值多 1MB 的余量都不给，防止镜像塞一个超大响应把内存打爆 */
 const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024
 
 export interface EnsureEmbeddingModelOptions {
   manifest?: EmbeddingModelManifest
+  /** 单源覆盖（测试/私有镜像用）；不传则按 EMBEDDING_MODEL_BASE_URLS 依次尝试 */
   baseUrl?: string
+  /** 多源覆盖；优先于 baseUrl */
+  baseUrls?: readonly string[]
   fetchImpl?: typeof fetch
   /** 每处理一个文件回调一次（下载/命中），用于日志与测试 */
   onFile?: (file: EmbeddingModelFile, action: 'hit' | 'downloaded') => void
@@ -102,7 +114,7 @@ export async function ensureEmbeddingModel(
 ): Promise<void> {
   const manifest = opts.manifest ?? BGE_SMALL_ZH_MODEL
   const fetchImpl = opts.fetchImpl ?? fetch
-  const baseUrl = opts.baseUrl ?? EMBEDDING_MODEL_BASE_URL
+  const baseUrls = opts.baseUrls ?? (opts.baseUrl ? [opts.baseUrl] : EMBEDDING_MODEL_BASE_URLS)
   const modelDir = join(cacheDir, manifest.modelId)
 
   for (const file of manifest.files) {
@@ -112,38 +124,37 @@ export async function ensureEmbeddingModel(
       continue
     }
 
-    const url = `${baseUrl}/${manifest.modelId}/resolve/main/${file.path
-      .split('/')
-      .map(encodeURIComponent)
-      .join('/')}`
-    let buffer: Uint8Array
-    try {
-      const response = await fetchImpl(url, { signal: AbortSignal.timeout(180_000) })
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+    const relative = file.path.split('/').map(encodeURIComponent).join('/')
+    const failures: string[] = []
+    let buffer: Uint8Array | null = null
+    for (const baseUrl of baseUrls) {
+      try {
+        const url = `${baseUrl}/${manifest.modelId}/resolve/main/${relative}`
+        const response = await fetchImpl(url, { signal: AbortSignal.timeout(180_000) })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const contentLength = Number(response.headers.get('content-length') ?? 0)
+        if (contentLength > MAX_DOWNLOAD_BYTES) throw new Error('响应体过大')
+        const candidate = new Uint8Array(await response.arrayBuffer())
+        if (candidate.length > MAX_DOWNLOAD_BYTES) {
+          throw new Error(`超过 ${MAX_DOWNLOAD_BYTES} 字节上限`)
+        }
+        if (candidate.length !== file.size) {
+          throw new Error(`大小不符：期望 ${file.size}，实际 ${candidate.length}`)
+        }
+        const actual = await sha256(candidate)
+        if (actual !== file.sha256) {
+          throw new Error(`SHA-256 校验失败：${actual} ≠ 仓库钉死的 ${file.sha256}`)
+        }
+        buffer = candidate
+        break
+      } catch (err) {
+        failures.push(`${baseUrl}：${err instanceof Error ? err.message : String(err)}`)
       }
-      const contentLength = Number(response.headers.get('content-length') ?? 0)
-      if (contentLength > MAX_DOWNLOAD_BYTES) throw new Error('响应体过大')
-      buffer = new Uint8Array(await response.arrayBuffer())
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+    }
+    if (!buffer) {
       throw new Error(
-        `模型文件缺失且下载失败：${file.path}（${msg}）。` +
-          `首次使用需要联网从 hf-mirror.com 取一次模型；已缓存的文件不会重下。`
-      )
-    }
-
-    if (buffer.length > MAX_DOWNLOAD_BYTES) {
-      throw new Error(`模型文件 ${file.path} 超过 ${MAX_DOWNLOAD_BYTES} 字节上限，拒绝写入`)
-    }
-    if (buffer.length !== file.size) {
-      throw new Error(`模型文件 ${file.path} 大小不符：期望 ${file.size}，实际 ${buffer.length}`)
-    }
-    const actual = await sha256(buffer)
-    if (actual !== file.sha256) {
-      throw new Error(
-        `模型文件 ${file.path} 校验失败：SHA-256 ${actual} ≠ 仓库钉死的 ${file.sha256}。` +
-          `已拒绝写入缓存；请检查镜像或网络代理。`
+        `模型文件缺失且下载失败：${file.path}。已试过 ${baseUrls.length} 个下载源：` +
+          `${failures.join('；')}。首次使用需要联网取一次模型；已缓存的文件不会重下。`
       )
     }
 
