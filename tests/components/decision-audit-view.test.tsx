@@ -17,8 +17,8 @@ import { render } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { DecisionAuditRow } from '@shared/models'
-import { ExecutionResult } from '@renderer/components/decision/ExecutionResult'
-import { parseCommandSegments, toAuditRows, auditChainStatus } from '@renderer/utils/decision-mappers'
+import { DecisionAuditLog } from '@renderer/components/decision/ExecutionResult'
+import { toAuditRows, auditChainStatus } from '@renderer/utils/decision-mappers'
 
 const ROOT = resolve(__dirname, '../..')
 
@@ -66,17 +66,7 @@ function dbRows(): DecisionAuditRow[] {
 
 function renderTable(status: 'ok' | 'broken' | 'empty' | 'unavailable', rows = dbRows(), brokenAtSeq: number | null = 12) {
   return render(
-    <ExecutionResult
-      decisionId="dc_1"
-      commandSegments={parseCommandSegments('journalctl --vacuum-size=200M')}
-      impact="日志分区"
-      rollback="N/A"
-      auditRows={toAuditRows(rows)}
-      auditStatus={status}
-      auditBrokenAtSeq={brokenAtSeq}
-      mode="readonly"
-      statusLabel="已执行"
-    />
+    <DecisionAuditLog rows={toAuditRows(rows)} status={status} brokenAtSeq={brokenAtSeq} />
   )
 }
 

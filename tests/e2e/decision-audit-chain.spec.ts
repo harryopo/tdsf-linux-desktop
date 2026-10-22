@@ -130,3 +130,49 @@ testOrSkip('决策详情页读的也是库里那份链（两个入口同一张�
     await app.close()
   }
 })
+
+/**
+ * 窄窗口回归（2026-10-23 真机量出来的缺陷）
+ *
+ * 审计表原先跟在命令终端下面，被左边的置信度仪表挤到 600px 出头：1180 宽的窗口实测
+ * 「动作」列 clientWidth=0、行高 116px（中文一个字一行竖排），哈希列被盖住、结果列裁出画面。
+ * 现在它是满宽一张卡 + 表内横向滚，这一条钉住"列不许被压没、整页不许横溢"。
+ */
+testOrSkip('1180 宽窗口：动作列不许被压没，整页不许横向溢出', async () => {
+  test.setTimeout(150_000)
+  const { app, page } = await launchApp()
+
+  try {
+    await page.evaluate((intent) => window.electronAPI.historySave(intent), INTENT)
+    const cards = await page.evaluate(() => window.electronAPI.historyList(1, 1))
+    const id = cards[0].id
+
+    await page.evaluate((target) => {
+      window.location.hash = `#/decision/${target}`
+    }, id)
+    await expect(page.locator('[data-dom-id="audit-row"]').first()).toBeVisible({ timeout: 25_000 })
+
+    for (const width of [1180, 1024]) {
+      await page.setViewportSize({ width, height: 820 })
+      await page.waitForTimeout(800)
+      const m = await page.evaluate(() => {
+        const sec = document.querySelector('[data-dom-id="audit-chain-section"]')
+        const row = sec?.querySelector('[data-dom-id="audit-row"]')
+        const action = row?.children[3] as HTMLElement | undefined
+        return {
+          actionClientW: action ? action.clientWidth : -1,
+          actionClipped: action ? action.scrollWidth > action.clientWidth + 1 : true,
+          rowHeightPx: row ? Math.round(row.getBoundingClientRect().height) : -1,
+          pageOverflowsX: document.documentElement.scrollWidth > window.innerWidth + 1,
+        }
+      })
+      expect(m.actionClientW, `${width}px 时动作列宽 ${m.actionClientW}`).toBeGreaterThanOrEqual(150)
+      expect(m.actionClipped, `${width}px 时动作列内容被裁`).toBe(false)
+      // 行高超过 80px 就是"一个字一行"那种竖排塌法
+      expect(m.rowHeightPx, `${width}px 时行高 ${m.rowHeightPx}px，列被压成竖排`).toBeLessThan(80)
+      expect(m.pageOverflowsX, `${width}px 时整页横向溢出`).toBe(false)
+    }
+  } finally {
+    await app.close()
+  }
+})

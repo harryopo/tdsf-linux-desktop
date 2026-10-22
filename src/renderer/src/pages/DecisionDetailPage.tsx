@@ -12,7 +12,7 @@
  * 3. 六源证据融合面板（D-S 证据理论透明化）：EvidenceRadar + PCR5Result
  * 4. 证据溯源链（7 步光路时间线）+ 5. 四层风险控制 → 合并为 ApprovalStateMachine
  * 5.5 高危命令拦截清单 → EvidenceList
- * 6. 决策审计日志 → 已内置在 ExecutionResult
+ * 6. 决策审计日志 → 满宽一张卡（DecisionAuditLog，#174）
  * Footer: Agent 工作流进度条（7 步 5/7）
  *
  * 数据来源：
@@ -32,7 +32,7 @@ import { EvidenceRadar } from '@/components/decision/EvidenceRadar'
 import { PCR5Result } from '@/components/decision/PCR5Result'
 import { ApprovalStateMachine } from '@/components/decision/ApprovalStateMachine'
 import { EvidenceList } from '@/components/decision/EvidenceList'
-import { ExecutionResult } from '@/components/decision/ExecutionResult'
+import { DecisionAuditLog, ExecutionResult } from '@/components/decision/ExecutionResult'
 import type { AuditChainStatus, AuditRow } from '@/components/decision/ExecutionResult'
 import { Empty } from '@/components/trae/Empty'
 import { ConfidenceGauge } from '@/components/decision/ConfidenceGauge'
@@ -556,8 +556,10 @@ export function DecisionDetailPage() {
           </div>
         </div>
 
-      {/* ===== Section 2: 置信度仪表 + 命令决策终端 ===== */}
-      <section className="flex flex-wrap items-stretch gap-6 px-8 pb-4">
+      {/* ===== Section 2: 置信度仪表 + 命令决策终端 =====
+          items-start：审计卡拆成满宽之后，这里再 items-stretch 就会把命令卡拉成
+          和仪表一样高，底下多出 200px 空白（1280 宽实测）。 */}
+      <section className="flex flex-wrap items-start gap-6 px-8 pb-4">
         <div className="flex min-w-[300px] flex-[0_0_38%] flex-col gap-3">
           <ConfidenceGauge
             value={displayConfidence}
@@ -571,9 +573,6 @@ export function DecisionDetailPage() {
           commandComment={card.fixDescription}
           impact={card.risk.description || '目标服务'}
           rollback={card.rollbackCommand ?? 'N/A'}
-          auditRows={auditRows}
-          auditStatus={auditStatus}
-          auditBrokenAtSeq={auditBrokenAtSeq}
           // v2.6：已执行/已拒绝/已验证的历史卡 → 只读态（审批按钮对历史卡无效），
           // 提供真实的「重新在终端执行」；仅 pending/approved（活跃工作流）保留审批按钮
           mode={card.status === 'pending' || card.status === 'approved' ? 'approval' : 'readonly'}
@@ -591,6 +590,15 @@ export function DecisionDetailPage() {
           onAccept={() => void handleApprove()}
           onModify={handleModifyOpen}
           onReject={() => void handleReject()}
+        />
+      </section>
+
+      {/* ===== Section 2.5: 决策审计日志（满宽一张卡，六列表格不再被仪表挤） ===== */}
+      <section className="px-8 pb-4">
+        <DecisionAuditLog
+          rows={auditRows}
+          status={auditStatus}
+          brokenAtSeq={auditBrokenAtSeq}
         />
       </section>
 
