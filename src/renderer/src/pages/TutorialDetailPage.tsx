@@ -32,11 +32,8 @@ import './TutorialPage.css'
 type ChapterStatus = 'completed' | 'in-progress' | 'pending'
 
 interface ChapterData { id: number; index: string; title: string; duration: string }
-interface QuizOption { key: string; label: string; correct?: boolean }
-interface QuizQuestion { id: string; question: string; options: QuizOption[] }
 interface RelatedCourse { id: string; title: string; level: string; duration: string }
 interface CodeLine { color: string; text: string }
-interface QuizResult { correct: number; total: number; passed: boolean }
 
 // ==================== 静态示例数据（1:1 来自设计稿 tutorial-detail.html） ====================
 
@@ -64,38 +61,6 @@ const CODE_LINES: CodeLine[] = [
   { color: 'var(--trae-code-text)', text: 'cat /proc/sys/net/core/somaxconn' },
   { color: 'var(--trae-code-doc)', text: '# 调整为1024' },
   { color: 'var(--trae-code-text)', text: 'sysctl -w net.core.somaxconn=1024' },
-]
-
-const PRACTICE_LINES: CodeLine[] = [
-  { color: 'var(--trae-code-constant)', text: 'user@nginx-lab:~$' },
-  { color: 'var(--trae-code-text)', text: ' sysctl net.core.somaxconn' },
-  { color: 'var(--trae-code-doc)', text: 'net.core.somaxconn = 4096' },
-  { color: 'var(--trae-code-constant)', text: 'user@nginx-lab:~$' },
-  { color: 'var(--trae-code-text)', text: ' ab -n 10000 -c 500 http://localhost/' },
-  { color: 'var(--trae-code-doc)', text: 'Requests per second:    8421.33 [#/sec] (mean)' },
-  { color: 'var(--trae-code-doc)', text: 'Time per request:       59.37 [ms] (mean)' },
-  { color: 'var(--trae-code-parameter)', text: 'P99 latency:            128ms' },
-]
-
-const QUIZ_QUESTIONS: QuizQuestion[] = [
-  { id: 'q1', question: 'net.core.somaxconn 控制的是哪个队列？', options: [
-    { key: 'A', label: '已建立连接的队列' },
-    { key: 'B', label: '全连接队列(backlog)', correct: true },
-    { key: 'C', label: 'SYN半连接队列' },
-    { key: 'D', label: '时间等待队列' },
-  ] },
-  { id: 'q2', question: '修改内核参数后如何永久生效？', options: [
-    { key: 'A', label: '重启nginx即可' },
-    { key: 'B', label: '使用sysctl -w命令' },
-    { key: 'C', label: '写入/etc/sysctl.conf并sysctl -p', correct: true },
-    { key: 'D', label: '修改nginx.conf' },
-  ] },
-  { id: 'q3', question: 'tcp_max_syn_backlog 控制的是？', options: [
-    { key: 'A', label: '最大TCP连接数' },
-    { key: 'B', label: '最大端口数' },
-    { key: 'C', label: 'SYN半连接队列长度', correct: true },
-    { key: 'D', label: 'TCP超时时间' },
-  ] },
 ]
 
 const RELATED_COURSES: RelatedCourse[] = [
@@ -337,8 +302,8 @@ export function TutorialDetailPage() {
   // 首次打开真实教程即展示假进度）；真实进度由 tutorialProgress 回填
   const [activeChapter, setActiveChapter] = useState(0)
   const [completedChapters, setCompletedChapters] = useState<boolean[]>([false, false, false, false, false])
-  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({ q1: 'B', q2: 'C', q3: 'C' })
-  const [quizResult, setQuizResult] = useState<QuizResult | null>(null)
+  // 最近一次执行用的沙箱 id：结果弹窗里的"删除沙箱"要用它把 Docker 资源收回去（#186）
+  const [activeSandboxId, setActiveSandboxId] = useState<string | null>(null)
   const chapterTitleRef = useRef<HTMLHeadingElement>(null)
 
   // ===== 真实数据状态（v1.0 P0 接入 tutorialGet IPC） =====
@@ -527,6 +492,28 @@ export function TutorialDetailPage() {
   const isLast = activeChapter === displayChapters.length - 1
   const currentChapter = displayChapters[activeChapter] ?? displayChapters[0]
   /** v2.6：真实进度百分比（替代硬编码 65%）与剩余分钟 */
+  /** 这篇教程自己的实践命令（空数组表示没有，界面上如实说明） */
+  const practiceCommands = useMemo<string[]>(() => tutorialEntry?.commands ?? [], [tutorialEntry])
+
+  /** 删掉这次用过的沙箱，把 Docker 资源收回去（#186：以前只有创建，没有回收入口） */
+  const handleDeleteSandbox = async () => {
+    if (!activeSandboxId) return
+    const hideId = toast.loading('正在删除沙箱…')
+    try {
+      const result = (await window.electronAPI.sandboxDelete(activeSandboxId)) as
+        | { success: true }
+        | { success: false; error: string }
+      toast.dismiss(hideId)
+      if (!result?.success) throw new Error((result as { error?: string })?.error ?? '未知错误')
+      toast.success('沙箱已删除，资源已释放')
+      setActiveSandboxId(null)
+      setSandboxModalOpen(false)
+    } catch (err) {
+      toast.dismiss(hideId)
+      toast.error(`删除沙箱失败：${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
   const progressPct = displayChapters.length > 0
     ? Math.round((completedCount / displayChapters.length) * 100)
     : 0
@@ -616,11 +603,18 @@ export function TutorialDetailPage() {
         if (!createResult.id) throw new Error('沙箱创建返回无效 ID')
         sandboxId = createResult.id
       }
+      setActiveSandboxId(sandboxId)
 
-      // Step 2: 提取实践命令（真实数据优先；fallback 到设计稿示例 ab 压测命令）
-      const practiceCommand = useReal && tutorialEntry && tutorialEntry.commands.length > 0
-        ? tutorialEntry.commands[0]
-        : 'ab -n 10000 -c 500 http://localhost/'
+      // Step 2：只执行这篇教程自己的第一条命令。
+      // 以前没有真实命令时会回退到设计稿里的 ab 压测（ab -n 10000 ... localhost）——
+      // 那会在用户机器上跑一条与当前教程无关的压测，属于假功能（#185）。
+      const practiceCommand = practiceCommands[0]
+      if (!practiceCommand) {
+        toast.dismiss(hideId)
+        toast.warning('这篇教程没有可执行的实践命令')
+        setSandboxRunning(false)
+        return
+      }
 
       // Step 3: 执行命令（HC-6 强制审批：主进程会推送 sandbox:approval-request）
       const execResult = await window.electronAPI.sandboxExecute(sandboxId, practiceCommand)
@@ -671,27 +665,6 @@ export function TutorialDetailPage() {
       console.error('[TutorialDetailPage] 沙箱审批失败', err)
     } finally {
       setApprovalModal({ open: false, callId: '', command: '', loading: false })
-    }
-  }
-
-  const handleSubmitQuiz = async () => {
-    let correct = 0
-    QUIZ_QUESTIONS.forEach((q) => {
-      const correctOpt = q.options.find((o) => o.correct)
-      if (quizAnswers[q.id] === correctOpt?.key) correct++
-    })
-    const total = QUIZ_QUESTIONS.length
-    const score = Math.round((correct / total) * 100)
-    const passed = score >= 60
-    setQuizResult({ correct, total, passed })
-    try {
-      if (id && passed) {
-        // 测验通过 → 进度设为 100%（status='completed'）
-        await window.electronAPI.tutorialUpdateProgress(id, 'completed', 100)
-      }
-    } catch (err) {
-      console.error('[TutorialDetailPage] 测验提交持久化失败', err)
-      // 降级：仅本地 state（quizResult 已设置），不阻塞 UI
     }
   }
 
@@ -867,64 +840,55 @@ export function TutorialDetailPage() {
                 <Terminal size={14} className="tut-card-icon--brand" />
                 <h2 className="tut-card-title">动手实践</h2>
               </div>
-              <p className="tut-practice-desc">在沙箱环境中调整nginx内核参数，观察P99延迟变化</p>
-              <pre className="tut-code-block" style={{ marginTop: 10 }}>
-                {PRACTICE_LINES.map((line, i) => (
-                  <span key={i} style={{ color: line.color, display: 'block' }}>{line.text}</span>
-                ))}
-              </pre>
+              <p className="tut-practice-desc">
+                {practiceCommands.length > 0
+                  ? '在沙箱里把这篇教程的命令跑一遍。执行前会弹审批卡，确认后才真正运行。'
+                  : '这篇教程没有附带可执行的实践命令。'}
+              </p>
+              {practiceCommands.length > 0 && (
+                <pre className="tut-code-block" style={{ marginTop: 10 }}>
+                  {practiceCommands.map((command, i) => (
+                    <span key={`${command}-${i}`} style={{ color: 'var(--trae-code-text)', display: 'block' }}>
+                      $ {command}
+                    </span>
+                  ))}
+                </pre>
+              )}
               <div className="tut-practice-btn-row">
-                <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} disabled={sandboxRunning} className="tut-practice-btn tut-btn-press">
+                <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} disabled={sandboxRunning || practiceCommands.length === 0} className="tut-practice-btn tut-btn-press">
                   <Terminal size={14} />
                   {sandboxRunning ? '沙箱执行中...' : '打开沙箱练习'}
                 </button>
               </div>
             </article>
 
-            {/* 【知识检查卡片】 */}
+            {/* 【验证清单卡片】 */}
+            {/*
+              以前这里是一份写死的 Nginx 三选题，所有教程共用，且初始值预填了正确答案，
+              页面上直接显示"（正确）"——是设计稿搬过来的假功能（#185）。
+              现在换成教程自己的命令清单：跑一遍、看输出，就是这节课的验收方式；
+              完成情况仍由上方章节勾选记录，不另造一套分数。
+            */}
             <article className="tut-card tut-fade-in tut-fade-in--delay-2">
               <div className="tut-card-title-row">
                 <CheckCircle2 size={14} className="tut-card-icon--brand" />
-                <h2 className="tut-card-title">知识检查</h2>
+                <h2 className="tut-card-title">验证清单</h2>
               </div>
-              {QUIZ_QUESTIONS.map((q) => (
-                <div key={q.id} className="tut-quiz-question">
-                  <div className="tut-quiz-question-text">
-                    <span className="tut-quiz-question-num">Q{q.id.slice(1)}.</span> {q.question}
-                  </div>
-                  <div className="tut-quiz-options">
-                    {q.options.map((opt) => {
-                      const isSelected = quizAnswers[q.id] === opt.key
-                      const isCorrectSelected = !!opt.correct && isSelected
-                      return (
-                        <label key={opt.key} className={`tut-quiz-option${isCorrectSelected ? ' tut-quiz-option--correct' : ''}`}>
-                          <input type="radio" name={q.id} checked={isSelected} onChange={() => setQuizAnswers((prev) => ({ ...prev, [q.id]: opt.key }))} style={{ accentColor: 'var(--accent-text)' }} />
-                          {opt.key}. {opt.label}{isCorrectSelected ? '（正确）' : ''}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-              <div className="tut-quiz-submit-row">
-                <button type="button" data-dom-id="btn-submit-quiz" aria-label="提交答案" onClick={handleSubmitQuiz} className="tut-quiz-submit-btn tut-btn-press">
-                  提交答案
-                </button>
-                {quizResult && (
-                  <div role="status" aria-live="polite" className={`tut-quiz-result tut-quiz-result--${quizResult.passed ? 'passed' : 'failed'}`}>
-                    {quizResult.passed ? (
-                      <CheckCircle2 size={14} style={{ color: 'var(--status-success-text)' }} />
-                    ) : (
-                      <Info size={14} style={{ color: 'var(--status-warning-text)' }} />
-                    )}
-                    <span className="tut-quiz-result-text">
-                      {quizResult.passed
-                        ? `全部正确！答题情况：${quizResult.correct}/${quizResult.total}`
-                        : `答题情况：${quizResult.correct}/${quizResult.total} 正确，请回顾章节内容后重试`}
-                    </span>
-                  </div>
-                )}
-              </div>
+              {practiceCommands.length > 0 ? (
+                <ol className="tut-quiz-questions">
+                  {practiceCommands.map((command, index) => (
+                    <li key={`${command}-${index}`} className="tut-quiz-question">
+                      <div className="tut-quiz-question-text">
+                        <span className="tut-quiz-question-num">{index + 1}.</span> 执行
+                        <code className="font-mono"> {command}</code>
+                        ，输出与正文一致即通过。
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="tut-practice-desc">这篇教程没有可核对的命令，按正文步骤在服务器上走一遍即可。</p>
+              )}
             </article>
 
           </div>
@@ -1017,9 +981,16 @@ export function TutorialDetailPage() {
               title="沙箱执行结果"
               className="w-[min(680px,92vw)]"
               footer={
-                <Button variant="solid" onClick={() => setSandboxModalOpen(false)}>
-                  关闭
-                </Button>
+                <div className="flex items-center gap-2">
+                  {activeSandboxId && (
+                    <Button variant="outline" onClick={() => void handleDeleteSandbox()}>
+                      删除沙箱（释放资源）
+                    </Button>
+                  )}
+                  <Button variant="solid" onClick={() => setSandboxModalOpen(false)}>
+                    关闭
+                  </Button>
+                </div>
               }
             >
               {sandboxResult && (
