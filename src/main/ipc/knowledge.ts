@@ -21,6 +21,11 @@ import { KNOWLEDGE } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { KnowledgeRepository } from '../services/db/knowledge-repo'
 import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
+import { pickExistingFiles } from '../services/security/dialog-paths'
+import { IMPORT_FILE_EXTENSIONS } from '../services/db/knowledge-import'
+import { importKnowledgeFiles } from '../services/knowledge/kb-import'
+import { createOnnxKbEmbedder, reindexKnowledgeEmbeddings } from '../services/knowledge/kb-embedding'
+import { logger } from '../services/log/logger'
 
 /**
  * 获取知识库仓储实例
@@ -38,9 +43,9 @@ function getKnowledgeRepo(): KnowledgeRepository {
 /**
  * 注册知识库相关 IPC handlers
  *
- * @param _mainWindow 主窗口实例（当前未使用，保持签名一致性）
+ * @param mainWindow 主窗口实例（导入对话框的父窗口，保证对话框不跑到别的窗口后面）
  */
-export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
+export function registerKnowledgeHandlers(mainWindow: BrowserWindow): void {
   // ------------------------------------------------------------------
   // kb:search — 搜索知识
   // ------------------------------------------------------------------
@@ -223,6 +228,84 @@ export function registerKnowledgeHandlers(_mainWindow: BrowserWindow): void {
       return repo.getRecentViews(limit ?? 5)
     } catch (err) {
       throw new Error(`获取最近浏览失败: ${(err as Error).message}`)
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // kb:import-file — 弹打开框导入知识文件（#180）
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：无（文件由用户在系统对话框里选）
+   * 返回：{ ok, canceled?, files?, inserted?, updated?, unchanged?, embedded?, rejected?, note?, error? }
+   *
+   * 为什么把"选文件 + 读文件 + 解析"整条放在主进程：
+   * 渲染层不该碰任意本地路径；对话框选中的路径会经 confinement 记入授权集，
+   * 后缀与体积也在这里二次校验（对话框的过滤器只是提示，不是防线）。
+   */
+  ipcMain.handle(KNOWLEDGE.IMPORT_FILE, async () => {
+    try {
+      const picked = await pickExistingFiles({
+        title: '导入运维知识',
+        parent: mainWindow,
+        multi: true,
+        filters: [{ name: '笔记 / 知识包', extensions: [...IMPORT_FILE_EXTENSIONS] }],
+      })
+      if (picked.length === 0) return { ok: false, canceled: true }
+
+      const result = await importKnowledgeFiles({
+        paths: picked,
+        repo: getKnowledgeRepo(),
+        db: DatabaseManager.getInstance(),
+        embedder: createOnnxKbEmbedder(),
+      })
+      return {
+        ok: true,
+        files: result.files,
+        inserted: result.inserted,
+        updated: result.updated,
+        unchanged: result.unchanged,
+        embedded: result.embedded,
+        rejected: result.rejected,
+        note: result.embedNote,
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      logger.warn('KB.IMPORT', '知识文件导入失败', { error })
+      return { ok: false, error }
+    }
+  })
+
+  // ------------------------------------------------------------------
+  // kb:reindex-embeddings — 补齐语义索引（#180）
+  // ------------------------------------------------------------------
+
+  /**
+   * 参数：(allowDownload: boolean)
+   * 返回：{ ok, needsDownload?, embedded?, failed?, remaining?, note?, error? }
+   *
+   * 内置种子与手填条目没有向量时，语义检索那条腿对它们等于不存在；
+   * 这是唯一一条让它们"补上向量"的路径（启动时不自动下载模型）。
+   * allowDownload=false 时缺模型只回 needsDownload，由界面先问用户要不要联网取一次；
+   * 用户点头后带 true 再调一次。聊天里的检索永远不会走到下载。
+   */
+  ipcMain.handle(KNOWLEDGE.REINDEX_EMBEDDINGS, async (_event, allowDownload: boolean) => {
+    try {
+      if (typeof allowDownload !== 'boolean') {
+        return { ok: false, error: '参数不对：allowDownload 必须是布尔值' }
+      }
+      const result = await reindexKnowledgeEmbeddings(
+        DatabaseManager.getInstance(),
+        createOnnxKbEmbedder({ allowDownload })
+      )
+      if (!allowDownload && result.note) {
+        return { ok: true, needsDownload: true, remaining: result.remaining, note: result.note }
+      }
+      return { ok: true, ...result }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      logger.warn('KB.EMBEDDING', '补齐语义索引失败', { error })
+      return { ok: false, error }
     }
   })
 }

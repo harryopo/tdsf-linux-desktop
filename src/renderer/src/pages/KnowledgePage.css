@@ -444,6 +444,50 @@
   background: var(--trae-bg-brand-popup);
 }
 
+/* 次要动作（导入 / 重建语义索引）：与主按钮同高同圆角，靠边框而不是填色区分层级 */
+.kb-contribution__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.kb-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+  color: var(--text-primary);
+  font-size: var(--ui-font-caption);
+  font-weight: var(--trae-font-weight-medium);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color .15s ease;
+}
+.kb-ghost-btn:hover:not(:disabled) {
+  background: var(--trae-bg-overlay-l1);
+}
+.kb-ghost-btn:focus-visible {
+  outline: 2px solid var(--trae-border-brand);
+  outline-offset: 2px;
+}
+.kb-ghost-btn:disabled {
+  cursor: default;
+  opacity: .6;
+}
+
+.kb-contribution__hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--ui-font-caption);
+  line-height: 1.5;
+}
+
 /* ===== 贡献知识 Modal ===== */
 .kb-modal-overlay {
   position: fixed;

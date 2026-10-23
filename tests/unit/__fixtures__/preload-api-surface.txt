@@ -70,7 +70,9 @@ kbExport
 kbGet
 kbHot
 kbImport
+kbImportFile
 kbRecentViews
+kbReindexEmbeddings
 kbSearch
 kbUpdate
 kbView

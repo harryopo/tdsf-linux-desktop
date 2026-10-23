@@ -69,9 +69,13 @@ const PAGES: Array<{ name: string; hash: string; ready: string }> = [
  * "新建窗口"也归进来：它开的是操作系统级的另一个窗口，本普查只看当前页面，
  * 点了既判不出反应，又会让后面几十个按钮因焦点与负载变化误报"点不下去"（实测会飘）。
  * 它的真实行为由 tests/e2e/second-window.spec.ts 判（两个窗口共用同一张终端表）。
+ *
+ * "导入"同理：它弹的是**系统原生**打开对话框，Playwright 看不见也关不掉，
+ * 点下去会把后面整页按钮全堵住。真实行为由单测与真库用例判
+ * （tests/services/kb-import-real-db.test.ts）。
  */
 const SKIP_PATTERN =
-  /最小化|最大化|关闭|还原|退出|新建窗口|删除|清空|重置|恢复默认|断开|终止|停止|卸载|Close|Minimize|Maximize|Quit/i
+  /最小化|最大化|关闭|还原|退出|新建窗口|导入|删除|清空|重置|恢复默认|断开|终止|停止|卸载|Close|Minimize|Maximize|Quit/i
 
 /** 每页最多普查的按钮数（防止列表类页面爆炸）；也是一页允许的最大轮次 */
 const MAX_BUTTONS_PER_PAGE = 40

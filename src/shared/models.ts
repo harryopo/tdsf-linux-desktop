@@ -917,6 +917,33 @@ export interface IpcChannelMap {
   'kb:view': { args: [string]; return: boolean }
   'kb:hot': { args: [number?]; return: KnowledgeEntry[] }
   'kb:recent-views': { args: [number?]; return: KbViewHistoryEntry[] }
+  'kb:import-file': {
+    args: []
+    return: {
+      ok: boolean
+      canceled?: boolean
+      files?: number
+      inserted?: number
+      updated?: number
+      unchanged?: number
+      embedded?: number
+      rejected?: { file: string; source: string; reason: string }[]
+      note?: string
+      error?: string
+    }
+  }
+  'kb:reindex-embeddings': {
+    args: [boolean]
+    return: {
+      ok: boolean
+      needsDownload?: boolean
+      embedded?: number
+      failed?: number
+      remaining?: number
+      note?: string
+      error?: string
+    }
+  }
 
   // 决策历史
   'history:list': { args: [number?, number?]; return: DecisionCard[] }

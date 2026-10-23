@@ -247,11 +247,11 @@ export class EmbeddingService {
    * 模型大小：约 24MB（BGE-small-zh-v1.5 ONNX 量化版）
    * 首次下载时间：国内通过 hf-mirror.com 约 10-30 秒
    */
-  async ensureLoaded(): Promise<void> {
+  async ensureLoaded(opts: { allowDownload?: boolean } = {}): Promise<void> {
     if (this.extractor) return
 
     if (!this.initPromise) {
-      this.initPromise = this.loadModel()
+      this.initPromise = this.loadModel(opts.allowDownload !== false)
     }
 
     try {
@@ -276,7 +276,7 @@ export class EmbeddingService {
    * - 测试脚本中可 mock @xenova/transformers 避免真实下载
    * - CJS bundling 不会被 ESM-only 模块阻塞
    */
-  private async loadModel(): Promise<void> {
+  private async loadModel(allowDownload = true): Promise<void> {
     try {
       // 阶段 1：动态加载 @xenova/transformers 模块
       const transformers = await loadTransformersModule()
@@ -289,6 +289,7 @@ export class EmbeddingService {
       // 下载/校验唯一入口：文件缺失时由这里取一次，SHA-256 不对就拒绝写入。
       // 校验通过后 pipeline 只从缓存读，allowRemoteModels=false 堵住旁路。
       await ensureEmbeddingModel(cacheDir, {
+        allowDownload,
         onFile: (file, action) => {
           logger.info('EMBEDDING', action === 'downloaded' ? '模型文件已下载并校验' : '模型文件校验通过', {
             file: file.path,

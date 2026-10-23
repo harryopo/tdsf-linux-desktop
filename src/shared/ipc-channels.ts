@@ -606,6 +606,10 @@ export const KNOWLEDGE = {
   HOT: 'kb:hot',
   /** 最近浏览记录（invoke: 渲染 → 主） */
   RECENT_VIEWS: 'kb:recent-views',
+  /** 弹打开框导入 Markdown/文本/JSON 知识文件（invoke: 渲染 → 主，#180） */
+  IMPORT_FILE: 'kb:import-file',
+  /** 给还没有向量的条目补齐语义索引（invoke: 渲染 → 主，#180） */
+  REINDEX_EMBEDDINGS: 'kb:reindex-embeddings',
 } as const
 
 /**

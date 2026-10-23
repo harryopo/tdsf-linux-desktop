@@ -4,7 +4,7 @@ import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedP
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
 import type { ChatMessageRecord } from '@shared/chat-types'
-import type { ChatMessage, CommandResult, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
+import type { ChatMessage, CommandResult, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, GenerateKeyPairResponse, KnowledgeEntry, KnowledgeType, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 import type { SshConfigScanResult } from '@shared/ssh-config-types'
 
@@ -217,6 +217,22 @@ export interface ContractedInvokeApi {
   /** 弹打开框导入服务器列表（新 ID，凭据留空）
    * 通道 `server:import-file` */
   serverImportFile(): Promise<{ ok: boolean; canceled?: boolean; imported?: number; error?: string }>
+
+  /** 批量导入已解析好的知识条目（按关键词相似度合并）
+   * 通道 `kb:import` */
+  kbImport(entries: KnowledgeEntry[]): Promise<number>
+
+  /** 导出知识条目（可按类型过滤）
+   * 通道 `kb:export` */
+  kbExport(type?: KnowledgeType): Promise<KnowledgeEntry[]>
+
+  /** 弹打开框导入 Markdown/文本/JSON 知识文件（按 文件名+标题 覆盖，导入时算向量）
+   * 通道 `kb:import-file` */
+  kbImportFile(): Promise<{ ok: boolean; canceled?: boolean; files?: number; inserted?: number; updated?: number; unchanged?: number; embedded?: number; rejected?: { file: string; source: string; reason: string }[]; note?: string; error?: string }>
+
+  /** 给还没有向量的知识条目补齐语义索引（allowDownload=false 时缺模型只回 needsDownload）
+   * 通道 `kb:reindex-embeddings` */
+  kbReindexEmbeddings(allowDownload: boolean): Promise<{ ok: boolean; needsDownload?: boolean; embedded?: number; failed?: number; remaining?: number; note?: string; error?: string }>
 
   /** 列出已登记的外部 MCP 服务器（形状里没有环境变量值）
    * 通道 `mcp:external-list` */

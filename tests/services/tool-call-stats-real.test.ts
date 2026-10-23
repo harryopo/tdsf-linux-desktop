@@ -116,28 +116,37 @@ describe('知识库检索记账', () => {
 
 /**
  * 记账点必须只有一个：入口再各自记一次就会重复计数，一个都不记就回到"假 0"。
- * 这条扫 src/main 下所有 recordToolCall 调用方，钉住"知识库检索"只有仓储层在记。
+ *
+ * #180 起检索有两条互斥路径（混合检索命中 / 关键词兜底），两条都要记、且只能记一次。
+ * 结构上的保证是：标签字符串与 recordToolCall 调用都收在知识库仓储里，
+ * 另一条路径只是调 repo.recordRetrieval() 借它记——所以这里钉两件事：
+ *   1. 谁都不许绕过常量、直接把「知识库检索」写进 recordToolCall；
+ *   2. 这个常量只在 knowledge-repo.ts 声明。
+ * "每条路径各记一笔、不翻倍"由 kb-search-hybrid.test.ts 按次数实测。
  */
 describe('知识库这一项没有第二个记账点', () => {
-  it('src/main 里只有 knowledge-repo 记「知识库检索」', async () => {
+  it('标签只由知识库仓储声明，没有别处绕过它直接记账', async () => {
     const fs = await import('node:fs')
     const path = await import('node:path')
     const root = path.resolve(__dirname, '../../src/main')
-    const hits: string[] = []
+    const direct: string[] = []
+    const declared: string[] = []
     const walk = (dir: string): void => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         const p = path.join(dir, e.name)
         if (e.isDirectory()) walk(p)
         else if (/\.(ts|tsx)$/.test(e.name)) {
           const text = fs.readFileSync(p, 'utf8')
-          if (/recordToolCall\([^)]*['"]知识库检索['"]/.test(text)) {
-            hits.push(path.relative(root, p).replace(/\\/g, '/'))
-          }
+          const rel = path.relative(root, p).replace(/\\/g, '/')
+          if (/recordToolCall\([^)]*['"]知识库检索['"]/.test(text)) direct.push(rel)
+          if (/export const KNOWLEDGE_RETRIEVAL_LABEL\s*=/.test(text)) declared.push(rel)
         }
       }
     }
     walk(root)
-    expect(hits, `「知识库检索」出现了多个记账点：${hits.join(', ')}`).toEqual([
+
+    expect(direct, `不许绕过常量直接记账：${direct.join(', ')}`).toEqual([])
+    expect(declared, `「知识库检索」这个标签只能声明一次：${declared.join(', ')}`).toEqual([
       'services/db/knowledge-repo.ts',
     ])
   })

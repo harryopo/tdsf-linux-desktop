@@ -348,12 +348,37 @@ const electronApi = {
     ipcRenderer.invoke(KNOWLEDGE.UPDATE, id, entry),
   kbDelete: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.DELETE, id),
-  kbExport: (type: string): Promise<string> =>
-    ipcRenderer.invoke(KNOWLEDGE.EXPORT, type),
+  kbExport: (type?: KnowledgeType): Promise<KnowledgeEntry[]> =>
+    invokeChecked('kbExport', KNOWLEDGE.EXPORT, type),
   kbGet: (id: string): Promise<KnowledgeEntry | null> =>
     ipcRenderer.invoke(KNOWLEDGE.GET, id),
-  kbImport: (data: string): Promise<number> =>
-    ipcRenderer.invoke(KNOWLEDGE.IMPORT, data),
+  // 批量导入的是**已解析好的条目数组**（通道名没变，以前这里手写成 data: string，
+  // 主进程那边按数组遍历，类型对不上，谁照签名传字符串谁就静默导 0 条）
+  kbImport: (entries: KnowledgeEntry[]): Promise<number> =>
+    invokeChecked('kbImport', KNOWLEDGE.IMPORT, entries),
+  // 弹打开框导入 Markdown/文本/JSON 知识文件（#180）：选文件与解析都在主进程
+  kbImportFile: (): Promise<{
+    ok: boolean
+    canceled?: boolean
+    files?: number
+    inserted?: number
+    updated?: number
+    unchanged?: number
+    embedded?: number
+    rejected?: { file: string; source: string; reason: string }[]
+    note?: string
+    error?: string
+  }> => invokeChecked('kbImportFile', KNOWLEDGE.IMPORT_FILE),
+  // 给还没有向量的条目补齐语义索引（#180）
+  kbReindexEmbeddings: (allowDownload: boolean): Promise<{
+    ok: boolean
+    needsDownload?: boolean
+    embedded?: number
+    failed?: number
+    remaining?: number
+    note?: string
+    error?: string
+  }> => invokeChecked('kbReindexEmbeddings', KNOWLEDGE.REINDEX_EMBEDDINGS, allowDownload),
   kbView: (id: string): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.VIEW, id),
   kbHot: (limit?: number): Promise<KnowledgeEntry[]> =>

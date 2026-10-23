@@ -115,6 +115,7 @@ import { evaluateCommand, isStrictlyReadonly } from '../command-gate'
 import { withCallbackStreamTrace } from '../../services/observability/langfuse-trace'
 import { DatabaseManager } from '../../services/db/database'
 import { KnowledgeRepository } from '../../services/db/knowledge-repo'
+import { searchKnowledge } from '../../services/knowledge/kb-search'
 // v2.8 长期记忆：仓储 + 自动提取（对话结束 fire-and-forget）+ 工具失败教训沉淀
 import { MemoryRepository } from '../../services/db/memory-repo'
 import { extractMemories, recordToolFailure } from './memory/memory-extractor'
@@ -893,8 +894,16 @@ class SupervisorAgent {
           }),
           execute: async ({ query, limit }: { query: string; limit?: number }) => {
             try {
-              const entries = new KnowledgeRepository(db).search(query, undefined, limit ?? 3)
-              const results = entries.map((e) => ({
+              // 主链路走混合检索（FTS5 BM25 + 向量 KNN + RRF），双路都没命中才退回关键词。
+              // 以前这里只调 repo.search，于是"语义检索"这套东西 AI 从来没用上过。
+              const repo = new KnowledgeRepository(db)
+              const { hits, mode, vectorUsed } = await searchKnowledge({
+                db,
+                repo,
+                query,
+                limit: limit ?? 3,
+              })
+              const results = hits.map(({ entry: e, source }) => ({
                 id: e.id,
                 type: e.type,
                 title: e.title,
@@ -903,6 +912,8 @@ class SupervisorAgent {
                 keywords: e.keywords,
                 successRate: e.successRate,
                 useCount: e.useCount,
+                // 这一条是靠全文/向量/两路/关键词找到的，界面与判据都能看出来
+                match: source,
               }))
               // v2.6：摘要附真实置信信息（成功率/使用次数），模型回答时引用，
               // 用户在对话里能看到知识可信度依据（教程类 successRate 是阅读时长 hack，不标注）
@@ -917,7 +928,14 @@ class SupervisorAgent {
                     })
                     .join('\n')
                 : `未在知识库找到与"${query}"相关的条目`
-              return { ok: true, count: results.length, results, summary }
+              return {
+                ok: true,
+                count: results.length,
+                results,
+                summary,
+                // 这次检索实际走的哪条腿（全文/向量/关键词兜底），界面与判据都能看出来
+                retrieval: { mode, vectorUsed },
+              }
             } catch (e) {
               return { ok: false, error: e instanceof Error ? e.message : String(e) }
             }

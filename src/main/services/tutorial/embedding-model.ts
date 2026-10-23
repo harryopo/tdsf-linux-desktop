@@ -87,6 +87,13 @@ export interface EnsureEmbeddingModelOptions {
   fetchImpl?: typeof fetch
   /** 每处理一个文件回调一次（下载/命中），用于日志与测试 */
   onFile?: (file: EmbeddingModelFile, action: 'hit' | 'downloaded') => void
+  /**
+   * 允许联网补缺失文件（默认 true）
+   *
+   * 设为 false 时：缓存里有且哈希对就用，缺一个字节就直接报错、一次网络都不发。
+   * 聊天中的知识检索用它——那里没有"替用户下载 24MB 模型"的授权。
+   */
+  allowDownload?: boolean
 }
 
 async function sha256(buffer: Uint8Array): Promise<string> {
@@ -122,6 +129,13 @@ export async function ensureEmbeddingModel(
     if (await readIfMatches(target, file)) {
       opts.onFile?.(file, 'hit')
       continue
+    }
+
+    if (opts.allowDownload === false) {
+      // 只读模式：不发任何网络请求。缺哪个文件就点名哪个，调用方自己决定要不要改走降级
+      throw new Error(
+        `模型文件还没下载：${file.path}（位置 ${target}）。需要联网取一次模型后才能用语义检索。`
+      )
     }
 
     const relative = file.path.split('/').map(encodeURIComponent).join('/')

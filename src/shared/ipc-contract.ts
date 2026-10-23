@@ -23,6 +23,7 @@ import {
   CHAT,
   FS,
   HISTORY,
+  KNOWLEDGE,
   LOCAL_TTY,
   MCP,
   PREVIEW,
@@ -787,6 +788,51 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     resultTs: '{ ok: boolean; canceled?: boolean; imported?: number; error?: string }',
     result: z.unknown(),
   },
+  // ===== 知识库导入与语义索引（#180）=====
+  {
+    kind: 'invoke',
+    api: 'kbImport',
+    channel: KNOWLEDGE.IMPORT,
+    doc: '批量导入已解析好的知识条目（按关键词相似度合并）',
+    args: [
+      {
+        name: 'entries',
+        ts: 'KnowledgeEntry[]',
+        schema: z.array(z.unknown()).max(5000),
+      },
+    ],
+    resultTs: 'number',
+    result: z.number().int().min(0),
+  },
+  {
+    kind: 'invoke',
+    api: 'kbExport',
+    channel: KNOWLEDGE.EXPORT,
+    doc: '导出知识条目（可按类型过滤）',
+    args: [{ name: 'type', ts: 'KnowledgeType | undefined', schema: opt(z.enum(['command_skill', 'incident_case', 'tutorial'])) }],
+    resultTs: 'KnowledgeEntry[]',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'kbImportFile',
+    channel: KNOWLEDGE.IMPORT_FILE,
+    doc: '弹打开框导入 Markdown/文本/JSON 知识文件（按 文件名+标题 覆盖，导入时算向量）',
+    args: [],
+    resultTs:
+      '{ ok: boolean; canceled?: boolean; files?: number; inserted?: number; updated?: number; unchanged?: number; embedded?: number; rejected?: { file: string; source: string; reason: string }[]; note?: string; error?: string }',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'kbReindexEmbeddings',
+    channel: KNOWLEDGE.REINDEX_EMBEDDINGS,
+    doc: '给还没有向量的知识条目补齐语义索引（allowDownload=false 时缺模型只回 needsDownload）',
+    args: [{ name: 'allowDownload', ts: 'boolean', schema: z.boolean() }],
+    resultTs:
+      '{ ok: boolean; needsDownload?: boolean; embedded?: number; failed?: number; remaining?: number; note?: string; error?: string }',
+    result: z.unknown(),
+  },
   // ===== 外部 MCP 登记面（#173）=====
   {
     kind: 'invoke',
@@ -844,6 +890,9 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   SshKeyPair: '@shared/models',
   GenerateKeyPairResponse: '@shared/models',
   SshConfigScanResult: '@shared/ssh-config-types',
+  // #180 知识库导入/导出：条目形状只有一份（shared/models）
+  KnowledgeEntry: '@shared/models',
+  KnowledgeType: '@shared/models',
 }
 
 export function contractFor(api: string): ChannelContract | undefined {

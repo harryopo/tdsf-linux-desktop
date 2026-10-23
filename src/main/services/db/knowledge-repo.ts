@@ -34,6 +34,15 @@ const DEDUP_THRESHOLD = 0.6
 const DEFAULT_SEARCH_LIMIT = 10
 
 /**
+ * 设置页「功能调用统计」里这一项的名字（单源）
+ *
+ * 记账行为归仓储所有：混合检索那条路（kb-search.ts）命中后不走 search()，
+ * 由它调 recordRetrieval() 借这里记一笔。常量放在这一处，是为了让
+ * "谁在记「知识库检索」"永远只有一个答案。
+ */
+export const KNOWLEDGE_RETRIEVAL_LABEL = '知识库检索'
+
+/**
  * 一次搜索最多取多少候选行
  *
  * 评分在 JS 侧做（中文子串匹配，见 search 的 v2.6 注释），所以不能把 SQL 的 LIMIT
@@ -185,7 +194,7 @@ export class KnowledgeRepository {
     // 边界要说准：knowledge-subagent / search-subagent 的 hybridSearch 那一腿走的是
     // FTS5+向量，不经这里，因此不计入本项（那条路当前不在聊天主链路上）。
     if (queryKeywords.length > 0) {
-      recordToolCall(this.db, '知识库检索')
+      this.recordRetrieval()
     }
 
     // 候选从库里取，但取多少是有上限的（原来无上限整表进内存，库一大每次搜索都搬全表）
@@ -237,6 +246,17 @@ export class KnowledgeRepository {
     // 按相似度降序排序，取前 limit 条
     scored.sort((a, b) => b.score - a.score)
     return scored.slice(0, limit).map((s) => s.entry)
+  }
+
+  /**
+   * 记一次「知识库检索」
+   *
+   * 给不走 search() 的检索路径用（目前是 kb-search.ts 的混合检索分支：
+   * 它命中后就直接用融合结果，不会再调 search 一遍）。
+   * 一次检索只能落到这里一次——两条路径是互斥分支，不是前后补记。
+   */
+  recordRetrieval(): void {
+    recordToolCall(this.db, KNOWLEDGE_RETRIEVAL_LABEL)
   }
 
   /**

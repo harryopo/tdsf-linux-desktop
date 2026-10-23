@@ -148,4 +148,26 @@ describe('ensureEmbeddingModel', () => {
       })
     ).rejects.toThrow(/a\.invalid[\s\S]*b\.invalid[\s\S]*下载失败|下载失败[\s\S]*a\.invalid[\s\S]*b\.invalid/)
   })
+
+  it('不给下载授权（allowDownload=false）时缺文件直接报错，一次网络都不发', async () => {
+    const fetchImpl = fakeFetch(BYTES)
+    await expect(
+      ensureEmbeddingModel(dir, {
+        manifest: MANIFEST,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        allowDownload: false,
+      })
+    ).rejects.toThrow(/还没下载/)
+    expect(fetchImpl, '聊天里的检索不许替用户下模型').toHaveBeenCalledTimes(0)
+    // 缓存已经在的时候，同一个开关照常放行
+    await ensureEmbeddingModel(dir, { manifest: MANIFEST, fetchImpl: fetchImpl as unknown as typeof fetch })
+    await expect(
+      ensureEmbeddingModel(dir, {
+        manifest: MANIFEST,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        allowDownload: false,
+      })
+    ).resolves.toBeUndefined()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
 })

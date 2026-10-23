@@ -25,10 +25,10 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Layers, ArrowLeft, Search, Sparkles, Clock, Eye,
-  ArrowUpRight, Star, FileText, Plus, X, Check, Inbox,
+  ArrowUpRight, Star, FileText, FileUp, RefreshCw, Plus, X, Check, Inbox,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
-import { Button, PageHeader, Spinner } from '@/ui'
+import { Button, PageHeader, Spinner, confirmDialog } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
@@ -141,6 +141,8 @@ export function KnowledgePage() {
   // 初始为空，等 IPC 真实数据；非 Electron 环境同样留空（阶段 F4 起不再用示例条目顶位）
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([])
   const [loadingItems, setLoadingItems] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [reindexing, setReindexing] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // —— 真实热门/最近浏览数据（IPC 获取，null 表示尚未获取或失败，回退到派生逻辑） ——
@@ -298,6 +300,116 @@ export function KnowledgePage() {
       toast.dismiss(hideId)
       const reason = err instanceof Error ? err.message : String(err)
       toast.error(`知识贡献失败：${reason}`)
+    }
+  }
+
+  /**
+   * 导入自己记的笔记（Markdown / txt / JSON 知识包）
+   *
+   * 选文件与解析都在主进程；这里只负责把结果如实说清楚——
+   * 新增/更新/没变/被拒各几条，语义索引建没建上，一条都不许糊成一个"导入成功"。
+   */
+  const handleImportNotes = async () => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.kbImportFile) {
+      toast.warning('当前环境不支持导入知识文件')
+      return
+    }
+    setImporting(true)
+    try {
+      const result = await window.electronAPI.kbImportFile()
+      if (result.canceled) return
+      if (!result.ok) {
+        toast.error(`导入失败：${result.error ?? '没有说明原因'}`)
+        return
+      }
+
+      if ((result.files ?? 0) === 0) {
+        const first = result.rejected?.[0]
+        toast.error(
+          first ? `没有可导入的内容：${first.file} — ${first.reason}` : '选中的文件里没有可导入的内容'
+        )
+        return
+      }
+
+      const parts = [`新增 ${result.inserted ?? 0} 条`, `更新 ${result.updated ?? 0} 条`]
+      if (result.unchanged) parts.push(`没变化 ${result.unchanged} 条`)
+      if (result.embedded) parts.push(`已建语义索引 ${result.embedded} 条`)
+      toast.success(`导入完成：${parts.join('，')}`)
+
+      // 模型没就绪 / 部分条目没算出向量：这不是失败，但要让人知道语义检索少了这部分
+      if (result.note) toast.warning(result.note)
+
+      const rejected = result.rejected ?? []
+      if (rejected.length > 0) {
+        const head = rejected
+          .slice(0, 3)
+          .map((r) => `${r.file}·${r.source}：${r.reason}`)
+          .join('；')
+        toast.warning(
+          rejected.length > 3 ? `有 ${rejected.length} 处没导进来：${head}…` : `有内容没导进来：${head}`
+        )
+      }
+
+      await refreshKnowledgeList()
+      void refreshHotItems()
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      toast.error(`导入失败：${reason}`)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  /**
+   * 给还没有向量的条目录一遍语义索引
+   *
+   * 两步走：先用"不许下载"调一次——模型没缓存就只回一个 needsDownload，
+   * 让用户明确知道要联网取 24MB 才继续；点头后再带 allowDownload=true 调一次。
+   * 这样既不会在一次普通点击里偷偷下载几百 MB 推理栈，也不会把"0 条"说成"已就绪"。
+   */
+  const handleReindexEmbeddings = async () => {
+    if (!isElectronAPIAvailable() || !window.electronAPI?.kbReindexEmbeddings) {
+      toast.warning('当前环境不支持重建语义索引')
+      return
+    }
+    setReindexing(true)
+    try {
+      let hideId = toast.loading('正在重建语义索引…')
+      let result = await window.electronAPI.kbReindexEmbeddings(false)
+      toast.dismiss(hideId)
+
+      if (result.ok && result.needsDownload) {
+        const confirmed = await confirmDialog({
+          title: '需要先下载本地向量模型',
+          description:
+            '语义检索靠一个约 24MB 的本地模型把文字变成向量，只需下载一次，之后离线可用。现在下载并重建吗？',
+          okText: '下载并重建',
+        })
+        if (!confirmed) return
+        hideId = toast.loading('正在下载模型并重建语义索引…')
+        result = await window.electronAPI.kbReindexEmbeddings(true)
+        toast.dismiss(hideId)
+      }
+
+      if (!result.ok) {
+        toast.error(`重建语义索引失败：${result.error ?? '没有说明原因'}`)
+        return
+      }
+      if (result.note) {
+        toast.warning(result.note)
+        return
+      }
+      if ((result.embedded ?? 0) === 0 && (result.remaining ?? 0) === 0) {
+        toast.info('所有知识条目都已经有语义索引')
+        return
+      }
+      const tail = (result.remaining ?? 0) > 0 ? `，还剩 ${result.remaining} 条（再点一次继续）` : ''
+      toast.success(`已补齐 ${result.embedded ?? 0} 条${tail}`)
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      toast.error(`重建语义索引失败：${reason}`)
+    } finally {
+      setReindexing(false)
     }
   }
 
@@ -575,6 +687,10 @@ export function KnowledgePage() {
               <h2 className="kb-contribution__title">AI知识沉淀</h2>
             </div>
             <p className="kb-contribution__desc">AI Agent在运维过程中自动沉淀知识,持续丰富知识库</p>
+            <p className="kb-contribution__hint">
+              自己的笔记（Markdown / 文本 / JSON）也能导进来；新增和改动的条目会自动建语义索引，
+              内置条目可点「重建语义索引」补上，AI 才能按意思而不只是按关键词找到它们。
+            </p>
           </div>
           <div className="kb-stats">
             {contributionStats.map((stat) => (
@@ -584,10 +700,34 @@ export function KnowledgePage() {
               </div>
             ))}
           </div>
-          <button ref={contributeTriggerRef} type="button" data-dom-id="goto-ai-contribution" aria-label="贡献知识" aria-haspopup="dialog" aria-expanded={showContributeModal} onClick={handleContribute} className="kb-contribute-btn kb-btn-press">
-            <Plus size={14} style={{ color: 'var(--trae-icon-brand)' }} />
-            <span>贡献知识</span>
-          </button>
+          <div className="kb-contribution__actions">
+            <button
+              type="button"
+              data-dom-id="import-knowledge"
+              aria-label="导入笔记"
+              disabled={importing}
+              onClick={() => void handleImportNotes()}
+              className="kb-ghost-btn kb-btn-press"
+            >
+              <FileUp size={14} className="shrink-0 text-ink-mute" />
+              <span>{importing ? '导入中…' : '导入笔记'}</span>
+            </button>
+            <button
+              type="button"
+              data-dom-id="reindex-knowledge"
+              aria-label="重建语义索引"
+              disabled={reindexing}
+              onClick={() => void handleReindexEmbeddings()}
+              className="kb-ghost-btn kb-btn-press"
+            >
+              <RefreshCw size={14} className="shrink-0 text-ink-mute" />
+              <span>{reindexing ? '重建中…' : '重建语义索引'}</span>
+            </button>
+            <button ref={contributeTriggerRef} type="button" data-dom-id="goto-ai-contribution" aria-label="贡献知识" aria-haspopup="dialog" aria-expanded={showContributeModal} onClick={handleContribute} className="kb-contribute-btn kb-btn-press">
+              <Plus size={14} style={{ color: 'var(--trae-icon-brand)' }} />
+              <span>贡献知识</span>
+            </button>
+          </div>
         </section>
       </div>
 
