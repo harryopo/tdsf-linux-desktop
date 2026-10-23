@@ -393,7 +393,7 @@ export function CalibrationSettings() {
         />
         <SettingsRow
           label="已校准状态"
-          desc="基于决策历史样本的 Temperature Scaling 优化结果"
+          desc="样本来自决策卡：你点「执行」记为采纳、只停在待确认记为未采纳；T 由这些真实选择拟合"
           control={
             <div
               className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption text-ink-dim"
@@ -445,7 +445,7 @@ export function CalibrationSettings() {
         />
         <SettingsRow
           label="操作"
-          desc="校准需累计样本数 ≥ 最小样本数；少于则返回 T=1.0"
+          desc="校准需累计样本数 ≥ 最小样本数；少于则返回 T=1.0（样本随你在决策卡上的操作自动累积，无样本时这是如实结果，不是失败）"
           control={
             <div className="flex items-center gap-2">
               <button

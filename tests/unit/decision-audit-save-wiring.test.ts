@@ -64,6 +64,7 @@ vi.mock('@main/services/log/logger', () => ({
 import { HISTORY } from '@shared/ipc-channels'
 import { DecisionAuditRepository } from '@main/services/db/decision-audit'
 import { registerHistoryHandlers } from '@main/ipc/history'
+import { getCalibrationTuner } from '@main/core/agent/credibility/calibration/calibration-tuner'
 import type { DecisionAuditView, DecisionCard } from '@shared/models'
 
 /** registerHistoryHandlers 只要一个窗口引用；这里传类型正确的空壳 */
@@ -267,5 +268,46 @@ describe('数据库不可用时不许静默', () => {
     rawDb = null
     expect(await save(intent())).toBe(true)
     expect(warns.some((w) => w.message.includes('审计')), '降级必须留话，不能只在代码里 if 掉').toBe(true)
+  })
+})
+
+/**
+ * 校准样本的真实生产者（#188）
+ *
+ * 校准页整页讲 Temperature Scaling，但 tuner 从来没有样本——
+ * 渲染层没调用过 add-calibration-sample，主进程也没有第二个调用点，
+ * 于是「开始校准」永远 0 样本、T 恒为 1.0，看起来能用其实什么都不发生。
+ * 现在决策落库那一刻顺手记一条：用户执行了 = 采纳（wasCorrect=true），
+ * 只停在待确认 = 未采纳（false）。这里钉的是"真的接上了，而且方向没反"。
+ */
+describe('决策结果 → 校准样本', () => {
+  it('用户执行了这条建议 → 记一条 wasCorrect=true，置信度用卡片自己的数', async () => {
+    const addSpy = vi.spyOn(getCalibrationTuner(), 'addSample')
+    expect(await save(intent({ executed: true }))).toBe(true)
+    const card = onlyDecision()
+
+    expect(addSpy).toHaveBeenCalledTimes(1)
+    const sample = addSpy.mock.calls[0][0]
+    expect(sample.wasCorrect).toBe(true)
+    expect(sample.decisionId).toBe(card.id)
+    expect(sample.reportedConfidence).toBeCloseTo(card.confidence, 6)
+    addSpy.mockRestore()
+  })
+
+  it('卡片只停在待确认（没有执行）→ wasCorrect=false，不冒充采纳', async () => {
+    const addSpy = vi.spyOn(getCalibrationTuner(), 'addSample')
+    expect(await save(intent({ executed: false }))).toBe(true)
+
+    expect(addSpy).toHaveBeenCalledTimes(1)
+    expect(addSpy.mock.calls[0][0].wasCorrect).toBe(false)
+    addSpy.mockRestore()
+  })
+
+  it('被校验拒掉的决策不记样本（没落库的决策不能变成校准依据）', async () => {
+    const addSpy = vi.spyOn(getCalibrationTuner(), 'addSample')
+    // validateDecision 会拒掉这条高危命令，handler 在落库前就返回 false
+    expect(await save(intent({ command: 'rm -rf /' }))).toBe(false)
+    expect(addSpy).not.toHaveBeenCalled()
+    addSpy.mockRestore()
   })
 })

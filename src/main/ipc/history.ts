@@ -24,6 +24,7 @@ import { AuditRepo } from '../services/db/audit-repo'
 import { buildAuditEvents, generateDecisionCard, validateDecision } from '../core/decision-engine'
 import { logger } from '../services/log/logger'
 import type { DecisionAuditView, DecisionCard, HistorySaveIntent } from '@shared/models'
+import { recordDecisionCalibrationSample } from '../core/agent/credibility/calibration/decision-samples'
 /**
  * 获取决策历史仓储实例
  * @returns DecisionRepository 实例
@@ -151,6 +152,24 @@ export function registerHistoryHandlers(_mainWindow: BrowserWindow): void {
       const repo = getDecisionRepo()
       if (!repo.save(card)) return false
       writeAuditTrail(card)
+
+      // 决策结果同时是校准样本（#188）：以前校准 tuner 没有任何生产者，
+      // 校准页永远 0 样本、T 恒为 1.0。这里把"用户真的执行了/没执行"记下来。
+      let providerId = 'default'
+      try {
+        const { ConfigStore } = await import('../services/storage/config-store')
+        const configured = ConfigStore.get('agentDefaultProviderId')
+        if (typeof configured === 'string' && configured) providerId = configured
+      } catch {
+        // 取不到就用 default 分组，样本照样累计
+      }
+      recordDecisionCalibrationSample({
+        decisionId: card.id,
+        reportedConfidence: card.confidence,
+        executed: intent.executed === true,
+        timestamp: card.timestamp,
+        providerId,
+      })
       return true
     } catch (err) {
       throw new Error(`保存决策卡片失败: ${(err as Error).message}`)
