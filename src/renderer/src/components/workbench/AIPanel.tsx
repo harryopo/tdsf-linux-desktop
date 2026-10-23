@@ -36,7 +36,6 @@ import { useLoopEngineering } from './useLoopEngineering'
 import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
 import { useAgentStore } from '@/stores/agent-store'
-import { useApprovalStore } from '@/stores/approval-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 // v2.6 命令前置环境预检（与主进程 ssh_readonly 共用的纯函数）
 import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'
@@ -48,7 +47,6 @@ import { useStickToBottom } from './useStickToBottom'
 import { ArrowDown } from 'lucide-react'
 import Composer from './Composer'
 import { compressFeedback } from './context-usage'
-import { PermissionBar } from '@/dock/permission-bar'
 import { resolveShellForCommand, runAuthoredInShell } from '@/terminal/shell-launcher'
 
 /** AIPanel props */
@@ -94,34 +92,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   /** P1 修复：PAOR 进展/结果写入消息列表（而非 toast 一闪而过） */
   const addAgentMessage = useAgentStore((s) => s.addMessage)
 
-  /**
-   * v0.9.5 PAOR 审批队列（高危命令等待用户批准/拒绝）
-   *
-   * #170：这份队列从组件里的 useState + useEffect 订阅搬到了全局 `approval-store`。
-   * 订阅留在面板里意味着面板一收起（`WorkbenchPage` 是条件渲染）就没人接推送，
-   * 主进程 60 秒后自动拒绝，用户看到的是"命令被拦"，其实是"问了没人答"。
-   */
-  const approvalEntries = useApprovalStore((s) => s.entries)
-
   const hasLiveConversation = liveMessages.length > 0
   /** 循环工程已启动（loop.phase !== 'idle'）则视为有"实时"内容 */
   const hasLoopRunning = loop.phase !== 'idle'
-
-  /** 处理 PAOR 审批响应（批准/拒绝）
-   *
-   * useCallback 是必需的，不是装饰：PermissionBar 挂在这个面板下，而面板每来一段流就重渲染，
-   * 不稳定的一行函数会让 PermissionBar 跟着一起重渲染（1d1e78b 收掉的那类放大器）。
-   *
-   * 主进程回了 false 就是"这条它已经不认了"（多半是 60 秒到点自动拒绝），
-   * 于是把卡片标成已超时而不是悄悄删掉——用户得知道这一步为什么停住。
-   */
-  const handlePaorApprove = useCallback(async (callId: string, approved: boolean) => {
-    const api = window.electronAPI
-    if (!api?.paorApprove) return
-    const accepted = await api.paorApprove(callId, approved)
-    if (accepted) useApprovalStore.getState().settle(callId)
-    else useApprovalStore.getState().markExpired(callId)
-  }, [])
 
   /** 清空当前会话（面板头那个按钮）：理由同上，内联箭头会让头部每段流都重渲染 */
   const handleClear = useCallback(() => {
@@ -482,13 +455,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         onCompressContext={compressContext}
       />
 
-      {/* 高危命令审批：贴底固定条，默认选中"拒绝"、Esc 即拒（详见 dock/permission-bar.tsx）。
-          队列取自全局 approval-store，不是本组件的 state——面板收起时请求也不丢（#170）。 */}
-      <PermissionBar
-        entries={approvalEntries}
-        onRespond={handlePaorApprove}
-        onDismiss={(callId) => useApprovalStore.getState().settle(callId)}
-      />
+      {/* 高危命令审批条不在这里：它挂在 MainLayout（任何路由都能应答），
+          队列与应答都由 approval-store 承担（#170 提出面板、#173 提出工作台）。 */}
     </div>
   )
 }
