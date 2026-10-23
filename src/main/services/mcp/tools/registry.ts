@@ -13,6 +13,7 @@
  * 2. 在本文件 MCP_TOOLS 加映射
  */
 import { z } from 'zod'
+import { redactSecrets, redactToolValue } from '../../../core/agent/providers/redact'
 import type { DatabaseManager } from '../../db/database'
 import { executeSshExec, sshExecArgsSchema } from '../../llm/tools/ssh-exec'
 import { executeTutorialSearch, tutorialSearchArgsSchema } from '../../llm/tools/tutorial-search'
@@ -57,19 +58,26 @@ export interface McpToolRegistration {
  *
  * - Error 实例 → isError=true + 错误消息
  * - 其他 → JSON.stringify
+ *
+ * 收口在这里而不是各调用方自己记得脱敏：MCP 这条路上跑的是远端命令的原样输出
+ * （ssh-exec 的 stdout 可能含 `cat /etc/my.cnf`、`env`、日志里的 token），
+ * 而 `services/llm/tools/*` 内部一条脱敏都没有。主对话与渲染层两条出口已各自收口，
+ * 这一条是第三家（判据 tests/unit/mcp-result-redaction.test.ts）。
+ * 结构照原样保留，只打码凭据形状的内容——外部客户端拿到的仍是能解析的 JSON。
  */
 export function toMcpTextResult(value: unknown): McpToolResult {
   if (value instanceof Error) {
     return {
-      content: [{ type: 'text', text: `错误: ${value.message}` }],
+      content: [{ type: 'text', text: `错误: ${redactSecrets(value.message)}` }],
       isError: true,
     }
   }
+  const safe = redactToolValue(value)
   return {
     content: [
       {
         type: 'text',
-        text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
+        text: typeof safe === 'string' ? safe : JSON.stringify(safe, null, 2),
       },
     ],
   }
@@ -77,10 +85,12 @@ export function toMcpTextResult(value: unknown): McpToolResult {
 
 /**
  * 构造错误 MCP 结果（v2.0 Phase F 新增，供分域 registry 复用）
+ *
+ * 调用方传进来的常常是 zod 的报错原文，里面会带上用户输入的那条命令（含内联口令）。
  */
 export function toMcpErrorResult(message: string): McpToolResult {
   return {
-    content: [{ type: 'text', text: `错误: ${message}` }],
+    content: [{ type: 'text', text: `错误: ${redactSecrets(message)}` }],
     isError: true,
   }
 }
@@ -119,11 +129,16 @@ function zodTypeToJsonType(typeName: string): string {
   }
 }
 
-/** 把 ToolCallResult 转成 MCP 格式 */
-function toMcpResult(result: ToolCallResult): McpToolResult {
+/**
+ * 把 ToolCallResult 转成 MCP 格式（文本统一走上面的打码口径，见 toMcpTextResult 的说明）
+ *
+ * 导出只为了让判据能直接量这个出口（tests/unit/mcp-result-redaction.test.ts）；
+ * 生产侧仍然只有本文件的 5 个适配器调它，分域 registry 用 toMcpTextResult。
+ */
+export function toMcpResult(result: ToolCallResult): McpToolResult {
   if (!result.success) {
     return {
-      content: [{ type: 'text', text: `错误: ${result.error ?? '未知错误'}` }],
+      content: [{ type: 'text', text: `错误: ${redactSecrets(result.error ?? '未知错误')}` }],
       isError: true,
     }
   }
@@ -132,13 +147,13 @@ function toMcpResult(result: ToolCallResult): McpToolResult {
       {
         type: 'text',
         text: JSON.stringify(
-          {
+          redactToolValue({
             toolId: result.toolId,
             success: true,
             data: result.data,
             durationMs: result.durationMs,
             timestamp: result.timestamp,
-          },
+          }),
           null,
           2
         ),
