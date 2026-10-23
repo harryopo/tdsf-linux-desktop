@@ -38,8 +38,8 @@ interface ServerContext {
   state: ExternalMcpConnectionState
   error?: string
   lastConnectedAt?: number
-  /** 缓存的工具列表（连接成功后刷新） */
-  cachedTools: Array<{ name: string; description: string }>
+  /** 缓存的工具列表（连接成功后刷新；inputSchema 由对面那个程序自报） */
+  cachedTools: Array<{ name: string; description: string; inputSchema?: unknown }>
   /**
    * 正在进行中的那一次连接。并发进来的调用者等同一个 promise，
    * 而不是各自起一次连接、或让后到的那个读到"还没连上"当场失败。
@@ -69,6 +69,24 @@ function connectionKey(s: ExternalMcpServer): string {
     s.enabled,
     s.timeoutMs ?? null,
   ])
+}
+
+/**
+ * 给一个 promise 加上限（到点拆掉定时器，绝不让它继续把事件循环占着）。
+ * 超时抛错，由调用方按各自的失败路径处理。
+ */
+async function raceTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, rejectFn) => {
+        timer = setTimeout(() => rejectFn(new Error(message)), ms)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 /**
@@ -293,6 +311,42 @@ export class McpClientManager {
   }
 
   /**
+   * 此刻已连上的外部工具（同步读缓存，不触发连接）
+   *
+   * 给 AI 侧挂载用：每轮对话都去 listTools 一遍会替每台没连上的服务器起一个子进程，
+   * "问一句天气"就把用户的机器点满第三方程序。连没连上是设置页那三张卡决定的状态，
+   * 没连上的服务器在这里就是不存在——界面上状态列写的也是同一件事。
+   */
+  getConnectedTools(): Array<{
+    serverId: string
+    serverName: string
+    name: string
+    description: string
+    inputSchema?: unknown
+  }> {
+    const out: Array<{
+      serverId: string
+      serverName: string
+      name: string
+      description: string
+      inputSchema?: unknown
+    }> = []
+    for (const [serverId, ctx] of this.servers) {
+      if (!ctx.config.enabled || ctx.state !== 'connected') continue
+      for (const t of ctx.cachedTools) {
+        out.push({
+          serverId,
+          serverName: ctx.config.name,
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        })
+      }
+    }
+    return out
+  }
+
+  /**
    * 获取所有外部服务器的状态快照
    */
   getStatuses(): ExternalMcpServerStatus[] {
@@ -437,12 +491,19 @@ export class McpClientManager {
       ctx.state = 'connected'
       ctx.lastConnectedAt = Date.now()
 
-      // 获取工具列表并缓存
+      // 获取工具列表并缓存。这一趟也要有上限：连接已经成了，listTools 却可能永远不返回，
+      // 而它挂在 inflight 上——不设限就等于断开与退出都要一直等它（disconnect 会 await 它）。
       try {
-        const toolsResult = await ctx.client.listTools()
+        const toolsResult = await raceTimeout(
+          ctx.client.listTools(),
+          timeoutMs,
+          `获取工具列表超时 (${timeoutMs}ms)`
+        )
         ctx.cachedTools = (toolsResult.tools ?? []).map((t) => ({
           name: t.name,
           description: t.description ?? '',
+          // 参数表由对面那个程序自报；AI 侧挂载要按它给模型看，不能自己编一个
+          inputSchema: t.inputSchema,
         }))
         logger.info('MCP.CLIENT', `连接成功: ${ctx.config.name}`, {
           toolCount: ctx.cachedTools.length,

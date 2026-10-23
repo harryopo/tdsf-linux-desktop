@@ -46,6 +46,15 @@ describe('外部 MCP 调用的审批载荷', () => {
     expect(p.riskDescription).toContain('第三方')
   })
 
+  it('同一毫秒里的两次调用不能撞同一个 callId', () => {
+    // 审批表按 callId 挂等待器：撞了就是第一条永远不结算（界面只有一张卡，
+    // 第二次调用挂在半路），这不是假想——一步里并行两个同类工具调用是常事。
+    const a = buildExternalCallApproval('srv', 'env_probe', { i: 1 })
+    const b = buildExternalCallApproval('srv', 'env_probe', { i: 2 })
+    expect(a.callId).not.toBe(b.callId)
+    expect(a.callId.length, 'callId 超长按 96 截断后会互相顶掉').toBeLessThanOrEqual(96)
+  })
+
   it('参数再长也不能整坨贴到卡上（截断有上限，并留下"被截了"的痕迹）', () => {
     const big = 'x'.repeat(MCP_CALL_PREVIEW_LIMIT * 3)
     const p = buildExternalCallApproval('svc', 'tool', { blob: big })
@@ -59,6 +68,21 @@ describe('外部 MCP 调用的审批载荷', () => {
     const p = buildExternalCallApproval('svc', 'tool', circular)
     expect(p.command).toContain('svc')
     expect(p.command).toContain('tool')
+  })
+
+  it('参数被截断展示时，卡片要说明"看不到的那部分照样会执行"', () => {
+    // 审批是同意的凭证：卡上只贴前 400 字，剩下那些字节是那个程序真会收下的东西。
+    // 不写这一句，用户会以为自己把参数整个看过并点头了。
+    const big = buildExternalCallApproval('svc', 'tool', {
+      blob: 'x'.repeat(MCP_CALL_PREVIEW_LIMIT * 3),
+    })
+    expect(big.command).toContain('已截断')
+    expect(big.riskDescription, '只标"已截断"不说明它仍会执行，是半句话').toContain('看不到的那部分')
+    expect(big.riskDescription).toContain('原样')
+
+    const small = buildExternalCallApproval('svc', 'tool', { a: 1 })
+    expect(small.command).not.toContain('已截断')
+    expect(small.riskDescription, '没截断就别编一句吓人的话').not.toContain('看不到的那部分')
   })
 })
 

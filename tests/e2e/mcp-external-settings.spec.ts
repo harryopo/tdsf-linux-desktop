@@ -1,11 +1,13 @@
 /**
- * 外部 MCP 登记面真机验收（任务 #173 第二步）
+ * 外部 MCP 登记面 + AI 侧调用真机验收（任务 #173 第二、三步）
  *
- * 单测只能证明"validateDraft 会拒这份草稿"，证明不了：
+ * 单测只能证明"validateDraft 会拒这份草稿"、"载荷与装配点在"，证明不了：
  *   1. 从设置页点"添加"之后，那一行真的出现在列表里、状态列读的是连接池的真实结果；
  *   2. 登记完的外部工具，调用前仍然必须有人点头（写入口开了不能把审批绕过去）；
  *   3. **子进程看不见没点名的环境变量**（这是本批关掉的那个洞，正反两对照都做）；
- *   4. 点"移除"之后那行真的没了——不是只从配置里消失、进程还在跑。
+ *   4. 点"移除"之后那行真的没了——不是只从配置里消失、进程还在跑；
+ *   5. 模型在对话里报出工具名之后，主进程真能认出是哪台的哪个工具、
+ *      拒了不执行、批了把返回回喂给它（第二条用例）。
  *
  * 夹具 tests/e2e/fixtures/mcp-env-probe.mjs 是个真 MCP server，只回报"看得见哪些变量名"。
  * skip 不等于通过：没有 out/main/index.js 就先 pnpm build。
@@ -14,6 +16,7 @@ import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { FIXTURE_READY, launchApp } from './ssh-fixture-helpers'
+import { startAiFixture, type AiFixtureHandle } from './ai-fixture-server'
 
 const BUILD_READY = fs.existsSync(path.join(__dirname, '../../out/main/index.js'))
 const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'mcp-env-probe.mjs')
@@ -146,6 +149,118 @@ testOrSkip('设置页登记外部 MCP：列表、审批、环境隔离、移除�
     expect(remaining.map((s) => s.name), '列表里还剩着被"移除"的那台').toEqual([NAME_NAMED])
   } finally {
     delete process.env[PROBE]
+    await app.close()
+  }
+})
+
+/**
+ * 第三步：AI 在对话里真能调用外部 MCP 工具，而且调用前照样要有人点头（#173）
+ *
+ * 单测能证明"载荷与装配点接上了"，证明不了这一整串：
+ * 模型发出的工具名 ↔ 主进程挂上去的键对得上、执行前真弹卡、
+ * 拒绝时那句话说得清、批准时第三方程序的返回真回喂给了模型。
+ *
+ * 对端用 tests/e2e/ai-fixture-server.ts 的本地假模型：工具调用的名字由测试指定，
+ * 这是真模型给不了的确定性（真模型调不调、调哪个都不由测试决定）。
+ * 拒与批各走一轮，是因为只批不拒测不出"没批准那条路真的没执行"。
+ */
+testOrSkip('对话里调外部 MCP 工具：模型发起 → 审批 → 结果回喂，拒与批各一轮', async () => {
+  test.setTimeout(180_000)
+  process.env[PROBE] = 'planted-for-isolation-check'
+
+  const ai: AiFixtureHandle = await startAiFixture()
+  const { app, page } = await launchApp()
+  const TAG = `a${Date.now().toString(36)}`
+  const NAME = `对话探针 ${TAG}`
+
+  /** 发一轮对话；审批卡会在执行工具前推出来，所以这里不能 await 到底再交互 */
+  const runChat = (prompt: string): Promise<string> =>
+    page.evaluate(async (p) => {
+      const w = window as unknown as {
+        electronAPI: { agentChat: (msgs: unknown[], providerId?: string) => Promise<string> }
+      }
+      return w.electronAPI.agentChat([{ role: 'user', content: p }])
+    }, prompt)
+
+  try {
+    // 档位是跨轮累积的，先把上一台留下的服务器清掉
+    await page.evaluate(async () => {
+      const list = await window.electronAPI.mcpExternalList()
+      for (const s of list) await window.electronAPI.mcpExternalRemove(s.id)
+    })
+
+    const saved = await page.evaluate(async (cfg) => {
+      const api = window.electronAPI
+      const ok = await api.providerSave({
+        id: cfg.providerId,
+        name: 'Fixture 模型',
+        type: 'openai-compatible',
+        baseURL: cfg.baseURL,
+        model: cfg.model,
+        // 假 Key，只为过 SDK 的鉴权字段检查；不会外发
+        apiKey: cfg.apiKey,
+        defaultParams: { temperature: 0, maxTokens: 64 },
+        builtin: false,
+        enabled: true,
+        roles: ['chat'],
+      })
+      const setOk = await api.providerSetDefault(cfg.providerId)
+      return ok && setOk
+    }, { providerId: 'fixture-chat-model', baseURL: ai.baseURL, model: 'fixture-model', apiKey: 'fixture-' + 'key' })
+    expect(saved, '假模型没存成默认，后面测的就不是真对话链路').toBe(true)
+
+    // 登记并连上一台真 MCP 服务器（界面添加那一步由上一条判据负责，这里只关心 AI 侧）
+    const serverId = await page.evaluate(async (args) => {
+      const s = await window.electronAPI.mcpExternalAdd({
+        name: args.name,
+        transport: 'stdio',
+        command: args.command,
+        args: [args.fixture],
+      })
+      return s.id
+    }, { name: NAME, command: process.execPath, fixture: FIXTURE_PATH })
+
+    // 连上才读得到工具（读工具那一次才建连接，与设置页同一条路）
+    await page.waitForFunction(
+      async (id) => {
+        const tools = await window.electronAPI.mcpExternalTools()
+        return tools.some((t) => t.serverId === id && t.name === 'env_probe')
+      },
+      serverId,
+      { timeout: 30_000 }
+    )
+
+    // 模型要原样报出这个键，主进程才认得出是哪台的哪个工具
+    const toolKey = `mcp__${serverId}__env_probe`
+
+    // ① 模型发起 → 人拒绝：外部程序一次都不该跑
+    ai.planToolCall({ name: toolKey, args: {} })
+    const denied = runChat('帮我看看这台机器的环境')
+    await page.waitForSelector(CARD, { timeout: 20_000 })
+    await expect(page.locator(CARD)).toContainText('外部 MCP 工具请求执行')
+    await expect(page.locator(CARD)).toContainText(NAME)
+    await page.click(`${CARD} >> role=button[name=/拒绝/]`)
+    await denied
+
+    const deniedBody = ai.lastBody()
+    expect(deniedBody, '"没有被批准"这句话没回到模型，它会以为自己查到了').toContain('没有被批准')
+    expect(deniedBody, '没批准却执行了：探针的返回出现在回喂给模型的内容里').not.toContain('envNames')
+
+    // ② 同样的工具，这次批准：第三方的返回必须真回到模型
+    ai.planToolCall({ name: toolKey, args: {} })
+    const approved = runChat('那再查一次')
+    await page.waitForSelector(CARD, { timeout: 20_000 })
+    await page.click(`${CARD} >> role=button[name=/批准这一次/]`)
+    const answer = await approved
+    expect(answer, '对话没走到终点').toContain('2')
+
+    const okBody = ai.lastBody()
+    expect(okBody, '外部工具的返回没回到模型').toContain('envNames')
+    // 环境隔离在 AI 这条路上同样成立：没点名的变量不该被子进程看见
+    expect(okBody, '外部子进程拿到了整个 process.env').not.toContain(PROBE)
+  } finally {
+    delete process.env[PROBE]
+    await ai.close()
     await app.close()
   }
 })

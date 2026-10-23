@@ -72,6 +72,10 @@ import { alertTokenBudgetExceeded } from '../services/llm/budget-alerter'
 import { getSessionRegistry } from '../core/agent/session-registry'
 // D2：审批判定唯一权威 —— 只有字面 true 算批准
 import { readApproval } from '../core/security/approval'
+// #173：外部 MCP 工具并进主对话（取数、逐次审批、拒绝留痕都从这三个入口走）
+import { McpGateway } from '../core/agent/mcp-gateway'
+import { buildExternalChatTools } from '../core/agent/tools/external-mcp-tools'
+import { emitBlockTrace } from '../core/command-gate'
 
 /** 流式 token 推送通道名 */
 const AGENT_CHUNK_CHANNEL = AGENT.CHUNK
@@ -182,6 +186,26 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               // 于是审批卡把这条例外也说成"PAOR 请求批准 — 第 1 步"，两个字段都是假的
               origin: 'chat',
               timestamp: Date.now(),
+            }),
+          /**
+           * #173：外部 MCP 工具进主对话。
+           * 取数只认"此刻真连上的"那几台（不为了挂工具去起子进程），
+           * 每一次调用都先推同一张审批卡；没批准就落进拦截记录——
+           * 与设置页那条走的是同一个出口，用户在「拦截记录」里能看到这一轮挡下了什么。
+           */
+          mountExternalTools: () =>
+            buildExternalChatTools({
+              tools: () => McpGateway.getInstance().getConnectedExternalTools(),
+              approve: (input) => requestApproval(approvalTransport(), input),
+              call: (serverId, toolName, args) =>
+                McpGateway.getInstance().callExternalTool(serverId, toolName, args),
+              onDenied: ({ serverId, serverName, toolName }) =>
+                emitBlockTrace({
+                  source: '外部 MCP 工具',
+                  command: `外部 MCP「${serverName}」 · 工具 ${toolName}`,
+                  reason: `AI 在对话里调用外部 MCP 工具未获批准：${serverId} · ${toolName}（含超时未响应）`,
+                  riskLevel: 'block',
+                }),
             }),
           onToken: (delta) => {
             const payload: AgentChunkPayload = { correlationId, delta, sessionId: resolvedSessionId }

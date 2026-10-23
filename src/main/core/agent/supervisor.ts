@@ -97,6 +97,7 @@ import { recordTokenUsage } from './providers/token-stats'
 import { compactIfNeededAsync, type SummarizeFn } from './context'
 import { makeRedactingSummarizer, SUMMARY_SYSTEM_PROMPT } from './summarizer'
 import { diffPrune, pruneStaleToolOutputs } from './tool-history'
+import type { ExternalChatToolMount } from './tools/external-mcp-tools'
 import { toToolResultView } from './tool-result-view'
 import { getSessionRegistry } from './session-registry'
 import { createAllSubagents } from './subagents'
@@ -178,11 +179,27 @@ export interface ChatParams {
    * agent-runtime 侧复用 PAOR 审批通道（paor:approval-request 卡片）实现。
    */
   approveWriteCommand?: (command: string, riskLevel: string, riskDescription: string) => Promise<boolean>
+  /**
+   * 外部 MCP 工具挂载回调（#173 第三步）。
+   * 由 agent-runtime 实现：读"此刻已连上"的外部服务器，把每个工具包成
+   * 先审批、后调用 McpGateway.callExternalTool 的对话工具。
+   * 未注入时对话里没有外部工具——不写"连上了就能用"这种做不到的承诺。
+   */
+  mountExternalTools?: () => ExternalChatToolMount
 }
 
 // ChatResult 类型从 @shared/agent-types 导入（供 preload/renderer 共享）
 // 重新导出便于 main 内部从 supervisor 导入
 export type { ChatResult } from '@shared/agent-types'
+
+/** 没注入外部 MCP 挂载回调时用的空挂载：不加工具、不加提示、也不报"另有 N 个" */
+const NO_EXTERNAL_TOOLS: ExternalChatToolMount = {
+  tools: {},
+  names: [],
+  skipped: 0,
+  servers: [],
+  promptHint: '',
+}
 
 /**
  * PAOR 循环阶段
@@ -430,6 +447,7 @@ class SupervisorAgent {
       sshSessionId,
       terminalContext,
       approveWriteCommand,
+      mountExternalTools,
     } = params
 
     // v2.10 快慢思考自动路由：提前提取最后一条用户消息（复用于复杂度评分），
@@ -967,19 +985,31 @@ class SupervisorAgent {
       // 7c. v2.6 意图路由：根据用户消息按需选择本轮挂载的工具子集（零 Token 本地匹配），
       // 并经 onToolEvent 推「工具装配」卡片可视化路由决策（复用 skill_match 卡片模式）。
       const toolRoute = routeChatTools(lastUserText, { ssh: Boolean(sshTools), db: true })
-      const tools = withToolResultRedaction(
-        Object.fromEntries(
+      // #173：外部 MCP 工具按"此刻真连上了哪几台"挂载，且不走意图路由——
+      // 工具名与说明都由第三方自己定，关键词表猜不到它们各自干什么；
+      // 而每一次调用都要先弹审批卡（在 agent-runtime 那侧串好），这里只负责让它出现在模型眼前。
+      const externalMount = mountExternalTools?.() ?? NO_EXTERNAL_TOOLS
+      const tools = withToolResultRedaction({
+        ...Object.fromEntries(
           Object.entries(candidateTools).filter(([name]) =>
             (toolRoute.mounted as string[]).includes(name),
           ),
-        ) as typeof candidateTools
-      )
+        ),
+        ...externalMount.tools,
+      } as typeof candidateTools)
       const hasTools = Object.keys(tools).length > 0
       {
         const mountedLabels = CHAT_TOOL_CATALOG
           .filter((e) => toolRoute.mounted.includes(e.id))
           .map((e) => `${e.label}(${e.id})`)
           .join('、')
+        // 外部工具按服务器说：一长串 mcp__xxx__yyy 的键名没人能在卡片上读完，
+        // 但"挂了 3 个，来自天气服务器"一眼就能看懂。超上限的条数必须报出来。
+        const externalLabel = externalMount.names.length
+          ? `外部 MCP ${externalMount.names.length} 个（来自 ${externalMount.servers.join('、')}）` +
+            (externalMount.skipped > 0 ? `，另有 ${externalMount.skipped} 个超出上限本轮未挂` : '')
+          : ''
+        const labels = [mountedLabels, externalLabel].filter(Boolean).join(' + ')
         const unavailableNote = toolRoute.unavailable.length
           ? `\n不可用：${toolRoute.unavailable.map((u) => `${u.label}（${u.missing}）`).join('、')}`
           : ''
@@ -995,7 +1025,7 @@ class SupervisorAgent {
           phase: 'result',
           toolName: 'tool_route',
           ok: true,
-          output: `${toolRoute.reason}\n挂载：${mountedLabels || '（无）'}${unavailableNote}`,
+          output: `${toolRoute.reason}\n挂载：${labels || '（无）'}${unavailableNote}`,
         })
       }
 
@@ -1116,6 +1146,7 @@ class SupervisorAgent {
       const systemPrompt =
         '你是 Linux 运维与教学助手，回答用中文。' +
         toolRoute.promptHints +
+        externalMount.promptHint +
         skillInjection +
         memoryInjection +
         terminalInjection
@@ -1166,7 +1197,9 @@ class SupervisorAgent {
                * 返回值会 carry forward 到后续步，所以剪一次就一直生效。
                */
               prepareStep: ({ messages: stepMessages }) => {
-                const pruned = pruneStaleToolOutputs(stepMessages)
+                // 外部工具的输出体积由第三方程序决定，和本地命令一样不可预估——
+                // 按本轮真挂上的名字交进去剪，不靠静态名单猜
+                const pruned = pruneStaleToolOutputs(stepMessages, externalMount.names)
                 const stats = diffPrune(stepMessages, pruned)
                 if (stats.removedMessages > 0) {
                   this.log.info('工具链历史剪枝', {

@@ -112,6 +112,32 @@ describe('旧的批量工具输出会被剪掉', () => {
     expect([...calls].sort()).toEqual([...results].sort())
   })
 
+  /**
+   * 外部 MCP 工具的名字是运行时才知道的（mcp__<服务器>__<工具>），进不了静态名单，
+   * 所以由 supervisor 把本轮真挂上的名字交进来。两条一起写才说得清这是参数在起作用：
+   * 只判"传了就剪"等于把判据绑在参数顺序上，补一条"不传就不剪"才钉住这个开关。
+   */
+  it('本轮挂上的外部工具名传进来才剪旧输出（正反两向）', () => {
+    const ext = 'mcp__srv-1__get_forecast'
+    const chain = (): ModelMessage[] => [
+      { role: 'system', content: 's' },
+      { role: 'user', content: '查天气' },
+      ...toolRound(1, ext),
+      ...toolRound(2, ext),
+      ...toolRound(3, ext),
+      ...toolRound(4, ext),
+      ...toolRound(5, ext),
+      { role: 'user', content: '继续' },
+    ]
+
+    const withNames = collect(pruneStaleToolOutputs(chain(), [ext])).names
+    expect(withNames.has(`${ext}:call-5`), '最近一轮被误剪').toBe(true)
+    expect(withNames.has(`${ext}:call-1`), '传了名字仍然没剪旧输出').toBe(false)
+
+    const withoutNames = collect(pruneStaleToolOutputs(chain())).names
+    expect(withoutNames.has(`${ext}:call-1`), '没传名字时不该剪外部工具').toBe(true)
+  })
+
   it('幂等：再剪一次不继续丢东西', () => {
     const once = pruneStaleToolOutputs(longChain())
     const twice = pruneStaleToolOutputs(once)
@@ -192,6 +218,34 @@ describe('supervisor 真的把剪枝接到了每一步前面', () => {
 
   it('prepareStep 调的就是剪枝函数（不是随便一个空回调）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src/main/core/agent/supervisor.ts'), 'utf8')
-    expect(src).toContain('pruneStaleToolOutputs(stepMessages)')
+    const file = ts.createSourceFile('supervisor.ts', src, ts.ScriptTarget.Latest, true)
+    let prunesStepMessages = false
+    let pruneCallsSeen = 0
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === 'prepareStep'
+      ) {
+        const scan = (inner: ts.Node): void => {
+          if (
+            ts.isCallExpression(inner) &&
+            ts.isIdentifier(inner.expression) &&
+            inner.expression.text === 'pruneStaleToolOutputs'
+          ) {
+            pruneCallsSeen++
+            if (inner.arguments[0]?.getText() === 'stepMessages') prunesStepMessages = true
+          }
+          ts.forEachChild(inner, scan)
+        }
+        scan(node)
+      }
+      ts.forEachChild(node, walk)
+    }
+    walk(file)
+    // 判"第一件事是剪 stepMessages"，不判整串源码文字：多带一个实参就红是假红，
+    // 而把 stepMessages 换掉不剪才是真断了这条链。
+    expect(pruneCallsSeen, 'prepareStep 里一次都没调用剪枝函数').toBeGreaterThan(0)
+    expect(prunesStepMessages, '剪枝调用的第一个实参不是这一步的消息列表').toBe(true)
   })
 })

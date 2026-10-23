@@ -172,6 +172,19 @@ export class McpGateway {
   }
 
   /**
+   * 此刻已连上的外部工具（同步，不触发连接）—— 主对话挂载外部工具的唯一取数口
+   */
+  getConnectedExternalTools(): Array<{
+    serverId: string
+    serverName: string
+    name: string
+    description: string
+    inputSchema?: unknown
+  }> {
+    return McpClientManager.getInstance().getConnectedTools()
+  }
+
+  /**
    * 注册外部 MCP Server
    */
   registerExternalServer(config: ExternalMcpServer): void {

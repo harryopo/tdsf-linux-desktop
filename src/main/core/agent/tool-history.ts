@@ -43,12 +43,22 @@ export interface PruneStats {
 
 /**
  * 剪掉旧的批量工具输出（幂等：已经剪过的再跑一次不会继续丢东西）
+ *
+ * `extraBulkTools`：本轮挂上来的外部 MCP 工具名。它们的输出体积由第三方程序决定，
+ * 和 ssh_readonly 一样不可预估，但名字是运行时才知道的（`mcp__<服务器>__<工具>`），
+ * 所以由调用方把本轮真挂上的名字递进来，而不是往静态名单里猜一个。
  */
-export function pruneStaleToolOutputs(messages: ModelMessage[]): ModelMessage[] {
+export function pruneStaleToolOutputs(
+  messages: ModelMessage[],
+  extraBulkTools: readonly string[] = []
+): ModelMessage[] {
   if (messages.length <= KEEP_RECENT_MESSAGES) return messages
+  const tools = [...new Set([...BULK_OUTPUT_TOOLS, ...extraBulkTools])]
   return pruneMessages({
     messages,
-    toolCalls: [{ type: `before-last-${KEEP_RECENT_MESSAGES}-messages`, tools: [...BULK_OUTPUT_TOOLS] }],
+    toolCalls: [
+      { type: `before-last-${KEEP_RECENT_MESSAGES}-messages`, tools },
+    ],
     // 剪完只剩空壳的消息直接移出列表：留着它每步仍要参与序列化与校验
     emptyMessages: 'remove',
   })

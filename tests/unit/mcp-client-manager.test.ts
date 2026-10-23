@@ -181,4 +181,33 @@ describe('McpClientManager：失败要能被识别，放弃的连接要收尾', 
       'disconnected'
     )
   })
+
+  it('9. getConnectedTools 只给此刻连上的那些，且不为了列表去起子进程', async () => {
+    sdk.connect.mockResolvedValue(undefined)
+    sdk.listTools.mockResolvedValue({
+      tools: [{ name: 'env_probe', description: '环境探针', inputSchema: { type: 'object' } }],
+    })
+    sdk.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'pong' }] })
+
+    const mgr = McpClientManager.getInstance()
+    // 管理器是单例，前面几条用例连过的服务器还活着，所以这里按 id 判"这条在不在"，
+    // 判整张表为空测的是用例顺序，不是产品。
+    const connectedIds = () => mgr.getConnectedTools().map((t) => t.serverId)
+
+    // 登记了但还没连：AI 侧挂载必须看不见它，否则每轮对话都会替它起一个进程
+    mgr.registerServers([serverConfig({ id: 'srv-idle' })])
+    expect(connectedIds(), '没连上的服务器也被挂进对话').not.toContain('srv-idle')
+
+    await mgr.callTool('srv-idle', 'env_probe', {})
+    const mine = mgr.getConnectedTools().filter((t) => t.serverId === 'srv-idle')
+    expect(mine).toHaveLength(1)
+    expect(mine[0].name).toBe('env_probe')
+    expect(mine[0].serverName, '外部工具得说得出是哪台服务器给的').toBe('示例外部服务器')
+    expect(mine[0].inputSchema, '参数表没带出来，模型只能瞎猜参数').toBeDefined()
+
+    // 停用的那台：registerServers 根本不会把它放进池子，所以这里走 registerServer
+    // 绕过过滤，专门判 getConnectedTools 自己那道 enabled 闸门真的在看
+    mgr.registerServer(serverConfig({ id: 'srv-off3', enabled: false }))
+    expect(connectedIds(), 'getConnectedTools 没看 enabled').not.toContain('srv-off3')
+  })
 })

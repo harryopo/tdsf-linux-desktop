@@ -7,6 +7,7 @@
  * 参数里那串字符串到底是不是 shell 命令，也取决于对面那个服务器干什么，主进程判不了。
  * 对不透明的第三方程序，唯一诚实的控制是**每次调用都要有人点头**。
  */
+import { randomUUID } from 'node:crypto'
 import type { PaorApprovalRequest } from '@shared/approval-types'
 
 /** 参数预览最多贴这么多字符（审批卡不是调试面板，整坨 JSON 会把"要不要批"挤没了） */
@@ -53,12 +54,19 @@ export function buildExternalCallApproval(
     : head + json
 
   return {
-    // 每次调用一个新 callId：审批表按它对齐，重复使用会把两次调用串成一条
-    callId: `mcp_${Date.now()}_${serverId}_${toolName}`.slice(0, 96),
+    // 每次调用一个新 callId：审批表按它挂等待器与定时器。
+    // 只带时间戳不够——同一步里并行两个同类调用会撞同一毫秒，
+    // 撞了就是第一条永远不结算（界面上只有一张卡，第二次调用挂在半路）。
+    // 随机段刻意放在名字之前：整串按 96 截断，被切掉的只可能是尾部的服务器名，
+    // 而前面的毫秒 + 随机段已经把两次调用分开了，截断不会把它们并成一个。
+    callId: `mcp_${Date.now()}_${randomUUID().slice(0, 8)}_${serverId}_${toolName}`.slice(0, 96),
     command,
     riskLevel: 'HIGH',
+    // 卡上只贴得下前 400 字，而那程序收下的是整份参数——
+    // 审批是同意的凭证，不写清这一层，用户会以为自己把参数整个看过并点头了。
     riskDescription:
-      '这是第三方 MCP 服务器自己的程序在执行，主进程看不到它内部会做什么，只能由人确认后放行。',
+      '这是第三方 MCP 服务器自己的程序在执行，主进程看不到它内部会做什么，只能由人确认后放行。' +
+      (clipped ? '参数超出展示上限：卡上看不到的那部分仍会原样交给它执行。' : ''),
     origin: 'mcp',
     // 外部调用不属于任何计划，没有"第几步"——不填就不填，不许用 0 冒充第 1 步
     timestamp: Date.now(),
