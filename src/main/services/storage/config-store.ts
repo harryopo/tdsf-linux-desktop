@@ -51,6 +51,9 @@ interface ConfigSchema {
   [key: string]: unknown
 }
 
+/** 内部 MCP Server 的默认端口（没配过 mcpConfig 时用；改这里就等于改正本） */
+export const MCP_DEFAULT_PORT = 3107
+
 /**
  * 创建 electron-store 实例
  *
@@ -272,6 +275,17 @@ export class ConfigStore {
   public static getMcpConfig(): McpConfig | null {
     const cfg = store.get('mcpConfig', null) as McpConfig | null
     return cfg ?? null
+  }
+
+  /**
+   * 取 MCP 配置，没配过时给一份"内部服务器按环境变量决定、端口 3107、外部列表为空"的默认。
+   *
+   * 默认值只写在这一个地方：以前只有 main/index.ts 内联一份，现在写入口也要一份，
+   * 抄两份迟早和正本分叉（谁都不想让"没配过"和"配过但关着"长成同一种读数）。
+   */
+  public static getMcpConfigOrDefault(): McpConfig {
+    const cfg = store.get('mcpConfig', null) as McpConfig | null
+    return cfg ?? { enabled: process.env.MCP_SERVER_ENABLED === 'true', port: MCP_DEFAULT_PORT }
   }
 
   /**

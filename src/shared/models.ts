@@ -954,9 +954,12 @@ export interface IpcChannelMap {
 
   // v0.9.6 新增：外部 MCP Server（Client 侧）
   'mcp:external-status': { args: []; return: ExternalMcpServerStatus[] }
-  'mcp:external-tools': { args: []; return: Array<{ name: string; description: string; serverId: string; serverName: string }> }
+  'mcp:external-tools': { args: []; return: McpExternalTool[] }
   'mcp:external-call': { args: [string, string, Record<string, unknown>]; return: { success: boolean; content: Array<{ type: 'text'; text: string }>; error?: string } }
   'mcp:external-reconnect': { args: [string]; return: boolean }
+  'mcp:external-list': { args: []; return: ExternalMcpServer[] }
+  'mcp:external-add': { args: [ExternalMcpServerDraft]; return: ExternalMcpServer }
+  'mcp:external-remove': { args: [string]; return: boolean }
 }
 
 /** MCP 生命周期状态枚举（与 mcp-lifecycle.ts 同步） */
@@ -985,8 +988,13 @@ export interface ExternalMcpServer {
   command?: string
   /** stdio 模式：命令参数 */
   args?: string[]
-  /** stdio 模式：环境变量 */
-  env?: Record<string, string>
+  /**
+   * stdio 模式：要从本机环境继承给子进程的**变量名**（不是值）。
+   * 值不落盘也不回显；旧版的 `env: Record<string,string>` 会把密钥写进明文配置，
+   * 且配套实现是整个 process.env 一起交给第三方程序——两头都是漏，见 #173 与
+   * tests/unit/mcp-child-env.test.ts。
+   */
+  envKeys?: string[]
   /** stdio 模式：工作目录 */
   cwd?: string
   /** sse/streamable-http 模式：URL */
@@ -995,6 +1003,36 @@ export interface ExternalMcpServer {
   enabled: boolean
   /** 连接超时（毫秒，默认 30000） */
   timeoutMs?: number
+}
+
+/**
+ * 界面提交的外部 MCP 服务器形状（没有 id，id 由主进程生成）
+ *
+ * 这里**没有** env 值这一栏，只有要继承的环境变量名：值一落盘就是明文配置里的密钥。
+ * 形状对不对由 `services/mcp/external-server-store.ts` 判，报错原因会原样显示到设置页。
+ */
+export interface ExternalMcpServerDraft {
+  name: string
+  transport: ExternalMcpServer['transport']
+  command?: string
+  args?: string[]
+  cwd?: string
+  url?: string
+  envKeys?: string[]
+  enabled?: boolean
+  timeoutMs?: number
+}
+
+/**
+ * 外部 MCP 服务器报上来的一个工具
+ *
+ * 名字与说明都由对面那个程序决定，主进程不解释它（所以才要每次人工审批）。
+ */
+export interface McpExternalTool {
+  name: string
+  description: string
+  serverId: string
+  serverName: string
 }
 
 /** 外部 MCP Server 连接状态 */

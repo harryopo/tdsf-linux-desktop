@@ -1,5 +1,5 @@
 /**
- * tests/unit/mcp-client-manager.test.ts — 外部 MCP Client 侧的三条硬要求（#92）
+ * tests/unit/mcp-client-manager.test.ts — 外部 MCP Client 侧的连接纪律（#92 → #173）
  *
  * 为什么写这几条：
  * 1. 失败必须带 isError。以前"未注册/已禁用/连不上/调用抛错"都只把错误写进 text，
@@ -10,6 +10,8 @@
  *    mcp:external-status 就会列出它。
  * 3. connect() 失败后必须 close()。SDK 在 connect() 第一行就把 transport 绑到
  *    client 上，超时放弃后晚到的连接会把 stdio 子进程留在后台没人收。
+ * 4. 同一台同时只跑一次连接、同一份配置重推不踢活连接（5-8 条，#173 真机 e2e 逼出来的，
+ *    下面那段的注释记着当时的现象）。
  *
  * 调研依据：2026-10-13 后端审查 #92（MCP 网关死路径与闸脱钩）
  * 判据引擎：node_modules/@modelcontextprotocol/sdk 的 Client / StdioClientTransport
@@ -40,6 +42,10 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: vi.fn().mockImplementation(function () {
     return { close: sdk.transportClose }
   }),
+  // client-manager 现在从这个模块取"可安全继承的基础环境表"（child-env.ts），
+  // 假模块必须把用到的导出都补上，否则测的就不是同一条路径。
+  // 它到底传了什么给子进程由 tests/unit/mcp-child-env.test.ts 判，这里不重复判。
+  getDefaultEnvironment: () => ({ PATH: '/usr/bin', HOME: '/root' }),
 }))
 
 import { McpClientManager } from '../../src/main/services/mcp/client-manager'
@@ -107,5 +113,72 @@ describe('McpClientManager：失败要能被识别，放弃的连接要收尾', 
     const r = await mgr.callTool('srv-good', 'echo', {})
     expect(r.isError).toBeUndefined()
     expect(r.content[0]?.text).toBe('pong')
+  })
+
+  /**
+   * 6-8 是 2026-10-23 真机 e2e（tests/e2e/mcp-external-settings.spec.ts）逼出来的三条：
+   * 添加第二台服务器时，登记面会把整份列表重推一遍，而界面上一次"读工具"和一次"调用"
+   * 会几乎同时落到同一台没连上的服务器上。两条路当时都是坏的：
+   * 并发那次直接报"无法连接"，重推那次把已经连上的连接踢回未连接且旧子进程没人收。
+   */
+  it('6. 一台正被第一个调用连着，第二个调用要等它，不许当场报"无法连接"', async () => {
+    let settle: (() => void) | undefined
+    sdk.connect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve
+        })
+    )
+    sdk.listTools.mockResolvedValue({ tools: [{ name: 'echo', description: 'd' }] })
+    sdk.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'pong' }] })
+
+    const mgr = McpClientManager.getInstance()
+    mgr.registerServers([serverConfig({ id: 'srv-race' })])
+    const first = mgr.callTool('srv-race', 'echo', {})
+    const second = mgr.callTool('srv-race', 'echo', {})
+    settle?.()
+
+    const [a, b] = await Promise.all([first, second])
+    expect(a.isError, `第一个调用失败了：${a.content[0]?.text ?? ''}`).toBeUndefined()
+    expect(b.isError, `第二个调用没等第一次连完：${b.content[0]?.text ?? ''}`).toBeUndefined()
+    expect(sdk.connect, '两次调用各起了一次连接（同一台起了两个子进程）').toHaveBeenCalledTimes(1)
+  })
+
+  it('7. 同一份配置原样再推一遍 → 已连上的那条不动', async () => {
+    sdk.connect.mockResolvedValue(undefined)
+    sdk.listTools.mockResolvedValue({ tools: [{ name: 'echo', description: 'd' }] })
+    sdk.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'pong' }] })
+
+    const mgr = McpClientManager.getInstance()
+    const cfg = serverConfig({ id: 'srv-keep' })
+    mgr.registerServers([cfg])
+    await mgr.callTool('srv-keep', 'echo', {})
+    expect(mgr.getServerStatus('srv-keep')?.connectionState).toBe('connected')
+    sdk.close.mockClear()
+
+    mgr.registerServers([{ ...cfg }])
+    expect(
+      mgr.getServerStatus('srv-keep')?.connectionState,
+      '重推同一份配置把活连接踢回了未连接'
+    ).toBe('connected')
+    expect(mgr.getServerStatus('srv-keep')?.toolCount, '重推之后工具缓存被清空').toBe(1)
+    expect(sdk.close, '旧连接被悄悄丢掉＝那个 stdio 子进程没人收，成了孤儿').not.toHaveBeenCalled()
+  })
+
+  it('8. 配置真变了（换了命令）→ 旧的先关掉，不许留着旧子进程换新的', async () => {
+    sdk.connect.mockResolvedValue(undefined)
+    sdk.listTools.mockResolvedValue({ tools: [] })
+    sdk.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'pong' }] })
+
+    const mgr = McpClientManager.getInstance()
+    mgr.registerServers([serverConfig({ id: 'srv-changed', command: 'node' })])
+    await mgr.callTool('srv-changed', 'echo', {})
+    sdk.close.mockClear()
+
+    mgr.registerServers([serverConfig({ id: 'srv-changed', command: 'python' })])
+    expect(sdk.close, '换了配置却没关旧连接（旧子进程留在后台）').toHaveBeenCalledTimes(1)
+    expect(mgr.getServerStatus('srv-changed')?.connectionState, '新配置要重新连，不能沿用旧的').toBe(
+      'disconnected'
+    )
   })
 })

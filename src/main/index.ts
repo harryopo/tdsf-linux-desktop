@@ -154,10 +154,7 @@ app.whenReady().then(() => {
   pushBootLoadingStage('kb-indexed', BrowserWindow.getAllWindows())
 
   // 0.1 启动 MCP Server（仅在 MCP_SERVER_ENABLED=true 时启用）
-  const mcpConfig = ConfigStore.getMcpConfig() ?? {
-    enabled: process.env.MCP_SERVER_ENABLED === 'true',
-    port: 3107
-  }
+  const mcpConfig = ConfigStore.getMcpConfigOrDefault()
   void McpServerService.getInstance(mcpConfig).start().catch((err) => {
     logger.error('MCP', '启动失败', {
       error: redactSecrets((err as Error).message ?? String(err)),

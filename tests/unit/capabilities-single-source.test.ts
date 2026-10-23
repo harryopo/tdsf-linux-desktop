@@ -101,7 +101,9 @@ describe('能力就绪度表', () => {
   })
 
   it('mcp-tools 仍是待开发：服务默认关，需要环境变量显式打开', () => {
-    expect(codeOf('src/main/index.ts')).toMatch(/MCP_SERVER_ENABLED === 'true'/)
+    // 默认值从 main/index.ts 搬进了 ConfigStore.getMcpConfigOrDefault()（写入口也要用同一份默认），
+    // 判据跟着搬到正本：这条断言要判的是"默认关"这件事还成立，不是它写在哪个文件里。
+    expect(codeOf('src/main/services/storage/config-store.ts')).toMatch(/MCP_SERVER_ENABLED === 'true'/)
   })
 
   it('monitor-history 的降级说明里的采样上限与 store 实际值一致', () => {

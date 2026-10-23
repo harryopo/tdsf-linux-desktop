@@ -23,6 +23,7 @@ import {
   FS,
   HISTORY,
   LOCAL_TTY,
+  MCP,
   PREVIEW,
   PROVIDER,
   SERVER,
@@ -91,8 +92,24 @@ const previewTarget = z.union([
   z.object({ kind: z.literal('port'), sessionId: str, port: z.number().int().min(1).max(65535) }),
 ])
 
-export const IPC_CONTRACT: readonly ChannelContract[] = [
-  {
+/**
+ * 外部 MCP 服务器草稿：这里只挡类型（字符串/数组/枚举），
+ * 内容合不合法由主进程 external-server-store 判（换行、URL 协议、重名、上限），
+ * 两处各管一段，界面上的拒绝原因来自后者。
+ */
+const externalServerDraft = z.object({
+  name: z.string(),
+  transport: z.enum(['stdio', 'sse', 'streamable-http']),
+  command: opt(str),
+  args: opt(arr(str)),
+  cwd: opt(str),
+  url: opt(str),
+  envKeys: opt(arr(str)),
+  enabled: opt(bool),
+  timeoutMs: opt(z.number()),
+})
+
+export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     kind: 'invoke',
     api: 'agentChat',
     channel: AGENT.CHAT,
@@ -698,11 +715,41 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [
     resultTs: '{ ok: boolean; canceled?: boolean; imported?: number; error?: string }',
     result: z.unknown(),
   },
+  // ===== 外部 MCP 登记面（#173）=====
+  {
+    kind: 'invoke',
+    api: 'mcpExternalList',
+    channel: MCP.EXTERNAL_LIST,
+    doc: '列出已登记的外部 MCP 服务器（形状里没有环境变量值）',
+    args: [],
+    resultTs: 'ExternalMcpServer[]',
+    result: arr(z.unknown()),
+  },
+  {
+    kind: 'invoke',
+    api: 'mcpExternalAdd',
+    channel: MCP.EXTERNAL_ADD,
+    doc: '登记一台外部 MCP 服务器；形状由 external-server-store 当场判，拒绝原因原样回给界面',
+    args: [{ name: 'draft', ts: 'ExternalMcpServerDraft', schema: externalServerDraft }],
+    resultTs: 'ExternalMcpServer',
+    result: z.unknown(),
+  },
+  {
+    kind: 'invoke',
+    api: 'mcpExternalRemove',
+    channel: MCP.EXTERNAL_REMOVE,
+    doc: '移除一台外部 MCP 服务器（同时断开它的子进程，不只是从配置里消失）',
+    args: [{ name: 'serverId', ts: 'string', schema: str }],
+    resultTs: 'boolean',
+    result: bool,
+  },
 ]
 
 /** 生成文件要 import 的类型来自哪儿 */
 export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   ChatMessage: '@shared/models',
+  ExternalMcpServer: '@shared/models',
+  ExternalMcpServerDraft: '@shared/models',
   PreviewTarget: '@shared/models',
   PreviewHandleInfo: '@shared/models',
   ShellIntegrationStatus: '@shared/models',

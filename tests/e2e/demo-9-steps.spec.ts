@@ -297,9 +297,16 @@ test.describe('Demo 9 步主路径', () => {
     // 等待设置页根元素 .set-page 加载（SettingsLayout 主容器）
     await mainWin.waitForSelector('.set-page', { timeout: 15000 })
 
-    // 验证左侧导航存在（10 项 = settings-sections.ts 的章节清单）
+    // 左侧导航的项数由唯一正本推导，不抄字面数：新增一节时这里跟着动，
+    // 抄死的数字只会有一种结局——要么拦住合法的改动，要么放过真正的漏项
+    const sectionSource = fs.readFileSync(
+      path.join(__dirname, '../../src/renderer/src/pages/settings-sections.ts'),
+      'utf8'
+    )
+    const sectionCount = (sectionSource.match(/to: '\/settings\//g) ?? []).length
+    expect(sectionCount, '正本里一个章节都没匹配到，说明这个推导本身失效了').toBeGreaterThan(5)
     const navItems = mainWin.locator('.set-nav__item')
-    await expect(navItems).toHaveCount(10)
+    await expect(navItems).toHaveCount(sectionCount)
 
     // 验证关键设置导航的 data-dom-id
     // 决策控制这项叫 nav-settings-decision 而不是 nav-decision：后者是左侧导航

@@ -3,7 +3,7 @@
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
-import type { ChatMessage, CommandResult, DecisionAuditView, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
+import type { ChatMessage, CommandResult, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 import type { SshConfigScanResult } from '@shared/ssh-config-types'
 
@@ -204,6 +204,18 @@ export interface ContractedInvokeApi {
   /** 弹打开框导入服务器列表（新 ID，凭据留空）
    * 通道 `server:import-file` */
   serverImportFile(): Promise<{ ok: boolean; canceled?: boolean; imported?: number; error?: string }>
+
+  /** 列出已登记的外部 MCP 服务器（形状里没有环境变量值）
+   * 通道 `mcp:external-list` */
+  mcpExternalList(): Promise<ExternalMcpServer[]>
+
+  /** 登记一台外部 MCP 服务器；形状由 external-server-store 当场判，拒绝原因原样回给界面
+   * 通道 `mcp:external-add` */
+  mcpExternalAdd(draft: ExternalMcpServerDraft): Promise<ExternalMcpServer>
+
+  /** 移除一台外部 MCP 服务器（同时断开它的子进程，不只是从配置里消失）
+   * 通道 `mcp:external-remove` */
+  mcpExternalRemove(serverId: string): Promise<boolean>
 }
 
 /** 已纳入契约的推送通道：订阅函数的负载类型以这里为准 */

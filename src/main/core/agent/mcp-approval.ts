@@ -33,13 +33,19 @@ function argsPreview(args: Record<string, unknown>): string {
 
 /**
  * 构造一条审批请求（不含 `expiresAt`——死线由等待器统一给，两处各写一把 60 秒迟早漂）
+ *
+ * `serverName` 是用户在设置页自己起的那个名字。审批卡是要人当场点头的东西，
+ * 上面只写 `mcp-mvkcr1xt-aoeb6s` 等于让人对着一串乱码授权；
+ * 名字认不出来（配置里没这台）才退回 id——空白比乱码更糟。
  */
 export function buildExternalCallApproval(
   serverId: string,
   toolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  serverName?: string
 ): Omit<PaorApprovalRequest, 'expiresAt'> {
-  const head = `外部 MCP「${serverId}」 · 工具 ${toolName} · 参数 `
+  const label = serverName?.trim() || serverId
+  const head = `外部 MCP「${label}」 · 工具 ${toolName} · 参数 `
   const json = argsPreview(args)
   const clipped = json.length > MCP_CALL_PREVIEW_LIMIT
   const command = clipped

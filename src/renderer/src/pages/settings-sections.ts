@@ -13,7 +13,7 @@
  */
 import {
   Settings, KeySquare, Sparkles, Bell, Palette, Info,
-  ShieldAlert, ShieldCheck, Terminal, Activity, type LucideIcon,
+  ShieldAlert, ShieldCheck, Terminal, Activity, Plug, type LucideIcon,
 } from 'lucide-react'
 
 export interface SettingsSection {
@@ -34,6 +34,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { to: '/settings/model', label: '模型配置', desc: '模型参数、API 接入与用量统计', icon: Sparkles, domId: 'nav-model-config' },
   { to: '/settings/calibration', label: '校准设置', desc: '置信度校准与 Temperature Scaling', icon: Activity, domId: 'nav-calibration' },
   { to: '/settings/ssh', label: 'SSH 连接', desc: '远程服务器连接与密钥管理', icon: KeySquare, domId: 'nav-ssh' },
+  { to: '/settings/mcp', label: '外部 MCP', desc: '登记自己的 MCP 服务器与查看它提供的工具', icon: Plug, domId: 'nav-mcp' },
   { to: '/settings/terminal', label: '终端设置', desc: 'Shell 环境与终端行为配置', icon: Terminal, domId: 'nav-terminal' },
   { to: '/settings/risk', label: '风险控制', desc: '高危命令拦截与操作审计', icon: ShieldAlert, domId: 'nav-risk' },
   { to: '/settings/decision', label: '决策控制', desc: 'AI 决策阈值与审批策略', icon: ShieldCheck, domId: 'nav-settings-decision' },

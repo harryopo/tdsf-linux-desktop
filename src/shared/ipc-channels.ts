@@ -758,6 +758,9 @@ export const MCP = {
   EXTERNAL_RECONNECT: 'mcp:external-reconnect',
   /** 调用外部 MCP 工具（invoke: 渲染 → 主） */
   EXTERNAL_CALL: 'mcp:external-call',
+  EXTERNAL_LIST: 'mcp:external-list',
+  EXTERNAL_ADD: 'mcp:external-add',
+  EXTERNAL_REMOVE: 'mcp:external-remove',
 } as const
 
 /**

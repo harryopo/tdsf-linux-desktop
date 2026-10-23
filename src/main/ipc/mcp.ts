@@ -23,6 +23,8 @@ import { requestApproval } from '../core/security/approval-request'
 import { emitBlockTrace } from '../core/command-gate'
 import { approvalTransport } from '../windows/main-window'
 import { logger } from '../services/log/logger'
+import { ConfigStore } from '../services/storage/config-store'
+import { newExternalServerId, validateDraft } from '../services/mcp/external-server-store'
 
 /** 状态变更通道 */
 const MCP_STATE_CHANNEL = MCP.STATE_CHANGED
@@ -77,6 +79,47 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): () => void 
   })
 
   // ------------------------------------------------------------------
+  // mcp:external-list / -add / -remove — 外部服务器的登记面（#173）
+  // ------------------------------------------------------------------
+  // 这条写入口以前不存在：mcpConfig 被 config:set 的白名单整键禁掉（那是对的，
+  // 一条能被别处写入的 externalServers 等于"下次启动替你跑一个程序"），
+  // 于是外部 MCP 停在"字段有、代码有、界面没有"。现在只有这个专用通道能写，
+  // 入参在 external-server-store 里当场判形状，配置里也**不存**环境变量值。
+  ipcMain.handle(MCP.EXTERNAL_LIST, () => ConfigStore.getMcpConfigOrDefault().externalServers ?? [])
+
+  ipcMain.handle(MCP.EXTERNAL_ADD, (_event, draft) => {
+    const cfg = ConfigStore.getMcpConfigOrDefault()
+    const servers = cfg.externalServers ?? []
+    const result = validateDraft(draft, servers, newExternalServerId(servers))
+    if (!result.ok) throw new Error(result.error)
+    const next = [...servers, result.server]
+    if (!ConfigStore.saveMcpConfig({ ...cfg, externalServers: next })) {
+      throw new Error('外部 MCP 配置没能写入本地存储')
+    }
+    // 立刻挂进连接池，不让用户以为"保存了要重启才生效"
+    gateway.registerExternalServers(next)
+    logger.info('IPC.MCP', `登记外部 MCP 服务器：${result.server.name}`, {
+      serverId: result.server.id,
+      transport: result.server.transport,
+    })
+    return result.server
+  })
+
+  ipcMain.handle(MCP.EXTERNAL_REMOVE, async (_event, serverId: string) => {
+    const cfg = ConfigStore.getMcpConfigOrDefault()
+    const servers = cfg.externalServers ?? []
+    const next = servers.filter((s) => s.id !== serverId)
+    if (next.length === servers.length) return false
+    if (!ConfigStore.saveMcpConfig({ ...cfg, externalServers: next })) {
+      throw new Error('外部 MCP 配置没能写入本地存储')
+    }
+    // registerServers 只增不减，删掉的那台要单独断开，否则配置没了、子进程还在跑
+    await gateway.removeExternalServer(serverId)
+    logger.info('IPC.MCP', `移除外部 MCP 服务器 ${serverId}`)
+    return true
+  })
+
+  // ------------------------------------------------------------------
   // mcp:external-tools — 列出所有外部工具
   // ------------------------------------------------------------------
   ipcMain.handle(MCP.EXTERNAL_TOOLS, async () => {
@@ -98,7 +141,11 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): () => void 
       toolName: string,
       args: Record<string, unknown>
     ) => {
-      const approvalInput = buildExternalCallApproval(serverId, toolName, args ?? {})
+      // 审批卡上要写用户在设置页起的那个名字，不是 mcp-xxxx-yyyy 这种内部 id：
+      // 让人对着一串乱码点头不叫把关。名字查不到（刚被别的窗口删掉）才退回 id。
+      const serverName = ConfigStore.getMcpConfigOrDefault()
+        .externalServers?.find((s) => s.id === serverId)?.name
+      const approvalInput = buildExternalCallApproval(serverId, toolName, args ?? {}, serverName)
       const approved = await requestApproval(approvalTransport(), approvalInput)
       if (!approved) {
         // 拒了要留在同一条拦截审计里：否则"拦下来了"这件事只有日志知道，

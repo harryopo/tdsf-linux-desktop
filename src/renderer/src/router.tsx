@@ -96,6 +96,9 @@ const RiskSettings = lazy(() =>
 const SshSettings = lazy(() =>
   import('./pages/SshSettings').then((m) => ({ default: m.SshSettings })),
 )
+const McpSettings = lazy(() =>
+  import('./pages/McpSettings').then((m) => ({ default: m.McpSettings })),
+)
 const TerminalSettings = lazy(() =>
   import('./pages/TerminalSettings').then((m) => ({ default: m.TerminalSettings })),
 )
@@ -170,6 +173,7 @@ const Router: React.FC = () => {
               <Route path="appearance" element={<AppearanceSettings />} />
               <Route path="risk" element={<RiskSettings />} />
               <Route path="ssh" element={<SshSettings />} />
+              <Route path="mcp" element={<McpSettings />} />
               <Route path="terminal" element={<TerminalSettings />} />
               <Route path="decision" element={<DecisionSettings />} />
               <Route path="alerts" element={<AlertsSettings />} />

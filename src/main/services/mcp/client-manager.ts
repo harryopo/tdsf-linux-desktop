@@ -21,6 +21,7 @@
  */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { buildExternalChildEnv } from './child-env'
 import { logger } from '../../services/log/logger'
 import type { McpToolResult } from './tools/registry'
 import type {
@@ -39,10 +40,36 @@ interface ServerContext {
   lastConnectedAt?: number
   /** 缓存的工具列表（连接成功后刷新） */
   cachedTools: Array<{ name: string; description: string }>
+  /**
+   * 正在进行中的那一次连接。并发进来的调用者等同一个 promise，
+   * 而不是各自起一次连接、或让后到的那个读到"还没连上"当场失败。
+   */
+  inflight: Promise<void> | null
 }
 
 /** 默认连接超时 30s */
 const DEFAULT_TIMEOUT_MS = 30_000
+
+/**
+ * 只看"会不会改变那条连接"的字段
+ *
+ * 登记面每次添加一台都会把整份列表重推一遍（启动时也推一次）。以前这一推会把
+ * 已经连上的服务器连上下文一起换掉：状态踢回 disconnected、工具缓存清零，
+ * 而旧的那个 stdio 子进程没人 close —— 界面上看着正常，后台多留一个孤儿进程。
+ * 名字这类不参与建连的字段另算，见 registerServer。
+ */
+function connectionKey(s: ExternalMcpServer): string {
+  return JSON.stringify([
+    s.transport,
+    s.command ?? null,
+    s.args ?? [],
+    s.cwd ?? null,
+    s.url ?? null,
+    s.envKeys ?? [],
+    s.enabled,
+    s.timeoutMs ?? null,
+  ])
+}
 
 /**
  * MCP Client Manager（单例）
@@ -68,10 +95,17 @@ export class McpClientManager {
    * 不立即连接，仅注册配置。首次 callTool 时按需连接。
    */
   registerServer(config: ExternalMcpServer): void {
-    if (this.servers.has(config.id)) {
-      logger.warn('MCP.CLIENT', `服务器 ${config.id} 已注册，覆盖配置`, {
-        name: config.name,
-      })
+    const existing = this.servers.get(config.id)
+    if (existing) {
+      if (connectionKey(existing.config) === connectionKey(config)) {
+        // 同一份连接配置再推一遍（添加别的服务器、或重启时都会这样）：
+        // 保住此刻的连接与工具缓存，只把显示字段换新的。整条换掉会踢掉活连接，
+        // 并把旧那个 stdio 子进程留在后台没人收。
+        existing.config = config
+        return
+      }
+      logger.info('MCP.CLIENT', `服务器 ${config.id} 配置变了，先断开旧连接`, { name: config.name })
+      void this.disconnect(existing)
     }
     this.servers.set(config.id, {
       config,
@@ -79,6 +113,7 @@ export class McpClientManager {
       transport: null,
       state: 'disconnected',
       cachedTools: [],
+      inflight: null,
     })
     logger.info('MCP.CLIENT', `注册外部服务器`, {
       id: config.id,
@@ -316,14 +351,27 @@ export class McpClientManager {
   // ========== 私有方法 ==========
 
   /**
-   * 建立到外部 MCP Server 的连接
+   * 建立到外部 MCP Server 的连接（同一台同时只有一次真在跑）
+   *
+   * 旧写法在 state==='connecting' 时直接 return，调用方紧接着读状态读到的是
+   * "还没连上"，于是报"无法连接：未知错误"——而 100 毫秒后那次连接其实成了。
+   * 真机 e2e 就是这么红的：读工具列表与第一次调用几乎同时落到刚登记的那台。
+   * 现在后来者等同一次连接的结果，不各起一次、也不假报失败。
    */
-  private async connect(ctx: ServerContext): Promise<void> {
-    if (ctx.state === 'connecting') {
-      logger.warn('MCP.CLIENT', `服务器 ${ctx.config.id} 正在连接中，跳过`)
-      return
+  private connect(ctx: ServerContext): Promise<void> {
+    if (ctx.inflight) {
+      logger.info('MCP.CLIENT', `服务器 ${ctx.config.id} 正在连接中，等那一次的结果`)
+      return ctx.inflight
     }
+    const run = this.doConnect(ctx).finally(() => {
+      ctx.inflight = null
+    })
+    ctx.inflight = run
+    return run
+  }
 
+  /** 真正执行一次连接（只由 connect() 调用，保证同一台串行） */
+  private async doConnect(ctx: ServerContext): Promise<void> {
     ctx.state = 'connecting'
     ctx.error = undefined
     let timer: NodeJS.Timeout | undefined
@@ -356,9 +404,9 @@ export class McpClientManager {
       ctx.transport = new StdioClientTransport({
         command: ctx.config.command,
         args: ctx.config.args ?? [],
-        env: ctx.config.env
-          ? { ...process.env, ...ctx.config.env } as Record<string, string>
-          : undefined,
+        // 只给"SDK 认为可安全继承的那批 + 用户点名的键"。
+        // 旧写法在这里摊开整个 process.env，等于把本机所有环境变量交给第三方程序。
+        env: buildExternalChildEnv(ctx.config.envKeys),
         cwd: ctx.config.cwd,
       })
 
@@ -434,6 +482,9 @@ export class McpClientManager {
    * 断开单个服务器连接
    */
   private async disconnect(ctx: ServerContext): Promise<void> {
+    // 那次连接还在跑的时候先等它收个尾（connect 自己有 30s 上限，不会无限等）：
+    // 不然这里把 client 清空、那边随后仍会把它写成 connected，而那个 stdio 子进程再没人 close。
+    if (ctx.inflight) await ctx.inflight.catch(() => undefined)
     if (ctx.client) {
       try {
         await ctx.client.close()

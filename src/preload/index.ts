@@ -1,7 +1,7 @@
 
 
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
-import type { ChatMessage, DecisionAuditView, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
+import type { ChatMessage, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 // #79 第二批：这些返回类型以 shared/models 为单源写在实现侧，渲染层不再手写第二份。
 import type {
@@ -20,7 +20,7 @@ import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanMod
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -197,6 +197,13 @@ const electronApi = {
   mcpExternalTools: on.mcpExternalTools,
   mcpExternalCall: on.mcpExternalCall,
   mcpExternalReconnect: on.mcpExternalReconnect,
+  // #173：外部服务器的登记面。读回来的形状里没有环境变量值，只有键名。
+  mcpExternalList: (): Promise<ExternalMcpServer[]> =>
+    invokeChecked<ExternalMcpServer[]>('mcpExternalList', MCP.EXTERNAL_LIST),
+  mcpExternalAdd: (draft: ExternalMcpServerDraft): Promise<ExternalMcpServer> =>
+    invokeChecked<ExternalMcpServer>('mcpExternalAdd', MCP.EXTERNAL_ADD, draft),
+  mcpExternalRemove: (serverId: string): Promise<boolean> =>
+    invokeChecked<boolean>('mcpExternalRemove', MCP.EXTERNAL_REMOVE, serverId),
 
   // ===== Agent 扁平化（旧 AgentWorkflow，v0.8 及之前） =====
   // 注意：v0.8 旧 agentCancel 已被 v0.9.4 新签名覆盖（通过 sessionId 统一取消多类会话）。

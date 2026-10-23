@@ -27,6 +27,19 @@ describe('外部 MCP 调用的审批载荷', () => {
     expect(p.stepIndex, '外部调用没有"第几步"这回事，不许用 0 冒充第 1 步').toBeUndefined()
   })
 
+  it('卡上写用户认得出的服务器名字，不写那串内部 id', () => {
+    // 名字是用户在设置页自己起的；id 是 mcp-mvkcr1xt-aoeb6s 这种，
+    // 摊在"要不要放行"这张卡上等于让人对着一串乱码点头。
+    const p = buildExternalCallApproval('mcp-mvkcr1xt-aoeb6s', 'env_probe', {}, '环境探针')
+    expect(p.command).toContain('环境探针')
+    expect(p.command, '卡上只出现 id，用户分不清批的是哪一台').not.toContain('mvkcr1xt')
+  })
+
+  it('认不出名字（配置里没这台）才退回 id，不许显示成空', () => {
+    expect(buildExternalCallApproval('mcp-abc', 't', {}).command).toContain('mcp-abc')
+    expect(buildExternalCallApproval('mcp-abc', 't', {}, '   ').command).toContain('mcp-abc')
+  })
+
   it('风险等级要说清"这是第三方程序，主进程预判不了它做什么"', () => {
     const p = buildExternalCallApproval('fs', 'write_file', { path: '/etc/hosts' })
     expect(p.riskLevel).toBe('HIGH')
@@ -113,5 +126,21 @@ describe('ipc/mcp.ts 真的把外部调用接在审批之后', () => {
 
   it('被拒的调用要留拦截痕（不能只回一句"没批准"就当没事发生）', () => {
     expect(handlerBody()!.getText()).toMatch(/emitBlockTrace|recordBlockTrace/)
+  })
+
+  it('构造审批载荷时把服务器名字一并递进去（只递 id，卡上就是乱码）', () => {
+    let argsOfBuild = -1
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'buildExternalCallApproval'
+      ) {
+        argsOfBuild = node.arguments.length
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(handlerBody()!)
+    expect(argsOfBuild, 'ipc/mcp.ts 没找到 buildExternalCallApproval 调用，判据要重写').toBe(4)
   })
 })

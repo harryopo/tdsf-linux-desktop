@@ -97,8 +97,11 @@ logStats
 loopCancel
 loopConfirm
 loopStart
+mcpExternalAdd
 mcpExternalCall
+mcpExternalList
 mcpExternalReconnect
+mcpExternalRemove
 mcpExternalStatus
 mcpExternalTools
 mcpGetState
