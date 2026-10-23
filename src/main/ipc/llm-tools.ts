@@ -51,12 +51,26 @@ import type {
   ToolId,
 } from '@shared/llm-tool-types'
 
+import { redactToolValue } from '../core/agent/providers/redact'
+
 /** 通道名 */
 const LLM_TOOL_PROGRESS_CHANNEL = 'llm:tool-progress'
 const LLM_TOOL_APPROVAL_CHANNEL = 'llm:tool-approval'
 const LLM_CHUNK_CHANNEL = 'llm:chunk'
 const LLM_DONE_CHANNEL = 'llm:done'
 const LLM_ERROR_CHANNEL = 'llm:error'
+
+/**
+ * 工具结果出门前脱敏。
+ *
+ * 这条通道自己 new ToolRegistry、自己 execute，然后把原样 result 同时推给渲染进程
+ * 又回喂给模型——`services/llm/tools/*` 内部一条脱敏都没有（ssh-exec 的 stdout 是远端
+ * 命令的原样输出）。主对话那条早就在组装点统一套了 `withToolResultRedaction`，
+ * MCP 那条在 registry-sandbox 里也做了；同一个出口只装住两家等于没装。
+ */
+export function redactToolCallResult(r: ToolCallResult): ToolCallResult {
+  return redactToolValue(r) as ToolCallResult
+}
 
 /** 待审批的工具调用池（callId → resolve 函数） */
 const pendingApprovals: Map<string, {
@@ -239,8 +253,8 @@ export function registerLlmToolHandlers(
                 phase: 'executing',
               } satisfies ToolCallProgress)
 
-              // 执行
-              const result = (await t.execute(args)) as ToolCallResult
+              // 执行（结果一出门就脱敏：下面既推给渲染进程又回喂给模型，两个出口共用这一份）
+              const result = redactToolCallResult((await t.execute(args)) as ToolCallResult)
 
               // 推送 success/failed
               safeSend(mainWindow, LLM_TOOL_PROGRESS_CHANNEL, {
