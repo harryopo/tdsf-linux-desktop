@@ -13,6 +13,9 @@
  *   - LOW：cat, ls, ps, df, free, top（只读命令） → 提示
  *   - SAFE：echo, pwd, whoami, date → 自动执行
  *
+ * L2 的档位以 command-gate（真正会拦下执行的那把闸）为下限：本表命中得少时，
+ * 不许把更低的档写进决策卡与审计链（#176，横扫判据 tests/unit/risk-gate-consistency.test.ts）。
+ *
  * v2.0 Phase C Task C.6 三态权限模式（PermissionMode）：
  *   - 'always'：所有命令都需要人工审批（最严格，HC-6 默认）
  *   - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 仍需审批（兼顾效率与安全）
@@ -21,7 +24,31 @@
  *   设计依据：AgentScope Permission 三态 + HITL CoPilot 87.5% 接受率论文验证
  */
 
+import { evaluateCommand, type CommandRiskLevel } from './command-gate'
 import type { RiskAssessment, RiskLevel } from '../../shared/models'
+
+/**
+ * 执行闸的五档 ↔ 本引擎的五档：刻度相同、词表不同（闸用 block/…/safe，这里用 CRITICAL/…/SAFE）。
+ * 闸门的档位是本引擎的下限——判得更松的那一侧不能决定界面上的说法（#176）。
+ */
+const GATE_TO_RISK: Record<CommandRiskLevel, RiskLevel> = {
+  safe: 'SAFE',
+  low: 'LOW',
+  medium: 'MEDIUM',
+  high: 'HIGH',
+  block: 'CRITICAL',
+}
+
+const RISK_RANK: Record<RiskLevel, number> = { SAFE: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 }
+
+/** 每档的分数下限（MEDIUM/HIGH/CRITICAL 取本引擎各分支给出的分值） */
+const RISK_SCORE_FLOOR: Record<RiskLevel, number> = {
+  SAFE: 0,
+  LOW: 1,
+  MEDIUM: 50,
+  HIGH: 75,
+  CRITICAL: 100,
+}
 
 /**
  * 三态权限模式（v2.0 Phase C Task C.6）
@@ -244,11 +271,34 @@ function checkBrackets(cmd: string): string | null {
 
 /**
  * 评估命令的风险等级
- * 检查顺序：CRITICAL → HIGH → MEDIUM → SAFE → LOW → 默认 LOW
+ *
+ * 两张表都在判同一条命令，但只有 command-gate 真的会拦下执行，所以它的档位是下限：
+ * 本机的正则表命中得少，卡片就不许拿着更低的档去写审计链与界面徽章（#176 实测过分叉 13/40）。
+ * 判据：tests/unit/risk-gate-consistency.test.ts
  * @param command - 待评估的命令
  * @returns 风险评估结果
  */
 export function assessRisk(command: string): RiskAssessment {
+  const own = assessByPatterns(command)
+  if (!command.trim()) return own
+
+  const gate = evaluateCommand(command)
+  const floor = GATE_TO_RISK[gate.level]
+  if (RISK_RANK[floor] <= RISK_RANK[own.level]) return own
+
+  // 闸门更严：档位、分数、原因一起跟上去，不许出现"CRITICAL · 35 分"这种档分分家
+  return createAssessment(
+    floor,
+    Math.max(own.score, RISK_SCORE_FLOOR[floor]),
+    [...own.matchedRules, `命令闸：${gate.reason}`],
+    own.description
+      ? `${own.description}；命令闸判为 ${gate.level}：${gate.reason}`
+      : `命令闸判为 ${gate.level}：${gate.reason}`
+  )
+}
+
+/** 只看本引擎正则表的评估结果（不含执行闸的下限） */
+function assessByPatterns(command: string): RiskAssessment {
   const cmd = command.trim()
   if (!cmd) {
     return createAssessment('SAFE', 0, [], '空命令')

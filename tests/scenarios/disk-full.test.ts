@@ -163,18 +163,20 @@ describe('端到端场景：磁盘满', () => {
     expect(requiresConfirmation(assessment.level)).toBe(true)
   })
 
-  it('风险引擎：find -delete 和 journalctl --vacuum 为 LOW（安全清理）', () => {
-    // find 命令在 LOW 白名单中
-    const findAssessment = assessRisk('find /var/log -mtime +30 -delete')
-    expect(findAssessment.level).toBe('LOW')
-    expect(findAssessment.requireConfirmation).toBe(false)
-
-    // journalctl 在 LOW 白名单中
+  it('风险引擎：journalctl --vacuum 是 LOW 只读清理，find -delete 会被执行闸拦下', () => {
+    // journalctl 在 LOW 白名单里，执行闸也判 low（只读查询）
     const journalctlAssessment = assessRisk('journalctl --vacuum-time=7d')
     expect(journalctlAssessment.level).toBe('LOW')
     expect(journalctlAssessment.requireConfirmation).toBe(false)
     expect(journalctlAssessment.blocked).toBe(false)
     expect(requiresConfirmation(journalctlAssessment.level)).toBe(false)
+
+    // find 原先在本引擎的 LOW 白名单里，但 `find /var/log -mtime +30 -delete` 真会被
+    // command-gate 按"从根级/系统目录批量删除"拦下——卡片写 LOW 免确认就是假话（#176）。
+    const findAssessment = assessRisk('find /var/log -mtime +30 -delete')
+    expect(findAssessment.level).toBe('CRITICAL')
+    expect(findAssessment.blocked).toBe(true)
+    expect(findAssessment.requireConfirmation).toBe(true)
   })
 
   // ────────── 6. 决策卡片：推荐安全命令，拒绝危险命令 ──────────

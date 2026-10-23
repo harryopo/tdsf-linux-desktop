@@ -2,8 +2,34 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-23T01:03:22.911Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-23T01:20:26.516Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-23T01:20:26.208Z",
+      "lastActiveAt": "2026-10-23T01:20:26.516Z",
+      "task": "依赖公告收口：dompurify 3.4.17 / ip-address 10.7.4",
+      "claimedFiles": [
+        {
+          "path": "package.json",
+          "task": "依赖公告收口：dompurify 3.4.17 / ip-address 10.7.4",
+          "claimedAt": "2026-10-23T01:20:26.208Z"
+        },
+        {
+          "path": "pnpm-workspace.yaml",
+          "task": "依赖公告收口：传递依赖钉版",
+          "claimedAt": "2026-10-23T01:20:26.311Z"
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "task": "依赖公告收口：重装后锁文件同步",
+          "claimedAt": "2026-10-23T01:20:26.516Z"
+        }
+      ],
+      "expiresAt": "2026-10-23T03:20:26.516Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9482,6 +9508,27 @@
       "file": "tests/components/evidence-absent-source.test.tsx",
       "task": "#175 决策线读数诚实化",
       "timestamp": "2026-10-23T01:03:22.911Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "package.json",
+      "task": "依赖公告收口：dompurify 3.4.17 / ip-address 10.7.4",
+      "timestamp": "2026-10-23T01:20:26.208Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "pnpm-workspace.yaml",
+      "task": "依赖公告收口：传递依赖钉版",
+      "timestamp": "2026-10-23T01:20:26.311Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "pnpm-lock.yaml",
+      "task": "依赖公告收口：重装后锁文件同步",
+      "timestamp": "2026-10-23T01:20:26.516Z"
     }
   ],
   "coordinationAudit": {

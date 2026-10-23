@@ -77,11 +77,15 @@ describe('risk-engine — 风险控制引擎', () => {
     expect(assessRisk('rm --recursive -f /').level).toBe('CRITICAL')
   })
 
-  it('assessRisk: rm --recursive --force /home 为 HIGH（非根目录）', () => {
+  it('assessRisk: rm --recursive --force /home 为 CRITICAL（执行闸会拦下这条）', () => {
+    // 旧断言是 HIGH/blocked=false，来自本引擎"非根目录就不升 CRITICAL"的正则表；
+    // 但 command-gate 会按"递归强制删除根级/系统目录"直接拦下。界面与审计链只能照着
+    // 真正会发生的事写（#176，横扫判据 tests/unit/risk-gate-consistency.test.ts）。
     const result = assessRisk('rm --recursive --force /home')
-    expect(result.level).toBe('HIGH')
-    expect(result.blocked).toBe(false)
+    expect(result.level).toBe('CRITICAL')
+    expect(result.blocked).toBe(true)
     expect(result.requireConfirmation).toBe(true)
+    expect(result.matchedRules.join()).toContain('命令闸')
   })
 
   it('assessRisk: rm -rf /tmp/data 为 HIGH（短标志非根目录）', () => {
@@ -89,11 +93,14 @@ describe('risk-engine — 风险控制引擎', () => {
     expect(result.level).toBe('HIGH')
   })
 
-  it('assessRisk: rm --recursive /home 仅为 LOW（缺少 --force）', () => {
-    // 只有 --recursive 没有 --force，不应匹配 rm+rf 模式
+  it('assessRisk: rm --recursive /home 为 HIGH（缺 --force 也仍是删除系统目录）', () => {
+    // 这一条原来钉的是"缺 --force 不该匹配 rm+rf 模式"，那是本引擎正则表的形状；
+    // 执行闸按"删除文件/目录"判 high，所以卡片不能停在 LOW。
+    // 原意保留：不许因为形状像 rm -rf 就升成会被拦下的 CRITICAL。
     const result = assessRisk('rm --recursive /home')
     expect(result.level).not.toBe('CRITICAL')
-    expect(result.level).not.toBe('HIGH')
+    expect(result.blocked).toBe(false)
+    expect(result.level).toBe('HIGH')
   })
 
   it('assessRisk: mkfs 为 CRITICAL', () => {
