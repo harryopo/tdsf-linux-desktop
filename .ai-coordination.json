@@ -2,59 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-23T01:45:33.330Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-23T01:45:32.598Z",
-      "lastActiveAt": "2026-10-23T01:45:33.330Z",
-      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:32.598Z"
-        },
-        {
-          "path": "src/shared/models.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:32.710Z"
-        },
-        {
-          "path": "src/shared/ipc-contract.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:32.818Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:32.936Z"
-        },
-        {
-          "path": "src/preload/index.d.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:33.039Z"
-        },
-        {
-          "path": "src/main/ipc/mcp.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:33.138Z"
-        },
-        {
-          "path": "src/main/services/storage/config-policy.ts",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:33.234Z"
-        },
-        {
-          "path": "src/renderer/src/pages/SettingsPage.tsx",
-          "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
-          "claimedAt": "2026-10-23T01:45:33.330Z"
-        }
-      ],
-      "expiresAt": "2026-10-23T03:45:33.330Z"
-    }
-  },
+  "lastUpdated": "2026-10-23T02:49:55.636Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9631,6 +9580,62 @@
       "file": "src/renderer/src/pages/SettingsPage.tsx",
       "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
       "timestamp": "2026-10-23T01:45:33.330Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.d.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/mcp.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/storage/config-policy.ts",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/SettingsPage.tsx",
+      "task": "#173 外部 MCP 管理面（配置写入口 + 设置页 + 调用列表面）",
+      "timestamp": "2026-10-23T02:49:55.636Z"
     }
   ],
   "coordinationAudit": {
