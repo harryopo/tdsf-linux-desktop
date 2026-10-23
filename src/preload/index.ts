@@ -3,6 +3,7 @@
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
 import type { ChatMessage, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { BlockedCommandRecord } from '@shared/audit-types'
+import type { ChatMessageRecord } from '@shared/chat-types'
 // #79 第二批：这些返回类型以 shared/models 为单源写在实现侧，渲染层不再手写第二份。
 import type {
   BudgetAlert,
@@ -20,7 +21,7 @@ import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanMod
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { AGENT, ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -388,6 +389,15 @@ const electronApi = {
   // 任务 #174：审计链读的是库里那一份（含主进程重算的校验结论），渲染层不再自己算哈希
   historyAudit: (decisionId: string): Promise<DecisionAuditView> =>
     invokeChecked<DecisionAuditView>('historyAudit', HISTORY.AUDIT, decisionId),
+
+  // ===== 对话历史落盘（#177）=====
+  // 写的是"界面看到什么"那一份正本，取的是按会话过滤后的回看；两头的形状都由契约判
+  chatAppend: (message: ChatMessageRecord): Promise<boolean> =>
+    invokeChecked<boolean>('chatAppend', CHAT.APPEND, message),
+  chatHistory: (sshSessionId: string | null, limit?: number): Promise<ChatMessageRecord[]> =>
+    invokeChecked<ChatMessageRecord[]>('chatHistory', CHAT.LIST, sshSessionId, limit),
+  chatClear: (sshSessionId: string | null): Promise<number> =>
+    invokeChecked<number>('chatClear', CHAT.CLEAR, sshSessionId),
 
   // ===== 系统架构感知扁平化 =====
   // 走 profiler 域对象（原来这里把四条通道又内联抄了一遍，而 const profiler 只有被删掉的手写类型在用）

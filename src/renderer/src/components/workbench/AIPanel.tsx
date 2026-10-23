@@ -35,16 +35,17 @@ import { useAgentChat } from './useAgentChat'
 import { useLoopEngineering } from './useLoopEngineering'
 import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
-import { useAgentStore } from '@/stores/agent-store'
+import { historyForSession, useAgentStore } from '@/stores/agent-store'
 import { useTerminalStore } from '@/stores/terminal-store'
 // v2.6 命令前置环境预检（与主进程 ssh_readonly 共用的纯函数）
 import { extractCommandNames, buildMissingCheckScript, parseMissingOutput } from '@shared/command-preflight'
 import { buildHistorySaveIntent } from '@/utils/chat-decision'
+import { confirmDialog } from '@/ui'
 import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
 import { useStickToBottom } from './useStickToBottom'
-import { ArrowDown } from 'lucide-react'
+import { AlertTriangle, ArrowDown } from 'lucide-react'
 import Composer from './Composer'
 import { compressFeedback } from './context-usage'
 import { resolveShellForCommand, runAuthoredInShell } from '@/terminal/shell-launcher'
@@ -69,6 +70,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     messages: liveMessages,
     isStreaming,
     lastError,
+    historyError,
+    retryHistory,
     currentCorrelationId,
     providers,
     selectedProviderId,
@@ -92,14 +95,38 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   /** P1 修复：PAOR 进展/结果写入消息列表（而非 toast 一闪而过） */
   const addAgentMessage = useAgentStore((s) => s.addMessage)
 
+  /** 清空当前会话（面板头那颗按钮）后要删掉的那一档库记录 */
+  const clearStoredHistory = useAgentStore((s) => s.clearStoredHistory)
+
   const hasLiveConversation = liveMessages.length > 0
   /** 循环工程已启动（loop.phase !== 'idle'）则视为有"实时"内容 */
   const hasLoopRunning = loop.phase !== 'idle'
 
-  /** 清空当前会话（面板头那个按钮）：理由同上，内联箭头会让头部每段流都重渲染 */
-  const handleClear = useCallback(() => {
+  /**
+   * 清空当前会话（面板头那个按钮）。
+   *
+   * 落盘之后（#177）只清内存就成了半态：重启一回看，被"清掉"的问答原样请回来。
+   * 所以这里先问一句再动手——删库这一下不可撤销，文案必须说清删的是**这一台**的记录，
+   * 别的服务器那档不受影响。库里没删掉时不装成功： toast 报原文。
+   * 回调要稳（内联箭头会让头部每段流都重渲染）。
+   */
+  const handleClear = useCallback(async () => {
+    const ok = await confirmDialog({
+      title: '清空对话',
+      description: activeSessionId
+        ? '这台服务器的问答记录会一起从本地库删掉，删了不能恢复。其他服务器的记录不受影响。'
+        : '这段没连服务器时的问答记录会一起从本地库删掉，删了不能恢复。',
+      okText: '清空',
+      danger: true,
+    })
+    if (!ok) return
     clear()
-  }, [clear])
+    try {
+      await clearStoredHistory(activeSessionId ?? null)
+    } catch (err) {
+      void toast.error(`屏上清空了，但本地库里的记录没删掉：${(err as Error).message}`)
+    }
+  }, [activeSessionId, clear, clearStoredHistory])
 
   /**
    * 监听 PAOR 迭代进度，写入消息列表（P1 修复）
@@ -227,7 +254,12 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     const api = window.electronAPI
     if (!api?.historySave) return
     try {
-      const msgs = useAgentStore.getState().messages
+      // 决策的上下文只能取自**当前这一档会话**（#177）：整份列表里翻"最后一条用户/助手"，
+      // 切过服务器就会把 A 机那句提问记到 B 机这条决策上——落库的决策卡于是说错了事。
+      const msgs = historyForSession(
+        useAgentStore.getState().messages,
+        activeSessionId ?? undefined
+      )
       const lastUser = [...msgs].reverse().find((m) => m.role === 'user') ?? null
       const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.isError) ?? null
       // 会话→服务器是 server-store 里现成的映射（#175-①）：不传的话决策记录永远
@@ -402,6 +434,23 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         hasLiveConversation={hasLiveConversation}
         onClear={handleClear}
       />
+
+      {/*
+        回看失败的那一行（#177）。
+        没这一行的时候，底下照常画那张引导卡——"库读不出来"就长成"你没聊过"，
+        而重启后最需要历史的人正好看见的是这句话。原因照原样报，重试真的再读一次。
+      */}
+      {historyError && (
+        <div className="ai-history-error" role="status">
+          <AlertTriangle className="size-3.5" aria-hidden />
+          <span className="ai-history-error__text">
+            历史对话没读出来：<span className="ai-history-error__reason">{historyError}</span>
+          </span>
+          <button type="button" className="ai-history-error__retry" onClick={retryHistory}>
+            重试
+          </button>
+        </div>
+      )}
 
       {/* ===== 消息滚动区（外面这层只给"回到底部"当定位参照，不参与滚动） ===== */}
       <div className="ai-stream-area">

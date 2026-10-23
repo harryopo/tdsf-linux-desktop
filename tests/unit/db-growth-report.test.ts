@@ -28,6 +28,11 @@ const SEEDS: Array<{ table: string; sql: string; args: unknown[] }> = [
     sql: 'INSERT INTO decision_audit (decisionId, timestamp, actor, action, result, prevHash, hash) VALUES (?,?,?,?,?,?,?)',
     args: ['dc_seed', 1_700_000_050_000, 'Risk Engine', '风险评估 · LOW · 10 分', 'completed', 'f'.repeat(64), 'e'.repeat(64)],
   },
+  {
+    table: 'chat_messages',
+    sql: 'INSERT INTO chat_messages (id, role, content, createdAt) VALUES (?,?,?,?)',
+    args: ['msg_seed', 'user', '磁盘满了怎么办', 1_700_000_060_000],
+  },
 ]
 
 /** 时间列逐表不同，测试自己也要有一份，才能证明报上来的不是同一个数 */
@@ -38,6 +43,7 @@ const TIME_COLUMN: Record<string, string> = {
   budget_alerts: 'timestamp',
   memory_audit: 'ts',
   decision_audit: 'timestamp',
+  chat_messages: 'createdAt',
 }
 
 function seed(db: DatabaseManager): void {
@@ -69,6 +75,7 @@ describe('体积台账：真实读数', () => {
       'budget_alerts',
       'memory_audit',
       'decision_audit',
+      'chat_messages',
     ])
   })
 
@@ -77,12 +84,22 @@ describe('体积台账：真实读数', () => {
     expect(rowOf(growth, 'audit_logs').rows).toBe(2)
     expect(rowOf(growth, 'audit_logs').oldestAt).toBe(1_700_000_000_000)
     expect(rowOf(growth, 'audit_logs').newestAt).toBe(1_700_000_090_000)
-    for (const single of ['kb_view_history', 'tool_call_log', 'budget_alerts', 'memory_audit', 'decision_audit']) {
-      const row = rowOf(growth, single)
-      expect(row.rows, `${single} 应当只有 1 条`).toBe(1)
-      expect(row.oldestAt, `${single} 最早时间（列 ${TIME_COLUMN[single]}）`).toBeTypeOf('number')
+
+    // 逐表清单从 SEEDS 推，不在这个测试里再抄一份表名：
+    // 上一版抄了，加一张表就漏检一张（本仓为这类分叉记过账）。
+    const seeded = new Map<string, number>()
+    for (const s of SEEDS) seeded.set(s.table, (seeded.get(s.table) ?? 0) + 1)
+    for (const [table, count] of seeded) {
+      if (table === 'audit_logs') continue // 上面逐值判过了
+      const row = rowOf(growth, table)
+      expect(row.rows, `${table} 应当是 ${count} 条`).toBe(count)
+      expect(row.oldestAt, `${table} 最早时间（列 ${TIME_COLUMN[table]}）`).toBeTypeOf('number')
       expect(row.error).toBeNull()
     }
+    // 每张表的最早时间各不相同——这正是"逐表真读过自己的时间列"的反证：
+    // 若台账把同一个数抄给所有表，这里立刻塌成 1。
+    const oldest = new Set(growth.tables.map((t) => t.oldestAt))
+    expect(oldest.size, '各表最早时间出现重复：台账可能在抄同一个数').toBe(growth.tables.length)
   })
 
   it('空表报 0 条且不带 error（"没数据"是事实，不是故障）', () => {
@@ -93,7 +110,7 @@ describe('体积台账：真实读数', () => {
     expect(row.error).toBeNull()
   })
 
-  it('只有操作审计带保留天数，其余四张报 null = 永久累积', () => {
+  it('只有操作审计带保留天数，其余各张报 null = 永久累积', () => {
     const growth = describeGrowth(db, { auditRetentionDays: 90 })
     expect(rowOf(growth, 'audit_logs').retentionDays).toBe(90)
     for (const t of growth.tables.filter((x) => x.table !== 'audit_logs')) {
@@ -125,7 +142,7 @@ describe('体积台账：真实读数', () => {
 })
 
 describe('体积台账：读失败不许演成 0 条', () => {
-  it('表被拆掉时该行 rows=null 且 error 非空，其余四行照常出数', () => {
+  it('表被拆掉时该行 rows=null 且 error 非空，其余各行照常出数', () => {
     DatabaseManager.resetInstance()
     const db = DatabaseManager.getInstance(':memory:')
     seed(db)

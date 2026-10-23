@@ -210,3 +210,70 @@ describe('applyMigrations — 失败可见且不越版本', () => {
     expect(TARGET_SCHEMA_VERSION).toBe(Math.max(...versions))
   })
 })
+
+/**
+ * v4：对话历史落盘（#178）
+ *
+ * 为什么这张表要单独判：重启后对话全丢，而界面上一台服务器的历史会混进另一台的
+ * 回答里——这两件事都只能靠"库里真有一行、且按会话取"来兑现。
+ * 迁移跑完只证明表在，证明不了取数不串会话，那半条在 tests/unit/chat-repo.test.ts。
+ */
+describe('applyMigrations — v4 建 chat_messages', () => {
+  /** 拿正本的列清单，别把列名再抄一份进判据（抄的迟早和 CREATE TABLE 分叉） */
+  function columnsOf(handle: Db, table: string): string[] {
+    return (handle.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(
+      (c) => c.name
+    )
+  }
+
+  it('一路迁到最新后，chat_messages 带着取数要用的那几列', () => {
+    createV0Database(db)
+    expect(applyMigrations(db).error).toBeNull()
+
+    const cols = columnsOf(db, 'chat_messages')
+    // id：渲染层的消息 id（同一条收尾那一笔要能覆盖）；
+    // sshSessionId：按会话取的谓词，缺了它就还是"全量渲染"；
+    // createdAt：limit 取最近 N 条靠它排。
+    expect(cols).toEqual(
+      expect.arrayContaining([
+        'id',
+        'correlationId',
+        'sshSessionId',
+        'role',
+        'content',
+        'reasoning',
+        'toolEvents',
+        'usage',
+        'cancelled',
+        'isError',
+        'createdAt',
+      ])
+    )
+  })
+
+  it('重复跑迁移不重复建表，也不把已有行弄丢（IF NOT EXISTS 那一档要真在）', () => {
+    createV0Database(db)
+    applyMigrations(db)
+    db.prepare(
+      `INSERT INTO chat_messages (id, sshSessionId, role, content, createdAt) VALUES (?,?,?,?,?)`
+    ).run('m1', 'sess-a', 'user', '磁盘满了怎么办', 1)
+
+    const again = applyMigrations(db)
+    expect(again.error).toBeNull()
+    expect(
+      (db.prepare('SELECT COUNT(*) AS n FROM chat_messages').get() as { n: number }).n
+    ).toBe(1)
+  })
+
+  it('role 与 content 不许空着进来（NOT NULL / CHECK 是这张表的底线）', () => {
+    createV0Database(db)
+    applyMigrations(db)
+    const insert = db.prepare(
+      `INSERT INTO chat_messages (id, sshSessionId, role, content, createdAt) VALUES (?,?,?,?,?)`
+    )
+    expect(() => insert.run('m1', 'sess-a', '', 'x', 1)).toThrow()
+    expect(() => insert.run('m2', 'sess-a', 'tool', 'x', 1)).toThrow()
+    expect(() => insert.run('m3', 'sess-a', 'assistant', null as unknown as string, 1)).toThrow()
+    expect(() => insert.run('m4', 'sess-a', 'assistant', '好的', 1)).not.toThrow()
+  })
+})

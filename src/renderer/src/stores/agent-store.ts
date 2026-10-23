@@ -34,8 +34,10 @@ import type {
   AgentToolEventPayload,
   LlmErrorCode,
 } from '@shared/agent-types'
-import { emptyTokenStats } from '@shared/agent-types'
+import { emptyTokenStats, LLM_ERROR_CODES } from '@shared/agent-types'
 import type { AgentWorkflowState } from '@shared/models'
+import type { ChatMessageRecord } from '@shared/chat-types'
+import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { estimateTokens, resolveCompactionThresholds } from '@shared/context-budget'
 import { acceptsStream, lastIndexWhere, ownsStream, replaceAt } from '@/lib/messageSync'
 import { buildCompactionNote, formatTokens } from '@/components/workbench/context-usage'
@@ -282,6 +284,25 @@ interface AgentState {
   /** 清空所有消息 */
   clearMessages: () => void
   /**
+   * 删掉某一档落库的对话记录（#178），返回删掉的条数。
+   *
+   * 为什么单独一条：面板头那颗「清空对话」原本只清内存，落盘之后重启一回看，
+   * 被"清掉"的问答会原样请回来——按钮说了不算。失败不吞：调用方要把"屏上清了但库里没删掉"
+   * 说给用户听，否则下一次开机出现的记录看起来像凭空长出来的。
+   */
+  clearStoredHistory: (sshSessionId: string | null) => Promise<number>
+  /**
+   * 回看失败的原因（#177）：null 表示没有失败。
+   * 读不到库时必须能说"读不到"，不能长成"你没有历史对话"——
+   * 那是把失败演成空态，与 A4 的数据库降级横幅同一口径。
+   */
+  historyError: string | null
+  /**
+   * 拉某个会话的历史对话进列表（#177）。传 null 取"没连服务器时"那一档。
+   * 已存在的 id 跳过：切换会话会重复拉，而内存里那些可能还没落库完。
+   */
+  loadHistory: (sshSessionId: string | null) => Promise<void>
+  /**
    * 上下文压缩：保留 system 消息 + 最近一段（按主进程同一把尺的 tokens 预算），
    * 中间历史合并为一条本地提要。
    *
@@ -326,6 +347,61 @@ interface AgentState {
  * 带工具的对话最多 12 步，同一份上下文被数了 12 遍——拿它当"窗口还剩多少"会虚高一个量级。
  * 老消息（回填前产生的）没有 contextTokens，才退回 inputTokens。
  */
+/**
+ * 一条消息到终态就落库（任务 #177）。
+ *
+ * 只在三处调：用户消息发出去那一刻、助手回答 done 那一刻、助手回答 error 那一刻。
+ * 不在流式期写——写半截只是把"重启后看到一条卡住的回答"从偶发变成必然，
+ * 而 done/error 那两笔已经把同一条 id 覆盖成终态，库里始终只有一行。
+ *
+ * 写失败只留一行日志：这一条**当场还看得见**（正本就是这份内存），
+ * 丢的是"下次启动还在"，不值得打断用户正在打的字。真要用功追责，
+ * 看的是控制台那行与主进程 IPC.CHAT 的 warn。
+ */
+function persistMessage(m: AgentMessage): void {
+  if (!isElectronAPIAvailable()) return
+  const api = window.electronAPI
+  if (!api?.chatAppend) return
+  if (m.role !== 'user' && m.role !== 'assistant') return
+  const record: ChatMessageRecord = {
+    id: m.id,
+    correlationId: m.correlationId,
+    // null 是"没连服务器时那一档"，与主进程 chat_messages.sshSessionId 同一口径
+    sshSessionId: m.sshSessionId ?? null,
+    role: m.role,
+    content: m.content,
+    reasoning: m.reasoning,
+    toolEvents: m.toolEvents,
+    providerId: m.providerId,
+    model: m.model,
+    usage: m.usage,
+    cancelled: m.cancelled,
+    isError: m.isError,
+    errorCode: m.errorCode,
+    // 这四样各占界面一处：报错行的正文、徽章分子、压缩那行说明、可信度卡的熵图。
+    // 少落一样不是"少看一样东西"那么轻——徽章会退回各步之和（虚高）、报错行会变成空白卡。
+    errorMessage: m.errorMessage,
+    contextTokens: m.contextTokens,
+    contextNote: m.contextNote,
+    cotEntropyTrajectory: m.cotEntropyTrajectory,
+    createdAt: m.timestamp,
+  }
+  api.chatAppend(record).catch((err: unknown) => {
+    console.warn('[agent-store] 这条消息没能存进本地库（重启后会看不到）：', (err as Error).message)
+  })
+}
+
+/**
+ * 库里的错误码回到联合类型。
+ * 按 shared 那份单源名单认，不认就当没有——错误行于是退回默认"下一步"按钮，
+ * 而不是拿着一个来历不明的字符串去查动作表。
+ */
+function asErrorCode(v: string | null | undefined): LlmErrorCode | undefined {
+  return v && (LLM_ERROR_CODES as readonly string[]).includes(v)
+    ? (v as LlmErrorCode)
+    : undefined
+}
+
 /**
  * 只取发给模型的对话历史，且只取当前 SSH 会话那部分。
  *
@@ -381,14 +457,17 @@ export const useAgentStore = create<AgentState>()((set) => ({
   costStats: DEFAULT_COST_STATS,
   sessionCostBaseline: null,
   lastError: null,
+  historyError: null,
 
   // ===== Actions =====
 
   // 添加消息
   addMessage: (message) =>
-    set((state) => ({
-      messages: [...state.messages, message],
-    })),
+    set((state) => {
+      // 用户那句话一问一答里是终态（不会再去改它），发出去就落库
+      if (message.role === 'user') persistMessage(message)
+      return { messages: [...state.messages, message] }
+    }),
 
   /**
    * 追加流式 token 到最后一条 assistant 消息
@@ -452,7 +531,9 @@ export const useAgentStore = create<AgentState>()((set) => ({
         rawUsage.inputTokens === 0 &&
         rawUsage.outputTokens === 0 &&
         rawUsage.totalTokens === 0
-      const messages = replaceAt(state.messages, idx, {
+      // 到终态才落库（取消的那一轮也留：半截回答 + "已停止"就是它真实的样子）。
+      // usage 是不是"未知"在上面已经判过，落的是判完的那一份，不再另算一次。
+      const finalized: AgentMessage = {
         ...msg,
         isStreaming: false,
         ...(cancelled ? { cancelled: true } : {}),
@@ -462,8 +543,10 @@ export const useAgentStore = create<AgentState>()((set) => ({
         contextTokens: payload.result.contextTokens,
         contextNote: buildCompactionNote(payload.result) ?? undefined,
         cotEntropyTrajectory: cotTrajectory,
-      })
+      }
+      const messages = replaceAt(state.messages, idx, finalized)
       const closesCurrent = state.currentCorrelationId === payload.correlationId
+      if (messages) persistMessage(finalized)
       return {
         ...(messages ? { messages } : {}),
         ...(closesCurrent ? { isStreaming: false, currentCorrelationId: null } : {}),
@@ -488,7 +571,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
         : {}
       if (idx < 0) return { ...base, lastError: payload.message }
       const msg = state.messages[idx]
-      const messages = replaceAt(state.messages, idx, {
+      const failed: AgentMessage = {
         ...msg,
         isStreaming: false,
         isError: true,
@@ -496,7 +579,10 @@ export const useAgentStore = create<AgentState>()((set) => ({
         errorCode: payload.code,
         // 错误原文单独放，不再拼进 content（见 AgentMessage.errorMessage 的三条后果）
         errorMessage: payload.message,
-      })
+      }
+      const messages = replaceAt(state.messages, idx, failed)
+      // 失败的那一轮同样要留：重启后看不到"刚才报了什么错"，等于把故障现场擦了
+      if (messages) persistMessage(failed)
       return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
     }),
 
@@ -597,7 +683,64 @@ export const useAgentStore = create<AgentState>()((set) => ({
       isStreaming: false,
       currentCorrelationId: null,
       lastError: null,
+      historyError: null,
     }),
+
+  /**
+   * 拉某个会话的历史对话进列表（#177）。
+   *
+   * 只在"这一档还没开始流式"的时候动列表：正在流的那轮已经把自己那条写进去了，
+   * 这时再插一份历史会把进行中的回答挤到末尾之后（appendToken 反向找最后一条
+   * assistant，插错位置就变成往旧回答尾巴上续字）。
+   */
+  loadHistory: async (sshSessionId) => {
+    if (!isElectronAPIAvailable()) return
+    const api = window.electronAPI
+    if (!api?.chatHistory) return
+    try {
+      const records = await api.chatHistory(sshSessionId)
+      set((state) => {
+        if (state.isStreaming) return state
+        const have = new Set(state.messages.map((m) => m.id))
+        const fresh = records
+          .filter((r) => !have.has(r.id))
+          .map<AgentMessage>((r) => ({
+            id: r.id,
+            role: r.role,
+            content: r.content,
+            timestamp: r.createdAt,
+            correlationId: r.correlationId ?? undefined,
+            sshSessionId: r.sshSessionId ?? undefined,
+            reasoning: r.reasoning ?? undefined,
+            toolEvents: (r.toolEvents as AgentMessage['toolEvents']) ?? undefined,
+            providerId: r.providerId ?? undefined,
+            model: r.model ?? undefined,
+            usage: r.usage as AgentMessage['usage'],
+            cancelled: r.cancelled || undefined,
+            isError: r.isError || undefined,
+            errorCode: asErrorCode(r.errorCode),
+            errorMessage: r.errorMessage ?? undefined,
+            contextTokens: r.contextTokens ?? undefined,
+            contextNote: r.contextNote ?? undefined,
+            cotEntropyTrajectory: r.cotEntropyTrajectory ?? undefined,
+            isStreaming: false,
+          }))
+        if (fresh.length === 0) return { historyError: null }
+        return { messages: [...fresh, ...state.messages], historyError: null }
+      })
+    } catch (err) {
+      // 读不到就说读不到：界面据此显示一行原因，而不是显示"没有历史对话"
+      set({ historyError: (err as Error).message })
+    }
+  },
+
+  /** 删掉某一档落库的对话记录（#178），返回删掉的条数；失败原样抛给调用方 */
+  clearStoredHistory: async (sshSessionId) => {
+    if (!isElectronAPIAvailable()) return 0
+    const api = window.electronAPI
+    if (!api?.chatClear) return 0
+    return api.chatClear(sshSessionId)
+  },
 
   // 上下文压缩：保留 system 消息 + 最近一段（预算按 shared 那把尺 + 这台模型的窗口算），
   // 中间历史合并为一条本地提要。返回真实压缩结果供 UI 准确反馈。

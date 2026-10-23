@@ -4,6 +4,7 @@
  */
 
 import type { LlmErrorCode } from './agent-types'
+import type { ChatMessageRecord } from './chat-types'
 
 // ============================================================================
 // SSH 相关类型
@@ -923,6 +924,10 @@ export interface IpcChannelMap {
   'history:save': { args: [HistorySaveIntent]; return: boolean }
   'history:audit': { args: [string]; return: DecisionAuditView }
   'history:stats': { args: []; return: HistoryStats }
+  // 对话历史落盘（#177 + #178）：写按内容判，读按会话取，删也只删那一档
+  'chat:append': { args: [ChatMessageRecord]; return: boolean }
+  'chat:list': { args: [string | null, number?]; return: ChatMessageRecord[] }
+  'chat:clear': { args: [string | null]; return: number }
 
   // 模型统计（v2.3.2 新增）
   'model:toolCalls': { args: []; return: ToolCallStat[] }

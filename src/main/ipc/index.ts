@@ -27,6 +27,7 @@ import { registerStorageIpcHandlers } from './storage'
 import { registerLlmHandlers } from './llm'
 import { registerKnowledgeHandlers } from './knowledge'
 import { registerHistoryHandlers } from './history'
+import { registerChatHistoryHandlers } from './chat-history'
 import { registerAgentHandlers } from './agent'
 import { registerAgentRuntimeHandlers } from './agent-runtime'
 import { registerProfilerIpcHandlers } from './profiler'
@@ -181,6 +182,8 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerLlmHandlers(mainWindow)
   registerKnowledgeHandlers(mainWindow)
   registerHistoryHandlers(mainWindow)
+  // #177 / #178：对话历史落盘（chat:append / chat:list / chat:clear）
+  registerChatHistoryHandlers()
   registerAgentHandlers(mainWindow)
   // v0.9 新增：Supervisor + Provider + Token IPC handlers
   registerAgentRuntimeHandlers(mainWindow)

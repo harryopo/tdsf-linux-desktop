@@ -40,6 +40,9 @@ const GROWTH_TABLES: readonly GrowthTableSpec[] = [
   { table: 'budget_alerts', label: '预算告警', timeColumn: 'timestamp', hasRetention: false },
   { table: 'memory_audit', label: '记忆沉淀审计', timeColumn: 'ts', hasRetention: false },
   { table: 'decision_audit', label: '决策审计链', timeColumn: 'timestamp', hasRetention: false },
+  // 对话历史（#177）同样只增不减：一条消息一行，同 id 覆盖，但从不清理。
+  // 它是这几张里最容易长到显眼的一张（每天聊都比审计日志条数多），不登记就等于账上少一笔。
+  { table: 'chat_messages', label: '对话历史', timeColumn: 'createdAt', hasRetention: false },
 ]
 
 /** describeGrowth 的可注入项：测试传死值，生产走 ConfigStore 实际配置 */

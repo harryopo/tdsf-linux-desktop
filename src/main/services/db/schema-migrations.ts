@@ -104,6 +104,43 @@ export const MIGRATIONS: readonly Migration[] = [
       `)
     },
   },
+  {
+    version: 4,
+    description: '建 chat_messages（对话历史落盘：重启不再全丢，切服务器不再串话）',
+    up: (db) => {
+      // 这两件事此前都做不到：库里没有任何一张对话表（`agent-store` 是纯内存，
+      // 重启即空），而显示侧读的是全量 messages，于是上一台服务器的回答会混进这一台。
+      // 表设计跟着"回看要能看到什么"走：思考链、工具卡、用量与 estimated 口径、
+      // 取消与失败两档都得有地方放，否则回看到的比当场看到的少。
+      // 主键用渲染层的消息 id（不是 AUTOINCREMENT）：同一条消息收尾那一笔要能覆盖，
+      // 不然流式期的半截会永远留在列表里。
+      // sshSessionId 可空是刻意的：没连服务器时的对话也是一等公民，
+      // 但取数按 `IS` 比较，NULL 只和 NULL 相等，不会被别的会话捞走。
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS chat_messages (
+          id TEXT PRIMARY KEY,
+          correlationId TEXT,
+          sshSessionId TEXT,
+          role TEXT NOT NULL CHECK (role IN ('user','assistant')),
+          content TEXT NOT NULL,
+          reasoning TEXT,
+          toolEvents TEXT,
+          providerId TEXT,
+          model TEXT,
+          usage TEXT,
+          cancelled INTEGER NOT NULL DEFAULT 0,
+          isError INTEGER NOT NULL DEFAULT 0,
+          errorCode TEXT,
+          errorMessage TEXT,
+          contextTokens INTEGER,
+          contextNote TEXT,
+          cotEntropyTrajectory TEXT,
+          createdAt INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(sshSessionId, createdAt);
+      `)
+    },
+  },
 ]
 
 /** 迁移清单的最高版本；建库后 user_version 应当等于它 */

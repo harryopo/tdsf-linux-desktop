@@ -20,6 +20,7 @@ import { z } from 'zod'
 import {
   AGENT,
   BOOT,
+  CHAT,
   FS,
   HISTORY,
   LOCAL_TTY,
@@ -80,6 +81,46 @@ const chatMessage = z.object({
 })
 
 const thinkingStrength = z.enum(['fast', 'standard', 'deep', 'auto'])
+
+/** 一条消息正文/思考链的上限（对话文本再长也不该是 MB 级；超了就是有人在拿它当仓库写） */
+const CHAT_TEXT_MAX = 200_000
+/** 一条消息挂的工具卡上限（一次请求最多 12 步，每步几条工具调用） */
+const CHAT_TOOL_EVENTS_MAX = 200
+
+/**
+ * 落一条对话消息（#177）。
+ *
+ * 渲染层按红线是沙箱且算不可信输入面，所以这条写入口按内容判：
+ * 角色只有 user/assistant、文本与工具卡有条数上限、时间戳必须是正的有限整数。
+ * 主进程仓储还有一道 CHECK 约束兜底——两道不是重复，是一道可能被人改松。
+ *
+ * 可空字段一律 `.nullish()` 不是 `.optional()`：@shared/chat-types 把
+ * `sshSessionId` 等声明成 `string | null`，而渲染层发的正是 null（"没连服务器"那一档）。
+ * 只接 undefined 的话，这一份载荷在 preload 当场抛错、被 catch 咽成一列 console.warn，
+ * 表现是本机对话一条都存不下。对账判据：tests/unit/chat-append-contract-shape.test.ts。
+ */
+const chatMessageRecord = z.object({
+  id: z.string().min(1).max(64),
+  correlationId: z.string().max(64).nullish(),
+  sshSessionId: z.string().max(64).nullish(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string().max(CHAT_TEXT_MAX),
+  reasoning: z.string().max(CHAT_TEXT_MAX).nullish(),
+  toolEvents: z.array(z.unknown()).max(CHAT_TOOL_EVENTS_MAX).nullish(),
+  providerId: z.string().max(64).nullish(),
+  model: z.string().max(64).nullish(),
+  usage: z.unknown(),
+  cancelled: opt(z.boolean()),
+  isError: opt(z.boolean()),
+  errorCode: z.string().max(64).nullish(),
+  errorMessage: z.string().max(CHAT_TEXT_MAX).nullish(),
+  contextTokens: z.number().int().min(0).nullish(),
+  contextNote: z.string().max(2000).nullish(),
+  // 熵轨迹每步一个数；条数给到 256 是刻意宽（最多 12 步 * 多条也远不到），
+  // 收紧成"看着合理"的数会把合法长会话的数据整条拒了——那不如不落
+  cotEntropyTrajectory: z.array(z.number().finite()).max(256).nullish(),
+  createdAt: z.number().int().positive(),
+})
 
 /** Provider 配置：形状由 shared 里的接口负责，这里只挡明显用错类型的调用 */
 const providerConfig = z
@@ -585,6 +626,37 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     resultTs: 'DecisionAuditView',
     result: z.unknown(),
   },
+  // ===== 对话历史落盘（#177）：写入口按内容判，回看按会话取 =====
+  {
+    kind: 'invoke',
+    api: 'chatAppend',
+    channel: CHAT.APPEND,
+    doc: '落一条对话消息（同 id 覆盖，收尾那一笔补全半截回答）；渲染层是不可信写入方，入参按形状与上限判',
+    args: [{ name: 'message', ts: 'ChatMessageRecord', schema: chatMessageRecord }],
+    resultTs: 'boolean',
+    result: bool,
+  },
+  {
+    kind: 'invoke',
+    api: 'chatHistory',
+    channel: CHAT.LIST,
+    doc: '按会话回看对话历史（时间正序）；传 null 取"没连服务器时"那一档，不与任何服务器混',
+    args: [
+      { name: 'sshSessionId', ts: 'string | null', schema: str.nullable() },
+      { name: 'limit', ts: 'number | undefined', schema: opt(z.number().int().min(1)) },
+    ],
+    resultTs: 'ChatMessageRecord[]',
+    result: arr(z.unknown()),
+  },
+  {
+    kind: 'invoke',
+    api: 'chatClear',
+    channel: CHAT.CLEAR,
+    doc: '删掉某一档的全部对话记录（面板头「清空对话」按的那条）；传 null 只删本机那档，主进程再判一次入参',
+    args: [{ name: 'sshSessionId', ts: 'string | null', schema: str.nullable() }],
+    resultTs: 'number',
+    result: z.number().int().min(0),
+  },
   // ===== 契约扩面第二批（2026-10-21）：SFTP 读取/传输 + 密钥对 + 图片上传 =====
   {
     kind: 'invoke',
@@ -748,6 +820,8 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
 /** 生成文件要 import 的类型来自哪儿 */
 export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   ChatMessage: '@shared/models',
+  // #177 对话历史：形状定义在 chat-types，仓储/契约/渲染层三方共用同一份
+  ChatMessageRecord: '@shared/chat-types',
   ExternalMcpServer: '@shared/models',
   ExternalMcpServerDraft: '@shared/models',
   PreviewTarget: '@shared/models',

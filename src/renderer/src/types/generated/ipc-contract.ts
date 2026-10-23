@@ -3,6 +3,7 @@
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, PersistedProviderConfig, ProviderConfig, ThinkingStrength } from '@shared/agent-types'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { BootLoadingStage } from '@shared/boot-types'
+import type { ChatMessageRecord } from '@shared/chat-types'
 import type { ChatMessage, CommandResult, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 import type { SshConfigScanResult } from '@shared/ssh-config-types'
@@ -160,6 +161,18 @@ export interface ContractedInvokeApi {
   /** 决策审计链：库里存的行 + 主进程重算的校验结论（渲染层不参与算哈希）
    * 通道 `history:audit` */
   historyAudit(decisionId: string): Promise<DecisionAuditView>
+
+  /** 落一条对话消息（同 id 覆盖，收尾那一笔补全半截回答）；渲染层是不可信写入方，入参按形状与上限判
+   * 通道 `chat:append` */
+  chatAppend(message: ChatMessageRecord): Promise<boolean>
+
+  /** 按会话回看对话历史（时间正序）；传 null 取"没连服务器时"那一档，不与任何服务器混
+   * 通道 `chat:list` */
+  chatHistory(sshSessionId: string | null, limit?: number): Promise<ChatMessageRecord[]>
+
+  /** 删掉某一档的全部对话记录（面板头「清空对话」按的那条）；传 null 只删本机那档，主进程再判一次入参
+   * 通道 `chat:clear` */
+  chatClear(sshSessionId: string | null): Promise<number>
 
   /** 列出远程目录
    * 通道 `sftp:list` */

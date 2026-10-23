@@ -491,6 +491,7 @@
   .ai-chev { transition: none; }
   .ai-token-pop { animation: none; }
   .ai-scroll-latest { animation: none; }
+  .ai-history-error { animation: none; }
   /* .ai-shimmer-text 与工具卡入场的减弱动效在 MarkdownMessage.css 里就近管
      （那条类以前写的是 .shimmer-text，名字对不上等于这条没执行） */
   .mini-bar-fill { transition: none; }
@@ -503,4 +504,63 @@
 
 .wb-exec-btn.is-danger:hover {
   background: var(--trae-status-error-surface-l1);
+}
+
+/* ===== 回看失败那一行（#177） =====
+   失败原因必须看得见：底下那张引导卡会把"读不出来"演成"你没聊过"。
+   配色走告警语义令牌，不写死色值；不用左侧色条（界面上选中/提示态一律不加边条）。 */
+.ai-history-error {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  flex-shrink: 0;
+  margin: 0 var(--ui-space-3) var(--ui-space-2);
+  padding: 5px var(--ui-space-2);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  background: var(--trae-status-warning-surface-l1);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  animation: ai-fade-in var(--ui-dur-fast) var(--ui-ease-out) both;
+}
+
+.ai-history-error > svg {
+  flex-shrink: 0;
+  color: var(--status-warning-text);
+}
+
+.ai-history-error__text {
+  min-width: 0;
+  flex: 1;
+}
+
+/* 原因原文可能很长（"读取对话历史失败: SQLITE_BUSY..."）：允许断开，不许挤掉重试按钮 */
+.ai-history-error__reason {
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.ai-history-error__retry {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  cursor: pointer;
+  transition:
+    color var(--ui-dur-fast) var(--ui-ease-out),
+    border-color var(--ui-dur-fast) var(--ui-ease-out);
+}
+
+.ai-history-error__retry:hover {
+  color: var(--accent-text);
+  border-color: var(--trae-border-brand);
+}
+
+.ai-history-error__retry:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
 }

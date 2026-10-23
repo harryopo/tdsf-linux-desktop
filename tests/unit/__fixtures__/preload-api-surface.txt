@@ -277,3 +277,6 @@ tutorialSeedVersion
 tutorialStats
 tutorialUpdateProgress
 windowOpenSecondary
+chatAppend
+chatClear
+chatHistory

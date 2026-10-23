@@ -10,7 +10,7 @@
  * Wire-1：流式 send/cancel（事件订阅已提升到 stores/agent-stream-subscription 全局绑定）
  * Wire-2：挂载时加载 providerList + tokenStats；暴露 Provider 选择给 AIPanel
  */
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   historyForSession,
@@ -41,6 +41,13 @@ export interface UseAgentChatResult {
   isStreaming: boolean
   /** 最近错误 */
   lastError: string | null
+  /**
+   * 回看失败的原因（#177）：null = 没有失败。
+   * 界面拿它显示一行"历史对话没读出来 + 重试"，别让读失败长成"你没聊过"。
+   */
+  historyError: string | null
+  /** 再读一次当前那一档的历史（失败行上的重试按钮） */
+  retryHistory: () => void
   /** 当前 correlationId */
   currentCorrelationId: string | null
   /** Provider 列表（不含 apiKey） */
@@ -95,6 +102,7 @@ export function useAgentChat(): UseAgentChatResult {
   const messages = useAgentStore((s) => s.messages)
   const isStreaming = useAgentStore((s) => s.isStreaming)
   const lastError = useAgentStore((s) => s.lastError)
+  const historyError = useAgentStore((s) => s.historyError)
   const currentCorrelationId = useAgentStore((s) => s.currentCorrelationId)
   const thinkingStrength = useAgentStore((s) => s.thinkingStrength)
   const selectedProviderId = useAgentStore((s) => s.selectedProviderId)
@@ -117,6 +125,34 @@ export function useAgentChat(): UseAgentChatResult {
   // v0.9.3 §11 改进点 26 P2-F：设置成本统计 + 重置会话基线
   const setCostStats = useAgentStore((s) => s.setCostStats)
   const resetSessionCostBaseline = useAgentStore((s) => s.resetSessionCostBaseline)
+  const loadHistory = useAgentStore((s) => s.loadHistory)
+
+  /**
+   * 回看：进面板与切服务器时，把这一档的历史对话拉进列表（#177）。
+   *
+   * 依赖里带 activeSessionId 是刻意的——"这台服务器说过什么"跟着服务器走，
+   * 不跟着面板的开关走（面板收起再展开不该把历史重新灌一遍）。
+   */
+  useEffect(() => {
+    void loadHistory(activeSessionId ?? null)
+  }, [loadHistory, activeSessionId])
+
+  /** 失败行上的"重试"：按当前那一档再读一次（回调要稳，它一路传到面板的按钮上） */
+  const retryHistory = useCallback(() => {
+    void loadHistory(activeSessionId ?? null)
+  }, [loadHistory, activeSessionId])
+
+  /**
+   * 显示侧也按会话过滤（#177）。
+   *
+   * 请求侧从 D2 起就按会话过滤了，显示侧一直读的是全量列表：
+   * 于是切到 B 机，屏上还挂着 A 机的问答，看起来像"AI 记得我的另一台服务器"，
+   * 其实是把两个会话混成一屏。
+   */
+  const visibleMessages = useMemo(
+    () => historyForSession(messages, activeSessionId ?? undefined),
+    [messages, activeSessionId]
+  )
 
   // Wire-2：加载 Provider 列表 + Token 统计（只跑一次）
   useEffect(() => {
@@ -342,10 +378,14 @@ export function useAgentChat(): UseAgentChatResult {
    * 提问会作为新一轮再进对话（用户看得见自己重问了什么），不做静默替换。
    */
   const retryLast = useCallback(async () => {
-    const question = latestUserQuestion(useAgentStore.getState().messages)
+    // 只在当前这一档里找"最近一条用户提问"：切了服务器还重发上一台的问题，
+    // 等于把 A 机的命令块发给 B 机的模型（D2 那条同一族，只是发生在重试按钮上）
+    const question = latestUserQuestion(
+      historyForSession(useAgentStore.getState().messages, activeSessionId ?? undefined)
+    )
     if (!question) return
     await send(question)
-  }, [send])
+  }, [send, activeSessionId])
 
   /**
    * 压缩上下文：留多少由"这台模型的窗口 × 主进程同一份比例"决定（见 agent-store）。
@@ -376,9 +416,12 @@ export function useAgentChat(): UseAgentChatResult {
       : Math.max(0, costStats.totalCost - sessionCostBaseline)
 
   return {
-    messages,
+    // 交出去的是"这一屏该看见的"：按当前 SSH 会话过滤（#177）
+    messages: visibleMessages,
     isStreaming,
     lastError,
+    historyError,
+    retryHistory,
     currentCorrelationId,
     providers,
     selectedProviderId,
