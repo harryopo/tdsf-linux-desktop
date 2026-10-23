@@ -2,49 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-23T05:36:05.296Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-23T03:54:41.772Z",
-      "lastActiveAt": "2026-10-23T05:36:05.296Z",
-      "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
-          "claimedAt": "2026-10-23T03:54:41.772Z"
-        },
-        {
-          "path": "src/shared/ipc-contract.ts",
-          "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
-          "claimedAt": "2026-10-23T03:54:41.875Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
-          "claimedAt": "2026-10-23T03:54:41.981Z"
-        },
-        {
-          "path": "src/preload/index.d.ts",
-          "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
-          "claimedAt": "2026-10-23T03:54:42.075Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
-          "claimedAt": "2026-10-23T03:54:42.174Z"
-        },
-        {
-          "path": "src/shared/models.ts",
-          "task": "#177/#178 对话历史落盘与按会话清空",
-          "claimedAt": "2026-10-23T05:36:05.296Z"
-        }
-      ],
-      "expiresAt": "2026-10-23T07:36:05.296Z"
-    }
-  },
+  "lastUpdated": "2026-10-23T05:36:19.295Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9719,6 +9678,48 @@
       "file": "src/shared/models.ts",
       "task": "#177/#178 对话历史落盘与按会话清空",
       "timestamp": "2026-10-23T05:36:05.296Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
+      "timestamp": "2026-10-23T05:36:19.295Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
+      "timestamp": "2026-10-23T05:36:19.295Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
+      "timestamp": "2026-10-23T05:36:19.295Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.d.ts",
+      "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
+      "timestamp": "2026-10-23T05:36:19.295Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "#177 对话历史落盘：chat:append/chat:list 通道与渲染层回看",
+      "timestamp": "2026-10-23T05:36:19.295Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "#177/#178 对话历史落盘与按会话清空",
+      "timestamp": "2026-10-23T05:36:19.295Z"
     }
   ],
   "coordinationAudit": {
