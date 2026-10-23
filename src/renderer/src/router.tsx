@@ -111,6 +111,9 @@ const AboutSettings = lazy(() =>
 const AlertsSettings = lazy(() =>
   import('./pages/AlertsSettings').then((m) => ({ default: m.AlertsSettings })),
 )
+const MemorySettings = lazy(() =>
+  import('./pages/MemorySettings').then((m) => ({ default: m.MemorySettings })),
+)
 const CalibrationSettings = lazy(() =>
   import('./pages/CalibrationSettings').then((m) => ({ default: m.CalibrationSettings })),
 )
@@ -179,6 +182,8 @@ const Router: React.FC = () => {
               <Route path="alerts" element={<AlertsSettings />} />
               {/* 校准设置：8 个 ProviderType 分类校准 + Temperature Scaling */}
               <Route path="calibration" element={<CalibrationSettings />} />
+              {/* AI 记忆：查看 / 检索 / 删除 agent 自动沉淀的条目 + 沉淀审计 */}
+              <Route path="memory" element={<MemorySettings />} />
               <Route path="model" element={<ModelSettings />} />
               <Route path="about" element={<AboutSettings />} />
             </Route>

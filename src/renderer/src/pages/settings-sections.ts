@@ -12,7 +12,7 @@
  * - desc 必须写页面里真实存在的配置，不许写没实现的能力（DESIGN.md §10）
  */
 import {
-  Settings, KeySquare, Sparkles, Bell, Palette, Info,
+  Settings, KeySquare, Sparkles, Bell, Palette, Info, Brain,
   ShieldAlert, ShieldCheck, Terminal, Activity, Plug, type LucideIcon,
 } from 'lucide-react'
 
@@ -32,6 +32,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { to: '/settings/general', label: '通用', desc: '数据目录、配置导出与定时任务', icon: Settings, domId: 'nav-general' },
   { to: '/settings/appearance', label: '外观', desc: '主题、颜色与字体偏好', icon: Palette, domId: 'nav-appearance' },
   { to: '/settings/model', label: '模型配置', desc: '模型参数、API 接入与用量统计', icon: Sparkles, domId: 'nav-model-config' },
+  { to: '/settings/memory', label: 'AI 记忆', desc: 'AI 记住的偏好与结论：查看、检索、删除', icon: Brain, domId: 'nav-memory' },
   { to: '/settings/calibration', label: '校准设置', desc: '置信度校准与 Temperature Scaling', icon: Activity, domId: 'nav-calibration' },
   { to: '/settings/ssh', label: 'SSH 连接', desc: '远程服务器连接与密钥管理', icon: KeySquare, domId: 'nav-ssh' },
   { to: '/settings/mcp', label: '外部 MCP', desc: '登记自己的 MCP 服务器与查看它提供的工具', icon: Plug, domId: 'nav-mcp' },
