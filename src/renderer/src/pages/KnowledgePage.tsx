@@ -31,6 +31,7 @@ import { cn } from '@/components/trae/utils'
 import { Button, PageHeader, Spinner, confirmDialog } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { useKnowledgeSearch } from '@/hooks/useKnowledgeSearch'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
 import './KnowledgePage.css'
 
@@ -463,14 +464,15 @@ export function KnowledgePage() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [showContributeModal])
 
+  // 搜索走主进程真检索（#184）：以前只过滤已加载的前 100 条，库里更多条目搜不到。
+  // 分类标签仍是本地维度（它是题库侧的分类映射，不是检索条件）。
+  const search = useKnowledgeSearch(searchQuery)
   const filteredItems = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    return knowledgeItems.filter((item) => {
-      const catMatch = activeCategory === 'all' || item.category === activeCategory
-      const searchMatch = q === '' || item.title.toLowerCase().includes(q) || item.summary.toLowerCase().includes(q)
-      return catMatch && searchMatch
-    })
-  }, [searchQuery, activeCategory, knowledgeItems])
+    const source = searchQuery.trim()
+      ? (search.results ?? []).map(mapEntryToItem)
+      : knowledgeItems
+    return source.filter((item) => activeCategory === 'all' || item.category === activeCategory)
+  }, [searchQuery, search.results, activeCategory, knowledgeItems])
 
   /** 热门知识：优先用 kbHot 真实数据，IPC 不可用则回退到 knowledgeItems 派生（按 views 降序 Top5） */
   const hotItems = useMemo<HotItem[]>(() => {
@@ -572,9 +574,17 @@ export function KnowledgePage() {
         <div className="kb-layout">
           {/* 左栏：知识卡片列表 */}
           <div className="kb-list">
-            {loadingItems ? (
+            {loadingItems || (search.searching && filteredItems.length === 0) ? (
               <div className="kb-empty">
-                <Spinner label="加载知识库中…" />
+                <Spinner label={search.searching ? '正在检索知识库…' : '加载知识库中…'} />
+              </div>
+            ) : search.error ? (
+              <div className="kb-empty">
+                <Empty
+                  icon={Inbox}
+                  title="知识库检索没成功"
+                  description={`原因：${search.error}。检查数据库状态后再试一次。`}
+                />
               </div>
             ) : filteredItems.length === 0 ? (
               <Empty

@@ -2,19 +2,47 @@
  * 监控数据状态管理 Store（Zustand）
  *
  * 职责：
- * - 管理每个 SSH 会话的监控数据历史（最近 60 条）
+ * - 管理每个 SSH 会话的监控数据历史（每分钟一个采样，覆盖 24 小时）
  * - 管理每个会话的系统静态信息
  * - 提供数据清理操作
  *
- * 监控数据由主进程 monitor:data 事件推送，渲染进程接收后存入 Store。
- * 每个 sessionId 保留最多 60 条历史数据（约 60 秒，1 秒/条）。
+ * 监控数据由主进程 monitor:data 事件推送（3 秒一条）。以前只留最近 60 条
+ * （约 3 分钟），而页面提供 1H/6H/24H 三档——三档筛的是同一批点，
+ * 切了图形不动，"24H"其实是假的（#183）。
+ *
+ * 现在同一分钟内只保留最后一个采样（画图时按档位再降采样），
+ * 1441 条 ≈ 24 小时，内存可控且三档各有真实数据。
  */
 import { create } from 'zustand'
 import type { MonitorData, SystemInfo } from '@shared/models'
 import { alertKeyBelongsToSession } from '../components/monitor/monitor-model'
 
-/** 每个会话保留的最大历史数据条数 */
-const MAX_HISTORY_COUNT = 60
+/** 每个会话保留的最大历史数据条数（每分钟一条，1441 ≈ 24 小时 + 当前这一分钟） */
+export const MAX_HISTORY_COUNT = 1441
+
+/** 同一分钟内的采样只保留最后一个（时间戳分桶口径） */
+export const SAMPLE_BUCKET_MS = 60_000
+
+/**
+ * 追加一条采样
+ *
+ * 同一分钟里后来的样本顶掉前一个——保留"这一分钟的最后一个真实值"，
+ * 不插值、不平均；跨分钟才新增一条。
+ */
+export function appendMonitorSample(
+  history: readonly MonitorData[],
+  data: MonitorData
+): MonitorData[] {
+  const last = history[history.length - 1]
+  if (
+    last &&
+    data.timestamp >= last.timestamp &&
+    Math.floor(last.timestamp / SAMPLE_BUCKET_MS) === Math.floor(data.timestamp / SAMPLE_BUCKET_MS)
+  ) {
+    return [...history.slice(0, -1), data]
+  }
+  return [...history, data].slice(-MAX_HISTORY_COUNT)
+}
 
 /**
  * 无数据时的稳定空数组。
@@ -27,7 +55,7 @@ const EMPTY_MONITOR_DATA: MonitorData[] = Object.freeze([]) as unknown as Monito
 
 /** 监控 Store 状态接口 */
 interface MonitorState {
-  /** 监控数据历史：sessionId → MonitorData[]（最近60条） */
+  /** 监控数据历史：sessionId → MonitorData[]（每分钟一条，覆盖 24 小时） */
   monitorData: Map<string, MonitorData[]>
   /** 系统静态信息：sessionId → SystemInfo */
   systemInfo: Map<string, SystemInfo>
@@ -40,7 +68,7 @@ interface MonitorState {
   ackedAlerts: Set<string>
 
   // ===== Actions =====
-  /** 添加一条监控数据（自动保留最近60条） */
+  /** 添加一条监控数据（同分钟覆盖，最多 24 小时） */
   addMonitorData: (sessionId: string, data: MonitorData) => void
   /** 设置系统信息 */
   setSystemInfo: (sessionId: string, info: SystemInfo) => void
@@ -62,14 +90,11 @@ export const useMonitorStore = create<MonitorState>()((set, get) => ({
   systemInfo: new Map(),
   ackedAlerts: new Set(),
 
-  // 添加一条监控数据（自动保留最近60条）
+  // 添加一条监控数据（同分钟覆盖，最多 24 小时）
   addMonitorData: (sessionId, data) =>
     set((state) => {
       const newMap = new Map(state.monitorData)
-      const history = newMap.get(sessionId) ?? []
-      // 追加新数据，超出上限则截断
-      const newHistory = [...history, data].slice(-MAX_HISTORY_COUNT)
-      newMap.set(sessionId, newHistory)
+      newMap.set(sessionId, appendMonitorSample(newMap.get(sessionId) ?? [], data))
       return { monitorData: newMap }
     }),
 

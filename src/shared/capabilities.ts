@@ -82,8 +82,8 @@ export const CAPABILITIES: CapabilityRow[] = [
   {
     id: 'monitor-history',
     label: '监控历史与时间窗口',
-    status: 'degraded',
-    note: '采样值来自真实 SSH 执行，但只在内存里保留最近 60 个点（约 1 分钟）；选 6H/24H 并不会拉长历史。',
+    status: 'live',
+    note: '采样值来自真实 SSH 执行；每分钟保留最后一个采样，最多 1441 个点（约 24 小时），1H/6H/24H 各取对应窗口再降采样到最多 60 点。只留在内存：重启后历史清空，图上标的"实际跨度"就是当前真有的那段。',
   },
   {
     id: 'sidecar',

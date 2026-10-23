@@ -37,6 +37,10 @@ import { ApiTestSection } from '@/components/settings/model/ApiTestSection'
 import { TokenStatsSection } from '@/components/settings/model/TokenStatsSection'
 import { ToolCallSection } from '@/components/settings/model/ToolCallSection'
 import { ConversationSection } from '@/components/settings/model/ConversationSection'
+import {
+  filterConversations,
+  paginate,
+} from '@/components/settings/model/conversation-paging'
 import { BudgetSection } from '@/components/settings/model/BudgetSection'
 import { ModelActionBar } from '@/components/settings/model/ModelActionBar'
 import { usePersistentState } from '@/hooks/usePersistentState'
@@ -113,6 +117,7 @@ export function ModelSettings() {
 
   // Section 6: 对话记录
   const [statusFilter, setStatusFilter] = useState<'全部状态' | '成功' | '已拦截' | '失败'>('全部状态')
+  const [conversationQuery, setConversationQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   // 对话记录行：默认空数组，真实 tokenRecords 加载后填充
   // v2.3.3 修复：删除静态 CONVERSATIONS fallback，避免无数据时显示假数据误导用户
@@ -590,11 +595,10 @@ export function ModelSettings() {
     setCurrentPage(1)
   }
 
-  // 过滤对话记录
-  const filteredConversations = conversationRows.filter((row) => {
-    if (statusFilter === '全部状态') return true
-    return row.status === statusFilter
-  })
+  // 过滤（状态 + 搜索词）+ 分页切片。搜索框以前没有 onChange，翻页也不切片，
+  // 用户看到的是"输入没反应、每页一样"（#182）。
+  const filteredConversations = filterConversations(conversationRows, statusFilter, conversationQuery)
+  const conversationPage = paginate(filteredConversations, currentPage)
 
   return (
     <div className="set-subpage">
@@ -649,8 +653,15 @@ export function ModelSettings() {
         <ConversationSection
           statusFilter={statusFilter}
           onCycleStatusFilter={handleCycleStatusFilter}
-          filteredConversations={filteredConversations}
-          currentPage={currentPage}
+          query={conversationQuery}
+          onQueryChange={(value) => {
+            setConversationQuery(value)
+            setCurrentPage(1)
+          }}
+          rows={conversationPage.rows}
+          totalRows={conversationPage.totalRows}
+          currentPage={conversationPage.page}
+          totalPages={conversationPage.totalPages}
           onCurrentPageChange={setCurrentPage}
           isLoading={isLoadingRecords}
         />

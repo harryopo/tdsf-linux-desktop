@@ -50,7 +50,7 @@ import { useServerStore, MONITOR_INTERVAL_MS } from '@/stores/server-store'
 // 告警阈值与告警列表读同一个 hook（键名只在一处出现；两侧口径必须一致）
 import { useAlertThresholds } from '@/hooks/useAlertThresholds'
 // M3 Task 2：时间范围切换切片工具（KPI 数据源按 range 过滤）
-import { sliceMonitorData } from '@/utils/monitor-time-range'
+import { selectMonitorSeries } from '@/utils/monitor-time-range'
 import './MonitorPage.css'
 
 /**
@@ -167,8 +167,7 @@ export function MonitorPage() {
   // P1 修复：移除 DEV sampleKpiStats fallback（开发预览时假 KPI 会被当真实状态）
   // M3 Task 2：KPI 数据源按 range 切片（取切片后最后一条作为 latest）
   const kpiStats = useMemo<KpiStat[] | null>(() => {
-    const sliced = sliceMonitorData(monitorData, range)
-    return computeKpiStats(sliced)
+    return computeKpiStats(selectMonitorSeries(monitorData, range))
   }, [monitorData, range])
 
   // 顶部告警横幅：与告警列表用同一个生产者 deriveAlerts、同一套阈值（useAlertThresholds）。

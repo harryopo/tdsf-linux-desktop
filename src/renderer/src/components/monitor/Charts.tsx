@@ -40,7 +40,7 @@ import type { TimeRange } from './monitor-model'
 import { spanLabel } from './monitor-model'
 import { EmptyMonitorState } from './EmptyMonitorState'
 // M3 Task 2：时间范围切换切片工具（Chart 数据源按 range 过滤）
-import { sliceMonitorData } from '../../utils/monitor-time-range'
+import { selectMonitorSeries } from '../../utils/monitor-time-range'
 
 // ===== 常量 =====
 
@@ -127,8 +127,8 @@ const AXIS_TICK_STYLE = {
 /** CPU 使用率面积图（24h） */
 export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const sliced = sliceMonitorData(monitorData, range ?? '24H')
-  const recent = sliced.slice(-60)
+  // 按档位取窗口 + 降采样到最多 60 点；不再二次 slice(-60)，否则三档还是同一段
+  const recent = selectMonitorSeries(monitorData, range ?? '24H')
 
   // 无实时数据时显示 Empty 状态（v2.3.7：彻底移除 sample data fallback）
   if (recent.length === 0) {
@@ -200,8 +200,8 @@ export function CpuAreaChart({ range }: { range?: TimeRange } = {}) {
 /** 内存使用折线图（24h，3 条线：used/buffer/cache） */
 export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const sliced = sliceMonitorData(monitorData, range ?? '24H')
-  const recent = sliced.slice(-60)
+  // 按档位取窗口 + 降采样到最多 60 点；不再二次 slice(-60)，否则三档还是同一段
+  const recent = selectMonitorSeries(monitorData, range ?? '24H')
 
   // 无实时数据时显示 Empty 状态
   if (recent.length === 0) {
@@ -284,7 +284,8 @@ export function MemoryLineChart({ range }: { range?: TimeRange } = {}) {
  */
 export function DiskUsageBarChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const sliced = sliceMonitorData(monitorData, range ?? '24H')
+  const sliced = selectMonitorSeries(monitorData, range ?? '24H')
+  // 柱状图最多画 24 根，取所选档位里最近的 24 个真实采样
   const recent = sliced.slice(-24)
 
   // 无实时数据时显示 Empty 状态
@@ -352,8 +353,8 @@ export function DiskUsageBarChart({ range }: { range?: TimeRange } = {}) {
 /** 网络流量双折线图（24h，入站 / 出站） */
 export function NetworkFlowChart({ range }: { range?: TimeRange } = {}) {
   const monitorData = useActiveMonitorData()
-  const sliced = sliceMonitorData(monitorData, range ?? '24H')
-  const recent = sliced.slice(-60)
+  // 按档位取窗口 + 降采样到最多 60 点；不再二次 slice(-60)，否则三档还是同一段
+  const recent = selectMonitorSeries(monitorData, range ?? '24H')
 
   // 无实时数据时显示 Empty 状态
   if (recent.length === 0) {

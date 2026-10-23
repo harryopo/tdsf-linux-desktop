@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { SettingsCard } from '@/components/settings/SettingsCard'
+import { pageWindow } from './conversation-paging'
 import type { ConversationRow } from './constants'
 
 export interface ConversationSectionProps {
@@ -22,10 +23,18 @@ export interface ConversationSectionProps {
   statusFilter: '全部状态' | '成功' | '已拦截' | '失败'
   /** 点击切换状态筛选回调 */
   onCycleStatusFilter: () => void
-  /** 已过滤的对话记录列表 */
-  filteredConversations: ConversationRow[]
-  /** 当前页码 */
+  /** 搜索词（受控：输入即过滤，不再是一个装饰输入框） */
+  query: string
+  /** 搜索词变化回调 */
+  onQueryChange: (query: string) => void
+  /** **当前页**的数据（已按页切片，不是全量） */
+  rows: ConversationRow[]
+  /** 过滤后的总条数（分页栏显示"共 N 条"用） */
+  totalRows: number
+  /** 当前页码（已收敛） */
   currentPage: number
+  /** 总页数 */
+  totalPages: number
   /** 设置当前页码回调 */
   onCurrentPageChange: (page: number) => void
   /** 是否正在加载 */
@@ -36,8 +45,12 @@ export function ConversationSection(props: ConversationSectionProps) {
   const {
     statusFilter,
     onCycleStatusFilter,
-    filteredConversations,
+    query,
+    onQueryChange,
+    rows,
+    totalRows,
     currentPage,
+    totalPages,
     onCurrentPageChange,
     isLoading,
   } = props
@@ -53,13 +66,16 @@ export function ConversationSection(props: ConversationSectionProps) {
         </tr>
       )
     }
-    if (filteredConversations.length === 0) {
-      const hasFilter = statusFilter !== '全部状态'
+    if (rows.length === 0) {
+      const conditions = [
+        statusFilter !== '全部状态' ? `状态「${statusFilter}」` : '',
+        query.trim() ? `搜索词「${query.trim()}」` : '',
+      ].filter(Boolean)
       return (
         <tr>
           <td colSpan={6} className="set-conv-empty">
-            {hasFilter
-              ? `没有匹配「${statusFilter}」的记录`
+            {conditions.length > 0
+              ? `没有匹配${conditions.join(' + ')}的记录`
               : '暂无对话记录，请先在 AI 面板发送消息后再来查看'}
           </td>
         </tr>
@@ -84,6 +100,8 @@ export function ConversationSection(props: ConversationSectionProps) {
           <Search className="size-3.5" />
           <input
             type="text"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
             placeholder="搜索对话..."
             aria-label="搜索对话"
             className="set-conv-search__input"
@@ -127,10 +145,10 @@ export function ConversationSection(props: ConversationSectionProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredConversations.length === 0 ? (
+            {rows.length === 0 ? (
               renderEmptyState()
             ) : (
-              filteredConversations.map((row, idx) => (
+              rows.map((row, idx) => (
               <tr key={`${row.time}-${idx}`}>
                 <td className="col-mono col-secondary">
                   {row.time}
@@ -180,7 +198,7 @@ export function ConversationSection(props: ConversationSectionProps) {
       {/* 分页栏 */}
       <div className="set-conv-pagination">
         <span className="set-conv-pagination__count">
-          共 {filteredConversations.length} 条
+          共 {totalRows} 条
           {statusFilter !== '全部状态' && (
             <span className="set-conv-pagination__count-hint">
               (筛选: {statusFilter})
@@ -197,36 +215,31 @@ export function ConversationSection(props: ConversationSectionProps) {
           >
             <ChevronLeft className="size-3.5" />
           </button>
-          {[1, 2, 3].map((page) => (
-            <button
-              key={page}
-              type="button"
-              onClick={() => onCurrentPageChange(page)}
-              aria-label={`第 ${page} 页`}
-              className={
-                'set-conv-page-btn btn-press' +
-                (currentPage === page ? ' is-active' : '')
-              }
-            >
-              {page}
-            </button>
-          ))}
-          <span className="set-conv-page-ellipsis">...</span>
+          {pageWindow(currentPage, totalPages).map((page, index) =>
+            page === null ? (
+              <span key={`gap-${index}`} className="set-conv-page-ellipsis">
+                …
+              </span>
+            ) : (
+              <button
+                key={page}
+                type="button"
+                onClick={() => onCurrentPageChange(page)}
+                aria-label={`第 ${page} 页`}
+                aria-current={currentPage === page ? 'page' : undefined}
+                className={
+                  'set-conv-page-btn btn-press' +
+                  (currentPage === page ? ' is-active' : '')
+                }
+              >
+                {page}
+              </button>
+            )
+          )}
           <button
             type="button"
-            onClick={() => onCurrentPageChange(13)}
-            aria-label="第 13 页"
-            className={
-              'set-conv-page-btn btn-press' +
-              (currentPage === 13 ? ' is-active' : '')
-            }
-          >
-            13
-          </button>
-          <button
-            type="button"
-            onClick={() => onCurrentPageChange(Math.min(13, currentPage + 1))}
-            disabled={currentPage === 13}
+            onClick={() => onCurrentPageChange(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage >= totalPages}
             aria-label="下一页"
             className="set-conv-page-btn btn-press"
           >
