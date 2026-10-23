@@ -17,8 +17,43 @@ export interface HistoryStatsSource {
   successRate: number
   /** [0,1] */
   avgConfidence: number
-  /** 平均耗时（秒）；null=这一项没有真实样本 */
-  avgDurationSec: number | null
+  /** 平均耗时（ms）；null = 这一项没有真实样本（一条都没记录耗时） */
+  avgDurationMs: number | null
+}
+
+/**
+ * 耗时读数：毫秒是唯一的原始单位。
+ *
+ * 原先两条路各自换算（列表行 `Math.max(1, round(ms/1000))`、统计卡 `round(ms/1000)`），
+ * 前者把 200ms 抬成"1s"，后者把"一条样本都没有"的 0 演成"平均 0 秒"。
+ * 换算只留这一处：没有就是 —，不到 1 秒保留一位小数，绝不进位。
+ */
+export function durationLabel(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return NO_DATA
+  if (ms < 100) return '<0.1s'
+  if (ms < 1000) return `${Math.round(ms / 100) / 10}s`
+  return `${Math.round(ms / 1000)}s`
+}
+
+/**
+ * 主进程聚合 → 同一个形状（#175-①）
+ *
+ * `HistoryStats.avgDurationMs` 现在可以是 null；但库里旧数据与"样本数为 0"都可能给出 0，
+ * 而 0 毫秒的平均耗时不是一个能出现的真值（有样本至少记到毫秒），所以 0 一律按"没有样本"处理。
+ * 这一条不靠调用方记得判 0——两条分支都从这里过，才不会再各写一遍。
+ */
+export function fromAggregate(stats: {
+  total: number
+  successRate: number
+  avgConfidence: number
+  avgDurationMs: number | null
+}): HistoryStatsSource {
+  return {
+    total: stats.total,
+    successRate: stats.successRate,
+    avgConfidence: stats.avgConfidence,
+    avgDurationMs: stats.avgDurationMs && stats.avgDurationMs > 0 ? stats.avgDurationMs : null,
+  }
 }
 
 export interface StatCell {
@@ -35,16 +70,16 @@ const TONE_NEUTRAL = 'var(--text-tertiary)'
 
 /** 把"当前记录"这一路派生成同一个形状（记录里只有耗时可能缺失） */
 export function deriveFromRecords(
-  records: Array<{ status: string; confidence: number; durationSec?: number | null }>
+  records: Array<{ status: string; confidence: number; durationMs?: number | null }>
 ): HistoryStatsSource {
-  const withDuration = records.filter((r) => r.durationSec != null)
+  const withDuration = records.filter((r) => r.durationMs != null && r.durationMs > 0)
   return {
     total: records.length,
     successRate: records.length > 0 ? records.filter((r) => r.status === '成功').length / records.length : 0,
     avgConfidence: records.length > 0 ? records.reduce((s, r) => s + r.confidence, 0) / records.length : 0,
-    avgDurationSec:
+    avgDurationMs:
       withDuration.length > 0
-        ? Math.round(withDuration.reduce((s, r) => s + (r.durationSec ?? 0), 0) / withDuration.length)
+        ? Math.round(withDuration.reduce((s, r) => s + (r.durationMs ?? 0), 0) / withDuration.length)
         : null,
   }
 }
@@ -69,7 +104,7 @@ export function buildHistoryStats(src: HistoryStatsSource): StatCell[] {
     },
     {
       label: '平均响应时间',
-      value: has && src.avgDurationSec !== null ? `${src.avgDurationSec}s` : NO_DATA,
+      value: durationLabel(src.avgDurationMs),
       color: TONE_NEUTRAL,
     },
   ]

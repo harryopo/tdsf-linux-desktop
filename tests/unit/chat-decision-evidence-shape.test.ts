@@ -16,7 +16,7 @@
  *    一旦有人把 applySourcePrior 摘掉就红。
  */
 import { describe, it, expect } from 'vitest'
-import { toolEventsToEvidences } from '@renderer/utils/chat-decision'
+import { buildHistorySaveIntent, toolEventsToEvidences } from '@renderer/utils/chat-decision'
 import { buildCredibilityInputs } from '@renderer/utils/evidence-to-input'
 import { createMassFunctionFromInput } from '../../src/main/ipc/credibility-helpers'
 import { createKnowledgeMassFunction } from '../../src/main/core/agent/credibility/mass-functions/knowledge-source'
@@ -217,5 +217,35 @@ describe('聊天链路按融合源分组，不再把证据改名成历史案例'
     for (const input of inputs) {
       expect(() => createMassFunctionFromInput(input), `${input.sourceId} 被主进程拒绝`).not.toThrow()
     }
+  })
+})
+
+/**
+ * 落库意图里的"事实字段"（#175-① 的另一半）
+ *
+ * serverId 是聊天链路知道、但以前没往下传的事实：会话→服务器的映射就在 server-store 里，
+ * 不传的后果是决策记录永远不知道自己在哪台机器上做的，历史页的"服务器"筛选永远是空的。
+ * 耗时不在这张清单里：那条命令是发到终端的，主进程没有等到它的返回，
+ * 没有实测值就留 null（界面显示 —），拿 timestamp 取模编一个数是这个项目明确不许的。
+ */
+describe('buildHistorySaveIntent 带得上真实事实', () => {
+  it('给了 serverId 就照实带上；没给就是没有，不编一个占位值', () => {
+    const withServer = buildHistorySaveIntent({
+      command: 'df -h',
+      userMessage: null,
+      assistantMessage: null,
+      sessionId: 'sess-7',
+      serverId: 'srv-prod-web-01',
+    })
+    expect(withServer.serverId).toBe('srv-prod-web-01')
+    expect(withServer.sessionId).toBe('sess-7')
+
+    const without = buildHistorySaveIntent({
+      command: 'df -h',
+      userMessage: null,
+      assistantMessage: null,
+    })
+    expect(without.serverId ?? null, '缺席要留 null/undefined，不能塞假服务器名').toBeNull()
+    expect(without.durationMs ?? null, '没有实测耗时就不许给数').toBeNull()
   })
 })

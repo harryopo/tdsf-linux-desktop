@@ -11,18 +11,21 @@
  * 筛选与搜索是客户端真实过滤（useMemo 作用于已取回的记录）。
  *
  * data-dom-id：back-workbench / filter-status / search-history / goto-history-detail-{id}
+ *               / history-row / history-server-filter / history-server-cell
  * 无障碍：button type="button" + aria-label/aria-pressed；button 原生支持 Enter/Space 键盘激活。
  * 动效：btn-press 按压反馈；prefers-reduced-motion 禁用按压动画与卡片过渡。
  */
 import './HistoryPage.css'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, ArrowLeft, ArrowRight, Clock, Cpu, Filter, Inbox, Search, Sparkles, UserCircle } from 'lucide-react'
 import { Button, PageHeader } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { buildSparklinePoints, baselineSparkline, type SparklineMetric } from '@/utils/history-sparkline'
-import { buildHistoryStats, deriveFromRecords } from '@/lib/history-stats'
+import { buildHistoryStats, deriveFromRecords, durationLabel, fromAggregate } from '@/lib/history-stats'
+import { ALL_SERVERS, serverLabel, serverOptions } from '@/lib/history-server'
+import { useServerStore } from '@/stores/server-store'
 import type { DecisionCard, HistoryStats } from '@shared/models'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 
@@ -33,9 +36,12 @@ type ActorType = 'root' | 'ai-agent'
 interface StatItem { label: string; value: string; color: string; sparkline: string }
 interface DecisionRecord {
   id: string; time: string; title: string; status: DecisionStatus; risk: RiskLevel
-  server: string; actor: ActorType; confidence: number; command: string
-  /** 执行耗时（秒）；null 表示真实数据未记录耗时（UI 显示 —，不伪造） */
-  desc: string; durationSec: number | null; isDanger: boolean
+  /** 当时的目标服务器 id；null = 这条记录没记是哪台机器（界面口径见 lib/history-server.ts） */
+  serverId: string | null; actor: ActorType; confidence: number; command: string
+  desc: string
+  /** 执行耗时（毫秒）；null = 没记耗时，界面显示「—」，单位换算只在 durationLabel 一处 */
+  durationMs: number | null
+  isDanger: boolean
   /** 记录时间戳（ms），用于时间范围筛选 */
   timestamp: number
 }
@@ -87,14 +93,17 @@ function decisionCardToRecord(card: DecisionCard): DecisionRecord {
     title: card.problem.slice(0, 40) || `决策 #${card.id}`,
     status: mapCardStatus(card.status),
     risk: mapRiskLevel(card.risk?.level),
-    server: card.sessionId ? `会话 ${card.sessionId.slice(0, 8)}` : 'local',
+    // 服务器列 = 真 serverId（#175-①）。以前这里塞的是 "会话 xxxx"，
+    // 而下拉里的选项来自 stats.servers（真 serverId），两边永远对不上——选了必空。
+    // 名字由 serverLabel() 在渲染时翻，翻不到就说翻不到，不冒充"未记录"。
+    serverId: card.serverId ?? null,
     actor: 'ai-agent',
     confidence: card.confidence,
     command: card.fixCommand || '无执行命令',
     desc: card.fixDescription || card.hypothesis || '',
-    // P1 修复：耗时只用真实 durationMs；未记录时为 null（UI 显示 —），
-    // 不再用 timestamp % 60000 取模伪造假耗时
-    durationSec: card.durationMs != null ? Math.max(1, Math.round(card.durationMs / 1000)) : null,
+    // 耗时只用真实 durationMs（原样带毫秒，换算交给 durationLabel 一处）：
+    // 未记录时为 null 显示 —；原先的 Math.max(1, round(ms/1000)) 把 200ms 演成"1s"
+    durationMs: card.durationMs ?? null,
     isDanger,
     timestamp: card.timestamp,
   }
@@ -142,7 +151,7 @@ function formatBlockTime(ms: number): string {
 export function HistoryPage() {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<string>('全部状态')
-  const [serverFilter, setServerFilter] = useState<string>('全部服务器')
+  const [serverFilter, setServerFilter] = useState<string>(ALL_SERVERS)
   const [timeRangeFilter, setTimeRangeFilter] = useState<string>(TIME_RANGES[0])
   const [keyword, setKeyword] = useState<string>('')
   const [currentPage, setCurrentPage] = useState<number>(1)
@@ -231,14 +240,12 @@ export function HistoryPage() {
     return () => { cancelled = true }
   }, [reloadKey])
 
-  // 服务器列表优先使用 stats.servers；IPC 不可用或 total=0 时回退到 records 派生
-  const servers = useMemo(() => {
-    if (historyStats && historyStats.servers.length > 0) {
-      return ['全部服务器', ...historyStats.servers]
-    }
-    const set = new Set(records.map((r) => r.server))
-    return ['全部服务器', ...Array.from(set)]
-  }, [records, historyStats])
+  // 服务器下拉的选项必须由"这一页真正能筛的那些行"派生（#175-①）：
+  // 原先优先用 stats.servers，那是全库聚合，选中一个不在当前列表里的服务器就得到空结果；
+  // 而行显示的又是另一种写法。现在选项、筛选谓词、搜索、那一格的文字全走 serverLabel() 一个口径。
+  const serverList = useServerStore((s) => s.servers)
+  const nameOf = useCallback((r: DecisionRecord) => serverLabel(r.serverId, serverList), [serverList])
+  const serverChoices = useMemo(() => serverOptions(records.map(nameOf)), [records, nameOf])
 
   // 统计数字：优先主进程聚合的 stats，其次由当前记录派生。
   // 口径（含"分母为零就没有值"这条）在 lib/history-stats.ts，判据见 tests/unit/history-stats-empty.test.ts
@@ -248,12 +255,7 @@ export function HistoryPage() {
       records.length === 0 ? baselineSparkline : buildSparklinePoints(records, metric)
 
     const src = historyStats
-      ? {
-          total: historyStats.total,
-          successRate: historyStats.successRate,
-          avgConfidence: historyStats.avgConfidence,
-          avgDurationSec: Math.round(historyStats.avgDurationMs / 1000),
-        }
+      ? fromAggregate(historyStats)
       : deriveFromRecords(records)
     const metricOf: Record<string, SparklineMetric> = {
       总决策数: 'count',
@@ -270,7 +272,7 @@ export function HistoryPage() {
   const filteredRecords = useMemo(() => {
     let result: DecisionRecord[] = records
     if (statusFilter !== '全部状态') result = result.filter((r) => r.status === statusFilter)
-    if (serverFilter !== '全部服务器') result = result.filter((r) => r.server === serverFilter)
+    if (serverFilter !== ALL_SERVERS) result = result.filter((r) => nameOf(r) === serverFilter)
     if (timeRangeFilter !== '全部') {
       const now = Date.now()
       const cutoffMs = timeRangeFilter === '近7天' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000
@@ -282,11 +284,11 @@ export function HistoryPage() {
       result = result.filter((r) =>
         r.title.toLowerCase().includes(kw) ||
         r.command.toLowerCase().includes(kw) ||
-        r.server.toLowerCase().includes(kw),
+        nameOf(r).toLowerCase().includes(kw),
       )
     }
     return result
-  }, [records, statusFilter, serverFilter, timeRangeFilter, keyword])
+  }, [records, statusFilter, serverFilter, timeRangeFilter, keyword, nameOf])
 
   // 简单分页：固定每页 6 条，根据过滤后记录数动态生成页码
   const pageSize = 6
@@ -354,8 +356,8 @@ export function HistoryPage() {
             </label>
             <label className="hist-select-wrap">
               <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
-              <select aria-label="服务器筛选" value={serverFilter} onChange={(e) => setServerFilter(e.target.value)} className="hist-select">
-                {servers.map((s) => (<option key={s} style={optStyle}>{s}</option>))}
+              <select data-dom-id="history-server-filter" aria-label="服务器筛选" value={serverFilter} onChange={(e) => setServerFilter(e.target.value)} className="hist-select">
+                {serverChoices.map((s) => (<option key={s} style={optStyle}>{s}</option>))}
               </select>
             </label>
             <label className="hist-select-wrap">
@@ -418,7 +420,7 @@ export function HistoryPage() {
           {pagedRecords.map((record, idx) => {
             const isLast = idx === pagedRecords.length - 1
             return (
-              <div key={record.id} className="hist-timeline-row">
+              <div key={record.id} className="hist-timeline-row" data-dom-id="history-row">
                 <div className="hist-timeline-rail">
                   <span className="hist-timeline-time">{record.time}</span>
                   <span className="hist-timeline-dot" style={{ background: dotColor(record.status) }} />
@@ -432,8 +434,8 @@ export function HistoryPage() {
                       <span className={riskBadgeClass(record.risk)}>{record.risk}</span>
                     </div>
                     <div className="hist-decision-meta">
-                      <span className="hist-decision-meta-item">
-                        <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />{record.server}
+                      <span className="hist-decision-meta-item" data-dom-id="history-server-cell">
+                        <Cpu className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />{nameOf(record)}
                       </span>
                       <span className="hist-decision-meta-item">
                         {record.actor === 'ai-agent' ? <Sparkles className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} /> : <UserCircle className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />}
@@ -450,7 +452,7 @@ export function HistoryPage() {
                     <div className="hist-decision-footer">
                       <span className="hist-decision-duration">
                         <Clock className="shrink-0 w-3 h-3" style={{ color: 'var(--text-muted)' }} />
-                        耗时 <span className="hist-decision-duration-val">{record.durationSec != null ? `${record.durationSec}s` : '—'}</span>
+                        耗时 <span className="hist-decision-duration-val">{durationLabel(record.durationMs)}</span>
                       </span>
                       <button
                         type="button" data-dom-id={`goto-history-detail-${record.id}`}

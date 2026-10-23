@@ -2,8 +2,99 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-22T17:27:25.920Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-23T00:14:39.720Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-22T23:48:23.662Z",
+      "lastActiveAt": "2026-10-23T00:14:39.720Z",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "claimedFiles": [
+        {
+          "path": "src/shared/models.ts",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/main/services/db/decision-repo.ts",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/renderer/src/lib/history-stats.ts",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/renderer/src/pages/HistoryPage.tsx",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/renderer/src/pages/HistoryDetailPage.tsx",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/renderer/src/utils/decision-mappers.ts",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/renderer/src/components/decision/ConfidenceGauge.tsx",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "tests/unit/history-stats-empty.test.ts",
+          "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+          "claimedAt": "2026-10-22T23:48:23.662Z"
+        },
+        {
+          "path": "src/renderer/src/utils/chat-decision.ts",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/AIPanel.tsx",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "src/renderer/src/components/decision/PCR5Result.tsx",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "src/renderer/src/components/decision/EvidenceRadar.tsx",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "src/renderer/src/utils/history-sparkline.ts",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "tests/unit/chat-decision-evidence-shape.test.ts",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "tests/unit/evidence-absent-source.test.ts",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        },
+        {
+          "path": "tests/components/evidence-absent-source.test.tsx",
+          "task": "#175 决策线读数诚实化",
+          "claimedAt": "2026-10-23T00:14:39.720Z"
+        }
+      ],
+      "expiresAt": "2026-10-23T02:14:39.720Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9258,6 +9349,118 @@
       "file": "tests/e2e/decision-audit-chain.spec.ts",
       "task": "#174 决策审计链落库与界面读数",
       "timestamp": "2026-10-22T17:27:25.920Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/models.ts",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/db/decision-repo.ts",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/lib/history-stats.ts",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/HistoryPage.tsx",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/HistoryDetailPage.tsx",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/utils/decision-mappers.ts",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/decision/ConfidenceGauge.tsx",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/history-stats-empty.test.ts",
+      "task": "#175 决策线读数诚实化（0s 假零 / 0.00 冒充未参与 / 两个置信度）",
+      "timestamp": "2026-10-22T23:48:23.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/utils/chat-decision.ts",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/decision/PCR5Result.tsx",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/decision/EvidenceRadar.tsx",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/utils/history-sparkline.ts",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/chat-decision-evidence-shape.test.ts",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/evidence-absent-source.test.ts",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/components/evidence-absent-source.test.tsx",
+      "task": "#175 决策线读数诚实化",
+      "timestamp": "2026-10-23T00:14:39.720Z"
     }
   ],
   "coordinationAudit": {

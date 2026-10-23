@@ -257,6 +257,12 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       const msgs = useAgentStore.getState().messages
       const lastUser = [...msgs].reverse().find((m) => m.role === 'user') ?? null
       const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant' && !m.isError) ?? null
+      // 会话→服务器是 server-store 里现成的映射（#175-①）：不传的话决策记录永远
+      // 不知道自己在哪台机器上做的，历史页按服务器筛选永远是空的。
+      const { sessionMap } = useServerStore.getState()
+      const serverId = activeSessionId
+        ? Object.keys(sessionMap).find((sid) => sessionMap[sid] === activeSessionId) ?? null
+        : null
 
       await api.historySave(
         buildHistorySaveIntent({
@@ -264,6 +270,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
           userMessage: lastUser,
           assistantMessage: lastAssistant,
           sessionId: activeSessionId,
+          serverId,
         })
       )
     } catch (err) {

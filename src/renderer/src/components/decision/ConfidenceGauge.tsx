@@ -38,7 +38,12 @@ interface ConfidenceGaugeProps {
  */
 export function ConfidenceGauge({ value, sources, provenance }: ConfidenceGaugeProps) {
   const weights = sources.length >= 6
-    ? sources.map(s => ({ label: s.label, val: s.weight, opacity: Math.max(0.4, s.weight) }))
+    ? sources.map(s => ({
+        label: s.label,
+        val: s.weight,
+        // 缺席的轴不画色块（opacity 0），也不参与占比分母
+        opacity: s.weight === null ? 0 : Math.max(0.4, s.weight),
+      }))
     : [
         { label: '基础分', val: 0.3, opacity: 1 },
         { label: '指标采集', val: 0.3, opacity: 1 },
@@ -81,10 +86,14 @@ export function ConfidenceGauge({ value, sources, provenance }: ConfidenceGaugeP
           <circle cx="110" cy="110" r="90" fill="none" stroke="var(--trae-bg-overlay-l1)" strokeWidth="8" />
           {segments.map((d, i) => {
             const w = weights[i]
-            // hover tooltip：源名 + 权重 + 数值
-            const tooltipText = w
-              ? `${w.label} · 权重 ${w.val.toFixed(2)} · 占比 ${((w.val / weights.reduce((s, x) => s + x.val, 0)) * 100).toFixed(1)}%`
-              : `源 ${i + 1}`
+            // hover tooltip：源名 + 权重 + 占比（缺席的轴只说"未参与"，不参与占比分母）
+            const present = weights.filter((x) => x.val !== null)
+            const sum = present.reduce((s, x) => s + (x.val ?? 0), 0)
+            const tooltipText = !w
+              ? `源 ${i + 1}`
+              : w.val === null
+                ? `${w.label} · 未参与`
+                : `${w.label} · 权重 ${w.val.toFixed(2)} · 占比 ${((w.val / sum) * 100).toFixed(1)}%`
             return (
               <path
                 key={i}
@@ -143,7 +152,7 @@ export function ConfidenceGauge({ value, sources, provenance }: ConfidenceGaugeP
             />
             <span className="text-micro text-ink-dim">{w.label}</span>
             <span className="ml-auto font-mono text-micro tabular-nums text-ink">
-              {w.val.toFixed(2)}
+              {w.val === null ? '未参与' : w.val.toFixed(2)}
             </span>
           </div>
         ))}

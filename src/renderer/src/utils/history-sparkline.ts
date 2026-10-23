@@ -12,8 +12,8 @@ export interface SparklineRecord {
   timestamp: number
   status: string
   confidence: number
-  /** 执行耗时（秒）；null 表示未记录（avgDuration 指标按 0 处理） */
-  durationSec: number | null
+  /** 执行耗时（ms）；null 表示这条没测到耗时（avgDuration 指标把它整个排除在平均之外） */
+  durationMs: number | null
 }
 
 /** 基线 sparkline（records 为空时的视觉占位，对应水平线在底部） */
@@ -34,7 +34,7 @@ export const baselineSparkline = '0,24 100,24'
  * - count：每个时间桶内的记录数（归一化到 0-24，max 为所有桶最大值）
  * - successRate：每个桶内 status==='成功' 的比例（0-1 映射到 0-24）
  * - avgConfidence：每个桶内 confidence 平均值（0-1 映射到 0-24）
- * - avgDuration：每个桶内 durationSec 平均值（归一化到 0-24）
+ * - avgDuration：每个桶内有耗时样本的记录的平均 ms（没测到耗时的记录不参与，归一化到 0-24）
  */
 export function buildSparklinePoints(
   records: SparklineRecord[],
@@ -63,6 +63,9 @@ export function buildSparklinePoints(
 
   for (const r of sorted) {
     const idx = Math.min(buckets - 1, Math.floor((r.timestamp - minTime) / bucketSize))
+    // avgDuration：没测到耗时的记录整个跳过——既不进分子也不进分母。
+    // 原先记成 0 会把"没样本"演成"那一阵子响应极快"，与卡片上的「—」自相矛盾。
+    if (metric === 'avgDuration' && r.durationMs === null) continue
     let v = 0
     if (metric === 'count') {
       v = 1
@@ -71,8 +74,7 @@ export function buildSparklinePoints(
     } else if (metric === 'avgConfidence') {
       v = r.confidence
     } else {
-      // avgDuration（未记录耗时的记录按 0 处理，不伪造）
-      v = r.durationSec ?? 0
+      v = r.durationMs ?? 0
     }
     sums[idx] += v
     counts[idx] += 1
@@ -88,7 +90,7 @@ export function buildSparklinePoints(
     } else if (counts[i] === 0) {
       v = 0
     } else {
-      // successRate: 0-1；avgConfidence: 0-1；avgDuration: 秒
+      // successRate: 0-1；avgConfidence: 0-1；avgDuration: ms（曲线只看相对高低，单位不影响形状）
       v = sums[i] / counts[i]
     }
     values[i] = v

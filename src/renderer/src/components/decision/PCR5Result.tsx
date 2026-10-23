@@ -67,12 +67,16 @@ export function PCR5Result({ sources, fusedValue, conflictK }: PCR5ResultProps) 
               <div className="mt-1 h-[3px] overflow-hidden rounded-full bg-[var(--trae-bg-overlay-l2)]">
                 <div
                   className="h-full rounded-full bg-accent-solid transition-all duration-700"
-                  style={{ width: getBarWidth(src.weight) }}
+                  style={{ width: getBarWidth(src.weight ?? 0) }}
                 />
               </div>
             </div>
-            <span className="shrink-0 font-mono text-sm font-semibold tabular-nums text-(--accent-text)">
-              {src.weight.toFixed(2)}
+            <span
+              className={`shrink-0 font-mono text-sm tabular-nums ${
+                src.weight === null ? 'text-micro text-ink-mute' : 'font-semibold text-(--accent-text)'
+              }`}
+            >
+              {src.weight === null ? '未参与' : src.weight.toFixed(2)}
             </span>
           </div>
         )

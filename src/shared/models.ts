@@ -695,8 +695,13 @@ export interface HistoryStats {
   successRate: number
   /** 平均置信度 [0, 1] */
   avgConfidence: number
-  /** 平均执行耗时（ms） */
-  avgDurationMs: number
+  /**
+   * 平均执行耗时（ms）；**null = 一条耗时样本都没有**
+   *
+   * 以前这里是 `number` 且"没样本"返回 0，界面拿 0 一换算就成了"平均响应时间 0s"——
+   * 把"从没记过"演成"平均零秒"。分母为零的派生量没有值，类型得先能表达这件事。
+   */
+  avgDurationMs: number | null
   /** 服务器列表（去重） */
   servers: string[]
 }

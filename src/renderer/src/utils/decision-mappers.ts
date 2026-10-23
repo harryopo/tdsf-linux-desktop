@@ -106,6 +106,9 @@ export function parseListSegments(command: string): ListCmdSegment[] {
  * v2.6 去假：六轴固定语义（日志/指标/命令/配置/知识库/模型），不再按位置漂移补位；
  * 无数据的轴诚实标注「无此来源证据」；模型轴用真实的综合置信度（可选传入）。
  */
+/** 六源里某一轴缺席时的说明（图例与 tooltip 共用这一句，别各处再抄一遍） */
+const ABSENT_DESC = '未参与 · 这条决策没有该来源证据'
+
 export function buildEvidenceSources(evidences: Evidence[], modelConfidence?: number): EvidenceSource[] {
   /** 固定六轴：前 5 轴对应 Evidence.source 的 5 种真实来源，第 6 轴为模型综合置信度 */
   const axes: Array<{ key: string; label: string; desc: string }> = [
@@ -129,13 +132,14 @@ export function buildEvidenceSources(evidences: Evidence[], modelConfidence?: nu
     if (axis.key === 'model') {
       return {
         label: axis.label,
-        weight: typeof modelConfidence === 'number' ? Math.round(modelConfidence * 100) / 100 : 0,
-        desc: typeof modelConfidence === 'number' ? axis.desc : '无此来源证据',
+        weight: typeof modelConfidence === 'number' ? Math.round(modelConfidence * 100) / 100 : null,
+        desc: typeof modelConfidence === 'number' ? axis.desc : ABSENT_DESC,
       }
     }
     const evs = grouped.get(axis.key)
     if (!evs || evs.length === 0) {
-      return { label: axis.label, weight: 0, desc: '无此来源证据' }
+      // null 而不是 0：0 是"参与了、贡献为零"，null 才是"这条决策没碰过这一轴"（#175-③）
+      return { label: axis.label, weight: null, desc: ABSENT_DESC }
     }
     const avgConfidence = evs.reduce((sum, e) => sum + e.confidence, 0) / evs.length
     return {

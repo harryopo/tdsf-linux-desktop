@@ -111,6 +111,8 @@ export interface ChatDecisionParams {
   assistantMessage: AgentMessage | null
   /** SSH 会话 ID */
   sessionId?: string | null
+  /** 目标服务器 ID（会话→服务器的映射由调用方给；不知道就留空，别填占位值） */
+  serverId?: string | null
 }
 
 /**
@@ -122,7 +124,7 @@ export interface ChatDecisionParams {
  * 渲染层只交代事实：命令是什么、上下文是什么、证据从哪来、用户确实批准执行了。
  */
 export function buildHistorySaveIntent(params: ChatDecisionParams): HistorySaveIntent {
-  const { command, userMessage, assistantMessage, sessionId } = params
+  const { command, userMessage, assistantMessage, sessionId, serverId } = params
   return {
     command,
     problem: (userMessage?.content ?? '（无用户问题上下文）').slice(0, 300),
@@ -131,5 +133,6 @@ export function buildHistorySaveIntent(params: ChatDecisionParams): HistorySaveI
     executed: true,
     fixDescription: 'AI 对话中用户批准并发送到终端执行',
     sessionId: sessionId ?? undefined,
+    serverId: serverId ?? undefined,
   }
 }

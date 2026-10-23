@@ -35,6 +35,7 @@ import {
   buildTimelineSteps, auditChainStatus, toAuditRows,
 } from '@/utils/decision-mappers'
 import { AuditChainBadge } from '@/components/decision/ExecutionResult'
+import { durationLabel } from '@/lib/history-stats'
 import type { AuditChainStatus, AuditRow } from '@/components/decision/ExecutionResult'
 
 // ==================== 样式常量 ====================
@@ -261,7 +262,7 @@ export function HistoryDetailPage() {
   const timelineSteps = buildTimelineSteps(card)
   const statusMeta = STATUS_LABEL[card.status]
   const timestampStr = formatTimestamp(card.timestamp)
-  const durationLabel = card.durationMs != null ? `${card.durationMs}ms` : '—'
+  const durationText = durationLabel(card.durationMs ?? null)
   const completedSteps = timelineSteps.filter(s => s.status === 'completed').length
   const allCompleted = completedSteps === timelineSteps.length
 
@@ -318,6 +319,11 @@ export function HistoryDetailPage() {
                 />
               </div>
             </div>
+            {/* #175-②：这一页只有卡片存的那个值，别让它看起来像"融合后的可信度"——
+                同一个决策在决策详情页显示的是 D-S 融合值，两个数本来就不同源 */}
+            <p className="mt-1 text-micro text-ink-mute">
+              卡片置信度（按证据链算出）· D-S 融合后的读数在决策详情页
+            </p>
           </SummaryRow>
           <SummaryRow label="执行人">
             <ActorBadge type="ai" icon={<Sparkles style={{ width: 12, height: 12 }} />} label="AI Agent" />
@@ -414,7 +420,7 @@ export function HistoryDetailPage() {
           <div className="hist-row">
             <span className="hist-row-label">耗时</span>
             <div className="hist-row-value">
-              <span style={MONO_STYLE}>{durationLabel}</span>
+              <span style={MONO_STYLE}>{durationText}</span>
             </div>
           </div>
           {/* DecisionCard 无 before/after 指标对比数据，显示占位表格 */}

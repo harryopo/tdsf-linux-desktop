@@ -86,7 +86,7 @@ describe('buildHistorySaveIntent', () => {
       assistantMessage: assistant,
     })
     expect(Object.keys(intent).sort()).toEqual(
-      ['command', 'evidences', 'executed', 'fixDescription', 'hypothesis', 'problem', 'sessionId'].sort(),
+      ['command', 'evidences', 'executed', 'fixDescription', 'hypothesis', 'problem', 'sessionId', 'serverId'].sort(),
     )
     // 渲染层想改也改不动：这些键不在类型上，落库值由主进程计算
     // （主进程侧的实测判据在 tests/unit/ipc-history-decision-gate.test.ts）

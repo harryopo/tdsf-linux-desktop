@@ -133,7 +133,7 @@ export class DecisionRepository {
     if (total === 0) {
       return {
         total: 0, success: 0, failed: 0, intercepted: 0,
-        successRate: 0, avgConfidence: 0, avgDurationMs: 0, servers: [],
+        successRate: 0, avgConfidence: 0, avgDurationMs: null, servers: [],
       }
     }
 
@@ -164,7 +164,7 @@ export class DecisionRepository {
       intercepted,
       successRate: total > 0 ? success / total : 0,
       avgConfidence: total > 0 ? confSum / total : 0,
-      avgDurationMs: durCount > 0 ? Math.round(durSum / durCount) : 0,
+      avgDurationMs: durCount > 0 ? Math.round(durSum / durCount) : null,
       servers: Array.from(serverSet),
     }
   }

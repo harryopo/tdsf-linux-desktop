@@ -16,8 +16,8 @@ import { EVIDENCE_WEIGHT_FULL_SCALE } from '@shared/credibility'
 export interface EvidenceSource {
   /** 源名称（轴标签） */
   label: string
-  /** 权重值（0-1） */
-  weight: number
+  /** 权重值 [0,1]；**null = 这条决策没有该来源的证据**（画到圆心，但图例写"未参与"，不印 0.00） */
+  weight: number | null
   /** 源详细说明 */
   desc: string
 }
@@ -89,7 +89,8 @@ export function EvidenceRadar({ sources }: EvidenceRadarProps) {
     return () => window.clearTimeout(t)
   }, [])
 
-  const dataPoints = sources.map((src, i) => getDataPoint(HEX_VERTICES[i], src.weight))
+  // 几何上"未参与"与"权重 0"画出来是同一个点（圆心），区别写在图例文字里
+  const dataPoints = sources.map((src, i) => getDataPoint(HEX_VERTICES[i], src.weight ?? 0))
   const polygonPoints = dataPoints.map((p) => `${p.x},${p.y}`).join(' ')
 
   return (
