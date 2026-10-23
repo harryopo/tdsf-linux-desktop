@@ -24,6 +24,7 @@
 import type { DatabaseManager } from './database'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
 import { recordToolCall } from './tool-call-log'
+import { buildContentSeg } from './knowledge-tokenize'
 // 导入部分失败必须留痕，否则界面上只剩一个"成功导入 N 条"
 import { logger } from '../log/logger'
 
@@ -306,10 +307,10 @@ export class KnowledgeRepository {
           `INSERT INTO knowledge_entries
            (id, type, title, problem, rootCause, commands, rollbackCommands,
             verification, keywords, tags, successRate, feedback, useCount, embedding,
-            createdAt, updatedAt)
+            contentSeg, createdAt, updatedAt)
            VALUES (@id, @type, @title, @problem, @rootCause, @commands, @rollbackCommands,
                    @verification, @keywords, @tags, @successRate, @feedback, @useCount, @embedding,
-                   @createdAt, @updatedAt)`
+                   @contentSeg, @createdAt, @updatedAt)`
         )
         .run(serialized)
       return true
@@ -370,7 +371,7 @@ export class KnowledgeRepository {
                commands=@commands, rollbackCommands=@rollbackCommands,
                verification=@verification, keywords=@keywords, tags=@tags,
                successRate=@successRate, feedback=@feedback, useCount=@useCount, embedding=@embedding,
-               updatedAt=@updatedAt
+               contentSeg=@contentSeg, updatedAt=@updatedAt
            WHERE id=@id`
         )
         .run(serialized)
@@ -704,6 +705,14 @@ export class KnowledgeRepository {
       feedback: entry.feedback ?? null,
       useCount: entry.useCount,
       embedding: entry.embedding ? JSON.stringify(entry.embedding) : null,
+      // 全文检索列：入库时切好词（#181）。放在 serialize 里，新增/更新/导入三条路都自动带上
+      contentSeg: buildContentSeg({
+        title: entry.title,
+        problem: entry.problem,
+        keywords: entry.keywords,
+        tags: entry.tags,
+        commands: entry.commands,
+      }),
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt
     }
@@ -814,6 +823,7 @@ interface KnowledgeRow {
   feedback: string | null
   useCount: number
   embedding: string | null
+  contentSeg?: string | null
   createdAt: number
   updatedAt: number
 }
@@ -834,6 +844,7 @@ interface SerializedKnowledgeRow {
   feedback: string | null
   useCount: number
   embedding: string | null
+  contentSeg: string
   createdAt: number
   updatedAt: number
 }

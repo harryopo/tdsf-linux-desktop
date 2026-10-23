@@ -12,6 +12,7 @@
  */
 import type { KnowledgeEntry } from '@shared/models'
 import type { DatabaseManager } from './database'
+import { buildContentSeg } from './knowledge-tokenize'
 
 /** 种子版本（变更种子内容时递增，便于排查） */
 export const KNOWLEDGE_SEED_VERSION = 'kb-seed-v1.0'
@@ -319,8 +320,8 @@ export function loadKnowledgeSeeds(db: DatabaseManager): number {
   console.log(`[KnowledgeSeed] 开始加载 ${KNOWLEDGE_SEED_VERSION}，共 ${KNOWLEDGE_SEED_ENTRIES.length} 条`)
   const insert = db.prepare(`
     INSERT OR REPLACE INTO knowledge_entries
-    (id, type, title, problem, "rootCause", commands, "rollbackCommands", verification, keywords, tags, "successRate", "useCount", "createdAt", "updatedAt")
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, type, title, problem, "rootCause", commands, "rollbackCommands", verification, keywords, tags, "successRate", "useCount", "createdAt", "updatedAt", contentSeg)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
   const insertMany = raw.transaction((entries: KnowledgeEntry[]) => {
     for (const e of entries) {
@@ -339,6 +340,8 @@ export function loadKnowledgeSeeds(db: DatabaseManager): number {
         e.useCount,
         e.createdAt,
         e.updatedAt,
+        // 全文检索列：中文必须先切词，FTS 才能按空格索引（#181）
+        buildContentSeg(e),
       )
     }
   })

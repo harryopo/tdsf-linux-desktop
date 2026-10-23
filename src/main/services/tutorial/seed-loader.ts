@@ -11,6 +11,7 @@
  */
 
 import type { DatabaseManager } from '../db/database'
+import { buildContentSeg } from '../db/knowledge-tokenize'
 import { TutorialRepository } from './tutorial-repo'
 import { TUTORIAL_SEED_COLLECTION } from './seeds'
 
@@ -41,8 +42,8 @@ export function loadTutorialSeeds(db: DatabaseManager): number {
   const now = Date.now()
   const insert = db.prepare(`
     INSERT OR REPLACE INTO knowledge_entries
-    (id, type, title, problem, "rootCause", commands, keywords, tags, "successRate", "useCount", "createdAt", "updatedAt")
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, type, title, problem, "rootCause", commands, keywords, tags, "successRate", "useCount", "createdAt", "updatedAt", contentSeg)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const raw = db.getRawConnection()
@@ -66,7 +67,9 @@ export function loadTutorialSeeds(db: DatabaseManager): number {
         k.successRate,
         k.useCount,
         k.createdAt || now,
-        k.updatedAt || now
+        k.updatedAt || now,
+        // 全文检索列：中文先切词（#181）
+        buildContentSeg(k)
       )
     }
   })

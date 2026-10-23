@@ -27,6 +27,7 @@
  */
 
 import type { DatabaseManager } from '../db/database'
+import { buildContentSeg } from '../db/knowledge-tokenize'
 import type { KnowledgeEntry } from '@shared/models'
 import type { TutorialEntry, TutorialCategory, TutorialDifficulty } from './types'
 import {
@@ -262,6 +263,7 @@ export class TutorialRepository {
                 keywords = @keywords,
                 tags = @tags,
                 "successRate" = @successRate,
+                contentSeg = @contentSeg,
                 "updatedAt" = @updatedAt
               WHERE id = @id AND type = @type`
             )
@@ -269,7 +271,8 @@ export class TutorialRepository {
               ...knowledgeEntry,
               commands: JSON.stringify(knowledgeEntry.commands),
               keywords: JSON.stringify(knowledgeEntry.keywords),
-              tags: JSON.stringify(knowledgeEntry.tags)
+              tags: JSON.stringify(knowledgeEntry.tags),
+              contentSeg: buildContentSeg(knowledgeEntry)
             })
           updated++
         } else {
@@ -278,16 +281,17 @@ export class TutorialRepository {
             .prepare(
               `INSERT INTO knowledge_entries
                 (id, type, title, problem, "rootCause", commands, keywords, tags,
-                 "successRate", "useCount", "createdAt", "updatedAt")
+                 "successRate", "useCount", "createdAt", "updatedAt", contentSeg)
               VALUES
                 (@id, @type, @title, @problem, @rootCause, @commands, @keywords, @tags,
-                 @successRate, @useCount, @createdAt, @updatedAt)`
+                 @successRate, @useCount, @createdAt, @updatedAt, @contentSeg)`
             )
             .run({
               ...knowledgeEntry,
               commands: JSON.stringify(knowledgeEntry.commands),
               keywords: JSON.stringify(knowledgeEntry.keywords),
-              tags: JSON.stringify(knowledgeEntry.tags)
+              tags: JSON.stringify(knowledgeEntry.tags),
+              contentSeg: buildContentSeg(knowledgeEntry)
             })
           inserted++
         }
@@ -409,6 +413,7 @@ export class TutorialRepository {
                 tags = @tags,
                 "successRate" = @successRate,
                 embedding = @embedding,
+                contentSeg = @contentSeg,
                 "updatedAt" = @updatedAt
               WHERE id = @id AND type = @type`
             )
@@ -423,6 +428,7 @@ export class TutorialRepository {
               tags: JSON.stringify(knowledgeEntry.tags),
               successRate: knowledgeEntry.successRate,
               embedding: embeddingJson,
+              contentSeg: buildContentSeg(knowledgeEntry),
               updatedAt: knowledgeEntry.updatedAt
             })
           updated++
@@ -432,10 +438,10 @@ export class TutorialRepository {
             .prepare(
               `INSERT INTO knowledge_entries
                 (id, type, title, problem, "rootCause", commands, keywords, tags,
-                 "successRate", "useCount", embedding, "createdAt", "updatedAt")
+                 "successRate", "useCount", embedding, "createdAt", "updatedAt", contentSeg)
               VALUES
                 (@id, @type, @title, @problem, @rootCause, @commands, @keywords, @tags,
-                 @successRate, @useCount, @embedding, @createdAt, @updatedAt)`
+                 @successRate, @useCount, @embedding, @createdAt, @updatedAt, @contentSeg)`
             )
             .run({
               id: knowledgeEntry.id,
@@ -449,6 +455,7 @@ export class TutorialRepository {
               successRate: knowledgeEntry.successRate,
               useCount: knowledgeEntry.useCount,
               embedding: embeddingJson,
+              contentSeg: buildContentSeg(knowledgeEntry),
               createdAt: knowledgeEntry.createdAt,
               updatedAt: knowledgeEntry.updatedAt
             })

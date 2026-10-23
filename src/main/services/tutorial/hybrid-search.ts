@@ -22,6 +22,7 @@
  */
 
 import type { DatabaseManager } from '../db/database'
+import { buildFtsMatchQuery } from '../db/knowledge-tokenize'
 import type { KnowledgeType } from '@shared/models'
 
 // ============================================================================
@@ -188,68 +189,6 @@ export function reciprocalRankFusion(
   })
 
   return fused
-}
-
-// ============================================================================
-// FTS5 查询转义
-// ============================================================================
-
-/**
- * 将用户查询转义为 FTS5 安全的查询字符串
- *
- * FTS5 查询语法（部分）：
- *   - 单词用空格分隔 = AND（默认）
- *   - OR 关键字 = OR
- *   - NOT / - = 排除
- *   - "短语" = 短语匹配（顺序敏感）
- *   - * = 前缀匹配（如 "ssh*" 匹配 "ssh", "sshd", "ssh_config"）
- *   - ( ) = 分组
- *   - : = 列限定（如 "title:ssh"）
- *   - ^ = 列权重提升
- *
- * 安全风险：
- *   - 用户直接输入 "ssh AND OR NOT" 会导致语法错误
- *   - 输入 "ssh*" 可能产生意外的前缀匹配
- *   - 输入 'ssh"config' 会破坏短语语法
- *
- * 转义策略（参考 SQLite FTS5 官方文档 "Full-text Query Syntax"）：
- *   1. 按空白字符分词（包括中英文空格、制表符、换行）
- *   2. 过滤纯标点符号的词（如 "，"、"！"）
- *   3. 每个词内的双引号转义为 ""（FTS5 短语语法的转义规则）
- *   4. 每个词用双引号包裹（变为短语，防止被解释为语法关键字或操作符）
- *   5. 用空格连接（FTS5 默认 = AND）
- *
- * 示例：
- *   escapeFtsQuery('ssh 配置')      → '"ssh" "配置"'    （AND 查询）
- *   escapeFtsQuery('nginx 502*')   → '"nginx" "502*"'  （* 被双引号包裹后失效）
- *   escapeFtsQuery('"ssh" OR x')   → '"ssh" "x"'       （OR 被双引号包裹后失效）
- *   escapeFtsQuery('')             → ''                （空查询返回空）
- *
- * @param query 用户原始查询
- * @returns FTS5 安全的查询字符串，空查询返回空字符串
- */
-export function escapeFtsQuery(query: string): string {
-  if (!query || typeof query !== 'string') return ''
-
-  // 步骤 1：按空白字符分词（包括中英文空格、制表符、换行）
-  const tokens = query
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t.length > 0)
-    // 步骤 2：过滤纯标点符号的词（避免 "：" "，" 等产生空短语）
-    .filter((t) => !/^[\s,，。、；;:：!！?？()（）\[\]【】"'`/\\|*\-+.]+$/.test(t))
-
-  if (tokens.length === 0) return ''
-
-  // 步骤 3-4：每个词转义双引号 + 用双引号包裹
-  const escaped = tokens.map((t) => {
-    // FTS5 短语语法：内部双引号转义为 ""（两个连续双引号）
-    const inner = t.replace(/"/g, '""')
-    return `"${inner}"`
-  })
-
-  // 步骤 5：用空格连接 = AND 语义（FTS5 默认操作符）
-  return escaped.join(' ')
 }
 
 // ============================================================================
@@ -420,7 +359,9 @@ function runFtsSearch(
   type: KnowledgeType | undefined,
   limit: number
 ): Array<{ id: string; score: number }> {
-  const ftsQuery = escapeFtsQuery(query)
+  // 中文必须先切词再用 OR 连（#181）：unicode61 把连续中文当一个 token，
+  // 而按 AND 连会导致「磁盘满了怎么办」要求「了怎/怎么/么办」同时出现，短文档直接归零。
+  const ftsQuery = buildFtsMatchQuery(query)
   if (!ftsQuery) return []
 
   try {

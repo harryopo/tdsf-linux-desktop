@@ -96,7 +96,7 @@ describe('混合检索', () => {
     expect(result.hits[0].entry.commands).toEqual(['curl -I 127.0.0.1'])
   })
 
-  it('向量不可用、全文也切不中中文时，退回关键词匹配（还能查到）', async () => {
+  it('向量不可用时中文也能命中：全文那条腿现在会切词（#181 之后）', async () => {
     repo.add(
       makeEntry({
         id: 'kb-kw-1',
@@ -113,9 +113,23 @@ describe('混合检索', () => {
       embedQuery: async () => null,
     })
 
-    expect(result.mode).toBe('keyword')
-    expect(result.vectorUsed).toBe(false)
+    // 关键词兜底（repo.search 里的子串匹配）仍然在，但中文短查询现在由全文那条腿先接住了
     expect(result.hits.map((h) => h.entry.id)).toContain('kb-kw-1')
+    expect(result.vectorUsed).toBe(false)
+  })
+
+  it('全文表整个不可用时仍能查到（降级链没断）', async () => {
+    repo.add(makeEntry({ id: 'kb-nofts-1', title: '磁盘满了怎么办', keywords: ['磁盘'] }))
+    dbm.exec('DROP TABLE knowledge_fts')
+
+    const result = await searchKnowledge({
+      db: dbm,
+      repo,
+      query: '磁盘',
+      embedQuery: async () => null,
+    })
+
+    expect(result.hits.map((h) => h.entry.id)).toContain('kb-nofts-1')
   })
 
   it('两种路径各记一次「知识库检索」，不归零也不翻倍', async () => {

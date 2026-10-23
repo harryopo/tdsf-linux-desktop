@@ -413,6 +413,7 @@ export class DatabaseManager {
         feedback TEXT,
         useCount INTEGER NOT NULL DEFAULT 0,
         embedding TEXT,
+        contentSeg TEXT,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL
       );
@@ -547,13 +548,16 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_memaudit_ts ON memory_audit(ts);
     `)
 
+    // 注册向量辅助函数必须排在迁移之前：老库里已经装着 knowledge_vec_au 触发器，
+    // 迁移里的 UPDATE（#181 的 contentSeg 回填）会触发它，而它调用 json_to_vec_f32——
+    // 函数没注册就整次迁移失败，用户开机会看到"数据库降级"横幅（2026-10-23 实测踩到）。
+    this.registerVectorHelpers()
+
     // 结构迁移：按 PRAGMA user_version 补齐历史库缺列，并把版本号推到目标值。
     // 必须在 FTS / vec0 之前执行 —— 那些虚拟表和触发器引用上面这些列。
     this.runMigrations()
 
     // ────────── FTS5 + vec0 虚拟表（Sprint 7 任务 A 新增）──────────
-    // 注册向量辅助函数（触发器同步用，必须最先执行）
-    this.registerVectorHelpers()
     // 初始化 FTS5 全文检索虚拟表 + 触发器
     this.initFts5Tables()
     // 初始化 decision_cards FTS5 虚拟表（BM25 搜索替代 LIKE）
@@ -648,12 +652,16 @@ export class DatabaseManager {
     if (!this.dbAvailable || !this.db) return
     try {
       // 创建 FTS5 影子表（external content 模式）
+      // contentSeg 是**入库前切好词**的文本（#181）：unicode61 把整段连续中文当一个 token，
+      // 不先切的话「磁盘」永远命中不了「磁盘满了怎么办」。列名必须与主表列名逐字一致，
+      // external content 表是按列名回读主表的。
       this.db.exec(`
         CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
           id UNINDEXED,
           title,
           problem,
           keywords,
+          contentSeg,
           content='knowledge_entries',
           content_rowid='rowid',
           tokenize='unicode61 remove_diacritics 2'
@@ -663,26 +671,26 @@ export class DatabaseManager {
       // 触发器：AFTER INSERT → 同步到 FTS
       this.db.exec(`
         CREATE TRIGGER IF NOT EXISTS knowledge_ai AFTER INSERT ON knowledge_entries BEGIN
-          INSERT INTO knowledge_fts(rowid, title, problem, keywords)
-          VALUES (new.rowid, new.title, new.problem, new.keywords);
+          INSERT INTO knowledge_fts(rowid, title, problem, keywords, contentSeg)
+          VALUES (new.rowid, new.title, new.problem, new.keywords, new.contentSeg);
         END;
       `)
 
       // 触发器：AFTER DELETE → 从 FTS 删除（FTS5 'delete' 命令）
       this.db.exec(`
         CREATE TRIGGER IF NOT EXISTS knowledge_ad AFTER DELETE ON knowledge_entries BEGIN
-          INSERT INTO knowledge_fts(knowledge_fts, rowid, title, problem, keywords)
-          VALUES ('delete', old.rowid, old.title, old.problem, old.keywords);
+          INSERT INTO knowledge_fts(knowledge_fts, rowid, title, problem, keywords, contentSeg)
+          VALUES ('delete', old.rowid, old.title, old.problem, old.keywords, old.contentSeg);
         END;
       `)
 
       // 触发器：AFTER UPDATE → 先删旧值再插新值
       this.db.exec(`
         CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE ON knowledge_entries BEGIN
-          INSERT INTO knowledge_fts(knowledge_fts, rowid, title, problem, keywords)
-          VALUES ('delete', old.rowid, old.title, old.problem, old.keywords);
-          INSERT INTO knowledge_fts(rowid, title, problem, keywords)
-          VALUES (new.rowid, new.title, new.problem, new.keywords);
+          INSERT INTO knowledge_fts(knowledge_fts, rowid, title, problem, keywords, contentSeg)
+          VALUES ('delete', old.rowid, old.title, old.problem, old.keywords, old.contentSeg);
+          INSERT INTO knowledge_fts(rowid, title, problem, keywords, contentSeg)
+          VALUES (new.rowid, new.title, new.problem, new.keywords, new.contentSeg);
         END;
       `)
     } catch (err) {
@@ -838,8 +846,8 @@ export class DatabaseManager {
         .get() as { c: number } | undefined
       if (ftsCount && entriesCount && ftsCount.c === 0 && entriesCount.c > 0) {
         this.db.exec(`
-          INSERT INTO knowledge_fts(rowid, title, problem, keywords)
-          SELECT rowid, title, problem, keywords FROM knowledge_entries;
+          INSERT INTO knowledge_fts(rowid, title, problem, keywords, contentSeg)
+          SELECT rowid, title, problem, keywords, contentSeg FROM knowledge_entries;
         `)
         console.log(`[DatabaseManager] FTS 回填完成：${entriesCount.c} 条`)
       }

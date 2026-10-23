@@ -15,6 +15,7 @@
  */
 
 import type { Database } from 'better-sqlite3'
+import { backfillKnowledgeContentSeg } from './knowledge-seg-backfill'
 
 /** 单项迁移定义 */
 export interface Migration {
@@ -138,6 +139,34 @@ export const MIGRATIONS: readonly Migration[] = [
           createdAt INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(sshSessionId, createdAt);
+      `)
+    },
+  },
+  {
+    version: 5,
+    description: '知识库全文检索支持中文：补 contentSeg 并重建 FTS',
+    up: (db) => {
+      /*
+       * 病根：FTS5 的 unicode61 把整段连续中文当一个 token——「磁盘满了怎么办」
+       * 在索引里是一个词，拿「磁盘」MATCH 永远命中不了。SQLite 的 trigram 分词
+       * 也救不了两字词（它只切连续三字符）。
+       *
+       * 做法：入库前用二元组切好写进 contentSeg，FTS 只索引这一列（按空格切）；
+       * 查询侧同一套规则切词并按 OR 连。分词是 JS 逻辑，SQLite 表达不了，
+       * 所以存量数据在这一步用 JS 回填。
+       *
+       * 重建 FTS 必须连触发器一起 DROP：initFts5Tables 用的是 CREATE ... IF NOT EXISTS，
+       * 旧表/旧触发器留着就永远不会换成新结构。
+       */
+      if (!hasColumn(db, 'knowledge_entries', 'contentSeg')) {
+        db.exec('ALTER TABLE knowledge_entries ADD COLUMN contentSeg TEXT')
+      }
+      backfillKnowledgeContentSeg(db)
+      db.exec(`
+        DROP TRIGGER IF EXISTS knowledge_ai;
+        DROP TRIGGER IF EXISTS knowledge_ad;
+        DROP TRIGGER IF EXISTS knowledge_au;
+        DROP TABLE IF EXISTS knowledge_fts;
       `)
     },
   },

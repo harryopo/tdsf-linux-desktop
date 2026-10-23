@@ -238,7 +238,7 @@ export class DecisionRepository {
    * 转义用户输入为 FTS5 安全查询
    *
    * 策略：按空白分词 → 过滤纯标点 → 每个词双引号包裹（短语匹配）
-   * 与 hybrid-search.ts 的 escapeFtsQuery 逻辑一致。
+   * 与 knowledge-tokenize.ts 的做法对应（决策这边暂未做中文预分词，仍是整词 AND）。
    */
   private escapeDecisionFtsQuery(query: string): string {
     if (!query || typeof query !== 'string') return ''

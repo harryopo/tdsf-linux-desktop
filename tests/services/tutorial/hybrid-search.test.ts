@@ -6,7 +6,6 @@
  *
  * 覆盖：
  *   - reciprocalRankFusion：RRF 融合算法（纯函数，6 用例）
- *   - escapeFtsQuery：FTS5 查询转义（纯函数，7 用例）
  *   - hybridSearch：混合检索主函数（mock DB，3 核心场景 + 边界）
  *
  * 教学要点（对应原注释）：
@@ -18,7 +17,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   reciprocalRankFusion,
-  escapeFtsQuery,
   hybridSearch,
 } from '@main/services/tutorial/hybrid-search'
 import type { DatabaseManager } from '@main/services/db/database'
@@ -188,44 +186,6 @@ describe('reciprocalRankFusion — RRF 倒数排名融合', () => {
     const defaultScore = resultDefault.get('a')?.rrfScore ?? 0
     const weightedScore = resultWeighted.get('a')?.rrfScore ?? 0
     expect(weightedScore).toBeCloseTo(defaultScore * 2, 10)
-  })
-})
-
-// ============================================================================
-// 2. escapeFtsQuery 测试（纯字符串处理）
-// ============================================================================
-
-describe('escapeFtsQuery — FTS5 查询转义', () => {
-  it('空字符串应返回空', () => {
-    expect(escapeFtsQuery('')).toBe('')
-  })
-
-  it('null/undefined 应返回空', () => {
-    expect(escapeFtsQuery(null as unknown as string)).toBe('')
-    expect(escapeFtsQuery(undefined as unknown as string)).toBe('')
-  })
-
-  it('单词查询应用双引号包裹', () => {
-    expect(escapeFtsQuery('ssh')).toBe('"ssh"')
-  })
-
-  it('多词查询应用空格连接（AND 语义）', () => {
-    expect(escapeFtsQuery('ssh 配置')).toBe('"ssh" "配置"')
-  })
-
-  it('含双引号的词应转义为两个连续双引号', () => {
-    // 输入 ssh"config → 内部转义为 ssh""config → 包裹为 "ssh""config"
-    expect(escapeFtsQuery('ssh"config')).toBe('"ssh""config"')
-  })
-
-  it('纯标点符号应被过滤，返回空字符串', () => {
-    expect(escapeFtsQuery('，。！？')).toBe('')
-    expect(escapeFtsQuery('   ，   ')).toBe('')
-  })
-
-  it('FTS5 语法关键字（OR/AND/NOT）应被双引号包裹后失效', () => {
-    // OR 被双引号包裹后变为短语 "OR"，不再解释为语法关键字
-    expect(escapeFtsQuery('ssh OR x')).toBe('"ssh" "OR" "x"')
   })
 })
 
