@@ -2,54 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T04:52:36.537Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T03:56:32.926Z",
-      "lastActiveAt": "2026-10-24T04:52:36.537Z",
-      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm:* 家族",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts,src/shared/models.ts,src/preload/index.ts,src/main/ipc/index.ts,src/renderer/src/lib/messageSync.ts",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm:* 家族",
-          "claimedAt": "2026-10-24T03:56:32.926Z"
-        },
-        {
-          "path": "AGENTS.md,ROADMAP.md,SECURITY.md,README.md,docs/功能实景清单.md,docs/长期优化目标.md,scripts/audit-ipc-contract.ts",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族：读数与文档同步",
-          "claimedAt": "2026-10-24T04:25:24.142Z"
-        },
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
-          "claimedAt": "2026-10-24T04:52:28.559Z"
-        },
-        {
-          "path": "src/shared/models.ts",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
-          "claimedAt": "2026-10-24T04:52:30.536Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
-          "claimedAt": "2026-10-24T04:52:32.551Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
-          "claimedAt": "2026-10-24T04:52:34.470Z"
-        },
-        {
-          "path": "AGENTS.md",
-          "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
-          "claimedAt": "2026-10-24T04:52:36.537Z"
-        }
-      ],
-      "expiresAt": "2026-10-24T06:52:36.537Z"
-    }
-  },
+  "lastUpdated": "2026-10-24T04:53:07.238Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -10074,6 +10028,55 @@
       "file": "AGENTS.md",
       "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
       "timestamp": "2026-10-24T04:52:36.537Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts,src/shared/models.ts,src/preload/index.ts,src/main/ipc/index.ts,src/renderer/src/lib/messageSync.ts",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm:* 家族",
+      "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md,ROADMAP.md,SECURITY.md,README.md,docs/功能实景清单.md,docs/长期优化目标.md,scripts/audit-ipc-contract.ts",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族：读数与文档同步",
+      "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
+      "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
+      "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
+      "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
+      "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
+      "timestamp": "2026-10-24T04:53:07.238Z"
     }
   ],
   "coordinationAudit": {
