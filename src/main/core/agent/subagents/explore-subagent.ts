@@ -40,7 +40,7 @@ import { BaseSubagent, type SubagentTask, type SubagentResult } from './base'
 /**
  * Explore 任务输入
  *
- * 由调用方（Supervisor / dispatcher）构造，传入 explore-subagent。
+ * 由调用方（Supervisor）构造，传入 explore-subagent。
  */
 export interface ExploreTaskInput {
   /** 探查的根目录（绝对路径） */

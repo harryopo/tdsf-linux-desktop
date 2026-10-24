@@ -5,8 +5,10 @@
  *
  * v0.9.4 批次 4 新增：
  * - ExploreSubagent（任务 2）：代码库探索 Subagent，基于 fs 扫描
- * - dispatchSubagents（任务 1）：8 步简化版调度器
  * - loadCustomAgents / loadCustomAgent（任务 3）：.tdsf/agent/*.md 加载器
+ *
+ * 原 8 步 dispatcher（任务 1）已于 2026-10-24 整删：它只被本文件转出、生产零调用，
+ * 编排实际由 supervisor 自己做（PAOR）。详见 docs/功能实景清单.md C 组。
  */
 export { BaseSubagent, createSubagentTask } from './base'
 export type {
@@ -29,14 +31,6 @@ export { KnowledgeSubagent } from './knowledge-subagent'
 // v0.9.4 批次 4 - 任务 2：Explore Subagent
 export { ExploreSubagent } from './explore-subagent'
 export type { ExploreTaskInput, ExploreResultOutput } from './explore-subagent'
-
-// v0.9.4 批次 4 - 任务 1：8 步简化版调度器
-export { dispatchSubagents } from './dispatcher'
-export type {
-  DispatchStep,
-  DispatchContext,
-  DispatchResult,
-} from './dispatcher'
 
 // v0.9.4 批次 4 - 任务 3：.tdsf/agent/*.md 加载器
 export { loadCustomAgent, loadCustomAgents } from './agent-loader'

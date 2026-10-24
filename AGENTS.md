@@ -58,7 +58,7 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > `ipc/task-permission-approval`、`TASK` 通道、preload 两把键与那批单测一起删，代码只留在 git 历史。
 > 别把同目录的东西一起打成"死代码"：`loop-engineering-subagent` 与 `agent-loader` 由
 > `ipc/loop-engineering.ts`、`ipc/index.ts` 注册并在跑；`subagents/dispatcher.ts` 的 8 步调度
-> 仍然只被 `subagents/index.ts` 转出、生产零调用（这条是它自己的账，另轮判）。
+> 已于 2026-10-24 整删（生产零调用、与 supervisor 的 PAOR 重复，专属测试与 barrel 导出同批删）。
 
 > CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1369` → `agent-store.ts:405`
 > → `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117`），只是那一轮没采到熵点时不画。
