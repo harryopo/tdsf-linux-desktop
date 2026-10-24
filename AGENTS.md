@@ -64,6 +64,12 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > 渲染层零调用，主对话一直是 `agent:chat`（Supervisor）那一条。留着的 `core/agent-workflow.ts`
 > 不是残骸——循环工程那条活链（`subagents/loop-engineering-subagent.ts` 与
 > `services/mcp/tools/legacy-handlers.ts`）还在用它，被删的只是没人按的那层壳。
+> **五模式（chat/ask/plan/code/debug）已于 2026-10-24 整删**：`ipc/mode.ts`、`core/agent/modes/`
+> （含 ask/plan 两份系统提示词共 295 行）、`MODE` 通道、preload 三键与 `agent-types.ts` 里那组形状。
+> 判决理由不是"没人按"，是**它兑不了自己许的诺**：Supervisor 取 systemPrompt 不读 mode，
+> `getAllowedTools` 生产零调用，所以"ask 只读""plan 不执行"从来没有执行体；而 MCP 资源
+> `tdsf://config/agent-mode` 曾把 `canWriteFiles`/`canExecuteCommands` 当真实能力报给外部客户端。
+> 下一次想加模式，先写执行体（拦截点或注入点），再谈界面上的选择器。
 
 > CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1462` → `agent-store.ts:381`
 > → `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117`），只是那一轮没采到熵点时不画。

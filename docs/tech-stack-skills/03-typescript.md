@@ -156,9 +156,10 @@ declare global {
 export {}
 ```
 
-**跨进程类型的现行形状**（2026-10-20 回查；**缺一步类型必崩**这句仍然成立，但落点变了）：
-1. `src/preload/index.ts:989` 用 `export type ElectronAPI = typeof electronApi` ——
-   **类型由实现派生**，不再手写一份 interface。
+**跨进程类型的现行形状**（2026-10-24 回查；**缺一步类型必崩**这句仍然成立，但落点变了）：
+1. `src/preload/index.ts` 末尾的 `export type ElectronAPI = typeof electronApi` ——
+   **类型由实现派生**，不再手写一份 interface。这里故意不写行号：那个对象每删一批死键，
+   文件就短几行，钉行号的文档必然自己烂掉。
    按域拆在 `src/preload/domains/`（agent / cognition / events / llm / sftp / ssh / system / terminal）。
 2. `src/preload/index.ts` 里 `contextBridge.exposeInMainWorld('electronAPI', ...)` 真的把那个对象挂出去。
 3. `src/renderer/src/types/electron.d.ts:374` 声明 `window.electronAPI`，

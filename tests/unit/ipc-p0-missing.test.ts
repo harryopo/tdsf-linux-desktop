@@ -1,24 +1,25 @@
 /**
- * v0.9.5 P0 - 5 组缺失 IPC 通道单元测试
+ * v0.9.5 P0 补齐通道的单元测试（IPC 4 步同步铁律验证）
  *
- * 覆盖 10 个新 IPC 方法（IPC 4 步同步铁律验证）：
- * - 组 1：token:cost-stats（1 个）— 成本透明
- * - 组 2：mode:list / mode:set-default / mode:get-current（3 个）— 五模式切换
- * - 组 3：subagent:list / subagent:reload（2 个）— 自定义 Agent 加载器
- * - 组 4：provider:capabilities / capabilities-all / pricing / pricing-all（4 个）— Provider 能力 + 定价透明
+ * 覆盖 7 个方法：
+ * - token:cost-stats（1 个）— 成本透明
+ * - subagent:list / subagent:reload（2 个）— 自定义 Agent 加载器
+ * - provider:capabilities / capabilities-all / pricing / pricing-all（4 个）— Provider 能力 + 定价透明
+ *
+ * 曾有第 4 组 mode:list / mode:set-default / mode:get-current（8 个用例），
+ * 2026-10-24 随实现整删：五模式既不注入 system prompt 也不拦工具，
+ * 渲染层零调用，测试测的是一层没有执行体的包装。
  *
  * 测试策略（混合 Mock + 真实模块）：
  * - Mock electron（ipcMain.handle 捕获 + app.getAppPath）+ electron-store（logger 依赖）
  * - Mock IO 依赖模块：getCostStats / getProvider / loadCustomAgents / loadCustomAgent
- * - 使用真实模块：mode-registry（纯函数）/ provider-capabilities / provider-pricing
- * - 每个测试用例独立隔离（beforeEach 重置单例状态 + 清空 Mock 调用记录）
+ * - 使用真实模块：provider-capabilities / provider-pricing（纯表）
+ * - 每个测试用例独立隔离（beforeEach 清空 handlers map + 清空 Mock 调用记录）
  *
  * IPC 4 步同步铁律验证：
  * - 步骤 1：main 层 handler 已注册到 ipcMain.handle（通过 handlers map 捕获验证）
  * - 步骤 2：ipc/index.ts 已调用 registerXxxHandlers（通过 handlers map 非空验证）
  * - 步骤 3+4：preload 暴露 + electron.d.ts 类型声明由 typecheck:web 验证
- *
- * 设计依据：v0.9.5 §UI接入接线图（P0 级缺失 IPC - 4 步同步铁律）
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
@@ -92,10 +93,11 @@ vi.mock('../../src/main/core/agent/subagents/agent-loader', () => ({
 
 // ============================================================================
 // 导入被测模块（在 Mock 设置之后导入，确保 Mock 生效）
+//
+// mode:* 三通道与其 handlers 已于 2026-10-24 整删，本文件组 2 同步移除。
 // ============================================================================
 
 import { registerTokenCostStatsHandlers } from '../../src/main/ipc/token-stats'
-import { registerModeHandlers } from '../../src/main/ipc/mode'
 import { registerSubagentHandlers } from '../../src/main/ipc/subagent'
 import { registerProviderInfoHandlers } from '../../src/main/ipc/provider-info'
 
@@ -107,22 +109,13 @@ import {
   loadCustomAgent,
 } from '../../src/main/core/agent/subagents/agent-loader'
 
-// 导入真实模块（mode-registry 是纯函数，用于集成测试）
-import {
-  resetCurrentMode,
-  DEFAULT_MODE,
-  MODE_CONFIGS,
-} from '../../src/main/core/agent/modes/mode-registry'
+// 导入真实模块（provider-capabilities / provider-pricing 是纯表，用于集成测试）
 import { PROVIDER_CAPABILITIES } from '../../src/main/core/agent/providers/provider-capabilities'
 import { PROVIDER_PRICING } from '../../src/main/core/agent/providers/provider-pricing'
 
 // 导入类型
 import type {
   CostStats,
-  ModeListResponse,
-  ModeSetDefaultRequest,
-  ModeSetDefaultResponse,
-  ModeCurrentResponse,
   CustomAgentConfig,
   SubagentReloadRequest,
   SubagentReloadResponse,
@@ -145,7 +138,7 @@ import type {
  * 大部分 handler 用 _event 接收但不使用，传 null 即可。
  * 为类型安全起见，使用 unknown 类型的 null。
  */
-const mockEvent = null as unknown as Parameters<typeof handlers['mode:list']>[0]
+const mockEvent = null as unknown as Parameters<typeof handlers['token:cost-stats']>[0]
 
 // ============================================================================
 // 全局 setup：每个测试前重置状态 + 重新注册 handlers
@@ -157,9 +150,8 @@ beforeEach(() => {
     delete handlers[key]
   }
 
-  // 注册所有 4 组 IPC handlers（捕获到 handlers map）
+  // 注册剩余 3 组 IPC handlers（捕获到 handlers map）
   registerTokenCostStatsHandlers()
-  registerModeHandlers()
   registerSubagentHandlers()
   registerProviderInfoHandlers()
 
@@ -168,9 +160,6 @@ beforeEach(() => {
   vi.mocked(getProvider).mockReset()
   vi.mocked(loadCustomAgents).mockReset()
   vi.mocked(loadCustomAgent).mockReset()
-
-  // 重置单例状态
-  resetCurrentMode() // mode-registry 的 currentMode 重置为 DEFAULT_MODE ('chat')
 })
 
 // ============================================================================
@@ -212,93 +201,6 @@ describe('[组 1] token:cost-stats IPC 通道', () => {
     await expect(handlers['token:cost-stats'](mockEvent)).rejects.toThrow(
       '获取成本统计失败'
     )
-  })
-})
-
-// ============================================================================
-// 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）— 8 个测试
-// ============================================================================
-
-describe('[组 2] mode:* IPC 通道', () => {
-  it('2.1 三个通道已注册到 ipcMain.handle', () => {
-    expect(handlers['mode:list']).toBeDefined()
-    expect(handlers['mode:set-default']).toBeDefined()
-    expect(handlers['mode:get-current']).toBeDefined()
-  })
-
-  it('2.2 mode:list 返回 5 个 mode', async () => {
-    const result: ModeListResponse = await handlers['mode:list'](mockEvent)
-
-    expect(Array.isArray(result)).toBe(true)
-    expect(result).toHaveLength(5)
-    const names = result.map((m) => m.name)
-    expect(names).toContain('chat')
-    expect(names).toContain('ask')
-    expect(names).toContain('plan')
-    expect(names).toContain('code')
-    expect(names).toContain('debug')
-  })
-
-  it('2.3 mode:list 返回的 ModeInfo 不含 systemPrompt（避免泄露内部 prompt 模板）', async () => {
-    const result: ModeListResponse = await handlers['mode:list'](mockEvent)
-
-    for (const mode of result) {
-      expect(mode).not.toHaveProperty('systemPrompt')
-      // ModeInfo 应该只有 name / displayName / description / allowedTools
-      const keys = Object.keys(mode).sort()
-      expect(keys).toEqual(['allowedTools', 'description', 'displayName', 'name'])
-    }
-  })
-
-  it('2.4 mode:list 返回的 allowedTools 与 MODE_CONFIGS 一致', async () => {
-    const result: ModeListResponse = await handlers['mode:list'](mockEvent)
-
-    for (const mode of result) {
-      const config = MODE_CONFIGS[mode.name]
-      expect(mode.allowedTools).toEqual([...config.allowedTools])
-    }
-  })
-
-  it('2.5 mode:set-default 合法 mode → success=true，返回 previousMode + currentMode', async () => {
-    const request: ModeSetDefaultRequest = { mode: 'code' }
-    const result: ModeSetDefaultResponse = await handlers['mode:set-default'](
-      mockEvent,
-      request
-    )
-
-    expect(result.success).toBe(true)
-    expect(result.previousMode).toBe('chat') // 默认是 chat
-    expect(result.currentMode).toBe('code')
-  })
-
-  it('2.6 mode:set-default 非法 mode → success=false，currentMode 保持原值', async () => {
-    const request = { mode: 'invalid-mode' } as unknown as ModeSetDefaultRequest
-    const result: ModeSetDefaultResponse = await handlers['mode:set-default'](
-      mockEvent,
-      request
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.currentMode).toBe('chat') // 保持默认值
-    expect(result.previousMode).toBe('chat')
-  })
-
-  it('2.7 mode:set-default 入参为 null → success=false', async () => {
-    const result: ModeSetDefaultResponse = await handlers['mode:set-default'](
-      mockEvent,
-      null as unknown as ModeSetDefaultRequest
-    )
-
-    expect(result.success).toBe(false)
-  })
-
-  it('2.8 mode:get-current 返回初始默认 mode（chat）+ displayName', async () => {
-    const result: ModeCurrentResponse = await handlers['mode:get-current'](mockEvent)
-
-    expect(result.mode).toBe(DEFAULT_MODE)
-    expect(result.mode).toBe('chat')
-    expect(typeof result.displayName).toBe('string')
-    expect(result.displayName.length).toBeGreaterThan(0)
   })
 })
 

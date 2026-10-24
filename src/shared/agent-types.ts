@@ -880,111 +880,22 @@ export function generateSessionId(prefix: string = 'sess'): SessionId {
 }
 
 // ============================================================================
-// v0.9.4 批次 3 - Mode 五模式 + Edit Format 多策略（任务 4 类型定义）
-//
-// 方案书依据：v0.9.4 §11 第 5 类（Mode 五模式）+ 第 3 类（Edit Format 多策略）
-// 调研文档：
-//   - d:\ai\linux教学一体\idea-to-dev-output\29-源码分析-KiloCode-多模式Subagent.md
-//     （Kilo Code 多模式架构：Code/Plan/Debug/Ask/Review，mode 即 primary agent）
-//   - d:\ai\linux教学一体\idea-to-dev-output\31-源码分析-Aider-终端优先与git沙箱回滚.md
-//     （Aider edit_format：editblock/wholefile/udiff/patch + ask mode）
-//
-// 设计原则：
-// - SSOT：所有跨端共享的类型集中在 src/shared/agent-types.ts
-// - 不依赖 main 进程的任何模块（确保 preload/renderer 可安全导入）
-// - 类型穷尽性：AgentMode 用字面量联合，便于 switch 穷尽性检查
-// - 与 ThinkingStrength 正交：Mode 控制工具白名单 + 行为约束，
-//   Strength 控制思考深度（fast/standard/deep）。两者可自由组合。
-// ============================================================================
-
-/**
- * Agent 工作模式（v0.9.4 批次 3 - 任务 4，借鉴 Kilo Code 多模式架构）
- *
- * 不同模式用不同的 system prompt + 工具集 + 行为约束。
- * 与 ThinkingStrength（fast/standard/deep）正交：
- * - Mode 控制"能做什么"（工具白名单 + 是否能写文件 / 执行命令）
- * - Strength 控制"想多深"（单次 LLM 调用 vs 多 Subagent + Reflect）
- *
- * 5 个模式（覆盖典型 Linux 运维 Agent 场景）：
- * - chat     — 普通对话（默认，纯问答无副作用）
- * - ask      — 询问模式（只读，不修改文件，类似 Aider ask mode）
- * - plan     — 计划模式（仅生成方案不执行，类似 Cline plan-and-act 的 plan 阶段）
- * - code     — 代码模式（读写文件 + 执行命令，全功能模式）
- * - debug    — 调试模式（分析问题 + 提出修复方案，但不直接应用）
- *
- * 借鉴 Kilo Code 的 mode 设计：mode 即 primary agent，每个 mode 有独立的
- * system prompt + 工具白名单 + 行为约束（canWriteFiles / canExecuteCommands）。
- * 与 Kilo Code 的差异：
- * - 我们不引入 Review 模式（用 /review AT 命令实现，避免 Mode 膨胀）
- * - 我们保留 chat 模式作为默认（Kilo Code 默认是 code 模式）
- */
-export type AgentMode = 'chat' | 'ask' | 'plan' | 'code' | 'debug'
-
-/**
- * 模式配置（每种模式的 system prompt + 工具白名单 + 行为约束）
- *
- * v0.9.4 批次 3 - 任务 4：Mode 五模式 main 层支持
- *
- * 由 mode-registry.ts 的 MODE_CONFIGS 提供默认值，主进程在调用 LLM 前
- * 根据当前 mode 应用对应配置：
- * - systemPrompt 拼接到 LLM 的 system message 前缀
- * - allowedTools 用于过滤工具调用（未在白名单中的工具被禁用）
- * - canWriteFiles / canExecuteCommands / canModifySandbox 用于运行时权限校验
- *
- * 设计要点：
- * - allowedTools 用字符串数组（工具名），'*' 表示允许全部
- * - canWriteFiles / canExecuteCommands / canModifySandbox 三个布尔字段
- *   是"硬约束"，与 allowedTools 互补：即使 allowedTools 包含 'file.write'，
- *   canWriteFiles=false 时仍禁止写文件
- * - description 用于 UI tooltip，便于用户理解每个模式的差异
- */
-export interface ModeConfig {
-  /** 模式 ID */
-  mode: AgentMode
-  /** 显示名称（如"普通对话"/"询问模式"） */
-  displayName: string
-  /** 系统提示模板（覆盖 Supervisor 默认 prompt） */
-  systemPrompt: string
-  /** 允许的工具白名单（未在白名单中的工具被禁用，'*' 表示允许全部） */
-  allowedTools: string[]
-  /** 是否允许写文件（硬约束，与 allowedTools 互补） */
-  canWriteFiles: boolean
-  /** 是否允许执行 shell 命令（硬约束） */
-  canExecuteCommands: boolean
-  /** 是否允许修改 sandbox 配置（如 SSH 主机、密钥等敏感操作） */
-  canModifySandbox: boolean
-  /** 简短描述（UI tooltip） */
-  description: string
-  /**
-   * v0.9.5 P0 新增：Plan→Build 双模衔接（借鉴 xai-org/grok-build §4 Plan/Build 双模）
-   *
-   * 如果当前 mode 是 plan，用户确认方案后，UI 应提示是否切到 nextMode 模式执行。
-   *
-   * - undefined：不支持衔接（保持当前 mode）
-   * - 'code'：plan 完成后可切到 code 模式执行
-   * - 'debug'：plan 完成后可切到 debug 模式验证
-   *
-   * 实际模式切换由 setCurrentMode() IPC 处理，UI 显示"开始执行"按钮。
-   */
-  nextModeOnConfirm?: AgentMode
-  /** 衔接按钮的 UI 文案（如"开始执行"/"开始调试"） */
-  nextModeButtonLabel?: string
-}
-
-// ============================================================================
 // v0.9.5 P0 级缺失 IPC 通道共享类型
 //
-// 任务：v0.9.5 渲染层 UI 集成 - 补齐 5 组 P0 级缺失 IPC 通道
-//   组 1：token:cost-stats（成本透明）
-//   组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
-//   组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
-//   组 5：provider:capabilities / provider:capabilities-all / provider:pricing / provider:pricing-all（Provider 能力 + 定价透明）
+// 任务：v0.9.5 渲染层 UI 集成 - 补齐主进程已实现但界面拿不到的通道
+//   token:cost-stats（成本透明）
+//   subagent:list / subagent:reload（自定义 Agent 加载器）
+//   provider:capabilities / provider:capabilities-all / provider:pricing /
+//   provider:pricing-all（Provider 能力 + 定价透明）
+//
+// 组 2（mode:* 五模式切换）的类型已于 2026-10-24 随实现整删：
+// mode 既不注入 system prompt 也不拦工具，渲染层零调用，
+// 而 MCP 资源曾把 allowedTools/canWriteFiles 当真实能力对外公布。
 //
 // 设计原则：
 // - SSOT：所有跨端共享的类型集中在 src/shared/agent-types.ts
 // - 不依赖 main 进程的任何模块（确保 preload/renderer 可安全导入）
 // - 类型穷尽性：用字面量联合 + Record<T, V> 强制穷尽
-// - IPC 4 步同步：main handler → ipc/index.ts → preload → electron.d.ts
 // ============================================================================
 
 /**
@@ -1037,63 +948,6 @@ export interface CustomAgentConfig {
   systemPrompt: string
   /** 来源文件路径（用于热重载） */
   sourceFile: string
-}
-
-/**
- * Mode 简要信息（v0.9.5 P0 - 组 2，不含 systemPrompt 避免泄露）
- *
- * 用于 mode:list IPC 通道返回值，UI 模式选择器渲染用。
- *
- * 字段说明：
- * - name：模式 ID（'chat' | 'ask' | 'plan' | 'code' | 'debug'）
- * - displayName：显示名称（如 '普通对话' / '询问模式'）
- * - description：简短描述（UI tooltip）
- * - allowedTools：工具白名单（'*' 表示允许全部）
- */
-export interface ModeInfo {
-  /** 模式 ID */
-  name: AgentMode
-  /** 显示名称（如 '普通对话' / '询问模式'） */
-  displayName: string
-  /** 简短描述（UI tooltip） */
-  description: string
-  /** 允许的工具白名单（'*' 表示允许全部） */
-  allowedTools: string[]
-}
-
-/**
- * mode:list IPC 通道返回类型
- */
-export type ModeListResponse = ModeInfo[]
-
-/**
- * mode:set-default IPC 通道请求参数
- */
-export interface ModeSetDefaultRequest {
-  /** 要设置为默认的 mode */
-  mode: AgentMode
-}
-
-/**
- * mode:set-default IPC 通道返回值
- */
-export interface ModeSetDefaultResponse {
-  /** 是否设置成功 */
-  success: boolean
-  /** 设置前的 mode */
-  previousMode: AgentMode
-  /** 设置后的 mode（与 success=true 时等于 request.mode） */
-  currentMode: AgentMode
-}
-
-/**
- * mode:get-current IPC 通道返回值
- */
-export interface ModeCurrentResponse {
-  /** 当前默认 mode */
-  mode: AgentMode
-  /** 显示名称（便于 UI 直接渲染） */
-  displayName: string
 }
 
 /**

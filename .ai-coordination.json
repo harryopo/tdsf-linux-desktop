@@ -2,8 +2,59 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T04:53:07.238Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-24T05:14:31.738Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-24T04:59:37.177Z",
+      "lastActiveAt": "2026-10-24T05:14:31.738Z",
+      "task": "196-remove-agent-modes",
+      "claimedFiles": [
+        {
+          "path": "src/shared/agent-types.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:37.177Z"
+        },
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:39.028Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:41.002Z"
+        },
+        {
+          "path": "src/preload/index.d.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:42.875Z"
+        },
+        {
+          "path": "src/main/ipc/index.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:44.669Z"
+        },
+        {
+          "path": "src/shared/ipc-contract.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:46.459Z"
+        },
+        {
+          "path": "src/main/services/mcp/resources.ts",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T04:59:48.270Z"
+        },
+        {
+          "path": "AGENTS.md",
+          "task": "196-remove-agent-modes",
+          "claimedAt": "2026-10-24T05:14:31.738Z"
+        }
+      ],
+      "expiresAt": "2026-10-24T07:14:31.738Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -10077,6 +10128,62 @@
       "file": "AGENTS.md",
       "task": "#195 整删旧 agent 工作流 IPC 与裸 llm 家族",
       "timestamp": "2026-10-24T04:53:07.238Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/agent-types.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:37.177Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:39.028Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:41.002Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.d.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:42.875Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:44.669Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:46.459Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/mcp/resources.ts",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T04:59:48.270Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "AGENTS.md",
+      "task": "196-remove-agent-modes",
+      "timestamp": "2026-10-24T05:14:31.738Z"
     }
   ],
   "coordinationAudit": {

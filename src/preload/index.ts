@@ -27,7 +27,7 @@ import { createListener, invokeChecked, installIpcErrorUnwrap } from './ipc-util
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
-import { credibility, mode } from './domains/cognition'
+import { credibility } from './domains/cognition'
 import { localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { llm, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
@@ -618,27 +618,19 @@ const electronApi = {
   logRenderer: (payload: { level: string; category: string; message: string; meta?: Record<string, unknown>; correlationId?: string }): Promise<boolean> =>
     ipcRenderer.invoke(LOG.RENDERER, payload),
 
-  // ===== v0.9.5 P0 新增：5 组缺失 IPC 通道扁平化（17 个方法） =====
-  // 通道与主进程 ipc/{token-stats,mode,subagent,provider-info}.ts 一一对应
+  // ===== v0.9.5 P0 新增：缺失 IPC 通道扁平化（7 个方法） =====
+  // 通道与主进程 ipc/{token-stats,subagent,provider-info}.ts 一一对应
   // UI 调用方式：
   //   const cost = await window.electronAPI.tokenCostStats()
-  //   const modes = await window.electronAPI.modeList()
   //   const agents = await window.electronAPI.subagentList()
   //   const caps = await window.electronAPI.providerCapabilities({ providerId: 'xxx' })
+  // mode:* 三键已于 2026-10-24 整删（五模式既不注入 prompt 也不拦工具，渲染层零调用）
 
-  // 组 1：Token 成本透明（1 个）
   tokenCostStats: tokenCostStats.costStats,
 
-  // 组 2：Mode 五模式切换（3 个）
-  modeList: mode.list,
-  modeSetDefault: mode.setDefault,
-  modeGetCurrent: mode.getCurrent,
-
-  // 组 3：Subagent 自定义 Agent 加载器（2 个）
   subagentList: subagent.list,
   subagentReload: subagent.reload,
 
-  // 组 5：Provider Info 能力 + 定价透明（4 个）
   providerCapabilities: providerInfo.capabilities,
   providerCapabilitiesAll: providerInfo.capabilitiesAll,
   providerPricing: providerInfo.pricing,

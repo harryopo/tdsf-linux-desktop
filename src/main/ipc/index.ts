@@ -40,13 +40,13 @@ import { registerRiskHandlers } from './risk'
 // 通道：alert:ack（渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer）
 import { registerAlertHandlers } from './alert'
 import { registerSandboxIpcHandlers } from './sandbox'
-// v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
+// v0.9.5 P0 新增：缺失 IPC 通道补齐
 // - 组 1：token:cost-stats（成本透明）
-// - 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
 // - 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
 // - 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
+// 组 2（mode:* 五模式切换）已于 2026-10-24 整删：模式既不注入 prompt 也不拦工具，
+// 渲染层零调用，只有 MCP 资源把它当真实能力对外公布——那是谎报，不是半成品。
 import { registerTokenCostStatsHandlers } from './token-stats'
-import { registerModeHandlers } from './mode'
 import { registerSubagentHandlers } from './subagent'
 import { registerProviderInfoHandlers } from './provider-info'
 // v0.9.5 P0 新增：MCP 5 阶段状态机 IPC（借鉴 claw-code §3.3）
@@ -203,19 +203,15 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerSandboxIpcHandlers(mainWindow)
 
   // ====================================================================
-  // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
+  // v0.9.5 P0 新增：缺失 IPC 通道补齐
   //
-  // 详见 docs/UI接入接线图-v0.9.5.md（已生成）。
-  // 这些通道让 v0.9.4 主进程已实现的能力暴露给渲染层 UI 使用：
+  // 这些通道让 v0.9.4 主进程已实现的能力暴露给渲染层 UI 使用。
+  // 组 2（五模式切换）已整删，原因写在文件头。
   // ====================================================================
 
   // 组 1：token:cost-stats（成本透明）
   // 让 Token 监控面板展示累计成本（USD），让用户对消费有直观感知
   registerTokenCostStatsHandlers()
-
-  // 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
-  // 让 UI 模式选择器渲染 5 个 mode（chat/ask/plan/code/debug）+ 切换默认 mode
-  registerModeHandlers()
 
   // 组 3：subagent:list / subagent:reload（自定义 Agent 加载器）
   // 让 UI 列出 / 热重载项目根 .tdsf/agent/*.md 中的自定义 agent 配置

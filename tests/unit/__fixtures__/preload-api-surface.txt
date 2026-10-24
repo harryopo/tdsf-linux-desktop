@@ -88,9 +88,6 @@ memoryAudit
 memoryDelete
 memoryList
 memorySearch
-modeGetCurrent
-modeList
-modeSetDefault
 modelToolCalls
 monitorGetSystemInfo
 monitorStart

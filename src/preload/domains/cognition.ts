@@ -1,10 +1,10 @@
 /** cognition 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { ConfidenceAssessment, CredibilityEvidenceInput, DagData, ModeCurrentResponse, ModeListResponse, ModeSetDefaultRequest, ModeSetDefaultResponse } from '@shared/agent-types'
+import type { ConfidenceAssessment, CredibilityEvidenceInput, DagData } from '@shared/agent-types'
 import type { AuditFormat, AuditReportInput, ComplianceAuditReport } from '../../main/core/agent/credibility/audit/types'
 import type { AuditReportListItem, ExportOptions, ExportResult } from '../../main/core/agent/credibility/audit/exporter'
 import type { CalibrationSample, CalibrationState, EceResult, OptimizeTOptions, ProviderCalibration, ProviderId, TemperatureScalingResult } from '../../main/core/agent/credibility/calibration/types'
 import type { FuseAssessOptions } from '../../main/core/agent/credibility/fusion-engine'
-import { CREDIBILITY, MODE } from '@shared/ipc-channels'
+import { CREDIBILITY } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
 /**
@@ -185,48 +185,4 @@ const credibility = {
     ipcRenderer.invoke(CREDIBILITY.ADD_CALIBRATION_SAMPLE, sample),
 }
 
-/**
- * v0.9.5 P0 - 组 2：Mode 五模式切换 invoke 调用
- *
- * 通道与主进程 ipc/mode.ts 一一对应：
- * - mode:list        → list（列出所有可用 mode 配置，不含 systemPrompt）
- * - mode:set-default → setDefault（设置当前默认 mode）
- * - mode:get-current → getCurrent（返回当前默认 mode）
- *
- * 使用场景：
- * - ChatPanel 顶部模式选择器（chat / ask / plan / code / debug）
- * - UI 启动时调用 getCurrent 初始化选中状态
- * - 用户切换 mode 时调用 setDefault
- *
- * 安全设计：
- * - mode:list 返回 ModeInfo[] 不含 systemPrompt（避免泄露内部 prompt 模板）
- * - mode:set-default 入参用 isValidMode 类型守卫防御非法字符串
- */
-const mode = {
-  /**
-   * 列出所有可用 mode 配置（不含 systemPrompt）
-   *
-   * @returns ModeInfo[]（5 个 mode：chat / ask / plan / code / debug）
-   */
-  list: (): Promise<ModeListResponse> =>
-    ipcRenderer.invoke(MODE.LIST),
-
-  /**
-   * 设置当前默认 mode
-   *
-   * @param request { mode: AgentMode }
-   * @returns { success, previousMode, currentMode }（非法 mode 返回 success=false）
-   */
-  setDefault: (request: ModeSetDefaultRequest): Promise<ModeSetDefaultResponse> =>
-    ipcRenderer.invoke(MODE.SET_DEFAULT, request),
-
-  /**
-   * 返回当前默认 mode
-   *
-   * @returns { mode, displayName }（便于 UI 直接渲染）
-   */
-  getCurrent: (): Promise<ModeCurrentResponse> =>
-    ipcRenderer.invoke(MODE.GET_CURRENT),
-}
-
-export { credibility, mode }
+export { credibility }

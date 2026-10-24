@@ -421,9 +421,11 @@ function main(): void {
  * 与裸 llm:* 家族（chat/analyze/validate/chat-with-context/chat-with-tools/tool-approve
  * 六条 invoke 加 token/chunk/done/error/tool-progress/tool-approval 六条推送）。
  * 主对话只留一条路：agent:chat（Supervisor）；设置页「测试连接」是唯一的裸 llm 通道。
+ * 92 → 89 是同日：整删五模式（`mode:list/set-default/get-current` 三条 invoke
+ * 与对应 preload 键）——模式既不注入 prompt 也不拦工具，是纯壳。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 92
+const UNUSED_CAP = 89
 
 main()

@@ -21,9 +21,7 @@
 import { DatabaseManager } from '../../services/db/database'
 import { KnowledgeRepository } from '../../services/db/knowledge-repo'
 import { DecisionRepository } from '../../services/db/decision-repo'
-import { ConfigStore } from '../../services/storage/config-store'
 import { getSessionRegistry } from '../../core/agent/session-registry'
-import { getCurrentMode, getModeConfig, getAllModes } from '../../core/agent/modes/mode-registry'
 import {
   HIGH_RISK_COMMANDS,
   HIGH_RISK_PATTERNS,
@@ -65,10 +63,14 @@ export interface McpResourceContent {
 /**
  * TDSF MCP Server 暴露的资源清单
  *
- * 共 8 个资源，覆盖 3 大类：
+ * 共 7 个资源，覆盖 3 大类：
  * - 知识库（4）：linux-basics / selinux / samba / troubleshooting
- * - 配置（2）：agent-mode / risk-rules
+ * - 配置（1）：risk-rules
  * - 运行时（2）：sessions / decisions
+ *
+ * 曾有第 8 个 tdsf://config/agent-mode，2026-10-24 随五模式整删：它对外报的
+ * allowedTools / canWriteFiles / canExecuteCommands 没有任何执行体，
+ * 外部客户端据此认为"ask 模式只读"就是被误导。
  */
 export const MCP_RESOURCES: McpResource[] = [
   // ── 知识库资源 ──────────────────────────────────────────────────────────
@@ -98,12 +100,6 @@ export const MCP_RESOURCES: McpResource[] = [
   },
 
   // ── 配置资源 ────────────────────────────────────────────────────────────
-  {
-    uri: 'tdsf://config/agent-mode',
-    name: 'Agent 模式配置',
-    description: '当前 Agent 模式（chat/ask/plan/code/debug）及所有可用模式配置',
-    mimeType: 'application/json'
-  },
   {
     uri: 'tdsf://config/risk-rules',
     name: '风险规则配置',
@@ -304,64 +300,10 @@ function renderKnowledgePlaceholder(title: string, query: string, reason: string
  */
 function readConfigResource(uri: string, key: string): McpResourceContent {
   switch (key) {
-    case 'agent-mode':
-      return readAgentModeConfig(uri)
     case 'risk-rules':
       return readRiskRulesConfig(uri)
     default:
       throw new Error(`未知配置资源: ${key}（URI: ${uri}）`)
-  }
-}
-
-/**
- * 读取 Agent 模式配置
- *
- * 返回：当前模式 + 所有可用模式的配置（含 systemPrompt 摘要）
- */
-function readAgentModeConfig(uri: string): McpResourceContent {
-  try {
-    const currentMode = getCurrentMode()
-    const currentConfig = getModeConfig(currentMode)
-    const allModes = getAllModes().map((mode) => {
-      const cfg = getModeConfig(mode)
-      return {
-        mode: cfg.mode,
-        displayName: cfg.displayName,
-        description: cfg.description,
-        allowedTools: cfg.allowedTools,
-        canWriteFiles: cfg.canWriteFiles,
-        canExecuteCommands: cfg.canExecuteCommands,
-        canModifySandbox: cfg.canModifySandbox
-      }
-    })
-
-    const payload = {
-      currentMode,
-      currentConfig: {
-        mode: currentConfig.mode,
-        displayName: currentConfig.displayName,
-        description: currentConfig.description,
-        allowedTools: currentConfig.allowedTools,
-        canWriteFiles: currentConfig.canWriteFiles,
-        canExecuteCommands: currentConfig.canExecuteCommands,
-        canModifySandbox: currentConfig.canModifySandbox
-      },
-      allModes,
-      mcpServerConfig: ConfigStore.getMcpConfig()
-    }
-
-    return {
-      uri,
-      mimeType: 'application/json',
-      text: JSON.stringify(payload, null, 2)
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return {
-      uri,
-      mimeType: 'application/json',
-      text: JSON.stringify({ error: `读取 Agent 模式配置失败: ${msg}` }, null, 2)
-    }
   }
 }
 

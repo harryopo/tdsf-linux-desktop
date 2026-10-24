@@ -963,27 +963,6 @@ export const PROVIDER = {
 } as const
 
 /**
- * 模式（Mode）IPC 通道常量
- *
- * 通道列表：
- * - LIST        invoke  渲染 → 主：列出所有模式
- * - SET_DEFAULT invoke  渲染 → 主：设置默认模式
- * - GET_CURRENT invoke  渲染 → 主：获取当前模式
- */
-export const MODE = {
-  /** 列出所有模式（invoke: 渲染 → 主） */
-  LIST: 'mode:list',
-  /** 设置默认模式（invoke: 渲染 → 主） */
-  SET_DEFAULT: 'mode:set-default',
-  /** 获取当前模式（invoke: 渲染 → 主） */
-  GET_CURRENT: 'mode:get-current',
-} as const
-
-
-
-
-
-/**
  * 子 Agent IPC 通道常量
  *
  * 通道列表：
