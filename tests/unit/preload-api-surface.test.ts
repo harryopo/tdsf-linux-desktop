@@ -29,6 +29,26 @@ import { readSurface } from '../../scripts/ipc/api-surface'
 const ROOT = path.resolve(__dirname, '../..')
 const SNAPSHOT = path.join(ROOT, 'tests/unit/__fixtures__/preload-api-surface.txt')
 
+/** preload 里真实的 IPC 调用点数量（invoke + 事件监听），用于给抽取器一个会跟着减法走的下限 */
+function countPreloadCallSites(root: string): number {
+  let n = 0
+  const walk = (dir: string): void => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name)
+      if (e.isDirectory()) {
+        walk(full)
+        continue
+      }
+      if (!/\.ts$/.test(e.name)) continue
+      const text = fs.readFileSync(full, 'utf8')
+      n += (text.match(/ipcRenderer\.invoke\(/g) || []).length
+      n += (text.match(/createListener\(/g) || []).length
+    }
+  }
+  walk(path.join(root, 'src/preload'))
+  return n
+}
+
 describe('electronAPI 名字表面', () => {
   const surface = readSurface(ROOT)
   const exposed = [...surface.exposed].sort()
@@ -58,8 +78,16 @@ describe('electronAPI 名字表面', () => {
     expect(surface.derived.ok, surface.derived.why).toBe(true)
   })
 
-  it('抽取器本身不是静默扫到 0 行（正样本 + 数量级）', () => {
-    expect(exposed.length, '暴露面方法数太小，说明抽取器被改版打穿了').toBeGreaterThan(200)
+  it('抽取器本身不是静默扫到 0 行（正样本 + 按现状推导的下限）', () => {
+    // 下限不写死数字（写死 200 那种在 #211 整删十九把键之后会假红——减法是对的，尺子却按旧基线判）。
+    // 改成从 preload 自己的调用点推导：每个 ipcRenderer.invoke( / createListener( 都该有至少
+    // 一个挂上的名字，所以"抓到的名字数"不许少于"调用点数"。抽取器被打穿到 0 立刻红，
+    // 而正常增删键时两边一起动，不会咬错。
+    const callSites = countPreloadCallSites(ROOT)
+    expect(
+      exposed.length,
+      `暴露面抓到 ${exposed.length} 个名字，比 preload 里的调用点 ${callSites} 还少——抽取器被改版打穿了`
+    ).toBeGreaterThanOrEqual(callSites)
     // 这几条是历史上真断过链、也真修过的位点，抽取器认不得它们就是量具坏了
     for (const probe of ['sshConnect', 'agentChat', 'providerGetDefault', 'configGet', 'dbGetStatus']) {
       expect(surface.exposed.has(probe), `抽取器没抓到 ${probe}`).toBe(true)

@@ -1,87 +1,45 @@
 /**
  * 教程模块 IPC Handlers
  *
- * 通道列表（v0.6.0 教程爬虫扩展）：
+ * 只注册界面真在用的八条通道：
  * - tutorial:list            — 列出所有教程（可选按分类过滤）
  * - tutorial:get             — 按 ID 获取单篇
  * - tutorial:search          — 关键词搜索（Jaccard，返回 TutorialEntry[]）
- * - tutorial:hybrid-search   — 混合检索（FTS5 BM25 + vec0 KNN + RRF 融合）★v0.9.6
- * - tutorial:backfill-embeddings — 回填缺失 embedding（长任务，可分批）★v0.9.6
- * - tutorial:search-status   — 检索状态（向量是否可用 + 模型是否加载 + 总条目数）★v0.9.6
- * - tutorial:recommend-path  — 推荐学习路径（分类依赖 + 难度递进 + 命令关联）★v1.0
- * - tutorial:byCategory      — 按分类获取
  * - tutorial:categories      — 分类汇总（含数量）
- * - tutorial:seedVersion     — 当前种子版本
- * - tutorial:seedReload      — 重新加载种子（仅 dev）
- * - tutorial:listSources     — 列出所有可抓取的源（含元数据）★v0.6.0
- * - tutorial:crawlStart      — 启动爬虫任务（异步推送进度）★v0.6.0
- * - tutorial:crawlStatus     — 查询爬虫状态 ★v0.6.0
+ * - tutorial:hybrid-search   — 混合检索（FTS5 BM25 + vec0 KNN + RRF 融合）
+ * - tutorial:recommend-path  — 推荐学习路径（分类依赖 + 难度递进 + 命令关联）
+ * - tutorial:progress        — 查询学习进度
+ * - tutorial:updateProgress  — 写入学习进度
+ *
+ * 2026-10-24（#211）删掉的是"内容从哪来"那一侧的十九把管理键：抓取（start / status /
+ * cancel / 两条进度推送 / listSources）、磁盘与孤儿清理、断点续传、异步回填四把加旧的
+ * 同步回填、种子版本与重载、检索状态、统计。它们在渲染层零调用，界面上从来没有
+ * "抓取管理"这一格；教程内容的来源是随包种子（seed-loader 在主进程启动时跑）
+ * 与知识库导入（#180），不需要一条运行时爬虫。实现体（crawler 目录、backfill-service、
+ * crawler-types 与那批一次性脚本）同批整删，代码只留在 git 历史。
+ * 判据：`tests/unit/tutorial-ipc-surface.test.ts`。
+ *
+ * 顺带：注册函数不再收 mainWindow——那个参数只为爬虫进度推送而存在。
  */
 
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain } from 'electron'
 import { TUTORIAL } from '@shared/ipc-channels'
 import type { DatabaseManager } from '../services/db/database'
 import type { TutorialProgress } from '@shared/models'
 import { TutorialRepository } from '../services/tutorial/tutorial-repo'
-import { loadTutorialSeeds, getSeedVersion } from '../services/tutorial/seed-loader'
-import { TutorialCrawlerService } from '../services/tutorial/crawler/tutorial-crawler-service'
-import type { CrawlStartArgs } from '@shared/crawler-types'
 import type { TutorialCategory } from '../services/tutorial/types'
 import { logger } from '../services/log/logger'
-// v0.9.6 Sprint 7 任务 E：混合检索 + embedding 回填 + 检索状态查询
-// - EmbeddingService：用于 isLoaded() 判断模型是否已加载到内存
-// - EMBEDDING_DIM：BGE-small-zh-v1.5 固定 512 维，用于 search-status 返回
-import { EmbeddingService, EMBEDDING_DIM } from '../services/tutorial/embedding-service'
-// v2.5 Phase C：异步分批回填服务（替代同步 backfillEmbeddings，支持进度推送 + 取消）
-// - EmbeddingBackfillService：单例，提供 start / cancel / getStatus
-// - DEFAULT_PAGE_SIZE / DEFAULT_INFERENCE_BATCH：与 service 内部默认值保持一致
-import {
-  EmbeddingBackfillService,
-  DEFAULT_PAGE_SIZE as DEFAULT_BACKFILL_PAGE_SIZE,
-  DEFAULT_INFERENCE_BATCH as DEFAULT_BACKFILL_INFERENCE_BATCH,
-} from '../services/tutorial/backfill-service'
 // v1.0 Sprint 9：教学路径推荐
 // - PathRecommender：4 层融合算法（分类依赖 + 难度递进 + 命令关联 + 混合检索）
 import { PathRecommender, type RecommendPathOptions, type TutorialPath } from '../services/tutorial/path-recommender'
 
 /**
- * 爬虫服务：整个进程一只（与 `EmbeddingBackfillService.getInstance()` 同构）
- *
- * 原来这只服务是在 `registerTutorialIpcHandlers` 里 new 的，而该函数会被调**两次**：
- * `src/main/index.ts` 的 `handleActivate()`（macOS dock 点击且窗口数为 0）会再走一遍
- * `registerAllIpcHandlers`。第二次注册换新实例的后果不是"多占了一点内存"：
- * - 正在跑的那次抓取成了孤儿——进度继续推给已销毁的旧窗口，新界面什么都看不到；
- * - `tutorial:crawlStatus` 报 idle、`tutorial:crawlCancel` 取消不到任何东西（对着新实例说话）；
- * - 服务内部的"已有任务在跑"闸门是**实例级**字段，拦不住第二只并发开跑。
- *
- * 所以：窗口引用可以换（新窗口要收到进度），实例不许换。
- * `boundWindow` 每次注册重新绑定，构造时传进去的是读它的函数而不是它本身。
- */
-let crawlerSingleton: TutorialCrawlerService | null = null
-let boundWindow: BrowserWindow | null = null
-
-function liveWindow(): BrowserWindow | null {
-  return boundWindow && !boundWindow.isDestroyed() ? boundWindow : null
-}
-
-function ensureCrawlerService(db: DatabaseManager): TutorialCrawlerService {
-  crawlerSingleton ??= new TutorialCrawlerService(db, liveWindow)
-  return crawlerSingleton
-}
-
-/**
  * 注册教程相关 IPC handlers
  *
  * @param db 数据库管理器
- * @param mainWindow 主窗口（用于爬虫进度事件推送，可选）——二次调用时会把推送目标换绑到新窗口
  */
-export function registerTutorialIpcHandlers(
-  db: DatabaseManager,
-  mainWindow?: BrowserWindow | null
-): void {
+export function registerTutorialIpcHandlers(db: DatabaseManager): void {
   const repo = new TutorialRepository(db)
-  boundWindow = mainWindow ?? null
-  const crawlerService = ensureCrawlerService(db)
 
   /** tutorial:list — 列出教程 */
   ipcMain.handle(
@@ -133,96 +91,6 @@ export function registerTutorialIpcHandlers(
       throw new Error(`获取分类失败: ${(err as Error).message}`)
     }
   })
-
-  /** tutorial:seedVersion — 当前种子版本 */
-  ipcMain.handle(TUTORIAL.SEED_VERSION, () => {
-    return getSeedVersion()
-  })
-
-  /** tutorial:seedReload — 重新加载种子（清空 + 重写） */
-  ipcMain.handle(TUTORIAL.SEED_RELOAD, () => {
-    try {
-      // 先清空现有 tutorial
-      db.prepare('DELETE FROM knowledge_entries WHERE type = ?').run('tutorial')
-      // 重新加载
-      return loadTutorialSeeds(db)
-    } catch (err) {
-      throw new Error(`重新加载种子失败: ${(err as Error).message}`)
-    }
-  })
-
-  // ========== v0.6.0 教程爬虫通道 ==========
-
-  /** tutorial:listSources — 列出所有可抓取源 */
-  ipcMain.handle(TUTORIAL.LIST_SOURCES, () => {
-    try {
-      const list = crawlerService.listSources()
-      logger.info('TUTORIAL', `listSources 返回 ${list.length} 个源`)
-      return list
-    } catch (err) {
-      logger.error('TUTORIAL', 'listSources 失败', { err: (err as Error).message })
-      throw new Error(`列出爬虫源失败: ${(err as Error).message}`)
-    }
-  })
-
-  /** tutorial:crawlStart — 启动爬虫任务 */
-  ipcMain.handle(TUTORIAL.CRAWL_START, async (_event, args?: CrawlStartArgs) => {
-    try {
-      const results = await crawlerService.start(args ?? {})
-      return { success: true, results }
-    } catch (err) {
-      return {
-        success: false,
-        error: (err as Error).message,
-        results: crawlerService.getStatus().history
-      }
-    }
-  })
-
-  /** tutorial:crawlStatus — 查询爬虫状态 */
-  ipcMain.handle(TUTORIAL.CRAWL_STATUS, () => {
-    return crawlerService.getStatus()
-  })
-
-  /** tutorial:crawlCancel — 取消当前爬虫任务 */
-  ipcMain.handle(TUTORIAL.CRAWL_CANCEL, () => {
-    crawlerService.cancel()
-    return { success: true }
-  })
-
-  // ========== v0.7.0 增量：磁盘 + 断点续传 ==========
-
-  /** tutorial:diskInfo — 获取磁盘占用信息 */
-  ipcMain.handle(TUTORIAL.DISK_INFO, async () => {
-    try {
-      return await crawlerService.getDiskInfo()
-    } catch (err) {
-      throw new Error(`获取磁盘信息失败: ${(err as Error).message}`)
-    }
-  })
-
-  /** tutorial:cleanupOrphans — 手动清理孤儿文件 */
-  ipcMain.handle(TUTORIAL.CLEANUP_ORPHANS, async () => {
-    try {
-      const bytes = await crawlerService.cleanupOrphans()
-      return { success: true, cleanedBytes: bytes }
-    } catch (err) {
-      throw new Error(`清理失败: ${(err as Error).message}`)
-    }
-  })
-
-  /** tutorial:checkpoints — 获取 checkpoint 状态 */
-  ipcMain.handle(TUTORIAL.CHECKPOINTS, () => {
-    return crawlerService.getCheckpoints()
-  })
-
-  /** tutorial:resetCheckpoint — 强制重新抓取某源 */
-  ipcMain.handle(TUTORIAL.RESET_CHECKPOINT, (_event, sourceId: string) => {
-    crawlerService.resetCheckpoint(sourceId)
-    return { success: true }
-  })
-
-  // ========== v0.9.6 Sprint 7 任务 E：混合检索 + embedding 回填 + 检索状态 ==========
 
   /**
    * tutorial:hybrid-search — 混合检索（FTS5 BM25 + vec0 KNN + RRF 融合）
@@ -276,219 +144,6 @@ export function registerTutorialIpcHandlers(
   )
 
   /**
-   * tutorial:backfill-embeddings — 回填缺失的 embedding 字段（旧版同步通道）
-   *
-   * ⚠️ v2.5 Phase C 改造说明：
-   *   - 此通道保留向后兼容，内部委托给 EmbeddingBackfillService.start() 同步等待完成
-   *   - 推荐新代码使用 `tutorial:backfill-start` + `tutorial:backfill-progress` 异步通道
-   *   - 旧通道仍返回 { total, success, failed } 统计信息
-   *
-   * 应用场景：
-   *   - 老版本数据未生成 embedding（同步版 upsertMany 入库的历史数据）
-   *   - EmbeddingService 当时不可用，后续模型下载成功后补齐
-   *   - 数据库迁移后需要重建向量索引
-   *
-   * @param options.batchSize 每批大小（默认 8，与 generateEmbeddings 内部一致）
-   * @returns { total, success, failed } 统计信息
-   */
-  ipcMain.handle(
-    'tutorial:backfill-embeddings',
-    async (_event, options?: { batchSize?: number }) => {
-      try {
-        logger.info('TUTORIAL', '启动 embedding 回填任务（旧版同步通道）', {
-          batchSize: options?.batchSize ?? 8
-        })
-        // v2.5 Phase C：委托给 EmbeddingBackfillService 同步等待完成
-        // 推理批次大小使用调用方传入的 batchSize（默认 8），分页大小用默认值 100
-        const backfillService = EmbeddingBackfillService.getInstance()
-        if (backfillService.isRunning()) {
-          return {
-            total: 0,
-            success: 0,
-            failed: 0,
-            error: '已有回填任务在运行，请先取消或等待完成'
-          }
-        }
-        const result = await backfillService.start(
-          db,
-          `backfill-sync-${Date.now()}`,
-          DEFAULT_BACKFILL_PAGE_SIZE,
-          options?.batchSize ?? DEFAULT_BACKFILL_INFERENCE_BATCH
-        )
-        logger.info('TUTORIAL', 'embedding 回填完成（旧版同步通道）', {
-          taskId: result.taskId,
-          processed: result.processed,
-          total: result.total,
-          failed: result.failed,
-          status: result.status,
-        })
-        // 转换为旧通道的返回值格式
-        return {
-          total: result.total,
-          success: result.processed - result.failed,
-          failed: result.failed
-        }
-      } catch (err) {
-        logger.error('TUTORIAL', 'backfill-embeddings 失败', {
-          err: (err as Error).message
-        })
-        // 返回错误对象（与 crawlStart 通道风格一致，便于 UI 显示失败原因）
-        return {
-          total: 0,
-          success: 0,
-          failed: 0,
-          error: (err as Error).message
-        }
-      }
-    }
-  )
-
-  // ========== v2.5 Phase C：异步分批回填（推荐用法） ==========
-
-  /**
-   * tutorial:backfill-start — 启动异步回填，立即返回 taskId
-   *
-   * 设计要点：
-   *   - 不 await service.start()，让任务在后台运行
-   *   - 立即返回 { ok: true, taskId } 让渲染层订阅 progress 通道
-   *   - 进度通过 tutorial:backfill-progress push 通道推送（主 → 渲染）
-   *   - 单例守卫：已有任务运行时返回 { ok: false, error }
-   *
-   * @param options.pageSize 分页大小（默认 100）
-   * @param options.inferenceBatch 推理批次大小（默认 8）
-   * @returns { ok: boolean, taskId: string, error?: string }
-   */
-  ipcMain.handle(
-    TUTORIAL.BACKFILL_START,
-    async (
-      _event,
-      options?: { pageSize?: number; inferenceBatch?: number }
-    ): Promise<{ ok: boolean; taskId: string; error?: string }> => {
-      try {
-        const backfillService = EmbeddingBackfillService.getInstance()
-        if (backfillService.isRunning()) {
-          return {
-            ok: false,
-            taskId: '',
-            error: '已有回填任务在运行，请先取消或等待完成'
-          }
-        }
-
-        const taskId = `backfill-${Date.now()}`
-        const pageSize = options?.pageSize ?? DEFAULT_BACKFILL_PAGE_SIZE
-        const inferenceBatch = options?.inferenceBatch ?? DEFAULT_BACKFILL_INFERENCE_BATCH
-
-        // 不 await：让任务在后台运行，立即返回 taskId
-        // 错误由 service.start() 内部处理并推送到 progress 通道
-        void backfillService.start(db, taskId, pageSize, inferenceBatch).catch((err) => {
-          logger.error('TUTORIAL.BACKFILL', '后台回填任务异常', {
-            taskId,
-            error: (err as Error).message,
-          })
-        })
-
-        logger.info('TUTORIAL.BACKFILL', '异步回填任务已启动', {
-          taskId,
-          pageSize,
-          inferenceBatch,
-        })
-
-        return { ok: true, taskId }
-      } catch (err) {
-        logger.error('TUTORIAL.BACKFILL', 'backfill-start 失败', {
-          error: (err as Error).message,
-        })
-        return {
-          ok: false,
-          taskId: '',
-          error: (err as Error).message,
-        }
-      }
-    }
-  )
-
-  /**
-   * tutorial:backfill-cancel — 取消正在运行的回填任务
-   *
-   * 实现：
-   *   - 标记 cancelled = true
-   *   - 下页查询后检查退出（单页内不会中止）
-   *   - 若任务未运行，无操作（返回 ok: true）
-   *
-   * @returns { ok: boolean }
-   */
-  ipcMain.handle(
-    TUTORIAL.BACKFILL_CANCEL,
-    async (): Promise<{ ok: boolean }> => {
-      try {
-        EmbeddingBackfillService.getInstance().cancel()
-        return { ok: true }
-      } catch (err) {
-        logger.error('TUTORIAL.BACKFILL', 'backfill-cancel 失败', {
-          error: (err as Error).message,
-        })
-        return { ok: false }
-      }
-    }
-  )
-
-  /**
-   * tutorial:backfill-status — 查询当前回填状态
-   *
-   * @returns { running: boolean, taskId: string | null }
-   */
-  ipcMain.handle(
-    TUTORIAL.BACKFILL_STATUS,
-    async (): Promise<{ running: boolean; taskId: string | null }> => {
-      try {
-        return EmbeddingBackfillService.getInstance().getStatus()
-      } catch (err) {
-        logger.error('TUTORIAL.BACKFILL', 'backfill-status 失败', {
-          error: (err as Error).message,
-        })
-        return { running: false, taskId: null }
-      }
-    }
-  )
-
-  /**
-   * tutorial:search-status — 获取检索状态
-   *
-   * 返回当前知识库的检索能力快照，UI 用于：
-   *   - 展示"向量检索已启用 / 未启用"状态徽章
-   *   - 展示"embedding 模型已加载 / 待加载"状态
-   *   - 展示"已索引 N 条教程"
-   *   - 让用户判断是否需要点击"回填 embedding"按钮
-   *
-   * @returns {
-   *   vectorEnabled: boolean,        // sqlite-vec 扩展是否加载
-   *   embeddingModelLoaded: boolean, // BGE 模型是否已加载到内存
-   *   embeddingDim: number,          // embedding 维度（512，BGE-small-zh-v1.5）
-   *   totalEntries: number           // tutorial 类型条目总数
-   * }
-   */
-  ipcMain.handle(TUTORIAL.SEARCH_STATUS, async () => {
-    try {
-      return {
-        // sqlite-vec 扩展加载状态（database.ts 初始化时检测）
-        vectorEnabled: db.isVectorEnabled(),
-        // BGE 模型加载状态（EmbeddingService 单例的 extractor 是否就绪）
-        embeddingModelLoaded: EmbeddingService.getInstance().isLoaded(),
-        // BGE-small-zh-v1.5 固定输出 512 维向量
-        embeddingDim: EMBEDDING_DIM,
-        // tutorial 类型条目总数（SELECT COUNT(*)）
-        totalEntries: repo.count()
-      }
-    } catch (err) {
-      logger.error('TUTORIAL', 'search-status 失败', { err: (err as Error).message })
-      // 抛错让渲染进程捕获（与现有 tutorial:* 通道一致的风格）
-      throw new Error(`获取检索状态失败: ${(err as Error).message}`)
-    }
-  })
-
-  // ========== v1.0 Sprint 9：教学路径推荐 ==========
-
-  /**
    * tutorial:recommend-path — 推荐学习路径
    *
    * 算法（4 层融合）：
@@ -496,11 +151,6 @@ export function registerTutorialIpcHandlers(
    *   2. 难度递进：beginner → intermediate → advanced（同分类内）
    *   3. 命令关联：commands 共现分析（学完 ls → cd → grep）
    *   4. 混合检索召回：hybridSearch 召回相关教程，按 rrfScore 排序
-   *
-   * 调用流程：
-   *   1. 渲染进程传入 options（goal / currentLevel / preferredCategory / maxSteps）
-   *   2. PathRecommender.recommend(options) 计算路径
-   *   3. 返回 TutorialPath[]（按目标分类分组）
    *
    * @param options.goal 学习目标（自然语言，如"想学 Docker"）
    * @param options.currentLevel 当前水平（beginner / intermediate / advanced，默认 beginner）
@@ -529,29 +179,6 @@ export function registerTutorialIpcHandlers(
       }
     }
   )
-
-  // ------------------------------------------------------------------
-  // tutorial:stats — 教程统计聚合
-  // ------------------------------------------------------------------
-  ipcMain.handle(TUTORIAL.STATS, async () => {
-    try {
-      const entries = repo.listAll()
-      const categories = repo.categorySummary()
-      const totalCourses = entries.length
-      const totalViews = entries.reduce((sum, e) => sum + ((e as unknown as { useCount?: number })?.useCount ?? 0), 0)
-      const totalMinutes = entries.reduce((sum, e) => sum + e.readingTime, 0)
-      return {
-        totalCourses,
-        totalViews,
-        totalHours: Math.round(totalMinutes / 60),
-        categoryCount: categories.length,
-      }
-    } catch (err) {
-      throw new Error(`获取教程统计失败: ${(err as Error).message}`)
-    }
-  })
-
-  // ========== v2.3.2 新增：教程学习进度（跨设备同步） ==========
 
   /**
    * tutorial:progress — 查询所有教程学习进度

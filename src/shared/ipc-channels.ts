@@ -697,49 +697,24 @@ export const MCP = {
 /**
  * 教程 IPC 通道常量
  *
- * 通道列表：
- * - CATEGORIES        invoke  渲染 → 主：查询教程分类
- * - SEED_VERSION      invoke  渲染 → 主：查询种子版本
- * - SEED_RELOAD       invoke  渲染 → 主：重新加载种子数据
- * - LIST_SOURCES      invoke  渲染 → 主：列出来源
- * - CRAWL_START       invoke  渲染 → 主：启动爬取
- * - CRAWL_STATUS      invoke  渲染 → 主：查询爬取状态
- * - CRAWL_CANCEL      invoke  渲染 → 主：取消爬取
- * - DISK_INFO         invoke  渲染 → 主：查询磁盘信息
- * - CLEANUP_ORPHANS   invoke  渲染 → 主：清理孤儿文件
- * - CHECKPOINTS       invoke  渲染 → 主：查询断点
- * - RESET_CHECKPOINT  invoke  渲染 → 主：重置断点
- * - SEARCH_STATUS     invoke  渲染 → 主：查询索引状态
+ * 通道列表（只剩界面真在用的八条）：
+ * - LIST              invoke  渲染 → 主：列出教程
+ * - GET               invoke  渲染 → 主：单篇详情
+ * - SEARCH            invoke  渲染 → 主：关键词搜索
+ * - CATEGORIES        invoke  渲染 → 主：分类汇总
+ * - HYBRID_SEARCH     invoke  渲染 → 主：混合检索（FTS + 向量）
+ * - RECOMMEND_PATH    invoke  渲染 → 主：学习路径推荐
+ * - PROGRESS          invoke  渲染 → 主：查学习进度
+ * - UPDATE_PROGRESS   invoke  渲染 → 主：写学习进度
+ *
+ * 2026-10-24（#211）整删了十九把"内容从哪来"的管理键：抓取一族、磁盘与孤儿清理、
+ * 断点续传、异步回填四把加旧的同步回填、种子版本与重载、检索状态、统计。
+ * 教程内容的来源是随包种子与知识库导入，没有运行时爬虫，也没有"抓取进度"可看。
+ * 判据：`tests/unit/tutorial-ipc-surface.test.ts`。
  */
 export const TUTORIAL = {
   /** 查询教程分类（invoke: 渲染 → 主） */
   CATEGORIES: 'tutorial:categories',
-  /** 查询种子版本（invoke: 渲染 → 主） */
-  SEED_VERSION: 'tutorial:seedVersion',
-  /** 重新加载种子数据（invoke: 渲染 → 主） */
-  SEED_RELOAD: 'tutorial:seedReload',
-  /** 列出来源（invoke: 渲染 → 主） */
-  LIST_SOURCES: 'tutorial:listSources',
-  /** 启动爬取（invoke: 渲染 → 主） */
-  CRAWL_START: 'tutorial:crawlStart',
-  /** 查询爬取状态（invoke: 渲染 → 主） */
-  CRAWL_STATUS: 'tutorial:crawlStatus',
-  /** 取消爬取（invoke: 渲染 → 主） */
-  CRAWL_CANCEL: 'tutorial:crawlCancel',
-  /** 爬取进度推送（push: 主 → 渲染） */
-  CRAWL_PROGRESS: 'tutorial:crawlProgress',
-  /** 爬取完成推送（push: 主 → 渲染） */
-  CRAWL_DONE: 'tutorial:crawlDone',
-  /** 查询磁盘信息（invoke: 渲染 → 主） */
-  DISK_INFO: 'tutorial:diskInfo',
-  /** 清理孤儿文件（invoke: 渲染 → 主） */
-  CLEANUP_ORPHANS: 'tutorial:cleanupOrphans',
-  /** 查询断点（invoke: 渲染 → 主） */
-  CHECKPOINTS: 'tutorial:checkpoints',
-  /** 重置断点（invoke: 渲染 → 主） */
-  RESET_CHECKPOINT: 'tutorial:resetCheckpoint',
-  /** 查询索引状态（invoke: 渲染 → 主） */
-  SEARCH_STATUS: 'tutorial:search-status',
   /** 列出教程（invoke: 渲染 → 主） */
   LIST: 'tutorial:list',
   /** 获取教程详情（invoke: 渲染 → 主） */
@@ -748,20 +723,8 @@ export const TUTORIAL = {
   SEARCH: 'tutorial:search',
   /** 混合检索教程（invoke: 渲染 → 主，FTS + 向量） */
   HYBRID_SEARCH: 'tutorial:hybrid-search',
-  /** 回填 embedding 向量（invoke: 渲染 → 主，旧版同步通道，v2.5 保留向后兼容） */
-  BACKFILL_EMBEDDINGS: 'tutorial:backfill-embeddings',
-  /** 启动异步回填（invoke: 渲染 → 主，v2.5 Phase C 新增，立即返回 taskId） */
-  BACKFILL_START: 'tutorial:backfill-start',
-  /** 取消异步回填（invoke: 渲染 → 主，v2.5 Phase C 新增） */
-  BACKFILL_CANCEL: 'tutorial:backfill-cancel',
-  /** 查询回填状态（invoke: 渲染 → 主，v2.5 Phase C 新增） */
-  BACKFILL_STATUS: 'tutorial:backfill-status',
-  /** 回填进度推送（push: 主 → 渲染，v2.5 Phase C 新增，每页完成后触发） */
-  BACKFILL_PROGRESS: 'tutorial:backfill-progress',
   /** 学习路径推荐（invoke: 渲染 → 主） */
   RECOMMEND_PATH: 'tutorial:recommend-path',
-  /** 教程统计（invoke: 渲染 → 主，总浏览人次 + 总课程数） */
-  STATS: 'tutorial:stats',
   /** 查询所有教程学习进度（invoke: 渲染 → 主，v2.3.2 新增，跨设备同步） */
   PROGRESS: 'tutorial:progress',
   /** 更新单条教程学习进度（invoke: 渲染 → 主，v2.3.2 新增，跨设备同步） */

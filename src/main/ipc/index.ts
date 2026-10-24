@@ -180,9 +180,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   registerAgentRuntimeHandlers(mainWindow)
   registerProfilerIpcHandlers()
   // 教程 IPC 需要 db 参数，独立处理（不阻塞主流程）
-  // v0.6.0 起需要 mainWindow 用于爬虫进度推送
+  // 爬虫进度推送那一族已于 #211 整删，这里不再需要窗口引用
   if (db) {
-    registerTutorialIpcHandlers(db, mainWindow)
+    registerTutorialIpcHandlers(db)
     // v2.3.2 新增：模型统计 + 预算告警 IPC（model:toolCalls / budget:alerts）
     registerModelStatsHandlers(db)
     // A4 新增：数据库状态 IPC（db:status）——渲染层降级横幅的唯一数据源

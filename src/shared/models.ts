@@ -669,17 +669,10 @@ export interface HistoryStats {
   servers: string[]
 }
 
-/** 教程统计 */
-export interface TutorialStats {
-  /** 课程总数 */
-  totalCourses: number
-  /** 总学习人次（所有教程 useCount 之和） */
-  totalViews: number
-  /** 总课时（所有教程 readingTime 之和，小时） */
-  totalHours: number
-  /** 分类数 */
-  categoryCount: number
-}
+/**
+ * 教程统计的形状（`TutorialStats`）已随 `tutorial:stats` 通道于 2026-10-24 整删（#211）：
+ * 教程页那三个数是从已经取回的条目里算的（`TutorialPage.tsx`），这条通道是同一份知识的第二个出口。
+ */
 
 /**
  * 工具调用统计行（v2.3.2 新增）

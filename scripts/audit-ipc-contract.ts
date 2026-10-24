@@ -501,9 +501,20 @@ function main(): void {
  * 而沙箱里的渲染层既拿不到 userData、也没有保存对话框（全仓只有 showOpenDialog），
  * 这条路按原样接谁都会失败，还多一条能写任意路径的口；生成默认文件名那把 `profilerDefaultFileName`
  * 因此整删（`defaultPdfFileName` 留在主进程内部用）。
- * 判据：`tests/components/monitor/ServerProbeCard.test.tsx` 六条（含"失败不留空卡、不写 0 条风险"
+ * 判据：`tests/components/monitor/server-probe-card.test.tsx` 六条（含"失败不留空卡、不写 0 条风险"
  * 与"导出失败不许说已导出"）+ `tests/unit/profiler-export-path-shape.test.ts`（导出入参形状与受管路径）。
+ * 38 → 19 是减面（#211）：教程「内容从哪来」那一侧的十九把管理键整删——抓取
+ * （start / status / cancel / 两条进度 / listSources）、磁盘与孤儿清理、断点续传、
+ * 异步回填三把加旧的同步回填、种子版本与重载、检索状态、统计。
+ * 判据还是"谁按、谁读"：界面上从来没有抓取管理这一格，教程内容的来源是随包种子
+ * （主进程启动时 loadTutorialSeeds）与知识库导入（#180 导入时就生成向量），
+ * 所以"运行时补齐 embedding"这件事本来就没人发起；`tutorial:stats` 那三个数
+ * 教程页已经从自己取回的条目里算了一遍，通道是同一份知识的第二个出口。
+ * 这批不是"少了几把键"：整删的是 crawler 目录、backfill-service、crawler-types
+ * 与那批只能手工跑的一次性脚本（约五千行），不留"代码在、探针绿、只是界面不投"的半态。
+ * 判据：`tests/unit/tutorial-ipc-surface.test.ts` 五条（含一条"反过度砍"正对照：
+ * 向量检索那条链的六个模块与各自的活消费者都还在）。
  */
-const UNUSED_CAP = 38
+const UNUSED_CAP = 19
 
 main()

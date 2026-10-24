@@ -33,35 +33,8 @@ export interface TutorialHybridSearchOptions {
   useVector?: boolean
 }
 
-/** tutorial:backfill-embeddings 通道的 options 参数 */
-export interface TutorialBackfillOptions {
-  /** 每批大小（默认 8） */
-  batchSize?: number
-}
-
-/** tutorial:backfill-embeddings 通道的返回值 */
-export interface TutorialBackfillResult {
-  /** 总条目数（待回填的条目数） */
-  total: number
-  /** 成功回填的条目数 */
-  success: number
-  /** 回填失败的条目数 */
-  failed: number
-  /** 错误信息（失败时存在，与 crawlStart 通道风格一致） */
-  error?: string
-}
-
-/** tutorial:search-status 通道的返回值 */
-export interface TutorialSearchStatus {
-  /** sqlite-vec 扩展是否加载成功 */
-  vectorEnabled: boolean
-  /** BGE embedding 模型是否已加载到内存 */
-  embeddingModelLoaded: boolean
-  /** embedding 维度（BGE-small-zh-v1.5 固定 512） */
-  embeddingDim: number
-  /** tutorial 类型条目总数 */
-  totalEntries: number
-}
+// tutorial:backfill-embeddings 与 tutorial:search-status 两把键的类型已随整条回填链
+// 于 2026-10-24 整删（#211）；教程向量在导入时就生成（#180），没有运行时补齐任务可读。
 
 // ============================================================================
 // v0.9.6 Sprint 9 任务：学习路径推荐类型（内联定义，与主进程 path-recommender.ts 保持一致）

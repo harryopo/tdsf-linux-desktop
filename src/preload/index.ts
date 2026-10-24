@@ -1,6 +1,6 @@
 
 
-import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
+import type { TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
 import type { DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { ChatMessageRecord } from '@shared/chat-types'
@@ -15,16 +15,14 @@ import type {
   KnowledgeType,
   ToolCallStat,
   TutorialProgress,
-  TutorialStats,
 } from '@shared/models'
-import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
 import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, HISTORY, KNOWLEDGE, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
-import type { HybridSearchResult, RecommendPathOptions, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
+import type { HybridSearchResult, RecommendPathOptions, TutorialHybridSearchOptions, TutorialPath } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
-import { createListener, invokeChecked, installIpcErrorUnwrap } from './ipc-util'
+import { invokeChecked, installIpcErrorUnwrap } from './ipc-util'
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
@@ -400,6 +398,8 @@ const electronApi = {
   profilerExportPdf: profiler.exportPdf,
 
   // ===== 知识库教程扁平化 =====
+  // 「内容从哪来」那一侧的十九把管理键（抓取 / 磁盘 / 断点 / 回填 / 种子 / 检索状态 / 统计）
+  // 已于 2026-10-24 整删（#211）：渲染层零调用，教程内容来自随包种子与知识库导入。
   tutorialList: (category?: TutorialCategory): Promise<TutorialEntry[]> =>
     ipcRenderer.invoke(TUTORIAL.LIST, category),
   tutorialGet: (id: string): Promise<TutorialEntry | null> =>
@@ -408,76 +408,10 @@ const electronApi = {
     ipcRenderer.invoke(TUTORIAL.SEARCH, query, limit),
   tutorialCategories: (): Promise<TutorialCategorySummary[]> =>
     ipcRenderer.invoke(TUTORIAL.CATEGORIES),
-  tutorialSeedVersion: (): Promise<string> =>
-    ipcRenderer.invoke(TUTORIAL.SEED_VERSION),
-  tutorialSeedReload: (): Promise<number> =>
-    ipcRenderer.invoke(TUTORIAL.SEED_RELOAD),
 
-  // ===== 教程爬虫扁平化（v0.6.0）=====
-  tutorialListSources: (): Promise<TutorialSourceSpec[]> =>
-    ipcRenderer.invoke(TUTORIAL.LIST_SOURCES),
-  tutorialCrawlStart: (args?: { sourceIds?: string[]; force?: boolean }): Promise<{
-    success: boolean
-    error?: string
-    results: CrawlResult[]
-  }> => ipcRenderer.invoke(TUTORIAL.CRAWL_START, args),
-  tutorialCrawlStatus: (): Promise<CrawlStatus> =>
-    ipcRenderer.invoke(TUTORIAL.CRAWL_STATUS),
-  tutorialCrawlCancel: (): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke(TUTORIAL.CRAWL_CANCEL),
-
-  // 教程爬虫事件监听
-  onTutorialCrawlProgress: (callback: (progress: CrawlProgress) => void): (() => void) => {
-    return createListener(TUTORIAL.CRAWL_PROGRESS, callback)
-  },
-  onTutorialCrawlDone: (callback: (result: CrawlResult) => void): (() => void) => {
-    return createListener(TUTORIAL.CRAWL_DONE, callback)
-  },
-
-  // v2.5 Phase C：异步回填进度推送监听（主 → 渲染，每页完成后触发）
-  // 通道：tutorial:backfill-progress（TUTORIAL.BACKFILL_PROGRESS 常量）
-  // 主进程推送位置：src/main/services/tutorial/backfill-service.ts:449
-  //   win.webContents.send(TUTORIAL.BACKFILL_PROGRESS, p)
-  // UI 调用示例：
-  //   useEffect(() => {
-  //     const off = window.electronAPI.onTutorialBackfillProgress(p => setPct(p.pct))
-  //     return off  // 组件卸载时自动取消监听
-  //   }, [])
-  onTutorialBackfillProgress: (callback: (progress: BackfillProgress) => void): (() => void) => {
-    return createListener(TUTORIAL.BACKFILL_PROGRESS, callback)
-  },
-
-  // ===== 教程磁盘 + 断点续传（v0.7.0）=====
-  tutorialDiskInfo: (): Promise<{
-    tempBytes: number
-    knowledgeBytes: number
-    quotaBytes: number
-    usageRatio: number
-    bySource: Array<{ sourceId: string; bytes: number; files: number }>
-    orphanFiles: number
-  }> => ipcRenderer.invoke(TUTORIAL.DISK_INFO),
-  tutorialCleanupOrphans: (): Promise<{ success: boolean; cleanedBytes: number }> =>
-    ipcRenderer.invoke(TUTORIAL.CLEANUP_ORPHANS),
-  tutorialCheckpoints: (): Promise<
-    Array<{
-      sourceId: string
-      lastCrawledAt: number
-      completedUrls: string[]
-      totalBytes: number
-      etag: string | null
-      status: 'running' | 'paused' | 'done' | 'failed'
-      errorMessage: string | null
-      updatedAt: number
-    }>
-  > => ipcRenderer.invoke(TUTORIAL.CHECKPOINTS),
-  tutorialResetCheckpoint: (sourceId: string): Promise<{ success: boolean }> =>
-    ipcRenderer.invoke(TUTORIAL.RESET_CHECKPOINT, sourceId),
-
-  // ===== 教程混合检索 + embedding 回填 + 检索状态（v0.9.6 Sprint 7 任务 E）=====
+  // ===== 教程混合检索 =====
   // 通道与主进程 ipc/tutorial.ts 一一对应：
-  // - tutorial:hybrid-search      → tutorialHybridSearch（FTS5 BM25 + vec0 KNN + RRF 融合）
-  // - tutorial:backfill-embeddings → tutorialBackfillEmbeddings（回填缺失 embedding）
-  // - tutorial:search-status      → tutorialSearchStatus（检索能力快照）
+  // - tutorial:hybrid-search → tutorialHybridSearch（FTS5 BM25 + vec0 KNN + RRF 融合）
   //
   // 通道名说明：
   //   原任务描述为 `tutorial:search`，但该通道已被现有 Jaccard 关键词搜索占用
@@ -497,61 +431,6 @@ const electronApi = {
     options?: TutorialHybridSearchOptions
   ): Promise<HybridSearchResult[]> =>
     ipcRenderer.invoke(TUTORIAL.HYBRID_SEARCH, query, options),
-  /**
-   * 回填缺失的 embedding 字段（长任务，2578 条需 1-3 分钟）
-   *
-   * @param options.batchSize 每批大小（默认 8）
-   * @returns { total, success, failed, error? } 统计信息
-   */
-  tutorialBackfillEmbeddings: (
-    options?: TutorialBackfillOptions
-  ): Promise<TutorialBackfillResult> =>
-    ipcRenderer.invoke(TUTORIAL.BACKFILL_EMBEDDINGS, options),
-  /**
-   * 获取检索状态（向量是否可用 + 模型是否加载 + 总条目数）
-   *
-   * @returns TutorialSearchStatus（vectorEnabled / embeddingModelLoaded / embeddingDim / totalEntries）
-   */
-  tutorialSearchStatus: (): Promise<TutorialSearchStatus> =>
-    ipcRenderer.invoke(TUTORIAL.SEARCH_STATUS),
-
-  // ===== v2.5 Phase C：异步分批回填（推荐用法，替代 tutorialBackfillEmbeddings 同步阻塞）=====
-  // 通道与主进程 ipc/tutorial.ts 一一对应：
-  // - tutorial:backfill-start    → tutorialBackfillStart（启动异步任务，立即返回 taskId）
-  // - tutorial:backfill-cancel   → tutorialBackfillCancel（标记取消，下一页检查时生效）
-  // - tutorial:backfill-status   → tutorialBackfillStatus（查询是否有任务在运行）
-  // - tutorial:backfill-progress → onTutorialBackfillProgress（订阅进度推送，见 on 对象）
-  //
-  // 类型来源：@shared/tutorial-types.ts
-  // UI 调用示例：
-  //   const { ok, taskId } = await window.electronAPI.tutorialBackfillStart({ pageSize: 100 })
-  //   const unsubscribe = window.electronAPI.onTutorialBackfillProgress(p => setPct(p.pct))
-  //   await window.electronAPI.tutorialBackfillCancel()
-  /**
-   * 启动异步分批回填任务（非阻塞，立即返回 taskId）
-   *
-   * @param options.pageSize 分页大小（默认 100，每次查询 100 条进行推理）
-   * @param options.inferenceBatch 推理批次大小（默认 8，ONNX 内部 batching）
-   * @returns { ok, taskId, error? } 启动结果（ok=false 时 error 描述原因，如"已有任务在运行"）
-   */
-  tutorialBackfillStart: (
-    options?: BackfillStartOptions
-  ): Promise<BackfillStartResult> =>
-    ipcRenderer.invoke(TUTORIAL.BACKFILL_START, options),
-  /**
-   * 取消正在运行的回填任务（标记 cancelled，下一页检查时生效）
-   *
-   * @returns { ok } 是否成功标记取消（任务未运行时也返回 ok=true）
-   */
-  tutorialBackfillCancel: (): Promise<BackfillCancelResult> =>
-    ipcRenderer.invoke(TUTORIAL.BACKFILL_CANCEL),
-  /**
-   * 查询回填任务状态（是否有任务在运行）
-   *
-   * @returns { running, taskId } 运行状态（taskId 为 null 表示无任务）
-   */
-  tutorialBackfillStatus: (): Promise<BackfillStatusResult> =>
-    ipcRenderer.invoke(TUTORIAL.BACKFILL_STATUS),
 
   // ===== 学习路径推荐（v0.9.6 Sprint 9）=====
   // 通道与主进程 ipc/tutorial.ts 一一对应：
@@ -572,8 +451,6 @@ const electronApi = {
    */
   tutorialRecommendPath: (options?: RecommendPathOptions): Promise<TutorialPath[]> =>
     ipcRenderer.invoke(TUTORIAL.RECOMMEND_PATH, options),
-  tutorialStats: (): Promise<TutorialStats> =>
-    ipcRenderer.invoke(TUTORIAL.STATS),
   // v2.3.2 新增：教程学习进度跨设备同步（替代 localStorage 过渡方案）
   //   const progress = await window.electronAPI.tutorialProgress()
   //   await window.electronAPI.tutorialUpdateProgress('nginx-tuning', 'visited', 50)

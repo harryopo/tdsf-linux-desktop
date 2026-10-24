@@ -57,9 +57,6 @@ export type StreamEventName =
   | 'ssh:host-key-prompt'
   | 'ssh:state-changed'
   | 'terminal:data'
-  | 'tutorial:backfill-progress'
-  | 'tutorial:crawlDone'
-  | 'tutorial:crawlProgress'
 
 /**
  * 事件类别
@@ -226,13 +223,7 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     coalescable: false,
     note: '终端原始字节流：是增量但顺序即内容，绝不能合并或重排',
   },
-  'tutorial:backfill-progress': {
-    class: 'LATEST_ONLY',
-    ownership: false,
-    coalescable: true,
-    note: '回填进度条',
-  },
-  // ── 以下 14 条来自 D1：这些通道的名字此前只写在 preload 的字面量里、没进中央表，
+  // ── 以下 12 条来自 D1：这些通道的名字此前只写在 preload 的字面量里、没进中央表，
   //    所以阶段 C 那次"对表"根本没扫到它们。中央表补齐后对表才露出缺口。
   'agent:tool-event': {
     class: 'SNAPSHOT',
@@ -265,18 +256,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '沙箱命令审批卡，同上，丢了命令永远挂着',
-  },
-  'tutorial:crawlProgress': {
-    class: 'LATEST_ONLY',
-    ownership: false,
-    coalescable: true,
-    note: '爬取进度百分比，只有最新值有意义',
-  },
-  'tutorial:crawlDone': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '爬取收尾事件，丢了 UI 停在爬取中',
   },
 } as const
 

@@ -134,9 +134,6 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'ssh:host-key-prompt': 'CRITICAL',
       'ssh:state-changed': 'LATEST_ONLY',
       'terminal:data': 'DELTA',
-      'tutorial:backfill-progress': 'LATEST_ONLY',
-      'tutorial:crawlDone': 'CRITICAL',
-      'tutorial:crawlProgress': 'LATEST_ONLY',
     }
     const tabled = Object.keys(STREAM_EVENT_RULES)
     // 两张名单必须一样长：表里加了新通道却不进期望表 = 新通道没人审过

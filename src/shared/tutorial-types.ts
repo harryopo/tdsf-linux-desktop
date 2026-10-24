@@ -8,7 +8,6 @@
  *   seeds/*.json (内置) → SQLite knowledge_entries (type='tutorial')
  *   UI 渲染时按 category / tags / 关键词检索
  */
-
 /** 教程分类（一级） */
 export type TutorialCategory =
   | 'linux-basics'        // Linux 基础
@@ -26,16 +25,13 @@ export type TutorialCategory =
   | 'monitoring'          // 监控
   | 'troubleshooting'     // 故障排查
   | 'cloud'               // 云计算
-
 /** 关联 Linux 发行版 */
 export type LinuxDistro =
   | 'rhel' | 'centos' | 'rocky' | 'fedora'
   | 'ubuntu' | 'debian'
   | 'arch' | 'opensuse'
-
 /** 难度等级 */
 export type TutorialDifficulty = 'beginner' | 'intermediate' | 'advanced'
-
 /** 来源信息 */
 export interface TutorialSource {
   /** 来源名称（如 "Red Hat"、"Ubuntu"、"LFS"） */
@@ -62,7 +58,6 @@ export interface TutorialSource {
    */
   kind?: 'offline-dump' | 'github-clone' | 'online-crawl'
 }
-
 /** 教程条目 */
 export interface TutorialEntry {
   id: string
@@ -85,7 +80,6 @@ export interface TutorialEntry {
   createdAt: number
   updatedAt: number
 }
-
 /** 教程集合（打包到应用内，启动时加载到 SQLite） */
 export interface TutorialCollection {
   /** 版本号（用于增量更新） */
@@ -95,7 +89,6 @@ export interface TutorialCollection {
   /** 教程列表 */
   entries: TutorialEntry[]
 }
-
 /** 教程 IPC 响应 */
 export interface TutorialListItem {
   id: string
@@ -108,14 +101,12 @@ export interface TutorialListItem {
   sourceName: string
   updatedAt: number
 }
-
 /** 分类汇总 */
 export interface TutorialCategorySummary {
   category: TutorialCategory
   count: number
   label: string
 }
-
 /** 中文分类标签（纯文字，界面与 AI 生成文案共用；图标由渲染端各自映射 lucide 组件） */
 export const TUTORIAL_CATEGORY_LABELS: Record<TutorialCategory, string> = {
   'linux-basics': 'Linux 基础',
@@ -134,19 +125,16 @@ export const TUTORIAL_CATEGORY_LABELS: Record<TutorialCategory, string> = {
   'troubleshooting': '排障',
   'cloud': '云'
 }
-
 /** 难度等级标签 */
 export const TUTORIAL_DIFFICULTY_LABELS: Record<TutorialDifficulty, string> = {
   beginner: '入门',
   intermediate: '中级',
   advanced: '高级'
 }
-
 /** 全部发行版标签值（与 LinuxDistro 联合类型一一对应） */
 export const LINUX_DISTRO_VALUES: LinuxDistro[] = [
   'rhel', 'centos', 'rocky', 'fedora', 'ubuntu', 'debian', 'arch', 'opensuse'
 ]
-
 /**
  * 去掉标签开头的表情/变体选择符。
  *
@@ -156,12 +144,10 @@ export const LINUX_DISTRO_VALUES: LinuxDistro[] = [
 export function stripLeadingEmoji(tag: string): string {
   return tag.replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{FE0E}\s]+/gu, '').trim()
 }
-
 /** 从标签列表里取出结构化的发行版（分类/难度同样冗余存在 tags 里，见 pickDistroTags 的反向用途） */
 export function pickDistroTags(tags: string[] | undefined): LinuxDistro[] {
   return (tags ?? []).filter((t) => LINUX_DISTRO_VALUES.includes(t as LinuxDistro)) as LinuxDistro[]
 }
-
 /**
  * 剔除 tags 里作为结构化字段冗余存储的分类/难度标签，只留真正的自由标签。
  *
@@ -176,7 +162,6 @@ export function stripStructuralTags(tags: string[] | undefined): string[] {
   ])
   return (tags ?? []).filter((t) => !internal.has(stripLeadingEmoji(t)))
 }
-
 /** 难度等级颜色 */
 export const TUTORIAL_DIFFICULTY_COLORS: Record<TutorialDifficulty, string> = {
   beginner: '#52c41a',
@@ -184,75 +169,7 @@ export const TUTORIAL_DIFFICULTY_COLORS: Record<TutorialDifficulty, string> = {
   advanced: '#f5222d'
 }
 
-// ============================================================================
-// v2.5 Phase C：教程 embedding 异步分批回填
-//
-// 通道列表：
-// - tutorial:backfill-start     invoke  渲染 → 主：启动异步回填，立即返回 taskId
-// - tutorial:backfill-cancel    invoke  渲染 → 主：取消正在运行的回填任务
-// - tutorial:backfill-status    invoke  渲染 → 主：查询当前回填状态
-// - tutorial:backfill-progress  push    主 → 渲染：进度推送（每页完成后触发）
-//
-// 设计原则：
-// - 2578 条教程首次回填需 1-3 分钟，必须异步避免阻塞 IPC
-// - 分页查询（pageSize=100）+ 事务外推理 + 事务内写入（better-sqlite3 约束）
-// - 进度推送频率：2578 / 100 = 26 次，避免渲染层卡顿
-// - 断点续传：WHERE embedding IS NULL 自动跳过已处理条目
-// ============================================================================
-
-/** 回填任务状态 */
-export type BackfillStatus = 'running' | 'completed' | 'cancelled' | 'failed'
-
-/** tutorial:backfill-progress 通道的载荷（主 → 渲染 push） */
-export interface BackfillProgress {
-  /** 任务 ID（启动时生成，如 `backfill-1721812800000`） */
-  taskId: string
-  /** 已处理条目数 */
-  processed: number
-  /** 待处理总条目数（启动时统计一次） */
-  total: number
-  /** 失败条目数（单批失败累计） */
-  failed: number
-  /** 进度百分比 [0, 1] */
-  pct: number
-  /** 当前批次序号（从 0 开始） */
-  currentBatch: number
-  /** 估算剩余时间（ms） */
-  eta: number
-  /** 任务状态 */
-  status: BackfillStatus
-  /** 错误信息（status='failed' 时存在） */
-  error?: string
-}
-
-/** tutorial:backfill-start 通道的参数 */
-export interface BackfillStartOptions {
-  /** 分页大小（默认 100，每次查询 100 条进行推理） */
-  pageSize?: number
-  /** 推理批次大小（默认 8，ONNX 内部 batching） */
-  inferenceBatch?: number
-}
-
-/** tutorial:backfill-start 通道的返回值 */
-export interface BackfillStartResult {
-  /** 是否成功启动 */
-  ok: boolean
-  /** 任务 ID（用于订阅进度和取消） */
-  taskId: string
-  /** 错误信息（ok=false 时存在，如"已有回填任务在运行"） */
-  error?: string
-}
-
-/** tutorial:backfill-cancel 通道的返回值 */
-export interface BackfillCancelResult {
-  /** 是否成功标记取消（实际取消会在下一页检查时生效） */
-  ok: boolean
-}
-
-/** tutorial:backfill-status 通道的返回值 */
-export interface BackfillStatusResult {
-  /** 是否有回填任务正在运行 */
-  running: boolean
-  /** 当前任务 ID（无任务时为 null） */
-  taskId: string | null
-}
+// v2.5 Phase C 那批「embedding 异步回填」的类型（BackfillStatus / BackfillProgress /
+// BackfillStartOptions / BackfillStartResult / BackfillCancelResult / BackfillStatusResult）
+// 已于 2026-10-24 随整条回填链整删（#211）：那四把键在渲染层零调用，教程向量在导入时就生成
+// （#180），不需要一条运行时的补齐任务。判据见 tests/unit/tutorial-ipc-surface.test.ts。

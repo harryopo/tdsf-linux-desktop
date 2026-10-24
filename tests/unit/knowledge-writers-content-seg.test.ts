@@ -37,7 +37,7 @@ describe('知识库写入方都带全文检索列', () => {
       const text = readFileSync(file, 'utf8')
       const rel = relative(ROOT, file).replace(/\\/g, '/')
       const inserts = /INSERT\s+(?:OR\s+REPLACE\s+)?INTO\s+knowledge_entries/i.test(text)
-      // 只看真的在改被索引字段的 UPDATE；backfill-service 那种只写 embedding 的不算
+      // 只看真的在改被索引字段的 UPDATE；只写 embedding 列的那种不算
       const updateBlocks = [...text.matchAll(/UPDATE\s+knowledge_entries\s+SET([\s\S]{0,600}?)WHERE/gi)]
       const textUpdate = updateBlocks.some((m) => /title|problem/i.test(m[1]))
       const hasSeg = /\bcontentSeg\b/.test(text)

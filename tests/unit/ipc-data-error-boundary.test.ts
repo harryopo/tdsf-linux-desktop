@@ -186,10 +186,10 @@ describe('反向对照与范围：这道闸不是把返回体乱改一通', () =
   })
 
   it('写时复制：原对象（服务内部状态）不被就地涂改', async () => {
-    // 模拟 crawlerService.getStatus().history：信封直接引用服务内部数组
+    // 模拟"信封直接引用服务内部数组"那种返回（抓取一族已随 #211 整删，形状照旧判）
     const history = [{ id: 't1', error: `抓取失败 api_key=${FAKE_KEY}` }]
     const before = JSON.parse(JSON.stringify(history))
-    const { crossed } = viaBoundary('tutorial:crawlStart', async () => ({
+    const { crossed } = viaBoundary('tutorial:list', async () => ({
       success: false,
       error: RAW_INTERNAL,
       results: history,
