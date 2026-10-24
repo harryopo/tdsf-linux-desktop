@@ -2,7 +2,7 @@
  * 渲染层"这一份源码用到了哪些 electronAPI 成员"的识别器（纯函数）
  *
  * 为什么单独成文件：`audit:ipc` 的第四项（哪些 preload 键渲染层零调用）就是债的读数。
- * 它原先只认 `window.electronAPI.foo()` 一种写法。2026-10-24 一天内抓到三类**在用**
+ * 它原先只认 `window.electronAPI.foo()` 一种写法。2026-10-24 一天内抓到四类**在用**
  * 却被漏判的接线：
  *   1. `const { foo } = window.electronAPI` 再调 `foo()`
  *      —— stores/settings-store.ts:174 的 configSaveLlm / storageHasApiKey / storageSaveApiKey
@@ -10,6 +10,8 @@
  *      —— components/terminal/TerminalView.tsx 的 localTtyWrite / localTtyResize
  *   3. 把方法当引用取走、在别处调
  *      —— terminal/shell-launcher.ts 的 `const call = kind === 'local' ? api?.localTtyClose : api?.sshShellClose`
+ *   4. 别名来自访问器函数 `const api = getElectronAPI()`
+ *      —— stores/db-status-store.ts:39 的 dbGetStatus（第四类由 #201 那一轮自查抓出）
  * 照着漏判的清单去删，砍的是活线（#60 那批假 FAIL 是同一族错）。
  *
  * 口径由 tests/unit/renderer-calls-instrument.test.ts 从两个方向钉住：
@@ -32,6 +34,17 @@ const DIRECT_MEMBER_RE = /(?:window\.)?electronAPI\s*[?!]?\s*\.\s*(\w+)/g
  */
 const ALIAS_DECL_RE = /(?:const|let|var)\s+(\w+)\s*=\s*(?:window\.)?electronAPI(?![.\w])/g
 
+/**
+ * 别名声明走访问器函数：`const <id> = getElectronAPI()`。
+ * 第四种漏判（2026-10-24，db-status-store.ts:39）：那份文件不直接碰 window.electronAPI，
+ * 而是调 utils/electron-api.ts 里的 `getElectronAPI(): Window['electronAPI'] | undefined`。
+ * 只认" callee 是一个标识符、名字里带 electronAPI、且不带实参"——
+ * 带点的成员表达式（`window.electronAPI.onX(cb)`）与无关工厂（`createClient()`）都不算，
+ * 否则任何对象都能把自己的方法冒充成接线。
+ */
+const ACCESSOR_ALIAS_RE =
+  /(?:const|let|var)\s+(\w+)\s*=\s*([A-Za-z_$][\w$]*[Ee]lectron[Aa][Pp][Ii][\w$]*)\s*\(\s*\)/g
+
 /** 解构：`const { a, b: local } = window.electronAPI` */
 const DESTRUCTURE_RE = /(?:const|let|var)\s*\{([^}]*)\}\s*=\s*(?:window\.)?electronAPI(?![.\w])/g
 
@@ -45,8 +58,10 @@ export function rendererMembersUsed(text: string): Set<string> {
 
   // 别名：`api.foo` / `api?.foo` 都算碰到了那个成员。
   // 内联调用、可选调用、还是取走当引用回头再调，运行时都是同一条线。
-  for (const m of text.matchAll(ALIAS_DECL_RE)) {
-    const alias = m[1]
+  const aliases = new Set<string>()
+  for (const m of text.matchAll(ALIAS_DECL_RE)) aliases.add(m[1])
+  for (const m of text.matchAll(ACCESSOR_ALIAS_RE)) aliases.add(m[1])
+  for (const alias of aliases) {
     if (!IDENT.test(alias)) continue
     const accessRe = new RegExp('\\b' + alias + '\\s*(?:\\?\\.|\\.)\\s*(\\w+)', 'g')
     for (const hit of text.matchAll(accessRe)) used.add(hit[1])

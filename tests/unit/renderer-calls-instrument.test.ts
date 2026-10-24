@@ -63,6 +63,13 @@ describe('[renderer-calls] 假债方向：三种接线都要认', () => {
     expect(rendererMembersUsed(src)).toContain('riskGetRules')
   })
 
+  it('别名来自访问器函数（getElectronAPI()），第四种写法也要认', () => {
+    // utils/electron-api.ts 导出 getElectronAPI(): Window['electronAPI'] | undefined
+    // db-status-store.ts:39 写作 const api = getElectronAPI() 然后 api.dbGetStatus()
+    const src = 'const api = getElectronAPI()\nif (!api?.dbGetStatus) return\nawait api.dbGetStatus()'
+    expect(rendererMembersUsed(src)).toContain('dbGetStatus')
+  })
+
   it('`const off = electronAPI.onX(cb)` 里的 off 不许被当成第二个 electronAPI', () => {
     // off 是 onX 返回的退订函数；把它当 api 别名会让 off.anything 冒充成接线
     const src = 'const off = window.electronAPI.onSomething(cb)\noff.notARealMember()'
@@ -87,6 +94,11 @@ describe('[renderer-calls] 藏债方向：解构了没用不许算用过', () =>
     const src = 'const { zeta } = someOtherObject\nawait zeta()'
     expect(rendererMembersUsed(src)).not.toContain('zeta')
   })
+
+  it('等号右边是与 electronAPI 无关的函数调用，不许当别名（否则任何对象都能冒充接线）', () => {
+    const src = 'const api = createClient()\nawait api.anyThing()'
+    expect(rendererMembersUsed(src)).not.toContain('anyThing')
+  })
 })
 
 describe('[renderer-calls] 拿真件复测', () => {
@@ -110,6 +122,16 @@ describe('[renderer-calls] 拿真件复测', () => {
     for (const key of ['configSaveLlm', 'storageHasApiKey', 'storageSaveApiKey']) {
       expect(used, `${key} 在 settings-store.ts 里是解构后真调用的`).toContain(key)
     }
+  })
+
+  it('db-status-store.ts 走访问器别名接的 db:status 必须判为在用', () => {
+    const src = readFileSync('src/renderer/src/stores/db-status-store.ts', 'utf8')
+    const used = rendererMembersUsed(src)
+    expect(used, 'const api = getElectronAPI() 之后的 api.dbGetStatus() 是在用接线').toContain(
+      'dbGetStatus',
+    )
+    // 正向对照：读到的确实是那份文件
+    expect(src.length).toBeGreaterThan(500)
   })
 
   it('反向对照：一个已整删的键不许出现在任何渲染层源码里', () => {

@@ -433,9 +433,15 @@ function main(): void {
  * 77 → 76 是同族第三次：链式调用会换行，`window.electronAPI` 下一行才写 `.riskGetRules()`
  * （RiskSettings.tsx:111 就是这样），而成员正则原来不容忍 `.` 前后的空白。
  * 风险控制页是真读真显示的，却被列进"没人用"——第三次证明**一次修正不算修完**。
+ * 76 → 75 是同族第四次，也是这一轮**用真件横扫**抓出来的（不再等下一个假阳性自己冒头）：
+ * 写法是 `const api = getElectronAPI()`（utils/electron-api.ts 的访问器函数）再 `api.dbGetStatus()`，
+ * 别名不再直接等于 `window.electronAPI`，所以前面三条规则都碰不到它。
+ * 横扫口径：把清单里每个键名在渲染层正文（剥注释、排除 .d.ts）里做一次宽松出现匹配，
+ * 76 个键命中 4 个，其中 3 个只在生成的类型文件里（kbExport / providerGet / sftpStat，不算调用），
+ * 剩下那 1 个 dbGetStatus 是真的第四种写法。**判"某键没人用"之前先问"我这把尺认得几种写法"。**
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 76
+const UNUSED_CAP = 75
 
 main()

@@ -2,8 +2,29 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T06:18:59.296Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-24T06:39:00.053Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-24T06:38:57.960Z",
+      "lastActiveAt": "2026-10-24T06:39:00.053Z",
+      "task": "#201",
+      "claimedFiles": [
+        {
+          "path": "scripts/quality/renderer-calls.ts",
+          "task": "#201",
+          "claimedAt": "2026-10-24T06:38:57.960Z"
+        },
+        {
+          "path": "tests/unit/renderer-calls-instrument.test.ts",
+          "task": "#201",
+          "claimedAt": "2026-10-24T06:39:00.053Z"
+        }
+      ],
+      "expiresAt": "2026-10-24T08:39:00.053Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -10245,6 +10266,20 @@
       "file": "src/preload/index.d.ts",
       "task": "199-remove-no-gesture-writers",
       "timestamp": "2026-10-24T06:18:59.296Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/quality/renderer-calls.ts",
+      "task": "#201",
+      "timestamp": "2026-10-24T06:38:57.960Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/renderer-calls-instrument.test.ts",
+      "task": "#201",
+      "timestamp": "2026-10-24T06:39:00.053Z"
     }
   ],
   "coordinationAudit": {
