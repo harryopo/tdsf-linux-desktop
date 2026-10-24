@@ -42,7 +42,6 @@ import { registerRiskHandlers } from './risk'
 // 通道：alert:ack（渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer）
 import { registerAlertHandlers } from './alert'
 import { registerSandboxIpcHandlers } from './sandbox'
-import { registerAtCommandHandlers } from './at-commands'
 // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
 // - 组 1：token:cost-stats（成本透明）
 // - 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
@@ -210,9 +209,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v0.9 新增：OpenHands 沙箱集成 IPC（Docker 检测 + 沙箱生命周期 + 命令执行）
   // P-2 + P-4 修复：传递 mainWindow 用于 IPC 层强制审批 + session_api_key 句柄模式
   registerSandboxIpcHandlers(mainWindow)
-  // v0.9 新增：@命令 8 类完整实现 IPC（log/cmd/file/metric/decision/kb/skill/server）
-  // 通道：at:list / at:resolve / at:parse
-  registerAtCommandHandlers()
 
   // ====================================================================
   // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）

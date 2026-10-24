@@ -29,7 +29,7 @@ import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
 import { credibility, mode } from './domains/cognition'
-import { atCommands, localTty, sandbox, terminalCompletion } from './domains/terminal'
+import { localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { llm, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
 import { on } from './domains/events'
@@ -266,15 +266,6 @@ const electronApi = {
   // P-2：HC-6 强制审批响应通道（用户通过本函数响应主进程推送的 sandbox:approval-request）
   sandboxApprove: sandbox.approve,
   sandboxDelete: sandbox.delete,
-
-  // ===== v0.9 @命令 8 类扁平化 =====
-  // 通道与主进程 ipc/at-commands.ts 一一对应；UI 调用方式：
-  //   const infos = await window.electronAPI.atList()
-  //   const cmd = await window.electronAPI.atResolve('log', { rawText: '...' }, 'chat-input')
-  //   const result = await window.electronAPI.atParse('请分析 @log[error]', 'chat-input')
-  atList: atCommands.list,
-  atResolve: atCommands.resolve,
-  atParse: atCommands.parse,
 
   // ===== v0.9 可信度算法扁平化（D-S + PCR5 + 6 源证据 + DAG） =====
   // 通道与主进程 ipc/credibility.ts 一一对应；UI 调用方式：

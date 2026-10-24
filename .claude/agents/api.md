@@ -52,7 +52,7 @@ color: green
 | `provider:set-default` | `src/main/ipc/agent-runtime.ts` | `providerSetDefault` | ✅ 已接：`src/renderer/src/pages/ModelSettings.tsx` |
 | `credibility:assess` | `src/main/ipc/credibility.ts` | `credibilityAssess` | ✅ 已接：`components/workbench/panels/ChatCredibility.tsx:52`、`pages/DecisionDetailPage.tsx:162` |
 | `credibility:dag` | `src/main/ipc/credibility.ts` | `credibilityDag` | ⚠️ 渲染层 0 调用（2026-10-20 grep 实测），别当成已有图表 |
-| `at:list` / `at:resolve` / `at:parse` | `src/main/ipc/at-commands.ts` | `atList` / `atResolve` / `atParse` | ⚠️ 三个都在 `audit:ipc` 的"暴露但渲染层零调用"名单里（2026-10-20 现量 141 条中），主进程侧能用，界面没接 |
+| ~~`at:list` / `at:resolve` / `at:parse`~~ | 已整删（2026-10-24）：`ipc/at-commands.ts`、`core/agent/at-commands/` 与 preload 三键一起删，渲染层零调用 | — |
 
 **从这张表里删掉的行（不要再按它们实施，2026-10-20 实测）**：
 

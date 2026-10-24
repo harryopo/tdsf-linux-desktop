@@ -13,7 +13,7 @@
  * polish-tdsf-p1-issues Task A：集中化所有 ipcMain.handle 字面量为常量
  *   - 新增 19 个域常量（AGENT / LLM / SSH / STORAGE / CONFIG / SERVER / LOOP / MONITOR /
  *     LOG / KNOWLEDGE / HISTORY / DIAGNOSTICS / SIDECAR / SANDBOX / MCP / TUTORIAL /
- *     AT_COMMANDS / TOKEN；DEPLOY 已于 2026-10-24 随执行链整删）
+ *     AT_COMMANDS / TOKEN；DEPLOY 与 AT_COMMANDS 已于 2026-10-24 随各自执行/解析链整删）
  *   - 通道值与原字面量完全一致，向后兼容
  */
 
@@ -863,21 +863,6 @@ export const TUTORIAL = {
   PROGRESS: 'tutorial:progress',
   /** 更新单条教程学习进度（invoke: 渲染 → 主，v2.3.2 新增，跨设备同步） */
   UPDATE_PROGRESS: 'tutorial:updateProgress',
-} as const
-
-/**
- * AT 命令 IPC 通道常量
- *
- * 通道列表：
- * - LIST  invoke  渲染 → 主：列出 AT 命令
- */
-export const AT_COMMANDS = {
-  /** 列出 AT 命令（invoke: 渲染 → 主） */
-  LIST: 'at:list',
-  /** 解析 @ 命令（invoke: 渲染 → 主） */
-  PARSE: 'at:parse',
-  /** 解析 @ 命令为结构化结果（invoke: 渲染 → 主） */
-  RESOLVE: 'at:resolve',
 } as const
 
 /**

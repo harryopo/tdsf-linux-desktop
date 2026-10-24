@@ -9,9 +9,6 @@ appCheckUpdate
 appDownloadUpdate
 appExportModelStats
 appGetInfo
-atList
-atParse
-atResolve
 bootGetState
 budgetAlerts
 configGet

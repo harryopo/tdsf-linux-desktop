@@ -2,7 +2,6 @@
  * preload 内部共用的结构体与类型别名（从 index.ts 搬出）。
  * 拆前：类型、域实现、暴露面挤在同一个 3400 行文件；拆后：域文件与 index.ts 都从这里 import。
  */
-import type { AtCommandType } from '@shared/at-command-types'
 import type { TutorialCategory, TutorialDifficulty } from '@shared/tutorial-types'
 
 export interface HybridSearchResult {
@@ -205,22 +204,6 @@ export type {
   PaorApprovalOrigin,
   PaorApprovalRequest,
 } from '@shared/approval-types'
-
-// ============================================================================
-// v0.9 @命令元信息类型（与主进程 ipc/at-commands.ts 的 AtCommandInfo 对应）
-// ============================================================================
-
-/** @命令元信息（at:list 返回的单项，UI 选择器渲染用） */
-export interface AtCommandInfo {
-  /** 命令类型（8 类之一） */
-  type: AtCommandType
-  /** 中文展示标签 */
-  label: string
-  /** Ant Design 图标名 */
-  icon: string
-  /** 命令描述 */
-  description: string
-}
 
 // ============================================================================
 // v2.0 Phase C 新增：SFTP 文件搜索 + grep + 文件监听（QuickFileSearch / GlobalSearch / FileWatcher UI）

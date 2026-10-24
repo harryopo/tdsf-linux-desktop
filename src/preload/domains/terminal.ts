@@ -1,10 +1,9 @@
 /** terminal 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { AtCommand, AtCommandParseResult, AtCommandSource, AtCommandType } from '@shared/at-command-types'
 import type { TerminalCompletionSuggestion } from '@shared/agent-types'
-import { AT_COMMANDS, LOCAL_TTY, SANDBOX, TERMINAL_COMPLETION } from '@shared/ipc-channels'
+import { LOCAL_TTY, SANDBOX, TERMINAL_COMPLETION } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
-import type { AtCommandInfo, DockerInfo, SandboxCommandResult, SandboxErrorResponse, SandboxHealthStatus, SandboxInfo, SandboxPage } from '../types'
+import type { DockerInfo, SandboxCommandResult, SandboxErrorResponse, SandboxHealthStatus, SandboxInfo, SandboxPage } from '../types'
 
 /**
  * v0.9 OpenHands 沙箱集成 invoke 调用
@@ -80,61 +79,6 @@ const sandbox = {
   /** 删除沙箱（不可逆，工作区数据将丢失） */
   delete: (sandboxId: string): Promise<{ success: true } | SandboxErrorResponse> =>
     ipcRenderer.invoke(SANDBOX.DELETE, sandboxId),
-}
-
-/**
- * v0.9 @命令 invoke 调用（8 类：log/cmd/file/metric/decision/kb/skill/server）
- *
- * 通道与主进程 ipc/at-commands.ts 一一对应：
- * - at:list    → list
- * - at:resolve → resolve
- * - at:parse   → parse
- *
- * 使用场景：
- * - ChatPanel 输入 `@` 触发选择器：list 获取 8 类命令元信息
- * - 拖拽注入 / 单命令解析：resolve 构造 AtCommand 对象
- * - 提交输入框前：parse 解析文本中所有 @命令，拼装到 LLM prompt
- */
-const atCommands = {
-  /**
-   * 列出所有可用 @命令（8 类）
-   *
-   * @returns AtCommandInfo[]（含 type / label / icon / description）
-   */
-  list: (): Promise<AtCommandInfo[]> =>
-    ipcRenderer.invoke(AT_COMMANDS.LIST),
-
-  /**
-   * 解析单个 @命令
-   *
-   * @param type 命令类型（log/cmd/file/metric/decision/kb/skill/server）
-   * @param args 命令参数（键值对，由 UI 收集）
-   * @param source 来源标识（IDE/终端/监控/历史/chat-input/drag-drop）
-   * @param userId 用户 ID（可选，预留多用户场景）
-   * @returns 完整的 AtCommand 对象（含 displayText 与 injectedText）
-   */
-  resolve: (
-    type: AtCommandType,
-    args: Record<string, unknown>,
-    source?: AtCommandSource,
-    userId?: string
-  ): Promise<AtCommand> =>
-    ipcRenderer.invoke(AT_COMMANDS.RESOLVE, type, args, source, userId),
-
-  /**
-   * 解析文本中所有 @命令
-   *
-   * @param text ChatPanel 输入框原始文本
-   * @param source 来源标识
-   * @param userId 用户 ID（可选）
-   * @returns AtCommandParseResult（含 text 去除 @命令后的纯文本 + commands 列表）
-   */
-  parse: (
-    text: string,
-    source?: AtCommandSource,
-    userId?: string
-  ): Promise<AtCommandParseResult> =>
-    ipcRenderer.invoke(AT_COMMANDS.PARSE, text, source, userId),
 }
 
 /**
@@ -221,4 +165,4 @@ const localTty = {
     invokeChecked('localTtyRunAuthored', LOCAL_TTY.RUN_AUTHORED, shellId, command),
 }
 
-export { sandbox, atCommands, terminalCompletion, localTty }
+export { sandbox, terminalCompletion, localTty }

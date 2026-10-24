@@ -35,7 +35,6 @@ import type {
 
 
 // v0.9 @命令共享类型（8 类 @命令：log/cmd/file/metric/decision/kb/skill/server）
-import type { AtCommandType } from '@shared/at-command-types'
 
 // A4 新增：数据库状态（db:status，SQLite 降级可见化）
 
@@ -213,22 +212,6 @@ export type {
   PaorApprovalOrigin,
   PaorApprovalRequest,
 } from '@shared/approval-types'
-
-// ============================================================================
-// v0.9 @命令元信息类型（与 preload/index.ts 中的 AtCommandInfo 对应）
-// ============================================================================
-
-/** @命令元信息（at:list 返回的单项，UI 选择器渲染用） */
-export interface AtCommandInfo {
-  /** 命令类型（8 类之一：log/cmd/file/metric/decision/kb/skill/server） */
-  type: AtCommandType
-  /** 中文展示标签 */
-  label: string
-  /** Ant Design 图标名 */
-  icon: string
-  /** 命令描述 */
-  description: string
-}
 
 // ============================================================================
 // v0.9.6 Sprint 7 任务 E：混合检索类型声明
