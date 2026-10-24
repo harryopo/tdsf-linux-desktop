@@ -2,64 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T22:44:49.810Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T22:44:35.152Z",
-      "lastActiveAt": "2026-10-24T22:44:49.810Z",
-      "task": "#211 整删教程抓取回填管线",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:35.152Z"
-        },
-        {
-          "path": "src/shared/models.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:36.997Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:38.806Z"
-        },
-        {
-          "path": "src/preload/types.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:40.726Z"
-        },
-        {
-          "path": "src/main/ipc/index.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:42.585Z"
-        },
-        {
-          "path": "src/main/ipc/tutorial.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:44.476Z"
-        },
-        {
-          "path": "src/renderer/src/lib/messageSync.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:46.231Z"
-        },
-        {
-          "path": "scripts/audit-ipc-contract.ts",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:48.013Z"
-        },
-        {
-          "path": "README.md",
-          "task": "#211 整删教程抓取回填管线",
-          "claimedAt": "2026-10-24T22:44:49.810Z"
-        }
-      ],
-      "expiresAt": "2026-10-25T00:44:49.810Z"
-    }
-  },
+  "lastUpdated": "2026-10-24T22:45:19.475Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -11120,6 +11064,69 @@
       "file": "README.md",
       "task": "#211 整删教程抓取回填管线",
       "timestamp": "2026-10-24T22:44:49.810Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/types.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/tutorial.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/lib/messageSync.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/audit-ipc-contract.ts",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "README.md",
+      "task": "#211 整删教程抓取回填管线",
+      "timestamp": "2026-10-24T22:45:19.475Z"
     }
   ],
   "coordinationAudit": {
