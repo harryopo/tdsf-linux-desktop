@@ -17,10 +17,6 @@ const monitor = {
   start: (sessionId: string, interval: number): Promise<boolean> =>
     ipcRenderer.invoke(MONITOR.START, sessionId, interval),
 
-  /** 停止监控 */
-  stop: (sessionId: string): Promise<boolean> =>
-    ipcRenderer.invoke(MONITOR.STOP, sessionId),
-
   /** 获取系统静态信息 */
   getSystemInfo: (sessionId: string): Promise<SystemInfo> =>
     ipcRenderer.invoke(MONITOR.GET_SYSTEM_INFO, sessionId),

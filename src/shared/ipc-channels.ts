@@ -470,7 +470,6 @@ export const LOOP = {
  *
  * 通道列表：
  * - START           invoke  渲染 → 主：启动服务器监控
- * - STOP            invoke  渲染 → 主：停止服务器监控
  * - GET_SYSTEM_INFO invoke  渲染 → 主：获取系统静态信息
  * - DATA            push    主 → 渲染：监控数据推送（实时指标）
  * - SYSTEM_INFO     push    主 → 渲染：系统信息推送（首次采集时一次）
@@ -478,8 +477,6 @@ export const LOOP = {
 export const MONITOR = {
   /** 启动服务器监控（invoke: 渲染 → 主） */
   START: 'monitor:start',
-  /** 停止服务器监控（invoke: 渲染 → 主） */
-  STOP: 'monitor:stop',
   /** 获取系统静态信息（invoke: 渲染 → 主） */
   GET_SYSTEM_INFO: 'monitor:getSystemInfo',
   /** 监控数据推送（push: 主 → 渲染，实时指标，每 interval 秒一次） */
@@ -515,12 +512,11 @@ export const LOG = {
 /**
  * 知识库 IPC 通道常量
  *
- * 通道列表：
+ * 通道列表（这一族还有 SEARCH / VIEW / HOT / RECENT_VIEWS / REINDEX-EMBEDDINGS，
+ * 完整名单以 `export const KNOWLEDGE` 为准，别在这里抄一遍——抄了迟早与下面分叉）：
  * - ADD     invoke  渲染 → 主：新增知识条目
  * - DELETE  invoke  渲染 → 主：删除知识条目
- * - IMPORT  invoke  渲染 → 主：批量导入知识条目
- * - EXPORT  invoke  渲染 → 主：批量导出知识条目
- * - GET     invoke  渲染 → 主：按 id 查询单条知识条目（M4 Task 1 新增，替代 kbExport 误用）
+ * - GET     invoke  渲染 → 主：按 id 查询单条知识条目（M4 Task 1 新增，替代"读全库再 find"的误用）
  */
 /**
  * Agent 长期记忆通道（v2.8）
@@ -545,8 +541,7 @@ export const KNOWLEDGE = {
   DELETE: 'kb:delete',
   // kb:import（直接传整批 KnowledgeEntry[] 进库）已于 2026-10-24 整删：
   // 界面走 kb:import-file，文件由用户从原生对话框挑，导入形状与来源都在应用控制里。
-  /** 批量导出知识条目（invoke: 渲染 → 主） */
-  EXPORT: 'kb:export',
+  // kb:export 同日整删：列表走 kb:search、详情走 kb:get，"一次读全库进渲染层"没有调用点。
   /** 搜索知识条目（invoke: 渲染 → 主） */
   SEARCH: 'kb:search',
   /** 更新知识条目（invoke: 渲染 → 主） */
@@ -688,16 +683,12 @@ export const SIDECAR = {
 /**
  * 沙箱 IPC 通道常量
  *
- * 通道列表：
- * - DETECT_DOCKER  invoke  渲染 → 主：检测 Docker 环境
+ * DETECT_DOCKER 与 STOP 已于 2026-10-24 整删：Docker 检测含在 STATUS 里，
+ * 容器回收由退出收尾（quit-cleanup 的 stopOpenHands）负责，两条都没有调用点。
  */
 export const SANDBOX = {
-  /** 检测 Docker 环境（invoke: 渲染 → 主） */
-  DETECT_DOCKER: 'sandbox:detect-docker',
   /** 启动沙箱（invoke: 渲染 → 主） */
   START: 'sandbox:start',
-  /** 停止沙箱（invoke: 渲染 → 主） */
-  STOP: 'sandbox:stop',
   /** 查询沙箱状态（invoke: 渲染 → 主） */
   STATUS: 'sandbox:status',
   /** 创建沙箱（invoke: 渲染 → 主） */
@@ -1006,7 +997,6 @@ export const BUDGET = {
  * - FORMAT_AUDIT_REPORT     invoke  渲染 → 主：格式化审计报告
  * - EXPORT_DECISION_HTML    invoke  渲染 → 主：按 decisionId 简化导出 HTML 报告
  * - CALIBRATE               invoke  渲染 → 主：校准指定 Provider（v2.4 Phase C 新增）
- * - GET_CALIBRATION         invoke  渲染 → 主：获取指定 Provider 的当前 T 值（v2.4 Phase C 新增）
  * - GET_CALIBRATION_STATE   invoke  渲染 → 主：获取全局校准状态（v2.4 Phase C 新增）
  * - RESET_CALIBRATION       invoke  渲染 → 主：重置指定 Provider 的校准（v2.4 Phase C 新增）
  * - COMPUTE_ECE             invoke  渲染 → 主：计算指定 Provider 的当前 ECE（v2.4 Phase C 新增）
@@ -1030,8 +1020,6 @@ export const CREDIBILITY = {
   // v2.4 Phase C 收尾：校准 IPC 通道（6 个）
   /** 校准指定 Provider（基于历史样本，invoke: 渲染 → 主） */
   CALIBRATE: 'credibility:calibrate',
-  /** 获取指定 Provider 的当前 T 值（invoke: 渲染 → 主） */
-  GET_CALIBRATION: 'credibility:get-calibration',
   /** 获取全局校准状态（invoke: 渲染 → 主） */
   GET_CALIBRATION_STATE: 'credibility:get-calibration-state',
   /** 重置指定 Provider 的校准（invoke: 渲染 → 主） */

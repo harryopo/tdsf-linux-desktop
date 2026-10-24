@@ -28,6 +28,11 @@ type Readouts = {
     measured: Array<[string, number]>
   ) => Array<{ label: string; got: unknown; want: number }>
   diffReadouts: (page: Record<string, number | null>, measured: Array<[string, number]>) => Array<{ label: string; got: unknown; want: number }>
+  parsePromoDecor: (html: string) => Array<{ label: string; place: string; got: number }>
+  diffPromoDecor: (
+    found: Array<{ label: string; place: string; got: number }>,
+    measured: Array<[string, number]>
+  ) => Array<{ label: string; place: string; got: number; want: number | undefined }>
   /**
    * measure() 的事实形状。写成 unknown 的话，测试里只要碰一下字段就是 TS18046
    * （2026-10-20 加 --diagram 夹具时踩到，CI 的 TypeScript(tests) job 因此红）。
@@ -156,6 +161,74 @@ describe('promo-readout：与宣传页对账', () => {
 })
 
 /**
+ * 宣传页装饰位（区块角标 + IPC 干线图注与 aria-label）上的同一批数（2026-10-24 纳入对账）
+ *
+ * 为什么补这一道：原先的闸只认那张 `<td class="k">` 读数表，而这批数在页面上还抄了四处装饰位。
+ * 一查就查到两处早就漂了——干线图注写着 `invoke 235 条 / event 39 条`，
+ * 而 `audit:ipc` 从来报的是 202 / 29；aria-label 那句把"通道总数"当成"请求-响应数"写。
+ * 同一个数从两个出口出去、只关住一个，等于没关（这与收口脱敏时踩的是同一类错）。
+ */
+describe('promo-readout：与宣传页装饰位对账', () => {
+  /** 与页面同形的装饰位：角标一行 + aria-label 一句 + 干线图注三条 */
+  function fakeDecor(overrides: Partial<Record<string, number | null>> = {}): string {
+    const v = (key: string, def: number): string => {
+      if (!(key in overrides)) return String(def)
+      const x = overrides[key]
+      return x === null ? '' : String(x)
+    }
+    return [
+      `<div class="idx">${v('IPC 通道', 272)} 条通道<br>${v('契约', 35)} 条已登记契约</div>`,
+      `<svg aria-label="渲染进程向主进程发起 ${v('请求', 232)} 条请求-响应调用，主进程向界面回推 ${v('事件', 40)} 条事件"></svg>`,
+      `<span><b>invoke</b> ${v('请求', 232)} 条 请求-响应 →</span>`,
+      `<span><b>event</b> ${v('事件', 40)} 条 事件推送 ←</span>`,
+      `<span><b>已登记契约</b> ${v('契约', 35)} 条</span>`
+    ].join('\n')
+  }
+  const DECOR_MEASURED: Array<[string, number]> = [
+    ['IPC 通道', 272],
+    ['已登记契约的通道', 35],
+    ['请求-响应通道', 232],
+    ['事件推送通道', 40]
+  ]
+
+  it('装饰位每一处都取得到且数字一致时无差异（阳性对照：先证明解析器认得这些写法）', async () => {
+    const { parsePromoDecor, diffPromoDecor } = await mod()
+    const found = parsePromoDecor(fakeDecor())
+    expect(found.length, '一处都没取到就是解析器坏了，不是"没有差异"').toBeGreaterThanOrEqual(6)
+    expect(diffPromoDecor(found, DECOR_MEASURED), JSON.stringify(found)).toEqual([])
+  })
+
+  it('装饰位某处错一个 ⇒ 点名那一条并说清是哪一处（同一个数抄两处，两处都得对）', async () => {
+    const { parsePromoDecor, diffPromoDecor } = await mod()
+    const bad = diffPromoDecor(parsePromoDecor(fakeDecor({ 请求: 235 })), DECOR_MEASURED)
+    expect(bad.length, 'invoke 图注与 aria-label 各抄一次，两处都要红').toBe(2)
+    expect([...new Set(bad.map((b) => b.label))]).toEqual(['请求-响应通道'])
+    expect(bad.every((b) => b.got === 235 && b.want === 232)).toBe(true)
+    expect(bad.map((b) => b.place).join('\n'), '报错要能指到具体是哪一处装饰位').toMatch(/aria-label/)
+  })
+
+  it('装饰位改了措辞取不到 ⇒ 报错，不许因为"没取到所以没差异"而放行', async () => {
+    const { parsePromoDecor } = await mod()
+    const html = fakeDecor().replace(/<b>event<\/b> 40 条/, '事件推送若干')
+    expect(() => parsePromoDecor(html)).toThrow(/事件推送通道/)
+  })
+
+  it('盘上真宣传页与本轮实测对得上（这条就是常驻闸本体，本机没那份检出时跳过）', async () => {
+    const promoPath = path.resolve(REPO, '../harryopo.github.io/tdsf-linux-desktop/index.html')
+    if (!fs.existsSync(promoPath)) return
+    const { parsePromoDecor, diffPromoDecor, measure } = await mod()
+    const m = measure()
+    const bad = diffPromoDecor(parsePromoDecor(fs.readFileSync(promoPath, 'utf8')), [
+      ['IPC 通道', m.ipc.total],
+      ['已登记契约的通道', m.contract.total],
+      ['请求-响应通道', m.ipc.request],
+      ['事件推送通道', m.ipc.event]
+    ])
+    expect(bad, '装饰位与实测不一致：改页面那几处，别改这条判据').toEqual([])
+  })
+})
+
+/**
  * README 架构图上的读数（2026-10-19 纳入对账）
  *
  * 为什么也纳入：图是手抄同一批数字的第二个载体。宣传页那次教训（216 vs 226）说明
@@ -257,6 +330,8 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
   let tmpDir = ''
   let baseRows: Array<[string, number]> = []
   let mdExtraRows: Array<[string, number]> = []
+  /** 装饰位夹具上的数同样从本轮实测取，不手抄（理由与 baseRows 那条一样） */
+  let measuredRef!: Facts
   /** 图那一面的夹具路径（见 beforeAll 里的说明：不指到夹具就会绑上盘上那张真图） */
   let diagramFixture = ''
   let diagramFixtureBad = ''
@@ -276,6 +351,7 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
     const m = await mod()
     const measured = m.measure()
     baseRows = m.TABLE_ROWS(measured)
+    measuredRef = measured
     // README 那一面同样从模块取，不手抄标签
     mdExtraRows = m.MD_EXTRA_ROWS(measured)
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'promo-fixture-'))
@@ -329,15 +405,33 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
     if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  /** 生成一张与真页同形的表；counts=false 时不写那两行用例数 */
-  function fixture(name: string, counts: boolean, overrides: Record<string, number> = {}): string {
+  /** 生成一张与真页同形的表 + 同形装饰位；counts=false 时不写那两行用例数 */
+  function decorBlock(decor: Record<string, number> = {}): string {
+    const m = measuredRef
+    const n = (label: string, v: number): number => decor[label] ?? v
+    return [
+      `<div class="idx">${n('IPC 通道', m.ipc.total)} 条通道<br>${n('已登记契约的通道', m.contract.total)} 条已登记契约</div>`,
+      `<svg aria-label="渲染进程向主进程发起 ${n('请求-响应通道', m.ipc.request)} 条请求-响应调用，主进程向界面回推 ${n('事件推送通道', m.ipc.event)} 条事件"></svg>`,
+      `<span><b>invoke</b> ${n('请求-响应通道', m.ipc.request)} 条 请求-响应 →</span>`,
+      `<span><b>event</b> ${n('事件推送通道', m.ipc.event)} 条 事件推送 ←</span>`,
+      `<span><b>已登记契约</b> ${n('已登记契约的通道', m.contract.total)} 条</span>`
+    ].join('\n')
+  }
+
+  function fixture(
+    name: string,
+    counts: boolean,
+    overrides: Record<string, number> = {},
+    decor: Record<string, number> = {}
+  ): string {
     const rows = counts ? [...baseRows, ...COUNT_ROWS] : baseRows
     const html =
       '<table><tbody>' +
       rows
         .map(([label, v]) => `<tr><td class="k">${label}</td><td class="v">${overrides[label] ?? v} 通过</td></tr>`)
         .join('\n') +
-      '</tbody></table>'
+      '</tbody></table>' +
+      decorBlock(decor)
     const p = path.join(tmpDir, name + '.html')
     fs.writeFileSync(p, html, 'utf8')
     return p
@@ -391,6 +485,23 @@ describe('promo-readout 用例数参数 —— 要么全给要么都不给', () 
     expect(rc, out).toBe(1)
     expect(out).toContain('README 的读数与本轮实测对不上（1 条）')
     expect(out).toContain('命令规则词表项：文档写 216')
+    expect(out).not.toContain('宣传页的读数与本轮实测对不上')
+  })
+
+  it('装饰位抄错一个数 ⇒ rc=1，并点名是哪一处（读数表那面不许跟着红）', () => {
+    const { rc, out } = run([
+      '--check',
+      fixture('decor-wrong', true, {}, { '请求-响应通道': measuredRef.ipc.request + 33 }),
+      '--readme',
+      fixtureMd('decor-wrong', true),
+      '--diagram',
+      diagramFixture,
+      ...COUNT_ARGS,
+    ])
+    expect(rc, out).toBe(1)
+    expect(out).toContain('宣传页装饰位（角标 / IPC 干线图注）的读数与本轮实测对不上（2 处）')
+    expect(out).toContain('请求-响应通道（IPC 干线图注）')
+    expect(out).toContain('请求-响应通道（IPC 干线 aria-label）')
     expect(out).not.toContain('宣传页的读数与本轮实测对不上')
   })
 

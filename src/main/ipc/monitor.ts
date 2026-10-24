@@ -1,7 +1,7 @@
 /**
  * 监控 IPC Handlers
  *
- * 注册 monitor:start / monitor:stop / monitor:getSystemInfo 三个 invoke 通道，
+ * 注册 monitor:start / monitor:getSystemInfo 两个 invoke 通道，
  * 桥接渲染进程与 SystemMonitor。
  *
  * 监控数据推送（主进程 → 渲染进程，单向）：
@@ -14,7 +14,6 @@
  */
 
 import { ipcMain, BrowserWindow, Notification } from 'electron'
-import { MONITOR } from '@shared/ipc-channels'
 import { SystemMonitor } from '../services/ssh/monitor'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
 import type { MonitorData, SystemInfo } from '@shared/models'
@@ -166,15 +165,6 @@ export function registerMonitorIpcHandlers(mainWindow: BrowserWindow): () => voi
       }
     }
   )
-
-  /** monitor:stop — 停止监控 */
-  ipcMain.handle(MONITOR.STOP, async (_event, sessionId: string) => {
-    try {
-      return await monitor.stopMonitoring(sessionId)
-    } catch (err) {
-      throw new Error(`停止监控失败: ${(err as Error).message}`)
-    }
-  })
 
   /** monitor:getSystemInfo — 获取系统静态信息（保留 invoke 接口用于主动查询） */
   ipcMain.handle(

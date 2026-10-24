@@ -8,7 +8,6 @@
  * - kb:add    — 添加知识条目
  * - kb:update — 更新知识条目（部分字段）
  * - kb:delete — 删除知识条目
- * - kb:export — 导出全部（可选类型过滤）
  *
  * 数据库依赖：
  *   所有操作通过 DatabaseManager 单例获取数据库连接。
@@ -128,23 +127,6 @@ export function registerKnowledgeHandlers(mainWindow: BrowserWindow): void {
       }
     }
   )
-
-  // ------------------------------------------------------------------
-  // kb:export — 导出全部
-  // ------------------------------------------------------------------
-
-  /**
-   * 参数：(type?: KnowledgeType)
-   * 返回：KnowledgeEntry[]
-   */
-  ipcMain.handle(KNOWLEDGE.EXPORT, async (_event, type?: KnowledgeType) => {
-    try {
-      const repo = getKnowledgeRepo()
-      return repo.exportAll(type)
-    } catch (err) {
-      throw new Error(`知识库导出失败: ${(err as Error).message}`)
-    }
-  })
 
   // ------------------------------------------------------------------
   // kb:view — 记录浏览（自增 useCount + 写浏览历史）

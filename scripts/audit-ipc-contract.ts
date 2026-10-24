@@ -448,9 +448,18 @@ function main(): void {
  * 接之前先改了返回形状——仓储那版是 `catch { return false }`，把"删掉了 / 本来就不在 /
  * 数据库出错"压成一个 false；照原样接界面，库被锁住时对用户说的就是"这条已经不在了"。
  * 现在三种结果分开回（`KnowledgeDeleteResult`），界面按三种话说（#203）。
+ * 72 → 67 是**整删减面**，不是还债：五把没人按的管理键一起走。
+ * `monitorStop`——停止所有权本来就在会话上，SystemMonitor 构造时订阅 onSessionClosed 自己停，
+ * 渲染层再拿一把 stop 只会和它抢；`sandboxStop`——容器由退出收尾 `stopOpenHands` 负责，
+ * 界面没有"停沙箱"这颗按钮，留着等于允诺一个界面上找不到的动作；
+ * `sandboxDetectDocker`——`sandbox:status` 本来就先检测 Docker 再探容器，多一条独立探测口
+ * 只是把同一个判断拆成两处（#202 的预检读的就是 status）；
+ * `credibilityGetCalibration`——校准面板一次读全局 `getCalibrationState`，
+ * 单 Provider 那把没有第二个读者；`kbExport`——列表走 `kb:search`、详情走 `kb:get`，
+ * 渲染层从来没有"导出知识库"这个动作。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 72
+const UNUSED_CAP = 67
 
 main()

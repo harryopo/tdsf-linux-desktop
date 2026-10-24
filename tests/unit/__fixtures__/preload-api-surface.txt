@@ -23,7 +23,6 @@ credibilityDag
 credibilityExportAudit
 credibilityExportAuditReport
 credibilityFormatAuditReport
-credibilityGetCalibration
 credibilityGetCalibrationState
 credibilityListAuditReports
 credibilityLoadAuditReport
@@ -48,7 +47,6 @@ historySave
 historyStats
 kbAdd
 kbDelete
-kbExport
 kbGet
 kbHot
 kbImportFile
@@ -90,7 +88,6 @@ memorySearch
 modelToolCalls
 monitorGetSystemInfo
 monitorStart
-monitorStop
 onAgentChunk
 onAgentDone
 onAgentError
@@ -142,12 +139,10 @@ riskGetRules
 sandboxApprove
 sandboxCreate
 sandboxDelete
-sandboxDetectDocker
 sandboxExecute
 sandboxList
 sandboxStart
 sandboxStatus
-sandboxStop
 schedulerList
 schedulerToggle
 schedulerTrigger

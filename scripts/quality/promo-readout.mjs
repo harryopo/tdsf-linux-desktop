@@ -119,6 +119,46 @@ export function diffReadouts(page, measured) {
 }
 
 /**
+ * 宣传页在读数表之外还把同一批数抄在装饰位上（区块角标、IPC 干线的图注与 aria-label）。
+ * 每一项是 [归属标签, 正则（必须带一个捕获组）, 这一处叫什么]。
+ *
+ * 为什么单列一张表而不是只比表格行：2026-10-24 补这道闸时，一查就查到干线图注写着
+ * invoke 235 / event 39，而 audit:ipc 从来报 202 / 29，aria-label 还把通道总数当请求数写。
+ * 表那面有闸、装饰位没有，数字就从没管住的出口漂了出去。
+ * 同一个标签可以有多处（invoke 的数抄两遍），每处都必须等于同一个实测值。
+ */
+export const DECOR_SITES = [
+  ['IPC 通道', /(\d+) 条通道/, '板块角标'],
+  ['已登记契约的通道', /(\d+) 条已登记契约/, '板块角标'],
+  ['已登记契约的通道', /<b>已登记契约<\/b> (\d+) 条/, 'IPC 干线图注'],
+  ['请求-响应通道', /<b>invoke<\/b> (\d+) 条/, 'IPC 干线图注'],
+  ['请求-响应通道', /发起 (\d+) 条请求-响应调用/, 'IPC 干线 aria-label'],
+  ['事件推送通道', /<b>event<\/b> (\d+) 条/, 'IPC 干线图注'],
+  ['事件推送通道', /回推 (\d+) 条事件/, 'IPC 干线 aria-label']
+]
+
+/** 取装饰位上的数；某一处取不到就抛错——页面改了措辞必须算失败，不能算"没差异" */
+export function parsePromoDecor(html) {
+  const found = []
+  for (const [label, re, place] of DECOR_SITES) {
+    const hits = [...html.matchAll(new RegExp(re.source, 'g'))]
+    if (hits.length === 0) {
+      throw new Error(`宣传页的「${label}」（${place}）没取到数——页面改了措辞就要同步这张表，别让它静默漏比`)
+    }
+    for (const h of hits) found.push({ label, place, got: Number(h[1]) })
+  }
+  return found
+}
+
+/** 装饰位读数 ↔ 本轮实测 */
+export function diffPromoDecor(found, measured) {
+  const want = new Map(measured)
+  return found
+    .filter((f) => f.got !== want.get(f.label))
+    .map((f) => ({ label: f.label, place: f.place, got: f.got, want: want.get(f.label) }))
+}
+
+/**
  * 从 markdown 表格里按标签取读数，返回 `标签 -> 该标签在文档里每一处出现的数字`。
  *
  * 为什么按"每一处"而不是只取第一处：一份文档里同一个数常被抄两遍（读数表一次、正文一次），
@@ -432,7 +472,8 @@ function main(argv) {
     console.error(`FAIL README 不在：${readmePath}\n     同上，没有可比对象就是失败。`)
     return 1
   }
-  const page = parsePromoReadouts(fs.readFileSync(promoPath, 'utf8'))
+  const promoHtml = fs.readFileSync(promoPath, 'utf8')
+  const page = parsePromoReadouts(promoHtml)
   const rows = TABLE_ROWS(m)
   if (counts) {
     // 形状必须是 [标签, 数字]：parsePromoReadouts 从 .v 单元里取第一个数，
@@ -445,6 +486,28 @@ function main(argv) {
   const mdOcc = parseMdReadoutRows(fs.readFileSync(readmePath, 'utf8'), mdRows.map(([l]) => l))
   const mdBad = diffMdReadouts(mdOcc, mdRows)
   const dia = diffDiagram(m, fs.readFileSync(diagramPath, 'utf8'))
+  let decorFound = []
+  let decorBad = []
+  let decorErr = null
+  try {
+    decorFound = parsePromoDecor(promoHtml)
+    decorBad = diffPromoDecor(decorFound, [
+      ['IPC 通道', m.ipc.total],
+      ['已登记契约的通道', m.contract.total],
+      ['请求-响应通道', m.ipc.request],
+      ['事件推送通道', m.ipc.event]
+    ])
+  } catch (e) {
+    decorErr = e
+  }
+  if (decorErr) {
+    console.error(`FAIL 宣传页装饰位对不上账：${decorErr.message}`)
+  }
+  if (decorBad.length) {
+    console.error(`FAIL 宣传页装饰位（角标 / IPC 干线图注）的读数与本轮实测对不上（${decorBad.length} 处）：`)
+    for (const b of decorBad) console.error(`  ${b.label}（${b.place}）：页面写 ${b.got}，实测 ${b.want}`)
+    console.error('  这批数在读数表之外还抄在装饰位上，两处都得改；表那一面的标签就是口径。')
+  }
   if (bad.length) {
     console.error(`FAIL 宣传页的读数与本轮实测对不上（${bad.length} 条）：`)
     for (const b of bad) console.error(`  ${b.label}：页面写 ${b.got}，实测 ${b.want}`)
@@ -460,9 +523,9 @@ function main(argv) {
     for (const b of dia.bad) console.error(`  ${b.label}：图上 ${b.got}，实测 ${b.want}`)
     console.error('  重新出图：python scripts/docs/arch-diagram.py（数字改在生成器里，别手改 SVG）')
   }
-  if (bad.length || mdBad.length || dia.bad.length) return 1
+  if (bad.length || mdBad.length || dia.bad.length || decorErr || decorBad.length) return 1
   console.log(
-    `PASS 宣传页 ${rows.length} 条读数与本轮实测一致` +
+    `PASS 宣传页 ${rows.length} 条读数与本轮实测一致（另比装饰位 ${decorFound.length} 处抄写）` +
       (counts
         ? '（含两条用例数，数字由调用方从刚跑完的套件递进来；' +
           '端到端那两条的新鲜度按 Playwright 产物判：' +

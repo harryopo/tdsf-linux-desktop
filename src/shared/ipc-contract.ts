@@ -793,15 +793,6 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
   // 界面只走 kbImportFile——文件由用户在原生对话框里挑，形状与来源都在主进程侧把关。
   {
     kind: 'invoke',
-    api: 'kbExport',
-    channel: KNOWLEDGE.EXPORT,
-    doc: '导出知识条目（可按类型过滤）',
-    args: [{ name: 'type', ts: 'KnowledgeType | undefined', schema: opt(z.enum(['command_skill', 'incident_case', 'tutorial'])) }],
-    resultTs: 'KnowledgeEntry[]',
-    result: z.unknown(),
-  },
-  {
-    kind: 'invoke',
     api: 'kbImportFile',
     channel: KNOWLEDGE.IMPORT_FILE,
     doc: '弹打开框导入 Markdown/文本/JSON 知识文件（按 文件名+标题 覆盖，导入时算向量）',

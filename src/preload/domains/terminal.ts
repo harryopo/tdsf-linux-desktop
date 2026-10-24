@@ -3,15 +3,13 @@ import type { TerminalCompletionSuggestion } from '@shared/agent-types'
 import { LOCAL_TTY, SANDBOX, TERMINAL_COMPLETION } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
-import type { DockerInfo, SandboxCommandResult, SandboxErrorResponse, SandboxHealthStatus, SandboxInfo, SandboxPage } from '../types'
+import type { SandboxCommandResult, SandboxErrorResponse, SandboxHealthStatus, SandboxInfo, SandboxPage } from '../types'
 
 /**
  * v0.9 OpenHands 沙箱集成 invoke 调用
  *
  * 通道与主进程 ipc/sandbox.ts 一一对应：
- * - sandbox:detect-docker → detectDocker
  * - sandbox:start         → start
- * - sandbox:stop          → stop
  * - sandbox:status        → status
  * - sandbox:create        → create
  * - sandbox:list          → list
@@ -23,17 +21,9 @@ import type { DockerInfo, SandboxCommandResult, SandboxErrorResponse, SandboxHea
  * - 通过 Mastra Tool 调用时，sandbox-exec.ts 已设 requireApproval: true
  */
 const sandbox = {
-  /** 检测 Docker Desktop 是否安装且运行 */
-  detectDocker: (): Promise<DockerInfo> =>
-    ipcRenderer.invoke(SANDBOX.DETECT_DOCKER),
-
   /** 启动 OpenHands App Server 容器（首次启动需拉镜像，可能数分钟） */
   start: (): Promise<{ success: true } | SandboxErrorResponse> =>
     ipcRenderer.invoke(SANDBOX.START),
-
-  /** 停止 OpenHands App Server 容器 */
-  stop: (): Promise<{ success: true } | SandboxErrorResponse> =>
-    ipcRenderer.invoke(SANDBOX.STOP),
 
   /** 获取沙箱集成状态（Docker + OpenHands 健康） */
   status: (): Promise<SandboxHealthStatus> =>

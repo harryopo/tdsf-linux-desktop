@@ -123,7 +123,6 @@ const electronApi = {
 
   // ===== 监控扁平化 =====
   monitorStart: monitor.start,
-  monitorStop: monitor.stop,
   monitorGetSystemInfo: monitor.getSystemInfo,
 
   // ===== 安全存储扁平化 =====
@@ -237,9 +236,9 @@ const electronApi = {
   // 通道与主进程 ipc/sandbox.ts 一一对应；UI 调用方式：
   //   const info = await window.electronAPI.sandboxCreate()
   //   const result = await window.electronAPI.sandboxExecute(info.id, 'ls', info.session_api_key!)
-  sandboxDetectDocker: sandbox.detectDocker,
+  // sandboxStop / sandboxDetectDocker 已于 2026-10-24 整删：
+  // 容器由退出收尾（quit-cleanup 的 stopOpenHands）负责收，Docker 检测已含在 sandboxStatus 里。
   sandboxStart: sandbox.start,
-  sandboxStop: sandbox.stop,
   sandboxStatus: sandbox.status,
   sandboxCreate: sandbox.create,
   sandboxList: sandbox.list,
@@ -268,7 +267,8 @@ const electronApi = {
   //   const state = await window.electronAPI.credibilityGetCalibrationState()
   //   const ok = await window.electronAPI.credibilityAddCalibrationSample(sample)
   credibilityCalibrate: credibility.calibrate,
-  credibilityGetCalibration: credibility.getCalibration,
+  // credibilityGetCalibration(providerId) 已于 2026-10-24 整删：
+  // 校准页要一次看 8 个 Provider，用的就是下面那份全量 state，单条读取从来没有调用点。
   credibilityGetCalibrationState: credibility.getCalibrationState,
   credibilityResetCalibration: credibility.resetCalibration,
   credibilityComputeEce: credibility.computeEce,
@@ -319,8 +319,8 @@ const electronApi = {
     ipcRenderer.invoke(KNOWLEDGE.UPDATE, id, entry),
   kbDelete: (id: string): Promise<KnowledgeDeleteResult> =>
     ipcRenderer.invoke(KNOWLEDGE.DELETE, id),
-  kbExport: (type?: KnowledgeType): Promise<KnowledgeEntry[]> =>
-    invokeChecked('kbExport', KNOWLEDGE.EXPORT, type),
+  // kbExport 已于 2026-10-24 整删：列表页走 kbSearch、详情页走 kbGet，
+  // "一次把全库读进渲染层"这条路从来没有调用点（详情页注释里记着它当年被 kbGet 取代）。
   kbGet: (id: string): Promise<KnowledgeEntry | null> =>
     ipcRenderer.invoke(KNOWLEDGE.GET, id),
   // kbImport（整批条目直接进库）已整删：导入只走下面这把选文件的键，

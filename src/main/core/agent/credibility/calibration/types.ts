@@ -181,11 +181,6 @@ export interface CalibrationChannelMap {
     args: [ProviderId, OptimizeTOptions?]
     return: TemperatureScalingResult
   }
-  /** 获取指定 Provider 的当前 T 值（无则返回 defaultT） */
-  'credibility:get-calibration': {
-    args: [ProviderId]
-    return: ProviderCalibration
-  }
   /** 获取全局校准状态 */
   'credibility:get-calibration-state': {
     args: []

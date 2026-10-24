@@ -835,7 +835,6 @@ export interface IpcChannelMap {
 
   // 监控相关
   'monitor:start': { args: [string, number]; return: boolean }
-  'monitor:stop': { args: [string]; return: boolean }
   'monitor:getSystemInfo': { args: [string]; return: SystemInfo }
 
   // LLM 相关（#195：只保留设置页的「测试连接」；裸 chat/analyze/validate
@@ -860,8 +859,7 @@ export interface IpcChannelMap {
   'kb:search': { args: [string, KnowledgeType?, number?]; return: KnowledgeEntry[] }
   'kb:add': { args: [KnowledgeEntry]; return: boolean }
   'kb:update': { args: [string, Partial<KnowledgeEntry>]; return: boolean }
-  'kb:delete': { args: [string]; return: boolean }
-  'kb:export': { args: [KnowledgeType?]; return: KnowledgeEntry[] }
+  'kb:delete': { args: [string]; return: KnowledgeDeleteResult }
   'kb:view': { args: [string]; return: boolean }
   'kb:hot': { args: [number?]; return: KnowledgeEntry[] }
   'kb:recent-views': { args: [number?]; return: KbViewHistoryEntry[] }

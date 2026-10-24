@@ -2,7 +2,7 @@
 import type { ConfidenceAssessment, CredibilityEvidenceInput, DagData } from '@shared/agent-types'
 import type { AuditFormat, AuditReportInput, ComplianceAuditReport } from '../../main/core/agent/credibility/audit/types'
 import type { AuditReportListItem, ExportOptions, ExportResult } from '../../main/core/agent/credibility/audit/exporter'
-import type { CalibrationSample, CalibrationState, EceResult, OptimizeTOptions, ProviderCalibration, ProviderId, TemperatureScalingResult } from '../../main/core/agent/credibility/calibration/types'
+import type { CalibrationSample, CalibrationState, EceResult, OptimizeTOptions, ProviderId, TemperatureScalingResult } from '../../main/core/agent/credibility/calibration/types'
 import type { FuseAssessOptions } from '../../main/core/agent/credibility/fusion-engine'
 import { CREDIBILITY } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
@@ -138,15 +138,6 @@ const credibility = {
     options?: OptimizeTOptions
   ): Promise<TemperatureScalingResult> =>
     ipcRenderer.invoke(CREDIBILITY.CALIBRATE, providerId, options),
-
-  /**
-   * 获取指定 Provider 的当前校准状态
-   *
-   * @param providerId Provider ID
-   * @returns ProviderCalibration（未校准时返回 defaultT=1.0 的默认状态）
-   */
-  getCalibration: (providerId: ProviderId): Promise<ProviderCalibration> =>
-    ipcRenderer.invoke(CREDIBILITY.GET_CALIBRATION, providerId),
 
   /**
    * 获取全局校准状态（所有 Provider）

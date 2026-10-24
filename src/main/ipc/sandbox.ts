@@ -4,9 +4,7 @@
  * 注册 OpenHands 沙箱集成相关的 IPC 通道，桥接渲染进程与沙箱服务层。
  *
  * 通道清单（与 preload/index.ts 中的 sandbox 命名空间对应）：
- * - sandbox:detect-docker — 检测 Docker Desktop 是否安装且运行
  * - sandbox:start         — 启动 OpenHands App Server 容器
- * - sandbox:stop          — 停止 OpenHands App Server 容器
  * - sandbox:status        — 获取当前沙箱集成状态（Docker + OpenHands 健康）
  * - sandbox:create        — 创建新沙箱（启动一个隔离 Docker 容器）
  * - sandbox:list          — 列出当前用户的所有沙箱
@@ -32,8 +30,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
-import { SANDBOX } from '@shared/ipc-channels'
-import { detectDockerDesktop, type DockerInfo } from '../services/sandbox/docker-detector'
+import { detectDockerDesktop } from '../services/sandbox/docker-detector'
 import { OpenHandsApiError } from '../services/sandbox/openhands-client'
 import type {
   SandboxCommandResult,
@@ -104,27 +101,6 @@ export function registerSandboxIpcHandlers(mainWindow: BrowserWindow): void {
   )
 
   // ------------------------------------------------------------------
-  // sandbox:detect-docker — 检测 Docker Desktop
-  // ------------------------------------------------------------------
-  ipcMain.handle(SANDBOX.DETECT_DOCKER, async (): Promise<DockerInfo> => {
-    logger.info('IPC.SANDBOX', 'sandbox:detect-docker 调用')
-    try {
-      const info = await detectDockerDesktop()
-      return info
-    } catch (err) {
-      logger.error('IPC.SANDBOX', 'sandbox:detect-docker 异常', {
-        error: toErrorString(err),
-      })
-      return {
-        installed: false,
-        version: null,
-        running: false,
-        error: `检测异常：${toErrorString(err)}`,
-      }
-    }
-  })
-
-  // ------------------------------------------------------------------
   // sandbox:start — 启动 OpenHands App Server 容器
   // ------------------------------------------------------------------
   ipcMain.handle(
@@ -137,26 +113,6 @@ export function registerSandboxIpcHandlers(mainWindow: BrowserWindow): void {
         return { success: true }
       } catch (err) {
         logger.error('IPC.SANDBOX', 'sandbox:start 失败', {
-          error: toErrorString(err),
-        })
-        return { success: false, error: toErrorString(err) }
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // sandbox:stop — 停止 OpenHands App Server 容器
-  // ------------------------------------------------------------------
-  ipcMain.handle(
-    'sandbox:stop',
-    async (): Promise<{ success: true } | ErrorResponse> => {
-      logger.info('IPC.SANDBOX', 'sandbox:stop 调用')
-      try {
-        const runner = getRunner()
-        await runner.stop()
-        return { success: true }
-      } catch (err) {
-        logger.error('IPC.SANDBOX', 'sandbox:stop 失败', {
           error: toErrorString(err),
         })
         return { success: false, error: toErrorString(err) }
@@ -409,9 +365,7 @@ export function registerSandboxIpcHandlers(mainWindow: BrowserWindow): void {
     channels: [
       'sandbox:approve',
       'sandbox:approval-request',
-      'sandbox:detect-docker',
       'sandbox:start',
-      'sandbox:stop',
       'sandbox:status',
       'sandbox:create',
       'sandbox:list',

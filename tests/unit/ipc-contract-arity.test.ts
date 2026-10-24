@@ -147,10 +147,18 @@ describe('契约表 × preload 直接调用点', () => {
   })
 
   it('至少真的扫到了一批直接调用点（扫到 0 条等于这条闸没在办事）', () => {
-    expect(sites.length).toBeGreaterThan(150)
-    // 2026-10-12 实测 214 处；其中写成 DOMAIN.KEY 常量的那批才是能被对账的
+    // 这条判据要证的只是"量具没坏"：解析器扫不到任何位点时，后面那条参数对账就成了空跑。
+    // 所以下界必须**松**，不能钉在某一天的实测值上——2026-10-24 #204 整删五把没人按的管理键
+    // （154 → 149 处）就把原先的 `> 150` 判成了"量具坏了"的假红：合法减法不该咬红一把烟雾闸。
+    // 真要在意覆盖面，看的是下面那条"常量形态都能解析"与"契约通道参数个数"，不是这个数。
+    expect(sites.length).toBeGreaterThan(100)
+    // 写成 DOMAIN.KEY 常量形态的那批才是能被对账的；比例由下面那条断言钉住，
+    // 不在注释里抄某一天的具体数（抄了就会和上面那条同批漂开）。
     const constantForm = sites.filter((s) => channels.byExpr.has(s.channelExpr))
-    expect(constantForm.length).toBeGreaterThan(150)
+    expect(constantForm.length).toBeGreaterThan(100)
+    expect(constantForm.length, '常量形态占总位点的一半以上，否则对账面其实在空跑').toBeGreaterThan(
+      Math.floor(sites.length / 2)
+    )
   })
 
   it('写成常量形式的通道表达式都能在 ipc-channels 里解析（解析不了就是漏账）', () => {

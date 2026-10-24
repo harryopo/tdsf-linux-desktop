@@ -63,7 +63,6 @@ import type {
   CalibrationState,
   EceResult,
   OptimizeTOptions,
-  ProviderCalibration,
   ProviderId,
   TemperatureScalingResult,
 } from '../core/agent/credibility/calibration/types'
@@ -298,25 +297,6 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
         const msg = (err as Error)?.message ?? '校准失败'
         logger.error('IPC.CREDIBILITY', `credibility:calibrate 失败: ${msg}`)
         throw new Error(`校准失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:get-calibration — 获取指定 Provider 的当前校准状态
-  // ------------------------------------------------------------------
-  // 参数：(providerId: ProviderId)
-  // 返回：ProviderCalibration（未校准时返回 defaultT=1.0 的默认状态）
-  ipcMain.handle(
-    CREDIBILITY.GET_CALIBRATION,
-    async (_event, providerId: ProviderId): Promise<ProviderCalibration> => {
-      try {
-        const tuner = getCalibrationTuner()
-        return tuner.getProviderCalibration(providerId)
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '获取校准状态失败'
-        logger.error('IPC.CREDIBILITY', `credibility:get-calibration 失败: ${msg}`)
-        throw new Error(`获取校准状态失败: ${msg}`)
       }
     }
   )
@@ -605,9 +585,8 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
       'credibility:load-audit-report',
       'credibility:format-audit-report',
       'credibility:export-decision-html',
-      // v2.4 Phase C 收尾：校准 IPC 通道（6 个）
+      // v2.4 Phase C 收尾：校准 IPC 通道（5 个；单 Provider 那把读全局 state 就够，已整删）
       'credibility:calibrate',
-      'credibility:get-calibration',
       'credibility:get-calibration-state',
       'credibility:reset-calibration',
       'credibility:compute-ece',
