@@ -85,6 +85,31 @@ if (isBrowser) {
   if (!window.scrollTo) {
     window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
   }
+
+  /**
+   * Element.prototype.scrollTo polyfill（jsdom 24 根本没有这个方法）
+   *
+   * 为什么必须有：`useStickToBottom` 在内容变长时调 `容器.scrollTo({...})`。
+   * 它自己的单测给元素逐个挂了替身，所以一直绿；而组件级用例（如
+   * ai-history-error.test.tsx）渲染的是真面板、用的是真 jsdom 元素 ⇒
+   * requestAnimationFrame 回调里抛 `target.scrollTo is not a function`，
+   * 被 Vitest 记成 Unhandled Error，整套 rc=1 而 328 个文件全报通过。
+   * 这种"文件全绿、退出码红"的坏法最容易被人用 `--no-verify` 绕过去，
+   * 所以补在环境层，并且按真实语义写：真的把 scrollTop / scrollLeft 挪过去，
+   * 让组件级断言以后可以直接量"滚到底了没有"，而不是装成没发生。
+   */
+  if (!Element.prototype.scrollTo) {
+    Element.prototype.scrollTo = function scrollTo(optionsOrX?: unknown, maybeY?: number) {
+      if (typeof optionsOrX === 'number') {
+        this.scrollLeft = optionsOrX
+        if (typeof maybeY === 'number') this.scrollTop = maybeY
+        return
+      }
+      const opts = (optionsOrX ?? {}) as { top?: number; left?: number }
+      if (typeof opts.top === 'number') this.scrollTop = opts.top
+      if (typeof opts.left === 'number') this.scrollLeft = opts.left
+    }
+  }
 }
 
 // ============================================================================
