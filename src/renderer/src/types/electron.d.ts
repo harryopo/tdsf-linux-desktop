@@ -506,70 +506,10 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
     | { ok: false; error: string }
   >
 
-  // ===== v1.5 新增：Sidecar 状态管理 =====
-  /**
-   * 单个 Sidecar 状态项（v1.5）
-   * - id: sre
-   * - name: 中文显示名
-   * - port: 监听端口（19000）
-   * - status: 状态（stopped/starting/ready/degraded/crashed）
-   * - lastError: 最近一次错误（crashed 时显示）
-   */
-  sidecarListStatus(): Promise<{
-    ok: boolean
-    data?: Record<
-      string,
-      {
-        id: 'sre'
-        name: string
-        port: number
-        status: 'stopped' | 'starting' | 'ready' | 'degraded' | 'crashed'
-        lastError: string | null
-      }
-    >
-    error?: string
-  }>
-  /**
-   * 启动指定 Sidecar（v1.5 懒启动：Sidecar-B/C 首次调用时启动）
-   * 通道：sidecar:start-one
-   * @param sidecarId 'sre' | 'analytics' | 'agent'
-   */
-  sidecarStartOne(
-    sidecarId: 'sre',
-  ): Promise<{ ok: boolean; status: string; error?: string }>
-  /**
-   * 停止指定 Sidecar（v1.5）
-   * 通道：sidecar:stop-one
-   */
-  sidecarStopOne(
-    sidecarId: 'sre',
-  ): Promise<{ ok: boolean }>
-  /**
-   * 单个 Sidecar 健康检查（v1.5）
-   * 通道：sidecar:health-one
-   */
-  sidecarHealthOne(
-    sidecarId: 'sre',
-  ): Promise<{
-    ok: boolean
-    error?: string
-    status?: string
-    version?: string
-    adapters?: Record<string, { ready: boolean; note?: string }>
-    uptime_seconds?: number
-  }>
-  /**
-   * 通用 Sidecar 工具调用
-   * 通道：sidecar:tool-call
-   *
-   * @example
-   * window.electronAPI.sidecarToolCall('sre', '/some/endpoint', { ... })
-   */
-  sidecarToolCall(
-    sidecarId: 'sre',
-    endpoint: string,
-    payload?: unknown,
-  ): Promise<{ ok: boolean; data?: unknown; error?: string }>
+  // ===== v1.5 的多 Sidecar 管理面已于 2026-10-24 整删（#207）=====
+  // list-status / start-one / stop-one / health-one / tool-call 五条通道渲染层零调用：
+  // 本应用只跑一个分析引擎、界面没有 Sidecar 列表，健康读数走 app:get-info 那张实测表，
+  // tool-call 更是可 POST 任意本地 endpoint 的通用口。留下的两条见上方 sidecarStatus / sidecarPipeline。
 
   /** 监听 loop:decision — 决策卡片就绪 */
   onLoopDecision(

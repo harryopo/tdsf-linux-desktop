@@ -629,28 +629,14 @@ export const CHAT = {
  * - LIST_STATUS  invoke  渲染 → 主：列出所有 sidecar 状态
  */
 export const SIDECAR = {
-  /** 启动 sidecar 进程（invoke: 渲染 → 主） */
-  START: 'sidecar:start',
-  /** 停止 sidecar 进程（invoke: 渲染 → 主） */
-  STOP: 'sidecar:stop',
   /** 查询 sidecar 状态（invoke: 渲染 → 主） */
   STATUS: 'sidecar:status',
-  /** sidecar 健康检查（invoke: 渲染 → 主） */
-  HEALTH: 'sidecar:health',
-  /** 列出所有 sidecar 状态（invoke: 渲染 → 主） */
-  LIST_STATUS: 'sidecar:list-status',
-  /** 启动指定 sidecar（invoke: 渲染 → 主） */
-  START_ONE: 'sidecar:start-one',
-  /** 停止指定 sidecar（invoke: 渲染 → 主） */
-  STOP_ONE: 'sidecar:stop-one',
-  /** 指定 sidecar 健康检查（invoke: 渲染 → 主） */
-  HEALTH_ONE: 'sidecar:health-one',
   /** sidecar 日志解析管线（invoke: 渲染 → 主） */
   PIPELINE: 'sidecar:pipeline',
-  /** sidecar 工具调用（invoke: 渲染 → 主） */
-  TOOL_CALL: 'sidecar:tool-call',
-  /** 解析 sidecar 日志（invoke: 渲染 → 主） */
-  PARSE_LOGS: 'sidecar:parse-logs',
+  // START / STOP / HEALTH / LIST_STATUS / START_ONE / STOP_ONE / HEALTH_ONE /
+  // TOOL_CALL / PARSE_LOGS 九条已于 2026-10-24 整删（#207）：引擎由 pipeline 懒启动、
+  // 健康读数走 app:get-info，-one 那一族的多 Sidecar 管理面界面上从来没有，
+  // tool-call 是渲染层可 POST 任意本地 endpoint 的通用写入口而零调用。
 } as const
 
 /**

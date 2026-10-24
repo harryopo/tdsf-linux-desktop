@@ -22,7 +22,7 @@ import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
 import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, HISTORY, KNOWLEDGE, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
-import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
+import type { HybridSearchResult, RecommendPathOptions, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
 import { createListener, invokeChecked, installIpcErrorUnwrap } from './ipc-util'
 import { ssh } from './domains/ssh'
@@ -634,37 +634,19 @@ const electronApi = {
   providerPricing: providerInfo.pricing,
   providerPricingAll: providerInfo.pricingAll,
 
-  // ===== v1.0 新增：Sidecar-A 进程管理 + 端到端 Pipeline =====
+  // ===== v1.0 新增：Sidecar-A 端到端 Pipeline =====
   // 通道与主进程 ipc/sidecar.ts 一一对应：
-  // - sidecar:start    → sidecarStart（启动 Sidecar-A 进程）
-  // - sidecar:stop     → sidecarStop（停止 Sidecar-A 进程）
   // - sidecar:status   → sidecarStatus（获取 Sidecar 状态）
-  // - sidecar:health   → sidecarHealth（主动健康检查）
   // - sidecar:pipeline → sidecarPipeline（端到端 pipeline：日志 → Drain3 → OpenDerisk）
-  /**
-   * 启动 Sidecar-A 进程（SRE + 日志解析）
-   * 通道：sidecar:start
-   */
-  sidecarStart: (): Promise<{ ok: boolean; status: string; error?: string }> =>
-    ipcRenderer.invoke(SIDECAR.START),
-  /**
-   * 停止 Sidecar-A 进程
-   * 通道：sidecar:stop
-   */
-  sidecarStop: (): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke(SIDECAR.STOP),
+  // start / stop / health / list-status / -one 那一族 / tool-call / parse-logs 九把键
+  // 已于 2026-10-24 整删（#207）：引擎由 pipeline 懒启动，健康读数走 app:get-info 那张实测表，
+  // 多 Sidecar 管理面与任意 endpoint 通用调用口在界面上从来没有使用者。
   /**
    * 获取 Sidecar 当前状态（stopped/starting/ready/degraded/crashed）
    * 通道：sidecar:status
    */
   sidecarStatus: (): Promise<{ status: string; lastError: string | null; restartCount: number }> =>
     ipcRenderer.invoke(SIDECAR.STATUS),
-  /**
-   * 主动健康检查（调用 Sidecar-A /health 端点）
-   * 通道：sidecar:health
-   */
-  sidecarHealth: (): Promise<{ ok: boolean; error?: string; status?: string; version?: string; adapters?: { drain3: { ready: boolean; total_clusters: number }; open_derisk: { ready: boolean; mode: string; rules_count: number } }; uptime_seconds?: number }> =>
-    ipcRenderer.invoke(SIDECAR.HEALTH),
   /**
    * 端到端 Pipeline（v1.0 核心，v1.5 增强）：日志输入 → Drain3 解析 → OpenDerisk 诊断
    * 通道：sidecar:pipeline
@@ -706,43 +688,6 @@ const electronApi = {
       }
     | { ok: false; error: string }
   > => ipcRenderer.invoke(SIDECAR.PIPELINE, logLines, serviceName, llmConfig),
-
-  // ===== v1.5 新增：多 Sidecar 状态查询（v1.5 多 Sidecar 架构）=====
-  // 通道：sidecar:list-status → 返回 sidecar 状态
-  // 使用场景：UI 状态条 / SidecarStatusPanel 展示
-  sidecarListStatus: (): Promise<SidecarListStatusResponse> =>
-    ipcRenderer.invoke(SIDECAR.LIST_STATUS),
-
-  // 通道：sidecar:start-one → 启动指定 sidecar
-  sidecarStartOne: (
-    sidecarId: string,
-  ): Promise<{ ok: boolean; status: string; error?: string }> =>
-    ipcRenderer.invoke(SIDECAR.START_ONE, sidecarId),
-
-  // 通道：sidecar:stop-one → 停止指定 sidecar
-  sidecarStopOne: (sidecarId: string): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke(SIDECAR.STOP_ONE, sidecarId),
-
-  // 通道：sidecar:health-one → 单个 sidecar 的健康检查
-  sidecarHealthOne: (
-    sidecarId: string,
-  ): Promise<SidecarHealthOneResponse> =>
-    ipcRenderer.invoke(SIDECAR.HEALTH_ONE, sidecarId),
-
-  // 通道：sidecar:tool-call → 通用 Sidecar 工具调用
-  sidecarToolCall: (
-    sidecarId: string,
-    endpoint: string,
-    payload: unknown,
-  ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(SIDECAR.TOOL_CALL, sidecarId, endpoint, payload),
-
-  // 通道：sidecar:parse-logs → 单独调用 Drain3 解析（不调 OpenDerisk）
-  sidecarParseLogs: (
-    logLines: string[],
-    maxClusters?: number,
-  ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(SIDECAR.PARSE_LOGS, logLines, maxClusters),
 
   // ===== 诊断服务（v1.5）的界面出口已于 2026-10-24 整删（#206）=====
   //

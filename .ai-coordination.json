@@ -2,8 +2,39 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T09:12:25.041Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-24T09:17:45.221Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-24T09:17:39.506Z",
+      "lastActiveAt": "2026-10-24T09:17:45.221Z",
+      "task": "#207",
+      "claimedFiles": [
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "#207",
+          "claimedAt": "2026-10-24T09:17:39.506Z"
+        },
+        {
+          "path": "src/shared/ipc-contract.ts",
+          "task": "#207",
+          "claimedAt": "2026-10-24T09:17:41.334Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "#207",
+          "claimedAt": "2026-10-24T09:17:43.283Z"
+        },
+        {
+          "path": "src/main/ipc/index.ts",
+          "task": "#207",
+          "claimedAt": "2026-10-24T09:17:45.221Z"
+        }
+      ],
+      "expiresAt": "2026-10-24T11:17:45.221Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -10441,6 +10472,34 @@
       "file": "src/main/ipc/index.ts",
       "task": "#206",
       "timestamp": "2026-10-24T09:12:25.041Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#207",
+      "timestamp": "2026-10-24T09:17:39.506Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "#207",
+      "timestamp": "2026-10-24T09:17:41.334Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "#207",
+      "timestamp": "2026-10-24T09:17:43.283Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "#207",
+      "timestamp": "2026-10-24T09:17:45.221Z"
     }
   ],
   "coordinationAudit": {

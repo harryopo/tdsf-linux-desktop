@@ -264,30 +264,3 @@ export interface FileChangedPayload {
   path: string
   event: FileChangeEvent
 }
-
-// ============================================================================
-// v1.5 多 Sidecar 共享类型（提取到顶层避免 TS 解析歧义）
-// ============================================================================
-export type SidecarListStatusResponse = {
-  ok: boolean
-  data?: Record<
-    string,
-    {
-      id: string
-      name: string
-      port: number
-      status: 'stopped' | 'starting' | 'ready' | 'degraded' | 'crashed'
-      lastError: string | null
-    }
-  >
-  error?: string
-}
-
-export type SidecarHealthOneResponse = {
-  ok: boolean
-  error?: string
-  status?: string
-  version?: string
-  adapters?: Record<string, { ready: boolean; note?: string }>
-  uptime_seconds?: number
-}

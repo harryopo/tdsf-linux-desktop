@@ -465,7 +465,16 @@ function main(): void {
  * 缓冲整删（含 `diagnostics-service.ts` 与 `ipc/diagnostics.ts`），两条生产者改成按级别写应用日志，
  * 内容一句没丢；真正在用的日志分析能力走 MCP 的 `log_analyze`，它直接吃 `LogAnalyzer`，
  * 从来不经过这块缓冲，所以那条路一行没动。判据：`tests/unit/diagnostics-write-only-buffer.test.ts`。
+ * 59 → 50 同族再来一次（#207）：Sidecar 的界面面从十一条收到两条（只留 status 与 pipeline）。
+ * 判据还是"谁按、谁读"：引擎由 pipeline 懒启动（非 ready 先拉起），退出收尾走主进程自己的
+ * `cleanupSidecar()`，健康读数界面看的是 app:get-info 那张实测表；`-one` 那一族与 list-status
+ * 属于"多 Sidecar 管理面"，而本应用只跑一个分析引擎、界面上从来没有 Sidecar 列表
+ * （那份 handler 文件的旧注释还写着 ChatPanel 调 sidecar:start、SidecarStatusPanel 调 list-status，
+ * 两个组件早就不在了，同批把这段假话清掉）。
+ * 其中 `sidecar:tool-call` 不只是没人用：它让渲染层往本地端口 POST **任意 endpoint**，
+ * 一道没人按的通用写入口就是白给的攻击面。判据：`tests/unit/sidecar-ipc-surface.test.ts`
+ * 四个方向都钉：九把键不许回来、真在用的两条不许误砍、主进程只注册两条、通用口不许以任何形式回来。
  */
-const UNUSED_CAP = 59
+const UNUSED_CAP = 50
 
 main()

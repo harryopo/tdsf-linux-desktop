@@ -155,17 +155,8 @@ sftpSearch
 sftpStat
 sftpUpload
 sftpWriteFile
-sidecarHealth
-sidecarHealthOne
-sidecarListStatus
-sidecarParseLogs
 sidecarPipeline
-sidecarStart
-sidecarStartOne
 sidecarStatus
-sidecarStop
-sidecarStopOne
-sidecarToolCall
 sshConnect
 sshConnectById
 sshDeleteKeyring
