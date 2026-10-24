@@ -421,9 +421,14 @@ function main(): void {
  * 按那份清单动手就会砍掉活线（#60 是同一族错）。规则移到
  * scripts/quality/renderer-calls.ts，两个方向的可证伪判据在
  * tests/unit/renderer-calls-instrument.test.ts。
+ * 86 → 80 是同日的第二次量具修正（同样不是还债）：别名那条规则把变量名写死成 `api`，
+ * 又要求成员名后面紧跟 `(`，于是漏掉 `api.localTtyWrite?.(id, s)`（终端在这么写）
+ * 和 `const call = api?.localTtyClose` 这种"取引用回头再调"的写法。
+ * 新认出的 6 条 localTtyWrite / localTtyResize / localTtyClose / onLocalTtyExit /
+ * sshShellClose / fileWatchStart 都回代码核过是真的调用点，不是把没用洗成在用。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 86
+const UNUSED_CAP = 80
 
 main()

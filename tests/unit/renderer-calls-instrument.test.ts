@@ -36,6 +36,34 @@ describe('[renderer-calls] 假债方向：三种接线都要认', () => {
     expect(used).toContain('gamma')
     expect(used).not.toContain('localGamma')
   })
+
+  it('别名 + 可选调用 api.foo?.()（终端那几处就是这么写的）', () => {
+    const src = 'const api = window.electronAPI\napi.localTtyWrite?.(id, data)'
+    expect(rendererMembersUsed(src)).toContain('localTtyWrite')
+  })
+
+  it('别名不叫 api 也要认（规则不该钉死一个变量名）', () => {
+    const src = 'const ep = window.electronAPI\nawait ep.thingDoer(1)'
+    expect(rendererMembersUsed(src)).toContain('thingDoer')
+  })
+
+  it('把函数当引用取走、在别处调，同样算接线', () => {
+    const src =
+      'const api = window.electronAPI\n' +
+      "const call = kind === 'local' ? api?.cloSer : api?.shrClose\n" +
+      'await call(id)'
+    const used = rendererMembersUsed(src)
+    expect(used).toContain('cloSer')
+    expect(used).toContain('shrClose')
+  })
+
+  it('`const off = electronAPI.onX(cb)` 里的 off 不许被当成第二个 electronAPI', () => {
+    // off 是 onX 返回的退订函数；把它当 api 别名会让 off.anything 冒充成接线
+    const src = 'const off = window.electronAPI.onSomething(cb)\noff.notARealMember()'
+    const used = rendererMembersUsed(src)
+    expect(used).toContain('onSomething')
+    expect(used).not.toContain('notARealMember')
+  })
 })
 
 describe('[renderer-calls] 藏债方向：解构了没用不许算用过', () => {
@@ -56,6 +84,20 @@ describe('[renderer-calls] 藏债方向：解构了没用不许算用过', () =>
 })
 
 describe('[renderer-calls] 拿真件复测', () => {
+  it('终端那两处用 `api.foo?.()` 与引用传递写的接线必须判为在用', () => {
+    const view = readFileSync('src/renderer/src/components/terminal/TerminalView.tsx', 'utf8')
+    const launcher = readFileSync('src/renderer/src/terminal/shell-launcher.ts', 'utf8')
+    const viewUsed = rendererMembersUsed(view)
+    expect(viewUsed, 'TerminalView 里 api.localTtyWrite?.() 是在用接线').toContain('localTtyWrite')
+    expect(viewUsed, 'TerminalView 里 api.localTtyResize?.() 是在用接线').toContain('localTtyResize')
+    const launcherUsed = rendererMembersUsed(launcher)
+    expect(launcherUsed, 'shell-launcher 把 close 当引用取走再调').toContain('localTtyClose')
+    expect(launcherUsed, '同上，ssh 那一支也一样').toContain('sshShellClose')
+    // 正向对照：读到的确实是那份文件，不是空串让断言恒过
+    expect(view.length).toBeGreaterThan(2000)
+    expect(launcher.length).toBeGreaterThan(2000)
+  })
+
   it('settings-store.ts 用解构接的三条键必须判为在用', () => {
     const src = readFileSync('src/renderer/src/stores/settings-store.ts', 'utf8')
     const used = rendererMembersUsed(src)
