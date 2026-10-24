@@ -2,39 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T07:37:45.277Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T07:37:39.554Z",
-      "lastActiveAt": "2026-10-24T07:37:45.277Z",
-      "task": "#203",
-      "claimedFiles": [
-        {
-          "path": "src/shared/models.ts",
-          "task": "#203",
-          "claimedAt": "2026-10-24T07:37:39.554Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#203",
-          "claimedAt": "2026-10-24T07:37:41.464Z"
-        },
-        {
-          "path": "src/main/services/db/knowledge-repo.ts",
-          "task": "#203",
-          "claimedAt": "2026-10-24T07:37:43.377Z"
-        },
-        {
-          "path": "src/main/ipc/knowledge.ts",
-          "task": "#203",
-          "claimedAt": "2026-10-24T07:37:45.277Z"
-        }
-      ],
-      "expiresAt": "2026-10-24T09:37:45.277Z"
-    }
-  },
+  "lastUpdated": "2026-10-24T07:56:58.329Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -10332,6 +10301,34 @@
       "file": "src/main/ipc/knowledge.ts",
       "task": "#203",
       "timestamp": "2026-10-24T07:37:45.277Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/models.ts",
+      "task": "#203",
+      "timestamp": "2026-10-24T07:56:58.329Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#203",
+      "timestamp": "2026-10-24T07:56:58.329Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/db/knowledge-repo.ts",
+      "task": "#203",
+      "timestamp": "2026-10-24T07:56:58.329Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/knowledge.ts",
+      "task": "#203",
+      "timestamp": "2026-10-24T07:56:58.329Z"
     }
   ],
   "coordinationAudit": {
