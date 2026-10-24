@@ -31,6 +31,7 @@ import type {
   RiskLevel
 } from './types'
 import { GROUP_LABELS } from './system-profiler'
+import { redactSecrets } from '../../core/agent/providers/redact'
 
 // ==================================================================
 // 常量
@@ -679,7 +680,12 @@ export function renderProfilerMarkdown(
   // 4. 页脚
   parts.push(renderFooter(result))
 
-  return parts.join('\n')
+  // 5. 出口脱敏：这一份 md 会从好几个口离开进程——
+  //    写文件（profiler:exportMd / exportPdf，那两个自己还有一道）、
+  //    AI 工具返回值（进模型上下文、进界面卡片）、MCP 客户端。
+  //    闸装在这里，就不存在"某个口忘了装"；以前只装在写文件那一步，
+  //    同一段 crontab / 日志输出经 AI 工具出去时是原样的。
+  return redactSecrets(parts.join('\n'))
 }
 
 /** 导出供测试使用 */
