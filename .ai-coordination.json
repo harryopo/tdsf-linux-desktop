@@ -2,49 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T10:10:24.079Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T10:03:18.505Z",
-      "lastActiveAt": "2026-10-24T10:10:24.079Z",
-      "task": "#209 MCP 网关状态接上界面",
-      "claimedFiles": [
-        {
-          "path": "src/renderer/src/pages/McpSettings.tsx",
-          "task": "#209 MCP 网关状态接上界面",
-          "claimedAt": "2026-10-24T10:03:18.505Z"
-        },
-        {
-          "path": "scripts/audit-ipc-contract.ts",
-          "task": "#209 MCP 网关状态接上界面",
-          "claimedAt": "2026-10-24T10:03:18.505Z"
-        },
-        {
-          "path": "docs/功能实景清单.md",
-          "task": "#209 MCP 网关状态接上界面",
-          "claimedAt": "2026-10-24T10:03:18.505Z"
-        },
-        {
-          "path": "docs/长期优化目标.md",
-          "task": "#209 MCP 网关状态接上界面",
-          "claimedAt": "2026-10-24T10:03:18.505Z"
-        },
-        {
-          "path": "src/main/core/agent/mcp-gateway.ts",
-          "task": "#209 注释改口",
-          "claimedAt": "2026-10-24T10:10:24.079Z"
-        },
-        {
-          "path": "src/main/core/agent/mcp-lifecycle.ts",
-          "task": "#209 注释改口",
-          "claimedAt": "2026-10-24T10:10:24.079Z"
-        }
-      ],
-      "expiresAt": "2026-10-24T12:10:24.079Z"
-    }
-  },
+  "lastUpdated": "2026-10-24T10:26:16.860Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -10580,6 +10539,48 @@
       "file": "src/main/core/agent/mcp-lifecycle.ts",
       "task": "#209 注释改口",
       "timestamp": "2026-10-24T10:10:24.079Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/pages/McpSettings.tsx",
+      "task": "#209 MCP 网关状态接上界面",
+      "timestamp": "2026-10-24T10:26:16.860Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/audit-ipc-contract.ts",
+      "task": "#209 MCP 网关状态接上界面",
+      "timestamp": "2026-10-24T10:26:16.860Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/功能实景清单.md",
+      "task": "#209 MCP 网关状态接上界面",
+      "timestamp": "2026-10-24T10:26:16.860Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/长期优化目标.md",
+      "task": "#209 MCP 网关状态接上界面",
+      "timestamp": "2026-10-24T10:26:16.860Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/mcp-gateway.ts",
+      "task": "#209 注释改口",
+      "timestamp": "2026-10-24T10:26:16.860Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/mcp-lifecycle.ts",
+      "task": "#209 注释改口",
+      "timestamp": "2026-10-24T10:26:16.860Z"
     }
   ],
   "coordinationAudit": {
