@@ -22,10 +22,11 @@
  * - 3 次重试失败：从 recovering 升级到 failed
  * - backoff 冷却：默认 30s（指数退避：30s, 60s, 120s）
  *
- * UI 可见性：
- * - 通过 mcp-gateway.ts 的 getLifecycleState() 暴露状态
- * - 通过 IPC 'mcp:state' 推送给渲染层
- * - 状态条显示在 ChatPanel 顶部（可折叠）
+ * UI 可见性（2026-10-24 #209 接上，之前这三行写着"状态条显示在 ChatPanel 顶部"，
+ * 而 ChatPanel 从来没有过那一格——读数一直在推，界面一个字都没接）：
+ * - 通过 mcp-gateway.ts 的 getLifecycleState() 读快照（IPC 'mcp:get-state'）
+ * - 状态变更通过 IPC 'mcp:state-changed' 推给渲染层
+ * - 显示在「设置 → 外部 MCP」的"本机 MCP 网关此刻的健康状态"那一格
  *
  * 参考来源：idea-to-dev-output/33-源码分析-claw-code.md §四 (B3 借鉴点)
  */

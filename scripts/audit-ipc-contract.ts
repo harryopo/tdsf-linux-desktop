@@ -474,7 +474,16 @@ function main(): void {
  * 其中 `sidecar:tool-call` 不只是没人用：它让渲染层往本地端口 POST **任意 endpoint**，
  * 一道没人按的通用写入口就是白给的攻击面。判据：`tests/unit/sidecar-ipc-surface.test.ts`
  * 四个方向都钉：九把键不许回来、真在用的两条不许误砍、主进程只注册两条、通用口不许以任何形式回来。
+ * 50 → 47 是**还债**（接上界面，既不是修尺子也不是减面）：MCP 网关的
+ * `mcpGetState` / `mcpReset` / `onMcpStateChanged` 三把键。这一族的形状与 diagnostics 那一族正好相反——
+ * 生产者是真的：外部工具调用的成败与本机 MCP Server 启动失败都在喂那台 5 态状态机
+ * （判据 `tests/unit/mcp-state-producer.test.ts`），主进程也一直在往渲染层推，
+ * 唯独界面一个字都没接，于是那盏灯等于没装。现在「设置 → 外部 MCP」多一格实测读数：
+ * 状态、连续失败与本轮重试次数、最近失败时刻与原因，收到推送就变，
+ * 「重置失败计数」真的走 `mcp:reset` 并且按完重新读一次。
+ * 判据：`tests/components/pages/mcp-settings-gateway.test.tsx` 六条，
+ * 含两条"读不到就不许冒充连接正常"与一条"离开这一页必须摘掉订阅"（回调叠加是 W0 的老账）。
  */
-const UNUSED_CAP = 50
+const UNUSED_CAP = 47
 
 main()

@@ -1,5 +1,5 @@
 /**
- * 外部 MCP 登记面 + AI 侧调用真机验收（任务 #173 第二、三步）
+ * 外部 MCP 登记面 + AI 侧调用 + 网关状态格的真机验收（#173 第二、三步；#209 第四、五步）
  *
  * 单测只能证明"validateDraft 会拒这份草稿"、"载荷与装配点在"，证明不了：
  *   1. 从设置页点"添加"之后，那一行真的出现在列表里、状态列读的是连接池的真实结果；
@@ -7,7 +7,9 @@
  *   3. **子进程看不见没点名的环境变量**（这是本批关掉的那个洞，正反两对照都做）；
  *   4. 点"移除"之后那行真的没了——不是只从配置里消失、进程还在跑；
  *   5. 模型在对话里报出工具名之后，主进程真能认出是哪台的哪个工具、
- *      拒了不执行、批了把返回回喂给它（第二条用例）。
+ *      拒了不执行、批了把返回回喂给它（第二条用例）；
+ *   6. 网关状态那一格真的跟着主进程走（第三条用例，#209）：失败推上来界面就变、
+ *      没人点刷新；「重置失败计数」按下去，主进程那台机器也跟着清零。
  *
  * 夹具 tests/e2e/fixtures/mcp-env-probe.mjs 是个真 MCP server，只回报"看得见哪些变量名"。
  * skip 不等于通过：没有 out/main/index.js 就先 pnpm build。
@@ -261,6 +263,92 @@ testOrSkip('对话里调外部 MCP 工具：模型发起 → 审批 → 结果�
   } finally {
     delete process.env[PROBE]
     await ai.close()
+    await app.close()
+  }
+})
+
+/**
+ * 网关状态那一格：真窗口里从"调用失败"到"界面变红"再到"重置回绿"（#209）
+ *
+ * 组件测试证明了订阅接上了、读数来自 mcpGetState；证明不了整条真链路：
+ * 主进程状态机变更真的推到了这个窗口、界面不靠点刷新就变、
+ * 「重置失败计数」真的把主进程那台机器清零（不是只把本地 state 洗白）。
+ *
+ * 触发的失败用一台没登记过的服务器 id —— clientManager 会把它做成带 isError 的
+ * 正常返回（`src/main/services/mcp/client-manager.ts:186`），这正是网关上报失败
+ * 那条真路，不是测试自己造出来的假状态。审批照点头：失败发生在批准之后。
+ */
+testOrSkip('网关状态格：外部调用失败 → 不刷新就变红 → 重置回绿', async () => {
+  test.setTimeout(120_000)
+
+  const { app, page } = await launchApp()
+  const GHOST = `ghost-${Date.now().toString(36)}`
+  /** 那一格在界面上的定位（按标题找卡片，不按内部组件名） */
+  const card = page.locator('div.set-card', { hasText: '本机 MCP 网关此刻的健康状态' })
+
+  /** 只从 DOM 文本读界面此刻显示的次数——不去猜组件内部状态 */
+  const shownFailures = (): Promise<number | null> =>
+    page.evaluate(() => {
+      const el = Array.from(document.querySelectorAll<HTMLElement>('.set-card')).find((c) =>
+        c.textContent?.includes('本机 MCP 网关此刻的健康状态')
+      )
+      const m = el?.textContent?.match(/连续失败 (\d+) 次/)
+      return m ? Number(m[1]) : null
+    })
+  /** 主进程那台状态机此刻的真读数 */
+  const truth = () => page.evaluate(() => window.electronAPI.mcpGetState())
+
+  try {
+    await page.evaluate(() => {
+      window.location.hash = '#/settings/mcp'
+    })
+    await expect(card, '设置页里没有网关状态这一格').toBeVisible({ timeout: 20_000 })
+
+    // 首屏：界面显示的次数必须等于主进程读数。这里不假设它是 0——
+    // 本机 MCP Server 启动失败也会记进这台状态机（server.ts:247），档位不是每轮全新的。
+    await expect
+      .poll(async () => (await shownFailures()) === (await truth()).consecutiveFailures, {
+        message: '首屏那一格显示的不是 mcpGetState 的读数',
+        timeout: 20_000,
+      })
+      .toBe(true)
+
+    const baseline = (await truth()).consecutiveFailures
+
+    const call = page.evaluate(
+      async (id) => window.electronAPI.mcpExternalCall(id, 'env_probe', {}),
+      GHOST
+    )
+    await page.waitForSelector(CARD, { timeout: 15_000 })
+    await page.click(`${CARD} >> role=button[name=/批准这一次/]`)
+    const r = await call
+    expect(r.success, '这台服务器压根没登记，这条该失败').toBe(false)
+    expect(String(r.error ?? ''), '失败原因没回到调用方').toContain('未注册')
+
+    // 关键一步：全程没有点任何"刷新"，界面应当被主进程的推送推着变，且两边数一致
+    await expect
+      .poll(async () => {
+        const t = await truth()
+        return t.consecutiveFailures > baseline && (await shownFailures()) === t.consecutiveFailures
+      }, {
+        message: '状态机上报了失败，但界面没跟着变（或界面与主进程读数不一致）',
+        timeout: 15_000,
+      })
+      .toBe(true)
+    await expect(card, '失败原因没上屏').toContainText('未注册')
+
+    // 重置真的动到主进程那台机器：界面清零的同时 mcpGetState 也必须回到 connected / 0
+    await page.click('[data-dom-id="mcp-gateway-reset"]')
+    await expect
+      .poll(async () => {
+        const t = await truth()
+        return t.state === 'connected' && t.consecutiveFailures === 0 && (await shownFailures()) === 0
+      }, {
+        message: '按了重置：界面与主进程没有一起归零',
+        timeout: 15_000,
+      })
+      .toBe(true)
+  } finally {
     await app.close()
   }
 })

@@ -7,18 +7,41 @@
  * externalServers = 下次启动替你跑一个程序）。所以写入口是一条专用通道：
  * 入参由主进程当场判形状，拒绝原因原样回到这里显示。
  *
- * 三块全是真读数：
+ * 前三块全是真读数：
  * - 已登记列表 ← mcp:external-list（形状里没有环境变量值，只有键名）
  * - 连接状态与工具数 ← mcp:external-status（连接池此刻的真实状态，不是"配了就等于在跑"）
  * - 工具清单 ← mcp:external-tools（每台服务器自己报上来的名字与说明）
+ *
+ * 第四块是这台机器自己的 MCP 网关（2026-10-24 #209 接上）：
+ * - 当前健康状态 ← mcp:get-state（五态状态机的快照）+ mcp:state-changed（主进程一变更就推新的整份读数）
+ * - 「重置失败计数」→ mcp:reset，按完再读一次，界面上摆的是重置之后的真值
+ * 这台状态机以前是"主进程在跑、在推，界面一个字都没接"——外部调用的成败一直在喂它，
+ * 但没人读，于是那盏灯等于没装。
  *
  * 界面不承诺它管不到的事：这一页不能让 AI 去调某个工具，也不写"AI 会自动使用"。
  * 每一次外部工具调用都要在审批卡上有人点头（见 docs/功能实景清单.md）。
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, Loader2, Plug, Plus, RefreshCw, Server, ShieldAlert, Trash2 } from 'lucide-react'
-import type { ExternalMcpServer, ExternalMcpServerStatus, McpExternalTool } from '@shared/models'
-import { Button, Field, Notice, TextInput } from '@/ui'
+import {
+  Activity,
+  Gauge,
+  Loader2,
+  Plug,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Server,
+  ShieldAlert,
+  Trash2,
+} from 'lucide-react'
+import type {
+  ExternalMcpServer,
+  ExternalMcpServerStatus,
+  McpExternalTool,
+  McpLifecycleState,
+  McpStateContext,
+} from '@shared/models'
+import { Button, Chip, Field, Notice, TextInput } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { SettingsCard } from '@/components/settings/SettingsCard'
@@ -39,6 +62,26 @@ const STATE_LABEL: Record<ExternalMcpServerStatus['connectionState'], { text: st
   connecting: { text: '连接中', className: 'text-(--accent-text)' },
   disconnected: { text: '未连接', className: 'text-ink-mute' },
   error: { text: '连接失败', className: 'text-(--status-error-text)' },
+}
+
+/** 网关状态机五态在界面上的说法。
+ * 措辞只描述读数本身，不写"调用已被拦下"——这台状态机现在只做观测，
+ * 真正拦下外部调用的是审批卡（见 src/main/ipc/mcp.ts 的 external-call）。
+ */
+const GATEWAY_STATE_LABEL: Record<
+  McpLifecycleState,
+  { text: string; tone: 'success' | 'warning' | 'error' | 'neutral' }
+> = {
+  connected: { text: '连接正常', tone: 'success' },
+  degraded: { text: '部分能力受损', tone: 'warning' },
+  recovering: { text: '恢复中…', tone: 'neutral' },
+  failed: { text: '连接失败', tone: 'error' },
+  backoff: { text: '冷却中…', tone: 'warning' },
+}
+
+/** 状态机给的是毫秒时间戳，界面按本地时区原样念出来（不折算成"3 分钟前"那种猜测） */
+function formatClock(ts: number): string {
+  return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false })
 }
 
 /** 参数一栏让用户用空格分隔，交给主进程切成数组 */
@@ -95,6 +138,9 @@ export function McpSettings() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [gateway, setGateway] = useState<McpStateContext | null>(null)
+  const [gatewayError, setGatewayError] = useState<string | null>(null)
+  const [resetting, setResetting] = useState(false)
 
   const reload = useCallback(async () => {
     const api = window.electronAPI
@@ -129,6 +175,53 @@ export function McpSettings() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  /**
+   * 读一次网关状态机的快照。
+   * 窗口没有这把键就直说没有——下面的数字宁可空着，也不许摆一个"连接正常"上去。
+   */
+  const readGateway = useCallback(async () => {
+    const api = window.electronAPI
+    if (!api?.mcpGetState) {
+      setGateway(null)
+      setGatewayError('这个窗口没有拿到 MCP 网关状态接口（mcpGetState 不存在），下面的读数无从取起。')
+      return
+    }
+    try {
+      setGateway(await api.mcpGetState())
+      setGatewayError(null)
+    } catch (err) {
+      setGateway(null)
+      setGatewayError(`${messageOf(err)}；点「重读」再试一次。`)
+    }
+  }, [])
+
+  useEffect(() => {
+    void readGateway()
+    const api = window.electronAPI
+    if (!api?.onMcpStateChanged) return
+    // 主进程状态一变就推整份新读数，界面不用自己再去问一次
+    const off = api.onMcpStateChanged((next) => {
+      setGateway(next)
+      setGatewayError(null)
+    })
+    // 返回的卸载函数必须交出去：不摘的话每进一次这页就多叠一个监听，
+    // 同一次状态变更会被推 N 次（W0 定下的规矩：回调不许叠加）
+    return off
+  }, [readGateway])
+
+  async function resetGateway(): Promise<void> {
+    const api = window.electronAPI
+    if (!api?.mcpReset) return
+    setResetting(true)
+    try {
+      await api.mcpReset()
+      // 按完重新读：界面上摆的是重置之后的真值，不是"按了就当成功"
+      await readGateway()
+    } finally {
+      setResetting(false)
+    }
+  }
 
   const set = (patch: Partial<DraftForm>) => setForm((f) => ({ ...f, ...patch }))
 
@@ -274,6 +367,84 @@ export function McpSettings() {
                 })}
               </tbody>
             </table>
+          )}
+        </SettingsCard>
+
+        <SettingsCard icon={Gauge} title="本机 MCP 网关此刻的健康状态">
+          <p className="mb-3 text-micro text-ink-mute">
+            这一格只统计 MCP 这条链路：调用外部工具的成败，与本机 MCP Server 的启动结果。
+            某台外部服务器连没连上，看上面「已登记的外部服务器」那张表的状态列。
+          </p>
+
+          {gatewayError ? (
+            <Notice
+              tone="error"
+              title="读不到网关状态"
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void readGateway()}
+                  aria-label="重新读取网关状态"
+                >
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  重读
+                </Button>
+              }
+            >
+              {gatewayError}
+            </Notice>
+          ) : gateway === null ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-ink-mute">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              正在读取网关状态
+            </div>
+          ) : (
+            <>
+              <Chip tone={GATEWAY_STATE_LABEL[gateway.state].tone}>
+                {GATEWAY_STATE_LABEL[gateway.state].text}
+              </Chip>
+              <ul className="mt-2 space-y-1">
+                <li className="text-sm text-ink-dim">
+                  {`连续失败 ${gateway.consecutiveFailures} 次 · 本轮重试 ${gateway.retryAttempts} 次`}
+                </li>
+                <li className="text-sm text-ink-dim">
+                  {`最近失败 ${gateway.lastFailureAt === null ? '—' : formatClock(gateway.lastFailureAt)}`}
+                </li>
+                <li className="break-words text-sm text-ink-dim">
+                  {`原因：${gateway.lastFailureReason ?? '—'}`}
+                </li>
+                {gateway.backoffUntil !== null && (
+                  <li className="text-sm text-ink-dim">{`冷却至 ${formatClock(gateway.backoffUntil)}`}</li>
+                )}
+              </ul>
+              {gateway.state !== 'connected' && (
+                <p className="mt-3 text-micro text-ink-mute">
+                  下一步：先在「已登记的外部服务器」那张表里核对那台服务器的命令或地址；
+                  确认已经修好，再点下面这颗「重置失败计数」，把连续失败与冷却清零。
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-micro text-ink-mute">
+                  这个读数只用于观测：即使写着冷却中，网关也不会因此拒掉调用
+                  ——每一次外部调用真正把关的是审批卡。
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void resetGateway()}
+                  disabled={resetting}
+                  data-dom-id="mcp-gateway-reset"
+                >
+                  {resetting ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  重置失败计数
+                </Button>
+              </div>
+            </>
           )}
         </SettingsCard>
 

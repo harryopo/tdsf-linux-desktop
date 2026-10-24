@@ -99,8 +99,9 @@ export class McpGateway {
    * 没有它 'mcp:get-state' 只会一直回报初始的 connected（等于没测）。
    *
    * 这里刻意**不**按 backoff/failed 拦截调用：一台外部服务器抽风会把冷却期
-   * 套到所有 MCP 调用上，而唯一能结束冷却的"重置"按钮至今没有界面入口。
-   * 状态先只用于观测，要 enforce 得先把重置做出来。
+   * 套到所有 MCP 调用上，而"重置失败计数"只能清零读数，不能证明那台机器已经修好。
+   * 所以这台状态机只用于观测（设置 → 外部 MCP 那一格读的就是它），
+   * 每一次外部调用真正把关的是审批卡。
    */
   async callExternalTool(
     serverId: string,
