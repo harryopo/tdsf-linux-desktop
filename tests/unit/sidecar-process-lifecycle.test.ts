@@ -60,6 +60,15 @@ const MODULE = 'tdsf_sleepy_sidecar'
 
 let workDir = ''
 
+/**
+ * 两条判据里 `mgr.start()` 都是故意不等到底的（健康检查注定过不了，等它就等于等 20 秒超时）。
+ * 但"不等"有代价：start 内部那条失败日志会在测试文件都已经跑完之后才落到 console，
+ * 撞上 worker 拆除就是 `Closing rpc while onUserConsoleLog was pending`
+ * （2026-10-24 全量跑红在这条上，单独跑这个文件不出现）。
+ * 所以把没等价的承诺收集起来，afterAll 里收干净再走——判据本身不看那行日志。
+ */
+const floatingStarts: Array<Promise<unknown>> = []
+
 beforeAll(() => {
   workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tdsf-sidecar-test-'))
   fs.writeFileSync(
@@ -76,9 +85,10 @@ beforeAll(() => {
   )
 })
 
-afterAll(() => {
+afterAll(async () => {
+  await Promise.allSettled(floatingStarts)
   fs.rmSync(workDir, { recursive: true, force: true })
-})
+}, 30_000)
 
 async function waitFor<T>(read: () => T | null, timeoutMs = 8000): Promise<T> {
   const until = Date.now() + timeoutMs
@@ -110,7 +120,7 @@ describe('SidecarManager 进程生命周期（D3）', () => {
       startupTimeoutMs: 20_000,
     })
 
-    void mgr.start().catch(() => undefined)
+    floatingStarts.push(mgr.start().catch(() => undefined))
 
     const pid = Number(await waitFor(() => readChildPid(workDir), 15_000))
     expect(pid, `子进程应写下自己的正 PID，实际读到=${pid}`).toBeGreaterThan(0)
@@ -143,7 +153,7 @@ describe('SidecarManager 进程生命周期（D3）', () => {
         healthCheckIntervalMs: 500,
         startupTimeoutMs: 20_000,
       })
-      void mgr.start().catch(() => undefined)
+      floatingStarts.push(mgr.start().catch(() => undefined))
       const pid = Number(await waitFor(() => readChildPid(workDir), 15_000))
       expect(pid, `第 ${round + 1} 轮应拿到正 PID，实际读到=${pid}`).toBeGreaterThan(0)
       pids.push(pid)
