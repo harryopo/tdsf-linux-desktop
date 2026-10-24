@@ -113,7 +113,6 @@ paorApprove
 previewClose
 previewOpen
 previewReadText
-profilerDefaultFileName
 profilerExportMd
 profilerExportPdf
 profilerRun

@@ -393,11 +393,11 @@ const electronApi = {
     invokeChecked<number>('chatClear', CHAT.CLEAR, sshSessionId),
 
   // ===== 系统架构感知扁平化 =====
-  // 走 profiler 域对象（原来这里把四条通道又内联抄了一遍，而 const profiler 只有被删掉的手写类型在用）
+  // 走 profiler 域对象（原来这里把通道又内联抄了一遍，而 const profiler 只有被删掉的手写类型在用）
+  // 默认文件名那把已于 #212 整删：导出落点改由主进程定，渲染层不再碰路径
   profilerRun: profiler.run,
   profilerExportMd: profiler.exportMd,
   profilerExportPdf: profiler.exportPdf,
-  profilerDefaultFileName: profiler.defaultFileName,
 
   // ===== 知识库教程扁平化 =====
   tutorialList: (category?: TutorialCategory): Promise<TutorialEntry[]> =>

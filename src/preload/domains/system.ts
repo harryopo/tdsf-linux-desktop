@@ -94,17 +94,13 @@ const profiler = {
   run: (sessionId: string, host: string): Promise<ProfilerRunResponse> =>
     ipcRenderer.invoke(PROFILER.RUN, sessionId, host),
 
-  /** 导出 md 文件 */
-  exportMd: (md: string, outputPath: string): Promise<{ filePath: string; size: number }> =>
-    ipcRenderer.invoke(PROFILER.EXPORT_MD, md, outputPath),
+  /** 导出 md 报告（落点由主进程定在 userData/reports，回来的 filePath 给界面显示） */
+  exportMd: (md: string, host: string): Promise<{ filePath: string; size: number }> =>
+    ipcRenderer.invoke(PROFILER.EXPORT_MD, md, host),
 
-  /** 导出 PDF 文件 */
-  exportPdf: (md: string, outputPath: string): Promise<{ filePath: string; size: number }> =>
-    ipcRenderer.invoke(PROFILER.EXPORT_PDF, md, outputPath),
-
-  /** 生成默认文件名 */
-  defaultFileName: (host: string, ext: 'md' | 'pdf'): Promise<string> =>
-    ipcRenderer.invoke(PROFILER.DEFAULT_FILE_NAME, host, ext),
+  /** 导出 PDF 报告（同上） */
+  exportPdf: (md: string, host: string): Promise<{ filePath: string; size: number }> =>
+    ipcRenderer.invoke(PROFILER.EXPORT_PDF, md, host),
 }
 
 /**

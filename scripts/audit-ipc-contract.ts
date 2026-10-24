@@ -494,7 +494,16 @@ function main(): void {
  * `ipc-p0-missing` 里那 8 条只测这层包装的用例同批删（与 #193/#196 同一口径）。
  * 判据：`tests/unit/provider-ipc-surface.test.ts` 五条，含一条"反过度砍"正对照
  * （两张表与三个活消费者不许一起带走）。
+ * 42 → 38 是**还债**（#212）：系统剖析这条引擎一直真在跑（27 项探查 + 风险检测 + md 报告），
+ * AI 在对话里能调，`profiler:run` / `exportMd` / `exportPdf` 三把键却从没进过界面。
+ * 现在监控页多一格「服务器体检」：对当前 SSH 会话跑一次、列出每条风险与建议、导出 md 或 PDF。
+ * 顺带把导出的落点收回主进程——原来那两个 handler 要渲染层递一个**绝对路径**，
+ * 而沙箱里的渲染层既拿不到 userData、也没有保存对话框（全仓只有 showOpenDialog），
+ * 这条路按原样接谁都会失败，还多一条能写任意路径的口；生成默认文件名那把 `profilerDefaultFileName`
+ * 因此整删（`defaultPdfFileName` 留在主进程内部用）。
+ * 判据：`tests/components/monitor/ServerProbeCard.test.tsx` 六条（含"失败不留空卡、不写 0 条风险"
+ * 与"导出失败不许说已导出"）+ `tests/unit/profiler-export-path-shape.test.ts`（导出入参形状与受管路径）。
  */
-const UNUSED_CAP = 42
+const UNUSED_CAP = 38
 
 main()

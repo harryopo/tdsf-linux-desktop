@@ -855,10 +855,8 @@ export const PROFILER = {
   RUN: 'profiler:run',
   /** 导出 md 文件（invoke: 渲染 → 主） */
   EXPORT_MD: 'profiler:exportMd',
-  /** 导出 PDF 文件（invoke: 渲染 → 主） */
+  /** 导出 PDF 文件（invoke: 渲染 → 主；落点由主进程定在 userData/reports） */
   EXPORT_PDF: 'profiler:exportPdf',
-  /** 生成默认文件名（invoke: 渲染 → 主） */
-  DEFAULT_FILE_NAME: 'profiler:defaultFileName',
 } as const
 
 /**

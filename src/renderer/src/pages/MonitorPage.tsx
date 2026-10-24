@@ -36,6 +36,7 @@ import {
 import { AlertTable } from '@/components/monitor/AlertTable'
 import { AlertDrawer } from '@/components/monitor/AlertDrawer'
 import { ProcessTable } from '@/components/monitor/ProcessTable'
+import { ServerProbeCard } from '@/components/monitor/ServerProbeCard'
 import { EmptyMonitorState } from '@/components/monitor/EmptyMonitorState'
 import {
   timeRanges,
@@ -112,6 +113,18 @@ export function MonitorPage() {
   const systemInfo = useMonitorStore((s) =>
     activeSessionId ? s.getSystemInfo(activeSessionId) : null,
   )
+  /**
+   * 体检要写的是"哪台机器"：优先用连接配置里的那个地址（它就是用户认得的名字，
+   * 也会进报告文件名）。systemInfo.hostname 是从远端 uname 输出里读的一行，
+   * 拿它当文件名会拖出一串带空格和 # 的怪名字，所以只作兜底。
+   */
+  const probeHostFromConfig = useServerStore((s) => {
+    const sid = s.activeSessionId
+    if (!sid) return null
+    const serverId = Object.entries(s.sessionMap).find(([, v]) => v === sid)?.[0]
+    return serverId ? (s.servers.find((x) => x.id === serverId)?.host ?? null) : null
+  })
+  const probeHost = probeHostFromConfig ?? systemInfo?.hostname ?? null
 
   // monitor:data / systemInfo 订阅已提升到应用入口全局绑定
   // （stores/agent-stream-subscription.ts），监控页未挂载时也不丢推送。
@@ -324,6 +337,9 @@ export function MonitorPage() {
 
       {/* 6. 进程监控 */}
       <ProcessTable onRefresh={handleRefresh} />
+
+      {/* 7. 服务器体检（#212）：profiler:run 这条引擎此前只有 AI 能调，人没有入口 */}
+      <ServerProbeCard sessionId={activeSessionId} host={probeHost} />
       </div>
 
       {/* 7. 告警详情 Drawer（DEC-3 决策，不新建 alert-detail.html） */}
