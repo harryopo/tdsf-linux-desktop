@@ -141,7 +141,14 @@ export const WorkbenchPage: FC = () => {
   const handleOpenFile = useCallback((req: OpenFileRequest) => {
     const id = fileTabId(req.path)
     setFileTabs((prev) => {
-      if (prev.some((t) => t.id === id)) return prev
+      const existing = prev.find((t) => t.id === id)
+      if (existing) {
+        // 已经开着：内容搜索再点同一文件的另一行时，要把新的行号写进去，
+        // 否则第二次点击只切标签、不跳行——行号就成了摆设
+        return req.line === undefined
+          ? prev
+          : prev.map((t) => (t.id === id ? { ...t, revealLine: req.line } : t))
+      }
       // 记下这台机：切到另一台后保存要按它回原机，不能写进当前机
       return [...prev, { ...createLoadingFileTab(req), sessionId: activeSessionId ?? undefined }]
     })

@@ -114,7 +114,17 @@ export function registerSftpSearchIpcHandlers(): void {
           const name = line.split('/').filter(Boolean).pop() ?? line
           files.push({ path: line, name, size: 0, mtime: 0 })
         }
-        return { files }
+        if (result.stderr === 'timeout') {
+          // 超时不是"没有结果"：那条 find 还没跑完，报空等于骗人
+          return {
+            ok: false,
+            files: [],
+            error: `搜索超时（${SFTP_SEARCH_TIMEOUT_MS / 1000} 秒）：这个目录太大，请缩小搜索路径`,
+          }
+        }
+        // 命令末尾是 `| head -50`：条数到顶就说明后面还有，界面必须能区分
+        // "只有这些"和"只给你看这些"，否则 50 条会被当成全部结果。
+        return { files, truncated: files.length >= SFTP_SEARCH_MAX_FILES }
       } catch (err) {
         // 失败返回空数组，UI 显示"无结果"，不抛错打断用户
         // ok:false 是必须的：错误信封的守卫只认 success/ok 标记（error-boundary.ts:141），
@@ -183,7 +193,10 @@ export function registerSftpSearchIpcHandlers(): void {
           }
           results.push({ file, line: lineNum, text, match: matchStr })
         }
-        return { results }
+        return {
+          results,
+          truncated: results.length >= SFTP_GREP_MAX_RESULTS,
+        }
       } catch (err) {
         return { ok: false, results: [], error: (err as Error).message }
       }

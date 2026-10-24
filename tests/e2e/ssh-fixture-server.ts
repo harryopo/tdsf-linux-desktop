@@ -93,11 +93,30 @@ function makeHostKey(): { private: Buffer; fingerprint: string } {
   }
 }
 
-/** exec 通道的固定回显（够测试断言"输出是真从链路回来的"） */
+/**
+ * exec 通道的固定回显（够测试断言"输出是真从链路回来的"）
+ *
+ * find / grep 这两条形如 `find '<root>' -type f -name '*<q>*' 2>/dev/null | head -50`
+ * 与 `grep -rn -i -F '<q>' '<root>' 2>/dev/null | head -100`，是资源管理器那格远程搜索
+ * （#213）发出来的。这里演得像一台有文件的机器，界面才能整条走通：
+ * 查询里带 `many` 就正好回 50 条，用来验"到顶要说可能不全"那条判据。
+ */
 function execOutput(command: string): string {
   if (command.includes('uname')) return 'Linux fixture-vm 6.8.0-fixture #1 SMP x86_64 GNU/Linux\n'
   if (command.includes('hostname')) return 'fixture-vm\n'
   if (command.includes('uptime')) return ' 07:00:00 up 1 day,  2:03,  1 user,  load average: 0.00, 0.01, 0.05\n'
+  if (/^find .*-name /.test(command)) {
+    if (command.includes('many')) {
+      return `${Array.from({ length: 50 }, (_, i) => `/var/log/many-${i}.log`).join('\n')}\n`
+    }
+    return '/etc/nginx/nginx.conf\n/etc/nginx/conf.d/default.conf\n'
+  }
+  if (/^grep (-\S+ )+'/.test(command)) {
+    return [
+      '/etc/nginx/nginx.conf:5:worker_processes auto;',
+      '/etc/nginx/conf.d/default.conf:12:listen 80;',
+    ].join('\n')
+  }
   return `fixture 收到命令：${command}\n`
 }
 

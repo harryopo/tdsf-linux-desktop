@@ -37,6 +37,7 @@ import {
   FolderPlus,
   Trash2,
   PanelLeftClose,
+  Search,
   X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -47,6 +48,7 @@ import { useServerStore } from '@/stores/server-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import type { SftpEntry, SftpProgressEvent } from '@shared/models'
 import FileTreeContextMenu, { type MenuAction } from './FileTreeContextMenu'
+import { FileSearchPanel } from './FileSearchPanel'
 import ChmodDialog from './ChmodDialog'
 import RenameDialog from './RenameDialog'
 
@@ -55,6 +57,12 @@ export interface OpenFileRequest {
   path: string
   /** 显示名 */
   name: string
+  /**
+   * 打开后要跳到的行号（1-based）。
+   * 只有内容搜索的结果带它——行号显示给用户却跳不过去就是假 affordance，
+   * 所以这条一路传到编辑器（tab.revealLine → MonacoEditor.revealLine）。
+   */
+  line?: number
 }
 
 export interface FileTreeProps {
@@ -154,6 +162,8 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
   const connected = Boolean(sessionId && activeServer)
 
   const [rootPath, setRootPath] = useState('/')
+  /** 远程搜索这一格（#213）：默认收起，不占资源管理器的纵向空间 */
+  const [searchOpen, setSearchOpen] = useState(false)
   const [nodes, setNodes] = useState<TreeNode[]>([])
   const [rootLoading, setRootLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -639,6 +649,17 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
             </button>
             <button
               type="button"
+              title="搜索远程文件"
+              aria-label="搜索远程文件"
+              aria-expanded={searchOpen}
+              onClick={() => setSearchOpen((v) => !v)}
+              disabled={!connected}
+              className={searchOpen ? 'wb-filetree-action-btn is-active' : 'wb-filetree-action-btn'}
+            >
+              <Search className="size-3.5" />
+            </button>
+            <button
+              type="button"
               title="刷新"
               onClick={() => void loadRoot()}
               disabled={!connected || rootLoading}
@@ -676,6 +697,14 @@ const FileTree: FC<FileTreeProps> = ({ activeFilePath, onOpenFile, onCollapse })
               spellCheck={false}
             />
           </div>
+        )}
+
+        {searchOpen && (
+          <FileSearchPanel
+            sessionId={connected ? sessionId : null}
+            rootPath={rootPath}
+            onOpenFile={(req) => onOpenFile?.(req)}
+          />
         )}
 
         <div className="wb-filetree-scroll" ref={scrollRef}>

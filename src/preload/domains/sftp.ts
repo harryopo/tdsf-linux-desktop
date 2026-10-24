@@ -82,22 +82,25 @@ const sftpSearch = {
    * @param sessionId SSH 会话 ID
    * @param path 搜索根目录（绝对路径）
    * @param query 文件名模糊匹配（不支持正则，shell glob）
-   * @returns 文件列表（最多 50 条，3 秒超时返回空数组）
+   * @returns 文件列表（最多 50 条）；truncated=true 表示已到上限、后面还有；
+   *          超时或失败时带 ok:false 与 error，界面不许把"没跑完"报成"没有结果"
    */
   search: (
     sessionId: string,
     path: string,
     query: string
-  ): Promise<{ files: SftpSearchFileEntry[]; error?: string }> =>
+  ): Promise<{ files: SftpSearchFileEntry[]; truncated?: boolean; error?: string }> =>
     ipcRenderer.invoke(SFTP_SEARCH.SEARCH, sessionId, path, query),
 
   /**
    * 远程内容 grep（grep -rn）
    *
    * @param params 搜索参数（sessionId/path/pattern/isRegex/caseSensitive/wholeWord）
-   * @returns 匹配列表（最多 100 条，3 秒超时返回空数组）
+   * @returns 匹配列表（最多 100 条）；truncated 同上
    */
-  grep: (params: SftpGrepParams): Promise<{ results: SftpGrepMatch[]; error?: string }> =>
+  grep: (
+    params: SftpGrepParams
+  ): Promise<{ results: SftpGrepMatch[]; truncated?: boolean; error?: string }> =>
     ipcRenderer.invoke(SFTP_SEARCH.GREP, params),
 }
 

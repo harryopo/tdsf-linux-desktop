@@ -514,7 +514,22 @@ function main(): void {
  * 与那批只能手工跑的一次性脚本（约五千行），不留"代码在、探针绿、只是界面不投"的半态。
  * 判据：`tests/unit/tutorial-ipc-surface.test.ts` 五条（含一条"反过度砍"正对照：
  * 向量检索那条链的六个模块与各自的活消费者都还在）。
+ * 19 → 17 是**还债**（#213）：`sftpSearch` / `sftpGrep` 两把键在主进程是真实现
+ * （SSH exec 跑 `find` / `grep -rn`，输入走单引号转义、3 秒超时、条数有上限），
+ * preload 也早就暴露了，唯独界面零调用——想在服务器上找一个配置文件只能回终端自己敲。
+ * 现在资源管理器工具栏多一格搜索开关，两种模式（按文件名 / 按内容），结果点得开，
+ * 内容命中带行号并真把编辑器拉到那一行（`OpenFileRequest.line → tab.revealLine → MonacoEditor`，
+ * 只显示行号却跳不过去就是假 affordance，所以这条一路传到底并高亮整行）。
+ * 顺带把两处读数改成诚实的：`| head -50` / `| head -100` 截过要报 `truncated`（界面据此说"可能不全"），
+ * 超时要带 `ok:false` 与原因（把"没跑完"报成"没有这个文件"是最难查的那种骗）。
+ * 判据：`tests/unit/sftp-search-surface.test.ts` 六条（含渲染层调用点恰为一处）+
+ * `tests/components/workbench/file-search-panel.test.tsx` 五条 +
+ * `tests/e2e/workbench-file-search.spec.ts`（假 SSH：点开关、真 exec 回结果、到上限、点结果去开文件）+
+ * `tests/e2e/workbench-file-search-real.spec.ts`（WSL 真 OpenSSH：真 SFTP 读回正文、视口里真的出现第 137 行、
+ * 状态栏 Ln 跟着变 137）。**后者当场抓出一个假实现**：`revealLine` 原先只写在 effect 里，而 effect 跑在
+ * Monaco 的 `onMount` 之前，正文一到位才挂载时实例还不存在，行号被静默丢掉——这条时序只有真 Monaco 才有，
+ * 单测与组件测都照不到，所以这一格的"真跳到了那一行"以前是没被量过的。
  */
-const UNUSED_CAP = 19
+const UNUSED_CAP = 17
 
 main()

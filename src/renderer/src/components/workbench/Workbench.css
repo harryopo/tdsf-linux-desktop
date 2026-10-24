@@ -690,3 +690,135 @@
     animation: none;
   }
 }
+
+/* ── 远程文件搜索（#213）──────────────────────────────────────────── */
+
+.wb-filetree-action-btn.is-active {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--text-primary);
+}
+
+.wb-file-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+}
+
+.wb-file-search-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--trae-radius-4);
+  background: var(--trae-bg-overlay-l1);
+}
+
+.wb-file-search-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.wb-file-search-mode.active {
+  background: var(--trae-bg-overlay-l3);
+  color: var(--text-primary);
+}
+
+.wb-file-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wb-file-search-input {
+  height: 26px;
+  min-width: 0;
+  flex: 1;
+  border-radius: var(--trae-radius-4);
+  border: 1px solid var(--trae-border-neutral-l2);
+  background: var(--trae-bg-overlay-l1);
+  padding: 0 8px;
+  font-size: 11px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.wb-file-search-input:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.wb-file-search-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.wb-file-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.wb-file-search-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  padding: 3px 4px;
+  text-align: left;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.wb-file-search-item:hover {
+  background: var(--trae-bg-overlay-l2);
+  color: var(--text-primary);
+}
+
+.wb-file-search-name {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.wb-file-search-path,
+.wb-file-search-text {
+  min-width: 0;
+  flex: 1;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-file-search-line {
+  flex-shrink: 0;
+  font-family: var(--trae-font-family-mono);
+  color: var(--text-tertiary);
+}
+
+/* Monaco 命中的那一行：内容搜索点进来要看得见跳到哪儿了。
+   选择器带上 .monaco-editor 是为了压过 Monaco 自己的行样式——不用 !important
+   （设计契约闸按条数锁 !important，多一条就是回涨） */
+.monaco-editor .wb-file-hit-line {
+  background: var(--trae-bg-overlay-l3);
+}
+

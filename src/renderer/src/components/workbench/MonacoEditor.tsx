@@ -12,7 +12,7 @@
  *
  * 方案书依据：v2.0 Phase A · Task A.2 / A.6
  */
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 // 必须在 <Editor> 之前完成：把 Monaco 从 CDN 换成本地 bundle（见该文件注释）
 import '@/lib/monaco-setup'
 import Editor, { type OnMount, type OnChange } from '@monaco-editor/react'
@@ -53,6 +53,12 @@ export interface MonacoEditorProps {
    * 少了后者，读屏与部分输入法仍能改文档内容。
    */
   readOnly?: boolean
+  /**
+   * 要跳到并高亮的那一行（1-based，#213 内容搜索结果）。
+   *
+   * 给同一个值不会重复跳（effect 依赖它）；WorkbenchPage 每次点结果都会写一个新值。
+   */
+  revealLine?: number
 }
 
 /** 注册 shell 语言配置（仅注册一次） */
@@ -98,8 +104,45 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   onSave,
   path,
   readOnly = false,
+  revealLine,
 }) => {
   const setCursorPosition = useEditorStore((s) => s.setCursorPosition)
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
+  const decorationRef = useRef<string[]>([])
+
+  /**
+   * 跳到那一行并整行高亮。
+   *
+   * 两条路都要走这一处（真机 e2e 实测出来的）：
+   * - 文件正文是异步读回来的，标签一 ready 才把 Monaco 挂上来。那一刻 `onMount`
+   *   跑在本组件 effect 之后，只靠 effect 的话编辑器实例还不存在，行号就这么丢了；
+   * - 已经开着的标签再点别的命中，走的是 effect 这条路。
+   */
+  const applyReveal = useCallback(
+    (ed: editor.IStandaloneCodeEditor, m: typeof import('monaco-editor'), line: number) => {
+      const maxLine = ed.getModel()?.getLineCount() ?? 0
+      if (maxLine === 0) return
+      const at = Math.min(Math.max(line, 1), maxLine)
+      ed.revealLineInCenter(at)
+      ed.setPosition({ lineNumber: at, column: 1 })
+      decorationRef.current = ed.deltaDecorations(decorationRef.current, [
+        {
+          range: new m.Range(at, 1, at, 1),
+          options: { isWholeLine: true, className: 'wb-file-hit-line' },
+        },
+      ])
+      ed.focus()
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const ed = editorRef.current
+    const monaco = monacoRef.current
+    if (!ed || !monaco || revealLine === undefined) return
+    applyReveal(ed, monaco, revealLine)
+  }, [applyReveal, revealLine, value])
 
   const handleChange: OnChange = useCallback(
     (newValue) => {
@@ -110,6 +153,8 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
 
   const handleMount: OnMount = useCallback(
     (editorInstance, monaco) => {
+      editorRef.current = editorInstance
+      monacoRef.current = monaco
       // 注册 shell 语言配置（Task A.6）
       registerShellLanguage(monaco)
 
@@ -132,9 +177,12 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       // 初始化光标位置为 1:1
       setCursorPosition({ lineNumber: 1, column: 1 })
 
+      // 带着行号进来的（内容搜索点的那一行）：此刻正文已经在，直接跳
+      if (revealLine !== undefined) applyReveal(editorInstance, monaco, revealLine)
+
       onMount?.(editorInstance, monaco)
     },
-    [onMount, onSave, setCursorPosition],
+    [applyReveal, onMount, onSave, revealLine, setCursorPosition],
   )
 
   return (

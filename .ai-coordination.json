@@ -2,8 +2,54 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T22:45:19.475Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-24T23:09:33.494Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-24T22:52:30.707Z",
+      "lastActiveAt": "2026-10-24T23:09:33.494Z",
+      "task": "#213 远程文件搜索接上界面",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/components/workbench/FileTree.tsx",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T22:52:30.707Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/EditorArea.tsx",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T22:52:32.392Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/MonacoEditor.tsx",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T22:52:34.062Z"
+        },
+        {
+          "path": "src/renderer/src/pages/WorkbenchPage.tsx",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T22:52:35.873Z"
+        },
+        {
+          "path": "src/main/ipc/sftp-search.ts",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T23:05:01.694Z"
+        },
+        {
+          "path": "src/preload/domains/sftp.ts",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T23:05:01.826Z"
+        },
+        {
+          "path": "scripts/audit-ipc-contract.ts",
+          "task": "#213 远程文件搜索接上界面",
+          "claimedAt": "2026-10-24T23:09:33.494Z"
+        }
+      ],
+      "expiresAt": "2026-10-25T01:09:33.494Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -11127,6 +11173,55 @@
       "file": "README.md",
       "task": "#211 整删教程抓取回填管线",
       "timestamp": "2026-10-24T22:45:19.475Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/FileTree.tsx",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T22:52:30.707Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/EditorArea.tsx",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T22:52:32.392Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/MonacoEditor.tsx",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T22:52:34.062Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/WorkbenchPage.tsx",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T22:52:35.873Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/sftp-search.ts",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T23:05:01.694Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/domains/sftp.ts",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T23:05:01.826Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/audit-ipc-contract.ts",
+      "task": "#213 远程文件搜索接上界面",
+      "timestamp": "2026-10-24T23:09:33.494Z"
     }
   ],
   "coordinationAudit": {

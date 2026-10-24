@@ -28,6 +28,17 @@ const LIB_PREFIXES: Array<[string, string]> = [
 ]
 
 /**
+ * 不带那四个前缀、但同样是库自己注入 DOM 的类。
+ *
+ * 规矩与 LIB_PREFIXES 一样：每条必须写清是谁生成的（白名单不是豁免，是记录出处）。
+ * 2026-10-25 加 `view-lines`：#213 的真机判据要证"编辑器真的滚到了命中那一行"，
+ * 用的就是 Monaco 的行容器（Monaco 只渲染视口内的行，那一行的文字出现在这里才证明真跳过去了）。
+ */
+const LIB_CLASSES: Array<[string, string]> = [
+  ['view-lines', 'Monaco 的行容器：node_modules/monaco-editor/esm/vs/editor/browser/viewParts/viewLines/viewLines.js:94 自己 setClassName'],
+]
+
+/**
  * 扫工作树，不扫 `git ls-files`。
  *
  * 原来用 ls-files，等于"新写的 spec 在提交之前不受检"——而恰好就是新写的代码最容易
@@ -69,7 +80,7 @@ function rendererSourceBlob(): string {
 }
 
 function isLibClass(cls: string): boolean {
-  return LIB_PREFIXES.some(([p]) => cls.startsWith(p))
+  return LIB_PREFIXES.some(([p]) => cls.startsWith(p)) || LIB_CLASSES.some(([c]) => c === cls)
 }
 
 /**
@@ -172,6 +183,20 @@ describe('e2e 类选择器必须存在于渲染层', () => {
     // 白名单本身也要能被证伪：mon- 曾宽到把死掉的 .mon-main 豁免掉，Monaco 真实前缀是 monaco-
     expect(isLibClass('mon-main'), 'mon- 不能再豁免任何类').toBe(false)
     expect(isLibClass('monaco-editor')).toBe(true)
+  })
+
+  it('LIB_CLASSES 每条写的出处要真能翻到（豁免必须可查，不是写句理由就放行）', () => {
+    for (const [cls, reason] of LIB_CLASSES) {
+      const file = /node_modules\/[^\s]+/.exec(reason)?.[0].replace(/[:：]\d+$/, '')
+      expect(file, `${cls} 的理由里没给出可查的文件路径：${reason}`).toBeTruthy()
+      const abs = path.join(process.cwd(), file as string)
+      expect(fs.existsSync(abs), `${cls} 说的文件不存在：${file}`).toBe(true)
+      const body = fs.readFileSync(abs, 'utf8')
+      expect(body, `${file} 里找不到 ${cls}，这条豁免是编的`).toContain(cls)
+    }
+    // 同族的假类名不许被豁免：写进白名单的必须是逐名精确匹配
+    expect(isLibClass('view-linez')).toBe(false)
+    expect(isLibClass('view-lines')).toBe(true)
   })
 
   it('取数面不窄于 git 跟踪集（未提交的新 spec 也在检查范围内）', () => {

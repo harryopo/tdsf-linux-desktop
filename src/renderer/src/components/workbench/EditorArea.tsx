@@ -137,6 +137,11 @@ export interface WorkbenchFileTab {
   readOnly?: boolean
   /** 打开这个文件时所属的 SSH 会话；切机后保存必须按它回原机，不能写进当前机 */
   sessionId?: string
+  /**
+   * 内容搜索跳进来的那一行（#213）。
+   * 每次点搜索结果都会换一个新值，编辑器据此滚动并高亮；同一行重复点不会重复跳。
+   */
+  revealLine?: number
 }
 
 export interface EditorAreaProps {
@@ -329,6 +334,7 @@ const FileEditorPanel: FC<{
             language={detectLanguage(tab.path)}
             path={tab.path}
             readOnly={tab.readOnly}
+            revealLine={tab.revealLine}
             onChange={onChange}
             onSave={onSave}
           />
@@ -993,6 +999,7 @@ export function createLoadingFileTab(req: OpenFileRequest): WorkbenchFileTab {
     original: '',
     loading: true,
     dirty: false,
+    revealLine: req.line,
   }
 }
 
