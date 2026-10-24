@@ -18,8 +18,13 @@
  * **不是** electronAPI 的别名——把它当别名，`off.anything` 就会冒充接线。
  */
 
-/** electronAPI 直接成员访问：`electronAPI.foo` / `window.electronAPI?.foo` */
-const DIRECT_MEMBER_RE = /(?:window\.)?electronAPI[?!]?\.(\w+)/g
+/**
+ * electronAPI 直接成员访问：`electronAPI.foo` / `window.electronAPI?.foo`。
+ * 允许 `.` 前后有空白与换行——链式调用就是会换行，
+ * RiskSettings.tsx 写作 `window.electronAPI` 换行 `.riskGetRules()`，
+ * 早先不容忍换行时这条在用的键被报成零调用。
+ */
+const DIRECT_MEMBER_RE = /(?:window\.)?electronAPI\s*[?!]?\s*\.\s*(\w+)/g
 
 /**
  * 别名声明：`const <id> = window.electronAPI`，且等号右边到此为止。

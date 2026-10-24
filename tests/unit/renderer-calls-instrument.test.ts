@@ -57,6 +57,12 @@ describe('[renderer-calls] 假债方向：三种接线都要认', () => {
     expect(used).toContain('shrClose')
   })
 
+  it('链式换行：electronAPI 与成员不在同一行也要认', () => {
+    // RiskSettings.tsx 真就是这么写的：window.electronAPI 换行后 .riskGetRules()
+    const src = 'const p = window.electronAPI\n  .riskGetRules()\nreturn p'
+    expect(rendererMembersUsed(src)).toContain('riskGetRules')
+  })
+
   it('`const off = electronAPI.onX(cb)` 里的 off 不许被当成第二个 electronAPI', () => {
     // off 是 onX 返回的退订函数；把它当 api 别名会让 off.anything 冒充成接线
     const src = 'const off = window.electronAPI.onSomething(cb)\noff.notARealMember()'

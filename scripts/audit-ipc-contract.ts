@@ -430,9 +430,12 @@ function main(): void {
  * （`server:export` / `server:import` / `kb:import`）。在用的替代品都要求用户在原生
  * 对话框里挑文件（`server:export-file` / `server:import-file` / `kb:import-file`），
  * 少一把无人按的写入口，就少一条被 XSS 用到的路径。
+ * 77 → 76 是同族第三次：链式调用会换行，`window.electronAPI` 下一行才写 `.riskGetRules()`
+ * （RiskSettings.tsx:111 就是这样），而成员正则原来不容忍 `.` 前后的空白。
+ * 风险控制页是真读真显示的，却被列进"没人用"——第三次证明**一次修正不算修完**。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 77
+const UNUSED_CAP = 76
 
 main()
