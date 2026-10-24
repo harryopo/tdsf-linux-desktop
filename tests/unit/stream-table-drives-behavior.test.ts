@@ -32,7 +32,6 @@ async function mount() {
         onAgentChunk: on('chunk'),
         onAgentDone: on('done'),
         onAgentError: on('error'),
-        onAgentStep: on('step'),
         onAgentToolEvent: on('tool'),
         onMonitorData: on('monitor'),
         onMonitorSystemInfo: on('sysinfo'),

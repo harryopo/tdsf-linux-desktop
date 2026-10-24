@@ -87,9 +87,10 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
     const owned = Object.keys(STREAM_EVENT_RULES).filter(
       (c) => STREAM_EVENT_RULES[c as StreamEventName].ownership
     )
-    // agent:step / llm:* 的 payload 不带 correlationId，标了就是骗人。
     // agent:tool-event 是 #86 才补上的：主进程每条都带 correlationId，
     // store 侧真按它认领消息（tests/unit/agent-store-tool-events.test.ts 钉住行为）。
+    // 以前还有 agent:step / llm:* 那批"payload 不带 correlationId"的通道，
+    // 它们连同生产者一起在 #195 整删了，所以这里剩下四条就是全部。
     expect(owned.sort()).toEqual(['agent:chunk', 'agent:done', 'agent:error', 'agent:tool-event'])
   })
 
@@ -105,24 +106,17 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
   // 而把某一条从 DELTA 改成 DISPOSABLE（丢掉事件）或 SNAPSHOT（每 token 全量重发）都照样全绿 ——
   // 和 D4 那轮"用数据核对由数据算出的行为"是同一个病。2026-10-08 实测：
   // 把 agent:chunk 改成 LATEST_ONLY 时，只有新加的订阅行为测试会红（覆盖 agent:chunk/done/error 三条），
-  // 其余 36 条只能靠这张表拦。改表必须先改这张表，就是逼一次人审。
+  // 其余通道只能靠这张表拦。改表必须先改这张表，就是逼一次人审。
   it('每条通道的类别等于人审冻结值（数量与内容都不许漂）', () => {
     const EXPECTED_CLASS: Record<string, string> = {
       'agent:chunk': 'DELTA',
       'agent:done': 'CRITICAL',
       'agent:error': 'CRITICAL',
-      'agent:step': 'LATEST_ONLY',
       'agent:tool-event': 'SNAPSHOT',
       'agent:paor:iteration': 'SNAPSHOT',
       'boot:loading-stage': 'LIFECYCLE',
       'diagnostics:log-batch': 'DISPOSABLE',
       'file:changed': 'SNAPSHOT',
-      'llm:chunk': 'DELTA',
-      'llm:done': 'CRITICAL',
-      'llm:error': 'CRITICAL',
-      'llm:token': 'DISPOSABLE',
-      'llm:tool-approval': 'CRITICAL',
-      'llm:tool-progress': 'SNAPSHOT_TAIL',
       'local-tty:exit': 'LIFECYCLE',
       'loop:blocked': 'CRITICAL',
       'loop:decision': 'CRITICAL',

@@ -59,8 +59,13 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > 别把同目录的东西一起打成"死代码"：`loop-engineering-subagent` 与 `agent-loader` 由
 > `ipc/loop-engineering.ts`、`ipc/index.ts` 注册并在跑；`subagents/dispatcher.ts` 的 8 步调度
 > 已于 2026-10-24 整删（生产零调用、与 supervisor 的 PAOR 重复，专属测试与 barrel 导出同批删）。
+> **`ipc/agent.ts` 与裸 `llm:*` 家族同样已于 2026-10-24 整删**（`agent:start/confirm/cancel` +
+> `agent:step`、`llm:chat/analyze/validate/chat-with-context/chat-with-tools/tool-approve` 与 6 条推送）：
+> 渲染层零调用，主对话一直是 `agent:chat`（Supervisor）那一条。留着的 `core/agent-workflow.ts`
+> 不是残骸——循环工程那条活链（`subagents/loop-engineering-subagent.ts` 与
+> `services/mcp/tools/legacy-handlers.ts`）还在用它，被删的只是没人按的那层壳。
 
-> CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1369` → `agent-store.ts:405`
+> CoT 熵轨迹**不在这张表里**：收集与 SVG 可视化都在链路上（`supervisor.ts:1462` → `agent-store.ts:381`
 > → `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117`），只是那一轮没采到熵点时不画。
 > 旧版本这里写过"可视化未做/待前端接线"，是照抄 2026-07-25 的表没回代码核对——2026-10-18 纠正。
 >

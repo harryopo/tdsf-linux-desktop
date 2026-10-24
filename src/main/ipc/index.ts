@@ -28,11 +28,9 @@ import { registerLlmHandlers } from './llm'
 import { registerKnowledgeHandlers } from './knowledge'
 import { registerHistoryHandlers } from './history'
 import { registerChatHistoryHandlers } from './chat-history'
-import { registerAgentHandlers } from './agent'
 import { registerAgentRuntimeHandlers } from './agent-runtime'
 import { registerProfilerIpcHandlers } from './profiler'
 import { registerTutorialIpcHandlers } from './tutorial'
-import { registerLlmToolHandlers } from './llm-tools'
 import { registerLogIpcHandlers } from './log'
 import { registerCredibilityHandlers } from './credibility'
 // M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
@@ -171,12 +169,12 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   ipcDisposers.push(registerLocalTerminalHandlers())
   ipcDisposers.push(registerMonitorIpcHandlers(mainWindow))
   registerStorageIpcHandlers()
-  registerLlmHandlers(mainWindow)
+  // llm:test 是唯一还在界面上的裸 llm 通道（设置页「测试连接」），其余随 #195 删除
+  registerLlmHandlers()
   registerKnowledgeHandlers(mainWindow)
   registerHistoryHandlers(mainWindow)
   // #177 / #178：对话历史落盘（chat:append / chat:list / chat:clear）
   registerChatHistoryHandlers()
-  registerAgentHandlers(mainWindow)
   // v0.9 新增：Supervisor + Provider + Token IPC handlers
   registerAgentRuntimeHandlers(mainWindow)
   registerProfilerIpcHandlers()
@@ -188,12 +186,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
     registerModelStatsHandlers(db)
     // A4 新增：数据库状态 IPC（db:status）——渲染层降级横幅的唯一数据源
     registerDbHandlers(db)
-  }
-  // LLM Tool Calling IPC（5 工具 + 审批流）
-  if (db) {
-    registerLlmToolHandlers(mainWindow, db)
-  } else {
-    registerLlmToolHandlers(mainWindow, null)
   }
   // 日志 IPC（暴露给渲染进程与测试使用）
   registerLogIpcHandlers()

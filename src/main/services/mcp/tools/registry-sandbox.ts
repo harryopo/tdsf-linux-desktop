@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { OpenHandsClient, OpenHandsApiError } from '../../sandbox/openhands-client'
 import { defaultOpenHandsClient } from '../../sandbox/openhands-client'
 import { redactSecrets } from '../../../core/agent/providers/redact'
-// 与 IPC 侧同一个审批实现（依赖方向已有先例：services/llm/tools/registry.ts 也引 ipc/model-stats）
+// 与 IPC 侧同一个审批实现（services 反向引 ipc 在本仓有先例，见 ipc/model-stats 的调用方）
 import { waitForSandboxApproval } from '../../../ipc/sandbox-approval'
 import { BrowserWindow } from 'electron'
 import type { McpToolRegistration, McpToolResult } from './registry'

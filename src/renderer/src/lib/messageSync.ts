@@ -25,10 +25,10 @@
 /**
  * 主进程 → 渲染进程的推送通道名
  *
- * 这份清单不是手写的期望值，是从 preload 的 42 个监听点
- * （createListener / ipcRenderer.on）反解出来的实际推送面。
- * D1 之前的数字是 28——那时 14 个推送通道直写字面量、没进中央表，
- * 反解器看不见它们，于是"对上了"其实是漏了。中央表补齐后清单才是 42。
+ * 这份清单不是手写的期望值，是从 preload 的实际监听点
+ * （createListener / ipcRenderer.on）反解、按通道去重出来的真实推送面。
+ * D1 之前反解器只读 index.ts，域拆分后分散在 domains/*.ts 的监听点会漏，
+ * 所以取数一律走 tests/unit/preload-sources.ts 的合并源。
  * tests/unit/message-sync-table.test.ts 会再对一次，多一个少一个都红。
  */
 export type StreamEventName =
@@ -36,17 +36,10 @@ export type StreamEventName =
   | 'agent:done'
   | 'agent:error'
   | 'agent:paor:iteration'
-  | 'agent:step'
   | 'agent:tool-event'
   | 'boot:loading-stage'
   | 'diagnostics:log-batch'
   | 'file:changed'
-  | 'llm:chunk'
-  | 'llm:done'
-  | 'llm:error'
-  | 'llm:token'
-  | 'llm:tool-approval'
-  | 'llm:tool-progress'
   | 'local-tty:exit'
   | 'loop:blocked'
   | 'loop:decision'
@@ -132,13 +125,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     coalescable: false,
     note: '错误必须让用户看到，不丢',
   },
-  'agent:step': {
-    class: 'LATEST_ONLY',
-    ownership: false,
-    coalescable: true,
-    note: '工作流步骤状态，只有最新一份有意义；payload 不带 correlationId，' +
-      '目前只能靠"有没有在流的消息"来定位，按会话精确归属等 D1 类型化契约补上',
-  },
   'boot:loading-stage': {
     class: 'LIFECYCLE',
     ownership: false,
@@ -156,42 +142,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '远程文件变更通知，每条都是独立事实',
-  },
-  'llm:chunk': {
-    class: 'DELTA',
-    ownership: false,
-    coalescable: true,
-    note: '直连 LLM 通道的正文增量；preload 挂了监听但渲染层当前无人订阅',
-  },
-  'llm:done': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '直连 LLM 收尾；渲染层当前未订阅',
-  },
-  'llm:error': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '直连 LLM 失败原因；渲染层当前未订阅',
-  },
-  'llm:token': {
-    class: 'DISPOSABLE',
-    ownership: false,
-    coalescable: true,
-    note: '逐 token 计数刷新；渲染层当前未订阅',
-  },
-  'llm:tool-approval': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '工具审批请求，丢了等于用户永远等不到弹窗，绝不合并；渲染层当前未订阅',
-  },
-  'llm:tool-progress': {
-    class: 'SNAPSHOT_TAIL',
-    ownership: false,
-    coalescable: false,
-    note: '工具调用三段进度；渲染层走的是 agent:tool-event 那条，此通道未订阅',
   },
   'local-tty:exit': {
     class: 'LIFECYCLE',

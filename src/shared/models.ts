@@ -285,14 +285,6 @@ export interface ChatMessage {
   toolCallId?: string
 }
 
-/** LLM 流式响应的 token 块 */
-export interface LlmStreamChunk {
-  /** 本次增量文本 */
-  delta: string
-  /** 累计 token 数（可选，部分 API 不返回） */
-  totalTokens?: number
-}
-
 /** LLM 错误信息 */
 export interface LlmError {
   /** 错误码（取值单源在 agent-types 的 LlmErrorCode，不在这里再抄一份） */
@@ -301,14 +293,6 @@ export interface LlmError {
   message: string
   /** 是否可重试 */
   retryable: boolean
-}
-
-/** LLM 配置校验结果 */
-export interface LlmValidationResult {
-  /** 是否有效 */
-  valid: boolean
-  /** 错误信息列表（valid=false 时有值） */
-  errors: string[]
 }
 
 /**
@@ -327,41 +311,6 @@ export interface LlmTestResult {
   error?: string
   /** 错误码（NETWORK/TIMEOUT/AUTH/MODEL_NOT_FOUND/RATE_LIMIT/SERVER/NO_API_KEY/UNKNOWN） */
   code?: string
-}
-
-/**
- * 系统环境上下文
- *
- * 用于 llm:chat-with-context 通道，将当前系统状态传递给 LLM。
- * 由 SystemInfo（静态）+ MonitorData（动态）合并而成。
- */
-export interface EnvironmentContext {
-  /** 主机名 */
-  hostname: string
-  /** 操作系统版本 */
-  os: string
-  /** 内核版本 */
-  kernel: string
-  /** CPU 型号 */
-  cpuModel: string
-  /** CPU 核心数 */
-  cpuCores: number
-  /** 总内存（字节） */
-  totalMemory: number
-  /** 总磁盘（字节） */
-  totalDisk: number
-  /** CPU 使用率（%） */
-  cpuUsage: number
-  /** 内存使用率（%） */
-  memoryUsage: number
-  /** 磁盘使用率（%） */
-  diskUsage: number
-  /** 系统运行时长（秒） */
-  uptime: number
-  /** 当前进程数 */
-  processCount: number
-  /** 系统负载（1分钟平均） */
-  loadAverage: number
 }
 
 /** 命令执行结果上下文（用于提示词构建） */
@@ -876,20 +825,9 @@ export interface IpcChannelMap {
   'monitor:stop': { args: [string]; return: boolean }
   'monitor:getSystemInfo': { args: [string]; return: SystemInfo }
 
-  // LLM 相关
-  'llm:chat': { args: [ChatMessage[]]; return: string }
-  'llm:test': { args: [LlmConfig]; return: boolean }
-  'llm:analyze': { args: [string, Evidence[]]; return: string }
-  'llm:validate': { args: [LlmConfig]; return: LlmValidationResult }
-  'llm:chat-with-context': {
-    args: [ChatMessage[], EnvironmentContext]
-    return: string
-  }
-
-  // Agent 工作流
-  'agent:start': { args: [string, string]; return: boolean }
-  'agent:confirm': { args: [string, boolean]; return: boolean }
-  'agent:cancel': { args: [string]; return: boolean }
+  // LLM 相关（#195：只保留设置页的「测试连接」；裸 chat/analyze/validate
+  // 与 AgentWorkflow 的 start/confirm/cancel 都随 ipc/llm.ts、ipc/agent.ts 一起删）
+  'llm:test': { args: [LlmConfig]; return: LlmTestResult }
 
   // 安全存储
   'storage:saveApiKey': { args: [string, string]; return: boolean }
@@ -973,11 +911,6 @@ export interface IpcChannelMap {
   'terminal:data': { args: [string, string]; return: void }
   'monitor:data': { args: [string, MonitorData]; return: void }
   'monitor:systemInfo': { args: [string, SystemInfo]; return: void }
-  'llm:token': { args: [string]; return: void }
-  'llm:chunk': { args: [LlmStreamChunk]; return: void }
-  'llm:done': { args: [string]; return: void }
-  'llm:error': { args: [LlmError]; return: void }
-  'agent:step': { args: [AgentWorkflowState]; return: void }
 
   // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
   'mcp:get-state': { args: []; return: McpStateContext }

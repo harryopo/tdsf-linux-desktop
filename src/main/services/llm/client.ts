@@ -26,14 +26,12 @@ import type {
   ChatMessage,
   Evidence,
   LlmConfig,
-  LlmValidationResult,
-  EnvironmentContext,
 } from '@shared/models'
 import { analyzeByRules } from '@main/core/rule-engine'
 import { classifyLlmError, llmErrorLabel } from '@main/core/agent/providers/llm-error'
 import { recordTokenUsage } from '@main/core/agent/providers/token-stats'
 import { estimateTokens } from '@shared/context-budget'
-import { SYSTEM_PROMPT, buildAnalysisPrompt, buildEnvironmentContextPrompt } from './prompt-templates'
+import { SYSTEM_PROMPT, buildAnalysisPrompt } from './prompt-templates'
 import {
   alertLlmSlowResponse,
   alertLlmFailure,
@@ -99,40 +97,6 @@ export class LlmClient {
   /** 检查 LLM 是否可用（仅检查 API Key 非空，不发起网络请求） */
   isAvailable(): boolean {
     return this.client !== null
-  }
-
-  /**
-   * 校验 LLM 配置是否有效（不发起网络请求，仅做字段级校验）
-   * @returns 校验结果
-   */
-  validateConfig(): LlmValidationResult {
-    const errors: string[] = []
-    if (!this.config.apiKey || !this.config.apiKey.trim()) {
-      errors.push('API Key 不能为空')
-    }
-    if (!this.config.baseUrl || !this.config.baseUrl.trim()) {
-      errors.push('Base URL 不能为空')
-    } else {
-      try {
-         
-        new URL(this.config.baseUrl)
-      } catch {
-        errors.push('Base URL 格式无效')
-      }
-    }
-    if (!this.config.model || !this.config.model.trim()) {
-      errors.push('模型名称不能为空')
-    }
-    if (this.config.temperature < 0 || this.config.temperature > 2) {
-      errors.push('temperature 必须在 0 到 2 之间')
-    }
-    if (this.config.maxTokens <= 0) {
-      errors.push('maxTokens 必须大于 0')
-    }
-    if (this.config.timeout <= 0) {
-      errors.push('timeout 必须大于 0')
-    }
-    return { valid: errors.length === 0, errors }
   }
 
   /**
@@ -291,29 +255,6 @@ export class LlmClient {
         }
       }
     }, () => !pushed)
-  }
-
-  /**
-   * 带系统环境上下文的对话（将 EnvironmentContext 注入为 system message）
-   * 用于 llm:chat-with-context 通道。
-   *
-   * @param messages 对话消息列表
-   * @param envCtx 系统环境上下文
-   * @returns LLM 回复文本
-   */
-  async chatWithContext(
-    messages: ChatMessage[],
-    envCtx: EnvironmentContext
-  ): Promise<string> {
-    if (!this.client) {
-      throw new Error('LLM 不可用：API Key 未配置')
-    }
-    const envPrompt = buildEnvironmentContextPrompt(envCtx)
-    const messagesWithCtx: ChatMessage[] = [
-      { role: 'system', content: `${SYSTEM_PROMPT}\n\n${envPrompt}` },
-      ...messages.filter((m) => m.role !== 'system')
-    ]
-    return this.chat(messagesWithCtx)
   }
 
   /**

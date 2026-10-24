@@ -7,7 +7,7 @@
  * 风险等级：low（只读搜索，无副作用）
  */
 import { z } from 'zod'
-import type { ToolDefinition, ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
+import type { ToolCallResult } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import type { TutorialEntry, TutorialCategory } from '@shared/tutorial-types'
 import { TUTORIAL_CATEGORY_LABELS } from '@shared/tutorial-types'
@@ -98,35 +98,3 @@ export async function executeTutorialSearch(
     }
   }
 }
-
-/** tutorial_search 工具定义 */
-export function createTutorialSearchTool(db: DatabaseManager): ToolDefinition {
-  return {
-    name: TOOL_IDS.TUTORIAL_SEARCH,
-    description: '从官方权威教程库中搜索 Linux 教程。返回匹配教程的标题、摘要、分类、来源等元数据。',
-    parameters: tutorialSearchArgsSchema,
-    execute: async (args: unknown) => {
-      const parsed = tutorialSearchArgsSchema.safeParse(args)
-      if (!parsed.success) {
-        return {
-          toolId: TOOL_IDS.TUTORIAL_SEARCH,
-          success: false,
-          error: `参数校验失败: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
-          durationMs: 0,
-          timestamp: Date.now(),
-        } satisfies ToolCallResult
-      }
-      return await executeTutorialSearch(parsed.data, db)
-    },
-  }
-}
-
-/** tutorial_search 工具元数据 */
-export const TUTORIAL_SEARCH_META = {
-  id: TOOL_IDS.TUTORIAL_SEARCH,
-  label: '教程搜索',
-  emoji: '📚',
-  description: '搜索官方权威 Linux 教程知识库',
-  risk: 'low' as ToolRiskLevel,
-  requiresApproval: false,
-} as const

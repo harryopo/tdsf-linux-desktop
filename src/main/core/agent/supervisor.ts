@@ -31,15 +31,20 @@
  *   - 跨 Subagent 协作（explore + coding + verify）→ Plan 阶段调度
  *   - 决策卡生成 + EU AI Act 审计报告 → credibility 子系统
  *
- * 不适用场景（走 `ipc/llm-tools.ts` 的单轮工具调用路径，不进本文件）：
+ * 不适用场景（不进本文件，走工具注册表直接派发）：
  *   - 单轮简单查询（如"查看 CPU 使用率"）→ 一次工具调用
  *   - 教程搜索（如"搜索 nginx 教程"）→ tutorial_search 单工具
  *   - MCP Server 无状态单次请求 → 直接派发，不建 PAOR 循环
  *
+ * 上面这三类活由两份目录承担：应用内那套工具的目录在 core/agent/tools/chat-tool-router.ts，
+ * 对外 MCP 出口在 services/mcp/tools/registry.ts（5 个本地能力的 execute 由两边共用）。
+ * 曾经还有一条从渲染层直连的单轮工具调用入口（llm:chat-with-tools + 它那套
+ * services/llm/tools/registry.ts 注册表），渲染层从没调用过，2026-10-24 随 #195 整删。
+ *
  * 关于"Mastra OpsAgent"：**它不存在**。早期设计稿设想过用 Mastra 做第二条 Agent 路径，
  * 但 Mastra 从来不是本项目的依赖，src/ 里也没有任何 import。上面"不适用场景"就是那条
- * 路径当初想交给它的活，现在由单轮工具调用路径承担。两条路径共享 provider-registry
- * 取 LLM 实例，路由由 IPC 层决定。
+ * 路径当初想交给它的活，现在由工具注册表承担。两条路径共享 provider-registry
+ * 取 LLM 实例。
  *
  * 已实现：
  * - chat() 方法：streamText 包装 + redact + token 统计 + compaction

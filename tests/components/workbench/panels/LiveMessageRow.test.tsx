@@ -9,7 +9,7 @@
  *    （在终端执行 → onToolAction('execute', cmd)；v2.5 沙箱按钮已删除）
  * 4. 无 activeSessionId 时不渲染命令按钮（v2.4 命令按钮前置条件）
  * 5. toolEvents 工具调用卡片：中文工具名 + 输出
- * 6. stepState 工作流步骤条 + 底部导航按钮（onNavigate）
+ * 6. 底部导航按钮（onNavigate）
  *
  * 关键决策：
  * - AgentMessage 直接构造纯数据对象，不依赖 zustand store（组件仅消费 props）
@@ -233,33 +233,9 @@ describe('LiveMessageRow — assistant 消息', () => {
     expect(screen.getByText('{"path":"/etc/hosts","limit":10}')).toBeInTheDocument()
   })
 
-  it('8. stepState 渲染 7 步工作流标签；底部按钮触发 onNavigate', () => {
+  it('8. 底部导航按钮触发 onNavigate', () => {
     const onNavigate = vi.fn()
-    render(
-      <LiveMessageRow
-        message={makeAssistant({
-          stepState: {
-            currentStep: 'reason',
-            completedSteps: ['collect', 'analyze'],
-            stepDetails: {
-              collect: '', analyze: '', reason: '', check: '',
-              confirm: '', execute: '', verify: '',
-            },
-            waitingForConfirmation: false,
-            decisionCard: null,
-            // 这两个是 AgentWorkflowState 的必填项（useLoopEngineering.ts:60），
-            // 少一个就不是"真的造出一条运行中的工作流"
-            error: null,
-            timestamp: 1700000000000,
-          },
-        })}
-        onNavigate={onNavigate}
-      />
-    )
-    // 7 步标签全部渲染
-    for (const label of ['采集', '分析', '推理', '检查', '确认', '执行', '验证']) {
-      expect(screen.getByText(label)).toBeInTheDocument()
-    }
+    render(<LiveMessageRow message={makeAssistant()} onNavigate={onNavigate} />)
     // 底部导航按钮
     fireEvent.click(screen.getByRole('button', { name: '查看监控' }))
     expect(onNavigate).toHaveBeenCalledWith('/monitor')

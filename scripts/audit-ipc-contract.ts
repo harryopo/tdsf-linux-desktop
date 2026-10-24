@@ -417,9 +417,13 @@ function main(): void {
  * 另把 memory 4 键接到「AI 记忆」页（同批提交）。
  * 119 → 109 是同日：deploy 执行链整删（7 个 invoke + 3 个事件监听），只保留只读模板工具。
  * 109 → 106 是同日：@命令解析链整删（`at:list/parse/resolve` 三条 invoke 与对应 preload 键）。
+ * 106 → 92 是同日：整删旧 AgentWorkflow 的 IPC 面（agent:start/confirm + agent:step 推送）
+ * 与裸 llm:* 家族（chat/analyze/validate/chat-with-context/chat-with-tools/tool-approve
+ * 六条 invoke 加 token/chunk/done/error/tool-progress/tool-approval 六条推送）。
+ * 主对话只留一条路：agent:chat（Supervisor）；设置页「测试连接」是唯一的裸 llm 通道。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 106
+const UNUSED_CAP = 92
 
 main()

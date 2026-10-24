@@ -41,10 +41,6 @@ export const SCHEDULER = {
  * - CHAT        invoke  渲染 → 主：启动 Supervisor 流式 chat
  * - CHAT_CANCEL invoke  渲染 → 主：取消进行中的 chat 请求
  * - PAOR        invoke  渲染 → 主：PAOR 自动循环（Plan→Act→Observe→Reflect）
- * - START       invoke  渲染 → 主：启动 Agent 工作流（旧版扁平化兼容）
- * - CONFIRM     invoke  渲染 → 主：人工确认 Agent 决策（旧版扁平化兼容）
- * - CANCEL      invoke  渲染 → 主：取消正在执行的 Agent 会话
- * - STEP        push     主 → 渲染：Agent 工作流步骤变更
  * - CHUNK       push     主 → 渲染：Supervisor 流式 token 块推送
  * - DONE        push     主 → 渲染：Supervisor chat 完成信号
  * - ERROR       push     主 → 渲染：Supervisor chat 错误信号
@@ -56,14 +52,6 @@ export const AGENT = {
   CHAT_CANCEL: 'agent:chat:cancel',
   /** PAOR 自动循环（invoke: 渲染 → 主，v0.9.5） */
   PAOR: 'agent:paor',
-  /** 启动 Agent 工作流（invoke: 渲染 → 主，v0.8 旧版扁平化兼容） */
-  START: 'agent:start',
-  /** 人工确认 Agent 决策（invoke: 渲染 → 主，v0.8 旧版扁平化兼容） */
-  CONFIRM: 'agent:confirm',
-  /** 取消正在执行的 Agent 会话（invoke: 渲染 → 主） */
-  CANCEL: 'agent:cancel',
-  /** Agent 工作流步骤变更推送（push: 主 → 渲染） */
-  STEP: 'agent:step',
   /** Supervisor 流式 token 块推送（push: 主 → 渲染，v0.9） */
   CHUNK: 'agent:chunk',
   /** Supervisor chat 完成信号推送（push: 主 → 渲染，v0.9） */
@@ -80,47 +68,16 @@ export const AGENT = {
  * LLM IPC 通道常量
  *
  * 通道列表：
- * - CHAT              invoke  渲染 → 主：单轮对话推理
  * - TEST              invoke  渲染 → 主：测试 LLM API 连通性
- * - ANALYZE           invoke  渲染 → 主：分析问题（内置降级）
- * - VALIDATE          invoke  渲染 → 主：校验 LLM 配置有效性
- * - CHAT_WITH_CONTEXT invoke  渲染 → 主：带系统环境上下文的对话
- * - CHAT_WITH_TOOLS   invoke  渲染 → 主：带工具调用的对话
- * - TOOL_APPROVE      invoke  渲染 → 主：人工审批工具调用请求
- * - TOKEN             push     主 → 渲染：流式 token 推送（兼容旧版）
- * - CHUNK             push     主 → 渲染：流式 token 块推送（增强版）
- * - DONE              push     主 → 渲染：流式完成信号
- * - ERROR             push     主 → 渲染：流式错误信号
- * - TOOL_PROGRESS     push     主 → 渲染：工具调用进度
- * - TOOL_APPROVAL     push     主 → 渲染：工具调用审批请求
+ *
+ * 2026-10-24 整删的裸 LLM 通道：chat / analyze / validate / chat-with-context /
+ * chat-with-tools / tool-approve 与它们的 6 条推送（token / chunk / done / error /
+ * tool-progress / tool-approval）。主对话只有一条路：agent:chat（Supervisor），
+ * 这套 v0.5/v0.8 时代的平行入口渲染层零调用，留着等于多一条能直接打 LLM 与跑工具的口子。
  */
 export const LLM = {
-  /** 单轮对话推理（invoke: 渲染 → 主） */
-  CHAT: 'llm:chat',
   /** 测试 LLM API 连通性（invoke: 渲染 → 主） */
   TEST: 'llm:test',
-  /** 分析问题（invoke: 渲染 → 主，内置降级，返回 JSON 字符串） */
-  ANALYZE: 'llm:analyze',
-  /** 校验 LLM 配置有效性（invoke: 渲染 → 主） */
-  VALIDATE: 'llm:validate',
-  /** 带系统环境上下文的对话（invoke: 渲染 → 主） */
-  CHAT_WITH_CONTEXT: 'llm:chat-with-context',
-  /** 带工具调用的对话（invoke: 渲染 → 主，v0.5.0） */
-  CHAT_WITH_TOOLS: 'llm:chat-with-tools',
-  /** 人工审批工具调用请求（invoke: 渲染 → 主） */
-  TOOL_APPROVE: 'llm:tool-approve',
-  /** 流式 token 推送（push: 主 → 渲染，兼容旧版） */
-  TOKEN: 'llm:token',
-  /** 流式 token 块推送（push: 主 → 渲染，增强版，含 totalTokens） */
-  CHUNK: 'llm:chunk',
-  /** 流式完成信号推送（push: 主 → 渲染，含完整文本） */
-  DONE: 'llm:done',
-  /** 流式错误信号推送（push: 主 → 渲染，含错误码/消息/是否可重试） */
-  ERROR: 'llm:error',
-  /** 工具调用进度推送（push: 主 → 渲染） */
-  TOOL_PROGRESS: 'llm:tool-progress',
-  /** 工具调用审批请求推送（push: 主 → 渲染） */
-  TOOL_APPROVAL: 'llm:tool-approval',
 } as const
 
 /**

@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { LlmConfig, Evidence, EnvironmentContext } from '../../src/shared/models'
+import type { LlmConfig, Evidence } from '../../src/shared/models'
 
 // ────────── Mock OpenAI SDK ──────────
 
@@ -284,78 +284,6 @@ describe('LlmClient — LLM 客户端', () => {
     expect(fullText).toBe('你好！')
   })
 
-  // ────────── validateConfig ──────────
-
-  it('validateConfig: 有效配置返回 valid=true', () => {
-    const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
-    const result = client.validateConfig()
-    expect(result.valid).toBe(true)
-    expect(result.errors).toHaveLength(0)
-  })
-
-  it('validateConfig: API Key 为空时返回错误', () => {
-    const client = new LlmClient(makeConfig({ apiKey: '' }))
-    const result = client.validateConfig()
-    expect(result.valid).toBe(false)
-    expect(result.errors).toContain('API Key 不能为空')
-  })
-
-  it('validateConfig: Base URL 为空时返回错误', () => {
-    const client = new LlmClient(makeConfig({ baseUrl: '' }))
-    const result = client.validateConfig()
-    expect(result.valid).toBe(false)
-    expect(result.errors).toContain('Base URL 不能为空')
-  })
-
-  it('validateConfig: Base URL 格式无效时返回错误', () => {
-    const client = new LlmClient(makeConfig({ baseUrl: 'not-a-url' }))
-    const result = client.validateConfig()
-    expect(result.valid).toBe(false)
-    expect(result.errors).toContain('Base URL 格式无效')
-  })
-
-  it('validateConfig: 模型名称为空时返回错误', () => {
-    const client = new LlmClient(makeConfig({ model: '' }))
-    const result = client.validateConfig()
-    expect(result.valid).toBe(false)
-    expect(result.errors).toContain('模型名称不能为空')
-  })
-
-  it('validateConfig: temperature 超范围时返回错误', () => {
-    const client = new LlmClient(makeConfig({ temperature: 3 }))
-    const result = client.validateConfig()
-    expect(result.valid).toBe(false)
-    expect(result.errors.some((e) => e.includes('temperature'))).toBe(true)
-  })
-
-  // ────────── chatWithContext ──────────
-
-  it('chatWithContext: API Key 为空时抛出错误', async () => {
-    const client = new LlmClient(makeConfig({ apiKey: '' }))
-    await expect(
-      client.chatWithContext([{ role: 'user', content: 'hi' }], makeEnvContext())
-    ).rejects.toThrow('LLM 不可用')
-  })
-
-  it('chatWithContext: 将环境上下文注入 system message', async () => {
-    mockCreate.mockResolvedValueOnce({
-      choices: [{ message: { content: '磁盘使用率偏高' } }]
-    })
-
-    const client = new LlmClient(makeConfig({ apiKey: 'valid-key' }))
-    const reply = await client.chatWithContext(
-      [{ role: 'user', content: '系统状态如何' }],
-      makeEnvContext({ diskUsage: 95 })
-    )
-
-    expect(reply).toBe('磁盘使用率偏高')
-    // 验证 system message 包含环境上下文
-    const callArgs = mockCreate.mock.calls[0][0]
-    expect(callArgs.messages[0].role).toBe('system')
-    expect(callArgs.messages[0].content).toContain('当前系统环境')
-    expect(callArgs.messages[0].content).toContain('95.0%')
-  })
-
   // ────────── analyze 降级标注 ──────────
 
   it('analyze: LLM 调用失败时降级到规则引擎，且只标分类名不带上游原文', async () => {
@@ -460,28 +388,6 @@ describe('LlmClient — LLM 客户端', () => {
     }
   })
 })
-
-// ────────── 环境上下文辅助 ──────────
-
-/** 创建测试用环境上下文 */
-function makeEnvContext(overrides: Partial<EnvironmentContext> = {}): EnvironmentContext {
-  return {
-    hostname: 'test-host',
-    os: 'Ubuntu 22.04',
-    kernel: '5.15.0',
-    cpuModel: 'Intel i7',
-    cpuCores: 8,
-    totalMemory: 16 * 1024 * 1024 * 1024,
-    totalDisk: 500 * 1024 * 1024 * 1024,
-    cpuUsage: 30,
-    memoryUsage: 50,
-    diskUsage: 60,
-    uptime: 3600,
-    processCount: 100,
-    loadAverage: 1.5,
-    ...overrides
-  }
-}
 
 // ────────── 辅助函数 ──────────
 

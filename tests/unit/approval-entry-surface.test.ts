@@ -1,8 +1,8 @@
 /**
  * 审批入口结构闸（D2 的第二半）
  *
- * approval-fail-closed.test.ts 量的是判定函数本身，它的注释写着"五个 IPC 审批入口都走它"，
- * 但这句话从来没有一条断言撑着 —— 于是真的多出第六个入口（agent:confirm）把 approved 原样
+ * approval-fail-closed.test.ts 量的是判定函数本身，它的注释写着"审批入口都走它"，
+ * 但这句话从来没有一条断言撑着 —— 于是真的多出一个入口（当年那条 agent:confirm）把 approved 原样
  * 交给 JS 真值判断时，整套测试依然全绿。判"某条规矩被遵守"必须按结构取数，不能靠注释。
  *
  * 本闸做的事：
@@ -18,7 +18,7 @@ const ROOT = path.resolve(__dirname, '../..')
 const CHANNELS_FILE = path.join(ROOT, 'src/shared/ipc-channels.ts')
 const MAIN_DIR = path.join(ROOT, 'src/main')
 
-/** 批准位的形状：agent:confirm / paor:approve / llm:tool-approve …（*-approval-request 是反方向推送，不算） */
+/** 批准位的形状：paor:approve / loop:confirm …（*-approval-request 是反方向推送，不算） */
 const APPROVAL_CHANNEL = /(?:approve|confirm)$/
 
 function listTsFiles(dir: string): string[] {
@@ -66,8 +66,6 @@ function registrants(channel: string): string[] {
 describe('每个审批入口都走严格判定（结构闸）', () => {
   it('通道清单里审批形通道的数量与预期一致（新增/改名不许悄悄漏出闸外）', () => {
     expect(APPROVAL_CHANNELS.sort()).toEqual([
-      'agent:confirm',
-      'llm:tool-approve',
       'loop:confirm',
       'paor:approve',
       'sandbox:approve',

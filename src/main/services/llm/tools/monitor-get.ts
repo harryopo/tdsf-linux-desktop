@@ -16,7 +16,7 @@
  * 风险等级：low（只读）
  */
 import { z } from 'zod'
-import type { ToolDefinition, ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
+import type { ToolCallResult } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import { SshConnectionManager } from '../../ssh/connection-manager'
 import { SystemMonitor } from '../../ssh/monitor'
@@ -125,33 +125,3 @@ export async function executeMonitorGet(args: MonitorGetArgs): Promise<ToolCallR
     }
   }
 }
-
-/** monitor_get 工具定义 */
-export const monitorGetTool: ToolDefinition = {
-  name: TOOL_IDS.MONITOR_GET,
-  description: '拉取远程 Linux 服务器的最新一次监控数据（CPU/内存/磁盘/负载）。',
-  parameters: monitorGetArgsSchema,
-  execute: async (args: unknown) => {
-    const parsed = monitorGetArgsSchema.safeParse(args)
-    if (!parsed.success) {
-      return {
-        toolId: TOOL_IDS.MONITOR_GET,
-        success: false,
-        error: `参数校验失败: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
-        durationMs: 0,
-        timestamp: Date.now(),
-      } satisfies ToolCallResult
-    }
-    return await executeMonitorGet(parsed.data)
-  },
-}
-
-/** monitor_get 工具元数据 */
-export const MONITOR_GET_META = {
-  id: TOOL_IDS.MONITOR_GET,
-  label: '监控数据获取',
-  emoji: '📊',
-  description: '拉取远程服务器的实时监控指标',
-  risk: 'low' as ToolRiskLevel,
-  requiresApproval: false,
-} as const

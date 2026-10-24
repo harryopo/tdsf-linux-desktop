@@ -1,18 +1,15 @@
 /** llm 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { ChatMessage, EnvironmentContext, LlmConfig, LlmTestResult, LlmValidationResult } from '@shared/models'
+import type { LlmConfig, LlmTestResult } from '@shared/models'
 import type { CostStats, PersistedProviderConfig, ProviderCapabilitiesAllResponse, ProviderCapabilitiesRequest, ProviderCapabilitiesResponse, ProviderConfig, ProviderPricingAllResponse, ProviderPricingRequest, ProviderPricingResponse, TokenStats, TokenUsageRecord } from '@shared/agent-types'
 import { LLM, PROVIDER, TOKEN } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
 
 /**
- * LLM 相关 invoke 调用
+ * LLM 相关 invoke 调用（只剩"测试连接"：主对话走 agent:chat，
+ * 裸 llm:chat / llm:analyze / llm:validate / llm:chat-with-context 四条随 ipc/llm.ts 一起删）
  */
 const llm = {
-  /** 普通对话（流式推送 token，返回完整文本） */
-  chat: (messages: ChatMessage[]): Promise<string> =>
-    ipcRenderer.invoke(LLM.CHAT, messages),
-
   /**
    * 测试连接
    *
@@ -22,18 +19,6 @@ const llm = {
    */
   test: (config: LlmConfig): Promise<LlmTestResult> =>
     ipcRenderer.invoke(LLM.TEST, config),
-
-  /** 分析问题（内置降级，返回 JSON 字符串） */
-  analyze: (problem: string, evidences: unknown[]): Promise<string> =>
-    ipcRenderer.invoke(LLM.ANALYZE, problem, evidences),
-
-  /** 校验 LLM 配置是否有效（不发起网络请求） */
-  validate: (config: LlmConfig): Promise<LlmValidationResult> =>
-    ipcRenderer.invoke(LLM.VALIDATE, config),
-
-  /** 带系统环境上下文的对话 */
-  chatWithContext: (messages: ChatMessage[], envCtx: EnvironmentContext): Promise<string> =>
-    ipcRenderer.invoke(LLM.CHAT_WITH_CONTEXT, messages, envCtx),
 }
 
 /**

@@ -33,10 +33,12 @@ const REL = path.relative(ROOT, DTS).split(path.sep).join('/')
  * 2026-10-12 建闸时 69；删掉 182 个纯冗余成员并把 13 处重复声明折叠后降到 49。
  * 同日 #79 第一批（删 7 条撒谎的手写声明）降到 42；第二批把 kb/history/tutorial/
  * model-stats/budget 的返回类型搬到 preload 标上、再删掉渲染层那 15 条覆盖，降到 24。
- * 剩下的 24 条集中在 sidecar / loop 事件 / 审计报告 / boot 阶段联合类型 与参数名不一致，
+ * 24 → 19 是 2026-10-24 #195：删掉两条"渲染层根本没挂上"的手写声明
+ * （llmAnalyze / agentStart，连同 llm-tool-types 里那两个类型引用一起走）。
+ * 剩下的集中在 sidecar / loop 事件 / 审计报告 / boot 阶段联合类型 与参数名不一致，
  * 收敛一批就把这个数往下改一次（只许降不许升）。
  */
-const DIVERGENT_CAP = 24
+const DIVERGENT_CAP = 19
 
 const argv = process.argv.slice(2)
 const MODE = argv.includes('--prune')

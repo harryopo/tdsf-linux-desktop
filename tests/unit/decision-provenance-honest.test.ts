@@ -1,8 +1,8 @@
 /**
  * tests/unit/decision-provenance-honest.test.ts —— 决策证据的出处不许掺假（#102）
  *
- * 真机实测：这台机器上一个模型口令都没配，而两条链路（ipc/agent.ts 与
- * loop-engineering-subagent）都把证据写成 sourceDetail: 'LLM 分析'。
+ * 真机实测：这台机器上一个模型口令都没配，而当时两条链路（ipc/agent.ts 与
+ * loop-engineering-subagent，前者已随 #195 整删）都把证据写成 sourceDetail: 'LLM 分析'。
  * analyze() 在没有口令时走的是内置 rule-engine —— 于是界面上"AI 给的根因"
  * 其实是内置规则给的。决策卡是本产品的第三个卖点，凭证不能这么写。
  *

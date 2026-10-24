@@ -1,7 +1,6 @@
 import { memo, useMemo, useState, type FC } from 'react'
-import { AlertTriangle, Check, ChevronRight, Clock, Loader2, Pause, Play, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Clock, Loader2, Play, Sparkles, X } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
-import type { AgentStep } from '@shared/models'
 import { MarkdownMessage } from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
 import {
@@ -52,20 +51,6 @@ const CopyChip: FC<{ text: string }> = ({ text }) => {
       {copied ? '已复制' : '复制'}
     </button>
   )
-}
-
-/** Agent 工作流 7 步骤有序列表 */
-const ALL_STEPS: AgentStep[] = ['collect', 'analyze', 'reason', 'check', 'confirm', 'execute', 'verify']
-
-/** 步骤中文标签 */
-const STEP_LABELS: Record<AgentStep, string> = {
-  collect: '采集',
-  analyze: '分析',
-  reason: '推理',
-  check: '检查',
-  confirm: '确认',
-  execute: '执行',
-  verify: '验证',
 }
 
 /** 只提取【明确标注 shell 语系】代码块里的命令（bash/sh/shell/zsh/console） */
@@ -225,38 +210,6 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             {message.reasoning}
           </div>
         )}
-      </div>
-    )
-  }
-
-  /** 渲染 Agent 工作流步骤进度条（如果 message.stepState 存在） */
-  const renderStepProgress = () => {
-    if (!message.stepState) return null
-    const { currentStep, completedSteps, waitingForConfirmation } = message.stepState
-    return (
-      <div className="mt-1.5 flex gap-1 rounded-[var(--trae-radius-4)] bg-[var(--trae-bg-base-tertiary)] px-2 py-1.5 text-caption">
-        {ALL_STEPS.map((step) => {
-          const isCompleted = completedSteps.includes(step)
-          const isCurrent = currentStep === step
-          const isWaiting = isCurrent && waitingForConfirmation
-          return (
-            <span
-              key={step}
-              className={[
-                'inline-flex items-center gap-0.5 rounded-[2px] border px-1.5 py-0.5 transition-colors duration-150',
-                isCompleted
-                  ? 'border-transparent bg-accent-solid font-medium text-[var(--trae-text-onbrand)]'
-                  : isCurrent
-                    ? 'border-transparent bg-[var(--trae-status-primary-surface-l2)] font-medium text-(--accent-text)'
-                    : 'border-transparent bg-transparent text-ink-mute',
-                isWaiting ? 'border-[var(--trae-status-alert-default)]' : '',
-              ].join(' ')}
-            >
-              {STEP_LABELS[step]}
-              {isWaiting && <Pause className="size-3" />}
-            </span>
-          )
-        })}
       </div>
     )
   }
@@ -609,7 +562,6 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           {renderErrorCard()}
         </div>
       </div>
-      {renderStepProgress()}
       {renderToolEvents()}
       {/* v2.5：完成态且有真实工具轨迹时，展示 D-S/PCR5 可信度分析折叠块 */}
       {!message.isStreaming && !message.isError && (

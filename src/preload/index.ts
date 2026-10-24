@@ -1,7 +1,7 @@
 
 
 import type { BackfillCancelResult, BackfillProgress, BackfillStartOptions, BackfillStartResult, BackfillStatusResult, TutorialCategory, TutorialCategorySummary, TutorialEntry } from '@shared/tutorial-types'
-import type { ChatMessage, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
+import type { DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, HistorySaveIntent, PreviewHandleInfo, PreviewTarget } from '@shared/models'
 import type { BlockedCommandRecord } from '@shared/audit-types'
 import type { ChatMessageRecord } from '@shared/chat-types'
 // #79 第二批：这些返回类型以 shared/models 为单源写在实现侧，渲染层不再手写第二份。
@@ -19,8 +19,7 @@ import type {
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
-import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -136,12 +135,8 @@ const electronApi = {
   configSet: config.set,
   configSaveLlm: config.saveLlm,
 
-  // ===== LLM 扁平化 =====
-  llmChat: llm.chat,
+  // ===== LLM 扁平化（只留"测试连接"，其余裸 llm 通道随 ipc/llm.ts 一起删） =====
   llmTest: llm.test,
-  llmAnalyze: llm.analyze,
-  llmValidate: llm.validate,
-  llmChatWithContext: llm.chatWithContext,
 
   // ===== 服务器管理扁平化 =====
   serverList: server.list,
@@ -163,11 +158,6 @@ const electronApi = {
   onMonitorSystemInfo: on.monitorSystemInfo,
   /** 监听 SFTP 上传/下载进度推送（v0.9.7 SFTP 文件浏览增强） */
   onSftpProgress: on.sftpProgress,
-  onLlmToken: on.llmToken,
-  onLlmChunk: on.llmChunk,
-  onLlmDone: on.llmDone,
-  onLlmError: on.llmError,
-  onAgentStep: on.agentStep,
   // v0.9 Supervisor chat 流式事件
   onAgentChunk: on.agentChunk,
   onAgentDone: on.agentDone,
@@ -204,15 +194,6 @@ const electronApi = {
     invokeChecked<ExternalMcpServer>('mcpExternalAdd', MCP.EXTERNAL_ADD, draft),
   mcpExternalRemove: (serverId: string): Promise<boolean> =>
     invokeChecked<boolean>('mcpExternalRemove', MCP.EXTERNAL_REMOVE, serverId),
-
-  // ===== Agent 扁平化（旧 AgentWorkflow，v0.8 及之前） =====
-  // 注意：v0.8 旧 agentCancel 已被 v0.9.4 新签名覆盖（通过 sessionId 统一取消多类会话）。
-  // v0.8 旧 agent:cancel IPC 通道仍保留在主进程 ipc/agent.ts 中（向后兼容 IPC 层），
-  // 但 preload 不再暴露 v0.8 旧 agentCancel 方法（v0.8 AgentWorkflow 已被 v0.9 Supervisor 取代）。
-  agentStart: (sessionId: string, problem: string): Promise<boolean> =>
-    ipcRenderer.invoke(AGENT.START, sessionId, problem),
-  agentConfirm: (sessionId: string, approved: boolean): Promise<boolean> =>
-    ipcRenderer.invoke(AGENT.CONFIRM, sessionId, approved),
 
   // ===== v0.9 Agent Runtime 扁平化（Supervisor chat + Provider + Token） =====
   agentChat: agentRuntime.chat,
@@ -616,20 +597,6 @@ const electronApi = {
     ipcRenderer.invoke(MODEL_STATS.TOOL_CALLS),
   budgetAlerts: (limit?: number): Promise<BudgetAlert[]> =>
     ipcRenderer.invoke(BUDGET.ALERTS, limit),
-
-  // ===== LLM Tool Calling 扁平化（v0.5.0）=====
-  llmChatWithTools: (messages: ChatMessage[]): Promise<string> =>
-    ipcRenderer.invoke(LLM.CHAT_WITH_TOOLS, messages),
-  llmToolApprove: (response: ToolApprovalResponse): Promise<boolean> =>
-    ipcRenderer.invoke(LLM.TOOL_APPROVE, response),
-
-  // 工具调用事件监听
-  onLlmToolProgress: (callback: (progress: ToolCallProgress) => void): (() => void) => {
-    return createListener(LLM.TOOL_PROGRESS, callback)
-  },
-  onLlmToolApproval: (callback: (request: ToolApprovalRequest) => void): (() => void) => {
-    return createListener(LLM.TOOL_APPROVAL, callback)
-  },
 
   // ===== 日志系统（v0.7.0）=====
   /** 读取日志条目（按条件过滤） */

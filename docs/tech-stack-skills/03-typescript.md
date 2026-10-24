@@ -157,7 +157,7 @@ export {}
 ```
 
 **跨进程类型的现行形状**（2026-10-20 回查；**缺一步类型必崩**这句仍然成立，但落点变了）：
-1. `src/preload/index.ts:1022` 用 `export type ElectronAPI = typeof electronApi` ——
+1. `src/preload/index.ts:989` 用 `export type ElectronAPI = typeof electronApi` ——
    **类型由实现派生**，不再手写一份 interface。
    按域拆在 `src/preload/domains/`（agent / cognition / events / llm / sftp / ssh / system / terminal）。
 2. `src/preload/index.ts` 里 `contextBridge.exposeInMainWorld('electronAPI', ...)` 真的把那个对象挂出去。

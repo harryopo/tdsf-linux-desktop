@@ -35,7 +35,6 @@ import type {
   LlmErrorCode,
 } from '@shared/agent-types'
 import { emptyTokenStats, LLM_ERROR_CODES } from '@shared/agent-types'
-import type { AgentWorkflowState } from '@shared/models'
 import type { ChatMessageRecord } from '@shared/chat-types'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { estimateTokens, resolveCompactionThresholds } from '@shared/context-budget'
@@ -136,8 +135,6 @@ export interface AgentMessage {
    * 论文依据：Zhao 2026, arXiv:2603.18940
    */
   cotEntropyTrajectory?: number[]
-  /** Agent 工作流状态（onAgentStep 推送，仅 assistant 消息） */
-  stepState?: AgentWorkflowState | null
   /**
    * 深度思考链内容（v2.5，仅 assistant 消息）
    *
@@ -266,8 +263,6 @@ interface AgentState {
   finalizeMessage: (payload: AgentDonePayload) => void
   /** 标记错误 */
   markError: (payload: AgentErrorPayload) => void
-  /** 更新当前流式消息的 stepState */
-  updateStepState: (stepState: AgentWorkflowState) => void
   /**
    * 追加/更新工具调用事件（v2.4）
    *
@@ -584,19 +579,6 @@ export const useAgentStore = create<AgentState>()((set) => ({
       // 失败的那一轮同样要留：重启后看不到"刚才报了什么错"，等于把故障现场擦了
       if (messages) persistMessage(failed)
       return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
-    }),
-
-  // 更新当前流式消息的 stepState（onAgentStep 推送）
-  updateStepState: (stepState) =>
-    set((state) => {
-      const next = [...state.messages]
-      for (let i = next.length - 1; i >= 0; i--) {
-        if (next[i].role === 'assistant' && next[i].isStreaming) {
-          next[i] = { ...next[i], stepState }
-          break
-        }
-      }
-      return { messages: next }
     }),
 
   // 追加/更新工具调用事件（v2.4；#86：按 correlationId 认领消息，迟到的终态不再丢）

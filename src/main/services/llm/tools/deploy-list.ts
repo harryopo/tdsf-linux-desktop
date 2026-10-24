@@ -7,7 +7,7 @@
  * 风险等级：safe（只读列表）
  */
 import { z } from 'zod'
-import type { ToolDefinition, ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
+import type { ToolCallResult } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import { DeployService } from '../../deploy/deploy-service'
 
@@ -101,33 +101,3 @@ export async function executeDeployList(args: DeployListArgs): Promise<ToolCallR
     }
   }
 }
-
-/** deploy_list 工具定义 */
-export const deployListTool: ToolDefinition = {
-  name: TOOL_IDS.DEPLOY_LIST,
-  description: '列出可用的 Web 部署模板（LAMP/WordPress/Nginx/Docker 等），可按分类/难度/发行版过滤。',
-  parameters: deployListArgsSchema,
-  execute: async (args: unknown) => {
-    const parsed = deployListArgsSchema.safeParse(args)
-    if (!parsed.success) {
-      return {
-        toolId: TOOL_IDS.DEPLOY_LIST,
-        success: false,
-        error: `参数校验失败: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
-        durationMs: 0,
-        timestamp: Date.now(),
-      } satisfies ToolCallResult
-    }
-    return await executeDeployList(parsed.data)
-  },
-}
-
-/** deploy_list 工具元数据 */
-export const DEPLOY_LIST_META = {
-  id: TOOL_IDS.DEPLOY_LIST,
-  label: '部署模板列表',
-  emoji: '🚀',
-  description: '列出可用的 Web 部署模板',
-  risk: 'safe' as ToolRiskLevel,
-  requiresApproval: false,
-} as const

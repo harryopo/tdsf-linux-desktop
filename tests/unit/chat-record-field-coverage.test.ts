@@ -39,7 +39,6 @@ function interfaceMembers(file: string, name: string): string[] {
  */
 const DELIBERATELY_NOT_PERSISTED: Record<string, string> = {
   isStreaming: '流动态是进程内的事。重启后那条回答要么已收尾要么被打断，落 isStreaming:true 会让界面永远转圈',
-  stepState: '工作流第几步的在途快照，同理：回看时它已经不是"正在发生"，画出来是假现场',
 }
 
 /** 名字换了但要落盘的字段（记录里的名字 → 消息里的名字） */

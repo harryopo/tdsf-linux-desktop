@@ -107,43 +107,6 @@ describe('VercelAiService 单元测试', () => {
     })
   })
 
-  // ────────── 2. Tool 定义导出 ──────────
-
-  describe('Tool 定义导出', () => {
-    it('sshExecTool 包含必要字段', async () => {
-      // v1.0 修复：v0.5.0 已移除 sshExecTool 顶层 export，工具改由 tools/registry.ts 统一管理
-      const { getToolMeta } = await import('../../src/main/services/llm/tools/registry')
-      const { TOOL_IDS } = await import('@shared/llm-tool-types')
-      const meta = getToolMeta(TOOL_IDS.SSH_EXEC)
-      expect(meta).toBeDefined()
-      expect(meta?.id).toBe('ssh_exec')
-      // v1.0 描述已本地化为中文（"在远程 Linux 服务器上执行命令并返回输出"），
-      //   改测中文 + 验证 id 标识即足以证明工具正常注册
-      expect(meta?.description).toContain('远程')
-    })
-
-    it('knowledgeQueryTool 包含必要字段', async () => {
-      // v1.0 修复：v0.5.0 已移除 knowledgeQueryTool 顶层 export（重复定义且未被使用），
-      //   工具改由 tools/registry.ts 统一管理；v0.9 起 TUTORIAL_SEARCH 取代了原 knowledge_query
-      const { getToolMeta } = await import('../../src/main/services/llm/tools/registry')
-      const { TOOL_IDS } = await import('@shared/llm-tool-types')
-      const meta = getToolMeta(TOOL_IDS.TUTORIAL_SEARCH)
-      expect(meta).toBeDefined()
-      expect(meta?.id).toBe('tutorial_search')
-      expect(meta?.description).toContain('教程')
-    })
-
-    it('riskCheckTool 包含必要字段', async () => {
-      // v1.0 修复：v0.5.0 已移除 riskCheckTool 顶层 export（重复定义且未被使用），
-      //   风险检查由 PROFILER_RUN 工具提供；改测 PROFILER_RUN 替代
-      const { getToolMeta } = await import('../../src/main/services/llm/tools/registry')
-      const { TOOL_IDS } = await import('@shared/llm-tool-types')
-      const meta = getToolMeta(TOOL_IDS.PROFILER_RUN)
-      expect(meta).toBeDefined()
-      expect(meta?.id).toBe('profiler_run')
-    })
-  })
-
   // ────────── 3. 实例化 ──────────
 
   it('VercelAiService 可以用有效配置实例化', () => {

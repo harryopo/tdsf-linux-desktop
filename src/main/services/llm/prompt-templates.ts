@@ -20,7 +20,6 @@
 
 import type {
   Evidence,
-  EnvironmentContext,
   CommandExecutionContext,
   KnowledgeEntry,
 } from '@shared/models'
@@ -193,61 +192,6 @@ export function buildChatPrompt(userMessage: string): string {
   return `作为 Linux 运维专家，请回答以下问题。给出具体可执行的建议，使用中文回答。
 
 ${userMessage}`
-}
-
-/**
- * 系统环境感知提示词
- *
- * 将当前系统的静态信息（OS/CPU/内存/磁盘总量）与动态监控数据
- * （使用率/运行时间/进程数/负载）合并为 LLM 可理解的上下文。
- *
- * 让 LLM 在生成建议时能感知"当前系统状态"，例如：
- * - 磁盘使用率 95% → 优先给出清理建议
- * - 内存使用率 90% → 优先排查 OOM
- * - loadAverage 远高于 cpuCores → 提示 CPU 瓶颈
- *
- * @param ctx 系统环境上下文（由 SystemInfo + MonitorData 合并）
- * @returns 构造好的 system message 片段
- */
-export function buildEnvironmentContextPrompt(ctx: EnvironmentContext): string {
-  // 字节转人类可读的 GB
-  const toGB = (bytes: number): string => (bytes / 1024 / 1024 / 1024).toFixed(1)
-
-  // 运行时长格式化为 "X天Y小时Z分钟"
-  const formatUptime = (seconds: number): string => {
-    const days = Math.floor(seconds / 86400)
-    const hours = Math.floor((seconds % 86400) / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const parts: string[] = []
-    if (days > 0) parts.push(`${days}天`)
-    if (hours > 0) parts.push(`${hours}小时`)
-    parts.push(`${minutes}分钟`)
-    return parts.join('')
-  }
-
-  // 负载相对 CPU 核心数的比值，>1 表示过载
-  const loadRatio = ctx.cpuCores > 0 ? (ctx.loadAverage / ctx.cpuCores).toFixed(2) : 'N/A'
-
-  return `【当前系统环境】
-- 主机名: ${ctx.hostname}
-- 操作系统: ${ctx.os}
-- 内核版本: ${ctx.kernel}
-- CPU: ${ctx.cpuModel} (${ctx.cpuCores} 核)
-- 总内存: ${toGB(ctx.totalMemory)} GB
-- 总磁盘: ${toGB(ctx.totalDisk)} GB
-- 系统运行时长: ${formatUptime(ctx.uptime)}
-- 当前进程数: ${ctx.processCount}
-
-【实时监控数据】
-- CPU 使用率: ${ctx.cpuUsage.toFixed(1)}%
-- 内存使用率: ${ctx.memoryUsage.toFixed(1)}%
-- 磁盘使用率: ${ctx.diskUsage.toFixed(1)}%
-- 系统负载(1min): ${ctx.loadAverage.toFixed(2)} (相对核心数比值: ${loadRatio})
-
-请结合上述系统状态给出运维建议。注意：
-1. 若某项使用率超过 80%，优先排查相关资源瓶颈
-2. 若 loadRatio > 1，提示 CPU 可能过载
-3. 建议需与当前系统状态匹配，避免给出无关的优化方案`
 }
 
 /**

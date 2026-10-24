@@ -1,9 +1,9 @@
 /** events åï¼ä» src/preload/index.ts æåæåºãæ´é²åä»¥ index.ts éç electronApi ä¸ºåï¼å¿«ç§é¸ç¯ç */
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolEventPayload } from '@shared/agent-types'
-import type { AgentWorkflowState, ExternalMcpServerStatus, LlmError, LlmStreamChunk, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
+import type { ExternalMcpServerStatus, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
-import { AGENT, FILE_WATCH, LOCAL_TTY, LLM, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TERMINAL } from '@shared/ipc-channels'
+import { AGENT, FILE_WATCH, LOCAL_TTY, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TERMINAL } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import type { FileChangedPayload, PaorApprovalRequest, SandboxApprovalRequest } from '../types'
 import { createListener } from '../ipc-util'
@@ -67,31 +67,6 @@ const on = {
    */
   sftpProgress: (callback: (event: SftpProgressEvent) => void): (() => void) => {
     return createListener(SFTP.PROGRESS, callback)
-  },
-
-  /** çå¬ LLM æµå¼ token æ¨éï¼å¼å®¹æ§çï¼ */
-  llmToken: (callback: (token: string) => void): (() => void) => {
-    return createListener(LLM.TOKEN, callback)
-  },
-
-  /** çå¬ LLM æµå¼ token åæ¨éï¼å¢å¼ºçï¼å« totalTokensï¼ */
-  llmChunk: (callback: (chunk: LlmStreamChunk) => void): (() => void) => {
-    return createListener(LLM.CHUNK, callback)
-  },
-
-  /** çå¬ LLM æµå¼å®æä¿¡å·ï¼å«å®æ´ææ¬ï¼ */
-  llmDone: (callback: (fullText: string) => void): (() => void) => {
-    return createListener(LLM.DONE, callback)
-  },
-
-  /** çå¬ LLM æµå¼éè¯¯ä¿¡å·ï¼å«éè¯¯ç /æ¶æ¯/æ¯å¦å¯éè¯ï¼ */
-  llmError: (callback: (error: LlmError) => void): (() => void) => {
-    return createListener(LLM.ERROR, callback)
-  },
-
-  /** çå¬ Agent å·¥ä½æµæ­¥éª¤åæ´ */
-  agentStep: (callback: (state: AgentWorkflowState) => void): (() => void) => {
-    return createListener(AGENT.STEP, callback)
   },
 
   // v0.9.5 P0 æ°å¢ï¼MCP 5 é¶æ®µçå½å¨æç¶ææºï¼åé´ claw-code Â§3.3ï¼

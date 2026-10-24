@@ -5,7 +5,7 @@
  * 畸形 JSON/超时/异常 全部拒"。
  * 这里覆盖的是纯判定函数本身。至于"每个审批入口是不是真的都走了它"——那是另一条闸，
  * 见 approval-entry-surface.test.ts（按通道清单反查注册文件）。
- * 这条测试曾经配着一句"五个入口都走它"的注释而无人验证，第六个入口（agent:confirm）
+ * 这条测试曾经配着一句"入口都走它"的注释而无人验证，当年多出来的那条 agent:confirm（#195 已整删）
  * 就是这么漏掉的，所以现在把那句话从注释挪进了可判红的断言里。
  *
  * 2026-10-20 这一份里原本还有两组用例（`isApprovedValue`、`readRemember`），跟着被测函数一起删了。
@@ -46,7 +46,7 @@ describe('readApproval — 裸布尔形状（paor / sandbox / loop 三个入口�
   })
 })
 
-describe('readApproval — 对象形状（llm:tool-approve）', () => {
+describe('readApproval — 对象形状（载荷里带 approved 字段的那几个入口）', () => {
   it('approved 必须是字面 true', () => {
     expect(readApproval({ approved: true })).toBe(true)
   })

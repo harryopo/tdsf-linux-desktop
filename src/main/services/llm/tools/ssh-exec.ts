@@ -1,7 +1,9 @@
 /**
  * SSH Exec 工具（v0.5.0 重构版）
  *
- * 增强现有 vercel-ai-service.ts 的 sshExecTool：
+ * 本文件是 ssh_exec 这一个能力的执行体：由外部 MCP 出口（services/mcp/tools/registry.ts）
+ * 直接 import 调用。曾经还有第二条路——应用内的 llm:chat-with-tools 通道与它的注册表包装，
+ * 渲染层零调用，2026-10-24 随 #195 整删。能力本身没缩水：
  * - 强制 sessionId（必填）
  * - 加 timeoutMs（默认 10s，上限 60s）
  * - 风险等级与拦截：统一由 core/command-gate 判定，block 级直接拒绝
@@ -12,7 +14,7 @@
  * 2. MCP Server tool（@modelcontextprotocol/sdk 的 server.tool()）
  */
 import { z } from 'zod'
-import type { ToolDefinition, ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
+import type { ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
 import { SshConnectionManager } from '../../ssh/connection-manager'
 import { evaluateCommand, type CommandRiskLevel } from '../../../core/command-gate'
 import { TOOL_IDS } from '@shared/llm-tool-types'
@@ -120,39 +122,3 @@ export async function executeSshExec(args: SshExecArgs): Promise<ToolCallResult<
     }
   }
 }
-
-/**
- * ssh_exec 工具的 Vercel AI SDK 格式定义
- *
- * execute 包装：捕获异常 + 转为 ToolCallResult 格式
- */
-export const sshExecTool: ToolDefinition = {
-  name: TOOL_IDS.SSH_EXEC,
-  description: '在指定 SSH session 上执行一条 Linux 命令。破坏性命令（rm -rf /、mkfs、dd of=/dev/*、fork 炸弹、关机等）会被安全闸直接拒绝；其余命令返回风险等级标注，是否执行由上层人工审批卡点决定。',
-  parameters: sshExecArgsSchema,
-  execute: async (args: unknown) => {
-    const parsed = sshExecArgsSchema.safeParse(args)
-    if (!parsed.success) {
-      return {
-        toolId: TOOL_IDS.SSH_EXEC,
-        success: false,
-        error: `参数校验失败: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
-        durationMs: 0,
-        timestamp: Date.now(),
-      } satisfies ToolCallResult
-    }
-    return await executeSshExec(parsed.data)
-  },
-}
-
-/** ssh_exec 工具元数据（UI 展示 + 风险标签） */
-export const SSH_EXEC_META = {
-  id: TOOL_IDS.SSH_EXEC,
-  // 与 ipc/ssh.ts 记的是同一项能力（跑一条远程命令），标签必须同字：
-  // 以前这里写「SSH 命令执行」、那边写「终端命令执行」，设置页的排行把一件事拆成两行
-  label: '终端命令执行',
-  emoji: '🖥️',
-  description: '在远程 Linux 服务器上执行命令并返回输出',
-  risk: 'high' as ToolRiskLevel,
-  requiresApproval: true, // 任意命令都需审批（保守策略）
-} as const

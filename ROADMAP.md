@@ -23,8 +23,8 @@
 - [x] SFTP 文件管理（react-arborist + Monaco Editor）
 - [x] 可信度评估（多源证据可视化）
 - [x] CoT-shape 熵轨迹分析与可视化（基于 Zhao 2026 论文）
-      —— 2026-10-18 回代码核对：收集与画图**都在链路上**（`supervisor.ts:1369` 收尾时取轨迹 →
-      `ChatResult.cotEntropyTrajectory` → `agent-store.ts:405` 落到消息 →
+      —— 2026-10-18 回代码核对：收集与画图**都在链路上**（`supervisor.ts:1462` 收尾时取轨迹 →
+      `ChatResult.cotEntropyTrajectory` → `agent-store.ts:381` 落到消息 →
       `ChatCredibility.tsx:120` → `ConfidenceBreakdown.tsx:117` 的 SVG 折线图）。
       前提是那一轮真采到熵点（`collected = points.length > 0`，来源依次是 thinking-block /
       分段文本 / logprobs），采不到就不画——不是"没做"。

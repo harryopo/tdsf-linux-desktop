@@ -7,13 +7,12 @@
  * 风险等级：medium（高并发 IO，但不修改系统）
  */
 import { z } from 'zod'
-import type { ToolDefinition, ToolCallResult, ToolRiskLevel } from '@shared/llm-tool-types'
+import type { ToolCallResult } from '@shared/llm-tool-types'
 import { TOOL_IDS } from '@shared/llm-tool-types'
 import { runProfiler } from '../../profiler/system-profiler'
 import { detectRisks, summarizeRisks } from '../../profiler/risk-detector'
 import { renderProfilerMarkdown } from '../../profiler/markdown-renderer'
 import type { ProfilerRiskLevel } from '@shared/models'
-import type { RiskLevel } from '../../profiler/types'
 
 /** profiler_run 参数 schema */
 export const profilerRunArgsSchema = z.object({
@@ -172,36 +171,3 @@ function extractTotalDisk(result: { items: ReadonlyArray<{ stdout: string; group
   }
   return total
 }
-
-/** profiler_run 工具定义 */
-export const profilerRunTool: ToolDefinition = {
-  name: TOOL_IDS.PROFILER_RUN,
-  description: '对远程 Linux 服务器执行 27 项并发系统探查（CPU/内存/磁盘/网络/服务/日志等），返回风险报告。',
-  parameters: profilerRunArgsSchema,
-  execute: async (args: unknown) => {
-    const parsed = profilerRunArgsSchema.safeParse(args)
-    if (!parsed.success) {
-      return {
-        toolId: TOOL_IDS.PROFILER_RUN,
-        success: false,
-        error: `参数校验失败: ${parsed.error.issues.map((i) => i.message).join('; ')}`,
-        durationMs: 0,
-        timestamp: Date.now(),
-      } satisfies ToolCallResult
-    }
-    return await executeProfilerRun(parsed.data)
-  },
-}
-
-/** profiler_run 工具元数据 */
-export const PROFILER_RUN_META = {
-  id: TOOL_IDS.PROFILER_RUN,
-  label: '系统架构感知',
-  emoji: '🔬',
-  description: '对远程服务器执行 27 项并发系统探查并生成风险报告',
-  risk: 'medium' as ToolRiskLevel,
-  requiresApproval: false,
-} as const
-
-/** 重导出，避免 unused 警告（RiskLevel 来自 profiler/types.ts） */
-export type { RiskLevel }

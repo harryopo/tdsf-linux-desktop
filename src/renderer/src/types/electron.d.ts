@@ -8,9 +8,6 @@
  */
 import type { ContractedEventApi, ContractedInvokeApi } from './generated/ipc-contract'
 import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
-import type {
-  Evidence,
-} from '@shared/models'
 
 // 拦截规则只读快照（risk:rules）——与主进程 COMMAND_RULES_SNAPSHOT 同形，
 // 类型定义只有一份，在 src/shared/ipc-channels.ts
@@ -355,17 +352,6 @@ export interface RecommendPathOptions {
 // ContractedInvokeApi / ContractedEventApi 由 src/shared/ipc-contract.ts 生成：
 // 已纳入契约的通道签名以那里为准，其余方法仍在这里手写，逐步搬过去（刻度见 tests/unit/ipc-contract.test.ts）
 export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, ContractedEventApi {
-  /**
-   * 测试 LLM 连接
-   * v2.3.4 改造：返回详细诊断信息，便于 UI 定位失败原因
-   * - ok=true: 连接成功
-  /** LLM 分析（结合证据） */
-  llmAnalyze(question: string, evidences: Evidence[]): Promise<string>
-
-  // ===== Agent 工作流（v0.8 旧 AgentWorkflow，保留） =====
-  /** 启动 Agent 工作流 */
-  agentStart(sessionId: string, question: string): Promise<boolean>
-
   // ===== v2.2 P1 修复 #24：应用更新（app:check-update / app:download-update） =====
   // 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面
   // 不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子）

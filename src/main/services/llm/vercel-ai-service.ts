@@ -10,7 +10,6 @@
  * 调研依据：07-开源项目调研-AIAgent生态.md Top1（9.5分）
  * 优势：TS 原生 Agent 框架，Vercel 维护活跃，3.0+ 支持 Function Calling
  *
- * v0.5.0 变更：移除本地 ToolDefinition 重复定义，统一从 @shared/llm-tool-types 引入
  * v0.5.0 变更：移除 sshExecTool/knowledgeQueryTool/riskCheckTool 三个 Tool 常量（重复定义且未被使用）
  */
 import { generateText, streamText, tool, type ModelMessage, type ToolSet, type Tool } from 'ai'
@@ -21,7 +20,8 @@ import { LlmClient } from './client'
 import { logger } from '../log/logger'
 import { estimateTokens, estimateMessageTokens } from '../../core/agent/context'
 
-// 内部工具参数类型（VercelAiService.generate 入参用，等价于 @shared/llm-tool-types.ToolDefinition）
+// 内部工具参数类型（VercelAiService.generate 入参用；与 shared 那份共享类型的字段形状一致，
+// 但这里是"调用方递进来的工具描述"，不参与 MCP 注册，所以各留一份）
 type InternalToolDef = {
   name: string
   description: string

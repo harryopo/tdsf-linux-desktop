@@ -2,7 +2,7 @@
  * 全局实时事件订阅（P0 修复：组件条件挂载丢事件）
  *
  * 问题背景（同一类病灶，多处复现）：
- * - Agent 流式：agent:chunk/done/error/step 订阅曾写在 useAgentChat useEffect，
+ * - Agent 流式：agent:chunk/done/error 订阅曾写在 useAgentChat useEffect，
  *   随 AIPanel 挂载/卸载绑定解绑 → 面板收起时流式事件永久丢失。
  * - 监控数据：monitor:data/systemInfo 订阅曾写在 MonitorPage useEffect，
  *   用户在工作台连接服务器后数据已开始推送，但未进监控页前无人接收，
@@ -23,7 +23,6 @@ import {
   ruleOf,
   type StreamEventName,
 } from '@/lib/messageSync'
-import type { AgentWorkflowState } from '@shared/models'
 import type { PaorApprovalRequest } from '@shared/approval-types'
 
 /** 幂等守卫：整个渲染进程生命周期只绑定一次 */
@@ -118,11 +117,6 @@ export function initAgentStreamSubscription(): void {
     if (mustFlushBefore('agent:error')) flushPendingChunks()
     useAgentStore.getState().markError(payload)
     refreshStats()
-  })
-
-  // M1 Task 7：工作流状态推送写入当前流式消息
-  window.electronAPI.onAgentStep?.((state: AgentWorkflowState) => {
-    useAgentStore.getState().updateStepState(state)
   })
 
   // v2.4：Agent 工具调用事件（真实执行可视化）—— 写入它所属那条 assistant 消息
