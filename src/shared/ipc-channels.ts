@@ -13,7 +13,7 @@
  * polish-tdsf-p1-issues Task A：集中化所有 ipcMain.handle 字面量为常量
  *   - 新增 19 个域常量（AGENT / LLM / SSH / STORAGE / CONFIG / SERVER / LOOP / MONITOR /
  *     LOG / KNOWLEDGE / HISTORY / DIAGNOSTICS / SIDECAR / SANDBOX / MCP / TUTORIAL /
- *     DEPLOY / AT_COMMANDS / TOKEN）
+ *     AT_COMMANDS / TOKEN；DEPLOY 已于 2026-10-24 随执行链整删）
  *   - 通道值与原字面量完全一致，向后兼容
  */
 
@@ -863,38 +863,6 @@ export const TUTORIAL = {
   PROGRESS: 'tutorial:progress',
   /** 更新单条教程学习进度（invoke: 渲染 → 主，v2.3.2 新增，跨设备同步） */
   UPDATE_PROGRESS: 'tutorial:updateProgress',
-} as const
-
-/**
- * 部署 IPC 通道常量
- *
- * 通道列表：
- * - LIST_TEMPLATES  invoke  渲染 → 主：列出部署模板
- * - GET_TEMPLATE    invoke  渲染 → 主：获取部署模板详情
- * - CANCEL          invoke  渲染 → 主：取消部署
- * - GET_STATUS      invoke  渲染 → 主：查询部署状态
- */
-export const DEPLOY = {
-  /** 列出部署模板（invoke: 渲染 → 主） */
-  LIST_TEMPLATES: 'deploy:listTemplates',
-  /** 获取部署模板详情（invoke: 渲染 → 主） */
-  GET_TEMPLATE: 'deploy:getTemplate',
-  /** 取消部署（invoke: 渲染 → 主） */
-  CANCEL: 'deploy:cancel',
-  /** 查询部署状态（invoke: 渲染 → 主） */
-  GET_STATUS: 'deploy:getStatus',
-  /** 校验部署参数（invoke: 渲染 → 主） */
-  VALIDATE: 'deploy:validate',
-  /** 构建部署计划（invoke: 渲染 → 主） */
-  BUILD: 'deploy:build',
-  /** 执行部署计划（invoke: 渲染 → 主） */
-  EXECUTE: 'deploy:execute',
-  /** 部署实时日志推送（push: 主 → 渲染） */
-  LOG: 'deploy:log',
-  /** 部署步骤状态变化推送（push: 主 → 渲染） */
-  STEP_UPDATE: 'deploy:stepUpdate',
-  /** 部署完成推送（push: 主 → 渲染） */
-  DONE: 'deploy:done',
 } as const
 
 /**

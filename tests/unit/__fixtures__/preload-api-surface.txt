@@ -31,13 +31,6 @@ credibilityListAuditReports
 credibilityLoadAuditReport
 credibilityResetCalibration
 dbGetStatus
-deployBuild
-deployCancel
-deployExecute
-deployGetStatus
-deployGetTemplate
-deployListTemplates
-deployValidate
 diagnosticsClear
 diagnosticsGetFindings
 diagnosticsGetLogs
@@ -117,9 +110,6 @@ onAgentPaorIteration
 onAgentStep
 onAgentToolEvent
 onBootLoadingStage
-onDeployDone
-onDeployLog
-onDeployStepUpdate
 onDiagnosticsLogBatch
 onFileChanged
 onLlmChunk

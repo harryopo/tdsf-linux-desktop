@@ -32,7 +32,6 @@ import { registerAgentHandlers } from './agent'
 import { registerAgentRuntimeHandlers } from './agent-runtime'
 import { registerProfilerIpcHandlers } from './profiler'
 import { registerTutorialIpcHandlers } from './tutorial'
-import { registerDeployIpcHandlers } from './deploy'
 import { registerLlmToolHandlers } from './llm-tools'
 import { registerLogIpcHandlers } from './log'
 import { registerCredibilityHandlers } from './credibility'
@@ -191,8 +190,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
     // A4 新增：数据库状态 IPC（db:status）——渲染层降级横幅的唯一数据源
     registerDbHandlers(db)
   }
-  // Web 部署助手 IPC（需要 mainWindow 用于日志推送）
-  registerDeployIpcHandlers(mainWindow)
   // LLM Tool Calling IPC（5 工具 + 审批流）
   if (db) {
     registerLlmToolHandlers(mainWindow, db)

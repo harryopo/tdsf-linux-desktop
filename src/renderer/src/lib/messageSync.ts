@@ -40,9 +40,6 @@ export type StreamEventName =
   | 'agent:tool-event'
   | 'boot:loading-stage'
   | 'diagnostics:log-batch'
-  | 'deploy:done'
-  | 'deploy:log'
-  | 'deploy:stepUpdate'
   | 'file:changed'
   | 'llm:chunk'
   | 'llm:done'
@@ -307,24 +304,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '同一通道既推迭代轮次也推任务拆解计划，后者是整块内容，覆盖式合并会丢计划卡',
-  },
-  'deploy:log': {
-    class: 'SNAPSHOT',
-    ownership: false,
-    coalescable: false,
-    note: '部署日志逐条追加，丢了就是少一行审计记录',
-  },
-  'deploy:stepUpdate': {
-    class: 'LATEST_ONLY',
-    ownership: false,
-    coalescable: true,
-    note: '步骤状态，最新一份覆盖旧的即可',
-  },
-  'deploy:done': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '部署终态，丢了 UI 一直转圈',
   },
   'mcp:state-changed': {
     class: 'LATEST_ONLY',

@@ -1,46 +1,13 @@
 /**
- * Web 部署助手 - 类型定义（主进程 + 渲染进程共享）
+ * Web 部署模板 - 类型定义（主进程 + 渲染进程共享）
  *
- * 部署助手把"官方教程"转化为"可执行的部署流水线"，
- * 集成 SSH 远程执行、风险评估、人机协同（二次确认）。
- *
- * 数据流：
- *   DeployTemplate（内置）→ 用户填变量 → DeployPlan → SSH 执行 → DeployResult
+ * 模板是只读教学资料：AI 工具 deploy_list_templates 通过 DeployService 列出它们。
+ * 执行链（validate/build/execute）与计划/结果类型已于 2026-10-24 整删，
+ * 原因见 src/main/services/deploy/deploy-service.ts 文件头。
  */
 
 /** 部署命令风险等级 */
 export type DeployRiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical'
-
-/** 中文风险标签 */
-export const DEPLOY_RISK_LABELS: Record<DeployRiskLevel, string> = {
-  safe: '安全',
-  low: '低',
-  medium: '中',
-  high: '高',
-  critical: '严重'
-}
-
-/** 风险等级颜色（与 Profiler 保持视觉一致） */
-export const DEPLOY_RISK_COLORS: Record<DeployRiskLevel, string> = {
-  safe: '#52c41a',
-  low: '#1890ff',
-  medium: '#faad14',
-  high: '#fa8c16',
-  critical: '#f5222d'
-}
-
-/**
- * 风险等级图标（v0.7.0 规范）
- * 使用语义化的 Ant Design 图标名（渲染层根据 name 选择对应组件）
- * - 替代之前的 emoji 映射，避免在严肃运维 UI 中出现杂糅字符
- */
-export const DEPLOY_RISK_ICON_NAMES: Record<DeployRiskLevel, string> = {
-  safe: 'check-circle',
-  low: 'minus-circle',
-  medium: 'exclamation-circle',
-  high: 'warning',
-  critical: 'close-circle'
-}
 
 /** 部署步骤定义（模板中的静态项） */
 export interface DeployStep {
@@ -62,7 +29,7 @@ export interface DeployStep {
   dependsOn?: string[]
 }
 
-/** 模板输入变量（用户在 UI 中填写） */
+/** 模板输入变量 */
 export interface DeployVariable {
   /** 变量名（与 ${} 中的名称一致） */
   name: string
@@ -106,99 +73,4 @@ export interface DeployTemplate {
   estimatedMinutes: number
   /** 适用的 Linux 发行版 */
   supportedDistros: string[]
-}
-
-/** 部署计划（模板 + 用户填入的变量 → 可执行计划） */
-export interface DeployPlan {
-  /** 计划唯一 ID */
-  id: string
-  /** 模板 ID */
-  templateId: string
-  /** 模板名称（冗余，方便 UI 展示） */
-  templateName: string
-  /** 目标主机（host:port 格式） */
-  targetHost: string
-  /** 填入的变量 */
-  variables: Record<string, string>
-  /** 展开后的步骤（含插值后的命令） */
-  steps: DeployStep[]
-  /** 创建时间戳 */
-  createdAt: number
-  /** 当前状态 */
-  status: DeployPlanStatus
-}
-
-export type DeployPlanStatus =
-  | 'pending'      // 待执行
-  | 'running'      // 执行中
-  | 'paused'       // 暂停（等待用户确认）
-  | 'success'      // 全部成功
-  | 'failed'       // 失败
-  | 'rolled_back'  // 已回滚
-  | 'cancelled'    // 用户取消
-
-/** 步骤执行结果（运行时） */
-export interface DeployStepResult {
-  /** 步骤 ID */
-  stepId: string
-  /** 步骤描述 */
-  description: string
-  /** 实际执行的命令（已插值） */
-  command: string
-  /** 风险等级 */
-  risk: DeployRiskLevel
-  /** 退出码 */
-  exitCode: number | null
-  /** 标准输出 */
-  stdout: string
-  /** 标准错误 */
-  stderr: string
-  /** 实际耗时（毫秒） */
-  durationMs: number
-  /** 状态 */
-  status: 'pending' | 'running' | 'success' | 'failed' | 'skipped'
-  /** 错误信息 */
-  error?: string
-  /** 时间戳 */
-  startedAt: number
-  /** 结束时间戳 */
-  finishedAt: number | null
-}
-
-/** 部署最终结果 */
-export interface DeployResult {
-  /** 计划 ID */
-  planId: string
-  /** 模板名称 */
-  templateName: string
-  /** 目标主机 */
-  targetHost: string
-  /** 总耗时（毫秒） */
-  totalDurationMs: number
-  /** 步骤结果列表 */
-  steps: DeployStepResult[]
-  /** 整体状态 */
-  status: DeployPlanStatus
-  /** 成功步骤数 */
-  successCount: number
-  /** 失败步骤数 */
-  failedCount: number
-  /** 失败时的错误信息 */
-  error?: string
-  /** 完成时间戳 */
-  finishedAt: number
-}
-
-/** 实时日志事件 */
-export interface DeployLogEvent {
-  /** 计划 ID */
-  planId: string
-  /** 步骤 ID */
-  stepId: string
-  /** 数据流类型 */
-  stream: 'stdout' | 'stderr' | 'system'
-  /** 日志内容（单行或多行） */
-  data: string
-  /** 时间戳 */
-  timestamp: number
 }

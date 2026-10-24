@@ -105,7 +105,7 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
   // 而把某一条从 DELTA 改成 DISPOSABLE（丢掉事件）或 SNAPSHOT（每 token 全量重发）都照样全绿 ——
   // 和 D4 那轮"用数据核对由数据算出的行为"是同一个病。2026-10-08 实测：
   // 把 agent:chunk 改成 LATEST_ONLY 时，只有新加的订阅行为测试会红（覆盖 agent:chunk/done/error 三条），
-  // 其余 39 条只能靠这张表拦。改表必须先改这张表，就是逼一次人审。
+  // 其余 36 条只能靠这张表拦。改表必须先改这张表，就是逼一次人审。
   it('每条通道的类别等于人审冻结值（数量与内容都不许漂）', () => {
     const EXPECTED_CLASS: Record<string, string> = {
       'agent:chunk': 'DELTA',
@@ -115,9 +115,6 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'agent:tool-event': 'SNAPSHOT',
       'agent:paor:iteration': 'SNAPSHOT',
       'boot:loading-stage': 'LIFECYCLE',
-      'deploy:done': 'CRITICAL',
-      'deploy:log': 'SNAPSHOT',
-      'deploy:stepUpdate': 'LATEST_ONLY',
       'diagnostics:log-batch': 'DISPOSABLE',
       'file:changed': 'SNAPSHOT',
       'llm:chunk': 'DELTA',

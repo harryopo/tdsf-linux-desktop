@@ -18,7 +18,7 @@
  *   未配置时使用默认值（http://localhost:3000）。
  * - 不 hardcode API URL（HC：可配置化）。
  *
- * 设计风格与现有 agent-runtime.ts / deploy.ts 一致：
+ * 设计风格与现有 agent-runtime.ts 一致：
  * - 错误对象统一为 { success: false, error: string }
  * - 成功对象直接返回业务数据
  * - 所有调用通过 logger 记录（HC-1 网络日志可见）

@@ -17,11 +17,10 @@ import type {
   TutorialStats,
 } from '@shared/models'
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
-import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanModel, DeployResult as DeployResultModel, DeployStepResult as DeployStepResultModel, DeployTemplate as DeployTemplateModel } from '@shared/deploy-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { AGENT, ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -626,43 +625,6 @@ const electronApi = {
     ipcRenderer.invoke(MODEL_STATS.TOOL_CALLS),
   budgetAlerts: (limit?: number): Promise<BudgetAlert[]> =>
     ipcRenderer.invoke(BUDGET.ALERTS, limit),
-
-  // ===== Web 部署助手扁平化 =====
-  deployListTemplates: (): Promise<DeployTemplateModel[]> =>
-    ipcRenderer.invoke(DEPLOY.LIST_TEMPLATES),
-  deployGetTemplate: (id: string): Promise<DeployTemplateModel | null> =>
-    ipcRenderer.invoke(DEPLOY.GET_TEMPLATE, id),
-  deployValidate: (
-    templateId: string,
-    values: Record<string, string>
-  ): Promise<string[]> => ipcRenderer.invoke(DEPLOY.VALIDATE, templateId, values),
-  deployBuild: (
-    templateId: string,
-    values: Record<string, string>,
-    targetHost: string
-  ): Promise<{ plan?: DeployPlanModel; errors: string[] }> =>
-    ipcRenderer.invoke(DEPLOY.BUILD, templateId, values, targetHost),
-  deployExecute: (
-    plan: DeployPlanModel,
-    sessionId: string
-  ): Promise<DeployResultModel> => ipcRenderer.invoke(DEPLOY.EXECUTE, plan, sessionId),
-  deployCancel: (planId: string): Promise<boolean> =>
-    ipcRenderer.invoke(DEPLOY.CANCEL, planId),
-  deployGetStatus: (planId: string): Promise<{ status: string; currentIndex: number; total: number } | null> =>
-    ipcRenderer.invoke(DEPLOY.GET_STATUS, planId),
-
-  // 部署事件监听
-  onDeployLog: (callback: (event: DeployLogEventModel) => void): (() => void) => {
-    return createListener(DEPLOY.LOG, callback)
-  },
-  onDeployStepUpdate: (
-    callback: (payload: { planId: string; step: DeployStepResultModel }) => void
-  ): (() => void) => {
-    return createListener(DEPLOY.STEP_UPDATE, callback)
-  },
-  onDeployDone: (callback: (result: DeployResultModel) => void): (() => void) => {
-    return createListener(DEPLOY.DONE, callback)
-  },
 
   // ===== LLM Tool Calling 扁平化（v0.5.0）=====
   llmChatWithTools: (messages: ChatMessage[]): Promise<string> =>

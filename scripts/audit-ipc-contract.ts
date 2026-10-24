@@ -415,9 +415,10 @@ function main(): void {
  * `storageDeleteApiKey` 本轮接到「清除已保存的 Key」按钮。刻度只认实测，不认记忆。
  * 139 → 119 是 2026-10-24：整删 attention 7 + expectation 2 + promptfoo 3 共 12 键，
  * 另把 memory 4 键接到「AI 记忆」页（同批提交）。
+ * 119 → 109 是同日：deploy 执行链整删（7 个 invoke + 3 个事件监听），只保留只读模板工具。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 119
+const UNUSED_CAP = 109
 
 main()

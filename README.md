@@ -115,9 +115,9 @@ pnpm dev
 |---|---|---|
 | 单元与组件用例 | 3607 通过 / 19 跳过 | `npm test`（330 个测试文件：328 通过 / 2 按环境跳过） |
 | 端到端用例 | 74 通过 / 13 跳过 | `npx playwright test`（直驱真实应用窗口） |
-| IPC 通道 | 271 | `npm run audit:ipc`（232 请求-响应 + 39 事件推送） |
+| IPC 通道 | 261 | `npm run audit:ipc`（225 请求-响应 + 36 事件推送） |
 | 已登记契约的通道 | 65 | `src/shared/ipc-contract.ts`（60 invoke + 5 event） |
-| TypeScript / TSX 源文件 | 527 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| TypeScript / TSX 源文件 | 524 | `git ls-files src` 里 `.ts/.tsx` 计数 |
 | Provider 类型 | 7 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 
