@@ -1,10 +1,10 @@
 /** cognition 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { AttentionFocus, CommandExpectation, ConfidenceAssessment, CredibilityEvidenceInput, DagData, ExpectationCheckResult, ExpectationViolation, ModeCurrentResponse, ModeListResponse, ModeSetDefaultRequest, ModeSetDefaultResponse } from '@shared/agent-types'
+import type { ConfidenceAssessment, CredibilityEvidenceInput, DagData, ModeCurrentResponse, ModeListResponse, ModeSetDefaultRequest, ModeSetDefaultResponse } from '@shared/agent-types'
 import type { AuditFormat, AuditReportInput, ComplianceAuditReport } from '../../main/core/agent/credibility/audit/types'
 import type { AuditReportListItem, ExportOptions, ExportResult } from '../../main/core/agent/credibility/audit/exporter'
 import type { CalibrationSample, CalibrationState, EceResult, OptimizeTOptions, ProviderCalibration, ProviderId, TemperatureScalingResult } from '../../main/core/agent/credibility/calibration/types'
 import type { FuseAssessOptions } from '../../main/core/agent/credibility/fusion-engine'
-import { ATTENTION, CREDIBILITY, EXPECTATION, MODE } from '@shared/ipc-channels'
+import { CREDIBILITY, MODE } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 
 /**
@@ -229,122 +229,4 @@ const mode = {
     ipcRenderer.invoke(MODE.GET_CURRENT),
 }
 
-/**
- * v0.9.5 P0 - 组 3：Attention 注意力跟踪 invoke 调用
- *
- * 通道与主进程 ipc/attention.ts 一一对应：
- * - attention:current        → current（返回当前 AttentionFocus）
- * - attention:history        → history（返回历史 AttentionFocus 列表）
- * - attention:track-files    → trackFiles（跟踪关注的文件）
- * - attention:track-commands → trackCommands（跟踪关注的命令）
- * - attention:track-errors   → trackErrors（跟踪关注的错误）
- * - attention:track-keywords → trackKeywords（跟踪关注的搜索关键词）
- * - attention:reset          → reset（重置当前 attention，归档到 history）
- *
- * 使用场景：
- * - UI 高亮显示当前关注的文件 / 命令 / 错误 / 关键词
- * - 历史时间轴展示 attention 快照
- * - 新会话开始时调用 reset 归档当前 attention
- *
- * 设计要点：
- * - AttentionTracker 是单例，全局唯一，跨 Subagent 共享
- * - track-* 通道接收 string[] 参数
- * - reset 通道将当前 attention 归档到 history（最多 100 条）
- */
-const attention = {
-  /** 获取当前 attention（始终非 null，since 字段必有） */
-  current: (): Promise<AttentionFocus> =>
-    ipcRenderer.invoke(ATTENTION.CURRENT),
-
-  /** 获取历史 attention 列表（按时间顺序，最早在前） */
-  history: (): Promise<AttentionFocus[]> =>
-    ipcRenderer.invoke(ATTENTION.HISTORY),
-
-  /**
-   * 跟踪关注的文件
-   *
-   * @param files 文件路径列表
-   * @returns true 表示跟踪成功
-   */
-  trackFiles: (files: string[]): Promise<boolean> =>
-    ipcRenderer.invoke(ATTENTION.TRACK_FILES, files),
-
-  /**
-   * 跟踪关注的命令
-   *
-   * @param commands 命令列表
-   * @returns true 表示跟踪成功
-   */
-  trackCommands: (commands: string[]): Promise<boolean> =>
-    ipcRenderer.invoke(ATTENTION.TRACK_COMMANDS, commands),
-
-  /**
-   * 跟踪关注的错误
-   *
-   * @param errors 错误信息列表
-   * @returns true 表示跟踪成功
-   */
-  trackErrors: (errors: string[]): Promise<boolean> =>
-    ipcRenderer.invoke(ATTENTION.TRACK_ERRORS, errors),
-
-  /**
-   * 跟踪关注的搜索关键词
-   *
-   * @param keywords 关键词列表
-   * @returns true 表示跟踪成功
-   */
-  trackKeywords: (keywords: string[]): Promise<boolean> =>
-    ipcRenderer.invoke(ATTENTION.TRACK_KEYWORDS, keywords),
-
-  /**
-   * 重置当前 attention（归档到 history）
-   *
-   * @returns true 表示重置成功
-   */
-  reset: (): Promise<boolean> =>
-    ipcRenderer.invoke(ATTENTION.RESET),
-}
-
-/**
- * v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控 invoke 调用
- *
- * 通道与主进程 ipc/expectation.ts 一一对应：
- * - expectation:check  → check（对比预期与实际输出，返回 ExpectationCheckResult）
- * - expectation:format → format（格式化违规列表为人类可读字符串）
- *
- * 使用场景：
- * - UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
- * - 在 Tooltip / 详情面板中展示完整违规描述
- *
- * 设计要点：
- * - check 接收 3 参数（expectation + actualOutput + actualExitCode）
- * - format 接收违规列表，返回字符串
- * - 类型已迁移到 @shared/agent-types.ts（SSOT）
- */
-const expectation = {
-  /**
-   * 对比预期与实际输出
-   *
-   * @param expectation 命令预期配置（command + mustContain + mustNotContain + expectedExitCode + timeoutMs）
-   * @param actualOutput 实际输出（字符串）
-   * @param actualExitCode 实际退出码
-   * @returns ExpectationCheckResult（含 met / violations / expectation / actualExitCode / timestamp）
-   */
-  check: (
-    expectation: CommandExpectation,
-    actualOutput: string,
-    actualExitCode: number
-  ): Promise<ExpectationCheckResult> =>
-    ipcRenderer.invoke(EXPECTATION.CHECK, expectation, actualOutput, actualExitCode),
-
-  /**
-   * 格式化违规列表为人类可读字符串
-   *
-   * @param violations 违规列表（空数组返回"符合预期（无违规）"）
-   * @returns 格式化后的字符串
-   */
-  format: (violations: ExpectationViolation[]): Promise<string> =>
-    ipcRenderer.invoke(EXPECTATION.FORMAT, violations),
-}
-
-export { credibility, mode, attention, expectation }
+export { credibility, mode }

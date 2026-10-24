@@ -47,12 +47,10 @@ import { registerAtCommandHandlers } from './at-commands'
 // v0.9.5 P0 新增：5 组缺失 IPC 通道（17 个新方法）
 // - 组 1：token:cost-stats（成本透明）
 // - 组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
-// - 组 3：attention:* 7 通道（注意力跟踪）
 // - 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
 // - 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
 import { registerTokenCostStatsHandlers } from './token-stats'
 import { registerModeHandlers } from './mode'
-import { registerAttentionHandlers } from './attention'
 import { registerSubagentHandlers } from './subagent'
 import { registerProviderInfoHandlers } from './provider-info'
 // v0.9.5 P0 新增：MCP 5 阶段状态机 IPC（借鉴 claw-code §3.3）
@@ -61,8 +59,6 @@ import { registerMcpStateHandlers } from './mcp'
 import { registerSidecarIpcHandlers } from './sidecar'
 // v2.8 新增：Agent 长期记忆 IPC（自动沉淀记忆的查看/检索/删除/审计）
 import { registerMemoryIpcHandlers } from './memory'
-// v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
-import { registerPromptfooHandlers } from './promptfoo'
 // v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
 import { registerDiagnosticsHandlers } from './diagnostics'
 // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
@@ -78,9 +74,7 @@ import { registerSftpSearchIpcHandlers } from './sftp-search'
 // 通道：file:watch:start / file:watch:stop + 推送 file:changed
 import { registerFileWatcherIpcHandlers } from './file-watcher'
 // v0.9.4 批次 4 - 任务 5 P2-E 新增：预期回显监控 IPC
-// 通道：expectation:check / expectation:format
 // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警
-import { registerExpectationHandlers } from './expectation'
 // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
 // 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面
 // 不引入 electron-updater（避免 publisher 配置 + GitHub Token 管理复杂度）
@@ -238,15 +232,11 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 让 UI 模式选择器渲染 5 个 mode（chat/ask/plan/code/debug）+ 切换默认 mode
   registerModeHandlers()
 
-  // 组 3：attention:* 7 通道（注意力跟踪）
-  // 让 UI 高亮显示当前关注的文件 / 命令 / 错误 / 关键词，跨 Subagent 传递上下文
-  registerAttentionHandlers()
-
-  // 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
+  // 组 3：subagent:list / subagent:reload（自定义 Agent 加载器）
   // 让 UI 列出 / 热重载项目根 .tdsf/agent/*.md 中的自定义 agent 配置
   registerSubagentHandlers()
 
-  // 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
+  // 组 4：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
   // 让 UI 显示 Provider 能力图标（streaming/toolCall/vision/contextWindow）+ 定价表
   registerProviderInfoHandlers()
 
@@ -260,10 +250,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
 
   // v2.8 新增：Agent 长期记忆 IPC（memory:list/search/delete/audit）
   registerMemoryIpcHandlers()
-
-  // v1.5 新增：Promptfoo 红队 / Prompt 评估 IPC
-  // 暴露 promptfoo:run-red-team / run-eval / list-tests
-  registerPromptfooHandlers()
 
   // v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
   // 暴露 diagnostics:get-report / get-logs / get-findings / get-stats / clear / set-enabled
@@ -291,11 +277,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 通道：file:watch:start / file:watch:stop + 推送 file:changed
   // 不需要 mainWindow：FileWatcherAdapter 内部通过 BrowserWindow.getAllWindows() 广播
   registerFileWatcherIpcHandlers()
-
-  // v0.9.4 批次 4 - 任务 5 P2-E 新增：预期回显监控 IPC
-  // 通道：expectation:check / expectation:format
-  // 让 UI 展示"预期 vs 实际"对比，命令执行异常时高亮告警（ExpectedOutput 组件消费）
-  registerExpectationHandlers()
 
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
   // 通道：app:check-update（HTTP GET GitHub Releases API 比对版本号）

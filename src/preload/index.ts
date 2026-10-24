@@ -21,7 +21,7 @@ import type { DeployLogEvent as DeployLogEventModel, DeployPlan as DeployPlanMod
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
 import type { ToolApprovalRequest, ToolApprovalResponse, ToolCallProgress } from '@shared/llm-tool-types'
-import { AGENT, ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, PROMPTFOO, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { AGENT, ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DEPLOY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LLM, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -29,7 +29,7 @@ import { createListener, invokeChecked, installIpcErrorUnwrap } from './ipc-util
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
 import { agentRuntime, subagent } from './domains/agent'
-import { attention, credibility, expectation, mode } from './domains/cognition'
+import { credibility, mode } from './domains/cognition'
 import { atCommands, localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { llm, provider, providerInfo, token, tokenCostStats } from './domains/llm'
 import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
@@ -699,11 +699,10 @@ const electronApi = {
     ipcRenderer.invoke(LOG.RENDERER, payload),
 
   // ===== v0.9.5 P0 新增：5 组缺失 IPC 通道扁平化（17 个方法） =====
-  // 通道与主进程 ipc/{token-stats,mode,attention,subagent,provider-info}.ts 一一对应
+  // 通道与主进程 ipc/{token-stats,mode,subagent,provider-info}.ts 一一对应
   // UI 调用方式：
   //   const cost = await window.electronAPI.tokenCostStats()
   //   const modes = await window.electronAPI.modeList()
-  //   const current = await window.electronAPI.attentionCurrent()
   //   const agents = await window.electronAPI.subagentList()
   //   const caps = await window.electronAPI.providerCapabilities({ providerId: 'xxx' })
 
@@ -715,21 +714,7 @@ const electronApi = {
   modeSetDefault: mode.setDefault,
   modeGetCurrent: mode.getCurrent,
 
-  // 组 3：Attention 注意力跟踪（7 个）
-  attentionCurrent: attention.current,
-  attentionHistory: attention.history,
-  attentionTrackFiles: attention.trackFiles,
-  attentionTrackCommands: attention.trackCommands,
-  attentionTrackErrors: attention.trackErrors,
-  attentionTrackKeywords: attention.trackKeywords,
-  attentionReset: attention.reset,
-
-  // v0.9.4 批次 4 - 任务 5 P2-E：预期回显监控（2 个）
-  expectationCheck: expectation.check,
-  expectationFormat: expectation.format,
-
-
-  // 组 4：Subagent 自定义 Agent 加载器（2 个）
+  // 组 3：Subagent 自定义 Agent 加载器（2 个）
   subagentList: subagent.list,
   subagentReload: subagent.reload,
 
@@ -848,23 +833,6 @@ const electronApi = {
     maxClusters?: number,
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
     ipcRenderer.invoke(SIDECAR.PARSE_LOGS, logLines, maxClusters),
-
-  // ===== v1.5 新增：Promptfoo 红队 / Prompt 评估 =====
-  // 通道：promptfoo:run-red-team → 运行红队测试（注入攻击场景，验证模型安全性）
-  promptfooRunRedTeam: (
-    modelProvider?: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
-  ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(PROMPTFOO.RUN_RED_TEAM, modelProvider),
-
-  // 通道：promptfoo:run-eval → 运行 Prompt 评估（基于断言的 prompt 质量评估）
-  promptfooRunEval: (
-    modelProvider?: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string }>,
-  ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(PROMPTFOO.RUN_EVAL, modelProvider),
-
-  // 通道：promptfoo:list-tests → 列出所有可用测试用例
-  promptfooListTests: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(PROMPTFOO.LIST_TESTS),
 
   // ===== v1.5 新增：诊断服务（后端日志检测）=====
   // 通道：diagnostics:get-report → 获取完整诊断报告（含统计 + 检测结果）

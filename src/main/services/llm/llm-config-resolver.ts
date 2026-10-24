@@ -4,8 +4,8 @@
  * 问题背景：
  * - Provider 体系（SecureStore `provider:{id}` + electron-store agentProviders）
  *   上线后，旧 LLM 体系（ConfigStore.llmConfig + SecureStore 'llm'）未下线。
- * - llm.ts / agent.ts / llm-tools.ts / promptfoo.ts / loop-engineering-subagent.ts
- *   共 5 处仍只读旧 'llm' Key，用户在"设置 → 模型"配好 Provider 后，
+ * - llm.ts / agent.ts / llm-tools.ts / loop-engineering-subagent.ts
+ *   共 4 处仍只读旧 'llm' Key，用户在"设置 → 模型"配好 Provider 后，
  *   这些路径 `getApiKey('llm') ?? ''` 静默拿空 Key → 调用失败且不上屏。
  *
  * 统一策略（所有 LlmClient 消费点必须走本入口）：

@@ -13,7 +13,7 @@
  * polish-tdsf-p1-issues Task A：集中化所有 ipcMain.handle 字面量为常量
  *   - 新增 19 个域常量（AGENT / LLM / SSH / STORAGE / CONFIG / SERVER / LOOP / MONITOR /
  *     LOG / KNOWLEDGE / HISTORY / DIAGNOSTICS / SIDECAR / SANDBOX / MCP / TUTORIAL /
- *     DEPLOY / AT_COMMANDS / TOKEN / PROMPTFOO）
+ *     DEPLOY / AT_COMMANDS / TOKEN）
  *   - 通道值与原字面量完全一致，向后兼容
  */
 
@@ -930,23 +930,6 @@ export const TOKEN = {
 } as const
 
 /**
- * Promptfoo 评测 IPC 通道常量
- *
- * 通道列表：
- * - RUN_RED_TEAM  invoke  渲染 → 主：运行红队测试
- * - RUN_EVAL      invoke  渲染 → 主：运行评测
- * - LIST_TESTS    invoke  渲染 → 主：列出测试
- */
-export const PROMPTFOO = {
-  /** 运行红队测试（invoke: 渲染 → 主） */
-  RUN_RED_TEAM: 'promptfoo:run-red-team',
-  /** 运行评测（invoke: 渲染 → 主） */
-  RUN_EVAL: 'promptfoo:run-eval',
-  /** 列出测试（invoke: 渲染 → 主） */
-  LIST_TESTS: 'promptfoo:list-tests',
-} as const
-
-/**
  * 系统级 IPC 通道常量（v2.2 P1 修复 #20：preload system 常量集中化）
  *
  * 通道列表：
@@ -1086,48 +1069,9 @@ export const MODE = {
   GET_CURRENT: 'mode:get-current',
 } as const
 
-/**
- * Attention 注意力追踪 IPC 通道常量
- *
- * 通道列表：
- * - CURRENT          invoke  渲染 → 主：查询当前注意力焦点
- * - HISTORY          invoke  渲染 → 主：查询注意力历史
- * - TRACK_FILES      invoke  渲染 → 主：追踪文件访问
- * - TRACK_COMMANDS   invoke  渲染 → 主：追踪命令执行
- * - TRACK_ERRORS     invoke  渲染 → 主：追踪错误事件
- * - TRACK_KEYWORDS   invoke  渲染 → 主：追踪关键词命中
- * - RESET            invoke  渲染 → 主：重置注意力状态
- */
-export const ATTENTION = {
-  /** 查询当前注意力焦点（invoke: 渲染 → 主） */
-  CURRENT: 'attention:current',
-  /** 查询注意力历史（invoke: 渲染 → 主） */
-  HISTORY: 'attention:history',
-  /** 追踪文件访问（invoke: 渲染 → 主） */
-  TRACK_FILES: 'attention:track-files',
-  /** 追踪命令执行（invoke: 渲染 → 主） */
-  TRACK_COMMANDS: 'attention:track-commands',
-  /** 追踪错误事件（invoke: 渲染 → 主） */
-  TRACK_ERRORS: 'attention:track-errors',
-  /** 追踪关键词命中（invoke: 渲染 → 主） */
-  TRACK_KEYWORDS: 'attention:track-keywords',
-  /** 重置注意力状态（invoke: 渲染 → 主） */
-  RESET: 'attention:reset',
-} as const
 
-/**
- * 期望校验 IPC 通道常量
- *
- * 通道列表：
- * - CHECK  invoke  渲染 → 主：校验期望与实际输出
- * - FORMAT invoke  渲染 → 主：格式化违规报告
- */
-export const EXPECTATION = {
-  /** 校验期望与实际输出（invoke: 渲染 → 主） */
-  CHECK: 'expectation:check',
-  /** 格式化违规报告（invoke: 渲染 → 主） */
-  FORMAT: 'expectation:format',
-} as const
+
+
 
 /**
  * 子 Agent IPC 通道常量

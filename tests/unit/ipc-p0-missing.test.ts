@@ -1,17 +1,16 @@
 /**
  * v0.9.5 P0 - 5 组缺失 IPC 通道单元测试
  *
- * 覆盖 17 个新 IPC 方法（IPC 4 步同步铁律验证）：
+ * 覆盖 10 个新 IPC 方法（IPC 4 步同步铁律验证）：
  * - 组 1：token:cost-stats（1 个）— 成本透明
  * - 组 2：mode:list / mode:set-default / mode:get-current（3 个）— 五模式切换
- * - 组 3：attention:current / attention:history / attention:track-* / attention:reset（7 个）— 注意力跟踪
- * - 组 4：subagent:list / subagent:reload（2 个）— 自定义 Agent 加载器
- * - 组 5：provider:capabilities / capabilities-all / pricing / pricing-all（4 个）— Provider 能力 + 定价透明
+ * - 组 3：subagent:list / subagent:reload（2 个）— 自定义 Agent 加载器
+ * - 组 4：provider:capabilities / capabilities-all / pricing / pricing-all（4 个）— Provider 能力 + 定价透明
  *
  * 测试策略（混合 Mock + 真实模块）：
  * - Mock electron（ipcMain.handle 捕获 + app.getAppPath）+ electron-store（logger 依赖）
  * - Mock IO 依赖模块：getCostStats / getProvider / loadCustomAgents / loadCustomAgent
- * - 使用真实模块：mode-registry（纯函数）/ attention-tracker（内存单例）/ provider-capabilities / provider-pricing
+ * - 使用真实模块：mode-registry（纯函数）/ provider-capabilities / provider-pricing
  * - 每个测试用例独立隔离（beforeEach 重置单例状态 + 清空 Mock 调用记录）
  *
  * IPC 4 步同步铁律验证：
@@ -19,7 +18,7 @@
  * - 步骤 2：ipc/index.ts 已调用 registerXxxHandlers（通过 handlers map 非空验证）
  * - 步骤 3+4：preload 暴露 + electron.d.ts 类型声明由 typecheck:web 验证
  *
- * 设计依据：v0.9.5 §UI接入接线图（5 组 P0 级缺失 IPC - 4 步同步铁律）
+ * 设计依据：v0.9.5 §UI接入接线图（P0 级缺失 IPC - 4 步同步铁律）
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
@@ -97,7 +96,6 @@ vi.mock('../../src/main/core/agent/subagents/agent-loader', () => ({
 
 import { registerTokenCostStatsHandlers } from '../../src/main/ipc/token-stats'
 import { registerModeHandlers } from '../../src/main/ipc/mode'
-import { registerAttentionHandlers } from '../../src/main/ipc/attention'
 import { registerSubagentHandlers } from '../../src/main/ipc/subagent'
 import { registerProviderInfoHandlers } from '../../src/main/ipc/provider-info'
 
@@ -109,16 +107,12 @@ import {
   loadCustomAgent,
 } from '../../src/main/core/agent/subagents/agent-loader'
 
-// 导入真实模块（mode-registry 是纯函数，attention-tracker 是内存单例，用于集成测试）
+// 导入真实模块（mode-registry 是纯函数，用于集成测试）
 import {
   resetCurrentMode,
   DEFAULT_MODE,
   MODE_CONFIGS,
 } from '../../src/main/core/agent/modes/mode-registry'
-import {
-  AttentionTracker,
-  resetAttentionTrackerInstance,
-} from '../../src/main/core/agent/attention-tracker'
 import { PROVIDER_CAPABILITIES } from '../../src/main/core/agent/providers/provider-capabilities'
 import { PROVIDER_PRICING } from '../../src/main/core/agent/providers/provider-pricing'
 
@@ -129,7 +123,6 @@ import type {
   ModeSetDefaultRequest,
   ModeSetDefaultResponse,
   ModeCurrentResponse,
-  AttentionFocus,
   CustomAgentConfig,
   SubagentReloadRequest,
   SubagentReloadResponse,
@@ -164,10 +157,9 @@ beforeEach(() => {
     delete handlers[key]
   }
 
-  // 注册所有 5 组 IPC handlers（捕获到 handlers map）
+  // 注册所有 4 组 IPC handlers（捕获到 handlers map）
   registerTokenCostStatsHandlers()
   registerModeHandlers()
-  registerAttentionHandlers()
   registerSubagentHandlers()
   registerProviderInfoHandlers()
 
@@ -179,7 +171,6 @@ beforeEach(() => {
 
   // 重置单例状态
   resetCurrentMode() // mode-registry 的 currentMode 重置为 DEFAULT_MODE ('chat')
-  resetAttentionTrackerInstance() // AttentionTracker 单例重置为空 attention
 })
 
 // ============================================================================
@@ -312,118 +303,16 @@ describe('[组 2] mode:* IPC 通道', () => {
 })
 
 // ============================================================================
-// 组 3：attention:* 7 通道（注意力跟踪）— 10 个测试
+// 组 3：subagent:list / subagent:reload（自定义 Agent 加载器）— 6 个测试
 // ============================================================================
 
-describe('[组 3] attention:* IPC 通道', () => {
-  it('3.1 七个通道已注册到 ipcMain.handle', () => {
-    expect(handlers['attention:current']).toBeDefined()
-    expect(handlers['attention:history']).toBeDefined()
-    expect(handlers['attention:track-files']).toBeDefined()
-    expect(handlers['attention:track-commands']).toBeDefined()
-    expect(handlers['attention:track-errors']).toBeDefined()
-    expect(handlers['attention:track-keywords']).toBeDefined()
-    expect(handlers['attention:reset']).toBeDefined()
-  })
-
-  it('3.2 attention:current 返回 AttentionFocus，since 字段必有', async () => {
-    const result: AttentionFocus = await handlers['attention:current'](mockEvent)
-
-    expect(result).toBeDefined()
-    expect(typeof result.since).toBe('number')
-    expect(result.since).toBeGreaterThan(0)
-  })
-
-  it('3.3 attention:history 初始为空数组', async () => {
-    const result: AttentionFocus[] = await handlers['attention:history'](mockEvent)
-
-    expect(Array.isArray(result)).toBe(true)
-    expect(result).toHaveLength(0)
-  })
-
-  it('3.4 attention:track-files 添加文件后 current 反映变更', async () => {
-    const files = ['/etc/nginx/nginx.conf', '/var/log/syslog']
-    const ok = await handlers['attention:track-files'](mockEvent, files)
-
-    expect(ok).toBe(true)
-    const current: AttentionFocus = await handlers['attention:current'](mockEvent)
-    expect(current.files).toEqual(files)
-  })
-
-  it('3.5 attention:track-commands 添加命令后 current 反映变更', async () => {
-    const commands = ['systemctl status nginx', 'journalctl -u nginx']
-    const ok = await handlers['attention:track-commands'](mockEvent, commands)
-
-    expect(ok).toBe(true)
-    const current: AttentionFocus = await handlers['attention:current'](mockEvent)
-    expect(current.commands).toEqual(commands)
-  })
-
-  it('3.6 attention:track-errors 添加错误后 current 反映变更', async () => {
-    const errors = ['nginx: config test failed', 'permission denied']
-    const ok = await handlers['attention:track-errors'](mockEvent, errors)
-
-    expect(ok).toBe(true)
-    const current: AttentionFocus = await handlers['attention:current'](mockEvent)
-    expect(current.errors).toEqual(errors)
-  })
-
-  it('3.7 attention:track-keywords 添加关键词后 current 反映变更', async () => {
-    const keywords = ['segfault', 'oom-killer']
-    const ok = await handlers['attention:track-keywords'](mockEvent, keywords)
-
-    expect(ok).toBe(true)
-    const current: AttentionFocus = await handlers['attention:current'](mockEvent)
-    expect(current.keywords).toEqual(keywords)
-  })
-
-  it('3.8 attention:track-files 入参非数组 → 返回 false', async () => {
-    const ok = await handlers['attention:track-files'](mockEvent, 'not-an-array')
-
-    expect(ok).toBe(false)
-  })
-
-  it('3.9 attention:reset 返回 true，并将当前 attention 归档到 history', async () => {
-    // 先添加一些数据
-    await handlers['attention:track-files'](mockEvent, ['/etc/hosts'])
-    await handlers['attention:track-commands'](mockEvent, ['ls -la'])
-
-    // reset
-    const ok = await handlers['attention:reset'](mockEvent)
-    expect(ok).toBe(true)
-
-    // history 应该有 1 条
-    const history: AttentionFocus[] = await handlers['attention:history'](mockEvent)
-    expect(history).toHaveLength(1)
-    expect(history[0].files).toEqual(['/etc/hosts'])
-    expect(history[0].commands).toEqual(['ls -la'])
-
-    // current 应该被重置为空（无 files/commands/errors/keywords）
-    const current: AttentionFocus = await handlers['attention:current'](mockEvent)
-    expect(current.files).toBeUndefined()
-    expect(current.commands).toBeUndefined()
-  })
-
-  it('3.10 attention:reset 后 current.since 更新为新时间戳', async () => {
-    const beforeReset: AttentionFocus = await handlers['attention:current'](mockEvent)
-    await handlers['attention:reset'](mockEvent)
-    const afterReset: AttentionFocus = await handlers['attention:current'](mockEvent)
-
-    expect(afterReset.since).toBeGreaterThanOrEqual(beforeReset.since)
-  })
-})
-
-// ============================================================================
-// 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）— 6 个测试
-// ============================================================================
-
-describe('[组 4] subagent:* IPC 通道', () => {
-  it('4.1 两个通道已注册到 ipcMain.handle', () => {
+describe('[组 3] subagent:* IPC 通道', () => {
+  it('3.1 两个通道已注册到 ipcMain.handle', () => {
     expect(handlers['subagent:list']).toBeDefined()
     expect(handlers['subagent:reload']).toBeDefined()
   })
 
-  it('4.2 subagent:list 返回 loadCustomAgents 的结果', async () => {
+  it('3.2 subagent:list 返回 loadCustomAgents 的结果', async () => {
     const mockConfigs: CustomAgentConfig[] = [
       {
         name: 'linux-expert',
@@ -452,7 +341,7 @@ describe('[组 4] subagent:* IPC 通道', () => {
     expect(vi.mocked(loadCustomAgents)).toHaveBeenCalledTimes(1)
   })
 
-  it('4.3 subagent:list loadCustomAgents 抛错时 handler 抛出错误', async () => {
+  it('3.3 subagent:list loadCustomAgents 抛错时 handler 抛出错误', async () => {
     vi.mocked(loadCustomAgents).mockRejectedValue(new Error('permission denied'))
 
     await expect(handlers['subagent:list'](mockEvent)).rejects.toThrow(
@@ -460,7 +349,7 @@ describe('[组 4] subagent:* IPC 通道', () => {
     )
   })
 
-  it('4.4 subagent:reload 单文件成功（loadCustomAgent 返回 config）', async () => {
+  it('3.4 subagent:reload 单文件成功（loadCustomAgent 返回 config）', async () => {
     const mockConfig: CustomAgentConfig = {
       name: 'linux-expert',
       displayName: 'Linux 专家',
@@ -488,7 +377,7 @@ describe('[组 4] subagent:* IPC 通道', () => {
     expect(vi.mocked(loadCustomAgent)).toHaveBeenCalledTimes(1)
   })
 
-  it('4.5 subagent:reload 单文件解析失败（loadCustomAgent 返回 null）→ failed 列表非空', async () => {
+  it('3.5 subagent:reload 单文件解析失败（loadCustomAgent 返回 null）→ failed 列表非空', async () => {
     vi.mocked(loadCustomAgent).mockResolvedValue(null)
 
     const request: SubagentReloadRequest = { filePath: '/tmp/test-app-path/.tdsf/agent/bad-agent.md' }
@@ -504,7 +393,7 @@ describe('[组 4] subagent:* IPC 通道', () => {
     expect(result.failed[0].error).toContain('解析失败')
   })
 
-  it('4.7 subagent:reload agent 目录外的路径必须被拒，且不去读文件（S3 判据）', async () => {
+  it('3.7 subagent:reload agent 目录外的路径必须被拒，且不去读文件（S3 判据）', async () => {
     vi.mocked(loadCustomAgent).mockClear()
     const request: SubagentReloadRequest = { filePath: '/tmp/elsewhere/agent.md' }
     const result: SubagentReloadResponse = await handlers['subagent:reload'](mockEvent, request)
@@ -516,7 +405,7 @@ describe('[组 4] subagent:* IPC 通道', () => {
     expect(vi.mocked(loadCustomAgent)).not.toHaveBeenCalled()
   })
 
-  it('4.6 subagent:reload 全部重载（无 filePath）+ 目录不存在 → success=false', async () => {
+  it('3.6 subagent:reload 全部重载（无 filePath）+ 目录不存在 → success=false', async () => {
     // app.getAppPath() mock 返回 '/tmp/test-app-path'，.tdsf/agent/ 目录不存在
     const result: SubagentReloadResponse = await handlers['subagent:reload'](mockEvent)
 
@@ -527,10 +416,10 @@ describe('[组 4] subagent:* IPC 通道', () => {
 })
 
 // ============================================================================
-// 组 5：provider:capabilities* / pricing*（Provider 能力 + 定价透明）— 8 个测试
+// 组 4：provider:capabilities* / pricing*（Provider 能力 + 定价透明）— 8 个测试
 // ============================================================================
 
-describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
+describe('[组 4] provider:capabilities* / pricing* IPC 通道', () => {
   /** 构造 mock ProviderConfig（PersistedProviderConfig 不含 apiKey） */
   function makeMockProvider(
     id: string,
@@ -545,14 +434,14 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     }
   }
 
-  it('5.1 四个通道已注册到 ipcMain.handle', () => {
+  it('4.1 四个通道已注册到 ipcMain.handle', () => {
     expect(handlers['provider:capabilities']).toBeDefined()
     expect(handlers['provider:capabilities-all']).toBeDefined()
     expect(handlers['provider:pricing']).toBeDefined()
     expect(handlers['provider:pricing-all']).toBeDefined()
   })
 
-  it('5.2 provider:capabilities 入参非法（null）→ 返回 null', async () => {
+  it('4.2 provider:capabilities 入参非法（null）→ 返回 null', async () => {
     const result = await handlers['provider:capabilities'](
       mockEvent,
       null as unknown as ProviderCapabilitiesRequest
@@ -561,7 +450,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(result).toBeNull()
   })
 
-  it('5.3 provider:capabilities Provider 不存在 → 返回 null', async () => {
+  it('4.3 provider:capabilities Provider 不存在 → 返回 null', async () => {
     vi.mocked(getProvider).mockReturnValue(null)
 
     const result = await handlers['provider:capabilities'](mockEvent, {
@@ -572,7 +461,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(vi.mocked(getProvider)).toHaveBeenCalledWith('non-existent')
   })
 
-  it('5.4 provider:capabilities 合法 Provider → 返回 ProviderCapabilities', async () => {
+  it('4.4 provider:capabilities 合法 Provider → 返回 ProviderCapabilities', async () => {
     const mockProvider = makeMockProvider('deepseek-v4', 'deepseek')
     vi.mocked(getProvider).mockReturnValue(mockProvider)
 
@@ -593,7 +482,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(result.contextWindow).toBe(64_000)
   })
 
-  it('5.5 provider:capabilities-all 返回所有 ProviderType 的能力声明（7 个类型）', async () => {
+  it('4.5 provider:capabilities-all 返回所有 ProviderType 的能力声明（7 个类型）', async () => {
     const result: ProviderCapabilitiesAllResponse =
       await handlers['provider:capabilities-all'](mockEvent)
 
@@ -609,7 +498,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(types).toContain('ollama')
   })
 
-  it('5.6 provider:capabilities-all 返回深拷贝（不污染内部 PROVIDER_CAPABILITIES 表）', async () => {
+  it('4.6 provider:capabilities-all 返回深拷贝（不污染内部 PROVIDER_CAPABILITIES 表）', async () => {
     const result: ProviderCapabilitiesAllResponse =
       await handlers['provider:capabilities-all'](mockEvent)
 
@@ -618,7 +507,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(PROVIDER_CAPABILITIES['anthropic'].contextWindow).toBe(200_000)
   })
 
-  it('5.7 provider:pricing 合法 Provider → 返回 ModelPricing', async () => {
+  it('4.7 provider:pricing 合法 Provider → 返回 ModelPricing', async () => {
     const mockProvider = makeMockProvider('anthropic-claude', 'anthropic')
     vi.mocked(getProvider).mockReturnValue(mockProvider)
 
@@ -635,7 +524,7 @@ describe('[组 5] provider:capabilities* / pricing* IPC 通道', () => {
     expect(result.outputCostPer1M).toBe(15.0)
   })
 
-  it('5.8 provider:pricing-all 返回所有 ProviderType 的定价表 + 深拷贝验证', async () => {
+  it('4.8 provider:pricing-all 返回所有 ProviderType 的定价表 + 深拷贝验证', async () => {
     const result: ProviderPricingAllResponse = await handlers['provider:pricing-all'](
       mockEvent
     )

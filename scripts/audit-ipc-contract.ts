@@ -413,9 +413,11 @@ function main(): void {
  * 143 → 141 是 2026-10-20 整删 Task Protocol 那两条 preload 键（同批提交，不是慢慢还的）。
  * 141 → 139 是 2026-10-21 实测：`historyBlocks` 上一批已接界面但刻度没跟着降，
  * `storageDeleteApiKey` 本轮接到「清除已保存的 Key」按钮。刻度只认实测，不认记忆。
+ * 139 → 119 是 2026-10-24：整删 attention 7 + expectation 2 + promptfoo 3 共 12 键，
+ * 另把 memory 4 键接到「AI 记忆」页（同批提交）。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 139
+const UNUSED_CAP = 119
 
 main()

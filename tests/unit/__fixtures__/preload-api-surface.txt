@@ -12,13 +12,6 @@ appGetInfo
 atList
 atParse
 atResolve
-attentionCurrent
-attentionHistory
-attentionReset
-attentionTrackCommands
-attentionTrackErrors
-attentionTrackFiles
-attentionTrackKeywords
 bootGetState
 budgetAlerts
 configGet
@@ -52,8 +45,6 @@ diagnosticsGetReport
 diagnosticsGetStats
 diagnosticsIngestTest
 diagnosticsSetEnabled
-expectationCheck
-expectationFormat
 fileWatchStart
 fileWatchStop
 fsUploadImage
@@ -163,9 +154,6 @@ profilerDefaultFileName
 profilerExportMd
 profilerExportPdf
 profilerRun
-promptfooListTests
-promptfooRunEval
-promptfooRunRedTeam
 previewClose
 previewOpen
 previewReadText

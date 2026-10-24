@@ -90,7 +90,7 @@ const token = {
 // - 与现有 token / provider / agentRuntime 等模块保持一致的代码风格
 // - 每个对象封装对应 IPC 通道，方法名与通道名一一对应（去除前缀后驼峰化）
 // - 仅做 IPC 包装：调用 ipcRenderer.invoke，不做业务逻辑
-// - 通道命名规范：kebab-case（如 token:cost-stats / mode:list / attention:track-files）
+// - 通道命名规范：kebab-case（如 token:cost-stats / mode:list / agent:chat）
 // ============================================================================
 
 /**

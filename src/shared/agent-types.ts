@@ -972,56 +972,11 @@ export interface ModeConfig {
 }
 
 // ============================================================================
-// v0.9.4 批次 4 - 注意力跟踪 + 预期回显（任务 4 类型定义）
-//
-// 方案书依据：v0.9.4 §11 第 7 类（其他 3 项）
-// 调研文档：
-//   - d:\ai\linux教学一体\idea-to-dev-output\29-源码分析-KiloCode-多模式Subagent.md
-//     （Kilo Code attention 字段：标记当前关注的关键文件 / 命令 / 错误，跨 Subagent 传递上下文）
-//
-// 设计原则：
-// - SSOT：跨端共享类型集中在 src/shared/agent-types.ts
-// - 不依赖 main 进程的任何模块（确保 preload/renderer 可安全导入）
-// - 字段全部可选（除 since），允许部分跟踪（如只跟踪 files 不跟踪 commands）
-// ============================================================================
-
-/**
- * 注意力字段（v0.9.4 批次 4 - 任务 4，借鉴 Kilo Code attention）
- *
- * 标记当前 Subagent 关注的关键文件 / 命令 / 错误，
- * 用于 UI 高亮显示 + 跨 Subagent 传递上下文。
- *
- * 使用场景：
- * - Subagent 执行时调用 AttentionTracker.trackFiles/trackCommands/trackErrors 更新
- * - UI 通过 IPC 查询当前 attention，高亮显示关注的文件 / 命令
- * - 新会话开始时调用 AttentionTracker.reset() 清空
- *
- * 字段全部可选（除 since），允许部分跟踪：
- * - 只跟踪 files（如 explore-subagent 探查文件）
- * - 只跟踪 commands（如 running-subagent 执行命令）
- * - 只跟踪 errors（如 debug 模式分析错误）
- * - 只跟踪 keywords（如 search-subagent 搜索关键词）
- */
-export interface AttentionFocus {
-  /** 关注的文件路径（绝对路径或相对项目根的路径） */
-  files?: string[]
-  /** 关注的命令（最近执行的 shell 命令） */
-  commands?: string[]
-  /** 关注的错误（最近发生的错误信息） */
-  errors?: string[]
-  /** 关注的搜索关键词 */
-  keywords?: string[]
-  /** 时间戳（ms，标记何时开始关注） */
-  since: number
-}
-
-// ============================================================================
 // v0.9.5 P0 级缺失 IPC 通道共享类型
 //
 // 任务：v0.9.5 渲染层 UI 集成 - 补齐 5 组 P0 级缺失 IPC 通道
 //   组 1：token:cost-stats（成本透明）
 //   组 2：mode:list / mode:set-default / mode:get-current（五模式切换）
-//   组 3：attention:current / attention:history / attention:track-* / attention:reset（注意力跟踪）
 //   组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
 //   组 5：provider:capabilities / provider:capabilities-all / provider:pricing / provider:pricing-all（Provider 能力 + 定价透明）
 //
@@ -1222,97 +1177,3 @@ export type ProviderPricingResponse = ModelPricing | null
  * 返回所有 ProviderType 的默认定价表（按 type 索引）。
  */
 export type ProviderPricingAllResponse = Record<string, ModelPricing>
-
-// ============================================================================
-// v0.9.4 批次 4 - 任务 5：预期回显监控共享类型
-//
-// 借鉴 Kilo Code 的"预期回显"机制：
-//   执行命令前先记录"预期输出特征"，执行后对比实际输出，发现异常时告警。
-//
-// 这部分类型从 src/main/core/agent/expectation-monitor.ts 提取到 shared，
-// 以便 preload/renderer 可以直接导入，避免主进程模块跨端引用。
-//
-// 方案书依据：v0.9.4 §11 第 7 类（其他 3 项 - 任务 5）
-// ============================================================================
-
-/**
- * 命令预期配置
- *
- * 由调用方（running-subagent / supervisor）在执行命令前构造，
- * 传入 checkExpectation 进行对比。
- */
-export interface CommandExpectation {
-  /** 命令文本 */
-  command: string
-  /**
-   * 预期必须出现的关键词（任一匹配即视为符合预期）
-   *
-   * 空数组或 undefined 表示不检查 mustContain 规则。
-   */
-  mustContain?: string[]
-  /**
-   * 预期不能出现的关键词（任一匹配即视为违反预期）
-   *
-   * 例如：['Permission denied', 'command not found', 'No such file or directory']
-   */
-  mustNotContain?: string[]
-  /**
-   * 预期退出码（默认 0）
-   *
-   * 设为 null 表示不检查退出码。
-   */
-  expectedExitCode?: number | null
-  /**
-   * 超时阈值（ms，默认 30000）
-   *
-   * 注意：超时检查不由本模块执行（由调用方控制超时），
-   * 此字段仅作为元数据记录，便于审计。
-   */
-  timeoutMs?: number
-}
-
-/**
- * 预期违反类型
- */
-export type ExpectationViolationType =
-  | 'missing-required' // 缺少必须出现的关键词
-  | 'forbidden-found' // 出现了禁止的关键词
-  | 'exit-code-mismatch' // 退出码不匹配
-  | 'timeout' // 超时（由调用方标记）
-
-/**
- * 预期违反详情
- *
- * checkExpectation 返回的违规列表元素。
- */
-export interface ExpectationViolation {
-  /** 违反类型 */
-  type: ExpectationViolationType
-  /** 实际退出码（exit-code-mismatch / timeout 时填充） */
-  actualExitCode?: number
-  /** 实际输出片段（截断 500 字符，避免长输出导致日志膨胀） */
-  actualOutputSnippet: string
-  /** 违反原因（人类可读） */
-  reason: string
-  /** 触发违反的关键词（missing-required / forbidden-found 时填充） */
-  triggeredKeyword?: string
-}
-
-/**
- * 预期检查结果（IPC 传输载荷）
- *
- * 由主进程 expectation:check 通道返回，包含违规列表与是否通过。
- * 渲染层据此展示"预期 vs 实际"对比 UI。
- */
-export interface ExpectationCheckResult {
-  /** 是否符合预期（violations.length === 0） */
-  met: boolean
-  /** 违规列表（空数组表示符合预期） */
-  violations: ExpectationViolation[]
-  /** 原始预期配置（便于 UI 展示对比） */
-  expectation: CommandExpectation
-  /** 实际退出码 */
-  actualExitCode: number
-  /** 检查时间戳（ms） */
-  timestamp: number
-}
