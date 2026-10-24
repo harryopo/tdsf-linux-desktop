@@ -19,6 +19,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { exposedApiNames } from './ipc/api-surface'
+import { rendererMembersUsed } from './quality/renderer-calls'
 
 const ROOT = path.resolve(__dirname, '..')
 const SRC = path.join(ROOT, 'src')
@@ -260,29 +261,19 @@ function obsoleteExposedParser(): Set<string> {
   return keys
 }
 
-/** 渲染层：window.electronAPI.xxx / api?.xxx 调用的方法名 */
+/**
+ * 渲染层用到的 electronAPI 成员名 → 出现在哪些文件。
+ *
+ * 识别规则本身在 scripts/quality/renderer-calls.ts（纯函数，两份方向的判据在
+ * tests/unit/renderer-calls-instrument.test.ts）。这里只管遍历文件与记账。
+ * 曾经内联的那两条正则漏掉解构式接线，把 settings-store.ts 里三条在用的键
+ * 报成零调用——按那份清单删代码就会砍掉活线。
+ */
 function collectRendererCalls(): Map<string, Set<string>> {
   // method → 调用文件集合
   const calls = new Map<string, Set<string>>()
-  const re = /(?:window\.)?electronAPI[?!]?\.(\w+)/g
   for (const file of collectFiles(path.join(SRC, 'renderer'))) {
-    const text = read(file)
-    let m: RegExpExecArray | null
-    while ((m = re.exec(text)) !== null) {
-      const method = m[1]
-      if (!calls.has(method)) calls.set(method, new Set())
-      calls.get(method)!.add(rel(file))
-    }
-  }
-  // 补充：const api = window.electronAPI 之后的 api.xxx / api?.xxx 调用
-  const apiAliasFileRe = /const api = window\.electronAPI/
-  const apiCallRe = /\bapi[?!]?\.(\w+)\(/g
-  for (const file of collectFiles(path.join(SRC, 'renderer'))) {
-    const text = read(file)
-    if (!apiAliasFileRe.test(text)) continue
-    let m: RegExpExecArray | null
-    while ((m = apiCallRe.exec(text)) !== null) {
-      const method = m[1]
+    for (const method of rendererMembersUsed(read(file))) {
       if (!calls.has(method)) calls.set(method, new Set())
       calls.get(method)!.add(rel(file))
     }
@@ -423,9 +414,16 @@ function main(): void {
  * 主对话只留一条路：agent:chat（Supervisor）；设置页「测试连接」是唯一的裸 llm 通道。
  * 92 → 89 是同日：整删五模式（`mode:list/set-default/get-current` 三条 invoke
  * 与对应 preload 键）——模式既不注入 prompt 也不拦工具，是纯壳。
+ * 89 → 86 也是同日，但**这不是还债，是量具修正**：旧的采集器只认
+ * `electronAPI.foo()` 与 `api.foo()` 两种写法，认不出
+ * `const { foo } = window.electronAPI` 再调 `foo()`，于是把 settings-store.ts
+ * 里在用的 configSaveLlm / storageHasApiKey / storageSaveApiKey 报成零调用。
+ * 按那份清单动手就会砍掉活线（#60 是同一族错）。规则移到
+ * scripts/quality/renderer-calls.ts，两个方向的可证伪判据在
+ * tests/unit/renderer-calls-instrument.test.ts。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 89
+const UNUSED_CAP = 86
 
 main()
