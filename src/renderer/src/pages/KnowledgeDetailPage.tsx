@@ -31,12 +31,12 @@ import { toast } from 'sonner'
 import {
   Activity, AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Clock,
   Edit3, Eye, Loader2, MessageSquare, Save, ThumbsDown, ThumbsUp,
-  Wrench, X, Zap,
+  Trash2, Wrench, X, Zap,
 } from 'lucide-react'
 import { CardHead, CodeBlock, KnowledgeDetailSidebar } from '@/components/knowledge-detail/v1'
 import type { KnowledgeEntry } from '@shared/models'
 import { cn } from '@/components/trae/utils'
-import { Button, PageHeader, Spinner, TextArea, TextInput } from '@/ui'
+import { Button, PageHeader, Spinner, TextArea, TextInput, confirmDialog } from '@/ui'
 // v2.6：教程正文 markdown 渲染（复用工作台轻量安全渲染器，无 innerHTML）
 import { MarkdownMessage } from '@/components/workbench/panels/MarkdownMessage'
 import './KnowledgePage.css'
@@ -233,6 +233,37 @@ export function KnowledgeDetailPage() {
   }
 
   /**
+   * 删除这条知识（#203）
+   *
+   * 三种结果说三种话——主进程把"删掉了 / 本来就不在 / 数据库出错"分开回之后，
+   * 界面就不许再把它们混成一句"已删除"。库被锁住时对用户说"这条已经不在了"是假话，
+   * 而假话会教用户以为自己根本没建过这条知识。
+   */
+  const handleDelete = async () => {
+    if (!realEntry || typeof window === 'undefined' || !window.electronAPI?.kbDelete) return
+    const ok = await confirmDialog({
+      title: '删除这条知识？',
+      description: `「${realEntry.title}」会从知识库、全文索引和语义索引里一起删掉，删了找不回来。`,
+      okText: '删除',
+      cancelText: '先不删',
+      danger: true,
+    })
+    if (!ok) return
+    const result = await window.electronAPI.kbDelete(realEntry.id)
+    if (result.kind === 'deleted') {
+      toast.success('已删除')
+      handleBackKnowledge()
+      return
+    }
+    if (result.kind === 'not-found') {
+      toast.info('这条已经不在了')
+      handleBackKnowledge()
+      return
+    }
+    toast.error(`没删掉：${result.message}`)
+  }
+
+  /**
    * 用户答复落库（#134：这第一次是 successRate 的生产者）
    *
    * 写完立刻重读一次条目：按钮亮起来、侧栏成功率变动，显示的都是库里那行的值。
@@ -337,6 +368,19 @@ export function KnowledgeDetailPage() {
               >
                 <Edit3 className="h-3.5 w-3.5" />
                 编辑
+              </Button>
+            )}
+            {!isEditing && realEntry && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                data-dom-id="delete-knowledge"
+                aria-label="删除这条知识"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                删除
               </Button>
             )}
           </>

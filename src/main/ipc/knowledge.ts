@@ -19,7 +19,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { KNOWLEDGE } from '@shared/ipc-channels'
 import { DatabaseManager } from '../services/db/database'
 import { KnowledgeRepository } from '../services/db/knowledge-repo'
-import type { KnowledgeEntry, KnowledgeType } from '@shared/models'
+import type { KnowledgeDeleteResult, KnowledgeEntry, KnowledgeType } from '@shared/models'
 import { pickExistingFiles } from '../services/security/dialog-paths'
 import { IMPORT_FILE_EXTENSIONS } from '../services/db/knowledge-import'
 import { importKnowledgeFiles } from '../services/knowledge/kb-import'
@@ -113,16 +113,21 @@ export function registerKnowledgeHandlers(mainWindow: BrowserWindow): void {
 
   /**
    * 参数：(id: string)
-   * 返回：boolean
+   * 返回：KnowledgeDeleteResult —— deleted / not-found / error 三种话（#203）
+   *
+   * 出口只留一种形状：仓储自己会把数据库错误报成 error，这一层再兜"连仓储都拿不到"，
+   * 这样界面不需要同时处理"回包里的 error"和"IPC 抛出来的 reject"两条通道。
    */
-  ipcMain.handle(KNOWLEDGE.DELETE, async (_event, id: string) => {
-    try {
-      const repo = getKnowledgeRepo()
-      return repo.delete(id)
-    } catch (err) {
-      throw new Error(`知识库删除失败: ${(err as Error).message}`)
+  ipcMain.handle(
+    KNOWLEDGE.DELETE,
+    async (_event, id: string): Promise<KnowledgeDeleteResult> => {
+      try {
+        return getKnowledgeRepo().delete(id)
+      } catch (err) {
+        return { kind: 'error', message: err instanceof Error ? err.message : String(err) }
+      }
     }
-  })
+  )
 
   // ------------------------------------------------------------------
   // kb:export — 导出全部

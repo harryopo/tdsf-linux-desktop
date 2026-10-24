@@ -10,6 +10,7 @@ import type {
   DecisionCard,
   HistoryStats,
   KbViewHistoryEntry,
+  KnowledgeDeleteResult,
   KnowledgeEntry,
   KnowledgeType,
   ToolCallStat,
@@ -316,7 +317,7 @@ const electronApi = {
     ipcRenderer.invoke(KNOWLEDGE.ADD, entry),
   kbUpdate: (id: string, entry: Partial<KnowledgeEntry>): Promise<boolean> =>
     ipcRenderer.invoke(KNOWLEDGE.UPDATE, id, entry),
-  kbDelete: (id: string): Promise<boolean> =>
+  kbDelete: (id: string): Promise<KnowledgeDeleteResult> =>
     ipcRenderer.invoke(KNOWLEDGE.DELETE, id),
   kbExport: (type?: KnowledgeType): Promise<KnowledgeEntry[]> =>
     invokeChecked('kbExport', KNOWLEDGE.EXPORT, type),

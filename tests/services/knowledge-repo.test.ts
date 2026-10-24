@@ -300,13 +300,13 @@ describe('KnowledgeRepository — 知识库仓储', () => {
     expect(repo.getById('test-3')).not.toBeNull()
 
     const deleted = repo.delete('test-3')
-    expect(deleted).toBe(true)
+    expect(deleted).toEqual({ kind: 'deleted' })
     expect(repo.getById('test-3')).toBeNull()
   })
 
-  it('delete: 不存在的 ID 返回 false', () => {
+  it('delete: 不存在的 ID 报 not-found（#203 起不再与"数据库出错"共用一个 false）', () => {
     const result = repo.delete('nonexistent')
-    expect(result).toBe(false)
+    expect(result).toEqual({ kind: 'not-found' })
   })
 
   // ────────── Jaccard 相似度搜索 ──────────

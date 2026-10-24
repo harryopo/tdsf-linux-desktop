@@ -621,6 +621,19 @@ export interface KnowledgeEntry {
   updatedAt: number
 }
 
+/**
+ * 删除知识条目的三种结果（#203）
+ *
+ * 以前仓储把 `delete()` 写成 `catch { return false }`，于是"删掉了"、
+ * "这条本来就不在"、"数据库出错了" 三件事共用一个 `false`。
+ * 接界面之前必须先把它拆开：库被锁住时对用户说"这条已经不在了"是假话，
+ * 而假话正好会教用户以为自己没建过这条知识。
+ */
+export type KnowledgeDeleteResult =
+  | { kind: 'deleted' }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string }
+
 /** 知识库浏览历史记录 */
 export interface KbViewHistoryEntry {
   /** 知识条目 ID */

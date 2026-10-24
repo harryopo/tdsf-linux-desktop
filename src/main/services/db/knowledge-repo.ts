@@ -22,7 +22,12 @@
  */
 
 import type { DatabaseManager } from './database'
-import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
+import type {
+  KbViewHistoryEntry,
+  KnowledgeDeleteResult,
+  KnowledgeEntry,
+  KnowledgeType,
+} from '@shared/models'
 import { recordToolCall } from './tool-call-log'
 import { buildContentSeg } from './knowledge-tokenize'
 // 导入部分失败必须留痕，否则界面上只剩一个"成功导入 N 条"
@@ -382,16 +387,19 @@ export class KnowledgeRepository {
   }
 
   /**
-   * 删除知识条目
-   * @param id 条目 ID
-   * @returns true 表示删除成功
+   * 删除知识条目（主表 + FTS + 向量三份一起走）
+   *
+   * knowledge_fts 与 knowledge_vec 都是靠 knowledge_entries 上的 AFTER DELETE
+   * 触发器同步的影子表，所以这里只删主表一行——但正因为如此，触发器一炸
+   * （FTS 表缺失、库被锁…）整条 DELETE 会失败，那种情况必须报 error，
+   * 不能压成 false 让界面说出"这条已经不在了"。
    */
-  delete(id: string): boolean {
+  delete(id: string): KnowledgeDeleteResult {
     try {
       const result = this.db.prepare('DELETE FROM knowledge_entries WHERE id = ?').run(id)
-      return result.changes > 0
-    } catch {
-      return false
+      return result.changes > 0 ? { kind: 'deleted' } : { kind: 'not-found' }
+    } catch (err) {
+      return { kind: 'error', message: err instanceof Error ? err.message : String(err) }
     }
   }
 
