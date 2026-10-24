@@ -2,29 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T00:14:51.271Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T00:14:51.134Z",
-      "lastActiveAt": "2026-10-24T00:14:51.271Z",
-      "task": "#190 依赖公告补丁钉版",
-      "claimedFiles": [
-        {
-          "path": "pnpm-workspace.yaml",
-          "task": "#190 依赖公告补丁钉版",
-          "claimedAt": "2026-10-24T00:14:51.134Z"
-        },
-        {
-          "path": "pnpm-lock.yaml",
-          "task": "#190 依赖公告补丁钉版",
-          "claimedAt": "2026-10-24T00:14:51.271Z"
-        }
-      ],
-      "expiresAt": "2026-10-24T02:14:51.271Z"
-    }
-  },
+  "lastUpdated": "2026-10-24T00:14:59.011Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9818,6 +9797,20 @@
       "file": "pnpm-lock.yaml",
       "task": "#190 依赖公告补丁钉版",
       "timestamp": "2026-10-24T00:14:51.271Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "pnpm-workspace.yaml",
+      "task": "#190 依赖公告补丁钉版",
+      "timestamp": "2026-10-24T00:14:59.011Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "pnpm-lock.yaml",
+      "task": "#190 依赖公告补丁钉版",
+      "timestamp": "2026-10-24T00:14:59.011Z"
     }
   ],
   "coordinationAudit": {
