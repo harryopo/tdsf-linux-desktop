@@ -875,37 +875,28 @@ export const PAOR = {
 } as const
 
 /**
- * Provider 信息查询 IPC 通道常量
+ * Provider 配置 IPC 通道常量
  *
  * 通道列表：
- * - LIST             invoke  渲染 → 主：列出已配置的 Provider
- * - GET              invoke  渲染 → 主：获取单个 Provider 配置
- * - SAVE             invoke  渲染 → 主：保存 Provider 配置
- * - SET_DEFAULT      invoke  渲染 → 主：设置默认 Provider
- * - CAPABILITIES     invoke  渲染 → 主：查询单个 Provider 能力
- * - CAPABILITIES_ALL invoke  渲染 → 主：查询所有 Provider 能力
- * - PRICING          invoke  渲染 → 主：查询单个 Provider 定价
- * - PRICING_ALL      invoke  渲染 → 主：查询所有 Provider 定价
+ * - LIST         invoke  渲染 → 主：列出已配置的 Provider（capabilities 已解析好带出来）
+ * - SAVE         invoke  渲染 → 主：保存 Provider 配置
+ * - SET_DEFAULT  invoke  渲染 → 主：设置默认 Provider
+ * - GET_DEFAULT  invoke  渲染 → 主：获取默认 Provider ID
+ *
+ * GET / CAPABILITIES / CAPABILITIES_ALL / PRICING / PRICING_ALL 五条已于 2026-10-24 整删（#210）：
+ * 能力本来就随 LIST 带出（provider-registry 里 getProviderCapabilities 解析），
+ * 定价由主进程算成成本后经 token:cost-stats 回一个数，单读一个 Provider 没有读者。
+ * 两张表与解析函数都还在，删的是重复出口。
  */
 export const PROVIDER = {
   /** 列出已配置的 Provider（invoke: 渲染 → 主） */
   LIST: 'provider:list',
-  /** 获取单个 Provider 配置（invoke: 渲染 → 主） */
-  GET: 'provider:get',
   /** 保存 Provider 配置（invoke: 渲染 → 主） */
   SAVE: 'provider:save',
   /** 设置默认 Provider（invoke: 渲染 → 主） */
   SET_DEFAULT: 'provider:set-default',
   /** 获取默认 Provider ID（invoke: 渲染 → 主） */
   GET_DEFAULT: 'provider:get-default',
-  /** 查询单个 Provider 能力（invoke: 渲染 → 主） */
-  CAPABILITIES: 'provider:capabilities',
-  /** 查询所有 Provider 能力（invoke: 渲染 → 主） */
-  CAPABILITIES_ALL: 'provider:capabilities-all',
-  /** 查询单个 Provider 定价（invoke: 渲染 → 主） */
-  PRICING: 'provider:pricing',
-  /** 查询所有 Provider 定价（invoke: 渲染 → 主） */
-  PRICING_ALL: 'provider:pricing-all',
 } as const
 
 /**

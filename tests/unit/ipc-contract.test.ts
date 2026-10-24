@@ -62,7 +62,7 @@ describe('入参校验真的在挡（负向对照）', () => {
   })
 
   it('类型用错当场抛，错误里带通道参数名', () => {
-    expect(() => assertContractArgs('providerGet', [42])).toThrow(/providerGet 第 1 个参数 id/)
+    expect(() => assertContractArgs('providerSetDefault', [42])).toThrow(/providerSetDefault 第 1 个参数 id/)
     expect(() => assertContractArgs('providerSave', [{ id: 'x' }])).toThrow(/第 1 个参数 config/)
     expect(() => assertContractArgs('providerSave', [{ id: 'x', name: 'n', type: 'deepseek', model: 'm' }])).not.toThrow()
   })

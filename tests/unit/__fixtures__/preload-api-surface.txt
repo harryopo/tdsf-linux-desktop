@@ -117,13 +117,8 @@ profilerDefaultFileName
 profilerExportMd
 profilerExportPdf
 profilerRun
-providerCapabilities
-providerCapabilitiesAll
-providerGet
 providerGetDefault
 providerList
-providerPricing
-providerPricingAll
 providerSave
 providerSetDefault
 riskCheck

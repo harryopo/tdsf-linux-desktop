@@ -467,15 +467,6 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
   },
   {
     kind: 'invoke',
-    api: 'providerGet',
-    channel: PROVIDER.GET,
-    doc: '取单个 Provider',
-    args: [{ name: 'id', ts: 'string', schema: str }],
-    resultTs: 'PersistedProviderConfig | null',
-    result: z.union([z.unknown(), z.null()]),
-  },
-  {
-    kind: 'invoke',
     api: 'providerSave',
     channel: PROVIDER.SAVE,
     doc: '保存 Provider（apiKey 由主进程走 SecureStore）',

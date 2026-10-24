@@ -1,6 +1,6 @@
 /** llm 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { LlmConfig, LlmTestResult } from '@shared/models'
-import type { CostStats, PersistedProviderConfig, ProviderCapabilitiesAllResponse, ProviderCapabilitiesRequest, ProviderCapabilitiesResponse, ProviderConfig, ProviderPricingAllResponse, ProviderPricingRequest, ProviderPricingResponse, TokenStats, TokenUsageRecord } from '@shared/agent-types'
+import type { CostStats, PersistedProviderConfig, ProviderConfig, TokenStats, TokenUsageRecord } from '@shared/agent-types'
 import { LLM, PROVIDER, TOKEN } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
@@ -28,10 +28,6 @@ const provider = {
   /** 列出所有 Provider 配置（不含 apiKey） */
   list: (onlyEnabled?: boolean): Promise<PersistedProviderConfig[]> =>
     invokeChecked<PersistedProviderConfig[]>('providerList', PROVIDER.LIST, onlyEnabled),
-
-  /** 获取指定 Provider 配置（不含 apiKey） */
-  get: (id: string): Promise<PersistedProviderConfig | null> =>
-    invokeChecked<PersistedProviderConfig | null>('providerGet', PROVIDER.GET, id),
 
   /** 保存 / 更新 Provider 配置（apiKey 自动走 SecureStore 加密） */
   save: (config: ProviderConfig): Promise<boolean> =>
@@ -103,57 +99,14 @@ const tokenCostStats = {
 }
 
 /**
- * v0.9.5 P0 - 组 5：Provider Info 能力 + 定价透明 invoke 调用
+ * Provider Info 那一族查询口已于 2026-10-24 整删（#210）。
  *
- * 通道与主进程 ipc/provider-info.ts 一一对应：
- * - provider:capabilities      → capabilities（指定 provider 的能力声明）
- * - provider:capabilities-all  → capabilitiesAll（所有 provider 类型的能力声明默认表）
- * - provider:pricing           → pricing（指定 provider 的定价表）
- * - provider:pricing-all       → pricingAll（所有 provider 类型的定价表默认表）
- *
- * 与现有 provider.list / provider.get / provider.save / provider.setDefault 的区别：
- * - provider.* 通道用于 Provider 配置 CRUD
- * - providerInfo.* 通道用于查询 Provider 的能力 + 定价（只读，不含敏感信息）
- *
- * 使用场景：
- * - UI 显示能力图标（如 🔄 streaming / 🔧 toolCall / 👁 vision / 📏 contextWindow）
- * - UI 显示 Provider 累计成本（如本月已消费 $X.XX）+ 成本告警
- * - Provider 配置页显示默认能力 + 定价说明表格
+ * 判据是"那件事本来就由谁做"：能力已经随 provider:list 带出（界面读的那一份由
+ * provider-registry 里的 getProviderCapabilities 解析），成本由主进程按同一张
+ * PROVIDER_PRICING 算好、经 token:cost-stats 回一个数。这四把键（capabilities /
+ * capabilities-all / pricing / pricing-all）渲染层一次都没调，留着等于给同一份
+ * 知识开第二个出口——将来谁改了 provider:list 的形状，这里会静默给出旧答案。
+ * 判据：tests/unit/provider-ipc-surface.test.ts
  */
-const providerInfo = {
-  /**
-   * 查询指定 provider 的能力声明
-   *
-   * @param request { providerId: string }
-   * @returns ProviderCapabilities | null（Provider 不存在时返回 null）
-   */
-  capabilities: (request: ProviderCapabilitiesRequest): Promise<ProviderCapabilitiesResponse> =>
-    ipcRenderer.invoke(PROVIDER.CAPABILITIES, request),
 
-  /**
-   * 查询所有 provider 类型的能力声明默认表
-   *
-   * @returns Record<string, ProviderCapabilities>（按 ProviderType 索引）
-   */
-  capabilitiesAll: (): Promise<ProviderCapabilitiesAllResponse> =>
-    ipcRenderer.invoke(PROVIDER.CAPABILITIES_ALL),
-
-  /**
-   * 查询指定 provider 的定价表
-   *
-   * @param request { providerId: string }
-   * @returns ModelPricing | null（Provider 不存在时返回 null）
-   */
-  pricing: (request: ProviderPricingRequest): Promise<ProviderPricingResponse> =>
-    ipcRenderer.invoke(PROVIDER.PRICING, request),
-
-  /**
-   * 查询所有 provider 类型的定价表默认表
-   *
-   * @returns Record<string, ModelPricing>（按 ProviderType 索引）
-   */
-  pricingAll: (): Promise<ProviderPricingAllResponse> =>
-    ipcRenderer.invoke(PROVIDER.PRICING_ALL),
-}
-
-export { llm, provider, token, tokenCostStats, providerInfo }
+export { llm, provider, token, tokenCostStats }

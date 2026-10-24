@@ -106,10 +106,6 @@ export interface ContractedInvokeApi {
    * 通道 `provider:list` */
   providerList(onlyEnabled?: boolean): Promise<PersistedProviderConfig[]>
 
-  /** 取单个 Provider
-   * 通道 `provider:get` */
-  providerGet(id: string): Promise<PersistedProviderConfig | null>
-
   /** 保存 Provider（apiKey 由主进程走 SecureStore）
    * 通道 `provider:save` */
   providerSave(config: ProviderConfig): Promise<boolean>

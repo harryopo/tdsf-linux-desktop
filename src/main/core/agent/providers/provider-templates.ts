@@ -120,8 +120,8 @@ export const PROVIDER_TEMPLATES: ProviderConfig[] = [
   },
 
   // ===== Kimi / Moonshot（新增，长上下文 + 编程档）=====
-  // type 用 openai-compatible：不新增 ProviderType（8 值联合被 provider:capabilities-all
-  // 与 provider:pricing-all 两条测试冻结，且两张按类型键控的表要跟着扩，收益为零）
+  // type 用 openai-compatible：不新增 ProviderType（8 值联合被 provider-capabilities
+  // 与 provider-pricing 两张按类型键控的表冻着，加一个值要同时补两张表，收益为零）
   {
     id: 'kimi-k3',
     name: 'Kimi K3（1M 上下文）',

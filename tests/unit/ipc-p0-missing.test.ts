@@ -1,19 +1,20 @@
 /**
  * v0.9.5 P0 补齐通道的单元测试（IPC 4 步同步铁律验证）
  *
- * 覆盖 7 个方法：
+ * 覆盖 3 个方法：
  * - token:cost-stats（1 个）— 成本透明
  * - subagent:list / subagent:reload（2 个）— 自定义 Agent 加载器
- * - provider:capabilities / capabilities-all / pricing / pricing-all（4 个）— Provider 能力 + 定价透明
  *
  * 曾有第 4 组 mode:list / mode:set-default / mode:get-current（8 个用例），
  * 2026-10-24 随实现整删：五模式既不注入 system prompt 也不拦工具，
  * 渲染层零调用，测试测的是一层没有执行体的包装。
+ * 曾有第 5 组 provider:capabilities* / pricing*（8 个用例），同日同批整删（#210）：
+ * 能力随 provider:list 带出、成本由主进程按定价表算好后经 token:cost-stats 回一个数，
+ * 那四条通道只是同一份知识的第二个出口，而这 8 个用例测的就是那层包装本身。
  *
  * 测试策略（混合 Mock + 真实模块）：
  * - Mock electron（ipcMain.handle 捕获 + app.getAppPath）+ electron-store（logger 依赖）
  * - Mock IO 依赖模块：getCostStats / getProvider / loadCustomAgents / loadCustomAgent
- * - 使用真实模块：provider-capabilities / provider-pricing（纯表）
  * - 每个测试用例独立隔离（beforeEach 清空 handlers map + 清空 Mock 调用记录）
  *
  * IPC 4 步同步铁律验证：
@@ -99,7 +100,6 @@ vi.mock('../../src/main/core/agent/subagents/agent-loader', () => ({
 
 import { registerTokenCostStatsHandlers } from '../../src/main/ipc/token-stats'
 import { registerSubagentHandlers } from '../../src/main/ipc/subagent'
-import { registerProviderInfoHandlers } from '../../src/main/ipc/provider-info'
 
 // 导入 Mock 模块的引用（用于在测试中控制返回值）
 import { getCostStats } from '../../src/main/core/agent/providers/token-stats'
@@ -109,23 +109,12 @@ import {
   loadCustomAgent,
 } from '../../src/main/core/agent/subagents/agent-loader'
 
-// 导入真实模块（provider-capabilities / provider-pricing 是纯表，用于集成测试）
-import { PROVIDER_CAPABILITIES } from '../../src/main/core/agent/providers/provider-capabilities'
-import { PROVIDER_PRICING } from '../../src/main/core/agent/providers/provider-pricing'
-
 // 导入类型
 import type {
   CostStats,
   CustomAgentConfig,
   SubagentReloadRequest,
   SubagentReloadResponse,
-  ProviderCapabilitiesRequest,
-  ProviderCapabilities,
-  ProviderCapabilitiesAllResponse,
-  ProviderPricingRequest,
-  ModelPricing,
-  ProviderPricingAllResponse,
-  PersistedProviderConfig,
 } from '@shared/agent-types'
 
 // ============================================================================
@@ -150,10 +139,9 @@ beforeEach(() => {
     delete handlers[key]
   }
 
-  // 注册剩余 3 组 IPC handlers（捕获到 handlers map）
+  // 注册剩余 2 组 IPC handlers（捕获到 handlers map）
   registerTokenCostStatsHandlers()
   registerSubagentHandlers()
-  registerProviderInfoHandlers()
 
   // 重置 Mock 函数（清除调用记录 + 重置实现为返回 undefined）
   vi.mocked(getCostStats).mockReset()
@@ -314,129 +302,5 @@ describe('[组 3] subagent:* IPC 通道', () => {
     expect(result.success).toBe(false)
     expect(result.reloaded).toEqual([])
     expect(result.failed).toEqual([])
-  })
-})
-
-// ============================================================================
-// 组 4：provider:capabilities* / pricing*（Provider 能力 + 定价透明）— 8 个测试
-// ============================================================================
-
-describe('[组 4] provider:capabilities* / pricing* IPC 通道', () => {
-  /** 构造 mock ProviderConfig（PersistedProviderConfig 不含 apiKey） */
-  function makeMockProvider(
-    id: string,
-    type: PersistedProviderConfig['type']
-  ): PersistedProviderConfig {
-    return {
-      id,
-      name: `Provider ${id}`,
-      type,
-      baseURL: 'https://example.com/v1',
-      model: 'test-model',
-    }
-  }
-
-  it('4.1 四个通道已注册到 ipcMain.handle', () => {
-    expect(handlers['provider:capabilities']).toBeDefined()
-    expect(handlers['provider:capabilities-all']).toBeDefined()
-    expect(handlers['provider:pricing']).toBeDefined()
-    expect(handlers['provider:pricing-all']).toBeDefined()
-  })
-
-  it('4.2 provider:capabilities 入参非法（null）→ 返回 null', async () => {
-    const result = await handlers['provider:capabilities'](
-      mockEvent,
-      null as unknown as ProviderCapabilitiesRequest
-    )
-
-    expect(result).toBeNull()
-  })
-
-  it('4.3 provider:capabilities Provider 不存在 → 返回 null', async () => {
-    vi.mocked(getProvider).mockReturnValue(null)
-
-    const result = await handlers['provider:capabilities'](mockEvent, {
-      providerId: 'non-existent',
-    })
-
-    expect(result).toBeNull()
-    expect(vi.mocked(getProvider)).toHaveBeenCalledWith('non-existent')
-  })
-
-  it('4.4 provider:capabilities 合法 Provider → 返回 ProviderCapabilities', async () => {
-    const mockProvider = makeMockProvider('deepseek-v4', 'deepseek')
-    vi.mocked(getProvider).mockReturnValue(mockProvider)
-
-    const result: ProviderCapabilities = await handlers['provider:capabilities'](
-      mockEvent,
-      { providerId: 'deepseek-v4' }
-    )
-
-    expect(result).toBeDefined()
-    expect(typeof result.streaming).toBe('boolean')
-    expect(typeof result.toolCall).toBe('boolean')
-    expect(typeof result.vision).toBe('boolean')
-    expect(typeof result.contextWindow).toBe('number')
-    // deepseek 默认能力：streaming=true, toolCall=true, vision=false, contextWindow=64000
-    expect(result.streaming).toBe(true)
-    expect(result.toolCall).toBe(true)
-    expect(result.vision).toBe(false)
-    expect(result.contextWindow).toBe(64_000)
-  })
-
-  it('4.5 provider:capabilities-all 返回所有 ProviderType 的能力声明（7 个类型）', async () => {
-    const result: ProviderCapabilitiesAllResponse =
-      await handlers['provider:capabilities-all'](mockEvent)
-
-    expect(result).toBeDefined()
-    const types = Object.keys(result)
-    expect(types).toHaveLength(7)
-    expect(types).toContain('anthropic')
-    expect(types).toContain('google')
-    expect(types).toContain('openai-compatible')
-    expect(types).toContain('deepseek')
-    expect(types).toContain('qwen')
-    expect(types).toContain('volcengine-ark')
-    expect(types).toContain('ollama')
-  })
-
-  it('4.6 provider:capabilities-all 返回深拷贝（不污染内部 PROVIDER_CAPABILITIES 表）', async () => {
-    const result: ProviderCapabilitiesAllResponse =
-      await handlers['provider:capabilities-all'](mockEvent)
-
-    // 修改返回值，不应影响内部表
-    result['anthropic'].contextWindow = 999_999
-    expect(PROVIDER_CAPABILITIES['anthropic'].contextWindow).toBe(200_000)
-  })
-
-  it('4.7 provider:pricing 合法 Provider → 返回 ModelPricing', async () => {
-    const mockProvider = makeMockProvider('anthropic-claude', 'anthropic')
-    vi.mocked(getProvider).mockReturnValue(mockProvider)
-
-    const result: ModelPricing = await handlers['provider:pricing'](mockEvent, {
-      providerId: 'anthropic-claude',
-    })
-
-    expect(result).toBeDefined()
-    expect(typeof result.inputCostPer1M).toBe('number')
-    expect(typeof result.outputCostPer1M).toBe('number')
-    expect(result.currency).toBe('USD')
-    // anthropic 默认定价：$3/1M input + $15/1M output
-    expect(result.inputCostPer1M).toBe(3.0)
-    expect(result.outputCostPer1M).toBe(15.0)
-  })
-
-  it('4.8 provider:pricing-all 返回所有 ProviderType 的定价表 + 深拷贝验证', async () => {
-    const result: ProviderPricingAllResponse = await handlers['provider:pricing-all'](
-      mockEvent
-    )
-
-    expect(result).toBeDefined()
-    expect(Object.keys(result)).toHaveLength(7)
-    expect(result['ollama'].inputCostPer1M).toBe(0.0) // ollama 是本地推理，0 成本
-
-    // 深拷贝验证：修改返回值不应影响内部表
-    result['anthropic'].inputCostPer1M = 999
-    expect(PROVIDER_PRICING['anthropic'].inputCostPer1M).toBe(3.0)
   })
 })

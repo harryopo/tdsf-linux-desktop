@@ -7,7 +7,6 @@
  * - agent:chat          — 启动 supervisor 流式 chat（异步，通过事件推送 token/done/error）
  * - agent:chat:cancel   — 取消进行中的 chat 请求（注意：旧 agent:cancel 是 AgentWorkflow 通道，不冲突）
  * - provider:list       — 列出所有 Provider（仅 enabled 或全部）
- * - provider:get        — 获取单个 Provider 配置（不含 apiKey）
  * - provider:save       — 保存 Provider（apiKey 单独走 SecureStore）
  * - provider:set-default — 设置默认 Provider ID（P-6：统一为 kebab-case，与 sandbox:approval-request 等保持一致）
  * - token:stats         — 获取 token 统计聚合
@@ -34,7 +33,6 @@ import { AGENT, TOKEN } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
-  getProvider,
   saveProvider,
   setDefaultProviderId,
   getDefaultProviderId,
@@ -46,7 +44,6 @@ import { getTokenStats, resetTokenStats, getTokenRecords, getCostStats } from '.
 import { classifyLlmError } from '../core/agent/providers/llm-error'
 import type {
   ProviderConfig,
-  PersistedProviderConfig,
   ThinkingStrength,
   TokenStats,
   TokenUsageRecord,
@@ -337,18 +334,6 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   )
 
   // ------------------------------------------------------------------
-  // provider:get — 获取单个 Provider 配置（不含 apiKey）
-  // ------------------------------------------------------------------
-  ipcMain.handle(
-    'provider:get',
-    async (_event, id: string): Promise<PersistedProviderConfig | null> => {
-      const provider = getProvider(id)
-      logger.debug('IPC.PROVIDER', `provider:get`, { id, found: !!provider })
-      return provider
-    }
-  )
-
-  // ------------------------------------------------------------------
   // provider:save — 保存 Provider 配置
   // ------------------------------------------------------------------
   ipcMain.handle(
@@ -538,7 +523,6 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       'agent:paor',
       'paor:approve',
       'provider:list',
-      'provider:get',
       'provider:save',
       'provider:set-default',
       'provider:get-default',

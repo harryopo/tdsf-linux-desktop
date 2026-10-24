@@ -43,12 +43,13 @@ import { registerSandboxIpcHandlers } from './sandbox'
 // v0.9.5 P0 新增：缺失 IPC 通道补齐
 // - 组 1：token:cost-stats（成本透明）
 // - 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
-// - 组 5：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
 // 组 2（mode:* 五模式切换）已于 2026-10-24 整删：模式既不注入 prompt 也不拦工具，
 // 渲染层零调用，只有 MCP 资源把它当真实能力对外公布——那是谎报，不是半成品。
+// Provider 的能力/定价查询那四条通道同批整删（#210）：能力已经随 provider 列表带出、
+// provider:list 带出、成本由主进程按定价表算好后经 token:cost-stats 回一个数，
+// 这四条只是同一份知识的第二个出口，渲染层一次都没调过。
 import { registerTokenCostStatsHandlers } from './token-stats'
 import { registerSubagentHandlers } from './subagent'
-import { registerProviderInfoHandlers } from './provider-info'
 // v0.9.5 P0 新增：MCP 5 阶段状态机 IPC（借鉴 claw-code §3.3）
 import { registerMcpStateHandlers } from './mcp'
 // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
@@ -216,10 +217,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 组 3：subagent:list / subagent:reload（自定义 Agent 加载器）
   // 让 UI 列出 / 热重载项目根 .tdsf/agent/*.md 中的自定义 agent 配置
   registerSubagentHandlers()
-
-  // 组 4：provider:capabilities* / provider:pricing* 4 通道（Provider 能力 + 定价透明）
-  // 让 UI 显示 Provider 能力图标（streaming/toolCall/vision/contextWindow）+ 定价表
-  registerProviderInfoHandlers()
 
   // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
   // 暴露 mcp:get-state / mcp:reset / mcp:state-changed

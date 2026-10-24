@@ -483,7 +483,18 @@ function main(): void {
  * 「重置失败计数」真的走 `mcp:reset` 并且按完重新读一次。
  * 判据：`tests/components/pages/mcp-settings-gateway.test.tsx` 六条，
  * 含两条"读不到就不许冒充连接正常"与一条"离开这一页必须摘掉订阅"（回调叠加是 W0 的老账）。
+ * 47 → 42 是减面（#210）：Provider 的五把查询键整删——`providerGet` 与
+ * `providerCapabilities` / `capabilitiesAll` / `pricing` / `pricingAll`。
+ * 每条都先问"那件事本来就由谁做"：能力已经随 `provider:list` 带出
+ * （provider-registry 里 getProviderCapabilities 解析，Composer 的上下文分母与
+ * provider-capability-override 读的都是这一份），成本由主进程按同一张 PROVIDER_PRICING
+ * 算成一个数经 `token:cost-stats` 回给界面，单读一个 Provider 没有第二个读者。
+ * 这批不是"少了几把没人按的键"，是少了同一份知识的第二个真相源：将来谁改了 provider:list
+ * 的形状，那四条通道会静默给出旧答案。两张表与解析函数都留着，删的是重复出口；
+ * `ipc-p0-missing` 里那 8 条只测这层包装的用例同批删（与 #193/#196 同一口径）。
+ * 判据：`tests/unit/provider-ipc-surface.test.ts` 五条，含一条"反过度砍"正对照
+ * （两张表与三个活消费者不许一起带走）。
  */
-const UNUSED_CAP = 47
+const UNUSED_CAP = 42
 
 main()

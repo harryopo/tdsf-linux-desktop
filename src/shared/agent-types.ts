@@ -885,12 +885,12 @@ export function generateSessionId(prefix: string = 'sess'): SessionId {
 // 任务：v0.9.5 渲染层 UI 集成 - 补齐主进程已实现但界面拿不到的通道
 //   token:cost-stats（成本透明）
 //   subagent:list / subagent:reload（自定义 Agent 加载器）
-//   provider:capabilities / provider:capabilities-all / provider:pricing /
-//   provider:pricing-all（Provider 能力 + 定价透明）
 //
 // 组 2（mode:* 五模式切换）的类型已于 2026-10-24 随实现整删：
 // mode 既不注入 system prompt 也不拦工具，渲染层零调用，
 // 而 MCP 资源曾把 allowedTools/canWriteFiles 当真实能力对外公布。
+// 组 5（Provider 能力 + 定价查询那四条）同日同批删（#210）：
+// 能力随 provider 列表通道带出、成本由主进程按定价表算成一个数，这层是第二个真相源。
 //
 // 设计原则：
 // - SSOT：所有跨端共享的类型集中在 src/shared/agent-types.ts
@@ -989,45 +989,6 @@ export interface TerminalCompletionSuggestion {
   source: 'history' | 'static'
 }
 
-/**
- * provider:capabilities IPC 通道请求参数
- */
-export interface ProviderCapabilitiesRequest {
-  /** Provider ID */
-  providerId: string
-}
-
-/**
- * provider:capabilities IPC 通道返回值
- *
- * 注意：返回 ProviderCapabilities 而非 ProviderConfig.capabilities，
- * 因为 main 进程的 getProviderCapabilities() 会按优先级回退到默认表。
- */
-export type ProviderCapabilitiesResponse = ProviderCapabilities | null
-
-/**
- * provider:capabilities-all IPC 通道返回值
- *
- * 返回所有 ProviderType 的默认能力声明（按 type 索引）。
- */
-export type ProviderCapabilitiesAllResponse = Record<string, ProviderCapabilities>
-
-/**
- * provider:pricing IPC 通道请求参数
- */
-export interface ProviderPricingRequest {
-  /** Provider ID */
-  providerId: string
-}
-
-/**
- * provider:pricing IPC 通道返回值
- */
-export type ProviderPricingResponse = ModelPricing | null
-
-/**
- * provider:pricing-all IPC 通道返回值
- *
- * 返回所有 ProviderType 的默认定价表（按 type 索引）。
- */
-export type ProviderPricingAllResponse = Record<string, ModelPricing>
+// Provider 能力/定价查询那四条通道的 Request 与 Response 别名已于 2026-10-24 随出口整删（#210）：
+// 能力随 provider 列表通道带出、成本由主进程算好，ProviderCapabilities 与 ModelPricing
+// 两个接口仍在用（ProviderConfig 的字段形状）。
