@@ -134,6 +134,16 @@ describe('[renderer-calls] 拿真件复测', () => {
     expect(src.length).toBeGreaterThan(500)
   })
 
+  it('教程页的预检真把 sandbox:status 与 sandbox:start 接上了（#202）', () => {
+    const src = readFileSync('src/renderer/src/pages/TutorialDetailPage.tsx', 'utf8')
+    const used = rendererMembersUsed(src)
+    expect(used, '点「打开沙箱并执行」先读 sandboxStatus，才分得清 Docker 与容器').toContain(
+      'sandboxStatus',
+    )
+    expect(used, '容器没起那一档要能真启动，不许只给一句话').toContain('sandboxStart')
+    expect(src.length).toBeGreaterThan(2000)
+  })
+
   it('反向对照：一个已整删的键不许出现在任何渲染层源码里', () => {
     // modeList 那组通道 2026-10-24 已整删；若哪天识别器把注释也算成调用，这里就会红
     const src = readFileSync('src/preload/index.ts', 'utf8')

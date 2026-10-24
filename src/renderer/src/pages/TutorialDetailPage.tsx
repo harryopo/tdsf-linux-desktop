@@ -22,7 +22,12 @@ import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Clock,
   Terminal, List, Star, ChevronRight, Loader2,
 } from 'lucide-react'
-import { Button, Chip, Dialog, DialogContent, PageHeader } from '@/ui'
+import { Button, Chip, Dialog, DialogContent, PageHeader, confirmDialog } from '@/ui'
+import {
+  SANDBOX_START_WAIT_MS,
+  planSandboxPreflight,
+  waitSandboxReady,
+} from '@/lib/sandbox-preflight'
 import type { TutorialEntry } from '@shared/tutorial-types'
 import { TUTORIAL_DIFFICULTY_LABELS } from '@shared/tutorial-types'
 import './TutorialPage.css'
@@ -561,6 +566,8 @@ export function TutorialDetailPage() {
    * 打开沙箱并执行实践命令（v1.0 P0 接入 sandboxCreate + sandboxExecute IPC）
    *
    * 流程：
+   *   0. sandboxStatus 预检：Docker 没跑就直说"请先启动 Docker"；容器没起就问要不要现在启动
+   *      （以前这两种都塌成一句 `沙箱创建失败：connect ECONNREFUSED ...`，用户看不懂）
    *   1. 检测 window.electronAPI?.sandboxExecute（非 Electron 环境降级）
    *   2. sandboxList 查找现有沙箱（status='READY'）；无则 sandboxCreate 创建新沙箱
    *   3. sandboxExecute(sandboxId, command) 执行实践命令
@@ -579,6 +586,52 @@ export function TutorialDetailPage() {
       toast.warning('当前环境不支持沙箱执行（非 Electron 环境）')
       return
     }
+
+    // Step 0：预检。Docker 没跑与容器没起是两种成因、两种修法，
+    // 以前都变成"沙箱创建失败：connect ECONNREFUSED …"，Linux 初学者看到的是一堵墙。
+    const hideCheck = toast.loading('检查沙箱环境…')
+    let preflight = planSandboxPreflight(null)
+    try {
+      preflight = planSandboxPreflight(await window.electronAPI.sandboxStatus())
+    } catch (err) {
+      console.warn('[TutorialDetailPage] sandbox:status 读取失败', err)
+    } finally {
+      toast.dismiss(hideCheck)
+    }
+    if (preflight.kind === 'container-stopped') {
+      const ok = await confirmDialog({
+        title: '启动沙箱容器',
+        description: preflight.message,
+        okText: '启动',
+        cancelText: '先不启动',
+      })
+      if (!ok) return
+      const hideStart = toast.loading('正在启动沙箱容器…')
+      try {
+        const started = await window.electronAPI.sandboxStart()
+        // start 只是把容器交出去，能不能应答要等。读一次就判死，会把"再等两秒就好"说成"没能起来"。
+        const recheck = await waitSandboxReady(async () => window.electronAPI!.sandboxStatus())
+        if (recheck.kind !== 'ready') {
+          const detail = started && 'error' in started ? started.error : undefined
+          toast.error(
+            recheck.kind === 'container-stopped'
+              ? `等了 ${SANDBOX_START_WAIT_MS / 1000} 秒，沙箱容器还是没就绪${detail ? `：${detail}` : ''}`
+              : recheck.message,
+          )
+          return
+        }
+        toast.success('沙箱容器已就绪')
+      } catch (err) {
+        toast.error(`启动沙箱容器失败：${err instanceof Error ? err.message : String(err)}`)
+        return
+      } finally {
+        toast.dismiss(hideStart)
+      }
+    } else if (preflight.kind !== 'ready') {
+      toast.warning(preflight.message)
+      return
+    }
+
     setSandboxRunning(true)
     const hideId = toast.loading('准备沙箱环境...')
     try {

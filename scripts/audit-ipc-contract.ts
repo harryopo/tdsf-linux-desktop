@@ -439,9 +439,14 @@ function main(): void {
  * 横扫口径：把清单里每个键名在渲染层正文（剥注释、排除 .d.ts）里做一次宽松出现匹配，
  * 76 个键命中 4 个，其中 3 个只在生成的类型文件里（kbExport / providerGet / sftpStat，不算调用），
  * 剩下那 1 个 dbGetStatus 是真的第四种写法。**判"某键没人用"之前先问"我这把尺认得几种写法"。**
+ * 75 → 73 这一步是**还债不是修尺子**：教程页那颗「打开沙箱并执行」以前只检查
+ * `sandboxExecute` 这把键在不在就直接 list → create，Docker 没开时用户看到的是
+ * `沙箱创建失败：connect ECONNREFUSED …`；而 `sandbox:status` 一直分得清"Docker 没跑"
+ * 与"容器没起"（它的类型注释自己写着"用于 UI 展示"），`sandbox:start` 一直能把容器拉起来。
+ * 现在预检走这两条：读不到状态/缺 Docker 就说不做，容器没起就问一句再启动（#202）。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 75
+const UNUSED_CAP = 73
 
 main()

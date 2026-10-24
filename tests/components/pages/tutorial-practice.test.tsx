@@ -9,12 +9,15 @@
  *      （打开页面就显示"（正确）"）；
  *   3. 教程会创建 Docker 沙箱，但界面上没有停止/删除入口，资源只增不减。
  *
- * 判据：真实命令上屏、假题目/假压测不出现、执行用的是教程第一条命令、删得掉。
+ * 判据：真实命令上屏、假题目/假压测不出现、执行用的是教程第一条命令、删得掉，
+ * 以及 #202 的预检：Docker 没跑时根本不去建沙箱，容器没起时先问一句、点了才启动。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { ConfirmHost } from '../../../src/renderer/src/ui/confirm'
+import type { SandboxHealthStatus } from '../../../src/renderer/src/types/electron'
 import type { TutorialEntry } from '../../../src/shared/tutorial-types'
 
 const ENTRY: TutorialEntry = {
@@ -39,6 +42,16 @@ const api = {
   tutorialProgress: vi.fn(async () => []),
   tutorialUpdateProgress: vi.fn(async () => ({ ok: true })),
   onSandboxApprovalRequest: vi.fn(() => () => undefined),
+  // 预检这一档必须在假信封里（#202）：页面现在先读状态再决定要不要去建沙箱，
+  // 少了这两个键，测试会把"预检挡住"误读成"沙箱功能坏了"。
+  // 返回值要按正本形状标出来：不标类型的话 dockerVersion 会被推成 string，
+  // 后面那条"没有 Docker 时版本是 null"的用例就写不进去。
+  sandboxStatus: vi.fn(async (): Promise<SandboxHealthStatus> => ({
+    dockerReady: true,
+    dockerVersion: '27.3.1',
+    openhandsRunning: true,
+  })),
+  sandboxStart: vi.fn(async () => ({ success: true as const })),
   sandboxList: vi.fn(async () => ({ items: [] })),
   sandboxCreate: vi.fn(async () => ({ id: 'sb-1' })),
   sandboxExecute: vi.fn(async () => ({ stdout: 'Filesystem Size Used', stderr: '', exitCode: 0 })),
@@ -57,11 +70,15 @@ vi.mock('sonner', () => {
 async function mount() {
   const { TutorialDetailPage } = await import('../../../src/renderer/src/pages/TutorialDetailPage')
   return render(
-    <MemoryRouter initialEntries={['/tutorial/tut-1']}>
-      <Routes>
-        <Route path="/tutorial/:id" element={<TutorialDetailPage />} />
-      </Routes>
-    </MemoryRouter>
+    <>
+      {/* 预检在"容器没起"那一档要弹确认框，宿主与 App 里一样挂在同级 */}
+      <ConfirmHost />
+      <MemoryRouter initialEntries={['/tutorial/tut-1']}>
+        <Routes>
+          <Route path="/tutorial/:id" element={<TutorialDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    </>
   )
 }
 
@@ -96,5 +113,38 @@ describe('教程实践与验证', () => {
     const del = await screen.findByRole('button', { name: /删除沙箱/ })
     await user.click(del)
     await waitFor(() => expect(api.sandboxDelete).toHaveBeenCalledWith('sb-1'))
+  })
+
+  it('Docker 没跑时不去创建沙箱，只把这一句说给人听（#202 预检）', async () => {
+    const user = userEvent.setup()
+    api.sandboxStatus.mockResolvedValueOnce({
+      dockerReady: false,
+      dockerVersion: null,
+      openhandsRunning: false,
+      error: 'Docker 未运行',
+    })
+    await mount()
+    await user.click(await screen.findByRole('button', { name: '打开沙箱练习' }))
+
+    await waitFor(() => expect(api.sandboxStatus).toHaveBeenCalledTimes(1))
+    expect(api.sandboxList, '读不到 Docker 就不该去碰后面三步').not.toHaveBeenCalled()
+    expect(api.sandboxCreate).not.toHaveBeenCalled()
+    expect(api.sandboxExecute).not.toHaveBeenCalled()
+  })
+
+  it('容器没起时先问一句，用户点"启动"才真的拉容器并继续执行（#202 预检）', async () => {
+    const user = userEvent.setup()
+    api.sandboxStatus.mockResolvedValueOnce({
+      dockerReady: true,
+      dockerVersion: '27.3.1',
+      openhandsRunning: false,
+    })
+    await mount()
+
+    await user.click(await screen.findByRole('button', { name: '打开沙箱练习' }))
+    await user.click(await screen.findByRole('button', { name: '启动' }))
+
+    await waitFor(() => expect(api.sandboxStart).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(api.sandboxExecute).toHaveBeenCalledWith('sb-1', 'df -h'))
   })
 })
