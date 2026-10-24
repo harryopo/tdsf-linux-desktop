@@ -131,20 +131,9 @@ export function registerStorageIpcHandlers(): void {
     return ConfigStore.saveServerList(servers)
   })
 
-  /** server:export — 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
-  ipcMain.handle(SERVER.EXPORT, async () => {
-    return ConfigStore.exportServerList()
-  })
-
-  /** server:import — 导入服务器列表（生成新 ID，敏感信息留空） */
-  ipcMain.handle(SERVER.IMPORT, async (_event, json: string) => {
-    try {
-      return ConfigStore.importServerList(json)
-    } catch (err) {
-      // 抛出用户可读的错误信息（不泄露 stack trace）
-      throw new Error((err as Error).message)
-    }
-  })
+  // server:export / server:import 已于 2026-10-24 整删：界面走的是要过原生对话框的
+  // server:export-file / server:import-file。留一对"不用任何用户手势就能整表覆盖
+  // sshServers"的通道，除了多一个写入口不给用户任何东西。
 
   /** server:delete-cred — 删除服务器凭证 */
   ipcMain.handle(SERVER.DELETE_CRED, async (_event, serverId: string) => {

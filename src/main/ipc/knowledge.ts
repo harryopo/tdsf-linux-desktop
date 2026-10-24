@@ -8,7 +8,6 @@
  * - kb:add    — 添加知识条目
  * - kb:update — 更新知识条目（部分字段）
  * - kb:delete — 删除知识条目
- * - kb:import — 批量导入（自动去重）
  * - kb:export — 导出全部（可选类型过滤）
  *
  * 数据库依赖：
@@ -122,23 +121,6 @@ export function registerKnowledgeHandlers(mainWindow: BrowserWindow): void {
       return repo.delete(id)
     } catch (err) {
       throw new Error(`知识库删除失败: ${(err as Error).message}`)
-    }
-  })
-
-  // ------------------------------------------------------------------
-  // kb:import — 批量导入
-  // ------------------------------------------------------------------
-
-  /**
-   * 参数：(entries: KnowledgeEntry[])
-   * 返回：number（成功导入的数量）
-   */
-  ipcMain.handle(KNOWLEDGE.IMPORT, async (_event, entries: KnowledgeEntry[]) => {
-    try {
-      const repo = getKnowledgeRepo()
-      return repo.importEntries(entries)
-    } catch (err) {
-      throw new Error(`知识库导入失败: ${(err as Error).message}`)
     }
   })
 

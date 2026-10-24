@@ -837,8 +837,6 @@ export interface IpcChannelMap {
   // 服务器列表管理
   'server:list': { args: []; return: SshConfig[] }
   'server:save': { args: [SshConfig[]]; return: boolean }
-  'server:export': { args: []; return: string }
-  'server:import': { args: [string]; return: SshConfig[] }
   'server:delete-cred': { args: [string]; return: boolean }
 
   // 配置存储
@@ -850,7 +848,6 @@ export interface IpcChannelMap {
   'kb:add': { args: [KnowledgeEntry]; return: boolean }
   'kb:update': { args: [string, Partial<KnowledgeEntry>]; return: boolean }
   'kb:delete': { args: [string]; return: boolean }
-  'kb:import': { args: [KnowledgeEntry[]]; return: number }
   'kb:export': { args: [KnowledgeType?]; return: KnowledgeEntry[] }
   'kb:view': { args: [string]; return: boolean }
   'kb:hot': { args: [number?]; return: KnowledgeEntry[] }

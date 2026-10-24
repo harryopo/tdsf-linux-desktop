@@ -77,14 +77,6 @@ const server = {
   save: (servers: SshConfig[]): Promise<boolean> =>
     ipcRenderer.invoke(SERVER.SAVE, servers),
 
-  /** 导出服务器列表为 JSON（脱敏，不含密码/私钥） */
-  export: (): Promise<string> =>
-    ipcRenderer.invoke(SERVER.EXPORT),
-
-  /** 导入服务器列表（生成新 ID，敏感信息留空） */
-  import: (json: string): Promise<SshConfig[]> =>
-    ipcRenderer.invoke(SERVER.IMPORT, json),
-
   /** 弹保存框导出服务器列表（不含凭据；取消回 canceled） */
   exportFile: (): Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }> =>
     invokeChecked('serverExportFile', SERVER.EXPORT_FILE),

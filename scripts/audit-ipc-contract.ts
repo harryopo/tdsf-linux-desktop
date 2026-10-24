@@ -426,9 +426,13 @@ function main(): void {
  * 和 `const call = api?.localTtyClose` 这种"取引用回头再调"的写法。
  * 新认出的 6 条 localTtyWrite / localTtyResize / localTtyClose / onLocalTtyExit /
  * sshShellClose / fileWatchStart 都回代码核过是真的调用点，不是把没用洗成在用。
+ * 80 → 77 是同批的减法：整删三条"渲染层递整批数据就能写配置/写库、且界面从来不用"的通道
+ * （`server:export` / `server:import` / `kb:import`）。在用的替代品都要求用户在原生
+ * 对话框里挑文件（`server:export-file` / `server:import-file` / `kb:import-file`），
+ * 少一把无人按的写入口，就少一条被 XSS 用到的路径。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
  */
-const UNUSED_CAP = 80
+const UNUSED_CAP = 77
 
 main()

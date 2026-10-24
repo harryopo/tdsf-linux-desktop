@@ -789,21 +789,8 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     result: z.unknown(),
   },
   // ===== 知识库导入与语义索引（#180）=====
-  {
-    kind: 'invoke',
-    api: 'kbImport',
-    channel: KNOWLEDGE.IMPORT,
-    doc: '批量导入已解析好的知识条目（按关键词相似度合并）',
-    args: [
-      {
-        name: 'entries',
-        ts: 'KnowledgeEntry[]',
-        schema: z.array(z.unknown()).max(5000),
-      },
-    ],
-    resultTs: 'number',
-    result: z.number().int().min(0),
-  },
+  // kbImport（渲染层递整批条目进库）已于 2026-10-24 整删：
+  // 界面只走 kbImportFile——文件由用户在原生对话框里挑，形状与来源都在主进程侧把关。
   {
     kind: 'invoke',
     api: 'kbExport',

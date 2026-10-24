@@ -141,8 +141,7 @@ const electronApi = {
   // ===== 服务器管理扁平化 =====
   serverList: server.list,
   serverSave: server.save,
-  serverExport: server.export,
-  serverImport: server.import,
+  // serverExport / serverImport 已整删：界面只用要过原生对话框的 *File 两把键
   serverExportFile: server.exportFile,
   serverImportFile: server.importFile,
   serverDeleteCred: server.deleteCred,
@@ -323,10 +322,8 @@ const electronApi = {
     invokeChecked('kbExport', KNOWLEDGE.EXPORT, type),
   kbGet: (id: string): Promise<KnowledgeEntry | null> =>
     ipcRenderer.invoke(KNOWLEDGE.GET, id),
-  // 批量导入的是**已解析好的条目数组**（通道名没变，以前这里手写成 data: string，
-  // 主进程那边按数组遍历，类型对不上，谁照签名传字符串谁就静默导 0 条）
-  kbImport: (entries: KnowledgeEntry[]): Promise<number> =>
-    invokeChecked('kbImport', KNOWLEDGE.IMPORT, entries),
+  // kbImport（整批条目直接进库）已整删：导入只走下面这把选文件的键，
+  // 形状与来源都在主进程侧校验，渲染层递数组写库那条路不再存在。
   // 弹打开框导入 Markdown/文本/JSON 知识文件（#180）：选文件与解析都在主进程
   kbImportFile: (): Promise<{
     ok: boolean

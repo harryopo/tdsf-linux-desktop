@@ -426,10 +426,6 @@ export const SERVER = {
   LIST: 'server:list',
   /** 保存服务器配置（invoke: 渲染 → 主） */
   SAVE: 'server:save',
-  /** 导出服务器配置 JSON（invoke: 渲染 → 主） */
-  EXPORT: 'server:export',
-  /** 导入服务器配置 JSON（invoke: 渲染 → 主） */
-  IMPORT: 'server:import',
   /** 导出服务器配置到用户选定的文件（invoke: 渲染 → 主，主进程弹保存框） */
   EXPORT_FILE: 'server:export-file',
   /** 从用户选定的文件导入服务器配置（invoke: 渲染 → 主，主进程弹打开框） */
@@ -547,8 +543,8 @@ export const KNOWLEDGE = {
   ADD: 'kb:add',
   /** 删除知识条目（invoke: 渲染 → 主） */
   DELETE: 'kb:delete',
-  /** 批量导入知识条目（invoke: 渲染 → 主） */
-  IMPORT: 'kb:import',
+  // kb:import（直接传整批 KnowledgeEntry[] 进库）已于 2026-10-24 整删：
+  // 界面走 kb:import-file，文件由用户从原生对话框挑，导入形状与来源都在应用控制里。
   /** 批量导出知识条目（invoke: 渲染 → 主） */
   EXPORT: 'kb:export',
   /** 搜索知识条目（invoke: 渲染 → 主） */

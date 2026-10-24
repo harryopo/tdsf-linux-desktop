@@ -51,7 +51,6 @@ kbDelete
 kbExport
 kbGet
 kbHot
-kbImport
 kbImportFile
 kbRecentViews
 kbReindexEmbeddings
@@ -153,9 +152,7 @@ schedulerList
 schedulerToggle
 schedulerTrigger
 serverDeleteCred
-serverExport
 serverExportFile
-serverImport
 serverImportFile
 serverList
 serverSave

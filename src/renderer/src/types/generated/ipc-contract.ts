@@ -218,10 +218,6 @@ export interface ContractedInvokeApi {
    * 通道 `server:import-file` */
   serverImportFile(): Promise<{ ok: boolean; canceled?: boolean; imported?: number; error?: string }>
 
-  /** 批量导入已解析好的知识条目（按关键词相似度合并）
-   * 通道 `kb:import` */
-  kbImport(entries: KnowledgeEntry[]): Promise<number>
-
   /** 导出知识条目（可按类型过滤）
    * 通道 `kb:export` */
   kbExport(type?: KnowledgeType): Promise<KnowledgeEntry[]>
