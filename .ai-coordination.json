@@ -2,24 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T01:45:45.329Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T01:45:45.329Z",
-      "lastActiveAt": "2026-10-24T01:45:45.329Z",
-      "task": "#193 删 subagent dispatcher",
-      "claimedFiles": [
-        {
-          "path": "AGENTS.md",
-          "task": "#193 删 subagent dispatcher",
-          "claimedAt": "2026-10-24T01:45:45.329Z"
-        }
-      ],
-      "expiresAt": "2026-10-24T03:45:45.329Z"
-    }
-  },
+  "lastUpdated": "2026-10-24T01:57:20.423Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -9946,6 +9930,13 @@
       "file": "AGENTS.md",
       "task": "#193 删 subagent dispatcher",
       "timestamp": "2026-10-24T01:45:45.329Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "#193 删 subagent dispatcher",
+      "timestamp": "2026-10-24T01:57:20.423Z"
     }
   ],
   "coordinationAudit": {
