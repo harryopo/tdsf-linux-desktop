@@ -12,8 +12,9 @@
  *
  * polish-tdsf-p1-issues Task A：集中化所有 ipcMain.handle 字面量为常量
  *   - 新增 19 个域常量（AGENT / LLM / SSH / STORAGE / CONFIG / SERVER / LOOP / MONITOR /
- *     LOG / KNOWLEDGE / HISTORY / DIAGNOSTICS / SIDECAR / SANDBOX / MCP / TUTORIAL /
- *     AT_COMMANDS / TOKEN；DEPLOY 与 AT_COMMANDS 已于 2026-10-24 随各自执行/解析链整删）
+ *     LOG / KNOWLEDGE / HISTORY / SIDECAR / SANDBOX / MCP / TUTORIAL /
+ *     AT_COMMANDS / TOKEN；DEPLOY 与 AT_COMMANDS 已于 2026-10-24 随各自执行/解析链整删，
+ *     DIAGNOSTICS 同日随"只写不读的界面出口"整删）
  *   - 通道值与原字面量完全一致，向后兼容
  */
 
@@ -615,34 +616,6 @@ export const CHAT = {
   LIST: 'chat:list',
   /** 删掉某一档的全部对话记录（invoke: 渲染 → 主，返回删掉的条数） */
   CLEAR: 'chat:clear',
-} as const
-
-/**
- * 诊断 IPC 通道常量
- *
- * 通道列表：
- * - GET_REPORT   invoke  渲染 → 主：获取诊断报告
- * - GET_STATS    invoke  渲染 → 主：获取诊断统计
- * - CLEAR        invoke  渲染 → 主：清空诊断数据
- * - SET_ENABLED  invoke  渲染 → 主：启用/禁用诊断
- */
-export const DIAGNOSTICS = {
-  /** 获取诊断报告（invoke: 渲染 → 主） */
-  GET_REPORT: 'diagnostics:get-report',
-  /** 获取诊断统计（invoke: 渲染 → 主） */
-  GET_STATS: 'diagnostics:get-stats',
-  /** 清空诊断数据（invoke: 渲染 → 主） */
-  CLEAR: 'diagnostics:clear',
-  /** 启用/禁用诊断（invoke: 渲染 → 主） */
-  SET_ENABLED: 'diagnostics:set-enabled',
-  /** 获取诊断日志（invoke: 渲染 → 主） */
-  GET_LOGS: 'diagnostics:get-logs',
-  /** 获取诊断发现（invoke: 渲染 → 主） */
-  GET_FINDINGS: 'diagnostics:get-findings',
-  /** 注入测试事件（invoke: 渲染 → 主） */
-  INGEST_TEST: 'diagnostics:ingest-test',
-  /** 诊断日志批量推送（push: 主 → 渲染） */
-  LOG_BATCH: 'diagnostics:log-batch',
 } as const
 
 /**

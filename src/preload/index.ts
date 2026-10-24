@@ -20,7 +20,7 @@ import type {
 import type { CrawlProgress, CrawlResult, CrawlStatus, TutorialSourceSpec } from '@shared/crawler-types'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
-import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, DIAGNOSTICS, HISTORY, KNOWLEDGE, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, HISTORY, KNOWLEDGE, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, SidecarHealthOneResponse, SidecarListStatusResponse, TutorialBackfillOptions, TutorialBackfillResult, TutorialHybridSearchOptions, TutorialPath, TutorialSearchStatus } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -744,61 +744,13 @@ const electronApi = {
   ): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
     ipcRenderer.invoke(SIDECAR.PARSE_LOGS, logLines, maxClusters),
 
-  // ===== v1.5 新增：诊断服务（后端日志检测）=====
-  // 通道：diagnostics:get-report → 获取完整诊断报告（含统计 + 检测结果）
-  diagnosticsGetReport: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.GET_REPORT),
-
-  // 通道：diagnostics:get-logs → 获取缓冲区日志（可按来源/级别过滤）
-  diagnosticsGetLogs: (
-    options?: { source?: 'sre' | 'main' | 'renderer'; level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; limit?: number },
-  ): Promise<{ ok: boolean; data?: unknown; total?: number; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.GET_LOGS, options),
-
-  // 通道：diagnostics:get-findings → 获取检测结果（可按严重性过滤）
-  diagnosticsGetFindings: (
-    options?: { severity?: 'info' | 'warning' | 'error' | 'critical'; limit?: number },
-  ): Promise<{ ok: boolean; data?: unknown; total?: number; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.GET_FINDINGS, options),
-
-  // 通道：diagnostics:get-stats → 获取累计统计
-  diagnosticsGetStats: (): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.GET_STATS),
-
-  // 通道：diagnostics:clear → 清空缓冲区（保留累计统计）
-  diagnosticsClear: (): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.CLEAR),
-
-  // 通道：diagnostics:set-enabled → 启用/禁用实时推送
-  diagnosticsSetEnabled: (enabled: boolean): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.SET_ENABLED, enabled),
-
-  // 通道：diagnostics:ingest-test → 测试用：注入测试日志（仅 dev 模式）
-  diagnosticsIngestTest: (
-    event: { source: 'sre' | 'main' | 'renderer'; level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'; raw: string },
-  ): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke(DIAGNOSTICS.INGEST_TEST, event),
-
-  /**
-   * 监听诊断服务实时日志批次推送
-   *
-   * 主进程通过 diagnostics:log-batch 通道批量推送 LogPushEvent[]，
-   * 包含 Sidecar 的 stdout/stderr 日志和检测结果。
-   *
-   * @param callback 回调函数，接收 LogPushEvent[]
-   * @returns 取消监听函数
-   */
-  onDiagnosticsLogBatch: (
-    callback: (events: Array<{
-      event: { timestamp: string; source: string; level: string; raw: string; pid?: number }
-      hasFinding: boolean
-      finding?: unknown
-    }>) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, events: unknown) => callback(events as never)
-    ipcRenderer.on(DIAGNOSTICS.LOG_BATCH, handler)
-    return () => { ipcRenderer.off('diagnostics:log-batch', handler) }
-  },
+  // ===== 诊断服务（v1.5）的界面出口已于 2026-10-24 整删（#206）=====
+  //
+  // 判据：diagnostics:get-report / get-logs / get-findings / get-stats / clear /
+  // set-enabled / ingest-test 七个键在渲染层零调用，onDiagnosticsLogBatch 这个监听面
+  // 也没有任何订阅者——主进程每秒往窗口推一批，界面一次都没接。两块生产者（Sidecar、
+  // 循环工程）于是只往一块没人读的内存里写。日志内容改回落进应用日志；
+  // 真正的"分析日志"能力走 MCP 的 log_analyze（它直接吃 LogAnalyzer，不经过这块缓冲）。
 
   // ===== v1.5 新增：循环工程子 Agent（假设计 → 可演示真 IDE）=====
   //

@@ -115,7 +115,6 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'agent:tool-event': 'SNAPSHOT',
       'agent:paor:iteration': 'SNAPSHOT',
       'boot:loading-stage': 'LIFECYCLE',
-      'diagnostics:log-batch': 'DISPOSABLE',
       'file:changed': 'SNAPSHOT',
       'local-tty:exit': 'LIFECYCLE',
       'loop:blocked': 'CRITICAL',

@@ -19,8 +19,7 @@ import { existsSync } from 'node:fs'
 // S5：core/logger 只写 console，侧车（Python）的 stderr 是最需要留档的东西，
 // 打包后的 Windows 里没有控制台，必须落到日志文件
 import { logger as appLogger } from '../../services/log/logger'
-import { getDiagnosticsService } from '../../services/diagnostics/diagnostics-service'
-import type { LogEvent, LogLevel, LogSource } from '../../services/diagnostics/types'
+import type { LogLevel } from '../../services/diagnostics/types'
 
 const logger = appLogger.child('SIDECAR')
 
@@ -291,9 +290,11 @@ export class SidecarManager extends EventEmitter {
   }
 
   /**
-   * 把 Sidecar 日志转发到 DiagnosticsService（核心钩子）
+   * 把 Sidecar 的 stdout/stderr 落进应用日志
    *
-   * 实现用户原话："当循环工程启动时利用后端的日志进行分析"
+   * 2026-10-24 之前这里走的是另一条路：拼一个 LogEvent 递给 DiagnosticsService 的缓冲，
+   * 而那块缓冲的读取口只有七个渲染层从不按的键、推送也没有订阅者（#206 整删）。
+   * 现在按推断出的级别直接写应用日志：stderr 仍升 WARN，级别判断这条逻辑没丢。
    *
    * @param raw 原始日志文本（已 trim）
    * @param isStderr 是否来自 stderr（stderr 默认升级为 WARN）
@@ -306,22 +307,21 @@ export class SidecarManager extends EventEmitter {
     let level = this.inferLogLevel(trimmed)
     if (isStderr && level === 'INFO') level = 'WARN'
 
-    // 推断 source：根据 this.config.id
-    const source: LogSource = (this.config.id as LogSource) || 'sre'
-
-    const event: LogEvent = {
-      timestamp: new Date().toISOString(),
-      source,
-      level,
-      raw: trimmed,
-      pid: this.process?.pid,
-    }
-
-    try {
-      getDiagnosticsService().ingestLog(event)
-    } catch (err) {
-      // 诊断服务异常不应影响 Sidecar 主流程
-      logger.warn(`[SidecarManager] 转发日志到 DiagnosticsService 失败: ${(err as Error).message}`)
+    const line = `[Sidecar ${this.config.id}] ${trimmed}`
+    const meta = { pid: this.process?.pid }
+    switch (level) {
+      case 'DEBUG':
+        logger.debug(line, meta)
+        break
+      case 'WARN':
+        logger.warn(line, meta)
+        break
+      case 'ERROR':
+      case 'FATAL':
+        logger.error(line, meta)
+        break
+      default:
+        logger.info(line, meta)
     }
   }
 
@@ -354,7 +354,7 @@ export class SidecarManager extends EventEmitter {
         },
       )
 
-      // 2. 监听 stdout/stderr（转发到 DiagnosticsService 进行实时分析）
+      // 2. 监听 stdout/stderr（按级别写进应用日志）
       this.process.stdout?.on('data', (data) => {
         const text = data.toString().trim()
         logger.info(`[${this.config.id}] ${text}`)

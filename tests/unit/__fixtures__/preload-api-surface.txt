@@ -28,13 +28,6 @@ credibilityListAuditReports
 credibilityLoadAuditReport
 credibilityResetCalibration
 dbGetStatus
-diagnosticsClear
-diagnosticsGetFindings
-diagnosticsGetLogs
-diagnosticsGetReport
-diagnosticsGetStats
-diagnosticsIngestTest
-diagnosticsSetEnabled
 fileWatchStart
 fileWatchStop
 fsUploadImage
@@ -94,7 +87,6 @@ onAgentError
 onAgentPaorIteration
 onAgentToolEvent
 onBootLoadingStage
-onDiagnosticsLogBatch
 onFileChanged
 onLocalTtyExit
 onLoopBlocked

@@ -61,7 +61,7 @@ describe('electronAPI 名字表面', () => {
   it('抽取器本身不是静默扫到 0 行（正样本 + 数量级）', () => {
     expect(exposed.length, '暴露面方法数太小，说明抽取器被改版打穿了').toBeGreaterThan(200)
     // 这几条是历史上真断过链、也真修过的位点，抽取器认不得它们就是量具坏了
-    for (const probe of ['sshConnect', 'agentChat', 'providerGetDefault', 'configGet', 'diagnosticsGetLogs']) {
+    for (const probe of ['sshConnect', 'agentChat', 'providerGetDefault', 'configGet', 'dbGetStatus']) {
       expect(surface.exposed.has(probe), `抽取器没抓到 ${probe}`).toBe(true)
     }
     // 手写表在 P1-8 之后只剩"与实现签名不一致"的那批成员（2026-10-12 实测 49 条，

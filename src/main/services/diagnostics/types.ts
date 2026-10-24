@@ -114,15 +114,3 @@ export interface DiagnosticReport {
   /** 是否健康（无 critical/error） */
   healthy: boolean
 }
-
-/**
- * 实时日志推送事件（通过 IPC 推送到渲染进程）
- */
-export interface LogPushEvent {
-  /** 日志事件 */
-  event: LogEvent
-  /** 是否触发检测规则 */
-  hasFinding: boolean
-  /** 若触发，关联的检测结果 */
-  finding?: DiagnosticFinding
-}

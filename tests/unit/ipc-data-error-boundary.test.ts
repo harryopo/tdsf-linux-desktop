@@ -87,8 +87,8 @@ describe('阳性对照：不兜就会把原文送过边界', () => {
     expect(out.code).toBe('E_CONNECTION')
   })
 
-  it('ok:false 这一族（diagnostics / sidecar / llm:test）同样兜住', async () => {
-    const { crossed } = viaBoundary('diagnostics:get-report', async () => ({
+  it('ok:false 这一族（sidecar / llm:test）同样兜住', async () => {
+    const { crossed } = viaBoundary('sidecar:health', async () => ({
       ok: false,
       error: `读取配置失败 password=${FAKE_PASSWORD}\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnZzaXAy\n`,
     }))

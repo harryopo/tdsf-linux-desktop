@@ -448,8 +448,7 @@ function main(): void {
  * 接之前先改了返回形状——仓储那版是 `catch { return false }`，把"删掉了 / 本来就不在 /
  * 数据库出错"压成一个 false；照原样接界面，库被锁住时对用户说的就是"这条已经不在了"。
  * 现在三种结果分开回（`KnowledgeDeleteResult`），界面按三种话说（#203）。
- * 72 → 67 是**整删减面**，不是还债：五把没人按的管理键一起走。
- * `monitorStop`——停止所有权本来就在会话上，SystemMonitor 构造时订阅 onSessionClosed 自己停，
+ * 72 → 67 是**整删减面**，不是还债：五把没人按的管理键一起走。 `monitorStop`——停止所有权本来就在会话上，SystemMonitor 构造时订阅 onSessionClosed 自己停，
  * 渲染层再拿一把 stop 只会和它抢；`sandboxStop`——容器由退出收尾 `stopOpenHands` 负责，
  * 界面没有"停沙箱"这颗按钮，留着等于允诺一个界面上找不到的动作；
  * `sandboxDetectDocker`——`sandbox:status` 本来就先检测 Docker 再探容器，多一条独立探测口
@@ -459,7 +458,14 @@ function main(): void {
  * 渲染层从来没有"导出知识库"这个动作。
  * 数一下这份清单里有多少个键，等价于数"后端写了但界面从来没调用"的债，
  * 债的方向应该是零，不是"看着办"。
+ * 67 → 59 还是减面：diagnostics 那一族整删（`get-report` / `get-logs` / `get-findings` /
+ * `get-stats` / `clear` / `set-enabled` / `ingest-test` 七把 invoke 加 `onDiagnosticsLogBatch`）。
+ * 这一族比前五把更彻底：不是"有人读但没人按"，是**只写不读**——Sidecar 与循环工程两条生产者
+ * 往一块内存缓冲里写，读它的只有那七个渲染层从来没按的键，而批量推送每秒都在发、没有任何订阅者。
+ * 缓冲整删（含 `diagnostics-service.ts` 与 `ipc/diagnostics.ts`），两条生产者改成按级别写应用日志，
+ * 内容一句没丢；真正在用的日志分析能力走 MCP 的 `log_analyze`，它直接吃 `LogAnalyzer`，
+ * 从来不经过这块缓冲，所以那条路一行没动。判据：`tests/unit/diagnostics-write-only-buffer.test.ts`。
  */
-const UNUSED_CAP = 67
+const UNUSED_CAP = 59
 
 main()

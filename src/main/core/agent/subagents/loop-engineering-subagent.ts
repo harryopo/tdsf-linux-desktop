@@ -55,7 +55,6 @@ import { SshConnectionManager } from '../../../services/ssh/connection-manager'
 import { LlmClient } from '../../../services/llm/client'
 import { resolveLlmConfig } from '../../../services/llm/llm-config-resolver'
 import type { ChatMessage } from '../../../../shared/models'
-import { getDiagnosticsService } from '../../../services/diagnostics/diagnostics-service'
 import type { LogSource, LogLevel } from '../../../services/diagnostics/types'
 import type { ThinkingStrength } from '../providers/types'
 import { calculateEvidenceConfidence, getSourcePrior } from '../../confidence'
@@ -260,9 +259,6 @@ export class LoopEngineeringSubagent extends BaseSubagent {
 
   /** SSH 连接管理器（单例） */
   private readonly sshManager = SshConnectionManager.getInstance()
-
-  /** 诊断服务（单例） */
-  private readonly diagnostics = getDiagnosticsService()
 
   protected async doExecute(task: SubagentTask): Promise<SubagentResult> {
     const input = task.input as LoopEngineeringInput
@@ -712,23 +708,28 @@ export class LoopEngineeringSubagent extends BaseSubagent {
   }
 
   /**
-   * 转发日志到 DiagnosticsService
+   * 把这一段编排过程写进应用日志
    *
-   * 实现"建立一个检测的后端，当循环工程启动时利用后端的日志进行分析"。
+   * 以前它把同样的话递给 DiagnosticsService 的一块缓冲，指望有人在界面上读——
+   * 那七个读取键渲染层从来没按、批量推送也没有订阅者，2026-10-24 按 #206 整删。
+   * 现在按级别落到应用日志：循环工程启动到收尾的每一句都留得下来，
+   * 但不再为了"将来可能有界面"而养一份没人看的副本。
    */
   private forwardLog(source: LogSource, level: LogLevel, raw: string): void {
-    try {
-      this.diagnostics.ingestLog({
-        timestamp: new Date().toISOString(),
-        source,
-        level,
-        raw,
-      })
-    } catch (err) {
-      // 日志转发失败不影响主流程
-      this.log.warn('[LoopEngineering] 转发日志到 DiagnosticsService 失败', {
-        error: err instanceof Error ? err.message : String(err),
-      })
+    const meta = { source }
+    switch (level) {
+      case 'DEBUG':
+        this.log.debug(raw, meta)
+        break
+      case 'WARN':
+        this.log.warn(raw, meta)
+        break
+      case 'ERROR':
+      case 'FATAL':
+        this.log.error(raw, meta)
+        break
+      default:
+        this.log.info(raw, meta)
     }
   }
 

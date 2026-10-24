@@ -55,8 +55,8 @@ import { registerMcpStateHandlers } from './mcp'
 import { registerSidecarIpcHandlers } from './sidecar'
 // v2.8 新增：Agent 长期记忆 IPC（自动沉淀记忆的查看/检索/删除/审计）
 import { registerMemoryIpcHandlers } from './memory'
-// v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
-import { registerDiagnosticsHandlers } from './diagnostics'
+// v1.5 的诊断服务 IPC 已于 2026-10-24 整删（#206）：七个 invoke 键渲染层零调用，
+// diagnostics:log-batch 有生产者但没有任何监听者，两块缓冲只写不读。
 // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
 // 通道：loop:start / loop:confirm / loop:cancel + 推送 loop:step/decision/done/error
 import { registerLoopEngineeringHandlers } from './loop-engineering'
@@ -231,11 +231,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
 
   // v2.8 新增：Agent 长期记忆 IPC（memory:list/search/delete/audit）
   registerMemoryIpcHandlers()
-
-  // v1.5 新增：诊断服务 IPC（后端日志检测，循环工程启动时分析）
-  // 暴露 diagnostics:get-report / get-logs / get-findings / get-stats / clear / set-enabled
-  // 推送通道：diagnostics:log-batch（实时批量推送日志事件到渲染进程）
-  registerDiagnosticsHandlers(mainWindow)
 
   // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
   // 暴露 loop:start / loop:confirm / loop:cancel

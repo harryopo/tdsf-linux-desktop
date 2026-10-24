@@ -38,7 +38,6 @@ export type StreamEventName =
   | 'agent:paor:iteration'
   | 'agent:tool-event'
   | 'boot:loading-stage'
-  | 'diagnostics:log-batch'
   | 'file:changed'
   | 'local-tty:exit'
   | 'loop:blocked'
@@ -130,12 +129,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: true,
     note: '启动进度条阶段，不进消息列表',
-  },
-  'diagnostics:log-batch': {
-    class: 'DISPOSABLE',
-    ownership: false,
-    coalescable: true,
-    note: '日志批量推送，积压时可丢最旧的，不影响正确性',
   },
   'file:changed': {
     class: 'SNAPSHOT',
