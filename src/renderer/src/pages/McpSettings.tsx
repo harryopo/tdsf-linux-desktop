@@ -20,12 +20,19 @@
  *
  * 界面不承诺它管不到的事：这一页不能让 AI 去调某个工具，也不写"AI 会自动使用"。
  * 每一次外部工具调用都要在审批卡上有人点头（见 docs/功能实景清单.md）。
+ *
+ * 工具清单那一格（2026-10-25 #217 接上）：每个工具带一个「试调用」，填参数→执行→
+ * 回话原样显示。它开的是入口不是后门——按下去走的还是 mcp:external-call 那一条，
+ * 主进程照样每次推审批卡，被拒或超时回 error:'not-approved'，界面把这叫"没有执行"，
+ * 不和"对面回了话"共用一张脸。这一格以前是"看得见、点不动"，
+ * 于是"审批到底拦不拦得住"只有 AI 那条路能验，用户自己验不了。
  */
 import { useCallback, useEffect, useState } from 'react'
 import {
   Activity,
   Gauge,
   Loader2,
+  Play,
   Plug,
   Plus,
   RefreshCw,
@@ -109,6 +116,79 @@ function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/** 参数框里的 JSON：要么给出对象，要么给出当场说得清的原因 */
+type ParsedArgs = { ok: true; args: Record<string, unknown> } | { ok: false; msg: string }
+
+/**
+ * 把参数框里的文本切成 mcpExternalCall 要的那个形状。
+ *
+ * 留空等于没有参数（对面大多数工具本来就是无参的），但半截 JSON 必须当场拦下：
+ * 发出去等于把用户没写完的东西喂给第三方程序，而那一步一旦审批点了头就收不回来。
+ */
+function parseArgsJson(raw: string): ParsedArgs {
+  const trimmed = raw.trim()
+  if (!trimmed) return { ok: true, args: {} }
+  let value: unknown
+  try {
+    value = JSON.parse(trimmed)
+  } catch (err) {
+    return { ok: false, msg: `参数不是合法 JSON，所以一个请求都没发出去：${messageOf(err)}` }
+  }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, msg: '参数不是一个 JSON 对象（形如 {"键":"值"}），所以一个请求都没发出去' }
+  }
+  return { ok: true, args: value as Record<string, unknown> }
+}
+
+/** mcpExternalCall 的回包形状（preload 里手写的返回类型，这里只用到这三项） */
+type CallEnvelope = {
+  success: boolean
+  content?: Array<{ type: 'text'; text: string }>
+  error?: string
+}
+
+/** 三种结果在界面上的说法与颜色。分开写是因为它们三件是根本不同的事：没跑、跑了但报错、跑了且有回话 */
+function describeCall(toolName: string, res: CallEnvelope): { tone: 'ok' | 'warn' | 'bad'; text: string } {
+  const echoed = (res.content ?? [])
+    .map((c) => c.text)
+    .join('\n')
+    .trim()
+  if (res.error === 'not-approved') {
+    return {
+      tone: 'warn',
+      text: `${toolName}：没有执行。审批卡上没点头（被拒绝或超时未响应），那台服务器的程序一次都没跑起来。`,
+    }
+  }
+  if (res.success) {
+    return {
+      tone: 'ok',
+      text: `${toolName} 回了：${echoed ? displayEcho(echoed) : '（对面回的是空内容）'}`,
+    }
+  }
+  return {
+    tone: 'bad',
+    text: `${toolName} 没有回话。原因：${echoed ? displayEcho(echoed) : res.error || '对面没给原因'}`,
+  }
+}
+
+/**
+ * 回话长度由对面那个服务器决定，本机不封顶，所以这一格只限制"显示多少"。
+ * 截的是显示，不是数据：结果行如实写出完整长度，不让人以为回的就这么多。
+ */
+const MAX_ECHO_DISPLAY = 2000
+
+/** 只在"回话本身要显示"这两条路上套截断（没批准那条没有回话可截） */
+function displayEcho(text: string): string {
+  if (text.length <= MAX_ECHO_DISPLAY) return text
+  return `${text.slice(0, MAX_ECHO_DISPLAY)}…（这里只显示前 ${MAX_ECHO_DISPLAY} 字，对面一共回了 ${text.length} 字）`
+}
+
+const RESULT_TONE_CLASS: Record<'ok' | 'warn' | 'bad', string> = {
+  ok: 'text-ink',
+  warn: 'text-warning-text',
+  bad: 'text-error-text',
+}
+
 interface DraftForm {
   name: string
   transport: ExternalMcpServer['transport']
@@ -127,6 +207,118 @@ const EMPTY_FORM: DraftForm = {
   cwd: '',
   url: '',
   envKeys: '',
+}
+
+/**
+ * 单个工具的试调用（#217）
+ *
+ * 为什么要有这一格：mcpExternalCall 这条路一直在跑，但只有 AI 对话走得通——
+ * 用户自己看得见工具名却点不动，于是"这套审批到底拦不拦得住"变成只能相信、不能验证。
+ * 这里不开新通道也不加"跳过审批"的开关：按下去走的就是原来那条 external-call，
+ * 主进程照样每次推审批卡，没点头就回 not-approved，界面上把"没有执行"单独说清。
+ */
+function ToolTryout({ tool }: { tool: McpExternalTool }) {
+  const [open, setOpen] = useState(false)
+  const [raw, setRaw] = useState('')
+  const [badJson, setBadJson] = useState<string | null>(null)
+  const [calling, setCalling] = useState(false)
+  const [result, setResult] = useState<{ tone: 'ok' | 'warn' | 'bad'; text: string } | null>(null)
+
+  async function run(): Promise<void> {
+    const parsed = parseArgsJson(raw)
+    if (!parsed.ok) {
+      setBadJson(parsed.msg)
+      return
+    }
+    const api = window.electronAPI
+    if (!api?.mcpExternalCall) {
+      setResult({
+        tone: 'bad',
+        text: `${tool.name}：这个窗口没有拿到外部 MCP 的调用接口（mcpExternalCall 不存在），没有发出任何请求。`,
+      })
+      return
+    }
+    setBadJson(null)
+    setCalling(true)
+    try {
+      setResult(describeCall(tool.name, await api.mcpExternalCall(tool.serverId, tool.name, parsed.args)))
+    } catch (err) {
+      setResult({ tone: 'bad', text: `${tool.name}：这条请求没走通。原因：${messageOf(err)}` })
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  return (
+    <div>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        data-dom-id="mcp-tool-tryout"
+      >
+        <Play className="h-3.5 w-3.5" aria-hidden />
+        {open ? '收起' : '试调用'}
+      </Button>
+
+      {open && (
+        <div className="mt-2 space-y-2">
+          <Field
+            label="参数（JSON 对象）"
+            hint="留空等于没有参数。这段 JSON 原样发给那台服务器，不由本机解释。"
+          >
+            {(id) => (
+              <TextInput
+                id={id}
+                value={raw}
+                invalid={badJson !== null}
+                onChange={(e) => {
+                  setRaw(e.target.value)
+                  setBadJson(null)
+                }}
+                placeholder='{"path":"/etc/hosts"}'
+                className="font-mono"
+                data-dom-id="mcp-tool-args"
+              />
+            )}
+          </Field>
+
+          {badJson && (
+            <Notice tone="error" title="没发出去">
+              {badJson}
+            </Notice>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="solid"
+              size="sm"
+              onClick={() => void run()}
+              disabled={calling}
+              data-dom-id="mcp-tool-exec"
+            >
+              {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+              执行
+            </Button>
+            <p className="text-micro text-ink-mute">按下去先弹审批卡，点了批准才真的发出去</p>
+          </div>
+
+          {result && (
+            <p
+              className={cn(
+                'whitespace-pre-wrap break-words text-caption leading-relaxed',
+                RESULT_TONE_CLASS[result.tone]
+              )}
+              data-dom-id="mcp-tool-call-result"
+            >
+              {result.text}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function McpSettings() {
@@ -583,6 +775,10 @@ export function McpSettings() {
         </SettingsCard>
 
         <SettingsCard icon={Activity} title="这些服务器提供的工具">
+          <p className="mb-3 text-micro text-ink-mute">
+            「试调用」走的是和 AI 完全同一条出口：每次都弹审批卡，不点头就不执行。
+            它只替你验证这一次拦不拦得住，不会把工具装进任何自动流程。
+          </p>
           {tools.length === 0 ? (
             <p className="text-sm text-ink-mute">
               现在没有可读到的工具。原因写在上面那张表的状态列里，不代表这个功能没做。
@@ -595,12 +791,17 @@ export function McpSettings() {
                   className="rounded-(--ui-radius-control) border border-line px-3 py-2"
                   data-dom-id="mcp-tool-row"
                 >
-                  <span className="text-sm font-medium text-ink">
-                    {t.serverName} · {t.name}
-                  </span>
-                  {t.description && (
-                    <span className="mt-0.5 block text-micro text-ink-mute">{t.description}</span>
-                  )}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-ink">
+                        {t.serverName} · {t.name}
+                      </span>
+                      {t.description && (
+                        <span className="mt-0.5 block text-micro text-ink-mute">{t.description}</span>
+                      )}
+                    </div>
+                    <ToolTryout tool={t} />
+                  </div>
                 </li>
               ))}
             </ul>

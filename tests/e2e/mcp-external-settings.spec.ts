@@ -1,5 +1,5 @@
 /**
- * 外部 MCP 登记面 + AI 侧调用 + 网关状态格的真机验收（#173 第二、三步；#209 第四、五步）
+ * 外部 MCP 登记面 + AI 侧调用 + 网关状态格的真机验收（#173 第二、三步；#209 第四、五步；#217 界面试调用）
  *
  * 单测只能证明"validateDraft 会拒这份草稿"、"载荷与装配点在"，证明不了：
  *   1. 从设置页点"添加"之后，那一行真的出现在列表里、状态列读的是连接池的真实结果；
@@ -9,7 +9,9 @@
  *   5. 模型在对话里报出工具名之后，主进程真能认出是哪台的哪个工具、
  *      拒了不执行、批了把返回回喂给它（第二条用例）；
  *   6. 网关状态那一格真的跟着主进程走（第三条用例，#209）：失败推上来界面就变、
- *      没人点刷新；「重置失败计数」按下去，主进程那台机器也跟着清零。
+ *      没人点刷新；「重置失败计数」按下去，主进程那台机器也跟着清零；
+ *   7. 工具行上那颗「试调用」（#217）：拒了一次都不执行、批了把回话显示出来——
+ *      界面入口开的是同一条审批路，不是第二条不用问路。
  *
  * 夹具 tests/e2e/fixtures/mcp-env-probe.mjs 是个真 MCP server，只回报"看得见哪些变量名"。
  * skip 不等于通过：没有 out/main/index.js 就先 pnpm build。
@@ -144,7 +146,27 @@ testOrSkip('设置页登记外部 MCP：列表、审批、环境隔离、移除�
     const namedProbe = JSON.parse(String(namedResult.content[0]?.text ?? '{}')) as Probe
     expect(namedProbe.seenProbeVar, '点名的变量没传下去——那上一条"看不见"是因为根本没给环境').toBe(true)
 
-    // ⑤ 移除：那一行要真的消失，且再读列表少一条（只删配置不断进程的话，这里还会读到已连接）
+    // ⑤ 界面「试调用」（#217）：入口按下去走的还是那条 external-call，
+    //    所以拒与批必须在真窗口里各走一遍——组件测试只能证明按钮接的是这把键。
+    const toolRow = page.locator('li[data-dom-id="mcp-tool-row"]', { hasText: `${NAME} · env_probe` })
+    const shown = toolRow.locator('[data-dom-id="mcp-tool-call-result"]')
+    await expect(toolRow, '工具行没按"服务器名 · 工具名"渲染').toBeVisible({ timeout: 15_000 })
+    await toolRow.locator('[data-dom-id="mcp-tool-tryout"]').click()
+    await toolRow.locator('[data-dom-id="mcp-tool-args"]').fill('{}')
+
+    await toolRow.locator('[data-dom-id="mcp-tool-exec"]').click()
+    await page.waitForSelector(CARD, { timeout: 15_000 })
+    await expect(page.locator(CARD), '界面发起的调用没推审批卡').toContainText(NAME)
+    await page.click(`${CARD} >> role=button[name=/拒绝/]`)
+    await expect(shown, '拒绝之后界面没写"没有执行"').toContainText('没有执行', { timeout: 15_000 })
+    await expect(shown, '没批准那张脸不能长得像回了话').not.toContainText(/成功|已调用/)
+
+    await toolRow.locator('[data-dom-id="mcp-tool-exec"]').click()
+    await page.waitForSelector(CARD, { timeout: 15_000 })
+    await page.click(`${CARD} >> role=button[name=/批准这一次/]`)
+    await expect(shown, '批准之后界面没显出对面回的文本').toContainText('envNames', { timeout: 20_000 })
+
+    // ⑥ 移除：那一行要真的消失，且再读列表少一条（只删配置不断进程的话，这里还会读到已连接）
     await page.click(`tr[data-dom-id^="mcp-server-row-"] >> nth=0 >> role=button[name="移除 ${NAME}"]`)
     await expect(page.locator('tr[data-dom-id^="mcp-server-row-"]')).toHaveCount(1, { timeout: 15_000 })
     const remaining = await page.evaluate(() => window.electronAPI.mcpExternalList())
