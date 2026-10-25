@@ -11,7 +11,6 @@
  * 注意：与 LLM tool 中的 ssh_exec (TOOL_IDS.SSH_EXEC) 功能等价但工具名不同，
  * 这里使用 ssh_execute 命名以避免与 legacy 工具重名。
  */
-import { SshConnectionManager } from '../../ssh/connection-manager'
 import { SftpManager } from '../../ssh/sftp'
 import { executeSshExec } from '../../llm/tools/ssh-exec'
 import { evaluateCommand } from '../../../core/command-gate'
@@ -249,40 +248,12 @@ export function createSshMcpTools(): McpToolRegistration[] {
       },
     },
   ]
-}
-
-/**
- * 校验 SSH session 是否已连接（供其他域工具复用）
- *
- * @returns 已连接返回 null；未连接返回错误 MCP 结果
- */
-export function requireSshConnected(
-  sessionId: string
-): { error: string } | null {
-  const state = SshConnectionManager.getInstance().getConnectionState(sessionId)
-  if (state !== 'connected') {
-    return { error: `SSH session 不可用（状态: ${state}），请先建立连接` }
-  }
-  return null
-}
-
-/** SSH 域工具名清单（用于 server.ts 注册和校验） */
+}/** SSH 域工具名清单（用于 server.ts 注册和校验） */
 export const SSH_TOOL_NAMES = [
   'ssh_execute',
   'ssh_file_read',
   'ssh_file_write',
   'ssh_file_list',
   'ssh_file_stat',
-] as const
-
-/** SSH 域工具元数据（不含 call，仅供 listRegisteredTools 展示） */
-export const SSH_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'ssh_execute', description: '在指定 SSH session 上执行一条 Linux 命令' },
-  { name: 'ssh_file_read', description: '读取远程 SSH 服务器上的文件内容' },
-  { name: 'ssh_file_write', description: '写入字符串到远程 SSH 服务器上的文件' },
-  { name: 'ssh_file_list', description: '列出远程 SSH 服务器上指定目录的内容' },
-  { name: 'ssh_file_stat', description: '获取远程文件/目录的元信息' },
-]
-
-/** 占位导出，避免 TS unused 警告（McpToolResult 类型在本文件内被使用） */
+] as const/** 占位导出，避免 TS unused 警告（McpToolResult 类型在本文件内被使用） */
 export type { McpToolResult }

@@ -34,12 +34,7 @@ import type { BucketStats, CalibrationSample, EceResult, ProviderId } from './ty
 // ============================================================================
 
 /** 默认桶数（Guo 2017 实验用 10-15） */
-export const DEFAULT_NUM_BUCKETS = 10
-
-/** 最小样本数（少于该值不计算） */
-export const MIN_SAMPLES = 1
-
-// ============================================================================
+export const DEFAULT_NUM_BUCKETS = 10// ============================================================================
 // 核心函数
 // ============================================================================
 
@@ -134,16 +129,7 @@ export function computeEce(
     totalSamples: n,
     providerId: targetProvider,
   }
-}
-
-/**
- * 全局 ECE（不按 Provider 过滤）
- */
-export function computeGlobalEce(samples: CalibrationSample[], numBuckets?: number): EceResult {
-  return computeEce(samples, { numBuckets, providerId: null })
-}
-
-/**
+}/**
  * 格式化 ECE 结果为可读字符串（用于日志和 UI 展示）
  */
 export function formatEceResult(result: EceResult): string {

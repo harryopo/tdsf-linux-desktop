@@ -444,37 +444,7 @@ export function requiresConfirmation(level: RiskLevel): boolean {
  */
 export function shouldBlock(level: RiskLevel): boolean {
   return level === 'CRITICAL'
-}
-
-/**
- * 判断在指定权限模式下，命令是否可以自动执行（无需人工审批）
- *
- * v2.0 Phase C Task C.6 三态权限决策核心：
- *   - 'always'：永远返回 false，所有命令都要人工审批
- *   - 'auto'：SAFE/LOW 自动执行；MEDIUM/HIGH/CRITICAL 需审批
- *   - 'never'：永远返回 true（CRITICAL 仍走 shouldBlock 阻止，但在审批环节不弹窗）
- *
- * 注意：本函数仅决定"是否需要弹审批窗"，是否真正阻止执行由 shouldBlock 决定。
- * 例如 'never' 模式下 CRITICAL 命令不弹窗但会被 shouldBlock 阻止。
- *
- * @param level - 风险等级
- * @param mode - 权限模式（默认 'always'，最严格）
- * @returns true 表示可自动执行，false 表示需要人工审批
- */
-export function shouldAutoApprove(level: RiskLevel, mode: PermissionMode = 'always'): boolean {
-  switch (mode) {
-    case 'always':
-      return false
-    case 'auto':
-      return level === 'SAFE' || level === 'LOW'
-    case 'never':
-      return true
-    default:
-      return false
-  }
-}
-
-// ────────── L4: 审计日志 ──────────
+}// ────────── L4: 审计日志 ──────────
 
 /**
  * 将命令及风险评估记录到审计日志

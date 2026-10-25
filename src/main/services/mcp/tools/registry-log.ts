@@ -274,14 +274,5 @@ export function createLogMcpTools(): McpToolRegistration[] {
 }
 
 /** 日志域工具名清单 */
-export const LOG_TOOL_NAMES = ['log_tail', 'log_search', 'log_analyze'] as const
-
-/** 日志域工具元数据（用于 listRegisteredTools 展示） */
-export const LOG_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'log_tail', description: '读取远程日志文件尾部 N 行（tail -n）' },
-  { name: 'log_search', description: '在远程日志中搜索关键词（grep -rn -E）' },
-  { name: 'log_analyze', description: '分析远程日志异常（16 类内置规则）' },
-]
-
-/** 占位导出，避免 TS unused 警告 */
+export const LOG_TOOL_NAMES = ['log_tail', 'log_search', 'log_analyze'] as const/** 占位导出，避免 TS unused 警告 */
 export type { McpToolResult }

@@ -42,12 +42,7 @@ import type {
 export const CALIBRATION_STATE_VERSION = 1
 
 /** 默认 T（未校准过的 Provider 用此值，相当于无校准） */
-export const DEFAULT_OPTIMAL_T = 1.0
-
-/** 持久化文件路径（默认） */
-export const DEFAULT_STATE_FILEPATH = 'calibration-state.json'
-
-/** 触发重新校准的最小新样本数（增量校准阈值） */
+export const DEFAULT_OPTIMAL_T = 1.0/** 触发重新校准的最小新样本数（增量校准阈值） */
 export const RETUNE_THRESHOLD = 20
 
 // ============================================================================
@@ -414,11 +409,4 @@ export function getCalibrationTuner(): CalibrationTuner {
     globalTuner = new CalibrationTuner()
   }
   return globalTuner
-}
-
-/**
- * 重置全局单例（用于测试）
- */
-export function resetCalibrationTuner(): void {
-  globalTuner = null
 }

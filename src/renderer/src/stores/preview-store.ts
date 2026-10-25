@@ -54,13 +54,7 @@ export function previewTabId(token: string): `preview:${string}` {
 
 export function tokenOfPreviewTab(tabId: string | null): string | null {
   return tabId && tabId.startsWith(PREFIX) ? tabId.slice(PREFIX.length) : null
-}
-
-export function isPreviewTab(tabId: string | null): boolean {
-  return tabId !== null && tabId.startsWith(PREFIX)
-}
-
-/** 能预览的远端文件类型：HTML 走 iframe，Markdown 走渲染层的安全渲染器 */
+}/** 能预览的远端文件类型：HTML 走 iframe，Markdown 走渲染层的安全渲染器 */
 const PREVIEWABLE_FILE = /\.(html?|md|markdown)$/i
 
 export function isPreviewableFile(remotePath: string | null | undefined): boolean {

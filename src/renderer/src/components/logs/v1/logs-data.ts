@@ -107,12 +107,7 @@ export const LEVEL_FILTERS: Array<{ id: LogLevel | 'ALL'; label: string }> = [
   { id: 'WARN', label: 'WARN' },
   { id: 'ERROR', label: 'ERROR' },
   { id: 'DEBUG', label: 'DEBUG' },
-]
-
-/** 终端背景色（与设计稿 --log-terminal-bg 一致） */
-export const LOG_TERMINAL_BG = '#0F1011'
-
-// ==================== 辅助函数 ====================
+]// ==================== 辅助函数 ====================
 
 /**
  * 获取日志级别对应的语义色 token

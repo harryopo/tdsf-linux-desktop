@@ -48,9 +48,6 @@ export interface ExposedUrl {
  * 与 OpenHands 源码 sandbox_models.py 中的常量保持一致。
  */
 export const AGENT_SERVER_NAME = 'AGENT_SERVER'
-export const VSCODE_NAME = 'VSCODE'
-export const WORKER_1_NAME = 'WORKER_1'
-export const WORKER_2_NAME = 'WORKER_2'
 
 /**
  * 沙箱信息（对应 SandboxInfo 模型）

@@ -335,15 +335,5 @@ export function createKnowledgeMcpTools(db: DatabaseManager | null): McpToolRegi
 }
 
 /** 知识域工具名清单 */
-export const KNOWLEDGE_TOOL_NAMES = ['kb_search', 'kb_add', 'kb_update', 'kb_list'] as const
-
-/** 知识域工具元数据（用于 listRegisteredTools 展示） */
-export const KNOWLEDGE_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'kb_search', description: '从知识库中按关键词搜索（Jaccard 相似度排序）' },
-  { name: 'kb_add', description: '添加新的知识条目到知识库' },
-  { name: 'kb_update', description: '更新已有知识条目的部分字段' },
-  { name: 'kb_list', description: '列出知识库所有条目（可按类型过滤）' },
-]
-
-/** 占位导出，避免 TS unused 警告 */
+export const KNOWLEDGE_TOOL_NAMES = ['kb_search', 'kb_add', 'kb_update', 'kb_list'] as const/** 占位导出，避免 TS unused 警告 */
 export type { McpToolResult }

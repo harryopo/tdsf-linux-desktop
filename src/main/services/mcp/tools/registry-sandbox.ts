@@ -228,14 +228,5 @@ export const SANDBOX_TOOL_NAMES = [
   'sandbox_execute',
   'sandbox_create',
   'sandbox_destroy',
-] as const
-
-/** 沙箱域工具元数据（用于 listRegisteredTools 展示） */
-export const SANDBOX_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'sandbox_execute', description: '在隔离的 Docker 沙箱中执行 shell 命令（自动脱敏）' },
-  { name: 'sandbox_create', description: '创建新的 OpenHands Docker 沙箱容器' },
-  { name: 'sandbox_destroy', description: '销毁指定的 Docker 沙箱容器（不可逆）' },
-]
-
-/** 占位导出，避免 TS unused 警告 */
+] as const/** 占位导出，避免 TS unused 警告 */
 export type { McpToolResult }

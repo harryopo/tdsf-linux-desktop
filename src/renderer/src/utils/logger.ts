@@ -45,13 +45,7 @@ export interface RendererLogPayload {
 }
 
 /** 生成 correlationId（用于跨进程追踪） */
-let _corrIdCounter = 0
-export function newCorrelationId(prefix = 'ui'): string {
-  _corrIdCounter += 1
-  return `${prefix}-${Date.now().toString(36)}-${_corrIdCounter}`
-}
-
-// ============================================================================
+let _corrIdCounter = 0// ============================================================================
 // Renderer Logger
 // ============================================================================
 

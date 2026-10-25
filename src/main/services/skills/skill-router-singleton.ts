@@ -83,10 +83,3 @@ export function getSkillRouter(): Promise<SkillRouter> {
   }
   return routerPromise
 }
-
-/**
- * 仅供测试：重置缓存，强制下次重新加载。
- */
-export function _resetSkillRouterForTest(): void {
-  routerPromise = null
-}

@@ -78,10 +78,3 @@ export function loadTutorialSeeds(db: DatabaseManager): number {
   console.log(`[TutorialSeed] ✅ 成功加载 ${TUTORIAL_SEED_COLLECTION.entries.length} 篇教程`)
   return TUTORIAL_SEED_COLLECTION.entries.length
 }
-
-/**
- * 获取当前种子版本（用于 UI 显示）
- */
-export function getSeedVersion(): string {
-  return SEED_VERSION
-}

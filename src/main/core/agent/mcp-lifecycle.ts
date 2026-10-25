@@ -41,24 +41,6 @@ export type McpLifecycleState =
   | 'failed'
   | 'backoff'
 
-/** 状态 → 用户可读描述 */
-export const MCP_STATE_DESCRIPTION: Record<McpLifecycleState, string> = {
-  connected: 'MCP Server 健康，所有工具可用',
-  degraded: '部分工具不可用，降级运行',
-  recovering: '正在尝试恢复连接',
-  failed: '连接失败，已暂停调用',
-  backoff: '冷却期，倒计时结束后重试',
-}
-
-/** 状态 → 严重等级（颜色） */
-export const MCP_STATE_SEVERITY: Record<McpLifecycleState, 'success' | 'warning' | 'error' | 'info'> = {
-  connected: 'success',
-  degraded: 'warning',
-  recovering: 'info',
-  failed: 'error',
-  backoff: 'warning',
-}
-
 /** 状态变更监听器 */
 export type McpStateListener = (state: McpLifecycleState, context: McpStateContext) => void
 

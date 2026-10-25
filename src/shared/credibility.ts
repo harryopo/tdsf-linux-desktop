@@ -144,14 +144,7 @@ export function normalizeFusionSourceId(raw: string): FusionSourceId {
   if (alias) return alias
   if ((FUSION_SOURCE_IDS as readonly string[]).includes(raw)) return raw as FusionSourceId
   throw new Error(`未知证据源 id：${raw}（新增源要同时补先验表与质量算法）`)
-}
-
-/** 取某源先验（未知 id 走 normalize，同样抛错） */
-export function sourcePriorOf(raw: string): number {
-  return SOURCE_PRIORS[normalizeFusionSourceId(raw)]
-}
-
-/**
+}/**
  * 先验折扣：证据质量 × 该源先验
  *
  * 唯一例外是 log 档——它的先验已经在自己那条定标过的加法式里

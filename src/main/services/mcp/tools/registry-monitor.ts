@@ -250,14 +250,5 @@ export const MONITOR_TOOL_NAMES = [
   'monitor_process_list',
   'monitor_disk_usage',
   'monitor_network_stats',
-] as const
-
-/** 监控域工具元数据（用于 listRegisteredTools 展示） */
-export const MONITOR_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'monitor_process_list', description: '列出远程服务器的活跃进程（按 CPU/内存排序）' },
-  { name: 'monitor_disk_usage', description: '获取远程服务器的磁盘使用率（df -h 解析）' },
-  { name: 'monitor_network_stats', description: '获取远程服务器的网络连接统计（ss/netstat 解析）' },
-]
-
-/** 占位导出，避免 TS unused 警告 */
+] as const/** 占位导出，避免 TS unused 警告 */
 export type { McpToolResult }

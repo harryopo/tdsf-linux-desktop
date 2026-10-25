@@ -205,9 +205,3 @@ export const CREDIBILITY_TOOL_NAMES = [
   'credibility_assess',
   'decision_history',
 ] as const
-
-/** 决策域工具元数据（用于 listRegisteredTools 展示） */
-export const CREDIBILITY_TOOL_METAS: Array<{ name: string; description: string }> = [
-  { name: 'credibility_assess', description: '多源证据融合评估可信度（D-S + PCR5）' },
-  { name: 'decision_history', description: '查询历史决策卡片（FTS5 全文检索）' },
-]

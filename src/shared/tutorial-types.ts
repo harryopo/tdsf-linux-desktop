@@ -161,15 +161,7 @@ export function stripStructuralTags(tags: string[] | undefined): string[] {
     ...LINUX_DISTRO_VALUES
   ])
   return (tags ?? []).filter((t) => !internal.has(stripLeadingEmoji(t)))
-}
-/** 难度等级颜色 */
-export const TUTORIAL_DIFFICULTY_COLORS: Record<TutorialDifficulty, string> = {
-  beginner: '#52c41a',
-  intermediate: '#faad14',
-  advanced: '#f5222d'
-}
-
-// v2.5 Phase C 那批「embedding 异步回填」的类型（BackfillStatus / BackfillProgress /
+}// v2.5 Phase C 那批「embedding 异步回填」的类型（BackfillStatus / BackfillProgress /
 // BackfillStartOptions / BackfillStartResult / BackfillCancelResult / BackfillStatusResult）
 // 已于 2026-10-24 随整条回填链整删（#211）：那四把键在渲染层零调用，教程向量在导入时就生成
 // （#180），不需要一条运行时的补齐任务。判据见 tests/unit/tutorial-ipc-surface.test.ts。
