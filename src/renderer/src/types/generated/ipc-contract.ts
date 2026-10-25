@@ -186,10 +186,6 @@ export interface ContractedInvokeApi {
    * 通道 `sftp:readFile` */
   sftpReadFile(sessionId: string, remotePath: string): Promise<string>
 
-  /** 获取远程文件/目录元信息
-   * 通道 `sftp:stat` */
-  sftpStat(sessionId: string, remotePath: string): Promise<SftpEntry | null>
-
   /** 对话框选择私钥并复制到 ~/.ssh（chmod 600）
    * 通道 `ssh:upload-keypair` */
   sshUploadKeypair(): Promise<{ success: boolean; keyPair?: SshKeyPair; error?: string; canceled?: boolean }>

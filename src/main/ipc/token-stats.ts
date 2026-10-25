@@ -6,8 +6,9 @@
  * 通道命名规范（与 IpcChannelMap 对应，方案书 §11.2）：
  * - token:cost-stats — 获取累计成本统计（当日/当周/当月/总 + 按 Subagent/Provider 分布）
  *
- * 与现有 agent-runtime.ts 中 token:stats / token:reset / token:records 的关系：
- * - token:stats / token:reset / token:records 是 v0.9 引入的 token 数量统计通道
+ * 与现有 agent-runtime.ts 中 token:stats / token:records 的关系：
+ * - token:stats / token:records 是 v0.9 引入的 token 数量统计通道（token:reset 已于 #216 整删：
+ *   按下只清内存计数器、界面上没有这颗按钮，而成本页读的就是同一份数）
  * - token:cost-stats 是 v0.9.5 新增的 token 成本（USD）统计通道
  * - 两者并存：token:stats 返回 TokenStats（token 数），
  *   token:cost-stats 返回 CostStats（USD 成本）

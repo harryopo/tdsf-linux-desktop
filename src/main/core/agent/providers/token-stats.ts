@@ -4,7 +4,7 @@
  * 职责：
  * - 累计每次 LLM 调用的 token 使用量
  * - 按时间维度（当日/当周/当月）+ Subagent 维度聚合
- * - 提供 IPC 通道 token:stats / token:reset 的数据源
+ * - 提供 IPC 通道 token:stats / token:records / token:cost-stats 的数据源
  *
  * 持久化策略：
  * - 使用 electron-store 持久化（key: 'tokenStats'），进程重启后恢复

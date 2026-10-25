@@ -8,9 +8,9 @@
  * - IPC 推送载荷类型（AgentChunkPayload / AgentDonePayload / AgentErrorPayload）
  *
  * v0.9.4 新增：
- * - IPC_PROTOCOL_VERSION 常量 + getProtocolVersion 同步获取
+ * - IPC_PROTOCOL_VERSION 常量（主进程启动日志用；getProtocolVersion 那把键随 #216 整删）
  * - SessionId branded type + generateSessionId 工厂函数
- * - SessionEntry / SystemPingResponse 接口
+ * - SessionEntry 接口（SystemPingResponse 随 #216 整删：system:ping 渲染层零调用）
  * - AgentChunkPayload / AgentDonePayload / AgentErrorPayload 增加可选 sessionId
  *
  * 设计原则：
@@ -732,57 +732,8 @@ export interface ConfidenceAssessment {
  */
 export type ConfidenceProvenance = 'fused' | 'self-reported'
 
-/**
- * DAG 节点类型
- */
-export type DagNodeType = 'source' | 'fusion' | 'result'
 
-/**
- * DAG 节点数据（对应 React Flow Node）
- */
-export interface DagNodeData {
-  /** 节点唯一 ID */
-  id: string
-  /** 节点类型 */
-  type: DagNodeType
-  /** 节点显示标签 */
-  label: string
-  /** 节点附加数据（用于 React Flow 节点渲染） */
-  data: {
-    sourceId?: string
-    confidence?: number
-    ruleUsed?: 'dempster' | 'pcr5'
-    conflict?: number
-    belief?: number
-    plausibility?: number
-    finalConfidence?: number
-    focalElements?: Array<{ elements: string; mass: number }>
-  }
-}
 
-/**
- * DAG 边数据（对应 React Flow Edge）
- */
-export interface DagEdgeData {
-  /** 边唯一 ID */
-  id: string
-  /** 源节点 ID */
-  source: string
-  /** 目标节点 ID */
-  target: string
-  /** 边标签 */
-  label: string
-}
-
-/**
- * DAG 完整数据（节点 + 边，用于 React Flow 渲染）
- */
-export interface DagData {
-  /** 节点列表 */
-  nodes: DagNodeData[]
-  /** 边列表 */
-  edges: DagEdgeData[]
-}
 
 // ============================================================================
 // v0.9.4 IPC 协议优化（批次 1：sessionId + abort signal + protocolVersion + ping/pong）
@@ -852,22 +803,6 @@ export interface SessionEntry {
   cancelled: boolean
 }
 
-/**
- * system:ping 心跳响应载荷
- *
- * 用于渲染进程检测主进程是否响应，并验证协议版本是否匹配。
- *
- * 渲染进程可定期（如 30 秒）调用 systemPing() 检测主进程是否响应。
- * 若 protocolVersion 与预期不一致，可提示用户重启应用或检查构建产物。
- */
-export interface SystemPingResponse {
-  /** 主进程是否正常 */
-  ok: boolean
-  /** 主进程时间戳（ms，渲染进程可计算 IPC 往返延迟） */
-  timestamp: number
-  /** IPC 协议版本号（与 IPC_PROTOCOL_VERSION 常量一致） */
-  protocolVersion: string
-}
 
 /**
  * 生成新的 SessionId（v0.9.4 新增）
@@ -884,7 +819,8 @@ export function generateSessionId(prefix: string = 'sess'): SessionId {
 //
 // 任务：v0.9.5 渲染层 UI 集成 - 补齐主进程已实现但界面拿不到的通道
 //   token:cost-stats（成本透明）
-//   subagent:list / subagent:reload（自定义 Agent 加载器）
+//   subagent:list / subagent:reload 与它们的加载器已于 2026-10-25 整删（#216）：
+//   除了这两把 IPC 键没有任何读者，界面上也从来没有 Agent 列表这一格。
 //
 // 组 2（mode:* 五模式切换）的类型已于 2026-10-24 随实现整删：
 // mode 既不注入 system prompt 也不拦工具，渲染层零调用，
@@ -925,50 +861,8 @@ export interface CostStats {
   byProvider: Record<string, number>
 }
 
-/**
- * 自定义 Agent 配置（v0.9.5 P0 - 组 4，从 main/core/agent/subagents/agent-loader.ts 迁移）
- *
- * 从项目根 .tdsf/agent/*.md 加载，YAML frontmatter 声明元数据，正文是 system prompt 模板。
- *
- * 字段来源：
- * - name / displayName / description / tools：YAML frontmatter
- * - systemPrompt：Markdown 正文（frontmatter 之后的内容）
- * - sourceFile：文件路径（用于热重载）
- */
-export interface CustomAgentConfig {
-  /** Agent 名称（唯一标识，如 'linux-expert'） */
-  name: string
-  /** 显示名称（如 'Linux 专家'） */
-  displayName: string
-  /** 简短描述（如 'Linux 运维专家，擅长故障排查'） */
-  description: string
-  /** 允许的工具白名单（如 ['search', 'log', 'metric']） */
-  tools: string[]
-  /** System prompt 模板（Markdown 正文） */
-  systemPrompt: string
-  /** 来源文件路径（用于热重载） */
-  sourceFile: string
-}
 
-/**
- * subagent:reload IPC 通道请求参数
- */
-export interface SubagentReloadRequest {
-  /** 指定文件路径（绝对路径），不指定则全部重载 */
-  filePath?: string
-}
 
-/**
- * subagent:reload IPC 通道返回值
- */
-export interface SubagentReloadResponse {
-  /** 是否整体成功（即使部分失败也返回 true，只要重载流程完成） */
-  success: boolean
-  /** 重载成功的文件路径列表 */
-  reloaded: string[]
-  /** 重载失败的文件列表（含错误信息） */
-  failed: Array<{ filePath: string; error: string }>
-}
 
 /**
  * v0.9.7 P3 M1 新增：终端智能补全建议项

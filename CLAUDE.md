@@ -55,7 +55,7 @@ pnpm lint             # eslint src --ext .ts,.tsx（0 errors，warnings 允许�
 2026-10-14 我给 `tests-typecheck` 加注释时，块注释里那段通配路径的"星号紧跟斜杠"提前关掉了
 注释、整个脚本变成语法错误——门坏了不会报"门通过"，它只是不再说话。这把闸把它变成会说话的红。
 
-> 这把闸原先**只在 workflow 里跑**，本地那串"门禁全绿"绕不过它——2026-10-25 因此连红两轮：
+> 这把闸原先**只在 workflow 里跑**，本地那串"门禁全绿"绕不过它——2026-10-25 因此连红三轮（实测三次 TypeScript (tests) 作业失败）：
 > #211 整删了几个一次性脚本，受检文件下限（那把闸唯一会红的东西）没人同批下调，本地每次都说自己绿。
 > 现在 `gates:ci` 把 CI 直跑的四把都收进来，并有常驻判据 `tests/unit/ci-gate-parity.test.ts`
 > 钉住这个方向：**workflow 里每一条 `node scripts/...` 必须能从 package.json 的某个脚本里叫动**。

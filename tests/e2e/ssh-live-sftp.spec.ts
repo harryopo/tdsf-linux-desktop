@@ -150,31 +150,24 @@ test.describe('真机交互链路（SFTP / 终端流 / 重连不重问主机密�
       )
       expect(read, '读回内容必须与写入逐字节一致').toBe(content)
 
-      const stat = await page.evaluate(
-        (args) => {
-          const api = (window as unknown as {
-            electronAPI: {
-              sftpStat: (s: string, p: string) => Promise<{ size: number; isFile: boolean } | null>
-            }
-          }).electronAPI
-          return api.sftpStat(args.sid, args.path)
-        },
-        { sid, path: remote }
-      )
-      expect(stat, '远端应存在这个文件').toBeTruthy()
-      expect(stat!.isFile).toBe(true)
-      expect(stat!.size, 'stat.size 应为写入字节数').toBe(Buffer.byteLength(content))
 
       const listed = await page.evaluate(
         (args) => {
           const api = (window as unknown as {
-            electronAPI: { sftpList: (s: string, p: string) => Promise<{ name: string }[]> }
+electronAPI: {
+              sftpList: (s: string, p: string) => Promise<{ name: string; isFile: boolean; size: number }[]>
+            }
           }).electronAPI
           return api.sftpList(args.sid, '/tmp')
         },
         { sid }
       )
-      expect(listed.some((e) => e.name === path.basename(remote)), '/tmp 列表应含刚写的文件').toBe(true)
+      const hit = listed.find((e) => e.name === path.basename(remote))
+      expect(hit, '/tmp 列表应含刚写的文件').toBeTruthy()
+      expect(hit!.isFile, '列出来这一条必须是普通文件（不是目录）').toBe(true)
+      expect(hit!.size, '列表里的 size 必须等于写入字节数（这是界面显示大小的同一份数）').toBe(
+        Buffer.byteLength(content)
+      )
 
       const renamedOk = await page.evaluate(
         (args) => {
@@ -209,16 +202,21 @@ test.describe('真机交互链路（SFTP / 终端流 / 重连不重问主机密�
       )
       expect(deleted, 'sftpDelete 应返回 true').toBe(true)
 
-      const gone = await page.evaluate(
+      // 复查走界面真用的那条：列父目录，被删掉的那个名字必须不在里面
+      const afterDelete = await page.evaluate(
         (args) => {
           const api = (window as unknown as {
-            electronAPI: { sftpStat: (s: string, p: string) => Promise<unknown> }
+            electronAPI: { sftpList: (s: string, p: string) => Promise<{ name: string }[]> }
           }).electronAPI
-          return api.sftpStat(args.sid, args.path)
+          return api.sftpList(args.sid, '/tmp')
         },
-        { sid, path: renamed }
+        { sid }
       )
-      expect(gone, '删除后 stat 应为 null').toBeNull()
+      expect(
+        afterDelete.some((e) => e.name === path.basename(renamed)),
+        '删除后 /tmp 列表里不该再有这个文件'
+      ).toBe(false)
+
     } finally {
       if (sid) await disconnect(page, sid).catch(() => undefined)
       await app.close().catch(() => undefined)

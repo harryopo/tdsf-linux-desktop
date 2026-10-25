@@ -29,7 +29,9 @@ const REPO = path.resolve(__dirname, '../..')
  *
  * 2026-10-25 降到 51（#215）：#211（7c6d212）整删教程抓取/回填链时带走了 5 个 .cjs
  * （scripts/ 下 55 → 50，加仓库根那份 eslint.config.cjs 共 51），那一批没同批下调这把下限
- * ⇒ CI 从那一笔起连红两轮，而本地每次"全绿"都绕过了它——因为这把门只在 CI 里跑。
+ * ⇒ CI 从那一笔起**连红三轮**（`gh run list` 实测：53300c4 / c07af34 / 662c8ae 三次
+ * TypeScript (tests) 作业 failure，红话都是这一句），而本地每次"全绿"都绕过了它——
+ * 因为这把门只在 CI 里跑。
  * 补的执行体是 `pnpm gates:ci` 加常驻判据 `tests/unit/ci-gate-parity.test.ts`
  * （工作流里每一条 `node scripts/...` 都必须能从 package.json 里叫动，
  * 再出现"只在 CI 存在的门"当场红）。

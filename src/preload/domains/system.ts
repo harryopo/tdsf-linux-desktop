@@ -2,10 +2,8 @@
 import type { DbStatus } from '@shared/db-types'
 import type { ProfilerRunResponse, ServerListItem, SshConfig, SystemInfo } from '@shared/models'
 import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
-import type { SystemPingResponse } from '@shared/agent-types'
 import type { AppInfo } from '../../main/ipc/app-update'
-import { AGENT, APP, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE, SYSTEM } from '@shared/ipc-channels'
-import { IPC_PROTOCOL_VERSION } from '@shared/agent-types'
+import { AGENT, APP, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
 
@@ -104,37 +102,16 @@ const profiler = {
 }
 
 /**
- * v0.9.4 系统级 IPC 调用（协议版本 + 心跳保活 + 通用取消）
+ * 系统级 IPC 调用（通用取消）
  *
- * 通道与主进程 ipc/index.ts 注册的 system:ping 一一对应。
+ * 2026-10-25 #216 判掉两把：`systemPing`（回 `{ok,timestamp,protocolVersion}` 的空声——
+ * 渲染层没有任何心跳循环在调它）与 `getProtocolVersion`（只是把 @shared 常量原样递回去，
+ * 主进程启动时自己把版本号打进日志）。留着只多一个"看起来在体检"的口，所以连通道一起删。
  *
- * 设计原则：
- * - getProtocolVersion 同步返回常量（无需 IPC 调用，从 @shared 直接 import）
- * - systemPing 异步调用 system:ping IPC，用于心跳保活
  * - agentCancel 通过 sessionId 统一取消 agent:chat 会话
  *   （主进程 handler 已通过 session-registry 集中管理 AbortController）
  */
 const system = {
-  /**
-   * 同步获取 IPC 协议版本号
-   *
-   * 从 @shared/agent-types 导入 IPC_PROTOCOL_VERSION 常量，无需 IPC 调用。
-   * 渲染进程可在启动时校验版本一致性（preload 与 main 应保持同步）。
-   *
-   * @returns IPC 协议版本号（如 '0.9.4'）
-   */
-  getProtocolVersion: (): string => IPC_PROTOCOL_VERSION,
-
-  /**
-   * 心跳保活 ping（检测主进程是否响应）
-   *
-   * 渲染进程可定期（如每 30 秒）调用本方法，超时无响应可判定主进程卡死。
-   *
-   * @returns { ok: true, timestamp: number, protocolVersion: string }
-   */
-  ping: (): Promise<SystemPingResponse> =>
-    ipcRenderer.invoke(SYSTEM.PING),
-
   /**
    * 通过 sessionId 统一取消进行中的会话（v0.9.4 新增）
    *

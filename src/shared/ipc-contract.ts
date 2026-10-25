@@ -702,18 +702,6 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
   },
   {
     kind: 'invoke',
-    api: 'sftpStat',
-    channel: SFTP.STAT,
-    doc: '获取远程文件/目录元信息',
-    args: [
-      { name: 'sessionId', ts: 'string', schema: str },
-      { name: 'remotePath', ts: 'string', schema: str },
-    ],
-    resultTs: 'SftpEntry | null',
-    result: z.unknown(),
-  },
-  {
-    kind: 'invoke',
     api: 'sshUploadKeypair',
     channel: SSH.UPLOAD_KEYPAIR,
     doc: '对话框选择私钥并复制到 ~/.ssh（chmod 600）',

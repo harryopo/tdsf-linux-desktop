@@ -5,7 +5,11 @@
  * 供渲染层在执行命令前主动查询风险等级（如 DecisionPage 高危拦截清单）。
  *
  * 通道：
- * - risk:check — 检查命令风险等级，返回 { risk, reasons }
+ * - risk:rules — 读取真正生效的拦截规则表（设置页「命令风险评级规则」在读）
+ *
+ * 曾有第二条 risk:check（桥接 assessCommandRisk 返回 { risk, reasons }），2026-10-25 整删（#216）：
+ * `assessCommandRisk` 本来就被沙箱审批自己调用（sandbox-approval.ts 内），界面读规则走 risk:rules，
+ * AI 侧走 MCP 的 risk_check——这条通道只是同一件事的第二个出口，渲染层一次都没调过。
  *
  * 设计说明：
  * - 不调用 assessWithAst（其失败时返回 null，需调用方处理降级）
@@ -18,8 +22,6 @@
 import { ipcMain } from 'electron'
 import { RISK, type RiskRulesSnapshot } from '@shared/ipc-channels'
 import { COMMAND_RULES_SNAPSHOT } from '../core/command-gate'
-import { assessCommandRisk } from './sandbox-approval'
-import type { CommandRiskLevel } from './sandbox-approval'
 import { logger } from '../services/log/logger'
 
 /**
@@ -28,22 +30,6 @@ import { logger } from '../services/log/logger'
  * 在 registerAllIpcHandlers 中调用，应用生命周期内只注册一次。
  */
 export function registerRiskHandlers(): void {
-  ipcMain.handle(
-    RISK.CHECK,
-    async (_event, command: string): Promise<{ risk: CommandRiskLevel; reasons: string[] }> => {
-      if (typeof command !== 'string' || command.trim().length === 0) {
-        logger.warn('IPC.RISK', 'risk:check 收到空命令，返回 low')
-        return { risk: 'low', reasons: [] }
-      }
-      const result = await assessCommandRisk(command)
-      logger.debug('IPC.RISK', 'risk:check 评估完成', {
-        command: command.slice(0, 80),
-        risk: result.risk,
-        reasonCount: result.reasons.length,
-      })
-      return result
-    },
-  )
 
   /**
    * risk:rules — 把真正生效的拦截规则表给设置页展示

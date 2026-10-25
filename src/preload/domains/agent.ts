@@ -1,8 +1,8 @@
 /** agent 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
 import type { ChatMessage } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
-import type { CustomAgentConfig, SubagentReloadRequest, SubagentReloadResponse, ThinkingStrength } from '@shared/agent-types'
-import { AGENT, PAOR, SUBAGENT } from '@shared/ipc-channels'
+import type { ThinkingStrength } from '@shared/agent-types'
+import { AGENT, PAOR } from '@shared/ipc-channels'
 import { assertContractArgs } from '../../shared/ipc-contract'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
@@ -86,39 +86,5 @@ const agentRuntime = {
     ipcRenderer.invoke(PAOR.APPROVE, callId, approved),
 }
 
-/**
- * v0.9.5 P0 - 组 4：Subagent 自定义 Agent 加载器 invoke 调用
- *
- * 通道与主进程 ipc/subagent.ts 一一对应：
- * - subagent:list   → list（加载所有自定义 agent 配置，从 .tdsf/agent/ 目录）
- * - subagent:reload → reload（重新加载指定 agent 或全部重载）
- *
- * 使用场景：
- * - UI 自定义 agent 列表展示（如下拉框 / 卡片列表）
- * - 用户编辑 .tdsf/agent/*.md 后调用 reload 热重载 agent 配置
- *
- * 设计要点：
- * - subagent:list 不接收参数（始终从默认目录 .tdsf/agent/ 加载）
- * - subagent:reload 入参 filePath 可选（不传则全部重载）
- * - CustomAgentConfig 接口已迁移到 @shared/agent-types.ts（SSOT）
- */
-const subagent = {
-  /**
-   * 加载所有自定义 agent 配置
-   *
-   * @returns CustomAgentConfig[]（目录不存在返回空数组，不抛错）
-   */
-  list: (): Promise<CustomAgentConfig[]> =>
-    ipcRenderer.invoke(SUBAGENT.LIST),
 
-  /**
-   * 重新加载指定 agent 或全部重载
-   *
-   * @param request { filePath?: string }（不传则重载整个 .tdsf/agent/ 目录）
-   * @returns { success, reloaded, failed }（即使部分失败也返回 success=true）
-   */
-  reload: (request?: SubagentReloadRequest): Promise<SubagentReloadResponse> =>
-    ipcRenderer.invoke(SUBAGENT.RELOAD, request),
-}
-
-export { agentRuntime, subagent }
+export { agentRuntime }

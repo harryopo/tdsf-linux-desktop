@@ -39,7 +39,6 @@ const LOCAL_DEST_CHANNELS: Record<string, Defense> = {
   'SSH.DELETE_KEYPAIR': 'filename-check',
   "'profiler:exportMd'": 'confinement',
   "'profiler:exportPdf'": 'confinement',
-  "'subagent:reload'": 'confinement',
   'APP.DOWNLOAD_UPDATE': 'external-url',
   'APP.EXPORT_MODEL_STATS': 'fixed-path',
   // 2026-10-21 服务器列表导入/导出：目的地与来源都由主进程弹框选，渲染层拿不到路径
@@ -206,7 +205,9 @@ function isExposed(h: HandlerInfo): boolean {
 
 describe('IPC 本地目的地防线覆盖面', () => {
   it('扫描确实取到了数据（0 条等于量具坏了）', () => {
-    expect(handlers.length).toBeGreaterThan(150)
+    // 地板按现量留余量，不按某一天的数抄死：#216 合法整删了 10 个 handler（159→149），
+    // 这条烟雾判据如果继续钉 150，红的是尺子不是产品。真要盯覆盖面看的是下面那两条逐名对账。
+    expect(handlers.length).toBeGreaterThan(130)
   })
 
   it('每个暴露本地路径/外部地址的通道都在表里，且防线与声明一致', () => {

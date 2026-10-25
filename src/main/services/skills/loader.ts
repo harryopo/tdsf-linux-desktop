@@ -3,7 +3,7 @@
  *
  * 从文件系统加载 SKILL.md 文件，解析 YAML frontmatter 提取元数据。
  *
- * 设计原则（参考 agent-loader.ts）：
+ * 设计原则：
  * - 不引入 yaml / gray-matter 依赖，用正则解析
  * - 解析失败 → 返回 null + warn 日志（不影响其他 Skill 加载）
  * - 只提取关键字段（name/description/triggers/riskLevel/category/tags）

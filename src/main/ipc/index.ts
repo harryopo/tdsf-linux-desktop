@@ -9,14 +9,13 @@
  * 注意：重复注册同名 handler 会抛错，所以本函数在应用生命周期内只应调用一次。
  *
  * v0.9.4 新增：
- * - system:ping handler（心跳保活，返回 { ok, timestamp, protocolVersion }）
- *   渲染进程可定期调用 systemPing() 检测主进程是否响应
+ * 2026-10-25 #216：system:ping（回 ok/timestamp/protocolVersion 的空声）与 risk:check（重复出口）、
+ * subagent:list / subagent:reload（界面上从来没有 Agent 列表）三族连通道一起整删，理由写在 docs/功能实景清单.md C 组。
  */
 
 import { app, ipcMain, BrowserWindow } from 'electron'
 import { installIpcErrorBoundary } from './error-boundary'
 import * as CHANNELS from '@shared/ipc-channels'
-import { IPC_PROTOCOL_VERSION, type SystemPingResponse } from '@shared/agent-types'
 import { registerSshIpcHandlers } from './ssh'
 import { registerAppWindowHandlers } from './app-window'
 import { registerPreviewHandlers } from './preview'
@@ -33,24 +32,21 @@ import { registerProfilerIpcHandlers } from './profiler'
 import { registerTutorialIpcHandlers } from './tutorial'
 import { registerLogIpcHandlers } from './log'
 import { registerCredibilityHandlers } from './credibility'
-// M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
-// 通道：risk:check（渲染层主动查询命令风险等级，供 DecisionPage 高危拦截清单使用）
-import { registerRiskHandlers } from './risk'
 // M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
 // 通道：alert:ack（渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer）
+// risk:check 那把已于 2026-10-25 整删（#216），这里只剩 risk:rules
+import { registerRiskHandlers } from './risk'
 import { registerAlertHandlers } from './alert'
 import { registerSandboxIpcHandlers } from './sandbox'
 // v0.9.5 P0 新增：缺失 IPC 通道补齐
 // - 组 1：token:cost-stats（成本透明）
-// - 组 4：subagent:list / subagent:reload（自定义 Agent 加载器）
 // 组 2（mode:* 五模式切换）已于 2026-10-24 整删：模式既不注入 prompt 也不拦工具，
 // 渲染层零调用，只有 MCP 资源把它当真实能力对外公布——那是谎报，不是半成品。
 // Provider 的能力/定价查询那四条通道同批整删（#210）：能力已经随 provider 列表带出、
 // provider:list 带出、成本由主进程按定价表算好后经 token:cost-stats 回一个数，
 // 这四条只是同一份知识的第二个出口，渲染层一次都没调过。
-import { registerTokenCostStatsHandlers } from './token-stats'
-import { registerSubagentHandlers } from './subagent'
 // v0.9.5 P0 新增：MCP 5 阶段状态机 IPC（借鉴 claw-code §3.3）
+import { registerTokenCostStatsHandlers } from './token-stats'
 import { registerMcpStateHandlers } from './mcp'
 // v1.0 新增：Sidecar-A IPC 通道（SRE + 日志解析 Python Sidecar）
 import { registerSidecarIpcHandlers } from './sidecar'
@@ -132,12 +128,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
       }
     }
   }
-  try {
-    ipcMain.removeHandler('system:ping')
-  } catch {
-    /* 同上 */
-  }
-
   // 事件源订阅的卸载（理由见 ipcDisposers 的注释）：逆序摘，与注册顺序对称
   for (const dispose of ipcDisposers.reverse()) {
     try {
@@ -148,21 +138,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   }
   ipcDisposers = []
 
-  // v0.9.4 新增：system:ping 心跳保活通道
-  //
-  // 设计说明：
-  // - 主进程启动后立即注册（在所有业务 IPC 之前），用于早期响应渲染进程的心跳请求
-  // - 不依赖 mainWindow（即使窗口未创建完成也能响应）
-  // - 返回 { ok: true, timestamp: Date.now(), protocolVersion: '0.9.4' }
-  // - 渲染进程通过 window.electronAPI.systemPing() 调用（preload 已暴露）
-  // - 使用场景：渲染进程启动后定期（如每 30 秒）调用 systemPing() 检测主进程是否响应
-  ipcMain.handle(CHANNELS.SYSTEM.PING, (): SystemPingResponse => {
-    return {
-      ok: true,
-      timestamp: Date.now(),
-      protocolVersion: IPC_PROTOCOL_VERSION,
-    }
-  })
 
   // 这几个模块会在长生命周期事件源上挂转发回调，返回卸载函数交给 ipcDisposers
   ipcDisposers.push(registerSshIpcHandlers(mainWindow))
@@ -193,11 +168,10 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v0.9 新增：可信度算法 IPC（D-S 证据理论 + PCR5 冲突融合 + 6 源证据）
   // v2.3.2：传递 db 用于 credibility:export-decision-html 简化导出
   registerCredibilityHandlers(db)
-  // M2 Task 2 新增：命令风险评估 IPC（risk:check，桥接 assessCommandRisk）
-  // 通道：risk:check（渲染层主动查询命令风险等级，供 DecisionPage 高危拦截清单使用）
-  registerRiskHandlers()
   // M3 Task 2 新增：告警确认 IPC（alert:ack，主进程内存 Map 记录 ack 状态）
   // 通道：alert:ack（渲染层 AlertDrawer "标记已处理" 按钮调用，ack 后关闭 Drawer）
+  // 命令风险：只留规则表只读出口（risk:rules，设置页风险控制区在读）
+  registerRiskHandlers()
   registerAlertHandlers()
   // v0.9 新增：OpenHands 沙箱集成 IPC（Docker 检测 + 沙箱生命周期 + 命令执行）
   // P-2 + P-4 修复：传递 mainWindow 用于 IPC 层强制审批 + session_api_key 句柄模式
@@ -214,9 +188,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 让 Token 监控面板展示累计成本（USD），让用户对消费有直观感知
   registerTokenCostStatsHandlers()
 
-  // 组 3：subagent:list / subagent:reload（自定义 Agent 加载器）
-  // 让 UI 列出 / 热重载项目根 .tdsf/agent/*.md 中的自定义 agent 配置
-  registerSubagentHandlers()
 
   // v0.9.5 P0 新增：MCP 5 阶段生命周期状态机（借鉴 claw-code §3.3）
   // 暴露 mcp:get-state / mcp:reset / mcp:state-changed
@@ -264,10 +235,9 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
   registerFsIpcHandlers()
 
-  // v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete/accept/import）
+  // v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete / accept）
   // 通道：terminal-completion:complete（请求补全建议）
   //       terminal-completion:accept（接受建议，提升 Frecency）
-  //       terminal-completion:import（批量导入历史命令）
   // 消费方：终端 UI（Phase 2 待集成）
   // 引擎：Trie + SQLite 历史索引 + 静态 Linux 命令兜底
   registerTerminalCompletionIpcHandlers()

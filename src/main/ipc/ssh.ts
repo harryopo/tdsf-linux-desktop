@@ -735,19 +735,6 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
     }
   )
 
-  /** sftp:stat — 获取文件/目录元信息（返回 SftpEntry 或 null） */
-  ipcMain.handle(
-    SFTP.STAT,
-    async (_event, sessionId: string, remotePath: string) => {
-      try {
-        return await sftpManager.stat(sessionId, remotePath)
-      } catch (err) {
-        const safeMsg = redactSecrets((err as Error).message)
-        logger.error('SSH', 'SFTP stat 失败', { sessionId, error: safeMsg })
-        throw new Error(`SFTP stat 失败: ${safeMsg}`)
-      }
-    }
-  )
 
   /** sftp:mkdir — 创建远程目录 */
   ipcMain.handle(

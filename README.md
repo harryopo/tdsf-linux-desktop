@@ -108,17 +108,17 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-25 08:03**：单元与组件读数出自 07:57 那轮，端到端读数出自 07:58–08:03 那轮
+下表测量时间 **2026-10-25 09:10**：单元与组件读数出自 09:03–09:04 那轮，端到端读数出自 09:04–09:10 那轮
 （那一轮没有配靶机环境变量，14 条按环境跳过；#213 的真机取证另跑过一次专门的靶机轮，见下），
 结构类读数（通道、契约、源文件、词表）由 `npm run promo:check` 在对账那一刻现场数。
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3571 通过 / 19 跳过 | `npm test`（338 个测试文件：336 通过 / 2 按环境跳过） |
+| 单元与组件用例 | 3555 通过 / 19 跳过 | `npm test`（337 个测试文件：335 通过 / 2 按环境跳过） |
 | 端到端用例 | 77 通过 / 14 跳过 | `npx playwright test`（直驱真实应用窗口） |
-| IPC 通道 | 184 | `npm run audit:ipc`（159 请求-响应 + 25 事件推送） |
-| 已登记契约的通道 | 62 | `src/shared/ipc-contract.ts`（57 invoke + 5 event） |
-| TypeScript / TSX 源文件 | 484 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| IPC 通道 | 174 | `npm run audit:ipc`（149 请求-响应 + 25 事件推送） |
+| 已登记契约的通道 | 61 | `src/shared/ipc-contract.ts`（56 invoke + 5 event） |
+| TypeScript / TSX 源文件 | 481 | `git ls-files src` 里 `.ts/.tsx` 计数 |
 | Provider 类型 | 7 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 
@@ -131,7 +131,7 @@ design:gate · ipc:check · gates:ci · build · playwright ·
 ```
 
 `gates:ci` 收的是**只在 CI 直跑的那四把**（脚本语法下限、scratch 卫生自检、文档链接自检、架构图读数对账）。
-以前它们只在 workflow 里，本地那串"门禁全绿"根本碰不到，于是 2026-10-25 出现过"本地全绿、远端连红两轮"；
+以前它们只在 workflow 里，本地那串"门禁全绿"根本碰不到，于是 2026-10-25 出现过"本地全绿、远端连红三轮"；
 常驻判据 `tests/unit/ci-gate-parity.test.ts` 钉住这个方向——workflow 里每一条 `node scripts/...`
 都必须能从 package.json 的某个脚本里叫动，叫不动就红。
 

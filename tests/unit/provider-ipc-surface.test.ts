@@ -138,6 +138,7 @@ describe('Provider 查询面收口（#210）', () => {
     expect(logged, '注册日志与实际 handler 对不上（多出来的就是已删的出口，少掉的是没登记的）').toEqual(
       [...registered].sort()
     )
-    expect(registered.length, 'Agent Runtime 这层实际注册的通道数').toBe(11)
+    // 11 → 10：#216 判掉了 token:reset（按下只清内存计数器，界面上没有这颗按钮）
+    expect(registered.length, 'Agent Runtime 这层实际注册的通道数').toBe(10)
   })
 })

@@ -151,11 +151,14 @@ describe('契约表 × preload 直接调用点', () => {
     // 所以下界必须**松**，不能钉在某一天的实测值上——2026-10-24 #204 整删五把没人按的管理键
     // （154 → 149 处）就把原先的 `> 150` 判成了"量具坏了"的假红：合法减法不该咬红一把烟雾闸。
     // 真要在意覆盖面，看的是下面那条"常量形态都能解析"与"契约通道参数个数"，不是这个数。
-    expect(sites.length).toBeGreaterThan(100)
+    // 地板按现量留一档余量，不抄某一天的具体数（本文件上面那条注释就是这条规矩）：
+    // #216 合法整删了 11 把零调用出口，直接调用点随之减少，这条烟雾判据不该把合法减法判成量具坏了。
+    expect(sites.length).toBeGreaterThan(80)
     // 写成 DOMAIN.KEY 常量形态的那批才是能被对账的；比例由下面那条断言钉住，
     // 不在注释里抄某一天的具体数（抄了就会和上面那条同批漂开）。
     const constantForm = sites.filter((s) => channels.byExpr.has(s.channelExpr))
-    expect(constantForm.length).toBeGreaterThan(100)
+    // 同上：常量形态那位点也从 >100 放到 >80，覆盖面真伪由下面那条「占比过半」钉，不是这个绝对数。
+    expect(constantForm.length).toBeGreaterThan(80)
     expect(constantForm.length, '常量形态占总位点的一半以上，否则对账面其实在空跑').toBeGreaterThan(
       Math.floor(sites.length / 2)
     )

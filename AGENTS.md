@@ -56,9 +56,13 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 
 > **14 步 Task Protocol 不在这张表里了**（2026-10-20 整删）：实现 7 个文件、`task-sediment`、
 > `ipc/task-permission-approval`、`TASK` 通道、preload 两把键与那批单测一起删，代码只留在 git 历史。
-> 别把同目录的东西一起打成"死代码"：`loop-engineering-subagent` 与 `agent-loader` 由
-> `ipc/loop-engineering.ts`、`ipc/index.ts` 注册并在跑；`subagents/dispatcher.ts` 的 8 步调度
+> 别把同目录的东西一起打成"死代码"，也别把"注册在跑"当成"有人在用"——这两条在同一天都各咬了一口
+> （2026-10-25 #216）：`agent-loader` 唯一的读者就是 `ipc/subagent.ts` 那两把渲染层零调用的键，
+> 所以它随通道一起整删；反过来，`ipc/risk.ts` 整删会带走同文件里**活着**的 `risk:rules`
+> （设置页风险控制区在读），这一刀是 `pnpm audit:ipc` 报"preload 调了但主进程未注册"才拦下来的。
+> **判"死"要按通道与调用点判，不能按文件判。**`subagents/dispatcher.ts` 的 8 步调度
 > 已于 2026-10-24 整删（生产零调用、与 supervisor 的 PAOR 重复，专属测试与 barrel 导出同批删）。
+> 还在跑的是 `loop-engineering-subagent`（由 `ipc/loop-engineering.ts` 注册并在用）。
 > **`ipc/agent.ts` 与裸 `llm:*` 家族同样已于 2026-10-24 整删**（`agent:start/confirm/cancel` +
 > `agent:step`、`llm:chat/analyze/validate/chat-with-context/chat-with-tools/tool-approve` 与 6 条推送）：
 > 渲染层零调用，主对话一直是 `agent:chat`（Supervisor）那一条。留着的 `core/agent-workflow.ts`

@@ -5,8 +5,9 @@
  *
  * v0.9.4 批次 4 新增：
  * - ExploreSubagent（任务 2）：代码库探索 Subagent，基于 fs 扫描
- * - loadCustomAgents / loadCustomAgent（任务 3）：.tdsf/agent/*.md 加载器
  *
+ * 任务 3 那个 `.tdsf/agent/*.md` 加载器也已于 2026-10-25 整删（#216）：它唯一的读者是
+ * subagent:list / subagent:reload 这两把键，而渲染层对这两把零调用、界面上从来没有 Agent 列表。
  * 原 8 步 dispatcher（任务 1）已于 2026-10-24 整删：它只被本文件转出、生产零调用，
  * 编排实际由 supervisor 自己做（PAOR）。详见 docs/功能实景清单.md C 组。
  */
@@ -32,9 +33,6 @@ export { KnowledgeSubagent } from './knowledge-subagent'
 export { ExploreSubagent } from './explore-subagent'
 export type { ExploreTaskInput, ExploreResultOutput } from './explore-subagent'
 
-// v0.9.4 批次 4 - 任务 3：.tdsf/agent/*.md 加载器
-export { loadCustomAgent, loadCustomAgents } from './agent-loader'
-export type { CustomAgentConfig } from './agent-loader'
 
 import { CodingSubagent } from './coding-subagent'
 import { ThinkingSubagent } from './thinking-subagent'

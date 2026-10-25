@@ -3,9 +3,11 @@
  *
  * 背景：P1-2 给 `ipcMain.handle` 装了错误边界，但脱敏只装在 **reject** 路径上。
  * 实测 `src/main/ipc/*.ts` 有 39 处 `success: false` 与 32 处 `ok: false` 是**正常 resolve** 的
- * 返回体（渲染层按 `code` 分支、审批被拒不算故障），其中 sandbox / llm-tools / tutorial /
- * scheduler / subagent / diagnostics 直接把 `toErrorString(err)`、`(err as Error).message`
+ * 返回体（渲染层按 `code` 分支、审批被拒不算故障），当时 sandbox / llm-tools / tutorial /
+ * scheduler / subagent / diagnostics 六处直接把 `toErrorString(err)`、`(err as Error).message`
  * 拼进 `error` 字段 —— 于是同一句话，抛出来会被脱敏，作为数据返回就一个字不涂地越过进程边界。
+ * （后面那四处已随 #195 / #206 / #216 整删，这份判据留着的理由是形状还在：
+ * 现在仍有 `success: false` 的返回体把内部报错拼进 `error`。）
  *
  * 本文件钉住四件事，缺一条这道闸就是假的：
  *   1. 阳性对照：带凭据形状的返回体，跨边界读不到那个值；
@@ -98,20 +100,20 @@ describe('阳性对照：不兜就会把原文送过边界', () => {
     expect(out.error).toContain('读取配置失败')
   })
 
-  it('嵌套在 failed[] 里的每条 error 都兜住（subagent:reload 的真实形状）', async () => {
-    const { crossed } = viaBoundary('subagent:reload', async () => ({
+  it('嵌套在 failed[] 里的每条 error 都兜住（合成形状：一条成功 + 两条失败）', async () => {
+    const { crossed } = viaBoundary('sandbox:execute', async () => ({
       success: false,
       reloaded: ['/a/b.md'],
       failed: [
-        { filePath: '/home/u/.tdsf/agent/x.md', error: `解析失败 token=${FAKE_KEY}` },
-        { filePath: '/home/u/.tdsf/agent/y.md', error: '文件不存在' },
+        { filePath: '/home/u/work/x.md', error: `解析失败 token=${FAKE_KEY}` },
+        { filePath: '/home/u/work/y.md', error: '文件不存在' },
       ],
     }))
     const out = (await crossed()) as { failed: Array<{ filePath: string; error: string }> }
     expect(out.failed[0].error).not.toContain('TESTONLYabcdefghij0123456789')
     // 兄弟条目没有凭据形状，就该原样留着
     expect(out.failed[1].error).toBe('文件不存在')
-    expect(out.failed[0].filePath).toBe('/home/u/.tdsf/agent/x.md')
+    expect(out.failed[0].filePath).toBe('/home/u/work/x.md')
   })
 
   it('未登记为诊断字段的键，只要带出密钥形状也照样涂，并在日志里点名', async () => {

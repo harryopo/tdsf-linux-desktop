@@ -10,7 +10,6 @@
  * - provider:save       — 保存 Provider（apiKey 单独走 SecureStore）
  * - provider:set-default — 设置默认 Provider ID（P-6：统一为 kebab-case，与 sandbox:approval-request 等保持一致）
  * - token:stats         — 获取 token 统计聚合
- * - token:reset         — 重置 token 统计
  *
  * 推送通道（主 → 渲染，单向）：
  * - agent:chunk — 流式 token 块（含 correlationId 和 delta）
@@ -29,7 +28,7 @@ import { randomUUID } from 'node:crypto'
 import { ipcMain, BrowserWindow } from 'electron'
 import { approvalTransport, broadcastToWindows } from '../windows/main-window'
 import type { ModelMessage } from 'ai'
-import { AGENT, TOKEN } from '@shared/ipc-channels'
+import { AGENT } from '@shared/ipc-channels'
 import { getSupervisor } from '../core/agent/supervisor'
 import {
   listProviders,
@@ -40,7 +39,7 @@ import {
   // v2.3.7 修复：PersistedProviderConfigWithKey 是 registry 内部类型，不再 re-export 自 types
   type PersistedProviderConfigWithKey,
 } from '../core/agent/providers/provider-registry'
-import { getTokenStats, resetTokenStats, getTokenRecords, getCostStats } from '../core/agent/providers/token-stats'
+import { getTokenStats, getTokenRecords, getCostStats } from '../core/agent/providers/token-stats'
 import { classifyLlmError } from '../core/agent/providers/llm-error'
 import type {
   ProviderConfig,
@@ -408,14 +407,6 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
     }
   )
 
-  // ------------------------------------------------------------------
-  // token:reset — 重置 token 统计
-  // ------------------------------------------------------------------
-  ipcMain.handle(TOKEN.RESET, async (): Promise<boolean> => {
-    resetTokenStats()
-    logger.info('IPC.TOKEN', `token:reset`)
-    return true
-  })
 
   // ------------------------------------------------------------------
   // token:records — 获取 token 使用明细记录（P-5 新增）
@@ -527,7 +518,6 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       'provider:set-default',
       'provider:get-default',
       'token:stats',
-      'token:reset',
       'token:records',
     ],
     pushChannels: [

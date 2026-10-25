@@ -1,5 +1,5 @@
 /** cognition 域：从 src/preload/index.ts 按域拆出。暴露名以 index.ts 里的 electronApi 为准，快照闸盯着 */
-import type { ConfidenceAssessment, CredibilityEvidenceInput, DagData } from '@shared/agent-types'
+import type { ConfidenceAssessment, CredibilityEvidenceInput } from '@shared/agent-types'
 import type { CalibrationState, EceResult, OptimizeTOptions, ProviderId, TemperatureScalingResult } from '../../main/core/agent/credibility/calibration/types'
 import type { FuseAssessOptions } from '../../main/core/agent/credibility/fusion-engine'
 import { CREDIBILITY } from '@shared/ipc-channels'
@@ -10,7 +10,6 @@ import { ipcRenderer } from 'electron'
  *
  * 通道与主进程 ipc/credibility.ts 一一对应：
  * - credibility:assess → assess
- * - credibility:dag    → dag
  *
  * 2026-10-25 整删五把（#214）：审计报告那四把（export / list / load / format）要渲染层整批递
  * `AuditReportInput`，主进程再落盘并盖指纹；决策详情的报告走 index.ts 里那条只收 decisionId 的
@@ -49,15 +48,6 @@ const credibility = {
     options?: FuseAssessOptions
   ): Promise<ConfidenceAssessment> =>
     ipcRenderer.invoke(CREDIBILITY.ASSESS, inputs, options),
-
-  /**
-   * 获取 DAG 可视化数据
-   *
-   * @param inputs 证据源输入列表
-   * @returns DagData（含 nodes + edges，用于 React Flow 渲染）
-   */
-  dag: (inputs: CredibilityEvidenceInput[]): Promise<DagData> =>
-    ipcRenderer.invoke(CREDIBILITY.DAG, inputs),
 
   // ========================================================================
   // v2.4 Phase C 收尾：校准方法（4 个）

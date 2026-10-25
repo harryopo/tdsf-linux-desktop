@@ -193,7 +193,6 @@ export const SSH = {
  * - CHMOD     invoke  渲染 → 主：修改权限
  * - READ_FILE invoke  渲染 → 主：读取远程文件内容到字符串
  * - WRITE_FILE invoke 渲染 → 主：写入字符串到远程文件
- * - STAT      invoke  渲染 → 主：获取文件/目录元信息
  * - MKDIR     invoke  渲染 → 主：创建远程目录
  * - PROGRESS  push    主 → 渲染：上传/下载进度推送
  */
@@ -214,8 +213,6 @@ export const SFTP = {
   READ_FILE: 'sftp:readFile',
   /** 写入字符串到远程文件（invoke: 渲染 → 主，覆盖原文件） */
   WRITE_FILE: 'sftp:writeFile',
-  /** 获取文件/目录元信息（invoke: 渲染 → 主，返回 SftpEntry 或 null） */
-  STAT: 'sftp:stat',
   /** 创建远程目录（invoke: 渲染 → 主） */
   MKDIR: 'sftp:mkdir',
   /** 上传/下载进度推送（push: 主 → 渲染，载荷 SftpProgressEvent） */
@@ -325,7 +322,6 @@ export const LOCAL_TTY = {
  * 通道列表：
  * - COMPLETE  invoke  渲染 → 主：根据当前输入返回补全建议
  * - ACCEPT    invoke  渲染 → 主：用户接受某条建议（提升 Frecency 分数）
- * - IMPORT    invoke  渲染 → 主：批量导入历史命令（如读取远端 ~/.bash_history）
  *
  * 设计依据：v0.9.7 P3 M1 · 终端补全引擎 Phase 1（IPC 4 步同步铁律）
  */
@@ -334,8 +330,6 @@ export const TERMINAL_COMPLETION = {
   COMPLETE: 'terminal-completion:complete',
   /** 接受建议（invoke: 渲染 → 主，提升 Frecency 分数） */
   ACCEPT: 'terminal-completion:accept',
-  /** 批量导入历史命令（invoke: 渲染 → 主，参数 commands: string[], directory?: string） */
-  IMPORT: 'terminal-completion:import',
 } as const
 
 /**
@@ -492,18 +486,12 @@ export const MONITOR = {
  * 通道列表：
  * - STATS         invoke  渲染 → 主：查询日志统计
  * - CLEAR_BUFFER  invoke  渲染 → 主：清空日志缓冲区
- * - SET_MIN_LEVEL invoke  渲染 → 主：设置最小日志级别
- * - FLUSH         invoke  渲染 → 主：刷盘日志
  */
 export const LOG = {
   /** 查询日志统计（invoke: 渲染 → 主） */
   STATS: 'log:stats',
   /** 清空日志缓冲区（invoke: 渲染 → 主） */
   CLEAR_BUFFER: 'log:clearBuffer',
-  /** 设置最小日志级别（invoke: 渲染 → 主） */
-  SET_MIN_LEVEL: 'log:setMinLevel',
-  /** 刷盘日志（invoke: 渲染 → 主） */
-  FLUSH: 'log:flush',
   /** 读取日志（invoke: 渲染 → 主） */
   READ: 'log:read',
   /** 渲染进程日志上报（invoke: 渲染 → 主） */
@@ -735,11 +723,8 @@ export const TUTORIAL = {
  * Token 用量 IPC 通道常量
  *
  * 通道列表：
- * - RESET  invoke  渲染 → 主：重置 Token 用量统计
  */
 export const TOKEN = {
-  /** 重置 Token 用量统计（invoke: 渲染 → 主） */
-  RESET: 'token:reset',
   /** 查询 Token 用量统计（invoke: 渲染 → 主） */
   STATS: 'token:stats',
   /** 查询 Token 用量记录列表（invoke: 渲染 → 主） */
@@ -749,22 +734,6 @@ export const TOKEN = {
 } as const
 
 /**
- * 系统级 IPC 通道常量（v2.2 P1 修复 #20：preload system 常量集中化）
- *
- * 通道列表：
- * - PING  invoke  渲染 → 主：心跳保活 ping
- *
- * 设计说明：
- * - 主进程在所有业务 IPC 之前注册（main/ipc/index.ts:95），用于早期响应渲染进程心跳
- * - 渲染进程通过 window.electronAPI.systemPing() 调用（preload 已暴露）
- * - 主进程使用字面量豁免（B4）：registerAllIpcHandlers 调用前 ipc-channels 模块未初始化
- *   但实际同文件已 import 其他常量，故豁免不适用，主进程同步替换为 SYSTEM.PING
- */
-export const SYSTEM = {
-  /** 心跳保活 ping（invoke: 渲染 → 主，返回 { ok, timestamp, protocolVersion }） */
-  PING: 'system:ping',
-} as const
-
 /**
  * 应用更新 IPC 通道常量（v2.2 P1 修复 #24：AboutSettings 检查更新功能）
  *
@@ -861,19 +830,6 @@ export const PROVIDER = {
 } as const
 
 /**
- * 子 Agent IPC 通道常量
- *
- * 通道列表：
- * - LIST   invoke  渲染 → 主：列出子 Agent
- * - RELOAD invoke  渲染 → 主：重新加载子 Agent 配置
- */
-export const SUBAGENT = {
-  /** 列出子 Agent（invoke: 渲染 → 主） */
-  LIST: 'subagent:list',
-  /** 重新加载子 Agent 配置（invoke: 渲染 → 主） */
-  RELOAD: 'subagent:reload',
-} as const
-
 /**
  * 模型统计 IPC 通道常量（v2.3.2 新增：补齐 ModelSettings 静态数据）
  *
@@ -901,7 +857,6 @@ export const BUDGET = {
  *
  * 通道列表：
  * - ASSESS               invoke  渲染 → 主：评估可信度
- * - DAG                  invoke  渲染 → 主：构建证据 DAG
  * - EXPORT_DECISION_HTML invoke  主进程自己从 DecisionRepository 取数并导出报告
  * - CALIBRATE            invoke  渲染 → 主：校准指定 Provider（v2.4 Phase C 新增）
  * - GET_CALIBRATION_STATE invoke 渲染 → 主：获取全局校准状态（v2.4 Phase C 新增）
@@ -918,8 +873,6 @@ export const BUDGET = {
 export const CREDIBILITY = {
   /** 评估可信度（invoke: 渲染 → 主） */
   ASSESS: 'credibility:assess',
-  /** 构建证据 DAG（invoke: 渲染 → 主） */
-  DAG: 'credibility:dag',
   /** 按 decisionId 简化导出 HTML 报告（invoke: 渲染 → 主，v2.3.2 新增） */
   EXPORT_DECISION_HTML: 'credibility:export-decision-html',
   // v2.4 Phase C 收尾：校准 IPC 通道（4 个；记录样本那把只写内存，已随 #214 整删）
@@ -937,15 +890,12 @@ export const CREDIBILITY = {
  * 风险评估 IPC 通道常量（M2 新增：命令风险检查）
  *
  * 通道列表：
- * - CHECK invoke 渲染 → 主：检查命令风险等级（AST + 正则降级）
  *
  * 设计依据：M2 Task 2 · IPC 4 步同步铁律
  * 桥接主进程 assessCommandRisk（src/main/ipc/sandbox-approval.ts），
  * 该函数已封装 AST 优先 + 正则降级逻辑，返回 { risk, reasons }。
  */
 export const RISK = {
-  /** 检查命令风险等级（invoke: 渲染 → 主，桥接 assessCommandRisk） */
-  CHECK: 'risk:check',
   /** 读取真正生效的拦截规则表（invoke: 渲染 → 主，桥接 COMMAND_RULES_SNAPSHOT） */
   RULES: 'risk:rules',
 } as const

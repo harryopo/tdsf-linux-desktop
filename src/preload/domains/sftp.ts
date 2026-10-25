@@ -59,10 +59,6 @@ const sftp = {
   ): Promise<boolean> =>
     invokeChecked<boolean>('sftpWriteFile', SFTP.WRITE_FILE, sessionId, remotePath, content),
 
-  /** 获取文件/目录元信息（返回 SftpEntry 或 null） */
-  stat: (sessionId: string, remotePath: string): Promise<SftpEntry | null> =>
-    invokeChecked<SftpEntry | null>('sftpStat', SFTP.STAT, sessionId, remotePath),
-
   /** 创建远程目录 */
   mkdir: (sessionId: string, remotePath: string): Promise<boolean> =>
     invokeChecked<boolean>('sftpMkdir', SFTP.MKDIR, sessionId, remotePath),

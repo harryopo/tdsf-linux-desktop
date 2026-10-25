@@ -5,7 +5,6 @@
  *
  * 通道命名规范（与 IpcChannelMap 对应，方案书 §11.2）：
  * - credibility:assess — 评估给定证据集的可信度（返回 ConfidenceAssessment）
- * - credibility:dag    — 获取 DAG 可视化数据（返回 DagData）
  * - credibility:export-decision-html — 按 decisionId 导出报告（主进程自己从 DecisionRepository 取数）
  *
  * 证据源输入格式（CredibilityEvidenceInput）：
@@ -28,11 +27,9 @@ import { ipcMain } from 'electron'
 import { getFusionEngine } from '../core/agent/credibility/fusion-engine'
 // v2.4 Phase C 收尾：assess handler 透传 options 参数
 import type { FuseAssessOptions } from '../core/agent/credibility/fusion-engine'
-import { generateDagData } from '../core/agent/credibility/visualizer'
 import type {
   CredibilityEvidenceInput,
   ConfidenceAssessment,
-  DagData,
 } from '@shared/agent-types'
 import { logger } from '../services/log/logger'
 import { ConfigStore } from '../services/storage/config-store'
@@ -113,7 +110,6 @@ function isHighRiskLevel(level: RiskLevel | undefined): boolean {
  *
  * 注册以下通道：
  * - credibility:assess — 评估给定证据集的可信度
- * - credibility:dag    — 获取 DAG 可视化数据
  * - credibility:export-decision-html — 按 decisionId 简化导出 HTML 报告（v2.3.2 新增）
  *
  * @param db 数据库管理器（v2.3.2 新增：简化导出 HTML 报告时查询 DecisionCard）
@@ -216,48 +212,6 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
     }
   )
 
-  // ------------------------------------------------------------------
-  // credibility:dag — 获取 DAG 可视化数据
-  // ------------------------------------------------------------------
-  // 参数：(inputs: CredibilityEvidenceInput[])
-  // 返回：DagData（含节点和边，用于 React Flow 渲染）
-  ipcMain.handle(
-    'credibility:dag',
-    async (_event, inputs: CredibilityEvidenceInput[]): Promise<DagData> => {
-      try {
-        logger.info('IPC.CREDIBILITY', `credibility:dag 启动`, {
-          sourceCount: inputs?.length ?? 0,
-        })
-
-        if (!inputs || inputs.length === 0) {
-          throw new Error('证据源列表为空，至少需要一个证据源')
-        }
-
-        // 1. 创建 Mass 函数列表
-        const massFunctions = createMassFunctionsFromInputs(inputs)
-
-        // 2. 融合（获取步骤追踪）
-        const engine = getFusionEngine()
-        const fusedResult = engine.fuse(massFunctions)
-        const fusionSteps = engine.getLastFusionSteps()
-
-        // 3. 生成 DAG 数据
-        const dagData = generateDagData(massFunctions, fusedResult, fusionSteps)
-
-        logger.info('IPC.CREDIBILITY', `credibility:dag 完成`, {
-          nodes: dagData.nodes.length,
-          edges: dagData.edges.length,
-          fusionSteps: fusionSteps.length,
-        })
-
-        return dagData as DagData
-      } catch (err) {
-        const msg = (err as Error)?.message ?? 'DAG 数据生成失败'
-        logger.error('IPC.CREDIBILITY', `credibility:dag 失败: ${msg}`)
-        throw new Error(`DAG 数据生成失败: ${msg}`)
-      }
-    }
-  )
 
   // =====================================================================
   // v2.4 Phase C 收尾：校准 IPC handlers（6 个）
@@ -419,7 +373,6 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
     // #210 那批就出现过 handler 已删、日志还写着旧通道名的假话
     channels: [
       'credibility:assess',
-      'credibility:dag',
       'credibility:export-decision-html',
       // v2.4 Phase C 收尾：校准 IPC 通道（4 个；记录样本那把只写内存，随 #214 整删）
       'credibility:calibrate',

@@ -77,7 +77,6 @@ const sandbox = {
  * 通道与主进程 ipc/terminal-completion.ts 一一对应：
  * - terminal-completion:complete → complete（请求补全建议）
  * - terminal-completion:accept   → accept（接受建议，提升 Frecency 分数）
- * - terminal-completion:import   → import（批量导入历史命令）
  *
  * 与现有 terminalData 的区别：
  * - terminalData 是 push 模式（主 → 渲染，Shell 数据回传）
@@ -107,15 +106,6 @@ const terminalCompletion = {
   accept: (command: string): Promise<boolean> =>
     ipcRenderer.invoke(TERMINAL_COMPLETION.ACCEPT, command),
 
-  /**
-   * 批量导入历史命令（如读取远端 ~/.bash_history）
-   *
-   * @param commands 命令列表
-   * @param directory 工作目录（可选）
-   * @returns boolean 是否成功
-   */
-  import: (commands: string[], directory?: string): Promise<boolean> =>
-    ipcRenderer.invoke(TERMINAL_COMPLETION.IMPORT, commands, directory),
 }
 
 /**

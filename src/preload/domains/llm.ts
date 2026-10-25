@@ -50,10 +50,6 @@ const token = {
   stats: (): Promise<TokenStats> =>
     ipcRenderer.invoke(TOKEN.STATS),
 
-  /** 重置 token 统计（清空所有记录） */
-  reset: (): Promise<boolean> =>
-    ipcRenderer.invoke(TOKEN.RESET),
-
   /**
    * 获取 token 使用明细记录（P-5 新增）
    *

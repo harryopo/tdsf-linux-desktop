@@ -5,7 +5,6 @@
  * - log:read          — 按条件过滤读取内存 buffer
  * - log:stats         — 获取日志统计（总条数 / 按 level 分布 / 按 category 分布）
  * - log:clearBuffer   — 清空内存 buffer（不影响磁盘文件）
- * - log:setMinLevel   — 运行时调整日志级别
  * - log:filePath      — 获取当前日志文件路径（用于外部工具读取）
  *
  * 设计：
@@ -45,21 +44,7 @@ export function registerLogIpcHandlers(): void {
     return true
   })
 
-  /** log:setMinLevel — 调整最低日志级别 */
-  ipcMain.handle(LOG.SET_MIN_LEVEL, (_event, level: LogLevel) => {
-    const validLevels: LogLevel[] = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']
-    if (!validLevels.includes(level)) {
-      throw new Error(`Invalid log level: ${level}`)
-    }
-    logger.setMinLevel(level)
-    return true
-  })
 
-  /** log:flush — 异步刷新待写入日志 */
-  ipcMain.handle(LOG.FLUSH, async () => {
-    await logger.flush()
-    return true
-  })
 
   /** log:renderer — 接收渲染进程日志，写入主进程 logger（区分 source='renderer'） */
   ipcMain.handle(

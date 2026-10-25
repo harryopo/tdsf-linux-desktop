@@ -1,7 +1,12 @@
 /**
  * v0.9.5 P0 补齐通道的单元测试（IPC 4 步同步铁律验证）
  *
- * 覆盖 3 个方法：
+ * 覆盖 1 个方法：
+ * - token:cost-stats（1 个）— 成本透明
+ *
+ * 曾有第 3 组 subagent:list / subagent:reload（6 个用例），2026-10-25 随实现整删（#216）：
+ * 那两把键渲染层零调用、界面上从来没有 Agent 列表，而 `loadCustomAgents` 唯一的读者就是它们，
+ * 这 6 个用例测的就是那层包装本身——与下面第 4、5 组同一口径：包装没有执行体就不留。
  * - token:cost-stats（1 个）— 成本透明
  * - subagent:list / subagent:reload（2 个）— 自定义 Agent 加载器
  *
@@ -14,7 +19,7 @@
  *
  * 测试策略（混合 Mock + 真实模块）：
  * - Mock electron（ipcMain.handle 捕获 + app.getAppPath）+ electron-store（logger 依赖）
- * - Mock IO 依赖模块：getCostStats / getProvider / loadCustomAgents / loadCustomAgent
+ * - Mock IO 依赖模块：getCostStats / getProvider
  * - 每个测试用例独立隔离（beforeEach 清空 handlers map + 清空 Mock 调用记录）
  *
  * IPC 4 步同步铁律验证：
@@ -86,11 +91,6 @@ vi.mock('../../src/main/core/agent/providers/provider-registry', () => ({
   getProvider: vi.fn(),
 }))
 
-// Mock agent-loader 的 loadCustomAgents / loadCustomAgent（异步函数，控制返回值）
-vi.mock('../../src/main/core/agent/subagents/agent-loader', () => ({
-  loadCustomAgents: vi.fn(),
-  loadCustomAgent: vi.fn(),
-}))
 
 // ============================================================================
 // 导入被测模块（在 Mock 设置之后导入，确保 Mock 生效）
@@ -99,23 +99,13 @@ vi.mock('../../src/main/core/agent/subagents/agent-loader', () => ({
 // ============================================================================
 
 import { registerTokenCostStatsHandlers } from '../../src/main/ipc/token-stats'
-import { registerSubagentHandlers } from '../../src/main/ipc/subagent'
 
 // 导入 Mock 模块的引用（用于在测试中控制返回值）
 import { getCostStats } from '../../src/main/core/agent/providers/token-stats'
 import { getProvider } from '../../src/main/core/agent/providers/provider-registry'
-import {
-  loadCustomAgents,
-  loadCustomAgent,
-} from '../../src/main/core/agent/subagents/agent-loader'
 
 // 导入类型
-import type {
-  CostStats,
-  CustomAgentConfig,
-  SubagentReloadRequest,
-  SubagentReloadResponse,
-} from '@shared/agent-types'
+import type { CostStats } from '@shared/agent-types'
 
 // ============================================================================
 // Mock event（ipcMain.handle 的 handler 第一个参数是 IpcMainInvokeEvent）
@@ -139,15 +129,12 @@ beforeEach(() => {
     delete handlers[key]
   }
 
-  // 注册剩余 2 组 IPC handlers（捕获到 handlers map）
+  // 注册组 1 的 IPC handler（捕获到 handlers map）
   registerTokenCostStatsHandlers()
-  registerSubagentHandlers()
 
   // 重置 Mock 函数（清除调用记录 + 重置实现为返回 undefined）
   vi.mocked(getCostStats).mockReset()
   vi.mocked(getProvider).mockReset()
-  vi.mocked(loadCustomAgents).mockReset()
-  vi.mocked(loadCustomAgent).mockReset()
 })
 
 // ============================================================================
@@ -192,115 +179,3 @@ describe('[组 1] token:cost-stats IPC 通道', () => {
   })
 })
 
-// ============================================================================
-// 组 3：subagent:list / subagent:reload（自定义 Agent 加载器）— 6 个测试
-// ============================================================================
-
-describe('[组 3] subagent:* IPC 通道', () => {
-  it('3.1 两个通道已注册到 ipcMain.handle', () => {
-    expect(handlers['subagent:list']).toBeDefined()
-    expect(handlers['subagent:reload']).toBeDefined()
-  })
-
-  it('3.2 subagent:list 返回 loadCustomAgents 的结果', async () => {
-    const mockConfigs: CustomAgentConfig[] = [
-      {
-        name: 'linux-expert',
-        displayName: 'Linux 专家',
-        description: 'Linux 运维专家',
-        tools: ['search', 'log'],
-        systemPrompt: '你是 Linux 运维专家',
-        sourceFile: '/tmp/test-app-path/.tdsf/agent/linux-expert.md',
-      },
-      {
-        name: 'debug-helper',
-        displayName: '调试助手',
-        description: '擅长调试',
-        tools: ['profiler'],
-        systemPrompt: '你是调试助手',
-        sourceFile: '/tmp/test-app-path/.tdsf/agent/debug-helper.md',
-      },
-    ]
-    vi.mocked(loadCustomAgents).mockResolvedValue(mockConfigs)
-
-    const result: CustomAgentConfig[] = await handlers['subagent:list'](mockEvent)
-
-    expect(result).toEqual(mockConfigs)
-    expect(result).toHaveLength(2)
-    expect(result[0].name).toBe('linux-expert')
-    expect(vi.mocked(loadCustomAgents)).toHaveBeenCalledTimes(1)
-  })
-
-  it('3.3 subagent:list loadCustomAgents 抛错时 handler 抛出错误', async () => {
-    vi.mocked(loadCustomAgents).mockRejectedValue(new Error('permission denied'))
-
-    await expect(handlers['subagent:list'](mockEvent)).rejects.toThrow(
-      '加载自定义 agent 列表失败'
-    )
-  })
-
-  it('3.4 subagent:reload 单文件成功（loadCustomAgent 返回 config）', async () => {
-    const mockConfig: CustomAgentConfig = {
-      name: 'linux-expert',
-      displayName: 'Linux 专家',
-      description: 'Linux 运维专家',
-      tools: ['search'],
-      systemPrompt: '你是 Linux 运维专家',
-      sourceFile: '/tmp/test-app-path/.tdsf/agent/linux-expert.md',
-    }
-    vi.mocked(loadCustomAgent).mockResolvedValue(mockConfig)
-
-    // S3 之后单文件重载只认 agent 目录内的路径（mock 的 app.getAppPath() 是 /tmp/test-app-path），
-    // 返回值是规范化后的绝对路径，所以按尾名断言，别按输入原串
-    const request: SubagentReloadRequest = {
-      filePath: '/tmp/test-app-path/.tdsf/agent/linux-expert.md',
-    }
-    const result: SubagentReloadResponse = await handlers['subagent:reload'](
-      mockEvent,
-      request
-    )
-
-    expect(result.failed).toEqual([])
-    expect(result.success).toBe(true)
-    expect(result.reloaded).toHaveLength(1)
-    expect(result.reloaded[0].replace(/\\/g, '/')).toMatch(/\/\.tdsf\/agent\/linux-expert\.md$/)
-    expect(vi.mocked(loadCustomAgent)).toHaveBeenCalledTimes(1)
-  })
-
-  it('3.5 subagent:reload 单文件解析失败（loadCustomAgent 返回 null）→ failed 列表非空', async () => {
-    vi.mocked(loadCustomAgent).mockResolvedValue(null)
-
-    const request: SubagentReloadRequest = { filePath: '/tmp/test-app-path/.tdsf/agent/bad-agent.md' }
-    const result: SubagentReloadResponse = await handlers['subagent:reload'](
-      mockEvent,
-      request
-    )
-
-    expect(result.success).toBe(true) // 流程完成仍返回 true
-    expect(result.reloaded).toHaveLength(0)
-    expect(result.failed).toHaveLength(1)
-    expect(result.failed[0].filePath.replace(/\\/g, '/')).toMatch(/\/\.tdsf\/agent\/bad-agent\.md$/)
-    expect(result.failed[0].error).toContain('解析失败')
-  })
-
-  it('3.7 subagent:reload agent 目录外的路径必须被拒，且不去读文件（S3 判据）', async () => {
-    vi.mocked(loadCustomAgent).mockClear()
-    const request: SubagentReloadRequest = { filePath: '/tmp/elsewhere/agent.md' }
-    const result: SubagentReloadResponse = await handlers['subagent:reload'](mockEvent, request)
-
-    expect(result.success).toBe(false)
-    expect(result.reloaded).toHaveLength(0)
-    expect(result.failed).toHaveLength(1)
-    expect(result.failed[0].error).toContain('agent 目录')
-    expect(vi.mocked(loadCustomAgent)).not.toHaveBeenCalled()
-  })
-
-  it('3.6 subagent:reload 全部重载（无 filePath）+ 目录不存在 → success=false', async () => {
-    // app.getAppPath() mock 返回 '/tmp/test-app-path'，.tdsf/agent/ 目录不存在
-    const result: SubagentReloadResponse = await handlers['subagent:reload'](mockEvent)
-
-    expect(result.success).toBe(false)
-    expect(result.reloaded).toEqual([])
-    expect(result.failed).toEqual([])
-  })
-})

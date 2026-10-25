@@ -16,7 +16,7 @@
  *
  * 判据各钉一件事：
  * 1. 五把键不许回来（快照暴露面 / preload 域方法 / 渲染层类型声明 三处一起查）
- * 2. 主进程只注册剩下那七条 credibility 通道
+ * 2. 主进程只注册剩下那六条 credibility 通道（第七把 credibility:dag 已于 #216 整删）
  * 3. 名单源里那五条常量不许回来，且名单源键数与注册数不许分叉
  * 4. 反过度砍：决策详情那条**活的**报告出口链完整（调用点、注册、引擎文件都在）
  * 5. 形状：活着的这条只收 decisionId；全仓 IPC 不许再有"渲染层递整份 AuditReportInput"的 handler
@@ -57,12 +57,13 @@ const BANNED_CONSTS = [
   'LOAD_AUDIT_REPORT',
 ]
 
-/** 留下来的七条（assess / dag、校准面板那四把，加决策详情真在用的那条导出） */
+/** 留下来的六条（校准面板那四把、assess，加决策详情真在用的那条导出）
+ *  第七把 `credibility:dag` 已于 2026-10-25 随 #216 整删：它要渲染层整批递证据源，
+ *  融合图描述的就成了"递什么算什么"，而界面上同源的那份融合读数一直在（判据见 zero-call-ipc-surface）。 */
 const KEPT_CHANNELS = [
   CREDIBILITY.ASSESS,
   CREDIBILITY.CALIBRATE,
   CREDIBILITY.COMPUTE_ECE,
-  CREDIBILITY.DAG,
   CREDIBILITY.EXPORT_DECISION_HTML,
   CREDIBILITY.GET_CALIBRATION_STATE,
   CREDIBILITY.RESET_CALIBRATION,
@@ -209,7 +210,7 @@ describe('审计报告出口收口（#214）', () => {
     }
   })
 
-  it('2. 主进程只注册那七条 credibility 通道', () => {
+  it('2. 主进程只注册那六条 credibility 通道', () => {
     const got = handlersOf(CRED_FILE)
       .map((h) => h.channel)
       .filter((c) => c.startsWith('credibility:'))
@@ -217,7 +218,7 @@ describe('审计报告出口收口（#214）', () => {
     for (const banned of BANNED_CHANNELS) {
       expect(got, `${banned} 又被注册了`).not.toContain(banned)
     }
-    expect(got, '注册集合与留下来的七条逐名相等').toEqual(KEPT_CHANNELS)
+    expect(got, '注册集合与留下来的六条逐名相等').toEqual(KEPT_CHANNELS)
     // 注册日志那份手抄清单不许继续写着已经删掉的通道（#210 就出过 handler 删了、日志还写着）
     expect(loggedChannels(), '注册日志里的通道清单与实注册分叉').toEqual(got)
   })

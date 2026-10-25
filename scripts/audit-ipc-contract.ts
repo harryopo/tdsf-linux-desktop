@@ -542,6 +542,6 @@ function main(): void {
  * 判据：`tests/unit/credibility-audit-ipc-surface.test.ts` 六条，含三条"反过度砍"正对照
  * （决策详情那条活链的调用点/注册/引擎文件、注册日志与实注册逐名相等、校准面板那四把真在按）。
  */
-const UNUSED_CAP = 12
+const UNUSED_CAP = 1
 
 main()

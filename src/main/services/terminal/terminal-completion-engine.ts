@@ -162,13 +162,6 @@ export class TerminalCompletionEngine {
     this.insert(command, this.computeQuickScore())
   }
 
-  /**
-   * 批量导入命令（例如读取远端 ~/.bash_history）
-   */
-  importHistory(commands: string[], directory?: string): void {
-    this.historyIndex.importCommands(commands, directory)
-    this.rebuildTrie()
-  }
 
   /**
    * 根据当前输入获取补全建议

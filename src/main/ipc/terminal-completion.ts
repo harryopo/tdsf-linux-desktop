@@ -6,7 +6,6 @@
  * 通道（与 ipc-channels.ts 对齐）：
  * - terminal-completion:complete  请求补全建议
  * - terminal-completion:accept    接受建议（提升权重）
- * - terminal-completion:import    批量导入历史命令
  */
 
 import { ipcMain } from 'electron'
@@ -71,24 +70,6 @@ export function registerTerminalCompletionIpcHandlers(): void {
     },
   )
 
-  /** terminal-completion:import — 批量导入历史命令 */
-  ipcMain.handle(
-    TERMINAL_COMPLETION.IMPORT,
-    async (_event, commands: string[], directory?: string) => {
-      try {
-        const eng = getEngine()
-        await eng.init()
-        eng.importHistory(commands, directory)
-        return true
-      } catch (err) {
-        logger.error('TerminalCompletion', 'import 失败', {
-          count: commands.length,
-          error: err instanceof Error ? err.message : String(err),
-        })
-        return false
-      }
-    },
-  )
 }
 
 /** 应用退出时关闭引擎 */

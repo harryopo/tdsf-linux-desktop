@@ -191,12 +191,6 @@ export class Logger {
     })
   }
 
-  /**
-   * 设置最低日志级别（运行时可调整）
-   */
-  setMinLevel(level: LogLevel): void {
-    this.minLevel = level
-  }
 
   /**
    * 记录 DEBUG 级别日志

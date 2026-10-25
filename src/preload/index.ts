@@ -25,7 +25,7 @@ export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams
 import { invokeChecked, installIpcErrorUnwrap } from './ipc-util'
 import { ssh } from './domains/ssh'
 import { fileWatch, sftp, sftpSearch } from './domains/sftp'
-import { agentRuntime, subagent } from './domains/agent'
+import { agentRuntime } from './domains/agent'
 import { credibility } from './domains/cognition'
 import { localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { llm, provider, token, tokenCostStats } from './domains/llm'
@@ -104,7 +104,6 @@ const electronApi = {
   // v0.8 IDE 工作台新增
   sftpReadFile: sftp.readFile,
   sftpWriteFile: sftp.writeFile,
-  sftpStat: sftp.stat,
   sftpMkdir: sftp.mkdir,
 
   // ===== 终端智能补全扁平化（v0.9.7 P3 M1） =====
@@ -117,7 +116,6 @@ const electronApi = {
   localTtyRunAuthored: localTty.runAuthored,
   terminalCompletionComplete: terminalCompletion.complete,
   terminalCompletionAccept: terminalCompletion.accept,
-  terminalCompletionImport: terminalCompletion.import,
 
   // ===== 监控扁平化 =====
   monitorStart: monitor.start,
@@ -204,8 +202,6 @@ const electronApi = {
   // 新调用方推荐用 agentCancel(sessionId) 同时取消多类会话
   agentCancel: system.cancel,
   // v0.9.4 新增：系统级 IPC（协议版本 + 心跳保活）
-  getProtocolVersion: system.getProtocolVersion,
-  systemPing: system.ping,
   // A4 新增：数据库状态（渲染层降级横幅数据源，db:status）
   dbGetStatus: dbStatus.get,
   // v2.2 P1 修复 #24：应用更新 IPC（app:check-update / app:download-update）
@@ -225,7 +221,6 @@ const electronApi = {
   providerSetDefault: provider.setDefault,
   providerGetDefault: provider.getDefault,
   tokenStats: token.stats,
-  tokenReset: token.reset,
   // P-5 新增：token 使用明细记录（Token 监控面板展示明细列表 + 分布图表）
   tokenRecords: token.records,
 
@@ -249,7 +244,6 @@ const electronApi = {
   //   const assessment = await window.electronAPI.credibilityAssess(inputs)
   //   const dag = await window.electronAPI.credibilityDag(inputs)
   credibilityAssess: credibility.assess,
-  credibilityDag: credibility.dag,
   // v2.3.2 新增：按 decisionId 简化导出 HTML 报告
   // 2026-10-25 整删四把（#214）：credibilityExportAuditReport / ListAuditReports /
   // LoadAuditReport / FormatAuditReport——它们要渲染层整批递 AuditReportInput 再由主进程落盘盖指纹，
@@ -268,13 +262,6 @@ const electronApi = {
   credibilityComputeEce: credibility.computeEce,
   // credibilityAddCalibrationSample 已于 2026-10-25 整删（#214）：handler 只写进程内存、不落库，
   // 校准样本真正的生产者在主进程的读者反馈链（calibration/decision-samples.ts）。
-
-  // ===== M2 Task 2 新增：命令风险评估扁平化（risk:check） =====
-  // 通道与主进程 ipc/risk.ts 一一对应；UI 调用方式：
-  //   const { risk, reasons } = await window.electronAPI.riskCheck('rm -rf /')
-  // 桥接 assessCommandRisk（AST 优先 + 正则降级），空命令返回 low（不抛错）
-  riskCheck: (command: string): Promise<{ risk: 'low' | 'medium' | 'high'; reasons: string[] }> =>
-    ipcRenderer.invoke(RISK.CHECK, command),
 
   // ===== 拦截规则表只读快照（risk:rules）=====
   // 设置页「命令风险评级规则」显示的就是主进程真正在用的那份数据，
@@ -481,11 +468,7 @@ const electronApi = {
   logClearBuffer: (): Promise<boolean> =>
     ipcRenderer.invoke(LOG.CLEAR_BUFFER),
   /** 设置最低日志级别 */
-  logSetMinLevel: (level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'FATAL'): Promise<boolean> =>
-    ipcRenderer.invoke(LOG.SET_MIN_LEVEL, level),
   /** 异步刷新待写入日志 */
-  logFlush: (): Promise<boolean> =>
-    ipcRenderer.invoke(LOG.FLUSH),
   /** 渲染进程日志上报（转发到主进程 logger） */
   logRenderer: (payload: { level: string; category: string; message: string; meta?: Record<string, unknown>; correlationId?: string }): Promise<boolean> =>
     ipcRenderer.invoke(LOG.RENDERER, payload),
@@ -501,8 +484,6 @@ const electronApi = {
 
   tokenCostStats: tokenCostStats.costStats,
 
-  subagentList: subagent.list,
-  subagentReload: subagent.reload,
 
   // ===== v1.0 新增：Sidecar-A 端到端 Pipeline =====
   // 通道与主进程 ipc/sidecar.ts 一一对应：
