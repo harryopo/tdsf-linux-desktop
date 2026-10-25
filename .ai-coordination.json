@@ -2,49 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-24T23:40:40.877Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-24T23:40:40.233Z",
-      "lastActiveAt": "2026-10-24T23:40:40.877Z",
-      "task": "#214 整删审计报告五把假出口",
-      "claimedFiles": [
-        {
-          "path": "src/shared/ipc-channels.ts",
-          "task": "#214 整删审计报告五把假出口",
-          "claimedAt": "2026-10-24T23:40:40.233Z"
-        },
-        {
-          "path": "src/preload/index.ts",
-          "task": "#214 整删审计报告五把假出口",
-          "claimedAt": "2026-10-24T23:40:40.354Z"
-        },
-        {
-          "path": "src/preload/domains/cognition.ts",
-          "task": "#214 整删审计报告五把假出口",
-          "claimedAt": "2026-10-24T23:40:40.474Z"
-        },
-        {
-          "path": "src/main/ipc/credibility.ts",
-          "task": "#214 整删审计报告五把假出口",
-          "claimedAt": "2026-10-24T23:40:40.622Z"
-        },
-        {
-          "path": "src/renderer/src/types/electron.d.ts",
-          "task": "#214 整删审计报告五把假出口",
-          "claimedAt": "2026-10-24T23:40:40.751Z"
-        },
-        {
-          "path": "scripts/audit-ipc-contract.ts",
-          "task": "#214 整删审计报告五把假出口",
-          "claimedAt": "2026-10-24T23:40:40.877Z"
-        }
-      ],
-      "expiresAt": "2026-10-25T01:40:40.877Z"
-    }
-  },
+  "lastUpdated": "2026-10-25T00:04:32.852Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -11308,6 +11267,48 @@
       "file": "scripts/audit-ipc-contract.ts",
       "task": "#214 整删审计报告五把假出口",
       "timestamp": "2026-10-24T23:40:40.877Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "#214 整删审计报告五把假出口",
+      "timestamp": "2026-10-25T00:04:32.852Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "#214 整删审计报告五把假出口",
+      "timestamp": "2026-10-25T00:04:32.852Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/domains/cognition.ts",
+      "task": "#214 整删审计报告五把假出口",
+      "timestamp": "2026-10-25T00:04:32.852Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/credibility.ts",
+      "task": "#214 整删审计报告五把假出口",
+      "timestamp": "2026-10-25T00:04:32.852Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/types/electron.d.ts",
+      "task": "#214 整删审计报告五把假出口",
+      "timestamp": "2026-10-25T00:04:32.852Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/audit-ipc-contract.ts",
+      "task": "#214 整删审计报告五把假出口",
+      "timestamp": "2026-10-25T00:04:32.852Z"
     }
   ],
   "coordinationAudit": {
