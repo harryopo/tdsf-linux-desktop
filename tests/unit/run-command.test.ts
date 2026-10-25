@@ -91,7 +91,6 @@ const EXEMPT: Record<string, string> = {
   'src/main/services/exec/run-command.ts': '这一层就是统一入口本身，spawn 只能出现在这里',
   'src/main/core/sidecar/sidecar-manager.ts': '常驻 Python sidecar：生命周期由启停握手管，不该被 kill 定时器杀',
   'src/main/services/log/drain3-bridge.ts': '常驻 Drain3 桥：同上，按行读 JSON 响应直到进程自己结束',
-  'src/main/core/agent/edit-formats/dirty-commit.ts': 'git status 自带 setTimeout+kill 的旧写法（迁移到 runCommand 前不阻塞交付）',
 }
 
 /** 找出一个文件里"从 node:child_process 引进来、且没带 timeout"的调用 */
