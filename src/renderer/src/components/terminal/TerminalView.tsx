@@ -313,33 +313,46 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     })
     resizeObserver.observe(containerRef.current)
 
-    // ===== 7. 字体缩放快捷键（Ctrl + / - / 0） =====
+    // ===== 7. 终端快捷键：字体缩放（Ctrl + / - / 0）与搜索（Ctrl+F） =====
+    // 必须走 xterm 自己的 attachCustomKeyEventHandler，不能挂在 textarea 的 keydown 上：
+    // xterm 把 Ctrl+F 认成输入（发 ^F）后会先掐断传播，挂在 textarea 上的监听一条都收不到。
+    // 2026-10-25 真窗口取证：document 捕获阶段看得到 f 键，textarea 上的监听收不到，
+    // 于是界面写着 Ctrl+F 却按了没反应（#227）。custom handler 在 xterm 判定之前跑，
+    // 返回 false 同时保证这串组合不再当成 ^F 发给 shell。
     // 改完字号必须等 xterm 量出新格子尺寸再 refit（下一帧），否则行列数不变、
     // 终端按旧行数继续把容器撑高，底部行与状态栏一起掉到视口外。
-    const handleKeyDown = (e: KeyboardEvent) => {
+    terminal.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown' || !e.ctrlKey) return true
       // Ctrl + +/- 缩放字体
-      if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+      if (e.key === '=' || e.key === '+') {
         e.preventDefault()
         fontSizeRef.current = Math.min(fontSizeRef.current + 1, MAX_FONT_SIZE)
         terminal.options.fontSize = fontSizeRef.current
         requestAnimationFrame(refit)
-      } else if (e.ctrlKey && e.key === '-') {
+        return false
+      }
+      if (e.key === '-') {
         e.preventDefault()
         fontSizeRef.current = Math.max(fontSizeRef.current - 1, MIN_FONT_SIZE)
         terminal.options.fontSize = fontSizeRef.current
         requestAnimationFrame(refit)
-      } else if (e.ctrlKey && e.key === '0') {
+        return false
+      }
+      if (e.key === '0') {
         e.preventDefault()
         fontSizeRef.current = DEFAULT_FONT_SIZE
         terminal.options.fontSize = DEFAULT_FONT_SIZE
         requestAnimationFrame(refit)
-      } else if (e.ctrlKey && e.key === 'f') {
+        return false
+      }
+      if (e.key === 'f') {
         // Ctrl+F 触发终端搜索栏
         e.preventDefault()
         setSearchOpen(true)
+        return false
       }
-    }
-    terminal.textarea?.addEventListener('keydown', handleKeyDown)
+      return true
+    })
 
     // ===== 7.5 v0.8.0 翻译选词监听 =====
     // v2.6 修复：已拆到独立 useEffect（见下方）。原来在这里挂载并把
@@ -383,7 +396,6 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
       offShellData()
       inputDisposable.dispose()
       resizeObserver.disconnect()
-      terminal.textarea?.removeEventListener('keydown', handleKeyDown)
       if (resizeTimeout) {
         clearTimeout(resizeTimeout)
       }
