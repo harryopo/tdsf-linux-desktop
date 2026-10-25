@@ -53,9 +53,6 @@ logClearBuffer
 logRead
 logRenderer
 logStats
-loopCancel
-loopConfirm
-loopStart
 mcpExternalAdd
 mcpExternalCall
 mcpExternalList
@@ -80,13 +77,6 @@ onAgentToolEvent
 onBootLoadingStage
 onFileChanged
 onLocalTtyExit
-onLoopBlocked
-onLoopDecision
-onLoopDone
-onLoopError
-onLoopLlmDone
-onLoopLlmStart
-onLoopStep
 onMcpStateChanged
 onMonitorData
 onMonitorSystemInfo

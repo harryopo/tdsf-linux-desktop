@@ -107,6 +107,10 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
   // 和 D4 那轮"用数据核对由数据算出的行为"是同一个病。2026-10-08 实测：
   // 把 agent:chunk 改成 LATEST_ONLY 时，只有新加的订阅行为测试会红（覆盖 agent:chunk/done/error 三条），
   // 其余通道只能靠这张表拦。改表必须先改这张表，就是逼一次人审。
+  //
+  // 2026-10-25 #222：`loop:llm-start / loop:llm-done / loop:step / loop:decision / loop:done /
+  // loop:error / loop:blocked` 七条随生产者整删，所以这张快照跟着少七行——
+  // 上面那条"覆盖 == preload 实际监听"的对账按真实监听点取数，它自己会红，不需要这里补哨兵。
   it('每条通道的类别等于人审冻结值（数量与内容都不许漂）', () => {
     const EXPECTED_CLASS: Record<string, string> = {
       'agent:chunk': 'DELTA',
@@ -117,13 +121,6 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'boot:loading-stage': 'LIFECYCLE',
       'file:changed': 'SNAPSHOT',
       'local-tty:exit': 'LIFECYCLE',
-      'loop:blocked': 'CRITICAL',
-      'loop:decision': 'CRITICAL',
-      'loop:done': 'CRITICAL',
-      'loop:error': 'CRITICAL',
-      'loop:llm-done': 'LIFECYCLE',
-      'loop:llm-start': 'LIFECYCLE',
-      'loop:step': 'LATEST_ONLY',
       'mcp:state-changed': 'LATEST_ONLY',
       'monitor:data': 'SNAPSHOT',
       'monitor:systemInfo': 'LATEST_ONLY',

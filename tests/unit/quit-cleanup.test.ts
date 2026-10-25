@@ -4,6 +4,10 @@
  * 取代上一版的"读 index.ts 源码字符串"断言：那种断言一改结构就红（本轮把清理改成步骤表后
  * `toContain('await cleanupSidecar()')` 就红了），但真把 preventDefault 摘掉它不一定红得掉语义。
  * 现在闸门、顺序、每步超时、卡死上报、异常兜底都是**跑出来的**。
+ *
+ * 步骤**名单**同样不手写：它按 `keyof QuitServices` 取数（见"一一对应"那条），
+ * 所以 2026-10-25 #222 删掉 `cleanupLoopEngineering` 时这里不需要跟着改一个数字，
+ * 而"新增了收尾函数却忘了列进退出表"这种漏，仍然是红的。
  */
 import { describe, it, expect, vi } from 'vitest'
 import {
@@ -25,10 +29,20 @@ function fakeLog(): QuitLog & { rows: Array<{ level: string; msg: string; meta?:
   }
 }
 
+/**
+ * 造一套替身服务。
+ *
+ * 两个讲究：
+ * 1. 键表写成 `Record<keyof QuitServices, …>`——`QuitServices` 加一个键、这里没跟上就编译不过，
+ *    于是"新增资源"这件事一定会在这份名单上留下痕迹，再由下面那条"一一对应"的判据决定它有没有被退出表列上；
+ * 2. 每个键返回**互不相同的函数实例**，这样 `buildQuitSteps` 产出的步骤能按引用反查到键名，
+ *    "每个 dispose 都被退出表列上"就能源自类型本身，而不是抄一份会过期的步骤名清单。
+ *    （#222 删掉 `cleanupLoopEngineering` 后，靠硬编码 17 条清单的写法只能红一次、还要人手改一次数字。）
+ */
 function fakeServices(order: string[], delayMs = 0): QuitServices {
   const mk = (name: string) => () =>
     new Promise<void>((resolve) => setTimeout(() => (order.push(name), resolve()), delayMs))
-  return {
+  const svc: Record<keyof QuitServices, () => unknown> = {
     cleanupSidecar: mk('sidecar'),
     disconnectExternalMcp: mk('mcp-clients'),
     stopFileWatchers: mk('watchers'),
@@ -40,13 +54,20 @@ function fakeServices(order: string[], delayMs = 0): QuitServices {
     closeLocalPty: mk('local-pty'),
     shutdownLangfuse: mk('langfuse'),
     cleanupScheduler: mk('scheduler'),
-    cleanupLoopEngineering: mk('loop'),
     disposeTerminalCompletion: mk('completion'),
     disposeSessionRegistry: mk('session-registry'),
     persistTokenStats: mk('token-stats'),
     closeDatabase: mk('db-close'),
     releaseMainWindow: mk('window'),
   }
+  return svc
+}
+
+/** 步骤的 run（函数引用）→ 它属于 QuitServices 的哪个键 */
+function runToKey(svc: QuitServices): Map<() => unknown, string> {
+  const m = new Map<() => unknown, string>()
+  for (const [key, fn] of Object.entries(svc)) m.set(fn, key)
+  return m
 }
 
 function makeOpts(steps: QuitStep[], log: QuitLog, over: Partial<Parameters<typeof createQuitCleanup>[0]> = {}) {
@@ -80,10 +101,46 @@ describe('退出清理闸门（行为）', () => {
     expect(cleanup.state()).toBe('done')
   })
 
+  it('步骤表与 QuitServices 一一对应：每个 dispose 都被退出表列上、且只列一次', () => {
+    // 这条取代了上一版"步骤表里必须有一条解绑循环工程监听"的写法：
+    // 那种断言把某天的成员清单抄了一遍，删一条链路就得改一次数字（#222 就红了）。
+    // 现在按类型取数：QuitServices 有 16 个收尾函数，步骤表就必须恰好列上这 16 个——
+    // "早就写好了 dispose 但退出表里没人列它"（2026-10-15 那三条漏网之鱼）仍然是红的方向。
+    const svc = fakeServices([])
+    const keyOf = runToKey(svc)
+    const steps = buildQuitSteps(svc)
+    const listed: string[] = []
+    const strangers: string[] = []
+    for (const s of steps) {
+      const key = keyOf.get(s.run)
+      if (key === undefined) {
+        strangers.push(s.name)
+        continue
+      }
+      listed.push(key)
+    }
+    expect(strangers, `步骤表里有 ${strangers.length} 条 run 不属于 QuitServices：${strangers.join('、')}`).toEqual(
+      []
+    )
+    expect(
+      listed.length,
+      `步骤表里有重复列出的清理项（重复清理会二次释放）：${listed.join('、')}`
+    ).toBe(new Set(listed).size)
+    const missing = Object.keys(svc).filter((k) => !listed.includes(k))
+    expect(missing, `这些 dispose 有实现却没被退出表列上：${missing.join('、')}`).toEqual([])
+  })
+
   it('步骤顺序：子进程最先关，骑在 SSH 上的先停', () => {
-    const names = buildQuitSteps(fakeServices([])).map((s) => s.name)
-    expect(names).toHaveLength(17)
-    const at = (n: string) => names.indexOf(n)
+    const svc = fakeServices([])
+    const names = buildQuitSteps(svc).map((s) => s.name)
+    // 条数不再手写：多一条少一条都由上一条用例按 QuitServices 判，这里只钉顺序
+    expect(names).toHaveLength(Object.keys(svc).length)
+    /** 取步骤下标。名字不在表里就直接红——`indexOf` 返回 -1 会让下面的大小比较全体"假绿" */
+    const at = (n: string): number => {
+      const i = names.indexOf(n)
+      expect(i, `步骤表里没有「${n}」这一条（顺序断言拿 -1 比会静默通过）`).toBeGreaterThanOrEqual(0)
+      return i
+    }
     // 上一版 sidecar 排第 6：SSH 一吃光整体上限它就饿死，孤儿进程 bug 原地复活
     expect(at('关闭 sidecar'), 'sidecar 必须排第一').toBe(0)
     expect(at('断开外部 MCP 客户端')).toBeLessThan(at('停止 MCP Server'))
@@ -97,7 +154,7 @@ describe('退出清理闸门（行为）', () => {
     // 生命周期那把 1 秒轮询必须在 MCP Server 关掉之后摘（还在用的时候摘会漏日志）
     expect(at('摘除 MCP 生命周期轮询')).toBeGreaterThan(at('停止 MCP Server'))
     // 关库必须排在所有会写库的步骤之后：先关池子会把审计/调度/凭据的收尾打成"库不可用"
-    for (const writer of ['断开 SSH', '清理调度器', '解绑循环工程监听', '关闭 Langfuse（trace 落盘）']) {
+    for (const writer of ['断开 SSH', '清理调度器', '关闭 Langfuse（trace 落盘）']) {
       expect(at('关闭数据库句柄'), `关库排在了会写库的「${writer}」前面`).toBeGreaterThan(at(writer))
     }
     expect(at('关闭数据库句柄'), '关库是最后一个资源步骤（窗口释放不算资源）').toBe(names.length - 2)

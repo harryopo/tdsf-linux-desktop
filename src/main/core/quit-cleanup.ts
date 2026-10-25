@@ -48,7 +48,6 @@ export interface QuitServices {
   shutdownLangfuse: () => unknown
   cleanupScheduler: () => unknown
   cleanupSidecar: () => unknown
-  cleanupLoopEngineering: () => unknown
   /** 关掉命令补全引擎（它自己持有一个历史索引库的句柄，注释写着"应用退出时关闭"却没人调过） */
   disposeTerminalCompletion: () => unknown
   /** 释放 Agent 会话注册表（GC 定时器 + 在跑的会话映射） */
@@ -88,7 +87,6 @@ export function buildQuitSteps(svc: QuitServices): QuitStep[] {
     { name: '摘除 MCP 生命周期轮询', run: svc.disposeMcpLifecycle },
     { name: '关闭 Langfuse（trace 落盘）', run: svc.shutdownLangfuse },
     { name: '清理调度器', run: svc.cleanupScheduler },
-    { name: '解绑循环工程监听', run: svc.cleanupLoopEngineering },
     // 这三条是 2026-10-15 全维度审查补的：收尾函数**早就写好了**（其中两条的注释就写着
     // "应用退出时关闭"），但退出表里没人列它们——"有 dispose"不等于"跑过 dispose"。
     { name: '关闭命令补全引擎', run: svc.disposeTerminalCompletion },

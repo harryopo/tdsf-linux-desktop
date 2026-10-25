@@ -11,9 +11,9 @@
  *   输入：无（通过 start 方法传入 task / sshSessionId / maxIterations）
  *   输出：isRunning / iterations / result / error / start / cancel
  *
- * 与 useLoopEngineering 的区别：
- * - useLoopEngineering：v1.5 循环工程（7 步 HITL，前端编排）
- * - usePaorLoop：v0.9.5 PAOR（Plan→Act→Observe→Reflect，主进程 Supervisor 编排）
+ * 这一条是产品里唯一在跑的多步自主编排（v0.9.5 PAOR，Plan→Act→Observe→Reflect，
+ * 由主进程 Supervisor 编排）。曾经并列的那份前端 7 步 HITL 编排已于 2026-10-25 整删（#222）：
+ * 它在渲染层没有任何启动点，两件事同时存在只会让人分不清哪条在跑。
  *
  * 数据流：
  *   start(task, sessionId) → agentPaor invoke → 主进程 supervisor.runPaorLoop

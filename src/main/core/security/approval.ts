@@ -3,7 +3,8 @@
  *
  * 为什么要有这个文件：
  *   渲染进程送进来的"批准"是一个跨进程边界的外部输入，此前各处审批入口
- *   （paor:approve / sandbox:approve / llm:tool-approve / loop:confirm / agent:confirm）
+ *   （paor:approve / sandbox:approve / llm:tool-approve / agent:confirm，
+ *   以及 2026-10-25 已整删的那条工作流确认口）
  *   都把它当可信布尔直接用。JS 的真值判定会让
  *   "true"（字符串）、1、{} 这些畸形值全部变成"用户批准了"。
  *

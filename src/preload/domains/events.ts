@@ -3,7 +3,7 @@ import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolE
 import type { ExternalMcpServerStatus, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
-import { AGENT, FILE_WATCH, LOCAL_TTY, LOOP, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TERMINAL } from '@shared/ipc-channels'
+import { AGENT, FILE_WATCH, LOCAL_TTY, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TERMINAL } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import type { FileChangedPayload, PaorApprovalRequest, SandboxApprovalRequest } from '../types'
 import { createListener } from '../ipc-util'
@@ -169,28 +169,8 @@ const on = {
   },
 
 
-  // v1.5 å¾ªç¯å·¥ç¨äºä»¶çå¬å¨
-  loopLlmStart: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.LLM_START, callback)
-  },
-  loopLlmDone: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.LLM_DONE, callback)
-  },
-  loopStep: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.STEP, callback)
-  },
-  loopDecision: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.DECISION, callback)
-  },
-  loopDone: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.DONE, callback)
-  },
-  loopError: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.ERROR, callback)
-  },
-  loopBlocked: (callback: (payload: unknown) => void): (() => void) => {
-    return createListener(LOOP.BLOCKED, callback)
-  },
+  // v1.5 循环工程那七条事件监听已于 2026-10-25 整删（#222）：这条链在渲染层没有启动点，
+  // 判据见 tests/unit/loop-engineering-surface.test.ts。PAOR 的推送面（agentPaorIteration）不受影响。
 
   // Phase 6 Task 6.5ï¼è°åº¦å¨ç¶æåæ´æ¨éï¼ä¸» â æ¸²æï¼
   /**

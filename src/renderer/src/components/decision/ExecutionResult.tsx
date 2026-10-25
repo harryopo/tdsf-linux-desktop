@@ -9,17 +9,15 @@
  *    行由主进程 `history:audit` 从本机 decision_audit 表读出，校验结论也算在主进程（任务 #174）
  *
  * 交互（v2.6 已真实接线）：
- * - approval 模式：采纳执行/修改/拒绝回调（活跃工作流 loopConfirm）
- * - readonly 模式：状态徽章 + 重新在终端执行（onRerun 回调，页面侧走 sshRunAuthored 过风险闸）
+ * - 状态徽章 + 重新在终端执行（onRerun 回调，页面侧走 sshRunAuthored 过风险闸）
  * - 复制命令：navigator.clipboard 真实写入
+ * - 审批三键（采纳/修改/拒绝）已于 2026-10-25 整删（#222）：它的出口是一条没人能启动的链，
+ *   点了必然得到一句"主进程拒绝执行"。活跃期的审批在 dock/permission-bar 那颗真按钮上。
  */
 import { useState } from "react";
 import { toast } from "sonner";
 import {
   Terminal,
-  Check,
-  X,
-  Edit3,
   Copy,
   CheckCheck,
   Play,
@@ -80,25 +78,14 @@ interface ExecutionResultProps {
   /** 是否已校验（v2.6：默认 false，由调用方按真实证据传入） */
   verified?: boolean;
   /** 注：审计日志已拆成满宽的 DecisionAuditLog（#174），这里只管命令终端 */
-  /**
-   * 模式（v2.6）：approval=活跃审批（采纳/修改/拒绝）；
-   * readonly=历史回放（状态徽章 + 重新在终端执行）。默认 approval 保持兼容。
-   */
-  mode?: "approval" | "readonly";
   /** 只读态状态文案（如“已执行”） */
   statusLabel?: string;
   /** 重新执行中 */
   rerunning?: boolean;
   /** 是否可重新执行（需活跃 SSH 会话） */
   canRerun?: boolean;
-  /** 重新在终端执行回调（readonly 模式） */
+  /** 重新在终端执行回调 */
   onRerun?: () => void;
-  /** 采纳执行回调 */
-  onAccept?: () => void;
-  /** 修改回调 */
-  onModify?: () => void;
-  /** 拒绝回调 */
-  onReject?: () => void;
 }
 
 /** 命令分段色 */
@@ -223,14 +210,10 @@ export function ExecutionResult({
   duration,
   rollback,
   verified = false,
-  mode = "approval",
   statusLabel,
   rerunning = false,
   canRerun = true,
   onRerun,
-  onAccept,
-  onModify,
-  onReject,
 }: ExecutionResultProps) {
   const [copied, setCopied] = useState(false);
 
@@ -342,8 +325,7 @@ export function ExecutionResult({
             </div>
           </div>
 
-          {/* 操作区：approval=审批三按钮；readonly=状态徽章 + 重新在终端执行（v2.6） */}
-          {mode === "readonly" ? (
+          {/* 操作区：状态徽章 + 真实的「重新在终端执行」。审批三键已随那条没人能启动的链整删（2026-10-25 #222） */}
             <div className="mt-auto flex items-center gap-2">
               {statusLabel && (
                 <span className="inline-flex h-7 items-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-status-success-default)] bg-[rgba(51,193,146,0.12)] px-3 text-sm font-medium text-(--status-success-text)">
@@ -371,37 +353,6 @@ export function ExecutionResult({
                 {rerunning ? "发送中…" : "重新在终端执行"}
               </button>
             </div>
-          ) : (
-            <div className="mt-auto flex gap-2">
-              <button
-                type="button"
-                data-dom-id="accept-execute"
-                onClick={onAccept}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] bg-accent-solid px-3 py-1.5 text-sm font-medium text-[var(--trae-text-onbrand)] transition-colors hover:bg-[var(--trae-bg-brand-hover)]"
-              >
-                <Check className="h-3.5 w-3.5" />
-                采纳执行
-              </button>
-              <button
-                type="button"
-                data-dom-id="modify-cmd"
-                onClick={onModify}
-                className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-hover"
-              >
-                <Edit3 className="h-3.5 w-3.5" />
-                修改
-              </button>
-              <button
-                type="button"
-                data-dom-id="reject-cmd"
-                onClick={onReject}
-                className="inline-flex items-center justify-center gap-1.5 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] bg-[var(--trae-bg-overlay-l2)] px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-hover"
-              >
-                <X className="h-3.5 w-3.5" />
-                拒绝
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

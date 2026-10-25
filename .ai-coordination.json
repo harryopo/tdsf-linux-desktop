@@ -2,8 +2,49 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-25T02:50:52.490Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-25T03:22:06.119Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-25T03:21:56.126Z",
+      "lastActiveAt": "2026-10-25T03:22:06.119Z",
+      "task": "222-loop-engineering-removal",
+      "claimedFiles": [
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "222-loop-engineering-removal",
+          "claimedAt": "2026-10-25T03:21:56.126Z"
+        },
+        {
+          "path": "src/preload/index.ts",
+          "task": "222-loop-engineering-removal",
+          "claimedAt": "2026-10-25T03:21:57.989Z"
+        },
+        {
+          "path": "src/main/ipc/index.ts",
+          "task": "222-loop-engineering-removal",
+          "claimedAt": "2026-10-25T03:21:59.968Z"
+        },
+        {
+          "path": "src/main/index.ts",
+          "task": "222-loop-engineering-removal",
+          "claimedAt": "2026-10-25T03:22:01.925Z"
+        },
+        {
+          "path": "src/renderer/src/pages/DecisionPage.tsx",
+          "task": "222-loop-engineering-removal",
+          "claimedAt": "2026-10-25T03:22:03.766Z"
+        },
+        {
+          "path": "src/renderer/src/pages/DecisionDetailPage.tsx",
+          "task": "222-loop-engineering-removal",
+          "claimedAt": "2026-10-25T03:22:06.119Z"
+        }
+      ],
+      "expiresAt": "2026-10-25T05:22:06.119Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -11918,6 +11959,48 @@
       "file": "docs/长期优化目标.md",
       "task": "221-subprocess-timeout",
       "timestamp": "2026-10-25T02:50:52.490Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "222-loop-engineering-removal",
+      "timestamp": "2026-10-25T03:21:56.126Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "222-loop-engineering-removal",
+      "timestamp": "2026-10-25T03:21:57.989Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "222-loop-engineering-removal",
+      "timestamp": "2026-10-25T03:21:59.968Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/index.ts",
+      "task": "222-loop-engineering-removal",
+      "timestamp": "2026-10-25T03:22:01.925Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionPage.tsx",
+      "task": "222-loop-engineering-removal",
+      "timestamp": "2026-10-25T03:22:03.766Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
+      "task": "222-loop-engineering-removal",
+      "timestamp": "2026-10-25T03:22:06.119Z"
     }
   ],
   "coordinationAudit": {

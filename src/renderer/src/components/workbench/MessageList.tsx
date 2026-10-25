@@ -4,7 +4,6 @@
  * v2.3.6 修复：彻底移除"演示模式"渲染分支（showDemo + MOCK_CHAT_MESSAGES）。
  * 渲染策略：
  * - hasLiveConversation：渲染实时消息（liveMessages）
- * - hasLoopRunning：渲染 PAOR 审批
  * - 其余：欢迎态（能力网格 + 快捷 chips + 配置引导）
  *
  * 设计稿不再展示设计稿示例消息。发送后直接走真实 agent:chat。
@@ -23,7 +22,6 @@ import { useEditorStore } from '@/stores/editor-store'
 export interface MessageListProps {
   providers: PersistedProviderConfig[]
   navigate: (path: string) => void
-  hasLoopRunning: boolean
   activeSessionId: string | null
   /**
    * 审批不在这里。#170 之前这两个键（paorApprovals / onPaorApprove）一路传进来
@@ -50,7 +48,6 @@ export interface MessageListProps {
 const MessageList: FC<MessageListProps> = ({
   providers,
   navigate,
-  hasLoopRunning,
   activeSessionId,
   paorPlan,
   paorIterations,
@@ -94,15 +91,6 @@ const MessageList: FC<MessageListProps> = ({
                 <span>{lastError}</span>
               </div>
             )}
-          {/* v2.11 任务拆解可视化：PAOR 计划步骤卡 */}
-          {paorPlan && (
-            <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />
-          )}
-          <div ref={messagesEndRef} />
-        </>
-      ) : hasLoopRunning ? (
-        /* 循环工程进行中：渲染工作流面板 */
-        <>
           {/* v2.11 任务拆解可视化：PAOR 计划步骤卡 */}
           {paorPlan && (
             <PaorPlanCard plan={paorPlan} iterations={paorIterations} isRunning={paorRunning} />

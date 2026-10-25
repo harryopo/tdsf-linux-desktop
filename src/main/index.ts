@@ -32,9 +32,8 @@ import { loadKnowledgeSeeds } from './services/db/knowledge-seeds'
 import { warmupSessionKeyCache } from './ipc/sandbox'
 // Phase 6 Task 6.5：调度器初始化（定时任务自动化：每日巡检 / 归档 / 周报）
 import { initScheduler, cleanupScheduler } from './ipc/scheduler'
-// D3：退出时清理 sidecar 与循环工程（以前只挂 global 从未被调用）
+// D3：退出时清理 sidecar（以前只挂 global 从未被调用）
 import { cleanupSidecar } from './ipc/sidecar'
-import { cleanupLoopEngineering } from './ipc/loop-engineering'
 import { localPtyManager } from './services/terminal/local-pty'
 // 退出收尾补的两条（2026-10-15 全维度审查）：两个 dispose 早就写好了，只是没进退出步骤表
 import { disposeTerminalCompletionEngine } from './ipc/terminal-completion'
@@ -272,7 +271,6 @@ const quitCleanup = createQuitCleanup({
       closeLocalPty: () => localPtyManager.closeAll(),
       shutdownLangfuse: () => LangfuseService.getInstance().shutdown(),
       cleanupScheduler: () => cleanupScheduler(),
-      cleanupLoopEngineering: () => cleanupLoopEngineering(),
       // 下面三条 2026-10-15 全维度审查补上：收尾函数一直存在（前两条的注释就写着
       // "应用退出时关闭"），但退出步骤表里没有它们，于是等于从没跑过。
       disposeTerminalCompletion: () => disposeTerminalCompletionEngine(),

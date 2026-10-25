@@ -54,9 +54,8 @@ import { registerSidecarIpcHandlers } from './sidecar'
 import { registerMemoryIpcHandlers } from './memory'
 // v1.5 的诊断服务 IPC 已于 2026-10-24 整删（#206）：七个 invoke 键渲染层零调用，
 // diagnostics:log-batch 有生产者但没有任何监听者，两块缓冲只写不读。
-// v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
-// 通道：loop:start / loop:confirm / loop:cancel + 推送 loop:step/decision/done/error
-import { registerLoopEngineeringHandlers } from './loop-engineering'
+// v1.5 的循环工程子 Agent IPC（loop:* 十条通道）已于 2026-10-25 整删（#222）：
+// 渲染层没有任何一处能启动它，多步编排与在跑的 PAOR 重复，两个决策页挂在它上面的审批出口全是落空的。
 // Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
 // 通道：scheduler:list / toggle / trigger + 推送 scheduler:status
 import { registerSchedulerIpcHandlers } from './scheduler'
@@ -200,11 +199,7 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // v2.8 新增：Agent 长期记忆 IPC（memory:list/search/delete/audit）
   registerMemoryIpcHandlers()
 
-  // v1.5 新增：循环工程子 Agent IPC（编排 Supervisor.chat + AgentWorkflow 7 步 HITL）
-  // 暴露 loop:start / loop:confirm / loop:cancel
-  // 推送通道：loop:llm-start / loop:llm-done / loop:step / loop:decision / loop:done / loop:error
-  // 实现"假设计 → 可演示真 IDE"完整一轮：LLM 推理 → 7 步 HITL → 决策卡片 → SSH 执行 → 验证
-  ipcDisposers.push(registerLoopEngineeringHandlers(mainWindow))
+  // v1.5 的循环工程子 Agent IPC 已随 #222 整删，这里不再注册，退出表里也不再挂它的清理步骤。
 
   // Phase 6 Task 6.5 新增：调度器 IPC（定时任务自动化）
   // 通道：scheduler:list / toggle / trigger + 推送 scheduler:status

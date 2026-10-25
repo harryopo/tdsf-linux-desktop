@@ -277,7 +277,7 @@ export class Scheduler extends EventEmitter {
    * 若实例存在则销毁并清空引用；若不存在则无操作。
    * 与 getInstance() 不同，不会在无实例时创建新实例。
    *
-   * 参考 loop-engineering-subagent.ts 的 resetLoopEngineeringSubagent() 模式。
+   * 单例复位这件事以前照的是那条工作流子 agent 的写法；那份实现已随 #222 整删，这里的 resetInstance 自己就是范本。
    */
   static resetInstance(): void {
     if (Scheduler.instance) {
@@ -427,7 +427,7 @@ export class Scheduler extends EventEmitter {
 }
 
 // ============================================================================
-// 模块级单例工厂函数（参考 loop-engineering-subagent.ts 模式）
+// 模块级单例工厂函数
 // ============================================================================
 
 /**
@@ -436,7 +436,7 @@ export class Scheduler extends EventEmitter {
  * 销毁当前实例（停止轮询、清空任务、移除监听器、清空 instance 引用）。
  * 下次调用 `Scheduler.getInstance()` 会创建新实例。
  *
- * 参考 loop-engineering-subagent.ts 的 `resetLoopEngineeringSubagent()` 模式。
+ * 与上面的 resetInstance 同一档：测试用复位，不在生产路径上被调用。
  */
 export function resetScheduler(): void {
   Scheduler.resetInstance()

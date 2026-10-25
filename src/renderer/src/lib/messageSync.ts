@@ -40,13 +40,6 @@ export type StreamEventName =
   | 'boot:loading-stage'
   | 'file:changed'
   | 'local-tty:exit'
-  | 'loop:blocked'
-  | 'loop:decision'
-  | 'loop:done'
-  | 'loop:error'
-  | 'loop:llm-done'
-  | 'loop:llm-start'
-  | 'loop:step'
   | 'mcp:state-changed'
   | 'monitor:data'
   | 'monitor:systemInfo'
@@ -138,48 +131,6 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: '本机终端进程退出：一条=一条通道，合并会把另一条终端的关闭事件吞掉',
-  },
-  'loop:blocked': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '被高危命令闸拦下的提示，安全相关不丢',
-  },
-  'loop:decision': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '决策卡片产出，丢了 UI 上没有可审计结果',
-  },
-  'loop:done': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '循环工程收尾',
-  },
-  'loop:error': {
-    class: 'CRITICAL',
-    ownership: false,
-    coalescable: false,
-    note: '循环工程失败原因',
-  },
-  'loop:llm-done': {
-    class: 'LIFECYCLE',
-    ownership: false,
-    coalescable: false,
-    note: '循环内单次 LLM 调用结束标记',
-  },
-  'loop:llm-start': {
-    class: 'LIFECYCLE',
-    ownership: false,
-    coalescable: false,
-    note: '循环内单次 LLM 调用开始标记',
-  },
-  'loop:step': {
-    class: 'LATEST_ONLY',
-    ownership: false,
-    coalescable: true,
-    note: 'HITL 七步进度，只关心当前步',
   },
   'monitor:data': {
     class: 'SNAPSHOT',

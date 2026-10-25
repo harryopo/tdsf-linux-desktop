@@ -32,7 +32,6 @@ import { useRef, useEffect, useCallback, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAgentChat } from './useAgentChat'
-import { useLoopEngineering } from './useLoopEngineering'
 import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
 import { historyForSession, useAgentStore } from '@/stores/agent-store'
@@ -83,9 +82,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
     retryLast,
   } = useAgentChat()
 
-  /** 循环工程子 Agent —— PAOR 循环专用 */
-  const loop = useLoopEngineering()
-
   /** PAOR 自动循环（v0.9.5 P0-3：Plan→Act→Observe→Reflect 主进程编排） */
   const paor = usePaorLoop()
 
@@ -99,8 +95,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const clearStoredHistory = useAgentStore((s) => s.clearStoredHistory)
 
   const hasLiveConversation = liveMessages.length > 0
-  /** 循环工程已启动（loop.phase !== 'idle'）则视为有"实时"内容 */
-  const hasLoopRunning = loop.phase !== 'idle'
 
   /**
    * 清空当前会话（面板头那个按钮）。
@@ -223,15 +217,15 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   }, [])
 
   const lastMsg = liveMessages[liveMessages.length - 1]
-  // 内容变长的信号：正文 / 思考链 / 工具卡任一增长，或循环阶段推进
+  // 内容变长的信号：正文 / 思考链 / 工具卡任一增长
   const followKey = `${liveMessages.length}:${lastMsg?.content?.length ?? 0}:${
     lastMsg?.reasoning?.length ?? 0
-  }:${lastMsg?.toolEvents?.length ?? 0}:${loop.phase}`
+  }:${lastMsg?.toolEvents?.length ?? 0}`
   const { hasNewBelow, scrollToBottom } = useStickToBottom(
     getScrollContainer,
     followKey,
     !isStreaming,
-    hasLiveConversation || hasLoopRunning,
+    hasLiveConversation,
   )
 
   /*
@@ -457,7 +451,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         <MessageList
         providers={providers}
         navigate={navigate}
-        hasLoopRunning={hasLoopRunning}
         activeSessionId={activeSessionId}
         paorPlan={paor.plan}
         paorIterations={paor.iterations}
@@ -493,7 +486,6 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       {/* ===== Composer（chips + 输入框 + 工具栏） ===== */}
       <Composer
         isStreaming={isStreaming}
-        loop={loop}
         paor={paor}
         activeSessionId={activeSessionId}
         providers={providers}

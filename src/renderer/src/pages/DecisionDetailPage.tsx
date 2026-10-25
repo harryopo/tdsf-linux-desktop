@@ -22,7 +22,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, Dialog, DialogContent, PageHeader, TextArea, confirmDialog } from '@/ui'
+import { Button, PageHeader } from '@/ui'
 import { toast } from 'sonner'
 import {
   Sparkles, ArrowLeft, Fingerprint, Clock, Activity,
@@ -108,10 +108,6 @@ export function DecisionDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [emptyMeta, setEmptyMeta] = useState<EmptyMeta | null>(null)
-  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
-  const [modifyModalOpen, setModifyModalOpen] = useState(false)
-  const [modifyCommand, setModifyCommand] = useState('')
-  const [confirming, setConfirming] = useState(false)
   /** 任务 #174：审计链的行 / 状态 / 断点行号，全部来自库里的 decision_audit */
   const [auditRows, setAuditRows] = useState<AuditRow[]>([])
   const [auditStatus, setAuditStatus] = useState<AuditChainStatus>('unavailable')
@@ -229,139 +225,6 @@ export function DecisionDetailPage() {
     }
   }, [cardId])
 
-  /** 显示操作反馈 */
-  const handleAction = (action: string) => {
-    setActionFeedback(action)
-    setTimeout(() => setActionFeedback(null), 2000)
-  }
-
-  /**
-   * 调用 loopConfirm IPC 进行决策审批
-   *
-   * preload 签名：loopConfirm(correlationId: string, approved: boolean, newCommand?: string) => Promise<boolean>
-   * T.6: 已扩展 newCommand 参数，支持修改修复命令后批准执行。
-   *
-   * 失败降级：IPC 不可用或调用失败时，回退到本地 card.status 更新 + handleAction 浮层提示
-   * 高危二次确认：risk.level ∈ {HIGH, CRITICAL} 时弹 confirmDialog
-   */
-  const handleApprove = useCallback(async () => {
-    if (!card) return
-    const isHighRisk = card.risk.level === 'HIGH' || card.risk.level === 'CRITICAL'
-
-    const doApprove = async () => {
-      setConfirming(true)
-      try {
-        if (window.electronAPI?.loopConfirm) {
-          const ok = await window.electronAPI.loopConfirm(card.id, true)
-          if (ok) {
-            setCard((prev) => (prev ? { ...prev, status: 'approved' as const } : prev))
-            handleAction('已采纳执行：等待人工审批通过后启动')
-          } else {
-            handleAction('审批未通过：主进程拒绝执行')
-          }
-        } else {
-          // IPC 通道未暴露 → 降级到本地 state 更新
-          setCard((prev) => (prev ? { ...prev, status: 'approved' as const } : prev))
-          handleAction('已采纳执行（本地降级）：等待人工审批通过后启动')
-        }
-      } catch (err) {
-        console.warn('[DecisionDetailPage] loopConfirm approve failed:', err)
-        // catch 块仅显示错误，不更新 status（避免与"失败"提示不一致）
-        handleAction(`审批调用失败：${err instanceof Error ? err.message : String(err)}`)
-      } finally {
-        setConfirming(false)
-      }
-    }
-
-    if (isHighRisk) {
-      const ok = await confirmDialog({
-        title: '确认采纳执行',
-        description: `当前决策为「${card.risk.level}」级别风险，确认要采纳执行此命令吗？`,
-        okText: '确认执行',
-        danger: true,
-      })
-      if (!ok) return
-    }
-    void doApprove()
-  }, [card])
-
-  /** 拒绝决策执行：调用 loopConfirm(correlationId, false) */
-  const handleReject = useCallback(async () => {
-    if (!card) return
-    const isHighRisk = card.risk.level === 'HIGH' || card.risk.level === 'CRITICAL'
-
-    const doReject = async () => {
-      setConfirming(true)
-      try {
-        if (window.electronAPI?.loopConfirm) {
-          const ok = await window.electronAPI.loopConfirm(card.id, false)
-          if (ok) {
-            setCard((prev) => (prev ? { ...prev, status: 'rejected' as const } : prev))
-            handleAction('已拒绝该决策')
-          } else {
-            handleAction('拒绝失败：主进程未响应')
-          }
-        } else {
-          setCard((prev) => (prev ? { ...prev, status: 'rejected' as const } : prev))
-          handleAction('已拒绝该决策（本地降级）')
-        }
-      } catch (err) {
-        console.warn('[DecisionDetailPage] loopConfirm reject failed:', err)
-        // catch 块仅显示错误，不更新 status（避免与"失败"提示不一致）
-        handleAction(`拒绝调用失败：${err instanceof Error ? err.message : String(err)}`)
-      } finally {
-        setConfirming(false)
-      }
-    }
-
-    if (isHighRisk) {
-      const ok = await confirmDialog({
-        title: '确认拒绝决策',
-        description: `当前决策为「${card.risk.level}」级别风险，确认要拒绝此命令吗？`,
-        okText: '确认拒绝',
-        danger: true,
-      })
-      if (!ok) return
-    }
-    void doReject()
-  }, [card])
-
-  /** 打开修改弹窗：编辑 fixCommand 字符串 */
-  const handleModifyOpen = useCallback(() => {
-    if (!card) return
-    setModifyCommand(card.fixCommand)
-    setModifyModalOpen(true)
-  }, [card])
-
-
-
-  /**
-   * 确认修改后的 fixCommand 并提交审批
-   *
-   * T.6: loopConfirm 已扩展支持 newCommand 参数。
-   * 调用 loopConfirm(card.id, true, trimmed) 将修改后的命令传回主进程执行。
-   */
-  const handleModifyConfirm = useCallback(async () => {
-    if (!card || !modifyCommand.trim()) return
-    setConfirming(true)
-    try {
-      const trimmed = modifyCommand.trim()
-      if (window.electronAPI?.loopConfirm) {
-        await window.electronAPI.loopConfirm(card.id, true, trimmed)
-      }
-      // 无论 IPC 是否可用，都同步本地 fixCommand（IPC 降级路径）
-      setCard((prev) => (prev ? { ...prev, fixCommand: trimmed, status: 'approved' as const } : prev))
-      handleAction(`已修改命令并提交：${trimmed.slice(0, 40)}`)
-      setModifyModalOpen(false)
-    } catch (err) {
-      console.warn('[DecisionDetailPage] loopConfirm modify failed:', err)
-      setCard((prev) => (prev ? { ...prev, fixCommand: modifyCommand.trim() } : prev))
-      handleAction(`修改命令已本地保存，但主进程同步失败：${err instanceof Error ? err.message : String(err)}`)
-      setModifyModalOpen(false)
-    } finally {
-      setConfirming(false)
-    }
-  }, [card, modifyCommand])
 
   /**
    * v2.6：重新在终端执行（历史已执行卡的真实功能，替代对 dec_ 卡无效的审批按钮）
@@ -573,9 +436,8 @@ export function DecisionDetailPage() {
           commandComment={card.fixDescription}
           impact={card.risk.description || '目标服务'}
           rollback={card.rollbackCommand ?? 'N/A'}
-          // v2.6：已执行/已拒绝/已验证的历史卡 → 只读态（审批按钮对历史卡无效），
-          // 提供真实的「重新在终端执行」；仅 pending/approved（活跃工作流）保留审批按钮
-          mode={card.status === 'pending' || card.status === 'approved' ? 'approval' : 'readonly'}
+          // 这一页只有"看"与"重新执行"：审批三键于 2026-10-25 随那条没人能启动的链整删（#222）。
+          // 活跃决策的审批在 dock/permission-bar 那颗真按钮上，历史记录本身不可事后批准。
           statusLabel={
             card.status === 'executed' ? '已执行'
             : card.status === 'verified' ? '已验证'
@@ -587,9 +449,6 @@ export function DecisionDetailPage() {
           rerunning={rerunning}
           canRerun={Boolean(activeSessionId)}
           onRerun={() => void handleRerun()}
-          onAccept={() => void handleApprove()}
-          onModify={handleModifyOpen}
-          onReject={() => void handleReject()}
         />
       </section>
 
@@ -711,13 +570,6 @@ export function DecisionDetailPage() {
         </div>
       </footer>
 
-      {/* 操作反馈浮层 */}
-      {actionFeedback && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-4 py-2 text-sm font-medium text-(--accent-text) shadow-lg">
-          {actionFeedback}
-        </div>
-      )}
-
       {/* 内联 keyframes */}
       <style>{`
         @keyframes pulse-ring {
@@ -725,46 +577,6 @@ export function DecisionDetailPage() {
           50% { box-shadow: 0 0 0 6px transparent; }
         }
       `}</style>
-
-      {/* modify-execution 弹窗：编辑 fixCommand 字符串后提交审批
-          无障碍：title 关联 aria-labelledby（rc-dialog 自动生成 ariaId）、autoFocus 聚焦 TextArea、ESC 关闭（AntD 默认 keyboard=true） */}
-      <Dialog open={modifyModalOpen} onOpenChange={(next) => !next && setModifyModalOpen(false)}>
-        <DialogContent
-          title="修改修复命令"
-          closeOnOverlayClick={false}
-          footer={
-            <>
-              <Button onClick={() => setModifyModalOpen(false)}>取消</Button>
-              <Button
-                variant="solid"
-                disabled={!modifyCommand.trim() || confirming}
-                onClick={() => void handleModifyConfirm()}
-              >
-                {confirming ? '提交中…' : '确认提交'}
-              </Button>
-            </>
-          }
-        >
-          <div className="flex flex-col gap-2">
-            <label htmlFor="modify-fix-command" className="text-sm text-ink-dim">
-              修复命令（提交后将以本命令执行变更）
-            </label>
-            <TextArea
-              id="modify-fix-command"
-              value={modifyCommand}
-              onChange={(e) => setModifyCommand(e.target.value)}
-              placeholder="例如：systemctl restart nginx"
-              rows={3}
-              disabled={confirming}
-              autoFocus
-              className="font-mono text-sm"
-            />
-            <p className="text-caption text-ink-mute">
-              提示：修改命令后将重新提交人工审批流程；按 Esc 可取消
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
     </main>
   )
 }

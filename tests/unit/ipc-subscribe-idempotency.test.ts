@@ -10,7 +10,15 @@
  * 那种改动不会让现有行为测试变红（第一次注册看着是对的）。字符串匹配也不够——
  * 把返回值赋给一个没人调的变量，字符串上看着"接住了"，实际仍是叠加。
  * 所以判据落在结构上：**订阅调用不许是裸表达式语句**，必须被包进 push/赋值给最终
- * 会被返回的收纳处；ipc/index.ts 那侧必须真的把这四个模块的返回值收进 disposers。
+ * 会被返回的收纳处；ipc/index.ts 那侧必须真的把这些模块的返回值收进 disposers。
+ *
+ * 靶子名单的取数口径（2026-10-25 #222 之后改的）：名单 = `index.ts` 里
+ * `ipcDisposers.push(registerX(...))` 实际收走的那些 register，两边必须一模一样。
+ * 上一版把靶子写死成四个文件（其中一个是 `ipc/loop-engineering.ts`），于是那条链一删，
+ * 这里不是"名单要跟着改"这么简单——是五条断言一起 ENOENT。现在只有"名单 vs 实际注册"一处要对账。
+ * 换进来的 `ipc/local-terminal.ts` 不是随便挑的：它和 ssh/monitor/mcp 同形状
+ * （往长寿命事件源 `localPtyManager` 上挂输出转发与退出通知、返回卸载函数），
+ * 而且**早就被 index.ts 收进 ipcDisposers 了**，却在旧名单之外——旧闸对它一直是盲区。
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -27,22 +35,56 @@ const ROOT = process.cwd()
  *
  * 不含 EventEmitter 的 .on：它的返回值本来就不是卸载函数（是 emitter 自己），
  * 收返回值没有意义，所以那条走另一条判据——同一个接收者必须同时出现 .off。
+ *
+ * onShellExit 是 #222 换靶子时补的：本机终端的"退出通知"转发和 onShellData 的输出转发
+ * 挂在同一个长寿命 PTY 管理器上，漏掉它等于只盯一半——重注册一轮就多推一次 exit。
  */
 const SUBSCRIPTIONS = [
   'onStateChanged',
   'onShellData',
+  'onShellExit',
   'onMonitorData',
   'onSystemInfo',
   'subscribeLifecycle',
 ]
 
-/** 注册函数返回卸载函数的四个文件 */
-const FILES = [
-  'src/main/ipc/ssh.ts',
-  'src/main/ipc/monitor.ts',
-  'src/main/ipc/mcp.ts',
-  'src/main/ipc/loop-engineering.ts',
-]
+/**
+ * 靶子：注册函数 + 它所在的文件
+ *
+ * 这份名单是人审快照，靠下面那条"与 index.ts 的 ipcDisposers 收纳处对账"逼它不漂：
+ * 少一个（模块不再被收走）或多一个（新模块开始返回卸载函数）都会红。
+ */
+const TARGETS = [
+  { rel: 'src/main/ipc/ssh.ts', fn: 'registerSshIpcHandlers' },
+  { rel: 'src/main/ipc/monitor.ts', fn: 'registerMonitorIpcHandlers' },
+  { rel: 'src/main/ipc/mcp.ts', fn: 'registerMcpStateHandlers' },
+  { rel: 'src/main/ipc/local-terminal.ts', fn: 'registerLocalTerminalHandlers' },
+] as const
+
+/** 靶子里的文件名（订阅扫描按它取数） */
+const FILES = TARGETS.map((t) => t.rel)
+
+/** index.ts 里被 `ipcDisposers.push(registerX(...))` 收走的 register 函数名 */
+function pushedRegisters(): Set<string> {
+  const src = readFileSync(join(ROOT, 'src/main/ipc/index.ts'), 'utf8')
+  const sf = ts.createSourceFile('index.ts', src, ts.ScriptTarget.Latest, true)
+  const pushed = new Set<string>()
+  function visit(node: ts.Node): void {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.expression.getText(sf) === 'ipcDisposers' &&
+      node.expression.name.text === 'push' &&
+      ts.isCallExpression(node.arguments[0]) &&
+      ts.isIdentifier(node.arguments[0].expression)
+    ) {
+      pushed.add(node.arguments[0].expression.text)
+    }
+    node.forEachChild(visit)
+  }
+  visit(sf)
+  return pushed
+}
 
 type Bare = { line: number; name: string }
 
@@ -130,7 +172,7 @@ function matchReceivers(src: string, method: '.on(' | '.off('): string[] {
 }
 
 describe('订阅可退订（结构闸）', () => {
-  it('四个注册模块里没有裸着的订阅调用', () => {
+  it('靶子模块里没有裸着的订阅调用', () => {
     const offenders: string[] = []
     for (const rel of FILES) {
       const src = readFileSync(join(ROOT, rel), 'utf8')
@@ -161,14 +203,9 @@ describe('订阅可退订（结构闸）', () => {
     ])
   })
 
-  it('四个 register 函数都声明返回 () => void（不声明就是没打算让人摘）', () => {
-    const names = [
-      ['src/main/ipc/ssh.ts', 'registerSshIpcHandlers'],
-      ['src/main/ipc/monitor.ts', 'registerMonitorIpcHandlers'],
-      ['src/main/ipc/mcp.ts', 'registerMcpStateHandlers'],
-      ['src/main/ipc/loop-engineering.ts', 'registerLoopEngineeringHandlers'],
-    ] as const
-    for (const [rel, fnName] of names) {
+  it('靶子里每个 register 都声明返回 () => void（不声明就是没打算让人摘）', () => {
+    expect(TARGETS.length, '靶子名单空了 = 这条闸变成放行证').toBeGreaterThan(0)
+    for (const { rel, fn: fnName } of TARGETS) {
       const src = readFileSync(join(ROOT, rel), 'utf8')
       const shape = returnShapeOfRegister(src, fnName)
       expect(shape.annotated, `${fnName} 的返回类型要显式写成 () => void`).toBe(true)
@@ -176,33 +213,21 @@ describe('订阅可退订（结构闸）', () => {
     }
   })
 
-  it('ipc/index.ts 把这四个返回值都收进 disposer 收纳处', () => {
-    const src = readFileSync(join(ROOT, 'src/main/ipc/index.ts'), 'utf8')
-    const sf = ts.createSourceFile('index.ts', src, ts.ScriptTarget.Latest, true)
-    const pushed = new Set<string>()
-    function visit(node: ts.Node): void {
-      if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        node.expression.expression.getText(sf) === 'ipcDisposers' &&
-        node.expression.name.text === 'push' &&
-        ts.isCallExpression(node.arguments[0]) &&
-        ts.isIdentifier(node.arguments[0].expression)
-      ) {
-        pushed.add(node.arguments[0].expression.text)
-      }
-      node.forEachChild(visit)
-    }
-    visit(sf)
-    for (const fnName of [
-      'registerSshIpcHandlers',
-      'registerMonitorIpcHandlers',
-      'registerMcpStateHandlers',
-      'registerLoopEngineeringHandlers',
-    ]) {
-      expect(pushed.has(fnName), `${fnName} 的返回值没进 ipcDisposers`).toBe(true)
-    }
+  it('ipc/index.ts 收进 ipcDisposers 的正好是这批靶子（双向、且真的会摘）', () => {
+    const pushed = pushedRegisters()
+    const targets: string[] = TARGETS.map((t) => t.fn)
+    // 解析器自己不能是哑的：index.ts 里一条 push 都没认出来时，下面两个 filter 会全体空过
+    expect(pushed.size, 'index.ts 里一个 ipcDisposers.push(registerX(...)) 都没解析出来').toBeGreaterThan(0)
+    // 方向一：被收进收纳处的返回值必须都在闸内——新模块开始返回卸载函数却没进名单，就是漏检
+    const outside = [...pushed].filter((n) => !targets.includes(n)).sort()
+    expect(outside, `这些 register 的返回值被 index.ts 收进了 ipcDisposers，却不在靶子名单：${outside.join('、')}`).toEqual(
+      []
+    )
+    // 方向二：名单里的每个都必须真被收走（只收不跑等于没闸；不再收 = 卸载函数被丢掉）
+    const dropped = targets.filter((n) => !pushed.has(n)).sort()
+    expect(dropped, `这些 register 的返回值没进 ipcDisposers：${dropped.join('、')}`).toEqual([])
     // 还要真的会摘：重注册前跑一遍收纳处（只收不跑等于没闸）
+    const src = readFileSync(join(ROOT, 'src/main/ipc/index.ts'), 'utf8')
     expect(src).toMatch(/for\s*\(\s*const\s+dispose\s+of\s+ipcDisposers/)
   })
 

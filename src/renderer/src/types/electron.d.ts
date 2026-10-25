@@ -478,33 +478,9 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   // 本应用只跑一个分析引擎、界面没有 Sidecar 列表，健康读数走 app:get-info 那张实测表，
   // tool-call 更是可 POST 任意本地 endpoint 的通用口。留下的两条见上方 sidecarStatus / sidecarPipeline。
 
-  /** 监听 loop:decision — 决策卡片就绪 */
-  onLoopDecision(
-    callback: (payload: {
-      type: 'loop:decision'
-      correlationId: string
-      state: unknown
-      decisionCard: unknown
-    }) => void,
-  ): () => void
-
-  /** 监听 loop:done — 工作流完成 */
-  onLoopDone(
-    callback: (payload: {
-      type: 'loop:done'
-      correlationId: string
-      decisionCard: unknown
-    }) => void,
-  ): () => void
-
-  /** 监听 loop:error — 工作流错误 */
-  onLoopError(
-    callback: (payload: {
-      type: 'loop:error'
-      correlationId: string
-      error: string
-    }) => void,
-  ): () => void
+  // ===== v1.5 的循环工程事件面（loop:* 十条通道）已于 2026-10-25 整删（#222）=====
+  // 这里以前手写这三条监听签名，而渲染层没有任何一处能启动那条链；
+  // 活跃决策的审批面在 dock/permission-bar，出口是 paorApprove。
 }
 
 /** 扩展 Window 接口，声明 electronAPI 全局变量 */

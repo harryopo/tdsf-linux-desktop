@@ -18,7 +18,7 @@ import type {
 } from '@shared/models'
 import type { RiskRulesSnapshot } from '@shared/ipc-channels'
 import type { BootLoadingStage } from '@shared/boot-types'
-import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, HISTORY, KNOWLEDGE, LOG, LOOP, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
+import { ALERT, BOOT, BUDGET, CHAT, CREDIBILITY, HISTORY, KNOWLEDGE, LOG, MEMORY, MCP, MODEL_STATS, PREVIEW, RISK, SIDECAR, TUTORIAL, WINDOW } from '@shared/ipc-channels'
 import { IpcRendererEvent, contextBridge, ipcRenderer } from 'electron'
 import type { HybridSearchResult, RecommendPathOptions, TutorialHybridSearchOptions, TutorialPath } from './types'
 export type { FileChangeEvent, FileChangedPayload, SftpGrepMatch, SftpGrepParams, SftpSearchFileEntry } from './types'
@@ -548,147 +548,11 @@ const electronApi = {
   // 循环工程）于是只往一块没人读的内存里写。日志内容改回落进应用日志；
   // 真正的"分析日志"能力走 MCP 的 log_analyze（它直接吃 LogAnalyzer，不经过这块缓冲）。
 
-  // ===== v1.5 新增：循环工程子 Agent（假设计 → 可演示真 IDE）=====
+  // ===== v1.5 的循环工程子 Agent 面已于 2026-10-25 整删（#222）=====
   //
-  // 通道与主进程 ipc/loop-engineering.ts 一一对应。
-  // 设计目标：让 Workbench AIPanel 的"演示模式"调用真实 LLM 推理 + 7 步 HITL 工作流。
-  //
-  // 使用场景：
-  //   1. 用户在 AIPanel 输入问题（如"磁盘空间不足"）
-  //   2. 调用 loopStart({ problem, connId, providerId?, strength? }) 启动循环工程
-  //   3. 监听 onLoopLlmStart → onLoopLlmDone（LLM 推理阶段）
-  //   4. 监听 onLoopStep（7 步 HITL 步骤变化：collect→analyze→reason→check→confirm→execute→verify）
-  //   5. 监听 onLoopDecision（决策卡片就绪，显示批准/拒绝按钮）
-  //   6. 用户点击批准 → 调用 loopConfirm(correlationId, true)
-  //   7. 监听 onLoopDone（工作流完成，含最终 DecisionCard）
-  //   8. 用户点击拒绝 → 调用 loopConfirm(correlationId, false) 或 loopCancel(correlationId)
-
-  // 通道：loop:start → 启动循环工程
-  loopStart: (
-    input: {
-      problem: string
-      connId: string
-      providerId?: string
-      strength?: 'fast' | 'standard' | 'deep'
-    },
-  ): Promise<{ correlationId: string; status: string; error?: string }> =>
-    ipcRenderer.invoke(LOOP.START, input),
-
-  // 通道：loop:confirm → 人工确认（批准/拒绝/修改后批准）
-  // T.6: 新增可选 newCommand 参数，支持 DecisionDetailPage 修改修复命令后批准执行
-  loopConfirm: (correlationId: string, approved: boolean, newCommand?: string): Promise<boolean> =>
-    ipcRenderer.invoke(LOOP.CONFIRM, correlationId, approved, newCommand),
-
-  // 通道：loop:cancel → 取消工作流
-  loopCancel: (correlationId: string): Promise<boolean> =>
-    ipcRenderer.invoke(LOOP.CANCEL, correlationId),
-
-  // 事件：loop:llm-start — LLM 推理开始
-  onLoopLlmStart: (
-    callback: (payload: { type: 'loop:llm-start'; correlationId: string; problem: string }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.LLM_START, handler)
-    return () => { ipcRenderer.off('loop:llm-start', handler) }
-  },
-
-  // 事件：loop:llm-done — LLM 推理完成（含 hypothesis + fixCommand + confidence）
-  onLoopLlmDone: (
-    callback: (payload: {
-      type: 'loop:llm-done'
-      correlationId: string
-      hypothesis: { hypothesis: string; fixCommand: string; confidence: number }
-    }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.LLM_DONE, handler)
-    return () => { ipcRenderer.off('loop:llm-done', handler) }
-  },
-
-  // 事件：loop:step — 工作流步骤变化（含完整 AgentWorkflowState）
-  onLoopStep: (
-    callback: (payload: {
-      type: 'loop:step'
-      correlationId: string
-      state: {
-        currentStep: 'collect' | 'analyze' | 'reason' | 'check' | 'confirm' | 'execute' | 'verify'
-        completedSteps: string[]
-        stepDetails: Record<string, string>
-        waitingForConfirmation: boolean
-        decisionCard: unknown | null
-        error: string | null
-        timestamp: number
-      }
-    }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.STEP, handler)
-    return () => { ipcRenderer.off('loop:step', handler) }
-  },
-
-  // 事件：loop:decision — 决策卡片就绪（等待用户确认）
-  onLoopDecision: (
-    callback: (payload: {
-      type: 'loop:decision'
-      correlationId: string
-      state: unknown
-      decisionCard: {
-        id: string
-        problem: string
-        hypothesis: string
-        evidences: unknown[]
-        confidence: number
-        risk: { level: string; score: number; description: string; requireConfirmation: boolean; blocked: boolean }
-        fixCommand: string
-        fixDescription: string
-        rollbackCommand?: string
-        status: string
-        timestamp: number
-      }
-    }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.DECISION, handler)
-    return () => { ipcRenderer.off('loop:decision', handler) }
-  },
-
-  // 事件：loop:done — 工作流完成（含最终 DecisionCard）
-  onLoopDone: (
-    callback: (payload: {
-      type: 'loop:done'
-      correlationId: string
-      state: unknown
-      decisionCard: unknown | null
-    }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.DONE, handler)
-    return () => { ipcRenderer.off('loop:done', handler) }
-  },
-
-  // 事件：loop:error — 工作流出错
-  onLoopError: (
-    callback: (payload: { type: 'loop:error'; correlationId: string; error: string; state?: unknown }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.ERROR, handler)
-    return () => { ipcRenderer.off('loop:error', handler) }
-  },
-
-  // 事件：loop:blocked — 工作流被阻止（如 SSH 未连接）
-  onLoopBlocked: (
-    callback: (payload: {
-      type: 'loop:blocked'
-      correlationId: string
-      step: string
-      reason: string
-      message: string
-    }) => void,
-  ) => {
-    const handler = (_e: IpcRendererEvent, payload: unknown) => callback(payload as never)
-    ipcRenderer.on(LOOP.BLOCKED, handler)
-    return () => { ipcRenderer.off('loop:blocked', handler) }
-  },
+  // 那三把 invoke 与七条监听没有任何渲染层调用点能启动它们（Composer 把这个 hook 收成
+  // _loop 弃用、AIPanel 只读 phase），多步编排与在跑的 PAOR 自主循环重复。判据见
+  // tests/unit/loop-engineering-surface.test.ts。
 
   // ===== Phase 6 Task 6.5：调度器扁平化（定时任务自动化）=====
   // 通道与主进程 ipc/scheduler.ts 一一对应；UI 调用方式：

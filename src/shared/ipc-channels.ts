@@ -11,10 +11,11 @@
  *   - STATUS  push    主 → 渲染：任务执行后主动推送状态更新
  *
  * polish-tdsf-p1-issues Task A：集中化所有 ipcMain.handle 字面量为常量
- *   - 新增 19 个域常量（AGENT / LLM / SSH / STORAGE / CONFIG / SERVER / LOOP / MONITOR /
+ *   - 新增 19 个域常量（AGENT / LLM / SSH / STORAGE / CONFIG / SERVER / MONITOR /
  *     LOG / KNOWLEDGE / HISTORY / SIDECAR / SANDBOX / MCP / TUTORIAL /
  *     AT_COMMANDS / TOKEN；DEPLOY 与 AT_COMMANDS 已于 2026-10-24 随各自执行/解析链整删，
- *     DIAGNOSTICS 同日随"只写不读的界面出口"整删）
+ *     DIAGNOSTICS 同日随"只写不读的界面出口"整删，LOOP 已于 2026-10-25 随循环工程链整删（#222：
+ *     渲染层没有任何一处能启动它））
  *   - 通道值与原字面量完全一致，向后兼容
  */
 
@@ -427,37 +428,6 @@ export const SERVER = {
   IMPORT_FILE: 'server:import-file',
   /** 删除服务器凭据（invoke: 渲染 → 主） */
   DELETE_CRED: 'server:delete-cred',
-} as const
-
-/**
- * 循环工程 IPC 通道常量
- *
- * 通道列表：
- * - START    invoke  渲染 → 主：启动循环工程子 agent
- * - CONFIRM  invoke  渲染 → 主：人工确认决策卡片
- * - CANCEL   invoke  渲染 → 主：取消正在执行的工作流
- */
-export const LOOP = {
-  /** 启动循环工程子 agent（invoke: 渲染 → 主） */
-  START: 'loop:start',
-  /** 人工确认决策卡片（invoke: 渲染 → 主） */
-  CONFIRM: 'loop:confirm',
-  /** 取消正在执行的工作流（invoke: 渲染 → 主） */
-  CANCEL: 'loop:cancel',
-  /** LLM 调用开始推送（push: 主 → 渲染） */
-  LLM_START: 'loop:llm-start',
-  /** LLM 调用完成推送（push: 主 → 渲染） */
-  LLM_DONE: 'loop:llm-done',
-  /** 工作流步骤变更推送（push: 主 → 渲染） */
-  STEP: 'loop:step',
-  /** 决策卡片推送（push: 主 → 渲染） */
-  DECISION: 'loop:decision',
-  /** 工作流完成信号推送（push: 主 → 渲染） */
-  DONE: 'loop:done',
-  /** 工作流错误信号推送（push: 主 → 渲染） */
-  ERROR: 'loop:error',
-  /** 工作流阻塞信号推送（push: 主 → 渲染） */
-  BLOCKED: 'loop:blocked',
 } as const
 
 /**

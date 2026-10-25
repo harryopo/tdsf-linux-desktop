@@ -358,14 +358,14 @@ export class SidecarManager extends EventEmitter {
       this.process.stdout?.on('data', (data) => {
         const text = data.toString().trim()
         logger.info(`[${this.config.id}] ${text}`)
-        // 转发到诊断服务（循环工程启动时分析）
+        // 再按推断出的级别写一份应用日志（stderr 会升 WARN）
         this.forwardLog(text, false)
       })
       this.process.stderr?.on('data', (data) => {
         const text = data.toString().trim()
         this.pushStderrLine(text)
         logger.warn(`[${this.config.id}] ${text}`)
-        // stderr 转发到诊断服务（标记 isStderr=true）
+        // stderr 那一路标 isStderr=true，级别至少升到 WARN
         this.forwardLog(text, true)
       })
 
@@ -373,7 +373,7 @@ export class SidecarManager extends EventEmitter {
       this.process.on('exit', (code, signal) => {
         const exitMsg = `Sidecar ${this.config.id} 退出（code=${code}, signal=${signal}）`
         logger.warn(`[SidecarManager] ${exitMsg}`)
-        // 转发退出事件到诊断服务（触发 sidecar_crash 规则）
+        // 退出事件也按同一档写进应用日志（非零码按 stderr 升档）
         this.forwardLog(`[SidecarManager] ${exitMsg}`, code !== 0 && code !== null)
 
         // 主动停止（应用退出/用户关面板）不重启，也不算崩溃

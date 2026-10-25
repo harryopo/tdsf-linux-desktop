@@ -16,7 +16,6 @@ import { useAIStore } from '@/stores/ai-store'
 // v2.3.7 修复：MOCK_COMPOSER_CHIPS → QUICK_PROMPT_TEMPLATES（mock-data.ts v2.3.6 已重命名）
 // 之前的 import 指向不存在的导出 → Composer 模块加载失败 → AIPanel 整个组件崩 → "Agent 调用失败"
 import { QUICK_PROMPT_TEMPLATES } from './mock-data'
-import { useLoopEngineering } from './useLoopEngineering'
 import type { UsePaorLoopResult } from './usePaorLoop'
 import ContextBadge from './ContextBadge'
 import type { PersistedProviderConfig } from '@shared/agent-types'
@@ -42,7 +41,6 @@ export interface ImageAttachment {
 /** Composer props */
 export interface ComposerProps {
   isStreaming: boolean
-  loop: ReturnType<typeof useLoopEngineering>
   /** PAOR 自动循环（v0.9.5 P0-3：Plan→Act→Observe→Reflect） */
   paor: UsePaorLoopResult
   activeSessionId: string | null
@@ -58,8 +56,6 @@ export interface ComposerProps {
 /** AIPanel 输入区域（Composer chips + 输入框 + 工具栏 + Provider 选择 + Send 按钮） */
 const Composer: FC<ComposerProps> = ({
   isStreaming,
-  // v2.3.7 修复：loop 由 AIPanel 单独控制循环工程面板，Composer 仅 PAOR chip
-  loop: _loop,
   paor,
   activeSessionId,
   providers,
@@ -291,8 +287,8 @@ const Composer: FC<ComposerProps> = ({
    * 3. 成功启动后清空输入框，UI 状态由 AIPanel 的 useEffect 监听 paor.iterations 展示
    *
    * 与 handleSendToggle 的区别：
-   * - handleSendToggle：发送单条消息（agent:chat）或启动循环工程（loop.start）
-   * - handlePaorStart：启动 PAOR 自主循环（agent:paor），主进程 Supervisor 编排多步运维任务
+   * - handleSendToggle：普通消息走 agent:chat，一次一问一答
+   * - handlePaorStart：多步运维任务走 paor.start(task, sessionId, 5)（agent:paor），由主进程 Supervisor 编排
    *
    * 注意：PAOR 运行中无法取消（主进程目前不支持 agent:paor:cancel），
    * 只能等迭代上限或人工拒绝高危命令触发 riskBlocked。

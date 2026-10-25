@@ -4,9 +4,10 @@
  * 问题背景：
  * - Provider 体系（SecureStore `provider:{id}` + electron-store agentProviders）
  *   上线后，旧 LLM 体系（ConfigStore.llmConfig + SecureStore 'llm'）未下线。
- * - llm.ts / agent.ts / llm-tools.ts / loop-engineering-subagent.ts
- *   共 4 处仍只读旧 'llm' Key，用户在"设置 → 模型"配好 Provider 后，
- *   这些路径 `getApiKey('llm') ?? ''` 静默拿空 Key → 调用失败且不上屏。
+ * - 当初有 4 处只读旧 'llm' Key（llm.ts / agent.ts / llm-tools.ts 与那条工作流子 agent），
+ *   那四个调用点已随 #195、#218、#222 三批整删陆续走光；今天这个解析器只剩
+ *   `core/agent/supervisor` 一个消费者（两处调用）。留着它是因为 supervisor 仍在读旧 Key 的
+ *   timeout 与 provider 回退，删掉它等于把这条读法一起改动，不在本轮范围内。
  *
  * 统一策略（所有 LlmClient 消费点必须走本入口）：
  * 1. 优先用 Provider 体系：默认 Provider 若是 OpenAI 协议族且已配 Key，直接复用；
