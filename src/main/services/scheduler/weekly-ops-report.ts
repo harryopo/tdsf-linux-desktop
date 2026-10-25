@@ -409,26 +409,9 @@ class NodeReportFileSystem implements ReportFileSystem {
 }
 
 // ============================================================================
-// 占位仓储（运行时未注入真实仓储时使用）+ 报告目录解析
+// 报告目录解析
 // ============================================================================
 
-class PlaceholderDecisionRepo implements DecisionWeeklyRepository {
-  async getWeeklyStats(): Promise<DecisionWeeklyStats> {
-    console.warn(
-      '[weekly-ops-report] 决策仓储未注入，返回空统计。请使用 createWeeklyOpsReportTaskWithRepos 注入真实实现'
-    )
-    return { total: 0, successCount: 0, blockedCount: 0, avgResponseMs: 0, dailyTrend: [] }
-  }
-}
-
-class PlaceholderKnowledgeRepo implements KnowledgeWeeklyRepository {
-  async getWeeklyStats(): Promise<KnowledgeWeeklyStats> {
-    console.warn(
-      '[weekly-ops-report] 知识仓储未注入，返回空统计。请使用 createWeeklyOpsReportTaskWithRepos 注入真实实现'
-    )
-    return { newEntries: 0, aiContributionRate: 0 }
-  }
-}
 
 /** 解析报告目录：electron 可用时用 app.getPath('userData') + '/reports'，否则降级到 os.tmpdir/tdsf-reports */
 async function resolveReportsDir(): Promise<string> {
@@ -445,31 +428,6 @@ async function resolveReportsDir(): Promise<string> {
 // ============================================================================
 // 工厂函数
 // ============================================================================
-
-/**
- * 创建运维周报任务（占位版）
- * handler 使用占位仓储（返回空数据 + console.warn）+ 默认 NodeReportFileSystem。
- * 真实运行时请使用 createWeeklyOpsReportTaskWithRepos 注入真实仓储。
- */
-export function createWeeklyOpsReportTask(): SchedulerTask {
-  return {
-    id: 'weekly-ops-report',
-    name: '运维周报',
-    cron: WEEKLY_OPS_REPORT_CRON,
-    timezone: DEFAULT_TIMEZONE,
-    enabled: true,
-    handler: async () => {
-      const reportsDir = await resolveReportsDir()
-      return executeWeeklyOpsReport({
-        decisionRepo: new PlaceholderDecisionRepo(),
-        knowledgeRepo: new PlaceholderKnowledgeRepo(),
-        fs: new NodeReportFileSystem(),
-        reportsDir,
-        timezone: DEFAULT_TIMEZONE,
-      })
-    },
-  }
-}
 
 /** 创建带仓储注入的运维周报任务（用于测试 / Phase 7 真实适配器） */
 export function createWeeklyOpsReportTaskWithRepos(

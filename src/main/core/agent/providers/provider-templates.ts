@@ -344,22 +344,3 @@ export function assertTemplateInvariants(list: ProviderConfig[] = PROVIDER_TEMPL
 export function findTemplate(id: string): ProviderConfig | undefined {
   return PROVIDER_TEMPLATES.find((t) => t.id === id)
 }
-
-/**
- * 列出所有预置模板的简要信息（UI 选择器用）
- */
-export function listTemplateSummaries(): Array<{
-  id: string
-  name: string
-  type: string
-  baseURL: string
-  defaultModel: string
-}> {
-  return PROVIDER_TEMPLATES.map((t) => ({
-    id: t.id,
-    name: t.name,
-    type: t.type,
-    baseURL: t.baseURL,
-    defaultModel: t.model,
-  }))
-}

@@ -439,52 +439,6 @@ export async function runDailyDecisionArchive(
 // ============================================================================
 
 /**
- * 创建每日决策归档任务定义（占位版）
- *
- * 返回 SchedulerTask，但 handler 未注入 repository，调用时输出 console.warn 警告
- * 并以 success=true + skipped 状态返回，不阻塞调度器执行其他任务。
- *
- * 适用场景：
- *   - 仅需任务定义元数据（id / cron / name）时使用（如注册到调度引擎列表）
- *   - 真实运行时请使用 `createDailyDecisionArchiveTaskWithRepos`
- *
- * 注：DecisionRepository / KnowledgeRepository 已存在（src/main/services/db/），
- *     但其接口（save/getById/list/search）与归档场景的抽象接口
- *     （querySuccessfulDecisions / findByRelatedDecisionId / countBySource /
- *     runBatch）不匹配。适配器已补齐（archive-repo-adapter.ts）。
- *
- * @returns SchedulerTask 定义（cron = `0 18 * * *`，timezone = Asia/Shanghai）
- */
-export function createDailyDecisionArchiveTask(): SchedulerTask {
-  return {
-    id: 'daily-decision-archive',
-    name: '每日决策归档',
-    cron: DAILY_DECISION_ARCHIVE_CRON,
-    timezone: DEFAULT_TIMEZONE,
-    enabled: true,
-    handler: async () => {
-      // TODO Phase 7：注入真实 repository 实现（需补齐归档接口适配器）
-      // 当前为占位 handler，输出 console.warn 警告并以 success=true 跳过，不阻塞调度
-      console.warn(
-        '[daily-decision-archive] 默认 handler 未注入 repository，' +
-          '请使用 createDailyDecisionArchiveTaskWithRepos(decisionRepo, knowledgeRepo) 创建任务'
-      )
-      return {
-        success: true,
-        summary: '归档任务跳过：未注入 repository（占位 handler）',
-        details: {
-          archivedCount: 0,
-          totalDecisions: 0,
-          skippedCount: 0,
-          reason: 'no-repository-injected',
-        },
-        durationMs: 0,
-      }
-    },
-  }
-}
-
-/**
  * 创建带 repository 注入的每日决策归档任务
  *
  * 在 Phase 7 repository 适配器就绪后，使用此工厂创建可运行的任务。

@@ -724,26 +724,6 @@ export function getSidecarManager(sidecarId: string = 'sre'): SidecarManager {
 }
 
 /**
- * 获取所有 sidecar 状态（v1.5 新增）
- *
- * 用于 UI 状态条统一展示 A/B/C 三个 sidecar 健康状态
- */
-export function getAllSidecarStatuses(): Record<string, { status: SidecarStatus; lastError: string | null }> {
-  const result: Record<string, { status: SidecarStatus; lastError: string | null }> = {}
-  for (const [id, mgr] of instances) {
-    const s = mgr.getStatus()
-    result[id] = { status: s.status, lastError: s.lastError }
-  }
-  // 未启动的 sidecar 标记为 stopped
-  for (const id of Object.keys(SIDECAR_CONFIGS)) {
-    if (!result[id]) {
-      result[id] = { status: 'stopped', lastError: null }
-    }
-  }
-  return result
-}
-
-/**
  * 关闭所有 sidecar 进程
  *
  * 应在 app.on('before-quit') 钩子中调用

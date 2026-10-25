@@ -43,8 +43,3 @@ export function installCommandBlockTrace(repo: AuditRepo = new AuditRepo(Databas
     repo.log(traceToAuditInput(t))
   })
 }
-
-/** 撤掉留痕（测试收尾用） */
-export function uninstallCommandBlockTrace(): void {
-  setCommandBlockSink(null)
-}
