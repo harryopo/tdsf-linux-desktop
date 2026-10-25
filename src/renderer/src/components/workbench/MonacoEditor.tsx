@@ -112,6 +112,17 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   const decorationRef = useRef<string[]>([])
 
   /**
+   * Monaco 的 Ctrl+S 只在挂载时注册一次（onMount 不会再回调），
+   * 注册进去的是**那一刻**的 onSave；之后正文一变，onSave 是新的、命令里还是旧的 ——
+   * 按 Ctrl+S 就会拿打开文件时的旧正文写回，再把编辑器回退成旧正文（用户的改动静默消失）。
+   * 2026-10-25 真机取证到的就是这个形状（#233）。命令里只放一个稳定壳，真身走 ref，永远拿最新那个。
+   */
+  const onSaveRef = useRef(onSave)
+  useEffect(() => {
+    onSaveRef.current = onSave
+  }, [onSave])
+
+  /**
    * 跳到那一行并整行高亮。
    *
    * 两条路都要走这一处（真机 e2e 实测出来的）：
@@ -158,13 +169,10 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       // 注册 shell 语言配置（Task A.6）
       registerShellLanguage(monaco)
 
-      // Ctrl/Cmd+S 保存快捷键
-      if (onSave) {
-        editorInstance.addCommand(
-          monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-          onSave,
-        )
-      }
+      // Ctrl/Cmd+S 保存快捷键：命令里只放稳定壳，真身永远取最新的 onSave（见 onSaveRef 注释）
+      editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        onSaveRef.current?.()
+      })
 
       // 光标位置实时上报到 editor-store（供 StatusBar 显示）
       editorInstance.onDidChangeCursorPosition((e) => {
@@ -182,7 +190,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
 
       onMount?.(editorInstance, monaco)
     },
-    [applyReveal, onMount, onSave, revealLine, setCursorPosition],
+    [applyReveal, onMount, revealLine, setCursorPosition],
   )
 
   return (

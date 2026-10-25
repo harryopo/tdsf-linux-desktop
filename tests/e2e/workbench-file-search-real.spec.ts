@@ -258,3 +258,93 @@ test('真机整条链：内容命中带着真行号跳到真那一行，按文�
     }
   }
 })
+
+/**
+ * 编辑器 Ctrl+S 真的把改动写回真机（#233）
+ *
+ * 为什么要单开一条：界面里那个保存快捷键，此前只有代码层的处理器（`EditorArea` 里 window 的 keydown），
+ * 没有任何真窗口取证；假 SSH 夹具又没有 SFTP 子系统，所以只能用真靶机证。
+ * 这条走的全是真实用户路径：资源管理器 → 按文件名搜 → 点结果开文件 → 在编辑器里敲字 →
+ * **按 Ctrl+S** → 读靶子上那个文件的实际内容。判据只认"文件真的变了"，
+ * 顺带钉住标签上的「未保存」圆点：敲完字必须有、按完保存必须没。
+ */
+test('Ctrl+S 把编辑器里的改动写回真机（真 SFTP，不是本地假象）', async () => {
+  test.skip(!targetUp, targetWhy)
+  test.setTimeout(240_000)
+
+  const knownHostsPath = path.join(dir, 'known_hosts-save')
+  const MARK = `TDSF-CTRLS-${Date.now()}`
+  // 夹具自己造：上面那条用例跑完会把 PROBE_DIR 清掉（它造的它清），这条不能依赖它留东西；
+  // 建完立刻拿直连读回来当阳性对照——文件不在就得先报环境错，不许把"没文件"演成产品红。
+  await groundTruth(privateKeyPath, PROBE_SETUP)
+  const seed = await groundTruth(privateKeyPath, `cat ${NAMED_FILE}`)
+  expect(seed, `靶子上没造出待编辑文件：${JSON.stringify(seed)}`).toContain('for name-mode lookup')
+  const { app, page } = await launchApp()
+
+  try {
+    await page.evaluate(
+      (cfg) => {
+        const stores = (window as unknown as {
+          __tdsfStores?: { server: { getState: () => { addServer: (c: unknown) => Promise<boolean> } } }
+        }).__tdsfStores
+        if (!stores) throw new Error('__tdsfStores 未挂载')
+        return stores.server.getState().addServer(cfg)
+      },
+      { id: `${SERVER_ID}-save`, name: '真OpenSSH靶机', host: HOST, port: PORT, username: USER, authType: 'privateKey' }
+    )
+
+    const connPromise = connectApp(page, privateKeyPath, knownHostsPath)
+    await page.waitForSelector('[role="dialog"]', { timeout: 20_000 })
+    await page.getByRole('button', { name: '保存并继续' }).click()
+    const conn = await connPromise
+    expect(conn.error ?? '', `连真机失败：${conn.error ?? ''}`).toBe('')
+    expect(conn.sessionId).toBeTruthy()
+    await bindSessionToStore(page, `${SERVER_ID}-save`, conn.sessionId!)
+
+    await page.evaluate(() => {
+      window.location.hash = '#/workbench'
+    })
+    await expect(page.locator('.wb-filetree')).toBeVisible({ timeout: 20_000 })
+
+    // 搜索范围收到靶子那个目录（整盘 find 会撞超时），再按文件名把目标文件打开
+    const rootInput = page.locator('.wb-filetree-root-input')
+    await rootInput.click()
+    await rootInput.press('Control+a')
+    await rootInput.pressSequentially(PROBE_DIR, { delay: 20 })
+    await rootInput.press('Enter')
+    await expect(rootInput).toHaveValue(PROBE_DIR)
+
+    await page.getByRole('button', { name: '搜索远程文件' }).click()
+    const panel = page.locator('section[aria-label="远程文件搜索"]')
+    await panel.getByRole('radio', { name: '文件名' }).click()
+    await panel.getByRole('textbox', { name: '搜索远程文件' }).fill('tdsf-probe-name')
+    await panel.getByRole('button', { name: '搜索' }).click()
+    const nameRow = panel.getByRole('button', { name: /tdsf-probe-name\.txt/ })
+    await expect(nameRow, '真机 find 的结果没上屏').toBeVisible({ timeout: 30_000 })
+    await nameRow.click()
+
+    const tab = page.locator(`[data-tab-id="file:${NAMED_FILE}"]`)
+    await expect(tab, '结果点开之后没有文件标签').toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('.term-file-error'), '真机能读到的文件被报成读不到').toHaveCount(0)
+    // 打开态：还没改动，标签上不该有「未保存」圆点
+    expect(await tab.innerText(), '刚打开就显示未保存，脏标记起点就不对').not.toContain('•')
+
+    // 在编辑器里敲一行（末尾追加），标签必须变成「未保存」
+    await page.locator('.monaco-editor .view-lines').click()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.type(`# ${MARK}`)
+    await expect(tab, '敲了字但标签没标未保存，脏标记链路断了').toContainText('•', { timeout: 10_000 })
+
+    // 按下去：window 上的 Ctrl+S → sftpWriteFile 写回真机
+    await page.keyboard.press('Control+s')
+    await expect(tab, 'Ctrl+S 之后「未保存」还在：保存没发生或没报成' ).not.toContainText('•', {
+      timeout: 20_000,
+    })
+
+    // 只认靶子上的真内容：文件里必须有刚敲进去的那串标记
+    const after = await groundTruth(privateKeyPath, `cat ${NAMED_FILE}`)
+    expect(after, `靶子上没有 Ctrl+S 写进去的标记。实际内容=${JSON.stringify(after)}`).toContain(MARK)
+  } finally {
+    await app.close()
+  }
+})
