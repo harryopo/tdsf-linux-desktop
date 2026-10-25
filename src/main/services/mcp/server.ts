@@ -22,7 +22,12 @@ import {
   GetPromptRequestSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { DatabaseManager } from '../db/database'
-import { createMcpTools, type McpToolRegistration, type McpToolResult } from './tools/registry'
+import {
+  createMcpTools,
+  toMcpToolFailure,
+  type McpToolRegistration,
+  type McpToolResult,
+} from './tools/registry'
 import { createSshMcpTools } from './tools/registry-ssh'
 import { createMonitorMcpTools } from './tools/registry-monitor'
 import { createLogMcpTools } from './tools/registry-log'
@@ -483,11 +488,8 @@ export class McpServerService {
       return await handleLegacyToolCall(name, args)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      return {
-        content: [{ type: 'text', text: `工具调用失败: ${msg}` }],
-        // 抛异常与闸拦截都是失败，不能只靠文案让调用方误判成功
-        isError: true
-      }
+      // 异常原文可能带连接串 / 口令 / 私钥路径，这条通道是给外部客户端看的（#237）
+      return toMcpToolFailure(msg)
     }
   }
 }

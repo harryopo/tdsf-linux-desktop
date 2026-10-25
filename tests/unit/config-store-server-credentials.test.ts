@@ -17,6 +17,7 @@ const box = vi.hoisted(() => ({
   /** 下一次 saveServerCredential 返回什么 */
   credentialOk: true,
   savedIds: [] as string[],
+  deletedIds: [] as string[],
   /** 下一次读 sshServers 抛错（模拟配置文件损坏 / 磁盘读失败） */
   failGet: false,
 }))
@@ -49,7 +50,10 @@ vi.mock('../../src/main/services/storage/secure-store', () => ({
       return box.credentialOk
     },
     loadServerCredential: () => null,
-    deleteServerCredential: () => true,
+    deleteServerCredential: (id: string) => {
+      box.deletedIds.push(id)
+      return true
+    },
     listServerCredentialIds: () => [],
   },
 }))
@@ -91,6 +95,7 @@ describe('saveServerList 的成败口径', () => {
     box.store.clear()
     box.credentialOk = true
     box.savedIds = []
+    box.deletedIds = []
     box.failGet = false
   })
 
@@ -120,5 +125,69 @@ describe('saveServerList 的成败口径', () => {
     const stored = box.store.get('sshServers') as Array<Record<string, unknown>>
     expect(stored.map((s) => s.id)).toEqual(['srv-e'])
     expect(stored[0].password, '明文口令不该出现在 electron-store 那份里').toBeUndefined()
+  })
+})
+
+/** #237：渲染层能改 host，但**不能**让主进程把存好的口令跟着改道发出去 */
+describe('按 id 保存时，连接身份变了就作废旧凭据', () => {
+  beforeEach(() => {
+    box.store.clear()
+    box.credentialOk = true
+    box.savedIds = []
+    box.deletedIds = []
+    box.failGet = false
+    // 先存一台带口令的旧配置（非敏感部分照真实落库形状）
+    box.store.set('sshServers', [
+      {
+        id: 'srv-1',
+        name: '旧名字',
+        host: '10.0.0.5',
+        port: 22,
+        username: 'root',
+        authType: 'password',
+      },
+    ])
+  })
+
+  it('同一台机只改名字 → 旧凭据保留，不做无谓删除', () => {
+    ConfigStore.saveServerList([server('srv-1', { name: '新名字' })] as never)
+    expect(box.deletedIds).toEqual([])
+  })
+
+  it('host 被改掉且这次没带新口令 → 旧凭据必须作废（否则下次连接把它发给新 host）', () => {
+    ConfigStore.saveServerList([
+      server('srv-1', { host: 'evil.example.com', password: undefined }),
+    ] as never)
+    expect(box.deletedIds).toEqual(['srv-1'])
+  })
+
+  it('host 改了但用户当场重填口令 → 存新口令，不作废旧凭据（马上就被覆盖）', () => {
+    ConfigStore.saveServerList([
+      server('srv-1', { host: '10.0.0.9', password: ['N3w', 'Pass'].join('') }),
+    ] as never)
+    expect(box.deletedIds).toEqual([])
+    expect(box.savedIds).toEqual(['srv-1'])
+  })
+
+  it('失败路径也要作废凭证（不能因为列表写失败就留着旧口令）', () => {
+    box.credentialOk = false
+    ConfigStore.saveServerList([
+      server('srv-1', { host: 'evil.example.com', password: undefined }),
+    ] as never)
+    expect(box.deletedIds).toEqual(['srv-1'])
+  })
+
+  it('安全开关不从服务器条目持久化（strictHostKeyCheck / knownHostsPath 只认设置页默认值）', () => {
+    ConfigStore.saveServerList([
+      server('srv-1', {
+        name: '改名',
+        password: undefined,
+        strictHostKeyCheck: false,
+        knownHostsPath: '/tmp/empty_known_hosts',
+      }),
+    ] as never)
+    const stored = box.store.get('sshServers') as Array<Record<string, unknown>>
+    expect(stored[0].strictHostKeyCheck).toBeUndefined()
+    expect(stored[0].knownHostsPath).toBeUndefined()
   })
 })

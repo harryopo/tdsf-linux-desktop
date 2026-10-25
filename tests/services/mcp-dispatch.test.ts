@@ -74,6 +74,11 @@ vi.mock('../../src/main/services/mcp/tools/registry', () => ({
       call: v5CallMocks.unshaped,
     },
   ]),
+  // #237：异常出口统一走这个格式化函数（真身还会过 redactSecrets，见 mcp-result-redaction 判据）
+  toMcpToolFailure: (msg: string) => ({
+    content: [{ type: 'text', text: `工具调用失败: ${msg}` }],
+    isError: true,
+  }),
 }))
 
 // ── Mock DatabaseManager（避免真实打开 sqlite）──

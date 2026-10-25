@@ -10,7 +10,12 @@
  * 所以这条不是"正在漏"，是"接出去就会漏"。判据先立着，等真接客户端时它必须已经绿。
  */
 import { describe, it, expect } from 'vitest'
-import { toMcpResult, toMcpTextResult, toMcpErrorResult } from '@main/services/mcp/tools/registry'
+import {
+  toMcpResult,
+  toMcpTextResult,
+  toMcpErrorResult,
+  toMcpToolFailure,
+} from '@main/services/mcp/tools/registry'
 import type { ToolCallResult } from '@shared/llm-tool-types'
 
 // 相邻字面量拼：完整形状的假凭据会被 GitHub 密钥扫描当真并发邮件给仓库所有者（本仓记过账）
@@ -72,5 +77,14 @@ describe('MCP 文本出口脱敏', () => {
 
   it('toMcpErrorResult：调用方传进来的原文也要打码（参数错误信息里会带上用户输入）', () => {
     expect(mcpText(toMcpErrorResult(`参数错误 password=${PASSWORD_SAMPLE}`))).not.toContain(PASSWORD_SAMPLE)
+  })
+
+  it('工具抛异常的出口（server.ts 那条 catch）同样要打码（#237）', () => {
+    const out = toMcpToolFailure(`ssh 连接失败：postgres://admin:${PASSWORD_SAMPLE}@10.0.0.5/db`)
+    const text = mcpText(out)
+    expect(text).not.toContain(PASSWORD_SAMPLE)
+    expect(text).toContain('[REDACTED')
+    expect(text).toContain('工具调用失败:')
+    expect(out.isError).toBe(true)
   })
 })

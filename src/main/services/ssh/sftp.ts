@@ -17,7 +17,11 @@ import type { SFTPWrapper, Stats } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SshConnectionManager } from './connection-manager'
-import { assertRemoteWriteAllowed } from './remote-write-guard'
+import {
+  assertRemoteWriteAllowed,
+  assertRemoteWriteAllowedResolved,
+  sftpRealpathFn,
+} from './remote-write-guard'
 import type { SftpEntry } from '@shared/models'
 
 /** SFTP 操作的默认读写缓冲区大小（字节） */
@@ -188,6 +192,7 @@ export class SftpManager {
     assertRemoteWriteAllowed('上传', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
+      await assertRemoteWriteAllowedResolved('上传', remotePath, sftpRealpathFn(sftp))
       const stat = fs.statSync(localPath)
       const total = stat.size
       return await withinBudget<boolean>(
@@ -506,6 +511,8 @@ export class SftpManager {
     assertRemoteWriteAllowed('写入', remotePath)
     const sftp = await this.openSftp(sessionId)
     try {
+      // 符号链接解析后再判一次（#237）：字符串闸拦不住 /home/u/x -> /etc/passwd
+      await assertRemoteWriteAllowedResolved('写入', remotePath, sftpRealpathFn(sftp))
       return await withinBudget<boolean>(
         (done, touch) => {
           const writeStream = sftp.createWriteStream(remotePath, {

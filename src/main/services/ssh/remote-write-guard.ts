@@ -10,12 +10,66 @@
  * 连接表单默认用户名是 root，放行就等于真覆写系统文件。
  */
 import { isProtectedWriteDestination } from '../../core/command-gate'
+import { posix as posixPath } from 'node:path'
 
 export function assertRemoteWriteAllowed(op: string, remotePath: string): void {
   if (isProtectedWriteDestination(remotePath)) {
     throw new Error(
       `${op}被拒绝：${remotePath} 属于系统关键路径（/etc、/usr、/var/log、/root、/dev 等）。` +
         '这类文件不在文件面板/编辑器/AI 写文件里直接改——请在终端里自己执行，那会过高危命令闸并给你解释原因。'
+    )
+  }
+}
+
+/** 把远端 `realpath` 包装成 Promise（ssh2 的 SFTPWrapper 是回调式的） */
+export type RealpathFn = (remotePath: string) => Promise<string>
+
+export function sftpRealpathFn(sftp: {
+  realpath(path: string, cb: (err: Error | null | undefined, resolvedPath: string) => void): void
+}): RealpathFn {
+  return (remotePath) =>
+    new Promise<string>((resolve, reject) => {
+      sftp.realpath(remotePath, (err, resolvedPath) => {
+        if (err) reject(err)
+        else resolve(resolvedPath)
+      })
+    })
+}
+
+/**
+ * 带符号链接解析的写目的地闸（#237）
+ *
+ * 字符串闸只看路径长相，`/home/u/notes -> /etc/passwd` 这种符号链接能整条绕过去：
+ * 路径不在 /etc 下，写下去却落进 /etc。所以真写之前问一次远端"这个路径最终指向哪"：
+ * - 目标已存在（含符号链接）→ realpath(目标) 就是真身；
+ * - 目标不存在 → realpath(父目录) + 文件名（父目录本身也可能是链接）。
+ *
+ * 边界：检查与写入之间仍有 TOCTOU 窗口（对方有 shell 时可以在这一瞬把目录换成链接）。
+ * SFTP 协议没有 O_NOFOLLOW，这个窗口在客户端侧关不死；这里关掉的是"先布好链接再让你写"
+ * 这条不需要抢时间的路。
+ */
+export async function assertRemoteWriteAllowedResolved(
+  op: string,
+  remotePath: string,
+  realpath: RealpathFn
+): Promise<void> {
+  assertRemoteWriteAllowed(op, remotePath)
+  let resolved: string | null = null
+  try {
+    resolved = await realpath(remotePath)
+  } catch {
+    try {
+      const parent = await realpath(posixPath.dirname(remotePath))
+      resolved = posixPath.join(parent, posixPath.basename(remotePath))
+    } catch {
+      // 父目录也解析不出来：这条写本来就会失败，交给底层报 ENOENT，别在这里换一条错话
+      return
+    }
+  }
+  if (resolved && isProtectedWriteDestination(resolved)) {
+    throw new Error(
+      `${op}被拒绝：${remotePath} 实际指向 ${resolved}，属于系统关键路径（/etc、/usr、/var/log、/root、/dev 等）。` +
+        '符号链接不能绕过这道闸——要改这些文件请在终端里自己执行。'
     )
   }
 }

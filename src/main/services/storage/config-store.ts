@@ -84,7 +84,13 @@ const store = new Store<ConfigSchema>({
  * 实现挪到 server-credentials.ts（纯函数、可在无 Electron 环境里直接测），
  * 这里只留一个转发，避免同一件事有两份。
  */
-import { stripServerCredentials, toServerListItem, carriesCredential } from './server-credentials'
+import {
+  carriesCredential,
+  connectionIdentityChanged,
+  stripServerCredentials,
+  stripServerSecurityOverrides,
+  toServerListItem,
+} from './server-credentials'
 import { normalizeImportedServer } from './server-import'
 
 export class ConfigStore {
@@ -317,8 +323,19 @@ export class ConfigStore {
    */
   public static saveServerList(servers: SshConfig[]): boolean {
     try {
-      // 非敏感信息存入 electron-store（含跳板机那一层，见 stripServerCredentials）
-      const sanitized = servers.map(stripServerCredentials)
+      /*
+       * 换机就作废旧凭据（2026-10-26 深度审查 #237）：
+       * 凭据按 id 存在 SecureStore 里，渲染层拿不到值却能改 host。允许"改 host 沿用旧口令"
+       * 就等于给出了一条"把已存凭据发到别处"的现成路径；跳板机被换同理（凭据会经过它）。
+       * 判定用落库前的非敏感旧值，不等 loadServerList（那条会把凭据一起解出来）。
+       */
+      const previousRaw = store.get('sshServers', [])
+      const previousById = new Map<string, SshConfig>(
+        (Array.isArray(previousRaw) ? (previousRaw as SshConfig[]) : []).map((s) => [s.id, s])
+      )
+      // 非敏感信息存入 electron-store（含跳板机那一层，见 stripServerCredentials）。
+      // 安全开关只认设置页的全局默认值，服务器条目里带的一律剥掉。
+      const sanitized = servers.map((s) => stripServerSecurityOverrides(stripServerCredentials(s)))
       store.set('sshServers', sanitized)
 
       // 敏感信息存入 SecureStore 加密
@@ -329,8 +346,15 @@ export class ConfigStore {
           privateKey: s.privateKey,
           passphrase: s.passphrase,
         }
+        const hasNewCredential = Boolean(cred.password || cred.privateKey || cred.passphrase)
+        const before = previousById.get(s.id)
+        if (before && !hasNewCredential && connectionIdentityChanged(before, s)) {
+          // 删除失败要回 false（同下面口令没存进去的口径）：这次保存的语义是
+          // "改了哪台机 + 旧凭据必须失效"，只做到一半不能对界面报成功
+          if (!SecureStore.deleteServerCredential(s.id)) failed.push(s.name || s.host || s.id)
+        }
         // 仅在存在敏感信息时保存（避免写入空凭证）
-        if (cred.password || cred.privateKey || cred.passphrase) {
+        if (hasNewCredential) {
           // saveServerCredential 会返回成败（safeStorage 不可用时是 false）。
           // 以前这里不接返回值：口令没存进去照样回"保存成功"，
           // 用户下次连接被要求重输，还以为是应用忘了。

@@ -95,6 +95,20 @@ export function toMcpErrorResult(message: string): McpToolResult {
   }
 }
 
+/**
+ * 工具执行抛异常时的出口（#237）
+ *
+ * 与 toMcpErrorResult 同一件事，只是保留"工具调用失败"这个更具体的文案。
+ * server.ts 曾经在这里直接拼 `${msg}`——异常原文可能带连接串、口令或私钥路径，
+ * MCP 这条通道是给外部客户端看的，出口必须过与别处同一把脱敏尺。
+ */
+export function toMcpToolFailure(message: string): McpToolResult {
+  return {
+    content: [{ type: 'text', text: `工具调用失败: ${redactSecrets(message)}` }],
+    isError: true,
+  }
+}
+
 /** zod schema → MCP JSON Schema 转换器（简化版，覆盖常见类型） */
 function zodToJsonSchema(schema: z.ZodTypeAny): McpToolMeta['inputSchema'] {
   if (schema instanceof z.ZodObject) {

@@ -14,7 +14,7 @@ import type { Client, SFTPWrapper, Stats } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SshConnectionManager } from './connection-manager'
-import { assertRemoteWriteAllowed } from './remote-write-guard'
+import { assertRemoteWriteAllowed, assertRemoteWriteAllowedResolved } from './remote-write-guard'
 import type { SftpEntry } from '@shared/models'
 
 /** 进度回调类型 */
@@ -248,6 +248,18 @@ export class ElectermSftpClient {
     })
   }
 
+  /** 解析远端真实路径（符号链接也算）——写目的地闸在写之前要它 */
+  async realpath(remotePath: string): Promise<string> {
+    const sftp = this.requireSftp()
+    return new Promise<string>((resolve, reject) => {
+      sftp.realpath(remotePath, (err, resolvedPath) => {
+        if (err) reject(err)
+        else if (resolvedPath) resolve(resolvedPath)
+        else reject(new Error(`realpath 没有返回路径：${remotePath}`))
+      })
+    })
+  }
+
   /** 修改权限 */
   async chmod(remotePath: string, mode: number): Promise<boolean> {
     const sftp = this.requireSftp()
@@ -447,6 +459,7 @@ export class ElectermSftpManager {
   ): Promise<boolean> {
     assertRemoteWriteAllowed('上传', remotePath)
     const client = await this.getClient(sessionId)
+    await assertRemoteWriteAllowedResolved('上传', remotePath, (p) => client.realpath(p))
     return withIdleBudget(
       (touch) =>
         client.upload(localPath, remotePath, (transferred, total) => {
@@ -528,6 +541,8 @@ export class ElectermSftpManager {
   async writeFile(sessionId: string, remotePath: string, content: string): Promise<boolean> {
     assertRemoteWriteAllowed('写入', remotePath)
     const client = await this.getClient(sessionId)
+    // 符号链接解析后再判一次（#237）
+    await assertRemoteWriteAllowedResolved('写入', remotePath, (p) => client.realpath(p))
     return withBudget(client.writeFile(remotePath, content), `写入文件 ${remotePath}`, 30_000)
   }
 

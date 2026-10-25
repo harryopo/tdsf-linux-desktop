@@ -13,7 +13,9 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import {
   carriesCredential,
+  connectionIdentityChanged,
   stripServerCredentials,
+  stripServerSecurityOverrides,
   toServerListItem,
 } from '../../src/main/services/storage/server-credentials'
 import {
@@ -187,6 +189,67 @@ describe('LLM baseUrl 与外部链接策略', () => {
     expect(assertSafeExternalUrl('http://github.com/x', hosts).ok).toBe(false)
     expect(assertSafeExternalUrl('file:///C:/Windows/Startup/a.html', hosts).ok).toBe(false)
     expect(assertSafeExternalUrl('wt-cli://new-tab', hosts).ok).toBe(false)
+  })
+})
+
+describe('连接身份变了就不许沿用旧凭据（#237）', () => {
+  const base: SshConfig = {
+    id: 'srv-1',
+    name: '靶机',
+    host: '10.0.0.5',
+    port: 22,
+    username: 'root',
+    authType: 'password',
+  }
+
+  it('只改名字/保活不算换机', () => {
+    expect(connectionIdentityChanged(base, { ...base, name: '换个名字', keepAlive: true })).toBe(false)
+  })
+
+  it('host / port / username / authType / privateKeyPath 任一变了就算换机', () => {
+    expect(connectionIdentityChanged(base, { ...base, host: 'evil.example.com' })).toBe(true)
+    expect(connectionIdentityChanged(base, { ...base, port: 2222 })).toBe(true)
+    expect(connectionIdentityChanged(base, { ...base, username: 'other' })).toBe(true)
+    expect(connectionIdentityChanged(base, { ...base, authType: 'privateKey' })).toBe(true)
+    expect(
+      connectionIdentityChanged(base, { ...base, authType: 'privateKey', privateKeyPath: '/k' }),
+    ).toBe(true)
+  })
+
+  it('跳板机换了同样是换机（旧凭据会被送进另一条链路）', () => {
+    const withJump: SshConfig = {
+      ...base,
+      jumpHost: { host: '10.0.0.1', port: 22, username: 'jump', authType: 'password' },
+    }
+    expect(connectionIdentityChanged(withJump, { ...base })).toBe(true)
+    expect(
+      connectionIdentityChanged(withJump, {
+        ...withJump,
+        jumpHost: { ...withJump.jumpHost!, host: 'evil.example.com' },
+      }),
+    ).toBe(true)
+    expect(connectionIdentityChanged(withJump, { ...withJump, name: '改名' })).toBe(false)
+  })
+
+  it('安全开关只认设置页的全局默认值：服务器条目里带的 strictHostKeyCheck / knownHostsPath 一律剥掉', () => {
+    const s = stripServerSecurityOverrides({
+      ...base,
+      strictHostKeyCheck: false,
+      knownHostsPath: '/tmp/empty_known_hosts',
+      jumpHost: {
+        host: '10.0.0.1',
+        port: 22,
+        username: 'jump',
+        authType: 'password',
+        strictHostKeyCheck: false,
+        knownHostsPath: '/tmp/empty_known_hosts',
+      },
+    } as SshConfig)
+    expect(s.strictHostKeyCheck).toBeUndefined()
+    expect(s.knownHostsPath).toBeUndefined()
+    expect(s.jumpHost?.strictHostKeyCheck).toBeUndefined()
+    expect(s.jumpHost?.knownHostsPath).toBeUndefined()
+    expect(s.host, '别把正常字段一起剥了').toBe('10.0.0.5')
   })
 })
 

@@ -293,6 +293,10 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
         ...defaults,
         ...stored,
         ...(oneTimePassword ? { password: oneTimePassword, authType: 'password' as const } : {}),
+        // 安全开关只认设置页的全局默认值（#237）：服务器条目里带的 strictHostKeyCheck=false
+        // 不生效，否则一次 server:save 就能把关掉主机密钥校验的配置落进库、随下次连接生效
+        strictHostKeyCheck: defaults?.strictHostKeyCheck !== false,
+        knownHostsPath: defaults?.knownHostsPath,
       }
       logger.info('SSH', '按 ID 连接已保存的服务器', {
         serverId,
