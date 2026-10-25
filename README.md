@@ -126,12 +126,17 @@ pnpm dev
 
 ```
 lint · typecheck · tests 类型检查 · vitest · knip 死代码 ·
-design:gate · ipc:check · build · playwright ·
+design:gate · ipc:check · gates:ci · build · playwright ·
 身份闸（含阳性对照）· 凭据形状闸 · 架构图读数对账
 ```
 
+`gates:ci` 收的是**只在 CI 直跑的那四把**（脚本语法下限、scratch 卫生自检、文档链接自检、架构图读数对账）。
+以前它们只在 workflow 里，本地那串"门禁全绿"根本碰不到，于是 2026-10-25 出现过"本地全绿、远端连红两轮"；
+常驻判据 `tests/unit/ci-gate-parity.test.ts` 钉住这个方向——workflow 里每一条 `node scripts/...`
+都必须能从 package.json 的某个脚本里叫动，叫不动就红。
+
 `ui-audit --gate` 的真命令是 `node scripts/design/ui-audit.mjs --gate`（它不是 npm script），要在那台真的开着窗口的机器上跑。
-仍有几把只在本地、CI 里没有对应 job，各自的原因不一样：`security:history`（CI 是浅克隆，没有历史可扫）、
+反方向仍有几把只在本地、CI 里没有对应 job，各自的原因不一样：`security:history`（CI 是浅克隆，没有历史可扫）、
 `security:topology`（锚定的内网值不进 CI）、`ui-audit --gate`（要真窗口）、`promo:check` 全量面（宣传页在仓库外的兄弟目录）。
 `security:identity` 两边都跑，但**CI 上只有通用形状规则**——具体身份值清单是本机文件，
 真实姓名那一层只有本机与提交钩子管得到。完整口径写进 [CLAUDE.md](CLAUDE.md) 的门禁清单，

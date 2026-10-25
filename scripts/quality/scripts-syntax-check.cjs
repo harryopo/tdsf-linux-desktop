@@ -26,8 +26,17 @@ const REPO = path.resolve(__dirname, '../..')
  * walk() 扫文件系统，把我那些未跟踪的 scratch 探针一起数进去（78 个），
  * CI 只有跟踪集（53 个）⇒ 从立闸那天起 CI 就一直红，而本地一直绿。
  * 现在扫描面改成从 `git ls-files` 取，本地与 CI 看到同一份名单，这个数才有意义。
+ *
+ * 2026-10-25 降到 51（#215）：#211（7c6d212）整删教程抓取/回填链时带走了 5 个 .cjs
+ * （scripts/ 下 55 → 50，加仓库根那份 eslint.config.cjs 共 51），那一批没同批下调这把下限
+ * ⇒ CI 从那一笔起连红两轮，而本地每次"全绿"都绕过了它——因为这把门只在 CI 里跑。
+ * 补的执行体是 `pnpm gates:ci` 加常驻判据 `tests/unit/ci-gate-parity.test.ts`
+ * （工作流里每一条 `node scripts/...` 都必须能从 package.json 里叫动，
+ * 再出现"只在 CI 存在的门"当场红）。
+ * 教训与 2026-10-18 那条是同一族：**下限必须是"两边同一份名单"的量出来的数，且合法整删要同批下调**，
+ * 否则它红的时候没人分得清是扫描面被挡了还是本来就该少。
  */
-const MIN_FILES = 53
+const MIN_FILES = 51
 
 const argv = process.argv.slice(2)
 if (argv.length > 0) {

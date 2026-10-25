@@ -50,10 +50,16 @@ pnpm lint             # eslint src --ext .ts,.tsx（0 errors，warnings 允许�
 > 所以测试曾经从来没被类型检查过——产品改了字段名，测试不会红，它会继续用旧形状
 > 构造对象、断言一个不存在的东西，然后绿着。`types:tests` 就是补这一片的（2026-10-14 立闸）。
 
-还有一把管"门禁自己"的：`node scripts/quality/scripts-syntax-check.cjs`（秒级）。
+还有一把管"门禁自己"的：`pnpm gates:ci`（秒级，直跑是 `node scripts/quality/scripts-syntax-check.cjs`）。
 `scripts/` 下那些 .cjs/.mjs 是密钥闸/拓扑闸/协作闸/设计闸的载体，而上面四条**一条都不覆盖它们**。
 2026-10-14 我给 `tests-typecheck` 加注释时，块注释里那段通配路径的"星号紧跟斜杠"提前关掉了
 注释、整个脚本变成语法错误——门坏了不会报"门通过"，它只是不再说话。这把闸把它变成会说话的红。
+
+> 这把闸原先**只在 workflow 里跑**，本地那串"门禁全绿"绕不过它——2026-10-25 因此连红两轮：
+> #211 整删了几个一次性脚本，受检文件下限（那把闸唯一会红的东西）没人同批下调，本地每次都说自己绿。
+> 现在 `gates:ci` 把 CI 直跑的四把都收进来，并有常驻判据 `tests/unit/ci-gate-parity.test.ts`
+> 钉住这个方向：**workflow 里每一条 `node scripts/...` 必须能从 package.json 的某个脚本里叫动**。
+> 加新门时按这条走，别再留"只有 CI 会跑"的门。
 
 ## 其余常驻闸
 
