@@ -77,6 +77,57 @@ export function canSaveFileTab(
 }
 
 /**
+ * 保存前要过的判断（#235）。返回 null 才真发请求。
+ *
+ * Ctrl+S 与工具栏按钮必须走同一套判断：审查发现快捷键那条路只查了"有文件 + 有会话"，
+ * 于是读文件途中按一次会把空正文写回远端、切机后按一次会把 A 的内容写进 B。
+ */
+export type SaveBlockReason = 'loading' | 'read-only' | 'other-server' | 'saving' | 'not-dirty' | null
+
+/** 保存状态机只关心这些字段（组件那边是多出来的 Tab 字段，泛型照原样传回） */
+export interface SaveTabShape {
+  content: string
+  original: string
+  loading: boolean
+  dirty: boolean
+  sessionId?: string
+  readOnly?: boolean
+  error?: string
+}
+
+export function saveBlockReason(
+  tab: Pick<WorkbenchFileTab, 'loading' | 'readOnly' | 'dirty' | 'sessionId'>,
+  activeSessionId: string | null,
+  saving: boolean
+): SaveBlockReason {
+  if (tab.loading) return 'loading'
+  if (tab.readOnly) return 'read-only'
+  if (!canSaveFileTab(tab, activeSessionId)) return 'other-server'
+  if (saving) return 'saving'
+  if (!tab.dirty) return 'not-dirty'
+  return null
+}
+
+/**
+ * 保存成功后的合并：`content` 一律保持现场。
+ * 保存请求飞出去之后用户还可能继续打字，那份新输入不能因为"旧的一次保存成功"被回退；
+ * 脏标记由"当前内容是否等于刚存下的那份"决定，而不是无条件清掉。
+ */
+export function applySavedContent<T extends SaveTabShape>(tab: T, savedContent: string): T {
+  return {
+    ...tab,
+    original: savedContent,
+    dirty: tab.content !== savedContent,
+    error: undefined,
+  }
+}
+
+/** 保存失败：只记错误，**不动** dirty —— 清了它，关标签就不再提示、全部保存也会跳过。 */
+export function applySaveFailure<T extends SaveTabShape>(tab: T, message: string): T {
+  return { ...tab, error: `保存失败: ${message}` }
+}
+
+/**
  * Editor Store — Zustand 单例
  *
  * 使用方式：

@@ -53,7 +53,7 @@ import {
 } from '@/stores/preview-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { useServerStore } from '@/stores/server-store'
-import { useEditorStore } from '@/stores/editor-store'
+import { fileTabSessionId, saveBlockReason, useEditorStore } from '@/stores/editor-store'
 import { useTranslateStore } from '@/stores/translate-store'
 // v2.6 修复：AI 命令预测回显条此前只渲染在从未被挂载的 TerminalTabs（死文件）里，
 // setPendingCommand 写的 store 没有消费者 —— 搜到真实终端面板这里渲染
@@ -159,6 +159,10 @@ export interface EditorAreaProps {
   onFileReadOnlyChange?: (tabId: WorkbenchTabId, readOnly: boolean) => void
   onFileLoaded?: (tabId: WorkbenchTabId, content: string, error?: string) => void
   onFileSaved?: (tabId: WorkbenchTabId, content: string) => void
+  /** 保存失败：由父层记错误并**保留**脏标记（不能走"读取成功"那条回调，它会清 dirty） */
+  onFileSaveFailed?: (tabId: WorkbenchTabId, message: string) => void
+  /** 这次保存被挡下了（只读 / 属于另一台机器 / 无会话）：父层负责提示 */
+  onSaveBlocked?: (message: string) => void
 }
 
 const TerminalPanel: FC<{
@@ -355,6 +359,8 @@ const EditorArea: FC<EditorAreaProps> = ({
   onFileReadOnlyChange,
   onFileLoaded,
   onFileSaved,
+  onFileSaveFailed,
+  onSaveBlocked,
 }) => {
   const activeSessionId = useServerStore((s) => s.activeSessionId)
   const navigate = useNavigate()
@@ -534,23 +540,35 @@ const EditorArea: FC<EditorAreaProps> = ({
   }, [activeFile, setActiveFilePath, setCursorPosition])
 
   const handleSave = useCallback(async () => {
-    if (!activeFile || !activeSessionId) return
-    if (!isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) return
+    if (!activeFile) return
+    // Ctrl+S 与工具栏按钮必须过同一套判断（#235）：读文件中写出去就是空文件、
+    // 切机后拿当前会话写就是串机、失败时清脏标记就是丢改动
+    const reason = saveBlockReason(activeFile, activeSessionId, savingId === activeFile.id)
+    if (reason === 'loading' || reason === 'not-dirty' || reason === 'saving') return
+    if (reason === 'read-only') {
+      onSaveBlocked?.('这是只读视图，先关掉只读再保存')
+      return
+    }
+    if (reason === 'other-server') {
+      onSaveBlocked?.(`「${activeFile.name}」属于另一台服务器，先切回原服务器再保存`)
+      return
+    }
+    const sessionId = fileTabSessionId(activeFile, activeSessionId)
+    if (!sessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) {
+      onSaveBlocked?.('无法保存：无 SSH 会话或 sftpWriteFile 不可用')
+      return
+    }
     setSavingId(activeFile.id)
     try {
-      await window.electronAPI.sftpWriteFile(
-        activeSessionId,
-        activeFile.path,
-        activeFile.content,
-      )
+      await window.electronAPI.sftpWriteFile(sessionId, activeFile.path, activeFile.content)
       onFileSaved?.(activeFile.id, activeFile.content)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      onFileLoaded?.(activeFile.id, activeFile.content, `保存失败: ${msg}`)
+      onFileSaveFailed?.(activeFile.id, msg)
     } finally {
       setSavingId(null)
     }
-  }, [activeFile, activeSessionId, onFileSaved, onFileLoaded])
+  }, [activeFile, activeSessionId, savingId, onFileSaved, onFileSaveFailed, onSaveBlocked])
 
   // Ctrl+S
   useEffect(() => {

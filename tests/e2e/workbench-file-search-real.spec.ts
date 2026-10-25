@@ -344,6 +344,32 @@ test('Ctrl+S 把编辑器里的改动写回真机（真 SFTP，不是本地假�
     // 只认靶子上的真内容：文件里必须有刚敲进去的那串标记
     const after = await groundTruth(privateKeyPath, `cat ${NAMED_FILE}`)
     expect(after, `靶子上没有 Ctrl+S 写进去的标记。实际内容=${JSON.stringify(after)}`).toContain(MARK)
+
+    // #235：只读态下 Ctrl+S 必须被挡下——不许把只读视图里的内容写回远端
+    const MARK_RO = `${MARK}-RO`
+    await page.keyboard.press('Control+End')
+    await page.keyboard.type(`# ${MARK_RO}`)
+    await expect(tab, '只读用例前，新改动没标未保存').toContainText('•', { timeout: 10_000 })
+    await page.locator('.term-readonly-btn').click()
+    await expect(page.locator('.term-readonly-btn'), '「只读」没切过去').toHaveText(/只读/, {
+      timeout: 10_000,
+    })
+    await page.keyboard.press('Control+s')
+    await expect(page.getByText('这是只读视图，先关掉只读再保存'), '只读下 Ctrl+S 没被挡下').toBeVisible({
+      timeout: 10_000,
+    })
+    const blocked = await groundTruth(privateKeyPath, `cat ${NAMED_FILE}`)
+    expect(blocked, `只读态下 Ctrl+S 仍然写回了远端。实际内容=${JSON.stringify(blocked)}`).not.toContain(
+      MARK_RO,
+    )
+    await expect(tab, '保存被挡下后「未保存」标记被清掉了，改动会静默丢').toContainText('•')
+
+    // 解除只读后再保存：同一条路径必须真的能写回去（证明挡下的是只读，不是保存坏了）
+    await page.locator('.term-readonly-btn').click()
+    await page.keyboard.press('Control+s')
+    await expect(tab, '解除只读后保存没生效').not.toContainText('•', { timeout: 20_000 })
+    const afterRo = await groundTruth(privateKeyPath, `cat ${NAMED_FILE}`)
+    expect(afterRo, '解除只读后 Ctrl+S 没写回真机').toContain(MARK_RO)
   } finally {
     await app.close()
   }

@@ -43,8 +43,11 @@ import { WorkbenchLayout } from '@/shell/workbench-layout'
 import { useServerStore } from '@/stores/server-store'
 import { countAwaiting, useApprovalStore } from '@/stores/approval-store'
 import {
+  applySaveFailure,
+  applySavedContent,
   canSaveFileTab,
   fileTabSessionId,
+  saveBlockReason,
   useEditorStore,
 } from '@/stores/editor-store'
 import { useTerminalStore } from '@/stores/terminal-store'
@@ -171,23 +174,28 @@ export const WorkbenchPage: FC = () => {
    */
   const saveFile = useCallback(
     async (tab: WorkbenchFileTab): Promise<boolean> => {
-      const sessionId = fileTabSessionId(tab, activeSessionId)
-      if (!sessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) {
-        toast.error('无法保存：无 SSH 会话或 sftpWriteFile 不可用')
+      const reason = saveBlockReason(tab, activeSessionId, false)
+      if (reason === 'loading') {
+        toast.error(`「${tab.name}」还在加载，等加载完再保存`)
+        return false
+      }
+      if (reason === 'read-only') {
+        toast.error(`「${tab.name}」是只读视图，先关掉只读再保存`)
         return false
       }
       if (!canSaveFileTab(tab, activeSessionId)) {
         toast.error(`「${tab.name}」属于另一台服务器，先切回原服务器再保存`)
         return false
       }
+      const sessionId = fileTabSessionId(tab, activeSessionId)
+      if (!sessionId || !isElectronAPIAvailable() || !window.electronAPI.sftpWriteFile) {
+        toast.error('无法保存：无 SSH 会话或 sftpWriteFile 不可用')
+        return false
+      }
       try {
         await window.electronAPI.sftpWriteFile(sessionId, tab.path, tab.content)
         setFileTabs((prev) =>
-          prev.map((t) =>
-            t.id === tab.id
-              ? { ...t, content: tab.content, original: tab.content, dirty: false, error: undefined }
-              : t,
-          ),
+          prev.map((t) => (t.id === tab.id ? applySavedContent(t, tab.content) : t)),
         )
         return true
       } catch (err) {
@@ -324,13 +332,18 @@ export const WorkbenchPage: FC = () => {
 
   const handleFileSaved = useCallback((tabId: WorkbenchTabId, content: string) => {
     setFileTabs((prev) =>
-      prev.map((t) =>
-        t.id === tabId
-          ? { ...t, content, original: content, dirty: false, error: undefined }
-          : t,
-      ),
+      prev.map((t) => (t.id === tabId ? applySavedContent(t, content) : t))
     )
   }, [setFileTabs])
+
+  /** 保存失败：记错误、**保留**脏标记（清掉它，关标签就不再提示，改动会静默丢） */
+  const handleFileSaveFailed = useCallback(
+    (tabId: WorkbenchTabId, message: string) => {
+      setFileTabs((prev) => prev.map((t) => (t.id === tabId ? applySaveFailure(t, message) : t)))
+      toast.error(`保存失败：${message}`)
+    },
+    [setFileTabs]
+  )
 
   /**
    * P1-4：关闭其他文件 Tab
@@ -444,6 +457,8 @@ export const WorkbenchPage: FC = () => {
                 }
                 onFileLoaded={handleFileLoaded}
                 onFileSaved={handleFileSaved}
+                onFileSaveFailed={handleFileSaveFailed}
+                onSaveBlocked={(msg) => toast.error(msg)}
               />
             </div>
           </div>
