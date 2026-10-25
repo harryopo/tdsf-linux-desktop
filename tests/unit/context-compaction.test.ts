@@ -136,6 +136,29 @@ describe('L2 compaction — 滑动窗口', () => {
     const lastContent = result.messages[result.messages.length - 1].content as string
     expect(lastContent).toContain('msg-19')
   })
+
+  it('8K 窗口：最后一条用户消息自己就超保留预算时也不许被丢掉（#236）', () => {
+    // 8000 窗口：L1 的单条上限是 2400 tokens，L2 的保留预算只有 1600。
+    // 最后一条 6000 字符 ≈ 2000 tokens：没到 L1 的刀，却超过 L2 的保留预算。
+    // 修之前 applySlidingWindow 从尾巴累加、第一条就放不下就 break，留下空列表——
+    // 请求里连用户问的什么都看不见，只剩一条"较早对话摘要"。
+    const question = `最后的问题：${makeText(5980)}`
+    const msgs: ModelMessage[] = [
+      { role: 'system', content: 'sys' } as ModelMessage,
+      ...Array.from(
+        { length: 10 },
+        (_, i) => ({ role: 'user', content: `old-${i}-${makeText(3000)}` }) as ModelMessage,
+      ),
+      { role: 'user', content: question } as ModelMessage,
+    ]
+    const result = compactIfNeeded(msgs, 8000)
+    expect(result.level).toBe('L2')
+    const last = result.messages[result.messages.length - 1]
+    expect(last.content).toBe(question)
+    // 不是"全留"：旧的那批以摘要形式留痕（摘要会引用首尾原文），不再是独立消息
+    expect(result.messages.filter((m) => m.role === 'user')).toHaveLength(1)
+    expect(result.messages.length).toBe(3) // system + 摘要 + 用户问题
+  })
 })
 
 // ─── L3-L5 级联可达性分析 ───
@@ -225,6 +248,21 @@ describe('compactIfNeededAsync', () => {
     const result = await compactIfNeededAsync(msgs)
     expect(result.level).toBe('none')
     expect(result.messages.length).toBe(2)
+  })
+
+  it('8K 窗口 + 真摘要：最后一条用户消息同样不许被丢掉（#236）', async () => {
+    const question = `最后的问题：${makeText(5980)}`
+    const msgs: ModelMessage[] = [
+      { role: 'system', content: 'sys' } as ModelMessage,
+      ...Array.from(
+        { length: 10 },
+        (_, i) => ({ role: 'user', content: `old-${i}-${makeText(3000)}` }) as ModelMessage,
+      ),
+      { role: 'user', content: question } as ModelMessage,
+    ]
+    const result = await compactIfNeededAsync(msgs, async () => '摘要正文', 8000)
+    expect(result.level).toBe('L2')
+    expect(result.messages[result.messages.length - 1].content).toBe(question)
   })
 
   it('无 summarizer 时行为与 sync 一致', async () => {

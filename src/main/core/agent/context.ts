@@ -366,6 +366,15 @@ function applySlidingWindow(messages: ModelMessage[], maxTokens: number): ModelM
     kept.unshift(tail[i])
     used += msgTokens
   }
+  /*
+   * 最新一条永远留下（#236）：它通常就是用户刚问的那句。小窗口模型（8K）上
+   * "单条上限 30% 窗口"比"保留预算 20% 窗口"更宽松，于是存在一条消息过了 L1 的刀、
+   * 却放不进这里——修之前 kept 为空，请求发出去只剩一条摘要，模型根本看不到问题。
+   * 宁可这一轮超出保留预算，也不能把用户的问题本身扔掉。
+   */
+  if (kept.length === 0 && tail.length > 0) {
+    kept.push(tail[tail.length - 1])
+  }
 
   return [...head, ...kept]
 }
@@ -395,6 +404,13 @@ function applySummaryCompaction(messages: ModelMessage[], keepRecentTokens: numb
     recent.unshift(body[i])
     used += t
     splitIdx = i
+  }
+
+  // 与 applySlidingWindow 同一条（#236）：最新一条放不进"最近保留"时也要留下，
+  // 不能让 L4 把用户刚问的那句直接折进摘要
+  if (recent.length === 0 && body.length > 0) {
+    recent.push(body[body.length - 1])
+    splitIdx = body.length - 1
   }
 
   const oldSegment = body.slice(0, splitIdx)
@@ -438,6 +454,13 @@ async function applySummaryCompactionAsync(
     recent.unshift(body[i])
     used += t
     splitIdx = i
+  }
+
+  // 与 applySlidingWindow 同一条（#236）：最新一条放不进"最近保留"时也要留下，
+  // 不能让 L4 把用户刚问的那句直接折进摘要
+  if (recent.length === 0 && body.length > 0) {
+    recent.push(body[body.length - 1])
+    splitIdx = body.length - 1
   }
 
   const oldSegment = body.slice(0, splitIdx)

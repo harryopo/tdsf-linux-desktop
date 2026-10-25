@@ -104,9 +104,13 @@ describe('supervisor 真的在流里攒这份账', () => {
   })
 
   it('取消分支要按这份账记一次用量（不是只 onDone 一串 0）', () => {
-    const branch = src.slice(src.indexOf('if (abortController.signal.aborted)'))
-    expect(branch.slice(0, 1600)).toContain('recordTokenUsage({')
-    expect(branch.slice(0, 1600), '取消轮的用量要交给 onDone，界面才知道该不该显示读数').toContain(
+    // 从 catch 里的取消分支取（#236 之后 "signal.aborted" 在压缩阶段也多了一处，
+    // 按第一处取会读到那块"还没开始就取消"的收尾，它本来就没有可记的账）
+    const idx = src.indexOf('const plannedCancel = planUsageRecord')
+    expect(idx, '找不到取消分支里的 planUsageRecord').toBeGreaterThan(-1)
+    const branch = src.slice(idx, idx + 2200)
+    expect(branch, '取消轮攒到的用量没入账').toContain('recordUsageOnce(plannedCancel)')
+    expect(branch, '取消轮的用量要交给 onDone，界面才知道该不该显示读数').toContain(
       'usage: cancelledUsage'
     )
   })

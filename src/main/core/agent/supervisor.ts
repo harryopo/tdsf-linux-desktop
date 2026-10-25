@@ -489,6 +489,15 @@ class SupervisorAgent {
       return m
     })
 
+    // 6. 先建取消档案，再压缩（#236）
+    //    压缩可能真调一次模型总结旧对话（最长约 60 秒）。以前 controller 在压缩之后才登记，
+    //    这期间点"停止"会拿到"无可取消"，压缩完主请求照常发出去——用户以为停了，界面继续出字。
+    const abortController = new AbortController()
+    this.activeRequests.set(correlationId, abortController)
+    // 会话注册表里那位"取消入口"必须指向这一把 controller：
+    // 它以前自己 new 了一把没人读，abort() 于是永远"成功"，底层请求照常跑完
+    getSessionRegistry().attachAbortController(correlationId, abortController)
+
     // 3. compaction（5 层阈值；窗口用这台 Provider 的生效值，用户覆盖过的也算）
     //    以前只有一把 150K 的绝对尺子：Ollama 8K 这类小窗口模型永远轮不到压缩，
     //    请求被上游直接拒成 400，用户看到的是"AI 突然不能用了"。
@@ -496,9 +505,15 @@ class SupervisorAgent {
     //    中段整段蒸发——"AI 忘了半小时前那条命令"就是这么来的。
     //    摘要失败时 compactIfNeededAsync 自己降级回首尾提取并记日志，不阻断对话。
     const summarize: SummarizeFn = makeRedactingSummarizer((prompt) =>
-      this.callLlm(SUMMARY_SYSTEM_PROMPT, prompt, 800, resolvedProviderId)
+      this.callLlm(SUMMARY_SYSTEM_PROMPT, prompt, 800, resolvedProviderId, abortController.signal)
     )
-    const compaction = await compactIfNeededAsync(redactedMessages, summarize, config.capabilities?.contextWindow)
+    let compaction: Awaited<ReturnType<typeof compactIfNeededAsync>>
+    try {
+      compaction = await compactIfNeededAsync(redactedMessages, summarize, config.capabilities?.contextWindow)
+    } catch (err) {
+      this.activeRequests.delete(correlationId)
+      throw err
+    }
     if (compaction.level !== 'none') {
       this.log.info('chat 触发 compaction', {
         correlationId,
@@ -508,6 +523,33 @@ class SupervisorAgent {
         truncatedCount: compaction.truncatedCount,
             summarizedCount: compaction.summarizedCount,
       })
+    }
+
+    // 压缩期间点了停止：不再发起主请求，按"已取消"收尾（#236）
+    if (abortController.signal.aborted) {
+      this.activeRequests.delete(correlationId)
+      this.log.info('chat 在压缩阶段被取消', {
+        correlationId,
+        durationMs: Date.now() - startTime,
+        compactionLevel: compaction.level,
+      })
+      onDone?.({
+        text: '',
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        finishReason: 'cancelled',
+        providerId: resolvedProviderId,
+        model: config.model,
+        strength,
+        durationMs: Date.now() - startTime,
+        compactionLevel: compaction.level,
+        compactionDetail: {
+          beforeTokens: compaction.beforeTokens,
+          afterTokens: compaction.afterTokens,
+          truncatedCount: compaction.truncatedCount,
+          summarizedCount: compaction.summarizedCount,
+        },
+      })
+      return
     }
 
     // 4. 创建 LanguageModel
@@ -520,6 +562,7 @@ class SupervisorAgent {
       })
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
+      this.activeRequests.delete(correlationId)
       this.log.error('chat 调用失败：创建 LanguageModel 失败', {
         providerId: resolvedProviderId,
         correlationId,
@@ -531,13 +574,6 @@ class SupervisorAgent {
 
     // 5. 获取参数（temperature / maxTokens）
     const { temperature, maxTokens } = getDefaultParams(modelInstance.config)
-
-    // 6. 创建 AbortController 并注册（用于 cancelRequest）
-    const abortController = new AbortController()
-    this.activeRequests.set(correlationId, abortController)
-    // 会话注册表里那位"取消入口"必须指向这一把 controller：
-    // 它以前自己 new 了一把没人读的，abort() 于是永远"成功"，底层请求照常跑完
-    getSessionRegistry().attachAbortController(correlationId, abortController)
     /*
      * 时间预算（2026-10-15 全维度审查 D1）：以前只有一次"每 90 秒没收到新 part 就算卡死"的
      * 自制看门狗，而且它在工具执行/审批期整体暂停——于是两种病同时存在：
@@ -599,6 +635,27 @@ class SupervisorAgent {
      * 而它正需要这份账（放在 try 里面就够不着，那等于白攒）。
      */
     let usageAcc: StreamUsageAccumulator = createUsageAccumulator()
+
+    /*
+     * 一轮只入账一次（#236）：正常收尾在 step 9 记，失败/超时在 catch 里补记。
+     * 失败前先记过账的那少数形状（流内报错但正文有输出）不能再记第二笔，
+     * 否则同一次调用在成本面板上花两份钱。
+     */
+    let usageRecorded = false
+    const recordUsageOnce = (planned: UsageNumbers | null): void => {
+      if (!planned || usageRecorded) return
+      usageRecorded = true
+      recordTokenUsage({
+        providerId: resolvedProviderId,
+        model: modelInstance.resolvedModel,
+        inputTokens: planned.inputTokens,
+        outputTokens: planned.outputTokens,
+        totalTokens: planned.totalTokens,
+        subagent: 'supervisor',
+        strength,
+        timestamp: Date.now(),
+      })
+    }
 
     try {
       // v2.6：提前提取最后一条用户消息（意图路由 + Skill 路由共用）
@@ -1418,18 +1475,7 @@ class SupervisorAgent {
         : totalTokens
 
       // 9. 记录 token 使用到统计服务（拿不到账就一条都不记，见上面 planUsageRecord 的理由）
-      if (planned) {
-        recordTokenUsage({
-          providerId: resolvedProviderId,
-          model: modelInstance.resolvedModel,
-          inputTokens: planned.inputTokens,
-          outputTokens: planned.outputTokens,
-          totalTokens: planned.totalTokens,
-          subagent: 'supervisor',
-          strength,
-          timestamp: Date.now(),
-        })
-      }
+      recordUsageOnce(planned)
 
       /*
        * 账记完了，再把失败说清楚（两条路都要走，缺一不可）：
@@ -1535,18 +1581,7 @@ class SupervisorAgent {
           outputTokens: 0,
           totalTokens: 0,
         }
-        if (plannedCancel) {
-          recordTokenUsage({
-            providerId: resolvedProviderId,
-            model: modelInstance.resolvedModel,
-            inputTokens: plannedCancel.inputTokens,
-            outputTokens: plannedCancel.outputTokens,
-            totalTokens: plannedCancel.totalTokens,
-            subagent: 'supervisor',
-            strength,
-            timestamp: Date.now(),
-          })
-        }
+        recordUsageOnce(plannedCancel)
         this.log.info('chat 调用已取消', {
           correlationId,
           durationMs: Date.now() - startTime,
@@ -1574,9 +1609,15 @@ class SupervisorAgent {
         })
       } else if (isLlmTimeout(error)) {
         // 预算到了（停滞 / 单步 / 工具 / 总时长任一项）：按错误上报，让前端解卡并给出下一步
+        // 超时前烧掉的步骤照样要入账（#236）：以前这条分支只报错不记账，
+        // 一次跑了几步再超时的调用在成本面板上等于没花钱。
+        const failedUsage = planUsageRecord({ accumulated: usageAcc })
+        recordUsageOnce(failedUsage)
         this.log.error('chat 超出时间预算，已中断', {
           correlationId,
           durationMs: Date.now() - startTime,
+          streamedSteps: usageAcc.steps,
+          totalTokens: failedUsage?.totalTokens ?? null,
           errorMessage: error.message,
         })
         onError?.(
@@ -1586,6 +1627,10 @@ class SupervisorAgent {
           ),
         )
       } else {
+        // 失败前已经烧掉的步骤也要入账（#236），与超时分支同一条理由；
+        // 若 step 9 已经记过，recordUsageOnce 不会记第二笔
+        const failedUsage = planUsageRecord({ accumulated: usageAcc })
+        recordUsageOnce(failedUsage)
         // v2.3.8 增强：把诊断信息全部写日志，方便用户/开发者从主进程日志定位根因
         // Vercel AI SDK 的错误对象通常含 status / statusCode / responseBody 等字段
         // - status: HTTP 状态码（404/401/429/500）
@@ -1670,7 +1715,8 @@ class SupervisorAgent {
     systemPrompt: string,
     userPrompt: string,
     maxTokens = 1024,
-    providerId?: string
+    providerId?: string,
+    signal?: AbortSignal
   ): Promise<string> {
     this.ensureInitialized()
     const config = getProviderWithApiKey(providerId ?? getDefaultProviderId())
@@ -1703,6 +1749,7 @@ class SupervisorAgent {
         maxOutputTokens: maxTokens,
         timeout: budget.timeout,
         maxRetries: budget.maxRetries,
+        ...(signal ? { abortSignal: signal } : {}),
       })
       const usage = result.usage
       recordTokenUsage({
