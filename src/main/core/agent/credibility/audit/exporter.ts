@@ -198,107 +198,13 @@ async function writeReportFile(
   return filepath
 }
 
-// ============================================================================
-// 列出已落盘报告
-// ============================================================================
-
-/**
- * 列出已落盘的审计报告
- *
- * @param baseDir - 基础目录
- * @returns 报告文件列表（按时间倒序）
- */
-export async function listAuditReports(
-  baseDir: string = getDefaultAuditDir()
-): Promise<AuditReportListItem[]> {
-  const items: AuditReportListItem[] = []
-
-  let entries: string[]
-  try {
-    entries = await fs.readdir(baseDir)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return [] // 目录不存在，返回空
-    }
-    throw err
-  }
-
-  for (const dateEntry of entries) {
-    if (!DATE_DIR_REGEX.test(dateEntry)) continue
-    const dateDir = path.join(baseDir, dateEntry)
-    const decisionDirs = await fs.readdir(dateDir).catch(() => [])
-
-    for (const decisionDir of decisionDirs) {
-      const decisionPath = path.join(dateDir, decisionDir)
-      const files = await fs.readdir(decisionPath).catch(() => [])
-
-      for (const file of files) {
-        if (!file.endsWith('.json')) continue // 仅基于 JSON 索引
-        const filepath = path.join(decisionPath, file)
-        try {
-          const content = await fs.readFile(filepath, 'utf-8')
-          const report = JSON.parse(content) as ComplianceAuditReport
-          items.push({
-            decisionId: report.decisionContext.decisionId,
-            decisionTitle: report.decisionContext.decisionTitle,
-            decisionTime: report.decisionContext.decisionTime,
-            reportId: report.metadata.reportId,
-            fingerprint: report.metadata.fingerprint,
-            complianceScore: report.overallCompliance.complianceScore,
-            filepath,
-            dateDir: dateEntry,
-          })
-        } catch {
-          // 跳过无法解析的文件
-        }
-      }
-    }
-  }
-
-  // 按决策时间倒序
-  items.sort((a, b) => b.decisionTime - a.decisionTime)
-  return items
-}
-
-// ============================================================================
-// 报告重建（仅基于已有的 JSON 文件）
-// ============================================================================
-
-/**
- * 从已落盘的 JSON 报告重建 ComplianceAuditReport 对象
- *
- * 用途：UI 展示已生成的报告、对比不同决策的报告
- */
-export async function loadAuditReport(filepath: string): Promise<ComplianceAuditReport> {
-  const content = await fs.readFile(filepath, 'utf-8')
-  return JSON.parse(content) as ComplianceAuditReport
-}
-
-// ============================================================================
-// 报告对比（差分）
-// ============================================================================
-
-/**
- * 对比两份报告的差异
- *
- * 用于：UI 展示两次校准/决策的差异、回归测试
- */
-export function diffAuditReports(
-  before: ComplianceAuditReport,
-  after: ComplianceAuditReport
-): AuditReportDiff {
-  return {
-    complianceScoreDelta: after.overallCompliance.complianceScore - before.overallCompliance.complianceScore,
-    eceAfterDelta: after.calibration.eceAfter - before.calibration.eceAfter,
-    confidenceDelta: after.fusionResult.confidence - before.fusionResult.confidence,
-    optimalTDelta: after.calibration.optimalT - before.calibration.optimalT,
-    mitigatedCountDelta:
-      after.genaiRiskCoverage.filter((r) => r.verdict === 'mitigated').length -
-      before.genaiRiskCoverage.filter((r) => r.verdict === 'mitigated').length,
-    fingerprintChanged: before.metadata.fingerprint !== after.metadata.fingerprint,
-  }
-}
-
+// ----------------------------------------------------------------------------
+// 2026-10-25 整删三个函数（#214）：listAuditReports（列目录）、loadAuditReport（按绝对路径
+// 重建报告）、diffAuditReports（两份报告差分）。前两个的调用点是那四条'审计报告'IPC
+// 通道（要渲染层整批递 AuditReportInput / 递绝对路径），已随通道一起判掉；第三个从来没有
+// 生产调用点，只有自己的测试在跑。留着的'报告列表/读回/对比'就是三份没人消费的第二真相源。
+// 现在这份文件只剩写侧：exportAuditReport + 目录与文件名规则。
+// ----------------------------------------------------------------------------
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -341,33 +247,7 @@ export interface ExportResult {
   }>
 }
 
-/**
- * 报告列表项
- */
-export interface AuditReportListItem {
-  decisionId: string
-  decisionTitle: string
-  decisionTime: number
-  reportId: string
-  fingerprint: string
-  complianceScore: number
-  /** 报告 JSON 文件路径 */
-  filepath: string
-  /** YYYY-MM-DD 子目录 */
-  dateDir: string
-}
 
-/**
- * 报告差异
- */
-export interface AuditReportDiff {
-  complianceScoreDelta: number
-  eceAfterDelta: number
-  confidenceDelta: number
-  optimalTDelta: number
-  mitigatedCountDelta: number
-  fingerprintChanged: boolean
-}
 
 // ============================================================================
 // 元数据导出

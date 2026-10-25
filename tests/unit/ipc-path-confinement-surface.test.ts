@@ -47,10 +47,6 @@ const LOCAL_DEST_CHANNELS: Record<string, Defense> = {
   'SERVER.IMPORT_FILE': 'dialog',
   'SFTP.WRITE_FILE': 'remote-only',
   'SFTP.MKDIR': 'remote-only',
-  // 2026-10-15 全维度审查 A7：这两条以前逃在扫描面外，只因入参叫 outputDir 而不叫 *Path。
-  // 现在两者都必须过本地路径闸（export 写、list 读），表也如实记着
-  "'credibility:export-audit-report'": 'confinement',
-  "'credibility:list-audit-reports'": 'confinement',
 }
 
 const DIALOG_FNS = ['pickExistingFiles', 'pickSavePath']

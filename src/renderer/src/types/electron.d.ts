@@ -376,41 +376,8 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
   // v0.9.6 P2：审计报告（4 个新通道）
   // ========================================================================
 
-  /**
-   * 导出 EU AI Act 合规审计报告
-   *
-   * 法规依据：EU AI Act 2026 Art.11/12/13/14/15 + NIST AI RMF 1.0 + NIST AI 600-1
-   *
-   * @param input AuditReportInput（决策上下文 + 6 源证据 + 校准 + 人工监督 + 决策动作）
-   * @param options 导出选项（format / outputDir / force / writeAllFormats）
-   * @returns ExportResult（reportId / fingerprint / 文件路径 / 字节数）
-   */
-  credibilityExportAuditReport(input: unknown, options?: unknown): Promise<unknown>
-
-  /**
-   * 列出已落盘的审计报告
-   *
-   * @param outputDir 可选自定义目录（默认 userData/audit-reports/）
-   * @returns AuditReportListItem[]（按决策时间倒序）
-   */
-  credibilityListAuditReports(outputDir?: string): Promise<unknown[]>
-
-  /**
-   * 从 JSON 文件加载审计报告
-   *
-   * @param filepath 报告 JSON 绝对路径
-   * @returns ComplianceAuditReport
-   */
-  credibilityLoadAuditReport(filepath: string): Promise<unknown>
-
-  /**
-   * 仅格式化（不落盘），用于预览
-   *
-   * @param input AuditReportInput
-   * @param format json / markdown / html
-   * @returns string（序列化后的报告内容）
-   */
-  credibilityFormatAuditReport(input: unknown, format: 'json' | 'markdown' | 'html'): Promise<string>
+  // 审计报告那四把声明已于 2026-10-25 整删（#214）：通道、preload 键与主进程 handler 一起走，
+  // 决策详情的报告只剩 credibilityExportAudit(decisionId, format) 这一条主进程取数的出口。
 
   // ===== 安全存储 =====
 

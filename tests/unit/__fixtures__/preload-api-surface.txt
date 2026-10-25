@@ -15,17 +15,12 @@ chatHistory
 configGet
 configSaveLlm
 configSet
-credibilityAddCalibrationSample
 credibilityAssess
 credibilityCalibrate
 credibilityComputeEce
 credibilityDag
 credibilityExportAudit
-credibilityExportAuditReport
-credibilityFormatAuditReport
 credibilityGetCalibrationState
-credibilityListAuditReports
-credibilityLoadAuditReport
 credibilityResetCalibration
 dbGetStatus
 fileWatchStart

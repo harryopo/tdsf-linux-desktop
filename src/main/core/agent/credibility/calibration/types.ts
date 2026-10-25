@@ -174,31 +174,5 @@ export interface OptimizeTOptions {
 // IPC 通道类型
 // ============================================================================
 
-/** 校准 IPC 通道入参和返回 */
-export interface CalibrationChannelMap {
-  /** 校准指定 Provider（基于历史样本） */
-  'credibility:calibrate': {
-    args: [ProviderId, OptimizeTOptions?]
-    return: TemperatureScalingResult
-  }
-  /** 获取全局校准状态 */
-  'credibility:get-calibration-state': {
-    args: []
-    return: CalibrationState
-  }
-  /** 重置指定 Provider 的校准（T 回到 1.0） */
-  'credibility:reset-calibration': {
-    args: [ProviderId]
-    return: boolean
-  }
-  /** 计算指定 Provider 的当前 ECE（不修改 T） */
-  'credibility:compute-ece': {
-    args: [ProviderId, number?]
-    return: EceResult
-  }
-  /** 记录新的校准样本（自动入库） */
-  'credibility:add-calibration-sample': {
-    args: [CalibrationSample]
-    return: boolean
-  }
-}
+// 校准 IPC 通道类型表（CalibrationChannelMap）已于 2026-10-25 整删（#214）：
+// 全仓零消费者的第二份通道形状声明，且它写着「自动入库」与 handler 实际的「只写内存」相反。入参形状归 ipc-contract.ts 单源。

@@ -900,35 +900,29 @@ export const BUDGET = {
  * 可信度评估 IPC 通道常量
  *
  * 通道列表：
- * - ASSESS                  invoke  渲染 → 主：评估可信度
- * - DAG                     invoke  渲染 → 主：构建证据 DAG
- * - EXPORT_AUDIT_REPORT     invoke  渲染 → 主：导出审计报告
- * - LIST_AUDIT_REPORTS      invoke  渲染 → 主：列出审计报告
- * - LOAD_AUDIT_REPORT       invoke  渲染 → 主：加载审计报告
- * - FORMAT_AUDIT_REPORT     invoke  渲染 → 主：格式化审计报告
- * - EXPORT_DECISION_HTML    invoke  渲染 → 主：按 decisionId 简化导出 HTML 报告
- * - CALIBRATE               invoke  渲染 → 主：校准指定 Provider（v2.4 Phase C 新增）
- * - GET_CALIBRATION_STATE   invoke  渲染 → 主：获取全局校准状态（v2.4 Phase C 新增）
- * - RESET_CALIBRATION       invoke  渲染 → 主：重置指定 Provider 的校准（v2.4 Phase C 新增）
- * - COMPUTE_ECE             invoke  渲染 → 主：计算指定 Provider 的当前 ECE（v2.4 Phase C 新增）
- * - ADD_CALIBRATION_SAMPLE  invoke  渲染 → 主：记录新的校准样本（v2.4 Phase C 新增）
+ * - ASSESS               invoke  渲染 → 主：评估可信度
+ * - DAG                  invoke  渲染 → 主：构建证据 DAG
+ * - EXPORT_DECISION_HTML invoke  主进程自己从 DecisionRepository 取数并导出报告
+ * - CALIBRATE            invoke  渲染 → 主：校准指定 Provider（v2.4 Phase C 新增）
+ * - GET_CALIBRATION_STATE invoke 渲染 → 主：获取全局校准状态（v2.4 Phase C 新增）
+ * - RESET_CALIBRATION     invoke 渲染 → 主：重置指定 Provider 的校准（v2.4 Phase C 新增）
+ * - COMPUTE_ECE           invoke 渲染 → 主：计算指定 Provider 的当前 ECE（v2.4 Phase C 新增）
+ *
+ * 2026-10-25 整删五条（#214）：EXPORT_AUDIT_REPORT / LIST_AUDIT_REPORTS / LOAD_AUDIT_REPORT /
+ * FORMAT_AUDIT_REPORT 的形状是"渲染层递整份 AuditReportInput → 主进程落盘并盖上指纹"，
+ * 而主进程从来没有从库里拼这份输入的地方——接上界面等于让沙箱里想写什么就写什么、再由主进程
+ * 盖一张合规戳；报告能力本身留着，走 EXPORT_DECISION_HTML 那一条（主进程取数、只收 decisionId）。
+ * ADD_CALIBRATION_SAMPLE 另有一因：它的 handler 只写进程内存、不落库，真正的样本生产者在主进程
+ * 的读者反馈链上（calibration/decision-samples.ts），按下不会留下任何东西。
  */
 export const CREDIBILITY = {
   /** 评估可信度（invoke: 渲染 → 主） */
   ASSESS: 'credibility:assess',
   /** 构建证据 DAG（invoke: 渲染 → 主） */
   DAG: 'credibility:dag',
-  /** 导出审计报告（invoke: 渲染 → 主） */
-  EXPORT_AUDIT_REPORT: 'credibility:export-audit-report',
-  /** 列出审计报告（invoke: 渲染 → 主） */
-  LIST_AUDIT_REPORTS: 'credibility:list-audit-reports',
-  /** 加载审计报告（invoke: 渲染 → 主） */
-  LOAD_AUDIT_REPORT: 'credibility:load-audit-report',
-  /** 格式化审计报告（invoke: 渲染 → 主） */
-  FORMAT_AUDIT_REPORT: 'credibility:format-audit-report',
   /** 按 decisionId 简化导出 HTML 报告（invoke: 渲染 → 主，v2.3.2 新增） */
   EXPORT_DECISION_HTML: 'credibility:export-decision-html',
-  // v2.4 Phase C 收尾：校准 IPC 通道（6 个）
+  // v2.4 Phase C 收尾：校准 IPC 通道（4 个；记录样本那把只写内存，已随 #214 整删）
   /** 校准指定 Provider（基于历史样本，invoke: 渲染 → 主） */
   CALIBRATE: 'credibility:calibrate',
   /** 获取全局校准状态（invoke: 渲染 → 主） */
@@ -937,8 +931,6 @@ export const CREDIBILITY = {
   RESET_CALIBRATION: 'credibility:reset-calibration',
   /** 计算指定 Provider 的当前 ECE（invoke: 渲染 → 主） */
   COMPUTE_ECE: 'credibility:compute-ece',
-  /** 记录新的校准样本（invoke: 渲染 → 主） */
-  ADD_CALIBRATION_SAMPLE: 'credibility:add-calibration-sample',
 } as const
 
 /**

@@ -529,7 +529,19 @@ function main(): void {
  * 状态栏 Ln 跟着变 137）。**后者当场抓出一个假实现**：`revealLine` 原先只写在 effect 里，而 effect 跑在
  * Monaco 的 `onMount` 之前，正文一到位才挂载时实例还不存在，行号被静默丢掉——这条时序只有真 Monaco 才有，
  * 单测与组件测都照不到，所以这一格的"真跳到了那一行"以前是没被量过的。
+ * 17 → 12 是减面（#214）：审计报告那四把（export / list / load / format-audit-report）与
+ * `credibilityAddCalibrationSample`。判"接还是删"用的还是同一问句——"那件事本来由谁做"：
+ * 报告的内容主进程从来不自取，四把键都要渲染层整批递 `AuditReportInput` 再由主进程落盘并盖
+ * reportId + 指纹，接上界面等于给"想写什么就写什么、戳由主进程盖"发通行证；真正的取数路径
+ * 只有一条（`credibility:export-decision-html` 从 DecisionRepository 拿卡片自己拼），留着。
+ * 校准样本那把更直接：handler 注释自己写着"内存操作，不持久化"，而样本的生产者在主进程的
+ * 读者反馈链（`calibration/decision-samples.ts`）——按下去什么也不会留下。
+ * 同批带走 exporter 里三个不再有任何消费者的函数（listAuditReports / loadAuditReport /
+ * diffAuditReports，含只有自己的测试在跑的那对差分用例）与 `CalibrationChannelMap`
+ * （全仓零消费者的第二份通道形状声明，且它写着"自动入库"与实际相反）。
+ * 判据：`tests/unit/credibility-audit-ipc-surface.test.ts` 六条，含三条"反过度砍"正对照
+ * （决策详情那条活链的调用点/注册/引擎文件、注册日志与实注册逐名相等、校准面板那四把真在按）。
  */
-const UNUSED_CAP = 17
+const UNUSED_CAP = 12
 
 main()

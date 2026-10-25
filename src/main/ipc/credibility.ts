@@ -1,23 +1,23 @@
 /**
- * Credibility IPC Handlers（v0.9 新增 + v0.9.6 P2 扩展）
+ * Credibility IPC Handlers（v0.9 新增 + v2.3.2 决策报告导出）
  *
- * 注册 v0.9 引入的可信度算法（D-S 证据理论 + PCR5 冲突融合）相关 IPC 通道。
- * v0.9.6 P2 扩展：注册审计报告导出 IPC 通道。
+ * 注册可信度算法（D-S 证据理论 + PCR5 冲突融合）相关 IPC 通道。
  *
  * 通道命名规范（与 IpcChannelMap 对应，方案书 §11.2）：
  * - credibility:assess — 评估给定证据集的可信度（返回 ConfidenceAssessment）
  * - credibility:dag    — 获取 DAG 可视化数据（返回 DagData）
- * - credibility:export-audit-report — 导出审计报告（v0.9.6 P2）
- * - credibility:list-audit-reports — 列出已落盘的审计报告（v0.9.6 P2）
- * - credibility:load-audit-report — 加载已落盘的审计报告（v0.9.6 P2）
- * - credibility:format-audit-report — 仅格式化审计报告（v0.9.6 P2）
+ * - credibility:export-decision-html — 按 decisionId 导出报告（主进程自己从 DecisionRepository 取数）
  *
  * 证据源输入格式（CredibilityEvidenceInput）：
  *   { sourceId: 'log', fields: { drainMatch: 0.85, sourcePrior: 0.6 } }
  *
- * 审计报告通道法规支撑：
- *   - NIST AI RMF 1.0
- *   - NIST AI 600-1 GenAI Profile
+ * 2026-10-25 整删五条（#214）：export / list / load / format-audit-report 与 add-calibration-sample。
+ * 前四条要渲染层整批递 `AuditReportInput` 再由主进程落盘并盖指纹，而"从库里那一行拼出这份输入"
+ * 这件事只有 `buildSimplifiedAuditInput` 做过——留着等于开一条"内容谁想写就写、戳由主进程盖"的假保证；
+ * 报告能力本身走 `credibility:export-decision-html` 那一条。第五条按下去只写进程内存、不落库，
+ * 真正的样本生产者在 `calibration/decision-samples.ts`（读者反馈）。
+ * 判据：`tests/unit/credibility-audit-ipc-surface.test.ts`（含两条"反过度砍"正对照：
+ * 决策详情那条活链与校准面板那四把）。
  *
  * 调研文档：d:\ai\linux教学一体\idea-to-dev-output\22-可信度算法论文支撑调研.md
  * 方案书依据：v0.9 §可信度算法升级（D-S + PCR5 + 6 源证据融合）
@@ -35,9 +35,6 @@ import type {
   DagData,
 } from '@shared/agent-types'
 import { logger } from '../services/log/logger'
-// 导出目录来自渲染层，必须过本地路径闸（同 profiler:exportMd 的口径）：
-// 未收口前这三条通道能把报告写到任意可写路径、也能读任意目录（fs.readFile 直传）
-import { assertWithinConfinement } from '../services/security/path-confinement'
 import { ConfigStore } from '../services/storage/config-store'
 import {
   EVIDENCE_CATEGORY_TO_SOURCE,
@@ -56,10 +53,9 @@ import { CREDIBILITY } from '@shared/ipc-channels'
 import type { DatabaseManager } from '../services/db/database'
 import type { DecisionCard, EvidenceSource, RiskLevel } from '@shared/models'
 import type { AuditSourceEvidence } from '../core/agent/credibility/audit/types'
-// v2.4 Phase C 收尾：校准模块 import（6 个 IPC handler 所需）
+// v2.4 Phase C 收尾：校准模块 import（4 个 IPC handler 所需）
 import { getCalibrationTuner } from '../core/agent/credibility/calibration/calibration-tuner'
 import type {
-  CalibrationSample,
   CalibrationState,
   EceResult,
   OptimizeTOptions,
@@ -368,164 +364,6 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
   )
 
   // ------------------------------------------------------------------
-  // credibility:add-calibration-sample — 记录新的校准样本（内存操作，不持久化）
-  // ------------------------------------------------------------------
-  // 参数：(sample: CalibrationSample)
-  // 返回：boolean（始终 true，失败抛错）
-  ipcMain.handle(
-    CREDIBILITY.ADD_CALIBRATION_SAMPLE,
-    async (_event, sample: CalibrationSample): Promise<boolean> => {
-      try {
-        const tuner = getCalibrationTuner()
-        tuner.addSample(sample)
-        logger.info('IPC.CREDIBILITY', `credibility:add-calibration-sample`, {
-          decisionId: sample.decisionId,
-          providerId: sample.providerId,
-        })
-        return true
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '添加校准样本失败'
-        logger.error('IPC.CREDIBILITY', `credibility:add-calibration-sample 失败: ${msg}`)
-        throw new Error(`添加校准样本失败: ${msg}`)
-      }
-    }
-  )
-
-  // =====================================================================
-  // v0.9.6 P2：审计报告 IPC handlers
-  // ---------------------------------------------------------------------
-  // 法规依据：
-  //   - NIST AI RMF 1.0（AI 100-1）
-  //   - NIST AI 600-1 GenAI Profile（2024-07-26）
-  // 设计：将 report-builder + exporter 暴露给渲染层 + CLI
-  // =====================================================================
-
-  // ------------------------------------------------------------------
-  // credibility:export-audit-report — 导出合规审计报告
-  // ------------------------------------------------------------------
-  // 参数：(input: AuditReportInput, options?: ExportOptions)
-  // 返回：ExportResult（含 reportId / fingerprint / 文件路径 / 字节数）
-  // 设计：默认 JSON 格式；支持 writeAllFormats 一次导出 JSON+MD
-  ipcMain.handle(
-    'credibility:export-audit-report',
-    async (
-      _event,
-      input: import('../core/agent/credibility/audit/types').AuditReportInput,
-      options?: import('../core/agent/credibility/audit/exporter').ExportOptions
-    ): Promise<import('../core/agent/credibility/audit/exporter').ExportResult> => {
-      try {
-        logger.info('IPC.CREDIBILITY', `credibility:export-audit-report 启动`, {
-          decisionId: input.decisionContext.decisionId,
-          format: options?.format,
-          writeAllFormats: options?.writeAllFormats,
-        })
-        const { exportAuditReport } = await import(
-          '../core/agent/credibility/audit/exporter'
-        )
-        // 渲染层可以指定导出目录，但只能落在受管目录或它自己用对话框换来的授权内；
-        // 不给 outputDir 时走默认（userData 下），不过闸也不需要
-        const safeOptions =
-          options && options.outputDir
-            ? { ...options, outputDir: assertWithinConfinement(options.outputDir, 'write') }
-            : options
-        const result = await exportAuditReport(input, safeOptions ?? {})
-        logger.info('IPC.CREDIBILITY', `credibility:export-audit-report 完成`, {
-          reportId: result.reportId,
-          fingerprint: result.fingerprint,
-          formats: result.formats,
-          files: result.written.map((w) => ({ format: w.format, bytes: w.bytes })),
-        })
-        return result
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '审计报告导出失败'
-        logger.error('IPC.CREDIBILITY', `credibility:export-audit-report 失败: ${msg}`)
-        throw new Error(`审计报告导出失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:list-audit-reports — 列出已落盘的审计报告
-  // ------------------------------------------------------------------
-  // 参数：(outputDir?: string)
-  // 返回：AuditReportListItem[]（按决策时间倒序）
-  ipcMain.handle(
-    'credibility:list-audit-reports',
-    async (
-      _event,
-      outputDir?: string
-    ): Promise<import('../core/agent/credibility/audit/exporter').AuditReportListItem[]> => {
-      try {
-        const { listAuditReports } = await import(
-          '../core/agent/credibility/audit/exporter'
-        )
-        // 同 export 一条口径：列目录会 fs.readFile 该目录下每个 json，不给闸就是任意文件读
-        return await listAuditReports(
-          outputDir ? assertWithinConfinement(outputDir, 'read') : undefined
-        )
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '列出审计报告失败'
-        logger.error('IPC.CREDIBILITY', `credibility:list-audit-reports 失败: ${msg}`)
-        throw new Error(`列出审计报告失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:load-audit-report — 加载已落盘的审计报告
-  // ------------------------------------------------------------------
-  // 参数：(filepath: string)
-  // 返回：ComplianceAuditReport（从 JSON 重建）
-  ipcMain.handle(
-    'credibility:load-audit-report',
-    async (
-      _event,
-      filepath: string
-    ): Promise<import('../core/agent/credibility/audit/types').ComplianceAuditReport> => {
-      try {
-        const { loadAuditReport } = await import(
-          '../core/agent/credibility/audit/exporter'
-        )
-        // 写/列出已经过 confinement，读这条路不能是任意文件读
-        return await loadAuditReport(assertWithinConfinement(filepath, 'read'))
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '加载审计报告失败'
-        logger.error('IPC.CREDIBILITY', `credibility:load-audit-report 失败: ${msg}`)
-        throw new Error(`加载审计报告失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
-  // credibility:format-audit-report — 仅格式化（不落盘），用于预览
-  // ------------------------------------------------------------------
-  // 参数：(input: AuditReportInput, format: AuditFormat)
-  // 返回：string（序列化后的报告内容）
-  ipcMain.handle(
-    'credibility:format-audit-report',
-    async (
-      _event,
-      input: import('../core/agent/credibility/audit/types').AuditReportInput,
-      format: import('../core/agent/credibility/audit/types').AuditFormat
-    ): Promise<string> => {
-      try {
-        const { buildAndFinalizeReport } = await import(
-          '../core/agent/credibility/audit/report-builder'
-        )
-        const { formatReport } = await import(
-          '../core/agent/credibility/audit/formatters'
-        )
-        const report = buildAndFinalizeReport(input)
-        return formatReport(report, format)
-      } catch (err) {
-        const msg = (err as Error)?.message ?? '格式化审计报告失败'
-        logger.error('IPC.CREDIBILITY', `credibility:format-audit-report 失败: ${msg}`)
-        throw new Error(`格式化审计报告失败: ${msg}`)
-      }
-    }
-  )
-
-  // ------------------------------------------------------------------
   // credibility:export-decision-html — 按 decisionId 简化导出 HTML 报告（v2.3.2 新增）
   // ------------------------------------------------------------------
   // 参数：(decisionId: string, format: string)
@@ -577,20 +415,17 @@ export function registerCredibilityHandlers(db?: DatabaseManager): void {
   )
 
   logger.info('IPC.CREDIBILITY', `Credibility IPC handlers 已注册`, {
+    // 这份清单必须与实际注册的 handler 逐名相等（判据在 tests/unit/credibility-audit-ipc-surface.test.ts）：
+    // #210 那批就出现过 handler 已删、日志还写着旧通道名的假话
     channels: [
       'credibility:assess',
       'credibility:dag',
-      'credibility:export-audit-report',
-      'credibility:list-audit-reports',
-      'credibility:load-audit-report',
-      'credibility:format-audit-report',
       'credibility:export-decision-html',
-      // v2.4 Phase C 收尾：校准 IPC 通道（5 个；单 Provider 那把读全局 state 就够，已整删）
+      // v2.4 Phase C 收尾：校准 IPC 通道（4 个；记录样本那把只写内存，随 #214 整删）
       'credibility:calibrate',
       'credibility:get-calibration-state',
       'credibility:reset-calibration',
       'credibility:compute-ece',
-      'credibility:add-calibration-sample',
     ],
   })
 }

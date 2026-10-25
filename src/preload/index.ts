@@ -250,26 +250,24 @@ const electronApi = {
   //   const dag = await window.electronAPI.credibilityDag(inputs)
   credibilityAssess: credibility.assess,
   credibilityDag: credibility.dag,
-  // v0.9.6 P2：审计报告扁平化 API
-  credibilityExportAuditReport: credibility.exportAuditReport,
-  credibilityListAuditReports: credibility.listAuditReports,
-  credibilityLoadAuditReport: credibility.loadAuditReport,
-  credibilityFormatAuditReport: credibility.formatAuditReport,
   // v2.3.2 新增：按 decisionId 简化导出 HTML 报告
+  // 2026-10-25 整删四把（#214）：credibilityExportAuditReport / ListAuditReports /
+  // LoadAuditReport / FormatAuditReport——它们要渲染层整批递 AuditReportInput 再由主进程落盘盖指纹，
+  // 而"从库里那一行拼出报告"只有下面这条活出口做了（主进程取数，界面只给 decisionId）。
   credibilityExportAudit: (decisionId: string, format: string): Promise<string> =>
     ipcRenderer.invoke(CREDIBILITY.EXPORT_DECISION_HTML, decisionId, format),
-  // v2.4 Phase C 收尾：校准扁平化 API（6 个，与 credibility 对象的校准方法一一对应）
+  // v2.4 Phase C 收尾：校准扁平化 API（4 个，与 credibility 对象的校准方法一一对应）
   // UI 调用方式：
   //   const result = await window.electronAPI.credibilityCalibrate('deepseek', { tMin: 0.1 })
   //   const state = await window.electronAPI.credibilityGetCalibrationState()
-  //   const ok = await window.electronAPI.credibilityAddCalibrationSample(sample)
   credibilityCalibrate: credibility.calibrate,
   // credibilityGetCalibration(providerId) 已于 2026-10-24 整删：
   // 校准页要一次看 8 个 Provider，用的就是下面那份全量 state，单条读取从来没有调用点。
   credibilityGetCalibrationState: credibility.getCalibrationState,
   credibilityResetCalibration: credibility.resetCalibration,
   credibilityComputeEce: credibility.computeEce,
-  credibilityAddCalibrationSample: credibility.addCalibrationSample,
+  // credibilityAddCalibrationSample 已于 2026-10-25 整删（#214）：handler 只写进程内存、不落库，
+  // 校准样本真正的生产者在主进程的读者反馈链（calibration/decision-samples.ts）。
 
   // ===== M2 Task 2 新增：命令风险评估扁平化（risk:check） =====
   // 通道与主进程 ipc/risk.ts 一一对应；UI 调用方式：

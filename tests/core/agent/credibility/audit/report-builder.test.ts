@@ -687,21 +687,6 @@ describe('audit/exporter — 导出器基础', () => {
     const { getReportDir } = await import('../../../../../src/main/core/agent/credibility/audit/exporter')
     expect(() => getReportDir('/tmp', NaN, 'x')).toThrow(/无效的决策时间/)
   })
-
-  it('diffAuditReports 计算差异', async () => {
-    const { diffAuditReports } = await import('../../../../../src/main/core/agent/credibility/audit/exporter')
-    const a = buildAndFinalizeReport(makeInput())
-    const b = buildAndFinalizeReport(
-      makeInput({
-        calibration: { ...makeInput().calibration!, eceAfter: 0.02 },
-        confidenceAssessment: { ...makeInput().confidenceAssessment, confidence: 0.9 },
-      }),
-    )
-    const diff = diffAuditReports(a, b)
-    expect(diff.eceAfterDelta).toBeCloseTo(0.02 - 0.06, 4)
-    expect(diff.confidenceDelta).toBeCloseTo(0.05, 4)
-    expect(typeof diff.fingerprintChanged).toBe('boolean')
-  })
 })
 
 // ============================================================================
@@ -979,29 +964,10 @@ describe('audit/report-builder — 指纹算法 v1.1 回归（嵌套字段变化
 })
 
 // ============================================================================
-// 跨章节集成：报告→JSON→读回→diff
+// 跨章节集成：一份报告 → 三种格式（读回与 diff 那两个出口已随 #214 整删）
 // ============================================================================
 
 describe('audit/exporter — 跨章节集成', () => {
-  it('loadAuditReport + diffAuditReports：两次校准差异可计算', async () => {
-    const { diffAuditReports } = await import('../../../../../src/main/core/agent/credibility/audit/exporter')
-    // 第 1 次报告：ECE 0.15, confidence 0.7
-    const r1 = buildAndFinalizeReport(makeInput({
-      calibration: { ...makeInput().calibration!, eceAfter: 0.15 },
-      confidenceAssessment: { ...makeInput().confidenceAssessment, confidence: 0.7 },
-    }))
-    // 第 2 次报告：ECE 0.05, confidence 0.85（优化后）
-    const r2 = buildAndFinalizeReport(makeInput({
-      calibration: { ...makeInput().calibration!, eceAfter: 0.05 },
-      confidenceAssessment: { ...makeInput().confidenceAssessment, confidence: 0.85 },
-    }))
-
-    const diff = diffAuditReports(r1, r2)
-    expect(diff.eceAfterDelta).toBeCloseTo(-0.10, 4)
-    expect(diff.confidenceDelta).toBeCloseTo(0.15, 4)
-    expect(diff.optimalTDelta).toBe(0) // T 相同
-    expect(typeof diff.fingerprintChanged).toBe('boolean')
-  })
 
   it('formatReport 三种格式输出都包含关键元数据', () => {
     const report = buildAndFinalizeReport(makeInput())
