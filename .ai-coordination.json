@@ -2,44 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-25T01:48:08.512Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-25T01:48:07.926Z",
-      "lastActiveAt": "2026-10-25T01:48:08.512Z",
-      "task": "218-subagent-fleet",
-      "claimedFiles": [
-        {
-          "path": "src/main/core/agent/subagents/base.ts",
-          "task": "218-subagent-fleet",
-          "claimedAt": "2026-10-25T01:48:07.926Z"
-        },
-        {
-          "path": "src/main/core/agent/subagents/index.ts",
-          "task": "218-subagent-fleet",
-          "claimedAt": "2026-10-25T01:48:08.042Z"
-        },
-        {
-          "path": "src/main/core/agent/supervisor.ts",
-          "task": "218-subagent-fleet",
-          "claimedAt": "2026-10-25T01:48:08.227Z"
-        },
-        {
-          "path": "README.md",
-          "task": "218-subagent-fleet",
-          "claimedAt": "2026-10-25T01:48:08.369Z"
-        },
-        {
-          "path": "AGENTS.md",
-          "task": "218-subagent-fleet",
-          "claimedAt": "2026-10-25T01:48:08.512Z"
-        }
-      ],
-      "expiresAt": "2026-10-25T03:48:08.512Z"
-    }
-  },
+  "lastUpdated": "2026-10-25T02:29:06.221Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -11849,6 +11813,41 @@
       "file": "AGENTS.md",
       "task": "218-subagent-fleet",
       "timestamp": "2026-10-25T01:48:08.512Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/subagents/base.ts",
+      "task": "218-subagent-fleet",
+      "timestamp": "2026-10-25T02:29:06.221Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/subagents/index.ts",
+      "task": "218-subagent-fleet",
+      "timestamp": "2026-10-25T02:29:06.221Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "218-subagent-fleet",
+      "timestamp": "2026-10-25T02:29:06.221Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "README.md",
+      "task": "218-subagent-fleet",
+      "timestamp": "2026-10-25T02:29:06.221Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "AGENTS.md",
+      "task": "218-subagent-fleet",
+      "timestamp": "2026-10-25T02:29:06.221Z"
     }
   ],
   "coordinationAudit": {
