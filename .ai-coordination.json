@@ -2,34 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-25T10:04:25.432Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-25T10:04:25.432Z",
-      "lastActiveAt": "2026-10-25T10:04:25.432Z",
-      "task": "229",
-      "claimedFiles": [
-        {
-          "path": "src/main/services/mcp/tools/registry-ssh.ts",
-          "task": "229",
-          "claimedAt": "2026-10-25T10:04:25.432Z"
-        },
-        {
-          "path": "src/shared/credibility.ts",
-          "task": "229",
-          "claimedAt": "2026-10-25T10:04:25.432Z"
-        },
-        {
-          "path": "src/main/core/risk-engine.ts",
-          "task": "229",
-          "claimedAt": "2026-10-25T10:04:25.432Z"
-        }
-      ],
-      "expiresAt": "2026-10-25T12:04:25.432Z"
-    }
-  },
+  "lastUpdated": "2026-10-25T10:13:08.059Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -12231,6 +12205,27 @@
       "file": "src/main/core/risk-engine.ts",
       "task": "229",
       "timestamp": "2026-10-25T10:04:25.432Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/services/mcp/tools/registry-ssh.ts",
+      "task": "229",
+      "timestamp": "2026-10-25T10:13:08.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/credibility.ts",
+      "task": "229",
+      "timestamp": "2026-10-25T10:13:08.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/risk-engine.ts",
+      "task": "229",
+      "timestamp": "2026-10-25T10:13:08.059Z"
     }
   ],
   "coordinationAudit": {
