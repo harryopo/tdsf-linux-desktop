@@ -2,8 +2,24 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-25T04:48:11.061Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-25T05:02:13.949Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-25T05:02:13.949Z",
+      "lastActiveAt": "2026-10-25T05:02:13.949Z",
+      "task": "224",
+      "claimedFiles": [
+        {
+          "path": "docs/功能实景清单.md",
+          "task": "224",
+          "claimedAt": "2026-10-25T05:02:13.949Z"
+        }
+      ],
+      "expiresAt": "2026-10-25T07:02:13.949Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -12002,6 +12018,13 @@
       "file": "src/renderer/src/pages/DecisionDetailPage.tsx",
       "task": "222-loop-engineering-removal",
       "timestamp": "2026-10-25T04:48:11.061Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/功能实景清单.md",
+      "task": "224",
+      "timestamp": "2026-10-25T05:02:13.949Z"
     }
   ],
   "coordinationAudit": {
