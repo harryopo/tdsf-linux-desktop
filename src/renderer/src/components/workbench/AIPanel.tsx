@@ -5,12 +5,13 @@
  * // @ai-task: Sprint-wire-AIPanel-to-agent-chat
  *
  * P3-C1 重构（2026-07-22）：从 1921 行拆分至 ≤500 行
- * - 子展示组件迁出至 ./panels/ 目录（MiniBar/ToolPanel/ProgressPanel/RollbackPanel/
- *   PausePanel/BlockRenderer/MessageRow/LiveMessageRow/PaorApprovalCard）
+ * - 子展示组件在 ./panels/（ChatCredibility / LiveMessageRow / MarkdownMessage / PaorPlanCard，
+ *   外加 tool-identity / paor-plan-status / markdown-links 三个纯模块）
+ *   —— 当年那份名单里的 MiniBar / ToolPanel / RollbackPanel / BlockRenderer / MessageRow / TokenCostRow
+ *   以及 2026-10-25 判掉的 progress / pause 两块面板，都没有 import 者，已随各自那批整删一起走
  * - 标题栏 → ./AIPanelHeader.tsx
  * - 消息滚动区 → ./MessageList.tsx
  * - 输入区域 → ./Composer.tsx
- * - Token/成本统计行 → ./TokenCostRow.tsx
  *
  * 设计稿：tdsf-linux-redesign/pages/workbench-ai.html 第 2514-3296 行
  *
@@ -327,7 +328,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       return
     }
 
-    // 3. resumeExec：后端无恢复能力，假"恢复执行"按钮已从 PausePanel 移除；
+    // 3. resumeExec：后端无恢复能力，假"恢复执行"按钮早已整删（连同它所在的那块没人 import 的面板）；
     //    保留此分支兼容存量 block 数据，诚实告知用户重新发送
     if (action === 'resumeExec') {
       toast('当前不支持恢复已停止的任务，请重新发送消息')

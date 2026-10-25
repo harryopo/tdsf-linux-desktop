@@ -44,13 +44,6 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
   ListToolsRequestSchema: 'ListToolsRequestSchema',
 }))
 
-// ── Mock vercel-ai-service（断开 provider 加载链）──
-vi.mock('../../src/main/services/llm/vercel-ai-service', () => ({
-  sshExecTool: { name: 'ssh_exec', description: 'mock', parameters: {} },
-  knowledgeQueryTool: { name: 'knowledge_query', description: 'mock', parameters: {} },
-  riskCheckTool: { name: 'risk_check', description: 'mock', parameters: {} },
-}))
-
 // ── Mock v5 工具注册表：返回可控假工具，隔离 dispatch 逻辑 ──
 vi.mock('../../src/main/services/mcp/tools/registry', () => ({
   createMcpTools: vi.fn(() => [

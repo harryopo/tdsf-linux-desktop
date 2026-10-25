@@ -29,13 +29,6 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
   ListToolsRequestSchema: 'ListToolsRequestSchema'
 }))
 
-// Mock vercel-ai-service（避免 chain 加载 zod 解析问题）
-vi.mock('../../src/main/services/llm/vercel-ai-service', () => ({
-  sshExecTool: { name: 'ssh_exec', description: 'mock', parameters: {} },
-  knowledgeQueryTool: { name: 'knowledge_query', description: 'mock', parameters: {} },
-  riskCheckTool: { name: 'risk_check', description: 'mock', parameters: {} }
-}))
-
 import { McpServerService } from '../../src/main/services/mcp/server'
 
 describe('McpServerService 单元测试', () => {
