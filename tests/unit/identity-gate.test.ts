@@ -10,10 +10,14 @@
  *   2. 跟踪集必须 0 命中；
  *   3. 具体身份值清单**不许入库**（那份文件一旦进跟踪集，就等于把答案贴在现场）。
  */
-import { describe, it, expect } from 'vitest'
+import { vi, describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const REPO = path.resolve(import.meta.dirname, '../..')
 const SCRIPT = path.join(REPO, 'scripts', 'security', 'identity-gate.cjs')

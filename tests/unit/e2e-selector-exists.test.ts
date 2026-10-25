@@ -14,10 +14,14 @@
  * 2026-10-09 第二次收紧：`mon-` 前缀写宽了，把早就死掉的 `.mon-main` 放过（Monaco 真实前缀是 `monaco-`）；
  * 同时把取数从"按调用名"改成"按字符串字面量"，否则传参写法继续漏网。
  */
-import { describe, it, expect } from 'vitest'
+import { vi, describe, it, expect } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 /** 第三方库自己注入 DOM 的类前缀（源码里当然找不到） */
 const LIB_PREFIXES: Array<[string, string]> = [

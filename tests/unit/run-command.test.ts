@@ -11,13 +11,17 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import ts from 'typescript'
 import { listSourceFiles, readSourceFile } from '../helpers/source-scan'
-import { describe, expect, it } from 'vitest'
+import { vi, describe, expect, it } from 'vitest'
 import {
   CommandFailedError,
   CommandOutputTooLargeError,
   CommandTimeoutError,
   runCommand,
 } from '../../src/main/services/exec/run-command'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const ROOT = path.resolve(__dirname, '../..')
 const NODE = process.execPath

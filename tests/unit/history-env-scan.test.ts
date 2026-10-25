@@ -9,11 +9,15 @@
  * 全部用例带 --max-revs：只扫最近若干提交树，一趟 1~4 秒。
  * 部分扫描本身也有一条断言（结论必须标注"部分扫描"），因为不标注的部分扫描会被读成 CLEAN。
  */
-import { describe, it, expect, afterAll } from 'vitest'
+import { vi, describe, it, expect, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const GATE = path.join('scripts', 'security', 'history-env-scan.cjs')
 

@@ -9,11 +9,15 @@
  *   3. 页面少了某一行 ⇒ 判"没比上"，不能因为"没取到所以没差异"而放行；
  *   4. 页面某个数字被改错 ⇒ 点名那一条，且只点名那一条。
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const MODULE_SPEC = '../../scripts/quality/promo-readout.mjs'
 

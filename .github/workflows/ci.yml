@@ -162,6 +162,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: 起子进程的判据必须自带超时（并行撞 20 秒会随机红，见脚本头）
+        run: node scripts/quality/subprocess-test-timeout.cjs --self-test && node scripts/quality/subprocess-test-timeout.cjs --check
+
       - name: Run unit tests
         run: pnpm test -- --reporter=verbose --coverage
 

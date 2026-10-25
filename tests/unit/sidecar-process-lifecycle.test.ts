@@ -8,11 +8,15 @@
  * 没有可用 Python 时整条跳过并打印原因（本机有 D:\Miniconda3；CI 上没有就跳过），
  * 不会伪绿也不会假红。
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 /** 进程是否还活着：signal 0 只探存在性，不发真信号（与 sidecar-manager 同一招） */
 function alive(pid: number): boolean {

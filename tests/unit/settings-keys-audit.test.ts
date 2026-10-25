@@ -5,9 +5,13 @@
  * 要么登记了真实消费者，要么记在"未接"欠账清单里且数量不超过上限。
  * 这条测试守的是"别再加拨了没反应的假开关"（2026-10-06 一次就扫出 25 个）。
  */
-import { describe, it, expect } from 'vitest'
+import { vi, describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const ROOT = path.resolve(__dirname, '../..')
 const SCRIPT = path.join(ROOT, 'scripts', 'design', 'settings-keys-audit.mjs')

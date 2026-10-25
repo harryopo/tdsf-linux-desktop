@@ -15,7 +15,7 @@
  * （本机 WSL 的 Ubuntu-24.04 自带 /usr/sbin/sshd，普通用户起在非特权端口即可，零安装、不动账号）。
  * 这份跑的是语义对账，不需要登录成功，所以不配口令、不动账号、不留密钥。
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { vi, describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -23,6 +23,10 @@ import net from 'node:net'
 import path from 'node:path'
 import { checkKnownHosts, replaceKnownHost } from '../../src/main/services/ssh/known-hosts'
 import { generateHostKey } from '../e2e/ssh-fixture-server'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const RAW_HOST = process.env.TDSF_REAL_SSHD_HOST ?? ''
 const RAW_PORT = process.env.TDSF_REAL_SSHD_PORT ?? ''

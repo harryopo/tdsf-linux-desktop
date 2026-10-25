@@ -43,7 +43,7 @@
     "doc:links": "node scripts/quality/doc-links.cjs",
     "native:check": "node scripts/quality/check-native-prebuild.cjs",
     "hygiene:gate": "node scripts/quality/scratch-hygiene-gate.cjs",
-    "gates:ci": "node scripts/quality/scripts-syntax-check.cjs && node scripts/quality/scratch-hygiene-gate.cjs --self-test && node scripts/quality/doc-links.cjs --self-test && node scripts/quality/promo-readout.mjs --check-diagram",
+    "gates:ci": "node scripts/quality/scripts-syntax-check.cjs && node scripts/quality/scratch-hygiene-gate.cjs --self-test && node scripts/quality/doc-links.cjs --self-test && node scripts/quality/promo-readout.mjs --check-diagram && node scripts/quality/subprocess-test-timeout.cjs --self-test && node scripts/quality/subprocess-test-timeout.cjs --check",
     "build:win": "pnpm build && electron-builder --win",
     "build:mac": "pnpm build && electron-builder --mac",
     "build:linux": "pnpm build && electron-builder --linux",

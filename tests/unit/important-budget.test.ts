@@ -7,9 +7,13 @@
  * 留这条闸是因为 !important 是"样式打架打不赢就硬压"的痕迹：
  * 每多一处，后面的页面就得再加一处才盖得住它。
  */
-import { describe, it, expect } from 'vitest'
+import { vi, describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
+
+// 本文件的每条用例都要起一个真子进程跑门禁脚本：全量并行时 20 秒全局预算不够（现量见
+// scripts/quality/subprocess-test-timeout.cjs 的文件头），所以只给这一份放宽。
+vi.setConfig({ testTimeout: 60000 })
 
 const ROOT = path.resolve(__dirname, '../..')
 const SCRIPT = path.join(ROOT, 'scripts', 'design', 'count-important.mjs')
