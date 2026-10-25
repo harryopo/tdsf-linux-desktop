@@ -40,6 +40,34 @@ const TerminalSearchBar: FC<TerminalSearchBarProps> = ({
     }
   }, [open])
 
+  /*
+   * 搜索栏开着时，Esc 与 Ctrl+F 由这一层统一接管（#238）。
+   *
+   * 以前只挂在输入框的 onKeyDown 上：用户点回终端再按 Esc，按键落在 xterm 上，
+   * 搜索栏关不掉（Esc 还会被当成转义序列发给 shell）；再按 Ctrl+F 也只是重复
+   * setSearchOpen(true)，焦点回不到输入框，看起来像"按键失灵"。
+   * 用捕获阶段 + stopPropagation：xterm 的隐藏输入框根本收不到这次按键。
+   */
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        e.stopPropagation()
+        inputRef.current?.focus()
+        inputRef.current?.select()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, onClose])
+
   // 关键词变化时自动 findNext
   useEffect(() => {
     if (!open || !searchAddon || !keyword) return

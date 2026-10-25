@@ -149,7 +149,18 @@ test.describe('界面上写出来的快捷键', () => {
       // 见 TerminalView 那段注释）；焦点必须先落在终端输入框里，这是"用户点了终端再按键"的真实前提
       await textarea.focus()
       await page.keyboard.press('Control+f')
-      await expect(page.getByPlaceholder(SEARCH_PLACEHOLDER)).toBeVisible({ timeout: 5000 })
+      const searchInput = page.getByPlaceholder(SEARCH_PLACEHOLDER)
+      await expect(searchInput).toBeVisible({ timeout: 5000 })
+
+      // #238：焦点回到终端后 Esc 仍要能关掉搜索栏（以前只有输入框自己收得到 Esc）
+      await textarea.focus()
+      await page.keyboard.press('Escape')
+      await expect(searchInput, '焦点不在搜索框时 Esc 没关掉搜索栏').toHaveCount(0, { timeout: 5000 })
+
+      // 搜索栏已经开着时再按 Ctrl+F：要回到输入框，而不是"什么都不发生"
+      await page.keyboard.press('Control+f')
+      await expect(searchInput).toBeVisible({ timeout: 5000 })
+      await expect(searchInput, '再按 Ctrl+F 没把焦点送回搜索框').toBeFocused()
     } finally {
       await app.close()
       if (fixture) await fixture.close()
