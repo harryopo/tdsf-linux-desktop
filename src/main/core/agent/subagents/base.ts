@@ -1,17 +1,20 @@
 /**
  * Subagent 基础抽象类
  *
+ * 现在只有一个使用者：`loop-engineering-subagent`（由 `ipc/loop-engineering.ts` 起）。
+ * 这里留的是那条链真正需要的三件东西——统一的任务/结果形状、异常包装、计时与日志。
+ *
  * 职责：
- * - 定义所有 Subagent 的统一接口（Subagent）
- * - 提供 BaseSubagent 抽象基类（含公共日志/审计/审批闸门钩子）
+ * - 提供 BaseSubagent 抽象基类（公共日志 + 异常不外抛的 execute 包装）
  * - 定义 SubagentTask / SubagentResult 类型契约
  *
  * 设计要点：
- * - 每个特化 Subagent（编程/思考/运行/搜索/skill/方法论/历史/知识库）继承 BaseSubagent
  * - execute(task) 必须返回 SubagentResult（不抛异常，异常转为 success=false 的结果）
- * - 预留人工审批闸门接口（isApprovalRequired / requestApproval），已接入 execute() 流程
- *
- * 方案书依据：v0.9 §3.1（8 个特化 Subagent）+ §10 Hard Constraint 4（人工审批闸门）
+ * - **这里没有审批闸门**。2026-10-25 #218 摘掉了原来那段：它先 `await doExecute()` 把任务真的跑完，
+ *   再按强度把结果丢掉、换成一个 `{success:false, error:'等待人工审批'}` 的占位返回，
+ *   而那个 requestApproval 只写日志、从不推卡片——拦不住任何东西，还会把跑完的结论吃掉。
+ *   循环工程真正把关的地方是 `agent-workflow.ts` 的 confirm 步：它在 execute **之前**暂停，
+ *   把决策卡推给界面等人点（见 src/main/core/agent-workflow.ts 的 waitForConfirmation）。
  */
 import { randomUUID } from 'node:crypto'
 import { logger } from '../../../services/log/logger'
@@ -20,7 +23,7 @@ import type { ThinkingStrength } from '../providers/types'
 /**
  * Subagent 任务输入
  *
- * 由 Supervisor 在 Plan 阶段生成，分发给对应 Subagent 执行。
+ * 由调用方构造（现在只有 `ipc/loop-engineering.ts` 用 createSubagentTask 造一份）。
  */
 export interface SubagentTask {
   /** 任务唯一 ID（便于审计与日志追踪） */
@@ -69,54 +72,18 @@ export interface SubagentResult {
   confidence?: number
   /** 执行耗时（ms） */
   durationMs: number
-  /** 是否需要人工审批（true 表示结果尚未生效，等待用户确认） */
-  requiresApproval?: boolean
-  /** 审批闸门提示（requiresApproval=true 时给用户看的预览文本） */
-  approvalPreview?: string
 }
-
-/**
- * Subagent 接口（统一契约）
- *
- * 所有 Subagent 必须实现此接口，可通过 implements 或继承 BaseSubagent 实现。
- */
-export interface Subagent {
-  /** Subagent 名称（如 'coding' / 'thinking'） */
-  name: string
-  /** 显示名称（如 '编程 Subagent'） */
-  displayName: string
-  /** 简短描述 */
-  description: string
-  /** 执行任务 */
-  execute(task: SubagentTask): Promise<SubagentResult>
-}
-
-/**
- * Subagent 类型枚举（8 个特化 Subagent）
- *
- * 方案书 §3.1 表
- */
-export type SubagentName =
-  | 'coding'
-  | 'thinking'
-  | 'running'
-  | 'search'
-  | 'skill'
-  | 'methodology'
-  | 'history'
-  | 'knowledge'
 
 /**
  * BaseSubagent 抽象基类
  *
  * 提供公共能力：
  * - 受保护日志器（自动注入 subagent name 前缀）
- * - 异常捕获包装（execute → safeExecute）
- * - 审批闸门（isApprovalRequired / requestApproval，已接入 execute 流程）
+ * - 异常捕获包装（execute → 失败结果，绝不外抛）
  *
  * 子类只需实现 doExecute(task) 实现具体业务逻辑。
  */
-export abstract class BaseSubagent implements Subagent {
+export abstract class BaseSubagent {
   /** Subagent 名称（如 'coding'） */
   abstract readonly name: string
   /** 显示名称（如 '编程 Subagent'） */
@@ -137,7 +104,7 @@ export abstract class BaseSubagent implements Subagent {
   protected abstract doExecute(task: SubagentTask): Promise<SubagentResult>
 
   /**
-   * 公共执行入口（异常捕获 + 日志 + 审批闸门钩子）
+   * 公共执行入口（异常捕获 + 日志 + 计时）
    *
    * 不应被子类覆盖。
    */
@@ -168,12 +135,6 @@ export abstract class BaseSubagent implements Subagent {
         durationMs: result.durationMs || durationMs,
       }
 
-      // 审批闸门：如果任务需要人工审批，拦截结果并返回审批请求
-      if (this.isApprovalRequired(task)) {
-        const preview = `[${this.name}] ${task.description}\n\n结果预览: ${JSON.stringify(finalResult.output).slice(0, 500)}`
-        return await this.requestApproval(task, preview)
-      }
-
       this.log.info(`[${this.name}] 任务完成`, {
         taskId: task.id,
         success: finalResult.success,
@@ -199,67 +160,10 @@ export abstract class BaseSubagent implements Subagent {
       }
     }
   }
-
-  /**
-   * 判断任务是否需要人工审批
-   *
-   * 默认规则（Hard Constraint 4）：
-   * - running 类型任务：必须在远程服务器上执行命令，需审批
-   * - deep 强度任务：多步推理可能产生重大操作影响，需审批
-   *
-   * 子类可覆盖此方法以自定义审批策略。
-   *
-   * @param task 任务对象
-   */
-  protected isApprovalRequired(task: SubagentTask): boolean {
-    if (task.type === 'running') return true
-    if (task.strength === 'deep') return true
-    return false
-  }
-
-  /**
-   * 请求人工审批
-   *
-   * 记录审批日志并返回 requiresApproval=true 的挂起结果。
-   * 实际的 IPC 推送与 UI 交互由 Supervisor 层的 approveRisk 回调处理（Round 7 已实现）。
-   *
-   * @param task 任务对象
-   * @param preview 审批预览文本
-   */
-  protected async requestApproval(
-    task: SubagentTask,
-    preview: string
-  ): Promise<SubagentResult> {
-    this.log.warn(`[${this.name}] 任务需要人工审批`, {
-      taskId: task.id,
-      preview,
-    })
-    return {
-      taskId: task.id,
-      success: false,
-      output: null,
-      error: '等待人工审批',
-      durationMs: 0,
-      requiresApproval: true,
-      approvalPreview: preview,
-    }
-  }
 }
 
 /**
- * Subagent 注册表接口
- *
- * Supervisor 通过此接口按 name 查找和管理 Subagent 实例。
- */
-export interface SubagentRegistry {
-  /** 按 name 查找 Subagent */
-  get(name: SubagentName): Subagent | null
-  /** 列出所有已注册 Subagent */
-  list(): Subagent[]
-}
-
-/**
- * 生成 SubagentTask 的便捷工厂方法（Supervisor 调度时用）
+ * 生成 SubagentTask 的便捷工厂方法（由调用方构造任务，现在只有 ipc/loop-engineering.ts 在用）
  */
 export function createSubagentTask(
   type: string,

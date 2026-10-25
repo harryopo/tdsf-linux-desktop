@@ -8,8 +8,7 @@
  * - 集成敏感信息脱敏（redactSecrets，Hard Constraint 6）
  * - 集成 Token 统计（token-stats）
  * - 集成上下文管理（compactIfNeeded，5 层 compaction）
- * - 注册 8 个 Subagent（通过 Plan 阶段调度）
- * - 人工审批闸门（Hard Constraint 4，已接入 BaseSubagent.execute 流程）
+ * - 高危动作的人工审批：审批卡由 agent-runtime 的 approveRisk 与外部 MCP 那条出口推，本文件不做审批
  * - 支持请求取消（AbortController）
  *
  * ============================================================================
@@ -21,14 +20,14 @@
  * 适用条件（满足任意 1 项即走 Supervisor）：
  *   1. 需要多步推理：PAOR 4 阶段循环（plan/act/observe/reflect）
  *   2. 需要 HITL 审批：高危操作（写文件、执行命令、修改 sandbox）
- *   3. 需要 Subagent 调度：8 个 Subagent 之一（explore/coding/verify/...）
+ *   3. 需要多轮自我修正：PAOR 会反思再计划，不是一次工具调用就完
  *   4. 需要可信度评估：多源证据融合 + 决策卡 + 审计报告
  *   5. 需要上下文 compaction：长对话压缩（5 层 L1-L4）
  *
  * 典型场景：
- *   - 复杂故障诊断（"服务为什么变慢了"）→ PAOR 多轮 + 多 Subagent
+ *   - 复杂故障诊断（"服务为什么变慢了"）→ PAOR 多轮 + 多源证据
  *   - 高危命令执行（"重启 nginx"）→ 7 步 HITL 审批
- *   - 跨 Subagent 协作（explore + coding + verify）→ Plan 阶段调度
+ *   - 需要在真机上动手 → 工具调用前先过审批卡（agent-runtime 的 approveRisk）
  *   - 决策卡生成 + EU AI Act 审计报告 → credibility 子系统
  *
  * 不适用场景（不进本文件，走工具注册表直接派发）：
@@ -49,13 +48,14 @@
  * 已实现：
  * - chat() 方法：streamText 包装 + redact + token 统计 + compaction
  * - PAOR 四阶段完整实现（plan/act/observe/reflect + runPaorLoop 自动循环）
- * - createAllSubagents() 注册 + 审批闸门（isApprovalRequired / requestApproval）
+ * - PAOR 各阶段自己出结果；Subagent 那套编队 2026-10-25 已整删（#218，实例化了但没有任何派发点）
  * - cancelRequest() 取消进行中的请求
  *
- * 方案书依据：v0.9 §3.2（PAOR 循环）+ §3.1（8 个 Subagent）+ §10（Hard Constraints）
+ * 方案书依据：v0.9 §3.2（PAOR 循环）+ §10（Hard Constraints）
  *             + v2.0 Phase E.3 TD-3 边界澄清
  *
- * 详见决策树：docs/AGENT-BOUNDARY.md §决策树
+ * 真实能力口径（A/B/C 三档，带 file:line）见 docs/功能实景清单.md。
+ * 曾经这里指向一份 2026-07 的"两边对比"设计稿（本地未入库，公开仓里没有它）——2026-10-25 #218 起不再引用。
  */
 import { randomUUID } from 'node:crypto'
 import { streamText, generateText, tool, isStepCount, type ModelMessage } from 'ai'
@@ -105,8 +105,6 @@ import { diffPrune, pruneStaleToolOutputs } from './tool-history'
 import type { ExternalChatToolMount } from './tools/external-mcp-tools'
 import { toToolResultView } from './tool-result-view'
 import { getSessionRegistry } from './session-registry'
-import { createAllSubagents } from './subagents'
-import type { Subagent, SubagentName, SubagentTask, SubagentResult } from './subagents/base'
 import type { ThinkingStrength } from './providers/types'
 import type { AgentToolEventPayload, ChatResult, RequestedThinkingStrength } from '@shared/agent-types'
 import { logger } from '../../services/log/logger'
@@ -137,7 +135,7 @@ export interface ChatParams {
   messages: ModelMessage[]
   /** Provider ID（不传时使用默认 Provider） */
   providerId?: string
-  /** 思考强度（影响 maxTokens 与后续是否调度 Subagent；v2.10 支持 'auto' 自动路由） */
+  /** 思考强度（影响 maxTokens 与反思轮数；v2.10 支持 'auto' 自动路由） */
   strength?: RequestedThinkingStrength
   /** token 流式回调（每个 chunk 调用一次） */
   onToken?: (delta: string) => void
@@ -218,7 +216,7 @@ export type PaorPhase = 'plan' | 'act' | 'observe' | 'reflect'
 export interface PaorStepResult {
   /** 当前阶段 */
   phase: PaorPhase
-  /** 阶段输出（plan=任务清单，act=Subagent 结果，observe=观察记录，reflect=反思） */
+  /** 阶段输出（plan=任务清单，act=工具执行结果，observe=观察记录，reflect=反思） */
   output: unknown
   /** 是否需要进入下一阶段 */
   next: boolean
@@ -352,24 +350,17 @@ export interface PaorLoopOptions {
  * 在 app.whenReady 后由 IPC handler 首次调用时自动初始化。
  */
 class SupervisorAgent {
-  /** 已注册的 Subagent 表（由 Plan 阶段按 type 调度） */
-  private readonly subagents: Record<SubagentName, Subagent>
-
   /** v2.11 会话连贯：最近一次 auto 解析为 deep 的时刻（供“延续深度思考”判定） */
   private lastDeepAt = 0
 
   /** 进行中的请求表：correlationId → AbortController（用于取消请求） */
   private readonly activeRequests = new Map<string, AbortController>()
 
-  /** 是否已初始化（避免重复初始化 Subagent） */
+  /** 是否已初始化 */
   private initialized = false
 
   constructor() {
-    // 创建所有 Subagent 实例
-    this.subagents = createAllSubagents()
-    this.log.info('Supervisor Agent 已创建', {
-      subagentCount: Object.keys(this.subagents).length,
-    })
+    this.log.info('Supervisor Agent 已创建')
   }
 
   /** 受保护日志器 */
@@ -1654,23 +1645,6 @@ class SupervisorAgent {
     return true
   }
 
-  /**
-   * 获取已注册的 Subagent
-   *
-   * @param name Subagent 名称
-   * @returns Subagent 实例或 null（未注册时）
-   */
-  getSubagent(name: SubagentName): Subagent | null {
-    return this.subagents[name] ?? null
-  }
-
-  /**
-   * 列出所有已注册的 Subagent
-   */
-  listSubagents(): Subagent[] {
-    return Object.values(this.subagents)
-  }
-
   // ========================================================================
   // PAOR 循环（Plan-Act-Observe-Reflect）
   //
@@ -2135,51 +2109,6 @@ class SupervisorAgent {
       }
     }
     return null
-  }
-
-  // ========================================================================
-  // 人工审批闸门接口（Hard Constraint 4）
-  // ========================================================================
-
-  /**
-   * 判断是否需要人工审批
-   *
-   * 规则：
-   * - running-subagent 的所有任务均需审批（高危命令执行）
-   * - 思考强度为 deep 时，所有 Subagent 结果均需审批
-   * - 风险等级为 HIGH/CRITICAL 的工具调用均需审批（由 PAOR 风险闸门处理）
-   *
-   * @param task 待审批的任务
-   */
-  isApprovalRequired(task: SubagentTask): boolean {
-    if (task.type === 'running') return true
-    if (task.strength === 'deep') return true
-    return false
-  }
-
-  /**
-   * 请求人工审批
-   *
-   * 记录审批日志并返回 requiresApproval=true 的挂起结果。
-   * 实际的 IPC 推送与 UI 交互由 agent-runtime.ts 的 approveRisk 回调处理。
-   *
-   * @param task 任务对象
-   * @param preview 审批预览文本
-   */
-  async requestApproval(task: SubagentTask, preview: string): Promise<SubagentResult> {
-    this.log.warn('请求人工审批', {
-      taskId: task.id,
-      preview,
-    })
-    return {
-      taskId: task.id,
-      success: false,
-      output: null,
-      error: '等待人工审批',
-      durationMs: 0,
-      requiresApproval: true,
-      approvalPreview: preview,
-    }
   }
 }
 

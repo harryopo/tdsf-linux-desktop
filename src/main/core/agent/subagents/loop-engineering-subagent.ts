@@ -395,8 +395,6 @@ export class LoopEngineeringSubagent extends BaseSubagent {
         },
         confidence: hypothesis.confidence,
         durationMs: 0,
-        requiresApproval: true, // 等待用户在 confirm 步骤批准
-        approvalPreview: `建议命令：${hypothesis.fixCommand}`,
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
