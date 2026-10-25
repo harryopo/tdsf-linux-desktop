@@ -2,39 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-25T00:15:54.611Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-25T00:09:35.780Z",
-      "lastActiveAt": "2026-10-25T00:15:54.611Z",
-      "task": "#215 补 CI-only 门的本地执行体",
-      "claimedFiles": [
-        {
-          "path": "package.json",
-          "task": "#215 补 CI-only 门的本地执行体",
-          "claimedAt": "2026-10-25T00:09:35.780Z"
-        },
-        {
-          "path": "scripts/quality/scripts-syntax-check.cjs",
-          "task": "#215 补 CI-only 门的本地执行体",
-          "claimedAt": "2026-10-25T00:09:35.896Z"
-        },
-        {
-          "path": "README.md",
-          "task": "#215 补 CI-only 门的本地执行体",
-          "claimedAt": "2026-10-25T00:09:36.010Z"
-        },
-        {
-          "path": "CLAUDE.md",
-          "task": "215-ci-gate-parity",
-          "claimedAt": "2026-10-25T00:15:54.611Z"
-        }
-      ],
-      "expiresAt": "2026-10-25T02:15:54.611Z"
-    }
-  },
+  "lastUpdated": "2026-10-25T00:22:29.106Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -11368,6 +11337,34 @@
       "file": "CLAUDE.md",
       "task": "215-ci-gate-parity",
       "timestamp": "2026-10-25T00:15:54.611Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "package.json",
+      "task": "#215 补 CI-only 门的本地执行体",
+      "timestamp": "2026-10-25T00:22:29.106Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "scripts/quality/scripts-syntax-check.cjs",
+      "task": "#215 补 CI-only 门的本地执行体",
+      "timestamp": "2026-10-25T00:22:29.106Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "README.md",
+      "task": "#215 补 CI-only 门的本地执行体",
+      "timestamp": "2026-10-25T00:22:29.106Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "CLAUDE.md",
+      "task": "215-ci-gate-parity",
+      "timestamp": "2026-10-25T00:22:29.106Z"
     }
   ],
   "coordinationAudit": {
