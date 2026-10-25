@@ -11,7 +11,7 @@
  * 明确不覆盖：审批条的 1/2 数字键——在真窗口里造一次待审批请求要模型口令；
  * 那一路由 tests/components/permission-bar.test.tsx 在组件层钉住（默认动作是拒绝、数字键只改选中不提交）。
  */
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -39,6 +39,18 @@ const KNOWN_HOSTS = path.join(os.tmpdir(), `tdsf-e2e-shortcuts-known_hosts-${pro
 const PALETTE_PLACEHOLDER = '搜索知识库、历史决策...'
 const SEARCH_PLACEHOLDER = '搜索（回车下一个，Shift+回车上一个）'
 
+/** 拖过一行文字选中它（x 从行首往右量，够覆盖一个命令词）——与 terminal-translate.spec 同法 */
+async function dragSelectLine(page: Page, lineText: string): Promise<void> {
+  const line = page.locator('.terminal-view.visible .xterm-rows > div', { hasText: lineText }).last()
+  await expect(line, `终端里没找到回显的 ${lineText}`).toBeVisible({ timeout: 20000 })
+  const box = await line.boundingBox()
+  if (!box) throw new Error('拿不到行元素的盒区')
+  await page.mouse.move(box.x + 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 96, box.y + box.height / 2, { steps: 6 })
+  await page.mouse.up()
+}
+
 test.describe('界面上写出来的快捷键', () => {
   test.beforeAll(() => {
     fs.writeFileSync(KNOWN_HOSTS, '', 'utf8')
@@ -46,6 +58,43 @@ test.describe('界面上写出来的快捷键', () => {
 
   test.afterAll(() => {
     if (fs.existsSync(KNOWN_HOSTS)) fs.unlinkSync(KNOWN_HOSTS)
+  })
+
+  testOrSkip('划词浮层：Ctrl+Shift+T 展开详解（本地终端，不用靶机）', async () => {
+    test.setTimeout(120_000)
+    const { app, page } = await launchApp()
+    try {
+      await page.evaluate(() => {
+        window.location.hash = '#/workbench'
+      })
+      await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
+      await page.getByRole('button', { name: '开一个本机终端', exact: true }).click()
+      await expect(page.locator('.term-tab-item')).toHaveCount(1)
+
+      // 划词翻译是持久化偏好，先把前置条件归零再打开（判据要的是"从关到开"这条路径）
+      const toggle = page.getByRole('button', { name: '划词翻译' })
+      await expect(toggle).toBeVisible()
+      if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click()
+      expect(await toggle.getAttribute('aria-pressed')).toBe('true')
+
+      await page.click('.terminal-view.visible')
+      await page.keyboard.type('echo systemctl\r')
+      await dragSelectLine(page, 'systemctl')
+
+      const popover = page.locator('.sel-popover')
+      await expect(popover, '划词后浮层应出现').toBeVisible({ timeout: 5000 })
+      // 浮层上的 kbd 写着 Ctrl+Shift+T：按下之前详解面板不该在
+      await expect(page.locator('.trans-panel')).toHaveCount(0)
+
+      await page.keyboard.press('Control+Shift+T')
+      await expect(page.locator('.trans-panel'), 'Ctrl+Shift+T 应展开详解面板').toBeVisible({ timeout: 5000 })
+
+      // 再按一次收起（同一个键是开关，不是只能开）
+      await page.keyboard.press('Control+Shift+T')
+      await expect(page.locator('.trans-panel')).toHaveCount(0, { timeout: 5000 })
+    } finally {
+      await app.close()
+    }
   })
 
   testOrSkip('Ctrl+K 唤出命令面板，Esc 把它关掉', async () => {
