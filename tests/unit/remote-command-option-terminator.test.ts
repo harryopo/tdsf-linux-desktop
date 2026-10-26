@@ -71,10 +71,10 @@ describe('1. 远端命令构造器：- 开头的参数是数据不是选项', ()
   })
 
   it('find：起点靠"必须绝对路径"守，模板里不许出现 --（写了是骗下一个读代码的人）', () => {
-    expect(buildPollFindCommand('/tmp/app', 1_700_000_000)).toBe(
+    expect(buildPollFindCommand(['/tmp/app'], 1_700_000_000)).toBe(
       "find '/tmp/app' -type f -newermt '@1700000000' 2>/dev/null | head -50"
     )
-    expect(buildPollFindCommand('/tmp/app', 1)).not.toContain('--')
+    expect(buildPollFindCommand(['/tmp/app'], 1)).not.toContain('--')
   })
 })
 
