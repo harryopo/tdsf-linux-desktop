@@ -2,13 +2,13 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-26T00:38:44.125Z",
+  "lastUpdated": "2026-10-26T00:53:07.785Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
       "startedAt": "2026-10-26T00:38:44.125Z",
-      "lastActiveAt": "2026-10-26T00:38:44.125Z",
+      "lastActiveAt": "2026-10-26T00:53:07.785Z",
       "task": "#239 凭据状态说真话",
       "claimedFiles": [
         {
@@ -20,9 +20,24 @@
           "path": "tests/unit/server-store-credential-truth.test.ts",
           "task": "#239 凭据状态说真话",
           "claimedAt": "2026-10-26T00:38:44.125Z"
+        },
+        {
+          "path": "src/main/ipc/sftp-search.ts",
+          "task": "#240 远程搜索命令构造",
+          "claimedAt": "2026-10-26T00:53:07.785Z"
+        },
+        {
+          "path": "tests/unit/sftp-search-command.test.ts",
+          "task": "#240 远程搜索命令构造",
+          "claimedAt": "2026-10-26T00:53:07.785Z"
+        },
+        {
+          "path": "tests/e2e/ssh-fixture-server.ts",
+          "task": "#240 远程搜索命令构造",
+          "claimedAt": "2026-10-26T00:53:07.785Z"
         }
       ],
-      "expiresAt": "2026-10-26T04:38:44.125Z"
+      "expiresAt": "2026-10-26T04:53:07.785Z"
     }
   },
   "history": [
@@ -12807,6 +12822,27 @@
       "file": "tests/unit/server-store-credential-truth.test.ts",
       "task": "#239 凭据状态说真话",
       "timestamp": "2026-10-26T00:38:44.125Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/sftp-search.ts",
+      "task": "#240 远程搜索命令构造",
+      "timestamp": "2026-10-26T00:53:07.785Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/sftp-search-command.test.ts",
+      "task": "#240 远程搜索命令构造",
+      "timestamp": "2026-10-26T00:53:07.785Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/ssh-fixture-server.ts",
+      "task": "#240 远程搜索命令构造",
+      "timestamp": "2026-10-26T00:53:07.785Z"
     }
   ],
   "coordinationAudit": {

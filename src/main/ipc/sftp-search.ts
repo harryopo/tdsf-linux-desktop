@@ -71,6 +71,31 @@ function shellQuote(input: string): string {
 }
 
 /**
+ * 构造 find 命令（导出给判据用）
+ *
+ * `--` 不能省：shell 单引号只挡展开，不挡 getopt。路径写成 `-delete` 时，
+ * `find -delete -type f` 会把 -delete 当动作而不是起点路径。
+ */
+export function buildFindCommand(path: string, query: string): string {
+  return `find -- ${shellQuote(path)} -type f -name ${shellQuote(`*${query}*`)} 2>/dev/null | head -${SFTP_SEARCH_MAX_FILES}`
+}
+
+/** 构造 grep 命令（导出给判据用；`--` 的理由同 buildFindCommand） */
+export function buildGrepCommand(params: {
+  pattern: string
+  path: string
+  isRegex: boolean
+  caseSensitive: boolean
+  wholeWord: boolean
+}): string {
+  const opts: string[] = ['-rn']
+  if (!params.caseSensitive) opts.push('-i')
+  if (params.wholeWord) opts.push('-w')
+  if (!params.isRegex) opts.push('-F')
+  return `grep ${opts.join(' ')} -- ${shellQuote(params.pattern)} ${shellQuote(params.path)} 2>/dev/null | head -${SFTP_GREP_MAX_RESULTS}`
+}
+
+/**
  * Promise.race 实现超时控制
  *
  * SshConnectionManager.exec 默认 30 秒超时，但 find/grep 可能在巨型目录卡死。
@@ -98,9 +123,7 @@ export function registerSftpSearchIpcHandlers(): void {
   ipcMain.handle(
     SFTP_SEARCH.SEARCH,
     async (_event, sessionId: string, path: string, query: string) => {
-      const safeQuery = shellQuote(`*${query}*`)
-      const safePath = shellQuote(path)
-      const cmd = `find ${safePath} -type f -name ${safeQuery} 2>/dev/null | head -${SFTP_SEARCH_MAX_FILES}`
+      const cmd = buildFindCommand(path, query)
       try {
         const result = await withTimeout(
           sshManager.exec(sessionId, cmd),
@@ -152,14 +175,7 @@ export function registerSftpSearchIpcHandlers(): void {
       }
     ) => {
       const { sessionId, path, pattern, isRegex, caseSensitive, wholeWord } = params
-      // 构造 grep 选项：-r 递归 / -n 显示行号
-      const opts: string[] = ['-rn']
-      if (!caseSensitive) opts.push('-i')
-      if (wholeWord) opts.push('-w')
-      // 非 regex 模式使用 -F（fixed string）
-      if (!isRegex) opts.push('-F')
-
-      const cmd = `grep ${opts.join(' ')} ${shellQuote(pattern)} ${shellQuote(path)} 2>/dev/null | head -${SFTP_GREP_MAX_RESULTS}`
+      const cmd = buildGrepCommand({ pattern, path, isRegex, caseSensitive, wholeWord })
       try {
         const result = await withTimeout(
           sshManager.exec(sessionId, cmd),
