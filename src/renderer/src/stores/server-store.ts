@@ -162,8 +162,16 @@ export const useServerStore = create<ServerState>()(
         set({ servers: [...current, toListItem(server, providesCredential(server))] })
         // 异步同步到主进程（不阻塞 UI）
         const ok = await syncToMain(outgoing)
-        if (!ok && isElectronAPIAvailable()) {
-          console.warn(`[ServerStore] 服务器「${server.name}」未持久化到主进程`)
+        if (!ok) {
+          // 口令没落进主进程（safeStorage 不可用 / 写入失败）：界面不能继续宣称"已保存"（#239）
+          set((state) => ({
+            servers: state.servers.map((s) =>
+              s.id === server.id ? { ...s, hasCredential: false } : s,
+            ),
+          }))
+          if (isElectronAPIAvailable()) {
+            console.warn(`[ServerStore] 服务器「${server.name}」未持久化到主进程`)
+          }
         }
         // 把成败带回给调用方：新建这条带着用户当场填的口令，
         // 主进程存不进加密存储时页面要能说出"下次连接要重输"，而不是"已添加"。
@@ -199,6 +207,7 @@ export const useServerStore = create<ServerState>()(
 
       // 更新服务器配置
       updateServer: async (serverId, partial) => {
+        const before = get().servers.find((s) => s.id === serverId)
         // 出站：partial 可能带用户当场重输的凭据，原样交给主进程（主进程只在非空时覆盖存的那份）
         const outgoing = get().servers.map((s) => (s.id === serverId ? { ...s, ...partial } : s))
         // 进 state：脱敏。hasCredential = "主进程本来就存有" 或 "这次带来了新的"，任一为真即真
@@ -208,7 +217,19 @@ export const useServerStore = create<ServerState>()(
         set({ servers: newServers })
         const saved = await syncToMain(outgoing)
         if (!saved) {
+          // 这次没落盘：口令可能根本没存进去，hasCredential 回到保存前的事实（#239）
+          if (before) {
+            set((state) => ({
+              servers: state.servers.map((s) =>
+                s.id === serverId ? { ...s, hasCredential: before.hasCredential } : s,
+              ),
+            }))
+          }
           toast.error('修改未保存到磁盘，重启后可能恢复成旧配置')
+        } else {
+          // 主进程可能因"换机"作废旧凭据（#237）：hasCredential 只认它回传的那份，
+          // 否则连接框会继续写"已保存（留空则不修改）"，而实际没有口令可用
+          await get().hydrateFromMain(true)
         }
       },
 

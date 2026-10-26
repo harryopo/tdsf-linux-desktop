@@ -2,8 +2,29 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-25T16:26:03.744Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-26T00:38:44.125Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-26T00:38:44.125Z",
+      "lastActiveAt": "2026-10-26T00:38:44.125Z",
+      "task": "#239 凭据状态说真话",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/stores/server-store.ts",
+          "task": "#239 凭据状态说真话",
+          "claimedAt": "2026-10-26T00:38:44.125Z"
+        },
+        {
+          "path": "tests/unit/server-store-credential-truth.test.ts",
+          "task": "#239 凭据状态说真话",
+          "claimedAt": "2026-10-26T00:38:44.125Z"
+        }
+      ],
+      "expiresAt": "2026-10-26T04:38:44.125Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -12772,6 +12793,20 @@
       "file": "docs/长期优化目标.md",
       "task": "#235-#238 深度审查修复",
       "timestamp": "2026-10-25T16:26:03.744Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/stores/server-store.ts",
+      "task": "#239 凭据状态说真话",
+      "timestamp": "2026-10-26T00:38:44.125Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/server-store-credential-truth.test.ts",
+      "task": "#239 凭据状态说真话",
+      "timestamp": "2026-10-26T00:38:44.125Z"
     }
   ],
   "coordinationAudit": {
