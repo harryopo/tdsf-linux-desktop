@@ -14,7 +14,11 @@ import type { Client, SFTPWrapper, Stats } from 'ssh2'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SshConnectionManager } from './connection-manager'
-import { assertRemoteWriteAllowed, assertRemoteWriteAllowedResolved } from './remote-write-guard'
+import {
+  assertDeleteTargetNotSymlink,
+  assertRemoteWriteAllowed,
+  assertRemoteWriteAllowedResolved,
+} from './remote-write-guard'
 import type { SftpEntry } from '@shared/models'
 
 /** 进度回调类型 */
@@ -553,7 +557,17 @@ export class ElectermSftpManager {
   /** 递归删除目录（远端 rm -rf / PowerShell Remove-Item） */
   async rmrf(sessionId: string, remotePath: string): Promise<boolean> {
     assertRemoteWriteAllowed('递归删除', remotePath)
-    const cmd = `rm -rf ${this.escapePosixPath(remotePath)}`
+    const client = await this.getClient(sessionId)
+    // 尾斜杠会让 rm 顺着符号链接删光目标（#241 实测）。目标存在时先解析，
+    // 字面路径与 realpath 不一致就拒绝；目标不存在时 rm 本身无操作，直接走。
+    let resolved: string | null = null
+    try {
+      resolved = await client.realpath(remotePath)
+    } catch {
+      // 目标不存在 / 解析失败：rm -rf 对不存在的路径是空操作，字符串闸已过
+    }
+    if (resolved) assertDeleteTargetNotSymlink(remotePath, resolved)
+    const cmd = `rm -rf -- ${this.escapePosixPath(remotePath)}`
     const result = await this.sshManager.exec(sessionId, cmd)
     if (result.exitCode !== 0) {
       throw new Error(`rmrf 失败 '${remotePath}': ${result.stderr || result.stdout}`)
@@ -564,7 +578,9 @@ export class ElectermSftpManager {
   /** 远端 cp -r */
   async cp(sessionId: string, from: string, to: string): Promise<boolean> {
     assertRemoteWriteAllowed('复制目标', to)
-    const cmd = `cp -r ${this.escapePosixPath(from)} ${this.escapePosixPath(to)}`
+    const client = await this.getClient(sessionId)
+    await assertRemoteWriteAllowedResolved('复制目标', to, (p) => client.realpath(p))
+    const cmd = `cp -r -- ${this.escapePosixPath(from)} ${this.escapePosixPath(to)}`
     const result = await this.sshManager.exec(sessionId, cmd)
     if (result.exitCode !== 0) {
       throw new Error(`cp 失败 '${from}' → '${to}': ${result.stderr || result.stdout}`)
@@ -575,7 +591,9 @@ export class ElectermSftpManager {
   /** 远端 mv */
   async mv(sessionId: string, from: string, to: string): Promise<boolean> {
     assertRemoteWriteAllowed('移动目标', to)
-    const cmd = `mv ${this.escapePosixPath(from)} ${this.escapePosixPath(to)}`
+    const client = await this.getClient(sessionId)
+    await assertRemoteWriteAllowedResolved('移动目标', to, (p) => client.realpath(p))
+    const cmd = `mv -- ${this.escapePosixPath(from)} ${this.escapePosixPath(to)}`
     const result = await this.sshManager.exec(sessionId, cmd)
     if (result.exitCode !== 0) {
       throw new Error(`mv 失败 '${from}' → '${to}': ${result.stderr || result.stdout}`)

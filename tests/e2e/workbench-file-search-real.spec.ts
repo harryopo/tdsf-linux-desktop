@@ -260,6 +260,87 @@ test('真机整条链：内容命中带着真行号跳到真那一行，按文�
 })
 
 /**
+ * 文件面板删除目录时不许顺着符号链接删到目标（#241）
+ *
+ * 实测 GNU coreutils：`rm -rf link/` 会跟进去把 link 指向的目录删光。文件面板的目录删除
+ * 走 `sftpDelete → ElectermSftpManager.delete → rmrf`，只判路径字符串拦不住。
+ * 这条在真机上造一个 link → victim，调真 IPC 删除 link，要求被拒且 victim 原样还在；
+ * 再拿一个普通目录做正对照（证明不是"删除整体坏了"）。
+ */
+test('删除符号链接目录必须被拒，链接目标不许被删（真 SFTP）', async () => {
+  test.skip(!targetUp, targetWhy)
+  test.setTimeout(180_000)
+
+  const ROOT = '/tmp/e2e-rmrf'
+  const SETUP =
+    `rm -rf ${ROOT} && mkdir -p ${ROOT}/victim/sub && ` +
+    `printf 'keep\\n' > ${ROOT}/victim/sub/keep.txt && ln -s ${ROOT}/victim ${ROOT}/link && ` +
+    `mkdir -p ${ROOT}/normal && printf 'ok\\n' > ${ROOT}/normal/a.txt`
+  await groundTruth(privateKeyPath, SETUP)
+  const seed = await groundTruth(privateKeyPath, `cat ${ROOT}/victim/sub/keep.txt`)
+  expect(seed, `靶子上没造出删除用例的夹具：${JSON.stringify(seed)}`).toContain('keep')
+
+  const { app, page } = await launchApp()
+  try {
+    await page.evaluate(
+      (cfg) => {
+        const stores = (window as unknown as {
+          __tdsfStores?: { server: { getState: () => { addServer: (c: unknown) => Promise<boolean> } } }
+        }).__tdsfStores
+        if (!stores) throw new Error('__tdsfStores 未挂载')
+        return stores.server.getState().addServer(cfg)
+      },
+      { id: `${SERVER_ID}-rmrf`, name: '真OpenSSH靶机', host: HOST, port: PORT, username: USER, authType: 'privateKey' }
+    )
+    const connPromise = connectApp(page, privateKeyPath, path.join(dir, 'known_hosts-rmrf'))
+    await page.waitForSelector('[role="dialog"]', { timeout: 20_000 })
+    await page.getByRole('button', { name: '保存并继续' }).click()
+    const conn = await connPromise
+    expect(conn.error ?? '', `连真机失败：${conn.error ?? ''}`).toBe('')
+    expect(conn.sessionId).toBeTruthy()
+    await bindSessionToStore(page, `${SERVER_ID}-rmrf`, conn.sessionId!)
+
+    const deleted = await page.evaluate(
+      async (args) => {
+        const w = window as unknown as { electronAPI: { sftpDelete: (s: string, p: string) => Promise<boolean> } }
+        try {
+          await w.electronAPI.sftpDelete(args.sid, `${args.root}/link`)
+          return { ok: true as const }
+        } catch (e) {
+          return { ok: false as const, error: (e as Error).message }
+        }
+      },
+      { sid: conn.sessionId!, root: ROOT }
+    )
+    expect(deleted.ok, '符号链接目录被删掉了：递归删除跟在链接后面走了').toBe(false)
+    expect(deleted.error ?? '', `拒绝理由没说是符号链接：${deleted.error ?? ''}`).toMatch(/符号链接|非规范/)
+
+    // 目标目录必须原样还在
+    const survived = await groundTruth(privateKeyPath, `cat ${ROOT}/victim/sub/keep.txt`)
+    expect(survived, `链接目标被删了。实际=${JSON.stringify(survived)}`).toContain('keep')
+
+    // 正对照：普通目录照常能删（证明拒的是符号链接，不是删除功能本身）
+    const normal = await page.evaluate(
+      async (args) => {
+        const w = window as unknown as { electronAPI: { sftpDelete: (s: string, p: string) => Promise<boolean> } }
+        try {
+          return { ok: await w.electronAPI.sftpDelete(args.sid, `${args.root}/normal`) }
+        } catch (e) {
+          return { ok: false, error: (e as Error).message }
+        }
+      },
+      { sid: conn.sessionId!, root: ROOT }
+    )
+    expect(normal.ok, `普通目录也删不掉了：${JSON.stringify(normal)}`).toBe(true)
+    const gone = await groundTruth(privateKeyPath, `test -e ${ROOT}/normal/a.txt && echo exists || echo gone`)
+    expect(gone).toContain('gone')
+  } finally {
+    await groundTruth(privateKeyPath, `rm -rf ${ROOT}`).catch(() => {})
+    await app.close()
+  }
+})
+
+/**
  * 编辑器 Ctrl+S 真的把改动写回真机（#233）
  *
  * 为什么要单开一条：界面里那个保存快捷键，此前只有代码层的处理器（`EditorArea` 里 window 的 keydown），

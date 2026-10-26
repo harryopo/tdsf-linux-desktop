@@ -48,6 +48,30 @@ export function sftpRealpathFn(sftp: {
  * SFTP 协议没有 O_NOFOLLOW，这个窗口在客户端侧关不死；这里关掉的是"先布好链接再让你写"
  * 这条不需要抢时间的路。
  */
+/**
+ * 递归删除前的符号链接闸（#241）
+ *
+ * 实测 GNU coreutils：`rm -rf /tmp/a/link/`（link -> /tmp/victim）会跟进去删光 victim。
+ * 文件面板删除目录走远端 `rm -rf`，只判字符串拦不住这种情况——链接本身不在受保护前缀下。
+ * 所以要求：绝对路径、字面路径与远端 realpath 一致；不一致（符号链接 / 非规范写法）
+ * 一律拒绝，让用户到终端里自己处理。
+ */
+export function assertDeleteTargetNotSymlink(rawPath: string, resolvedPath: string): void {
+  const normalized = posixPath.normalize(rawPath).replace(/\/+$/, '') || '/'
+  if (!posixPath.isAbsolute(normalized)) {
+    throw new Error(
+      `递归删除被拒绝：${rawPath} 不是绝对路径。请用绝对路径删除，或到终端里自行处理。`
+    )
+  }
+  if (resolvedPath !== normalized) {
+    throw new Error(
+      `递归删除被拒绝：${rawPath} 实际指向 ${resolvedPath}（符号链接或非规范路径）。` +
+        '顺着链接删会把目标目录一起删掉——请到终端里自行处理。'
+    )
+  }
+  assertRemoteWriteAllowed('递归删除', resolvedPath)
+}
+
 export async function assertRemoteWriteAllowedResolved(
   op: string,
   remotePath: string,

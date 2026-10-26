@@ -2,8 +2,54 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-26T01:02:19.612Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-26T02:30:58.788Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-26T02:30:58.788Z",
+      "lastActiveAt": "2026-10-26T02:30:58.788Z",
+      "task": "#241 递归删除符号链接闸",
+      "claimedFiles": [
+        {
+          "path": "src/main/services/ssh/remote-write-guard.ts",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        },
+        {
+          "path": "src/main/services/ssh/electerm-sftp.ts",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        },
+        {
+          "path": "tests/unit/rmrf-symlink-guard.test.ts",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        },
+        {
+          "path": "tests/e2e/workbench-file-search-real.spec.ts",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        },
+        {
+          "path": "README.md",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        },
+        {
+          "path": "docs/功能实景清单.md",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        },
+        {
+          "path": "docs/长期优化目标.md",
+          "task": "#241 递归删除符号链接闸",
+          "claimedAt": "2026-10-26T02:30:58.788Z"
+        }
+      ],
+      "expiresAt": "2026-10-26T06:30:58.788Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -12842,6 +12888,55 @@
       "file": "tests/e2e/ssh-fixture-server.ts",
       "task": "#240 远程搜索命令构造",
       "timestamp": "2026-10-26T01:02:19.612Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/ssh/remote-write-guard.ts",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/services/ssh/electerm-sftp.ts",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/rmrf-symlink-guard.test.ts",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/workbench-file-search-real.spec.ts",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "README.md",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/功能实景清单.md",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/长期优化目标.md",
+      "task": "#241 递归删除符号链接闸",
+      "timestamp": "2026-10-26T02:30:58.788Z"
     }
   ],
   "coordinationAudit": {
