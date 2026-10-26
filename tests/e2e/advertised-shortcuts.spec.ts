@@ -97,6 +97,45 @@ test.describe('界面上写出来的快捷键', () => {
     }
   })
 
+  testOrSkip('划词浮层：Ctrl+Shift+A 把选中文本送进 AI 输入框（本地终端，不用靶机）', async () => {
+    test.setTimeout(120_000)
+    const { app, page } = await launchApp()
+    try {
+      await page.evaluate(() => {
+        window.location.hash = '#/workbench'
+      })
+      await page.waitForSelector('.wb-main-layout', { timeout: 15000 })
+      await page.getByRole('button', { name: '开一个本机终端', exact: true }).click()
+      await expect(page.locator('.term-tab-item')).toHaveCount(1)
+
+      const toggle = page.getByRole('button', { name: '划词翻译' })
+      await expect(toggle).toBeVisible()
+      if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click()
+      expect(await toggle.getAttribute('aria-pressed')).toBe('true')
+
+      await page.click('.terminal-view.visible')
+      await page.keyboard.type('echo journalctl\r')
+      await dragSelectLine(page, 'journalctl')
+
+      const popover = page.locator('.sel-popover')
+      await expect(popover, '划词后浮层应出现').toBeVisible({ timeout: 5000 })
+      // 按钮上那片 kbd 写的是 Ctrl+Shift+A：按之前输入框里不该有这个词
+      const composer = page.locator('textarea[placeholder^="您正在与 Agent 聊天"]')
+      await expect(composer).toBeVisible()
+      expect(await composer.inputValue(), '前置：输入框本来就带着词，这条测不出什么').not.toContain('journalctl')
+
+      await page.keyboard.press('Control+Shift+A')
+      await expect(
+        composer,
+        'Ctrl+Shift+A 应把选中文本 prefill 进 AI 输入框'
+      ).toHaveValue(/journalctl/, { timeout: 5000 })
+      // 送出去之后浮层要收掉（否则用户会以为还要再点一次"发送到 AI"）
+      await expect(popover).toHaveCount(0, { timeout: 5000 })
+    } finally {
+      await app.close()
+    }
+  })
+
   testOrSkip('Ctrl+K 唤出命令面板，Esc 把它关掉', async () => {
     test.setTimeout(90_000)
     const { app, page } = await launchApp()
