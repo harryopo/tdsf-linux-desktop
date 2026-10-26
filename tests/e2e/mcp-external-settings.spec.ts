@@ -256,25 +256,46 @@ testOrSkip('对话里调外部 MCP 工具：模型发起 → 审批 → 结果�
 
     // 模型要原样报出这个键，主进程才认得出是哪台的哪个工具
     const toolKey = `mcp__${serverId}__env_probe`
+    const allowBtn = page.locator(CARD).getByRole('button', { name: /批准这一次/ })
+    const denyBtn = page.locator(CARD).getByRole('button', { name: /拒绝/ })
 
-    // ① 模型发起 → 人拒绝：外部程序一次都不该跑
+    /**
+     * 按键走审批条的快捷键通道
+     *
+     * 先 blur 是真的必要：`permission-bar.tsx` 明写"输入框里打字不该被当成审批快捷键"，
+     * 焦点若留在输入框，这条测的就不是那两片数字键承诺的东西。
+     */
+    const pressKey = async (key: string): Promise<void> => {
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+      await page.keyboard.press(key)
+    }
+
+    // ① 模型发起 → 用键盘拒绝：外部程序一次都不该跑
+    // 卡上那两片 kbd（1=批准 / 2=拒绝）此前只有代码层处理器、没有真窗口取证（台账里记"未取证"那条），
+    // 这里全程不碰鼠标：按 1 看选中项真挪过去，按 2 挪回来，Enter 执行选中的那一项。
     ai.planToolCall({ name: toolKey, args: {} })
     const denied = runChat('帮我看看这台机器的环境')
     await page.waitForSelector(CARD, { timeout: 20_000 })
     await expect(page.locator(CARD)).toContainText('外部 MCP 工具请求执行')
     await expect(page.locator(CARD)).toContainText(NAME)
-    await page.click(`${CARD} >> role=button[name=/拒绝/]`)
+    await pressKey('1')
+    await expect(allowBtn, '按 1 没把选中项挪到"批准这一次"').toHaveAttribute('aria-pressed', 'true')
+    await expect(denyBtn).toHaveAttribute('aria-pressed', 'false')
+    await pressKey('2')
+    await expect(denyBtn, '按 2 没把选中项挪回"拒绝"').toHaveAttribute('aria-pressed', 'true')
+    await pressKey('Enter')
     await denied
 
     const deniedBody = ai.lastBody()
     expect(deniedBody, '"没有被批准"这句话没回到模型，它会以为自己查到了').toContain('没有被批准')
     expect(deniedBody, '没批准却执行了：探针的返回出现在回喂给模型的内容里').not.toContain('envNames')
 
-    // ② 同样的工具，这次批准：第三方的返回必须真回到模型
+    // ② 同样的工具，这次用键盘批准：第三方的返回必须真回到模型
     ai.planToolCall({ name: toolKey, args: {} })
     const approved = runChat('那再查一次')
     await page.waitForSelector(CARD, { timeout: 20_000 })
-    await page.click(`${CARD} >> role=button[name=/批准这一次/]`)
+    await pressKey('1')
+    await pressKey('Enter')
     const answer = await approved
     expect(answer, '对话没走到终点').toContain('2')
 
