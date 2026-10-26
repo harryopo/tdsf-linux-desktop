@@ -601,19 +601,6 @@ export class ElectermSftpManager {
     return true
   }
 
-  // 远端文件夹大小统计
-  async getFolderSize(sessionId: string, remotePath: string): Promise<{ size: string; count: number }> {
-    const cmd = `du -sh ${this.escapePosixPath(remotePath)} && find ${this.escapePosixPath(remotePath)} -type f | wc -l`
-    const result = await this.sshManager.exec(sessionId, cmd)
-    if (result.exitCode !== 0) {
-      throw new Error(`文件夹大小统计失败 '${remotePath}': ${result.stderr || result.stdout}`)
-    }
-    const lines = result.stdout.trim().split('\n')
-    const size = lines[0]?.split('\t')[0]?.trim() ?? '0'
-    const count = parseInt(lines[1]?.trim() ?? '0', 10) || 0
-    return { size, count }
-  }
-
   private escapePosixPath(value: string): string {
     return `"${String(value).replace(/["\\$`]/g, '\\$&')}"`
   }

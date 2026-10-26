@@ -1,27 +1,29 @@
 /**
- * 远程文件搜索的命令构造（#240）
+ * 远程文件搜索的命令构造（#240；#242 用真靶机把口径改准）
  *
  * 输入来自界面的"根目录/关键词"，两处都必须当成**数据**，不能变成 find/grep 的选项：
- * shell 单引号只挡 shell 展开，挡不住"以 - 开头的参数被 getopt 当成选项"。
- * 例如路径 `-delete` 在 `find <path> -type f` 里会变成动作；`-f/etc/passwd` 会让
- * grep 把系统文件当模式文件读。构造器统一在路径/模式前加 `--`（GNU find/grep 都支持），
- * 引号仍照旧负责 shell 层。
+ * shell 单引号只挡 shell 展开，挡不住"以 - 开头的参数被当成选项"。
+ * 但两个命令家族的解法不一样，是量出来的（2026-10-26，WSL Ubuntu-24.04）：
+ * - grep 3.11 认 `--`。不带它时 `grep -r -n -E '-f/etc/passwd' /tmp/gx` 零命中
+ *   （把 /etc/passwd 读成了模式文件），带上才正常回 `log.txt:1:-f/etc/passwd`。
+ * - find 4.9.0 **不认** `--`。`find -- '-delete' -type f` 与不带的写法结果一样：
+ *   起点退化成当前目录，`-delete` 把整个目录删空（两个临时目录实测都被删光）。
+ *   所以对 find 改成"根目录必须是绝对路径"——绝对路径不可能以 `-` 开头。
  */
 import { describe, it, expect } from 'vitest'
 import { buildFindCommand, buildGrepCommand } from '../../src/main/ipc/sftp-search'
 
 describe('buildFindCommand', () => {
-  it('正常路径：-- 在路径前，关键词整段在单引号里', () => {
+  it('正常路径：起点与关键词都在单引号里（find 不写 --，写了也没用）', () => {
     expect(buildFindCommand('/tmp/e2e-search', 'probe')).toBe(
-      "find -- '/tmp/e2e-search' -type f -name '*probe*' 2>/dev/null | head -50",
+      "find '/tmp/e2e-search' -type f -name '*probe*' 2>/dev/null | head -50",
     )
   })
 
-  it('以 - 开头的路径是数据不是选项（-delete 不许变成 find 的动作）', () => {
-    const cmd = buildFindCommand('-delete', 'x')
-    expect(cmd).toContain("find -- '-delete' -type f")
-    // 选项在 -- 之后：find 只会把它当起点路径
-    expect(cmd.indexOf("'-delete'")).toBeGreaterThan(cmd.indexOf('--'))
+  it('以 - 开头或相对的根目录直接拒绝（真靶机实测：-- 挡不住 find 把 -delete 读成动作）', () => {
+    expect(() => buildFindCommand('-delete', 'x')).toThrow(/不是绝对路径/)
+    expect(() => buildFindCommand('etc', 'x')).toThrow(/不是绝对路径/)
+    expect(() => buildFindCommand('', 'x')).toThrow(/不是绝对路径/)
   })
 
   it('单引号注入仍被转义成 shell 字面量', () => {

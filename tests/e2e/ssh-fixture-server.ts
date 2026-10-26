@@ -96,7 +96,7 @@ function makeHostKey(): { private: Buffer; fingerprint: string } {
 /**
  * exec 通道的固定回显（够测试断言"输出是真从链路回来的"）
  *
- * find / grep 这两条形如 `find -- '<root>' -type f -name '*<q>*' 2>/dev/null | head -50`
+ * find / grep 这两条形如 `find '<root>' -type f -name '*<q>*' 2>/dev/null | head -50`
  * 与 `grep -rn -i -F -- '<q>' '<root>' 2>/dev/null | head -100`，是资源管理器那格远程搜索
  * （#213）发出来的。这里演得像一台有文件的机器，界面才能整条走通：
  * 查询里带 `many` 就正好回 50 条，用来验"到顶要说可能不全"那条判据。

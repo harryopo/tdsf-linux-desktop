@@ -21,6 +21,25 @@ export function assertRemoteWriteAllowed(op: string, remotePath: string): void {
   }
 }
 
+/**
+ * 远端读路径必须是绝对路径（find 家族唯一有效的形状闸）
+ *
+ * 真靶机实测（2026-10-26，WSL Ubuntu-24.04 / findutils 4.9.0）：`find` **不认** `--`。
+ * 它的语法是"[起点路径...] [表达式]"，任何以 `-` 开头的参数都被读成表达式的一部分，
+ * `--` 只是被静默忽略：`find -- '-delete' -type f` 与 `find '-delete' -type f` 结果一样，
+ * 起点退化成当前目录并把删除动作作用在整个目录上（实测两个临时目录里的文件都被删光）。
+ * 而绝对路径不可能以 `-` 开头，所以要求"必须是绝对路径"才是真的挡住了这一类。
+ */
+export function assertRemotePathAbsolute(label: string, remotePath: string): void {
+  if (typeof remotePath !== 'string' || !posixPath.isAbsolute(remotePath)) {
+    throw new Error(
+      `${label}被拒绝：${JSON.stringify(remotePath)} 不是绝对路径。` +
+        '远程路径必须以 / 开头——find 这类命令没有选项终止符语义，' +
+        '以 - 开头的相对路径会被当成命令自己的表达式而不是路径。'
+    )
+  }
+}
+
 /** 把远端 `realpath` 包装成 Promise（ssh2 的 SFTPWrapper 是回调式的） */
 export type RealpathFn = (remotePath: string) => Promise<string>
 

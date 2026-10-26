@@ -5,11 +5,11 @@
  *
  * 监听策略：
  * 1) 优先使用 inotifywait（inotify-tools）：
- *    `inotifywait -m -r --format '%w%f %e' <path>`
+ *    `inotifywait -m -r --format '%w%f %e' -- <path>`
  *    实时推送 modify/create/delete/move 事件，零延迟。
  * 2) 降级轮询（inotifywait 不存在时）：
- *    每 5 秒执行 `find <path> -newermt '@<ts>'` 检测变更文件。
- *    延迟 5s，CPU/网络开销低。
+ *    每 5 秒执行 `find '<绝对路径>' -newermt '@<ts>'` 检测变更文件。
+ *    延迟 5s，CPU/网络开销低。路径必须是绝对路径，见 FileWatcherAdapter.start 的形状闸。
  *
  * IPC 通道（4 步同步，IPC handler 在 src/main/ipc/file-watcher.ts）：
  *   - file:watch:start  invoke  返回 { watchId }
@@ -23,6 +23,7 @@ import { FILE_WATCH } from '@shared/ipc-channels'
 import { SshConnectionManager } from './connection-manager'
 import type { Client, ClientChannel } from 'ssh2'
 import { assertCommandAllowed } from '../../core/command-gate'
+import { assertRemotePathAbsolute } from './remote-write-guard'
 
 /** 文件变更事件类型 */
 export type FileChangeEvent = 'modify' | 'create' | 'delete' | 'move'
@@ -59,6 +60,34 @@ const INOTIFY_EVENT_MAP: Record<string, FileChangeEvent> = {
   create: 'create',
   delete: 'delete',
   delete_self: 'delete',
+}
+
+/** 把远端路径包成 shell 单引号字面量（内部单引号走 '\''） */
+function shellQuote(input: string): string {
+  return `'${String(input).replace(/'/g, `'\\''`)}'`
+}
+
+/**
+ * 构造 inotifywait 长连接命令（导出给判据用，#242）
+ *
+ * `--` 不能省：watch 路径来自渲染层，写成 `-r / -e modify` 之类的字符串时，
+ * 光靠单引号只挡住了 shell 展开，getopt 仍会把它当自己的选项——
+ * 监听的目标就悄悄变了。加了 `--` 它只是一个"名字带减号的路径"。
+ */
+export function buildInotifyWaitCommand(remotePath: string): string {
+  return `inotifywait -m -r --format '%w%f %e' -- ${shellQuote(remotePath)} 2>/dev/null`
+}
+
+/**
+ * 构造轮询降级用的 find 命令（导出给判据用）
+ *
+ * 这里**不写** `--`：真靶机实测（2026-10-26，findutils 4.9.0）find 不认选项终止符，
+ * `find -- '-delete' -type f` 与不带的写法结果一样——起点退化成当前目录，`-delete`
+ * 变成对整个目录生效的动作。唯一的闸是"路径必须绝对"（在 FileWatcherAdapter.start 里装），
+ * 绝对路径不可能以 `-` 开头。
+ */
+export function buildPollFindCommand(remotePath: string, sinceEpochSec: number): string {
+  return `find ${shellQuote(remotePath)} -type f -newermt '@${sinceEpochSec}' 2>/dev/null | head -50`
 }
 
 /**
@@ -120,6 +149,10 @@ export class FileWatcherAdapter {
 
   /** 开始监听远程路径，返回 watchId */
   public async start(sessionId: string, path: string): Promise<string> {
+    // 形状闸装在唯一的入口上：inotifywait 与轮询 find 都吃这个 path，而 find 没有
+    // 选项终止符语义（实测 `find -- '-delete' -type f` 照样把当前目录删干净），
+    // 所以只接受绝对路径——渲染层传来的路径没有别的约束点可依赖（#242）
+    assertRemotePathAbsolute('远程文件监听的路径', path)
     const watchId = randomUUID()
     const hasInotify = await this.checkInotify(sessionId)
     const entry: WatchEntry = {
@@ -180,8 +213,7 @@ export class FileWatcherAdapter {
   /** inotifywait 模式：长连接 exec */
   private async startInotify(entry: WatchEntry): Promise<void> {
     const client: Client = this.sshManager.getClient(entry.sessionId)
-    const safePath = `'${entry.path.replace(/'/g, `'\\''`)}'`
-    const cmd = `inotifywait -m -r --format '%w%f %e' ${safePath} 2>/dev/null`
+    const cmd = buildInotifyWaitCommand(entry.path)
     // 这里绕过了 connection-manager.exec() 的出口闸（需要长连接流），故就地判一次
     assertCommandAllowed(cmd, '文件监听')
     try {
@@ -235,8 +267,7 @@ export class FileWatcherAdapter {
   private startPolling(entry: WatchEntry): void {
     entry.pollTimer = setInterval(async () => {
       try {
-        const safePath = `'${entry.path.replace(/'/g, `'\\''`)}'`
-        const cmd = `find ${safePath} -type f -newermt '@${Math.floor(entry.lastPollRef / 1000)}' 2>/dev/null | head -50`
+        const cmd = buildPollFindCommand(entry.path, Math.floor(entry.lastPollRef / 1000))
         const result = await this.sshManager.exec(entry.sessionId, cmd)
         entry.lastPollRef = Date.now()
         for (const line of result.stdout.split('\n')) {

@@ -28,6 +28,7 @@
 import { ipcMain } from 'electron'
 import { SFTP_SEARCH } from '@shared/ipc-channels'
 import { SshConnectionManager } from '../services/ssh/connection-manager'
+import { assertRemotePathAbsolute } from '../services/ssh/remote-write-guard'
 
 /** search 通道单条结果 */
 export interface SftpSearchFileEntry {
@@ -73,14 +74,17 @@ function shellQuote(input: string): string {
 /**
  * 构造 find 命令（导出给判据用）
  *
- * `--` 不能省：shell 单引号只挡展开，不挡 getopt。路径写成 `-delete` 时，
- * `find -delete -type f` 会把 -delete 当动作而不是起点路径。
+ * 起点必须是绝对路径：真靶机实测（2026-10-26，findutils 4.9.0）**find 不认 `--`**——
+ * `find -- '-delete' -type f` 和不带 `--` 的写法结果一样，起点退化成当前目录、
+ * `-delete` 变成对整个目录生效的动作。绝对路径不可能以 `-` 开头，所以这才是真的闸
+ * （#240 当时补的 `--` 只对 grep/tail/rm 那族 getopt 命令有效，对 find 是摆设，本轮改成形状闸）。
  */
 export function buildFindCommand(path: string, query: string): string {
-  return `find -- ${shellQuote(path)} -type f -name ${shellQuote(`*${query}*`)} 2>/dev/null | head -${SFTP_SEARCH_MAX_FILES}`
+  assertRemotePathAbsolute('远程文件搜索的根目录', path)
+  return `find ${shellQuote(path)} -type f -name ${shellQuote(`*${query}*`)} 2>/dev/null | head -${SFTP_SEARCH_MAX_FILES}`
 }
 
-/** 构造 grep 命令（导出给判据用；`--` 的理由同 buildFindCommand） */
+/** 构造 grep 命令（导出给判据用；grep 认 `--`，实测有匹配/无匹配差别就在它身上） */
 export function buildGrepCommand(params: {
   pattern: string
   path: string
@@ -123,8 +127,10 @@ export function registerSftpSearchIpcHandlers(): void {
   ipcMain.handle(
     SFTP_SEARCH.SEARCH,
     async (_event, sessionId: string, path: string, query: string) => {
-      const cmd = buildFindCommand(path, query)
       try {
+        // 构造放在 try 里：根目录不是绝对路径时 buildFindCommand 会抛，
+        // 那要变成界面能显示的"搜索失败"，而不是 IPC 层的未捕获拒绝
+        const cmd = buildFindCommand(path, query)
         const result = await withTimeout(
           sshManager.exec(sessionId, cmd),
           SFTP_SEARCH_TIMEOUT_MS,

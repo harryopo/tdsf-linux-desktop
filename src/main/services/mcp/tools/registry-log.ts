@@ -41,6 +41,35 @@ function requireSessionId(value: unknown): string | null {
 }
 
 /**
+ * 构造 tail 命令（导出给判据用，#242）
+ *
+ * `--` 不能省：单引号只管 shell 不展开，管不了 getopt 把 `-` 开头的参数当选项。
+ * filePath 传 `-f` 时，`tail -n 100 -f` 变成"跟随一个没给到的文件"，exec 会一直挂着；
+ * 传 `--pid=1` 变成"等那个进程死了才退出"。加 `--` 之后它们都只是"一个打不开的文件名"。
+ */
+export function buildLogTailCommand(filePath: string, lines: number): string {
+  return `tail -n ${lines} -- ${shellEscape(filePath)}`
+}
+
+/**
+ * 构造 grep 命令（导出给判据用，理由同 buildLogTailCommand）
+ *
+ * 模式和搜索路径都要在 `--` 之后：模式 `-f/etc/passwd` 不给 `--` 会被 grep 当成
+ * "从这里读模式文件"，等于把系统文件的内容喂进搜索结果。
+ */
+export function buildLogSearchCommand(params: {
+  pattern: string
+  path: string
+  ignoreCase: boolean
+  maxMatches: number
+}): string {
+  // -r 递归，-n 显示行号，-E 扩展正则，-i 忽略大小写；用 head 限制输出
+  const flags = ['-r', '-n', '-E']
+  if (params.ignoreCase) flags.push('-i')
+  return `grep ${flags.join(' ')} -- ${shellEscape(params.pattern)} ${shellEscape(params.path)} 2>/dev/null | head -n ${params.maxMatches}`
+}
+
+/**
  * 把日志文本解析为 LogEvent 数组
  *
  * 每行一个事件，timestamp 用当前时间（无法精确解析每行时间戳），
@@ -97,7 +126,7 @@ export function createLogMcpTools(): McpToolRegistration[] {
         const lines = Math.max(1, Math.min(5000, Math.floor(linesRaw)))
 
         // 用 tail -n N 读取，避免大文件全量加载
-        const cmd = `tail -n ${lines} ${shellEscape(filePath)}`
+        const cmd = buildLogTailCommand(filePath, lines)
         try {
           const { stdout, stderr, exitCode } = await execOrThrow(sessionId, cmd)
           return toMcpTextResult({
@@ -152,12 +181,7 @@ export function createLogMcpTools(): McpToolRegistration[] {
           typeof args.maxMatches === 'number' ? args.maxMatches : 50
         const maxMatches = Math.max(1, Math.min(500, Math.floor(maxMatchesRaw)))
 
-        // grep -rn -E <pattern> <path>
-        // -r 递归，-n 显示行号，-E 扩展正则，-i 忽略大小写
-        // 用 head 限制输出
-        const flags = ['-r', '-n', '-E']
-        if (ignoreCase) flags.push('-i')
-        const cmd = `grep ${flags.join(' ')} ${shellEscape(pattern)} ${shellEscape(path)} 2>/dev/null | head -n ${maxMatches}`
+        const cmd = buildLogSearchCommand({ pattern, path, ignoreCase, maxMatches })
         try {
           const { stdout, exitCode } = await execOrThrow(sessionId, cmd)
           const matches = stdout
@@ -223,7 +247,7 @@ export function createLogMcpTools(): McpToolRegistration[] {
         const lines = Math.max(1, Math.min(5000, Math.floor(linesRaw)))
 
         // 1. 先拉取日志内容
-        const cmd = `tail -n ${lines} ${shellEscape(filePath)}`
+        const cmd = buildLogTailCommand(filePath, lines)
         let stdout: string
         try {
           const r = await execOrThrow(sessionId, cmd)
