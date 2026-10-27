@@ -28,7 +28,8 @@ const ASSESSMENT: ConfidenceAssessment = {
   uncertainty: 0.2,
   conflictLevel: 0.1,
   ruleUsed: 'dempster',
-  sources: [],
+  // 与下面 ssh_readonly 那条证据同档：命令的真实执行结果进融合出口的 observation 源
+  sources: [{ sourceId: 'observation', sourceName: '直接观测证据', confidence: 0.75 }],
   fusionSteps: [],
   fusedMassFunction: {
     sourceId: 'test',
@@ -104,19 +105,23 @@ describe('ChatCredibility — 聊天内可信度分析', () => {
     // weightedSuccessRate 送进 history），也不再收到一个叫 'kb' 的空源位；
     // 现在送的是它本来的身份 observation（直接观测）+ 一个真空的 human 占位。
     expect(ids).toEqual(['observation', 'human'])
-    // 折叠行徽章：80% + 规则名 D-S
-    expect(screen.getByText(/80% · D-S/)).toBeInTheDocument()
-    expect(screen.getByText('1 项证据')).toBeInTheDocument()
+    // 折叠行：综合读数 + 参与融合的来源数（与展开那份清单同一个数组，不是 toolEvents 条数）
+    expect(screen.getByText('80%')).toBeInTheDocument()
+    expect(screen.getByText('1 个来源')).toBeInTheDocument()
+    // 融合规则名不再挤在收起行里——"D-S"这种缩写用户读不懂，它只在展开态的脚注出现
+    expect(screen.queryByText(/D-S/)).toBeNull()
   })
 
-  it('3. 点击展开渲染完整 ConfidenceBreakdown（Bel/Pl）', async () => {
+  it('3. 点击展开渲染区间条、来源清单与融合脚注', async () => {
     render(<ChatCredibility message={makeMessage()} />)
     await waitFor(() => expect(screen.getByText('可信度分析')).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: /可信度分析/ }))
-    // ConfidenceBreakdown 内部会展示 Bel / Pl 数值卡片
-    expect(screen.getByText(/70\.0%/)).toBeInTheDocument()
-    expect(screen.getByText(/90\.0%/)).toBeInTheDocument()
+    // Bel/Pl 各只标一次，综合数不重复出现第二份
+    expect(screen.getByText('Bel 70%')).toBeInTheDocument()
+    expect(screen.getByText('Pl 90%')).toBeInTheDocument()
+    expect(screen.getByText('直接观测证据')).toBeInTheDocument()
+    expect(screen.getByText('Dempster 融合 · 各来源之间没有冲突')).toBeInTheDocument()
   })
 
   it('4. electronAPI 不可用时不渲染且不报错', () => {

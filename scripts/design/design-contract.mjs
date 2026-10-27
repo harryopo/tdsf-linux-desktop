@@ -113,14 +113,14 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 64,
-    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66；2026-10-17 修品牌令牌劫持时现量 64，按现量收紧（留余量等于给新增放行）。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 61,
+    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66；2026-10-17 修品牌令牌劫持时现量 64；2026-10-27 重做聊天可信度卡时按现量收到 61（那一轮把 ChatCredibility 的 --trae-status-* 分档色改成了 CSS 类）。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',
     now: countLines('style=\\{\\{[^}]*\\b(color|fontSize|background)\\b', '*.tsx'),
-    cap: 109,
-    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）；2026-10-13 收到 112；2026-10-17 现量 109 再收到实测值。剩下的多是运行时算出来的颜色，那些本来就得内联',
+    cap: 94,
+    why: '2026-10-11 W6 实测 125→113：currentColor 那类纯 no-op 直接删，尺寸/颜色并进 class（size-4 text-ink 等）；2026-10-13 收到 112；2026-10-17 现量 109；2026-10-27 重做聊天可信度卡，ConfidenceBreakdown 那 11 处内联上色（含实测 2.79:1 的 Dempster 徽标）并进 CSS 类，按现量收到 94。剩下的多是运行时算出来的颜色，那些本来就得内联',
   },
   {
     name: '还 import antd 的渲染层文件数',

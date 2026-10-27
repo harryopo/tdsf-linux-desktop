@@ -388,8 +388,22 @@
 .ai-credibility-body {
   margin-left: var(--ui-space-2);
   padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-2) var(--ui-space-5);
-  border-left: 1px solid var(--trae-border-neutral-l1);
+  border-left: 1px solid var(--border-primary);
 }
+/* 分档上色走类，不在 JSX 里内联 style。
+   状态色当文字必须用 --status-*-text 亮档：裸 --status-error 在深底上只有 3.2:1。 */
+.ai-credibility-glyph.is-hi { color: var(--status-success-text); }
+.ai-credibility-glyph.is-mid { color: var(--status-warning-text); }
+.ai-credibility-glyph.is-lo { color: var(--status-error-text); }
+.ai-credibility-value {
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-sm);
+  font-weight: var(--ui-weight-semibold);
+  line-height: var(--ui-lh-none);
+}
+.ai-credibility-value.is-hi { color: var(--status-success-text); }
+.ai-credibility-value.is-mid { color: var(--status-warning-text); }
+.ai-credibility-value.is-lo { color: var(--status-error-text); }
 
 /* 工具行小徽章（设计稿：14px 高、9-10px 字号） */
 .ai-tool-badge {

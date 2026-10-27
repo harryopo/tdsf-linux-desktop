@@ -15,7 +15,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type FC } from 'react'
 import { ChevronRight, ShieldCheck } from 'lucide-react'
-import ConfidenceBreakdown from '@/components/ai/ConfidenceBreakdown'
+import ConfidenceBreakdown, { informativeSources } from '@/components/ai/ConfidenceBreakdown'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { buildCredibilityInputs, fingerprint } from '@/utils/evidence-to-input'
 import { toolEventsToEvidences } from '@/utils/chat-decision'
@@ -28,11 +28,16 @@ interface ChatCredibilityProps {
   message: AgentMessage
 }
 
-/** 可信度分档配色 */
-function confidenceTone(confidence: number): string {
-  if (confidence >= 0.7) return 'var(--trae-status-success-default)'
-  if (confidence >= 0.5) return 'var(--trae-status-alert-default)'
-  return 'var(--trae-status-error-default)'
+/**
+ * 可信度分档（走 CSS 类，不在 JSX 里内联上色）
+ *
+ * 旧版在这里返回 `var(--trae-status-*-default)` 再 style={{color}} 涂到 11px 文字上，
+ * 一次踩中 DESIGN.md 三条：引用旧令牌、内联上色、裸状态色当字色。
+ */
+function confidenceTone(confidence: number): 'hi' | 'mid' | 'lo' {
+  if (confidence >= 0.7) return 'hi'
+  if (confidence >= 0.5) return 'mid'
+  return 'lo'
 }
 
 const ChatCredibility: FC<ChatCredibilityProps> = ({ message }) => {
@@ -103,13 +108,13 @@ const ChatCredibility: FC<ChatCredibilityProps> = ({ message }) => {
         className="ai-tool-row w-full text-left"
         onClick={() => setExpanded((v) => !v)}
       >
-        <ShieldCheck className="size-3" style={{ color: tone }} />
+        <ShieldCheck className={`ai-credibility-glyph size-3 is-${tone}`} />
         <span className="text-ink">可信度分析</span>
-        <span className="ai-tool-badge" style={{ color: tone }}>
-          {pct}% · {assessment.ruleUsed === 'pcr5' ? 'PCR5' : assessment.ruleUsed === 'mixed' ? '混合' : 'D-S'}
-        </span>
+        <span className={`ai-credibility-value is-${tone}`}>{pct}%</span>
+        {/* 这一格数字与展开那份清单同一条规则算出来（informativeSources），
+            不再写"几项证据"——那是 toolEvents 的条数，进融合时按源合并过，两个数不同名也不同值 */}
         <span className="text-micro text-ink-mute">
-          {evidences.length} 项证据
+          {informativeSources(assessment.sources).length} 个来源
         </span>
         <ChevronRight
           className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}

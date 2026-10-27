@@ -2,21 +2,21 @@
  * ConfidenceBreakdown - 可信度评估结果展示组件
  *
  * 职责：
- * - 展示 Bel/Pl 信任区间（区间条形图）
- * - 综合可信度（综合数值）
- * - 冲突等级警告（> 0.3 触发 PCR5）
- * - 使用规则标签（Dempster / PCR5）
- * - 不确定性（Pl - Bel）
- * - v0.9.6 P2 M6：CoT 熵轨迹可视化（SVG 折线图 + 单调性 tag + 关键指标）
+ * - 一条 Bel→Pl 信任区间条（两个数各只出现一次）
+ * - 参与融合的证据源清单（来源名 + 该源自己的置信度）
+ * - 一行脚注说清用的融合规则与冲突情况
+ * - CoT 熵轨迹折线图（采到熵点才画）
+ *
+ * 2026-10-27 整块重写：旧版是一张自带背景/描边/圆角的"卡里套卡"，
+ * 标题重复一遍"可信度"和"D-S"，Bel/Pl 在同屏说两遍（30.8% 与 31%），
+ * 规则徽标拿 --color-link（一个背景色令牌）当字色，实测对比 2.79:1 不过 AA。
+ * 现在只留聊天流那条左竖线，读数一处一份，专家数字（k 值）挪进悬浮。
  *
  * 论文支撑：
  * - Shafer 1976（Bel/Pl 信任区间）
  * - Smarandache & Dezert 2004（PCR5 冲突处理）
  * - EU AI Act 2026（透明化设计原则）
  * - Zhao 2026, arXiv:2603.18940（CoT-shape 熵轨迹单调性预测推理可靠性）
- *
- * 方案书依据：v0.9 §可信度算法升级（D-S + PCR5 + 6 源证据融合）
- *           v0.9.6 P2 M6（Trace 可视化）
  */
 import type { ConfidenceAssessment } from '@shared/agent-types'
 import type { CotTraceAnalysis } from '@shared/cot-trace-analyzer'
@@ -27,82 +27,54 @@ export interface ConfidenceBreakdownProps {
   /** 可信度评估结果 */
   assessment: ConfidenceAssessment
   /**
-   * CoT 熵轨迹分析（v0.9.6 P2 M6 新增，可选）
-   *
-   * 不传时不渲染轨迹区。
-   * 传非空时渲染 SVG 折线图 + 单调性 tag + 关键指标。
-   *
-   * 数据来源：DecisionCard 从最后一条 assistant 消息的 cotEntropyTrajectory
-   *          → analyzeCotEntropyTrajectory → 渲染
+   * CoT 熵轨迹分析（可选）。不传或步数 < 2 时不渲染轨迹区。
+   * 数据来源：ChatCredibility 读 assistant 消息的 cotEntropyTrajectory
    */
   cotTraceAnalysis?: CotTraceAnalysis
 }
 
 /** 格式化百分比 */
-function fmtPct(n: number | undefined, digits = 1): string {
+function fmtPct(n: number | undefined, digits = 0): string {
   if (n === undefined || Number.isNaN(n)) return '--'
   return `${(n * 100).toFixed(digits)}%`
 }
 
-/** 规则标签显示 */
+/** 融合规则的展示名 */
 function ruleLabel(rule: string | undefined): string {
   if (rule === 'dempster') return 'Dempster'
   if (rule === 'pcr5') return 'PCR5'
-  return rule ?? 'unknown'
+  if (rule === 'mixed') return '混合规则'
+  return rule ?? '未知规则'
 }
 
-/** 规则配色（暗系） */
-function ruleColor(rule: string | undefined): string {
-  if (rule === 'pcr5') return 'var(--color-warning)'
-  return 'var(--color-link)'
-}
-
-/** 冲突等级颜色 */
-function conflictColor(k: number | undefined): string {
-  if (k === undefined) return 'var(--color-text-tertiary)'
-  if (k >= 0.3) return 'var(--color-error)'
-  if (k >= 0.15) return 'var(--color-warning)'
-  return 'var(--color-success)'
-}
-
-/** 综合置信度颜色（参考 ISO 31000 风险三级） */
-function confidenceColor(c: number | undefined): string {
-  if (c === undefined) return 'var(--color-text-tertiary)'
-  if (c >= 0.7) return 'var(--color-success)'
-  if (c >= 0.5) return 'var(--color-warning)'
-  return 'var(--color-error)'
+/** 冲突分档：0.3 是切换 PCR5 的阈值，0.15 以下视为无冲突 */
+type ConflictTier = 'none' | 'mild' | 'high'
+function conflictTier(k: number | undefined): ConflictTier {
+  if (k === undefined) return 'none'
+  if (k >= 0.3) return 'high'
+  if (k >= 0.15) return 'mild'
+  return 'none'
 }
 
 // ============================================================================
-// P2 M6: CoT 熵轨迹可视化（SVG 折线图 + 违规点 + 关键指标）
+// CoT 熵轨迹折线图
 // ============================================================================
 
-/** SVG 折线图尺寸（viewBox 用） */
 const TRACE_W = 320
-const TRACE_H = 80
-const TRACE_PAD_X = 8
-const TRACE_PAD_Y = 8
+const TRACE_H = 40
+const TRACE_PAD_X = 6
+const TRACE_PAD_Y = 6
 const TRACE_INNER_W = TRACE_W - TRACE_PAD_X * 2
 const TRACE_INNER_H = TRACE_H - TRACE_PAD_Y * 2
 
-/**
- * 计算轨迹点 (x, y) 坐标
- */
 function pointXY(idx: number, value: number, steps: number): { x: number; y: number } {
-  // x 均匀分布在 inner width
   const x =
-    steps <= 1
-      ? TRACE_PAD_X + TRACE_INNER_W / 2
-      : TRACE_PAD_X + (idx / (steps - 1)) * TRACE_INNER_W
-  // y 反转（SVG y 向下），clamp 到 [0, 1]
+    steps <= 1 ? TRACE_PAD_X + TRACE_INNER_W / 2 : TRACE_PAD_X + (idx / (steps - 1)) * TRACE_INNER_W
   const v = Math.max(0, Math.min(1, value))
   const y = TRACE_PAD_Y + (1 - v) * TRACE_INNER_H
   return { x, y }
 }
 
-/**
- * 构建折线路径（polyline 的 d 字符串）
- */
 function buildTracePath(trajectory: number[]): string {
   if (trajectory.length === 0) return ''
   return trajectory
@@ -114,136 +86,10 @@ function buildTracePath(trajectory: number[]): string {
 }
 
 /**
- * CoT 熵轨迹 SVG 折线图
+ * CoT 熵轨迹区
  *
- * 设计原则（v0.9.6 P2 M6）：
- * - 不引入外部图表库（避免体积膨胀），用纯 SVG
- * - 暗系：网格 + 主折线（绿=单调 / 黄=非单调）+ 违规点（红圆）
- * - 紧凑：TRACE_W=320, TRACE_H=80（嵌入到 confidence-breakdown 内部）
- */
-const CotTraceChart: React.FC<{ analysis: CotTraceAnalysis }> = ({ analysis }) => {
-  const { trajectory = [], violationIndices = [], monotone } = analysis
-
-  if (trajectory.length < 2) {
-    return (
-      <div className="confidence-breakdown-cot-empty">
-        轨迹步数不足（{trajectory.length}），无法绘制形状
-      </div>
-    )
-  }
-
-  const path = buildTracePath(trajectory)
-  const stroke = monotone ? 'var(--color-success)' : 'var(--color-warning)'
-
-  // 网格线 y 坐标（0 / 0.5 / 1.0 三条）
-  const gridYs = [0, 0.5, 1].map((v) => TRACE_PAD_Y + (1 - v) * TRACE_INNER_H)
-
-  return (
-    <svg
-      className="confidence-breakdown-cot-svg"
-      viewBox={`0 0 ${TRACE_W} ${TRACE_H}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={`CoT 熵轨迹折线图，共 ${trajectory.length} 步`}
-    >
-      {/* 背景 */}
-      <rect
-        x={0}
-        y={0}
-        width={TRACE_W}
-        height={TRACE_H}
-        fill="var(--color-bg-card)"
-        rx={4}
-      />
-      {/* 水平网格线 */}
-      {gridYs.map((y) => (
-        <line
-          key={y}
-          x1={TRACE_PAD_X}
-          y1={y}
-          x2={TRACE_W - TRACE_PAD_X}
-          y2={y}
-          stroke="var(--color-border)"
-          strokeWidth={0.5}
-          strokeDasharray="2 3"
-        />
-      ))}
-      {/* y 轴标签（0 / 0.5 / 1） */}
-      {[0, 0.5, 1].map((v) => {
-        const y = TRACE_PAD_Y + (1 - v) * TRACE_INNER_H
-        return (
-          <text
-            key={v}
-            x={TRACE_W - TRACE_PAD_X + 2}
-            y={y + 3}
-            fontSize={8}
-            fill="var(--color-text-tertiary)"
-            textAnchor="start"
-          >
-            {v.toFixed(1)}
-          </text>
-        )
-      })}
-      {/* 主轨迹折线 */}
-      <path
-        d={path}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* 轨迹点（细点） */}
-      {trajectory.map((v: number, i: number) => {
-        const { x, y } = pointXY(i, v, trajectory.length)
-        return (
-          <circle
-            key={i}
-            cx={x}
-            cy={y}
-            r={1.5}
-            fill={stroke}
-            opacity={0.7}
-          />
-        )
-      })}
-      {/* 违规点标记（红色圆 + 红色虚线连接到下一点） */}
-      {violationIndices.map((idx) => {
-        if (idx >= trajectory.length - 1) return null
-        const v0 = trajectory[idx]
-        const v1 = trajectory[idx + 1]
-        const p0 = pointXY(idx, v0, trajectory.length)
-        const p1 = pointXY(idx + 1, v1, trajectory.length)
-        return (
-          <g key={`v-${idx}`}>
-            {/* 红色虚线连接（标识反弹） */}
-            <line
-              x1={p0.x}
-              y1={p0.y}
-              x2={p1.x}
-              y2={p1.y}
-              stroke="var(--color-error)"
-              strokeWidth={1.2}
-              strokeDasharray="2 2"
-            />
-            {/* 红色圆点（违规点） */}
-            <circle
-              cx={p0.x}
-              cy={p0.y}
-              r={3}
-              fill="var(--color-error)"
-              stroke="var(--color-bg-card)"
-              strokeWidth={1}
-            />
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
-/**
- * CoT 熵轨迹区（包含标题 + 单调性 tag + 折线图 + 关键指标 + 论文依据）
+ * 折线图 + 一个单调性标签；H₀/Hₙ/ΔH/形状置信度这些中间量收进标签的悬浮里，
+ * 不再占五行格子（旧版 5 个小格 + 一行斜体引文，和正文里被骂的是同一个毛病）。
  */
 const CotTraceSection: React.FC<{ analysis: CotTraceAnalysis }> = ({ analysis }) => {
   const {
@@ -254,65 +100,92 @@ const CotTraceSection: React.FC<{ analysis: CotTraceAnalysis }> = ({ analysis })
     endEntropy,
     totalReduction,
     confidence,
-    summary,
+    trajectory = [],
+    violationIndices = [],
   } = analysis
 
-  /** 单调性 tag 颜色 */
-  const tagColor = monotone ? 'var(--color-success)' : 'var(--color-warning)'
+  if (trajectory.length < 2) return null
+
+  const path = buildTracePath(trajectory)
+  const hover =
+    `熵轨迹 ${steps} 步：H₀ ${startEntropy.toFixed(3)} → Hₙ ${endEntropy.toFixed(3)}，` +
+    `ΔH ${totalReduction >= 0 ? '+' : ''}${totalReduction.toFixed(3)}；` +
+    `形状置信度 ${fmtPct(confidence)}。依据 Zhao 2026, arXiv:2603.18940`
 
   return (
     <div className="confidence-breakdown-cot">
-      <div className="confidence-breakdown-cot-header">
-        <span className="confidence-breakdown-cot-title">CoT 熵轨迹分析</span>
+      <div className="confidence-breakdown-cot-head">
+        <span className="confidence-breakdown-cot-title">思考链熵轨迹</span>
         <span
-          className="confidence-breakdown-cot-tag"
-          style={{ color: tagColor }}
-          title={summary}
+          className={`confidence-breakdown-cot-tag ${monotone ? 'is-ok' : 'is-warn'}`}
+          title={hover}
         >
-          {monotone ? '单调链' : `非单调链 · ${violations} 次违规`}
+          {monotone ? '逐步收敛' : `中途反弹 ${violations} 次`}
         </span>
       </div>
-      <CotTraceChart analysis={analysis} />
-      <div className="confidence-breakdown-cot-stats">
-        <div className="confidence-breakdown-cot-stat">
-          <span className="confidence-breakdown-cot-stat-label">步数</span>
-          <span className="confidence-breakdown-cot-stat-value">{steps}</span>
-        </div>
-        <div className="confidence-breakdown-cot-stat">
-          <span className="confidence-breakdown-cot-stat-label">H₀</span>
-          <span className="confidence-breakdown-cot-stat-value">{startEntropy.toFixed(3)}</span>
-        </div>
-        <div className="confidence-breakdown-cot-stat">
-          <span className="confidence-breakdown-cot-stat-label">Hₙ</span>
-          <span className="confidence-breakdown-cot-stat-value">{endEntropy.toFixed(3)}</span>
-        </div>
-        <div className="confidence-breakdown-cot-stat">
-          <span className="confidence-breakdown-cot-stat-label">ΔH</span>
-          <span
-            className="confidence-breakdown-cot-stat-value"
-            style={{
-              color: totalReduction >= 0 ? 'var(--color-success)' : 'var(--color-error)',
-            }}
-          >
-            {totalReduction >= 0 ? '+' : ''}
-            {totalReduction.toFixed(3)}
-          </span>
-        </div>
-        <div className="confidence-breakdown-cot-stat">
-          <span className="confidence-breakdown-cot-stat-label">形状置信度</span>
-          <span
-            className="confidence-breakdown-cot-stat-value"
-            style={{ color: confidenceColor(confidence) }}
-          >
-            {fmtPct(confidence, 0)}
-          </span>
-        </div>
-      </div>
-      <div className="confidence-breakdown-cot-paper">
-        论文依据：Zhao 2026, arXiv:2603.18940 — 熵轨迹形状单调性预测 LLM 推理可靠性
-      </div>
+      <svg
+        className="confidence-breakdown-cot-svg"
+        viewBox={`0 0 ${TRACE_W} ${TRACE_H}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`思考链熵轨迹折线图，共 ${trajectory.length} 步`}
+      >
+        {[0, 0.5, 1].map((v) => {
+          const y = TRACE_PAD_Y + (1 - v) * TRACE_INNER_H
+          return (
+            <line
+              key={v}
+              x1={TRACE_PAD_X}
+              y1={y}
+              x2={TRACE_W - TRACE_PAD_X}
+              y2={y}
+              className="confidence-breakdown-cot-grid"
+              strokeDasharray="2 3"
+            />
+          )
+        })}
+        <path
+          d={path}
+          className={`confidence-breakdown-cot-line ${monotone ? 'is-ok' : 'is-warn'}`}
+          fill="none"
+        />
+        {violationIndices.map((idx) => {
+          if (idx >= trajectory.length - 1) return null
+          const p0 = pointXY(idx, trajectory[idx], trajectory.length)
+          const p1 = pointXY(idx + 1, trajectory[idx + 1], trajectory.length)
+          return (
+            <g key={`v-${idx}`}>
+              <line
+                x1={p0.x}
+                y1={p0.y}
+                x2={p1.x}
+                y2={p1.y}
+                className="confidence-breakdown-cot-violation-seg"
+                strokeDasharray="2 2"
+              />
+              <circle cx={p0.x} cy={p0.y} r={2.5} className="confidence-breakdown-cot-violation" />
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
+}
+
+/**
+ * 真提供了信息的来源。
+ *
+ * 导出是给收起行用的：那一格"几个来源"必须和展开那份清单同一条规则算出来，
+ * 否则两处各算各的，又变成"同一个名字两个数"（#175 那一族）。
+ *
+ * 融合出口里那些"没有数据"的源会拿到一个 vacuous mass function（confidence 恒 0），
+ * 它在 Dempster 下是单位元——等于什么都没参与。把它们列成"人工证据 0%"，
+ * 用户读到的却是"人工证据说只有 0% 可信"，那是替系统编一个没发生过的判断。
+ */
+export function informativeSources(
+  sources: ConfidenceAssessment['sources'],
+): ConfidenceAssessment['sources'] {
+  return sources.filter((s) => s.confidence > 0)
 }
 
 /**
@@ -322,124 +195,61 @@ const ConfidenceBreakdown: React.FC<ConfidenceBreakdownProps> = ({
   assessment,
   cotTraceAnalysis,
 }) => {
-  const { belief, plausibility, confidence, uncertainty, conflictLevel, ruleUsed } = assessment
+  const { belief, plausibility, uncertainty, conflictLevel, ruleUsed, sources } = assessment
   const bel = Math.max(0, Math.min(1, belief))
   const pl = Math.max(0, Math.min(1, plausibility))
   const unc = Math.max(0, Math.min(1, uncertainty))
-  const conf = Math.max(0, Math.min(1, confidence))
+  const tier = conflictTier(conflictLevel)
+  const informative = informativeSources(sources)
 
-  /** 是否渲染 CoT 轨迹区（有 trajectory 且步数 >= 2） */
-  const showCot = !!(
-    cotTraceAnalysis &&
-    cotTraceAnalysis.trajectory &&
-    cotTraceAnalysis.trajectory.length >= 2
-  )
+  const hover =
+    `融合规则 ${ruleLabel(ruleUsed)} · 最大成对冲突 k = ` +
+    (conflictLevel === undefined ? '未知' : conflictLevel.toFixed(3))
 
   return (
     <div className="confidence-breakdown" role="region" aria-label="可信度评估明细">
-      {/* ===== 标题行 ===== */}
-      <div className="confidence-breakdown-header">
-        <span className="confidence-breakdown-title">可信度评估（D-S + PCR5）</span>
-        <span
-          className="confidence-breakdown-rule"
-          style={{ color: ruleColor(ruleUsed) }}
-          title={ruleUsed === 'pcr5' ? '冲突 ≥ 0.3 切换到 PCR5 规则' : '低冲突使用 Dempster 规则'}
-        >
-          {ruleLabel(ruleUsed)}
-        </span>
-      </div>
-
-      {/* ===== Bel/Pl 区间条 ===== */}
-      <div className="confidence-breakdown-interval">
-        <div className="confidence-breakdown-interval-bar">
-          {/* 背景：完整 0-1 */}
-          <div className="confidence-breakdown-interval-bg" />
-          {/* Bel 段：0 → Bel */}
-          <div
-            className="confidence-breakdown-interval-bel"
+      <div className="confidence-breakdown-interval" title={hover}>
+        <span className="confidence-breakdown-interval-bel">Bel {fmtPct(bel)}</span>
+        <span className="confidence-breakdown-interval-track" aria-hidden="true">
+          <i
+            className="confidence-breakdown-interval-bel-fill"
             style={{ width: `${bel * 100}%` }}
-            title={`Belief = ${fmtPct(bel)}`}
           />
-          {/* 不确定段：Bel → Pl */}
-          <div
-            className="confidence-breakdown-interval-unc"
-            style={{
-              left: `${bel * 100}%`,
-              width: `${unc * 100}%`,
-            }}
-            title={`Uncertainty = ${fmtPct(unc)}`}
+          <i
+            className="confidence-breakdown-interval-unc-fill"
+            style={{ left: `${bel * 100}%`, width: `${unc * 100}%` }}
           />
-        </div>
-        <div className="confidence-breakdown-interval-labels">
-          <span style={{ color: 'var(--color-success)' }}>Bel {fmtPct(bel)}</span>
-          <span style={{ color: 'var(--color-text-tertiary)' }}>Pl {fmtPct(pl)}</span>
-        </div>
+        </span>
+        <span className="confidence-breakdown-interval-pl">Pl {fmtPct(pl)}</span>
       </div>
 
-      {/* ===== 4 个数值卡片 ===== */}
-      <div className="confidence-breakdown-grid">
-        <div className="confidence-breakdown-cell">
-          <div className="confidence-breakdown-cell-label">综合</div>
-          <div
-            className="confidence-breakdown-cell-value"
-            style={{ color: confidenceColor(conf) }}
-          >
-            {fmtPct(conf, 0)}
-          </div>
-        </div>
-        <div className="confidence-breakdown-cell">
-          <div className="confidence-breakdown-cell-label">Bel</div>
-          <div
-            className="confidence-breakdown-cell-value"
-            style={{ color: 'var(--color-success)' }}
-          >
-            {fmtPct(bel, 0)}
-          </div>
-        </div>
-        <div className="confidence-breakdown-cell">
-          <div className="confidence-breakdown-cell-label">Pl</div>
-          <div
-            className="confidence-breakdown-cell-value"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            {fmtPct(pl, 0)}
-          </div>
-        </div>
-        <div className="confidence-breakdown-cell">
-          <div className="confidence-breakdown-cell-label">不确定</div>
-          <div
-            className="confidence-breakdown-cell-value"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
-            {fmtPct(unc, 0)}
-          </div>
-        </div>
-      </div>
-
-      {/* ===== 冲突警告条 ===== */}
-      {conflictLevel !== undefined && (
-        <div className="confidence-breakdown-conflict">
-          <span
-            className="confidence-breakdown-conflict-dot"
-            style={{ background: conflictColor(conflictLevel) }}
-          />
-          <span className="confidence-breakdown-conflict-label">证据冲突 k =</span>
-          <span
-            className="confidence-breakdown-conflict-value"
-            style={{ color: conflictColor(conflictLevel) }}
-          >
-            {conflictLevel.toFixed(3)}
-          </span>
-          {conflictLevel >= 0.3 && (
-            <span className="confidence-breakdown-conflict-hint">
-              超 0.3 阈值，已自动切换到 PCR5 规则
-            </span>
-          )}
-        </div>
+      {informative.length > 0 && (
+        <ul className="confidence-breakdown-sources">
+          {informative.map((s) => (
+            <li className="confidence-breakdown-source" key={s.sourceId}>
+              <span className="confidence-breakdown-source-name">{s.sourceName}</span>
+              <span className="confidence-breakdown-source-meter" aria-hidden="true">
+                <i
+                  style={{
+                    width: `${Math.max(0, Math.min(1, s.confidence)) * 100}%`,
+                  }}
+                />
+              </span>
+              <span className="confidence-breakdown-source-value">{fmtPct(s.confidence)}</span>
+            </li>
+          ))}
+        </ul>
       )}
 
-      {/* ===== v0.9.6 P2 M6: CoT 熵轨迹可视化 ===== */}
-      {showCot && cotTraceAnalysis && <CotTraceSection analysis={cotTraceAnalysis} />}
+      <div className={`confidence-breakdown-foot is-${tier}`}>
+        {tier === 'high'
+          ? `各来源证据有冲突，已改用 ${ruleLabel(ruleUsed)} 重新分配 —— 这一轮的结论别直接照做`
+          : tier === 'mild'
+            ? `${ruleLabel(ruleUsed)} 融合 · 各来源之间有轻微冲突`
+            : `${ruleLabel(ruleUsed)} 融合 · 各来源之间没有冲突`}
+      </div>
+
+      {cotTraceAnalysis && <CotTraceSection analysis={cotTraceAnalysis} />}
     </div>
   )
 }

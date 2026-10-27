@@ -2,8 +2,59 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-27T03:06:34.147Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-27T04:12:01.746Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-27T03:24:20.211Z",
+      "lastActiveAt": "2026-10-27T04:12:01.746Z",
+      "task": "cred-card-restyle",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/components/ai/ConfidenceBreakdown.tsx",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:24:42.795Z"
+        },
+        {
+          "path": "src/renderer/src/components/ai/ConfidenceBreakdown.css",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:24:55.995Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/panels/ChatCredibility.tsx",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:24:57.200Z"
+        },
+        {
+          "path": "tests/components/workbench/panels/ChatCredibility.test.tsx",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:24:58.438Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:26:51.587Z"
+        },
+        {
+          "path": "tests/components/ai/ConfidenceBreakdown.test.tsx",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:30:16.585Z"
+        },
+        {
+          "path": "tests/e2e/chat-credibility-card.spec.ts",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T03:33:09.414Z"
+        },
+        {
+          "path": "scripts/design/design-contract.mjs",
+          "task": "cred-card-restyle",
+          "claimedAt": "2026-10-27T04:12:01.746Z"
+        }
+      ],
+      "expiresAt": "2026-10-27T06:12:01.746Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -13164,6 +13215,90 @@
       "file": "tests/e2e/terminal-translate.spec.ts",
       "task": "ai-20261027102500-248",
       "timestamp": "2026-10-27T03:06:34.147Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/ai/ConfidenceBreakdown.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:20.211Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/ai/ConfidenceBreakdown.css",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:21.332Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/panels/ChatCredibility.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:22.437Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/components/workbench/panels/ChatCredibility.test.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:23.853Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/ai/ConfidenceBreakdown.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:42.795Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/ai/ConfidenceBreakdown.css",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:55.995Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/panels/ChatCredibility.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:57.200Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/components/workbench/panels/ChatCredibility.test.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:24:58.438Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:26:51.587Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/components/ai/ConfidenceBreakdown.test.tsx",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:30:16.585Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/chat-credibility-card.spec.ts",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T03:33:09.414Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/design/design-contract.mjs",
+      "task": "cred-card-restyle",
+      "timestamp": "2026-10-27T04:12:01.746Z"
     }
   ],
   "coordinationAudit": {
