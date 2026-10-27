@@ -23,16 +23,28 @@ if (!BUILD_READY) {
   console.log('[terminal-translate] 跳过：需要先 pnpm build（out/main/index.js 不存在）。')
 }
 
-/** 拖过一行文字，选中它（x 从行首往右量，够覆盖一个命令词） */
-async function dragSelectLine(page: import('@playwright/test').Page, lineText: string): Promise<void> {
-  const line = page.locator('.terminal-view.visible .xterm-rows > div', { hasText: lineText }).last()
-  await expect(line, `终端里没找到回显的 ${lineText}`).toBeVisible({ timeout: 20000 })
+/**
+ * 双击那一行里的词，把它选中（#248 与 advertised-shortcuts 同批改）
+ *
+ * 为什么不用"从行首拖到行尾"：那样选到的是整行，连末尾那些空列一起进 selection，
+ * 取词那一步拿到的是 `systemctl␣␣␣…`，词典查不到 → 浮层报「未收录」，
+ * 红在词典链路上却根本不是词典的问题（当场实测：拖满整行 6 次红 3 次）。
+ * 为什么也不用"从行首拖固定像素"：按"包含"选行会撞上命令回显那一行
+ * （`PS C:\...> echo systemctl`），划它选到的是提示符。
+ * 双击 = xterm 自己的选词手势，选到的正好是那一个词，也是用户真会做的动作。
+ */
+async function selectWordOnLine(page: import('@playwright/test').Page, lineText: string): Promise<void> {
+  const esc = lineText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const line = page
+    .locator('.terminal-view.visible .xterm-rows > div', { hasText: new RegExp(`^\\s*${esc}\\s*$`) })
+    .last()
+  await expect(line, `终端里没有"${lineText}"这一整行（输出还没画出来，或只找到带它的回显行）`).toBeVisible({
+    timeout: 20000,
+  })
   const box = await line.boundingBox()
   if (!box) throw new Error('拿不到行元素的盒区')
-  await page.mouse.move(box.x + 2, box.y + box.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(box.x + 96, box.y + box.height / 2, { steps: 6 })
-  await page.mouse.up()
+  // x 落在第一个字符那一格里（行首往右 6 像素），双击选中它所属的那个词
+  await page.mouse.dblclick(box.x + 6, box.y + box.height / 2)
 }
 
 test.describe('终端划词翻译', () => {
@@ -59,13 +71,13 @@ test.describe('终端划词翻译', () => {
       await page.keyboard.type('echo systemctl\r')
 
       // 关着划词：不该弹浮层（默认关，避免正常复制被抢）
-      await dragSelectLine(page, 'systemctl')
+      await selectWordOnLine(page, 'systemctl')
       await expect(page.locator('.sel-popover')).toHaveCount(0)
 
       // 开着划词：浮层出来，而且直接带释义（不是"再点一下翻译"）
       await toggle.click()
       expect(await toggle.getAttribute('aria-pressed')).toBe('true')
-      await dragSelectLine(page, 'systemctl')
+      await selectWordOnLine(page, 'systemctl')
 
       const popover = page.locator('.sel-popover')
       await expect(popover, '开启后划词应出浮层').toBeVisible({ timeout: 5000 })

@@ -39,16 +39,33 @@ const KNOWN_HOSTS = path.join(os.tmpdir(), `tdsf-e2e-shortcuts-known_hosts-${pro
 const PALETTE_PLACEHOLDER = '搜索知识库、历史决策...'
 const SEARCH_PLACEHOLDER = '搜索（回车下一个，Shift+回车上一个）'
 
-/** 拖过一行文字选中它（x 从行首往右量，够覆盖一个命令词）——与 terminal-translate.spec 同法 */
-async function dragSelectLine(page: Page, lineText: string): Promise<void> {
-  const line = page.locator('.terminal-view.visible .xterm-rows > div', { hasText: lineText }).last()
-  await expect(line, `终端里没找到回显的 ${lineText}`).toBeVisible({ timeout: 20000 })
+/**
+ * 双击终端里那一整行的词，把它选中
+ *
+ * 三条都是当场踩出来的（2026-10-27 全量里这条红过一次，AI 输入框里 prefill 的是 `PS C:\Users\`）：
+ * ① 按**整行等于** needle 选行，不按"包含"——按包含会撞上命令回显那一行
+ *   （`PS C:\Users\Administrator> echo journalctl`），划它选到的是提示符而不是那个词。
+ * ② 用双击（xterm 自己的选词手势），不从行首拖像素：拖满整行会把行尾那些空列一起选进
+ *   selection，取词那一步拿到 `journalctl␣␣␣…` 就什么都查不到（同族那条翻译判据当场被它带红）；
+ *   而拖固定 96 像素既不覆盖整词也不管字号——一格多宽本来就由字号与容器决定。
+ * ③ 选完先证浮层里那个词真是它，再让调用方去按快捷键：选错要红在选这一步，
+ *   而不是红成"快捷键没生效"。
+ */
+async function selectWordOnLine(page: Page, lineText: string): Promise<void> {
+  const esc = lineText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const line = page
+    .locator('.terminal-view.visible .xterm-rows > div', { hasText: new RegExp(`^\\s*${esc}\\s*$`) })
+    .last()
+  await expect(line, `终端里没有"${lineText}"这一整行（输出还没画出来，或只找到带它的回显行）`).toBeVisible({
+    timeout: 20000,
+  })
   const box = await line.boundingBox()
   if (!box) throw new Error('拿不到行元素的盒区')
-  await page.mouse.move(box.x + 2, box.y + box.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(box.x + 96, box.y + box.height / 2, { steps: 6 })
-  await page.mouse.up()
+  // x 落在第一个字符那一格里（行首往右 6 像素），双击选中它所属的那个词
+  await page.mouse.dblclick(box.x + 6, box.y + box.height / 2)
+  await expect(page.locator('.sel-popover .sel-word'), '选出来的词不是那一整行').toContainText(lineText, {
+    timeout: 5000,
+  })
 }
 
 test.describe('界面上写出来的快捷键', () => {
@@ -79,7 +96,7 @@ test.describe('界面上写出来的快捷键', () => {
 
       await page.click('.terminal-view.visible')
       await page.keyboard.type('echo systemctl\r')
-      await dragSelectLine(page, 'systemctl')
+      await selectWordOnLine(page, 'systemctl')
 
       const popover = page.locator('.sel-popover')
       await expect(popover, '划词后浮层应出现').toBeVisible({ timeout: 5000 })
@@ -115,7 +132,7 @@ test.describe('界面上写出来的快捷键', () => {
 
       await page.click('.terminal-view.visible')
       await page.keyboard.type('echo journalctl\r')
-      await dragSelectLine(page, 'journalctl')
+      await selectWordOnLine(page, 'journalctl')
 
       const popover = page.locator('.sel-popover')
       await expect(popover, '划词后浮层应出现').toBeVisible({ timeout: 5000 })

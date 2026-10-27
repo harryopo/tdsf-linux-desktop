@@ -2,8 +2,49 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-27T02:07:04.542Z",
-  "sessions": {},
+  "lastUpdated": "2026-10-27T02:25:33.880Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-10-27T02:11:28.117Z",
+      "lastActiveAt": "2026-10-27T02:25:33.880Z",
+      "task": "ai-20261027101000-231",
+      "claimedFiles": [
+        {
+          "path": "tests/e2e/chat-history-persistence.spec.ts",
+          "task": "ai-20261027101000-231",
+          "claimedAt": "2026-10-27T02:11:28.117Z"
+        },
+        {
+          "path": "README.md",
+          "task": "ai-20261027101000-231",
+          "claimedAt": "2026-10-27T02:16:00.859Z"
+        },
+        {
+          "path": "docs/功能实景清单.md",
+          "task": "ai-20261027101000-231",
+          "claimedAt": "2026-10-27T02:16:00.859Z"
+        },
+        {
+          "path": "docs/长期优化目标.md",
+          "task": "ai-20261027101000-231",
+          "claimedAt": "2026-10-27T02:16:00.859Z"
+        },
+        {
+          "path": "tests/e2e/advertised-shortcuts.spec.ts",
+          "task": "ai-20261027102500-248",
+          "claimedAt": "2026-10-27T02:24:17.520Z"
+        },
+        {
+          "path": "tests/e2e/terminal-translate.spec.ts",
+          "task": "ai-20261027102500-248",
+          "claimedAt": "2026-10-27T02:25:33.880Z"
+        }
+      ],
+      "expiresAt": "2026-10-27T04:25:33.880Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -13080,6 +13121,48 @@
       "file": "tests/e2e/terminal-context-to-ai.spec.ts",
       "task": "ai-20261027093000-230",
       "timestamp": "2026-10-27T02:07:04.542Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/chat-history-persistence.spec.ts",
+      "task": "ai-20261027101000-231",
+      "timestamp": "2026-10-27T02:11:28.117Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "README.md",
+      "task": "ai-20261027101000-231",
+      "timestamp": "2026-10-27T02:16:00.859Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/功能实景清单.md",
+      "task": "ai-20261027101000-231",
+      "timestamp": "2026-10-27T02:16:00.859Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/长期优化目标.md",
+      "task": "ai-20261027101000-231",
+      "timestamp": "2026-10-27T02:16:00.859Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/advertised-shortcuts.spec.ts",
+      "task": "ai-20261027102500-248",
+      "timestamp": "2026-10-27T02:24:17.520Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/terminal-translate.spec.ts",
+      "task": "ai-20261027102500-248",
+      "timestamp": "2026-10-27T02:25:33.880Z"
     }
   ],
   "coordinationAudit": {

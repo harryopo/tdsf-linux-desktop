@@ -139,19 +139,33 @@ test.describe('对话历史落盘与按会话回看', () => {
     const { app, page } = await launchApp()
     await gotoWorkbench(page)
     await configureFixtureModel(page, ai.baseURL)
+    // 这一档是跨轮、跨次运行累积的（临时档位目录不重置），所以"库里至少有两行"根本证明不了
+    // 本轮那一笔落了库——满足它的可能是上一次运行留下的行，而 `find(role==='assistant')`
+    // 取到的也就是那种旧行（2026-10-26 报"半截"时读的就是这么一行，判据没对本轮负责）。
+    // 先记基线 id，再等【新出现的】那行助手消息，断言只对它取数。
+    const baselineIds = new Set((await readRows(page, null)).map((r) => r.id))
     await askAndAnswer(page, QUESTION)
 
-    // 落库是异步的（收尾那一笔在 done 之后发出去）：先等主进程真读到，再谈重启
+    /** 本轮新落库的行（基线之外的那些） */
+    const freshRows = async () => (await readRows(page, null)).filter((r) => !baselineIds.has(r.id))
     await expect
-      .poll(() => readRows(page, null).then((r) => r.length), {
-        message: 'electronAPI.chatHistory 读不到刚聊的这一问一答（面板里的字却已经上屏了）',
+      .poll(() => freshRows().then((r) => r.filter((x) => x.role === 'assistant').length), {
+        message: '本轮的助手消息没有落成新的一行（屏上有字、库里没这一笔）',
         timeout: 20_000,
       })
-      .toBeGreaterThanOrEqual(2)
+      .toBeGreaterThanOrEqual(1)
 
-    const beforeIds = (await readRows(page, null)).map((r) => r.id).sort()
-    const answer = (await readRows(page, null)).find((r) => r.role === 'assistant')
-    expect(answer?.content, '库里那行助手消息应是完整回答，不是流式期的半截').toBe(FIXTURE_ANSWER)
+    const rows = await readRows(page, null)
+    const beforeIds = rows.map((r) => r.id).sort()
+    const answer = (await freshRows()).find((r) => r.role === 'assistant')
+    // 红了要当场能分出"落库那笔取的是哪一份文本"：把库里的实际字节、长度、这一行的 id
+    // 连同屏上此刻的那篇一起写进消息（2026-10-26 那次红只留下"半截"两个字，什么也判不出来）
+    expect(
+      answer?.content,
+      `库里那行助手消息应是完整回答，不是流式期的半截 —— 库里=${JSON.stringify(answer?.content)}` +
+        `（长度 ${String(answer?.content ?? '').length}，id=${answer?.id ?? '无'}），` +
+        `屏上=${JSON.stringify(await screenText(page)).slice(0, 200)}`
+    ).toBe(FIXTURE_ANSWER)
 
     // 重启：渲染进程整页重载，内存里那份列表归零，屏上还能看见 = 只能来自库
     await page.reload({ waitUntil: 'domcontentloaded' })
