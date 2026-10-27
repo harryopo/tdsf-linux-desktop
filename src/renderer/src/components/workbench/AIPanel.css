@@ -60,48 +60,41 @@
   outline-offset: 1px;
 }
 
-/* ===== 消息容器 ===== */
+/* ===== 消息骨架（面板第①笔：去头像、去气泡、加角色行） =====
+ * 原来助手轮是「24px 品牌蓝方块头像 + 一块带边框的底」两列布局：
+ * 头像每轮都画一遍却点不动，边框把正文框成气泡，于是过程行、工具卡、正文
+ * 三种东西各自套一层底，越往右越窄。现在一列走到底——正文占满宽度，
+ * 分层只靠字号与留白。头像删掉后窄停靠格里 markdown 表格才有地方铺开。 */
 .ai-msg {
   margin-bottom: 12px;
 }
 
-/* AI 消息（带头像） */
-.ai-msg-with-avatar {
+.ai-msg-assistant {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-/* AI 头像 */
-.ai-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--accent-solid);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.ai-avatar svg {
-  width: 14px;
-  height: 14px;
-  color: var(--trae-text-onbrand);
-}
-
-/* AI 卡片容器 */
-.ai-card-wrap {
-  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-2);
   min-width: 0;
 }
 
-/* AI 卡片本体 */
-.ai-card {
-  background: var(--trae-bg-base-tertiary);
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: 6px;
-  padding: 10px 12px;
+/* 角色行：这一轮是谁在说话。注释档（11px）+ 字距，压在正文之下不给它抢戏 */
+.ai-msg-role {
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-micro);
+  line-height: var(--ui-lh-normal);
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+/* 助手正文：无底无边的纯文本（流式光标也挂在这里） */
+.ai-msg-prose {
+  min-width: 0;
+}
+
+/* 流式期间整轮还没说完，第一行占位就是这句 */
+.ai-msg-thinking {
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-loose);
+  color: var(--text-muted);
 }
 
 /* ===== 失败态卡片 =====
@@ -143,31 +136,34 @@
   word-break: break-word;
 }
 
-/* ===== 用户消息 ===== */
+/* ===== 用户消息：整屏唯一的一颗药丸 =====
+ * 面板里只有用户这一轮是"贴出去的话"，所以只有它有底；助手轮是平的。
+ * 底取 `--bg-tertiary`（凹陷档）而不是品牌蓝——原来的蓝底白字在深色档里
+ * 是整屏最亮的一块，比 AI 的回答还抢眼。圆角用 `--ui-radius-bubble`，
+ * 这个档 DESIGN.md 写明只留给消息药丸。不给描边、不给投影。 */
 .ai-msg-user {
   display: flex;
   justify-content: flex-end;
 }
 
 .ai-msg-user-inner {
-  max-width: 80%;
+  max-width: 78%;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: var(--ui-space-1);
+  min-width: 0;
 }
 
 .ai-msg-user-bubble {
-  /* v2.5 对齐设计稿：深蓝 popup 底 + 默认文字（原亮蓝底白字过重） */
-  background: var(--trae-bg-brand-popup);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
-  padding: 8px 12px;
-  border-radius: 6px 2px 6px 6px;
+  padding: 8px 14px;
+  border-radius: var(--ui-radius-bubble);
   font-size: var(--ui-font-body);
-  line-height: 1.6;
+  line-height: var(--ui-lh-loose);
   max-width: 100%;
-  word-break: break-word;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  overflow-wrap: anywhere;
 }
 
 .ai-msg-time {
@@ -176,11 +172,77 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ===== AI 消息（多面板，无头像） ===== */
-.ai-msg-multi {
+/* ===== 欢迎态（面板第①笔）=====
+   与消息流共用同一个左缘：一句标题 + 一句现在能做什么 + 一列建议行。
+   建议行不给底、不给边，只在悬停时给一档背景——它不是卡片，是可点的一行。
+   窄停靠格里允许句子换成两行（这是列表项，不是控件标签），所以不设 nowrap。 */
+.ai-welcome {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: var(--ui-space-6) 0;
+}
+
+.ai-welcome-title {
+  font-size: var(--ui-font-title);
+  font-weight: var(--ui-weight-semibold);
+  line-height: var(--ui-lh-snug);
+  color: var(--text-secondary);
+}
+
+.ai-welcome-desc {
+  margin-top: var(--ui-space-2);
+  max-width: 420px;
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-loose);
+  color: var(--text-tertiary);
+}
+
+.ai-welcome-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-6);
+}
+
+.ai-sug {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  width: 100%;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: none;
+  border-radius: var(--ui-radius-control);
+  background: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--ui-font-md);
+  line-height: var(--ui-lh-snug);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--ui-dur-fast) var(--ui-ease-out);
+}
+
+.ai-sug:hover {
+  background: var(--bg-hover);
+}
+
+.ai-sug:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.ai-sug svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.ai-sug-label {
+  min-width: 0;
 }
 
 /* ===== 工具行（折叠标题行） ===== */

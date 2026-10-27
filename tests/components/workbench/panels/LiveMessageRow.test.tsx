@@ -431,3 +431,64 @@ describe('LiveMessageRow — 被用户停止的回答（调研 P0-2）', () => {
     expect(row!.textContent).not.toContain('没拿到')
   })
 })
+
+/**
+ * 第①笔：消息行骨架。
+ *
+ * 这里只判结构（哪些类还在不在、角色行几处）——底色、圆角、左缘对齐这些
+ * 是 computed style 层面的事实，jsdom 不解析 CSS 变量也不做布局，量不到；
+ * 那半边由 tests/e2e/chat-msg-skeleton.spec.ts 拿真窗口量。
+ */
+describe('LiveMessageRow — 消息行骨架（面板第①笔）', () => {
+  it('9.1 助手轮：头像与气泡类都不在了，角色行只有一句', () => {
+    const { container } = render(
+      <LiveMessageRow message={makeAssistant({ content: '日志分区用到 92%。' })} />
+    )
+    expect(container.querySelector('.ai-avatar'), '头像又画回来了').toBeNull()
+    expect(container.querySelector('.ai-msg-with-avatar'), '头像那一列的容器又画回来了').toBeNull()
+    expect(container.querySelector('.ai-card'), '正文又套上一张气泡卡').toBeNull()
+    // 角色行一处：整轮一个，不许每个正文分片各喊一遍
+    const roles = container.querySelectorAll('.ai-msg-role')
+    expect(roles).toHaveLength(1)
+    expect(roles[0]!.textContent).toBe('助手')
+  })
+
+  it('9.2 系统那一轮说"系统"，不冒充助手', () => {
+    const { container } = render(
+      <LiveMessageRow
+        message={{ id: 's1', role: 'system', content: '上下文已压缩', timestamp: Date.now() }}
+      />
+    )
+    expect(container.querySelector('.ai-msg-role')!.textContent).toBe('系统')
+  })
+
+  it('9.3 用户轮还是那颗药丸，但不掺角色行与头像', () => {
+    const { container } = render(
+      <LiveMessageRow
+        message={{ id: 'u1', role: 'user', content: '这台机器 load 高', timestamp: Date.now() }}
+      />
+    )
+    expect(container.querySelector('.ai-msg-user-bubble')).not.toBeNull()
+    expect(container.querySelector('.ai-msg-role'), '用户轮不需要角色行——右侧那一颗就是它').toBeNull()
+    expect(container.querySelector('.ai-avatar')).toBeNull()
+    expect(container.querySelector('.ai-msg-time')!.textContent).toMatch(/^\d{2}:\d{2}$/)
+  })
+
+  it('9.4 计量行跟着头像一起撤掉缩进（不再有 pl-8 那一格）', () => {
+    const { container } = render(
+      <LiveMessageRow
+        message={makeAssistant({
+          content: '看完了',
+          model: 'm1',
+          usage: { inputTokens: 30, outputTokens: 7, totalTokens: 37 },
+          contextNote: '上下文压过一轮',
+        })}
+      />
+    )
+    const rows = container.querySelectorAll('.ai-token-row')
+    expect(rows.length, '用量行与上下文说明都该在').toBe(2)
+    for (const row of rows) {
+      expect(row.className, '左缘还挂着给头像让位的 pl-8').not.toContain('pl-8')
+    }
+  })
+})

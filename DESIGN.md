@@ -74,7 +74,7 @@
 | `--ui-radius-control` | 10px | 按钮、输入框、图标钮、chip、菜单项 |
 | `--ui-radius-card` | 14px | 卡片、面板内区块、下拉菜单容器 |
 | `--ui-radius-panel` | 18px | 弹窗、抽屉、composer |
-| `--ui-radius-bubble` | 22px | 消息气泡、超大容器 |
+| `--ui-radius-bubble` | 22px | 只有聊天里用户那一轮那颗药丸（AI 面板第①笔后助手正文平铺、不再包气泡） |
 | `--ui-radius-pill` | 999px | 只有真·胶囊（状态点、进度药丸） |
 
 - **嵌套圆角（concentricity）**：内层圆角 = 外层圆角 − 内缩距离。算出来 ≤0 就用直角，
@@ -106,6 +106,12 @@
   （2026-10-08 用户指出右栏 `h-8` 与另两栏差 8px）。
 - **AI 输入框至少三行**：`--ui-size-composer-min`（80px，14px 字号三行）是空态下限，往上长到 `--ui-collapse-max-composer`（240px）为止。
   快捷提示词那一排**不换行**（单行 + 横向滚动）：它一排挤成两行时，输入区就被压成一行高。
+- **聊天消息行的骨架（AI 面板第①笔）**：助手轮 = 一行角色名（11px 注释档）+ 平铺正文，
+  **没有头像、没有气泡**（底/描边/投影一概不给，分层只靠字号与留白）；用户轮 = 右侧一颗 22px 药丸，
+  整屏只有它有底；下面的计量行与正文同一条左缘。欢迎态与消息流共用左缘，是一列建议行——
+  每行点了把**它那一句**填进输入框，不直接发送，所以行上不许画 `↵`（那是假 affordance）。
+  判据：`tests/e2e/chat-msg-skeleton.spec.ts`（真窗口量 computed style：底色、圆角、描边、左缘、对比度、字阶）
+  + `tests/components/workbench/panels/LiveMessageRow.test.tsx` 9.1–9.4 + `tests/components/workbench/MessageList.test.tsx`。
 - **外壳上下两条横带也走令牌**：`--ui-size-titlebar`（40px）与 `--ui-size-statusbar`（24px）。
   这两个值曾只在令牌文件里写着 44/26，界面上另有硬编码，等于假单源（2026-10-09 核对后按界面真值定）。
 - **新增字阶档位要改两处**：`tailwind.css` 的 `@theme` 定义 + `components/trae/utils.ts` 的 `FONT_SIZE_TIERS` 登记。

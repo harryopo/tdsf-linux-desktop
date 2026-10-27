@@ -4,12 +4,12 @@
  * v2.3.6 修复：彻底移除"演示模式"渲染分支（showDemo + MOCK_CHAT_MESSAGES）。
  * 渲染策略：
  * - hasLiveConversation：渲染实时消息（liveMessages）
- * - 其余：欢迎态（能力网格 + 快捷 chips + 配置引导）
+ * - 其余：欢迎态（一列建议行，点击填入 Composer）
  *
  * 设计稿不再展示设计稿示例消息。发送后直接走真实 agent:chat。
  */
 import type { RefObject, FC } from 'react'
-import { Sparkles, AlertTriangle, Search, Terminal, FileText, TrendingUp } from 'lucide-react'
+import { AlertTriangle, Search, Terminal, FileText, TrendingUp, Plug, SlidersHorizontal } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
 import type { PersistedProviderConfig } from '@shared/agent-types'
@@ -98,70 +98,76 @@ const MessageList: FC<MessageListProps> = ({
           <div ref={messagesEndRef} />
         </>
       ) : (
-        /* ===== 欢迎态：能力网格 + 快捷 chips（对齐 design-app 视觉） =====
-           v2.6：能力卡接真实交互（点击注入提示词到输入框）+ 间距放宽 */
-        <div className="flex flex-1 flex-col items-center justify-center px-6 py-10">
-          {/* 品牌图标 */}
-          <div className="flex size-12 items-center justify-center rounded-[12px] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)]">
-            <Sparkles className="size-6 text-[var(--trae-icon-brand)]" />
-          </div>
-
-          {/* 问候语 */}
-          <div className="mt-5 text-title font-semibold text-ink">
-            你好，我是 TDSF AI 运维助手
-          </div>
-          <div className="mt-2 max-w-[400px] text-center text-sm leading-relaxed text-ink-dim">
+        /* ===== 欢迎态（面板第①笔）=====
+           原来那块居中的能力网格有两个毛病：2×2 卡在窄停靠格里被从中间断成两行
+           （窄屏审计实测过），而整块居中让第一条建议离输入框十万八千里。
+           现在与消息流共用同一个左缘，一行一条，读起来就是"接下来可以问这些"。 */
+        <div className="ai-welcome">
+          <div className="ai-welcome-title">问问这台机器</div>
+          <div className="ai-welcome-desc">
             {activeSessionId
-              ? '已连接服务器，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'
-              : '连接 SSH 服务器后，可以为您执行故障诊断、命令推荐、配置分析、性能优化等运维任务。'}
+              ? 'AI 只读地看日志、服务状态和磁盘，改东西的动作仍然要一步步批。'
+              : '连上 SSH 之后，AI 可以只读地看日志、服务状态和磁盘。'}
           </div>
 
-          {/* 能力网格（v2.6：真按钮 —— 点击把对应提示词填入输入框并聚焦）
-              auto-fit 而不是写死 grid-cols-2：AI 停靠格拖窄后两列各剩 120px，
-              「故障诊断」会被从中间断成两行（窄屏审计截图实测到） */}
-          <div className="mt-6 grid w-full max-w-[460px] grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
+          <div className="ai-welcome-list">
             {([
-              { icon: <Search className="size-4" />, title: '故障诊断', desc: '快速定位系统异常', prompt: '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。' },
-              { icon: <Terminal className="size-4" />, title: '命令推荐', desc: '安全执行运维命令', prompt: '我想完成一项运维操作，请推荐安全的命令并说明风险：' },
-              { icon: <FileText className="size-4" />, title: '配置分析', desc: '解读配置文件', prompt: '请帮我分析以下配置文件的含义与潜在问题：' },
-              { icon: <TrendingUp className="size-4" />, title: '性能优化', desc: '发现性能瓶颈', prompt: '请分析当前服务器的性能瓶颈（CPU/内存/磁盘IO/网络）并给出优化建议，只读命令采集。' },
+              {
+                icon: <Search className="size-4" />,
+                label: '查这台机器哪里不对劲：磁盘、内存、负载、失败服务',
+                prompt:
+                  '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。',
+              },
+              {
+                icon: <Terminal className="size-4" />,
+                label: '解释一条刚跑完的失败命令，并给安全的下一步',
+                prompt: '我刚才这条命令失败了，请解释报错原因并推荐安全的下一步：',
+              },
+              {
+                icon: <FileText className="size-4" />,
+                label: '读一个配置文件，讲清它写了什么、有什么坑',
+                prompt: '请帮我分析以下配置文件的含义与潜在问题：',
+              },
+              {
+                icon: <TrendingUp className="size-4" />,
+                label: '找性能瓶颈：CPU、内存、磁盘 IO、网络',
+                prompt:
+                  '请分析当前服务器的性能瓶颈（CPU/内存/磁盘IO/网络）并给出优化建议，只读命令采集。',
+              },
             ] as const).map((cap) => (
               <button
-                key={cap.title}
+                key={cap.label}
                 type="button"
                 onClick={() => useEditorStore.getState().setInjectedAtCommand(cap.prompt)}
-                title={`点击将“${cap.title}”提示词填入输入框`}
-                className="btn-press flex items-center gap-3 rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-3.5 py-3 text-left transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
+                title="点击把这段提示词填入下方输入框（不会直接发送）"
+                className="ai-sug"
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-[6px] bg-[var(--trae-bg-overlay-l2)] text-[var(--trae-icon-secondary)]">
-                  {cap.icon}
-                </span>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink">{cap.title}</div>
-                  <div className="mt-0.5 text-caption text-ink-mute">{cap.desc}</div>
-                </div>
+                {cap.icon}
+                <span className="ai-sug-label">{cap.label}</span>
               </button>
             ))}
-          </div>
 
-          {/* 引导按钮（未连接/未配置时显示） */}
-          <div className="mt-7 flex items-center gap-3">
+            {/* 还没具备条件时，把入口摆在同一列里——但要说清它去哪 */}
             {!activeSessionId && (
               <button
                 type="button"
                 onClick={() => navigate('/settings/ssh')}
-                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] border border-[var(--trae-border-neutral-l2)] px-3 text-caption text-(--accent-text) transition-colors duration-150 hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-brand-popup)]"
+                className="ai-sug"
+                title="打开设置 · SSH，连接一台服务器"
               >
-                连接 SSH 服务器
+                <Plug className="size-4" />
+                <span className="ai-sug-label">去设置里连服务器</span>
               </button>
             )}
             {providers.length === 0 && (
               <button
                 type="button"
                 onClick={() => navigate('/settings/model')}
-                className="inline-flex h-7 items-center rounded-[var(--trae-radius-6)] bg-accent-solid px-3 text-caption font-medium text-[var(--trae-text-onbrand)] transition-opacity duration-150 hover:opacity-90"
+                className="ai-sug"
+                title="打开设置 · 模型，配置一个可用的模型"
               >
-                配置 AI 模型
+                <SlidersHorizontal className="size-4" />
+                <span className="ai-sug-label">还没有可用的模型，去设置里配</span>
               </button>
             )}
           </div>

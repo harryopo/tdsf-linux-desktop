@@ -113,8 +113,8 @@ const RATCHETS = [
   {
     name: '引用旧 --trae-* 令牌的 .tsx 文件数',
     now: countFiles('--trae-', '*.tsx'),
-    cap: 61,
-    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66；2026-10-17 修品牌令牌劫持时现量 64；2026-10-27 重做聊天可信度卡时按现量收到 61（那一轮把 ChatCredibility 的 --trae-status-* 分档色改成了 CSS 类）。旧令牌是"每页自己定字号颜色"的载体',
+    cap: 60,
+    why: '2026-10-11 W6 把三个页面里 12 处内联图标样式（含 --trae-icon-default / --trae-special-white）换成令牌工具类，实测 67→66；2026-10-17 修品牌令牌劫持时现量 64；2026-10-27 重做聊天可信度卡时按现量收到 61（那一轮把 ChatCredibility 的 --trae-status-* 分档色改成了 CSS 类）；同日面板第①笔把 MessageList 欢迎态那 12 处 trae 内联值换成 CSS 类，现量 60。旧令牌是"每页自己定字号颜色"的载体',
   },
   {
     name: '内联 style 里写 color/fontSize/background 的行数',

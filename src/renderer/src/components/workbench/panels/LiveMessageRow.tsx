@@ -598,61 +598,54 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
 
   // assistant / system
   return (
-    <div className="ai-msg ai-msg-multi">
-      <div className="ai-msg-with-avatar">
-        <div className="ai-avatar">
-          {message.isStreaming ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            <Sparkles />
+    <div className="ai-msg ai-msg-assistant">
+      {/* 第①笔：头像整块删掉，换成一行角色名。
+          那个 24px 品牌蓝方块每轮都画、点不动、也不带任何信息，
+          却比正文先抢到视线——假 affordance 的一种。 */}
+      <div className="ai-msg-role">{message.role === 'system' ? '系统' : '助手'}</div>
+      {/* v2.11：深度思考块置于最终回答上方（对齐 Trae：先思考过程、后答案） */}
+      {renderReasoning()}
+      {/* 正文只装真说过的话；错误单独一张卡（见 renderErrorCard）。
+          上一版把 `[错误] …` 拼进 content 并整块按错误样式渲染，
+          已经流出来的半截答案会跟着一起变红。 */}
+      {segments.segs.length > 0 ? (
+        /* v2.8 穿插渲染：正文分片与工具卡按真实发生顺序交错（命令在流式输出里，
+           不再全部堆在消息尾部） */
+        <div className="ai-msg-prose flex flex-col gap-1.5">
+          {segments.segs.map((seg, i) =>
+            seg.kind === 'text' ? (
+              <div key={`seg-${i}`}>
+                <MarkdownMessage content={seg.text} />
+                {message.isStreaming && i === segments.segs.length - 1 && (
+                  <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
+                )}
+              </div>
+            ) : seg.kind === 'process' ? (
+              <div key={`proc-${i}`}>{renderProcessSummary()}</div>
+            ) : (
+              <div key={`tool-${seg.evt.toolCallId}`}>{renderToolCard(seg.evt)}</div>
+            ),
+          )}
+          {/* 流式中且最后一片是卡片（工具卡或过程块）→ 光标单独补一行（后续文本即将到来） */}
+          {message.isStreaming &&
+            (segments.segs[segments.segs.length - 1]?.kind === 'tool' ||
+              segments.segs[segments.segs.length - 1]?.kind === 'process') && (
+              <div className="ai-msg-thinking">
+                <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
+              </div>
+            )}
+        </div>
+      ) : message.isStreaming || message.content ? (
+        <div className="ai-msg-thinking">
+          {/* 有思考链时不重复显示占位（下方"深度思考"块已有"思考中…"） */}
+          {message.isStreaming && !message.reasoning ? '思考中…' : ''}
+          {message.isStreaming && (
+            <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
           )}
         </div>
-        <div className="ai-card-wrap">
-          {/* v2.11：深度思考块置于最终回答上方（对齐 Trae：先思考过程、后答案） */}
-          {renderReasoning()}
-          {/* 正文只装真说过的话；错误单独一张卡（见 renderErrorCard）。
-              上一版把 `[错误] …` 拼进 content 并整块按错误样式渲染，
-              已经流出来的半截答案会跟着一起变红。 */}
-          {segments.segs.length > 0 ? (
-            /* v2.8 穿插渲染：正文分片与工具卡按真实发生顺序交错（命令在流式输出里，
-               不再全部堆在消息尾部） */
-            <div className="flex flex-col gap-1.5">
-              {segments.segs.map((seg, i) =>
-                seg.kind === 'text' ? (
-                  <div key={`seg-${i}`} className="ai-card">
-                    <MarkdownMessage content={seg.text} />
-                    {message.isStreaming && i === segments.segs.length - 1 && (
-                      <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
-                    )}
-                  </div>
-                ) : seg.kind === 'process' ? (
-                  <div key={`proc-${i}`}>{renderProcessSummary()}</div>
-                ) : (
-                  <div key={`tool-${seg.evt.toolCallId}`}>{renderToolCard(seg.evt)}</div>
-                ),
-              )}
-              {/* 流式中且最后一片是卡片（工具卡或过程块）→ 光标单独补一行（后续文本即将到来） */}
-              {message.isStreaming &&
-                (segments.segs[segments.segs.length - 1]?.kind === 'tool' ||
-                  segments.segs[segments.segs.length - 1]?.kind === 'process') && (
-                  <div className="ai-card">
-                    <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
-                  </div>
-                )}
-            </div>
-          ) : message.isStreaming || message.content ? (
-            <div className="ai-card">
-              {/* 有思考链时不重复显示占位（下方“深度思考”块已有“思考中…”） */}
-              {message.isStreaming && !message.reasoning ? '思考中…' : ''}
-              {message.isStreaming && (
-                <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
-              )}
-            </div>
-          ) : null}
-          {/* 失败态：一条错误只在这里说一次（流底部那条红色横幅由 MessageList 让位给这里） */}
-          {renderErrorCard()}
-        </div>
-      </div>
+      ) : null}
+      {/* 失败态：一条错误只在这里说一次（流底部那条红色横幅由 MessageList 让位给这里） */}
+      {renderErrorCard()}
       {renderToolEvents()}
       {/* v2.5：完成态且有真实工具轨迹时，展示 D-S/PCR5 可信度分析折叠块 */}
       {!message.isStreaming && !message.isError && (
@@ -664,15 +657,12 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
        * 以前这里什么都没有：内容停在半句、流动态关掉，与"模型说完了"长得一模一样。
        */}
       {message.cancelled && !message.isStreaming && (
-        <div className="ai-token-row pl-8 text-caption text-ink-mute" data-dom-id="message-cancelled">
+        <div className="ai-token-row text-caption text-ink-mute" data-dom-id="message-cancelled">
           已停止 · 上面是中断处的半截回答，模型没有说到完
         </div>
       )}
       {(message.usage || message.model) && !message.isStreaming && (
-        <div
-          className="ai-token-row ai-token-pop pl-8"
-          data-dom-id="message-usage-row"
-        >
+        <div className="ai-token-row ai-token-pop" data-dom-id="message-usage-row">
           <Clock className="size-3" />
           <span>
             {[
@@ -689,7 +679,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         </div>
       )}
       {message.contextNote && !message.isStreaming && (
-        <div className="ai-token-row pl-8 text-caption text-ink-mute">{message.contextNote}</div>
+        <div className="ai-token-row text-caption text-ink-mute">{message.contextNote}</div>
       )}
       {renderActionButtons()}
     </div>
