@@ -324,12 +324,16 @@ const Composer: FC<ComposerProps> = ({
 
   return (
     <footer className="shrink-0 border-t border-line bg-canvas p-2">
-      {/* ===== Composer 卡（cc-gui 语言：整块一个圆角容器，hover 与 focus 同值） ===== */}
+      {/* ===== Composer 卡 =====
+          原先 hover 会把描边换成品牌蓝，focus 再叠一圈 1px 蓝色阴影环——鼠标划过就给整块
+          上一圈主色边，是用户明确说过最讨厌的那种包边，而且和 focus 同色，两种状态分不出来。
+          现在：悬停什么都不改（悬停在这块卡片上不携带信息）；只保留聚焦时一条主色描边，
+          那是键盘/输入焦点的可见性凭据（WCAG 2.4.7），不是装饰。 */}
       <div
         className={cn(
           'flex flex-col overflow-hidden rounded-(--ui-radius-panel) border border-line-strong bg-panel',
-          'transition-[border-color,box-shadow] duration-[var(--ui-dur-fast)]',
-          'hover:border-accent-solid focus-within:border-accent-solid focus-within:shadow-[0_0_0_1px_var(--accent-solid)]'
+          'transition-colors duration-[var(--ui-dur-fast)]',
+          'focus-within:border-accent-solid'
         )}
       >
         {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词

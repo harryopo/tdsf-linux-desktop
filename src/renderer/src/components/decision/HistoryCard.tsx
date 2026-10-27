@@ -52,7 +52,7 @@ export function HistoryCard({ card, onClick }: HistoryCardProps) {
       type="button"
       onClick={onClick}
       title={`#${card.id}`}
-      className="flex w-full flex-col gap-2 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-4 text-left transition-colors hover:border-[var(--trae-border-brand)] hover:bg-[var(--trae-bg-overlay-l2)]"
+      className="flex w-full flex-col gap-2 rounded-[var(--trae-radius-8)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-base-secondary)] p-4 text-left transition-colors hover:bg-[var(--trae-bg-overlay-l2)]"
       aria-label={`查看决策 ${card.id} 详情`}
     >
       <div className="flex items-center justify-between gap-3">

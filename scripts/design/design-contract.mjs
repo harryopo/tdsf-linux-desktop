@@ -128,6 +128,14 @@ const RATCHETS = [
     cap: 0,
     why: '2026-10-07 第 7 批退出 SshSettings 表单弹窗与 main.tsx 的 ConfigProvider，实测 2→0：渲染层已经一行 antd 都不引。再出现就是引回旧依赖',
   },
+  {
+    // 只禁 hover：聚焦时那一条主色描边（focus-within:border-accent-solid）与键盘焦点环
+    // （focus-visible:ring-*）是"我现在能在哪儿打字"的可见性凭据（WCAG 2.4.7），不在禁列。
+    name: 'hover 把描边或阴影环换成主色的写法',
+    now: countLines('hover:(border|shadow)-\\S*(accent|brand)', '*.tsx'),
+    cap: 0,
+    why: '2026-10-27 面板第①笔后横扫抓到 3 处：Composer 卡 hover 换品牌蓝描边（还和 focus 同色，两种状态分不出来）并叠一圈 1px 蓝阴影、服务器菜单「添加新连接」hover 换主色虚线边、决策历史卡 hover 换主色描边。三处都改成"悬停只动底色/字色，不动描边色"后钉死为 0。用户 2026-10 明确说过最讨厌主色 hover 包边',
+  },
 ]
 
 for (const r of RATCHETS) {

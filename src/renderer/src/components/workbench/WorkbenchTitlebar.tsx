@@ -316,7 +316,7 @@ export function WorkbenchTitlebar({
               <div className="border-t border-line px-3 py-2.5">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-1.5 rounded-(--ui-radius-control) border border-dashed border-line-strong py-2 text-sm text-ink-dim transition-colors hover:border-(--trae-bg-brand) hover:bg-[var(--trae-bg-overlay-l1)] hover:text-(--accent-text)"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-(--ui-radius-control) border border-dashed border-line-strong py-2 text-sm text-ink-dim transition-colors hover:bg-[var(--trae-bg-overlay-l1)] hover:text-(--accent-text)"
                   onClick={() => {
                     setMenuOpen(false)
                     setDialogOpen(true)
