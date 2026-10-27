@@ -6,9 +6,12 @@
  *   fixture SSH 靶机（真 ssh2 握手 + 真 OSC 133/633）→ xterm → 块模型 → toAiContext()
  *   → UI 输入框发送（useAgentChat，不是绕过去直调 IPC）→ preload → agent:chat
  *   → Supervisor 注入 system prompt → 假模型服务收到请求体。
- * 断言读的是【服务端收到的原文】，所以"我这边算好了但没发出去"这种缺陷瞒不过去。
+ * 断言读的是【服务端按角色取到的原文】（系统提示词 / 这一轮的问题），
+ * 所以"我这边算好了但没发出去"这种缺陷瞒不过去；
+ * 不拿整份请求体比字符串——那里面混着历史消息与沉淀下来的长期记忆，
+ * 一句话可能因上一轮而恒真或恒假（#246 实测到的机制）。
  *
- * 第二条是对照：没连过终端（没有命令块）时，请求体里必须【没有】那段注入——
+ * 第二条是对照：没连过终端（没有命令块）时，系统提示词里必须【没有】那段注入——
  * 证明这条注入是按需的，不是无条件往 prompt 里塞东西。
  *
  * 运行：pnpm build && npx playwright test tests/e2e/terminal-context-to-ai.spec.ts
@@ -134,8 +137,14 @@ test.describe('终端命令块进 AI 请求体', () => {
     })
   }
 
-  /** 在输入框发一句话，返回假模型服务收到的请求体原文 */
-  async function sendAndGetBody(page: Page, text: string): Promise<string> {
+  /**
+   * 在输入框发一句话，返回假模型服务**这一轮系统提示词**的正文。
+   *
+   * 按角色取而不是拿整份请求体：请求体里还混着历史消息，
+   * 而历史消息可能被上一轮沉淀的长期记忆带进系统提示词——
+   * 那时"注入标识在不在"就不再只对本次请求负责（#246 同一次调查实测到的机制）。
+   */
+  async function sendAndGetSystemPrompt(page: Page, text: string): Promise<string> {
     const composer = page.locator('#ai-composer-input')
     if (!(await composer.isVisible().catch(() => false))) {
       await page.locator('[data-dom-id="btn-toggle-ai"]').click()
@@ -204,7 +213,7 @@ test.describe('终端命令块进 AI 请求体', () => {
         }
       )
       .toContain('已收到')
-    return ai.lastBody()
+    return ai.lastRoleText('system')
   }
 
   testOrSkip('连过终端后，请求体里带着刚才跑过的命令', async () => {
@@ -280,14 +289,16 @@ test.describe('终端命令块进 AI 请求体', () => {
     // 审计基线要在【发送之前】取：审计行是在请求发出去之前就写进库的，
     // 事后再数会把这条自己刚写的算进基线。
     const auditBefore = auditBlockRowCount()
-    const body = await sendAndGetBody(page, '刚才那条命令跑得怎么样？')
+    const prompt = await sendAndGetSystemPrompt(page, '刚才那条命令跑得怎么样？')
     // 打印模型实际收到的那段（截 240 字），红了也好比对是"没送到"还是"送到了但内容不对"
-    const at = body.indexOf(MARKER)
-    console.log('[terminal-context] 模型收到的注入片段 =', JSON.stringify(body.slice(at, at + 240)))
-    expect(body, '请求体应含注入标识').toContain(MARKER)
-    expect(body, '请求体应含靶机开场那条命令').toContain('tdsf-boot')
+    const at = prompt.indexOf(MARKER)
+    console.log('[terminal-context] 模型收到的注入片段 =', JSON.stringify(prompt.slice(at, at + 240)))
+    expect(prompt, '系统提示词应含注入标识').toContain(MARKER)
+    expect(prompt, '系统提示词应含靶机开场那条命令').toContain('tdsf-boot')
     // 只给命令与退出码，不给输出正文
-    expect(body).toContain('输出正文未附')
+    expect(prompt).toContain('输出正文未附')
+    // 这一轮的问题原文必须真跟着出去（丢了问题=模型只看到上下文却不知道该答什么）
+    expect(ai.lastRoleText('user'), '这轮的问题没进请求').toContain('刚才那条命令跑得怎么样')
 
     await app.close()
     // 审计消费端也要实测：这次对话确实往审计表落了一条（只记条数，命令原文不进表）
@@ -306,9 +317,9 @@ test.describe('终端命令块进 AI 请求体', () => {
     await configureFixtureModel(page, ai.baseURL)
 
     const auditBefore = auditBlockRowCount()
-    const body = await sendAndGetBody(page, '这台机器上刚才执行了什么？')
-    expect(body, '没有命令块时不该出现注入标识').not.toContain(MARKER)
-    expect(body).toContain('这台机器上刚才执行了什么')
+    const prompt = await sendAndGetSystemPrompt(page, '这台机器上刚才执行了什么？')
+    expect(prompt, '没有命令块时不该出现注入标识').not.toContain(MARKER)
+    expect(ai.lastRoleText('user'), '这轮的问题没进请求').toContain('这台机器上刚才执行了什么')
 
     await app.close()
     expect(auditBlockRowCount(), '没带命令块就不该记这条审计').toBe(auditBefore)

@@ -27,12 +27,29 @@ export interface PlannedToolCall {
   args: Record<string, unknown>
 }
 
+/** 请求体里能按角色取正文的那几种 */
+export type FixtureMessageRole = 'system' | 'user' | 'assistant' | 'tool'
+
 export interface AiFixtureHandle {
   baseURL: string
   /** 服务端收到过的请求数（含 SDK 可能发的预检） */
   requestCount(): number
-  /** 最后一次收到的请求体原文：用来断言 system prompt 里真带了什么（比如终端命令块） */
-  lastBody(): string
+  /**
+   * 最近一次**带该角色消息**的请求里，那些消息的正文（多条按行拼接；没有则空串）。
+   *
+   * 断言一律走这里，不要拿整份请求体比字符串，两个理由都是实测来的：
+   *
+   * 1. 正向断言会恒真。请求体含系统提示词，而系统提示词会注入长期记忆——
+   *    上一次运行留下的《错误教训》原文里就带着"这次外部 MCP 调用没有被批准"
+   *    （2026-10-27 量到：第一条请求里那句话命中 61 处）。拿整份 body `toContain(那句话)`
+   *    等于判据从没生效过。
+   * 2. 反向断言会假红。同理，某段文本"这轮不该出现"，却可能被上一轮沉淀的记忆带进来。
+   *
+   * 按角色取的那一层才是本次调用自己的话：`'tool'` 是回喂给模型的工具结果
+   * （拒绝话术、第三方返回、环境隔离后的变量清单只可能在这里），
+   * `'system'` 是注入上下文的地方，`'user'` 是这轮的问题原文。
+   */
+  lastRoleText(role: FixtureMessageRole): string
   /**
    * 安排"下一次模型发起工具调用"（仅对还没有工具结果的那一轮请求生效）。
    * 传 null 收回安排，回到只回文本的老行为。
@@ -92,9 +109,32 @@ function toolCallBody(call: PlannedToolCall): string {
   )
 }
 
+/**
+ * 把一份请求体按角色归并出正文。解不出 JSON 就当没收到（回空对象）。
+ */
+function roleTextsOf(raw: string): Partial<Record<FixtureMessageRole, string>> {
+  try {
+    const parsed = JSON.parse(raw) as { messages?: { role?: unknown; content?: unknown }[] }
+    const list = Array.isArray(parsed.messages) ? parsed.messages : []
+    const byRole: Record<string, string[]> = {}
+    for (const m of list) {
+      if (!m || typeof m.role !== 'string') continue
+      const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? '')
+      ;(byRole[m.role] ??= []).push(text)
+    }
+    const out: Partial<Record<FixtureMessageRole, string>> = {}
+    for (const role of ['system', 'user', 'assistant', 'tool'] as const) {
+      if (byRole[role]?.length) out[role] = byRole[role].join('\n')
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
 export function startAiFixture(): Promise<AiFixtureHandle> {
   let requests = 0
-  let lastBody = ''
+  const lastPerRole = new Map<FixtureMessageRole, string>()
   let planned: PlannedToolCall | null = null
 
   const server = http.createServer((req, res) => {
@@ -105,7 +145,10 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
       // 不解析具体路径：不同 provider 类型对 baseURL 与 /v1 的拼接规则不一样，
       // 这里只要收到 messages 就按 OpenAI 的 SSE 格式回，避免测试绑死实现细节
       const raw = Buffer.concat(body).toString('utf8')
-      lastBody = raw
+      const texts = roleTextsOf(raw)
+      for (const [role, text] of Object.entries(texts)) {
+        lastPerRole.set(role as FixtureMessageRole, text as string)
+      }
       if (!raw.includes('messages')) {
         res.writeHead(400, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ error: { message: 'fixture 只服务 chat/completions' } }))
@@ -152,7 +195,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
       resolve({
         baseURL: `http://127.0.0.1:${addr.port}/v1`,
         requestCount: () => requests,
-        lastBody: () => lastBody,
+        lastRoleText: (role) => lastPerRole.get(role) ?? '',
         planToolCall: (next) => {
           planned = next
         },

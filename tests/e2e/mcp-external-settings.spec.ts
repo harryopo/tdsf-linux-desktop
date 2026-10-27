@@ -197,13 +197,66 @@ testOrSkip('对话里调外部 MCP 工具：模型发起 → 审批 → 结果�
   const TAG = `a${Date.now().toString(36)}`
   const NAME = `对话探针 ${TAG}`
 
-  /** 发一轮对话；审批卡会在执行工具前推出来，所以这里不能 await 到底再交互 */
-  const runChat = (prompt: string): Promise<string> =>
+  /**
+   * 发一轮对话，取回**界面真正收到的**那篇回答。
+   *
+   * 不能拿 `agentChat` 的返回值当正文：那把键按契约回的是 correlationId
+   * （`src/shared/ipc-contract.ts` 里 agentChat 的 doc 就写着"返回 correlationId"），
+   * 而 `chat_<毫秒>_<uuid8>` 里带不带数字 2 全看那一刻的时间戳——
+   * 上一版判据是 `toContain('2')`，于是它从没验过对话，却红在"对话没走到终点"（#246）。
+   *
+   * 这里接的是流式那三个推送：chunk 攒正文、done 或 error 收尾，
+   * 且只认本次 correlationId 的事件（上一轮迟到的推送不许算进这一轮）。
+   * 审批卡在执行工具之前推出，所以调用方不能 await 到底再交互。
+   */
+  const runChat = (
+    prompt: string
+  ): Promise<{ text: string; error: string; ended: boolean }> =>
     page.evaluate(async (p) => {
       const w = window as unknown as {
-        electronAPI: { agentChat: (msgs: unknown[], providerId?: string) => Promise<string> }
+        electronAPI: {
+          agentChat: (msgs: unknown[], providerId?: string) => Promise<string>
+          onAgentChunk: (cb: (ev: { correlationId?: string; delta?: string }) => void) => () => void
+          onAgentDone: (cb: (ev: { correlationId?: string }) => void) => () => void
+          onAgentError: (cb: (ev: { correlationId?: string; message?: string }) => void) => () => void
+        }
       }
-      return w.electronAPI.agentChat([{ role: 'user', content: p }])
+      const api = w.electronAPI
+      const deltas: { cid?: string; text: string }[] = []
+      const finishedCids: string[] = []
+      const errorsByCid = new Map<string, string>()
+      let cid = ''
+      let wake: () => void = () => {}
+      const finished = new Promise<void>((resolve) => {
+        wake = resolve
+      })
+      /** 收尾事件一律记下归属的 correlationId，最后按本 cid 取——早到的那一条也不许冒充这一轮的终点 */
+      const offs = [
+        api.onAgentChunk((ev) => {
+          if (ev.delta) deltas.push({ cid: ev.correlationId, text: ev.delta })
+        }),
+        api.onAgentDone((ev) => {
+          if (ev.correlationId) finishedCids.push(ev.correlationId)
+          wake()
+        }),
+        api.onAgentError((ev) => {
+          if (ev.correlationId) errorsByCid.set(ev.correlationId, ev.message ?? 'unknown error')
+          wake()
+        }),
+      ]
+      try {
+        cid = await api.agentChat([{ role: 'user', content: p }])
+        const timer = setTimeout(wake, 60_000)
+        await finished
+        clearTimeout(timer)
+      } finally {
+        offs.forEach((off) => off())
+      }
+      return {
+        text: deltas.filter((d) => d.cid === cid).map((d) => d.text).join(''),
+        error: errorsByCid.get(cid) ?? '',
+        ended: finishedCids.includes(cid),
+      }
     }, prompt)
 
   try {
@@ -284,25 +337,40 @@ testOrSkip('对话里调外部 MCP 工具：模型发起 → 审批 → 结果�
     await pressKey('2')
     await expect(denyBtn, '按 2 没把选中项挪回"拒绝"').toHaveAttribute('aria-pressed', 'true')
     await pressKey('Enter')
-    await denied
+    const deniedChat = await denied
 
-    const deniedBody = ai.lastBody()
-    expect(deniedBody, '"没有被批准"这句话没回到模型，它会以为自己查到了').toContain('没有被批准')
-    expect(deniedBody, '没批准却执行了：探针的返回出现在回喂给模型的内容里').not.toContain('envNames')
+    // 这一轮自己也得真的走到终点——下面那句"没批准不执行"要建立在对话没收错尾上
+    expect(deniedChat.error, `拒绝这一轮对话报错：${deniedChat.error}`).toBe('')
+    expect(deniedChat.ended, '拒绝这一轮没等到 done 推送').toBe(true)
+    expect(deniedChat.text, '拒绝这一轮界面上没收到回答正文').toContain('2')
+
+    const deniedTool = ai.lastRoleText('tool')
+    expect(deniedTool, '这一轮模型根本没收到工具结果（回喂那一步断了）').not.toBe('')
+    expect(deniedTool, '"没有被批准"这句话没回到模型，它会以为自己查到了').toContain('没有被批准')
+    expect(deniedTool, '没批准却执行了：探针的返回出现在回喂给模型的内容里').not.toContain('envNames')
+
+    // 上一张卡必须真从屏上收干净，第二轮才可能测到它自己那张：
+    // 答完还留着的话，键盘会打在已提交的那张上，第二张永远没人答（60 秒后主进程自动拒绝）。
+    await expect(page.locator(CARD), '答完的审批卡没从屏上收掉').toHaveCount(0, { timeout: 10_000 })
 
     // ② 同样的工具，这次用键盘批准：第三方的返回必须真回到模型
     ai.planToolCall({ name: toolKey, args: {} })
     const approved = runChat('那再查一次')
     await page.waitForSelector(CARD, { timeout: 20_000 })
+    await expect(page.locator(CARD), '第二轮的卡上没写这一台的名字').toContainText(NAME)
     await pressKey('1')
+    await expect(allowBtn, '按 1 没把选中项挪到"批准这一次"').toHaveAttribute('aria-pressed', 'true')
     await pressKey('Enter')
-    const answer = await approved
-    expect(answer, '对话没走到终点').toContain('2')
+    const approvedChat = await approved
+    expect(approvedChat.error, `批准这一轮对话报错：${approvedChat.error}`).toBe('')
+    expect(approvedChat.ended, '批准这一轮没等到 done 推送').toBe(true)
+    expect(approvedChat.text, '批准这一轮界面上没收到回答正文').toContain('2')
 
-    const okBody = ai.lastBody()
-    expect(okBody, '外部工具的返回没回到模型').toContain('envNames')
+    const okTool = ai.lastRoleText('tool')
+    expect(okTool, '这一轮模型根本没收到工具结果（批了却没执行或没回喂）').not.toBe('')
+    expect(okTool, '外部工具的返回没回到模型').toContain('envNames')
     // 环境隔离在 AI 这条路上同样成立：没点名的变量不该被子进程看见
-    expect(okBody, '外部子进程拿到了整个 process.env').not.toContain(PROBE)
+    expect(okTool, '外部子进程拿到了整个 process.env').not.toContain(PROBE)
   } finally {
     delete process.env[PROBE]
     await ai.close()
