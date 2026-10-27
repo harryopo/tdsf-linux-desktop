@@ -2,44 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-27T07:27:45.370Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-10-27T07:23:11.691Z",
-      "lastActiveAt": "2026-10-27T07:27:45.370Z",
-      "task": "panel-process-fold",
-      "claimedFiles": [
-        {
-          "path": "src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
-          "task": "panel-process-fold",
-          "claimedAt": "2026-10-27T07:23:14.366Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/panels/tool-identity.ts",
-          "task": "panel-process-fold",
-          "claimedAt": "2026-10-27T07:23:12.572Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
-          "task": "panel-process-fold",
-          "claimedAt": "2026-10-27T07:23:13.334Z"
-        },
-        {
-          "path": "tests/components/workbench/panels/LiveMessageRow.test.tsx",
-          "task": "panel-process-fold",
-          "claimedAt": "2026-10-27T07:27:44.495Z"
-        },
-        {
-          "path": "tests/e2e/wiring-verification.spec.ts",
-          "task": "panel-process-fold",
-          "claimedAt": "2026-10-27T07:27:45.370Z"
-        }
-      ],
-      "expiresAt": "2026-10-27T09:27:45.370Z"
-    }
-  },
+  "lastUpdated": "2026-10-27T08:02:04.816Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -13382,6 +13346,41 @@
       "file": "tests/e2e/wiring-verification.spec.ts",
       "task": "panel-process-fold",
       "timestamp": "2026-10-27T07:27:45.370Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
+      "task": "panel-process-fold",
+      "timestamp": "2026-10-27T08:02:04.816Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/panels/tool-identity.ts",
+      "task": "panel-process-fold",
+      "timestamp": "2026-10-27T08:02:04.816Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
+      "task": "panel-process-fold",
+      "timestamp": "2026-10-27T08:02:04.816Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/components/workbench/panels/LiveMessageRow.test.tsx",
+      "task": "panel-process-fold",
+      "timestamp": "2026-10-27T08:02:04.816Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/wiring-verification.spec.ts",
+      "task": "panel-process-fold",
+      "timestamp": "2026-10-27T08:02:04.816Z"
     }
   ],
   "coordinationAudit": {
