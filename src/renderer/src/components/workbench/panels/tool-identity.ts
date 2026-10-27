@@ -162,6 +162,23 @@ export function isCommandKind(kind: ToolKind): boolean {
 }
 
 /**
+ * 这一步要不要单独留在正文里（不折进过程摘要行）。
+ *
+ * 三类不折，理由各不同：
+ * - 命令类：用户就是照它判断"机器上真跑了什么、输出是什么"，收起来等于把证据藏了
+ * - 失败的那一步：失败折进折叠块，等于替用户把问题收起来
+ * - 还没完成的：正在动就得看得见它在动（这一条也让流式期间保持展开）
+ *
+ * 其余（工具装配、思考强度选择、检索知识库、匹配技能、回忆记忆、监控读数、MCP 调用、读文件）
+ * 都是"为了回答去查的东西"——答案本身留在正文里，查的过程收成一行。
+ */
+export function staysInline(kind: ToolKind, done: boolean, ok?: boolean): boolean {
+  if (!done) return true
+  if (ok === false) return true
+  return isCommandKind(kind)
+}
+
+/**
  * 只有 MCP 与"没登记过"这两类需要挂类别徽标。
  *
  * 这两类的展示名说明不了它是什么（一长串 server__tool、或者就是模型调用的英文原名），

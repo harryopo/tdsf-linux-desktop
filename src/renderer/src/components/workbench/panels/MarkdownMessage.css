@@ -377,6 +377,31 @@
   border-color: var(--trae-border-brand);
 }
 
+/* ===== 过程摘要行（第②笔：查资料那几步收成一行，默认收起） ===== */
+.ai-process {
+  margin-top: 2px;
+}
+.ai-process .ai-tool-row {
+  background: transparent;
+  border: none;
+}
+.ai-process-body {
+  margin-left: var(--ui-space-2);
+  padding: var(--ui-space-1) var(--ui-space-2) var(--ui-space-1) var(--ui-space-4);
+  border-left: 1px solid var(--border-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* 折进来的步骤自己也是可展开行，别再各自画底：只留缩进与左竖线一层 */
+.ai-process-body .ai-tool-search .ai-tool-row {
+  background: transparent;
+  border: none;
+}
+.ai-process-running {
+  color: var(--text-tertiary);
+}
+
 /* ===== 聊天内可信度分析折叠块（v2.5） ===== */
 .ai-credibility {
   margin-top: 2px;

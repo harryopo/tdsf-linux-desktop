@@ -1,6 +1,16 @@
 import { memo, useMemo, useState, type FC } from 'react'
-import { AlertTriangle, Check, ChevronRight, Clock, Loader2, Play, Sparkles, X } from 'lucide-react'
-import type { AgentMessage } from '@/stores/agent-store'
+import {
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  Clock,
+  ListChecks,
+  Loader2,
+  Play,
+  Sparkles,
+  X,
+} from 'lucide-react'
+import type { AgentMessage, AgentToolCall } from '@/stores/agent-store'
 import { MarkdownMessage } from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
 import {
@@ -11,6 +21,7 @@ import {
   isCommandKind,
   isStructuredInput,
   showsKindBadge,
+  staysInline,
 } from './tool-identity'
 import { resolveErrorNextStep, type ErrorAction } from '../error-next-step'
 import './MarkdownMessage.css'
@@ -177,6 +188,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
 
   // v2.5 检索类工具卡折叠态（按 toolCallId）：未点击时跟随默认（执行中展开、完成收起）
   const [toolOpenMap, setToolOpenMap] = useState<Record<string, boolean>>({})
+
+  // 第②笔：过程摘要行的折叠态（null=跟随默认，用户点过就固定在他的那一侧）
+  const [processOpen, setProcessOpen] = useState<boolean | null>(null)
 
   // v2.4：命令提取用 useMemo 缓存，避免流式期间每 token 重复跑正则（滚动卡顿主因之一）；
   // 流式/错误态直接返回空，不跑解析。
@@ -380,38 +394,111 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
    *
    * - 锚点吸附到最近的换行边界，避免把句子拦腰切断
    * - 无锚点的旧数据事件保留在尾部（兼容历史消息）
+   * - 第②笔（过程收成一行）：查资料那类步骤不再各占一行，
+   *   折进正文里第一个被折叠位置上的那一行摘要；命令/失败/进行中的仍然单独留着（staysInline）
    */
   const segments = useMemo(() => {
     const events = message.toolEvents ?? []
     const content = message.content || ''
-    const inline = events
+    const withAnchor = events
       .filter((e) => typeof e.anchorOffset === 'number')
       .sort((a, b) => (a.anchorOffset ?? 0) - (b.anchorOffset ?? 0))
     const tail = events.filter((e) => typeof e.anchorOffset !== 'number')
-    const segs: Array<
+    const foldedAway = (e: AgentToolCall) => {
+      const identity = identifyTool(e.toolName)
+      return !staysInline(identity.kind, e.done, e.ok)
+    }
+    /** 折进过程摘要的那些步骤（有锚点的在前，无锚点的旧数据跟在后面） */
+    const folded = [...withAnchor.filter(foldedAway), ...tail.filter(foldedAway)]
+
+    type Seg =
       | { kind: 'text'; text: string }
-      | { kind: 'tool'; evt: NonNullable<AgentMessage['toolEvents']>[number] }
-    > = []
+      | { kind: 'tool'; evt: AgentToolCall }
+      | { kind: 'process' }
+
+    const raw: Seg[] = []
     let pos = 0
-    for (const evt of inline) {
+    let processPlaced = false
+    for (const evt of withAnchor) {
       let off = Math.min(Math.max(evt.anchorOffset ?? 0, pos), content.length)
       // 吸附到锚点前最近的换行，避免句内拦腰
       const nl = content.lastIndexOf('\n', off)
       if (nl > pos) off = nl + 1
-      if (off > pos) segs.push({ kind: 'text', text: content.slice(pos, off) })
-      segs.push({ kind: 'tool', evt })
+      if (off > pos) raw.push({ kind: 'text', text: content.slice(pos, off) })
+      if (foldedAway(evt)) {
+        // 一条消息只放一个过程块，位置取第一个被折叠的步骤发生的地方
+        if (!processPlaced) {
+          raw.push({ kind: 'process' })
+          processPlaced = true
+        }
+      } else {
+        raw.push({ kind: 'tool', evt })
+      }
       pos = off
     }
-    if (pos < content.length) segs.push({ kind: 'text', text: content.slice(pos) })
-    return { segs, tail }
+    if (pos < content.length) raw.push({ kind: 'text', text: content.slice(pos) })
+
+    // 折起来的步骤不再占位，被它切开的正文要并回连续的一段
+    const segs: Seg[] = []
+    for (const s of raw) {
+      const prev = segs[segs.length - 1]
+      if (s.kind === 'text' && prev && prev.kind === 'text') prev.text += s.text
+      else segs.push(s.kind === 'text' ? { ...s } : s)
+    }
+    // 折叠步骤全是无锚点的旧数据时，过程块跟在正文之后
+    if (folded.length > 0 && !processPlaced) segs.push({ kind: 'process' })
+
+    return { segs, folded, tailKept: tail.filter((e) => !foldedAway(e)) }
   }, [message.content, message.toolEvents])
 
-  /** 尾部兑底：无锚点事件（历史数据）仍按旧方式堆在消息后 */
+  /**
+   * 过程摘要行（默认收起）
+   *
+   * 流式期间与还有步骤在跑时默认展开——那时候"它在干什么"正是要看的；
+   * 全部跑完就收成一行，让答案自己站着。用户点过之后固定在他的那一侧。
+   */
+  const renderProcessSummary = () => {
+    const { folded } = segments
+    if (folded.length === 0) return null
+    const running = folded.find((e) => !e.done)
+    const expanded = processOpen ?? (message.isStreaming === true || running !== undefined)
+    return (
+      <div className="ai-process">
+        <button
+          type="button"
+          className="ai-tool-row w-full text-left"
+          aria-expanded={expanded}
+          onClick={() => setProcessOpen(!expanded)}
+        >
+          {running ? (
+            <Loader2 className="size-3 text-(--accent-text)" />
+          ) : (
+            <ListChecks className="size-3 text-(--accent-text)" />
+          )}
+          <span className="ai-tool-name text-ink">过程</span>
+          <span className="ai-tool-badge">{folded.length} 步</span>
+          {running && (
+            <span className="text-micro ai-process-running">
+              {TOOL_KIND_RUNNING_LABELS[identifyTool(running.toolName).kind]}
+            </span>
+          )}
+          <ChevronRight
+            className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
+          />
+        </button>
+        {expanded && (
+          <div className="ai-process-body">{folded.map((evt) => renderToolCard(evt))}</div>
+        )}
+      </div>
+    )
+  }
+
+  /** 尾部兑底：无锚点、且不折进过程块的步骤仍按旧方式堆在消息后 */
   const renderToolEvents = () => {
-    if (segments.tail.length === 0) return null
+    if (segments.tailKept.length === 0) return null
     return (
       <div className="mt-2 flex flex-col gap-1">
-        {segments.tail.map((evt) => renderToolCard(evt))}
+        {segments.tailKept.map((evt) => renderToolCard(evt))}
       </div>
     )
   }
@@ -538,16 +625,20 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                       <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
                     )}
                   </div>
+                ) : seg.kind === 'process' ? (
+                  <div key={`proc-${i}`}>{renderProcessSummary()}</div>
                 ) : (
                   <div key={`tool-${seg.evt.toolCallId}`}>{renderToolCard(seg.evt)}</div>
                 ),
               )}
-              {/* 流式中且最后一片是工具卡 → 光标单独补一行（命令后续文本即将到来） */}
-              {message.isStreaming && segments.segs[segments.segs.length - 1]?.kind === 'tool' && (
-                <div className="ai-card">
-                  <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
-                </div>
-              )}
+              {/* 流式中且最后一片是卡片（工具卡或过程块）→ 光标单独补一行（后续文本即将到来） */}
+              {message.isStreaming &&
+                (segments.segs[segments.segs.length - 1]?.kind === 'tool' ||
+                  segments.segs[segments.segs.length - 1]?.kind === 'process') && (
+                  <div className="ai-card">
+                    <span className="ml-1 inline-block h-3.5 w-1.5 animate-pulse bg-accent-solid align-middle" />
+                  </div>
+                )}
             </div>
           ) : message.isStreaming || message.content ? (
             <div className="ai-card">

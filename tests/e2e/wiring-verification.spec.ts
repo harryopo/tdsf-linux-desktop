@@ -53,6 +53,29 @@ async function gotoRoute(
   await page.waitForTimeout(800)
 }
 
+/**
+ * 让"过程"里的步骤列表可见（第②笔之后，检索/技能/MCP 这类步骤默认折在这一行里）。
+ *
+ * 不先展开就找 .ai-tool-search 会假红——那一步没消失，是被收起来了。
+ * 命令类与失败的那一步不折，仍然直接摊在正文里。
+ *
+ * 这里注入的消息一直停在"流式中"（appendToolEvent 只挂到流式消息上），
+ * 而流式期间过程块按设计就是展开的——所以已经开着就别再点，点了反而把它关上。
+ * "跑完就默认收起"那一半不在这里判，由 tests/e2e/chat-panel-disclosure.spec.ts
+ * 拿真跑完的一轮来判。
+ */
+async function expandProcessRow(
+  page: Awaited<ReturnType<typeof launchApp>>['mainWin'],
+): Promise<void> {
+  const proc = page.locator('.ai-process').first()
+  await expect(proc, '屏上没有"过程"摘要行').toBeVisible({ timeout: 5000 })
+  const body = proc.locator('.ai-process-body .ai-tool-search').first()
+  if (!(await body.isVisible().catch(() => false))) {
+    await proc.locator('button.ai-tool-row').first().click()
+  }
+  await expect(body, '过程块打不开，看不到里面的步骤').toBeVisible({ timeout: 5000 })
+}
+
 test.describe('接线真通验证（P0/P1 修复回归）', () => {
   test.describe.configure({ mode: 'serial' })
 
@@ -378,6 +401,8 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
 
     // kb_search 折叠行（v2.8：检索类走 Panel C 式折叠行，中文名 + 命中数徽标；
     // 旧断言等的是 .ai-tool-exec + 「知识库检索」，改版后类名与文案都变了）
+    // 第②笔之后：跑完的检索步骤折在"过程"一行里，先点开那一行
+    await expandProcessRow(mainWin)
     const kbCard = mainWin.locator('.ai-tool-search', { hasText: '检索知识库' }).first()
     await expect(kbCard, 'kb_search 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
     // 条数来自载荷里的 count（工具自己报的），界面不再从 output 文本数编号行
@@ -447,6 +472,8 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
       })
     })
 
+    // 第②笔之后：跑完的技能步骤折在"过程"一行里，先点开那一行
+    await expandProcessRow(mainWin)
     const skillCard = mainWin.locator('.ai-tool-search', { hasText: '匹配技能' }).first()
     await expect(skillCard, 'skill_match 行应上屏并显示中文名').toBeVisible({ timeout: 5000 })
     await expect(skillCard, '界面上不许出现裸工具名').not.toContainText('skill_match')
@@ -519,6 +546,8 @@ test.describe('接线真通验证（P0/P1 修复回归）', () => {
         output: '127.0.0.1 localhost\n::1 localhost',
       })
     })
+    // 收到 result 之后这一步就跑完了 → 折进"过程"一行；先点开那一行再展开这张卡
+    await expandProcessRow(mainWin)
     await mcpCard.locator('button').first().click() // 展开
     await expect(mcpCard, '入参标签该是"入参"，不是"查询"').toContainText('入参')
     await expect(mcpCard).not.toContainText('查询')

@@ -1,18 +1,21 @@
 /**
- * chat-credibility-card.spec.ts —— 聊天里那张可信度卡，展开态也要量
+ * chat-panel-disclosure.spec.ts —— 聊天面板里那两处"默认收起、点开才见"的真窗口判据
  *
- * 为什么单独一条：`ui-audit --gate` 只量它导航得到的页面，而这张卡要先跑一轮
- * 带真实工具调用的对话、再点一下才出现——所以它从来没进过对比度的取数面。
+ * 为什么单独一条：`ui-audit --gate` 只量它导航得到的页面，而这两处都要先跑一轮
+ * 带真实工具调用的对话、再点一下才展开——所以它们从来没进过对比度与结构的取数面。
  * 2026-10-27 就是在这里量出 Dempster 徽标 2.79:1（拿 --color-link 一个背景色令牌
- * 当字色），而门是绿的。这条判据补的就是那个盲区：**展开态逐节点算 WCAG 对比度**。
+ * 当字色），而门是绿的。
  *
- * 四条断言：
+ * 判据一（可信度卡，#249）：
  *   1. 收起行报的"几个来源"与展开后那份清单同源（一个数组，不许两个数）
  *   2. 展开体不再套一张卡（背景透明、四边无描边）——"与整体效果不一致"的结构判据
  *   3. 每个文字节点的对比度 ≥ 4.5，字号只用界面字阶里的那几档
  *   4. Bel/Pl 各只出现一次（旧版同屏说两遍：30.8% 与 31%）
  *
- * 运行：pnpm build && npx playwright test tests/e2e/chat-credibility-card.spec.ts
+ * 判据二（过程摘要行，#250）：
+ *   一轮跑完，检索那一步收成"过程 · N 步"一行；点开见步骤，再点开见入参与结果。
+ *
+ * 运行：pnpm build && npx playwright test tests/e2e/chat-panel-disclosure.spec.ts
  */
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
@@ -24,10 +27,10 @@ import { launchApp } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
 const READY = fs.existsSync(MAIN_ENTRY)
-if (!READY) console.log('[cred-card] 跳过：缺 out/main/index.js，先 pnpm build')
+if (!READY) console.log('[chat-panel] 跳过：缺 out/main/index.js，先 pnpm build')
 const testOrSkip = READY ? test : test.skip
 
-const PROVIDER_ID = 'cred-card-fixture-model'
+const PROVIDER_ID = 'chat-panel-fixture-model'
 const QUESTION = '这台机器的磁盘为什么满了'
 
 /** 界面字阶（ui-tokens.css 里那几档）；出现档位之外的字号=有人又自己定了一个 */
@@ -60,7 +63,7 @@ async function configureFixtureModel(page: Page, url: string): Promise<void> {
       }
       const ok = await w.electronAPI.providerSave({
         id: cfg.providerId,
-        name: '可信度验证模型',
+        name: '聊天面板验证模型',
         type: 'openai-compatible',
         baseURL: cfg.baseURL,
         model: cfg.providerId,
@@ -184,7 +187,7 @@ async function readCredCard(page: Page, index: number): Promise<CredReading> {
   )
 }
 
-test.describe('聊天可信度卡：展开态逐节点量对比度', () => {
+test.describe('聊天面板两处展开态：可信度卡读数 + 过程行折叠', () => {
   test.describe.configure({ mode: 'serial' })
 
   let ai: AiFixtureHandle
@@ -262,6 +265,55 @@ test.describe('聊天可信度卡：展开态逐节点量对比度', () => {
     const plHits = (r.flat.match(/Pl\s*\d+%/g) ?? []).length
     expect(belHits, `Bel 在同屏出现了 ${belHits} 次：${r.flat}`).toBe(1)
     expect(plHits, `Pl 在同屏出现了 ${plHits} 次：${r.flat}`).toBe(1)
+
+    await app.close()
+  })
+
+  testOrSkip('一轮跑完，检索步骤收成"过程 · N 步"一行；点开才见那一步', async () => {
+    test.setTimeout(180_000)
+    const { app, page } = await launchApp()
+    await page.evaluate(() => {
+      window.location.hash = '#/workbench'
+    })
+    await page.waitForSelector('.wb-main-layout', { timeout: 20_000 })
+    await configureFixtureModel(page, ai.baseURL)
+
+    ai.planToolCall({ name: 'kb_search', args: { query: '磁盘' } })
+    await ensurePanelOpen(page)
+    // 同样先记基线：消息档跨次运行累积，屏上可能留着上一轮的过程行与步骤卡
+    const beforeProc = await page.locator('.ai-process').count()
+    const beforeCred = await page.locator('.ai-credibility').count()
+    const beforeSteps = await page.locator('.ai-tool-search').count()
+    const composer = page.locator('#ai-composer-input')
+    await composer.click()
+    await composer.pressSequentially(QUESTION)
+    await page.getByRole('button', { name: '发送' }).click()
+
+    // 用"本轮多出一张可信度卡"当"这一轮真的跑完了"的信号：
+    // 那张卡只在 !isStreaming 且有证据时才渲染，比盯动画光标准。
+    await expect(
+      page.locator('.ai-credibility').nth(beforeCred),
+      `本轮没跑完（屏上没有第 ${beforeCred + 1} 张可信度卡）`,
+    ).toBeVisible({ timeout: 90_000 })
+
+    const proc = page.locator('.ai-process').nth(beforeProc)
+    await expect(proc, '跑完的一轮里，检索步骤该收成一行"过程"').toBeVisible({ timeout: 10_000 })
+    // 收起来 = 屏上不再摊着步骤卡（本轮新增的那一步不许还在正文里）
+    await expect(
+      page.locator('.ai-tool-search'),
+      `过程行有了，但步骤卡还摊在正文里（展开前基线 ${beforeSteps} 张）`,
+    ).toHaveCount(beforeSteps)
+    await expect(proc.locator('.ai-tool-badge'), '过程行要报出步数').toContainText(/步/)
+
+    await proc.locator('button.ai-tool-row').first().click()
+    // 这一轮里 supervisor 还会发工具装配 / 思考强度选择，所以按名字认那一步，别拿第一张
+    const step = proc.locator('.ai-process-body .ai-tool-search', { hasText: '检索知识库' }).first()
+    await expect(step, '点了"过程"却没把知识库检索那一步展开').toBeVisible({ timeout: 5_000 })
+    await expect(step, '步骤要用中文名，不甩裸工具 id').not.toContainText('kb_search')
+    // 步骤自己那一层仍然默认收起：入参与结果要再点一次才见
+    await expect(step.locator('.ai-tool-search-body')).toHaveCount(0)
+    await step.locator('button.ai-tool-row').first().click()
+    await expect(step.locator('.ai-tool-search-body'), '两层展开后该看到查询词').toContainText('磁盘')
 
     await app.close()
   })
