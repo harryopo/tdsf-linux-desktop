@@ -233,7 +233,7 @@ export interface ProcessRow {
 // 页面组件要起 React，而这几条恰恰是"界面上那个数能不能信"的判据本体。
 // ============================================================================
 
-import type { MonitorData } from '@shared/models'
+import type { MonitorData, SshConnectionState } from '@shared/models'
 
 /**
  * 差值与方向。
@@ -323,4 +323,54 @@ export function computeKpiStats(data: MonitorData[]): KpiStat[] | null {
       },
     },
   ]
+}
+
+// ============================================================================
+// 数据新鲜度（#257）
+// ============================================================================
+
+/**
+ * 多久没有新采样就认定"停更"
+ *
+ * 采样间隔是 3 秒（server-store 的 MONITOR_INTERVAL_MS），连续 5 个周期没来
+ * 才算停——单次 SSH exec 偶尔慢一拍是常态，阈值贴着 3 秒会天天误报。
+ */
+export const MONITOR_STALE_AFTER_MS = 15_000
+
+/**
+ * 这份监控数据"还活着吗"
+ *
+ * - `no-session`：没有活跃会话（历史数据仍在，但它不是"现在"）
+ * - `connecting`：心跳在重连，数据必然断流
+ * - `disconnected`：连接已断
+ * - `waiting`：连着，但还没采到第一条
+ * - `stalled`：连着，但超过阈值没有新采样（采集空转 / 远端不响应）
+ * - `live`：有新数据
+ */
+export type MonitorFreshness =
+  | 'no-session'
+  | 'connecting'
+  | 'disconnected'
+  | 'waiting'
+  | 'stalled'
+  | 'live'
+
+/**
+ * 判定顺序即优先级：连接状态先说话，状态未知时才用数据年龄兜底。
+ *
+ * 时钟回拨（lastSampleAt 比 now 还晚）按"没过期"处理——负数年龄不该触发假警报。
+ */
+export function deriveMonitorFreshness(args: {
+  hasSession: boolean
+  connectionState?: SshConnectionState
+  lastSampleAt: number | null
+  now: number
+  staleAfterMs: number
+}): MonitorFreshness {
+  const { hasSession, connectionState, lastSampleAt, now, staleAfterMs } = args
+  if (!hasSession) return 'no-session'
+  if (connectionState === 'connecting') return 'connecting'
+  if (connectionState === 'error' || connectionState === 'disconnected') return 'disconnected'
+  if (lastSampleAt == null) return 'waiting'
+  return now - lastSampleAt > staleAfterMs ? 'stalled' : 'live'
 }

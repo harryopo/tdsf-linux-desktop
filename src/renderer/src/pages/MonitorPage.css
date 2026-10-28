@@ -126,6 +126,23 @@ table.mon-table td {
   border-radius: var(--trae-radius-6);
 }
 
+/* 断线/停更：中性底 + 琥珀左条。不用红：红是"指标越线"的语义，
+   而这里的问题是"这份数不是现在的"，两者混用会让用户分不清该先处理哪个。 */
+.mon-alert-stale {
+  background: var(--trae-status-warning-surface-l1);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-left: 3px solid var(--trae-status-warning-default);
+  border-radius: var(--trae-radius-6);
+}
+
+/* 已连接但还没采到第一条：不算异常，只把左条换成中性灰 */
+.mon-alert-wait {
+  background: var(--trae-bg-base-secondary);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-left: 3px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+}
+
 .mon-alert-desc {
   font-size: var(--trae-body-sm-font-size);
   line-height: var(--trae-body-sm-line-height);

@@ -42,9 +42,12 @@ import {
   timeRanges,
   computeKpiStats,
   deriveAlerts,
+  deriveMonitorFreshness,
+  MONITOR_STALE_AFTER_MS,
   type TimeRange,
   type KpiStat,
   type AlertRecord,
+  type MonitorFreshness,
 } from '@/components/monitor/monitor-model'
 import { useMonitorStore } from '@/stores/monitor-store'
 import { useServerStore, MONITOR_INTERVAL_MS } from '@/stores/server-store'
@@ -94,6 +97,34 @@ function isElectronAPIAvailable(): boolean {
   return typeof window !== 'undefined' && !!window.electronAPI
 }
 
+/** 采样时间 → HH:MM:SS（横幅上用，秒要看得见：用户判断"多久没更新"靠它） */
+function clockOf(timestamp: number): string {
+  const d = new Date(timestamp)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/**
+ * 非 live 状态下横幅说什么
+ *
+ * 这些话必须与"系统运行正常"互斥：横幅是全页最先读的一行，
+ * 数据停更了还写"正常"，等于替一台失联的机器背书。
+ */
+function freshnessDesc(freshness: MonitorFreshness): string {
+  switch (freshness) {
+    case 'disconnected':
+      return '连接已断开 · 监控已停止更新'
+    case 'connecting':
+      return '正在重连 · 监控数据暂停更新'
+    case 'stalled':
+      return `${Math.round(MONITOR_STALE_AFTER_MS / 1000)} 秒没有收到新采样 · 监控可能已停止`
+    case 'waiting':
+      return '已连接，正在等待第一批采集数据'
+    default:
+      return ''
+  }
+}
+
 
 /**
  * MonitorPage 主组件
@@ -125,6 +156,39 @@ export function MonitorPage() {
     return serverId ? (s.servers.find((x) => x.id === serverId)?.host ?? null) : null
   })
   const probeHost = probeHostFromConfig ?? systemInfo?.hostname ?? null
+
+  /** 当前会话属于哪台已保存的服务器（后面要拿它的连接状态） */
+  const activeServerId = useServerStore((s) => {
+    const sid = s.activeSessionId
+    if (!sid) return null
+    return Object.entries(s.sessionMap).find(([, v]) => v === sid)?.[0] ?? null
+  })
+  /**
+   * 连接状态：心跳断开 / 重连中时采集必然断流。
+   *
+   * 以前这里一个字都不读它——`ssh:state-changed` 推送早就到了 server-store，
+   * 监控页却只认 activeSessionId，于是断线后继续把最后一帧当"现在"（#257）。
+   */
+  const connectionState = useServerStore((s) =>
+    activeServerId ? s.connectionStates[activeServerId] : undefined
+  )
+
+  /** 只看"多久没更新"，5 秒一跳就够（采样本身 3 秒一次） */
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!activeSessionId) return
+    const timer = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(timer)
+  }, [activeSessionId])
+
+  const lastSampleAt = monitorData.length > 0 ? monitorData[monitorData.length - 1].timestamp : null
+  const freshness = deriveMonitorFreshness({
+    hasSession: !!activeSessionId,
+    connectionState,
+    lastSampleAt,
+    now,
+    staleAfterMs: MONITOR_STALE_AFTER_MS,
+  })
 
   // monitor:data / systemInfo 订阅已提升到应用入口全局绑定
   // （stores/agent-stream-subscription.ts），监控页未挂载时也不丢推送。
@@ -227,12 +291,17 @@ export function MonitorPage() {
     })
   }, [activeSessionId])
 
+  // 页头副标题带"最后更新"：横幅说停更，这里给出停在哪一秒
+  const subtitle = lastSampleAt
+    ? `${serverLabel} · 最后更新 ${clockOf(lastSampleAt)}`
+    : serverLabel
+
   return (
-    <main className="flex h-full w-full flex-col bg-canvas">
+    <main className="flex h-full w-full flex-col bg-canvas" data-monitor-freshness={freshness}>
       <PageHeader
         icon={Activity}
         title="实时监控"
-        subtitle={serverLabel}
+        subtitle={subtitle}
         actions={
           <>
             <TimeRangeSwitcher value={range} onChange={setRange} />
@@ -249,13 +318,38 @@ export function MonitorPage() {
       />
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
       {/* 2. 顶部 critical 告警横幅（goto-alert-detail data-dom-id + 点击弹出 Drawer）
-          三态渲染：有告警 → 红色横幅；无告警 → 灰色占位 */}
+          四态渲染，顺序即优先级：
+            未连接 → 停更/重连（这一档必须先于"正常"）→ 有告警 → 正常 */}
       {!activeSessionId ? (
         <div className="mon-alert mon-alert-normal flex items-center gap-2 mb-3">
           <AlertCircle className="w-3.5 h-3.5 shrink-0 text-ink-mute" />
           <p className="mon-alert-desc flex-1 min-w-0 text-ink-dim">
             未连接服务器 · 连接后显示实时监控
           </p>
+        </div>
+      ) : freshness !== 'live' ? (
+        <div
+          role="status"
+          data-dom-id="monitor-stale-banner"
+          className={`mon-alert flex items-center gap-2 mb-3 ${
+            freshness === 'waiting' ? 'mon-alert-wait' : 'mon-alert-stale'
+          }`}
+        >
+          <AlertCircle
+            className="w-3.5 h-3.5 shrink-0"
+            style={{
+              color:
+                freshness === 'waiting'
+                  ? 'var(--text-tertiary)'
+                  : 'var(--status-warning-text)',
+            }}
+          />
+          <p className="mon-alert-desc flex-1 min-w-0">{freshnessDesc(freshness)}</p>
+          {lastSampleAt ? (
+            <span className="mon-alert-time shrink-0 whitespace-nowrap">
+              最后一条 {clockOf(lastSampleAt)}
+            </span>
+          ) : null}
         </div>
       ) : criticalAlert ? (
         <div
@@ -319,7 +413,16 @@ export function MonitorPage() {
           ))}
         </div>
       ) : (
-        <EmptyMonitorState className="mb-3" />
+        <EmptyMonitorState
+          className="mb-3"
+          // 有会话但一条采样都没有：这不是"未连接"，说成未连接会把排查方向指错
+          title={activeSessionId ? '还没有收到采集数据' : undefined}
+          description={
+            activeSessionId
+              ? '已连接，正在等待第一轮监控采集；若长时间没有数据，请检查连接状态'
+              : undefined
+          }
+        />
       )}
 
       {/* 4. 图表 2×2 网格 */}
@@ -332,7 +435,7 @@ export function MonitorPage() {
 
       {/* 5. 告警列表（全宽，1:1 对齐设计稿 monitor.html） */}
       <div className="mb-3">
-        <AlertTable onOpenDrawer={openDrawer} />
+        <AlertTable onOpenDrawer={openDrawer} live={freshness === 'live'} />
       </div>
 
       {/* 6. 进程监控 */}

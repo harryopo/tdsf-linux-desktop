@@ -26,6 +26,7 @@
 import { EventEmitter } from 'node:events'
 import { SshConnectionManager } from './connection-manager'
 import type { SessionClosedListener } from './connection-manager'
+import { logger } from '../log/logger'
 import type { CommandResult, MonitorData, SystemInfo } from '@shared/models'
 
 /**
@@ -71,6 +72,8 @@ interface MonitorState {
   lastTimestamp: number
   /** 是否已采集系统静态信息 */
   systemInfoCollected: boolean
+  /** 连续采集失败次数：只为"别刷屏"（一次失败记一条，恢复时补一条） */
+  consecutiveFailures: number
 }
 
 /** 最小采集间隔（毫秒） */
@@ -170,22 +173,47 @@ export class SystemMonitor extends EventEmitter {
       lastNetTx: 0,
       lastTimestamp: 0,
       systemInfoCollected: false,
+      consecutiveFailures: 0,
     }
     this.states.set(sessionId, state)
 
     // 立即采集一次（不阻塞返回）
-    this.tick(sessionId, state).catch(() => {
-      // 单次采集失败不影响后续采集
-    })
+    void this.runPeriodicTick(sessionId, state)
 
     // 启动定时器
     state.timer = setInterval(() => {
-      this.tick(sessionId, state).catch(() => {
-        // 采集失败不中断定时器
-      })
+      void this.runPeriodicTick(sessionId, state)
     }, intervalMs)
 
     return true
+  }
+
+  /**
+   * 周期性采集：失败不中断定时器，但不能一声不吭
+   *
+   * 远端断链后每次 tick 都会失败，3 秒一条逐条写日志会把环形缓冲冲干净，
+   * 所以只在"开始失败"那一刻记一条（带原因），恢复时再补一条。
+   * 界面上"数据已停更"由 MonitorPage 的新鲜度判定负责，这里留的是事后可查的痕迹：
+   * 用户报"监控不动了"时，日志里能直接看到从哪一刻起失败、为什么。
+   */
+  private async runPeriodicTick(sessionId: string, state: MonitorState): Promise<void> {
+    try {
+      await this.tick(sessionId, state)
+      if (state.consecutiveFailures > 0) {
+        logger.info(
+          'SSH',
+          `监控采集恢复：会话 ${sessionId}（此前连续失败 ${state.consecutiveFailures} 次）`
+        )
+        state.consecutiveFailures = 0
+      }
+    } catch (err) {
+      state.consecutiveFailures += 1
+      if (state.consecutiveFailures === 1) {
+        logger.warn('SSH', `监控采集失败，会话 ${sessionId} 的数据已停止更新`, {
+          reason: (err as Error).message,
+        })
+      }
+    }
   }
 
   /**
@@ -425,6 +453,7 @@ export class SystemMonitor extends EventEmitter {
       lastNetTx: 0,
       lastTimestamp: 0,
       systemInfoCollected: true,
+      consecutiveFailures: 0,
     }
     const data = await this.sample(sessionId, state)
     this.remember(sessionId, data)
@@ -449,24 +478,6 @@ export class SystemMonitor extends EventEmitter {
   }
 
   /**
-   * 执行 SSH 命令，失败返回空字符串
-   *
-   * 用于非关键采集命令，避免单命令失败导致整个采集周期失败。
-   *
-   * @param sessionId SSH 会话 ID
-   * @param command 远程命令
-   * @returns 命令 stdout（失败返回空字符串）
-   */
-  private async execSafe(sessionId: string, command: string): Promise<string> {
-    try {
-      const result = await this.sshManager.exec(sessionId, command)
-      return result.stdout
-    } catch {
-      return ''
-    }
-  }
-
-  /**
    * 批量执行多条命令 —— 合并为【单条 exec】（单个 SSH channel）
    *
    * v2.4 修复（SSH channel 耗尽）：此前采集用 Promise.all 并发 7 条 exec，
@@ -481,7 +492,8 @@ export class SystemMonitor extends EventEmitter {
    *
    * @param sessionId SSH 会话 ID
    * @param commands 命令数组
-   * @returns 与 commands 等长的 stdout 段落数组（失败/缺失段为空串）
+   * @returns 与 commands 等长的 stdout 段落数组（单条探针没输出时该段为空串）
+   * @throws 整条 exec 失败（断链/通道打不开）时抛出——失败的采集不产生样本
    */
   private async execBatch(sessionId: string, commands: string[]): Promise<string[]> {
     if (commands.length === 0) return []
@@ -491,8 +503,12 @@ export class SystemMonitor extends EventEmitter {
     try {
       const result = await this.sshManager.exec(sessionId, combined)
       stdout = result.stdout
-    } catch {
-      return commands.map(() => '')
+    } catch (err) {
+      // 整条 exec 失败 ≠ "某个探针没输出"。
+      // 以前这里把失败吐成空串，解析层再把空串读成 0，于是断链期间每 3 秒
+      // 推一条「CPU 0% / 内存 0%」的假样本——界面看起来比任何时候都健康。
+      // 失败的采集必须没有样本；调用方（周期性采集/AI 按需）各自决定怎么报。
+      throw new Error(`监控采集命令执行失败：${(err as Error).message}`)
     }
     const segments = stdout.split(SEP)
     // 对齐命令数量：按序取段，去掉每段首尾多余换行；缺失段补空串

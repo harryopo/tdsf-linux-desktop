@@ -157,10 +157,17 @@ export interface AlertTableProps {
   alerts?: AlertRecord[]
   /** 点击行打开 Drawer 回调 */
   onOpenDrawer?: (alert: AlertRecord) => void
+  /**
+   * 这一帧数据是否"还活着"（由页面的新鲜度判定传下来，默认 true）
+   *
+   * 空列表在"活着"和"停更"两种情况下含义不同：前者可以说"运行正常"，
+   * 后者只能说"不知道"——空列表本身就是因为没有新数据可算。
+   */
+  live?: boolean
 }
 
 /** 告警列表组件 */
-export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps) {
+export function AlertTable({ alerts: propAlerts, onOpenDrawer, live = true }: AlertTableProps) {
   const [search, setSearch] = useState('')
   const [filterOn, setFilterOn] = useState(false)
 
@@ -261,7 +268,7 @@ export function AlertTable({ alerts: propAlerts, onOpenDrawer }: AlertTableProps
             {visibleAlerts.length === 0 && (
               <tr>
                 <td colSpan={5} className="mon-table-td text-center" style={{ color: 'var(--text-muted)' }}>
-                  暂无告警，系统运行正常
+                  {live ? '暂无告警，系统运行正常' : '数据已停止更新，无法判断当前是否有告警'}
                 </td>
               </tr>
             )}
