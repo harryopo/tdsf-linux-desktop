@@ -611,7 +611,7 @@ class SupervisorAgent {
       modelInstance.config.type === 'deepseek' && strength === 'deep'
 
     // v0.9.7 P3 M1：logprobs 直采支持
-    // 检查 provider 是否支持 logprobs（OpenAI 协议：deepseek/qwen/volcengine-ark/ollama/openai-compatible）
+    // 检查 provider 是否支持 logprobs（OpenAI 协议：deepseek/qwen/volcengine-ark/openai-compatible）
     // - 支持：透传 providerOptions.openai.logprobs + top_logprobs，stream 捕获 providerMetadata
     // - 不支持：保持现有 text-fallback 路径（Claude/google）
     const caps = getProviderCapabilities(modelInstance.config)

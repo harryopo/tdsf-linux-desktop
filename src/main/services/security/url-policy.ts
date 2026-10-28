@@ -44,7 +44,7 @@ function parse(raw: unknown): URL | null {
 }
 
 /**
- * LLM provider baseUrl：必须 https；只有回环地址允许 http（本地 ollama/llama.cpp）；
+ * LLM provider baseUrl：必须 https；只有回环地址允许 http（用户自建的本地代理）；
  * 不许在 URL 里带凭据（`https://u:p@host`）或指向非 http(s) 协议。
  */
 export function assertSafeApiBaseUrl(raw: unknown): UrlPolicy {

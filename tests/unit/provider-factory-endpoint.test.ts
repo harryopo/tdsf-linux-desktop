@@ -96,11 +96,10 @@ describe('provider-factory 端点回归（v2.4 修复锁死）', () => {
     expect(typeof openaiCalls[0].options.fetch).toBe('function')
   })
 
-  it('qwen / volcengine-ark / ollama / openai-compatible 都必须走 .chat()', () => {
+  it('qwen / volcengine-ark / openai-compatible 都必须走 .chat()', () => {
     const types: ProviderConfig['type'][] = [
       'qwen',
       'volcengine-ark',
-      'ollama',
       'openai-compatible',
     ]
     for (const type of types) {

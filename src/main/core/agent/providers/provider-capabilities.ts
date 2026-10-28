@@ -28,7 +28,6 @@ import type { ProviderCapabilities, ProviderType, PersistedProviderConfig } from
  * - deepseek：支持 streaming/toolCall，无 vision（DeepSeek-VL 已停用），上下文 64K
  * - qwen：通义千问 Max 支持 streaming/toolCall/vision（qwen-vl），上下文 256K
  * - volcengine-ark：火山方舟豆包支持 streaming/toolCall，无 vision，上下文 32K
- * - ollama：本地推理支持 streaming，toolCall 视模型而定（保守默认 false），无 vision，上下文 8K
  *
  * 注意：contextWindow=0 表示未知，调用方应做防御性处理。
  */
@@ -73,13 +72,6 @@ export const PROVIDER_CAPABILITIES: Record<ProviderType, ProviderCapabilities> =
     toolCall: true,
     vision: false,
     contextWindow: 32_000,
-    logprobs: true,
-  },
-  ollama: {
-    streaming: true,
-    toolCall: false,
-    vision: false,
-    contextWindow: 8_000,
     logprobs: true,
   },
 }

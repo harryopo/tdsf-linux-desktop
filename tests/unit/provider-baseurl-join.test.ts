@@ -19,7 +19,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { PROVIDER_TEMPLATES, assertTemplateInvariants } from '../../src/main/core/agent/providers/provider-templates'
 
 /** 走 createOpenAI 家族的 type（provider-factory.ts:209-223 的同一个分支集合） */
-const OPENAI_FAMILY = ['openai-compatible', 'qwen', 'volcengine-ark', 'ollama', 'deepseek'] as const
+const OPENAI_FAMILY = ['openai-compatible', 'qwen', 'volcengine-ark', 'deepseek'] as const
 
 /** 用给定 baseURL 真跑一次请求，返回注入 fetch 实际收到的 URL */
 async function urlBuiltBy(baseURL: string): Promise<string> {

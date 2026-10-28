@@ -56,8 +56,10 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 ### AI 辅助
 
 - 多 Provider：类别数见下表「Provider 类型」（按 `provider-factory.ts` 的 switch 分支现数）——
-  `anthropic` / `google` / `deepseek` / `qwen` / `volcengine-ark` / `ollama` / `openai-compatible`。
+  `anthropic` / `google` / `deepseek` / `qwen` / `volcengine-ark` / `openai-compatible`。
   智谱、Moonshot 这类走 `openai-compatible` 模板，不是独立分支。
+  内置模板只列各家**现役**型号（8 家各 ≤2 档 + 一个自定义槽），**没有本地模型候选**——
+  Ollama 那条已按用户口径整条撤掉，本地服务仍可通过「OpenAI 兼容 (自定义)」填 baseURL 接。
 - 流式：增量合并、思考链占位、迟到事件不丢、可中途停止（停止和失败分开报，不混成一个红条）。
   停止的那一轮在消息底部标成「已停止」。用量按实测入账：能拿到就记，
   拿不到（点停止时 SDK 那三个 promise 一律 reject）就明说「未拿到账」，
@@ -108,10 +110,10 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-28 08:45**（端到端那一行是 10-27 23:50–23:55 那轮；两轮之间只动过文档与 `.gitignore`）。
-端到端读数出自那轮全量（`npx playwright test`，rc=0，98 通过 / 5 跳过，5.4 分钟，JSON 报告里 `unexpected=0`、`flaky=0`；
-5 条按环境跳过 = 3 条要真模型 Key + 2 条要一个比 `out/` 新的发布包，11 条真靶机用例这一轮都真跑了）；
-单元与组件读数出自 08:45 那轮全量（rc=0，3587 通过 / 19 跳过，350 个测试文件）。
+下表测量时间 **2026-10-28 09:56**：端到端读数出自 09:50–09:56 那轮全量（`npx playwright test`，rc=0，
+98 通过 / 5 跳过，5.6 分钟，JSON 报告里 `unexpected=0`、`flaky=0`；5 条按环境跳过 = 3 条要真模型 Key
++ 2 条要一个比 `out/` 新的发布包，11 条真靶机用例这一轮都真跑了）；
+单元与组件读数出自 09:38–09:39 那轮全量（rc=0，3604 通过 / 19 跳过，350 个测试文件）。
 **昨天这里记的"两条没归因的间歇红"，今天判清其中一条根本不是间歇**：`mcp-external-settings` 那条判据拿 `agentChat`
 的返回值当回答正文比字符串，而那把键按契约回的是会话号（`chat_<毫秒>_<uuid>`）——带不带某个数字全看那一刻的时间戳，
 于是它一直在掷骰子（压负载重跑 8 次红 5 次，红时读到的值就是那个会话号）。同一次调查又抓到第二条恒假：拿整份请求体比
@@ -152,12 +154,12 @@ pnpm dev
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3587 通过 / 19 跳过 | `npm test`（350 个测试文件，0 失败；那 19 条按环境跳过） |
+| 单元与组件用例 | 3604 通过 / 19 跳过 | `npm test`（350 个测试文件，0 失败；那 19 条按环境跳过） |
 | 端到端用例 | 98 通过 / 5 跳过 | `npx playwright test`（直驱真实应用窗口；这一轮给了 `TDSF_REAL_SSHD_*`，11 条真靶机用例真跑了，剩下 5 条要真模型 Key 或一个比 `out/` 新的发布包） |
 | IPC 通道 | 164 | `npm run audit:ipc`（146 请求-响应 + 18 事件推送） |
 | 已登记契约的通道 | 61 | `src/shared/ipc-contract.ts`（56 invoke + 5 event） |
 | TypeScript / TSX 源文件 | 457 | `git ls-files src` 里 `.ts/.tsx` 计数 |
-| Provider 类型 | 7 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
+| Provider 类型 | 6 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 
 门禁链（每一道都是能跑红的闸，不是提醒）：

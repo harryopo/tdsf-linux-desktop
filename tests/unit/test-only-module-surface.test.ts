@@ -96,12 +96,12 @@ describe('测试独占模块整删后的常驻形状判据（#225）', () => {
     expect(editor).toContain('sftpWriteFile')
 
     const templates = readFileSync(join(ROOT, 'src/main/core/agent/providers/provider-templates.ts'), 'utf8')
-    expect(templates).toContain('http://localhost:11434/v1')
+    expect(templates, '模板表还在、还在给默认 baseURL').toContain('https://api.deepseek.com/v1')
 
-    // provider 类型与工厂还在（ollama 这个类型不是随模块一起删的东西）
+    // ProviderType 联合与工厂还在（删的是本地模型这一档，不是整个 provider 抽象）
     expect(existsSync(join(ROOT, 'src/main/core/agent/providers/provider-factory.ts'))).toBe(true)
     const types = readFileSync(join(ROOT, 'src/shared/agent-types.ts'), 'utf8')
-    expect(types).toContain('ollama')
+    expect(types).toContain("'anthropic'")
   })
 
   it('4. 外部命令豁免名单不许留死引用', () => {
@@ -120,9 +120,9 @@ describe('测试独占模块整删后的常驻形状判据（#225）', () => {
     expect(bannedHits('const r = applyEditBlock(content, blocks)')).toContain('applyEditBlock')
     expect(bannedHits("await import('./ollama-autodetect')")).toContain('ollama-autodetect')
 
-    // 不误伤：provider 侧真在跑的正文里提到 ollama，但不含任何被禁形状
+    // 不误伤：provider 侧真在跑的正文（模板表）不含任何被禁形状
     const templates = readFileSync(join(ROOT, 'src/main/core/agent/providers/provider-templates.ts'), 'utf8')
-    expect(templates).toContain('ollama')
+    expect(templates).toContain('api.deepseek.com')
     expect(bannedHits(templates)).toEqual([])
   })
 

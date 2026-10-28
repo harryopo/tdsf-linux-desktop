@@ -32,7 +32,6 @@ import type { FusionSourceId } from './credibility'
  * - anthropic：Claude 直连（@ai-sdk/anthropic createAnthropic）
  * - google：Google Gemini 直连（@ai-sdk/google createGoogleGenerativeAI）
  * - volcengine-ark：火山方舟（OpenAI 兼容，但单独标识以便统计与默认 baseURL）
- * - ollama：本地 Ollama（OpenAI 兼容，默认 http://localhost:11434/v1）
  * - deepseek：DeepSeek（OpenAI 兼容，baseURL 必须自带版本段 https://api.deepseek.com/v1；
  *   @ai-sdk/openai 不补 /v1，缺了会打在 https://api.deepseek.com/chat/completions 上）
  * - qwen：通义千问 / DashScope（OpenAI 兼容，默认 https://dashscope.aliyuncs.com/compatible-mode/v1）
@@ -43,7 +42,6 @@ export type ProviderType =
   | 'anthropic'
   | 'google'
   | 'volcengine-ark'
-  | 'ollama'
   | 'deepseek'
   | 'qwen'
 
@@ -130,7 +128,6 @@ export interface ProviderCapabilities {
    * - deepseek：支持
    * - qwen：支持（火山方舟 / 阿里百炼 OpenAI 兼容端点）
    * - volcengine-ark：支持
-   * - ollama：支持（`logprobs: true`）
    * - anthropic：不支持（Anthropic 协议无 logprobs 字段）
    * - google：不支持（Gemini 协议无 token-level logprobs）
    */
@@ -226,7 +223,7 @@ export interface ProviderConfig {
  * 成功（走旧 llmTest 通道）但 AI 对话（走 Provider 通道）因无 Key 而失败。
  */
 export interface PersistedProviderConfig extends Omit<ProviderConfig, 'apiKey'> {
-  /** 是否已配置 API Key（Ollama 本地无 Key 也视为 true；由 provider:list 运行时附加） */
+  /** 是否已配置 API Key（由 provider:list 运行时附加） */
   hasApiKey?: boolean
 }
 

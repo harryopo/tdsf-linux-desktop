@@ -31,7 +31,6 @@ import type {
  * - deepseek：DeepSeek Chat $0.14/1M input + $0.28/1M output（国产最具性价比）
  * - qwen：通义千问 Max $1.6/1M input + $6.4/1M output
  * - volcengine-ark：豆包 Pro $0.8/1M input + $2/1M output
- * - ollama：本地推理，0 成本（仅电费）
  *
  * 注意：定价可能随厂商调整而变化，建议每季度 review 一次。
  * 用户可通过 ProviderConfig.pricing 显式覆盖（如代理服务有折扣）。
@@ -65,11 +64,6 @@ export const PROVIDER_PRICING: Record<ProviderType, ModelPricing> = {
   'volcengine-ark': {
     inputCostPer1M: 0.8,
     outputCostPer1M: 2.0,
-    currency: 'USD',
-  },
-  ollama: {
-    inputCostPer1M: 0.0,
-    outputCostPer1M: 0.0,
     currency: 'USD',
   },
 }
@@ -118,7 +112,7 @@ export function getProviderPricing(
  *
  * 边界情况处理：
  * - inputTokens / outputTokens 为 0 或负数 → 视为 0（防御性处理）
- * - 定价为 0（如 Ollama 本地）→ 返回 0
+ * - 定价为 0（如自建或代理送的额度）→ 返回 0
  * - 计算结果四舍五入到 6 位小数（避免浮点精度问题）
  *
  * @param record token 使用记录（仅需 inputTokens / outputTokens 字段）

@@ -114,7 +114,7 @@ describe('A 组｜Provider baseURL 写入口（决定真 Key 寄到哪里）', (
 
   const MUST_ACCEPT: Array<[string, unknown]> = [
     ['标准 https 端点', 'https://api.deepseek.com/v1'],
-    ['本机 ollama（明文 http 只放回环）', 'http://127.0.0.1:11434/v1'],
+    ['本机自建服务（明文 http 只放回环）', 'http://127.0.0.1:11434/v1'],
     ['本机 IPv6 回环', 'http://[::1]:11434/v1'],
     ['localhost 主机名', 'http://localhost:1234/v1'],
   ]

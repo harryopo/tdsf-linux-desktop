@@ -37,10 +37,9 @@ describe('provider-capabilities — 默认表完整性（v0.9.7 P3 M1 加 logpro
     'deepseek',
     'qwen',
     'volcengine-ark',
-    'ollama',
   ]
 
-  it('7 个 ProviderType 全部注册到默认表', () => {
+  it('6 个 ProviderType 全部注册到默认表', () => {
     for (const t of allTypes) {
       expect(PROVIDER_CAPABILITIES[t]).toBeDefined()
     }
@@ -66,16 +65,15 @@ describe('provider-capabilities — 默认表完整性（v0.9.7 P3 M1 加 logpro
 })
 
 // ============================================================================
-// v0.9.7 P3 M1 新增：logprobs 能力分级（5/7 支持）
+// v0.9.7 P3 M1 新增：logprobs 能力分级（4/6 支持；本地 Ollama 已于 2026-10-28 撤掉）
 // ============================================================================
-describe('provider-capabilities — logprobs 能力分级（5/7 支持）', () => {
-  it('支持 logprobs：openai-compatible / deepseek / qwen / volcengine-ark / ollama', () => {
+describe('provider-capabilities — logprobs 能力分级（4/6 支持）', () => {
+  it('支持 logprobs：openai-compatible / deepseek / qwen / volcengine-ark', () => {
     const supported: ProviderType[] = [
       'openai-compatible',
       'deepseek',
       'qwen',
       'volcengine-ark',
-      'ollama',
     ]
     for (const t of supported) {
       expect(PROVIDER_CAPABILITIES[t].logprobs).toBe(true)
@@ -89,10 +87,10 @@ describe('provider-capabilities — logprobs 能力分级（5/7 支持）', () =
     }
   })
 
-  it('5/8 = 62.5% 主流 provider 支持 logprobs（论文级 token entropy）', () => {
+  it('4/6 ≈ 67% 主流 provider 支持 logprobs（论文级 token entropy）', () => {
     const total = Object.keys(PROVIDER_CAPABILITIES).length
     const supported = Object.values(PROVIDER_CAPABILITIES).filter((c) => c.logprobs).length
-    expect(supported).toBe(5) // openai-compatible / deepseek / qwen / volcengine-ark / ollama
+    expect(supported).toBe(4) // openai-compatible / deepseek / qwen / volcengine-ark
     expect(supported / total).toBeGreaterThanOrEqual(0.5)
   })
 })
@@ -187,8 +185,7 @@ describe('provider-capabilities — 业务场景：可信度模块 logprobs 选�
     expect(caps.logprobs).toBe(false)
   })
 
-  it('Ollama（本地）→ 启用 logprobs（Ollama 协议支持）', () => {
-    const caps = getProviderCapabilities(baseConfig('ollama'))
-    expect(caps.logprobs).toBe(true)
+  it('本地模型整条撤掉：能力表里不再有 ollama 这个类型', () => {
+    expect(Object.keys(PROVIDER_CAPABILITIES)).not.toContain('ollama')
   })
 })

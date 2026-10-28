@@ -34,7 +34,6 @@ const OPENAI_PROTOCOL_TYPES: ReadonlySet<ProviderType> = new Set([
   'deepseek',
   'qwen',
   'volcengine-ark',
-  'ollama',
 ])
 
 /** 空配置兜底（isAvailable()=false，调用方负责向 UI 抛错） */
@@ -76,10 +75,9 @@ function providerToLlmConfig(provider: ProviderConfig, legacy: LlmConfig | null)
   }
 }
 
-/** Provider 是否可被 LlmClient 复用（OpenAI 协议族 + 有 Key，ollama 免 Key） */
+/** Provider 是否可被 LlmClient 复用（OpenAI 协议族 + 有 Key） */
 function isUsable(provider: ProviderConfig | null): provider is ProviderConfig {
   if (!provider || !OPENAI_PROTOCOL_TYPES.has(provider.type)) return false
-  if (provider.type === 'ollama') return true
   return typeof provider.apiKey === 'string' && provider.apiKey.length > 0
 }
 
@@ -100,7 +98,7 @@ export function resolveLlmConfig(caller: string): LlmConfig {
       return providerToLlmConfig(defaultProvider, legacy)
     }
     for (const p of listProviders(true)) {
-      if (!p.hasApiKey && p.type !== 'ollama') continue
+      if (!p.hasApiKey) continue
       const full = getProviderWithApiKey(p.id)
       if (isUsable(full)) {
         return providerToLlmConfig(full, legacy)

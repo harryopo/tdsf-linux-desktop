@@ -20,7 +20,7 @@ import { ConfigStore } from '../../../services/storage/config-store'
 import { SecureStore } from '../../../services/storage/secure-store'
 import { logger } from '../../../services/log/logger'
 import { assertSafeApiBaseUrl } from '../../../services/security/url-policy'
-import { PROVIDER_TEMPLATES } from './provider-templates'
+import { PROVIDER_TEMPLATES, SUPERSEDED_MODEL_IDS } from './provider-templates'
 import { PROVIDER_CAPABILITIES, getProviderCapabilities } from './provider-capabilities'
 import type { ProviderConfig, PersistedProviderConfig, ModelRole } from './types'
 import { DEFAULT_PROVIDER_ID } from './types'
@@ -49,8 +49,10 @@ const SECURE_KEY_PREFIX = 'provider:'
  * 默认指针若正指着它要回退（否则 getProviderWithApiKey 拿到 null，AI 直接不可用）。
  */
 function initializeProviders(): void {
+  const rawStored = ConfigStore.get(STORE_KEY_PROVIDERS)
+  const rawIsEmpty = !Array.isArray(rawStored) || rawStored.length === 0
   const existing = loadFromStore()
-  if (existing.length === 0) {
+  if (existing.length === 0 && rawIsEmpty) {
     // 首次启动，直接写入所有预置模板
     saveToStore(PROVIDER_TEMPLATES)
     logger.info('AGENT.PROVIDER', `首次初始化 Provider 列表，已写入 ${PROVIDER_TEMPLATES.length} 个预置模板`)
@@ -61,14 +63,46 @@ function initializeProviders(): void {
   const existingIds = new Set(existing.map((p) => p.id))
   const additions = PROVIDER_TEMPLATES.filter((t) => !existingIds.has(t.id))
   // 只删 builtin === true 的：字段缺失（老版本写的数据）一律当用户自建处理
-  const removed = existing.filter((p) => p.builtin === true && !templateIds.has(p.id))
+  //
+  // 退役**类型**的内置条目不在 `existing` 里（loadFromStore 读的时候就摘掉了），
+  // 但它们的 Key 还留在 SecureStore。这里按原始存储再捞一次，只清内置的：
+  // 用户自建的那些读时忽略、但不写回（兼容规则见 loadFromStore 的注释）。
+  const liveTypes = new Set(Object.keys(PROVIDER_CAPABILITIES))
+  const retiredTypeBuiltins: PersistedProviderConfig[] = Array.isArray(rawStored)
+    ? rawStored.filter(
+        (p): p is PersistedProviderConfig =>
+          !!p &&
+          typeof p === 'object' &&
+          (p as PersistedProviderConfig).builtin === true &&
+          typeof (p as PersistedProviderConfig).type === 'string' &&
+          !liveTypes.has((p as PersistedProviderConfig).type),
+      )
+    : []
 
-  if (additions.length === 0 && removed.length === 0) {
+  const removed = [
+    ...existing.filter((p) => p.builtin === true && !templateIds.has(p.id)),
+    ...retiredTypeBuiltins,
+  ]
+
+  const templateById = new Map(PROVIDER_TEMPLATES.map((t) => [t.id, t]))
+  let refreshed = 0
+  const rectified = existing.map((p) => {
+    if (p.builtin !== true) return p
+    const tpl = templateById.get(p.id)
+    if (!tpl) return p
+    const next = refreshBuiltin(p, tpl)
+    if (!next) return p
+    if (JSON.stringify(next) === JSON.stringify(p)) return p
+    refreshed += 1
+    return next
+  })
+
+  if (additions.length === 0 && removed.length === 0 && refreshed === 0) {
     return
   }
 
   const removedIds = new Set(removed.map((p) => p.id))
-  const merged = [...existing.filter((p) => !removedIds.has(p.id)), ...additions]
+  const merged = [...rectified.filter((p) => !removedIds.has(p.id)), ...additions]
   saveToStore(merged)
 
   for (const p of removed) {
@@ -96,6 +130,41 @@ function initializeProviders(): void {
       newIds: additions.map((t) => t.id),
     })
   }
+  if (refreshed > 0) {
+    logger.info('AGENT.PROVIDER', `内置 Provider 换代 ${refreshed} 条（型号/能力按新模板对齐）`)
+  }
+}
+
+/**
+ * 内置条目的换代规则（2026-10-28）
+ *
+ * 只做 prune + 追加的话，老用户库里那条 `kimi-k3` 会一直留着——模板表改了，
+ * 设置里却还显示上一代的型号。所以按存储里那份型号分三档处理：
+ * - 型号已被取代（SUPERSEDED_MODEL_IDS）→ 换成模板这一代（名称/地址/型号/角色/能力）
+ * - 型号与模板一致 → 只补模板侧字段（能力、角色），型号本身不动
+ * - 其它（用户自己改过型号或地址）→ 原样返回，换代不许覆盖他的选择
+ *
+ * `enabled` 与 apiKey 始终保留：换代不是删档，用户关掉的开关也不能被顺手打开。
+ */
+function refreshBuiltin(
+  p: PersistedProviderConfig,
+  tpl: ProviderConfig,
+): PersistedProviderConfig | null {
+  const superseded = SUPERSEDED_MODEL_IDS.includes(p.model)
+  if (!superseded && p.model !== tpl.model) return null
+
+  const next: PersistedProviderConfig = {
+    ...p,
+    name: tpl.name,
+    type: tpl.type,
+    baseURL: tpl.baseURL,
+    model: tpl.model,
+    roles: tpl.roles,
+  }
+  // 温度这类参数只在真的换型号时跟着换；同一个型号下那是用户自己的调参，别覆盖
+  if (superseded && tpl.defaultParams) next.defaultParams = tpl.defaultParams
+  if (tpl.capabilities) next.capabilities = tpl.capabilities
+  return next
 }
 
 /**
@@ -162,28 +231,21 @@ function saveToStore(providers: PersistedProviderConfig[]): void {
  *
  * v2.3.6 新增：在 PersistedProviderConfig 基础上加 hasApiKey 标识，
  * 前端 UI 用来区分"已配置 API Key"（可直接调用）和"未配置 API Key"（需先配置）。
- *
- * Ollama 本地 Provider 不需要 API Key，hasApiKey 始终为 true（前端无需提示）。
  */
 export interface PersistedProviderConfigWithKey extends PersistedProviderConfig {
-  /** 是否已配置 API Key（Ollama 本地无 Key 也视为已配置） */
+  /** 是否已配置 API Key */
   hasApiKey: boolean
 }
 
 /**
  * 检查某个 Provider 是否已配置 API Key
  *
- * Ollama 本地无需 API Key（视为已配置）。其他 Provider 通过 SecureStore 查询。
+ * 所有内置 Provider 都是云服务，一律通过 SecureStore 查询。
  *
  * @param id Provider ID
  * @returns 是否已配置 API Key
  */
 export function hasProviderApiKey(id: string): boolean {
-  // Ollama 本地 Provider 不需要 API Key
-  const base = getProvider(id)
-  if (base?.type === 'ollama') {
-    return true
-  }
   const apiKey = SecureStore.getApiKey(`${SECURE_KEY_PREFIX}${id}`)
   return typeof apiKey === 'string' && apiKey.length > 0
 }
@@ -427,7 +489,7 @@ export function ensureProvidersInitialized(): void {
  * 3. 默认 Provider 也不存在 → 返回 null
  *
  * 使用场景：
- * - autocomplete 子代理：getProviderByRole('autocomplete') → 优先用本地 Ollama
+ * - autocomplete 子代理：getProviderByRole('autocomplete') → 优先用 GLM 5.3 Flash
  * - edit 子代理：getProviderByRole('edit') → 优先用 DeepSeek Coder
  * - 主对话：getProviderByRole('chat') → 优先用 DeepSeek V4
  *

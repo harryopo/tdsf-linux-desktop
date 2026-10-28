@@ -4,7 +4,7 @@
  * 职责：根据 ProviderConfig.type 创建对应的 LanguageModel 实例
  *
  * 支持的 Provider 类型：
- * - openai-compatible / deepseek / qwen / volcengine-ark / ollama → 用 @ai-sdk/openai createOpenAI（OpenAI 兼容协议）
+ * - openai-compatible / deepseek / qwen / volcengine-ark → 用 @ai-sdk/openai createOpenAI（OpenAI 兼容协议）
  * - anthropic → 用 @ai-sdk/anthropic createAnthropic（Claude 原生协议）
  * - google → 用 @ai-sdk/google createGoogleGenerativeAI（Gemini 原生协议）
  *
@@ -67,8 +67,7 @@ export function reasoningExtractionTag(type: ProviderType): string | null {
     type === 'deepseek' ||
     type === 'openai-compatible' ||
     type === 'qwen' ||
-    type === 'volcengine-ark' ||
-    type === 'ollama'
+    type === 'volcengine-ark'
   return compat ? REASONING_TAG : null
 }
 
@@ -84,7 +83,7 @@ function createOpenAiCompatFetch(opts: CompatFetchOptions): typeof fetch {
   return async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
 /*
  *  自定义 fetch 职责：
- *  1.【所有兼容端】developer→system 角色修正（DeepSeek/Qwen/Volcengine/Ollama 只认 system）；
+ *  1.【所有兼容端】developer→system 角色修正（DeepSeek/Qwen/Volcengine 只认 system）；
  *  2.【仅 DeepSeek】按 deep 强度注入 thinking enabled/disabled（关时正文直出）；
  *  3.【兼容端】把 reasoning_content 包成罕见标签供中间件提取（#90：不再只限 deepseek+deep）。
  */
@@ -139,7 +138,7 @@ function createOpenAiCompatFetch(opts: CompatFetchOptions): typeof fetch {
  * 创建 LanguageModel 实例
  *
  * 根据 ProviderConfig.type 分发到对应的 @ai-sdk/* 工厂函数。
- * 所有 OpenAI 兼容协议（deepseek/qwen/volcengine-ark/ollama/openai-compatible）
+ * 所有 OpenAI 兼容协议（deepseek/qwen/volcengine-ark/openai-compatible）
  * 统一用 createOpenAI 创建。
  *
  * 特殊处理：
@@ -152,8 +151,7 @@ export function createLanguageModel(
   config: ProviderConfig,
   opts?: { deepThinking?: boolean },
 ): ProviderModelInstance {
-  if (!config.apiKey && config.type !== 'ollama') {
-    // Ollama 本地无需 apiKey
+  if (!config.apiKey) {
     throw new Error(
       `Provider "${config.name}" (${config.id}) 缺少 API Key，请在设置中配置`
     )
@@ -227,11 +225,10 @@ function buildModel(config: ProviderConfig, deepThinking = false): LanguageModel
     }
     case 'openai-compatible':
     case 'qwen':
-    case 'volcengine-ark':
-    case 'ollama': {
+    case 'volcengine-ark': {
       // 全部走 OpenAI 兼容协议（绝大多数国产模型都兼容）
       const openai = createOpenAI({
-        apiKey: config.apiKey || 'ollama', // Ollama 默认无需 key，但 SDK 要求非空
+        apiKey: config.apiKey!,
         baseURL: config.baseURL,
         // developer→system 角色修正（不注入 deepseek thinking）
         fetch: createOpenAiCompatFetch({ deepseekThinking: false, surfaceReasoning: true }),

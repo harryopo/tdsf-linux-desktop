@@ -13,11 +13,11 @@
  *    - fallback：无匹配角色时返回默认 Provider
  *    - 模板完整性：12 个模板均有 roles（除 openai-compatible-custom）
  * 4. 任务 4：capability 声明（PROVIDER_CAPABILITIES + getProviderCapabilities）
- *    - 默认值：7 个 ProviderType 均有默认能力
+ *    - 默认值：6 个 ProviderType 均有默认能力（本地 ollama 已撤）
  *    - 用户覆盖：config.capabilities 优先于默认表
  *    - 深拷贝：修改返回值不影响原对象
  * 5. 任务 5：cost 透明化（PROVIDER_PRICING + getProviderPricing + calculateCost）
- *    - 默认定价：7 个 ProviderType 均有定价
+ *    - 默认定价：6 个 ProviderType 均有定价
  *    - 用户覆盖：config.pricing 优先于默认表
  *    - 成本计算：公式正确，四舍五入到 6 位小数
  *    - 边界情况：0 token / 负 token / 0 定价
@@ -118,14 +118,15 @@ describe('任务 3：ModelRole 8 类角色', () => {
   })
 
   describe('3.2 模板 roles 字段完整性', () => {
-    it('PROVIDER_TEMPLATES 应有 15 个模板', async () => {
+    it('PROVIDER_TEMPLATES 应有 14 个模板（全是云服务，无本地槽）', async () => {
       const { PROVIDER_TEMPLATES } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
-      // 15 个模板：2 DeepSeek + 2 通义 + 2 豆包 + 2 Kimi + 2 GLM + 2 Gemini
-      // + 1 Claude Bedrock + 1 Ollama + 1 OpenAI 兼容自定义（2 条 Claude SDK 随 SDK 退役）
+      // 14 个模板：2 DeepSeek + 2 通义 + 2 豆包 + 2 Kimi + 2 GLM + 2 Gemini
+      // + 1 Claude 直连 + 1 OpenAI 兼容自定义
+      // 2026-10-28 按用户口径去掉 Ollama（本地候选）与 Bedrock Claude（从没跑通过的占位）
       // id 集合与 roles 期望表逐条对账在 tests/unit/provider-template-invariants.test.ts
-      expect(PROVIDER_TEMPLATES).toHaveLength(15)
+      expect(PROVIDER_TEMPLATES).toHaveLength(14)
     })
 
     it('deepseek-v4 → roles: [chat, summarize]', async () => {
@@ -170,11 +171,11 @@ describe('任务 3：ModelRole 8 类角色', () => {
       expect(t?.roles).toEqual(['chat'])
     })
 
-    it('claude-sonnet-4 (anthropic) → roles: [chat, edit]', async () => {
+    it('claude-sonnet (anthropic 直连) → roles: [chat, edit]', async () => {
       const { findTemplate } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
-      const t = findTemplate('claude-sonnet-4')
+      const t = findTemplate('claude-sonnet')
       expect(t?.roles).toEqual(['chat', 'edit'])
     })
 
@@ -188,22 +189,17 @@ describe('任务 3：ModelRole 8 类角色', () => {
       expect(t?.roles).toEqual(['chat', 'summarize'])
     })
 
-    it('ollama-qwen3 → roles: [chat, autocomplete]', async () => {
-      const { findTemplate } = await import(
-        '../../src/main/core/agent/providers/provider-templates'
-      )
-      const t = findTemplate('ollama-qwen3')
-      expect(t?.roles).toEqual(['chat', 'autocomplete'])
-    })
-
-    it('被精简掉的两个旧槽位确实不再存在', async () => {
+    it('被精简掉的旧槽位确实不再存在（含 2026-10-28 去掉的本地与占位两条）', async () => {
       const { findTemplate } = await import(
         '../../src/main/core/agent/providers/provider-templates'
       )
       // deepseek-coder-v3：与主模型同一个 id 的第二条，合并进 deepseek-reasoner
-      // ollama-llama33：本地 tag 取决于用户实际 pull 了什么，第二档是假选择
+      // ollama-llama33 / ollama-qwen3：本地模型不再作为候选
+      // claude-sonnet-4：Bedrock 占位，@ai-sdk/anthropic 发 Bearer、Bedrock 要 SigV4，从没跑通
       expect(findTemplate('deepseek-coder-v3')).toBeUndefined()
       expect(findTemplate('ollama-llama33')).toBeUndefined()
+      expect(findTemplate('ollama-qwen3')).toBeUndefined()
+      expect(findTemplate('claude-sonnet-4')).toBeUndefined()
     })
 
     it('openai-compatible-custom → 不设置 roles（用户自定义）', async () => {
@@ -255,8 +251,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'p1',
           name: 'P1',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: ['chat'],
@@ -264,8 +260,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'p2',
           name: 'P2',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: ['edit', 'apply'],
@@ -285,8 +281,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'first',
           name: 'First',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: ['chat'],
@@ -294,8 +290,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'second',
           name: 'Second',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: ['chat'],
@@ -315,8 +311,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'only-chat',
           name: 'OnlyChat',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: ['chat'],
@@ -337,8 +333,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'disabled',
           name: 'Disabled',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: false, // 禁用
           roles: ['edit'],
@@ -346,8 +342,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'fallback',
           name: 'Fallback',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: ['chat'],
@@ -371,8 +367,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'no-roles-provider',
           name: 'NoRoles',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: undefined, // 不声明任何角色
@@ -394,8 +390,8 @@ describe('任务 3：ModelRole 8 类角色', () => {
         makePersistedConfig({
           id: 'no-roles',
           name: 'NoRoles',
-          type: 'ollama',
-          baseURL: 'http://localhost:11434/v1',
+          type: 'openai-compatible',
+          baseURL: 'https://example.invalid/v1',
           model: 'qwen3:32b',
           enabled: true,
           roles: undefined, // 未声明 roles
@@ -419,7 +415,7 @@ describe('任务 3：ModelRole 8 类角色', () => {
 
 describe('任务 4：Provider 能力声明', () => {
   describe('4.1 PROVIDER_CAPABILITIES 默认值完整性', () => {
-    it('4.1.1 应包含 7 个 ProviderType 的默认能力', async () => {
+    it('4.1.1 应包含 6 个 ProviderType 的默认能力', async () => {
       const { PROVIDER_CAPABILITIES } = await import(
         '../../src/main/core/agent/providers/provider-capabilities'
       )
@@ -430,7 +426,6 @@ describe('任务 4：Provider 能力声明', () => {
         'deepseek',
         'qwen',
         'volcengine-ark',
-        'ollama',
       ]
       for (const t of expectedTypes) {
         expect(PROVIDER_CAPABILITIES).toHaveProperty(t)
@@ -475,13 +470,11 @@ describe('任务 4：Provider 能力声明', () => {
       expect(PROVIDER_CAPABILITIES.deepseek.contextWindow).toBe(64_000)
     })
 
-    it('4.1.5 ollama 默认能力正确（无 toolCall，8K 上下文）', async () => {
+    it('4.1.5 本地 ollama 类型已撤：默认表里没有它（不是 0 值占位）', async () => {
       const { PROVIDER_CAPABILITIES } = await import(
         '../../src/main/core/agent/providers/provider-capabilities'
       )
-      expect(PROVIDER_CAPABILITIES.ollama.toolCall).toBe(false)
-      expect(PROVIDER_CAPABILITIES.ollama.vision).toBe(false)
-      expect(PROVIDER_CAPABILITIES.ollama.contextWindow).toBe(8_000)
+      expect(Object.keys(PROVIDER_CAPABILITIES)).not.toContain('ollama')
     })
 
   })
@@ -535,7 +528,7 @@ describe('任务 4：Provider 能力声明', () => {
         logprobs: false,
       }
       const config = makePersistedConfig({
-        type: 'ollama',
+        type: 'openai-compatible',
         capabilities: customCaps,
       })
       const caps1 = getProviderCapabilities(config)
@@ -548,11 +541,11 @@ describe('任务 4：Provider 能力声明', () => {
       const { getProviderCapabilities, PROVIDER_CAPABILITIES } = await import(
         '../../src/main/core/agent/providers/provider-capabilities'
       )
-      const config = makePersistedConfig({ type: 'ollama' })
+      const config = makePersistedConfig({ type: 'openai-compatible' })
       const caps1 = getProviderCapabilities(config)
       caps1.contextWindow = 999_999 // 修改返回值
       // 默认表不应被污染
-      expect(PROVIDER_CAPABILITIES.ollama.contextWindow).toBe(8_000)
+      expect(PROVIDER_CAPABILITIES['openai-compatible'].contextWindow).toBe(8_000)
     })
   })
 })
@@ -574,7 +567,6 @@ describe('任务 5：Provider 成本定价与计算', () => {
         'deepseek',
         'qwen',
         'volcengine-ark',
-        'ollama',
       ]
       for (const t of expectedTypes) {
         expect(PROVIDER_PRICING).toHaveProperty(t)
@@ -604,12 +596,11 @@ describe('任务 5：Provider 成本定价与计算', () => {
       expect(PROVIDER_PRICING.deepseek.outputCostPer1M).toBe(0.28)
     })
 
-    it('5.1.4 ollama 定价为 0（本地推理）', async () => {
+    it('5.1.4 本地 ollama 类型已撤：定价表里没有它', async () => {
       const { PROVIDER_PRICING } = await import(
         '../../src/main/core/agent/providers/provider-pricing'
       )
-      expect(PROVIDER_PRICING.ollama.inputCostPer1M).toBe(0.0)
-      expect(PROVIDER_PRICING.ollama.outputCostPer1M).toBe(0.0)
+      expect(Object.keys(PROVIDER_PRICING)).not.toContain('ollama')
     })
 
 
@@ -699,7 +690,7 @@ describe('任务 5：Provider 成本定价与计算', () => {
       expect(calculateCost(record, pricing)).toBe(0.0168)
     })
 
-    it('5.3.3 ollama 0 定价 → 始终返回 0', async () => {
+    it('5.3.3 定价为 0（用户自填的免费额度）→ 始终返回 0', async () => {
       const { calculateCost } = await import(
         '../../src/main/core/agent/providers/provider-pricing'
       )
@@ -840,11 +831,14 @@ describe('任务 5：Provider 成本定价与计算', () => {
       expect(cost).toBe(0.196)
     })
 
-    it('5.4.2 ollama 端到端：任意 token → 0 成本', async () => {
+    it('5.4.2 用户显式把定价覆盖成 0 → 端到端 0 成本', async () => {
       const { getProviderPricing, calculateCost } = await import(
         '../../src/main/core/agent/providers/provider-pricing'
       )
-      const config = makePersistedConfig({ type: 'ollama' })
+      const config = makePersistedConfig({
+        type: 'openai-compatible',
+        pricing: { inputCostPer1M: 0, outputCostPer1M: 0 },
+      })
       const pricing = getProviderPricing(config)
       const cost = calculateCost(
         { inputTokens: 5_000_000, outputTokens: 1_000_000 },

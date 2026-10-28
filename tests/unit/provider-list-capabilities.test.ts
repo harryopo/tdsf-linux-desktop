@@ -67,9 +67,9 @@ beforeEach(() => {
 describe('listProviders 带出真实窗口', () => {
   it('没写 capabilities 的自建 Provider 按 type 默认表补上', async () => {
     seedProvider({
-      id: 'p-ollama',
-      name: '本地 Ollama',
-      type: 'ollama',
+      id: 'p-local',
+      name: '自建本地服务',
+      type: 'openai-compatible',
       baseURL: 'http://127.0.0.1:11434/v1',
       model: 'qwen2.5:7b',
       enabled: true,
@@ -77,7 +77,7 @@ describe('listProviders 带出真实窗口', () => {
     const { listProviders } = await registry()
     const list = listProviders(false)
     expect(list).toHaveLength(1)
-    expect(list[0].capabilities?.contextWindow, '默认表里 ollama 是 8K，不补就是渲染层自己猜').toBe(8_000)
+    expect(list[0].capabilities?.contextWindow, '默认表里 openai-compatible 是 8K，不补就是渲染层自己猜').toBe(8_000)
   })
 
   it('用户显式覆盖优先于默认表', async () => {
@@ -129,8 +129,8 @@ describe('listProviders 带出真实窗口', () => {
   it('运行时取 Provider 也带能力表（压缩按它算，不能只给渲染层用）', async () => {
     seedProvider({
       id: 'p-runtime',
-      name: '本地 Ollama',
-      type: 'ollama',
+      name: '自建本地服务',
+      type: 'openai-compatible',
       baseURL: 'http://127.0.0.1:11434/v1',
       model: 'qwen2.5:7b',
       enabled: true,
@@ -154,14 +154,14 @@ describe("存储里只留真覆盖（#89 的回归防线）", () => {
   // provider:list 现在恒带解析后的 capabilities，而 ModelSettings 的同步是
   // providerSave({...target, ...}) 整条回写。不在写入口剥掉与默认表相同的那份，
   // 能力表就会被冻进存储，以后改默认表对老用户永久失效。
-  const ollama = {
-    id: 'p-ollama', name: '本地 Ollama', type: 'ollama',
+  const localProxy = {
+    id: 'p-local', name: '自建本地服务', type: 'openai-compatible',
     baseURL: 'http://127.0.0.1:11434/v1', model: 'qwen2.5:7b', enabled: true,
   }
 
   it('与默认表相同的能力声明不入库', async () => {
     const { listProviders, saveProvider } = await registry()
-    seedProvider(ollama)
+    seedProvider(localProxy)
     const resolved = listProviders(false)[0]
     saveProvider(resolved as never)
     const stored = (box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>)[0]
@@ -170,7 +170,7 @@ describe("存储里只留真覆盖（#89 的回归防线）", () => {
 
   it('用户真改过的窗口大小要入库', async () => {
     const { listProviders, saveProvider } = await registry()
-    seedProvider(ollama)
+    seedProvider(localProxy)
     const resolved = listProviders(false)[0]
     saveProvider({
       ...(resolved as object),
@@ -182,7 +182,7 @@ describe("存储里只留真覆盖（#89 的回归防线）", () => {
 
   it('往返幂等：list 出来的对象直接存回去，存储内容不变', async () => {
     const { listProviders, saveProvider } = await registry()
-    seedProvider(ollama)
+    seedProvider(localProxy)
     const before = JSON.stringify(box.store.get(PROVIDERS_KEY))
     saveProvider(listProviders(false)[0] as never)
     expect(JSON.stringify(box.store.get(PROVIDERS_KEY)), saveProvider.name).toBe(before)
@@ -227,11 +227,11 @@ describe('provider:save 的 baseURL 策略（2026-10-13 后端审查 P0）', () 
     expect(stored.baseURL).toBe('https://api.deepseek.com/v1')
   })
 
-  it('本机 ollama 的明文 http 仍然放行（挡住远端不能顺手挡住本地）', async () => {
+  it('本机自建服务的明文 http 仍然放行（挡住远端不能顺手挡住本地）', async () => {
     const { saveProvider } = await registry()
-    seedProvider({ ...base, id: 'p-ollama', type: 'ollama', baseURL: 'http://127.0.0.1:11434/v1' })
+    seedProvider({ ...base, id: 'p-local', type: 'openai-compatible', baseURL: 'http://127.0.0.1:11434/v1' })
     expect(
-      saveProvider({ ...base, id: 'p-ollama', type: 'ollama', baseURL: 'http://localhost:11434/v1' } as never)
+      saveProvider({ ...base, id: 'p-local', type: 'openai-compatible', baseURL: 'http://localhost:11434/v1' } as never)
     ).toBe(true)
   })
 

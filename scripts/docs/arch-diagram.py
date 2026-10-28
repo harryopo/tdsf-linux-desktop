@@ -8,7 +8,7 @@
 #   IPC 164 = 146 请求-响应 + 18 事件推送   -> npm run audit:ipc
 #   已登记契约 61 条                          -> src/shared/ipc-contract.ts
 #   命令闸 8 结构 + 7 argv + 226 词表         -> npm run promo:check
-#   Provider 7 类                             -> src/main/core/agent/providers/provider-factory.ts 的 switch
+#   Provider 6 类                             -> src/main/core/agent/providers/provider-factory.ts 的 switch
 #   可信度融合走 D-S / PCR5                    -> ChatCredibility.tsx:69 调 credibilityAssess
 #                                                -> ipc/credibility.ts 的 engine.fuseAndAssess（故意不写行号：这文件每删一批死键就短一段）
 #                                                -> fusion-engine.ts:174/176/181 低冲突 Dempster、高冲突 PCR5
@@ -188,7 +188,7 @@ A('  <line x1="700" y1="386" x2="700" y2="342" stroke="%s" stroke-width="1.8" st
 # 四个框名本身就说明它们是外面的东西，图例再给颜色口径。
 ext = [
     ("SSH 服务器", "目标主机 / 跳板机", "SSH · SFTP · 端口转发", TEAL, TEAL_FILL, TEAL_EDGE, "teal", False),
-    ("LLM Provider", "7 类兼容端点", "流式补全 + 工具调用", TEAL, TEAL_FILL, TEAL_EDGE, "teal", False),
+    ("LLM Provider", "6 类兼容端点", "流式补全 + 工具调用", TEAL, TEAL_FILL, TEAL_EDGE, "teal", False),
     ("Python 侧车", "Drain3 日志模板", "缺 venv → 整条降级", AMBER, AMBER_FILL, AMBER_EDGE, "amber", True),
     ("Langfuse 追踪", "决策可观测", "无 Key → 自动关闭", AMBER, AMBER_FILL, AMBER_EDGE, "amber", True),
 ]

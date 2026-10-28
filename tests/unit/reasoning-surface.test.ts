@@ -17,7 +17,7 @@ import type { ProviderType } from '../../src/main/core/agent/providers/types'
 
 describe('哪些端点参与思考链提取', () => {
   it('OpenAI 兼容协议族全部参与（不再只限 deepseek+deep）', () => {
-    for (const type of ['deepseek', 'qwen', 'volcengine-ark', 'ollama', 'openai-compatible'] as ProviderType[]) {
+    for (const type of ['deepseek', 'qwen', 'volcengine-ark', 'openai-compatible'] as ProviderType[]) {
       expect(reasoningExtractionTag(type), `${type} 的思考在 reasoning_content 里，不提取就看不见`).toBe(REASONING_TAG)
     }
   })

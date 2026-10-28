@@ -29,8 +29,9 @@
  * 设计依据：
  * - v0.9.6 P1 §ECE 校准器（CalibrationTuner）
  * - v0.9.7 P3 M1 引入 PROVIDER_CAPABILITIES.logprobs 字段
- * - 5/7 provider 支持 logprobs（openai-compatible / deepseek / qwen / volcengine-ark / ollama）
- * - 2/7 provider 不支持 logprobs（anthropic / google）
+ * - 4/6 provider 支持 logprobs（openai-compatible / deepseek / qwen / volcengine-ark）
+ * - 2/6 provider 不支持 logprobs（anthropic / google）
+ * - 本地模型（Ollama）2026-10-28 按用户口径整条撤掉，不再出现在这里
  *   → 走 thinking-block / text-fallback 兑底（详见 v0.9.7 P3 M1 方案书）
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -78,7 +79,6 @@ const PROVIDER_META: ProviderMeta[] = [
   { type: 'deepseek', label: 'DeepSeek', desc: '深度求索（默认 baseURL 已配置）', family: 'openai-compatible', logprobs: true },
   { type: 'qwen', label: '通义千问 / DashScope', desc: '阿里云百炼（OpenAI 兼容端点）', family: 'openai-compatible', logprobs: true },
   { type: 'volcengine-ark', label: '火山方舟 / 豆包', desc: '字节跳动火山引擎（OpenAI 兼容）', family: 'openai-compatible', logprobs: true },
-  { type: 'ollama', label: 'Ollama（本地）', desc: '本地推理（默认 http://localhost:11434/v1）', family: 'openai-compatible', logprobs: true },
   { type: 'anthropic', label: 'Anthropic Claude', desc: '@ai-sdk/anthropic 直连', family: 'anthropic-protocol', logprobs: false },
   { type: 'google', label: 'Google Gemini', desc: '@ai-sdk/google 直连', family: 'google-protocol', logprobs: false },
 ]

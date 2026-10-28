@@ -111,8 +111,8 @@ describe('内置模板 prune', () => {
     expect(box.deleted).toContain('provider:ollama-llama33')
     expect(box.secrets.has('provider:ollama-llama33')).toBe(false)
 
-    // 新表的 15 条应全部就位（prune 与追加在同一次对账里完成）
-    expect(ids.length).toBe(16)
+    // 新表的 14 条应全部就位（prune 与追加在同一次对账里完成）
+    expect(ids.length).toBe(15)
   })
 
   it('默认指针指向被删条目时回退到真实存在的 id', async () => {
@@ -142,6 +142,73 @@ describe('内置模板 prune', () => {
     expect(stored.length).toBe(PROVIDER_TEMPLATES.length + 1)
     expect(box.deleted, '没有退役条目时不该删任何密钥').toEqual([])
     expect(stored.map((p) => p.id)).toContain('my-vllm')
+  })
+
+  it('老库里的"上一代型号"被换成现役型号（否则设置里永远显示旧模型）', async () => {
+    const OLD_KIMI = {
+      id: 'kimi-k3',
+      name: 'Kimi K3（1M 上下文）',
+      type: 'openai-compatible',
+      baseURL: 'https://api.moonshot.cn/v1',
+      model: 'kimi-k3',
+      builtin: true,
+      enabled: false, // 用户自己关掉的，换代不许替他打开
+    }
+    box.store.set(PROVIDERS_KEY, [OLD_KIMI])
+    box.secrets.set('provider:kimi-k3', 'sk-用户已经配好的那支')
+
+    const reg = await loadRegistry()
+    reg.ensureProvidersInitialized()
+
+    const stored = box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>
+    const kimi = stored.find((p) => p.id === 'kimi-k3')
+    expect(kimi?.model, 'K3 已被 K3.1 取代').toBe('kimi-k3.1-pro')
+    expect(kimi?.name).toBe('Kimi K3.1 Pro（1M 上下文）')
+    expect(kimi?.enabled, '用户关掉的开关不许被换代顺手打开').toBe(false)
+    expect(box.deleted, '换代不是删档，密钥要留着').not.toContain('provider:kimi-k3')
+  })
+
+  it('同一个型号但缺上下文窗口的旧条目，按新模板补上真实窗口', async () => {
+    const OLD_QWEN = {
+      id: 'qwen-max',
+      name: '通义千问 3.8 Max',
+      type: 'qwen',
+      baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      model: 'qwen3.8-max',
+      builtin: true,
+      enabled: true,
+    }
+    box.store.set(PROVIDERS_KEY, [OLD_QWEN])
+
+    const reg = await loadRegistry()
+    reg.ensureProvidersInitialized()
+
+    const stored = box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>
+    const qwen = stored.find((p) => p.id === 'qwen-max') as
+      | { capabilities?: { contextWindow?: number } }
+      | undefined
+    expect(qwen?.capabilities?.contextWindow, '不补就会按 256K 提前压缩').toBe(1_000_000)
+  })
+
+  it('用户自己改过型号的内置条目原样保留（换代不许覆盖他的选择）', async () => {
+    const CUSTOMIZED = {
+      id: 'deepseek-v4',
+      name: 'DeepSeek V4.1 Flash',
+      type: 'deepseek',
+      baseURL: 'https://my-proxy.example.invalid/v1',
+      model: 'my-own-deployment',
+      builtin: true,
+      enabled: true,
+    }
+    box.store.set(PROVIDERS_KEY, [CUSTOMIZED])
+
+    const reg = await loadRegistry()
+    reg.ensureProvidersInitialized()
+
+    const stored = box.store.get(PROVIDERS_KEY) as Array<Record<string, unknown>>
+    const ds = stored.find((p) => p.id === 'deepseek-v4')
+    expect(ds?.model, '用户自己填的型号不该被模板覆盖').toBe('my-own-deployment')
+    expect(ds?.baseURL).toBe('https://my-proxy.example.invalid/v1')
   })
 
   it('冷启动（store 里没有 providers）直接按新表播种', async () => {

@@ -32,7 +32,7 @@
  * - 'deepseek' / 'deepseek-chat' / 'deepseek-reasoner'
  * - 'claude' / 'claude-sonnet-4' / 'claude-opus-4'
  * - 'openai' / 'gpt-4' / 'gpt-5'
- * - 'ollama' / 'qwen' / 'llama' 等本地模型
+ * - 本地模型（如自建 OpenAI 兼容端）——2026-10-28 起内置候选里不再有本地槽
  */
 export type ProviderId = string
 
