@@ -3,7 +3,7 @@ import type { DbStatus } from '@shared/db-types'
 import type { ProfilerRunResponse, ServerListItem, SshConfig, SystemInfo } from '@shared/models'
 import type { SchedulerTaskStatus, TaskResult } from '@shared/scheduler-types'
 import type { AppInfo } from '../../main/ipc/app-update'
-import { AGENT, APP, CONFIG, DB, FS, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE } from '@shared/ipc-channels'
+import { AGENT, APP, CONFIG, DB, MONITOR, PROFILER, SCHEDULER, SERVER, STORAGE } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import { invokeChecked } from '../ipc-util'
 
@@ -201,35 +201,6 @@ const appUpdate = {
     ipcRenderer.invoke(APP.EXPORT_MODEL_STATS, stats),
 }
 
-/**
- * v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
- *
- * AIPanel 图片附件基础版：弹出文件选择对话框 → 读取图片 → 返回 base64 data URL。
- * 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp。
- *
- * 通道与主进程 ipc/fs-upload.ts 一一对应。
- *
- * 使用场景：AIPanel 图片附件按钮
- */
-const fsUpload = {
-  /**
-   * 选择图片文件并返回 base64 data URL
-   *
-   * 主进程 dialog.showOpenDialog 弹出文件选择器，读取文件转 base64。
-   * 返回 ImageUploadResult（success=true）或 ImageUploadError（success=false）。
-   */
-  uploadImage: async (): Promise<
-    | {
-        success: true
-        dataUrl: string
-        fileName: string
-        fileSize: number
-        mimeType: string
-      }
-    | { success: false; error: string }
-  > => invokeChecked('fsUploadImage', FS.UPLOAD_IMAGE),
-}
-
 // ============================================================================
 // Phase 6 Task 6.5：调度器 invoke 调用（定时任务自动化）
 // ============================================================================
@@ -281,4 +252,4 @@ const scheduler = {
     ipcRenderer.invoke(SCHEDULER.TRIGGER, taskId),
 }
 
-export { monitor, storage, config, server, profiler, system, dbStatus, appUpdate, fsUpload, scheduler }
+export { monitor, storage, config, server, profiler, system, dbStatus, appUpdate, scheduler }

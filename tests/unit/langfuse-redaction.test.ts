@@ -61,4 +61,25 @@ describe('Langfuse trace 脱敏', () => {
     const output = JSON.stringify(captured.ends)
     expect(output).not.toContain(SECRET)
   })
+  it('上游错误原文里带凭据时，ERROR 分支也不外送', async () => {
+    const boom = new Error(`Incorrect API key provided: ${SECRET}`)
+    async function* source(): AsyncIterable<string> {
+      throw boom
+      // eslint-disable-next-line no-unreachable
+      yield ''
+    }
+    await expect(async () => {
+      for await (const _ of withStreamTrace(() => source(), {
+        sessionId: 's2',
+        workflowName: 'test',
+        userQuery: 'hi',
+      })) {
+        void _
+      }
+    }).rejects.toThrow()
+
+    const out = JSON.stringify(captured.ends)
+    expect(out, '错误原文里的 Key 被原样送给第三方 trace').not.toContain(SECRET)
+    expect(out).toContain('[REDACTED]')
+  })
 })

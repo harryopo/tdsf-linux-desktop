@@ -47,11 +47,6 @@ describe('新契约拒绝错误形状', () => {
     ).toThrow()
   })
 
-  it('fsUploadImage：无入参', () => {
-    expect(() => assertContractArgs('fsUploadImage', [])).not.toThrow()
-    expect(() => assertContractArgs('fsUploadImage', ['x'])).toThrow()
-  })
-
   it('historyBlocks：limit 可省略，但给了就必须是整数', () => {
     expect(() => assertContractArgs('historyBlocks', [])).not.toThrow()
     expect(() => assertContractArgs('historyBlocks', [20])).not.toThrow()

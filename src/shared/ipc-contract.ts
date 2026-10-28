@@ -21,7 +21,6 @@ import {
   AGENT,
   BOOT,
   CHAT,
-  FS,
   HISTORY,
   KNOWLEDGE,
   LOCAL_TTY,
@@ -738,15 +737,6 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     doc: '读取 ~/.ssh/config 的 Host 列表（固定路径、只读、不含凭据）',
     args: [],
     resultTs: 'SshConfigScanResult',
-    result: z.unknown(),
-  },
-  {
-    kind: 'invoke',
-    api: 'fsUploadImage',
-    channel: FS.UPLOAD_IMAGE,
-    doc: '对话框选择图片并返回 base64 data URL',
-    args: [],
-    resultTs: '{ success: true; dataUrl: string; fileName: string; fileSize: number; mimeType: string } | { success: false; error: string }',
     result: z.unknown(),
   },
   {

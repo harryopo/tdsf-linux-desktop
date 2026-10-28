@@ -34,7 +34,6 @@ type Defense =
 const LOCAL_DEST_CHANNELS: Record<string, Defense> = {
   'SFTP.UPLOAD': 'dialog',
   'SFTP.DOWNLOAD': 'dialog',
-  'FS.UPLOAD_IMAGE': 'dialog',
   'SSH.UPLOAD_KEYPAIR': 'dialog',
   'SSH.DELETE_KEYPAIR': 'filename-check',
   "'profiler:exportMd'": 'confinement',

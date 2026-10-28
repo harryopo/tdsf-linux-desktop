@@ -71,10 +71,6 @@ import { registerFileWatcherIpcHandlers } from './file-watcher'
 // 简化方案：HTTP GET GitHub Releases API 比对版本号 + shell.openExternal 打开下载页面
 // 不引入 electron-updater（避免 publisher 配置 + GitHub Token 管理复杂度）
 import { registerAppUpdateHandlers } from './app-update'
-// v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
-// AIPanel 图片附件基础版：dialog.showOpenDialog + 读取文件转 base64 data URL
-// 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
-import { registerFsIpcHandlers } from './fs-upload'
 // v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete/accept/import）
 // 通道：3 个 invoke，从渲染层发起补全请求 / 接受建议 / 批量导入历史命令
 import { registerTerminalCompletionIpcHandlers } from './terminal-completion'
@@ -223,12 +219,6 @@ export function registerAllIpcHandlers(mainWindow: BrowserWindow, db?: DatabaseM
   // 消费方：AboutSettings.tsx handleCheckUpdate
   // 简化方案：不引入 electron-updater（A7 质量优先 + A8 避免重复造轮子）
   registerAppUpdateHandlers()
-
-  // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
-  // 通道：fs:upload-image（dialog.showOpenDialog + 读取文件转 base64 data URL）
-  // 消费方：AIPanel.tsx 图片附件按钮
-  // 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp
-  registerFsIpcHandlers()
 
   // v0.9.7 P3 M1 新增：终端智能补全 IPC（terminal-completion:complete / accept）
   // 通道：terminal-completion:complete（请求补全建议）

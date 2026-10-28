@@ -43,6 +43,16 @@ import {
 } from '@/components/settings/model/conversation-paging'
 import { BudgetSection } from '@/components/settings/model/BudgetSection'
 import { ModelActionBar } from '@/components/settings/model/ModelActionBar'
+
+/// 两个 URL 是否同源（协议 + host + 端口）；解析失败按"不同"处理
+function originOf(url: string): string {
+  try {
+    const u = new URL(url)
+    return `${u.protocol}//${u.host}`
+  } catch {
+    return `invalid:${url}`
+  }
+}
 import { usePersistentState } from '@/hooks/usePersistentState'
 import type { TestLogLine } from '@/components/settings/model/constants'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -292,9 +302,14 @@ export function ModelSettings() {
     ctxWindowSeeded.current = true
   }, [providers, defaultProviderId])
 
-  const syncToDefaultProvider = async (): Promise<void> => {
-    if (!isElectronAPIAvailable() || providers.length === 0) return
+  /** 同步到默认 Provider；返回 true 表示"地址换了、旧 Key 已作废"，界面要提醒重填 */
+  const syncToDefaultProvider = async (): Promise<boolean> => {
+    if (!isElectronAPIAvailable() || providers.length === 0) return false
     const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
+    // 主机变了而 Key 输入框是空的 → 主进程会把旧 Key 作废（不能把它寄到新主机）。
+    // 这里先记下来，保存成功后提示用户重填，而不是让他下次对话才发现"没有 Key"。
+    const hostChanged =
+      !apiKey.trim() && originOf(endpoint) !== originOf(target.baseURL ?? '')
     const ok = await window.electronAPI.providerSave({
       ...target,
       baseURL: endpoint,
@@ -318,6 +333,7 @@ export function ModelSettings() {
       await window.electronAPI.providerSetDefault(target.id)
       setDefaultProviderId(target.id)
     }
+    return hostChanged
   }
 
   // 测试连接：调用真实 llmTest IPC（llm:test 通道），测量往返延迟
@@ -497,9 +513,13 @@ export function ModelSettings() {
 
       // 同步一份到默认 Provider（P0 修复：不再盲写 providers[0] + 强制设默认）
       // 主进程没接受就不往下推：否则推出去的是那份"没保存成功"的配置
-      await syncToDefaultProvider()
+      const keyInvalidated = await syncToDefaultProvider()
 
-      setSaveFeedback('配置已保存')
+      setSaveFeedback(
+        keyInvalidated
+          ? '地址已变更：旧 Key 已作废，请重新填写 API Key'
+          : '配置已保存'
+      )
       if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
       saveFeedbackTimerRef.current = setTimeout(() => {
         setSaveFeedback(null)

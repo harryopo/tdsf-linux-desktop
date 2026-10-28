@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowUp, AtSign, ChevronDown, Hash,
-  Image as ImageIcon, Info, Loader2, Sparkles, Square, X, Zap,
+  Sparkles, Square, Zap,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import { useRailOverflow } from '@/hooks/useRailOverflow'
@@ -20,24 +20,7 @@ import { QUICK_PROMPTS, QUICK_PROMPT_TEMPLATES, type QuickPromptTemplate } from 
 import type { UsePaorLoopResult } from './usePaorLoop'
 import ContextBadge from './ContextBadge'
 import type { PersistedProviderConfig } from '@shared/agent-types'
-import type { ImageUploadResult } from '@/types/electron'
 
-/**
- * v2.2 P1 修复 #22：图片附件类型
- *
- * 简化方案：仅保存 base64 data URL + 文件名 + 大小，不引入图片压缩。
- * 发送时将 dataUrl 拼接到消息文本末尾（WIP：真实 vision model 集成需要修改 useAgentChat 接口）。
- */
-export interface ImageAttachment {
-  /** base64 data URL（可直接用于 <img src>） */
-  dataUrl: string
-  /** 文件名（含扩展名） */
-  fileName: string
-  /** 文件大小（字节） */
-  fileSize: number
-  /** MIME 类型 */
-  mimeType: string
-}
 
 /** Composer props */
 export interface ComposerProps {
@@ -74,9 +57,6 @@ const Composer: FC<ComposerProps> = ({
   const prefillAt = useAIStore((s) => s.prefillAt)
   const clearPrefillMessage = useAIStore((s) => s.setPrefillMessage)
   const [activeChip, setActiveChip] = useState<string | null>(null)
-  // v2.2 P1 修复 #22：图片附件列表（基础版，不引入图片压缩库）
-  const [attachments, setAttachments] = useState<ImageAttachment[]>([])
-  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const promptRailRef = useRailOverflow<HTMLDivElement>()
 
@@ -151,14 +131,8 @@ const Composer: FC<ComposerProps> = ({
       void cancel()
       return
     }
-    if (!input.trim() && attachments.length === 0) return
-    // v2.2 P1 修复 #22：发送时如果有图片附件，将 base64 data URL 拼接到消息文本末尾
-    // 简化方案：不修改 useAgentChat 接口，直接拼接（WIP：真实 vision model 集成需修改接口）
-    const text = attachments.length > 0
-      ? `${input.trim()}\n\n[图片附件]\n${attachments.map((a) => a.dataUrl).join('\n')}`
-      : input
-    setInput('')
-    setAttachments([])
+    if (!input.trim()) return
+    const text = input
 
     // 检查 Provider 是否配置
     if (providers.length === 0) {
@@ -176,91 +150,6 @@ const Composer: FC<ComposerProps> = ({
       return `${prev}${sep}${prefix}`
     })
     textareaRef.current?.focus()
-  }
-
-  /**
-   * 上传图片附件（v2.2 P1 修复 #22：真实实现，替代原 WIP message.warning）
-   *
-   * 调用 fsUploadImage IPC：主进程弹出文件选择对话框 → 读取图片 → 返回 base64 data URL。
-   * 简化方案：不引入图片压缩库，限制 4MB，支持 png/jpg/jpeg/gif/webp/bmp。
-   */
-  const handleUploadImage = async () => {
-    if (isUploadingImage) return
-    const api = window.electronAPI
-    if (!api?.fsUploadImage) {
-      toast.warning('当前环境不支持图片上传（非 Electron 环境）')
-      return
-    }
-    setIsUploadingImage(true)
-    try {
-      const result = await api.fsUploadImage()
-      if (result.success) {
-        const uploadData = result as ImageUploadResult
-        // 限制最多 4 张图片（避免消息过长）
-        if (attachments.length >= 4) {
-          toast.warning('最多支持 4 张图片附件')
-          return
-        }
-        setAttachments((prev) => [...prev, {
-          dataUrl: uploadData.dataUrl,
-          fileName: uploadData.fileName,
-          fileSize: uploadData.fileSize,
-          mimeType: uploadData.mimeType,
-        }])
-      } else if (result.error !== '用户取消选择') {
-        // 用户取消不提示错误
-        toast.error(`图片上传失败：${result.error}`)
-      }
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      toast.error(`图片上传失败：${reason}`)
-    } finally {
-      setIsUploadingImage(false)
-    }
-  }
-
-  /** 删除指定索引的图片附件 */
-  const handleRemoveAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  /**
-   * 粘贴处理（v2.6）：剪贴板含图片（如截图）时转为图片附件；
-   * 纯文本粘贴保持浏览器默认行为（不 preventDefault）。
-   */
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData?.items
-    if (!items) return
-    for (const item of items) {
-      if (item.kind === 'file' && item.type.startsWith('image/')) {
-        e.preventDefault()
-        if (attachments.length >= 4) {
-          toast.warning('最多支持 4 张图片附件')
-          return
-        }
-        const file = item.getAsFile()
-        if (!file) return
-        if (file.size > 4 * 1024 * 1024) {
-          toast.warning('图片超过 4MB，请压缩后再粘贴')
-          return
-        }
-        const reader = new FileReader()
-        reader.onload = () => {
-          if (typeof reader.result !== 'string') return
-          setAttachments((prev) => {
-            if (prev.length >= 4) return prev
-            return [...prev, {
-              dataUrl: reader.result as string,
-              fileName: file.name || `粘贴图片-${Date.now()}.png`,
-              fileSize: file.size,
-              mimeType: file.type,
-            }]
-          })
-        }
-        reader.readAsDataURL(file)
-        return
-      }
-    }
   }
 
   /** chip 快捷填入可直接发送的运维提示词（正文只有一份，见 mock-data 的 QUICK_PROMPTS） */
@@ -338,7 +227,6 @@ const Composer: FC<ComposerProps> = ({
           rows={3}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onPaste={handlePaste}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
@@ -395,36 +283,6 @@ const Composer: FC<ComposerProps> = ({
           ))}
         </div>
 
-        {/* 图片附件：缩略图 + 删除，并诚实说明当前模型不识图 */}
-        {attachments.length > 0 ? (
-          <div className="flex flex-col gap-1 border-t border-line px-3 py-2">
-            <span className="flex items-center gap-1 text-micro text-ink-mute">
-              <Info className="size-3" aria-hidden />
-              图片将以文本形式附加，当前模型暂不支持识图
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {attachments.map((attachment, index) => (
-                <div
-                  key={`${attachment.fileName}-${index}`}
-                  title={`${attachment.fileName} (${(attachment.fileSize / 1024).toFixed(1)}KB)`}
-                  className="relative size-13 overflow-hidden rounded-(--ui-radius-card) border border-line-strong bg-sunken"
-                >
-                  <img src={attachment.dataUrl} alt={attachment.fileName} className="block size-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveAttachment(index)}
-                    aria-label={`删除附件 ${attachment.fileName}`}
-                    title="删除附件"
-                    className="absolute right-0 top-0 flex size-4 items-center justify-center rounded-bl-(--ui-radius-control) bg-ink-mute text-canvas hover:bg-error"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
         {/* 底部工具条：左簇动作与模型，右簇发送/停止（比容器深一档，形成底座带） */}
         <div className="flex items-center justify-between gap-2 bg-sunken px-1.5 py-1">
           {/*
@@ -443,16 +301,6 @@ const Composer: FC<ComposerProps> = ({
                 <Hash className="size-3.5" />
               </IconButton>
             </Tooltip>
-            <Tooltip content={isUploadingImage ? '上传中…' : '添加图片'}>
-              <IconButton label="添加图片" size="sm" disabled={isUploadingImage} onClick={handleUploadImage}>
-                {isUploadingImage ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <ImageIcon className="size-3.5" />
-                )}
-              </IconButton>
-            </Tooltip>
-
             <Divider vertical />
 
             <ContextBadge
@@ -535,7 +383,7 @@ const Composer: FC<ComposerProps> = ({
             aria-label={isStreaming ? '停止生成' : '发送'}
             title={isStreaming ? '停止生成' : '发送'}
             onClick={handleSendToggle}
-            disabled={!isStreaming && !input.trim() && attachments.length === 0}
+            disabled={!isStreaming && !input.trim()}
             className={cn(
               'flex size-7 shrink-0 items-center justify-center rounded-(--ui-radius-control)',
               'text-(--text-on-accent) transition-colors duration-[var(--ui-dur-fast)]',

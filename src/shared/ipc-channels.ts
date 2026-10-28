@@ -728,22 +728,6 @@ export const APP = {
 } as const
 
 /**
- * 文件系统 IPC 通道常量（v2.2 P1 修复 #22：AIPanel 图片附件基础版）
- *
- * 通道列表：
- * - UPLOAD_IMAGE invoke  渲染 → 主：选择图片文件并返回 base64 数据
- *
- * 设计说明：
- * - 主进程用 dialog.showOpenDialog 让用户选择图片
- * - 读取文件并转 base64 data URL 返回渲染层
- * - 限制图片大小（4MB）和扩展名（png/jpg/jpeg/gif/webp/bmp）
- */
-export const FS = {
-  /** 选择图片文件并返回 base64 数据 URL（invoke: 渲染 → 主） */
-  UPLOAD_IMAGE: 'fs:upload-image',
-} as const
-
-/**
  * Profiler 系统架构感知 IPC 通道常量（v2.2 P1 修复 #18/#20：补齐缺失域）
  *
  * 通道列表：

@@ -24,7 +24,6 @@ credibilityResetCalibration
 dbGetStatus
 fileWatchStart
 fileWatchStop
-fsUploadImage
 historyAudit
 historyBlocks
 historyGet

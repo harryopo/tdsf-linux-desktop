@@ -154,7 +154,7 @@ describe('脱敏规则覆盖 Windows 形态', () => {
     // 数字要人工复核后才会变：加规则时这条会红，逼着补 fixture 而不是静默漂移
     // 25 = 20 + 命令行内联口令五条（mysql/redis-cli/curl/--password/PGPASSWORD），
     // 样本在下面的 HIT_CASES 里。加规则时这条会红，逼着补 fixture 而不是静默漂移。
-    expect(names.length).toBe(25)
+    expect(names.length).toBe(26) // 26 = 上面的 25 + 9b「上游回显错 Key」（#255 新增）
     for (const need of [
       'windows-sensitive-path',
       'url-credentials',

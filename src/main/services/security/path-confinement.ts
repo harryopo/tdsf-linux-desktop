@@ -3,7 +3,7 @@
  *
  * 渲染层递进来的绝对路径一律不可信：`upload(~/.ssh/id_rsa)` 是外泄闭环，
  * `exportPdf('C:\\Users\\x\\Start Menu\\...\\start.lnk')` 是持久化。同仓的正解样板是
- * `ipc/fs-upload.ts`——路径只来自 `dialog.showOpenDialog` 的返回值，渲染层根本不传。
+ * `ipc/fs.ts` 这类——路径只来自 `dialog.showOpenDialog` 的返回值，渲染层根本不传。
  *
  * 本模块把那条正解推广成一条策略，两条合法来源：
  * 1. **对话框授权**：主进程弹对话框拿到的路径记进 `DIALOG_APPROVED`，一次性、精确匹配；

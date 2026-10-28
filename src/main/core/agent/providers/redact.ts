@@ -62,6 +62,14 @@ const REDACT_RULES: Array<{ pattern: RegExp; replacement: string; name: string }
     replacement: '$1$2[REDACTED]',
     name: 'api-key-assign',
   },
+  // 9b. 上游回显的"错 Key"原句（OpenAI/兼容端常见：`Incorrect API key provided: <key>`）
+  //     这里没有 `api_key=` 这种可识别的赋值形状，第 9 条抓不到；
+  //     而这条错误原文会被写进 Langfuse / 日志 / 界面，等于把 Key 递到第三方去。
+  {
+    pattern: /\b((?:incorrect|invalid|missing)\s+(?:api[\s_-]?key)|api[\s_-]?key\s+provided)(\s*[:：]\s*)\S+/gi,
+    replacement: '$1$2[REDACTED]',
+    name: 'api-key-echo',
+  },
   // 10. 密码赋值（password= / passwd= / pwd=）
   {
     pattern: /\b(password|passwd|pwd|pass)(\s*[=:]\s*)['"]?[^\s'"]{4,}['"]?/gi,

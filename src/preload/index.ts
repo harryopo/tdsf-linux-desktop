@@ -29,7 +29,7 @@ import { agentRuntime } from './domains/agent'
 import { credibility } from './domains/cognition'
 import { localTty, sandbox, terminalCompletion } from './domains/terminal'
 import { llm, provider, token, tokenCostStats } from './domains/llm'
-import { appUpdate, config, dbStatus, fsUpload, monitor, profiler, scheduler, server, storage, system } from './domains/system'
+import { appUpdate, config, dbStatus, monitor, profiler, scheduler, server, storage, system } from './domains/system'
 import { on } from './domains/events'
 
 // P1-2：解包必须装在第一次 invoke 之前。放在 import 之后的第一条语句 —— 上面那些
@@ -213,9 +213,6 @@ const electronApi = {
   // v2.3 活功能转换：导出模型统计 IPC（app:export-model-stats）
   // P0-1 修复：暴露到渲染层供 ModelSettings "导出统计" 按钮调用
   appExportModelStats: appUpdate.exportModelStats,
-  // v2.2 P1 修复 #22：文件系统 IPC（fs:upload-image）
-  // AIPanel 图片附件基础版：dialog + base64 data URL，不引入图片压缩库
-  fsUploadImage: fsUpload.uploadImage,
   providerList: provider.list,
   providerSave: provider.save,
   providerSetDefault: provider.setDefault,

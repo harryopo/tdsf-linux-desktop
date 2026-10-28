@@ -25,6 +25,20 @@ import { PROVIDER_CAPABILITIES, getProviderCapabilities } from './provider-capab
 import type { ProviderConfig, PersistedProviderConfig, ModelRole } from './types'
 import { DEFAULT_PROVIDER_ID } from './types'
 
+/**
+ * 两个 baseURL 是否指向同一台主机（协议 + host + 端口）
+ *
+ * 只改路径（/v1 → /v2、加个 /compatible-mode）不算换主机；
+ * 解析失败时按"不同"处理——宁可让用户重填一次 Key，也不要把 Key 寄到说不清的地方。
+ */
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin
+  } catch {
+    return a === b
+  }
+}
+
 /** 持久化键：Provider 列表（不含 apiKey） */
 const STORE_KEY_PROVIDERS = 'agentProviders'
 /** 持久化键：默认 Provider ID */
@@ -269,11 +283,18 @@ export function listProviders(onlyEnabled = false): PersistedProviderConfigWithK
   // 附加 hasApiKey 标识 + 解析后的能力声明
   // #89：capabilities 在这里按单源表补全带出去，渲染层的上下文徽章才有真实窗口分母，
   // 不必把 PROVIDER_CAPABILITIES 手抄一份到渲染层（手抄迟早和默认表分叉）。
-  return baseList.map((p) => ({
-    ...p,
-    hasApiKey: hasProviderApiKey(p.id),
-    capabilities: getProviderCapabilities(p),
-  }))
+  //
+  // #255：**出口再剥一次 apiKey**。正常保存路径早就把它摘走了，但历史落盘条目可能带着
+  // （老版本把整条 config 写进了列表），而这里是原样展开——一旦带出主进程就是明文出边。
+  return baseList.map((p) => {
+    const { apiKey: _drop, ...safe } = p as PersistedProviderConfig & { apiKey?: string }
+    void _drop
+    return {
+      ...safe,
+      hasApiKey: hasProviderApiKey(p.id),
+      capabilities: getProviderCapabilities(p),
+    }
+  })
 }
 
 /**
@@ -364,6 +385,7 @@ export function saveProvider(config: ProviderConfig): boolean {
 
     const providers = loadFromStore()
     const idx = providers.findIndex((p) => p.id === config.id)
+    const existing = idx >= 0 ? providers[idx] : null
 
     // 处理 apiKey：非空时单独存 SecureStore；派生字段（hasApiKey / 与默认表相同的能力声明）不落存储
     const { apiKey, ...rest } = config
@@ -371,8 +393,19 @@ export function saveProvider(config: ProviderConfig): boolean {
     if (apiKey) {
       SecureStore.saveApiKey(`${SECURE_KEY_PREFIX}${config.id}`, apiKey)
     }
-    // void 占位避免未使用警告
-    void apiKey
+
+    // 换主机 = 换了信任对象：SecureStore 里的 Key 是按 `provider:<id>` 存的，id 不变就会跟着走。
+    // 不改这一条，把默认 Provider 的地址改成任意 https 主机、Key 留空（界面语义是"不修改"），
+    // 下一次对话就把真 Key 发过去了——写入口只校验"是不是 https"，拦不住这个。
+    // 想继续用同一个地址，用户必须把 Key 重新填一次（新 Key 明确是写给这个主机的）。
+    if (existing && !apiKey && sameOrigin(existing.baseURL, persisted.baseURL) === false) {
+      SecureStore.deleteApiKey(`${SECURE_KEY_PREFIX}${config.id}`)
+      logger.warn('AGENT.PROVIDER', 'Provider 地址变更，旧 API Key 已作废，请重新填写', {
+        id: config.id,
+        from: existing.baseURL,
+        to: persisted.baseURL,
+      })
+    }
 
     if (idx >= 0) {
       providers[idx] = persisted

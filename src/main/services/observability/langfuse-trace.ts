@@ -117,7 +117,7 @@ export async function* withStreamTrace<T>(
     try {
       const safeError = safeTraceText(error.message)
       span.end({ error: safeError }, { level: 'ERROR', statusMessage: safeError })
-      trace.end({ level: 'ERROR', statusMessage: error.message })
+      trace.end({ level: 'ERROR', statusMessage: safeError })
     } catch {
       // 静默吞掉 trace 错误
     }
@@ -209,7 +209,9 @@ export async function withCallbackStreamTrace<TParams extends CallbackStreamPara
     // fn resolve — 可能通过 onError 回调报告了错误（内部处理），或通过 onDone 报告成功
     if (caughtError) {
       // 闭包内赋值不会被 TS 控制流分析识别，需显式断言为 Error
-      const errMsg = (caughtError as Error).message
+      // #255：上游错误原文可能把 Key 原样回显（`Incorrect API key provided: sk-...`），
+      // 出边界前必须过与正常正文同一把脱敏尺。
+      const errMsg = safeTraceText((caughtError as Error).message)
       try {
         span.end(
           { error: errMsg },
@@ -232,9 +234,10 @@ export async function withCallbackStreamTrace<TParams extends CallbackStreamPara
   } catch (err) {
     // fn reject — 传播错误 + 记录 ERROR trace
     const error = err instanceof Error ? err : new Error(String(err))
+    const safeMessage = safeTraceText(error.message)
     try {
-      span.end({ error: error.message }, { level: 'ERROR', statusMessage: error.message })
-      trace.end({ level: 'ERROR', statusMessage: error.message })
+      span.end({ error: safeMessage }, { level: 'ERROR', statusMessage: safeMessage })
+      trace.end({ level: 'ERROR', statusMessage: safeMessage })
     } catch {
       // 静默吞掉 trace 错误
     }

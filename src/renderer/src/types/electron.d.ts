@@ -144,43 +144,6 @@ export interface AppUpdateError {
   error: string
 }
 
-// ============================================================================
-// v2.2 P1 修复 #22：图片上传类型声明（与 main/ipc/fs-upload.ts 对齐）
-//
-// 简化方案：dialog.showOpenDialog + 读取文件转 base64 data URL，不引入图片压缩库。
-// 类型在渲染层独立声明（避免从 main/ import 造成构建依赖）。
-// ============================================================================
-
-/**
- * 图片上传结果（成功时返回）
- *
- * 字段与 main/ipc/fs-upload.ts ImageUploadResult 完全对齐。
- */
-export interface ImageUploadResult {
-  /** 是否成功 */
-  success: true
-  /** base64 data URL（可直接用于 <img src>） */
-  dataUrl: string
-  /** 文件名（含扩展名，不含路径） */
-  fileName: string
-  /** 文件大小（字节） */
-  fileSize: number
-  /** MIME 类型（如 'image/png'） */
-  mimeType: string
-}
-
-/**
- * 图片上传错误（失败时返回，已脱敏）
- *
- * 字段与 main/ipc/fs-upload.ts ImageUploadError 完全对齐。
- */
-export interface ImageUploadError {
-  /** 是否成功（失败时为 false） */
-  success: false
-  /** 错误信息（已脱敏） */
-  error: string
-}
-
 /** 沙箱集成健康状态 */
 export interface SandboxHealthStatus {
   dockerReady: boolean

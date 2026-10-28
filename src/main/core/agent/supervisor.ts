@@ -504,8 +504,11 @@ class SupervisorAgent {
     //    L4 走异步那一条：把旧对话真交给模型总结。同步版只会取首尾各 500 字符，
     //    中段整段蒸发——"AI 忘了半小时前那条命令"就是这么来的。
     //    摘要失败时 compactIfNeededAsync 自己降级回首尾提取并记日志，不阻断对话。
-    const summarize: SummarizeFn = makeRedactingSummarizer((prompt) =>
-      this.callLlm(SUMMARY_SYSTEM_PROMPT, prompt, 800, resolvedProviderId, abortController.signal)
+    const summarize: SummarizeFn = makeRedactingSummarizer(
+      (prompt) =>
+        this.callLlm(SUMMARY_SYSTEM_PROMPT, prompt, 800, resolvedProviderId, abortController.signal),
+      // 同一 Provider + 同一段被丢弃的旧对话 → 复用上次摘要，不再按同一段 12K 文本重复计费
+      { cacheNamespace: resolvedProviderId }
     )
     let compaction: Awaited<ReturnType<typeof compactIfNeededAsync>>
     try {

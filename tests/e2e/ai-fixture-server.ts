@@ -51,6 +51,13 @@ export interface AiFixtureHandle {
    */
   lastRoleText(role: FixtureMessageRole): string
   /**
+   * 最近一次请求的"花多少钱"相关字段（#255）：
+   * - maxTokens：请求里有没有带输出上限（undefined = 没带，等于让模型自己停）
+   * - toolCount：这次请求挂了多少个工具 schema（每个都算 input token）
+   * - messageCount：这次带了多少条消息（步数越多、历史越长，这个数越大）
+   */
+  lastRequest(): { maxTokens: number | undefined; toolCount: number; messageCount: number }
+  /**
    * 安排"下一次模型发起工具调用"（仅对还没有工具结果的那一轮请求生效）。
    * 传 null 收回安排，回到只回文本的老行为。
    */
@@ -136,6 +143,11 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
   let requests = 0
   const lastPerRole = new Map<FixtureMessageRole, string>()
   let planned: PlannedToolCall | null = null
+  let lastReq: { maxTokens: number | undefined; toolCount: number; messageCount: number } = {
+    maxTokens: undefined,
+    toolCount: 0,
+    messageCount: 0,
+  }
 
   const server = http.createServer((req, res) => {
     requests += 1
@@ -148,6 +160,21 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
       const texts = roleTextsOf(raw)
       for (const [role, text] of Object.entries(texts)) {
         lastPerRole.set(role as FixtureMessageRole, text as string)
+      }
+      try {
+        const parsed = JSON.parse(raw) as {
+          max_tokens?: number
+          max_completion_tokens?: number
+          tools?: unknown[]
+          messages?: unknown[]
+        }
+        lastReq = {
+          maxTokens: parsed.max_tokens ?? parsed.max_completion_tokens,
+          toolCount: Array.isArray(parsed.tools) ? parsed.tools.length : 0,
+          messageCount: Array.isArray(parsed.messages) ? parsed.messages.length : 0,
+        }
+      } catch {
+        // 解析不了就当没这些字段；下面还有 messages 形状的兜底判断
       }
       if (!raw.includes('messages')) {
         res.writeHead(400, { 'content-type': 'application/json' })
@@ -196,6 +223,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         baseURL: `http://127.0.0.1:${addr.port}/v1`,
         requestCount: () => requests,
         lastRoleText: (role) => lastPerRole.get(role) ?? '',
+        lastRequest: () => lastReq,
         planToolCall: (next) => {
           planned = next
         },
