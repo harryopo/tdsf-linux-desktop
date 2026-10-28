@@ -113,8 +113,8 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-28 12:52**：端到端读数出自 12:30–12:36 那轮全量（`npx playwright test`，rc=0，
-94 通过 / 10 跳过，5.7 分钟，JSON 报告里 `unexpected=0`、`flaky=0`；10 条按环境跳过 = 3 条要真模型 Key
+下表测量时间 **2026-10-28 14:05**：端到端读数出自 13:59–14:05 那轮全量（`npx playwright test`，rc=0，
+99 通过 / 10 跳过，5.8 分钟，JSON 报告里 `unexpected=0`、`flaky=0`；10 条按环境跳过 = 3 条要真模型 Key
 + 2 条要一个比 `out/` 新的发布包 + 5 条要一台常备的真 SSH 靶机（密码登录那一组），11 条真靶机用例这一轮都真跑了）；
 单元与组件读数出自 12:47 那轮全量（rc=0，3617 通过 / 19 跳过，353 个测试文件）。
 **昨天这里记的"两条没归因的间歇红"，今天判清其中一条根本不是间歇**：`mcp-external-settings` 那条判据拿 `agentChat`
@@ -158,10 +158,10 @@ pnpm dev
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
 | 单元与组件用例 | 3617 通过 / 19 跳过 | `npm test`（353 个测试文件，0 失败；那 19 条按环境跳过） |
-| 端到端用例 | 94 通过 / 10 跳过 | `npx playwright test`（直驱真实应用窗口；这一轮给了 `TDSF_REAL_SSHD_*`，11 条真靶机用例真跑了，剩下 10 条要真模型 Key / 比 `out/` 新的发布包 / 一台常备的真 SSH 靶机（密码登录那一组）） |
+| 端到端用例 | 99 通过 / 10 跳过 | `npx playwright test`（直驱真实应用窗口；这一轮给了 `TDSF_REAL_SSHD_*`，11 条真靶机用例真跑了，剩下 10 条要真模型 Key / 比 `out/` 新的发布包 / 一台常备的真 SSH 靶机（密码登录那一组）） |
 | IPC 通道 | 163 | `npm run audit:ipc`（145 请求-响应 + 18 事件推送） |
 | 已登记契约的通道 | 60 | `src/shared/ipc-contract.ts`（55 invoke + 5 event） |
-| TypeScript / TSX 源文件 | 458 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| TypeScript / TSX 源文件 | 457 | `git ls-files src` 里 `.ts/.tsx` 计数 |
 | Provider 类型 | 6 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
 | 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
 

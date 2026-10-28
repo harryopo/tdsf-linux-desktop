@@ -122,6 +122,14 @@
   每行点了把**它那一句**填进输入框，不直接发送，所以行上不许画 `↵`（那是假 affordance）。
   判据：`tests/e2e/chat-msg-skeleton.spec.ts`（真窗口量 computed style：底色、圆角、描边、左缘、对比度、字阶）
   + `tests/components/workbench/panels/LiveMessageRow.test.tsx` 9.1–9.4 + `tests/components/workbench/MessageList.test.tsx`。
+- **聊天里的字号只许往下"退色"，不许往下"缩号"（#256）**：正文是 15px 时，h1=20 / h2=17 / h3=15 且 600 重，
+  h4 及以下**同为 15**、只靠弱色退后——标题比正文小（改前 h3=14、h4=13）在阅读上等于没有层级。
+  行内代码与代码块同为 `--ui-font-sm`(13)，表格同 13、表头 12；注释档（角色行/时间/用量）恒 11。
+  助手正文与用户气泡共用 `--ui-lh-loose` 一条行高。判据：`tests/e2e/ai-panel-type-scale.spec.ts`
+  （真窗口量 computed style：档位白名单、标题≥正文、代码同档、行高一致）。
+- **空库不许画"看起来像数据"的图形（#256）**：模板/统计页在零记录时不画 sparkline、不画基线——
+  贴底的 `0,24 100,24` 会被读成"有过数据、全是 0"。数字那侧给 0 / — 就够。
+  判据：`tests/e2e/fresh-install-empty.spec.ts`（全新档位起一次真窗口，三页逐条验空态）。
 - **外壳上下两条横带也走令牌**：`--ui-size-titlebar`（40px）与 `--ui-size-statusbar`（24px）。
   这两个值曾只在令牌文件里写着 44/26，界面上另有硬编码，等于假单源（2026-10-09 核对后按界面真值定）。
 - **新增字阶档位要改两处**：`tailwind.css` 的 `@theme` 定义 + `components/trae/utils.ts` 的 `FONT_SIZE_TIERS` 登记。

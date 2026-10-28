@@ -22,7 +22,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, Clock, Cpu, Filter, Inbox, Search, 
 import { Button, PageHeader } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
-import { buildSparklinePoints, baselineSparkline, type SparklineMetric } from '@/utils/history-sparkline'
+import { buildSparklinePoints, type SparklineMetric } from '@/utils/history-sparkline'
 import { buildHistoryStats, deriveFromRecords, durationLabel, fromAggregate } from '@/lib/history-stats'
 import { ALL_SERVERS, serverLabel, serverOptions } from '@/lib/history-server'
 import { useServerStore } from '@/stores/server-store'
@@ -250,9 +250,10 @@ export function HistoryPage() {
   // 统计数字：优先主进程聚合的 stats，其次由当前记录派生。
   // 口径（含"分母为零就没有值"这条）在 lib/history-stats.ts，判据见 tests/unit/history-stats-empty.test.ts
   const stats = useMemo<StatItem[]>(() => {
-    // records 为空时使用基线（不是空 SVG），保证视觉占位
+    // 没有任何记录时**不画线**（2026-10-28）：画一条贴底的"基线"看起来像"有过数据、全是 0"，
+    // 而全新装机根本没有数据。数字那边已经是 0 / —，图就该空着，等真有记录再画。
     const sparkFor = (metric: SparklineMetric): string =>
-      records.length === 0 ? baselineSparkline : buildSparklinePoints(records, metric)
+      records.length === 0 ? '' : buildSparklinePoints(records, metric)
 
     const src = historyStats
       ? fromAggregate(historyStats)
@@ -338,7 +339,9 @@ export function HistoryPage() {
             <span className="hist-stat-label">{stat.label}</span>
             <span className="hist-stat-value" style={{ color: stat.color }}>{stat.value}</span>
             <svg className="hist-stat-spark" width="100%" height="24" viewBox="0 0 100 24" preserveAspectRatio="none">
-              <polyline points={stat.sparkline} fill="none" stroke={stat.color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+              {stat.sparkline ? (
+                <polyline points={stat.sparkline} fill="none" stroke={stat.color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+              ) : null}
             </svg>
           </div>
         ))}

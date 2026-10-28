@@ -122,16 +122,16 @@
 
 .ai-error-card__title {
   font-size: var(--ui-font-sm);
-  font-weight: var(--trae-font-weight-medium);
-  line-height: 1.5;
+  font-weight: var(--ui-weight-medium);
+  line-height: var(--ui-lh-normal);
   color: var(--status-error-text);
 }
 
 .ai-error-card__raw {
   margin-top: 4px;
-  font-family: var(--trae-font-family-mono);
+  font-family: var(--ui-family-code);
   font-size: var(--ui-font-micro);
-  line-height: 1.5;
+  line-height: var(--ui-lh-normal);
   color: var(--text-tertiary);
   word-break: break-word;
 }
@@ -315,7 +315,7 @@
   height: 24px;
   padding: 0 8px;
   font-size: var(--ui-font-micro);
-  font-weight: 500;
+  font-weight: var(--ui-weight-medium);
   border-radius: 4px;
   cursor: pointer;
   transition: all 160ms ease-out;
@@ -355,7 +355,7 @@
 
 .ai-progress-title {
   font-size: var(--ui-font-md);
-  font-weight: 600;
+  font-weight: var(--ui-weight-semibold);
   color: var(--text-primary);
 }
 
@@ -369,7 +369,7 @@
   border-radius: 9999px;
   font-size: var(--ui-font-micro);
   color: var(--accent-text);
-  font-weight: 500;
+  font-weight: var(--ui-weight-medium);
 }
 
 .ai-progress-pulse {
@@ -582,8 +582,8 @@
   border-radius: var(--trae-radius-4);
   background: var(--trae-status-warning-surface-l1);
   color: var(--text-primary);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--ui-font-caption);
+  line-height: var(--ui-lh-snug);
   animation: ai-fade-in var(--ui-dur-fast) var(--ui-ease-out) both;
 }
 
@@ -606,7 +606,7 @@
 .ai-history-error__retry {
   flex-shrink: 0;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--ui-font-caption);
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid var(--trae-border-neutral-l1);

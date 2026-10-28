@@ -7,7 +7,8 @@
 
 .md-body {
   font-size: var(--ui-font-body);
-  line-height: 1.7;
+  /* 与用户气泡同一档行高：两侧节奏不齐是"看起来乱"的主要来源（2026-10-28 实测 1.7 vs 1.6） */
+  line-height: var(--ui-lh-loose);
   color: var(--text-primary);
   word-break: break-word;
 }
@@ -21,29 +22,33 @@
   margin-bottom: 0;
 }
 
-/* 标题 */
+/* 标题：字号只许**大于等于**正文档，靠字号+字重拉层级。
+   改前 h1=17 / h2=15（与正文同号）/ h3=14（**比正文还小**）/ h4=13——四级标题三级倒挂，
+   面板里读起来就是"一堆差不多大的字"。 */
 .md-body .md-h {
   margin: 12px 0 6px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: var(--ui-weight-semibold);
+  line-height: var(--ui-lh-snug);
   color: var(--text-primary);
 }
 .md-body .md-h:first-child {
   margin-top: 0;
 }
 .md-body .md-h1 {
-  font-size: 17px;
+  font-size: var(--ui-font-head);
+  line-height: var(--ui-lh-tight);
 }
 .md-body .md-h2 {
-  font-size: 15px;
+  font-size: var(--ui-font-title);
 }
 .md-body .md-h3 {
-  font-size: 14px;
+  font-size: var(--ui-font-body);
 }
+/* h4 及以下不再缩到正文之下：同一档字号 + 弱色，靠颜色退后而不是靠变小 */
 .md-body .md-h4,
 .md-body .md-h5,
 .md-body .md-h6 {
-  font-size: 13px;
+  font-size: var(--ui-font-body);
   color: var(--text-tertiary);
 }
 
@@ -54,7 +59,9 @@
   background: var(--trae-bg-overlay-l2);
   border: 1px solid var(--trae-border-neutral-l1);
   font-family: var(--ui-family-code);
-  font-size: 12px;
+  /* 行内代码与代码块同一档（sm 13）；改前是 12 / 12 两处硬编码，代码块里再嵌一层 12，
+     一段回答里出现两三种等宽字号 */
+  font-size: var(--ui-font-sm);
   color: var(--accent-text);
 }
 
@@ -71,8 +78,8 @@
 .md-body .md-code-block code {
   display: block;
   font-family: var(--ui-family-code);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-loose);
   color: var(--trae-code-text, #e8e8e8);
   white-space: pre;
 }
@@ -130,8 +137,8 @@
 .md-body .md-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-normal);
 }
 .md-body .md-table th,
 .md-body .md-table td {
@@ -141,10 +148,10 @@
   white-space: nowrap;
 }
 .md-body .md-table th {
-  font-weight: 600;
+  font-weight: var(--ui-weight-semibold);
   color: var(--text-tertiary);
   background: var(--trae-bg-overlay-l2);
-  font-size: 12px;
+  font-size: var(--ui-font-caption);
 }
 .md-body .md-table tbody tr:last-child td {
   border-bottom: none;
