@@ -31,6 +31,7 @@ import { cn } from '@/components/trae/utils'
 import { Button, PageHeader, Spinner, confirmDialog } from '@/ui'
 import { Empty } from '@/components/trae/Empty'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
+import { summarizeKbImport } from '@/utils/kb-import-summary'
 import { useKnowledgeSearch } from '@/hooks/useKnowledgeSearch'
 import type { KbViewHistoryEntry, KnowledgeEntry, KnowledgeType } from '@shared/models'
 import './KnowledgePage.css'
@@ -318,38 +319,15 @@ export function KnowledgePage() {
     setImporting(true)
     try {
       const result = await window.electronAPI.kbImportFile()
-      if (result.canceled) return
-      if (!result.ok) {
-        toast.error(`导入失败：${result.error ?? '没有说明原因'}`)
+      const outcome = summarizeKbImport(result)
+      if (outcome.kind === 'canceled') return
+      if (outcome.kind === 'failed' || outcome.kind === 'empty') {
+        // 一条都没进库就不许报"导入完成"（空文件以前会弹绿色的"新增 0 条"）
+        toast.error(outcome.message)
         return
       }
-
-      if ((result.files ?? 0) === 0) {
-        const first = result.rejected?.[0]
-        toast.error(
-          first ? `没有可导入的内容：${first.file} — ${first.reason}` : '选中的文件里没有可导入的内容'
-        )
-        return
-      }
-
-      const parts = [`新增 ${result.inserted ?? 0} 条`, `更新 ${result.updated ?? 0} 条`]
-      if (result.unchanged) parts.push(`没变化 ${result.unchanged} 条`)
-      if (result.embedded) parts.push(`已建语义索引 ${result.embedded} 条`)
-      toast.success(`导入完成：${parts.join('，')}`)
-
-      // 模型没就绪 / 部分条目没算出向量：这不是失败，但要让人知道语义检索少了这部分
-      if (result.note) toast.warning(result.note)
-
-      const rejected = result.rejected ?? []
-      if (rejected.length > 0) {
-        const head = rejected
-          .slice(0, 3)
-          .map((r) => `${r.file}·${r.source}：${r.reason}`)
-          .join('；')
-        toast.warning(
-          rejected.length > 3 ? `有 ${rejected.length} 处没导进来：${head}…` : `有内容没导进来：${head}`
-        )
-      }
+      toast.success(outcome.message)
+      for (const warning of outcome.warnings) toast.warning(warning)
 
       await refreshKnowledgeList()
       void refreshHotItems()

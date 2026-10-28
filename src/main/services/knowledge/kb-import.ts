@@ -142,7 +142,17 @@ export async function importKnowledgeFiles(opts: KbImportOptions): Promise<KbImp
     for (const rejection of parsed.rejected) {
       result.rejected.push({ file, ...rejection })
     }
-    result.files++
+    // 只有真解析出条目才算"导入了这个文件"：空文件、纯分隔线、全是无效节
+    // 也会走到这里，把"处理过"记成"导入了"，界面就会弹绿色的「导入完成：新增 0 条」（#259）
+    if (parsed.entries.length > 0) {
+      result.files++
+    } else if (parsed.rejected.length === 0) {
+      result.rejected.push({
+        file,
+        source: file,
+        reason: '没有可导入的内容（文件是空的，或分段后没有一节既有标题又有正文）',
+      })
+    }
 
     for (const entry of parsed.entries) {
       const existing = opts.repo.getById(entry.id)

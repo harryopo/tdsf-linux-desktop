@@ -109,6 +109,21 @@ describe('导入落库', () => {
     expect(stored?.commands).toEqual(['nginx -t'])
   })
 
+  it('空文件：不许算成"导入了 1 个文件"，要回一条说清没有内容', async () => {
+    const path = writeNote('empty.md', ['', '   ', ''])
+
+    const result = await importKnowledgeFiles({ paths: [path], repo, db: dbm, embedder: fakeEmbedder() })
+
+    expect(result.inserted).toBe(0)
+    expect(
+      result.files,
+      'files 记的是"处理过几个文件"；拿它当成功依据，界面就会弹绿色的"导入完成：新增 0 条"'
+    ).toBe(0)
+    expect(result.rejected).toHaveLength(1)
+    expect(result.rejected[0].file).toBe('empty.md')
+    expect(result.rejected[0].reason).toMatch(/没有可导入的内容/)
+  })
+
   it('同一份文件再导一次：不新增也不重写', async () => {
     const lines = ['# 磁盘满', '', '先看 df。', '', '# 网关 502', '', '看上游。']
     const path = writeNote('ops.md', lines)
