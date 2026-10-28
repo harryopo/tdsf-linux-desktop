@@ -22,6 +22,7 @@ import { FileWatcherAdapter } from './services/ssh/file-watcher'
 import { McpGateway } from './core/agent/mcp-gateway'
 import { LangfuseService } from './services/observability/langfuse'
 import { ConfigStore } from './services/storage/config-store'
+import { takeSalvagedStoreFiles } from './services/storage/store-recovery'
 import { McpServerService } from './services/mcp/server'
 import { DatabaseManager, resolveDbPath } from './services/db/database'
 import { AuditRepo } from './services/db/audit-repo'
@@ -61,6 +62,15 @@ initLogger(app.getPath('userData'))
 // P0-3：崩溃兜底必须紧跟 logger 装上——在那之前的异步异常也没人接，
 // 而它自己一旦坏了就只能退回 console，所以顺序是"logger → 兜底 → 其余一切"。
 installCrashGuard()
+// 配置/凭据文件在构造 store 前若解析失败，已被改名留档（#258）。
+// 记账放在这里：构造发生在模块加载期，那时 logger 还没 init，写了也是空操作。
+for (const salvaged of takeSalvagedStoreFiles()) {
+  logger.warn(
+    'APP',
+    `配置文件损坏，已留档并以默认值启动：${path.basename(salvaged.file)} → ${path.basename(salvaged.backup)}`,
+    { reason: salvaged.reason }
+  )
+}
 // S3：受管根 = userData。写日志/导报告/落配置都往这里走；
 // 渲染层传来的绝对路径只有落在它下面（或被主进程对话框授权过）才被接受。
 configurePathConfinement(() => [app.getPath('userData')])

@@ -17,6 +17,7 @@ import Store from 'electron-store'
 import { randomUUID } from 'crypto'
 import type { SshConfig, LlmConfig, ExternalMcpServer, ServerListItem } from '@shared/models'
 import { SecureStore } from './secure-store'
+import { salvageCorruptStoreFile } from './store-recovery'
 
 /** Langfuse 配置 */
 export interface LangfuseConfig {
@@ -58,9 +59,16 @@ export const MCP_DEFAULT_PORT = 3107
  * 创建 electron-store 实例
  *
  * 配置文件名 config.json，存储在 userData 目录下。
+ *
+ * 构造前先把"解析不了的旧文件"改名留档：默认 `clearInvalidConfig: false` 时，
+ * 一个半截写入的 config.json 会让主进程在启动前就抛错（#258）。
+ * `clearInvalidConfig` 同时打开，兜住检查与读取之间被写坏的窗口。
  */
+salvageCorruptStoreFile('config')
+
 const store = new Store<ConfigSchema>({
   name: 'config',
+  clearInvalidConfig: true,
   defaults: {
     sshServers: [],
     llmConfig: null,

@@ -19,6 +19,7 @@ import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { ServerCredential } from '@shared/models'
 import { logger } from '../log/logger'
+import { salvageCorruptStoreFile } from './store-recovery'
 
 /**
  * electron-store 实例（专门用于存储加密后的敏感数据）
@@ -26,12 +27,18 @@ import { logger } from '../log/logger'
  * 存储两类数据：
  * - apiKeys: LLM 服务商的 API Key（base64 密文）
  * - serverCreds: SSH 服务器凭证（整个 credential 对象序列化为 JSON 后加密为 base64）
+ *
+ * 与 config.json 同一套灾备：坏文件先改名留档，再以默认值重建（#258）。
+ * 这份文件坏了会让所有凭据读不出来，但**不应该**让应用起不来。
  */
+salvageCorruptStoreFile('secure-storage')
+
 const store = new Store<{
   apiKeys?: Record<string, string>
   serverCreds?: Record<string, string>
 }>({
   name: 'secure-storage',
+  clearInvalidConfig: true,
   defaults: {
     apiKeys: {},
     serverCreds: {},
