@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-10-28T02:00:39.487Z",
+  "lastUpdated": "2026-10-28T04:54:59.825Z",
   "sessions": {},
   "history": [
     {
@@ -13682,6 +13682,76 @@
       "file": "src/main/core/agent/providers/provider-factory.ts",
       "task": "model-catalog-refresh",
       "timestamp": "2026-10-28T02:00:39.487Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:26.577Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:26.577Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:26.577Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent/providers/provider-registry.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:26.577Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:45.553Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:59.825Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:59.825Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/preload/index.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:59.825Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/providers/provider-registry.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:59.825Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/index.ts",
+      "task": "llm-cost-security",
+      "timestamp": "2026-10-28T04:54:59.825Z"
     }
   ],
   "coordinationAudit": {
