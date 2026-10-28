@@ -15,7 +15,8 @@ import { useEditorStore } from '@/stores/editor-store'
 import { useAIStore } from '@/stores/ai-store'
 // v2.3.7 修复：MOCK_COMPOSER_CHIPS → QUICK_PROMPT_TEMPLATES（mock-data.ts v2.3.6 已重命名）
 // 之前的 import 指向不存在的导出 → Composer 模块加载失败 → AIPanel 整个组件崩 → "Agent 调用失败"
-import { QUICK_PROMPT_TEMPLATES } from './mock-data'
+// #253：正文一律取自 QUICK_PROMPTS 单源，这里不再自己抄一份
+import { QUICK_PROMPTS, QUICK_PROMPT_TEMPLATES, type QuickPromptTemplate } from './mock-data'
 import type { UsePaorLoopResult } from './usePaorLoop'
 import ContextBadge from './ContextBadge'
 import type { PersistedProviderConfig } from '@shared/agent-types'
@@ -262,19 +263,10 @@ const Composer: FC<ComposerProps> = ({
     }
   }
 
-  /** chip 快捷填入可直接发送的运维提示词 */
-  const handleChipClick = (chip: string) => {
+  /** chip 快捷填入可直接发送的运维提示词（正文只有一份，见 mock-data 的 QUICK_PROMPTS） */
+  const handleChipClick = (chip: QuickPromptTemplate) => {
     setActiveChip((c) => (c === chip ? null : chip))
-    const prompts: Record<string, string> = {
-      诊断:
-        '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。',
-      部署: '请给出 Nginx 反向代理部署检查清单：配置语法、端口监听、上游健康、证书与 reload 风险点。',
-      巡检:
-        '请做一次只读巡检：磁盘使用率、inode、内存与 swap、失败的 systemd 单元、最近 journal 错误摘要。',
-      回滚: '若最近一次配置变更导致服务异常，请给出安全的回滚步骤与验证命令（先读后写，写操作需人工确认）。',
-      扩容: '请分析当前资源瓶颈（CPU/内存/磁盘/网络）并给出扩容建议与验证指标。',
-    }
-    setInput(prompts[chip] ?? `${chip}：`)
+    setInput(QUICK_PROMPTS[chip])
     textareaRef.current?.focus()
   }
 
@@ -336,12 +328,40 @@ const Composer: FC<ComposerProps> = ({
           'focus-within:border-accent-solid'
         )}
       >
-        {/* 顶部动作条：PAOR 自主循环 + 快捷运维提示词
+        {/* 输入区：用原生 placeholder，不再另起一个 span 叠在框上 */}
+        <label htmlFor="ai-composer-input" className="sr-only">
+          给 AI 的运维指令
+        </label>
+        <textarea
+          id="ai-composer-input"
+          ref={textareaRef}
+          rows={3}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onPaste={handlePaste}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              handleSendToggle()
+            }
+          }}
+          placeholder="您正在与 Agent 聊天，输入 / 获取更多能力（Enter 发送，Shift+Enter 换行）"
+          className={cn(
+            'w-full resize-none bg-transparent px-3 py-2 text-composer leading-normal text-ink',
+            'min-h-(--ui-size-composer-min) max-h-(--ui-collapse-max-composer) overflow-y-auto outline-none',
+            'placeholder:text-ink-placeholder'
+          )}
+        />
+
+        {/* 快捷排：PAOR 自主循环 + 快捷运维提示词
+            第④笔（#253）挪到输入框**下方**——它原来压在输入框上面，等于把"上一条回答"和
+            "你在哪儿打字"中间塞了一排辅助按钮；主表面该在上面，辅助的排往下。
+            判据：tests/e2e/composer-layout.spec.ts（真窗口量两块的上下位置）
             单行 + 横向滚动：这一排在 560px 面板里换行会把输入区挤成一行高（用户 2026-10-08 指出）
             滚动轨道要带溢出淡出（useRailOverflow），被硬切一半会被读成界面画坏了（2026-10-11） */}
         <div
           ref={promptRailRef}
-          className="flex flex-nowrap items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5"
+          className="ai-composer-rail flex flex-nowrap items-center gap-1 overflow-x-auto border-t border-line px-2 py-1.5"
         >
           <Button
             size="sm"
@@ -374,31 +394,6 @@ const Composer: FC<ComposerProps> = ({
             </Button>
           ))}
         </div>
-
-        {/* 输入区：用原生 placeholder，不再另起一个 span 叠在框上 */}
-        <label htmlFor="ai-composer-input" className="sr-only">
-          给 AI 的运维指令
-        </label>
-        <textarea
-          id="ai-composer-input"
-          ref={textareaRef}
-          rows={3}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onPaste={handlePaste}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              handleSendToggle()
-            }
-          }}
-          placeholder="您正在与 Agent 聊天，输入 / 获取更多能力（Enter 发送，Shift+Enter 换行）"
-          className={cn(
-            'w-full resize-none bg-transparent px-3 py-2 text-composer leading-normal text-ink',
-            'min-h-(--ui-size-composer-min) max-h-(--ui-collapse-max-composer) overflow-y-auto outline-none',
-            'placeholder:text-ink-placeholder'
-          )}
-        />
 
         {/* 图片附件：缩略图 + 删除，并诚实说明当前模型不识图 */}
         {attachments.length > 0 ? (

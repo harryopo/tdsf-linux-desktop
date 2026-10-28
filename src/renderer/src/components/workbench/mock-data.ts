@@ -107,13 +107,53 @@ export interface ChatMessage {
 // ============================================================
 
 /**
- * Composer 快捷提示词模板（运维场景）
+ * 快捷提示词的**唯一正文来源**（#253）。
+ *
+ * 为什么要有这一份：同一句「请诊断当前主机健康状态…」以前在 Composer 的 prompts 表和
+ * MessageList 的欢迎态里各抄了一份；而「性能 / 扩容」那两条因为没人同步，
+ * 已经漂成两种说法——界面上就是"两个入口，两种问法"，改一处另一处照旧发出去。
+ * 现在正文只写在这里，快捷排与欢迎态都只引用键。判据：
+ * `tests/unit/quick-prompt-single-source.test.ts`（含"消费点不许留抄本"与它的反向对照）。
+ *
+ * 「扩容」与「性能」是**故意**分开的两条：一个问要不要加资源，一个问现在哪里在拖慢。
+ */
+export const QUICK_PROMPTS = {
+  诊断:
+    '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。',
+  部署:
+    '请给出 Nginx 反向代理部署检查清单：配置语法、端口监听、上游健康、证书与 reload 风险点。',
+  巡检:
+    '请做一次只读巡检：磁盘使用率、inode、内存与 swap、失败的 systemd 单元、最近 journal 错误摘要。',
+  回滚:
+    '若最近一次配置变更导致服务异常，请给出安全的回滚步骤与验证命令（先读后写，写操作需人工确认）。',
+  扩容: '请分析当前资源瓶颈（CPU/内存/磁盘/网络）并给出扩容建议与验证指标。',
+  性能: '请分析当前服务器的性能瓶颈（CPU/内存/磁盘IO/网络）并给出优化建议，只读命令采集。',
+  失败命令: '我刚才这条命令失败了，请解释报错原因并推荐安全的下一步：',
+  配置文件: '请帮我分析以下配置文件的含义与潜在问题：',
+} as const satisfies Record<string, string>
+
+export type QuickPromptKey = keyof typeof QUICK_PROMPTS
+
+/**
+ * Composer 顶部快捷排显示哪几条、按什么顺序（正文一律取自 QUICK_PROMPTS）
  *
  * v2.3.6 重命名：MOCK_COMPOSER_CHIPS → QUICK_PROMPT_TEMPLATES
  * 澄清语义：这是"快捷提示词模板"（点击填入输入框），不是 mock 数据。
- *
  * 用途：点击后把对应的运维提示词一键填入输入框（不是直接发送），由用户审阅后再发送。
  */
-export const QUICK_PROMPT_TEMPLATES = ['诊断', '部署', '巡检', '回滚', '扩容'] as const
+export const QUICK_PROMPT_TEMPLATES = ['诊断', '部署', '巡检', '回滚', '扩容'] as const satisfies
+  readonly QuickPromptKey[]
 
 export type QuickPromptTemplate = (typeof QUICK_PROMPT_TEMPLATES)[number]
+
+/**
+ * 欢迎态那一列建议行：一句人话的标签 + 引用哪一条正文（同样只写键）
+ *
+ * 图标住在 MessageList 里（那是渲染细节），这里只放文案与引用。
+ */
+export const WELCOME_SUGGESTIONS = [
+  { key: '诊断', label: '查这台机器哪里不对劲：磁盘、内存、负载、失败服务' },
+  { key: '失败命令', label: '解释一条刚跑完的失败命令，并给安全的下一步' },
+  { key: '配置文件', label: '读一个配置文件，讲清它写了什么、有什么坑' },
+  { key: '性能', label: '找性能瓶颈：CPU、内存、磁盘 IO、网络' },
+] as const satisfies readonly { key: QuickPromptKey; label: string }[]

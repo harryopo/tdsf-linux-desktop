@@ -9,14 +9,28 @@
  * 设计稿不再展示设计稿示例消息。发送后直接走真实 agent:chat。
  */
 import type { RefObject, FC } from 'react'
+import type { ReactNode } from 'react'
 import { AlertTriangle, Search, Terminal, FileText, TrendingUp, Plug, SlidersHorizontal } from 'lucide-react'
 import type { AgentMessage } from '@/stores/agent-store'
 import type { PaorIteration, PaorPlanObject } from '@shared/paor-types'
+import { QUICK_PROMPTS, WELCOME_SUGGESTIONS } from './mock-data'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import LiveMessageRow from './panels/LiveMessageRow'
 import PaorPlanCard from './panels/PaorPlanCard'
 // v2.6：空态能力卡点击注入提示词到输入框（Composer 消费 injectedAtCommand）
 import { useEditorStore } from '@/stores/editor-store'
+
+/**
+ * 欢迎态每行的图标：只按"欢迎态用到的那几个键"配，
+ * 加一行忘了配图标 → 这里直接编译不过，不会画出一个空位。
+ */
+type WelcomeKey = (typeof WELCOME_SUGGESTIONS)[number]['key']
+const WELCOME_ICONS: Record<WelcomeKey, ReactNode> = {
+  诊断: <Search className="size-4" />,
+  失败命令: <Terminal className="size-4" />,
+  配置文件: <FileText className="size-4" />,
+  性能: <TrendingUp className="size-4" />,
+}
 
 /** AIPanel 消息滚动区 props */
 export interface MessageListProps {
@@ -111,39 +125,19 @@ const MessageList: FC<MessageListProps> = ({
           </div>
 
           <div className="ai-welcome-list">
-            {([
-              {
-                icon: <Search className="size-4" />,
-                label: '查这台机器哪里不对劲：磁盘、内存、负载、失败服务',
-                prompt:
-                  '请诊断当前主机健康状态：磁盘(df -h)、内存(free -m)、负载(uptime)、关键服务(systemctl --failed)。只读命令，给出结论与建议。',
-              },
-              {
-                icon: <Terminal className="size-4" />,
-                label: '解释一条刚跑完的失败命令，并给安全的下一步',
-                prompt: '我刚才这条命令失败了，请解释报错原因并推荐安全的下一步：',
-              },
-              {
-                icon: <FileText className="size-4" />,
-                label: '读一个配置文件，讲清它写了什么、有什么坑',
-                prompt: '请帮我分析以下配置文件的含义与潜在问题：',
-              },
-              {
-                icon: <TrendingUp className="size-4" />,
-                label: '找性能瓶颈：CPU、内存、磁盘 IO、网络',
-                prompt:
-                  '请分析当前服务器的性能瓶颈（CPU/内存/磁盘IO/网络）并给出优化建议，只读命令采集。',
-              },
-            ] as const).map((cap) => (
+            {/* 标签与键在 WELCOME_SUGGESTIONS，正文在 QUICK_PROMPTS——这里不抄句子。
+                以前这句「请诊断当前主机健康状态…」在这里和 Composer 里各有一份，
+                改一处另一处照旧发出去（判据 tests/unit/quick-prompt-single-source.test.ts） */}
+            {WELCOME_SUGGESTIONS.map((s) => (
               <button
-                key={cap.label}
+                key={s.key}
                 type="button"
-                onClick={() => useEditorStore.getState().setInjectedAtCommand(cap.prompt)}
+                onClick={() => useEditorStore.getState().setInjectedAtCommand(QUICK_PROMPTS[s.key])}
                 title="点击把这段提示词填入下方输入框（不会直接发送）"
                 className="ai-sug"
               >
-                {cap.icon}
-                <span className="ai-sug-label">{cap.label}</span>
+                {WELCOME_ICONS[s.key]}
+                <span className="ai-sug-label">{s.label}</span>
               </button>
             ))}
 

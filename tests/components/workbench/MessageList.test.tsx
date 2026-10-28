@@ -14,6 +14,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import type { RefObject } from 'react'
 
 import MessageList, { type MessageListProps } from '@renderer/components/workbench/MessageList'
+import { QUICK_PROMPTS } from '@renderer/components/workbench/mock-data'
 import { useEditorStore } from '@renderer/stores/editor-store'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 
@@ -53,18 +54,19 @@ beforeEach(() => {
 })
 
 describe('MessageList — 欢迎态那一列建议行', () => {
-  it('1. 四条真入口：点某一行，填进来的就是它那一句（不是永远填第一条）', () => {
+  it('1. 四条真入口：点某一行，填进来的逐字等于单源那一句', () => {
     render(<MessageList {...baseProps()} />)
     const rows = screen.getAllByRole('button')
     expect(rows.length, '未连接又没配模型时应该是 4 条能力 + 2 条引导').toBe(6)
 
     clickRowByLabel('不对劲')
-    expect(injected(), '「查这台机器哪里不对劲」填的却是别的一句').toContain('uptime')
+    // 比整句而不是比关键词：本地再抄一份"意思差不多"的句子，这里就该红
+    expect(injected(), '「查这台机器哪里不对劲」填的不是单源那句').toBe(QUICK_PROMPTS['诊断'])
 
     useEditorStore.getState().clearInjectedAtCommand()
     clickRowByLabel('性能瓶颈')
-    expect(injected()).toContain('CPU')
-    expect(injected()).not.toContain('uptime')
+    expect(injected(), '「找性能瓶颈」填的不是单源那句').toBe(QUICK_PROMPTS['性能'])
+    expect(injected(), '两条行填回来的是同一句').not.toBe(QUICK_PROMPTS['诊断'])
   })
 
   it('2. 填提示词那几行都写清"填进输入框、不直接发送"——画成 ↵ 就是假 affordance', () => {
