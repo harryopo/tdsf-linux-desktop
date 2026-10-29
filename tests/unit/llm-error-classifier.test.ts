@@ -56,6 +56,20 @@ describe('分类：不再被文本里的三位数骗到', () => {
     expect(msg).toContain('404')
   })
 
+  it('对端把连接掐断（undici 的 terminated / other side closed）算网络，不算"原因没认出来"', () => {
+    // 真机形状：流式回答说到一半，对端把 TCP 关了，SDK 抛的是这句
+    for (const message of [
+      'Agent 调用失败（terminated · other side closed）',
+      'other side closed',
+      'premature close',
+      'socket hang up',
+    ]) {
+      const r = classifyLlmError(new Error(message))
+      expect(r.code, `${message} 应算网络错误`).toBe('NETWORK')
+      expect(r.retryable, '网络断了重试是对的').toBe(true)
+    }
+  })
+
   it('带时机的网络错误不许报成 401 认证失败', () => {
     const r = classifyLlmError(new Error('fetch failed after 1401ms'))
     expect(r.code).toBe('NETWORK')

@@ -164,7 +164,18 @@ const RULES: readonly Rule[] = [
   },
   {
     code: 'NETWORK',
-    patterns: [/fetch failed/i, /network(?:error| error|s? error)/i, /\b(?:econnreset|etimedout|enotfound|econnrefused|econnaborted)\b/i, /socket hang up/i, /unable to connect/i],
+    patterns: [
+      /fetch failed/i,
+      /network(?:error| error|s? error)/i,
+      /\b(?:econnreset|etimedout|enotfound|econnrefused|econnaborted)\b/i,
+      /socket hang up/i,
+      /unable to connect/i,
+      // 流式说到一半、对端把 TCP 关掉时 undici 抛的是这几句（真机实测：terminated · other side closed）。
+      // 它们以前落到 UNKNOWN，界面报"原因没被认出来"，而这恰恰是最该重试的一类。
+      /other side closed/i,
+      /premature close/i,
+      /\bterminated\b/i,
+    ],
   },
   {
     code: 'SERVER',

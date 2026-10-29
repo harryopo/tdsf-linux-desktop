@@ -67,6 +67,11 @@ export interface AiFixtureHandle {
    * 不带任何 content 增量，也不带工具调用——这正是线上会遇到的空回复形状。
    */
   planEmptyReply(on: boolean): void
+  /**
+   * 安排"下一次说半句就断"：先吐 prefix，再把连接直接掐掉。
+   * 这是流式回答中途断网的真实形状（客户端会抛 terminated · other side closed）。
+   */
+  planAbortAfter(prefix: string | null): void
   close(): Promise<void>
 }
 
@@ -149,6 +154,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
   const lastPerRole = new Map<FixtureMessageRole, string>()
   let planned: PlannedToolCall | null = null
   let plannedEmpty = false
+  let plannedAbort: string | null = null
   let lastReq: { maxTokens: number | undefined; toolCount: number; messageCount: number } = {
     maxTokens: undefined,
     toolCount: 0,
@@ -206,6 +212,14 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         return
       }
 
+      if (plannedAbort !== null) {
+        const prefix = plannedAbort
+        plannedAbort = null
+        res.write(chunkBody(prefix))
+        setTimeout(() => res.destroy(), 200)
+        return
+      }
+
       if (plannedEmpty) {
         plannedEmpty = false
         // 只给一个 finish_reason=stop、delta 为空的分片：正文一个字都没有
@@ -244,6 +258,9 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         },
         planEmptyReply: (on) => {
           plannedEmpty = on
+        },
+        planAbortAfter: (prefix) => {
+          plannedAbort = prefix
         },
         close: () =>
           new Promise<void>((done) => {
