@@ -8,7 +8,7 @@
  *   1. PageHeader（全站唯一页头原语，必须是根节点第一个子节点）：标题就地改名 + 返回/编辑/保存/取消
  *   2. 元信息条（徽章行 + meta 行），随正文一起滚动
  *   3. 两栏布局：
- *      - 主内容按条目实际有的字段成节：问题描述 / 根因分析（教程为正文）/ 解决方案 / 验证方法 / 反馈
+ *      - 主内容按条目实际有的字段成节：问题描述 / 根因分析（教程为正文）/ 解决方案 / 验证方法
  *      - 右侧 sticky 侧栏：本页目录（与正文同源）/ 知识置信度 / 元信息
  *
  * data-dom-id 接入：
@@ -16,7 +16,6 @@
  *   - back-knowledge（返回）
  *   - edit-knowledge（编辑按钮）
  *   - copy-cmd-fix / copy-cmd-reload（命令代码块）
- *   - feedback-helpful / feedback-unhelpful（反馈按钮）
  *   - goto-section-N（目录跳转，N 随实际节数变化）
  *
  * 数据：只渲染 kbGet(id) 拿到的真实条目；拿不到（非 Electron / 条目不存在 / 查询失败）一律走诚实空态，
@@ -30,12 +29,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Activity, AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Clock,
-  Edit3, Eye, Loader2, MessageSquare, Save, ThumbsDown, ThumbsUp,
+  Edit3, Eye, Loader2, Save,
   Trash2, Wrench, X, Zap,
 } from 'lucide-react'
 import { CardHead, CodeBlock, KnowledgeDetailSidebar } from '@/components/knowledge-detail/v1'
 import type { KnowledgeEntry } from '@shared/models'
-import { cn } from '@/components/trae/utils'
 import { Button, PageHeader, Spinner, TextArea, TextInput, confirmDialog } from '@/ui'
 // v2.6：教程正文 markdown 渲染（复用工作台轻量安全渲染器，无 innerHTML）
 import { MarkdownMessage } from '@/components/workbench/panels/MarkdownMessage'
@@ -50,7 +48,7 @@ export function KnowledgeDetailPage() {
   /** 编辑按钮引用 —— Modal 关闭后焦点返回此按钮（无障碍） */
   const editButtonRef = useRef<HTMLButtonElement>(null)
 
-  /** 按 URL :id 取一次条目（反馈落库后要拿回库里那一份，界面显示的答复不是本地猜的） */
+  /** 按 URL :id 取一次条目（编辑保存后要拿回库里那一份，界面显示的答复不是本地猜的） */
   const fetchEntry = useCallback(async (): Promise<KnowledgeEntry | null> => {
     if (typeof window === 'undefined' || !window.electronAPI?.kbGet) return null
     return await window.electronAPI.kbGet(id ?? '')
@@ -103,8 +101,6 @@ export function KnowledgeDetailPage() {
   }, [id, fetchEntry])
 
   // ===== 字段来源：只认真实条目，缺字段就留空，绝不用示例值补齐 =====
-  /** 用户答复读库里那一行，不用本地 state：重开页面还得看得见自己答过什么 */
-  const feedback = realEntry?.feedback ?? null
   const displayTitle = realEntry?.title ?? ''
   const displayProblem = realEntry?.problem ?? ''
   const displayRootCause = realEntry?.rootCause ?? ''
@@ -163,7 +159,6 @@ export function KnowledgeDetailPage() {
     { key: 'sec-2', label: isTutorial ? '教程正文' : '根因分析' },
     ...(hasFixCommands ? [{ key: 'sec-4', label: isTutorial ? '教程命令' : '解决方案' }] : []),
     ...(displayVerification ? [{ key: 'sec-5', label: '验证方法' }] : []),
-    { key: 'sec-6', label: '反馈' },
   ]
 
   // ===== 事件处理 =====
@@ -261,27 +256,6 @@ export function KnowledgeDetailPage() {
       return
     }
     toast.error(`没删掉：${result.message}`)
-  }
-
-  /**
-   * 用户答复落库（#134：这第一次是 successRate 的生产者）
-   *
-   * 写完立刻重读一次条目：按钮亮起来、侧栏成功率变动，显示的都是库里那行的值。
-   * 以前这里只 setFeedback 本地 state，注释还写着"持久化失败降级为本地 state"——
-   * 真相是库里根本没有这一列，每次都"失败"，于是每次重开页面都像没答过。
-   */
-  const handleFeedback = async (value: 'helpful' | 'unhelpful') => {
-    if (!realEntry) return
-    try {
-      const ok = await window.electronAPI.kbUpdate(realEntry.id, { feedback: value })
-      if (!ok) throw new Error('条目不存在或写入被拒')
-      const fresh = await fetchEntry()
-      if (fresh) setRealEntry(fresh)
-      toast.success(value === 'helpful' ? '已记录：这条有帮助' : '已记录：这条没帮助')
-    } catch (err) {
-      // 没写进去就说没写进去，不许让按钮亮起来当作已记录
-      toast.error(`反馈没保存：${err instanceof Error ? err.message : String(err)}`)
-    }
   }
 
   const handleTocClick = (target: string) => {
@@ -531,37 +505,6 @@ export function KnowledgeDetailPage() {
                     </div>
                   </section>
                 )}
-
-                <section id="sec-6" className="kb-detail-card">
-                  <CardHead icon={<MessageSquare className="h-4 w-4" />} title="此知识对您有帮助吗？" />
-                  <div className="kb-feedback">
-                    <span className="kb-feedback__label">您的反馈将帮助改进知识库质量</span>
-                    <div className="kb-feedback__btns">
-                      <button
-                        type="button"
-                        data-dom-id="feedback-helpful"
-                        aria-label="有帮助"
-                        aria-pressed={feedback === 'helpful'}
-                        onClick={() => handleFeedback('helpful')}
-                        className={cn('kb-feedback__btn kb-feedback__btn--helpful kb-btn-press', feedback === 'helpful' && 'is-active')}
-                      >
-                        <ThumbsUp className="h-3.5 w-3.5" />
-                        有帮助
-                      </button>
-                      <button
-                        type="button"
-                        data-dom-id="feedback-unhelpful"
-                        aria-label="无帮助"
-                        aria-pressed={feedback === 'unhelpful'}
-                        onClick={() => handleFeedback('unhelpful')}
-                        className={cn('kb-feedback__btn kb-feedback__btn--unhelpful kb-btn-press', feedback === 'unhelpful' && 'is-active')}
-                      >
-                        <ThumbsDown className="h-3.5 w-3.5" />
-                        无帮助
-                      </button>
-                    </div>
-                  </div>
-                </section>
               </div>
 
               <KnowledgeDetailSidebar

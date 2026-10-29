@@ -141,14 +141,13 @@ describe('导入落库', () => {
     expect(embedder.batches.length).toBe(before)
   })
 
-  it('改了正文再导：覆盖原来那一条，本机的使用次数与答复都保住', async () => {
+  it('改了正文再导：覆盖原来那一条，本机的使用次数保住', async () => {
     const path = writeNote('ops.md', ['# 磁盘满', '', '旧版本正文。'])
     const first = await importKnowledgeFiles({ paths: [path], repo, db: dbm, embedder: fakeEmbedder() })
     const id = first.ids[0]
 
-    // 这台机器真用过它、用户也真答过它
+    // 这台机器真用过它
     repo.incrementUseCount(id)
-    repo.update(id, { feedback: 'helpful' }, { fromUserAnswer: true })
 
     writeNote('ops.md', ['# 磁盘满', '', '新版本正文：先 df -h 再找大日志。'])
     const second = await importKnowledgeFiles({ paths: [path], repo, db: dbm, embedder: fakeEmbedder() })
@@ -157,7 +156,6 @@ describe('导入落库', () => {
     const stored = repo.getById(id)
     expect(stored?.problem).toContain('新版本正文')
     expect(stored?.useCount).toBe(1)
-    expect(stored?.feedback).toBe('helpful')
     expect(countRows([id])).toBe(1)
   })
 

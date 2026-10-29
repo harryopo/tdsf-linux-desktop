@@ -475,23 +475,8 @@ describe('KnowledgeRepository — 知识库仓储', () => {
   })
 
   // 2026-10-17：这两个用例原来打的是 repo.updateSuccessRate(id, bool)，那个方法已删——
-  // 它全仓没有调用方，而"加权更新"这件事真正的入口是用户答复走 update()（#134）。
-  // 期望值一字未改（0.9→0.91 / 0.9→0.81），只是换成从 update 进。
-  it('答复"有帮助"：成功率加权上升', () => {
-    repo.add(makeEntry({ id: 'rate-1', successRate: 0.9 }))
-
-    repo.update('rate-1', { feedback: 'helpful' }, { fromUserAnswer: true })
-    const entry = repo.getById('rate-1')
-    expect(entry!.successRate).toBeCloseTo(0.91, 2)
-  })
-
-  it('答复"没帮助"：成功率下降', () => {
-    repo.add(makeEntry({ id: 'rate-2', successRate: 0.9 }))
-
-    repo.update('rate-2', { feedback: 'unhelpful' }, { fromUserAnswer: true })
-    const entry = repo.getById('rate-2')
-    expect(entry!.successRate).toBeCloseTo(0.81, 2)
-  })
+  // 它全仓没有调用方。2026-10-29：详情页的「有帮助/没帮助」整块删除后，
+  // 那个"答复并进 successRate"的入口也一起没了，两个用例随之删除。
 
   // ────────── 向量搜索降级 ──────────
 

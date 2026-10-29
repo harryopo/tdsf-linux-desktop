@@ -6,7 +6,7 @@
  *
  * 三条判据来自产品的核心承诺（AI 说的话要能证明自己做过）：
  * 1. 幂等：同一条内容再导一次不产生第二条重复条目 ⇒ id 由内容哈希给，不由时间戳给。
- * 2. 经验计数不外import：successRate / useCount / feedback 是**这台机器**用出来的经历，
+ * 2. 经验计数不外import：successRate / useCount 是**这台机器**用出来的经历，
  *    别人打包带来的 0.99 会直接变成模型嘴里的"这条经验很靠谱"。一律归零。
  * 3. 坏数据要留名：整批丢掉或静默少几条都不行，每条被丢的都要有原因回给用户。
  */
@@ -139,7 +139,6 @@ describe('JSON 知识包解析', () => {
     tags: ['db'],
     successRate: 0.99,
     useCount: 88,
-    feedback: 'helpful',
     embedding: [0.1, 0.2],
     createdAt: 1,
     updatedAt: 2,
@@ -150,11 +149,10 @@ describe('JSON 知识包解析', () => {
     expect(parseKnowledgeFile('p.json', JSON.stringify({ entries: [valid] })).entries).toHaveLength(1)
   })
 
-  it('外来经验计数一律归零、答复与向量一律丢弃', () => {
+  it('外来经验计数一律归零、向量一律丢弃', () => {
     const entry = parseKnowledgeFile('p.json', JSON.stringify([valid])).entries[0]
     expect(entry.successRate).toBe(0)
     expect(entry.useCount).toBe(0)
-    expect(entry.feedback).toBeUndefined()
     expect(entry.embedding).toBeUndefined()
     // 来源留下标记，界面上能看出这条不是本机沉淀的
     expect(entry.tags).toContain('外部导入')

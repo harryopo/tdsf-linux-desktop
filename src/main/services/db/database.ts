@@ -410,6 +410,8 @@ export class DatabaseManager {
         keywords TEXT NOT NULL,
         tags TEXT NOT NULL,
         successRate REAL NOT NULL DEFAULT 0,
+        -- 历史列：知识详情页的「有帮助/没帮助」已整块删除（schema v2 加的），
+        -- 旧库里可能还留着值。保留列不删（删列会破坏旧库），代码里不再读写。
         feedback TEXT,
         useCount INTEGER NOT NULL DEFAULT 0,
         embedding TEXT,

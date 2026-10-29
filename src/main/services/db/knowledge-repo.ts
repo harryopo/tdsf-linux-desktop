@@ -311,10 +311,10 @@ export class KnowledgeRepository {
         .prepare(
           `INSERT INTO knowledge_entries
            (id, type, title, problem, rootCause, commands, rollbackCommands,
-            verification, keywords, tags, successRate, feedback, useCount, embedding,
+            verification, keywords, tags, successRate, useCount, embedding,
             contentSeg, createdAt, updatedAt)
            VALUES (@id, @type, @title, @problem, @rootCause, @commands, @rollbackCommands,
-                   @verification, @keywords, @tags, @successRate, @feedback, @useCount, @embedding,
+                   @verification, @keywords, @tags, @successRate, @useCount, @embedding,
                    @contentSeg, @createdAt, @updatedAt)`
         )
         .run(serialized)
@@ -329,16 +329,9 @@ export class KnowledgeRepository {
    *
    * @param id 条目 ID
    * @param partial 要更新的字段
-   * @param opts.fromUserAnswer 这次是不是"用户亲口答的"。只有这种调用才允许动 feedback 与
-   *        successRate。importEntries 合并走的也是这个方法，而导进来的包可能带着别人机器上记的
-   *        答复——不加这道闸门，导一个知识包就会覆盖本机用户的答复，并替她投出一张没投过的票。
    * @returns true 表示更新成功
    */
-  update(
-    id: string,
-    partial: Partial<KnowledgeEntry>,
-    opts: { fromUserAnswer?: boolean } = {}
-  ): boolean {
+  update(id: string, partial: Partial<KnowledgeEntry>): boolean {
     const existing = this.getById(id)
     if (!existing) {
       return false
@@ -346,26 +339,8 @@ export class KnowledgeRepository {
     const merged: KnowledgeEntry = {
       ...existing,
       ...partial,
-      // 不是用户答复的调用一律保留本机已有的答复（对方对象里没这个键、或带着外来的答复都算）
-      feedback: opts.fromUserAnswer ? (partial.feedback ?? existing.feedback) : existing.feedback,
       id: existing.id, // ID 不可变
       updatedAt: Date.now()
-    }
-    /*
-     * 用户这一票第一次成了 successRate 的生产者（#134）：加权平均 old*0.9 + (helpful?1:0)*0.1，
-     * 与答复写在同一条 UPDATE 里。分两条写会留下"答复存了、票没并进"的裂口，
-     * 而这条链下一次给同样的答复并不补并（feedback 没变），裂口不会自愈。
-     *
-     * 教程条目不参与：它这一列存的是"阅读时长/60"的存储层 hack（详情页为此专门不显示置信度），
-     * 再混进答复比例就得到一个既不是时长也不是成功率的数。
-     */
-    if (
-      opts.fromUserAnswer &&
-      partial.feedback !== undefined &&
-      partial.feedback !== existing.feedback &&
-      merged.type !== 'tutorial'
-    ) {
-      merged.successRate = blendSuccessRate(existing.successRate, partial.feedback === 'helpful')
     }
     try {
       const serialized = this.serialize(merged)
@@ -375,7 +350,7 @@ export class KnowledgeRepository {
            SET type=@type, title=@title, problem=@problem, rootCause=@rootCause,
                commands=@commands, rollbackCommands=@rollbackCommands,
                verification=@verification, keywords=@keywords, tags=@tags,
-               successRate=@successRate, feedback=@feedback, useCount=@useCount, embedding=@embedding,
+               successRate=@successRate, useCount=@useCount, embedding=@embedding,
                contentSeg=@contentSeg, updatedAt=@updatedAt
            WHERE id=@id`
         )
@@ -710,7 +685,6 @@ export class KnowledgeRepository {
       keywords: JSON.stringify(entry.keywords),
       tags: JSON.stringify(entry.tags),
       successRate: entry.successRate,
-      feedback: entry.feedback ?? null,
       useCount: entry.useCount,
       embedding: entry.embedding ? JSON.stringify(entry.embedding) : null,
       // 全文检索列：入库时切好词（#181）。放在 serialize 里，新增/更新/导入三条路都自动带上
@@ -744,9 +718,6 @@ export class KnowledgeRepository {
       keywords: safeParseArray(row.keywords),
       tags: safeParseArray(row.tags),
       successRate: row.successRate,
-      // 库里这一列可能装着历史脏值（旧版本没有这列、或手工改过库），
-      // 只认两个答复值，别的按"没反馈过"处理，不让界面拿到一个显示不出来的字符串。
-      feedback: row.feedback === 'helpful' || row.feedback === 'unhelpful' ? row.feedback : undefined,
       useCount: row.useCount,
       embedding: row.embedding ? safeParseArray(row.embedding) as unknown as number[] : undefined,
       createdAt: row.createdAt,
@@ -756,18 +727,6 @@ export class KnowledgeRepository {
 }
 
 // ────────── 工具函数 ──────────
-
-/**
- * 把一次答复并进成功率：newRate = old * 0.9 + (helpful ? 1 : 0) * 0.1
- *
- * 权重 0.1 意味着一票只挪 10%，要连续答"有帮助"十几次才逼近 1——
- * 这是有意的：一条知识不该被一次点击定性。以前这个式子写在 updateSuccessRate() 里，
- * 而它全仓零调用（界面上的答复按钮根本没接到它），现在由 update() 同一条 UPDATE 写出去。
- */
-function blendSuccessRate(oldRate: number, helpful: boolean): number {
-  const old = Number.isFinite(oldRate) ? Math.min(1, Math.max(0, oldRate)) : 0
-  return old * 0.9 + (helpful ? 1 : 0) * 0.1
-}
 
 /**
  * Jaccard 相似度
@@ -828,7 +787,6 @@ interface KnowledgeRow {
   keywords: string
   tags: string
   successRate: number
-  feedback: string | null
   useCount: number
   embedding: string | null
   contentSeg?: string | null
@@ -849,7 +807,6 @@ interface SerializedKnowledgeRow {
   keywords: string
   tags: string
   successRate: number
-  feedback: string | null
   useCount: number
   embedding: string | null
   contentSeg: string
