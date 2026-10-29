@@ -18,8 +18,9 @@ import path from 'node:path'
 import { existsSync } from 'node:fs'
 // S5：core/logger 只写 console，侧车（Python）的 stderr 是最需要留档的东西，
 // 打包后的 Windows 里没有控制台，必须落到日志文件
-import { logger as appLogger } from '../../services/log/logger'
-import type { LogLevel } from '../../services/diagnostics/types'
+// LogLevel 也从这里取：它是应用日志的档位单源，2026-10-30 之前绕道 diagnostics/types.ts 那份同名副本，
+// 那份随那条已删的诊断链一起撤了（#282）
+import { logger as appLogger, type LogLevel } from '../../services/log/logger'
 
 const logger = appLogger.child('SIDECAR')
 

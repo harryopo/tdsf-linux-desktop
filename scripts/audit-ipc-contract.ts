@@ -463,8 +463,11 @@ function main(): void {
  * 这一族比前五把更彻底：不是"有人读但没人按"，是**只写不读**——Sidecar 与循环工程两条生产者
  * 往一块内存缓冲里写，读它的只有那七个渲染层从来没按的键，而批量推送每秒都在发、没有任何订阅者。
  * 缓冲整删（含 `diagnostics-service.ts` 与 `ipc/diagnostics.ts`），两条生产者改成按级别写应用日志，
- * 内容一句没丢；真正在用的日志分析能力走 MCP 的 `log_analyze`，它直接吃 `LogAnalyzer`，
- * 从来不经过这块缓冲，所以那条路一行没动。判据：`tests/unit/diagnostics-write-only-buffer.test.ts`。
+ * 内容一句没丢。当时留的那句"真正在用的日志分析走 MCP 的 `log_analyze`（它直接吃 `LogAnalyzer`）"
+ * **到 2026-10-29 已不成立**：那条入站 MCP 链结构上没有对端，随 #281 整删，`LogAnalyzer` 与
+ * `services/diagnostics/` 整个目录一起撤走（剩下的 `types.ts` 那半行类型副本在 #282 搬回应用日志单源）。
+ * 今天界面读日志只有「日志」页那一面，它吃的是主进程应用日志文件，从来不需要那块缓冲。
+ * 判据：`tests/unit/diagnostics-write-only-buffer.test.ts`。
  * 59 → 50 同族再来一次（#207）：Sidecar 的界面面从十一条收到两条（只留 status 与 pipeline）。
  * 判据还是"谁按、谁读"：引擎由 pipeline 懒启动（非 ready 先拉起），退出收尾走主进程自己的
  * `cleanupSidecar()`，健康读数界面看的是 app:get-info 那张实测表；`-one` 那一族与 list-status

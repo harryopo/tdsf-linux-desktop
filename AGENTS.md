@@ -73,6 +73,10 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > 在代码注释中自认"只用于展示"）。同一刀带走的还有 `services/mcp/tools/registry-*.ts` 七张工具表、
 > `resources.ts`/`prompts.ts`、`services/llm/tools/` 那五个工具外壳、`services/deploy/` 整条模板链、
 > `diagnostics/log-analyzer.ts` 与 `shared/llm-tool-types.ts`——**它们的存在理由是那张入站派发口**。
+> 那一刀之后诊断服务那个目录还剩一份类型抄本（里面真在用的只有 `LogLevel`，
+> 与应用日志那个同名联合一字不差）和一条还在 import 已删服务的死脚本；两处都已于 **2026-10-30 #282** 收走，
+> sidecar 现在直接从 `services/log/logger.ts` 取 `LogLevel`。常驻闸：`tests/unit/no-dangling-relative-imports.test.ts`
+> ——**删完一条链要回头扫"谁还指着它"**，手工脚本不在 CI、注释不在 doc:links 的面上，这类断链只有门能抓住。
 > 决策超时那条设置键没有跟着变摆设：它现在的消费者是 `src/main/core/security/approval-request.ts`
 > （主进程启动时注入取数口，到点自动拒绝）。界面上只留外部 MCP 客户端那一条（设置 → MCP，每次调用人工审批）。
 > **五模式（chat/ask/plan/code/debug）已于 2026-10-24 整删**：`ipc/mode.ts`、`core/agent/modes/`

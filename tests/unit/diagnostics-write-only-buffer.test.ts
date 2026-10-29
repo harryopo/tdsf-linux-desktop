@@ -9,9 +9,9 @@
  * - 结果就是两个生产者（sidecar、循环工程 subagent）往一块内存里写，谁都不看——
  *   只写不读，与 #136 判掉的那批 ai-store 键是同一类。
  *
- * 保留的是真的那条能力：MCP 的 `log_analyze` 走 `LogAnalyzer` 直接分析远程日志
- * （`services/mcp/tools/registry-log.ts`），它压根不经过这块缓冲。所以这一批删的是
- * "没人读的副本 + 没人听的推送"，不是日志分析能力。
+ * 当时另外保留的那条"真能力"是 MCP 的 `log_analyze`（`LogAnalyzer` 直接吃远程日志，压根不经过这块缓冲），
+ * 所以 #206 删的确实只是"没人读的副本 + 没人听的推送"。**那句话到 2026-10-29 只剩历史价值**：
+ * 入站 MCP 那一族结构上没有对端，随 #281 整删，`LogAnalyzer` 也随之没了（本文件第 4 条钉盘上证据）。
  *
  * 来历（2026-10-25 #222）：**第 3 条换了靶子，不是放宽。** 它原来列两个生产者——sidecar 与
  * "循环工程 subagent"，靠那份文件里有一条写应用日志的路径来证明"删缓冲没把日志能力一起砍掉"。
@@ -28,9 +28,10 @@
  * 第 3 条末尾留了一条"那个生产者不许悄悄回来"的对照，回来的话这一档的名单必须跟着长，不能装看不见。
  *
  * 顺带记两笔实测到的事实，免得下一个人再猜：
- * - `services/diagnostics/` 现在只剩 `log-analyzer.ts`（MCP 那条在用）与 `types.ts`
- *   （`LogLevel`/`LogEvent` 这些形状的单源）；sidecar 与 registry-log 还从 `types.ts` 取类型，
- *   那是**类型**依赖，不是又有人往那块缓冲里写——第 2 条只按缓冲的模块名取数，不受影响。
+ * - `services/diagnostics/` 这个目录在 #282 已经整删：#281 走 `log-analyzer.ts` 之后，它只剩
+ *   `types.ts` 一份形状，而那份里真有人在用的只有 `LogLevel`——它与应用日志（`services/log/logger.ts`）
+ *   里那个同名联合一字不差，属于抄本。sidecar 现在直接从应用日志取这个类型，不再有第二份定义。
+ *   第 2 条按缓冲模块名取数，不受这次搬家影响。
  * - 第 3 条钉的是"路径在"，不保证 DEBUG 档在生产构建里也落文件：`initLogger` 给的 minLevel
  *   在非 dev 是 INFO。这条口径写在这里，别把它当成"什么级别都留档了"。
  */
@@ -140,8 +141,8 @@ describe('diagnostics 只写不读的缓冲已关掉（#206）', () => {
 
   it('4. 反向对照：入站 MCP 那个 log_analyze 消费者已随 #281 撤走（不许装作还在）', () => {
     // 这一档原先的正向对照是"MCP 的 log_analyze 真走 LogAnalyzer"。派发口整删后那句话不再成立，
-    // 于是把它改成盘上证据：文件没了就是没了。LogAnalyzer 现在只剩两个探针脚本在引，
-    // 而那两个脚本本身又 import 了 #206 已删的 diagnostics-service——整条残留归 #282 判决。
+    // 于是把它改成盘上证据：文件没了就是没了。#281 之后残留的是那两条探针脚本——它们 import 的
+    // diagnostics-service 早已不在，脚本自己也已经跑不起来；#282 连脚本带 `types.ts` 那份类型抄本一起收走。
     expect(
       fs.existsSync(path.join(ROOT, 'src/main/services/mcp/tools/registry-log.ts')),
       'registry-log.ts 又回来了——#281 的判决要重开，这一档也要改回正向对照'
@@ -149,6 +150,15 @@ describe('diagnostics 只写不读的缓冲已关掉（#206）', () => {
     expect(
       fs.existsSync(path.join(ROOT, 'src/main/services/diagnostics/diagnostics-service.ts')),
       'diagnostics-service.ts 若在，说明 #206 的判决被推翻，探针脚本的引用就不再是残留'
+    ).toBe(false)
+    // #282：整个目录与那条死脚本都要是没了，不是"只剩一份形状还挂在死路上"
+    expect(
+      fs.existsSync(path.join(ROOT, 'src/main/services/diagnostics')),
+      'services/diagnostics/ 又在——里面只剩的那份 LogLevel 是应用日志的抄本，#282 已搬回单源'
+    ).toBe(false)
+    expect(
+      fs.existsSync(path.join(ROOT, 'scripts/test-sidecar-integration.ts')),
+      '那条脚本又在——它 import 的 diagnostics-service 已随 #206 整删，本身跑不起来（#282 收走）'
     ).toBe(false)
   })
 

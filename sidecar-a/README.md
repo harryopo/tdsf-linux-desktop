@@ -15,7 +15,7 @@
 | 依赖 | fastapi + uvicorn + drain3 + pydantic |
 | 体积 | ~10 MB（venv 内）|
 | 启动 | <1s（FastAPI）|
-| 集成 | TS 侧不止 SidecarManager：另有 `src/main/ipc/sandbox*.ts` 与 `scripts/{test-sidecar-integration,verify-sidecar-cleanup}.ts` |
+| 集成 | TS 侧不止 SidecarManager：另有 `src/main/ipc/sandbox.ts`、`src/main/ipc/sandbox-config.ts`、`src/main/ipc/sandbox-approval.ts` 与 `scripts/verify-sidecar-cleanup.ts`（那条 `test-sidecar-integration.ts` 已随诊断缓冲整删——它 import 的服务在 #206 就没了，2026-10-30 #282 收走脚本本身）|
 | 打包 | v1.0 阶段不打包（直接 venv 运行）|
 
 ## 二、端点清单（`main.py` 里 `@app.get` / `@app.post` 共 9 个）
