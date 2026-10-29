@@ -1,13 +1,13 @@
 # README 架构图生成器 —— 图里每个数字都要能追到一条命令，改代码后重跑它就同步
 #
 # 为什么要把它入库：上一版图是 2026-07-25 手画的，之后 React 18→19、退出 Ant Design、
-# "12 条黑名单"换成 8 结构 + 7 argv + 226 词表、"14 步协议"证明生产零调用，图上一条都没跟
+# "12 条黑名单"换成 8 结构 + 7 argv + 244 词表、"14 步协议"证明生产零调用，图上一条都没跟
 # —— 公开仓里那张图就成了假话。有生成器才谈得上"重画一次"。
 #
 # 数字出处（不要手改图里的数，去改这些源，然后重跑本脚本）：
 #   IPC 163 = 145 请求-响应 + 18 事件推送   -> npm run audit:ipc
 #   已登记契约 60 条                          -> src/shared/ipc-contract.ts
-#   命令闸 8 结构 + 7 argv + 226 词表         -> npm run promo:check
+#   命令闸 8 结构 + 7 argv + 244 词表         -> npm run promo:check
 #   Provider 6 类                             -> src/main/core/agent/providers/provider-factory.ts 的 switch
 #   可信度融合走 D-S / PCR5                    -> ChatCredibility.tsx:69 调 credibilityAssess
 #                                                -> ipc/credibility.ts 的 engine.fuseAndAssess（故意不写行号：这文件每删一批死键就短一段）
@@ -163,7 +163,7 @@ main_boxes = [
     ("SSH 客户端", "ssh2 · known_hosts 三态", "跳板机同样校验主机密钥"),
     ("本机终端", "node-pty", "伪终端在进程内，会话按标签管理"),
     ("AI 编排", "Vercel AI SDK 7", "请求级超时 + 单一重试栈"),
-    ("命令闸", "8 结构 + 7 argv + 226 词表", "键入/粘贴与 AI 同一条闸"),
+    ("命令闸", "8 结构 + 7 argv + 244 词表", "键入/粘贴与 AI 同一条闸"),
     ("可信度融合", "Shafer 折扣 → D-S / PCR5", "冲突高走 PCR5，低走 Dempster"),
     ("持久化", "better-sqlite3 + sqlite-vec", "扩展加载失败 → 界面显式降级"),
     ("MCP 网关", "@modelcontextprotocol/sdk", "本地工具 + 外部 stdio"),

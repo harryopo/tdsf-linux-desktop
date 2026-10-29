@@ -154,10 +154,15 @@ const EXPECTED_READONLY_EXTRA = [
   'systemctl', 'nginx', 'visudo', 'docker', 'podman', 'kubectl', 'git',
   'apt', 'apt-get', 'dpkg', 'yum', 'pip', 'pip3', 'npm', 'pnpm', 'yarn',
   'lsblk', 'lscpu', 'lsmem', 'lsmod', 'lspci', 'lsusb', 'dmesg', 'sysctl',
-  'vmstat', 'iostat', 'mpstat', 'nvidia-smi', 'fdisk', 'blkid',
+  'vmstat', 'iostat', 'mpstat', 'sar', 'pidstat', 'nvidia-smi', 'fdisk', 'blkid',
   'ping', 'ping6', 'traceroute', 'tracepath', 'dig', 'nslookup', 'host', 'curl',
   'cut', 'tr', 'diff', 'cmp', 'pwd', 'realpath', 'readlink', 'basename', 'dirname',
   'openssl',
+  // 2026-10-29 人审补：用户在真机上最常用的系统概览命令全被拒（nproc / arch /
+  // systemctl --failed / timedatectl / hostnamectl），PAOR 的计划步骤因此整轮 127。
+  // 全部无参数即只读，或靠 optionalSubcommands / flagSubcommands 护栏收紧。
+  'nproc', 'arch', 'getconf', 'timedatectl', 'hostnamectl', 'localectl',
+  'loginctl', 'resolvectl',
 ]
 
 describe('只读名单不许被悄悄扩（同一类独立证人）', () => {

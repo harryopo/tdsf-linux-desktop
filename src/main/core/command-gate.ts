@@ -78,6 +78,10 @@ interface CommandRules {
     positionalPrefix: Record<string, string>
     verbPositionals: string[]
     denyAssign: string[]
+    /** 只读形态是旗标而非子命令的命令（systemctl --failed） */
+    flagSubcommands?: Record<string, string[]>
+    /** 不带位置参数即打印状态、带了则必须在表里的命令（timedatectl） */
+    optionalSubcommands?: Record<string, string[]>
   }
   prefixSkips: { commands: string[]; valueFlags: string[] }
   argvRules: ArgvRule[]
@@ -1009,9 +1013,21 @@ function judgeReadonlyArgs(argv0: string, rest: Token[]): ReadonlyVerdict {
   const subs = RG.subcommands[argv0]
   if (subs) {
     const sub = positionals[0]
-    if (!sub) return { ok: false, reason: `${argv0} 要带子命令，例如 ${argv0} ${subs[0]}` }
-    if (!subs.includes(sub)) {
+    // 只读形态可能是旗标：`systemctl --failed` 没有子命令，但语义等同 `systemctl list-units --failed`
+    const flagSubs = RG.flagSubcommands?.[argv0] ?? []
+    const satisfiedByFlag =
+      !sub && flagSubs.some((f) => flags.some((fl) => flagMatches(fl, f)))
+    if (!sub && !satisfiedByFlag) return { ok: false, reason: `${argv0} 要带子命令，例如 ${argv0} ${subs[0]}` }
+    if (sub && !subs.includes(sub)) {
       return { ok: false, reason: `${argv0} ${sub} 不是只读子命令；能用的是 ${subs.slice(0, 5).join('、')}…` }
+    }
+  }
+  // 不带参数即打印状态（timedatectl / hostnamectl）；带了参数就必须是只读子命令
+  const optionalSubs = RG.optionalSubcommands?.[argv0]
+  if (optionalSubs) {
+    const sub = positionals[0]
+    if (sub && !optionalSubs.includes(sub)) {
+      return { ok: false, reason: `${argv0} ${sub} 会改动系统状态，不是只读查询` }
     }
   }
   if (RG.noPositional.includes(argv0) && positionals.length > 0) {
@@ -1282,7 +1298,7 @@ export class LineGate {
           reason: verdict.reason,
           line: text.slice(0, 120),
           notice:
-            '\r\n\x1b[31m⛔ 已拦截高危命令\x1b[0m\r\n' +
+            '\r\n\x1b[31m已拦截高危命令\x1b[0m\r\n' +
             `   命令：${text.slice(0, 120)}\r\n` +
             `   原因：${verdict.reason}\r\n` +
             '   该命令没有执行，可以直接继续输入\r\n\r\n',

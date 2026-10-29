@@ -176,3 +176,48 @@ describe('AI 只读判定', () => {
     expect(isStrictlyReadonly(undefined as unknown as string).ok).toBe(false)
   })
 })
+
+/**
+ * 2026-10-29：真机上系统概览命令几乎全被拒（nproc / systemctl --failed / timedatectl），
+ * 模型于是只能回"我什么都没做"。这里给"旗标即只读"与"无参数即状态"两类补正反两组判据：
+ * 放行的是只读形态，拒的是同一条命令的写入形态——只放不拒就等于把闸拆了。
+ */
+describe('无参数即状态 / 旗标即只读（2026-10-29 补）', () => {
+  const ALLOW = [
+    'nproc',
+    'nproc --all',
+    'arch',
+    'systemctl --failed --no-pager',
+    'systemctl --list-timers',
+    'timedatectl',
+    'timedatectl status',
+    'hostnamectl',
+    'localectl status',
+    'loginctl list-sessions',
+    'iostat',
+    'sar -u 1 1',
+    'pidstat -u 1 1',
+  ]
+  const DENY = [
+    ['systemctl stop nginx', '子命令是写入'],
+    ['systemctl --no-pager', '既无合法子命令、也无只读旗标'],
+    ['systemctl --failed restart nginx', '旗标后面还跟着写入子命令'],
+    ['timedatectl set-time 10:00', '改系统时间'],
+    ['timedatectl set-ntp true', '改 NTP 开关'],
+    ['hostnamectl set-hostname box', '改主机名'],
+    ['loginctl terminate-session 1', '终止会话'],
+    ['resolvectl flush-caches', '清 DNS 缓存'],
+    ['nproc 2', 'nproc 不带位置参数'],
+  ] as const
+
+  it.each(ALLOW)('放行：%s', (cmd) => {
+    const v = isStrictlyReadonly(cmd)
+    expect(v.ok, `被拒：${v.reason}`).toBe(true)
+  })
+
+  it.each(DENY)('仍拒：%s（%s）', (cmd) => {
+    const v = isStrictlyReadonly(cmd)
+    expect(v.ok, `${cmd} 不该算只读`).toBe(false)
+    expect(v.reason).toBeTruthy()
+  })
+})

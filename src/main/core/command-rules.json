@@ -29,10 +29,11 @@
     "systemctl", "nginx", "visudo", "docker", "podman", "kubectl", "git",
     "apt", "apt-get", "dpkg", "yum", "pip", "pip3", "npm", "pnpm", "yarn",
     "lsblk", "lscpu", "lsmem", "lsmod", "lspci", "lsusb", "dmesg", "sysctl",
-    "vmstat", "iostat", "mpstat", "nvidia-smi", "fdisk", "blkid",
+    "vmstat", "iostat", "mpstat", "sar", "pidstat", "nvidia-smi", "fdisk", "blkid",
     "ping", "ping6", "traceroute", "tracepath", "dig", "nslookup", "host", "curl",
     "cut", "tr", "diff", "cmp", "pwd", "realpath", "readlink", "basename", "dirname",
-    "openssl"
+    "openssl", "nproc", "arch", "getconf", "timedatectl", "hostnamectl", "localectl",
+    "loginctl", "resolvectl"
   ],
 
   "_readonlyGuards_comment": [
@@ -42,6 +43,11 @@
     "noPositional = 不许有非旗标参数；positionalPrefix = 位置参数只能以该前缀开头；",
     "verbPositionals = 这条命令的位置参数是动词，逐个查 readonlyDenyVerbs；",
     "denyAssign = 位置参数里不许有 var=value 赋值形式。"
+  ],
+  "_readonlyGuardsExtra_comment": [
+    "flagSubcommands：有些命令的只读形态是旗标而不是子命令（systemctl --failed / --list-timers）。",
+    "命中任一旗标且没有位置参数时等同带了一个合法子命令；没有位置参数也没命中就仍然拒。",
+    "optionalSubcommands：不带位置参数即打印状态（只读），带了则必须在表里；timedatectl set-time 这类不在表里，照旧拒。"
   ],
   "readonlyGuards": {
     "subcommands": {
@@ -81,10 +87,20 @@
       "nginx": ["-t"],
       "visudo": ["-c"]
     },
-    "noPositional": ["hostname", "whoami", "pwd", "lscpu", "lsmem", "nvidia-smi", "uptime"],
+    "noPositional": ["hostname", "whoami", "pwd", "lscpu", "lsmem", "nvidia-smi", "uptime", "nproc", "arch"],
     "positionalPrefix": { "date": "+" },
     "verbPositionals": ["ip"],
-    "denyAssign": ["date", "sysctl"]
+    "denyAssign": ["date", "sysctl"],
+    "flagSubcommands": {
+      "systemctl": ["--failed", "--list-units", "--list-unit-files", "--list-timers", "--list-sockets", "--list-jobs", "--show", "--version", "--help"]
+    },
+    "optionalSubcommands": {
+      "timedatectl": ["status", "show", "timesync-status", "show-timesync", "list-timezones", "version", "help"],
+      "hostnamectl": ["status", "show", "version", "help"],
+      "localectl": ["status", "list-locales", "list-keymaps", "list-x11-keymap-models", "list-x11-keymap-layouts", "list-x11-keymap-variants", "list-x11-keymap-options", "version", "help"],
+      "loginctl": ["list-sessions", "list-users", "list-seats", "session-status", "user-status", "show-session", "show-user", "show-seat", "seat-status", "version", "help"],
+      "resolvectl": ["status", "query", "statistics", "domain", "dns", "version", "help"]
+    }
   },
 
   "_readonlyDenyVerbs_comment": [
