@@ -111,7 +111,6 @@ export function KnowledgeDetailPage() {
   const displayId = realEntry?.id ?? id ?? ''
   const displayUpdatedAt = realEntry ? new Date(realEntry.updatedAt).toISOString().slice(0, 10) : ''
   const displayUseCount = realEntry?.useCount ?? 0
-  const displaySuccessRate = realEntry ? Math.round(realEntry.successRate * 100) : 0
 
   /** 解决方案与回滚命令：有内容才成节，空命令列表不再摆一个空代码块 */
   const hasFixCommands = displayCommands.length > 0
@@ -389,13 +388,9 @@ export function KnowledgeDetailPage() {
                     {tag}
                   </span>
                 ))}
-                {/* 徽章按真实数据条件渲染 —— 成功率≥80% 才算已验证，AI 沉淀看 tags */}
-                {displaySuccessRate >= 80 && (
-                  <span className="kb-chip kb-chip--verified">
-                    <CheckCircle2 className="h-3 w-3" />
-                    已验证
-                  </span>
-                )}
+                {/* AI 沉淀看 tags；「已验证」徽章已撤——它原来只看 successRate≥80，
+                    而这个数在反馈模块整删后没有任何生产者（种子常量 0.9/0.95），
+                    留着就是把出厂标注演成"这条被验证过" */}
                 {displayTags.some((t) => t.toLowerCase().includes('ai')) && (
                   <span className="kb-chip kb-chip--ai">
                     AI 沉淀
@@ -413,16 +408,9 @@ export function KnowledgeDetailPage() {
                   <Eye className="h-3 w-3" />
                   <strong className="kb-meta__strong">{displayUseCount.toLocaleString()}</strong> 次阅读
                 </span>
-                {/* v2.6 去假：教程的 successRate 是阅读时长 hack，不是匹配度，不展示 */}
-                {!isTutorial && (
-                  <>
-                    <span className="kb-meta__sep" />
-                    <span className="kb-meta">
-                      <CheckCircle2 className="h-3 w-3" />
-                      匹配 <strong className="kb-meta__strong">{displaySuccessRate}%</strong>
-                    </span>
-                  </>
-                )}
+                {/* 「匹配 X%」这一格整删：它读的是 successRate，而这个数在反馈模块整删后
+                    再没有任何生产者（种子条目是出厂常量，教程那格本来就是"阅读时长/60"的 hack）。
+                    阅读次数是 kb:view 真自增的，留着。 */}
               </div>
             </div>
 
@@ -507,11 +495,12 @@ export function KnowledgeDetailPage() {
                 )}
               </div>
 
+              {/* 侧栏置信度环不再喂 successRate：反馈票整删后这个数没有生产者，
+                  画成「知识置信度 90%」就是拿出厂标注冒充实测（#134 同一族的第二次判决） */}
               <KnowledgeDetailSidebar
                 activeSection={activeSection}
                 onTocClick={handleTocClick}
                 sections={sections}
-                confidencePct={isTutorial ? undefined : (realEntry?.successRate ?? 0) * 100}
                 metaRows={[
                   { key: '知识 ID', val: displayId, mono: true },
                   { key: '类型', val: typeLabel },

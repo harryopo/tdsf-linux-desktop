@@ -179,21 +179,8 @@
   white-space: nowrap;
 }
 
-.kb-card__match {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  background: var(--trae-bg-brand-popup);
-  color: var(--accent-text);
-  font-size: var(--trae-body-xs-font-size);
-  font-weight: var(--trae-font-weight-medium);
-  border-radius: var(--trae-radius-2);
-  border: 1px solid var(--trae-border-brand);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
+/* 「成功率 / 置信度」两格的样式随读数一起删除：successRate 在反馈票整删（#268）后
+   再没有生产者，画出来就是拿出厂标注冒充实测。 */
 
 .kb-card__summary {
   font-size: var(--trae-body-sm-font-size);
@@ -713,11 +700,6 @@
   border: 1px solid var(--trae-border-neutral-l1);
   color: var(--text-tertiary);
 }
-.kb-chip--verified {
-  background: var(--trae-status-success-surface-l1);
-  border: 1px solid var(--trae-status-success-default);
-  color: var(--status-success-text);
-}
 .kb-chip--ai {
   background: var(--trae-bg-brand-popup);
   border: 1px solid var(--trae-border-brand);
@@ -928,54 +910,6 @@
 }
 .kb-toc__item.is-active .kb-toc__num {
   color: var(--accent-text);
-}
-
-/* ===== Confidence ring ===== */
-.kb-conf {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.kb-conf__ring {
-  flex: 0 0 56px;
-  width: 56px;
-  height: 56px;
-  position: relative;
-}
-.kb-conf__ring svg {
-  transform: rotate(-90deg);
-}
-
-.kb-conf__value {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  font-family: var(--trae-font-family-mono);
-}
-
-.kb-conf__info {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.kb-conf__label {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-}
-
-.kb-conf__sources {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-.kb-conf__sources strong {
-  color: var(--status-success-text);
-  font-weight: 500;
 }
 
 /* ===== Meta list ===== */

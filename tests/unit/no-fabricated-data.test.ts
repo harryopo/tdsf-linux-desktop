@@ -95,4 +95,25 @@ describe('渲染层不许出现编造数据', () => {
     const logsData = code(path.join(RENDERER, 'components/logs/v1/logs-data.ts'))
     expect(logsData).not.toMatch(/export const (LOG_ENTRIES|TOTAL_LOG_COUNT|LATEST_TIMESTAMP)/)
   })
+
+  it('#268 后续：反馈票没了，successRate 这个出厂常量不许再演成实测读数', () => {
+    // 知识条目上那个 successRate 现在没有任何写入方（种子是常量、手填是 0）。
+    // 界面上"成功率 X%／知识置信度／已验证"三类读数都是从这个常量派出来的样子货。
+    for (const rel of [
+      'pages/KnowledgePage.tsx',
+      'pages/KnowledgeDetailPage.tsx',
+      'components/knowledge-detail/v1/KnowledgeDetailSidebar.tsx',
+    ]) {
+      const text = code(path.join(RENDERER, rel))
+      expect(text, `${rel} 又把没有生产者的 successRate 演成实测读数`).not.toMatch(
+        /成功率|知识置信度|综合置信度评分|已验证/,
+      )
+    }
+    // 侧栏那个"喂一个百分比就画环"的口子一起封掉
+    const sidebar = code(path.join(RENDERER, 'components/knowledge-detail/v1/KnowledgeDetailSidebar.tsx'))
+    expect(sidebar).not.toMatch(/confidencePct/)
+    // 主进程给模型看的 kb_search 摘要同理——模型只会把这句原样复述给用户
+    const supervisor = code(path.join(ROOT, 'src/main/core/agent/supervisor.ts'))
+    expect(supervisor).not.toMatch(/成功率 \$\{/)
+  })
 })

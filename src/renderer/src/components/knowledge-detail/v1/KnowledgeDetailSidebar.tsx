@@ -5,12 +5,13 @@
  *
  * 阶段 F4：设计稿自带的示例目录、示例元信息、示例"关联知识"三项全部删除。
  * - 目录改由父组件按正文实际渲染出的节传入，杜绝"点了跳到不存在的锚点"
- * - 置信度只有真实 successRate 才画环；教程类无该语义就不出这张卡
  * - "关联知识"整卡撤掉：本仓库没有推荐算法，示例条目只会让人以为系统真会推荐
+ * - 「知识置信度」整卡撤掉（#268）：它读的是 successRate，而反馈票删掉后这个数再没有生产者，
+ *   画一个 90% 的环就是拿出厂标注冒充实测
  *
  * Token 规范：全部 var(--trae-*)，shadow 用 var(--trae-shadow-card)
  */
-import { FileText, List, Shield } from 'lucide-react'
+import { FileText, List } from 'lucide-react'
 import { CardHead } from './detail-parts'
 import { cn } from '@/components/trae/utils'
 
@@ -29,26 +30,17 @@ interface KnowledgeDetailSidebarProps {
   onTocClick: (target: string) => void
   /** 正文实际渲染出来的节（与页面同源） */
   sections: Array<{ key: string; label: string }>
-  /** 置信度百分比（0-100，来自真实 successRate）；不传 = 隐藏置信度卡（如教程类无此语义） */
-  confidencePct?: number
   /** 元信息行（真实 id / 分类 / 时间等） */
   metaRows: MetaRow[]
 }
-
-/** 知识置信度圆环参数 */
-const CONF_RADIUS = 24
-const CONF_CIRCUMFERENCE = 2 * Math.PI * CONF_RADIUS
 
 /** 知识详情右栏组件 */
 export function KnowledgeDetailSidebar({
   activeSection,
   onTocClick,
   sections,
-  confidencePct,
   metaRows,
 }: KnowledgeDetailSidebarProps) {
-  const conf = confidencePct == null ? null : Math.max(0, Math.min(100, Math.round(confidencePct)))
-  const confOffset = CONF_CIRCUMFERENCE * (1 - (conf ?? 0) / 100)
   return (
     <aside className="kb-detail-sidebar">
       {/* 1. 本页目录 */}
@@ -78,49 +70,7 @@ export function KnowledgeDetailSidebar({
         </div>
       </div>
 
-      {/* 2. 知识置信度（教程等无成功率语义的类型隐藏） */}
-      {conf != null && (
-      <div className="kb-detail-card">
-        <CardHead icon={<Shield className="h-3.5 w-3.5" />} title="知识置信度" />
-        <div className="kb-detail-card__body">
-          <div className="kb-conf">
-            <div className="kb-conf__ring">
-              <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
-                <circle
-                  cx="28"
-                  cy="28"
-                  r={CONF_RADIUS}
-                  fill="none"
-                  stroke="var(--trae-border-neutral-l1)"
-                  strokeWidth="4"
-                />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r={CONF_RADIUS}
-                  fill="none"
-                  stroke="var(--trae-status-success-default)"
-                  strokeWidth="4"
-                  strokeDasharray={CONF_CIRCUMFERENCE}
-                  strokeDashoffset={confOffset}
-                  strokeLinecap="round"
-                  transform="rotate(-90 28 28)"
-                />
-              </svg>
-              <span className="kb-conf__value">
-                {conf}%
-              </span>
-            </div>
-            <div className="kb-conf__info">
-              <div className="kb-conf__label">综合置信度评分</div>
-              <div className="kb-conf__sources">按案例结果与读者答复（有帮助/没帮助）逐次累积</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* 3. 元信息 */}
+      {/* 2. 元信息 */}
       <div className="kb-detail-card">
         <CardHead icon={<FileText className="h-3.5 w-3.5" />} title="元信息" />
         <div className="kb-detail-card__body">

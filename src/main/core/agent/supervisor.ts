@@ -997,20 +997,22 @@ class SupervisorAgent {
                 problem: e.problem,
                 commands: e.commands,
                 keywords: e.keywords,
-                successRate: e.successRate,
+                // 不带 successRate：这个数在反馈票整删后没有生产者，喂给模型只会被复述成
+                // "这条有 90% 成功率"——而它只是出厂标注。useCount 是 kb:view 真自增的，留着。
                 useCount: e.useCount,
                 // 这一条是靠全文/向量/两路/关键词找到的，界面与判据都能看出来
                 match: source,
               }))
-              // v2.6：摘要附真实置信信息（成功率/使用次数），模型回答时引用，
-              // 用户在对话里能看到知识可信度依据（教程类 successRate 是阅读时长 hack，不标注）
+              // v2.6 摘要曾附「成功率 X%」——那是 successRate。反馈票整删后（#268）这个数再没有
+              // 生产者：种子条目是出厂常量，被看过一次就写成"成功率 90%"是拿标注冒充实测。
+              // 只报 kb:view 真自增的使用次数；教程那格本来就是"阅读时长/60"的 hack，不报。
               const summary = results.length
                 ? results
                     .map((r, i) => {
                       const cred =
-                        r.type === 'tutorial'
+                        r.type === 'tutorial' || r.useCount <= 0
                           ? ''
-                          : `（成功率 ${Math.round(r.successRate * 100)}%，被使用 ${r.useCount} 次）`
+                          : `（被使用 ${r.useCount} 次）`
                       return `${i + 1}. [${r.title}]${cred} ${r.problem}`
                     })
                     .join('\n')
