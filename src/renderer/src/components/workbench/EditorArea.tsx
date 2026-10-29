@@ -33,6 +33,7 @@ import {
   Eye,
   Lock,
   Pencil,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/components/trae/utils'
 import TerminalView from '@/components/terminal/TerminalView'
@@ -132,6 +133,8 @@ export interface WorkbenchFileTab {
   original: string
   loading: boolean
   error?: string
+  /** 保存失败的原因（#279）：有正文可编辑时用它，编辑器不卸载，只在顶上挂一条 */
+  saveError?: string
   dirty: boolean
   /** 只读查看（W5）：锁的是编辑，不丢内容 */
   readOnly?: boolean
@@ -299,6 +302,15 @@ const FileEditorPanel: FC<{
   }
   return (
     <div className="term-file-editor">
+      {/* 保存失败只在顶上挂一条，**编辑器不卸载**：正文就在手上，
+          整块换成错误面板等于让用户那份没存进去的改动从屏上消失、也没法再改（#279） */}
+      {tab.saveError && (
+        <div className="term-file-save-error" role="alert">
+          <AlertTriangle aria-hidden className="size-3" />
+          <span>{tab.saveError}</span>
+          <span className="term-file-save-error-hint">正文仍在编辑器里，改完可以再按一次保存</span>
+        </div>
+      )}
       <div className="term-file-header">
         <span className="term-file-path">
           {tab.path}

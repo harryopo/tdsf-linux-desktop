@@ -245,6 +245,26 @@
   color: var(--text-muted);
 }
 
+/*
+ * 保存失败的横幅（#279）：正文还在下面那块编辑器里，所以这一条只压住 24px 高度，
+ * 不遮不挡——它要说的是"没存进去"，不是"这块内容看不了"。
+ */
+.term-file-save-error {
+  display: flex;
+  min-height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--status-error-text);
+  background: var(--trae-status-error-surface-l1);
+}
+
+.term-file-save-error-hint {
+  color: var(--text-muted);
+}
+
 .term-file-editor {
   display: flex;
   min-height: 0;

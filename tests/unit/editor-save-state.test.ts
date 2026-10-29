@@ -72,7 +72,20 @@ describe('编辑器保存状态机（#235）', () => {
   it('9. 保存失败：脏标记必须保留（否则关标签不再提示、全部保存也会跳过），错误原样带上', () => {
     const next = applySaveFailure(base, 'ECONNRESET')
     expect(next.dirty).toBe(true)
-    expect(next.error).toContain('ECONNRESET')
+    expect(next.saveError).toContain('ECONNRESET')
     expect(next.content).toBe('line-1')
+  })
+
+  it('10. 保存失败不许写 error：那是"根本没读出来"的通道，写了编辑器整块换成错误面板，用户那份没存的正文就从屏上消失', () => {
+    const next = applySaveFailure(base, 'EROFS: read-only file system, write')
+    expect(next.error).toBeUndefined()
+    expect(next.content).toBe('line-1')
+  })
+
+  it('11. 保存成功要连上一次的失败横幅一起清掉（不然存好了还挂着"保存失败"）', () => {
+    const failed = applySaveFailure({ ...base, content: 'line-1 改过' }, '写入超时')
+    const next = applySavedContent(failed, 'line-1 改过')
+    expect(next.saveError).toBeUndefined()
+    expect(next.dirty).toBe(false)
   })
 })

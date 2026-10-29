@@ -94,6 +94,13 @@ export interface SaveTabShape {
   sessionId?: string
   readOnly?: boolean
   error?: string
+  /**
+   * 保存失败的原因。**与 `error` 分开**：`error` 是"这个文件根本没读出来"（没有正文可编辑，
+   * 整块换成错误面板是对的），而保存失败时正文就在手上——把它一起换成错误面板，
+   * 用户没存的那份就从屏上消失、也改不了了，唯一出路是关掉重开，而重开读的是服务器那份，
+   * **等于把用户的改动丢掉**（2026-10-29 实测这条形状）。
+   */
+  saveError?: string
 }
 
 export function saveBlockReason(
@@ -120,12 +127,17 @@ export function applySavedContent<T extends SaveTabShape>(tab: T, savedContent: 
     original: savedContent,
     dirty: tab.content !== savedContent,
     error: undefined,
+    saveError: undefined,
   }
 }
 
-/** 保存失败：只记错误，**不动** dirty —— 清了它，关标签就不再提示、全部保存也会跳过。 */
+/**
+ * 保存失败：只记 `saveError`，**不动** dirty，也**不动** `error`——
+ * 清了 dirty，关标签就不再提示、全部保存也会跳过这条；写成 `error` 则会把编辑器
+ * 整块换成错误面板，用户那份没存进去的正文从屏上消失、也没法再改。
+ */
 export function applySaveFailure<T extends SaveTabShape>(tab: T, message: string): T {
-  return { ...tab, error: `保存失败: ${message}` }
+  return { ...tab, saveError: `保存失败: ${message}` }
 }
 
 /**
