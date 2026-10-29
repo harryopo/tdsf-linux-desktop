@@ -705,12 +705,36 @@
   gap: 8px;
 }
 
+/* 标题行两端对齐：章节标题在左，状态 chip 与"复制全文"在右 */
+.tut-card-title-row--spread {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.tut-card-title-row--spread .tut-card-title {
+  flex: 1;
+  min-width: 0;
+}
+.tut-card-title-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .tut-card-title {
   font-size: var(--trae-heading-xs-font-size);
   line-height: var(--trae-heading-xs-line-height);
   font-weight: var(--trae-heading-xs-font-weight);
   color: var(--text-primary);
   margin: 0;
+}
+
+/* 当前章节标题是正文的一级标题（Markdown 的 ## 已被切走），按页内小节档 17/600；
+   它必须压过正文里的 h2/h3，否则章节标题反而比小节小 */
+.tut-card-title--lead {
+  font-size: var(--ui-font-title);
+  line-height: var(--ui-lh-snug);
+  font-weight: var(--ui-weight-semibold);
 }
 
 .tut-card-icon--brand {
@@ -772,18 +796,6 @@
 }
 
 /* ===== 代码块 ===== */
-.tut-code-block {
-  background: var(--trae-bg-code-block);
-  border: 1px solid var(--trae-border-neutral-l1);
-  border-radius: var(--trae-radius-6);
-  padding: 12px;
-  margin: 0;
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-body-sm-font-size);
-  line-height: 1.7;
-  overflow-x: auto;
-}
-
 .tut-code-caption {
   margin-top: 6px;
   font-size: var(--trae-body-xs-font-size);
@@ -815,57 +827,244 @@
   color: var(--text-primary);
 }
 
-/* ===== Markdown 渲染内容（真实教程数据） ===== */
+/* ===== Markdown 渲染内容（教程正文，真实数据） =====
+   文档阅读感：正文平铺，只有代码块带外壳；标题/列表/表格/引用靠留白与语义色分层次。
+   颜色与字号全部走 ui 令牌，浅色主题由 [data-theme='light'] 自动翻面。 */
 .tut-md-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.tut-md-h2 {
-  font-size: var(--trae-heading-sm-font-size, 16px);
-  line-height: var(--trae-heading-sm-line-height, 24px);
-  font-weight: var(--trae-heading-sm-font-weight, var(--trae-font-weight-strong, 600));
+  margin-top: 14px;
   color: var(--text-primary);
-  margin: 12px 0 4px;
+  font-family: var(--ui-family-ui);
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-loose);
+  overflow-wrap: anywhere;
 }
+.tut-md-content > :first-child { margin-top: 0; }
+.tut-md-content > :last-child { margin-bottom: 0; }
 
-.tut-md-h2--major {
-  font-size: var(--trae-heading-md-font-size, 20px);
-  line-height: var(--trae-heading-md-line-height, 28px);
-  color: var(--accent-text);
-}
-
+.tut-md-h2,
 .tut-md-h3 {
-  font-size: var(--trae-heading-xs-font-size, 13px);
-  line-height: var(--trae-heading-xs-line-height, 20px);
-  font-weight: var(--trae-heading-xs-font-weight, var(--trae-font-weight-strong, 600));
+  margin: 0;
+  font-weight: var(--ui-weight-semibold);
+  color: var(--text-secondary);
+}
+.tut-md-h2 {
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-primary);
+  font-size: var(--ui-font-title);
+  line-height: var(--ui-lh-snug);
+}
+/* 教程内的一级标题不再抢过模块页头与章节标题：与 h2 同档，靠颜色与上边距区分 */
+.tut-md-h2--major {
+  margin-top: 0;
+  font-size: var(--ui-font-title);
+  line-height: var(--ui-lh-snug);
   color: var(--text-primary);
-  margin: 10px 0 2px;
+}
+.tut-md-h3 {
+  margin: 20px 0 6px;
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-snug);
+  color: var(--text-primary);
 }
 
-.tut-md-blockquote {
-  display: flex;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--trae-status-warning-surface-l1);
-  border-left: 3px solid var(--trae-status-warning-default);
-  border-radius: 0 var(--trae-radius-4) var(--trae-radius-4) 0;
-  align-items: flex-start;
+.tut-md-p {
+  margin: 0 0 12px;
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-loose);
+}
+.tut-md-strong {
+  font-weight: var(--ui-weight-semibold);
+  color: var(--text-secondary);
+}
+/* 设计规范不用斜体：仍保留 em 语义，但视觉上靠字重与颜色强调 */
+.tut-md-em {
+  font-style: normal;
+  font-weight: var(--ui-weight-medium);
+  color: var(--text-secondary);
 }
 
+/* 行内代码：浅底 + 细边 + 品牌字色，和"整块深底的代码块"明确区分 */
 .tut-md-code {
-  font-family: var(--trae-font-family-mono);
-  font-size: var(--trae-body-sm-font-size, 11px);
-  color: var(--trae-code-constant, #80BBFF);
-  background: var(--trae-bg-overlay-l1, #1F2023);
-  padding: 1px 4px;
-  border-radius: var(--trae-radius-2, 2px);
+  padding: 1px 5px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--ui-radius-inline);
+  background: var(--code-inline-bg);
+  color: var(--accent-text);
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-snug);
+  overflow-wrap: anywhere;
 }
 
+/* 链接：hover 提亮、focus 有可见环（WCAG 2.4.7），不靠颜色单独承载状态 */
+.tut-md-link {
+  border-radius: 2px;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tut-md-link:hover { color: var(--accent-text-hover); }
+.tut-md-link:focus-visible {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+/* 协议不在白名单的链接降级成文本，不给可点击暗示 */
+.tut-md-link-disabled {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+/* 列表：24px 缩进、标记色降一档；嵌套层级只加左缩进，不另造卡片 */
+.tut-md-list {
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+.tut-md-list:not(.tut-md-list--ordered) { list-style: disc; }
+.tut-md-list--ordered { list-style: decimal; }
+.tut-md-li {
+  padding-left: 2px;
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-loose);
+}
+.tut-md-li + .tut-md-li { margin-top: 4px; }
+.tut-md-li::marker { color: var(--text-tertiary); }
+.tut-md-li--depth-1 { margin-left: 16px; }
+.tut-md-li--depth-2 { margin-left: 32px; }
+.tut-md-li--depth-3 { margin-left: 48px; }
+
+/* 表格：外框 + 表头底 + 斑马纹；窄屏横向滚动，不把列挤成折行 */
+.tut-md-table-wrap {
+  margin: 4px 0 16px;
+  overflow-x: auto;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--ui-radius-control);
+}
+.tut-md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-font-md);
+  line-height: var(--ui-lh-normal);
+}
+.tut-md-table th,
+.tut-md-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-primary);
+  text-align: left;
+  vertical-align: top;
+}
+.tut-md-table th {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: var(--ui-font-caption);
+  font-weight: var(--ui-weight-semibold);
+  white-space: nowrap;
+}
+.tut-md-table tbody tr:nth-child(even) td { background: var(--bg-hover); }
+.tut-md-table tbody tr:last-child td { border-bottom: none; }
+
+/* 引用：左侧 2px 细线 + 浅凹底，正文色降一档 */
+.tut-md-blockquote {
+  margin: 0 0 16px;
+  padding: 8px 14px;
+  border-left: 2px solid var(--border-secondary);
+  border-radius: 0 var(--ui-radius-inline) var(--ui-radius-inline) 0;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+}
+.tut-md-blockquote-p {
+  margin: 0;
+  font-size: var(--ui-font-body);
+  line-height: var(--ui-lh-loose);
+}
+.tut-md-blockquote-p + .tut-md-blockquote-p { margin-top: 6px; }
+
+.tut-md-hr {
+  margin: 20px 0;
+  border: none;
+  border-top: 1px solid var(--border-primary);
+}
+
+/* 代码块：头部放语言与复制按钮，pre 只负责滚动；中文由 --ui-family-code 的雅黑兜底 */
+.tut-md-code-card {
+  margin: 4px 0 16px;
+  overflow: hidden;
+  border: 1px solid var(--code-block-border);
+  border-radius: var(--ui-radius-card);
+  background: var(--code-block-bg);
+}
+.tut-md-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--code-block-border);
+  background: var(--bg-tertiary);
+}
+.tut-md-code-lang {
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
 .tut-md-pre {
-  margin-top: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  color: var(--text-primary);
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-loose);
+  tab-size: 2;
+}
+.tut-md-pre code {
+  font-family: inherit;
+  font-size: inherit;
+}
+.tut-md-code-line { display: block; white-space: pre; }
+.tut-md-code-comment { color: var(--text-muted); }
+.tut-md-code-prompt { color: var(--accent-text); }
+
+/* 复制按钮：原生 button，28px 高；成功/失败态同时改字与描边，不靠颜色单独传达 */
+.tut-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--ui-size-icon-md);
+  padding: 0 8px;
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--ui-radius-inline);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--ui-family-ui);
+  font-size: var(--ui-font-caption);
+  font-weight: var(--ui-weight-medium);
+  line-height: var(--ui-lh-none);
+  cursor: pointer;
+  transition:
+    background-color var(--ui-dur-fast) var(--ui-ease-out),
+    color var(--ui-dur-fast) var(--ui-ease-out),
+    border-color var(--ui-dur-fast) var(--ui-ease-out);
+}
+.tut-copy-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.tut-copy-btn:focus-visible {
+  outline: 2px solid var(--accent-solid);
+  outline-offset: 2px;
+}
+.tut-copy-btn[data-copy-state='copied'] {
+  color: var(--status-success-text);
+  border-color: var(--status-success-text);
+}
+.tut-copy-btn[data-copy-state='failed'] {
+  color: var(--status-error-text);
+  border-color: var(--status-error-text);
 }
 
 /* ===== 按钮组 ===== */

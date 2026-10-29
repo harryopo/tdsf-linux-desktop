@@ -12,10 +12,10 @@
  *   4. sticky 底部学习统计栏：已学习时长 + 进度条 + 继续学习按钮
  *
  * 数据：严格使用设计稿 tutorial-detail.html 示例数据（Nginx 性能调优 / 5 章节 / 3 测验 / 3 相关课程）
- * 视觉：全部 var(--trae-*) token，无硬编码 hex/rgba
+ * 视觉：正文与复制按钮走 ui 语义令牌（--text-* / --ui-* / --code-*），无硬编码 hex/rgba
  * 无障碍：button type + aria-label，prefers-reduced-motion 禁用按压动画
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -23,6 +23,7 @@ import {
   Terminal, List, Star, ChevronRight, Loader2,
 } from 'lucide-react'
 import { Button, Chip, Dialog, DialogContent, PageHeader, confirmDialog } from '@/ui'
+import { CopyButton, TutorialCodeBlock, TutorialMarkdown } from '@/components/tutorial/TutorialMarkdown'
 import {
   SANDBOX_START_WAIT_MS,
   planSandboxPreflight,
@@ -38,7 +39,7 @@ type ChapterStatus = 'completed' | 'in-progress' | 'pending'
 
 interface ChapterData { id: number; index: string; title: string; duration: string }
 interface RelatedCourse { id: string; title: string; level: string; duration: string }
-interface CodeLine { color: string; text: string }
+interface CodeLine { tone: 'comment' | 'command'; text: string }
 
 // ==================== 静态示例数据（1:1 来自设计稿 tutorial-detail.html） ====================
 
@@ -62,10 +63,10 @@ const PARAGRAPHS: string[] = [
 ]
 
 const CODE_LINES: CodeLine[] = [
-  { color: 'var(--trae-code-doc)', text: '# 查看当前somaxconn值' },
-  { color: 'var(--trae-code-text)', text: 'cat /proc/sys/net/core/somaxconn' },
-  { color: 'var(--trae-code-doc)', text: '# 调整为1024' },
-  { color: 'var(--trae-code-text)', text: 'sysctl -w net.core.somaxconn=1024' },
+  { tone: 'comment', text: '# 查看当前somaxconn值' },
+  { tone: 'command', text: 'cat /proc/sys/net/core/somaxconn' },
+  { tone: 'comment', text: '# 调整为1024' },
+  { tone: 'command', text: 'sysctl -w net.core.somaxconn=1024' },
 ]
 
 const RELATED_COURSES: RelatedCourse[] = [
@@ -145,156 +146,6 @@ function splitContentIntoChapters(content: string, totalMinutes: number): RealCh
     ...c,
     minutes: Math.max(1, Math.round(budget * (c.body.length / totalLen))),
   }))
-}
-
-// ==================== 轻量 Markdown 渲染器 ====================
-
-/**
- * 渲染内联 `code` 片段
- * 将 `code` 形式的文本转为 <code> 元素，其余保持纯文本
- */
-function renderInlineCode(text: string): ReactNode {
-  const parts = text.split(/(`[^`]+`)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
-      return (
-        <code key={i} className="tut-md-code">
-          {part.slice(1, -1)}
-        </code>
-      )
-    }
-    return <span key={i}>{part}</span>
-  })
-}
-
-/**
- * 轻量 Markdown 渲染器
- *
- * 支持：
- * - ## heading    → styled <h2>
- * - ### heading   → styled <h3>
- * - # heading     → styled <h2> (major, brand color)
- * - > blockquote  → styled alert (warning surface + left border)
- * - ```lang code``` → styled <pre> with syntax coloring
- * - 普通文本      → styled <p>
- * - `inline code` → styled <code>
- *
- * 设计稿对齐：tutorial-detail.html 的 article > h2 / p / pre / alert 结构
- */
-function renderMarkdownContent(content: string): ReactNode {
-  const lines = content.split('\n')
-  const blocks: ReactNode[] = []
-  let i = 0
-  let keyCounter = 0
-
-  while (i < lines.length) {
-    const line = lines[i]
-
-    // 空行 — 跳过
-    if (line.trim() === '') {
-      i++
-      continue
-    }
-
-    // 代码块：```lang ... ```
-    if (line.trim().startsWith('```')) {
-      const codeLines: string[] = []
-      i++
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
-        codeLines.push(lines[i])
-        i++
-      }
-      i++ // 跳过结束 ```
-
-      blocks.push(
-        <pre key={keyCounter++} className="tut-code-block tut-md-pre">
-          {codeLines.map((cl, idx) => {
-            const trimmed = cl.trimStart()
-            let color = 'var(--trae-code-text)'
-            if (trimmed.startsWith('#') || trimmed.startsWith('//')) {
-              color = 'var(--trae-code-doc)'
-            } else if (trimmed.startsWith('$') || trimmed.startsWith('user@') || trimmed.startsWith('root@')) {
-              color = 'var(--trae-code-constant)'
-            }
-            return (
-              <span key={idx} style={{ color, display: 'block' }}>
-                {cl || '\u00A0'}
-              </span>
-            )
-          })}
-        </pre>
-      )
-      continue
-    }
-
-    // H3：### heading
-    if (line.startsWith('### ')) {
-      blocks.push(
-        <h3 key={keyCounter++} className="tut-md-h3">
-          {renderInlineCode(line.slice(4))}
-        </h3>
-      )
-      i++
-      continue
-    }
-
-    // H2：## heading
-    if (line.startsWith('## ')) {
-      blocks.push(
-        <h2 key={keyCounter++} className="tut-md-h2">
-          {renderInlineCode(line.slice(3))}
-        </h2>
-      )
-      i++
-      continue
-    }
-
-    // H1：# heading（非 shebang #!）
-    if (line.startsWith('# ') && !line.startsWith('#!')) {
-      blocks.push(
-        <h2 key={keyCounter++} className="tut-md-h2 tut-md-h2--major">
-          {renderInlineCode(line.slice(2))}
-        </h2>
-      )
-      i++
-      continue
-    }
-
-    // Blockquote：> text
-    if (line.startsWith('> ')) {
-      const quoteLines: string[] = [line.slice(2)]
-      i++
-      while (i < lines.length && lines[i].startsWith('> ')) {
-        quoteLines.push(lines[i].slice(2))
-        i++
-      }
-      blocks.push(
-        <div key={keyCounter++} className="tut-md-blockquote">
-          <Info size={14} className="tut-alert-icon" />
-          <span className="tut-alert-text">{renderInlineCode(quoteLines.join(' '))}</span>
-        </div>
-      )
-      continue
-    }
-
-    // 普通段落 — 收集连续非特殊行
-    const paraLines: string[] = [line]
-    i++
-    while (i < lines.length && lines[i].trim() !== '' &&
-           !lines[i].startsWith('## ') && !lines[i].startsWith('### ') &&
-           !lines[i].startsWith('# ') && !lines[i].startsWith('> ') &&
-           !lines[i].trim().startsWith('```')) {
-      paraLines.push(lines[i])
-      i++
-    }
-    blocks.push(
-      <p key={keyCounter++} className="tut-paragraph">
-        {renderInlineCode(paraLines.join(' '))}
-      </p>
-    )
-  }
-
-  return <div className="tut-md-content">{blocks}</div>
 }
 
 // ==================== 主组件 ====================
@@ -436,8 +287,10 @@ export function TutorialDetailPage() {
     : PARAGRAPHS
   // 命令示例：真实数据为 string[]，每条命令作为一行
   const displayCodeLines: CodeLine[] = useReal && tutorialEntry && tutorialEntry.commands.length > 0
-    ? tutorialEntry.commands.map((cmd) => ({ color: 'var(--trae-code-text)', text: cmd }))
+    ? tutorialEntry.commands.map((cmd) => ({ tone: 'command', text: cmd }))
     : CODE_LINES
+  /** 只有真实教程条目才有 Markdown 原文可复制；非 Electron 预览不拿设计稿假文章冒充 */
+  const canCopyFullTutorial = Boolean(useReal && tutorialEntry?.content)
 
   // ===== v2.6：真实章节切分（修复“下一章内容不变”） =====
   const realChapters = useMemo(
@@ -824,9 +677,19 @@ export function TutorialDetailPage() {
 
             {/* 【当前章节卡片】 */}
             <article className="tut-card tut-fade-in">
-              <div className="tut-card-title-row" style={{ justifyContent: 'space-between' }}>
-                <h2 ref={chapterTitleRef} tabIndex={-1} className="tut-card-title" style={{ outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
-                <Chip tone="accent">当前学习</Chip>
+              <div className="tut-card-title-row tut-card-title-row--spread">
+                <h2 ref={chapterTitleRef} tabIndex={-1} className="tut-card-title tut-card-title--lead" style={{ outline: 'none' }}>第{activeChapter + 1}章：{currentChapter.title}</h2>
+                <div className="tut-card-title-actions">
+                  <Chip tone="accent">当前学习</Chip>
+                  {canCopyFullTutorial && tutorialEntry && (
+                    <CopyButton
+                      text={tutorialEntry.content}
+                      idleLabel="复制全文"
+                      ariaLabel="复制全文 Markdown 原文"
+                      copyId="copy-tutorial-full"
+                    />
+                  )}
+                </div>
               </div>
               {/* 学习目标（v2.6：无真实字段，仅设计稿预览展示） */}
               {!useReal && (
@@ -844,7 +707,7 @@ export function TutorialDetailPage() {
               )}
               {/* 内容正文（v2.6：真实数据只渲染当前章节的内容，不再每章都是全文） */}
               {realChapters
-                ? renderMarkdownContent(realChapters[activeChapter]?.body ?? '')
+                ? <TutorialMarkdown content={realChapters[activeChapter]?.body ?? ''} />
                 : (
                   <div className="tut-paragraphs">
                     {displayParagraphs.map((p, i) => (
@@ -855,11 +718,15 @@ export function TutorialDetailPage() {
               {/* 命令示例块（真实数据仅首章展示教程命令汇总，避免每章重复） */}
               {(!useReal || activeChapter === 0) && (
               <div style={{ marginTop: 12 }}>
-                <pre className="tut-code-block">
+                <TutorialCodeBlock
+                  code={displayCodeLines.map((line) => line.text).join('\n')}
+                  lang="bash"
+                  copyId="copy-command-example"
+                >
                   {displayCodeLines.map((line, i) => (
-                    <span key={i} style={{ color: line.color, display: 'block' }}>{line.text}</span>
+                    <span key={i} className={`tut-md-code-line tut-md-code-${line.tone}`}>{line.text}</span>
                   ))}
-                </pre>
+                </TutorialCodeBlock>
                 {!useReal && <div className="tut-code-caption"># 查看并调整TCP连接队列长度</div>}
               </div>
               )}
@@ -899,13 +766,19 @@ export function TutorialDetailPage() {
                   : '这篇教程没有附带可执行的实践命令。'}
               </p>
               {practiceCommands.length > 0 && (
-                <pre className="tut-code-block" style={{ marginTop: 10 }}>
-                  {practiceCommands.map((command, i) => (
-                    <span key={`${command}-${i}`} style={{ color: 'var(--trae-code-text)', display: 'block' }}>
-                      $ {command}
-                    </span>
-                  ))}
-                </pre>
+                <div style={{ marginTop: 10 }}>
+                  <TutorialCodeBlock
+                    code={practiceCommands.join('\n')}
+                    lang="bash"
+                    copyId="copy-practice-commands"
+                  >
+                    {practiceCommands.map((command, i) => (
+                      <span key={`${command}-${i}`} className="tut-md-code-line tut-md-code-prompt">
+                        $ {command}
+                      </span>
+                    ))}
+                  </TutorialCodeBlock>
+                </div>
               )}
               <div className="tut-practice-btn-row">
                 <button type="button" data-dom-id="btn-open-sandbox" aria-label="打开沙箱练习" onClick={handleOpenSandbox} disabled={sandboxRunning || practiceCommands.length === 0} className="tut-practice-btn tut-btn-press">
