@@ -48,7 +48,7 @@ export function knowledgeEmbeddingText(title: string, problem: string): string {
  * 写/清一条条目的向量
  *
  * 走独立 UPDATE 而不是仓储的 update()：那条路会整行合并，
- * 一不小心就把本机的 useCount / feedback 带进写语句里。
+ * 一不小心就把本机的 useCount 带进写语句里。
  */
 export function writeEmbedding(db: DatabaseManager, id: string, vec: number[] | null): boolean {
   try {
@@ -184,6 +184,48 @@ export async function reindexKnowledgeEmbeddings(
     remaining: remainingRowAfter?.n ?? Math.max(0, remainingBefore - outcome.embedded),
     note: outcome.note,
   }
+}
+
+/**
+ * 一次调用就把所有缺向量的条目补齐
+ *
+ * 为什么要有这一层：`reindexKnowledgeEmbeddings` 每批只处理 limit 条，界面以前
+ * 让用户「再点一次继续」——点了七八次还剩一堆，等于把分页细节推给用户。
+ * 这里在主进程循环到 0，每批之间让出事件循环，避免一次 IPC 卡住几十秒。
+ *
+ * 三种提前收工：模型不可用（note）、这一批有写入失败（failed>0）、没有进展（embedded=0 且仍有剩余）。
+ * 任何一种都如实把 remaining / failed 带回去，不把"没补齐"演成"已完成"。
+ */
+export async function reindexAllKnowledgeEmbeddings(
+  db: DatabaseManager,
+  embedder: KbEmbedder,
+  opts: { batchSize?: number; maxBatches?: number } = {}
+): Promise<{ embedded: number; failed: number; remaining: number; note?: string; batches: number }> {
+  const batchSize = Math.max(1, Math.trunc(opts.batchSize ?? REINDEX_LIMIT_DEFAULT))
+  const maxBatches = Math.max(1, Math.trunc(opts.maxBatches ?? 200))
+  let embedded = 0
+  let failed = 0
+  let remaining = 0
+  let note: string | undefined
+  let batches = 0
+
+  for (; batches < maxBatches; batches++) {
+    const result = await reindexKnowledgeEmbeddings(db, embedder, batchSize)
+    embedded += result.embedded
+    failed += result.failed
+    remaining = result.remaining
+    if (result.note) {
+      note = result.note
+      break
+    }
+    if (result.failed > 0) break
+    if (remaining === 0) break
+    if (result.embedded === 0) break
+    // 让出事件循环：下一批的 ONNX 推理不要再把同一帧的 IPC 响应堵住
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+
+  return { embedded, failed, remaining, note, batches }
 }
 
 /**

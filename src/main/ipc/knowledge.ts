@@ -22,7 +22,7 @@ import type { KnowledgeDeleteResult, KnowledgeEntry, KnowledgeType } from '@shar
 import { pickExistingFiles } from '../services/security/dialog-paths'
 import { IMPORT_FILE_EXTENSIONS } from '../services/db/knowledge-import'
 import { importKnowledgeFiles } from '../services/knowledge/kb-import'
-import { createOnnxKbEmbedder, reindexKnowledgeEmbeddings } from '../services/knowledge/kb-embedding'
+import { createOnnxKbEmbedder, reindexAllKnowledgeEmbeddings } from '../services/knowledge/kb-embedding'
 import { logger } from '../services/log/logger'
 
 /**
@@ -90,16 +90,16 @@ export function registerKnowledgeHandlers(mainWindow: BrowserWindow): void {
   /**
    * 参数：(id: string, partial: Partial<KnowledgeEntry>)
    * 返回：boolean
+   *
+   * 详情页编辑（标题 / 问题描述 / 根因）走这一路；知识包导入的合并走仓储内部，
+   * 不经过渲染层。
    */
   ipcMain.handle(
     'kb:update',
     async (_event, id: string, partial: Partial<KnowledgeEntry>) => {
       try {
         const repo = getKnowledgeRepo()
-        // fromUserAnswer 只能由这个入口给，不能由载荷里"有没有 feedback"推断：
-        // importEntries 走的也是 repo.update，导进来的包可能带着别人机器上的答复。
-        // 用户在详情页点的这一路是唯一合法的答复来源。
-        return repo.update(id, partial, { fromUserAnswer: true })
+        return repo.update(id, partial)
       } catch (err) {
         throw new Error(`知识库更新失败: ${(err as Error).message}`)
       }
@@ -263,12 +263,21 @@ export function registerKnowledgeHandlers(mainWindow: BrowserWindow): void {
       if (typeof allowDownload !== 'boolean') {
         return { ok: false, error: '参数不对：allowDownload 必须是布尔值' }
       }
-      const result = await reindexKnowledgeEmbeddings(
+      const result = await reindexAllKnowledgeEmbeddings(
         DatabaseManager.getInstance(),
         createOnnxKbEmbedder({ allowDownload })
       )
       if (!allowDownload && result.note) {
         return { ok: true, needsDownload: true, remaining: result.remaining, note: result.note }
+      }
+      if (result.failed > 0) {
+        return {
+          ok: false,
+          error: `有 ${result.failed} 条向量写入失败（已补 ${result.embedded} 条，还剩 ${result.remaining} 条）`,
+          embedded: result.embedded,
+          failed: result.failed,
+          remaining: result.remaining,
+        }
       }
       return { ok: true, ...result }
     } catch (err) {

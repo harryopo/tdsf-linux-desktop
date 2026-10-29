@@ -382,8 +382,9 @@ export function KnowledgePage() {
         toast.info('所有知识条目都已经有语义索引')
         return
       }
-      const tail = (result.remaining ?? 0) > 0 ? `，还剩 ${result.remaining} 条（再点一次继续）` : ''
-      toast.success(`已补齐 ${result.embedded ?? 0} 条${tail}`)
+      // 主进程现在一次调用就补到 0（loop 在 reindexAllKnowledgeEmbeddings），
+      // 界面不再提示"再点一次继续"——那是把分页细节推给用户。
+      toast.success(`语义索引已补齐 ${result.embedded ?? 0} 条`)
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
       toast.error(`重建语义索引失败：${reason}`)
@@ -391,6 +392,31 @@ export function KnowledgePage() {
       setReindexing(false)
     }
   }
+
+  /**
+   * 进页面自动补一次语义索引（每个会话只自动跑一次）
+   *
+   * 只做"模型已在本地"的那条路：缺模型时绝不自动下载，留给用户点按钮决定。
+   * 失败也不弹重复 toast——自动动作不该抢用户的注意力，日志里有原因就够了。
+   */
+  const autoReindexTriedRef = useRef(false)
+  useEffect(() => {
+    if (autoReindexTriedRef.current) return
+    if (!isElectronAPIAvailable() || !window.electronAPI?.kbReindexEmbeddings) return
+    autoReindexTriedRef.current = true
+    void (async () => {
+      try {
+        const result = await window.electronAPI.kbReindexEmbeddings(false)
+        if (!result.ok || result.needsDownload) return
+        if ((result.embedded ?? 0) > 0) {
+          toast.success(`语义索引已自动补齐 ${result.embedded} 条`)
+          void refreshHotItems()
+        }
+      } catch {
+        // 自动补齐失败不打扰用户；按钮那条路会显示具体原因
+      }
+    })()
+  }, [refreshHotItems])
 
   /** 挂载时从主进程知识库拉取真实数据（Electron 环境）
    *  P1 修复：空库也接管为空列表（显示空态），不再把 mock 当真实数据展示 */
