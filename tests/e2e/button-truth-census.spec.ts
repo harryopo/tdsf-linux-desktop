@@ -41,6 +41,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 import type { ElementHandle, Page } from '@playwright/test'
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 import { e2eProfileDir } from './ssh-fixture-helpers'
 
 const MAIN_ENTRY = path.join(__dirname, '../../out/main/index.js')
@@ -257,6 +258,13 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   await mainWin.waitForSelector('body', { timeout: 30000 })
 
   const results: ButtonResult[] = []
+  // 运行级读数（#154）：红的时候要能分出"机器被压着"与"真缺陷"。
+  // 单看某个按钮的 waitedMs 不够——整轮跑在什么负载下、有多少个慢反应，才决定这次读数可不可信。
+  const runStartedAt = new Date()
+  const t0 = Date.now()
+  const loadAtStart = os.loadavg()
+  let slowReactions = 0
+  let maxWaitedMs = 0
   // 全局去重：侧边导航/标题栏等公共按钮在每页都出现，只普查一次，
   // 否则 9 页 × 公共钮（含大量 route 型）会反复触发跳转+回跳，耗时爆炸
   const seenGlobal = new Set<string>()
@@ -360,6 +368,8 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
         after = await snapshot(mainWin)
       }
       const waitedMs = Date.now() - waitStartedAt
+      if (waitedMs > 1000) slowReactions += 1
+      if (waitedMs > maxWaitedMs) maxWaitedMs = waitedMs
       await markSelf(btn, false)
 
       // 焦点信号只认"焦点被交给了别的元素"。点任何按钮都会把焦点落在这个按钮自身上，
@@ -420,7 +430,17 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   await app.close()
 
   // ==== 输出报告 ====
-  fs.writeFileSync(REPORT_PATH, JSON.stringify(results, null, 2), 'utf-8')
+  const run = {
+    startedAt: runStartedAt.toISOString(),
+    durationMs: Date.now() - t0,
+    // 本机 1/5/15 分钟平均负载：并行跑或机器被别的活压住时，这里会先亮
+    loadAvgStart: loadAtStart.map((n) => +n.toFixed(2)),
+    loadAvgEnd: os.loadavg().map((n) => +n.toFixed(2)),
+    /** 反应耗时超过 1 秒的按钮数（>0 时这次读数要带着负载一起看） */
+    slowReactions,
+    maxWaitedMs,
+  }
+  fs.writeFileSync(REPORT_PATH, JSON.stringify({ run, results }, null, 2), 'utf-8')
 
   const byVerdict = (v: ButtonResult['verdict']) => results.filter((r) => r.verdict === v)
   const summary = {
@@ -436,6 +456,9 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
     skipped: byVerdict('skipped').length,
     unclickable: byVerdict('unclickable').length,
     unreached: byVerdict('unreached').length,
+    slowReactions: run.slowReactions,
+    maxWaitedMs: run.maxWaitedMs,
+    loadAvg: run.loadAvgEnd,
   }
 
   console.log('\n' + '='.repeat(72))
