@@ -209,6 +209,10 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
    *   观感是抖；只有收尾那一次用 smooth。
    * v2.11：用户上滚读历史时不拽回；这一版把"不拽"变成有出口的——底下还在长时
    *   亮一颗"回到底部"，否则屏幕看着不动，用户分不清是答完了还是被自己挡住了。
+   * v2.12（#252「流式输出不会定位到最新的对话结束」）：上一版只在正文变长时排一帧，
+   *   而"答完了"之后才长出来的按钮行/用量行/可信度卡不改正文长度，最后一行的尾巴
+   *   就停在视口下面。现在改成每次提交都量一次高度（一帧最多一次），
+   *   并且用户自己发消息时强制贴底——判据全在 useStickToBottom.ts 里，能跑红。
    */
   const getScrollContainer = useCallback((): HTMLElement | null => {
     const end = messagesEndRef.current
@@ -222,11 +226,25 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
   const followKey = `${liveMessages.length}:${lastMsg?.content?.length ?? 0}:${
     lastMsg?.reasoning?.length ?? 0
   }:${lastMsg?.toolEvents?.length ?? 0}`
-  const { hasNewBelow, scrollToBottom } = useStickToBottom(
+  const { hasNewBelow, scrollToBottom, followNow } = useStickToBottom(
     getScrollContainer,
     followKey,
-    !isStreaming,
     hasLiveConversation,
+  )
+
+  /**
+   * 发送 = 强制贴底。
+   *
+   * 用户可能在读半小时前的历史，但自己刚发出的那句必须看得见——
+   * 只靠"贴底附近才跟"的话，离底远的人发完消息，屏上什么都不动，
+   * 会以为没发出去（这正是 #252 里"不会定位到最新"的一半）。
+   */
+  const handleSend = useCallback(
+    async (text: string) => {
+      followNow()
+      await send(text)
+    },
+    [send, followNow],
   )
 
   /*
@@ -410,8 +428,10 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
    * 整屏历史消息全部重渲染一遍**（长对话里流式越说越卡就是这么来的）。
    */
   const handleRetryMessage = useCallback(() => {
+    // 重试也是"用户刚发了消息"：他按下这一下就是要看新一轮，别让他自己再滚一遍
+    followNow()
     void retryLast()
-  }, [retryLast])
+  }, [retryLast, followNow])
 
   const handleCompressFromError = useCallback(() => {
     // 与徽章里那条同一份文案：报错行上的按钮点了也要有回应
@@ -492,7 +512,7 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         providers={providers}
         selectedProviderId={selectedProviderId}
         setSelectedProviderId={setSelectedProviderId}
-        send={send}
+        send={handleSend}
         cancel={cancel}
         onCompressContext={compressContext}
       />

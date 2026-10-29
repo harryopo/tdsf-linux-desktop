@@ -234,7 +234,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (!onToolAction || !activeSessionId) return null
     if (commands.length === 0) return null
     return (
-      <div className="mt-2.5 flex flex-col gap-2 border-t border-[var(--trae-border-neutral-l1)] pt-2.5">
+      /* #252：这一块是"检测到命令"的注脚，外沿留白收到 8/8（原来 10/10 还带 8px 的卡内 gap），
+         一轮答复里它和正文抢的是同一块呼吸空间 */
+      <div className="mt-2 flex flex-col gap-1.5 border-t border-[var(--trae-border-neutral-l1)] pt-2">
         <div className="flex items-center gap-1.5 text-caption font-medium text-ink-dim">
           <Play className="size-3 text-(--accent-text)" />
           检测到 {commands.length} 条命令
@@ -553,7 +555,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (message.isStreaming || message.isError) return null
     if (!onNavigate) return null
     return (
-      <div className="mt-2 flex gap-2 border-t border-[var(--trae-border-neutral-l1)] pt-2">
+      <div className="mt-2 flex gap-1.5 border-t border-[var(--trae-border-neutral-l1)] pt-2">
         <button
           type="button"
           onClick={() => onNavigate('/monitor')}

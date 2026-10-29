@@ -104,8 +104,12 @@
 .wb-shell .wb-filetree {
   font-size: var(--ui-font-md);
 }
+/* AI 面板的继承基线走控件档 md(14)。
+   原来这里是 body(15)——面板里任何没显式设字号的东西（正文、角色行、过程行、
+   工具卡、空态说明）都继承到 15px，在 320–560px 的停靠格里读起来就是一页大号网页
+   （#252 用户原话「字体特别大，廉价感很重」）。正文的正文档档位见 AIPanel.css。 */
 .wb-shell .wb-aipanel {
-  font-size: var(--ui-font-body);
+  font-size: var(--ui-font-md);
 }
 
 /* ===== Titlebar (令牌 --ui-size-titlebar) ===== */

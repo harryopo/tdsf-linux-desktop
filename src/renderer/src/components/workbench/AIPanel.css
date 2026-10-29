@@ -8,14 +8,21 @@
 
 /* ===== 消息滚动区 =====
  * v2.3.5 修复：底部 padding 加到 16px（之前 12px），避免最后一条消息贴近 Composer 视觉模糊
- * scroll-padding-bottom 让 scrollIntoView 时留出 Composer 高度的呼吸空间 */
+ * scroll-padding-bottom 让 scrollIntoView 时留出 Composer 高度的呼吸空间
+ * #252：四周收到 12px / 轮间 12px。原来是 12/16/16 外加 MessageList 上的 gap-6(24px)，
+ * 一屏 3 轮对话就有 72px 的空气——留白大到读不出"这还是一段对话"。
+ * `.ai-messages` 的 gap 由 MessageList 的 `gap-6` 工具类给，这里用两级选择器盖回令牌值。 */
 .ai-messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 16px 16px;
+  padding: var(--ui-space-5);
   background: var(--trae-bg-base-default);
   scroll-padding-bottom: 8px;
+}
+
+.wb-aipanel .ai-messages {
+  gap: var(--ui-space-5);
 }
 
 /*
@@ -64,9 +71,11 @@
  * 原来助手轮是「24px 品牌蓝方块头像 + 一块带边框的底」两列布局：
  * 头像每轮都画一遍却点不动，边框把正文框成气泡，于是过程行、工具卡、正文
  * 三种东西各自套一层底，越往右越窄。现在一列走到底——正文占满宽度，
- * 分层只靠字号与留白。头像删掉后窄停靠格里 markdown 表格才有地方铺开。 */
+ * 分层只靠字号与留白。头像删掉后窄停靠格里 markdown 表格才有地方铺开。
+ * #252：轮间距只由容器的 gap 给，这里不再叠一层 margin——两层加起来是 36px，
+ * 一轮回答和一个问题之间隔了半屏。 */
 .ai-msg {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .ai-msg-assistant {
@@ -90,11 +99,57 @@
   min-width: 0;
 }
 
-/* 流式期间整轮还没说完，第一行占位就是这句 */
+/* 流式期间整轮还没说完，第一行占位就是这句。
+   #252：从正文档(15)降到控件档(14)——它是等待提示，不该比正文还显眼 */
 .ai-msg-thinking {
-  font-size: var(--ui-font-body);
-  line-height: var(--ui-lh-loose);
+  font-size: var(--ui-font-md);
+  line-height: var(--ui-lh-normal);
   color: var(--text-muted);
+}
+
+/* ===== 对话正文（markdown）的字号与密度（#252） =====
+ * MarkdownMessage.css 里 `.md-body` 用的是 `--ui-font-body`(15)——那是全应用的
+ * "正文档"档，但在这个 320–560px 的停靠格里，15px 中文 + 1.6 行高读起来是一页网页。
+ * 对话正文降到控件档 md(14)；标题仍留在 title/body 档（h1 20 / h2 17 / h3 15），
+ * 于是"标题 ≥ 正文"的层级反而更清楚（判据 tests/e2e/ai-panel-type-scale.spec.ts）。
+ * 覆盖写在这里而不是改 MarkdownMessage.css：这份降档只对停靠格生效，
+ * 知识库/教程里的 markdown 不是聊天正文，不该跟着变小。 */
+.wb-aipanel .md-body {
+  font-size: var(--ui-font-md);
+  line-height: var(--ui-lh-loose);
+}
+
+/* 段间距 8→6：14px 的行配上 8px 的段距，段落之间比行距还宽，读起来是散落的句子 */
+.wb-aipanel .md-body .md-p {
+  margin-bottom: var(--ui-space-3);
+}
+
+/* 代码块：内边距收到 8/12、行高从 1.6 收到 1.5。
+   13px 等宽字配 1.6 行高，一块 20 行的输出就顶掉半个面板。 */
+.wb-aipanel .md-body .md-code-block {
+  margin: var(--ui-space-3) 0;
+  padding: var(--ui-space-4) var(--ui-space-5);
+}
+
+.wb-aipanel .md-body .md-code-block code {
+  line-height: var(--ui-lh-normal);
+}
+
+/* 过程块与工具卡的密度（定义在 panels/MarkdownMessage.css，这里按面板覆盖）。
+   这些块是"它在干什么"的注脚：行高收到 normal，内边距收到 8/12，
+   让它们比正文更紧一档，一眼分得出主次。 */
+.wb-aipanel .ai-reasoning-body,
+.wb-aipanel .ai-tool-search-output {
+  line-height: var(--ui-lh-normal);
+}
+
+.wb-aipanel .ai-tool-exec {
+  padding: var(--ui-space-4) var(--ui-space-5);
+}
+
+.wb-aipanel .ai-tool-exec-head {
+  padding: 0 2px var(--ui-space-3);
+  margin-bottom: var(--ui-space-3);
 }
 
 /* ===== 失败态卡片 =====
@@ -109,7 +164,7 @@
   border: 1px solid var(--trae-status-error-surface-l2);
   border-radius: 6px;
   background: var(--trae-status-error-surface-l1);
-  padding: 10px 12px;
+  padding: var(--ui-space-4) var(--ui-space-5);
 }
 
 .ai-error-card__icon {
@@ -158,9 +213,11 @@
 .ai-msg-user-bubble {
   background: var(--bg-tertiary);
   color: var(--text-primary);
-  padding: 8px 14px;
+  /* #252：内边距 8/14 → 6/12、字号 15 → 14。药丸是"我说的一句"，不是公告板；
+     行高与助手正文共用 loose(1.6)，两侧节奏差一档就会被看成"两种字体" */
+  padding: var(--ui-space-3) var(--ui-space-5);
   border-radius: var(--ui-radius-bubble);
-  font-size: var(--ui-font-body);
+  font-size: var(--ui-font-md);
   line-height: var(--ui-lh-loose);
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -185,8 +242,10 @@
   padding: var(--ui-space-6) 0;
 }
 
+/* #252：标题从 17 收到 15（正文档档），与正文 14 只差一档 600 重——
+   停靠格里的空态标题撑到弹窗标题的档位，看着像营销页的 hero 文案 */
 .ai-welcome-title {
-  font-size: var(--ui-font-title);
+  font-size: var(--ui-font-body);
   font-weight: var(--ui-weight-semibold);
   line-height: var(--ui-lh-snug);
   color: var(--text-secondary);
@@ -196,7 +255,7 @@
   margin-top: var(--ui-space-2);
   max-width: 420px;
   font-size: var(--ui-font-sm);
-  line-height: var(--ui-lh-loose);
+  line-height: var(--ui-lh-normal);
   color: var(--text-tertiary);
 }
 
@@ -245,16 +304,18 @@
   min-width: 0;
 }
 
-/* ===== 工具行（折叠标题行） ===== */
+/* ===== 工具行（折叠标题行） =====
+ * #252：14 → 13（说明档）、行高 28 → 26。它是"过程"的标题行，不是正文；
+ * 和正文同号时，一轮回答里"过程 / 检索 / 深度思考"三条行读起来像三段并列的正文 */
 .ai-tool-row {
   display: flex;
   align-items: center;
   gap: var(--ui-space-2);
-  height: 28px;
+  height: 26px;
   padding: 0 var(--ui-space-3);
   border-radius: var(--ui-radius-control);
   cursor: pointer;
-  font-size: var(--ui-font-md);
+  font-size: var(--ui-font-sm);
   color: var(--text-tertiary);
   transition:
     background var(--ui-dur-fast) var(--ui-ease-out),
