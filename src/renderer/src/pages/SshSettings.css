@@ -196,3 +196,37 @@
     transition: none !important;
   }
 }
+
+/* ===== 服务器列表读不出来（#260）：读失败不许演成"暂无服务器" ===== */
+.ssh-load-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-left: 3px solid var(--trae-status-warning-default);
+  border-radius: var(--trae-radius-6);
+  background: var(--trae-status-warning-surface-l1);
+}
+.ssh-load-error__text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: var(--trae-body-sm-font-size);
+  line-height: var(--trae-body-sm-line-height);
+  word-break: break-word;
+}
+.ssh-load-error__retry {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--ui-radius-inline);
+  background: transparent;
+  color: var(--status-warning-text);
+  font-size: var(--trae-body-xs-font-size);
+  cursor: pointer;
+}
+.ssh-load-error__retry:hover {
+  border-color: var(--trae-status-warning-default);
+}

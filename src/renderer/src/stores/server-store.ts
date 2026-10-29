@@ -39,6 +39,13 @@ interface ServerState {
   sessionMap: Record<string, string>
   /** 是否已从主进程加载（避免重复加载） */
   _hydrated: boolean
+  /**
+   * 上一次读主进程服务器列表失败的原因（成功即清空）
+   *
+   * 读失败不等于"服务器列表是空的"：只把错误写进 console，界面就会显示
+   * 「暂无服务器 · 点击添加开始配置」，把一次读失败演成用户的事实。
+   */
+  loadError: string | null
 
   // ===== Actions =====
   /** 添加服务器配置（入参是新建表单的原样，可能带用户当场输入的凭据） */
@@ -152,6 +159,7 @@ export const useServerStore = create<ServerState>()(
       connectionStates: {},
       sessionMap: {},
       _hydrated: false,
+      loadError: null,
 
       // 添加服务器配置
       addServer: async (server) => {
@@ -293,18 +301,19 @@ export const useServerStore = create<ServerState>()(
           if (mainServers.length > 0) {
             // 主进程权威：直接用主进程下发的形状（本来就不含凭据），覆盖 localStorage 缓存
             console.log('[ServerStore] 使用主进程数据作为权威数据源（不含凭据，hasCredential 标记已带）')
-            set({ servers: mainServers, _hydrated: true })
+            set({ servers: mainServers, _hydrated: true, loadError: null })
           } else if (localServers.length > 0) {
             // 主进程为空但 localStorage 有：可能是旧版本迁移，回写主进程（此时必然无凭据）
             console.log('[ServerStore] 主进程为空，使用 localStorage 数据回写主进程（凭据需用户重输）')
-            set({ _hydrated: true })
+            set({ _hydrated: true, loadError: null })
             await syncToMain(localServers)
           } else {
             // 两边都没有
-            set({ _hydrated: true })
+            set({ _hydrated: true, loadError: null })
           }
         } catch (err) {
           console.error('[ServerStore] 从主进程加载失败:', err)
+          set({ loadError: err instanceof Error ? err.message : String(err) })
           // 读失败不等于"服务器列表是空的"：这里以前也置 _hydrated=true，
           // 于是这一次失败被永久认账——守卫再也不放行重读，界面上的空列表看起来就是事实。
           // 保持未水合，下一个挂载点（App / SSH 设置页）会再读一次。

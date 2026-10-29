@@ -91,6 +91,10 @@ export interface ServerCardProps {
   onImportConfig: () => void
   /** 正在导入/导出（两钮同时禁用） */
   transferBusy?: boolean
+  /** 上一次读服务器列表失败的原因；有值时要写在界面上，不能演成"暂无服务器" */
+  loadError?: string | null
+  /** 重新读一次主进程的服务器列表 */
+  onRetryLoad?: () => void
 }
 
 export function ServerCard(props: ServerCardProps) {
@@ -108,6 +112,8 @@ export function ServerCard(props: ServerCardProps) {
     onExport,
     onImport,
     onImportConfig,
+    loadError,
+    onRetryLoad,
     transferBusy = false,
   } = props
 
@@ -151,13 +157,23 @@ export function ServerCard(props: ServerCardProps) {
           </button>
         </div>
       )}
+      {loadError ? (
+        <div className="ssh-load-error" data-dom-id="ssh-servers-load-error" role="alert">
+          <span className="ssh-load-error__text">服务器列表读不出来：{loadError}</span>
+          {onRetryLoad ? (
+            <button type="button" className="ssh-load-error__retry" onClick={onRetryLoad}>
+              重新读取
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {!ipcAvailable ? (
         <Empty
           icon={Server}
           title="无法访问服务器列表"
           description="Electron IPC 不可用，请在桌面端运行以管理 SSH 连接。"
         />
-      ) : servers.length === 0 ? (
+      ) : servers.length === 0 && !loadError ? (
         <Empty
           icon={Server}
           title="暂无服务器"

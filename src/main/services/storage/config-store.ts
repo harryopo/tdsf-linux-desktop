@@ -18,6 +18,7 @@ import { randomUUID } from 'crypto'
 import type { SshConfig, LlmConfig, ExternalMcpServer, ServerListItem } from '@shared/models'
 import { SecureStore } from './secure-store'
 import { salvageCorruptStoreFile } from './store-recovery'
+import { logger } from '../log/logger'
 
 /** Langfuse 配置 */
 export interface LangfuseConfig {
@@ -101,6 +102,34 @@ import {
 } from './server-credentials'
 import { normalizeImportedServer } from './server-import'
 
+/** 只接受"普通对象"：null、数组、字符串、数字都不算（数组的 typeof 也是 object） */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** 形状不对的配置只提示一次：同一处读取每轮都刷日志，会把真正的新问题淹掉 */
+const shapeWarned = new Set<string>()
+
+/**
+ * 读配置时先验形状
+ *
+ * 以前这些读取口是裸 `as T`：`llmConfig` 写成字符串会被展开成 `{0:'o',1:'o'…}`，
+ * `knowledgeBasePath` 写成数字会被当成路径去拼。合法 JSON 但类型错的配置
+ * 不会让应用崩（实测），只会悄悄把垃圾值传给调用方——所以在边界上换成默认值，
+ * 并留一条能查的日志。
+ */
+function warnShapeOnce(key: string, value: unknown): void {
+  if (shapeWarned.has(key)) return
+  shapeWarned.add(key)
+  let preview = ''
+  try {
+    preview = JSON.stringify(value)?.slice(0, 80) ?? String(value)
+  } catch {
+    preview = typeof value
+  }
+  logger.warn('APP', `配置项形状不对，已按默认值处理：${key} = ${preview}`)
+}
+
 export class ConfigStore {
   /**
    * 读取配置
@@ -153,10 +182,13 @@ export class ConfigStore {
    * @returns LLM 配置（无 API Key），未配置返回 null
    */
   public static getLlmConfig(): LlmConfig | null {
-    const config = store.get('llmConfig', null) as LlmConfig | null
-    if (!config) {
+    const raw = store.get('llmConfig', null)
+    if (raw == null) return null
+    if (!isPlainObject(raw)) {
+      warnShapeOnce('llmConfig', raw)
       return null
     }
+    const config = raw as unknown as LlmConfig
     // 不返回存储的 apiKey 字段（如果有的话），强制走 SecureStore
     return {
       ...config,
@@ -194,8 +226,13 @@ export class ConfigStore {
    * @returns UI 设置对象
    */
   public static getUiSettings(): Record<string, unknown> {
-    const settings = store.get('uiSettings', {}) as Record<string, unknown>
-    return settings ?? {}
+    const raw = store.get('uiSettings', {})
+    if (raw == null) return {}
+    if (!isPlainObject(raw)) {
+      warnShapeOnce('uiSettings', raw)
+      return {}
+    }
+    return raw
   }
 
   /**
@@ -216,7 +253,14 @@ export class ConfigStore {
    * @returns 知识库存储路径
    */
   public static getKnowledgeBasePath(): string {
-    return (store.get('knowledgeBasePath', '') as string) ?? ''
+    const raw = store.get('knowledgeBasePath', '')
+    if (raw == null) return ''
+    if (typeof raw !== 'string') {
+      // 数字/对象被当成路径去 path.join 会直接抛 TypeError
+      warnShapeOnce('knowledgeBasePath', raw)
+      return ''
+    }
+    return raw
   }
 
   /**
@@ -287,8 +331,13 @@ export class ConfigStore {
    * @returns MCP 配置，未配置返回 null
    */
   public static getMcpConfig(): McpConfig | null {
-    const cfg = store.get('mcpConfig', null) as McpConfig | null
-    return cfg ?? null
+    const raw = store.get('mcpConfig', null)
+    if (raw == null) return null
+    if (!isPlainObject(raw)) {
+      warnShapeOnce('mcpConfig', raw)
+      return null
+    }
+    return raw as unknown as McpConfig
   }
 
   /**
@@ -298,8 +347,12 @@ export class ConfigStore {
    * 抄两份迟早和正本分叉（谁都不想让"没配过"和"配过但关着"长成同一种读数）。
    */
   public static getMcpConfigOrDefault(): McpConfig {
-    const cfg = store.get('mcpConfig', null) as McpConfig | null
-    return cfg ?? { enabled: process.env.MCP_SERVER_ENABLED === 'true', port: MCP_DEFAULT_PORT }
+    const raw = store.get('mcpConfig', null)
+    if (raw != null && !isPlainObject(raw)) warnShapeOnce('mcpConfig', raw)
+    return (isPlainObject(raw) ? (raw as unknown as McpConfig) : null) ?? {
+      enabled: process.env.MCP_SERVER_ENABLED === 'true',
+      port: MCP_DEFAULT_PORT,
+    }
   }
 
   /**

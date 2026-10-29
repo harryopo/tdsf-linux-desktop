@@ -73,6 +73,7 @@ export function SshSettings() {
   const setSessionMapping = useServerStore((s) => s.setSessionMapping)
   const clearSessionMapping = useServerStore((s) => s.clearSessionMapping)
   const hydrateFromMain = useServerStore((s) => s.hydrateFromMain)
+  const loadError = useServerStore((s) => s.loadError)
 
   const sshDefaults = useSettingsStore((s) => s.sshDefaults)
   const sshTimeout = useSettingsStore((s) => s.sshTimeout)
@@ -622,6 +623,8 @@ export function SshSettings() {
           onImport={() => void handleImportServers()}
           onImportConfig={() => void handleScanConfig()}
           transferBusy={transferBusy}
+          loadError={loadError}
+          onRetryLoad={() => void hydrateFromMain(true)}
         />
 
         <KeyCard
