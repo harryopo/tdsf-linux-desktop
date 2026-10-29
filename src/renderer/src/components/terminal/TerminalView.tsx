@@ -105,6 +105,16 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
   const refit = useCallback(() => {
     const terminal = terminalRef.current
     if (!terminal) return
+    /**
+     * 容器不可见（切到文件标签 / 应用内导航离开）时不要 fit。
+     *
+     * FitAddon.proposeDimensions 把宽高钳到 cols>=2 / rows>=1：display:none 的容器
+     * 量出来是 0，于是终端会被"缩"成 2×1，所有行按两列重排、滚出可视区；
+     * 再显示回来即使行列恢复，用户也只看得到半截（2026-10-26 e2e 实测：
+     * echo 出来的标记只剩尾部，前半截滚到视口上方）。PTY 侧也不该收到这种假尺寸。
+     */
+    const el = containerRef.current
+    if (!el || el.clientWidth === 0 || el.clientHeight === 0) return
     try {
       fitRef.current?.fit()
     } catch {
@@ -218,7 +228,9 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
             stripControlChars: stripCc !== false,
           }
         }
-        fitRef.current?.fit()
+        // 不可见时不要 fit（同 refit 的注释：FitAddon 会钳到 2×1 把行重排掉）
+        const el = containerRef.current
+        if (el && el.clientWidth > 0 && el.clientHeight > 0) fitRef.current?.fit()
       } catch (err) {
         console.warn('[TerminalView] 应用终端设置失败（使用默认值）', err)
       }
@@ -270,6 +282,8 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
 
     // 延迟一帧再 fit，确保容器尺寸已计算
     requestAnimationFrame(() => {
+      const el = containerRef.current
+      if (!el || el.clientWidth === 0 || el.clientHeight === 0) return
       try {
         fitAddon.fit()
       } catch {

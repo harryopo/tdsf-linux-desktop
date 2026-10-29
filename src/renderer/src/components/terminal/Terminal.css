@@ -149,6 +149,18 @@
 }
 
 /*
+ * 终端槽：切到文件/预览标签时整槽 display:none，但**不卸载**。
+ * xterm 实例与回滚缓冲住在槽里的 TerminalView 中，卸载即 dispose，切回来只剩空屏。
+ * 这里只负责把槽撑满内容区（.term-panel 自己 flex:1）。
+ */
+.term-panel-slot {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/*
  * 终端格子的底色 = 终端自己的底色
  *
  * 这两处原来吃 --trae-terminal-block-bg（= --code-block-bg）。深色档它恰好等于画布色

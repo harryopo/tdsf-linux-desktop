@@ -56,15 +56,27 @@ import { isElectronAPIAvailable } from '@/utils/electron-api'
 import '@/styles/workbench-density.css'
 import '@/components/workbench/Workbench.css'
 
-export const WorkbenchPage: FC = () => {
+export interface WorkbenchPageProps {
+  /**
+   * 当前路由是不是工作台。
+   *
+   * 工作台现在由 MainLayout 常驻挂载（切到监控/知识库/设置时只 display:none），
+   * 这个值一路传到 TerminalView 的 visible：从别的路由回来时让终端重新 fit + 整屏重画，
+   * 而不是拿隐藏期间的行缓存去凑（那会画成半截旧内容）。
+   */
+  active?: boolean
+}
+
+export const WorkbenchPage: FC<WorkbenchPageProps> = ({ active = true }) => {
   /**
    * 当前标签：null = 一个终端也没开、也没打开文件（显示空态）
    *
    * 以前初值是写死的 'tab-terminal'，隐含"终端永远只有一个格子"。
    * 现在终端标签是 shell:<shellId>，开几个就有几个。
    */
-  // 文件标签放 store：MainLayout 用 key={pathname} 强制整页重挂，
-  // 组件内 state 会在切设置页时丢掉未保存内容（2026-10-21 审查 E2）。
+  // 文件标签放 store：组件内 state 在页面重挂时会丢掉未保存内容（2026-10-21 审查 E2）。
+  // 工作台后来改成常驻挂载（切路由不再卸载），但标签真值仍该在这一层——
+  // StatusBar、关闭确认等组件都不该依赖某一棵子树还活着。
   const activeTabId = useEditorStore((s) => s.activeTabId)
   const setActiveTabId = useEditorStore((s) => s.setActiveTabId)
   const fileTabs = useEditorStore((s) => s.fileTabs)
@@ -443,6 +455,7 @@ export const WorkbenchPage: FC = () => {
             ) : null}
             <div className="wb-editor-wrap relative flex min-w-0 flex-1 flex-col">
               <EditorArea
+                active={active}
                 activeTabId={activeTabId}
                 onTabChange={handleTabChange}
                 fileTabs={fileTabs}

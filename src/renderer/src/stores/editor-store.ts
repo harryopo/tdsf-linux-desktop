@@ -38,9 +38,10 @@ export interface EditorStoreState {
   /**
    * 打开的文件标签与当前标签
    *
-   * 放在 store 里而不是 WorkbenchPage 的 useState：MainLayout 用
-   * `key={pathname}` 强制整页重挂（为了入场动画），切到设置页再回来，
-   * 组件内 state 全丢——未保存的编辑内容一起消失（2026-10-21 审查 E2）。
+   * 放在 store 里而不是 WorkbenchPage 的 useState：早期 MainLayout 用
+   * `key={pathname}` 强制整页重挂（为了入场动画），组件内 state 全丢——
+   * 未保存的编辑内容一起消失（2026-10-21 审查 E2）。工作台现在改成常驻挂载，
+   * 但标签真值仍留在这层：StatusBar 等外部消费者不该依赖某棵子树还活着。
    */
   fileTabs: WorkbenchFileTab[]
   activeTabId: WorkbenchTabId | null

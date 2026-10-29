@@ -6,7 +6,7 @@
  * |---|----------------------|----------------------|---------|
  * | 1 | /                    | BootPage（启动页）    | eager   |
  * | 2 | /boot                | BootPage（兼容入口）  | eager   |
- * | 3 | /workbench           | WorkbenchPage        | lazy    |
+ * | 3 | /workbench           | WorkbenchPage        | 常驻（MainLayout 挂载，不随路由卸载） |
  * | 4 | /monitor             | MonitorPage          | lazy    |
  * | 5 | /history             | HistoryPage          | lazy    |
  * | 6 | /history/:id         | HistoryDetailPage    | lazy    |
@@ -44,9 +44,10 @@ import MainLayout from './components/layout/MainLayout'
 import { BootPage } from './pages/BootPage'
 
 // 其他页面 lazy 加载
-const WorkbenchPage = lazy(() =>
-  import('./pages/WorkbenchPage').then((m) => ({ default: m.WorkbenchPage })),
-)
+//
+// 工作台不在这里 lazy：它由 MainLayout 常驻挂载（切去别的路由只 display:none），
+// 否则每次路由切换都会整页卸载，终端 xterm 实例与回滚缓冲跟着 dispose——
+// 用户报的"切换别的窗口，终端内容消失"就是这条。见 MainLayout.tsx 工作台常驻层。
 const MonitorPage = lazy(() =>
   import('./pages/MonitorPage').then((m) => ({ default: m.MonitorPage })),
 )
@@ -118,6 +119,16 @@ const CalibrationSettings = lazy(() =>
   import('./pages/CalibrationSettings').then((m) => ({ default: m.CalibrationSettings })),
 )
 
+/**
+ * /workbench 的路由占位
+ *
+ * 工作台本体常驻在 MainLayout；这里给一个真实的 element（渲染 null），
+ * 只是为了让 react-router 不再打"leaf route 没有 element"的警告。
+ */
+function WorkbenchRoutePlaceholder(): null {
+  return null
+}
+
 /** Suspense 加载占位 */
 function PageLoading() {
   return (
@@ -139,8 +150,9 @@ const Router: React.FC = () => {
 
           {/* MainLayout 布局路由（含 ActivityRail + StatusBar） */}
           <Route element={<MainLayout />}>
-            {/* 工作台（主页面） */}
-            <Route path="workbench" element={<WorkbenchPage />} />
+            {/* 工作台（主页面）：页面本身常驻在 MainLayout（见上方注释），
+                这里只留路径让路由匹配成立，Outlet 不再渲染第二份工作台 */}
+            <Route path="workbench" element={<WorkbenchRoutePlaceholder />} />
 
             {/* 监控 */}
             <Route path="monitor" element={<MonitorPage />} />

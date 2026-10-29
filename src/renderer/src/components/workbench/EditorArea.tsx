@@ -145,6 +145,11 @@ export interface WorkbenchFileTab {
 }
 
 export interface EditorAreaProps {
+  /**
+   * 工作台是否在屏幕上（应用内导航离开时 false）。
+   * 只影响终端的 visible：组件不卸载，只是让 xterm 在回来时重算行列并重画。
+   */
+  active?: boolean
   /** 当前标签；null = 一个都没开（一个终端也没有、也没打开文件），显示空态 */
   activeTabId: WorkbenchTabId | null
   onTabChange: (tabId: WorkbenchTabId) => void
@@ -349,6 +354,7 @@ const FileEditorPanel: FC<{
 }
 
 const EditorArea: FC<EditorAreaProps> = ({
+  active = true,
   activeTabId,
   onTabChange,
   fileTabs,
@@ -701,6 +707,15 @@ const EditorArea: FC<EditorAreaProps> = ({
     [fileTabs, onCloseFile, onCloseOthers, onCloseAll],
   )
 
+  /**
+   * 终端槽是否露出来。
+   *
+   * 注意：这不是"要不要挂载终端"的开关。终端槽常驻（下面 JSX 里一直渲染），
+   * 切到文件/预览标签只是 display:none——以前这里整块条件渲染，切个文件标签
+   * 就把所有 xterm 卸载 dispose 掉，切回来终端只剩空屏（与路由切换同一个病根）。
+   */
+  const terminalTabActive = activeTabId !== null && isShellTab(activeTabId)
+
   return (
     <div className="term-editor-area">
       <div
@@ -939,52 +954,61 @@ const EditorArea: FC<EditorAreaProps> = ({
       )}
 
       <div className="term-content-area">
-        {activeTabId && isShellTab(activeTabId) ? (
+        {/*
+          终端槽常驻：切到文件/预览标签只把它藏起来（display:none），不卸载。
+          卸载会跑 TerminalView 的清理函数 dispose 掉 xterm，回滚缓冲全部丢失。
+        */}
+        <div
+          className="term-panel-slot"
+          style={terminalTabActive ? undefined : { display: 'none' }}
+        >
           <TerminalPanel
             sessionId={activeSessionId}
-            visible
+            visible={active && terminalTabActive}
             onOpenShell={() => void handleOpenShell()}
             onOpenLocalShell={() => void handleOpenLocalShell()}
           />
-        ) : activePreview ? (
-          <PreviewPane tab={activePreview} />
-        ) : activeFile ? (
-          <FileEditorPanel
-            tab={activeFile}
-            saving={savingId === activeFile.id}
-            onToggleReadOnly={(v) => onFileReadOnlyChange?.(activeFile.id, v)}
-            onChange={(c) => onFileContentChange?.(activeFile.id, c)}
-            onSave={() => void handleSave()}
-          />
-        ) : (
-          // 空态给下一步（DESIGN.md §5）：光写"从左侧打开文件"等于把人说服在原地
-          <div className="term-file-empty">
-            <div>从左侧文件树打开远程文件，或开一个终端</div>
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-              <Button size="sm" variant="solid" onClick={() => void handleOpenLocalShell()}>
-                <Plus aria-hidden className="size-3" />
-                开一个本机终端
-              </Button>
-              {activeSessionId ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void handleOpenShell()}
-                >
-                  在这台主机再开一个终端
+        </div>
+        {!terminalTabActive &&
+          (activePreview ? (
+            <PreviewPane tab={activePreview} />
+          ) : activeFile ? (
+            <FileEditorPanel
+              tab={activeFile}
+              saving={savingId === activeFile.id}
+              onToggleReadOnly={(v) => onFileReadOnlyChange?.(activeFile.id, v)}
+              onChange={(c) => onFileContentChange?.(activeFile.id, c)}
+              onSave={() => void handleSave()}
+            />
+          ) : (
+            // 空态给下一步（DESIGN.md §5）：光写"从左侧打开文件"等于把人说服在原地
+            <div className="term-file-empty">
+              <div>从左侧文件树打开远程文件，或开一个终端</div>
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                <Button size="sm" variant="solid" onClick={() => void handleOpenLocalShell()}>
+                  <Plus aria-hidden className="size-3" />
+                  开一个本机终端
                 </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => navigate('/settings/ssh')}
-                >
-                  去连接服务器
-                </Button>
-              )}
+                {activeSessionId ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleOpenShell()}
+                  >
+                    在这台主机再开一个终端
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate('/settings/ssh')}
+                  >
+                    去连接服务器
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          ))}
       </div>
 
       {/* 端口预览弹窗（W5）：只问端口，主机固定在当前会话那台机器的回环上 */}
