@@ -62,12 +62,15 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > （设置页风险控制区在读），这一刀是 `pnpm audit:ipc` 报"preload 调了但主进程未注册"才拦下来的。
 > **判"死"要按通道与调用点判，不能按文件判。**`subagents/dispatcher.ts` 的 8 步调度
 > 已于 2026-10-24 整删（生产零调用、与 supervisor 的 PAOR 重复，专属测试与 barrel 导出同批删）。
-> 还在跑的是 `loop-engineering-subagent`（由 `ipc/loop-engineering.ts` 注册并在用）。
+> 当时接的替手"循环工程"（`loop-engineering-subagent` 与注册它的 `ipc/loop-engineering.ts`）
+> 也已于次日 #222 整删——**现在产品里唯一在跑的多步编排就是 Supervisor 的 PAOR**，别再写"还有另一条在跑"。
 > **`ipc/agent.ts` 与裸 `llm:*` 家族同样已于 2026-10-24 整删**（`agent:start/confirm/cancel` +
 > `agent:step`、`llm:chat/analyze/validate/chat-with-context/chat-with-tools/tool-approve` 与 6 条推送）：
 > 渲染层零调用，主对话一直是 `agent:chat`（Supervisor）那一条。留着的 `core/agent-workflow.ts`
-> 不是残骸——循环工程那条活链（`subagents/loop-engineering-subagent.ts` 与
-> `services/mcp/tools/legacy-handlers.ts`）还在用它，被删的只是没人按的那层壳。
+> 不是残骸，但**只剩一条路**：MCP 的 `services/mcp/tools/legacy-handlers.ts`（工具 `ssh_diagnose`）在用；
+> 它导出的 `resolveConfirmTimeoutMs` 与 `CONFIRM_TIMEOUT_*` 今天没有任何生产调用方，
+> 而 MCP 服务本身要 `MCP_SERVER_ENABLED=true` 且当前没有外部客户端接进来——这条"半可达"记在
+> `docs/功能实景清单.md` 的判决队列里，别拿它当"产品内在跑"。
 > **五模式（chat/ask/plan/code/debug）已于 2026-10-24 整删**：`ipc/mode.ts`、`core/agent/modes/`
 > （含 ask/plan 两份系统提示词共 295 行）、`MODE` 通道、preload 三键与 `agent-types.ts` 里那组形状。
 > 判决理由不是"没人按"，是**它兑不了自己许的诺**：Supervisor 取 systemPrompt 不读 mode，
@@ -167,6 +170,10 @@ xterm 接线在 `block-collector.ts`。**读屏幕只能读 `term.buffer.active`
   发现"忽略规则写了但文件还在跟踪集里"要 `git rm --cached` 补一刀。
 - **内部文档不入库**：审查报告、交接文档、故障复盘、评审材料与演示文稿一律本地保留、不提交。
   本仓库公开在跑的文档见 `docs/INDEX.md`。
+- **发版说明草稿不入库**（`.gitignore` 里 `RELEASE_NOTES*.md`）：1.0 尚未发布，而草稿最容易漂成
+  "写着已删能力"的假账——第一份就是这么长出来的（2026-10-29 把 `RELEASE_NOTES_v1.0.0.md` 摘出跟踪集：
+  它还在写"8 Subagent 并行"与"Claude Agent SDK"，两者都不是事实，且没有任何活消费者）。
+  **发版时按当期真值现写**，别拿旧草稿改两个字就发。
 - **凭据值永不进任何文本**：源码、测试夹具、注释、提交信息、日志都不行。
   需要示例就拆成相邻字面量（避免触发 GitHub 密钥扫描的真警报邮件）。
 - **Tailwind v4 的内容源 = "git 看得见的文件"**：未跟踪又未忽略的目录会被扫进产物 CSS，

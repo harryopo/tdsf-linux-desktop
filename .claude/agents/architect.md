@@ -30,18 +30,24 @@ color: purple
 ## 项目硬约束（不可违反）
 
 - IDE 工作台必须基于现有 `SftpManager` 扩展，不引入 code-server/Theia
-- Agent 架构必须用 TS 原生框架（Mastra / Vercel AI SDK / Claude Agent SDK），不引入 Python 进程通信
+- Agent 编排走 **Vercel AI SDK（`ai` + `@ai-sdk/openai`）+ 自研 Supervisor/PAOR**；
+  **Mastra 与 Claude Agent SDK 都不是依赖**（2026-10-29 按 `package.json` 与 `src/main` 现量核对，
+  旧版本这里写过"必须用 Claude Agent SDK"，那是从未成立的规定），也不引入 Python 进程通信
+  （Python 只做可选的 Drain3 侧车，缺 venv 整条降级）
 - 可信度算法必须有论文支撑（D-S + PCR5），不能拍脑袋
 - @命令必须支持鼠标划选注入，不能只靠手动输入
 - 运维 Agent 每步执行必须有人工审批闸门（安全底线）
-- 不反编译 Claude Code（法律风险高，用官方 SDK 合法集成）
+- 不反编译 Claude Code（法律风险高）
 - 所有网络请求必须 UI 可见（借鉴 Grok Build 数据丑闻教训）
 - 敏感文件默认 redact（.env / .ssh/ / *_key 发送前自动脱敏）
-- 本地优先（默认 Ollama / 国内 Provider，海外 API 需显式开启）
+- 模型侧只走云端 Provider（本地槽与 Ollama 已于 2026-10-28 #254 整删）；
+  本地模型要接就走「OpenAI 兼容」填 baseURL，不为本机地址单开分支（拓扑闸会拦 `127.0.0.1` 类默认值）
 - Token 消耗必须透明（每次执行后展示 token + 成本）
-- 所有新组件/页面 CSS 必须用 `var(--color-*)`，禁止 `#ffffff` / `#fafafa` / `#0071e3` 等硬编码
-- 主色使用低饱和靛蓝 `#4f46e5`（亮）/ `#818cf8`（暗），禁止高饱和系统蓝
-- 卡片 hover 仅允许一种变化：阴影；禁止同时变 border + 位移 + scale
+- 颜色/字号/圆角/阴影一律走 `src/renderer/src/styles/ui-tokens.css` 的令牌（前缀是 `--accent-` `--bg-`
+  `--border-` `--trae-*` 这一族，**不是 `--color-*`**）；禁止在组件里写 `#ffffff` / `#0071e3` 这类硬编码色值
+- **界面规范的唯一权威是 `DESIGN.md`**：主色、hover/focus 态、字阶、留白都以它为准，本文件不复述。
+  与它冲突时以 `DESIGN.md` 为准（2026-10-27 #252 定的口径：hover 只动底色与字色、不动描边；
+  focus 那一条主色描边是键盘可见性凭据，不许跟着一起砍）
 
 ## IPC 4 步同步铁律
 

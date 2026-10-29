@@ -131,7 +131,10 @@ docs/superpowers/
 docs/patches/
 .learnings/
 /.ai/
-.codex-memory/
+# 发版说明草稿不入库：1.0 尚未发布，而草稿最容易漂成"写着已删能力"的假账
+# （2026-10-29 把 RELEASE_NOTES_v1.0.0.md 摘出跟踪集，发版时按当期真值现写）
+RELEASE_NOTES*.md
+/.codex-memory/
 /reports/
 
 # docs 根级的内部报告与过期规范（保留 INDEX.md 与公开向的教程）

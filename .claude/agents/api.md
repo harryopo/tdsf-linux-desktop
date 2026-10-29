@@ -22,10 +22,12 @@ color: green
 2. **跨端类型 SSOT**：所有跨端类型必须在 `src/shared/` 层定义（单一真相源），preload 不从 main 导入类型，d.ts 不重复定义类型。
 
 3. **Provider 工厂**：在 `src/main/core/agent/providers/` 下实施 LLM Provider 工厂模式。
-   分支清单以 `provider-factory.ts` 的 `case` 为准，当前 **7 个**：
-   `anthropic` / `google` / `deepseek` / `qwen` / `volcengine-ark` / `ollama` / `openai-compatible`。
-   **没有 `claude-sdk` 分支**（本版本已撤掉，见 `provider-registry.ts:118`）；智谱、Moonshot 这类走 `openai-compatible` 模板，
-   不是独立分支——要加新 Provider 先加 case，再改这份清单。
+   分支清单以 `provider-factory.ts` 的 `case` 为准，当前 **6 个**：
+   `anthropic` / `google` / `deepseek` / `qwen` / `volcengine-ark` / `openai-compatible`。
+   **`ollama` 已于 2026-10-28 #254 整条撤掉**（ProviderType 联合、能力表、定价表、工厂分支与免 Key 特例一起走，
+   本地服务改由 `openai-compatible` 填 baseURL 接）；智谱、Moonshot 这类走 `openai-compatible` 模板，
+   不是独立分支——要加新 Provider 先加 case，再改这份清单。**也没有 `claude-sdk` 分支**：
+   Claude Agent SDK 从来不是本项目的依赖，历史文档里那些 `claude-sdk:*` 通道全是幽灵（见本文件第 3 条与下面那张表）。
 
 4. **API 契约**：定义 IPC 通道的请求/响应类型、错误格式（统一 `{ success: false, error: string }` / 成功直接返回业务数据）。
 

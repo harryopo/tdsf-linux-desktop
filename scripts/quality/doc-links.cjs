@@ -144,6 +144,40 @@ const GLOB_OR_TEMPLATE = /[*?{}]|(\.\.\.)/
 const DRIVE_PATH_RE = /^[A-Za-z]:[\\/]/
 
 /**
+ * 第四档：**正面断言"某个模块还活着"，那个模块却不在跟踪集里**。
+ * 为什么上一档抓不到：`classifyBarePath` 只认带仓库根前缀的路径（`src/...`），
+ * 而文档写活链时常省前缀（`ipc/loop-engineering.ts`、`subagents/xxx.ts`），于是一路漏过去。
+ * 但把上一档直接放宽到"所有多段路径"会造成 30 条误报（2026-10-29 实测）——
+ * **删掉的文件常被文档点名**（"`X` 已于 #222 整删"是正确写法，不是幽灵）。
+ * 所以这一档只问一种话：**说它还在跑 / 还在用 / 是活的**，而它其实没了。
+ * 现量：全仓 42 份已入库 md 里恰好 1 条真缺陷（AGENTS.md 说 `ipc/loop-engineering.ts` 注册并在用，
+ * 那个文件与它的注册方都已于 #222 整删），误报 0。
+ * 已知盲区（写出来，别把 PASS 读成"文档全对"）：按**物理行**判，markdown 折行会把
+ * "路径在一行、'还在用它'在下一行"拆散；同一行里既说活着又列了删除史的也不判（宁漏不误）。
+ */
+const LIVE_CLAIM_RE = /(还在跑|仍在用|还在用|还活着|是活的|注册并在用|仍在链上|还长在)/
+const DEAD_NARRATION_RE = /(整删|已删|删掉|撤掉|撤下|判掉|不存在|已移除|早已删|次日也删|没有生产方|没有生产者)/
+const MODULE_PATH_RE = /(^|\/)[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|json|css|py|sql)$/i
+
+/**
+ * @param {string} span 反引号里的内容
+ * @param {{trackedSet:Set<string>, trackedList:string[]}} ctx
+ * @returns {'ok'|'skip'|'deadmodule'}
+ */
+function classifyLiveClaim(span, ctx) {
+  const tok = span.trim().split(/\s+/)[0].replace(/#.*$/, '').replace(/:.*$/, '')
+  if (!tok || GLOB_OR_TEMPLATE.test(tok) || DRIVE_PATH_RE.test(tok)) return 'skip'
+  if (!MODULE_PATH_RE.test(tok)) return 'skip'
+  const clean = tok.replace(/^\.\//, '')
+  if (ctx.trackedSet.has(clean)) return 'ok'
+  if (ctx.trackedList.some((f) => f.endsWith('/' + clean))) return 'ok'
+  // basename 在跟踪集里 ⇒ 只是省了前缀（`panels/Foo.tsx` 指的就是那个活文件），不是幽灵
+  if (ctx.trackedBase.has(path.basename(clean))) return 'ok'
+  if (EXTERNAL_CODE_REFS.has(path.basename(clean))) return 'ok'
+  return 'deadmodule'
+}
+
+/**
  * @param {{trackedSet:Set<string>, trackedList:string[], ignoredPrefixes:Set<string>}} ctx
  * @returns {{kind:'ok'|'ghostfile'|'ghostdir'|'abspath'|'external'|'skip', note:string}}
  */
@@ -302,6 +336,19 @@ function scanDoc(fromFile, text, tracked, sources, ctx) {
         out.push({ file: fromFile, line: i + 1, kind: 'coderef:external', target: c.note })
       }
     }
+    // 第四档：说某个模块"还在跑 / 还在用"，可它已经不在跟踪集里（省前缀的写法上一档看不见）
+    if (LIVE_CLAIM_RE.test(line) && !DEAD_NARRATION_RE.test(line)) {
+      for (const hit of line.matchAll(INLINE_CODE_RE)) {
+        if (classifyLiveClaim(hit[1], ctx) === 'deadmodule') {
+          out.push({
+            file: fromFile,
+            line: i + 1,
+            kind: 'liveclaim:deadmodule',
+            target: hit[1].trim().split(/\s+/)[0],
+          })
+        }
+      }
+    }
   }
   return out
 }
@@ -336,6 +383,10 @@ function selfTest(tracked, sources, ctx) {
     '本机旧坐标 `d:\\repo\\probe-abspath-9c1f.ts` 要点名（访客那台机器没有这块盘）',
     '带行号也一样要点名：`d:\\repo\\probe-abspath-9c1f.ts:12`',
     '示意写法 `C:\\Users\\…\\…` 与 `D:/projects/.../x` 不判（它们本来就不是坐标）',
+    // —— 第四档"说它还活着其实没了"：一条该抓、两条不许误报 ——
+    '还在跑的是 `ipc/probe-gone-module-9a3e.ts`（注册并在用）——省了 src/main/ 前缀也要抓到',
+    '已整删的不许报：`ipc/probe-gone-module-9a3e.ts` 已于 #999 整删，代码只留在 git 历史',
+    '省前缀但文件活着的不许报：`panels/MarkdownMessage.tsx` 还在用',
     '```',
     '围栏里的 src/inside-fence-nope.ts:1 不判',
     '```',
@@ -392,11 +443,17 @@ function selfTest(tracked, sources, ctx) {
     problems.push('没抓到"机器绝对路径"（访客点开必然打不开，2026-10-20 的 16 处就是这么漏的）')
   if (abspath.some((t) => t.includes('…') || t.includes('...')))
     problems.push('把带省略号的示意写法当成了绝对路径坐标（它不是现场）')
+  // 第四档：说"还在跑"的模块必须抓到；删除叙述与省前缀的活文件都不许报
+  const live = hits.filter((h) => h.kind === 'liveclaim:deadmodule').map((h) => h.target)
+  if (!live.some((t) => t.includes('probe-gone-module-9a3e.ts')))
+    problems.push('没抓到"说它还活着其实没了"（AGENTS.md 那句 ipc/loop-engineering.ts 就是这么漏的）')
+  if (live.some((t) => t.includes('MarkdownMessage.tsx')))
+    problems.push('把"省了前缀但文件活着"误报成死模块（basename 命中跟踪集就该放过）')
   console.log(
     '[doc-links] 自检：抓到断链 ' + dead.length + ' 条、仓库外 ' + outside.length + ' 条、' +
       '死引用 ' + refMissing.length + ' 条、越界 ' + refBeyond.length + ' 条、' +
       '裸路径幽灵 ' + ghostFile.length + ' 条+目录 ' + ghostDir.length + ' 条、机器绝对路径 ' + abspath.length +
-      ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
+      ' 条、"说它活着其实没了" ' + live.length + ' 条；豁免 ' + refExternal.length + ' 条；误报 0 才算通过'
   )
   if (problems.length) {
     console.error('[doc-links] 量具失效：\n  - ' + problems.join('\n  - '))
@@ -412,7 +469,12 @@ if (!tracked.size) {
   process.exit(2)
 }
 const sources = candidateSources(tracked)
-const CTX = { trackedSet: tracked, trackedList: [...tracked], ignoredPrefixes: loadIgnoredPrefixes([...tracked]) }
+const CTX = {
+  trackedSet: tracked,
+  trackedList: [...tracked],
+  trackedBase: new Set([...tracked].map((f) => path.basename(f))),
+  ignoredPrefixes: loadIgnoredPrefixes([...tracked]),
+}
 if (SELF_TEST) selfTest(tracked, sources, CTX)
 
 const docs = [...tracked].filter((f) => /\.md$/i.test(f))
@@ -441,6 +503,7 @@ const refExternal = findings.filter((h) => h.kind === 'coderef:external')
 const bareGhostFile = findings.filter((h) => h.kind === 'barepath:ghostfile')
 const bareGhostDir = findings.filter((h) => h.kind === 'barepath:ghostdir')
 const bareAbspath = findings.filter((h) => h.kind === 'barepath:abspath')
+const liveDeadModule = findings.filter((h) => h.kind === 'liveclaim:deadmodule')
 const blocking = [
   ...dead,
   ...refMissing,
@@ -449,6 +512,7 @@ const blocking = [
   ...bareGhostFile,
   ...bareGhostDir,
   ...bareAbspath,
+  ...liveDeadModule,
 ]
 
 if (AS_JSON) {
@@ -468,6 +532,7 @@ if (AS_JSON) {
         bareGhostFile,
         bareGhostDir,
         bareAbspath,
+        liveDeadModule,
       },
       null,
       2
@@ -492,6 +557,7 @@ if (!AS_JSON) {
       ' 处、代码引用（死 ' + refMissing.length + ' / 行号越界 ' + refBeyond.length + ' / 歧义 ' + refAmbiguous.length +
       '）、裸路径幽灵（文件 ' + bareGhostFile.length + ' / 目录 ' + bareGhostDir.length +
       '）、机器绝对路径 ' + bareAbspath.length +
+      '、"说它还活着其实没了" ' + liveDeadModule.length +
       '，另有第三方引用豁免 ' + refExternal.length + ' 处'
   )
   console.log(
@@ -499,7 +565,8 @@ if (!AS_JSON) {
       '裸路径只问 git（跟踪集里有没有 / 已入库 .gitignore 里有没有这条规则），不问本机盘；' +
       '含 * ? {} ... 的示例、命令行第一个词之外的部分、反引号外的正文都不判；' +
       '盘符开头的机器绝对路径一律判（带省略号的示意写法除外）；' +
-      '扫描面 = git 跟踪集里的 *.md，围栏代码块内的引用不判'
+      '扫描面 = git 跟踪集里的 *.md，围栏代码块内的引用不判；' +
+      '"还在跑"那一档按物理行判，markdown 折行会把断言与路径拆到两行（已知盲区，宁漏不误）'
   )
 }
 

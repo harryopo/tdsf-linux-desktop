@@ -159,6 +159,11 @@ release/
 
 ### 5.2 通过 gh CLI（推荐）
 
+> `RELEASE_NOTES.md` **不入库、也不留旧稿**：发版当天按当期真值现写。
+> 仓库里曾经有一份 `RELEASE_NOTES_v1.0.0.md`（2026-10-29 摘出跟踪集），里面还在写
+> "8 Subagent 并行"与"Claude Agent SDK"——两者都不是事实。**旧草稿改两个字就发出去，就是把假账发布出去。**
+> 当期读数用 `npm run promo:check -- --unit-passed … --e2e-passed …` 现场对账，能力清单看 `docs/功能实景清单.md`。
+
 ```bash
 gh release create v1.x.x \
   --title "v1.x.x - <总结>" \
