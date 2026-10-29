@@ -38,6 +38,9 @@ const ALLOWED_FONT_SIZES = [11, 12, 13, 14, 15, 17, 20]
 
 async function ensurePanelOpen(page: Page): Promise<void> {
   const composer = page.locator('#ai-composer-input')
+  // 工作台是懒加载的：先等这颗按钮出现，否则"此刻还没画上"会被误判成"面板关着"，
+  // 于是一点反而把开着的面板关掉（2026-10-29 工作台改成常驻挂载后这条竞态被放大）。
+  await page.locator('[data-dom-id="btn-toggle-ai"]').waitFor({ state: 'visible', timeout: 20_000 })
   if (await composer.isVisible().catch(() => false)) return
   await page.locator('[data-dom-id="btn-toggle-ai"]').click()
   await composer.waitFor({ state: 'visible', timeout: 10_000 })
@@ -216,6 +219,7 @@ test.describe('聊天面板两处展开态：可信度卡读数 + 过程行折�
     // 屏上可能留着上一次运行那张卡，`.ai-credibility` 一命中就取数等于量旧账。
     const beforeCards = await page.locator('.ai-credibility').count()
     const composer = page.locator('#ai-composer-input')
+
     await composer.click()
     await composer.pressSequentially(QUESTION)
     await page.getByRole('button', { name: '发送' }).click()
@@ -285,6 +289,7 @@ test.describe('聊天面板两处展开态：可信度卡读数 + 过程行折�
     const beforeCred = await page.locator('.ai-credibility').count()
     const beforeSteps = await page.locator('.ai-tool-search').count()
     const composer = page.locator('#ai-composer-input')
+
     await composer.click()
     await composer.pressSequentially(QUESTION)
     await page.getByRole('button', { name: '发送' }).click()

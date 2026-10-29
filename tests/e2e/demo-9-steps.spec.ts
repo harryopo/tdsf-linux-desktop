@@ -185,13 +185,13 @@ test.describe('Demo 9 步主路径', () => {
 
     await mainWin.locator('[data-dom-id="nav-decision"]').click()
 
-    // 决策页可能渲染为 .dec-* 或其他容器，等待主内容区变化
-    await mainWin.waitForFunction(
-      () => !document.querySelector('.wb-main-layout') || document.querySelector('.wb-main-layout .wb-editor-wrap') === null,
-      { timeout: 15000 },
-    ).catch(() => {
-      // 决策页可能仍在 MainLayout 内，验证 hash 即可
-    })
+    // 工作台改成常驻挂载（切路由只 display:none，不卸载）之后，".wb-editor-wrap 消失"
+    // 不再是"离开了工作台"的证据——它永远在 DOM 里。判据改成直接等路由落到 /decision。
+    await mainWin
+      .waitForFunction(() => window.location.hash.includes('/decision'), null, { timeout: 15000 })
+      .catch(() => {
+        // 落不到 /decision 由下面那条断言负责报红，这里不重复判
+      })
 
     const hash = await mainWin.evaluate(() => window.location.hash)
     expect(hash).toContain('/decision')

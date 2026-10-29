@@ -36,6 +36,9 @@ const QUESTION = '帮我算一下 1+1'
 /** 面板收起时把 AI 停靠格点开（发送按钮在面板里） */
 async function ensurePanelOpen(page: Page): Promise<void> {
   const composer = page.locator('#ai-composer-input')
+  // 工作台是懒加载的：先等这颗按钮出现，否则"此刻还没画上"会被误判成"面板关着"，
+  // 于是一点反而把开着的面板关掉（2026-10-29 工作台改成常驻挂载后这条竞态被放大）。
+  await page.locator('[data-dom-id="btn-toggle-ai"]').waitFor({ state: 'visible', timeout: 20_000 })
   if (await composer.isVisible().catch(() => false)) return
   await page.locator('[data-dom-id="btn-toggle-ai"]').click()
   await composer.waitFor({ state: 'visible', timeout: 10_000 })
@@ -87,6 +90,7 @@ async function configureFixtureModel(page: Page, url: string): Promise<void> {
 async function askAndAnswer(page: Page, text: string): Promise<void> {
   await ensurePanelOpen(page)
   const composer = page.locator('#ai-composer-input')
+
   await composer.click()
   await composer.pressSequentially(text)
   await page.getByRole('button', { name: '发送' }).click()

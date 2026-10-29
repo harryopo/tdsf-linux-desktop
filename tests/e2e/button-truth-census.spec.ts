@@ -51,17 +51,25 @@ const testOrSkip = BUILD_READY ? test : test.skip
 /** 报告输出路径 */
 const REPORT_PATH = path.join(__dirname, 'button-census-report.json')
 
-/** 普查页面清单（hash 路由 + 就绪选择器） */
+/**
+ * 普查页面清单（hash 路由 + 就绪选择器）
+ *
+ * 就绪选择器必须是**那一页自己的根**，不能是整个外壳：工作台改成常驻挂载后
+ * （切路由只 display:none，不卸载），`.wb-main-layout` 与 `body` 在任何一页都立刻成立，
+ * 于是普查会在"上一页还画着、这一页的懒加载 chunk 还没到"的中间态里抓按钮，
+ * 点下去路由才变——一整页 94 个"点了没反应"就是这么来的（2026-10-29 实测）。
+ * waitForSelector 默认等 visible，隐藏中的常驻面板不会被误当就绪。
+ */
 const PAGES: Array<{ name: string; hash: string; ready: string }> = [
-  { name: '工作台', hash: '#/workbench', ready: '.wb-main-layout' },
+  { name: '工作台', hash: '#/workbench', ready: '.wb-editor-wrap' },
   { name: '实时监控', hash: '#/monitor', ready: '[data-dom-id="page-title"]' },
-  { name: '决策历史', hash: '#/history', ready: 'main, .hist-page' },
+  { name: '决策历史', hash: '#/history', ready: '[data-dom-id="page-title"], .hist-page' },
   { name: '知识库', hash: '#/knowledge', ready: '.kb-page' },
-  { name: '决策中心', hash: '#/decision', ready: 'main, body' },
-  { name: '教程', hash: '#/tutorial', ready: 'main, body' },
-  { name: '日志分析', hash: '#/logs', ready: 'main, body' },
-  { name: '设置-通用', hash: '#/settings/general', ready: '.set-page, main' },
-  { name: '设置-模型', hash: '#/settings/model', ready: '.set-page, main' },
+  { name: '决策中心', hash: '#/decision', ready: '[data-dom-id="page-title"]' },
+  { name: '教程', hash: '#/tutorial', ready: '.tut-page' },
+  { name: '日志分析', hash: '#/logs', ready: '[data-dom-id="page-title"]' },
+  { name: '设置-通用', hash: '#/settings/general', ready: '.set-page' },
+  { name: '设置-模型', hash: '#/settings/model', ready: '.set-page' },
 ]
 
 /**

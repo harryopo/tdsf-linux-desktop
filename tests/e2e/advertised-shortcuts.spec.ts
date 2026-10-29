@@ -158,6 +158,8 @@ test.describe('界面上写出来的快捷键', () => {
     const { app, page } = await launchApp()
     try {
       await page.waitForSelector('.wb-main-layout', { timeout: 20000 })
+      // 快捷键的监听挂在工作台标题栏上，而工作台是懒加载的：只等外层壳会按在一还不存在的监听上
+      await page.locator('[data-dom-id="btn-toggle-ai"]').waitFor({ state: 'visible', timeout: 20_000 })
       // 先证明它本来没开：否则"按了之后在"可能是因为它一直在
       await expect(page.getByPlaceholder(PALETTE_PLACEHOLDER)).toHaveCount(0)
 

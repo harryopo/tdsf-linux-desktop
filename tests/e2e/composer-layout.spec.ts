@@ -23,6 +23,9 @@ const testOrSkip = READY ? test : test.skip
 
 async function ensurePanelOpen(page: Page): Promise<void> {
   const composer = page.locator('#ai-composer-input')
+  // 工作台是懒加载的：先等这颗按钮出现，否则"此刻还没画上"会被误判成"面板关着"，
+  // 于是一点反而把开着的面板关掉（2026-10-29 工作台改成常驻挂载后这条竞态被放大）。
+  await page.locator('[data-dom-id="btn-toggle-ai"]').waitFor({ state: 'visible', timeout: 20_000 })
   if (await composer.isVisible().catch(() => false)) return
   await page.locator('[data-dom-id="btn-toggle-ai"]').click()
   await composer.waitFor({ state: 'visible', timeout: 10_000 })
@@ -73,6 +76,7 @@ test.describe('AI 输入区排版', () => {
     await expect(chip, '快捷排里没有「巡检」这一条').toBeVisible({ timeout: 10_000 })
 
     const composer = page.locator('#ai-composer-input')
+
     await composer.fill('')
     await chip.click()
     const value = await composer.inputValue()

@@ -41,6 +41,9 @@ const ALLOWED_FONT_SIZES = [11, 12, 13, 14, 15, 17, 20]
 
 async function ensurePanelOpen(page: Page): Promise<void> {
   const composer = page.locator('#ai-composer-input')
+  // 工作台是懒加载的：先等这颗按钮出现，否则"此刻还没画上"会被误判成"面板关着"，
+  // 于是一点反而把开着的面板关掉（2026-10-29 工作台改成常驻挂载后这条竞态被放大）。
+  await page.locator('[data-dom-id="btn-toggle-ai"]').waitFor({ state: 'visible', timeout: 20_000 })
   if (await composer.isVisible().catch(() => false)) return
   await page.locator('[data-dom-id="btn-toggle-ai"]').click()
   await composer.waitFor({ state: 'visible', timeout: 10_000 })
@@ -241,6 +244,7 @@ test.describe('聊天消息行骨架：无头像、无气泡、一颗药丸', ()
     // ② 输入框非空时 Composer 是**拼接**而不是替换（Composer.tsx:127），
     //    不清空就读到"上一句 + 这一句"，两句一样的错照样绿。
     const composer = page.locator('#ai-composer-input')
+
     const filled: string[] = []
     for (const idx of [0, 1]) {
       await composer.fill('')
@@ -339,7 +343,9 @@ test.describe('聊天消息行骨架：无头像、无气泡、一颗药丸', ()
     const lowContrast = r.texts.filter((t) => t.ratio < 4.5)
     expect(lowContrast, `这些文字不过 AA：${JSON.stringify(lowContrast)}`).toEqual([])
     expect(r.offScale, `这些字号不在界面字阶里：${JSON.stringify(r.offScale)}`).toEqual([])
-    expect(r.proseFontSize, '助手正文不是正文档（15px）').toBe(15)
+    // #252 起对话正文走 md 档（14px）：15px 中文在 320–560px 的停靠格里像一页网页。
+    // 标题仍留在 body(15)/title(17)/head(20)，层级不变（ai-panel-type-scale 那条量的是关系）
+    expect(r.proseFontSize, '助手正文不是对话正文档（14px）').toBe(14)
 
     await app.close()
   })

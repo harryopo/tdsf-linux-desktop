@@ -125,6 +125,9 @@ test.describe('AI 对话面板的字号层级', () => {
     await page.waitForSelector('.wb-main-layout', { timeout: 30_000 })
 
     const composer = page.locator('#ai-composer-input')
+    // 工作台是懒加载的：先等这颗按钮出现，否则"此刻还没画上"会被误判成"面板关着"，
+    // 于是一点反而把开着的面板关掉（2026-10-29 工作台改成常驻挂载后这条竞态被放大）。
+    await page.locator('[data-dom-id="btn-toggle-ai"]').waitFor({ state: 'visible', timeout: 20_000 })
     if (!(await composer.isVisible().catch(() => false))) {
       await page.locator('[data-dom-id="btn-toggle-ai"]').click()
       await composer.waitFor({ state: 'visible', timeout: 15_000 })
