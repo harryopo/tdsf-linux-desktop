@@ -26,11 +26,13 @@ export interface ReasoningTagState {
   open: boolean
   /** </think> 已闭合（一次请求只闭合一次） */
   closed: boolean
+  /** 本次响应里累计的推理原文（用于下一轮把 reasoning_content 原样带回） */
+  reasoning: string
 }
 
 /** 新建初始状态 */
 export function createReasoningTagState(): ReasoningTagState {
-  return { open: false, closed: false }
+  return { open: false, closed: false, reasoning: '' }
 }
 
 interface ChatChunkLike {
@@ -55,6 +57,7 @@ export function rewriteReasoningChunk(obj: unknown, state: ReasoningTagState): u
     // 推理增量：包进 content，首段前置 <think>
     const prefix = state.open || state.closed ? '' : `<${REASONING_TAG}>`
     state.open = !state.closed
+    state.reasoning += rc
     const existing = typeof delta.content === 'string' ? delta.content : ''
     delta.content = `${prefix}${rc}${existing}`
     delete delta.reasoning_content
@@ -69,6 +72,46 @@ export function rewriteReasoningChunk(obj: unknown, state: ReasoningTagState): u
     state.closed = true
   }
   return obj
+}
+
+/**
+ * 把捕获到的推理原文补回 assistant(tool_calls) 的 reasoning_content
+ *
+ * DeepSeek 思考模式 + 工具调用时，带 tool_calls 的 assistant 消息在下一轮必须把
+ * reasoning_content 原样带回去，否则 400（"The reasoning_content in the thinking
+ * mode must be passed back to the API"）。@ai-sdk/openai 转消息时会把 reasoning
+ * 分片整个丢掉，所以只能在 fetch 层补。
+ *
+ * 按顺序对齐：payload 里第 k 条"带 tool_calls 的 assistant" ↔ 本模型实例第 k 段
+ * 捕获到的推理。已经带 reasoning_content 的消息不动。
+ *
+ * @param payload 请求体（就地修改）
+ * @param captured 按响应顺序捕获的推理原文
+ * @returns 是否改动了 payload
+ */
+export function injectReasoningContent(
+  payload: Record<string, unknown>,
+  captured: readonly string[],
+): boolean {
+  if (captured.length === 0) return false
+  const messages = payload.messages
+  if (!Array.isArray(messages)) return false
+  let changed = false
+  let k = 0
+  for (const m of messages as Array<Record<string, unknown>>) {
+    if (!m || typeof m !== 'object' || m.role !== 'assistant') continue
+    const toolCalls = m.tool_calls
+    if (!Array.isArray(toolCalls) || toolCalls.length === 0) continue
+    if (typeof m.reasoning_content !== 'string') {
+      const reasoning = captured[k]
+      if (reasoning !== undefined) {
+        m.reasoning_content = reasoning
+        changed = true
+      }
+    }
+    k++
+  }
+  return changed
 }
 
 /**

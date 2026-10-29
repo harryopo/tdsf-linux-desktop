@@ -25,6 +25,7 @@ import type { ProviderConfig, ProviderModelInstance, ProviderType, PersistedProv
 import { logger } from '../../../services/log/logger'
 import {
   createReasoningTagState,
+  injectReasoningContent,
   rewriteSseLine,
   REASONING_TAG,
 } from './deepseek-reasoning-transform'
@@ -34,7 +35,10 @@ import {
  * 供上层 extractReasoningMiddleware 提取回 reasoning 分片（@ai-sdk/openai 2.x 不读 reasoning_content）。
  * 按行缓冲处理跨块切分的 SSE 行。
  */
-function wrapDeepseekReasoningStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+function wrapDeepseekReasoningStream(
+  body: ReadableStream<Uint8Array>,
+  onReasoningText?: (text: string) => void,
+): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder()
   const encoder = new TextEncoder()
   const state = createReasoningTagState()
@@ -49,6 +53,7 @@ function wrapDeepseekReasoningStream(body: ReadableStream<Uint8Array>): Readable
     },
     flush(controller) {
       if (buffer) controller.enqueue(encoder.encode(rewriteSseLine(buffer, state)))
+      if (state.reasoning) onReasoningText?.(state.reasoning)
     },
   })
   return body.pipeThrough(transform)
@@ -80,12 +85,23 @@ interface CompatFetchOptions {
 
 function createOpenAiCompatFetch(opts: CompatFetchOptions): typeof fetch {
   const deepseekThinking = opts.deepseekThinking
+  /**
+   * 本模型实例内按顺序记下的推理原文。
+   *
+   * DeepSeek 思考模式要求：带 tool_calls 的 assistant 消息在下一轮必须把
+   * reasoning_content 原样带回去，否则整轮请求 400
+   * （"The reasoning_content in the thinking mode must be passed back to the API"）。
+   * @ai-sdk/openai 转换消息时会把 reasoning 分片整个丢掉，所以只能在这里补：
+   * 第 k 条 assistant(tool_calls) 对应第 k 段捕获到的推理。
+   */
+  const capturedReasoning: string[] = []
   return async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
 /*
  *  自定义 fetch 职责：
  *  1.【所有兼容端】developer→system 角色修正（DeepSeek/Qwen/Volcengine 只认 system）；
  *  2.【仅 DeepSeek】按 deep 强度注入 thinking enabled/disabled（关时正文直出）；
- *  3.【兼容端】把 reasoning_content 包成罕见标签供中间件提取（#90：不再只限 deepseek+deep）。
+ *  3.【兼容端】把 reasoning_content 包成罕见标签供中间件提取（#90：不再只限 deepseek+deep）；
+ *  4.【思考模式】把上一轮捕获的推理原文补回 assistant(tool_calls) 的 reasoning_content。
  */
     // 仅处理带 JSON body 的 POST（chat/completions）；其余请求原样放行
     if (init?.body && typeof init.body === 'string') {
@@ -100,6 +116,10 @@ function createOpenAiCompatFetch(opts: CompatFetchOptions): typeof fetch {
               mutated = true
             }
           }
+        }
+        // 4. 思考模式下把 reasoning_content 补回带 tool_calls 的 assistant 消息
+        if (deepseekThinking === 'enabled' && injectReasoningContent(payload, capturedReasoning)) {
+          mutated = true
         }
         // 2. DeepSeek 思考模式（仅 DeepSeek，未显式指定时）：
         //    v2.11 修复：按 deep 强度注入 enabled/disabled。此前无条件 disabled，
@@ -124,11 +144,16 @@ function createOpenAiCompatFetch(opts: CompatFetchOptions): typeof fetch {
     // 改写只在流里真出现 reasoning_content 时才动内容（rewriteReasoningChunk 按字段判定），
     // 所以对所有兼容端开都是空操作级的安全；真正有代价的是下面那层中间件，见 REASONING_TAG 注释。
     if ((opts.deepseekThinking === 'enabled' || opts.surfaceReasoning) && res.body && res.ok) {
-      return new Response(wrapDeepseekReasoningStream(res.body), {
-        status: res.status,
-        statusText: res.statusText,
-        headers: res.headers,
-      })
+      return new Response(
+        wrapDeepseekReasoningStream(res.body, (text) => {
+          capturedReasoning.push(text)
+        }),
+        {
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+        },
+      )
     }
     return res
   }

@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest'
 import {
   REASONING_TAG,
   createReasoningTagState,
+  injectReasoningContent,
   rewriteReasoningChunk,
   rewriteSseLine,
 } from '../../src/main/core/agent/providers/deepseek-reasoning-transform'
@@ -104,5 +105,72 @@ describe('rewriteSseLine', () => {
     const l2 = rewriteSseLine('data: {"choices":[{"delta":{"content":"结论"}}]}', s)
     expect(l1).toContain(`<${REASONING_TAG}>分析`)
     expect(l2).toContain(`</${REASONING_TAG}>结论`)
+  })
+})
+
+/**
+ * DeepSeek 思考模式 + 工具调用：带 tool_calls 的 assistant 消息必须把
+ * reasoning_content 原样带回去，否则整轮 400。判据必须能分开"补对了"与"全没补"。
+ */
+describe('injectReasoningContent（思考模式回传）', () => {
+  function payload(messages: Array<Record<string, unknown>>) {
+    return { messages } as Record<string, unknown>
+  }
+
+  it('第一条带 tool_calls 的 assistant 拿到第一段推理', () => {
+    const p = payload([
+      { role: 'user', content: '查磁盘' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'c1', type: 'function', function: { name: 'ssh_readonly', arguments: '{}' } }],
+      },
+      { role: 'tool', tool_call_id: 'c1', content: 'out' },
+    ])
+    expect(injectReasoningContent(p, ['先看 df'])).toBe(true)
+    const assistant = (p.messages as Array<Record<string, unknown>>)[1]
+    expect(assistant.reasoning_content).toBe('先看 df')
+  })
+
+  it('多步工具调用按顺序对齐（第 k 条 ↔ 第 k 段推理）', () => {
+    const p = payload([
+      { role: 'assistant', tool_calls: [{ id: 'c1' }], content: '' },
+      { role: 'tool', tool_call_id: 'c1', content: 'a' },
+      { role: 'assistant', tool_calls: [{ id: 'c2' }], content: '' },
+      { role: 'tool', tool_call_id: 'c2', content: 'b' },
+    ])
+    injectReasoningContent(p, ['推理一', '推理二'])
+    const msgs = p.messages as Array<Record<string, unknown>>
+    expect(msgs[0].reasoning_content).toBe('推理一')
+    expect(msgs[2].reasoning_content).toBe('推理二')
+  })
+
+  it('不带 tool_calls 的 assistant 不塞 reasoning_content（DeepSeek 只在工具轮要求）', () => {
+    const p = payload([
+      { role: 'assistant', content: '上一轮的最终回答' },
+      { role: 'user', content: '继续' },
+    ])
+    expect(injectReasoningContent(p, ['不该出现'])).toBe(false)
+    expect((p.messages as Array<Record<string, unknown>>)[0].reasoning_content).toBeUndefined()
+  })
+
+  it('已有 reasoning_content 的消息不被覆盖', () => {
+    const p = payload([
+      { role: 'assistant', tool_calls: [{ id: 'c1' }], content: '', reasoning_content: '原始推理' },
+    ])
+    expect(injectReasoningContent(p, ['别处来的'])).toBe(false)
+    expect((p.messages as Array<Record<string, unknown>>)[0].reasoning_content).toBe('原始推理')
+  })
+
+  it('没捕获到任何推理时不改 payload（普通轮次零副作用）', () => {
+    const p = payload([{ role: 'assistant', tool_calls: [{ id: 'c1' }], content: '' }])
+    expect(injectReasoningContent(p, [])).toBe(false)
+  })
+
+  it('改写流时会累计推理原文（供下一轮回传）', () => {
+    const s = createReasoningTagState()
+    rewriteSseLine('data: {"choices":[{"delta":{"reasoning_content":"第一段"}}]}', s)
+    rewriteSseLine('data: {"choices":[{"delta":{"reasoning_content":"第二段"}}]}', s)
+    expect(s.reasoning).toBe('第一段第二段')
   })
 })
