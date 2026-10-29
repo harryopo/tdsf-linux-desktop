@@ -158,12 +158,17 @@ function isAvailable(entry: ChatToolCatalogEntry, ctx: ChatToolAvailability): bo
 }
 
 /**
- * 意图路由：根据最后一条用户消息选择本轮挂载的工具子集
+ * 意图路由：决定本轮挂载哪些工具
  *
  * 规则：
  * 1. 先按运行时依赖过滤出可用工具（SSH 未连接 → ssh_readonly 不参与）
- * 2. 对可用工具做意图关键词匹配；命中 ≥1 个 → 只挂命中集合（省 token）
- * 3. 无任何命中 → 保守挂载全部可用工具（模型自行按需调用，避免漏挂答不了）
+ * 2. **所有可用工具全部挂载**，由模型按需调用。
+ *
+ * 为什么不按关键词裁剪：关键词表只能猜中"用户这句话像哪类意图"，
+ * 一旦猜中就把其余工具全藏起来，模型再想查知识库/教程也没有入口——
+ * "看一下系统环境"命中诊断关键词后，kb_search / tutorial_search / memory_recall
+ * 全部消失，模型于是只能说"我什么都没做"。工具目录与路由理由仍然是这张卡片的价值：
+ * 用户能看到这一轮挂了什么、为什么；裁不裁交给模型自己决定。
  */
 export function routeChatTools(
   userText: string,
@@ -188,20 +193,19 @@ export function routeChatTools(
   const matched = text
     ? available.filter((e) => e.intentPatterns.some((p) => p.test(text)))
     : []
-
-  const selected = matched.length > 0 ? matched : available
   const fallbackAll = matched.length === 0
 
-  const reason = fallbackAll
-    ? `未识别到明确意图，挂载全部 ${selected.length} 个可用工具，由模型按需调用`
-    : `识别到意图【${matched.map((e) => e.intent).join('、')}】，按需挂载 ${selected.length} 个工具`
+  const intentNote = fallbackAll
+    ? '未识别到明确意图'
+    : `识别到意图【${matched.map((e) => e.intent).join('、')}】`
+  const reason = `${intentNote}，挂载全部 ${available.length} 个可用工具，由模型按需调用`
 
   return {
-    mounted: selected.map((e) => e.id),
+    mounted: available.map((e) => e.id),
     intents: matched.map((e) => e.intent),
     reason,
     fallbackAll,
-    promptHints: selected.map((e) => e.promptHint).join(''),
+    promptHints: available.map((e) => e.promptHint).join(''),
     unavailable,
   }
 }

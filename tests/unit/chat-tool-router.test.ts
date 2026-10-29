@@ -1,11 +1,11 @@
 /**
- * chat-tool-router 单元测试（v2.6 意图路由：按需挂载主对话工具）
+ * chat-tool-router 单元测试（意图识别 + 全量挂载主对话工具）
  *
  * 覆盖：
- * - 意图命中 → 只挂命中子集
- * - 无命中 → 兜底全量挂载
- * - 依赖过滤（SSH 未连接 → ssh_readonly 不参与且记入 unavailable）
- * - promptHints 只包含挂载工具的提示片段
+ * - 意图命中仍挂全部可用工具（2026-10-29：不再按关键词裁剪工具集）
+ * - 无命中 → 同样全量挂载
+ * - 依赖过滤（SSH 未连接 → SSH 类工具不参与且记入 unavailable）
+ * - promptHints 覆盖全部可用工具
  */
 import { describe, it, expect } from 'vitest'
 import {
@@ -23,16 +23,18 @@ describe('chat-tool-router 意图路由', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('系统诊断意图 → 只挂 ssh_readonly', () => {
+  it('系统诊断意图 → 仍挂全部可用工具（模型按需调用）', () => {
     const r = routeChatTools('帮我看下磁盘使用率和内存占用', ALL)
-    expect(r.mounted).toEqual(['ssh_readonly'])
-    expect(r.fallbackAll).toBe(false)
+    expect(r.mounted).toHaveLength(7)
+    expect(r.mounted).toContain('ssh_readonly')
     expect(r.intents).toContain('系统诊断/状态查询')
+    expect(r.fallbackAll).toBe(false)
   })
 
-  it('学习/配置意图 → 挂 tutorial_search', () => {
+  it('学习/配置意图 → 挂 tutorial_search 且不隐藏其它工具', () => {
     const r = routeChatTools('给我找个 nginx 反向代理怎么配置的教程', ALL)
     expect(r.mounted).toContain('tutorial_search')
+    expect(r.mounted).toHaveLength(7)
     expect(r.fallbackAll).toBe(false)
   })
 
@@ -41,9 +43,10 @@ describe('chat-tool-router 意图路由', () => {
     expect(r.mounted).toContain('kb_search')
   })
 
-  it('多意图同时命中 → 挂并集', () => {
+  it('多意图同时命中 → 工具集合仍是全部', () => {
     const r = routeChatTools('查看 nginx 服务状态，顺便找找以前类似案例', ALL)
     expect(r.mounted).toEqual(expect.arrayContaining(['ssh_readonly', 'kb_search']))
+    expect(r.mounted).toHaveLength(7)
   })
 
   it('无明确意图 → 兜底全量挂载', () => {
@@ -59,7 +62,7 @@ describe('chat-tool-router 意图路由', () => {
     expect(r.mounted).toHaveLength(7)
   })
 
-  it('SSH 未连接 → ssh_readonly 不挂载并记入 unavailable', () => {
+  it('SSH 未连接 → SSH 类工具不挂载并记入 unavailable', () => {
     const r = routeChatTools('帮我看下磁盘使用率', { ssh: false, db: true })
     expect(r.mounted).not.toContain('ssh_readonly')
     expect(r.unavailable).toEqual([
@@ -68,15 +71,15 @@ describe('chat-tool-router 意图路由', () => {
       expect.objectContaining({ id: 'ssh_journal_follow', missing: 'SSH 未连接' }),
       expect.objectContaining({ id: 'sftp_read', missing: 'SSH 未连接' }),
     ])
-    // 诊断意图命不中可用工具 → 兜底挂载其余可用工具（v2.9 仅剩 db 类）
+    // 只挂剩下的 db 类工具
     expect(r.mounted).toEqual(['kb_search', 'tutorial_search', 'memory_recall'])
   })
 
-  it('promptHints 只包含挂载工具的提示片段', () => {
+  it('promptHints 覆盖全部可用工具（不再随意图裁剪）', () => {
     const r = routeChatTools('帮我看下磁盘使用率和内存占用', ALL)
     expect(r.promptHints).toContain('ssh_readonly')
-    expect(r.promptHints).not.toContain('tutorial_search')
-    expect(r.promptHints).not.toContain('kb_search')
+    expect(r.promptHints).toContain('tutorial_search')
+    expect(r.promptHints).toContain('kb_search')
   })
 
   it('超长输入被截断但不抛错', () => {
