@@ -118,6 +118,7 @@ import { evaluateCommand, isStrictlyReadonly } from '../command-gate'
 import { withCallbackStreamTrace } from '../../services/observability/langfuse-trace'
 import { DatabaseManager } from '../../services/db/database'
 import { KnowledgeRepository } from '../../services/db/knowledge-repo'
+import { recordAutoDecision } from '../../services/decisions/auto-record'
 import { searchKnowledge } from '../../services/knowledge/kb-search'
 // v2.8 长期记忆：仓储 + 自动提取（对话结束 fire-and-forget）+ 工具失败教训沉淀
 import { MemoryRepository } from '../../services/db/memory-repo'
@@ -230,8 +231,16 @@ export interface PaorStepResult {
 export interface PlanObject {
   /** 任务目标 */
   goal: string
-  /** 有序步骤列表（每条建议为可执行命令或操作描述） */
+  /** 有序步骤列表（给人看的描述） */
   steps: string[]
+  /**
+   * 与 steps 一一对应的可执行命令。
+   *
+   * 以前这里只有 steps，Act 直接把“确认当前用户身份：执行 whoami 和 id”这种中文描述
+   * 当 shell 命令发出去，远端回 exit 127（command not found），整轮循环全是失败。
+   * 现在计划阶段必须同时给出命令；旧格式（steps 里就是命令）仍然兼容。
+   */
+  commands: string[]
   /** 风险点列表 */
   risks: string[]
   /** 验证方法（如何确认任务成功） */
@@ -732,13 +741,14 @@ class SupervisorAgent {
                         toolCallId: streamCallId,
                         phase: 'output',
                         toolName: 'ssh_readonly',
-                        output: `[前置检查] ✓ ${pre.checked.join('、')} 均可用\n`,
+                        output: `[前置检查] ${pre.checked.join('、')} 均可用\n`,
                       })
                     }
                     // v2.6 流式输出：每收到一块 stdout/stderr 立即经 onToolEvent 推到前端
                     //（phase='output'，与 stream 的 call/result 共用 toolCallId 配对），
                     // 总量超 12000 字符后停止推送（累积结果仍完整，result 阶段另行截断）
                     let streamedChars = 0
+                    const execStartedAt = Date.now()
                     const r = await SshConnectionManager.getInstance().exec(
                       sshSessionId,
                       command,
@@ -764,6 +774,16 @@ class SupervisorAgent {
                       // 最长要等满命令超时（可配到 600 秒）
                       { signal: execOpts?.abortSignal },
                     )
+                    recordAutoDecision({
+                      command,
+                      exitCode: r.exitCode,
+                      output: [r.stdout, r.stderr].filter(Boolean).join('\n'),
+                      problem: lastUserText,
+                      source: 'chat_readonly',
+                      sessionId: sshSessionId,
+                      serverId: SshConnectionManager.getInstance().getSessionServerId(sshSessionId),
+                      durationMs: Date.now() - execStartedAt,
+                    })
                     return {
                       ok: r.exitCode === 0,
                       exitCode: r.exitCode,
@@ -826,6 +846,7 @@ class SupervisorAgent {
                   }
                   try {
                     let streamedChars = 0
+                    const execStartedAt = Date.now()
                     const r = await SshConnectionManager.getInstance().exec(
                       sshSessionId,
                       command,
@@ -839,6 +860,16 @@ class SupervisorAgent {
                         : undefined,
                       { signal: execOpts?.abortSignal },
                     )
+                    recordAutoDecision({
+                      command,
+                      exitCode: r.exitCode,
+                      output: [r.stdout, r.stderr].filter(Boolean).join('\n'),
+                      problem: lastUserText,
+                      source: 'chat_write',
+                      sessionId: sshSessionId,
+                      serverId: SshConnectionManager.getInstance().getSessionServerId(sshSessionId),
+                      durationMs: Date.now() - execStartedAt,
+                    })
                     return {
                       ok: r.exitCode === 0,
                       exitCode: r.exitCode,
@@ -1786,13 +1817,16 @@ class SupervisorAgent {
     const fallback: PlanObject = {
       goal: task,
       steps: [task],
+      commands: [],
       risks: ['未进行 LLM 风险评估'],
       verification: '人工确认执行结果',
     }
     const systemPrompt =
       '你是一位资深 Linux 运维工程师。分析以下运维任务，输出结构化执行计划：' +
       '1.目标 2.步骤列表 3.风险点 4.验证方法。' +
-      '只返回 JSON，格式：{"goal":"...","steps":["..."],"risks":["..."],"verification":"..."}'
+      '每一步必须同时给出给人看的描述（desc）和一条能直接在 Linux 上执行的 shell 命令（command）。' +
+      '命令要能在非交互式 SSH 下跑完：需要分页的加 --no-pager，top 用 -bn1，ping 带 -c。' +
+      '只返回 JSON，格式：{"goal":"...","steps":[{"desc":"...","command":"..."}],"risks":["..."],"verification":"..."}'
     const text = await this.callLlm(systemPrompt, task, 1024)
     const parsed = this.parsePlanJson(text)
     if (!parsed) {
@@ -1804,18 +1838,35 @@ class SupervisorAgent {
   }
 
   /**
+   * 把"这一步要做什么"翻译成一条可直接执行的命令
+   *
+   * 计划里只给了描述（旧格式 / 模型漏给 command）时用这条兜底：
+   * 宁可多花一次小请求，也不能把中文描述当命令发给远端 —— 那只会拿到 exit 127。
+   */
+  protected async deriveCommand(stepDesc: string, task: string): Promise<string> {
+    const text = await this.callLlm(
+      '你是 Linux 运维工程师。把给定步骤翻译成一条可以直接在 Linux 上执行的只读 shell 命令。' +
+        '只返回 JSON：{"command":"..."}；无法转成命令时返回 {"command":""}。',
+      `任务：${task}\n步骤：${stepDesc}`,
+      256
+    )
+    const obj = this.extractJson(text)
+    const command = obj && typeof obj.command === 'string' ? obj.command.trim() : ''
+    return command
+  }
+
+  /**
    * Act 阶段：通过 SSH 执行计划中指定步骤
    *
    * 选取指定索引的步骤，经 SshConnectionManager 执行，记录 token 统计。
    * 无可用 SSH 会话或执行异常时优雅返回 success=false。
    *
-   * @param plan 计划对象（steps 中对应索引作为待执行命令）
+   * @param command 待执行命令（由 Plan 的 commands[i] 或 deriveCommand 给出，绝不再是自然语言步骤描述）
    * @param sessionId SSH 会话 ID
    * @param stepIndex 待执行步骤索引（默认 0，PAOR 循环中递增）
    * @returns 单步执行结果
    */
-  protected async act(plan: PlanObject, sessionId: string, stepIndex = 0): Promise<ActResult> {
-    const command = plan.steps[stepIndex] ?? ''
+  protected async act(command: string, sessionId: string, stepIndex = 0): Promise<ActResult> {
     this.log.info('[PAOR] Act 阶段开始', { sessionId, stepIndex, command })
     if (!command) {
       return { stepIndex, command, output: '计划中没有可执行步骤', success: false }
@@ -1949,14 +2000,26 @@ class SupervisorAgent {
    */
   async runPaorLoop(task: string, sessionId: string, options: PaorLoopOptions = {}): Promise<PaorLoopResult> {
     const startTime = Date.now()
-    const maxIterations = options.maxIterations ?? 5
+    const requestedIterations = options.maxIterations ?? 5
     const maxRetries = options.maxRetriesPerStep ?? 1
     const maxReplans = options.maxReplans ?? 0
 
     // ── Phase 1: Plan ──
     const { plan, confidence } = await this.plan(task)
     let currentPlan = plan
-    this.log.info('[PAOR-Loop] 计划已生成', { goal: currentPlan.goal, steps: currentPlan.steps.length, confidence })
+    // 迭代预算至少够"每一遍都重试一次"：界面默认传 5，而计划常常有 8-10 步，
+    // 用户看到的是前几步跑完、剩下全停在"待执行"，结论是"任务没法完成就结束了"。
+    // 用户给的值当下限，真预算取两者较大值（上限 40 防跑飞）。
+    const maxIterations = Math.min(
+      40,
+      Math.max(requestedIterations, currentPlan.steps.length * (maxRetries + 1)),
+    )
+    this.log.info('[PAOR-Loop] 计划已生成', {
+      goal: currentPlan.goal,
+      steps: currentPlan.steps.length,
+      confidence,
+      iterationBudget: maxIterations,
+    })
     // v2.11：计划就绪立即推送（第一步执行前），前端先渲染任务步骤卡
     options.onPlan?.(currentPlan, confidence)
 
@@ -1972,7 +2035,31 @@ class SupervisorAgent {
     while (shouldContinueLoop(graphState, iterationNum, maxIterations) && !aborted) {
       iterationNum++
       const stepIndex = graphState.stepIndex
-      const command = currentPlan.steps[stepIndex] ?? ''
+      const stepDesc = currentPlan.steps[stepIndex] ?? ''
+      // 命令来源：计划里给的 command 优先；没有就把描述交给模型翻译成命令。
+      // 以前这里直接把 steps[stepIndex] 当命令执行，于是“确认当前用户身份：执行 whoami 和 id”
+      // 整句中文被发给远端 → 每步 exit 127 → 五轮迭代全在失败，任务当然完不成。
+      let command = (currentPlan.commands[stepIndex] ?? '').trim()
+      if (!command && stepDesc) {
+        command = await this.deriveCommand(stepDesc, currentPlan.goal)
+        if (command) {
+          currentPlan.commands[stepIndex] = command
+        }
+      }
+      if (!command) {
+        const iteration: PaorIteration = {
+          iteration: iterationNum,
+          stepIndex,
+          act: { stepIndex, command: stepDesc, output: '这一步没有可执行的命令，跳过', success: false },
+          observe: { status: 'failed', observations: [`步骤「${stepDesc}」没有给出可执行命令`], needsRetry: false },
+          reflect: { decision: 'continue', reasoning: '无法执行的步骤直接跳过，继续后续步骤' },
+        }
+        iterations.push(iteration)
+        options.onIteration?.(iteration)
+        this.log.warn('[PAOR-Loop] 步骤缺可执行命令，跳过', { stepIndex, stepDesc })
+        graphState = routeRiskRejected(graphState).state
+        continue
+      }
 
       // 风险闸门（Hard Constraint 4）：block 级无条件拒绝，HIGH/CRITICAL 需人工审批。
       // block 判定权在 command-gate（唯一权威），risk-engine 只供审批卡片上的级别文案。
@@ -2012,7 +2099,18 @@ class SupervisorAgent {
       }
 
       // Act
-      const actResult = await this.act(currentPlan, sessionId, stepIndex)
+      const actStartedAt = Date.now()
+      const actResult = await this.act(command, sessionId, stepIndex)
+      recordAutoDecision({
+        command: actResult.command,
+        exitCode: actResult.success ? 0 : 1,
+        output: actResult.output,
+        problem: currentPlan.goal,
+        source: 'paor',
+        sessionId,
+        serverId: SshConnectionManager.getInstance().getSessionServerId(sessionId),
+        durationMs: Date.now() - actStartedAt,
+      })
 
       // Observe
       const observeResult = await this.observe(actResult)
@@ -2109,16 +2207,44 @@ class SupervisorAgent {
 
   /**
    * 解析 Plan 阶段 LLM 输出的 JSON（容错：支持 markdown 代码块包裹）
+   *
+   * steps 支持两种形状：
+   *   - `{desc, command}`（现行提示词要求的形状）
+   *   - 纯字符串（旧格式：约定这串本身就是命令）
    */
   private parsePlanJson(text: string): PlanObject | null {
     const obj = this.extractJson(text)
     if (!obj) return null
     const goal = typeof obj.goal === 'string' ? obj.goal : ''
-    const steps = Array.isArray(obj.steps) ? obj.steps.filter((s): s is string => typeof s === 'string') : []
+    const rawSteps = Array.isArray(obj.steps) ? obj.steps : []
+    const steps: string[] = []
+    const commands: string[] = []
+    for (const item of rawSteps) {
+      if (typeof item === 'string') {
+        steps.push(item)
+        // 旧格式里这串要么是命令要么是描述，含中文的一律当描述、留给 deriveCommand
+        commands.push(/[\u4e00-\u9fff]/.test(item) ? '' : item.trim())
+        continue
+      }
+      if (item && typeof item === 'object') {
+        const rec = item as Record<string, unknown>
+        const desc =
+          typeof rec.desc === 'string' ? rec.desc
+          : typeof rec.description === 'string' ? rec.description
+          : typeof rec.step === 'string' ? rec.step
+          : typeof rec.command === 'string' ? rec.command
+          : ''
+        const command = typeof rec.command === 'string' ? rec.command.trim() : ''
+        if (!desc && !command) continue
+        steps.push(desc || command)
+        commands.push(command)
+      }
+    }
     if (!goal || steps.length === 0) return null
     return {
       goal,
       steps,
+      commands,
       risks: Array.isArray(obj.risks) ? obj.risks.filter((r): r is string => typeof r === 'string') : [],
       verification: typeof obj.verification === 'string' ? obj.verification : '人工确认执行结果',
     }

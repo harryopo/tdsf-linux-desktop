@@ -50,6 +50,8 @@ vi.mock('../../src/main/services/ssh/connection-manager', () => ({
   SshConnectionManager: {
     getInstance: () => ({
       getConnectionState: () => 'connected',
+      // 决策卡记服务器归属用；本测试不关心，给 null
+      getSessionServerId: () => null,
       exec: (...args: unknown[]) => mockExec(...args),
     }),
   },
@@ -208,7 +210,7 @@ describe('PAOR 自动循环编排（runPaorLoop）', () => {
     expect(mockExec).toHaveBeenCalledWith('session-1', 'rm -rf /tmp/cache')
   })
 
-  it('maxIterations 上限保护，防止无限循环', async () => {
+  it('用户给的 maxIterations 是下限：计划 6 步、给 2 也不许只跑 2 轮就收工', async () => {
     mockGenerateText.mockResolvedValue(
       planResponse(JSON.stringify({ goal: 'test', steps: ['s1', 's2', 's3', 's4', 's5', 's6'], risks: [], verification: 'v' })
     ))
@@ -216,8 +218,21 @@ describe('PAOR 自动循环编排（runPaorLoop）', () => {
     const supervisor = getSupervisor()
     const result = await supervisor.runPaorLoop('test', 'session-1', { maxIterations: 2 })
 
-    // 只执行 2 轮就停止
-    expect(result.iterations).toHaveLength(2)
+    // 预算抬到 6×(1+1)=12：六步都跑完，任务真正结束
+    expect(result.iterations).toHaveLength(6)
+    expect(result.status).toBe('done')
+  })
+
+  it('迭代预算有硬上限 40，超长计划也会停（防跑飞）', async () => {
+    const steps = Array.from({ length: 50 }, (_, i) => `s${i}`)
+    mockGenerateText.mockResolvedValue(
+      planResponse(JSON.stringify({ goal: 'test', steps, risks: [], verification: 'v' }))
+    )
+
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('test', 'session-1', { maxIterations: 5 })
+
+    expect(result.iterations).toHaveLength(40)
     expect(result.status).toBe('max_iterations')
   })
 
@@ -263,5 +278,104 @@ describe('PAOR 自动循环编排（runPaorLoop）', () => {
     }
     expect(result.durationMs).toBeGreaterThanOrEqual(0)
     expect(result.summary.length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * 2026-10-29 真机事故：计划里的步骤是中文描述（"确认当前用户身份：执行 whoami 和 id"），
+ * Act 却把它整句当 shell 命令发出去 → 远端 exit 127 → 五轮迭代全失败 → "任务没法完成就结束了"。
+ * 这组判据锁死三件事：有 command 就用 command；只有描述就要先翻译再执行；翻不出来就跳过，绝不拿描述当命令。
+ */
+describe('PAOR 计划步骤 → 可执行命令', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetSupervisor()
+    mockExec.mockResolvedValue({ exitCode: 0, stdout: 'ok', stderr: '' })
+  })
+
+  it('steps 给 {desc, command} 时执行 command，不执行描述', async () => {
+    mockGenerateText.mockResolvedValue(
+      planResponse(
+        JSON.stringify({
+          goal: '看系统版本',
+          steps: [{ desc: '查看操作系统发行版', command: 'cat /etc/os-release' }],
+          risks: [],
+          verification: 'v',
+        }),
+      ),
+    )
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('看系统版本', 'session-1')
+
+    expect(result.status).toBe('done')
+    expect(mockExec).toHaveBeenCalledTimes(1)
+    expect(mockExec).toHaveBeenCalledWith('session-1', 'cat /etc/os-release')
+  })
+
+  it('只有中文描述时先让模型翻译成命令再执行', async () => {
+    mockGenerateText
+      .mockResolvedValueOnce(
+        planResponse(
+          JSON.stringify({
+            goal: '看负载',
+            steps: [{ desc: '查看系统负载', command: '' }],
+            risks: [],
+            verification: 'v',
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(planResponse('{"command":"cat /proc/loadavg"}'))
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('看负载', 'session-1')
+
+    expect(result.status).toBe('done')
+    expect(mockExec).toHaveBeenCalledWith('session-1', 'cat /proc/loadavg')
+  })
+
+  it('翻译不出命令时跳过该步（不拿中文描述去远端换 127）', async () => {
+    mockGenerateText
+      .mockResolvedValueOnce(
+        planResponse(
+          JSON.stringify({
+            goal: '闲聊',
+            steps: [{ desc: '和用户确认下一步', command: '' }],
+            risks: [],
+            verification: 'v',
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(planResponse('{"command":""}'))
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('闲聊', 'session-1')
+
+    expect(mockExec).not.toHaveBeenCalled()
+    expect(result.iterations[0].act.success).toBe(false)
+    expect(result.iterations[0].observe.observations.join('')).toContain('没有给出可执行命令')
+  })
+
+  it('旧格式 steps 是纯命令字符串时照旧直接执行（向后兼容）', async () => {
+    mockGenerateText.mockResolvedValue(
+      planResponse(JSON.stringify({ goal: 'g', steps: ['df -h', 'free -m'], risks: [], verification: 'v' })),
+    )
+    const supervisor = getSupervisor()
+    await supervisor.runPaorLoop('g', 'session-1')
+
+    expect(mockExec).toHaveBeenCalledTimes(2)
+    expect(mockExec).toHaveBeenNthCalledWith(1, 'session-1', 'df -h')
+    expect(mockExec).toHaveBeenNthCalledWith(2, 'session-1', 'free -m')
+  })
+
+  it('计划比迭代上限长时，预算抬到"每步都够跑一遍"，任务能跑完', async () => {
+    // 用户实测的场景：默认 maxIterations=5，计划 10 步 → 只跑了 5 轮就结束。
+    const steps = Array.from({ length: 10 }, (_, i) => `cmd-${i}`)
+    mockGenerateText.mockResolvedValue(
+      planResponse(JSON.stringify({ goal: 'g', steps, risks: [], verification: 'v' })),
+    )
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('g', 'session-1', { maxIterations: 5 })
+
+    expect(result.status).toBe('done')
+    expect(result.iterations).toHaveLength(10)
+    expect(mockExec).toHaveBeenCalledTimes(10)
   })
 })

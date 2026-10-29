@@ -807,6 +807,17 @@ export class SshConnectionManager {
   }
 
   /**
+   * 会话属于哪台已保存服务器（决策卡按服务器筛选要用）
+   *
+   * @param sessionId 会话 ID
+   * @returns 服务器 id；会话不存在或本地终端这类无服务器会话返回 null
+   */
+  public getSessionServerId(sessionId: string): string | null {
+    const entry = this.sessions.get(sessionId)
+    return entry ? entry.config.id ?? null : null
+  }
+
+  /**
    * 获取会话对应的 ssh2 Client（供 SftpManager 等内部模块使用）
    *
    * @internal 只允许用于 SFTP 子系统与流式订阅；**不要用返回的 Client 直接 exec 命令**，
