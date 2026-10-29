@@ -62,6 +62,11 @@ export interface AiFixtureHandle {
    * 传 null 收回安排，回到只回文本的老行为。
    */
   planToolCall(next: PlannedToolCall | null): void
+  /**
+   * 安排"下一次只回一个空内容就结束"（模拟内容过滤 / max_tokens 太小）。
+   * 不带任何 content 增量，也不带工具调用——这正是线上会遇到的空回复形状。
+   */
+  planEmptyReply(on: boolean): void
   close(): Promise<void>
 }
 
@@ -143,6 +148,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
   let requests = 0
   const lastPerRole = new Map<FixtureMessageRole, string>()
   let planned: PlannedToolCall | null = null
+  let plannedEmpty = false
   let lastReq: { maxTokens: number | undefined; toolCount: number; messageCount: number } = {
     maxTokens: undefined,
     toolCount: 0,
@@ -200,6 +206,15 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         return
       }
 
+      if (plannedEmpty) {
+        plannedEmpty = false
+        // 只给一个 finish_reason=stop、delta 为空的分片：正文一个字都没有
+        res.write(chunkBody(null, false, 'stop'))
+        res.write(chunkBody(null, true))
+        res.end()
+        return
+      }
+
       let i = 0
       const tick = () => {
         if (i < FIXTURE_DELTAS.length) {
@@ -226,6 +241,9 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         lastRequest: () => lastReq,
         planToolCall: (next) => {
           planned = next
+        },
+        planEmptyReply: (on) => {
+          plannedEmpty = on
         },
         close: () =>
           new Promise<void>((done) => {

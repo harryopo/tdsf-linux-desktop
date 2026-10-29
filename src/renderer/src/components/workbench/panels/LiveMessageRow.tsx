@@ -596,6 +596,19 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     )
   }
 
+  /**
+   * 完成态但一个字都没说
+   *
+   * 不能要求"没有任何工具步骤"：空回复时上游仍会留下过程步骤（界面上是「过程 N 步」），
+   * 那正是"做了事但没回答"的形状——仍然要告诉用户没有正文。
+   */
+  const isBlankReply =
+    !message.isStreaming &&
+    !message.isError &&
+    !message.cancelled &&
+    !message.reasoning &&
+    (message.content ?? '').trim().length === 0
+
   // assistant / system
   return (
     <div className="ai-msg ai-msg-assistant">
@@ -644,11 +657,21 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           )}
         </div>
       ) : null}
+      {/* 模型回了空内容就结束：以前这里什么都不画，界面留一个空气泡，还会给它挂可信度卡
+          ——等于替"什么都没说"背书（#262）。过程段（工具步骤）存在时也要说，那是"做了事但没回答"。 */}
+      {isBlankReply && (
+        <div
+          className="ai-token-row text-caption text-ink-mute"
+          data-dom-id="message-empty-reply"
+        >
+          模型没有返回内容（可能是内容过滤，或输出上限太小）。可以重试，或把问题说得更具体。
+        </div>
+      )}
       {/* 失败态：一条错误只在这里说一次（流底部那条红色横幅由 MessageList 让位给这里） */}
       {renderErrorCard()}
       {renderToolEvents()}
       {/* v2.5：完成态且有真实工具轨迹时，展示 D-S/PCR5 可信度分析折叠块 */}
-      {!message.isStreaming && !message.isError && (
+      {!message.isStreaming && !message.isError && !isBlankReply && (
         <ChatCredibility message={message} />
       )}
       {renderCommandButtons()}
