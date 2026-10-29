@@ -15,7 +15,7 @@
  * 调研依据：MCP 官方规范 https://modelcontextprotocol.io/docs/concepts/prompts
  * 方案书依据：v2.0 循环工程 Phase F.4
  *
- * ⚠️ MCP 协议约束：
+ * MCP 协议约束：
  * - GetPromptResultSchema.messages[].role 仅支持 'user' | 'assistant'（不支持 'system'）
  * - 因此本模块内部使用 McpPromptMessage（含 'system'）方便模板编写，
  *   server.ts 在序列化时会将 'system' 消息合并到第一条 'user' 消息前置。

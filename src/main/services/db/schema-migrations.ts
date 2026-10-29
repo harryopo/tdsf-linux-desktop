@@ -16,6 +16,7 @@
 
 import type { Database } from 'better-sqlite3'
 import { backfillKnowledgeContentSeg } from './knowledge-seg-backfill'
+import { stripLeadingEmoji } from '@shared/tutorial-types'
 
 /** 单项迁移定义 */
 export interface Migration {
@@ -168,6 +169,42 @@ export const MIGRATIONS: readonly Migration[] = [
         DROP TRIGGER IF EXISTS knowledge_au;
         DROP TABLE IF EXISTS knowledge_fts;
       `)
+    },
+  },
+  {
+    version: 6,
+    description: '知识库标签去掉开头的表情（标签表已改纯文字，旧库里还写着带表情的版本）',
+    up: (db) => {
+      /*
+       * 表情只许出现在 tags 里，且旧库里是「🐧 Linux 基础」这种前缀形态。
+       * 只动 tags 这一列：标题/问题/正文里原本就有表情的（用户自己写的教程笔记）一个字都不碰。
+       * 同一数组去表情后可能撞车（「🌐 网络」与「网络」），顺手去重；
+       * 纯表情标签清洗后为空，直接丢掉。解析不了的 tags 原样留着，迁移不替用户猜。
+       */
+      if (!hasColumn(db, 'knowledge_entries', 'tags')) return
+      const rows = db
+        .prepare('SELECT id, tags FROM knowledge_entries WHERE tags IS NOT NULL')
+        .all() as Array<{ id: string; tags: string }>
+      const update = db.prepare('UPDATE knowledge_entries SET tags = ? WHERE id = ?')
+
+      for (const row of rows) {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(row.tags)
+        } catch {
+          continue
+        }
+        if (!Array.isArray(parsed) || parsed.some((t) => typeof t !== 'string')) continue
+
+        const stripped = parsed.map((t: string) => stripLeadingEmoji(t)).filter((t) => t.length > 0)
+        const cleaned = Array.from(new Set(stripped))
+        if (
+          cleaned.length !== parsed.length ||
+          cleaned.some((t, i) => t !== parsed[i])
+        ) {
+          update.run(JSON.stringify(cleaned), row.id)
+        }
+      }
     },
   },
 ]

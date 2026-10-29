@@ -84,7 +84,7 @@ export const PROVIDER_CAPABILITIES: Record<ProviderType, ProviderCapabilities> =
  * 2. PROVIDER_CAPABILITIES[config.type]（默认表）→ 返回默认值
  *
  * 使用场景：
- * - UI 显示能力图标（如 🔄 streaming / 🔧 toolCall / 👁 vision / 📏 contextWindow）
+ * - UI 显示能力图标（如 streaming / toolCall / vision / contextWindow）
  * - 调用方按能力选择 Provider（如 autocomplete 需 streaming，edit 需 toolCall）
  * - 上下文压缩前检查 contextWindow，决定是否触发 compaction
  *

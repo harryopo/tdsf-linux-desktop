@@ -125,7 +125,7 @@ export class SkillRouter {
   private formatSkillReply(match: SkillMatchResult): string {
     const { skill, reason } = match
     return [
-      `## 📋 匹配到运维 Skill: ${skill.name}`,
+      `## 匹配到运维 Skill: ${skill.name}`,
       '',
       `**匹配原因**: ${reason}`,
       `**风险等级**: ${skill.riskLevel}`,

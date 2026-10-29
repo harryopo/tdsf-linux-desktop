@@ -340,7 +340,7 @@ sudo vim /etc/selinux/config
 # SELINUX=enforcing  # enforcing / permissive / disabled
 \`\`\`
 
-> ⚠️ **重要**：disabled ↔ enforcing 切换需要重启系统。
+> **重要**：disabled ↔ enforcing 切换需要重启系统。
 
 ## 2. SELinux 上下文
 
@@ -628,7 +628,7 @@ ip a
 ip route
 \`\`\`
 
-> ⚠️ **注意**：YAML 缩进必须正确，否则 netplan apply 会失败。
+> **注意**：YAML 缩进必须正确，否则 netplan apply 会失败。
 `,
     commands: [
       'ip a',
@@ -705,7 +705,7 @@ echo '<?php phpinfo(); ?>' | sudo tee /var/www/html/info.php
 
 # 浏览器访问 http://<server-ip>/info.php
 # 看到 PHP 配置页即成功
-# ⚠️ 看完后删除：
+# 看完后删除：
 sudo rm /var/www/html/info.php
 \`\`\`
 
@@ -733,7 +733,7 @@ sudo firewall-cmd --list-all
 sudo setsebool -P httpd_can_network_connect 1
 \`\`\`
 
-> 📚 完整 WordPress 安装见 [WordPress 官方文档](https://wordpress.org/documentation/)。
+> 完整 WordPress 安装见 [WordPress 官方文档](https://wordpress.org/documentation/)。
 `,
     commands: [
       'dnf install -y httpd',
@@ -844,7 +844,7 @@ sudo ufw status
 
 即可进入 WordPress 后台。
 
-> 📚 详见 [WordPress 官方安装指南](https://wordpress.org/documentation/article/how-to-install-wordpress/)。
+> 详见 [WordPress 官方安装指南](https://wordpress.org/documentation/article/how-to-install-wordpress/)。
 `,
     commands: [
       'apt install -y apache2 mysql-server php libapache2-mod-php php-mysql',

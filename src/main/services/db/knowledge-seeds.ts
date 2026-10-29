@@ -346,6 +346,6 @@ export function loadKnowledgeSeeds(db: DatabaseManager): number {
     }
   })
   insertMany(KNOWLEDGE_SEED_ENTRIES)
-  console.log(`[KnowledgeSeed] ✅ 成功加载 ${KNOWLEDGE_SEED_ENTRIES.length} 条运维知识`)
+  console.log(`[KnowledgeSeed] 成功加载 ${KNOWLEDGE_SEED_ENTRIES.length} 条运维知识`)
   return KNOWLEDGE_SEED_ENTRIES.length
 }

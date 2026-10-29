@@ -79,7 +79,7 @@ export function evaluateAlerts(
       level,
       value: rounded,
       threshold: c.threshold,
-      title: `${level === 'critical' ? '🔴 严重告警' : '⚠️ 告警'} · ${hostname}`,
+      title: `${level === 'critical' ? '严重告警' : '告警'} · ${hostname}`,
       body: `${label} ${rounded}% 超过阈值 ${c.threshold}%`,
       dedupeKey: `${c.metric}:${level}`,
     })

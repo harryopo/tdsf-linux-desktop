@@ -116,7 +116,7 @@ describe('applyMigrations — v0 老库补齐', () => {
     expect(readSchemaVersion(db)).toBe(TARGET_SCHEMA_VERSION)
   })
 
-  it('补列之后老库里的答复能读写（反馈这条功能要靠这列活着）', () => {
+  it('补列之后新列可读写（迁移不是只改了 PRAGMA）', () => {
     createV0Database(db)
     db.prepare(
       `INSERT INTO knowledge_entries (id, type, title, problem, commands, keywords, tags, successRate, useCount, createdAt, updatedAt)
@@ -125,10 +125,10 @@ describe('applyMigrations — v0 老库补齐', () => {
 
     applyMigrations(db)
 
-    db.prepare(`UPDATE knowledge_entries SET feedback = 'helpful' WHERE id = 'kb-1'`).run()
-    const row = db.prepare(`SELECT feedback, successRate FROM knowledge_entries WHERE id = 'kb-1'`)
-      .get() as { feedback: string | null; successRate: number }
-    expect(row.feedback).toBe('helpful')
+    db.prepare(`UPDATE knowledge_entries SET contentSeg = '磁盘 盘满' WHERE id = 'kb-1'`).run()
+    const row = db.prepare(`SELECT contentSeg, successRate FROM knowledge_entries WHERE id = 'kb-1'`)
+      .get() as { contentSeg: string | null; successRate: number }
+    expect(row.contentSeg).toBe('磁盘 盘满')
   })
 
   it('补列不丢已有数据', () => {
@@ -275,5 +275,84 @@ describe('applyMigrations — v4 建 chat_messages', () => {
     expect(() => insert.run('m2', 'sess-a', 'tool', 'x', 1)).toThrow()
     expect(() => insert.run('m3', 'sess-a', 'assistant', null as unknown as string, 1)).toThrow()
     expect(() => insert.run('m4', 'sess-a', 'assistant', '好的', 1)).not.toThrow()
+  })
+})
+
+describe('applyMigrations — v6 标签去表情', () => {
+  /** 往老库里塞一行知识，tags 按原样写（含旧版本的带表情标签） */
+  function insertKnowledgeRow(id: string, tags: string, title = '标题', problem = '问题'): void {
+    db.prepare(
+      `INSERT INTO knowledge_entries
+       (id, type, title, problem, commands, keywords, tags, successRate, useCount, createdAt, updatedAt)
+       VALUES (?, 'tutorial', ?, ?, '[]', '[]', ?, 0, 0, 1, 1)`
+    ).run(id, title, problem, tags)
+  }
+
+  function readRow(id: string): { tags: string; title: string; problem: string } {
+    return db
+      .prepare('SELECT tags, title, problem FROM knowledge_entries WHERE id = ?')
+      .get(id) as { tags: string; title: string; problem: string }
+  }
+
+  it('去掉 tags 开头的表情，标题与正文里的表情一个字不动', () => {
+    createV0Database(db)
+    insertKnowledgeRow(
+      'kb-emoji',
+      JSON.stringify(['🐧 Linux 基础', '🔒 安全', '⚙️ 服务管理', '🌐 网络', '🌐 Web 服务器', '📦 容器']),
+      '带 🐧 的标题',
+      '正文里也有 🐧，不许被迁移改掉'
+    )
+    writeSchemaVersion(db, 5)
+
+    const result = applyMigrations(db)
+
+    expect(result.error).toBeNull()
+    expect(result.to).toBe(TARGET_SCHEMA_VERSION)
+    const row = readRow('kb-emoji')
+    expect(JSON.parse(row.tags)).toEqual(['Linux 基础', '安全', '服务管理', '网络', 'Web 服务器', '容器'])
+    expect(row.title).toBe('带 🐧 的标题')
+    expect(row.problem).toBe('正文里也有 🐧，不许被迁移改掉')
+
+    // 再跑一次：不执行迁移，tags 与正文都不再变
+    const again = applyMigrations(db)
+    expect(again.error).toBeNull()
+    expect(again.applied).toEqual([])
+    const after = readRow('kb-emoji')
+    expect(after.tags).toBe(row.tags)
+    expect(after.problem).toBe(row.problem)
+  })
+
+  it('没有表情的标签保持原样，再跑一次幂等', () => {
+    createV0Database(db)
+    insertKnowledgeRow('kb-clean', JSON.stringify(['Nginx', '反向代理', 'Linux 基础']))
+    writeSchemaVersion(db, 5)
+
+    expect(applyMigrations(db).error).toBeNull()
+    const first = readRow('kb-clean').tags
+    expect(JSON.parse(first)).toEqual(['Nginx', '反向代理', 'Linux 基础'])
+
+    const again = applyMigrations(db)
+    expect(again.error).toBeNull()
+    expect(again.applied).toEqual([])
+    expect(readRow('kb-clean').tags).toBe(first)
+  })
+
+  it('去表情后撞车的标签只留一个，纯表情标签直接丢掉', () => {
+    createV0Database(db)
+    insertKnowledgeRow('kb-dup', JSON.stringify(['🌐 网络', '网络', '🐧', '📦 容器']))
+    writeSchemaVersion(db, 5)
+
+    expect(applyMigrations(db).error).toBeNull()
+    expect(JSON.parse(readRow('kb-dup').tags)).toEqual(['网络', '容器'])
+  })
+
+  it('解析不了的 tags 原样留着，迁移不替用户猜也不报错', () => {
+    createV0Database(db)
+    insertKnowledgeRow('kb-bad', 'not-a-json-array')
+    writeSchemaVersion(db, 5)
+
+    const result = applyMigrations(db)
+    expect(result.error).toBeNull()
+    expect(readRow('kb-bad').tags).toBe('not-a-json-array')
   })
 })

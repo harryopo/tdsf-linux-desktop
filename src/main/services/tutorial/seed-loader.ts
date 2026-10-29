@@ -75,6 +75,6 @@ export function loadTutorialSeeds(db: DatabaseManager): number {
   })
 
   insertMany(TUTORIAL_SEED_COLLECTION.entries)
-  console.log(`[TutorialSeed] ✅ 成功加载 ${TUTORIAL_SEED_COLLECTION.entries.length} 篇教程`)
+  console.log(`[TutorialSeed] 成功加载 ${TUTORIAL_SEED_COLLECTION.entries.length} 篇教程`)
   return TUTORIAL_SEED_COLLECTION.entries.length
 }

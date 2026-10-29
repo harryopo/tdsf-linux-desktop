@@ -424,7 +424,7 @@ export class SidecarManager extends EventEmitter {
       // 5. 启动定时健康检查
       this.startHealthCheck()
 
-      const readyMsg = `Sidecar ${this.config.id} 就绪 ✓`
+      const readyMsg = `Sidecar ${this.config.id} 就绪`
       logger.info(`[SidecarManager] ${readyMsg}`)
       this.forwardLog(`[SidecarManager] ${readyMsg}`, false)
     } catch (err) {

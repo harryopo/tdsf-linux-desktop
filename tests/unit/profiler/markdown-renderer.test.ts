@@ -173,10 +173,10 @@ describe('MarkdownRenderer - 头部与页脚', () => {
     expect(md).toContain('TDSF-Linux v0.4.0')
   })
 
-  it('无风险时头部显示 ✅ 无风险', () => {
+  it('无风险时头部显示"无风险"', () => {
     const result = makeResult()
     const md = renderProfilerMarkdown(result, [])
-    expect(md).toContain('✅ 无风险')
+    expect(md).toContain('无风险')
   })
 
   it('有 high 风险时头部显示高危数量', () => {
@@ -203,7 +203,7 @@ describe('MarkdownRenderer - 风险概览', () => {
   it('无风险时显示"未发现风险"', () => {
     const result = makeResult()
     const md = renderProfilerMarkdown(result, [])
-    expect(md).toContain('## 📊 风险概览')
+    expect(md).toContain('## 风险概览')
     expect(md).toContain('未发现风险')
   })
 
@@ -215,13 +215,13 @@ describe('MarkdownRenderer - 风险概览', () => {
       { level: 'info', category: '虚拟化', title: '嵌套虚拟化', description: '检测到', evidence: 'cgroup', suggestion: '监控' }
     ]
     const md = renderProfilerMarkdown(result, risks)
-    expect(md).toContain('## 📊 风险概览')
+    expect(md).toContain('## 风险概览')
     expect(md).toContain('| 等级 | 数量 |')
-    expect(md).toContain('| 🔴 严重 | 1 |')
-    expect(md).toContain('| 🟠 高 | 1 |')
-    expect(md).toContain('### 🚨 [🔴 严重] 磁盘爆满')
-    expect(md).toContain('### ⚠️ [🟠 高] Samba 暴露')
-    expect(md).toContain('### ℹ️ [🔵 提示] 嵌套虚拟化')
+    expect(md).toContain('| 严重 | 1 |')
+    expect(md).toContain('| 高 | 1 |')
+    expect(md).toContain('### [严重] 磁盘爆满')
+    expect(md).toContain('### [高] Samba 暴露')
+    expect(md).toContain('### [提示] 嵌套虚拟化')
     expect(md).toContain('**类别**：资源风险')
     expect(md).toContain('**建议**：清理日志')
   })
@@ -335,9 +335,9 @@ Swap:         2.0Gi          0B       2.0Gi`)
     const md = renderProfilerMarkdown(result, [])
     expect(md).toContain('## 七、开发工具')
     expect(md).toContain('**已安装**：2 项 | **未安装**：3 项')
-    expect(md).toContain('### ✅ 已安装')
+    expect(md).toContain('### 已安装')
     expect(md).toContain('`python3` · `curl`')
-    expect(md).toContain('### ❌ 未安装')
+    expect(md).toContain('### 未安装')
   })
 
   it('虚拟化章节：virt + cgroup', () => {

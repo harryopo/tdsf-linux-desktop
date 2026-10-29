@@ -9,7 +9,7 @@
  * 调研依据：07-开源项目调研-AIAgent生态.md Top5（8.6分）
  * 价值：让外部 Agent（Claude Code / Cursor 等）直接调用 TDSF 的能力
  *
- * ⚠️ 注意：本服务是可选的，仅在 MCP_SERVER_ENABLED=true 时启动
+ * 注意：本服务是可选的，仅在 MCP_SERVER_ENABLED=true 时启动
  */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
@@ -302,7 +302,7 @@ export class McpServerService {
    * - prompts/list：返回 MCP_PROMPTS 清单（name / description / arguments）
    * - prompts/get：根据 name（= prompt.id）调用 getPrompt() 返回消息序列
    *
-   * ⚠️ MCP 协议约束：GetPromptResultSchema.messages[].role 仅支持 'user' | 'assistant'，
+   * MCP 协议约束：GetPromptResultSchema.messages[].role 仅支持 'user' | 'assistant'，
    *   不支持 'system'。因此调用 getPrompt() 后需要适配：
    *   - 将 'system' 消息文本合并到第一条 'user' 消息前置（用分隔线隔开）
    *   - 若没有 'user' 消息，则将 'system' 内容转为单条 'user' 消息

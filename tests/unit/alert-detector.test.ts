@@ -57,10 +57,11 @@ describe('evaluateAlerts — 阈值评估', () => {
     expect(new Set(alerts.map((a) => a.metric))).toEqual(new Set(['cpu', 'memory', 'disk']))
   })
 
-  it('主机名注入通知标题；critical 用红色标记', () => {
+  it('主机名注入通知标题；critical 标题写明"严重告警"', () => {
     const alerts = evaluateAlerts(mkData({ diskUsage: 99 }), th, 'prod-db-01')
     expect(alerts[0].title).toContain('prod-db-01')
-    expect(alerts[0].title).toContain('🔴')
+    expect(alerts[0].title).toContain('严重告警')
+    expect(alerts[0].title).not.toContain('🔴')
   })
 
   it('NaN/非数值指标被跳过', () => {

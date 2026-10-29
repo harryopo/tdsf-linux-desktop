@@ -486,7 +486,7 @@ function clamp01(value: number): number {
  *     Σm' = Σ_{A≠Θ} w·m(A) + [w·m(Θ) + (1-w)]
  *         = w · [Σ_{A≠Θ} m(A) + m(Θ)] + (1-w)
  *         = w · 1 + (1-w)
- *         = 1  ✓
+ *         = 1（归一化成立）
  *
  * @param mf - 原始 Mass 函数（必须已归一化，Σm=1）
  * @param weight - 可靠性权重 w ∈ [0, 1]（超出范围会 clamp）

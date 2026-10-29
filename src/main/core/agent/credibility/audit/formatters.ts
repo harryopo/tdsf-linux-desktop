@@ -7,7 +7,6 @@
 import type {
   AuditFormat,
   ComplianceAuditReport,
-  GenaiRiskCoverage,
 } from './types'
 
 // ============================================================================
@@ -131,23 +130,23 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push('## 总体合规结论')
   lines.push('')
   const { overallCompliance } = report
-  const verdictIcon = overallCompliance.complianceScore >= 80
-    ? '✅'
+  const verdictLabel = overallCompliance.complianceScore >= 80
+    ? '达标'
     : overallCompliance.complianceScore >= 60
-    ? '⚠️'
-    : '❌'
-  lines.push(`${verdictIcon} **合规评分**: **${overallCompliance.complianceScore}/100**`)
+    ? '待改进'
+    : '不达标'
+  lines.push(`${verdictLabel} · **合规评分**: **${overallCompliance.complianceScore}/100**`)
   lines.push('')
   lines.push('| 标准 | 通过 |')
   lines.push('|------|------|')
   lines.push(
-    `| EU AI Act 2026 (高风险条款) | ${overallCompliance.euAiActCompliant ? '✅ 通过' : '❌ 不通过'} |`,
+    `| EU AI Act 2026 (高风险条款) | ${overallCompliance.euAiActCompliant ? '通过' : '不通过'} |`,
   )
   lines.push(
-    `| NIST AI RMF 1.0 | ${overallCompliance.nistAiRmfCompliant ? '✅ 通过' : '❌ 不通过'} |`,
+    `| NIST AI RMF 1.0 | ${overallCompliance.nistAiRmfCompliant ? '通过' : '不通过'} |`,
   )
   lines.push(
-    `| NIST AI 600-1 GenAI Profile | ${overallCompliance.nistAi600Compliant ? '✅ 通过' : '❌ 不通过'} |`,
+    `| NIST AI 600-1 GenAI Profile | ${overallCompliance.nistAi600Compliant ? '通过' : '不通过'} |`,
   )
   lines.push('')
   if (overallCompliance.improvementAreas.length > 0) {
@@ -191,7 +190,7 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push(`| 部署方 | ${ctx.deployer} |`)
   lines.push(`| 部署方联系 | ${ctx.deployerContact} |`)
   lines.push(`| 使用场景 | ${ctx.domain} |`)
-  lines.push(`| 高风险系统 | ${ctx.isHighRisk ? '⚠️ 是' : '否'} |`)
+  lines.push(`| 高风险系统 | ${ctx.isHighRisk ? '是' : '否'} |`)
   lines.push('')
   lines.push('**预期用途** (intended purpose, Art.13(3)(b)(i)):')
   lines.push(`> ${ctx.intendedPurpose}`)
@@ -266,7 +265,7 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push(`| 改进率 | ${(c.improvement * 100).toFixed(2)}% |`)
   lines.push(`| 样本数 | ${c.sampleCount} |`)
   lines.push(`| 校准时间 | ${c.calibratedAtIso} |`)
-  lines.push(`| 是否新鲜（< 7 天） | ${c.isCalibrationFresh ? '✅ 是' : '⚠️ 否'} |`)
+  lines.push(`| 是否新鲜（< 7 天） | ${c.isCalibrationFresh ? '是' : '否'} |`)
   if (Number.isFinite(c.daysSinceCalibration)) {
     lines.push(`| 距上次校准 | ${c.daysSinceCalibration.toFixed(1)} 天 |`)
   }
@@ -293,7 +292,7 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push(`| 审批人 | ${h.approver ?? '（未指定）'} |`)
   lines.push(`| 审批时间 | ${h.approvedAtIso ?? '（未审批）'} |`)
   lines.push(`| 审批意见 | ${h.approverComment ?? '（无）'} |`)
-  lines.push(`| 触发高危拦截 | ${h.triggeredHighRiskInterception ? '⚠️ 是' : '否'} |`)
+  lines.push(`| 触发高危拦截 | ${h.triggeredHighRiskInterception ? '是' : '否'} |`)
   lines.push(`| 拦截命令数 | ${h.interceptedCommandCount} |`)
   lines.push('')
 
@@ -310,7 +309,7 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push(`| 执行结果 | ${a.executionResult ?? '（未执行）'} |`)
   lines.push(`| 执行时间 | ${a.executedAtIso ?? '（未执行）'} |`)
   lines.push(`| 影响的资源 | ${a.affectedResources.join(', ') || '（无）'} |`)
-  lines.push(`| 可回滚 | ${a.isRollbackable ? '✅ 是' : '⚠️ 否'} |`)
+  lines.push(`| 可回滚 | ${a.isRollbackable ? '是' : '否'} |`)
   lines.push('')
 
   // ────────── 决策后果 ──────────
@@ -320,7 +319,7 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push('| 指标 | 值 |')
   lines.push('|------|-----|')
   lines.push(`| 决策状态 | ${o.decisionStatus} |`)
-  lines.push(`| 实际正确性 | ${o.wasCorrect === null ? '（未验证）' : o.wasCorrect ? '✅ 正确' : '❌ 错误'} |`)
+  lines.push(`| 实际正确性 | ${o.wasCorrect === null ? '（未验证）' : o.wasCorrect ? '正确' : '错误'} |`)
   lines.push(`| 观察准确度 | ${o.observedAccuracy === null ? '（未验证）' : (o.observedAccuracy * 100).toFixed(2) + '%'} |`)
   lines.push(`| 影响等级 | ${o.impactLevel} |`)
   lines.push(`| 后续影响 | ${o.followUpNotes ?? '（无）'} |`)
@@ -332,10 +331,9 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push('| # | 风险类别 | 评估结论 | 依据 | 控制措施 |')
   lines.push('|---|---------|---------|------|---------|')
   for (const risk of report.genaiRiskCoverage) {
-    const verdictIcon = verdictToIcon(risk.verdict)
     const controls = risk.controls.join(' / ')
     lines.push(
-      `| ${risk.riskId} | ${risk.riskName} | ${verdictIcon} ${risk.verdict} | ${risk.rationale} | ${controls} |`,
+      `| ${risk.riskId} | ${risk.riskName} | ${risk.verdict} | ${risk.rationale} | ${controls} |`,
     )
   }
   lines.push('')
@@ -385,19 +383,6 @@ export function formatAsMarkdown(report: ComplianceAuditReport): string {
   lines.push('')
 
   return lines.join('\n')
-}
-
-function verdictToIcon(verdict: GenaiRiskCoverage['verdict']): string {
-  switch (verdict) {
-    case 'mitigated':
-      return '✅'
-    case 'partially-mitigated':
-      return '⚠️'
-    case 'unmitigated':
-      return '❌'
-    case 'not-applicable':
-      return '➖'
-  }
 }
 
 // ============================================================================

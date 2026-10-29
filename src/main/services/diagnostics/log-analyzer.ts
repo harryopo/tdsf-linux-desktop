@@ -303,15 +303,15 @@ export class LogAnalyzer {
     bySeverity: Record<Severity, number>
   ): string {
     if (healthy && totalFindings === 0) {
-      return '✅ 日志检测健康：未发现任何问题'
+      return '日志检测健康：未发现任何问题'
     }
     if (healthy) {
-      return `⚠️ 检测到 ${totalFindings} 个非严重问题（warning/info）`
+      return `检测到 ${totalFindings} 个非严重问题（warning/info）`
     }
     const parts: string[] = []
     if (bySeverity.critical > 0) parts.push(`${bySeverity.critical} 个严重问题`)
     if (bySeverity.error > 0) parts.push(`${bySeverity.error} 个错误`)
     if (bySeverity.warning > 0) parts.push(`${bySeverity.warning} 个警告`)
-    return `❌ 检测到问题：${parts.join('，')}（共 ${totalFindings} 项）`
+    return `检测到问题：${parts.join('，')}（共 ${totalFindings} 项）`
   }
 }

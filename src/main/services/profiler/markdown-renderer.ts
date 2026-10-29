@@ -6,7 +6,7 @@
  * 报告结构（参考方案书 v8.0 板块 A.4 样式规范）：
  *   # 系统架构感知报告 — {host}
  *   > 元信息行
- *   ## 📊 风险概览
+ *   ## 风险概览
  *     风险摘要表 + 风险详情
  *   ## 一、系统标识
  *     命令输出 + 解析表
@@ -18,8 +18,8 @@
  *
  * 特性：
  *   - 层级清晰：H1 报告 → H2 章节 → H3 命令 → 表格/代码块
- *   - 风险高亮：> ⚠️ blockquote 标注
- *   - TDSF 提示：> 💡 友好提示
+ *   - 风险高亮：> blockquote 标注
+ *   - TDSF 提示：> 友好提示
  *   - 输出内容 UTF-8，可直接 markdown-pdf 转 PDF
  *   - 失败项不阻塞，会标注 [失败原因]
  */
@@ -39,20 +39,11 @@ import { redactSecrets } from '../../core/agent/providers/redact'
 
 /** 风险等级中文标签 */
 const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
-  critical: '🔴 严重',
-  high: '🟠 高',
-  medium: '🟡 中',
-  low: '🟢 低',
-  info: '🔵 提示'
-}
-
-/** 风险等级对应 blockquote emoji */
-const RISK_LEVEL_QUOTES: Record<RiskLevel, string> = {
-  critical: '🚨',
-  high: '⚠️',
-  medium: '⚠️',
-  low: '💡',
-  info: 'ℹ️'
+  critical: '严重',
+  high: '高',
+  medium: '中',
+  low: '低',
+  info: '提示'
 }
 
 /** 章节顺序定义（与 PROBE_CATALOG 组顺序一致） */
@@ -241,9 +232,9 @@ function parseUptime(stdout: string): { uptime: string; load: string } {
 /** 渲染风险概览章节 */
 function renderRisksSection(risks: RiskItem[]): string {
   if (risks.length === 0) {
-    return `## 📊 风险概览
+    return `## 风险概览
 
-> ✅ **未发现风险** — 系统当前状态健康，建议保持定期巡检。
+> **未发现风险** — 系统当前状态健康，建议保持定期巡检。
 `
   }
 
@@ -252,7 +243,7 @@ function renderRisksSection(risks: RiskItem[]): string {
   for (const r of risks) counts[r.level]++
 
   const lines: string[] = []
-  lines.push('## 📊 风险概览')
+  lines.push('## 风险概览')
   lines.push('')
   lines.push('| 等级 | 数量 |')
   lines.push('|------|------|')
@@ -260,14 +251,13 @@ function renderRisksSection(risks: RiskItem[]): string {
   lines.push(`| ${RISK_LEVEL_LABELS.high} | ${counts.high} |`)
   lines.push(`| ${RISK_LEVEL_LABELS.medium} | ${counts.medium} |`)
   lines.push(`| ${RISK_LEVEL_LABELS.low} | ${counts.low} |`)
-  lines.push(`| ${RISK_LEVEL_QUOTES.info} ${RISK_LEVEL_LABELS.info} | ${counts.info} |`)
+  lines.push(`| ${RISK_LEVEL_LABELS.info} | ${counts.info} |`)
   lines.push('')
   lines.push(`**共 ${risks.length} 项风险**，按严重程度排序：`)
   lines.push('')
 
   for (const r of risks) {
-    const emoji = RISK_LEVEL_QUOTES[r.level]
-    lines.push(`### ${emoji} [${RISK_LEVEL_LABELS[r.level]}] ${r.title}`)
+    lines.push(`### [${RISK_LEVEL_LABELS[r.level]}] ${r.title}`)
     lines.push('')
     lines.push(`- **类别**：${r.category}`)
     lines.push(`- **描述**：${r.description}`)
@@ -514,7 +504,7 @@ function renderToolsSection(items: ProfilerItem[]): string {
   const tools = findByCmd(items, 'for tool in python python3 node npm java gcc g++ make git curl wget vim nano ssh rsync docker podman nginx apache2 httpd mysql mariadb psql redis-server php php-fpm; do command -v $tool >/dev/null && echo "Y $tool: $(command -v $tool)" || echo "N $tool: 未安装"; done')
 
   if (!tools) {
-    lines.push('> ⚠️ 工具检测命令未执行')
+    lines.push('> 工具检测命令未执行')
     lines.push('')
     return lines.join('\n')
   }
@@ -522,13 +512,13 @@ function renderToolsSection(items: ProfilerItem[]): string {
   lines.push(`**已安装**：${installed.length} 项 | **未安装**：${missing.length} 项`)
   lines.push('')
   if (installed.length > 0) {
-    lines.push('### ✅ 已安装')
+    lines.push('### 已安装')
     lines.push('')
     lines.push(installed.map((t) => `\`${t}\``).join(' · '))
     lines.push('')
   }
   if (missing.length > 0) {
-    lines.push('### ❌ 未安装')
+    lines.push('### 未安装')
     lines.push('')
     lines.push(missing.map((t) => `\`${t}\``).join(' · '))
     lines.push('')
@@ -607,10 +597,10 @@ function renderFooter(result: ProfilerResult): string {
   const successCount = result.items.filter((it) => it.ok).length
   return `---
 
-> 📋 **报告统计**：共 ${result.items.length} 项探查，成功 ${successCount} 项，失败 ${result.errors.length} 项
-> ⏱️ **耗时**：${duration} 秒 · **生成于**：${time}
-> 🛠️ **工具**：TDSF-Linux v0.4.0 · **数据来源**：${result.host}
-> 📝 **许可**：本报告由 TDSF-Linux 自动生成，可自由编辑和分发
+> **报告统计**：共 ${result.items.length} 项探查，成功 ${successCount} 项，失败 ${result.errors.length} 项
+> **耗时**：${duration} 秒 · **生成于**：${time}
+> **工具**：TDSF-Linux v0.4.0 · **数据来源**：${result.host}
+> **许可**：本报告由 TDSF-Linux 自动生成，可自由编辑和分发
 `
 }
 
@@ -618,8 +608,8 @@ function renderFooter(result: ProfilerResult): string {
 function renderHeader(result: ProfilerResult, risks: RiskItem[]): string {
   const time = formatTime(result.generatedAt)
   const riskSummary = risks.length === 0
-    ? '✅ 无风险'
-    : `⚠️ ${risks.length} 项风险（${risks.filter((r) => r.level === 'critical' || r.level === 'high').length} 项高危）`
+    ? '无风险'
+    : `${risks.length} 项风险（${risks.filter((r) => r.level === 'critical' || r.level === 'high').length} 项高危）`
   return `# 系统架构感知报告 — ${result.host}
 
 > **目标主机**：${result.host} · **生成时间**：${time} · **工具**：TDSF-Linux v0.4.0

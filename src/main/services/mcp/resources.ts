@@ -13,7 +13,7 @@
  * 调研依据：MCP 官方规范 https://modelcontextprotocol.io/docs/concepts/resources
  * 方案书依据：v2.0 循环工程 Phase F.4
  *
- * ⚠️ 设计要点：
+ * 设计要点：
  * - 所有数据源读取都做防御式处理（try/catch），失败时返回占位内容 + 错误说明，
  *   而不是抛异常，避免 MCP Client 因单个资源读取失败而中断会话。
  * - 不直接抛 ReadResourceNotFoundError，由 server.ts 统一处理未知 URI。
