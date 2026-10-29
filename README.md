@@ -45,7 +45,7 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 |---|---|---|
 | 结构性拦截器 | 8 | fork 炸弹、`rm -rf /`、`dd` 写块设备、重定向覆写磁盘、根级 `chmod/chown` |
 | argv 规则 | 7 | 按参数结构判，`find / -delete` 和 `find . -name x -delete` 不是一回事 |
-| 命令规则词表项 | 226 | 受保护根级路径 15、只读命令 38（+48 扩展）、拒绝动词 62、前缀跳过 3 |
+| 命令规则词表项 | 244 | 受保护根级路径 15、只读命令 38（+58 扩展）、拒绝动词 62、前缀跳过 3 |
 
 上表「数量」那一列的每个数都由 `npm run promo:check` 现场算并比对（分项由同一条命令打印），
 所以正文里不再重复写数——2026-10-19 那次就是 README 与宣传页各抄一份、同时过期没人发现。
@@ -93,7 +93,10 @@ Linux 新手第一次连上服务器，最怕的不是看不懂报错，是**不
 2236 条（`src/renderer/src/assets/dict/linux-commands-zh.json` 的 entries 计数）。
 条目由三个来源合并而成（`jaywcjlove/linux-command` MIT、`tldr-pages` CC BY 4.0、人工标注），
 **但条目里没有保留来源字段**，所以分项数只能按导入批次记账，加起来不等于 2236。
-本机反馈会真的改变条目的成功率——不是只写不读的字段。
+条目上有两个经验计数：`useCount` 由打开详情页真自增，界面上"7 次阅读"就是它。
+`successRate` 这一列还在库里，但 2026-10-29 起它再没有写入方（"有帮助/没帮助"反馈模块整删），
+所以列表徽章、详情页"匹配 X%"、侧栏置信度环与聊天摘要里那句"成功率 X%"一起撤下——
+拿着出厂常量演实测读数，比不报更糟。
 
 ## 快速开始
 
@@ -113,10 +116,16 @@ pnpm dev
 ## 质量与验证
 
 页面里每个数字都带一条能复现它的命令——不写"约""等"，也不写没有出处的统计。
-下表测量时间 **2026-10-29 11:40**：端到端读数出自 11:33–11:39 那轮全量（`npx playwright test`，rc=0，
-108 通过 / 10 跳过，5.9 分钟，JSON 报告里 `unexpected=0`、`flaky=0`；10 条按环境跳过 = 3 条要真模型 Key
-+ 2 条要一个比 `out/` 新的发布包 + 5 条要一台常备的真 SSH 靶机（密码登录那一组），11 条真靶机用例这一轮都真跑了）；
-单元与组件读数出自 11:41 那轮全量（rc=0，3652 通过 / 19 跳过，357 个测试文件）。
+下表测量时间 **2026-10-29 17:25**：端到端读数出自 17:19–17:25 那轮全量（`npx playwright test`，rc=0，
+103 通过 / 16 跳过，5.4 分钟，JSON 报告里 `unexpected=0`、`flaky=0`；16 条按环境跳过 = 3 条要真模型 Key
++ 2 条要一个比 `out/` 新的发布包 + 11 条要一台常备的真 SSH 靶机——本轮没给 `TDSF_REAL_SSHD_*`，那一组整组跳过）；
+单元与组件读数出自 16:41 那轮全量（rc=0，3706 通过 / 19 跳过，360 个测试文件）。
+**这一轮同一套端到端在前两次跑时有两条红**（`button-truth-census` 报 94 个"点了没反应"、`demo-9-steps` Step 5 撞 30 秒测试超时），
+两次单跑都是绿的；顺着 #154 那条线查下去找到的不是负载，是判据自己过时了：工作台改成常驻挂载后
+「离开工作台 = 工作台从 DOM 消失」不再成立，普查于是拿整个外壳当就绪信号、在上一页还画着的时候抓按钮。
+两处都按"就绪信号换成那一页自己的根"修掉（普查那页的 `ready` 逐页改准、Step 5 改判 hash），
+修完在空闲机器上全量 103/0 红。**这不等于 #154 结案**：那两条对同机并发仍然敏感（本轮前两次就是我在旁边跑构建与单测时红的），
+判据里 `loadAvgStart/loadAvgEnd/slowReactions/maxWaitedMs` 四个读数留着，红时先分清是负载还是按钮真死了。
 **昨天这里记的"两条没归因的间歇红"，今天判清其中一条根本不是间歇**：`mcp-external-settings` 那条判据拿 `agentChat`
 的返回值当回答正文比字符串，而那把键按契约回的是会话号（`chat_<毫秒>_<uuid>`）——带不带某个数字全看那一刻的时间戳，
 于是它一直在掷骰子（压负载重跑 8 次红 5 次，红时读到的值就是那个会话号）。同一次调查又抓到第二条恒假：拿整份请求体比
@@ -157,13 +166,13 @@ pnpm dev
 
 | 读数 | 值 | 怎么量的 |
 |---|---|---|
-| 单元与组件用例 | 3652 通过 / 19 跳过 | `npm test`（357 个测试文件，0 失败；那 19 条按环境跳过） |
-| 端到端用例 | 108 通过 / 10 跳过 | `npx playwright test`（直驱真实应用窗口；这一轮给了 `TDSF_REAL_SSHD_*`，11 条真靶机用例真跑了，剩下 10 条要真模型 Key / 比 `out/` 新的发布包 / 一台常备的真 SSH 靶机（密码登录那一组）） |
+| 单元与组件用例 | 3706 通过 / 19 跳过 | `npm test`（360 个测试文件，0 失败；那 19 条按环境跳过） |
+| 端到端用例 | 103 通过 / 16 跳过 | `npx playwright test`（直驱真实应用窗口；这一轮没起本机真靶子，16 条按环境跳过 = 3 条要真模型 Key、2 条要一个比 `out/` 新的发布包、11 条要一台真 OpenSSH 靶机——那 11 条在 2026-10-27 那轮给了 `TDSF_REAL_SSHD_*` 时真跑过） |
 | IPC 通道 | 163 | `npm run audit:ipc`（145 请求-响应 + 18 事件推送） |
 | 已登记契约的通道 | 60 | `src/shared/ipc-contract.ts`（55 invoke + 5 event） |
-| TypeScript / TSX 源文件 | 459 | `git ls-files src` 里 `.ts/.tsx` 计数 |
+| TypeScript / TSX 源文件 | 464 | `git ls-files src` 里 `.ts/.tsx` 计数 |
 | Provider 类型 | 6 | `provider-factory.ts` 的 switch 分支数，`npm run promo:check` 现场算 |
-| 命令规则词表项 | 226 | `npm run promo:check` 现场算 |
+| 命令规则词表项 | 244 | `npm run promo:check` 现场算 |
 
 门禁链（每一道都是能跑红的闸，不是提醒）：
 
@@ -252,7 +261,7 @@ Electron 安全三原则全部为硬约束：`contextIsolation: true` / `nodeInt
 ## English
 
 TDSF-Linux Desktop is an Electron desktop tool that makes the first SSH session survivable:
-a three-layer command risk gate (8 structural detectors, 7 argv rules, 226 vocabulary entries),
+a three-layer command risk gate (8 structural detectors, 7 argv rules, 244 vocabulary entries),
 AI assistance whose every answer carries an explicit credibility score with the evidence behind it,
 and a full audit trail of what was allowed and why.
 
