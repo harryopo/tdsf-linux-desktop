@@ -47,11 +47,11 @@ describe('ModelSettings — 模型配置页冒烟', () => {
     expect(screen.getByText(section!.desc)).toBeInTheDocument()
   })
 
-  it('2. API Key 为空时给出下一步指引，且不替用户选服务商', () => {
+  it('2. API 密钥为空时给出下一步指引，且不替用户选服务商', () => {
     renderPage()
-    const hint = screen.getByText(/还没填 Key/)
+    const hint = screen.getByText(/还没填 API 密钥/)
     expect(hint).toBeInTheDocument()
-    // 指引必须真的说清两件事：去哪儿拿 Key、拿到之后点哪个按钮
+    // 指引必须真的说清两件事：去哪儿拿密钥、拿到之后点哪个按钮
     expect(hint.textContent).toContain('服务商控制台')
     expect(hint.textContent).toContain('测试连接')
     // 引导文案不再硬编码某家服务商的申请链接（旧版写死 platform.deepseek.com）
@@ -60,8 +60,8 @@ describe('ModelSettings — 模型配置页冒烟', () => {
 
   it('3. 主要 Section 骨架均渲染（配置/接入/预算）', () => {
     renderPage()
-    // Section 标题按设计稿文案断言（实际文案无空格："API接入与测试"）
-    expect(screen.getByText('API接入与测试')).toBeInTheDocument()
+    // Section 标题按新文案断言（中文化后带空格："API 接入与测试"）
+    expect(screen.getByText('API 接入与测试')).toBeInTheDocument()
     expect(screen.getByText('预算与告警')).toBeInTheDocument()
     // ActionBar 三个操作按钮
     expect(screen.getByRole('button', { name: /恢复默认/ })).toBeInTheDocument()
@@ -73,5 +73,31 @@ describe('ModelSettings — 模型配置页冒烟', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: /恢复默认/ }))
     expect(screen.getByText('已恢复默认参数（尚未保存）')).toBeInTheDocument()
+  })
+
+  it('5. 顶部「当前生效」只读主进程状态，不拿表单草稿冒充', () => {
+    renderPage()
+    const status = screen.getByRole('status', { name: '当前生效的模型' })
+    expect(status.textContent).toContain('当前生效：')
+    // 无 electronAPI 时没有 provider:list 结果，必须如实说"没读到"，而不是编一个模型名
+    expect(status.textContent).toContain('未读取到主进程的服务商配置')
+  })
+
+  it('6. 高级设置默认收起；展开后温度是数字输入，不是拖动滑块', () => {
+    renderPage()
+    // 默认收起：温度、上下文窗口等都不在文档里
+    expect(screen.queryByLabelText('温度')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('上下文窗口 token 数')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /高级设置/ }))
+
+    const temperature = screen.getByLabelText('温度')
+    expect(temperature).toHaveAttribute('type', 'number')
+    expect(screen.getByLabelText('上下文窗口 token 数')).toBeInTheDocument()
+    // 用户明确要求"不要有拖动的进度条"：模型卡片里不许再出现 slider / range
+    const modelCard = temperature.closest('.set-card')
+    expect(modelCard).not.toBeNull()
+    expect(modelCard!.querySelector('input[type="range"]')).toBeNull()
+    expect(modelCard!.querySelector('[role="slider"]')).toBeNull()
   })
 })

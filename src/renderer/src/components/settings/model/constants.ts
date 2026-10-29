@@ -30,25 +30,20 @@ export interface TestLogLine {
   tone: 'default' | 'success' | 'error'
 }
 
-/** 温度预设按钮 */
+/**
+ * 温度预设按钮（点一下直接填进数字框，不再有可拖动滑块）
+ *
+ * 运维分析建议落在「精确/均衡」之间：值太低回答死板，太高容易编造命令。
+ */
 export const TEMP_PRESETS: TempPreset[] = [
-  { label: '保守', value: 0.1 },
-  { label: '平衡', value: 0.3 },
-  { label: '创新', value: 0.7 },
+  { label: '精确', value: 0.1 },
+  { label: '均衡', value: 0.3 },
+  { label: '发散', value: 0.7 },
 ]
 
-/**
- * 思考强度分段控件选项：取值必须与 @shared/agent-types 的
- * RequestedThinkingStrength（'auto' | 'fast' | 'standard' | 'deep'）一致。
- * 之前这里写的是 low/medium/high 三档，和运行时用的词不一样，
- * 用户在设置里选的"中"根本对应不到任何真实档位。
- */
-export const THINKING_LEVELS = [
-  { value: 'auto', label: '自动' },
-  { value: 'fast', label: '快速' },
-  { value: 'standard', label: '标准' },
-  { value: 'deep', label: '深度' },
-] as const
+// 思考档位不再放在这里：它随模型能力变化，由 thinking-capabilities.ts 的
+// resolveThinkingCapability() 按"Provider 类型 + 模型名白名单"给出可用档位，
+// 判据见 tests/unit/thinking-capabilities.test.ts。
 
 // 注：v2.3.3 起删除了 CONVERSATIONS 静态假数据。
 // 真实对话记录来自 tokenRecords IPC；无数据时显示空状态而非假数据。

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * 「清除已保存的 Key」入口（2026-10-21 发布前收口）
+ * 「清除已保存的密钥」入口（2026-10-21 发布前收口）
  *
  * 主进程一直有 storage:deleteApiKey，但界面没有入口，于是"Key 存在本机"这件事
  * 只能写不能撤。这里钉住两半：存过 Key 才出现入口；按下去真的调用删除回调。
@@ -11,6 +11,11 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { ApiTestSection } from '@renderer/components/settings/model/ApiTestSection'
 
 const BASE_PROPS = {
+  // 2026-10-29：ApiTestSection 新增服务商切换（provider:list 真值驱动）。
+  // 这组用例只量"清除已保存密钥"这一个入口，服务商列表给空即可。
+  providers: [],
+  providerId: null,
+  onProviderChange: () => {},
   endpoint: 'https://api.example.invalid/v1',
   onEndpointChange: () => {},
   apiKey: '',
@@ -26,7 +31,7 @@ const BASE_PROPS = {
   selectedModel: 'x',
 }
 
-describe('ApiTestSection 清除已保存的 Key', () => {
+describe('ApiTestSection 清除已保存的密钥', () => {
   it('存过 Key 时显示入口，点击调用删除回调', () => {
     const onDeleteSavedKey = vi.fn()
     render(
@@ -37,7 +42,7 @@ describe('ApiTestSection 清除已保存的 Key', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '清除已保存的 Key' }))
+    fireEvent.click(screen.getByRole('button', { name: '清除已保存的密钥' }))
     expect(onDeleteSavedKey).toHaveBeenCalledTimes(1)
   })
 
@@ -50,6 +55,6 @@ describe('ApiTestSection 清除已保存的 Key', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: '清除已保存的 Key' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '清除已保存的密钥' })).toBeNull()
   })
 })

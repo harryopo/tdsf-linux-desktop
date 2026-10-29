@@ -6,8 +6,8 @@
  * 设计稿：settings-model.html（1:1 迁移）
  * - Header: 与其余设置页共用 SettingsPageHeader（保存动作只在底部 ActionBar 出现一次）
  * - Section 1: KPI 统计行（Token 总量 / 成本 / 对话次数 / 成功率）→ ModelKpiBar
- * - Section 2: 模型配置（当前模型 + 可选模型列表 + 温度滑块+预设 + 思考强度分段 + 3 列数字输入）→ ModelConfigSection
- * - Section 3: API 接入与测试（Endpoint + API Key + 组织 ID + 测试连接 + 结果卡 + 日志）→ ApiTestSection
+ * - Section 2: 模型配置（当前配置的模型 + 默认收起的高级设置）→ ModelConfigSection
+ * - Section 3: API 接入与测试（服务商 + 接口地址 + API 密钥 + 测试连接 + 结果卡 + 日志）→ ApiTestSection
  * - Section 4: Token 使用统计 → TokenStatsSection（内含 TokenUsageChart）
  * - Section 5: 功能调用统计（5 条水平条形图 + 总览行）→ ToolCallSection
  * - Section 6: 对话记录（搜索 + 表格 + 分页）→ ConversationSection
@@ -21,10 +21,11 @@
  *                  ModelKpiBar 改为 grid 布局对齐设计稿 lg:grid-cols-4。
  *                  （当时一并引入了三列 ModelSettingsHeader，随 F3 删除：返回口和底部保存都是重复件）
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import type { PersistedProviderConfig } from '@shared/agent-types'
 import type { ToolCallStat, BudgetAlert } from '@shared/models'
+import { Chip } from '@/ui'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
 import { ModelKpiBar } from '@/components/settings/ModelKpiBar'
@@ -84,7 +85,21 @@ export function ModelSettings() {
   // 避免非首位 Provider 拿不到 Key、用户在 AIPanel 选的默认 Provider 被覆盖。
   const [providers, setProviders] = useState<PersistedProviderConfig[]>([])
   const [defaultProviderId, setDefaultProviderId] = useState<string | null>(null)
+  // 表单正在编辑哪一条 Provider：默认跟着主进程的默认 Provider 走，
+  // 用户在「服务商」里改选后只改这一份，保存成功才会成为默认。
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null)
+
+  // 当前生效（主进程默认 Provider）与正在编辑的那条。两者都在主进程有据可查：
+  // activeProvider 只用于页面顶部那行状态，selectedProvider 用于表单与能力判定。
+  const activeProvider =
+    providers.find((p) => p.id === defaultProviderId) ?? null
+  const selectedProvider =
+    providers.find((p) => p.id === selectedProviderId) ??
+    activeProvider ??
+    providers[0] ??
+    null
+  const selectedProviderHasKey = selectedProvider?.hasApiKey ?? hasLlmApiKey
 
   // Section 2: 模型配置
   const [selectedModel, setSelectedModel] = useState(llmConfig.model || 'deepseek-flash')
@@ -143,44 +158,55 @@ export function ModelSettings() {
   const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 加载 Provider 列表 + 默认 Provider ID（同步目标）
-  useEffect(() => {
-    const loadProviders = async () => {
-      if (!isElectronAPIAvailable()) return
+  //
+  // 这份数据是「当前生效」的唯一来源：默认 Provider 由主进程 provider:get-default 决定，
+  // 模型/地址/是否配了密钥都取自 provider:list。页面顶部那行状态不许拿本地 state 猜。
+  const loadProviders = useCallback(async () => {
+    if (!isElectronAPIAvailable()) return
+    try {
+      const list = await window.electronAPI.providerList()
+      setProviders(list)
+      // P0 修复：读真实默认 Provider ID，不再假定 providers[0] 就是默认
+      let resolvedDefaultId: string | null = null
       try {
-        const list = await window.electronAPI.providerList()
-        setProviders(list)
-        // P0 修复：读真实默认 Provider ID，不再假定 providers[0] 就是默认
-        let resolvedDefaultId: string | null = null
-        try {
-          resolvedDefaultId = await window.electronAPI.providerGetDefault()
-        } catch {
-          resolvedDefaultId = list.length > 0 ? list[0].id : null
-        }
-        setDefaultProviderId(resolvedDefaultId)
-        // 如果有默认 provider，使用它的配置预填表单
-        const defaultProvider =
-          list.find((p) => p.id === resolvedDefaultId) ?? (list.length > 0 ? list[0] : null)
-        // 只在"用户还没配过 endpoint"时预填 —— 取当下的 store 真值，
-        // 不把 llmConfig.baseUrl 列进依赖：否则用户在输入框里敲一个字符就会重拉 Provider 列表
-        if (defaultProvider && !useSettingsStore.getState().llmConfig.baseUrl) {
-          setEndpoint(defaultProvider.baseURL)
-          setSelectedModel(defaultProvider.model)
-          if (defaultProvider.defaultParams?.temperature !== undefined) {
-            setTemperature(defaultProvider.defaultParams.temperature)
-          }
-          if (defaultProvider.defaultParams?.maxTokens !== undefined) {
-            setMaxToken(defaultProvider.defaultParams.maxTokens)
-          }
-        }
-      } catch (err) {
-        console.error('[ModelSettings] 加载 Provider 列表失败:', err)
+        resolvedDefaultId = await window.electronAPI.providerGetDefault()
+      } catch {
+        resolvedDefaultId = list.length > 0 ? list[0].id : null
       }
+      setDefaultProviderId(resolvedDefaultId)
+      // 如果有默认 provider，使用它的配置预填表单
+      const defaultProvider =
+        list.find((p) => p.id === resolvedDefaultId) ?? (list.length > 0 ? list[0] : null)
+      // 只在"用户还没配过 endpoint"时预填 —— 取当下的 store 真值，
+      // 不把 llmConfig.baseUrl 列进依赖：否则用户在输入框里敲一个字符就会重拉 Provider 列表
+      if (defaultProvider && !useSettingsStore.getState().llmConfig.baseUrl) {
+        setSelectedProviderId(defaultProvider.id)
+        setEndpoint(defaultProvider.baseURL)
+        setSelectedModel(defaultProvider.model)
+        if (defaultProvider.defaultParams?.temperature !== undefined) {
+          setTemperature(defaultProvider.defaultParams.temperature)
+        }
+        if (defaultProvider.defaultParams?.maxTokens !== undefined) {
+          setMaxToken(defaultProvider.defaultParams.maxTokens)
+        }
+      }
+    } catch (err) {
+      console.error('[ModelSettings] 加载 Provider 列表失败:', err)
     }
+  }, [])
 
-    loadProviders()
+  useEffect(() => {
+    void loadProviders()
     loadSettings()
     // loadSettings 是 store 的 action，身份稳定
-  }, [loadSettings])
+  }, [loadProviders, loadSettings])
+
+  // 已有配置时，编辑目标默认对齐主进程的默认 Provider（只补一次，不覆盖用户已改选的那条）
+  useEffect(() => {
+    if (selectedProviderId) return
+    const id = defaultProviderId ?? providers[0]?.id ?? null
+    if (id) setSelectedProviderId(id)
+  }, [defaultProviderId, providers, selectedProviderId])
 
   // 同步 settings store 到本地状态
   //
@@ -291,23 +317,41 @@ export function ModelSettings() {
     }
   }, [])
 
-  // P0 修复：把当前表单配置同步到“当前默认 Provider”（而非盲写 providers[0]）。
-  // 仅当默认 Provider 不存在（存储异常）时才回退到 providers[0] 并补设默认，
-  // 不再无条件 providerSetDefault 覆盖用户在 AIPanel 的选择。
+  // P0 修复：把当前表单配置同步到用户选中的 Provider（默认是主进程的默认 Provider），
+  // 而非盲写 providers[0]。保存后若选中的不是当前默认，会补设默认（AI 对话跟着切）。
   // providers 到位后灌一次生效窗口；只灌第一次，免得覆盖用户正在输入的值
   useEffect(() => {
     if (ctxWindowSeeded.current || providers.length === 0) return
-    const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
+    const target =
+      providers.find((p) => p.id === defaultProviderId) ?? providers[0]
     setContextWindow(target.capabilities?.contextWindow ?? 0)
     ctxWindowSeeded.current = true
   }, [providers, defaultProviderId])
 
-  /** 同步到默认 Provider；返回 true 表示"地址换了、旧 Key 已作废"，界面要提醒重填 */
-  const syncToDefaultProvider = async (): Promise<boolean> => {
+  /**
+   * 切换「服务商」：只改编辑目标，并用该 Provider 已保存的真实配置预填表单。
+   * 是否成为默认由保存那一步决定，避免"点一下下拉就改了运行时"。
+   */
+  const handleProviderChange = (id: string) => {
+    setSelectedProviderId(id)
+    const provider = providers.find((p) => p.id === id)
+    if (!provider) return
+    setEndpoint(provider.baseURL)
+    setSelectedModel(provider.model)
+    setTemperature(provider.defaultParams?.temperature ?? 0.3)
+    setMaxToken(provider.defaultParams?.maxTokens ?? 4096)
+    setContextWindow(provider.capabilities?.contextWindow ?? 0)
+  }
+
+  /** 同步到选中的 Provider；返回 true 表示"地址换了、旧密钥已作废"，界面要提醒重填 */
+  const syncSelectedProvider = async (): Promise<boolean> => {
     if (!isElectronAPIAvailable() || providers.length === 0) return false
-    const target = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
-    // 主机变了而 Key 输入框是空的 → 主进程会把旧 Key 作废（不能把它寄到新主机）。
-    // 这里先记下来，保存成功后提示用户重填，而不是让他下次对话才发现"没有 Key"。
+    const target =
+      providers.find((p) => p.id === selectedProviderId) ??
+      providers.find((p) => p.id === defaultProviderId) ??
+      providers[0]
+    // 主机变了而密钥输入框是空的 → 主进程会把旧密钥作废（不能把它寄到新主机）。
+    // 这里先记下来，保存成功后提示用户重填，而不是让他下次对话才发现"没有密钥"。
     const hostChanged =
       !apiKey.trim() && originOf(endpoint) !== originOf(target.baseURL ?? '')
     const ok = await window.electronAPI.providerSave({
@@ -326,9 +370,9 @@ export function ModelSettings() {
     // 主进程对 baseURL 有安全策略（https，或本机 http 回环）。被拒时这里必须炸出去，
     // 不然界面会照样写一句"已自动保存"，而真值根本没落库、AI 对话还在用旧地址。
     if (!ok) {
-      throw new Error('API 地址未通过安全策略（需要 https，或本机回环的 http）')
+      throw new Error('接口地址未通过安全策略（需要 https，或本机回环的 http）')
     }
-    // 仅在默认 Provider 失效回退时才补设默认，保持存储一致性
+    // 选中的不是当前默认时补设默认，保持"保存哪个就用哪个"与存储一致
     if (target.id !== defaultProviderId) {
       await window.electronAPI.providerSetDefault(target.id)
       setDefaultProviderId(target.id)
@@ -340,7 +384,7 @@ export function ModelSettings() {
   //
   // v2.3.4 改造：使用 LlmTestResult 而非 boolean，能拿到具体失败原因（401/404/网络/超时等）
   const handleDeleteSavedKey = async () => {
-    if (!window.confirm('清除后模型会立刻失去 Key，需要重新填写。确定清除？')) return
+    if (!window.confirm('清除后模型会立刻失去 API 密钥，需要重新填写。确定清除？')) return
     const failure = await clearLlmApiKey()
     if (failure) {
       toast.error(failure)
@@ -349,7 +393,7 @@ export function ModelSettings() {
     setApiKey('')
     setTestResult('idle')
     setTestLogs([])
-    toast.success('已清除本机保存的 API Key')
+    toast.success('已清除本机保存的 API 密钥')
   }
 
   const handleTestConnection = async () => {
@@ -381,10 +425,10 @@ export function ModelSettings() {
       return
     }
 
-    // P0-3（2026-10-09）：主进程存过的 Key 不再回到渲染层，"测试连接"发出去的就是框里这一份。
-    // 框为空 + 主进程存有 Key 时，发空 Key 只会换回一句 [NO_API_KEY]，那是一条假失败
-    // （Key 明明配得好好的）。所以这里直接停下，把原因说清楚，不拿假错误糊弄用户。
-    if (!apiKey.trim() && hasLlmApiKey) {
+    // P0-3（2026-10-09）：主进程存过的密钥不再回到渲染层，"测试连接"发出去的就是框里这一份。
+    // 框为空 + 主进程存有密钥时，发空密钥只会换回一句 [NO_API_KEY]，那是一条假失败
+    // （密钥明明配得好好的）。所以这里直接停下，把原因说清楚，不拿假错误糊弄用户。
+    if (!apiKey.trim() && selectedProviderHasKey) {
       setTestResult('error')
       setLastTestTime(timestamp())
       setTestLogs((prev) => [
@@ -392,7 +436,7 @@ export function ModelSettings() {
         {
           time: timestamp(),
           text:
-            'API Key 输入框是空的：已保存的 Key 不会再回到界面。要测连接请临时把 Key 粘贴进来' +
+            'API 密钥输入框是空的：已保存的密钥不会再回到界面。要测连接请临时把密钥粘贴进来' +
             '（不点「保存所有配置」就不会改动主进程存好的那份）。',
           tone: 'error',
         },
@@ -423,15 +467,17 @@ export function ModelSettings() {
           { time: timestamp(), text: '连接验证通过', tone: 'success' },
         ])
 
-        // v2.3.9 修复 + P0 强化：测试连接成功后，自动把当前配置同步到默认 Provider。
+        // v2.3.9 修复 + P0 强化：测试连接成功后，自动把当前配置同步到选中的服务商。
         // AI 对话走 Provider 系统（SecureStore key='provider:${id}'），不同步则
-        // 用户测试通过但 AI 对话仍因无 Key 而报"Agent 调用失败"。
+        // 用户测试通过但 AI 对话仍因无密钥而报"Agent 调用失败"。
         if (isElectronAPIAvailable() && providers.length > 0) {
           try {
-            await syncToDefaultProvider()
+            await syncSelectedProvider()
+            // 保存后从主进程重读一次，页面顶部「当前生效」跟着真值走
+            await loadProviders()
             setTestLogs((prev) => [
               ...prev,
-              { time: timestamp(), text: '已自动保存到默认 Provider 配置', tone: 'success' },
+              { time: timestamp(), text: '已自动保存到服务商配置', tone: 'success' },
             ])
           } catch (saveErr) {
             console.error('[ModelSettings] 测试通过后自动保存 Provider 失败:', saveErr)
@@ -441,7 +487,7 @@ export function ModelSettings() {
                 time: timestamp(),
                 // 直接说主进程给的原因：以前这里固定写"请手动点击保存所有配置"，
                 // 而手动保存走的是同一条策略，用户照做只会再失败一次。
-                text: `自动保存 Provider 失败：${saveErr instanceof Error ? saveErr.message : String(saveErr)}`,
+                text: `自动保存服务商失败：${saveErr instanceof Error ? saveErr.message : String(saveErr)}`,
                 tone: 'error',
               },
             ])
@@ -451,7 +497,7 @@ export function ModelSettings() {
         setTestResult('error')
         // 把后端提供的具体原因写到日志里
         const code = result.code ? `[${result.code}] ` : ''
-        const reason = result.error ?? '请检查 API Key / Endpoint / 模型名配置'
+        const reason = result.error ?? '请检查 API 密钥、接口地址和模型名'
         setTestLogs((prev) => [
           ...prev,
           { time: timestamp(), text: `连接失败 (${latency}ms)`, tone: 'error' },
@@ -502,7 +548,7 @@ export function ModelSettings() {
 
       // 保存到主进程：返回 null 才算真的写进去了。
       // 以前这里无视返回值——safeStorage 不可用、baseUrl 被策略拒绝、config:set 回 false
-      // 三种情况都照样弹"配置已保存"，用户下次开机发现 Key 没了（2026-10-15 审查 P1）。
+      // 三种情况都照样弹"配置已保存"，用户下次开机发现密钥没了（2026-10-15 审查 P1）。
       const saveError = await saveSettings()
       if (saveError) {
         setSaveFeedback(`保存失败：${saveError}`)
@@ -511,13 +557,15 @@ export function ModelSettings() {
         return
       }
 
-      // 同步一份到默认 Provider（P0 修复：不再盲写 providers[0] + 强制设默认）
+      // 同步一份到选中的服务商（P0 修复：不再盲写 providers[0] + 强制设默认）
       // 主进程没接受就不往下推：否则推出去的是那份"没保存成功"的配置
-      const keyInvalidated = await syncToDefaultProvider()
+      const keyInvalidated = await syncSelectedProvider()
+      // 保存后从主进程重读一次：顶部「当前生效」必须反映刚落库的真值，而不是表单里的草稿
+      await loadProviders()
 
       setSaveFeedback(
         keyInvalidated
-          ? '地址已变更：旧 Key 已作废，请重新填写 API Key'
+          ? '地址已变更：旧 API 密钥已作废，请重新填写'
           : '配置已保存'
       )
       if (saveFeedbackTimerRef.current != null) clearTimeout(saveFeedbackTimerRef.current)
@@ -625,6 +673,32 @@ export function ModelSettings() {
       <SettingsPageHeader {...settingsHeader('/settings/model')} />
 
       <div className="set-subpage__body">
+        {/*
+          当前生效：一律取主进程真值（provider:get-default 定哪条默认 + provider:list 给名字/模型），
+          不拿表单里的草稿冒充"已经在用"。保存成功后 loadProviders() 会刷新它。
+        */}
+        <div className="set-model-active" role="status" aria-label="当前生效的模型">
+          <span className="set-model-active__label">当前生效：</span>
+          {activeProvider ? (
+            <>
+              <span className="set-model-active__name">
+                {activeProvider.name || activeProvider.id}
+              </span>
+              <span className="set-model-active__sep" aria-hidden>
+                /
+              </span>
+              <span className="set-model-active__model">
+                {activeProvider.model || '未填写模型'}
+              </span>
+              <Chip tone={activeProvider.hasApiKey ? 'success' : 'warning'}>
+                {activeProvider.hasApiKey ? '已配置 API 密钥' : '未配置 API 密钥'}
+              </Chip>
+            </>
+          ) : (
+            <span className="set-model-active__model">未读取到主进程的服务商配置</span>
+          )}
+        </div>
+
         {/* Section 1: KPI 统计行 */}
         <ModelKpiBar />
 
@@ -632,6 +706,7 @@ export function ModelSettings() {
         <ModelConfigSection
           selectedModel={selectedModel}
           onSelectModel={setSelectedModel}
+          providerType={selectedProvider?.type ?? null}
           temperature={temperature}
           onTemperatureChange={setTemperature}
           thinkingLevel={thinkingLevel}
@@ -646,11 +721,14 @@ export function ModelSettings() {
 
         {/* Section 3: API 接入与测试 */}
         <ApiTestSection
+          providers={providers}
+          providerId={selectedProvider?.id ?? null}
+          onProviderChange={handleProviderChange}
           endpoint={endpoint}
           onEndpointChange={setEndpoint}
           apiKey={apiKey}
           onApiKeyChange={setApiKey}
-          hasSavedKey={hasLlmApiKey}
+          hasSavedKey={selectedProviderHasKey}
           onDeleteSavedKey={handleDeleteSavedKey}
           showApiKey={showApiKey}
           onToggleShowApiKey={() => setShowApiKey((v) => !v)}
@@ -699,7 +777,7 @@ export function ModelSettings() {
 
       {/*
         ActionBar 是滚动区的兄弟节点，不在 .set-subpage__body 里面。
-        原来它是 body 内的一条 sticky 栏，会浮在表单上——实测"API Endpoint"那一行
+        原来它是 body 内的一条 sticky 栏，会浮在表单上——实测"接口地址"那一行
         被压在栏下面看不见也点不着（用户 2026-10-11 的截图）。
         放在外面同样常驻底部，但内容有自己的滚动区，永远不会被盖住。
       */}

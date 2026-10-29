@@ -765,6 +765,149 @@
 .set-alerts-action { display: flex; }
 
 /* ===== Model Settings ===== */
+/*
+ * 顶部「当前生效」状态行：数据来自主进程（provider:get-default + provider:list），
+ * 不是表单草稿。一行读完：服务商 / 模型 + 密钥状态。
+ */
+.set-model-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-6);
+  background: var(--trae-bg-overlay-l1);
+}
+.set-model-active__label {
+  font-size: var(--ui-font-caption);
+  color: var(--text-tertiary);
+}
+.set-model-active__name {
+  font-size: var(--ui-font-md);
+  font-weight: var(--trae-font-weight-strong);
+  color: var(--text-primary);
+}
+.set-model-active__sep { color: var(--text-muted); }
+.set-model-active__model {
+  font-family: var(--trae-font-family-mono);
+  font-size: var(--ui-font-caption);
+  color: var(--accent-text);
+}
+
+/* 模型列：输入框 + 下方一行小字说明（不再用 placeholder 展示示例） */
+.set-model-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 320px;
+  max-width: 100%;
+}
+.set-model-field .set-api-hint { margin-top: 0; }
+.set-model-note {
+  margin: 0;
+  font-size: var(--ui-font-caption);
+  line-height: var(--trae-body-base-line-height);
+  color: var(--text-tertiary);
+}
+
+/* 默认收起的高级设置：只换层级，不删功能 */
+.set-model-advanced {
+  border-top: 1px solid var(--trae-border-neutral-l1);
+}
+.set-model-advanced__toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--ui-font-caption);
+  font-weight: var(--trae-font-weight-medium);
+}
+.set-model-advanced__toggle:hover { color: var(--accent-text); }
+.set-model-advanced__chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+  transition: transform 150ms ease;
+}
+.set-model-advanced__toggle[aria-expanded="true"] .set-model-advanced__chevron {
+  transform: rotate(180deg);
+}
+.set-model-advanced__summary {
+  margin-left: auto;
+  font-size: var(--ui-font-caption);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.set-model-advanced__body { padding-bottom: 4px; }
+
+/* 温度：数字输入 + 预设按钮（用户明确不要拖动滑块） */
+.set-temp-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.set-temp-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 思考强度：按模型能力给出可用档位，每档一行中文说明 */
+.set-think-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 340px;
+  max-width: 100%;
+}
+.set-think-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.set-think-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--trae-border-neutral-l2);
+  border-radius: var(--trae-radius-6);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.set-think-option.is-active {
+  border-color: var(--accent-solid);
+  background: var(--trae-bg-brand-popup);
+}
+.set-think-option__radio {
+  margin-top: 2px;
+  accent-color: var(--accent-solid);
+}
+.set-think-option__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.set-think-option__label {
+  font-size: var(--ui-font-caption);
+  font-weight: var(--trae-font-weight-medium);
+  color: var(--text-primary);
+}
+.set-think-option__desc {
+  font-size: var(--ui-font-caption);
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
 .set-model-current {
   display: flex;
   align-items: center;
@@ -1022,6 +1165,9 @@
   transition: border-color 150ms ease;
 }
 .set-api-input:focus { border-color: var(--accent-text); }
+/* 服务商下拉沿用输入框外观；原生 select 需要显式游标 */
+.set-api-select { cursor: pointer; }
+.set-api-select:disabled { cursor: not-allowed; opacity: 0.6; }
 .set-api-key-row {
   display: flex;
   align-items: center;

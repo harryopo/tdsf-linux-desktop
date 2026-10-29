@@ -15,6 +15,7 @@ function renderSection(overrides: Partial<ModelConfigSectionProps> = {}) {
   const props: ModelConfigSectionProps = {
     selectedModel: 'deepseek-chat',
     onSelectModel: vi.fn(),
+    providerType: 'deepseek' as const,
     temperature: 0.3,
     onTemperatureChange: vi.fn(),
     thinkingLevel: 'auto',
@@ -28,6 +29,8 @@ function renderSection(overrides: Partial<ModelConfigSectionProps> = {}) {
     ...overrides,
   }
   render(<ModelConfigSection {...props} />)
+  // 2026-10-29：温度/思考强度/上下文窗口等收进默认收起的「高级设置」，测试先展开
+  fireEvent.click(screen.getByRole('button', { name: /高级设置/ }))
   return props
 }
 
@@ -48,7 +51,8 @@ describe('上下文窗口行', () => {
     const input = screen.getByLabelText('上下文窗口 token 数')
     // type=number 空值时 jest-dom 的 toHaveValue 返回 null，直接看 DOM 值更准
     expect((input as HTMLInputElement).value).toBe('')
-    expect(input).toHaveAttribute('placeholder', '未知')
+    // 用户要求「不要有占位符展示」：未知用说明文字讲清，不往输入框里塞示例
+    expect(input).not.toHaveAttribute('placeholder')
     expect(screen.getByText(/自部署端点或代理可以在这里填真实值/)).toBeInTheDocument()
   })
 

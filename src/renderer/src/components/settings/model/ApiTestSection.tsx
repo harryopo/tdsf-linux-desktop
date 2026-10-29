@@ -1,9 +1,11 @@
 /**
- * ApiTestSection — API 接入与测试 Section（M5 Task 6 拆分）
+ * ApiTestSection — 接入配置与连接测试
  *
- * 从 ModelSettings.tsx 抽取，负责 Endpoint/API Key/组织ID 表单 + 测试连接 + 结果卡 + 测试日志。
- *
- * 原 Section 3：API 配置表单 + 连接测试区（按钮 + 结果卡 + 日志）。
+ * 2026-10-29 按用户口径重排：
+ * - 默认层只保留四件事：服务商 / 接口地址 / API 密钥 / 模型（模型在 ModelConfigSection）。
+ * - 标签全部中文：Endpoint → 接口地址、API Key → API 密钥；URL / API Key 这类纯技术
+ *   名词只放在括号里当补充。
+ * - 输入框不再用 `例如 https://...` 或 `sk-xxxx` 这类示例占位，改成标签下方的一行小字说明。
  */
 import {
   KeyRound,
@@ -14,30 +16,37 @@ import {
   Loader2,
   Terminal as TerminalIcon,
 } from 'lucide-react'
+import type { PersistedProviderConfig } from '@shared/agent-types'
 import { SettingsCard } from '@/components/settings/SettingsCard'
 import type { TestLogLine } from './constants'
 
 export interface ApiTestSectionProps {
-  /** API Endpoint */
+  /** 主进程 provider:list 返回的服务商实例 */
+  providers: PersistedProviderConfig[]
+  /** 当前正在编辑的服务商 ID（保存后成为默认服务商） */
+  providerId: string | null
+  /** 切换服务商：会用它已保存的地址与模型预填表单 */
+  onProviderChange: (id: string) => void
+  /** 接口地址（URL） */
   endpoint: string
-  /** 修改 Endpoint 回调 */
+  /** 修改接口地址回调 */
   onEndpointChange: (value: string) => void
-  /** API Key（只承载用户这一屏输入的内容，主进程存过的 Key 不会回填进来） */
+  /** API 密钥（只承载用户这一屏输入的内容，主进程存过的密钥不会回填进来） */
   apiKey: string
-  /** 修改 API Key 回调 */
+  /** 修改 API 密钥回调 */
   onApiKeyChange: (value: string) => void
   /**
-   * 主进程是否已存有 API Key（storage:hasApiKey 的布尔量，P0-3）
+   * 主进程是否已存有 API 密钥（provider:list 的 hasApiKey 或 storage:hasApiKey）
    *
-   * true 时输入框提示改成"已保存（留空则不修改）"：
-   * 留空 = 保持不动，不是清空；界面上永远看不到那串 Key。
+   * true 时提示改成"已保存（留空则不修改）"：留空 = 保持不动，不是清空；
+   * 界面上永远看不到那串密钥原文。
    */
   hasSavedKey: boolean
-  /** 显式清除主进程已保存的 Key（需用户确认；与"输入框留空"是两件事） */
+  /** 显式清除主进程已保存的密钥（需用户确认；与"输入框留空"是两件事） */
   onDeleteSavedKey: () => void
-  /** 是否显示 API Key 明文 */
+  /** 是否显示 API 密钥明文 */
   showApiKey: boolean
-  /** 切换 API Key 显示/隐藏 */
+  /** 切换 API 密钥显示/隐藏 */
   onToggleShowApiKey: () => void
   /** 点击测试连接回调 */
   onTestConnection: () => void
@@ -51,12 +60,15 @@ export interface ApiTestSectionProps {
   testLatency: number | null
   /** 测试日志行 */
   testLogs: TestLogLine[]
-  /** 当前选中模型（用于显示模型版本） */
+  /** 当前选中模型（用于显示实际测试的模型） */
   selectedModel: string
 }
 
 export function ApiTestSection(props: ApiTestSectionProps) {
   const {
+    providers,
+    providerId,
+    onProviderChange,
     endpoint,
     onEndpointChange,
     apiKey,
@@ -77,30 +89,64 @@ export function ApiTestSection(props: ApiTestSectionProps) {
   return (
     <SettingsCard
       icon={KeyRound}
-      title="API接入与测试"
-      tag="api.config"
+      title="API 接入与测试"
       className="p-5"
       hideTag
       noHeadBorder
       headMb="lg"
     >
-      {/* API 配置表单 */}
+      {/* 接入配置：服务商 / 接口地址 / API 密钥 */}
       <div className="set-api-form">
         <div className="set-api-row">
-          <label className="set-api-row__label">
-            API Endpoint
+          <label className="set-api-row__label" htmlFor="set-api-provider">
+            服务商
           </label>
-          <input
-            type="text"
-            value={endpoint}
-            onChange={(e) => onEndpointChange(e.target.value)}
-            aria-label="API Endpoint"
-            className="set-api-input"
-          />
+          <div className="min-w-0">
+            {providers.length > 0 ? (
+              <select
+                id="set-api-provider"
+                aria-label="服务商"
+                className="set-api-input set-api-select"
+                value={providerId ?? ''}
+                onChange={(e) => onProviderChange(e.target.value)}
+              >
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name || provider.id}
+                    {provider.model ? `（${provider.model}）` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="set-model-note">未读取到服务商列表，主进程可能未连接</span>
+            )}
+            <p className="set-api-hint">选择要使用的服务商；保存后它成为默认服务商，AI 对话从它取模型和密钥</p>
+          </div>
         </div>
+
         <div className="set-api-row">
-          <label className="set-api-row__label">
-            API Key
+          <label className="set-api-row__label" htmlFor="set-api-endpoint">
+            接口地址（URL）
+          </label>
+          <div className="min-w-0">
+            <input
+              id="set-api-endpoint"
+              type="text"
+              value={endpoint}
+              onChange={(e) => onEndpointChange(e.target.value)}
+              aria-label="接口地址"
+              spellCheck={false}
+              className="set-api-input"
+            />
+            <p className="set-api-hint">
+              服务商提供的兼容接口根地址，一般以版本号结尾（如 /v1）。保存前会校验：只接受 https，或本机回环的 http
+            </p>
+          </div>
+        </div>
+
+        <div className="set-api-row">
+          <label className="set-api-row__label" htmlFor="set-api-key">
+            API 密钥（API Key）
           </label>
           {/* 控件列：输入框和提示必须在同一个格子里。
               原来提示是 .set-api-row 的第三个 grid 子项，两列网格把它挤到第二行第一列
@@ -109,41 +155,45 @@ export function ApiTestSection(props: ApiTestSectionProps) {
           <div className="min-w-0">
             <div className="set-api-key-row">
               <input
+                id="set-api-key"
                 type={showApiKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => onApiKeyChange(e.target.value)}
-                aria-label="API Key"
-                // 已存过 Key 就把框明示成"留空不改"；没存过时保持原样（空框 + 下面那句提示）。
-                // Key 原文永不回填进输入框：storage:getApiKey 通道已删（2026-10-09 P0-3）。
-                placeholder={hasSavedKey ? '已保存（留空则不修改）' : undefined}
+                aria-label="API 密钥"
+                autoComplete="off"
+                spellCheck={false}
+                // 不再用 placeholder 展示"已保存/示例"：状态放到下面那行小字里，
+                // 密钥原文永不回填（storage:getApiKey 通道已删，2026-10-09 P0-3）。
                 className="set-api-key-input"
               />
               <button
                 type="button"
                 onClick={onToggleShowApiKey}
-                aria-label="显示/隐藏API Key"
+                aria-label={showApiKey ? '隐藏 API 密钥' : '显示 API 密钥'}
                 className="set-api-eye-btn btn-press"
               >
                 {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
-            {!apiKey && (
-              <p role="status" className="set-api-hint">
-                {hasSavedKey
-                  ? '已加密存在本机，界面上不显示这串字符。留空＝不改，粘贴新的即替换。'
-                  : '还没填 Key，大模型连不上。到服务商控制台建一个粘进来，再点下面「测试连接」。'}
-                {hasSavedKey && (
-                  <button
-                    type="button"
-                    data-dom-id="delete-llm-key"
-                    onClick={onDeleteSavedKey}
-                    className="set-api-hint__action btn-press"
-                  >
-                    清除已保存的 Key
-                  </button>
-                )}
-              </p>
-            )}
+            <p role="status" className="set-api-hint">
+              {hasSavedKey
+                ? apiKey
+                  ? '保存后会替换本机已加密的那一份密钥。'
+                  : '已加密保存在本机，界面不回显。留空表示不修改，粘贴新值即替换。'
+                : apiKey
+                  ? '保存时会加密存在本机，界面上只显示这一份输入。'
+                  : '还没填 API 密钥，大模型连不上。到服务商控制台建一个粘进来，再点下面「测试连接」。'}
+              {hasSavedKey && (
+                <button
+                  type="button"
+                  data-dom-id="delete-llm-key"
+                  onClick={onDeleteSavedKey}
+                  className="set-api-hint__action btn-press"
+                >
+                  清除已保存的密钥
+                </button>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -165,9 +215,7 @@ export function ApiTestSection(props: ApiTestSectionProps) {
             )}
             <span>{isTesting ? '测试中...' : '测试连接'}</span>
           </button>
-          <span className="set-api-test__time">
-            最近测试 {lastTestTime}
-          </span>
+          <span className="set-api-test__time">最近测试 {lastTestTime}</span>
         </div>
 
         {/* 测试结果卡片 */}
@@ -200,10 +248,7 @@ export function ApiTestSection(props: ApiTestSectionProps) {
                   </span>
                 </span>
                 <span className="set-api-result__meta">
-                  模型版本{' '}
-                  <span className="set-api-result__meta-val">
-                    {selectedModel}
-                  </span>
+                  模型 <span className="set-api-result__meta-val">{selectedModel}</span>
                 </span>
                 {/*
                   这里原来画了一条"响应时间趋势"折线，points 是写死的六个坐标。
@@ -219,14 +264,12 @@ export function ApiTestSection(props: ApiTestSectionProps) {
         <div className="set-api-logs">
           <div className="set-api-logs__head">
             <TerminalIcon className="size-3" />
-            <span className="set-api-logs__head-title">
-              测试日志
-            </span>
+            <span className="set-api-logs__head-title">测试日志</span>
           </div>
           <pre className="set-api-logs__body">
             {testLogs.length === 0 ? (
               <span className="set-api-logs__placeholder">
-                点击「测试连接」开始验证 API 配置...
+                点击「测试连接」检查接口地址、API 密钥和模型是否可用
               </span>
             ) : (
               testLogs.map((line, idx) => (
