@@ -231,7 +231,7 @@ let drain3Instance: Drain3Bridge | null = null
 /**
  * 日志模板挖掘这一路的实测健康度（关于页用）。
  *
- * 现状如实说：唯一的调用方 agent-workflow 从来没 start() 过这个桥，
+ * 现状如实说：这个桥从来没有生产调用方——原先唯一的读者 agent-workflow 已随 #281 整删，
  * 所以模板抽取一直是内置正则 —— 不是发布包才降级，是从来就没接上。
  */
 export function drain3BridgeHealth(): { ok: boolean; reason: string } {

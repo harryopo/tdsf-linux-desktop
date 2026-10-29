@@ -12,6 +12,16 @@
  */
 
 /** 命令危险度评级（沙箱审批与 AI 写命令审批共用） */
+/**
+ * 审批等待时长（秒）的三份单源：默认值与合法区间。
+ *
+ * 为什么放共享层：主进程的审批等待器要用它做夹取，设置页那条"决策超时"要用它做
+ * 默认值与提示文案。抄两份的下场已经演过一次（界面上写 30–1800、主进程夹到别处）。
+ */
+export const APPROVAL_TIMEOUT_DEFAULT_SEC = 60
+export const APPROVAL_TIMEOUT_MIN_SEC = 10
+export const APPROVAL_TIMEOUT_MAX_SEC = 600
+
 export type SandboxCommandRiskLevel = 'low' | 'medium' | 'high'
 
 /**

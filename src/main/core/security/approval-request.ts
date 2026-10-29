@@ -1,11 +1,16 @@
 /**
  * 高危操作的人工审批等待器（单源）
  *
- * 为什么单独一个文件：`60_000` 这把超时和那张 callId→resolve 表原来只住在
+ * 为什么单独一个文件：这把超时和那张 callId→resolve 表原来只住在
  * `ipc/agent-runtime.ts`。外部 MCP 工具调用（`mcp:external-call`）也要接人工审批时，
  * 在 `ipc/mcp.ts` 再造一份就是"两处各写一把 60 秒，迟早漂"——
  * 而《长期优化目标》里点名的正是这个形状（`@shared/approval-types.ts` 的 `expiresAt` 注释）。
  * 现在两条链路共用一份：谁要问用户，都从这里发。
+ *
+ * 超时时长可以在设置页改（决策设置 → 决策超时，键 `decision.decisionTimeout`，单位秒；
+ * 主进程启动时把 `ConfigStore.get('decision.decisionTimeout')` 交进来）。
+ * 这个模块不直接 import 配置存储：它保持无 Electron 依赖才能被单测直接跑住，
+ * 所以取数口由主进程启动时注入（见 `setApprovalTimeoutSource`）。
  *
  * 三条不可放宽的姿态：
  * 1. 死线随载荷给出，界面按 `expiresAt` 下卡；界面自己 now()+60s 会提前偷走响应窗口。
@@ -17,11 +22,44 @@
  * `tests/unit/approval-entry-surface.test.ts` 盯的是注册文件里出现 `readApproval(`）。
  */
 import { PAOR } from '@shared/ipc-channels'
-import type { PaorApprovalRequest } from '@shared/approval-types'
+import {
+  APPROVAL_TIMEOUT_DEFAULT_SEC,
+  APPROVAL_TIMEOUT_MAX_SEC,
+  APPROVAL_TIMEOUT_MIN_SEC,
+  type PaorApprovalRequest,
+} from '@shared/approval-types'
 import { logger } from '@main/services/log/logger'
 
-/** 审批超时（毫秒）——全仓只有这一把 */
-export const APPROVAL_TIMEOUT_MS = 60_000
+/** 审批超时默认值（毫秒）——没配置、配置读不出来、或配置越界时用它 */
+export const APPROVAL_TIMEOUT_MS = APPROVAL_TIMEOUT_DEFAULT_SEC * 1000
+
+/**
+ * 把界面上那个任意值夹成可用的秒数。
+ * 三条姿态：越界夹到端点（不给"填 0 就永不超时"这条路）；
+ * 没配过 / null / 对象 / 空串 / NaN 一律回默认；带引号的数字接受（手改 config.json 的现实形状）。
+ */
+export function clampApprovalTimeoutSec(raw: unknown): number {
+  if (typeof raw !== 'number' && typeof raw !== 'string') return APPROVAL_TIMEOUT_DEFAULT_SEC
+  if (typeof raw === 'string' && raw.trim() === '') return APPROVAL_TIMEOUT_DEFAULT_SEC
+  const n = typeof raw === 'number' ? raw : Number(raw.trim())
+  if (!Number.isFinite(n)) return APPROVAL_TIMEOUT_DEFAULT_SEC
+  const rounded = Math.round(n)
+  if (rounded < APPROVAL_TIMEOUT_MIN_SEC) return APPROVAL_TIMEOUT_MIN_SEC
+  if (rounded > APPROVAL_TIMEOUT_MAX_SEC) return APPROVAL_TIMEOUT_MAX_SEC
+  return rounded
+}
+
+/** 由主进程注入的配置取数口；没注入就一直用默认值（fail-closed 到一个已知时长） */
+let timeoutSource: (() => unknown) | null = null
+
+export function setApprovalTimeoutSource(source: (() => unknown) | null): void {
+  timeoutSource = source
+}
+
+/** 本次审批该等多久（毫秒）。一次请求只算一次，expiresAt 与定时器必须同源 */
+export function resolveApprovalTimeoutMs(): number {
+  return clampApprovalTimeoutSec(timeoutSource?.()) * 1000
+}
 
 /** 推送通道（渲染层按这条订阅，见 stores/agent-stream-subscription.ts） */
 export const APPROVAL_REQUEST_CHANNEL = PAOR.APPROVAL_REQUEST
@@ -65,7 +103,8 @@ export function requestApproval(
     })
     return Promise.resolve(false)
   }
-  const payload: PaorApprovalRequest = { ...input, expiresAt: now + APPROVAL_TIMEOUT_MS }
+  const timeoutMs = resolveApprovalTimeoutMs()
+  const payload: PaorApprovalRequest = { ...input, expiresAt: now + timeoutMs }
   logger.info('SECURITY.APPROVAL', '推送审批请求', {
     callId: payload.callId,
     origin: payload.origin,
@@ -81,7 +120,7 @@ export function requestApproval(
         origin: payload.origin,
       })
       resolve(false)
-    }, APPROVAL_TIMEOUT_MS)
+    }, timeoutMs)
     pending.set(payload.callId, { resolve, timeout })
   })
 }

@@ -38,7 +38,6 @@ export interface QuitServices {
   stopFileWatchers: () => unknown
   disconnectSsh: () => unknown
   disconnectExternalMcp: () => unknown
-  stopMcpServer: () => unknown
   /** 摘掉 MCP 生命周期那把 1 秒轮询（不摘的话退出后事件循环还有活干） */
   disposeMcpLifecycle: () => unknown
   /** 停掉应用自己起的 OpenHands 容器（后台进程，不管它就留在机器上） */
@@ -83,7 +82,6 @@ export function buildQuitSteps(svc: QuitServices): QuitStep[] {
     { name: '停止文件监听', run: svc.stopFileWatchers },
     { name: '停止监控', run: svc.stopMonitoring },
     { name: '断开 SSH', run: svc.disconnectSsh },
-    { name: '停止 MCP Server', run: svc.stopMcpServer },
     { name: '摘除 MCP 生命周期轮询', run: svc.disposeMcpLifecycle },
     { name: '关闭 Langfuse（trace 落盘）', run: svc.shutdownLangfuse },
     { name: '清理调度器', run: svc.cleanupScheduler },

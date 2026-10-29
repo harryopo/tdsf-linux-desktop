@@ -59,7 +59,6 @@ vi.mock('../../src/main/services/llm/vercel-ai-service', () => ({
 
 import { McpGateway } from '../../src/main/core/agent/mcp-gateway'
 import { McpLifecycleManager } from '../../src/main/core/agent/mcp-lifecycle'
-import { McpServerService } from '../../src/main/services/mcp/server'
 
 describe('MCP 生命周期状态：谁在喂它', () => {
   beforeEach(() => {
@@ -95,25 +94,4 @@ describe('MCP 生命周期状态：谁在喂它', () => {
     expect(s.consecutiveFailures).toBe(0)
   })
 
-  it('3. MCP Server 启动失败走 logger.error，并上报给状态机', async () => {
-    d.serverConnect.mockRejectedValueOnce(new Error('stdio 起不来'))
-    const service = McpServerService.getInstance({ enabled: true, port: 3107 })
-
-    await service.start()
-
-    expect(service.isRunning()).toBe(false)
-    expect(d.error).toHaveBeenCalledWith('MCP', expect.stringContaining('启动失败'), expect.anything())
-    expect(McpLifecycleManager.getInstance().getState().state).not.toBe('connected')
-  })
-
-  it('4. 启动失败不再只喊给控制台（打包后没人听得见）', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    d.serverConnect.mockRejectedValueOnce(new Error('第二次尝试'))
-    const service = McpServerService.getInstance({ enabled: true, port: 3107 })
-
-    await service.start()
-
-    expect(consoleSpy).not.toHaveBeenCalled()
-    consoleSpy.mockRestore()
-  })
 })

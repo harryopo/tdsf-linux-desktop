@@ -6,7 +6,10 @@
  * 没有"像不像模板"可言。此前采集器一律给它们填 0.8（渲染层聊天链路填 0.5，还自称"取中性"），
  * 于是界面上那条置信度七成来自一个没人测过的数。真机实测：8 条证据里 7 条 drainMatch 都是 0.8。
  *
- * 现在的口径（唯一权威在 src/main/core/confidence.ts）：
+ * 现在的口径（唯一权威在 src/main/core/confidence.ts）。
+ * 2026-10-29 #281：原先还有一个"给证据补 drainMatch"的增强步骤住在入站工作流内核里，
+ * 那条链连同它的四条用例一起删了——本文件剩下的是活链路（主进程算法 + 渲染层转换）的判据。
+ * 少一维就少一维，不补数。
  *   - 有这一维 → 走公式；
  *   - 没有这一维 → drainMatch = null，置信度就等于来源先验。
  * 少一维就少一维，不补数。
@@ -21,10 +24,6 @@ import {
   CONFIDENCE_BASIS_TEXT,
 } from '../../src/main/core/confidence'
 import { buildAnalysisPrompt } from '../../src/main/services/llm/prompt-templates'
-import {
-  computeDrainMatchScore,
-  enrichEvidencesWithDrain,
-} from '../../src/main/core/agent-workflow'
 import { toolEventsToEvidences } from '../../src/renderer/src/utils/chat-decision'
 import type { Evidence, EvidenceSource } from '@shared/models'
 
@@ -104,59 +103,6 @@ describe('渲染层聊天链路的先验必须与主进程那张表一致（跨�
     for (const e of evs) bySource.set(e.source, e.sourcePrior)
     expect(bySource.get('command')).toBe(getSourcePrior('command'))
     expect(bySource.get('metric')).toBe(getSourcePrior('metric'))
-  })
-})
-
-describe('工作流那一步（曾经在这里给非日志证据补 0.8）', () => {
-  const templates = [{ template: 'kernel: <*> Out of memory' } as never]
-
-  it('命令证据过一遍增强之后仍然是 null，置信度仍然等于先验', () => {
-    const [out] = enrichEvidencesWithDrain(
-      [evidenceOf({ source: 'command', sourceDetail: 'free -m', content: 'available 3%' })],
-      templates
-    )
-    expect(out.drainMatch, '这一维不存在，增强步骤不许替它编一个数').toBeNull()
-    expect(out.confidence).toBeCloseTo(getSourcePrior('command'), 10)
-    // 旧行为：补 0.8 → 0.7×0.8 + 0.3×0.9 = 0.83，看着像测量值，其实是写死的
-    expect(out.confidence).not.toBeCloseTo(0.7 * 0.8 + 0.3 * 0.9, 10)
-  })
-
-  it('日志证据按三档取真实匹配度', () => {
-    const exact = evidenceOf({
-      source: 'log',
-      sourceDetail: '/var/log/messages',
-      content: 'kernel: 42 Out of memory',
-    })
-    const [out] = enrichEvidencesWithDrain([exact], templates)
-    expect(out.drainMatch, '模板化后与已知模板相同 ⇒ 1.0').toBe(1)
-    expect(out.confidence).toBeCloseTo(0.7 * 1 + 0.3 * getSourcePrior('log'), 10)
-
-    const novel = evidenceOf({
-      source: 'log',
-      sourceDetail: '/var/log/messages',
-      content: 'systemd-journald: 一条从没见过的话',
-    })
-    const [out2] = enrichEvidencesWithDrain([novel], templates)
-    expect(out2.drainMatch, '没匹配上就报 0.3（新型日志），不是补个高的').toBe(0.3)
-  })
-
-  it('阳性对照：没有模板表时匹配度是 0.3，不是 0 也不是 1', () => {
-    expect(
-      computeDrainMatchScore('kernel: 1 Out of memory', [])
-    ).toBe(0.3)
-    expect(computeDrainMatchScore('', templates)).toBe(0.3)
-  })
-
-  it('知识类证据带着真实数字进来就原样用（增强步骤不覆盖它）', () => {
-    const [out] = enrichEvidencesWithDrain(
-      [evidenceOf({ source: 'knowledge', drainMatch: 0.42 })],
-      templates
-    )
-    expect(out.drainMatch).toBe(0.42)
-    expect(out.confidence).toBeCloseTo(
-      0.7 * 0.42 + 0.3 * getSourcePrior('knowledge'),
-      10
-    )
   })
 })
 

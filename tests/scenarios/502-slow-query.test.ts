@@ -1,23 +1,18 @@
 /**
  * 端到端场景测试：502 慢查询场景
  *
- * 验证 6 大核心机制在 502 Bad Gateway + 慢查询故障场景下的协同工作：
+ * 验证 5 大核心机制（2026-10-29 #281：证据溯源那一环 grounding 随入站工作流一起整删，剩下的内核都是活链路在用的）在 502 Bad Gateway + 慢查询故障场景下的协同工作：
  *   1. 规则引擎匹配 502 关键词
  *   2. 多证据收集（Nginx 日志 + MySQL 慢查询 + CPU 指标）
  *   3. 多证据综合置信度计算
- *   4. Ground-Check（每条证据溯源到对应工具调用）
  *   5. 风险引擎（systemctl restart php-fpm 评估为 MEDIUM）
- *   6. 决策卡片（根因分析 + 回滚方案）+ 自适应采样（置信度 < 0.7 触发重采样）
+ *   6. 决策卡片（根因分析 + 回滚方案）
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { analyzeByRules } from '../../src/main/core/rule-engine'
 import {
   calculateEvidenceConfidence
 } from '../../src/main/core/confidence'
-import {
-  verifyAllEvidences,
-  type ToolCallRecord
-} from '../../src/main/core/grounding'
 import {
   assessRisk,
   requiresConfirmation,
@@ -29,13 +24,19 @@ import {
   calculateOverallConfidence,
   validateDecision
 } from '../../src/main/core/decision-engine'
-import {
-  shouldResample,
-  resampleAndVote,
-  adaptiveSample,
-  RESAMPLE_COUNT
-} from '../../src/main/core/sampling'
 import type { Evidence } from '../../src/shared/models'
+
+/**
+ * 一次工具调用的记录形状。原先从 core/grounding 引，那个模块随 #281 的入站链一起整删；
+ * 场景测试只需要这几个字段来造"证据能不能被那三条命令解释"的样本，就地声明。
+ */
+type ToolCallRecord = {
+  sessionId: string
+  toolName: string
+  input: string
+  output: string
+  timestamp: number
+}
 
 /** 模拟 Nginx 错误日志输出 */
 const NGINX_ERROR_LOG =
@@ -188,25 +189,7 @@ describe('端到端场景：502 慢查询', () => {
     expect(overall).toBeLessThan(0.7) // 低于阈值，应触发重采样
   })
 
-  // ────────── 4. Ground-Check 证据溯源 ──────────
 
-  it('Ground-Check：每条证据都有对应的工具调用记录', () => {
-    const evidences = [
-      makeNginxEvidence({ timestamp: Date.now() }),
-      makeMysqlEvidence({ timestamp: Date.now() }),
-      makeCpuEvidence({ timestamp: Date.now() })
-    ]
-    const records = makeToolCallRecords()
-
-    const verified = verifyAllEvidences(evidences, records)
-    expect(verified).toHaveLength(3)
-    // Nginx 日志：content 在 tail 输出中，log 匹配 tail
-    expect(verified[0].verified).toBe(true)
-    // MySQL 慢查询：content 在 cat 输出中，log 匹配 cat
-    expect(verified[1].verified).toBe(true)
-    // CPU 指标：content 在 top 输出中，metric 匹配 top
-    expect(verified[2].verified).toBe(true)
-  })
 
   // ────────── 5. 风险引擎评估 ──────────
 
@@ -253,42 +236,4 @@ describe('端到端场景：502 慢查询', () => {
     expect(validation.valid).toBe(true)
   })
 
-  // ────────── 7. 自适应采样 ──────────
-
-  it('自适应采样：置信度 < 0.7 时触发 3 次重采样并取多数票', async () => {
-    // 构造低置信度证据链（综合置信度 ≈ 0.62 < 0.7）
-    const evidences = [
-      makeNginxEvidence({ verified: true }),
-      makeMysqlEvidence({ verified: true }),
-      makeCpuEvidence({ verified: true })
-    ]
-    const overall = calculateOverallConfidence(evidences)
-    expect(overall).toBeLessThan(0.7)
-
-    // shouldResample 对低置信度返回 true
-    expect(shouldResample(overall)).toBe(true)
-    expect(shouldResample(0.69)).toBe(true)
-    // shouldResample 对高置信度返回 false
-    expect(shouldResample(0.7)).toBe(false)
-
-    // resampleAndVote 多数票
-    const votes = ['systemctl restart php-fpm', 'systemctl restart php-fpm', 'systemctl reload php-fpm']
-    expect(resampleAndVote(votes)).toBe('systemctl restart php-fpm')
-
-    // adaptiveSample 低置信度时调用 3 次 generator
-    const values = ['restart', 'restart', 'reload']
-    let callIndex = 0
-    const generator = vi.fn().mockImplementation(async () => {
-      return values[callIndex++]
-    })
-    const result = await adaptiveSample(overall, generator)
-    expect(generator).toHaveBeenCalledTimes(RESAMPLE_COUNT)
-    expect(result).toBe('restart') // 多数票获胜
-
-    // adaptiveSample 高置信度时只调用 1 次
-    const singleGen = vi.fn().mockResolvedValue('restart')
-    const singleResult = await adaptiveSample(0.9, singleGen)
-    expect(singleGen).toHaveBeenCalledTimes(1)
-    expect(singleResult).toBe('restart')
-  })
 })

@@ -164,7 +164,7 @@ describe('教程内容管线收口（#211）', () => {
       ['src/main/services/knowledge/kb-embedding.ts', 'embedding-service'],
       ['src/main/services/knowledge/kb-search.ts', 'hybrid-search'],
       ['src/main/index.ts', 'seed-loader'],
-      ['src/main/services/llm/tools/tutorial-search.ts', 'tutorial-repo'],
+      ['src/main/core/agent/supervisor.ts', 'tutorial-repo'],
       ['src/main/ipc/tutorial.ts', 'path-recommender'],
     ] as const) {
       expect(

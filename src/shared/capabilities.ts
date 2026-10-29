@@ -68,10 +68,10 @@ export const CAPABILITIES: CapabilityRow[] = [
     note: '主进程埋点齐全，没有 Key 时静默降级；设置里没有填 Key 的入口，用户无法开启。',
   },
   {
-    id: 'mcp-tools',
-    label: 'MCP 工具服务',
-    status: 'pending',
-    note: '30 个工具已注册，但服务默认不启动（需 MCP_SERVER_ENABLED=true）；应用内聊天用的是另外 7 个内联工具。',
+    id: 'external-mcp',
+    label: '外部 MCP 工具（本应用作为客户端）',
+    status: 'live',
+    note: '设置 → MCP 里登记外部服务器（stdio 子进程），AI 对话可调用它们暴露的工具；每一次调用都弹人工审批，超时自动拒绝；工具行还有"试调用"。反方向（把本应用能力暴露给外部客户端的入站 MCP Server）已于 2026-10-29 整删——桌面主进程的 stdio 没有对端，外部客户端结构上连不上。',
   },
   {
     id: 'terminal-blocks',

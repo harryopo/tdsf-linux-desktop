@@ -80,7 +80,9 @@ describe('形状不对的配置项', () => {
     expect(ConfigStore.getMcpConfig()).toBeNull()
     const fallback = ConfigStore.getMcpConfigOrDefault()
     expect(typeof fallback).toBe('object')
-    expect(Number.isInteger(fallback.port)).toBe(true)
+    // 2026-10-29 #281：默认值不再带 enabled/port（那两个字段属于已整删的入站服务）。
+    // 现在"没配过"的默认就是一张空表，写入口只往里面放 externalServers。
+    expect(fallback).toEqual({})
   })
 
   it('形状正确时原样返回（反向对照：守卫没有把好数据也削掉）', () => {

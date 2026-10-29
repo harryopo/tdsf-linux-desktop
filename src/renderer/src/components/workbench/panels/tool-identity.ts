@@ -61,14 +61,15 @@ const KNOWN_TOOLS: Record<string, ToolIdentity> = {
   ssh_readonly: { kind: 'command', label: '只读诊断命令', icon: TerminalIcon },
   ssh_write: { kind: 'command', label: '写操作命令', icon: TerminalIcon },
   ssh_journal_follow: { kind: 'command', label: '实时日志追踪', icon: TerminalIcon },
-  ssh_exec: { kind: 'command', label: '执行命令', icon: TerminalIcon },
   sftp_read: { kind: 'file', label: '读远程文件', icon: FileText },
   kb_search: { kind: 'knowledge', label: '检索知识库', icon: Layers },
   tutorial_search: { kind: 'knowledge', label: '检索教程', icon: BookOpen },
   skill_match: { kind: 'skill', label: '匹配技能', icon: Wrench },
   memory_recall: { kind: 'memory', label: '回忆长期记忆', icon: Sparkles },
-  // 真名是 monitor_get_data（src/shared/llm-tool-types.ts 的 TOOL_IDS）；
-  // 这里曾写 monitor_get，于是这张卡从来没按监控渲染过
+  // 下面三条是**历史行**的显示兜底：这几个名字来自已整删的入站 MCP 工具表（#281），
+  // 新对话再不会出现，但库里过去落过的工具事件还要能读出当时那句话，不许退化成空白卡。
+  // （这里曾写 monitor_get 而真名是 monitor_get_data，于是那张卡从来没按监控渲染过。）
+  ssh_exec: { kind: 'command', label: '执行命令', icon: TerminalIcon },
   monitor_get_data: { kind: 'metric', label: '采集监控指标', icon: Activity },
   profiler_run: { kind: 'metric', label: '运行性能剖析', icon: Activity },
   deploy_list_templates: { kind: 'knowledge', label: '列出部署模板', icon: Boxes },

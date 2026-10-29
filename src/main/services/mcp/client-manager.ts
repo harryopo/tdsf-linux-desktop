@@ -23,7 +23,15 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { buildExternalChildEnv } from './child-env'
 import { logger } from '../../services/log/logger'
-import type { McpToolResult } from './tools/registry'
+/**
+ * 一次工具调用的返回形状（MCP CallToolResult 里我们用到的那部分）。
+ * 原先住在已撤掉的入站服务注册表里；客户端这条活路自己带着它需要的最小形状。
+ */
+export type McpToolResult = {
+  content: Array<{ type: 'text'; text: string }>
+  isError?: boolean
+}
+
 import type {
   ExternalMcpServer,
   ExternalMcpConnectionState,

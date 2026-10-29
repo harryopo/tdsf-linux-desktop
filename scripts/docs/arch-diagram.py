@@ -166,7 +166,7 @@ main_boxes = [
     ("命令闸", "8 结构 + 7 argv + 244 词表", "键入/粘贴与 AI 同一条闸"),
     ("可信度融合", "Shafer 折扣 → D-S / PCR5", "冲突高走 PCR5，低走 Dempster"),
     ("持久化", "better-sqlite3 + sqlite-vec", "扩展加载失败 → 界面显式降级"),
-    ("MCP 网关", "@modelcontextprotocol/sdk", "本地工具 + 外部 stdio"),
+    ("MCP 网关", "@modelcontextprotocol/sdk", "外部 stdio 客户端 + 每次人工审批"),
     ("凭据保管", "safeStorage（DPAPI）", "密文存 userData，不入库"),
 ]
 for i, (t, s, s2) in enumerate(main_boxes):

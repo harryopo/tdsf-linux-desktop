@@ -460,7 +460,7 @@ export class LlmClient {
    *
    * 关键修复（P1-1）：
    *   - 原返回 `echo "需要人工诊断"` 是无意义命令，用户执行后看不到任何诊断输出
-   *   - 改为综合健康检查脚本，与 agent-workflow.ts 的 deriveFixCommand 保持一致
+   *   - 改为综合健康检查脚本：降级到最低一级时也要让用户看到真实系统状态
    *   - 确保即使降级到最低级别，用户也能看到实际系统状态
    *
    * Phase D 对齐（polish-tdsf-p1-issues）：

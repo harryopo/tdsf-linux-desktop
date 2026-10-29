@@ -239,11 +239,11 @@ describe('零调用面收口（#216）', () => {
     expect(codeOnly(readSourceFile(path.join(ROOT, 'src/main/ipc/sandbox-approval.ts')))).toMatch(
       /await assessCommandRisk\(/
     )
-    // 4-4 SFTP stat 的主进程直 call 三家消费者都还在（删的是 IPC 出口，不是能力）
+    // 4-4 SFTP stat 的主进程直 call 两家消费者都还在（删的是 IPC 出口，不是能力；
+    //     入站 MCP 那份工具表已随 #281 撤，这里不再把它算作消费者）
     for (const rel of [
       'src/main/services/preview/preview-service.ts',
       'src/main/services/ssh/shell-integration.ts',
-      'src/main/services/mcp/tools/registry-ssh.ts',
     ]) {
       expect(codeOnly(readSourceFile(path.join(ROOT, rel))), `${rel} 不再用 stat：这条链断了`).toMatch(/\bstat\(/)
     }

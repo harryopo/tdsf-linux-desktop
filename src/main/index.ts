@@ -23,7 +23,7 @@ import { McpGateway } from './core/agent/mcp-gateway'
 import { LangfuseService } from './services/observability/langfuse'
 import { ConfigStore } from './services/storage/config-store'
 import { takeSalvagedStoreFiles } from './services/storage/store-recovery'
-import { McpServerService } from './services/mcp/server'
+import { setApprovalTimeoutSource } from './core/security/approval-request'
 import { DatabaseManager, resolveDbPath } from './services/db/database'
 import { AuditRepo } from './services/db/audit-repo'
 import { installCommandBlockTrace } from './core/command-block-trace'
@@ -162,18 +162,16 @@ app.whenReady().then(() => {
   LangfuseService.getInstance().init()
   pushBootLoadingStage('kb-indexed', BrowserWindow.getAllWindows())
 
-  // 0.1 启动 MCP Server（仅在 MCP_SERVER_ENABLED=true 时启用）
-  const mcpConfig = ConfigStore.getMcpConfigOrDefault()
-  void McpServerService.getInstance(mcpConfig).start().catch((err) => {
-    logger.error('MCP', '启动失败', {
-      error: redactSecrets((err as Error).message ?? String(err)),
-    })
-  })
+  // 0.1 审批超时接上设置页那条键（决策设置 → 决策超时）。
+  //     等待器本身不读配置（保持无 Electron 依赖才能被单测直接跑住），这里给它一个取数口。
+  setApprovalTimeoutSource(() => ConfigStore.get('decision.decisionTimeout'))
 
   // 0.1a 外部 MCP Server：把配置里登记的服务器交给 Client 侧
   //      没有这一步，mcpConfig.externalServers 就是"字段声明了、没人读"，
   //      mcp:external-status/tools/call 三条通道永远只会回空表。
-  McpGateway.getInstance().registerExternalServers(mcpConfig.externalServers ?? [])
+  McpGateway.getInstance().registerExternalServers(
+    ConfigStore.getMcpConfigOrDefault().externalServers ?? []
+  )
 
   // 1. 创建主窗口
   installPreviewProtocol(getPreviewTransport())
@@ -262,15 +260,14 @@ const quitCleanup = createQuitCleanup({
     buildQuitSteps({
       // 子进程留在机器上的代价最大，排在最前（顺序理由见 quit-cleanup.ts）
       cleanupSidecar: () => cleanupSidecar(),
-      // 外部 MCP 服务器是 stdio 子进程：以前 McpServerService.stop() 只关服务端，
-      // 客户端那批子进程没人断（disconnectAllExternalServers 零调用者）
+      // 外部 MCP 服务器是 stdio 子进程：客户端那批子进程退出时必须逐个断开，
+      // 否则用户下次开机遇到的是"端口上还挂着上一轮的僵尸进程"
       disconnectExternalMcp: () => McpGateway.getInstance().disconnectAllExternalServers(),
       // 文件监听骑在 SSH 会话上（inotify 流 / 轮询定时器），必须在断连之前停
       // ——它自己的注释就写着"应用退出时调用"，但一直没人调
       stopFileWatchers: () => FileWatcherAdapter.getInstance().stopAll(),
       stopMonitoring: () => stopAllMonitoring(),
       disconnectSsh: () => SshConnectionManager.getInstance().disconnectAll(),
-      stopMcpServer: () => McpServerService.getInstance().stop(),
       // MCP 生命周期管理器自己挂着 1 秒的 backoff 轮询定时器，以前没人停它：
       // 退出之后事件循环上还有活干，等于白等（它的 dispose 就是为这一步加的）
       disposeMcpLifecycle: () => McpLifecycleManager.getInstance().dispose(),

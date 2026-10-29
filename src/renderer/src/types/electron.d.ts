@@ -13,7 +13,7 @@ import type { ElectronAPI as PreloadElectronAPI } from '../../../preload'
 // 类型定义只有一份，在 src/shared/ipc-channels.ts
 
 
-// 部署助手类型（来自共享层 @shared/deploy-types）
+// （部署助手类型 @shared/deploy-types 已随 #281 整删：那条链路的服务端在桌面里永远连不上）
 
 
 // LLM Tool Calling 类型（v0.5.0）

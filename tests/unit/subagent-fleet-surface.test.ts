@@ -146,9 +146,23 @@ function supervisorWiring(text: string): string[] {
   return BANNED_SHAPES.filter((b) => code.includes(b))
 }
 
-/** 判据 4 的那句顺序断言的实现体：confirm 必须排在 execute 之前，否则命令已经跑完才问人 */
-function gateOrder(code: string): { confirmAt: number; executeAt: number } {
-  return { confirmAt: code.indexOf(`'confirm'`), executeAt: code.indexOf(`'execute'`) }
+/**
+ * 判据 4 的顺序断言实现体：写命令这条路上，**命令闸 → 人工审批 → 真执行** 三步必须按这个顺序出现。
+ * 顺序反了等于先动手再问，或者拦完了还去执行。
+ * 三个标记取自活链路（supervisor 的 PAOR 环），不是从已删的入站工作流里抄来的词。
+ */
+function liveGateOrder(code: string): { gateAt: number; approveAt: number; execAt: number } {
+  // 只在 ssh_write 那一段里比顺序：只读工具（ssh_readonly）本来就不需要人工审批，
+  // 拿整份文件的第一个 exec 位置来比，会把它也算成"先动手"（假红）。
+  const start = code.indexOf(`ssh_write: tool({`)
+  if (start < 0) return { gateAt: -1, approveAt: -1, execAt: -1 }
+  const end = code.indexOf(`sftp_read: tool({`, start)
+  const seg = code.slice(start, end > start ? end : start + 4000)
+  return {
+    gateAt: seg.indexOf('evaluateCommand('),
+    approveAt: seg.indexOf('approveWriteCommand('),
+    execAt: seg.indexOf('getInstance().exec('),
+  }
 }
 
 /** 判据 5 的实现体：返回"还写着哪句谎 / 缺哪个出处"，空数组才是通过 */
@@ -215,19 +229,31 @@ describe('Subagent 编队收口（#218 立 / #222 改形）', () => {
       'paorApprove',
       '全局审批条不再应答真审批出口'
     )
-    // agent-workflow.ts 保留的理由有两条，两条都要当场验：仍服务 MCP 工具出口、仍消费决策超时设置
-    const wf = readCode('src/main/core/agent-workflow.ts')
-    mustContain(wf, 'resolveConfirmTimeoutMs', '设置页那条决策超时就成了没人消费的读数')
-    mustContain(wf, 'decision.decisionTimeout', 'workflow 不再读决策超时，那个设置就是摆设')
+    // #281：入站 MCP 派发口整删后，agent-workflow.ts 失去它最后一个消费者，跟着一起删。
+    // 这两把门回来必须重开判决，而不是悄悄复活：
+    for (const gone of ['src/main/core/agent-workflow.ts', 'src/main/services/mcp/server.ts']) {
+      expect(
+        fs.existsSync(path.resolve(__dirname, '../..', gone)),
+        `${gone} 又回来了——#281（入站 MCP 结构上不可达）的判决要重开`
+      ).toBe(false)
+    }
+    // 决策超时那条设置的消费者搬到了审批等待器；它要是没人读，设置页那条就是摆设
     mustContain(
-      readCode('src/main/services/mcp/tools/legacy-handlers.ts'),
-      'core/agent-workflow',
-      'MCP 出口不再 import 它，agent-workflow 就成了新的死码'
+      readCode('src/main/core/security/approval-request.ts'),
+      'resolveApprovalTimeoutMs',
+      '审批等待器不再有"从配置算超时"这一步，那条设置就成了摆设'
     )
-    const order = gateOrder(wf)
-    expect(order.confirmAt, 'workflow 里没有 confirm 步').toBeGreaterThan(-1)
-    expect(order.executeAt, 'workflow 里没有 execute 步').toBeGreaterThan(-1)
-    expect(order.confirmAt < order.executeAt, 'confirm 排到 execute 之后了——那等于先动手再问').toBe(true)
+    mustContain(readCode('src/main/index.ts'), 'setApprovalTimeoutSource', '主进程启动时没把配置接进审批等待器')
+    // 把关顺序的规矩由活链路自己守着：命令闸与人工审批都排在真执行之前
+    const sup = readCode('src/main/core/agent/supervisor.ts')
+    const order = liveGateOrder(sup)
+    expect(order.gateAt, 'supervisor 里没有命令闸').toBeGreaterThan(-1)
+    expect(order.approveAt, 'supervisor 里没有人工审批等待').toBeGreaterThan(-1)
+    expect(order.execAt, 'supervisor 里没有真执行那一步').toBeGreaterThan(-1)
+    expect(
+      order.gateAt < order.execAt && order.approveAt < order.execAt,
+      '拦截或审批排到执行之后了——那等于先动手再问'
+    ).toBe(true)
   })
 
   it('5. 三份文档不许再谎报这套编队在跑，且两轮改口都要留出处', () => {
@@ -280,11 +306,20 @@ describe('Subagent 编队收口（#218 立 / #222 改形）', () => {
     ).toEqual(['src/main/core/agent/挪到这里/coding-subagent.ts'])
     expect(findFilesByBasename(normal, DEAD_FILE_BASENAMES), '正常文件名被误伤').toEqual([])
 
-    // 判据 4 那句顺序：把两步调了个儿的样本必须报"排在后面"，缺一步的样本要报 -1
-    const reversed = `async run() { await this.runStep('execute', a); await this.runStep('confirm', b) }`
-    const reversedOrder = gateOrder(reversed)
-    expect(reversedOrder.confirmAt < reversedOrder.executeAt, '顺序判据反了也不红——那它压根没在看顺序').toBe(false)
-    expect(gateOrder(`async run() { await this.runStep('plan', a) }`).confirmAt, '缺 confirm 时没报 -1').toBe(-1)
+        // 判据 4 那句顺序：把审批调到执行之后的样本必须报红，缺闸的样本要报 -1
+    const reversed =
+      'ssh_write: tool({ a() {} }) ' +
+      'evaluateCommand(c); getInstance().exec(s, c); approveWriteCommand(c) ' +
+      'sftp_read: tool({ b() {} })'
+    const reversedOrder = liveGateOrder(reversed)
+    expect(
+      reversedOrder.approveAt < reversedOrder.execAt,
+      '顺序判据反了也不红——那它压根没在看顺序'
+    ).toBe(false)
+    expect(
+      liveGateOrder('ssh_write: tool({ a() {} }) getInstance().exec(s, c)').gateAt,
+      '缺命令闸时没报 -1'
+    ).toBe(-1)
 
     // 判据 5：谎话与缺出处都要被抓，改好口径的样本不误伤
     const lying = '本工具注册了 8 个 Subagent 在总控里注册，还没有生产调用点。'

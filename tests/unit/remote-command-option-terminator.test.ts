@@ -5,8 +5,9 @@
  *
  * 1) **构造器行为**：`-` 开头的入参不许变成命令自己的选项。
  *    shell 引号只挡住 shell 展开，挡不住参数被当成选项解析。
- *    入参来源不是"我们写死的常量"：MCP 工具参数由外部客户端传，
- *    文件监听的路径由渲染层传，两处都没有绝对路径校验。
+ *    入参来源不是"我们写死的常量"：文件监听的路径由渲染层传，没有绝对路径校验。
+ *    （tail/grep 那两条构造器原来住在已整删的入站 MCP 工具表里——见 #281；
+ *     这里的实测记录留着，因为第 2 条规矩仍要按同样的形状要求后来者。）
  *
  * 2) **两个家族分开要求**（真靶机实测，2026-10-26，WSL Ubuntu-24.04 / 应用同款 ssh2 exec）：
  *    - tail 9.4：`tail -n 2 '-f'` 挂住 5 秒被 timeout 杀掉（exit 124），
@@ -26,43 +27,12 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import {
-  buildLogTailCommand,
-  buildLogSearchCommand
-} from '../../src/main/services/mcp/tools/registry-log'
 import { buildInotifyWaitCommand, buildPollFindCommand } from '../../src/main/services/ssh/file-watcher'
 import { assertRemotePathAbsolute } from '../../src/main/services/ssh/remote-write-guard'
 
 const ROOT = path.resolve(__dirname, '../..')
 
 describe('1. 远端命令构造器：- 开头的参数是数据不是选项', () => {
-  it('tail：路径在 -- 之后（-f 不许变成"跟随模式"）', () => {
-    expect(buildLogTailCommand('/var/log/syslog', 100)).toBe("tail -n 100 -- '/var/log/syslog'")
-    const dashPath = buildLogTailCommand('-f', 100)
-    expect(dashPath).toBe("tail -n 100 -- '-f'")
-    expect(dashPath.indexOf("'-f'")).toBeGreaterThan(dashPath.indexOf('--'))
-  })
-
-  it('tail：路径里的单引号仍按 shell 字面量转义（不因加了 -- 而退化）', () => {
-    expect(buildLogTailCommand("/var/log/it's", 5)).toContain(`'/var/log/it'\\''s'`)
-  })
-
-  it('grep：模式与路径都在 -- 之后（-f/etc/passwd 不许变成模式文件）', () => {
-    const cmd = buildLogSearchCommand({
-      pattern: '-f/etc/passwd',
-      path: '-r',
-      ignoreCase: false,
-      maxMatches: 50
-    })
-    expect(cmd).toBe("grep -r -n -E -- '-f/etc/passwd' '-r' 2>/dev/null | head -n 50")
-  })
-
-  it('grep：忽略大小写只多一个 -i，选项终止符仍在模式之前', () => {
-    expect(
-      buildLogSearchCommand({ pattern: 'err', path: '/var/log', ignoreCase: true, maxMatches: 5 })
-    ).toBe("grep -r -n -E -i -- 'err' '/var/log' 2>/dev/null | head -n 5")
-  })
-
   it('inotifywait：路径在独立 -- 之后（-e 不许变成"只监听某事件"）', () => {
     const cmd = buildInotifyWaitCommand('-e')
     expect(cmd).toBe("inotifywait -m -r --format '%w%f %e' -- '-e' 2>/dev/null")
@@ -184,8 +154,9 @@ describe('3. 全仓扫：远端命令的形状规矩', () => {
 
   it('getopt 家族每段都写了 --，find 每段都没写 --', () => {
     const bad = all.filter((r) => !r.ok)
-    // 正向对照：这条闸确实扫到了东西，不是"空集合所以全过"
-    expect(all.length).toBeGreaterThanOrEqual(8)
+    // 正向对照：这条闸确实扫到了东西，不是"空集合所以全过"。
+    // 2026-10-29 #281 之后扫描面从 8 段降到 6 段（tail/grep 那两条模板原住在入站 MCP 工具表里，随它一起撤了）。
+    expect(all.length).toBeGreaterThanOrEqual(6)
     expect(bad.map((b) => `${b.why} → ${b.file}:${b.line} :: ${b.segment}`)).toEqual([])
   })
 

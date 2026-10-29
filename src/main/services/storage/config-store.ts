@@ -27,10 +27,8 @@ export interface LangfuseConfig {
   host?: string
 }
 
-/** MCP Server 配置 */
+/** MCP 配置（只剩外部服务器列表；入站方向的服务连同 enabled/port 一起撤了） */
 export interface McpConfig {
-  enabled: boolean
-  port: number
   /** 外部 MCP Server 列表（Agent 作为 Client 连接） */
   externalServers?: ExternalMcpServer[]
 }
@@ -52,9 +50,6 @@ interface ConfigSchema {
   /** 其他自定义配置（允许任意 key-value） */
   [key: string]: unknown
 }
-
-/** 内部 MCP Server 的默认端口（没配过 mcpConfig 时用；改这里就等于改正本） */
-export const MCP_DEFAULT_PORT = 3107
 
 /**
  * 创建 electron-store 实例
@@ -341,7 +336,7 @@ export class ConfigStore {
   }
 
   /**
-   * 取 MCP 配置，没配过时给一份"内部服务器按环境变量决定、端口 3107、外部列表为空"的默认。
+   * 取 MCP 配置，没配过时给一份空表。
    *
    * 默认值只写在这一个地方：以前只有 main/index.ts 内联一份，现在写入口也要一份，
    * 抄两份迟早和正本分叉（谁都不想让"没配过"和"配过但关着"长成同一种读数）。
@@ -349,10 +344,7 @@ export class ConfigStore {
   public static getMcpConfigOrDefault(): McpConfig {
     const raw = store.get('mcpConfig', null)
     if (raw != null && !isPlainObject(raw)) warnShapeOnce('mcpConfig', raw)
-    return (isPlainObject(raw) ? (raw as unknown as McpConfig) : null) ?? {
-      enabled: process.env.MCP_SERVER_ENABLED === 'true',
-      port: MCP_DEFAULT_PORT,
-    }
+    return (isPlainObject(raw) ? (raw as unknown as McpConfig) : null) ?? {}
   }
 
   /**

@@ -120,9 +120,9 @@ describe('剖析导出面：路径由主进程定（#212）', () => {
       expect(readSourceFile(path.join(ROOT, f)), `${f} 不在了`).not.toBe('')
     }
     // AI 那条工具出口也还在（对话里调 profiler 这条路不能被这批改口带走）
-    expect(readSourceFile(path.join(ROOT, 'src/main/services/llm/tools/profiler-run.ts'))).toContain(
-      'runProfiler'
-    )
+    // 2026-10-29 #281：那份 AI 工具外壳（llm/tools/profiler-run）随入站 MCP 派发口一起整删，
+    // 剖析的活入口是监控页那张体检卡走的 ipc/profiler —— 引擎本体照旧一个没删。
+    expect(readSourceFile(path.join(ROOT, 'src/main/ipc/profiler.ts'))).toContain('runProfiler')
   })
 
   it('监控页真的挂着这张体检卡（键有界面消费者，不是又一把零调用键）', () => {

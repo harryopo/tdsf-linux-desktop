@@ -66,11 +66,15 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > 也已于次日 #222 整删——**现在产品里唯一在跑的多步编排就是 Supervisor 的 PAOR**，别再写"还有另一条在跑"。
 > **`ipc/agent.ts` 与裸 `llm:*` 家族同样已于 2026-10-24 整删**（`agent:start/confirm/cancel` +
 > `agent:step`、`llm:chat/analyze/validate/chat-with-context/chat-with-tools/tool-approve` 与 6 条推送）：
-> 渲染层零调用，主对话一直是 `agent:chat`（Supervisor）那一条。留着的 `core/agent-workflow.ts`
-> 不是残骸，但**只剩一条路**：MCP 的 `services/mcp/tools/legacy-handlers.ts`（工具 `ssh_diagnose`）在用；
-> 它导出的 `resolveConfirmTimeoutMs` 与 `CONFIRM_TIMEOUT_*` 今天没有任何生产调用方，
-> 而 MCP 服务本身要 `MCP_SERVER_ENABLED=true` 且当前没有外部客户端接进来——这条"半可达"记在
-> `docs/功能实景清单.md` 的判决队列里，别拿它当"产品内在跑"。
+> 渲染层零调用，主对话一直是 `agent:chat`（Supervisor）那一条。当年留下的 `core/agent-workflow.ts`
+> 也已于 **2026-10-29 #281 整删**：它唯一的入站消费者是"把本应用能力暴露给外部客户端"的 MCP Server，
+> 而那个 Server 只接 `StdioServerTransport`——桌面主进程的 stdio 没有对端，外部客户端结构上连不上
+> （实测：开 `MCP_SERVER_ENABLED=true` 后日志写"Server 已启动"，`netstat` 里 3107 命中 0，配置里那个端口
+> 在代码注释中自认"只用于展示"）。同一刀带走的还有 `services/mcp/tools/registry-*.ts` 七张工具表、
+> `resources.ts`/`prompts.ts`、`services/llm/tools/` 那五个工具外壳、`services/deploy/` 整条模板链、
+> `diagnostics/log-analyzer.ts` 与 `shared/llm-tool-types.ts`——**它们的存在理由是那张入站派发口**。
+> 决策超时那条设置键没有跟着变摆设：它现在的消费者是 `src/main/core/security/approval-request.ts`
+> （主进程启动时注入取数口，到点自动拒绝）。界面上只留外部 MCP 客户端那一条（设置 → MCP，每次调用人工审批）。
 > **五模式（chat/ask/plan/code/debug）已于 2026-10-24 整删**：`ipc/mode.ts`、`core/agent/modes/`
 > （含 ask/plan 两份系统提示词共 295 行）、`MODE` 通道、preload 三键与 `agent-types.ts` 里那组形状。
 > 判决理由不是"没人按"，是**它兑不了自己许的诺**：Supervisor 取 systemPrompt 不读 mode，
@@ -85,8 +89,9 @@ Electron 安全三原则（`contextIsolation:true` / `nodeIntegration:false` / `
 > **D-S / PCR5 同样不在这张表里**（2026-10-19 纠正，与上面那条是同一类错）：`credibility:assess`
 > 先按 `decision.weights` 做 Shafer 折扣（`ipc/credibility-helpers.ts:269`），折扣完的那批 mass function
 > 仍然进 `FusionEngine.fuseAndAssess`（`ipc/credibility.ts:184` → `credibility/fusion-engine.ts:174`：
-> 两两冲突 < 0.3 走 Dempster，否则 `pcr5.ts` 重分配）；MCP 那条（`services/mcp/tools/registry-credibility.ts:128`）
-> 用的是同一个引擎。旧版本写"生产走折扣后的简化融合"——折扣是真的，但"简化融合"没有，写这话时没打开过函数。
+> 两两冲突 < 0.3 走 Dempster，否则 `pcr5.ts` 重分配）。旧版本写"生产走折扣后的简化融合"
+> ——折扣是真的，但"简化融合"没有，写这话时没打开过函数。
+> （原来这里还写着"MCP 那条用的是同一个引擎"——那条入站 MCP 工具出口已随 #281 整删，句子跟着撤。）
 
 ---
 

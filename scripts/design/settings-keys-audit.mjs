@@ -69,12 +69,12 @@ const WIRED = {
   // 审计四开关 + 保留期：services/db/audit-repo.ts 按类别决定是否落 audit_logs
   'risk.auditCmdExec': 'services/db/audit-repo.ts（connection-manager.exec 完成/失败时写）',
   'risk.auditFileMod': 'services/db/audit-repo.ts（ipc/ssh.ts 的上传/删除/改名/改权限/写文件/建目录 6 个入口写）',
-  'risk.auditAiDecision': 'services/db/audit-repo.ts（agent-workflow 确认步写）',
+  'risk.auditAiDecision': 'services/db/audit-repo.ts（决策卡落库那条路写：services/decisions/auto-record 与 ipc 的决策入口）',
   'risk.auditSshConn': 'services/db/audit-repo.ts（SSH 连接建立/失败写）',
   'risk.auditRetention': 'services/db/audit-repo.ts pruneExpired，主进程启动时按天数清理',
   // 决策与校准：主进程按键取值
   'decision.weights': 'src/main/ipc/credibility.ts',
-  'decision.decisionTimeout': 'src/main/core/agent-workflow.ts resolveConfirmTimeoutMs（确认超时自动拒绝）',
+  'decision.decisionTimeout': 'src/main/core/security/approval-request.ts（setApprovalTimeoutSource 注入，审批到点自动拒绝）',
   'calibration.minSamples': 'pages/CalibrationSettings.tsx 取出后当 IPC 入参 → tuneProvider → optimizeTemperature',
   /*
    * 「纯界面态」这一类以前挂着两条，注释写着"行为确实变了"——那话是假的：

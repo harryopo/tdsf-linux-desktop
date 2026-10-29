@@ -34,9 +34,11 @@ const DEFENSES: DefenseWiring[] = [
     definitionFiles: ['src/main/core/crash-guard.ts'],
   },
   {
-    // #88 已接上：MCP server 的 handleToolCall 在派发前判一次（形状表按真实工具清单补齐）。
-    symbol: 'assessToolCall',
-    mustBeCalledFrom: 'src/main/services/mcp',
+    // 命令闸在 AI 侧唯一的活消费者：内联工具真发命令前判一次。
+    // （入站 MCP 的 handleToolCall 派发口已随 #281 整删，那张按工具名查的形状表一起撤——
+    //   留着它就等于宣称"有一条入站链路在被这道闸守着"，而那条链路结构上不存在。）
+    symbol: 'evaluateCommand',
+    mustBeCalledFrom: 'src/main/core/agent',
     definitionFiles: ['src/main/core/command-gate.ts'],
   },
   {

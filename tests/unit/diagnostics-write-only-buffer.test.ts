@@ -138,12 +138,18 @@ describe('diagnostics 只写不读的缓冲已关掉（#206）', () => {
     ).toBe(false)
   })
 
-  it('4. 正向对照：MCP 的 log_analyze 仍然真走 LogAnalyzer（这条删前删后都该绿）', () => {
-    const code = codeOnly(readSourceFile(path.join(ROOT, 'src/main/services/mcp/tools/registry-log.ts')))
-    expect(code, 'registry-log.ts 读不到').not.toBe('')
-    expect(code.includes("'log_analyze'"), 'MCP 那个日志分析工具不在了').toBe(true)
-    expect(code.includes('diagnostics/log-analyzer'), 'log_analyze 不再从留下来的那个模块取 LogAnalyzer').toBe(true)
-    expect(code.includes('new LogAnalyzer('), '只 import 不实例化——那这条出口是挂名的').toBe(true)
+  it('4. 反向对照：入站 MCP 那个 log_analyze 消费者已随 #281 撤走（不许装作还在）', () => {
+    // 这一档原先的正向对照是"MCP 的 log_analyze 真走 LogAnalyzer"。派发口整删后那句话不再成立，
+    // 于是把它改成盘上证据：文件没了就是没了。LogAnalyzer 现在只剩两个探针脚本在引，
+    // 而那两个脚本本身又 import 了 #206 已删的 diagnostics-service——整条残留归 #282 判决。
+    expect(
+      fs.existsSync(path.join(ROOT, 'src/main/services/mcp/tools/registry-log.ts')),
+      'registry-log.ts 又回来了——#281 的判决要重开，这一档也要改回正向对照'
+    ).toBe(false)
+    expect(
+      fs.existsSync(path.join(ROOT, 'src/main/services/diagnostics/diagnostics-service.ts')),
+      'diagnostics-service.ts 若在，说明 #206 的判决被推翻，探针脚本的引用就不再是残留'
+    ).toBe(false)
   })
 
   it('5. 应用日志那一头真的落盘，且启动时初始化过（否则"落进应用日志"是空话）', () => {

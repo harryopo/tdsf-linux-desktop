@@ -130,7 +130,7 @@ export function registerMcpStateHandlers(mainWindow: BrowserWindow): () => void 
   // mcp:external-call — 调用外部工具
   // ------------------------------------------------------------------
   // 每一次都要有人点头（#173 / 调研 P0-4）。
-  // 为什么不套 assessToolCall：那道闸按工具名查形状表、查不到就整条拒，
+  // 为什么不按工具名查形状表放行：外部服务器报上来的名字无从登记，
   // 而第三方 MCP 的工具名不可枚举，接上去等于把所有外部工具拒死；
   // 参数是不是 shell 命令也只有对面那个服务器知道。判不了就先问人。
   ipcMain.handle(

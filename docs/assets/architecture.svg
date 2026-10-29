@@ -69,7 +69,7 @@
   <rect x="610" y="510" width="4" height="54" rx="2" fill="#0f6cbd"/>
   <text x="626" y="525" font-size="13.5" fill="#0f172a" font-weight="600">MCP 网关</text>
   <text x="626" y="543" font-size="11.5" fill="#334155">@modelcontextprotocol/sdk</text>
-  <text x="626" y="560" font-size="11.5" fill="#334155">本地工具 + 外部 stdio</text>
+  <text x="626" y="560" font-size="11.5" fill="#334155">外部 stdio 客户端 + 每次人工审批</text>
   <rect x="861" y="502" width="231" height="70" rx="8" fill="#ffffff" stroke="#d7dee7" stroke-width="1"/>
   <rect x="861" y="510" width="4" height="54" rx="2" fill="#0f6cbd"/>
   <text x="877" y="525" font-size="13.5" fill="#0f172a" font-weight="600">凭据保管</text>

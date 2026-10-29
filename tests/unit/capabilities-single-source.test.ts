@@ -100,10 +100,15 @@ describe('能力就绪度表', () => {
     expect(row?.note, '表里要点名发送端文件，否则它被搬走就查不到来源').toContain('shell-integration')
   })
 
-  it('mcp-tools 仍是待开发：服务默认关，需要环境变量显式打开', () => {
-    // 默认值从 main/index.ts 搬进了 ConfigStore.getMcpConfigOrDefault()（写入口也要用同一份默认），
-    // 判据跟着搬到正本：这条断言要判的是"默认关"这件事还成立，不是它写在哪个文件里。
-    expect(codeOf('src/main/services/storage/config-store.ts')).toMatch(/MCP_SERVER_ENABLED === 'true'/)
+  it('external-mcp 这一档说的是活链路：客户端侧真接线，入站侧确实已经不在了', () => {
+    const row = CAPABILITIES.find((c) => c.id === 'external-mcp')
+    expect(row, '表里没有 external-mcp 这一档').toBeTruthy()
+    expect(row!.status, '外部 MCP 客户端是用户走得到的真功能').toBe('live')
+    // 接线证据：主进程启动时必须把配置里的外部服务器交给 Client 侧，
+    // 少了这一句，mcp:external-* 三条通道就永远只回空表（假 live）。
+    expect(codeOf('src/main/index.ts')).toMatch(/registerExternalServers\(/)
+    // 反向证据：这条 note 里写了"入站服务已整删"，删干净了才算这句话成立。
+    expect(codeOf('src/main/index.ts')).not.toMatch(/McpServerService/)
   })
 
   it('monitor-history 的降级说明里的采样上限与 store 实际值一致', () => {

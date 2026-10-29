@@ -17,7 +17,6 @@ import * as ts from 'typescript'
 import {
   CommandBlockedError,
   LineGate,
-  assessToolCall,
   assertCommandAllowed,
   evaluateCommand,
   setCommandBlockSink,
@@ -114,24 +113,27 @@ describe('拦截留痕', () => {
     expect(installed, '启动时没注册落点＝留痕能力只存在于测试里').toBe(true)
   })
 
-  it('AI 工具调用被拒也留痕（这一路以前只在返回值里，事后查不到）', () => {
+  it('执行口拦下来的一刻就留痕（放行的那条不许留）', () => {
     const got: CommandBlockTrace[] = []
     collectSink(got)
-    expect(assessToolCall('ssh_exec', { command: BLOCKED }).allow).toBe(false)
-    expect(assessToolCall('sftp_write_file', { path: '/etc/passwd' }).allow).toBe(false)
-    expect(assessToolCall('totally_unregistered_tool', {}).allow).toBe(false)
-    expect(got.map((g) => g.source)).toEqual(['AI 工具调用', 'AI 工具调用', 'AI 工具调用'])
+    expect(() => assertCommandAllowed(BLOCKED, '外部工具调用')).toThrow(CommandBlockedError)
+    expect(got.map((g) => g.source)).toEqual(['外部工具调用'])
     expect(got[0].command).toBe(BLOCKED)
-    expect(got[1].command).toContain('sftp_write_file')
-    expect(got[2].command).toBe('totally_unregistered_tool')
+
+    const got2: CommandBlockTrace[] = []
+    collectSink(got2)
+    expect(() => assertCommandAllowed(BENIGN, '外部工具调用')).not.toThrow()
+    expect(got2, '放行的命令不该在审计表里留下"拦截"').toEqual([])
   })
 
-  it('放行的工具调用不许留痕（反向对照）', () => {
-    const got: CommandBlockTrace[] = []
-    collectSink(got)
-    expect(assessToolCall('ssh_exec', { command: BENIGN }).allow).toBe(true)
-    expect(assessToolCall('sftp_list', { path: '/home/user' }).allow).toBe(true)
-    expect(got).toEqual([])
+  it('活着的两个拒绝出口都还挂着留痕（#281 撤掉入站派发口后，剩下的一个都不许掉）', () => {
+    // "AI 在对话里调外部工具被拒"（agent-runtime）与"设置页试调用被拒"（ipc/mcp）——
+    // 这两条是本应用仅存的、由外部/模型侧发起命令的拒绝出口。
+    for (const rel of ['src/main/ipc/agent-runtime.ts', 'src/main/ipc/mcp.ts']) {
+      const src = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      expect(src.length, `${rel} 读不到——那不是判过了，那是没查`).toBeGreaterThan(0)
+      expect(src.includes('emitBlockTrace('), `${rel} 的拒绝不再留痕，事后查不到这次拦截`).toBe(true)
+    }
   })
 
   it('结构核对：每个 block 出口都挂了留痕', () => {
@@ -141,7 +143,9 @@ describe('拦截留痕', () => {
     const gateBlocks = (src.match(/allow: false, /g) ?? []).length + (src.match(/allow: false,\n/g) ?? []).length
     // 只数调用（函数定义那行不算一处留痕）
     const emits = (src.match(/emitBlockTrace\(\{/g) ?? []).length
-    expect(throws + gateBlocks, '判定层的拦截出口数量变了，这条判据要跟着改').toBeGreaterThanOrEqual(4)
+    // 2026-10-29 #281：入站 MCP 派发口（两处拦截 + 两处留痕）整删后，判定层只剩这两处。
+    // 刻度跟着真实面积走，但"漏挂留痕的那一个出口"仍会被下面那行咬红。
+    expect(throws + gateBlocks, '判定层的拦截出口数量变了，这条判据要跟着改').toBeGreaterThanOrEqual(2)
     expect(emits, `留痕只有 ${emits} 处，而拦截出口有 ${throws + gateBlocks} 处——新增了没挂留痕的那一个`)
       .toBeGreaterThanOrEqual(throws + gateBlocks)
   })

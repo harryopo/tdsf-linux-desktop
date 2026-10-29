@@ -137,9 +137,9 @@ tsconfig.web.json      ← 渲染层
 | React 组件私有类型 | `src/renderer/src/components/tutorial/types.ts`（真实一例） | 仅渲染层用 |
 | 主进程服务内部 | `src/main/services/sandbox/types.ts`（真实一例） | 仅主进程用 |
 
-**反模式**：把 `deploy-types` 放 `src/main/services/deploy/types.ts` → 渲染层 `import type from '../../../main/...'` 触发 `TS2307: Cannot find module`。
+**反模式**：把 `deploy-types` 放 某个主进程服务目录里的 types 文件 → 渲染层 `import type from '../../../main/...'` 触发 `TS2307: Cannot find module`。
 
-**修复**：移到 `src/shared/deploy-types.ts`，主进程改为 `export * from '../../../shared/deploy-types'` 兼容层。
+**修复**：移到 共享层的部署类型文件，主进程改为 `export * from '../../../shared/deploy-types'` 兼容层。
 
 ### 3.3 electron.d.ts 模式
 

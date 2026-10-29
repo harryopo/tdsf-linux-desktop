@@ -1,11 +1,10 @@
 /**
  * 端到端场景测试：OOM（内存溢出）场景
  *
- * 验证 6 大核心机制在 OOM 故障场景下的协同工作：
+ * 验证 5 大核心机制（2026-10-29 #281：证据溯源那一环 grounding 随入站工作流一起整删，剩下的内核都是活链路在用的）在 OOM 故障场景下的协同工作：
  *   1. 规则引擎匹配 OOM 关键词
  *   2. 证据收集（从 dmesg 日志提取 OOM 证据）
  *   3. 置信度计算（log 来源先验 0.6）
- *   4. Ground-Check（证据溯源到 dmesg 命令）
  *   5. 风险引擎（kill -9 评估为 HIGH）
  *   6. 决策卡片 + HITL 流程（HIGH 需人工确认）
  */
@@ -17,11 +16,6 @@ import {
   calculateEvidenceConfidence
 } from '../../src/main/core/confidence'
 import {
-  verifyEvidence,
-  verifyAllEvidences,
-  type ToolCallRecord
-} from '../../src/main/core/grounding'
-import {
   assessRisk,
   requiresConfirmation,
   shouldBlock,
@@ -32,6 +26,18 @@ import {
   validateDecision
 } from '../../src/main/core/decision-engine'
 import type { Evidence } from '../../src/shared/models'
+
+/**
+ * 一次工具调用的记录形状。原先从 core/grounding 引，那个模块随 #281 的入站链一起整删；
+ * 场景测试只需要这几个字段来造"证据能不能被那三条命令解释"的样本，就地声明。
+ */
+type ToolCallRecord = {
+  sessionId: string
+  toolName: string
+  input: string
+  output: string
+  timestamp: number
+}
 
 /** 模拟 OOM 故障的 dmesg 日志输出 */
 const OOM_DMESG_OUTPUT =
@@ -115,30 +121,8 @@ describe('端到端场景：OOM（内存溢出）', () => {
     expect(computed.confidence).toBeCloseTo(0.775, 5)
   })
 
-  // ────────── 4. Ground-Check 证据溯源 ──────────
 
-  it('Ground-Check：OOM 证据可溯源到模拟的 dmesg 命令', () => {
-    const evidence = makeOomEvidence({
-      content: 'Out of memory: Kill process 1234 (nginx)',
-      sourceDetail: 'dmesg',
-      timestamp: Date.now()
-    })
-    const records = [makeDmesgRecord({ timestamp: Date.now() - 1000 })]
 
-    // dmesg 属于 log 来源匹配的工具（sourceTypeMatchesTool: /dmesg/ ）
-    expect(verifyEvidence(evidence, records)).toBe(true)
-
-    // 批量验证：verified 字段应更新为 true
-    const verified = verifyAllEvidences([evidence], records)
-    expect(verified[0].verified).toBe(true)
-  })
-
-  it('Ground-Check：证据时间戳早于工具调用时验证失败', () => {
-    const toolTime = Date.now()
-    const evidence = makeOomEvidence({ timestamp: toolTime - 5000 })
-    const records = [makeDmesgRecord({ timestamp: toolTime })]
-    expect(verifyEvidence(evidence, records)).toBe(false)
-  })
 
   // ────────── 5. 风险引擎评估 ──────────
 

@@ -1,11 +1,10 @@
 /**
  * 端到端场景测试：磁盘满场景
  *
- * 验证 6 大核心机制在磁盘空间不足故障场景下的协同工作：
+ * 验证 5 大核心机制（2026-10-29 #281：证据溯源那一环 grounding 随入站工作流一起整删，剩下的内核都是活链路在用的）在磁盘空间不足故障场景下的协同工作：
  *   1. 规则引擎匹配磁盘满关键词
  *   2. 证据收集（从 df -h 命令输出提取磁盘使用率）
  *   3. 置信度计算（command 来源先验 0.9）
- *   4. Ground-Check（证据溯源到 df -h 命令）
  *   5. 风险引擎（多命令分级评估：CRITICAL / HIGH / MEDIUM / LOW）
  *   6. 决策卡片（推荐安全命令，拒绝危险命令）+ HITL 流程
  */
@@ -17,11 +16,6 @@ import {
   calculateEvidenceConfidence
 } from '../../src/main/core/confidence'
 import {
-  verifyEvidence,
-  verifyAllEvidences,
-  type ToolCallRecord
-} from '../../src/main/core/grounding'
-import {
   assessRisk,
   requiresConfirmation,
   shouldBlock,
@@ -32,6 +26,18 @@ import {
   validateDecision
 } from '../../src/main/core/decision-engine'
 import type { Evidence } from '../../src/shared/models'
+
+/**
+ * 一次工具调用的记录形状。原先从 core/grounding 引，那个模块随 #281 的入站链一起整删；
+ * 场景测试只需要这几个字段来造"证据能不能被那三条命令解释"的样本，就地声明。
+ */
+type ToolCallRecord = {
+  sessionId: string
+  toolName: string
+  input: string
+  output: string
+  timestamp: number
+}
 
 /** 模拟 df -h 命令输出（磁盘满） */
 const DF_H_OUTPUT =
@@ -116,33 +122,8 @@ describe('端到端场景：磁盘满', () => {
     expect(computed.confidence).toBeCloseTo(0.935, 5)
   })
 
-  // ────────── 4. Ground-Check 证据溯源 ──────────
 
-  it('Ground-Check：磁盘满证据可溯源到模拟的 df -h 命令', () => {
-    const evidence = makeDiskEvidence({
-      content: '/dev/sda1',
-      sourceDetail: 'df -h',
-      timestamp: Date.now()
-    })
-    const records = [makeDfRecord({ timestamp: Date.now() - 1000 })]
 
-    // sourceDetail='df -h' 匹配 record.input='df -h'（input.includes(sourceDetail)）
-    expect(verifyEvidence(evidence, records)).toBe(true)
-
-    // 批量验证：verified 字段应更新为 true
-    const verified = verifyAllEvidences([evidence], records)
-    expect(verified[0].verified).toBe(true)
-  })
-
-  it('Ground-Check：证据内容不在工具输出中时验证失败', () => {
-    const evidence = makeDiskEvidence({
-      content: 'completely different content',
-      sourceDetail: 'df -h',
-      timestamp: Date.now()
-    })
-    const records = [makeDfRecord({ timestamp: Date.now() - 1000 })]
-    expect(verifyEvidence(evidence, records)).toBe(false)
-  })
 
   // ────────── 5. 风险引擎多命令分级评估 ──────────
 

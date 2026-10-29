@@ -48,7 +48,6 @@ function fakeServices(order: string[], delayMs = 0): QuitServices {
     stopFileWatchers: mk('watchers'),
     stopMonitoring: mk('monitor'),
     disconnectSsh: mk('ssh'),
-    stopMcpServer: mk('mcp'),
     disposeMcpLifecycle: mk('mcp-lifecycle'),
     stopOpenHands: mk('openhands'),
     closeLocalPty: mk('local-pty'),
@@ -143,7 +142,7 @@ describe('退出清理闸门（行为）', () => {
     }
     // 上一版 sidecar 排第 6：SSH 一吃光整体上限它就饿死，孤儿进程 bug 原地复活
     expect(at('关闭 sidecar'), 'sidecar 必须排第一').toBe(0)
-    expect(at('断开外部 MCP 客户端')).toBeLessThan(at('停止 MCP Server'))
+    expect(at('断开外部 MCP 客户端')).toBeLessThan(at('断开 SSH'))
     expect(at('停止文件监听'), '文件监听的 inotify 流/轮询定时器挂在 SSH 会话上').toBeLessThan(at('断开 SSH'))
     // OpenHands 容器同样是留在机器上的后台进程，不能排到预算之后
     expect(at('停止 OpenHands 容器'), '容器必须在断 SSH 之前停').toBeLessThan(at('断开 SSH'))
@@ -151,8 +150,11 @@ describe('退出清理闸门（行为）', () => {
     // 本机终端也是留在机器上的真进程（shell + 它的子进程），不能排到预算之后
     expect(at('关闭本机终端'), '本机终端必须在断 SSH 之前关').toBeLessThan(at('断开 SSH'))
     expect(at('关闭本机终端'), '本机终端紧跟前两个外部进程').toBeLessThanOrEqual(3)
-    // 生命周期那把 1 秒轮询必须在 MCP Server 关掉之后摘（还在用的时候摘会漏日志）
-    expect(at('摘除 MCP 生命周期轮询')).toBeGreaterThan(at('停止 MCP Server'))
+    // 生命周期那把 1 秒轮询要在客户端都断干净之后再摘（还在用的时候摘会漏日志）
+    expect(at('摘除 MCP 生命周期轮询')).toBeGreaterThan(at('断开外部 MCP 客户端'))
+    // 2026-10-29 #281：入站 MCP Server（桌面进程里的 stdio，永远没有对端）整删，
+    // 它那条"停止 MCP Server"步骤跟着退表；它要是回来，这里得重新钉顺序。
+    expect(names, '入站 MCP Server 又回来了——#281 的判决要重开').not.toContain('停止 MCP Server')
     // 关库必须排在所有会写库的步骤之后：先关池子会把审计/调度/凭据的收尾打成"库不可用"
     for (const writer of ['断开 SSH', '清理调度器', '关闭 Langfuse（trace 落盘）']) {
       expect(at('关闭数据库句柄'), `关库排在了会写库的「${writer}」前面`).toBeGreaterThan(at(writer))

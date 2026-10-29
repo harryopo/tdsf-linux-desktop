@@ -7,6 +7,10 @@
  *   2. 工具复制了一份解析函数，和界面那份漂了（CPU 一个按 100−idle、一个按 us；
  *      进程数一份减了 ps 的表头、一份没减）——AI 报的数和用户在监控页看的不是同一个数。
  * 现在采集与解析只有 SystemMonitor 一份实现，本文件用假 SSH 源跑真解析。
+ * 2026-10-29 #281：那层 MCP 工具外壳（monitor_get）连同它的入站服务一起整删——
+ * AI 现在要的监控数字走 ssh_readonly 的真命令。"只开一个 channel / 解析只有一份"这两条
+ * 规矩住在 SystemMonitor 里，所以本文件只钉 SystemMonitor；外壳那三条用例随它一起走，
+ * 不是放宽规矩（这里没有能开第二条 channel 的代码了）。
  */
 import { describe, it, expect, vi } from 'vitest'
 import type { CommandResult, MonitorData } from '@shared/models'
@@ -60,11 +64,6 @@ vi.mock('../../src/main/services/ssh/connection-manager', () => ({
   },
 }))
 
-async function runMonitorGet(sessionId: string) {
-  const { executeMonitorGet } = await import('../../src/main/services/llm/tools/monitor-get')
-  return executeMonitorGet({ sessionId })
-}
-
 describe('monitor_get 走单一采集出口', () => {
   it('一次调用只开一个 channel，且这一条里确实带着七个探针', async () => {
     execCalls.length = 0
@@ -84,41 +83,6 @@ describe('monitor_get 走单一采集出口', () => {
     expect(data.processCount).toBe(41)
   })
 
-  it('工具优先读刚采过的那一份，不再另开 channel', async () => {
-    execCalls.length = 0
-    const monitor = SystemMonitor.getInstance(fakeSource)
-    const sample: MonitorData = await monitor.collectOnce('s-cached')
-    expect(execCalls).toHaveLength(1)
 
-    const first = await runMonitorGet('s-cached')
-    expect(first.success).toBe(true)
-    expect(first.data?.source).toBe('cached')
-    expect(first.data?.cpuUsage).toBeCloseTo(sample.cpuUsage, 5)
-    expect(first.data?.processCount).toBe(sample.processCount)
-    expect(execCalls, '读到现值还去开 channel，等于把并发问题留在原处').toHaveLength(1)
-  })
 
-  it('没采过的会话按需采集，仍只一条 exec', async () => {
-    execCalls.length = 0
-    const monitor = SystemMonitor.getInstance(fakeSource)
-    expect(monitor.latestSample('s-fresh')).toBeNull()
-    const r = await runMonitorGet('s-fresh')
-    expect(r.success).toBe(true)
-    expect(r.data?.source).toBe('on-demand')
-    expect(execCalls).toHaveLength(1)
-    expect(r.data?.processCount).toBe(41)
-  })
-
-  it('会话没连着就明确失败，且一条 exec 都不发', async () => {
-    execCalls.length = 0
-    connectionState = 'disconnected'
-    try {
-      const r = await runMonitorGet('s-down')
-      expect(r.success).toBe(false)
-      expect(r.error).toContain('不可用')
-      expect(execCalls).toHaveLength(0)
-    } finally {
-      connectionState = 'connected'
-    }
-  })
 })

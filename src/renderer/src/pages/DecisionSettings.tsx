@@ -20,8 +20,10 @@
  *   command-rules.json），从来不看这里。真要支持用户自定义黑名单，得连着命令闸一起做，
  *   不是先放个框让用户以为写了就生效
  *
- * 决策超时 decision.decisionTimeout 本轮已真接上：
- * 主进程 agent-workflow.ts resolveConfirmTimeoutMs 读它，到点自动拒绝（fail-closed）。
+ * 决策超时 decision.decisionTimeout 是真接上的：主进程启动时把这个键交给审批等待器
+ * （core/security/approval-request.ts 的 setApprovalTimeoutSource），到点自动拒绝（fail-closed），
+ * 区间与默认值取自 @shared/approval-types 那三份常量——本页不再自己抄一套数字。
+ * 2026-10-29 #281 之前它读的是已整删的入站工作流内核，那条链没人走。
  *
  * D-S 证据理论：6 个独立证据源（系统指标/历史决策/知识库/日志/人工经验/模型推理）
  * 各源权重通过滑块配置（0-100），综合权重总和反映证据强度。
@@ -33,6 +35,11 @@ import { useState } from 'react'
 import { GitBranch, Layers, Loader2 } from 'lucide-react'
 import { Button } from '@/ui'
 import type { CredibilityEvidenceInput, ConfidenceAssessment } from '@shared/agent-types'
+import {
+  APPROVAL_TIMEOUT_DEFAULT_SEC,
+  APPROVAL_TIMEOUT_MAX_SEC,
+  APPROVAL_TIMEOUT_MIN_SEC,
+} from '@shared/approval-types'
 import { usePersistentState } from '@/hooks/usePersistentState'
 import { SettingsPageHeader } from '@/components/settings/SettingsPageHeader'
 import { settingsHeader } from './settings-sections'
@@ -80,9 +87,11 @@ const TEST_ASSESS_INPUTS: CredibilityEvidenceInput[] = [
 ]
 
 export function DecisionSettings() {
-  // Card 1: 决策流程配置
-  // Card 1: 决策超时（本页唯一一条真接上的流程设置——主进程 agent-workflow 读它）
-  const [decisionTimeout, setDecisionTimeout] = usePersistentState('decision.decisionTimeout', 300)
+  // Card 1: 决策超时（本页唯一一条真接上的流程设置——主进程审批等待器读它）
+  const [decisionTimeout, setDecisionTimeout] = usePersistentState(
+    'decision.decisionTimeout',
+    APPROVAL_TIMEOUT_DEFAULT_SEC,
+  )
 
   // Card 2: 证据源权重
   const [weights, setWeights] = usePersistentState<Record<string, number>>(
@@ -123,7 +132,7 @@ export function DecisionSettings() {
         <SettingsCard icon={GitBranch} title="决策超时" tag="decision.timeout">
           <SettingsRow
             label="决策超时秒数"
-            desc="到点自动拒绝（不会自动放行）；可填 30–1800 秒，留空或越界按 300 秒"
+            desc={`到点自动拒绝（不会自动放行）；可填 ${APPROVAL_TIMEOUT_MIN_SEC}–${APPROVAL_TIMEOUT_MAX_SEC} 秒，留空或越界按 ${APPROVAL_TIMEOUT_DEFAULT_SEC} 秒`}
             control={
               <Input
                 type="number"

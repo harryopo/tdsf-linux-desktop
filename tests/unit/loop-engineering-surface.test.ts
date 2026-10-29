@@ -145,9 +145,12 @@ describe('循环工程一族（loop:* 那十通道 + 十个键）已整删，且
     // 真审批出口：preload 键 + 全局审批条的调用点
     expect(read('src/preload/index.ts')).toContain('paorApprove')
     expect(read('src/renderer/src/components/layout/MainLayout.tsx')).toContain('paorApprove')
-    // 工作流内核仍在为 MCP 工具出口服务，并且仍消费决策超时设置
-    expect(read('src/main/core/agent-workflow.ts')).toContain('resolveConfirmTimeoutMs')
-    expect(read('src/main/services/mcp/tools/legacy-handlers.ts')).toContain('core/agent-workflow')
+    // #281 之后这两样都不该回来：入站 MCP 工具表与它唯一的服务对象（工作流内核）
+    for (const gone of ['src/main/core/agent-workflow.ts', 'src/main/services/mcp/tools/legacy-handlers.ts']) {
+      expect(require('node:fs').existsSync(require('node:path').resolve(__dirname, '../..', gone)), `${gone} 又回来了——#281 的判决要重开`).toBe(false)
+    }
+    // 决策超时的真消费者搬到了审批等待器本身（设置页那条键不再挂在死内核上）
+    expect(read('src/main/core/security/approval-request.ts')).toContain('setApprovalTimeoutSource')
     // 决策详情页仍然"读库里那一份 + 看审计链"，删的只是按不动的那三颗按钮
     const detail = read('src/renderer/src/pages/DecisionDetailPage.tsx')
     expect(detail).toContain('historyGet')

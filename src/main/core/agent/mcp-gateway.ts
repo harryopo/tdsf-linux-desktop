@@ -3,7 +3,8 @@
  *
  * 职责：
  * - Agent 作为 MCP Client 调用外部 MCP Server（如 Claude Code、Cursor 的工具）
- * - 复用 v0.7 已有的 src/main/services/mcp/server.ts（把 TDSF 能力暴露给外部 MCP Client）
+ * - 只做客户端：本应用连外部 MCP 服务器。反方向（把 TDSF 能力暴露给外部 Client 的入站服务）
+ *   已于 2026-10-29 整删（#281：桌面主进程的 stdio 没有对端，外部客户端结构上连不上）
  * - 把外部调用的成败上报给 McpLifecycleManager，'mcp:get-state' 才有真值可读
  *
  * 当前版本（v0.9.5）：
