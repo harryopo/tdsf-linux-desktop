@@ -343,17 +343,19 @@ interface AgentState {
  * 老消息（回填前产生的）没有 contextTokens，才退回 inputTokens。
  */
 /**
- * 一条消息到终态就落库（任务 #177）。
+ * 一条消息落库（任务 #177；2026-11-01 起流式期也写）。
  *
- * 只在三处调：用户消息发出去那一刻、助手回答 done 那一刻、助手回答 error 那一刻。
- * 不在流式期写——写半截只是把"重启后看到一条卡住的回答"从偶发变成必然，
- * 而 done/error 那两笔已经把同一条 id 覆盖成终态，库里始终只有一行。
+ * 三个终态各写一笔（用户发出、助手 done、助手 error），另外流式期每 2 秒节流写一笔
+ * 带 `inProgress` 标记的半截——崩溃时丢最后两秒，而不是丢掉整段回答。
+ * 早先"流式期一律不写"的理由是"写半截会让重启后看到一条卡住的回答"；这个理由
+ * 现在由标记解决：读回时见 inProgress=1 就按"上次生成被中断"显示（保留已生成的字），
+ * 不会把半截当成一句本来就这么短的完整回答。
  *
  * 写失败只留一行日志：这一条**当场还看得见**（正本就是这份内存），
  * 丢的是"下次启动还在"，不值得打断用户正在打的字。真要用功追责，
  * 看的是控制台那行与主进程 IPC.CHAT 的 warn。
  */
-function persistMessage(m: AgentMessage): void {
+function persistMessage(m: AgentMessage, opts: { inProgress?: boolean } = {}): void {
   if (!isElectronAPIAvailable()) return
   const api = window.electronAPI
   if (!api?.chatAppend) return
@@ -372,6 +374,7 @@ function persistMessage(m: AgentMessage): void {
     usage: m.usage,
     cancelled: m.cancelled,
     isError: m.isError,
+    inProgress: opts.inProgress === true,
     errorCode: m.errorCode,
     // 这四样各占界面一处：报错行的正文、徽章分子、压缩那行说明、可信度卡的熵图。
     // 少落一样不是"少看一样东西"那么轻——徽章会退回各步之和（虚高）、报错行会变成空白卡。
@@ -384,6 +387,32 @@ function persistMessage(m: AgentMessage): void {
   api.chatAppend(record).catch((err: unknown) => {
     console.warn('[agent-store] 这条消息没能存进本地库（重启后会看不到）：', (err as Error).message)
   })
+}
+
+/**
+ * 流式期的半截落库：同一条消息最多每 2 秒写一笔，带 inProgress 标记。
+ * 定时器里**重取最新一条**——闭包里那份快照会比 state 旧，写回去等于把正文截短。
+ */
+const STREAM_PERSIST_INTERVAL_MS = 2_000
+const streamPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function scheduleStreamPersist(id: string): void {
+  if (streamPersistTimers.has(id)) return
+  streamPersistTimers.set(
+    id,
+    setTimeout(() => {
+      streamPersistTimers.delete(id)
+      const latest = useAgentStore.getState().messages.find((m) => m.id === id)
+      if (latest?.isStreaming) persistMessage(latest, { inProgress: true })
+    }, STREAM_PERSIST_INTERVAL_MS)
+  )
+}
+
+/** 收尾/失败/取消时把还没落下的那笔撤掉——终态那一笔才是准的 */
+function cancelStreamPersist(id: string): void {
+  const timer = streamPersistTimers.get(id)
+  if (timer) clearTimeout(timer)
+  streamPersistTimers.delete(id)
 }
 
 /**
@@ -484,6 +513,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
         payload.kind === 'reasoning'
           ? { ...msg, reasoning: (msg.reasoning ?? '') + payload.delta, isStreaming: true }
           : { ...msg, content: msg.content + payload.delta, isStreaming: true }
+      // 流式期节流落库：崩溃只丢最后 ~2 秒，不再整段丢
+      scheduleStreamPersist(next.id)
       const messages = replaceAt(state.messages, idx, next)
       return messages ? { messages } : state
     }),
@@ -541,6 +572,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
       }
       const messages = replaceAt(state.messages, idx, finalized)
       const closesCurrent = state.currentCorrelationId === payload.correlationId
+      cancelStreamPersist(finalized.id)
       if (messages) persistMessage(finalized)
       return {
         ...(messages ? { messages } : {}),
@@ -577,6 +609,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
       }
       const messages = replaceAt(state.messages, idx, failed)
       // 失败的那一轮同样要留：重启后看不到"刚才报了什么错"，等于把故障现场擦了
+      cancelStreamPersist(failed.id)
       if (messages) persistMessage(failed)
       return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
     }),
@@ -699,9 +732,13 @@ export const useAgentStore = create<AgentState>()((set) => ({
             model: r.model ?? undefined,
             usage: r.usage as AgentMessage['usage'],
             cancelled: r.cancelled || undefined,
-            isError: r.isError || undefined,
+            // 上次生成到一半被中断（应用退出/崩溃）：保留已生成的字，但必须标成"中断"，
+            // 否则重启后它会被读成一句本来就这么短的完整回答。
+            isError: r.isError || r.inProgress || undefined,
             errorCode: asErrorCode(r.errorCode),
-            errorMessage: r.errorMessage ?? undefined,
+            errorMessage: r.inProgress
+              ? (r.errorMessage ?? '上次回答生成到一半被中断（应用退出或崩溃）')
+              : (r.errorMessage ?? undefined),
             contextTokens: r.contextTokens ?? undefined,
             contextNote: r.contextNote ?? undefined,
             cotEntropyTrajectory: r.cotEntropyTrajectory ?? undefined,

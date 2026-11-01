@@ -47,6 +47,15 @@ const RENAMED: Record<string, string> = {
 }
 
 /**
+ * 只存在于库里、内存消息上不带的字段，逐个交代为什么。
+ *
+ * inProgress（2026-11-01）：它记的是"写这一行时还在生成"这个**写库事实**，不是消息的状态；
+ * 读回时已经被翻译成 `isError + errorMessage（上次生成被中断）`，
+ * 内存消息再带一份只会让两处口径有机会漂。
+ */
+const RECORD_ONLY = new Set(['inProgress'])
+
+/**
  * 声明对账之外，还要证明这四处是真断言不是摆设。
  *
  * 判据本身只认两份 interface 的成员名，所以这里用内存里的两份假清单跑同一段过滤逻辑：
@@ -82,8 +91,13 @@ describe('对话落盘的字段覆盖', () => {
     expect(stale, `例外名单里 these 字段已不在 AgentMessage 上，删掉：${stale.join(', ')}`).toEqual([])
   })
 
-  it('记录里不许有消息没有的字段（改名表是唯一合法来源）', () => {
-    const allowed = new Set([...messageFields, ...Object.keys(RENAMED)])
+  it('记录专属名单不是空话：它列的名字必须真在记录里', () => {
+    const stale = [...RECORD_ONLY].filter((f) => !recordFields.includes(f))
+    expect(stale, `记录专属名单里的字段已不在 ChatMessageRecord 上，删掉：${stale.join(', ')}`).toEqual([])
+  })
+
+  it('记录里不许有消息没有的字段（改名表与记录专属名单是唯一合法来源）', () => {
+    const allowed = new Set([...messageFields, ...Object.keys(RENAMED), ...RECORD_ONLY])
     const ghost = recordFields.filter((f) => !allowed.has(f))
     expect(ghost, `ChatMessageRecord 多出了消息里不存在的字段：${ghost.join(', ')}`).toEqual([])
   })

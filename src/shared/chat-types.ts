@@ -33,6 +33,12 @@ export interface ChatMessageRecord {
   usage?: unknown | null
   cancelled?: boolean
   isError?: boolean
+  /**
+   * 写这一行时还在流式生成（2026-11-01）。
+   * 流式期每 2 秒节流落一笔，收尾那一笔覆成 false；读回见到 true = 上次生成被中断
+   * （应用退出或崩溃），界面按"中断"显示并保留已生成的那段，不能当成完整回答。
+   */
+  inProgress?: boolean
   errorCode?: string | null
   /**
    * 错误原文（v2.11 起错误不掺进 content，单独放这里）。

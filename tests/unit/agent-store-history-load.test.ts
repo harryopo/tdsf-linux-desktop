@@ -149,4 +149,22 @@ describe('loadHistory 铺回列表', () => {
     await store().loadHistory('sess-A')
     expect(store().historyError, '通道都不存在却报"读失败"，是在给用户假故障').toBeNull()
   })
+  it('流式期落的半截读回来标成"上次中断"，保留已生成的字；终态行不受影响', async () => {
+    chatHistory.mockResolvedValue([
+      rec({ id: 'half', content: '磁盘使用率 91%，建议先', inProgress: true }),
+    ])
+    await store().loadHistory('sess-A')
+    const half = find('half')
+    expect(half?.content, '已经说出来的字不能丢').toBe('磁盘使用率 91%，建议先')
+    expect(half?.isError, '半截必须标成中断，不能冒充完整回答').toBe(true)
+    expect(half?.errorMessage).toContain('中断')
+
+    // 对照：终态行（没有 inProgress）不许被误标
+    chatHistory.mockResolvedValue([rec({ id: 'done-1', content: '完整回答' })])
+    store().clearMessages()
+    await store().loadHistory('sess-A')
+    expect(find('done-1')?.isError).toBeUndefined()
+    expect(find('done-1')?.errorMessage).toBeUndefined()
+  })
+
 })

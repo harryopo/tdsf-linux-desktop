@@ -207,6 +207,28 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 7,
+    description: '对话消息补 inProgress：流式期落的半截要能被认出来，不能冒充完整回答',
+    up: (db) => {
+      /*
+       * 2026-11-01：流式期开始按 2 秒节流落库（崩溃只丢最后两秒，而不是整段回答）。
+       * 但半截行如果与完整行长得一样，重启后就会被读成"这个回答就这么短"——
+       * 那比丢掉更糟。inProgress=1 只表示"写这一行时还在生成"，收尾那一笔会覆成 0；
+       * 读回时见到 1 就按"上次生成被中断"显示，并保留已生成的那段正文。
+       * 旧行一律 0（它们本来就是终态才写的）。
+       */
+      if (!hasColumn(db, 'chat_messages', 'inProgress')) {
+        // 表不存在时跳过而不是报错：v4 会建它，正常库一定走到过 v4；
+        // 只有"从半截版本起跳"的库或测试合成库才可能没有它——那时 ALTER 会抛
+        // no such table，把整条迁移链卡在这一步。
+        const exists = db
+          .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='chat_messages'")
+          .get()
+        if (exists) db.exec('ALTER TABLE chat_messages ADD COLUMN inProgress INTEGER NOT NULL DEFAULT 0')
+      }
+    },
+  },
 ]
 
 /** 迁移清单的最高版本；建库后 user_version 应当等于它 */

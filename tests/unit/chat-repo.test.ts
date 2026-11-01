@@ -191,6 +191,21 @@ describe('删掉某一档（#178：面板头那颗「清空对话」）', () => 
     expect(repo.listBySession('sess-a', 10).map((m) => m.id)).toEqual(['a1'])
   })
 
+  it('流式半截带 inProgress 标记；收尾那一笔覆成 false（同一行，不新增）', () => {
+    repo.save(record({ id: 'p1', role: 'assistant', content: '磁盘使用率', inProgress: true }))
+    const half = repo.listBySession('sess-a', 10)
+    expect(half).toHaveLength(1)
+    expect(half[0].inProgress).toBe(true)
+
+    repo.save(
+      record({ id: 'p1', role: 'assistant', content: '磁盘使用率 91%，建议先清 /var/log', inProgress: false })
+    )
+    const done = repo.listBySession('sess-a', 10)
+    expect(done, '半截与终态必须是同一行').toHaveLength(1)
+    expect(done[0].inProgress).toBe(false)
+    expect(done[0].content).toContain('建议先清')
+  })
+
   it('第二次删同一档报 0 条（幂等，不谎报"又删了两条"）', () => {
     repo.save(record({ id: 'a1', sshSessionId: 'sess-a' }))
     repo.save(record({ id: 'a2', sshSessionId: 'sess-a' }))

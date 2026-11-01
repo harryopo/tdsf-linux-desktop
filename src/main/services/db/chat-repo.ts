@@ -34,6 +34,7 @@ interface ChatRow {
   usage: string | null
   cancelled: number
   isError: number
+  inProgress: number
   errorCode: string | null
   errorMessage: string | null
   contextTokens: number | null
@@ -61,9 +62,9 @@ export class ChatRepository {
       .prepare(
         `INSERT INTO chat_messages (
            id, correlationId, sshSessionId, role, content, reasoning,
-           toolEvents, providerId, model, usage, cancelled, isError, errorCode,
+           toolEvents, providerId, model, usage, cancelled, isError, inProgress, errorCode,
            errorMessage, contextTokens, contextNote, cotEntropyTrajectory, createdAt
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            content = excluded.content,
            reasoning = excluded.reasoning,
@@ -73,6 +74,7 @@ export class ChatRepository {
            usage = excluded.usage,
            cancelled = excluded.cancelled,
            isError = excluded.isError,
+           inProgress = excluded.inProgress,
            errorCode = excluded.errorCode,
            errorMessage = excluded.errorMessage,
            contextTokens = excluded.contextTokens,
@@ -92,6 +94,7 @@ export class ChatRepository {
         m.usage === null || m.usage === undefined ? null : JSON.stringify(m.usage),
         boolToInt(m.cancelled),
         boolToInt(m.isError),
+        boolToInt(m.inProgress),
         m.errorCode ?? null,
         m.errorMessage ?? null,
         m.contextTokens ?? null,
@@ -152,6 +155,7 @@ export class ChatRepository {
       usage: parseJson<unknown>(r.usage, null),
       cancelled: r.cancelled === 1,
       isError: r.isError === 1,
+      inProgress: r.inProgress === 1,
       errorCode: r.errorCode,
       errorMessage: r.errorMessage,
       contextTokens: r.contextTokens,
