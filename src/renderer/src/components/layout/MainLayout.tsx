@@ -20,6 +20,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { ActivityRail, type NavId } from '@/shell/activity-rail'
 import { DbDegradedBanner } from '@/components/layout/DbDegradedBanner'
+import { SidecarHealthBanner } from '@/components/layout/SidecarHealthBanner'
 import { PermissionBar } from '@/dock/permission-bar'
 import { useApprovalStore } from '@/stores/approval-store'
 import '@/components/layout/MainLayout.css'
@@ -96,6 +97,7 @@ const MainLayout: React.FC = () => {
     <div className="wb-app-frame">
       {/* A4：数据库降级横幅——主进程 db:status 不可用时全页面顶部常驻提示 */}
       <DbDegradedBanner />
+      <SidecarHealthBanner />
 
       <div className="wb-main-layout">
         {/* 全局持久侧边栏：任何路由切换都保持可见 */}

@@ -167,6 +167,8 @@ const electronApi = {
 
   // v0.9.5 PAOR 审批请求事件（PAOR 循环遇到高危命令时推送审批请求）
   onPaorApprovalRequest: on.paorApprovalRequest,
+  // 引擎健康状态推送（崩溃/自动重启/停手）——全局横幅用
+  onSidecarStateChanged: on.sidecarStateChanged,
   // v0.9.5 PAOR 迭代进度事件（每轮 Plan→Act→Observe→Reflect 完成后推送）
   onAgentPaorIteration: on.agentPaorIteration,
 

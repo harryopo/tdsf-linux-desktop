@@ -47,6 +47,7 @@ export type StreamEventName =
   | 'sandbox:approval-request'
   | 'scheduler:status'
   | 'sftp:progress'
+  | 'sidecar:state-changed'
   | 'ssh:host-key-prompt'
   | 'ssh:state-changed'
   | 'terminal:data'
@@ -143,6 +144,12 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: true,
     note: '静态系统信息，只关心最新',
+  },
+  'sidecar:state-changed': {
+    class: 'LIFECYCLE',
+    ownership: false,
+    coalescable: true,
+    note: '引擎健康状态：最新一条即事实（崩溃→重启中→就绪），合并窗口里被后到的那条覆盖是对的',
   },
   'scheduler:status': {
     class: 'LATEST_ONLY',

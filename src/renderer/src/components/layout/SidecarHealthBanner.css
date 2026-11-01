@@ -1,0 +1,77 @@
+/**
+ * SidecarHealthBanner 样式（2026-11-01）
+ *
+ * 与 DbDegradedBanner 同一套布局约束与语义令牌：横幅是 .wb-app-frame 的 flex-col 首行，
+ * 自己只需 flex-shrink: 0；颜色全部走令牌，浅色主题自动跟随。
+ */
+
+.sidecar-health-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--trae-border-neutral-l1);
+}
+
+.sidecar-health-banner.is-critical {
+  background: var(--trae-status-error-surface-l1);
+  border-bottom-color: var(--status-error-text);
+}
+
+.sidecar-health-banner.is-warning {
+  background: var(--trae-status-warning-surface-l1);
+  border-bottom-color: var(--status-warning-text);
+}
+
+.sidecar-health-banner__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--trae-text-onbrand);
+}
+
+.sidecar-health-banner.is-critical .sidecar-health-banner__mark {
+  background: var(--trae-status-error-default);
+}
+
+.sidecar-health-banner.is-warning .sidecar-health-banner__mark {
+  background: var(--trae-status-warning-default);
+}
+
+.sidecar-health-banner__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidecar-health-banner__detail {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.sidecar-health-banner__close {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  cursor: pointer;
+}
+
+.sidecar-health-banner__close:hover {
+  color: var(--text-primary);
+}

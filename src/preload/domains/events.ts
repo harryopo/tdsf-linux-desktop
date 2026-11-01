@@ -2,8 +2,9 @@
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolEventPayload } from '@shared/agent-types'
 import type { ExternalMcpServerStatus, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
+import type { SidecarHealthState } from '@shared/sidecar-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
-import { AGENT, FILE_WATCH, LOCAL_TTY, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SSH, TERMINAL } from '@shared/ipc-channels'
+import { AGENT, FILE_WATCH, LOCAL_TTY, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SIDECAR, SSH, TERMINAL } from '@shared/ipc-channels'
 import { ipcRenderer } from 'electron'
 import type { FileChangedPayload, PaorApprovalRequest, SandboxApprovalRequest } from '../types'
 import { createListener } from '../ipc-util'
@@ -200,6 +201,16 @@ const on = {
    */
   fileChanged: (callback: (payload: FileChangedPayload) => void): (() => void) => {
     return createListener(FILE_WATCH.CHANGED, callback)
+  },
+
+  /**
+   * 监听 Python 分析引擎的健康状态（sidecar:state-changed，2026-11-01）
+   *
+   * 载荷：{ phase, restartAttempt, nextRetryInMs, exhausted, detail }
+   * 崩溃与自动重启各推一次；界面用它显示全局横幅，而不是只在日志面板里说。
+   */
+  sidecarStateChanged: (callback: (state: SidecarHealthState) => void): (() => void) => {
+    return createListener(SIDECAR.STATE_CHANGED, callback)
   },
 }
 

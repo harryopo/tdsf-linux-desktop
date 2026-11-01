@@ -593,6 +593,8 @@ export const SIDECAR = {
   STATUS: 'sidecar:status',
   /** sidecar 日志解析管线（invoke: 渲染 → 主） */
   PIPELINE: 'sidecar:pipeline',
+  /** 引擎健康状态推送（push: 主 → 渲染，2026-11-01）：崩溃/重启/停手的现场 */
+  STATE_CHANGED: 'sidecar:state-changed',
   // START / STOP / HEALTH / LIST_STATUS / START_ONE / STOP_ONE / HEALTH_ONE /
   // TOOL_CALL / PARSE_LOGS 九条已于 2026-10-24 整删（#207）：引擎由 pipeline 懒启动、
   // 健康读数走 app:get-info，-one 那一族的多 Sidecar 管理面界面上从来没有，

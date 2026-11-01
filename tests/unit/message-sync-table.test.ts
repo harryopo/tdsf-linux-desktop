@@ -128,6 +128,7 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'sandbox:approval-request': 'CRITICAL',
       'scheduler:status': 'LATEST_ONLY',
       'sftp:progress': 'LATEST_ONLY',
+      'sidecar:state-changed': 'LIFECYCLE',
       'ssh:host-key-prompt': 'CRITICAL',
       'ssh:state-changed': 'LATEST_ONLY',
       'terminal:data': 'DELTA',

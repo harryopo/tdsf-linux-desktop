@@ -84,6 +84,7 @@ onPaorApprovalRequest
 onSandboxApprovalRequest
 onSchedulerStatusChange
 onSftpProgress
+onSidecarStateChanged
 onSshHostKeyPrompt
 onSshStateChanged
 onTerminalData

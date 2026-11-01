@@ -21,6 +21,7 @@ import { existsSync } from 'node:fs'
 // LogLevel 也从这里取：它是应用日志的档位单源，2026-10-30 之前绕道 diagnostics/types.ts 那份同名副本，
 // 那份随那条已删的诊断链一起撤了（#282）
 import { logger as appLogger, type LogLevel } from '../../services/log/logger'
+import type { SidecarHealthState } from '@shared/sidecar-types'
 
 const logger = appLogger.child('SIDECAR')
 
@@ -176,6 +177,17 @@ export const BUSINESS_REQUEST_TIMEOUT_MS = 180_000
 export const STDERR_RING_SIZE = 40
 
 /**
+ * 自动重启的退避间隔（2026-11-01）：1s → 2s → 4s → 8s → 16s → 30s（封顶）。
+ *
+ * 固定 2 秒的问题不是"慢"，是"没有让步"：每次都崩的引擎会在 30 秒预算里被拉起又倒下，
+ * 日志里只看到重复堆栈。退避让系统喘一口气，也让界面上的"第 N 次 / 还有 X 秒"是真的。
+ */
+export function nextRestartDelayMs(attempt: number): number {
+  const n = Math.max(1, Math.floor(attempt))
+  return Math.min(30_000, 1_000 * 2 ** (n - 1))
+}
+
+/**
  * 进程是否还活着（signal 0 只做存在性探测，不发真信号）
  *
  * Windows 上 Node 同样支持用 0 探测存在性；进程不在时抛 ESRCH。
@@ -235,6 +247,12 @@ export class SidecarManager extends EventEmitter {
   private businessInFlight = 0
   /** 排队中的重启定时器，stop() 必须掐掉它 */
   private restartTimer: NodeJS.Timeout | null = null
+  /** 已排定重启时距触发还有多久；没排就是 null（界面据此说"约 X 秒后重试"） */
+  private nextRetryInMs: number | null = null
+  /** 预算烧光：不再自动重启 */
+  private restartExhausted = false
+  /** 最近一次崩溃/启动失败的一句话原因 */
+  private lastHealthDetail: string | null = null
 
   constructor(config: SidecarConfig = SIDECAR_A_CONFIG) {
     super()
@@ -256,6 +274,23 @@ export class SidecarManager extends EventEmitter {
     this.restartTimes.push(now)
     this.restartCount = this.restartTimes.length
     return this.restartCount
+  }
+
+  /**
+   * 把"引擎此刻健康吗"推给界面。
+   *
+   * 每次 status 变化都要推：崩溃、重启排定、就绪、停手各是一次状态跳变。
+   * phase 直接取 status——两边是同一个联合，多一个值这里就编译不过，不会静默漂。
+   */
+  private emitHealth(): void {
+    const payload: SidecarHealthState = {
+      phase: this.status,
+      restartAttempt: this.restartCount,
+      nextRetryInMs: this.nextRetryInMs,
+      exhausted: this.restartExhausted,
+      detail: this.lastHealthDetail,
+    }
+    this.emit('state', payload)
   }
 
   /** 追加一行 stderr，超出环形上限就丢最旧的 */
@@ -340,6 +375,7 @@ export class SidecarManager extends EventEmitter {
     this.status = 'starting'
     this.lastError = null
     this.emit('status', this.status)
+    this.emitHealth()
 
     logger.info(`[SidecarManager] 启动 ${this.config.name}（${this.config.host}:${this.config.port}）`)
 
@@ -381,12 +417,14 @@ export class SidecarManager extends EventEmitter {
         if (this.stopping) {
           this.status = 'stopped'
           this.emit('status', this.status)
+          this.emitHealth()
           this.emit('exit', { code, signal })
           return
         }
 
         this.status = 'crashed'
         this.emit('status', this.status)
+        this.emitHealth()
         this.emit('exit', { code, signal })
 
         // 崩溃时把 stderr 尾部带进日志，否则只有一句"退出了"，现场全丢
@@ -398,18 +436,27 @@ export class SidecarManager extends EventEmitter {
         // 自动重启（30 秒窗口内最多 3 次）
         if (this.canRestart()) {
           const n = this.recordRestart()
-          const restartMsg = `自动重启 ${this.config.id}（窗口内第 ${n} 次）`
+          const delayMs = nextRestartDelayMs(n)
+          this.nextRetryInMs = delayMs
+          this.restartExhausted = false
+          const restartMsg = `自动重启 ${this.config.id}（窗口内第 ${n} 次，${Math.round(delayMs / 1000)} 秒后）`
           logger.info(`[SidecarManager] ${restartMsg}`)
           this.forwardLog(`[SidecarManager] ${restartMsg}`, false)
+          // 把"第几次 / 还有多久"立刻推给界面（上面那次推是在排定之前，值是空的）
+          this.emitHealth()
           // 句柄必须存下来：stop() 不掐掉它的话，应用都关了 start() 还会再跑一次
           this.restartTimer = setTimeout(() => {
             this.restartTimer = null
+            this.nextRetryInMs = null
             if (this.stopping) return
             void this.start().catch(() => {
               /* start() 内部已记录失败，这里只防未处理拒绝 */
             })
-          }, 2000)
+          }, delayMs)
         } else {
+          this.restartExhausted = true
+          this.nextRetryInMs = null
+          this.emitHealth()
           const limitMsg = `Sidecar ${this.config.id} 重启超限（${RESTART_BUDGET_WINDOW_MS / 1000} 秒内 ${RESTART_BUDGET_MAX} 次），停止重试`
           logger.error(`[SidecarManager] ${limitMsg}`)
           this.forwardLog(`[SidecarManager] ${limitMsg}`, true)
@@ -420,7 +467,11 @@ export class SidecarManager extends EventEmitter {
       await this.waitForReady(this.config.startupTimeoutMs)
       this.status = 'ready'
       this.restartCount = 0
+      this.nextRetryInMs = null
+      this.restartExhausted = false
+      this.lastHealthDetail = null
       this.emit('status', this.status)
+      this.emitHealth()
 
       // 5. 启动定时健康检查
       this.startHealthCheck()
@@ -433,6 +484,7 @@ export class SidecarManager extends EventEmitter {
       if (this.stopping) {
         this.status = 'stopped'
         this.emit('status', this.status)
+        this.emitHealth()
         logger.info(`[SidecarManager] ${this.config.id} 启动过程中被停止，按停止处理`)
         return
       }
@@ -443,7 +495,9 @@ export class SidecarManager extends EventEmitter {
       await this.stop()
       this.status = 'crashed'
       this.lastError = err instanceof Error ? err.message : String(err)
+      this.lastHealthDetail = `启动失败：${this.lastError}`
       this.emit('status', this.status)
+      this.emitHealth()
       const failMsg = `Sidecar ${this.config.id} 启动失败：${this.lastError}`
       logger.error(`[SidecarManager] ${failMsg}`)
       // 转发启动失败日志（会触发 health_check_fail 规则）
@@ -488,12 +542,14 @@ export class SidecarManager extends EventEmitter {
         if (this.status === 'degraded') {
           this.status = 'ready'
           this.emit('status', this.status)
+          this.emitHealth()
         }
       } catch (err) {
         if (this.status === 'ready') {
           this.status = 'degraded'
           this.lastError = err instanceof Error ? err.message : String(err)
           this.emit('status', this.status)
+          this.emitHealth()
           logger.warn(`[SidecarManager] Sidecar ${this.config.id} degraded：${this.lastError}`)
         }
       }
@@ -665,6 +721,7 @@ export class SidecarManager extends EventEmitter {
     }
     this.status = 'stopped'
     this.emit('status', this.status)
+    this.emitHealth()
     // 下次手动 start() 从零开始算重启预算
     this.restartTimes = []
     this.restartCount = 0

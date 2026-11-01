@@ -26,8 +26,10 @@
 
 import { ipcMain } from 'electron'
 import { SIDECAR } from '@shared/ipc-channels'
+import type { SidecarHealthState } from '@shared/sidecar-types'
 import { getSidecarManager, shutdownSidecarManager } from '../core/sidecar/sidecar-manager'
 import { logger } from '../services/log/logger'
+import { broadcastToWindows } from '../windows/main-window'
 
 /**
  * 注册 Sidecar IPC handlers
@@ -36,6 +38,12 @@ import { logger } from '../services/log/logger'
  */
 export function registerSidecarIpcHandlers(): void {
   const manager = getSidecarManager()
+
+  // 引擎健康状态推送（2026-11-01）：崩溃/自动重启/停手各推一次。
+  // 以前只有日志页那颗按钮按一下才问一次状态，工作台里的人看不到引擎在反复重启。
+  manager.on('state', (state: SidecarHealthState) => {
+    broadcastToWindows(SIDECAR.STATE_CHANGED, state)
+  })
 
   // ------------------------------------------------------------------
   // sidecar:status — 获取 Sidecar-A 当前状态
