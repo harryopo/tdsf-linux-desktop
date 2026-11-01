@@ -225,6 +225,12 @@ interface AgentState {
   messages: AgentMessage[]
   /** 是否正在流式输出 */
   isStreaming: boolean
+  /**
+   * 最近一次流式活动（token / 工具事件）的时刻（2026-11-01）。
+   * 用来区分"模型在思考"与"上游断了"：主进程有 45 秒逐块空闲预算，
+   * 但在此之前界面只写"思考中…"，用户分不清两者。null = 本轮流还没开始。
+   */
+  lastStreamActivityAt: number | null
   /** 当前进行中的 chat correlationId（用于取消请求） */
   currentCorrelationId: string | null
   /** 当前思考强度（v2.10：'auto' = 按复杂度自动路由） */
@@ -473,6 +479,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
   // ===== 初始状态 =====
   messages: [],
   isStreaming: false,
+  lastStreamActivityAt: null,
   currentCorrelationId: null,
   thinkingStrength: 'auto',
   selectedProviderId: null,
@@ -516,7 +523,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
       // 流式期节流落库：崩溃只丢最后 ~2 秒，不再整段丢
       scheduleStreamPersist(next.id)
       const messages = replaceAt(state.messages, idx, next)
-      return messages ? { messages } : state
+      return messages ? { messages, lastStreamActivityAt: Date.now() } : state
     }),
 
   /**
@@ -688,7 +695,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
         }
       }
       const next = replaceAt(state.messages, idx, { ...msg, toolEvents: events })
-      return next ? { messages: next } : state
+      // 工具事件也是流式活动：远端命令跑 30 秒期间没有 token，但不该被说成"卡住"
+      return next ? { messages: next, lastStreamActivityAt: Date.now() } : state
     }),
 
   // 清空所有消息
@@ -696,6 +704,7 @@ export const useAgentStore = create<AgentState>()((set) => ({
     set({
       messages: [],
       isStreaming: false,
+      lastStreamActivityAt: null,
       currentCorrelationId: null,
       lastError: null,
       historyError: null,

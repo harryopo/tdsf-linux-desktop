@@ -44,6 +44,7 @@ import { confirmDialog } from '@/ui'
 import './AIPanel.css'
 import AIPanelHeader from './AIPanelHeader'
 import MessageList from './MessageList'
+import { StreamStallHint } from './StreamStallHint'
 import { useStickToBottom } from './useStickToBottom'
 import { AlertTriangle, ArrowDown } from 'lucide-react'
 import Composer from './Composer'
@@ -486,6 +487,8 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
         onRetryMessage={handleRetryMessage}
         onCompressContext={handleCompressFromError}
         />
+        {/* 流不动了要早说：12 秒没有 token/工具事件就先提示，不等主进程超时 */}
+        <StreamStallHint />
         {/*
           上滚读历史时底下还在长——给一个真的能回去的出口。
           没有这颗按钮的话，屏幕看着不动，用户分不清"答完了"还是"被自己挡住了"。
