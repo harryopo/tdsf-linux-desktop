@@ -31,6 +31,29 @@ const CHOICES: { key: Choice; label: string; hint: string }[] = [
   { key: 'deny', label: '拒绝', hint: '2' },
 ]
 
+/**
+ * 剩余时间：每秒重算。
+ *
+ * 以前只写绝对时刻（"10:23:05 前未答复将自动拒绝"），用户得自己减一次才知道还剩多久；
+ * 到点又是主进程静默拒绝——两个都让"我还没答完"变成"卡怎么没了"。
+ * 过期后降频到 30 秒，那时只显示绝对时刻，没必要继续每秒醒一次。
+ */
+function useRemainingMs(expiresAt: number, expired: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), expired ? 30_000 : 1_000)
+    return () => clearInterval(timer)
+  }, [expiresAt, expired])
+  return Math.max(0, expiresAt - now)
+}
+
+/** 0:42 这种形状；向上取整，剩 0.2 秒也显示 0:01 而不是 0:00 */
+function formatRemaining(ms: number): string {
+  const total = Math.ceil(ms / 1000)
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
 export interface PermissionBarProps {
   /**
    * 全局审批队列（stores/approval-store）。
@@ -51,6 +74,8 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
   const head = entries[0] ?? null
   const current = head?.request ?? null
   const expired = head?.expired ?? false
+  // 到点后主进程会先拒、再由推送把 expired 改真；这中间几帧按 0 显示"等待主进程确认"
+  const remainingMs = useRemainingMs(current?.expiresAt ?? 0, expired)
   const selectedIndex = useMemo(() => {
     // 越界兜底回"拒绝"，不回"批准"
     return index >= 0 && index < CHOICES.length ? index : CHOICES.findIndex((c) => c.key === 'deny')
@@ -231,9 +256,21 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
         )}
 
         <p className="mt-2 text-right text-caption text-ink-mute">
-          {expired
-            ? 'Esc 或 Enter 关掉这条'
-            : `↑ ↓ 切换 · Enter 执行选中 · Esc 拒绝 · ${new Date(current.expiresAt).toLocaleTimeString()} 前未答复将自动拒绝`}
+          {expired ? (
+            'Esc 或 Enter 关掉这条'
+          ) : (
+            <>
+              ↑ ↓ 切换 · Enter 执行选中 · Esc 拒绝 ·{' '}
+              <span
+                data-dom-id="approval-countdown"
+                className={cn(remainingMs <= 15_000 && 'text-error-text')}
+              >
+                {remainingMs <= 0
+                  ? '已到点，等待主进程确认自动拒绝'
+                  : `还剩 ${formatRemaining(remainingMs)}${remainingMs <= 15_000 ? '，即将自动拒绝' : ' 自动拒绝'}`}
+              </span>
+            </>
+          )}
         </p>
       </div>
     </section>

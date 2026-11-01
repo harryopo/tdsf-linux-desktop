@@ -11,7 +11,7 @@
  * 并且所有应答通道都关掉——点了没反应的批准按钮比少一个按钮危险。
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { PermissionBar } from '@/dock/permission-bar'
 import type { ApprovalEntry } from '@/stores/approval-store'
 import type { PaorApprovalRequest } from '@/types/electron'
@@ -148,12 +148,38 @@ describe('PermissionBar', () => {
     expect(screen.getByText('rm -rf /var/log')).toBeInTheDocument()
   })
 
-  it('死线由主进程给（expiresAt），界面把它说成人话', () => {
-    setup([entry({ expiresAt: new Date('2026-10-22T17:03:00').getTime() })])
-    // 用 toLocaleTimeString 的当档输出比对，避免把时区写死进断言
-    expect(screen.getByText(/前未答复将自动拒绝/)).toHaveTextContent(
-      new Date('2026-10-22T17:03:00').toLocaleTimeString()
-    )
+  it('死线由主进程给（expiresAt），界面把它说成"还剩多久"而不是只给绝对时刻', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-10-30T09:00:00'))
+      setup([entry({ expiresAt: Date.now() + 90_000 })])
+      const countdown = document.querySelector('[data-dom-id="approval-countdown"]')
+      expect(countdown, '审批卡必须给出剩余时间这一档').not.toBeNull()
+      expect(countdown).toHaveTextContent('还剩 1:30 自动拒绝')
+      // 每秒自己走：用户不该拿绝对时刻减一次才知道还剩多久
+      act(() => {
+        vi.advanceTimersByTime(80_000)
+      })
+      expect(countdown).toHaveTextContent('还剩 0:10，即将自动拒绝')
+      expect(countdown?.className, '最后 15 秒要换警示色').toContain('text-error-text')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('到点但主进程的过期推送还没到时，不许装作还能答，也不许假装已经拒了', () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-10-30T09:00:00'))
+      // expired=false：推送还没到；剩余已归零
+      setup([entry({ expiresAt: Date.now() - 1_000 })])
+      const countdown = document.querySelector('[data-dom-id="approval-countdown"]')
+      expect(countdown).toHaveTextContent('已到点，等待主进程确认自动拒绝')
+      // 这期间按钮仍在（主进程或许还没拒），但用户已经知道"这一刻起是垃圾时间"
+      expect(screen.getByRole('button', { name: /拒绝/ })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   // ===== #170：过期这一档 =====

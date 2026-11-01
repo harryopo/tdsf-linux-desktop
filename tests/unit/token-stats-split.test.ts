@@ -9,7 +9,7 @@
  * （见 token-stats.ts 的 loadPersisted），确实可能没有方向字段。把它们单列出来，
  * 界面上写明"未记方向"，而不是摊进输入或输出里把猜的当真的。
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -41,7 +41,13 @@ import { ConfigStore } from '../../src/main/services/storage/config-store'
 import { logger } from '../../src/main/services/log/logger'
 import type { TokenUsageRecord } from '../../src/shared/agent-types'
 
-const NOW = Date.now()
+/**
+ * 固定时钟：窗口判据不能取决于"跑测试那天是几号"。
+ * 这条 2026-11-01 红过：用例把"十天前"当成"本月内"，当月第一天跑时它落进了上个月，
+ * 于是 `month` 少算一笔——而窗口嵌套本身其实还成立。根因是判据拿真实日期当参照。
+ * 只冻 Date（toFake: ['Date']），保留真定时器，免得打断 token-stats 的持久化防抖。
+ */
+const NOW = new Date('2026-10-15T12:00:00').getTime()
 const DAY = 86_400_000
 
 function rec(over: Partial<TokenUsageRecord> = {}): TokenUsageRecord {
@@ -59,7 +65,12 @@ function rec(over: Partial<TokenUsageRecord> = {}): TokenUsageRecord {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
   resetTokenStats()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('拆分与合计数同源于同一批记录', () => {
