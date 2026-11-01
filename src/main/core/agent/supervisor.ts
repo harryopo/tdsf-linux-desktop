@@ -332,6 +332,14 @@ export interface PaorLoopOptions {
   /** 最大重新规划次数（v2.11，默认 0=禁用 replan 回退，保持旧行为） */
   maxReplans?: number
   /**
+   * 协作式取消信号（2026-11-01）。
+   *
+   * 只在"每轮开始前"与"每次执行命令前"检查：**正在飞的那条远端命令会跑完**，
+   * 之后不再有新步骤。ssh2 的 exec 没有可中断句柄，假装"立刻停"就是让界面说假话；
+   * 所以界面要说"停止中/已停止（当前步已执行完）"，而不是"已中断"。
+   */
+  signal?: AbortSignal
+  /**
    * 风险审批回调（Hard Constraint 4）
    *
    * 当 assessRisk 判定命令为 HIGH/CRITICAL 时调用。
@@ -2004,9 +2012,22 @@ class SupervisorAgent {
     const requestedIterations = options.maxIterations ?? 5
     const maxRetries = options.maxRetriesPerStep ?? 1
     const maxReplans = options.maxReplans ?? 0
+    const signal = options.signal
 
     // ── Phase 1: Plan ──
     const { plan, confidence } = await this.plan(task)
+    // 计划阶段发起的停止：计划已经出来了但一步没执行，如实这么说
+    if (signal?.aborted) {
+      this.log.info('[PAOR-Loop] 计划完成后收到停止请求，未执行任何步骤')
+      return {
+        status: 'abort',
+        plan,
+        planConfidence: confidence,
+        iterations: [],
+        summary: `任务「${plan.goal}」在计划完成后收到停止请求，未执行任何步骤`,
+        durationMs: Date.now() - startTime,
+      }
+    }
     let currentPlan = plan
     // 迭代预算至少够"每一遍都重试一次"：界面默认传 5，而计划常常有 8-10 步，
     // 用户看到的是前几步跑完、剩下全停在"待执行"，结论是"任务没法完成就结束了"。
@@ -2034,6 +2055,12 @@ class SupervisorAgent {
 
     // ── Phase 2: 循环 Act → Observe → Reflect（下一步由 routePaorNext 决定）──
     while (shouldContinueLoop(graphState, iterationNum, maxIterations) && !aborted) {
+      // 用户点了停止：下一轮不再开始（上一轮的命令已经执行完，结果照实记着）
+      if (signal?.aborted) {
+        status = 'abort'
+        aborted = true
+        break
+      }
       iterationNum++
       const stepIndex = graphState.stepIndex
       const stepDesc = currentPlan.steps[stepIndex] ?? ''
@@ -2097,6 +2124,13 @@ class SupervisorAgent {
           graphState = routeRiskRejected(graphState).state
           continue
         }
+      }
+
+      // 审批期间用户可能已经点了停止：进 Act 前最后确认一次，不再向远端发新命令
+      if (signal?.aborted) {
+        status = 'abort'
+        aborted = true
+        break
       }
 
       // Act

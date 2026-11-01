@@ -52,10 +52,16 @@ export interface UsePaorLoopResult {
    */
   start: (task: string, sshSessionId: string, maxIterations?: number) => Promise<boolean>
   /**
+   * 请求停止正在跑的 PAOR（2026-11-01 起有）
+   *
+   * 停止是协作式的：主进程在下一轮开始前 / 下一次发命令前退出，
+   * **当前正在执行的那条远端命令会跑完**。返回 false 表示当前没有可停的循环。
+   */
+  cancel: () => Promise<boolean>
+  /**
    * 重置 PAOR 状态（清空 iterations / result / error，便于下一次启动）
    *
-   * 注意：不会取消正在运行的 PAOR（主进程目前不支持取消 PAOR，
-   * 只能等迭代上限或人工 abort）
+   * 注意：不会取消正在运行的 PAOR——要停请用 cancel()。
    */
   reset: () => void
 }
@@ -64,8 +70,9 @@ export interface UsePaorLoopResult {
  * usePaorLoop Hook 实现
  *
  * 注意事项：
- * 1. 主进程目前不支持取消 PAOR（无 agent:paor:cancel 通道），所以本 hook 不提供 cancel 方法。
- *    用户如需中止，可通过 paorApprove(callId, false) 拒绝高危命令，主进程会标记 riskBlocked 并继续下一步。
+ * 1. 停止走 cancel()（agent:paor:cancel，按 sshSessionId）。它是协作式的：
+ *    当前那条远端命令会执行完，之后不再有新步骤；返回 false 表示没有可停的循环，
+ *    界面据此说"没有正在执行的任务"，不要假装停止成功。
  * 2. iterations 在 invoke 返回前实时更新，invoke 返回后 result.iterations 为完整列表（与 iterations 一致）。
  * 3. 卸载时自动取消订阅 onAgentPaorIteration，但不取消正在运行的 PAOR（主进程仍会执行完毕）。
  */
@@ -169,6 +176,22 @@ export function usePaorLoop(): UsePaorLoopResult {
     [isRunning],
   )
 
+  // ===== cancel：请求停止（协作式，当前步结束后生效）=====
+  const cancel = useCallback(async (): Promise<boolean> => {
+    const api = window.electronAPI
+    const sessionId = activeSessionIdRef.current
+    // 没有在跑的循环（ref 只在运行期有值）就不发请求，直接如实回 false
+    if (!api?.agentPaorCancel || !sessionId) return false
+    try {
+      return await api.agentPaorCancel(sessionId)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[usePaorLoop] agentPaorCancel failed:', err)
+      setError(`停止 PAOR 失败：${message}`)
+      return false
+    }
+  }, [])
+
   // ===== reset：清空状态 =====
   const reset = useCallback(() => {
     setIterations([])
@@ -187,6 +210,7 @@ export function usePaorLoop(): UsePaorLoopResult {
     error,
     currentIteration,
     start,
+    cancel,
     reset,
   }
 }

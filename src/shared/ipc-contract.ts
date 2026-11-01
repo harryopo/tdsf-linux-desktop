@@ -187,6 +187,15 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     resultTs: 'PaorLoopResult',
     result: z.unknown(),
   },
+  {
+    kind: 'invoke',
+    api: 'agentPaorCancel',
+    channel: AGENT.PAOR_CANCEL,
+    doc: '按 sshSessionId 取消进行中的 PAOR 循环（当前步结束后生效，已在飞的远端命令不打断）',
+    args: [{ name: 'sshSessionId', ts: 'string', schema: str }],
+    resultTs: 'boolean',
+    result: bool,
+  },
   // ===== 交互式 Shell（2026-10-10 起身份是 shellId，不再是 sessionId）=====
   // 六条都进契约、preload 全走 invokeChecked：这样"未纳入契约的 invoke 位点"刻度
   // 不会因为新增通道往上走（该刻度只许降）。

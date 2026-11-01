@@ -2,6 +2,7 @@ agentCancel
 agentChat
 agentChatCancel
 agentPaor
+agentPaorCancel
 alertAck
 appCheckUpdate
 appDownloadUpdate

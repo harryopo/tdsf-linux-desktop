@@ -160,6 +160,19 @@ const Composer: FC<ComposerProps> = ({
   }
 
   /**
+   * 停止正在跑的 PAOR（2026-11-01）
+   *
+   * 停止是协作式的：主进程在下一轮开始前 / 下一次发命令前退出，
+   * **当前那条远端命令会执行完**。所以文案写"已请求停止，当前命令执行完后不再继续"，
+   * 不写"已中断"；返回 false 说明没有可停的循环（多半刚结束）。
+   */
+  const handlePaorStop = async () => {
+    const ok = await paor.cancel()
+    if (ok) toast.info('已请求停止：当前那条命令执行完后不再继续')
+    else toast.warning('没有正在执行的 PAOR 任务（可能刚刚结束）')
+  }
+
+  /**
    * 启动 PAOR 自动循环（v0.9.5 P0-3）
    *
    * 流程：
@@ -171,12 +184,12 @@ const Composer: FC<ComposerProps> = ({
    * - handleSendToggle：普通消息走 agent:chat，一次一问一答
    * - handlePaorStart：多步运维任务走 paor.start(task, sessionId, 5)（agent:paor），由主进程 Supervisor 编排
    *
-   * 注意：PAOR 运行中无法取消（主进程目前不支持 agent:paor:cancel），
-   * 只能等迭代上限或人工拒绝高危命令触发 riskBlocked。
+   * 注意：PAOR 运行中再点这颗按钮就是"停止"（agent:paor:cancel）。
+   * 停止是协作式的——当前那条远端命令会执行完，之后不再有新步骤，界面文案必须这么说。
    */
   const handlePaorStart = async () => {
     if (paor.isRunning) {
-      toast.warning('PAOR 循环正在运行中，请等待完成')
+      await handlePaorStop()
       return
     }
     const task = input.trim()
@@ -254,17 +267,17 @@ const Composer: FC<ComposerProps> = ({
           <Button
             size="sm"
             variant={paor.isRunning ? 'selected' : 'ghost'}
-            disabled={paor.isRunning}
             onClick={handlePaorStart}
             className="whitespace-nowrap"
+            data-dom-id="paor-toggle"
             title={
               paor.isRunning
-                ? `PAOR 循环运行中（已迭代 ${paor.currentIteration} 轮）`
+                ? `点一下停止（已迭代 ${paor.currentIteration} 轮）：当前那条命令执行完后不再继续`
                 : 'PAOR 自主循环（Plan→Act→Observe→Reflect 多步运维任务自动编排，高危命令自动拦截）'
             }
           >
             <Zap className="size-3" />
-            {paor.isRunning ? `PAOR 运行中(${paor.currentIteration})` : 'PAOR 自主循环'}
+            {paor.isRunning ? `停止 PAOR (${paor.currentIteration})` : 'PAOR 自主循环'}
             {!activeSessionId && !paor.isRunning ? <Chip tone="warning">未连接</Chip> : null}
           </Button>
 

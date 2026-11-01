@@ -139,6 +139,7 @@ describe('Provider 查询面收口（#210）', () => {
       [...registered].sort()
     )
     // 11 → 10：#216 判掉了 token:reset（按下只清内存计数器，界面上没有这颗按钮）
-    expect(registered.length, 'Agent Runtime 这层实际注册的通道数').toBe(10)
+    // 10 → 11：2026-11-01 加回 agent:paor:cancel（PAOR 点停止没反应，补一条真取消通道）
+    expect(registered.length, 'Agent Runtime 这层实际注册的通道数').toBe(11)
   })
 })

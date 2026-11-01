@@ -22,6 +22,10 @@ export interface ContractedInvokeApi {
    * 通道 `agent:paor` */
   agentPaor(task: string, sshSessionId: string, maxIterations?: number): Promise<PaorLoopResult>
 
+  /** 按 sshSessionId 取消进行中的 PAOR 循环（当前步结束后生效，已在飞的远端命令不打断）
+   * 通道 `agent:paor:cancel` */
+  agentPaorCancel(sshSessionId: string): Promise<boolean>
+
   /** 新开一条交互式 Shell，返回 shellId（一条连接可开多个终端）
    * 通道 `ssh:shell:start` */
   sshShellStart(sessionId: string, size?: { cols: number; rows: number }): Promise<string>

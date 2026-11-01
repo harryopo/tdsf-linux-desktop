@@ -83,6 +83,15 @@ const AGENT_ERROR_CHANNEL = AGENT.ERROR
 const AGENT_TOOL_EVENT_CHANNEL = AGENT.TOOL_EVENT
 
 /**
+ * 进行中的 PAOR 循环：sshSessionId → AbortController（2026-11-01）。
+ *
+ * 一个会话同一时刻只该有一条 PAOR（界面也用 isRunning 拦着），所以按会话 ID 建键就够。
+ * 停止是协作式的：controller.abort() 只让循环在**下一轮开始前 / 下一次发命令前**退出，
+ * 正在飞的那条远端命令会执行完——所以界面不许写"已中断"，写"已停止（当前步已执行完）"。
+ */
+const paorRuns = new Map<string, AbortController>()
+
+/**
  * 安全推送事件到渲染进程（窗口已销毁时跳过）
  */
 function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]): void {
@@ -444,8 +453,23 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         sshSessionId,
         maxIterations,
       })
+      // 一个会话同时只允许一条 PAOR：两条同时跑会让"停止"和审批卡都指向不确定的那一条
+      if (paorRuns.has(sshSessionId)) {
+        logger.warn('IPC.AGENT', 'agent:paor 该会话已有循环在跑，拒绝重复启动', { sshSessionId })
+        return {
+          status: 'abort',
+          plan: { goal: task, steps: [], risks: [], verification: '' },
+          planConfidence: 0,
+          iterations: [],
+          summary: '该会话已有 PAOR 循环在跑，本次启动被拒绝',
+          durationMs: 0,
+        }
+      }
+      const controller = new AbortController()
+      paorRuns.set(sshSessionId, controller)
       try {
         const result = await supervisor.runPaorLoop(task, sshSessionId, {
+          signal: controller.signal,
           maxIterations: maxIterations ?? 5,
           onIteration: (iteration) => {
             safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, iteration })
@@ -476,7 +500,37 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         const msg = err instanceof Error ? err.message : String(err)
         logger.error('IPC.AGENT', 'agent:paor 异常', { error: msg })
         return { status: 'abort', plan: { goal: task, steps: [], risks: [], verification: '' }, planConfidence: 0, iterations: [], summary: `PAOR 循环异常：${msg}`, durationMs: 0 }
+      } finally {
+        // 只删自己登记的那一条：带 finally 是为了异常/提前返回时也不把会话永久锁死
+        if (paorRuns.get(sshSessionId) === controller) paorRuns.delete(sshSessionId)
       }
+    }
+  )
+
+  // ------------------------------------------------------------------
+  // agent:paor:cancel — 请求停止进行中的 PAOR 循环（2026-11-01）
+  // ------------------------------------------------------------------
+  // 参数：(sshSessionId: string)
+  // 返回：boolean（false = 当前没有这个会话的循环在跑）
+  // 说明：协作式停止——主进程在"下一轮开始前 / 下一次发命令前"退出，
+  //       正在飞的那条远端命令会执行完。返回 true 只代表"停止请求已送达"，不代表已经停住。
+  ipcMain.handle(
+    AGENT.PAOR_CANCEL,
+    async (_event, sshSessionId: unknown): Promise<boolean> => {
+      if (typeof sshSessionId !== 'string' || !sshSessionId.trim()) {
+        logger.warn('IPC.PAOR', 'agent:paor:cancel 入参非法，按未处理返回', {
+          type: typeof sshSessionId,
+        })
+        return false
+      }
+      const controller = paorRuns.get(sshSessionId)
+      if (!controller) {
+        logger.info('IPC.PAOR', 'agent:paor:cancel 没有正在跑的循环', { sshSessionId })
+        return false
+      }
+      controller.abort()
+      logger.info('IPC.PAOR', 'agent:paor:cancel 已请求停止（当前步结束后生效）', { sshSessionId })
+      return true
     }
   )
 
@@ -512,6 +566,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       'agent:chat',
       'agent:chat:cancel',
       'agent:paor',
+      'agent:paor:cancel',
       'paor:approve',
       'provider:list',
       'provider:save',

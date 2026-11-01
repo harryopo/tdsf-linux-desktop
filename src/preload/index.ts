@@ -195,6 +195,8 @@ const electronApi = {
   agentChatCancel: agentRuntime.cancel,
   // PAOR 自动循环（Plan→Act→Observe→Reflect 多步自主编排，方案书 §3.2）
   agentPaor: agentRuntime.paor,
+  // 2026-11-01：取消进行中的 PAOR 循环（按 sshSessionId；停止在当前步结束后生效）
+  agentPaorCancel: agentRuntime.paorCancel,
   // v0.9.5 新增：响应 PAOR 审批请求（与 onPaorApprovalRequest 配合使用）
   paorApprove: agentRuntime.approve,
   // v0.9.4 新增：通过 sessionId 统一取消 agent:chat 会话

@@ -378,4 +378,38 @@ describe('PAOR 计划步骤 → 可执行命令', () => {
     expect(result.iterations).toHaveLength(10)
     expect(mockExec).toHaveBeenCalledTimes(10)
   })
+
+  // ===== 取消（2026-11-01）：协作式停止 =====
+
+  it('信号已中止：计划照出但一步不执行，状态 abort', async () => {
+    mockGenerateText.mockResolvedValue(planResponse(THREE_STEP_PLAN))
+    const controller = new AbortController()
+    controller.abort()
+
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('诊断磁盘', 'session-1', { signal: controller.signal })
+
+    expect(result.status).toBe('abort')
+    expect(result.iterations).toHaveLength(0)
+    expect(mockExec).not.toHaveBeenCalled()
+    expect(result.summary).toContain('未执行任何步骤')
+  })
+
+  it('跑到一半收到停止：当前步执行完就停，不再发下一条命令', async () => {
+    mockGenerateText.mockResolvedValue(planResponse(THREE_STEP_PLAN))
+    const controller = new AbortController()
+
+    const supervisor = getSupervisor()
+    const result = await supervisor.runPaorLoop('诊断磁盘', 'session-1', {
+      signal: controller.signal,
+      // 第一轮迭代一推出来就相当于用户点了停止
+      onIteration: () => controller.abort(),
+    })
+
+    expect(result.status).toBe('abort')
+    expect(result.iterations).toHaveLength(1)
+    // 停止发生在"下一步开始前"：第一条命令已执行完，第二、三条从未发出去
+    expect(mockExec).toHaveBeenCalledTimes(1)
+    expect(result.summary).toContain('执行中止')
+  })
 })

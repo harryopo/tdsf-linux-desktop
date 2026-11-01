@@ -74,6 +74,19 @@ const agentRuntime = {
     invokeChecked<PaorLoopResult>('agentPaor', AGENT.PAOR, task, sshSessionId, maxIterations),
 
   /**
+   * 取消进行中的 PAOR 循环
+   *
+   * 停止是协作式的：主进程在"下一次开始前 / 每次执行命令前"检查，所以
+   * **正在飞的那条远端命令会跑完**，之后不再有新的步骤。返回 false 表示当前没有
+   * 这个会话的 PAOR 在跑（已结束或本来就没启动）——界面据此说"没有正在执行的任务"，
+   * 不要假装停止成功。
+   *
+   * @param sshSessionId 启动 PAOR 时用的 SSH 会话 ID
+   */
+  paorCancel: (sshSessionId: string): Promise<boolean> =>
+    invokeChecked<boolean>('agentPaorCancel', AGENT.PAOR_CANCEL, sshSessionId),
+
+  /**
    * 响应 PAOR 审批请求（v0.9.5 新增）
    *
    * 主进程推送 paor:approval-request 事件后，

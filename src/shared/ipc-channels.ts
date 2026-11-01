@@ -54,6 +54,8 @@ export const AGENT = {
   CHAT_CANCEL: 'agent:chat:cancel',
   /** PAOR 自动循环（invoke: 渲染 → 主，v0.9.5） */
   PAOR: 'agent:paor',
+  /** 取消进行中的 PAOR 循环（invoke: 渲染 → 主，按 sshSessionId；2026-11-01 起有） */
+  PAOR_CANCEL: 'agent:paor:cancel',
   /** Supervisor 流式 token 块推送（push: 主 → 渲染，v0.9） */
   CHUNK: 'agent:chunk',
   /** Supervisor chat 完成信号推送（push: 主 → 渲染，v0.9） */
