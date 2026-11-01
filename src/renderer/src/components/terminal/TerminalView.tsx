@@ -26,7 +26,13 @@ import { useTranslateStore } from '../../stores/translate-store'
 // v2.7：外观设置（代码主题/代码字体）的终端侧消费者
 import { useAppearanceStore, CODE_FONT_STACKS } from '../../stores/appearance-store'
 import { useTerminalStore } from '../../stores/terminal-store'
-import { createBlockModel, lastBlock, toAiContext, finishedBlocks } from '../../terminal/block-model'
+import {
+  createBlockModel,
+  lastBlock,
+  toAiContext,
+  finishedBlocks,
+  type CommandBlock,
+} from '../../terminal/block-model'
 import { attachBlockCollector } from '../../terminal/block-collector'
 import { subscribeShellData } from '../../terminal/terminal-bus'
 import type { ShellKind } from '../../stores/terminal-store'
@@ -36,6 +42,7 @@ import { SelectionManager } from './selection-manager'
 import { formatTerminalClipboard } from './clipboard-format'
 import TerminalSearchBar from './TerminalSearchBar'
 import TerminalCompletionAddon from './TerminalCompletionAddon'
+import { TerminalBlockOverlay } from './TerminalBlockOverlay'
 import './TerminalView.css'
 import './Terminal.css'
 
@@ -61,6 +68,27 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
   const containerRef = useRef<HTMLDivElement>(null)
   /** xterm.js Terminal 实例引用 */
   const terminalRef = useRef<Terminal | null>(null)
+  /** 命令块快照（终端工具条用）：块模型是可变对象，推一份副本给 React */
+  const [commandBlockList, setCommandBlockList] = useState<CommandBlock[]>([])
+
+  /**
+   * 重跑：把命令写回同一个 shell。
+   * 与用户手敲走同一条写入通道——不往 xterm 里本地回显，远端/本机 shell 自己会回显；
+   * 本地回显等于在屏幕上造一条"看起来执行了"的假记录。
+   */
+  const handleBlockRerun = useCallback(
+    (command: string) => {
+      if (!isElectronAPIAvailable()) return
+      const api = window.electronAPI
+      const data = `${command}`
+      const write = kind === 'local' ? api.localTtyWrite?.(shellId, data) : api.sshShellWrite(shellId, data)
+      write?.catch((error: unknown) => {
+        console.error('[TerminalView] 重跑命令写入失败:', error)
+      })
+      terminalRef.current?.focus()
+    },
+    [shellId, kind]
+  )
   /** FitAddon 实例引用 */
   const fitRef = useRef<FitAddon | null>(null)
   /** SearchAddon 实例引用（供 TerminalSearchBar 使用） */
@@ -255,6 +283,8 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
     const setCommandBlocks = useTerminalStore.getState().setCommandBlocks
     const blockCollector = attachBlockCollector(terminal, blockModel, (m) => {
       const last = lastBlock(m)
+      // 工具条要的是逐块明细（命令/exit/耗时/输出），状态栏要的是摘要，两者同一次回调里推
+      setCommandBlockList(m.blocks.slice(-200))
       setCommandBlocks({
         count: finishedBlocks(m).length,
         lastCommand: last?.command ?? null,
@@ -406,6 +436,7 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
       blockCollector.dispose()
       bellDisposable.dispose()
       setCommandBlocks(null)
+      setCommandBlockList([])
       // 取消输出订阅（缓存与别的终端的订阅不受影响）
       offShellData()
       inputDisposable.dispose()
@@ -483,6 +514,15 @@ const TerminalView: React.FC<TerminalViewProps> = ({ shellId, kind, visible }) =
           terminal={terminalRef.current}
           shellId={shellId}
           kind={kind}
+        />
+      )}
+      {/* 命令块工具条：块尾的 exit/耗时/复制命令/复制输出/重跑（只在 OSC 133/633 真报块时出现） */}
+      {terminalReady && terminalRef.current && (
+        <TerminalBlockOverlay
+          terminal={terminalRef.current}
+          blocks={commandBlockList}
+          visible={visible}
+          onRerun={handleBlockRerun}
         />
       )}
     </div>

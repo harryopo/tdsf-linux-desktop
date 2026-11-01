@@ -10,14 +10,19 @@
  */
 import type { IDisposable, Terminal } from '@xterm/xterm'
 import {
+  lastBlock,
   markCommandEnd,
   markCommandStart,
   markOutput,
   markPrompt,
   setCommandLine,
+  setOutputText,
   setProperty,
   type BlockModel,
 } from './block-model'
+
+/** 换行符：写字符串字面量容易被工具链转义吃掉，这里用码点构造，所见即所得 */
+const NEWLINE = String.fromCharCode(10)
 
 /** 解析 OSC 133 载荷：A / B / C / D;<exit> */
 export function handleOsc133(m: BlockModel, data: string, row: number): void {
@@ -60,6 +65,27 @@ export function handleOsc633(m: BlockModel, data: string, row: number): void {
   }
 }
 
+/**
+ * 命令结束时把这段输出从 buffer 抄下来（只给工具条的「复制输出」用）。
+ * 读的是 buffer 行区间，不是屏幕：滚出去的行也能拿到（受 scrollback 上限约束）。
+ */
+export function captureBlockOutput(term: Terminal, model: BlockModel): void {
+  const block = lastBlock(model)
+  if (!block || block.state !== 'done') return
+  if (block.outputRow === null || block.endRow === null) return
+  if (block.outputText != null) return
+  const b = term.buffer.active
+  const lines: string[] = []
+  // endRow 那条通常是结束标记所在行（下一个提示符之前），不并入输出
+  for (let row = block.outputRow; row < block.endRow && lines.length < 2000; row++) {
+    const line = b.getLine(row)
+    if (!line) break
+    lines.push(line.translateToString(true))
+  }
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop()
+  setOutputText(model, block.id, lines.join(NEWLINE))
+}
+
 /** 当前光标所在的 buffer 绝对行（含滚出屏幕的部分） */
 function cursorRow(term: Terminal): number {
   const b = term.buffer.active
@@ -77,6 +103,8 @@ export function attachBlockCollector(
 ): IDisposable {
   const h133 = term.parser.registerOscHandler(133, (data: string) => {
     handleOsc133(model, data, cursorRow(term))
+    // D = 命令结束：此时 buffer 里这段输出已经写完了，抄一份给工具条
+    if (data.split(';')[0] === 'D') captureBlockOutput(term, model)
     onChange(model)
     return false
   })

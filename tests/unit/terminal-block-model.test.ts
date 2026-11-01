@@ -16,6 +16,7 @@ import {
   markPrompt,
   setCommandLine,
   setProperty,
+  setOutputText,
   toAiContext,
   activeBlock,
   MAX_BLOCKS,
@@ -188,5 +189,36 @@ describe('OSC 解析（与 xterm 无关的纯函数部分）', () => {
     setCommandLine(m, 'echo hi', 4)
     handleOsc133(m, 'D;0', 5)
     expect(finishedBlocks(m).map((b) => b.command)).toEqual(['echo hi'])
+  })
+})
+
+
+describe('block-model：工具条要的两个读数（耗时 / 输出正文）', () => {
+  it('耗时从命令开始到 D 那一刻；未结束的块没有 endedAt', () => {
+    const m = createBlockModel()
+    markPrompt(m, 0)
+    markCommandStart(m, 0, 1_000)
+    setCommandLine(m, 'ls -la', 0)
+    markOutput(m, 1, 1_200)
+    // C 只作兜底：B 已经给了起点，不许被 C 覆盖成更晚的时刻
+    expect(lastBlock(m)?.startedAt).toBe(1_000)
+    expect(lastBlock(m)?.endedAt).toBeNull()
+
+    markCommandEnd(m, 3, 0, 2_400)
+    expect(lastBlock(m)).toMatchObject({ startedAt: 1_000, endedAt: 2_400, exitCode: 0 })
+  })
+
+  it('输出正文单独存且截断到 20000；不会挤进喂 AI 的摘要（摘要只有命令与行号）', () => {
+    const m = createBlockModel()
+    markPrompt(m, 0)
+    markCommandStart(m, 0, 1)
+    setCommandLine(m, 'cat big.log', 0)
+    markOutput(m, 1, 2)
+    markCommandEnd(m, 5, 0, 3)
+    const id = lastBlock(m)!.id
+    setOutputText(m, id, 'x'.repeat(25_000))
+    expect(lastBlock(m)?.outputText).toHaveLength(20_000)
+    expect(toAiContext(m)).toContain('$ cat big.log [ok]')
+    expect(toAiContext(m)).not.toContain('xxxx')
   })
 })

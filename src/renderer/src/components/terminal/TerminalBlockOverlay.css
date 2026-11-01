@@ -1,0 +1,104 @@
+/**
+ * 终端命令块工具条（2026-11-01）
+ *
+ * 覆盖层本身不吃指针（pointer-events: none），只有工具条上的按钮吃；
+ * 颜色全部走语义令牌，浅色主题自动跟随。
+ */
+
+.terminal-block-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.terminal-block-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+}
+
+.terminal-block-separator {
+  display: block;
+  height: 1px;
+  opacity: 0.55;
+}
+
+.terminal-block-separator.is-ok {
+  background: var(--trae-border-neutral-l1);
+}
+
+.terminal-block-separator.is-bad {
+  background: var(--trae-status-error-default);
+  opacity: 0.9;
+}
+
+.terminal-block-toolbar {
+  position: absolute;
+  right: 10px;
+  bottom: 2px;
+  transform: translateY(-100%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(72%, 720px);
+  padding: 2px 6px;
+  border-radius: var(--trae-radius-4);
+  border: 1px solid var(--trae-border-neutral-l1);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.terminal-block-exit {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-block-exit.is-ok {
+  color: var(--status-success-text);
+}
+
+.terminal-block-exit.is-bad {
+  color: var(--status-error-text);
+}
+
+.terminal-block-cmd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--app-code-font, var(--trae-font-family-mono));
+  color: var(--text-tertiary);
+}
+
+.terminal-block-duration {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-block-toolbar button {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--trae-radius-4);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.terminal-block-toolbar button:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.terminal-block-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

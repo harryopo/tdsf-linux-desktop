@@ -31,6 +31,15 @@ export interface CommandBlock {
   state: BlockState
   /** 633;P 附带的 cwd 等属性 */
   cwd?: string
+  /** 命令开始执行的时间（毫秒）；界面的"耗时"从这里算 */
+  startedAt?: number | null
+  /** 命令结束的时间（毫秒）；没见过 D 就是 null */
+  endedAt?: number | null
+  /**
+   * 结束那一刻从 buffer 抄下来的输出正文（截断到 20000 字符）。
+   * 只给"复制输出"用；喂 AI 的摘要仍只给行范围，正文体积与脱敏都不适合进上下文。
+   */
+  outputText?: string | null
 }
 
 export interface BlockModel {
@@ -72,38 +81,44 @@ export function markPrompt(m: BlockModel, row: number): void {
     cur.promptRow = row
     return
   }
-  push(m, { id: m.nextId, command: null, promptRow: row, outputRow: null, endRow: null, exitCode: null, state: 'open' })
+  push(m, { id: m.nextId, command: null, promptRow: row, outputRow: null, endRow: null, exitCode: null, state: 'open', startedAt: null, endedAt: null })
 }
 
 /** OSC 133;B —— 命令开始（用户在提示符后开始输入） */
-export function markCommandStart(m: BlockModel, row: number): void {
+export function markCommandStart(m: BlockModel, row: number, now = Date.now()): void {
   const cur = activeBlock(m)
   if (cur && cur.state === 'open') {
     cur.promptRow = cur.promptRow ?? row
+    // B 是"用户开始敲命令"的时刻：耗时的起点取这里（C 只作兜底）
+    cur.startedAt = cur.startedAt ?? now
     return
   }
   // 没有开着的块（远端只发了 B）：补一个，别丢事件
-  push(m, { id: m.nextId, command: null, promptRow: row, outputRow: null, endRow: null, exitCode: null, state: 'open' })
+  const block = push(m, { id: m.nextId, command: null, promptRow: row, outputRow: null, endRow: null, exitCode: null, state: 'open', startedAt: null, endedAt: null })
+  block.startedAt = now
 }
 
 /** OSC 133;C —— 命令交给远端执行，输出从这里开始 */
-export function markOutput(m: BlockModel, row: number): void {
+export function markOutput(m: BlockModel, row: number, now = Date.now()): void {
   const cur = activeBlock(m)
   if (!cur) return
   cur.state = 'running'
   cur.outputRow = row
+  // 命令开始执行的时刻：有 B 就用 B 的，只有 C 时从 C 算（耗时宁短勿假）
+  cur.startedAt = cur.startedAt ?? now
 }
 
 /**
  * OSC 133;D;<exit> —— 命令结束。
  * 找不到未结束的块就忽略：凭空造一个块会让"上一条命令"变成假的。
  */
-export function markCommandEnd(m: BlockModel, row: number, exitCode: number | null): void {
+export function markCommandEnd(m: BlockModel, row: number, exitCode: number | null, now = Date.now()): void {
   const cur = activeBlock(m)
   if (!cur) return
   cur.state = 'done'
   cur.endRow = row
   cur.exitCode = exitCode
+  cur.endedAt = now
 }
 
 /** OSC 633;E —— 命令原文。若当前块已经在跑（漏了 A/B），另起一块，避免把命令挂到别的块上 */
@@ -122,6 +137,8 @@ export function setCommandLine(m: BlockModel, text: string, row?: number): void 
     endRow: null,
     exitCode: null,
     state: 'open',
+    startedAt: null,
+    endedAt: null,
   })
   void block
 }
@@ -134,6 +151,13 @@ export function setProperty(m: BlockModel, raw: string): void {
   const key = eq === -1 ? raw : raw.slice(0, eq)
   const value = eq === -1 ? '' : raw.slice(eq + 1)
   if (key === 'Cwd' && value) cur.cwd = value
+}
+
+/** 结束那一刻把输出正文抄进块里（供终端工具条的「复制输出」用），超长截断 */
+export function setOutputText(m: BlockModel, id: number, text: string): void {
+  const block = m.blocks.find((b) => b.id === id)
+  if (!block) return
+  block.outputText = text.slice(0, 20_000)
 }
 
 /** 已完成且有命令原文的块，按时间正序（喂给 AI 的就是这个视图） */
