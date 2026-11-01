@@ -50,8 +50,9 @@ beforeEach(() => {
 
 describe('layoutBlockToolbars', () => {
   it('按 baseY 换算像素；滚出视口的块不画', () => {
-    const layouts = layoutBlockToolbars([block()], { baseY: 0, rows: 24 }, 20)
+    const layouts = layoutBlockToolbars([block({ cwd: '/var/log' })], { baseY: 0, rows: 24 }, 20)
     expect(layouts).toHaveLength(1)
+    expect(layouts[0].cwd).toBe('/var/log')
     expect(layouts[0].y).toBe(100) // endRow 5 * 20
     expect(layouts[0].separatorY).toBe(40) // promptRow 2 * 20
 
@@ -86,12 +87,12 @@ describe('formatBlockDuration', () => {
 })
 
 describe('TerminalBlockOverlay', () => {
-  it('画出 exit 与耗时，并提供复制命令 / 重跑', () => {
+  it('画出 exit / 耗时 / cwd，并提供复制命令 / 重跑', () => {
     const onRerun = vi.fn()
     render(
       <TerminalBlockOverlay
         terminal={stubTerminal()}
-        blocks={[block()]}
+        blocks={[block({ cwd: '/var/log' })]}
         visible
         onRerun={onRerun}
         cellHeightPx={20}
@@ -101,6 +102,7 @@ describe('TerminalBlockOverlay', () => {
     expect(toolbar).toHaveTextContent('exit 0')
     expect(toolbar).toHaveTextContent('2.4s')
     expect(toolbar).toHaveTextContent('ls -la')
+    expect(toolbar).toHaveTextContent('/var/log')
 
     fireEvent.click(screen.getByRole('button', { name: /重跑：ls -la/ }))
     expect(onRerun).toHaveBeenCalledWith('ls -la')

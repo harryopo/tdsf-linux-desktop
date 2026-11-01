@@ -77,6 +77,16 @@
   color: var(--text-tertiary);
 }
 
+.terminal-block-cwd {
+  flex-shrink: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-tertiary);
+  font-family: var(--app-code-font, var(--trae-font-family-mono));
+}
+
 .terminal-block-duration {
   flex-shrink: 0;
   color: var(--text-tertiary);

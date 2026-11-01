@@ -25,6 +25,8 @@ export interface BlockLayout {
   /** 分隔线顶边（命令提示符那一行） */
   separatorY: number
   command: string
+  /** OSC 633;P Cwd 带来的工作目录；没有就不显示（不拿别的路径顶） */
+  cwd: string | null
   exitCode: number | null
   durationMs: number | null
   ok: boolean
@@ -50,6 +52,7 @@ export function layoutBlockToolbars(
       y: rel * cellHeight,
       separatorY: promptRel >= 0 && promptRel < view.rows ? promptRel * cellHeight : -1,
       command: b.command,
+      cwd: b.cwd ?? null,
       exitCode: b.exitCode,
       durationMs:
         b.startedAt !== null && b.startedAt !== undefined && b.endedAt !== null && b.endedAt !== undefined
@@ -184,6 +187,11 @@ export const TerminalBlockOverlay: FC<TerminalBlockOverlayProps> = ({
               <code className="terminal-block-cmd" title={l.command}>
                 {l.command}
               </code>
+              {l.cwd && (
+                <span className="terminal-block-cwd" title={l.cwd}>
+                  {l.cwd}
+                </span>
+              )}
               {l.durationMs !== null && (
                 <span className="terminal-block-duration">{formatBlockDuration(l.durationMs)}</span>
               )}
