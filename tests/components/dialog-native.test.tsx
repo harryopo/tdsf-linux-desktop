@@ -16,7 +16,7 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-libra
 import { Dialog, DialogContent } from '@renderer/ui/overlay'
 import ChmodDialog from '@renderer/components/workbench/ChmodDialog'
 import HostKeyPromptDialog from '@renderer/components/ssh/HostKeyPromptDialog'
-import type { SshHostKeyPromptEvent } from '@shared/models'
+import type { SshHostKeyPromptEvent, SshHostKeyResolvedEvent } from '@shared/models'
 
 function Controlled({
   dismissible,
@@ -151,8 +151,13 @@ const CHANGED: SshHostKeyPromptEvent = {
   promptMessage: 'WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!'
 }
 
-function mountHostKey(): { respond: ReturnType<typeof vi.fn>; push: (e: SshHostKeyPromptEvent) => void } {
+function mountHostKey(): {
+  respond: ReturnType<typeof vi.fn>
+  push: (e: SshHostKeyPromptEvent) => void
+  resolve: (e: SshHostKeyResolvedEvent) => void
+} {
   let cb: ((e: SshHostKeyPromptEvent) => void) | null = null
+  let resolvedCb: ((e: SshHostKeyResolvedEvent) => void) | null = null
   const respond = vi.fn(async () => {})
   const w = window as unknown as { electronAPI: Record<string, unknown> }
   w.electronAPI = {
@@ -162,10 +167,20 @@ function mountHostKey(): { respond: ReturnType<typeof vi.fn>; push: (e: SshHostK
         cb = null
       }
     },
+    onSshHostKeyResolved: (handler: (e: SshHostKeyResolvedEvent) => void) => {
+      resolvedCb = handler
+      return () => {
+        resolvedCb = null
+      }
+    },
     sshRespondHostKey: respond
   }
   render(<HostKeyPromptDialog />)
-  return { respond, push: (e: SshHostKeyPromptEvent) => act(() => cb?.(e)) }
+  return {
+    respond,
+    push: (e: SshHostKeyPromptEvent) => act(() => cb?.(e)),
+    resolve: (e: SshHostKeyResolvedEvent) => act(() => resolvedCb?.(e)),
+  }
 }
 
 describe('HostKeyPromptDialog', () => {
@@ -201,5 +216,41 @@ describe('HostKeyPromptDialog', () => {
     expect(screen.getByText('已记录的旧密钥指纹')).toBeInTheDocument()
     expect(screen.getByText('SHA256:old')).toBeInTheDocument()
     expect(screen.getByText('SHA256:aaa')).toBeInTheDocument()
+  })
+
+  /**
+   * 这张卡刻意不可关（上面那条就钉了这个），代价是它拦住整个窗口。
+   * 而确认请求只有一份、窗口不止一个：别处答了或 5 分钟到点，本窗口的卡必须自己收，
+   * 否则这个窗口就再也点不动了（2026-11-02 真窗口取证撞上的正是这条）。
+   */
+  it('本请求在别处结项后自己收；别的请求的结项信号不动它', async () => {
+    const { push, resolve } = mountHostKey()
+    push(CHANGED)
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+
+    resolve({ requestId: 'req-other', reason: 'answered' })
+    expect(screen.getByRole('dialog'), '不是自己那条请求，必须仍然拦着').toBeInTheDocument()
+
+    resolve({ requestId: 'req-1', reason: 'answered' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('主进程 5 分钟到点自动拒绝，同样要收（不留一张没有对端的卡）', async () => {
+    const { push, resolve } = mountHostKey()
+    push(CHANGED)
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    resolve({ requestId: 'req-1', reason: 'expired' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('本窗口自己点了也会收到结项广播：不重复响应', async () => {
+    const { respond, push, resolve } = mountHostKey()
+    push(CHANGED)
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '拒绝连接' }))
+    await waitFor(() => expect(respond).toHaveBeenCalledTimes(1))
+    resolve({ requestId: 'req-1', reason: 'answered' })
+    expect(respond).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

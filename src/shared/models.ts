@@ -143,6 +143,19 @@ export interface SshHostKeyPromptEvent {
 }
 
 /**
+ * 主机密钥确认"已结项"推送（主 → 渲染推送）
+ *
+ * 确认弹窗是刻意不可关的，而请求只有一份：用户在哪个窗口答的都行，5 分钟到点主进程也会自动拒绝。
+ * 少了这条广播，其余窗口会一直举着一张已经没有对端的拦路卡——那个窗口就再也点不动了。
+ */
+export interface SshHostKeyResolvedEvent {
+  /** 对应 SshHostKeyPromptEvent.requestId */
+  requestId: string
+  /** 结项原因：某个窗口答复了 / 5 分钟到点自动拒绝（没有窗口那条路不广播——没人收） */
+  reason: 'answered' | 'expired'
+}
+
+/**
  * 用户对主机密钥弹窗的响应动作（渲染 → 主，Phase L）
  *
  * - accept-once：仅本次继续连接（不写入 known_hosts）

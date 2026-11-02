@@ -98,10 +98,12 @@ export function joinRemotePath(dir: string, name: string): string {
  * value: { resolve, reject, timer }
  *
  * 工作流程：
- * 1. hostKeyConfirmHandler 收到 prompt → 存入 pendingHostKeyRequests → webContents.send 推送
+ * 1. hostKeyConfirmHandler 收到 prompt → 存入 pendingHostKeyRequests → 广播给所有应用窗口
  * 2. 渲染进程弹窗，用户选择后 ipcRenderer.invoke('ssh:host-key-response', payload)
  * 3. ssh:host-key-response handler 取出 pending → resolve(action)
  * 4. hostKeyConfirmHandler 的 Promise resolve → hostVerifier 继续/中断握手
+ * 5. 结项（答复 / 超时）再广播一次 ssh:host-key-resolved：弹窗不可关，而请求只有一份，
+ *    没收到这条的窗口会一直举着一张没有对端的卡，那个窗口就点不动了
  *
  * 超时保护：5 分钟未响应自动 reject（用户可能离开电脑）
  */
@@ -208,6 +210,8 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
         // 超时保护：5 分钟未响应自动拒绝
         const timer = setTimeout(() => {
           pendingHostKeyRequests.delete(prompt.requestId)
+          // 到点了但没有任何窗口会替我们关那张卡：广播收场，否则留在屏上的遮罩把窗口封死
+          broadcastToWindows(SSH.HOST_KEY_RESOLVED, { requestId: prompt.requestId, reason: 'expired' })
           reject(new Error('主机密钥确认超时（5 分钟未响应）'))
         }, HOST_KEY_PROMPT_TIMEOUT_MS)
 
@@ -237,6 +241,9 @@ export function registerSshIpcHandlers(mainWindow: BrowserWindow): () => void {
       clearTimeout(pending.timer)
       pendingHostKeyRequests.delete(payload.requestId)
       pending.resolve(payload.action)
+      // 广播给所有窗口（含应答者，它自己已经关了，这条幂等）：
+      // 别的窗口手里那张不可关的卡到这里就作废了，不收到会一直拦着那个窗口。
+      broadcastToWindows(SSH.HOST_KEY_RESOLVED, { requestId: payload.requestId, reason: 'answered' })
       return true
     },
   )

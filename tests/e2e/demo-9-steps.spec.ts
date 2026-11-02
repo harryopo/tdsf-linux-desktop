@@ -395,6 +395,12 @@ test.describe('Demo 9 步主路径', () => {
 
       const shellId = await openShellViaIpc(mainWin, sessionId)
 
+      // 首次连接的确认卡是刻意不可关的，而这条请求已经答复了（recorder 走的就是主进程那条口）。
+      // 主进程必须把"结项"广播回来让卡自己收——不然这张遮罩会拦住本窗口的一切点击。
+      await expect
+        .poll(() => mainWin.locator('[role="dialog"]').count(), { message: '主机密钥确认结项后弹窗应自己收', timeout: 15000 })
+        .toBe(0)
+
       const statusbar = mainWin.locator('.wb-statusbar')
       await expect
         .poll(async () => statusbar.innerText(), { message: 'shell 开场应带出至少 1 个命令块', timeout: 20000 })
@@ -405,6 +411,83 @@ test.describe('Demo 9 步主路径', () => {
       await expect
         .poll(async () => statusbar.innerText(), { message: '敲命令后命令块计数应增加', timeout: 20000 })
         .toMatch(/[2-9]\d* 命令块/)
+
+      // 状态栏只证明块模型有数据；工具条真的画在 xterm 上、位置对不对、
+      // exit/耗时/cwd 跟着真事件走，必须在这个带真终端与真 OSC 的窗口里量。
+      const readToolbars = () =>
+        mainWin.evaluate(() => {
+          const term = document.querySelector('.xterm')
+          const box = term?.getBoundingClientRect()
+          return Array.from(document.querySelectorAll<HTMLElement>('.terminal-block-toolbar')).map((el) => {
+            const r = el.getBoundingClientRect()
+            return {
+              exit: el.dataset.exit ?? '',
+              text: el.innerText.replace(/\s+/g, ' ').trim(),
+              bad: !!el.querySelector('.terminal-block-exit.is-bad'),
+              cwd: el.querySelector('.terminal-block-cwd')?.textContent ?? '',
+              w: Math.round(r.width),
+              h: Math.round(r.height),
+              inside: !!box && r.top >= box.top - 1 && r.bottom <= box.bottom + 1,
+            }
+          })
+        })
+      const findBar = (needle: string) => readToolbars().then((bars) => bars.find((b) => b.text.includes(needle)))
+
+      // 「复制输出」的可用性取决于输出正文真被抄下来了（133;D 那一刻读 buffer 行范围）
+      const outputBtnEnabled = (needle: string) =>
+        mainWin.evaluate((cmd) => {
+          const bars = Array.from(document.querySelectorAll<HTMLElement>('.terminal-block-toolbar'))
+          const bar = bars.find((el) => el.innerText.includes(cmd))
+          const btn = bar?.querySelector<HTMLButtonElement>('button[aria-label^="复制输出"]')
+          return btn ? !btn.disabled : null
+        }, needle)
+
+      await expect
+        .poll(async () => (await findBar('uptime'))?.w ?? 0, { message: 'uptime 那条命令应在块尾画出工具条', timeout: 20000 })
+        .toBeGreaterThan(0)
+      {
+        const bar = await findBar('uptime')
+        expect(bar?.exit, '工具条上的退出码应来自 133;D').toBe('0')
+        expect(bar?.bad, 'exit 0 不该标成失败色').toBe(false)
+        expect(bar?.h, '工具条要有真实高度（量到 0 说明定位没生效）').toBeGreaterThan(0)
+        expect(bar?.inside, '工具条必须落在终端可视区内').toBe(true)
+        // 耗时来自 133;B/C 与 133;D 两个真时刻，不是界面自己编的
+        expect(bar?.text, '工具条应带耗时').toMatch(/\d+(ms|s)/)
+      }
+      // 这条命令真有过输出行 → 「复制输出」必须可点（输出正文在 133;D 那一刻从 buffer 抄下来）
+      await expect
+        .poll(() => outputBtnEnabled('uptime'), { message: '有输出的块，复制输出应可用', timeout: 15000 })
+        .toBe(true)
+
+      // 重跑：点一下要真把命令写回同一个 shell（再走一遍键入通道），块计数跟着涨。
+      // 放在最前面按：此时屏上只有两条工具条，不会被后画的块压住点击命中。
+      const uptimeCount = async () => (await readToolbars()).filter((b) => b.text.includes('uptime')).length
+      const before = await uptimeCount()
+      expect(before, '重跑前 uptime 应只有一条').toBe(1)
+      await mainWin.locator('.terminal-block-toolbar', { hasText: 'uptime' }).first().getByLabel('重跑：uptime').click()
+      await expect
+        .poll(uptimeCount, { message: '点重跑后应多出一条同样的命令块', timeout: 20000 })
+        .toBeGreaterThan(before)
+
+      await writeShellViaIpc(mainWin, shellId, 'tdsf-exit 7\r')
+      await expect
+        .poll(async () => (await findBar('tdsf-exit 7'))?.exit ?? '', { message: '非零退出码应上工具条并标失败色', timeout: 20000 })
+        .toBe('7')
+      {
+        const bar = await findBar('tdsf-exit 7')
+        expect(bar?.bad, 'exit 7 应标失败色').toBe(true)
+      }
+
+      await writeShellViaIpc(mainWin, shellId, 'tdsf-cwd\r')
+      await expect
+        .poll(async () => (await findBar('tdsf-cwd'))?.cwd ?? '', { message: '只有 633;P 报了 Cwd 才显示目录', timeout: 20000 })
+        .toBe('/srv/fixture-dir')
+
+      // 反向对照：fixture 从没发过 633;P 的那条命令，工具条上不该凭空多一个目录
+      {
+        const uptimeBar = await findBar('uptime')
+        expect(uptimeBar?.cwd, '没收到 Cwd 就不许编一个目录').toBe('')
+      }
 
       await mainWin.screenshot({ path: path.join(SCREENSHOT_DIR, '11-terminal-blocks.png') })
       await app.close()

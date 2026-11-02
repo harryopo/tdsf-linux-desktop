@@ -3,6 +3,7 @@
  *
  * 职责：
  * - 监听 onSshHostKeyPrompt 事件（主进程推送）
+ * - 监听 onSshHostKeyResolved 事件：请求被别的窗口答了或超时到点，本窗口的卡自己收
  * - 首次连接（unknown-host）：提示用户是否保存密钥到 known_hosts
  * - 密钥变更（host-key-changed）：警告用户密钥已变更，可能存在中间人攻击
  * - 三按钮响应：
@@ -16,7 +17,7 @@
  */
 import { useState, useEffect, useCallback, type FC } from 'react'
 import { ShieldAlert, ShieldCheck } from 'lucide-react'
-import type { SshHostKeyPromptEvent, SshHostKeyResponseAction } from '@shared/models'
+import type { SshHostKeyPromptEvent, SshHostKeyResolvedEvent, SshHostKeyResponseAction } from '@shared/models'
 import { isElectronAPIAvailable } from '../../utils/electron-api'
 import { Button, Dialog, DialogContent } from '@/ui'
 
@@ -62,6 +63,22 @@ const HostKeyPromptDialog: FC = () => {
     }
     const off = window.electronAPI.onSshHostKeyPrompt((event: SshHostKeyPromptEvent) => {
       setPrompt(event)
+    })
+    return off
+  }, [])
+
+  /**
+   * 这条请求已经在别处结掉了（另一个窗口答复 / 5 分钟到点自动拒绝）。
+   *
+   * 弹窗是刻意不可关的，代价是它拦住整个窗口；而请求只有一份、窗口不止一个。
+   * 少了这条收场，本窗口会一直举着一张已经没有对端的卡——那个窗口就点不动了。
+   */
+  useEffect(() => {
+    if (!isElectronAPIAvailable()) {
+      return
+    }
+    const off = window.electronAPI.onSshHostKeyResolved((event: SshHostKeyResolvedEvent) => {
+      setPrompt((cur) => (cur && cur.requestId === event.requestId ? null : cur))
     })
     return off
   }, [])

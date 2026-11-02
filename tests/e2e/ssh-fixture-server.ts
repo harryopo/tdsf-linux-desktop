@@ -29,6 +29,8 @@ const OSC = {
   end: (exit: number) => `\x1b]133;D;${exit}\x07`,
   /** VS Code shell integration：633;E 带命令原文 */
   commandLine: (cmd: string) => `\x1b]633;E;${cmd}\x07`,
+  /** VS Code shell integration：633;P 带属性（工具条上的 cwd 只有收到这条才有） */
+  property: (raw: string) => `\x1b]633;P;${raw}\x07`,
 }
 
 export interface FixtureHandle {
@@ -208,13 +210,18 @@ export function startSshFixture(): Promise<FixtureHandle> {
                   // 回声 + 一个完整块。必须带 633;E：块模型的 finishedBlocks 只算
                   // command 非空的块（见 renderer/terminal/block-model.ts），远端若只发
                   // 133;A/B/C/D 而不报命令原文，这条命令就不会进 AI 上下文与审计。
+                  // 两条约定给工具条判据用：tdsf-exit N 演非零退出码，tdsf-cwd 演 633;P 的工作目录。
+                  const exitMatch = /^tdsf-exit\s+(\d+)$/.exec(cmd)
+                  const exitCode = exitMatch ? Number(exitMatch[1]) : 0
+                  const cwdLine = cmd === 'tdsf-cwd' ? OSC.property('Cwd=/srv/fixture-dir') : ''
                   stream.write(
                     '\r\n' +
                       OSC.cmdStart +
                       OSC.commandLine(cmd) +
+                      cwdLine +
                       OSC.output +
                       `fixture 输出：${cmd}\r\n` +
-                      OSC.end(0) +
+                      OSC.end(exitCode) +
                       OSC.prompt,
                   )
                   continue

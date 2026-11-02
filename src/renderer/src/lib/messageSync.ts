@@ -49,6 +49,7 @@ export type StreamEventName =
   | 'sftp:progress'
   | 'sidecar:state-changed'
   | 'ssh:host-key-prompt'
+  | 'ssh:host-key-resolved'
   | 'ssh:state-changed'
   | 'terminal:data'
 
@@ -168,6 +169,12 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     ownership: false,
     coalescable: false,
     note: 'TOFU 主机密钥弹窗，丢了就连不上',
+  },
+  'ssh:host-key-resolved': {
+    class: 'LIFECYCLE',
+    ownership: false,
+    coalescable: false,
+    note: '确认结场：那张卡不可关，丢了会把整个窗口拦住；每条按 requestId 判，不能合并',
   },
   'ssh:state-changed': {
     class: 'LATEST_ONLY',

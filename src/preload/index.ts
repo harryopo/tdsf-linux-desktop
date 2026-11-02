@@ -149,6 +149,8 @@ const electronApi = {
   onSshStateChanged: on.sshStateChanged,
   /** 监听主机密钥确认弹窗推送（Phase L） */
   onSshHostKeyPrompt: on.sshHostKeyPrompt,
+  /** 监听主机密钥确认"已结项"：别的窗口答了或超时到点，本窗口的卡要自己收 */
+  onSshHostKeyResolved: on.sshHostKeyResolved,
   onMonitorData: on.monitorData,
   onMonitorSystemInfo: on.monitorSystemInfo,
   /** 监听 SFTP 上传/下载进度推送（v0.9.7 SFTP 文件浏览增强） */

@@ -86,6 +86,7 @@ onSchedulerStatusChange
 onSftpProgress
 onSidecarStateChanged
 onSshHostKeyPrompt
+onSshHostKeyResolved
 onSshStateChanged
 onTerminalData
 paorApprove

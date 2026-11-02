@@ -149,6 +149,12 @@ export const SSH = {
    */
   HOST_KEY_RESPONSE: 'ssh:host-key-response',
   /**
+   * 主机密钥确认"已结项"推送（push: 主 → 所有渲染窗口）
+   * 载荷 SshHostKeyResolvedEvent。弹窗不可关，而请求只有一份：
+   * 答复来自哪个窗口都行、5 分钟到点主进程也会自动拒绝，其余窗口的卡必须靠这条自己收。
+   */
+  HOST_KEY_RESOLVED: 'ssh:host-key-resolved',
+  /**
    * 删除 SSH 密钥对（invoke: 渲染 → 主，Phase M）
    *
    * 删除 ~/.ssh/ 目录下指定密钥文件（私钥 + 公钥 .pub）。

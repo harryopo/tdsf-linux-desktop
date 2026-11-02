@@ -1,6 +1,6 @@
 /** events åï¼ä» src/preload/index.ts æåæåºãæ´é²åä»¥ index.ts éç electronApi ä¸ºåï¼å¿«ç§é¸ç¯ç */
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolEventPayload } from '@shared/agent-types'
-import type { ExternalMcpServerStatus, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshStateEvent, SystemInfo } from '@shared/models'
+import type { ExternalMcpServerStatus, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshHostKeyResolvedEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
 import type { SidecarHealthState } from '@shared/sidecar-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
@@ -48,6 +48,16 @@ const on = {
    */
   sshHostKeyPrompt: (callback: (prompt: SshHostKeyPromptEvent) => void): (() => void) => {
     return createListener(SSH.HOST_KEY_PROMPT, callback)
+  },
+
+  /**
+   * 监听主机密钥确认"已结项"推送
+   *
+   * 弹窗不可关，请求只有一份：在别的窗口答了、或 5 分钟到点自动拒绝，
+   * 本窗口那张拦路的卡要能自己收，否则这个窗口就点不动了。
+   */
+  sshHostKeyResolved: (callback: (event: SshHostKeyResolvedEvent) => void): (() => void) => {
+    return createListener(SSH.HOST_KEY_RESOLVED, callback)
   },
 
   /** çå¬çæ§æ°æ®æ¨éï¼å®æ¶ææ ï¼æ¯ interval ç§ä¸æ¬¡ï¼ */
