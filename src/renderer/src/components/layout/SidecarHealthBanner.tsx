@@ -35,7 +35,12 @@ async function readInitialState(): Promise<SidecarHealthState | null> {
 }
 
 function describe(state: SidecarHealthState): { title: string; detail: string; critical: boolean } | null {
-  if (state.phase === 'ready' || state.phase === 'stopped' || state.phase === 'starting') return null
+  if (state.phase === 'ready' || state.phase === 'starting') return null
+  if (state.phase === 'stopped') {
+    // 没被叫过（懒启动）不打扰用户；但"试起来过、起不来"必须说——这台机器就是缺 Python，
+    // 以前这一档被当成"只是没运行"静默掉，用户只知道 AI 日志分析点了没结果。
+    return state.detail ? { title: 'AI 日志分析引擎没能启动', detail: state.detail, critical: false } : null
+  }
   if (state.phase === 'degraded') {
     return {
       title: 'AI 日志分析引擎正在降级运行',

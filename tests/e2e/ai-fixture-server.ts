@@ -72,6 +72,12 @@ export interface AiFixtureHandle {
    * 这是流式回答中途断网的真实形状（客户端会抛 terminated · other side closed）。
    */
   planAbortAfter(prefix: string | null): void
+  /**
+   * 安排"下一次说完第一个分片就卡住 ms 毫秒再继续"。
+   * 这是上游慢但没断的真实形状——界面上该在 12 秒后说"已经有 N 秒没收到新内容"，
+   * 而不是默默挂着让用户猜。
+   */
+  planStallAfterFirstChunk(ms: number | null): void
   close(): Promise<void>
 }
 
@@ -155,6 +161,7 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
   let planned: PlannedToolCall | null = null
   let plannedEmpty = false
   let plannedAbort: string | null = null
+  let plannedStallMs: number | null = null
   let lastReq: { maxTokens: number | undefined; toolCount: number; messageCount: number } = {
     maxTokens: undefined,
     toolCount: 0,
@@ -234,6 +241,13 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         if (i < FIXTURE_DELTAS.length) {
           res.write(chunkBody(FIXTURE_DELTAS[i]))
           i += 1
+          // 只卡一次：第一个分片说完就停住，模拟"上游慢但没断"
+          if (plannedStallMs !== null && i === 1) {
+            const wait = plannedStallMs
+            plannedStallMs = null
+            setTimeout(tick, wait)
+            return
+          }
           setTimeout(tick, 40)
           return
         }
@@ -261,6 +275,9 @@ export function startAiFixture(): Promise<AiFixtureHandle> {
         },
         planAbortAfter: (prefix) => {
           plannedAbort = prefix
+        },
+        planStallAfterFirstChunk: (ms) => {
+          plannedStallMs = ms
         },
         close: () =>
           new Promise<void>((done) => {

@@ -88,6 +88,21 @@ describe('SidecarHealthBanner', () => {
     expect(banner.className).toContain('is-critical')
   })
 
+  it('试起来过但起不来（stopped + 有原因）要说得出来；没被叫过的 stopped 不打扰', async () => {
+    await act(async () => {
+      render(<SidecarHealthBanner />)
+    })
+    // 懒启动：用户还没用过日志分析，不该有一条横幅拦在顶上
+    push({ phase: 'stopped', restartAttempt: 0, nextRetryInMs: null, detail: null })
+    expect(screen.queryByRole('status'), '没叫过引擎就不该有横幅').not.toBeInTheDocument()
+
+    // 真形状：主进程报 stopped，但 lastError 说"启动超时"——这台机器就是缺 Python
+    push({ phase: 'stopped', restartAttempt: 0, nextRetryInMs: null, detail: 'Sidecar 启动超时（10000ms）' })
+    const banner = screen.getByRole('status')
+    expect(banner).toHaveTextContent('AI 日志分析引擎没能启动')
+    expect(banner, '原因必须原样带出来，不能只说"未运行"').toHaveTextContent('启动超时')
+  })
+
   it('"知道了"只静音这一次；下一次状态跳变要重新出现', async () => {
     await act(async () => {
       render(<SidecarHealthBanner />)
