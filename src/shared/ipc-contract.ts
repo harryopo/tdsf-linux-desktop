@@ -196,6 +196,18 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
     resultTs: 'boolean',
     result: bool,
   },
+  {
+    kind: 'invoke',
+    api: 'agentRunSnapshot',
+    channel: AGENT.RUN_SNAPSHOT,
+    doc: '订阅方晚到补发：取当前 Run 快照，同一 consumerId 只领一次终态',
+    args: [
+      { name: 'runId', ts: 'string', schema: str },
+      { name: 'consumerId', ts: 'string', schema: str },
+    ],
+    resultTs: 'RunSnapshot | null',
+    result: z.unknown(),
+  },
   // ===== 交互式 Shell（2026-10-10 起身份是 shellId，不再是 sessionId）=====
   // 六条都进契约、preload 全走 invokeChecked：这样"未纳入契约的 invoke 位点"刻度
   // 不会因为新增通道往上走（该刻度只许降）。
@@ -834,6 +846,7 @@ export const CONTRACT_TYPE_IMPORTS: Record<string, string> = {
   PersistedProviderConfig: '@shared/agent-types',
   ProviderConfig: '@shared/agent-types',
   PaorLoopResult: '@shared/paor-types',
+  RunSnapshot: '@shared/run-types',
   AgentChunkPayload: '@shared/agent-types',
   AgentDonePayload: '@shared/agent-types',
   AgentErrorPayload: '@shared/agent-types',

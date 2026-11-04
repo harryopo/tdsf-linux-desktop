@@ -2,6 +2,7 @@
 import type { ChatMessage } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
 import type { ThinkingStrength } from '@shared/agent-types'
+import type { RunSnapshot } from '@shared/run-types'
 import { AGENT, PAOR } from '@shared/ipc-channels'
 import { assertContractArgs } from '../../shared/ipc-contract'
 import { ipcRenderer } from 'electron'
@@ -97,6 +98,16 @@ const agentRuntime = {
    */
   approve: (callId: string, approved: boolean): Promise<boolean> =>
     ipcRenderer.invoke(PAOR.APPROVE, callId, approved),
+
+  /**
+   * 订阅方晚到补发（2026-11-04）
+   *
+   * 窗口重建 / 首包推送时窗口还没接管 / safeSend 当期失败时，渲染层（重）挂载后用它
+   * 拿到这一轮 Run 的已知终态。同一 consumerId 对同一条终态只会拿到一次；
+   * 非终态返回当前快照（仍是 running/awaiting_approval），未知 runId 返回 null。
+   */
+  snapshot: (runId: string, consumerId: string): Promise<RunSnapshot | null> =>
+    invokeChecked<RunSnapshot | null>('agentRunSnapshot', AGENT.RUN_SNAPSHOT, runId, consumerId),
 }
 
 

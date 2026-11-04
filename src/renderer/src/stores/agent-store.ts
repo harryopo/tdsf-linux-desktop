@@ -287,6 +287,17 @@ interface AgentState {
   /** 标记错误 */
   markError: (payload: AgentErrorPayload) => void
   /**
+   * 应用"补发来的终态"（2026-11-04，窗口重建/订阅晚到）
+   *
+   * 只关流与置标志，不复刻 finalizeMessage：取消路径的终态没有 ChatResult，
+   * 硬走 finalizeMessage 就得伪造 usage 与 finishReason——那是假账。
+   */
+  applyRunTerminal: (input: {
+    correlationId: string
+    state: 'completed' | 'failed' | 'cancelled'
+    error?: string
+  }) => void
+  /**
    * 追加/更新工具调用事件（v2.4）
    *
    * call 阶段：新增一条 AgentToolCall；output 阶段（v2.6）：按 toolCallId 累积流式输出；
@@ -662,6 +673,36 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
       cancelStreamPersist(failed.id)
       if (messages) persistMessage(failed)
       return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
+    }),
+
+  // 补发来的终态（2026-11-04）：认领规则与 finalizeMessage / markError 一致
+  applyRunTerminal: (input) =>
+    set((state) => {
+      const idx = lastIndexWhere(
+        state.messages,
+        (m) => m.role === 'assistant' && ownsStream(m.correlationId, input.correlationId)
+      )
+      const closesCurrent =
+        state.currentCorrelationId === null || state.currentCorrelationId === input.correlationId
+      if (closesCurrent) clearPendingStreamChunks()
+      const base = closesCurrent ? { isStreaming: false, currentCorrelationId: null } : {}
+      if (idx < 0) return base
+      const msg = state.messages[idx]
+      const terminal: AgentMessage = {
+        ...msg,
+        isStreaming: false,
+        ...(input.state === 'cancelled' ? { cancelled: true } : {}),
+        ...(input.state === 'failed'
+          ? {
+              isError: true,
+              errorMessage: input.error ?? '这一轮已在后台结束，错误详情未保留',
+            }
+          : {}),
+      }
+      const messages = replaceAt(state.messages, idx, terminal)
+      cancelStreamPersist(terminal.id)
+      if (messages) persistMessage(terminal)
+      return { ...(messages ? { messages } : {}), ...base }
     }),
 
   // 追加/更新工具调用事件（v2.4；#86：按 correlationId 认领消息，迟到的终态不再丢）

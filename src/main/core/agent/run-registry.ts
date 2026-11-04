@@ -24,38 +24,15 @@
  * 加一个没人会走的状态只会让状态机多一条无法被测试覆盖的路。等真要做排队时再加。
  */
 
-export type RunKind = 'chat' | 'paor' | 'sandbox'
+import type {
+  RunFailureReason,
+  RunKind,
+  RunSnapshot,
+  RunState,
+  RunTerminal,
+} from '@shared/run-types'
 
-export type RunState =
-  | 'running'
-  | 'awaiting_approval'
-  | 'cancelling'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-
-/**
- * 失败原因（参考 pi-durable 的 runFailure，按本产品现有出口裁剪）
- *
- * 只列真实会发生的：用户取消、审批拒绝、预算超时、上游 Provider 错误、
- * 工具执行错误，以及兜底 unknown。刻意不给每种错误都造一个 reason——
- * 多出来的枚举值没人赋值，读的人会以为那几种情况有单独处理。
- */
-export type RunFailureReason =
-  | 'aborted_by_user'
-  | 'approval_denied'
-  | 'budget_timeout'
-  | 'provider_error'
-  | 'tool_error'
-  | 'unknown'
-
-export interface RunTerminal {
-  state: 'completed' | 'failed' | 'cancelled'
-  ok: boolean
-  result?: unknown
-  failure?: RunFailureReason
-  error?: string
-}
+export type { RunFailureReason, RunKind, RunState, RunTerminal } from '@shared/run-types'
 
 export type RunEvent =
   | { type: 'state'; state: RunState }
@@ -96,12 +73,13 @@ export type RunPersist = (run: Run, outcome: RunTerminal) => void
 export interface RunRegistryOptions {
   persist?: RunPersist
   /**
-   * 取消一轮 Run 时，把这一轮还挂着的审批立刻落成"拒绝"。
+   * 把这一轮还挂着的审批立刻落成"拒绝"。
    *
    * 审批请求本身不吃 AbortSignal（approval-request.ts 只认 settle 与超时），
-   * 不主动结算的话 Run 会停在 cancelling 等 60 秒审批超时，期间同会话一直被 busy 拒。
+   * 不主动结算的话 Run 会停在 cancelling / awaiting_approval 等 60 秒审批超时，
+   * 期间同会话一直被 busy 拒。取消与**任何终态收尾**都必须走这里，不能只 clear()。
    */
-  onCancelApproval?: (approvalId: string) => void
+  onSettleApproval?: (approvalId: string) => void
 }
 
 /** 终态 Run 的保留上限：迟到订阅者只在窗口重建的那几秒里需要它，不该无界增长 */
@@ -116,12 +94,14 @@ export class RunRegistry {
   private readonly activeBySession = new Map<string, string>()
   private readonly listeners = new Map<string, Set<(evt: RunEvent) => void>>()
   private readonly terminalOrder: string[] = []
+  /** 每条终态 Run 已经补发给哪些 consumerId（同一条终态对同一消费者只推一次） */
+  private readonly terminalDelivered = new Map<string, Set<string>>()
   private readonly persist?: RunPersist
-  private readonly onCancelApproval?: (approvalId: string) => void
+  private readonly onSettleApproval?: (approvalId: string) => void
 
   constructor(opts: RunRegistryOptions = {}) {
     this.persist = opts.persist
-    this.onCancelApproval = opts.onCancelApproval
+    this.onSettleApproval = opts.onSettleApproval
   }
 
   /**
@@ -196,7 +176,7 @@ export class RunRegistry {
     this.emit(run, { type: 'state', state: 'cancelling' })
     // 先把挂着的审批结算掉（等待方立刻返回 false），再 abort——否则 Run 要等审批超时才收尾
     for (const approvalId of [...run.pendingApprovals]) {
-      this.onCancelApproval?.(approvalId)
+      this.onSettleApproval?.(approvalId)
     }
     run.pendingApprovals.clear()
     run.controller.abort()
@@ -261,6 +241,39 @@ export class RunRegistry {
     return this.runs.get(id)
   }
 
+  /** 可跨 IPC 序列化的当前快照；不存在的 Run 返回 null */
+  snapshot(id: string): RunSnapshot | null {
+    const run = this.runs.get(id)
+    if (!run) return null
+    return {
+      id: run.id,
+      kind: run.kind,
+      state: run.state,
+      startedAt: run.startedAt,
+      ...(run.sshSessionId ? { sshSessionId: run.sshSessionId } : {}),
+      ...(run.endedAt !== undefined ? { endedAt: run.endedAt } : {}),
+      ...(run.outcome ? { terminal: run.outcome } : {}),
+    }
+  }
+
+  /**
+   * 跨进程补发：终态对同一个 consumerId 只给一次，重复调用返回 null。
+   * 非终态返回当前快照但**不登记**——它还会继续变，不能当成终态消费。
+   */
+  replayTerminal(id: string, consumerId: string): RunSnapshot | null {
+    const run = this.runs.get(id)
+    if (!run) return null
+    if (!isTerminal(run.state)) return this.snapshot(id)
+    let delivered = this.terminalDelivered.get(id)
+    if (delivered?.has(consumerId)) return null
+    if (!delivered) {
+      delivered = new Set<string>()
+      this.terminalDelivered.set(id, delivered)
+    }
+    delivered.add(consumerId)
+    return this.snapshot(id)
+  }
+
   /** 某个 SSH 会话当前占着锁的 Run（没有则 undefined） */
   activeForSession(sshSessionId: string): Run | undefined {
     const holderId = this.activeBySession.get(sshSessionId)
@@ -283,6 +296,10 @@ export class RunRegistry {
     if (run.sshSessionId && this.activeBySession.get(run.sshSessionId) === run.id) {
       this.activeBySession.delete(run.sshSessionId)
     }
+    // 任何终态都必须 settle 挂起审批（取消路径之外，审批刚挂起就失败/完成的窗口虽窄但真实）。
+    for (const approvalId of [...run.pendingApprovals]) {
+      this.onSettleApproval?.(approvalId)
+    }
     run.pendingApprovals.clear()
     this.terminalOrder.push(run.id)
     this.trimTerminalRuns()
@@ -294,7 +311,10 @@ export class RunRegistry {
   private trimTerminalRuns(): void {
     while (this.terminalOrder.length > MAX_TERMINAL_RUNS) {
       const id = this.terminalOrder.shift()
-      if (id !== undefined) this.runs.delete(id)
+      if (id !== undefined) {
+        this.runs.delete(id)
+        this.terminalDelivered.delete(id)
+      }
     }
   }
 

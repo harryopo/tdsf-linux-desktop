@@ -73,6 +73,7 @@ import { McpGateway } from '../core/agent/mcp-gateway'
 import { buildExternalChatTools } from '../core/agent/tools/external-mcp-tools'
 import { emitBlockTrace } from '../core/command-gate'
 import { RunRegistry, type RunFailureReason } from '../core/agent/run-registry'
+import type { RunSnapshot } from '@shared/run-types'
 
 /** 流式 token 推送通道名 */
 const AGENT_CHUNK_CHANNEL = AGENT.CHUNK
@@ -95,11 +96,11 @@ const AGENT_TOOL_EVENT_CHANNEL = AGENT.TOOL_EVENT
  * - 审批请求登记在 Run 上，取消时随 Run 一起收尾。
  */
 const runRegistry = new RunRegistry({
-  // 取消时把挂着的审批立刻结算成拒绝：审批请求不吃 signal，不主动结算会让 Run
-  // 停在 cancelling 等 60 秒审批超时，期间这个会话一直被 busy 拒。
-  onCancelApproval: (approvalId) => {
+  // 任何终态（取消或完成/失败）都把挂着的审批立刻结算成拒绝：审批请求不吃 signal，
+  // 不主动结算会让 Run 停在 cancelling 等 60 秒审批超时，期间这个会话一直被 busy 拒。
+  onSettleApproval: (approvalId) => {
     if (settleApproval(approvalId, false)) {
-      logger.info('IPC.AGENT', '取消 Run 时已自动拒绝挂起的审批', { approvalId })
+      logger.info('IPC.AGENT', 'Run 收尾时已自动拒绝挂起的审批', { approvalId })
     }
   },
   persist: (run, outcome) => {
@@ -414,6 +415,22 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
   )
 
   // ------------------------------------------------------------------
+  // agent:run:snapshot — 订阅方晚到补发当前 Run 的已知终态
+  // ------------------------------------------------------------------
+  // 参数：(runId, consumerId)
+  // 返回：RunSnapshot | null —— 同一 consumerId 对同一条终态只领一次；
+  //       非终态返回当前快照（它还会变，不能按终态消费）；未知 runId 返回 null。
+  // 用途：窗口重建 / safeSend 失败 / 订阅者晚到时，渲染层重新挂载后不再永远等不到终态。
+  ipcMain.handle(
+    AGENT.RUN_SNAPSHOT,
+    async (_event, runId: unknown, consumerId: unknown): Promise<RunSnapshot | null> => {
+      if (typeof runId !== 'string' || !runId.trim()) return null
+      if (typeof consumerId !== 'string' || !consumerId.trim()) return null
+      return runRegistry.replayTerminal(runId, consumerId)
+    }
+  )
+
+  // ------------------------------------------------------------------
   // provider:list — 列出所有 Provider
   // ------------------------------------------------------------------
   // v2.3.6 增强：返回 PersistedProviderConfigWithKey（含 hasApiKey 标识），
@@ -669,6 +686,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
     channels: [
       'agent:chat',
       'agent:chat:cancel',
+      'agent:run:snapshot',
       'agent:paor',
       'agent:paor:cancel',
       'paor:approve',

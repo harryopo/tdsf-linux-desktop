@@ -38,6 +38,46 @@ describe('病 1 · 终态丢失（界面永久卡 streaming）', () => {
   })
 })
 
+describe('病 1b · 跨进程补发（窗口重建 / 订阅者晚到）', () => {
+  it('终态之后才来的消费者能拿到快照', () => {
+    const reg = new RunRegistry()
+    expect(reg.begin({ id: 'chat_replay_1', kind: 'chat', sshSessionId: 's1' }).ok).toBe(true)
+    expect(reg.finish('chat_replay_1', { ok: true, result: { text: 'done' } })).toBe(true)
+
+    // 渲染层窗口重建后才来问：主进程必须把已落盘的终态补发出去。
+    const snap = reg.replayTerminal('chat_replay_1', 'win-a')
+    expect(snap?.state).toBe('completed')
+    expect(snap?.terminal?.ok).toBe(true)
+  })
+
+  it('同一终态不得重复推给同一消费者，换一个消费者仍能拿到', () => {
+    const reg = new RunRegistry()
+    expect(reg.begin({ id: 'chat_replay_2', kind: 'chat', sshSessionId: 's1' }).ok).toBe(true)
+    expect(reg.finish('chat_replay_2', { ok: true, result: {} })).toBe(true)
+
+    expect(reg.replayTerminal('chat_replay_2', 'win-a')?.state).toBe('completed')
+    // 同一消费者再问一次：同一条终态不得重复推。
+    expect(reg.replayTerminal('chat_replay_2', 'win-a')).toBeNull()
+    // 补发不是全局一次性：另一个消费者仍能拿到。
+    expect(reg.replayTerminal('chat_replay_2', 'win-b')?.state).toBe('completed')
+  })
+})
+
+describe('病 1c · 非取消 finish 也要 settle 挂起审批', () => {
+  it('completed 收尾时挂起审批必须落成拒绝，不留给审批超时', () => {
+    const settled: string[] = []
+    const reg = new RunRegistry({ onSettleApproval: (id) => settled.push(id) })
+    expect(reg.begin({ id: 'chat_settle_1', kind: 'chat', sshSessionId: 's1' }).ok).toBe(true)
+    expect(reg.awaitApproval('chat_settle_1', 'approval-1')).toBe(true)
+    expect(reg.awaitApproval('chat_settle_1', 'approval-2')).toBe(true)
+
+    expect(reg.finish('chat_settle_1', { ok: true, result: {} })).toBe(true)
+
+    expect(settled).toEqual(['approval-1', 'approval-2'])
+    expect(reg.get('chat_settle_1')?.pendingApprovals.size).toBe(0)
+  })
+})
+
 describe('病 2 · 首包竞态（correlationId 回填前丢字）', () => {
   beforeEach(() => {
     useAgentStore.setState({
@@ -113,6 +153,32 @@ describe('病 2 · 首包竞态（correlationId 回填前丢字）', () => {
     expect(useAgentStore.getState().currentCorrelationId).toBeNull()
     expect(useAgentStore.getState().messages[0].content).toBe('')
     expect(useAgentStore.getState().messages[0].isStreaming).toBe(false)
+  })
+
+  it('finalizeMessage 找不到对应消息时只关全局流标志，不构造消息', () => {
+    useAgentStore.setState({
+      isStreaming: true,
+      currentCorrelationId: null,
+      messages: [],
+    })
+
+    useAgentStore.getState().finalizeMessage({
+      correlationId: 'chat_unknown',
+      result: {
+        text: '',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finishReason: 'stop',
+        providerId: 'p1',
+        model: 'm1',
+        strength: 'standard',
+        durationMs: 1,
+        compactionLevel: 'none',
+      },
+    })
+
+    expect(useAgentStore.getState().isStreaming).toBe(false)
+    expect(useAgentStore.getState().currentCorrelationId).toBeNull()
+    expect(useAgentStore.getState().messages).toEqual([])
   })
 })
 

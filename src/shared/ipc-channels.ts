@@ -56,6 +56,13 @@ export const AGENT = {
   PAOR: 'agent:paor',
   /** 取消进行中的 PAOR 循环（invoke: 渲染 → 主，按 sshSessionId；2026-11-01 起有） */
   PAOR_CANCEL: 'agent:paor:cancel',
+  /**
+   * 按 runId + consumerId 补发当前 Run 的已知终态（invoke: 渲染 → 主，2026-11-04）
+   *
+   * 只给"晚到的订阅方"用：窗口重建、首包推送时窗口还没接管、safeSend 当期失败。
+   * 同一 consumerId 对同一条终态只领一次；非终态返回当前快照但不算领取。
+   */
+  RUN_SNAPSHOT: 'agent:run:snapshot',
   /** Supervisor 流式 token 块推送（push: 主 → 渲染，v0.9） */
   CHUNK: 'agent:chunk',
   /** Supervisor chat 完成信号推送（push: 主 → 渲染，v0.9） */

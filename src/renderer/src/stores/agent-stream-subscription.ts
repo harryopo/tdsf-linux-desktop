@@ -28,6 +28,77 @@ import type { PaorApprovalRequest } from '@shared/approval-types'
 /** 幂等守卫：整个渲染进程生命周期只绑定一次 */
 let subscribed = false
 
+// ============================================================================
+// 终态补发（2026-11-04）
+//
+// 病灶：agent:done/error 是主进程"推给窗口"的，窗口重建、首包时窗口还没接管、
+// safeSend 当期失败，这条终态就永久丢了——界面上的那条消息会永远停在 streaming。
+// 修复：RunRegistry 保留终态快照，渲染层（含重建后的新窗口）（重）挂载时按
+// runId + consumerId 主动来取；同一 consumerId 对同一条终态只领一次。
+// ============================================================================
+
+const CONSUMER_ID_KEY = 'tdsf.run.consumerId'
+const LAST_RUN_ID_KEY = 'tdsf.run.lastId'
+
+/** 这个窗口的消费者标识：同一窗口生命周期内稳定（sessionStorage 随窗口销毁） */
+function getConsumerId(): string {
+  try {
+    const existing = window.sessionStorage.getItem(CONSUMER_ID_KEY)
+    if (existing) return existing
+    const created = crypto.randomUUID()
+    window.sessionStorage.setItem(CONSUMER_ID_KEY, created)
+    return created
+  } catch {
+    // 无 sessionStorage（非 Electron dev 页面）时退回固定串：补发仍可用，只是不区分窗口
+    return 'window-fallback'
+  }
+}
+
+/** 记下这一轮 runId，供下次（重）挂载补发；成功启动才记 */
+export function rememberRunId(id: string): void {
+  try {
+    window.localStorage.setItem(LAST_RUN_ID_KEY, id)
+  } catch {
+    // 本地存储不可用时补发不可用，不影响主流程
+  }
+}
+
+/** 终态已由实时推送或补发落地，清掉待补发标记 */
+export function forgetRunId(): void {
+  try {
+    window.localStorage.removeItem(LAST_RUN_ID_KEY)
+  } catch {
+    // 同上
+  }
+}
+
+function rememberedRunId(): string | null {
+  try {
+    return window.localStorage.getItem(LAST_RUN_ID_KEY)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 向主进程要一次"这一轮 Run 的已知终态"。
+ * 只把终态落成消息（关流/置错误标志），不重放正文与用量；
+ * 非终态快照说明它还在跑，留着标记等下一次挂载再问。
+ */
+async function replayLastRunTerminal(): Promise<void> {
+  const runId = rememberedRunId()
+  if (!runId) return
+  const snapshot = await window.electronAPI.agentRunSnapshot?.(runId, getConsumerId())
+  const state = snapshot?.terminal?.state
+  if (!snapshot || !state) return
+  forgetRunId()
+  useAgentStore.getState().applyRunTerminal({
+    correlationId: runId,
+    state,
+    ...(snapshot.terminal?.error ? { error: snapshot.terminal.error } : {}),
+  })
+}
+
 /**
  * 这个通道要不要进合并窗口 —— 判据取自分类表，不在这里各写各的
  *
@@ -110,12 +181,14 @@ export function initAgentStreamSubscription(): void {
   window.electronAPI.onAgentDone((payload) => {
     if (mustFlushBefore('agent:done')) flushPendingChunks() // 先落盘尾部 token，再 finalize
     useAgentStore.getState().finalizeMessage(payload)
+    if (rememberedRunId() === payload.correlationId) forgetRunId()
     refreshStats()
   })
 
   window.electronAPI.onAgentError((payload) => {
     if (mustFlushBefore('agent:error')) flushPendingChunks()
     useAgentStore.getState().markError(payload)
+    if (rememberedRunId() === payload.correlationId) forgetRunId()
     refreshStats()
   })
 
@@ -154,4 +227,7 @@ export function initAgentStreamSubscription(): void {
   window.electronAPI.onPaorApprovalRequest?.((request: PaorApprovalRequest) => {
     useApprovalStore.getState().receive(request)
   })
+
+  // 最后再补发一次：订阅已挂好，晚到的终态不会因"没人接"而丢
+  void replayLastRunTerminal()
 }

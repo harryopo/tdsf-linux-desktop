@@ -20,6 +20,7 @@ import {
   type CompressResult,
 } from '@/stores/agent-store'
 import { useServerStore } from '@/stores/server-store'
+import { rememberRunId } from '@/stores/agent-stream-subscription'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { resolveSelectedProvider, usableProviders } from './provider-choice'
@@ -320,6 +321,8 @@ export function useAgentChat(): UseAgentChatResult {
           return { messages: next }
         })
         setCurrentCorrelationId(correlationId)
+        // 记下这一轮：窗口重建/订阅晚到时靠它向主进程补发终态（2026-11-04）
+        rememberRunId(correlationId)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         useAgentStore.setState((state) => {

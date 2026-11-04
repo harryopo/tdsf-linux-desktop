@@ -6,6 +6,7 @@ import type { BootLoadingStage } from '@shared/boot-types'
 import type { ChatMessageRecord } from '@shared/chat-types'
 import type { ChatMessage, CommandResult, DecisionAuditView, ExternalMcpServer, ExternalMcpServerDraft, GenerateKeyPairResponse, PreviewHandleInfo, PreviewTarget, SftpEntry, SftpTransferResult, ShellIntegrationResult, ShellIntegrationStatus, SshKeyPair } from '@shared/models'
 import type { PaorLoopResult } from '@shared/paor-types'
+import type { RunSnapshot } from '@shared/run-types'
 import type { SshConfigScanResult } from '@shared/ssh-config-types'
 
 /** 已纳入契约的 invoke 通道：electronAPI 上这些方法的签名以这里为准 */
@@ -25,6 +26,10 @@ export interface ContractedInvokeApi {
   /** 按 sshSessionId 取消进行中的 PAOR 循环（当前步结束后生效，已在飞的远端命令不打断）
    * 通道 `agent:paor:cancel` */
   agentPaorCancel(sshSessionId: string): Promise<boolean>
+
+  /** 订阅方晚到补发：取当前 Run 快照，同一 consumerId 只领一次终态
+   * 通道 `agent:run:snapshot` */
+  agentRunSnapshot(runId: string, consumerId: string): Promise<RunSnapshot | null>
 
   /** 新开一条交互式 Shell，返回 shellId（一条连接可开多个终端）
    * 通道 `ssh:shell:start` */

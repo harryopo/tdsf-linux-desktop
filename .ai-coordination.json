@@ -2,8 +2,29 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-04T01:27:08.148Z",
-  "sessions": {},
+  "lastUpdated": "2026-11-04T09:46:47.116Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-11-04T09:46:35.350Z",
+      "lastActiveAt": "2026-11-04T09:46:47.116Z",
+      "task": "run-terminal-replay",
+      "claimedFiles": [
+        {
+          "path": "src/preload/index.ts",
+          "task": "run-terminal-replay",
+          "claimedAt": "2026-11-04T09:46:35.350Z"
+        },
+        {
+          "path": "src/shared/ipc-channels.ts",
+          "task": "run-terminal-replay",
+          "claimedAt": "2026-11-04T09:46:47.116Z"
+        }
+      ],
+      "expiresAt": "2026-11-04T11:46:47.116Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -14186,6 +14207,139 @@
       "file": "src/renderer/src/types/electron.d.ts",
       "task": "doc-false-accounting-fix",
       "timestamp": "2026-11-04T01:27:08.148Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:41:53.587Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:41:55.270Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/run-types.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:41:57.168Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent/run-registry.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:41:58.928Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:00.644Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/ipc/index.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:02.470Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:05.906Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/domains/agent.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:07.979Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/stores/agent-store.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:10.110Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/stores/agent-stream-subscription.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:12.068Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:13.893Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/agent-run-lifecycle.test.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:42:15.601Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "README.md",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:56:09.038Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "docs/assets/architecture.svg",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:56:10.904Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "scripts/docs/arch-diagram.py",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:56:12.965Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/__fixtures__/preload-api-surface.txt",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:56:14.936Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/provider-ipc-surface.test.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T04:56:16.879Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T09:46:35.350Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "run-terminal-replay",
+      "timestamp": "2026-11-04T09:46:47.116Z"
     }
   ],
   "coordinationAudit": {
