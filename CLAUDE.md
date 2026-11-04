@@ -12,7 +12,7 @@
 - Electron 43 + React 19 + TypeScript strict + Tailwind 4
   —— **渲染层不用 Ant Design**：`design-contract` 把"引用 antd 的文件数"钉在 0
 - 状态：Zustand 5
-- 终端与远端：ssh2 + @xterm/xterm（addon-fit / search / web-links）+ node-pty（本机终端，走 utilityProcess）
+- 终端与远端：ssh2 + @xterm/xterm（addon-fit / search / web-links）+ node-pty（本机终端，主进程 `services/terminal/local-pty.ts` 用 optionalRequire 动态加载）
 - AI：Vercel AI SDK 7（多模型路由，@ai-sdk/openai·anthropic·google）
   —— **没有 Anthropic Claude Agent SDK，也没有 Mastra**：两者都不是依赖，
   历史注释里提到它们的段落描述的是没接上的架构

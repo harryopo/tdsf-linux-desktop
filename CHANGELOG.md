@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **SSH 终端完整链路**（ssh2 + xterm.js）
-- **AI 辅助问答**（多 Provider + Supervisor + Subagent 编排）
+- **AI 辅助问答**（多 Provider + Supervisor 主对话 + PAOR 多步编排）
 - **高危命令拦截**（12 条黑名单 + 三态权限审批）
 - **SFTP 文件管理**（react-arborist + Monaco Editor）
 - **可信度评估**（D-S + PCR5 融合 + 6 源证据权重可视化）

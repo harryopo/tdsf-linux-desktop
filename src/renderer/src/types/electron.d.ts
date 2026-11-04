@@ -388,7 +388,7 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
     restartCount: number
   }>
   /**
-   * 端到端 Pipeline（v1.0 核心，v1.5 增强）：日志输入 → Drain3 解析 → OpenDerisk 诊断
+   * 端到端 Pipeline（v1.0 核心，v1.5 增强）：日志输入 → Drain3 解析 → 规则匹配根因诊断（可选 LLM 增强）
    * 通道：sidecar:pipeline
    *
    * 使用场景：
@@ -418,7 +418,7 @@ export interface ElectronAPI extends PreloadElectronAPI, ContractedInvokeApi, Co
             total_lines: number
             unique_templates: number
           }
-          /** OpenDerisk 诊断结果 */
+          /** 根因诊断结果（10 条规则匹配，可叠加 LLM 增强） */
           diagnose: {
             root_cause: string
             confidence: number
