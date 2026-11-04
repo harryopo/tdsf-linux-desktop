@@ -7,7 +7,7 @@
  * - defaultPdfFileName 文件名生成
  * - exportMarkdownToPdf 端到端（mock electron BrowserWindow）
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -255,17 +255,28 @@ uname -a
 // ==================================================================
 
 describe('PdfExporter - 端到端导出', () => {
+  let tmpDir: string
+  let outPdf: string
+
   beforeEach(() => {
     mockLoadURL.mockClear()
     mockPrintToPDF.mockClear()
     mockDestroy.mockClear()
     mockIsDestroyed.mockReset()
     mockIsDestroyed.mockReturnValue(false)
+    // 系统临时目录 + 唯一目录名：写死 C:/tmp 在受限环境会被 EPERM 挡掉，
+    // 而且并发跑多个用例时同一路径会互相踩。
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tdsf-pdf-export-'))
+    outPdf = path.join(tmpDir, 'test.pdf')
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
   it('正常导出 PDF Buffer', async () => {
     const md = '# Test\n\nHello **world**'
-    const buffer = await exportMarkdownToPdf(md, 'C:/tmp/test.pdf')
+    const buffer = await exportMarkdownToPdf(md, outPdf)
 
     // 调用了 BrowserWindow.loadURL
     expect(mockLoadURL).toHaveBeenCalledTimes(1)
@@ -278,7 +289,7 @@ describe('PdfExporter - 端到端导出', () => {
     expect(opts.printBackground).toBe(true)
 
     // 返回值包含文件路径与大小
-    expect(buffer.filePath).toBe('C:/tmp/test.pdf')
+    expect(buffer.filePath).toBe(outPdf)
     expect(buffer.size).toBeGreaterThan(0)
 
     // 销毁了窗口
@@ -286,27 +297,27 @@ describe('PdfExporter - 端到端导出', () => {
   })
 
   it('空 md 抛错', async () => {
-    await expect(exportMarkdownToPdf('', 'C:/tmp/test.pdf')).rejects.toThrow(
+    await expect(exportMarkdownToPdf('', outPdf)).rejects.toThrow(
       /Markdown 内容为空/
     )
   })
 
   it('空白 md 抛错', async () => {
-    await expect(exportMarkdownToPdf('   \n\n  ', 'C:/tmp/test.pdf')).rejects.toThrow(
+    await expect(exportMarkdownToPdf('   \n\n  ', outPdf)).rejects.toThrow(
       /Markdown 内容为空/
     )
   })
 
   it('即使 BrowserWindow 已销毁仍能清理（finally）', async () => {
     mockIsDestroyed.mockReturnValue(true)  // 假装已销毁
-    const buffer = await exportMarkdownToPdf('# ok', 'C:/tmp/test.pdf')
+    const buffer = await exportMarkdownToPdf('# ok', outPdf)
     // destroy 不应被调用（窗口已销毁）
     expect(mockDestroy).not.toHaveBeenCalled()
     expect(buffer.size).toBeGreaterThan(0)
   })
 
   it('A4 纸张 + 背景打印 + 0.4 英寸边距', async () => {
-    await exportMarkdownToPdf('# Test', 'C:/tmp/test.pdf')
+    await exportMarkdownToPdf('# Test', outPdf)
     const opts = mockPrintToPDF.mock.calls[0][0]
     expect(opts.pageSize).toBe('A4')
     expect(opts.printBackground).toBe(true)
@@ -324,13 +335,22 @@ const SECRET_LINE = '数据库配置：' + 'pass' + 'word=Sup3rS' + 'ecretValue'
 const BENIGN_LINE = '## 结论\n磁盘使用率 82%，建议清理 /var/log。'
 
 describe('PdfExporter - 导出脱敏', () => {
+  let tmpDir: string
+  let outPdf: string
+
   beforeEach(() => {
     // 不清就会被上一个 describe 的调用记录顶掉——那时断言读的是别人的 PDF
     mockLoadURL.mockClear()
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tdsf-pdf-redact-'))
+    outPdf = path.join(tmpDir, 'r.pdf')
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
   it('PDF 渲染前涂掉凭据形状，但正文照常进模型视图', async () => {
-    await exportMarkdownToPdf(`${BENIGN_LINE}\n${SECRET_LINE}`, 'C:/tmp/r.pdf')
+    await exportMarkdownToPdf(`${BENIGN_LINE}\n${SECRET_LINE}`, outPdf)
     expect(mockLoadURL).toHaveBeenCalledTimes(1)
     // data URL 是百分号编码的，中文会变成 %E7%A3%81…，直接对原串断言等于没断
     const raw = String(mockLoadURL.mock.calls[0][0])
