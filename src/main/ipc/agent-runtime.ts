@@ -72,6 +72,7 @@ import { readApproval } from '../core/security/approval'
 import { McpGateway } from '../core/agent/mcp-gateway'
 import { buildExternalChatTools } from '../core/agent/tools/external-mcp-tools'
 import { emitBlockTrace } from '../core/command-gate'
+import { RunRegistry, type RunFailureReason } from '../core/agent/run-registry'
 
 /** 流式 token 推送通道名 */
 const AGENT_CHUNK_CHANNEL = AGENT.CHUNK
@@ -83,13 +84,49 @@ const AGENT_ERROR_CHANNEL = AGENT.ERROR
 const AGENT_TOOL_EVENT_CHANNEL = AGENT.TOOL_EVENT
 
 /**
- * 进行中的 PAOR 循环：sshSessionId → AbortController（2026-11-01）。
+ * Agent 运行的唯一生命周期真相源（2026-11-03）
  *
- * 一个会话同一时刻只该有一条 PAOR（界面也用 isRunning 拦着），所以按会话 ID 建键就够。
- * 停止是协作式的：controller.abort() 只让循环在**下一轮开始前 / 下一次发命令前**退出，
- * 正在飞的那条远端命令会执行完——所以界面不许写"已中断"，写"已停止（当前步已执行完）"。
+ * 原来这里有一张 paorRuns，supervisor 有 activeRequests，session-registry 有 abortController，
+ * 审批还有一张挂起表——四处各记各的账，终态只靠"往活着的窗口 send 一下"。
+ * 现在：
+ * - begin 以 sshSessionId 为粒度互锁：同会话的 chat 与 PAOR 不会同时向外发命令；
+ * - finish 先落终态（persist → Run.state → 通知），订阅者晚到也能补发，终态恰好一次；
+ * - 每轮 Run 的 controller 与 supervisor / session-registry 共用同一个对象；
+ * - 审批请求登记在 Run 上，取消时随 Run 一起收尾。
  */
-const paorRuns = new Map<string, AbortController>()
+const runRegistry = new RunRegistry({
+  // 取消时把挂着的审批立刻结算成拒绝：审批请求不吃 signal，不主动结算会让 Run
+  // 停在 cancelling 等 60 秒审批超时，期间这个会话一直被 busy 拒。
+  onCancelApproval: (approvalId) => {
+    if (settleApproval(approvalId, false)) {
+      logger.info('IPC.AGENT', '取消 Run 时已自动拒绝挂起的审批', { approvalId })
+    }
+  },
+  persist: (run, outcome) => {
+    // "先落盘再展示"的落点：终态先写进真相源与审计日志，之后才推送给界面。
+    // 这里不记录 error 原文（红线：catch 脱敏），只记结构化字段。
+    logger.info('IPC.AGENT', 'run 终态', {
+      runId: run.id,
+      kind: run.kind,
+      sshSessionId: run.sshSessionId ?? null,
+      state: outcome.state,
+      failure: outcome.failure ?? null,
+      durationMs: Date.now() - run.startedAt,
+    })
+  },
+})
+
+/** SSH 会话的 Run 键：一个会话同一时刻只允许一条 PAOR */
+function paorRunId(sshSessionId: string): string {
+  return `paor:${sshSessionId}`
+}
+
+/** 错误码 → Run 失败原因（只映射真实会走到的几档） */
+function toRunFailure(errInfo: { code: AgentErrorPayload['code'] }): RunFailureReason {
+  if (errInfo.code === 'CANCELLED') return 'aborted_by_user'
+  if (errInfo.code === 'TIMEOUT') return 'budget_timeout'
+  return 'provider_error'
+}
 
 /**
  * 安全推送事件到渲染进程（窗口已销毁时跳过）
@@ -151,6 +188,22 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       const supervisor = getSupervisor()
       const correlationId = `chat_${Date.now()}_${randomUUID().slice(0, 8)}`
 
+      // 同会话互锁：这条 chat 要先拿到这个 SSH 会话的 Run 锁才允许启动。
+      // 已经有 PAOR（或另一条对话）在跑时直接拒绝——两条同时下发命令的窗口在入口关掉。
+      const begun = runRegistry.begin({ id: correlationId, kind: 'chat', sshSessionId })
+      if (!begun.ok) {
+        logger.warn('IPC.AGENT', 'agent:chat 被拒绝：同会话已有任务在跑', {
+          correlationId,
+          sshSessionId: sshSessionId ?? null,
+          holderId: begun.existing.id,
+          holderKind: begun.existing.kind,
+        })
+        throw new Error(
+          '这个会话已有任务正在执行（对话或 PAOR），请等它结束或先点“停止”，再发送新的消息。'
+        )
+      }
+      const chatRun = begun.run
+
       // v0.9.4：注册到 session-registry（sessionId 由 registry 生成，取消时按它查）
       const registry = getSessionRegistry()
       const resolvedSessionId = registry.register({
@@ -179,19 +232,29 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           correlationId,
           sshSessionId,
           terminalContext,
+          // 取消入口与 Run 共用同一把 controller（RunRegistry 持有）
+          abortController: chatRun.controller,
           // v2.9 写命令 HITL 审批：复用 PAOR 审批通道（paor:approval-request 卡片），
           // ssh_write 工具 execute 内 await 此回调，用户批准才真执行；60 秒超时自动拒绝
-          approveWriteCommand: async (command, level, description): Promise<boolean> =>
-            requestApproval(approvalTransport(), {
-              callId: `write_${Date.now()}_${randomUUID().slice(0, 8)}`,
-              command,
-              riskLevel: level,
-              riskDescription: description,
-              // 对话里 AI 调写工具没有"计划第几步"这回事；原来两处都写死 stepIndex: 0，
-              // 于是审批卡把这条例外也说成"PAOR 请求批准 — 第 1 步"，两个字段都是假的
-              origin: 'chat',
-              timestamp: Date.now(),
-            }),
+          approveWriteCommand: async (command, level, description): Promise<boolean> => {
+            const callId = `write_${Date.now()}_${randomUUID().slice(0, 8)}`
+            // 审批挂起登记到这一轮 Run 上：取消时随 Run 一起收尾，不再只存在于审批表里
+            runRegistry.awaitApproval(correlationId, callId)
+            try {
+              return await requestApproval(approvalTransport(), {
+                callId,
+                command,
+                riskLevel: level,
+                riskDescription: description,
+                // 对话里 AI 调写工具没有"计划第几步"这回事；原来两处都写死 stepIndex: 0，
+                // 于是审批卡把这条例外也说成"PAOR 请求批准 — 第 1 步"，两个字段都是假的
+                origin: 'chat',
+                timestamp: Date.now(),
+              })
+            } finally {
+              runRegistry.settleApproval(correlationId, callId)
+            }
+          },
           /**
            * #173：外部 MCP 工具进主对话。
            * 取数只认"此刻真连上的"那几台（不为了挂工具去起子进程），
@@ -227,6 +290,10 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
             safeSend(mainWindow, AGENT_CHUNK_CHANNEL, payload)
           },
           onDone: (result: ChatResult) => {
+            // 终态先落（persist → Run.state），再推 UI：推送失败不会把"这一轮结束了"丢掉。
+            // 取消中的 Run 必须由被中断方（这里）确认后才算 cancelled。
+            if (chatRun.state === 'cancelling') runRegistry.confirmCancel(correlationId)
+            else runRegistry.finish(correlationId, { ok: true, result })
             // 推送完成信号到渲染进程
             const payload: AgentDonePayload = { correlationId, result, sessionId: resolvedSessionId }
             safeSend(mainWindow, AGENT_DONE_CHANNEL, payload)
@@ -236,6 +303,14 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           onError: (error: Error) => {
             // 推送错误信号到渲染进程（错误信息已脱敏，不含 stack trace）
             const errInfo = toAgentError(error)
+            // 先落终态再推 UI；取消中的 Run 由这里确认 cancelled
+            if (chatRun.state === 'cancelling') runRegistry.confirmCancel(correlationId)
+            else
+              runRegistry.finish(correlationId, {
+                ok: false,
+                failure: toRunFailure(errInfo),
+                error: errInfo.message,
+              })
             const payload: AgentErrorPayload = {
               correlationId,
               message: errInfo.message,
@@ -271,6 +346,13 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         .catch((err: unknown) => {
           // 兜底：supervisor.chat 内部异常（理论不应发生，因 onError 已处理）
           const errInfo = toAgentError(err)
+          if (chatRun.state === 'cancelling') runRegistry.confirmCancel(correlationId)
+          else
+            runRegistry.finish(correlationId, {
+              ok: false,
+              failure: toRunFailure(errInfo),
+              error: errInfo.message,
+            })
           const payload: AgentErrorPayload = {
             correlationId,
             message: errInfo.message,
@@ -314,13 +396,17 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         correlationId = entry.correlationId
       }
       const supervisorOk = supervisor.cancelRequest(correlationId)
+      // Run 状态机只迁到 cancelling，**不落终态**：等被中断方（onDone / onError）确认停了，
+      // 才由它调 confirmCancel 落到 cancelled。否则会出现"界面说已取消、后台还在发命令"。
+      const runCancelOk = runRegistry.requestCancel(correlationId)
 
-      const ok = registryOk || supervisorOk
+      const ok = registryOk || supervisorOk || runCancelOk
       logger.info('IPC.AGENT', `agent:chat:cancel`, {
         inputId: sessionIdOrCorrelationId,
         correlationId,
         registryOk,
         supervisorOk,
+        runCancelOk,
         success: ok,
       })
       return ok
@@ -453,20 +539,27 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         sshSessionId,
         maxIterations,
       })
-      // 一个会话同时只允许一条 PAOR：两条同时跑会让"停止"和审批卡都指向不确定的那一条
-      if (paorRuns.has(sshSessionId)) {
-        logger.warn('IPC.AGENT', 'agent:paor 该会话已有循环在跑，拒绝重复启动', { sshSessionId })
+      // 一个会话同时只允许一条 PAOR（RunRegistry 连 chat 一起互锁）：
+      // 两条同时跑会让"停止"和审批卡都指向不确定的那一条。
+      const runId = paorRunId(sshSessionId)
+      const begun = runRegistry.begin({ id: runId, kind: 'paor', sshSessionId })
+      if (!begun.ok) {
+        logger.warn('IPC.AGENT', 'agent:paor 该会话已有任务在跑，拒绝重复启动', {
+          sshSessionId,
+          holderId: begun.existing.id,
+          holderKind: begun.existing.kind,
+        })
         return {
           status: 'abort',
           plan: { goal: task, steps: [], risks: [], verification: '' },
           planConfidence: 0,
           iterations: [],
-          summary: '该会话已有 PAOR 循环在跑，本次启动被拒绝',
+          summary: '该会话已有任务在跑（对话或 PAOR），本次启动被拒绝',
           durationMs: 0,
         }
       }
-      const controller = new AbortController()
-      paorRuns.set(sshSessionId, controller)
+      // 取消入口与 Run 共用同一把 controller
+      const controller = begun.run.controller
       try {
         const result = await supervisor.runPaorLoop(task, sshSessionId, {
           signal: controller.signal,
@@ -479,17 +572,28 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
             safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, plan, planConfidence })
           },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
-          approveRisk: async (command, level, description, stepIndex): Promise<boolean> =>
-            requestApproval(approvalTransport(), {
-              callId: `paor_${Date.now()}_${randomUUID().slice(0, 8)}`,
-              command,
-              riskLevel: level,
-              riskDescription: description,
-              origin: 'paor',
-              stepIndex,
-              timestamp: Date.now(),
-            }),
+          approveRisk: async (command, level, description, stepIndex): Promise<boolean> => {
+            const callId = `paor_${Date.now()}_${randomUUID().slice(0, 8)}`
+            // 审批挂起登记到这一轮 Run 上：取消时随 Run 一起收尾
+            runRegistry.awaitApproval(runId, callId)
+            try {
+              return await requestApproval(approvalTransport(), {
+                callId,
+                command,
+                riskLevel: level,
+                riskDescription: description,
+                origin: 'paor',
+                stepIndex,
+                timestamp: Date.now(),
+              })
+            } finally {
+              runRegistry.settleApproval(runId, callId)
+            }
+          },
         })
+        // 终态先落：取消中的 Run 由被中断方（这里）确认后才算 cancelled
+        if (begun.run.state === 'cancelling') runRegistry.confirmCancel(runId)
+        else runRegistry.finish(runId, { ok: true, result })
         logger.info('IPC.AGENT', 'agent:paor 完成', {
           status: result.status,
           iterations: result.iterations.length,
@@ -498,11 +602,11 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         return result
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
+        // 异常路径也要落终态，否则 Run 会一直挂在 running 上
+        if (begun.run.state === 'cancelling') runRegistry.confirmCancel(runId)
+        else runRegistry.finish(runId, { ok: false, failure: 'tool_error', error: msg })
         logger.error('IPC.AGENT', 'agent:paor 异常', { error: msg })
         return { status: 'abort', plan: { goal: task, steps: [], risks: [], verification: '' }, planConfidence: 0, iterations: [], summary: `PAOR 循环异常：${msg}`, durationMs: 0 }
-      } finally {
-        // 只删自己登记的那一条：带 finally 是为了异常/提前返回时也不把会话永久锁死
-        if (paorRuns.get(sshSessionId) === controller) paorRuns.delete(sshSessionId)
       }
     }
   )
@@ -523,12 +627,12 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         })
         return false
       }
-      const controller = paorRuns.get(sshSessionId)
-      if (!controller) {
+      // requestCancel 只迁到 cancelling 并 abort controller；终态由 PAOR handler 确认。
+      const requested = runRegistry.requestCancel(paorRunId(sshSessionId))
+      if (!requested) {
         logger.info('IPC.PAOR', 'agent:paor:cancel 没有正在跑的循环', { sshSessionId })
         return false
       }
-      controller.abort()
       logger.info('IPC.PAOR', 'agent:paor:cancel 已请求停止（当前步结束后生效）', { sshSessionId })
       return true
     }

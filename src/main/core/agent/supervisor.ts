@@ -191,6 +191,14 @@ export interface ChatParams {
    * 未注入时对话里没有外部工具——不写"连上了就能用"这种做不到的承诺。
    */
   mountExternalTools?: () => ExternalChatToolMount
+  /**
+   * 外部注入的取消控制器（Run 生命周期收敛，2026-11-03）。
+   *
+   * 不注入时保持原行为（supervisor 自己 new 一把）。注入时这里不再"另记一笔"——
+   * RunRegistry 持有的 controller 就是这一轮 Run 的唯一取消入口，
+   * activeRequests / session-registry 里存的都是同一个对象引用。
+   */
+  abortController?: AbortController
 }
 
 // ChatResult 类型从 @shared/agent-types 导入（供 preload/renderer 共享）
@@ -462,6 +470,7 @@ class SupervisorAgent {
       terminalContext,
       approveWriteCommand,
       mountExternalTools,
+      abortController: injectedAbortController,
     } = params
 
     // v2.10 快慢思考自动路由：提前提取最后一条用户消息（复用于复杂度评分），
@@ -509,7 +518,9 @@ class SupervisorAgent {
     // 6. 先建取消档案，再压缩（#236）
     //    压缩可能真调一次模型总结旧对话（最长约 60 秒）。以前 controller 在压缩之后才登记，
     //    这期间点"停止"会拿到"无可取消"，压缩完主请求照常发出去——用户以为停了，界面继续出字。
-    const abortController = new AbortController()
+    // 外部（RunRegistry）注入同一把 controller 时直接复用：这样点"停止"、Run 终态、
+    // 底层 streamText 三处指向的是同一个对象，不存在"界面说停了、底层还在跑"的岔口。
+    const abortController = injectedAbortController ?? new AbortController()
     this.activeRequests.set(correlationId, abortController)
     // 会话注册表里那位"取消入口"必须指向这一把 controller：
     // 它以前自己 new 了一把没人读，abort() 于是永远"成功"，底层请求照常跑完

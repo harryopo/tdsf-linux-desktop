@@ -217,6 +217,23 @@ const DEFAULT_COST_STATS: CostStats = {
 }
 
 /**
+ * 首包缓冲（病 2：correlationId 回填前到达的增量）
+ *
+ * useAgentChat 的顺序是：先建 assistant 占位 + setStreaming(true)，再 await agentChat，
+ * 拿到返回值才回填 correlationId。主进程在 handler 里已经开始推流，于是第一个 chunk
+ * 可能早于 invoke 的返回值到达，而 acceptsStream(null, id) 一律返回 false —— 整条丢掉。
+ *
+ * 这里只缓冲"还没有认领任何流"那一小段窗口里的增量，认领后按 correlationId 重放。
+ * 上限兜底：万一 invoke 永不返回，也不能让缓冲无界增长。
+ */
+let pendingStreamChunks: AgentChunkPayload[] = []
+const MAX_PENDING_STREAM_CHUNKS = 64
+
+function clearPendingStreamChunks(): void {
+  pendingStreamChunks = []
+}
+
+/**
  * Agent Store 状态接口
  */
 interface AgentState {
@@ -475,7 +492,7 @@ export function latestUserQuestion(messages: AgentMessage[]): string | null {
 /**
  * Agent Store（zustand）
  */
-export const useAgentStore = create<AgentState>()((set) => ({
+export const useAgentStore = create<AgentState>()((set, get) => ({
   // ===== 初始状态 =====
   messages: [],
   isStreaming: false,
@@ -509,6 +526,20 @@ export const useAgentStore = create<AgentState>()((set) => ({
    */
   appendToken: (payload) =>
     set((state) => {
+      if (state.currentCorrelationId === null) {
+        /*
+         * 首包窗口：流已经开了（isStreaming=true）但 invoke 的返回值还没回来。
+         * 这时不能按 acceptsStream 丢掉（它会因为 active===null 直接返回 false），
+         * 否则首个增量静默消失；先缓冲，等 setCurrentCorrelationId 认领后重放。
+         */
+        if (state.isStreaming) {
+          pendingStreamChunks.push(payload)
+          if (pendingStreamChunks.length > MAX_PENDING_STREAM_CHUNKS) {
+            pendingStreamChunks.shift()
+          }
+        }
+        return state
+      }
       if (!acceptsStream(state.currentCorrelationId, payload.correlationId)) return state
       const idx = lastIndexWhere(state.messages, (m) => m.role === 'assistant')
       if (idx < 0) return state
@@ -539,10 +570,18 @@ export const useAgentStore = create<AgentState>()((set) => ({
         state.messages,
         (m) => m.role === 'assistant' && ownsStream(m.correlationId, payload.correlationId)
       )
+      /*
+       * 终态先于认领到达（病 2 的另一半）：done 可能在 invoke 的返回值之前到，
+       * 那时 currentCorrelationId 还是 null，流却已经开着（isStreaming=true）。
+       * 若不把 null 视作"当前这条"，全局流标志永远关不掉，迟到的认领还会把
+       * 首包缓冲重放进已收尾的消息里。null 只可能对应唯一一条在途的流
+       * （send 在 isStreaming 时直接返回），所以这里关它是安全的。
+       */
+      const closesCurrent =
+        state.currentCorrelationId === null || state.currentCorrelationId === payload.correlationId
       if (idx < 0) {
-        return state.currentCorrelationId === payload.correlationId
-          ? { isStreaming: false, currentCorrelationId: null }
-          : state
+        if (closesCurrent) clearPendingStreamChunks()
+        return closesCurrent ? { isStreaming: false, currentCorrelationId: null } : state
       }
       const msg = state.messages[idx]
       // v0.9.6 P2 M5+：回填 CoT 熵轨迹（可选，undefined / 空数组不写）
@@ -578,9 +617,9 @@ export const useAgentStore = create<AgentState>()((set) => ({
         cotEntropyTrajectory: cotTrajectory,
       }
       const messages = replaceAt(state.messages, idx, finalized)
-      const closesCurrent = state.currentCorrelationId === payload.correlationId
       cancelStreamPersist(finalized.id)
       if (messages) persistMessage(finalized)
+      if (closesCurrent) clearPendingStreamChunks()
       return {
         ...(messages ? { messages } : {}),
         ...(closesCurrent ? { isStreaming: false, currentCorrelationId: null } : {}),
@@ -599,7 +638,11 @@ export const useAgentStore = create<AgentState>()((set) => ({
         state.messages,
         (m) => m.role === 'assistant' && ownsStream(m.correlationId, payload.correlationId)
       )
-      const closesCurrent = state.currentCorrelationId === payload.correlationId
+      // 与 finalizeMessage 同一判据：终态先于认领到达时 currentCorrelationId 仍是 null，
+      // 那条唯一的在途流也必须由这条 error 关掉，否则界面永远停在 streaming。
+      const closesCurrent =
+        state.currentCorrelationId === null || state.currentCorrelationId === payload.correlationId
+      if (closesCurrent) clearPendingStreamChunks()
       const base = closesCurrent
         ? { isStreaming: false, currentCorrelationId: null }
         : {}
@@ -700,7 +743,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
     }),
 
   // 清空所有消息
-  clearMessages: () =>
+  clearMessages: () => {
+    clearPendingStreamChunks()
     set({
       messages: [],
       isStreaming: false,
@@ -708,7 +752,8 @@ export const useAgentStore = create<AgentState>()((set) => ({
       currentCorrelationId: null,
       lastError: null,
       historyError: null,
-    }),
+    })
+  },
 
   /**
    * 拉某个会话的历史对话进列表（#177）。
@@ -828,10 +873,42 @@ export const useAgentStore = create<AgentState>()((set) => ({
   },
 
   // 设置流式输出状态
-  setStreaming: (streaming) => set({ isStreaming: streaming }),
+  setStreaming: (streaming) => {
+    // 流结束（含取消/错误）时，首包缓冲就没有意义了，清掉避免串到下一轮。
+    if (!streaming) clearPendingStreamChunks()
+    set({ isStreaming: streaming })
+  },
 
-  // 设置当前 correlationId
-  setCurrentCorrelationId: (id) => set({ currentCorrelationId: id }),
+  /**
+   * 设置当前 correlationId，并把首包窗口里缓冲的增量重放出来。
+   *
+   * 只放行 correlationId 为空（旧数据 / 未带标识）或与本次相同的增量——
+   * 别的流的 chunk 不该写进这条回答。
+   */
+  setCurrentCorrelationId: (id) => {
+    if (id && !get().isStreaming) {
+      /*
+       * 终态（done/error）先于 invoke 返回就到了：这一轮其实已经收尾。
+       * 此时认领会有两个后果：把缓冲的增量重放进已关闭的消息（appendToken 会把
+       * isStreaming 又置 true，之后没人再收尾 → 永久卡 streaming）；或者给下一轮
+       * 留一个过期 correlationId，把新流的第一个 chunk 挡在 acceptsStream 闸门外。
+       */
+      clearPendingStreamChunks()
+      set({ currentCorrelationId: null })
+      return
+    }
+    set({ currentCorrelationId: id })
+    if (!id) {
+      clearPendingStreamChunks()
+      return
+    }
+    if (pendingStreamChunks.length === 0) return
+    const buffered = pendingStreamChunks.filter(
+      (payload) => !payload.correlationId || payload.correlationId === id
+    )
+    clearPendingStreamChunks()
+    for (const payload of buffered) get().appendToken(payload)
+  },
 
   // 设置思考强度
   setThinkingStrength: (strength) => set({ thinkingStrength: strength }),

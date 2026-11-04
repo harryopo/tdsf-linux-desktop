@@ -179,3 +179,8 @@ scripts/browser-check/
 
 # 引用文件里写着真实姓名与具体机构（非运行所需），只留本机
 /CITATION.cff
+
+# 按日期命名的工作目录（调研/证据/审查材料）与本机截图 scratch：本地保留，不入库。
+# 按【前缀】忽略，别按具体日期逐条加例外（AGENTS.md §仓库卫生 + scratch-hygiene-gate 的处置办法 a）
+/2026-*/
+/.screenshots/
