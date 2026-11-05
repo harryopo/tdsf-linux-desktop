@@ -38,15 +38,20 @@
   border-radius: 50%;
   font-size: 11px;
   font-weight: 700;
-  color: var(--trae-text-onbrand);
+  /* 圆面是不透明状态底，字色取画布色（深色主题=深墨 #1e1e1e、浅色主题=白）。
+     白字压裸状态色在深色下 warning 只有 2.16:1、error 3.68:1；11px 够不到
+     "大字 3:1"的豁免（要 15px/700，16px 的圆也装不下）。改后四处为 7.30–9.50:1。 */
+  color: var(--bg-primary);
 }
 
 .db-degraded-banner.is-critical .db-degraded-banner__mark {
-  background: var(--trae-status-error-default);
+  /* 填充取 *-text 档：同色相里按对比度校准过的一档。这是全仓唯一一处把 -text 当填充——
+     常规做法是裸档填充 + 画布墨，但深色 error 那样只有 4.53:1（余量 0.03），擦线不算过。 */
+  background: var(--status-error-text);
 }
 
 .db-degraded-banner.is-warning .db-degraded-banner__mark {
-  background: var(--trae-status-warning-default);
+  background: var(--status-warning-text);
 }
 
 .db-degraded-banner__text {
