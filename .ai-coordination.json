@@ -2,134 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-05T17:46:43.748Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-11-05T15:23:00.394Z",
-      "lastActiveAt": "2026-11-05T17:46:43.748Z",
-      "task": "terminal-echo-regression",
-      "claimedFiles": [
-        {
-          "path": "src/renderer/src/components/workbench/Composer.tsx",
-          "task": "A-composer-oneline",
-          "claimedAt": "2026-11-05T15:46:14.444Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/MessageList.tsx",
-          "task": "A-composer-oneline",
-          "claimedAt": "2026-11-05T15:46:15.596Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/AIPanel.css",
-          "task": "A-composer-oneline",
-          "claimedAt": "2026-11-05T15:46:15.783Z"
-        },
-        {
-          "path": "src/main/core/agent/supervisor.ts",
-          "task": "B-thinking-echo",
-          "claimedAt": "2026-11-05T16:12:12.999Z"
-        },
-        {
-          "path": "tests/unit/thinking-router.test.ts",
-          "task": "B-thinking-echo",
-          "claimedAt": "2026-11-05T16:12:15.488Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/AIPanel.tsx",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/useAgentChat.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/usePaorLoop.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/CapabilityPalette.tsx",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/RemoteFilePicker.tsx",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/renderer/src/components/workbench/composer-references.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/shared/thinking-router.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/shared/paor-types.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "src/main/ipc/agent-runtime.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "tests/unit/composer-references.test.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "tests/unit/paor-loop.test.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "tests/e2e/advertised-shortcuts.spec.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "tests/e2e/chat-panel-disclosure.spec.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "tests/e2e/composer-layout.spec.ts",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "docs/specs/2026-11-05-composer-rework/spec.md",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "docs/specs/2026-11-05-composer-rework/tasks.md",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": "docs/specs/2026-11-05-composer-rework/checklist.md",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        },
-        {
-          "path": ".gitignore",
-          "task": "E-composer-rework-delivery",
-          "claimedAt": "2026-11-05T17:46:43.748Z"
-        }
-      ],
-      "expiresAt": "2026-11-05T19:46:43.748Z"
-    }
-  },
+  "lastUpdated": "2026-11-05T17:53:18.917Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -14977,6 +14851,167 @@
       "file": ".gitignore",
       "task": "E-composer-rework-delivery",
       "timestamp": "2026-11-05T17:46:43.748Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/Composer.tsx",
+      "task": "A-composer-oneline",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/MessageList.tsx",
+      "task": "A-composer-oneline",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.css",
+      "task": "A-composer-oneline",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "B-thinking-echo",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/thinking-router.test.ts",
+      "task": "B-thinking-echo",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/AIPanel.tsx",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/useAgentChat.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/usePaorLoop.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/CapabilityPalette.tsx",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/RemoteFilePicker.tsx",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/composer-references.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/thinking-router.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/shared/paor-types.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/main/ipc/agent-runtime.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/composer-references.test.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/unit/paor-loop.test.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/advertised-shortcuts.spec.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/chat-panel-disclosure.spec.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/composer-layout.spec.ts",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/specs/2026-11-05-composer-rework/spec.md",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/specs/2026-11-05-composer-rework/tasks.md",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/specs/2026-11-05-composer-rework/checklist.md",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": ".gitignore",
+      "task": "E-composer-rework-delivery",
+      "timestamp": "2026-11-05T17:53:18.917Z"
     }
   ],
   "coordinationAudit": {
