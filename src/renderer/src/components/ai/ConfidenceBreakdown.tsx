@@ -249,6 +249,10 @@ const ConfidenceBreakdown: React.FC<ConfidenceBreakdownProps> = ({
             : `${ruleLabel(ruleUsed)} 融合 · 各来源之间没有冲突`}
       </div>
 
+      <div className="confidence-breakdown-display-only">
+        仅供展示：融合结果不参与本轮的执行判定，也不改变审批闸的结论。
+      </div>
+
       {cotTraceAnalysis && <CotTraceSection analysis={cotTraceAnalysis} />}
     </div>
   )

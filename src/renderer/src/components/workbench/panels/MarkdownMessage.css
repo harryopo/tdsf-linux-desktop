@@ -365,6 +365,19 @@
 .ai-route-empty {
   color: var(--text-tertiary);
 }
+/* 单组超过 6 项时的余量开关：行内文字，不另起卡片 */
+.ai-route-more {
+  padding: 0 var(--ui-space-1);
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: var(--ui-font-caption);
+  cursor: pointer;
+}
+.ai-route-more:hover {
+  text-decoration: underline;
+}
 /* 入参一行的三段：标签 / 普通文本 / 结构化串（MCP 的 JSON 入参要按代码排） */
 .ai-tool-io-label {
   margin-right: var(--ui-space-1);

@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type FC } from 'react'
+import { memo, useMemo, useState, type FC, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -62,6 +62,26 @@ const CopyChip: FC<{ text: string }> = ({ text }) => {
     >
       {copied ? '已复制' : '复制'}
     </button>
+  )
+}
+
+/** 装配卡单组最多直出 6 项，余量收进一行按钮；数据都已在 routeMeta 里，不另取 */
+const ROUTE_FACT_LIMIT = 6
+
+const RouteFactItems: FC<{ items: ReactNode[] }> = ({ items }) => {
+  const [open, setOpen] = useState(false)
+  const overflow = items.length - ROUTE_FACT_LIMIT
+  if (overflow <= 0) return <>{items}</>
+  return (
+    <>
+      {items.slice(0, ROUTE_FACT_LIMIT)}
+      {open ? items.slice(ROUTE_FACT_LIMIT) : null}
+      {!open && (
+        <button type="button" className="ai-route-more" onClick={() => setOpen(true)}>
+          另有 {overflow} 项
+        </button>
+      )}
+    </>
   )
 }
 
@@ -237,7 +257,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     return (
       /* #252：这一块是"检测到命令"的注脚，外沿留白收到 8/8（原来 10/10 还带 8px 的卡内 gap），
          一轮答复里它和正文抢的是同一块呼吸空间 */
-      <div className="mt-2 flex flex-col gap-1.5 border-t border-[var(--trae-border-neutral-l1)] pt-2">
+      <div className="mt-2 flex flex-col gap-1.5 border-t border-line pt-2">
         <div className="flex items-center gap-1.5 text-caption font-medium text-ink-dim">
           <Play className="size-3 text-(--accent-text)" />
           检测到 {commands.length} 条命令
@@ -252,7 +272,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           <div key={i} className="flex items-center gap-2">
             <code
               title={cmd}
-              className="flex-1 truncate rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-[var(--trae-bg-overlay-l1)] px-2.5 py-1.5 font-mono text-sm leading-[1.5] text-ink"
+              className="flex-1 truncate rounded-(--ui-radius-inline) border border-line bg-hover px-2.5 py-1.5 font-mono text-sm leading-[1.5] text-ink"
             >
               {display}
             </code>
@@ -260,7 +280,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
               type="button"
               onClick={() => onToolAction('execute', cmd)}
               title="发送到终端执行（回显可见）"
-              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-[var(--trae-bg-brand-popup)] px-2.5 py-1.5 text-caption font-medium text-(--accent-text) transition-opacity hover:opacity-90"
+              className="btn-press inline-flex shrink-0 items-center gap-1 rounded-(--ui-radius-inline) border border-[var(--accent-solid)] bg-[var(--status-info-soft)] px-2.5 py-1.5 text-caption font-medium text-(--accent-text) transition-opacity hover:opacity-90"
             >
               <Play className="size-3" />
               在终端执行
@@ -404,12 +424,14 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                   <span className="ai-tool-io-label">已挂载</span>
                   <span className="ai-route-items">
                     {routeMeta.mounted.length > 0 ? (
-                      routeMeta.mounted.map((m) => (
-                        <span key={m.id} className="ai-route-item">
-                          {m.label}
-                          <span className="ai-route-id">({m.id})</span>
-                        </span>
-                      ))
+                      <RouteFactItems
+                        items={routeMeta.mounted.map((m) => (
+                          <span key={m.id} className="ai-route-item">
+                            {m.label}
+                            <span className="ai-route-id">({m.id})</span>
+                          </span>
+                        ))}
+                      />
                     ) : (
                       <span className="ai-route-empty">（无）</span>
                     )}
@@ -432,11 +454,13 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                   <div className="ai-route-section">
                     <span className="ai-tool-io-label">缺条件</span>
                     <span className="ai-route-items">
-                      {routeMeta.unavailable.map((u) => (
-                        <span key={u.id} className="ai-route-item is-unavailable">
-                          {u.label}（{u.missing}）
-                        </span>
-                      ))}
+                      <RouteFactItems
+                        items={routeMeta.unavailable.map((u) => (
+                          <span key={u.id} className="ai-route-item is-unavailable">
+                            {u.label}（{u.missing}）
+                          </span>
+                        ))}
+                      />
                     </span>
                   </div>
                 )}
@@ -444,11 +468,13 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                   <div className="ai-route-section">
                     <span className="ai-tool-io-label">本轮使用</span>
                     <span className="ai-route-items">
-                      {routeUsed.map((m) => (
-                        <span key={m.id} className="ai-route-item is-used">
-                          {m.label}（{m.n} 次）
-                        </span>
-                      ))}
+                      <RouteFactItems
+                        items={routeUsed.map((m) => (
+                          <span key={m.id} className="ai-route-item is-used">
+                            {m.label}（{m.n} 次）
+                          </span>
+                        ))}
+                      />
                     </span>
                   </div>
                 )}
@@ -632,7 +658,7 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                   key={a}
                   type="button"
                   onClick={() => handlers[a]?.()}
-                  className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-brand)] bg-transparent px-2 py-0.5 text-caption text-(--accent-text) transition-colors duration-150 hover:bg-[var(--trae-bg-overlay-l1)]"
+                  className="btn-press rounded-(--ui-radius-inline) border border-[var(--accent-solid)] bg-transparent px-2 py-0.5 text-caption text-(--accent-text) transition-colors duration-150 hover:bg-hover"
                 >
                   {labels[a]}
                 </button>
@@ -648,25 +674,25 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     if (message.isStreaming || message.isError) return null
     if (!onNavigate) return null
     return (
-      <div className="mt-2 flex gap-1.5 border-t border-[var(--trae-border-neutral-l1)] pt-2">
+      <div className="mt-2 flex gap-1.5 border-t border-line pt-2">
         <button
           type="button"
           onClick={() => onNavigate('/monitor')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-ink"
+          className="btn-press rounded-(--ui-radius-inline) border border-line bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-line-strong hover:bg-hover hover:text-ink"
         >
           查看监控
         </button>
         <button
           type="button"
           onClick={() => onNavigate('/history')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-ink"
+          className="btn-press rounded-(--ui-radius-inline) border border-line bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-line-strong hover:bg-hover hover:text-ink"
         >
           记录决策
         </button>
         <button
           type="button"
           onClick={() => onNavigate('/knowledge')}
-          className="btn-press rounded-[var(--trae-radius-4)] border border-[var(--trae-border-neutral-l1)] bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-[var(--trae-border-neutral-l2)] hover:bg-[var(--trae-bg-overlay-l1)] hover:text-ink"
+          className="btn-press rounded-(--ui-radius-inline) border border-line bg-transparent px-2.5 py-1 text-caption text-ink-dim transition-colors duration-150 hover:border-line-strong hover:bg-hover hover:text-ink"
         >
           更新知识库
         </button>

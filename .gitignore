@@ -184,3 +184,6 @@ scripts/browser-check/
 # 按【前缀】忽略，别按具体日期逐条加例外（AGENTS.md §仓库卫生 + scratch-hygiene-gate 的处置办法 a）
 /2026-*/
 /.screenshots/
+# IDE HTML 分享工具把交付稿复制成的分享包（按日期再嵌一层，同一份内容的副本）。
+# 前缀忽略：它是产物，不是源码；不忽略会被 Tailwind 扫进产物、也会挡住提交。
+/.trae-html-share-packages/
