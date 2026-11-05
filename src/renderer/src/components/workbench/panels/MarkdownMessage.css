@@ -439,6 +439,33 @@
   border-color: var(--trae-border-brand);
 }
 
+/* 超长输出：默认停在折叠高度，点「展开全部」才放开（是否溢出由组件按 scrollHeight 实测） */
+.ai-tool-exec-output.is-expanded,
+.ai-tool-search-output.is-expanded {
+  max-height: none;
+}
+.ai-tool-expand {
+  display: block;
+  width: fit-content;
+  margin-top: var(--ui-space-1);
+  margin-left: auto;
+  padding: 1px var(--ui-space-2);
+  border: 1px solid var(--trae-border-neutral-l1);
+  border-radius: var(--ui-radius-inline);
+  background: transparent;
+  font-size: var(--ui-font-micro);
+  line-height: var(--ui-lh-none);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color var(--ui-dur-fast) var(--ui-ease-out),
+    border-color var(--ui-dur-fast) var(--ui-ease-out);
+}
+.ai-tool-expand:hover {
+  color: var(--accent-text);
+  border-color: var(--trae-border-brand);
+}
+
 /* ===== 过程摘要行（第②笔：查资料那几步收成一行，默认收起） ===== */
 .ai-process {
   margin-top: 2px;

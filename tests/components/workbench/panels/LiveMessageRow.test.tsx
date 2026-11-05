@@ -16,7 +16,7 @@
  * - 非 shell 语系代码块（```text）不应被提取为命令（v2.4 命令提取失控回归）
  */
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 import LiveMessageRow from '@renderer/components/workbench/panels/LiveMessageRow'
@@ -489,7 +489,67 @@ describe('LiveMessageRow — 被用户停止的回答（调研 P0-2）', () => {
  * 是 computed style 层面的事实，jsdom 不解析 CSS 变量也不做布局，量不到；
  * 那半边由 tests/e2e/chat-msg-skeleton.spec.ts 拿真窗口量。
  */
+/**
+ * 阶段 2：超长输出的「展开全部」。
+ *
+ * jsdom 不做布局，scrollHeight / clientHeight 默认都是 0——量具在这里必须自己给出
+ * "溢出了"这个事实，否则被测的那条分支永远走不到（同 ui-audit 的阳性对照思路）。
+ */
+describe('LiveMessageRow — 超长输出展开全部（阶段 2）', () => {
+  const original = {
+    scrollHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight'),
+    clientHeight: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight'),
+  }
+  const fakeLayout = (scroll: number, client: number): void => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, get: () => scroll })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => client })
+  }
+  afterEach(() => {
+    // 还原成 jsdom 的原描述符，别把"溢出了"这个事实漏给后面的用例
+    if (original.scrollHeight) Object.defineProperty(HTMLElement.prototype, 'scrollHeight', original.scrollHeight)
+    else Reflect.deleteProperty(HTMLElement.prototype, 'scrollHeight')
+    if (original.clientHeight) Object.defineProperty(HTMLElement.prototype, 'clientHeight', original.clientHeight)
+    else Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight')
+  })
+
+  it('真实溢出时出现「展开全部」，点击后放开高度并变成「收起」', () => {
+    fakeLayout(400, 300)
+    const { container } = render(
+      <LiveMessageRow
+        message={makeAssistant({
+          toolEvents: [
+            { toolCallId: 't1', toolName: 'ssh_readonly', input: 'journalctl -n 200', done: true, ok: true, output: 'x'.repeat(400) },
+          ],
+        })}
+      />
+    )
+    const block = container.querySelector('.ai-tool-exec-output')!
+    expect(block.className, '默认不该已经展开').not.toContain('is-expanded')
+    const btn = screen.getByRole('button', { name: '展开全部' })
+    fireEvent.click(btn)
+    expect(container.querySelector('.ai-tool-exec-output')!.className).toContain('is-expanded')
+    expect(screen.getByRole('button', { name: '收起' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '收起' }))
+    expect(container.querySelector('.ai-tool-exec-output')!.className).not.toContain('is-expanded')
+  })
+
+  it('没溢出就不画按钮：短输出不该多一个没有作用的入口', () => {
+    fakeLayout(120, 300)
+    render(
+      <LiveMessageRow
+        message={makeAssistant({
+          toolEvents: [
+            { toolCallId: 't2', toolName: 'ssh_readonly', input: 'uptime', done: true, ok: true, output: 'load average: 0.10' },
+          ],
+        })}
+      />
+    )
+    expect(screen.queryByRole('button', { name: '展开全部' })).toBeNull()
+  })
+})
+
 describe('LiveMessageRow — 消息行骨架（面板第①笔）', () => {
+
   it('9.1 助手轮：头像与气泡类都不在了，角色行只有一句', () => {
     const { container } = render(
       <LiveMessageRow message={makeAssistant({ content: '日志分区用到 92%。' })} />

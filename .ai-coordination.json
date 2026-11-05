@@ -2,8 +2,34 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-05T13:05:12.775Z",
-  "sessions": {},
+  "lastUpdated": "2026-11-05T13:08:51.814Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-11-05T13:08:48.369Z",
+      "lastActiveAt": "2026-11-05T13:08:51.814Z",
+      "task": "stage2-renderer-gaps",
+      "claimedFiles": [
+        {
+          "path": "src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
+          "task": "stage2-renderer-gaps",
+          "claimedAt": "2026-11-05T13:08:48.369Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
+          "task": "stage2-renderer-gaps",
+          "claimedAt": "2026-11-05T13:08:50.076Z"
+        },
+        {
+          "path": "tests/components/workbench/panels/LiveMessageRow.test.tsx",
+          "task": "stage2-renderer-gaps",
+          "claimedAt": "2026-11-05T13:08:51.814Z"
+        }
+      ],
+      "expiresAt": "2026-11-05T15:08:51.814Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -14669,6 +14695,27 @@
       "file": "src/shared/ipc-contract.ts",
       "task": "agent-runtime-uiux-p1",
       "timestamp": "2026-11-05T13:05:12.775Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
+      "task": "stage2-renderer-gaps",
+      "timestamp": "2026-11-05T13:08:48.369Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
+      "task": "stage2-renderer-gaps",
+      "timestamp": "2026-11-05T13:08:50.076Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/components/workbench/panels/LiveMessageRow.test.tsx",
+      "task": "stage2-renderer-gaps",
+      "timestamp": "2026-11-05T13:08:51.814Z"
     }
   ],
   "coordinationAudit": {

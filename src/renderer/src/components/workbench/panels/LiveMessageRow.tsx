@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type FC, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -81,6 +81,42 @@ const CopyChip: FC<{ text: string }> = ({ text }) => {
     >
       {copied ? '已复制' : '复制'}
     </button>
+  )
+}
+
+/**
+ * 工具输出块 +「展开全部」。
+ *
+ * 输出块本身有折叠高度（命令 300px / 检索 200px），超了只能在块内滚——
+ * 长输出就得在那一小格里一行行翻。这里保留折叠高度作为默认视图，
+ * 只在真的溢出时补一个入口。
+ *
+ * 判据用 ref 量 scrollHeight 而不是猜行数：字号、换行、窗口宽都会影响实际高度，
+ * 按行数猜会在窄窗口下漏、在宽窗口下多画一个没用的按钮。
+ * 展开后不再重量（此时 scrollHeight === clientHeight，量出来必然是"没溢出"），
+ * 保留上一次的结论让按钮变成"收起"。
+ */
+const OutputBlock: FC<{ text: string; className: string }> = ({ text, className }) => {
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (expanded) return
+    const el = ref.current
+    if (!el) return
+    setOverflowing(el.scrollHeight > el.clientHeight + 1)
+  }, [text, expanded])
+  return (
+    <>
+      <div ref={ref} className={`${className}${expanded ? ' is-expanded' : ''}`}>
+        {text}
+      </div>
+      {overflowing && (
+        <button type="button" className="ai-tool-expand" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? '收起' : '展开全部'}
+        </button>
+      )}
+    </>
   )
 }
 
@@ -365,7 +401,10 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
           )}
           {/* v2.6：执行中即流式展示输出（phase='output' 增量累积），不再等 result */}
           {evt.output && (
-            <pre className={`ai-tool-exec-output ${evt.done && !evt.ok ? 'is-error' : ''}`}>{evt.output}</pre>
+            <OutputBlock
+              text={evt.output}
+              className={`ai-tool-exec-output ${evt.done && !evt.ok ? 'is-error' : ''}`}
+            />
           )}
           {evt.output && <CopyChip text={evt.output} />}
         </div>
@@ -513,7 +552,10 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             ) : (
               evt.done &&
               evt.output && (
-                <div className={`ai-tool-search-output ${evt.ok ? '' : 'is-error'}`}>{evt.output}</div>
+                <OutputBlock
+                  text={evt.output}
+                  className={`ai-tool-search-output ${evt.ok ? '' : 'is-error'}`}
+                />
               )
             )}
             {!routeMeta && evt.done && evt.output && <CopyChip text={evt.output} />}
