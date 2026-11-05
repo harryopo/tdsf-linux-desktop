@@ -259,9 +259,12 @@
   color: var(--text-tertiary);
 }
 
+/* 2026-11-05 A4：一列 6 行等宽建议把空态拉成一张长清单，改成紧凑网格；
+   面板窄时（默认 ~300px）每个格子放不下完整标签，auto-fit 会自然退回单列短列表，
+   面板拉宽后才是 2 列。条件入口（去连服务器/去配模型）用 .ai-sug-wide 跨列。 */
 .ai-welcome-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--ui-space-1);
   margin-top: var(--ui-space-6);
 }
@@ -269,19 +272,24 @@
 .ai-sug {
   display: flex;
   align-items: center;
-  gap: var(--ui-space-4);
+  gap: var(--ui-space-2);
   width: 100%;
-  padding: var(--ui-space-3) var(--ui-space-4);
+  min-width: 0;
+  padding: var(--ui-space-2) var(--ui-space-3);
   border: none;
   border-radius: var(--ui-radius-control);
   background: none;
   color: var(--text-primary);
   font-family: inherit;
-  font-size: var(--ui-font-md);
+  font-size: var(--ui-font-sm);
   line-height: var(--ui-lh-snug);
   text-align: left;
   cursor: pointer;
   transition: background var(--ui-dur-fast) var(--ui-ease-out);
+}
+
+.ai-sug-wide {
+  grid-column: 1 / -1;
 }
 
 .ai-sug:hover {

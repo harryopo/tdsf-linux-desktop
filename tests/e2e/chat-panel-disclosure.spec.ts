@@ -287,7 +287,16 @@ test.describe('聊天面板两处展开态：可信度卡读数 + 过程行折�
     // 同样先记基线：消息档跨次运行累积，屏上可能留着上一轮的过程行与步骤卡
     const beforeProc = await page.locator('.ai-process').count()
     const beforeCred = await page.locator('.ai-credibility').count()
-    const beforeSteps = await page.locator('.ai-tool-search').count()
+    // 数"摊在正文里"的步骤卡：`Collapse` 是 DOM 常驻设计（`ui/surface.tsx:184`），
+    // 收进过程块的卡片仍在 DOM 里、只是被 0fr 行裁掉，`:visible` 也照样为真。
+    // 所以按"父链里没有 .ai-process-body"来认，才是"还在正文里"这件事本身。
+    const inFlowSteps = () =>
+      page.evaluate(
+        () =>
+          [...document.querySelectorAll('.ai-tool-search')]
+            .filter((el) => el.closest('.ai-process-body') === null).length,
+      )
+    const beforeSteps = await inFlowSteps()
     const composer = page.locator('#ai-composer-input')
 
     await composer.click()
@@ -303,22 +312,42 @@ test.describe('聊天面板两处展开态：可信度卡读数 + 过程行折�
 
     const proc = page.locator('.ai-process').nth(beforeProc)
     await expect(proc, '跑完的一轮里，检索步骤该收成一行"过程"').toBeVisible({ timeout: 10_000 })
-    // 收起来 = 屏上不再摊着步骤卡（本轮新增的那一步不许还在正文里）
+    // 收起来 = 本轮新增的那一步进了过程块，正文里不再多出步骤卡；
+    // 口径见基线那处注释（按父链认，不按 DOM 数量/可见性认）
+    await expect.poll(
+      inFlowSteps,
+      { message: `过程行有了，但步骤卡还摊在正文里（展开前正文基线 ${beforeSteps} 张）` },
+    ).toBe(beforeSteps)
+    // 过程行自己也要是收起态（默认收起，用户点过才算展开）
+    await expect(proc.locator('button.ai-tool-row').first()).toHaveAttribute('aria-expanded', 'false')
+    // 徽标要取过程行自己那颗：折叠体内每张卡片也带 .ai-tool-badge（DOM 常驻）
     await expect(
-      page.locator('.ai-tool-search'),
-      `过程行有了，但步骤卡还摊在正文里（展开前基线 ${beforeSteps} 张）`,
-    ).toHaveCount(beforeSteps)
-    await expect(proc.locator('.ai-tool-badge'), '过程行要报出步数').toContainText(/步/)
+      proc.locator('button.ai-tool-row').first().locator('.ai-tool-badge'),
+      '过程行要报出步数',
+    ).toContainText(/步/)
 
     await proc.locator('button.ai-tool-row').first().click()
     // 这一轮里 supervisor 还会发工具装配 / 思考强度选择，所以按名字认那一步，别拿第一张
-    const step = proc.locator('.ai-process-body .ai-tool-search', { hasText: '检索知识库' }).first()
+    // 按步骤标题认，别按整卡文本：工具装配卡的正文里也会列「检索知识库(kb_search)」，
+    // 整卡 hasText 会先匹配到它
+    const step = proc
+      .locator('.ai-process-body .ai-tool-search')
+      .filter({ has: page.locator('.ai-tool-name', { hasText: '检索知识库' }) })
+      .first()
     await expect(step, '点了"过程"却没把知识库检索那一步展开').toBeVisible({ timeout: 5_000 })
     await expect(step, '步骤要用中文名，不甩裸工具 id').not.toContainText('kb_search')
-    // 步骤自己那一层仍然默认收起：入参与结果要再点一次才见
-    await expect(step.locator('.ai-tool-search-body')).toHaveCount(0)
+    // 步骤自己那层仍然默认收起：入参与结果要再点一次才见。
+    // 判 aria-hidden 而不是 DOM 数量——折叠体是 DOM 常驻，收起时节点照样在
+    await expect(
+      step.locator('.ai-tool-search-body'),
+      '步骤自己那层要默认收起',
+    ).toHaveAttribute('aria-hidden', 'true')
     await step.locator('button.ai-tool-row').first().click()
-    await expect(step.locator('.ai-tool-search-body'), '两层展开后该看到查询词').toContainText('磁盘')
+    await expect(
+      step.locator('.ai-tool-search-body'),
+      '两层展开后该看到查询词',
+    ).toHaveAttribute('aria-hidden', 'false')
+    await expect(step.locator('.ai-tool-search-body')).toContainText('磁盘')
 
     await app.close()
   })

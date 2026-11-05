@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import {
   scoreComplexity,
   resolveThinkingStrength,
-} from '../../src/main/core/agent/thinking-router'
+} from '../../src/shared/thinking-router'
 
 describe('scoreComplexity — 复杂度评分', () => {
   it('简单查询 → standard', () => {

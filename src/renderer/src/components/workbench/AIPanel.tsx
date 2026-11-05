@@ -33,6 +33,7 @@ import { useRef, useEffect, useCallback, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAgentChat } from './useAgentChat'
+import type { RemoteFileReference } from './composer-references'
 import { usePaorLoop } from './usePaorLoop'
 import { useServerStore } from '@/stores/server-store'
 import { historyForSession, useAgentStore } from '@/stores/agent-store'
@@ -163,10 +164,16 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
       replan: '回退重新规划',
     }
     const decisionText = decisionMap[latest.reflect.decision] ?? latest.reflect.decision
+    // 2026-11-05 D：耗时与重试写进消息（旧事件没有 durationMs，就不编一个数字出来）
+    const msText = (ms: number) => (ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`)
+    const timingText =
+      latest.durationMs != null
+        ? `\n- 耗时：${msText(latest.durationMs)}${latest.retryCount ? ` · 本轮前重试 ${latest.retryCount} 次` : ''}`
+        : ''
     addAgentMessage({
       id: `paor_iter_${latest.iteration}_${Date.now()}`,
       role: 'assistant',
-      content: `**PAOR 迭代 ${latest.iteration} · ${statusWord}**\n\n- 命令：\`${cmdPreview}\`${latest.riskBlocked ? '（高危命令已拦截）' : ''}\n- 观察：${latest.observe.status}\n- 决策：${decisionText}`,
+      content: `**PAOR 迭代 ${latest.iteration} · ${statusWord}**\n\n- 命令：\`${cmdPreview}\`${latest.riskBlocked ? '（高危命令已拦截）' : ''}\n- 观察：${latest.observe.status}\n- 决策：${decisionText}${timingText}`,
       timestamp: Date.now(),
     })
   }, [paor.iterations, addAgentMessage])
@@ -241,9 +248,9 @@ const AIPanel: FC<AIPanelProps> = ({ onClose }) => {
    * 会以为没发出去（这正是 #252 里"不会定位到最新"的一半）。
    */
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, refs?: RemoteFileReference[]) => {
       followNow()
-      await send(text)
+      await send(text, refs)
     },
     [send, followNow],
   )

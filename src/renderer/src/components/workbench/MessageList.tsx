@@ -141,12 +141,12 @@ const MessageList: FC<MessageListProps> = ({
               </button>
             ))}
 
-            {/* 还没具备条件时，把入口摆在同一列里——但要说清它去哪 */}
+            {/* 还没具备条件时，把入口摆在同一网格里——跨两列短行，不影响主建议的 2 列排布 */}
             {!activeSessionId && (
               <button
                 type="button"
                 onClick={() => navigate('/settings/ssh')}
-                className="ai-sug"
+                className="ai-sug ai-sug-wide"
                 title="打开设置 · SSH，连接一台服务器"
               >
                 <Plug className="size-4" />
@@ -157,7 +157,7 @@ const MessageList: FC<MessageListProps> = ({
               <button
                 type="button"
                 onClick={() => navigate('/settings/model')}
-                className="ai-sug"
+                className="ai-sug ai-sug-wide"
                 title="打开设置 · 模型，配置一个可用的模型"
               >
                 <SlidersHorizontal className="size-4" />

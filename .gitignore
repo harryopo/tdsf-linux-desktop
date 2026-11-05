@@ -166,6 +166,8 @@ __pycache__/
 docs/assets/theme-check/
 docs/assets/ui-audit-*/
 docs/assets/ui-baseline/
+# 对话工作台输入区重做的前后对比截图：只做本轮取证，本地保留、不入库（精确到这一个目录）
+/docs/assets/composer-rework/
 # 未复核过的内部设计草稿：不公开也不留 status 噪音
 /docs/architecture/
 

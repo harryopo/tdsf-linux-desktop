@@ -1,12 +1,12 @@
 /**
- * composer-layout.spec.ts —— AI 输入区排版的真窗口判据（面板第④笔 #253）
+ * composer-layout.spec.ts —— AI 输入区排版的真窗口判据（2026-11-05 一行式重做）
  *
  * 为什么单独一条：输入区是唯一"每轮都要用"的东西，它的层次错了，整个面板的观感就跟着错。
  * 这次改的是两件事，都得在真窗口里量，jsdom 量不到布局：
- *   1. **快捷排挪到输入框下方**——它原来压在输入框上面，等于把"上一条回答"和"你在哪儿打字"
- *      中间塞了一排辅助按钮；主表面（输入框）该在上面，辅助的排下面。
- *   2. **点快捷排填进来的是单源那一句**——正文只有一份（`QUICK_PROMPTS`），
- *      欢迎态与快捷排都只引用键。这条在真窗口端到端走一遍：点 → store → Composer → 输入框。
+ *   1. **主行只留 `+` / 文本域 / 选项 / 发送**——5 个能力 chip 全部移出主行，
+ *      旧 `.ai-composer-rail` 不应再存在；四件套底部对齐（打字的地方和发送按钮同一条线）。
+ *   2. **`/` 是真入口**——按 `/` 弹出「提示词模板」面板，选中只填词、不执行；
+ *      正文仍只有一份（`QUICK_PROMPTS`）。
  *
  * 运行：pnpm build && npx playwright test tests/e2e/composer-layout.spec.ts
  */
@@ -34,7 +34,7 @@ async function ensurePanelOpen(page: Page): Promise<void> {
 test.describe('AI 输入区排版', () => {
   test.describe.configure({ mode: 'serial' })
 
-  testOrSkip('快捷排在输入框下方，不再把上一条回答和输入区分开', async () => {
+  testOrSkip('主行只有 + / 文本域 / 选项 / 发送，旧快捷排已移除', async () => {
     const { app, page } = await launchApp()
     await page.evaluate(() => {
       window.location.hash = '#/workbench'
@@ -42,25 +42,27 @@ test.describe('AI 输入区排版', () => {
     await page.waitForSelector('.wb-main-layout', { timeout: 20_000 })
     await ensurePanelOpen(page)
 
-    const input = page.locator('#ai-composer-input')
-    const rail = page.locator('.ai-composer-rail')
+    const input = page.locator('[data-testid="composer-input"]')
+    const send = page.locator('[data-testid="composer-send"]')
     await expect(input, '输入框没画出来').toBeVisible({ timeout: 10_000 })
-    await expect(rail, '快捷排没画出来').toBeVisible({ timeout: 10_000 })
+    await expect(send, '发送按钮没画出来').toBeVisible({ timeout: 10_000 })
+    // 5 个 chip 已经进 `/` 面板，主行不该再有快捷排
+    await expect(page.locator('.ai-composer-rail')).toHaveCount(0)
 
     const inputBox = await input.boundingBox()
-    const railBox = await rail.boundingBox()
+    const sendBox = await send.boundingBox()
     expect(inputBox, '量不到输入框的位置').not.toBeNull()
-    expect(railBox, '量不到快捷排的位置').not.toBeNull()
-    // 输入框整块在快捷排之上：允许 1px 的边框重叠误差
+    expect(sendBox, '量不到发送按钮的位置').not.toBeNull()
+    // 主行 items-end：文本域与发送按钮的底边应在同一条线上（允许 2px 描边/行高误差）
     expect(
-      railBox!.y,
-      `快捷排还压在输入框上面（输入框 y=${Math.round(inputBox!.y)} 高 ${Math.round(inputBox!.height)}，快捷排 y=${Math.round(railBox!.y)}）`,
-    ).toBeGreaterThanOrEqual(inputBox!.y + inputBox!.height - 1)
+      Math.abs(inputBox!.y + inputBox!.height - (sendBox!.y + sendBox!.height)),
+      `输入框与发送按钮底边没对齐（输入框底 ${Math.round(inputBox!.y + inputBox!.height)}，发送底 ${Math.round(sendBox!.y + sendBox!.height)}）`,
+    ).toBeLessThanOrEqual(2)
 
     await app.close()
   })
 
-  testOrSkip('点快捷排填进来的是单源那一句（真窗口走一遍 store→输入框）', async () => {
+  testOrSkip('按 / 弹出提示词模板，选中只填词不执行', async () => {
     const { app, page } = await launchApp()
     await page.evaluate(() => {
       window.location.hash = '#/workbench'
@@ -68,19 +70,22 @@ test.describe('AI 输入区排版', () => {
     await page.waitForSelector('.wb-main-layout', { timeout: 20_000 })
     await ensurePanelOpen(page)
 
+    const composer = page.locator('[data-testid="composer-input"]')
+    await composer.fill('')
+    await composer.press('/')
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog, '按 / 没弹出模板面板').toBeVisible({ timeout: 5000 })
+    // 面板必须自述"只填词、不执行"——这是批准时加的诚实约束
+    await expect(dialog, '面板没说明选中不会执行').toContainText('不会执行命令')
+
     // 单源正文从渲染层模块里取不到（打包后没有源码），所以按"这一句里独有的词"钉：
     // 巡检那条只出现在单源里，界面上其它地方都不说这句话。
-    // 定位要按按钮自己的名字取——`.ai-composer-rail` 里第一个按钮是 PAOR，
-    // 用 first() 会点到它头上，然后被"请先输入任务描述"拦住，读出个假失败。
-    const chip = page.locator('.ai-composer-rail button', { hasText: /^巡检$/ })
-    await expect(chip, '快捷排里没有「巡检」这一条').toBeVisible({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: /巡检模板/ }).click()
+    await expect(dialog).toBeHidden({ timeout: 5000 })
 
-    const composer = page.locator('#ai-composer-input')
-
-    await composer.fill('')
-    await chip.click()
     const value = await composer.inputValue()
-    expect(value, '点了「巡检」，输入框里没填进东西').toContain('只读巡检')
+    expect(value, '选了「巡检模板」，输入框里没填进东西').toContain('只读巡检')
     expect(value, '填进来的不是单源那句（缺 inode 与 journal 两个专有名）').toContain('inode')
     expect(value, '填进来的不是单源那句（缺 journal 错误摘要那半句）').toContain('journal')
 

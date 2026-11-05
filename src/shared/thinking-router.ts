@@ -1,8 +1,11 @@
 /**
- * thinking-router — 快慢思考自动路由（v2.10）
+ * thinking-router — 快慢思考自动路由（v2.10，2026-11-05 移到 shared）
  *
  * 背景：思考强度此前是用户手动开关（standard/deep）。参考 AI Agent 架构"快慢思考结合"，
  * 新增 'auto' 档：按查询复杂度本地启发式评分（零 token），自动解析为 standard 或 deep。
+ *
+ * 位置说明：本文件从 `src/main/core/agent/thinking-router.ts` 移到 `src/shared/`，
+ * 让主进程（真实执行体）与渲染层（档位回显）用同一份纯函数解析，避免两份评分规则漂移。
  *
  * 设计约束：
  * - 纯函数、无副作用、可单测（不依赖 LLM / DB / 网络）
@@ -106,7 +109,7 @@ export function scoreComplexity(userText: string): ComplexityScore {
  * @param requested 用户请求的强度（可能是 'auto'）
  * @param userText 用于评分的用户消息
  * @param opts.recentDeep 会话连贯（v2.11）：近期已进入深度思考。auto 档下，若本句非明显
- *   简单/嬒暄且评分为 standard，则延续深度思考（避免分析会话中思考时有时无的跳变）
+ *   简单/寒暄且评分为 standard，则延续深度思考（避免分析会话中思考时有时无的跳变）
  * @returns { resolved: 实际执行的三档, auto: 是否走了自动路由, score?: 评分详情 }
  */
 export function resolveThinkingStrength(

@@ -132,7 +132,8 @@ test.describe('界面上写出来的快捷键', () => {
       const popover = page.locator('.sel-popover')
       await expect(popover, '划词后浮层应出现').toBeVisible({ timeout: 5000 })
       // 按钮上那片 kbd 写的是 Ctrl+Shift+A：按之前输入框里不该有这个词
-      const composer = page.locator('textarea[placeholder^="您正在与 Agent 聊天"]')
+      // 定位不依赖 placeholder 文案：文案会改，data-testid 不会（2026-11-05 输入区重做）
+      const composer = page.locator('[data-testid="composer-input"]')
       await expect(composer).toBeVisible()
       expect(await composer.inputValue(), '前置：输入框本来就带着词，这条测不出什么').not.toContain('journalctl')
 

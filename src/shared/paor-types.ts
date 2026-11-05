@@ -72,6 +72,33 @@ export interface PaorIteration {
   reflect: PaorReflectResult
   /** 是否因风险拦截而跳过执行（人工审批门） */
   riskBlocked?: boolean
+  /** 本轮总耗时（Act+Observe+Reflect，毫秒）；旧事件缺省（2026-11-05 D） */
+  durationMs?: number
+  /** 各阶段耗时；旧事件缺省（2026-11-05 D） */
+  phaseDurations?: { actMs?: number; observeMs?: number; reflectMs?: number }
+  /** 本轮开始前的重试次数（graphState 口径）；旧事件缺省（2026-11-05 D） */
+  retryCount?: number
+}
+
+/** PAOR 四个阶段（用于推送"当前阶段"） */
+export type PaorPhaseName = 'plan' | 'act' | 'observe' | 'reflect'
+
+/**
+ * 阶段事件（2026-11-05 D）
+ *
+ * 全部字段可选：旧版主进程只推 `iteration`，渲染层读到 `phase` 缺省就走旧路径。
+ * `durationMs` 缺省表示"该阶段刚开始"（只有 Act 开始那一次会这样推）。
+ */
+export interface PaorPhaseState {
+  phase: PaorPhaseName
+  /** 阶段对应的计划步骤索引 */
+  stepIndex?: number
+  /** 轮次序号（0 = 第一轮开始前的规划） */
+  iterationNumber?: number
+  /** 该阶段耗时；缺省 = 刚开始 */
+  durationMs?: number
+  /** 本轮开始前的重试次数 */
+  retryCount?: number
 }
 
 /** PAOR 自动循环最终结果 */
@@ -108,4 +135,14 @@ export interface PaorIterationEvent {
   plan?: PaorPlanObject
   /** 计划置信度（随 plan 一同推送） */
   planConfidence?: number
+  /** 当前阶段（2026-11-05 D）；旧版事件缺省 */
+  phase?: PaorPhaseName
+  /** 阶段对应的计划步骤索引（与 phase 同推） */
+  stepIndex?: number
+  /** 轮次序号（0 = 第一轮开始前的规划） */
+  iterationNumber?: number
+  /** 该阶段耗时；缺省 = 刚开始（只有 Act 开始那一次会这样推） */
+  durationMs?: number
+  /** 本轮开始前的重试次数 */
+  retryCount?: number
 }

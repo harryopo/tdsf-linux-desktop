@@ -247,6 +247,25 @@ describe('PAOR 自动循环编排（runPaorLoop）', () => {
     expect(onIteration).toHaveBeenCalledWith(result.iterations[0])
   })
 
+  it('onPhase 按 计划→执行→观察→反思 推阶段事件，耗时只在阶段结束时给', async () => {
+    mockGenerateText.mockResolvedValue(planResponse(THREE_STEP_PLAN))
+    const phases: Array<{ phase: string; durationMs?: number; retryCount?: number }> = []
+
+    const supervisor = getSupervisor()
+    await supervisor.runPaorLoop('诊断磁盘', 'session-1', { onPhase: (p) => phases.push(p) })
+
+    expect(phases.map((p) => p.phase)).toEqual([
+      'plan',
+      'act', 'act', 'observe', 'reflect',
+      'act', 'act', 'observe', 'reflect',
+      'act', 'act', 'observe', 'reflect',
+    ])
+    // Act 开始那次不带 durationMs：界面据此显示"执行中"，而不是编造一个 0ms
+    expect(phases[1].durationMs).toBeUndefined()
+    expect(phases[2].durationMs).toBeGreaterThanOrEqual(0)
+    expect(phases[0].retryCount).toBe(0)
+  })
+
   it('LLM 不可用时降级为单步计划，循环仍可执行', async () => {
     // generateText 抛错 → callLlm 返回 '' → plan 降级为单步
     mockGenerateText.mockRejectedValue(new Error('LLM unavailable'))

@@ -24,6 +24,12 @@ import { rememberRunId } from '@/stores/agent-stream-subscription'
 import { useTerminalStore } from '@/stores/terminal-store'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { resolveSelectedProvider, usableProviders } from './provider-choice'
+// C4：远端引用只在当轮注入正文；写入 store 的只有"路径/字符数/是否截断"的标注
+import {
+  buildReferenceNotice,
+  buildReferencedUserContent,
+  type RemoteFileReference,
+} from './composer-references'
 import type {
   PersistedProviderConfig,
   ThinkingStrength,
@@ -83,8 +89,8 @@ export interface UseAgentChatResult {
    * 用户主动点击"重置会话成本"按钮时调用，让 sessionCost 从 0 重新累计。
    */
   resetSessionCost: () => void
-  /** 发送用户消息（走 agent:chat） */
-  send: (text: string) => Promise<void>
+  /** 发送用户消息（走 agent:chat）；refs 为当轮远端文件引用 */
+  send: (text: string, refs?: RemoteFileReference[]) => Promise<void>
   /** 取消当前流式请求 */
   cancel: () => Promise<void>
   /** 清空对话 */
@@ -210,7 +216,7 @@ export function useAgentChat(): UseAgentChatResult {
   // （stores/agent-stream-subscription.ts），面板收起/卸载不再丢失事件。
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, refs?: RemoteFileReference[]) => {
       const raw = text.trim()
       if (!raw) return
       if (useAgentStore.getState().isStreaming) return
@@ -228,10 +234,13 @@ export function useAgentChat(): UseAgentChatResult {
         return
       }
 
+      // 存储里只放标注（路径/字符数/截断），正文不进消息。
+      // 下一轮回看时模型不会把 20k 字符再吃一遍，用户仍能看见"引用了哪个文件、带了多少"。
+      const notice = refs && refs.length > 0 ? buildReferenceNotice(refs) : ''
       const userMessage: AgentMessage = {
         id: genId('user'),
         role: 'user',
-        content: raw,
+        content: raw + notice,
         timestamp: Date.now(),
         sshSessionId: activeSessionId ?? undefined,
       }
@@ -295,8 +304,20 @@ export function useAgentChat(): UseAgentChatResult {
 
         const payload =
           history.length > 0
-            ? history
-            : [{ role: 'user' as const, content: raw }]
+            ? [...history]
+            : [{ role: 'user' as const, content: raw + notice }]
+
+        // 引用正文只注入当轮最后一条 user：round 1 带全文，round 2 起历史里只剩标注。
+        // 否则每轮都把同一批 20k 字符重发一遍，既费 token 也挤掉上下文。
+        if (refs && refs.length > 0) {
+          const last = payload[payload.length - 1]
+          if (last && last.role === 'user') {
+            payload[payload.length - 1] = {
+              role: 'user',
+              content: buildReferencedUserContent(raw, refs),
+            }
+          }
+        }
 
         // 终端命令块随请求带去主进程（阶段 F 的消费端）。用 getState() 而不是 hook 订阅：
         // 发送是一次性动作，不该因此让对话面板重渲染。空串传 undefined，主进程侧就不注入。

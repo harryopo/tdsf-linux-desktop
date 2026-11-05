@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   PaorIteration,
   PaorLoopResult,
+  PaorPhaseState,
   PaorPlanObject,
 } from '@shared/paor-types'
 
@@ -42,6 +43,13 @@ export interface UsePaorLoopResult {
   error: string | null
   /** 已接收到的最大迭代序号（用于 UI 显示进度） */
   currentIteration: number
+  /**
+   * 最近一次阶段事件（2026-11-05 D）
+   *
+   * `phase` 有值表示主进程推了阶段进度；`durationMs` 缺省表示该阶段刚开始。
+   * 旧主进程不推 phase 时这里是 null，界面回落到「第 N 轮执行中」。
+   */
+  currentPhase: PaorPhaseState | null
   /**
    * 启动 PAOR 自动循环
    *
@@ -80,6 +88,7 @@ export function usePaorLoop(): UsePaorLoopResult {
   const [isRunning, setIsRunning] = useState(false)
   const [iterations, setIterations] = useState<PaorIteration[]>([])
   const [plan, setPlan] = useState<PaorPlanObject | null>(null)
+  const [currentPhase, setCurrentPhase] = useState<PaorPhaseState | null>(null)
   const [result, setResult] = useState<PaorLoopResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -104,6 +113,16 @@ export function usePaorLoop(): UsePaorLoopResult {
       // v2.11 plan-only 事件：计划先行推送，渲染任务步骤卡
       if (event.plan) {
         setPlan(event.plan)
+      }
+      // 2026-11-05 D：阶段事件（plan/act/observe/reflect + 耗时 + 重试）
+      if (event.phase) {
+        setCurrentPhase({
+          phase: event.phase,
+          stepIndex: event.stepIndex,
+          iterationNumber: event.iterationNumber,
+          durationMs: event.durationMs,
+          retryCount: event.retryCount,
+        })
       }
       // 迭代事件（plan-only 时 iteration 缺省，需守卫）
       const it = event.iteration
@@ -150,6 +169,7 @@ export function usePaorLoop(): UsePaorLoopResult {
       // 重置状态（清空上一次的结果）
       setIterations([])
       setPlan(null)
+      setCurrentPhase(null)
       setResult(null)
       setError(null)
       setIsRunning(true)
@@ -170,6 +190,8 @@ export function usePaorLoop(): UsePaorLoopResult {
         return false
       } finally {
         setIsRunning(false)
+        // 结束后不再保留"正在进行"的假阶段
+        setCurrentPhase(null)
         activeSessionIdRef.current = null
       }
     },
@@ -196,6 +218,7 @@ export function usePaorLoop(): UsePaorLoopResult {
   const reset = useCallback(() => {
     setIterations([])
     setPlan(null)
+    setCurrentPhase(null)
     setResult(null)
     setError(null)
     setIsRunning(false)
@@ -209,6 +232,7 @@ export function usePaorLoop(): UsePaorLoopResult {
     result,
     error,
     currentIteration,
+    currentPhase,
     start,
     cancel,
     reset,

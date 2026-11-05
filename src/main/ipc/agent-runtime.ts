@@ -613,6 +613,11 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
           onPlan: (plan, planConfidence) => {
             safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, plan, planConfidence })
           },
+          // 2026-11-05 D：阶段进度（plan/act/observe/reflect + 耗时 + 重试）复用同一通道，
+          // 全部字段可选，旧渲染层读到没有 phase 就继续走 iteration 路径。
+          onPhase: (phase) => {
+            safeSend(mainWindow, AGENT.PAOR_ITERATION, { sshSessionId, ...phase })
+          },
           // v0.9.5 PAOR 人工审批：高危命令推送审批请求到渲染进程，等待用户响应
           approveRisk: async (command, level, description, stepIndex): Promise<boolean> => {
             const callId = `paor_${Date.now()}_${randomUUID().slice(0, 8)}`

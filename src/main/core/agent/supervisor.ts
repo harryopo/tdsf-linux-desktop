@@ -82,7 +82,8 @@ import {
   TOOL_STDOUT_CHAR_LIMIT,
 } from './tools/output-limit'
 // v2.10 快慢思考自动路由：auto 档按复杂度解析为 standard/deep
-import { resolveThinkingStrength } from './thinking-router'
+import { resolveThinkingStrength } from '@shared/thinking-router'
+import type { PaorPhaseState } from '@shared/paor-types'
 // v2.11 PAOR 状态图编排：路由决策纯函数（可单测，默认行为与旧 switch 等价）
 import {
   initPaorState,
@@ -309,6 +310,12 @@ export interface PaorIteration {
   reflect: ReflectResult
   /** 是否因风险拦截而跳过执行（人工审批门） */
   riskBlocked?: boolean
+  /** 本轮总耗时（Act+Observe+Reflect，毫秒）；2026-11-05 D 新增，仅有完整流程的轮次带值 */
+  durationMs?: number
+  /** 各阶段耗时；2026-11-05 D 新增 */
+  phaseDurations?: { actMs?: number; observeMs?: number; reflectMs?: number }
+  /** 本轮开始前的重试次数（graphState 口径）；2026-11-05 D 新增 */
+  retryCount?: number
 }
 
 /**
@@ -366,6 +373,14 @@ export interface PaorLoopOptions {
    * Plan/重规划完成后立即调用，供主进程把结构化计划先行推送到前端（第一步执行前）。
    */
   onPlan?: (plan: PlanObject, confidence: number) => void
+  /**
+   * 阶段进度回调（2026-11-05 D，可观测）
+   *
+   * Plan 就绪、Act 开始/结束、Observe 结束、Reflect 结束各调一次。
+   * `durationMs` 缺省表示"该阶段刚开始"（只有 Act 开始那一次）。
+   * 全部字段可选，事件协议向后兼容（见 @shared/paor-types 的 PaorIterationEvent）。
+   */
+  onPhase?: (phase: PaorPhaseState) => void
 }
 
 /**
@@ -488,6 +503,15 @@ class SupervisorAgent {
     const recentDeep = Date.now() - this.lastDeepAt < 3 * 60 * 1000
     const strengthRoute = resolveThinkingStrength(requestedStrength, earlyUserText, { recentDeep })
     const strength: ThinkingStrength = strengthRoute.resolved
+    // B（2026-11-05）：把"请求档位 → 实际档位"落到日志，界面回显与真实生效值可对账。
+    // auto 档下 score/signals 说明为什么升/不升 deep；显式档 auto=false、score 缺省。
+    this.log.info('[思考] 档位解析', {
+      requested: requestedStrength ?? '(未指定)',
+      resolved: strength,
+      auto: strengthRoute.auto,
+      score: strengthRoute.score?.score,
+      signals: strengthRoute.score?.signals,
+    })
     // 记录本次深度思考时刻（仅 auto 自动解析出的 deep 才参与连贯，避免显式档污染）
     if (strengthRoute.auto && strength === 'deep') {
       this.lastDeepAt = Date.now()
@@ -2145,6 +2169,7 @@ class SupervisorAgent {
     const signal = options.signal
 
     // ── Phase 1: Plan ──
+    const planStartedAt = Date.now()
     const { plan, confidence } = await this.plan(task)
     // 计划阶段发起的停止：计划已经出来了但一步没执行，如实这么说
     if (signal?.aborted) {
@@ -2174,6 +2199,12 @@ class SupervisorAgent {
     })
     // v2.11：计划就绪立即推送（第一步执行前），前端先渲染任务步骤卡
     options.onPlan?.(currentPlan, confidence)
+    options.onPhase?.({
+      phase: 'plan',
+      iterationNumber: 0,
+      durationMs: Date.now() - planStartedAt,
+      retryCount: 0,
+    })
 
     const iterations: PaorIteration[] = []
     // v2.11 状态图编排：路由决策交给 paor-graph 纯函数，本循环只执行副作用
@@ -2194,6 +2225,8 @@ class SupervisorAgent {
       iterationNum++
       const stepIndex = graphState.stepIndex
       const stepDesc = currentPlan.steps[stepIndex] ?? ''
+      // 本轮开始前的重试次数（路由前取值，避免把本轮自己的 retry 记进来）
+      const retryBefore = graphState.retryCount
       // 命令来源：计划里给的 command 优先；没有就把描述交给模型翻译成命令。
       // 以前这里直接把 steps[stepIndex] 当命令执行，于是“确认当前用户身份：执行 whoami 和 id”
       // 整句中文被发给远端 → 每步 exit 127 → 五轮迭代全在失败，任务当然完不成。
@@ -2264,8 +2297,23 @@ class SupervisorAgent {
       }
 
       // Act
+      // Act 开始先推一次（不带 durationMs）：界面能显示"正在执行"而不是等阶段结束才动
+      options.onPhase?.({
+        phase: 'act',
+        stepIndex,
+        iterationNumber: iterationNum,
+        retryCount: retryBefore,
+      })
       const actStartedAt = Date.now()
       const actResult = await this.act(command, sessionId, stepIndex)
+      const actMs = Date.now() - actStartedAt
+      options.onPhase?.({
+        phase: 'act',
+        stepIndex,
+        iterationNumber: iterationNum,
+        durationMs: actMs,
+        retryCount: retryBefore,
+      })
       recordAutoDecision({
         command: actResult.command,
         exitCode: actResult.success ? 0 : 1,
@@ -2274,14 +2322,32 @@ class SupervisorAgent {
         source: 'paor',
         sessionId,
         serverId: SshConnectionManager.getInstance().getSessionServerId(sessionId),
-        durationMs: Date.now() - actStartedAt,
+        durationMs: actMs,
       })
 
       // Observe
+      const observeStartedAt = Date.now()
       const observeResult = await this.observe(actResult)
+      const observeMs = Date.now() - observeStartedAt
+      options.onPhase?.({
+        phase: 'observe',
+        stepIndex,
+        iterationNumber: iterationNum,
+        durationMs: observeMs,
+        retryCount: retryBefore,
+      })
 
       // Reflect
+      const reflectStartedAt = Date.now()
       const reflectResult = await this.reflect(observeResult, currentPlan, stepIndex)
+      const reflectMs = Date.now() - reflectStartedAt
+      options.onPhase?.({
+        phase: 'reflect',
+        stepIndex,
+        iterationNumber: iterationNum,
+        durationMs: reflectMs,
+        retryCount: retryBefore,
+      })
       if (reflectResult.updatedPlan) {
         currentPlan = reflectResult.updatedPlan
         graphState = { ...graphState, totalSteps: currentPlan.steps.length }
@@ -2292,7 +2358,10 @@ class SupervisorAgent {
         stepIndex,
         act: actResult,
         observe: observeResult,
-        reflect: reflectResult
+        reflect: reflectResult,
+        durationMs: actMs + observeMs + reflectMs,
+        phaseDurations: { actMs, observeMs, reflectMs },
+        retryCount: retryBefore,
       }
       iterations.push(iteration)
       options.onIteration?.(iteration)
@@ -2306,11 +2375,18 @@ class SupervisorAgent {
         // 失败回退：携失败上下文重新规划（replanCount 已在引擎自增，防震荡）
         this.log.warn('[PAOR-Loop] 回退重新规划', { replanCount: graphState.replanCount })
         const failCtx = `${task}\n\n（上一轮步骤“${command}”未能推进，请重新规划更稳健的步骤）`
+        const replanStartedAt = Date.now()
         const replanned = await this.plan(failCtx)
         currentPlan = replanned.plan
         graphState = { ...initPaorState(currentPlan.steps.length), replanCount: graphState.replanCount }
         // v2.11：重规划后推送新计划，前端刷新任务步骤卡
         options.onPlan?.(currentPlan, replanned.confidence)
+        options.onPhase?.({
+          phase: 'plan',
+          iterationNumber: iterationNum,
+          durationMs: Date.now() - replanStartedAt,
+          retryCount: graphState.retryCount,
+        })
       } else if (route.terminal === 'done') {
         status = 'done'
       } else if (route.terminal === 'abort') {
