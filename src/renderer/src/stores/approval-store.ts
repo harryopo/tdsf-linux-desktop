@@ -23,6 +23,13 @@ export interface ApprovalEntry {
   request: PaorApprovalRequest
   /** 主进程那侧已经不再等这个回答了（超时，或用户点了但 callId 已不存在） */
   expired: boolean
+  /**
+   * 为什么不再等它。
+   * - timeout：主进程到点自动拒绝（原有那条路）
+   * - run_stopped：这一轮被用户停止，主进程把挂着的审批一起结算成未批准
+   * 没填 = 还在等（已应答的条目会直接出队，不留这个字段）
+   */
+  resolution?: 'timeout' | 'run_stopped'
 }
 
 interface ApprovalState {
@@ -35,6 +42,14 @@ interface ApprovalState {
   settle: (callId: string) => void
   /** 这条已经过期（超时，或 paor:approve 回了 false） */
   markExpired: (callId: string) => void
+  /**
+   * 本轮被停止 → 该 run 名下的审批全部按"未批准"处理。
+   *
+   * 主进程那边是真结算了（settleTerminal → onSettleApproval），这里只把这件事说到界面上：
+   * 否则卡片还在倒计时，用户会以为"我停了它怎么还问我"。
+   * 没有 runId 的请求（外部 MCP 那条链）不受影响——它不属于任何一轮对话。
+   */
+  markRunSettled: (runId: string) => void
 }
 
 /** 过期定时器：callId → timer。条目一出队就撤销，不让定时器追着已移除的东西跑 */
@@ -79,7 +94,20 @@ export const useApprovalStore = create<ApprovalState>((set, get) => ({
     cancelExpiry(callId)
     set((s) => ({
       entries: s.entries.map((e) =>
-        e.request.callId === callId ? { ...e, expired: true } : e
+        e.request.callId === callId ? { ...e, expired: true, resolution: 'timeout' } : e
+      ),
+    }))
+  },
+
+  markRunSettled: (runId) => {
+    const hit = get().entries.filter((e) => e.request.runId === runId && !e.resolution)
+    if (hit.length === 0) return
+    for (const e of hit) cancelExpiry(e.request.callId)
+    set((s) => ({
+      entries: s.entries.map((e) =>
+        e.request.runId === runId && !e.resolution
+          ? { ...e, expired: true, resolution: 'run_stopped' }
+          : e
       ),
     }))
   },

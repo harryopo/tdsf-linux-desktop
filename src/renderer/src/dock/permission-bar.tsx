@@ -74,6 +74,9 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
   const head = entries[0] ?? null
   const current = head?.request ?? null
   const expired = head?.expired ?? false
+  // 同样是"不再等回答"，但原因有两样：主进程到点自动拒绝，还是这一轮被用户停止
+  // （停止时 settleTerminal 会把挂着的审批一起结算成未批准）。文案不能混成一句。
+  const resolution = head?.resolution
   // 到点后主进程会先拒、再由推送把 expired 改真；这中间几帧按 0 显示"等待主进程确认"
   const remainingMs = useRemainingMs(current?.expiresAt ?? 0, expired)
   const selectedIndex = useMemo(() => {
@@ -170,7 +173,9 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
                   外部 MCP 工具既不是 PAOR 也不是"写操作"（它可能只是读一眼天气）；
                   stepIndex 只有 PAOR 那一路给得出真值，没有就不该显示"第 1 步" */}
               {expired
-                ? '这次审批已过期'
+                ? resolution === 'run_stopped'
+                  ? '这一轮已停止'
+                  : '这次审批已过期'
                 : current.origin === 'mcp'
                   ? '外部 MCP 工具请求执行'
                   : current.origin === 'chat'
@@ -189,9 +194,13 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
 
         <p className="mt-1 text-sm text-ink-dim">
           {expired
-            ? // 主进程那侧不再认这个回答了；留着卡片是为了说清"AI 那一步为什么停住"，
-              // 而不是给用户一个点了没动静的按钮。
-              `这条在 ${new Date(current.expiresAt).toLocaleTimeString()} 到点，主进程已自动拒绝。AI 那一步按"未批准"继续。`
+            ? resolution === 'run_stopped'
+              ? // 用户按了停止，主进程顺手把这张也结算成未批准：说清"是停止带走了它"，
+                // 免得用户以为自己在别处点过同意、或者以为这轮还等着他答。
+                '你点了停止，本轮还挂着的审批按"未批准"处理；这条命令不会执行。'
+              : // 主进程那侧不再认这个回答了；留着卡片是为了说清"AI 那一步为什么停住"，
+                // 而不是给用户一个点了没动静的按钮。
+                `这条在 ${new Date(current.expiresAt).toLocaleTimeString()} 到点，主进程已自动拒绝。AI 那一步按"未批准"继续。`
             : current.riskDescription || '主进程风险闸判定为高危，需人工确认。'}
         </p>
 

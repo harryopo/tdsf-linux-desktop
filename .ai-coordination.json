@@ -2,37 +2,42 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-05T12:30:30.134Z",
+  "lastUpdated": "2026-11-05T13:04:41.043Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
       "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-11-05T12:30:30.134Z",
-      "lastActiveAt": "2026-11-05T12:30:30.134Z",
-      "task": "agent-runtime-uiux-p0",
+      "startedAt": "2026-11-05T12:39:51.012Z",
+      "lastActiveAt": "2026-11-05T13:04:41.043Z",
+      "task": "agent-runtime-uiux-p1",
       "claimedFiles": [
         {
-          "path": "src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
-          "task": "agent-runtime-uiux-p0",
-          "claimedAt": "2026-11-05T12:30:30.134Z"
+          "path": "src/shared/ipc-channels.ts,src/shared/ipc-contract.ts,src/shared/run-types.ts,src/shared/approval-types.ts,src/main/core/agent/run-registry.ts,src/main/ipc/agent-runtime.ts,src/main/core/agent/supervisor.ts,src/main/core/agent/tools/chat-tool-router.ts,src/main/services/skills/skill-router-singleton.ts",
+          "task": "agent-runtime-uiux-p1",
+          "claimedAt": "2026-11-05T12:39:51.012Z"
         },
         {
-          "path": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
-          "task": "agent-runtime-uiux-p0",
-          "claimedAt": "2026-11-05T12:30:30.134Z"
+          "path": "src/renderer/src/stores/agent-store.ts,src/renderer/src/stores/agent-stream-subscription.ts,src/renderer/src/stores/approval-store.ts,src/renderer/src/dock/permission-bar.tsx,src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
+          "task": "agent-runtime-uiux-p1",
+          "claimedAt": "2026-11-05T12:47:28.855Z"
         },
         {
-          "path": "src/renderer/src/components/ai/ConfidenceBreakdown.tsx",
-          "task": "agent-runtime-uiux-p0",
-          "claimedAt": "2026-11-05T12:30:30.134Z"
+          "path": "src/preload/index.ts",
+          "task": "agent-runtime-uiux-p1",
+          "claimedAt": "2026-11-05T12:51:41.560Z"
         },
         {
-          "path": "src/renderer/src/components/ai/ConfidenceBreakdown.css",
-          "task": "agent-runtime-uiux-p0",
-          "claimedAt": "2026-11-05T12:30:30.134Z"
+          "path": "src/shared/ipc-channels.ts",
+          "task": "agent-runtime-uiux-p1",
+          "claimedAt": "2026-11-05T13:04:39.588Z"
+        },
+        {
+          "path": "src/shared/ipc-contract.ts",
+          "task": "agent-runtime-uiux-p1",
+          "claimedAt": "2026-11-05T13:04:41.043Z"
         }
       ],
-      "expiresAt": "2026-11-05T14:30:30.134Z"
+      "expiresAt": "2026-11-05T15:04:41.043Z"
     }
   },
   "history": [
@@ -14602,6 +14607,69 @@
       "file": "src/renderer/src/components/ai/ConfidenceBreakdown.css",
       "task": "agent-runtime-uiux-p0",
       "timestamp": "2026-11-05T12:30:30.134Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
+      "task": "agent-runtime-uiux-p0",
+      "timestamp": "2026-11-05T12:33:03.474Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/workbench/panels/MarkdownMessage.css",
+      "task": "agent-runtime-uiux-p0",
+      "timestamp": "2026-11-05T12:33:03.474Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/ai/ConfidenceBreakdown.tsx",
+      "task": "agent-runtime-uiux-p0",
+      "timestamp": "2026-11-05T12:33:03.474Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "src/renderer/src/components/ai/ConfidenceBreakdown.css",
+      "task": "agent-runtime-uiux-p0",
+      "timestamp": "2026-11-05T12:33:03.474Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts,src/shared/ipc-contract.ts,src/shared/run-types.ts,src/shared/approval-types.ts,src/main/core/agent/run-registry.ts,src/main/ipc/agent-runtime.ts,src/main/core/agent/supervisor.ts,src/main/core/agent/tools/chat-tool-router.ts,src/main/services/skills/skill-router-singleton.ts",
+      "task": "agent-runtime-uiux-p1",
+      "timestamp": "2026-11-05T12:39:51.012Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/stores/agent-store.ts,src/renderer/src/stores/agent-stream-subscription.ts,src/renderer/src/stores/approval-store.ts,src/renderer/src/dock/permission-bar.tsx,src/renderer/src/components/workbench/panels/LiveMessageRow.tsx",
+      "task": "agent-runtime-uiux-p1",
+      "timestamp": "2026-11-05T12:47:28.855Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/preload/index.ts",
+      "task": "agent-runtime-uiux-p1",
+      "timestamp": "2026-11-05T12:51:41.560Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-channels.ts",
+      "task": "agent-runtime-uiux-p1",
+      "timestamp": "2026-11-05T13:04:39.588Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/shared/ipc-contract.ts",
+      "task": "agent-runtime-uiux-p1",
+      "timestamp": "2026-11-05T13:04:41.043Z"
     }
   ],
   "coordinationAudit": {

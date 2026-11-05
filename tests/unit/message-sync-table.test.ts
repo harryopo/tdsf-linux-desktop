@@ -118,6 +118,9 @@ describe('STREAM_EVENT_RULES 与真实推送面对表', () => {
       'agent:error': 'CRITICAL',
       'agent:tool-event': 'SNAPSHOT',
       'agent:paor:iteration': 'SNAPSHOT',
+      // 2026-11-05：Run 六态迁移推送。同一 runId 每次迁移推一份完整快照，
+      // 只有最新那份有意义（旧状态被覆盖就是本意）；终态之后仍要读得到，所以不认会话。
+      'agent:run:state': 'LATEST_ONLY',
       'boot:loading-stage': 'LIFECYCLE',
       'file:changed': 'SNAPSHOT',
       'local-tty:exit': 'LIFECYCLE',

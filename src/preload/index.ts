@@ -161,6 +161,8 @@ const electronApi = {
   onAgentError: on.agentError,
   /** v2.4：Agent 工具调用事件（真实工具执行可视化） */
   onAgentToolEvent: on.agentToolEvent,
+  /** Run 六态迁移推送（2026-11-05）：负载是完整 RunSnapshot，cancelling 只有这条看得见 */
+  onAgentRunState: on.agentRunState,
 
   // v0.9 Claude Agent SDK 流式事件（独立于 Supervisor，避免通道混用）
 

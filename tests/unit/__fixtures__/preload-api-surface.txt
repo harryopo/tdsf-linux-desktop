@@ -74,6 +74,7 @@ onAgentChunk
 onAgentDone
 onAgentError
 onAgentPaorIteration
+onAgentRunState
 onAgentToolEvent
 onBootLoadingStage
 onFileChanged

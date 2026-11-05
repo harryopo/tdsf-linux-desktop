@@ -16,7 +16,7 @@
  */
 
 /** 主对话工具 ID（与 supervisor candidateTools 的键一致） */
-export type ChatToolId = 'ssh_readonly' | 'ssh_write' | 'ssh_journal_follow' | 'sftp_read' | 'kb_search' | 'tutorial_search' | 'memory_recall'
+export type ChatToolId = 'ssh_readonly' | 'ssh_write' | 'ssh_journal_follow' | 'sftp_read' | 'kb_search' | 'tutorial_search' | 'memory_recall' | 'skill_read'
 
 /** 工具目录条目（元数据，不含工具实现本体） */
 export interface ChatToolCatalogEntry {
@@ -123,6 +123,17 @@ export const CHAT_TOOL_CATALOG: ChatToolCatalogEntry[] = [
     promptHint:
       '你有 memory_recall 工具可检索跨会话长期记忆（用户画像/环境事实/错误教训），' +
       '用户提及"上次/之前/记得吗"或需要历史上下文时优先调用；记忆仅作参考，当前指令与真实机器状态优先。',
+  },
+  {
+    id: 'skill_read',
+    label: '读取运维手册',
+    // 本地读文件，不碰远端、不查库：没有外部依赖，换台机器也照样能用
+    requires: null,
+    intent: '手册查阅',
+    intentPatterns: [/手册|指南|文档|教程里|步骤是什么/i],
+    promptHint:
+      '你有 skill_read 工具可读取运维手册正文（本地 Markdown，不走终端）；' +
+      '只允许读本轮系统提示里「手册名录」列出的名字，名录之外的名字会返回错误。',
   },
 ]
 

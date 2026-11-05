@@ -462,6 +462,20 @@ export const IPC_CONTRACT: readonly ChannelContract[] = [  {
   },
   {
     kind: 'event',
+    api: 'onAgentRunState',
+    channel: AGENT.RUN_STATE,
+    doc: 'Run 六态迁移推送：负载为完整 RunSnapshot，含 cancelling 与终态 resolvedBy/settledApprovals',
+    payloadName: 'RunSnapshot',
+    payload: z
+      .object({
+        id: opt(str),
+        state: opt(str),
+        terminal: opt(z.unknown()),
+      })
+      .passthrough(),
+  },
+  {
+    kind: 'event',
     api: 'onAgentDone',
     channel: AGENT.DONE,
     doc: '本轮结束',

@@ -38,6 +38,15 @@ export function toToolResultView(rawOut: unknown): ToolResultView {
     } else if (typeof obj.summary === 'string') {
       // kb_search / tutorial_search / memory_recall 的 summary 就是给人看的那段
       output = obj.summary
+    } else if (
+      typeof obj.name === 'string' &&
+      typeof obj.chars === 'number' &&
+      typeof obj.body === 'string'
+    ) {
+      // skill_read：正文是给模型读的，卡片只留"读了哪本、多大、出处"。
+      // 把整本手册塞进预览，既没人看得完，事件体积也会翻几十倍。
+      const source = typeof obj.source === 'string' ? `，出处 ${obj.source}` : ''
+      output = `${obj.name}｜${obj.chars} 字符${source}`
     } else {
       output = JSON.stringify(rawOut)
     }

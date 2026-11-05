@@ -36,6 +36,7 @@ export type StreamEventName =
   | 'agent:done'
   | 'agent:error'
   | 'agent:paor:iteration'
+  | 'agent:run:state'
   | 'agent:tool-event'
   | 'boot:loading-stage'
   | 'file:changed'
@@ -197,6 +198,14 @@ export const STREAM_EVENT_RULES: Readonly<Record<StreamEventName, StreamEventRul
     note: '一次工具调用的阶段事件（call/output/result 靠 toolCallId 配对），合并会丢阶段；' +
       '#86 起按 correlationId 归属到"它自己那一轮"的回答（done 之后迟到的 result 也要落，' +
       '没人认领才丢），落地前先冲刷在途 chunk，锚点才对得上正文',
+  },
+  'agent:run:state': {
+    class: 'LATEST_ONLY',
+    ownership: false,
+    coalescable: true,
+    note:
+      'Run 六态快照：同一 runId 每迁移一次推一份完整 RunSnapshot，只有最新那份有意义；' +
+      '不认会话归属——cancelling/cancelled 恰恰要在流式结束之后才读得到',
   },
   'agent:paor:iteration': {
     class: 'SNAPSHOT',

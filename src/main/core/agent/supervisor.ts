@@ -126,7 +126,7 @@ import { extractMemories, recordToolFailure } from './memory/memory-extractor'
 // v2.9 语义检索：混合召回（向量+关键词）+ 后台 embedding 回填
 import { recallMemories, backfillMemoryEmbeddings } from './memory/memory-embedding'
 import { TutorialRepository } from '../../services/tutorial/tutorial-repo'
-import { getSkillRouter } from '../../services/skills/skill-router-singleton'
+import { getSkillRouter, getSkillRegistry } from '../../services/skills/skill-router-singleton'
 
 /**
  * 流式 chat 调用参数
@@ -1104,6 +1104,44 @@ class SupervisorAgent {
             }
           },
         }),
+        // 手册正文按需读取（2026-11-05）
+        //
+        // 在此之前手册只有一条路进模型眼前：首条提问命中正则 → 取 matches[0] → 正文内联进
+        // systemPrompt。模型自己没法选第二本，所以界面上的"调用中/成功/失败"根本没有数据源。
+        // 现在它是真工具：模型在生成过程中自己决定读哪本，事件由流式循环统一发
+        // （phase:'call' = 调用中，result ok:true/false = 成功/失败）。
+        //
+        // 不双份注入的做法：被正则预置的那本从名录里剔除（见下方 skillCatalog），
+        // 模型看不到它，就不会再读一遍；这里只可能读到"还没进上下文的手册"。
+        skill_read: tool({
+          description:
+            '读取一本运维手册的正文（本地 Markdown 文件，不执行任何远端命令）。' +
+            '只能读本轮系统提示「手册名录」里列出的名字；不在名录里的名字会直接报错。',
+          inputSchema: z.object({
+            name: z.string().min(1).describe('手册名（名录里的标识，如 diagnose-disk-full）'),
+          }),
+          execute: async ({ name }: { name: string }) => {
+            const registry = await getSkillRegistry()
+            const skill = registry.get(name)
+            if (!skill) {
+              // 查不到就明确失败，不返回空正文：模型必须知道自己没拿到东西，
+              // 用户也要在卡片上看到"这本不存在/未加载"，而不是以为读到了。
+              const loaded = registry
+                .list()
+                .map((s) => s.name)
+                .join('、')
+              throw new Error(`未加载的手册：${name}。本轮可读：${loaded || '（无）'}`)
+            }
+            return {
+              name: skill.name,
+              title: skill.description,
+              chars: skill.content.length,
+              body: skill.content,
+              // 出处给界面用：内置手册在开发态与打包态都叫 <name>.md
+              source: skill.filePath.split(/[/\\]/).pop() ?? `${skill.name}.md`,
+            }
+          },
+        }),
         // 只读 SSH 诊断：有活跃 SSH 会话时才并入（沿用上方 sshTools 定义）
         ...(sshTools ?? {}),
       }
@@ -1245,17 +1283,28 @@ class SupervisorAgent {
                 : {}),
             }
           : undefined
-      // v2.4 P3：Skill 路由（把内置运维手册接进主对话，B 注入式）。
-      // 命中 skill（skill-only/skill-assisted）时，把手册内容注入 system prompt 作权威参考，
-      // 并经 onToolEvent 推送「技能匹配」卡片可视化；不短路、仍走 LLM 流式（低风险）。
+      // 手册（skill）两条通道，边界只在这里定：
+      //   ① 预置：首条提问的正则路由命中 top-1 → 正文内联进 systemPrompt（确定性、零额外往返）
+      //   ② 按需：其余手册只出现在「手册名录」，模型自己决定要不要调 skill_read 读正文
+      //
+      // 为什么不是"纯工具调用"：正则路由是零成本确定性判断，命中时模型第一轮就有依据；
+      // 全改成按需读要多一次往返，且模型可能压根不调——对初学者工具，可靠性优先。
+      // 为什么不是"全量注入"：5 本手册正文合计约 2 万字符，每轮都付这笔钱。
+      // 不双份注入的构造性保证：**被预置的那本从名录里剔除**，模型看不到它，
+      // 也就不存在"读一遍已在上下文里的正文"这条路径。
       let skillInjection = ''
+      let skillCatalog = ''
       try {
+        const skillRegistry = await getSkillRegistry()
+        const allSkills = skillRegistry.list()
+        let preloaded: string | null = null
         if (lastUserText) {
           const skillRoute = (await getSkillRouter()).route(lastUserText)
           if (skillRoute.decision !== 'ai-only' && skillRoute.matches.length > 0) {
             const top = skillRoute.matches[0].skill
             const body = limitToolTextOnly(top.content, PROMPT_SNIPPET_CHAR_LIMIT, '手册内容')
             skillInjection = `\n\n[已匹配运维手册「${top.name}」，请优先依据以下手册组织回答]\n${top.description}\n${body}`
+            preloaded = top.name
             // 可视化：复用工具执行卡片（call + result 同步补全）
             const skillCallId = `skill_${correlationId}`
             onToolEvent?.({ toolCallId: skillCallId, phase: 'call', toolName: 'skill_match', input: top.name })
@@ -1264,9 +1313,41 @@ class SupervisorAgent {
               phase: 'result',
               toolName: 'skill_match',
               ok: true,
-              output: `决策 ${skillRoute.decision} | ${skillRoute.matches[0].reason} | 预计省 ${skillRoute.estimatedTokenSavings} token`,
+              // 口径按事实改：这条路从不短路，正文只是被预置进 systemPrompt。
+              // 旧文案"预计省 N token"里的 N 来自一种从未启用的短路模式，是虚高的。
+              output:
+                `决策 ${skillRoute.decision} | ${skillRoute.matches[0].reason} | ` +
+                `已预置「${top.name}」正文 ${top.content.length} 字符（仍走 LLM，不短路）`,
             })
           }
+        }
+        const rest = allSkills.filter((s) => s.name !== preloaded)
+        if (rest.length > 0) {
+          // 名录是"模型能自主选手册"的必要成本：不给名字，它无从调用。
+          // 只给名字 + 一句话用途（压成单行、截 60 字符），正文一行都不进 prompt。
+          skillCatalog =
+            '\n\n[运维手册名录：只有名字与用途；需要正文时调用 skill_read(name)。' +
+            '名录之外的名字不存在，不要臆造]\n' +
+            rest
+              .map((s) => `- ${s.name}：${s.description.replace(/\s+/g, ' ').trim().slice(0, 60)}`)
+              .join('\n')
+        }
+        if (lastUserText && !preloaded) {
+          // "本轮没有手册适用"也是信息：不命中不等于失败，只是没有预置，模型仍可按需读
+          const missCallId = `skill_miss_${correlationId}`
+          onToolEvent?.({
+            toolCallId: missCallId,
+            phase: 'call',
+            toolName: 'skill_miss',
+            input: '自动路由：正则零匹配',
+          })
+          onToolEvent?.({
+            toolCallId: missCallId,
+            phase: 'result',
+            toolName: 'skill_miss',
+            ok: true,
+            output: `本轮自动路由未命中任何手册（名录 ${allSkills.length} 本，模型可按需调用 skill_read）`,
+          })
         }
       } catch (err) {
         this.log.warn('Skill 路由失败（已跳过，不影响对话）', {
@@ -1310,6 +1391,7 @@ class SupervisorAgent {
         '你是 Linux 运维与教学助手，回答用中文。' +
         toolRoute.promptHints +
         externalMount.promptHint +
+        skillCatalog +
         skillInjection +
         memoryInjection +
         terminalInjection

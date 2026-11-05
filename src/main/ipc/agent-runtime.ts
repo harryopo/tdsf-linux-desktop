@@ -140,6 +140,22 @@ function safeSend(mainWindow: BrowserWindow, channel: string, ...args: unknown[]
 }
 
 /**
+ * 把这一轮 Run 的每次状态迁移推给渲染层（六态，含 `cancelling`）。
+ *
+ * 为什么必须紧贴 begin 调用：`subscribe` 只对"已终态"补发一次终态，
+ * 订得晚了中间的 awaiting_approval / cancelling 就永远收不到。
+ * 首次主动推一次 running，渲染层不必等第一次迁移才有基线。
+ */
+function watchRunState(mainWindow: BrowserWindow, runId: string): void {
+  const push = (): void => {
+    const snapshot = runRegistry.snapshot(runId)
+    if (snapshot) safeSend(mainWindow, AGENT.RUN_STATE, snapshot)
+  }
+  runRegistry.subscribe(runId, push)
+  push()
+}
+
+/**
  * 推送一次高危审批：等待器住在 `core/security/approval-request.ts`（单源）。
  * 这里只负责"要不要问"，超时、死线、挂起表都在那一份里——
  * 外部 MCP 工具调用（`ipc/mcp.ts`）问的是同一把表，两处不许各写一把 60 秒。
@@ -204,6 +220,8 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
         )
       }
       const chatRun = begun.run
+      // 六态推给渲染层：begin 之后立刻订阅，中间态（awaiting_approval / cancelling）才收得到
+      watchRunState(mainWindow, correlationId)
 
       // v0.9.4：注册到 session-registry（sessionId 由 registry 生成，取消时按它查）
       const registry = getSessionRegistry()
@@ -250,6 +268,9 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
                 // 对话里 AI 调写工具没有"计划第几步"这回事；原来两处都写死 stepIndex: 0，
                 // 于是审批卡把这条例外也说成"PAOR 请求批准 — 第 1 步"，两个字段都是假的
                 origin: 'chat',
+                // 让界面知道这张卡属于哪一轮：用户点停止时，主进程会把挂着的审批
+                // 结算成未批准，界面要能说出"是这一轮被停了"，而不是说"超时"
+                runId: correlationId,
                 timestamp: Date.now(),
               })
             } finally {
@@ -563,6 +584,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
       // 两条同时跑会让"停止"和审批卡都指向不确定的那一条。
       const runId = paorRunId(sshSessionId)
       const begun = runRegistry.begin({ id: runId, kind: 'paor', sshSessionId })
+      if (begun.ok) watchRunState(mainWindow, runId)
       if (!begun.ok) {
         logger.warn('IPC.AGENT', 'agent:paor 该会话已有任务在跑，拒绝重复启动', {
           sshSessionId,
@@ -604,6 +626,7 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
                 riskDescription: description,
                 origin: 'paor',
                 stepIndex,
+                runId,
                 timestamp: Date.now(),
               })
             } finally {

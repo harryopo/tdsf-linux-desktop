@@ -2,6 +2,7 @@
 import type { AgentChunkPayload, AgentDonePayload, AgentErrorPayload, AgentToolEventPayload } from '@shared/agent-types'
 import type { ExternalMcpServerStatus, McpStateContext, MonitorData, SftpProgressEvent, SshHostKeyPromptEvent, SshHostKeyResolvedEvent, SshStateEvent, SystemInfo } from '@shared/models'
 import type { PaorIterationEvent } from '@shared/paor-types'
+import type { RunSnapshot } from '@shared/run-types'
 import type { SidecarHealthState } from '@shared/sidecar-types'
 import type { SchedulerTaskStatus } from '@shared/scheduler-types'
 import { AGENT, FILE_WATCH, LOCAL_TTY, MCP, MONITOR, PAOR, SANDBOX, SCHEDULER, SFTP, SIDECAR, SSH, TERMINAL } from '@shared/ipc-channels'
@@ -138,6 +139,15 @@ const on = {
   /** çå¬ Supervisor å·¥å·è°ç¨äºä»¶ï¼v2.4ï¼çå®å·¥å·æ§è¡å¯è§åï¼ */
   agentToolEvent: (callback: (payload: AgentToolEventPayload) => void): (() => void) => {
     return createListener(AGENT.TOOL_EVENT, callback)
+  },
+  /**
+   * 监听 Run 六态迁移（agent:run:state，2026-11-05）
+   *
+   * 负载是完整 `RunSnapshot`。每次状态迁移（含 `cancelling`）都推一份，
+   * 终态里带 `resolvedBy` 与 `settledApprovals`，界面据此说清"是用户点了停止"。
+   */
+  agentRunState: (callback: (snapshot: RunSnapshot) => void): (() => void) => {
+    return createListener(AGENT.RUN_STATE, callback)
   },
 
   /**

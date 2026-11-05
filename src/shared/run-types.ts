@@ -33,6 +33,21 @@ export interface RunTerminal {
   result?: unknown
   failure?: RunFailureReason
   error?: string
+  /**
+   * 谁让这轮走到终态的。
+   *
+   * 只有用户主动停止会落 `cancelled`（`requestCancel` 的唯一调用者就是停止按钮那条 IPC），
+   * 所以 `cancelled` 终态恒带 `'user'`；其余终态没有这个字段——没有取消，就没有"谁取消"。
+   * 不做 `'system'` 这种空枚举：现在没有第二个来源，先别写进去。
+   */
+  resolvedBy?: 'user'
+  /**
+   * 收尾时被主进程强制结算成"未批准"的挂起审批条数。
+   *
+   * 有值（>0）说明这轮结束时桌上还压着审批卡：它们全部按未批准处理，界面必须说清
+   * "是停止带走了它们"，而不是让用户以为点过同意。0 不写，避免多一个恒零字段。
+   */
+  settledApprovals?: number
 }
 
 /** 可跨 IPC 序列化的 Run 快照（AbortController 等不可序列化成员不进快照） */

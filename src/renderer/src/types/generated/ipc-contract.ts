@@ -242,6 +242,10 @@ export interface ContractedEventApi {
    * 通道 `agent:chunk` */
   onAgentChunk(callback: (payload: AgentChunkPayload) => void): () => void
 
+  /** Run 六态迁移推送：负载为完整 RunSnapshot，含 cancelling 与终态 resolvedBy/settledApprovals
+   * 通道 `agent:run:state` */
+  onAgentRunState(callback: (payload: RunSnapshot) => void): () => void
+
   /** 本轮结束
    * 通道 `agent:done` */
   onAgentDone(callback: (payload: AgentDonePayload) => void): () => void

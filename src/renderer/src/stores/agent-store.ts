@@ -36,6 +36,7 @@ import type {
 } from '@shared/agent-types'
 import { emptyTokenStats, LLM_ERROR_CODES } from '@shared/agent-types'
 import type { ChatMessageRecord } from '@shared/chat-types'
+import type { RunSnapshot } from '@shared/run-types'
 import { isElectronAPIAvailable } from '@/utils/electron-api'
 import { estimateTokens, resolveCompactionThresholds } from '@shared/context-budget'
 import { acceptsStream, lastIndexWhere, ownsStream, replaceAt } from '@/lib/messageSync'
@@ -207,6 +208,13 @@ function findToolEventTarget(messages: readonly AgentMessage[], correlationId?: 
 const DEFAULT_TOKEN_STATS: TokenStats = emptyTokenStats()
 
 /**
+ * 留几轮 Run 的状态快照。
+ * 快照很小（id/状态/时间），但长会话会一直推；留 8 轮足够界面回看最近几轮，
+ * 再多就是拿内存存没人会翻的旧状态。
+ */
+const MAX_RUN_SNAPSHOTS = 8
+
+/**
  * 默认成本统计（v0.9.3 §11 改进点 26 P2-F 新增）
  *
  * 与 DEFAULT_TOKEN_STATS 对应，用于 Token 监控面板展示 USD 成本。
@@ -281,6 +289,15 @@ interface AgentState {
   sessionCostBaseline: number | null
   /** 最近一次错误（来自 AgentErrorPayload） */
   lastError: string | null
+  /**
+   * 按 runId 留的最近一份 Run 快照（六态）。
+   *
+   * 为什么不复用 isStreaming：一轮 Run 的中间态（awaiting_approval / cancelling）
+   * 都发生在 isStreaming=true 期间，一个布尔表达不了；而终态一到 isStreaming 立刻变 false，
+   * 那时再想知道"它是被停掉的、还是自己失败的"已经没地方读了。
+   * 界面按 message.correlationId 在这张表里查自己那一轮。
+   */
+  runSnapshots: Record<string, RunSnapshot>
 
   // ===== Actions =====
   /** 添加消息 */
@@ -291,6 +308,12 @@ interface AgentState {
   finalizeMessage: (payload: AgentDonePayload) => void
   /** 标记错误 */
   markError: (payload: AgentErrorPayload) => void
+  /**
+   * 收下一份 Run 六态快照（agent:run:state 推送）。
+   * 只记状态，不改消息：消息的收尾仍由 done/error 与 applyRunTerminal 负责，
+   * 两条链路各说各的，不在状态推送里重复造终态。
+   */
+  applyRunState: (snapshot: RunSnapshot) => void
   /**
    * 应用"补发来的终态"（2026-11-04，窗口重建/订阅晚到）
    *
@@ -522,6 +545,7 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
   sessionCostBaseline: null,
   lastError: null,
   historyError: null,
+  runSnapshots: {},
 
   // ===== Actions =====
 
@@ -678,6 +702,18 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
       cancelStreamPersist(failed.id)
       if (messages) persistMessage(failed)
       return { ...(messages ? { messages } : {}), ...base, lastError: payload.message }
+    }),
+
+  // Run 六态快照（2026-11-05）：按 runId 留最近一份，超出上限按插入序丢最旧的
+  applyRunState: (snapshot) =>
+    set((state) => {
+      if (!snapshot.id) return state
+      const next: Record<string, RunSnapshot> = { ...state.runSnapshots, [snapshot.id]: snapshot }
+      const ids = Object.keys(next)
+      if (ids.length > MAX_RUN_SNAPSHOTS) {
+        for (const id of ids.slice(0, ids.length - MAX_RUN_SNAPSHOTS)) delete next[id]
+      }
+      return { runSnapshots: next }
     }),
 
   // 补发来的终态（2026-11-04）：认领规则与 finalizeMessage / markError 一致

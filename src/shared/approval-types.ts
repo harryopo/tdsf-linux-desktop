@@ -99,4 +99,12 @@ export interface PaorApprovalRequest {
    * #170：审批订阅从面板生命周期里提到全局之后，这条成了"卡片何时作废"的唯一依据。
    */
   expiresAt: number
+  /**
+   * 发起这张审批的那个 Run（`run-registry` 的 id）。
+   *
+   * 加它只为一件事：用户点停止时，主进程会把这条审批结算成"未批准"，
+   * 界面得知道**是这一轮被停了**才作废的，而不是"审批超时"。
+   * 不带 runId 的调用方（外部 MCP、沙箱）保持 undefined，界面就照旧只说超时。
+   */
+  runId?: string
 }

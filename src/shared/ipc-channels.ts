@@ -63,6 +63,14 @@ export const AGENT = {
    * 同一 consumerId 对同一条终态只领一次；非终态返回当前快照但不算领取。
    */
   RUN_SNAPSHOT: 'agent:run:snapshot',
+  /**
+   * Run 六态迁移推送（push: 主 → 渲染，2026-11-05）
+   *
+   * 负载是完整的 `RunSnapshot`（含 terminal）。每次状态迁移推一份，渲染层按 runId
+   * 维护自己那份状态——不再用 `isStreaming` 这个单值去猜"这轮到底在干嘛"。
+   * `cancelling` 只有走这条通道才看得见：它在等被中断方确认停止，不是终态。
+   */
+  RUN_STATE: 'agent:run:state',
   /** Supervisor 流式 token 块推送（push: 主 → 渲染，v0.9） */
   CHUNK: 'agent:chunk',
   /** Supervisor chat 完成信号推送（push: 主 → 渲染，v0.9） */

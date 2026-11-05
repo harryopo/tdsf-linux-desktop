@@ -50,6 +50,14 @@ export interface Run {
   outcome?: RunTerminal
   /** 这轮 Run 正在等待的审批请求 id（审批挂起表的收敛点，取消时统一 settle） */
   readonly pendingApprovals: Set<string>
+  /**
+   * 这一轮里已被强制结算成"未批准"的审批条数（取消那次 + 收尾那次）。
+   *
+   * 为什么不直接从 pendingApprovals 大小算：requestCancel 会先把它们结算并 clear，
+   * 等 confirmCancel 真正落终态时集合已经空了——计数必须在结算发生的那一刻记下来，
+   * 否则终态里永远是 0，界面就会漏掉"这次停止带走了 2 张审批卡"这句最重要的话。
+   */
+  settledApprovals: number
 }
 
 export interface BeginInput {
@@ -132,6 +140,7 @@ export class RunRegistry {
       controller: new AbortController(),
       state: 'running',
       pendingApprovals: new Set<string>(),
+      settledApprovals: 0,
       ...(input.sshSessionId ? { sshSessionId: input.sshSessionId } : {}),
     }
     this.runs.set(run.id, run)
@@ -150,12 +159,20 @@ export class RunRegistry {
     if (!run || isTerminal(run.state)) return false
 
     const outcome: RunTerminal = input.ok
-      ? { state: 'completed', ok: true, ...(input.result !== undefined ? { result: input.result } : {}) }
+      ? {
+          state: 'completed',
+          ok: true,
+          ...(input.result !== undefined ? { result: input.result } : {}),
+          ...this.settledNote(run),
+        }
       : {
           state: input.failure === 'aborted_by_user' ? 'cancelled' : 'failed',
           ok: false,
           failure: input.failure ?? 'unknown',
           ...(input.error !== undefined ? { error: input.error } : {}),
+          // 只有停止按钮能走到 aborted_by_user，所以这里写死 'user'：没有第二个来源可编。
+          ...(input.failure === 'aborted_by_user' ? { resolvedBy: 'user' as const } : {}),
+          ...this.settledNote(run),
         }
 
     this.persist?.(run, outcome)
@@ -176,7 +193,9 @@ export class RunRegistry {
     this.emit(run, { type: 'state', state: 'cancelling' })
     // 先把挂着的审批结算掉（等待方立刻返回 false），再 abort——否则 Run 要等审批超时才收尾
     for (const approvalId of [...run.pendingApprovals]) {
-      this.onSettleApproval?.(approvalId)
+      if (!this.onSettleApproval) continue
+      this.onSettleApproval(approvalId)
+      run.settledApprovals += 1
     }
     run.pendingApprovals.clear()
     run.controller.abort()
@@ -287,6 +306,18 @@ export class RunRegistry {
       if (!isTerminal(run.state)) out.push(run)
     }
     return out
+  }
+
+  /**
+   * 终态里"这轮被强制结算的审批条数"。
+   *
+   * 两部分相加：requestCancel 当时结算的那批（已在 settledApprovals 里记账），
+   * 加上此刻仍挂着、马上就要被 settleTerminal 结算的这批。
+   * 必须在 persist 之前算——settleTerminal 会把 pendingApprovals 清空。
+   */
+  private settledNote(run: Run): { settledApprovals?: number } {
+    const total = run.settledApprovals + run.pendingApprovals.size
+    return total > 0 ? { settledApprovals: total } : {}
   }
 
   private settleTerminal(run: Run, outcome: RunTerminal): void {

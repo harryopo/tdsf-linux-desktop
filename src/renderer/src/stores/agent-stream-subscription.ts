@@ -211,6 +211,18 @@ export function initAgentStreamSubscription(): void {
     })
   })
 
+  // Run 六态迁移（2026-11-05）：这条推送覆盖整条生命周期。
+  // chunk/done 只讲"文本到哪了"，而 awaiting_approval 与 cancelling 两个中间态
+  // 在同一个 isStreaming=true 里发生——只有这条通道能把它们分开。
+  window.electronAPI.onAgentRunState?.((snapshot) => {
+    useAgentStore.getState().applyRunState(snapshot)
+    // 停止那一轮：主进程会把还挂着的审批一并结算成"未批准"（run-registry.settleTerminal），
+    // 这里同步把卡片改成同一说法，避免用户以为它还在等他回答、点了没反应。
+    if (snapshot.state === 'cancelling' || snapshot.state === 'cancelled') {
+      useApprovalStore.getState().markRunSettled(snapshot.id)
+    }
+  })
+
   // 监控数据全局订阅（P0 修复：监控页未挂载时也不丢推送）
   // 用户在工作台连接服务器后 monitor:data 即开始推送，无论是否已切到监控页，
   // 数据都直接落入 monitor-store，监控页挂载时直接读取历史。

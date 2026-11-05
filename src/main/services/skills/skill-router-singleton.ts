@@ -25,7 +25,10 @@ import { logger } from '../log/logger'
 
 const log = logger.child('SKILL.ROUTER')
 
-/** 已就绪的路由器（缓存 Promise，全进程只加载一次） */
+/** 已加载的注册表（缓存 Promise，全进程只加载一次） */
+let registryPromise: Promise<SkillRegistry> | null = null
+
+/** 已就绪的路由器（由同一个注册表派生，避免加载两遍） */
 let routerPromise: Promise<SkillRouter> | null = null
 
 /**
@@ -60,13 +63,14 @@ function resolveBuiltinDir(): string {
 }
 
 /**
- * 获取 Skill 路由器（懒加载 + 缓存）
+ * 获取已加载的 Skill 注册表（懒加载 + 缓存）
  *
- * @returns 已注册内置 skill 的 SkillRouter；加载失败时注册表为空（route 恒返回 ai-only）
+ * 单独暴露的理由：`skill_read` 工具要按名字取正文，systemPrompt 要列手册名录，
+ * 两者都需要注册表本体；只暴露路由器的话这两件事都做不到。
  */
-export function getSkillRouter(): Promise<SkillRouter> {
-  if (!routerPromise) {
-    routerPromise = (async () => {
+export function getSkillRegistry(): Promise<SkillRegistry> {
+  if (!registryPromise) {
+    registryPromise = (async () => {
       const registry = new SkillRegistry()
       try {
         const dir = resolveBuiltinDir()
@@ -78,8 +82,20 @@ export function getSkillRouter(): Promise<SkillRouter> {
           error: err instanceof Error ? err.message : String(err),
         })
       }
-      return new SkillRouter(registry)
+      return registry
     })()
+  }
+  return registryPromise
+}
+
+/**
+ * 获取 Skill 路由器（懒加载 + 缓存）
+ *
+ * @returns 已注册内置 skill 的 SkillRouter；加载失败时注册表为空（route 恒返回 ai-only）
+ */
+export function getSkillRouter(): Promise<SkillRouter> {
+  if (!routerPromise) {
+    routerPromise = getSkillRegistry().then((registry) => new SkillRouter(registry))
   }
   return routerPromise
 }

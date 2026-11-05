@@ -11,6 +11,8 @@ import {
   X,
 } from 'lucide-react'
 import type { AgentMessage, AgentToolCall } from '@/stores/agent-store'
+import { useAgentStore } from '@/stores/agent-store'
+import type { RunState } from '@shared/run-types'
 import { Collapse } from '@/ui'
 import { MarkdownMessage } from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
@@ -33,6 +35,23 @@ import './MarkdownMessage.css'
  * 主进程每加一个工具就要在三处跟着改，漏一处界面上就是英文原名
  * （`monitor_get` 那一条连名字都是错的，真名 monitor_get_data，从没命中过）。
  */
+
+/**
+ * 六态在界面上的说法。
+ *
+ * 六个态都有落点，但不是六个都画一块牌子：running 由流式光标表达、
+ * completed 由正常收尾（用量行）表达——再挂一块"已完成"只是重复。
+ * 真正需要牌子的只有四种用户会停下来问"它到底在干嘛"的态：
+ * awaiting_approval（在等我答）/ cancelling（我在停）/ failed（坏了）/ cancelled（停了）。
+ */
+const RUN_STATE_LABELS: Record<RunState, string> = {
+  running: '运行中',
+  awaiting_approval: '等待你的审批',
+  cancelling: '正在停止',
+  completed: '已完成',
+  failed: '失败',
+  cancelled: '已停止',
+}
 
 /**
  * 复制到剪贴板的小按钮（命令输出 / 工具结果都用得上）。
@@ -206,6 +225,18 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
   // v2.5 深度思考折叠态：null=跟随默认（流式中展开、完成后收起），用户点击后固定
   const [reasoningOpen, setReasoningOpen] = useState<boolean | null>(null)
   const reasoningExpanded = reasoningOpen ?? message.isStreaming === true
+
+  /**
+   * 这一轮 Run 的六态（agent:run:state → agent-store.runSnapshots）。
+   *
+   * 为什么按 correlationId 单独查而不是看全局 isStreaming：
+   * awaiting_approval 与 cancelling 都发生在 isStreaming=true 期间，
+   * 一个布尔说不出"在等我答"和"我在停"的区别；而终态一到 isStreaming 就变 false，
+   * 那时也再没有地方知道"它是被停的、还是自己失败的"。
+   */
+  const runSnapshot = useAgentStore((s) =>
+    message.correlationId ? s.runSnapshots[message.correlationId] : undefined,
+  )
 
   // v2.5 检索类工具卡折叠态（按 toolCallId）：未点击时跟随默认（执行中展开、完成收起）
   const [toolOpenMap, setToolOpenMap] = useState<Record<string, boolean>>({})
@@ -796,13 +827,32 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         <ChatCredibility message={message} />
       )}
       {renderCommandButtons()}
+      {/* 六态里只有这两个需要新牌子：awaiting_approval（在跑，但卡在等用户答）
+          与 cancelling（在跑，但已经发出取消、还没收尾）。两者都发生在
+          isStreaming=true 期间，以前整个界面在这段时间里只有一句"思考中…"。 */}
+      {message.isStreaming &&
+        runSnapshot &&
+        (runSnapshot.state === 'awaiting_approval' || runSnapshot.state === 'cancelling') && (
+          <div
+            className="ai-token-row text-caption text-ink-mute"
+            data-dom-id="message-run-state"
+          >
+            {RUN_STATE_LABELS[runSnapshot.state]}
+          </div>
+        )}
       {/*
        * 被用户"停止"的回答要说在半截处停住了（调研 P0-2）。
        * 以前这里什么都没有：内容停在半句、流动态关掉，与"模型说完了"长得一模一样。
+       * 现在再说清两件事：是谁让它停的（resolvedBy），以及它顺手把几张审批按未批准结算了。
        */}
       {message.cancelled && !message.isStreaming && (
         <div className="ai-token-row text-caption text-ink-mute" data-dom-id="message-cancelled">
-          已停止 · 上面是中断处的半截回答，模型没有说到完
+          {runSnapshot?.terminal?.resolvedBy === 'user'
+            ? '已停止（你点了停止）· 上面是中断处的半截回答，模型没有说到完'
+            : '已停止 · 上面是中断处的半截回答，模型没有说到完'}
+          {(runSnapshot?.terminal?.settledApprovals ?? 0) > 0
+            ? ` · 本轮挂起的 ${runSnapshot?.terminal?.settledApprovals} 张审批已按"未批准"处理，一条都没有执行`
+            : ''}
         </div>
       )}
       {(message.usage || message.model) && !message.isStreaming && (

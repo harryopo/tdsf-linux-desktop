@@ -31,8 +31,10 @@ export type ToolKind =
   | 'file'
   /** 知识库 / 教程检索 */
   | 'knowledge'
-  /** 技能包匹配 */
+  /** 技能包匹配（自动路由命中，不是模型主动读） */
   | 'skill'
+  /** 模型主动读手册正文（skill_read：真读了本地文件，与"匹配"是两回事） */
+  | 'manual'
   /** 长期记忆召回 */
   | 'memory'
   /** 监控指标读数 */
@@ -65,6 +67,8 @@ const KNOWN_TOOLS: Record<string, ToolIdentity> = {
   kb_search: { kind: 'knowledge', label: '检索知识库', icon: Layers },
   tutorial_search: { kind: 'knowledge', label: '检索教程', icon: BookOpen },
   skill_match: { kind: 'skill', label: '匹配技能', icon: Wrench },
+  skill_read: { kind: 'manual', label: '读取运维手册', icon: BookOpen },
+  skill_miss: { kind: 'route', label: '手册自动路由', icon: Cpu },
   memory_recall: { kind: 'memory', label: '回忆长期记忆', icon: Sparkles },
   // 下面三条是**历史行**的显示兜底：这几个名字来自已整删的入站 MCP 工具表（#281），
   // 新对话再不会出现，但库里过去落过的工具事件还要能读出当时那句话，不许退化成空白卡。
@@ -83,6 +87,7 @@ export const TOOL_KIND_LABELS: Record<ToolKind, string> = {
   file: '文件',
   knowledge: '知识库',
   skill: '技能',
+  manual: '手册',
   memory: '记忆',
   metric: '监控',
   mcp: 'MCP',
@@ -101,6 +106,8 @@ export const TOOL_KIND_RUNNING_LABELS: Record<ToolKind, string> = {
   file: '读取中…',
   knowledge: '检索中…',
   skill: '匹配中…',
+  // skill_read 真在读本地文件：说"读取中"而不是"匹配中"，后者会让人以为又在选手册
+  manual: '读取中…',
   memory: '回忆中…',
   metric: '采集中…',
   mcp: '调用中…',
@@ -119,6 +126,7 @@ export const TOOL_KIND_INPUT_LABELS: Record<ToolKind, string> = {
   file: '路径',
   knowledge: '查询',
   skill: '手册',
+  manual: '手册名',
   memory: '回忆关键词',
   metric: '采集对象',
   mcp: '入参',

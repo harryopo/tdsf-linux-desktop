@@ -16,16 +16,17 @@ import {
 const ALL = { ssh: true, db: true }
 
 describe('chat-tool-router 意图路由', () => {
-  it('目录包含 7 个工具且 id 唯一', () => {
+  it('目录包含 8 个工具且 id 唯一', () => {
     // v2.9：新增 ssh_write / ssh_journal_follow / sftp_read，目录 4 → 7
-    expect(CHAT_TOOL_CATALOG).toHaveLength(7)
+    // 2026-11-05：新增 skill_read（模型自主读手册），7 → 8
+    expect(CHAT_TOOL_CATALOG).toHaveLength(8)
     const ids = CHAT_TOOL_CATALOG.map((e) => e.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
 
   it('系统诊断意图 → 仍挂全部可用工具（模型按需调用）', () => {
     const r = routeChatTools('帮我看下磁盘使用率和内存占用', ALL)
-    expect(r.mounted).toHaveLength(7)
+    expect(r.mounted).toHaveLength(8)
     expect(r.mounted).toContain('ssh_readonly')
     expect(r.intents).toContain('系统诊断/状态查询')
     expect(r.fallbackAll).toBe(false)
@@ -34,7 +35,7 @@ describe('chat-tool-router 意图路由', () => {
   it('学习/配置意图 → 挂 tutorial_search 且不隐藏其它工具', () => {
     const r = routeChatTools('给我找个 nginx 反向代理怎么配置的教程', ALL)
     expect(r.mounted).toContain('tutorial_search')
-    expect(r.mounted).toHaveLength(7)
+    expect(r.mounted).toHaveLength(8)
     expect(r.fallbackAll).toBe(false)
   })
 
@@ -46,20 +47,20 @@ describe('chat-tool-router 意图路由', () => {
   it('多意图同时命中 → 工具集合仍是全部', () => {
     const r = routeChatTools('查看 nginx 服务状态，顺便找找以前类似案例', ALL)
     expect(r.mounted).toEqual(expect.arrayContaining(['ssh_readonly', 'kb_search']))
-    expect(r.mounted).toHaveLength(7)
+    expect(r.mounted).toHaveLength(8)
   })
 
   it('无明确意图 → 兜底全量挂载', () => {
     const r = routeChatTools('你好，介绍一下自己', ALL)
     expect(r.fallbackAll).toBe(true)
-    expect(r.mounted).toHaveLength(7)
+    expect(r.mounted).toHaveLength(8)
     expect(r.reason).toContain('未识别到明确意图')
   })
 
   it('空消息 → 兜底全量挂载', () => {
     const r = routeChatTools('', ALL)
     expect(r.fallbackAll).toBe(true)
-    expect(r.mounted).toHaveLength(7)
+    expect(r.mounted).toHaveLength(8)
   })
 
   it('SSH 未连接 → SSH 类工具不挂载并记入 unavailable', () => {
@@ -71,8 +72,8 @@ describe('chat-tool-router 意图路由', () => {
       expect.objectContaining({ id: 'ssh_journal_follow', missing: 'SSH 未连接' }),
       expect.objectContaining({ id: 'sftp_read', missing: 'SSH 未连接' }),
     ])
-    // 只挂剩下的 db 类工具
-    expect(r.mounted).toEqual(['kb_search', 'tutorial_search', 'memory_recall'])
+    // 只挂剩下不依赖 SSH 的工具
+    expect(r.mounted).toEqual(['kb_search', 'tutorial_search', 'memory_recall', 'skill_read'])
   })
 
   it('promptHints 覆盖全部可用工具（不再随意图裁剪）', () => {
