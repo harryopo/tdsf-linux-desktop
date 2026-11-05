@@ -320,8 +320,50 @@
 .ai-tool-search-query {
   margin-bottom: var(--ui-space-1);
   font-family: var(--ui-family-code);
-  font-size: var(--ui-font-micro);
+  /* 展开内容与过程组头同为 sm(13px)；原来这里是 micro(11px)，比组头还小，
+     读起来像注脚而不是这一层的正文。 */
+  font-size: var(--ui-font-sm);
   color: var(--text-muted);
+}
+/* 装配卡三组的横向排布：小标题 + 一组条目，条目多了就换行，不做三张卡 */
+.ai-route-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  margin-top: var(--ui-space-1);
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-lh-normal);
+  color: var(--text-muted);
+}
+.ai-route-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2);
+}
+.ai-route-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.ai-route-item {
+  color: var(--text-muted);
+}
+.ai-route-item.is-used {
+  color: var(--status-success-text);
+}
+/* 缺条件是预期状态，不是故障：用 warning，不用 error */
+.ai-route-item.is-unavailable {
+  color: var(--status-warning-text);
+}
+.ai-route-id {
+  margin-left: 2px;
+  color: var(--text-tertiary);
+  font-family: var(--ui-family-code);
+  font-size: var(--ui-font-caption);
+}
+.ai-route-empty {
+  color: var(--text-tertiary);
 }
 /* 入参一行的三段：标签 / 普通文本 / 结构化串（MCP 的 JSON 入参要按代码排） */
 .ai-tool-io-label {

@@ -140,6 +140,13 @@ export interface ChatToolRoute {
   mounted: ChatToolId[]
   /** 命中的意图名列表（空 = 未识别到明确意图） */
   intents: string[]
+  /**
+   * 路由依据（只含判定结论，不含"挂载了哪些"的结果句）。
+   *
+   * 装配卡片的「判断依据」行必须读这个字段，而不是把用户提问原文当依据：
+   * 前者是系统规则真给出的理由，后者只是这次输入。
+   */
+  basis: string
   /** 人类可读的路由理由（装配卡片展示） */
   reason: string
   /** 是否走了"无明确意图 → 全量挂载"兜底 */
@@ -203,6 +210,7 @@ export function routeChatTools(
   return {
     mounted: available.map((e) => e.id),
     intents: matched.map((e) => e.intent),
+    basis: intentNote,
     reason,
     fallbackAll,
     promptHints: available.map((e) => e.promptHint).join(''),

@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import type { AgentMessage, AgentToolCall } from '@/stores/agent-store'
+import { Collapse } from '@/ui'
 import { MarkdownMessage } from './MarkdownMessage'
 import ChatCredibility from './ChatCredibility'
 import {
@@ -326,15 +327,32 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
     // 以前在这里用正则数摘要文本的 "1. 2. 3." 行，于是技能匹配、工具装配
     // 这些输出不是编号列表的卡片全被判成"无结果"——界面在说没发生过的事。
     const knownCount = evt.done && evt.ok && typeof evt.count === 'number' ? evt.count : null
+    // 工具装配卡：三组数字全部来自主进程的结构化 meta（真工具表投影）。
+    // 没有 meta 的历史消息走原有的 output 文本回退分支。
+    const routeMeta = evt.meta?.route
+    const routeUsed = routeMeta
+      ? routeMeta.mounted
+          .map((m) => ({ ...m, n: toolUsage.get(m.id) ?? 0 }))
+          .filter((m) => m.n > 0)
+      : []
+    const routeSummary = routeMeta
+      ? `已挂载 ${routeMeta.mounted.length} · 缺条件 ${routeMeta.unavailable.length}` +
+        (routeUsed.length > 0 ? ` · 已用 ${routeUsed.length}` : '')
+      : null
+    // route 类（装配 / 思考强度）恒有结果，"完成"两个字不含任何信息量；
+    // 有结构化摘要就显示摘要，没有就索性不挂徽标（也不凭空造"未使用"）。
     const badge = !evt.done
       ? TOOL_KIND_RUNNING_LABELS[identity.kind]
       : !evt.ok
         ? '失败'
-        : knownCount === null
-          ? '完成'
-          : knownCount > 0
-            ? `${knownCount} 条结果`
-            : '无结果'
+        : routeSummary ??
+          (identity.kind === 'route'
+            ? ''
+            : knownCount === null
+              ? '完成'
+              : knownCount > 0
+                ? `${knownCount} 条结果`
+                : '无结果')
     return (
       <div key={evt.toolCallId} className="ai-tool-search">
         <button
@@ -367,11 +385,12 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
           />
         </button>
-        {expanded && (
-          <div className="ai-tool-search-body">
+        <Collapse open={expanded}>
+          <div className="ai-tool-search-body" aria-hidden={!expanded} inert={!expanded}>
             {evt.input && (
               <div className="ai-tool-search-query">
                 <span className="ai-tool-io-label">{TOOL_KIND_INPUT_LABELS[identity.kind]}：</span>
+                {routeMeta && <span className="ai-tool-io-label">系统规则</span>}
                 {isStructuredInput(evt.input) ? (
                   <code className="ai-tool-io-code">{evt.input}</code>
                 ) : (
@@ -379,17 +398,89 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                 )}
               </div>
             )}
-            {evt.done && evt.output && (
-              <div className={`ai-tool-search-output ${evt.ok ? '' : 'is-error'}`}>
-                {evt.output}
+            {routeMeta ? (
+              <div className="ai-route-facts">
+                <div className="ai-route-section">
+                  <span className="ai-tool-io-label">已挂载</span>
+                  <span className="ai-route-items">
+                    {routeMeta.mounted.length > 0 ? (
+                      routeMeta.mounted.map((m) => (
+                        <span key={m.id} className="ai-route-item">
+                          {m.label}
+                          <span className="ai-route-id">({m.id})</span>
+                        </span>
+                      ))
+                    ) : (
+                      <span className="ai-route-empty">（无）</span>
+                    )}
+                  </span>
+                </div>
+                {routeMeta.external && (
+                  <div className="ai-route-section">
+                    <span className="ai-tool-io-label">外部 MCP</span>
+                    <span className="ai-route-items">
+                      <span className="ai-route-item">
+                        {routeMeta.external.count} 个（来自 {routeMeta.external.servers.join('、')}）
+                        {routeMeta.external.skipped > 0
+                          ? `，另有 ${routeMeta.external.skipped} 个超出上限本轮未挂`
+                          : ''}
+                      </span>
+                    </span>
+                  </div>
+                )}
+                {routeMeta.unavailable.length > 0 && (
+                  <div className="ai-route-section">
+                    <span className="ai-tool-io-label">缺条件</span>
+                    <span className="ai-route-items">
+                      {routeMeta.unavailable.map((u) => (
+                        <span key={u.id} className="ai-route-item is-unavailable">
+                          {u.label}（{u.missing}）
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
+                {routeUsed.length > 0 && (
+                  <div className="ai-route-section">
+                    <span className="ai-tool-io-label">本轮使用</span>
+                    <span className="ai-route-items">
+                      {routeUsed.map((m) => (
+                        <span key={m.id} className="ai-route-item is-used">
+                          {m.label}（{m.n} 次）
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
+            ) : (
+              evt.done &&
+              evt.output && (
+                <div className={`ai-tool-search-output ${evt.ok ? '' : 'is-error'}`}>{evt.output}</div>
+              )
             )}
-            {evt.done && evt.output && <CopyChip text={evt.output} />}
+            {!routeMeta && evt.done && evt.output && <CopyChip text={evt.output} />}
           </div>
-        )}
+        </Collapse>
       </div>
     )
   }
+
+  /**
+   * 本轮真实调用过哪些工具（按工具名计数）。
+   *
+   * 装配卡的「本轮使用」段就靠它和 meta.mounted 求差——
+   * 这是事件流里真实发生过的调用，不是渲染层猜的"未使用"。
+   */
+  const toolUsage = useMemo(() => {
+    const usage = new Map<string, number>()
+    for (const evt of message.toolEvents ?? []) {
+      if (evt.toolName === 'tool_route' || evt.toolName === 'thinking_route' || evt.toolName === 'skill_match')
+        continue
+      usage.set(evt.toolName, (usage.get(evt.toolName) ?? 0) + 1)
+    }
+    return usage
+  }, [message.toolEvents])
 
   /**
    * v2.8 穿插分片：按 anchorOffset 把正文切成段，工具卡插在它真实发生的位置
@@ -488,9 +579,11 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             className={`ml-auto size-3 text-ink-mute transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
           />
         </button>
-        {expanded && (
-          <div className="ai-process-body">{folded.map((evt) => renderToolCard(evt))}</div>
-        )}
+        <Collapse open={expanded}>
+          <div className="ai-process-body" aria-hidden={!expanded} inert={!expanded}>
+            {folded.map((evt) => renderToolCard(evt))}
+          </div>
+        </Collapse>
       </div>
     )
   }

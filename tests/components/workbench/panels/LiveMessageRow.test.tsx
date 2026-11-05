@@ -156,15 +156,22 @@ describe('LiveMessageRow — assistant 消息', () => {
     // 第②笔：跑完的检索步骤不再各占一行，收成"过程 · N 步"一行
     expect(screen.getByRole('button', { name: /过程/ })).toBeInTheDocument()
     expect(screen.getByText('1 步')).toBeInTheDocument()
-    expect(screen.queryByText('检索知识库'), '跑完了还摊在正文里＝没折').toBeNull()
+    // 折进过程行：过程体改用 Collapse 后 DOM 常驻，收起态以 aria-hidden 表达"不在屏上"
+    // （原来这里是条件挂载，改 Collapse 后不能再断言 toBeNull）
+    expect(
+      screen.getByText('检索知识库').closest('.ai-process-body'),
+      '跑完了还摊在正文里＝没折'
+    ).toHaveAttribute('aria-hidden', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: /过程/ }))
     // 折叠行：中文名 + 条数徽章；不得出现终端 $ 提示符
     expect(screen.getByText('检索知识库')).toBeInTheDocument()
     expect(screen.getByText('2 条结果')).toBeInTheDocument()
     expect(screen.queryByText('$')).toBeNull()
-    // 步骤自己那一层仍然默认收起：结果不可见
-    expect(screen.queryByText(/KB-021/)).toBeNull()
+    // 步骤自己那一层仍然默认收起：结果区 aria-hidden=true（Collapse 常驻 DOM，高度收成 0）
+    expect(
+      screen.getByText(/KB-021/).closest('.ai-tool-search-body')
+    ).toHaveAttribute('aria-hidden', 'true')
     // 再展开这一层才见查询与结果
     fireEvent.click(screen.getByRole('button', { name: /检索知识库/ }))
     expect(screen.getByText(/查询/)).toBeInTheDocument()
@@ -324,6 +331,49 @@ describe('LiveMessageRow — assistant 消息', () => {
       )
       expect(screen.getByRole('button', { name: /过程/ }).textContent).not.toMatch(/\d+\s*(s|秒|ms)/)
     })
+  })
+
+  it('7.6 装配卡按结构化 meta 投影三组：已挂载/缺条件来自主进程，"本轮使用"来自真实调用', () => {
+    render(
+      <LiveMessageRow
+        message={makeAssistant({
+          content: '结论在下面。',
+          toolEvents: [
+            {
+              toolCallId: 'tr',
+              toolName: 'tool_route',
+              // 依据是规则结论，不是用户提问原文
+              input: '未识别到明确意图',
+              done: true,
+              ok: true,
+              output: '旧的拼接文本',
+              meta: {
+                route: {
+                  mounted: [
+                    { id: 'kb_search', label: '检索知识库' },
+                    { id: 'tutorial_search', label: '检索教程' },
+                  ],
+                  unavailable: [{ id: 'ssh_readonly', label: '只读诊断命令', missing: 'SSH 未连接' }],
+                  intents: [],
+                  fallbackAll: true,
+                },
+              },
+            },
+            { toolCallId: 'kb1', toolName: 'kb_search', input: '磁盘', done: true, ok: true, count: 1, output: 'KB-1' },
+          ],
+        })}
+      />
+    )
+    // 收起态徽标是真实摘要，不再是恒定的"完成"
+    expect(screen.getByText(/已挂载 2 · 缺条件 1 · 已用 1/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /过程/ }))
+    fireEvent.click(screen.getByRole('button', { name: /工具装配/ }))
+    expect(screen.getByText('系统规则')).toBeInTheDocument()
+    expect(screen.getByText('未识别到明确意图')).toBeInTheDocument()
+    expect(screen.getByText('已挂载')).toBeInTheDocument()
+    expect(screen.getByText(/只读诊断命令（SSH 未连接）/)).toBeInTheDocument()
+    // 本轮使用是事件流里真实发生的调用，不是猜的"未使用"
+    expect(screen.getByText('检索知识库（1 次）')).toBeInTheDocument()
   })
 
   it('8. 底部导航按钮触发 onNavigate', () => {

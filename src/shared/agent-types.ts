@@ -456,6 +456,30 @@ export interface ChatResult {
 }
 
 /**
+ * 工具装配事件的结构化投影（tool_route 的 result 阶段）
+ *
+ * 卡片上的「已挂载 / 缺条件 / 本轮使用」必须从这里取，不许渲染层解析 output 文本。
+ * mounted 的判定来自主进程真实 tools 对象（不是目录常量）。
+ */
+export interface AgentToolRouteMeta {
+  /** 本轮真实挂进 tools 对象的工具（id + 展示名） */
+  mounted: Array<{ id: string; label: string }>
+  /** 因缺条件未挂载的工具，missing 写明缺什么（如「SSH 未连接」「数据库不可用」） */
+  unavailable: Array<{ id: string; label: string; missing: string }>
+  /** 命中的意图名（空数组 = 未识别到明确意图） */
+  intents: string[]
+  /** 是否走了「无明确意图 → 全量挂载」兜底 */
+  fallbackAll: boolean
+  /** 外部 MCP 工具挂载摘要（未挂外部工具时缺省） */
+  external?: { count: number; servers: string[]; skipped: number }
+}
+
+/** 决策类工具事件（tool_route / thinking_route）的结构化附加字段 */
+export interface AgentToolEventMeta {
+  route?: AgentToolRouteMeta
+}
+
+/**
  * agent:tool-event 推送载荷（工具调用实时可视化，v2.4 新增）
  *
  * 背景：主对话 Agent 真实会调用工具（如 ssh_readonly 执行诊断命令），
@@ -482,6 +506,8 @@ export interface AgentToolEventPayload {
   ok?: boolean
   /** 输出（output 阶段为增量块；result 阶段为摘要，已截断） */
   output?: string
+  /** 决策事件的结构化字段（目前只有工具装配）；普通工具卡不带 */
+  meta?: AgentToolEventMeta
   /**
    * 结果条数（result 阶段，由工具自己报，不是界面从摘要文本里猜的）。
    *

@@ -172,6 +172,11 @@ export interface AgentToolCall {
    */
   count?: number
   /**
+   * 决策事件的结构化字段（目前只有 tool_route 的装配三组）。
+   * 有它时按字段投影，没有时回退渲染 output 文本（历史消息）。
+   */
+  meta?: AgentToolEventPayload['meta']
+  /**
    * 文本锚点（v2.8）：call 事件到达时正文已流出的字符数。
    * LiveMessageRow 据此把工具卡穿插到流式输出的真实发生位置，
    * 而不是全部堆在消息尾部。
@@ -765,6 +770,7 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
             ok: evt.ok,
             count: evt.count ?? events[idx2].count,
             output: finalOutput,
+            meta: evt.meta ?? events[idx2].meta,
           }
         } else {
           events.push({
@@ -774,6 +780,7 @@ export const useAgentStore = create<AgentState>()((set, get) => ({
             ok: evt.ok,
             count: evt.count,
             output: evt.output,
+            meta: evt.meta,
             anchorOffset: msg.content.length,
           })
         }

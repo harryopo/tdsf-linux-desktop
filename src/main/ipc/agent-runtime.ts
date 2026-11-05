@@ -333,6 +333,9 @@ export function registerAgentRuntimeHandlers(mainWindow: BrowserWindow): void {
               ok: evt.ok,
               count: evt.count,
               output: evt.output,
+              // 决策事件的结构化字段（工具装配三组）原样透传；
+              // 这里若漏掉，渲染层只能回退解析人类可读文本。
+              meta: evt.meta,
               sessionId: resolvedSessionId,
             }
             safeSend(mainWindow, AGENT_TOOL_EVENT_CHANNEL, payload)

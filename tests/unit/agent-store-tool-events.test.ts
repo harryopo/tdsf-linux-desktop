@@ -78,6 +78,37 @@ describe('appendToolEvent：call / output / result 配对', () => {
     expect(byId('a1').toolEvents?.[1].count).toBeUndefined()
   })
 
+  it('工具装配的结构化 meta 一路带到卡片上（三组不再靠解析 output 文本）', () => {
+    useAgentStore.setState({
+      messages: [assistant({ content: '' })],
+      isStreaming: true,
+      currentCorrelationId: 'c-1',
+    })
+    store().appendToolEvent({ correlationId: 'c-1', toolCallId: 'tr', phase: 'call', toolName: 'tool_route', input: '未识别到明确意图' })
+    store().appendToolEvent({
+      correlationId: 'c-1',
+      toolCallId: 'tr',
+      phase: 'result',
+      toolName: 'tool_route',
+      ok: true,
+      output: '挂载：检索知识库(kb_search)',
+      meta: {
+        route: {
+          mounted: [{ id: 'kb_search', label: '检索知识库' }],
+          unavailable: [{ id: 'ssh_readonly', label: '只读诊断命令', missing: 'SSH 未连接' }],
+          intents: [],
+          fallbackAll: true,
+        },
+      },
+    })
+
+    const evt = byId('a1').toolEvents?.[0]
+    expect(evt?.meta?.route?.mounted, 'meta 丢了，装配卡就只能回退解析文本').toEqual([
+      { id: 'kb_search', label: '检索知识库' },
+    ])
+    expect(evt?.meta?.route?.unavailable[0]).toMatchObject({ id: 'ssh_readonly', missing: 'SSH 未连接' })
+  })
+
   it('output 早于 call 到达时先建记录，call 补入参不重复建', () => {
     useAgentStore.setState({
       messages: [assistant({ content: '' })],

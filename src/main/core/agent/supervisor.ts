@@ -1110,7 +1110,12 @@ class SupervisorAgent {
 
       // 7c. v2.6 意图路由：根据用户消息按需选择本轮挂载的工具子集（零 Token 本地匹配），
       // 并经 onToolEvent 推「工具装配」卡片可视化路由决策（复用 skill_match 卡片模式）。
-      const toolRoute = routeChatTools(lastUserText, { ssh: Boolean(sshTools), db: true })
+      // db 走真实探测：better-sqlite3 是否加载成功决定 kb/tutorial/memory 三件工具能否工作。
+      // 旧代码写死 `db: true`，库不可用时那三件仍被报成"已挂载"——卡片上的是假事实。
+      const toolRoute = routeChatTools(lastUserText, {
+        ssh: Boolean(sshTools),
+        db: db.getStatus().available,
+      })
       // #173：外部 MCP 工具按"此刻真连上了哪几台"挂载，且不走意图路由——
       // 工具名与说明都由第三方自己定，关键词表猜不到它们各自干什么；
       // 而每一次调用都要先弹审批卡（在 agent-runtime 那侧串好），这里只负责让它出现在模型眼前。
@@ -1125,10 +1130,12 @@ class SupervisorAgent {
       } as typeof candidateTools)
       const hasTools = Object.keys(tools).length > 0
       {
-        const mountedLabels = CHAT_TOOL_CATALOG
-          .filter((e) => toolRoute.mounted.includes(e.id))
-          .map((e) => `${e.label}(${e.id})`)
-          .join('、')
+        // 挂载判定从真实 tools 对象投影（`e.id in candidateTools`），label 只是目录里的元数据。
+        // 不再按 CHAT_TOOL_CATALOG 常量另拼一份——那会与真表漂移（工具改挂了卡片却照旧这么写）。
+        const mountedEntries = CHAT_TOOL_CATALOG
+          .filter((e) => (toolRoute.mounted as string[]).includes(e.id) && e.id in candidateTools)
+          .map((e) => ({ id: e.id as string, label: e.label }))
+        const mountedLabels = mountedEntries.map((e) => `${e.label}(${e.id})`).join('、')
         // 外部工具按服务器说：一长串 mcp__xxx__yyy 的键名没人能在卡片上读完，
         // 但"挂了 3 个，来自天气服务器"一眼就能看懂。超上限的条数必须报出来。
         const externalLabel = externalMount.names.length
@@ -1144,7 +1151,8 @@ class SupervisorAgent {
           toolCallId: routeCallId,
           phase: 'call',
           toolName: 'tool_route',
-          input: lastUserText.slice(0, 120) || '(无用户消息)',
+          // 判断依据 = 路由规则真给出的结论；用户提问原文只是输入，不能冒充依据。
+          input: toolRoute.basis,
         })
         onToolEvent?.({
           toolCallId: routeCallId,
@@ -1152,6 +1160,29 @@ class SupervisorAgent {
           toolName: 'tool_route',
           ok: true,
           output: `${toolRoute.reason}\n挂载：${labels || '（无）'}${unavailableNote}`,
+          // 结构化字段：渲染层按它投影「已挂载 / 缺条件 / 本轮使用」三组，
+          // 不再解析上面那串人类可读文本。
+          meta: {
+            route: {
+              mounted: mountedEntries,
+              unavailable: toolRoute.unavailable.map((u) => ({
+                id: u.id,
+                label: u.label,
+                missing: u.missing,
+              })),
+              intents: [...toolRoute.intents],
+              fallbackAll: toolRoute.fallbackAll,
+              ...(externalMount.names.length
+                ? {
+                    external: {
+                      count: externalMount.names.length,
+                      servers: [...externalMount.servers],
+                      skipped: externalMount.skipped,
+                    },
+                  }
+                : {}),
+            },
+          },
         })
       }
 
@@ -1162,7 +1193,13 @@ class SupervisorAgent {
         const strengthCallId = `strength_${correlationId}`
         const strengthLabel = strength === 'deep' ? '深度思考' : '标准思考'
         const sigNote = sr.signals.length ? sr.signals.join('、') : '无明显复杂信号'
-        onToolEvent?.({ toolCallId: strengthCallId, phase: 'call', toolName: 'thinking_route', input: earlyUserText.slice(0, 80) || '(无用户消息)' })
+        // 判断依据 = 复杂度评分与信号本身；不要再把用户提问原文冒充成依据。
+        onToolEvent?.({
+          toolCallId: strengthCallId,
+          phase: 'call',
+          toolName: 'thinking_route',
+          input: `复杂度 ${sr.score}｜信号：${sigNote}`,
+        })
         onToolEvent?.({
           toolCallId: strengthCallId,
           phase: 'result',
