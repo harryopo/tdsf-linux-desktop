@@ -17,6 +17,7 @@ import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { installTerminalTap, launchApp } from './ssh-fixture-helpers'
+import { countOutputLines, stripAnsi } from './terminal-lines'
 
 const BUILD_READY = fs.existsSync(path.join(__dirname, '../../out/main/index.js'))
 const testOrSkip = BUILD_READY ? test : test.skip
@@ -24,9 +25,6 @@ const testOrSkip = BUILD_READY ? test : test.skip
 if (!BUILD_READY) {
   console.log('[command-gate] 跳过：需要先 pnpm build（out/main/index.js 不存在）。')
 }
-
-/** 把主进程推过来的 ANSI 去掉，方便按行判断 */
-const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
 
 async function openLocalTerminal(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => {
@@ -51,13 +49,11 @@ test.describe('用户输入过闸（P0-2）', () => {
 
       // 先立一个基线：证明这个终端真的能执行命令（否则后面的"没执行"是假证据）。
       // 判据取"标记单独成行"——输入回显是 `echo BASE_x`，只有真执行才会打印出 `BASE_x` 这一行。
+      // 行首残字（PSReadLine 报错在 ConPTY 折行处漏出来的）不影响判定，见 terminal-lines.ts。
       await page.keyboard.type(`echo BASE_${ts}\r`)
       await expect
         .poll(
-          async () =>
-            stripAnsi(await readTap())
-              .split(/[\r\n]+/)
-              .filter((l) => l.trim() === `BASE_${ts}`).length,
+          async () => countOutputLines(await readTap(), `BASE_${ts}`),
           {
             message: '基线命令要真的执行并打印出结果行',
             timeout: 25000,
@@ -82,11 +78,7 @@ test.describe('用户输入过闸（P0-2）', () => {
       await page.keyboard.type(`echo ${MARK}\r`)
 
       let lastTap = ''
-      const onlyLine = (blob: string, want: string): number =>
-        blob
-          .split(/[\r\n]+/)
-          .map((l) => l.trim())
-          .filter((l) => l === want).length
+      const onlyLine = (blob: string, want: string): number => countOutputLines(blob, want)
       try {
         await expect
           .poll(
@@ -141,9 +133,7 @@ test.describe('用户输入过闸（P0-2）', () => {
       // 整段都没转发：连同一批里那条安全命令也不该被执行。
       // 判据取"SAFE_<ts> 单独成行"（echo 真跑过才会有输出行），
       // 输入回显里出现它是正常的，所以数的是独立成行的输出。
-      const echoed = stripAnsi(await readTap())
-        .split(/[\r\n]+/)
-        .filter((l) => l.trim() === `SAFE_${ts}`).length
+      const echoed = countOutputLines(await readTap(), `SAFE_${ts}`)
       expect(echoed, '被拦的那一批整体都不该送进 shell').toBe(0)
     } finally {
       await app.close()

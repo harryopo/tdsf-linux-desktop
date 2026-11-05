@@ -2,8 +2,64 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-05T14:29:17.662Z",
-  "sessions": {},
+  "lastUpdated": "2026-11-05T16:12:15.488Z",
+  "sessions": {
+    "ai-20260720171157-6577": {
+      "aiName": "ai-20260720171157-6577",
+      "sessionId": "ai-20260720171157-6577",
+      "startedAt": "2026-11-05T15:23:00.394Z",
+      "lastActiveAt": "2026-11-05T16:12:15.488Z",
+      "task": "terminal-echo-regression",
+      "claimedFiles": [
+        {
+          "path": "tests/e2e/command-gate-typed.spec.ts",
+          "task": "terminal-echo-regression",
+          "claimedAt": "2026-11-05T15:23:00.394Z"
+        },
+        {
+          "path": "tests/e2e/advertised-shortcuts.spec.ts",
+          "task": "terminal-echo-regression",
+          "claimedAt": "2026-11-05T15:23:02.496Z"
+        },
+        {
+          "path": "tests/e2e/terminal-translate.spec.ts",
+          "task": "terminal-echo-regression",
+          "claimedAt": "2026-11-05T15:23:04.511Z"
+        },
+        {
+          "path": "tests/e2e/button-truth-census.spec.ts",
+          "task": "terminal-echo-regression",
+          "claimedAt": "2026-11-05T15:23:06.611Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/Composer.tsx",
+          "task": "A-composer-oneline",
+          "claimedAt": "2026-11-05T15:46:14.444Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/MessageList.tsx",
+          "task": "A-composer-oneline",
+          "claimedAt": "2026-11-05T15:46:15.596Z"
+        },
+        {
+          "path": "src/renderer/src/components/workbench/AIPanel.css",
+          "task": "A-composer-oneline",
+          "claimedAt": "2026-11-05T15:46:15.783Z"
+        },
+        {
+          "path": "src/main/core/agent/supervisor.ts",
+          "task": "B-thinking-echo",
+          "claimedAt": "2026-11-05T16:12:12.999Z"
+        },
+        {
+          "path": "tests/unit/thinking-router.test.ts",
+          "task": "B-thinking-echo",
+          "claimedAt": "2026-11-05T16:12:15.488Z"
+        }
+      ],
+      "expiresAt": "2026-11-05T18:12:15.488Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -14725,6 +14781,69 @@
       "file": "src/renderer/src/components/layout/DbDegradedBanner.css",
       "task": "db-degraded-banner-contrast",
       "timestamp": "2026-11-05T14:29:17.662Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/command-gate-typed.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T15:23:00.394Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/advertised-shortcuts.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T15:23:02.496Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/terminal-translate.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T15:23:04.511Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/e2e/button-truth-census.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T15:23:06.611Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/Composer.tsx",
+      "task": "A-composer-oneline",
+      "timestamp": "2026-11-05T15:46:14.444Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/MessageList.tsx",
+      "task": "A-composer-oneline",
+      "timestamp": "2026-11-05T15:46:15.596Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/renderer/src/components/workbench/AIPanel.css",
+      "task": "A-composer-oneline",
+      "timestamp": "2026-11-05T15:46:15.783Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "src/main/core/agent/supervisor.ts",
+      "task": "B-thinking-echo",
+      "timestamp": "2026-11-05T16:12:12.999Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "claim",
+      "file": "tests/unit/thinking-router.test.ts",
+      "task": "B-thinking-echo",
+      "timestamp": "2026-11-05T16:12:15.488Z"
     }
   ],
   "coordinationAudit": {

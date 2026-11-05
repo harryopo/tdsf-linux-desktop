@@ -15,6 +15,7 @@ import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { launchApp } from './ssh-fixture-helpers'
+import { selectWordOnOutputLine } from './terminal-lines'
 
 const BUILD_READY = fs.existsSync(path.join(__dirname, '../../out/main/index.js'))
 const testOrSkip = BUILD_READY ? test : test.skip
@@ -32,19 +33,13 @@ if (!BUILD_READY) {
  * 为什么也不用"从行首拖固定像素"：按"包含"选行会撞上命令回显那一行
  * （`PS C:\...> echo systemctl`），划它选到的是提示符。
  * 双击 = xterm 自己的选词手势，选到的正好是那一个词，也是用户真会做的动作。
+ *
+ * 2026-11-05：选行规则与坐标量法移到 terminal-lines.ts —— PowerShell 5.1 的
+ * PSReadLine 写历史失败时，ConPTY 折行残字会粘到输出行行首（`ưmsystemctl`），
+ * "整行精确等于"就永远等不到，而界面其实是画对的。
  */
 async function selectWordOnLine(page: import('@playwright/test').Page, lineText: string): Promise<void> {
-  const esc = lineText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const line = page
-    .locator('.terminal-view.visible .xterm-rows > div', { hasText: new RegExp(`^\\s*${esc}\\s*$`) })
-    .last()
-  await expect(line, `终端里没有"${lineText}"这一整行（输出还没画出来，或只找到带它的回显行）`).toBeVisible({
-    timeout: 20000,
-  })
-  const box = await line.boundingBox()
-  if (!box) throw new Error('拿不到行元素的盒区')
-  // x 落在第一个字符那一格里（行首往右 6 像素），双击选中它所属的那个词
-  await page.mouse.dblclick(box.x + 6, box.y + box.height / 2)
+  await selectWordOnOutputLine(page, lineText)
 }
 
 test.describe('终端划词翻译', () => {

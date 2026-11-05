@@ -14,9 +14,12 @@
  *              落在它自己子树里的变化单列。此前只数总变更数，于是"只把图标从 ↑ 换成 ↓、
  *              tooltip 承诺的注释一个都没出现"的开关被判成活按钮（mutations=5 就算过了）——
  *              AI 面板那个"命令翻译注释"箭头就是这么混过普查的，用户一眼看出点了没用。
+ *     toggled — 偏好开关把**自己**切到了已按下态（aria-pressed false→true）。
+ *              点击那一刻界面别处无变化是预期（效果在后续交互里，如「划词翻译」要等选中文本），
+ *              由 terminal-translate.spec 在真窗口里证明开关真的生效（2026-11-05 增补）。
  *     none   — 无任何反应，或**只有按钮自身在变** → 假按钮/死按钮
- *   另有四类不算假按钮的合法态：disabled（禁用）、already-active（切换钮已处于
- *   选中态，再点本就不该有反应）、skipped（破坏性/窗口控制）、
+ *   另有五类不算假按钮的合法态：disabled（禁用）、already-active（切换钮已处于
+ *   选中态，再点本就不该有反应）、toggled（见上）、skipped（破坏性/窗口控制）、
  *   unreached（前面的按钮把界面换了，这一轮没轮到它）
  *
  * 安全排除：窗口控制（最小化/最大化/关闭）与破坏性操作（删除/清空/重置/
@@ -98,6 +101,16 @@ interface ButtonResult {
     | 'toast'
     | 'focus'
     | 'dom'
+    /**
+     * 开关类按钮：点下去把**自己**从关切到开（aria-pressed false → true）。
+     * 2026-11-05 为什么单列一类：工作台的「划词翻译」是个偏好开关，打开后要等你
+     * 选中终端里的词才出浮层，点击那一刻界面别处本来就不该有任何变化。旧规则把它判成
+     * none（"只有按钮自身在变"），但那是开关的**正常**反馈，不是假按钮——
+     * 它的效果由 terminal-translate.spec 在真窗口里证过（关着不出浮层，开了出释义）。
+     * 注意与 2026-10-17 那类"只把图标翻个方向、承诺的注释一个都没出现"区分：
+     * 这里要求 aria-pressed 真的发生翻转，没翻转的仍然是 none。
+     */
+    | 'toggled'
     | 'none'
     | 'skipped'
     | 'disabled'
@@ -380,6 +393,10 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       if (waitedMs > maxWaitedMs) maxWaitedMs = waitedMs
       await markSelf(btn, false)
 
+      // 开关类按钮的合法反应：点下去自己真的进到了"已按下"态（见 ButtonResult.toggled 的注释）。
+      // 没翻转的不算——那仍然是只会换图标的假按钮。
+      const afterActiveState = await readActiveState(btn)
+
       // 焦点信号只认"焦点被交给了别的元素"。点任何按钮都会把焦点落在这个按钮自身上，
       // 若按 before/after 的焦点差异来判，每个死按钮都会被判成有反应——门禁就废了。
       const focusMovedOffSelf = await btn
@@ -390,7 +407,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
         })
         .catch(() => false)
 
-      // 分类判定（优先级：route > dialog > toast > focus > dom > none）
+      // 分类判定（优先级：route > dialog > toast > focus > dom > toggled > none）
       let verdict: ButtonResult['verdict']
       let detail: string | undefined
       if (after.hash !== before.hash) {
@@ -406,6 +423,11 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
       } else if (after.mutOut > before.mutOut) {
         verdict = 'dom'
         detail = `mutations=${after.mutOut - before.mutOut}`
+      } else if (afterActiveState) {
+        // 开关把**自己**切到了已按下态：这是开关的合法反馈（点击前 activeState 一定是空，
+        // 否则上面已经按 already-active 跳过了）。界面别处无变化是预期，不是没实现。
+        verdict = 'toggled'
+        detail = `开关切到 ${afterActiveState}（偏好开关的效果在后续交互里，见 terminal-translate.spec）`
       } else if (after.mut > before.mut) {
         // 只有按钮自己在变（图标翻了个方向、tooltip 换了个字），界面别处一点反应都没有
         verdict = 'none'
@@ -458,6 +480,7 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
     toast: byVerdict('toast').length,
     focus: byVerdict('focus').length,
     dom: byVerdict('dom').length,
+    toggled: byVerdict('toggled').length,
     none: byVerdict('none').length,
     disabled: byVerdict('disabled').length,
     'already-active': byVerdict('already-active').length,
@@ -514,7 +537,8 @@ testOrSkip('全按钮真伪普查（点击后必须有可观察反应）', async
   console.log('\n完整报告已写入: ' + REPORT_PATH)
 
   // 量具自证：真要一个按钮都没点到，none=0 也会假绿，所以覆盖数必须站得住
-  const reacted = summary.route + summary.dialog + summary.toast + summary.focus + summary.dom
+  const reacted =
+    summary.route + summary.dialog + summary.toast + summary.focus + summary.dom + summary.toggled
   expect(reacted, `应有至少 40 个按钮被真点出反应（实测 ${reacted}）`).toBeGreaterThanOrEqual(40)
   expect(summary.total, '普查应至少覆盖 30 个按钮').toBeGreaterThan(30)
   // 硬门禁一：不许有按了没反应的按钮

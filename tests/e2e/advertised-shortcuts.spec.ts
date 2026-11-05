@@ -24,6 +24,7 @@ import {
   launchApp,
   openShellViaIpc,
 } from './ssh-fixture-helpers'
+import { selectWordOnOutputLine } from './terminal-lines'
 
 const BUILD_READY = fs.existsSync(path.join(__dirname, '../../out/main/index.js'))
 const testOrSkip = FIXTURE_READY && BUILD_READY ? test : test.skip
@@ -50,19 +51,13 @@ const SEARCH_PLACEHOLDER = '搜索（回车下一个，Shift+回车上一个）'
  *   而拖固定 96 像素既不覆盖整词也不管字号——一格多宽本来就由字号与容器决定。
  * ③ 选完先证浮层里那个词真是它，再让调用方去按快捷键：选错要红在选这一步，
  *   而不是红成"快捷键没生效"。
+ *
+ * 2026-11-05 补第四条：**行首可能有残字**。PowerShell 5.1 的 PSReadLine 写历史失败时会打一段
+ * 很长的红色报错，ConPTY 折行处漏出的残字会粘到下一行行首（`ưmjournalctl` / `un journalctl`），
+ * "整行精确等于"就再也等不到。选行规则与坐标量法统一收到 terminal-lines.ts。
  */
 async function selectWordOnLine(page: Page, lineText: string): Promise<void> {
-  const esc = lineText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const line = page
-    .locator('.terminal-view.visible .xterm-rows > div', { hasText: new RegExp(`^\\s*${esc}\\s*$`) })
-    .last()
-  await expect(line, `终端里没有"${lineText}"这一整行（输出还没画出来，或只找到带它的回显行）`).toBeVisible({
-    timeout: 20000,
-  })
-  const box = await line.boundingBox()
-  if (!box) throw new Error('拿不到行元素的盒区')
-  // x 落在第一个字符那一格里（行首往右 6 像素），双击选中它所属的那个词
-  await page.mouse.dblclick(box.x + 6, box.y + box.height / 2)
+  await selectWordOnOutputLine(page, lineText)
   await expect(page.locator('.sel-popover .sel-word'), '选出来的词不是那一整行').toContainText(lineText, {
     timeout: 5000,
   })
