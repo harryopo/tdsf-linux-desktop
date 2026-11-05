@@ -2,24 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-05T03:24:01.059Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-11-05T03:24:01.059Z",
-      "lastActiveAt": "2026-11-05T03:24:01.059Z",
-      "task": "过程面板P2待办登记",
-      "claimedFiles": [
-        {
-          "path": "docs/长期优化目标.md",
-          "task": "过程面板P2待办登记",
-          "claimedAt": "2026-11-05T03:24:01.059Z"
-        }
-      ],
-      "expiresAt": "2026-11-05T05:24:01.059Z"
-    }
-  },
+  "lastUpdated": "2026-11-05T03:25:15.248Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -14524,6 +14508,13 @@
       "file": "docs/长期优化目标.md",
       "task": "过程面板P2待办登记",
       "timestamp": "2026-11-05T03:24:01.059Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "docs/长期优化目标.md",
+      "task": "过程面板P2待办登记",
+      "timestamp": "2026-11-05T03:25:15.248Z"
     }
   ],
   "coordinationAudit": {
