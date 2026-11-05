@@ -2,7 +2,7 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-05T16:12:15.488Z",
+  "lastUpdated": "2026-11-05T16:23:14.451Z",
   "sessions": {
     "ai-20260720171157-6577": {
       "aiName": "ai-20260720171157-6577",
@@ -11,26 +11,6 @@
       "lastActiveAt": "2026-11-05T16:12:15.488Z",
       "task": "terminal-echo-regression",
       "claimedFiles": [
-        {
-          "path": "tests/e2e/command-gate-typed.spec.ts",
-          "task": "terminal-echo-regression",
-          "claimedAt": "2026-11-05T15:23:00.394Z"
-        },
-        {
-          "path": "tests/e2e/advertised-shortcuts.spec.ts",
-          "task": "terminal-echo-regression",
-          "claimedAt": "2026-11-05T15:23:02.496Z"
-        },
-        {
-          "path": "tests/e2e/terminal-translate.spec.ts",
-          "task": "terminal-echo-regression",
-          "claimedAt": "2026-11-05T15:23:04.511Z"
-        },
-        {
-          "path": "tests/e2e/button-truth-census.spec.ts",
-          "task": "terminal-echo-regression",
-          "claimedAt": "2026-11-05T15:23:06.611Z"
-        },
         {
           "path": "src/renderer/src/components/workbench/Composer.tsx",
           "task": "A-composer-oneline",
@@ -14844,6 +14824,34 @@
       "file": "tests/unit/thinking-router.test.ts",
       "task": "B-thinking-echo",
       "timestamp": "2026-11-05T16:12:15.488Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/command-gate-typed.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T16:23:07.858Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/advertised-shortcuts.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T16:23:09.881Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/terminal-translate.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T16:23:12.010Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/button-truth-census.spec.ts",
+      "task": "terminal-echo-regression",
+      "timestamp": "2026-11-05T16:23:14.451Z"
     }
   ],
   "coordinationAudit": {
