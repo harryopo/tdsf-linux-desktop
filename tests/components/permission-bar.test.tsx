@@ -74,7 +74,7 @@ describe('PermissionBar', () => {
     expect(heading.textContent).not.toContain('PAOR')
     expect(heading.textContent).not.toMatch(/第 \d+ 步/)
     expect(screen.getByText(/get_forecast/)).toBeInTheDocument()
-    expect(screen.getByText('HIGH')).toBeInTheDocument()
+    expect(screen.getByText('高风险')).toBeInTheDocument()
   })
 
   it('默认选中"拒绝"，不是"批准"', () => {
@@ -143,7 +143,7 @@ describe('PermissionBar', () => {
 
   it('风险等级与命令原文都要上屏（不能只给一个"是否继续"）', () => {
     setup([entry()])
-    expect(screen.getByText('CRITICAL')).toBeInTheDocument()
+    expect(screen.getByText('极高风险')).toBeInTheDocument()
     expect(screen.getByText('递归删除且覆盖系统日志目录')).toBeInTheDocument()
     expect(screen.getByText('rm -rf /var/log')).toBeInTheDocument()
   })

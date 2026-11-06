@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'reac
 import { ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 import type { ApprovalEntry } from '@/stores/approval-store'
 import { cn } from '@/components/trae/utils'
+import { riskLevelMeta } from '@/utils/decision-mappers'
 import { Button, Chip } from '@/ui'
 
 type Choice = 'allow' | 'deny'
@@ -30,6 +31,23 @@ const CHOICES: { key: Choice; label: string; hint: string }[] = [
   { key: 'allow', label: '批准这一次', hint: '1' },
   { key: 'deny', label: '拒绝', hint: '2' },
 ]
+
+/**
+ * 风险等级按主进程的真实枚举显示中文。主进程 `PaorApprovalRequest.riskLevel`
+ * 声明为 string，遇到未知值原样显示，不猜、不兜底成"高风险"。
+ */
+function riskLevelLabel(level: string): string {
+  switch (level) {
+    case 'SAFE':
+    case 'LOW':
+    case 'MEDIUM':
+    case 'HIGH':
+    case 'CRITICAL':
+      return riskLevelMeta(level).label
+    default:
+      return level
+  }
+}
 
 /**
  * 剩余时间：每秒重算。
@@ -183,7 +201,7 @@ export const PermissionBar: FC<PermissionBarProps> = ({ entries, onRespond, onDi
                     : 'PAOR 请求批准'}
               {!expired && current.stepIndex !== undefined ? ` — 第 ${current.stepIndex + 1} 步` : ''}
             </h2>
-            <Chip tone={critical ? 'error' : 'warning'}>{current.riskLevel}</Chip>
+            <Chip tone={critical ? 'error' : 'warning'}>{riskLevelLabel(current.riskLevel)}</Chip>
           </div>
           {entries.length > 1 ? (
             <span className="shrink-0 text-caption text-ink-mute">

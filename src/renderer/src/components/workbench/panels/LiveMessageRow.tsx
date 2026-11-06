@@ -39,10 +39,10 @@ import './MarkdownMessage.css'
 /**
  * 六态在界面上的说法。
  *
- * 六个态都有落点，但不是六个都画一块牌子：running 由流式光标表达、
- * completed 由正常收尾（用量行）表达——再挂一块"已完成"只是重复。
- * 真正需要牌子的只有四种用户会停下来问"它到底在干嘛"的态：
- * awaiting_approval（在等我答）/ cancelling（我在停）/ failed（坏了）/ cancelled（停了）。
+ * 六个态都有落点，但只有两种会挂独立牌子：awaiting_approval（在等我答）
+ * 与 cancelling（我在停）——这两个态发生在流式期间，界面原本只有一句"思考中…"，
+ * 用户不知道它卡在哪。running 由流式光标表达、completed 由用量行表达、
+ * failed 由错误卡表达、cancelled 由取消行表达，再挂一块牌子只是把同一件事说两遍。
  */
 const RUN_STATE_LABELS: Record<RunState, string> = {
   running: '运行中',
@@ -51,6 +51,20 @@ const RUN_STATE_LABELS: Record<RunState, string> = {
   completed: '已完成',
   failed: '失败',
   cancelled: '已停止',
+}
+
+/**
+ * 挂牌两态的含义说明。主进程只推 `RunSnapshot.state` 与终态字段，
+ * 没有"每个态一句话"的结构化字段；这两句是对状态机语义的说明，
+ * 而 failed / cancelled 的具体原因由错误卡与取消行持有真字段（失败原因、resolvedBy）。
+ */
+const RUN_STATE_MEANINGS: Record<RunState, string | null> = {
+  running: null,
+  awaiting_approval: '命令已挂起，你的答复前不会执行',
+  cancelling: '已发出取消，正在等这一轮收尾',
+  completed: null,
+  failed: null,
+  cancelled: null,
 }
 
 /**
@@ -534,9 +548,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                     </span>
                   </div>
                 )}
-                {routeUsed.length > 0 && (
+                {routeUsed.length > 0 ? (
                   <div className="ai-route-section">
-                    <span className="ai-tool-io-label">本轮使用</span>
+                    <span className="ai-tool-io-label">本轮使用（模型实际调用的工具）</span>
                     <span className="ai-route-items">
                       <RouteFactItems
                         items={routeUsed.map((m) => (
@@ -547,7 +561,14 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
                       />
                     </span>
                   </div>
-                )}
+                ) : routeMeta.mounted.length > 0 ? (
+                  <div className="ai-route-section">
+                    <span className="ai-tool-io-label">本轮使用</span>
+                    <span className="ai-route-items">
+                      <span className="ai-route-item">本轮没有调用上面挂载的工具。</span>
+                    </span>
+                  </div>
+                ) : null}
               </div>
             ) : (
               evt.done &&
@@ -869,9 +890,8 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
         <ChatCredibility message={message} />
       )}
       {renderCommandButtons()}
-      {/* 六态里只有这两个需要新牌子：awaiting_approval（在跑，但卡在等用户答）
-          与 cancelling（在跑，但已经发出取消、还没收尾）。两者都发生在
-          isStreaming=true 期间，以前整个界面在这段时间里只有一句"思考中…"。 */}
+      {/* 只有这两个态挂独立牌子（理由见 RUN_STATE_LABELS 上方注释）；两者都发生在
+          isStreaming=true 期间，以前这段时间界面只有一句"思考中…"。 */}
       {message.isStreaming &&
         runSnapshot &&
         (runSnapshot.state === 'awaiting_approval' || runSnapshot.state === 'cancelling') && (
@@ -880,6 +900,9 @@ const LiveMessageRow: FC<LiveMessageRowProps> = ({ message, onNavigate, onToolAc
             data-dom-id="message-run-state"
           >
             {RUN_STATE_LABELS[runSnapshot.state]}
+            {RUN_STATE_MEANINGS[runSnapshot.state]
+              ? ` · ${RUN_STATE_MEANINGS[runSnapshot.state]}`
+              : ''}
           </div>
         )}
       {/*
