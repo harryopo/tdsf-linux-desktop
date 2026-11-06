@@ -50,7 +50,7 @@ const SHOTS: Shot[] = [
   { key: 'decision', hash: '#/decision', wait: '[data-dom-id="page-title"]' },
   { key: 'history', hash: '#/history', wait: '.hist-page' },
   { key: 'monitor', hash: '#/monitor', wait: '[data-dom-id="page-title"]' },
-  { key: 'knowledge', hash: '#/knowledge', wait: '.kb-page' },
+  { key: 'knowledge', hash: '#/knowledge', wait: '.kb-page', volatile: ['.kb-meta-time'] },
   {
     key: 'settings',
     hash: '#/settings/general',
