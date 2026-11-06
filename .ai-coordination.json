@@ -2,29 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-06T07:51:13.138Z",
-  "sessions": {
-    "ai-20260720171157-6577": {
-      "aiName": "ai-20260720171157-6577",
-      "sessionId": "ai-20260720171157-6577",
-      "startedAt": "2026-11-06T07:51:13.138Z",
-      "lastActiveAt": "2026-11-06T07:51:13.138Z",
-      "task": "收尾提交：README 读数同步与 knowledge 遮罩",
-      "claimedFiles": [
-        {
-          "path": "README.md",
-          "task": "收尾提交：README 读数同步与 knowledge 遮罩",
-          "claimedAt": "2026-11-06T07:51:13.138Z"
-        },
-        {
-          "path": "tests/e2e/visual.spec.ts",
-          "task": "收尾提交：README 读数同步与 knowledge 遮罩",
-          "claimedAt": "2026-11-06T07:51:13.138Z"
-        }
-      ],
-      "expiresAt": "2026-11-06T09:51:13.138Z"
-    }
-  },
+  "lastUpdated": "2026-11-06T07:53:54.385Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -15117,6 +15096,20 @@
       "file": "tests/e2e/visual.spec.ts",
       "task": "收尾提交：README 读数同步与 knowledge 遮罩",
       "timestamp": "2026-11-06T07:51:13.138Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "README.md",
+      "task": "收尾提交：README 读数同步与 knowledge 遮罩",
+      "timestamp": "2026-11-06T07:53:54.385Z"
+    },
+    {
+      "sessionId": "ai-20260720171157-6577",
+      "action": "release",
+      "file": "tests/e2e/visual.spec.ts",
+      "task": "收尾提交：README 读数同步与 knowledge 遮罩",
+      "timestamp": "2026-11-06T07:53:54.385Z"
     }
   ],
   "coordinationAudit": {
