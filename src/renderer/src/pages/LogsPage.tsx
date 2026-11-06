@@ -35,6 +35,7 @@ import {
   type LevelStat,
   type LogSourceItem,
   DEFAULT_LOG_SOURCE_ID,
+  LOG_SOURCES,
   ipcLogEntriesToLogEntries,
   mapLogStats,
   missingLogFileHint,
@@ -116,6 +117,12 @@ export function LogsPage() {
   const [remoteCounts, setRemoteCounts] = useState<Record<string, string>>({})
   /** 当前是否处于远程文件模式（决定 filteredEntries 数据源） */
   const remoteMode = !(activeSource in MAIN_SOURCE_FILTERS)
+  /** 页头按当前源分写：主类是本应用自身日志，远端是一次性快照，不能用一个笼统标题盖住 */
+  const activeSourceLabel = LOG_SOURCES.find((s) => s.id === activeSource)?.label ?? activeSource
+  const headerTitle = remoteMode ? '服务器日志' : '应用运行日志'
+  const headerSubtitle = remoteMode
+    ? `${activeSourceLabel} 最近 200 行快照（SSH 读取，非实时流）`
+    : `${activeSourceLabel} · 本应用自身日志，每 5 秒轮询增量`
 
   // ===== 实时流 + log:stats（M3 Task 3） =====
   // 最新一条日志的 ISO 时间戳，用于实时轮询 logRead({since}) 增量拉取
@@ -395,8 +402,8 @@ export function LogsPage() {
       {/* ===== 1. 页头（全站唯一 PageHeader）===== */}
       <PageHeader
         icon={FileText}
-        title="系统日志"
-        subtitle="实时日志流与历史检索"
+        title={headerTitle}
+        subtitle={headerSubtitle}
         actions={
           <Chip tone="accent" className="gap-1.5">
             <Sparkles size={12} />
@@ -422,7 +429,7 @@ export function LogsPage() {
             ? '当前无日志，无法分析'
             : filteredEntries.length < 5
               ? '日志数量不足，至少需要 5 条'
-              : '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'
+              : '调用 sidecar:pipeline 做 Drain3 模板聚类与规则根因诊断（默认不启用 AI）'
         }
       />
 

@@ -118,7 +118,7 @@ function OrderedList({ items }: { items: string[] }) {
 /**
  * AI 日志分析面板
  *
- * 调用 sidecar:pipeline IPC 执行 Drain3 模板聚类 + AI 根因分析。
+ * 调用 sidecar:pipeline IPC 执行 Drain3 模板聚类与规则根因诊断（默认不启用 AI）。
  */
 export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelProps) {
   const [analyzing, setAnalyzing] = useState(false)
@@ -134,7 +134,7 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
   /**
    * 把 sidecar 底层错误转成用户可操作的文案（v2.6）
    *
-   * - spawn ENOENT / 启动失败：这台机器没有分析引擎 → 说清改用内置规则，再给开发环境的搭建步骤
+   * - spawn ENOENT / 启动失败：这台机器没有分析引擎 → 说明这次拿不到分析结论（引擎里没有可替代的内置规则），再给开发环境的搭建步骤
    * - 启动超时：依赖未安装 / 端口冲突
    *
    * 这三行以前会原样出现在装好的包里，等于让普通用户去跑 pip。现在第一句先讲"你现在
@@ -144,8 +144,8 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
   const friendlyError = (raw: string): string => {
     if (/ENOENT|启动失败|启动超时|crashed|未就绪/i.test(raw)) {
       return (
-        `${raw}\n\n这条分析改用内置规则了（这台机器上没有本地 Python 分析引擎），` +
-        `模板会更粗，但结论照给。\n开发环境要补齐引擎：在项目根目录建 .venv-sidecar-a 虚拟环境，` +
+        `${raw}\n\n这次没有生成分析结论：本地 Python 分析引擎不可用，日志模板聚类与规则根因诊断都在它里面执行，` +
+        `没有内置规则可以替代。\n开发环境要补齐引擎：在项目根目录建 .venv-sidecar-a 虚拟环境，` +
         `在其中执行 pip install -r sidecar-a/requirements.txt，并保证端口 19000 空闲。`
       )
     }
@@ -260,7 +260,7 @@ export function AiLogAnalysisPanel({ open, logs, onClose }: AiLogAnalysisPanelPr
                 label={
                   phase === 'starting'
                     ? '正在启动 AI 分析引擎（首次约 5-10 秒），随后自动分析…'
-                    : '正在执行 Drain3 模板聚类 + AI 根因分析…'
+                    : '正在执行 Drain3 模板聚类与规则根因诊断（默认不启用 AI）…'
                 }
               />
             </div>

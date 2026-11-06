@@ -90,7 +90,7 @@ export function LogToolbar({
       <div className="log-right-cluster flex shrink-0 items-center">
         {/* AI 日志分析按钮（设计稿：品牌色描边 + sparkles 图标，置于自动滚动之前） */}
         {onAiAnalysis && (
-          <Tooltip content={aiAnalysisTooltip ?? '调用 sidecar:pipeline 执行 Drain3 模板聚类 + AI 根因分析'}>
+          <Tooltip content={aiAnalysisTooltip ?? '调用 sidecar:pipeline 做 Drain3 模板聚类与规则根因诊断（默认不启用 AI）'}>
             <span className="inline-flex">
               <button
                 type="button"
