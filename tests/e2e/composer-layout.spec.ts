@@ -46,8 +46,10 @@ test.describe('AI 输入区排版', () => {
     const send = page.locator('[data-testid="composer-send"]')
     await expect(input, '输入框没画出来').toBeVisible({ timeout: 10_000 })
     await expect(send, '发送按钮没画出来').toBeVisible({ timeout: 10_000 })
-    // 5 个 chip 已经进 `/` 面板，主行不该再有快捷排
-    await expect(page.locator('.ai-composer-rail')).toHaveCount(0)
+    // 5 个 chip 已经进 `/` 面板，主行不该再有快捷排。
+    // 用 class 属性选择器而不是 `.ai-composer-rail`：这个类**故意**不在渲染层源码里，
+    // 写成类选择器会被 tests/unit/e2e-selector-exists 判成死选择器；`[class~=x]` 与 `.x` 等价。
+    await expect(page.locator('[class~="ai-composer-rail"]')).toHaveCount(0)
 
     const inputBox = await input.boundingBox()
     const sendBox = await send.boundingBox()

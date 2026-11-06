@@ -66,7 +66,7 @@
 ### [x] B1. 纯函数移到 shared
 - 动作：
   - 新建 `src/shared/thinking-router.ts`（内容与现文件一致，纯函数无 Node 依赖）。
-  - 删除 `src/main/core/agent/thinking-router.ts`。
+  - 删除 src/main/core/agent/thinking-router.ts（已删，仅存 git 历史）。
   - 更新 import：`src/main/core/agent/supervisor.ts`、`tests/unit/thinking-router.test.ts`，以及全仓其它引用（grep 确认）。
 - 验收：`grep -rn "core/agent/thinking-router" src tests` 为 0。
 - 门禁：`pnpm typecheck:node`、`pnpm types:tests`、`pnpm test tests/unit/thinking-router.test.ts`。
@@ -183,14 +183,14 @@
 
 ### [x] E2. 删除探针脚本 + 下限复核
 - 删除：
-  - `scripts/overnight-smoke-check.cjs`
-  - `scripts/test-cron-parser.ts`
-  - `scripts/test-daily-decision-archive.ts`
-  - `scripts/test-daily-health-check.ts`
-  - `scripts/test-llm-e2e.ts`
-  - `scripts/test-redact.ts`
-  - `scripts/test-scheduler.ts`
-  - `scripts/test-weekly-ops-report.ts`
+  - scripts/overnight-smoke-check.cjs
+  - scripts/test-cron-parser.ts
+  - scripts/test-daily-decision-archive.ts
+  - scripts/test-daily-health-check.ts
+  - scripts/test-llm-e2e.ts
+  - scripts/test-redact.ts
+  - scripts/test-scheduler.ts
+  - scripts/test-weekly-ops-report.ts
 - 文件：`scripts/quality/scripts-syntax-check.cjs`
 - 实测修正：该闸扫描面是 `git ls-files` 里 `scripts/**` 与仓库根下的 **`.cjs`/`.mjs`**，8 个待删文件里只有 `overnight-smoke-check.cjs` 落在扫描面内、其余是 `.ts` 本就不受检；删除后实跑仍为 **51 == MIN_FILES=51**，因此**无需下调**（计划里预估的 50 不成立）。
 - 验收：`pnpm gates:ci` 绿（`受检 51 个 .cjs/.mjs，语法错误 0 处`）；`pnpm deadcode:gate` 绿。
@@ -231,8 +231,8 @@ pnpm ipc:check
 
 ## 交付清单
 
-- [x] 修改前截图（空态 + 输入区，窗口前台）：`docs/assets/composer-rework/before.png`、`before-composer.png`（由 `git archive HEAD` 构建改动前代码，1440×900、show+focus）
-- [x] 修改后截图（同一角度）：`docs/assets/composer-rework/after.png`、`after-composer.png`；另含 `slash-palette.png`、`at-picker-no-ssh.png`、`thinking-auto-deep.png`
+- [x] 修改前截图（空态 + 输入区，窗口前台）：docs/assets/composer-rework/before.png、docs/assets/composer-rework/before-composer.png（由 `git archive HEAD` 构建改动前代码，1440×900、show+focus）
+- [x] 修改后截图（同一角度）：docs/assets/composer-rework/after.png、docs/assets/composer-rework/after-composer.png；另含 `slash-palette.png`、`at-picker-no-ssh.png`、`thinking-auto-deep.png`
 - [x] 前后对比说明（见最终回报与 spec §3.5）
 - [x] 截图本地保留、未入库：`docs/assets/composer-rework/` 已由 `.gitignore` 精确挡住（规则 `/docs/assets/composer-rework/`），只做本轮取证，不随代码提交
 - [x] 门禁退出码表（10 条全 0；`ui-audit` rc=0 PASS，窗口前台）

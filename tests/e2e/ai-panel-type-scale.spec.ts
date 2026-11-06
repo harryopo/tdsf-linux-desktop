@@ -81,7 +81,8 @@ async function readStyles(page: Page): Promise<Reading[]> {
       '.ai-msg-user-bubble',
       '.ai-token-row',
       '#ai-composer-input',
-      '.ai-composer-rail button',
+      // 快捷排（chips）已随输入区一行式重做删掉，取样点换成主行的发送按钮
+      '[data-testid="composer-send"]',
     ]
     const out: Reading[] = []
     let headingIndex = 0

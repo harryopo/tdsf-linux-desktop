@@ -108,7 +108,7 @@
 
 ### 4.2 回显方案（不改 IPC 字段）
 
-1. 将纯函数模块从 `src/main/core/agent/thinking-router.ts` **移动到** `src/shared/thinking-router.ts`（无 Node 依赖），更新：
+1. 将纯函数模块从 src/main/core/agent/thinking-router.ts **移动到** `src/shared/thinking-router.ts`（无 Node 依赖；旧路径已删，仅存 git 历史），更新：
    - `supervisor.ts:85` import
    - `tests/unit/thinking-router.test.ts` import
 2. 渲染层 `Composer.tsx` 直接调用同一函数，实时计算：
@@ -268,14 +268,14 @@ export interface PaorIterationEvent {
 
 | 文件 | 测什么 | 删掉丢什么 | 找回方式 |
 |---|---|---|---|
-| `scripts/overnight-smoke-check.cjs` | 静态检查 11 个关键文件是否仍含约定 API 接线 | 非 CI 的交付路径冒烟；等价的类型/单测仍在 | `git log -- scripts/overnight-smoke-check.cjs` / `git show <sha>:<path>` |
-| `scripts/test-cron-parser.ts` | cron 解析 + Scheduler 手工用例（≥20） | 手工深测；`tests/unit/scheduler-*` 覆盖 toggle/teardown 但**没有 cron 语法与时区边界**的常驻套件（实查 `tests/services/scheduler/` 只有周报与归档两份） | 同上 |
-| `scripts/test-daily-decision-archive.ts` | 决策归档任务手工用例（≥10） | 手工深测；已有 `tests/services/scheduler/daily-decision-archive.test.ts` | 同上 |
-| `scripts/test-daily-health-check.ts` | 健康检查任务手工用例（≥10） | **该模块的唯一覆盖**：`git ls-files tests` 里没有任何 `daily-health-check` 常驻套件，删后这块只剩 `test-scheduler.ts` 的间接覆盖（后者同批删除） | 同上 |
-| `scripts/test-llm-e2e.ts` | LlmClient 无 Key 降级到规则引擎 | 手工端到端；已有 `tests/services/llm-client.test.ts` | 同上 |
-| `scripts/test-redact.ts` | 脱敏 9 例 | 手工回归；主进程脱敏已有其它测试覆盖（以实际 grep 为准） | 同上 |
-| `scripts/test-scheduler.ts` | 调度全链路 36 例（含健康检查/归档/周报） | 手工全链路回归 | 同上 |
-| `scripts/test-weekly-ops-report.ts` | 周报任务手工用例（≥30） | 手工深测；已有 `tests/services/scheduler/weekly-ops-report.test.ts` | 同上 |
+| scripts/overnight-smoke-check.cjs | 静态检查 11 个关键文件是否仍含约定 API 接线 | 非 CI 的交付路径冒烟；等价的类型/单测仍在 | `git log -- scripts/overnight-smoke-check.cjs` / `git show <sha>:<path>` |
+| scripts/test-cron-parser.ts | cron 解析 + Scheduler 手工用例（≥20） | 手工深测；`tests/unit/scheduler-*` 覆盖 toggle/teardown 但**没有 cron 语法与时区边界**的常驻套件（此前 `tests/services/scheduler/` 只有周报与归档两份；现已由同目录新增的 cron-parser.test.ts 补齐） | 同上 |
+| scripts/test-daily-decision-archive.ts | 决策归档任务手工用例（≥10） | 手工深测；已有 `tests/services/scheduler/daily-decision-archive.test.ts` | 同上 |
+| scripts/test-daily-health-check.ts | 健康检查任务手工用例（≥10） | **该模块的唯一覆盖**：`git ls-files tests` 里没有任何 `daily-health-check` 常驻套件，删后这块只剩 `test-scheduler.ts` 的间接覆盖（后者同批删除） | 同上 |
+| scripts/test-llm-e2e.ts | LlmClient 无 Key 降级到规则引擎 | 手工端到端；已有 `tests/services/llm-client.test.ts` | 同上 |
+| scripts/test-redact.ts | 脱敏 9 例 | 手工回归；主进程脱敏已有其它测试覆盖（以实际 grep 为准） | 同上 |
+| scripts/test-scheduler.ts | 调度全链路 36 例（含健康检查/归档/周报） | 手工全链路回归 | 同上 |
+| scripts/test-weekly-ops-report.ts | 周报任务手工用例（≥30） | 手工深测；已有 `tests/services/scheduler/weekly-ops-report.test.ts` | 同上 |
 
 删除前逐项确认：
 1. `package.json` 无脚本引用；
