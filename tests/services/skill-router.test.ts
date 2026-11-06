@@ -68,7 +68,6 @@ describe('SkillRouter 三层路由决策', () => {
     expect(r.decision).toBe('skill-only')
     expect(r.reply).toBeTruthy()
     expect(r.matches[0].skill.name).toBe('test-skill')
-    expect(r.estimatedTokenSavings).toBeGreaterThan(0)
   })
 
   it('中置信度（语义部分重叠 0.3~0.8）→ skill-assisted，返回上下文注入', () => {
@@ -83,6 +82,5 @@ describe('SkillRouter 三层路由决策', () => {
     expect(r.decision).toBe('ai-only')
     expect(r.reply).toBeUndefined()
     expect(r.contextInjection).toBeUndefined()
-    expect(r.estimatedTokenSavings).toBe(0)
   })
 })

@@ -4,25 +4,19 @@
  * 根据用户输入决定走 Skill 还是走 AI，实现 Token 节省。
  *
  * 路由策略（3 层）：
- * 1. 高置信度匹配（score >= 0.8）→ 直接返回 Skill 内容（0 token，省 100%）
+ * 1. 高置信度匹配（score >= 0.8）→ 直接返回 Skill 内容
  *    - 用户输入精确匹配关键词/正则
  *    - Skill 内容直接作为回复
- * 2. 中置信度匹配（0.3 <= score < 0.8）→ Skill 作为上下文注入 AI（省 ~50%）
+ * 2. 中置信度匹配（0.3 <= score < 0.8）→ Skill 作为上下文注入 AI
  *    - 用户输入部分匹配
  *    - Skill 内容作为参考，AI 基于参考生成更精准的回复
- * 3. 无匹配（score < 0.3）→ 直接调 AI（正常消耗）
- *
- * Token 节省估算：
- * - skill-only: 节省 100%（不调 AI）
- * - skill-assisted: 节省 ~50%（AI 生成更短，因为已有参考）
- * - ai-only: 节省 0%
+ * 3. 无匹配（score < 0.3）→ 直接调 AI
  *
  * 参考：docs/skill-research/04-Token节省技术方案.md §4 分层路由
  */
 
 import type { SkillMatchResult } from './types'
 import { SkillRegistry } from './registry'
-import { estimateTokens } from '../../core/agent/context'
 
 /** 路由决策类型 */
 export type RouteDecision = 'skill-only' | 'skill-assisted' | 'ai-only'
@@ -37,8 +31,6 @@ export interface SkillRouteResult {
   reply?: string
   /** 注入 AI 的上下文（仅 skill-assisted 时有值，作为 system prompt 的一部分） */
   contextInjection?: string
-  /** 预计节省的 token 数（相对于直接调 AI） */
-  estimatedTokenSavings: number
   /** 路由原因（用于 UI 展示和调试） */
   reason: string
 }
@@ -58,10 +50,10 @@ const MID_CONFIDENCE_THRESHOLD = 0.3
  * const result = router.route('Out of memory: Killed process 12345')
  *
  * if (result.decision === 'skill-only') {
- *   // 直接展示 result.reply，不调 AI（省 100% token）
+ *   // 直接展示 result.reply，不调 AI
  *   showToUser(result.reply)
  * } else if (result.decision === 'skill-assisted') {
- *   // 把 result.contextInjection 注入 AI 上下文（省 ~50% token）
+ *   // 把 result.contextInjection 注入 AI 上下文
  *   const aiReply = await callAI(userInput, result.contextInjection)
  * } else {
  *   // 正常调 AI
@@ -86,35 +78,29 @@ export class SkillRouter {
       return {
         decision: 'ai-only',
         matches: [],
-        estimatedTokenSavings: 0,
         reason: '无 Skill 匹配，走 AI 正常调用',
       }
     }
 
     const topMatch = matches[0]
 
-    // 高置信度 → 直接返回 Skill 内容（0 token）
+    // 高置信度 → 直接返回 Skill 内容
     if (topMatch.score >= HIGH_CONFIDENCE_THRESHOLD) {
       const reply = this.formatSkillReply(topMatch)
-      const skillTokens = estimateTokens(topMatch.skill.content)
       return {
         decision: 'skill-only',
         matches,
         reply,
-        estimatedTokenSavings: skillTokens,
         reason: `高置信度匹配（${topMatch.score.toFixed(2)}），直接返回 Skill 内容`,
       }
     }
 
     // 中置信度 → Skill 作为 AI 上下文
     const contextInjection = this.formatContextInjection(topMatch)
-    const skillTokens = estimateTokens(topMatch.skill.content)
     return {
       decision: 'skill-assisted',
       matches,
       contextInjection,
-      // 中置信度场景 AI 仍需调用，但有参考后生成更短，估算省 50%
-      estimatedTokenSavings: Math.floor(skillTokens * 0.5),
       reason: `中置信度匹配（${topMatch.score.toFixed(2)}），Skill 作为 AI 上下文`,
     }
   }
