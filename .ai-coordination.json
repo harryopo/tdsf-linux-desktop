@@ -2,29 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-07T08:30:39.738Z",
-  "sessions": {
-    "ai-20261107-identity-restore": {
-      "aiName": "ai-20261107-identity-restore",
-      "sessionId": "ai-20261107-identity-restore",
-      "startedAt": "2026-11-07T08:30:39.611Z",
-      "lastActiveAt": "2026-11-07T08:30:39.738Z",
-      "task": "identity-list-restore",
-      "claimedFiles": [
-        {
-          "path": ".gitignore",
-          "task": "identity-list-restore",
-          "claimedAt": "2026-11-07T08:30:39.611Z"
-        },
-        {
-          "path": "docs/长期优化目标.md",
-          "task": "zod4-migration-debt",
-          "claimedAt": "2026-11-07T08:30:39.738Z"
-        }
-      ],
-      "expiresAt": "2026-11-07T10:30:39.738Z"
-    }
-  },
+  "lastUpdated": "2026-11-07T08:32:16.759Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -15390,6 +15369,20 @@
       "file": "docs/长期优化目标.md",
       "task": "zod4-migration-debt",
       "timestamp": "2026-11-07T08:30:39.738Z"
+    },
+    {
+      "sessionId": "ai-20261107-identity-restore",
+      "action": "release",
+      "file": ".gitignore",
+      "task": "identity-list-restore",
+      "timestamp": "2026-11-07T08:32:16.615Z"
+    },
+    {
+      "sessionId": "ai-20261107-identity-restore",
+      "action": "release",
+      "file": "docs/长期优化目标.md",
+      "task": "zod4-migration-debt",
+      "timestamp": "2026-11-07T08:32:16.759Z"
     }
   ],
   "coordinationAudit": {
