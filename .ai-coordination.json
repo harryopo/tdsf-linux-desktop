@@ -2,24 +2,8 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-07T06:19:17.302Z",
-  "sessions": {
-    "ai-20261107-ignore-rule": {
-      "aiName": "ai-20261107-ignore-rule",
-      "sessionId": "ai-20261107-ignore-rule",
-      "startedAt": "2026-11-07T06:19:17.302Z",
-      "lastActiveAt": "2026-11-07T06:19:17.302Z",
-      "task": "ignore-identity-terms-backup",
-      "claimedFiles": [
-        {
-          "path": ".gitignore",
-          "task": "ignore-identity-terms-backup",
-          "claimedAt": "2026-11-07T06:19:17.302Z"
-        }
-      ],
-      "expiresAt": "2026-11-07T08:19:17.302Z"
-    }
-  },
+  "lastUpdated": "2026-11-07T06:19:44.743Z",
+  "sessions": {},
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -15364,6 +15348,13 @@
       "file": ".gitignore",
       "task": "ignore-identity-terms-backup",
       "timestamp": "2026-11-07T06:19:17.302Z"
+    },
+    {
+      "sessionId": "ai-20261107-ignore-rule",
+      "action": "release",
+      "file": ".gitignore",
+      "task": "ignore-identity-terms-backup",
+      "timestamp": "2026-11-07T06:19:44.743Z"
     }
   ],
   "coordinationAudit": {
