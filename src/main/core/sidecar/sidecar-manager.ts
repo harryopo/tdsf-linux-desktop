@@ -253,6 +253,13 @@ export class SidecarManager extends EventEmitter {
   private restartExhausted = false
   /** 最近一次崩溃/启动失败的一句话原因 */
   private lastHealthDetail: string | null = null
+  /**
+   * 启动尝试的代次：每次 start() 与 stop() 都会递增。
+   * catch 与就绪写入落地前先验代次——过期代不得写终态，也不得去动当前代的进程。
+   */
+  private startEpoch = 0
+  /** 是否已有一次 start() 在途（crashed 状态下靠它挡住叠起来的第二次启动） */
+  private starting = false
 
   constructor(config: SidecarConfig = SIDECAR_A_CONFIG) {
     super()
@@ -365,10 +372,13 @@ export class SidecarManager extends EventEmitter {
    * 启动 Sidecar 进程
    */
   async start(): Promise<void> {
-    if (this.status === 'ready' || this.status === 'starting') {
+    if (this.status === 'ready' || this.status === 'starting' || this.starting) {
       logger.info(`[SidecarManager] Sidecar ${this.config.id} 已在运行中`)
       return
     }
+    // 本次启动尝试的身份：catch 落地时先验它，过期代直接丢弃终态
+    const epoch = ++this.startEpoch
+    this.starting = true
     // 显式 start() 就是"我要它跑起来"，解除上一次的主动停止标记
     this.stopping = false
 
@@ -465,6 +475,11 @@ export class SidecarManager extends EventEmitter {
 
       // 4. 等待健康检查通过
       await this.waitForReady(this.config.startupTimeoutMs)
+      // 这一代已被 stop() 或更新的 start() 取代：就绪是过期事实，不许写
+      if (epoch !== this.startEpoch) {
+        logger.info(`[SidecarManager] ${this.config.id} 第 ${epoch} 代启动已过期，丢弃就绪写入`)
+        return
+      }
       this.status = 'ready'
       this.restartCount = 0
       this.nextRetryInMs = null
@@ -480,29 +495,29 @@ export class SidecarManager extends EventEmitter {
       logger.info(`[SidecarManager] ${readyMsg}`)
       this.forwardLog(`[SidecarManager] ${readyMsg}`, false)
     } catch (err) {
-      // 已经被 stop() 接管：不要把状态改回 crashed，也不要去动进程
-      if (this.stopping) {
-        this.status = 'stopped'
-        this.emit('status', this.status)
-        this.emitHealth()
-        logger.info(`[SidecarManager] ${this.config.id} 启动过程中被停止，按停止处理`)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      // 过期代：这次尝试已被 stop() 或更新的 start() 取代。
+      // 既不写终态，也不能去 stop()——那会把当前代正在跑的进程杀掉。
+      if (epoch !== this.startEpoch) {
+        logger.info(`[SidecarManager] ${this.config.id} 第 ${epoch} 代启动失败已过期，丢弃终态：${errorMessage}`)
         return
       }
       // 启动超时/失败 ≠ 进程没了：waitForReady 到点时那个 Python 往往还在跑，
       // 端口也还被它占着。不收的话下一次 start() 新起的进程 health 探到旧孤儿就报"就绪"，
       // 而退出时 stop() 只认 this.process 那一条 —— 孤儿一直留在后台。
+      // 先把原因记下来，再 stop()：stop 的 emitHealth 要带出「启动失败：xxx」，
+      // 横幅才落在「没能启动」而不是一句没有下文的退出。
+      this.lastError = errorMessage
+      this.lastHealthDetail = `启动失败：${errorMessage}`
       this.stopping = false
       await this.stop()
-      this.status = 'crashed'
-      this.lastError = err instanceof Error ? err.message : String(err)
-      this.lastHealthDetail = `启动失败：${this.lastError}`
-      this.emit('status', this.status)
-      this.emitHealth()
-      const failMsg = `Sidecar ${this.config.id} 启动失败：${this.lastError}`
+      const failMsg = `Sidecar ${this.config.id} 启动失败：${errorMessage}`
       logger.error(`[SidecarManager] ${failMsg}`)
       // 转发启动失败日志（会触发 health_check_fail 规则）
       this.forwardLog(`[SidecarManager] ${failMsg}`, true)
       throw err
+    } finally {
+      if (epoch === this.startEpoch) this.starting = false
     }
   }
 
@@ -680,6 +695,12 @@ export class SidecarManager extends EventEmitter {
   async stop(): Promise<void> {
     // 先立标记：否则 exit 回调会把"用户关的应用"当成崩溃去重启
     this.stopping = true
+    // 让在途的启动尝试作废，并释放启动互斥：
+    // stop() 之后落地的那一代既不能写终态，也不能再起一个新的
+    this.startEpoch += 1
+    this.starting = false
+    // exhausted 只代表"本次尝试的预算耗尽"，不是跨尝试的历史标记
+    this.restartExhausted = false
     // 掐掉排队中的重启——真机跑出来过：stop 之后 start() 又被定时器拉起一次
     if (this.restartTimer !== null) {
       clearTimeout(this.restartTimer)

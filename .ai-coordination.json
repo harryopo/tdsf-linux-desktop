@@ -2,8 +2,29 @@
   "version": 1,
   "description": "多 AI 协作冲突预防中央登记文件。每个活跃 AI 会话必须在此登记 claim 的文件，Git 提交时连带追踪。",
   "howToUse": "运行 scripts/ai-coordination/claim.cjs -f <path> -t <desc> 声明所有权；release.cjs 释放；status.cjs 查看当前状态；check-conflict.cjs 启动预检。",
-  "lastUpdated": "2026-11-06T18:20:41.631Z",
-  "sessions": {},
+  "lastUpdated": "2026-11-07T05:14:41.018Z",
+  "sessions": {
+    "ai-20261107-sidecar-race": {
+      "aiName": "ai-20261107-sidecar-race",
+      "sessionId": "ai-20261107-sidecar-race",
+      "startedAt": "2026-11-07T05:11:19.281Z",
+      "lastActiveAt": "2026-11-07T05:14:41.018Z",
+      "task": "sidecar 启动尝试竞态：先立红测",
+      "claimedFiles": [
+        {
+          "path": "tests/unit/sidecar-start-attempt-race.test.ts",
+          "task": "sidecar 启动尝试竞态：先立红测",
+          "claimedAt": "2026-11-07T05:11:19.281Z"
+        },
+        {
+          "path": "src/main/core/sidecar/sidecar-manager.ts",
+          "task": "sidecar 启动尝试身份：stop 复位 exhausted + epoch + in-flight 互斥",
+          "claimedAt": "2026-11-07T05:14:41.018Z"
+        }
+      ],
+      "expiresAt": "2026-11-07T07:14:41.018Z"
+    }
+  },
   "history": [
     {
       "sessionId": "ai-20260720171157-6577",
@@ -15313,6 +15334,20 @@
       "file": "tests/services/skill-router.test.ts",
       "task": "删除 estimatedTokenSavings 虚账字段",
       "timestamp": "2026-11-06T18:20:41.631Z"
+    },
+    {
+      "sessionId": "ai-20261107-sidecar-race",
+      "action": "claim",
+      "file": "tests/unit/sidecar-start-attempt-race.test.ts",
+      "task": "sidecar 启动尝试竞态：先立红测",
+      "timestamp": "2026-11-07T05:11:19.281Z"
+    },
+    {
+      "sessionId": "ai-20261107-sidecar-race",
+      "action": "claim",
+      "file": "src/main/core/sidecar/sidecar-manager.ts",
+      "task": "sidecar 启动尝试身份：stop 复位 exhausted + epoch + in-flight 互斥",
+      "timestamp": "2026-11-07T05:14:41.018Z"
     }
   ],
   "coordinationAudit": {
