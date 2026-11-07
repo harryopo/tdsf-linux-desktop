@@ -119,7 +119,8 @@ tests/e2e/visual.spec.ts-snapshots/
 # 身份闸的具体值清单（真实姓名／具体校名）：写进仓库就等于又公开一次，所以只留本机。
 # 闸在清单缺失时照跑通用规则并打印说明，不会静默变宽（见 scripts/security/identity-gate.cjs）。
 scripts/security/identity-terms.local.json
-# 上一条清单的本机备份（加 .tdsf-hidden 后缀的那份），同样是身份值，同样只留本机
+# 上一条清单的备份后缀：现在没有同名文件（2026-11-07 那份已 Move 回正名），
+# 规则保留是防它以后再被拷出一份备份而漏网——后缀唯一的来源就是同一份身份值，只留本机
 scripts/security/identity-terms.local.json.tdsf-hidden
 docs/archive/
 docs/audit-screenshots/
