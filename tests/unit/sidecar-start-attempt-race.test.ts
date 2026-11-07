@@ -45,6 +45,22 @@ const EXIT_MODULE = 'tdsf_race_exit_sidecar'
 /** 写 PID 后长睡，用来制造"还活着的另一代进程" */
 const SLEEP_MODULE = 'tdsf_race_sleep_sidecar'
 
+/**
+ * 两个窗口都从"这台机器上 spawn→退出 的真实耗时"推导，不写死。
+ *
+ * 用例成立的前提：秒退进程必须在 waitForReady 判超时**之前**退出。一旦退出落在 catch 的
+ * stop() 之后，exit 回调会走 `if (this.stopping)` 早退分支，`exhausted` 永远不会被推出来
+ * ——这与等待预算多大无关（2026-11-07 实测：退出延迟 1.2s + 窗口 400ms 必红；窗口 3500ms
+ * 但退出仍是 174ms 时不红）。
+ *
+ * 所以：
+ *   startupTimeoutMs = max(1500, 实测退出耗时 × 10)   // 10 倍余量吃下解释器启动抖动
+ *   exhaustWaitMs    = startupTimeoutMs × 2 + 1000     // 1 次尝试 × 2 倍抖动余量 + 1000ms 固定余量
+ * 慢机器上实测值同比变大，两个窗口一起缩放，不再依赖"开发机比 CI 快"这个前提。
+ */
+let raceStartupTimeoutMs = 1500
+let raceExhaustWaitMs = 4000
+
 let workDir = ''
 
 beforeAll(() => {
@@ -62,6 +78,16 @@ beforeAll(() => {
     ].join('\n'),
     'utf8'
   )
+
+  if (PYTHON) {
+    // 与 SidecarManager.start() 同一条命令（`python -m <模块>`、cwd=workDir），
+    // 量出这台机器上"spawn → 进程退出"的真实耗时，上面两个窗口都由它推出来。
+    const t0 = Date.now()
+    spawnSync(PYTHON, ['-m', EXIT_MODULE], { cwd: workDir, stdio: 'ignore' })
+    const measuredExitMs = Date.now() - t0
+    raceStartupTimeoutMs = Math.max(1500, measuredExitMs * 10)
+    raceExhaustWaitMs = raceStartupTimeoutMs * 2 + 1000
+  }
 })
 
 afterAll(() => {
@@ -90,12 +116,20 @@ function collectStates(mgr: SidecarManager): SidecarHealthState[] {
   return states
 }
 
-async function waitFor<T>(read: () => T | null | false, timeoutMs: number, label: string): Promise<T> {
+async function waitFor<T>(
+  read: () => T | null | false,
+  timeoutMs: number,
+  label: string,
+  /** 只在超时那一刻拼进错误信息（成功路径不打印任何东西） */
+  diagnose?: () => string
+): Promise<T> {
   const until = Date.now() + timeoutMs
   for (;;) {
     const value = read()
     if (value !== null && value !== false) return value
-    if (Date.now() > until) throw new Error(`等超时（${timeoutMs}ms）：${label}`)
+    if (Date.now() > until) {
+      throw new Error(`等超时（${timeoutMs}ms）：${label}${diagnose ? `；现场=${diagnose()}` : ''}`)
+    }
     await sleep(20)
   }
 }
@@ -130,7 +164,7 @@ function internalsOf(mgr: SidecarManager): Internals {
 describe('sidecar 启动尝试的身份（红测）', () => {
   it('stop() 之后 restartExhausted 必须复位：exhausted 不能跨尝试粘连', async () => {
     if (!PYTHON) return
-    const mgr = new SidecarManager(baseConfig({ startupTimeoutMs: 400 }))
+    const mgr = new SidecarManager(baseConfig({ startupTimeoutMs: raceStartupTimeoutMs }))
     const states = collectStates(mgr)
     const inside = internalsOf(mgr)
     // 前置：窗口内已经崩了 3 次，下一次崩溃就会耗尽预算
@@ -140,7 +174,9 @@ describe('sidecar 启动尝试的身份（红测）', () => {
 
     void mgr.start().catch(() => undefined)
     // 进程秒退 → exit 回调走"预算耗尽"分支，把 exhausted 置位
-    await waitFor(() => states.some((s) => s.exhausted), 4000, '等预算耗尽')
+    await waitFor(() => states.some((s) => s.exhausted), raceExhaustWaitMs, '等预算耗尽', () =>
+      JSON.stringify(states.map((s) => ({ phase: s.phase, exhausted: s.exhausted })))
+    )
     await mgr.stop()
     // 让在途 start 的 catch 落地，拿到最后一条 health
     await sleep(700)
